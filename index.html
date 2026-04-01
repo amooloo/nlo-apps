@@ -4,80 +4,75 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>NLO Apps — Next Level Orthodontics</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #f0f4f8;
+      font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #F2F3F4;
       min-height: 100vh;
-      color: #1a202c;
+      color: #1B2F4C;
     }
 
     header {
-      background: linear-gradient(135deg, #2b6cb0, #2c5282);
+      background: #1B2F4C;
       color: white;
-      padding: 32px 32px 28px;
+      padding: 36px 32px 32px;
       text-align: center;
-      box-shadow: 0 2px 12px rgba(0,0,0,0.15);
     }
 
     .logo-row {
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 14px;
-      margin-bottom: 8px;
+      gap: 0;
+      margin-bottom: 10px;
     }
 
-    .logo-icon {
-      width: 44px;
-      height: 44px;
-      background: rgba(255,255,255,0.15);
-      border-radius: 10px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+    .logo-row img {
+      height: 56px;
+      width: auto;
     }
 
     header h1 {
-      font-size: 1.6rem;
-      font-weight: 800;
-      letter-spacing: -0.3px;
-    }
-
-    header p {
-      font-size: 0.88rem;
-      opacity: 0.7;
-      margin-top: 6px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      letter-spacing: 3.5px;
+      text-transform: uppercase;
+      opacity: 0.6;
+      margin-top: 2px;
     }
 
     .main {
-      max-width: 900px;
-      margin: 36px auto;
+      max-width: 940px;
+      margin: 40px auto;
       padding: 0 20px;
     }
 
     .section-title {
-      font-size: 0.75rem;
+      font-size: 0.7rem;
       font-weight: 700;
       text-transform: uppercase;
-      letter-spacing: 0.8px;
-      color: #a0aec0;
-      margin-bottom: 16px;
+      letter-spacing: 1.5px;
+      color: #1B2F4C;
+      opacity: 0.4;
+      margin-bottom: 18px;
     }
 
     .apps-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-      gap: 18px;
+      grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+      gap: 20px;
     }
 
     .app-card {
       background: white;
       border-radius: 14px;
-      padding: 24px;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04);
+      padding: 28px;
+      box-shadow: 0 1px 3px rgba(27,47,76,0.06), 0 4px 16px rgba(27,47,76,0.04);
       transition: all 0.2s ease;
       text-decoration: none;
       color: inherit;
@@ -90,14 +85,13 @@
 
     .app-card:hover {
       transform: translateY(-3px);
-      box-shadow: 0 4px 12px rgba(0,0,0,0.1), 0 8px 28px rgba(0,0,0,0.08);
-      border-color: #4299e1;
+      box-shadow: 0 4px 12px rgba(27,47,76,0.1), 0 8px 28px rgba(27,47,76,0.08);
     }
 
     .app-icon {
-      width: 56px;
-      height: 56px;
-      border-radius: 14px;
+      width: 52px;
+      height: 52px;
+      border-radius: 12px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -105,65 +99,79 @@
     }
 
     .app-card h3 {
-      font-size: 1.05rem;
+      font-size: 1rem;
       font-weight: 700;
-      color: #1a202c;
+      color: #1B2F4C;
+      letter-spacing: -0.2px;
     }
 
     .app-card p {
-      font-size: 0.84rem;
-      color: #718096;
-      line-height: 1.5;
+      font-size: 0.82rem;
+      color: #1B2F4C;
+      opacity: 0.55;
+      line-height: 1.55;
+      font-weight: 500;
     }
 
     .app-tag {
       display: inline-block;
-      font-size: 0.68rem;
+      font-size: 0.62rem;
       font-weight: 700;
       text-transform: uppercase;
-      letter-spacing: 0.5px;
-      padding: 3px 10px;
+      letter-spacing: 0.8px;
+      padding: 4px 12px;
       border-radius: 20px;
       margin-top: auto;
       width: fit-content;
     }
 
-    /* Color themes for different apps */
-    .theme-blue .app-icon { background: #ebf8ff; }
-    .theme-blue .app-icon svg { stroke: #3182ce; }
-    .theme-blue .app-tag { background: #bee3f8; color: #2b6cb0; }
+    /* NLO Brand Color Themes */
 
-    .theme-green .app-icon { background: #f0fff4; }
-    .theme-green .app-icon svg { stroke: #38a169; }
-    .theme-green .app-tag { background: #c6f6d5; color: #276749; }
+    /* Blue — brand blue #1D3EA9 */
+    .theme-blue .app-icon { background: rgba(29,62,169,0.08); }
+    .theme-blue .app-icon svg { stroke: #1D3EA9; }
+    .theme-blue .app-tag { background: rgba(29,62,169,0.1); color: #1D3EA9; }
+    .theme-blue:hover { border-color: #1D3EA9; }
 
-    .theme-purple .app-icon { background: #faf5ff; }
-    .theme-purple .app-icon svg { stroke: #805ad5; }
-    .theme-purple .app-tag { background: #e9d8fd; color: #553c9a; }
+    /* Coral — brand coral #FA624D */
+    .theme-coral .app-icon { background: rgba(250,98,77,0.08); }
+    .theme-coral .app-icon svg { stroke: #FA624D; }
+    .theme-coral .app-tag { background: rgba(250,98,77,0.1); color: #FA624D; }
+    .theme-coral:hover { border-color: #FA624D; }
 
-    .theme-orange .app-icon { background: #fffaf0; }
-    .theme-orange .app-icon svg { stroke: #dd6b20; }
-    .theme-orange .app-tag { background: #feebc8; color: #c05621; }
+    /* Mint — brand mint #64F4C9 mapped to darker teal for readability */
+    .theme-mint .app-icon { background: rgba(100,244,201,0.12); }
+    .theme-mint .app-icon svg { stroke: #1a9e78; }
+    .theme-mint .app-tag { background: rgba(100,244,201,0.15); color: #1a9e78; }
+    .theme-mint:hover { border-color: #64F4C9; }
 
-    .theme-teal .app-icon { background: #e6fffa; }
-    .theme-teal .app-icon svg { stroke: #319795; }
-    .theme-teal .app-tag { background: #b2f5ea; color: #285e61; }
+    /* Gold — brand gold #F6AF24 */
+    .theme-gold .app-icon { background: rgba(246,175,36,0.1); }
+    .theme-gold .app-icon svg { stroke: #d9930a; }
+    .theme-gold .app-tag { background: rgba(246,175,36,0.12); color: #d9930a; }
+    .theme-gold:hover { border-color: #F6AF24; }
 
-    .theme-pink .app-icon { background: #fff5f7; }
-    .theme-pink .app-icon svg { stroke: #d53f8c; }
-    .theme-pink .app-tag { background: #fed7e2; color: #97266d; }
+    /* Navy — brand navy #1B2F4C */
+    .theme-navy .app-icon { background: rgba(27,47,76,0.07); }
+    .theme-navy .app-icon svg { stroke: #1B2F4C; }
+    .theme-navy .app-tag { background: rgba(27,47,76,0.08); color: #1B2F4C; }
+    .theme-navy:hover { border-color: #1B2F4C; }
 
     footer {
       text-align: center;
-      padding: 32px 20px;
-      font-size: 0.78rem;
-      color: #a0aec0;
+      padding: 36px 20px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      color: #1B2F4C;
+      opacity: 0.3;
     }
 
     @media (max-width: 600px) {
       .apps-grid { grid-template-columns: 1fr; }
-      header { padding: 24px 20px 20px; }
-      header h1 { font-size: 1.3rem; }
+      header { padding: 28px 20px 24px; }
+      .logo-row img { height: 44px; }
+      header h1 { font-size: 0.75rem; }
     }
   </style>
 </head>
@@ -171,16 +179,9 @@
 
 <header>
   <div class="logo-row">
-    <div class="logo-icon">
-      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-        <path d="M2 17l10 5 10-5"/>
-        <path d="M2 12l10 5 10-5"/>
-      </svg>
-    </div>
-    <h1>NLO Apps</h1>
+    <img src="data:image/png;base64,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" alt="Next Level Orthodontics" />
   </div>
-  <p>Internal tools for Next Level Orthodontics</p>
+  <h1>Internal Tools</h1>
 </header>
 
 <div class="main">
@@ -191,7 +192,7 @@
     <!-- Aligner Label Maker -->
     <a href="aligner-label-maker.html" class="app-card theme-blue">
       <div class="app-icon">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <rect x="2" y="3" width="20" height="14" rx="2"/>
           <path d="M8 21h8"/>
           <path d="M12 17v4"/>
@@ -203,9 +204,9 @@
     </a>
 
     <!-- NLO Inventory -->
-    <a href="https://nlo-inventory.netlify.app" class="app-card theme-green" target="_blank">
+    <a href="https://nlo-inventory.netlify.app" class="app-card theme-coral" target="_blank">
       <div class="app-icon">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
         </svg>
       </div>
@@ -214,10 +215,10 @@
       <span class="app-tag">Inventory &amp; Supplies</span>
     </a>
 
-    <!-- SOP Manual -->
-    <a href="https://amooloo.github.io/nlo-sop-manual/" class="app-card theme-purple" target="_blank">
+    <!-- Clinical SOP Manual -->
+    <a href="https://amooloo.github.io/nlo-sop-manual/" class="app-card theme-mint" target="_blank">
       <div class="app-icon">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M4 19.5A2.5 2.5 0 016.5 17H20"/>
           <path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/>
           <line x1="8" y1="7" x2="16" y2="7"/>
@@ -230,14 +231,8 @@
     </a>
 
     <!--
-    ═══════════════════════════════════════
-    ADD MORE APPS HERE — copy a card block
-    and change the theme, icon, link, etc.
-
-    Available themes:
-      theme-blue, theme-green, theme-purple,
-      theme-orange, theme-teal, theme-pink
-    ═══════════════════════════════════════
+    ADD MORE APPS HERE
+    Available themes: theme-blue, theme-coral, theme-mint, theme-gold, theme-navy
     -->
 
   </div>
