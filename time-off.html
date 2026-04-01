@@ -289,6 +289,24 @@
       background: rgba(250,98,77,0.1);
       color: #FA624D;
     }
+    .your-requests-table .status-badge.cancelled {
+      background: rgba(27,47,76,0.08);
+      color: #1B2F4C;
+      opacity: 0.6;
+    }
+    .cancel-btn {
+      padding: 4px 10px;
+      background: transparent;
+      color: #FA624D;
+      border: 1.5px solid #FA624D;
+      border-radius: 6px;
+      font-family: inherit;
+      font-size: 0.65rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .cancel-btn:hover { background: #FA624D; color: white; }
 
     /* ---------- CALENDAR ---------- */
     .cal-header {
@@ -542,6 +560,8 @@
     .request-status.pending { background: rgba(246,175,36,0.12); color: #d9930a; }
     .request-status.approved { background: rgba(100,244,201,0.15); color: #1a9e78; }
     .request-status.denied { background: rgba(250,98,77,0.1); color: #FA624D; }
+    .request-status.cancelled { background: rgba(27,47,76,0.08); color: #1B2F4C; opacity: 0.6; }
+    .request-card.cancelled { border-left-color: #999; opacity: 0.6; }
 
     .approval-actions {
       display: flex;
@@ -795,6 +815,9 @@
         </div>
         <div class="requests-list" id="denied-list">
           <h3>Denied</h3>
+        </div>
+        <div class="requests-list" id="cancelled-list">
+          <h3>Cancelled</h3>
         </div>
       </div>
     </div>
@@ -1211,13 +1234,16 @@ function renderYourRequests() {
     return;
   }
 
-  let html = '<table class="your-requests-table"><thead><tr><th>Date Range</th><th>Type</th><th>Paid/Unpaid</th><th>Status</th></tr></thead><tbody>';
+  let html = '<table class="your-requests-table"><thead><tr><th>Date Range</th><th>Type</th><th>Paid/Unpaid</th><th>Status</th><th></th></tr></thead><tbody>';
 
   userRequests.forEach(r => {
     const status = (r.status || 'pending').toLowerCase();
     const fmtStart = new Date(r.startDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     const fmtEnd = new Date(r.endDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     const paidType = r.paidType || 'N/A';
+    const cancelBtn = status === 'pending'
+      ? `<button class="cancel-btn" onclick="cancelRequest('${r.id}')">Cancel</button>`
+      : '';
 
     html += `
       <tr>
@@ -1225,12 +1251,44 @@ function renderYourRequests() {
         <td>${r.requestType}</td>
         <td>${paidType}</td>
         <td><span class="status-badge ${status}">${r.status}</span></td>
+        <td>${cancelBtn}</td>
       </tr>
     `;
   });
 
   html += '</tbody></table>';
   container.innerHTML = html;
+}
+
+// ============================================================
+// CANCEL REQUEST
+// ============================================================
+async function cancelRequest(id) {
+  if (!confirm('Are you sure you want to cancel this time-off request?')) return;
+
+  try {
+    const resp = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({
+        action: 'cancel',
+        id: id,
+        passcode: currentPasscode
+      })
+    });
+    const data = await resp.json();
+    if (data.success) {
+      showToast('Request cancelled.');
+      await loadRequests();
+      renderYourRequests();
+      renderCalendar();
+      if (currentUser.role === 'admin') renderManageList();
+    } else {
+      showToast(data.message || data.error || 'Could not cancel request.');
+    }
+  } catch (err) {
+    showToast('Connection error.');
+  }
 }
 
 // ============================================================
@@ -1317,15 +1375,17 @@ function renderManageList() {
   const pendingContainer = document.getElementById('pending-list');
   const approvedContainer = document.getElementById('approved-list');
   const deniedContainer = document.getElementById('denied-list');
+  const cancelledContainer = document.getElementById('cancelled-list');
 
   // Clear previous cards (keep h3)
-  [pendingContainer, approvedContainer, deniedContainer].forEach(c => {
+  [pendingContainer, approvedContainer, deniedContainer, cancelledContainer].forEach(c => {
     Array.from(c.children).forEach(ch => { if (ch.tagName !== 'H3') ch.remove(); });
   });
 
   const pending = allRequests.filter(r => (r.status || '').toLowerCase() === 'pending');
   const approved = allRequests.filter(r => (r.status || '').toLowerCase() === 'approved');
   const denied = allRequests.filter(r => (r.status || '').toLowerCase() === 'denied');
+  const cancelled = allRequests.filter(r => (r.status || '').toLowerCase() === 'cancelled');
 
   if (pending.length === 0) pendingContainer.insertAdjacentHTML('beforeend', '<p style="font-size:0.8rem;opacity:0.4;">No pending requests.</p>');
   pending.forEach(r => pendingContainer.insertAdjacentHTML('beforeend', requestCardHTML(r, true)));
@@ -1335,6 +1395,9 @@ function renderManageList() {
 
   if (denied.length === 0) deniedContainer.insertAdjacentHTML('beforeend', '<p style="font-size:0.8rem;opacity:0.4;">No denied requests.</p>');
   denied.forEach(r => deniedContainer.insertAdjacentHTML('beforeend', requestCardHTML(r, false)));
+
+  if (cancelled.length === 0) cancelledContainer.insertAdjacentHTML('beforeend', '<p style="font-size:0.8rem;opacity:0.4;">No cancelled requests.</p>');
+  cancelled.forEach(r => cancelledContainer.insertAdjacentHTML('beforeend', requestCardHTML(r, false)));
 
   document.getElementById('manage-loading').classList.add('hidden');
   document.getElementById('manage-content').classList.remove('hidden');
