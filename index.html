@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NLO Apps — Next Level Orthodontics</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f0f4f8;
+      min-height: 100vh;
+      color: #1a202c;
+    }
+
+    header {
+      background: linear-gradient(135deg, #2b6cb0, #2c5282);
+      color: white;
+      padding: 32px 32px 28px;
+      text-align: center;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+    }
+
+    .logo-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      margin-bottom: 8px;
+    }
+
+    .logo-icon {
+      width: 44px;
+      height: 44px;
+      background: rgba(255,255,255,0.15);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    header h1 {
+      font-size: 1.6rem;
+      font-weight: 800;
+      letter-spacing: -0.3px;
+    }
+
+    header p {
+      font-size: 0.88rem;
+      opacity: 0.7;
+      margin-top: 6px;
+    }
+
+    .main {
+      max-width: 900px;
+      margin: 36px auto;
+      padding: 0 20px;
+    }
+
+    .section-title {
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: #a0aec0;
+      margin-bottom: 16px;
+    }
+
+    .apps-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 18px;
+    }
+
+    .app-card {
+      background: white;
+      border-radius: 14px;
+      padding: 24px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04);
+      transition: all 0.2s ease;
+      text-decoration: none;
+      color: inherit;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      border: 2px solid transparent;
+      cursor: pointer;
+    }
+
+    .app-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1), 0 8px 28px rgba(0,0,0,0.08);
+      border-color: #4299e1;
+    }
+
+    .app-icon {
+      width: 56px;
+      height: 56px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .app-card h3 {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #1a202c;
+    }
+
+    .app-card p {
+      font-size: 0.84rem;
+      color: #718096;
+      line-height: 1.5;
+    }
+
+    .app-tag {
+      display: inline-block;
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 3px 10px;
+      border-radius: 20px;
+      margin-top: auto;
+      width: fit-content;
+    }
+
+    /* Color themes for different apps */
+    .theme-blue .app-icon { background: #ebf8ff; }
+    .theme-blue .app-icon svg { stroke: #3182ce; }
+    .theme-blue .app-tag { background: #bee3f8; color: #2b6cb0; }
+
+    .theme-green .app-icon { background: #f0fff4; }
+    .theme-green .app-icon svg { stroke: #38a169; }
+    .theme-green .app-tag { background: #c6f6d5; color: #276749; }
+
+    .theme-purple .app-icon { background: #faf5ff; }
+    .theme-purple .app-icon svg { stroke: #805ad5; }
+    .theme-purple .app-tag { background: #e9d8fd; color: #553c9a; }
+
+    .theme-orange .app-icon { background: #fffaf0; }
+    .theme-orange .app-icon svg { stroke: #dd6b20; }
+    .theme-orange .app-tag { background: #feebc8; color: #c05621; }
+
+    .theme-teal .app-icon { background: #e6fffa; }
+    .theme-teal .app-icon svg { stroke: #319795; }
+    .theme-teal .app-tag { background: #b2f5ea; color: #285e61; }
+
+    .theme-pink .app-icon { background: #fff5f7; }
+    .theme-pink .app-icon svg { stroke: #d53f8c; }
+    .theme-pink .app-tag { background: #fed7e2; color: #97266d; }
+
+    footer {
+      text-align: center;
+      padding: 32px 20px;
+      font-size: 0.78rem;
+      color: #a0aec0;
+    }
+
+    @media (max-width: 600px) {
+      .apps-grid { grid-template-columns: 1fr; }
+      header { padding: 24px 20px 20px; }
+      header h1 { font-size: 1.3rem; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo-row">
+    <div class="logo-icon">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+        <path d="M2 17l10 5 10-5"/>
+        <path d="M2 12l10 5 10-5"/>
+      </svg>
+    </div>
+    <h1>NLO Apps</h1>
+  </div>
+  <p>Internal tools for Next Level Orthodontics</p>
+</header>
+
+<div class="main">
+  <div class="section-title">Applications</div>
+
+  <div class="apps-grid">
+
+    <!-- Aligner Label Maker -->
+    <a href="aligner-label-maker.html" class="app-card theme-blue">
+      <div class="app-icon">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="3" width="20" height="14" rx="2"/>
+          <path d="M8 21h8"/>
+          <path d="M12 17v4"/>
+        </svg>
+      </div>
+      <h3>Aligner Label Maker</h3>
+      <p>Generate and print 2x4" thermoforming labels for upper and lower aligner stages. Direct print to GK420d.</p>
+      <span class="app-tag">Labels &amp; Printing</span>
+    </a>
+
+    <!-- NLO Inventory -->
+    <a href="https://nlo-inventory.netlify.app" class="app-card theme-green" target="_blank">
+      <div class="app-icon">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+        </svg>
+      </div>
+      <h3>NLO Inventory</h3>
+      <p>Track supplies, monitor stock levels with low-stock alerts, and manage vendor info across 18+ product categories.</p>
+      <span class="app-tag">Inventory &amp; Supplies</span>
+    </a>
+
+    <!--
+    ═══════════════════════════════════════
+    ADD MORE APPS HERE — copy a card block
+    and change the theme, icon, link, etc.
+
+    Available themes:
+      theme-blue, theme-green, theme-purple,
+      theme-orange, theme-teal, theme-pink
+    ═══════════════════════════════════════
+    -->
+
+  </div>
+</div>
+
+<footer>
+  Next Level Orthodontics &middot; Internal Tools
+</footer>
+
+</body>
+</html>

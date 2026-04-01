@@ -1,0 +1,1503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/png" href="data:image/png;base64,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" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Aligner Label Maker</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f0f4f8;
+      min-height: 100vh;
+      color: #1a202c;
+    }
+
+    header {
+      background: linear-gradient(135deg, #2b6cb0, #2c5282);
+      color: white;
+      padding: 18px 32px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }
+    header h1 { font-size: 1.4rem; font-weight: 700; }
+    header p { font-size: 0.82rem; opacity: 0.75; margin-top: 2px; }
+
+    .main {
+      max-width: 1160px;
+      margin: 28px auto;
+      padding: 0 20px;
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      gap: 22px;
+      align-items: start;
+    }
+
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 22px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.07), 0 2px 12px rgba(0,0,0,0.05);
+    }
+
+    .card h2 {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #2d3748;
+      margin-bottom: 18px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid #edf2f7;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .form-group { margin-bottom: 14px; }
+
+    label.field-label {
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #4a5568;
+      margin-bottom: 5px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    input[type="text"],
+    input[type="number"],
+    input[type="date"] {
+      width: 100%;
+      padding: 8px 11px;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 7px;
+      font-size: 0.92rem;
+      color: #2d3748;
+      background: #fff;
+      transition: border-color 0.15s;
+      outline: none;
+    }
+    input:focus { border-color: #4299e1; box-shadow: 0 0 0 3px rgba(66,153,225,0.12); }
+
+    .inline-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .divider { height: 1px; background: #edf2f7; margin: 16px 0; }
+    .section-label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: #a0aec0;
+      margin-bottom: 10px;
+    }
+
+    /* Toggle */
+    .toggle-row {
+      display: flex; align-items: center; justify-content: space-between;
+      background: #f7fafc; border: 1.5px solid #e2e8f0;
+      border-radius: 8px; padding: 9px 13px;
+    }
+    .toggle-label { font-size: 0.9rem; color: #2d3748; font-weight: 500; }
+    .toggle-sub { font-size: 0.74rem; color: #718096; margin-top: 1px; }
+    .switch { position: relative; display: inline-block; width: 42px; height: 22px; flex-shrink: 0; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider { position: absolute; cursor: pointer; inset: 0; background: #cbd5e0; border-radius: 22px; transition: 0.2s; }
+    .slider:before { content: ""; position: absolute; height: 16px; width: 16px; left: 3px; bottom: 3px; background: white; border-radius: 50%; transition: 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+    input:checked + .slider { background: #3182ce; }
+    input:checked + .slider:before { transform: translateX(20px); }
+
+    /* Days group */
+    .days-group { display: flex; gap: 8px; }
+    .day-btn {
+      flex: 1; text-align: center; padding: 8px 4px;
+      border: 2px solid #e2e8f0; border-radius: 7px; cursor: pointer;
+      font-size: 0.88rem; font-weight: 600; color: #4a5568; background: white;
+      transition: all 0.15s; user-select: none;
+    }
+    .day-btn:hover { border-color: #4299e1; color: #3182ce; background: #ebf8ff; }
+    .day-btn.selected { border-color: #3182ce; background: #3182ce; color: white; }
+    .day-btn .day-sub { font-size: 0.65rem; font-weight: 400; opacity: 0.75; margin-top: 1px; }
+
+    /* Arch toggle buttons */
+    .arch-toggle-btn {
+      flex: 1; text-align: center; padding: 9px 12px;
+      border: 2px solid #e2e8f0; border-radius: 8px; cursor: pointer;
+      font-size: 0.88rem; font-weight: 700; color: #4a5568; background: white;
+      transition: all 0.15s; user-select: none;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+    }
+    .arch-toggle-btn:hover { border-color: #4299e1; }
+    .arch-toggle-btn.selected { border-color: #3182ce; background: #3182ce; color: white; }
+    .arch-toggle-btn:not(.selected) { opacity: 0.7; }
+
+    /* Arch boxes */
+    .arch-box.arch-disabled { opacity: 0.35; pointer-events: none; }
+    .arch-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .arch-box { border: 2px solid #e2e8f0; border-radius: 8px; padding: 10px 12px; background: #f7fafc; }
+    .arch-box.upper { border-color: #90cdf4; background: #ebf8ff; }
+    .arch-box.lower { border-color: #9ae6b4; background: #f0fff4; }
+    .arch-box .arch-title { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+    .arch-box.upper .arch-title { color: #2b6cb0; }
+    .arch-box.lower .arch-title { color: #276749; }
+    .arch-box input { background: white; }
+
+    .at-note { font-size: 0.78rem; background: #fffaf0; border: 1px solid #f6ad55; border-radius: 6px; padding: 7px 10px; color: #744210; margin-top: 8px; }
+    .hint { font-size: 0.76rem; color: #718096; margin-top: 5px; line-height: 1.5; }
+
+    /* Logo upload */
+    .logo-drop-zone {
+      border: 2px dashed #cbd5e0;
+      border-radius: 9px;
+      padding: 14px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.15s;
+      background: #f7fafc;
+      position: relative;
+    }
+    .logo-drop-zone:hover, .logo-drop-zone.drag-over {
+      border-color: #4299e1;
+      background: #ebf8ff;
+    }
+    .logo-drop-zone input[type="file"] {
+      position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+    }
+    .logo-drop-zone .drop-text { font-size: 0.82rem; color: #718096; pointer-events: none; }
+    .logo-drop-zone .drop-text strong { color: #3182ce; }
+    .logo-preview-wrap {
+      display: flex; align-items: center; gap: 12px;
+      background: #f7fafc; border: 1.5px solid #e2e8f0;
+      border-radius: 9px; padding: 8px 12px;
+    }
+    .logo-preview-wrap img { max-height: 40px; max-width: 100px; object-fit: contain; border-radius: 4px; }
+    .logo-preview-wrap .logo-info { flex: 1; font-size: 0.78rem; color: #4a5568; }
+    .logo-preview-wrap .logo-info .logo-name { font-weight: 600; color: #2d3748; }
+    .btn-remove-logo {
+      background: none; border: none; cursor: pointer; color: #fc8181; font-size: 1.1rem; padding: 2px 4px; line-height: 1;
+    }
+    .btn-remove-logo:hover { color: #e53e3e; }
+
+    /* Wear always-on tag */
+    .wear-always-tag {
+      display: inline-flex; align-items: center; gap: 5px;
+      background: #edf2f7; border: 1px solid #cbd5e0;
+      border-radius: 6px; padding: 7px 11px;
+      font-size: 0.8rem; font-weight: 500; color: #4a5568;
+      font-style: italic;
+    }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex; align-items: center; gap: 7px;
+      padding: 9px 16px; border-radius: 8px;
+      font-size: 0.88rem; font-weight: 600; cursor: pointer;
+      border: none; transition: all 0.15s;
+    }
+    .btn-primary { background: #3182ce; color: white; width: 100%; justify-content: center; padding: 11px; font-size: 0.93rem; }
+    .btn-primary:hover { background: #2b6cb0; }
+    .btn-outline { background: white; color: #3182ce; border: 2px solid #3182ce; }
+    .btn-outline:hover { background: #ebf8ff; }
+    .btn-green { background: #38a169; color: white; }
+    .btn-green:hover { background: #2f855a; }
+    .btn-print { background: #805ad5; color: white; }
+    .btn-print:hover { background: #6b46c1; }
+
+    /* Preview */
+    .empty-state { text-align: center; padding: 48px 20px; color: #a0aec0; }
+    .empty-state svg { opacity: 0.3; margin-bottom: 12px; display: block; margin-left: auto; margin-right: auto; }
+    .empty-state p { font-size: 0.92rem; }
+    .mismatch-note { font-size: 0.78rem; background: #ebf8ff; border: 1px solid #90cdf4; border-radius: 6px; padding: 7px 10px; color: #2b6cb0; margin-bottom: 14px; }
+
+    .labels-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+      gap: 14px;
+    }
+
+    /* ── Selection toolbar ── */
+    .select-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+      padding: 8px 12px;
+      background: #edf2f7;
+      border-radius: 8px;
+      font-size: 0.82rem;
+    }
+    .select-toolbar label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 600;
+      color: #2d3748;
+      cursor: pointer;
+    }
+    .select-toolbar .sel-count {
+      color: #718096;
+      font-weight: 400;
+    }
+    .select-toolbar input[type="checkbox"] {
+      width: 16px; height: 16px; cursor: pointer; accent-color: #805ad5;
+    }
+
+    /* ── Label wrapper (card + checkbox) ── */
+    .label-wrap {
+      position: relative;
+    }
+    .label-wrap .lbl-check {
+      position: absolute;
+      top: 6px;
+      left: 6px;
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+      accent-color: #805ad5;
+      z-index: 2;
+    }
+    .label-wrap.deselected .label-card {
+      opacity: 0.4;
+    }
+
+    /* ── THE LABEL CARD (4x2 aspect ratio) ── */
+    .label-card {
+      width: 100%;
+      aspect-ratio: 4 / 2;
+      border-radius: 5px;
+      border: 1.5px solid #cbd5e0;
+      background: white;
+      padding: 9px 12px 8px;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      position: relative;
+      font-family: Arial, Helvetica, sans-serif;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+      transition: box-shadow 0.15s, opacity 0.15s;
+      overflow: hidden;
+    }
+    .label-card:hover { box-shadow: 0 4px 14px rgba(0,0,0,0.12); }
+    .label-card.at-card { border-color: #f6ad55; background: #fffaf0; }
+
+    /* Row 1: top - patient name + logo */
+    .lbl-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 6px;
+      min-height: 0;
+    }
+    .lbl-patient {
+      font-size: 0.98rem;
+      font-weight: 800;
+      color: #1a202c;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .lbl-logo {
+      flex-shrink: 0;
+      max-height: 50px;
+      max-width: 132px;
+      object-fit: contain;
+    }
+    .lbl-logo-placeholder {
+      flex-shrink: 0;
+      font-size: 0.58rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      padding: 2px 7px;
+      border-radius: 20px;
+      white-space: nowrap;
+    }
+    .badge-stage { background: #bee3f8; color: #2b6cb0; }
+    .badge-at    { background: #fbd38d; color: #7b341e; }
+
+    /* Row 2: middle - arch info or AT */
+    .lbl-arches {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 3px 0;
+    }
+    .lbl-arch { flex: 1; display: flex; flex-direction: column; gap: 1px; }
+    .lbl-arch-title { font-size: 0.56rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; }
+    .arch-upper .lbl-arch-title { color: #2b6cb0; }
+    .arch-lower .lbl-arch-title { color: #276749; }
+    .lbl-arch-stage { font-size: 0.86rem; font-weight: 700; color: #1a202c; }
+    .lbl-arch-stage span { font-size: 0.68rem; font-weight: 400; color: #718096; }
+    .lbl-arch-done { font-size: 0.76rem; font-weight: 600; color: #a0aec0; font-style: italic; }
+    .lbl-arch-night { font-size: 0.6rem; font-weight: 500; color: #a0aec0; font-style: italic; }
+    .lbl-arch-divider { width: 1px; background: #e2e8f0; align-self: stretch; flex-shrink: 0; }
+
+    .lbl-at-center {
+      flex: 1;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.96rem; font-weight: 700; color: #c05621; letter-spacing: 0.3px;
+    }
+
+    /* Row 3: bottom - wear warning + switch date */
+    .lbl-bottom {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-top: 1px solid #edf2f7;
+      padding-top: 5px;
+      gap: 4px;
+    }
+    .lbl-wear-warn {
+      font-size: 0.64rem;
+      font-weight: 600;
+      color: #4a5568;
+      font-style: italic;
+      letter-spacing: 0.1px;
+      white-space: nowrap;
+    }
+    .lbl-switch { font-size: 0.68rem; font-weight: 600; color: #4a5568; text-align: right; white-space: nowrap; }
+    .lbl-num { font-size: 0.56rem; color: #cbd5e0; }
+
+    /* Export */
+    .action-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+    .badge-count {
+      display: inline-flex; align-items: center; justify-content: center;
+      background: #3182ce; color: white; font-size: 0.68rem; font-weight: 700;
+      border-radius: 20px; padding: 1px 8px; margin-left: 8px;
+    }
+    .csv-preview {
+      background: #1a202c; color: #9ae6b4;
+      font-family: 'SF Mono','Fira Code', monospace; font-size: 0.75rem;
+      padding: 14px; border-radius: 8px; overflow-x: auto;
+      max-height: 180px; overflow-y: auto; white-space: pre;
+    }
+
+    /* ── Box label ── */
+    .label-card.box-card {
+      border: 2px solid #2b6cb0;
+      background: linear-gradient(160deg, #ebf8ff 0%, #fff 60%);
+    }
+    .lbl-box-header {
+      display: flex; justify-content: space-between; align-items: flex-start; gap: 6px;
+    }
+    .lbl-box-patient {
+      font-size: 1.0rem; font-weight: 800; color: #1a202c;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .badge-box { background: #2b6cb0; color: white; }
+    .lbl-box-body {
+      display: flex; flex-direction: column; justify-content: center;
+      gap: 3px; flex: 1; padding: 2px 0;
+    }
+    .lbl-box-row {
+      display: flex; align-items: baseline; gap: 5px;
+    }
+    .lbl-box-arch-label {
+      font-size: 0.58rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.4px; width: 38px; flex-shrink: 0;
+    }
+    .lbl-box-arch-label.upper { color: #2b6cb0; }
+    .lbl-box-arch-label.lower { color: #276749; }
+    .lbl-box-arch-label.total { color: #553c9a; }
+    .lbl-box-arch-label.at    { color: #c05621; }
+    .lbl-box-value {
+      font-size: 0.8rem; font-weight: 700; color: #1a202c;
+    }
+    .lbl-box-sub {
+      font-size: 0.64rem; color: #718096;
+    }
+    .lbl-box-divider {
+      height: 1px; background: #bee3f8; margin: 2px 0;
+    }
+    .lbl-box-footer {
+      display: flex; justify-content: space-between; align-items: center;
+      border-top: 1px solid #bee3f8; padding-top: 4px;
+    }
+
+    /* ── Print instructions panel ── */
+    .print-panel {
+      background: #faf5ff;
+      border: 1.5px solid #d6bcfa;
+      border-radius: 10px;
+      padding: 16px 18px;
+      margin-bottom: 20px;
+    }
+    .print-panel h3 {
+      font-size: 0.85rem; font-weight: 700; color: #553c9a;
+      display: flex; align-items: center; gap: 7px;
+      margin-bottom: 12px;
+    }
+    .print-steps { list-style: none; padding: 0; margin: 0; }
+    .print-steps li {
+      display: flex; gap: 10px; align-items: flex-start;
+      font-size: 0.8rem; color: #2d3748; margin-bottom: 8px;
+      line-height: 1.5;
+    }
+    .print-steps li:last-child { margin-bottom: 0; }
+    .step-num {
+      flex-shrink: 0;
+      width: 20px; height: 20px;
+      background: #805ad5; color: white;
+      border-radius: 50%;
+      font-size: 0.65rem; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      margin-top: 1px;
+    }
+    .print-steps code {
+      background: #faf5ff; border: 1px solid #e9d8fd;
+      border-radius: 4px; padding: 1px 5px;
+      font-size: 0.75rem; font-family: 'SF Mono', monospace; color: #553c9a;
+    }
+    .print-toggle { font-size: 0.72rem; color: #805ad5; font-weight: 600; margin-left: auto; cursor: pointer; }
+
+    @media (max-width: 800px) { .main { grid-template-columns: 1fr; } }
+
+    /* ══════════════════════════════════════
+       PRINT STYLES — one label per 4x2" page
+       ══════════════════════════════════════ */
+    @media print {
+      @page {
+        size: 4in 2in;
+        margin: 0 !important;
+      }
+
+      html, body {
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 4in;
+        background: white !important;
+      }
+
+      body > *:not(#print-container) {
+        display: none !important;
+      }
+
+      #print-container {
+        display: block !important;
+        margin: 0;
+        padding: 0;
+      }
+
+      .print-label {
+        width: 4in;
+        height: 2in;
+        padding: 0.12in 0.2in 0.1in;
+        margin: 0;
+        page-break-after: always;
+        page-break-inside: avoid;
+        box-sizing: border-box;
+        font-family: Arial, Helvetica, sans-serif;
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+        overflow: hidden;
+        background: white;
+        position: relative;
+        color: #000;
+        -webkit-font-smoothing: none;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+        text-rendering: geometricPrecision;
+      }
+      .print-label:last-child {
+        page-break-after: auto;
+      }
+
+      .print-label.print-at {
+        border-left: 3pt solid #000;
+      }
+      .print-label.print-box {
+        border-left: 3pt solid #000;
+      }
+
+      .print-label .p-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 4px;
+      }
+      .print-label .p-top > div:first-child {
+        flex: 1;
+        min-width: 0;
+      }
+      .print-label .p-patient {
+        font-size: 14pt;
+        font-weight: 800;
+        color: #000;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .print-label .p-set-type {
+        font-size: 7pt;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.4pt;
+        color: #000;
+        margin-top: 1pt;
+      }
+      .print-label .p-logo {
+        max-height: 0.63in;
+        max-width: 1.68in;
+        object-fit: contain;
+      }
+
+      .print-label .p-mid {
+        display: flex;
+        align-items: center;
+        gap: 8pt;
+        padding: 3pt 0;
+      }
+      .print-label .p-arch {
+        flex: 1;
+      }
+      .print-label .p-arch-title {
+        font-size: 8pt;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.4pt;
+        color: #000;
+      }
+      .print-label .p-arch-stage {
+        font-size: 13pt;
+        font-weight: 700;
+        color: #000;
+      }
+      .print-label .p-arch-stage span {
+        font-size: 9pt;
+        font-weight: 400;
+        color: #000;
+      }
+      .print-label .p-arch-done {
+        font-size: 10pt;
+        font-weight: 700;
+        color: #000;
+        font-style: italic;
+      }
+      .print-label .p-arch-night {
+        font-size: 8pt;
+        color: #000;
+        font-style: italic;
+      }
+      .print-label .p-divider {
+        width: 1.5pt;
+        background: #000;
+        align-self: stretch;
+      }
+
+      .print-label .p-at-center {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14pt;
+        font-weight: 700;
+        color: #000;
+      }
+
+      /* Box label mid */
+      .print-label .p-box-body {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 3pt;
+        flex: 1;
+      }
+      .print-label .p-box-row {
+        display: flex;
+        align-items: baseline;
+        gap: 5pt;
+      }
+      .print-label .p-box-lbl {
+        font-size: 8pt;
+        font-weight: 700;
+        text-transform: uppercase;
+        width: 36pt;
+        color: #000;
+      }
+      .print-label .p-box-val {
+        font-size: 11pt;
+        font-weight: 700;
+        color: #000;
+      }
+      .print-label .p-box-sub {
+        font-size: 8pt;
+        color: #000;
+      }
+      .print-label .p-box-div {
+        height: 1pt;
+        background: #000;
+        margin: 2pt 0;
+      }
+
+      .print-label .p-bot {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-top: 1pt solid #000;
+        padding-top: 4pt;
+        gap: 4pt;
+      }
+      .print-label .p-wear {
+        font-size: 9pt;
+        font-weight: 700;
+        color: #000;
+        font-style: italic;
+      }
+      .print-label .p-switch {
+        font-size: 9pt;
+        font-weight: 700;
+        color: #000;
+        text-align: right;
+      }
+      .print-label .p-num {
+        font-size: 7pt;
+        color: #000;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <svg width="34" height="34" viewBox="0 0 34 34" fill="none">
+    <rect width="34" height="34" rx="8" fill="rgba(255,255,255,0.15)"/>
+    <rect x="5" y="9" width="24" height="5" rx="2" fill="white"/>
+    <rect x="5" y="16" width="24" height="5" rx="2" fill="rgba(255,255,255,0.65)"/>
+    <rect x="5" y="23" width="15" height="4" rx="2" fill="rgba(255,255,255,0.35)"/>
+  </svg>
+  <div>
+    <h1>Aligner Label Maker</h1>
+    <p>2x4 thermoforming labels &middot; Direct print to GK420d</p>
+  </div>
+</header>
+
+<div class="main">
+
+  <!-- ── LEFT: Form ── -->
+  <div class="card">
+    <h2>
+      <svg width="15" height="15" fill="none" stroke="#3182ce" stroke-width="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      Patient Info
+    </h2>
+
+    <div class="form-group">
+      <label class="field-label">Patient Name</label>
+      <input type="text" id="patientName" placeholder="e.g. Jon Doe" />
+    </div>
+
+    <div class="divider"></div>
+    <div class="section-label">Set Type</div>
+
+    <div style="display:flex; gap:10px; align-items:center; margin-bottom:14px;">
+      <label style="display:flex; align-items:center; gap:5px; cursor:pointer; font-size:0.85rem; font-weight:600; color:#2d3748;">
+        <input type="radio" name="setType" value="initial" checked onchange="toggleRefinement()" />
+        Initial Set
+      </label>
+      <label style="display:flex; align-items:center; gap:5px; cursor:pointer; font-size:0.85rem; font-weight:600; color:#2d3748;">
+        <input type="radio" name="setType" value="refinement" onchange="toggleRefinement()" />
+        Refinement
+      </label>
+      <div id="refinementNumWrap" style="display:none; align-items:center; gap:5px;">
+        <label class="field-label" style="margin-bottom:0; font-size:0.65rem;">#</label>
+        <input type="number" id="refinementNum" min="1" max="20" value="1" style="width:52px; padding:5px 8px; font-size:0.85rem;" />
+      </div>
+    </div>
+
+    <div class="divider"></div>
+    <div class="section-label">Practice Logo</div>
+
+    <!-- Logo preview (pre-loaded with NLO logo) -->
+    <div id="logo-preview-area">
+      <div class="logo-preview-wrap">
+        <img id="logoPreviewImg" src="" alt="Next Level Orthodontics logo" />
+        <div class="logo-info">
+          <div class="logo-name" id="logoFileName">Next Level Orthodontics</div>
+          <div style="font-size:0.72rem;color:#a0aec0;">Appears on all labels</div>
+        </div>
+        <label style="cursor:pointer;font-size:0.72rem;color:#3182ce;font-weight:600;white-space:nowrap;" title="Upload a different logo">
+          Replace
+          <input type="file" id="logoFileInput" accept="image/*" onchange="handleLogoFile(event)" style="display:none;" />
+        </label>
+      </div>
+    </div>
+
+    <!-- Hidden upload zone (shown only if logo is removed) -->
+    <div id="logo-upload-area" style="display:none;">
+      <div class="logo-drop-zone" id="dropZone"
+           ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event)">
+        <input type="file" id="logoFileInputDrop" accept="image/*" onchange="handleLogoFile(event)" />
+        <div class="drop-text">
+          <svg width="22" height="22" fill="none" stroke="#a0aec0" stroke-width="1.5" viewBox="0 0 24 24" style="margin:0 auto 6px;display:block;"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+          <strong>Click to browse</strong> or drag &amp; drop<br/>
+          <span style="font-size:0.74rem;">PNG, JPG, or SVG</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+    <div class="section-label">Arches</div>
+
+    <div style="display:flex; gap:10px; margin-bottom:12px;">
+      <div class="arch-toggle-btn selected" id="archToggleUpper" onclick="toggleArch('upper')">
+        <span style="font-size:1rem;">&#11014;</span> Upper
+      </div>
+      <div class="arch-toggle-btn selected" id="archToggleLower" onclick="toggleArch('lower')">
+        <span style="font-size:1rem;">&#11015;</span> Lower
+      </div>
+    </div>
+    <p class="hint" style="margin-bottom:10px;">Click to toggle each arch on/off. At least one must be active.</p>
+
+    <div class="arch-row" style="margin-bottom:10px;">
+      <div class="arch-box upper" id="archBoxUpper">
+        <div class="arch-title">&#11014; Upper</div>
+        <div class="form-group" style="margin-bottom:6px;">
+          <label class="field-label" style="font-size:0.68rem;">Total Stages</label>
+          <input type="number" id="upperTotal" min="1" max="60" value="20" />
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="field-label" style="font-size:0.68rem;">Starting At</label>
+          <input type="number" id="upperStart" min="1" max="60" value="1" />
+        </div>
+      </div>
+      <div class="arch-box lower" id="archBoxLower">
+        <div class="arch-title">&#11015; Lower</div>
+        <div class="form-group" style="margin-bottom:6px;">
+          <label class="field-label" style="font-size:0.68rem;">Total Stages</label>
+          <input type="number" id="lowerTotal" min="1" max="60" value="20" />
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="field-label" style="font-size:0.68rem;">Starting At</label>
+          <input type="number" id="lowerStart" min="1" max="60" value="1" />
+        </div>
+      </div>
+    </div>
+    <p class="hint">If both arches are active and counts differ, the shorter arch shows <em>"Complete &#10003;"</em> on remaining labels.</p>
+
+    <div class="divider"></div>
+    <div class="section-label">Attachment Template (AT)</div>
+
+    <div class="toggle-row">
+      <div>
+        <div class="toggle-label">Attachment Template</div>
+        <div class="toggle-sub">Prints an AT label before Stage 1</div>
+      </div>
+      <label class="switch">
+        <input type="checkbox" id="hasAT" onchange="toggleATNote()" />
+        <span class="slider"></span>
+      </label>
+    </div>
+    <div id="atNote" class="at-note" style="display:none;">&#10022; An <strong>Attachment Template</strong> label will print first.</div>
+
+    <div class="divider"></div>
+    <div class="section-label">Wear Schedule</div>
+
+    <!-- Always-on wear instruction -->
+    <div style="margin-bottom:12px;">
+      <div class="wear-always-tag">
+        Wear aligners 22 hours per day &mdash; printed on every label
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="field-label">Days Per Stage</label>
+      <div class="days-group">
+        <div class="day-btn selected" data-days="7" onclick="selectDays(7)">7<br/><span class="day-sub">days</span></div>
+        <div class="day-btn" data-days="10" onclick="selectDays(10)">10<br/><span class="day-sub">days</span></div>
+        <div class="day-btn" data-days="14" onclick="selectDays(14)">14<br/><span class="day-sub">days</span></div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="field-label">Start Date <span style="font-weight:400;text-transform:none;font-size:0.68rem;">(optional &mdash; auto-calculates switch dates)</span></label>
+      <input type="date" id="startDate" />
+    </div>
+
+    <div style="margin-top:18px;">
+      <button class="btn btn-primary" onclick="generateLabels()">
+        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+        Generate Labels
+      </button>
+    </div>
+  </div>
+
+  <!-- ── RIGHT: Preview + Print ── -->
+  <div>
+    <div class="card" style="margin-bottom:20px;">
+      <h2>
+        <svg width="15" height="15" fill="none" stroke="#3182ce" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+        Label Preview &mdash; 2x4"
+        <span class="badge-count" id="labelCount" style="display:none;">0</span>
+      </h2>
+      <div id="mismatch-note" class="mismatch-note" style="display:none;"></div>
+      <div id="select-toolbar" class="select-toolbar" style="display:none;">
+        <label><input type="checkbox" id="selectAll" checked onchange="toggleSelectAll()" /> Select All</label>
+        <span class="sel-count" id="selCount"></span>
+      </div>
+      <div id="preview-area">
+        <div class="empty-state">
+          <svg width="46" height="46" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+          <p>Fill in the form and click<br/><strong>Generate Labels</strong> to see a preview</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" id="export-card" style="display:none;">
+      <h2>
+        <svg width="15" height="15" fill="none" stroke="#805ad5" stroke-width="2" viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+        Print &amp; Export
+      </h2>
+
+      <!-- Recommended Settings -->
+      <div style="background:#f0fff4; border:1.5px solid #c6f6d5; border-radius:10px; padding:14px 16px; margin-bottom:16px;">
+        <div style="font-size:0.8rem; font-weight:700; color:#276749; margin-bottom:10px; display:flex; align-items:center; gap:6px;">
+          <svg width="14" height="14" fill="none" stroke="#276749" stroke-width="2" viewBox="0 0 24 24"><path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+          GK420d Recommended Settings
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+          <div style="background:white; border-radius:7px; padding:10px 12px; border:1px solid #c6f6d5;">
+            <div style="font-size:0.65rem; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:#718096; margin-bottom:3px;">Printer Speed</div>
+            <div style="font-size:1.1rem; font-weight:800; color:#276749;">2 in/sec</div>
+          </div>
+          <div style="background:white; border-radius:7px; padding:10px 12px; border:1px solid #c6f6d5;">
+            <div style="font-size:0.65rem; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:#718096; margin-bottom:3px;">Darkness</div>
+            <div style="font-size:1.1rem; font-weight:800; color:#276749;">16</div>
+          </div>
+          <div style="background:white; border-radius:7px; padding:10px 12px; border:1px solid #c6f6d5;">
+            <div style="font-size:0.65rem; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:#718096; margin-bottom:3px;">Print Scale</div>
+            <div style="font-size:1.1rem; font-weight:800; color:#276749;">120%</div>
+          </div>
+          <div style="background:white; border-radius:7px; padding:10px 12px; border:1px solid #c6f6d5;">
+            <div style="font-size:0.65rem; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:#718096; margin-bottom:3px;">Margins</div>
+            <div style="font-size:1.1rem; font-weight:800; color:#276749;">Minimum</div>
+          </div>
+        </div>
+        <div style="background:#fffff0; border:1.5px solid #ecc94b; border-radius:7px; padding:9px 12px; margin-top:8px; display:flex; align-items:center; gap:8px;">
+          <svg width="16" height="16" fill="none" stroke="#b7791f" stroke-width="2" viewBox="0 0 24 24" style="flex-shrink:0;"><path d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          <div style="font-size:0.75rem; font-weight:700; color:#744210; line-height:1.4;">
+            Always click <strong>Landscape</strong> in the print dialog, even if it already appears selected.
+          </div>
+        </div>
+        <div style="font-size:0.68rem; color:#718096; margin-top:8px; line-height:1.4;">
+          Set Speed &amp; Darkness in <strong>Printer Preferences → Options</strong>. Set Scale, Margins &amp; Orientation in the browser print dialog. Turn off Headers and Footers.
+        </div>
+      </div>
+
+      <!-- Action buttons -->
+      <div class="action-row">
+        <button class="btn btn-primary" onclick="printLabels()">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+          Print Labels (<span id="printCount">0</span> selected)
+        </button>
+        <button class="btn btn-outline" onclick="downloadCSV()" style="font-size:0.78rem;">
+          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Export CSV
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Hidden print container — populated right before printing -->
+<div id="print-container" style="display:none;"></div>
+
+<script>
+  let labelsData  = [];
+  let selectedDays = 7;
+  let upperEnabled = true;
+  let lowerEnabled = true;
+
+  /* ── Arch toggle ── */
+  function toggleArch(arch) {
+    if (arch === 'upper') {
+      if (upperEnabled && !lowerEnabled) return; // can't disable both
+      upperEnabled = !upperEnabled;
+      document.getElementById('archToggleUpper').classList.toggle('selected', upperEnabled);
+      document.getElementById('archBoxUpper').classList.toggle('arch-disabled', !upperEnabled);
+    } else {
+      if (lowerEnabled && !upperEnabled) return; // can't disable both
+      lowerEnabled = !lowerEnabled;
+      document.getElementById('archToggleLower').classList.toggle('selected', lowerEnabled);
+      document.getElementById('archBoxLower').classList.toggle('arch-disabled', !lowerEnabled);
+    }
+  }
+
+  const EMBEDDED_LOGO = "data:image/png;base64,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";
+  let logoDataUrl = EMBEDDED_LOGO;
+
+  /* ── Logo upload ── */
+  function handleLogoFile(e) {
+    const file = e.target.files[0];
+    if (file) loadLogoFile(file);
+  }
+
+  function handleDrop(e) {
+    e.preventDefault();
+    document.getElementById('dropZone').classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('image/')) loadLogoFile(file);
+  }
+
+  function handleDragOver(e) {
+    e.preventDefault();
+    document.getElementById('dropZone').classList.add('drag-over');
+  }
+
+  function handleDragLeave(e) {
+    document.getElementById('dropZone').classList.remove('drag-over');
+  }
+
+  function loadLogoFile(file) {
+    const reader = new FileReader();
+    reader.onload = function(ev) {
+      logoDataUrl = ev.target.result;
+      document.getElementById('logoPreviewImg').src = logoDataUrl;
+      document.getElementById('logoFileName').textContent = file.name;
+      document.getElementById('logo-upload-area').style.display = 'none';
+      document.getElementById('logo-preview-area').style.display = 'block';
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function removeLogo() {
+    logoDataUrl = EMBEDDED_LOGO;
+  }
+
+  window.addEventListener('load', function() {
+    document.getElementById('logoPreviewImg').src = EMBEDDED_LOGO;
+  });
+
+  /* ── Days selector ── */
+  function selectDays(d) {
+    selectedDays = d;
+    document.querySelectorAll('.day-btn').forEach(b =>
+      b.classList.toggle('selected', parseInt(b.dataset.days) === d)
+    );
+  }
+
+  function toggleRefinement() {
+    const isRef = document.querySelector('input[name="setType"][value="refinement"]').checked;
+    document.getElementById('refinementNumWrap').style.display = isRef ? 'flex' : 'none';
+  }
+
+  function getSetTypeLabel() {
+    const isRef = document.querySelector('input[name="setType"][value="refinement"]').checked;
+    if (isRef) {
+      const num = parseInt(document.getElementById('refinementNum').value) || 1;
+      return 'Refinement #' + num;
+    }
+    return 'Initial Set';
+  }
+
+  function toggleATNote() {
+    document.getElementById('atNote').style.display =
+      document.getElementById('hasAT').checked ? 'block' : 'none';
+  }
+
+  /* ── Date helpers ── */
+  function formatDate(iso) {
+    if (!iso) return '';
+    const d = new Date(iso + 'T00:00:00');
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  function addDays(iso, days) {
+    const d = new Date(iso + 'T00:00:00');
+    d.setDate(d.getDate() + days);
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function csvEsc(v) {
+    const s = String(v ?? '');
+    return (s.includes(',') || s.includes('"') || s.includes('\n'))
+      ? '"' + s.replace(/"/g,'""') + '"' : s;
+  }
+
+  /* ── Generate ── */
+  function generateLabels() {
+    const patient    = document.getElementById('patientName').value.trim() || 'Patient';
+    const upperTotal = upperEnabled ? (parseInt(document.getElementById('upperTotal').value) || 1) : 0;
+    const upperStart = upperEnabled ? (parseInt(document.getElementById('upperStart').value) || 1) : 1;
+    const lowerTotal = lowerEnabled ? (parseInt(document.getElementById('lowerTotal').value) || 1) : 0;
+    const lowerStart = lowerEnabled ? (parseInt(document.getElementById('lowerStart').value) || 1) : 1;
+    const hasAT      = document.getElementById('hasAT').checked;
+    const startDate  = document.getElementById('startDate').value;
+    const setType    = getSetTypeLabel();
+
+    labelsData = [];
+
+    // Box label (always first)
+    const upperCount = upperEnabled ? (upperTotal - upperStart + 1) : 0;
+    const lowerCount = lowerEnabled ? (lowerTotal - lowerStart + 1) : 0;
+    const atCount    = hasAT ? 1 : 0;
+    const totalAlgn  = upperCount + lowerCount + atCount;
+    labelsData.push({
+      type: 'Box', patient, setType,
+      upperStart, upperTotal, upperCount,
+      lowerStart, lowerTotal, lowerCount,
+      hasAT, totalAlgn,
+      upperEnabled, lowerEnabled,
+      switchDate: ''
+    });
+
+    if (hasAT) {
+      labelsData.push({
+        type: 'AT', patient, setType,
+        upperStage: null, upperTotal,
+        lowerStage: null, lowerTotal,
+        upperEnabled, lowerEnabled,
+        switchDate: startDate ? formatDate(startDate) : ''
+      });
+    }
+
+    const upperRange = upperEnabled ? (upperTotal - upperStart + 1) : 0;
+    const lowerRange = lowerEnabled ? (lowerTotal - lowerStart + 1) : 0;
+    const totalLabels = Math.max(upperRange, lowerRange);
+
+    for (let i = 0; i < totalLabels; i++) {
+      const uNum = upperStart + i;
+      const lNum = lowerStart + i;
+      let switchDate = '';
+      if (startDate) switchDate = formatDate(addDays(startDate, i * selectedDays));
+      labelsData.push({
+        type: 'Stage', patient, setType,
+        upperStage: (upperEnabled && uNum <= upperTotal) ? uNum : null, upperTotal,
+        lowerStage: (lowerEnabled && lNum <= lowerTotal) ? lNum : null, lowerTotal,
+        upperEnabled, lowerEnabled,
+        switchDate, stageIndex: i
+      });
+    }
+
+    // Mismatch note
+    const mismatchEl = document.getElementById('mismatch-note');
+    if (upperEnabled && lowerEnabled && (upperTotal !== lowerTotal || upperStart !== lowerStart)) {
+      const diff = Math.abs((upperTotal - upperStart) - (lowerTotal - lowerStart));
+      const longer  = (upperTotal - upperStart) > (lowerTotal - lowerStart) ? 'Upper' : 'Lower';
+      const shorter = longer === 'Upper' ? 'Lower' : 'Upper';
+      mismatchEl.style.display = 'block';
+      mismatchEl.textContent = `\u2139 ${longer} has ${diff} more stage${diff !== 1 ? 's' : ''} \u2014 ${shorter} will show "Complete \u2713" on the last ${diff} label${diff !== 1 ? 's' : ''}.`;
+    } else {
+      mismatchEl.style.display = 'none';
+    }
+
+    renderPreview();
+    document.getElementById('export-card').style.display = labelsData.length ? 'block' : 'none';
+  }
+
+  /* ── Render preview ── */
+  function renderPreview() {
+    const area       = document.getElementById('preview-area');
+    const countBadge = document.getElementById('labelCount');
+
+    if (!labelsData.length) {
+      area.innerHTML = '<div class="empty-state"><p>No labels.</p></div>';
+      countBadge.style.display = 'none';
+      document.getElementById('select-toolbar').style.display = 'none';
+      return;
+    }
+
+    countBadge.textContent  = labelsData.length;
+    countBadge.style.display = 'inline-flex';
+
+    const logoHtml = logoDataUrl
+      ? `<img class="lbl-logo" src="${logoDataUrl}" alt="logo" />`
+      : `<span class="lbl-logo-placeholder badge-stage">Your Logo</span>`;
+
+    const grid = document.createElement('div');
+    grid.className = 'labels-grid';
+    const hasAT = document.getElementById('hasAT').checked;
+
+    // Show selection toolbar
+    document.getElementById('select-toolbar').style.display = 'flex';
+    document.getElementById('selectAll').checked = true;
+
+    labelsData.forEach((lbl, idx) => {
+      // Wrap each card in a label-wrap with a checkbox
+      const wrap = document.createElement('div');
+      wrap.className = 'label-wrap';
+      wrap.dataset.idx = idx;
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.className = 'lbl-check';
+      cb.checked = true;
+      cb.dataset.idx = idx;
+      cb.onchange = function() {
+        wrap.classList.toggle('deselected', !this.checked);
+        updateSelectionCount();
+      };
+      wrap.appendChild(cb);
+
+      const card = document.createElement('div');
+      if (lbl.type === 'Box') {
+        card.className = 'label-card box-card';
+        const uRange = lbl.upperStart === lbl.upperTotal
+          ? `Stage ${lbl.upperTotal}`
+          : `Stages ${lbl.upperStart}\u2013${lbl.upperTotal}`;
+        const lRange = lbl.lowerStart === lbl.lowerTotal
+          ? `Stage ${lbl.lowerTotal}`
+          : `Stages ${lbl.lowerStart}\u2013${lbl.lowerTotal}`;
+        card.innerHTML = `
+          <div class="lbl-box-header">
+            <div style="flex:1;min-width:0;">
+              <div class="lbl-box-patient">${escHtml(lbl.patient)}</div>
+              <div style="font-size:0.58rem;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#805ad5;">${escHtml(lbl.setType)}</div>
+            </div>
+            ${logoHtml}
+          </div>
+          <div class="lbl-box-body">
+            ${lbl.upperEnabled ? `<div class="lbl-box-row">
+              <span class="lbl-box-arch-label upper">Upper</span>
+              <span class="lbl-box-value">${lbl.upperCount} aligner${lbl.upperCount !== 1 ? 's' : ''}</span>
+              <span class="lbl-box-sub">${uRange}</span>
+            </div>` : ''}
+            ${lbl.lowerEnabled ? `<div class="lbl-box-row">
+              <span class="lbl-box-arch-label lower">Lower</span>
+              <span class="lbl-box-value">${lbl.lowerCount} aligner${lbl.lowerCount !== 1 ? 's' : ''}</span>
+              <span class="lbl-box-sub">${lRange}</span>
+            </div>` : ''}
+            ${lbl.hasAT ? `<div class="lbl-box-row">
+              <span class="lbl-box-arch-label at">AT</span>
+              <span class="lbl-box-value">1 template</span>
+              <span class="lbl-box-sub">Before Stage 1</span>
+            </div>` : ''}
+            <div class="lbl-box-divider"></div>
+            <div class="lbl-box-row">
+              <span class="lbl-box-arch-label total">Total</span>
+              <span class="lbl-box-value" style="color:#553c9a;">${lbl.totalAlgn} aligners</span>
+            </div>
+          </div>
+          <div class="lbl-box-footer">
+            <span class="lbl-wear-warn">Wear aligners 22 hours per day</span>
+          </div>`;
+        wrap.appendChild(card);
+        grid.appendChild(wrap);
+        return;
+      }
+      card.className = 'label-card' + (lbl.type === 'AT' ? ' at-card' : '');
+
+      if (lbl.type === 'AT') {
+        card.innerHTML = `
+          <div class="lbl-top">
+            <div style="flex:1;min-width:0;">
+              <div class="lbl-patient">${escHtml(lbl.patient)}</div>
+              <div style="font-size:0.55rem;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#805ad5;">${escHtml(lbl.setType)}</div>
+            </div>
+            ${logoHtml}
+          </div>
+          <div class="lbl-at-center">\u2B22 Attachment Template</div>
+          <div class="lbl-bottom">
+            <span class="lbl-wear-warn">Wear aligners 22 hours per day</span>
+            ${lbl.switchDate
+              ? `<span class="lbl-switch">Start: ${lbl.switchDate}</span>`
+              : `<span class="lbl-num">Label 1</span>`}
+          </div>`;
+      } else {
+        const labelNum = idx + 1;
+
+        const uHtml = lbl.upperStage !== null
+          ? `<div class="lbl-arch-stage">Stage ${lbl.upperStage} <span>of ${lbl.upperTotal}</span></div>`
+          : (lbl.upperEnabled ? `<div class="lbl-arch-done">Complete \u2713<br/><span class="lbl-arch-night">Wear nightly</span></div>` : '');
+        const lHtml = lbl.lowerStage !== null
+          ? `<div class="lbl-arch-stage">Stage ${lbl.lowerStage} <span>of ${lbl.lowerTotal}</span></div>`
+          : (lbl.lowerEnabled ? `<div class="lbl-arch-done">Complete \u2713<br/><span class="lbl-arch-night">Wear nightly</span></div>` : '');
+
+        // Build arches section based on which arches are enabled
+        let archesHtml = '';
+        if (lbl.upperEnabled && lbl.lowerEnabled) {
+          archesHtml = `
+            <div class="lbl-arch arch-upper">
+              <div class="lbl-arch-title">\u2B06 Upper</div>
+              ${uHtml}
+            </div>
+            <div class="lbl-arch-divider"></div>
+            <div class="lbl-arch arch-lower">
+              <div class="lbl-arch-title">\u2B07 Lower</div>
+              ${lHtml}
+            </div>`;
+        } else if (lbl.upperEnabled) {
+          archesHtml = `
+            <div class="lbl-arch arch-upper">
+              <div class="lbl-arch-title">\u2B06 Upper</div>
+              ${uHtml}
+            </div>`;
+        } else {
+          archesHtml = `
+            <div class="lbl-arch arch-lower">
+              <div class="lbl-arch-title">\u2B07 Lower</div>
+              ${lHtml}
+            </div>`;
+        }
+
+        card.innerHTML = `
+          <div class="lbl-top">
+            <div style="flex:1;min-width:0;">
+              <div class="lbl-patient">${escHtml(lbl.patient)}</div>
+              <div style="font-size:0.55rem;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#805ad5;">${escHtml(lbl.setType)}</div>
+            </div>
+            ${logoHtml}
+          </div>
+          <div class="lbl-arches">
+            ${archesHtml}
+          </div>
+          <div class="lbl-bottom">
+            <span class="lbl-wear-warn">Wear aligners 22 hours per day</span>
+            ${lbl.switchDate
+              ? `<span class="lbl-switch">Switch: ${lbl.switchDate}</span>`
+              : `<span class="lbl-num">Label ${labelNum}</span>`}
+          </div>`;
+      }
+
+      wrap.appendChild(card);
+      grid.appendChild(wrap);
+    });
+
+    area.innerHTML = '';
+    area.appendChild(grid);
+    updateSelectionCount();
+  }
+
+  /* ── Selection helpers ── */
+  function updateSelectionCount() {
+    const checks = document.querySelectorAll('.lbl-check');
+    const selected = document.querySelectorAll('.lbl-check:checked').length;
+    const total = checks.length;
+    document.getElementById('selCount').textContent = `${selected} of ${total} selected`;
+    document.getElementById('printCount').textContent = selected;
+    // Update Select All checkbox state
+    const selectAll = document.getElementById('selectAll');
+    selectAll.checked = selected === total;
+    selectAll.indeterminate = selected > 0 && selected < total;
+  }
+
+  function toggleSelectAll() {
+    const checked = document.getElementById('selectAll').checked;
+    document.querySelectorAll('.lbl-check').forEach(cb => {
+      cb.checked = checked;
+      cb.closest('.label-wrap').classList.toggle('deselected', !checked);
+    });
+    updateSelectionCount();
+  }
+
+  /* ══════════════════════════════════
+     PRINT — builds a hidden container
+     with one 4x2" label per page
+     ══════════════════════════════════ */
+  function buildPrintLabel(lbl, idx) {
+    const hasAT = document.getElementById('hasAT').checked;
+    const logoImg = logoDataUrl
+      ? `<img class="p-logo" src="${logoDataUrl}" alt="logo" />`
+      : '';
+
+    if (lbl.type === 'Box') {
+      const uRange = lbl.upperStart === lbl.upperTotal
+        ? `Stage ${lbl.upperTotal}`
+        : `Stages ${lbl.upperStart}\u2013${lbl.upperTotal}`;
+      const lRange = lbl.lowerStart === lbl.lowerTotal
+        ? `Stage ${lbl.lowerTotal}`
+        : `Stages ${lbl.lowerStart}\u2013${lbl.lowerTotal}`;
+      return `<div class="print-label print-box">
+        <div class="p-top">
+          <div><div class="p-patient">${escHtml(lbl.patient)}</div><div class="p-set-type">${escHtml(lbl.setType)}</div></div>
+          ${logoImg}
+        </div>
+        <div class="p-box-body">
+          ${lbl.upperEnabled ? `<div class="p-box-row">
+            <span class="p-box-lbl upper">Upper</span>
+            <span class="p-box-val">${lbl.upperCount} aligner${lbl.upperCount !== 1 ? 's' : ''}</span>
+            <span class="p-box-sub">${uRange}</span>
+          </div>` : ''}
+          ${lbl.lowerEnabled ? `<div class="p-box-row">
+            <span class="p-box-lbl lower">Lower</span>
+            <span class="p-box-val">${lbl.lowerCount} aligner${lbl.lowerCount !== 1 ? 's' : ''}</span>
+            <span class="p-box-sub">${lRange}</span>
+          </div>` : ''}
+          ${lbl.hasAT ? `<div class="p-box-row">
+            <span class="p-box-lbl at">AT</span>
+            <span class="p-box-val">1 template</span>
+            <span class="p-box-sub">Before Stage 1</span>
+          </div>` : ''}
+          <div class="p-box-div"></div>
+          <div class="p-box-row">
+            <span class="p-box-lbl total">Total</span>
+            <span class="p-box-val" style="color:#553c9a;">${lbl.totalAlgn} aligners</span>
+          </div>
+        </div>
+        <div class="p-bot">
+          <span class="p-wear">Wear aligners 22 hours per day</span>
+        </div>
+      </div>`;
+    }
+
+    if (lbl.type === 'AT') {
+      return `<div class="print-label print-at">
+        <div class="p-top">
+          <div><div class="p-patient">${escHtml(lbl.patient)}</div><div class="p-set-type">${escHtml(lbl.setType)}</div></div>
+          ${logoImg}
+        </div>
+        <div class="p-at-center">\u2B22 Attachment Template</div>
+        <div class="p-bot">
+          <span class="p-wear">Wear aligners 22 hours per day</span>
+          ${lbl.switchDate
+            ? `<span class="p-switch">Start: ${lbl.switchDate}</span>`
+            : `<span class="p-num">Label 1</span>`}
+        </div>
+      </div>`;
+    }
+
+    // Stage label
+    const labelNum = idx + 1;
+    const uHtml = lbl.upperStage !== null
+      ? `<div class="p-arch-stage">Stage ${lbl.upperStage} <span>of ${lbl.upperTotal}</span></div>`
+      : (lbl.upperEnabled ? `<div class="p-arch-done">Complete \u2713<br/><span class="p-arch-night">Wear nightly</span></div>` : '');
+    const lHtml = lbl.lowerStage !== null
+      ? `<div class="p-arch-stage">Stage ${lbl.lowerStage} <span>of ${lbl.lowerTotal}</span></div>`
+      : (lbl.lowerEnabled ? `<div class="p-arch-done">Complete \u2713<br/><span class="p-arch-night">Wear nightly</span></div>` : '');
+
+    // Build mid section based on enabled arches
+    let midHtml = '';
+    if (lbl.upperEnabled && lbl.lowerEnabled) {
+      midHtml = `
+        <div class="p-arch">
+          <div class="p-arch-title upper">\u2B06 Upper</div>
+          ${uHtml}
+        </div>
+        <div class="p-divider"></div>
+        <div class="p-arch">
+          <div class="p-arch-title lower">\u2B07 Lower</div>
+          ${lHtml}
+        </div>`;
+    } else if (lbl.upperEnabled) {
+      midHtml = `
+        <div class="p-arch">
+          <div class="p-arch-title upper">\u2B06 Upper</div>
+          ${uHtml}
+        </div>`;
+    } else {
+      midHtml = `
+        <div class="p-arch">
+          <div class="p-arch-title lower">\u2B07 Lower</div>
+          ${lHtml}
+        </div>`;
+    }
+
+    return `<div class="print-label">
+      <div class="p-top">
+        <div><div class="p-patient">${escHtml(lbl.patient)}</div><div class="p-set-type">${escHtml(lbl.setType)}</div></div>
+        ${logoImg}
+      </div>
+      <div class="p-mid">
+        ${midHtml}
+      </div>
+      <div class="p-bot">
+        <span class="p-wear">Wear aligners 22 hours per day</span>
+        ${lbl.switchDate
+          ? `<span class="p-switch">Switch: ${lbl.switchDate}</span>`
+          : `<span class="p-num">Label ${labelNum}</span>`}
+      </div>
+    </div>`;
+  }
+
+  function printLabels() {
+    if (!labelsData.length) return;
+    // Only print selected labels
+    const selectedIdxs = [];
+    document.querySelectorAll('.lbl-check:checked').forEach(cb => {
+      selectedIdxs.push(parseInt(cb.dataset.idx));
+    });
+    if (!selectedIdxs.length) {
+      alert('No labels selected. Check the labels you want to print.');
+      return;
+    }
+    const container = document.getElementById('print-container');
+    container.innerHTML = selectedIdxs.map(i => buildPrintLabel(labelsData[i], i)).join('');
+    // Small delay to let images load, then print
+    setTimeout(() => window.print(), 150);
+  }
+
+  /* ── CSV for Label Live ──
+     Each row = one label. Columns are pre-formatted text
+     ready to drop into a Label Live template using {VARIABLE} fields.
+     Label Live auto-uppercases headers, so {PATIENT}, {UPPERSTAGE}, etc.
+  */
+  function buildCSV() {
+    const headers = ['PATIENT','SETTYPE','LINE1LEFT','LINE1RIGHT','LINE2LEFT','LINE2RIGHT','WEAR','SWITCHDATE'];
+
+    const rows = [];
+    // Only export selected labels
+    const selectedIdxs = [];
+    document.querySelectorAll('.lbl-check:checked').forEach(cb => {
+      selectedIdxs.push(parseInt(cb.dataset.idx));
+    });
+    const toExport = selectedIdxs.length ? selectedIdxs.map(i => labelsData[i]) : labelsData;
+
+    toExport.forEach((lbl, idx) => {
+      let line1Left = '', line1Right = '', line2Left = '', line2Right = '';
+
+      if (lbl.type === 'Box') {
+        const uRange = lbl.upperStart === lbl.upperTotal
+          ? 'Stage ' + lbl.upperTotal
+          : 'Stages ' + lbl.upperStart + '-' + lbl.upperTotal;
+        const lRange = lbl.lowerStart === lbl.lowerTotal
+          ? 'Stage ' + lbl.lowerTotal
+          : 'Stages ' + lbl.lowerStart + '-' + lbl.lowerTotal;
+        line1Left = 'UPPER: ' + lbl.upperCount + ' aligners (' + uRange + ')';
+        line1Right = 'LOWER: ' + lbl.lowerCount + ' aligners (' + lRange + ')';
+        if (lbl.hasAT) {
+          line2Left = 'AT: 1 template (Before Stage 1)';
+        }
+        line2Right = 'TOTAL: ' + lbl.totalAlgn + ' aligners';
+      } else if (lbl.type === 'AT') {
+        line1Left = 'Attachment Template';
+        line1Right = '';
+        line2Left = '';
+        line2Right = '';
+      } else {
+        // Stage label
+        if (lbl.upperEnabled) {
+          if (lbl.upperStage !== null) {
+            line1Left = 'UPPER: Stage ' + lbl.upperStage + ' of ' + lbl.upperTotal;
+          } else {
+            line1Left = 'UPPER: Complete';
+          }
+        }
+        if (lbl.lowerEnabled) {
+          if (lbl.lowerStage !== null) {
+            line1Right = 'LOWER: Stage ' + lbl.lowerStage + ' of ' + lbl.lowerTotal;
+          } else {
+            line1Right = 'LOWER: Complete';
+          }
+        }
+      }
+
+      rows.push([
+        csvEsc(lbl.patient),
+        csvEsc(lbl.setType || 'Initial Set'),
+        csvEsc(line1Left),
+        csvEsc(line1Right),
+        csvEsc(line2Left),
+        csvEsc(line2Right),
+        'Wear aligners 22 hours per day',
+        csvEsc(lbl.switchDate || '')
+      ].join(','));
+    });
+
+    return [headers.join(','), ...rows].join('\n');
+  }
+
+  function downloadCSV() {
+    if (!labelsData.length) return;
+    const patient = (labelsData[0]?.patient || 'Patient').replace(/\s+/g,'_');
+    const blob = new Blob([buildCSV()], { type: 'text/csv' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = `${patient}_aligner_labels.csv`;
+    a.click(); URL.revokeObjectURL(url);
+  }
+
+</script>
+</body>
+</html>
