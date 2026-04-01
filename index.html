@@ -1,264 +1,488 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>NLO Apps â Next Level Orthodontics</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+// ============================================================
+// NLO Time-Off Request — Google Apps Script Backend
+// ============================================================
+// Deploy as Web App: Execute as ME, Anyone can access
+// ============================================================
 
-    body {
-      font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #F2F3F4;
-      min-height: 100vh;
-      color: #1B2F4C;
+// ---------- CONFIGURATION ----------
+const SHEET_ID = '14ItjDuiPAOzr2iRrz_s4VsE3qEwRVQFIlwtUZfSRl4s';
+const NOTIFY_EMAILS = ['records@thenextlevelorthodontics.com', 'akhavan.ak@gmail.com'];
+const APP_URL = 'https://amooloo.github.io/nlo-apps/time-off.html'; // Update after deploying
+const SCHEDULING_EMAIL = 'Questions@thenextlevelorthodontics.com';
+
+// Staff passcodes — each employee has their own PIN
+// Change these PINs to whatever you'd like
+const STAFF_PASSCODES = {
+  '0000': { name: 'Amir Akhavan',       role: 'admin', title: 'Orthodontist' },
+  '1001': { name: 'Eve Pavlova',        role: 'staff', title: 'Marketing Coordinator' },
+  '1002': { name: 'Sarah Betz',         role: 'admin', title: 'Clinical Lead' },
+  '1003': { name: 'Bri Brower',         role: 'staff', title: 'Orthodontic Assistant' },
+  '1004': { name: 'Kaylee Doty',        role: 'staff', title: 'Orthodontic Assistant' },
+  '1005': { name: 'Wila Jordan',        role: 'staff', title: 'Treatment Coordinator' },
+  '1006': { name: 'Gwen Rodis',         role: 'staff', title: 'Orthodontic Assistant' },
+  '1007': { name: 'Angelika Rodriguez', role: 'staff', title: 'Orthodontic Assistant' },
+  '1008': { name: 'Savannah Schmaltz',  role: 'staff', title: 'Appointment Coordinator' },
+};
+
+// ---------- HELPERS ----------
+function jsonResponse(data) {
+  return ContentService.createTextOutput(JSON.stringify(data))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function getSheet() {
+  return SpreadsheetApp.openById(SHEET_ID).getSheetByName('Requests');
+}
+
+function getBlackoutsSheet() {
+  const ss = SpreadsheetApp.openById(SHEET_ID);
+  let sheet = ss.getSheetByName('Blackouts');
+  if (!sheet) {
+    setupBlackoutsSheet();
+    sheet = ss.getSheetByName('Blackouts');
+  }
+  return sheet;
+}
+
+function generateId() {
+  return Utilities.getUuid().split('-')[0].toUpperCase();
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr + 'T12:00:00');
+  return Utilities.formatDate(d, Session.getScriptTimeZone(), 'MMM d, yyyy');
+}
+
+// ---------- WEB APP ENTRY POINTS ----------
+
+function doGet(e) {
+  const action = (e.parameter.action || '').toLowerCase();
+  const id = e.parameter.id || '';
+  const passcode = e.parameter.passcode || '';
+
+  // Approve or Deny from email link — redirect to app login
+  if (action === 'approve' || action === 'deny') {
+    const redirectUrl = APP_URL + '?action=' + action + '&id=' + id;
+    return HtmlService.createHtmlOutput(
+      '<script>window.location.href = "' + redirectUrl + '";</script>' +
+      '<meta http-equiv="refresh" content="0; url=' + redirectUrl + '">'
+    );
+  }
+
+  // Return all requests as JSON (for calendar/list)
+  if (action === 'list') {
+    if (!STAFF_PASSCODES[passcode]) {
+      return jsonResponse({ error: 'Invalid passcode' });
+    }
+    return jsonResponse({ requests: getAllRequests(), passcode_valid: true });
+  }
+
+  // Validate passcode — returns employee name and role
+  if (action === 'validate') {
+    const user = STAFF_PASSCODES[passcode];
+    if (user) {
+      return jsonResponse({ valid: true, name: user.name, role: user.role, title: user.title });
+    }
+    return jsonResponse({ valid: false });
+  }
+
+  // Get single request
+  if (action === 'get' && id) {
+    const req = getRequestById(id);
+    if (req) {
+      return jsonResponse({ request: req });
+    }
+    return jsonResponse({ error: 'Request not found' });
+  }
+
+  // Get blackouts
+  if (action === 'blackouts') {
+    return jsonResponse({ blackouts: getBlackouts() });
+  }
+
+  return HtmlService.createHtmlOutput('<h2>NLO Time-Off API is running.</h2>');
+}
+
+function doPost(e) {
+  try {
+    const data = JSON.parse(e.postData.contents);
+    const action = data.action || 'submit';
+
+    if (action === 'submit') {
+      if (!STAFF_PASSCODES[data.passcode]) {
+        return jsonResponse({ error: 'Invalid passcode' });
+      }
+      // Auto-fill employee name from passcode
+      data.employeeName = STAFF_PASSCODES[data.passcode].name;
+      return handleSubmission(data);
     }
 
-    header {
-      background: #1B2F4C;
-      color: white;
-      padding: 36px 32px 32px;
-      text-align: center;
+    if (action === 'approve' || action === 'deny') {
+      return handleApprovalPost(data.id, action, data.passcode);
     }
 
-    .logo-row {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0;
-      margin-bottom: 10px;
+    if (action === 'add_blackout') {
+      return handleAddBlackout(data);
     }
 
-    .logo-row img {
-      height: 56px;
-      width: auto;
+    if (action === 'delete_blackout') {
+      return handleDeleteBlackout(data);
     }
 
-    header h1 {
-      font-size: 0.85rem;
-      font-weight: 600;
-      letter-spacing: 3.5px;
-      text-transform: uppercase;
-      opacity: 0.6;
-      margin-top: 2px;
+    return jsonResponse({ error: 'Unknown action' });
+  } catch (err) {
+    return jsonResponse({ error: err.message });
+  }
+}
+
+// ---------- SUBMISSION ----------
+function handleSubmission(data) {
+  const sheet = getSheet();
+  const id = generateId();
+  const now = new Date();
+  const timestamp = Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss');
+
+  sheet.appendRow([
+    id,
+    timestamp,
+    data.employeeName || '',
+    data.startDate || '',
+    data.endDate || '',
+    data.requestType || '',
+    data.paidType || 'Paid Time Off',
+    data.hours || 'Full Day',
+    data.coverage || '',
+    data.notes || '',
+    'Pending',       // status
+    '',              // reviewedBy
+    ''               // reviewedAt
+  ]);
+
+  // Send notification emails
+  sendNotificationEmail(id, data);
+
+  return jsonResponse({ success: true, id: id });
+}
+
+// ---------- APPROVAL ----------
+function handleApprovalPost(id, action, passcode) {
+  // Validate admin passcode
+  const admin = STAFF_PASSCODES[passcode];
+  if (!admin) {
+    return jsonResponse({ error: 'Invalid passcode' });
+  }
+  if (admin.role !== 'admin') {
+    return jsonResponse({ error: 'Only admins can approve/deny requests' });
+  }
+
+  // Get the request
+  const request = getRequestById(id);
+  if (!request) {
+    return jsonResponse({ error: 'Request not found', error_code: 'not_found' });
+  }
+
+  // Check if already processed
+  if (request.status !== 'Pending') {
+    return jsonResponse({
+      error: 'already_processed',
+      message: 'This request was already ' + request.status + ' by ' + request.reviewedBy + ' on ' + request.reviewedAt
+    });
+  }
+
+  // Check that admin is not approving their own request
+  if (admin.name === request.employeeName) {
+    return jsonResponse({ error: 'You cannot approve your own request' });
+  }
+
+  const status = action === 'approve' ? 'Approved' : 'Denied';
+  const result = updateRequestStatus(id, status, admin.name);
+
+  if (!result.success) {
+    return jsonResponse({ error: 'Failed to update request' });
+  }
+
+  // Send status update email
+  sendStatusUpdateEmail(result.request, status);
+
+  // If approved, send scheduling email
+  if (action === 'approve') {
+    sendSchedulingEmail(result.request, admin.name);
+  }
+
+  return jsonResponse({ success: true, status: status });
+}
+
+function updateRequestStatus(id, status, adminName) {
+  const sheet = getSheet();
+  const data = sheet.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] === id) {
+      sheet.getRange(i + 1, 11).setValue(status); // status column
+      sheet.getRange(i + 1, 12).setValue(adminName); // reviewedBy
+      sheet.getRange(i + 1, 13).setValue(
+        Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss')
+      );
+      return {
+        success: true,
+        request: {
+          id: data[i][0],
+          employeeName: data[i][2],
+          startDate: data[i][3],
+          endDate: data[i][4],
+          requestType: data[i][5],
+          paidType: data[i][6],
+          hours: data[i][7],
+          coverage: data[i][8],
+          notes: data[i][9],
+          status: status,
+          reviewedBy: adminName,
+          reviewedAt: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss')
+        }
+      };
     }
+  }
+  return { success: false };
+}
 
-    .main {
-      max-width: 940px;
-      margin: 40px auto;
-      padding: 0 20px;
+// ---------- DATA RETRIEVAL ----------
+function getAllRequests() {
+  const sheet = getSheet();
+  const data = sheet.getDataRange().getValues();
+  const requests = [];
+  for (let i = 1; i < data.length; i++) {
+    requests.push({
+      id: data[i][0],
+      timestamp: data[i][1],
+      employeeName: data[i][2],
+      startDate: data[i][3],
+      endDate: data[i][4],
+      requestType: data[i][5],
+      paidType: data[i][6],
+      hours: data[i][7],
+      coverage: data[i][8],
+      notes: data[i][9],
+      status: data[i][10],
+      reviewedBy: data[i][11],
+      reviewedAt: data[i][12]
+    });
+  }
+  return requests;
+}
+
+function getRequestById(id) {
+  const sheet = getSheet();
+  const data = sheet.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] === id) {
+      return {
+        id: data[i][0],
+        timestamp: data[i][1],
+        employeeName: data[i][2],
+        startDate: data[i][3],
+        endDate: data[i][4],
+        requestType: data[i][5],
+        paidType: data[i][6],
+        hours: data[i][7],
+        coverage: data[i][8],
+        notes: data[i][9],
+        status: data[i][10],
+        reviewedBy: data[i][11],
+        reviewedAt: data[i][12]
+      };
     }
+  }
+  return null;
+}
 
-    .section-title {
-      font-size: 0.7rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 1.5px;
-      color: #1B2F4C;
-      opacity: 0.4;
-      margin-bottom: 18px;
+// ---------- BLACKOUT MANAGEMENT ----------
+function getBlackouts() {
+  const sheet = getBlackoutsSheet();
+  const data = sheet.getDataRange().getValues();
+  const blackouts = [];
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0]) { // Only include rows with start date
+      blackouts.push({
+        startDate: data[i][0],
+        endDate: data[i][1],
+        label: data[i][2]
+      });
     }
+  }
+  return blackouts;
+}
 
-    .apps-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
-      gap: 20px;
-    }
+function handleAddBlackout(data) {
+  // Validate admin passcode
+  const admin = STAFF_PASSCODES[data.passcode];
+  if (!admin) {
+    return jsonResponse({ error: 'Invalid passcode' });
+  }
+  if (admin.role !== 'admin') {
+    return jsonResponse({ error: 'Only admins can add blackouts' });
+  }
 
-    .app-card {
-      background: white;
-      border-radius: 14px;
-      padding: 28px;
-      box-shadow: 0 1px 3px rgba(27,47,76,0.06), 0 4px 16px rgba(27,47,76,0.04);
-      transition: all 0.2s ease;
-      text-decoration: none;
-      color: inherit;
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-      border: 2px solid transparent;
-      cursor: pointer;
-    }
+  const sheet = getBlackoutsSheet();
+  sheet.appendRow([
+    data.startDate || '',
+    data.endDate || '',
+    data.label || ''
+  ]);
 
-    .app-card:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 4px 12px rgba(27,47,76,0.1), 0 8px 28px rgba(27,47,76,0.08);
-    }
+  return jsonResponse({ success: true });
+}
 
-    .app-icon {
-      width: 52px;
-      height: 52px;
-      border-radius: 12px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-    }
+function handleDeleteBlackout(data) {
+  // Validate admin passcode
+  const admin = STAFF_PASSCODES[data.passcode];
+  if (!admin) {
+    return jsonResponse({ error: 'Invalid passcode' });
+  }
+  if (admin.role !== 'admin') {
+    return jsonResponse({ error: 'Only admins can delete blackouts' });
+  }
 
-    .app-card h3 {
-      font-size: 1rem;
-      font-weight: 700;
-      color: #1B2F4C;
-      letter-spacing: -0.2px;
-    }
+  const sheet = getBlackoutsSheet();
+  const rowIndex = parseInt(data.rowIndex) + 1; // +1 because sheets are 1-indexed and data has header
+  if (rowIndex > 1) {
+    sheet.deleteRow(rowIndex);
+    return jsonResponse({ success: true });
+  }
 
-    .app-card p {
-      font-size: 0.82rem;
-      color: #1B2F4C;
-      opacity: 0.55;
-      line-height: 1.55;
-      font-weight: 500;
-    }
+  return jsonResponse({ error: 'Invalid row index' });
+}
 
-    .app-tag {
-      display: inline-block;
-      font-size: 0.62rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.8px;
-      padding: 4px 12px;
-      border-radius: 20px;
-      margin-top: auto;
-      width: fit-content;
-    }
+// ---------- EMAILS ----------
+function sendNotificationEmail(id, data) {
+  const approveUrl = APP_URL + '?action=approve&id=' + id;
+  const denyUrl = APP_URL + '?action=deny&id=' + id;
 
-    /* NLO Brand Color Themes */
+  const subject = '🗓 Time-Off Request: ' + data.employeeName;
 
-    /* Blue â brand blue #1D3EA9 */
-    .theme-blue .app-icon { background: rgba(29,62,169,0.08); }
-    .theme-blue .app-icon svg { stroke: #1D3EA9; }
-    .theme-blue .app-tag { background: rgba(29,62,169,0.1); color: #1D3EA9; }
-    .theme-blue:hover { border-color: #1D3EA9; }
+  const htmlBody =
+    '<div style="font-family:Montserrat,Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px;">' +
+    '<div style="background:#1B2F4C;padding:20px 24px;border-radius:12px 12px 0 0;text-align:center;">' +
+    '<h2 style="color:white;margin:0;font-size:18px;">Time-Off Request</h2>' +
+    '</div>' +
+    '<div style="background:#f8f9fa;padding:24px;border:1px solid #e0e0e0;border-top:none;">' +
+    '<table style="width:100%;border-collapse:collapse;">' +
+    '<tr><td style="padding:8px 0;color:#666;width:130px;">Employee</td><td style="padding:8px 0;font-weight:600;color:#1B2F4C;">' + data.employeeName + '</td></tr>' +
+    '<tr><td style="padding:8px 0;color:#666;">Type</td><td style="padding:8px 0;color:#1B2F4C;">' + data.requestType + '</td></tr>' +
+    '<tr><td style="padding:8px 0;color:#666;">Paid/Unpaid</td><td style="padding:8px 0;color:#1B2F4C;">' + (data.paidType || 'Paid Time Off') + '</td></tr>' +
+    '<tr><td style="padding:8px 0;color:#666;">Start Date</td><td style="padding:8px 0;color:#1B2F4C;">' + formatDate(data.startDate) + '</td></tr>' +
+    '<tr><td style="padding:8px 0;color:#666;">End Date</td><td style="padding:8px 0;color:#1B2F4C;">' + formatDate(data.endDate) + '</td></tr>' +
+    '<tr><td style="padding:8px 0;color:#666;">Hours</td><td style="padding:8px 0;color:#1B2F4C;">' + (data.hours || 'Full Day') + '</td></tr>' +
+    '<tr><td style="padding:8px 0;color:#666;">Coverage</td><td style="padding:8px 0;color:#1B2F4C;">' + (data.coverage || '—') + '</td></tr>' +
+    '<tr><td style="padding:8px 0;color:#666;">Notes</td><td style="padding:8px 0;color:#1B2F4C;">' + (data.notes || '—') + '</td></tr>' +
+    '</table>' +
+    '</div>' +
+    '<div style="padding:24px;text-align:center;background:#fff;border:1px solid #e0e0e0;border-top:none;border-radius:0 0 12px 12px;">' +
+    '<a href="' + approveUrl + '" style="display:inline-block;padding:12px 32px;background:#1a9e78;color:white;text-decoration:none;border-radius:8px;font-weight:600;margin:0 8px;">✓ Approve</a>' +
+    '<a href="' + denyUrl + '" style="display:inline-block;padding:12px 32px;background:#FA624D;color:white;text-decoration:none;border-radius:8px;font-weight:600;margin:0 8px;">✗ Deny</a>' +
+    '</div>' +
+    '<p style="text-align:center;color:#999;font-size:12px;margin-top:16px;">Request ID: ' + id + '</p>' +
+    '</div>';
 
-    /* Coral â brand coral #FA624D */
-    .theme-coral .app-icon { background: rgba(250,98,77,0.08); }
-    .theme-coral .app-icon svg { stroke: #FA624D; }
-    .theme-coral .app-tag { background: rgba(250,98,77,0.1); color: #FA624D; }
-    .theme-coral:hover { border-color: #FA624D; }
+  NOTIFY_EMAILS.forEach(function(email) {
+    MailApp.sendEmail({
+      to: email,
+      subject: subject,
+      htmlBody: htmlBody
+    });
+  });
+}
 
-    /* Mint â brand mint #64F4C9 mapped to darker teal for readability */
-    .theme-mint .app-icon { background: rgba(100,244,201,0.12); }
-    .theme-mint .app-icon svg { stroke: #1a9e78; }
-    .theme-mint .app-tag { background: rgba(100,244,201,0.15); color: #1a9e78; }
-    .theme-mint:hover { border-color: #64F4C9; }
+function sendStatusUpdateEmail(request, status) {
+  const color = status === 'Approved' ? '#1a9e78' : '#FA624D';
+  const emoji = status === 'Approved' ? '✅' : '❌';
+  const subject = emoji + ' Time-Off ' + status + ': ' + request.employeeName;
 
-    /* Gold â brand gold #F6AF24 */
-    .theme-gold .app-icon { background: rgba(246,175,36,0.1); }
-    .theme-gold .app-icon svg { stroke: #d9930a; }
-    .theme-gold .app-tag { background: rgba(246,175,36,0.12); color: #d9930a; }
-    .theme-gold:hover { border-color: #F6AF24; }
+  const htmlBody =
+    '<div style="font-family:Montserrat,Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px;">' +
+    '<div style="background:' + color + ';padding:20px 24px;border-radius:12px 12px 0 0;text-align:center;">' +
+    '<h2 style="color:white;margin:0;font-size:18px;">Request ' + status + '</h2>' +
+    '</div>' +
+    '<div style="background:#f8f9fa;padding:24px;border:1px solid #e0e0e0;border-top:none;border-radius:0 0 12px 12px;">' +
+    '<p><strong>' + request.employeeName + '</strong>\'s time-off request has been <strong style="color:' + color + ';">' + status.toLowerCase() + '</strong>.</p>' +
+    '<table style="width:100%;border-collapse:collapse;margin-top:12px;">' +
+    '<tr><td style="padding:6px 0;color:#666;width:130px;">Dates</td><td style="padding:6px 0;color:#1B2F4C;">' + formatDate(request.startDate) + ' — ' + formatDate(request.endDate) + '</td></tr>' +
+    '<tr><td style="padding:6px 0;color:#666;">Type</td><td style="padding:6px 0;color:#1B2F4C;">' + request.requestType + '</td></tr>' +
+    '</table>' +
+    '</div>' +
+    '</div>';
 
-    /* Navy â brand navy #1B2F4C */
-    .theme-navy .app-icon { background: rgba(27,47,76,0.07); }
-    .theme-navy .app-icon svg { stroke: #1B2F4C; }
-    .theme-navy .app-tag { background: rgba(27,47,76,0.08); color: #1B2F4C; }
-    .theme-navy:hover { border-color: #1B2F4C; }
+  NOTIFY_EMAILS.forEach(function(email) {
+    MailApp.sendEmail({
+      to: email,
+      subject: subject,
+      htmlBody: htmlBody
+    });
+  });
+}
 
-    footer {
-      text-align: center;
-      padding: 36px 20px;
-      font-size: 0.72rem;
-      font-weight: 600;
-      letter-spacing: 0.5px;
-      color: #1B2F4C;
-      opacity: 0.3;
-    }
+function sendSchedulingEmail(request, adminName) {
+  const subject = 'Schedule Block Needed: ' + request.employeeName + ' Time-Off (' + formatDate(request.startDate) + ' - ' + formatDate(request.endDate) + ')';
 
-    @media (max-width: 600px) {
-      .apps-grid { grid-template-columns: 1fr; }
-      header { padding: 28px 20px 24px; }
-      .logo-row img { height: 44px; }
-      header h1 { font-size: 0.75rem; }
-    }
-  </style>
-</head>
-<body>
+  const htmlBody =
+    '<div style="font-family:Montserrat,Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px;">' +
+    '<div style="background:#1B2F4C;padding:20px 24px;border-radius:12px 12px 0 0;text-align:center;">' +
+    '<h2 style="color:white;margin:0;font-size:18px;">Schedule Block Request</h2>' +
+    '</div>' +
+    '<div style="background:#f8f9fa;padding:24px;border:1px solid #e0e0e0;border-top:none;">' +
+    '<p>Please block the schedule for <strong>' + request.employeeName + '</strong> from <strong>' + formatDate(request.startDate) + '</strong> to <strong>' + formatDate(request.endDate) + '</strong>.</p>' +
+    '<p style="margin-top:16px;">Their time-off request has been approved.</p>' +
+    '<table style="width:100%;border-collapse:collapse;margin-top:16px;background:white;border:1px solid #e0e0e0;">' +
+    '<tr style="background:#f0f0f0;"><td style="padding:12px;font-weight:600;color:#1B2F4C;width:130px;">Request Type</td><td style="padding:12px;color:#1B2F4C;">' + request.requestType + '</td></tr>' +
+    '<tr><td style="padding:12px;font-weight:600;color:#1B2F4C;">Hours</td><td style="padding:12px;color:#1B2F4C;">' + (request.hours || 'Full Day') + '</td></tr>' +
+    '<tr style="background:#f0f0f0;"><td style="padding:12px;font-weight:600;color:#1B2F4C;">Approved By</td><td style="padding:12px;color:#1B2F4C;">' + adminName + '</td></tr>' +
+    '</table>' +
+    '</div>' +
+    '</div>';
 
-<header>
-  <div class="logo-row">
-    <img src="logo-white.png" alt="Next Level Orthodontics" style="height: 48px;" />
-  </div>
-  <h1>Internal Tools</h1>
-</header>
+  MailApp.sendEmail({
+    to: SCHEDULING_EMAIL,
+    subject: subject,
+    htmlBody: htmlBody
+  });
+}
 
-<div class="main">
-  <div class="section-title">Applications</div>
+// ---------- SHEET SETUP ----------
+function setupSheet() {
+  const ss = SpreadsheetApp.openById(SHEET_ID);
+  let sheet = ss.getSheetByName('Requests');
+  if (!sheet) {
+    sheet = ss.insertSheet('Requests');
+  }
+  sheet.getRange(1, 1, 1, 13).setValues([[
+    'ID', 'Timestamp', 'Employee Name', 'Start Date', 'End Date',
+    'Request Type', 'Paid/Unpaid', 'Hours', 'Coverage', 'Notes', 'Status',
+    'Reviewed By', 'Reviewed At'
+  ]]);
+  sheet.getRange(1, 1, 1, 13).setFontWeight('bold').setBackground('#1B2F4C').setFontColor('white');
+  sheet.setFrozenRows(1);
+}
 
-  <div class="apps-grid">
+function setupBlackoutsSheet() {
+  const ss = SpreadsheetApp.openById(SHEET_ID);
+  let sheet = ss.getSheetByName('Blackouts');
+  if (!sheet) {
+    sheet = ss.insertSheet('Blackouts');
+  }
 
-    <!-- Aligner Label Maker -->
-    <a href="aligner-label-maker.html" class="app-card theme-blue">
-      <div class="app-icon">
-        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="2" y="3" width="20" height="14" rx="2"/>
-          <path d="M8 21h8"/>
-          <path d="M12 17v4"/>
-        </svg>
-      </div>
-      <h3>Aligner Label Maker</h3>
-      <p>Generate and print 2x4" thermoforming labels for upper and lower aligner stages. Direct print to GK420d.</p>
-      <span class="app-tag">Labels &amp; Printing</span>
-    </a>
+  // Set up header
+  sheet.getRange(1, 1, 1, 3).setValues([[
+    'Start Date', 'End Date', 'Label'
+  ]]);
+  sheet.getRange(1, 1, 1, 3).setFontWeight('bold').setBackground('#1B2F4C').setFontColor('white');
+  sheet.setFrozenRows(1);
 
-    <!-- NLO Inventory -->
-    <a href="https://nlo-inventory.netlify.app" class="app-card theme-coral" target="_blank">
-      <div class="app-icon">
-        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
-        </svg>
-      </div>
-      <h3>NLO Inventory</h3>
-      <p>Track supplies, monitor stock levels with low-stock alerts, and manage vendor info across 18+ product categories.</p>
-      <span class="app-tag">Inventory &amp; Supplies</span>
-    </a>
+  // Pre-populate with default blackouts
+  const defaultBlackouts = [
+    ['2026-01-01', '2026-01-31', 'January Blackout (All Year)'],
+    ['2026-11-23', '2026-11-29', 'Thanksgiving Week']
+  ];
 
-    <!-- Clinical SOP Manual -->
-    <a href="https://amooloo.github.io/nlo-sop-manual/" class="app-card theme-mint" target="_blank">
-      <div class="app-icon">
-        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M4 19.5A2.5 2.5 0 016.5 17H20"/>
-          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/>
-          <line x1="8" y1="7" x2="16" y2="7"/>
-          <line x1="8" y1="11" x2="14" y2="11"/>
-        </svg>
-      </div>
-      <h3>Clinical SOP Manual</h3>
-      <p>Standard operating procedures for clinical workflows, protocols, and staff reference across the practice.</p>
-      <span class="app-tag">Procedures &amp; Training</span>
-    </a>
-
-
-    <!-- Time Off Requests -->
-    <a href="time-off.html" class="app-card theme-gold">
-      <div class="app-icon">
-        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-          <line x1="16" y1="2" x2="16" y2="6"/>
-          <line x1="8" y1="2" x2="8" y2="6"/>
-          <line x1="3" y1="10" x2="21" y2="10"/>
-          <path d="M9 16l2 2 4-4"/>
-        </svg>
-      </div>
-      <h3>Time Off Requests</h3>
-      <p>Submit and manage staff time-off requests with approval workflow, calendar view, and email notifications.</p>
-      <span class="app-tag">Scheduling &amp; HR</span>
-    </a>
-
-
-    <!--
-    ADD MORE APPS HERE
-    Available themes: theme-blue, theme-coral, theme-mint, theme-gold, theme-navy
-    -->
-
-  </div>
-</div>
-
-<footer>
-  Next Level Orthodontics &middot; Internal Tools
-</footer>
-
-</body>
-</html>
+  for (let i = 0; i < defaultBlackouts.length; i++) {
+    sheet.appendRow(defaultBlackouts[i]);
+  }
+}
