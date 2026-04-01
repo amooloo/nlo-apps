@@ -397,6 +397,113 @@
       border-radius: 3px;
     }
 
+    /* ---------- BLACKOUT MANAGER ---------- */
+    .blackout-manager {
+      margin-top: 32px;
+      background: white;
+      border-radius: 14px;
+      padding: 32px;
+      box-shadow: 0 1px 3px rgba(27,47,76,0.06), 0 4px 16px rgba(27,47,76,0.04);
+    }
+    .blackout-manager h3 {
+      font-size: 0.9rem;
+      font-weight: 700;
+      margin-bottom: 20px;
+      color: #1B2F4C;
+    }
+    .blackout-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 24px;
+    }
+    .blackout-table thead {
+      border-bottom: 2px solid #e0e4e8;
+    }
+    .blackout-table th {
+      text-align: left;
+      padding: 12px 14px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #1B2F4C;
+      opacity: 0.5;
+    }
+    .blackout-table tbody tr {
+      border-bottom: 1px solid #f0f1f3;
+    }
+    .blackout-table tbody tr:hover {
+      background: #f8f9fa;
+    }
+    .blackout-table td {
+      padding: 14px;
+      font-size: 0.8rem;
+      color: #1B2F4C;
+    }
+    .blackout-delete-btn {
+      padding: 4px 8px;
+      background: #FA624D;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      font-family: inherit;
+      font-size: 0.7rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    .blackout-delete-btn:hover { opacity: 0.85; }
+    .blackout-empty {
+      text-align: center;
+      padding: 20px;
+      color: #1B2F4C;
+      opacity: 0.4;
+      font-size: 0.8rem;
+    }
+    .blackout-form {
+      display: grid;
+      grid-template-columns: 1fr 1fr 2fr auto;
+      gap: 12px;
+      align-items: flex-end;
+    }
+    .blackout-form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .blackout-form-group label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #1B2F4C;
+      opacity: 0.5;
+    }
+    .blackout-form-group input {
+      padding: 12px 14px;
+      border: 2px solid #e0e4e8;
+      border-radius: 10px;
+      font-family: inherit;
+      font-size: 0.85rem;
+      color: #1B2F4C;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .blackout-form-group input:focus { border-color: #1D3EA9; }
+    .blackout-add-btn {
+      padding: 12px 24px;
+      background: #1D3EA9;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-family: inherit;
+      font-size: 0.85rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .blackout-add-btn:hover { background: #162f85; }
+
     /* ---------- REQUESTS LIST ---------- */
     .requests-list { margin-top: 28px; }
     .requests-list h3 {
@@ -502,6 +609,7 @@
       .request-card { flex-direction: column; align-items: flex-start; gap: 10px; }
       .your-requests-table { font-size: 0.7rem; }
       .your-requests-table th, .your-requests-table td { padding: 8px; }
+      .blackout-form { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -631,6 +739,48 @@
         <div class="legend-item"><div class="legend-dot" style="background:rgba(100,244,201,0.4);"></div> Approved</div>
         <div class="legend-item"><div class="legend-dot" style="background:rgba(250,98,77,0.25);"></div> Denied / Blackout</div>
       </div>
+
+      <!-- Blackout Manager (admin only) -->
+      <div class="blackout-manager hidden" id="blackout-manager">
+        <h3>Manage Blackout Dates</h3>
+
+        <!-- Blackout Table -->
+        <div id="blackout-table-container">
+          <table class="blackout-table" id="blackout-table">
+            <thead>
+              <tr>
+                <th>Start Date</th>
+                <th>End Date</th>
+                <th>Label</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="blackout-tbody">
+              <tr><td colspan="4" class="blackout-empty">No blackout dates configured.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Add Blackout Form -->
+        <div style="border-top: 2px solid #e0e4e8; padding-top: 24px;">
+          <h4 style="font-size: 0.8rem; font-weight: 700; margin-bottom: 16px; color: #1B2F4C;">Add New Blackout Date</h4>
+          <div class="blackout-form">
+            <div class="blackout-form-group">
+              <label>Start Date</label>
+              <input type="date" id="blackout-start" />
+            </div>
+            <div class="blackout-form-group">
+              <label>End Date</label>
+              <input type="date" id="blackout-end" />
+            </div>
+            <div class="blackout-form-group">
+              <label>Label / Reason</label>
+              <input type="text" id="blackout-label" placeholder="e.g., Holiday Closure" />
+            </div>
+            <button class="blackout-add-btn" onclick="addBlackout()">Add Blackout</button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- ===== MANAGE TAB ===== -->
@@ -658,18 +808,9 @@
 
 <script>
 // ============================================================
-// CONFIGURATION — Update these after deploying your Apps Script
+// CONFIGURATION
 // ============================================================
 const API_URL = 'https://script.google.com/macros/s/AKfycbxvI_d6muf_OepqurNrxnV2O0bMaGjnyNH6SKKNqQcvXMzjN6ZBjc26aa5LkN3Grj2J/exec';
-
-// Blackout dates — dates when no time off can be requested
-// Format: 'YYYY-MM-DD' or { start: 'YYYY-MM-DD', end: 'YYYY-MM-DD', label: 'Reason' }
-const BLACKOUT_DATES = [
-  // Add your custom blackout dates here:
-  // { start: '2026-12-21', end: '2026-12-31', label: 'Holiday Closure' },
-  // { start: '2026-07-03', end: '2026-07-04', label: 'July 4th' },
-  // '2026-09-07',  // Single day example
-];
 
 // ============================================================
 // STATE
@@ -677,7 +818,9 @@ const BLACKOUT_DATES = [
 let currentPasscode = '';
 let currentUser = null; // { name, role, title }
 let allRequests = [];
+let blackoutDates = []; // Loaded from API
 let calYear, calMonth;
+let pendingApprovalAction = null; // { action, id } for email link approvals
 
 // ============================================================
 // PASSCODE
@@ -708,12 +851,26 @@ async function validatePasscode() {
         manageBtn.classList.add('hidden');
       }
 
-      loadRequests();
+      // Show blackout manager only for admins in calendar tab
+      const blackoutManager = document.getElementById('blackout-manager');
+      if (currentUser.role === 'admin') {
+        blackoutManager.classList.remove('hidden');
+      }
+
+      // Load blackout dates
+      await loadBlackoutDates();
+
+      // Load requests
+      await loadRequests();
 
       // Check URL params for approval action
       const params = new URLSearchParams(window.location.search);
       if (params.get('action') && params.get('id')) {
-        switchTab('manage');
+        pendingApprovalAction = {
+          action: params.get('action'),
+          id: params.get('id')
+        };
+        handleEmailApproval();
       }
     } else {
       passcodeInput.classList.add('error');
@@ -723,6 +880,79 @@ async function validatePasscode() {
   } catch (err) {
     showToast('Connection error. Check your API URL.');
   }
+}
+
+// ============================================================
+// EMAIL APPROVAL HANDLER
+// ============================================================
+async function handleEmailApproval() {
+  if (!pendingApprovalAction) return;
+
+  // Only admins can approve/deny
+  if (currentUser.role !== 'admin') {
+    showToast('Only administrators can approve/deny requests');
+    switchTab('request');
+    pendingApprovalAction = null;
+    return;
+  }
+
+  // Find the request
+  const request = allRequests.find(r => r.id === pendingApprovalAction.id);
+  if (!request) {
+    showToast('Request not found.');
+    pendingApprovalAction = null;
+    return;
+  }
+
+  // Check if it's their own request
+  if (request.employeeName === currentUser.name) {
+    showToast('You cannot approve your own request.');
+    switchTab('request');
+    pendingApprovalAction = null;
+    return;
+  }
+
+  // Check if already processed
+  const status = (request.status || '').toLowerCase();
+  if (status !== 'pending') {
+    const approver = request.approvedBy || 'Admin';
+    const approveDate = request.approvedDate || '';
+    showToast(`This request was already ${request.status} by ${approver} on ${approveDate}`);
+    switchTab('manage');
+    pendingApprovalAction = null;
+    return;
+  }
+
+  // Perform the action
+  try {
+    const action = pendingApprovalAction.action;
+    const id = pendingApprovalAction.id;
+    const resp = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({
+        action: action,
+        id: id,
+        passcode: currentPasscode
+      })
+    });
+    const data = await resp.json();
+
+    if (data.success) {
+      showToast(`Request ${data.status}!`);
+      await loadRequests();
+      switchTab('manage');
+      renderManageList();
+    } else if (data.error === 'already_processed') {
+      showToast(data.message || 'This request was already processed.');
+    } else {
+      showToast(data.error || 'Action failed.');
+    }
+  } catch (err) {
+    showToast('Connection error.');
+  }
+
+  pendingApprovalAction = null;
 }
 
 // ============================================================
@@ -736,10 +966,6 @@ function switchTab(tab) {
   if (tab === 'calendar') renderCalendar();
   if (tab === 'manage') renderManageList();
 }
-
-// ============================================================
-// USER IDENTITY (auto-set from passcode)
-// ============================================================
 
 // ============================================================
 // FORM SUBMISSION
@@ -821,16 +1047,116 @@ function resetForm() {
 // ============================================================
 // BLACKOUT DATES
 // ============================================================
-function getBlackoutRanges() {
-  return BLACKOUT_DATES.map(d => {
-    if (typeof d === 'string') return { start: d, end: d, label: 'Blackout' };
-    return d;
+async function loadBlackoutDates() {
+  try {
+    const resp = await fetch(API_URL + '?action=blackouts&passcode=' + encodeURIComponent(currentPasscode));
+    const data = await resp.json();
+    if (data.blackouts) {
+      blackoutDates = data.blackouts;
+      renderBlackoutTable();
+    }
+  } catch (err) {
+    console.error('Failed to load blackout dates', err);
+  }
+}
+
+function renderBlackoutTable() {
+  const tbody = document.getElementById('blackout-tbody');
+  if (!tbody) return;
+
+  if (blackoutDates.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="4" class="blackout-empty">No blackout dates configured.</td></tr>';
+    return;
+  }
+
+  let html = '';
+  blackoutDates.forEach((b, idx) => {
+    const start = new Date(b.start + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const end = new Date(b.end + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    html += `
+      <tr>
+        <td>${start}</td>
+        <td>${end}</td>
+        <td>${b.label || 'Blackout'}</td>
+        <td><button class="blackout-delete-btn" onclick="deleteBlackout(${idx})">Delete</button></td>
+      </tr>
+    `;
   });
+  tbody.innerHTML = html;
+}
+
+async function addBlackout() {
+  const start = document.getElementById('blackout-start').value;
+  const end = document.getElementById('blackout-end').value;
+  const label = document.getElementById('blackout-label').value;
+
+  if (!start || !end || !label) {
+    showToast('Please fill in all blackout fields.');
+    return;
+  }
+
+  if (new Date(end) < new Date(start)) {
+    showToast('End date must be on or after start date.');
+    return;
+  }
+
+  try {
+    const resp = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({
+        action: 'add_blackout',
+        passcode: currentPasscode,
+        start: start,
+        end: end,
+        label: label
+      })
+    });
+    const data = await resp.json();
+    if (data.success) {
+      document.getElementById('blackout-start').value = '';
+      document.getElementById('blackout-end').value = '';
+      document.getElementById('blackout-label').value = '';
+      showToast('Blackout date added!');
+      await loadBlackoutDates();
+      renderCalendar();
+    } else {
+      showToast(data.error || 'Failed to add blackout.');
+    }
+  } catch (err) {
+    showToast('Connection error.');
+  }
+}
+
+async function deleteBlackout(index) {
+  if (!confirm('Are you sure you want to delete this blackout date?')) return;
+
+  try {
+    const resp = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({
+        action: 'delete_blackout',
+        passcode: currentPasscode,
+        index: index
+      })
+    });
+    const data = await resp.json();
+    if (data.success) {
+      showToast('Blackout date deleted!');
+      await loadBlackoutDates();
+      renderCalendar();
+    } else {
+      showToast(data.error || 'Failed to delete blackout.');
+    }
+  } catch (err) {
+    showToast('Connection error.');
+  }
 }
 
 function isBlackoutDate(dateStr) {
   const date = new Date(dateStr + 'T12:00:00');
-  return getBlackoutRanges().some(b => {
+  return blackoutDates.some(b => {
     const s = new Date(b.start + 'T00:00:00');
     const e = new Date(b.end + 'T23:59:59');
     return date >= s && date <= e;
@@ -839,7 +1165,7 @@ function isBlackoutDate(dateStr) {
 
 function getBlackoutLabel(dateStr) {
   const date = new Date(dateStr + 'T12:00:00');
-  for (const b of getBlackoutRanges()) {
+  for (const b of blackoutDates) {
     const s = new Date(b.start + 'T00:00:00');
     const e = new Date(b.end + 'T23:59:59');
     if (date >= s && date <= e) return b.label || 'Blackout';
@@ -850,7 +1176,7 @@ function getBlackoutLabel(dateStr) {
 function isBlackoutConflict(startStr, endStr) {
   const start = new Date(startStr + 'T00:00:00');
   const end = new Date(endStr + 'T23:59:59');
-  return getBlackoutRanges().some(b => {
+  return blackoutDates.some(b => {
     const bs = new Date(b.start + 'T00:00:00');
     const be = new Date(b.end + 'T23:59:59');
     return start <= be && end >= bs;
@@ -1046,13 +1372,19 @@ async function handleAction(id, action) {
     const resp = await fetch(API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: action, id: id })
+      body: JSON.stringify({
+        action: action,
+        id: id,
+        passcode: currentPasscode
+      })
     });
     const data = await resp.json();
     if (data.success) {
       showToast('Request ' + data.status + '!');
       await loadRequests();
       renderManageList();
+    } else if (data.error === 'already_processed') {
+      showToast(data.message || 'This request was already processed.');
     } else {
       showToast(data.error || 'Action failed.');
     }
