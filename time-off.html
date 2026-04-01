@@ -219,6 +219,77 @@
       cursor: pointer;
     }
 
+    /* ---------- YOUR REQUESTS SECTION ---------- */
+    .your-requests-section {
+      margin-top: 32px;
+      background: white;
+      border-radius: 14px;
+      padding: 32px;
+      box-shadow: 0 1px 3px rgba(27,47,76,0.06), 0 4px 16px rgba(27,47,76,0.04);
+    }
+    .your-requests-section h3 {
+      font-size: 0.9rem;
+      font-weight: 700;
+      margin-bottom: 20px;
+      color: #1B2F4C;
+    }
+    .your-requests-empty {
+      text-align: center;
+      padding: 40px 20px;
+      color: #1B2F4C;
+      opacity: 0.4;
+      font-size: 0.8rem;
+    }
+    .your-requests-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .your-requests-table thead {
+      border-bottom: 2px solid #e0e4e8;
+    }
+    .your-requests-table th {
+      text-align: left;
+      padding: 12px 14px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #1B2F4C;
+      opacity: 0.5;
+    }
+    .your-requests-table tbody tr {
+      border-bottom: 1px solid #f0f1f3;
+    }
+    .your-requests-table tbody tr:hover {
+      background: #f8f9fa;
+    }
+    .your-requests-table td {
+      padding: 14px;
+      font-size: 0.8rem;
+      color: #1B2F4C;
+    }
+    .your-requests-table .status-badge {
+      display: inline-block;
+      padding: 5px 12px;
+      border-radius: 20px;
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .your-requests-table .status-badge.pending {
+      background: rgba(246,175,36,0.12);
+      color: #d9930a;
+    }
+    .your-requests-table .status-badge.approved {
+      background: rgba(100,244,201,0.15);
+      color: #1a9e78;
+    }
+    .your-requests-table .status-badge.denied {
+      background: rgba(250,98,77,0.1);
+      color: #FA624D;
+    }
+
     /* ---------- CALENDAR ---------- */
     .cal-header {
       display: flex;
@@ -429,6 +500,8 @@
       .cal-day { min-height: 60px; }
       .cal-event { font-size: 0.5rem; }
       .request-card { flex-direction: column; align-items: flex-start; gap: 10px; }
+      .your-requests-table { font-size: 0.7rem; }
+      .your-requests-table th, .your-requests-table td { padding: 8px; }
     }
   </style>
 </head>
@@ -486,6 +559,14 @@
             </select>
           </div>
           <div class="form-group">
+            <label>Paid or Unpaid?</label>
+            <select id="f-paid-type">
+              <option value="">Select...</option>
+              <option value="Paid Time Off">Paid Time Off</option>
+              <option value="Unpaid Time Off">Unpaid Time Off</option>
+            </select>
+          </div>
+          <div class="form-group">
             <label>Start Date</label>
             <input type="date" id="f-start" />
           </div>
@@ -522,6 +603,14 @@
           <h3>Request Submitted!</h3>
           <p>Your time-off request has been sent for review. You'll receive an update once it's been approved or denied.</p>
           <button class="new-request-btn" onclick="resetForm()">Submit Another Request</button>
+        </div>
+      </div>
+
+      <!-- Your Requests Section -->
+      <div class="your-requests-section" id="your-requests-section">
+        <h3>Your Requests</h3>
+        <div id="your-requests-content">
+          <div class="your-requests-empty">Loading your requests...</div>
         </div>
       </div>
     </div>
@@ -659,13 +748,14 @@ async function submitRequest() {
   const btn = document.getElementById('submit-btn');
   const name = currentUser.name;
   const type = document.getElementById('f-type').value;
+  const paidType = document.getElementById('f-paid-type').value;
   const start = document.getElementById('f-start').value;
   const end = document.getElementById('f-end').value;
   const hours = document.getElementById('f-hours').value;
   const coverage = document.getElementById('f-coverage').value;
   const notes = document.getElementById('f-notes').value;
 
-  if (!type || !start || !end) {
+  if (!type || !paidType || !start || !end) {
     showToast('Please fill in all required fields.');
     return;
   }
@@ -692,6 +782,7 @@ async function submitRequest() {
         passcode: currentPasscode,
         employeeName: name,
         requestType: type,
+        paidType: paidType,
         startDate: start,
         endDate: end,
         hours: hours,
@@ -719,6 +810,7 @@ function resetForm() {
   document.getElementById('request-form-card').classList.remove('hidden');
   document.getElementById('success-card').classList.add('hidden');
   document.getElementById('f-type').value = '';
+  document.getElementById('f-paid-type').value = '';
   document.getElementById('f-start').value = '';
   document.getElementById('f-end').value = '';
   document.getElementById('f-hours').value = 'Full Day';
@@ -774,10 +866,45 @@ async function loadRequests() {
     const data = await resp.json();
     if (data.requests) {
       allRequests = data.requests;
+      renderYourRequests();
     }
   } catch (err) {
     console.error('Failed to load requests', err);
   }
+}
+
+// ============================================================
+// YOUR REQUESTS SECTION
+// ============================================================
+function renderYourRequests() {
+  const container = document.getElementById('your-requests-content');
+  const userRequests = allRequests.filter(r => r.employeeName === currentUser.name);
+
+  if (userRequests.length === 0) {
+    container.innerHTML = '<div class="your-requests-empty">You have not submitted any requests yet.</div>';
+    return;
+  }
+
+  let html = '<table class="your-requests-table"><thead><tr><th>Date Range</th><th>Type</th><th>Paid/Unpaid</th><th>Status</th></tr></thead><tbody>';
+
+  userRequests.forEach(r => {
+    const status = (r.status || 'pending').toLowerCase();
+    const fmtStart = new Date(r.startDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const fmtEnd = new Date(r.endDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const paidType = r.paidType || 'N/A';
+
+    html += `
+      <tr>
+        <td>${fmtStart} – ${fmtEnd}</td>
+        <td>${r.requestType}</td>
+        <td>${paidType}</td>
+        <td><span class="status-badge ${status}">${r.status}</span></td>
+      </tr>
+    `;
+  });
+
+  html += '</tbody></table>';
+  container.innerHTML = html;
 }
 
 // ============================================================
@@ -891,6 +1018,7 @@ function requestCardHTML(r, showActions) {
   const status = (r.status || 'pending').toLowerCase();
   const fmtStart = new Date(r.startDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   const fmtEnd = new Date(r.endDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const paidInfo = r.paidType ? ' &middot; ' + r.paidType : '';
 
   let actionsHTML = '';
   if (showActions) {
@@ -907,7 +1035,7 @@ function requestCardHTML(r, showActions) {
     <div class="request-card ${status}">
       <div class="request-info">
         <h4>${r.employeeName}</h4>
-        <p>${r.requestType} &middot; ${fmtStart} — ${fmtEnd} &middot; ${r.hours || 'Full Day'}${r.coverage ? ' &middot; Coverage: ' + r.coverage : ''}</p>
+        <p>${r.requestType} &middot; ${fmtStart} — ${fmtEnd} &middot; ${r.hours || 'Full Day'}${paidInfo}${r.coverage ? ' &middot; Coverage: ' + r.coverage : ''}</p>
       </div>
       ${actionsHTML}
     </div>`;
