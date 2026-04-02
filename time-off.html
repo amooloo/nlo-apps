@@ -639,11 +639,14 @@
 <div id="passcode-screen" class="passcode-screen">
   <div class="passcode-box">
     <h2>NLO Time Off</h2>
-    <p id="loginSubtitle">Enter your password to continue</p>
+    <p id="loginSubtitle">Select your name and enter your password</p>
+    <select id="nameSelect" class="passcode-input" style="letter-spacing:0; font-size:0.9rem; text-align:left; padding:12px 14px; margin-bottom:10px; appearance:auto;">
+      <option value="">— Select your name —</option>
+    </select>
     <input type="password" id="passcode-input" class="passcode-input" placeholder="Password" autocomplete="off" style="letter-spacing:2px;" />
     <button class="passcode-btn" onclick="validatePasscode()">Sign In</button>
     <div id="loginError" style="color:#FA624D;font-size:0.78rem;font-weight:600;margin-top:10px;display:none;"></div>
-    <p style="font-size:0.68rem;opacity:0.4;margin-top:14px;">First time? Enter your temporary code to set up your password.</p>
+    <p style="font-size:0.68rem;opacity:0.4;margin-top:14px;">First time? Select your name and enter your temporary code.</p>
   </div>
 </div>
 
@@ -861,6 +864,24 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbxvI_d6muf_OepqurNrxnV2
 // ============================================================
 let currentPasscode = '';
 let currentUser = null; // { name, role, title }
+
+// Load employee names for the login dropdown
+(function loadNameDropdown() {
+    fetch(API_URL + '?action=getEmployeeNames')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success && data.names) {
+            var select = document.getElementById('nameSelect');
+            data.names.sort().forEach(function(name) {
+                var opt = document.createElement('option');
+                opt.value = name;
+                opt.textContent = name;
+                select.appendChild(opt);
+            });
+        }
+    })
+    .catch(function() {});
+})();
 let allRequests = [];
 let blackoutDates = []; // Loaded from API
 let calYear, calMonth;
@@ -876,13 +897,20 @@ document.getElementById('confirmPasswordInput').addEventListener('keydown', e =>
 
 async function validatePasscode() {
   const code = passcodeInput.value.trim();
+  const selectedName = document.getElementById('nameSelect').value;
   if (!code) return;
+  if (!selectedName) {
+    const errEl = document.getElementById('loginError');
+    errEl.textContent = 'Please select your name.';
+    errEl.style.display = 'block';
+    return;
+  }
 
   const errEl = document.getElementById('loginError');
   errEl.style.display = 'none';
 
   try {
-    const resp = await fetch(API_URL + '?action=validate&passcode=' + encodeURIComponent(code));
+    const resp = await fetch(API_URL + '?action=validate&passcode=' + encodeURIComponent(code) + '&employeeName=' + encodeURIComponent(selectedName));
     const data = await resp.json();
     if (data.valid) {
       if (data.needsPassword) {
