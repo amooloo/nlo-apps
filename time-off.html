@@ -635,13 +635,34 @@
 </head>
 <body>
 
-<!-- ==================== PASSCODE SCREEN ==================== -->
+<!-- ==================== LOGIN SCREEN ==================== -->
 <div id="passcode-screen" class="passcode-screen">
   <div class="passcode-box">
     <h2>NLO Time Off</h2>
-    <p>Enter the staff passcode to continue</p>
-    <input type="password" id="passcode-input" class="passcode-input" maxlength="10" placeholder="••••" autocomplete="off" />
-    <button class="passcode-btn" onclick="validatePasscode()">Enter</button>
+    <p id="loginSubtitle">Enter your password to continue</p>
+    <input type="password" id="passcode-input" class="passcode-input" placeholder="Password" autocomplete="off" style="letter-spacing:2px;" />
+    <button class="passcode-btn" onclick="validatePasscode()">Sign In</button>
+    <div id="loginError" style="color:#FA624D;font-size:0.78rem;font-weight:600;margin-top:10px;display:none;"></div>
+    <p style="font-size:0.68rem;opacity:0.4;margin-top:14px;">First time? Enter your temporary code to set up your password.</p>
+  </div>
+</div>
+
+<!-- ==================== CREATE PASSWORD SCREEN ==================== -->
+<div id="createPasswordScreen" class="passcode-screen" style="display:none;">
+  <div class="passcode-box" style="max-width:420px;">
+    <h2>Create Your Password</h2>
+    <p>Welcome, <strong id="setupWelcomeName"></strong>! Set a password you'll use to sign in.</p>
+    <input type="password" id="newPasswordInput" class="passcode-input" placeholder="New password" autocomplete="new-password" style="letter-spacing:2px;margin-bottom:10px;" />
+    <input type="password" id="confirmPasswordInput" class="passcode-input" placeholder="Confirm password" autocomplete="new-password" style="letter-spacing:2px;" />
+    <div style="text-align:left;margin-top:12px;font-size:0.7rem;color:#1B2F4C;opacity:0.6;line-height:1.6;">
+      &#8226; At least 6 characters<br>&#8226; Cannot be your temporary code
+    </div>
+    <div style="background:#F0F7FF;border-radius:8px;padding:10px 14px;margin-top:12px;text-align:left;">
+      <p style="font-size:0.7rem;color:#1D3EA9;font-weight:600;line-height:1.5;">&#128274; Your administrator will receive a copy of your password for account recovery purposes.</p>
+    </div>
+    <button class="passcode-btn" onclick="submitCreatePassword()" style="margin-top:14px;">Create Password &amp; Sign In</button>
+    <div id="createPasswordError" style="color:#FA624D;font-size:0.78rem;font-weight:600;margin-top:10px;display:none;"></div>
+    <input type="hidden" id="tempPasscodeHolder" />
   </div>
 </div>
 
@@ -846,62 +867,110 @@ let calYear, calMonth;
 let pendingApprovalAction = null; // { action, id } for email link approvals
 
 // ============================================================
-// PASSCODE
+// LOGIN
 // ============================================================
 const passcodeInput = document.getElementById('passcode-input');
 passcodeInput.addEventListener('keydown', e => { if (e.key === 'Enter') validatePasscode(); });
+document.getElementById('newPasswordInput').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('confirmPasswordInput').focus(); });
+document.getElementById('confirmPasswordInput').addEventListener('keydown', e => { if (e.key === 'Enter') submitCreatePassword(); });
 
 async function validatePasscode() {
   const code = passcodeInput.value.trim();
   if (!code) return;
 
+  const errEl = document.getElementById('loginError');
+  errEl.style.display = 'none';
+
   try {
     const resp = await fetch(API_URL + '?action=validate&passcode=' + encodeURIComponent(code));
     const data = await resp.json();
     if (data.valid) {
+      if (data.needsPassword) {
+        // First-time login — show create password screen
+        document.getElementById('passcode-screen').style.display = 'none';
+        document.getElementById('createPasswordScreen').style.display = 'flex';
+        document.getElementById('setupWelcomeName').textContent = data.name.split(' ')[0];
+        document.getElementById('tempPasscodeHolder').value = data.tempPasscode;
+        document.getElementById('newPasswordInput').value = '';
+        document.getElementById('confirmPasswordInput').value = '';
+        document.getElementById('createPasswordError').style.display = 'none';
+        document.getElementById('newPasswordInput').focus();
+        return;
+      }
+
       currentPasscode = code;
       currentUser = { name: data.name, role: data.role, title: data.title };
-      document.getElementById('passcode-screen').classList.add('hidden');
-      document.getElementById('app').classList.remove('hidden');
-
-      // Show welcome name & auto-fill form
-      document.getElementById('f-name-display').textContent = currentUser.name;
-      document.getElementById('f-title-display').textContent = currentUser.title;
-
-      // Only show Manage tab for admins
-      const manageBtn = document.querySelector('[data-tab="manage"]');
-      if (currentUser.role !== 'admin') {
-        manageBtn.classList.add('hidden');
-      }
-
-      // Show blackout manager only for admins in calendar tab
-      const blackoutManager = document.getElementById('blackout-manager');
-      if (currentUser.role === 'admin') {
-        blackoutManager.classList.remove('hidden');
-      }
-
-      // Load blackout dates
-      await loadBlackoutDates();
-
-      // Load requests
-      await loadRequests();
-
-      // Check URL params for approval action
-      const params = new URLSearchParams(window.location.search);
-      if (params.get('action') && params.get('id')) {
-        pendingApprovalAction = {
-          action: params.get('action'),
-          id: params.get('id')
-        };
-        handleEmailApproval();
-      }
+      enterTimeOffApp();
     } else {
-      passcodeInput.classList.add('error');
-      setTimeout(() => passcodeInput.classList.remove('error'), 500);
+      errEl.textContent = data.error || 'Invalid credentials. Please try again.';
+      errEl.style.display = 'block';
       passcodeInput.value = '';
+      passcodeInput.focus();
     }
   } catch (err) {
     showToast('Connection error. Check your API URL.');
+  }
+}
+
+async function submitCreatePassword() {
+  const newPw = document.getElementById('newPasswordInput').value.trim();
+  const confirmPw = document.getElementById('confirmPasswordInput').value.trim();
+  const tempCode = document.getElementById('tempPasscodeHolder').value;
+  const errEl = document.getElementById('createPasswordError');
+
+  if (newPw.length < 6) { errEl.textContent = 'Password must be at least 6 characters.'; errEl.style.display = 'block'; return; }
+  if (newPw !== confirmPw) { errEl.textContent = 'Passwords do not match.'; errEl.style.display = 'block'; return; }
+  if (newPw === tempCode) { errEl.textContent = 'Password cannot be your temporary code.'; errEl.style.display = 'block'; return; }
+
+  errEl.style.display = 'none';
+  try {
+    const resp = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'setPassword', tempPasscode: tempCode, newPassword: newPw })
+    });
+    const data = await resp.json();
+    if (data.success) {
+      currentPasscode = data.newPassword;
+      currentUser = { name: data.name, role: data.role, title: data.title };
+      document.getElementById('createPasswordScreen').style.display = 'none';
+      enterTimeOffApp();
+      showToast('Password created! Use it to sign in from now on.');
+    } else {
+      errEl.textContent = data.error || 'Failed to set password.';
+      errEl.style.display = 'block';
+    }
+  } catch (err) {
+    errEl.textContent = 'Connection error. Please try again.';
+    errEl.style.display = 'block';
+  }
+}
+
+async function enterTimeOffApp() {
+  document.getElementById('passcode-screen').style.display = 'none';
+  document.getElementById('createPasswordScreen').style.display = 'none';
+  document.getElementById('app').classList.remove('hidden');
+
+  document.getElementById('f-name-display').textContent = currentUser.name;
+  document.getElementById('f-title-display').textContent = currentUser.title;
+
+  const manageBtn = document.querySelector('[data-tab="manage"]');
+  if (currentUser.role !== 'admin') {
+    manageBtn.classList.add('hidden');
+  }
+
+  const blackoutManager = document.getElementById('blackout-manager');
+  if (currentUser.role === 'admin') {
+    blackoutManager.classList.remove('hidden');
+  }
+
+  await loadBlackoutDates();
+  await loadRequests();
+
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('action') && params.get('id')) {
+    pendingApprovalAction = { action: params.get('action'), id: params.get('id') };
+    handleEmailApproval();
   }
 }
 
@@ -963,6 +1032,9 @@ async function handleEmailApproval() {
 
     if (data.success) {
       showToast(`Request ${data.status}!`);
+      if (data.balanceWarning) {
+        showBalanceWarning(data.balanceWarning);
+      }
       await loadRequests();
       switchTab('manage');
       renderManageList();
@@ -1019,6 +1091,40 @@ async function submitRequest() {
     return;
   }
 
+  // Pre-check benefits balance for paid sick/vacation requests
+  if (paidType && paidType.toLowerCase().indexOf('paid') >= 0 && paidType.toLowerCase().indexOf('unpaid') < 0) {
+    const reqLower = type.toLowerCase();
+    if (reqLower.indexOf('sick') >= 0 || reqLower.indexOf('vacation') >= 0 || reqLower.indexOf('personal') >= 0) {
+      try {
+        const balResp = await fetch(API_URL + '?action=checkbalance&passcode=' + currentPasscode);
+        const balData = await balResp.json();
+        if (balData.balances) {
+          const balType = reqLower.indexOf('sick') >= 0 ? 'sickLeave' : 'vacation';
+          const balLabel = reqLower.indexOf('sick') >= 0 ? 'sick leave' : 'vacation';
+          const available = balData.balances[balType];
+          // Calculate requested hours
+          const startD = new Date(start + 'T12:00:00');
+          const endD = new Date(end + 'T12:00:00');
+          let workDays = 0;
+          const cur = new Date(startD);
+          while (cur <= endD) { if (cur.getDay() !== 0 && cur.getDay() !== 6) workDays++; cur.setDate(cur.getDate() + 1); }
+          let totalHrs = workDays * 8.5;
+          if (hours && hours.toLowerCase().indexOf('half') >= 0) totalHrs = workDays * 4.25;
+          if (totalHrs > available) {
+            const shortage = Math.round((totalHrs - available) * 100) / 100;
+            const proceed = confirm(
+              'Balance Warning\n\n' +
+              'You are requesting ' + totalHrs + ' hrs of ' + balLabel + ', but you only have ' + available + ' hrs available.\n' +
+              shortage + ' hrs will exceed your paid balance.\n\n' +
+              'Do you still want to submit this request?'
+            );
+            if (!proceed) return;
+          }
+        }
+      } catch (e) { /* Don't block submission if balance check fails */ }
+    }
+  }
+
   btn.disabled = true;
   btn.textContent = 'Submitting...';
 
@@ -1043,6 +1149,10 @@ async function submitRequest() {
     if (data.success) {
       document.getElementById('request-form-card').classList.add('hidden');
       document.getElementById('success-card').classList.remove('hidden');
+      // Show balance warning if applicable
+      if (data.balanceWarning) {
+        showBalanceWarning(data.balanceWarning);
+      }
       loadRequests();
     } else {
       showToast(data.error || 'Submission failed.');
@@ -1371,7 +1481,7 @@ function renderCalendar() {
 // ============================================================
 // MANAGE / APPROVE / DENY
 // ============================================================
-function renderManageList() {
+async function renderManageList() {
   const pendingContainer = document.getElementById('pending-list');
   const approvedContainer = document.getElementById('approved-list');
   const deniedContainer = document.getElementById('denied-list');
@@ -1386,6 +1496,54 @@ function renderManageList() {
   const approved = allRequests.filter(r => (r.status || '').toLowerCase() === 'approved');
   const denied = allRequests.filter(r => (r.status || '').toLowerCase() === 'denied');
   const cancelled = allRequests.filter(r => (r.status || '').toLowerCase() === 'cancelled');
+
+  // For admins, check balances on pending paid sick/vacation requests
+  if (currentUser && currentUser.role === 'admin' && pending.length > 0) {
+    // Collect unique employee names from pending requests that could have balance issues
+    const empNames = [...new Set(pending.filter(r => {
+      const pt = (r.paidType || '').toLowerCase();
+      const rt = (r.requestType || '').toLowerCase();
+      return pt.indexOf('paid') >= 0 && pt.indexOf('unpaid') < 0 &&
+             (rt.indexOf('sick') >= 0 || rt.indexOf('vacation') >= 0 || rt.indexOf('personal') >= 0);
+    }).map(r => r.employeeName))];
+
+    // Fetch balances for those employees (we use the shared sheet, so the backend can look them up)
+    const balanceCache = {};
+    for (const empName of empNames) {
+      try {
+        // We need to look up by employee — use the passcode that matches
+        // Actually we just use the admin's passcode and the backend reads from the sheet
+        const resp = await fetch(API_URL + '?action=checkbalance&passcode=' + currentPasscode + '&employee=' + encodeURIComponent(empName));
+        const bData = await resp.json();
+        if (bData.balances) balanceCache[empName] = bData.balances;
+      } catch (e) { /* skip */ }
+    }
+
+    // Annotate pending requests with balance warnings
+    pending.forEach(r => {
+      const rt = (r.requestType || '').toLowerCase();
+      const pt = (r.paidType || '').toLowerCase();
+      if (pt.indexOf('paid') < 0 || pt.indexOf('unpaid') >= 0) return;
+      const bal = balanceCache[r.employeeName];
+      if (!bal) return;
+      const balType = rt.indexOf('sick') >= 0 ? 'sickLeave' : (rt.indexOf('vacation') >= 0 || rt.indexOf('personal') >= 0 ? 'vacation' : null);
+      if (!balType) return;
+      const available = bal[balType];
+      // Calculate hours
+      const startD = new Date(r.startDate + 'T12:00:00');
+      const endD = new Date(r.endDate + 'T12:00:00');
+      let workDays = 0;
+      const cur = new Date(startD);
+      while (cur <= endD) { if (cur.getDay() !== 0 && cur.getDay() !== 6) workDays++; cur.setDate(cur.getDate() + 1); }
+      let totalHrs = workDays * 8.5;
+      if (r.hours && r.hours.toLowerCase().indexOf('half') >= 0) totalHrs = workDays * 4.25;
+      if (totalHrs > available) {
+        const shortage = Math.round((totalHrs - available) * 100) / 100;
+        const typeName = balType === 'sickLeave' ? 'sick leave' : 'vacation';
+        r._balanceWarning = `Requesting ${totalHrs} hrs ${typeName}, only ${available} hrs available (${shortage} hrs over)`;
+      }
+    });
+  }
 
   if (pending.length === 0) pendingContainer.insertAdjacentHTML('beforeend', '<p style="font-size:0.8rem;opacity:0.4;">No pending requests.</p>');
   pending.forEach(r => pendingContainer.insertAdjacentHTML('beforeend', requestCardHTML(r, true)));
@@ -1409,6 +1567,12 @@ function requestCardHTML(r, showActions) {
   const fmtEnd = new Date(r.endDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   const paidInfo = r.paidType ? ' &middot; ' + r.paidType : '';
 
+  // Check if this pending request has a balance concern (we'll calculate client-side for the card)
+  let balanceNoteHTML = '';
+  if (showActions && r._balanceWarning) {
+    balanceNoteHTML = `<div style="background:#FFF5F4;border:1px solid #FA624D;border-radius:6px;padding:8px 10px;margin-top:8px;font-size:0.72rem;color:#FA624D;font-weight:600;">&#9888; ${r._balanceWarning}</div>`;
+  }
+
   let actionsHTML = '';
   if (showActions) {
     actionsHTML = `
@@ -1425,6 +1589,7 @@ function requestCardHTML(r, showActions) {
       <div class="request-info">
         <h4>${r.employeeName}</h4>
         <p>${r.requestType} &middot; ${fmtStart} — ${fmtEnd} &middot; ${r.hours || 'Full Day'}${paidInfo}${r.coverage ? ' &middot; Coverage: ' + r.coverage : ''}</p>
+        ${balanceNoteHTML}
       </div>
       ${actionsHTML}
     </div>`;
@@ -1444,6 +1609,9 @@ async function handleAction(id, action) {
     const data = await resp.json();
     if (data.success) {
       showToast('Request ' + data.status + '!');
+      if (data.balanceWarning) {
+        showBalanceWarning(data.balanceWarning);
+      }
       await loadRequests();
       renderManageList();
     } else if (data.error === 'already_processed') {
@@ -1464,6 +1632,36 @@ function showToast(msg) {
   toast.textContent = msg;
   toast.classList.add('show');
   setTimeout(() => toast.classList.remove('show'), 3000);
+}
+
+// ============================================================
+// BALANCE WARNING
+// ============================================================
+function showBalanceWarning(warning) {
+  // Remove any existing warning
+  const existing = document.getElementById('balance-warning-banner');
+  if (existing) existing.remove();
+
+  const banner = document.createElement('div');
+  banner.id = 'balance-warning-banner';
+  banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#FFF5F4;border-bottom:3px solid #FA624D;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;gap:12px;box-shadow:0 4px 16px rgba(250,98,77,0.15);font-family:Montserrat,sans-serif;';
+  banner.innerHTML = `
+    <div style="display:flex;align-items:center;gap:12px;flex:1;">
+      <span style="font-size:1.5rem;">&#9888;&#65039;</span>
+      <div>
+        <strong style="font-size:0.85rem;color:#FA624D;">Insufficient ${warning.type} balance</strong>
+        <p style="font-size:0.8rem;color:#333;margin:4px 0 0;line-height:1.4;">
+          Requesting <strong>${warning.requested} hrs</strong> but only <strong>${warning.available} hrs</strong> available.
+          <strong>${warning.shortage} hrs</strong> will exceed the paid balance.
+        </p>
+      </div>
+    </div>
+    <button onclick="this.parentElement.remove()" style="background:none;border:2px solid #FA624D;color:#FA624D;border-radius:8px;padding:6px 14px;font-family:inherit;font-size:0.78rem;font-weight:600;cursor:pointer;white-space:nowrap;">Dismiss</button>
+  `;
+  document.body.appendChild(banner);
+
+  // Auto-dismiss after 15 seconds
+  setTimeout(() => { if (banner.parentElement) banner.remove(); }, 15000);
 }
 </script>
 
