@@ -539,11 +539,14 @@
     <div class="passcode-box">
         <div class="logo-text">Next Level Orthodontics</div>
         <h2>Staff Benefits</h2>
-        <p id="loginSubtitle">Enter your password to view your benefits</p>
+        <p id="loginSubtitle">Select your name and enter your password</p>
+        <select class="passcode-input" id="nameSelect" style="letter-spacing:0; font-size:0.9rem; text-align:left; padding:12px 14px; margin-bottom:10px; appearance:auto;">
+            <option value="">— Select your name —</option>
+        </select>
         <input type="password" class="passcode-input" id="passcodeInput" placeholder="Password" autocomplete="off" style="letter-spacing:2px;">
         <button class="passcode-btn" id="passcodeBtn" onclick="handleLogin()">Sign In</button>
         <div class="passcode-error" id="passcodeError"></div>
-        <p style="font-size:0.7rem; opacity:0.4; margin-top:14px;">First time? Enter your temporary code to set up your password.</p>
+        <p style="font-size:0.7rem; opacity:0.4; margin-top:14px;">First time? Select your name and enter your temporary code.</p>
     </div>
 </div>
 
@@ -920,6 +923,25 @@ let currentUser = null;
 let currentPasscode = '';
 let employeesCache = [];
 
+// Load employee names for the login dropdown
+(function loadNameDropdown() {
+    if (DEMO_MODE) return;
+    fetch(API_URL + '?action=getEmployeeNames')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success && data.names) {
+            var select = document.getElementById('nameSelect');
+            data.names.sort().forEach(function(name) {
+                var opt = document.createElement('option');
+                opt.value = name;
+                opt.textContent = name;
+                select.appendChild(opt);
+            });
+        }
+    })
+    .catch(function() { /* silently fail - dropdown will just be empty */ });
+})();
+
 // Demo data for previewing the UI before backend is deployed
 const DEMO_DATA = {
     '0000': { name: 'Amir Akhavan', role: 'admin', title: 'Orthodontist' },
@@ -992,7 +1014,12 @@ document.getElementById('confirmPasswordInput').addEventListener('keydown', func
 
 function handleLogin() {
     const code = document.getElementById('passcodeInput').value.trim();
+    const selectedName = document.getElementById('nameSelect').value;
     if (!code) return;
+    if (!selectedName) {
+        showLoginError('Please select your name.');
+        return;
+    }
 
     if (DEMO_MODE) {
         return handleDemoLogin(code);
@@ -1003,7 +1030,7 @@ function handleLogin() {
     fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({ action: 'login', passcode: code })
+        body: JSON.stringify({ action: 'login', passcode: code, employeeName: selectedName })
     })
     .then(function(r) { return r.json(); })
     .then(function(data) {
