@@ -1177,8 +1177,13 @@ function addAdminTabs() {
 // MY BENEFITS
 // ==================================================================
 function renderMyBenefits(emp) {
-    document.getElementById('sickBalance').textContent = emp.sickLeaveBalance.toFixed(2);
-    document.getElementById('vacBalance').textContent = emp.vacationBalance.toFixed(2);
+    var sickEl = document.getElementById('sickBalance');
+    var vacEl = document.getElementById('vacBalance');
+    sickEl.textContent = emp.sickLeaveBalance.toFixed(2);
+    vacEl.textContent = emp.vacationBalance.toFixed(2);
+    // Highlight negative balances in red
+    sickEl.style.color = emp.sickLeaveBalance < 0 ? '#FA624D' : '';
+    vacEl.style.color = emp.vacationBalance < 0 ? '#FA624D' : '';
     document.getElementById('sickRate').textContent = emp.sickAccrualRate || 0;
     document.getElementById('vacRate').textContent = emp.vacationTier ? emp.vacationTier.rate : 0;
 
@@ -1331,8 +1336,10 @@ function renderEmployeesTable(employees) {
         html += '<td><strong>' + emp.name + '</strong><br><span style="font-size:0.7rem; opacity:0.5;">' + emp.title + '</span></td>';
         html += '<td><span class="badge ' + (emp.employmentType === 'Full-Time' ? 'badge-ft' : 'badge-pt') + '">' + emp.employmentType + '</span></td>';
         html += '<td>' + (emp.hireDate ? formatDate(emp.hireDate) : '<span style="opacity:0.3">Not set</span>') + '</td>';
-        html += '<td style="font-weight:700;">' + emp.sickLeaveBalance.toFixed(2) + '</td>';
-        html += '<td style="font-weight:700;">' + emp.vacationBalance.toFixed(2) + '</td>';
+        var sickColor = emp.sickLeaveBalance < 0 ? 'color:#FA624D;' : '';
+        var vacColor = emp.vacationBalance < 0 ? 'color:#FA624D;' : '';
+        html += '<td style="font-weight:700;' + sickColor + '">' + emp.sickLeaveBalance.toFixed(2) + '</td>';
+        html += '<td style="font-weight:700;' + vacColor + '">' + emp.vacationBalance.toFixed(2) + '</td>';
         html += '<td style="font-size:0.72rem;">' + emp.vacationTier.tierName + '</td>';
         // 401(k) eligibility
         var is401kEligible = false;
@@ -1645,7 +1652,8 @@ function renderBalanceLog(logs) {
         html += '<td>' + log.employee + '</td>';
         html += '<td>' + log.type + '</td>';
         html += '<td style="font-weight:700;' + amtClass + '">' + (log.amount >= 0 ? '+' : '') + log.amount.toFixed(2) + '</td>';
-        html += '<td>' + log.newBalance.toFixed(2) + '</td>';
+        var balClass = log.newBalance < 0 ? 'font-weight:700; color:#FA624D;' : '';
+        html += '<td style="' + balClass + '">' + log.newBalance.toFixed(2) + '</td>';
         html += '<td style="font-size:0.72rem;">' + log.reason + '</td>';
         html += '<td style="font-size:0.72rem;">' + log.adjustedBy + '</td>';
         html += '</tr>';
