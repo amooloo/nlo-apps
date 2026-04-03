@@ -9,9 +9,6 @@
 <script src="https://cdn.tailwindcss.com"></script>
 <script async src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script async src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
-
-<script async src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-<script async src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";</script>
@@ -2632,6 +2629,9 @@ const HomeIc = p => /*#__PURE__*/React.createElement(Ic, p, /*#__PURE__*/React.c
 
 const CartIc = p => /*#__PURE__*/React.createElement(Ic, p, /*#__PURE__*/React.createElement("circle", { cx: "9", cy: "21", r: "1" }), /*#__PURE__*/React.createElement("circle", { cx: "20", cy: "21", r: "1" }), /*#__PURE__*/React.createElement("path", { d: "M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" }));
 
+const ListIc = p => /*#__PURE__*/React.createElement(Ic, p, /*#__PURE__*/React.createElement("line", { x1: "8", y1: "6", x2: "21", y2: "6" }), /*#__PURE__*/React.createElement("line", { x1: "8", y1: "12", x2: "21", y2: "12" }), /*#__PURE__*/React.createElement("line", { x1: "8", y1: "18", x2: "21", y2: "18" }), /*#__PURE__*/React.createElement("line", { x1: "3", y1: "6", x2: "3.01", y2: "6" }), /*#__PURE__*/React.createElement("line", { x1: "3", y1: "12", x2: "3.01", y2: "12" }), /*#__PURE__*/React.createElement("line", { x1: "3", y1: "18", x2: "3.01", y2: "18" }));
+const GridIc = p => /*#__PURE__*/React.createElement(Ic, p, /*#__PURE__*/React.createElement("rect", { x: "3", y: "3", width: "7", height: "7" }), /*#__PURE__*/React.createElement("rect", { x: "14", y: "3", width: "7", height: "7" }), /*#__PURE__*/React.createElement("rect", { x: "3", y: "14", width: "7", height: "7" }), /*#__PURE__*/React.createElement("rect", { x: "14", y: "14", width: "7", height: "7" }));
+
 // ─── StockBadge ───────────────────────────────────────────────────────────────
 function StockBadge({
   qty,
@@ -3110,17 +3110,19 @@ const SourcesModal = ({ item, onSave, onDelete, onClose, isAdmin }) => {
   }, /*#__PURE__*/React.createElement(TrashIc, { size: 13 }), "Delete Item"))));
 };
 
-// ─── Firebase Realtime Database Config ───────────────────────────────────────
-const NLO_FIREBASE_KEY = "nlo-firebase-config";
-function loadFirebaseConfig() {
-  try { return JSON.parse(localStorage.getItem(NLO_FIREBASE_KEY)) || null; } catch(e) { return null; }
-}
-function saveFirebaseConfig(cfg) {
-  localStorage.setItem(NLO_FIREBASE_KEY, JSON.stringify(cfg));
-}
-function clearFirebaseConfig() {
-  localStorage.removeItem(NLO_FIREBASE_KEY);
-}
+// ─── Firebase Realtime Database Config (hardcoded) ──────────────────────────
+const NLO_FIREBASE_CONFIG = {
+  apiKey: "AIzaSyCZ7n3pLiD4cVvSqe9MSmEq32QIY50wToI",
+  authDomain: "nlo-inventory.firebaseapp.com",
+  databaseURL: "https://nlo-inventory-default-rtdb.firebaseio.com",
+  projectId: "nlo-inventory",
+  storageBucket: "nlo-inventory.firebasestorage.app",
+  messagingSenderId: "471691286148",
+  appId: "1:471691286148:web:b362a98186f648bd4914d1"
+};
+function loadFirebaseConfig() { return NLO_FIREBASE_CONFIG; }
+function saveFirebaseConfig() {}
+function clearFirebaseConfig() {}
 
 
 // ─── Role-Based Access ───────────────────────────────────────────────────────
@@ -3164,35 +3166,48 @@ const InvoiceScanModal = ({ items, orders, onApply, onAddItem, onReceiveOrder, o
   const fileInputRef = useRef(null);
   const slipVideoRef = useRef(null);
   const slipCanvasRef = useRef(null);
+  const streamRef = useRef(null);
+  const slipStreamRef = useRef(null);
   const itemOptions = useMemo(() => items.map(it => ({ id: it.id, name: it.name, sku: it.sku })), [items]);
 
-  // Camera
+  // Camera — store stream in a ref so cleanup works even if videoRef is null
   async function startCamera() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+      streamRef.current = stream;
       if (videoRef.current) { videoRef.current.srcObject = stream; setCameraActive(true); }
+      else { stream.getTracks().forEach(t => t.stop()); streamRef.current = null; }
     } catch (err) { alert("Camera access denied"); }
   }
   function stopCamera() {
-    if (videoRef.current && videoRef.current.srcObject) {
-      videoRef.current.srcObject.getTracks().forEach(t => t.stop());
-      setCameraActive(false);
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(t => t.stop());
+      streamRef.current = null;
     }
+    if (videoRef.current) { videoRef.current.srcObject = null; }
+    setCameraActive(false);
   }
 
-  // Packing slip camera functions
+  // Packing slip camera functions — same ref-based pattern
   async function startSlipCamera() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+      slipStreamRef.current = stream;
       if (slipVideoRef.current) { slipVideoRef.current.srcObject = stream; setSlipCameraActive(true); }
+      else { stream.getTracks().forEach(t => t.stop()); slipStreamRef.current = null; }
     } catch (err) { alert("Camera access denied"); }
   }
   function stopSlipCamera() {
-    if (slipVideoRef.current && slipVideoRef.current.srcObject) {
-      slipVideoRef.current.srcObject.getTracks().forEach(t => t.stop());
-      setSlipCameraActive(false);
+    if (slipStreamRef.current) {
+      slipStreamRef.current.getTracks().forEach(t => t.stop());
+      slipStreamRef.current = null;
     }
+    if (slipVideoRef.current) { slipVideoRef.current.srcObject = null; }
+    setSlipCameraActive(false);
   }
+
+  // Cleanup both cameras on unmount
+  useEffect(() => () => { stopCamera(); stopSlipCamera(); }, []);
   function captureSlipPhoto() {
     if (!slipVideoRef.current || !slipCanvasRef.current) return;
     const ctx = slipCanvasRef.current.getContext("2d");
@@ -3334,13 +3349,17 @@ const InvoiceScanModal = ({ items, orders, onApply, onAddItem, onReceiveOrder, o
         // Figure out tracked unit for matched item
         var trackedUnit = bestId ? (items.find(it => it.id === bestId) || {}).unit || "ea" : "ea";
         var slipUnit = row.slipUnit || "";
-        var packQty = row.packQty || null;
+        var rawPackQty = Number(row.packQty);
+        var packQty = (isFinite(rawPackQty) && rawPackQty > 0) ? rawPackQty : null;
         // Auto-calculate if units differ: e.g. 2 cases × 10 boxes/case = 20 boxes
-        var finalQty = row.qty != null ? row.qty : 0;
+        var rawQty = Number(row.qty);
+        var safeQty = (isFinite(rawQty) && rawQty >= 0) ? rawQty : 0;
+        var finalQty = safeQty;
         var unitNote = "";
         if (packQty && packQty > 1) {
-          finalQty = (row.qty || 0) * packQty;
-          unitNote = String(row.qty || 0) + " " + (slipUnit || "units") + " \u00D7 " + packQty + " = " + finalQty;
+          finalQty = safeQty * packQty;
+          if (!isFinite(finalQty)) finalQty = 0;
+          unitNote = String(safeQty) + " " + (slipUnit || "units") + " \u00D7 " + packQty + " = " + finalQty;
         }
         return {
           itemId: bestId,
@@ -3353,7 +3372,7 @@ const InvoiceScanModal = ({ items, orders, onApply, onAddItem, onReceiveOrder, o
           newName: !bestId ? (row.name || "") : "",
           aiName: row.name || "",
           slipUnit: slipUnit,
-          slipQty: row.qty != null ? String(row.qty) : "",
+          slipQty: safeQty > 0 ? String(safeQty) : "",
           packQty: packQty ? String(packQty) : "",
           unitNote: unitNote,
           trackedUnit: trackedUnit
@@ -3801,6 +3820,99 @@ const InvoiceScanModal = ({ items, orders, onApply, onAddItem, onReceiveOrder, o
 };
 
 
+// ─── GridItemCard ─────────────────────────────────────────────────────────────
+function GridItemCard({ item, onAdjust, onShowQR, onEditSources, vendors, onCreateOrder }) {
+  const [orderOpen, setOrderOpen] = useState(null);
+  const [orderQty, setOrderQty] = useState("1");
+  const [selectedVendorIdx, setSelectedVendorIdx] = useState(0);
+  const s = stockStatus(item.qty, item.min);
+  const cardBorder = s === "out" ? "border-red-200 bg-red-50/30" : s === "low" ? "border-amber-200 bg-amber-50/30" : "border-gray-200 bg-white";
+  var src = primarySource(item);
+  return /*#__PURE__*/React.createElement("div", {
+    className: "rounded-xl border " + cardBorder + " overflow-hidden flex flex-col hover:shadow-md transition-shadow"
+  },
+  // Photo area
+  /*#__PURE__*/React.createElement("div", {
+    className: "h-32 bg-gray-50 flex items-center justify-center border-b border-gray-100 overflow-hidden"
+  }, item.img ? /*#__PURE__*/React.createElement("img", {
+    src: item.img,
+    alt: item.name,
+    className: "w-full h-full object-contain p-2"
+  }) : /*#__PURE__*/React.createElement(Package, { size: 32, className: "text-gray-300" })),
+  // Content
+  /*#__PURE__*/React.createElement("div", { className: "p-3 flex-1 flex flex-col gap-1.5" },
+    /*#__PURE__*/React.createElement("h3", { className: "font-semibold text-gray-900 text-sm leading-snug line-clamp-2" }, item.name),
+    /*#__PURE__*/React.createElement("div", { className: "flex items-center gap-1.5 flex-wrap" },
+      src.sku && /*#__PURE__*/React.createElement("span", { className: "text-xs text-gray-400 font-mono truncate" }, src.sku),
+      src.vendor && /*#__PURE__*/React.createElement("span", { className: "text-xs px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-500 font-medium truncate" }, src.vendor)),
+    /*#__PURE__*/React.createElement("div", { className: "flex items-center gap-2 mt-auto" },
+      /*#__PURE__*/React.createElement(StockBadge, { qty: item.qty, min: item.min }),
+      /*#__PURE__*/React.createElement("span", { className: "text-xs text-gray-500" },
+        /*#__PURE__*/React.createElement("b", { className: "text-gray-800" }, item.qty), "/", item.min, " ", item.unit)),
+    // Action buttons
+    /*#__PURE__*/React.createElement("div", { className: "flex gap-1.5 mt-1.5" },
+      /*#__PURE__*/React.createElement("button", {
+        onClick: function() { setOrderOpen(orderOpen ? null : "main"); setOrderQty("1"); setSelectedVendorIdx(0); },
+        className: "flex-1 flex items-center justify-center gap-1 " + (orderOpen ? "bg-blue-600 hover:bg-blue-700" : "bg-blue-500 hover:bg-blue-600") + " text-white text-xs font-semibold px-2 py-1.5 rounded-lg transition-colors"
+      }, /*#__PURE__*/React.createElement(CartIc, { size: 12 }), orderOpen ? "Close" : "Order"),
+      /*#__PURE__*/React.createElement("button", {
+        onClick: onAdjust,
+        className: "flex-1 flex items-center justify-center gap-1 bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold px-2 py-1.5 rounded-lg transition-colors"
+      }, /*#__PURE__*/React.createElement(PlusIc, { size: 12 }), "Update"))),
+  // Order panel (inline, below card content)
+  orderOpen && (function() {
+    var sources = allSources(item);
+    var selectedIdx = selectedVendorIdx;
+    var srcSel = sources[selectedIdx] || sources[0] || {};
+    var vendorName = srcSel.vendor || "";
+    var vendor = (vendors || []).find(function(v) { return v.name === vendorName; }) || {};
+    var targetName = vendor.rep || vendor.name || "Vendor";
+    var targetPhone = vendor.repPhone || vendor.phone || vendor.tollFree || "";
+    var targetSms = vendor.repPhone || vendor.phone || "";
+    var targetEmail = vendor.repEmail || vendor.email || "";
+    var itemSku = srcSel.sku || item.sku || "";
+    var portalUrl = vendor.portal || vendorSearchUrl(srcSel, item) || "";
+    var hasCall = !!targetPhone;
+    var hasText = !!targetSms;
+    var hasOnline = !!portalUrl;
+    var hasEmail = !!targetEmail;
+    var qty = Math.max(1, parseInt(orderQty) || 1);
+    var unitLabel = item.unit || "ea";
+    var smsBody = "Hi " + targetName + ", I'd like to order " + qty + " " + unitLabel + " of " + item.name + (itemSku ? " (SKU: " + itemSku + ")" : "") + " from " + vendorName + ". Please confirm. Thanks! - NLO";
+    var emailSubject = "Order Request: " + item.name + " (" + qty + " " + unitLabel + ")";
+    var emailBody = "Hi " + targetName + ",\n\nI'd like to order the following from " + vendorName + ":\n\nItem: " + item.name + (itemSku ? "\nSKU: " + itemSku : "") + "\nQuantity: " + qty + " " + unitLabel + "\n\nPlease confirm availability and expected delivery.\n\nThank you,\nNext Level Orthodontics";
+    var btnCls = "flex items-center gap-1.5 w-full px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ";
+    var activeBtn = btnCls + "bg-white border border-gray-200 text-gray-700 hover:bg-blue-50 hover:border-blue-300";
+    var disabledBtn = btnCls + "bg-gray-50 border border-gray-100 text-gray-300 cursor-not-allowed";
+    function createGridOrder(method) {
+      if (onCreateOrder) onCreateOrder({
+        vendor: vendorName,
+        items: [{ name: item.name, sku: itemSku, qty: qty, price: srcSel.price || 0, itemId: item.id, unit: unitLabel }],
+        dateOrdered: new Date().toISOString().split("T")[0],
+        method: method,
+        _selectedVendorId: vendorName,
+        _itemIds: [item.id]
+      });
+    }
+    return /*#__PURE__*/React.createElement("div", { className: "border-t border-blue-100 bg-blue-50/50 p-2.5 space-y-1.5" },
+      // Qty
+      /*#__PURE__*/React.createElement("div", { className: "flex items-center gap-1.5" },
+        /*#__PURE__*/React.createElement("span", { className: "text-xs font-semibold text-gray-500" }, "Qty:"),
+        /*#__PURE__*/React.createElement("button", { onClick: function() { setOrderQty(String(Math.max(1, qty - 1))); }, className: "w-6 h-6 rounded bg-white border border-gray-200 hover:bg-gray-100 text-gray-700 font-bold flex items-center justify-center text-xs" }, "\u2013"),
+        /*#__PURE__*/React.createElement("input", { type: "number", value: orderQty, onChange: function(e) { setOrderQty(e.target.value); }, className: "w-10 text-center border border-gray-200 rounded py-0.5 text-xs font-semibold bg-white", min: "1" }),
+        /*#__PURE__*/React.createElement("button", { onClick: function() { setOrderQty(String(qty + 1)); }, className: "w-6 h-6 rounded bg-white border border-gray-200 hover:bg-gray-100 text-gray-700 font-bold flex items-center justify-center text-xs" }, "+")),
+      // Contact buttons
+      /*#__PURE__*/React.createElement("a", { href: hasCall ? "tel:" + targetPhone : undefined, className: hasCall ? activeBtn : disabledBtn, onClick: function(e) { if (!hasCall) { e.preventDefault(); } else { createGridOrder("call"); } } },
+        /*#__PURE__*/React.createElement(PhoneIc, { size: 13 }), "Call"),
+      /*#__PURE__*/React.createElement("a", { href: hasText ? "sms:" + targetSms + "?body=" + encodeURIComponent(smsBody) : undefined, className: hasText ? activeBtn : disabledBtn, onClick: function(e) { if (!hasText) { e.preventDefault(); } else { createGridOrder("text"); } } },
+        /*#__PURE__*/React.createElement(ChatIc, { size: 13 }), "Text"),
+      /*#__PURE__*/React.createElement("a", { href: hasOnline ? portalUrl : undefined, target: "_blank", rel: "noopener", className: hasOnline ? activeBtn : disabledBtn, onClick: function(e) { if (!hasOnline) { e.preventDefault(); } else { createGridOrder("online"); } } },
+        /*#__PURE__*/React.createElement(LinkIc, { size: 13 }), "Online"),
+      /*#__PURE__*/React.createElement("a", { href: hasEmail ? "mailto:" + targetEmail + "?subject=" + encodeURIComponent(emailSubject) + "&body=" + encodeURIComponent(emailBody) : undefined, className: hasEmail ? activeBtn : disabledBtn, onClick: function(e) { if (!hasEmail) { e.preventDefault(); } else { createGridOrder("email"); } } },
+        /*#__PURE__*/React.createElement(MailIc, { size: 13 }), "Email"));
+  }()));
+}
+
 // ─── InventoryView ────────────────────────────────────────────────────────────
 function InventoryView({
   items,
@@ -3813,8 +3925,11 @@ function InventoryView({
   onEditSources,
   onScanInvoice,
   onAddItem,
-  isAdmin
+  isAdmin,
+  vendors,
+  onCreateOrder
 }) {
+  const [viewMode, setViewMode] = useState("list");
   const visible = useMemo(() => {
     let it = cat === "all" ? items : items.filter(i => i.cat === cat);
     if (search.trim()) {
@@ -3870,14 +3985,34 @@ function InventoryView({
     className: "absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
   }, /*#__PURE__*/React.createElement(XIc, {
     size: 14
-  }))), /*#__PURE__*/React.createElement("button", {
+  }))),
+  // List / Grid toggle
+  /*#__PURE__*/React.createElement("div", { className: "flex rounded-lg border border-gray-200 overflow-hidden" },
+    /*#__PURE__*/React.createElement("button", {
+      onClick: function() { setViewMode("list"); },
+      className: "p-2 " + (viewMode === "list" ? "bg-slate-800 text-white" : "bg-white text-gray-500 hover:bg-gray-50"),
+      title: "List view"
+    }, /*#__PURE__*/React.createElement(ListIc, { size: 14 })),
+    /*#__PURE__*/React.createElement("button", {
+      onClick: function() { setViewMode("grid"); },
+      className: "p-2 " + (viewMode === "grid" ? "bg-slate-800 text-white" : "bg-white text-gray-500 hover:bg-gray-50"),
+      title: "Grid view"
+    }, /*#__PURE__*/React.createElement(GridIc, { size: 14 }))),
+  /*#__PURE__*/React.createElement("button", {
     onClick: onShowQR,
     className: "flex items-center gap-1.5 bg-slate-800 text-white text-xs font-semibold px-3 py-2.5 rounded-xl hover:bg-slate-700 whitespace-nowrap"
   }, /*#__PURE__*/React.createElement(PrintIc, {
     size: 14
   }), /*#__PURE__*/React.createElement("span", {
     className: "hidden sm:inline"
-  }, "Print Labels")), isAdmin && onAddItem && /*#__PURE__*/React.createElement("button", {
+  }, "Print Labels")), onScanInvoice && /*#__PURE__*/React.createElement("button", {
+    onClick: onScanInvoice,
+    className: "flex items-center gap-1.5 bg-blue-600 text-white text-xs font-semibold px-3 py-2.5 rounded-xl hover:bg-blue-700 whitespace-nowrap"
+  }, /*#__PURE__*/React.createElement(CameraIc, {
+    size: 14
+  }), /*#__PURE__*/React.createElement("span", {
+    className: "hidden sm:inline"
+  }, "Scan Invoice")), isAdmin && onAddItem && /*#__PURE__*/React.createElement("button", {
     onClick: onAddItem,
     className: "flex items-center gap-1.5 bg-emerald-600 text-white text-xs font-semibold px-3 py-2.5 rounded-xl hover:bg-emerald-700 whitespace-nowrap"
   }, /*#__PURE__*/React.createElement(PlusIc, {
@@ -3910,7 +4045,47 @@ function InventoryView({
     className: "mb-3 opacity-40"
   }), /*#__PURE__*/React.createElement("p", {
     className: "text-sm"
-  }, search ? "No items match your search" : "No items in this category")) : /*#__PURE__*/React.createElement("div", {
+  }, search ? "No items match your search" : "No items in this category")) : viewMode === "grid" ?
+  // ── Grid view ──
+  /*#__PURE__*/React.createElement("div", { className: "p-4 space-y-4" },
+    (function() {
+      var sections = [];
+      var currentItems = [];
+      var currentHeader = null;
+      groupedVisible.forEach(function(entry, idx) {
+        if (entry.type === "header") {
+          if (currentItems.length > 0 || currentHeader) {
+            sections.push({ header: currentHeader, items: currentItems });
+          }
+          currentHeader = entry.group;
+          currentItems = [];
+        } else {
+          currentItems.push(entry.item);
+        }
+      });
+      if (currentItems.length > 0 || currentHeader) {
+        sections.push({ header: currentHeader, items: currentItems });
+      }
+      return sections.map(function(sec, si) {
+        return /*#__PURE__*/React.createElement(React.Fragment, { key: "gs-" + si },
+          sec.header && /*#__PURE__*/React.createElement("div", { className: "px-1 py-2" + (si > 0 ? " mt-2 border-t border-gray-100 pt-3" : "") },
+            /*#__PURE__*/React.createElement("span", { className: "text-xs font-semibold text-gray-500 uppercase tracking-wider" }, sec.header)),
+          /*#__PURE__*/React.createElement("div", { className: "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4" },
+            sec.items.map(function(item) {
+              return /*#__PURE__*/React.createElement(GridItemCard, {
+                key: item.id,
+                item: item,
+                onAdjust: function() { onAdjust(item); },
+                onShowQR: function() { onShowQR(item); },
+                onEditSources: function() { onEditSources(item); },
+                vendors: vendors,
+                onCreateOrder: onCreateOrder
+              });
+            })));
+      });
+    }())) :
+  // ── List view (original) ──
+  /*#__PURE__*/React.createElement("div", {
     className: "divide-y divide-gray-50"
   }, groupedVisible.map((entry, idx) => entry.type === "header" ? /*#__PURE__*/React.createElement("div", {
     key: "gh-" + idx,
@@ -3922,15 +4097,22 @@ function InventoryView({
     item: entry.item,
     onAdjust: () => onAdjust(entry.item),
     onShowQR: () => onShowQR(entry.item),
-    onEditSources: () => onEditSources(entry.item)
+    onEditSources: () => onEditSources(entry.item),
+    vendors: vendors,
+    onCreateOrder: onCreateOrder
   })))));
 }
 function ItemRow({
   item,
   onAdjust,
   onShowQR,
-  onEditSources
+  onEditSources,
+  vendors,
+  onCreateOrder
 }) {
+  const [orderOpen, setOrderOpen] = useState(null);
+  const [orderQty, setOrderQty] = useState("1");
+  const [selectedVendorIdx, setSelectedVendorIdx] = useState(0);
   const s = stockStatus(item.qty, item.min);
   const rowBg = s === "out" ? "bg-red-50/40" : s === "low" ? "bg-amber-50/40" : "bg-white";
   return /*#__PURE__*/React.createElement("div", {
@@ -3940,7 +4122,7 @@ function ItemRow({
   }, item.img && /*#__PURE__*/React.createElement("img", {
     src: item.img,
     alt: item.name,
-    className: "w-10 h-10 object-contain rounded border border-gray-200 bg-white flex-shrink-0"
+    className: "w-14 h-14 sm:w-16 sm:h-16 object-contain rounded border border-gray-200 bg-white flex-shrink-0"
   }), /*#__PURE__*/React.createElement("div", {
     className: "flex-1 min-w-0"
   }, /*#__PURE__*/React.createElement("div", {
@@ -4019,21 +4201,99 @@ function ItemRow({
     title: "Edit sources"
   }, /*#__PURE__*/React.createElement(EditIc, {
     size: 16
-  })), allSources(item).filter(s => s.src).map((s, si) => /*#__PURE__*/React.createElement("a", {
-    key: si,
-    href: vendorSearchUrl(s, item),
-    target: "_blank",
-    rel: "noopener",
-    title: "Search " + (s.vendor || "vendor") + " for " + (s.sku || item.name),
-    className: "p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-  }, /*#__PURE__*/React.createElement(ExtLink, {
-    size: 16
-  }))), /*#__PURE__*/React.createElement("button", {
+  })), /*#__PURE__*/React.createElement("button", {
+    onClick: function() { setOrderOpen(orderOpen ? null : "main"); setOrderQty("1"); setSelectedVendorIdx(0); },
+    className: "flex items-center gap-1 " + (orderOpen ? "bg-blue-600 hover:bg-blue-700" : "bg-blue-500 hover:bg-blue-600") + " text-white text-xs font-semibold px-2.5 py-1.5 rounded-lg transition-colors"
+  }, /*#__PURE__*/React.createElement(CartIc, {
+    size: 13
+  }), /*#__PURE__*/React.createElement("span", null, orderOpen ? "Close" : "Order")), /*#__PURE__*/React.createElement("button", {
     onClick: onAdjust,
     className: "flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold px-2.5 py-1.5 rounded-lg transition-colors"
   }, /*#__PURE__*/React.createElement(PlusIc, {
     size: 13
-  }), /*#__PURE__*/React.createElement("span", null, "Update")))));
+  }), /*#__PURE__*/React.createElement("span", null, "Update")))),
+  orderOpen && (function() {
+    var sources = allSources(item);
+    var selectedIdx = selectedVendorIdx;
+    var src = sources[selectedIdx] || sources[0] || {};
+    var vendorName = src.vendor || "";
+    var vendor = (vendors || []).find(function(v) { return v.name === vendorName; }) || {};
+    var targetName = vendor.rep || vendor.name || "Vendor";
+    var targetPhone = vendor.repPhone || vendor.phone || vendor.tollFree || "";
+    var targetSms = vendor.repPhone || vendor.phone || "";
+    var targetEmail = vendor.repEmail || vendor.email || "";
+    var itemSku = src.sku || item.sku || "";
+    var portalUrl = vendor.portal || vendorSearchUrl(src, item) || "";
+    var hasCall = !!targetPhone;
+    var hasText = !!targetSms;
+    var hasOnline = !!portalUrl;
+    var hasEmail = !!targetEmail;
+    var qty = Math.max(1, parseInt(orderQty) || 1);
+    var unitLabel = item.unit || "ea";
+    var smsBody = "Hi " + targetName + ", I'd like to order " + qty + " " + unitLabel + " of " + item.name + (itemSku ? " (SKU: " + itemSku + ")" : "") + " from " + vendorName + ". Please confirm. Thanks! - NLO";
+    var emailSubject = "Order Request: " + item.name + " (" + qty + " " + unitLabel + ")";
+    var emailBody = "Hi " + targetName + ",\n\nI'd like to order the following from " + vendorName + ":\n\nItem: " + item.name + (itemSku ? "\nSKU: " + itemSku : "") + "\nQuantity: " + qty + " " + unitLabel + "\n\nPlease confirm availability and expected delivery.\n\nThank you,\nNext Level Orthodontics";
+    var activeBtn = "flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm font-medium bg-white border border-gray-200 text-gray-700 hover:bg-blue-50 hover:border-blue-300 transition-colors";
+    var disabledBtn = "flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm font-medium bg-gray-50 border border-gray-100 text-gray-300 cursor-not-allowed";
+    // 10-day recent order warning
+    var recentWarning = false;
+    var daysSinceOrder = null;
+    if (item.lastOrderedTimestamp) {
+      var elapsed = Date.now() - item.lastOrderedTimestamp;
+      daysSinceOrder = Math.floor(elapsed / 86400000);
+      if (elapsed < 864000000) recentWarning = true;
+    }
+    function createItemOrder(method) {
+      if (onCreateOrder) onCreateOrder({
+        vendor: vendorName,
+        items: [{ name: item.name, sku: itemSku, qty: qty, price: src.price || 0, itemId: item.id, unit: unitLabel }],
+        dateOrdered: new Date().toISOString().split("T")[0],
+        method: method,
+        _selectedVendorId: vendorName,
+        _itemIds: [item.id]
+      });
+    }
+    return /*#__PURE__*/React.createElement("div", { className: "bg-blue-50/50 border-t border-blue-100 px-4 py-3 space-y-2" },
+      // Recent order warning banner
+      recentWarning && /*#__PURE__*/React.createElement("div", { className: "flex items-start gap-2 bg-amber-50 border border-amber-300 text-amber-800 rounded-lg px-3 py-2.5 mb-1" },
+        /*#__PURE__*/React.createElement("span", { className: "text-lg flex-shrink-0" }, "\u26A0\uFE0F"),
+        /*#__PURE__*/React.createElement("div", null,
+          /*#__PURE__*/React.createElement("p", { className: "text-xs font-bold" }, "Warning: This item was recently ordered by another team member within the last 10 days."),
+          /*#__PURE__*/React.createElement("p", { className: "text-xs mt-0.5 text-amber-600" }, daysSinceOrder === 0 ? "Ordered today" : "Ordered " + daysSinceOrder + " day" + (daysSinceOrder !== 1 ? "s" : "") + " ago"))),
+      // Multi-vendor selector (if more than one source)
+      sources.length > 1 && /*#__PURE__*/React.createElement("div", { className: "space-y-1.5 mb-1" },
+        /*#__PURE__*/React.createElement("p", { className: "text-xs font-semibold text-gray-500" }, "Select Vendor:"),
+        sources.map(function(s, idx) {
+          var isSelected = idx === selectedIdx;
+          var isLastUsed = item.lastOrderedVendorId && s.vendor === item.lastOrderedVendorId;
+          return /*#__PURE__*/React.createElement("label", {
+            key: idx,
+            className: "flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors " + (isSelected ? "bg-blue-100 border border-blue-300" : "bg-white border border-gray-200 hover:bg-gray-50"),
+            onClick: function() { setSelectedVendorIdx(idx); }
+          },
+            /*#__PURE__*/React.createElement("input", { type: "radio", name: "vendor-" + item.id, checked: isSelected, readOnly: true, className: "accent-blue-600" }),
+            /*#__PURE__*/React.createElement("span", { className: "text-sm font-medium text-gray-800" }, s.vendor || "Unknown"),
+            s.sku && /*#__PURE__*/React.createElement("span", { className: "text-xs text-gray-400 font-mono" }, s.sku),
+            s.price != null && /*#__PURE__*/React.createElement("span", { className: "text-xs text-gray-500" }, fmt(s.price) + "/" + unitLabel),
+            isLastUsed && /*#__PURE__*/React.createElement("span", { className: "ml-auto text-xs font-bold text-blue-600 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full" }, "Last Used"));
+        })),
+      // Qty controls
+      /*#__PURE__*/React.createElement("div", { className: "flex items-center gap-2 mb-2" },
+        /*#__PURE__*/React.createElement("span", { className: "text-xs font-semibold text-gray-500" }, "Qty:"),
+        /*#__PURE__*/React.createElement("button", { onClick: function() { setOrderQty(String(Math.max(1, qty - 1))); }, className: "w-7 h-7 rounded-lg bg-white border border-gray-200 hover:bg-gray-100 text-gray-700 font-bold flex items-center justify-center text-sm" }, "\u2013"),
+        /*#__PURE__*/React.createElement("input", { type: "number", value: orderQty, onChange: function(e) { setOrderQty(e.target.value); }, className: "w-14 text-center border border-gray-200 rounded-lg py-1 text-sm font-semibold bg-white", min: "1" }),
+        /*#__PURE__*/React.createElement("button", { onClick: function() { setOrderQty(String(qty + 1)); }, className: "w-7 h-7 rounded-lg bg-white border border-gray-200 hover:bg-gray-100 text-gray-700 font-bold flex items-center justify-center text-sm" }, "+"),
+        /*#__PURE__*/React.createElement("span", { className: "text-xs text-gray-400" }, unitLabel),
+        vendorName && /*#__PURE__*/React.createElement("span", { className: "text-xs text-gray-400 ml-auto" }, "from ", /*#__PURE__*/React.createElement("b", null, vendorName))),
+      /*#__PURE__*/React.createElement("a", { href: hasCall ? "tel:" + targetPhone : undefined, className: hasCall ? activeBtn : disabledBtn, onClick: function(e) { if (!hasCall) { e.preventDefault(); } else { createItemOrder("call"); } } },
+        /*#__PURE__*/React.createElement(PhoneIc, { size: 16 }), "Call", hasCall ? " \u2014 " + targetPhone : ""),
+      /*#__PURE__*/React.createElement("a", { href: hasText ? "sms:" + targetSms + "?body=" + encodeURIComponent(smsBody) : undefined, className: hasText ? activeBtn : disabledBtn, onClick: function(e) { if (!hasText) { e.preventDefault(); } else { createItemOrder("text"); } } },
+        /*#__PURE__*/React.createElement(ChatIc, { size: 16 }), "Text", hasText ? " \u2014 " + targetSms : ""),
+      /*#__PURE__*/React.createElement("a", { href: hasOnline ? portalUrl : undefined, target: "_blank", rel: "noopener", className: hasOnline ? activeBtn : disabledBtn, onClick: function(e) { if (!hasOnline) { e.preventDefault(); } else { createItemOrder("online"); } } },
+        /*#__PURE__*/React.createElement(LinkIc, { size: 16 }), "Online", hasOnline ? " \u2014 " + (function() { try { return new URL(portalUrl).hostname.replace("www.",""); } catch(e) { return portalUrl; } })() : ""),
+      /*#__PURE__*/React.createElement("a", { href: hasEmail ? "mailto:" + targetEmail + "?subject=" + encodeURIComponent(emailSubject) + "&body=" + encodeURIComponent(emailBody) : undefined, className: hasEmail ? activeBtn : disabledBtn, onClick: function(e) { if (!hasEmail) { e.preventDefault(); } else { createItemOrder("email"); } } },
+        /*#__PURE__*/React.createElement(MailIc, { size: 16 }), "Email", hasEmail ? " \u2014 " + targetEmail : ""));
+  }()));
 }
 
 // ─── ScannerView ──────────────────────────────────────────────────────────────
@@ -4043,7 +4303,8 @@ function ScannerView({
   onOrderItem,
   onAddToCart,
   cartCount,
-  vendors
+  vendors,
+  onCreateOrder
 }) {
   const [mode, setMode] = useState("find"); // find | use | receive
   const [active, setActive] = useState(false);
@@ -4061,6 +4322,7 @@ function ScannerView({
   const scanRef = useRef(false);
   const detectorRef = useRef(null);
   const html5ScannerRef = useRef(null);
+  const html5QrContainerRef = useRef(null);
   async function startCamera() {
     setError("");
     // Step 1: Open camera
@@ -4078,6 +4340,7 @@ function ScannerView({
       return;
     }
     streamRef.current = stream;
+    if (!videoRef.current) { stream.getTracks().forEach(t => t.stop()); return; }
     videoRef.current.srcObject = stream;
     try { await videoRef.current.play(); } catch(e) {}
     setActive(true);
@@ -4100,14 +4363,22 @@ function ScannerView({
     // Method 2: html5-qrcode library scanning frames from canvas
     if (typeof Html5Qrcode !== "undefined") {
       try {
-        // Element must exist BEFORE constructor
-        if (!document.getElementById("__html5qr__")) {
+        // Create container via ref — created once, cleaned up on unmount
+        if (!html5QrContainerRef.current || !document.body.contains(html5QrContainerRef.current)) {
+          // Remove stale ref if it was detached from DOM
+          if (html5QrContainerRef.current) {
+            try { html5QrContainerRef.current.remove(); } catch(e) {}
+          }
           var el = document.createElement("div");
-          el.id = "__html5qr__";
+          el.id = "__html5qr__" + Date.now();
           el.style.cssText = "position:absolute;width:0;height:0;overflow:hidden";
           document.body.appendChild(el);
+          html5QrContainerRef.current = el;
+        } else {
+          // Reusing existing container — clear any residual child nodes from previous scanner
+          html5QrContainerRef.current.innerHTML = "";
         }
-        html5ScannerRef.current = new Html5Qrcode("__html5qr__", false);
+        html5ScannerRef.current = new Html5Qrcode(html5QrContainerRef.current.id, false);
         scanRef.current = true;
         frameScanLoop();
         return;
@@ -4165,8 +4436,29 @@ function ScannerView({
   }
   function stopCamera() {
     scanRef.current = false;
-    html5ScannerRef.current = null;
-    streamRef.current?.getTracks().forEach(t => t.stop());
+    // Clean up html5-qrcode scanner instance before nulling
+    if (html5ScannerRef.current) {
+      try { html5ScannerRef.current.clear(); } catch(e) {}
+      html5ScannerRef.current = null;
+    }
+    // Clear residual DOM nodes the library may have injected into the container
+    if (html5QrContainerRef.current) {
+      try { html5QrContainerRef.current.innerHTML = ""; } catch(e) {}
+    }
+    // Stop all media tracks from the stream and the video element
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(t => { try { t.stop(); } catch(e) {} });
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      // Also stop any tracks directly on the video's srcObject (safety net)
+      try {
+        var vStream = videoRef.current.srcObject;
+        if (vStream && vStream.getTracks) vStream.getTracks().forEach(t => { try { t.stop(); } catch(e) {} });
+      } catch(e) {}
+      videoRef.current.srcObject = null;
+    }
+    detectorRef.current = null;
     setActive(false);
     setResult(null);
     setConfirmed(false);
@@ -4212,7 +4504,7 @@ function ScannerView({
       return;
     }
     const lq = q.toLowerCase();
-    setManualResults(items.filter(i => i.sku.toLowerCase().includes(lq) || i.name.toLowerCase().includes(lq)).slice(0, 8));
+    setManualResults(items.filter(i => i.sku.toLowerCase().includes(lq) || i.name.toLowerCase().includes(lq) || (i.group || "").toLowerCase().includes(lq)).slice(0, 8));
   }
   function selectItem(item) {
     setResult(item);
@@ -4239,7 +4531,15 @@ function ScannerView({
       }
     }, 1500);
   }
-  useEffect(() => () => stopCamera(), []);
+  useEffect(() => () => {
+    // Stop camera first (stops tracks, clears scanner instance)
+    stopCamera();
+    // Remove the injected __html5qr__ container from DOM entirely on unmount
+    if (html5QrContainerRef.current) {
+      try { html5QrContainerRef.current.remove(); } catch(e) {}
+      html5QrContainerRef.current = null;
+    }
+  }, []);
   const modeLabels = {
     find: "🔍 Find",
     use: "📤 Use",
@@ -4371,26 +4671,42 @@ function ScannerView({
       var src = primarySource(result);
       var vendorName = src.vendor || "";
       var vendor = vendors.find(function(v) { return v.name === vendorName; }) || {};
-      var repPhone = vendor.repPhone || "";
-      var repEmail = vendor.repEmail || "";
+      var targetName = vendor.rep || vendor.name || "Vendor";
+      var targetPhone = vendor.repPhone || vendor.phone || vendor.tollFree || "";
+      var targetSms = vendor.repPhone || vendor.phone || "";
+      var targetEmail = vendor.repEmail || vendor.email || "";
       var portalUrl = vendor.portal || vendorSearchUrl(src, result) || "";
-      var phone = vendor.phone || vendor.tollFree || "";
-      var hasCall = !!(repPhone || phone);
-      var hasText = !!repPhone;
+      var hasCall = !!targetPhone;
+      var hasText = !!targetSms;
       var hasOnline = !!portalUrl;
-      var hasEmail = !!(repEmail || vendor.email);
-      var contactPhone = repPhone || phone;
-      var contactEmail = repEmail || vendor.email || "";
+      var hasEmail = !!targetEmail;
       var qty = parseInt(orderQty) || 1;
       var itemSku = src.sku || "";
-      var orderMsg = "Hi" + (vendor.rep ? " " + vendor.rep : "") + ",\n\nI'd like to order the following from " + vendorName + ":\n\nItem: " + result.name + (itemSku ? "\nSKU: " + itemSku : "") + "\nQuantity: " + qty + " " + (result.unit || "ea") + "\n\nPlease confirm availability and expected delivery.\n\nThank you,\nNext Level Orthodontics";
-      var smsBody = "Hi" + (vendor.rep ? " " + vendor.rep : "") + ", I'd like to order " + qty + " " + (result.unit || "ea") + " of " + result.name + (itemSku ? " (SKU: " + itemSku + ")" : "") + " from " + vendorName + ". Please confirm. Thanks! - NLO";
+      var orderMsg = "Hi " + targetName + ",\n\nI'd like to order the following from " + vendorName + ":\n\nItem: " + result.name + (itemSku ? "\nSKU: " + itemSku : "") + "\nQuantity: " + qty + " " + (result.unit || "ea") + "\n\nPlease confirm availability and expected delivery.\n\nThank you,\nNext Level Orthodontics";
+      var smsBody = "Hi " + targetName + ", I'd like to order " + qty + " " + (result.unit || "ea") + " of " + result.name + (itemSku ? " (SKU: " + itemSku + ")" : "") + " from " + vendorName + ". Please confirm. Thanks! - NLO";
       var emailSubject = "Order Request: " + result.name + " (" + qty + " " + (result.unit || "ea") + ")";
       var btnBase = "flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold transition-colors ";
       var activeBtn = btnBase + "bg-white border border-gray-200 text-gray-800 hover:bg-gray-50";
       var disabledBtn = btnBase + "bg-gray-50 border border-gray-100 text-gray-300 cursor-not-allowed";
+      function createScannerOrder(method) {
+        if (onCreateOrder) onCreateOrder({
+          vendor: vendorName,
+          items: [{ name: result.name, sku: itemSku, qty: qty, price: src.price || 0, itemId: result.id, unit: result.unit || "ea" }],
+          dateOrdered: new Date().toISOString().split("T")[0],
+          method: method,
+          _selectedVendorId: vendorName,
+          _itemIds: [result.id]
+        });
+      }
+      var scanRecentWarn = result.lastOrderedTimestamp && (Date.now() - result.lastOrderedTimestamp) < 864000000;
+      var scanDaysAgo = result.lastOrderedTimestamp ? Math.floor((Date.now() - result.lastOrderedTimestamp) / 86400000) : null;
       return /*#__PURE__*/React.createElement("div", { className: "bg-gray-50 rounded-2xl p-3 space-y-2 mt-1" },
-        /*#__PURE__*/React.createElement("p", { className: "text-xs font-semibold text-gray-400 uppercase tracking-wide px-1" }, "Order from ", vendorName || "vendor", vendor.rep ? " (" + vendor.rep + ")" : ""),
+        scanRecentWarn && /*#__PURE__*/React.createElement("div", { className: "flex items-start gap-2 bg-amber-50 border border-amber-300 text-amber-800 rounded-lg px-3 py-2.5" },
+          /*#__PURE__*/React.createElement("span", { className: "text-lg flex-shrink-0" }, "\u26A0\uFE0F"),
+          /*#__PURE__*/React.createElement("div", null,
+            /*#__PURE__*/React.createElement("p", { className: "text-xs font-bold" }, "Warning: This item was recently ordered within the last 10 days."),
+            /*#__PURE__*/React.createElement("p", { className: "text-xs mt-0.5 text-amber-600" }, scanDaysAgo === 0 ? "Ordered today" : "Ordered " + scanDaysAgo + " day" + (scanDaysAgo !== 1 ? "s" : "") + " ago"))),
+        /*#__PURE__*/React.createElement("p", { className: "text-xs font-semibold text-gray-400 uppercase tracking-wide px-1" }, "Order from ", vendorName || "vendor", vendor.rep ? " (via " + vendor.rep + ")" : ""),
         /*#__PURE__*/React.createElement("div", { className: "flex items-center gap-3 bg-white border border-gray-200 rounded-xl px-4 py-2.5" },
           /*#__PURE__*/React.createElement("label", { className: "text-sm font-medium text-gray-600 whitespace-nowrap" }, "Quantity:"),
           /*#__PURE__*/React.createElement("div", { className: "flex items-center gap-1" },
@@ -4398,14 +4714,14 @@ function ScannerView({
             /*#__PURE__*/React.createElement("input", { type: "number", min: "1", value: orderQty, onChange: function(e) { setOrderQty(e.target.value); }, className: "w-16 text-center text-lg font-bold border border-gray-200 rounded-lg py-1 focus:outline-none focus:ring-2 focus:ring-blue-500" }),
             /*#__PURE__*/React.createElement("button", { onClick: function() { setOrderQty(String(qty + 1)); }, className: "w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold flex items-center justify-center" }, "+")),
           /*#__PURE__*/React.createElement("span", { className: "text-sm text-gray-400" }, result.unit || "ea")),
-        /*#__PURE__*/React.createElement("a", { href: hasCall ? "tel:" + contactPhone : undefined, className: hasCall ? activeBtn : disabledBtn, onClick: function(e) { if (!hasCall) e.preventDefault(); } },
-          /*#__PURE__*/React.createElement(PhoneIc, { size: 16 }), "Call", hasCall ? " \u2014 " + contactPhone : ""),
-        /*#__PURE__*/React.createElement("a", { href: hasText ? "sms:" + repPhone + "?&body=" + encodeURIComponent(smsBody) : undefined, className: hasText ? activeBtn : disabledBtn, onClick: function(e) { if (!hasText) e.preventDefault(); } },
-          /*#__PURE__*/React.createElement(ChatIc, { size: 16 }), "Text", hasText ? " \u2014 " + repPhone : ""),
-        /*#__PURE__*/React.createElement("a", { href: hasOnline ? portalUrl : undefined, target: "_blank", rel: "noopener", className: hasOnline ? activeBtn : disabledBtn, onClick: function(e) { if (!hasOnline) e.preventDefault(); } },
+        /*#__PURE__*/React.createElement("a", { href: hasCall ? "tel:" + targetPhone : undefined, className: hasCall ? activeBtn : disabledBtn, onClick: function(e) { if (!hasCall) { e.preventDefault(); } else { createScannerOrder("call"); } } },
+          /*#__PURE__*/React.createElement(PhoneIc, { size: 16 }), "Call", hasCall ? " \u2014 " + targetPhone : ""),
+        /*#__PURE__*/React.createElement("a", { href: hasText ? "sms:" + targetSms + "?body=" + encodeURIComponent(smsBody) : undefined, className: hasText ? activeBtn : disabledBtn, onClick: function(e) { if (!hasText) { e.preventDefault(); } else { createScannerOrder("text"); } } },
+          /*#__PURE__*/React.createElement(ChatIc, { size: 16 }), "Text", hasText ? " \u2014 " + targetSms : ""),
+        /*#__PURE__*/React.createElement("a", { href: hasOnline ? portalUrl : undefined, target: "_blank", rel: "noopener", className: hasOnline ? activeBtn : disabledBtn, onClick: function(e) { if (!hasOnline) { e.preventDefault(); } else { createScannerOrder("online"); } } },
           /*#__PURE__*/React.createElement(LinkIc, { size: 16 }), "Online", hasOnline ? " \u2014 " + (function() { try { return new URL(portalUrl).hostname.replace("www.",""); } catch(e) { return portalUrl; } })() : ""),
-        /*#__PURE__*/React.createElement("a", { href: hasEmail ? "mailto:" + contactEmail + "?subject=" + encodeURIComponent(emailSubject) + "&body=" + encodeURIComponent(orderMsg) : undefined, className: hasEmail ? activeBtn : disabledBtn, onClick: function(e) { if (!hasEmail) e.preventDefault(); } },
-          /*#__PURE__*/React.createElement(MailIc, { size: 16 }), "Email", hasEmail ? " \u2014 " + contactEmail : ""));
+        /*#__PURE__*/React.createElement("a", { href: hasEmail ? "mailto:" + targetEmail + "?subject=" + encodeURIComponent(emailSubject) + "&body=" + encodeURIComponent(orderMsg) : undefined, className: hasEmail ? activeBtn : disabledBtn, onClick: function(e) { if (!hasEmail) { e.preventDefault(); } else { createScannerOrder("email"); } } },
+          /*#__PURE__*/React.createElement(MailIc, { size: 16 }), "Email", hasEmail ? " \u2014 " + targetEmail : ""));
     }()),
   mode !== "find" && /*#__PURE__*/React.createElement("div", {
     className: "flex gap-3 items-center"
@@ -4431,11 +4747,94 @@ function ScannerView({
   }, "Clear"))));
 }
 
+// ─── SVG Mini Chart Helpers ───────────────────────────────────────────────────
+function SVGBarChart({ data, width, height, barColor, labelKey, valueKey, formatValue }) {
+  if (!data || data.length === 0) return null;
+  var maxVal = Math.max(...data.map(d => d[valueKey])) || 1;
+  var barW = Math.max(8, Math.min(36, (width - (data.length - 1) * 4 - 40) / data.length));
+  var chartH = height - 30;
+  var totalBarsW = data.length * barW + (data.length - 1) * 4;
+  var offsetX = (width - totalBarsW) / 2;
+  return /*#__PURE__*/React.createElement("svg", { width: width, height: height, className: "block mx-auto" },
+    data.map(function(d, i) {
+      var val = d[valueKey];
+      var barH = Math.max(2, (val / maxVal) * (chartH - 20));
+      var x = offsetX + i * (barW + 4);
+      var y = chartH - barH;
+      return /*#__PURE__*/React.createElement("g", { key: i },
+        /*#__PURE__*/React.createElement("rect", { x: x, y: y, width: barW, height: barH, rx: 3, fill: typeof barColor === "function" ? barColor(d, i) : barColor, opacity: 0.85 }),
+        val > 0 && /*#__PURE__*/React.createElement("text", { x: x + barW / 2, y: y - 4, textAnchor: "middle", className: "text-[9px] font-semibold fill-gray-500" }, formatValue ? formatValue(val) : val),
+        /*#__PURE__*/React.createElement("text", { x: x + barW / 2, y: chartH + 14, textAnchor: "middle", className: "text-[8px] fill-gray-400" }, d[labelKey]));
+    }));
+}
+
+function SVGLineChart({ data, width, height, lines, labelKey }) {
+  if (!data || data.length === 0) return null;
+  var chartH = height - 30;
+  var chartW = width - 20;
+  var maxVal = 1;
+  lines.forEach(function(line) { data.forEach(function(d) { maxVal = Math.max(maxVal, d[line.key] || 0); }); });
+  var stepX = data.length > 1 ? chartW / (data.length - 1) : 0;
+  return /*#__PURE__*/React.createElement("svg", { width: width, height: height, className: "block mx-auto" },
+    // Grid lines
+    [0, 0.25, 0.5, 0.75, 1].map(function(pct, gi) {
+      var y = 5 + (1 - pct) * (chartH - 10);
+      return /*#__PURE__*/React.createElement("line", { key: gi, x1: 10, y1: y, x2: width - 10, y2: y, stroke: "#e5e7eb", strokeWidth: 1, strokeDasharray: pct === 0 ? "0" : "3,3" });
+    }),
+    // Lines
+    lines.map(function(line) {
+      var points = data.map(function(d, i) {
+        var x = 10 + i * stepX;
+        var y = 5 + (1 - (d[line.key] || 0) / maxVal) * (chartH - 10);
+        return x + "," + y;
+      }).join(" ");
+      return /*#__PURE__*/React.createElement("g", { key: line.key },
+        /*#__PURE__*/React.createElement("polyline", { points: points, fill: "none", stroke: line.color, strokeWidth: 2.5, strokeLinecap: "round", strokeLinejoin: "round" }),
+        data.map(function(d, i) {
+          var x = 10 + i * stepX;
+          var y = 5 + (1 - (d[line.key] || 0) / maxVal) * (chartH - 10);
+          return (d[line.key] || 0) > 0 ? /*#__PURE__*/React.createElement("circle", { key: i, cx: x, cy: y, r: 3, fill: line.color, stroke: "white", strokeWidth: 1.5 }) : null;
+        }));
+    }),
+    // Labels
+    data.map(function(d, i) {
+      var x = 10 + i * stepX;
+      return /*#__PURE__*/React.createElement("text", { key: i, x: x, y: chartH + 16, textAnchor: "middle", className: "text-[8px] fill-gray-400" }, d[labelKey]);
+    }));
+}
+
+function SVGDonutChart({ data, size, labelKey, valueKey, colorKey }) {
+  if (!data || data.length === 0) return null;
+  var total = data.reduce(function(s, d) { return s + (d[valueKey] || 0); }, 0);
+  if (total === 0) return null;
+  var cx = size / 2, cy = size / 2, r = size * 0.38, sw = size * 0.14;
+  var cumAngle = -Math.PI / 2;
+  return /*#__PURE__*/React.createElement("svg", { width: size, height: size, className: "block mx-auto" },
+    data.map(function(d, i) {
+      var pct = (d[valueKey] || 0) / total;
+      if (pct === 0) return null;
+      var angle = pct * 2 * Math.PI;
+      var startX = cx + r * Math.cos(cumAngle);
+      var startY = cy + r * Math.sin(cumAngle);
+      cumAngle += angle;
+      var endX = cx + r * Math.cos(cumAngle);
+      var endY = cy + r * Math.sin(cumAngle);
+      var largeArc = angle > Math.PI ? 1 : 0;
+      var path = "M " + startX + " " + startY + " A " + r + " " + r + " 0 " + largeArc + " 1 " + endX + " " + endY;
+      return /*#__PURE__*/React.createElement("path", { key: i, d: path, fill: "none", stroke: d[colorKey] || "#6b7280", strokeWidth: sw, strokeLinecap: "butt" });
+    }),
+    /*#__PURE__*/React.createElement("text", { x: cx, y: cy - 4, textAnchor: "middle", className: "text-lg font-bold fill-gray-900" }, total),
+    /*#__PURE__*/React.createElement("text", { x: cx, y: cy + 12, textAnchor: "middle", className: "text-[9px] fill-gray-400" }, "total"));
+}
+
 // ─── ReportsView ──────────────────────────────────────────────────────────────
 function ReportsView({
   items,
-  log
+  log,
+  orders,
+  vendors
 }) {
+  const allOrders = orders || [];
   const out = items.filter(i => i.qty === 0);
   const low = items.filter(i => i.qty > 0 && i.qty < i.min);
   const reorder = items.filter(i => i.qty < i.min);
@@ -4508,7 +4907,7 @@ function ReportsView({
     }).sort((a, b) => b.times - a.times).slice(0, 10);
   }, [log, items]);
 
-  // Items consistently running low (how many times they've been at or below min)
+  // Items consistently running low
   const consistentlyLow = useMemo(() => {
     const lowCounts = {};
     log.forEach(l => {
@@ -4517,7 +4916,6 @@ function ReportsView({
         lowCounts[item.id] = (lowCounts[item.id] || 0) + 1;
       }
     });
-    // Also include currently low items even if no log
     items.filter(i => i.qty < i.min).forEach(i => {
       if (!lowCounts[i.id]) lowCounts[i.id] = 1;
     });
@@ -4552,16 +4950,120 @@ function ReportsView({
     return months;
   }, [log, items]);
 
-  // Estimated monthly spend (average of non-zero months)
+  // Estimated monthly spend
   const estMonthlySpend = useMemo(() => {
     const nonZero = usageTrends.filter(m => m.spend > 0);
     if (nonZero.length === 0) return 0;
     return nonZero.reduce((s, m) => s + m.spend, 0) / nonZero.length;
   }, [usageTrends]);
 
-  // Category label lookup
+  // ── ORDER ANALYTICS ──
+  const now = new Date();
+  const thisYear = now.getFullYear();
+
+  // Orders YTD
+  const ordersYTD = useMemo(() => {
+    return allOrders.filter(o => {
+      if (!o.dateOrdered) return false;
+      var d = new Date(o.dateOrdered);
+      return d.getFullYear() === thisYear && o.status !== "voided";
+    });
+  }, [allOrders, thisYear]);
+
+  const openOrders = allOrders.filter(o => o.status === "open");
+  const receivedOrders = allOrders.filter(o => o.status === "received");
+
+  // Orders by month (last 12 months)
+  const ordersByMonth = useMemo(() => {
+    var months = [];
+    for (var i = 11; i >= 0; i--) {
+      var d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      months.push({ year: d.getFullYear(), month: d.getMonth(), label: d.toLocaleDateString("en-US", { month: "short" }), count: 0, spend: 0 });
+    }
+    allOrders.forEach(function(o) {
+      if (o.status === "voided" || !o.dateOrdered) return;
+      var d = new Date(o.dateOrdered);
+      var mi = months.findIndex(function(m) { return m.year === d.getFullYear() && m.month === d.getMonth(); });
+      if (mi === -1) return;
+      months[mi].count += 1;
+      (o.items || []).forEach(function(oi) { months[mi].spend += (Number(oi.price) || 0) * (Number(oi.qty) || 0); });
+    });
+    return months;
+  }, [allOrders]);
+
+  // Orders by vendor
+  const ordersByVendor = useMemo(() => {
+    var m = {};
+    allOrders.filter(o => o.status !== "voided").forEach(function(o) {
+      var v = o.vendor || "Unknown";
+      if (!m[v]) m[v] = { name: v, count: 0, spend: 0 };
+      m[v].count += 1;
+      (o.items || []).forEach(function(oi) { m[v].spend += (Number(oi.price) || 0) * (Number(oi.qty) || 0); });
+    });
+    return Object.values(m).sort((a, b) => b.count - a.count);
+  }, [allOrders]);
+
+  // Orders by category (via item lookup)
+  const ordersByCat = useMemo(() => {
+    var m = {};
+    allOrders.filter(o => o.status !== "voided").forEach(function(o) {
+      (o.items || []).forEach(function(oi) {
+        var item = items.find(i => i.id === oi.itemId);
+        var cat = (item && item.cat) || "other";
+        if (!m[cat]) m[cat] = { cat: cat, count: 0, spend: 0 };
+        m[cat].count += (Number(oi.qty) || 0);
+        m[cat].spend += (Number(oi.price) || 0) * (Number(oi.qty) || 0);
+      });
+    });
+    return Object.values(m).sort((a, b) => b.spend - a.spend);
+  }, [allOrders, items]);
+
+  // Spending by category for donut
+  const catDonutData = useMemo(() => {
+    return ordersByCat.map(function(c) {
+      var cat = CATEGORIES.find(function(ct) { return ct.id === c.cat; });
+      return { label: cat ? cat.label : c.cat, value: c.spend, color: cat ? cat.color : "#6b7280" };
+    });
+  }, [ordersByCat]);
+
+  // Inventory by category for donut
+  const invByCat = useMemo(() => {
+    var m = {};
+    items.forEach(function(i) {
+      var cat = i.cat || "other";
+      m[cat] = (m[cat] || 0) + i.qty;
+    });
+    return Object.entries(m).map(function([catId, qty]) {
+      var cat = CATEGORIES.find(function(c) { return c.id === catId; });
+      return { label: cat ? cat.label : catId, value: qty, color: cat ? cat.color : "#6b7280" };
+    }).sort((a, b) => b.value - a.value);
+  }, [items]);
+
+  // Total order spend YTD
+  const totalSpendYTD = useMemo(() => {
+    return ordersYTD.reduce(function(s, o) {
+      return s + (o.items || []).reduce(function(s2, oi) { return s2 + (Number(oi.price) || 0) * (Number(oi.qty) || 0); }, 0);
+    }, 0);
+  }, [ordersYTD]);
+
+  // Avg order value
+  const avgOrderValue = ordersYTD.length > 0 ? totalSpendYTD / ordersYTD.length : 0;
+
+  // Category label/color lookup
   const catLabel = (id) => { const c = CATEGORIES.find(c => c.id === id); return c ? c.label : id; };
   const catColor = (id) => { const c = CATEGORIES.find(c => c.id === id); return c ? c.color : "#6b7280"; };
+
+  // Section collapse state
+  const [collapsed, setCollapsed] = useState({});
+  const toggle = (key) => setCollapsed(prev => ({ ...prev, [key]: !prev[key] }));
+  const Section = ({ id, icon, title, children, accent }) => /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => toggle(id),
+    className: "w-full px-4 py-3 border-b border-gray-100 flex items-center gap-2 hover:bg-gray-50 transition-colors"
+  }, icon, /*#__PURE__*/React.createElement("h3", { className: "font-semibold text-gray-900 text-sm flex-1 text-left" }, title),
+    /*#__PURE__*/React.createElement("span", { className: "text-gray-400 text-xs transition-transform " + (collapsed[id] ? "" : "rotate-180") }, "\u25B2")),
+  !collapsed[id] && children);
   function printReorder() {
     const win = window.open("", "_blank");
     if (!win) return;
@@ -4617,369 +5119,182 @@ function ReportsView({
     } catch (e) { console.error("Low-stock alert error:", e); }
   }
 
-  return /*#__PURE__*/React.createElement("div", {
-    className: "flex-1 overflow-y-auto"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "sticky top-0 z-10 bg-white border-b px-4 py-4 flex items-center justify-between gap-2 flex-wrap"
-  }, /*#__PURE__*/React.createElement("h2", {
-    className: "font-bold text-gray-900 text-lg"
-  }, "Reports"), /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center gap-2"
-  }, reorder.length > 0 && /*#__PURE__*/React.createElement("button", {
-    onClick: sendLowStockAlertEmail,
-    className: "flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold px-3 py-2 rounded-xl"
-  }, /*#__PURE__*/React.createElement(AlertIc, {
-    size: 13
-  }), " Email Alert"), /*#__PURE__*/React.createElement("button", {
-    onClick: printReorder,
-    className: "flex items-center gap-1.5 bg-slate-800 text-white text-xs font-semibold px-3 py-2 rounded-xl hover:bg-slate-700"
-  }, /*#__PURE__*/React.createElement(PrintIc, {
-    size: 13
-  }), " Print Reorder List"))), /*#__PURE__*/React.createElement("div", {
-    className: "p-4 space-y-5"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-2 gap-3 sm:grid-cols-4"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "bg-white rounded-2xl p-4 border border-gray-100 shadow-sm"
-  }, /*#__PURE__*/React.createElement("p", {
-    className: "text-xs text-gray-400 font-medium uppercase tracking-wide"
-  }, "Total Items"), /*#__PURE__*/React.createElement("p", {
-    className: "text-2xl font-bold text-gray-900 mt-1"
-  }, items.length)), /*#__PURE__*/React.createElement("div", {
-    className: "bg-red-50 rounded-2xl p-4 border border-red-100 shadow-sm"
-  }, /*#__PURE__*/React.createElement("p", {
-    className: "text-xs text-red-500 font-medium uppercase tracking-wide"
-  }, "Out of Stock"), /*#__PURE__*/React.createElement("p", {
-    className: "text-2xl font-bold text-red-700 mt-1"
-  }, out.length)), /*#__PURE__*/React.createElement("div", {
-    className: "bg-amber-50 rounded-2xl p-4 border border-amber-100 shadow-sm"
-  }, /*#__PURE__*/React.createElement("p", {
-    className: "text-xs text-amber-500 font-medium uppercase tracking-wide"
-  }, "Low Stock"), /*#__PURE__*/React.createElement("p", {
-    className: "text-2xl font-bold text-amber-700 mt-1"
-  }, low.length)), /*#__PURE__*/React.createElement("div", {
-    className: "bg-emerald-50 rounded-2xl p-4 border border-emerald-100 shadow-sm"
-  }, /*#__PURE__*/React.createElement("p", {
-    className: "text-xs text-emerald-600 font-medium uppercase tracking-wide"
-  }, "Stock Value"), /*#__PURE__*/React.createElement("p", {
-    className: "text-xl font-bold text-emerald-700 mt-1"
-  }, fmt(totalValue)))), /*#__PURE__*/React.createElement("div", {
-    className: "bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "px-4 py-3 border-b border-gray-100 flex items-center gap-2"
-  }, /*#__PURE__*/React.createElement(AlertIc, {
-    size: 16,
-    className: "text-red-500"
-  }), /*#__PURE__*/React.createElement("h3", {
-    className: "font-semibold text-gray-900 text-sm"
-  }, "Reorder List \u2014 ", reorder.length, " items below minimum")), reorder.length === 0 ? /*#__PURE__*/React.createElement("div", {
-    className: "py-8 text-center text-sm text-gray-400"
-  }, "All items are at or above minimum stock \uD83C\uDF89") : byVendor.map(([vendor, its]) => /*#__PURE__*/React.createElement("div", {
-    key: vendor
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "px-4 py-2 bg-gray-50 border-b border-gray-100"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "text-xs font-semibold text-gray-500 uppercase tracking-wide"
-  }, vendor, " \u2014 ", its.length, " item", its.length !== 1 ? "s" : "")), its.map(item => /*#__PURE__*/React.createElement("div", {
-    key: item.id,
-    className: "px-4 py-3 border-b border-gray-50 last:border-0 flex items-center gap-3"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "flex-1 min-w-0"
-  }, /*#__PURE__*/React.createElement("p", {
-    className: "text-sm font-medium text-gray-900 truncate"
-  }, item.name), /*#__PURE__*/React.createElement("p", {
-    className: "text-xs text-gray-400 font-mono"
-  }, primarySource(item).sku)), /*#__PURE__*/React.createElement("div", {
-    className: "text-right shrink-0"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center gap-1.5"
-  }, /*#__PURE__*/React.createElement(StockBadge, {
-    qty: item.qty,
-    min: item.min
-  }), /*#__PURE__*/React.createElement("span", {
-    className: "text-xs text-gray-500"
-  }, /*#__PURE__*/React.createElement("b", {
-    className: "text-gray-800"
-  }, item.qty), "/", item.min, " ", item.unit)), primarySource(item).price != null && /*#__PURE__*/React.createElement("p", {
-    className: "text-xs text-gray-400 mt-0.5"
-  }, fmt(primarySource(item).price), "/", item.unit)), allSources(item).filter(s => s.src).map((s, si) => /*#__PURE__*/React.createElement("a", {
-    key: si,
-    href: vendorSearchUrl(s, item),
-    target: "_blank",
-    rel: "noopener",
-    title: "Search " + (s.vendor || "vendor") + " for " + (s.sku || item.name),
-    className: "text-blue-500 hover:text-blue-700 ml-1"
-  }, /*#__PURE__*/React.createElement(ExtLink, {
-    size: 14
-  })))))))), spending.length > 0 && /*#__PURE__*/React.createElement("div", {
-    className: "bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "px-4 py-3 border-b border-gray-100 flex items-center gap-2"
-  }, /*#__PURE__*/React.createElement(DollarIc, {
-    size: 16,
-    className: "text-emerald-600"
-  }), /*#__PURE__*/React.createElement("h3", {
-    className: "font-semibold text-gray-900 text-sm"
-  }, "Spending by Vendor (from receive log)")), spending.map(([v, amt]) => {
-    const maxAmt = spending[0][1];
-    return /*#__PURE__*/React.createElement("div", {
-      key: v,
-      className: "px-4 py-3 border-b border-gray-50 last:border-0"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "flex items-center justify-between mb-1"
-    }, /*#__PURE__*/React.createElement("span", {
-      className: "text-sm font-medium text-gray-900"
-    }, v), /*#__PURE__*/React.createElement("span", {
-      className: "text-sm font-bold text-gray-900"
-    }, fmt(amt))), /*#__PURE__*/React.createElement("div", {
-      className: "w-full bg-gray-100 rounded-full h-1.5"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "bg-emerald-500 h-1.5 rounded-full transition-all",
-      style: {
-        width: `${(amt / maxAmt * 100).toFixed(1)}%`
-      }
-    })));
-  })),
+  return /*#__PURE__*/React.createElement("div", { className: "flex-1 overflow-y-auto" },
+    // ── Header ──
+    /*#__PURE__*/React.createElement("div", { className: "sticky top-0 z-10 bg-white border-b px-4 py-4 flex items-center justify-between gap-2 flex-wrap" },
+      /*#__PURE__*/React.createElement("h2", { className: "font-bold text-gray-900 text-lg" }, "Reports & Analytics"),
+      /*#__PURE__*/React.createElement("div", { className: "flex items-center gap-2" },
+        reorder.length > 0 && /*#__PURE__*/React.createElement("button", { onClick: sendLowStockAlertEmail, className: "flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold px-3 py-2 rounded-xl" }, /*#__PURE__*/React.createElement(AlertIc, { size: 13 }), " Email Alert"),
+        /*#__PURE__*/React.createElement("button", { onClick: printReorder, className: "flex items-center gap-1.5 bg-slate-800 text-white text-xs font-semibold px-3 py-2 rounded-xl hover:bg-slate-700" }, /*#__PURE__*/React.createElement(PrintIc, { size: 13 }), " Print Reorder"))),
+    /*#__PURE__*/React.createElement("div", { className: "p-4 space-y-4 pb-20 md:pb-6" },
 
-  // ── Estimated Monthly Spend ──
-  estMonthlySpend > 0 && /*#__PURE__*/React.createElement("div", {
-    className: "bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl border border-indigo-100 shadow-sm p-4"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center gap-2 mb-1"
-  }, /*#__PURE__*/React.createElement(DollarIc, {
-    size: 16,
-    className: "text-indigo-600"
-  }), /*#__PURE__*/React.createElement("h3", {
-    className: "font-semibold text-gray-900 text-sm"
-  }, "Estimated Monthly Spend")), /*#__PURE__*/React.createElement("p", {
-    className: "text-3xl font-bold text-indigo-700"
-  }, fmt(estMonthlySpend)), /*#__PURE__*/React.createElement("p", {
-    className: "text-xs text-indigo-400 mt-1"
-  }, "Based on average of months with recorded purchases")),
+    // ══════ KPI CARDS ══════
+    /*#__PURE__*/React.createElement("div", { className: "grid grid-cols-2 gap-3 sm:grid-cols-4" },
+      /*#__PURE__*/React.createElement("div", { className: "bg-blue-50 rounded-2xl p-4 border border-blue-100 shadow-sm" },
+        /*#__PURE__*/React.createElement("p", { className: "text-[10px] text-blue-500 font-semibold uppercase tracking-wide" }, "Orders YTD"),
+        /*#__PURE__*/React.createElement("p", { className: "text-2xl font-bold text-blue-700 mt-1" }, ordersYTD.length),
+        /*#__PURE__*/React.createElement("p", { className: "text-[10px] text-blue-400 mt-0.5" }, openOrders.length, " open \u00B7 ", receivedOrders.length, " received")),
+      /*#__PURE__*/React.createElement("div", { className: "bg-emerald-50 rounded-2xl p-4 border border-emerald-100 shadow-sm" },
+        /*#__PURE__*/React.createElement("p", { className: "text-[10px] text-emerald-500 font-semibold uppercase tracking-wide" }, "Spend YTD"),
+        /*#__PURE__*/React.createElement("p", { className: "text-2xl font-bold text-emerald-700 mt-1" }, fmt(totalSpendYTD)),
+        /*#__PURE__*/React.createElement("p", { className: "text-[10px] text-emerald-400 mt-0.5" }, "Avg ", fmt(avgOrderValue), "/order")),
+      /*#__PURE__*/React.createElement("div", { className: "bg-red-50 rounded-2xl p-4 border border-red-100 shadow-sm" },
+        /*#__PURE__*/React.createElement("p", { className: "text-[10px] text-red-500 font-semibold uppercase tracking-wide" }, "Need Reorder"),
+        /*#__PURE__*/React.createElement("p", { className: "text-2xl font-bold text-red-700 mt-1" }, reorder.length),
+        /*#__PURE__*/React.createElement("p", { className: "text-[10px] text-red-400 mt-0.5" }, out.length, " out \u00B7 ", low.length, " low")),
+      /*#__PURE__*/React.createElement("div", { className: "bg-purple-50 rounded-2xl p-4 border border-purple-100 shadow-sm" },
+        /*#__PURE__*/React.createElement("p", { className: "text-[10px] text-purple-500 font-semibold uppercase tracking-wide" }, "Inventory Value"),
+        /*#__PURE__*/React.createElement("p", { className: "text-2xl font-bold text-purple-700 mt-1" }, fmt(totalValue)),
+        /*#__PURE__*/React.createElement("p", { className: "text-[10px] text-purple-400 mt-0.5" }, items.length, " items tracked"))),
 
-  // ── Spending by Category ──
-  spendingByCat.length > 0 && /*#__PURE__*/React.createElement("div", {
-    className: "bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "px-4 py-3 border-b border-gray-100 flex items-center gap-2"
-  }, /*#__PURE__*/React.createElement(BarChIc, {
-    size: 16,
-    className: "text-purple-500"
-  }), /*#__PURE__*/React.createElement("h3", {
-    className: "font-semibold text-gray-900 text-sm"
-  }, "Spending by Category")), spendingByCat.map(([cat, amt]) => {
-    const maxCatAmt = spendingByCat[0][1];
-    return /*#__PURE__*/React.createElement("div", {
-      key: cat,
-      className: "px-4 py-3 border-b border-gray-50 last:border-0"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "flex items-center justify-between mb-1"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "flex items-center gap-2"
-    }, /*#__PURE__*/React.createElement("span", {
-      className: "w-2.5 h-2.5 rounded-full shrink-0",
-      style: { background: catColor(cat) }
-    }), /*#__PURE__*/React.createElement("span", {
-      className: "text-sm font-medium text-gray-900"
-    }, catLabel(cat))), /*#__PURE__*/React.createElement("span", {
-      className: "text-sm font-bold text-gray-900"
-    }, fmt(amt))), /*#__PURE__*/React.createElement("div", {
-      className: "w-full bg-gray-100 rounded-full h-1.5"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "h-1.5 rounded-full transition-all",
-      style: { width: `${(amt / maxCatAmt * 100).toFixed(1)}%`, background: catColor(cat) }
-    })));
-  })),
+    // ══════ ORDERS BY MONTH (bar chart) ══════
+    /*#__PURE__*/React.createElement(Section, { id: "ordersByMonth", title: "Orders by Month (Last 12 Months)", icon: /*#__PURE__*/React.createElement(BarChIc, { size: 16, className: "text-blue-500" }) },
+      /*#__PURE__*/React.createElement("div", { className: "px-4 py-4" },
+        /*#__PURE__*/React.createElement("div", { className: "flex items-center gap-4 mb-2 text-xs text-gray-500" },
+          /*#__PURE__*/React.createElement("span", { className: "flex items-center gap-1.5" }, /*#__PURE__*/React.createElement("span", { className: "w-2.5 h-2.5 rounded-full bg-blue-500" }), "# Orders"),
+          /*#__PURE__*/React.createElement("span", { className: "flex items-center gap-1.5" }, /*#__PURE__*/React.createElement("span", { className: "w-2.5 h-2.5 rounded-full bg-emerald-500" }), "Spend")),
+        /*#__PURE__*/React.createElement(SVGBarChart, { data: ordersByMonth, width: 340, height: 160, barColor: "#3b82f6", labelKey: "label", valueKey: "count" }),
+        ordersByMonth.some(m => m.spend > 0) && /*#__PURE__*/React.createElement("div", { className: "mt-4" },
+          /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-400 mb-1 font-medium" }, "Monthly Spend"),
+          /*#__PURE__*/React.createElement(SVGBarChart, { data: ordersByMonth, width: 340, height: 130, barColor: "#10b981", labelKey: "label", valueKey: "spend", formatValue: function(v) { return "$" + (v >= 1000 ? (v/1000).toFixed(1) + "k" : v.toFixed(0)); } })))),
 
-  // ── Usage Trends (Last 6 Months) ──
-  usageTrends.some(m => m.used > 0 || m.received > 0) && /*#__PURE__*/React.createElement("div", {
-    className: "bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "px-4 py-3 border-b border-gray-100 flex items-center gap-2"
-  }, /*#__PURE__*/React.createElement(BarChIc, {
-    size: 16,
-    className: "text-blue-500"
-  }), /*#__PURE__*/React.createElement("h3", {
-    className: "font-semibold text-gray-900 text-sm"
-  }, "Usage Trends (Last 6 Months)")), /*#__PURE__*/React.createElement("div", {
-    className: "px-4 py-4"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center gap-4 mb-3 text-xs text-gray-500"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "flex items-center gap-1.5"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "w-2.5 h-2.5 rounded-full bg-amber-400"
-  }), "Used"), /*#__PURE__*/React.createElement("span", {
-    className: "flex items-center gap-1.5"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "w-2.5 h-2.5 rounded-full bg-emerald-400"
-  }), "Received"), /*#__PURE__*/React.createElement("span", {
-    className: "flex items-center gap-1.5"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "w-2.5 h-2.5 rounded-full bg-indigo-400"
-  }), "Spend")), /*#__PURE__*/React.createElement("div", {
-    className: "space-y-2"
-  }, usageTrends.map((m, mi) => {
-    const maxVal = Math.max(...usageTrends.map(t => Math.max(t.used, t.received))) || 1;
-    return /*#__PURE__*/React.createElement("div", {
-      key: mi,
-      className: "flex items-center gap-3"
-    }, /*#__PURE__*/React.createElement("span", {
-      className: "text-xs text-gray-500 w-14 shrink-0 font-medium"
-    }, m.label), /*#__PURE__*/React.createElement("div", {
-      className: "flex-1 space-y-1"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "flex items-center gap-2"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "h-2 rounded-full bg-amber-300",
-      style: { width: `${(m.used / maxVal * 100).toFixed(1)}%`, minWidth: m.used > 0 ? "4px" : "0" }
-    }), m.used > 0 && /*#__PURE__*/React.createElement("span", {
-      className: "text-xs text-gray-400"
-    }, m.used)), /*#__PURE__*/React.createElement("div", {
-      className: "flex items-center gap-2"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "h-2 rounded-full bg-emerald-300",
-      style: { width: `${(m.received / maxVal * 100).toFixed(1)}%`, minWidth: m.received > 0 ? "4px" : "0" }
-    }), m.received > 0 && /*#__PURE__*/React.createElement("span", {
-      className: "text-xs text-gray-400"
-    }, m.received))), /*#__PURE__*/React.createElement("span", {
-      className: "text-xs font-medium text-indigo-500 shrink-0 w-16 text-right"
-    }, m.spend > 0 ? fmt(m.spend) : ""));
-  })))),
+    // ══════ SPENDING BY CATEGORY (donut + list) ══════
+    (catDonutData.length > 0 || spendingByCat.length > 0) && /*#__PURE__*/React.createElement(Section, { id: "spendByCat", title: "Spending by Category", icon: /*#__PURE__*/React.createElement(DollarIc, { size: 16, className: "text-purple-500" }) },
+      /*#__PURE__*/React.createElement("div", { className: "px-4 py-4" },
+        catDonutData.length > 0 && /*#__PURE__*/React.createElement("div", { className: "flex items-center gap-4" },
+          /*#__PURE__*/React.createElement(SVGDonutChart, { data: catDonutData, size: 120, labelKey: "label", valueKey: "value", colorKey: "color" }),
+          /*#__PURE__*/React.createElement("div", { className: "flex-1 space-y-1.5" },
+            catDonutData.slice(0, 6).map(function(d, i) {
+              return /*#__PURE__*/React.createElement("div", { key: i, className: "flex items-center gap-2" },
+                /*#__PURE__*/React.createElement("span", { className: "w-2.5 h-2.5 rounded-full shrink-0", style: { background: d.color } }),
+                /*#__PURE__*/React.createElement("span", { className: "text-xs text-gray-700 flex-1 truncate" }, d.label),
+                /*#__PURE__*/React.createElement("span", { className: "text-xs font-semibold text-gray-900" }, fmt(d.value)));
+            })))),
+      spendingByCat.map(([cat, amt]) => {
+        var maxCatAmt = spendingByCat[0][1];
+        return /*#__PURE__*/React.createElement("div", { key: cat, className: "px-4 py-2.5 border-t border-gray-50" },
+          /*#__PURE__*/React.createElement("div", { className: "flex items-center justify-between mb-1" },
+            /*#__PURE__*/React.createElement("div", { className: "flex items-center gap-2" },
+              /*#__PURE__*/React.createElement("span", { className: "w-2.5 h-2.5 rounded-full shrink-0", style: { background: catColor(cat) } }),
+              /*#__PURE__*/React.createElement("span", { className: "text-sm font-medium text-gray-900" }, catLabel(cat))),
+            /*#__PURE__*/React.createElement("span", { className: "text-sm font-bold text-gray-900" }, fmt(amt))),
+          /*#__PURE__*/React.createElement("div", { className: "w-full bg-gray-100 rounded-full h-1.5" },
+            /*#__PURE__*/React.createElement("div", { className: "h-1.5 rounded-full transition-all", style: { width: (amt / maxCatAmt * 100).toFixed(1) + "%", background: catColor(cat) } })));
+      })),
 
-  // ── Most Used Items ──
-  mostUsed.length > 0 && /*#__PURE__*/React.createElement("div", {
-    className: "bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "px-4 py-3 border-b border-gray-100 flex items-center gap-2"
-  }, /*#__PURE__*/React.createElement(MinusIc, {
-    size: 16,
-    className: "text-amber-500"
-  }), /*#__PURE__*/React.createElement("h3", {
-    className: "font-semibold text-gray-900 text-sm"
-  }, "Most Used Items")), mostUsed.map((item, idx) => {
-    const maxUsed = mostUsed[0].count;
-    return /*#__PURE__*/React.createElement("div", {
-      key: item.id,
-      className: "px-4 py-2.5 border-b border-gray-50 last:border-0 flex items-center gap-3"
-    }, /*#__PURE__*/React.createElement("span", {
-      className: "text-xs font-bold text-gray-300 w-5 text-right shrink-0"
-    }, idx + 1), /*#__PURE__*/React.createElement("div", {
-      className: "flex-1 min-w-0"
-    }, /*#__PURE__*/React.createElement("p", {
-      className: "text-sm font-medium text-gray-900 truncate"
-    }, item.name), /*#__PURE__*/React.createElement("div", {
-      className: "w-full bg-gray-100 rounded-full h-1 mt-1"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "bg-amber-400 h-1 rounded-full",
-      style: { width: `${(item.count / maxUsed * 100).toFixed(1)}%` }
-    }))), /*#__PURE__*/React.createElement("span", {
-      className: "text-sm font-bold text-amber-600 shrink-0"
-    }, item.count, " used"));
-  })),
+    // ══════ ORDERS BY VENDOR ══════
+    ordersByVendor.length > 0 && /*#__PURE__*/React.createElement(Section, { id: "ordersByVendor", title: "Orders by Vendor", icon: /*#__PURE__*/React.createElement(TruckIc, { size: 16, className: "text-indigo-500" }) },
+      /*#__PURE__*/React.createElement("div", { className: "px-4 py-3" },
+        /*#__PURE__*/React.createElement(SVGBarChart, { data: ordersByVendor.slice(0, 8), width: 340, height: 150, barColor: "#6366f1", labelKey: "name", valueKey: "count" })),
+      ordersByVendor.map(function(v) {
+        var maxV = ordersByVendor[0].count;
+        return /*#__PURE__*/React.createElement("div", { key: v.name, className: "px-4 py-2.5 border-t border-gray-50" },
+          /*#__PURE__*/React.createElement("div", { className: "flex items-center justify-between mb-1" },
+            /*#__PURE__*/React.createElement("span", { className: "text-sm font-medium text-gray-900" }, v.name),
+            /*#__PURE__*/React.createElement("span", { className: "text-xs text-gray-500" }, v.count, " orders \u00B7 ", fmt(v.spend))),
+          /*#__PURE__*/React.createElement("div", { className: "w-full bg-gray-100 rounded-full h-1.5" },
+            /*#__PURE__*/React.createElement("div", { className: "bg-indigo-500 h-1.5 rounded-full transition-all", style: { width: (v.count / maxV * 100).toFixed(1) + "%" } })));
+      })),
 
-  // ── Most Reordered Items ──
-  mostReordered.length > 0 && /*#__PURE__*/React.createElement("div", {
-    className: "bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "px-4 py-3 border-b border-gray-100 flex items-center gap-2"
-  }, /*#__PURE__*/React.createElement(PlusIc, {
-    size: 16,
-    className: "text-emerald-500"
-  }), /*#__PURE__*/React.createElement("h3", {
-    className: "font-semibold text-gray-900 text-sm"
-  }, "Most Reordered Items")), mostReordered.map((item, idx) => {
-    const maxTimes = mostReordered[0].times;
-    return /*#__PURE__*/React.createElement("div", {
-      key: item.id,
-      className: "px-4 py-2.5 border-b border-gray-50 last:border-0 flex items-center gap-3"
-    }, /*#__PURE__*/React.createElement("span", {
-      className: "text-xs font-bold text-gray-300 w-5 text-right shrink-0"
-    }, idx + 1), /*#__PURE__*/React.createElement("div", {
-      className: "flex-1 min-w-0"
-    }, /*#__PURE__*/React.createElement("p", {
-      className: "text-sm font-medium text-gray-900 truncate"
-    }, item.name), /*#__PURE__*/React.createElement("div", {
-      className: "w-full bg-gray-100 rounded-full h-1 mt-1"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "bg-emerald-400 h-1 rounded-full",
-      style: { width: `${(item.times / maxTimes * 100).toFixed(1)}%` }
-    }))), /*#__PURE__*/React.createElement("div", {
-      className: "text-right shrink-0"
-    }, /*#__PURE__*/React.createElement("p", {
-      className: "text-sm font-bold text-emerald-600"
-    }, item.times, "x"), /*#__PURE__*/React.createElement("p", {
-      className: "text-xs text-gray-400"
-    }, item.total, " units")));
-  })),
+    // ══════ INVENTORY BY CATEGORY (donut) ══════
+    invByCat.length > 0 && /*#__PURE__*/React.createElement(Section, { id: "invByCat", title: "Inventory by Category", icon: /*#__PURE__*/React.createElement(BarChIc, { size: 16, className: "text-teal-500" }) },
+      /*#__PURE__*/React.createElement("div", { className: "px-4 py-4 flex items-center gap-4" },
+        /*#__PURE__*/React.createElement(SVGDonutChart, { data: invByCat, size: 130, labelKey: "label", valueKey: "value", colorKey: "color" }),
+        /*#__PURE__*/React.createElement("div", { className: "flex-1 space-y-1.5 max-h-36 overflow-y-auto" },
+          invByCat.map(function(d, i) {
+            return /*#__PURE__*/React.createElement("div", { key: i, className: "flex items-center gap-2" },
+              /*#__PURE__*/React.createElement("span", { className: "w-2.5 h-2.5 rounded-full shrink-0", style: { background: d.color } }),
+              /*#__PURE__*/React.createElement("span", { className: "text-xs text-gray-700 flex-1 truncate" }, d.label),
+              /*#__PURE__*/React.createElement("span", { className: "text-xs font-semibold text-gray-900" }, d.value, " units"));
+          })))),
 
-  // ── Consistently Low Stock Items ──
-  consistentlyLow.length > 0 && /*#__PURE__*/React.createElement("div", {
-    className: "bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "px-4 py-3 border-b border-gray-100 flex items-center gap-2"
-  }, /*#__PURE__*/React.createElement(AlertIc, {
-    size: 16,
-    className: "text-orange-500"
-  }), /*#__PURE__*/React.createElement("h3", {
-    className: "font-semibold text-gray-900 text-sm"
-  }, "Frequently Low Stock")), consistentlyLow.map(item => /*#__PURE__*/React.createElement("div", {
-    key: item.id,
-    className: "px-4 py-2.5 border-b border-gray-50 last:border-0 flex items-center gap-3"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center shrink-0"
-  }, /*#__PURE__*/React.createElement(AlertIc, {
-    size: 14,
-    className: "text-orange-500"
-  })), /*#__PURE__*/React.createElement("div", {
-    className: "flex-1 min-w-0"
-  }, /*#__PURE__*/React.createElement("p", {
-    className: "text-sm font-medium text-gray-900 truncate"
-  }, item.name), /*#__PURE__*/React.createElement("p", {
-    className: "text-xs text-gray-400"
-  }, "Below minimum in ", item.lowCount, " log entries")), /*#__PURE__*/React.createElement("div", {
-    className: "text-right shrink-0"
-  }, /*#__PURE__*/React.createElement(StockBadge, {
-    qty: item.qty,
-    min: item.min
-  }), /*#__PURE__*/React.createElement("p", {
-    className: "text-xs text-gray-400 mt-0.5"
-  }, item.qty, "/", item.min))))),
+    // ══════ USAGE TRENDS (line chart) ══════
+    usageTrends.some(m => m.used > 0 || m.received > 0) && /*#__PURE__*/React.createElement(Section, { id: "usageTrends", title: "Usage & Receiving Trends (6 Months)", icon: /*#__PURE__*/React.createElement(BarChIc, { size: 16, className: "text-amber-500" }) },
+      /*#__PURE__*/React.createElement("div", { className: "px-4 py-4" },
+        /*#__PURE__*/React.createElement("div", { className: "flex items-center gap-4 mb-2 text-xs text-gray-500" },
+          /*#__PURE__*/React.createElement("span", { className: "flex items-center gap-1.5" }, /*#__PURE__*/React.createElement("span", { className: "w-2.5 h-2.5 rounded-full bg-amber-400" }), "Used"),
+          /*#__PURE__*/React.createElement("span", { className: "flex items-center gap-1.5" }, /*#__PURE__*/React.createElement("span", { className: "w-2.5 h-2.5 rounded-full bg-emerald-400" }), "Received")),
+        /*#__PURE__*/React.createElement(SVGLineChart, { data: usageTrends, width: 340, height: 160, labelKey: "label", lines: [{ key: "used", color: "#f59e0b" }, { key: "received", color: "#34d399" }] }),
+        estMonthlySpend > 0 && /*#__PURE__*/React.createElement("div", { className: "mt-3 bg-indigo-50 rounded-xl p-3 flex items-center justify-between" },
+          /*#__PURE__*/React.createElement("span", { className: "text-xs font-medium text-indigo-600" }, "Est. Monthly Spend"),
+          /*#__PURE__*/React.createElement("span", { className: "text-lg font-bold text-indigo-700" }, fmt(estMonthlySpend))))),
 
-  // ── Activity Log ──
-  /*#__PURE__*/React.createElement("div", {
-    className: "bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "px-4 py-3 border-b border-gray-100 flex items-center gap-2"
-  }, /*#__PURE__*/React.createElement(ClockIc, {
-    size: 16,
-    className: "text-blue-500"
-  }), /*#__PURE__*/React.createElement("h3", {
-    className: "font-semibold text-gray-900 text-sm"
-  }, "Activity Log")), recentLog.length === 0 ? /*#__PURE__*/React.createElement("div", {
-    className: "py-8 text-center text-sm text-gray-400"
-  }, "No activity yet \u2014 start adjusting stock to see history here.") : recentLog.map(entry => /*#__PURE__*/React.createElement("div", {
-    key: entry.id,
-    className: "px-4 py-3 border-b border-gray-50 last:border-0 flex items-center gap-3"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: `w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${entry.delta > 0 ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`
-  }, entry.delta > 0 ? /*#__PURE__*/React.createElement("span", {
-    className: "text-xs font-bold"
-  }, "+") : /*#__PURE__*/React.createElement("span", {
-    className: "text-xs font-bold"
-  }, "\u2212")), /*#__PURE__*/React.createElement("div", {
-    className: "flex-1 min-w-0"
-  }, /*#__PURE__*/React.createElement("p", {
-    className: "text-sm font-medium text-gray-900 truncate"
-  }, entry.itemName || entry.itemId), entry.note && /*#__PURE__*/React.createElement("p", {
-    className: "text-xs text-gray-400 truncate"
-  }, entry.note)), /*#__PURE__*/React.createElement("div", {
-    className: "text-right shrink-0"
-  }, /*#__PURE__*/React.createElement("p", {
-    className: `text-sm font-semibold ${entry.delta > 0 ? "text-emerald-600" : "text-amber-600"}`
-  }, entry.delta > 0 ? "+" : "", entry.delta), /*#__PURE__*/React.createElement("p", {
-    className: "text-xs text-gray-400"
-  }, new Date(entry.date).toLocaleDateString())))))));
+    // ══════ SPENDING BY VENDOR ══════
+    spending.length > 0 && /*#__PURE__*/React.createElement(Section, { id: "spendByVendor", title: "Spending by Vendor", icon: /*#__PURE__*/React.createElement(DollarIc, { size: 16, className: "text-emerald-600" }) },
+      spending.map(([v, amt]) => {
+        var maxAmt = spending[0][1];
+        return /*#__PURE__*/React.createElement("div", { key: v, className: "px-4 py-3 border-b border-gray-50 last:border-0" },
+          /*#__PURE__*/React.createElement("div", { className: "flex items-center justify-between mb-1" },
+            /*#__PURE__*/React.createElement("span", { className: "text-sm font-medium text-gray-900" }, v),
+            /*#__PURE__*/React.createElement("span", { className: "text-sm font-bold text-gray-900" }, fmt(amt))),
+          /*#__PURE__*/React.createElement("div", { className: "w-full bg-gray-100 rounded-full h-1.5" },
+            /*#__PURE__*/React.createElement("div", { className: "bg-emerald-500 h-1.5 rounded-full transition-all", style: { width: (amt / maxAmt * 100).toFixed(1) + "%" } })));
+      })),
+
+    // ══════ MOST USED & MOST REORDERED (side by side on wide) ══════
+    (mostUsed.length > 0 || mostReordered.length > 0) && /*#__PURE__*/React.createElement("div", { className: "grid grid-cols-1 sm:grid-cols-2 gap-4" },
+      mostUsed.length > 0 && /*#__PURE__*/React.createElement(Section, { id: "mostUsed", title: "Most Used Items", icon: /*#__PURE__*/React.createElement(MinusIc, { size: 16, className: "text-amber-500" }) },
+        mostUsed.map(function(item, idx) {
+          var maxUsed = mostUsed[0].count;
+          return /*#__PURE__*/React.createElement("div", { key: item.id, className: "px-4 py-2 border-b border-gray-50 last:border-0 flex items-center gap-2" },
+            /*#__PURE__*/React.createElement("span", { className: "text-xs font-bold text-gray-300 w-4 shrink-0" }, idx + 1),
+            /*#__PURE__*/React.createElement("div", { className: "flex-1 min-w-0" },
+              /*#__PURE__*/React.createElement("p", { className: "text-xs font-medium text-gray-900 truncate" }, item.name),
+              /*#__PURE__*/React.createElement("div", { className: "w-full bg-gray-100 rounded-full h-1 mt-0.5" },
+                /*#__PURE__*/React.createElement("div", { className: "bg-amber-400 h-1 rounded-full", style: { width: (item.count / maxUsed * 100).toFixed(1) + "%" } }))),
+            /*#__PURE__*/React.createElement("span", { className: "text-xs font-bold text-amber-600 shrink-0" }, item.count));
+        })),
+      mostReordered.length > 0 && /*#__PURE__*/React.createElement(Section, { id: "mostReordered", title: "Most Reordered", icon: /*#__PURE__*/React.createElement(PlusIc, { size: 16, className: "text-emerald-500" }) },
+        mostReordered.map(function(item, idx) {
+          var maxTimes = mostReordered[0].times;
+          return /*#__PURE__*/React.createElement("div", { key: item.id, className: "px-4 py-2 border-b border-gray-50 last:border-0 flex items-center gap-2" },
+            /*#__PURE__*/React.createElement("span", { className: "text-xs font-bold text-gray-300 w-4 shrink-0" }, idx + 1),
+            /*#__PURE__*/React.createElement("div", { className: "flex-1 min-w-0" },
+              /*#__PURE__*/React.createElement("p", { className: "text-xs font-medium text-gray-900 truncate" }, item.name),
+              /*#__PURE__*/React.createElement("div", { className: "w-full bg-gray-100 rounded-full h-1 mt-0.5" },
+                /*#__PURE__*/React.createElement("div", { className: "bg-emerald-400 h-1 rounded-full", style: { width: (item.times / maxTimes * 100).toFixed(1) + "%" } }))),
+            /*#__PURE__*/React.createElement("div", { className: "text-right shrink-0" },
+              /*#__PURE__*/React.createElement("span", { className: "text-xs font-bold text-emerald-600" }, item.times, "x")));
+        }))),
+
+    // ══════ REORDER LIST ══════
+    /*#__PURE__*/React.createElement(Section, { id: "reorderList", title: "Reorder List \u2014 " + reorder.length + " items below minimum", icon: /*#__PURE__*/React.createElement(AlertIc, { size: 16, className: "text-red-500" }) },
+      reorder.length === 0 ? /*#__PURE__*/React.createElement("div", { className: "py-8 text-center text-sm text-gray-400" }, "All items at or above minimum \uD83C\uDF89") :
+      byVendor.map(([vendor, its]) => /*#__PURE__*/React.createElement("div", { key: vendor },
+        /*#__PURE__*/React.createElement("div", { className: "px-4 py-2 bg-gray-50 border-b border-gray-100" },
+          /*#__PURE__*/React.createElement("span", { className: "text-xs font-semibold text-gray-500 uppercase tracking-wide" }, vendor, " \u2014 ", its.length, " item", its.length !== 1 ? "s" : "")),
+        its.map(item => /*#__PURE__*/React.createElement("div", { key: item.id, className: "px-4 py-2.5 border-b border-gray-50 last:border-0 flex items-center gap-3" },
+          /*#__PURE__*/React.createElement("div", { className: "flex-1 min-w-0" },
+            /*#__PURE__*/React.createElement("p", { className: "text-sm font-medium text-gray-900 truncate" }, item.name),
+            /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-400 font-mono" }, primarySource(item).sku)),
+          /*#__PURE__*/React.createElement("div", { className: "text-right shrink-0" },
+            /*#__PURE__*/React.createElement("div", { className: "flex items-center gap-1.5" },
+              /*#__PURE__*/React.createElement(StockBadge, { qty: item.qty, min: item.min }),
+              /*#__PURE__*/React.createElement("span", { className: "text-xs text-gray-500" }, /*#__PURE__*/React.createElement("b", { className: "text-gray-800" }, item.qty), "/", item.min, " ", item.unit)))))))),
+
+    // ══════ FREQUENTLY LOW STOCK ══════
+    consistentlyLow.length > 0 && /*#__PURE__*/React.createElement(Section, { id: "freqLow", title: "Frequently Low Stock", icon: /*#__PURE__*/React.createElement(AlertIc, { size: 16, className: "text-orange-500" }) },
+      consistentlyLow.map(item => /*#__PURE__*/React.createElement("div", { key: item.id, className: "px-4 py-2.5 border-b border-gray-50 last:border-0 flex items-center gap-3" },
+        /*#__PURE__*/React.createElement("div", { className: "w-7 h-7 rounded-full bg-orange-100 flex items-center justify-center shrink-0" },
+          /*#__PURE__*/React.createElement(AlertIc, { size: 12, className: "text-orange-500" })),
+        /*#__PURE__*/React.createElement("div", { className: "flex-1 min-w-0" },
+          /*#__PURE__*/React.createElement("p", { className: "text-sm font-medium text-gray-900 truncate" }, item.name),
+          /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-400" }, "Below min ", item.lowCount, "x")),
+        /*#__PURE__*/React.createElement("div", { className: "text-right shrink-0" },
+          /*#__PURE__*/React.createElement(StockBadge, { qty: item.qty, min: item.min }))))),
+
+    // ══════ ACTIVITY LOG ══════
+    /*#__PURE__*/React.createElement(Section, { id: "activityLog", title: "Activity Log", icon: /*#__PURE__*/React.createElement(ClockIc, { size: 16, className: "text-blue-500" }) },
+      recentLog.length === 0 ? /*#__PURE__*/React.createElement("div", { className: "py-8 text-center text-sm text-gray-400" }, "No activity yet.") :
+      recentLog.map(entry => /*#__PURE__*/React.createElement("div", { key: entry.id, className: "px-4 py-2.5 border-b border-gray-50 last:border-0 flex items-center gap-3" },
+        /*#__PURE__*/React.createElement("div", { className: "w-6 h-6 rounded-full flex items-center justify-center shrink-0 " + (entry.delta > 0 ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700") },
+          /*#__PURE__*/React.createElement("span", { className: "text-xs font-bold" }, entry.delta > 0 ? "+" : "\u2212")),
+        /*#__PURE__*/React.createElement("div", { className: "flex-1 min-w-0" },
+          /*#__PURE__*/React.createElement("p", { className: "text-sm font-medium text-gray-900 truncate" }, entry.itemName || entry.itemId),
+          entry.note && /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-400 truncate" }, entry.note)),
+        /*#__PURE__*/React.createElement("div", { className: "text-right shrink-0" },
+          /*#__PURE__*/React.createElement("p", { className: "text-sm font-semibold " + (entry.delta > 0 ? "text-emerald-600" : "text-amber-600") }, entry.delta > 0 ? "+" : "", entry.delta),
+          /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-400" }, new Date(entry.date).toLocaleDateString())))))));
 }
 
 // ─── Editable field helper ───────────────────────────────────────────────────
@@ -5850,6 +6165,38 @@ function VendorDirectory({ vendors, onUpdateVendor, onAddVendor, onRemoveVendor,
   }, vendors.map(v => /*#__PURE__*/React.createElement(VendorCard, { key: v.id, v: v, onUpdate: onUpdateVendor, onRemove: onRemoveVendor, autoEdit: v.id === newId, isAdmin: isAdmin }))));
 }
 
+// ─── Order Confirm Modal ──────────────────────────────────────────────────────
+function OrderConfirmModal({ order, onConfirm, onCancel }) {
+  if (!order) return null;
+  var methodLabels = { call: "Called", text: "Texted", email: "Emailed", online: "Ordered online from" };
+  var label = methodLabels[order.method] || "Contacted";
+  var itemCount = (order.items || []).length;
+  var itemSummary = itemCount === 1
+    ? (order.items[0].qty || 1) + " " + (order.items[0].unit || "ea") + " of " + (order.items[0].name || "item")
+    : itemCount + " items";
+  return /*#__PURE__*/React.createElement("div", {
+    className: "fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 mobile-full-modal",
+    style: { background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)" },
+    onClick: function(e) { if (e.target === e.currentTarget) onCancel(); }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden"
+  },
+    /*#__PURE__*/React.createElement("div", { className: "bg-blue-50 border-b border-blue-100 px-5 py-4 text-center" },
+      /*#__PURE__*/React.createElement("div", { className: "text-3xl mb-2" }, order.method === "call" ? "\u260E\uFE0F" : order.method === "text" ? "\u{1F4AC}" : order.method === "email" ? "\u2709\uFE0F" : "\u{1F310}"),
+      /*#__PURE__*/React.createElement("p", { className: "font-semibold text-gray-900 text-sm" }, label + " " + (order.vendor || "vendor")),
+      /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-500 mt-1" }, itemSummary)),
+    /*#__PURE__*/React.createElement("div", { className: "p-5 space-y-3" },
+      /*#__PURE__*/React.createElement("p", { className: "text-sm text-gray-600 text-center" }, "Did you complete this order?"),
+      /*#__PURE__*/React.createElement("button", {
+        onClick: onConfirm,
+        className: "w-full py-3 rounded-xl font-semibold text-white text-sm bg-emerald-600 hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2"
+      }, /*#__PURE__*/React.createElement(CheckIc, { size: 16 }), "Yes, Move to Open Orders"),
+      /*#__PURE__*/React.createElement("button", {
+        onClick: onCancel,
+        className: "w-full py-2.5 rounded-xl font-semibold text-sm text-gray-500 hover:text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors"
+      }, "No, Cancel"))));
+}
+
 // ─── QR Label Modal ───────────────────────────────────────────────────────────
 function QRModal({
   item,
@@ -5932,7 +6279,6 @@ function Sidebar({
   onSignOut,
   syncStatus = "disconnected",
   isAdmin = false,
-  onOpenFirebaseSetup,
   cartCount = 0
 }) {
   const catCounts = useMemo(() => {
@@ -6038,9 +6384,8 @@ function Sidebar({
     className: "text-xs text-gray-500 px-2"
   }, "Signed in as"), /*#__PURE__*/React.createElement("p", {
     className: "text-sm font-semibold text-gray-900 px-2 truncate"
-  }, currentUser), isAdmin && /*#__PURE__*/React.createElement("button", {
-    onClick: () => onOpenFirebaseSetup && onOpenFirebaseSetup(true),
-    className: `w-full flex items-center justify-center gap-1 text-xs font-semibold px-2 py-2 rounded-lg transition-colors ${getSyncStatusColor()}`
+  }, currentUser), /*#__PURE__*/React.createElement("div", {
+    className: `w-full flex items-center justify-center gap-1 text-xs font-semibold px-2 py-2 rounded-lg ${getSyncStatusColor()}`
   }, /*#__PURE__*/React.createElement("div", {
     className: `w-2 h-2 rounded-full ${syncStatus === "synced" ? "bg-green-600" : syncStatus === "connecting" ? "bg-amber-600" : syncStatus === "error" ? "bg-red-600" : "bg-gray-400"}`
   }), getSyncStatusText()), /*#__PURE__*/React.createElement("button", {
@@ -6144,122 +6489,10 @@ function LoginScreen({ onSelectUser }) {
 }
 
 
-// ─── Firebase Setup Modal ─────────────────────────────────────────────────────
-const FirebaseSetupModal = ({ onSave, onClose }) => {
-  const [config, setConfig] = useState(loadFirebaseConfig || {});
-  const [apiKey, setApiKey] = useState(config?.apiKey || "");
-  const [authDomain, setAuthDomain] = useState(config?.authDomain || "");
-  const [databaseURL, setDatabaseURL] = useState(config?.databaseURL || "");
-  const [projectId, setProjectId] = useState(config?.projectId || "");
-  const [storageBucket, setStorageBucket] = useState(config?.storageBucket || "");
-  const [messagingSenderId, setMessagingSenderId] = useState(config?.messagingSenderId || "");
-  const [appId, setAppId] = useState(config?.appId || "");
-  const [saving, setSaving] = useState(false);
-
-  const handleSave = () => {
-    const newConfig = { apiKey, authDomain, databaseURL, projectId, storageBucket, messagingSenderId, appId };
-    setSaving(true);
-    saveFirebaseConfig(newConfig);
-    setTimeout(() => {
-      setSaving(false);
-      onSave(newConfig);
-    }, 500);
-  };
-
-  const handleDisconnect = () => {
-    if (confirm("Disconnect from Firebase? Data will continue syncing until you refresh.")) {
-      clearFirebaseConfig();
-      onClose();
-    }
-  };
-
-  return /*#__PURE__*/React.createElement("div", {
-    className: "fixed inset-0 bg-black/50 flex items-end md:items-center justify-center z-50"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "bg-white w-full md:w-full md:max-w-md rounded-t-3xl md:rounded-2xl p-6 max-h-[90vh] md:max-h-[85vh] overflow-y-auto shadow-xl"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center justify-between mb-6"
-  }, /*#__PURE__*/React.createElement("h2", {
-    className: "text-2xl font-bold text-gray-900"
-  }, "Firebase Setup"), /*#__PURE__*/React.createElement("button", {
-    onClick: onClose,
-    className: "text-gray-400 hover:text-gray-600 p-1"
-  }, /*#__PURE__*/React.createElement(XIc, { size: 24 }))), /*#__PURE__*/React.createElement("p", {
-    className: "text-sm text-gray-600 mb-6"
-  }, "Configure Firebase Realtime Database to sync inventory across devices."), /*#__PURE__*/React.createElement("div", {
-    className: "space-y-4"
-  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
-    className: "block text-xs font-semibold text-gray-700 mb-1"
-  }, "API Key"), /*#__PURE__*/React.createElement("input", {
-    type: "password",
-    value: apiKey,
-    onChange: (e) => setApiKey(e.target.value),
-    className: "w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500",
-    placeholder: "Your Firebase API Key"
-  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
-    className: "block text-xs font-semibold text-gray-700 mb-1"
-  }, "Auth Domain"), /*#__PURE__*/React.createElement("input", {
-    type: "text",
-    value: authDomain,
-    onChange: (e) => setAuthDomain(e.target.value),
-    className: "w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500",
-    placeholder: "e.g., yourproject.firebaseapp.com"
-  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
-    className: "block text-xs font-semibold text-gray-700 mb-1"
-  }, "Database URL"), /*#__PURE__*/React.createElement("input", {
-    type: "text",
-    value: databaseURL,
-    onChange: (e) => setDatabaseURL(e.target.value),
-    className: "w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500",
-    placeholder: "e.g., https://yourproject.firebaseio.com"
-  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
-    className: "block text-xs font-semibold text-gray-700 mb-1"
-  }, "Project ID"), /*#__PURE__*/React.createElement("input", {
-    type: "text",
-    value: projectId,
-    onChange: (e) => setProjectId(e.target.value),
-    className: "w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500",
-    placeholder: "Your Firebase Project ID"
-  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
-    className: "block text-xs font-semibold text-gray-700 mb-1"
-  }, "Storage Bucket"), /*#__PURE__*/React.createElement("input", {
-    type: "text",
-    value: storageBucket,
-    onChange: (e) => setStorageBucket(e.target.value),
-    className: "w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500",
-    placeholder: "e.g., yourproject.appspot.com"
-  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
-    className: "block text-xs font-semibold text-gray-700 mb-1"
-  }, "Messaging Sender ID"), /*#__PURE__*/React.createElement("input", {
-    type: "text",
-    value: messagingSenderId,
-    onChange: (e) => setMessagingSenderId(e.target.value),
-    className: "w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500",
-    placeholder: "Your Messaging Sender ID"
-  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
-    className: "block text-xs font-semibold text-gray-700 mb-1"
-  }, "App ID"), /*#__PURE__*/React.createElement("input", {
-    type: "text",
-    value: appId,
-    onChange: (e) => setAppId(e.target.value),
-    className: "w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500",
-    placeholder: "Your Firebase App ID"
-  }))), /*#__PURE__*/React.createElement("div", {
-    className: "flex gap-3 mt-8"
-  }, /*#__PURE__*/React.createElement("button", {
-    onClick: handleSave,
-    disabled: saving,
-    className: "flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white font-semibold py-2.5 rounded-lg transition-colors"
-  }, saving ? "Connecting..." : "Save & Connect"), /*#__PURE__*/React.createElement("button", {
-    onClick: handleDisconnect,
-    className: "flex-1 bg-red-50 hover:bg-red-100 text-red-600 font-semibold py-2.5 rounded-lg transition-colors"
-  }, "Disconnect")), /*#__PURE__*/React.createElement("p", {
-    className: "text-xs text-gray-400 text-center mt-4"
-  }, "Credentials are stored locally in your browser.")));
-};
+// Firebase Setup Modal removed — credentials are now hardcoded in NLO_FIREBASE_CONFIG
 
 // ─── OrderCartView ────────────────────────────────────────────────────────────
-function OrderCartView({ cart, items, onUpdateQty, onRemove, onClear, onPlaceOrder, vendors }) {
+function OrderCartView({ cart, items, onUpdateQty, onRemove, onClear, onPlaceOrder, vendors, onCreateOrder }) {
   const [openVendorMenu, setOpenVendorMenu] = useState(null);
   // Group cart items by vendor
   const byVendor = useMemo(() => {
@@ -6276,35 +6509,49 @@ function OrderCartView({ cart, items, onUpdateQty, onRemove, onClear, onPlaceOrd
 
   function buildVendorOrderMenu(vendorName, vendorItems) {
     var vendor = (vendors || []).find(function(v) { return v.name === vendorName; }) || {};
-    var repPhone = vendor.repPhone || "";
-    var repEmail = vendor.repEmail || "";
-    var phone = vendor.phone || vendor.tollFree || "";
-    var hasCall = !!(repPhone || phone);
-    var hasText = !!repPhone;
+    var targetName = vendor.rep || vendor.name || "Vendor";
+    var targetPhone = vendor.repPhone || vendor.phone || vendor.tollFree || "";
+    var targetSms = vendor.repPhone || vendor.phone || "";
+    var targetEmail = vendor.repEmail || vendor.email || "";
     var portalUrl = vendor.portal || "";
+    var hasCall = !!targetPhone;
+    var hasText = !!targetSms;
     var hasOnline = !!portalUrl;
-    var hasEmail = !!(repEmail || vendor.email);
-    var contactPhone = repPhone || phone;
-    var contactEmail = repEmail || vendor.email || "";
+    var hasEmail = !!targetEmail;
     // Build item list for message
     var itemLines = vendorItems.map(function(c) { return "- " + c.name + (c.sku ? " (SKU: " + c.sku + ")" : "") + " \u2014 Qty: " + c.qty + " " + (c.unit || "ea"); }).join("\n");
     var itemLinesSms = vendorItems.map(function(c) { return c.qty + " " + (c.unit || "ea") + " " + c.name + (c.sku ? " (" + c.sku + ")" : ""); }).join(", ");
     var emailSubject = "Order Request from Next Level Orthodontics (" + vendorItems.length + " item" + (vendorItems.length !== 1 ? "s" : "") + ")";
-    var emailBody = "Hi" + (vendor.rep ? " " + vendor.rep : "") + ",\n\nI'd like to order the following from " + vendorName + ":\n\n" + itemLines + "\n\nPlease confirm availability and expected delivery.\n\nThank you,\nNext Level Orthodontics";
-    var smsBody = "Hi" + (vendor.rep ? " " + vendor.rep : "") + ", I'd like to order from " + vendorName + ": " + itemLinesSms + ". Please confirm. Thanks! - NLO";
+    var emailBody = "Hi " + targetName + ",\n\nI'd like to order the following from " + vendorName + ":\n\n" + itemLines + "\n\nPlease confirm availability and expected delivery.\n\nThank you,\nNext Level Orthodontics";
+    var smsBody = "Hi " + targetName + ", I'd like to order from " + vendorName + ": " + itemLinesSms + ". Please confirm. Thanks! - NLO";
     var btnBase = "flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold transition-colors ";
     var activeBtn = btnBase + "bg-white border border-gray-200 text-gray-800 hover:bg-gray-50";
     var disabledBtn = btnBase + "bg-gray-50 border border-gray-100 text-gray-300 cursor-not-allowed";
+    function placeCartOrder(method) {
+      if (onCreateOrder) {
+        onCreateOrder({
+          vendor: vendorName,
+          items: vendorItems.map(function(c) { return { name: c.name, sku: c.sku, qty: c.qty, price: c.price, itemId: c.itemId, unit: c.unit }; }),
+          dateOrdered: new Date().toISOString().split("T")[0],
+          method: method,
+          _selectedVendorId: vendorName,
+          _itemIds: vendorItems.map(function(c) { return c.itemId; }).filter(Boolean)
+        });
+      }
+      // Remove ordered items from cart
+      vendorItems.forEach(function(c) { onRemove(c.itemId); });
+      setOpenVendorMenu(null);
+    }
     return /*#__PURE__*/React.createElement("div", { className: "bg-gray-50 rounded-xl p-3 space-y-2 mx-4 mb-3" },
-      /*#__PURE__*/React.createElement("p", { className: "text-xs font-semibold text-gray-400 uppercase tracking-wide px-1" }, "Order from ", vendorName, vendor.rep ? " (" + vendor.rep + ")" : ""),
-      /*#__PURE__*/React.createElement("a", { href: hasCall ? "tel:" + contactPhone : undefined, className: hasCall ? activeBtn : disabledBtn, onClick: function(e) { if (!hasCall) e.preventDefault(); } },
-        /*#__PURE__*/React.createElement(PhoneIc, { size: 16 }), "Call", hasCall ? " \u2014 " + contactPhone : ""),
-      /*#__PURE__*/React.createElement("a", { href: hasText ? "sms:" + repPhone + "?&body=" + encodeURIComponent(smsBody) : undefined, className: hasText ? activeBtn : disabledBtn, onClick: function(e) { if (!hasText) e.preventDefault(); } },
-        /*#__PURE__*/React.createElement(ChatIc, { size: 16 }), "Text", hasText ? " \u2014 " + repPhone : ""),
-      /*#__PURE__*/React.createElement("a", { href: hasOnline ? portalUrl : undefined, target: "_blank", rel: "noopener", className: hasOnline ? activeBtn : disabledBtn, onClick: function(e) { if (!hasOnline) e.preventDefault(); } },
+      /*#__PURE__*/React.createElement("p", { className: "text-xs font-semibold text-gray-400 uppercase tracking-wide px-1" }, "Order from ", vendorName, vendor.rep ? " (via " + vendor.rep + ")" : ""),
+      /*#__PURE__*/React.createElement("a", { href: hasCall ? "tel:" + targetPhone : undefined, className: hasCall ? activeBtn : disabledBtn, onClick: function(e) { if (!hasCall) { e.preventDefault(); } else { placeCartOrder("call"); } } },
+        /*#__PURE__*/React.createElement(PhoneIc, { size: 16 }), "Call", hasCall ? " \u2014 " + targetPhone : ""),
+      /*#__PURE__*/React.createElement("a", { href: hasText ? "sms:" + targetSms + "?body=" + encodeURIComponent(smsBody) : undefined, className: hasText ? activeBtn : disabledBtn, onClick: function(e) { if (!hasText) { e.preventDefault(); } else { placeCartOrder("text"); } } },
+        /*#__PURE__*/React.createElement(ChatIc, { size: 16 }), "Text", hasText ? " \u2014 " + targetSms : ""),
+      /*#__PURE__*/React.createElement("a", { href: hasOnline ? portalUrl : undefined, target: "_blank", rel: "noopener", className: hasOnline ? activeBtn : disabledBtn, onClick: function(e) { if (!hasOnline) { e.preventDefault(); } else { placeCartOrder("online"); } } },
         /*#__PURE__*/React.createElement(LinkIc, { size: 16 }), "Online", hasOnline ? " \u2014 " + (function() { try { return new URL(portalUrl).hostname.replace("www.",""); } catch(e) { return portalUrl; } })() : ""),
-      /*#__PURE__*/React.createElement("a", { href: hasEmail ? "mailto:" + contactEmail + "?subject=" + encodeURIComponent(emailSubject) + "&body=" + encodeURIComponent(emailBody) : undefined, className: hasEmail ? activeBtn : disabledBtn, onClick: function(e) { if (!hasEmail) e.preventDefault(); } },
-        /*#__PURE__*/React.createElement(MailIc, { size: 16 }), "Email", hasEmail ? " \u2014 " + contactEmail : ""));
+      /*#__PURE__*/React.createElement("a", { href: hasEmail ? "mailto:" + targetEmail + "?subject=" + encodeURIComponent(emailSubject) + "&body=" + encodeURIComponent(emailBody) : undefined, className: hasEmail ? activeBtn : disabledBtn, onClick: function(e) { if (!hasEmail) { e.preventDefault(); } else { placeCartOrder("email"); } } },
+        /*#__PURE__*/React.createElement(MailIc, { size: 16 }), "Email", hasEmail ? " \u2014 " + targetEmail : ""));
   }
 
   if (cart.length === 0) {
@@ -6353,7 +6600,12 @@ function OrderCartView({ cart, items, onUpdateQty, onRemove, onClear, onPlaceOrd
           /*#__PURE__*/React.createElement("div", { className: "divide-y" },
             vendorItems.map(function(c) {
               var foundItem = items.find(function(i) { return i.id === c.itemId; });
-              return /*#__PURE__*/React.createElement("div", { key: c.itemId, className: "px-4 py-3 flex items-center gap-3" },
+              var cartRecentWarn = foundItem && foundItem.lastOrderedTimestamp && (Date.now() - foundItem.lastOrderedTimestamp) < 864000000;
+              var cartDaysAgo = foundItem && foundItem.lastOrderedTimestamp ? Math.floor((Date.now() - foundItem.lastOrderedTimestamp) / 86400000) : null;
+              return /*#__PURE__*/React.createElement("div", { key: c.itemId, className: "px-4 py-3" },
+                cartRecentWarn && /*#__PURE__*/React.createElement("div", { className: "flex items-center gap-1.5 bg-amber-50 border border-amber-200 text-amber-700 rounded-lg px-2 py-1.5 mb-2 text-xs font-semibold" },
+                  "\u26A0\uFE0F Ordered ", cartDaysAgo === 0 ? "today" : cartDaysAgo + "d ago", " \u2014 check for duplicates"),
+                /*#__PURE__*/React.createElement("div", { className: "flex items-center gap-3" },
                 /*#__PURE__*/React.createElement("div", { className: "flex-1 min-w-0" },
                   /*#__PURE__*/React.createElement("p", { className: "text-sm font-medium text-gray-900 truncate" }, c.name),
                   /*#__PURE__*/React.createElement("div", { className: "flex items-center gap-2 mt-0.5 text-xs text-gray-500" },
@@ -6385,7 +6637,7 @@ function OrderCartView({ cart, items, onUpdateQty, onRemove, onClear, onPlaceOrd
                   onClick: function() { onRemove(c.itemId); },
                   className: "text-red-400 hover:text-red-600 p-1"
                 }, /*#__PURE__*/React.createElement(TrashIc, { size: 16 }))
-              );
+              ));
             })
           ),
           // Vendor order menu (Call/Text/Online/Email)
@@ -6414,49 +6666,99 @@ function App() {
   const [invoiceScanOpen, setInvoiceScanOpen] = useState(false);
   const [addItemOpen, setAddItemOpen] = useState(false);
   const [addOrderOpen, setAddOrderOpen] = useState(false);
+  const [pendingOrder, setPendingOrder] = useState(null);
   const [firebaseConfig, setFirebaseConfig] = useState(loadFirebaseConfig);
   const [syncStatus, setSyncStatus] = useState("disconnected");
-  const [firebaseSetupOpen, setFirebaseSetupOpen] = useState(false);
+  // Firebase config is hardcoded — no setup modal needed
   const dbRef = useRef(null);
-  const skipNextSync = useRef({});
+  // Version counters: increment on local write, decrement on listener fire.
+  // When counter > 0 the incoming snapshot is an echo of our own write — skip it.
+  const pendingWrites = useRef({ items: 0, orders: 0, vendors: 0, log: 0 });
+  // Track the last JSON we wrote so the listener can detect echoes even if counter drifts
+  const lastWriteJSON = useRef({ items: "", orders: "", vendors: "", log: "" });
+  // Guard: don't push to Firebase until initial load is done
+  const firebaseReady = useRef(false);
   useEffect(() => {
     if (!firebaseConfig || !firebaseConfig.databaseURL) {
       setSyncStatus("disconnected");
       return;
     }
+    firebaseReady.current = false;
+    let cancelled = false;
     try {
       setSyncStatus("connecting");
-      if (window.firebase && !window.firebase.apps.length) {
-        window.firebase.initializeApp(firebaseConfig);
+      // Safe init: only call initializeApp when no app exists yet
+      if (window.firebase) {
+        try {
+          if (!window.firebase.apps.length) {
+            window.firebase.initializeApp(firebaseConfig);
+          }
+        } catch (initErr) {
+          // App already exists (e.g. HMR / StrictMode remount) — reuse it
+          console.warn("Firebase app already exists, reusing:", initErr.message);
+        }
       }
       if (window.firebase) {
         const db = window.firebase.database();
         dbRef.current = db;
-        
-        ["items", "orders", "vendors", "log"].forEach(key => {
-          db.ref("nlo/" + key).on("value", snap => {
-            if (skipNextSync.current[key]) {
-              skipNextSync.current[key] = false;
-              return;
-            }
+
+        const setters = { items: setItems, orders: setOrders, vendors: setVendors, log: setLog };
+        const keys = ["items", "orders", "vendors", "log"];
+
+        function subscribeToChanges() {
+          keys.forEach(key => {
+            db.ref("nlo/" + key).on("value", snap => {
+              if (cancelled) return;
+              // Decrement pending counter if this is an echo of our own write
+              if (pendingWrites.current[key] > 0) {
+                pendingWrites.current[key]--;
+                return;
+              }
+              const val = snap.val();
+              if (!val) return;
+              // Secondary guard: compare JSON to avoid applying our own write
+              // even if counter drifted (e.g. rapid successive writes)
+              const json = JSON.stringify(val);
+              if (json === lastWriteJSON.current[key]) return;
+              setters[key](val);
+            });
+          });
+        }
+
+        // Phase 1: Load initial data with once() — Firebase is source of truth
+        Promise.all(keys.map(key =>
+          db.ref("nlo/" + key).once("value").then(snap => {
+            if (cancelled) return;
             const val = snap.val();
             if (val) {
-              if (key === "items") setItems(val);
-              else if (key === "orders") setOrders(val);
-              else if (key === "vendors") setVendors(val);
-              else if (key === "log") setLog(val);
+              setters[key](val);
+              // Snapshot the loaded data so the sync effects don't echo it back
+              lastWriteJSON.current[key] = JSON.stringify(val);
             }
-          });
+          })
+        )).then(() => {
+          if (cancelled) return;
+          firebaseReady.current = true;
+          setSyncStatus("synced");
+          // Phase 2: Subscribe to ongoing changes AFTER initial load
+          subscribeToChanges();
+        }).catch(err => {
+          console.error("Firebase initial load error:", err);
+          if (cancelled) return;
+          // Fall back to localStorage data (already loaded) and still enable sync
+          firebaseReady.current = true;
+          setSyncStatus("synced");
+          subscribeToChanges();
         });
-        
-        setSyncStatus("synced");
       }
     } catch(err) {
       console.error("Firebase init error:", err);
       setSyncStatus("error");
     }
-    
+
     return () => {
+      cancelled = true;
+      firebaseReady.current = false;
       if (dbRef.current) {
         ["items", "orders", "vendors", "log"].forEach(key => {
           dbRef.current.ref("nlo/" + key).off();
@@ -6501,122 +6803,47 @@ function App() {
 
   const [reorderFrom, setReorderFrom] = useState(null);
   useEffect(() => {
-    if (!firebaseConfig || !firebaseConfig.databaseURL) {
-      setSyncStatus("disconnected");
-      return;
-    }
-    try {
-      setSyncStatus("connecting");
-      if (window.firebase && !window.firebase.apps.length) {
-        window.firebase.initializeApp(firebaseConfig);
-      }
-      if (window.firebase) {
-        const db = window.firebase.database();
-        dbRef.current = db;
-        
-        ["items", "orders", "vendors", "log"].forEach(key => {
-          db.ref("nlo/" + key).on("value", snap => {
-            if (skipNextSync.current[key]) {
-              skipNextSync.current[key] = false;
-              return;
-            }
-            const val = snap.val();
-            if (val) {
-              if (key === "items") setItems(val);
-              else if (key === "orders") setOrders(val);
-              else if (key === "vendors") setVendors(val);
-              else if (key === "log") setLog(val);
-            }
-          });
-        });
-        
-        setSyncStatus("synced");
-      }
-    } catch(err) {
-      console.error("Firebase init error:", err);
-      setSyncStatus("error");
-    }
-    
-    return () => {
-      if (dbRef.current) {
-        ["items", "orders", "vendors", "log"].forEach(key => {
-          dbRef.current.ref("nlo/" + key).off();
-        });
-      }
-    };
-  }, [firebaseConfig]);
-
-  useEffect(() => {
-    if (!firebaseConfig || !firebaseConfig.databaseURL) {
-      setSyncStatus("disconnected");
-      return;
-    }
-    try {
-      setSyncStatus("connecting");
-      if (window.firebase && !window.firebase.apps.length) {
-        window.firebase.initializeApp(firebaseConfig);
-      }
-      if (window.firebase) {
-        const db = window.firebase.database();
-        dbRef.current = db;
-        
-        ["items", "orders", "vendors", "log"].forEach(key => {
-          db.ref("nlo/" + key).on("value", snap => {
-            if (skipNextSync.current[key]) {
-              skipNextSync.current[key] = false;
-              return;
-            }
-            const val = snap.val();
-            if (val) {
-              if (key === "items") setItems(val);
-              else if (key === "orders") setOrders(val);
-              else if (key === "vendors") setVendors(val);
-              else if (key === "log") setLog(val);
-            }
-          });
-        });
-        
-        setSyncStatus("synced");
-      }
-    } catch(err) {
-      console.error("Firebase init error:", err);
-      setSyncStatus("error");
-    }
-    
-    return () => {
-      if (dbRef.current) {
-        ["items", "orders", "vendors", "log"].forEach(key => {
-          dbRef.current.ref("nlo/" + key).off();
-        });
-      }
-    };
-  }, [firebaseConfig]);
-  useEffect(() => {
     saveItems(items);
-    if (dbRef.current && syncStatus === "synced" && window.firebase) {
-      skipNextSync.current.items = true;
-      dbRef.current.ref("nlo/items").set(items).catch(err => console.error("Firebase items sync error:", err));
+    if (firebaseReady.current && dbRef.current && syncStatus === "synced") {
+      const json = JSON.stringify(items);
+      if (json !== lastWriteJSON.current.items) {
+        lastWriteJSON.current.items = json;
+        pendingWrites.current.items++;
+        dbRef.current.ref("nlo/items").set(items).catch(err => { pendingWrites.current.items = Math.max(0, pendingWrites.current.items - 1); console.error("Firebase items sync error:", err); });
+      }
     }
   }, [items, syncStatus]);
   useEffect(() => {
     saveLog(log);
-    if (dbRef.current && syncStatus === "synced" && window.firebase) {
-      skipNextSync.current.log = true;
-      dbRef.current.ref("nlo/log").set(log).catch(err => console.error("Firebase log sync error:", err));
+    if (firebaseReady.current && dbRef.current && syncStatus === "synced") {
+      const json = JSON.stringify(log);
+      if (json !== lastWriteJSON.current.log) {
+        lastWriteJSON.current.log = json;
+        pendingWrites.current.log++;
+        dbRef.current.ref("nlo/log").set(log).catch(err => { pendingWrites.current.log = Math.max(0, pendingWrites.current.log - 1); console.error("Firebase log sync error:", err); });
+      }
     }
   }, [log, syncStatus]);
   useEffect(() => {
     saveVendors(vendors);
-    if (dbRef.current && syncStatus === "synced" && window.firebase) {
-      skipNextSync.current.vendors = true;
-      dbRef.current.ref("nlo/vendors").set(vendors).catch(err => console.error("Firebase vendors sync error:", err));
+    if (firebaseReady.current && dbRef.current && syncStatus === "synced") {
+      const json = JSON.stringify(vendors);
+      if (json !== lastWriteJSON.current.vendors) {
+        lastWriteJSON.current.vendors = json;
+        pendingWrites.current.vendors++;
+        dbRef.current.ref("nlo/vendors").set(vendors).catch(err => { pendingWrites.current.vendors = Math.max(0, pendingWrites.current.vendors - 1); console.error("Firebase vendors sync error:", err); });
+      }
     }
   }, [vendors, syncStatus]);
   useEffect(() => {
     saveOrders(orders);
-    if (dbRef.current && syncStatus === "synced" && window.firebase) {
-      skipNextSync.current.orders = true;
-      dbRef.current.ref("nlo/orders").set(orders).catch(err => console.error("Firebase orders sync error:", err));
+    if (firebaseReady.current && dbRef.current && syncStatus === "synced") {
+      const json = JSON.stringify(orders);
+      if (json !== lastWriteJSON.current.orders) {
+        lastWriteJSON.current.orders = json;
+        pendingWrites.current.orders++;
+        dbRef.current.ref("nlo/orders").set(orders).catch(err => { pendingWrites.current.orders = Math.max(0, pendingWrites.current.orders - 1); console.error("Firebase orders sync error:", err); });
+      }
     }
   }, [orders, syncStatus]);
   const updateVendor = useCallback((vendorId, updates) => {
@@ -6690,45 +6917,19 @@ function App() {
     });
   }, [items]);
   const addOrder = useCallback((order) => {
-    setOrders(prev => [order, ...prev]);
-    // Auto-compose email to Records
-    try {
-      const ois = order.items || [];
-      const total = ois.reduce((s, oi) => s + (Number(oi.price) || 0) * (Number(oi.qty) || 0), 0);
-      const subject = "New Order Placed — " + (order.vendor || "Unknown Vendor") + " — " + (order.dateOrdered || new Date().toISOString().slice(0, 10));
-
-      // Build a clean ASCII table
-      var sep  = "+------+--------------------------------+------+--------+----------+";
-      var hdr  = "| #    | Item                           | Qty  | Unit   | Subtotal |";
-      var rows = ois.map(function(oi, idx) {
-        var num   = String(idx + 1).padEnd(4);
-        var nm    = (oi.name || "Item").substring(0, 30).padEnd(30);
-        var qt    = String(oi.qty || 0).padEnd(4);
-        var un    = (oi.unit || "ea").substring(0, 6).padEnd(6);
-        var sub   = (oi.price && oi.qty) ? ("$" + (Number(oi.price) * Number(oi.qty)).toFixed(2)) : "—";
-        sub = sub.padStart(8);
-        return "| " + num + " | " + nm + " | " + qt + " | " + un + " | " + sub + " |";
-      }).join("\n");
-      var totalLine = "|      |                                |      |        | " + ("$" + total.toFixed(2)).padStart(8) + " |";
-      var totalSep  = "+------+--------------------------------+------+--------+----------+";
-
-      var table = sep + "\n" + hdr + "\n" + sep + "\n" + rows + "\n" + sep + "\n" + totalLine + "\n" + totalSep;
-
-      var body = "═══════════════════════════════════════════════\n" +
-        "       NEXT LEVEL ORTHODONTICS — NEW ORDER\n" +
-        "═══════════════════════════════════════════════\n\n" +
-        "Vendor:            " + (order.vendor || "—") + "\n" +
-        (order.orderedBy ? "Ordered By:        " + order.orderedBy + "\n" : "") +
-        "Date Ordered:      " + (order.dateOrdered || "—") + "\n" +
-        (order.expectedDelivery ? "Expected Delivery: " + order.expectedDelivery + "\n" : "") +
-        (order.note ? "Notes:             " + order.note + "\n" : "") +
-        "\n" + table + "\n" +
-        (total > 0 ? "\n  ESTIMATED TOTAL:  $" + total.toFixed(2) + "\n" : "") +
-        "\n═══════════════════════════════════════════════\n" +
-        "NLO Inventory System • Auto-generated\n";
-
-      window.open("mailto:Records@thenextlevelorthodontics.com?subject=" + encodeURIComponent(subject) + "&body=" + encodeURIComponent(body), "_blank");
-    } catch (e) { console.error("Email compose error:", e); }
+    // Add unique ID and timestamp
+    var finalOrder = Object.assign({}, order, { id: order.id || uid(), status: order.status || "open" });
+    setOrders(prev => [finalOrder, ...prev]);
+    // Update lastOrderedVendorId and lastOrderedTimestamp on each item in the order
+    var now = Date.now();
+    var vendorId = order._selectedVendorId || order.vendor || "";
+    var itemIds = order._itemIds || (order.items || []).map(function(oi) { return oi.itemId; }).filter(Boolean);
+    if (itemIds.length > 0) {
+      setItems(prev => prev.map(function(it) {
+        if (itemIds.indexOf(it.id) === -1) return it;
+        return Object.assign({}, it, { lastOrderedVendorId: vendorId, lastOrderedTimestamp: now });
+      }));
+    }
   }, []);
   const receiveOrder = useCallback((orderId) => {
     setOrders(prev => prev.map(o => {
@@ -6813,7 +7014,7 @@ function App() {
     onSignOut: handleSignOut,
     syncStatus: syncStatus,
     isAdmin: isAdmin,
-    onOpenFirebaseSetup: setFirebaseSetupOpen,
+    // Firebase config is hardcoded — no setup needed
     cartCount: cart.length
   }), /*#__PURE__*/React.createElement("div", {
     className: "flex-1 flex flex-col min-w-0 overflow-hidden"
@@ -6857,7 +7058,9 @@ function App() {
     onEditSources: setEditSourcesItem,
     onScanInvoice: () => setInvoiceScanOpen(true),
     onAddItem: () => setAddItemOpen(true),
-    isAdmin: isAdmin
+    isAdmin: isAdmin,
+    vendors: vendors,
+    onCreateOrder: function(orderData) { setPendingOrder(orderData); }
   }), view === "scanner" && /*#__PURE__*/React.createElement(ScannerView, {
     items: items,
     onAdjust: adjust,
@@ -6872,7 +7075,8 @@ function App() {
     },
     onAddToCart: addToCart,
     cartCount: cart.length,
-    vendors: vendors
+    vendors: vendors,
+    onCreateOrder: function(orderData) { setPendingOrder(orderData); }
   }), view === "cart" && /*#__PURE__*/React.createElement(OrderCartView, {
     cart: cart,
     items: items,
@@ -6893,22 +7097,19 @@ function App() {
       // Remove placed items from cart
       vendorItems.forEach(function(c) { removeFromCart(c.itemId); });
     },
-    vendors: vendors
+    vendors: vendors,
+    onCreateOrder: function(orderData) { setPendingOrder(orderData); }
   }), view === "reports" && /*#__PURE__*/React.createElement(ReportsView, {
     items: items,
-    log: log
+    log: log,
+    orders: orders,
+    vendors: vendors
   }), view === "vendors" && /*#__PURE__*/React.createElement(VendorDirectory, { vendors: vendors, onUpdateVendor: updateVendor, onAddVendor: addVendor, onRemoveVendor: removeVendor, isAdmin: isAdmin }), view === "orders" && /*#__PURE__*/React.createElement(OrdersView, { orders: orders, items: items, onAddOrder: () => setAddOrderOpen(true), onReceiveOrder: receiveOrder, onVoidOrder: voidOrder, onScanSlip: () => setInvoiceScanOpen(true), onReorder: (order) => { setReorderFrom(order); setAddOrderOpen(true); }, isAdmin: isAdmin }))), /*#__PURE__*/React.createElement(BottomNav, {
     view: view,
     setView: handleViewChange,
     alertCount: alertCount,
     orderCount: orderCount,
     cartCount: cart.length
-  }), firebaseSetupOpen && isAdmin && /*#__PURE__*/React.createElement(FirebaseSetupModal, {
-    onSave: (cfg) => {
-      setFirebaseConfig(cfg);
-      setFirebaseSetupOpen(false);
-    },
-    onClose: () => setFirebaseSetupOpen(false)
   }), adjustItem && /*#__PURE__*/React.createElement(AdjustModal, {
     item: adjustItem,
     onClose: () => setAdjustItem(null),
@@ -6939,6 +7140,10 @@ function App() {
     onSave: addOrder,
     onClose: () => { setAddOrderOpen(false); setReorderFrom(null); },
     prefill: reorderFrom
+  }), pendingOrder && /*#__PURE__*/React.createElement(OrderConfirmModal, {
+    order: pendingOrder,
+    onConfirm: function() { addOrder(pendingOrder); setPendingOrder(null); },
+    onCancel: function() { setPendingOrder(null); }
   }));
 }
 ReactDOM.createRoot(document.getElementById("root")).render(/*#__PURE__*/React.createElement(App, null));
