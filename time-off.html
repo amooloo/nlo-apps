@@ -887,6 +887,12 @@ let blackoutDates = []; // Loaded from API
 let calYear, calMonth;
 let pendingApprovalAction = null; // { action, id } for email link approvals
 
+// Helper: parse "YYYY-MM-DD" into a local Date (avoids UTC-offset bugs)
+function parseLocalDate(str) {
+  const [y, m, d] = str.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
 // ============================================================
 // LOGIN
 // ============================================================
@@ -998,7 +1004,7 @@ async function enterTimeOffApp() {
   const params = new URLSearchParams(window.location.search);
   if (params.get('action') && params.get('id')) {
     pendingApprovalAction = { action: params.get('action'), id: params.get('id') };
-    handleEmailApproval();
+    await handleEmailApproval();
   }
 }
 
@@ -1108,7 +1114,7 @@ async function submitRequest() {
     showToast('Please fill in all required fields.');
     return;
   }
-  if (new Date(end) < new Date(start)) {
+  if (parseLocalDate(end) < parseLocalDate(start)) {
     showToast('End date must be on or after start date.');
     return;
   }
@@ -1131,8 +1137,8 @@ async function submitRequest() {
           const balLabel = reqLower.indexOf('sick') >= 0 ? 'sick leave' : 'vacation';
           const available = balData.balances[balType];
           // Calculate requested hours
-          const startD = new Date(start + 'T12:00:00');
-          const endD = new Date(end + 'T12:00:00');
+          const startD = parseLocalDate(start);
+          const endD = parseLocalDate(end);
           let workDays = 0;
           const cur = new Date(startD);
           while (cur <= endD) { if (cur.getDay() !== 0 && cur.getDay() !== 6) workDays++; cur.setDate(cur.getDate() + 1); }
@@ -1232,8 +1238,8 @@ function renderBlackoutTable() {
 
   let html = '';
   blackoutDates.forEach((b, idx) => {
-    const start = new Date(b.start + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    const end = new Date(b.end + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const start = parseLocalDate(b.start).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const end = parseLocalDate(b.end).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     html += `
       <tr>
         <td>${start}</td>
@@ -1256,7 +1262,7 @@ async function addBlackout() {
     return;
   }
 
-  if (new Date(end) < new Date(start)) {
+  if (parseLocalDate(end) < parseLocalDate(start)) {
     showToast('End date must be on or after start date.');
     return;
   }
@@ -1316,30 +1322,30 @@ async function deleteBlackout(index) {
 }
 
 function isBlackoutDate(dateStr) {
-  const date = new Date(dateStr + 'T12:00:00');
+  const date = parseLocalDate(dateStr);
   return blackoutDates.some(b => {
-    const s = new Date(b.start + 'T00:00:00');
-    const e = new Date(b.end + 'T23:59:59');
+    const s = parseLocalDate(b.start);
+    const e = parseLocalDate(b.end);
     return date >= s && date <= e;
   });
 }
 
 function getBlackoutLabel(dateStr) {
-  const date = new Date(dateStr + 'T12:00:00');
+  const date = parseLocalDate(dateStr);
   for (const b of blackoutDates) {
-    const s = new Date(b.start + 'T00:00:00');
-    const e = new Date(b.end + 'T23:59:59');
+    const s = parseLocalDate(b.start);
+    const e = parseLocalDate(b.end);
     if (date >= s && date <= e) return b.label || 'Blackout';
   }
   return null;
 }
 
 function isBlackoutConflict(startStr, endStr) {
-  const start = new Date(startStr + 'T00:00:00');
-  const end = new Date(endStr + 'T23:59:59');
+  const start = parseLocalDate(startStr);
+  const end = parseLocalDate(endStr);
   return blackoutDates.some(b => {
-    const bs = new Date(b.start + 'T00:00:00');
-    const be = new Date(b.end + 'T23:59:59');
+    const bs = parseLocalDate(b.start);
+    const be = parseLocalDate(b.end);
     return start <= be && end >= bs;
   });
 }
@@ -1376,8 +1382,8 @@ function renderYourRequests() {
 
   userRequests.forEach(r => {
     const status = (r.status || 'pending').toLowerCase();
-    const fmtStart = new Date(r.startDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    const fmtEnd = new Date(r.endDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const fmtStart = parseLocalDate(r.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const fmtEnd = parseLocalDate(r.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     const paidType = r.paidType || 'N/A';
     const cancelBtn = status === 'pending'
       ? `<button class="cancel-btn" onclick="cancelRequest('${r.id}')">Cancel</button>`
@@ -1483,9 +1489,9 @@ function renderCalendar() {
 
     // Find requests that span this date
     allRequests.forEach(r => {
-      const rStart = new Date(r.startDate + 'T00:00:00');
-      const rEnd = new Date(r.endDate + 'T23:59:59');
-      const thisDate = new Date(dateStr + 'T12:00:00');
+      const rStart = parseLocalDate(r.startDate);
+      const rEnd = parseLocalDate(r.endDate);
+      const thisDate = parseLocalDate(dateStr);
       if (thisDate >= rStart && thisDate <= rEnd) {
         const statusClass = (r.status || 'pending').toLowerCase();
         const initial = r.employeeName ? r.employeeName.split(' ').map(n=>n[0]).join('') : '?';
@@ -1558,8 +1564,8 @@ async function renderManageList() {
       if (!balType) return;
       const available = bal[balType];
       // Calculate hours
-      const startD = new Date(r.startDate + 'T12:00:00');
-      const endD = new Date(r.endDate + 'T12:00:00');
+      const startD = parseLocalDate(r.startDate);
+      const endD = parseLocalDate(r.endDate);
       let workDays = 0;
       const cur = new Date(startD);
       while (cur <= endD) { if (cur.getDay() !== 0 && cur.getDay() !== 6) workDays++; cur.setDate(cur.getDate() + 1); }
@@ -1591,8 +1597,8 @@ async function renderManageList() {
 
 function requestCardHTML(r, showActions) {
   const status = (r.status || 'pending').toLowerCase();
-  const fmtStart = new Date(r.startDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  const fmtEnd = new Date(r.endDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const fmtStart = parseLocalDate(r.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const fmtEnd = parseLocalDate(r.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   const paidInfo = r.paidType ? ' &middot; ' + r.paidType : '';
 
   // Check if this pending request has a balance concern (we'll calculate client-side for the card)
