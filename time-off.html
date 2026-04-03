@@ -887,9 +887,13 @@ let blackoutDates = []; // Loaded from API
 let calYear, calMonth;
 let pendingApprovalAction = null; // { action, id } for email link approvals
 
-// Helper: parse "YYYY-MM-DD" into a local Date (avoids UTC-offset bugs)
+// Helper: parse a date string into a local Date (avoids UTC-offset bugs).
+// Handles "YYYY-MM-DD", ISO "YYYY-MM-DDTHH:MM:SS…", null, and undefined.
 function parseLocalDate(str) {
-  const [y, m, d] = str.split('-').map(Number);
+  if (!str) return new Date(NaN);          // returns Invalid Date for null/undefined/""
+  const dateOnly = str.split('T')[0];      // strip any time/timezone suffix
+  const [y, m, d] = dateOnly.split('-').map(Number);
+  if (isNaN(y) || isNaN(m) || isNaN(d)) return new Date(NaN);
   return new Date(y, m - 1, d);
 }
 
@@ -1382,8 +1386,10 @@ function renderYourRequests() {
 
   userRequests.forEach(r => {
     const status = (r.status || 'pending').toLowerCase();
-    const fmtStart = parseLocalDate(r.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    const fmtEnd = parseLocalDate(r.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const startD = parseLocalDate(r.startDate);
+    const endD = parseLocalDate(r.endDate);
+    const fmtStart = isNaN(startD) ? 'N/A' : startD.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const fmtEnd = isNaN(endD) ? 'N/A' : endD.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     const paidType = r.paidType || 'N/A';
     const cancelBtn = status === 'pending'
       ? `<button class="cancel-btn" onclick="cancelRequest('${r.id}')">Cancel</button>`
@@ -1597,8 +1603,10 @@ async function renderManageList() {
 
 function requestCardHTML(r, showActions) {
   const status = (r.status || 'pending').toLowerCase();
-  const fmtStart = parseLocalDate(r.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  const fmtEnd = parseLocalDate(r.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const startD = parseLocalDate(r.startDate);
+  const endD = parseLocalDate(r.endDate);
+  const fmtStart = isNaN(startD) ? 'N/A' : startD.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const fmtEnd = isNaN(endD) ? 'N/A' : endD.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   const paidInfo = r.paidType ? ' &middot; ' + r.paidType : '';
 
   // Check if this pending request has a balance concern (we'll calculate client-side for the card)
