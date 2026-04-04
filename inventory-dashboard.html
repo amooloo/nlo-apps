@@ -2199,12 +2199,13 @@ function loadItems() {
         if (s.unit) seedUnitMap[s.id] = s.unit;
         if (s.exp !== undefined) seedExpMap[s.id] = s.exp;
       });
+      // Only patch SEED defaults for fields the saved item doesn't already have
       merged.forEach(item => {
-        if (seedMap[item.id]) item.sources = seedMap[item.id];
-        if (seedGroupMap[item.id]) item.group = seedGroupMap[item.id];
-        if (seedImgMap[item.id]) item.img = seedImgMap[item.id];
-        if (seedUnitMap[item.id]) item.unit = seedUnitMap[item.id];
-        if (seedExpMap[item.id] !== undefined) item.exp = seedExpMap[item.id];
+        if (seedMap[item.id] && !item.sources) item.sources = seedMap[item.id];
+        if (seedGroupMap[item.id] && !item.group) item.group = seedGroupMap[item.id];
+        if (seedImgMap[item.id] && !item.img) item.img = seedImgMap[item.id];
+        if (seedUnitMap[item.id] && !item.unit) item.unit = seedUnitMap[item.id];
+        if (seedExpMap[item.id] !== undefined && item.exp === undefined) item.exp = seedExpMap[item.id];
       });
       return merged;
     }
@@ -6671,13 +6672,30 @@ function App() {
   const [syncStatus, setSyncStatus] = useState("disconnected");
   // Firebase config is hardcoded — no setup modal needed
   const dbRef = useRef(null);
-  // Version counters: increment on local write, decrement on listener fire.
-  // When counter > 0 the incoming snapshot is an echo of our own write — skip it.
-  const pendingWrites = useRef({ items: 0, orders: 0, vendors: 0, log: 0 });
-  // Track the last JSON we wrote so the listener can detect echoes even if counter drifts
+  // Track the last JSON we wrote so the listener can detect echoes
   const lastWriteJSON = useRef({ items: "", orders: "", vendors: "", log: "" });
+  // Track previous state for diffing (used to detect deletions)
+  const prevState = useRef({ items: [], orders: [], vendors: [], log: [] });
   // Guard: don't push to Firebase until initial load is done
   const firebaseReady = useRef(false);
+  // Helper: convert Firebase val (could be array or keyed object) to array
+  function fbToArray(val) {
+    if (!val) return [];
+    if (Array.isArray(val)) return val.filter(Boolean);
+    return Object.values(val).filter(Boolean);
+  }
+  // Helper: build a keyed update object for Firebase .update(), including nulls for deletions
+  function buildFirebaseUpdate(prevArr, currArr) {
+    var updates = {};
+    currArr.forEach(function(item) { if (item && item.id) updates[item.id] = item; });
+    // Mark deleted items as null so Firebase removes them
+    if (Array.isArray(prevArr)) {
+      prevArr.forEach(function(item) {
+        if (item && item.id && !updates[item.id]) updates[item.id] = null;
+      });
+    }
+    return updates;
+  }
   useEffect(() => {
     if (!firebaseConfig || !firebaseConfig.databaseURL) {
       setSyncStatus("disconnected");
@@ -6685,20 +6703,27 @@ function App() {
     }
     firebaseReady.current = false;
     let cancelled = false;
-    try {
-      setSyncStatus("connecting");
-      // Safe init: only call initializeApp when no app exists yet
-      if (window.firebase) {
-        try {
-          if (!window.firebase.apps.length) {
-            window.firebase.initializeApp(firebaseConfig);
-          }
-        } catch (initErr) {
-          // App already exists (e.g. HMR / StrictMode remount) — reuse it
-          console.warn("Firebase app already exists, reusing:", initErr.message);
-        }
+    let pollTimer = null;
+    setSyncStatus("connecting");
+
+    function initFirebaseConnection() {
+      if (cancelled) return;
+      // Wait for async Firebase SDK scripts to load
+      if (!window.firebase || !window.firebase.database) {
+        pollTimer = setTimeout(initFirebaseConnection, 150);
+        return;
       }
-      if (window.firebase) {
+      try {
+      // Safe init: only call initializeApp when no app exists yet
+      try {
+        if (!window.firebase.apps.length) {
+          window.firebase.initializeApp(firebaseConfig);
+        }
+      } catch (initErr) {
+        // App already exists (e.g. HMR / StrictMode remount) — reuse it
+        console.warn("Firebase app already exists, reusing:", initErr.message);
+      }
+      {
         const db = window.firebase.database();
         dbRef.current = db;
 
@@ -6709,18 +6734,16 @@ function App() {
           keys.forEach(key => {
             db.ref("nlo/" + key).on("value", snap => {
               if (cancelled) return;
-              // Decrement pending counter if this is an echo of our own write
-              if (pendingWrites.current[key] > 0) {
-                pendingWrites.current[key]--;
-                return;
-              }
               const val = snap.val();
               if (!val) return;
-              // Secondary guard: compare JSON to avoid applying our own write
-              // even if counter drifted (e.g. rapid successive writes)
-              const json = JSON.stringify(val);
+              // Convert from Firebase format (keyed object or legacy array) to array
+              const arr = fbToArray(val);
+              const json = JSON.stringify(arr);
+              // Skip if this is an echo of our own write
               if (json === lastWriteJSON.current[key]) return;
-              setters[key](val);
+              lastWriteJSON.current[key] = json;
+              prevState.current[key] = arr;
+              setters[key](arr);
             });
           });
         }
@@ -6731,9 +6754,12 @@ function App() {
             if (cancelled) return;
             const val = snap.val();
             if (val) {
-              setters[key](val);
+              // Convert from Firebase format (keyed object or legacy array) to array
+              const arr = fbToArray(val);
+              setters[key](arr);
               // Snapshot the loaded data so the sync effects don't echo it back
-              lastWriteJSON.current[key] = JSON.stringify(val);
+              lastWriteJSON.current[key] = JSON.stringify(arr);
+              prevState.current[key] = arr;
             }
           })
         )).then(() => {
@@ -6755,9 +6781,12 @@ function App() {
       console.error("Firebase init error:", err);
       setSyncStatus("error");
     }
+    } // end initFirebaseConnection
+    initFirebaseConnection();
 
     return () => {
       cancelled = true;
+      if (pollTimer) clearTimeout(pollTimer);
       firebaseReady.current = false;
       if (dbRef.current) {
         ["items", "orders", "vendors", "log"].forEach(key => {
@@ -6802,50 +6831,26 @@ function App() {
   const clearCart = useCallback(() => { setCart([]); }, []);
 
   const [reorderFrom, setReorderFrom] = useState(null);
-  useEffect(() => {
-    saveItems(items);
+  // Granular Firebase sync: uses .update() with keyed objects so concurrent
+  // sessions only overwrite the specific items they changed, not the whole array.
+  function syncToFirebase(key, arr, saveFn) {
+    saveFn(arr);
     if (firebaseReady.current && dbRef.current && syncStatus === "synced") {
-      const json = JSON.stringify(items);
-      if (json !== lastWriteJSON.current.items) {
-        lastWriteJSON.current.items = json;
-        pendingWrites.current.items++;
-        dbRef.current.ref("nlo/items").set(items).catch(err => { pendingWrites.current.items = Math.max(0, pendingWrites.current.items - 1); console.error("Firebase items sync error:", err); });
+      const json = JSON.stringify(arr);
+      if (json !== lastWriteJSON.current[key]) {
+        var updates = buildFirebaseUpdate(prevState.current[key], arr);
+        lastWriteJSON.current[key] = json;
+        prevState.current[key] = arr;
+        dbRef.current.ref("nlo/" + key).update(updates).catch(err => {
+          console.error("Firebase " + key + " sync error:", err);
+        });
       }
     }
-  }, [items, syncStatus]);
-  useEffect(() => {
-    saveLog(log);
-    if (firebaseReady.current && dbRef.current && syncStatus === "synced") {
-      const json = JSON.stringify(log);
-      if (json !== lastWriteJSON.current.log) {
-        lastWriteJSON.current.log = json;
-        pendingWrites.current.log++;
-        dbRef.current.ref("nlo/log").set(log).catch(err => { pendingWrites.current.log = Math.max(0, pendingWrites.current.log - 1); console.error("Firebase log sync error:", err); });
-      }
-    }
-  }, [log, syncStatus]);
-  useEffect(() => {
-    saveVendors(vendors);
-    if (firebaseReady.current && dbRef.current && syncStatus === "synced") {
-      const json = JSON.stringify(vendors);
-      if (json !== lastWriteJSON.current.vendors) {
-        lastWriteJSON.current.vendors = json;
-        pendingWrites.current.vendors++;
-        dbRef.current.ref("nlo/vendors").set(vendors).catch(err => { pendingWrites.current.vendors = Math.max(0, pendingWrites.current.vendors - 1); console.error("Firebase vendors sync error:", err); });
-      }
-    }
-  }, [vendors, syncStatus]);
-  useEffect(() => {
-    saveOrders(orders);
-    if (firebaseReady.current && dbRef.current && syncStatus === "synced") {
-      const json = JSON.stringify(orders);
-      if (json !== lastWriteJSON.current.orders) {
-        lastWriteJSON.current.orders = json;
-        pendingWrites.current.orders++;
-        dbRef.current.ref("nlo/orders").set(orders).catch(err => { pendingWrites.current.orders = Math.max(0, pendingWrites.current.orders - 1); console.error("Firebase orders sync error:", err); });
-      }
-    }
-  }, [orders, syncStatus]);
+  }
+  useEffect(() => { syncToFirebase("items", items, saveItems); }, [items, syncStatus]);
+  useEffect(() => { syncToFirebase("log", log, saveLog); }, [log, syncStatus]);
+  useEffect(() => { syncToFirebase("vendors", vendors, saveVendors); }, [vendors, syncStatus]);
+  useEffect(() => { syncToFirebase("orders", orders, saveOrders); }, [orders, syncStatus]);
   const updateVendor = useCallback((vendorId, updates) => {
     setVendors(prev => prev.map(v => v.id === vendorId ? { ...v, ...updates } : v));
   }, []);
