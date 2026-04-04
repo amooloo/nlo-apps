@@ -90,19 +90,7 @@ function ageColor(d) {
   return "text-amber-500";
 }
 function uid() {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2);
-}
-function mdToHtml(r) {
-  var LT = String.fromCharCode(60), GT = String.fromCharCode(62), AMP = String.fromCharCode(38);
-  r = r.replace(/&/g, AMP + "amp;").replace(new RegExp(LT, "g"), AMP + "lt;").replace(new RegExp(GT, "g"), AMP + "gt;");
-  r = r.replace(/\*\*(.+?)\*\*/g, LT + "strong style='color:#111'" + GT + "$1" + LT + "/strong" + GT);
-  r = r.replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g, LT + "a href='$2' target='_blank' rel='noopener' style='color:#2563eb;text-decoration:underline'" + GT + "$1" + LT + "/a" + GT);
-  r = r.replace(/^### (.+)$/gm, LT + "p style='font-weight:700;color:#111;margin-top:12px'" + GT + "$1" + LT + "/p" + GT);
-  r = r.replace(/^## (.+)$/gm, LT + "p style='font-weight:700;font-size:15px;color:#111;margin-top:16px'" + GT + "$1" + LT + "/p" + GT);
-  r = r.replace(/^[\-\*] (.+)$/gm, LT + "div style='padding-left:16px'" + GT + "\u2022 $1" + LT + "/div" + GT);
-  r = r.replace(/\n{2,}/g, LT + "br/" + GT + LT + "br/" + GT);
-  r = r.replace(/\n/g, LT + "br/" + GT);
-  return r;
+  return Date.now().toString(36) + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 6);
 }
 
 // ─── data ────────────────────────────────────────────────────────────────────
@@ -2320,8 +2308,9 @@ function vendorFromSrc(src) {
 }
 // Returns all sources for an item — supports both flat and sources[] formats
 function allSources(item) {
+  if (!item) return [{ vendor: null, sku: "\u2014", price: null, src: null }];
   if (item.sources && item.sources.length > 0) return item.sources;
-  return [{ vendor: vendorFromSrc(item.src), sku: item.sku || "—", price: item.price ?? null, src: item.src ?? null }];
+  return [{ vendor: vendorFromSrc(item.src), sku: item.sku || "\u2014", price: item.price ?? null, src: item.src ?? null }];
 }
 // Returns the preferred (first) source
 function primarySource(item) { return allSources(item)[0]; }
@@ -2735,7 +2724,7 @@ function AdjustModal({
   }, m === "count" ? "Count" : m === "add" ? "＋ Receive" : "− Remove"))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
     className: "text-xs font-medium text-gray-500 uppercase tracking-wide"
   }, mode === "count" ? "Current Count (" + item.unit + ")" : "Quantity (" + item.unit + ")"), /*#__PURE__*/React.createElement("input", {
-    type: "number",
+    type: "number", inputMode: "numeric",
     min: mode === "count" ? "0" : "0.01",
     step: "any",
     value: qty,
@@ -3000,7 +2989,7 @@ const SourcesModal = ({ item, onSave, onDelete, onClose, isAdmin }) => {
       className: "text-xs font-semibold text-gray-500 uppercase tracking-wide"
     }, "Min Stock (alert threshold)"),
     /*#__PURE__*/React.createElement("input", {
-      type: "number",
+      type: "number", inputMode: "numeric",
       min: "0",
       value: minStock,
       onChange: e => setMinStock(e.target.value),
@@ -3081,7 +3070,7 @@ const SourcesModal = ({ item, onSave, onDelete, onClose, isAdmin }) => {
   }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
     className: "text-gray-500 font-semibold"
   }, "Price"), /*#__PURE__*/React.createElement("input", {
-    type: "number",
+    type: "number", inputMode: "numeric",
     step: "0.01",
     value: src.price || "",
     onChange: e => updateRow(idx, "price", e.target.value ? parseFloat(e.target.value) : ""),
@@ -3153,20 +3142,20 @@ function getCurrentUser() {
   return localStorage.getItem(NLO_ROLE_KEY) || "";
 }
 function getUserRole(userName) {
-  return userName === "Dr. Amir Akhavan" ? "admin" : "staff";
+  return (userName === "Dr. A" || userName === "Sarah B.") ? "admin" : "staff";
 }
 
 // ─── InvoiceScanModal ────────────────────────────────────────────────────────
 const NLO_STAFF = [
-  "Dr. Amir Akhavan",
-  "Sarah Betz",
-  "Bri Brower",
-  "Kaylee Doty",
-  "Wila Jordan",
-  "Eve Pavlova",
-  "Angelika Rodriguez",
-  "Gwen Rodis",
-  "Savannah Schmaltz"
+  "Dr. A",
+  "Sarah B.",
+  "Bri B.",
+  "Kaylee D.",
+  "Wila J.",
+  "Eve P.",
+  "Angelika R.",
+  "Gwen R.",
+  "Savannah S."
 ];
 const OPENAI_KEY_STORE = "nlo-openai-key";
 const InvoiceScanModal = ({ items, orders, onApply, onAddItem, onReceiveOrder, onAddOrder, onClose }) => {
@@ -3362,7 +3351,8 @@ const InvoiceScanModal = ({ items, orders, onApply, onAddItem, onReceiveOrder, o
         if (!bestId && row.name) {
           const nameLower = String(row.name).toLowerCase();
           const scored = items.map(it => {
-            const words = it.name.toLowerCase().split(/\s+/);
+            const words = it.name.toLowerCase().split(/\s+/).filter(function(w) { return w.length > 0; });
+            if (words.length === 0) return { id: it.id, score: 0 };
             const hits = words.filter(w => nameLower.includes(w)).length;
             return { id: it.id, score: hits / words.length };
           }).filter(s => s.score > 0.3).sort((a, b) => b.score - a.score);
@@ -3464,7 +3454,8 @@ const InvoiceScanModal = ({ items, orders, onApply, onAddItem, onReceiveOrder, o
     // Handle existing item matches
     var verifyNote = (!matchedOrder && verifiedBy) ? " (no open order \u2014 verified by " + verifiedBy + ")" : "";
     var changes = entries.filter(function(e) { return e.itemId && !e.isNew; }).map(function(e) {
-      return { itemId: e.itemId, vendor: e.vendor + verifyNote, sku: e.sku, price: e.price ? parseFloat(e.price) : null, qty: e.qty ? parseInt(e.qty) : 0, date: e.date };
+      var matched = items.find(function(it) { return it.id === e.itemId; });
+      return { itemId: e.itemId, itemName: matched ? matched.name : e.itemId, vendor: e.vendor + verifyNote, sku: e.sku, price: e.price ? parseFloat(e.price) : null, qty: e.qty ? parseInt(e.qty) : 0, date: e.date };
     });
     onApply(changes);
 
@@ -3666,12 +3657,12 @@ const InvoiceScanModal = ({ items, orders, onApply, onAddItem, onReceiveOrder, o
         ),
         React.createElement("div", null,
           React.createElement("label", { className: "text-xs text-gray-500 font-semibold" }, "Price"),
-          React.createElement("input", { type: "number", step: "0.01", value: e.price || "", onChange: function(ev) { updateEntry(idx, "price", ev.target.value); }, placeholder: "0.00", className: "mt-0.5 w-full border border-gray-200 rounded px-2 py-1 text-sm" })
+          React.createElement("input", { type: "number", inputMode: "numeric", step: "0.01", value: e.price || "", onChange: function(ev) { updateEntry(idx, "price", ev.target.value); }, placeholder: "0.00", className: "mt-0.5 w-full border border-gray-200 rounded px-2 py-1 text-sm" })
         ),
         React.createElement("div", null,
           React.createElement("label", { className: "text-xs text-gray-500 font-semibold" }, "Slip Qty"),
           React.createElement("div", { className: "flex gap-1 mt-0.5" },
-            React.createElement("input", { type: "number", step: "1", value: e.slipQty || e.qty || "", onChange: function(ev) {
+            React.createElement("input", { type: "number", inputMode: "numeric", step: "1", value: e.slipQty || e.qty || "", onChange: function(ev) {
               var sq = ev.target.value;
               updateEntry(idx, "slipQty", sq);
               var pk = parseInt(e.packQty) || 0;
@@ -3682,7 +3673,7 @@ const InvoiceScanModal = ({ items, orders, onApply, onAddItem, onReceiveOrder, o
         ),
         React.createElement("div", null,
           React.createElement("label", { className: "text-xs text-gray-500 font-semibold" }, "\u00D7 Per " + (e.slipUnit || "unit")),
-          React.createElement("input", { type: "number", step: "1", value: e.packQty || "", onChange: function(ev) {
+          React.createElement("input", { type: "number", inputMode: "numeric", step: "1", value: e.packQty || "", onChange: function(ev) {
             var pk = ev.target.value;
             updateEntry(idx, "packQty", pk);
             var sq = parseInt(e.slipQty || e.qty) || 0;
@@ -3699,7 +3690,7 @@ const InvoiceScanModal = ({ items, orders, onApply, onAddItem, onReceiveOrder, o
         React.createElement("div", null,
           React.createElement("label", { className: "text-xs text-gray-500 font-semibold" }, "Final Qty"),
           React.createElement("div", { className: "flex gap-1 mt-0.5" },
-            React.createElement("input", { type: "number", step: "1", value: e.qty || "", onChange: function(ev) { updateEntry(idx, "qty", ev.target.value); }, placeholder: "0", className: "w-full border border-gray-200 rounded px-2 py-1 text-sm font-semibold" }),
+            React.createElement("input", { type: "number", inputMode: "numeric", step: "1", value: e.qty || "", onChange: function(ev) { updateEntry(idx, "qty", ev.target.value); }, placeholder: "0", className: "w-full border border-gray-200 rounded px-2 py-1 text-sm font-semibold" }),
             React.createElement("input", { type: "text", value: e.trackedUnit || "", onChange: function(ev) { updateEntry(idx, "trackedUnit", ev.target.value); }, placeholder: "unit", className: "w-16 border border-gray-200 rounded px-2 py-1 text-xs text-gray-500", title: "Unit (box, roll, ea, etc.)" })
           )
         )
@@ -3921,7 +3912,7 @@ function GridItemCard({ item, onAdjust, onShowQR, onEditSources, vendors, onCrea
       /*#__PURE__*/React.createElement("div", { className: "flex items-center gap-1.5" },
         /*#__PURE__*/React.createElement("span", { className: "text-xs font-semibold text-gray-500" }, "Qty:"),
         /*#__PURE__*/React.createElement("button", { onClick: function() { setOrderQty(String(Math.max(1, qty - 1))); }, className: "w-6 h-6 rounded bg-white border border-gray-200 hover:bg-gray-100 text-gray-700 font-bold flex items-center justify-center text-xs" }, "\u2013"),
-        /*#__PURE__*/React.createElement("input", { type: "number", value: orderQty, onChange: function(e) { setOrderQty(e.target.value); }, className: "w-10 text-center border border-gray-200 rounded py-0.5 text-xs font-semibold bg-white", min: "1" }),
+        /*#__PURE__*/React.createElement("input", { type: "number", inputMode: "numeric", value: orderQty, onChange: function(e) { setOrderQty(e.target.value); }, className: "w-10 text-center border border-gray-200 rounded py-0.5 text-xs font-semibold bg-white", min: "1" }),
         /*#__PURE__*/React.createElement("button", { onClick: function() { setOrderQty(String(qty + 1)); }, className: "w-6 h-6 rounded bg-white border border-gray-200 hover:bg-gray-100 text-gray-700 font-bold flex items-center justify-center text-xs" }, "+")),
       // Contact buttons
       /*#__PURE__*/React.createElement("a", { href: hasCall ? "tel:" + targetPhone : undefined, className: hasCall ? activeBtn : disabledBtn, onClick: function(e) { if (!hasCall) { e.preventDefault(); } else { createGridOrder("call"); } } },
@@ -4158,6 +4149,7 @@ function ItemRow({
   }, item.tag), item.exp && ((d) => {
     const now = new Date();
     const expDate = new Date(d);
+    if (isNaN(expDate.getTime())) return null;
     const daysLeft = Math.floor((expDate - now) / (1000 * 60 * 60 * 24));
     if (daysLeft < 0) {
       return /*#__PURE__*/React.createElement("span", { className: "text-xs px-1.5 py-0.5 rounded font-semibold bg-red-100 text-red-700" }, "EXPIRED");
@@ -4303,7 +4295,7 @@ function ItemRow({
       /*#__PURE__*/React.createElement("div", { className: "flex items-center gap-2 mb-2" },
         /*#__PURE__*/React.createElement("span", { className: "text-xs font-semibold text-gray-500" }, "Qty:"),
         /*#__PURE__*/React.createElement("button", { onClick: function() { setOrderQty(String(Math.max(1, qty - 1))); }, className: "w-7 h-7 rounded-lg bg-white border border-gray-200 hover:bg-gray-100 text-gray-700 font-bold flex items-center justify-center text-sm" }, "\u2013"),
-        /*#__PURE__*/React.createElement("input", { type: "number", value: orderQty, onChange: function(e) { setOrderQty(e.target.value); }, className: "w-14 text-center border border-gray-200 rounded-lg py-1 text-sm font-semibold bg-white", min: "1" }),
+        /*#__PURE__*/React.createElement("input", { type: "number", inputMode: "numeric", value: orderQty, onChange: function(e) { setOrderQty(e.target.value); }, className: "w-14 text-center border border-gray-200 rounded-lg py-1 text-sm font-semibold bg-white", min: "1" }),
         /*#__PURE__*/React.createElement("button", { onClick: function() { setOrderQty(String(qty + 1)); }, className: "w-7 h-7 rounded-lg bg-white border border-gray-200 hover:bg-gray-100 text-gray-700 font-bold flex items-center justify-center text-sm" }, "+"),
         /*#__PURE__*/React.createElement("span", { className: "text-xs text-gray-400" }, unitLabel),
         vendorName && /*#__PURE__*/React.createElement("span", { className: "text-xs text-gray-400 ml-auto" }, "from ", /*#__PURE__*/React.createElement("b", null, vendorName))),
@@ -4319,6 +4311,18 @@ function ItemRow({
 }
 
 // ─── ScannerView ──────────────────────────────────────────────────────────────
+// Shared AudioContext — lazily initialized on first user interaction to avoid browser warnings
+var _sharedAudioCtx = null;
+function getAudioContext() {
+  if (!_sharedAudioCtx) {
+    _sharedAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (_sharedAudioCtx.state === "suspended") {
+    _sharedAudioCtx.resume();
+  }
+  return _sharedAudioCtx;
+}
+
 function ScannerView({
   items,
   onAdjust,
@@ -4490,9 +4494,9 @@ function ScannerView({
     if (navigator.vibrate) {
       navigator.vibrate(success ? [50, 30, 50] : [200]);
     }
-    // Audio beep
+    // Audio beep — reuse shared AudioContext to avoid browser warnings
     try {
-      var ctx = new (window.AudioContext || window.webkitAudioContext)();
+      var ctx = getAudioContext();
       var osc = ctx.createOscillator();
       var gain = ctx.createGain();
       osc.connect(gain);
@@ -4733,7 +4737,7 @@ function ScannerView({
           /*#__PURE__*/React.createElement("label", { className: "text-sm font-medium text-gray-600 whitespace-nowrap" }, "Quantity:"),
           /*#__PURE__*/React.createElement("div", { className: "flex items-center gap-1" },
             /*#__PURE__*/React.createElement("button", { onClick: function() { setOrderQty(String(Math.max(1, qty - 1))); }, className: "w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold flex items-center justify-center" }, "\u2212"),
-            /*#__PURE__*/React.createElement("input", { type: "number", min: "1", value: orderQty, onChange: function(e) { setOrderQty(e.target.value); }, className: "w-16 text-center text-lg font-bold border border-gray-200 rounded-lg py-1 focus:outline-none focus:ring-2 focus:ring-blue-500" }),
+            /*#__PURE__*/React.createElement("input", { type: "number", inputMode: "numeric", min: "1", value: orderQty, onChange: function(e) { setOrderQty(e.target.value); }, className: "w-16 text-center text-lg font-bold border border-gray-200 rounded-lg py-1 focus:outline-none focus:ring-2 focus:ring-blue-500" }),
             /*#__PURE__*/React.createElement("button", { onClick: function() { setOrderQty(String(qty + 1)); }, className: "w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold flex items-center justify-center" }, "+")),
           /*#__PURE__*/React.createElement("span", { className: "text-sm text-gray-400" }, result.unit || "ea")),
         /*#__PURE__*/React.createElement("a", { href: hasCall ? "tel:" + targetPhone : undefined, className: hasCall ? activeBtn : disabledBtn, onClick: function(e) { if (!hasCall) { e.preventDefault(); } else { createScannerOrder("call"); } } },
@@ -4752,7 +4756,7 @@ function ScannerView({
   }, /*#__PURE__*/React.createElement("label", {
     className: "text-xs text-gray-500 font-medium"
   }, "Qty to ", mode === "use" ? "remove" : "add"), /*#__PURE__*/React.createElement("input", {
-    type: "number",
+    type: "number", inputMode: "numeric",
     min: "1",
     value: scanQty,
     onChange: e => setScanQty(e.target.value),
@@ -4877,8 +4881,9 @@ function ReportsView({
     const m = {};
     log.filter(l => l.type === "receive" && l.delta > 0).forEach(l => {
       const item = items.find(i => i.id === l.itemId);
+      if (!item) return;
       const ps = primarySource(item);
-      if (!item || ps.price == null) return;
+      if (!ps || ps.price == null) return;
       const v = ps.vendor || "Unknown";
       m[v] = (m[v] || 0) + ps.price * l.delta;
     });
@@ -5136,7 +5141,7 @@ function ReportsView({
         "═══════════════════════════════════════════════\n" +
         "NLO Inventory System • Auto-generated\n";
 
-      window.open("mailto:Records@thenextlevelorthodontics.com?subject=" + encodeURIComponent(subject) + "&body=" + encodeURIComponent(body), "_blank");
+      window.location.href = "mailto:Records@thenextlevelorthodontics.com?subject=" + encodeURIComponent(subject) + "&body=" + encodeURIComponent(body);
       setLastAlertTime();
     } catch (e) { console.error("Low-stock alert error:", e); }
   }
@@ -5568,65 +5573,52 @@ function VendorCard({ v, onUpdate, onRemove, autoEdit, isAdmin }) {
 }
 
 // ─── DashboardView ────────────────────────────────────────────────────────────
-function DashboardView({ items, orders, log }) {
-  const [dismissedBanner, setDismissedBanner] = useState(false);
+function DashboardView({ items, orders, log, cart, onSetView, onOpenInvoiceScan, onOpenAddOrder, addToCart }) {
+  var [dismissedBanner, setDismissedBanner] = useState(false);
+  var [reorderOpen, setReorderOpen] = useState(false);
 
-  const now = new Date();
-  const hour = now.getHours();
-  let greeting = "Good morning";
-  if (hour >= 12 && hour < 18) {
-    greeting = "Good afternoon";
-  } else if (hour >= 18) {
-    greeting = "Good evening";
-  }
-  const todayStr = now.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+  var now = new Date();
+  var hour = now.getHours();
+  var greeting = "Good morning";
+  if (hour >= 12 && hour < 18) greeting = "Good afternoon";
+  else if (hour >= 18) greeting = "Good evening";
+  var todayStr = now.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 
-  // Calculate inventory value
-  const totalValue = items.reduce((sum, item) => {
-    const src = item.sources && item.sources[0];
-    const price = src ? parseFloat(src.price) || 0 : 0;
+  // Stats
+  var totalValue = items.reduce(function(sum, item) {
+    var src = item.sources && item.sources[0];
+    var price = src ? parseFloat(src.price) || 0 : 0;
     return sum + (item.qty || 0) * price;
   }, 0);
-
-  // Items needing reorder
-  const needsReorder = items.filter(i => i.qty < i.min);
-
-  // Open orders count
-  const openOrders = orders.filter(o => o.status === "open");
-
-  // Items received this week
-  const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-  const receivedThisWeek = log.filter(entry => {
+  var needsReorder = items.filter(function(i) { return i.qty < i.min; });
+  var openOrders = orders.filter(function(o) { return o.status === "open"; });
+  var weekAgo = new Date(now.getTime() - 7 * 86400000);
+  var receivedThisWeek = log.filter(function(entry) {
     if (entry.type !== "receive") return false;
-    const entryDate = new Date(entry.date);
-    return entryDate >= weekAgo && entryDate <= now;
+    var d = new Date(entry.date);
+    return d >= weekAgo && d <= now;
   }).length;
+  var overdueOrders = openOrders.filter(function(o) {
+    if (!o.expectedDelivery) return false;
+    return new Date(o.expectedDelivery) < now;
+  });
+  var backorderedCount = orders.filter(function(o) { return o.status === "backordered"; }).length;
 
-  // Group items needing reorder by vendor
-  const reorderByVendor = {};
-  needsReorder.forEach(item => {
-    const vendor = item.sources && item.sources[0] ? item.sources[0].vendor : "Unknown";
-    if (!reorderByVendor[vendor]) {
-      reorderByVendor[vendor] = [];
-    }
+  // Group reorder by vendor
+  var reorderByVendor = {};
+  needsReorder.forEach(function(item) {
+    var vendor = item.sources && item.sources[0] ? item.sources[0].vendor : "Unknown";
+    if (!reorderByVendor[vendor]) reorderByVendor[vendor] = [];
     reorderByVendor[vendor].push(item);
   });
 
-  // Overdue orders
-  const overdueOrders = openOrders.filter(o => {
-    if (!o.expectedDelivery) return false;
-    const expected = new Date(o.expectedDelivery);
-    return expected < now;
-  });
-
-  // Format relative time
-  const relativeTime = (dateStr) => {
-    const date = new Date(dateStr);
-    const diff = now - date;
-    const minutes = Math.floor(diff / 60000);
-    const hours = Math.floor(diff / 3600000);
-    const days = Math.floor(diff / 86400000);
-
+  // Relative time helper
+  var relativeTime = function(dateStr) {
+    var date = new Date(dateStr);
+    var diff = now - date;
+    var minutes = Math.floor(diff / 60000);
+    var hours = Math.floor(diff / 3600000);
+    var days = Math.floor(diff / 86400000);
     if (minutes < 1) return "just now";
     if (minutes < 60) return minutes + "m ago";
     if (hours < 24) return hours + "h ago";
@@ -5634,19 +5626,16 @@ function DashboardView({ items, orders, log }) {
     return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   };
 
-  // Low-stock alert logic
-  const lowStock = items.filter(i => i.qty < i.min);
-  const lastAlert = getLastAlertTime();
-  const hoursSinceAlert = lastAlert ? (Date.now() - new Date(lastAlert).getTime()) / 3600000 : 999;
-  const showAlertBanner = lowStock.length > 0 && hoursSinceAlert > 24 && !dismissedBanner;
+  // Low-stock alert
+  var lowStock = items.filter(function(i) { return i.qty < i.min; });
+  var lastAlert = getLastAlertTime();
+  var hoursSinceAlert = lastAlert ? (Date.now() - new Date(lastAlert).getTime()) / 3600000 : 999;
+  var showAlertBanner = lowStock.length > 0 && hoursSinceAlert > 24 && !dismissedBanner;
 
-  // Function to compose and send low-stock alert email
-  const sendLowStockAlert = useCallback(() => {
+  var sendLowStockAlert = useCallback(function() {
     try {
-      const dateStr = now.toLocaleDateString("en-US");
-      const subject = "NLO Low Stock Alert — " + dateStr;
-
-      // Build a clean ASCII table for low-stock items
+      var dateStr = now.toLocaleDateString("en-US");
+      var subject = "NLO Low Stock Alert \u2014 " + dateStr;
       var sep  = "+------+--------------------------------+------+-----+-----+----------+";
       var hdr  = "| #    | Item                           | Qty  | Min | Need| Unit     |";
       var rows = lowStock.map(function(item, idx) {
@@ -5658,158 +5647,168 @@ function DashboardView({ items, orders, log }) {
         var unit  = (item.unit || "ea").substring(0, 8).padEnd(8);
         return "| " + num + " | " + nm + " | " + qty + " | " + min + " | " + need + " | " + unit + " |";
       }).join("\n");
-      var totalSep = "+------+--------------------------------+------+-----+-----+----------+";
-      var table = sep + "\n" + hdr + "\n" + sep + "\n" + rows + "\n" + totalSep;
-
-      var body = "═══════════════════════════════════════════════\n" +
-        "  NEXT LEVEL ORTHODONTICS — LOW STOCK ALERT\n" +
-        "═══════════════════════════════════════════════\n\n" +
-        "Alert Generated: " + dateStr + "\n" +
-        "Items Below Minimum: " + lowStock.length + "\n\n" +
-        table + "\n\n" +
-        "Please review and place orders as needed.\n\n" +
-        "═══════════════════════════════════════════════\n" +
-        "NLO Inventory System • Auto-generated\n";
-
-      window.open("mailto:Records@thenextlevelorthodontics.com?subject=" + encodeURIComponent(subject) + "&body=" + encodeURIComponent(body), "_blank");
+      var table = sep + "\n" + hdr + "\n" + sep + "\n" + rows + "\n" + sep;
+      var body = "\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n  NEXT LEVEL ORTHODONTICS \u2014 LOW STOCK ALERT\n\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n\nAlert Generated: " + dateStr + "\nItems Below Minimum: " + lowStock.length + "\n\n" + table + "\n\nPlease review and place orders as needed.\n";
+      window.location.href = "mailto:Records@thenextlevelorthodontics.com?subject=" + encodeURIComponent(subject) + "&body=" + encodeURIComponent(body);
       setLastAlertTime();
       setDismissedBanner(true);
     } catch (e) { console.error("Low-stock alert error:", e); }
   }, [lowStock, now]);
 
+  // Expiring items
+  var itemsWithExp = items.filter(function(i) { return i.exp; }).map(function(item) {
+    var expDate = new Date(item.exp);
+    if (isNaN(expDate.getTime())) return null;
+    var daysLeft = Math.floor((expDate - now) / 86400000);
+    return Object.assign({}, item, { daysLeft: daysLeft, expDate: expDate });
+  }).filter(function(i) { return i && i.daysLeft < 90; }).sort(function(a, b) { return a.daysLeft - b.daysLeft; });
+
+  var cartCount = cart ? cart.length : 0;
+
   return /*#__PURE__*/React.createElement("div", { className: "flex-1 overflow-y-auto" },
     // Header
-    /*#__PURE__*/React.createElement("div", { className: "sticky top-0 z-10 bg-white border-b px-4 py-6" },
+    /*#__PURE__*/React.createElement("div", { className: "sticky top-0 z-10 bg-white border-b px-4 py-5" },
       /*#__PURE__*/React.createElement("h1", { className: "text-2xl font-bold text-gray-900" }, greeting + ", NLO"),
-      /*#__PURE__*/React.createElement("p", { className: "text-sm text-gray-500 mt-1" }, todayStr)),
+      /*#__PURE__*/React.createElement("p", { className: "text-sm text-gray-500 mt-0.5" }, todayStr)),
 
-    // Content
-    /*#__PURE__*/React.createElement("div", { className: "p-4 space-y-6 pb-20 md:pb-6" },
+    /*#__PURE__*/React.createElement("div", { className: "p-4 space-y-5 pb-20 md:pb-6" },
+
       // Low-stock alert banner
       showAlertBanner && /*#__PURE__*/React.createElement("div", { className: "bg-gradient-to-r from-amber-50 to-red-50 border-l-4 border-red-500 rounded-lg p-4 flex items-start justify-between gap-3" },
         /*#__PURE__*/React.createElement("div", { className: "flex items-start gap-3 flex-1" },
-          /*#__PURE__*/React.createElement("div", { className: "text-2xl mt-0.5" }, "⚠️"),
+          /*#__PURE__*/React.createElement("div", { className: "text-2xl mt-0.5" }, "\u26a0\ufe0f"),
           /*#__PURE__*/React.createElement("div", { className: "flex-1" },
             /*#__PURE__*/React.createElement("p", { className: "font-bold text-gray-900 text-sm" }, lowStock.length + " " + (lowStock.length === 1 ? "item" : "items") + " below minimum stock"),
             /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-600 mt-1" }, "Last alert sent " + (lastAlert ? (Math.round(hoursSinceAlert) + " hours ago") : "never")))),
         /*#__PURE__*/React.createElement("div", { className: "flex gap-2 shrink-0" },
-          /*#__PURE__*/React.createElement("button", {
-            onClick: sendLowStockAlert,
-            className: "bg-red-600 hover:bg-red-700 text-white text-xs font-semibold px-3 py-2 rounded-lg whitespace-nowrap"
-          }, "Send Alert Email"),
-          /*#__PURE__*/React.createElement("button", {
-            onClick: () => setDismissedBanner(true),
-            className: "bg-gray-200 hover:bg-gray-300 text-gray-700 text-xs font-semibold px-3 py-2 rounded-lg"
-          }, "Dismiss"))),
+          /*#__PURE__*/React.createElement("button", { onClick: sendLowStockAlert, className: "bg-red-600 hover:bg-red-700 text-white text-xs font-semibold px-3 py-2 rounded-lg whitespace-nowrap" }, "Send Alert Email"),
+          /*#__PURE__*/React.createElement("button", { onClick: function() { setDismissedBanner(true); }, className: "bg-gray-200 hover:bg-gray-300 text-gray-700 text-xs font-semibold px-3 py-2 rounded-lg" }, "Dismiss"))),
 
-      // Stat cards
+      // ── Quick Actions ──
+      /*#__PURE__*/React.createElement("div", { className: "grid grid-cols-2 sm:grid-cols-4 gap-2" },
+        /*#__PURE__*/React.createElement("button", { onClick: function() { if (onOpenInvoiceScan) onOpenInvoiceScan(); }, className: "bg-white border border-gray-200 rounded-xl p-3 flex flex-col items-center gap-1.5 hover:bg-blue-50 hover:border-blue-300 transition-colors" },
+          /*#__PURE__*/React.createElement("span", { className: "text-xl" }, "\ud83d\udcf7"),
+          /*#__PURE__*/React.createElement("span", { className: "text-xs font-semibold text-gray-700" }, "Scan Invoice")),
+        /*#__PURE__*/React.createElement("button", { onClick: function() { if (onOpenAddOrder) onOpenAddOrder(); }, className: "bg-white border border-gray-200 rounded-xl p-3 flex flex-col items-center gap-1.5 hover:bg-emerald-50 hover:border-emerald-300 transition-colors" },
+          /*#__PURE__*/React.createElement("span", { className: "text-xl" }, "\ud83d\udce6"),
+          /*#__PURE__*/React.createElement("span", { className: "text-xs font-semibold text-gray-700" }, "New Order")),
+        /*#__PURE__*/React.createElement("button", { onClick: function() { if (onSetView) onSetView("cart"); }, className: "bg-white border border-gray-200 rounded-xl p-3 flex flex-col items-center gap-1.5 hover:bg-purple-50 hover:border-purple-300 transition-colors relative" },
+          /*#__PURE__*/React.createElement("span", { className: "text-xl" }, "\ud83d\uded2"),
+          /*#__PURE__*/React.createElement("span", { className: "text-xs font-semibold text-gray-700" }, "View Cart"),
+          cartCount > 0 && /*#__PURE__*/React.createElement("span", { className: "absolute top-1 right-1 bg-purple-600 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center" }, cartCount)),
+        /*#__PURE__*/React.createElement("button", { onClick: function() { if (onSetView) onSetView("scanner"); }, className: "bg-white border border-gray-200 rounded-xl p-3 flex flex-col items-center gap-1.5 hover:bg-amber-50 hover:border-amber-300 transition-colors" },
+          /*#__PURE__*/React.createElement("span", { className: "text-xl" }, "\ud83d\udcf1"),
+          /*#__PURE__*/React.createElement("span", { className: "text-xs font-semibold text-gray-700" }, "Scan Items"))),
+
+      // ── Stat Cards ──
       /*#__PURE__*/React.createElement("div", { className: "grid grid-cols-2 sm:grid-cols-4 gap-3" },
-        // Total inventory value
-        /*#__PURE__*/React.createElement("div", { className: "bg-white rounded-xl border border-gray-200 p-4" },
+        /*#__PURE__*/React.createElement("div", { className: "bg-white rounded-xl border border-gray-200 p-4 cursor-pointer hover:shadow-sm transition-shadow", onClick: function() { if (onSetView) onSetView("inventory"); } },
           /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-500 font-semibold uppercase tracking-wide mb-2" }, "Total Value"),
           /*#__PURE__*/React.createElement("p", { className: "text-lg sm:text-xl font-bold text-gray-900" }, "$" + totalValue.toFixed(0)),
           /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-400 mt-2" }, items.length + " items")),
-
-        // Items needing reorder
-        /*#__PURE__*/React.createElement("div", { className: "bg-white rounded-xl border border-red-200 p-4" },
+        /*#__PURE__*/React.createElement("div", { className: "bg-white rounded-xl border " + (needsReorder.length > 0 ? "border-red-200" : "border-gray-200") + " p-4 cursor-pointer hover:shadow-sm transition-shadow", onClick: function() { setReorderOpen(!reorderOpen); } },
           /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-500 font-semibold uppercase tracking-wide mb-2" }, "Reorder"),
-          /*#__PURE__*/React.createElement("p", { className: "text-lg sm:text-xl font-bold text-red-600" }, needsReorder.length),
-          /*#__PURE__*/React.createElement("p", { className: "text-xs text-red-500 mt-2" }, "items low")),
-
-        // Open orders
-        /*#__PURE__*/React.createElement("div", { className: "bg-white rounded-xl border border-amber-200 p-4" },
+          /*#__PURE__*/React.createElement("p", { className: "text-lg sm:text-xl font-bold " + (needsReorder.length > 0 ? "text-red-600" : "text-gray-900") }, needsReorder.length),
+          /*#__PURE__*/React.createElement("p", { className: "text-xs " + (needsReorder.length > 0 ? "text-red-500" : "text-gray-400") + " mt-2" }, needsReorder.length > 0 ? "tap to view" : "all stocked")),
+        /*#__PURE__*/React.createElement("div", { className: "bg-white rounded-xl border " + (overdueOrders.length > 0 ? "border-amber-200" : "border-gray-200") + " p-4 cursor-pointer hover:shadow-sm transition-shadow", onClick: function() { if (onSetView) onSetView("orders"); } },
           /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-500 font-semibold uppercase tracking-wide mb-2" }, "Open Orders"),
           /*#__PURE__*/React.createElement("p", { className: "text-lg sm:text-xl font-bold text-amber-600" }, openOrders.length),
-          /*#__PURE__*/React.createElement("p", { className: "text-xs text-amber-500 mt-2" }, overdueOrders.length > 0 ? overdueOrders.length + " overdue" : "on time")),
-
-        // Received this week
+          /*#__PURE__*/React.createElement("p", { className: "text-xs text-amber-500 mt-2" }, overdueOrders.length > 0 ? overdueOrders.length + " overdue" : backorderedCount > 0 ? backorderedCount + " backordered" : "on track")),
         /*#__PURE__*/React.createElement("div", { className: "bg-white rounded-xl border border-emerald-200 p-4" },
           /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-500 font-semibold uppercase tracking-wide mb-2" }, "This Week"),
           /*#__PURE__*/React.createElement("p", { className: "text-lg sm:text-xl font-bold text-emerald-600" }, receivedThisWeek),
           /*#__PURE__*/React.createElement("p", { className: "text-xs text-emerald-500 mt-2" }, "received"))),
 
-      // Needs Reorder section
-      needsReorder.length > 0 && /*#__PURE__*/React.createElement("div", { className: "bg-white rounded-xl border border-gray-200 p-4" },
-        /*#__PURE__*/React.createElement("h2", { className: "font-bold text-gray-900 mb-4 flex items-center gap-2" },
-          /*#__PURE__*/React.createElement(AlertIc, { size: 18, className: "text-red-600" }),
-          "Needs Reorder (",
-          /*#__PURE__*/React.createElement("span", { className: "bg-red-100 text-red-700 rounded-full text-xs font-bold px-2 py-0.5" }, needsReorder.length),
-          ")"),
-        /*#__PURE__*/React.createElement("div", { className: "space-y-4" },
-          Object.entries(reorderByVendor).map(([vendor, vendorItems]) =>
-            /*#__PURE__*/React.createElement("div", { key: vendor },
-              /*#__PURE__*/React.createElement("p", { className: "text-xs font-semibold text-gray-600 mb-2" }, vendor),
-              /*#__PURE__*/React.createElement("div", { className: "space-y-2 ml-2" },
-                vendorItems.map(item =>
-                  /*#__PURE__*/React.createElement("div", { key: item.id, className: "flex items-center justify-between text-sm" },
-                    /*#__PURE__*/React.createElement("div", { className: "min-w-0" },
-                      /*#__PURE__*/React.createElement("p", { className: "text-gray-900 font-medium truncate" }, item.name),
-                      /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-500" }, "Qty: ", item.qty, " / Min: ", item.min)),
-                    /*#__PURE__*/React.createElement("span", { className: "text-xs bg-red-100 text-red-700 px-2 py-1 rounded font-semibold shrink-0" }, "Low"))))))))),
-
-      // Open Orders section
-      openOrders.length > 0 && /*#__PURE__*/React.createElement("div", { className: "bg-white rounded-xl border border-gray-200 p-4" },
-        /*#__PURE__*/React.createElement("h2", { className: "font-bold text-gray-900 mb-4" }, "Open Orders"),
-        /*#__PURE__*/React.createElement("div", { className: "space-y-3" },
-          openOrders.slice(0, 5).map(order => {
-            const isOverdue = order.expectedDelivery && new Date(order.expectedDelivery) < now;
-            return /*#__PURE__*/React.createElement("div", { key: order.id, className: "flex items-start justify-between pb-3 border-b border-gray-100 last:border-b-0 last:pb-0" },
-              /*#__PURE__*/React.createElement("div", { className: "min-w-0 flex-1" },
-                /*#__PURE__*/React.createElement("p", { className: "font-semibold text-gray-900 text-sm" }, order.vendor || "Unknown"),
-                /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-500" }, "Ordered: ", order.dateOrdered || "—"),
-                order.expectedDelivery && /*#__PURE__*/React.createElement("p", { className: "text-xs " + (isOverdue ? "text-red-600 font-semibold" : "text-gray-500") }, "Expected: ", order.expectedDelivery, isOverdue ? " (OVERDUE)" : "")),
-              /*#__PURE__*/React.createElement("span", { className: "text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded font-semibold shrink-0" }, (order.items || []).length + " items"));
-          }),
-          openOrders.length > 5 && /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-500 pt-2" }, "View all in Orders tab →"))),
-
-      // Recent Activity section
-      log.length > 0 && /*#__PURE__*/React.createElement("div", { className: "bg-white rounded-xl border border-gray-200 p-4" },
-        /*#__PURE__*/React.createElement("h2", { className: "font-bold text-gray-900 mb-4" }, "Recent Activity"),
-        /*#__PURE__*/React.createElement("div", { className: "space-y-3 max-h-96 overflow-y-auto" },
-          log.slice(0, 10).map(entry =>
-            /*#__PURE__*/React.createElement("div", { key: entry.id, className: "flex items-start gap-3 pb-3 border-b border-gray-100 last:border-b-0 last:pb-0" },
-              /*#__PURE__*/React.createElement("div", { className: "flex-shrink-0 mt-0.5" },
-                entry.delta > 0 ?
-                  /*#__PURE__*/React.createElement("div", { className: "w-2 h-2 rounded-full bg-emerald-500 mt-1" }) :
-                  /*#__PURE__*/React.createElement("div", { className: "w-2 h-2 rounded-full bg-red-500 mt-1" })),
-              /*#__PURE__*/React.createElement("div", { className: "min-w-0 flex-1" },
-                /*#__PURE__*/React.createElement("p", { className: "text-sm font-medium text-gray-900" }, entry.itemName),
-                /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-500" },
-                  entry.delta > 0 ? "+" : "",
-                  entry.delta,
-                  entry.note ? " — " + entry.note : "")),
-              /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-400 shrink-0" }, relativeTime(entry.date))))),
-
-      // Expiring Soon section
-      (() => {
-        const itemsWithExp = items.filter(i => i.exp).map(item => {
-          const expDate = new Date(item.exp);
-          const daysLeft = Math.floor((expDate - now) / (1000 * 60 * 60 * 24));
-          return { ...item, daysLeft, expDate };
-        }).filter(i => i.daysLeft < 90).sort((a, b) => a.daysLeft - b.daysLeft);
-
-        return /*#__PURE__*/React.createElement("div", { className: "bg-gray-50 rounded-xl border border-gray-200 p-4" },
-          /*#__PURE__*/React.createElement("h2", { className: "font-bold text-gray-900 mb-4" }, "Expiring Soon"),
-          itemsWithExp.length === 0
-            ? /*#__PURE__*/React.createElement("p", { className: "text-sm text-gray-500" }, "No expiration dates tracked yet")
-            : /*#__PURE__*/React.createElement("div", { className: "space-y-3" },
-                itemsWithExp.map(item =>
-                  /*#__PURE__*/React.createElement("div", { key: item.id, className: "flex items-start justify-between pb-3 border-b border-gray-100 last:border-b-0 last:pb-0" },
+      // ── Needs Reorder (collapsible) ──
+      needsReorder.length > 0 && /*#__PURE__*/React.createElement("div", { className: "bg-white rounded-xl border border-gray-200" },
+        /*#__PURE__*/React.createElement("button", { onClick: function() { setReorderOpen(!reorderOpen); }, className: "w-full p-4 flex items-center justify-between text-left" },
+          /*#__PURE__*/React.createElement("div", { className: "flex items-center gap-2" },
+            /*#__PURE__*/React.createElement(AlertIc, { size: 18, className: "text-red-600" }),
+            /*#__PURE__*/React.createElement("span", { className: "font-bold text-gray-900" }, "Needs Reorder"),
+            /*#__PURE__*/React.createElement("span", { className: "bg-red-100 text-red-700 rounded-full text-xs font-bold px-2 py-0.5" }, needsReorder.length)),
+          /*#__PURE__*/React.createElement("span", { className: "text-gray-400 text-sm transition-transform " + (reorderOpen ? "rotate-180" : "") }, "\u25bc")),
+        reorderOpen && /*#__PURE__*/React.createElement("div", { className: "border-t border-gray-100 p-4 space-y-4" },
+          Object.entries(reorderByVendor).map(function(entry) {
+            var vendor = entry[0]; var vendorItems = entry[1];
+            return /*#__PURE__*/React.createElement("div", { key: vendor },
+              /*#__PURE__*/React.createElement("p", { className: "text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2" }, vendor),
+              /*#__PURE__*/React.createElement("div", { className: "space-y-2" },
+                vendorItems.map(function(item) {
+                  var need = Math.max(0, (item.min || 0) - (item.qty || 0));
+                  return /*#__PURE__*/React.createElement("div", { key: item.id, className: "flex items-center justify-between text-sm bg-gray-50 rounded-lg px-3 py-2" },
                     /*#__PURE__*/React.createElement("div", { className: "min-w-0 flex-1" },
-                      /*#__PURE__*/React.createElement("p", { className: "font-semibold text-gray-900 text-sm" }, item.name),
-                      /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-500" }, "Exp: ", item.exp, " · ", item.daysLeft, " days left")),
-                    /*#__PURE__*/React.createElement("span", { className: `text-xs px-2 py-1 rounded font-semibold shrink-0 ${item.daysLeft < 0 ? "bg-red-100 text-red-700" : item.daysLeft < 30 ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"}` },
-                      item.daysLeft < 0 ? "EXPIRED" : item.daysLeft < 30 ? "Alert" : "Soon")))));
-      })())
-    );
+                      /*#__PURE__*/React.createElement("p", { className: "text-gray-900 font-medium truncate" }, item.name),
+                      /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-500" }, "Have: " + (item.qty || 0) + " / Min: " + (item.min || 0) + " \u2014 need " + need)),
+                    addToCart ? /*#__PURE__*/React.createElement("button", { onClick: function() { addToCart(item, need); }, className: "text-xs bg-purple-100 text-purple-700 hover:bg-purple-200 px-2.5 py-1.5 rounded-lg font-semibold shrink-0 ml-2 transition-colors" }, "+ Cart (" + need + ")") :
+                    /*#__PURE__*/React.createElement("span", { className: "text-xs bg-red-100 text-red-700 px-2 py-1 rounded font-semibold shrink-0" }, "Low"));
+                })));
+          }))),
+
+      // ── Overdue Orders (only if any) ──
+      overdueOrders.length > 0 && /*#__PURE__*/React.createElement("div", { className: "bg-red-50 rounded-xl border border-red-200 p-4" },
+        /*#__PURE__*/React.createElement("h2", { className: "font-bold text-red-800 mb-3 text-sm flex items-center gap-2" },
+          /*#__PURE__*/React.createElement(AlertIc, { size: 16, className: "text-red-600" }),
+          "Overdue Orders (" + overdueOrders.length + ")"),
+        /*#__PURE__*/React.createElement("div", { className: "space-y-2" },
+          overdueOrders.map(function(order) {
+            var daysOverdue = Math.floor((now - new Date(order.expectedDelivery)) / 86400000);
+            return /*#__PURE__*/React.createElement("div", { key: order.id, className: "flex items-center justify-between bg-white rounded-lg px-3 py-2" },
+              /*#__PURE__*/React.createElement("div", null,
+                /*#__PURE__*/React.createElement("p", { className: "font-semibold text-gray-900 text-sm" }, order.vendor || "Unknown"),
+                /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-500" }, (order.items || []).length + " items \u2022 expected " + order.expectedDelivery)),
+              /*#__PURE__*/React.createElement("span", { className: "text-xs bg-red-100 text-red-700 px-2 py-1 rounded font-bold shrink-0" }, daysOverdue + "d overdue"));
+          }))),
+
+      // ── Open Orders (compact) ──
+      openOrders.length > 0 && overdueOrders.length === 0 && /*#__PURE__*/React.createElement("div", { className: "bg-white rounded-xl border border-gray-200 p-4" },
+        /*#__PURE__*/React.createElement("div", { className: "flex items-center justify-between mb-3" },
+          /*#__PURE__*/React.createElement("h2", { className: "font-bold text-gray-900 text-sm" }, "Open Orders"),
+          /*#__PURE__*/React.createElement("button", { onClick: function() { if (onSetView) onSetView("orders"); }, className: "text-xs text-blue-600 font-semibold hover:underline" }, "View all")),
+        /*#__PURE__*/React.createElement("div", { className: "space-y-2" },
+          openOrders.slice(0, 3).map(function(order) {
+            return /*#__PURE__*/React.createElement("div", { key: order.id, className: "flex items-center justify-between text-sm" },
+              /*#__PURE__*/React.createElement("div", { className: "min-w-0" },
+                /*#__PURE__*/React.createElement("p", { className: "font-medium text-gray-900 truncate" }, order.vendor || "Unknown"),
+                /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-500" }, (order.items || []).length + " items \u2022 " + (order.dateOrdered || "\u2014"))),
+              /*#__PURE__*/React.createElement("span", { className: "text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded font-semibold shrink-0" }, "Open"));
+          }))),
+
+      // ── Expiring Soon ──
+      itemsWithExp.length > 0 && /*#__PURE__*/React.createElement("div", { className: "bg-white rounded-xl border border-gray-200 p-4" },
+        /*#__PURE__*/React.createElement("h2", { className: "font-bold text-gray-900 mb-3 text-sm" }, "Expiring Soon"),
+        /*#__PURE__*/React.createElement("div", { className: "space-y-2" },
+          itemsWithExp.slice(0, 5).map(function(item) {
+            return /*#__PURE__*/React.createElement("div", { key: item.id, className: "flex items-center justify-between text-sm" },
+              /*#__PURE__*/React.createElement("div", { className: "min-w-0 flex-1" },
+                /*#__PURE__*/React.createElement("p", { className: "font-medium text-gray-900 truncate" }, item.name),
+                /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-500" }, item.exp + " \u2022 " + item.daysLeft + " days")),
+              /*#__PURE__*/React.createElement("span", { className: "text-xs px-2 py-1 rounded font-semibold shrink-0 " + (item.daysLeft < 0 ? "bg-red-100 text-red-700" : item.daysLeft < 30 ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700") },
+                item.daysLeft < 0 ? "EXPIRED" : item.daysLeft < 30 ? "Alert" : "Soon"));
+          }))),
+
+      // ── Recent Activity (compact) ──
+      log.length > 0 && /*#__PURE__*/React.createElement("div", { className: "bg-white rounded-xl border border-gray-200 p-4" },
+        /*#__PURE__*/React.createElement("h2", { className: "font-bold text-gray-900 mb-3 text-sm" }, "Recent Activity"),
+        /*#__PURE__*/React.createElement("div", { className: "space-y-2" },
+          log.slice(0, 6).map(function(entry) {
+            return /*#__PURE__*/React.createElement("div", { key: entry.id, className: "flex items-center gap-2 text-sm" },
+              /*#__PURE__*/React.createElement("div", { className: "w-1.5 h-1.5 rounded-full shrink-0 " + (entry.delta > 0 ? "bg-emerald-500" : "bg-red-500") }),
+              /*#__PURE__*/React.createElement("span", { className: "font-medium text-gray-900 truncate flex-1" }, entry.itemName),
+              /*#__PURE__*/React.createElement("span", { className: "text-xs " + (entry.delta > 0 ? "text-emerald-600" : "text-red-600") + " font-semibold shrink-0" }, (entry.delta > 0 ? "+" : "") + entry.delta),
+              /*#__PURE__*/React.createElement("span", { className: "text-xs text-gray-400 shrink-0" }, relativeTime(entry.date)));
+          }))))
+  );
 }
 
 // ─── OrdersView ───────────────────────────────────────────────────────────────
-function OrdersView({ orders, items, onAddOrder, onReceiveOrder, onVoidOrder, onScanSlip, onReorder, isAdmin }) {
+function OrdersView({ orders, items, onAddOrder, onReceiveOrder, onVoidOrder, onBackorderOrder, onScanSlip, onReorder, isAdmin }) {
   const [filter, setFilter] = useState("open");
   const [expanded, setExpanded] = useState(new Set());
   const [showVoided, setShowVoided] = useState(false);
   const filtered = filter === "voided" ? orders.filter(o => o.status === "voided") : orders.filter(o => o.status === filter);
+  const openCount = orders.filter(o => o.status === "open").length;
+  const receivedCount = orders.filter(o => o.status === "received").length;
+  const backorderedCount = orders.filter(o => o.status === "backordered").length;
   const voidedCount = orders.filter(o => o.status === "voided").length;
   const toggleExpand = (id) => {
     setExpanded(prev => {
@@ -5833,10 +5832,10 @@ function OrdersView({ orders, items, onAddOrder, onReceiveOrder, onVoidOrder, on
         /*#__PURE__*/React.createElement("button", { onClick: onAddOrder, className: "flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-semibold px-3 sm:px-4 py-2 rounded-xl transition-colors shadow-sm whitespace-nowrap" },
           /*#__PURE__*/React.createElement(PlusIc, { size: 16 }), /*#__PURE__*/React.createElement("span", { className: "hidden sm:inline" }, "New Order"), /*#__PURE__*/React.createElement("span", { className: "sm:hidden" }, "New")))),
     /*#__PURE__*/React.createElement("div", { className: "p-4" },
-      /*#__PURE__*/React.createElement("div", { className: "flex items-center gap-2 mb-4" },
-        ["open", "received"].map(f => /*#__PURE__*/React.createElement("button", { key: f, onClick: () => setFilter(f), className: "px-4 py-2 rounded-lg text-sm font-medium transition-colors " + (filter === f ? "bg-slate-800 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200") }, f === "open" ? "Open" : "Received")),
-        voidedCount > 0 && /*#__PURE__*/React.createElement("button", { onClick: () => setFilter(filter === "voided" ? "open" : "voided"), className: "px-4 py-2 rounded-lg text-sm font-medium transition-colors ml-auto " + (filter === "voided" ? "bg-red-100 text-red-700" : "text-gray-400 hover:text-gray-600") }, "Voided (" + voidedCount + ")")),
-      filtered.length === 0 ? /*#__PURE__*/React.createElement("div", { className: "text-center py-12" }, /*#__PURE__*/React.createElement("p", { className: "text-gray-400 text-sm" }, filter === "open" ? "No open orders" : filter === "received" ? "No received orders" : "No voided orders")) : /*#__PURE__*/React.createElement("div", { className: "space-y-3" },
+      /*#__PURE__*/React.createElement("div", { className: "flex items-center gap-2 mb-4 overflow-x-auto pb-2" },
+        ["open", "received", "backordered"].map(f => /*#__PURE__*/React.createElement("button", { key: f, onClick: () => setFilter(f), className: "px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap " + (filter === f ? "bg-slate-800 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200") }, (f === "open" ? "Open (" + openCount + ")" : f === "received" ? "Received (" + receivedCount + ")" : "Backordered (" + backorderedCount + ")"))),
+        voidedCount > 0 && /*#__PURE__*/React.createElement("button", { key: "voided", onClick: () => setFilter(filter === "voided" ? "open" : "voided"), className: "px-4 py-2 rounded-lg text-sm font-medium transition-colors ml-auto whitespace-nowrap " + (filter === "voided" ? "bg-red-100 text-red-700" : "text-gray-400 hover:text-gray-600") }, "Voided (" + voidedCount + ")")),
+      filtered.length === 0 ? /*#__PURE__*/React.createElement("div", { className: "text-center py-12" }, /*#__PURE__*/React.createElement("p", { className: "text-gray-400 text-sm" }, filter === "open" ? "No open orders" : filter === "received" ? "No received orders" : filter === "backordered" ? "No backordered items" : "No voided orders")) : /*#__PURE__*/React.createElement("div", { className: "space-y-3" },
         filtered.map(order => /*#__PURE__*/React.createElement("div", { key: order.id, className: "border rounded-xl p-4 bg-white " + (order.status === "voided" ? "opacity-60" : "") },
           /*#__PURE__*/React.createElement("div", { className: "flex flex-col sm:flex-row sm:items-start justify-between mb-3 gap-2" },
             /*#__PURE__*/React.createElement("div", { className: "min-w-0" },
@@ -5846,7 +5845,9 @@ function OrdersView({ orders, items, onAddOrder, onReceiveOrder, onVoidOrder, on
               /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-500 mt-1" }, "Ordered: ", order.dateOrdered, order.orderedBy ? " by " + order.orderedBy : "")),
             /*#__PURE__*/React.createElement("div", { className: "flex gap-2 shrink-0" },
               order.status === "open" && /*#__PURE__*/React.createElement("button", { onClick: () => onReceiveOrder(order.id), className: "flex items-center gap-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors" }, /*#__PURE__*/React.createElement(CheckIc, { size: 14 }), "Received"),
-              order.status === "open" && isAdmin && /*#__PURE__*/React.createElement("button", { onClick: () => handleVoid(order.id), className: "flex items-center gap-1 bg-red-50 text-red-600 hover:bg-red-100 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors" }, /*#__PURE__*/React.createElement(XIc, { size: 14 }), "Void"),
+              order.status === "open" && onBackorderOrder && /*#__PURE__*/React.createElement("button", { onClick: () => onBackorderOrder(order.id), className: "flex items-center gap-1 bg-amber-50 text-amber-700 hover:bg-amber-100 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors" }, /*#__PURE__*/React.createElement(AlertIc, { size: 14 }), "Backorder"),
+              order.status === "backordered" && /*#__PURE__*/React.createElement("button", { onClick: () => onReceiveOrder(order.id), className: "flex items-center gap-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors" }, /*#__PURE__*/React.createElement(CheckIc, { size: 14 }), "Received"),
+              (order.status === "open" || order.status === "backordered") && isAdmin && /*#__PURE__*/React.createElement("button", { onClick: () => handleVoid(order.id), className: "flex items-center gap-1 bg-red-50 text-red-600 hover:bg-red-100 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors" }, /*#__PURE__*/React.createElement(XIc, { size: 14 }), "Void"),
               order.status === "received" && /*#__PURE__*/React.createElement("button", { onClick: () => onReorder && onReorder(order), className: "flex items-center gap-1 bg-blue-50 text-blue-600 hover:bg-blue-100 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors" }, /*#__PURE__*/React.createElement(RefreshIc, { size: 14 }), /*#__PURE__*/React.createElement("span", { className: "hidden sm:inline" }, "Reorder")),
               /*#__PURE__*/React.createElement("button", { onClick: () => toggleExpand(order.id), className: "text-gray-400 hover:text-gray-600 p-1" }, expanded.has(order.id) ? "\u25BC" : "\u25B6"))),
           /*#__PURE__*/React.createElement("div", { className: "grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mb-3 text-xs" },
@@ -6092,7 +6093,7 @@ function AddOrderModal({ items, vendors, onSave, onClose, prefill }) {
                         null,
                         /*#__PURE__*/React.createElement("label", { className: "text-xs text-gray-500 mb-1 block" }, "Qty"),
                         /*#__PURE__*/React.createElement("input", {
-                          type: "number",
+                          type: "number", inputMode: "numeric",
                           min: 1,
                           value: li.qty,
                           onChange: e => updateLineItem(idx, "qty", e.target.value),
@@ -6105,7 +6106,7 @@ function AddOrderModal({ items, vendors, onSave, onClose, prefill }) {
                         null,
                         /*#__PURE__*/React.createElement("label", { className: "text-xs text-gray-500 mb-1 block" }, "Unit Price"),
                         /*#__PURE__*/React.createElement("input", {
-                          type: "number",
+                          type: "number", inputMode: "numeric",
                           step: 0.01,
                           value: li.price,
                           onChange: e => updateLineItem(idx, "price", e.target.value),
@@ -6160,6 +6161,154 @@ function AddOrderModal({ items, vendors, onSave, onClose, prefill }) {
       )
     )
   );
+}
+
+// ─── BracketOrderView ────────────────────────────────────────────────────────
+function BracketOrderView({ bracketOrder, onUpdateBracketOrder, onAddToCart, items }) {
+  const bracketSystems = [
+    "EMPOWER 2 METAL - .018 - MBT COMPATIBLE",
+    "ICONIX - .018 - MBT COMPATIBLE",
+    "MINI MASTER - .018 - MBT COMPATIBLE"
+  ];
+  const setTypes = [
+    { key: "UL-6-6", label: "U/L 6-6 Sets", desc: "Upper & Lower 6-6 — first premolar to first premolar (12 brackets per set)" },
+    { key: "UL-7-7", label: "U/L 7-7 Sets", desc: "Upper & Lower 7-7 — second premolar to second premolar (14 brackets per set)" }
+  ];
+  const teethGroups = [
+    { label: "Upper Right", prefix: "UR", teeth: [1, 2, 3, 4, 5, 6, 7] },
+    { label: "Upper Left", prefix: "UL", teeth: [1, 2, 3, 4, 5, 6, 7] },
+    { label: "Lower Left", prefix: "LL", teeth: [1, 2, 3, 4, 5, 6, 7] },
+    { label: "Lower Right", prefix: "LR", teeth: [1, 2, 3, 4, 5, 6, 7] }
+  ];
+  const [selectedSystem, setSelectedSystem] = useState("");
+  const [orderMode, setOrderMode] = useState("sets");
+  const [setQuantities, setSetQuantities] = useState({ "UL-6-6": 0, "UL-7-7": 0 });
+  const [toothQuantities, setToothQuantities] = useState({});
+
+  var handleSystemChange = function(system) {
+    setSelectedSystem(system);
+    setSetQuantities({ "UL-6-6": 0, "UL-7-7": 0 });
+    setToothQuantities({});
+  };
+
+  var updateSetQty = function(setKey, delta) {
+    setSetQuantities(function(prev) {
+      var newQty = Math.max(0, (prev[setKey] || 0) + delta);
+      var updated = {};
+      for (var k in prev) updated[k] = prev[k];
+      updated[setKey] = newQty;
+      return updated;
+    });
+  };
+
+  var updateToothQty = function(tooth, qty) {
+    setToothQuantities(function(prev) {
+      var updated = {};
+      for (var k in prev) updated[k] = prev[k];
+      if (qty > 0) { updated[tooth] = qty; } else { delete updated[tooth]; }
+      return updated;
+    });
+  };
+
+  var totalSets = setQuantities["UL-6-6"] + setQuantities["UL-7-7"];
+  var totalIndividual = Object.values(toothQuantities).reduce(function(s, v) { return s + v; }, 0);
+
+  var addSetsToCart = function() {
+    if (!selectedSystem || totalSets === 0) return;
+    var lines = [];
+    if (setQuantities["UL-6-6"] > 0) lines.push(setQuantities["UL-6-6"] + "x U/L 6-6 set" + (setQuantities["UL-6-6"] > 1 ? "s" : ""));
+    if (setQuantities["UL-7-7"] > 0) lines.push(setQuantities["UL-7-7"] + "x U/L 7-7 set" + (setQuantities["UL-7-7"] > 1 ? "s" : ""));
+    var item = {
+      id: "bracket-set-" + selectedSystem.replace(/[^a-zA-Z0-9]/g, "-").toLowerCase() + "-" + uid(),
+      name: selectedSystem,
+      qty: totalSets,
+      unit: "sets",
+      price: 0,
+      sku: "AO-BRACKET-SET",
+      src: "https://shop.americanortho.com",
+      note: lines.join(", ")
+    };
+    onAddToCart(item, totalSets);
+    setSetQuantities({ "UL-6-6": 0, "UL-7-7": 0 });
+  };
+
+  var addIndividualToCart = function() {
+    if (!selectedSystem || totalIndividual === 0) return;
+    var toothDetail = Object.entries(toothQuantities).filter(function(e) { return e[1] > 0; }).map(function(e) { return e[0] + ":" + e[1]; }).join(", ");
+    var item = {
+      id: "bracket-ind-" + selectedSystem.replace(/[^a-zA-Z0-9]/g, "-").toLowerCase() + "-" + uid(),
+      name: selectedSystem + " (Individual)",
+      qty: totalIndividual,
+      unit: "brackets",
+      price: 0,
+      sku: "AO-BRACKET-IND",
+      src: "https://shop.americanortho.com",
+      note: "Teeth: " + toothDetail
+    };
+    onAddToCart(item, totalIndividual);
+    setToothQuantities({});
+  };
+
+  // ── Mode toggle buttons ──
+  var modeToggle = /*#__PURE__*/React.createElement("div", { className: "flex rounded-lg border border-gray-300 overflow-hidden" },
+    /*#__PURE__*/React.createElement("button", { onClick: function() { setOrderMode("sets"); }, className: "flex-1 px-4 py-2 text-sm font-semibold transition-colors " + (orderMode === "sets" ? "bg-blue-600 text-white" : "bg-white text-gray-600 hover:bg-gray-50") }, "Order by Sets"),
+    /*#__PURE__*/React.createElement("button", { onClick: function() { setOrderMode("individual"); }, className: "flex-1 px-4 py-2 text-sm font-semibold transition-colors " + (orderMode === "individual" ? "bg-blue-600 text-white" : "bg-white text-gray-600 hover:bg-gray-50") }, "Order Individual"));
+
+  // ── Sets UI ──
+  var setsUI = /*#__PURE__*/React.createElement("div", { className: "space-y-3" },
+    setTypes.map(function(st) {
+      return /*#__PURE__*/React.createElement("div", { key: st.key, className: "bg-white rounded-xl p-4 border border-gray-200 flex items-center justify-between" },
+        /*#__PURE__*/React.createElement("div", null,
+          /*#__PURE__*/React.createElement("p", { className: "text-base font-bold text-gray-800" }, st.label),
+          /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-500 mt-0.5" }, st.desc)),
+        /*#__PURE__*/React.createElement("div", { className: "flex items-center gap-2" },
+          /*#__PURE__*/React.createElement("button", { onClick: function() { updateSetQty(st.key, -1); }, className: "w-9 h-9 rounded-lg border border-gray-300 bg-white hover:bg-red-50 text-gray-600 text-lg font-bold flex items-center justify-center transition-colors" }, "\u2212"),
+          /*#__PURE__*/React.createElement("span", { className: "w-10 text-center text-lg font-bold " + (setQuantities[st.key] > 0 ? "text-blue-700" : "text-gray-400") }, setQuantities[st.key]),
+          /*#__PURE__*/React.createElement("button", { onClick: function() { updateSetQty(st.key, 1); }, className: "w-9 h-9 rounded-lg border border-gray-300 bg-white hover:bg-green-50 text-gray-600 text-lg font-bold flex items-center justify-center transition-colors" }, "+")));
+    }),
+    totalSets > 0 && /*#__PURE__*/React.createElement("div", { className: "bg-blue-50 rounded-xl p-4 border border-blue-200" },
+      /*#__PURE__*/React.createElement("p", { className: "text-sm font-semibold text-blue-800" }, "Order Summary"),
+      /*#__PURE__*/React.createElement("p", { className: "text-sm text-blue-700 mt-1" }, selectedSystem),
+      setQuantities["UL-6-6"] > 0 && /*#__PURE__*/React.createElement("p", { className: "text-sm text-blue-600 mt-0.5" }, "\u2022 " + setQuantities["UL-6-6"] + " \u00d7 U/L 6-6 set" + (setQuantities["UL-6-6"] > 1 ? "s" : "")),
+      setQuantities["UL-7-7"] > 0 && /*#__PURE__*/React.createElement("p", { className: "text-sm text-blue-600 mt-0.5" }, "\u2022 " + setQuantities["UL-7-7"] + " \u00d7 U/L 7-7 set" + (setQuantities["UL-7-7"] > 1 ? "s" : "")),
+      /*#__PURE__*/React.createElement("p", { className: "text-sm font-bold text-blue-800 mt-1" }, "Total: " + totalSets + " set" + (totalSets > 1 ? "s" : ""))),
+    totalSets > 0 && /*#__PURE__*/React.createElement("button", { onClick: addSetsToCart, className: "w-full px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2" },
+      /*#__PURE__*/React.createElement(CartIc, { size: 16 }), "Add to Cart (" + totalSets + " set" + (totalSets > 1 ? "s" : "") + ")"));
+
+  // ── Individual UI ──
+  var individualUI = /*#__PURE__*/React.createElement("div", { className: "space-y-3" },
+    /*#__PURE__*/React.createElement("div", { className: "bg-white rounded-xl p-4 border border-gray-200" },
+      /*#__PURE__*/React.createElement("p", { className: "text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3" }, "Select Individual Tooth Positions"),
+      /*#__PURE__*/React.createElement("div", { className: "grid grid-cols-1 sm:grid-cols-2 gap-4" },
+        teethGroups.map(function(g) {
+          return /*#__PURE__*/React.createElement("div", { key: g.prefix, className: "bg-gray-50 rounded-lg p-3" },
+            /*#__PURE__*/React.createElement("p", { className: "text-xs font-semibold text-gray-500 mb-2" }, g.label),
+            /*#__PURE__*/React.createElement("div", { className: "grid grid-cols-7 gap-2" },
+              g.teeth.map(function(tooth) {
+                var tKey = g.prefix + tooth;
+                return /*#__PURE__*/React.createElement("div", { key: tKey, className: "flex flex-col items-center" },
+                  /*#__PURE__*/React.createElement("span", { className: "text-xs font-bold text-gray-600 mb-1" }, tooth),
+                  /*#__PURE__*/React.createElement("button", { onClick: function() { updateToothQty(tKey, (toothQuantities[tKey] || 0) - 1); }, className: "w-8 h-6 bg-white hover:bg-red-50 text-gray-600 text-xs rounded-t font-bold border border-gray-200 transition-colors" }, "\u2212"),
+                  /*#__PURE__*/React.createElement("span", { className: "w-8 h-7 flex items-center justify-center text-sm font-bold " + ((toothQuantities[tKey] || 0) > 0 ? "bg-blue-100 border-blue-300 text-blue-700" : "bg-white border-gray-200 text-gray-400") + " border-l border-r" }, toothQuantities[tKey] || 0),
+                  /*#__PURE__*/React.createElement("button", { onClick: function() { updateToothQty(tKey, (toothQuantities[tKey] || 0) + 1); }, className: "w-8 h-6 bg-white hover:bg-green-50 text-gray-600 text-xs rounded-b font-bold border border-gray-200 transition-colors" }, "+"));
+              })));
+        }))),
+    totalIndividual > 0 && /*#__PURE__*/React.createElement("button", { onClick: addIndividualToCart, className: "w-full px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2" },
+      /*#__PURE__*/React.createElement(CartIc, { size: 16 }), "Add to Cart (" + totalIndividual + " bracket" + (totalIndividual > 1 ? "s" : "") + ")"));
+
+  return /*#__PURE__*/React.createElement("div", { className: "flex-1 flex flex-col bg-gray-50" },
+    /*#__PURE__*/React.createElement("div", { className: "bg-white border-b px-4 py-4" },
+      /*#__PURE__*/React.createElement("h2", { className: "font-bold text-gray-900 text-lg" }, "Bracket Ordering"),
+      /*#__PURE__*/React.createElement("p", { className: "text-sm text-gray-500 mt-0.5" }, "Order by sets or select individual tooth positions")),
+    /*#__PURE__*/React.createElement("div", { className: "flex-1 overflow-y-auto p-4 space-y-4" },
+      /*#__PURE__*/React.createElement("div", null,
+        /*#__PURE__*/React.createElement("label", { className: "block text-sm font-semibold text-gray-700 mb-2" }, "Bracket System"),
+        /*#__PURE__*/React.createElement("select", { value: selectedSystem, onChange: function(e) { handleSystemChange(e.target.value); }, className: "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" },
+          /*#__PURE__*/React.createElement("option", { value: "" }, "Select a bracket system..."),
+          bracketSystems.map(function(sys) { return /*#__PURE__*/React.createElement("option", { key: sys, value: sys }, sys); }))),
+      selectedSystem && modeToggle,
+      selectedSystem && orderMode === "sets" && setsUI,
+      selectedSystem && orderMode === "individual" && individualUI));
 }
 
 // ─── VendorDirectory ──────────────────────────────────────────────────────────
@@ -6350,6 +6499,10 @@ function Sidebar({
     label: "Scanner",
     Icon: CameraIc
   }, {
+    id: "brackets",
+    label: "Brackets",
+    Icon: Package
+  }, {
     id: "reports",
     label: "Reports",
     Icon: BarChIc
@@ -6437,9 +6590,9 @@ function BottomNav({
     label: "Scan",
     Icon: CameraIc
   }, {
-    id: "orders",
-    label: "Orders",
-    Icon: TruckIc
+    id: "brackets",
+    label: "Brackets",
+    Icon: Package
   }, {
     id: "cart",
     label: "Cart",
@@ -6643,7 +6796,7 @@ function OrderCartView({ cart, items, onUpdateQty, onRemove, onClear, onPlaceOrd
                     className: "w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-100 text-sm font-bold"
                   }, "\u2212"),
                   /*#__PURE__*/React.createElement("input", {
-                    type: "number",
+                    type: "number", inputMode: "numeric",
                     min: "1",
                     value: c.qty,
                     onChange: function(ev) { onUpdateQty(c.itemId, parseInt(ev.target.value) || 1); },
@@ -6697,7 +6850,7 @@ function App() {
   // pushing data back to Firebase that just arrived from Firebase.
   // This replaces the old pendingWrites counter which could drift when Firebase
   // coalesces multiple rapid writes into fewer on("value") callbacks.
-  const lastWriteJSON = useRef({ items: "", orders: "", vendors: "", log: "" });
+  const lastWriteJSON = useRef({ items: "", orders: "", vendors: "", log: "", cart: "", bracketOrder: "" });
   // Guard: don't push to Firebase until initial load is done
   const firebaseReady = useRef(false);
   useEffect(() => {
@@ -6724,8 +6877,8 @@ function App() {
         const db = window.firebase.database();
         dbRef.current = db;
 
-        const setters = { items: setItems, orders: setOrders, vendors: setVendors, log: setLog };
-        const keys = ["items", "orders", "vendors", "log"];
+        const setters = { items: setItems, orders: setOrders, vendors: setVendors, log: setLog, cart: setCart, bracketOrder: setBracketOrder };
+        const keys = ["items", "orders", "vendors", "log", "cart", "bracketOrder"];
 
         function subscribeToChanges() {
           keys.forEach(key => {
@@ -6780,7 +6933,7 @@ function App() {
       cancelled = true;
       firebaseReady.current = false;
       if (dbRef.current) {
-        ["items", "orders", "vendors", "log"].forEach(key => {
+        ["items", "orders", "vendors", "log", "cart", "bracketOrder"].forEach(key => {
           dbRef.current.ref("nlo/" + key).off();
         });
       }
@@ -6788,12 +6941,12 @@ function App() {
   }, [firebaseConfig]);
 
 
-  const [cart, setCart] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('nlo-cart')) || []; } catch(e) { return []; }
-  });
-  useEffect(() => { localStorage.setItem('nlo-cart', JSON.stringify(cart)); }, [cart]);
+  const [cart, setCart] = useState([]);
+  const [bracketOrder, setBracketOrder] = useState({});
 
   const addToCart = useCallback((item, qty) => {
+    if (!item || !item.id) return;
+    var src = primarySource(item);
     setCart(prev => {
       const existing = prev.find(c => c.itemId === item.id);
       if (existing) {
@@ -6801,10 +6954,10 @@ function App() {
       }
       return [...prev, {
         itemId: item.id,
-        name: item.name,
-        sku: primarySource(item).sku || "",
-        vendor: primarySource(item).vendor || "",
-        price: primarySource(item).price || 0,
+        name: item.name || "Unknown",
+        sku: (src && src.sku) || "",
+        vendor: (src && src.vendor) || "",
+        price: (src && src.price) || 0,
         unit: item.unit || "ea",
         qty: qty || 1
       }];
@@ -6862,6 +7015,24 @@ function App() {
       }
     }
   }, [orders, syncStatus]);
+  useEffect(() => {
+    if (firebaseReady.current && dbRef.current && syncStatus === "synced") {
+      const json = JSON.stringify(cart);
+      if (json !== lastWriteJSON.current.cart) {
+        lastWriteJSON.current.cart = json;
+        dbRef.current.ref("nlo/cart").set(cart).catch(err => { console.error("Firebase cart sync error:", err); });
+      }
+    }
+  }, [cart, syncStatus]);
+  useEffect(() => {
+    if (firebaseReady.current && dbRef.current && syncStatus === "synced") {
+      const json = JSON.stringify(bracketOrder);
+      if (json !== lastWriteJSON.current.bracketOrder) {
+        lastWriteJSON.current.bracketOrder = json;
+        dbRef.current.ref("nlo/bracketOrder").set(bracketOrder).catch(err => { console.error("Firebase bracketOrder sync error:", err); });
+      }
+    }
+  }, [bracketOrder, syncStatus]);
   const updateVendor = useCallback((vendorId, updates) => {
     setVendors(prev => prev.map(v => v.id === vendorId ? { ...v, ...updates } : v));
   }, []);
@@ -6900,38 +7071,46 @@ function App() {
     setItems(prev => [...prev, newItem]);
   }, []);
   const applyInvoice = useCallback((changes) => {
-    changes.forEach(c => {
-      // Update item sources and qty
-      setItems(prev => prev.map(i => {
-        if (i.id !== c.itemId) return i;
-        const updated = { ...i };
-        // Update or add vendor source
-        if (c.vendor) {
-          const srcs = updated.sources ? updated.sources.slice() : allSources(updated);
-          const existing = srcs.find(s => s.vendor === c.vendor);
-          if (existing) {
-            if (c.price != null) existing.price = c.price;
-            if (c.date) existing.lastDate = c.date;
-            if (c.sku) existing.sku = c.sku;
-          } else {
-            srcs.push({ vendor: c.vendor, sku: c.sku || "", price: c.price, src: "", lastDate: c.date || "" });
+    // Batch all item updates into a single setItems call to avoid stale closures
+    setItems(prev => {
+      var updated = prev.slice();
+      changes.forEach(function(c) {
+        updated = updated.map(function(i) {
+          if (i.id !== c.itemId) return i;
+          var u = Object.assign({}, i);
+          if (c.vendor) {
+            var srcs = u.sources ? u.sources.slice() : allSources(u);
+            var existing = srcs.find(function(s) { return s.vendor === c.vendor; });
+            if (existing) {
+              if (c.price != null) existing.price = c.price;
+              if (c.date) existing.lastDate = c.date;
+              if (c.sku) existing.sku = c.sku;
+            } else {
+              srcs.push({ vendor: c.vendor, sku: c.sku || "", price: c.price, src: "", lastDate: c.date || "" });
+            }
+            u.sources = srcs;
           }
-          updated.sources = srcs;
-        }
-        // Add received qty
-        if (c.qty > 0) {
-          updated.qty = (updated.qty || 0) + c.qty;
-          updated.chk = new Date().toISOString();
-        }
-        return updated;
-      }));
-      // Add log entry for received qty
-      if (c.qty > 0) {
-        const found = items.find(i => i.id === c.itemId);
-        setLog(prev => [{ id: uid(), itemId: c.itemId, itemName: found?.name || c.itemId, delta: c.qty, note: "Invoice: " + (c.vendor || ""), type: "receive", date: new Date().toISOString() }, ...prev].slice(0, 500));
-      }
+          if (c.qty > 0) {
+            u.qty = (u.qty || 0) + c.qty;
+            u.chk = new Date().toISOString();
+          }
+          return u;
+        });
+      });
+      return updated;
     });
-  }, [items]);
+    // Build name lookup from current items state, then batch all log entries
+    setLog(function(prevLog) {
+      // Read item names from the DOM-current items via a synchronous lookup
+      var newEntries = [];
+      changes.forEach(function(c) {
+        if (c.qty > 0) {
+          newEntries.push({ id: uid(), itemId: c.itemId, itemName: c.itemName || c.itemId, delta: c.qty, note: "Invoice: " + (c.vendor || ""), type: "receive", date: new Date().toISOString() });
+        }
+      });
+      return newEntries.concat(prevLog).slice(0, 500);
+    });
+  }, []);
   const addOrder = useCallback((order) => {
     // Add unique ID and timestamp
     var finalOrder = Object.assign({}, order, { id: order.id || uid(), status: order.status || "open" });
@@ -6948,29 +7127,55 @@ function App() {
     }
   }, []);
   const receiveOrder = useCallback((orderId) => {
-    setOrders(prev => prev.map(o => {
-      if (o.id !== orderId) return o;
-      return { ...o, status: "received", dateReceived: new Date().toISOString() };
-    }));
-    const order = orders.find(o => o.id === orderId);
-    if (order) {
-      order.items.forEach(oi => {
-        if (oi.itemId) {
-          setItems(prev => prev.map(i => {
-            if (i.id !== oi.itemId) return i;
-            return { ...i, qty: (i.qty || 0) + (oi.qty || 0), chk: new Date().toISOString() };
-          }));
-          const found = items.find(i => i.id === oi.itemId);
-          setLog(prev => [{ id: uid(), itemId: oi.itemId, itemName: found?.name || oi.name, delta: oi.qty || 0, note: "Order received: " + (order.vendor || ""), type: "receive", date: new Date().toISOString() }, ...prev].slice(0, 500));
-        }
+    // Read the order from current state via functional updater to avoid stale closure
+    var receivedOrder = null;
+    setOrders(function(prev) {
+      return prev.map(function(o) {
+        if (o.id !== orderId) return o;
+        receivedOrder = o;
+        return Object.assign({}, o, { status: "received", dateReceived: new Date().toISOString() });
       });
-    }
-  }, [orders, items]);
+    });
+    // Batch all item qty updates in one setItems call; capture names for log
+    setItems(function(prev) {
+      if (!receivedOrder || !Array.isArray(receivedOrder.items)) return prev;
+      var nameMap = {};
+      var updated = prev.slice();
+      receivedOrder.items.forEach(function(oi) {
+        if (!oi.itemId) return;
+        updated = updated.map(function(i) {
+          if (i.id !== oi.itemId) return i;
+          nameMap[oi.itemId] = i.name;
+          return Object.assign({}, i, { qty: (i.qty || 0) + (oi.qty || 0), chk: new Date().toISOString() });
+        });
+      });
+      // Store nameMap on receivedOrder so setLog can read it (synchronous within same tick)
+      receivedOrder._nameMap = nameMap;
+      return updated;
+    });
+    // Batch all log entries in one setLog call
+    setLog(function(prevLog) {
+      if (!receivedOrder || !Array.isArray(receivedOrder.items)) return prevLog;
+      var nameMap = receivedOrder._nameMap || {};
+      var newEntries = [];
+      receivedOrder.items.forEach(function(oi) {
+        if (!oi.itemId) return;
+        newEntries.push({ id: uid(), itemId: oi.itemId, itemName: nameMap[oi.itemId] || oi.name || oi.itemId, delta: oi.qty || 0, note: "Order received: " + (receivedOrder.vendor || ""), type: "receive", date: new Date().toISOString() });
+      });
+      return newEntries.concat(prevLog).slice(0, 500);
+    });
+  }, []);
   const markOrderReceived = useCallback((orderId, photo) => {
     setOrders(prev => prev.map(o => {
       if (o.id !== orderId) return o;
       return { ...o, status: "received", dateReceived: new Date().toISOString(), slipPhoto: photo || o.slipPhoto || null };
     }));
+  }, []);
+  const backorderOrder = useCallback(function(orderId) {
+    setOrders(function(prev) { return prev.map(function(o) {
+      if (o.id !== orderId) return o;
+      return Object.assign({}, o, { status: "backordered", dateBackordered: new Date().toISOString() });
+    }); });
   }, []);
   const voidOrder = useCallback((orderId) => {
     setOrders(prev => prev.map(o => {
@@ -7062,7 +7267,12 @@ function App() {
   }, view === "dashboard" && /*#__PURE__*/React.createElement(DashboardView, {
     items: items,
     orders: orders,
-    log: log
+    log: log,
+    cart: cart,
+    addToCart: addToCart,
+    onSetView: function(v) { setView(v); },
+    onOpenInvoiceScan: function() { setInvoiceScanOpen(true); },
+    onOpenAddOrder: function() { setAddOrderOpen(true); }
   }), view === "inventory" && /*#__PURE__*/React.createElement(InventoryView, {
     items: items,
     cat: cat,
@@ -7093,6 +7303,11 @@ function App() {
     cartCount: cart.length,
     vendors: vendors,
     onCreateOrder: function(orderData) { setPendingOrder(orderData); }
+  }), view === "brackets" && /*#__PURE__*/React.createElement(BracketOrderView, {
+    bracketOrder: bracketOrder,
+    onUpdateBracketOrder: setBracketOrder,
+    onAddToCart: addToCart,
+    items: items
   }), view === "cart" && /*#__PURE__*/React.createElement(OrderCartView, {
     cart: cart,
     items: items,
@@ -7120,7 +7335,7 @@ function App() {
     log: log,
     orders: orders,
     vendors: vendors
-  }), view === "vendors" && /*#__PURE__*/React.createElement(VendorDirectory, { vendors: vendors, onUpdateVendor: updateVendor, onAddVendor: addVendor, onRemoveVendor: removeVendor, isAdmin: isAdmin }), view === "orders" && /*#__PURE__*/React.createElement(OrdersView, { orders: orders, items: items, onAddOrder: () => setAddOrderOpen(true), onReceiveOrder: receiveOrder, onVoidOrder: voidOrder, onScanSlip: () => setInvoiceScanOpen(true), onReorder: (order) => { setReorderFrom(order); setAddOrderOpen(true); }, isAdmin: isAdmin }))), /*#__PURE__*/React.createElement(BottomNav, {
+  }), view === "vendors" && /*#__PURE__*/React.createElement(VendorDirectory, { vendors: vendors, onUpdateVendor: updateVendor, onAddVendor: addVendor, onRemoveVendor: removeVendor, isAdmin: isAdmin }), view === "orders" && /*#__PURE__*/React.createElement(OrdersView, { orders: orders, items: items, onAddOrder: () => setAddOrderOpen(true), onReceiveOrder: receiveOrder, onVoidOrder: voidOrder, onBackorderOrder: backorderOrder, onScanSlip: () => setInvoiceScanOpen(true), onReorder: (order) => { setReorderFrom(order); setAddOrderOpen(true); }, isAdmin: isAdmin }))), /*#__PURE__*/React.createElement(BottomNav, {
     view: view,
     setView: handleViewChange,
     alertCount: alertCount,
