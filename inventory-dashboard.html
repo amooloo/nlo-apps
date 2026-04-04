@@ -2199,13 +2199,12 @@ function loadItems() {
         if (s.unit) seedUnitMap[s.id] = s.unit;
         if (s.exp !== undefined) seedExpMap[s.id] = s.exp;
       });
-      // Only patch SEED defaults for fields the saved item doesn't already have
       merged.forEach(item => {
-        if (seedMap[item.id] && !item.sources) item.sources = seedMap[item.id];
-        if (seedGroupMap[item.id] && !item.group) item.group = seedGroupMap[item.id];
-        if (seedImgMap[item.id] && !item.img) item.img = seedImgMap[item.id];
-        if (seedUnitMap[item.id] && !item.unit) item.unit = seedUnitMap[item.id];
-        if (seedExpMap[item.id] !== undefined && item.exp === undefined) item.exp = seedExpMap[item.id];
+        if (seedMap[item.id]) item.sources = seedMap[item.id];
+        if (seedGroupMap[item.id]) item.group = seedGroupMap[item.id];
+        if (seedImgMap[item.id]) item.img = seedImgMap[item.id];
+        if (seedUnitMap[item.id]) item.unit = seedUnitMap[item.id];
+        if (seedExpMap[item.id] !== undefined) item.exp = seedExpMap[item.id];
       });
       return merged;
     }
@@ -3113,7 +3112,7 @@ const SourcesModal = ({ item, onSave, onDelete, onClose, isAdmin }) => {
 
 // ─── Firebase Realtime Database Config (hardcoded) ──────────────────────────
 const NLO_FIREBASE_CONFIG = {
-  apiKey: "AIzaSyCmdX9kPDq_uGl6htLvbIQUOAwIDt3Hkw4",
+  apiKey: "AIzaSyCZ7n3pLiD4cVvSqe9MSmEq32QIY50wToI",
   authDomain: "nlo-inventory.firebaseapp.com",
   databaseURL: "https://nlo-inventory-default-rtdb.firebaseio.com",
   projectId: "nlo-inventory",
@@ -6657,7 +6656,8 @@ function OrderCartView({ cart, items, onUpdateQty, onRemove, onClear, onPlaceOrd
   );
 }
 
-// ─── BracketOrderingView ─────────────────────────────────────────────────────
+
+// --- BracketOrderingView -------------------------------------------------
 function BracketOrderingView({ onAddToCart }) {
   const BRACKET_SYSTEMS = [
     "EMPOWER 2 METAL - .018 - MBT COMPATIBLE",
@@ -6731,124 +6731,94 @@ function BracketOrderingView({ onAddToCart }) {
     setSelectedSystem("");
   };
 
-  const handleContextMenu = (e, key) => {
-    e.preventDefault();
-    decrement(key);
-  };
-
-  const handleTouchStart = (key) => {
-    longPressTimer.current = setTimeout(() => { decrement(key); }, 500);
-  };
+  const handleContextMenu = (e, key) => { e.preventDefault(); decrement(key); };
+  const handleTouchStart = (key) => { longPressTimer.current = setTimeout(() => { decrement(key); }, 500); };
   const handleTouchEnd = () => { clearTimeout(longPressTimer.current); };
 
   const toothBtn = (quad, tooth) => {
     var key = quad + "-" + tooth;
     var qty = quantities[key] || 0;
-    return /*#__PURE__*/React.createElement("button", {
-      key: key,
-      onClick: () => increment(key),
+    return React.createElement("button", {
+      key: key, onClick: () => increment(key),
       onContextMenu: (e) => handleContextMenu(e, key),
-      onTouchStart: () => handleTouchStart(key),
-      onTouchEnd: handleTouchEnd,
-      onTouchCancel: handleTouchEnd,
+      onTouchStart: () => handleTouchStart(key), onTouchEnd: handleTouchEnd, onTouchCancel: handleTouchEnd,
       className: "relative flex flex-col items-center justify-center w-10 h-10 sm:w-12 sm:h-12 rounded-lg text-xs font-bold transition-all " + (qty > 0 ? "bg-slate-800 text-white shadow-md ring-2 ring-slate-600" : "bg-gray-100 text-gray-600 hover:bg-gray-200")
-    }, /*#__PURE__*/React.createElement("span", { className: "text-sm leading-none" }, tooth), qty > 0 && /*#__PURE__*/React.createElement("span", {
-      className: "absolute -top-1.5 -right-1.5 bg-purple-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold shadow"
-    }, qty));
+    }, React.createElement("span", { className: "text-sm leading-none" }, tooth),
+       qty > 0 && React.createElement("span", { className: "absolute -top-1.5 -right-1.5 bg-purple-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold shadow" }, qty));
   };
 
+  // Step 1: bracket system selection
   if (step === 1) {
-    return /*#__PURE__*/React.createElement("div", { className: "flex-1 overflow-y-auto p-4 sm:p-6" },
-      /*#__PURE__*/React.createElement("h2", { className: "text-lg font-bold text-gray-900 mb-1" }, "Bracket Ordering"),
-      /*#__PURE__*/React.createElement("p", { className: "text-sm text-gray-500 mb-6" }, "Select a bracket system to begin charting."),
-      /*#__PURE__*/React.createElement("div", { className: "space-y-3 max-w-lg" },
-        BRACKET_SYSTEMS.map(sys => /*#__PURE__*/React.createElement("button", {
-          key: sys,
-          onClick: () => handleSelectSystem(sys),
+    return React.createElement("div", { className: "flex-1 overflow-y-auto p-4 sm:p-6" },
+      React.createElement("h2", { className: "text-lg font-bold text-gray-900 mb-1" }, "Bracket Ordering"),
+      React.createElement("p", { className: "text-sm text-gray-500 mb-6" }, "Select a bracket system to begin charting."),
+      React.createElement("div", { className: "space-y-3 max-w-lg" },
+        BRACKET_SYSTEMS.map(sys => React.createElement("button", {
+          key: sys, onClick: () => handleSelectSystem(sys),
           className: "w-full text-left p-4 rounded-xl border-2 border-gray-200 hover:border-slate-800 hover:bg-slate-50 transition-all group"
         },
-          /*#__PURE__*/React.createElement("div", { className: "font-semibold text-gray-900 group-hover:text-slate-800" }, sys.split(" - ")[0]),
-          /*#__PURE__*/React.createElement("div", { className: "text-xs text-gray-500 mt-0.5" }, sys.split(" - ").slice(1).join(" \u2022 "))
+          React.createElement("div", { className: "font-semibold text-gray-900 group-hover:text-slate-800" }, sys.split(" - ")[0]),
+          React.createElement("div", { className: "text-xs text-gray-500 mt-0.5" }, sys.split(" - ").slice(1).join(" \u2022 "))
         ))
       )
     );
   }
 
+  // Step 2: Palmer notation chart
   var teeth = [1,2,3,4,5,6,7,8];
-  return /*#__PURE__*/React.createElement("div", { className: "flex-1 flex flex-col overflow-hidden" },
-    /*#__PURE__*/React.createElement("div", { className: "flex-1 overflow-y-auto p-4 sm:p-6 pb-28" },
-      /*#__PURE__*/React.createElement("div", { className: "flex items-center gap-3 mb-4" },
-        /*#__PURE__*/React.createElement("button", {
+  return React.createElement("div", { className: "flex-1 flex flex-col overflow-hidden" },
+    React.createElement("div", { className: "flex-1 overflow-y-auto p-4 sm:p-6 pb-28" },
+      React.createElement("div", { className: "flex items-center gap-3 mb-4" },
+        React.createElement("button", {
           onClick: () => { setStep(1); setSelectedSystem(""); },
           className: "p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"
-        }, /*#__PURE__*/React.createElement(ChevIc, { size: 18, className: "rotate-90" })),
-        /*#__PURE__*/React.createElement("div", null,
-          /*#__PURE__*/React.createElement("h2", { className: "text-lg font-bold text-gray-900" }, selectedSystem.split(" - ")[0]),
-          /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-500" }, selectedSystem.split(" - ").slice(1).join(" \u2022 "))
+        }, React.createElement(ChevIc, { size: 18, className: "rotate-90" })),
+        React.createElement("div", null,
+          React.createElement("h2", { className: "text-lg font-bold text-gray-900" }, selectedSystem.split(" - ")[0]),
+          React.createElement("p", { className: "text-xs text-gray-500" }, selectedSystem.split(" - ").slice(1).join(" \u2022 "))
         )
       ),
-      /*#__PURE__*/React.createElement("div", { className: "flex gap-2 mb-5" },
-        /*#__PURE__*/React.createElement("button", {
-          onClick: selectAll,
-          className: "text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors"
-        }, "Select All"),
-        /*#__PURE__*/React.createElement("button", {
-          onClick: clearAll,
-          className: "text-xs font-semibold px-3 py-1.5 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
-        }, "Clear All")
+      React.createElement("div", { className: "flex gap-2 mb-5" },
+        React.createElement("button", { onClick: selectAll, className: "text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors" }, "Select All"),
+        React.createElement("button", { onClick: clearAll, className: "text-xs font-semibold px-3 py-1.5 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors" }, "Clear All")
       ),
-      /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-400 mb-4" }, "Tap to add \u2022 Right-click or long-press to remove"),
-      /*#__PURE__*/React.createElement("div", { className: "max-w-md mx-auto" },
-        /*#__PURE__*/React.createElement("div", { className: "flex justify-center mb-1" },
-          /*#__PURE__*/React.createElement("div", { className: "flex flex-row-reverse gap-1 pr-2 border-r-2 border-gray-300" },
-            teeth.map(t => toothBtn("UR", t))
-          ),
-          /*#__PURE__*/React.createElement("div", { className: "flex gap-1 pl-2" },
-            teeth.map(t => toothBtn("UL", t))
-          )
+      React.createElement("p", { className: "text-xs text-gray-400 mb-4" }, "Tap to add \u2022 Right-click or long-press to remove"),
+      React.createElement("div", { className: "max-w-md mx-auto" },
+        React.createElement("div", { className: "flex justify-center mb-1" },
+          React.createElement("div", { className: "flex flex-row-reverse gap-1 pr-2 border-r-2 border-gray-300" }, teeth.map(t => toothBtn("UR", t))),
+          React.createElement("div", { className: "flex gap-1 pl-2" }, teeth.map(t => toothBtn("UL", t)))
         ),
-        /*#__PURE__*/React.createElement("div", { className: "flex justify-center items-center my-2" },
-          /*#__PURE__*/React.createElement("div", { className: "flex-1 text-right pr-3 text-xs font-semibold text-gray-400 uppercase tracking-wide" }, "Right"),
-          /*#__PURE__*/React.createElement("div", { className: "w-0.5 h-4 bg-gray-300" }),
-          /*#__PURE__*/React.createElement("div", { className: "flex-1 text-left pl-3 text-xs font-semibold text-gray-400 uppercase tracking-wide" }, "Left")
+        React.createElement("div", { className: "flex justify-center items-center my-2" },
+          React.createElement("div", { className: "flex-1 text-right pr-3 text-xs font-semibold text-gray-400 uppercase tracking-wide" }, "Right"),
+          React.createElement("div", { className: "w-0.5 h-4 bg-gray-300" }),
+          React.createElement("div", { className: "flex-1 text-left pl-3 text-xs font-semibold text-gray-400 uppercase tracking-wide" }, "Left")
         ),
-        /*#__PURE__*/React.createElement("div", { className: "flex justify-center mt-1" },
-          /*#__PURE__*/React.createElement("div", { className: "flex flex-row-reverse gap-1 pr-2 border-r-2 border-gray-300" },
-            teeth.map(t => toothBtn("LR", t))
-          ),
-          /*#__PURE__*/React.createElement("div", { className: "flex gap-1 pl-2" },
-            teeth.map(t => toothBtn("LL", t))
-          )
+        React.createElement("div", { className: "flex justify-center mt-1" },
+          React.createElement("div", { className: "flex flex-row-reverse gap-1 pr-2 border-r-2 border-gray-300" }, teeth.map(t => toothBtn("LR", t))),
+          React.createElement("div", { className: "flex gap-1 pl-2" }, teeth.map(t => toothBtn("LL", t)))
         ),
-        /*#__PURE__*/React.createElement("div", { className: "flex justify-between mt-3 px-2" },
-          /*#__PURE__*/React.createElement("span", { className: "text-xs text-gray-400" }, "UR / LR"),
-          /*#__PURE__*/React.createElement("span", { className: "text-xs text-gray-400" }, "UL / LL")
+        React.createElement("div", { className: "flex justify-between mt-3 px-2" },
+          React.createElement("span", { className: "text-xs text-gray-400" }, "UR / LR"),
+          React.createElement("span", { className: "text-xs text-gray-400" }, "UL / LL")
         )
       ),
-      totalSelected > 0 && /*#__PURE__*/React.createElement("div", { className: "mt-6 p-4 bg-gray-50 rounded-xl max-w-md mx-auto" },
-        /*#__PURE__*/React.createElement("h3", { className: "text-sm font-semibold text-gray-700 mb-2" }, "Selected Brackets"),
-        /*#__PURE__*/React.createElement("div", { className: "space-y-1" },
+      totalSelected > 0 && React.createElement("div", { className: "mt-6 p-4 bg-gray-50 rounded-xl max-w-md mx-auto" },
+        React.createElement("h3", { className: "text-sm font-semibold text-gray-700 mb-2" }, "Selected Brackets"),
+        React.createElement("div", { className: "space-y-1" },
           Object.entries(quantities).filter(function(e) { return e[1] > 0; }).map(function(e) {
-            var key = e[0]; var qty = e[1];
-            var parts = key.split("-"); var quad = parts[0]; var tooth = parts[1];
-            return /*#__PURE__*/React.createElement("div", { key: key, className: "flex justify-between text-xs" },
-              /*#__PURE__*/React.createElement("span", { className: "text-gray-600" }, QUADRANT_LABELS[quad] + " #" + tooth + " (" + TOOTH_LABELS[parseInt(tooth)] + ")"),
-              /*#__PURE__*/React.createElement("span", { className: "font-semibold text-gray-900" }, "\u00d7" + qty)
-            );
+            var key = e[0], qty = e[1], parts = key.split("-"), quad = parts[0], tooth = parts[1];
+            return React.createElement("div", { key: key, className: "flex justify-between text-xs" },
+              React.createElement("span", { className: "text-gray-600" }, QUADRANT_LABELS[quad] + " #" + tooth + " (" + TOOTH_LABELS[parseInt(tooth)] + ")"),
+              React.createElement("span", { className: "font-semibold text-gray-900" }, "\u00d7" + qty));
           })
         )
       )
     ),
-    totalSelected > 0 && /*#__PURE__*/React.createElement("div", {
-      className: "sticky bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 shadow-lg z-10"
-    },
-      /*#__PURE__*/React.createElement("button", {
+    totalSelected > 0 && React.createElement("div", { className: "sticky bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 shadow-lg z-10" },
+      React.createElement("button", {
         onClick: handleAddToCart,
         className: "w-full max-w-md mx-auto flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-900 text-white font-semibold py-3 px-6 rounded-xl transition-colors shadow-md"
-      },
-        /*#__PURE__*/React.createElement(CartIc, { size: 18 }),
-        "Add " + totalSelected + " Bracket" + (totalSelected !== 1 ? "s" : "") + " to Cart"
-      )
+      }, React.createElement(CartIc, { size: 18 }), "Add " + totalSelected + " Bracket" + (totalSelected !== 1 ? "s" : "") + " to Cart")
     )
   );
 }
@@ -6876,30 +6846,13 @@ function App() {
   const [syncStatus, setSyncStatus] = useState("disconnected");
   // Firebase config is hardcoded — no setup modal needed
   const dbRef = useRef(null);
-  // Track the last JSON we wrote so the listener can detect echoes
+  // Version counters: increment on local write, decrement on listener fire.
+  // When counter > 0 the incoming snapshot is an echo of our own write — skip it.
+  const pendingWrites = useRef({ items: 0, orders: 0, vendors: 0, log: 0 });
+  // Track the last JSON we wrote so the listener can detect echoes even if counter drifts
   const lastWriteJSON = useRef({ items: "", orders: "", vendors: "", log: "" });
-  // Track previous state for diffing (used to detect deletions)
-  const prevState = useRef({ items: [], orders: [], vendors: [], log: [] });
   // Guard: don't push to Firebase until initial load is done
   const firebaseReady = useRef(false);
-  // Helper: convert Firebase val (could be array or keyed object) to array
-  function fbToArray(val) {
-    if (!val) return [];
-    if (Array.isArray(val)) return val.filter(Boolean);
-    return Object.values(val).filter(Boolean);
-  }
-  // Helper: build a keyed update object for Firebase .update(), including nulls for deletions
-  function buildFirebaseUpdate(prevArr, currArr) {
-    var updates = {};
-    currArr.forEach(function(item) { if (item && item.id) updates[item.id] = item; });
-    // Mark deleted items as null so Firebase removes them
-    if (Array.isArray(prevArr)) {
-      prevArr.forEach(function(item) {
-        if (item && item.id && !updates[item.id]) updates[item.id] = null;
-      });
-    }
-    return updates;
-  }
   useEffect(() => {
     if (!firebaseConfig || !firebaseConfig.databaseURL) {
       setSyncStatus("disconnected");
@@ -6908,26 +6861,35 @@ function App() {
     firebaseReady.current = false;
     let cancelled = false;
     let pollTimer = null;
+    const pollStart = Date.now();
+    const SDK_TIMEOUT = 10000;   // 10s max wait for gstatic scripts
+    const FETCH_TIMEOUT = 10000; // 10s max wait for Firebase data
     setSyncStatus("connecting");
 
     function initFirebaseConnection() {
       if (cancelled) return;
-      // Wait for async Firebase SDK scripts to load
+
+      // Poll for async Firebase SDK scripts, capped at SDK_TIMEOUT
       if (!window.firebase || !window.firebase.database) {
+        if (Date.now() - pollStart >= SDK_TIMEOUT) {
+          console.warn("Firebase SDK failed to load within timeout — falling back to offline mode");
+          setSyncStatus("error");
+          return;
+        }
         pollTimer = setTimeout(initFirebaseConnection, 150);
         return;
       }
+
       try {
-      // Safe init: only call initializeApp when no app exists yet
-      try {
-        if (!window.firebase.apps.length) {
-          window.firebase.initializeApp(firebaseConfig);
+        // Safe init: only call initializeApp when no app exists yet
+        try {
+          if (!window.firebase.apps.length) {
+            window.firebase.initializeApp(firebaseConfig);
+          }
+        } catch (initErr) {
+          console.warn("Firebase app already exists, reusing:", initErr.message);
         }
-      } catch (initErr) {
-        // App already exists (e.g. HMR / StrictMode remount) — reuse it
-        console.warn("Firebase app already exists, reusing:", initErr.message);
-      }
-      {
+
         const db = window.firebase.database();
         dbRef.current = db;
 
@@ -6938,35 +6900,36 @@ function App() {
           keys.forEach(key => {
             db.ref("nlo/" + key).on("value", snap => {
               if (cancelled) return;
+              if (pendingWrites.current[key] > 0) {
+                pendingWrites.current[key]--;
+                return;
+              }
               const val = snap.val();
               if (!val) return;
-              // Convert from Firebase format (keyed object or legacy array) to array
-              const arr = fbToArray(val);
-              const json = JSON.stringify(arr);
-              // Skip if this is an echo of our own write
+              const json = JSON.stringify(val);
               if (json === lastWriteJSON.current[key]) return;
-              lastWriteJSON.current[key] = json;
-              prevState.current[key] = arr;
-              setters[key](arr);
+              setters[key](val);
             });
           });
         }
 
-        // Phase 1: Load initial data with once() — Firebase is source of truth
-        Promise.all(keys.map(key =>
+        // Phase 1: Load initial data — race against FETCH_TIMEOUT
+        const fetchPromise = Promise.all(keys.map(key =>
           db.ref("nlo/" + key).once("value").then(snap => {
             if (cancelled) return;
             const val = snap.val();
             if (val) {
-              // Convert from Firebase format (keyed object or legacy array) to array
-              const arr = fbToArray(val);
-              setters[key](arr);
-              // Snapshot the loaded data so the sync effects don't echo it back
-              lastWriteJSON.current[key] = JSON.stringify(arr);
-              prevState.current[key] = arr;
+              setters[key](val);
+              lastWriteJSON.current[key] = JSON.stringify(val);
             }
           })
-        )).then(() => {
+        ));
+
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Firebase fetch timed out after " + FETCH_TIMEOUT + "ms")), FETCH_TIMEOUT)
+        );
+
+        Promise.race([fetchPromise, timeoutPromise]).then(() => {
           if (cancelled) return;
           firebaseReady.current = true;
           setSyncStatus("synced");
@@ -6975,17 +6938,16 @@ function App() {
         }).catch(err => {
           console.error("Firebase initial load error:", err);
           if (cancelled) return;
-          // Fall back to localStorage data (already loaded) and still enable sync
+          // Fall back to localStorage data — mark as error so user knows
           firebaseReady.current = true;
-          setSyncStatus("synced");
-          subscribeToChanges();
+          setSyncStatus("error");
         });
+      } catch(err) {
+        console.error("Firebase init error:", err);
+        setSyncStatus("error");
       }
-    } catch(err) {
-      console.error("Firebase init error:", err);
-      setSyncStatus("error");
     }
-    } // end initFirebaseConnection
+
     initFirebaseConnection();
 
     return () => {
@@ -7035,26 +6997,50 @@ function App() {
   const clearCart = useCallback(() => { setCart([]); }, []);
 
   const [reorderFrom, setReorderFrom] = useState(null);
-  // Granular Firebase sync: uses .update() with keyed objects so concurrent
-  // sessions only overwrite the specific items they changed, not the whole array.
-  function syncToFirebase(key, arr, saveFn) {
-    saveFn(arr);
+  useEffect(() => {
+    saveItems(items);
     if (firebaseReady.current && dbRef.current && syncStatus === "synced") {
-      const json = JSON.stringify(arr);
-      if (json !== lastWriteJSON.current[key]) {
-        var updates = buildFirebaseUpdate(prevState.current[key], arr);
-        lastWriteJSON.current[key] = json;
-        prevState.current[key] = arr;
-        dbRef.current.ref("nlo/" + key).update(updates).catch(err => {
-          console.error("Firebase " + key + " sync error:", err);
-        });
+      const json = JSON.stringify(items);
+      if (json !== lastWriteJSON.current.items) {
+        lastWriteJSON.current.items = json;
+        pendingWrites.current.items++;
+        dbRef.current.ref("nlo/items").set(items).catch(err => { pendingWrites.current.items = Math.max(0, pendingWrites.current.items - 1); console.error("Firebase items sync error:", err); });
       }
     }
-  }
-  useEffect(() => { syncToFirebase("items", items, saveItems); }, [items, syncStatus]);
-  useEffect(() => { syncToFirebase("log", log, saveLog); }, [log, syncStatus]);
-  useEffect(() => { syncToFirebase("vendors", vendors, saveVendors); }, [vendors, syncStatus]);
-  useEffect(() => { syncToFirebase("orders", orders, saveOrders); }, [orders, syncStatus]);
+  }, [items, syncStatus]);
+  useEffect(() => {
+    saveLog(log);
+    if (firebaseReady.current && dbRef.current && syncStatus === "synced") {
+      const json = JSON.stringify(log);
+      if (json !== lastWriteJSON.current.log) {
+        lastWriteJSON.current.log = json;
+        pendingWrites.current.log++;
+        dbRef.current.ref("nlo/log").set(log).catch(err => { pendingWrites.current.log = Math.max(0, pendingWrites.current.log - 1); console.error("Firebase log sync error:", err); });
+      }
+    }
+  }, [log, syncStatus]);
+  useEffect(() => {
+    saveVendors(vendors);
+    if (firebaseReady.current && dbRef.current && syncStatus === "synced") {
+      const json = JSON.stringify(vendors);
+      if (json !== lastWriteJSON.current.vendors) {
+        lastWriteJSON.current.vendors = json;
+        pendingWrites.current.vendors++;
+        dbRef.current.ref("nlo/vendors").set(vendors).catch(err => { pendingWrites.current.vendors = Math.max(0, pendingWrites.current.vendors - 1); console.error("Firebase vendors sync error:", err); });
+      }
+    }
+  }, [vendors, syncStatus]);
+  useEffect(() => {
+    saveOrders(orders);
+    if (firebaseReady.current && dbRef.current && syncStatus === "synced") {
+      const json = JSON.stringify(orders);
+      if (json !== lastWriteJSON.current.orders) {
+        lastWriteJSON.current.orders = json;
+        pendingWrites.current.orders++;
+        dbRef.current.ref("nlo/orders").set(orders).catch(err => { pendingWrites.current.orders = Math.max(0, pendingWrites.current.orders - 1); console.error("Firebase orders sync error:", err); });
+      }
+    }
+  }, [orders, syncStatus]);
   const updateVendor = useCallback((vendorId, updates) => {
     setVendors(prev => prev.map(v => v.id === vendorId ? { ...v, ...updates } : v));
   }, []);
