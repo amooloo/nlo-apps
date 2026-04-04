@@ -7,8 +7,8 @@
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://cdn.tailwindcss.com"></script>
-<script async src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-<script async src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";</script>
@@ -5284,310 +5284,73 @@ function DashboardView({ items, orders, log }) {
 }
 
 // ─── OrdersView ───────────────────────────────────────────────────────────────
-function OrdersView({ orders, items, vendors, onAddOrder, onReceiveOrder, onVoidOrder, onMarkOrdered, onDeleteOrder, onReopenOrder, onScanSlip, onReorder, isAdmin }) {
+function OrdersView({ orders, items, onAddOrder, onReceiveOrder, onVoidOrder, onScanSlip, onReorder, isAdmin }) {
   const [filter, setFilter] = useState("open");
   const [expanded, setExpanded] = useState(new Set());
-  const [selected, setSelected] = useState(new Set());
-  const [placeMode, setPlaceMode] = useState(null); // null | {vendor, orderIds, method}
-
+  const [showVoided, setShowVoided] = useState(false);
   const filtered = filter === "voided" ? orders.filter(o => o.status === "voided") : orders.filter(o => o.status === filter);
   const voidedCount = orders.filter(o => o.status === "voided").length;
-  const orderedCount = orders.filter(o => o.status === "ordered").length;
-
-  // Group open orders by vendor for the action bar
-  const selectedOrders = orders.filter(o => selected.has(o.id));
-  const selectedVendors = [...new Set(selectedOrders.map(o => o.vendor))];
-
   const toggleExpand = (id) => {
-    setExpanded(prev => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+    setExpanded(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   };
-  const toggleSelect = (id) => {
-    setSelected(prev => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
-  };
-  const selectAllVendor = (vendorName) => {
-    const ids = filtered.filter(o => o.vendor === vendorName).map(o => o.id);
-    setSelected(prev => { const next = new Set(prev); ids.forEach(id => next.add(id)); return next; });
-  };
-  const clearSelection = () => setSelected(new Set());
-
   const handleVoid = (orderId) => {
     if (confirm("Void this order? It will be hidden from the main view.")) {
       onVoidOrder(orderId);
-      setSelected(prev => { const next = new Set(prev); next.delete(orderId); return next; });
     }
   };
-
-  // Look up vendor contact from vendor directory
-  function findVendorContact(vendorName) {
-    if (!vendors || !vendors.length) return null;
-    var v = vendors.find(function(vn) {
-      return vn.name && vendorName && vn.name.toLowerCase().indexOf(vendorName.toLowerCase()) >= 0;
-    });
-    if (!v) v = vendors.find(function(vn) {
-      return vendorName && vn.name && vendorName.toLowerCase().indexOf(vn.name.toLowerCase()) >= 0;
-    });
-    return v || null;
-  }
-
-  // Build order summary text for email/text
-  function buildOrderText(orderIds) {
-    var ords = orders.filter(function(o) { return orderIds.indexOf(o.id) >= 0; });
-    var lines = ["ORDER REQUEST — Next Level Orthodontics", "Date: " + new Date().toISOString().slice(0, 10), ""];
-    ords.forEach(function(o, idx) {
-      if (ords.length > 1) lines.push("--- Order " + (idx + 1) + " ---");
-      lines.push("Vendor: " + (o.vendor || ""));
-      if (o.note) lines.push("Notes: " + o.note);
-      lines.push("");
-      (o.items || []).forEach(function(oi, i) {
-        lines.push("  " + (i + 1) + ". " + oi.name + " — Qty: " + (oi.qty || 0) + " " + (oi.unit || "ea") + (oi.sku ? " (SKU: " + oi.sku + ")" : "") + (oi.price ? " @ $" + Number(oi.price).toFixed(2) : ""));
-      });
-      lines.push("");
-    });
-    return lines.join("\n");
-  }
-
-  function handleEmailVendor() {
-    if (selectedOrders.length === 0) return;
-    var vendorName = selectedVendors[0] || "";
-    var contact = findVendorContact(vendorName);
-    var to = (contact && contact.repEmail) || (contact && contact.email) || "";
-    var subject = "Order Request — " + vendorName + " — " + new Date().toISOString().slice(0, 10);
-    var body = buildOrderText(selectedOrders.map(function(o) { return o.id; }));
-    window.open("mailto:" + encodeURIComponent(to) + "?subject=" + encodeURIComponent(subject) + "&body=" + encodeURIComponent(body), "_blank");
-    // Also mark as ordered
-    selectedOrders.forEach(function(o) { onMarkOrdered(o.id, "email"); });
-    setSelected(new Set());
-  }
-
-  function handleTextVendor() {
-    if (selectedOrders.length === 0) return;
-    var vendorName = selectedVendors[0] || "";
-    var contact = findVendorContact(vendorName);
-    var phone = (contact && contact.repPhone) || (contact && contact.phone) || (contact && contact.tollFree) || "";
-    var body = buildOrderText(selectedOrders.map(function(o) { return o.id; }));
-    window.open("sms:" + encodeURIComponent(phone) + "?body=" + encodeURIComponent(body), "_blank");
-    // Also mark as ordered
-    selectedOrders.forEach(function(o) { onMarkOrdered(o.id, "text"); });
-    setSelected(new Set());
-  }
-
-  function handleMarkOrdered(method) {
-    selectedOrders.forEach(function(o) { onMarkOrdered(o.id, method); });
-    setSelected(new Set());
-    setPlaceMode(null);
-  }
-
-  // Render an order card
-  function renderOrder(order) {
-    var isSelectable = order.status === "open";
-    var isSelected = selected.has(order.id);
-    var statusBadge = null;
-    if (order.status === "voided") statusBadge = React.createElement("span", { className: "text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-medium" }, "VOID");
-    else if (order.status === "ordered") statusBadge = React.createElement("span", { className: "text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium" }, order.orderedVia ? ("ORDERED — " + order.orderedVia) : "ORDERED");
-
-    return React.createElement("div", {
-      key: order.id,
-      className: "border rounded-xl p-4 bg-white transition-all " +
-        (order.status === "voided" ? "opacity-60 " : "") +
-        (isSelected ? "ring-2 ring-blue-500 border-blue-300 " : "")
-    },
-      React.createElement("div", { className: "flex flex-col sm:flex-row sm:items-start justify-between mb-3 gap-2" },
-        React.createElement("div", { className: "flex items-start gap-3 min-w-0" },
-          isSelectable && React.createElement("button", {
-            onClick: function() { toggleSelect(order.id); },
-            className: "mt-1 shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors " +
-              (isSelected ? "bg-blue-600 border-blue-600" : "border-gray-300 hover:border-blue-400")
-          }, isSelected && React.createElement(CheckIc, { size: 12, className: "text-white" })),
-          React.createElement("div", { className: "min-w-0" },
-            React.createElement("div", { className: "flex items-center gap-2 flex-wrap" },
-              React.createElement("h3", { className: "font-semibold text-gray-900 text-sm sm:text-base" }, order.title || order.vendor || "Unknown Vendor"),
-              statusBadge
-            ),
-            order.title && React.createElement("p", { className: "text-xs text-gray-500 mt-0.5" }, order.vendor),
-            React.createElement("p", { className: "text-xs text-gray-500 mt-1" },
-              "Ordered: ", order.dateOrdered, order.orderedBy ? " by " + order.orderedBy : "",
-              order.datePlaced ? " · Placed: " + order.datePlaced : ""
+  return /*#__PURE__*/React.createElement("div", { className: "flex-1 overflow-y-auto" },
+    /*#__PURE__*/React.createElement("div", { className: "sticky top-0 z-10 bg-white border-b px-3 sm:px-4 py-3 sm:py-4 flex items-center justify-between gap-2" },
+      /*#__PURE__*/React.createElement("h2", { className: "font-bold text-gray-900 text-lg shrink-0" }, "Orders"),
+      /*#__PURE__*/React.createElement("div", { className: "flex gap-2" },
+        /*#__PURE__*/React.createElement("button", { onClick: onScanSlip, className: "flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-semibold px-3 sm:px-4 py-2 rounded-xl transition-colors shadow-sm whitespace-nowrap" },
+          /*#__PURE__*/React.createElement(CameraIc, { size: 16 }), /*#__PURE__*/React.createElement("span", { className: "hidden sm:inline" }, "Scan Packing Slip"), /*#__PURE__*/React.createElement("span", { className: "sm:hidden" }, "Scan")),
+        /*#__PURE__*/React.createElement("button", { onClick: onAddOrder, className: "flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-semibold px-3 sm:px-4 py-2 rounded-xl transition-colors shadow-sm whitespace-nowrap" },
+          /*#__PURE__*/React.createElement(PlusIc, { size: 16 }), /*#__PURE__*/React.createElement("span", { className: "hidden sm:inline" }, "New Order"), /*#__PURE__*/React.createElement("span", { className: "sm:hidden" }, "New")))),
+    /*#__PURE__*/React.createElement("div", { className: "p-4" },
+      /*#__PURE__*/React.createElement("div", { className: "flex items-center gap-2 mb-4" },
+        ["open", "received"].map(f => /*#__PURE__*/React.createElement("button", { key: f, onClick: () => setFilter(f), className: "px-4 py-2 rounded-lg text-sm font-medium transition-colors " + (filter === f ? "bg-slate-800 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200") }, f === "open" ? "Open" : "Received")),
+        voidedCount > 0 && /*#__PURE__*/React.createElement("button", { onClick: () => setFilter(filter === "voided" ? "open" : "voided"), className: "px-4 py-2 rounded-lg text-sm font-medium transition-colors ml-auto " + (filter === "voided" ? "bg-red-100 text-red-700" : "text-gray-400 hover:text-gray-600") }, "Voided (" + voidedCount + ")")),
+      filtered.length === 0 ? /*#__PURE__*/React.createElement("div", { className: "text-center py-12" }, /*#__PURE__*/React.createElement("p", { className: "text-gray-400 text-sm" }, filter === "open" ? "No open orders" : filter === "received" ? "No received orders" : "No voided orders")) : /*#__PURE__*/React.createElement("div", { className: "space-y-3" },
+        filtered.map(order => /*#__PURE__*/React.createElement("div", { key: order.id, className: "border rounded-xl p-4 bg-white " + (order.status === "voided" ? "opacity-60" : "") },
+          /*#__PURE__*/React.createElement("div", { className: "flex flex-col sm:flex-row sm:items-start justify-between mb-3 gap-2" },
+            /*#__PURE__*/React.createElement("div", { className: "min-w-0" },
+              /*#__PURE__*/React.createElement("div", { className: "flex items-center gap-2 flex-wrap" },
+                /*#__PURE__*/React.createElement("h3", { className: "font-semibold text-gray-900 text-sm sm:text-base" }, order.vendor || "Unknown Vendor"),
+                order.status === "voided" && /*#__PURE__*/React.createElement("span", { className: "text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-medium" }, "VOID")),
+              /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-500 mt-1" }, "Ordered: ", order.dateOrdered, order.orderedBy ? " by " + order.orderedBy : "")),
+            /*#__PURE__*/React.createElement("div", { className: "flex gap-2 shrink-0" },
+              order.status === "open" && /*#__PURE__*/React.createElement("button", { onClick: () => onReceiveOrder(order.id), className: "flex items-center gap-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors" }, /*#__PURE__*/React.createElement(CheckIc, { size: 14 }), "Received"),
+              order.status === "open" && isAdmin && /*#__PURE__*/React.createElement("button", { onClick: () => handleVoid(order.id), className: "flex items-center gap-1 bg-red-50 text-red-600 hover:bg-red-100 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors" }, /*#__PURE__*/React.createElement(XIc, { size: 14 }), "Void"),
+              order.status === "received" && /*#__PURE__*/React.createElement("button", { onClick: () => onReorder && onReorder(order), className: "flex items-center gap-1 bg-blue-50 text-blue-600 hover:bg-blue-100 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors" }, /*#__PURE__*/React.createElement(RefreshIc, { size: 14 }), /*#__PURE__*/React.createElement("span", { className: "hidden sm:inline" }, "Reorder")),
+              /*#__PURE__*/React.createElement("button", { onClick: () => toggleExpand(order.id), className: "text-gray-400 hover:text-gray-600 p-1" }, expanded.has(order.id) ? "\u25BC" : "\u25B6"))),
+          /*#__PURE__*/React.createElement("div", { className: "grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mb-3 text-xs" },
+            /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", { className: "text-gray-400" }, "Items"), /*#__PURE__*/React.createElement("p", { className: "font-semibold text-gray-900" }, order.items.length)),
+            /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", { className: "text-gray-400" }, "Total"), /*#__PURE__*/React.createElement("p", { className: "font-semibold text-gray-900" }, "$", (order.items.reduce((sum, oi) => sum + ((oi.price || 0) * (oi.qty || 0)), 0)).toFixed(2))),
+            order.expectedDelivery && (() => { var isOverdue = order.status === "open" && new Date(order.expectedDelivery + "T23:59:59") < new Date(); return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", { className: "text-gray-400" }, "Expected"), /*#__PURE__*/React.createElement("p", { className: "font-semibold " + (isOverdue ? "text-red-600" : "text-gray-900") }, order.expectedDelivery, isOverdue && /*#__PURE__*/React.createElement("span", { className: "ml-1 text-xs font-medium text-red-500" }, "OVERDUE"))); })(),
+            order.orderedBy && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", { className: "text-gray-400" }, "Ordered By"), /*#__PURE__*/React.createElement("p", { className: "font-semibold text-gray-900" }, order.orderedBy)),
+            order.note && /*#__PURE__*/React.createElement("div", { className: "col-span-2" }, /*#__PURE__*/React.createElement("p", { className: "text-gray-400" }, "Notes"), /*#__PURE__*/React.createElement("p", { className: "font-semibold text-gray-900 truncate" }, order.note))),
+          expanded.has(order.id) && /*#__PURE__*/React.createElement("div", { className: "mt-4 pt-4 border-t space-y-2" },
+            /*#__PURE__*/React.createElement("p", { className: "text-xs font-semibold text-gray-600 uppercase" }, "Line Items"),
+            order.items.map((oi, idx) => {
+              var displayUnit = oi.unit || (oi.itemId ? ((items.find(it => it.id === oi.itemId) || {}).unit || "ea") : "ea");
+              return /*#__PURE__*/React.createElement("div", { key: idx, className: "text-xs bg-gray-50 rounded p-2" },
+              /*#__PURE__*/React.createElement("div", { className: "flex justify-between" },
+                /*#__PURE__*/React.createElement("span", { className: "font-medium text-gray-900" }, oi.name),
+                /*#__PURE__*/React.createElement("span", { className: "text-gray-600 font-semibold" }, oi.qty, " ", /*#__PURE__*/React.createElement("span", { className: "text-blue-500 font-medium" }, displayUnit))),
+              /*#__PURE__*/React.createElement("div", { className: "flex justify-between mt-1 text-gray-600" },
+                oi.sku && /*#__PURE__*/React.createElement("span", null, oi.sku),
+                /*#__PURE__*/React.createElement("span", null, "$", (oi.price || 0).toFixed(2))));
+            }),
+            order.slipPhoto && /*#__PURE__*/React.createElement("details", { className: "border border-gray-200 rounded-lg overflow-hidden mt-4" },
+              /*#__PURE__*/React.createElement("summary", { className: "px-3 py-2 text-xs font-medium text-gray-600 cursor-pointer hover:bg-gray-50 flex items-center gap-1.5" }, "📷 Packing Slip Photo"),
+              /*#__PURE__*/React.createElement("img", { src: order.slipPhoto, alt: "Packing Slip", className: "w-full object-contain bg-gray-50 max-h-96" })
             )
-          )
-        ),
-        React.createElement("div", { className: "flex gap-2 shrink-0" },
-          order.status === "open" && React.createElement("button", {
-            onClick: function() { toggleSelect(order.id); },
-            className: "flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors " +
-              (isSelected ? "bg-blue-100 text-blue-700" : "bg-gray-50 text-gray-600 hover:bg-gray-100")
-          }, isSelected ? "Selected" : "Select"),
-          (order.status === "ordered") && React.createElement("button", {
-            onClick: function() { onReceiveOrder(order.id); },
-            className: "flex items-center gap-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
-          }, React.createElement(CheckIc, { size: 14 }), "Received"),
-          order.status === "open" && isAdmin && React.createElement("button", {
-            onClick: function() { handleVoid(order.id); },
-            className: "flex items-center gap-1 bg-red-50 text-red-600 hover:bg-red-100 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
-          }, React.createElement(XIc, { size: 14 }), "Void"),
-          order.status === "received" && React.createElement("button", {
-            onClick: function() { onReorder && onReorder(order); },
-            className: "flex items-center gap-1 bg-blue-50 text-blue-600 hover:bg-blue-100 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
-          }, React.createElement(RefreshIc, { size: 14 }), React.createElement("span", { className: "hidden sm:inline" }, "Reorder")),
-          (order.status === "ordered" || order.status === "received") && isAdmin && React.createElement("button", {
-            onClick: function() { if (confirm("Move this order back to Open?")) onReopenOrder(order.id); },
-            className: "flex items-center gap-1 bg-amber-50 text-amber-700 hover:bg-amber-100 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
-          }, React.createElement(RefreshIc, { size: 14 }), "Reopen"),
-          (order.status === "ordered" || order.status === "received") && isAdmin && React.createElement("button", {
-            onClick: function() { if (confirm("Permanently delete this order?")) onDeleteOrder(order.id); },
-            className: "flex items-center gap-1 bg-red-50 text-red-600 hover:bg-red-100 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
-          }, React.createElement(TrashIc, { size: 14 }), "Delete"),
-          React.createElement("button", {
-            onClick: function() { toggleExpand(order.id); },
-            className: "text-gray-400 hover:text-gray-600 p-1"
-          }, expanded.has(order.id) ? "\u25BC" : "\u25B6")
-        )
-      ),
-      React.createElement("div", { className: "grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mb-3 text-xs" },
-        React.createElement("div", null, React.createElement("p", { className: "text-gray-400" }, "Items"), React.createElement("p", { className: "font-semibold text-gray-900" }, order.items.length)),
-        React.createElement("div", null, React.createElement("p", { className: "text-gray-400" }, "Total"), React.createElement("p", { className: "font-semibold text-gray-900" }, "$", (order.items.reduce(function(sum, oi) { return sum + ((oi.price || 0) * (oi.qty || 0)); }, 0)).toFixed(2))),
-        order.expectedDelivery && (function() { var isOverdue = (order.status === "open" || order.status === "ordered") && new Date(order.expectedDelivery + "T23:59:59") < new Date(); return React.createElement("div", null, React.createElement("p", { className: "text-gray-400" }, "Expected"), React.createElement("p", { className: "font-semibold " + (isOverdue ? "text-red-600" : "text-gray-900") }, order.expectedDelivery, isOverdue && React.createElement("span", { className: "ml-1 text-xs font-medium text-red-500" }, "OVERDUE"))); })(),
-        order.orderedBy && React.createElement("div", null, React.createElement("p", { className: "text-gray-400" }, "Ordered By"), React.createElement("p", { className: "font-semibold text-gray-900" }, order.orderedBy)),
-        order.note && React.createElement("div", { className: "col-span-2" }, React.createElement("p", { className: "text-gray-400" }, "Notes"), React.createElement("p", { className: "font-semibold text-gray-900 truncate" }, order.note))
-      ),
-      expanded.has(order.id) && React.createElement("div", { className: "mt-4 pt-4 border-t space-y-2" },
-        React.createElement("p", { className: "text-xs font-semibold text-gray-600 uppercase" }, "Line Items"),
-        order.items.map(function(oi, idx) {
-          var displayUnit = oi.unit || (oi.itemId ? ((items.find(function(it) { return it.id === oi.itemId; }) || {}).unit || "ea") : "ea");
-          return React.createElement("div", { key: idx, className: "text-xs bg-gray-50 rounded p-2" },
-            React.createElement("div", { className: "flex justify-between" },
-              React.createElement("span", { className: "font-medium text-gray-900" }, oi.name),
-              React.createElement("span", { className: "text-gray-600 font-semibold" }, oi.qty, " ", React.createElement("span", { className: "text-blue-500 font-medium" }, displayUnit))),
-            React.createElement("div", { className: "flex justify-between mt-1 text-gray-600" },
-              oi.sku && React.createElement("span", null, oi.sku),
-              React.createElement("span", null, "$", (oi.price || 0).toFixed(2))));
-        }),
-        order.slipPhoto && React.createElement("details", { className: "border border-gray-200 rounded-lg overflow-hidden mt-4" },
-          React.createElement("summary", { className: "px-3 py-2 text-xs font-medium text-gray-600 cursor-pointer hover:bg-gray-50 flex items-center gap-1.5" }, "\ud83d\udcf7 Packing Slip Photo"),
-          React.createElement("img", { src: order.slipPhoto, alt: "Packing Slip", className: "w-full object-contain bg-gray-50 max-h-96" })
-        )
-      )
-    );
-  }
-
-  // Group filtered open orders by vendor
-  var vendorGroups = {};
-  if (filter === "open") {
-    filtered.forEach(function(o) {
-      var v = o.vendor || "Unknown Vendor";
-      if (!vendorGroups[v]) vendorGroups[v] = [];
-      vendorGroups[v].push(o);
-    });
-  }
-
-  var hasSelection = selected.size > 0;
-
-  return React.createElement("div", { className: "flex-1 overflow-y-auto" },
-    // Header
-    React.createElement("div", { className: "sticky top-0 z-10 bg-white border-b px-3 sm:px-4 py-3 sm:py-4 flex items-center justify-between gap-2" },
-      React.createElement("h2", { className: "font-bold text-gray-900 text-lg shrink-0" }, "Orders"),
-      React.createElement("div", { className: "flex gap-2" },
-        React.createElement("button", { onClick: onScanSlip, className: "flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-semibold px-3 sm:px-4 py-2 rounded-xl transition-colors shadow-sm whitespace-nowrap" },
-          React.createElement(CameraIc, { size: 16 }), React.createElement("span", { className: "hidden sm:inline" }, "Scan Packing Slip"), React.createElement("span", { className: "sm:hidden" }, "Scan")),
-        React.createElement("button", { onClick: onAddOrder, className: "flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-semibold px-3 sm:px-4 py-2 rounded-xl transition-colors shadow-sm whitespace-nowrap" },
-          React.createElement(PlusIc, { size: 16 }), React.createElement("span", { className: "hidden sm:inline" }, "New Order"), React.createElement("span", { className: "sm:hidden" }, "New")))
-    ),
-    // Tabs + content
-    React.createElement("div", { className: "p-4 " + (hasSelection ? "pb-32" : "") },
-      React.createElement("div", { className: "flex items-center gap-2 mb-4 flex-wrap" },
-        ["open", "ordered", "received"].map(function(f) {
-          var label = f === "open" ? "Open" : f === "ordered" ? "Ordered" : "Received";
-          var count = orders.filter(function(o) { return o.status === f; }).length;
-          return React.createElement("button", {
-            key: f,
-            onClick: function() { setFilter(f); clearSelection(); },
-            className: "px-4 py-2 rounded-lg text-sm font-medium transition-colors " +
-              (filter === f ? "bg-slate-800 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200")
-          }, label + (count > 0 ? " (" + count + ")" : ""));
-        }),
-        voidedCount > 0 && React.createElement("button", {
-          onClick: function() { setFilter(filter === "voided" ? "open" : "voided"); clearSelection(); },
-          className: "px-4 py-2 rounded-lg text-sm font-medium transition-colors ml-auto " +
-            (filter === "voided" ? "bg-red-100 text-red-700" : "text-gray-400 hover:text-gray-600")
-        }, "Voided (" + voidedCount + ")")
-      ),
-      filtered.length === 0
-        ? React.createElement("div", { className: "text-center py-12" },
-            React.createElement("p", { className: "text-gray-400 text-sm" },
-              filter === "open" ? "No open orders" : filter === "ordered" ? "No orders placed yet" : filter === "received" ? "No received orders" : "No voided orders"))
-        : filter === "open"
-          // Open tab: group by vendor with "Select All for Vendor" buttons
-          ? React.createElement("div", { className: "space-y-6" },
-              Object.keys(vendorGroups).map(function(vendorName) {
-                var vOrders = vendorGroups[vendorName];
-                var allVendorSelected = vOrders.every(function(o) { return selected.has(o.id); });
-                return React.createElement("div", { key: vendorName },
-                  React.createElement("div", { className: "flex items-center justify-between mb-2" },
-                    React.createElement("div", { className: "flex items-center gap-2" },
-                      React.createElement("h3", { className: "text-sm font-bold text-gray-700" }, vendorName),
-                      React.createElement("span", { className: "text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full" }, vOrders.length + " order" + (vOrders.length !== 1 ? "s" : ""))
-                    ),
-                    React.createElement("button", {
-                      onClick: function() {
-                        if (allVendorSelected) {
-                          setSelected(function(prev) {
-                            var next = new Set(prev);
-                            vOrders.forEach(function(o) { next.delete(o.id); });
-                            return next;
-                          });
-                        } else { selectAllVendor(vendorName); }
-                      },
-                      className: "text-xs font-semibold px-3 py-1 rounded-lg transition-colors " +
-                        (allVendorSelected ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-600 hover:bg-gray-200")
-                    }, allVendorSelected ? "Deselect All" : "Select All")
-                  ),
-                  React.createElement("div", { className: "space-y-3" }, vOrders.map(renderOrder))
-                );
-              })
-            )
-          // Other tabs: flat list
-          : React.createElement("div", { className: "space-y-3" }, filtered.map(renderOrder))
-    ),
-    // Floating action bar when orders are selected
-    hasSelection && React.createElement("div", {
-      className: "fixed bottom-0 left-0 md:left-56 right-0 bg-white border-t-2 border-blue-200 shadow-xl z-20",
-      style: { paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }
-    },
-      React.createElement("div", { className: "px-4 pt-3 pb-1" },
-        React.createElement("div", { className: "flex items-center justify-between mb-3" },
-          React.createElement("span", { className: "text-sm font-semibold text-gray-700" },
-            selected.size + " order" + (selected.size !== 1 ? "s" : "") + " selected" +
-            (selectedVendors.length === 1 ? " — " + selectedVendors[0] : "")
-          ),
-          React.createElement("button", {
-            onClick: clearSelection,
-            className: "text-xs text-gray-400 hover:text-gray-600 font-medium"
-          }, "Clear")
-        ),
-        selectedVendors.length > 1
-          ? React.createElement("p", { className: "text-xs text-amber-600 bg-amber-50 px-3 py-2 rounded-lg mb-2" },
-              "Select orders from a single vendor to email or text them. You can still mark all as ordered.")
-          : null,
-        React.createElement("div", { className: "flex gap-2 flex-wrap" },
-          selectedVendors.length === 1 && React.createElement("button", {
-            onClick: handleEmailVendor,
-            className: "flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors"
-          }, React.createElement(MailIc, { size: 15 }), "Email & Place Order"),
-          selectedVendors.length === 1 && React.createElement("button", {
-            onClick: handleTextVendor,
-            className: "flex items-center gap-1.5 bg-green-600 hover:bg-green-700 text-white text-xs sm:text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors"
-          }, React.createElement(PhoneIc, { size: 15 }), "Text & Place Order"),
-          React.createElement("button", {
-            onClick: function() { handleMarkOrdered("phone"); },
-            className: "flex items-center gap-1.5 bg-slate-700 hover:bg-slate-800 text-white text-xs sm:text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors"
-          }, React.createElement(PhoneIc, { size: 15 }), "Ordered by Phone"),
-          React.createElement("button", {
-            onClick: function() { handleMarkOrdered("online"); },
-            className: "flex items-center gap-1.5 bg-slate-700 hover:bg-slate-800 text-white text-xs sm:text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors"
-          }, React.createElement(GlobeIc, { size: 15 }), "Ordered Online")
-        )
-      )
-    )
-  );
+          )))))));
 }
 
 // ─── AddOrderModal ────────────────────────────────────────────────────────────
@@ -5979,7 +5742,7 @@ function BracketOrderingView({ onAddToCart }) {
     "ICONIX - .018 - MBT COMPATIBLE",
     "MINI MASTER - .018 - MBT COMPATIBLE"
   ];
-  const TEETH = [1,2,3,4,5,6,7];
+  const TEETH = [1,2,3,4,5,6,7,8];
   const QUADRANTS = [
     { key: "UR", label: "Upper Right" },
     { key: "UL", label: "Upper Left" },
@@ -5990,106 +5753,55 @@ function BracketOrderingView({ onAddToCart }) {
   const [step, setStep] = useState(1);
   const [selectedSystem, setSelectedSystem] = useState("");
   const [quantities, setQuantities] = useState({});
-  const [addedMessage, setAddedMessage] = useState("");
+  const [touchTimer, setTouchTimer] = useState(null);
 
   function toothKey(q, t) { return q + "-" + t; }
 
-  // Toggle individual tooth: if unselected set to 1, if selected set to 0 (deselect)
-  function toggleTooth(q, t) {
+  function addQty(q, t) {
+    var k = toothKey(q, t);
+    setQuantities(function(prev) { var n = Object.assign({}, prev); n[k] = (n[k] || 0) + 1; return n; });
+  }
+  function removeQty(q, t) {
     var k = toothKey(q, t);
     setQuantities(function(prev) {
       var n = Object.assign({}, prev);
-      if (n[k] && n[k] > 0) { delete n[k]; } else { n[k] = 1; }
+      if ((n[k] || 0) > 0) n[k] = n[k] - 1;
+      if (n[k] === 0) delete n[k];
       return n;
     });
   }
-
-  // Increase qty for ALL currently selected teeth by 1
-  function incrementAll() {
-    setQuantities(function(prev) {
-      var n = Object.assign({}, prev);
-      Object.keys(n).forEach(function(k) { n[k] = n[k] + 1; });
-      return n;
-    });
-  }
-
-  // Decrease qty for ALL currently selected teeth by 1 (removes if goes to 0)
-  function decrementAll() {
-    setQuantities(function(prev) {
-      var n = Object.assign({}, prev);
-      Object.keys(n).forEach(function(k) {
-        n[k] = n[k] - 1;
-        if (n[k] <= 0) delete n[k];
-      });
-      return n;
-    });
-  }
-
   function selectAll() {
-    setQuantities(function(prev) {
-      var n = {};
-      // Preserve existing quantities for already-selected teeth
-      QUADRANTS.forEach(function(q) {
-        TEETH.forEach(function(t) {
-          var k = toothKey(q.key, t);
-          n[k] = prev[k] || 1;
-        });
-      });
-      return n;
-    });
+    var n = {};
+    QUADRANTS.forEach(function(q) { TEETH.forEach(function(t) { n[toothKey(q.key, t)] = 1; }); });
+    setQuantities(n);
   }
   function clearAll() { setQuantities({}); }
 
   function handleAddToCart() {
     var sysShort = selectedSystem.split(" - ")[0];
-    var lineItems = [];
-    QUADRANTS.forEach(function(q) {
-      TEETH.forEach(function(t) {
-        var k = toothKey(q.key, t);
-        var qty = quantities[k] || 0;
-        if (qty > 0) {
-          lineItems.push({
-            name: sysShort + " Bracket " + q.key + "-" + t,
-            qty: qty,
+    Object.keys(quantities).forEach(function(k) {
+      var qty = quantities[k];
+      if (qty > 0) {
+        for (var i = 0; i < qty; i++) {
+          onAddToCart({
+            id: "brk-" + sysShort.toLowerCase().replace(/\s+/g, "-") + "-" + k,
+            name: sysShort + " Bracket - " + k,
             unit: "ea"
           });
         }
-      });
+      }
     });
-    if (lineItems.length > 0) {
-      onAddToCart({ system: selectedSystem, items: lineItems });
-      setAddedMessage(lineItems.reduce(function(s, li) { return s + li.qty; }, 0) + " brackets added to orders");
-      setTimeout(function() { setAddedMessage(""); }, 3000);
-    }
     setQuantities({});
     setStep(1);
     setSelectedSystem("");
   }
 
-  var selectedCount = Object.keys(quantities).length;
   var totalBrackets = Object.values(quantities).reduce(function(s, v) { return s + v; }, 0);
-
-  function renderTooth(quad, t) {
-    var k = toothKey(quad, t);
-    var qty = quantities[k] || 0;
-    return React.createElement("button", {
-      key: t,
-      onClick: function() { toggleTooth(quad, t); },
-      className: "relative flex flex-col items-center justify-center rounded-lg py-2 text-xs font-bold transition-all " +
-        (qty > 0 ? "bg-emerald-100 text-emerald-800 ring-2 ring-emerald-400" : "bg-gray-100 text-gray-500 hover:bg-gray-200")
-    },
-      React.createElement("span", null, t),
-      qty > 0 && React.createElement("span", { className: "text-[10px] font-black text-emerald-600 mt-0.5" }, qty)
-    );
-  }
 
   if (step === 1) {
     return /*#__PURE__*/React.createElement("div", { className: "flex-1 overflow-y-auto p-4 md:p-6" },
       /*#__PURE__*/React.createElement("h2", { className: "text-xl font-bold text-gray-900 mb-1" }, "Bracket Ordering"),
       /*#__PURE__*/React.createElement("p", { className: "text-sm text-gray-500 mb-6" }, "Select a bracket system to begin"),
-      addedMessage && /*#__PURE__*/React.createElement("div", {
-        className: "mb-4 bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm font-semibold px-4 py-3 rounded-xl flex items-center gap-2"
-      }, /*#__PURE__*/React.createElement(CheckIc, { size: 16 }), addedMessage),
       /*#__PURE__*/React.createElement("div", { className: "grid gap-3 max-w-lg" },
         SYSTEMS.map(function(sys) {
           return /*#__PURE__*/React.createElement("button", {
@@ -6107,7 +5819,7 @@ function BracketOrderingView({ onAddToCart }) {
 
   // Step 2: Charting
   return /*#__PURE__*/React.createElement("div", { className: "flex-1 overflow-y-auto" },
-    /*#__PURE__*/React.createElement("div", { className: "p-4 md:p-6 pb-36" },
+    /*#__PURE__*/React.createElement("div", { className: "p-4 md:p-6 pb-28" },
       /*#__PURE__*/React.createElement("div", { className: "flex items-center gap-3 mb-1" },
         /*#__PURE__*/React.createElement("button", {
           onClick: function() { setStep(1); setQuantities({}); },
@@ -6116,7 +5828,7 @@ function BracketOrderingView({ onAddToCart }) {
         /*#__PURE__*/React.createElement("h2", { className: "text-xl font-bold text-gray-900" }, "Bracket Charting")
       ),
       /*#__PURE__*/React.createElement("p", { className: "text-sm text-gray-500 mb-2 ml-9" }, selectedSystem),
-      /*#__PURE__*/React.createElement("div", { className: "flex items-center gap-2 mb-5 ml-9 flex-wrap" },
+      /*#__PURE__*/React.createElement("div", { className: "flex items-center gap-2 mb-5 ml-9" },
         /*#__PURE__*/React.createElement("button", {
           onClick: selectAll,
           className: "text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors"
@@ -6124,55 +5836,116 @@ function BracketOrderingView({ onAddToCart }) {
         /*#__PURE__*/React.createElement("button", {
           onClick: clearAll,
           className: "text-xs font-semibold px-3 py-1.5 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
-        }, "Clear All"),
-        selectedCount > 0 && /*#__PURE__*/React.createElement("div", {
-          className: "flex items-center gap-1 ml-2 bg-emerald-50 border border-emerald-200 rounded-lg px-2 py-1"
-        },
-          /*#__PURE__*/React.createElement("button", {
-            onClick: decrementAll,
-            className: "w-7 h-7 flex items-center justify-center rounded-md bg-white border border-gray-200 text-gray-700 hover:bg-gray-100 font-bold text-sm transition-colors"
-          }, "\u2212"),
-          /*#__PURE__*/React.createElement("span", {
-            className: "text-xs font-semibold text-emerald-700 px-2 min-w-[3rem] text-center"
-          }, selectedCount + " sel"),
-          /*#__PURE__*/React.createElement("button", {
-            onClick: incrementAll,
-            className: "w-7 h-7 flex items-center justify-center rounded-md bg-white border border-gray-200 text-gray-700 hover:bg-gray-100 font-bold text-sm transition-colors"
-          }, "+")
-        )
+        }, "Clear All")
       ),
       /*#__PURE__*/React.createElement("div", { className: "max-w-md mx-auto select-none" },
         // Upper row: UR (reversed) | UL
         /*#__PURE__*/React.createElement("div", { className: "grid grid-cols-2 gap-0 border-b-2 border-slate-800" },
+          // UR quadrant - teeth 8 to 1 (right to center)
           /*#__PURE__*/React.createElement("div", { className: "border-r-2 border-slate-800 pr-1 pb-2" },
             /*#__PURE__*/React.createElement("p", { className: "text-xs font-bold text-gray-400 uppercase mb-1.5 text-center" }, "UR"),
-            /*#__PURE__*/React.createElement("div", { className: "grid grid-cols-7 gap-1" },
-              TEETH.slice().reverse().map(function(t) { return renderTooth("UR", t); })
+            /*#__PURE__*/React.createElement("div", { className: "grid grid-cols-8 gap-1" },
+              TEETH.slice().reverse().map(function(t) {
+                var k = toothKey("UR", t);
+                var qty = quantities[k] || 0;
+                return /*#__PURE__*/React.createElement("button", {
+                  key: t,
+                  onClick: function() { addQty("UR", t); },
+                  onContextMenu: function(e) { e.preventDefault(); removeQty("UR", t); },
+                  onTouchStart: function() {
+                    var timer = setTimeout(function() { removeQty("UR", t); }, 500);
+                    setTouchTimer(timer);
+                  },
+                  onTouchEnd: function() { if (touchTimer) clearTimeout(touchTimer); },
+                  className: "relative flex flex-col items-center justify-center rounded-lg py-2 text-xs font-bold transition-all " +
+                    (qty > 0 ? "bg-emerald-100 text-emerald-800 ring-2 ring-emerald-400" : "bg-gray-100 text-gray-500 hover:bg-gray-200")
+                },
+                  /*#__PURE__*/React.createElement("span", null, t),
+                  qty > 0 && /*#__PURE__*/React.createElement("span", { className: "text-[10px] font-black text-emerald-600 mt-0.5" }, qty)
+                );
+              })
             )
           ),
+          // UL quadrant - teeth 1 to 8 (center to left)
           /*#__PURE__*/React.createElement("div", { className: "pl-1 pb-2" },
             /*#__PURE__*/React.createElement("p", { className: "text-xs font-bold text-gray-400 uppercase mb-1.5 text-center" }, "UL"),
-            /*#__PURE__*/React.createElement("div", { className: "grid grid-cols-7 gap-1" },
-              TEETH.map(function(t) { return renderTooth("UL", t); })
+            /*#__PURE__*/React.createElement("div", { className: "grid grid-cols-8 gap-1" },
+              TEETH.map(function(t) {
+                var k = toothKey("UL", t);
+                var qty = quantities[k] || 0;
+                return /*#__PURE__*/React.createElement("button", {
+                  key: t,
+                  onClick: function() { addQty("UL", t); },
+                  onContextMenu: function(e) { e.preventDefault(); removeQty("UL", t); },
+                  onTouchStart: function() {
+                    var timer = setTimeout(function() { removeQty("UL", t); }, 500);
+                    setTouchTimer(timer);
+                  },
+                  onTouchEnd: function() { if (touchTimer) clearTimeout(touchTimer); },
+                  className: "relative flex flex-col items-center justify-center rounded-lg py-2 text-xs font-bold transition-all " +
+                    (qty > 0 ? "bg-emerald-100 text-emerald-800 ring-2 ring-emerald-400" : "bg-gray-100 text-gray-500 hover:bg-gray-200")
+                },
+                  /*#__PURE__*/React.createElement("span", null, t),
+                  qty > 0 && /*#__PURE__*/React.createElement("span", { className: "text-[10px] font-black text-emerald-600 mt-0.5" }, qty)
+                );
+              })
             )
           )
         ),
         // Lower row: LR (reversed) | LL
         /*#__PURE__*/React.createElement("div", { className: "grid grid-cols-2 gap-0" },
+          // LR quadrant - teeth 8 to 1
           /*#__PURE__*/React.createElement("div", { className: "border-r-2 border-slate-800 pr-1 pt-2" },
-            /*#__PURE__*/React.createElement("div", { className: "grid grid-cols-7 gap-1" },
-              TEETH.slice().reverse().map(function(t) { return renderTooth("LR", t); })
+            /*#__PURE__*/React.createElement("div", { className: "grid grid-cols-8 gap-1" },
+              TEETH.slice().reverse().map(function(t) {
+                var k = toothKey("LR", t);
+                var qty = quantities[k] || 0;
+                return /*#__PURE__*/React.createElement("button", {
+                  key: t,
+                  onClick: function() { addQty("LR", t); },
+                  onContextMenu: function(e) { e.preventDefault(); removeQty("LR", t); },
+                  onTouchStart: function() {
+                    var timer = setTimeout(function() { removeQty("LR", t); }, 500);
+                    setTouchTimer(timer);
+                  },
+                  onTouchEnd: function() { if (touchTimer) clearTimeout(touchTimer); },
+                  className: "relative flex flex-col items-center justify-center rounded-lg py-2 text-xs font-bold transition-all " +
+                    (qty > 0 ? "bg-emerald-100 text-emerald-800 ring-2 ring-emerald-400" : "bg-gray-100 text-gray-500 hover:bg-gray-200")
+                },
+                  /*#__PURE__*/React.createElement("span", null, t),
+                  qty > 0 && /*#__PURE__*/React.createElement("span", { className: "text-[10px] font-black text-emerald-600 mt-0.5" }, qty)
+                );
+              })
             ),
             /*#__PURE__*/React.createElement("p", { className: "text-xs font-bold text-gray-400 uppercase mt-1.5 text-center" }, "LR")
           ),
+          // LL quadrant - teeth 1 to 8
           /*#__PURE__*/React.createElement("div", { className: "pl-1 pt-2" },
-            /*#__PURE__*/React.createElement("div", { className: "grid grid-cols-7 gap-1" },
-              TEETH.map(function(t) { return renderTooth("LL", t); })
+            /*#__PURE__*/React.createElement("div", { className: "grid grid-cols-8 gap-1" },
+              TEETH.map(function(t) {
+                var k = toothKey("LL", t);
+                var qty = quantities[k] || 0;
+                return /*#__PURE__*/React.createElement("button", {
+                  key: t,
+                  onClick: function() { addQty("LL", t); },
+                  onContextMenu: function(e) { e.preventDefault(); removeQty("LL", t); },
+                  onTouchStart: function() {
+                    var timer = setTimeout(function() { removeQty("LL", t); }, 500);
+                    setTouchTimer(timer);
+                  },
+                  onTouchEnd: function() { if (touchTimer) clearTimeout(touchTimer); },
+                  className: "relative flex flex-col items-center justify-center rounded-lg py-2 text-xs font-bold transition-all " +
+                    (qty > 0 ? "bg-emerald-100 text-emerald-800 ring-2 ring-emerald-400" : "bg-gray-100 text-gray-500 hover:bg-gray-200")
+                },
+                  /*#__PURE__*/React.createElement("span", null, t),
+                  qty > 0 && /*#__PURE__*/React.createElement("span", { className: "text-[10px] font-black text-emerald-600 mt-0.5" }, qty)
+                );
+              })
             ),
             /*#__PURE__*/React.createElement("p", { className: "text-xs font-bold text-gray-400 uppercase mt-1.5 text-center" }, "LL")
           )
         ),
-        /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-400 text-center mt-4" }, "Tap to select/deselect \u00b7 Use \u2212/+ to change qty for all selected")
+        /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-400 text-center mt-4" }, "Left-click = +1 · Right-click / long-press = −1")
       )
     ),
     // Sticky footer
@@ -6180,8 +5953,7 @@ function BracketOrderingView({ onAddToCart }) {
       className: "fixed bottom-0 left-0 md:left-56 right-0 bg-white border-t border-gray-200 p-4 flex items-center justify-between z-20",
       style: { paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }
     },
-      /*#__PURE__*/React.createElement("span", { className: "text-sm font-semibold text-gray-700" },
-        selectedCount + " position" + (selectedCount !== 1 ? "s" : "") + " \u00b7 " + totalBrackets + " bracket" + (totalBrackets !== 1 ? "s" : "") + " total"),
+      /*#__PURE__*/React.createElement("span", { className: "text-sm font-semibold text-gray-700" }, totalBrackets + " bracket" + (totalBrackets !== 1 ? "s" : "") + " selected"),
       /*#__PURE__*/React.createElement("button", {
         onClick: handleAddToCart,
         className: "bg-slate-800 hover:bg-slate-900 text-white font-bold text-sm px-6 py-2.5 rounded-xl transition-colors"
@@ -6298,7 +6070,7 @@ function BottomNav({
 }) {
   const tabs = [{
     id: "dashboard",
-    label: "Home",
+    label: "Dashboard",
     Icon: HomeIc
   }, {
     id: "inventory",
@@ -6309,13 +6081,13 @@ function BottomNav({
     label: "Brackets",
     Icon: GridIc
   }, {
-    id: "orders",
-    label: "Orders",
-    Icon: TruckIc
-  }, {
     id: "vendors",
     label: "Vendors",
     Icon: BuildIc
+  }, {
+    id: "orders",
+    label: "Orders",
+    Icon: TruckIc
   }];
   return /*#__PURE__*/React.createElement("div", {
     className: "md:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-gray-200",
@@ -6564,10 +6336,34 @@ function App() {
       }
     };
   }, [firebaseConfig]);
-  useEffect(() => saveItems(items), [items]);
-  useEffect(() => saveLog(log), [log]);
-  useEffect(() => saveVendors(vendors), [vendors]);
-  useEffect(() => saveOrders(orders), [orders]);
+  useEffect(() => {
+    saveItems(items);
+    if (dbRef.current) {
+      skipNextSync.current.items = true;
+      dbRef.current.ref("nlo/items").set(items);
+    }
+  }, [items]);
+  useEffect(() => {
+    saveLog(log);
+    if (dbRef.current) {
+      skipNextSync.current.log = true;
+      dbRef.current.ref("nlo/log").set(log);
+    }
+  }, [log]);
+  useEffect(() => {
+    saveVendors(vendors);
+    if (dbRef.current) {
+      skipNextSync.current.vendors = true;
+      dbRef.current.ref("nlo/vendors").set(vendors);
+    }
+  }, [vendors]);
+  useEffect(() => {
+    saveOrders(orders);
+    if (dbRef.current) {
+      skipNextSync.current.orders = true;
+      dbRef.current.ref("nlo/orders").set(orders);
+    }
+  }, [orders]);
   const updateVendor = useCallback((vendorId, updates) => {
     setVendors(prev => prev.map(v => v.id === vendorId ? { ...v, ...updates } : v));
   }, []);
@@ -6710,35 +6506,14 @@ function App() {
       return { ...o, status: "voided", dateVoided: new Date().toISOString() };
     }));
   }, []);
-  const markOrdered = useCallback((orderId, method) => {
-    setOrders(prev => prev.map(o => {
-      if (o.id !== orderId) return o;
-      return { ...o, status: "ordered", orderedVia: method || "unknown", datePlaced: new Date().toISOString().slice(0, 10) };
-    }));
-  }, []);
-  const deleteOrder = useCallback((orderId) => {
-    setOrders(prev => prev.filter(o => o.id !== orderId));
-  }, []);
-  const reopenOrder = useCallback((orderId) => {
-    setOrders(prev => prev.map(o => {
-      if (o.id !== orderId) return o;
-      return { ...o, status: "open", orderedVia: null, datePlaced: null };
-    }));
-  }, []);
-  function addToCart(data) {
-    var aoVendor = vendors.find(function(v) { return v.id === "ao"; }) || vendors.find(function(v) { return v.name && v.name.toLowerCase().indexOf("american ortho") >= 0; });
-    var vendorName = aoVendor ? aoVendor.name : "American Orthodontics";
+  function addToCart(item) {
     var newOrder = {
-      id: "order-" + uid(),
-      vendor: vendorName,
-      title: data.system || "Bracket Order",
-      status: "open",
+      id: "ord-" + uid(),
+      vendor: "Bracket Order",
+      status: "pending",
       dateOrdered: new Date().toISOString().slice(0, 10),
-      orderedBy: currentUser || null,
-      items: (data.items || []).map(function(li) {
-        return { name: li.name, qty: li.qty, unit: li.unit || "ea", price: 0, sku: "", itemId: "" };
-      }),
-      note: "Bracket order — " + data.system
+      items: [{ name: item.name, qty: 1, unit: item.unit, price: 0 }],
+      note: "Auto-generated from Bracket Ordering"
     };
     setOrders(function(prev) { return [newOrder].concat(prev); });
   }
@@ -6841,7 +6616,7 @@ function App() {
   }), view === "reports" && /*#__PURE__*/React.createElement(ReportsView, {
     items: items,
     log: log
-  }), view === "vendors" && /*#__PURE__*/React.createElement(VendorDirectory, { vendors: vendors, onUpdateVendor: updateVendor, onAddVendor: addVendor, onRemoveVendor: removeVendor, isAdmin: isAdmin }), view === "orders" && /*#__PURE__*/React.createElement(OrdersView, { orders: orders, items: items, vendors: vendors, onAddOrder: () => setAddOrderOpen(true), onReceiveOrder: receiveOrder, onVoidOrder: voidOrder, onMarkOrdered: markOrdered, onDeleteOrder: deleteOrder, onReopenOrder: reopenOrder, onScanSlip: () => setInvoiceScanOpen(true), onReorder: (order) => { setReorderFrom(order); setAddOrderOpen(true); }, isAdmin: isAdmin }))), /*#__PURE__*/React.createElement(BottomNav, {
+  }), view === "vendors" && /*#__PURE__*/React.createElement(VendorDirectory, { vendors: vendors, onUpdateVendor: updateVendor, onAddVendor: addVendor, onRemoveVendor: removeVendor, isAdmin: isAdmin }), view === "orders" && /*#__PURE__*/React.createElement(OrdersView, { orders: orders, items: items, onAddOrder: () => setAddOrderOpen(true), onReceiveOrder: receiveOrder, onVoidOrder: voidOrder, onScanSlip: () => setInvoiceScanOpen(true), onReorder: (order) => { setReorderFrom(order); setAddOrderOpen(true); }, isAdmin: isAdmin }))), /*#__PURE__*/React.createElement(BottomNav, {
     view: view,
     setView: handleViewChange,
     alertCount: alertCount,
