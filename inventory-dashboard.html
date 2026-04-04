@@ -6704,26 +6704,33 @@ function App() {
     firebaseReady.current = false;
     let cancelled = false;
     let pollTimer = null;
+    let pollStart = Date.now();
+    const SDK_TIMEOUT = 10000;   // 10 s — stop waiting for gstatic scripts
+    const FETCH_TIMEOUT = 10000; // 10 s — stop waiting for Firebase data
     setSyncStatus("connecting");
 
     function initFirebaseConnection() {
       if (cancelled) return;
-      // Wait for async Firebase SDK scripts to load
+      // Wait for async Firebase SDK scripts to load (capped at SDK_TIMEOUT)
       if (!window.firebase || !window.firebase.database) {
+        if (Date.now() - pollStart >= SDK_TIMEOUT) {
+          console.warn("Firebase SDK failed to load within timeout — falling back to offline mode");
+          setSyncStatus("error");
+          return;
+        }
         pollTimer = setTimeout(initFirebaseConnection, 150);
         return;
       }
       try {
-      // Safe init: only call initializeApp when no app exists yet
-      try {
-        if (!window.firebase.apps.length) {
-          window.firebase.initializeApp(firebaseConfig);
+        // Safe init: only call initializeApp when no app exists yet
+        try {
+          if (!window.firebase.apps.length) {
+            window.firebase.initializeApp(firebaseConfig);
+          }
+        } catch (initErr) {
+          console.warn("Firebase app already exists, reusing:", initErr.message);
         }
-      } catch (initErr) {
-        // App already exists (e.g. HMR / StrictMode remount) — reuse it
-        console.warn("Firebase app already exists, reusing:", initErr.message);
-      }
-      {
+
         const db = window.firebase.database();
         dbRef.current = db;
 
@@ -6736,10 +6743,8 @@ function App() {
               if (cancelled) return;
               const val = snap.val();
               if (!val) return;
-              // Convert from Firebase format (keyed object or legacy array) to array
               const arr = fbToArray(val);
               const json = JSON.stringify(arr);
-              // Skip if this is an echo of our own write
               if (json === lastWriteJSON.current[key]) return;
               lastWriteJSON.current[key] = json;
               prevState.current[key] = arr;
@@ -6748,40 +6753,40 @@ function App() {
           });
         }
 
-        // Phase 1: Load initial data with once() — Firebase is source of truth
-        Promise.all(keys.map(key =>
-          db.ref("nlo/" + key).once("value").then(snap => {
-            if (cancelled) return;
-            const val = snap.val();
-            if (val) {
-              // Convert from Firebase format (keyed object or legacy array) to array
-              const arr = fbToArray(val);
-              setters[key](arr);
-              // Snapshot the loaded data so the sync effects don't echo it back
-              lastWriteJSON.current[key] = JSON.stringify(arr);
-              prevState.current[key] = arr;
-            }
-          })
-        )).then(() => {
+        // Phase 1: Load initial data with once(), racing against a timeout
+        var fetchTimeout = new Promise(function(_, reject) {
+          setTimeout(function() { reject(new Error("Firebase fetch timed out")); }, FETCH_TIMEOUT);
+        });
+        Promise.race([
+          Promise.all(keys.map(key =>
+            db.ref("nlo/" + key).once("value").then(snap => {
+              if (cancelled) return;
+              const val = snap.val();
+              if (val) {
+                const arr = fbToArray(val);
+                setters[key](arr);
+                lastWriteJSON.current[key] = JSON.stringify(arr);
+                prevState.current[key] = arr;
+              }
+            })
+          )),
+          fetchTimeout
+        ]).then(() => {
           if (cancelled) return;
           firebaseReady.current = true;
           setSyncStatus("synced");
-          // Phase 2: Subscribe to ongoing changes AFTER initial load
           subscribeToChanges();
         }).catch(err => {
           console.error("Firebase initial load error:", err);
           if (cancelled) return;
-          // Fall back to localStorage data (already loaded) and still enable sync
-          firebaseReady.current = true;
-          setSyncStatus("synced");
-          subscribeToChanges();
+          // Timed out or failed — fall back to localStorage data (already loaded)
+          setSyncStatus("error");
         });
+      } catch(err) {
+        console.error("Firebase init error:", err);
+        setSyncStatus("error");
       }
-    } catch(err) {
-      console.error("Firebase init error:", err);
-      setSyncStatus("error");
     }
-    } // end initFirebaseConnection
     initFirebaseConnection();
 
     return () => {
