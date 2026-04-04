@@ -2603,8 +2603,7 @@ const SettingsIc = p => /*#__PURE__*/React.createElement(Ic, p, /*#__PURE__*/Rea
 const TruckIc = p => /*#__PURE__*/React.createElement(Ic, p, /*#__PURE__*/React.createElement("path", { d: "M1 3h15v13H1z" }), /*#__PURE__*/React.createElement("path", { d: "M16 8h4l3 3v5h-7V8z" }), /*#__PURE__*/React.createElement("circle", { cx: "5.5", cy: "18.5", r: "2.5" }), /*#__PURE__*/React.createElement("circle", { cx: "18.5", cy: "18.5", r: "2.5" }));
 
 const HomeIc = p => /*#__PURE__*/React.createElement(Ic, p, /*#__PURE__*/React.createElement("path", { d: "M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" }), /*#__PURE__*/React.createElement("polyline", { points: "9 22 9 12 15 12 15 22" }));
-
-const ChevIc = p => React.createElement(Ic, p, React.createElement("polyline", { points: "9 18 15 12 9 6" }));
+const GridIc = p => /*#__PURE__*/React.createElement(Ic, p, /*#__PURE__*/React.createElement("rect", { x: "3", y: "3", width: "7", height: "7" }), /*#__PURE__*/React.createElement("rect", { x: "14", y: "3", width: "7", height: "7" }), /*#__PURE__*/React.createElement("rect", { x: "3", y: "14", width: "7", height: "7" }), /*#__PURE__*/React.createElement("rect", { x: "14", y: "14", width: "7", height: "7" }));
 
 // ─── StockBadge ───────────────────────────────────────────────────────────────
 function StockBadge({
@@ -5736,7 +5735,232 @@ function QRModal({
   }), " Print Label")))));
 }
 
+// ─── BracketOrderingView ─────────────────────────────────────────────────────────
+function BracketOrderingView({ onAddToCart }) {
+  const SYSTEMS = [
+    "EMPOWER 2 METAL - .018 - MBT COMPATIBLE",
+    "ICONIX - .018 - MBT COMPATIBLE",
+    "MINI MASTER - .018 - MBT COMPATIBLE"
+  ];
+  const TEETH = [1,2,3,4,5,6,7,8];
+  const QUADRANTS = [
+    { key: "UR", label: "Upper Right" },
+    { key: "UL", label: "Upper Left" },
+    { key: "LL", label: "Lower Left" },
+    { key: "LR", label: "Lower Right" }
+  ];
 
+  const [step, setStep] = useState(1);
+  const [selectedSystem, setSelectedSystem] = useState("");
+  const [quantities, setQuantities] = useState({});
+  const [touchTimer, setTouchTimer] = useState(null);
+
+  function toothKey(q, t) { return q + "-" + t; }
+
+  function addQty(q, t) {
+    var k = toothKey(q, t);
+    setQuantities(function(prev) { var n = Object.assign({}, prev); n[k] = (n[k] || 0) + 1; return n; });
+  }
+  function removeQty(q, t) {
+    var k = toothKey(q, t);
+    setQuantities(function(prev) {
+      var n = Object.assign({}, prev);
+      if ((n[k] || 0) > 0) n[k] = n[k] - 1;
+      if (n[k] === 0) delete n[k];
+      return n;
+    });
+  }
+  function selectAll() {
+    var n = {};
+    QUADRANTS.forEach(function(q) { TEETH.forEach(function(t) { n[toothKey(q.key, t)] = 1; }); });
+    setQuantities(n);
+  }
+  function clearAll() { setQuantities({}); }
+
+  function handleAddToCart() {
+    var sysShort = selectedSystem.split(" - ")[0];
+    Object.keys(quantities).forEach(function(k) {
+      var qty = quantities[k];
+      if (qty > 0) {
+        for (var i = 0; i < qty; i++) {
+          onAddToCart({
+            id: "brk-" + sysShort.toLowerCase().replace(/\s+/g, "-") + "-" + k,
+            name: sysShort + " Bracket - " + k,
+            unit: "ea"
+          });
+        }
+      }
+    });
+    setQuantities({});
+    setStep(1);
+    setSelectedSystem("");
+  }
+
+  var totalBrackets = Object.values(quantities).reduce(function(s, v) { return s + v; }, 0);
+
+  if (step === 1) {
+    return /*#__PURE__*/React.createElement("div", { className: "flex-1 overflow-y-auto p-4 md:p-6" },
+      /*#__PURE__*/React.createElement("h2", { className: "text-xl font-bold text-gray-900 mb-1" }, "Bracket Ordering"),
+      /*#__PURE__*/React.createElement("p", { className: "text-sm text-gray-500 mb-6" }, "Select a bracket system to begin"),
+      /*#__PURE__*/React.createElement("div", { className: "grid gap-3 max-w-lg" },
+        SYSTEMS.map(function(sys) {
+          return /*#__PURE__*/React.createElement("button", {
+            key: sys,
+            onClick: function() { setSelectedSystem(sys); setStep(2); },
+            className: "w-full text-left px-5 py-4 rounded-xl border-2 transition-all " +
+              "border-gray-200 hover:border-slate-800 hover:shadow-md bg-white"
+          },
+            /*#__PURE__*/React.createElement("span", { className: "font-semibold text-gray-900 text-sm" }, sys)
+          );
+        })
+      )
+    );
+  }
+
+  // Step 2: Charting
+  return /*#__PURE__*/React.createElement("div", { className: "flex-1 overflow-y-auto" },
+    /*#__PURE__*/React.createElement("div", { className: "p-4 md:p-6 pb-28" },
+      /*#__PURE__*/React.createElement("div", { className: "flex items-center gap-3 mb-1" },
+        /*#__PURE__*/React.createElement("button", {
+          onClick: function() { setStep(1); setQuantities({}); },
+          className: "text-gray-400 hover:text-gray-700 p-1"
+        }, /*#__PURE__*/React.createElement(XIc, { size: 20 })),
+        /*#__PURE__*/React.createElement("h2", { className: "text-xl font-bold text-gray-900" }, "Bracket Charting")
+      ),
+      /*#__PURE__*/React.createElement("p", { className: "text-sm text-gray-500 mb-2 ml-9" }, selectedSystem),
+      /*#__PURE__*/React.createElement("div", { className: "flex items-center gap-2 mb-5 ml-9" },
+        /*#__PURE__*/React.createElement("button", {
+          onClick: selectAll,
+          className: "text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors"
+        }, "Select All"),
+        /*#__PURE__*/React.createElement("button", {
+          onClick: clearAll,
+          className: "text-xs font-semibold px-3 py-1.5 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
+        }, "Clear All")
+      ),
+      /*#__PURE__*/React.createElement("div", { className: "max-w-md mx-auto select-none" },
+        // Upper row: UR (reversed) | UL
+        /*#__PURE__*/React.createElement("div", { className: "grid grid-cols-2 gap-0 border-b-2 border-slate-800" },
+          // UR quadrant - teeth 8 to 1 (right to center)
+          /*#__PURE__*/React.createElement("div", { className: "border-r-2 border-slate-800 pr-1 pb-2" },
+            /*#__PURE__*/React.createElement("p", { className: "text-xs font-bold text-gray-400 uppercase mb-1.5 text-center" }, "UR"),
+            /*#__PURE__*/React.createElement("div", { className: "grid grid-cols-8 gap-1" },
+              TEETH.slice().reverse().map(function(t) {
+                var k = toothKey("UR", t);
+                var qty = quantities[k] || 0;
+                return /*#__PURE__*/React.createElement("button", {
+                  key: t,
+                  onClick: function() { addQty("UR", t); },
+                  onContextMenu: function(e) { e.preventDefault(); removeQty("UR", t); },
+                  onTouchStart: function() {
+                    var timer = setTimeout(function() { removeQty("UR", t); }, 500);
+                    setTouchTimer(timer);
+                  },
+                  onTouchEnd: function() { if (touchTimer) clearTimeout(touchTimer); },
+                  className: "relative flex flex-col items-center justify-center rounded-lg py-2 text-xs font-bold transition-all " +
+                    (qty > 0 ? "bg-emerald-100 text-emerald-800 ring-2 ring-emerald-400" : "bg-gray-100 text-gray-500 hover:bg-gray-200")
+                },
+                  /*#__PURE__*/React.createElement("span", null, t),
+                  qty > 0 && /*#__PURE__*/React.createElement("span", { className: "text-[10px] font-black text-emerald-600 mt-0.5" }, qty)
+                );
+              })
+            )
+          ),
+          // UL quadrant - teeth 1 to 8 (center to left)
+          /*#__PURE__*/React.createElement("div", { className: "pl-1 pb-2" },
+            /*#__PURE__*/React.createElement("p", { className: "text-xs font-bold text-gray-400 uppercase mb-1.5 text-center" }, "UL"),
+            /*#__PURE__*/React.createElement("div", { className: "grid grid-cols-8 gap-1" },
+              TEETH.map(function(t) {
+                var k = toothKey("UL", t);
+                var qty = quantities[k] || 0;
+                return /*#__PURE__*/React.createElement("button", {
+                  key: t,
+                  onClick: function() { addQty("UL", t); },
+                  onContextMenu: function(e) { e.preventDefault(); removeQty("UL", t); },
+                  onTouchStart: function() {
+                    var timer = setTimeout(function() { removeQty("UL", t); }, 500);
+                    setTouchTimer(timer);
+                  },
+                  onTouchEnd: function() { if (touchTimer) clearTimeout(touchTimer); },
+                  className: "relative flex flex-col items-center justify-center rounded-lg py-2 text-xs font-bold transition-all " +
+                    (qty > 0 ? "bg-emerald-100 text-emerald-800 ring-2 ring-emerald-400" : "bg-gray-100 text-gray-500 hover:bg-gray-200")
+                },
+                  /*#__PURE__*/React.createElement("span", null, t),
+                  qty > 0 && /*#__PURE__*/React.createElement("span", { className: "text-[10px] font-black text-emerald-600 mt-0.5" }, qty)
+                );
+              })
+            )
+          )
+        ),
+        // Lower row: LR (reversed) | LL
+        /*#__PURE__*/React.createElement("div", { className: "grid grid-cols-2 gap-0" },
+          // LR quadrant - teeth 8 to 1
+          /*#__PURE__*/React.createElement("div", { className: "border-r-2 border-slate-800 pr-1 pt-2" },
+            /*#__PURE__*/React.createElement("div", { className: "grid grid-cols-8 gap-1" },
+              TEETH.slice().reverse().map(function(t) {
+                var k = toothKey("LR", t);
+                var qty = quantities[k] || 0;
+                return /*#__PURE__*/React.createElement("button", {
+                  key: t,
+                  onClick: function() { addQty("LR", t); },
+                  onContextMenu: function(e) { e.preventDefault(); removeQty("LR", t); },
+                  onTouchStart: function() {
+                    var timer = setTimeout(function() { removeQty("LR", t); }, 500);
+                    setTouchTimer(timer);
+                  },
+                  onTouchEnd: function() { if (touchTimer) clearTimeout(touchTimer); },
+                  className: "relative flex flex-col items-center justify-center rounded-lg py-2 text-xs font-bold transition-all " +
+                    (qty > 0 ? "bg-emerald-100 text-emerald-800 ring-2 ring-emerald-400" : "bg-gray-100 text-gray-500 hover:bg-gray-200")
+                },
+                  /*#__PURE__*/React.createElement("span", null, t),
+                  qty > 0 && /*#__PURE__*/React.createElement("span", { className: "text-[10px] font-black text-emerald-600 mt-0.5" }, qty)
+                );
+              })
+            ),
+            /*#__PURE__*/React.createElement("p", { className: "text-xs font-bold text-gray-400 uppercase mt-1.5 text-center" }, "LR")
+          ),
+          // LL quadrant - teeth 1 to 8
+          /*#__PURE__*/React.createElement("div", { className: "pl-1 pt-2" },
+            /*#__PURE__*/React.createElement("div", { className: "grid grid-cols-8 gap-1" },
+              TEETH.map(function(t) {
+                var k = toothKey("LL", t);
+                var qty = quantities[k] || 0;
+                return /*#__PURE__*/React.createElement("button", {
+                  key: t,
+                  onClick: function() { addQty("LL", t); },
+                  onContextMenu: function(e) { e.preventDefault(); removeQty("LL", t); },
+                  onTouchStart: function() {
+                    var timer = setTimeout(function() { removeQty("LL", t); }, 500);
+                    setTouchTimer(timer);
+                  },
+                  onTouchEnd: function() { if (touchTimer) clearTimeout(touchTimer); },
+                  className: "relative flex flex-col items-center justify-center rounded-lg py-2 text-xs font-bold transition-all " +
+                    (qty > 0 ? "bg-emerald-100 text-emerald-800 ring-2 ring-emerald-400" : "bg-gray-100 text-gray-500 hover:bg-gray-200")
+                },
+                  /*#__PURE__*/React.createElement("span", null, t),
+                  qty > 0 && /*#__PURE__*/React.createElement("span", { className: "text-[10px] font-black text-emerald-600 mt-0.5" }, qty)
+                );
+              })
+            ),
+            /*#__PURE__*/React.createElement("p", { className: "text-xs font-bold text-gray-400 uppercase mt-1.5 text-center" }, "LL")
+          )
+        ),
+        /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-400 text-center mt-4" }, "Left-click = +1 · Right-click / long-press = −1")
+      )
+    ),
+    // Sticky footer
+    totalBrackets > 0 && /*#__PURE__*/React.createElement("div", {
+      className: "fixed bottom-0 left-0 md:left-56 right-0 bg-white border-t border-gray-200 p-4 flex items-center justify-between z-20",
+      style: { paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }
+    },
+      /*#__PURE__*/React.createElement("span", { className: "text-sm font-semibold text-gray-700" }, totalBrackets + " bracket" + (totalBrackets !== 1 ? "s" : "") + " selected"),
+      /*#__PURE__*/React.createElement("button", {
+        onClick: handleAddToCart,
+        className: "bg-slate-800 hover:bg-slate-900 text-white font-bold text-sm px-6 py-2.5 rounded-xl transition-colors"
+      }, "Add to Cart")
+    )
+  );
+}
 
 // ─── Sidebar (desktop) ────────────────────────────────────────────────────────
 function Sidebar({
@@ -5772,6 +5996,10 @@ function Sidebar({
     id: "inventory",
     label: "Inventory",
     Icon: Package
+  }, {
+    id: "brackets",
+    label: "Brackets",
+    Icon: GridIc
   }, {
     id: "scanner",
     label: "Scanner",
@@ -5849,9 +6077,9 @@ function BottomNav({
     label: "Inventory",
     Icon: Package
   }, {
-    id: "reports",
-    label: "Reports",
-    Icon: BarChIc
+    id: "brackets",
+    label: "Brackets",
+    Icon: GridIc
   }, {
     id: "vendors",
     label: "Vendors",
@@ -6254,6 +6482,17 @@ function App() {
       return { ...o, status: "voided", dateVoided: new Date().toISOString() };
     }));
   }, []);
+  function addToCart(item) {
+    var newOrder = {
+      id: "ord-" + uid(),
+      vendor: "Bracket Order",
+      status: "pending",
+      dateOrdered: new Date().toISOString().slice(0, 10),
+      items: [{ name: item.name, qty: 1, unit: item.unit, price: 0 }],
+      note: "Auto-generated from Bracket Ordering"
+    };
+    setOrders(function(prev) { return [newOrder].concat(prev); });
+  }
   function handleViewChange(v) {
     setView(v);
     if (v === "inventory") setCat("all");
@@ -6347,7 +6586,7 @@ function App() {
     onScanInvoice: () => setInvoiceScanOpen(true),
     onAddItem: () => setAddItemOpen(true),
     isAdmin: isAdmin
-  }), view === "scanner" && /*#__PURE__*/React.createElement(ScannerView, {
+  }), view === "brackets" && /*#__PURE__*/React.createElement(BracketOrderingView, { onAddToCart: addToCart }), view === "scanner" && /*#__PURE__*/React.createElement(ScannerView, {
     items: items,
     onAdjust: adjust
   }), view === "reports" && /*#__PURE__*/React.createElement(ReportsView, {
