@@ -2601,6 +2601,7 @@ const SettingsIc = p => /*#__PURE__*/React.createElement(Ic, p, /*#__PURE__*/Rea
 }));
 
 const TruckIc = p => /*#__PURE__*/React.createElement(Ic, p, /*#__PURE__*/React.createElement("path", { d: "M1 3h15v13H1z" }), /*#__PURE__*/React.createElement("path", { d: "M16 8h4l3 3v5h-7V8z" }), /*#__PURE__*/React.createElement("circle", { cx: "5.5", cy: "18.5", r: "2.5" }), /*#__PURE__*/React.createElement("circle", { cx: "18.5", cy: "18.5", r: "2.5" }));
+const CartIc = p => /*#__PURE__*/React.createElement(Ic, p, /*#__PURE__*/React.createElement("circle", { cx: "9", cy: "21", r: "1" }), /*#__PURE__*/React.createElement("circle", { cx: "20", cy: "21", r: "1" }), /*#__PURE__*/React.createElement("path", { d: "M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" }));
 
 const HomeIc = p => /*#__PURE__*/React.createElement(Ic, p, /*#__PURE__*/React.createElement("path", { d: "M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" }), /*#__PURE__*/React.createElement("polyline", { points: "9 22 9 12 15 12 15 22" }));
 const GridIc = p => /*#__PURE__*/React.createElement(Ic, p, /*#__PURE__*/React.createElement("rect", { x: "3", y: "3", width: "7", height: "7" }), /*#__PURE__*/React.createElement("rect", { x: "14", y: "3", width: "7", height: "7" }), /*#__PURE__*/React.createElement("rect", { x: "3", y: "14", width: "7", height: "7" }), /*#__PURE__*/React.createElement("rect", { x: "14", y: "14", width: "7", height: "7" }));
@@ -3785,6 +3786,7 @@ function InventoryView({
   onEditSources,
   onScanInvoice,
   onAddItem,
+  onOrderItem,
   isAdmin
 }) {
   const visible = useMemo(() => {
@@ -3894,14 +3896,16 @@ function InventoryView({
     item: entry.item,
     onAdjust: () => onAdjust(entry.item),
     onShowQR: () => onShowQR(entry.item),
-    onEditSources: () => onEditSources(entry.item)
+    onEditSources: () => onEditSources(entry.item),
+    onOrder: onOrderItem ? () => onOrderItem(entry.item) : null
   })))));
 }
 function ItemRow({
   item,
   onAdjust,
   onShowQR,
-  onEditSources
+  onEditSources,
+  onOrder
 }) {
   const s = stockStatus(item.qty, item.min);
   const rowBg = s === "out" ? "bg-red-50/40" : s === "low" ? "bg-amber-50/40" : "bg-white";
@@ -3991,16 +3995,13 @@ function ItemRow({
     title: "Edit sources"
   }, /*#__PURE__*/React.createElement(EditIc, {
     size: 16
-  })), allSources(item).filter(s => s.src).map((s, si) => /*#__PURE__*/React.createElement("a", {
-    key: si,
-    href: vendorSearchUrl(s, item),
-    target: "_blank",
-    rel: "noopener",
-    title: "Search " + (s.vendor || "vendor") + " for " + (s.sku || item.name),
-    className: "p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-  }, /*#__PURE__*/React.createElement(ExtLink, {
-    size: 16
-  }))), /*#__PURE__*/React.createElement("button", {
+  })), onOrder && /*#__PURE__*/React.createElement("button", {
+    onClick: onOrder,
+    className: "flex items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-2.5 py-1.5 rounded-lg transition-colors",
+    title: "Order this item"
+  }, /*#__PURE__*/React.createElement(TruckIc, {
+    size: 13
+  }), /*#__PURE__*/React.createElement("span", null, "Order")), /*#__PURE__*/React.createElement("button", {
     onClick: onAdjust,
     className: "flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold px-2.5 py-1.5 rounded-lg transition-colors"
   }, /*#__PURE__*/React.createElement(PlusIc, {
@@ -4011,7 +4012,9 @@ function ItemRow({
 // ─── ScannerView ──────────────────────────────────────────────────────────────
 function ScannerView({
   items,
-  onAdjust
+  onAdjust,
+  onOrderNow,
+  onAddToCart
 }) {
   const [mode, setMode] = useState("find"); // find | use | receive
   const [active, setActive] = useState(false);
@@ -4327,9 +4330,19 @@ function ScannerView({
   }, result.qty), " ", result.unit), /*#__PURE__*/React.createElement("span", null, "Min: ", /*#__PURE__*/React.createElement("b", {
     className: "text-gray-900"
   }, result.min)), result.price != null && /*#__PURE__*/React.createElement("span", null, fmt(result.price), "/", result.unit)),
-  mode === "find" && /*#__PURE__*/React.createElement("div", { className: "flex gap-2" },
-    /*#__PURE__*/React.createElement("button", { onClick: function() { setMode("use"); }, className: "flex-1 py-2.5 rounded-xl font-semibold text-white text-sm bg-amber-600 hover:bg-amber-700 transition-colors flex items-center justify-center gap-1.5" }, "\u2212", " Use Stock"),
-    /*#__PURE__*/React.createElement("button", { onClick: function() { setMode("receive"); }, className: "flex-1 py-2.5 rounded-xl font-semibold text-white text-sm bg-emerald-600 hover:bg-emerald-700 transition-colors flex items-center justify-center gap-1.5" }, "+", " Add Stock")),
+  mode === "find" && /*#__PURE__*/React.createElement("div", { className: "space-y-2" },
+    /*#__PURE__*/React.createElement("div", { className: "flex gap-2" },
+      /*#__PURE__*/React.createElement("button", { onClick: function() { setMode("use"); }, className: "flex-1 py-2.5 rounded-xl font-semibold text-white text-sm bg-amber-600 hover:bg-amber-700 transition-colors flex items-center justify-center gap-1.5" }, "\u2212", " Use Stock"),
+      /*#__PURE__*/React.createElement("button", { onClick: function() { setMode("receive"); }, className: "flex-1 py-2.5 rounded-xl font-semibold text-white text-sm bg-emerald-600 hover:bg-emerald-700 transition-colors flex items-center justify-center gap-1.5" }, "+", " Add Stock")),
+    /*#__PURE__*/React.createElement("div", { className: "flex gap-2" },
+      /*#__PURE__*/React.createElement("button", {
+        onClick: function() { if (result && onOrderNow) onOrderNow(result); },
+        className: "flex-1 py-2.5 rounded-xl font-semibold text-white text-sm bg-blue-600 hover:bg-blue-700 transition-colors flex items-center justify-center gap-1.5"
+      }, /*#__PURE__*/React.createElement(TruckIc, { size: 14 }), "Order Now"),
+      /*#__PURE__*/React.createElement("button", {
+        onClick: function() { if (result && onAddToCart) onAddToCart(result); setConfirmed(true); setTimeout(function() { setResult(null); setQuery(""); setConfirmed(false); }, 1500); },
+        className: "flex-1 py-2.5 rounded-xl font-semibold text-white text-sm bg-indigo-600 hover:bg-indigo-700 transition-colors flex items-center justify-center gap-1.5"
+      }, /*#__PURE__*/React.createElement(PlusIc, { size: 14 }), "Add to Cart"))),
   mode !== "find" && /*#__PURE__*/React.createElement("div", {
     className: "flex gap-3 items-center"
   }, /*#__PURE__*/React.createElement("div", {
@@ -4359,505 +4372,450 @@ function ReportsView({
   items,
   log
 }) {
-  const out = items.filter(i => i.qty === 0);
-  const low = items.filter(i => i.qty > 0 && i.qty < i.min);
-  const reorder = items.filter(i => i.qty < i.min);
+  const [timeRange, setTimeRange] = useState("90d");
+  const [activeTab, setActiveTab] = useState("overview");
 
-  // group reorder items by vendor
-  const byVendor = useMemo(() => {
-    const m = {};
-    reorder.forEach(i => {
-      const v = primarySource(i).vendor || "Unknown";
+  var cutoffDate = useMemo(function() {
+    var now = new Date();
+    if (timeRange === "7d") return new Date(now.getTime() - 7*24*60*60*1000);
+    if (timeRange === "30d") return new Date(now.getTime() - 30*24*60*60*1000);
+    if (timeRange === "90d") return new Date(now.getTime() - 90*24*60*60*1000);
+    if (timeRange === "6m") return new Date(now.getFullYear(), now.getMonth() - 6, now.getDate());
+    if (timeRange === "1y") return new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+    return new Date(0);
+  }, [timeRange]);
+
+  var filteredLog = useMemo(function() {
+    return log.filter(function(l) { return new Date(l.date) >= cutoffDate; });
+  }, [log, cutoffDate]);
+
+  var out = items.filter(function(i) { return i.qty === 0; });
+  var low = items.filter(function(i) { return i.qty > 0 && i.qty < i.min; });
+  var reorder = items.filter(function(i) { return i.qty < i.min; });
+  var totalValue = useMemo(function() { return items.reduce(function(s, i) { return s + i.qty * (primarySource(i).price || 0); }, 0); }, [items]);
+
+  var spendingByCat = useMemo(function() {
+    var m = {};
+    filteredLog.filter(function(l) { return l.type === "receive" && l.delta > 0; }).forEach(function(l) {
+      var item = items.find(function(i) { return i.id === l.itemId; });
+      if (!item) return;
+      var ps = primarySource(item);
+      if (ps.price == null) return;
+      m[item.cat || "other"] = (m[item.cat || "other"] || 0) + ps.price * l.delta;
+    });
+    return Object.entries(m).sort(function(a, b) { return b[1] - a[1]; });
+  }, [filteredLog, items]);
+
+  var totalSpend = spendingByCat.reduce(function(s, e) { return s + e[1]; }, 0);
+
+  var spendingByVendor = useMemo(function() {
+    var m = {};
+    filteredLog.filter(function(l) { return l.type === "receive" && l.delta > 0; }).forEach(function(l) {
+      var item = items.find(function(i) { return i.id === l.itemId; });
+      if (!item) return;
+      var ps = primarySource(item);
+      if (ps.price == null) return;
+      m[ps.vendor || "Unknown"] = (m[ps.vendor || "Unknown"] || 0) + ps.price * l.delta;
+    });
+    return Object.entries(m).sort(function(a, b) { return b[1] - a[1]; });
+  }, [filteredLog, items]);
+
+  var spendOverTime = useMemo(function() {
+    var now = new Date();
+    var buckets = [];
+    if (timeRange === "7d") {
+      for (var i = 6; i >= 0; i--) {
+        var d = new Date(now.getTime() - i*24*60*60*1000);
+        buckets.push({ label: d.toLocaleDateString("en-US", { weekday: "short" }), start: new Date(d.getFullYear(), d.getMonth(), d.getDate()), end: new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1), spend: 0, used: 0, received: 0 });
+      }
+    } else if (timeRange === "30d") {
+      for (var i = 3; i >= 0; i--) {
+        var s2 = new Date(now.getTime() - (i+1)*7*24*60*60*1000);
+        var e2 = new Date(now.getTime() - i*7*24*60*60*1000);
+        buckets.push({ label: "Wk " + (4-i), start: s2, end: e2, spend: 0, used: 0, received: 0 });
+      }
+    } else {
+      var bc = timeRange === "90d" ? 3 : timeRange === "6m" ? 6 : 12;
+      for (var i = bc - 1; i >= 0; i--) {
+        var d2 = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        var e3 = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
+        buckets.push({ label: d2.toLocaleDateString("en-US", { month: "short" }), start: d2, end: e3, spend: 0, used: 0, received: 0 });
+      }
+    }
+    filteredLog.forEach(function(l) {
+      var ld = new Date(l.date);
+      var bi = buckets.findIndex(function(b) { return ld >= b.start && ld < b.end; });
+      if (bi === -1) return;
+      if (l.type === "use" || (l.delta < 0 && l.type !== "count")) buckets[bi].used += Math.abs(l.delta);
+      if (l.type === "receive" && l.delta > 0) {
+        buckets[bi].received += l.delta;
+        var it = items.find(function(x) { return x.id === l.itemId; });
+        var ps = it ? primarySource(it) : {};
+        if (ps.price) buckets[bi].spend += ps.price * l.delta;
+      }
+    });
+    return buckets;
+  }, [filteredLog, items, timeRange]);
+
+  var mostUsed = useMemo(function() {
+    var m = {};
+    filteredLog.filter(function(l) { return l.type === "use" || (l.delta < 0 && l.type !== "count"); }).forEach(function(l) {
+      m[l.itemId] = (m[l.itemId] || 0) + Math.abs(l.delta);
+    });
+    return Object.entries(m).map(function(e) {
+      var item = items.find(function(i) { return i.id === e[0]; });
+      return { id: e[0], name: item ? item.name : e[0], count: e[1], cat: item ? item.cat : null, unit: item ? item.unit : "ea" };
+    }).sort(function(a, b) { return b.count - a.count; }).slice(0, 15);
+  }, [filteredLog, items]);
+
+  var mostReordered = useMemo(function() {
+    var m = {};
+    filteredLog.filter(function(l) { return l.type === "receive" && l.delta > 0; }).forEach(function(l) {
+      if (!m[l.itemId]) m[l.itemId] = { times: 0, total: 0 };
+      m[l.itemId].times += 1;
+      m[l.itemId].total += l.delta;
+    });
+    return Object.entries(m).map(function(e) {
+      var item = items.find(function(i) { return i.id === e[0]; });
+      return { id: e[0], name: item ? item.name : e[0], times: e[1].times, total: e[1].total };
+    }).sort(function(a, b) { return b.times - a.times; }).slice(0, 15);
+  }, [filteredLog, items]);
+
+  var byVendor = useMemo(function() {
+    var m = {};
+    reorder.forEach(function(i) {
+      var v = primarySource(i).vendor || "Unknown";
       if (!m[v]) m[v] = [];
       m[v].push(i);
     });
-    return Object.entries(m).sort((a, b) => b[1].length - a[1].length);
+    return Object.entries(m).sort(function(a, b) { return b[1].length - a[1].length; });
   }, [reorder]);
 
-  // spending from receive log
-  const spending = useMemo(() => {
-    const m = {};
-    log.filter(l => l.type === "receive" && l.delta > 0).forEach(l => {
-      const item = items.find(i => i.id === l.itemId);
-      const ps = primarySource(item);
-      if (!item || ps.price == null) return;
-      const v = ps.vendor || "Unknown";
-      m[v] = (m[v] || 0) + ps.price * l.delta;
-    });
-    return Object.entries(m).sort((a, b) => b[1] - a[1]);
-  }, [log, items]);
-  const totalValue = useMemo(() => items.reduce((s, i) => s + i.qty * (i.price || 0), 0), [items]);
-  const recentLog = log.slice(0, 30);
+  var catLabel = function(id) { var c = CATEGORIES.find(function(x) { return x.id === id; }); return c ? c.label : id; };
+  var catColor = function(id) { var c = CATEGORIES.find(function(x) { return x.id === id; }); return c ? c.color : "#6b7280"; };
 
-  // Spending by category
-  const spendingByCat = useMemo(() => {
-    const m = {};
-    log.filter(l => l.type === "receive" && l.delta > 0).forEach(l => {
-      const item = items.find(i => i.id === l.itemId);
-      if (!item) return;
-      const ps = primarySource(item);
-      if (ps.price == null) return;
-      const c = item.cat || "Other";
-      m[c] = (m[c] || 0) + ps.price * l.delta;
+  var donutRef = useRef(null);
+  useEffect(function() {
+    var canvas = donutRef.current;
+    if (!canvas || spendingByCat.length === 0) return;
+    var ctx = canvas.getContext("2d");
+    var dpr = window.devicePixelRatio || 1;
+    var size = 180;
+    canvas.width = size * dpr; canvas.height = size * dpr;
+    canvas.style.width = size + "px"; canvas.style.height = size + "px";
+    ctx.scale(dpr, dpr); ctx.clearRect(0, 0, size, size);
+    var cx = size / 2, cy = size / 2, r = 70, inner = 45;
+    var total = spendingByCat.reduce(function(s, e) { return s + e[1]; }, 0);
+    if (total === 0) return;
+    var startAngle = -Math.PI / 2;
+    spendingByCat.forEach(function(e) {
+      var slice = (e[1] / total) * Math.PI * 2;
+      ctx.beginPath(); ctx.arc(cx, cy, r, startAngle, startAngle + slice); ctx.arc(cx, cy, inner, startAngle + slice, startAngle, true); ctx.closePath();
+      ctx.fillStyle = catColor(e[0]); ctx.fill(); startAngle += slice;
     });
-    return Object.entries(m).sort((a, b) => b[1] - a[1]);
-  }, [log, items]);
+    ctx.fillStyle = "#111827"; ctx.font = "bold 16px system-ui"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText(fmt(total), cx, cy - 6);
+    ctx.fillStyle = "#9ca3af"; ctx.font = "11px system-ui"; ctx.fillText("total", cx, cy + 10);
+  }, [spendingByCat]);
 
-  // Most used items (negative deltas / "use" type)
-  const mostUsed = useMemo(() => {
-    const m = {};
-    log.filter(l => l.type === "use" || (l.delta < 0 && l.type !== "count")).forEach(l => {
-      const key = l.itemId;
-      m[key] = (m[key] || 0) + Math.abs(l.delta);
+  var barRef = useRef(null);
+  useEffect(function() {
+    var canvas = barRef.current;
+    if (!canvas || spendOverTime.length === 0) return;
+    var ctx = canvas.getContext("2d");
+    var dpr = window.devicePixelRatio || 1;
+    var w = canvas.parentElement ? canvas.parentElement.clientWidth : 400;
+    var h = 160;
+    canvas.width = w * dpr; canvas.height = h * dpr;
+    canvas.style.width = w + "px"; canvas.style.height = h + "px";
+    ctx.scale(dpr, dpr); ctx.clearRect(0, 0, w, h);
+    var maxSpend = Math.max.apply(null, spendOverTime.map(function(b) { return b.spend; })) || 1;
+    var barW = Math.min(28, (w - 40) / spendOverTime.length - 8);
+    var pad = 30; var chartH = h - pad - 10;
+    spendOverTime.forEach(function(b, i) {
+      var x = pad + i * ((w - pad - 10) / spendOverTime.length) + barW * 0.3;
+      var bh = chartH * (b.spend / maxSpend);
+      ctx.fillStyle = "#6366f1"; ctx.beginPath();
+      if (ctx.roundRect) { ctx.roundRect(x, h - pad - bh, barW, bh, 3); ctx.fill(); }
+      else { ctx.fillRect(x, h - pad - bh, barW, bh); }
+      ctx.fillStyle = "#9ca3af"; ctx.font = "10px system-ui"; ctx.textAlign = "center";
+      ctx.fillText(b.label, x + barW / 2, h - 8);
     });
-    return Object.entries(m).map(([id, count]) => {
-      const item = items.find(i => i.id === id);
-      return { id, name: item?.name || id, count, cat: item?.cat };
-    }).sort((a, b) => b.count - a.count).slice(0, 10);
-  }, [log, items]);
+    ctx.fillStyle = "#d1d5db"; ctx.font = "9px system-ui"; ctx.textAlign = "right";
+    ctx.fillText(fmt(maxSpend), pad - 4, 16); ctx.fillText("$0", pad - 4, h - pad + 2);
+  }, [spendOverTime]);
 
-  // Most reordered items (receive type, positive deltas)
-  const mostReordered = useMemo(() => {
-    const m = {};
-    log.filter(l => l.type === "receive" && l.delta > 0).forEach(l => {
-      const key = l.itemId;
-      if (!m[key]) m[key] = { times: 0, total: 0 };
-      m[key].times += 1;
-      m[key].total += l.delta;
-    });
-    return Object.entries(m).map(([id, d]) => {
-      const item = items.find(i => i.id === id);
-      return { id, name: item?.name || id, times: d.times, total: d.total, cat: item?.cat };
-    }).sort((a, b) => b.times - a.times).slice(0, 10);
-  }, [log, items]);
-
-  // Items consistently running low (how many times they've been at or below min)
-  const consistentlyLow = useMemo(() => {
-    const lowCounts = {};
-    log.forEach(l => {
-      const item = items.find(i => i.id === l.itemId);
-      if (item && item.qty <= item.min) {
-        lowCounts[item.id] = (lowCounts[item.id] || 0) + 1;
-      }
-    });
-    // Also include currently low items even if no log
-    items.filter(i => i.qty < i.min).forEach(i => {
-      if (!lowCounts[i.id]) lowCounts[i.id] = 1;
-    });
-    return Object.entries(lowCounts).map(([id, cnt]) => {
-      const item = items.find(i => i.id === id);
-      return { id, name: item?.name || id, lowCount: cnt, qty: item?.qty || 0, min: item?.min || 0 };
-    }).sort((a, b) => b.lowCount - a.lowCount).slice(0, 10);
-  }, [log, items]);
-
-  // Usage trends by month (last 6 months)
-  const usageTrends = useMemo(() => {
-    const now = new Date();
-    const months = [];
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      months.push({ year: d.getFullYear(), month: d.getMonth(), label: d.toLocaleDateString("en-US", { month: "short", year: "2-digit" }), used: 0, received: 0, spend: 0 });
-    }
-    log.forEach(l => {
-      const d = new Date(l.date);
-      const mi = months.findIndex(m => m.year === d.getFullYear() && m.month === d.getMonth());
-      if (mi === -1) return;
-      if (l.type === "use" || (l.delta < 0 && l.type !== "count")) {
-        months[mi].used += Math.abs(l.delta);
-      }
-      if (l.type === "receive" && l.delta > 0) {
-        months[mi].received += l.delta;
-        const item = items.find(i => i.id === l.itemId);
-        const ps = item ? primarySource(item) : {};
-        if (ps.price) months[mi].spend += ps.price * l.delta;
-      }
-    });
-    return months;
-  }, [log, items]);
-
-  // Estimated monthly spend (average of non-zero months)
-  const estMonthlySpend = useMemo(() => {
-    const nonZero = usageTrends.filter(m => m.spend > 0);
-    if (nonZero.length === 0) return 0;
-    return nonZero.reduce((s, m) => s + m.spend, 0) / nonZero.length;
-  }, [usageTrends]);
-
-  // Category label lookup
-  const catLabel = (id) => { const c = CATEGORIES.find(c => c.id === id); return c ? c.label : id; };
-  const catColor = (id) => { const c = CATEGORIES.find(c => c.id === id); return c ? c.color : "#6b7280"; };
   function printReorder() {
-    const win = window.open("", "_blank");
+    var win = window.open("", "_blank");
     if (!win) return;
-    let html = `<html><head><title>Reorder List – NLO</title><style>body{font-family:sans-serif;padding:20px}h1{font-size:18px}h2{font-size:14px;margin-top:20px;border-bottom:1px solid #ccc;padding-bottom:4px}table{width:100%;border-collapse:collapse;font-size:12px;margin-top:8px}th{text-align:left;background:#f5f5f5;padding:6px 8px}td{padding:5px 8px;border-bottom:1px solid #eee}@media print{button{display:none}}</style></head><body>`;
-    html += `<h1>Reorder List — Next Level Orthodontics</h1><p style="color:#666;font-size:12px">Generated ${new Date().toLocaleDateString()}</p>`;
-    byVendor.forEach(([vendor, its]) => {
-      html += `<h2>${vendor}</h2><table><tr><th>Item</th><th>SKU</th><th>Have</th><th>Need</th><th>Unit</th><th>Price</th></tr>`;
-      its.forEach(i => {
-        const ps=primarySource(i); html += `<tr><td>${i.name}</td><td style="font-family:monospace">${ps.sku}</td><td style="color:${i.qty === 0 ? "#c00" : "#996600"}">${i.qty}</td><td>${i.min}</td><td>${i.unit}</td><td>${fmt(ps.price)}</td></tr>`;
-      });
-      html += `</table>`;
+    var html = "<html><head><title>Reorder List - NLO</title><style>body{font-family:sans-serif;padding:20px}h1{font-size:18px}h2{font-size:14px;margin-top:20px;border-bottom:1px solid #ccc;padding-bottom:4px}table{width:100%;border-collapse:collapse;font-size:12px;margin-top:8px}th{text-align:left;background:#f5f5f5;padding:6px 8px}td{padding:5px 8px;border-bottom:1px solid #eee}@media print{button{display:none}}</style></head><body>";
+    html += "<h1>Reorder List - Next Level Orthodontics</h1><p style=\"color:#666;font-size:12px\">Generated " + new Date().toLocaleDateString() + "</p>";
+    byVendor.forEach(function(entry) { var vendor = entry[0]; var its = entry[1];
+      html += "<h2>" + vendor + "</h2><table><tr><th>Item</th><th>SKU</th><th>Have</th><th>Need</th><th>Unit</th><th>Price</th></tr>";
+      its.forEach(function(i) { var ps = primarySource(i); html += "<tr><td>" + i.name + "</td><td>" + ps.sku + "</td><td>" + i.qty + "</td><td>" + i.min + "</td><td>" + i.unit + "</td><td>" + fmt(ps.price) + "</td></tr>"; });
+      html += "</table>";
     });
-    html += `</body></html>`;
-    win.document.write(html);
-    win.document.close();
-    win.print();
+    html += "</body></html>"; win.document.write(html); win.document.close(); win.print();
   }
+
+  var timeOptions = [
+    { id: "7d", label: "7 Days" },
+    { id: "30d", label: "30 Days" },
+    { id: "90d", label: "90 Days" },
+    { id: "6m", label: "6 Months" },
+    { id: "1y", label: "1 Year" },
+    { id: "all", label: "All Time" }
+  ];
+  var tabs = [
+    { id: "overview", label: "Overview" },
+    { id: "spending", label: "Spending" },
+    { id: "usage", label: "Usage" },
+    { id: "reorder", label: "Reorder (" + reorder.length + ")" }
+  ];
+
   return /*#__PURE__*/React.createElement("div", {
     className: "flex-1 overflow-y-auto"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "sticky top-0 z-10 bg-white border-b px-4 py-4 flex items-center justify-between"
-  }, /*#__PURE__*/React.createElement("h2", {
-    className: "font-bold text-gray-900 text-lg"
-  }, "Reports"), /*#__PURE__*/React.createElement("button", {
-    onClick: printReorder,
-    className: "flex items-center gap-1.5 bg-slate-800 text-white text-xs font-semibold px-3 py-2 rounded-xl hover:bg-slate-700"
-  }, /*#__PURE__*/React.createElement(PrintIc, {
-    size: 13
-  }), " Print Reorder List")), /*#__PURE__*/React.createElement("div", {
-    className: "p-4 space-y-5"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-2 gap-3 sm:grid-cols-4"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "bg-white rounded-2xl p-4 border border-gray-100 shadow-sm"
-  }, /*#__PURE__*/React.createElement("p", {
-    className: "text-xs text-gray-400 font-medium uppercase tracking-wide"
-  }, "Total Items"), /*#__PURE__*/React.createElement("p", {
-    className: "text-2xl font-bold text-gray-900 mt-1"
-  }, items.length)), /*#__PURE__*/React.createElement("div", {
-    className: "bg-red-50 rounded-2xl p-4 border border-red-100 shadow-sm"
-  }, /*#__PURE__*/React.createElement("p", {
-    className: "text-xs text-red-500 font-medium uppercase tracking-wide"
-  }, "Out of Stock"), /*#__PURE__*/React.createElement("p", {
-    className: "text-2xl font-bold text-red-700 mt-1"
-  }, out.length)), /*#__PURE__*/React.createElement("div", {
-    className: "bg-amber-50 rounded-2xl p-4 border border-amber-100 shadow-sm"
-  }, /*#__PURE__*/React.createElement("p", {
-    className: "text-xs text-amber-500 font-medium uppercase tracking-wide"
-  }, "Low Stock"), /*#__PURE__*/React.createElement("p", {
-    className: "text-2xl font-bold text-amber-700 mt-1"
-  }, low.length)), /*#__PURE__*/React.createElement("div", {
-    className: "bg-emerald-50 rounded-2xl p-4 border border-emerald-100 shadow-sm"
-  }, /*#__PURE__*/React.createElement("p", {
-    className: "text-xs text-emerald-600 font-medium uppercase tracking-wide"
-  }, "Stock Value"), /*#__PURE__*/React.createElement("p", {
-    className: "text-xl font-bold text-emerald-700 mt-1"
-  }, fmt(totalValue)))), /*#__PURE__*/React.createElement("div", {
-    className: "bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "px-4 py-3 border-b border-gray-100 flex items-center gap-2"
-  }, /*#__PURE__*/React.createElement(AlertIc, {
-    size: 16,
-    className: "text-red-500"
-  }), /*#__PURE__*/React.createElement("h3", {
-    className: "font-semibold text-gray-900 text-sm"
-  }, "Reorder List \u2014 ", reorder.length, " items below minimum")), reorder.length === 0 ? /*#__PURE__*/React.createElement("div", {
-    className: "py-8 text-center text-sm text-gray-400"
-  }, "All items are at or above minimum stock \uD83C\uDF89") : byVendor.map(([vendor, its]) => /*#__PURE__*/React.createElement("div", {
-    key: vendor
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "px-4 py-2 bg-gray-50 border-b border-gray-100"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "text-xs font-semibold text-gray-500 uppercase tracking-wide"
-  }, vendor, " \u2014 ", its.length, " item", its.length !== 1 ? "s" : "")), its.map(item => /*#__PURE__*/React.createElement("div", {
-    key: item.id,
-    className: "px-4 py-3 border-b border-gray-50 last:border-0 flex items-center gap-3"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "flex-1 min-w-0"
-  }, /*#__PURE__*/React.createElement("p", {
-    className: "text-sm font-medium text-gray-900 truncate"
-  }, item.name), /*#__PURE__*/React.createElement("p", {
-    className: "text-xs text-gray-400 font-mono"
-  }, primarySource(item).sku)), /*#__PURE__*/React.createElement("div", {
-    className: "text-right shrink-0"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center gap-1.5"
-  }, /*#__PURE__*/React.createElement(StockBadge, {
-    qty: item.qty,
-    min: item.min
-  }), /*#__PURE__*/React.createElement("span", {
-    className: "text-xs text-gray-500"
-  }, /*#__PURE__*/React.createElement("b", {
-    className: "text-gray-800"
-  }, item.qty), "/", item.min, " ", item.unit)), primarySource(item).price != null && /*#__PURE__*/React.createElement("p", {
-    className: "text-xs text-gray-400 mt-0.5"
-  }, fmt(primarySource(item).price), "/", item.unit)), allSources(item).filter(s => s.src).map((s, si) => /*#__PURE__*/React.createElement("a", {
-    key: si,
-    href: vendorSearchUrl(s, item),
-    target: "_blank",
-    rel: "noopener",
-    title: "Search " + (s.vendor || "vendor") + " for " + (s.sku || item.name),
-    className: "text-blue-500 hover:text-blue-700 ml-1"
-  }, /*#__PURE__*/React.createElement(ExtLink, {
-    size: 14
-  })))))))), spending.length > 0 && /*#__PURE__*/React.createElement("div", {
-    className: "bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "px-4 py-3 border-b border-gray-100 flex items-center gap-2"
-  }, /*#__PURE__*/React.createElement(DollarIc, {
-    size: 16,
-    className: "text-emerald-600"
-  }), /*#__PURE__*/React.createElement("h3", {
-    className: "font-semibold text-gray-900 text-sm"
-  }, "Spending by Vendor (from receive log)")), spending.map(([v, amt]) => {
-    const maxAmt = spending[0][1];
-    return /*#__PURE__*/React.createElement("div", {
-      key: v,
-      className: "px-4 py-3 border-b border-gray-50 last:border-0"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "flex items-center justify-between mb-1"
-    }, /*#__PURE__*/React.createElement("span", {
-      className: "text-sm font-medium text-gray-900"
-    }, v), /*#__PURE__*/React.createElement("span", {
-      className: "text-sm font-bold text-gray-900"
-    }, fmt(amt))), /*#__PURE__*/React.createElement("div", {
-      className: "w-full bg-gray-100 rounded-full h-1.5"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "bg-emerald-500 h-1.5 rounded-full transition-all",
-      style: {
-        width: `${(amt / maxAmt * 100).toFixed(1)}%`
-      }
-    })));
-  })),
+  },
+    // Header
+    /*#__PURE__*/React.createElement("div", {
+      className: "sticky top-0 z-10 bg-white border-b px-4 py-3"
+    },
+      /*#__PURE__*/React.createElement("div", { className: "flex items-center justify-between mb-3" },
+        /*#__PURE__*/React.createElement("h2", { className: "font-bold text-gray-900 text-lg" }, "Analytics"),
+        /*#__PURE__*/React.createElement("button", {
+          onClick: printReorder,
+          className: "flex items-center gap-1.5 bg-slate-800 text-white text-xs font-semibold px-3 py-2 rounded-xl hover:bg-slate-700"
+        }, /*#__PURE__*/React.createElement(PrintIc, { size: 13 }), " Print Reorder")),
+      // Time range selector
+      /*#__PURE__*/React.createElement("div", { className: "flex gap-1.5 mb-3 overflow-x-auto" },
+        timeOptions.map(function(opt) {
+          return /*#__PURE__*/React.createElement("button", {
+            key: opt.id,
+            onClick: function() { setTimeRange(opt.id); },
+            className: "px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors " + (timeRange === opt.id ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200")
+          }, opt.label);
+        })
+      ),
+      // Tab nav
+      /*#__PURE__*/React.createElement("div", { className: "flex gap-1" },
+        tabs.map(function(tab) {
+          return /*#__PURE__*/React.createElement("button", {
+            key: tab.id,
+            onClick: function() { setActiveTab(tab.id); },
+            className: "px-3 py-2 rounded-lg text-xs font-semibold transition-colors " + (activeTab === tab.id ? "bg-slate-800 text-white" : "text-gray-500 hover:bg-gray-100")
+          }, tab.label);
+        })
+      )
+    ),
 
-  // ── Estimated Monthly Spend ──
-  estMonthlySpend > 0 && /*#__PURE__*/React.createElement("div", {
-    className: "bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl border border-indigo-100 shadow-sm p-4"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center gap-2 mb-1"
-  }, /*#__PURE__*/React.createElement(DollarIc, {
-    size: 16,
-    className: "text-indigo-600"
-  }), /*#__PURE__*/React.createElement("h3", {
-    className: "font-semibold text-gray-900 text-sm"
-  }, "Estimated Monthly Spend")), /*#__PURE__*/React.createElement("p", {
-    className: "text-3xl font-bold text-indigo-700"
-  }, fmt(estMonthlySpend)), /*#__PURE__*/React.createElement("p", {
-    className: "text-xs text-indigo-400 mt-1"
-  }, "Based on average of months with recorded purchases")),
+    /*#__PURE__*/React.createElement("div", { className: "p-4 space-y-5" },
 
-  // ── Spending by Category ──
-  spendingByCat.length > 0 && /*#__PURE__*/React.createElement("div", {
-    className: "bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "px-4 py-3 border-b border-gray-100 flex items-center gap-2"
-  }, /*#__PURE__*/React.createElement(BarChIc, {
-    size: 16,
-    className: "text-purple-500"
-  }), /*#__PURE__*/React.createElement("h3", {
-    className: "font-semibold text-gray-900 text-sm"
-  }, "Spending by Category")), spendingByCat.map(([cat, amt]) => {
-    const maxCatAmt = spendingByCat[0][1];
-    return /*#__PURE__*/React.createElement("div", {
-      key: cat,
-      className: "px-4 py-3 border-b border-gray-50 last:border-0"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "flex items-center justify-between mb-1"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "flex items-center gap-2"
-    }, /*#__PURE__*/React.createElement("span", {
-      className: "w-2.5 h-2.5 rounded-full shrink-0",
-      style: { background: catColor(cat) }
-    }), /*#__PURE__*/React.createElement("span", {
-      className: "text-sm font-medium text-gray-900"
-    }, catLabel(cat))), /*#__PURE__*/React.createElement("span", {
-      className: "text-sm font-bold text-gray-900"
-    }, fmt(amt))), /*#__PURE__*/React.createElement("div", {
-      className: "w-full bg-gray-100 rounded-full h-1.5"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "h-1.5 rounded-full transition-all",
-      style: { width: `${(amt / maxCatAmt * 100).toFixed(1)}%`, background: catColor(cat) }
-    })));
-  })),
+      // ── KPI Cards (always shown) ──
+      /*#__PURE__*/React.createElement("div", {
+        className: "grid grid-cols-2 gap-3 sm:grid-cols-4"
+      },
+        /*#__PURE__*/React.createElement("div", { className: "bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl p-4 border border-indigo-100 shadow-sm" },
+          /*#__PURE__*/React.createElement("p", { className: "text-xs text-indigo-500 font-medium uppercase tracking-wide" }, "Period Spend"),
+          /*#__PURE__*/React.createElement("p", { className: "text-2xl font-bold text-indigo-700 mt-1" }, fmt(totalSpend))),
+        /*#__PURE__*/React.createElement("div", { className: "bg-emerald-50 rounded-2xl p-4 border border-emerald-100 shadow-sm" },
+          /*#__PURE__*/React.createElement("p", { className: "text-xs text-emerald-600 font-medium uppercase tracking-wide" }, "Stock Value"),
+          /*#__PURE__*/React.createElement("p", { className: "text-2xl font-bold text-emerald-700 mt-1" }, fmt(totalValue))),
+        /*#__PURE__*/React.createElement("div", { className: "bg-red-50 rounded-2xl p-4 border border-red-100 shadow-sm" },
+          /*#__PURE__*/React.createElement("p", { className: "text-xs text-red-500 font-medium uppercase tracking-wide" }, "Need Reorder"),
+          /*#__PURE__*/React.createElement("p", { className: "text-2xl font-bold text-red-700 mt-1" }, reorder.length)),
+        /*#__PURE__*/React.createElement("div", { className: "bg-amber-50 rounded-2xl p-4 border border-amber-100 shadow-sm" },
+          /*#__PURE__*/React.createElement("p", { className: "text-xs text-amber-500 font-medium uppercase tracking-wide" }, "Activity"),
+          /*#__PURE__*/React.createElement("p", { className: "text-2xl font-bold text-amber-700 mt-1" }, filteredLog.length))), // ── OVERVIEW TAB ──
+      activeTab === "overview" && /*#__PURE__*/React.createElement(React.Fragment, null,
+        // Spending Over Time Chart
+        /*#__PURE__*/React.createElement("div", { className: "bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden" },
+          /*#__PURE__*/React.createElement("div", { className: "px-4 py-3 border-b border-gray-100 flex items-center gap-2" },
+            /*#__PURE__*/React.createElement(BarChIc, { size: 16, className: "text-indigo-500" }),
+            /*#__PURE__*/React.createElement("h3", { className: "font-semibold text-gray-900 text-sm" }, "Spending Over Time")),
+          spendOverTime.some(function(b) { return b.spend > 0; })
+            ? /*#__PURE__*/React.createElement("div", { className: "p-4" },
+                /*#__PURE__*/React.createElement("canvas", { ref: barRef, className: "w-full", style: { height: "160px" } }),
+                /*#__PURE__*/React.createElement("div", { className: "flex items-center gap-4 mt-2 text-xs text-gray-400" },
+                  /*#__PURE__*/React.createElement("span", { className: "flex items-center gap-1" }, /*#__PURE__*/React.createElement("span", { className: "w-2.5 h-2.5 rounded-full bg-indigo-500" }), "Spend"),
+                  /*#__PURE__*/React.createElement("span", { className: "flex items-center gap-1" }, /*#__PURE__*/React.createElement("span", { className: "w-2.5 h-2.5 rounded-full bg-amber-300" }), "Used")))
+            : /*#__PURE__*/React.createElement("div", { className: "py-8 text-center text-sm text-gray-400" }, "No spending data for this period")),
 
-  // ── Usage Trends (Last 6 Months) ──
-  usageTrends.some(m => m.used > 0 || m.received > 0) && /*#__PURE__*/React.createElement("div", {
-    className: "bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "px-4 py-3 border-b border-gray-100 flex items-center gap-2"
-  }, /*#__PURE__*/React.createElement(BarChIc, {
-    size: 16,
-    className: "text-blue-500"
-  }), /*#__PURE__*/React.createElement("h3", {
-    className: "font-semibold text-gray-900 text-sm"
-  }, "Usage Trends (Last 6 Months)")), /*#__PURE__*/React.createElement("div", {
-    className: "px-4 py-4"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center gap-4 mb-3 text-xs text-gray-500"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "flex items-center gap-1.5"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "w-2.5 h-2.5 rounded-full bg-amber-400"
-  }), "Used"), /*#__PURE__*/React.createElement("span", {
-    className: "flex items-center gap-1.5"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "w-2.5 h-2.5 rounded-full bg-emerald-400"
-  }), "Received"), /*#__PURE__*/React.createElement("span", {
-    className: "flex items-center gap-1.5"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "w-2.5 h-2.5 rounded-full bg-indigo-400"
-  }), "Spend")), /*#__PURE__*/React.createElement("div", {
-    className: "space-y-2"
-  }, usageTrends.map((m, mi) => {
-    const maxVal = Math.max(...usageTrends.map(t => Math.max(t.used, t.received))) || 1;
-    return /*#__PURE__*/React.createElement("div", {
-      key: mi,
-      className: "flex items-center gap-3"
-    }, /*#__PURE__*/React.createElement("span", {
-      className: "text-xs text-gray-500 w-14 shrink-0 font-medium"
-    }, m.label), /*#__PURE__*/React.createElement("div", {
-      className: "flex-1 space-y-1"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "flex items-center gap-2"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "h-2 rounded-full bg-amber-300",
-      style: { width: `${(m.used / maxVal * 100).toFixed(1)}%`, minWidth: m.used > 0 ? "4px" : "0" }
-    }), m.used > 0 && /*#__PURE__*/React.createElement("span", {
-      className: "text-xs text-gray-400"
-    }, m.used)), /*#__PURE__*/React.createElement("div", {
-      className: "flex items-center gap-2"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "h-2 rounded-full bg-emerald-300",
-      style: { width: `${(m.received / maxVal * 100).toFixed(1)}%`, minWidth: m.received > 0 ? "4px" : "0" }
-    }), m.received > 0 && /*#__PURE__*/React.createElement("span", {
-      className: "text-xs text-gray-400"
-    }, m.received))), /*#__PURE__*/React.createElement("span", {
-      className: "text-xs font-medium text-indigo-500 shrink-0 w-16 text-right"
-    }, m.spend > 0 ? fmt(m.spend) : ""));
-  })))),
+        // Spending by Category (donut + legend)
+        spendingByCat.length > 0 && /*#__PURE__*/React.createElement("div", { className: "bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden" },
+          /*#__PURE__*/React.createElement("div", { className: "px-4 py-3 border-b border-gray-100 flex items-center gap-2" },
+            /*#__PURE__*/React.createElement(BarChIc, { size: 16, className: "text-purple-500" }),
+            /*#__PURE__*/React.createElement("h3", { className: "font-semibold text-gray-900 text-sm" }, "Spending by Category")),
+          /*#__PURE__*/React.createElement("div", { className: "p-4 flex flex-col sm:flex-row items-center gap-4" },
+            /*#__PURE__*/React.createElement("canvas", { ref: donutRef, style: { width: "180px", height: "180px" } }),
+            /*#__PURE__*/React.createElement("div", { className: "flex-1 space-y-2" },
+              spendingByCat.map(function(entry) {
+                var pct = totalSpend > 0 ? (entry[1] / totalSpend * 100).toFixed(1) : 0;
+                return /*#__PURE__*/React.createElement("div", { key: entry[0], className: "flex items-center gap-2" },
+                  /*#__PURE__*/React.createElement("span", { className: "w-3 h-3 rounded-full shrink-0", style: { background: catColor(entry[0]) } }),
+                  /*#__PURE__*/React.createElement("span", { className: "text-sm text-gray-700 flex-1" }, catLabel(entry[0])),
+                  /*#__PURE__*/React.createElement("span", { className: "text-sm font-bold text-gray-900" }, fmt(entry[1])),
+                  /*#__PURE__*/React.createElement("span", { className: "text-xs text-gray-400 w-10 text-right" }, pct + "%"));
+              })
+            )
+          )
+        ),
 
-  // ── Most Used Items ──
-  mostUsed.length > 0 && /*#__PURE__*/React.createElement("div", {
-    className: "bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "px-4 py-3 border-b border-gray-100 flex items-center gap-2"
-  }, /*#__PURE__*/React.createElement(MinusIc, {
-    size: 16,
-    className: "text-amber-500"
-  }), /*#__PURE__*/React.createElement("h3", {
-    className: "font-semibold text-gray-900 text-sm"
-  }, "Most Used Items")), mostUsed.map((item, idx) => {
-    const maxUsed = mostUsed[0].count;
-    return /*#__PURE__*/React.createElement("div", {
-      key: item.id,
-      className: "px-4 py-2.5 border-b border-gray-50 last:border-0 flex items-center gap-3"
-    }, /*#__PURE__*/React.createElement("span", {
-      className: "text-xs font-bold text-gray-300 w-5 text-right shrink-0"
-    }, idx + 1), /*#__PURE__*/React.createElement("div", {
-      className: "flex-1 min-w-0"
-    }, /*#__PURE__*/React.createElement("p", {
-      className: "text-sm font-medium text-gray-900 truncate"
-    }, item.name), /*#__PURE__*/React.createElement("div", {
-      className: "w-full bg-gray-100 rounded-full h-1 mt-1"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "bg-amber-400 h-1 rounded-full",
-      style: { width: `${(item.count / maxUsed * 100).toFixed(1)}%` }
-    }))), /*#__PURE__*/React.createElement("span", {
-      className: "text-sm font-bold text-amber-600 shrink-0"
-    }, item.count, " used"));
-  })),
+        // Top 5 Most Used (quick view)
+        mostUsed.length > 0 && /*#__PURE__*/React.createElement("div", { className: "bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden" },
+          /*#__PURE__*/React.createElement("div", { className: "px-4 py-3 border-b border-gray-100 flex items-center justify-between" },
+            /*#__PURE__*/React.createElement("div", { className: "flex items-center gap-2" },
+              /*#__PURE__*/React.createElement(MinusIc, { size: 16, className: "text-amber-500" }),
+              /*#__PURE__*/React.createElement("h3", { className: "font-semibold text-gray-900 text-sm" }, "Most Used Items")),
+            /*#__PURE__*/React.createElement("button", { onClick: function() { setActiveTab("usage"); }, className: "text-xs text-blue-600 font-semibold hover:underline" }, "See all")),
+          mostUsed.slice(0, 5).map(function(item, idx) {
+            var maxCount = mostUsed[0].count;
+            return /*#__PURE__*/React.createElement("div", { key: item.id, className: "px-4 py-2.5 border-b border-gray-50 last:border-0 flex items-center gap-3" },
+              /*#__PURE__*/React.createElement("span", { className: "text-xs font-bold text-gray-300 w-5 text-right shrink-0" }, idx + 1),
+              /*#__PURE__*/React.createElement("div", { className: "flex-1 min-w-0" },
+                /*#__PURE__*/React.createElement("p", { className: "text-sm font-medium text-gray-900 truncate" }, item.name),
+                /*#__PURE__*/React.createElement("div", { className: "w-full bg-gray-100 rounded-full h-1.5 mt-1" },
+                  /*#__PURE__*/React.createElement("div", { className: "bg-amber-400 h-1.5 rounded-full", style: { width: (item.count / maxCount * 100).toFixed(1) + "%" } }))),
+              /*#__PURE__*/React.createElement("span", { className: "text-sm font-bold text-amber-600 shrink-0" }, item.count, " ", item.unit));
+          }))
+      ),
 
-  // ── Most Reordered Items ──
-  mostReordered.length > 0 && /*#__PURE__*/React.createElement("div", {
-    className: "bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "px-4 py-3 border-b border-gray-100 flex items-center gap-2"
-  }, /*#__PURE__*/React.createElement(PlusIc, {
-    size: 16,
-    className: "text-emerald-500"
-  }), /*#__PURE__*/React.createElement("h3", {
-    className: "font-semibold text-gray-900 text-sm"
-  }, "Most Reordered Items")), mostReordered.map((item, idx) => {
-    const maxTimes = mostReordered[0].times;
-    return /*#__PURE__*/React.createElement("div", {
-      key: item.id,
-      className: "px-4 py-2.5 border-b border-gray-50 last:border-0 flex items-center gap-3"
-    }, /*#__PURE__*/React.createElement("span", {
-      className: "text-xs font-bold text-gray-300 w-5 text-right shrink-0"
-    }, idx + 1), /*#__PURE__*/React.createElement("div", {
-      className: "flex-1 min-w-0"
-    }, /*#__PURE__*/React.createElement("p", {
-      className: "text-sm font-medium text-gray-900 truncate"
-    }, item.name), /*#__PURE__*/React.createElement("div", {
-      className: "w-full bg-gray-100 rounded-full h-1 mt-1"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "bg-emerald-400 h-1 rounded-full",
-      style: { width: `${(item.times / maxTimes * 100).toFixed(1)}%` }
-    }))), /*#__PURE__*/React.createElement("div", {
-      className: "text-right shrink-0"
-    }, /*#__PURE__*/React.createElement("p", {
-      className: "text-sm font-bold text-emerald-600"
-    }, item.times, "x"), /*#__PURE__*/React.createElement("p", {
-      className: "text-xs text-gray-400"
-    }, item.total, " units")));
-  })),
+      // ── SPENDING TAB ──
+      activeTab === "spending" && /*#__PURE__*/React.createElement(React.Fragment, null,
+        // Spending by Vendor
+        spendingByVendor.length > 0 && /*#__PURE__*/React.createElement("div", { className: "bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden" },
+          /*#__PURE__*/React.createElement("div", { className: "px-4 py-3 border-b border-gray-100 flex items-center gap-2" },
+            /*#__PURE__*/React.createElement(DollarIc, { size: 16, className: "text-emerald-600" }),
+            /*#__PURE__*/React.createElement("h3", { className: "font-semibold text-gray-900 text-sm" }, "Spending by Vendor")),
+          spendingByVendor.map(function(entry) {
+            var maxAmt = spendingByVendor[0][1];
+            return /*#__PURE__*/React.createElement("div", { key: entry[0], className: "px-4 py-3 border-b border-gray-50 last:border-0" },
+              /*#__PURE__*/React.createElement("div", { className: "flex items-center justify-between mb-1" },
+                /*#__PURE__*/React.createElement("span", { className: "text-sm font-medium text-gray-900" }, entry[0]),
+                /*#__PURE__*/React.createElement("span", { className: "text-sm font-bold text-gray-900" }, fmt(entry[1]))),
+              /*#__PURE__*/React.createElement("div", { className: "w-full bg-gray-100 rounded-full h-2" },
+                /*#__PURE__*/React.createElement("div", { className: "bg-emerald-500 h-2 rounded-full transition-all", style: { width: (entry[1] / maxAmt * 100).toFixed(1) + "%" } })));
+          })),
 
-  // ── Consistently Low Stock Items ──
-  consistentlyLow.length > 0 && /*#__PURE__*/React.createElement("div", {
-    className: "bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "px-4 py-3 border-b border-gray-100 flex items-center gap-2"
-  }, /*#__PURE__*/React.createElement(AlertIc, {
-    size: 16,
-    className: "text-orange-500"
-  }), /*#__PURE__*/React.createElement("h3", {
-    className: "font-semibold text-gray-900 text-sm"
-  }, "Frequently Low Stock")), consistentlyLow.map(item => /*#__PURE__*/React.createElement("div", {
-    key: item.id,
-    className: "px-4 py-2.5 border-b border-gray-50 last:border-0 flex items-center gap-3"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center shrink-0"
-  }, /*#__PURE__*/React.createElement(AlertIc, {
-    size: 14,
-    className: "text-orange-500"
-  })), /*#__PURE__*/React.createElement("div", {
-    className: "flex-1 min-w-0"
-  }, /*#__PURE__*/React.createElement("p", {
-    className: "text-sm font-medium text-gray-900 truncate"
-  }, item.name), /*#__PURE__*/React.createElement("p", {
-    className: "text-xs text-gray-400"
-  }, "Below minimum in ", item.lowCount, " log entries")), /*#__PURE__*/React.createElement("div", {
-    className: "text-right shrink-0"
-  }, /*#__PURE__*/React.createElement(StockBadge, {
-    qty: item.qty,
-    min: item.min
-  }), /*#__PURE__*/React.createElement("p", {
-    className: "text-xs text-gray-400 mt-0.5"
-  }, item.qty, "/", item.min))))),
+        // Spending by Category (full)
+        spendingByCat.length > 0 && /*#__PURE__*/React.createElement("div", { className: "bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden" },
+          /*#__PURE__*/React.createElement("div", { className: "px-4 py-3 border-b border-gray-100 flex items-center gap-2" },
+            /*#__PURE__*/React.createElement(BarChIc, { size: 16, className: "text-purple-500" }),
+            /*#__PURE__*/React.createElement("h3", { className: "font-semibold text-gray-900 text-sm" }, "Spending by Category")),
+          spendingByCat.map(function(entry) {
+            var maxAmt = spendingByCat[0][1];
+            return /*#__PURE__*/React.createElement("div", { key: entry[0], className: "px-4 py-3 border-b border-gray-50 last:border-0" },
+              /*#__PURE__*/React.createElement("div", { className: "flex items-center justify-between mb-1" },
+                /*#__PURE__*/React.createElement("div", { className: "flex items-center gap-2" },
+                  /*#__PURE__*/React.createElement("span", { className: "w-3 h-3 rounded-full shrink-0", style: { background: catColor(entry[0]) } }),
+                  /*#__PURE__*/React.createElement("span", { className: "text-sm font-medium text-gray-900" }, catLabel(entry[0]))),
+                /*#__PURE__*/React.createElement("span", { className: "text-sm font-bold text-gray-900" }, fmt(entry[1]))),
+              /*#__PURE__*/React.createElement("div", { className: "w-full bg-gray-100 rounded-full h-2" },
+                /*#__PURE__*/React.createElement("div", { className: "h-2 rounded-full transition-all", style: { width: (entry[1] / maxAmt * 100).toFixed(1) + "%", background: catColor(entry[0]) } })));
+          })),
 
-  // ── Activity Log ──
-  /*#__PURE__*/React.createElement("div", {
-    className: "bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "px-4 py-3 border-b border-gray-100 flex items-center gap-2"
-  }, /*#__PURE__*/React.createElement(ClockIc, {
-    size: 16,
-    className: "text-blue-500"
-  }), /*#__PURE__*/React.createElement("h3", {
-    className: "font-semibold text-gray-900 text-sm"
-  }, "Activity Log")), recentLog.length === 0 ? /*#__PURE__*/React.createElement("div", {
-    className: "py-8 text-center text-sm text-gray-400"
-  }, "No activity yet \u2014 start adjusting stock to see history here.") : recentLog.map(entry => /*#__PURE__*/React.createElement("div", {
-    key: entry.id,
-    className: "px-4 py-3 border-b border-gray-50 last:border-0 flex items-center gap-3"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: `w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${entry.delta > 0 ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`
-  }, entry.delta > 0 ? /*#__PURE__*/React.createElement("span", {
-    className: "text-xs font-bold"
-  }, "+") : /*#__PURE__*/React.createElement("span", {
-    className: "text-xs font-bold"
-  }, "\u2212")), /*#__PURE__*/React.createElement("div", {
-    className: "flex-1 min-w-0"
-  }, /*#__PURE__*/React.createElement("p", {
-    className: "text-sm font-medium text-gray-900 truncate"
-  }, entry.itemName || entry.itemId), entry.note && /*#__PURE__*/React.createElement("p", {
-    className: "text-xs text-gray-400 truncate"
-  }, entry.note)), /*#__PURE__*/React.createElement("div", {
-    className: "text-right shrink-0"
-  }, /*#__PURE__*/React.createElement("p", {
-    className: `text-sm font-semibold ${entry.delta > 0 ? "text-emerald-600" : "text-amber-600"}`
-  }, entry.delta > 0 ? "+" : "", entry.delta), /*#__PURE__*/React.createElement("p", {
-    className: "text-xs text-gray-400"
-  }, new Date(entry.date).toLocaleDateString())))))));
+        // Monthly spending breakdown
+        /*#__PURE__*/React.createElement("div", { className: "bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden" },
+          /*#__PURE__*/React.createElement("div", { className: "px-4 py-3 border-b border-gray-100 flex items-center gap-2" },
+            /*#__PURE__*/React.createElement(ClockIc, { size: 16, className: "text-blue-500" }),
+            /*#__PURE__*/React.createElement("h3", { className: "font-semibold text-gray-900 text-sm" }, "Period Breakdown")),
+          /*#__PURE__*/React.createElement("div", { className: "divide-y divide-gray-50" },
+            spendOverTime.map(function(b, i) {
+              return /*#__PURE__*/React.createElement("div", { key: i, className: "px-4 py-2.5 flex items-center justify-between" },
+                /*#__PURE__*/React.createElement("span", { className: "text-sm text-gray-600 font-medium" }, b.label),
+                /*#__PURE__*/React.createElement("div", { className: "flex items-center gap-4 text-xs" },
+                  /*#__PURE__*/React.createElement("span", { className: "text-indigo-600 font-semibold" }, fmt(b.spend)),
+                  /*#__PURE__*/React.createElement("span", { className: "text-amber-500" }, b.used + " used"),
+                  /*#__PURE__*/React.createElement("span", { className: "text-emerald-500" }, b.received + " received")));
+            })))
+      ),
+
+      // ── USAGE TAB ──
+      activeTab === "usage" && /*#__PURE__*/React.createElement(React.Fragment, null,
+        // Most Used
+        mostUsed.length > 0 && /*#__PURE__*/React.createElement("div", { className: "bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden" },
+          /*#__PURE__*/React.createElement("div", { className: "px-4 py-3 border-b border-gray-100 flex items-center gap-2" },
+            /*#__PURE__*/React.createElement(MinusIc, { size: 16, className: "text-amber-500" }),
+            /*#__PURE__*/React.createElement("h3", { className: "font-semibold text-gray-900 text-sm" }, "Most Frequently Used")),
+          mostUsed.map(function(item, idx) {
+            var maxCount = mostUsed[0].count;
+            return /*#__PURE__*/React.createElement("div", { key: item.id, className: "px-4 py-2.5 border-b border-gray-50 last:border-0 flex items-center gap-3" },
+              /*#__PURE__*/React.createElement("span", { className: "text-xs font-bold text-gray-300 w-5 text-right shrink-0" }, idx + 1),
+              /*#__PURE__*/React.createElement("div", { className: "flex-1 min-w-0" },
+                /*#__PURE__*/React.createElement("p", { className: "text-sm font-medium text-gray-900 truncate" }, item.name),
+                /*#__PURE__*/React.createElement("div", { className: "w-full bg-gray-100 rounded-full h-1.5 mt-1" },
+                  /*#__PURE__*/React.createElement("div", { className: "bg-amber-400 h-1.5 rounded-full", style: { width: (item.count / maxCount * 100).toFixed(1) + "%" } }))),
+              /*#__PURE__*/React.createElement("span", { className: "text-sm font-bold text-amber-600 shrink-0" }, item.count, " ", item.unit));
+          })),
+
+        // Most Reordered
+        mostReordered.length > 0 && /*#__PURE__*/React.createElement("div", { className: "bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden" },
+          /*#__PURE__*/React.createElement("div", { className: "px-4 py-3 border-b border-gray-100 flex items-center gap-2" },
+            /*#__PURE__*/React.createElement(PlusIc, { size: 16, className: "text-emerald-500" }),
+            /*#__PURE__*/React.createElement("h3", { className: "font-semibold text-gray-900 text-sm" }, "Most Reordered")),
+          mostReordered.map(function(item, idx) {
+            var maxTimes = mostReordered[0].times;
+            return /*#__PURE__*/React.createElement("div", { key: item.id, className: "px-4 py-2.5 border-b border-gray-50 last:border-0 flex items-center gap-3" },
+              /*#__PURE__*/React.createElement("span", { className: "text-xs font-bold text-gray-300 w-5 text-right shrink-0" }, idx + 1),
+              /*#__PURE__*/React.createElement("div", { className: "flex-1 min-w-0" },
+                /*#__PURE__*/React.createElement("p", { className: "text-sm font-medium text-gray-900 truncate" }, item.name),
+                /*#__PURE__*/React.createElement("div", { className: "w-full bg-gray-100 rounded-full h-1.5 mt-1" },
+                  /*#__PURE__*/React.createElement("div", { className: "bg-emerald-400 h-1.5 rounded-full", style: { width: (item.times / maxTimes * 100).toFixed(1) + "%" } }))),
+              /*#__PURE__*/React.createElement("div", { className: "text-right shrink-0" },
+                /*#__PURE__*/React.createElement("p", { className: "text-sm font-bold text-emerald-600" }, item.times + "x"),
+                /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-400" }, item.total + " units")));
+          })),
+
+        // Activity Log
+        /*#__PURE__*/React.createElement("div", { className: "bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden" },
+          /*#__PURE__*/React.createElement("div", { className: "px-4 py-3 border-b border-gray-100 flex items-center gap-2" },
+            /*#__PURE__*/React.createElement(ClockIc, { size: 16, className: "text-blue-500" }),
+            /*#__PURE__*/React.createElement("h3", { className: "font-semibold text-gray-900 text-sm" }, "Activity Log (" + filteredLog.length + ")")),
+          filteredLog.length === 0
+            ? /*#__PURE__*/React.createElement("div", { className: "py-8 text-center text-sm text-gray-400" }, "No activity in this period")
+            : filteredLog.slice(0, 50).map(function(entry) {
+                return /*#__PURE__*/React.createElement("div", { key: entry.id, className: "px-4 py-2.5 border-b border-gray-50 last:border-0 flex items-center gap-3" },
+                  /*#__PURE__*/React.createElement("div", { className: "w-6 h-6 rounded-full flex items-center justify-center shrink-0 " + (entry.delta > 0 ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700") },
+                    /*#__PURE__*/React.createElement("span", { className: "text-xs font-bold" }, entry.delta > 0 ? "+" : "\u2212")),
+                  /*#__PURE__*/React.createElement("div", { className: "flex-1 min-w-0" },
+                    /*#__PURE__*/React.createElement("p", { className: "text-sm font-medium text-gray-900 truncate" }, entry.itemName || entry.itemId),
+                    entry.note && /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-400 truncate" }, entry.note)),
+                  /*#__PURE__*/React.createElement("div", { className: "text-right shrink-0" },
+                    /*#__PURE__*/React.createElement("p", { className: "text-sm font-semibold " + (entry.delta > 0 ? "text-emerald-600" : "text-amber-600") }, (entry.delta > 0 ? "+" : "") + entry.delta),
+                    /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-400" }, new Date(entry.date).toLocaleDateString())));
+              }))
+      ),
+
+      // ── REORDER TAB ──
+      activeTab === "reorder" && /*#__PURE__*/React.createElement(React.Fragment, null,
+        /*#__PURE__*/React.createElement("div", {
+          className: "bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"
+        },
+          /*#__PURE__*/React.createElement("div", {
+            className: "px-4 py-3 border-b border-gray-100 flex items-center gap-2"
+          },
+            /*#__PURE__*/React.createElement(AlertIc, { size: 16, className: "text-red-500" }),
+            /*#__PURE__*/React.createElement("h3", { className: "font-semibold text-gray-900 text-sm" }, "Reorder List \u2014 ", reorder.length, " items below minimum")), reorder.length === 0
+            ? /*#__PURE__*/React.createElement("div", { className: "py-8 text-center text-sm text-gray-400" }, "All items are at or above minimum stock!")
+            : byVendor.map(function(entry) {
+                var vendor = entry[0]; var its = entry[1];
+                return /*#__PURE__*/React.createElement("div", { key: vendor },
+                  /*#__PURE__*/React.createElement("div", { className: "px-4 py-2 bg-gray-50 border-b border-gray-100" },
+                    /*#__PURE__*/React.createElement("span", { className: "text-xs font-semibold text-gray-500 uppercase tracking-wide" }, vendor, " \u2014 ", its.length, " item", its.length !== 1 ? "s" : "")),
+                  its.map(function(item) {
+                    return /*#__PURE__*/React.createElement("div", { key: item.id, className: "px-4 py-3 border-b border-gray-50 last:border-0 flex items-center gap-3" },
+                      /*#__PURE__*/React.createElement("div", { className: "flex-1 min-w-0" },
+                        /*#__PURE__*/React.createElement("p", { className: "text-sm font-medium text-gray-900 truncate" }, item.name),
+                        /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-400 font-mono" }, primarySource(item).sku)),
+                      /*#__PURE__*/React.createElement("div", { className: "text-right shrink-0" },
+                        /*#__PURE__*/React.createElement("div", { className: "flex items-center gap-1.5" },
+                          /*#__PURE__*/React.createElement(StockBadge, { qty: item.qty, min: item.min }),
+                          /*#__PURE__*/React.createElement("span", { className: "text-xs text-gray-500" },
+                            /*#__PURE__*/React.createElement("b", { className: "text-gray-800" }, item.qty), "/", item.min, " ", item.unit)),
+                        primarySource(item).price != null && /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-400 mt-0.5" }, fmt(primarySource(item).price), "/", item.unit)));
+                  }));
+              }))
+      )
+    ));
 }
 
 // ─── Editable field helper ───────────────────────────────────────────────────
@@ -5109,187 +5067,464 @@ function VendorCard({ v, onUpdate, onRemove, autoEdit, isAdmin }) {
 }
 
 // ─── DashboardView ────────────────────────────────────────────────────────────
-function DashboardView({ items, orders, log }) {
-  const now = new Date();
-  const hour = now.getHours();
-  let greeting = "Good morning";
-  if (hour >= 12 && hour < 18) {
-    greeting = "Good afternoon";
-  } else if (hour >= 18) {
-    greeting = "Good evening";
-  }
-  const todayStr = now.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+function DashboardView({ items, orders, log, currentUser, onNavigate, onOrderItem }) {
+  var now = new Date();
+  var hour = now.getHours();
+  var greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+  var todayStr = now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
 
-  // Calculate inventory value
-  const totalValue = items.reduce((sum, item) => {
-    const src = item.sources && item.sources[0];
-    const price = src ? parseFloat(src.price) || 0 : 0;
-    return sum + (item.qty || 0) * price;
-  }, 0);
+  // Stats
+  var totalValue = items.reduce(function(s, i) { var ps = primarySource(i); return s + (i.qty || 0) * (ps.price || 0); }, 0);
+  var needsReorder = items.filter(function(i) { return i.qty < i.min; });
+  var outOfStock = items.filter(function(i) { return i.qty === 0; });
+  var openOrders = orders.filter(function(o) { return o.status === "open"; });
+  var placedOrders = orders.filter(function(o) { return o.status === "placed"; });
 
-  // Items needing reorder
-  const needsReorder = items.filter(i => i.qty < i.min);
-
-  // Open orders count
-  const openOrders = orders.filter(o => o.status === "open");
-
-  // Items received this week
-  const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-  const receivedThisWeek = log.filter(entry => {
-    if (entry.type !== "receive") return false;
-    const entryDate = new Date(entry.date);
-    return entryDate >= weekAgo && entryDate <= now;
-  }).length;
-
-  // Group items needing reorder by vendor
-  const reorderByVendor = {};
-  needsReorder.forEach(item => {
-    const vendor = item.sources && item.sources[0] ? item.sources[0].vendor : "Unknown";
-    if (!reorderByVendor[vendor]) {
-      reorderByVendor[vendor] = [];
-    }
-    reorderByVendor[vendor].push(item);
-  });
+  // Recent activity (last 7 days)
+  var weekAgo = new Date(now.getTime() - 7*24*60*60*1000);
+  var recentLog = log.filter(function(l) { return new Date(l.date) >= weekAgo; });
+  var usedThisWeek = recentLog.filter(function(l) { return l.type === "use" || (l.delta < 0 && l.type !== "count"); }).reduce(function(s, l) { return s + Math.abs(l.delta); }, 0);
+  var receivedThisWeek = recentLog.filter(function(l) { return l.type === "receive" && l.delta > 0; }).reduce(function(s, l) { return s + l.delta; }, 0);
 
   // Overdue orders
-  const overdueOrders = openOrders.filter(o => {
-    if (!o.expectedDelivery) return false;
-    const expected = new Date(o.expectedDelivery);
-    return expected < now;
+  var overdueOrders = openOrders.concat(placedOrders).filter(function(o) {
+    return o.expectedDelivery && new Date(o.expectedDelivery) < now;
   });
 
-  // Format relative time
-  const relativeTime = (dateStr) => {
-    const date = new Date(dateStr);
-    const diff = now - date;
-    const minutes = Math.floor(diff / 60000);
-    const hours = Math.floor(diff / 3600000);
-    const days = Math.floor(diff / 86400000);
+  // Expiring items (next 90 days)
+  var expiringItems = items.filter(function(i) { return i.exp; }).map(function(i) {
+    var daysLeft = Math.floor((new Date(i.exp) - now) / 86400000);
+    return { id: i.id, name: i.name, exp: i.exp, daysLeft: daysLeft, qty: i.qty, unit: i.unit };
+  }).filter(function(i) { return i.daysLeft < 90; }).sort(function(a, b) { return a.daysLeft - b.daysLeft; });
 
-    if (minutes < 1) return "just now";
-    if (minutes < 60) return minutes + "m ago";
-    if (hours < 24) return hours + "h ago";
+  // Top 5 most critical (lowest ratio of qty/min)
+  var criticalItems = items.filter(function(i) { return i.min > 0 && i.qty < i.min; }).map(function(i) {
+    return { id: i.id, name: i.name, qty: i.qty, min: i.min, unit: i.unit, ratio: i.qty / i.min, vendor: primarySource(i).vendor || "" };
+  }).sort(function(a, b) { return a.ratio - b.ratio; }).slice(0, 5);
+
+  var relativeTime = function(dateStr) {
+    var diff = now - new Date(dateStr);
+    var mins = Math.floor(diff / 60000);
+    if (mins < 1) return "just now";
+    if (mins < 60) return mins + "m ago";
+    var hrs = Math.floor(diff / 3600000);
+    if (hrs < 24) return hrs + "h ago";
+    var days = Math.floor(diff / 86400000);
     if (days < 7) return days + "d ago";
-    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    return new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric" });
   };
 
   return /*#__PURE__*/React.createElement("div", { className: "flex-1 overflow-y-auto" },
     // Header
-    /*#__PURE__*/React.createElement("div", { className: "sticky top-0 z-10 bg-white border-b px-4 py-6" },
-      /*#__PURE__*/React.createElement("h1", { className: "text-2xl font-bold text-gray-900" }, greeting + ", NLO"),
-      /*#__PURE__*/React.createElement("p", { className: "text-sm text-gray-500 mt-1" }, todayStr)),
+    /*#__PURE__*/React.createElement("div", { className: "bg-gradient-to-r from-slate-800 to-slate-700 px-4 sm:px-6 py-6 sm:py-8" },
+      /*#__PURE__*/React.createElement("h1", { className: "text-xl sm:text-2xl font-bold text-white" }, greeting + (currentUser ? ", " + currentUser.split(" ")[0] : "")),
+      /*#__PURE__*/React.createElement("p", { className: "text-sm text-slate-300 mt-1" }, todayStr)),
 
-    // Content
-    /*#__PURE__*/React.createElement("div", { className: "p-4 space-y-6 pb-20 md:pb-6" },
-      // Stat cards
+    /*#__PURE__*/React.createElement("div", { className: "p-4 sm:p-6 space-y-5 pb-24 md:pb-6 -mt-4" },
+
+      // KPI Cards
       /*#__PURE__*/React.createElement("div", { className: "grid grid-cols-2 sm:grid-cols-4 gap-3" },
-        // Total inventory value
+        /*#__PURE__*/React.createElement("button", { onClick: function() { onNavigate("inventory"); }, className: "bg-white rounded-xl border border-gray-200 p-4 text-left hover:shadow-md transition-shadow" },
+          /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-400 font-semibold uppercase tracking-wide" }, "Stock Value"),
+          /*#__PURE__*/React.createElement("p", { className: "text-xl font-bold text-gray-900 mt-1" }, fmt(totalValue)),
+          /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-400 mt-1" }, items.length + " items tracked")),
+        /*#__PURE__*/React.createElement("button", { onClick: function() { onNavigate("reports"); }, className: "bg-white rounded-xl border " + (needsReorder.length > 0 ? "border-red-200 bg-red-50/50" : "border-gray-200") + " p-4 text-left hover:shadow-md transition-shadow" },
+          /*#__PURE__*/React.createElement("p", { className: "text-xs " + (needsReorder.length > 0 ? "text-red-500" : "text-gray-400") + " font-semibold uppercase tracking-wide" }, "Need Reorder"),
+          /*#__PURE__*/React.createElement("p", { className: "text-xl font-bold " + (needsReorder.length > 0 ? "text-red-600" : "text-gray-900") + " mt-1" }, needsReorder.length),
+          /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-400 mt-1" }, outOfStock.length > 0 ? outOfStock.length + " out of stock" : "all stocked")),
+        /*#__PURE__*/React.createElement("button", { onClick: function() { onNavigate("orders"); }, className: "bg-white rounded-xl border " + (openOrders.length > 0 ? "border-blue-200" : "border-gray-200") + " p-4 text-left hover:shadow-md transition-shadow" },
+          /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-400 font-semibold uppercase tracking-wide" }, "Cart / Placed"),
+          /*#__PURE__*/React.createElement("p", { className: "text-xl font-bold text-gray-900 mt-1" }, openOrders.length + " / " + placedOrders.length),
+          /*#__PURE__*/React.createElement("p", { className: "text-xs " + (overdueOrders.length > 0 ? "text-red-500 font-semibold" : "text-gray-400") + " mt-1" }, overdueOrders.length > 0 ? overdueOrders.length + " overdue" : "on track")),
         /*#__PURE__*/React.createElement("div", { className: "bg-white rounded-xl border border-gray-200 p-4" },
-          /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-500 font-semibold uppercase tracking-wide mb-2" }, "Total Value"),
-          /*#__PURE__*/React.createElement("p", { className: "text-lg sm:text-xl font-bold text-gray-900" }, "$" + totalValue.toFixed(0)),
-          /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-400 mt-2" }, items.length + " items")),
+          /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-400 font-semibold uppercase tracking-wide" }, "This Week"),
+          /*#__PURE__*/React.createElement("p", { className: "text-xl font-bold text-gray-900 mt-1" }, usedThisWeek + " / " + receivedThisWeek),
+          /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-400 mt-1" }, "used / received"))),
 
-        // Items needing reorder
-        /*#__PURE__*/React.createElement("div", { className: "bg-white rounded-xl border border-red-200 p-4" },
-          /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-500 font-semibold uppercase tracking-wide mb-2" }, "Reorder"),
-          /*#__PURE__*/React.createElement("p", { className: "text-lg sm:text-xl font-bold text-red-600" }, needsReorder.length),
-          /*#__PURE__*/React.createElement("p", { className: "text-xs text-red-500 mt-2" }, "items low")),
+      // Quick Actions
+      /*#__PURE__*/React.createElement("div", { className: "grid grid-cols-2 sm:grid-cols-4 gap-3" },
+        /*#__PURE__*/React.createElement("button", { onClick: function() { onNavigate("scanner"); }, className: "flex items-center gap-2 bg-slate-800 text-white rounded-xl px-4 py-3 text-sm font-semibold hover:bg-slate-700 transition-colors" },
+          /*#__PURE__*/React.createElement(CameraIc, { size: 18 }), "Scan Item"),
+        /*#__PURE__*/React.createElement("button", { onClick: function() { onNavigate("brackets"); }, className: "flex items-center gap-2 bg-blue-600 text-white rounded-xl px-4 py-3 text-sm font-semibold hover:bg-blue-700 transition-colors" },
+          /*#__PURE__*/React.createElement(GridIc, { size: 18 }), "Brackets"),
+        /*#__PURE__*/React.createElement("button", { onClick: function() { onNavigate("inventory"); }, className: "flex items-center gap-2 bg-emerald-600 text-white rounded-xl px-4 py-3 text-sm font-semibold hover:bg-emerald-700 transition-colors" },
+          /*#__PURE__*/React.createElement(Package, { size: 18 }), "Inventory"),
+        /*#__PURE__*/React.createElement("button", { onClick: function() { onNavigate("reports"); }, className: "flex items-center gap-2 bg-indigo-600 text-white rounded-xl px-4 py-3 text-sm font-semibold hover:bg-indigo-700 transition-colors" },
+          /*#__PURE__*/React.createElement(BarChIc, { size: 18 }), "Analytics")),
 
-        // Open orders
-        /*#__PURE__*/React.createElement("div", { className: "bg-white rounded-xl border border-amber-200 p-4" },
-          /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-500 font-semibold uppercase tracking-wide mb-2" }, "Open Orders"),
-          /*#__PURE__*/React.createElement("p", { className: "text-lg sm:text-xl font-bold text-amber-600" }, openOrders.length),
-          /*#__PURE__*/React.createElement("p", { className: "text-xs text-amber-500 mt-2" }, overdueOrders.length > 0 ? overdueOrders.length + " overdue" : "on time")),
+      // Critical Items - actionable
+      criticalItems.length > 0 && /*#__PURE__*/React.createElement("div", { className: "bg-white rounded-xl border border-red-200 overflow-hidden" },
+        /*#__PURE__*/React.createElement("div", { className: "px-4 py-3 bg-red-50 border-b border-red-100 flex items-center justify-between" },
+          /*#__PURE__*/React.createElement("div", { className: "flex items-center gap-2" },
+            /*#__PURE__*/React.createElement(AlertIc, { size: 16, className: "text-red-500" }),
+            /*#__PURE__*/React.createElement("h3", { className: "font-semibold text-red-800 text-sm" }, "Critical Stock")),
+          /*#__PURE__*/React.createElement("button", { onClick: function() { onNavigate("reports"); }, className: "text-xs text-red-600 font-semibold hover:underline" }, "View all " + needsReorder.length)),
+        criticalItems.map(function(item) {
+          var pct = Math.round((item.qty / item.min) * 100);
+          return /*#__PURE__*/React.createElement("div", { key: item.id, className: "px-4 py-3 border-b border-gray-50 last:border-0 flex items-center gap-3" },
+            /*#__PURE__*/React.createElement("div", { className: "flex-1 min-w-0" },
+              /*#__PURE__*/React.createElement("div", { className: "flex items-center gap-2" },
+                /*#__PURE__*/React.createElement("p", { className: "text-sm font-medium text-gray-900 truncate" }, item.name),
+                item.qty === 0 && /*#__PURE__*/React.createElement("span", { className: "text-xs bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-semibold shrink-0" }, "OUT")),
+              /*#__PURE__*/React.createElement("div", { className: "flex items-center gap-2 mt-1" },
+                /*#__PURE__*/React.createElement("div", { className: "flex-1 bg-gray-100 rounded-full h-1.5 max-w-[120px]" },
+                  /*#__PURE__*/React.createElement("div", { className: "h-1.5 rounded-full " + (pct < 25 ? "bg-red-500" : "bg-amber-400"), style: { width: Math.min(pct, 100) + "%" } })),
+                /*#__PURE__*/React.createElement("span", { className: "text-xs text-gray-500" }, item.qty + "/" + item.min + " " + item.unit))),
+            onOrderItem && /*#__PURE__*/React.createElement("button", {
+              onClick: function() { onOrderItem({ id: item.id, name: item.name, qty: item.qty, min: item.min, unit: item.unit, sources: (items.find(function(x) { return x.id === item.id; }) || {}).sources }); },
+              className: "flex items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors shrink-0"
+            }, /*#__PURE__*/React.createElement(TruckIc, { size: 12 }), "Order"));
+        })),
 
-        // Received this week
-        /*#__PURE__*/React.createElement("div", { className: "bg-white rounded-xl border border-emerald-200 p-4" },
-          /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-500 font-semibold uppercase tracking-wide mb-2" }, "This Week"),
-          /*#__PURE__*/React.createElement("p", { className: "text-lg sm:text-xl font-bold text-emerald-600" }, receivedThisWeek),
-          /*#__PURE__*/React.createElement("p", { className: "text-xs text-emerald-500 mt-2" }, "received"))),
+      // Overdue Orders
+      overdueOrders.length > 0 && /*#__PURE__*/React.createElement("div", { className: "bg-white rounded-xl border border-amber-200 overflow-hidden" },
+        /*#__PURE__*/React.createElement("div", { className: "px-4 py-3 bg-amber-50 border-b border-amber-100 flex items-center gap-2" },
+          /*#__PURE__*/React.createElement(ClockIc, { size: 16, className: "text-amber-600" }),
+          /*#__PURE__*/React.createElement("h3", { className: "font-semibold text-amber-800 text-sm" }, overdueOrders.length + " Overdue Order" + (overdueOrders.length !== 1 ? "s" : ""))),
+        overdueOrders.slice(0, 3).map(function(o) {
+          var daysOverdue = Math.floor((now - new Date(o.expectedDelivery)) / 86400000);
+          return /*#__PURE__*/React.createElement("div", { key: o.id, className: "px-4 py-3 border-b border-gray-50 last:border-0 flex items-center justify-between" },
+            /*#__PURE__*/React.createElement("div", { className: "min-w-0" },
+              /*#__PURE__*/React.createElement("p", { className: "text-sm font-medium text-gray-900 truncate" }, o.name || o.vendor || "Order"),
+              /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-500" }, "Expected: " + o.expectedDelivery)),
+            /*#__PURE__*/React.createElement("span", { className: "text-xs bg-red-100 text-red-700 px-2 py-1 rounded-lg font-semibold shrink-0" }, daysOverdue + "d overdue"));
+        })),
 
-      // Needs Reorder section
-      needsReorder.length > 0 && /*#__PURE__*/React.createElement("div", { className: "bg-white rounded-xl border border-gray-200 p-4" },
-        /*#__PURE__*/React.createElement("h2", { className: "font-bold text-gray-900 mb-4 flex items-center gap-2" },
-          /*#__PURE__*/React.createElement(AlertIc, { size: 18, className: "text-red-600" }),
-          "Needs Reorder (",
-          /*#__PURE__*/React.createElement("span", { className: "bg-red-100 text-red-700 rounded-full text-xs font-bold px-2 py-0.5" }, needsReorder.length),
-          ")"),
-        /*#__PURE__*/React.createElement("div", { className: "space-y-4" },
-          Object.entries(reorderByVendor).map(([vendor, vendorItems]) =>
-            /*#__PURE__*/React.createElement("div", { key: vendor },
-              /*#__PURE__*/React.createElement("p", { className: "text-xs font-semibold text-gray-600 mb-2" }, vendor),
-              /*#__PURE__*/React.createElement("div", { className: "space-y-2 ml-2" },
-                vendorItems.map(item =>
-                  /*#__PURE__*/React.createElement("div", { key: item.id, className: "flex items-center justify-between text-sm" },
-                    /*#__PURE__*/React.createElement("div", { className: "min-w-0" },
-                      /*#__PURE__*/React.createElement("p", { className: "text-gray-900 font-medium truncate" }, item.name),
-                      /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-500" }, "Qty: ", item.qty, " / Min: ", item.min)),
-                    /*#__PURE__*/React.createElement("span", { className: "text-xs bg-red-100 text-red-700 px-2 py-1 rounded font-semibold shrink-0" }, "Low"))))))))),
+      // Expiring Items
+      expiringItems.length > 0 && /*#__PURE__*/React.createElement("div", { className: "bg-white rounded-xl border border-gray-200 overflow-hidden" },
+        /*#__PURE__*/React.createElement("div", { className: "px-4 py-3 border-b border-gray-100 flex items-center gap-2" },
+          /*#__PURE__*/React.createElement(AlertIc, { size: 16, className: "text-amber-500" }),
+          /*#__PURE__*/React.createElement("h3", { className: "font-semibold text-gray-900 text-sm" }, "Expiring Soon (" + expiringItems.length + ")")),
+        expiringItems.slice(0, 5).map(function(item) {
+          return /*#__PURE__*/React.createElement("div", { key: item.id, className: "px-4 py-2.5 border-b border-gray-50 last:border-0 flex items-center justify-between" },
+            /*#__PURE__*/React.createElement("div", { className: "min-w-0" },
+              /*#__PURE__*/React.createElement("p", { className: "text-sm font-medium text-gray-900 truncate" }, item.name),
+              /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-500" }, item.qty + " " + item.unit + " on hand")),
+            /*#__PURE__*/React.createElement("span", { className: "text-xs px-2 py-1 rounded-lg font-semibold shrink-0 " + (item.daysLeft < 0 ? "bg-red-100 text-red-700" : item.daysLeft < 30 ? "bg-red-100 text-red-600" : "bg-amber-100 text-amber-700") },
+              item.daysLeft < 0 ? "EXPIRED" : item.daysLeft + "d left"));
+        })),
 
-      // Open Orders section
-      openOrders.length > 0 && /*#__PURE__*/React.createElement("div", { className: "bg-white rounded-xl border border-gray-200 p-4" },
-        /*#__PURE__*/React.createElement("h2", { className: "font-bold text-gray-900 mb-4" }, "Open Orders"),
-        /*#__PURE__*/React.createElement("div", { className: "space-y-3" },
-          openOrders.slice(0, 5).map(order => {
-            const isOverdue = order.expectedDelivery && new Date(order.expectedDelivery) < now;
-            return /*#__PURE__*/React.createElement("div", { key: order.id, className: "flex items-start justify-between pb-3 border-b border-gray-100 last:border-b-0 last:pb-0" },
-              /*#__PURE__*/React.createElement("div", { className: "min-w-0 flex-1" },
-                /*#__PURE__*/React.createElement("p", { className: "font-semibold text-gray-900 text-sm" }, order.vendor || "Unknown"),
-                /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-500" }, "Ordered: ", order.dateOrdered || "—"),
-                order.expectedDelivery && /*#__PURE__*/React.createElement("p", { className: "text-xs " + (isOverdue ? "text-red-600 font-semibold" : "text-gray-500") }, "Expected: ", order.expectedDelivery, isOverdue ? " (OVERDUE)" : "")),
-              /*#__PURE__*/React.createElement("span", { className: "text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded font-semibold shrink-0" }, (order.items || []).length + " items"));
+      // Recent Activity (compact)
+      log.length > 0 && /*#__PURE__*/React.createElement("div", { className: "bg-white rounded-xl border border-gray-200 overflow-hidden" },
+        /*#__PURE__*/React.createElement("div", { className: "px-4 py-3 border-b border-gray-100 flex items-center justify-between" },
+          /*#__PURE__*/React.createElement("div", { className: "flex items-center gap-2" },
+            /*#__PURE__*/React.createElement(ClockIc, { size: 16, className: "text-gray-400" }),
+            /*#__PURE__*/React.createElement("h3", { className: "font-semibold text-gray-900 text-sm" }, "Recent Activity")),
+          /*#__PURE__*/React.createElement("button", { onClick: function() { onNavigate("reports"); }, className: "text-xs text-blue-600 font-semibold hover:underline" }, "View all")),
+        log.slice(0, 6).map(function(entry) {
+          return /*#__PURE__*/React.createElement("div", { key: entry.id, className: "px-4 py-2 border-b border-gray-50 last:border-0 flex items-center gap-3" },
+            /*#__PURE__*/React.createElement("div", { className: "w-5 h-5 rounded-full flex items-center justify-center shrink-0 " + (entry.delta > 0 ? "bg-emerald-100" : "bg-amber-100") },
+              /*#__PURE__*/React.createElement("span", { className: "text-[10px] font-bold " + (entry.delta > 0 ? "text-emerald-700" : "text-amber-700") }, entry.delta > 0 ? "+" : "\u2212")),
+            /*#__PURE__*/React.createElement("div", { className: "flex-1 min-w-0" },
+              /*#__PURE__*/React.createElement("span", { className: "text-sm text-gray-900 truncate block" }, entry.itemName || entry.itemId),
+              entry.note && /*#__PURE__*/React.createElement("span", { className: "text-xs text-gray-400 truncate block" }, entry.note)),
+            /*#__PURE__*/React.createElement("div", { className: "text-right shrink-0" },
+              /*#__PURE__*/React.createElement("span", { className: "text-xs font-semibold " + (entry.delta > 0 ? "text-emerald-600" : "text-amber-600") }, (entry.delta > 0 ? "+" : "") + entry.delta),
+              /*#__PURE__*/React.createElement("p", { className: "text-[10px] text-gray-400" }, relativeTime(entry.date))));
+        }))
+    )
+  );
+}
+
+
+// ─── PlaceOrderFlow (unified order placement) ───────────────────────────────
+function PlaceOrderFlow({ orders, vendors, items, onComplete, onCancel, currentUser, orderToPlace }) {
+  // orderToPlace = { orders: [...orderObjects], vendor: string|null }
+  // If vendor not set and items come from multiple vendors, show vendor picker
+  // Then show method picker, then execute
+
+  const [step, setStep] = useState("check"); // check | vendorPick | method | confirm
+  const [selectedVendor, setSelectedVendor] = useState(orderToPlace.vendor || "");
+  const [method, setMethod] = useState("");
+  const [dismissedWarnings, setDismissedWarnings] = useState(new Set());
+
+  // Gather all line items from all orders being placed
+  var allLineItems = [];
+  (orderToPlace.orders || []).forEach(function(o) {
+    (o.items || []).forEach(function(li) { allLineItems.push(li); });
+  });
+
+  // Check for duplicate orders in last 14 days
+  var fourteenDaysAgo = new Date();
+  fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
+  var recentOrders = (orders || []).filter(function(o) {
+    return (o.status === "placed" || o.status === "received") && o.dateOrdered && new Date(o.dateOrdered) >= fourteenDaysAgo;
+  });
+
+  var warnings = [];
+  allLineItems.forEach(function(li) {
+    recentOrders.forEach(function(ro) {
+      (ro.items || []).forEach(function(roi) {
+        if (roi.name === li.name && !dismissedWarnings.has(li.name + "-" + ro.id)) {
+          warnings.push({
+            itemName: li.name,
+            orderId: ro.id,
+            orderedBy: ro.orderedBy || "Unknown",
+            qty: roi.qty,
+            date: ro.dateOrdered || ro.datePlaced || "",
+            vendor: ro.vendor || ""
+          });
+        }
+      });
+    });
+  });
+
+  // Find vendor info
+  var vendorData = selectedVendor ? (vendors || []).find(function(v) { return v.name === selectedVendor; }) : null;
+
+  // Check if items have been ordered from multiple vendors
+  var vendorHistory = {};
+  allLineItems.forEach(function(li) {
+    (orders || []).filter(function(o) { return o.status === "placed" || o.status === "received"; }).forEach(function(o) {
+      (o.items || []).forEach(function(oi) {
+        if (oi.name === li.name && o.vendor) {
+          if (!vendorHistory[o.vendor]) vendorHistory[o.vendor] = { lastDate: "", lastPrice: 0, count: 0 };
+          vendorHistory[o.vendor].count++;
+          if (!vendorHistory[o.vendor].lastDate || (o.dateOrdered && o.dateOrdered > vendorHistory[o.vendor].lastDate)) {
+            vendorHistory[o.vendor].lastDate = o.dateOrdered || "";
+          }
+          if (oi.price) vendorHistory[o.vendor].lastPrice = oi.price;
+        }
+      });
+    });
+  });
+  // Also add vendors from item sources
+  allLineItems.forEach(function(li) {
+    if (li.itemId) {
+      var foundItem = (items || []).find(function(it) { return it.id === li.itemId; });
+      if (foundItem && foundItem.sources) {
+        foundItem.sources.forEach(function(s) {
+          if (s.vendor && !vendorHistory[s.vendor]) {
+            vendorHistory[s.vendor] = { lastDate: s.lastDate || "", lastPrice: s.price || 0, count: 0 };
+          }
+        });
+      }
+    }
+  });
+  var availableVendors = Object.keys(vendorHistory);
+
+  // Auto-advance logic
+  useEffect(function() {
+    if (step === "check") {
+      if (warnings.length > 0) return; // stay on check to show warnings
+      if (!selectedVendor && availableVendors.length > 1) { setStep("vendorPick"); return; }
+      if (!selectedVendor && availableVendors.length === 1) { setSelectedVendor(availableVendors[0]); }
+      setStep("method");
+    }
+  }, [step, warnings.length, selectedVendor, availableVendors.length]);
+
+  function dismissWarning(key) {
+    setDismissedWarnings(function(prev) { var n = new Set(prev); n.add(key); return n; });
+  }
+
+  function handleMethodSelect(m) {
+    setMethod(m);
+    // Build message for text/email
+    var vendorInfo = (vendors || []).find(function(v) { return v.name === selectedVendor; });
+    var itemLines = allLineItems.map(function(li) { return li.name + " x" + li.qty; }).join("\n");
+    var msgBody = "Hi" + (vendorInfo && vendorInfo.rep ? " " + vendorInfo.rep : "") + ",\n\nWe would like to place an order for the following items:\n\n" + itemLines + "\n\nPlease confirm availability and expected delivery.\n\nThank you,\n" + (currentUser || "NLO Team") + "\nNext Level Orthodontics";
+    var subject = "Order Request - Next Level Orthodontics";
+
+    if (m === "email") {
+      var email = vendorInfo ? (vendorInfo.repEmail || vendorInfo.email || "") : "";
+      if (email) {
+        window.open("mailto:" + email + "?subject=" + encodeURIComponent(subject) + "&body=" + encodeURIComponent(msgBody), "_blank");
+      }
+    } else if (m === "text") {
+      var phone = vendorInfo ? (vendorInfo.repPhone || vendorInfo.phone || "") : "";
+      var cleanPhone = phone.replace(/\D/g, "");
+      if (cleanPhone) {
+        var smsBody = "Hi" + (vendorInfo && vendorInfo.rep ? " " + vendorInfo.rep : "") + ", this is " + (currentUser || "NLO") + " from Next Level Orthodontics. We'd like to order: " + allLineItems.map(function(li) { return li.name + " x" + li.qty; }).join(", ") + ". Please confirm. Thank you!";
+        window.open("sms:" + cleanPhone + "?body=" + encodeURIComponent(smsBody), "_blank");
+      }
+    } else if (m === "call") {
+      var callPhone = vendorInfo ? (vendorInfo.repPhone || vendorInfo.phone || "") : "";
+      var cleanCallPhone = callPhone.replace(/\D/g, "");
+      if (cleanCallPhone) {
+        window.open("tel:" + cleanCallPhone, "_blank");
+      }
+    } else if (m === "online") {
+      var portal = vendorInfo ? (vendorInfo.portal || "") : "";
+      if (portal) {
+        window.open(portal.startsWith("http") ? portal : "https://" + portal, "_blank");
+      }
+    }
+
+    // Complete the placement
+    onComplete({
+      vendor: selectedVendor,
+      method: m,
+      placedBy: currentUser,
+      orders: orderToPlace.orders
+    });
+  }
+
+  // Render
+  var modalTitle = step === "check" ? "Order Warning" : step === "vendorPick" ? "Select Vendor" : "How to Place Order";
+
+  return /*#__PURE__*/React.createElement("div", {
+    className: "fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4",
+    style: { background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)" },
+    onClick: function(e) { if (e.target === e.currentTarget) onCancel(); }
+  },
+    /*#__PURE__*/React.createElement("div", {
+      className: "bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
+    },
+      // Header
+      /*#__PURE__*/React.createElement("div", {
+        className: "bg-slate-50 border-b px-5 py-4 flex items-center justify-between sticky top-0 z-10 rounded-t-2xl"
+      },
+        /*#__PURE__*/React.createElement("h2", { className: "font-semibold text-gray-900" }, modalTitle),
+        /*#__PURE__*/React.createElement("button", { onClick: onCancel, className: "text-gray-400 hover:text-gray-700" },
+          /*#__PURE__*/React.createElement(XIc, { size: 18 }))
+      ),
+      /*#__PURE__*/React.createElement("div", { className: "p-5 space-y-4" },
+
+        // STEP: warnings
+        step === "check" && warnings.length > 0 && /*#__PURE__*/React.createElement("div", { className: "space-y-3" },
+          /*#__PURE__*/React.createElement("p", { className: "text-sm text-amber-700 font-semibold" }, "Duplicate order detected in the last 14 days:"),
+          warnings.map(function(w, idx) {
+            return /*#__PURE__*/React.createElement("div", { key: idx, className: "bg-amber-50 border border-amber-200 rounded-xl p-3" },
+              /*#__PURE__*/React.createElement("p", { className: "text-sm font-semibold text-amber-800" }, w.itemName),
+              /*#__PURE__*/React.createElement("p", { className: "text-xs text-amber-600 mt-1" }, "Ordered " + w.qty + " on " + w.date + " by " + w.orderedBy + (w.vendor ? " from " + w.vendor : "")),
+              /*#__PURE__*/React.createElement("button", {
+                onClick: function() { dismissWarning(w.itemName + "-" + w.orderId); },
+                className: "mt-2 text-xs font-semibold text-amber-700 underline hover:text-amber-900"
+              }, "Dismiss")
+            );
           }),
-          openOrders.length > 5 && /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-500 pt-2" }, "View all in Orders tab →"))),
+          /*#__PURE__*/React.createElement("div", { className: "flex gap-3 pt-2" },
+            /*#__PURE__*/React.createElement("button", { onClick: onCancel, className: "flex-1 px-4 py-2.5 border border-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-50" }, "Cancel"),
+            /*#__PURE__*/React.createElement("button", {
+              onClick: function() {
+                // Dismiss all and proceed
+                warnings.forEach(function(w) { dismissWarning(w.itemName + "-" + w.orderId); });
+              },
+              className: "flex-1 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-lg"
+            }, "Continue Anyway")
+          )
+        ),
 
-      // Recent Activity section
-      log.length > 0 && /*#__PURE__*/React.createElement("div", { className: "bg-white rounded-xl border border-gray-200 p-4" },
-        /*#__PURE__*/React.createElement("h2", { className: "font-bold text-gray-900 mb-4" }, "Recent Activity"),
-        /*#__PURE__*/React.createElement("div", { className: "space-y-3 max-h-96 overflow-y-auto" },
-          log.slice(0, 10).map(entry =>
-            /*#__PURE__*/React.createElement("div", { key: entry.id, className: "flex items-start gap-3 pb-3 border-b border-gray-100 last:border-b-0 last:pb-0" },
-              /*#__PURE__*/React.createElement("div", { className: "flex-shrink-0 mt-0.5" },
-                entry.delta > 0 ?
-                  /*#__PURE__*/React.createElement("div", { className: "w-2 h-2 rounded-full bg-emerald-500 mt-1" }) :
-                  /*#__PURE__*/React.createElement("div", { className: "w-2 h-2 rounded-full bg-red-500 mt-1" })),
-              /*#__PURE__*/React.createElement("div", { className: "min-w-0 flex-1" },
-                /*#__PURE__*/React.createElement("p", { className: "text-sm font-medium text-gray-900" }, entry.itemName),
-                /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-500" },
-                  entry.delta > 0 ? "+" : "",
-                  entry.delta,
-                  entry.note ? " — " + entry.note : "")),
-              /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-400 shrink-0" }, relativeTime(entry.date))))),
+        // STEP: vendor picker (multi-vendor)
+        step === "vendorPick" && /*#__PURE__*/React.createElement("div", { className: "space-y-3" },
+          /*#__PURE__*/React.createElement("p", { className: "text-sm text-gray-600" }, "This item has been ordered from multiple vendors. Choose one:"),
+          availableVendors.map(function(vName) {
+            var vh = vendorHistory[vName];
+            var vd = (vendors || []).find(function(v) { return v.name === vName; });
+            return /*#__PURE__*/React.createElement("button", {
+              key: vName,
+              onClick: function() { setSelectedVendor(vName); setStep("method"); },
+              className: "w-full text-left border-2 rounded-xl p-4 transition-all hover:border-blue-500 hover:shadow-md " + (selectedVendor === vName ? "border-blue-500 bg-blue-50" : "border-gray-200")
+            },
+              /*#__PURE__*/React.createElement("div", { className: "flex items-center justify-between" },
+                /*#__PURE__*/React.createElement("span", { className: "font-semibold text-gray-900" }, vName),
+                vd && vd.rep && /*#__PURE__*/React.createElement("span", { className: "text-xs text-blue-600" }, "Rep: " + vd.rep)
+              ),
+              /*#__PURE__*/React.createElement("div", { className: "flex gap-4 mt-1 text-xs text-gray-500" },
+                vh.lastDate && /*#__PURE__*/React.createElement("span", null, "Last order: " + vh.lastDate),
+                vh.lastPrice > 0 && /*#__PURE__*/React.createElement("span", null, "Price: $" + vh.lastPrice.toFixed(2)),
+                vh.count > 0 && /*#__PURE__*/React.createElement("span", null, vh.count + " past order" + (vh.count !== 1 ? "s" : ""))
+              ),
+              vd && vd.acct && /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-400 mt-1" }, "Acct: " + vd.acct)
+            );
+          })
+        ),
 
-      // Expiring Soon section
-      (() => {
-        const itemsWithExp = items.filter(i => i.exp).map(item => {
-          const expDate = new Date(item.exp);
-          const daysLeft = Math.floor((expDate - now) / (1000 * 60 * 60 * 24));
-          return { ...item, daysLeft, expDate };
-        }).filter(i => i.daysLeft < 90).sort((a, b) => a.daysLeft - b.daysLeft);
-
-        return /*#__PURE__*/React.createElement("div", { className: "bg-gray-50 rounded-xl border border-gray-200 p-4" },
-          /*#__PURE__*/React.createElement("h2", { className: "font-bold text-gray-900 mb-4" }, "Expiring Soon"),
-          itemsWithExp.length === 0
-            ? /*#__PURE__*/React.createElement("p", { className: "text-sm text-gray-500" }, "No expiration dates tracked yet")
-            : /*#__PURE__*/React.createElement("div", { className: "space-y-3" },
-                itemsWithExp.map(item =>
-                  /*#__PURE__*/React.createElement("div", { key: item.id, className: "flex items-start justify-between pb-3 border-b border-gray-100 last:border-b-0 last:pb-0" },
-                    /*#__PURE__*/React.createElement("div", { className: "min-w-0 flex-1" },
-                      /*#__PURE__*/React.createElement("p", { className: "font-semibold text-gray-900 text-sm" }, item.name),
-                      /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-500" }, "Exp: ", item.exp, " · ", item.daysLeft, " days left")),
-                    /*#__PURE__*/React.createElement("span", { className: `text-xs px-2 py-1 rounded font-semibold shrink-0 ${item.daysLeft < 0 ? "bg-red-100 text-red-700" : item.daysLeft < 30 ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"}` },
-                      item.daysLeft < 0 ? "EXPIRED" : item.daysLeft < 30 ? "Alert" : "Soon")))));
-      })())
-    );
+        // STEP: method picker
+        step === "method" && /*#__PURE__*/React.createElement("div", { className: "space-y-3" },
+          selectedVendor && /*#__PURE__*/React.createElement("div", { className: "bg-gray-50 rounded-xl p-3 mb-2" },
+            /*#__PURE__*/React.createElement("p", { className: "text-sm font-semibold text-gray-800" }, selectedVendor),
+            vendorData && vendorData.rep && /*#__PURE__*/React.createElement("p", { className: "text-xs text-blue-600 mt-0.5" }, "Rep: " + vendorData.rep + (vendorData.repPhone ? " \u00b7 " + vendorData.repPhone : "") + (vendorData.repEmail ? " \u00b7 " + vendorData.repEmail : "")),
+            vendorData && vendorData.acct && /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-400 mt-0.5" }, "Account: " + vendorData.acct)
+          ),
+          /*#__PURE__*/React.createElement("p", { className: "text-sm text-gray-600 font-medium" }, "How would you like to place this order?"),
+          /*#__PURE__*/React.createElement("div", { className: "grid grid-cols-2 gap-3" },
+            [
+              { id: "email", label: "Email", icon: "\u2709", desc: "Send email to rep", color: "blue" },
+              { id: "text", label: "Text", icon: "\u{1F4AC}", desc: "Send SMS to rep", color: "green" },
+              { id: "call", label: "Call", icon: "\u{1F4DE}", desc: "Call the rep", color: "purple" },
+              { id: "online", label: "Online Portal", icon: "\u{1F310}", desc: "Open vendor portal", color: "indigo" }
+            ].map(function(opt) {
+              var isDisabled = false;
+              if (opt.id === "email" && vendorData && !vendorData.repEmail && !vendorData.email) isDisabled = true;
+              if (opt.id === "text" && vendorData && !vendorData.repPhone && !vendorData.phone) isDisabled = true;
+              if (opt.id === "call" && vendorData && !vendorData.repPhone && !vendorData.phone) isDisabled = true;
+              if (opt.id === "online" && vendorData && !vendorData.portal) isDisabled = true;
+              return /*#__PURE__*/React.createElement("button", {
+                key: opt.id,
+                onClick: function() { if (!isDisabled) handleMethodSelect(opt.id); },
+                disabled: isDisabled,
+                className: "flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all " + (isDisabled ? "border-gray-100 bg-gray-50 opacity-40 cursor-not-allowed" : "border-gray-200 hover:border-" + opt.color + "-500 hover:shadow-md hover:bg-" + opt.color + "-50")
+              },
+                /*#__PURE__*/React.createElement("span", { className: "text-2xl" }, opt.icon),
+                /*#__PURE__*/React.createElement("span", { className: "text-sm font-semibold text-gray-800" }, opt.label),
+                /*#__PURE__*/React.createElement("span", { className: "text-xs text-gray-400" }, isDisabled ? "No info available" : opt.desc)
+              );
+            })
+          ),
+          // Summary of items
+          /*#__PURE__*/React.createElement("div", { className: "border-t pt-3 mt-3" },
+            /*#__PURE__*/React.createElement("p", { className: "text-xs font-semibold text-gray-500 uppercase mb-2" }, "Items to order (" + allLineItems.length + ")"),
+            /*#__PURE__*/React.createElement("div", { className: "space-y-1 max-h-32 overflow-y-auto" },
+              allLineItems.slice(0, 10).map(function(li, idx) {
+                return /*#__PURE__*/React.createElement("div", { key: idx, className: "flex justify-between text-xs" },
+                  /*#__PURE__*/React.createElement("span", { className: "text-gray-700 truncate" }, li.name),
+                  /*#__PURE__*/React.createElement("span", { className: "text-gray-500 font-semibold shrink-0 ml-2" }, "x" + li.qty)
+                );
+              }),
+              allLineItems.length > 10 && /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-400" }, "+" + (allLineItems.length - 10) + " more items")
+            )
+          )
+        )
+      )
+    )
+  );
 }
 
 // ─── OrdersView ───────────────────────────────────────────────────────────────
-function OrdersView({ orders, items, onAddOrder, onReceiveOrder, onVoidOrder, onScanSlip, onReorder, isAdmin }) {
+function OrdersView({ orders, items, vendors, onAddOrder, onReceiveOrder, onVoidOrder, onPlaceWithVendor, onScanSlip, onReorder, isAdmin }) {
   const [filter, setFilter] = useState("open");
   const [expanded, setExpanded] = useState(new Set());
   const [showVoided, setShowVoided] = useState(false);
+  const [selectedOrders, setSelectedOrders] = useState(new Set());
+
+  function toggleOrderSelect(orderId) {
+    setSelectedOrders(function(prev) {
+      var next = new Set(prev);
+      if (next.has(orderId)) next.delete(orderId); else next.add(orderId);
+      return next;
+    });
+  }
+  function selectVendorOrders(vendorName) {
+    var vendorOrderIds = (orders || []).filter(function(o) { return o.status === "open" && (o.vendor || "Unknown Vendor") === vendorName; }).map(function(o) { return o.id; });
+    setSelectedOrders(function(prev) {
+      var next = new Set(prev);
+      var allSelected = vendorOrderIds.every(function(id) { return next.has(id); });
+      if (allSelected) { vendorOrderIds.forEach(function(id) { next.delete(id); }); }
+      else { vendorOrderIds.forEach(function(id) { next.add(id); }); }
+      return next;
+    });
+  }
+  function selectAllOpen() {
+    var openIds = (orders || []).filter(function(o) { return o.status === "open"; }).map(function(o) { return o.id; });
+    setSelectedOrders(function(prev) {
+      var allSelected = openIds.every(function(id) { return prev.has(id); });
+      if (allSelected) return new Set();
+      return new Set(openIds);
+    });
+  }
+  function handlePlaceSelected() {
+    var selectedList = (orders || []).filter(function(o) { return selectedOrders.has(o.id); });
+    if (selectedList.length === 0) return;
+    // Group by vendor - if all same vendor, pass it; otherwise null to trigger vendor picker
+    var vendors2 = new Set(selectedList.map(function(o) { return o.vendor || ""; }));
+    var vendor = vendors2.size === 1 ? selectedList[0].vendor : null;
+    onPlaceWithVendor({ orders: selectedList, vendor: vendor });
+    setSelectedOrders(new Set());
+  }
   const filtered = filter === "voided" ? orders.filter(o => o.status === "voided") : orders.filter(o => o.status === filter);
   const voidedCount = orders.filter(o => o.status === "voided").length;
+  const placedCount = orders.filter(o => o.status === "placed").length;
   const toggleExpand = (id) => {
     setExpanded(prev => {
       const next = new Set(prev);
@@ -5303,29 +5538,42 @@ function OrdersView({ orders, items, onAddOrder, onReceiveOrder, onVoidOrder, on
       onVoidOrder(orderId);
     }
   };
-  return /*#__PURE__*/React.createElement("div", { className: "flex-1 overflow-y-auto" },
-    /*#__PURE__*/React.createElement("div", { className: "sticky top-0 z-10 bg-white border-b px-3 sm:px-4 py-3 sm:py-4 flex items-center justify-between gap-2" },
-      /*#__PURE__*/React.createElement("h2", { className: "font-bold text-gray-900 text-lg shrink-0" }, "Orders"),
-      /*#__PURE__*/React.createElement("div", { className: "flex gap-2" },
-        /*#__PURE__*/React.createElement("button", { onClick: onScanSlip, className: "flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-semibold px-3 sm:px-4 py-2 rounded-xl transition-colors shadow-sm whitespace-nowrap" },
-          /*#__PURE__*/React.createElement(CameraIc, { size: 16 }), /*#__PURE__*/React.createElement("span", { className: "hidden sm:inline" }, "Scan Packing Slip"), /*#__PURE__*/React.createElement("span", { className: "sm:hidden" }, "Scan")),
-        /*#__PURE__*/React.createElement("button", { onClick: onAddOrder, className: "flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-semibold px-3 sm:px-4 py-2 rounded-xl transition-colors shadow-sm whitespace-nowrap" },
-          /*#__PURE__*/React.createElement(PlusIc, { size: 16 }), /*#__PURE__*/React.createElement("span", { className: "hidden sm:inline" }, "New Order"), /*#__PURE__*/React.createElement("span", { className: "sm:hidden" }, "New")))),
-    /*#__PURE__*/React.createElement("div", { className: "p-4" },
-      /*#__PURE__*/React.createElement("div", { className: "flex items-center gap-2 mb-4" },
-        ["open", "received"].map(f => /*#__PURE__*/React.createElement("button", { key: f, onClick: () => setFilter(f), className: "px-4 py-2 rounded-lg text-sm font-medium transition-colors " + (filter === f ? "bg-slate-800 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200") }, f === "open" ? "Open" : "Received")),
-        voidedCount > 0 && /*#__PURE__*/React.createElement("button", { onClick: () => setFilter(filter === "voided" ? "open" : "voided"), className: "px-4 py-2 rounded-lg text-sm font-medium transition-colors ml-auto " + (filter === "voided" ? "bg-red-100 text-red-700" : "text-gray-400 hover:text-gray-600") }, "Voided (" + voidedCount + ")")),
-      filtered.length === 0 ? /*#__PURE__*/React.createElement("div", { className: "text-center py-12" }, /*#__PURE__*/React.createElement("p", { className: "text-gray-400 text-sm" }, filter === "open" ? "No open orders" : filter === "received" ? "No received orders" : "No voided orders")) : /*#__PURE__*/React.createElement("div", { className: "space-y-3" },
-        filtered.map(order => /*#__PURE__*/React.createElement("div", { key: order.id, className: "border rounded-xl p-4 bg-white " + (order.status === "voided" ? "opacity-60" : "") },
+  const handlePlaceWithVendor = (order) => {
+    onPlaceWithVendor({ orders: [order], vendor: order.vendor || null });
+  };
+  // Group open orders by vendor
+  var groupedByVendor = {};
+  if (filter === "open") {
+    filtered.forEach(function(o) {
+      var v = o.vendor || "Unknown Vendor";
+      if (!groupedByVendor[v]) groupedByVendor[v] = [];
+      groupedByVendor[v].push(o);
+    });
+  }
+  var vendorGroups = Object.keys(groupedByVendor).sort();
+
+  function renderOrderCard(order) {
+    var isSelected = selectedOrders.has(order.id);
+    return /*#__PURE__*/React.createElement("div", { key: order.id, className: "border rounded-xl p-4 bg-white " + (order.status === "voided" ? "opacity-60" : "") + (isSelected ? " ring-2 ring-blue-500 bg-blue-50/30" : "") },
           /*#__PURE__*/React.createElement("div", { className: "flex flex-col sm:flex-row sm:items-start justify-between mb-3 gap-2" },
             /*#__PURE__*/React.createElement("div", { className: "min-w-0" },
               /*#__PURE__*/React.createElement("div", { className: "flex items-center gap-2 flex-wrap" },
-                /*#__PURE__*/React.createElement("h3", { className: "font-semibold text-gray-900 text-sm sm:text-base" }, order.vendor || "Unknown Vendor"),
-                order.status === "voided" && /*#__PURE__*/React.createElement("span", { className: "text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-medium" }, "VOID")),
-              /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-500 mt-1" }, "Ordered: ", order.dateOrdered, order.orderedBy ? " by " + order.orderedBy : "")),
-            /*#__PURE__*/React.createElement("div", { className: "flex gap-2 shrink-0" },
+                order.status === "open" && /*#__PURE__*/React.createElement("button", {
+                  onClick: function(e) { e.stopPropagation(); toggleOrderSelect(order.id); },
+                  className: "w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors " + (isSelected ? "bg-blue-500 border-blue-500 text-white" : "border-gray-300 hover:border-blue-400")
+                }, isSelected && /*#__PURE__*/React.createElement("span", { className: "text-xs font-bold" }, "\u2713")),
+                /*#__PURE__*/React.createElement("h3", { className: "font-semibold text-gray-900 text-sm sm:text-base" }, order.name || order.vendor || "Unknown Vendor"),
+                order.status === "voided" && /*#__PURE__*/React.createElement("span", { className: "text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-medium" }, "VOID"),
+                order.status === "placed" && /*#__PURE__*/React.createElement("span", { className: "text-xs bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded font-medium" }, "PLACED"),
+                order.placedMethod && /*#__PURE__*/React.createElement("span", { className: "text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded" }, "via " + order.placedMethod)),
+              /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-500 mt-1" }, "Ordered: ", order.dateOrdered, order.orderedBy ? " by " + order.orderedBy : "", order.placedBy && order.placedBy !== order.orderedBy ? " \u00b7 Placed by " + order.placedBy : ""),
+              order.repInfo && order.repInfo.repName && /*#__PURE__*/React.createElement("p", { className: "text-xs text-blue-600 mt-0.5" }, "Rep: ", order.repInfo.repName, order.repInfo.repPhone ? " \u00b7 " + order.repInfo.repPhone : "", order.repInfo.repEmail ? " \u00b7 " + order.repInfo.repEmail : "")),
+            /*#__PURE__*/React.createElement("div", { className: "flex gap-2 shrink-0 flex-wrap" },
+              order.status === "open" && /*#__PURE__*/React.createElement("button", { onClick: () => handlePlaceWithVendor(order), className: "flex items-center gap-1 bg-blue-50 text-blue-700 hover:bg-blue-100 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors" }, /*#__PURE__*/React.createElement(TruckIc, { size: 14 }), "Place with Vendor"),
               order.status === "open" && /*#__PURE__*/React.createElement("button", { onClick: () => onReceiveOrder(order.id), className: "flex items-center gap-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors" }, /*#__PURE__*/React.createElement(CheckIc, { size: 14 }), "Received"),
               order.status === "open" && isAdmin && /*#__PURE__*/React.createElement("button", { onClick: () => handleVoid(order.id), className: "flex items-center gap-1 bg-red-50 text-red-600 hover:bg-red-100 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors" }, /*#__PURE__*/React.createElement(XIc, { size: 14 }), "Void"),
+              order.status === "placed" && /*#__PURE__*/React.createElement("button", { onClick: () => onReceiveOrder(order.id), className: "flex items-center gap-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors" }, /*#__PURE__*/React.createElement(CheckIc, { size: 14 }), "Received"),
+              order.status === "placed" && isAdmin && /*#__PURE__*/React.createElement("button", { onClick: () => handleVoid(order.id), className: "flex items-center gap-1 bg-red-50 text-red-600 hover:bg-red-100 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors" }, /*#__PURE__*/React.createElement(XIc, { size: 14 }), "Void"),
               order.status === "received" && /*#__PURE__*/React.createElement("button", { onClick: () => onReorder && onReorder(order), className: "flex items-center gap-1 bg-blue-50 text-blue-600 hover:bg-blue-100 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors" }, /*#__PURE__*/React.createElement(RefreshIc, { size: 14 }), /*#__PURE__*/React.createElement("span", { className: "hidden sm:inline" }, "Reorder")),
               /*#__PURE__*/React.createElement("button", { onClick: () => toggleExpand(order.id), className: "text-gray-400 hover:text-gray-600 p-1" }, expanded.has(order.id) ? "\u25BC" : "\u25B6"))),
           /*#__PURE__*/React.createElement("div", { className: "grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mb-3 text-xs" },
@@ -5350,7 +5598,60 @@ function OrdersView({ orders, items, onAddOrder, onReceiveOrder, onVoidOrder, on
               /*#__PURE__*/React.createElement("summary", { className: "px-3 py-2 text-xs font-medium text-gray-600 cursor-pointer hover:bg-gray-50 flex items-center gap-1.5" }, "📷 Packing Slip Photo"),
               /*#__PURE__*/React.createElement("img", { src: order.slipPhoto, alt: "Packing Slip", className: "w-full object-contain bg-gray-50 max-h-96" })
             )
-          ))))));
+          ));
+  }
+
+  var emptyMsg = filter === "open" ? "Cart is empty" : filter === "placed" ? "No placed orders" : filter === "received" ? "No received orders" : "No voided orders";
+
+  return /*#__PURE__*/React.createElement("div", { className: "flex-1 overflow-y-auto" },
+    /*#__PURE__*/React.createElement("div", { className: "sticky top-0 z-10 bg-white border-b px-3 sm:px-4 py-3 sm:py-4 flex items-center justify-between gap-2" },
+      /*#__PURE__*/React.createElement("h2", { className: "font-bold text-gray-900 text-lg shrink-0" }, "Cart"),
+      /*#__PURE__*/React.createElement("div", { className: "flex gap-2" },
+        /*#__PURE__*/React.createElement("button", { onClick: onScanSlip, className: "flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-semibold px-3 sm:px-4 py-2 rounded-xl transition-colors shadow-sm whitespace-nowrap" },
+          /*#__PURE__*/React.createElement(CameraIc, { size: 16 }), /*#__PURE__*/React.createElement("span", { className: "hidden sm:inline" }, "Scan Packing Slip"), /*#__PURE__*/React.createElement("span", { className: "sm:hidden" }, "Scan")),
+        /*#__PURE__*/React.createElement("button", { onClick: onAddOrder, className: "flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-semibold px-3 sm:px-4 py-2 rounded-xl transition-colors shadow-sm whitespace-nowrap" },
+          /*#__PURE__*/React.createElement(PlusIc, { size: 16 }), /*#__PURE__*/React.createElement("span", { className: "hidden sm:inline" }, "New Order"), /*#__PURE__*/React.createElement("span", { className: "sm:hidden" }, "New")))),
+    /*#__PURE__*/React.createElement("div", { className: "p-4" },
+      filter === "open" && /*#__PURE__*/React.createElement("div", { className: "flex items-center gap-2 mb-3 flex-wrap" },
+        /*#__PURE__*/React.createElement("button", {
+          onClick: selectAllOpen,
+          className: "text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors " + (selectedOrders.size > 0 && filtered.every(function(o) { return selectedOrders.has(o.id); }) ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200")
+        }, selectedOrders.size > 0 && filtered.every(function(o) { return selectedOrders.has(o.id); }) ? "Deselect All" : "Select All"),
+        selectedOrders.size > 0 && /*#__PURE__*/React.createElement("span", { className: "text-xs text-gray-500" }, selectedOrders.size + " selected"),
+        selectedOrders.size > 0 && /*#__PURE__*/React.createElement("button", {
+          onClick: handlePlaceSelected,
+          className: "flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-4 py-1.5 rounded-lg transition-colors ml-auto"
+        }, /*#__PURE__*/React.createElement(TruckIc, { size: 14 }), "Place Selected (" + selectedOrders.size + ")")
+      ),
+      /*#__PURE__*/React.createElement("div", { className: "flex items-center gap-2 mb-4 flex-wrap" },
+        ["open", "placed", "received"].map(f => { var cnt = f === "open" ? filtered.length : f === "placed" ? orders.filter(o => o.status === "placed").length : 0; return /*#__PURE__*/React.createElement("button", { key: f, onClick: () => setFilter(f), className: "px-4 py-2 rounded-lg text-sm font-medium transition-colors relative " + (filter === f ? "bg-slate-800 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200") }, f === "open" ? "Cart" : f === "placed" ? "Placed" : "Received", f !== filter && cnt > 0 && /*#__PURE__*/React.createElement("span", { className: "ml-1.5 inline-flex items-center justify-center w-5 h-5 text-xs font-bold rounded-full " + (f === "placed" ? "bg-blue-500 text-white" : "bg-emerald-500 text-white") }, cnt > 9 ? "9+" : cnt)); }),
+        voidedCount > 0 && /*#__PURE__*/React.createElement("button", { onClick: () => setFilter(filter === "voided" ? "open" : "voided"), className: "px-4 py-2 rounded-lg text-sm font-medium transition-colors ml-auto " + (filter === "voided" ? "bg-red-100 text-red-700" : "text-gray-400 hover:text-gray-600") }, "Voided (" + voidedCount + ")")),
+      filtered.length === 0
+        ? /*#__PURE__*/React.createElement("div", { className: "text-center py-12" }, /*#__PURE__*/React.createElement("p", { className: "text-gray-400 text-sm" }, emptyMsg))
+        : filter === "open" && vendorGroups.length > 0
+          ? /*#__PURE__*/React.createElement("div", { className: "space-y-6" },
+              vendorGroups.map(function(vendorName) {
+                var vendorOrders = groupedByVendor[vendorName];
+                var vendorData = (vendors || []).find(function(v) { return v.name === vendorName; });
+                var vendorAllSelected = vendorOrders.every(function(o) { return selectedOrders.has(o.id); });
+                return /*#__PURE__*/React.createElement("div", { key: vendorName },
+                  /*#__PURE__*/React.createElement("div", { className: "flex items-center gap-2 mb-2 pb-2 border-b border-gray-100" },
+                    /*#__PURE__*/React.createElement("button", {
+                      onClick: function() { selectVendorOrders(vendorName); },
+                      className: "w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors " + (vendorAllSelected ? "bg-blue-500 border-blue-500 text-white" : "border-gray-300 hover:border-blue-400")
+                    }, vendorAllSelected && /*#__PURE__*/React.createElement("span", { className: "text-xs font-bold" }, "\u2713")),
+                    /*#__PURE__*/React.createElement("h3", { className: "font-bold text-gray-800 text-sm" }, vendorName),
+                    /*#__PURE__*/React.createElement("span", { className: "text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full" }, vendorOrders.length + " order" + (vendorOrders.length !== 1 ? "s" : "")),
+                    vendorData && vendorData.rep && /*#__PURE__*/React.createElement("span", { className: "text-xs text-blue-600" }, "Rep: " + vendorData.rep)
+                  ),
+                  /*#__PURE__*/React.createElement("div", { className: "space-y-3" }, vendorOrders.map(function(o) { return renderOrderCard(o); }))
+                );
+              })
+            )
+          : /*#__PURE__*/React.createElement("div", { className: "space-y-3" },
+              filtered.map(function(order) { return renderOrderCard(order); })
+            )
+    ));
 }
 
 // ─── AddOrderModal ────────────────────────────────────────────────────────────
@@ -5736,13 +6037,13 @@ function QRModal({
 }
 
 // ─── BracketOrderingView ─────────────────────────────────────────────────────────
-function BracketOrderingView({ onAddToCart }) {
+function BracketOrderingView({ onPlaceOrder }) {
   const SYSTEMS = [
     "EMPOWER 2 METAL - .018 - MBT COMPATIBLE",
     "ICONIX - .018 - MBT COMPATIBLE",
     "MINI MASTER - .018 - MBT COMPATIBLE"
   ];
-  const TEETH = [1,2,3,4,5,6,7,8];
+  const TEETH = [1,2,3,4,5,6,7];
   const QUADRANTS = [
     { key: "UR", label: "Upper Right" },
     { key: "UL", label: "Upper Left" },
@@ -5753,16 +6054,28 @@ function BracketOrderingView({ onAddToCart }) {
   const [step, setStep] = useState(1);
   const [selectedSystem, setSelectedSystem] = useState("");
   const [quantities, setQuantities] = useState({});
+  const [selected, setSelected] = useState(new Set());
+  const [bulkMode, setBulkMode] = useState(false);
   const [touchTimer, setTouchTimer] = useState(null);
 
   function toothKey(q, t) { return q + "-" + t; }
 
+  function toggleSelect(k) {
+    setSelected(function(prev) {
+      var next = new Set(prev);
+      if (next.has(k)) next.delete(k); else next.add(k);
+      return next;
+    });
+  }
+
   function addQty(q, t) {
     var k = toothKey(q, t);
+    if (bulkMode) { toggleSelect(k); return; }
     setQuantities(function(prev) { var n = Object.assign({}, prev); n[k] = (n[k] || 0) + 1; return n; });
   }
   function removeQty(q, t) {
     var k = toothKey(q, t);
+    if (bulkMode) { toggleSelect(k); return; }
     setQuantities(function(prev) {
       var n = Object.assign({}, prev);
       if ((n[k] || 0) > 0) n[k] = n[k] - 1;
@@ -5770,33 +6083,80 @@ function BracketOrderingView({ onAddToCart }) {
       return n;
     });
   }
+
+  function bulkAdd() {
+    setQuantities(function(prev) {
+      var n = Object.assign({}, prev);
+      selected.forEach(function(k) { n[k] = (n[k] || 0) + 1; });
+      return n;
+    });
+  }
+  function bulkRemove() {
+    setQuantities(function(prev) {
+      var n = Object.assign({}, prev);
+      selected.forEach(function(k) {
+        if ((n[k] || 0) > 0) n[k] = n[k] - 1;
+        if (n[k] === 0) delete n[k];
+      });
+      return n;
+    });
+  }
+  function bulkSetQty(val) {
+    var v = parseInt(val) || 0;
+    setQuantities(function(prev) {
+      var n = Object.assign({}, prev);
+      selected.forEach(function(k) { if (v > 0) n[k] = v; else delete n[k]; });
+      return n;
+    });
+  }
+
   function selectAll() {
     var n = {};
     QUADRANTS.forEach(function(q) { TEETH.forEach(function(t) { n[toothKey(q.key, t)] = 1; }); });
     setQuantities(n);
   }
-  function clearAll() { setQuantities({}); }
+  function clearAll() { setQuantities({}); setSelected(new Set()); }
+  function bulkSelectAll() {
+    var allKeys = new Set();
+    QUADRANTS.forEach(function(q) { TEETH.forEach(function(t) { allKeys.add(toothKey(q.key, t)); }); });
+    setSelected(allKeys);
+  }
+  function bulkClearAll() { setSelected(new Set()); }
 
-  function handleAddToCart() {
+  function handlePlaceOrder() {
     var sysShort = selectedSystem.split(" - ")[0];
+    var lineItems = [];
     Object.keys(quantities).forEach(function(k) {
       var qty = quantities[k];
       if (qty > 0) {
-        for (var i = 0; i < qty; i++) {
-          onAddToCart({
-            id: "brk-" + sysShort.toLowerCase().replace(/\s+/g, "-") + "-" + k,
-            name: sysShort + " Bracket - " + k,
-            unit: "ea"
-          });
-        }
+        lineItems.push({
+          name: sysShort + " Bracket - " + k,
+          qty: qty,
+          unit: "ea",
+          price: 0,
+          sku: "",
+          itemId: ""
+        });
       }
     });
+    if (lineItems.length > 0) {
+      onPlaceOrder({
+        vendor: "American Orthodontics",
+        name: sysShort + " Bracket Order",
+        items: lineItems,
+        note: "Bracket order: " + selectedSystem,
+        orderedBy: null
+      });
+    }
     setQuantities({});
+    setSelected(new Set());
+    setBulkMode(false);
     setStep(1);
     setSelectedSystem("");
   }
 
   var totalBrackets = Object.values(quantities).reduce(function(s, v) { return s + v; }, 0);
+  var selectedCount = selected.size;
 
   if (step === 1) {
     return /*#__PURE__*/React.createElement("div", { className: "flex-1 overflow-y-auto p-4 md:p-6" },
@@ -5817,18 +6177,40 @@ function BracketOrderingView({ onAddToCart }) {
     );
   }
 
+  function renderTooth(quad, t, reversed) {
+    var k = toothKey(quad, t);
+    var qty = quantities[k] || 0;
+    var isSel = selected.has(k);
+    return /*#__PURE__*/React.createElement("button", {
+      key: t,
+      onClick: function() { addQty(quad, t); },
+      onContextMenu: function(e) { e.preventDefault(); removeQty(quad, t); },
+      onTouchStart: function() {
+        var timer = setTimeout(function() { removeQty(quad, t); }, 500);
+        setTouchTimer(timer);
+      },
+      onTouchEnd: function() { if (touchTimer) clearTimeout(touchTimer); },
+      className: "relative flex flex-col items-center justify-center rounded-lg py-2 text-xs font-bold transition-all " +
+        (bulkMode && isSel ? "bg-blue-100 text-blue-800 ring-2 ring-blue-500" :
+         qty > 0 ? "bg-emerald-100 text-emerald-800 ring-2 ring-emerald-400" : "bg-gray-100 text-gray-500 hover:bg-gray-200")
+    },
+      /*#__PURE__*/React.createElement("span", null, t),
+      qty > 0 && /*#__PURE__*/React.createElement("span", { className: "text-[10px] font-black " + (bulkMode && isSel ? "text-blue-600" : "text-emerald-600") + " mt-0.5" }, qty)
+    );
+  }
+
   // Step 2: Charting
   return /*#__PURE__*/React.createElement("div", { className: "flex-1 overflow-y-auto" },
-    /*#__PURE__*/React.createElement("div", { className: "p-4 md:p-6 pb-28" },
+    /*#__PURE__*/React.createElement("div", { className: "p-4 md:p-6 pb-32" },
       /*#__PURE__*/React.createElement("div", { className: "flex items-center gap-3 mb-1" },
         /*#__PURE__*/React.createElement("button", {
-          onClick: function() { setStep(1); setQuantities({}); },
+          onClick: function() { setStep(1); setQuantities({}); setSelected(new Set()); setBulkMode(false); },
           className: "text-gray-400 hover:text-gray-700 p-1"
         }, /*#__PURE__*/React.createElement(XIc, { size: 20 })),
         /*#__PURE__*/React.createElement("h2", { className: "text-xl font-bold text-gray-900" }, "Bracket Charting")
       ),
       /*#__PURE__*/React.createElement("p", { className: "text-sm text-gray-500 mb-2 ml-9" }, selectedSystem),
-      /*#__PURE__*/React.createElement("div", { className: "flex items-center gap-2 mb-5 ml-9" },
+      /*#__PURE__*/React.createElement("div", { className: "flex items-center gap-2 mb-3 ml-9 flex-wrap" },
         /*#__PURE__*/React.createElement("button", {
           onClick: selectAll,
           className: "text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors"
@@ -5836,116 +6218,81 @@ function BracketOrderingView({ onAddToCart }) {
         /*#__PURE__*/React.createElement("button", {
           onClick: clearAll,
           className: "text-xs font-semibold px-3 py-1.5 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
-        }, "Clear All")
+        }, "Clear All"),
+        /*#__PURE__*/React.createElement("button", {
+          onClick: function() { setBulkMode(!bulkMode); if (bulkMode) setSelected(new Set()); },
+          className: "text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors " +
+            (bulkMode ? "bg-blue-600 text-white" : "bg-blue-50 text-blue-700 hover:bg-blue-100")
+        }, bulkMode ? "Exit Bulk Mode" : "Bulk Mode")
       ),
+      bulkMode && /*#__PURE__*/React.createElement("div", {
+        className: "flex items-center gap-2 mb-4 ml-9 bg-blue-50 border border-blue-200 rounded-xl px-3 py-2 flex-wrap"
+      },
+        /*#__PURE__*/React.createElement("button", {
+          onClick: bulkSelectAll,
+          className: "text-xs font-semibold px-2.5 py-1 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
+        }, "Select All"),
+        /*#__PURE__*/React.createElement("button", {
+          onClick: bulkClearAll,
+          className: "text-xs font-semibold px-2.5 py-1 rounded-lg bg-white border border-blue-200 text-blue-700 hover:bg-blue-100"
+        }, "Clear All"),
+        selectedCount > 0 && /*#__PURE__*/React.createElement("span", { className: "text-xs text-blue-500 mx-1" }, "|"),
+        selectedCount > 0 && /*#__PURE__*/React.createElement("span", { className: "text-xs font-semibold text-blue-700" }, selectedCount + " selected:"),
+        selectedCount > 0 && /*#__PURE__*/React.createElement("button", {
+          onClick: bulkRemove,
+          className: "text-xs font-bold px-2.5 py-1 rounded-lg bg-white border border-blue-200 text-blue-700 hover:bg-blue-100"
+        }, "\u2212 1"),
+        selectedCount > 0 && /*#__PURE__*/React.createElement("button", {
+          onClick: bulkAdd,
+          className: "text-xs font-bold px-2.5 py-1 rounded-lg bg-white border border-blue-200 text-blue-700 hover:bg-blue-100"
+        }, "+ 1"),
+        selectedCount > 0 && /*#__PURE__*/React.createElement("input", {
+          type: "number",
+          min: 0,
+          placeholder: "Set qty",
+          className: "w-16 text-xs px-2 py-1 border border-blue-200 rounded-lg text-center focus:outline-none focus:ring-1 focus:ring-blue-500",
+          onKeyDown: function(e) { if (e.key === "Enter") bulkSetQty(e.target.value); },
+          onBlur: function(e) { if (e.target.value !== "") bulkSetQty(e.target.value); }
+        })
+      ),
+
       /*#__PURE__*/React.createElement("div", { className: "max-w-md mx-auto select-none" },
         // Upper row: UR (reversed) | UL
         /*#__PURE__*/React.createElement("div", { className: "grid grid-cols-2 gap-0 border-b-2 border-slate-800" },
-          // UR quadrant - teeth 8 to 1 (right to center)
+          // UR quadrant - teeth 7 to 1 (right to center)
           /*#__PURE__*/React.createElement("div", { className: "border-r-2 border-slate-800 pr-1 pb-2" },
             /*#__PURE__*/React.createElement("p", { className: "text-xs font-bold text-gray-400 uppercase mb-1.5 text-center" }, "UR"),
-            /*#__PURE__*/React.createElement("div", { className: "grid grid-cols-8 gap-1" },
-              TEETH.slice().reverse().map(function(t) {
-                var k = toothKey("UR", t);
-                var qty = quantities[k] || 0;
-                return /*#__PURE__*/React.createElement("button", {
-                  key: t,
-                  onClick: function() { addQty("UR", t); },
-                  onContextMenu: function(e) { e.preventDefault(); removeQty("UR", t); },
-                  onTouchStart: function() {
-                    var timer = setTimeout(function() { removeQty("UR", t); }, 500);
-                    setTouchTimer(timer);
-                  },
-                  onTouchEnd: function() { if (touchTimer) clearTimeout(touchTimer); },
-                  className: "relative flex flex-col items-center justify-center rounded-lg py-2 text-xs font-bold transition-all " +
-                    (qty > 0 ? "bg-emerald-100 text-emerald-800 ring-2 ring-emerald-400" : "bg-gray-100 text-gray-500 hover:bg-gray-200")
-                },
-                  /*#__PURE__*/React.createElement("span", null, t),
-                  qty > 0 && /*#__PURE__*/React.createElement("span", { className: "text-[10px] font-black text-emerald-600 mt-0.5" }, qty)
-                );
-              })
+            /*#__PURE__*/React.createElement("div", { className: "grid grid-cols-7 gap-1" },
+              TEETH.slice().reverse().map(function(t) { return renderTooth("UR", t); })
             )
           ),
-          // UL quadrant - teeth 1 to 8 (center to left)
+          // UL quadrant - teeth 1 to 7 (center to left)
           /*#__PURE__*/React.createElement("div", { className: "pl-1 pb-2" },
             /*#__PURE__*/React.createElement("p", { className: "text-xs font-bold text-gray-400 uppercase mb-1.5 text-center" }, "UL"),
-            /*#__PURE__*/React.createElement("div", { className: "grid grid-cols-8 gap-1" },
-              TEETH.map(function(t) {
-                var k = toothKey("UL", t);
-                var qty = quantities[k] || 0;
-                return /*#__PURE__*/React.createElement("button", {
-                  key: t,
-                  onClick: function() { addQty("UL", t); },
-                  onContextMenu: function(e) { e.preventDefault(); removeQty("UL", t); },
-                  onTouchStart: function() {
-                    var timer = setTimeout(function() { removeQty("UL", t); }, 500);
-                    setTouchTimer(timer);
-                  },
-                  onTouchEnd: function() { if (touchTimer) clearTimeout(touchTimer); },
-                  className: "relative flex flex-col items-center justify-center rounded-lg py-2 text-xs font-bold transition-all " +
-                    (qty > 0 ? "bg-emerald-100 text-emerald-800 ring-2 ring-emerald-400" : "bg-gray-100 text-gray-500 hover:bg-gray-200")
-                },
-                  /*#__PURE__*/React.createElement("span", null, t),
-                  qty > 0 && /*#__PURE__*/React.createElement("span", { className: "text-[10px] font-black text-emerald-600 mt-0.5" }, qty)
-                );
-              })
+            /*#__PURE__*/React.createElement("div", { className: "grid grid-cols-7 gap-1" },
+              TEETH.map(function(t) { return renderTooth("UL", t); })
             )
           )
         ),
         // Lower row: LR (reversed) | LL
         /*#__PURE__*/React.createElement("div", { className: "grid grid-cols-2 gap-0" },
-          // LR quadrant - teeth 8 to 1
+          // LR quadrant - teeth 7 to 1
           /*#__PURE__*/React.createElement("div", { className: "border-r-2 border-slate-800 pr-1 pt-2" },
-            /*#__PURE__*/React.createElement("div", { className: "grid grid-cols-8 gap-1" },
-              TEETH.slice().reverse().map(function(t) {
-                var k = toothKey("LR", t);
-                var qty = quantities[k] || 0;
-                return /*#__PURE__*/React.createElement("button", {
-                  key: t,
-                  onClick: function() { addQty("LR", t); },
-                  onContextMenu: function(e) { e.preventDefault(); removeQty("LR", t); },
-                  onTouchStart: function() {
-                    var timer = setTimeout(function() { removeQty("LR", t); }, 500);
-                    setTouchTimer(timer);
-                  },
-                  onTouchEnd: function() { if (touchTimer) clearTimeout(touchTimer); },
-                  className: "relative flex flex-col items-center justify-center rounded-lg py-2 text-xs font-bold transition-all " +
-                    (qty > 0 ? "bg-emerald-100 text-emerald-800 ring-2 ring-emerald-400" : "bg-gray-100 text-gray-500 hover:bg-gray-200")
-                },
-                  /*#__PURE__*/React.createElement("span", null, t),
-                  qty > 0 && /*#__PURE__*/React.createElement("span", { className: "text-[10px] font-black text-emerald-600 mt-0.5" }, qty)
-                );
-              })
+            /*#__PURE__*/React.createElement("div", { className: "grid grid-cols-7 gap-1" },
+              TEETH.slice().reverse().map(function(t) { return renderTooth("LR", t); })
             ),
             /*#__PURE__*/React.createElement("p", { className: "text-xs font-bold text-gray-400 uppercase mt-1.5 text-center" }, "LR")
           ),
-          // LL quadrant - teeth 1 to 8
+          // LL quadrant - teeth 1 to 7
           /*#__PURE__*/React.createElement("div", { className: "pl-1 pt-2" },
-            /*#__PURE__*/React.createElement("div", { className: "grid grid-cols-8 gap-1" },
-              TEETH.map(function(t) {
-                var k = toothKey("LL", t);
-                var qty = quantities[k] || 0;
-                return /*#__PURE__*/React.createElement("button", {
-                  key: t,
-                  onClick: function() { addQty("LL", t); },
-                  onContextMenu: function(e) { e.preventDefault(); removeQty("LL", t); },
-                  onTouchStart: function() {
-                    var timer = setTimeout(function() { removeQty("LL", t); }, 500);
-                    setTouchTimer(timer);
-                  },
-                  onTouchEnd: function() { if (touchTimer) clearTimeout(touchTimer); },
-                  className: "relative flex flex-col items-center justify-center rounded-lg py-2 text-xs font-bold transition-all " +
-                    (qty > 0 ? "bg-emerald-100 text-emerald-800 ring-2 ring-emerald-400" : "bg-gray-100 text-gray-500 hover:bg-gray-200")
-                },
-                  /*#__PURE__*/React.createElement("span", null, t),
-                  qty > 0 && /*#__PURE__*/React.createElement("span", { className: "text-[10px] font-black text-emerald-600 mt-0.5" }, qty)
-                );
-              })
+            /*#__PURE__*/React.createElement("div", { className: "grid grid-cols-7 gap-1" },
+              TEETH.map(function(t) { return renderTooth("LL", t); })
             ),
             /*#__PURE__*/React.createElement("p", { className: "text-xs font-bold text-gray-400 uppercase mt-1.5 text-center" }, "LL")
           )
         ),
-        /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-400 text-center mt-4" }, "Left-click = +1 · Right-click / long-press = −1")
+        /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-400 text-center mt-4" },
+          bulkMode ? "Tap to select/deselect · Use controls above to adjust" : "Left-click = +1 \u00b7 Right-click / long-press = \u22121")
       )
     ),
     // Sticky footer
@@ -5953,11 +6300,11 @@ function BracketOrderingView({ onAddToCart }) {
       className: "fixed bottom-0 left-0 md:left-56 right-0 bg-white border-t border-gray-200 p-4 flex items-center justify-between z-20",
       style: { paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }
     },
-      /*#__PURE__*/React.createElement("span", { className: "text-sm font-semibold text-gray-700" }, totalBrackets + " bracket" + (totalBrackets !== 1 ? "s" : "") + " selected"),
+      /*#__PURE__*/React.createElement("span", { className: "text-sm font-semibold text-gray-700" }, totalBrackets + " bracket" + (totalBrackets !== 1 ? "s" : "") + " charted"),
       /*#__PURE__*/React.createElement("button", {
-        onClick: handleAddToCart,
-        className: "bg-slate-800 hover:bg-slate-900 text-white font-bold text-sm px-6 py-2.5 rounded-xl transition-colors"
-      }, "Add to Cart")
+        onClick: handlePlaceOrder,
+        className: "bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm px-6 py-2.5 rounded-xl transition-colors"
+      }, "Place Order")
     )
   );
 }
@@ -5970,7 +6317,11 @@ function Sidebar({
   view,
   setView,
   currentUser,
-  onSignOut
+  onSignOut,
+  syncStatus,
+  onSetupFirebase,
+  orderCount,
+  placedCount
 }) {
   const catCounts = useMemo(() => {
     const m = {};
@@ -6014,8 +6365,8 @@ function Sidebar({
     Icon: BuildIc
   }, {
     id: "orders",
-    label: "Orders",
-    Icon: TruckIc
+    label: "Cart",
+    Icon: CartIc
   }].map(({
     id,
     label,
@@ -6026,7 +6377,7 @@ function Sidebar({
     className: `w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors ${view === id ? "bg-slate-800 text-white" : "text-gray-600 hover:bg-gray-100"}`
   }, /*#__PURE__*/React.createElement(Icon, {
     size: 16
-  }), label))), view === "inventory" && /*#__PURE__*/React.createElement("div", {
+  }), /*#__PURE__*/React.createElement("span", { className: "flex-1" }, label), id === "orders" && (orderCount + (placedCount || 0)) > 0 && /*#__PURE__*/React.createElement("span", { className: "text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold " + (view === id ? "bg-white/20 text-white" : (placedCount || 0) > 0 ? "bg-blue-500 text-white" : "bg-emerald-500 text-white") }, (orderCount + (placedCount || 0)) > 9 ? "9+" : (orderCount + (placedCount || 0)))))), view === "inventory" && /*#__PURE__*/React.createElement("div", {
     className: "px-3 py-3 flex-1"
   }, /*#__PURE__*/React.createElement("p", {
     className: "text-xs font-semibold text-gray-400 uppercase tracking-wide px-3 mb-2"
@@ -6051,7 +6402,12 @@ function Sidebar({
     className: "flex-1"
   }), /*#__PURE__*/React.createElement("div", {
     className: "border-t border-gray-100 p-4 space-y-2"
-  }, /*#__PURE__*/React.createElement("p", {
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: onSetupFirebase,
+    className: "w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors " + (syncStatus === "connected" ? "text-emerald-700 bg-emerald-50 hover:bg-emerald-100" : syncStatus === "connecting" ? "text-amber-700 bg-amber-50 hover:bg-amber-100" : "text-gray-500 bg-gray-50 hover:bg-gray-100")
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "w-2 h-2 rounded-full shrink-0 " + (syncStatus === "connected" ? "bg-emerald-500" : syncStatus === "connecting" ? "bg-amber-500" : "bg-gray-400")
+  }), syncStatus === "connected" ? "Sync connected" : syncStatus === "connecting" ? "Connecting\u2026" : "Sync disconnected"), /*#__PURE__*/React.createElement("p", {
     className: "text-xs text-gray-500 px-2"
   }, "Signed in as"), /*#__PURE__*/React.createElement("p", {
     className: "text-sm font-semibold text-gray-900 px-2 truncate"
@@ -6066,7 +6422,8 @@ function BottomNav({
   view,
   setView,
   alertCount,
-  orderCount
+  orderCount,
+  placedCount
 }) {
   const tabs = [{
     id: "dashboard",
@@ -6086,8 +6443,8 @@ function BottomNav({
     Icon: BuildIc
   }, {
     id: "orders",
-    label: "Orders",
-    Icon: TruckIc
+    label: "Cart",
+    Icon: CartIc
   }];
   return /*#__PURE__*/React.createElement("div", {
     className: "md:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-gray-200",
@@ -6113,9 +6470,9 @@ function BottomNav({
     className: "absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-slate-800 rounded-full"
   }), id === "reports" && alertCount > 0 && /*#__PURE__*/React.createElement("span", {
     className: "absolute top-1.5 right-5 bg-red-500 text-white text-xs w-4 h-4 rounded-full flex items-center justify-center font-bold"
-  }, alertCount > 9 ? "9+" : alertCount), id === "orders" && orderCount > 0 && /*#__PURE__*/React.createElement("span", {
-    className: "absolute top-1.5 right-5 bg-emerald-500 text-white text-xs w-4 h-4 rounded-full flex items-center justify-center font-bold"
-  }, orderCount > 9 ? "9+" : orderCount)))));
+  }, alertCount > 9 ? "9+" : alertCount), id === "orders" && (orderCount + (placedCount || 0)) > 0 && /*#__PURE__*/React.createElement("span", {
+    className: "absolute top-1.5 right-5 " + ((placedCount || 0) > 0 ? "bg-blue-500" : "bg-emerald-500") + " text-white text-xs w-4 h-4 rounded-full flex items-center justify-center font-bold"
+  }, (orderCount + (placedCount || 0)) > 9 ? "9+" : (orderCount + (placedCount || 0)))))));
 }
 
 // ─── LoginScreen ──────────────────────────────────────────────────────────────
@@ -6286,6 +6643,7 @@ function App() {
   const [addItemOpen, setAddItemOpen] = useState(false);
   const [addOrderOpen, setAddOrderOpen] = useState(false);
   const [reorderFrom, setReorderFrom] = useState(null);
+  // placingOrderId removed - now using placeFlowData state
   const [firebaseConfig, setFirebaseConfig] = useState(loadFirebaseConfig);
   const [syncStatus, setSyncStatus] = useState("disconnected");
   const [firebaseSetupOpen, setFirebaseSetupOpen] = useState(false);
@@ -6321,7 +6679,7 @@ function App() {
           });
         });
         
-        setSyncStatus("synced");
+        setSyncStatus("connected");
       }
     } catch(err) {
       console.error("Firebase init error:", err);
@@ -6506,16 +6864,77 @@ function App() {
       return { ...o, status: "voided", dateVoided: new Date().toISOString() };
     }));
   }, []);
-  function addToCart(item) {
+  function placeBracketOrder(orderData) {
     var newOrder = {
       id: "ord-" + uid(),
-      vendor: "Bracket Order",
-      status: "pending",
+      vendor: orderData.vendor,
+      name: orderData.name || "",
+      status: "open",
       dateOrdered: new Date().toISOString().slice(0, 10),
-      items: [{ name: item.name, qty: 1, unit: item.unit, price: 0 }],
-      note: "Auto-generated from Bracket Ordering"
+      items: orderData.items,
+      note: orderData.note || "Bracket order",
+      orderedBy: currentUser
+    };
+    // Go straight to placement flow
+    setPlaceFlowData({ orders: [newOrder], vendor: orderData.vendor });
+  }
+  function orderItemNow(item) {
+    var ps = primarySource(item);
+    var newOrder = {
+      id: "ord-" + uid(),
+      vendor: ps.vendor || "",
+      name: item.name,
+      status: "open",
+      dateOrdered: new Date().toISOString().slice(0, 10),
+      items: [{ name: item.name, qty: Math.max(1, (item.min || 1) - (item.qty || 0)), unit: item.unit || "ea", price: ps.price || 0, sku: ps.sku || "", itemId: item.id }],
+      note: "Quick order from inventory",
+      orderedBy: currentUser
+    };
+    var sources = item.sources ? item.sources.filter(function(s) { return s.vendor; }) : [];
+    var vendor = sources.length > 1 ? null : (ps.vendor || null);
+    setPlaceFlowData({ orders: [newOrder], vendor: vendor });
+  }
+  function addItemToCart(item) {
+    var ps = primarySource(item);
+    var newOrder = {
+      id: "ord-" + uid(),
+      vendor: ps.vendor || "",
+      name: item.name,
+      status: "open",
+      dateOrdered: new Date().toISOString().slice(0, 10),
+      items: [{ name: item.name, qty: Math.max(1, (item.min || 1) - (item.qty || 0)), unit: item.unit || "ea", price: ps.price || 0, sku: ps.sku || "", itemId: item.id }],
+      note: "Added to cart",
+      orderedBy: currentUser
     };
     setOrders(function(prev) { return [newOrder].concat(prev); });
+  }
+  const [placeFlowData, setPlaceFlowData] = useState(null);
+
+  function placeWithVendor(data) {
+    // data = { orders: [...], vendor: string|null }
+    setPlaceFlowData(data);
+  }
+  function completePlacement(result) {
+    // result = { vendor, method, placedBy, orders }
+    var vendorData = (vendors || []).find(function(v) { return v.name === result.vendor; });
+    var repInfo = vendorData ? { repName: vendorData.rep || "", repPhone: vendorData.repPhone || vendorData.phone || "", repEmail: vendorData.repEmail || vendorData.email || "", accountNum: vendorData.acct || "" } : {};
+    // Remove old open orders
+    var oldIds = result.orders.map(function(o) { return o.id; });
+    setOrders(function(prev) { return prev.filter(function(o) { return oldIds.indexOf(o.id) === -1; }); });
+    // Create placed orders (one per original order)
+    result.orders.forEach(function(origOrder) {
+      var placedOrder = Object.assign({}, origOrder, {
+        id: "ord-" + uid(),
+        vendor: result.vendor,
+        status: "placed",
+        datePlaced: new Date().toISOString().slice(0, 10),
+        placedMethod: result.method,
+        placedBy: result.placedBy || currentUser,
+        repInfo: repInfo
+      });
+      setOrders(function(prev) { return [placedOrder].concat(prev); });
+    });
+    setPlaceFlowData(null);
   }
   function handleViewChange(v) {
     setView(v);
@@ -6542,6 +6961,7 @@ function App() {
   }
   const alertCount = items.filter(i => i.qty < i.min).length;
   const orderCount = orders.filter(o => o.status === "open").length;
+  const placedCount = orders.filter(o => o.status === "placed").length;
   function showQR(item) {
     setQrItem(item || null);
   }
@@ -6566,7 +6986,11 @@ function App() {
       if (v === "inventory") setCat("all");
     },
     currentUser: currentUser,
-    onSignOut: handleSignOut
+    onSignOut: handleSignOut,
+    syncStatus: syncStatus,
+    onSetupFirebase: () => setFirebaseSetupOpen(true),
+    orderCount: orderCount,
+    placedCount: placedCount
   }), /*#__PURE__*/React.createElement("div", {
     className: "flex-1 flex flex-col min-w-0 overflow-hidden"
   }, /*#__PURE__*/React.createElement("div", {
@@ -6588,6 +7012,11 @@ function App() {
   }, /*#__PURE__*/React.createElement(AlertIc, {
     size: 12
   }), alertCount, " need reorder"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setFirebaseSetupOpen(true),
+    className: "p-1"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "block w-2.5 h-2.5 rounded-full " + (syncStatus === "connected" ? "bg-emerald-500" : syncStatus === "connecting" ? "bg-amber-500" : "bg-gray-400")
+  })), /*#__PURE__*/React.createElement("button", {
     onClick: handleSignOut,
     className: "text-gray-400 hover:text-gray-600 p-1"
   }, /*#__PURE__*/React.createElement(XIc, {
@@ -6597,7 +7026,10 @@ function App() {
   }, view === "dashboard" && /*#__PURE__*/React.createElement(DashboardView, {
     items: items,
     orders: orders,
-    log: log
+    log: log,
+    currentUser: currentUser,
+    onNavigate: handleViewChange,
+    onOrderItem: orderItemNow
   }), view === "inventory" && /*#__PURE__*/React.createElement(InventoryView, {
     items: items,
     cat: cat,
@@ -6609,18 +7041,22 @@ function App() {
     onEditSources: setEditSourcesItem,
     onScanInvoice: () => setInvoiceScanOpen(true),
     onAddItem: () => setAddItemOpen(true),
+    onOrderItem: orderItemNow,
     isAdmin: isAdmin
-  }), view === "brackets" && /*#__PURE__*/React.createElement(BracketOrderingView, { onAddToCart: addToCart }), view === "scanner" && /*#__PURE__*/React.createElement(ScannerView, {
+  }), view === "brackets" && /*#__PURE__*/React.createElement(BracketOrderingView, { onPlaceOrder: placeBracketOrder }), view === "scanner" && /*#__PURE__*/React.createElement(ScannerView, {
     items: items,
-    onAdjust: adjust
+    onAdjust: adjust,
+    onOrderNow: orderItemNow,
+    onAddToCart: addItemToCart
   }), view === "reports" && /*#__PURE__*/React.createElement(ReportsView, {
     items: items,
     log: log
-  }), view === "vendors" && /*#__PURE__*/React.createElement(VendorDirectory, { vendors: vendors, onUpdateVendor: updateVendor, onAddVendor: addVendor, onRemoveVendor: removeVendor, isAdmin: isAdmin }), view === "orders" && /*#__PURE__*/React.createElement(OrdersView, { orders: orders, items: items, onAddOrder: () => setAddOrderOpen(true), onReceiveOrder: receiveOrder, onVoidOrder: voidOrder, onScanSlip: () => setInvoiceScanOpen(true), onReorder: (order) => { setReorderFrom(order); setAddOrderOpen(true); }, isAdmin: isAdmin }))), /*#__PURE__*/React.createElement(BottomNav, {
+  }), view === "vendors" && /*#__PURE__*/React.createElement(VendorDirectory, { vendors: vendors, onUpdateVendor: updateVendor, onAddVendor: addVendor, onRemoveVendor: removeVendor, isAdmin: isAdmin }), view === "orders" && /*#__PURE__*/React.createElement(OrdersView, { orders: orders, items: items, vendors: vendors, onAddOrder: () => setAddOrderOpen(true), onReceiveOrder: receiveOrder, onVoidOrder: voidOrder, onPlaceWithVendor: placeWithVendor, onScanSlip: () => setInvoiceScanOpen(true), onReorder: (order) => { setReorderFrom(order); setAddOrderOpen(true); }, isAdmin: isAdmin }))), /*#__PURE__*/React.createElement(BottomNav, {
     view: view,
     setView: handleViewChange,
     alertCount: alertCount,
-    orderCount: orderCount
+    orderCount: orderCount,
+    placedCount: placedCount
   }), adjustItem && /*#__PURE__*/React.createElement(AdjustModal, {
     item: adjustItem,
     onClose: () => setAdjustItem(null),
@@ -6651,6 +7087,18 @@ function App() {
     onSave: addOrder,
     onClose: () => { setAddOrderOpen(false); setReorderFrom(null); },
     prefill: reorderFrom
+  }),
+  placeFlowData && /*#__PURE__*/React.createElement(PlaceOrderFlow, {
+    orders: orders,
+    vendors: vendors,
+    items: items,
+    currentUser: currentUser,
+    orderToPlace: placeFlowData,
+    onComplete: completePlacement,
+    onCancel: function() { setPlaceFlowData(null); }
+  }), firebaseSetupOpen && /*#__PURE__*/React.createElement(FirebaseSetupModal, {
+    onSave: (cfg) => { setFirebaseConfig(cfg); setFirebaseSetupOpen(false); },
+    onClose: () => setFirebaseSetupOpen(false)
   }));
 }
 ReactDOM.createRoot(document.getElementById("root")).render(/*#__PURE__*/React.createElement(App, null));
