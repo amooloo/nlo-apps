@@ -95,79 +95,87 @@ function uid() {
 }
 
 // ─── data ────────────────────────────────────────────────────────────────────
-const CATEGORIES = [{
-  id: "all",
-  label: "All Items",
-  color: "#6366f1"
-}, {
-  id: "sterilization",
-  label: "Sterilization",
-  color: "#0ea5e9"
-}, {
-  id: "steril-liquid",
-  label: "Steril. Liquid",
-  color: "#06b6d4"
-}, {
-  id: "disposables",
-  label: "Disposables",
-  color: "#84cc16"
-}, {
-  id: "bonding",
-  label: "Bonding",
-  color: "#f59e0b"
-}, {
-  id: "elastics",
-  label: "Elastics",
-  color: "#ec4899"
-}, {
-  id: "ppe",
-  label: "PPE",
-  color: "#8b5cf6"
-}, {
-  id: "wire-ligature",
-  label: "Wire Ligature",
-  color: "#64748b"
-}, {
-  id: "cleaning",
-  label: "Cleaning",
-  color: "#22c55e"
-}, {
-  id: "oties",
-  label: "O-Ties",
-  color: "#f97316"
-}, {
-  id: "chain",
-  label: "Chain",
-  color: "#a78bfa"
-}, {
-  id: "wires",
-  label: "Wires",
-  color: "#0891b2"
-}, {
-  id: "burs",
-  label: "Burs",
-  color: "#dc2626"
-}, {
-  id: "lab",
-  label: "Lab",
-  color: "#92400e"
-}, {
-  id: "ipr",
-  label: "IPR System",
-  color: "#059669"
-}, {
-  id: "gauges",
-  label: "Metal Gauges",
-  color: "#475569"
-}, {
-  id: "aligners",
-  label: "Aligners",
-  color: "#7c3aed"
-}, {
-  id: "vendors",
-  label: "Vendors",
-  color: "#1d4ed8"
-}];
+const CATEGORIES = [
+  { id: "all", label: "All Items", color: "#6366f1" },
+  { id: "brackets-tubes", label: "Brackets & Tubes", color: "#0ea5e9", subs: [
+    "Metal Brackets (MBT)", "Metal Brackets (Roth)", "Metal Brackets (Edgewise)",
+    "Ceramic/Clear Brackets", "Self-Ligating Brackets",
+    "Buccal Tubes (Weldable)", "Buccal Tubes (Bondable)"
+  ]},
+  { id: "archwires", label: "Archwires", color: "#f59e0b", subs: [
+    "NiTi (Heat-Activated)", "NiTi (Superelastic)",
+    "Stainless Steel (Solid)", "Stainless Steel (Braided)",
+    "Beta Titanium (TMA)", "Aesthetic/Coated Wires"
+  ]},
+  { id: "elastics", label: "Elastics & Elastomerics", color: "#ec4899", subs: [
+    "Ligature Ties/O-Rings", "Power Chain (Continuous)", "Power Chain (Short)", "Power Chain (Long)",
+    "Intraoral Elastics (by size/force)", "Separators/Spacers", "Elastic Thread/Tubing"
+  ]},
+  { id: "adhesives", label: "Adhesives & Cements", color: "#f97316", subs: [
+    "Bracket Adhesives (Light Cure)", "Bracket Adhesives (Chemical Cure)",
+    "Band Cements (Glass Ionomer)", "Etch & Primers/Sealants", "Porcelain/Metal Conditioners"
+  ]},
+  { id: "auxiliaries", label: "Auxiliaries & Anchorage", color: "#8b5cf6", subs: [
+    "Molar Bands", "Hooks/Buttons/Cleats", "Coil Springs (Open)", "Coil Springs (Closed)",
+    "Bite Turbos/Bite Bumpers", "TADs (Miniscrews)"
+  ]},
+  { id: "clinical-supplies", label: "Clinical Supplies", color: "#14b8a6", subs: [
+    "Cotton & Sponges", "Micro Applicators", "Syringe Tips (A/W)",
+    "Saliva Ejectors", "HVE & Surgical Tips", "Dri-Angles",
+    "Tray Covers & Sleeves", "Syringe Covers", "Dappen Dishes"
+  ]},
+  { id: "burs", label: "Burs & Discs", color: "#e11d48", subs: [
+    "Carbide Burs", "Diamond Burs", "Finishing Burs",
+    "Adhesive Removing Burs", "Polishing Discs", "IPR Strips & Discs"
+  ]},
+  { id: "instruments", label: "Instruments", color: "#64748b", subs: [
+    "Distal End Cutters", "Ligature Cutters", "Bird Beak Pliers", "Weingart Pliers",
+    "Bracket Tweezers", "Scalers", "Band Pushers", "Bite Sticks",
+    "Mirrors & Retractors", "Gauges & Rulers"
+  ]},
+  { id: "lab-3d", label: "Lab & 3D Printing", color: "#92400e", subs: [
+    "3D Printer Resins (Draft/Model)", "3D Printer Resins (Splint/Nightguard)", "3D Printer Resins (Indirect Bonding Tray)",
+    "Aligner & Retainer Plastics", "Lab Wire & Solder",
+    "IPA/Wash Solvents", "Curing Unit Supplies", "Resin Tank Replacements"
+  ]},
+  { id: "infection-control", label: "Infection Control & PPE", color: "#22c55e", subs: [
+    "Gloves", "Masks", "Eyewear",
+    "Patient Bibs & Tray Covers", "Sterilization Pouches & Wraps",
+    "Surface Disinfectants", "Hand Sanitizers"
+  ]},
+  { id: "patient-care", label: "Patient Care & Giveaways", color: "#06b6d4", subs: [
+    "Relief Wax/Silicone", "Toothbrushes", "Floss & Floss Threaders",
+    "Interdental Brushes", "Retainer Cases", "Chewies (Aligners)", "Patient Kits"
+  ]},
+  { id: "misc", label: "Misc / Uncategorized", color: "#94a3b8", subs: [] }
+];
+// Migration map: old category IDs → new category IDs
+const CAT_MIGRATION = {
+  "sterilization": "infection-control",
+  "steril-liquid": "infection-control",
+  "disposables": "clinical-supplies",
+  "bonding": "adhesives",
+  "elastics": "elastics",
+  "ppe": "infection-control",
+  "wire-ligature": "auxiliaries",
+  "cleaning": "infection-control",
+  "oties": "elastics",
+  "chain": "elastics",
+  "wires": "archwires",
+  "burs": "burs",
+  "lab": "lab-3d",
+  "ipr": "burs",
+  "gauges": "instruments",
+  "aligners": "lab-3d"
+};
+function migrateItemCat(item) {
+  if (item && item.cat && CAT_MIGRATION[item.cat]) {
+    item.cat = CAT_MIGRATION[item.cat];
+  } else if (item && item.cat && !CATEGORIES.find(function(c) { return c.id === item.cat; })) {
+    item.cat = "misc";
+  }
+  return item;
+}
 // Komet product thumbnails (base64 webp)
 const PRODUCT_IMGS = {
   "h23vip": "data:image/webp;base64,UklGRmICAABXRUJQVlA4IFYCAACwDQCdASpvAFAAPrVYpE4nJSMiIsrA4BaJaQAW2F01y8hFsp+Ro6DcBKlnk3QkZtvp72BOj4N/mUw/IpssKlYVUy2WFoEWBbLTjKhuYV2FuBfYlauPn6To32RdDOM8mkpDz2oi4JKo9sNgtHDIp1NNLCypkPwAAP7+4r26G+koBfOFv5vMfTfyx2jx1a9OVPm0BtpkJYQbZQcZQw1IPwMI+OsqlH/WsqNnHKm+aP0R62C1+RfAjf3nPG+JaFYdetFmXR8xuih/yAtnk8iD01PX9jfMZdsj9lsfE0blXuvNDX4/6asrDl5t4slhTnXA7NaW51000XRF44L3+C1pDeP6DMj6Liq+dwr4+9/x4LZAuVuAZXDxZwWY3cN3gXhpiIeLL7VnWgtHUx38aYdcqqhVwT9hDABSlib7MWDD4QEkUOkBcJtILt9G0khzxdcdxQko4VPYHKyHNrz4SuWDRtGtRuUbeHHy60vcGL0kCd96Qv16Ol/QsPYWrs0zG3r8dLQfWFcPX+to6wFRpHabayq9J+/m6jDpj3mJgz0aDVFQOuwcWQI6/pJHjHU5C8Z8q0DR4mnF3h1MbkN9Ft4JtN5jsim2+1LE/i0Pj4kXjHrhzG+M1lZL3AFmygA/8+P7S4REILBj5LD1Ni+DKaSLdewTeQ/bHUHFz/Y+eXDAFmwM4mOsLSZVk/UtSz7kGI9nClOkYrH24POLKWy7rSG7/kJym3M2M4516ccsWPX6yqbs8VLM6Sg8dWsBxOX5sxWr9iVCOWW4G3XddlgManildNVy+AcUAAAA",
@@ -2070,7 +2078,7 @@ const SEED = [
 // DISPOSABLES — Amazon
 {
   id: "amz-2",
-  cat: "disposables",
+  cat: "patient-care",
   name: "BBTO Braces Dental Brush Flosser",
   sku: "B087R9WKKH",
   qty: 0,
@@ -2104,7 +2112,7 @@ const SEED = [
 // DISPOSABLES — Amazon
 {
   id: "amz-4",
-  cat: "disposables",
+  cat: "patient-care",
   name: "GUM Proxabrush Go-Betweens Tight 40ct",
   sku: "B0C86LZNWQ",
   qty: 0,
@@ -2138,7 +2146,7 @@ const SEED = [
 // DISPOSABLES — Amazon floss
 {
   id: "amz-6",
-  cat: "disposables",
+  cat: "patient-care",
   name: "Oral-B Super Floss for Braces 50ct",
   sku: "B074W58X3F",
   qty: 0,
@@ -2155,7 +2163,7 @@ const SEED = [
 // ALIGNERS — Amazon remover
 {
   id: "amz-7",
-  cat: "aligners",
+  cat: "patient-care",
   name: "OrthoKey Aligner Remover",
   sku: "B07NQ5KZFT",
   qty: 0,
@@ -2172,7 +2180,7 @@ const SEED = [
 // DISPOSABLES — Amazon toothbrushes
 {
   id: "amz-8",
-  cat: "disposables",
+  cat: "patient-care",
   name: "Tioncy Disposable Toothbrushes 200pk",
   sku: "B0CBNWGVJ3",
   qty: 0,
@@ -2216,11 +2224,12 @@ function loadItems() {
         if (seedImgMap[item.id]) item.img = seedImgMap[item.id];
         if (seedUnitMap[item.id]) item.unit = seedUnitMap[item.id];
         if (seedExpMap[item.id] !== undefined) item.exp = seedExpMap[item.id];
+        migrateItemCat(item);
       });
       return merged;
     }
   } catch (e) {}
-  return SEED;
+  return SEED.map(function(i) { return migrateItemCat(Object.assign({}, i)); });
 }
 function saveItems(it) {
   try {
@@ -2618,6 +2627,7 @@ const QrIc = p => /*#__PURE__*/React.createElement(Ic, p, /*#__PURE__*/React.cre
 }), /*#__PURE__*/React.createElement("path", {
   d: "M21 16h-3v3h3v-3zm-6-3h3v3h-3v-3zm-9 6h3v3H6v-3zm6-9h3v-3h-3v3zm0 3h-3v3h3v-3zm3 3h3v3h-3v-3zm0-9H9v3h3V7z"
 }));
+const ArchiveIc = p => /*#__PURE__*/React.createElement(Ic, p, /*#__PURE__*/React.createElement("polyline", { points: "21 8 21 21 3 21 3 8" }), /*#__PURE__*/React.createElement("rect", { x: "1", y: "3", width: "22", height: "5" }), /*#__PURE__*/React.createElement("line", { x1: "10", y1: "12", x2: "14", y2: "12" }));
 const SparkleIc = p => /*#__PURE__*/React.createElement(Ic, p, /*#__PURE__*/React.createElement("path", {
   d: "M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
 }));
@@ -2900,7 +2910,12 @@ function AddItemModal({ onSave, onClose, vendors }) {
         field("Min Stock", min, setMin, "1", "number"),
         field("Price ($)", price, setPrice, "0.00", "number")
       ),
-      field("Group", group, setGroup, "e.g. Finishing & Debonding"),
+      React.createElement("div", null,
+        React.createElement("label", { className: "text-xs font-medium text-gray-500 uppercase tracking-wide" }, "Subcategory"),
+        React.createElement("select", { value: group, onChange: e => setGroup(e.target.value), className: "mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" },
+          React.createElement("option", { value: "" }, "Select subcategory..."),
+          ((CATEGORIES.find(c => c.id === cat) || {}).subs || []).map(sub => React.createElement("option", { key: sub, value: sub }, sub)))
+      ),
       React.createElement("div", { className: "space-y-3" },
         React.createElement("div", { className: "grid grid-cols-2 gap-3" },
           React.createElement("div", null,
@@ -2928,6 +2943,7 @@ function AddItemModal({ onSave, onClose, vendors }) {
 const SourcesModal = ({ item, onSave, onDelete, onClose, isAdmin, vendors }) => {
   const vendorNames = (vendors || []).map(v => v.name).filter(Boolean).sort();
   const [sources, setSources] = useState(allSources(item));
+  const [itemCat, setItemCat] = useState(item.cat || "misc");
   const [group, setGroup] = useState(item.group || "");
   const [minStock, setMinStock] = useState(String(item.min || 0));
   const [itemUnit, setItemUnit] = useState(item.unit || "");
@@ -2982,7 +2998,7 @@ const SourcesModal = ({ item, onSave, onDelete, onClose, isAdmin, vendors }) => 
       delete clean._customVendor;
       return clean;
     });
-    const extras = { img: imgData, min: Math.max(0, parseInt(minStock) || 0), note: itemNote.trim() || null, exp: exp || "", unit: itemUnit.trim() || "unit", packaging: itemPkg.trim() || null, unitsPerPkg: parseFloat(unitsPerPkg) || null, pkgsPerCase: parseFloat(pkgsPerCase) || null };
+    const extras = { img: imgData, min: Math.max(0, parseInt(minStock) || 0), note: itemNote.trim() || null, exp: exp || "", unit: itemUnit.trim() || "unit", packaging: itemPkg.trim() || null, unitsPerPkg: parseFloat(unitsPerPkg) || null, pkgsPerCase: parseFloat(pkgsPerCase) || null, cat: itemCat };
     onSave(item.id, filtered, group.trim() || null, extras);
     onClose();
   }
@@ -3007,17 +3023,20 @@ const SourcesModal = ({ item, onSave, onDelete, onClose, isAdmin, vendors }) => 
   }, /*#__PURE__*/React.createElement(XIc, { size: 18 }))), /*#__PURE__*/React.createElement("div", {
     className: "flex-1 overflow-y-auto p-5"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "mb-4"
-  }, /*#__PURE__*/React.createElement("label", {
-    className: "text-xs font-semibold text-gray-500 uppercase tracking-wide"
-  }, "Group"), /*#__PURE__*/React.createElement("input", {
-    type: "text",
-    value: group,
-    onChange: e => setGroup(e.target.value),
-    placeholder: "e.g. Interproximal Brushes",
-    list: "group-suggestions",
-    className: "mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-  })), /*#__PURE__*/React.createElement("div", {
+    className: "mb-4 grid grid-cols-2 gap-3"
+  }, /*#__PURE__*/React.createElement("div", null,
+    /*#__PURE__*/React.createElement("label", {
+      className: "text-xs font-semibold text-gray-500 uppercase tracking-wide"
+    }, "Category"),
+    /*#__PURE__*/React.createElement("select", { value: itemCat, onChange: function(e) { setItemCat(e.target.value); setGroup(""); }, className: "mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" },
+      CATEGORIES.filter(function(c) { return c.id !== "all"; }).map(function(c) { return /*#__PURE__*/React.createElement("option", { key: c.id, value: c.id }, c.label); }))),
+  /*#__PURE__*/React.createElement("div", null,
+    /*#__PURE__*/React.createElement("label", {
+      className: "text-xs font-semibold text-gray-500 uppercase tracking-wide"
+    }, "Subcategory"),
+    /*#__PURE__*/React.createElement("select", { value: group, onChange: function(e) { setGroup(e.target.value); }, className: "mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" },
+      /*#__PURE__*/React.createElement("option", { value: "" }, "Select subcategory..."),
+      ((CATEGORIES.find(function(c) { return c.id === itemCat; }) || {}).subs || []).map(function(sub) { return /*#__PURE__*/React.createElement("option", { key: sub, value: sub }, sub); })))), /*#__PURE__*/React.createElement("div", {
     className: "mb-4 grid grid-cols-2 gap-3"
   }, /*#__PURE__*/React.createElement("div", null,
     /*#__PURE__*/React.createElement("label", {
@@ -3258,7 +3277,15 @@ const SourcesModal = ({ item, onSave, onDelete, onClose, isAdmin, vendors }) => 
   }, "Cancel"), /*#__PURE__*/React.createElement("button", {
     onClick: save,
     className: "flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-xl transition-colors"
-  }, "Save Changes")), isAdmin && onDelete && /*#__PURE__*/React.createElement("button", {
+  }, "Save Changes")), isAdmin && /*#__PURE__*/React.createElement("button", {
+    onClick: () => {
+      if (confirm((item.archived ? "Unarchive" : "Archive") + " \"" + item.name + "\"?")) {
+        onSave(item.id, sources.filter(s => s.vendor || s.sku).map(function(s) { var clean = Object.assign({}, s); delete clean._customVendor; return clean; }), group.trim() || null, { img: imgData, min: Math.max(0, parseInt(minStock) || 0), note: itemNote.trim() || null, exp: exp || "", unit: itemUnit.trim() || "unit", packaging: itemPkg.trim() || null, unitsPerPkg: parseFloat(unitsPerPkg) || null, pkgsPerCase: parseFloat(pkgsPerCase) || null, cat: itemCat, archived: !item.archived });
+        onClose();
+      }
+    },
+    className: "w-full flex items-center justify-center gap-1.5 " + (item.archived ? "text-green-600 hover:text-green-700 hover:bg-green-50" : "text-amber-600 hover:text-amber-700 hover:bg-amber-50") + " text-xs font-semibold py-2 rounded-xl transition-colors"
+  }, /*#__PURE__*/React.createElement(ArchiveIc, { size: 13 }), item.archived ? "Unarchive Item" : "Archive Item"), isAdmin && onDelete && /*#__PURE__*/React.createElement("button", {
     onClick: () => {
       if (confirm("Delete \"" + item.name + "\" from inventory? This cannot be undone.")) {
         onDelete(item.id);
@@ -4093,7 +4120,8 @@ function InventoryView({
 }) {
   const [viewMode, setViewMode] = useState("list");
   const visible = useMemo(() => {
-    let it = cat === "all" ? items : items.filter(i => i.cat === cat);
+    let it = items.filter(i => !i.archived);
+    it = cat === "all" ? it : it.filter(i => i.cat === cat);
     if (search.trim()) {
       const q = search.toLowerCase();
       it = it.filter(i => i.name.toLowerCase().includes(q) || i.sku.toLowerCase().includes(q) || (i.note || "").toLowerCase().includes(q) || (i.group || "").toLowerCase().includes(q));
@@ -6352,6 +6380,48 @@ function AddOrderModal({ items, vendors, onSave, onClose, prefill }) {
   );
 }
 
+// ─── ArchiveView ─────────────────────────────────────────────────────────────
+function ArchiveView({ items, onEditSources, isAdmin }) {
+  const [search, setSearch] = useState("");
+  const visible = useMemo(function() {
+    var it = items;
+    if (search.trim()) {
+      var q = search.toLowerCase();
+      it = it.filter(function(i) { return i.name.toLowerCase().includes(q) || i.sku.toLowerCase().includes(q) || (i.group || "").toLowerCase().includes(q); });
+    }
+    return it;
+  }, [items, search]);
+  var catMap = {};
+  CATEGORIES.forEach(function(c) { if (c.id !== "all") catMap[c.id] = c; });
+  return React.createElement("div", { className: "flex-1 flex flex-col min-h-0 overflow-hidden" },
+    React.createElement("div", { className: "px-4 pt-5 pb-3" },
+      React.createElement("div", { className: "flex items-center justify-between mb-3" },
+        React.createElement("div", null,
+          React.createElement("h2", { className: "text-lg font-bold text-gray-900" }, "Archived Items"),
+          React.createElement("p", { className: "text-sm text-gray-500" }, items.length + " item" + (items.length !== 1 ? "s" : "") + " archived")),
+        React.createElement(ArchiveIc, { size: 22, className: "text-gray-400" })),
+      React.createElement("div", { className: "relative" },
+        React.createElement(SearchIc, { size: 16, className: "absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" }),
+        React.createElement("input", { type: "text", value: search, onChange: function(e) { setSearch(e.target.value); }, placeholder: "Search archived items...", className: "w-full pl-9 pr-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" }))),
+    React.createElement("div", { className: "flex-1 overflow-y-auto px-4 pb-4" },
+      visible.length === 0 ? React.createElement("div", { className: "text-center py-16" },
+        React.createElement(ArchiveIc, { size: 40, className: "mx-auto text-gray-300 mb-3" }),
+        React.createElement("p", { className: "text-gray-500 font-medium" }, search ? "No archived items match your search" : "No archived items"),
+        React.createElement("p", { className: "text-gray-400 text-sm mt-1" }, "Items archived by admin will appear here"))
+      : React.createElement("div", { className: "space-y-2" },
+        visible.map(function(item) {
+          var catInfo = catMap[item.cat] || { label: "Unknown", color: "#94a3b8" };
+          return React.createElement("div", { key: item.id, className: "bg-white rounded-xl border border-gray-200 p-3 flex items-center gap-3 hover:shadow-sm transition-shadow" },
+            item.img ? React.createElement("img", { src: item.img, className: "w-10 h-10 rounded-lg object-cover border border-gray-100" }) : React.createElement("div", { className: "w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center" }, React.createElement(Package, { size: 18, className: "text-gray-400" })),
+            React.createElement("div", { className: "flex-1 min-w-0" },
+              React.createElement("p", { className: "font-semibold text-gray-900 text-sm truncate" }, item.name),
+              React.createElement("div", { className: "flex items-center gap-2 mt-0.5" },
+                React.createElement("span", { className: "text-xs px-1.5 py-0.5 rounded-full font-medium", style: { backgroundColor: catInfo.color + "18", color: catInfo.color } }, catInfo.label),
+                item.group && React.createElement("span", { className: "text-xs text-gray-400" }, item.group))),
+            isAdmin && React.createElement("button", { onClick: function() { onEditSources(item); }, className: "text-xs font-semibold text-blue-600 hover:text-blue-800 px-3 py-1.5 rounded-lg hover:bg-blue-50 transition-colors whitespace-nowrap" }, "View / Unarchive"));
+        }))));
+}
+
 // ─── BracketOrderView ────────────────────────────────────────────────────────
 function BracketOrderView({ bracketOrder, onUpdateBracketOrder, onAddToCart, items }) {
   const bracketSystems = [
@@ -6640,7 +6710,7 @@ function BudgetView({ budget, log, orders, items, onAddExpense, onUpdateSettings
   });
 
   var budgetCats = CATEGORIES.filter(function(c) { return c.id !== "all" && c.id !== "vendors"; });
-  var monthlyTotal = budget.monthly || 5000;
+  var monthlyTotal = budget.monthly || 8000;
   var catAllocations = budget.categories || {};
 
   // Parse selected month
@@ -6663,6 +6733,7 @@ function BudgetView({ budget, log, orders, items, onAddExpense, onUpdateSettings
       var item = (items || []).find(function(i) { return i.id === entry.itemId; });
       if (!item) return;
       var cat = item.cat || "uncategorized";
+      if (cat === "lab-3d") return; // Excluded from budget
       var src = item.sources && item.sources[0];
       var price = src ? parseFloat(src.price) || 0 : 0;
       var amount = price * Math.abs(entry.delta || 0);
@@ -6680,6 +6751,7 @@ function BudgetView({ budget, log, orders, items, onAddExpense, onUpdateSettings
       var d = new Date(exp.date);
       if (d < monthStart || d > monthEnd) return;
       var cat = exp.category || "uncategorized";
+      if (cat === "lab-3d") return; // Excluded from budget
       spending[cat] = (spending[cat] || 0) + (parseFloat(exp.amount) || 0);
     });
     return spending;
@@ -6695,7 +6767,7 @@ function BudgetView({ budget, log, orders, items, onAddExpense, onUpdateSettings
   }, [autoSpending, manualSpending]);
 
   var grandTotal = Object.values(totalSpending).reduce(function(s, v) { return s + v; }, 0);
-  var pctUsed = monthlyTotal > 0 ? Math.min(100, (grandTotal / monthlyTotal) * 100) : 0;
+  var pctUsed = monthlyTotal > 0 ? (grandTotal / monthlyTotal) * 100 : 0;
 
   // Month navigation
   var prevMonth = function() {
@@ -6723,6 +6795,51 @@ function BudgetView({ budget, log, orders, items, onAddExpense, onUpdateSettings
   var sortedCats = budgetCats.slice().sort(function(a, b) { return (totalSpending[b.id] || 0) - (totalSpending[a.id] || 0); });
   var activeCats = sortedCats.filter(function(c) { return (totalSpending[c.id] || 0) > 0 || (catAllocations[c.id] || 0) > 0; });
 
+  // ── Annual data: spending per month for heatmap + annual bar ──
+  var annualMonths = useMemo(function() {
+    var months = [];
+    for (var m = 0; m < 12; m++) {
+      var ms = new Date(selYear, m, 1);
+      var me = new Date(selYear, m + 1, 0, 23, 59, 59);
+      var total = 0;
+      (log || []).forEach(function(entry) {
+        if (entry.type !== "receive") return;
+        var d = new Date(entry.date);
+        if (d < ms || d > me) return;
+        var it = (items || []).find(function(i) { return i.id === entry.itemId; });
+        if (!it || (it.cat || "") === "lab-3d") return;
+        var src = it.sources && it.sources[0];
+        var price = src ? parseFloat(src.price) || 0 : 0;
+        total += price * Math.abs(entry.delta || 0);
+      });
+      (budget.expenses || []).forEach(function(exp) {
+        var d = new Date(exp.date);
+        if (d < ms || d > me) return;
+        if ((exp.category || "") === "lab-3d") return;
+        total += parseFloat(exp.amount) || 0;
+      });
+      months.push({ month: m, label: ms.toLocaleDateString("en-US", { month: "short" }), total: total });
+    }
+    return months;
+  }, [log, items, budget.expenses, selYear]);
+
+  var annualTotal = annualMonths.reduce(function(s, m) { return s + m.total; }, 0);
+  var annualBudget = monthlyTotal * 12;
+  var annualPct = annualBudget > 0 ? (annualTotal / annualBudget) * 100 : 0;
+
+  // ── Order dates this month (for calendar) ──
+  var orderDaysThisMonth = useMemo(function() {
+    var days = {};
+    (orders || []).forEach(function(o) {
+      if (!o.date) return;
+      var d = new Date(o.date);
+      if (d.getFullYear() === selYear && d.getMonth() === selMonth) {
+        days[d.getDate()] = (days[d.getDate()] || 0) + 1;
+      }
+    });
+    return days;
+  }, [orders, selYear, selMonth]);
+
   return React.createElement("div", { className: "flex-1 overflow-y-auto" },
     // Header
     React.createElement("div", { className: "sticky top-0 z-10 bg-white border-b px-4 py-4 flex items-center justify-between" },
@@ -6741,15 +6858,74 @@ function BudgetView({ budget, log, orders, items, onAddExpense, onUpdateSettings
       React.createElement("div", { className: "bg-white rounded-xl border border-gray-200 p-5" },
         React.createElement("div", { className: "flex items-end justify-between mb-3" },
           React.createElement("div", null,
-            React.createElement("p", { className: "text-xs text-gray-500 font-semibold uppercase tracking-wide" }, "Monthly Budget"),
+            React.createElement("p", { className: "text-xs text-gray-500 font-semibold uppercase tracking-wide" }, "Monthly Budget (Lab & 3D Printing Excluded)"),
             React.createElement("p", { className: "text-2xl font-bold text-gray-900 mt-1" }, "$" + grandTotal.toFixed(2)),
             React.createElement("p", { className: "text-sm text-gray-500" }, "of $" + monthlyTotal.toLocaleString() + " budget")),
-          React.createElement("p", { className: "text-3xl font-bold " + (pctUsed > 90 ? "text-red-600" : pctUsed > 70 ? "text-amber-600" : "text-emerald-600") }, Math.round(pctUsed) + "%")),
+          React.createElement("p", { className: "text-3xl font-bold " + (pctUsed > 100 ? "text-red-600" : pctUsed > 81.25 ? "text-amber-600" : "text-emerald-600") }, Math.round(pctUsed) + "%")),
         React.createElement("div", { className: "w-full bg-gray-100 rounded-full h-3 overflow-hidden" },
-          React.createElement("div", { className: "h-full rounded-full transition-all " + (pctUsed > 90 ? "bg-red-500" : pctUsed > 70 ? "bg-amber-500" : "bg-emerald-500"), style: { width: Math.min(100, pctUsed) + "%" } })),
-        React.createElement("div", { className: "flex justify-between text-xs text-gray-500 mt-2" },
-          React.createElement("span", null, "$" + (monthlyTotal - grandTotal).toFixed(2) + " remaining"),
-          React.createElement("span", null, Math.round(pctUsed) + "% used"))),
+          React.createElement("div", { className: "h-full rounded-full transition-all " + (pctUsed > 100 ? "bg-red-500" : pctUsed > 81.25 ? "bg-amber-500" : "bg-emerald-500"), style: { width: Math.min(100, pctUsed) + "%" } })),
+        React.createElement("div", { className: "flex justify-between text-xs mt-2" + (pctUsed > 100 ? " text-red-600" : " text-gray-500") },
+          React.createElement("span", null, pctUsed > 100 ? "$" + (grandTotal - monthlyTotal).toFixed(2) + " over" : "$" + (monthlyTotal - grandTotal).toFixed(2) + " remaining"),
+          React.createElement("span", null, Math.round(pctUsed) + "% used")),
+        pctUsed > 100 && React.createElement("p", { className: "text-sm font-bold text-red-600 mt-2" }, "Over Budget")),
+
+      // ── Annual Progress Bar ──
+      React.createElement("div", { className: "bg-white rounded-xl border border-gray-200 p-4" },
+        React.createElement("div", { className: "flex items-center justify-between mb-2" },
+          React.createElement("p", { className: "text-xs text-gray-500 font-semibold uppercase tracking-wide" }, selYear + " Annual Budget"),
+          React.createElement("span", { className: "text-sm font-bold " + (annualPct > 100 ? "text-red-600" : annualPct > 81.25 ? "text-amber-600" : "text-emerald-600") }, Math.round(annualPct) + "%")),
+        React.createElement("div", { className: "w-full bg-gray-100 rounded-full h-2 overflow-hidden" },
+          React.createElement("div", { className: "h-full rounded-full transition-all " + (annualPct > 100 ? "bg-red-500" : annualPct > 81.25 ? "bg-amber-500" : "bg-emerald-500"), style: { width: Math.min(100, annualPct) + "%" } })),
+        React.createElement("div", { className: "flex justify-between text-xs text-gray-500 mt-1.5" },
+          React.createElement("span", null, "$" + annualTotal.toFixed(0) + " of $" + annualBudget.toLocaleString()),
+          annualPct > 100 && React.createElement("span", { className: "text-red-600 font-semibold" }, "Over Budget"))),
+
+      // ── Annual Heatmap + Monthly Order Calendar ──
+      React.createElement("div", { className: "grid grid-cols-1 sm:grid-cols-2 gap-4" },
+
+        // Annual Heatmap
+        React.createElement("div", { className: "bg-white rounded-xl border border-gray-200 p-4" },
+          React.createElement("p", { className: "text-xs text-gray-500 font-semibold uppercase tracking-wide mb-3" }, selYear + " Monthly Overview"),
+          React.createElement("div", { className: "grid grid-cols-4 gap-1.5" },
+            annualMonths.map(function(m) {
+              var mPct = monthlyTotal > 0 ? (m.total / monthlyTotal) * 100 : 0;
+              var bg = m.total === 0 ? "bg-gray-100" : (mPct > 100 ? "bg-red-400" : (mPct > 81.25 ? "bg-amber-400" : "bg-emerald-400"));
+              var isCurrent = m.month === selMonth;
+              return React.createElement("div", {
+                key: m.month,
+                className: "rounded-lg p-1.5 text-center cursor-pointer transition-all " + bg + (isCurrent ? " ring-2 ring-slate-800 ring-offset-1" : " hover:ring-1 hover:ring-gray-300"),
+                onClick: function() { setSelectedMonth(selYear + "-" + String(m.month + 1).padStart(2, "0")); },
+                title: m.label + ": $" + m.total.toFixed(0)
+              },
+                React.createElement("div", { className: "text-[10px] font-semibold " + (m.total === 0 ? "text-gray-400" : "text-white") }, m.label),
+                React.createElement("div", { className: "text-[9px] " + (m.total === 0 ? "text-gray-400" : "text-white/80") }, m.total > 0 ? "$" + (m.total >= 1000 ? (m.total / 1000).toFixed(1) + "k" : m.total.toFixed(0)) : "-"));
+            }))),
+
+        // Monthly Order Calendar
+        React.createElement("div", { className: "bg-white rounded-xl border border-gray-200 p-4" },
+          React.createElement("p", { className: "text-xs text-gray-500 font-semibold uppercase tracking-wide mb-3" }, monthLabel + " Orders"),
+          (function() {
+            var firstDay = new Date(selYear, selMonth, 1).getDay();
+            var daysInMonth = new Date(selYear, selMonth + 1, 0).getDate();
+            var cells = [];
+            var dayLabels = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+            for (var di = 0; di < 7; di++) {
+              cells.push(React.createElement("div", { key: "h" + di, className: "text-[9px] font-semibold text-gray-400 text-center" }, dayLabels[di]));
+            }
+            for (var pad = 0; pad < firstDay; pad++) {
+              cells.push(React.createElement("div", { key: "p" + pad }));
+            }
+            for (var day = 1; day <= daysInMonth; day++) {
+              var hasOrder = orderDaysThisMonth[day];
+              var isToday = (day === new Date().getDate() && selMonth === new Date().getMonth() && selYear === new Date().getFullYear());
+              cells.push(React.createElement("div", {
+                key: day,
+                className: "w-full aspect-square flex items-center justify-center rounded-md text-[10px] font-medium " + (hasOrder ? "bg-blue-500 text-white" : (isToday ? "bg-gray-200 text-gray-900 font-bold" : "text-gray-500")),
+                title: hasOrder ? hasOrder + " order" + (hasOrder > 1 ? "s" : "") : ""
+              }, day));
+            }
+            return React.createElement("div", { className: "grid grid-cols-7 gap-0.5" }, cells);
+          })())),
 
       // ── Tab Buttons ──
       React.createElement("div", { className: "flex gap-2" },
@@ -6909,10 +7085,6 @@ function Sidebar({
     label: "Scanner",
     Icon: CameraIc
   }, {
-    id: "brackets",
-    label: "Brackets",
-    Icon: Package
-  }, {
     id: "reports",
     label: "Reports",
     Icon: BarChIc
@@ -6920,6 +7092,10 @@ function Sidebar({
     id: "budget",
     label: "Budget",
     Icon: DollarIc
+  }, {
+    id: "brackets",
+    label: "Brackets",
+    Icon: GridIc
   }, {
     id: "vendors",
     label: "Vendors",
@@ -6932,6 +7108,10 @@ function Sidebar({
     id: "cart",
     label: "Order Cart",
     Icon: CartIc
+  }, {
+    id: "archive",
+    label: "Archive",
+    Icon: ArchiveIc
   }].map(({
     id,
     label,
@@ -7003,10 +7183,6 @@ function BottomNav({
     id: "scanner",
     label: "Scan",
     Icon: CameraIc
-  }, {
-    id: "brackets",
-    label: "Brackets",
-    Icon: Package
   }, {
     id: "budget",
     label: "Budget",
@@ -7311,7 +7487,20 @@ function App() {
               // Genuine remote change: update state AND record the JSON so the
               // push useEffect won't echo this data back to Firebase.
               lastWriteJSON.current[key] = json;
-              setters[key](val);
+              // Special handling for vendors: merge with hardcoded VENDORS
+              if (key === "vendors" && Array.isArray(val)) {
+                var merged = VENDORS.map(function(dv) {
+                  var sv = val.find(function(s) { return s.id === dv.id; });
+                  return sv ? Object.assign({}, dv, sv) : dv;
+                });
+                var extras = val.filter(function(sv) { return !VENDORS.find(function(dv) { return dv.id === sv.id; }); });
+                setters[key](merged.concat(extras));
+              } else if (key === "items" && Array.isArray(val)) {
+                val.forEach(migrateItemCat);
+                setters[key](val);
+              } else {
+                setters[key](val);
+              }
             });
           });
         }
@@ -7322,7 +7511,20 @@ function App() {
             if (cancelled) return;
             const val = snap.val();
             if (val) {
-              setters[key](val);
+              // Special handling for vendors: merge with hardcoded VENDORS
+              if (key === "vendors" && Array.isArray(val)) {
+                var merged = VENDORS.map(function(dv) {
+                  var sv = val.find(function(s) { return s.id === dv.id; });
+                  return sv ? Object.assign({}, dv, sv) : dv;
+                });
+                var extras = val.filter(function(sv) { return !VENDORS.find(function(dv) { return dv.id === sv.id; }); });
+                setters[key](merged.concat(extras));
+              } else if (key === "items" && Array.isArray(val)) {
+                val.forEach(migrateItemCat);
+                setters[key](val);
+              } else {
+                setters[key](val);
+              }
               // Snapshot the loaded data so the sync effects don't echo it back
               lastWriteJSON.current[key] = JSON.stringify(val);
             }
@@ -7361,7 +7563,7 @@ function App() {
 
   const [cart, setCart] = useState([]);
   const [bracketOrder, setBracketOrder] = useState({});
-  const [budget, setBudget] = useState({ monthly: 5000, categories: {}, expenses: [], history: [] });
+  const [budget, setBudget] = useState({ monthly: 8000, categories: {}, expenses: [], history: [] });
 
   const addToCart = useCallback((item, qty) => {
     if (!item || !item.id) return;
@@ -7501,6 +7703,8 @@ function App() {
         if (extras.packaging !== undefined) updated.packaging = extras.packaging;
         if (extras.unitsPerPkg !== undefined) updated.unitsPerPkg = extras.unitsPerPkg;
         if (extras.pkgsPerCase !== undefined) updated.pkgsPerCase = extras.pkgsPerCase;
+        if (extras.cat !== undefined) updated.cat = extras.cat;
+        if (extras.archived !== undefined) updated.archived = extras.archived;
       }
       return updated;
     }));
@@ -7647,7 +7851,9 @@ function App() {
       date: new Date().toISOString()
     }, ...prev].slice(0, 500));
   }
-  const alertCount = items.filter(i => i.qty < i.min).length;
+  const activeItems = useMemo(() => items.filter(i => !i.archived), [items]);
+  const archivedItems = useMemo(() => items.filter(i => i.archived), [items]);
+  const alertCount = activeItems.filter(i => i.qty < i.min).length;
   const orderCount = orders.filter(o => o.status === "open").length;
   function showQR(item) {
     setQrItem(item || null);
@@ -7706,7 +7912,7 @@ function App() {
   })))), /*#__PURE__*/React.createElement("div", {
     className: "flex-1 flex flex-col min-h-0 overflow-hidden pb-20 md:pb-0"
   }, view === "dashboard" && /*#__PURE__*/React.createElement(DashboardView, {
-    items: items,
+    items: activeItems,
     orders: orders,
     log: log,
     cart: cart,
@@ -7717,7 +7923,7 @@ function App() {
     onOpenAddOrder: function() { setAddOrderOpen(true); },
     onOpenAddItem: function() { setAddItemOpen(true); }
   }), view === "inventory" && /*#__PURE__*/React.createElement(InventoryView, {
-    items: items,
+    items: activeItems,
     cat: cat,
     setCat: setCat,
     search: search,
@@ -7731,7 +7937,7 @@ function App() {
     vendors: vendors,
     onCreateOrder: function(orderData) { setPendingOrder(orderData); }
   }), view === "scanner" && /*#__PURE__*/React.createElement(ScannerView, {
-    items: items,
+    items: activeItems,
     onAdjust: adjust,
     onOrderItem: function(item) {
       // Pre-fill an order with this single item
@@ -7746,14 +7952,9 @@ function App() {
     cartCount: cart.length,
     vendors: vendors,
     onCreateOrder: function(orderData) { setPendingOrder(orderData); }
-  }), view === "brackets" && /*#__PURE__*/React.createElement(BracketOrderView, {
-    bracketOrder: bracketOrder,
-    onUpdateBracketOrder: setBracketOrder,
-    onAddToCart: addToCart,
-    items: items
   }), view === "cart" && /*#__PURE__*/React.createElement(OrderCartView, {
     cart: cart,
-    items: items,
+    items: activeItems,
     onUpdateQty: updateCartQty,
     onRemove: removeFromCart,
     onClear: clearCart,
@@ -7777,16 +7978,16 @@ function App() {
     budget: budget,
     log: log,
     orders: orders,
-    items: items,
+    items: activeItems,
     onAddExpense: addBudgetExpense,
     onUpdateSettings: updateBudgetSettings,
     isAdmin: isAdmin
   }), view === "reports" && /*#__PURE__*/React.createElement(ReportsView, {
-    items: items,
+    items: activeItems,
     log: log,
     orders: orders,
     vendors: vendors
-  }), view === "vendors" && /*#__PURE__*/React.createElement(VendorDirectory, { vendors: vendors, onUpdateVendor: updateVendor, onAddVendor: addVendor, onRemoveVendor: removeVendor, isAdmin: isAdmin }), view === "orders" && /*#__PURE__*/React.createElement(OrdersView, { orders: orders, items: items, onAddOrder: () => setAddOrderOpen(true), onReceiveOrder: receiveOrder, onVoidOrder: voidOrder, onBackorderOrder: backorderOrder, onScanSlip: () => setInvoiceScanOpen(true), onReorder: (order) => { setReorderFrom(order); setAddOrderOpen(true); }, isAdmin: isAdmin }))), /*#__PURE__*/React.createElement(BottomNav, {
+  }), view === "vendors" && /*#__PURE__*/React.createElement(VendorDirectory, { vendors: vendors, onUpdateVendor: updateVendor, onAddVendor: addVendor, onRemoveVendor: removeVendor, isAdmin: isAdmin }), view === "brackets" && /*#__PURE__*/React.createElement(BracketOrderView, { bracketOrder: bracketOrder, onUpdateBracketOrder: function(updates) { setBracketOrder(Object.assign({}, bracketOrder, updates)); }, onAddToCart: addToCart, items: activeItems }), view === "orders" && /*#__PURE__*/React.createElement(OrdersView, { orders: orders, items: items, onAddOrder: () => setAddOrderOpen(true), onReceiveOrder: receiveOrder, onVoidOrder: voidOrder, onBackorderOrder: backorderOrder, onScanSlip: () => setInvoiceScanOpen(true), onReorder: (order) => { setReorderFrom(order); setAddOrderOpen(true); }, isAdmin: isAdmin }), view === "archive" && /*#__PURE__*/React.createElement(ArchiveView, { items: archivedItems, onEditSources: setEditSourcesItem, isAdmin: isAdmin }))), /*#__PURE__*/React.createElement(BottomNav, {
     view: view,
     setView: handleViewChange,
     alertCount: alertCount,
