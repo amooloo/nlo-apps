@@ -95,7 +95,7 @@ function uid() {
 }
 
 // ─── version ─────────────────────────────────────────────────────────────────
-const APP_VERSION = "2.4.0";
+const APP_VERSION = "2.5.0";
 
 // ─── data ────────────────────────────────────────────────────────────────────
 const CATEGORIES = [
@@ -2630,6 +2630,7 @@ const QrIc = p => /*#__PURE__*/React.createElement(Ic, p, /*#__PURE__*/React.cre
 }), /*#__PURE__*/React.createElement("path", {
   d: "M21 16h-3v3h3v-3zm-6-3h3v3h-3v-3zm-9 6h3v3H6v-3zm6-9h3v-3h-3v3zm0 3h-3v3h3v-3zm3 3h3v3h-3v-3zm0-9H9v3h3V7z"
 }));
+const MoreIc = p => /*#__PURE__*/React.createElement(Ic, p, /*#__PURE__*/React.createElement("line", { x1: "3", y1: "12", x2: "21", y2: "12" }), /*#__PURE__*/React.createElement("line", { x1: "3", y1: "6", x2: "21", y2: "6" }), /*#__PURE__*/React.createElement("line", { x1: "3", y1: "18", x2: "21", y2: "18" }));
 const ArchiveIc = p => /*#__PURE__*/React.createElement(Ic, p, /*#__PURE__*/React.createElement("polyline", { points: "21 8 21 21 3 21 3 8" }), /*#__PURE__*/React.createElement("rect", { x: "1", y: "3", width: "22", height: "5" }), /*#__PURE__*/React.createElement("line", { x1: "10", y1: "12", x2: "14", y2: "12" }));
 const SparkleIc = p => /*#__PURE__*/React.createElement(Ic, p, /*#__PURE__*/React.createElement("path", {
   d: "M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
@@ -3313,6 +3314,12 @@ function loadFirebaseConfig() { return NLO_FIREBASE_CONFIG; }
 function saveFirebaseConfig() {}
 function clearFirebaseConfig() {}
 
+
+// ─── Firebase Auth (Google Sign-In) ─────────────────────────────────────────
+const ALLOWED_EMAILS = [
+  "akhavan.ak@gmail.com",
+  "records@nextlevelorthodontics.com"
+];
 
 // ─── Role-Based Access ───────────────────────────────────────────────────────
 const NLO_ROLE_KEY = "nlo-current-user";
@@ -7174,56 +7181,134 @@ function BottomNav({
   orderCount,
   cartCount
 }) {
-  const tabs = [{
-    id: "dashboard",
-    label: "Home",
-    Icon: HomeIc
-  }, {
-    id: "inventory",
-    label: "Items",
-    Icon: Package
-  }, {
-    id: "scanner",
-    label: "Scan",
-    Icon: CameraIc
-  }, {
-    id: "budget",
-    label: "Budget",
-    Icon: DollarIc
-  }, {
-    id: "cart",
-    label: "Cart",
-    Icon: CartIc
-  }];
+  const [moreOpen, setMoreOpen] = useState(false);
+  const mainTabs = [
+    { id: "dashboard", label: "Home", Icon: HomeIc },
+    { id: "inventory", label: "Items", Icon: Package },
+    { id: "scanner", label: "Scan", Icon: CameraIc },
+    { id: "cart", label: "Cart", Icon: CartIc }
+  ];
+  const moreTabs = [
+    { id: "budget", label: "Budget", Icon: DollarIc },
+    { id: "reports", label: "Reports", Icon: BarChIc },
+    { id: "vendors", label: "Vendors", Icon: BuildIc },
+    { id: "orders", label: "Orders", Icon: TruckIc },
+    { id: "brackets", label: "Brackets", Icon: GridIc },
+    { id: "archive", label: "Archive", Icon: ArchiveIc }
+  ];
+  var moreActive = moreTabs.some(function(t) { return t.id === view; });
+  function handleMoreTab(id) { setView(id); setMoreOpen(false); }
   return /*#__PURE__*/React.createElement("div", {
-    className: "md:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-gray-200",
-    style: {
-      paddingBottom: "env(safe-area-inset-bottom)"
-    }
+    className: "md:hidden fixed bottom-0 left-0 right-0 z-30",
+    style: { paddingBottom: "env(safe-area-inset-bottom)" }
+  },
+  moreOpen && /*#__PURE__*/React.createElement("div", {
+    className: "fixed inset-0 z-40 bg-black/30",
+    onClick: function() { setMoreOpen(false); }
+  }),
+  moreOpen && /*#__PURE__*/React.createElement("div", {
+    className: "absolute bottom-full left-0 right-0 z-50 bg-white rounded-t-2xl shadow-lg border border-gray-200 px-4 pt-4 pb-2"
+  },
+    /*#__PURE__*/React.createElement("div", { className: "flex items-center justify-between mb-3" },
+      /*#__PURE__*/React.createElement("p", { className: "text-sm font-bold text-gray-900" }, "More"),
+      /*#__PURE__*/React.createElement("button", { onClick: function() { setMoreOpen(false); }, className: "text-gray-400 hover:text-gray-700 p-1" }, /*#__PURE__*/React.createElement(XIc, { size: 18 }))),
+    /*#__PURE__*/React.createElement("div", { className: "grid grid-cols-3 gap-2 mb-2" },
+      moreTabs.map(function(t) {
+        var active = view === t.id;
+        return /*#__PURE__*/React.createElement("button", {
+          key: t.id,
+          onClick: function() { handleMoreTab(t.id); },
+          className: "flex flex-col items-center gap-1 py-3 px-2 rounded-xl text-xs font-medium transition-colors " + (active ? "bg-slate-800 text-white" : "text-gray-600 hover:bg-gray-100")
+        },
+        /*#__PURE__*/React.createElement(t.Icon, { size: 20 }),
+        /*#__PURE__*/React.createElement("span", null, t.label));
+      }))),
+  /*#__PURE__*/React.createElement("div", {
+    className: "bg-white border-t border-gray-200 flex relative"
+  },
+  mainTabs.map(function(t) {
+    var active = view === t.id;
+    return /*#__PURE__*/React.createElement("button", {
+      key: t.id,
+      onClick: function() { setView(t.id); setMoreOpen(false); },
+      className: "flex-1 flex flex-col items-center pt-2 pb-3 text-xs font-medium transition-colors relative " + (active ? "text-slate-800" : "text-gray-400 hover:text-gray-600")
+    },
+    /*#__PURE__*/React.createElement(t.Icon, { size: 22, className: active ? "stroke-2" : "stroke-1.5" }),
+    /*#__PURE__*/React.createElement("span", { className: "mt-0.5" }, t.label),
+    active && /*#__PURE__*/React.createElement("div", { className: "absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-slate-800 rounded-full" }),
+    t.id === "cart" && cartCount > 0 && /*#__PURE__*/React.createElement("span", { className: "absolute top-1.5 right-5 bg-purple-500 text-white text-xs w-4 h-4 rounded-full flex items-center justify-center font-bold" }, cartCount > 9 ? "9+" : cartCount));
+  }),
+  /*#__PURE__*/React.createElement("button", {
+    onClick: function() { setMoreOpen(!moreOpen); },
+    className: "flex-1 flex flex-col items-center pt-2 pb-3 text-xs font-medium transition-colors relative " + (moreActive || moreOpen ? "text-slate-800" : "text-gray-400 hover:text-gray-600")
+  },
+  /*#__PURE__*/React.createElement(MoreIc, { size: 22, className: moreActive || moreOpen ? "stroke-2" : "stroke-1.5" }),
+  /*#__PURE__*/React.createElement("span", { className: "mt-0.5" }, "More"),
+  (moreActive || moreOpen) && /*#__PURE__*/React.createElement("div", { className: "absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-slate-800 rounded-full" }))));
+}
+
+// ─── GoogleSignInScreen ──────────────────────────────────────────────────────
+function GoogleSignInScreen({ onAuthSuccess }) {
+  var _s = useState(false), signing = _s[0], setSigning = _s[1];
+  var _e = useState(""), error = _e[0], setError = _e[1];
+
+  function handleGoogleSignIn() {
+    setSigning(true);
+    setError("");
+    var provider = new window.firebase.auth.GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: "select_account" });
+    window.firebase.auth().signInWithPopup(provider).then(function(result) {
+      var email = (result.user.email || "").toLowerCase();
+      if (ALLOWED_EMAILS.indexOf(email) === -1) {
+        // Not an allowed email — sign them out immediately
+        window.firebase.auth().signOut();
+        setError("Access denied. Only authorized accounts can sign in.");
+        setSigning(false);
+        return;
+      }
+      // Success — pass user info up
+      onAuthSuccess(result.user);
+    }).catch(function(err) {
+      console.error("Google Sign-In error:", err);
+      if (err.code === "auth/popup-closed-by-user") {
+        setError("");
+      } else if (err.code === "auth/cancelled-popup-request") {
+        setError("");
+      } else {
+        setError(err.message || "Sign-in failed. Please try again.");
+      }
+      setSigning(false);
+    });
+  }
+
+  return /*#__PURE__*/React.createElement("div", {
+    className: "flex h-screen w-screen items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "flex"
-  }, tabs.map(({
-    id,
-    label,
-    Icon
-  }) => /*#__PURE__*/React.createElement("button", {
-    key: id,
-    onClick: () => setView(id),
-    className: `flex-1 flex flex-col items-center pt-2 pb-3 text-xs font-medium transition-colors relative ${view === id ? "text-slate-800" : "text-gray-400 hover:text-gray-600"}`
-  }, /*#__PURE__*/React.createElement(Icon, {
-    size: 22,
-    className: view === id ? "stroke-2" : "stroke-1.5"
-  }), /*#__PURE__*/React.createElement("span", {
-    className: "mt-0.5"
-  }, label), view === id && /*#__PURE__*/React.createElement("div", {
-    className: "absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-slate-800 rounded-full"
-  }), id === "reports" && alertCount > 0 && /*#__PURE__*/React.createElement("span", {
-    className: "absolute top-1.5 right-5 bg-red-500 text-white text-xs w-4 h-4 rounded-full flex items-center justify-center font-bold"
-  }, alertCount > 9 ? "9+" : alertCount), id === "orders" && orderCount > 0 && /*#__PURE__*/React.createElement("span", {
-    className: "absolute top-1.5 right-5 bg-emerald-500 text-white text-xs w-4 h-4 rounded-full flex items-center justify-center font-bold"
-  }, orderCount > 9 ? "9+" : orderCount), id === "cart" && cartCount > 0 && /*#__PURE__*/React.createElement("span", {
-    className: "absolute top-1.5 right-5 bg-purple-500 text-white text-xs w-4 h-4 rounded-full flex items-center justify-center font-bold"
-  }, cartCount > 9 ? "9+" : cartCount)))));
+    className: "w-full max-w-sm bg-white rounded-2xl shadow-2xl p-8 text-center"
+  }, /*#__PURE__*/React.createElement("img", {
+    src: NLO_LOGO,
+    alt: "Next Level Orthodontics",
+    className: "w-40 mx-auto mb-6"
+  }), /*#__PURE__*/React.createElement("h1", {
+    className: "text-2xl font-bold text-gray-900 mb-2"
+  }, "Inventory System"), /*#__PURE__*/React.createElement("p", {
+    className: "text-sm text-gray-500 mb-6"
+  }, "Sign in with your authorized Google account"), /*#__PURE__*/React.createElement("button", {
+    onClick: handleGoogleSignIn,
+    disabled: signing,
+    className: "w-full flex items-center justify-center gap-3 bg-white border-2 border-gray-200 hover:border-gray-300 hover:bg-gray-50 disabled:opacity-50 text-gray-700 font-semibold py-3 rounded-xl transition-colors"
+  }, /*#__PURE__*/React.createElement("svg", { width: 20, height: 20, viewBox: "0 0 48 48" },
+    /*#__PURE__*/React.createElement("path", { fill: "#EA4335", d: "M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" }),
+    /*#__PURE__*/React.createElement("path", { fill: "#4285F4", d: "M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" }),
+    /*#__PURE__*/React.createElement("path", { fill: "#FBBC05", d: "M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" }),
+    /*#__PURE__*/React.createElement("path", { fill: "#34A853", d: "M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" })
+  ), signing ? "Signing in..." : "Sign in with Google"),
+  error && /*#__PURE__*/React.createElement("p", {
+    className: "mt-4 text-sm text-red-600 bg-red-50 rounded-lg p-3"
+  }, error),
+  /*#__PURE__*/React.createElement("p", {
+    className: "mt-4 text-xs text-gray-400"
+  }, "v" + APP_VERSION)));
 }
 
 // ─── LoginScreen ──────────────────────────────────────────────────────────────
@@ -7422,10 +7507,36 @@ function OrderCartView({ cart, items, onUpdateQty, onRemove, onClear, onPlaceOrd
 
 // ─── App ──────────────────────────────────────────────────────────────────────
 function App() {
+  const [firebaseUser, setFirebaseUser] = useState(null);
+  const [authChecked, setAuthChecked] = useState(false);
   const [currentUser, setCurrentUser] = useState(getCurrentUser);
   const userRole = currentUser ? getUserRole(currentUser) : null;
   const isAdmin = userRole === "admin";
   const [items, setItems] = useState(loadItems);
+
+  // Listen for Firebase Auth state changes
+  useEffect(function() {
+    if (!window.firebase || !window.firebase.auth) {
+      setAuthChecked(true);
+      return;
+    }
+    var unsubscribe = window.firebase.auth().onAuthStateChanged(function(user) {
+      if (user) {
+        var email = (user.email || "").toLowerCase();
+        if (ALLOWED_EMAILS.indexOf(email) !== -1) {
+          setFirebaseUser(user);
+        } else {
+          // Unauthorized email — sign them out
+          window.firebase.auth().signOut();
+          setFirebaseUser(null);
+        }
+      } else {
+        setFirebaseUser(null);
+      }
+      setAuthChecked(true);
+    });
+    return function() { unsubscribe(); };
+  }, []);
   const [log, setLog] = useState(loadLog);
   const [vendors, setVendors] = useState(loadVendors);
   const [orders, setOrders] = useState(loadOrders);
@@ -7870,7 +7981,26 @@ function App() {
   const handleSignOut = () => {
     localStorage.removeItem(NLO_ROLE_KEY);
     setCurrentUser("");
+    // Also sign out of Firebase Auth
+    if (window.firebase && window.firebase.auth) {
+      window.firebase.auth().signOut();
+    }
   };
+  // Gate 0: waiting for Firebase auth check
+  if (!authChecked) {
+    return /*#__PURE__*/React.createElement("div", {
+      className: "flex h-screen w-screen items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100"
+    }, /*#__PURE__*/React.createElement("div", { className: "text-center" },
+      /*#__PURE__*/React.createElement("img", { src: NLO_LOGO, alt: "NLO", className: "w-32 mx-auto mb-4 animate-pulse" }),
+      /*#__PURE__*/React.createElement("p", { className: "text-sm text-gray-400" }, "Loading...")));
+  }
+  // Gate 1: Must authenticate with Google first
+  if (!firebaseUser) {
+    return /*#__PURE__*/React.createElement(GoogleSignInScreen, {
+      onAuthSuccess: function(user) { setFirebaseUser(user); }
+    });
+  }
+  // Gate 2: Must select staff name
   if (!currentUser) {
     return /*#__PURE__*/React.createElement(LoginScreen, {
       onSelectUser: setCurrentUser
@@ -7904,9 +8034,10 @@ function App() {
     alt: "NLO Inventory",
     className: "h-10",
     style: {}
-  }), /*#__PURE__*/React.createElement("p", {
-    className: "text-xs text-gray-600 truncate"
-  }, currentUser)), /*#__PURE__*/React.createElement("div", {
+  }), /*#__PURE__*/React.createElement("div", { className: "min-w-0" },
+    /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-600 truncate" }, currentUser),
+    /*#__PURE__*/React.createElement("p", { className: "text-xs text-gray-400" }, "v" + APP_VERSION)
+  )), /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-2"
   }, alertCount > 0 && /*#__PURE__*/React.createElement("button", {
     onClick: () => setView("reports"),
