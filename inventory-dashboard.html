@@ -94,6 +94,9 @@ function uid() {
   return Date.now().toString(36) + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 6);
 }
 
+// ─── version ─────────────────────────────────────────────────────────────────
+const APP_VERSION = "2.4.0";
+
 // ─── data ────────────────────────────────────────────────────────────────────
 const CATEGORIES = [
   { id: "all", label: "All Items", color: "#6366f1" },
@@ -7070,7 +7073,7 @@ function Sidebar({
     className: "px-4 py-5 border-b border-gray-100"
   }, /*#__PURE__*/React.createElement("img", { src: NLO_LOGO, alt: "Next Level Orthodontics", className: "w-32 mx-auto", style: {} }), /*#__PURE__*/React.createElement("p", {
     className: "text-xs text-gray-400 mt-1 text-center"
-  }, "Inventory System")), /*#__PURE__*/React.createElement("div", {
+  }, "Inventory System v" + APP_VERSION)), /*#__PURE__*/React.createElement("div", {
     className: "px-3 py-3 space-y-0.5 border-b border-gray-100"
   }, [{
     id: "dashboard",
@@ -7486,7 +7489,6 @@ function App() {
               if (json === lastWriteJSON.current[key]) return;
               // Genuine remote change: update state AND record the JSON so the
               // push useEffect won't echo this data back to Firebase.
-              lastWriteJSON.current[key] = json;
               // Special handling for vendors: merge with hardcoded VENDORS
               if (key === "vendors" && Array.isArray(val)) {
                 var merged = VENDORS.map(function(dv) {
@@ -7494,11 +7496,15 @@ function App() {
                   return sv ? Object.assign({}, dv, sv) : dv;
                 });
                 var extras = val.filter(function(sv) { return !VENDORS.find(function(dv) { return dv.id === sv.id; }); });
-                setters[key](merged.concat(extras));
+                var result = merged.concat(extras);
+                lastWriteJSON.current[key] = JSON.stringify(result);
+                setters[key](result);
               } else if (key === "items" && Array.isArray(val)) {
                 val.forEach(migrateItemCat);
+                lastWriteJSON.current[key] = JSON.stringify(val);
                 setters[key](val);
               } else {
+                lastWriteJSON.current[key] = json;
                 setters[key](val);
               }
             });
@@ -7518,15 +7524,18 @@ function App() {
                   return sv ? Object.assign({}, dv, sv) : dv;
                 });
                 var extras = val.filter(function(sv) { return !VENDORS.find(function(dv) { return dv.id === sv.id; }); });
-                setters[key](merged.concat(extras));
+                var result = merged.concat(extras);
+                lastWriteJSON.current[key] = JSON.stringify(result);
+                setters[key](result);
               } else if (key === "items" && Array.isArray(val)) {
                 val.forEach(migrateItemCat);
+                lastWriteJSON.current[key] = JSON.stringify(val);
                 setters[key](val);
               } else {
                 setters[key](val);
               }
               // Snapshot the loaded data so the sync effects don't echo it back
-              lastWriteJSON.current[key] = JSON.stringify(val);
+              if (!lastWriteJSON.current[key]) lastWriteJSON.current[key] = JSON.stringify(val);
             }
           })
         )).then(() => {
