@@ -887,6 +887,10 @@ let blackoutDates = []; // Loaded from API
 let calYear, calMonth;
 let pendingApprovalAction = null; // { action, id } for email link approvals
 
+// ============================================================
+// SHARED HELPERS
+// ============================================================
+
 // Helper: parse a date string into a local Date (avoids UTC-offset bugs).
 // Handles "YYYY-MM-DD", ISO "YYYY-MM-DDTHH:MM:SS…", null, and undefined.
 function parseLocalDate(str) {
@@ -895,6 +899,72 @@ function parseLocalDate(str) {
   const [y, m, d] = dateOnly.split('-').map(Number);
   if (isNaN(y) || isNaN(m) || isNaN(d)) return new Date(NaN);
   return new Date(y, m - 1, d);
+}
+
+// Helper: map the "Hours" dropdown value to hours-per-day for balance math.
+// The standard workday is 8.5 hours. Partial-day options map as follows:
+const HOURS_PER_WORKDAY = 8.5;
+
+function getHoursPerDay(hoursValue) {
+  if (!hoursValue) return HOURS_PER_WORKDAY;
+  const v = hoursValue.trim().toLowerCase();
+  if (v === 'full day' || v === '') return HOURS_PER_WORKDAY;
+  if (v === 'morning (am)' || v === 'afternoon (pm)') return HOURS_PER_WORKDAY / 2; // 4.25
+  if (v === '2 hours') return 2;
+  if (v === '4 hours') return 4;
+  if (v === '6 hours') return 6;
+  // Fallback: try to parse a leading number (e.g. future "3 Hours" option)
+  const num = parseFloat(v);
+  return (!isNaN(num) && num > 0 && num <= HOURS_PER_WORKDAY) ? num : HOURS_PER_WORKDAY;
+}
+
+// Helper: count business days (Mon-Fri) between two Dates inclusive.
+function countWorkDays(startDate, endDate) {
+  if (isNaN(startDate.getTime()) || isNaN(endDate.getTime()) || endDate < startDate) return 0;
+  let count = 0;
+  const cur = new Date(startDate);
+  while (cur <= endDate) {
+    const dow = cur.getDay();
+    if (dow !== 0 && dow !== 6) count++;
+    cur.setDate(cur.getDate() + 1);
+  }
+  return count;
+}
+
+// Helper: calculate total requested hours from a request's fields.
+function calcRequestedHours(startStr, endStr, hoursValue) {
+  const startD = parseLocalDate(startStr);
+  const endD   = parseLocalDate(endStr);
+  const workDays = countWorkDays(startD, endD);
+  const hpd = getHoursPerDay(hoursValue);
+  return Math.round(workDays * hpd * 100) / 100; // avoid floating-point dust
+}
+
+// Helper: escape HTML to prevent XSS when inserting user-supplied strings.
+function escapeHTML(str) {
+  if (str == null) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// Helper: format a date string as "Mon D" or "Mon D, YYYY".
+function fmtDate(dateStr, includeYear) {
+  const d = parseLocalDate(dateStr);
+  if (isNaN(d.getTime())) return 'N/A';
+  const opts = includeYear
+    ? { month: 'short', day: 'numeric', year: 'numeric' }
+    : { month: 'short', day: 'numeric' };
+  return d.toLocaleDateString('en-US', opts);
+}
+
+// Helper: get today as YYYY-MM-DD in local time.
+function todayStr() {
+  const n = new Date();
+  return n.getFullYear() + '-' + String(n.getMonth() + 1).padStart(2, '0') + '-' + String(n.getDate()).padStart(2, '0');
 }
 
 // ============================================================
@@ -996,7 +1066,6 @@ async function enterTimeOffApp() {
   if (currentUser.role !== 'admin') {
     manageBtn.classList.add('hidden');
   }
-
   const blackoutManager = document.getElementById('blackout-manager');
   if (currentUser.role === 'admin') {
     blackoutManager.classList.remove('hidden');
@@ -1103,7 +1172,11 @@ function switchTab(tab) {
 // ============================================================
 // FORM SUBMISSION
 // ============================================================
+let _submitting = false; // double-submit guard
+
 async function submitRequest() {
+  if (_submitting) return; // prevent double-click
+
   const btn = document.getElementById('submit-btn');
   const name = currentUser.name;
   const type = document.getElementById('f-type').value;
@@ -1111,15 +1184,38 @@ async function submitRequest() {
   const start = document.getElementById('f-start').value;
   const end = document.getElementById('f-end').value;
   const hours = document.getElementById('f-hours').value;
-  const coverage = document.getElementById('f-coverage').value;
-  const notes = document.getElementById('f-notes').value;
+  const coverage = document.getElementById('f-coverage').value.trim();
+  const notes = document.getElementById('f-notes').value.trim();
 
+  // --- Validation ---
   if (!type || !paidType || !start || !end) {
     showToast('Please fill in all required fields.');
     return;
   }
-  if (parseLocalDate(end) < parseLocalDate(start)) {
+
+  const startD = parseLocalDate(start);
+  const endD   = parseLocalDate(end);
+
+  if (isNaN(startD.getTime()) || isNaN(endD.getTime())) {
+    showToast('Invalid date(s). Please check your start and end dates.');
+    return;
+  }
+
+  if (endD < startD) {
     showToast('End date must be on or after start date.');
+    return;
+  }
+
+  // FIX: Warn if start date is in the past (allow today)
+  const today = parseLocalDate(todayStr());
+  if (startD < today) {
+    if (!confirm('The start date is in the past. Are you sure you want to submit this request?')) return;
+  }
+
+  // FIX: Check that request actually covers at least 1 business day
+  const totalHrs = calcRequestedHours(start, end, hours);
+  if (totalHrs <= 0) {
+    showToast('Your date range does not include any business days (Mon\u2013Fri). Please adjust your dates.');
     return;
   }
 
@@ -1129,7 +1225,7 @@ async function submitRequest() {
     return;
   }
 
-  // Pre-check benefits balance for paid sick/vacation requests
+  // Pre-check benefits balance for paid sick/vacation/personal requests
   if (paidType && paidType.toLowerCase().indexOf('paid') >= 0 && paidType.toLowerCase().indexOf('unpaid') < 0) {
     const reqLower = type.toLowerCase();
     if (reqLower.indexOf('sick') >= 0 || reqLower.indexOf('vacation') >= 0 || reqLower.indexOf('personal') >= 0) {
@@ -1140,15 +1236,7 @@ async function submitRequest() {
           const balType = reqLower.indexOf('sick') >= 0 ? 'sickLeave' : 'vacation';
           const balLabel = reqLower.indexOf('sick') >= 0 ? 'sick leave' : 'vacation';
           const available = balData.balances[balType];
-          // Calculate requested hours
-          const startD = parseLocalDate(start);
-          const endD = parseLocalDate(end);
-          let workDays = 0;
-          const cur = new Date(startD);
-          while (cur <= endD) { if (cur.getDay() !== 0 && cur.getDay() !== 6) workDays++; cur.setDate(cur.getDate() + 1); }
-          let totalHrs = workDays * 8.5;
-          if (hours && hours.toLowerCase().indexOf('half') >= 0) totalHrs = workDays * 4.25;
-          if (totalHrs > available) {
+          if (typeof available === 'number' && totalHrs > available) {
             const shortage = Math.round((totalHrs - available) * 100) / 100;
             const proceed = confirm(
               'Balance Warning\n\n' +
@@ -1163,6 +1251,7 @@ async function submitRequest() {
     }
   }
 
+  _submitting = true;
   btn.disabled = true;
   btn.textContent = 'Submitting...';
 
@@ -1199,6 +1288,7 @@ async function submitRequest() {
     showToast('Connection error. Please try again.');
   }
 
+  _submitting = false;
   btn.disabled = false;
   btn.textContent = 'Submit Request';
 }
@@ -1242,13 +1332,13 @@ function renderBlackoutTable() {
 
   let html = '';
   blackoutDates.forEach((b, idx) => {
-    const start = parseLocalDate(b.start).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    const end = parseLocalDate(b.end).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const start = fmtDate(b.start, true);
+    const end   = fmtDate(b.end, true);
     html += `
       <tr>
-        <td>${start}</td>
-        <td>${end}</td>
-        <td>${b.label || 'Blackout'}</td>
+        <td>${escapeHTML(start)}</td>
+        <td>${escapeHTML(end)}</td>
+        <td>${escapeHTML(b.label || 'Blackout')}</td>
         <td><button class="blackout-delete-btn" onclick="deleteBlackout(${idx})">Delete</button></td>
       </tr>
     `;
@@ -1259,7 +1349,7 @@ function renderBlackoutTable() {
 async function addBlackout() {
   const start = document.getElementById('blackout-start').value;
   const end = document.getElementById('blackout-end').value;
-  const label = document.getElementById('blackout-label').value;
+  const label = document.getElementById('blackout-label').value.trim();
 
   if (!start || !end || !label) {
     showToast('Please fill in all blackout fields.');
@@ -1327,6 +1417,7 @@ async function deleteBlackout(index) {
 
 function isBlackoutDate(dateStr) {
   const date = parseLocalDate(dateStr);
+  if (isNaN(date.getTime())) return false;
   return blackoutDates.some(b => {
     const s = parseLocalDate(b.start);
     const e = parseLocalDate(b.end);
@@ -1336,6 +1427,7 @@ function isBlackoutDate(dateStr) {
 
 function getBlackoutLabel(dateStr) {
   const date = parseLocalDate(dateStr);
+  if (isNaN(date.getTime())) return null;
   for (const b of blackoutDates) {
     const s = parseLocalDate(b.start);
     const e = parseLocalDate(b.end);
@@ -1347,6 +1439,7 @@ function getBlackoutLabel(dateStr) {
 function isBlackoutConflict(startStr, endStr) {
   const start = parseLocalDate(startStr);
   const end = parseLocalDate(endStr);
+  if (isNaN(start.getTime()) || isNaN(end.getTime())) return false;
   return blackoutDates.some(b => {
     const bs = parseLocalDate(b.start);
     const be = parseLocalDate(b.end);
@@ -1371,7 +1464,7 @@ async function loadRequests() {
 }
 
 // ============================================================
-// YOUR REQUESTS SECTION
+// YOUR REQUESTS SECTION (with XSS-safe rendering)
 // ============================================================
 function renderYourRequests() {
   const container = document.getElementById('your-requests-content');
@@ -1382,25 +1475,25 @@ function renderYourRequests() {
     return;
   }
 
-  let html = '<table class="your-requests-table"><thead><tr><th>Date Range</th><th>Type</th><th>Paid/Unpaid</th><th>Status</th><th></th></tr></thead><tbody>';
+  let html = '<table class="your-requests-table"><thead><tr><th>Date Range</th><th>Type</th><th>Paid/Unpaid</th><th>Hours</th><th>Status</th><th></th></tr></thead><tbody>';
 
   userRequests.forEach(r => {
     const status = (r.status || 'pending').toLowerCase();
-    const startD = parseLocalDate(r.startDate);
-    const endD = parseLocalDate(r.endDate);
-    const fmtStart = isNaN(startD) ? 'N/A' : startD.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    const fmtEnd = isNaN(endD) ? 'N/A' : endD.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const fmtStart = fmtDate(r.startDate, false);
+    const fmtEnd   = fmtDate(r.endDate, true);
     const paidType = r.paidType || 'N/A';
+    const hoursLabel = r.hours || 'Full Day';
     const cancelBtn = status === 'pending'
-      ? `<button class="cancel-btn" onclick="cancelRequest('${r.id}')">Cancel</button>`
+      ? `<button class="cancel-btn" onclick="cancelRequest('${escapeHTML(r.id)}')">Cancel</button>`
       : '';
 
     html += `
       <tr>
-        <td>${fmtStart} – ${fmtEnd}</td>
-        <td>${r.requestType}</td>
-        <td>${paidType}</td>
-        <td><span class="status-badge ${status}">${r.status}</span></td>
+        <td>${escapeHTML(fmtStart)} \u2013 ${escapeHTML(fmtEnd)}</td>
+        <td>${escapeHTML(r.requestType)}</td>
+        <td>${escapeHTML(paidType)}</td>
+        <td>${escapeHTML(hoursLabel)}</td>
+        <td><span class="status-badge ${escapeHTML(status)}">${escapeHTML(r.status)}</span></td>
         <td>${cancelBtn}</td>
       </tr>
     `;
@@ -1469,8 +1562,7 @@ function renderCalendar() {
   const firstDay = new Date(calYear, calMonth, 1).getDay();
   const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
   const daysInPrev = new Date(calYear, calMonth, 0).getDate();
-  const today = new Date();
-  const todayStr = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
+  const todayS = todayStr();
 
   // Previous month padding
   for (let i = firstDay - 1; i >= 0; i--) {
@@ -1481,7 +1573,7 @@ function renderCalendar() {
   // Current month
   for (let d = 1; d <= daysInMonth; d++) {
     const dateStr = calYear + '-' + String(calMonth+1).padStart(2,'0') + '-' + String(d).padStart(2,'0');
-    const isToday = dateStr === todayStr;
+    const isToday = dateStr === todayS;
     const isBlack = isBlackoutDate(dateStr);
     let classes = 'cal-day';
     if (isToday) classes += ' today';
@@ -1490,7 +1582,7 @@ function renderCalendar() {
     let events = '';
     const blackLabel = getBlackoutLabel(dateStr);
     if (blackLabel) {
-      events += `<div class="cal-event blackout-label">${blackLabel}</div>`;
+      events += `<div class="cal-event blackout-label">${escapeHTML(blackLabel)}</div>`;
     }
 
     // Find requests that span this date
@@ -1501,7 +1593,7 @@ function renderCalendar() {
       if (thisDate >= rStart && thisDate <= rEnd) {
         const statusClass = (r.status || 'pending').toLowerCase();
         const initial = r.employeeName ? r.employeeName.split(' ').map(n=>n[0]).join('') : '?';
-        events += `<div class="cal-event ${statusClass}" title="${r.employeeName} — ${r.requestType} (${r.status})">${initial} ${r.requestType}</div>`;
+        events += `<div class="cal-event ${escapeHTML(statusClass)}" title="${escapeHTML(r.employeeName)} \u2014 ${escapeHTML(r.requestType)} (${escapeHTML(r.status)})">${escapeHTML(initial)} ${escapeHTML(r.requestType)}</div>`;
       }
     });
 
@@ -1519,7 +1611,7 @@ function renderCalendar() {
 }
 
 // ============================================================
-// MANAGE / APPROVE / DENY
+// MANAGE / APPROVE / DENY (with fixed balance math + XSS escaping)
 // ============================================================
 async function renderManageList() {
   const pendingContainer = document.getElementById('pending-list');
@@ -1539,7 +1631,6 @@ async function renderManageList() {
 
   // For admins, check balances on pending paid sick/vacation requests
   if (currentUser && currentUser.role === 'admin' && pending.length > 0) {
-    // Collect unique employee names from pending requests that could have balance issues
     const empNames = [...new Set(pending.filter(r => {
       const pt = (r.paidType || '').toLowerCase();
       const rt = (r.requestType || '').toLowerCase();
@@ -1547,19 +1638,16 @@ async function renderManageList() {
              (rt.indexOf('sick') >= 0 || rt.indexOf('vacation') >= 0 || rt.indexOf('personal') >= 0);
     }).map(r => r.employeeName))];
 
-    // Fetch balances for those employees (we use the shared sheet, so the backend can look them up)
     const balanceCache = {};
     for (const empName of empNames) {
       try {
-        // We need to look up by employee — use the passcode that matches
-        // Actually we just use the admin's passcode and the backend reads from the sheet
         const resp = await fetch(API_URL + '?action=checkbalance&passcode=' + currentPasscode + '&employee=' + encodeURIComponent(empName));
         const bData = await resp.json();
         if (bData.balances) balanceCache[empName] = bData.balances;
       } catch (e) { /* skip */ }
     }
 
-    // Annotate pending requests with balance warnings
+    // Annotate pending requests with balance warnings (FIXED: uses calcRequestedHours)
     pending.forEach(r => {
       const rt = (r.requestType || '').toLowerCase();
       const pt = (r.paidType || '').toLowerCase();
@@ -1569,14 +1657,9 @@ async function renderManageList() {
       const balType = rt.indexOf('sick') >= 0 ? 'sickLeave' : (rt.indexOf('vacation') >= 0 || rt.indexOf('personal') >= 0 ? 'vacation' : null);
       if (!balType) return;
       const available = bal[balType];
-      // Calculate hours
-      const startD = parseLocalDate(r.startDate);
-      const endD = parseLocalDate(r.endDate);
-      let workDays = 0;
-      const cur = new Date(startD);
-      while (cur <= endD) { if (cur.getDay() !== 0 && cur.getDay() !== 6) workDays++; cur.setDate(cur.getDate() + 1); }
-      let totalHrs = workDays * 8.5;
-      if (r.hours && r.hours.toLowerCase().indexOf('half') >= 0) totalHrs = workDays * 4.25;
+      if (typeof available !== 'number') return;
+      // FIXED: use shared calcRequestedHours with correct partial-day mapping
+      const totalHrs = calcRequestedHours(r.startDate, r.endDate, r.hours);
       if (totalHrs > available) {
         const shortage = Math.round((totalHrs - available) * 100) / 100;
         const typeName = balType === 'sickLeave' ? 'sick leave' : 'vacation';
@@ -1603,34 +1686,36 @@ async function renderManageList() {
 
 function requestCardHTML(r, showActions) {
   const status = (r.status || 'pending').toLowerCase();
-  const startD = parseLocalDate(r.startDate);
-  const endD = parseLocalDate(r.endDate);
-  const fmtStart = isNaN(startD) ? 'N/A' : startD.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  const fmtEnd = isNaN(endD) ? 'N/A' : endD.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  const paidInfo = r.paidType ? ' &middot; ' + r.paidType : '';
+  const fmtStart = fmtDate(r.startDate, true);
+  const fmtEnd   = fmtDate(r.endDate, true);
+  const paidInfo = r.paidType ? ' &middot; ' + escapeHTML(r.paidType) : '';
+  const hoursLabel = escapeHTML(r.hours || 'Full Day');
 
-  // Check if this pending request has a balance concern (we'll calculate client-side for the card)
+  // Show computed hours for transparency
+  const computedHrs = calcRequestedHours(r.startDate, r.endDate, r.hours);
+  const hrsNote = computedHrs > 0 ? ` &middot; ${computedHrs} hrs total` : '';
+
   let balanceNoteHTML = '';
   if (showActions && r._balanceWarning) {
-    balanceNoteHTML = `<div style="background:#FFF5F4;border:1px solid #FA624D;border-radius:6px;padding:8px 10px;margin-top:8px;font-size:0.72rem;color:#FA624D;font-weight:600;">&#9888; ${r._balanceWarning}</div>`;
+    balanceNoteHTML = `<div style="background:#FFF5F4;border:1px solid #FA624D;border-radius:6px;padding:8px 10px;margin-top:8px;font-size:0.72rem;color:#FA624D;font-weight:600;">&#9888; ${escapeHTML(r._balanceWarning)}</div>`;
   }
 
   let actionsHTML = '';
   if (showActions) {
     actionsHTML = `
       <div class="approval-actions">
-        <button class="approve-btn" onclick="handleAction('${r.id}','approve')">Approve</button>
-        <button class="deny-btn" onclick="handleAction('${r.id}','deny')">Deny</button>
+        <button class="approve-btn" onclick="handleAction('${escapeHTML(r.id)}','approve')">Approve</button>
+        <button class="deny-btn" onclick="handleAction('${escapeHTML(r.id)}','deny')">Deny</button>
       </div>`;
   } else {
-    actionsHTML = `<span class="request-status ${status}">${r.status}</span>`;
+    actionsHTML = `<span class="request-status ${escapeHTML(status)}">${escapeHTML(r.status)}</span>`;
   }
 
   return `
-    <div class="request-card ${status}">
+    <div class="request-card ${escapeHTML(status)}">
       <div class="request-info">
-        <h4>${r.employeeName}</h4>
-        <p>${r.requestType} &middot; ${fmtStart} — ${fmtEnd} &middot; ${r.hours || 'Full Day'}${paidInfo}${r.coverage ? ' &middot; Coverage: ' + r.coverage : ''}</p>
+        <h4>${escapeHTML(r.employeeName)}</h4>
+        <p>${escapeHTML(r.requestType)} &middot; ${escapeHTML(fmtStart)} \u2014 ${escapeHTML(fmtEnd)} &middot; ${hoursLabel}${hrsNote}${paidInfo}${r.coverage ? ' &middot; Coverage: ' + escapeHTML(r.coverage) : ''}</p>
         ${balanceNoteHTML}
       </div>
       ${actionsHTML}
@@ -1691,10 +1776,10 @@ function showBalanceWarning(warning) {
     <div style="display:flex;align-items:center;gap:12px;flex:1;">
       <span style="font-size:1.5rem;">&#9888;&#65039;</span>
       <div>
-        <strong style="font-size:0.85rem;color:#FA624D;">Insufficient ${warning.type} balance</strong>
+        <strong style="font-size:0.85rem;color:#FA624D;">Insufficient ${escapeHTML(warning.type)} balance</strong>
         <p style="font-size:0.8rem;color:#333;margin:4px 0 0;line-height:1.4;">
-          Requesting <strong>${warning.requested} hrs</strong> but only <strong>${warning.available} hrs</strong> available.
-          <strong>${warning.shortage} hrs</strong> will exceed the paid balance.
+          Requesting <strong>${escapeHTML(String(warning.requested))} hrs</strong> but only <strong>${escapeHTML(String(warning.available))} hrs</strong> available.
+          <strong>${escapeHTML(String(warning.shortage))} hrs</strong> will exceed the paid balance.
         </p>
       </div>
     </div>
