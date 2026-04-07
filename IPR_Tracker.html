@@ -2240,27 +2240,27 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
     idle: {
       bg: "#2563eb",
       color: "white",
-      label: "💾 Save to Patient Record"
+      label: "Save to Patient Record"
     },
     saving: {
       bg: "#93c5fd",
       color: "white",
-      label: "⏳ Saving…"
+      label: "Saving..."
     },
     saved: {
       bg: "#22c55e",
       color: "white",
-      label: "✓ Saved"
+      label: "Saved"
     },
     error: {
       bg: "#ef4444",
       color: "white",
-      label: "⚠ Save Failed"
+      label: "Save Failed"
     }
   }[syncStatus] || {
     bg: "#2563eb",
     color: "white",
-    label: "💾 Save to Patient Record"
+    label: "Save to Patient Record"
   };
 
   // Wizard Flow Overlay Component
