@@ -193,10 +193,9 @@
 <script>
 // --- CONFIG ---
 var CONFIG = {
-  // Key is obfuscated to prevent automated secret scanning from flagging it.
-  // The key is restricted to amooloo.github.io/* via Google Cloud Console.
-  _K: 'c0tzTTJsLS1FQmtBZlFEWVNDc0tQZEFRanZsZ04tZWZDeVNheklB',
-  get GEMINI_API_KEY() { return atob(this._K).split('').reverse().join(''); },
+  // API key is stored server-side in Cloudflare Worker (never in client code).
+  // Update this URL after deploying your Cloudflare Worker.
+  WORKER_URL: 'https://aisa-proxy.akhavan-ak.workers.dev',
   GEMINI_MODEL: 'gemini-2.5-flash',
   SHEETS_WEBHOOK: '',
 };
@@ -6195,7 +6194,7 @@ async function sendMessage() {
   var input = document.getElementById('questionInput');
   var question = input.value.trim();
   if (!question || isLoading) return;
-  if (CONFIG.GEMINI_API_KEY === 'YOUR_GEMINI_API_KEY_HERE') { showToast('API key not configured.'); return; }
+  if (CONFIG.WORKER_URL.includes('YOUR-SUBDOMAIN')) { showToast('Worker URL not configured.'); return; }
   var welcome = document.getElementById('welcomeCard');
   if (welcome) welcome.style.display = 'none';
 
@@ -6283,8 +6282,7 @@ async function callGemini(question) {
       { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
     ]
   };
-  var url = 'https://generativelanguage.googleapis.com/v1beta/models/' + CONFIG.GEMINI_MODEL + ':generateContent?key=' + CONFIG.GEMINI_API_KEY;
-  var resp = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(requestBody) });
+  var resp = await fetch(CONFIG.WORKER_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(requestBody) });
   if (!resp.ok) {
     var errData = await resp.json().catch(function() { return {}; });
     throw new Error(errData.error?.message || 'API error (' + resp.status + ')');
