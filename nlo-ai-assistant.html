@@ -139,6 +139,7 @@
     <div class="subtitle">Next Level Orthodontics</div>
     <h1>AISA</h1>
     <div class="tagline">AI Staff Assistant</div>
+    <div id="versionTag" style="font-size:11px; opacity:0.6; margin-top:2px; letter-spacing:0.5px;"></div>
   </div>
 </header>
 
@@ -196,6 +197,7 @@ var conversationHistory = [];
 
 // --- CONFIG ---
 var CONFIG = {
+  VERSION: '2.1.0',
   // API key is stored server-side in Cloudflare Worker (never in client code).
   // Update this URL after deploying your Cloudflare Worker.
   WORKER_URL: 'https://aisa-worker.akhavan-ak.workers.dev',
@@ -313,7 +315,8 @@ var ASK_QUESTIONS = [
 
 // --- INIT ---
 document.addEventListener('DOMContentLoaded', function() {
-  console.log('AISA loaded (knowledge base via Cloudflare RAG worker).');
+  console.log('AISA v' + CONFIG.VERSION + ' loaded (knowledge base via Cloudflare RAG worker).');
+  document.getElementById('versionTag').textContent = 'v' + CONFIG.VERSION;
   document.getElementById('questionInput').focus();
 });
 
