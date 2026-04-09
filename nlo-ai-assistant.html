@@ -385,7 +385,12 @@ function logToSheets(type, question, answer) {
   if (!CONFIG.SHEETS_WEBHOOK) return;
   try {
     var payload = { type: type, question: question, answer: answer || '', timestamp: new Date().toISOString(), mode: currentMode };
-    fetch(CONFIG.SHEETS_WEBHOOK, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    // Use sendBeacon for reliable logging (handles Google's redirects better than fetch no-cors)
+    var sent = navigator.sendBeacon(CONFIG.SHEETS_WEBHOOK, new Blob([JSON.stringify(payload)], { type: 'application/json' }));
+    // Fallback to fetch if sendBeacon fails
+    if (!sent) {
+      fetch(CONFIG.SHEETS_WEBHOOK, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(payload) });
+    }
   } catch(e) { console.log('Log error:', e); }
 }
 
@@ -511,6 +516,10 @@ function renderMarkdown(text) {
   html = html.replace(/^## (.+)$/gm, '<h3>$1</h3>');
   html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
   html = html.replace(/\`([^\`]+)\`/g, '<code>$1</code>');
+  // Markdown links: [text](url)
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  // Plain URLs that aren't already inside an href
+  html = html.replace(/(?<!href="|&quot;|">)(https?:\/\/[^\s<,)]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
   html = html.replace(/^[-*] (.+)$/gm, '<li>$1</li>');
   html = html.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>');
   html = html.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
