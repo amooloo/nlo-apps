@@ -75,6 +75,8 @@
   .msg-ai .msg-bubble ul, .msg-ai .msg-bubble ol { padding-left: 20px; margin-bottom: 10px; margin-top: 4px; }
   .msg-ai .msg-bubble ol { list-style-type: decimal; }
   .msg-ai .msg-bubble li { margin-bottom: 5px; line-height: 1.55; }
+  .msg-ai .msg-bubble li.sub-item { margin-left: 20px; list-style-type: disc; color: var(--gray-700); font-size: 0.85rem; }
+  .msg-ai .msg-bubble h4 { font-size: 0.88rem; font-weight: 600; color: var(--gray-800); margin: 12px 0 4px; }
   .msg-ai .msg-bubble strong { color: var(--navy); }
   .msg-ai .msg-bubble code { background: var(--gray-100); padding: 1px 5px; border-radius: 4px; font-size: 0.82rem; }
   .msg-ai .msg-bubble a { color: var(--primary); text-decoration: underline; text-underline-offset: 2px; }
@@ -637,11 +639,16 @@ function renderMarkdown(text) {
   html = html.replace(/(?<!src="|href="|&quot;|">)(https?:\/\/[^\s<,)]+\.(?:png|jpg|jpeg|gif|webp)(?:\?[^\s<,)]*)?)/gi, '<img class="inline-img" src="$1" alt="Reference photo" onclick="openLightbox(\'$1\')" loading="lazy" />');
   // Plain URLs that aren't already inside an href or src
   html = html.replace(/(?<!src="|href="|&quot;|">)(https?:\/\/[^\s<,)]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
+  // Indented sub-bullets (lines starting with spaces/tabs then - or *)
+  html = html.replace(/^[ \t]+[-*] (.+)$/gm, '<li class="sub-item">$1</li>');
+  // Top-level bullets (- or * at start of line)
   html = html.replace(/^[-*] (.+)$/gm, '<li>$1</li>');
-  html = html.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>');
+  // Wrap consecutive <li> into <ul>
+  html = html.replace(/(<li[^>]*>.*<\/li>\n?)+/g, '<ul>$&</ul>');
+  // Numbered lists
   html = html.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
   html = html.replace(/(?<!<\/ul>)(<li>.*?<\/li>(\s*<li>.*?<\/li>)*)/gs, function(match) {
-    if (match.includes('<ul>')) return match;
+    if (match.includes('<ul>') || match.includes('<ol>')) return match;
     return '<ol>' + match + '</ol>';
   });
   html = html.replace(/\n{2,}/g, '</p><p>');
