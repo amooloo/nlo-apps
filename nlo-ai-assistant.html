@@ -602,6 +602,23 @@ function openLightbox(src) {
   document.body.appendChild(lb);
 }
 function renderMarkdown(text) {
+  // PRE-PROCESS: Clean up Gemini's raw output BEFORE escaping HTML
+  // 1. Remove [PHOTO: ...] tags
+  text = text.replace(/\[PHOTO:[^\]]*\]/g, '');
+  // 2. Remove raw Drive thumbnail URLs that are NOT inside markdown image syntax ![...](url)
+  //    First, temporarily replace markdown images with placeholders
+  var mdImages = [];
+  text = text.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, function(match) {
+    mdImages.push(match);
+    return '%%MDIMG' + (mdImages.length - 1) + '%%';
+  });
+  // Now remove all raw Drive URLs (they're not in markdown images since those are placeholders)
+  text = text.replace(/https?:\/\/drive\.google\.com\/thumbnail\?[^\s)]+/g, '');
+  // Restore markdown images
+  text = text.replace(/%%MDIMG(\d+)%%/g, function(m, i) { return mdImages[parseInt(i)]; });
+  // 3. Clean up extra blank lines
+  text = text.replace(/\n{3,}/g, '\n\n');
+
   var html = escapeHtml(text);
   // Markdown images: ![caption](url) — render inline
   html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, function(match, caption, url) {
@@ -615,13 +632,8 @@ function renderMarkdown(text) {
   html = html.replace(/\`([^\`]+)\`/g, '<code>$1</code>');
   // Markdown links: [text](url)
   html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
-  // Remove raw Drive thumbnail URLs that were already rendered as markdown images above
-  // Also remove any [PHOTO: ...] tags and description lines that Gemini leaks
-  html = html.replace(/\[PHOTO:[^\]]*\]/g, '');
-  html = html.replace(/(?<=<\/div>|<br>|^)\s*https?:\/\/drive\.google\.com\/thumbnail\?[^\s<]+/gm, '');
-  // Plain image URLs (Google Drive thumbnails, imgur, etc.) — render inline ONLY if not already handled
+  // Plain image URLs (.png, .jpg etc.) — render inline if not already in src/href
   html = html.replace(/(?<!src="|href="|&quot;|">)(https?:\/\/[^\s<,)]+\.(?:png|jpg|jpeg|gif|webp)(?:\?[^\s<,)]*)?)/gi, '<img class="inline-img" src="$1" alt="Reference photo" onclick="openLightbox(\'$1\')" loading="lazy" />');
-  html = html.replace(/(?<!src="|href="|&quot;|">)(https?:\/\/drive\.google\.com\/thumbnail\?[^\s<,)]+)/g, '<img class="inline-img" src="$1" alt="Reference photo" onclick="openLightbox(\'$1\')" loading="lazy" />');
   // Plain URLs that aren't already inside an href or src
   html = html.replace(/(?<!src="|href="|&quot;|">)(https?:\/\/[^\s<,)]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
   html = html.replace(/^[-*] (.+)$/gm, '<li>$1</li>');
