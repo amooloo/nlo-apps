@@ -79,6 +79,11 @@
   .msg-ai .msg-bubble code { background: var(--gray-100); padding: 1px 5px; border-radius: 4px; font-size: 0.82rem; }
   .msg-ai .msg-bubble a { color: var(--primary); text-decoration: underline; text-underline-offset: 2px; }
   .msg-ai .msg-bubble a:hover { color: var(--navy); }
+  .msg-ai .msg-bubble .inline-img { display: block; max-width: 100%; border-radius: 8px; margin: 10px 0; box-shadow: 0 2px 8px rgba(0,0,0,0.1); cursor: pointer; transition: transform 0.2s; }
+  .msg-ai .msg-bubble .inline-img:hover { transform: scale(1.02); }
+  .msg-ai .msg-bubble .img-caption { font-size: 0.78rem; color: var(--gray-600); margin-top: -6px; margin-bottom: 8px; }
+  .img-lightbox { position: fixed; inset: 0; z-index: 1000; background: rgba(0,0,0,0.85); display: flex; align-items: center; justify-content: center; cursor: zoom-out; }
+  .img-lightbox img { max-width: 90%; max-height: 90%; border-radius: 8px; }
 
   /* Image preview */
   .img-preview { max-width: 200px; max-height: 150px; border-radius: 8px; margin-top: 6px; }
@@ -589,16 +594,32 @@ function escapeHtml(str) {
   div.textContent = str;
   return div.innerHTML;
 }
+function openLightbox(src) {
+  var lb = document.createElement('div');
+  lb.className = 'img-lightbox';
+  lb.innerHTML = '<img src="' + src + '" alt="Full size" />';
+  lb.onclick = function() { lb.remove(); };
+  document.body.appendChild(lb);
+}
 function renderMarkdown(text) {
   var html = escapeHtml(text);
+  // Markdown images: ![caption](url) — render inline
+  html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, function(match, caption, url) {
+    var img = '<img class="inline-img" src="' + url + '" alt="' + caption + '" onclick="openLightbox(\'' + url + '\')" loading="lazy" />';
+    if (caption) img += '<div class="img-caption">' + caption + '</div>';
+    return img;
+  });
   html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
   html = html.replace(/^## (.+)$/gm, '<h3>$1</h3>');
   html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
   html = html.replace(/\`([^\`]+)\`/g, '<code>$1</code>');
   // Markdown links: [text](url)
   html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
-  // Plain URLs that aren't already inside an href
-  html = html.replace(/(?<!href="|&quot;|">)(https?:\/\/[^\s<,)]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
+  // Plain image URLs (Google Drive thumbnails, imgur, etc.) — render inline
+  html = html.replace(/(?<!src="|href="|&quot;|">)(https?:\/\/[^\s<,)]+\.(?:png|jpg|jpeg|gif|webp)(?:\?[^\s<,)]*)?)/gi, '<img class="inline-img" src="$1" alt="Reference photo" onclick="openLightbox(\'$1\')" loading="lazy" />');
+  html = html.replace(/(?<!src="|href="|&quot;|">)(https?:\/\/drive\.google\.com\/thumbnail\?[^\s<,)]+)/g, '<img class="inline-img" src="$1" alt="Reference photo" onclick="openLightbox(\'$1\')" loading="lazy" />');
+  // Plain URLs that aren't already inside an href or src
+  html = html.replace(/(?<!src="|href="|&quot;|">)(https?:\/\/[^\s<,)]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
   html = html.replace(/^[-*] (.+)$/gm, '<li>$1</li>');
   html = html.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>');
   html = html.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
