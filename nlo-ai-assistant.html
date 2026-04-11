@@ -651,7 +651,29 @@ function renderMarkdown(text) {
   if (!html.startsWith('<h') && !html.startsWith('<ul') && !html.startsWith('<ol')) {
     html = '<p>' + html + '</p>';
   }
-  return html;
+  // DOM-based cleanup: remove Drive URLs and loading="lazy" from TEXT NODES only
+  // This is bulletproof — it never touches HTML attributes inside <img> tags
+  var cleanDiv = document.createElement('div');
+  cleanDiv.innerHTML = html;
+  var walker = document.createTreeWalker(cleanDiv, NodeFilter.SHOW_TEXT);
+  var nodesToClean = [];
+  while (walker.nextNode()) { nodesToClean.push(walker.currentNode); }
+  nodesToClean.forEach(function(node) {
+    var t = node.textContent;
+    if (t.includes('drive.google.com/thumbnail') || t.includes('loading=') || t.includes('[PHOTO:')) {
+      var cleaned = t
+        .replace(/https?:\/\/drive\.google\.com\/thumbnail\S*/g, '')
+        .replace(/['"()>\s]*loading="lazy"\s*\/?>?\)?/g, '')
+        .replace(/\[PHOTO:[^\]]*\]/g, '')
+        .replace(/^\s+|\s+$/g, '');
+      if (cleaned) {
+        node.textContent = cleaned;
+      } else {
+        node.parentNode.removeChild(node);
+      }
+    }
+  });
+  return cleanDiv.innerHTML;
 }
 function showToast(message, isSuccess) {
   var existing = document.querySelector('.toast');
