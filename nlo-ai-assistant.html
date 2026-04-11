@@ -626,6 +626,7 @@ function renderMarkdown(text) {
     if (caption) img += '<div class="img-caption">' + caption + '</div>';
     return img;
   });
+  html = html.replace(/^#### (.+)$/gm, '<h4>$1</h4>');
   html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
   html = html.replace(/^## (.+)$/gm, '<h3>$1</h3>');
   html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
