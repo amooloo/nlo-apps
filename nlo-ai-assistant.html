@@ -615,7 +615,11 @@ function renderMarkdown(text) {
   html = html.replace(/\`([^\`]+)\`/g, '<code>$1</code>');
   // Markdown links: [text](url)
   html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
-  // Plain image URLs (Google Drive thumbnails, imgur, etc.) — render inline
+  // Remove raw Drive thumbnail URLs that were already rendered as markdown images above
+  // Also remove any [PHOTO: ...] tags and description lines that Gemini leaks
+  html = html.replace(/\[PHOTO:[^\]]*\]/g, '');
+  html = html.replace(/(?<=<\/div>|<br>|^)\s*https?:\/\/drive\.google\.com\/thumbnail\?[^\s<]+/gm, '');
+  // Plain image URLs (Google Drive thumbnails, imgur, etc.) — render inline ONLY if not already handled
   html = html.replace(/(?<!src="|href="|&quot;|">)(https?:\/\/[^\s<,)]+\.(?:png|jpg|jpeg|gif|webp)(?:\?[^\s<,)]*)?)/gi, '<img class="inline-img" src="$1" alt="Reference photo" onclick="openLightbox(\'$1\')" loading="lazy" />');
   html = html.replace(/(?<!src="|href="|&quot;|">)(https?:\/\/drive\.google\.com\/thumbnail\?[^\s<,)]+)/g, '<img class="inline-img" src="$1" alt="Reference photo" onclick="openLightbox(\'$1\')" loading="lazy" />');
   // Plain URLs that aren't already inside an href or src
