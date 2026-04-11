@@ -127,6 +127,19 @@
   .feedback-link { font-size: 0.72rem; color: var(--gray-400); cursor: pointer; text-decoration: none; transition: color var(--transition); }
   .feedback-link:hover { color: var(--primary); }
 
+  /* --- LOGIN SCREEN --- */
+  .login-overlay { position: fixed; inset: 0; z-index: 999; background: linear-gradient(135deg, var(--navy) 0%, var(--primary) 100%); display: flex; align-items: center; justify-content: center; }
+  .login-card { background: white; border-radius: 16px; padding: 36px 32px; max-width: 360px; width: 90%; text-align: center; box-shadow: 0 8px 40px rgba(0,0,0,0.2); }
+  .login-card h1 { font-size: 1.6rem; color: var(--navy); margin-bottom: 2px; }
+  .login-card .login-tagline { color: var(--gray-600); font-size: 0.85rem; margin-bottom: 24px; }
+  .login-card label { display: block; text-align: left; font-size: 0.82rem; font-weight: 600; color: var(--gray-600); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .login-card select { width: 100%; padding: 12px 14px; border: 1.5px solid var(--gray-200); border-radius: var(--radius); font-size: 16px; font-family: inherit; appearance: none; background: white url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236c757d' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") no-repeat right 14px center; cursor: pointer; }
+  .login-card select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(26,82,191,0.1); }
+  .login-card .login-btn { width: 100%; padding: 12px; margin-top: 16px; background: var(--primary); color: white; border: none; border-radius: var(--radius); font-size: 0.95rem; font-weight: 600; cursor: pointer; transition: background var(--transition); }
+  .login-card .login-btn:hover { background: #1545a3; }
+  .login-card .login-btn:disabled { background: var(--gray-200); cursor: not-allowed; }
+  .login-greeting { font-size: 0.8rem; color: var(--gray-600); padding: 4px 12px; background: var(--primary-light); border-radius: 20px; display: inline-block; }
+
   @media (max-width: 480px) {
     header { padding: 16px 16px 12px; }
     header h1 { font-size: 1.15rem; }
@@ -141,12 +154,28 @@
 </head>
 <body>
 
+<!-- LOGIN SCREEN -->
+<div class="login-overlay" id="loginScreen">
+  <div class="login-card">
+    <h1>AISA</h1>
+    <div class="login-tagline">AI Staff Assistant — Next Level Orthodontics</div>
+    <label for="staffSelect">Who are you?</label>
+    <select id="staffSelect" onchange="checkLoginReady()">
+      <option value="" disabled selected>Select your name…</option>
+    </select>
+    <button class="login-btn" id="loginBtn" disabled onclick="loginUser()">Let's Go</button>
+  </div>
+</div>
+
 <header>
   <div class="header-inner">
     <div class="subtitle">Next Level Orthodontics</div>
     <h1>AISA</h1>
     <div class="tagline">AI Staff Assistant</div>
-    <div id="versionTag" style="font-size:11px; opacity:0.6; margin-top:2px; letter-spacing:0.5px;"></div>
+    <div style="display:flex; align-items:center; justify-content:center; gap:8px; margin-top:4px;">
+      <div id="versionTag" style="font-size:11px; opacity:0.6; letter-spacing:0.5px;"></div>
+      <div id="userGreeting" class="login-greeting" style="display:none;"></div>
+    </div>
   </div>
 </header>
 
@@ -199,12 +228,26 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <script>
+// --- STAFF ROSTER (name → role mapping) ---
+var STAFF_ROSTER = {
+  'Dr. Akhavan': { role: 'Owner / Orthodontist', shortRole: 'owner' },
+  'Eve': { role: 'Marketing Coordinator', shortRole: 'marketing' },
+  'Wila': { role: 'Treatment Coordinator', shortRole: 'tc' },
+  'Savannah': { role: 'Appointment Coordinator', shortRole: 'scheduling' },
+  'Sarah': { role: 'Office Coordinator', shortRole: 'office_coordinator' },
+  'Brianna': { role: 'Orthodontic Assistant', shortRole: 'da' },
+  'Gwen': { role: 'Orthodontic Assistant', shortRole: 'da' },
+  'Angelika': { role: 'Orthodontic Assistant', shortRole: 'da' },
+  'Kaylee': { role: 'Orthodontic Assistant', shortRole: 'da' },
+};
+var currentStaff = null;
+
 // --- CONVERSATION (Gemini-style turns; persisted for /ask until mode switch or reload) ---
 var conversationHistory = [];
 
 // --- CONFIG ---
 var CONFIG = {
-  VERSION: '2.3.0',
+  VERSION: '3.0.0',
   // API key is stored server-side in Cloudflare Worker (never in client code).
   // Update this URL after deploying your Cloudflare Worker.
   WORKER_URL: 'https://aisa-worker.akhavan-ak.workers.dev',
@@ -320,11 +363,35 @@ var ASK_QUESTIONS = [
   'Are we running low on any supplies?',
 ];
 
+// --- LOGIN ---
+function populateStaffDropdown() {
+  var select = document.getElementById('staffSelect');
+  Object.keys(STAFF_ROSTER).sort().forEach(function(name) {
+    var opt = document.createElement('option');
+    opt.value = name;
+    opt.textContent = name + ' — ' + STAFF_ROSTER[name].role;
+    select.appendChild(opt);
+  });
+}
+function checkLoginReady() {
+  document.getElementById('loginBtn').disabled = !document.getElementById('staffSelect').value;
+}
+function loginUser() {
+  var name = document.getElementById('staffSelect').value;
+  if (!name) return;
+  currentStaff = { name: name, role: STAFF_ROSTER[name].role, shortRole: STAFF_ROSTER[name].shortRole };
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('userGreeting').textContent = 'Hi, ' + name + '!';
+  document.getElementById('userGreeting').style.display = 'inline-block';
+  document.getElementById('questionInput').focus();
+  console.log('Logged in as:', currentStaff.name, '(' + currentStaff.role + ')');
+}
+
 // --- INIT ---
 document.addEventListener('DOMContentLoaded', function() {
   console.log('AISA v' + CONFIG.VERSION + ' loaded (knowledge base via Cloudflare RAG worker).');
   document.getElementById('versionTag').textContent = 'v' + CONFIG.VERSION;
-  document.getElementById('questionInput').focus();
+  populateStaffDropdown();
 });
 
 // --- MODE SWITCH ---
@@ -394,7 +461,7 @@ function submitFeedback() {
 function logToSheets(type, question, answer) {
   if (!CONFIG.SHEETS_WEBHOOK) return;
   try {
-    var payload = { type: type, question: question, answer: answer || '', timestamp: new Date().toISOString(), mode: currentMode };
+    var payload = { type: type, question: question, answer: answer || '', timestamp: new Date().toISOString(), mode: currentMode, staffName: currentStaff ? currentStaff.name : '', staffRole: currentStaff ? currentStaff.role : '' };
     // Use sendBeacon for reliable logging (handles Google's redirects better than fetch no-cors)
     var sent = navigator.sendBeacon(CONFIG.SHEETS_WEBHOOK, new Blob([JSON.stringify(payload)], { type: 'application/json' }));
     // Fallback to fetch if sendBeacon fails
@@ -490,7 +557,9 @@ async function callGemini(question) {
   var payload = {
     question: question,
     inventoryData: inventoryData,
-    history: conversationHistory
+    history: conversationHistory,
+    staffName: currentStaff ? currentStaff.name : '',
+    staffRole: currentStaff ? currentStaff.role : ''
   };
   // Include the attached image if present
   if (attachedImage) {
