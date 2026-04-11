@@ -76,6 +76,12 @@
   .msg-ai .msg-bubble ol { list-style-type: decimal; }
   .msg-ai .msg-bubble li { margin-bottom: 5px; line-height: 1.55; }
   .msg-ai .msg-bubble li.sub-item { margin-left: 20px; list-style-type: disc; color: var(--gray-700); font-size: 0.85rem; }
+  .msg-ai .msg-bubble ol { padding-left: 22px; margin: 8px 0; }
+  .msg-ai .msg-bubble ol li { margin-bottom: 6px; line-height: 1.5; }
+  .msg-ai .msg-bubble ul { padding-left: 18px; margin: 8px 0; }
+  .msg-ai .msg-bubble ul li { margin-bottom: 4px; line-height: 1.5; }
+  .msg-ai .msg-bubble ol + p, .msg-ai .msg-bubble ul + p { margin-top: 8px; }
+  .msg-ai .msg-bubble p + ol, .msg-ai .msg-bubble p + ul { margin-top: 4px; }
   .msg-ai .msg-bubble h4 { font-size: 0.88rem; font-weight: 600; color: var(--gray-800); margin: 12px 0 4px; }
   .msg-ai .msg-bubble strong { color: var(--navy); }
   .msg-ai .msg-bubble code { background: var(--gray-100); padding: 1px 5px; border-radius: 4px; font-size: 0.82rem; }
@@ -639,23 +645,51 @@ function renderMarkdown(text) {
   html = html.replace(/(?<!src="|href="|&quot;|">)(https?:\/\/[^\s<,)]+\.(?:png|jpg|jpeg|gif|webp)(?:\?[^\s<,)]*)?)/gi, '<img class="inline-img" src="$1" alt="Reference photo" onclick="openLightbox(\'$1\')" loading="lazy" />');
   // Plain URLs that aren't already inside an href or src
   html = html.replace(/(?<!src="|href="|&quot;|">)(https?:\/\/[^\s<,)]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
-  // Indented sub-bullets (lines starting with spaces/tabs then - or *)
-  html = html.replace(/^[ \t]+[-*] (.+)$/gm, '<li class="sub-item">$1</li>');
-  // Top-level bullets (- or * at start of line)
-  html = html.replace(/^[-*] (.+)$/gm, '<li>$1</li>');
-  // Wrap consecutive <li> into <ul>
-  html = html.replace(/(<li[^>]*>.*<\/li>\n?)+/g, '<ul>$&</ul>');
-  // Numbered lists
-  html = html.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
-  html = html.replace(/(?<!<\/ul>)(<li>.*?<\/li>(\s*<li>.*?<\/li>)*)/gs, function(match) {
-    if (match.includes('<ul>') || match.includes('<ol>')) return match;
-    return '<ol>' + match + '</ol>';
-  });
+  // --- LIST RENDERING (block-based approach) ---
+  // Process line by line to build proper nested lists
+  var lines = html.split('\n');
+  var processed = [];
+  var inOl = false;
+  var inUl = false;
+
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i];
+    var olMatch = line.match(/^(\d+)\.\s+(.+)$/);
+    var ulMatch = line.match(/^[-*]\s+(.+)$/);
+    var subMatch = line.match(/^[ \t]+[-*]\s+(.+)$/);
+
+    if (subMatch) {
+      // Sub-bullet under current list
+      if (!inUl && !inOl) { processed.push('<ul>'); inUl = true; }
+      processed.push('<li class="sub-item">' + subMatch[1] + '</li>');
+    } else if (olMatch) {
+      // Numbered list item
+      if (inUl) { processed.push('</ul>'); inUl = false; }
+      if (!inOl) { processed.push('<ol>'); inOl = true; }
+      processed.push('<li>' + olMatch[2] + '</li>');
+    } else if (ulMatch) {
+      // Bullet list item
+      if (inOl) { processed.push('</ol>'); inOl = false; }
+      if (!inUl) { processed.push('<ul>'); inUl = true; }
+      processed.push('<li>' + ulMatch[1] + '</li>');
+    } else {
+      // Regular line — close any open lists
+      if (inOl) { processed.push('</ol>'); inOl = false; }
+      if (inUl) { processed.push('</ul>'); inUl = false; }
+      processed.push(line);
+    }
+  }
+  // Close any trailing open list
+  if (inOl) processed.push('</ol>');
+  if (inUl) processed.push('</ul>');
+  html = processed.join('\n');
+  // Clean up line breaks around block elements
   html = html.replace(/\n{2,}/g, '</p><p>');
   html = html.replace(/\n/g, '<br>');
   html = html.replace(/<p><\/p>/g, '');
-  html = html.replace(/<br>\s*(<\/?[uo]l>)/g, '$1');
-  html = html.replace(/(<\/?[uo]l>)\s*<br>/g, '$1');
+  // Remove stray <br> before/after list and heading tags
+  html = html.replace(/<br>\s*(<\/?[uo]l>|<\/?li|<h[34])/g, '$1');
+  html = html.replace(/(<\/?[uo]l>|<\/li>|<\/h[34]>)\s*<br>/g, '$1');
   if (!html.startsWith('<h') && !html.startsWith('<ul') && !html.startsWith('<ol')) {
     html = '<p>' + html + '</p>';
   }
