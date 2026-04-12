@@ -654,9 +654,10 @@ function renderMarkdown(text) {
 
   for (var i = 0; i < lines.length; i++) {
     var line = lines[i];
-    var olMatch = line.match(/^(\d+)\.\s+(.+)$/);
-    var ulMatch = line.match(/^[-*]\s+(.+)$/);
-    var subMatch = line.match(/^[ \t]+[-*]\s+(.+)$/);
+    var trimmedLine = line.replace(/^\s+/, '');
+    var olMatch = trimmedLine.match(/^(\d+)[\.\)]\s+(.+)$/) || trimmedLine.match(/^<strong>(\d+)[\.\)]<\/strong>\s*(.+)$/) || trimmedLine.match(/^<strong>(\d+)\.\s+(.+?)<\/strong>(.*)$/);
+    var ulMatch = trimmedLine.match(/^[-*▸►→✓✗]\s+(.+)$/);
+    var subMatch = line.match(/^[ \t]+[-*▸►→✓✗]\s+(.+)$/);
 
     if (subMatch) {
       // Sub-bullet under current list
@@ -666,7 +667,8 @@ function renderMarkdown(text) {
       // Numbered list item
       if (inUl) { processed.push('</ul>'); inUl = false; }
       if (!inOl) { processed.push('<ol>'); inOl = true; }
-      processed.push('<li>' + olMatch[2] + '</li>');
+      var liContent = olMatch[2] + (olMatch[3] || '');
+      processed.push('<li>' + liContent + '</li>');
     } else if (ulMatch) {
       // Bullet list item
       if (inOl) { processed.push('</ol>'); inOl = false; }
