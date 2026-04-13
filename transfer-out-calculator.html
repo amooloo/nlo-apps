@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Transfer Out Balance Calculator</title>
+<style>
+  :root {
+    --primary: #2c5282;
+    --primary-light: #ebf4ff;
+    --green: #276749;
+    --green-bg: #c6f6d5;
+    --red: #c53030;
+    --red-bg: #fed7d7;
+    --yellow-bg: #fefcbf;
+    --lavender-bg: #e9d8fd;
+    --pink-bg: #fed7e2;
+    --orange-bg: #feebc8;
+    --gray-100: #f7fafc;
+    --gray-200: #edf2f7;
+    --gray-300: #e2e8f0;
+    --gray-600: #718096;
+    --gray-800: #2d3748;
+    --shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.06);
+    --shadow-md: 0 4px 6px rgba(0,0,0,0.07), 0 2px 4px rgba(0,0,0,0.06);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--gray-100);
+    color: var(--gray-800);
+    line-height: 1.5;
+    padding: 20px;
+  }
+
+  .container {
+    max-width: 720px;
+    margin: 0 auto;
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 3px solid var(--primary);
+  }
+
+  header h1 {
+    font-size: 1.6rem;
+    color: var(--primary);
+    margin-bottom: 4px;
+  }
+
+  header p {
+    color: var(--gray-600);
+    font-size: 0.9rem;
+  }
+
+  .patient-info {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 24px;
+    padding: 16px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: var(--shadow);
+  }
+
+  .patient-info label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--gray-600);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .patient-info input {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--gray-300);
+    border-radius: 5px;
+    font-size: 0.95rem;
+  }
+
+  .step {
+    background: white;
+    border-radius: 8px;
+    box-shadow: var(--shadow);
+    margin-bottom: 16px;
+    overflow: hidden;
+  }
+
+  .step-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    background: var(--primary);
+    color: white;
+  }
+
+  .step-number {
+    background: white;
+    color: var(--primary);
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 0.85rem;
+    flex-shrink: 0;
+  }
+
+  .step-title {
+    font-weight: 600;
+    font-size: 0.95rem;
+  }
+
+  .step-body {
+    padding: 16px;
+  }
+
+  .step-description {
+    font-size: 0.85rem;
+    color: var(--gray-600);
+    margin-bottom: 12px;
+    font-style: italic;
+  }
+
+  .calc-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+  }
+
+  .calc-row:last-child { margin-bottom: 0; }
+
+  .field-group {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .field-group label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--gray-600);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+
+  .input-field {
+    width: 130px;
+    padding: 8px 10px;
+    border: 2px solid var(--orange-bg);
+    border-radius: 5px;
+    font-size: 1rem;
+    background: #fffaf0;
+    text-align: right;
+    font-weight: 500;
+    transition: border-color 0.2s;
+  }
+
+  .input-field:focus {
+    outline: none;
+    border-color: #ed8936;
+    box-shadow: 0 0 0 3px rgba(237,137,54,0.2);
+  }
+
+  .input-field.percentage {
+    width: 100px;
+    border-color: var(--pink-bg);
+    background: #fff5f7;
+  }
+
+  .input-field.percentage:focus {
+    border-color: #d53f8c;
+    box-shadow: 0 0 0 3px rgba(213,63,140,0.2);
+  }
+
+  .operator {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--gray-600);
+    padding: 0 2px;
+    min-width: 20px;
+    text-align: center;
+    align-self: flex-end;
+    padding-bottom: 8px;
+  }
+
+  .result-field {
+    width: 140px;
+    padding: 8px 10px;
+    border: 2px solid var(--lavender-bg);
+    border-radius: 5px;
+    font-size: 1rem;
+    background: #faf5ff;
+    text-align: right;
+    font-weight: 700;
+    color: var(--primary);
+  }
+
+  .result-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #6b46c1;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+
+  /* Final result */
+  .final-result {
+    background: white;
+    border-radius: 8px;
+    box-shadow: var(--shadow-md);
+    margin-bottom: 16px;
+    overflow: hidden;
+    border: 2px solid var(--primary);
+  }
+
+  .final-result .step-header {
+    background: var(--gray-800);
+  }
+
+  .final-result .step-number {
+    color: var(--gray-800);
+  }
+
+  .balance-display {
+    text-align: center;
+    padding: 20px;
+  }
+
+  .balance-amount {
+    font-size: 2.2rem;
+    font-weight: 800;
+    margin: 8px 0;
+  }
+
+  .balance-amount.owes { color: var(--red); }
+  .balance-amount.refund { color: var(--green); }
+  .balance-amount.zero { color: var(--gray-600); }
+
+  .balance-label {
+    font-size: 1.1rem;
+    font-weight: 600;
+    padding: 6px 16px;
+    border-radius: 20px;
+    display: inline-block;
+  }
+
+  .balance-label.owes {
+    background: var(--red-bg);
+    color: var(--red);
+  }
+
+  .balance-label.refund {
+    background: var(--green-bg);
+    color: var(--green);
+  }
+
+  .balance-label.zero {
+    background: var(--gray-200);
+    color: var(--gray-600);
+  }
+
+  .formula-text {
+    font-size: 0.8rem;
+    color: var(--gray-600);
+    margin-top: 10px;
+    font-family: monospace;
+  }
+
+  /* Buttons */
+  .actions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    margin-top: 20px;
+  }
+
+  .btn {
+    padding: 10px 24px;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-print {
+    background: var(--primary);
+    color: white;
+  }
+
+  .btn-print:hover { background: #1a365d; }
+
+  .btn-clear {
+    background: var(--gray-200);
+    color: var(--gray-800);
+  }
+
+  .btn-clear:hover { background: var(--gray-300); }
+
+  /* Color legend */
+  .legend {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+    font-size: 0.8rem;
+    color: var(--gray-600);
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .legend-swatch {
+    width: 16px;
+    height: 16px;
+    border-radius: 3px;
+    border: 1px solid rgba(0,0,0,0.1);
+  }
+
+  /* Print styles — compact to fit one page */
+  @media print {
+    @page { margin: 0.4in 0.5in; }
+
+    body {
+      background: white;
+      padding: 0;
+      font-size: 9pt;
+      line-height: 1.3;
+    }
+
+    .no-print { display: none !important; }
+
+    .container { max-width: 100%; }
+
+    header {
+      margin-bottom: 8px;
+      padding-bottom: 6px;
+      border-bottom-width: 2px;
+    }
+
+    header h1 { font-size: 13pt; margin-bottom: 0; }
+    header p { font-size: 8pt; }
+
+    .patient-info {
+      box-shadow: none;
+      border: 1px solid #ccc;
+      padding: 8px 12px;
+      margin-bottom: 10px;
+      gap: 8px;
+    }
+
+    .patient-info label { font-size: 7pt; }
+    .patient-info input { padding: 4px 6px; font-size: 9pt; }
+
+    .step, .final-result {
+      box-shadow: none;
+      border: 1px solid #ccc;
+      break-inside: avoid;
+      margin-bottom: 6px;
+    }
+
+    .step-header {
+      padding: 5px 10px;
+      gap: 6px;
+      background: var(--primary) !important;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .step-number {
+      width: 20px;
+      height: 20px;
+      font-size: 0.7rem;
+      background: white !important;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .step-title { font-size: 0.8rem; }
+
+    .step-body { padding: 8px 10px; }
+
+    .step-description { font-size: 7.5pt; margin-bottom: 6px; }
+
+    .calc-row { margin-bottom: 4px; gap: 6px; }
+
+    .field-group label, .field-group .result-label { font-size: 6.5pt; }
+
+    .input-field, .input-field.percentage {
+      border: 1px solid #999;
+      background: white;
+      padding: 4px 6px;
+      font-size: 9pt;
+      width: 110px;
+    }
+
+    .input-field.percentage { width: 85px; }
+
+    .result-field {
+      border: 1px solid #999;
+      background: #f3f0ff;
+      padding: 4px 6px;
+      font-size: 9pt;
+      width: 110px;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .operator { font-size: 1rem; padding-bottom: 4px; }
+
+    /* Treatment buttons — compact row */
+    .tx-selector { gap: 4px; }
+
+    .tx-btn {
+      padding: 3px 8px;
+      font-size: 7.5pt;
+      border: 1px solid #ccc;
+    }
+
+    .tx-btn.has-preset::after { display: none; }
+
+    .tx-btn.active {
+      background: var(--primary) !important;
+      color: white !important;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .selected-tx-display { font-size: 7.5pt; padding-bottom: 4px; }
+
+    /* Final result — compact */
+    .final-result .step-header {
+      background: var(--gray-800) !important;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .balance-display { padding: 8px; }
+
+    .balance-amount { font-size: 1.5rem; margin: 4px 0; }
+    .balance-amount.owes { color: var(--red) !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .balance-amount.refund { color: var(--green) !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+    .balance-label {
+      font-size: 0.85rem;
+      padding: 3px 12px;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .formula-text { font-size: 7.5pt; margin-top: 4px; }
+
+    .print-date {
+      display: block !important;
+      text-align: right;
+      font-size: 8pt;
+      color: #999;
+      margin-bottom: 4px;
+    }
+  }
+
+  .print-date { display: none; }
+
+  /* Treatment type selector */
+  .tx-selector {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 4px;
+  }
+
+  .tx-btn {
+    padding: 8px 14px;
+    border: 2px solid var(--gray-300);
+    border-radius: 6px;
+    background: white;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--gray-800);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .tx-btn:hover {
+    border-color: var(--primary);
+    background: var(--primary-light);
+  }
+
+  .tx-btn.active {
+    border-color: var(--primary);
+    background: var(--primary);
+    color: white;
+  }
+
+  .tx-btn.has-preset::after {
+    content: attr(data-fee-label);
+    display: block;
+    font-size: 0.7rem;
+    font-weight: 400;
+    opacity: 0.7;
+    margin-top: 1px;
+  }
+
+  .selected-tx-display {
+    font-size: 0.8rem;
+    color: var(--gray-600);
+    align-self: flex-end;
+    padding-bottom: 10px;
+    font-style: italic;
+  }
+
+  @media print {
+    .tx-btn {
+      border: 1px solid #ccc;
+      padding: 5px 10px;
+      font-size: 0.8rem;
+    }
+    .tx-btn.active {
+      background: var(--primary) !important;
+      color: white !important;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+  }
+
+  @media (max-width: 600px) {
+    .calc-row { gap: 6px; }
+    .input-field { width: 110px; font-size: 0.9rem; }
+    .result-field { width: 120px; font-size: 0.9rem; }
+    .patient-info { grid-template-columns: 1fr; }
+    .balance-amount { font-size: 1.8rem; }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="print-date" id="printDate"></div>
+
+  <header>
+    <h1>Transfer Out of Office — Balance Calculator</h1>
+    <p>Calculate patient balance for treatment transfers</p>
+  </header>
+
+  <!-- Patient Info -->
+  <div class="patient-info">
+    <div>
+      <label>Patient Name</label>
+      <input type="text" id="patientName" placeholder="Enter patient name">
+    </div>
+    <div>
+      <label>Date</label>
+      <input type="date" id="calcDate">
+    </div>
+  </div>
+
+  <!-- Color Legend -->
+  <div class="legend no-print">
+    <div class="legend-item">
+      <div class="legend-swatch" style="background:#fffaf0; border-color:#ed8936;"></div>
+      <span>You enter</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-swatch" style="background:#fff5f7; border-color:#d53f8c;"></div>
+      <span>% value</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-swatch" style="background:#faf5ff; border-color:#9f7aea;"></div>
+      <span>Auto-calculated</span>
+    </div>
+  </div>
+
+  <!-- STEP 1 -->
+  <div class="step">
+    <div class="step-header">
+      <div class="step-number">1</div>
+      <div class="step-title">Treatment Type &amp; Records / TxP / Lab Fee</div>
+    </div>
+    <div class="step-body">
+      <div class="step-description">Select the treatment type. The fee is set automatically based on treatment.</div>
+      <div class="calc-row" style="margin-bottom: 12px;">
+        <div class="field-group" style="flex:1; min-width:200px;">
+          <label>Treatment Type</label>
+          <div class="tx-selector" id="txSelector">
+            <button type="button" class="tx-btn" data-type="Braces" data-fee="800" onclick="selectTx(this)">Braces</button>
+            <button type="button" class="tx-btn" data-type="Oliv" data-fee="1225" onclick="selectTx(this)">Oliv</button>
+            <button type="button" class="tx-btn" data-type="Inv" data-fee="1800" onclick="selectTx(this)">Inv</button>
+            <button type="button" class="tx-btn" data-type="Angel Aligners" data-fee="1225" onclick="selectTx(this)">Angel Aligners</button>
+            <button type="button" class="tx-btn" data-type="NLA" data-fee="950" onclick="selectTx(this)">NLA</button>
+            <button type="button" class="tx-btn" data-type="Inbrace" data-fee="1500" onclick="selectTx(this)">Inbrace</button>
+          </div>
+        </div>
+      </div>
+      <div class="calc-row">
+        <div class="field-group">
+          <label class="result-label">Records / TxP / Lab Fee</label>
+          <input type="text" class="result-field" id="feeRecs" readonly placeholder="Select above">
+        </div>
+        <div class="selected-tx-display" id="selectedTxDisplay"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 2 -->
+  <div class="step">
+    <div class="step-header">
+      <div class="step-number">2</div>
+      <div class="step-title">Total Paid (Insurance + Responsible Party)</div>
+    </div>
+    <div class="step-body">
+      <div class="step-description">Enter insurance payments and responsible party payments made.</div>
+      <div class="calc-row">
+        <div class="field-group">
+          <label>Ins Paid</label>
+          <input type="number" class="input-field" id="insPaid" step="0.01" placeholder="0.00" oninput="calculate()">
+        </div>
+        <div class="operator">+</div>
+        <div class="field-group">
+          <label>RP Paid</label>
+          <input type="number" class="input-field" id="rpPaid" step="0.01" placeholder="0.00" oninput="calculate()">
+        </div>
+        <div class="operator">=</div>
+        <div class="field-group">
+          <label class="result-label">Total Paid</label>
+          <input type="text" class="result-field" id="totalPaid" readonly>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 3 -->
+  <div class="step">
+    <div class="step-header">
+      <div class="step-number">3</div>
+      <div class="step-title">Remaining Fee (Total Fee − Recs/TxPlan/INV)</div>
+    </div>
+    <div class="step-body">
+      <div class="step-description">Enter the total treatment fee. The records/plan fee from Step 1 is subtracted automatically.</div>
+      <div class="calc-row">
+        <div class="field-group">
+          <label>Total Fee</label>
+          <input type="number" class="input-field" id="totalFee" step="0.01" placeholder="0.00" oninput="calculate()">
+        </div>
+        <div class="operator">−</div>
+        <div class="field-group">
+          <label class="result-label">Rec/TxPlan/INV</label>
+          <input type="text" class="result-field" id="step3Recs" readonly style="width:130px;">
+        </div>
+        <div class="operator">=</div>
+        <div class="field-group">
+          <label class="result-label">Remaining</label>
+          <input type="text" class="result-field" id="remainingFee" readonly>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 4 -->
+  <div class="step">
+    <div class="step-header">
+      <div class="step-number">4</div>
+      <div class="step-title">Fee Due for Adjustments Rendered</div>
+    </div>
+    <div class="step-body">
+      <div class="step-description">Enter the fee for all adjustments and the % months progression (as a decimal, e.g. 0.5 for 50%).</div>
+      <div class="calc-row">
+        <div class="field-group">
+          <label class="result-label">Fee for All AJ</label>
+          <input type="text" class="result-field" id="feeAllAJ" readonly placeholder="From Step 3">
+        </div>
+        <div class="operator">×</div>
+        <div class="field-group">
+          <label>% Mos Progression (decimal)</label>
+          <input type="number" class="input-field percentage" id="mosPct" step="0.01" min="0" max="1" placeholder="0.00" oninput="calculate()">
+        </div>
+        <div class="operator">=</div>
+        <div class="field-group">
+          <label class="result-label">Fee Due for AJs</label>
+          <input type="text" class="result-field" id="feeDueAJ" readonly>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 5 — Total Fee Due for Tx Rendered -->
+  <div class="step">
+    <div class="step-header">
+      <div class="step-number">5</div>
+      <div class="step-title">Total Fee Due for Treatment Rendered</div>
+    </div>
+    <div class="step-body">
+      <div class="step-description">Fee for Recs/TxPlan/INV (Step 1) + Fee Due for AJs (Step 4).</div>
+      <div class="calc-row">
+        <div class="field-group">
+          <label class="result-label">Recs/TxPlan/INV</label>
+          <input type="text" class="result-field" id="step5Recs" readonly style="width:130px;">
+        </div>
+        <div class="operator">+</div>
+        <div class="field-group">
+          <label class="result-label">Fee Due for AJs</label>
+          <input type="text" class="result-field" id="step5AJ" readonly>
+        </div>
+        <div class="operator">=</div>
+        <div class="field-group">
+          <label class="result-label">Total Fee Due for Tx</label>
+          <input type="text" class="result-field" id="totalFeeDueTx" readonly style="width:150px; font-size:1.05rem;">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FINAL RESULT -->
+  <div class="final-result">
+    <div class="step-header">
+      <div class="step-number">✓</div>
+      <div class="step-title">Final Balance — Refund or Amount Owed</div>
+    </div>
+    <div class="step-body">
+      <div class="step-description">Total Paid (Step 2) − Total Fee Due for Tx Rendered (Step 5).</div>
+      <div class="calc-row" style="justify-content:center; margin-bottom:12px;">
+        <div class="field-group">
+          <label class="result-label">Total Paid</label>
+          <input type="text" class="result-field" id="finalPaid" readonly>
+        </div>
+        <div class="operator">−</div>
+        <div class="field-group">
+          <label class="result-label">Total Fee Due Tx</label>
+          <input type="text" class="result-field" id="finalFeeDue" readonly style="width:150px;">
+        </div>
+      </div>
+      <div class="balance-display">
+        <div class="balance-amount zero" id="balanceAmount">$0.00</div>
+        <div class="balance-label zero" id="balanceLabel">Enter values above</div>
+        <div class="formula-text" id="formulaText"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Actions -->
+  <div class="actions no-print">
+    <button class="btn btn-print" onclick="printCalc()">🖨️ Print for Reference</button>
+    <button class="btn btn-clear" onclick="clearAll()">Clear All</button>
+  </div>
+</div>
+
+<script>
+  // Set today's date
+  document.getElementById('calcDate').valueAsDate = new Date();
+
+  // Label preset buttons
+  document.querySelectorAll('.tx-btn').forEach(btn => {
+    const fee = btn.getAttribute('data-fee');
+    if (fee) {
+      btn.classList.add('has-preset');
+      btn.setAttribute('data-fee-label', '$' + parseFloat(fee).toLocaleString());
+    }
+  });
+
+  let selectedTxType = '';
+
+  function selectTx(btn) {
+    document.querySelectorAll('.tx-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    selectedTxType = btn.getAttribute('data-type');
+
+    const presetFee = btn.getAttribute('data-fee');
+    const feeInput = document.getElementById('feeRecs');
+    const display = document.getElementById('selectedTxDisplay');
+
+    feeInput.value = parseFloat(presetFee).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    display.textContent = selectedTxType + ' — $' + parseFloat(presetFee).toLocaleString();
+    calculate();
+  }
+
+  function num(id) {
+    return parseFloat(document.getElementById(id).value.replace(/,/g, '')) || 0;
+  }
+
+  function fmt(val) {
+    return val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function calculate() {
+    // Step 1
+    const feeRecs = num('feeRecs');
+
+    // Step 2
+    const insPaid = num('insPaid');
+    const rpPaid = num('rpPaid');
+    const totalPaid = insPaid + rpPaid;
+    document.getElementById('totalPaid').value = fmt(totalPaid);
+
+    // Step 3
+    const totalFee = num('totalFee');
+    document.getElementById('step3Recs').value = fmt(feeRecs);
+    const remainingFee = totalFee - feeRecs;
+    document.getElementById('remainingFee').value = fmt(remainingFee);
+
+    // Step 4 — Fee for All AJ mirrors Total Fee from Step 3
+    document.getElementById('feeAllAJ').value = fmt(totalFee);
+    const feeAllAJ = totalFee;
+    const mosPct = num('mosPct');
+    const feeDueAJ = feeAllAJ * mosPct;
+    document.getElementById('feeDueAJ').value = fmt(feeDueAJ);
+
+    // Step 5
+    document.getElementById('step5Recs').value = fmt(feeRecs);
+    document.getElementById('step5AJ').value = fmt(feeDueAJ);
+    const totalFeeDueTx = feeRecs + feeDueAJ;
+    document.getElementById('totalFeeDueTx').value = fmt(totalFeeDueTx);
+
+    // Final
+    document.getElementById('finalPaid').value = fmt(totalPaid);
+    document.getElementById('finalFeeDue').value = fmt(totalFeeDueTx);
+    const balance = totalPaid - totalFeeDueTx;
+
+    const amountEl = document.getElementById('balanceAmount');
+    const labelEl = document.getElementById('balanceLabel');
+    const formulaEl = document.getElementById('formulaText');
+
+    formulaEl.textContent = `${fmt(totalPaid)} − ${fmt(totalFeeDueTx)} = ${fmt(balance)}`;
+
+    if (balance < -0.005) {
+      amountEl.textContent = '$' + fmt(Math.abs(balance));
+      amountEl.className = 'balance-amount owes';
+      labelEl.textContent = 'Patient Owes';
+      labelEl.className = 'balance-label owes';
+    } else if (balance > 0.005) {
+      amountEl.textContent = '$' + fmt(balance);
+      amountEl.className = 'balance-amount refund';
+      labelEl.textContent = 'We Refund';
+      labelEl.className = 'balance-label refund';
+    } else {
+      amountEl.textContent = '$0.00';
+      amountEl.className = 'balance-amount zero';
+      labelEl.textContent = 'Balanced — Nothing Owed';
+      labelEl.className = 'balance-label zero';
+    }
+  }
+
+  function clearAll() {
+    document.querySelectorAll('.input-field').forEach(el => el.value = '');
+    document.getElementById('feeRecs').value = '';
+    document.getElementById('patientName').value = '';
+    document.getElementById('calcDate').valueAsDate = new Date();
+    document.querySelectorAll('.tx-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('selectedTxDisplay').textContent = '';
+    selectedTxType = '';
+    calculate();
+    document.getElementById('balanceAmount').textContent = '$0.00';
+    document.getElementById('balanceAmount').className = 'balance-amount zero';
+    document.getElementById('balanceLabel').textContent = 'Enter values above';
+    document.getElementById('balanceLabel').className = 'balance-label zero';
+    document.getElementById('formulaText').textContent = '';
+  }
+
+  function printCalc() {
+    const now = new Date();
+    document.getElementById('printDate').textContent =
+      'Printed: ' + now.toLocaleDateString() + ' ' + now.toLocaleTimeString();
+    window.print();
+  }
+
+  // Initialize
+  calculate();
+</script>
+</body>
+</html>
