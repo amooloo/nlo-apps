@@ -142,6 +142,10 @@
       grid-template-columns: 1fr 1fr;
       gap: 18px;
     }
+    @media (max-width: 600px) {
+      .form-grid { grid-template-columns: 1fr; }
+      .submit-btn { width: 100%; }
+    }
     .form-group {
       display: flex;
       flex-direction: column;
@@ -681,6 +685,8 @@
       <button class="tab-btn active" data-tab="request" onclick="switchTab('request')">New Request</button>
       <button class="tab-btn" data-tab="calendar" onclick="switchTab('calendar')">Calendar</button>
       <button class="tab-btn" data-tab="manage" onclick="switchTab('manage')">Manage</button>
+      <span id="user-role-badge" style="display:none;padding:5px 12px;border-radius:20px;font-size:0.68rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;background:rgba(255,255,255,0.15);color:white;border:1px solid rgba(255,255,255,0.25);"></span>
+      <button onclick="logoutTimeOff()" style="padding:6px 12px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);color:white;border-radius:8px;font-family:inherit;font-size:0.72rem;font-weight:600;cursor:pointer;" title="Sign out">Sign Out</button>
     </div>
   </header>
 
@@ -1062,10 +1068,25 @@ async function enterTimeOffApp() {
   document.getElementById('f-name-display').textContent = currentUser.name;
   document.getElementById('f-title-display').textContent = currentUser.title;
 
+  // Show role badge in header
+  const badge = document.getElementById('user-role-badge');
+  if (badge) {
+    const roleLabels = { admin: '★ Admin', approver: '✓ Approver', staff: '' };
+    const label = roleLabels[currentUser.role] || '';
+    if (label) {
+      badge.textContent = label;
+      badge.style.display = 'inline-block';
+      if (currentUser.role === 'admin') badge.style.background = 'rgba(29,62,169,0.5)';
+      if (currentUser.role === 'approver') badge.style.background = 'rgba(26,158,120,0.5)';
+    }
+  }
+
+  // 'admin' (Amir) and 'approver' (Sarah) both see the Manage tab
   const manageBtn = document.querySelector('[data-tab="manage"]');
-  if (currentUser.role !== 'admin') {
+  if (currentUser.role !== 'admin' && currentUser.role !== 'approver') {
     manageBtn.classList.add('hidden');
   }
+  // Blackout date management is restricted to 'admin' only (Amir)
   const blackoutManager = document.getElementById('blackout-manager');
   if (currentUser.role === 'admin') {
     blackoutManager.classList.remove('hidden');
@@ -1087,9 +1108,9 @@ async function enterTimeOffApp() {
 async function handleEmailApproval() {
   if (!pendingApprovalAction) return;
 
-  // Only admins can approve/deny
-  if (currentUser.role !== 'admin') {
-    showToast('Only administrators can approve/deny requests');
+  // Only admins and approvers can approve/deny
+  if (currentUser.role !== 'admin' && currentUser.role !== 'approver') {
+    showToast('Only administrators or approvers can approve/deny requests');
     switchTab('request');
     pendingApprovalAction = null;
     return;
@@ -1215,7 +1236,7 @@ async function submitRequest() {
   // FIX: Check that request actually covers at least 1 business day
   const totalHrs = calcRequestedHours(start, end, hours);
   if (totalHrs <= 0) {
-    showToast('Your date range does not include any business days (Mon\u2013Fri). Please adjust your dates.');
+    showToast('Your date range does not include any business days (Mon–Fri). Please adjust your dates.');
     return;
   }
 
@@ -1239,9 +1260,14 @@ async function submitRequest() {
           if (typeof available === 'number' && totalHrs > available) {
             const shortage = Math.round((totalHrs - available) * 100) / 100;
             const proceed = confirm(
-              'Balance Warning\n\n' +
-              'You are requesting ' + totalHrs + ' hrs of ' + balLabel + ', but you only have ' + available + ' hrs available.\n' +
-              shortage + ' hrs will exceed your paid balance.\n\n' +
+              'Balance Warning
+
+' +
+              'You are requesting ' + totalHrs + ' hrs of ' + balLabel + ', but you only have ' + available + ' hrs available.
+' +
+              shortage + ' hrs will exceed your paid balance.
+
+' +
               'Do you still want to submit this request?'
             );
             if (!proceed) return;
@@ -1489,7 +1515,7 @@ function renderYourRequests() {
 
     html += `
       <tr>
-        <td>${escapeHTML(fmtStart)} \u2013 ${escapeHTML(fmtEnd)}</td>
+        <td>${escapeHTML(fmtStart)} – ${escapeHTML(fmtEnd)}</td>
         <td>${escapeHTML(r.requestType)}</td>
         <td>${escapeHTML(paidType)}</td>
         <td>${escapeHTML(hoursLabel)}</td>
@@ -1523,7 +1549,6 @@ async function cancelRequest(id) {
     if (data.success) {
       showToast('Request cancelled.');
       await loadRequests();
-      renderYourRequests();
       renderCalendar();
       if (currentUser.role === 'admin') renderManageList();
     } else {
@@ -1593,7 +1618,7 @@ function renderCalendar() {
       if (thisDate >= rStart && thisDate <= rEnd) {
         const statusClass = (r.status || 'pending').toLowerCase();
         const initial = r.employeeName ? r.employeeName.split(' ').map(n=>n[0]).join('') : '?';
-        events += `<div class="cal-event ${escapeHTML(statusClass)}" title="${escapeHTML(r.employeeName)} \u2014 ${escapeHTML(r.requestType)} (${escapeHTML(r.status)})">${escapeHTML(initial)} ${escapeHTML(r.requestType)}</div>`;
+        events += `<div class="cal-event ${escapeHTML(statusClass)}" title="${escapeHTML(r.employeeName)} — ${escapeHTML(r.requestType)} (${escapeHTML(r.status)})">${escapeHTML(initial)} ${escapeHTML(r.requestType)}</div>`;
       }
     });
 
@@ -1629,8 +1654,9 @@ async function renderManageList() {
   const denied = allRequests.filter(r => (r.status || '').toLowerCase() === 'denied');
   const cancelled = allRequests.filter(r => (r.status || '').toLowerCase() === 'cancelled');
 
-  // For admins, check balances on pending paid sick/vacation requests
-  if (currentUser && currentUser.role === 'admin' && pending.length > 0) {
+  // For admins and approvers, check balances on pending paid sick/vacation requests
+  const canApprove = currentUser && (currentUser.role === 'admin' || currentUser.role === 'approver');
+  if (canApprove && pending.length > 0) {
     const empNames = [...new Set(pending.filter(r => {
       const pt = (r.paidType || '').toLowerCase();
       const rt = (r.requestType || '').toLowerCase();
@@ -1704,8 +1730,8 @@ function requestCardHTML(r, showActions) {
   if (showActions) {
     actionsHTML = `
       <div class="approval-actions">
-        <button class="approve-btn" onclick="handleAction('${escapeHTML(r.id)}','approve')">Approve</button>
-        <button class="deny-btn" onclick="handleAction('${escapeHTML(r.id)}','deny')">Deny</button>
+        <button class="approve-btn" onclick="approveWithCheck('${escapeHTML(r.id)}',this)">Approve</button>
+        <button class="deny-btn" onclick="handleAction('${escapeHTML(r.id)}','deny',this)">Deny</button>
       </div>`;
   } else {
     actionsHTML = `<span class="request-status ${escapeHTML(status)}">${escapeHTML(r.status)}</span>`;
@@ -1715,14 +1741,27 @@ function requestCardHTML(r, showActions) {
     <div class="request-card ${escapeHTML(status)}">
       <div class="request-info">
         <h4>${escapeHTML(r.employeeName)}</h4>
-        <p>${escapeHTML(r.requestType)} &middot; ${escapeHTML(fmtStart)} \u2014 ${escapeHTML(fmtEnd)} &middot; ${hoursLabel}${hrsNote}${paidInfo}${r.coverage ? ' &middot; Coverage: ' + escapeHTML(r.coverage) : ''}</p>
+        <p>${escapeHTML(r.requestType)} &middot; ${escapeHTML(fmtStart)} — ${escapeHTML(fmtEnd)} &middot; ${hoursLabel}${hrsNote}${paidInfo}${r.coverage ? ' &middot; Coverage: ' + escapeHTML(r.coverage) : ''}</p>
         ${balanceNoteHTML}
       </div>
       ${actionsHTML}
     </div>`;
 }
 
-async function handleAction(id, action) {
+function approveWithCheck(id, btn) {
+  const req = allRequests.find(r => r.id === id);
+  if (req && req._balanceWarning) {
+    if (!confirm('⚠️  Balance Warning\n\n' + req._balanceWarning + '\n\nApprove anyway and allow the balance to go negative?')) return;
+  }
+  handleAction(id, 'approve', btn);
+}
+
+async function handleAction(id, action, btn) {
+  if (btn) { btn.disabled = true; btn.style.opacity = '0.5'; }
+  // Find and disable sibling button too
+  if (btn && btn.parentElement) {
+    btn.parentElement.querySelectorAll('button').forEach(b => { b.disabled = true; b.style.opacity = '0.5'; });
+  }
   try {
     const resp = await fetch(API_URL, {
       method: 'POST',
@@ -1748,6 +1787,10 @@ async function handleAction(id, action) {
     }
   } catch (err) {
     showToast('Connection error.');
+  } finally {
+    if (btn && btn.parentElement) {
+      btn.parentElement.querySelectorAll('button').forEach(b => { b.disabled = false; b.style.opacity = '1'; });
+    }
   }
 }
 
@@ -1759,6 +1802,24 @@ function showToast(msg) {
   toast.textContent = msg;
   toast.classList.add('show');
   setTimeout(() => toast.classList.remove('show'), 3000);
+}
+
+// ============================================================
+// LOGOUT
+// ============================================================
+function logoutTimeOff() {
+  if (!confirm('Sign out of Time Off Requests?')) return;
+  currentUser = null;
+  currentPasscode = '';
+  allRequests = [];
+  blackoutDates = [];
+  document.getElementById('app').classList.add('hidden');
+  document.getElementById('passcode-screen').style.display = 'flex';
+  document.getElementById('passcode-input').value = '';
+  document.getElementById('nameSelect').value = '';
+  document.getElementById('loginError').style.display = 'none';
+  const badge = document.getElementById('user-role-badge');
+  if (badge) { badge.style.display = 'none'; badge.textContent = ''; }
 }
 
 // ============================================================
