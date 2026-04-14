@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Time Off — Next Level Orthodontics</title>
+  <title>Time Off â Next Level Orthodontics</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -645,7 +645,7 @@
     <h2>NLO Time Off</h2>
     <p id="loginSubtitle">Select your name and enter your password</p>
     <select id="nameSelect" class="passcode-input" style="letter-spacing:0; font-size:0.9rem; text-align:left; padding:12px 14px; margin-bottom:10px; appearance:auto;">
-      <option value="">— Select your name —</option>
+      <option value="">â Select your name â</option>
     </select>
     <input type="password" id="passcode-input" class="passcode-input" placeholder="Password" autocomplete="off" style="letter-spacing:2px;" />
     <button class="passcode-btn" onclick="validatePasscode()">Sign In</button>
@@ -898,7 +898,7 @@ let pendingApprovalAction = null; // { action, id } for email link approvals
 // ============================================================
 
 // Helper: parse a date string into a local Date (avoids UTC-offset bugs).
-// Handles "YYYY-MM-DD", ISO "YYYY-MM-DDTHH:MM:SS…", null, and undefined.
+// Handles "YYYY-MM-DD", ISO "YYYY-MM-DDTHH:MM:SSâ¦", null, and undefined.
 function parseLocalDate(str) {
   if (!str) return new Date(NaN);          // returns Invalid Date for null/undefined/""
   const dateOnly = str.split('T')[0];      // strip any time/timezone suffix
@@ -1000,7 +1000,7 @@ async function validatePasscode() {
     const data = await resp.json();
     if (data.valid) {
       if (data.needsPassword) {
-        // First-time login — show create password screen
+        // First-time login â show create password screen
         document.getElementById('passcode-screen').style.display = 'none';
         document.getElementById('createPasswordScreen').style.display = 'flex';
         document.getElementById('setupWelcomeName').textContent = data.name.split(' ')[0];
@@ -1071,7 +1071,7 @@ async function enterTimeOffApp() {
   // Show role badge in header
   const badge = document.getElementById('user-role-badge');
   if (badge) {
-    const roleLabels = { admin: '★ Admin', approver: '✓ Approver', staff: '' };
+    const roleLabels = { admin: 'â Admin', approver: 'â Approver', staff: '' };
     const label = roleLabels[currentUser.role] || '';
     if (label) {
       badge.textContent = label;
@@ -1105,19 +1105,18 @@ async function enterTimeOffApp() {
 // ============================================================
 // EMAIL APPROVAL HANDLER
 // ============================================================
-async function handleEmailApproval() {
-  if (!pendingApprovalAction) return;
-
-  // Only admins and approvers can approve/deny
-  if (currentUser.role !== 'admin' && currentUser.role !== 'approver') {
-    showToast('Only administrators or approvers can approve/deny requests');
-    switchTab('request');
-    pendingApprovalAction = null;
-    return;
+function handleEmailApproval() {
+  const { action, id } = pendingApprovalAction;
+  if (action === 'approve' || action === 'deny') {
+    // scroll to manage tab and handle approval logic
+    switchTab('manage');
   }
+}
 
-  // Find the request
-  const request = allRequests.find(r => r.id === pendingApprovalAction.id);
+// ============================================================
+// TAB NAVIGATION
+// ============================================================
+function switchTab(tab	 ct = allRequests.find(r => r.id === pendingApprovalAction.id);
   if (!request) {
     showToast('Request not found.');
     pendingApprovalAction = null;
@@ -1236,7 +1235,7 @@ async function submitRequest() {
   // FIX: Check that request actually covers at least 1 business day
   const totalHrs = calcRequestedHours(start, end, hours);
   if (totalHrs <= 0) {
-    showToast('Your date range does not include any business days (Mon–Fri). Please adjust your dates.');
+    showToast('Your date range does not include any business days (MonâFri). Please adjust your dates.');
     return;
   }
 
@@ -1515,7 +1514,7 @@ function renderYourRequests() {
 
     html += `
       <tr>
-        <td>${escapeHTML(fmtStart)} – ${escapeHTML(fmtEnd)}</td>
+        <td>${escapeHTML(fmtStart)} â ${escapeHTML(fmtEnd)}</td>
         <td>${escapeHTML(r.requestType)}</td>
         <td>${escapeHTML(paidType)}</td>
         <td>${escapeHTML(hoursLabel)}</td>
@@ -1618,7 +1617,7 @@ function renderCalendar() {
       if (thisDate >= rStart && thisDate <= rEnd) {
         const statusClass = (r.status || 'pending').toLowerCase();
         const initial = r.employeeName ? r.employeeName.split(' ').map(n=>n[0]).join('') : '?';
-        events += `<div class="cal-event ${escapeHTML(statusClass)}" title="${escapeHTML(r.employeeName)} — ${escapeHTML(r.requestType)} (${escapeHTML(r.status)})">${escapeHTML(initial)} ${escapeHTML(r.requestType)}</div>`;
+        events += `<div class="cal-event ${escapeHTML(statusClass)}" title="${escapeHTML(r.employeeName)} â ${escapeHTML(r.requestType)} (${escapeHTML(r.status)})">${escapeHTML(initial)} ${escapeHTML(r.requestType)}</div>`;
       }
     });
 
@@ -1741,7 +1740,7 @@ function requestCardHTML(r, showActions) {
     <div class="request-card ${escapeHTML(status)}">
       <div class="request-info">
         <h4>${escapeHTML(r.employeeName)}</h4>
-        <p>${escapeHTML(r.requestType)} &middot; ${escapeHTML(fmtStart)} — ${escapeHTML(fmtEnd)} &middot; ${hoursLabel}${hrsNote}${paidInfo}${r.coverage ? ' &middot; Coverage: ' + escapeHTML(r.coverage) : ''}</p>
+        <p>${escapeHTML(r.requestType)} &middot; ${escapeHTML(fmtStart)} â ${escapeHTML(fmtEnd)} &middot; ${hoursLabel}${hrsNote}${paidInfo}${r.coverage ? ' &middot; Coverage: ' + escapeHTML(r.coverage) : ''}</p>
         ${balanceNoteHTML}
       </div>
       ${actionsHTML}
@@ -1751,7 +1750,7 @@ function requestCardHTML(r, showActions) {
 function approveWithCheck(id, btn) {
   const req = allRequests.find(r => r.id === id);
   if (req && req._balanceWarning) {
-    if (!confirm('⚠️  Balance Warning\n\n' + req._balanceWarning + '\n\nApprove anyway and allow the balance to go negative?')) return;
+    if (!confirm('â ï¸  Balance Warning\n\n' + req._balanceWarning + '\n\nApprove anyway and allow the balance to go negative?')) return;
   }
   handleAction(id, 'approve', btn);
 }
@@ -1790,8 +1789,8 @@ async function handleAction(id, action, btn) {
   } finally {
     if (btn && btn.parentElement) {
       btn.parentElement.querySelectorAll('button').forEach(b => { b.disabled = false; b.style.opacity = '1'; });
+      }
     }
-  }
 }
 
 // ============================================================
@@ -1832,7 +1831,7 @@ function showBalanceWarning(warning) {
 
   const banner = document.createElement('div');
   banner.id = 'balance-warning-banner';
-  banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#FFF5F4;border-bottom:3px solid #FA624D;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;gap:12px;box-shadow:0 4px 16px rgba(250,98,77,0.15);font-family:Montserrat,sans-serif;';
+  banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#FFF5F4;border-bottom:3px solid #FA624D;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;gop:12px;box-shadow:0 4px 16px rgba(250,98,77,0.15);font-family:Montserrat,sans-serif;';
   banner.innerHTML = `
     <div style="display:flex;align-items:center;gap:12px;flex:1;">
       <span style="font-size:1.5rem;">&#9888;&#65039;</span>
