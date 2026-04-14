@@ -1260,14 +1260,9 @@ async function submitRequest() {
           if (typeof available === 'number' && totalHrs > available) {
             const shortage = Math.round((totalHrs - available) * 100) / 100;
             const proceed = confirm(
-              'Balance Warning
-
-' +
-              'You are requesting ' + totalHrs + ' hrs of ' + balLabel + ', but you only have ' + available + ' hrs available.
-' +
-              shortage + ' hrs will exceed your paid balance.
-
-' +
+              'Balance Warning\n\n' +
+              'You are requesting ' + totalHrs + ' hrs of ' + balLabel + ', but you only have ' + available + ' hrs available.\n' +
+              shortage + ' hrs will exceed your paid balance.\n\n' +
               'Do you still want to submit this request?'
             );
             if (!proceed) return;
