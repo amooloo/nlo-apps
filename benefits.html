@@ -521,7 +521,7 @@
             <h2>Staff Benefits</h2>
             <p>Select your name and enter your password</p>
             <select id="benefitsNameSelect" class="login-input" style="appearance:auto; font-size:0.88rem; padding:11px 16px; cursor:pointer;">
-                <option value="">â Select your name â</option>
+                <option value="">— Select your name —</option>
             </select>
             <input type="password" id="benefitsPassword" class="login-input" placeholder="Password" autocomplete="off" />
             <button class="login-btn" onclick="handleBenefitsLogin()">Sign In</button>
@@ -565,7 +565,7 @@
             <div id="user-greeting"></div>
             <div class="balance-grid" id="balance-grid"></div>
             <div style="margin-top: 32px; padding: 18px 20px; background: #f0f4ff; border-radius: 10px; border-left: 4px solid #667eea; font-size: 0.92em; color: #444;">
-                ð Need to request time off? Use the <strong>Time Off Request</strong> app to submit and track your requests.
+                📋 Need to request time off? Use the <strong>Time Off Request</strong> app to submit and track your requests.
             </div>
         </div>
 
@@ -761,7 +761,7 @@
                         });
                     }
                 })
-                .catch(function() { /* silently fail â user can still type */ });
+                .catch(function() { /* silently fail — user can still type */ });
         })();
 
         document.addEventListener('DOMContentLoaded', function() {
@@ -855,7 +855,7 @@
             var userBar = document.getElementById('benefitsUserBar');
             var userBadge = document.getElementById('benefitsUserBadge');
             if (userBar) userBar.style.display = 'flex';
-            if (userBadge) userBadge.textContent = currentUser.name + (currentUser.role === 'admin' ? ' Â· Admin' : '');
+            if (userBadge) userBadge.textContent = currentUser.name + (currentUser.role === 'admin' ? ' · Admin' : '');
 
             // Admin tab: only for admin role
             var adminNavBtn = document.getElementById('admin-nav-btn');
@@ -880,16 +880,16 @@
                     if (data.success && data.employee) {
                         renderMyBenefits(data.employee);
                     } else {
-                        // GAS not yet returning benefit data â fall back to showing empty balances with the user's name
+                        // GAS not yet returning benefit data — fall back to showing empty balances with the user's name
                         renderMyBenefits({ name: currentUser.name, title: currentUser.title,
                             sickBalance: 0, vacationBalance: 0, personalBalance: 0, ptoBalance: 0,
-                            vacationTier: { name: 'â' } });
+                            vacationTier: { name: '—' } });
                     }
                 })
                 .catch(function() {
                     renderMyBenefits({ name: currentUser.name, title: currentUser.title,
                         sickBalance: 0, vacationBalance: 0, personalBalance: 0, ptoBalance: 0,
-                        vacationTier: { name: 'â' } });
+                        vacationTier: { name: '—' } });
                 });
         }
 
@@ -1076,7 +1076,7 @@
             DEMO_EMPLOYEES.push(newEmployee);
             messageEl.innerHTML = '<div class="alert alert-success">Employee added successfully!</div>';
             document.getElementById('emp-name').value = '';
-            document.getElementById('emp-title').value= '';
+            document.getElementById('emp-title').value = '';
             document.getElementById('emp-type').value = '';
             document.getElementById('emp-tier').value = '';
             renderAdminDashboard();
@@ -1190,7 +1190,7 @@
             });
         });
 
-        // Auth gates the app â renderMyBenefits is called after successful login via enterBenefitsApp()
+        // Auth gates the app — renderMyBenefits is called after successful login via enterBenefitsApp()
     </script>
 </body>
 </html>
