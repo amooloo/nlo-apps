@@ -137,6 +137,143 @@ function uid() {
 // ─── version ─────────────────────────────────────────────────────────────────
 const APP_VERSION = "2.5.0";
 
+// ─── UOM dropdowns ───────────────────────────────────────────────────────────
+// Base Unit = the smallest individual piece (what you actually consume one of).
+// Order Unit = the physical package you buy from the vendor.
+// To add new options: edit these arrays. They're alphabetized for easy scanning.
+const BASE_UNITS = [
+  "Application", "Bag", "Bib", "Bottle", "Bracket", "Burr", "Cartridge",
+  "Cup", "Each", "Gallon", "Glove", "Gram", "Liter", "Mask", "mL", "Pair",
+  "Pouch", "Roll", "Sheet", "Sleeve", "Square", "Stick", "Strip", "Syringe",
+  "Tablet", "Tip", "Tube", "Unit", "Wire"
+];
+
+// Base units that represent a measurement rather than a countable piece —
+// for these we accept decimal quantities (e.g. "2.5 Gallons per Jug").
+const MEASUREMENT_BASE_UNITS = new Set(["Gallon", "Gram", "Liter", "mL"]);
+function isMeasurementBaseUnit(name) { return MEASUREMENT_BASE_UNITS.has(name); }
+
+const ORDER_UNITS = [
+  "Bag", "Bottle", "Box", "Canister", "Carton", "Case", "Each", "Gallon",
+  "Jug", "Pack", "Pkg", "Roll", "Set", "Syringe", "Tube"
+];
+
+// ─── Item schema helpers (Base Unit vs Order Unit model) ──────────────────────
+// New schema fields:
+//   baseUnitName            — smallest individual piece (e.g. "Glove")
+//   orderUnitName           — physical package ordered (e.g. "Box")
+//   baseUnitsPerOrderUnit   — integer count of base units per order unit (e.g. 100)
+//   vendorOrderPrice        — total price for one order unit
+// Legacy fields (still readable for backward-compat): unit, packaging, unitsPerPkg, pkgsPerCase, price
+
+// Best-effort title-case for an arbitrary string against a known canonical list.
+function _canonical(value, list) {
+  if (!value) return "";
+  const v = String(value).trim().toLowerCase();
+  for (const opt of list) { if (opt.toLowerCase() === v) return opt; }
+  // partial match
+  for (const opt of list) { if (opt.toLowerCase().startsWith(v) || v.startsWith(opt.toLowerCase())) return opt; }
+  return "";
+}
+
+// Try to infer the base unit name from an item's name (e.g. "Sterilization Pouches" → "Pouch").
+function _inferBaseUnit(name) {
+  if (!name) return "";
+  const n = name.toLowerCase();
+  for (const u of BASE_UNITS) {
+    const ul = u.toLowerCase();
+    // singular or plural match
+    if (n.includes(ul) || n.includes(ul + "s")) return u;
+  }
+  return "";
+}
+
+// Parse counts from note field. Examples it handles:
+//   "200/pkg" → 200
+//   "500/pack" → 500
+//   "20/box · ..." → 20
+//   "Pack of 50" → 50
+//   "100 ct" → 100
+function _parseCountFromNote(note) {
+  if (!note) return null;
+  const patterns = [
+    /(\d+(?:\.\d+)?)\s*\/\s*(?:pkg|pack|box|case|bag|bottle|jug|roll|set|tube|each|ea)/i,
+    /pack\s+of\s+(\d+(?:\.\d+)?)/i,
+    /(\d+(?:\.\d+)?)\s*(?:ct|count|pcs|pieces|each)\b/i,
+    /(\d+(?:\.\d+)?)\s*per\s+(?:pkg|pack|box|case|bag|bottle|jug|roll|set|tube)/i,
+  ];
+  for (const re of patterns) {
+    const m = note.match(re);
+    if (m) {
+      const n = parseFloat(m[1]);
+      if (!isNaN(n) && n > 0) return Math.round(n);
+    }
+  }
+  return null;
+}
+
+// Given an old/legacy item, return a patch object with new schema fields populated.
+// Returns null if nothing useful could be inferred (item should be flagged for manual review).
+function migrateItem(item) {
+  if (!item) return null;
+  // Already migrated? Skip.
+  if (typeof item.baseUnitsPerOrderUnit === "number" && item.baseUnitsPerOrderUnit > 0) return null;
+
+  const orderUnitName = _canonical(item.unit || item.packaging, ORDER_UNITS) || "Pkg";
+  let baseUnitsPerOrderUnit = null;
+  if (typeof item.unitsPerPkg === "number" && item.unitsPerPkg > 0) {
+    baseUnitsPerOrderUnit = Math.round(item.unitsPerPkg);
+  } else {
+    baseUnitsPerOrderUnit = _parseCountFromNote(item.note);
+  }
+  // If we still have nothing, the order unit IS the base unit (e.g. a single bottle/syringe).
+  let baseUnitName = _inferBaseUnit(item.name);
+  if (!baseUnitName) {
+    // For order units that are themselves usable (Bottle, Syringe, Roll, Tube), use as base unit.
+    const selfBase = _canonical(orderUnitName, BASE_UNITS);
+    if (selfBase) baseUnitName = selfBase;
+  }
+  if (!baseUnitName) baseUnitName = "Unit";
+  if (baseUnitsPerOrderUnit == null || baseUnitsPerOrderUnit < 1) baseUnitsPerOrderUnit = 1;
+
+  // Pick vendor order price: prefer item-level, fall back to primary source price.
+  let vendorOrderPrice = (typeof item.price === "number" && item.price > 0) ? item.price : null;
+  if (vendorOrderPrice == null && Array.isArray(item.sources) && item.sources[0] && item.sources[0].price) {
+    vendorOrderPrice = parseFloat(item.sources[0].price);
+  }
+
+  const needsReview = baseUnitName === "Unit" || baseUnitsPerOrderUnit === 1 && !item.unitsPerPkg && !_parseCountFromNote(item.note);
+
+  return {
+    baseUnitName,
+    orderUnitName,
+    baseUnitsPerOrderUnit,
+    vendorOrderPrice: vendorOrderPrice != null ? vendorOrderPrice : null,
+    _needsReview: needsReview ? true : null
+  };
+}
+
+// Read-side getters with backward-compat (always return new-schema view of an item).
+function getBaseUnit(item)        { return (item && item.baseUnitName)       || (migrateItem(item) || {}).baseUnitName       || "Unit"; }
+function getOrderUnit(item)       { return (item && item.orderUnitName)      || (migrateItem(item) || {}).orderUnitName      || "Pkg"; }
+function getBaseUnitsPerOrder(item){return (item && typeof item.baseUnitsPerOrderUnit === "number" && item.baseUnitsPerOrderUnit) || (migrateItem(item) || {}).baseUnitsPerOrderUnit || 1; }
+function getOrderPrice(item)      {
+  if (item && typeof item.vendorOrderPrice === "number") return item.vendorOrderPrice;
+  if (item && typeof item.price === "number") return item.price;
+  const m = migrateItem(item);
+  return m && m.vendorOrderPrice != null ? m.vendorOrderPrice : null;
+}
+
+// Calculate true unit price for vendor comparison.
+// Pass the item (for baseUnitsPerOrderUnit and baseUnitName) and the price you're comparing
+// (item.vendorOrderPrice or a specific source.price).
+function perBaseUnitPrice(item, orderPrice) {
+  const n = getBaseUnitsPerOrder(item);
+  const p = orderPrice != null ? parseFloat(orderPrice) : getOrderPrice(item);
+  if (!n || n <= 0 || p == null || isNaN(p)) return null;
+  return p / n;
+}
+
 // ─── data ────────────────────────────────────────────────────────────────────
 const CATEGORIES = [
   { id: "all", label: "All Items", color: "#6366f1" },
@@ -218,6 +355,32 @@ function migrateItemCat(item) {
     item.cat = "misc";
   }
   return item;
+}
+
+// Run UOM migration on an item in-place; returns true if migration actually changed anything.
+function migrateItemUOM(item) {
+  if (!item) return false;
+  // Already migrated?
+  if (item.baseUnitName && item.orderUnitName && typeof item.baseUnitsPerOrderUnit === "number" && item.baseUnitsPerOrderUnit > 0) return false;
+  const patch = migrateItem(item);
+  if (!patch) return false;
+  if (!item.baseUnitName && patch.baseUnitName) item.baseUnitName = patch.baseUnitName;
+  if (!item.orderUnitName && patch.orderUnitName) item.orderUnitName = patch.orderUnitName;
+  if (!(typeof item.baseUnitsPerOrderUnit === "number" && item.baseUnitsPerOrderUnit > 0) && patch.baseUnitsPerOrderUnit) item.baseUnitsPerOrderUnit = patch.baseUnitsPerOrderUnit;
+  if (item.vendorOrderPrice == null && patch.vendorOrderPrice != null) item.vendorOrderPrice = patch.vendorOrderPrice;
+  if (patch._needsReview) item._uomNeedsReview = true;
+  return true;
+}
+
+// Run UOM migration across an array; returns { migrated, needsReview } counts.
+function migrateItemsUOM(items) {
+  if (!Array.isArray(items)) return { migrated: 0, needsReview: 0 };
+  let migrated = 0, needsReview = 0;
+  items.forEach(it => {
+    if (migrateItemUOM(it)) migrated++;
+    if (it && it._uomNeedsReview) needsReview++;
+  });
+  return { migrated, needsReview };
 }
 // Komet product thumbnails (base64 webp)
 const PRODUCT_IMGS = {
@@ -2819,11 +2982,11 @@ function AddItemModal({ onSave, onClose, vendors }) {
   const [name, setName] = useState("");
   const [sku, setSku] = useState("");
   const [cat, setCat] = useState(cats[0].id);
-  const [unit, setUnit] = useState("");
-  const [pkg, setPkg] = useState("");
-  const [unitsPerPkg, setUnitsPerPkg] = useState("");
-  const [pkgsPerCase, setPkgsPerCase] = useState("");
-  const [price, setPrice] = useState("");
+  // New schema (Base Unit / Order Unit model)
+  const [baseUnitName, setBaseUnitName] = useState("");
+  const [orderUnitName, setOrderUnitName] = useState("");
+  const [baseUnitsPerOrderUnit, setBaseUnitsPerOrderUnit] = useState("");
+  const [vendorOrderPrice, setVendorOrderPrice] = useState("");
   const [min, setMin] = useState("1");
   const [vendor, setVendor] = useState("");
   const [customVendor, setCustomVendor] = useState("");
@@ -2859,6 +3022,10 @@ function AddItemModal({ onSave, onClose, vendors }) {
   }
   function save() {
     if (!valid) return;
+    // Allow decimals for measurement-type base units (Gallon, Gram, Liter, mL) but require > 0.
+    const rawBase = parseFloat(baseUnitsPerOrderUnit);
+    const parsedBaseUnits = (!isNaN(rawBase) && rawBase > 0) ? rawBase : 1;
+    const parsedPrice = vendorOrderPrice ? parseFloat(vendorOrderPrice) : null;
     const item = {
       id: "custom-" + uid(),
       cat: cat,
@@ -2866,11 +3033,13 @@ function AddItemModal({ onSave, onClose, vendors }) {
       sku: sku.trim() || name.trim().replace(/\s+/g, "-").substring(0, 20).toUpperCase(),
       qty: 0,
       min: Math.max(0, parseInt(min) || 1),
-      unit: unit.trim() || "unit",
-      packaging: pkg.trim() || null,
-      unitsPerPkg: parseFloat(unitsPerPkg) || null,
-      pkgsPerCase: parseFloat(pkgsPerCase) || null,
-      price: price ? parseFloat(price) : null,
+      // New schema (Base Unit vs Order Unit model)
+      baseUnitName: baseUnitName || "Unit",
+      orderUnitName: orderUnitName || "Pkg",
+      baseUnitsPerOrderUnit: parsedBaseUnits,
+      vendorOrderPrice: parsedPrice,
+      // Legacy compat — keep item.unit populated so older display code still reads a sensible label.
+      unit: (orderUnitName || "Pkg").toLowerCase(),
       src: vendorUrl.trim() || null,
       chk: null,
       tag: null,
@@ -2881,21 +3050,23 @@ function AddItemModal({ onSave, onClose, vendors }) {
     };
     var resolvedVendor = vendor === "__custom__" ? customVendor.trim() : vendor;
     if (resolvedVendor) {
-      item.sources = [{ vendor: resolvedVendor, sku: item.sku, price: item.price, src: item.src || "", lastDate: "" }];
+      item.sources = [{ vendor: resolvedVendor, sku: item.sku, price: parsedPrice, src: item.src || "", lastDate: "" }];
     }
     onSave(item);
     onClose();
   }
   const field = (label, value, onChange, placeholder, type) => React.createElement("div", null,
     React.createElement("label", { className: "text-xs font-medium text-gray-500 uppercase tracking-wide" }, label),
-    React.createElement("input", { type: type || "text", value: value, onChange: e => onChange(e.target.value), placeholder: placeholder || "", className: "mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500", onKeyDown: e => e.key === "Enter" && save() })
+    React.createElement("input", { type: type || "text", value: value, onChange: e => onChange(e.target.value), placeholder: placeholder || "", className: "mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" })
   );
   return React.createElement("div", {
     className: "fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 mobile-full-modal",
     style: { background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)" },
-    onClick: e => { if (e.target === e.currentTarget) onClose(); }
+    onMouseDown: e => { if (e.target === e.currentTarget) onClose(); }
   }, React.createElement("div", {
-    className: "bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-md max-h-[100vh] sm:max-h-[90vh] flex flex-col mobile-scroll"
+    className: "bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-md max-h-[100vh] sm:max-h-[90vh] flex flex-col mobile-scroll",
+    onMouseDown: e => e.stopPropagation(),
+    onClick: e => e.stopPropagation()
   },
     React.createElement("div", { className: "bg-slate-50 border-b px-5 py-4 flex items-center justify-between rounded-t-2xl shrink-0" },
       React.createElement("h2", { className: "font-semibold text-gray-900" }, "Add New Item"),
@@ -2942,17 +3113,77 @@ function AddItemModal({ onSave, onClose, vendors }) {
           )
         )
       ),
-      React.createElement("div", { className: "grid grid-cols-2 gap-3" },
-        field("Unit", unit, setUnit, "syringe, sleeve, gallon"),
-        field("Packaging", pkg, setPkg, "box, pack, bag")
+      // ─── UOM: Base Unit vs Order Unit (strict dropdowns for uniform data) ───
+      React.createElement("div", { className: "bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-3" },
+        React.createElement("div", { className: "text-xs font-semibold text-slate-600 uppercase tracking-wide" }, "Unit of Measure"),
+        React.createElement("p", { className: "text-xs text-slate-500 -mt-1.5" },
+          "Base Unit = the smallest individual piece (what you count). Order Unit = the package you buy from the vendor."),
+        React.createElement("div", { className: "grid grid-cols-2 gap-3" },
+          React.createElement("div", null,
+            React.createElement("label", { className: "text-xs font-medium text-gray-500 uppercase tracking-wide" }, "Base Unit *"),
+            React.createElement("select", {
+              value: baseUnitName,
+              onChange: e => setBaseUnitName(e.target.value),
+              className: "mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+            },
+              React.createElement("option", { value: "" }, "Select base unit..."),
+              BASE_UNITS.map(u => React.createElement("option", { key: u, value: u }, u))
+            )
+          ),
+          React.createElement("div", null,
+            React.createElement("label", { className: "text-xs font-medium text-gray-500 uppercase tracking-wide" }, "Order Unit *"),
+            React.createElement("select", {
+              value: orderUnitName,
+              onChange: e => setOrderUnitName(e.target.value),
+              className: "mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+            },
+              React.createElement("option", { value: "" }, "Select order unit..."),
+              ORDER_UNITS.map(u => React.createElement("option", { key: u, value: u }, u))
+            )
+          )
+        ),
+        React.createElement("div", { className: "grid grid-cols-2 gap-3" },
+          React.createElement("div", null,
+            React.createElement("label", { className: "text-xs font-medium text-gray-500 uppercase tracking-wide" },
+              (isMeasurementBaseUnit(baseUnitName)
+                ? "Total " + baseUnitName + (baseUnitName === "Gram" ? "s" : "s") + " per " + (orderUnitName || "Order Unit")
+                : (baseUnitName ? baseUnitName + "s" : "Base Units") + " per " + (orderUnitName || "Order Unit")) + " *"),
+            React.createElement("input", {
+              type: "number",
+              inputMode: isMeasurementBaseUnit(baseUnitName) ? "decimal" : "numeric",
+              min: "0",
+              step: isMeasurementBaseUnit(baseUnitName) ? "0.01" : "1",
+              value: baseUnitsPerOrderUnit,
+              onChange: e => setBaseUnitsPerOrderUnit(e.target.value),
+              placeholder: isMeasurementBaseUnit(baseUnitName) ? "e.g. 2.5" : "e.g. 100",
+              className: "mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            })
+          ),
+          React.createElement("div", null,
+            React.createElement("label", { className: "text-xs font-medium text-gray-500 uppercase tracking-wide" },
+              "Vendor Price per " + (orderUnitName || "Order Unit") + " ($) *"),
+            React.createElement("input", {
+              type: "number", inputMode: "decimal", min: "0", step: "0.01",
+              value: vendorOrderPrice,
+              onChange: e => setVendorOrderPrice(e.target.value),
+              placeholder: "e.g. 16.15",
+              className: "mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            })
+          )
+        ),
+        // Live per-base-unit calculation preview
+        (function() {
+          const n = parseFloat(baseUnitsPerOrderUnit);
+          const p = parseFloat(vendorOrderPrice);
+          if (!n || n <= 0 || !p || p <= 0 || !baseUnitName || !orderUnitName) return null;
+          const perUnit = p / n;
+          return React.createElement("div", { className: "bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 text-xs text-emerald-800 font-medium" },
+            "True unit price: $" + perUnit.toFixed(4) + " / " + baseUnitName +
+            "  ·  Order 1 " + orderUnitName + " at $" + p.toFixed(2));
+        })()
       ),
-      React.createElement("div", { className: "grid grid-cols-2 gap-3" },
-        field("Units per " + (pkg || "Package"), unitsPerPkg, setUnitsPerPkg, "e.g. 200", "number"),
-        field((pkg ? pkg + "s" : "Pkgs") + " per Case", pkgsPerCase, setPkgsPerCase, "e.g. 20", "number")
-      ),
-      React.createElement("div", { className: "grid grid-cols-3 gap-3" },
-        field("Min Stock", min, setMin, "1", "number"),
-        field("Price ($)", price, setPrice, "0.00", "number")
+      React.createElement("div", { className: "grid grid-cols-1 gap-3" },
+        field("Min Stock (in " + (orderUnitName || "order units") + ")", min, setMin, "1", "number")
       ),
       React.createElement("div", null,
         React.createElement("label", { className: "text-xs font-medium text-gray-500 uppercase tracking-wide" }, "Subcategory"),
@@ -2990,10 +3221,14 @@ const SourcesModal = ({ item, onSave, onDelete, onClose, isAdmin, vendors }) => 
   const [itemCat, setItemCat] = useState(item.cat || "misc");
   const [group, setGroup] = useState(item.group || "");
   const [minStock, setMinStock] = useState(String(item.min || 0));
-  const [itemUnit, setItemUnit] = useState(item.unit || "");
-  const [itemPkg, setItemPkg] = useState(item.packaging || "");
-  const [unitsPerPkg, setUnitsPerPkg] = useState(String(item.unitsPerPkg || ""));
-  const [pkgsPerCase, setPkgsPerCase] = useState(String(item.pkgsPerCase || ""));
+  // New UOM schema — initialize from new fields, migrating old fields if needed.
+  const _migrated = React.useMemo(() => migrateItem(item) || {}, [item]);
+  const [baseUnitName, setBaseUnitName] = useState(item.baseUnitName || _migrated.baseUnitName || "");
+  const [orderUnitName, setOrderUnitName] = useState(item.orderUnitName || _migrated.orderUnitName || "");
+  const [baseUnitsPerOrderUnit, setBaseUnitsPerOrderUnit] = useState(String(
+    (typeof item.baseUnitsPerOrderUnit === "number" && item.baseUnitsPerOrderUnit) ||
+    (_migrated.baseUnitsPerOrderUnit || "")
+  ));
   const [itemNote, setItemNote] = useState(item.note || "");
   const [exp, setExp] = useState(item.exp || "");
   const [imgData, setImgData] = useState(item.img || null);
@@ -3042,7 +3277,21 @@ const SourcesModal = ({ item, onSave, onDelete, onClose, isAdmin, vendors }) => 
       delete clean._customVendor;
       return clean;
     });
-    const extras = { img: imgData, min: Math.max(0, parseInt(minStock) || 0), note: itemNote.trim() || null, exp: exp || "", unit: itemUnit.trim() || "unit", packaging: itemPkg.trim() || null, unitsPerPkg: parseFloat(unitsPerPkg) || null, pkgsPerCase: parseFloat(pkgsPerCase) || null, cat: itemCat };
+    // Write new UOM schema; also fold primary source price into item-level vendorOrderPrice for convenience.
+    const primaryPrice = filtered[0] && typeof filtered[0].price === "number" ? filtered[0].price : null;
+    const extras = {
+      img: imgData,
+      min: Math.max(0, parseInt(minStock) || 0),
+      note: itemNote.trim() || null,
+      exp: exp || "",
+      baseUnitName: baseUnitName || null,
+      orderUnitName: orderUnitName || null,
+      baseUnitsPerOrderUnit: (function(){ const n = parseFloat(baseUnitsPerOrderUnit); return (!isNaN(n) && n > 0) ? n : 1; })(),
+      vendorOrderPrice: primaryPrice,
+      // Legacy compat
+      unit: (orderUnitName || "Pkg").toLowerCase(),
+      cat: itemCat
+    };
     onSave(item.id, filtered, group.trim() || null, extras);
     onClose();
   }
@@ -3050,9 +3299,11 @@ const SourcesModal = ({ item, onSave, onDelete, onClose, isAdmin, vendors }) => 
   return /*#__PURE__*/React.createElement("div", {
     className: "fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 mobile-full-modal",
     style: { background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)" },
-    onClick: e => { if (e.target === e.currentTarget) onClose(); }
+    onMouseDown: e => { if (e.target === e.currentTarget) onClose(); }
   }, /*#__PURE__*/React.createElement("div", {
-    className: "bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-2xl max-h-[100vh] sm:max-h-[85vh] overflow-hidden flex flex-col mobile-scroll"
+    className: "bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-2xl max-h-[100vh] sm:max-h-[85vh] overflow-hidden flex flex-col mobile-scroll",
+    onMouseDown: e => e.stopPropagation(),
+    onClick: e => e.stopPropagation()
   }, /*#__PURE__*/React.createElement("div", {
     className: "bg-slate-50 border-b px-5 py-4 flex items-start justify-between"
   }, /*#__PURE__*/React.createElement("div", {
@@ -3080,86 +3331,51 @@ const SourcesModal = ({ item, onSave, onDelete, onClose, isAdmin, vendors }) => 
     }, "Subcategory"),
     /*#__PURE__*/React.createElement("select", { value: group, onChange: function(e) { setGroup(e.target.value); }, className: "mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" },
       /*#__PURE__*/React.createElement("option", { value: "" }, "Select subcategory..."),
-      ((CATEGORIES.find(function(c) { return c.id === itemCat; }) || {}).subs || []).map(function(sub) { return /*#__PURE__*/React.createElement("option", { key: sub, value: sub }, sub); })))), /*#__PURE__*/React.createElement("div", {
-    className: "mb-4 grid grid-cols-2 gap-3"
-  }, /*#__PURE__*/React.createElement("div", null,
-    /*#__PURE__*/React.createElement("label", {
-      className: "text-xs font-semibold text-gray-500 uppercase tracking-wide"
-    }, "Unit"),
-    /*#__PURE__*/React.createElement("input", {
-      type: "text",
-      value: itemUnit,
-      onChange: e => setItemUnit(e.target.value),
-      placeholder: "syringe, sleeve, gallon",
-      className: "mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-    })
-  ), /*#__PURE__*/React.createElement("div", null,
-    /*#__PURE__*/React.createElement("label", {
-      className: "text-xs font-semibold text-gray-500 uppercase tracking-wide"
-    }, "Packaging"),
-    /*#__PURE__*/React.createElement("input", {
-      type: "text",
-      value: itemPkg,
-      onChange: e => setItemPkg(e.target.value),
-      placeholder: "box, pack, bag",
-      className: "mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-    })
-  )), /*#__PURE__*/React.createElement("div", {
-    className: "mb-4"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center gap-1.5 mb-2"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "text-xs font-semibold text-gray-500 uppercase tracking-wide"
-  }, "Packaging Configuration"),
+      ((CATEGORIES.find(function(c) { return c.id === itemCat; }) || {}).subs || []).map(function(sub) { return /*#__PURE__*/React.createElement("option", { key: sub, value: sub }, sub); })))),
+  // ─── Unit of Measure (Base Unit vs Order Unit, strict dropdowns) ─────────────
   /*#__PURE__*/React.createElement("div", {
-    className: "relative group"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-200 text-gray-500 text-[10px] font-bold cursor-help"
-  }, "?"),
+    className: "mb-4 bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-3"
+  },
+    /*#__PURE__*/React.createElement("div", { className: "text-xs font-semibold text-slate-600 uppercase tracking-wide" }, "Unit of Measure"),
+    /*#__PURE__*/React.createElement("p", { className: "text-xs text-slate-500 -mt-1.5" },
+      "Base Unit = smallest individual piece. Order Unit = the package you buy from the vendor."),
+    /*#__PURE__*/React.createElement("div", { className: "grid grid-cols-2 gap-3" },
+      /*#__PURE__*/React.createElement("div", null,
+        /*#__PURE__*/React.createElement("label", { className: "text-xs font-semibold text-gray-500 uppercase tracking-wide" }, "Base Unit *"),
+        /*#__PURE__*/React.createElement("select", {
+          value: baseUnitName,
+          onChange: e => setBaseUnitName(e.target.value),
+          className: "mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+        },
+          /*#__PURE__*/React.createElement("option", { value: "" }, "Select base unit..."),
+          BASE_UNITS.map(u => /*#__PURE__*/React.createElement("option", { key: u, value: u }, u)))),
+      /*#__PURE__*/React.createElement("div", null,
+        /*#__PURE__*/React.createElement("label", { className: "text-xs font-semibold text-gray-500 uppercase tracking-wide" }, "Order Unit *"),
+        /*#__PURE__*/React.createElement("select", {
+          value: orderUnitName,
+          onChange: e => setOrderUnitName(e.target.value),
+          className: "mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+        },
+          /*#__PURE__*/React.createElement("option", { value: "" }, "Select order unit..."),
+          ORDER_UNITS.map(u => /*#__PURE__*/React.createElement("option", { key: u, value: u }, u))))),
+    /*#__PURE__*/React.createElement("div", null,
+      /*#__PURE__*/React.createElement("label", { className: "text-xs font-semibold text-gray-500 uppercase tracking-wide" },
+        (isMeasurementBaseUnit(baseUnitName)
+          ? "Total " + baseUnitName + "s per " + (orderUnitName || "Order Unit")
+          : (baseUnitName ? baseUnitName + "s" : "Base Units") + " per " + (orderUnitName || "Order Unit")) + " *"),
+      /*#__PURE__*/React.createElement("input", {
+        type: "number",
+        inputMode: isMeasurementBaseUnit(baseUnitName) ? "decimal" : "numeric",
+        min: "0",
+        step: isMeasurementBaseUnit(baseUnitName) ? "0.01" : "1",
+        value: baseUnitsPerOrderUnit,
+        onChange: e => setBaseUnitsPerOrderUnit(e.target.value),
+        placeholder: isMeasurementBaseUnit(baseUnitName) ? "e.g. 2.5" : "e.g. 200",
+        className: "mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+      })),
+    /*#__PURE__*/React.createElement("p", { className: "text-xs text-slate-500" },
+      "Vendor prices are entered below as price-per-" + (orderUnitName || "order unit") + ". The true price-per-" + (baseUnitName || "base unit") + " is calculated automatically for each vendor.")),
   /*#__PURE__*/React.createElement("div", {
-    className: "absolute left-0 top-full mt-2 w-72 bg-gray-800 text-white text-xs rounded-lg px-3 py-2.5 shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 pointer-events-none leading-relaxed"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "absolute left-3 -top-1.5 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-b-[6px] border-b-gray-800"
-  }),
-  /*#__PURE__*/React.createElement("div", { className: "font-semibold mb-1" }, "How pricing works:"),
-  "Fill in these fields to auto-calculate unit costs on each vendor row below.",
-  /*#__PURE__*/React.createElement("br", null),
-  /*#__PURE__*/React.createElement("br", null),
-  /*#__PURE__*/React.createElement("span", { className: "font-medium text-blue-300" }, "Example: "),
-  "A case of gloves with 20 boxes, 200 gloves per box, priced at $100/case.",
-  /*#__PURE__*/React.createElement("br", null),
-  /*#__PURE__*/React.createElement("span", { className: "text-green-300" }, "\u2192 $5.00/box \u2192 $0.025/glove"),
-  /*#__PURE__*/React.createElement("br", null),
-  /*#__PURE__*/React.createElement("br", null),
-  /*#__PURE__*/React.createElement("span", { className: "font-medium" }, "Buying single packages? "),
-  "Leave \"per Case\" empty \u2014 price is treated as the package price."))),
-  /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-2 gap-3"
-  }, /*#__PURE__*/React.createElement("div", null,
-    /*#__PURE__*/React.createElement("label", {
-      className: "text-xs font-semibold text-gray-500 uppercase tracking-wide"
-    }, "Units per " + (itemPkg || "Package")),
-    /*#__PURE__*/React.createElement("input", {
-      type: "number", inputMode: "decimal",
-      min: "0",
-      value: unitsPerPkg,
-      onChange: e => setUnitsPerPkg(e.target.value),
-      placeholder: "e.g. 200",
-      className: "mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-    })
-  ), /*#__PURE__*/React.createElement("div", null,
-    /*#__PURE__*/React.createElement("label", {
-      className: "text-xs font-semibold text-gray-500 uppercase tracking-wide"
-    }, (itemPkg ? itemPkg + "s" : "Pkgs") + " per Case"),
-    /*#__PURE__*/React.createElement("input", {
-      type: "number", inputMode: "decimal",
-      min: "0",
-      value: pkgsPerCase,
-      onChange: e => setPkgsPerCase(e.target.value),
-      placeholder: "e.g. 20",
-      className: "mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-    })
-  ))), /*#__PURE__*/React.createElement("div", {
     className: "mb-4 grid grid-cols-2 gap-3"
   }, /*#__PURE__*/React.createElement("div", null,
     /*#__PURE__*/React.createElement("label", {
@@ -3264,12 +3480,12 @@ const SourcesModal = ({ item, onSave, onDelete, onClose, isAdmin, vendors }) => 
     className: "grid grid-cols-2 gap-2 text-xs"
   }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
     className: "text-gray-500 font-semibold"
-  }, (parseFloat(pkgsPerCase) > 0 ? "Price per Case" : (parseFloat(unitsPerPkg) > 0 ? "Price per " + (itemPkg || "Package") : "Price"))), /*#__PURE__*/React.createElement("input", {
+  }, "Price per " + (orderUnitName || "Order Unit")), /*#__PURE__*/React.createElement("input", {
     type: "number", inputMode: "numeric",
     step: "0.01",
     value: src.price || "",
     onChange: e => updateRow(idx, "price", e.target.value ? parseFloat(e.target.value) : ""),
-    placeholder: parseFloat(pkgsPerCase) > 0 ? "e.g. 100.00" : "e.g. 27.03",
+    placeholder: "e.g. 27.03",
     className: "mt-0.5 w-full border border-gray-200 rounded px-2 py-1 text-sm"
   })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
     className: "text-gray-500 font-semibold"
@@ -3280,22 +3496,17 @@ const SourcesModal = ({ item, onSave, onDelete, onClose, isAdmin, vendors }) => 
     placeholder: "e.g. Feb 2026",
     className: "mt-0.5 w-full border border-gray-200 rounded px-2 py-1 text-sm"
   }))),
+  // Per-vendor true unit price: vendorOrderPrice / baseUnitsPerOrderUnit
   (function() {
     var p = parseFloat(src.price);
-    var upp = parseFloat(unitsPerPkg);
-    var ppc = parseFloat(pkgsPerCase);
-    if (!p || p <= 0) return null;
-    var perPkg = (ppc > 0) ? (p / ppc) : null;
-    var perUnit = (ppc > 0 && upp > 0) ? (p / (ppc * upp)) : (upp > 0 ? (p / upp) : null);
-    if (!perPkg && !perUnit) return null;
-    var pkgLabel = itemPkg || "pkg";
-    var unitLabel = itemUnit || "unit";
+    var n = parseInt(baseUnitsPerOrderUnit);
+    if (!p || p <= 0 || !n || n < 1 || !baseUnitName || !orderUnitName) return null;
+    var perUnit = p / n;
     return /*#__PURE__*/React.createElement("div", {
-      className: "bg-blue-50 border border-blue-200 rounded-lg px-2.5 py-1.5 text-xs text-blue-800 flex flex-wrap gap-x-4 gap-y-0.5"
+      className: "bg-emerald-50 border border-emerald-200 rounded-lg px-2.5 py-1.5 text-xs text-emerald-800 flex flex-wrap gap-x-4 gap-y-0.5"
     },
-      perPkg && /*#__PURE__*/React.createElement("span", null, "\ud83d\udcb0 ", "$" + perPkg.toFixed(2) + "/" + pkgLabel),
-      perUnit && /*#__PURE__*/React.createElement("span", null, "\ud83d\udcb0 ", "$" + perUnit.toFixed(4) + "/" + unitLabel),
-      (ppc > 0 && upp > 0) && /*#__PURE__*/React.createElement("span", { className: "text-blue-500" }, "(" + (ppc * upp) + " " + unitLabel + "s/case)")
+      /*#__PURE__*/React.createElement("span", { className: "font-semibold" }, "💰 $" + perUnit.toFixed(4) + " / " + baseUnitName),
+      /*#__PURE__*/React.createElement("span", { className: "text-emerald-600" }, "(1 " + orderUnitName + " = " + n + " " + baseUnitName + (n !== 1 ? "s" : "") + ")")
     );
   })(),
   /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
@@ -3324,7 +3535,18 @@ const SourcesModal = ({ item, onSave, onDelete, onClose, isAdmin, vendors }) => 
   }, "Save Changes")), isAdmin && /*#__PURE__*/React.createElement("button", {
     onClick: () => {
       if (confirm((item.archived ? "Unarchive" : "Archive") + " \"" + item.name + "\"?")) {
-        onSave(item.id, sources.filter(s => s.vendor || s.sku).map(function(s) { var clean = Object.assign({}, s); delete clean._customVendor; return clean; }), group.trim() || null, { img: imgData, min: Math.max(0, parseInt(minStock) || 0), note: itemNote.trim() || null, exp: exp || "", unit: itemUnit.trim() || "unit", packaging: itemPkg.trim() || null, unitsPerPkg: parseFloat(unitsPerPkg) || null, pkgsPerCase: parseFloat(pkgsPerCase) || null, cat: itemCat, archived: !item.archived });
+        onSave(item.id, sources.filter(s => s.vendor || s.sku).map(function(s) { var clean = Object.assign({}, s); delete clean._customVendor; return clean; }), group.trim() || null, {
+          img: imgData,
+          min: Math.max(0, parseInt(minStock) || 0),
+          note: itemNote.trim() || null,
+          exp: exp || "",
+          // New UOM schema
+          baseUnitName: baseUnitName || null,
+          orderUnitName: orderUnitName || null,
+          baseUnitsPerOrderUnit: (function(){ const n = parseFloat(baseUnitsPerOrderUnit); return (!isNaN(n) && n > 0) ? n : 1; })(),
+          cat: itemCat,
+          archived: !item.archived
+        });
         onClose();
       }
     },
@@ -3342,7 +3564,7 @@ const SourcesModal = ({ item, onSave, onDelete, onClose, isAdmin, vendors }) => 
 
 // ─── Firebase Realtime Database Config (hardcoded) ──────────────────────────
 const NLO_FIREBASE_CONFIG = {
-  apiKey: "AIzaSyCZ7n3pLiD4cVvSqe9MSmEq32QIY50wToI",
+  apiKey: "AIzaSyBFCmDgAKkdfZ4Cb81nK0KCKXtONiwMJy4",
   authDomain: "nlo-inventory.firebaseapp.com",
   databaseURL: "https://nlo-inventory-default-rtdb.firebaseio.com",
   projectId: "nlo-inventory",
@@ -4413,9 +4635,16 @@ function ItemRow({
     className: "text-xs text-gray-400 font-mono"
   }, primarySource(item).sku), primarySource(item).vendor && /*#__PURE__*/React.createElement("span", {
     className: "text-xs px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-500 font-medium"
-  }, primarySource(item).vendor), primarySource(item).price != null && /*#__PURE__*/React.createElement("span", {
-    className: "text-xs text-gray-400"
-  }, fmt(primarySource(item).price), "/", item.unit)), item.note && /*#__PURE__*/React.createElement("p", {
+  }, primarySource(item).vendor), primarySource(item).price != null && (function() {
+    var orderUnit = getOrderUnit(item);
+    var perBase = perBaseUnitPrice(item, primarySource(item).price);
+    var baseUnit = getBaseUnit(item);
+    return /*#__PURE__*/React.createElement("span", { className: "text-xs text-gray-400" },
+      fmt(primarySource(item).price) + " / " + orderUnit,
+      perBase != null && /*#__PURE__*/React.createElement("span", { className: "text-emerald-600 font-medium ml-1" },
+        "(" + "$" + perBase.toFixed(4) + "/" + baseUnit + ")")
+    );
+  })()), item.note && /*#__PURE__*/React.createElement("p", {
     className: "text-xs text-gray-400 mt-0.5 truncate max-w-xs"
   }, item.note), /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-2 mt-1.5"
@@ -4503,12 +4732,13 @@ function ItemRow({
         /*#__PURE__*/React.createElement("div", null,
           /*#__PURE__*/React.createElement("p", { className: "text-xs font-bold" }, "Warning: This item was recently ordered by another team member within the last 10 days."),
           /*#__PURE__*/React.createElement("p", { className: "text-xs mt-0.5 text-amber-600" }, daysSinceOrder === 0 ? "Ordered today" : "Ordered " + daysSinceOrder + " day" + (daysSinceOrder !== 1 ? "s" : "") + " ago"))),
-      // Multi-vendor selector (if more than one source)
+      // Multi-vendor selector (if more than one source) — shows true unit price for comparison
       sources.length > 1 && /*#__PURE__*/React.createElement("div", { className: "space-y-1.5 mb-1" },
-        /*#__PURE__*/React.createElement("p", { className: "text-xs font-semibold text-gray-500" }, "Select Vendor:"),
+        /*#__PURE__*/React.createElement("p", { className: "text-xs font-semibold text-gray-500" }, "Select Vendor (compare $/", getBaseUnit(item), "):"),
         sources.map(function(s, idx) {
           var isSelected = idx === selectedIdx;
           var isLastUsed = item.lastOrderedVendorId && s.vendor === item.lastOrderedVendorId;
+          var perBase = s.price != null ? perBaseUnitPrice(item, s.price) : null;
           return /*#__PURE__*/React.createElement("label", {
             key: idx,
             className: "flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors " + (isSelected ? "bg-blue-100 border border-blue-300" : "bg-white border border-gray-200 hover:bg-gray-50"),
@@ -4517,7 +4747,8 @@ function ItemRow({
             /*#__PURE__*/React.createElement("input", { type: "radio", name: "vendor-" + item.id, checked: isSelected, readOnly: true, className: "accent-blue-600" }),
             /*#__PURE__*/React.createElement("span", { className: "text-sm font-medium text-gray-800" }, s.vendor || "Unknown"),
             s.sku && /*#__PURE__*/React.createElement("span", { className: "text-xs text-gray-400 font-mono" }, s.sku),
-            s.price != null && /*#__PURE__*/React.createElement("span", { className: "text-xs text-gray-500" }, fmt(s.price) + "/" + unitLabel),
+            s.price != null && /*#__PURE__*/React.createElement("span", { className: "text-xs text-gray-500" }, fmt(s.price) + " / " + getOrderUnit(item)),
+            perBase != null && /*#__PURE__*/React.createElement("span", { className: "text-xs text-emerald-700 font-semibold" }, "$" + perBase.toFixed(4) + "/" + getBaseUnit(item)),
             isLastUsed && /*#__PURE__*/React.createElement("span", { className: "ml-auto text-xs font-bold text-blue-600 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full" }, "Last Used"));
         })),
       // Qty controls
@@ -6116,29 +6347,44 @@ function OrdersView({ orders, items, onAddOrder, onReceiveOrder, onVoidOrder, on
               order.status === "backordered" && /*#__PURE__*/React.createElement("button", { onClick: () => onReceiveOrder(order.id), className: "flex items-center gap-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors" }, /*#__PURE__*/React.createElement(CheckIc, { size: 14 }), "Received"),
               (order.status === "open" || order.status === "backordered") && isAdmin && /*#__PURE__*/React.createElement("button", { onClick: () => handleVoid(order.id), className: "flex items-center gap-1 bg-red-50 text-red-600 hover:bg-red-100 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors" }, /*#__PURE__*/React.createElement(XIc, { size: 14 }), "Void"),
               order.status === "received" && /*#__PURE__*/React.createElement("button", { onClick: () => onReorder && onReorder(order), className: "flex items-center gap-1 bg-blue-50 text-blue-600 hover:bg-blue-100 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors" }, /*#__PURE__*/React.createElement(RefreshIc, { size: 14 }), /*#__PURE__*/React.createElement("span", { className: "hidden sm:inline" }, "Reorder")),
-              /*#__PURE__*/React.createElement("button", { onClick: () => toggleExpand(order.id), className: "text-gray-400 hover:text-gray-600 p-1" }, expanded.has(order.id) ? "\u25BC" : "\u25B6"))),
+              order.slipPhoto && /*#__PURE__*/React.createElement("button", {
+                onClick: () => toggleExpand(order.id),
+                className: "text-gray-400 hover:text-gray-600 p-1",
+                title: expanded.has(order.id) ? "Hide packing slip" : "Show packing slip"
+              }, expanded.has(order.id) ? "\u25BC" : "\uD83D\uDCF7"))),
           /*#__PURE__*/React.createElement("div", { className: "grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mb-3 text-xs" },
             /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", { className: "text-gray-400" }, "Items"), /*#__PURE__*/React.createElement("p", { className: "font-semibold text-gray-900" }, order.items.length)),
             /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", { className: "text-gray-400" }, "Total"), /*#__PURE__*/React.createElement("p", { className: "font-semibold text-gray-900" }, "$", (order.items.reduce((sum, oi) => sum + ((oi.price || 0) * (oi.qty || 0)), 0)).toFixed(2))),
             order.expectedDelivery && (() => { var isOverdue = order.status === "open" && new Date(order.expectedDelivery + "T23:59:59") < new Date(); return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", { className: "text-gray-400" }, "Expected"), /*#__PURE__*/React.createElement("p", { className: "font-semibold " + (isOverdue ? "text-red-600" : "text-gray-900") }, order.expectedDelivery, isOverdue && /*#__PURE__*/React.createElement("span", { className: "ml-1 text-xs font-medium text-red-500" }, "OVERDUE"))); })(),
             order.orderedBy && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", { className: "text-gray-400" }, "Ordered By"), /*#__PURE__*/React.createElement("p", { className: "font-semibold text-gray-900" }, order.orderedBy)),
             order.note && /*#__PURE__*/React.createElement("div", { className: "col-span-2" }, /*#__PURE__*/React.createElement("p", { className: "text-gray-400" }, "Notes"), /*#__PURE__*/React.createElement("p", { className: "font-semibold text-gray-900 truncate" }, order.note))),
-          expanded.has(order.id) && /*#__PURE__*/React.createElement("div", { className: "mt-4 pt-4 border-t space-y-2" },
-            /*#__PURE__*/React.createElement("p", { className: "text-xs font-semibold text-gray-600 uppercase" }, "Line Items"),
+          // ─── Line items: ALWAYS shown so you can see what was ordered at a glance ───
+          /*#__PURE__*/React.createElement("div", { className: "mt-3 pt-3 border-t space-y-1.5" },
+            /*#__PURE__*/React.createElement("p", { className: "text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1" }, "Items in this order"),
             order.items.map((oi, idx) => {
-              var displayUnit = oi.unit || (oi.itemId ? ((items.find(it => it.id === oi.itemId) || {}).unit || "ea") : "ea");
-              return /*#__PURE__*/React.createElement("div", { key: idx, className: "text-xs bg-gray-50 rounded p-2" },
-              /*#__PURE__*/React.createElement("div", { className: "flex justify-between" },
-                /*#__PURE__*/React.createElement("span", { className: "font-medium text-gray-900" }, oi.name),
-                /*#__PURE__*/React.createElement("span", { className: "text-gray-600 font-semibold" }, oi.qty, " ", /*#__PURE__*/React.createElement("span", { className: "text-blue-500 font-medium" }, displayUnit))),
-              /*#__PURE__*/React.createElement("div", { className: "flex justify-between mt-1 text-gray-600" },
-                oi.sku && /*#__PURE__*/React.createElement("span", null, oi.sku),
-                /*#__PURE__*/React.createElement("span", null, "$", (oi.price || 0).toFixed(2))));
-            }),
-            order.slipPhoto && /*#__PURE__*/React.createElement("details", { className: "border border-gray-200 rounded-lg overflow-hidden mt-4" },
-              /*#__PURE__*/React.createElement("summary", { className: "px-3 py-2 text-xs font-medium text-gray-600 cursor-pointer hover:bg-gray-50 flex items-center gap-1.5" }, "📷 Packing Slip Photo"),
-              /*#__PURE__*/React.createElement("img", { src: order.slipPhoto, alt: "Packing Slip", className: "w-full object-contain bg-gray-50 max-h-96" })
-            )
+              var foundItem = oi.itemId ? items.find(it => it.id === oi.itemId) : null;
+              var displayUnit = foundItem ? getOrderUnit(foundItem) : (oi.unit || "Each");
+              var lineTotal = (oi.price || 0) * (oi.qty || 0);
+              return /*#__PURE__*/React.createElement("div", {
+                key: idx,
+                className: "flex items-center justify-between gap-2 text-sm bg-slate-50 hover:bg-slate-100 rounded-lg px-3 py-2 transition-colors"
+              },
+                /*#__PURE__*/React.createElement("div", { className: "min-w-0 flex-1" },
+                  /*#__PURE__*/React.createElement("p", { className: "font-medium text-gray-900 truncate" }, oi.name),
+                  oi.sku && /*#__PURE__*/React.createElement("p", { className: "text-[11px] text-gray-400 font-mono truncate" }, oi.sku)),
+                /*#__PURE__*/React.createElement("div", { className: "flex items-center gap-3 shrink-0 text-xs" },
+                  /*#__PURE__*/React.createElement("span", { className: "font-semibold text-blue-700" },
+                    oi.qty, " ", displayUnit, oi.qty !== 1 ? "s" : ""),
+                  /*#__PURE__*/React.createElement("span", { className: "text-gray-500" },
+                    "×  $", (oi.price || 0).toFixed(2)),
+                  /*#__PURE__*/React.createElement("span", { className: "font-semibold text-gray-900 tabular-nums w-16 text-right" },
+                    "$", lineTotal.toFixed(2))
+                )
+              );
+            })),
+          expanded.has(order.id) && order.slipPhoto && /*#__PURE__*/React.createElement("div", { className: "mt-4 pt-4 border-t" },
+            /*#__PURE__*/React.createElement("p", { className: "text-xs font-semibold text-gray-600 uppercase mb-2" }, "📷 Packing Slip Photo"),
+            /*#__PURE__*/React.createElement("img", { src: order.slipPhoto, alt: "Packing Slip", className: "w-full object-contain bg-gray-50 max-h-96 rounded-lg border border-gray-200" })
           ))))));
 }
 
@@ -7499,15 +7745,20 @@ function OrderCartView({ cart, items, onUpdateQty, onRemove, onClear, onPlaceOrd
               var foundItem = items.find(function(i) { return i.id === c.itemId; });
               var cartRecentWarn = foundItem && foundItem.lastOrderedTimestamp && (Date.now() - foundItem.lastOrderedTimestamp) < 864000000;
               var cartDaysAgo = foundItem && foundItem.lastOrderedTimestamp ? Math.floor((Date.now() - foundItem.lastOrderedTimestamp) / 86400000) : null;
+              var orderUnitLbl = foundItem ? getOrderUnit(foundItem) : (c.unit || "Each");
+              var baseUnitLbl = foundItem ? getBaseUnit(foundItem) : "";
+              var perBaseLbl = foundItem && c.price > 0 ? perBaseUnitPrice(foundItem, c.price) : null;
               return /*#__PURE__*/React.createElement("div", { key: c.itemId, className: "px-4 py-3" },
                 cartRecentWarn && /*#__PURE__*/React.createElement("div", { className: "flex items-center gap-1.5 bg-amber-50 border border-amber-200 text-amber-700 rounded-lg px-2 py-1.5 mb-2 text-xs font-semibold" },
                   "\u26A0\uFE0F Ordered ", cartDaysAgo === 0 ? "today" : cartDaysAgo + "d ago", " \u2014 check for duplicates"),
                 /*#__PURE__*/React.createElement("div", { className: "flex items-center gap-3" },
                 /*#__PURE__*/React.createElement("div", { className: "flex-1 min-w-0" },
                   /*#__PURE__*/React.createElement("p", { className: "text-sm font-medium text-gray-900 truncate" }, c.name),
+                  c.price > 0 && /*#__PURE__*/React.createElement("p", { className: "text-xs font-semibold text-blue-700 mt-0.5" },
+                    "Order ", c.qty, " ", orderUnitLbl, c.qty !== 1 ? "s" : "", " at $", c.price.toFixed(2), " each"),
                   /*#__PURE__*/React.createElement("div", { className: "flex items-center gap-2 mt-0.5 text-xs text-gray-500" },
                     c.sku && /*#__PURE__*/React.createElement("span", { className: "font-mono" }, c.sku),
-                    c.price > 0 && /*#__PURE__*/React.createElement("span", null, "$" + c.price.toFixed(2) + "/" + c.unit),
+                    perBaseLbl != null && /*#__PURE__*/React.createElement("span", { className: "text-emerald-700 font-medium" }, "$" + perBaseLbl.toFixed(4) + " / " + baseUnitLbl),
                     foundItem && /*#__PURE__*/React.createElement("span", { className: foundItem.qty < foundItem.min ? "text-red-500 font-semibold" : "text-gray-400" }, "Stock: " + foundItem.qty)
                   )
                 ),
@@ -7554,28 +7805,48 @@ function App() {
   const isAdmin = userRole === "admin";
   const [items, setItems] = useState(loadItems);
 
-  // Listen for Firebase Auth state changes
+  // Listen for Firebase Auth state changes.
+  // IMPORTANT: firebase.auth() requires a default app to exist — we must call
+  // initializeApp() first, even before the main firebaseConfig effect runs,
+  // otherwise the first render throws "No Firebase App '[DEFAULT]' has been created".
   useEffect(function() {
     if (!window.firebase || !window.firebase.auth) {
       setAuthChecked(true);
       return;
     }
-    var unsubscribe = window.firebase.auth().onAuthStateChanged(function(user) {
-      if (user) {
-        var email = (user.email || "").toLowerCase();
-        if (ALLOWED_EMAILS.indexOf(email) !== -1) {
-          setFirebaseUser(user);
+    // Ensure a default Firebase app exists before we call .auth().
+    var cfg = loadFirebaseConfig();
+    if (cfg && cfg.apiKey && (!window.firebase.apps || !window.firebase.apps.length)) {
+      try { window.firebase.initializeApp(cfg); }
+      catch (initErr) { /* already exists — ignore */ }
+    }
+    // If we still don't have an app, bail gracefully (user hasn't configured Firebase yet).
+    if (!window.firebase.apps || !window.firebase.apps.length) {
+      setAuthChecked(true);
+      return;
+    }
+    var unsubscribe;
+    try {
+      unsubscribe = window.firebase.auth().onAuthStateChanged(function(user) {
+        if (user) {
+          var email = (user.email || "").toLowerCase();
+          if (ALLOWED_EMAILS.indexOf(email) !== -1) {
+            setFirebaseUser(user);
+          } else {
+            // Unauthorized email — sign them out
+            window.firebase.auth().signOut();
+            setFirebaseUser(null);
+          }
         } else {
-          // Unauthorized email — sign them out
-          window.firebase.auth().signOut();
           setFirebaseUser(null);
         }
-      } else {
-        setFirebaseUser(null);
-      }
+        setAuthChecked(true);
+      });
+    } catch (e) {
+      console.warn("Firebase auth init failed:", e);
       setAuthChecked(true);
-    });
-    return function() { unsubscribe(); };
+    }
+    return function() { if (typeof unsubscribe === "function") unsubscribe(); };
   }, []);
   const [log, setLog] = useState(loadLog);
   const [vendors, setVendors] = useState(loadVendors);
@@ -7652,6 +7923,11 @@ function App() {
                 setters[key](result);
               } else if (key === "items" && Array.isArray(val)) {
                 val.forEach(migrateItemCat);
+                const uomResult = migrateItemsUOM(val);
+                if (uomResult.migrated > 0) {
+                  console.log("[UOM migration] Migrated " + uomResult.migrated + " item(s) to new schema on remote change"
+                    + (uomResult.needsReview > 0 ? " · " + uomResult.needsReview + " flagged for manual review (_uomNeedsReview=true)" : ""));
+                }
                 lastWriteJSON.current[key] = JSON.stringify(val);
                 setters[key](val);
               } else {
@@ -7680,6 +7956,17 @@ function App() {
                 setters[key](result);
               } else if (key === "items" && Array.isArray(val)) {
                 val.forEach(migrateItemCat);
+                const uomResult = migrateItemsUOM(val);
+                if (uomResult.migrated > 0) {
+                  console.log("[UOM migration] Migrated " + uomResult.migrated + " item(s) to new schema on initial load"
+                    + (uomResult.needsReview > 0 ? " · " + uomResult.needsReview + " flagged for manual review (_uomNeedsReview=true)" : ""));
+                  // Schedule a write-back so the migrated data persists in Firebase (only if we got anything).
+                  try {
+                    db.ref("nlo/items").set(val);
+                  } catch (e) {
+                    console.warn("[UOM migration] write-back failed:", e);
+                  }
+                }
                 lastWriteJSON.current[key] = JSON.stringify(val);
                 setters[key](val);
               } else {
@@ -7863,6 +8150,11 @@ function App() {
         if (extras.packaging !== undefined) updated.packaging = extras.packaging;
         if (extras.unitsPerPkg !== undefined) updated.unitsPerPkg = extras.unitsPerPkg;
         if (extras.pkgsPerCase !== undefined) updated.pkgsPerCase = extras.pkgsPerCase;
+        // New UOM schema — these were being dropped before.
+        if (extras.baseUnitName !== undefined) updated.baseUnitName = extras.baseUnitName;
+        if (extras.orderUnitName !== undefined) updated.orderUnitName = extras.orderUnitName;
+        if (extras.baseUnitsPerOrderUnit !== undefined) updated.baseUnitsPerOrderUnit = extras.baseUnitsPerOrderUnit;
+        if (extras.vendorOrderPrice !== undefined) updated.vendorOrderPrice = extras.vendorOrderPrice;
         if (extras.cat !== undefined) updated.cat = extras.cat;
         if (extras.archived !== undefined) updated.archived = extras.archived;
       }
