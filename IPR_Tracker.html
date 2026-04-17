@@ -16,6 +16,46 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 </style>
 </head>
 <body>
+<!-- NLO-BACK-TO-INDEX v1 -->
+<a href="index.html" class="nlo-back-home no-print" title="Back to NLO Apps">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+  <span>NLO Apps</span>
+</a>
+<style>
+  .nlo-back-home {
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    z-index: 99999;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 13px 7px 11px;
+    background: #1B2F4C;
+    color: #ffffff;
+    text-decoration: none;
+    border-radius: 999px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+    font-size: 12.5px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    line-height: 1;
+    box-shadow: 0 2px 10px rgba(27,47,76,0.25), 0 1px 2px rgba(0,0,0,0.06);
+    transition: transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .nlo-back-home:hover {
+    background: #2a3f5c;
+    transform: translateX(-2px);
+    box-shadow: 0 3px 14px rgba(27,47,76,0.3), 0 1px 2px rgba(0,0,0,0.06);
+  }
+  .nlo-back-home:active { transform: translateX(-1px) scale(0.98); }
+  .nlo-back-home svg { flex-shrink: 0; }
+  @media print {
+    .nlo-back-home { display: none !important; }
+  }
+</style>
+
 <div id="root"></div>
 <script>/**
  * @license React
@@ -500,7 +540,8 @@ function ArchRow({
   label,
   quadLeft,
   quadRight,
-  cumRef
+  cumRef,
+  readOnly
 }) {
   const keys = Object.keys(contacts);
   const total = sumContacts(contacts);
@@ -629,8 +670,10 @@ function ArchRow({
       max: "0.8",
       step: "0.1",
       value: val,
-      onChange: e => onChange(contactKey, e.target.value),
+      readOnly: !!readOnly,
+      onChange: e => { if (readOnly) return; onChange(contactKey, e.target.value); },
       onBlur: e => {
+        if (readOnly) return;
         const v = parseFloat(e.target.value);
         if (!isNaN(v)) {
           if (v < 0) onChange(contactKey, "0");
@@ -655,7 +698,7 @@ function ArchRow({
         color: hasVal ? isMidline ? "#c2410c" : "#dc2626" : "#c0c9d8",
         outline: "none",
         padding: 0,
-        cursor: "text",
+        cursor: readOnly ? "not-allowed" : "text",
         flexShrink: 0
       }
     }), hasVal && /*#__PURE__*/React.createElement("span", {
@@ -678,7 +721,8 @@ function SpacesArchRow({
   onBTChange,
   label,
   quadLeft,
-  quadRight
+  quadRight,
+  readOnly
 }) {
   const keys = Object.keys(spaces);
   const total = sumContacts(spaces);
@@ -798,7 +842,8 @@ function SpacesArchRow({
       max: "9.9",
       step: "0.1",
       value: spaceVal,
-      onChange: e => onSpaceChange(contactKey, e.target.value),
+      readOnly: !!readOnly,
+      onChange: e => { if (readOnly) return; onSpaceChange(contactKey, e.target.value); },
       placeholder: "\xB7",
       title: `Space: ${contactKey.replace("|", " → ")}`,
       style: {
@@ -813,11 +858,12 @@ function SpacesArchRow({
         color: hasSpace ? "#0369a1" : "#c0c9d8",
         outline: "none",
         padding: 0,
-        cursor: "text",
+        cursor: readOnly ? "not-allowed" : "text",
         flexShrink: 0
       }
     }), /*#__PURE__*/React.createElement("button", {
-      onClick: () => onBTChange(contactKey, !btVal),
+      onClick: () => { if (readOnly) return; onBTChange(contactKey, !btVal); },
+      disabled: !!readOnly,
       title: `Black triangle at ${contactKey.replace("|", " → ")}`,
       style: {
         width: 38,
@@ -827,14 +873,15 @@ function SpacesArchRow({
         background: btVal ? "#111" : "#fafbfd",
         color: btVal ? "white" : "#d1d5db",
         fontSize: 13,
-        cursor: "pointer",
+        cursor: readOnly ? "not-allowed" : "pointer",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         padding: 0,
         flexShrink: 0,
         lineHeight: 1,
-        fontFamily: "inherit"
+        fontFamily: "inherit",
+        opacity: readOnly && !btVal ? 0.5 : 1
       }
     }, "\u25BC")));
   }))), /*#__PURE__*/React.createElement("div", {
@@ -1690,6 +1737,7 @@ function App() {
   const [visitHistory, setVisitHistory] = React.useState([]);
   const [currentVisitId, setCurrentVisitId] = React.useState(null);
   const [showHistory, setShowHistory] = React.useState(false);
+  const [readOnly, setReadOnly] = React.useState(false); // true when viewing a saved past visit
 
   // Search state
   const [searchQuery, setSearchQuery] = React.useState("");
@@ -1961,7 +2009,8 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
     setCurrentVisitId(v.id);
     setShowHistory(false);
   };
-  const handleSaveToRecord = async () => {
+  const handleSaveToRecord = async (opts = {}) => {
+    const keepOpen = opts.keepOpen === true;
     setSyncStatus("saving");
     setSyncMsg("");
     try {
@@ -1974,7 +2023,7 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
           setSyncStatus("idle");
           setPendingSave(true);
           setFlowStep("choose");
-          return;
+          return false;
         }
         // Check if patient already exists by patient_id
         const enc = encodeURIComponent((patient.patientId || "").trim());
@@ -2041,35 +2090,21 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
         }
       }
       setSyncStatus("saved");
+      if (keepOpen) {
+        setSyncMsg("Saved to patient record ✓");
+        setTimeout(() => {
+          setSyncStatus("idle");
+          setSyncMsg("");
+        }, 3000);
+        return true;
+      }
       setSyncMsg("Saved ✓ — Resetting for next patient...");
       // After a brief delay so user sees the success message, reset everything
       setTimeout(() => {
-        // Clear sessionStorage draft data
-        ["ipr_patient","ipr_upper","ipr_lower","ipr_notes","ipr_gauge",
-         "ipr_upper_spaces","ipr_lower_spaces","ipr_upper_bt","ipr_lower_bt"
-        ].forEach(k => sessionStorage.removeItem(k));
-        // Reset all form state
-        setPatient({ name: "", patientId: "", date: new Date().toISOString().slice(0, 10), assistantInitials: "" });
-        setUpper(initContacts(UPPER));
-        setLower(initContacts(LOWER));
-        setNotes("");
-        setGaugeVerified(false);
-        setUpperSpaces(initContacts(UPPER));
-        setLowerSpaces(initContacts(LOWER));
-        setUpperBT(initBT(UPPER));
-        setLowerBT(initBT(LOWER));
-        setPrescribedUpper(initContacts(UPPER));
-        setPrescribedLower(initContacts(LOWER));
-        setDbPatient(null);
-        setVisitHistory([]);
-        setCurrentVisitId(null);
-        setShowHistory(false);
-        setActiveTab("ipr");
-        setSyncStatus("idle");
-        setSyncMsg("");
-        // Reopen wizard for next patient
+        clearAllState();
         setFlowStep("choose");
       }, 1500);
+      return true;
     } catch (e) {
       setSyncStatus("error");
       setSyncMsg("Save failed: " + (e.message || String(e)));
@@ -2077,6 +2112,7 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
         setSyncStatus("idle");
         setSyncMsg("");
       }, 8000);
+      return false;
     }
   };
   const handleChange = setter => (key, val) => setter(prev => ({
@@ -2312,6 +2348,7 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
         assistantInitials: ''
       });
       setDbPatient(selectedPatient);
+      setCurrentVisitId(null);
       setUpper(initContacts(UPPER));
       setLower(initContacts(LOWER));
       setNotes('');
@@ -2322,6 +2359,7 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
       setLowerBT(initBT(LOWER));
       setPrescribedUpper(initContacts(UPPER));
       setPrescribedLower(initContacts(LOWER));
+      setReadOnly(false);
       setFlowStep(null);
     };
 
@@ -2345,6 +2383,7 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
       setLowerBT(v.lower_bt || initBT(LOWER));
       setPrescribedUpper(v.prescribed_upper || initContacts(UPPER));
       setPrescribedLower(v.prescribed_lower || initContacts(LOWER));
+      setReadOnly(true); // viewing a saved past visit — read-only
       setFlowStep(null);
     };
 
@@ -2359,6 +2398,7 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
         date: tempDate,
         assistantInitials: tempAssistantInitials
       });
+      setCurrentVisitId(null);
       setUpper(initContacts(UPPER));
       setLower(initContacts(LOWER));
       setNotes('');
@@ -2369,6 +2409,7 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
       setLowerBT(initBT(LOWER));
       setPrescribedUpper(initContacts(UPPER));
       setPrescribedLower(initContacts(LOWER));
+      setReadOnly(false);
       setFlowStep('visitSetup');
     };
 
@@ -2442,24 +2483,77 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
     return null;
   };
 
-  // Export as PDF — opens the same print preview with a "Save as PDF" button
-  const handleExport = () => {
-    if (!patient.patientId) {
-      alert('No patient loaded — use the + button to start.');
-      return;
-    }
+  // Clear the whole working state and return to the "choose patient" wizard.
+  // Used by the Cancel button and by handleSaveToRecord's post-save flow.
+  const clearAllState = () => {
+    ["ipr_patient","ipr_upper","ipr_lower","ipr_notes","ipr_gauge",
+     "ipr_upper_spaces","ipr_lower_spaces","ipr_upper_bt","ipr_lower_bt"
+    ].forEach(k => sessionStorage.removeItem(k));
+    setPatient({ name: "", patientId: "", date: new Date().toISOString().slice(0, 10), assistantInitials: "" });
+    setUpper(initContacts(UPPER));
+    setLower(initContacts(LOWER));
+    setNotes("");
+    setGaugeVerified(false);
+    setUpperSpaces(initContacts(UPPER));
+    setLowerSpaces(initContacts(LOWER));
+    setUpperBT(initBT(UPPER));
+    setLowerBT(initBT(LOWER));
+    setPrescribedUpper(initContacts(UPPER));
+    setPrescribedLower(initContacts(LOWER));
+    setDbPatient(null);
+    setVisitHistory([]);
+    setCurrentVisitId(null);
+    setShowHistory(false);
+    setActiveTab("ipr");
+    setSyncStatus("idle");
+    setSyncMsg("");
+    setReadOnly(false);
+  };
+
+  const handleCancel = () => {
+    const hasWork = !!patient.patientId || !!dbPatient || sumContacts(upper) > 0 || sumContacts(lower) > 0 || notes.trim().length > 0;
+    if (hasWork && !readOnly && !window.confirm("Cancel and discard this entry?\n\nThis will clear the current charting data and return to the patient picker. Any unsaved changes will be lost.")) return;
+    clearAllState();
+    setFlowStep("choose");
+  };
+
+  // Open the print preview popup window (shared by Print and Export buttons)
+  const openPrintPreview = (mode) => {
     const printEl = document.querySelector('.print-only');
     if (!printEl) {
-      alert('Unable to generate PDF — print view not found.');
+      alert('Unable to open preview — print view not found.');
       return;
     }
     const w = window.open('', '_blank', 'width=900,height=700');
+    const isExport = mode === 'export';
+    const primaryLabel = isExport ? 'Save as PDF / Print' : 'Print';
+    const hint = isExport ? '<span>Select "Save as PDF" as the printer to download</span>' : '';
     w.document.write('<!DOCTYPE html><html><head><style>body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#0f172a;margin:0;padding:14px 18px;}@page{margin:12mm 10mm;}.print-toolbar{position:sticky;top:0;z-index:9999;background:#1e293b;padding:10px 20px;display:flex;gap:10px;align-items:center;margin:-14px -18px 16px -18px;}.print-toolbar span{color:#94a3b8;font-size:13px;margin-left:8px;}@media print{.print-toolbar{display:none !important;}}</style></head><body>');
-    w.document.write('<div class="print-toolbar"><button onclick="window.print()" style="padding:8px 24px;border-radius:6px;border:none;background:#2563eb;color:white;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">Save as PDF / Print</button><button onclick="window.close()" style="padding:8px 24px;border-radius:6px;border:1px solid #475569;background:transparent;color:#cbd5e1;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;">Cancel</button><span>Select "Save as PDF" as the printer to download</span></div>');
+    w.document.write('<div class="print-toolbar"><button onclick="window.print()" style="padding:8px 24px;border-radius:6px;border:none;background:#2563eb;color:white;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">' + primaryLabel + '</button><button onclick="window.close()" style="padding:8px 24px;border-radius:6px;border:1px solid #475569;background:transparent;color:#cbd5e1;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;">Cancel</button>' + hint + '</div>');
     w.document.write(printEl.innerHTML);
     w.document.write('</body></html>');
     w.document.close();
   };
+
+  // Save to patient record first, then open preview. Patient stays loaded.
+  // In read-only mode (viewing an existing saved visit), skip the save step.
+  const handleSaveAndPreview = async (mode) => {
+    if (!patient.patientId && !dbPatient) {
+      alert('No patient loaded — use the + button to start.');
+      return;
+    }
+    if (readOnly) {
+      openPrintPreview(mode);
+      return;
+    }
+    const ok = await handleSaveToRecord({ keepOpen: true });
+    if (ok === false) return; // save errored or deferred to wizard; don't open preview
+    // Small delay so the "Saved ✓" status has a moment to paint, and DOM updates finish
+    setTimeout(() => openPrintPreview(mode), 200);
+  };
+
+  // Export as PDF — saves to record first, then opens print preview with a "Save as PDF" button
+  const handleExport = () => handleSaveAndPreview('export');
   // Prescribed IPR reference bar
   const showPrescribedRef = prescribedUpper && prescribedLower && (sumContacts(prescribedUpper) > 0 || sumContacts(prescribedLower) > 0);
   const prescribedUpperTotal = prescribedUpper ? sumContacts(prescribedUpper) : 0;
@@ -2494,7 +2588,19 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
       color: "#94a3b8",
       marginTop: 3
     }
-  }, "Interproximal Reduction \xB7 Palmer Notation \xB7 ", /*#__PURE__*/React.createElement("em", null, "IPR completed at this visit"), patient.assistantInitials && /*#__PURE__*/React.createElement("span", {
+  }, "Interproximal Reduction \xB7 Palmer Notation \xB7 ", /*#__PURE__*/React.createElement("em", null, "IPR completed at this visit"), readOnly && /*#__PURE__*/React.createElement("span", {
+    style: {
+      marginLeft: 10,
+      background: "#f59e0b",
+      color: "white",
+      fontSize: 10,
+      fontWeight: 800,
+      padding: "2px 10px",
+      borderRadius: 10,
+      letterSpacing: 0.5,
+      textTransform: "uppercase"
+    }
+  }, "\uD83D\uDD12 Read-only \xB7 Viewing saved visit"), patient.assistantInitials && /*#__PURE__*/React.createElement("span", {
     style: {
       marginLeft: 10,
       background: "#7c3aed",
@@ -2549,16 +2655,7 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
       fontWeight: 600
     }
   }, /*#__PURE__*/React.createElement("svg", { width: 14, height: 14, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round", style: { marginRight: 5, verticalAlign: "-2px" } }, /*#__PURE__*/React.createElement("path", { d: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" }), /*#__PURE__*/React.createElement("polyline", { points: "7 10 12 15 17 10" }), /*#__PURE__*/React.createElement("line", { x1: 12, y1: 15, x2: 12, y2: 3 })), "Export"), /*#__PURE__*/React.createElement("button", {
-    onClick: () => {
-      const printEl = document.querySelector('.print-only');
-      if (!printEl) return;
-      const w = window.open('', '_blank', 'width=900,height=700');
-      w.document.write('<!DOCTYPE html><html><head><style>body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#0f172a;margin:0;padding:14px 18px;}@page{margin:12mm 10mm;}.print-toolbar{position:sticky;top:0;z-index:9999;background:#1e293b;padding:10px 20px;display:flex;gap:10px;align-items:center;margin:-14px -18px 16px -18px;}@media print{.print-toolbar{display:none !important;}}</style></head><body>');
-      w.document.write('<div class="print-toolbar"><button onclick="window.print()" style="padding:8px 24px;border-radius:6px;border:none;background:#2563eb;color:white;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">Print</button><button onclick="window.close()" style="padding:8px 24px;border-radius:6px;border:1px solid #475569;background:transparent;color:#cbd5e1;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;">Cancel</button></div>');
-      w.document.write(printEl.innerHTML);
-      w.document.write('</body></html>');
-      w.document.close();
-    },
+    onClick: () => handleSaveAndPreview('print'),
     style: {
       padding: "8px 14px",
       borderRadius: 8,
@@ -2691,7 +2788,8 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
     label: "Upper Arch",
     quadLeft: "UR",
     quadRight: "UL",
-    cumRef: prevUpper
+    cumRef: prevUpper,
+    readOnly: readOnly
   }), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
@@ -2726,7 +2824,8 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
     label: "Lower Arch",
     quadLeft: "LR",
     quadRight: "LL",
-    cumRef: prevLower
+    cumRef: prevLower,
+    readOnly: readOnly
   }), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
@@ -2745,22 +2844,24 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
       display: "flex",
       alignItems: "center",
       gap: 7,
-      cursor: "pointer",
+      cursor: readOnly ? "not-allowed" : "pointer",
       padding: "6px 12px",
       borderRadius: 8,
       border: `1.5px solid ${gaugeVerified ? "#22c55e" : "#e2e8f0"}`,
       background: gaugeVerified ? "#f0fdf4" : "#f8fafc",
-      transition: "all 0.15s"
+      transition: "all 0.15s",
+      opacity: readOnly && !gaugeVerified ? 0.6 : 1
     }
   }, /*#__PURE__*/React.createElement("input", {
     type: "checkbox",
     checked: gaugeVerified,
-    onChange: e => setGaugeVerified(e.target.checked),
+    disabled: readOnly,
+    onChange: e => { if (readOnly) return; setGaugeVerified(e.target.checked); },
     style: {
       width: 14,
       height: 14,
       accentColor: "#22c55e",
-      cursor: "pointer"
+      cursor: readOnly ? "not-allowed" : "pointer"
     }
   }), /*#__PURE__*/React.createElement("span", {
     style: {
@@ -3101,7 +3202,8 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
     }
   }, "Clinical Notes"), /*#__PURE__*/React.createElement("textarea", {
     value: notes,
-    onChange: e => setNotes(e.target.value),
+    readOnly: readOnly,
+    onChange: e => { if (readOnly) return; setNotes(e.target.value); },
     rows: 3,
     placeholder: "Add clinical notes, observations, or next appointment instructions\u2026",
     style: {
@@ -3113,9 +3215,10 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
       color: "#334155",
       resize: "vertical",
       outline: "none",
-      background: "#f8fafc"
+      background: readOnly ? "#f1f5f9" : "#f8fafc",
+      cursor: readOnly ? "not-allowed" : "text"
     },
-    onFocus: e => e.target.style.borderColor = "#3b82f6",
+    onFocus: e => { if (readOnly) return; e.target.style.borderColor = "#3b82f6"; },
     onBlur: e => e.target.style.borderColor = "#e2e8f0"
   }))), activeTab === "spaces" && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -3134,7 +3237,8 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
     onBTChange: handleChange(setUpperBT),
     label: "Upper Arch",
     quadLeft: "UR",
-    quadRight: "UL"
+    quadRight: "UL",
+    readOnly: readOnly
   }), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
@@ -3170,7 +3274,8 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
     onBTChange: handleChange(setLowerBT),
     label: "Lower Arch",
     quadLeft: "LR",
-    quadRight: "LL"
+    quadRight: "LL",
+    readOnly: readOnly
   })), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
@@ -3390,44 +3495,35 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
     }
   }, /*#__PURE__*/React.createElement("button", {
     onClick: handleSaveToRecord,
-    disabled: syncStatus === "saving",
+    disabled: syncStatus === "saving" || readOnly,
+    title: readOnly ? "Viewing a saved visit — start a new visit to make changes" : "Save to patient record",
     style: {
       padding: "10px 22px",
       borderRadius: 8,
       border: "none",
-      background: syncBtnStyle.bg,
-      color: syncBtnStyle.color,
+      background: readOnly ? "#cbd5e1" : syncBtnStyle.bg,
+      color: readOnly ? "#64748b" : syncBtnStyle.color,
       fontSize: 14,
       fontWeight: 700,
-      cursor: syncStatus === "saving" ? "default" : "pointer",
-      transition: "background 0.2s"
+      cursor: (syncStatus === "saving" || readOnly) ? "not-allowed" : "pointer",
+      transition: "background 0.2s",
+      opacity: readOnly ? 0.7 : 1
     }
-  }, syncBtnStyle.label), /*#__PURE__*/React.createElement("button", {
-    onClick: () => {
-      if (window.confirm("Reset IPR, Spacing, and Black Triangles for this visit?\n\nThis will clear all charting data but keep the patient selected.")) {
-        setUpper(initContacts(UPPER));
-        setLower(initContacts(LOWER));
-        setUpperSpaces(initContacts(UPPER));
-        setLowerSpaces(initContacts(LOWER));
-        setUpperBT(initBT(UPPER));
-        setLowerBT(initBT(LOWER));
-        setGaugeVerified(false);
-        setNotes("");
-        ["ipr_upper","ipr_lower","ipr_upper_spaces","ipr_lower_spaces","ipr_upper_bt","ipr_lower_bt","ipr_notes","ipr_gauge"].forEach(k => sessionStorage.removeItem(k));
-      }
-    },
+  }, readOnly ? "Saved (read-only)" : syncBtnStyle.label), /*#__PURE__*/React.createElement("button", {
+    onClick: handleCancel,
+    title: "Discard this entry and return to the patient picker",
     style: {
       padding: "10px 18px",
       borderRadius: 8,
-      border: "1.5px solid #fca5a5",
+      border: "1.5px solid #cbd5e1",
       background: "white",
-      color: "#dc2626",
+      color: "#64748b",
       fontSize: 13,
       fontWeight: 600,
       cursor: "pointer",
       transition: "all 0.2s"
     }
-  }, "Reset"), syncMsg && /*#__PURE__*/React.createElement("span", {
+  }, "Cancel"), syncMsg && /*#__PURE__*/React.createElement("span", {
     style: {
       fontSize: 12,
       color: syncStatus === "error" ? "#dc2626" : "#64748b"
@@ -3438,7 +3534,7 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
       fontSize: 11,
       color: "#cbd5e1"
     }
-  }, dbPatient ? `Saving to: ${dbPatient.patient_id || dbPatient.name}` : "No patient selected \u2014 Save will prompt you to pick one"))), /*#__PURE__*/React.createElement(PrintChart, {
+  }, readOnly && dbPatient ? `Viewing saved visit — ${dbPatient.patient_id || dbPatient.name}` : dbPatient ? `Saving to: ${dbPatient.patient_id || dbPatient.name}` : "No patient selected \u2014 Save will prompt you to pick one"))), /*#__PURE__*/React.createElement(PrintChart, {
     upper: upper,
     lower: lower,
     patient: patient,
