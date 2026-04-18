@@ -20,7 +20,7 @@
     header {
       background: #1B2F4C;
       color: white;
-      padding: 36px 32px 32px;
+      padding: 40px 32px 36px;
       text-align: center;
     }
 
@@ -28,22 +28,22 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 0;
-      margin-bottom: 10px;
+      margin-bottom: 14px;
     }
 
     .logo-row img {
-      height: 56px;
+      height: 110px;
       width: auto;
+      display: block;
     }
 
     header h1 {
-      font-size: 0.85rem;
+      font-size: 0.75rem;
       font-weight: 600;
-      letter-spacing: 3.5px;
+      letter-spacing: 3px;
       text-transform: uppercase;
-      opacity: 0.6;
-      margin-top: 2px;
+      opacity: 0.55;
+      margin-top: 0;
     }
 
     .main {
@@ -170,8 +170,8 @@
     @media (max-width: 600px) {
       .apps-grid { grid-template-columns: 1fr; }
       header { padding: 28px 20px 24px; }
-      .logo-row img { height: 44px; }
-      header h1 { font-size: 0.75rem; }
+      .logo-row img { height: 80px; }
+      header h1 { font-size: 0.7rem; }
     }
   </style>
 </head>
@@ -179,7 +179,7 @@
 
 <header>
   <div class="logo-row">
-    <img src="logo-white.png" alt="Next Level Orthodontics" style="height: 48px;" />
+    <img src="logo-white.png" alt="Next Level Orthodontics" />
   </div>
   <h1>Internal Tools</h1>
 </header>
