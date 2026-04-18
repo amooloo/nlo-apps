@@ -318,6 +318,51 @@
             margin-top: 20px;
         }
 
+        /* "Learn more" collapsible sections on benefit cards */
+        .learn-more {
+            margin-top: 16px;
+            border-top: 1px solid #eef0f3;
+            padding-top: 12px;
+        }
+        .learn-more summary {
+            cursor: pointer;
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: #1D3EA9;
+            padding: 8px 0;
+            list-style: none;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            user-select: none;
+        }
+        .learn-more summary::-webkit-details-marker { display: none; }
+        .learn-more summary::before {
+            content: "›";
+            font-size: 1.1rem;
+            font-weight: 700;
+            transition: transform 0.15s ease;
+            display: inline-block;
+        }
+        .learn-more[open] > summary::before { transform: rotate(90deg); }
+        .learn-more summary:hover { color: #2a52d4; }
+        .learn-more-body {
+            padding: 8px 4px 4px;
+            font-size: 0.82rem;
+            line-height: 1.55;
+            color: #475063;
+        }
+        .learn-more-body p { margin-bottom: 10px; }
+        .learn-more-body p:last-child { margin-bottom: 0; }
+        .learn-more-body strong { color: #1B2F4C; }
+        .learn-more-body ul {
+            margin: 6px 0 10px;
+            padding-left: 20px;
+        }
+        .learn-more-body ul li { margin-bottom: 4px; }
+        .learn-more-body a { color: #1D3EA9; text-decoration: none; font-weight: 600; }
+        .learn-more-body a:hover { text-decoration: underline; }
+
         .admin-table {
             background: white;
             border-radius: 14px;
@@ -658,91 +703,66 @@
                 <!-- ─── Celebrate Primary Care ─── -->
                 <div class="card">
                     <div class="card-title">Celebrate Primary Care Membership</div>
-                    <div class="info-note" style="background: #fff7e8; border-left: 3px solid #F5A623;">
-                        <strong>What it IS:</strong> A direct primary care membership — your own provider, accessible 24/7 via text, email, video, and same-day visits. Wholesale pricing on in-office labs, medications, and common procedures.
-                        <br><br>
-                        <strong>What it is NOT:</strong> Health insurance. It does not cover hospital stays, specialists, emergency care, or outside prescriptions. It works <em>alongside or independently of</em> any insurance you have.
-                    </div>
                     <div class="info-row">
                         <span class="info-label">Your Tier</span>
                         <span class="info-value" id="celebrateTierLabel">-</span>
                     </div>
                     <div class="info-row">
-                        <span class="info-label">Monthly Membership Cost</span>
-                        <span class="info-value">$65 / month (employee)</span>
-                    </div>
-                    <div class="info-row">
-                        <span class="info-label">Practice Contribution</span>
+                        <span class="info-label">Practice Pays</span>
                         <span class="info-value" id="celebratePracticePays" style="color: #2DBCAD; font-weight: 700;">-</span>
                     </div>
                     <div class="info-row">
-                        <span class="info-label">You Pay (via payroll)</span>
+                        <span class="info-label">You Pay</span>
                         <span class="info-value" id="celebrateEmployeePays" style="color: #1D3EA9; font-weight: 700;">-</span>
                     </div>
-                    <div class="info-note" style="background: #f0f7ff; margin-top: 16px;">
-                        <strong>Included in your membership:</strong><br>
-                        • 24/7 access to your provider — texts, emails, video visits<br>
-                        • Same-day or next-day in-office appointments<br>
-                        • Extended, unrushed visits<br>
-                        • Annual physical personalized to your wellness goals<br>
-                        • In-office procedures at wholesale: EKGs, suturing, mole/skin-tag removal, cryotherapy, biopsies, laceration repair<br>
-                        • Wholesale lab panels (full panel + vitamins: $171 vs $580 retail; thyroid: $138 vs $375)<br>
-                        • Wholesale imaging (MRI: $299 vs $1,500; chest X-ray: $47–60 vs $330)<br>
-                        • Low-cost meds from in-office pharmacy
-                    </div>
-                    <div class="info-note" style="background: #f4f5f7; margin-top: 12px;">
-                        <strong>Common services provided:</strong> acne, allergies, annual exams, asthma, birth control, blood pressure, diabetes management, ear infections, hormone therapy, mental health, orthopedic injury, PAP smears, STD treatment, strep, thyroid, UTIs, weight management, women's/men's health, and more.
-                        <br><br>
-                        <strong>Provider:</strong> Celebrate Primary Care · 919 NW 57th St, Gainesville FL 32605 · (352) 474-8686 · <a href="https://celebrateprimarycare.com" target="_blank" rel="noopener" style="color: #1D3EA9; text-decoration: none; font-weight: 600;">CelebratePrimaryCare.com</a>
-                        <br><br>
-                        <strong>Child memberships:</strong> $45/month (with paying adult) — child memberships are the employee's responsibility at all tiers.
-                        <br><br>
-                        <strong>To enroll:</strong> Speak with the Office Coordinator or Dr. Akhavan.
-                    </div>
+                    <details class="learn-more">
+                        <summary>Learn more about Celebrate Primary Care</summary>
+                        <div class="learn-more-body">
+                            <p><strong>What it IS:</strong> Direct primary care — your own provider, accessible 24/7 via text, email, video, and same-day in-office visits. Wholesale pricing on labs, meds, and procedures.</p>
+                            <p><strong>What it is NOT:</strong> Health insurance. It doesn't cover hospital stays, specialists, ER visits, or outside prescriptions. It works alongside (or independently of) any insurance you have.</p>
+                            <p><strong>Membership cost:</strong> $65/month per employee. Practice pays a portion based on your tier:</p>
+                            <ul>
+                                <li>Tier 1 (after orientation): practice pays ~$10 · you pay ~$55</li>
+                                <li>Tier 2 (2+ years): practice pays $32.50 · you pay $32.50</li>
+                                <li>Tier 3 (5+ years): practice pays $65 · you pay $0</li>
+                            </ul>
+                            <p><strong>Included:</strong> 24/7 provider access · same-day visits · annual physical · in-office EKG, suturing, mole removal, cryotherapy, biopsies · wholesale labs (full panel + vitamins $171 vs $580) · wholesale imaging (MRI $299 vs $1,500) · low-cost in-office pharmacy.</p>
+                            <p><strong>Common services:</strong> annual exams, blood pressure, diabetes, hormone therapy, mental health, PAP smears, STD treatment, strep, thyroid, UTIs, weight management, women's/men's health, and more.</p>
+                            <p><strong>Child memberships:</strong> $45/month (with paying adult) — at the employee's expense at all tiers.</p>
+                            <p><strong>Provider:</strong> Celebrate Primary Care · 919 NW 57th St, Gainesville FL 32605 · (352) 474-8686 · <a href="https://celebrateprimarycare.com" target="_blank" rel="noopener">CelebratePrimaryCare.com</a></p>
+                            <p><strong>To enroll:</strong> Speak with the Office Coordinator or Dr. Akhavan.</p>
+                        </div>
+                    </details>
                 </div>
 
                 <!-- ─── 401(k) Retirement Plan ─── -->
                 <div class="card">
                     <div class="card-title">401(k) Retirement Plan</div>
-                    <div class="info-note" style="background: #f0fff4; border-left: 3px solid #2DBCAD;">
-                        <strong>Plan Name:</strong> Amir Akhavan DMD, PLLC 401(k) Plan — a <em>Safe Harbor</em> profit-sharing 401(k).<br><br>
-                        <strong>Eligibility:</strong> Must be 18+ years old and have completed 1 year of service (at least 1,000 hours). Entry is on the first day of the month after you meet both.
-                    </div>
                     <div class="info-row">
-                        <span class="info-label">Your Eligibility Status</span>
+                        <span class="info-label">Your Eligibility</span>
                         <span class="info-value" id="retirementEligibility2">-</span>
                     </div>
                     <div class="info-row">
                         <span class="info-label">Safe Harbor Match</span>
-                        <span class="info-value" style="font-weight: 700;">100% on the first 3% you defer</span>
+                        <span class="info-value" style="font-weight: 700;">100% on first 3% deferred</span>
                     </div>
-                    <div class="info-row">
-                        <span class="info-label">Contribution Types</span>
-                        <span class="info-value">Pre-tax or Roth</span>
-                    </div>
-                    <div class="info-row">
-                        <span class="info-label">2025 Deferral Limit</span>
-                        <span class="info-value">$23,500 / year · +$7,500 catch-up if 50+</span>
-                    </div>
-                    <div class="info-note" style="background: #f0f7ff; margin-top: 16px;">
-                        <strong>Match example:</strong> If you earn $40,000/year and defer 3% ($1,200), the practice matches $1,200 on top of your contribution. The Safe Harbor Match is <strong>always 100% vested</strong> — you keep it even if you leave.
-                    </div>
-                    <div class="info-note" style="background: #f4f5f7; margin-top: 12px;">
-                        <strong>Vesting:</strong><br>
-                        • Your own deferrals + Safe Harbor Match = <em>always 100% vested</em><br>
-                        • Profit Sharing (discretionary, if declared in a year): graded — 0% (&lt;1 yr), 25% (1 yr), 50% (2 yr), 75% (3 yr), 100% (4+ yr)
-                        <br><br>
-                        <strong>Loans:</strong> Available for any purpose. $1,000 minimum; maximum is the lesser of $50,000 or 50% of your vested balance. One outstanding loan at a time. Prime rate interest.
-                        <br><br>
-                        <strong>Withdrawals:</strong> Available at age 59½, Normal Retirement (65), hardship, disability, or termination. Early withdrawal under 59½ typically incurs a 10% penalty on the taxable portion.
-                        <br><br>
-                        <strong>Rollovers:</strong> Accepts rollovers from 401(k), 403(b), 457(b), and Traditional IRA plans.
-                        <br><br>
-                        <strong>Plan Trustee:</strong> Ascensus Trust Company · (701) 234-0207<br>
-                        <strong>Plan Administrator:</strong> Amir Akhavan DMD, PLLC · (352) 332-7466
-                        <br><br>
-                        <strong>To enroll:</strong> Speak with the Office Coordinator or Dr. Akhavan once eligible.
-                    </div>
+                    <details class="learn-more">
+                        <summary>Learn more about the 401(k) plan</summary>
+                        <div class="learn-more-body">
+                            <p><strong>Plan name:</strong> Amir Akhavan DMD, PLLC 401(k) Plan — a Safe Harbor profit-sharing 401(k).</p>
+                            <p><strong>Eligibility:</strong> Age 18+ and 1 year of service (1,000+ hours). Entry on the first day of the month after meeting both.</p>
+                            <p><strong>Contribution types:</strong> Pre-tax or Roth.</p>
+                            <p><strong>2025 limits:</strong> $23,500/year ($31,000 if 50+).</p>
+                            <p><strong>Match example:</strong> Earn $40,000/year, defer 3% ($1,200) — practice matches $1,200. Safe Harbor Match is always 100% vested.</p>
+                            <p><strong>Vesting:</strong> Your deferrals + Safe Harbor Match = always 100% vested. Profit Sharing (discretionary) = graded: 25%/yr, 100% vested at 4 years.</p>
+                            <p><strong>Loans:</strong> $1,000 minimum, max is $50,000 or 50% of vested balance. One at a time. Prime rate.</p>
+                            <p><strong>Withdrawals:</strong> Age 59½, retirement (65), hardship, disability, or termination. Early withdrawal under 59½ generally has a 10% penalty.</p>
+                            <p><strong>Rollovers:</strong> Accepts 401(k), 403(b), 457(b), and Traditional IRA rollovers.</p>
+                            <p><strong>Plan Trustee:</strong> Ascensus Trust Company · (701) 234-0207<br>
+                            <strong>Plan Administrator:</strong> Amir Akhavan DMD, PLLC · (352) 332-7466</p>
+                            <p><strong>To enroll:</strong> Speak with the Office Coordinator or Dr. Akhavan once eligible.</p>
+                        </div>
+                    </details>
                 </div>
             </div>
 
