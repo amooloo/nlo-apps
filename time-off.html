@@ -625,15 +625,240 @@
       opacity: 0.3;
     }
 
-    @media (max-width: 600px) {
-      header { flex-direction: column; gap: 12px; text-align: center; }
-      .form-grid { grid-template-columns: 1fr; }
-      .cal-day { min-height: 60px; }
-      .cal-event { font-size: 0.5rem; }
-      .request-card { flex-direction: column; align-items: flex-start; gap: 10px; }
-      .your-requests-table { font-size: 0.7rem; }
-      .your-requests-table th, .your-requests-table td { padding: 8px; }
-      .blackout-form { grid-template-columns: 1fr; }
+    /* ======================================================
+       MOBILE OPTIMIZATION (comprehensive, all tabs)
+       ====================================================== */
+    @media (max-width: 820px) {
+      /* HEADER – stack title above tabs, keep actions wrapping */
+      header {
+        flex-direction: column;
+        gap: 14px;
+        text-align: center;
+        padding: 18px 16px 16px;
+        padding-top: 58px; /* leave room for the fixed "NLO Apps" back button */
+      }
+      header h1 { font-size: 0.95rem; }
+      header .subtitle { font-size: 0.62rem; }
+      .header-actions {
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 8px;
+        width: 100%;
+      }
+      .tab-btn {
+        padding: 11px 18px;
+        font-size: 0.78rem;
+        min-height: 44px;
+        flex: 1 1 auto;
+        min-width: 90px;
+      }
+      #user-role-badge { order: 3; width: 100%; text-align: center; }
+
+      /* MAIN padding */
+      .main { padding: 18px 14px; }
+      .form-card,
+      .your-requests-section,
+      .blackout-manager { padding: 22px 18px; }
+
+      /* FORM – single column, larger touch targets, 16px font (prevents iOS zoom) */
+      .form-grid { grid-template-columns: 1fr; gap: 14px; }
+      .form-group input,
+      .form-group select,
+      .form-group textarea {
+        font-size: 16px;
+        padding: 14px;
+        min-height: 48px;
+      }
+      .form-group textarea { min-height: 84px; }
+      .submit-btn {
+        width: 100%;
+        padding: 16px;
+        font-size: 0.9rem;
+        min-height: 50px;
+      }
+
+      /* SUCCESS MESSAGE */
+      .success-msg { padding: 28px 16px; }
+
+      /* YOUR REQUESTS – convert table to stacked cards on mobile */
+      .your-requests-table thead { display: none; }
+      .your-requests-table,
+      .your-requests-table tbody,
+      .your-requests-table tr,
+      .your-requests-table td { display: block; width: 100%; }
+      .your-requests-table tr {
+        background: #fafbfc;
+        border: 1px solid #eceef2;
+        border-radius: 12px;
+        padding: 14px 16px;
+        margin-bottom: 12px;
+      }
+      .your-requests-table tr:hover { background: #fafbfc; }
+      .your-requests-table td {
+        padding: 6px 0;
+        font-size: 0.85rem;
+        border: none;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+      }
+      .your-requests-table td::before {
+        content: attr(data-label);
+        font-size: 0.65rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: #1B2F4C;
+        opacity: 0.5;
+        flex-shrink: 0;
+      }
+      .your-requests-table td[data-label=""]::before { content: none; }
+      .cancel-btn {
+        padding: 10px 16px;
+        font-size: 0.72rem;
+        min-height: 38px;
+      }
+
+      /* CALENDAR – keep grid but reduce chrome so it fits */
+      .cal-header { flex-direction: column; gap: 12px; align-items: stretch; }
+      .cal-header h2 { text-align: center; }
+      .cal-nav { justify-content: center; }
+      .cal-nav button { width: 44px; height: 44px; font-size: 1.1rem; }
+      .cal-nav span { font-size: 0.95rem; min-width: 140px; }
+      .cal-day-header { padding: 6px 2px; font-size: 0.55rem; letter-spacing: 0.5px; }
+      .cal-day {
+        min-height: 72px;
+        padding: 4px 3px;
+      }
+      .day-num { font-size: 0.72rem; margin-bottom: 2px; }
+      .cal-event {
+        font-size: 0.52rem;
+        padding: 2px 3px;
+        line-height: 1.2;
+      }
+      .legend {
+        flex-wrap: wrap;
+        gap: 10px 16px;
+        margin-top: 14px;
+      }
+
+      /* BLACKOUT TABLE → cards on mobile */
+      .blackout-table thead { display: none; }
+      .blackout-table,
+      .blackout-table tbody,
+      .blackout-table tr,
+      .blackout-table td { display: block; width: 100%; }
+      .blackout-table tr {
+        background: #fafbfc;
+        border: 1px solid #eceef2;
+        border-radius: 12px;
+        padding: 12px 14px;
+        margin-bottom: 10px;
+      }
+      .blackout-table tr:hover { background: #fafbfc; }
+      .blackout-table td {
+        padding: 5px 0;
+        font-size: 0.82rem;
+        border: none;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+      }
+      .blackout-table td::before {
+        content: attr(data-label);
+        font-size: 0.65rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: #1B2F4C;
+        opacity: 0.5;
+        flex-shrink: 0;
+      }
+      .blackout-table td[data-label=""]::before { content: none; }
+      .blackout-delete-btn {
+        padding: 10px 16px;
+        font-size: 0.72rem;
+        min-height: 38px;
+      }
+
+      /* BLACKOUT FORM – stacked, larger inputs */
+      .blackout-form { grid-template-columns: 1fr; gap: 14px; }
+      .blackout-form-group input {
+        font-size: 16px;
+        padding: 14px;
+        min-height: 48px;
+      }
+      .blackout-add-btn {
+        width: 100%;
+        padding: 14px;
+        font-size: 0.9rem;
+        min-height: 50px;
+      }
+
+      /* MANAGE – request cards stack, bigger approve/deny buttons */
+      .request-card {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 14px;
+        padding: 16px;
+      }
+      .request-info h4 { font-size: 0.9rem; }
+      .request-info p { font-size: 0.78rem; line-height: 1.55; }
+      .approval-actions { width: 100%; gap: 10px; }
+      .approve-btn,
+      .deny-btn {
+        flex: 1 1 50%;
+        padding: 13px 10px;
+        font-size: 0.8rem;
+        min-height: 46px;
+      }
+      .request-status {
+        align-self: flex-start;
+        padding: 6px 14px;
+        font-size: 0.68rem;
+      }
+
+      /* TOAST */
+      .toast {
+        left: 16px;
+        right: 16px;
+        bottom: 16px;
+        text-align: center;
+      }
+
+      /* BACK-HOME – smaller & positioned so it fits the header stack */
+      .nlo-back-home {
+        top: 10px;
+        left: 10px;
+        padding: 6px 12px 6px 10px;
+        font-size: 12px;
+      }
+
+      /* PASSCODE/LOGIN screens */
+      .passcode-box { padding: 32px 22px; }
+      .passcode-input { font-size: 1rem; padding: 14px; min-height: 50px; }
+      .passcode-btn { min-height: 50px; font-size: 0.95rem; padding: 14px; }
+
+      /* Balance warning banner – wraps nicely on small screens */
+      #balance-warning-banner {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        padding: 14px 16px !important;
+        gap: 10px !important;
+      }
+      #balance-warning-banner button { align-self: flex-end; }
+    }
+
+    /* Very small phones (e.g. iPhone SE) */
+    @media (max-width: 380px) {
+      .tab-btn { padding: 10px 12px; font-size: 0.72rem; min-width: 72px; }
+      .cal-day { min-height: 64px; }
+      .cal-event { font-size: 0.48rem; }
+      .form-card,
+      .your-requests-section,
+      .blackout-manager { padding: 18px 14px; }
     }
   </style>
 </head>
@@ -1234,6 +1459,18 @@ function switchTab(tab) {
 // FORM SUBMISSION
 // ============================================================
 let _submitting = false; // double-submit guard
+let _activeClientRequestId = null; // persists across retries for idempotency
+
+// Generate a random request id to deduplicate retries on the server side
+function genClientRequestId() {
+  if (window.crypto && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  // Fallback for older browsers
+  return 'cri-' + Date.now().toString(36) + '-' +
+    Math.random().toString(36).slice(2, 10) +
+    Math.random().toString(36).slice(2, 10);
+}
 
 async function submitRequest() {
   if (_submitting) return; // prevent double-click
@@ -1316,6 +1553,13 @@ async function submitRequest() {
   btn.disabled = true;
   btn.textContent = 'Submitting...';
 
+  // Generate a stable client request id so the server can dedupe retries.
+  // We keep the same id until we see a successful submission, so that
+  // network retries for the same attempt don't create duplicate rows.
+  if (!_activeClientRequestId) {
+    _activeClientRequestId = genClientRequestId();
+  }
+
   try {
     const resp = await fetch(API_URL, {
       method: 'POST',
@@ -1330,11 +1574,13 @@ async function submitRequest() {
         endDate: end,
         hours: hours,
         coverage: coverage,
-        notes: notes
+        notes: notes,
+        clientRequestId: _activeClientRequestId
       })
     });
     const data = await resp.json();
     if (data.success) {
+      _activeClientRequestId = null; // consumed; new attempts get a fresh id
       document.getElementById('request-form-card').classList.add('hidden');
       document.getElementById('success-card').classList.remove('hidden');
       // Show balance warning if applicable
@@ -1342,11 +1588,18 @@ async function submitRequest() {
         showBalanceWarning(data.balanceWarning);
       }
       loadRequests();
+    } else if (data.error === 'duplicate_request') {
+      // Server recognized this as a retry of an already-submitted request
+      _activeClientRequestId = null;
+      document.getElementById('request-form-card').classList.add('hidden');
+      document.getElementById('success-card').classList.remove('hidden');
+      loadRequests();
     } else {
       showToast(data.error || 'Submission failed.');
     }
   } catch (err) {
     showToast('Connection error. Please try again.');
+    // Keep _activeClientRequestId so the next click is deduped server-side
   }
 
   _submitting = false;
@@ -1364,6 +1617,7 @@ function resetForm() {
   document.getElementById('f-hours').value = 'Full Day';
   document.getElementById('f-coverage').value = '';
   document.getElementById('f-notes').value = '';
+  _activeClientRequestId = null; // fresh id for the next submission
 }
 
 // ============================================================
@@ -1397,10 +1651,10 @@ function renderBlackoutTable() {
     const end   = fmtDate(b.end, true);
     html += `
       <tr>
-        <td>${escapeHTML(start)}</td>
-        <td>${escapeHTML(end)}</td>
-        <td>${escapeHTML(b.label || 'Blackout')}</td>
-        <td><button class="blackout-delete-btn" onclick="deleteBlackout(${idx})">Delete</button></td>
+        <td data-label="Start">${escapeHTML(start)}</td>
+        <td data-label="End">${escapeHTML(end)}</td>
+        <td data-label="Label">${escapeHTML(b.label || 'Blackout')}</td>
+        <td data-label=""><button class="blackout-delete-btn" onclick="deleteBlackout(${idx})">Delete</button></td>
       </tr>
     `;
   });
@@ -1550,12 +1804,12 @@ function renderYourRequests() {
 
     html += `
       <tr>
-        <td>${escapeHTML(fmtStart)} – ${escapeHTML(fmtEnd)}</td>
-        <td>${escapeHTML(r.requestType)}</td>
-        <td>${escapeHTML(paidType)}</td>
-        <td>${escapeHTML(hoursLabel)}</td>
-        <td><span class="status-badge ${escapeHTML(status)}">${escapeHTML(r.status)}</span></td>
-        <td>${cancelBtn}</td>
+        <td data-label="Dates">${escapeHTML(fmtStart)} – ${escapeHTML(fmtEnd)}</td>
+        <td data-label="Type">${escapeHTML(r.requestType)}</td>
+        <td data-label="Paid/Unpaid">${escapeHTML(paidType)}</td>
+        <td data-label="Hours">${escapeHTML(hoursLabel)}</td>
+        <td data-label="Status"><span class="status-badge ${escapeHTML(status)}">${escapeHTML(r.status)}</span></td>
+        <td data-label="">${cancelBtn}</td>
       </tr>
     `;
   });
