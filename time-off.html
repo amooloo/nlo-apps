@@ -1102,6 +1102,32 @@
     <div id="tab-manage" class="hidden">
       <div id="manage-loading" class="loading">Loading requests...</div>
       <div id="manage-content" class="hidden">
+
+        <!-- Filters for past/history view -->
+        <div id="manage-filters" style="background:#f8f9fa;border:1px solid #e0e4e8;border-radius:10px;padding:12px 14px;margin-bottom:18px;">
+          <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:end;">
+            <div style="flex:1 1 180px;min-width:150px;">
+              <label style="display:block;font-size:0.68rem;font-weight:700;color:#1B2F4C;opacity:0.75;letter-spacing:0.5px;text-transform:uppercase;margin-bottom:4px;">Employee</label>
+              <select id="filter-employee" style="width:100%;padding:8px 10px;border:1px solid #d0d4d8;border-radius:8px;font-family:inherit;font-size:0.82rem;background:white;">
+                <option value="">All employees</option>
+              </select>
+            </div>
+            <div style="flex:1 1 150px;min-width:140px;">
+              <label style="display:block;font-size:0.68rem;font-weight:700;color:#1B2F4C;opacity:0.75;letter-spacing:0.5px;text-transform:uppercase;margin-bottom:4px;">From</label>
+              <input type="date" id="filter-from" style="width:100%;padding:8px 10px;border:1px solid #d0d4d8;border-radius:8px;font-family:inherit;font-size:0.82rem;background:white;" />
+            </div>
+            <div style="flex:1 1 150px;min-width:140px;">
+              <label style="display:block;font-size:0.68rem;font-weight:700;color:#1B2F4C;opacity:0.75;letter-spacing:0.5px;text-transform:uppercase;margin-bottom:4px;">To</label>
+              <input type="date" id="filter-to" style="width:100%;padding:8px 10px;border:1px solid #d0d4d8;border-radius:8px;font-family:inherit;font-size:0.82rem;background:white;" />
+            </div>
+            <div style="display:flex;gap:8px;">
+              <button type="button" id="filter-apply-btn" onclick="renderManageList()" style="padding:9px 14px;border:none;border-radius:8px;background:#1B2F4C;color:white;font-family:inherit;font-size:0.78rem;font-weight:600;cursor:pointer;">Apply</button>
+              <button type="button" id="filter-clear-btn" onclick="clearManageFilters()" style="padding:9px 14px;border:1px solid #d0d4d8;border-radius:8px;background:white;color:#1B2F4C;font-family:inherit;font-size:0.78rem;font-weight:600;cursor:pointer;">Clear</button>
+            </div>
+          </div>
+          <div id="filter-summary" style="margin-top:8px;font-size:0.72rem;color:#1B2F4C;opacity:0.6;"></div>
+        </div>
+
         <div class="requests-list" id="pending-list">
           <h3>Pending Requests</h3>
         </div>
@@ -1351,6 +1377,13 @@ async function enterTimeOffApp() {
   if (currentUser.role !== 'admin' && currentUser.role !== 'approver') {
     manageBtn.classList.add('hidden');
   }
+  // Amir (role==='admin') doesn't submit his own time-off requests, so hide
+  // the "New Request" tab and default him straight to the Manage view.
+  // Sarah (role==='approver') still submits her own requests, so she keeps it.
+  if (currentUser.role === 'admin') {
+    const requestBtn = document.querySelector('[data-tab="request"]');
+    if (requestBtn) requestBtn.classList.add('hidden');
+  }
   // Blackout date management is restricted to 'admin' only (Amir)
   const blackoutManager = document.getElementById('blackout-manager');
   if (currentUser.role === 'admin') {
@@ -1359,6 +1392,11 @@ async function enterTimeOffApp() {
 
   await loadBlackoutDates();
   await loadRequests();
+
+  // Default admin landing tab is Manage (they don't request time off)
+  if (currentUser.role === 'admin') {
+    switchTab('manage');
+  }
 
   const params = new URLSearchParams(window.location.search);
   if (params.get('action') && params.get('id')) {
@@ -1936,21 +1974,102 @@ function renderCalendar() {
 // ============================================================
 // MANAGE / APPROVE / DENY (with fixed balance math + XSS escaping)
 // ============================================================
+// Populate the employee dropdown in the manage-tab filter bar from the
+// current list of requests. Kept in sync whenever requests reload.
+function populateEmployeeFilter() {
+  const sel = document.getElementById('filter-employee');
+  if (!sel) return;
+  const prev = sel.value;
+  const names = [...new Set(allRequests.map(r => r.employeeName).filter(Boolean))].sort();
+  // Rebuild options, preserving the "All employees" first option
+  sel.innerHTML = '<option value="">All employees</option>';
+  names.forEach(n => {
+    const opt = document.createElement('option');
+    opt.value = n;
+    opt.textContent = n;
+    sel.appendChild(opt);
+  });
+  // Restore previous selection if it still exists
+  if (prev && names.indexOf(prev) >= 0) sel.value = prev;
+}
+
+// Reset the manage-tab filters and re-render.
+function clearManageFilters() {
+  const emp = document.getElementById('filter-employee');
+  const from = document.getElementById('filter-from');
+  const to = document.getElementById('filter-to');
+  if (emp) emp.value = '';
+  if (from) from.value = '';
+  if (to) to.value = '';
+  renderManageList();
+}
+
+// Read current filter values from the DOM.
+function getManageFilters() {
+  const emp = (document.getElementById('filter-employee') || {}).value || '';
+  const from = (document.getElementById('filter-from') || {}).value || '';
+  const to = (document.getElementById('filter-to') || {}).value || '';
+  return { employee: emp, from: from, to: to };
+}
+
+// Does a request overlap the [from, to] window at all?
+// If a bound is blank it is treated as unbounded on that side.
+function requestMatchesFilters(r, f) {
+  if (f.employee && r.employeeName !== f.employee) return false;
+
+  const reqStart = parseLocalDate(r.startDate);
+  const reqEnd = parseLocalDate(r.endDate);
+  if (isNaN(reqStart.getTime()) || isNaN(reqEnd.getTime())) {
+    // If the request has no valid dates, only match when no date filter is set
+    return !f.from && !f.to;
+  }
+
+  if (f.from) {
+    const fromD = parseLocalDate(f.from);
+    if (!isNaN(fromD.getTime()) && reqEnd < fromD) return false;
+  }
+  if (f.to) {
+    const toD = parseLocalDate(f.to);
+    if (!isNaN(toD.getTime()) && reqStart > toD) return false;
+  }
+  return true;
+}
+
 async function renderManageList() {
   const pendingContainer = document.getElementById('pending-list');
   const approvedContainer = document.getElementById('approved-list');
   const deniedContainer = document.getElementById('denied-list');
   const cancelledContainer = document.getElementById('cancelled-list');
 
+  // Keep the employee filter in sync with the latest data
+  populateEmployeeFilter();
+
   // Clear previous cards (keep h3)
   [pendingContainer, approvedContainer, deniedContainer, cancelledContainer].forEach(c => {
     Array.from(c.children).forEach(ch => { if (ch.tagName !== 'H3') ch.remove(); });
   });
 
-  const pending = allRequests.filter(r => (r.status || '').toLowerCase() === 'pending');
-  const approved = allRequests.filter(r => (r.status || '').toLowerCase() === 'approved');
-  const denied = allRequests.filter(r => (r.status || '').toLowerCase() === 'denied');
-  const cancelled = allRequests.filter(r => (r.status || '').toLowerCase() === 'cancelled');
+  const filters = getManageFilters();
+  const filtered = allRequests.filter(r => requestMatchesFilters(r, filters));
+
+  // Summary line under the filter bar
+  const summaryEl = document.getElementById('filter-summary');
+  if (summaryEl) {
+    const parts = [];
+    if (filters.employee) parts.push('Employee: ' + filters.employee);
+    if (filters.from) parts.push('From ' + fmtDate(filters.from, true));
+    if (filters.to) parts.push('To ' + fmtDate(filters.to, true));
+    if (parts.length) {
+      summaryEl.textContent = 'Showing ' + filtered.length + ' of ' + allRequests.length + ' requests — ' + parts.join(' · ');
+    } else {
+      summaryEl.textContent = 'Showing all ' + allRequests.length + ' requests';
+    }
+  }
+
+  const pending = filtered.filter(r => (r.status || '').toLowerCase() === 'pending');
+  const approved = filtered.filter(r => (r.status || '').toLowerCase() === 'approved');
+  const denied = filtered.filter(r => (r.status || '').toLowerCase() === 'denied');
+  const cancelled = filtered.filter(r => (r.status || '').toLowerCase() === 'cancelled');
 
   // For admins and approvers, check balances on pending paid sick/vacation requests
   const canApprove = currentUser && (currentUser.role === 'admin' || currentUser.role === 'approver');
