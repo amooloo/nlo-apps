@@ -371,6 +371,38 @@
     .cal-day.other-month .day-num { opacity: 0.3; }
     .cal-day.today { background: #f0f4ff; }
     .cal-day.blackout { background: #fff5f4; }
+    /* Office is closed: weekend (Fri/Sat/Sun) or holiday — visually muted */
+    .cal-day.closed {
+      background: repeating-linear-gradient(
+        45deg,
+        #f5f6f8,
+        #f5f6f8 6px,
+        #eceef2 6px,
+        #eceef2 12px
+      );
+    }
+    .cal-day.closed .day-num { opacity: 0.55; }
+    /* Admins can click Mon-Thu cells to toggle them closed */
+    .cal-day.toggleable { cursor: pointer; }
+    .cal-day.toggleable:hover { outline: 2px solid #1D3EA9; outline-offset: -2px; }
+    .cal-day.toggleable .toggle-hint {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      font-size: 0.6rem;
+      color: #1D3EA9;
+      opacity: 0;
+      transition: opacity 0.15s ease;
+      pointer-events: none;
+      font-weight: 700;
+    }
+    .cal-day.toggleable:hover .toggle-hint { opacity: 0.8; }
+    .cal-event.closed-label {
+      background: rgba(27,47,76,0.08);
+      color: #1B2F4C;
+      font-style: italic;
+    }
+    .cal-event.closed-label.custom { background: rgba(29,62,169,0.1); color: #1D3EA9; }
     .day-num {
       font-size: 0.75rem;
       font-weight: 700;
@@ -1053,7 +1085,9 @@
         <div class="legend-item"><div class="legend-dot" style="background:rgba(246,175,36,0.3);"></div> Pending</div>
         <div class="legend-item"><div class="legend-dot" style="background:rgba(100,244,201,0.4);"></div> Approved</div>
         <div class="legend-item"><div class="legend-dot" style="background:rgba(250,98,77,0.25);"></div> Denied / Blackout</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#eceef2;"></div> Closed (weekend / holiday)</div>
       </div>
+      <div id="closed-day-hint" class="hidden" style="margin-top:10px;font-size:0.72rem;color:#1B2F4C;opacity:0.65;font-style:italic;">Tip: click any Mon-Thu date to mark it as a day off. Click a custom day off again to reopen it.</div>
 
       <!-- Blackout Manager (admin only) -->
       <div class="blackout-manager hidden" id="blackout-manager">
@@ -1181,6 +1215,10 @@ let currentUser = null; // { name, role, title }
 })();
 let allRequests = [];
 let blackoutDates = []; // Loaded from API
+// Holidays / days-off, keyed by 'YYYY-MM-DD' → { label, source }.
+// 'fixed'  = standard NLO handbook holiday (not removable)
+// 'custom' = admin-toggled day off (removable)
+let holidaysByDate = {};
 let calYear, calMonth;
 let pendingApprovalAction = null; // { action, id } for email link approvals
 
@@ -1215,14 +1253,23 @@ function getHoursPerDay(hoursValue) {
   return (!isNaN(num) && num > 0 && num <= HOURS_PER_WORKDAY) ? num : HOURS_PER_WORKDAY;
 }
 
-// Helper: count business days (Mon-Fri) between two Dates inclusive.
+// Helper: count office work days (Mon-Thu, excluding holidays) between
+// two Dates inclusive. Next Level Orthodontics works Mon-Thu only —
+// Fri/Sat/Sun are skipped. Holidays (from `holidaysByDate`, both fixed
+// handbook holidays and admin-toggled custom days off) are also skipped.
+// getDay(): Sun=0, Mon=1, Tue=2, Wed=3, Thu=4, Fri=5, Sat=6.
 function countWorkDays(startDate, endDate) {
   if (isNaN(startDate.getTime()) || isNaN(endDate.getTime()) || endDate < startDate) return 0;
   let count = 0;
   const cur = new Date(startDate);
   while (cur <= endDate) {
     const dow = cur.getDay();
-    if (dow !== 0 && dow !== 6) count++;
+    if (dow >= 1 && dow <= 4) { // Mon-Thu only
+      const key = cur.getFullYear() + '-' +
+        String(cur.getMonth() + 1).padStart(2, '0') + '-' +
+        String(cur.getDate()).padStart(2, '0');
+      if (!holidaysByDate[key]) count++;
+    }
     cur.setDate(cur.getDate() + 1);
   }
   return count;
@@ -1391,7 +1438,12 @@ async function enterTimeOffApp() {
   }
 
   await loadBlackoutDates();
+  await loadHolidays();
   await loadRequests();
+
+  // Show the Mon-Thu click-to-close hint on admin calendar view
+  const hintEl = document.getElementById('closed-day-hint');
+  if (hintEl && currentUser.role === 'admin') hintEl.classList.remove('hidden');
 
   // Default admin landing tab is Manage (they don't request time off)
   if (currentUser.role === 'admin') {
@@ -1668,6 +1720,103 @@ function resetForm() {
 }
 
 // ============================================================
+// HOLIDAYS / DAYS OFF (handbook-fixed + custom admin-toggled)
+// ============================================================
+async function loadHolidays() {
+  try {
+    const resp = await fetch(API_URL + '?action=holidays&passcode=' + encodeURIComponent(currentPasscode));
+    const data = await resp.json();
+    const next = {};
+    if (data.holidays && Array.isArray(data.holidays)) {
+      data.holidays.forEach(function(h) {
+        if (!h || !h.date) return;
+        next[h.date] = { label: h.label || 'Day Off', source: h.source || 'custom' };
+      });
+    }
+    holidaysByDate = next;
+  } catch (err) {
+    console.error('Failed to load holidays', err);
+  }
+}
+
+// Is this date-string (YYYY-MM-DD) a closed day? A day is closed if it is
+// Fri/Sat/Sun OR on the holidays list.
+function isClosedDay(dateStr) {
+  if (holidaysByDate[dateStr]) return true;
+  const d = parseLocalDate(dateStr);
+  if (isNaN(d.getTime())) return false;
+  const dow = d.getDay(); // Sun=0 Mon=1 ... Sat=6
+  return dow === 0 || dow === 5 || dow === 6;
+}
+
+// Returns a short label describing why the day is closed (or '' if it isn't).
+function getClosedReason(dateStr) {
+  const h = holidaysByDate[dateStr];
+  if (h) return h.label;
+  const d = parseLocalDate(dateStr);
+  if (isNaN(d.getTime())) return '';
+  const dow = d.getDay();
+  if (dow === 0) return 'Sunday — Closed';
+  if (dow === 5) return 'Friday — Closed';
+  if (dow === 6) return 'Saturday — Closed';
+  return '';
+}
+
+// Admin toggle: add/remove a custom day off for a specific date.
+// Fixed handbook holidays (Thanksgiving, Labor Day, etc.) are rejected
+// server-side — we show a toast and leave the list alone.
+async function toggleDayOff(dateStr) {
+  if (!currentUser || currentUser.role !== 'admin') return;
+  const existing = holidaysByDate[dateStr];
+
+  // Gentle block for fixed handbook holidays
+  if (existing && existing.source === 'fixed') {
+    showToast(existing.label + ' is a standard company holiday and can\'t be removed here.');
+    return;
+  }
+
+  // Confirm before making changes
+  const pretty = fmtDate(dateStr, true);
+  const msg = existing
+    ? 'Reopen ' + pretty + '? It will count as a regular work day again.'
+    : 'Mark ' + pretty + ' as a day off (office closed)?';
+  if (!confirm(msg)) return;
+
+  let label = 'Day Off';
+  if (!existing) {
+    const entered = prompt('Optional label (e.g., "Conference", "Staff Training"):', 'Day Off');
+    if (entered === null) return; // user cancelled
+    label = (entered.trim() || 'Day Off').slice(0, 60);
+  }
+
+  try {
+    const resp = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({
+        action: 'toggle_holiday',
+        date: dateStr,
+        label: label,
+        passcode: currentPasscode
+      })
+    });
+    const data = await resp.json();
+    if (data.success) {
+      await loadHolidays();
+      renderCalendar();
+      showToast(data.action === 'added' ? 'Day off added.' : 'Day reopened.');
+    } else if (data.error === 'Standard company holiday') {
+      showToast((data.label || 'That date') + ' is a standard company holiday and can\'t be changed.');
+    } else {
+      showToast(data.error || 'Failed to update day off.');
+    }
+  } catch (err) {
+    console.error('toggleDayOff failed', err);
+    showToast('Connection error.');
+  }
+}
+
+// ============================================================
 // BLACKOUT DATES
 // ============================================================
 async function loadBlackoutDates() {
@@ -1932,18 +2081,35 @@ function renderCalendar() {
   }
 
   // Current month
+  const isAdmin = currentUser && currentUser.role === 'admin';
   for (let d = 1; d <= daysInMonth; d++) {
     const dateStr = calYear + '-' + String(calMonth+1).padStart(2,'0') + '-' + String(d).padStart(2,'0');
     const isToday = dateStr === todayS;
     const isBlack = isBlackoutDate(dateStr);
+    const dow = new Date(calYear, calMonth, d).getDay(); // Sun=0 ... Sat=6
+    const isWeekend = (dow === 0 || dow === 5 || dow === 6); // Fri/Sat/Sun
+    const holiday = holidaysByDate[dateStr];
+    const isClosed = isWeekend || !!holiday;
+    // Admin can toggle Mon-Thu days (the default work days) on or off
+    const isToggleable = isAdmin && !isWeekend;
+
     let classes = 'cal-day';
     if (isToday) classes += ' today';
     if (isBlack) classes += ' blackout';
+    if (isClosed) classes += ' closed';
+    if (isToggleable) classes += ' toggleable';
 
     let events = '';
     const blackLabel = getBlackoutLabel(dateStr);
     if (blackLabel) {
       events += `<div class="cal-event blackout-label">${escapeHTML(blackLabel)}</div>`;
+    }
+    // Closed-day label (holiday or weekend)
+    if (holiday) {
+      const srcCls = holiday.source === 'custom' ? ' custom' : '';
+      events += `<div class="cal-event closed-label${srcCls}">Closed — ${escapeHTML(holiday.label)}</div>`;
+    } else if (isWeekend) {
+      events += `<div class="cal-event closed-label">Closed</div>`;
     }
 
     // Find requests that span this date
@@ -1958,7 +2124,13 @@ function renderCalendar() {
       }
     });
 
-    html += `<div class="${classes}"><div class="day-num">${d}</div>${events}</div>`;
+    const toggleHint = isToggleable
+      ? (holiday && holiday.source === 'custom'
+          ? '<div class="toggle-hint" title="Click to reopen">↺</div>'
+          : '<div class="toggle-hint" title="Click to mark as day off">+</div>')
+      : '';
+    const clickAttr = isToggleable ? ` onclick="toggleDayOff('${dateStr}')"` : '';
+    html += `<div class="${classes}"${clickAttr}><div class="day-num">${d}</div>${toggleHint}${events}</div>`;
   }
 
   // Next month padding
@@ -2230,6 +2402,7 @@ function logoutTimeOff() {
   currentPasscode = '';
   allRequests = [];
   blackoutDates = [];
+  holidaysByDate = {};
   document.getElementById('app').classList.add('hidden');
   document.getElementById('passcode-screen').style.display = 'flex';
   document.getElementById('passcode-input').value = '';
