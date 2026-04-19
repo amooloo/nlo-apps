@@ -975,7 +975,7 @@
               <option value="">Select type...</option>
               <option>Vacation</option>
               <option>Sick Leave</option>
-              <option>Personal Day</option>
+              <option>Bereavement</option>
               <option>Medical Appointment</option>
               <option>Family Emergency</option>
               <option>Other</option>
@@ -1523,10 +1523,19 @@ async function submitRequest() {
     return;
   }
 
-  // Pre-check benefits balance for paid sick/vacation/personal requests
+  // Bereavement: capped at 3 business days per policy
+  if (type.toLowerCase().indexOf('bereavement') >= 0) {
+    const bereavementDays = totalHrs / 8.5;
+    if (bereavementDays > 3) {
+      showToast('Bereavement leave is limited to 3 business days. Please adjust your dates or submit the additional days as a separate Vacation or Other request.');
+      return;
+    }
+  }
+
+  // Pre-check benefits balance for paid sick/vacation requests (Bereavement does not deduct)
   if (paidType && paidType.toLowerCase().indexOf('paid') >= 0 && paidType.toLowerCase().indexOf('unpaid') < 0) {
     const reqLower = type.toLowerCase();
-    if (reqLower.indexOf('sick') >= 0 || reqLower.indexOf('vacation') >= 0 || reqLower.indexOf('personal') >= 0) {
+    if (reqLower.indexOf('sick') >= 0 || reqLower.indexOf('vacation') >= 0) {
       try {
         const balResp = await fetch(API_URL + '?action=checkbalance&passcode=' + currentPasscode);
         const balData = await balResp.json();
