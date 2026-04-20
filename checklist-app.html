@@ -223,6 +223,17 @@ const NLO_FIREBASE_CONFIG = {
   messagingSenderId: "471691286148",
   appId: "1:471691286148:web:b362a98186f648bd4914d1",
 };
+// Explicit owner allowlist (gmail), everyone else must be on the NLO domain.
+// Matches the inventory-dashboard.html pattern so the same Google accounts
+// work across every NLO app.
+const ALLOWED_EMAILS = ['akhavan.ak@gmail.com'];
+const ALLOWED_DOMAIN = 'nextlevelorthodontics.com';
+function isAllowedEmail(email) {
+  const e = (email || '').toLowerCase();
+  if (!e) return false;
+  if (ALLOWED_EMAILS.indexOf(e) !== -1) return true;
+  return e.endsWith('@' + ALLOWED_DOMAIN);
+}
 // Root node in Realtime DB for every checklist-app state key.
 const FB_ROOT = 'nlo/checklistApp';
 const FB_KEYS = ['staff', 'roles', 'checklists', 'instances', 'auditLog', 'settings', 'acknowledgedFailures'];
@@ -732,8 +743,13 @@ function AppRoot() {
   const currentUser = state.staff.find(s => s.id === currentUserId);
 
   // ---- FIREBASE SYNC ----
-  // 'connecting' | 'synced' | 'offline' | 'error' | 'disabled'
+  // authState: 'checking' (waiting on onAuthStateChanged) | 'signed-out' | 'signed-in' | 'blocked'
+  // syncStatus: 'connecting' | 'synced' | 'offline' | 'error' | 'disabled'
+  const [authState, setAuthState] = useState('checking');
+  const [authErrorMsg, setAuthErrorMsg] = useState('');
+  const [firebaseUser, setFirebaseUser] = useState(null);
   const [syncStatus, setSyncStatus] = useState('connecting');
+  const [syncErrorMsg, setSyncErrorMsg] = useState('');
   // True once the Firebase root has been loaded (even if empty) — only then
   // do we start pushing local changes upstream.
   const hydratedFromCloudRef = useRef(false);
@@ -767,50 +783,77 @@ function AppRoot() {
   const [, tick] = useState(0);
   useEffect(() => { const id = setInterval(() => tick(t => t+1), 30000); return () => clearInterval(id); }, []);
 
-  // Firebase: anonymous sign-in, cloud-wins hydrate, then live subscribe.
-  // Anonymous auth keeps this transparent (no UI) while still satisfying
-  // realtime-DB rules that require auth != null.
+  // Firebase: watch auth state. When a signed-in, allowed user appears, we
+  // let the sync effect below run. If someone signs in with a non-allowed
+  // email (e.g. personal gmail), we sign them back out and show the gate.
   useEffect(() => {
+    if (!ensureFirebaseApp() || !window.firebase?.auth) {
+      console.warn('[NLO Checklists] Firebase SDK not available — local-only mode.');
+      setSyncStatus('disabled');
+      setAuthState('signed-out');
+      return;
+    }
+    const auth = window.firebase.auth();
+    const unsub = auth.onAuthStateChanged((user) => {
+      if (!user) {
+        setFirebaseUser(null);
+        setAuthState('signed-out');
+        // Reset sync bookkeeping so a re-login does a fresh hydrate.
+        hydratedFromCloudRef.current = false;
+        lastSyncJSONRef.current = null;
+        setSyncStatus('connecting');
+        return;
+      }
+      const email = (user.email || '').toLowerCase();
+      if (!isAllowedEmail(email)) {
+        setAuthErrorMsg(`Access denied for ${email || 'this account'}. Only authorized accounts can sign in.`);
+        auth.signOut();
+        setAuthState('blocked');
+        return;
+      }
+      setAuthErrorMsg('');
+      setFirebaseUser(user);
+      setAuthState('signed-in');
+    });
+    return () => unsub();
+  }, []);
+
+  // Sync effect: only runs once we have a signed-in, allowed Firebase user.
+  // Cloud-wins hydrate, then subscribe to live updates.
+  useEffect(() => {
+    if (!firebaseUser) return;
+    if (!window.firebase?.database) {
+      setSyncStatus('disabled');
+      return;
+    }
     let cancelled = false;
     let cleanup = () => {};
 
     (async () => {
-      if (!ensureFirebaseApp() || !window.firebase?.database || !window.firebase?.auth) {
-        console.warn('[NLO Checklists] Firebase SDK not available — running in local-only mode.');
-        if (!cancelled) setSyncStatus('disabled');
-        return;
-      }
       try {
-        const auth = window.firebase.auth();
-        if (!auth.currentUser) {
-          await auth.signInAnonymously();
-        }
-        if (cancelled) return;
-
         const ref = window.firebase.database().ref(FB_ROOT);
         const snap = await ref.once('value');
         if (cancelled) return;
 
         const cloud = snap.val();
         if (cloud && typeof cloud === 'object') {
-          // Cloud wins on first connect — authoritative if it exists.
           const hydrated = { ...DEFAULT_STATE, ...cloud };
           lastSyncJSONRef.current = JSON.stringify(hydrated);
           dispatch({ type: 'HYDRATE', state: hydrated });
         } else {
-          // Empty cloud: our local state will become the initial upstream copy
-          // on the next tick (push effect below).
+          // Empty cloud: current local state will be pushed up on next tick.
           lastSyncJSONRef.current = null;
         }
         hydratedFromCloudRef.current = true;
-        if (!cancelled) setSyncStatus('synced');
+        setSyncStatus('synced');
+        setSyncErrorMsg('');
 
         const onValue = (s) => {
           const val = s.val();
           if (!val || typeof val !== 'object') return;
           const incoming = { ...DEFAULT_STATE, ...val };
           const incomingJSON = JSON.stringify(incoming);
-          if (incomingJSON === lastSyncJSONRef.current) return; // our own echo
+          if (incomingJSON === lastSyncJSONRef.current) return; // echo
           lastSyncJSONRef.current = incomingJSON;
           dispatch({ type: 'HYDRATE', state: incoming });
         };
@@ -830,17 +873,21 @@ function AppRoot() {
         };
       } catch (err) {
         console.error('[NLO Checklists] Firebase sync init failed:', err);
-        if (!cancelled) setSyncStatus('error');
+        if (!cancelled) {
+          setSyncStatus('error');
+          setSyncErrorMsg(err?.code ? (err.code + ': ' + (err.message || '')) : (err?.message || String(err)));
+        }
       }
     })();
 
     return () => { cancelled = true; cleanup(); };
-  }, []);
+  }, [firebaseUser]);
 
   // Push local state changes up to Firebase once we've hydrated from cloud.
   // Echo-suppression via lastSyncJSONRef: if the JSON of what we're about to
   // write matches what just came down the listener, we skip the write.
   useEffect(() => {
+    if (!firebaseUser) return;
     if (!hydratedFromCloudRef.current) return;
     if (!window.firebase?.database) return;
     const asJSON = JSON.stringify(state);
@@ -849,21 +896,39 @@ function AppRoot() {
     window.firebase.database().ref(FB_ROOT).set(state).catch((err) => {
       console.error('[NLO Checklists] Firebase write failed:', err);
       setSyncStatus('error');
+      setSyncErrorMsg(err?.code ? (err.code + ': ' + (err.message || '')) : (err?.message || String(err)));
     });
-  }, [state]);
+  }, [state, firebaseUser]);
 
   const setUser = (id) => {
     setCurrentUserId(id);
     if (id) localStorage.setItem('currentUserId', id); else localStorage.removeItem('currentUserId');
   };
 
+  // While Firebase figures out whether we're signed in, show a minimal
+  // splash instead of briefly flashing the Google sign-in screen.
+  if (authState === 'checking') {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-slate-400 text-sm">
+        Loading…
+      </div>
+    );
+  }
+
+  // Not signed into Firebase → show Google gate. Covers 'signed-out' and
+  // 'blocked' (wrong email) — in the blocked case the error banner is shown.
+  if (authState !== 'signed-in') {
+    return <GoogleSignInScreen error={authErrorMsg} />;
+  }
+
+  // Signed into Firebase but not yet pointed at a staff member → staff picker.
   if (!currentUser) return <Login staff={state.staff} onPick={setUser} />;
 
   const syncBadge = {
     connecting: { text: 'Connecting to cloud…',                     cls: 'text-slate-400' },
     synced:     { text: '☁ Synced across devices',                   cls: 'text-emerald-600' },
     offline:    { text: '⚠ Offline — changes will sync when online', cls: 'text-amber-600' },
-    error:      { text: '⚠ Sync error — see browser console',        cls: 'text-red-600' },
+    error:      { text: '⚠ Sync error',                              cls: 'text-red-600' },
     disabled:   { text: 'Local only — Firebase SDK not loaded',      cls: 'text-slate-400' },
   }[syncStatus] || { text: '', cls: '' };
 
@@ -874,8 +939,86 @@ function AppRoot() {
         ? <AdminView state={state} dispatch={dispatch} user={currentUser} />
         : <StaffView state={state} dispatch={dispatch} user={currentUser} />}
       <footer className={`text-center text-xs py-4 ${syncBadge.cls}`}>
-        {syncBadge.text}
+        <div>{syncBadge.text}</div>
+        {syncStatus === 'error' && syncErrorMsg && (
+          <div className="mt-1 text-[11px] text-red-500 max-w-xl mx-auto break-words px-4">
+            {syncErrorMsg}
+          </div>
+        )}
       </footer>
+    </div>
+  );
+}
+
+/* ============================================================
+   GOOGLE SIGN-IN GATE
+   Sits in front of the staff picker. NLO domain accounts (plus the
+   owner's gmail) are allowed; anyone else gets signed out immediately.
+   Matches inventory-dashboard.html so the same Google identities work
+   across every NLO app. Firebase persists the session, so staff sign
+   in once per device and from then on go straight to the staff picker.
+   ============================================================ */
+function GoogleSignInScreen({ error }) {
+  const [signing, setSigning] = useState(false);
+  const [localErr, setLocalErr] = useState('');
+
+  const handleSignIn = () => {
+    setSigning(true);
+    setLocalErr('');
+    if (!ensureFirebaseApp() || !window.firebase?.auth) {
+      setLocalErr('Firebase is not loaded. Check your internet connection and reload.');
+      setSigning(false);
+      return;
+    }
+    const provider = new window.firebase.auth.GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+    window.firebase.auth().signInWithPopup(provider)
+      .then((result) => {
+        const email = (result.user?.email || '').toLowerCase();
+        if (!isAllowedEmail(email)) {
+          window.firebase.auth().signOut();
+          setLocalErr(`Access denied for ${email || 'this account'}. Only authorized accounts can sign in.`);
+          setSigning(false);
+          return;
+        }
+        // onAuthStateChanged in AppRoot will pick it up from here — nothing else to do.
+      })
+      .catch((err) => {
+        console.error('Google Sign-In error:', err);
+        if (err?.code === 'auth/popup-closed-by-user' || err?.code === 'auth/cancelled-popup-request') {
+          setSigning(false);
+          return;
+        }
+        setLocalErr(err?.message || 'Sign-in failed. Please try again.');
+        setSigning(false);
+      });
+  };
+
+  const shownError = localErr || error;
+
+  return (
+    <div className="min-h-screen flex items-center justify-center p-6">
+      <div className="card p-8 max-w-md w-full shadow-sm text-center">
+        <div className="w-12 h-12 rounded-xl bg-blue-600 text-white mx-auto mb-4 flex items-center justify-center text-2xl">✓</div>
+        <h1 className="text-2xl font-semibold text-slate-900 mb-1">Next Level Orthodontics</h1>
+        <p className="text-slate-500 mb-6 text-sm">Checklists — sign in with your NLO Google account to sync across devices.</p>
+        <button
+          onClick={handleSignIn}
+          disabled={signing}
+          className="w-full flex items-center justify-center gap-3 bg-white border-2 border-slate-200 hover:border-slate-300 hover:bg-slate-50 disabled:opacity-50 text-slate-700 font-semibold py-3 rounded-xl transition-colors">
+          <svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true">
+            <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+            <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
+            <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
+            <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
+          </svg>
+          {signing ? 'Signing in…' : 'Sign in with Google'}
+        </button>
+        {shownError && <p className="mt-4 text-sm text-red-700 bg-red-50 rounded-lg p-3">{shownError}</p>}
+        <p className="mt-4 text-xs text-slate-400">
+          Allowed: <strong>@{ALLOWED_DOMAIN}</strong> accounts. You'll only see this once per device.
+        </p>
+      </div>
     </div>
   );
 }
