@@ -527,6 +527,10 @@ const DEFAULT_STATE = {
   instances: [],
   auditLog: [],
   acknowledgedFailures: {}, // keyed by userId → array of audit entry IDs they've seen
+  // IDs of seed checklists the user has explicitly deleted. The migration
+  // respects this list so hard-deleted seeds don't come back on the next
+  // hydrate. Archived checklists stay in `checklists` with archived: true.
+  deletedChecklistIds: [],
   settings: {
     timeOffSyncUrl: '',
     lastSyncAt: null,
@@ -733,7 +737,12 @@ const scheduleRunsToday = (s) => {
 function applySeedMigrations(state) {
   if (!state || typeof state !== 'object') return state;
   const existingIds = new Set((state.checklists || []).map(c => c && c.id).filter(Boolean));
-  const missing = (DEFAULT_STATE.checklists || []).filter(c => !existingIds.has(c.id));
+  const deletedIds = new Set(state.deletedChecklistIds || []);
+  // Don't re-seed anything the user explicitly deleted — that's what made
+  // deletes appear to "come back at the bottom of the list" before.
+  const missing = (DEFAULT_STATE.checklists || []).filter(c =>
+    !existingIds.has(c.id) && !deletedIds.has(c.id)
+  );
   if (missing.length === 0) {
     return state._seedVersion === CURRENT_SEED_VERSION
       ? state
@@ -897,7 +906,39 @@ function reducer(state, action) {
       break;
     }
     case 'CHECKLIST_DELETE':
-      next = { ...state, checklists: state.checklists.filter(c => c.id !== action.id) }; break;
+      // Permanent delete. Record the id in deletedChecklistIds so the seed
+      // migration won't re-add it on next hydrate (seed checklists have
+      // stable ids; user-created ones with uid() are safe to list here too).
+      next = {
+        ...state,
+        checklists: state.checklists.filter(c => c.id !== action.id),
+        deletedChecklistIds: Array.from(new Set([...(state.deletedChecklistIds || []), action.id])),
+      };
+      break;
+    case 'CHECKLIST_ARCHIVE':
+      next = {
+        ...state,
+        checklists: state.checklists.map(c =>
+          c.id === action.id ? { ...c, archived: true, archivedAt: now() } : c
+        ),
+      };
+      break;
+    case 'CHECKLIST_UNARCHIVE':
+      next = {
+        ...state,
+        checklists: state.checklists.map(c =>
+          c.id === action.id ? { ...c, archived: false, archivedAt: null } : c
+        ),
+      };
+      break;
+    case 'CHECKLIST_RESTORE_SEED':
+      // Pull the named seed id back out of deletedChecklistIds so the next
+      // migration re-seeds it. Only usable for ids that exist in DEFAULT_STATE.
+      next = {
+        ...state,
+        deletedChecklistIds: (state.deletedChecklistIds || []).filter(id => id !== action.id),
+      };
+      break;
 
     case 'INSTANCE_CREATE': {
       const cl = state.checklists.find(c => c.id === action.checklistId);
@@ -918,6 +959,7 @@ function reducer(state, action) {
       const newOnes = [];
       state.checklists.forEach(cl => {
         if (cl.kind !== 'recurring') return;
+        if (cl.archived) return;
         if (!scheduleRunsToday(cl.schedule)) return;
         if (cl.effectiveFrom  && t < cl.effectiveFrom)  return;
         if (cl.effectiveUntil && t > cl.effectiveUntil) return;
@@ -1952,7 +1994,7 @@ function InspectionDialog({ state, user, scope, onClose, onSubmit }) {
 }
 
 function SpawnEventDialog({ state, onClose, onCreate }) {
-  const eventChecklists = state.checklists.filter(c => c.kind === 'event');
+  const eventChecklists = state.checklists.filter(c => c.kind === 'event' && !c.archived);
   const [checklistId, setChecklistId] = useState(eventChecklists[0]?.id || '');
   const [appointmentLabel, setAppointmentLabel] = useState('');
   return (
@@ -2123,7 +2165,11 @@ function CertifyDialog({ inst, user, onClose, onConfirm }) {
    ============================================================ */
 function ChecklistDefsTab({ kind, state, dispatch, user, scope }) {
   const [editing, setEditing] = useState(null);
-  const list = state.checklists.filter(c => c.kind === kind && (!scope || scope.visibleRoleIds.has(c.roleId)));
+  const [showArchived, setShowArchived] = useState(false);
+  const scoped = state.checklists.filter(c => c.kind === kind && (!scope || scope.visibleRoleIds.has(c.roleId)));
+  const activeList   = scoped.filter(c => !c.archived);
+  const archivedList = scoped.filter(c =>  c.archived);
+  const list = showArchived ? archivedList : activeList;
   const title = kind === 'recurring' ? 'Recurring checklists' : 'Event-triggered checklists';
   const blurb = kind === 'recurring'
     ? 'Appear automatically each scheduled day. Due time defines when overdue alerts fire.'
@@ -2136,16 +2182,34 @@ function ChecklistDefsTab({ kind, state, dispatch, user, scope }) {
           <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
           <p className="text-sm text-slate-500">{blurb}</p>
         </div>
-        <button className="btn btn-primary" onClick={() => setEditing('new')}>+ New {kind === 'recurring' ? 'recurring' : 'event'} checklist</button>
+        <div className="flex items-center gap-2 flex-wrap">
+          {archivedList.length > 0 && (
+            <button
+              className={`btn text-xs ${showArchived ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => setShowArchived(v => !v)}>
+              {showArchived ? `← Back to active (${activeList.length})` : `📁 Archived (${archivedList.length})`}
+            </button>
+          )}
+          <button className="btn btn-primary" onClick={() => setEditing('new')}>+ New {kind === 'recurring' ? 'recurring' : 'event'} checklist</button>
+        </div>
       </div>
+      {showArchived && (
+        <div className="card p-3 bg-slate-50 border-slate-200 text-sm text-slate-600">
+          Archived checklists won't generate new instances or appear on staff dashboards. Unarchive to restore.
+        </div>
+      )}
       <div className="grid gap-3 sm:grid-cols-2">
         {list.map(c => {
           const role = state.roles.find(r => r.id === c.roleId);
+          const isSeed = (DEFAULT_STATE.checklists || []).some(s => s.id === c.id);
           return (
-            <div key={c.id} className="card p-4">
+            <div key={c.id} className={`card p-4 ${c.archived ? 'opacity-75 bg-slate-50' : ''}`}>
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <div className="font-semibold text-slate-900">{c.name}</div>
+                  <div className="font-semibold text-slate-900 flex items-center gap-2 flex-wrap">
+                    {c.name}
+                    {c.archived && <span className="pill bg-amber-100 text-amber-800">Archived</span>}
+                  </div>
                   <div className="text-xs text-slate-500 mt-0.5">
                     {role?.name || '—'} · {c.items.length} items
                     {c.kind === 'recurring' && <> · {scheduleLabel(c.schedule)}</>}
@@ -2163,9 +2227,36 @@ function ChecklistDefsTab({ kind, state, dispatch, user, scope }) {
                     </div>
                   )}
                 </div>
-                <div className="flex gap-1">
+                <div className="flex gap-1 flex-wrap justify-end">
                   <button className="btn btn-ghost text-xs" onClick={() => setEditing(c)}>Edit</button>
-                  <button className="btn btn-ghost text-xs text-red-600" onClick={() => confirm(`Delete "${c.name}"?`) && dispatch({ type: 'CHECKLIST_DELETE', id: c.id })}>Delete</button>
+                  {c.archived ? (
+                    <button
+                      className="btn btn-ghost text-xs text-blue-600"
+                      title="Restore this checklist"
+                      onClick={() => dispatch({ type: 'CHECKLIST_UNARCHIVE', id: c.id })}>
+                      ♻ Unarchive
+                    </button>
+                  ) : (
+                    <button
+                      className="btn btn-ghost text-xs text-amber-700"
+                      title="Hide from daily use. Keeps all past instances and audit history. Reversible."
+                      onClick={() => dispatch({ type: 'CHECKLIST_ARCHIVE', id: c.id })}>
+                      📁 Archive
+                    </button>
+                  )}
+                  <button
+                    className="btn btn-ghost text-xs text-red-600"
+                    title={isSeed
+                      ? 'Permanently delete this built-in checklist. It won\'t come back unless you restore it from Settings.'
+                      : 'Permanently delete. Cannot be undone.'}
+                    onClick={() => {
+                      const warn = isSeed
+                        ? `Permanently delete "${c.name}"?\n\nThis is a built-in checklist. It will be removed and won't come back on its own. (You can use Archive instead to hide it without deleting.)\n\nOK to delete?`
+                        : `Permanently delete "${c.name}"?\n\nThis cannot be undone. (Use Archive to hide it without deleting.)`;
+                      if (confirm(warn)) dispatch({ type: 'CHECKLIST_DELETE', id: c.id });
+                    }}>
+                    ✕ Delete
+                  </button>
                 </div>
               </div>
               <ul className="mt-2 text-sm text-slate-600 space-y-0.5">
@@ -2177,7 +2268,11 @@ function ChecklistDefsTab({ kind, state, dispatch, user, scope }) {
             </div>
           );
         })}
-        {list.length === 0 && <div className="card p-6 text-center text-slate-400 text-sm col-span-2">No {kind} checklists yet.</div>}
+        {list.length === 0 && (
+          <div className="card p-6 text-center text-slate-400 text-sm col-span-2">
+            {showArchived ? 'No archived checklists.' : `No ${kind} checklists yet.`}
+          </div>
+        )}
       </div>
 
       {editing && (
@@ -2487,6 +2582,7 @@ function StaffTab({ state, dispatch, scope, user }) {
   const [newName, setNewName] = useState('');
   const [newAppRole, setNewAppRole] = useState('staff');
   const [timeOffFor, setTimeOffFor] = useState(null);
+  const [checklistsFor, setChecklistsFor] = useState(null);
   const isOwner = !scope || scope.isOwner;
   const visibleStaff = state.staff.filter(s => !scope || scope.canSeeStaff(s.id));
   const todayStr = todayISO();
@@ -2526,6 +2622,9 @@ function StaffTab({ state, dispatch, scope, user }) {
                   );
                 })}
               </div>
+              <button className="btn btn-secondary text-xs" onClick={() => setChecklistsFor(s)}>
+                📋 Checklists ({countAssignedChecklists(s, state)})
+              </button>
               <button className="btn btn-secondary text-xs" onClick={() => setTimeOffFor(s)}>
                 🏖️ Time off{(s.timeOff?.length ?? 0) > 0 ? ` (${s.timeOff.length})` : ''}
                 {isStaffOff(s, todayStr) && <span className="ml-1 pill bg-amber-100 text-amber-800">off today</span>}
@@ -2538,6 +2637,10 @@ function StaffTab({ state, dispatch, scope, user }) {
       {timeOffFor && (
         <TimeOffDialog staff={state.staff.find(s => s.id === timeOffFor.id) || timeOffFor}
           state={state} dispatch={dispatch} onClose={() => setTimeOffFor(null)} />
+      )}
+      {checklistsFor && (
+        <StaffChecklistsDialog staff={state.staff.find(s => s.id === checklistsFor.id) || checklistsFor}
+          state={state} dispatch={dispatch} onClose={() => setChecklistsFor(null)} />
       )}
     </div>
   );
@@ -2898,6 +3001,157 @@ function seedDemoHistory(state) {
     instances: [...newInstances, ...state.instances],
     auditLog: [...newAudit.sort((a,b) => b.at - a.at), ...state.auditLog],
   };
+}
+
+/* ============================================================
+   STAFF CHECKLISTS DIALOG
+   Quick view of every checklist a staff member is on, plus
+   every checklist they're NOT on, with one-click toggling.
+   ============================================================ */
+
+// Is this staff member currently a responsible party for this checklist?
+// Checklists can be explicitly assigned (assignedStaffIds) or implicitly
+// via role membership (falls back to everyone in the role).
+function staffOnChecklist(staff, cl) {
+  if (!cl) return false;
+  if (cl.assignedStaffIds && cl.assignedStaffIds.length > 0) {
+    return cl.assignedStaffIds.includes(staff.id);
+  }
+  return !!staff.roleIds?.includes(cl.roleId);
+}
+
+function countAssignedChecklists(staff, state) {
+  return state.checklists.filter(c => !c.archived && staffOnChecklist(staff, c)).length;
+}
+
+// Return the canonical assigned list for a checklist — if it has an explicit
+// list, use that; otherwise materialize it from current role membership so
+// toggles can work on a stable snapshot.
+function resolveAssignedList(cl, state) {
+  if (cl.assignedStaffIds && cl.assignedStaffIds.length > 0) {
+    return cl.assignedStaffIds.slice();
+  }
+  return state.staff.filter(s => s.roleIds?.includes(cl.roleId)).map(s => s.id);
+}
+
+function StaffChecklistsDialog({ staff, state, dispatch, onClose }) {
+  const [kindFilter, setKindFilter] = useState('all'); // 'all' | 'recurring' | 'event'
+  const [includeArchived, setIncludeArchived] = useState(false);
+
+  const pool = state.checklists.filter(c => {
+    if (!includeArchived && c.archived) return false;
+    if (kindFilter !== 'all' && c.kind !== kindFilter) return false;
+    return true;
+  });
+
+  const assigned    = pool.filter(c =>  staffOnChecklist(staff, c));
+  const notAssigned = pool.filter(c => !staffOnChecklist(staff, c));
+
+  const toggle = (cl) => {
+    const currentList = resolveAssignedList(cl, state);
+    const on = currentList.includes(staff.id);
+    const nextList = on
+      ? currentList.filter(id => id !== staff.id)
+      : Array.from(new Set([...currentList, staff.id]));
+    dispatch({ type: 'CHECKLIST_SAVE', checklist: { ...cl, assignedStaffIds: nextList } });
+  };
+
+  const roleNames = (staff.roleIds || [])
+    .map(rid => state.roles.find(r => r.id === rid)?.name)
+    .filter(Boolean)
+    .join(' + ') || 'No role assigned';
+
+  const renderRow = (c, isOn) => {
+    const role = state.roles.find(r => r.id === c.roleId);
+    return (
+      <div key={c.id}
+        className={`flex items-start gap-3 p-3 rounded-lg border transition ${
+          isOn ? 'bg-green-50 border-green-300' : 'bg-white border-slate-200 hover:border-slate-300'
+        } ${c.archived ? 'opacity-70' : ''}`}>
+        <button
+          onClick={() => toggle(c)}
+          className={`flex-shrink-0 w-6 h-6 rounded border-2 mt-0.5 flex items-center justify-center font-bold transition ${
+            isOn ? 'bg-green-500 border-green-500 text-white' : 'border-slate-300 hover:border-blue-500 text-transparent hover:text-slate-400'
+          }`}
+          title={isOn ? 'Remove from this checklist' : 'Assign to this checklist'}
+          aria-label={isOn ? 'Remove' : 'Assign'}>
+          ✓
+        </button>
+        <div className="flex-1 min-w-0">
+          <div className="font-medium text-slate-900 flex items-center gap-2 flex-wrap">
+            {c.name}
+            {c.archived && <span className="pill bg-amber-100 text-amber-800">Archived</span>}
+            {c.kind === 'event' && <span className="pill bg-indigo-100 text-indigo-800">Event</span>}
+            {role && <span className="pill bg-slate-100 text-slate-600">{role.name}</span>}
+          </div>
+          <div className="text-xs text-slate-500 mt-0.5">
+            {c.items.length} item{c.items.length === 1 ? '' : 's'}
+            {c.kind === 'recurring' && c.schedule && <> · {scheduleLabel(c.schedule)}</>}
+            {c.kind === 'event' && <> · SLA {c.slaMinutes}m</>}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <Modal title={`${staff.name} — assigned checklists`} onClose={onClose} wide>
+      <div className="space-y-4">
+        <div className="card p-3 bg-slate-50 border-slate-200 text-sm">
+          <div className="flex items-start gap-2">
+            <div className="text-lg leading-none">👤</div>
+            <div>
+              <div className="font-semibold text-slate-900">{staff.name}</div>
+              <div className="text-xs text-slate-600">{roleNames}</div>
+              <div className="text-xs text-slate-500 mt-1">
+                Click the checkbox on any row to add or remove this person.
+                Green rows are checklists they're already responsible for.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap">
+          {[['all','All'],['recurring','Recurring'],['event','Event']].map(([k,l]) => (
+            <button key={k}
+              onClick={() => setKindFilter(k)}
+              className={`btn text-xs ${kindFilter === k ? 'btn-primary' : 'btn-secondary'}`}>
+              {l}
+            </button>
+          ))}
+          <label className="flex items-center gap-1.5 text-xs text-slate-600 ml-2">
+            <input type="checkbox" className="accent-blue-600"
+              checked={includeArchived}
+              onChange={e => setIncludeArchived(e.target.checked)} />
+            Include archived
+          </label>
+        </div>
+
+        <section>
+          <h3 className="text-sm font-semibold text-slate-700 mb-2">
+            Assigned <span className="pill bg-green-100 text-green-800">{assigned.length}</span>
+          </h3>
+          {assigned.length === 0
+            ? <div className="card p-4 text-sm text-slate-400 italic">No checklists assigned to {staff.name.split(' ')[0]} yet.</div>
+            : <div className="space-y-2">{assigned.map(c => renderRow(c, true))}</div>
+          }
+        </section>
+
+        <section>
+          <h3 className="text-sm font-semibold text-slate-700 mb-2">
+            Not assigned <span className="pill bg-slate-100 text-slate-600">{notAssigned.length}</span>
+          </h3>
+          {notAssigned.length === 0
+            ? <div className="card p-4 text-sm text-slate-400 italic">{staff.name.split(' ')[0]} is already on every checklist in this view.</div>
+            : <div className="space-y-2">{notAssigned.map(c => renderRow(c, false))}</div>
+          }
+        </section>
+      </div>
+      <div className="flex justify-end mt-6">
+        <button className="btn btn-primary" onClick={onClose}>Done</button>
+      </div>
+    </Modal>
+  );
 }
 
 /* ============================================================
