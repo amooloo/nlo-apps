@@ -720,19 +720,24 @@ const scheduleRunsToday = (s) => {
 /* ============================================================
    STORAGE + REDUCER
    ============================================================ */
-// Idempotent seed migration. Looks at state._seedVersion; if it doesn't
-// match CURRENT_SEED_VERSION, adds any DEFAULT_STATE.checklists whose `id`
-// isn't already present in state.checklists and stamps the version. Never
-// deletes, never modifies existing checklists — only adds net-new ones.
-// Designed to run on every hydrate; after the first successful run, the
-// version check short-circuits subsequent calls to a no-op.
+// Idempotent seed migration. Adds any DEFAULT_STATE.checklists whose `id`
+// isn't already present in state.checklists. Never deletes, never modifies
+// existing checklists — only adds net-new ones.
+//
+// NOTE: we intentionally do NOT short-circuit on _seedVersion. The previous
+// version did, but hit a subtle bug: call sites pass `{ ...DEFAULT_STATE, ...cloud }`
+// so the _seedVersion field from DEFAULT_STATE leaks through (cloud rarely has it),
+// and the short-circuit fires even though the cloud checklists haven't been merged.
+// Checking the actual checklist IDs is the source of truth and cheap enough to
+// run on every hydrate.
 function applySeedMigrations(state) {
   if (!state || typeof state !== 'object') return state;
-  if (state._seedVersion === CURRENT_SEED_VERSION) return state;
   const existingIds = new Set((state.checklists || []).map(c => c && c.id).filter(Boolean));
   const missing = (DEFAULT_STATE.checklists || []).filter(c => !existingIds.has(c.id));
   if (missing.length === 0) {
-    return { ...state, _seedVersion: CURRENT_SEED_VERSION };
+    return state._seedVersion === CURRENT_SEED_VERSION
+      ? state
+      : { ...state, _seedVersion: CURRENT_SEED_VERSION };
   }
   console.log('[NLO Checklists] Seed migration → adding',
     missing.length, 'new checklists:', missing.map(c => c.id).join(', '));
