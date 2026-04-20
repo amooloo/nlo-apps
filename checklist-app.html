@@ -80,7 +80,12 @@ const { useState, useEffect, useMemo, useReducer, useRef } = React;
 /* ============================================================
    SEED DATA
    ============================================================ */
+// Bump this string whenever new checklists are added to DEFAULT_STATE.
+// applySeedMigrations() uses it to idempotently merge missing seed
+// checklists into persisted user state (localStorage + Firebase).
+const CURRENT_SEED_VERSION = '2026-04-20-batch-1';
 const DEFAULT_STATE = {
+  _seedVersion: CURRENT_SEED_VERSION,
   roles: [
     { id: 'r_oa',  name: 'Orthodontic Assistant' },
     { id: 'r_fd',  name: 'Front Desk' },
@@ -197,6 +202,327 @@ const DEFAULT_STATE = {
         { id: 'it4', label: 'Hand off to clinical assistant for rooming' },
       ].map(i => ({ ...i, defaultAssigneeId: null })),
     },
+    // --- Appointment Coordinator (Front Desk) ---
+    {
+      id: 'cl_ac_am_pre', kind: 'recurring', name: 'Appointment Coordinator — AM Before Huddle',
+      roleId: 'r_fd', schedule: { freq: 'weekdays', dueTime: '09:00' }, slaMinutes: 30,
+      items: [
+        { id: 'it1',  label: 'Disarm the alarm' },
+        { id: 'it2',  label: 'Turn on all front office computers' },
+        { id: 'it3',  label: 'Clock in' },
+        { id: 'it4',  label: 'Turn on coffee maker, open blinds, turn on TV, floor lamp, and counter lights' },
+        { id: 'it5',  label: 'Set up "Sign In" screen for patients' },
+        { id: 'it6',  label: 'Update schedule for appointment reminders (before huddle) — not for birthdays' },
+        { id: 'it7',  label: 'Listen to voice messages' },
+        { id: 'it8',  label: 'Check coffee station for re-stock and cleanliness / fill water' },
+        { id: 'it9',  label: 'Make sure lobby is neat and ready for patients (pillows, magazines, straighten chairs)' },
+        { id: 'it10', label: 'Windex the front door glass (inside/outside)' },
+        { id: 'it11', label: 'Print morning meeting report for Dr. A' },
+        { id: 'it12', label: 'Unlock front door after huddle' },
+        { id: 'it13', label: 'Check patient restroom for re-stock and cleanliness' },
+      ].map(i => ({ ...i, defaultAssigneeId: null })),
+    },
+    {
+      id: 'cl_ac_am_post', kind: 'recurring', name: 'Appointment Coordinator — AM After Huddle',
+      roleId: 'r_fd', schedule: { freq: 'weekdays', dueTime: '09:45' }, slaMinutes: 30,
+      items: [
+        { id: 'it1', label: 'Prepare new patient clipboard' },
+        { id: 'it2', label: 'Check online forms for new patients' },
+        { id: 'it3', label: 'Make sure the tablets are charged and ready for new patients to use' },
+        { id: 'it4', label: 'Check email' },
+        { id: 'it5', label: 'Send birthday texts on Weave' },
+        { id: 'it6', label: 'Continue with daily duties (refer to full list)' },
+      ].map(i => ({ ...i, defaultAssigneeId: null })),
+    },
+    {
+      id: 'cl_ac_pm', kind: 'recurring', name: 'Appointment Coordinator — PM Duties',
+      roleId: 'r_fd', schedule: { freq: 'weekdays', dueTime: '18:00' }, slaMinutes: 60,
+      items: [
+        { id: 'it1',  label: 'After lunch — make coffee for Dr. and a bottle of water, put on his desk' },
+        { id: 'it2',  label: 'Prepare the schedule for the next day' },
+        { id: 'it3',  label: 'Re-stock coffee station / turn off coffee machine' },
+        { id: 'it4',  label: 'Vacuum / sweep, disinfect all touch surfaces' },
+        { id: 'it5',  label: 'Turn off all lights, shut down computers, charge tablets' },
+        { id: 'it6',  label: 'Straighten lobby (chairs, pillows), close blinds' },
+        { id: 'it7',  label: 'After the last patient — lock front door' },
+        { id: 'it8',  label: 'Re-stock and organize patient restroom' },
+        { id: 'it9',  label: 'Clock out' },
+        { id: 'it10', label: 'Last person to leave sets the security alarm' },
+      ].map(i => ({ ...i, defaultAssigneeId: null })),
+    },
+    // --- Orthodontic Assistant #1 (detailed workflow) ---
+    {
+      id: 'cl_oa1_open', kind: 'recurring', name: 'OA #1 — Opening Duties',
+      roleId: 'r_oa', schedule: { freq: 'weekdays', dueTime: '08:00' }, slaMinutes: 30,
+      items: [
+        { id: 'it1', label: 'Sterilization — check autoclave and put instruments away' },
+        { id: 'it2', label: 'Sterilization — fill ultrasonic with new solution' },
+        { id: 'it3', label: 'Sterilization — cold sterile put away before first patient at 8am' },
+        { id: 'it4', label: 'Schedule — check your schedule prior to huddle and bring up details in meeting' },
+        { id: 'it5', label: 'Retainers — retainer and whitening trays ready at front desk by 8am (no exceptions)' },
+        { id: 'it6', label: 'Retainers — ensure milestones reflect accordingly' },
+        { id: 'it7', label: 'First assistant to arrive turn on air, water, compressor switches' },
+      ].map(i => ({ ...i, defaultAssigneeId: null })),
+    },
+    {
+      id: 'cl_oa1_charting', kind: 'recurring', name: 'OA #1 — Charting & Photos',
+      roleId: 'r_oa', schedule: { freq: 'weekdays', dueTime: '17:30' }, slaMinutes: 45,
+      items: [
+        { id: 'it1', label: 'Ensure all patients are written up (tooth chart, appointment box, milestones)' },
+        { id: 'it2', label: 'Upload all photos — SD cards should be empty each evening before leaving' },
+        { id: 'it3', label: 'Milestones entered for anything submitted to lab or made in house' },
+        { id: 'it4', label: 'Send any referral requests needed for the day' },
+        { id: 'it5', label: 'Make sure every patient has a treatment plan entered' },
+        { id: 'it6', label: 'Care calls to patients that had a hard appointment or RP did not bring the pt' },
+      ].map(i => ({ ...i, defaultAssigneeId: null })),
+    },
+    {
+      id: 'cl_oa1_close', kind: 'recurring', name: 'OA #1 — Closing Duties',
+      roleId: 'r_oa', schedule: { freq: 'weekdays', dueTime: '18:30' }, slaMinutes: 60,
+      items: [
+        { id: 'it1',  label: 'Treatment area — ensure chairs have air/water syringes and suction' },
+        { id: 'it2',  label: 'Treatment area — chairs cleaned and ready for next day (Windex face mirrors)' },
+        { id: 'it3',  label: 'Treatment area — RP stools in tx bay area are put away' },
+        { id: 'it4',  label: 'Treatment area — empty shred bins (Thursday only)' },
+        { id: 'it5',  label: 'Sterilization — wipe down countertops, area is neat and tidy' },
+        { id: 'it6',  label: 'Sterilization — run autoclave' },
+        { id: 'it7',  label: 'Sterilization — empty ultrasonic cleaner and wipe out ultrasonic' },
+        { id: 'it8',  label: 'Sterilization — unplug and turn everything off' },
+        { id: 'it9',  label: 'Sterilization — make aligner and DEB trays for the morning' },
+        { id: 'it10', label: 'Sterilization — take sterilization trash out' },
+        { id: 'it11', label: 'Workstation — wipe hand sink in your workstation and countertops' },
+        { id: 'it12', label: 'Workstation — take trash in your work station (Mon, Tues, Wed)' },
+        { id: 'it13', label: 'Workstation — restock gloves in your work station' },
+        { id: 'it14', label: 'Lab — ensure all cases have been submitted (aligners or appliances)' },
+        { id: 'it15', label: 'Lab — ensure retainers and whitening trays are ready for 8am pick up' },
+        { id: 'it16', label: 'Lab — ensure Asana is updated (all tabs that pertain to you)' },
+        { id: 'it17', label: 'Recycling — last assistant to leave on Thursday take recycling' },
+        { id: 'it18', label: 'Last assistant to leave turn off air, water, compressor switches' },
+      ].map(i => ({ ...i, defaultAssigneeId: null })),
+    },
+    {
+      id: 'cl_oa1_weekly', kind: 'recurring', name: 'OA #1 — Weekly Admin (Tuesday AM)',
+      roleId: 'r_oa', schedule: { freq: 'weekly', weekday: 2, dueTime: '09:00' }, slaMinutes: 60,
+      items: [
+        { id: 'it1', label: 'Restock all chairs' },
+        { id: 'it2', label: 'Restock cotton rolls, 2x2s in drawer' },
+        { id: 'it3', label: 'Restock sterilization pouches' },
+        { id: 'it4', label: 'Deep clean sterilization' },
+        { id: 'it5', label: 'Wipe down all equipment and countertops' },
+        { id: 'it6', label: 'Deep clean ultrasonic, autoclave, Dentronix' },
+        { id: 'it7', label: 'Clean under tray holders' },
+        { id: 'it8', label: 'Delete any old messages — messages should be current tasks you are working on' },
+      ].map(i => ({ ...i, defaultAssigneeId: null })),
+    },
+    {
+      id: 'cl_oa1_monthly', kind: 'recurring', name: 'OA #1 — Monthly Admin',
+      roleId: 'r_oa', schedule: { freq: 'monthly', dayOfMonth: 1, dueTime: '17:00' }, slaMinutes: 120,
+      items: [
+        { id: 'it1', label: 'Cold sterile (every 28 days) — instruments' },
+        { id: 'it2', label: 'Cold sterile (every 28 days) — oil' },
+        { id: 'it3', label: 'Cold sterile (every 28 days) — cement remover' },
+        { id: 'it4', label: 'Put all cassettes back together' },
+        { id: 'it5', label: 'Weigh sharps container and mail out as needed' },
+        { id: 'it6', label: 'Run sterilization test strips (same day as cold sterile change)' },
+      ].map(i => ({ ...i, defaultAssigneeId: null })),
+    },
+    {
+      id: 'cl_oa1_quarterly', kind: 'recurring', name: 'OA #1 — Quarterly Admin',
+      roleId: 'r_oa', schedule: { freq: 'quarterly', startMonth: 0, dayOfMonth: 1, dueTime: '17:00' }, slaMinutes: 120,
+      items: [
+        { id: 'it1', label: 'Clean / maintain suction' },
+        { id: 'it2', label: 'Clean / maintain traps' },
+      ].map(i => ({ ...i, defaultAssigneeId: null })),
+    },
+    // --- Orthodontic Assistant #3 (detailed workflow) ---
+    {
+      id: 'cl_oa3_open', kind: 'recurring', name: 'OA #3 — Opening Duties',
+      roleId: 'r_oa', schedule: { freq: 'weekdays', dueTime: '08:00' }, slaMinutes: 30,
+      items: [
+        { id: 'it1', label: 'Records/Lab — ensure cameras are charged and ready for use' },
+        { id: 'it2', label: 'Schedule — check your schedule prior to huddle and bring up details in meeting' },
+        { id: 'it3', label: 'Retainers — retainer and whitening trays ready at front desk by 8am (no exceptions)' },
+        { id: 'it4', label: 'Retainers — ensure milestones reflect accordingly' },
+        { id: 'it5', label: 'First assistant to arrive turn on air, water, compressor switches' },
+      ].map(i => ({ ...i, defaultAssigneeId: null })),
+    },
+    {
+      id: 'cl_oa3_charting', kind: 'recurring', name: 'OA #3 — Charting & Photos',
+      roleId: 'r_oa', schedule: { freq: 'weekdays', dueTime: '17:30' }, slaMinutes: 45,
+      items: [
+        { id: 'it1', label: 'Ensure all patients are written up (tooth chart, appointment box, milestones)' },
+        { id: 'it2', label: 'Upload all photos — SD cards should be empty each evening before leaving' },
+        { id: 'it3', label: 'Milestones entered for anything submitted to lab or made in house' },
+        { id: 'it4', label: 'Send any referral requests needed for the day' },
+        { id: 'it5', label: 'Make sure every patient has a treatment plan entered' },
+        { id: 'it6', label: 'Care calls to patients that had a hard appointment or RP did not bring the pt' },
+      ].map(i => ({ ...i, defaultAssigneeId: null })),
+    },
+    {
+      id: 'cl_oa3_close', kind: 'recurring', name: 'OA #3 — Closing Duties',
+      roleId: 'r_oa', schedule: { freq: 'weekdays', dueTime: '18:30' }, slaMinutes: 60,
+      items: [
+        { id: 'it1',  label: 'Treatment area — ensure chairs have air/water syringes and suction' },
+        { id: 'it2',  label: 'Treatment area — chairs cleaned and ready for next day (Windex face mirrors)' },
+        { id: 'it3',  label: 'Treatment area — ensure all scanners are clean and have heads back on them' },
+        { id: 'it4',  label: 'Treatment area — empty shred bins (Thursday only)' },
+        { id: 'it5',  label: 'Sterilization — put banded instruments away for your assigned chairs' },
+        { id: 'it6',  label: 'Workstation — take trash in your work station (Mon, Tues, Wed)' },
+        { id: 'it7',  label: 'Workstation — restock gloves in your work station' },
+        { id: 'it8',  label: 'Workstation — wipe hand sink in your workstation and countertops' },
+        { id: 'it9',  label: 'Workstation — RP stools in tx bay area are put away' },
+        { id: 'it10', label: 'Brushing station — clean sinks' },
+        { id: 'it11', label: 'Brushing station — wipe mirrors' },
+        { id: 'it12', label: 'Brushing station — wipe counters' },
+        { id: 'it13', label: 'Brushing station — restock paper towels, toothbrushes, cups, hand soap' },
+        { id: 'it14', label: 'Brushing station — take all trash out' },
+        { id: 'it15', label: 'Lab — ensure all cases have been submitted (aligners or appliances)' },
+        { id: 'it16', label: 'Lab — ensure retainers and whitening trays are ready for 8am pick up' },
+        { id: 'it17', label: 'Lab — ensure Asana is updated (all tabs that pertain to you)' },
+      ].map(i => ({ ...i, defaultAssigneeId: null })),
+    },
+    {
+      id: 'cl_oa3_weekly', kind: 'recurring', name: 'OA #3 — Weekly Admin (Tuesday AM)',
+      roleId: 'r_oa', schedule: { freq: 'weekly', weekday: 2, dueTime: '09:00' }, slaMinutes: 60,
+      items: [
+        { id: 'it1',  label: 'Deep clean brushing station' },
+        { id: 'it2',  label: 'Clean mirrors' },
+        { id: 'it3',  label: 'Clean sinks' },
+        { id: 'it4',  label: 'Move everything off counters and wipe down' },
+        { id: 'it5',  label: 'Restock hand soap' },
+        { id: 'it6',  label: 'Dust games and TV in game area' },
+        { id: 'it7',  label: 'Sweep game area as needed' },
+        { id: 'it8',  label: 'Make bracket pads for the next week' },
+        { id: 'it9',  label: 'Put ALL brackets, bands, and wires away from cold sterile' },
+        { id: 'it10', label: 'Clean micro etch in lab' },
+        { id: 'it11', label: 'Clean filter on micro etch' },
+        { id: 'it12', label: 'Make sure micro etch is filled with aluminum oxide' },
+        { id: 'it13', label: 'Delete any old messages — messages should be current tasks you are working on' },
+      ].map(i => ({ ...i, defaultAssigneeId: null })),
+    },
+    // --- Lab Tech (detailed job description) ---
+    {
+      id: 'cl_lab_tech_daily', kind: 'recurring', name: 'Lab Tech — Daily Job Description',
+      roleId: 'r_lab', schedule: { freq: 'weekdays', dueTime: '18:00' }, slaMinutes: 60,
+      items: [
+        { id: 'it1',  label: 'Make sure all retainers are done for next day' },
+        { id: 'it2',  label: 'Make sure all Next Level Aligner cases are done by due date before leaving' },
+        { id: 'it3',  label: 'Make sure all cases are entered in milestones' },
+        { id: 'it4',  label: 'Check INV in milestones, file, and add reminder on appointment' },
+        { id: 'it5',  label: 'Check appliances in milestones, file in lab, add reminder on appointment' },
+        { id: 'it6',  label: 'Wipe printer, cure, wash station' },
+        { id: 'it7',  label: 'Wipe sink out in lab' },
+        { id: 'it8',  label: 'Check wash pro and fill with alcohol as needed' },
+        { id: 'it9',  label: 'Wipe all counters in lab' },
+        { id: 'it10', label: 'Sweep floor in lab' },
+        { id: 'it11', label: 'Take lab trash out' },
+        { id: 'it12', label: 'Fill gloves as needed in lab' },
+        { id: 'it13', label: 'Update Asana — make sure all cases are up to date' },
+        { id: 'it14', label: 'Touch base with Dr. A if any cases are past due from him' },
+        { id: 'it15', label: 'Put away materials that come from UPS' },
+        { id: 'it16', label: 'Make sure filter is cleaned in pro wash' },
+      ].map(i => ({ ...i, defaultAssigneeId: null })),
+    },
+    {
+      id: 'cl_lab_tech_weekly', kind: 'recurring', name: 'Lab Tech — Weekly (Thursday)',
+      roleId: 'r_lab', schedule: { freq: 'weekly', weekday: 4, dueTime: '18:00' }, slaMinutes: 45,
+      items: [
+        { id: 'it1', label: 'Drain chambers and clean out, then refill with new IPA 99%' },
+      ].map(i => ({ ...i, defaultAssigneeId: null })),
+    },
+    // --- Orthodontic Assistant #4 (detailed workflow) ---
+    {
+      id: 'cl_oa4_open', kind: 'recurring', name: 'OA #4 — Opening Duties',
+      roleId: 'r_oa', schedule: { freq: 'weekdays', dueTime: '08:00' }, slaMinutes: 30,
+      items: [
+        { id: 'it1', label: 'Records/Lab — ensure cameras are charged and ready for use' },
+        { id: 'it2', label: 'Schedule — check your schedule prior to huddle and bring up details in meeting' },
+        { id: 'it3', label: 'Retainers — retainer and whitening trays ready at front desk by 8am (no exceptions)' },
+        { id: 'it4', label: 'Retainers — ensure milestones reflect accordingly' },
+      ].map(i => ({ ...i, defaultAssigneeId: null })),
+    },
+    {
+      id: 'cl_oa4_charting', kind: 'recurring', name: 'OA #4 — Charting & Photos',
+      roleId: 'r_oa', schedule: { freq: 'weekdays', dueTime: '17:30' }, slaMinutes: 30,
+      items: [
+        { id: 'it1', label: 'Ensure all patients are written up (tooth chart, appointment box, milestones)' },
+        { id: 'it2', label: 'Upload all photos — SD cards should be empty each evening before leaving' },
+        { id: 'it3', label: 'Milestones entered for anything submitted to lab or made in house' },
+      ].map(i => ({ ...i, defaultAssigneeId: null })),
+    },
+    {
+      id: 'cl_oa4_close', kind: 'recurring', name: 'OA #4 — Closing Duties',
+      roleId: 'r_oa', schedule: { freq: 'weekdays', dueTime: '18:30' }, slaMinutes: 60,
+      items: [
+        { id: 'it1',  label: 'Treatment area — ensure chairs have air/water syringes and suction' },
+        { id: 'it2',  label: 'Treatment area — chairs cleaned and ready for next day (Windex face mirrors)' },
+        { id: 'it3',  label: 'Treatment area — ensure all scanners are clean and have heads back on them' },
+        { id: 'it4',  label: 'Sterilization — put banded instruments away for your assigned chairs' },
+        { id: 'it5',  label: 'Workstation — take trash in your work station (Mon, Tues, Wed)' },
+        { id: 'it6',  label: 'Workstation — restock gloves in your work station' },
+        { id: 'it7',  label: 'Workstation — wipe hand sink in your workstation and countertops' },
+        { id: 'it8',  label: 'Workstation — RP stools in tx bay area are put away' },
+        { id: 'it9',  label: 'Consult area — restock proxi brushes, wax, and floss threaders' },
+        { id: 'it10', label: 'Consult area — restock patient bags' },
+        { id: 'it11', label: 'Consult area — wipe down countertops' },
+        { id: 'it12', label: 'Lab — ensure all cases have been submitted (aligners or appliances)' },
+        { id: 'it13', label: 'Lab — ensure retainers and whitening trays are ready for 8am pick up' },
+        { id: 'it14', label: 'Lab — ensure Asana is updated (all tabs that pertain to you)' },
+      ].map(i => ({ ...i, defaultAssigneeId: null })),
+    },
+    // --- Orthodontic Assistant #2 (detailed workflow) ---
+    {
+      id: 'cl_oa2_open', kind: 'recurring', name: 'OA #2 — Opening Duties',
+      roleId: 'r_oa', schedule: { freq: 'weekdays', dueTime: '08:00' }, slaMinutes: 30,
+      items: [
+        { id: 'it1', label: 'Schedule — check your schedule prior to huddle and bring up details in meeting' },
+        { id: 'it2', label: 'Retainers — retainer and whitening trays ready at front desk by 8am (no exceptions)' },
+        { id: 'it3', label: 'Retainers — ensure milestones reflect accordingly' },
+      ].map(i => ({ ...i, defaultAssigneeId: null })),
+    },
+    {
+      id: 'cl_oa2_charting', kind: 'recurring', name: 'OA #2 — Charting & Photos',
+      roleId: 'r_oa', schedule: { freq: 'weekdays', dueTime: '17:30' }, slaMinutes: 45,
+      items: [
+        { id: 'it1', label: 'Ensure all patients are written up (tooth chart, appointment box, milestones)' },
+        { id: 'it2', label: 'Upload all photos — SD cards should be empty each evening before leaving' },
+        { id: 'it3', label: 'Milestones entered for anything submitted to lab or made in house' },
+        { id: 'it4', label: 'Send any referral requests needed for the day' },
+        { id: 'it5', label: 'Make sure every patient has a treatment plan entered' },
+        { id: 'it6', label: 'Care calls to patients that had a hard appointment or RP did not bring the pt' },
+      ].map(i => ({ ...i, defaultAssigneeId: null })),
+    },
+    {
+      id: 'cl_oa2_close', kind: 'recurring', name: 'OA #2 — Closing Duties',
+      roleId: 'r_oa', schedule: { freq: 'weekdays', dueTime: '18:30' }, slaMinutes: 60,
+      items: [
+        { id: 'it1',  label: 'Treatment area — ensure chairs have air/water syringes and suction' },
+        { id: 'it2',  label: 'Treatment area — chairs cleaned and ready for next day (Windex face mirrors)' },
+        { id: 'it3',  label: 'Treatment area — sweep tx bay area, brushing station, and consult area (Mon, Tues, Wed)' },
+        { id: 'it4',  label: 'Workstation — restock gloves in your work station' },
+        { id: 'it5',  label: 'Workstation — RP stools in tx bay area are put away' },
+        { id: 'it6',  label: 'Lab — ensure all cases have been submitted (aligners or appliances)' },
+        { id: 'it7',  label: 'Lab — ensure retainers and whitening trays are ready for 8am pick up' },
+        { id: 'it8',  label: 'Lab — ensure Asana is updated (all tabs that pertain to you)' },
+        { id: 'it9',  label: 'Last assistant to leave turn off air, water, compressor switches' },
+      ].map(i => ({ ...i, defaultAssigneeId: null })),
+    },
+    {
+      id: 'cl_oa2_weekly', kind: 'recurring', name: 'OA #2 — Weekly Admin (Tuesday AM)',
+      roleId: 'r_oa', schedule: { freq: 'weekly', weekday: 2, dueTime: '09:00' }, slaMinutes: 60,
+      items: [
+        { id: 'it1',  label: 'Scan all assistants IPR sheets' },
+        { id: 'it2',  label: 'Deep clean chairs — clean chair cushions' },
+        { id: 'it3',  label: 'Deep clean chairs — wipe all hoses' },
+        { id: 'it4',  label: 'Deep clean chairs — clean all drawers out in chairs' },
+        { id: 'it5',  label: 'Deep clean chairs — clean high speed pedal and hose' },
+        { id: 'it6',  label: 'Deep clean chairs — clean glasses and Windex all face mirrors' },
+        { id: 'it7',  label: 'Dust window sills in tx bay area' },
+        { id: 'it8',  label: 'Dust cabinets in each work station' },
+        { id: 'it9',  label: 'Clean windows in tx bay area' },
+        { id: 'it10', label: 'Delete any old messages — messages should be current tasks you are working on' },
+      ].map(i => ({ ...i, defaultAssigneeId: null })),
+    },
   ],
   instances: [],
   auditLog: [],
@@ -273,13 +599,21 @@ const dueAtForSchedule = (schedule) => {
   const d = new Date(); d.setHours(hh, mm, 0, 0);
   return d.getTime();
 };
+// Months that a quarterly schedule with startMonth X fires in.
+// startMonth is 0-indexed (0=Jan, 1=Feb, 2=Mar) so the cycle is every 3 months.
+const QUARTERLY_CYCLES = {
+  0: { months: [0,3,6,9],  label: 'Jan · Apr · Jul · Oct' },
+  1: { months: [1,4,7,10], label: 'Feb · May · Aug · Nov' },
+  2: { months: [2,5,8,11], label: 'Mar · Jun · Sep · Dec' },
+};
 const scheduleLabel = (s) => {
   if (!s) return '—';
-  const base = s.freq === 'daily'     ? 'Every day'
-             : s.freq === 'weekdays'  ? 'Weekdays (Mon–Thu)'
-             : s.freq === 'weekends'  ? 'Weekends'
-             : s.freq === 'weekly'    ? `Weekly on ${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][s.weekday ?? 1]}`
-             : s.freq === 'monthly'   ? `Monthly on day ${s.dayOfMonth ?? 1}`
+  const base = s.freq === 'daily'      ? 'Every day'
+             : s.freq === 'weekdays'   ? 'Weekdays (Mon–Thu)'
+             : s.freq === 'weekends'   ? 'Weekends'
+             : s.freq === 'weekly'     ? `Weekly on ${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][s.weekday ?? 1]}`
+             : s.freq === 'monthly'    ? `Monthly on day ${s.dayOfMonth ?? 1}`
+             : s.freq === 'quarterly'  ? `Quarterly (${(QUARTERLY_CYCLES[s.startMonth ?? 0] || QUARTERLY_CYCLES[0]).label}) on day ${s.dayOfMonth ?? 1}`
              : s.freq;
   return `${base} · due ${s.dueTime || '17:00'}`;
 };
@@ -371,6 +705,14 @@ const scheduleRunsToday = (s) => {
     case 'weekends': return dow === 0 || dow === 6;
     case 'weekly':   return dow === (s.weekday ?? 1);
     case 'monthly':  return dayOfMonthNum() === (s.dayOfMonth ?? 1);
+    case 'quarterly': {
+      // Fires every 3 months starting from startMonth (0=Jan, 1=Feb, 2=Mar),
+      // on the configured dayOfMonth. startMonth % 3 anchors the cycle.
+      const startMonth = (s.startMonth ?? 0) % 3;
+      const curMonth   = new Date().getMonth();
+      return ((curMonth - startMonth) % 3 + 3) % 3 === 0
+          && dayOfMonthNum() === (s.dayOfMonth ?? 1);
+    }
     default:         return false;
   }
 };
@@ -378,10 +720,33 @@ const scheduleRunsToday = (s) => {
 /* ============================================================
    STORAGE + REDUCER
    ============================================================ */
+// Idempotent seed migration. Looks at state._seedVersion; if it doesn't
+// match CURRENT_SEED_VERSION, adds any DEFAULT_STATE.checklists whose `id`
+// isn't already present in state.checklists and stamps the version. Never
+// deletes, never modifies existing checklists — only adds net-new ones.
+// Designed to run on every hydrate; after the first successful run, the
+// version check short-circuits subsequent calls to a no-op.
+function applySeedMigrations(state) {
+  if (!state || typeof state !== 'object') return state;
+  if (state._seedVersion === CURRENT_SEED_VERSION) return state;
+  const existingIds = new Set((state.checklists || []).map(c => c && c.id).filter(Boolean));
+  const missing = (DEFAULT_STATE.checklists || []).filter(c => !existingIds.has(c.id));
+  if (missing.length === 0) {
+    return { ...state, _seedVersion: CURRENT_SEED_VERSION };
+  }
+  console.log('[NLO Checklists] Seed migration → adding',
+    missing.length, 'new checklists:', missing.map(c => c.id).join(', '));
+  return {
+    ...state,
+    checklists: [...(state.checklists || []), ...missing],
+    _seedVersion: CURRENT_SEED_VERSION,
+  };
+}
+
 function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return { ...DEFAULT_STATE, ...JSON.parse(raw) };
+    if (raw) return applySeedMigrations({ ...DEFAULT_STATE, ...JSON.parse(raw) });
   } catch {}
   return DEFAULT_STATE;
 }
@@ -837,7 +1202,7 @@ function AppRoot() {
 
         const cloud = snap.val();
         if (cloud && typeof cloud === 'object') {
-          const hydrated = { ...DEFAULT_STATE, ...cloud };
+          const hydrated = applySeedMigrations({ ...DEFAULT_STATE, ...cloud });
           lastSyncJSONRef.current = JSON.stringify(hydrated);
           dispatch({ type: 'HYDRATE', state: hydrated });
         } else {
@@ -851,7 +1216,7 @@ function AppRoot() {
         const onValue = (s) => {
           const val = s.val();
           if (!val || typeof val !== 'object') return;
-          const incoming = { ...DEFAULT_STATE, ...val };
+          const incoming = applySeedMigrations({ ...DEFAULT_STATE, ...val });
           const incomingJSON = JSON.stringify(incoming);
           if (incomingJSON === lastSyncJSONRef.current) return; // echo
           lastSyncJSONRef.current = incomingJSON;
@@ -1825,6 +2190,7 @@ function ChecklistEditor({ kind, state, checklist, onClose, onSave }) {
   const [freq, setFreq] = useState(checklist?.schedule?.freq || 'weekdays');
   const [weekday, setWeekday] = useState(checklist?.schedule?.weekday ?? 1);
   const [dayOfMonth, setDayOfMonth] = useState(checklist?.schedule?.dayOfMonth ?? 1);
+  const [startMonth, setStartMonth] = useState(checklist?.schedule?.startMonth ?? 0);
   const [dueTime, setDueTime] = useState(checklist?.schedule?.dueTime || '17:00');
   const [slaMinutes, setSlaMinutes] = useState(checklist?.slaMinutes || (kind === 'event' ? 45 : 60));
   const [items, setItems] = useState(checklist?.items?.length ? checklist.items : [{ id: uid(), label: '', defaultAssigneeId: null }]);
@@ -1943,6 +2309,7 @@ function ChecklistEditor({ kind, state, checklist, onClose, onSave }) {
                 <option value="weekends">Weekends</option>
                 <option value="weekly">Weekly (one day)</option>
                 <option value="monthly">Monthly</option>
+                <option value="quarterly">Quarterly (every 3 months)</option>
               </select>
             </Field>
             {freq === 'weekly' && (
@@ -1959,6 +2326,22 @@ function ChecklistEditor({ kind, state, checklist, onClose, onSave }) {
                   {Array.from({length: 31}, (_, i) => i+1).map(n => <option key={n} value={n}>{n}</option>)}
                 </select>
               </Field>
+            )}
+            {freq === 'quarterly' && (
+              <>
+                <Field label="Starting month" hint="Fires every 3 months from this anchor.">
+                  <select className="input" value={startMonth} onChange={e => setStartMonth(parseInt(e.target.value))}>
+                    <option value={0}>Jan · Apr · Jul · Oct</option>
+                    <option value={1}>Feb · May · Aug · Nov</option>
+                    <option value={2}>Mar · Jun · Sep · Dec</option>
+                  </select>
+                </Field>
+                <Field label="Day of month" hint="If the month has fewer days, it'll skip that quarter.">
+                  <select className="input" value={dayOfMonth} onChange={e => setDayOfMonth(parseInt(e.target.value))}>
+                    {Array.from({length: 31}, (_, i) => i+1).map(n => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                </Field>
+              </>
             )}
             <Field label="Due by (time of day)" hint="Overdue alerts fire after this.">
               <input type="time" className="input" value={dueTime} onChange={e => setDueTime(e.target.value)} />
@@ -2038,8 +2421,12 @@ function ChecklistEditor({ kind, state, checklist, onClose, onSave }) {
             };
             if (kind === 'recurring') {
               base.schedule = { freq, dueTime };
-              if (freq === 'weekly')  base.schedule.weekday    = weekday;
-              if (freq === 'monthly') base.schedule.dayOfMonth = dayOfMonth;
+              if (freq === 'weekly')    base.schedule.weekday    = weekday;
+              if (freq === 'monthly')   base.schedule.dayOfMonth = dayOfMonth;
+              if (freq === 'quarterly') {
+                base.schedule.startMonth = startMonth;
+                base.schedule.dayOfMonth = dayOfMonth;
+              }
             }
             onSave(base);
           }}>Save checklist</button>
@@ -2423,6 +2810,12 @@ function seedDemoHistory(state) {
       if (sched.freq === 'weekends' && !(dow === 0 || dow === 6)) continue;
       if (sched.freq === 'weekly'   && dow !== (sched.weekday ?? 1)) continue;
       if (sched.freq === 'monthly'  && dom !== (sched.dayOfMonth ?? 1)) continue;
+      if (sched.freq === 'quarterly') {
+        const sm = (sched.startMonth ?? 0) % 3;
+        const m  = d.getMonth();
+        if (((m - sm) % 3 + 3) % 3 !== 0) continue;
+        if (dom !== (sched.dayOfMonth ?? 1)) continue;
+      }
 
       const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
       const [hh, mm] = (sched.dueTime || '17:00').split(':').map(Number);
