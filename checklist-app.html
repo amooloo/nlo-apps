@@ -1666,7 +1666,8 @@ function ChecklistEditor({ kind, state, checklist, onClose, onSave }) {
             {freq === 'weekly' && (
               <Field label="Day of week">
                 <select className="input" value={weekday} onChange={e => setWeekday(parseInt(e.target.value))}>
-                  {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((d, i) => <option key={i} value={i}>{d}</option>)}
+                  {/* NLO work week is Mon-Thu only. Value must match Date.getDay(): 1=Mon … 4=Thu. */}
+                  {[['Mon',1],['Tue',2],['Wed',3],['Thu',4]].map(([d, i]) => <option key={i} value={i}>{d}</option>)}
                 </select>
               </Field>
             )}
@@ -1708,7 +1709,8 @@ function ChecklistEditor({ kind, state, checklist, onClose, onSave }) {
                 {kind === 'recurring' && (
                   <div className="flex items-center gap-1 flex-wrap text-xs pl-1">
                     <span className="text-slate-500 mr-1">Include on:</span>
-                    {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((d, di) => {
+                    {/* NLO work week is Mon-Thu only. Indices must stay aligned with Date.getDay(): 1=Mon … 4=Thu. */}
+                    {[['Mon',1],['Tue',2],['Wed',3],['Thu',4]].map(([d, di]) => {
                       const included = !(it.skipDays || []).includes(di);
                       return (
                         <button key={di} type="button"
