@@ -3145,14 +3145,22 @@ function Modal({ title, onClose, children, wide }) {
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
   }, [onClose]);
+  // Modal layout: the scroll container is the fixed overlay itself. The
+  // inner wrapper uses `min-h-full` + flex centering so short modals stay
+  // vertically centered, while tall ones grow past the viewport and the
+  // outer overlay scrolls — which means the header is always reachable.
+  // The header is sticky so the title + close button stay in view while
+  // scrolling long forms (e.g. the checklist editor).
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/40 flex items-start sm:items-center justify-center p-4 overflow-auto">
-      <div className={`card shadow-xl w-full ${wide ? 'max-w-2xl' : 'max-w-md'} my-4`}>
-        <div className="px-5 py-3 border-b border-slate-200 flex items-center justify-between">
-          <div className="font-semibold text-slate-900">{title}</div>
-          <button onClick={onClose} className="btn btn-ghost">✕</button>
+    <div className="fixed inset-0 z-50 bg-slate-900/40 overflow-y-auto">
+      <div className="min-h-full flex items-start sm:items-center justify-center p-4">
+        <div className={`card shadow-xl w-full ${wide ? 'max-w-2xl' : 'max-w-md'} my-4`}>
+          <div className="sticky top-0 z-10 bg-white rounded-t-xl px-5 py-3 border-b border-slate-200 flex items-center justify-between">
+            <div className="font-semibold text-slate-900">{title}</div>
+            <button onClick={onClose} className="btn btn-ghost" aria-label="Close">✕</button>
+          </div>
+          <div className="p-5">{children}</div>
         </div>
-        <div className="p-5">{children}</div>
       </div>
     </div>
   );
