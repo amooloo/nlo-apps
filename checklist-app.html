@@ -8,6 +8,10 @@
 <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<!-- Firebase Realtime DB + Auth (reusing the nlo-inventory project, matches inventory-dashboard.html) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <style>
   html, body, #root { height: 100%; }
   body { background: #f8fafc; font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; }
@@ -71,7 +75,7 @@
 
 <div id="root"></div>
 <script type="text/babel">
-const { useState, useEffect, useMemo, useReducer } = React;
+const { useState, useEffect, useMemo, useReducer, useRef } = React;
 
 /* ============================================================
    SEED DATA
@@ -204,6 +208,38 @@ const DEFAULT_STATE = {
     holidays: [], // [{ date: 'YYYY-MM-DD', name: 'Thanksgiving' }]
   },
 };
+
+/* ============================================================
+   FIREBASE CONFIG
+   Shared with inventory-dashboard.html etc. — same Firebase project,
+   but our data lives under nlo/checklistApp/ to avoid collisions.
+   ============================================================ */
+const NLO_FIREBASE_CONFIG = {
+  apiKey: "AIzaSyBFCmDgAKkdfZ4Cb81nK0KCKXtONiwMJy4",
+  authDomain: "nlo-inventory.firebaseapp.com",
+  databaseURL: "https://nlo-inventory-default-rtdb.firebaseio.com",
+  projectId: "nlo-inventory",
+  storageBucket: "nlo-inventory.firebasestorage.app",
+  messagingSenderId: "471691286148",
+  appId: "1:471691286148:web:b362a98186f648bd4914d1",
+};
+// Root node in Realtime DB for every checklist-app state key.
+const FB_ROOT = 'nlo/checklistApp';
+const FB_KEYS = ['staff', 'roles', 'checklists', 'instances', 'auditLog', 'settings', 'acknowledgedFailures'];
+
+// Safe init: only call initializeApp once. Other NLO apps may share the page someday.
+function ensureFirebaseApp() {
+  if (!window.firebase) return false;
+  try {
+    if (!window.firebase.apps || !window.firebase.apps.length) {
+      window.firebase.initializeApp(NLO_FIREBASE_CONFIG);
+    }
+    return true;
+  } catch (e) {
+    console.warn('Firebase init warning:', e?.message || e);
+    return !!(window.firebase.apps && window.firebase.apps.length);
+  }
+}
 
 /* ============================================================
    HELPERS
@@ -695,6 +731,16 @@ function AppRoot() {
   const [currentUserId, setCurrentUserId] = useState(() => localStorage.getItem('currentUserId'));
   const currentUser = state.staff.find(s => s.id === currentUserId);
 
+  // ---- FIREBASE SYNC ----
+  // 'connecting' | 'synced' | 'offline' | 'error' | 'disabled'
+  const [syncStatus, setSyncStatus] = useState('connecting');
+  // True once the Firebase root has been loaded (even if empty) — only then
+  // do we start pushing local changes upstream.
+  const hydratedFromCloudRef = useRef(false);
+  // JSON of the last value we wrote up OR received down, used to squash echo
+  // loops where our own write comes back through the on('value') listener.
+  const lastSyncJSONRef = useRef(null);
+
   useEffect(() => { dispatch({ type: 'INSTANCES_AUTO_CREATE' }); }, []);
 
   // Auto-sync time-off from Google Sheet on mount if a URL is configured
@@ -721,6 +767,91 @@ function AppRoot() {
   const [, tick] = useState(0);
   useEffect(() => { const id = setInterval(() => tick(t => t+1), 30000); return () => clearInterval(id); }, []);
 
+  // Firebase: anonymous sign-in, cloud-wins hydrate, then live subscribe.
+  // Anonymous auth keeps this transparent (no UI) while still satisfying
+  // realtime-DB rules that require auth != null.
+  useEffect(() => {
+    let cancelled = false;
+    let cleanup = () => {};
+
+    (async () => {
+      if (!ensureFirebaseApp() || !window.firebase?.database || !window.firebase?.auth) {
+        console.warn('[NLO Checklists] Firebase SDK not available — running in local-only mode.');
+        if (!cancelled) setSyncStatus('disabled');
+        return;
+      }
+      try {
+        const auth = window.firebase.auth();
+        if (!auth.currentUser) {
+          await auth.signInAnonymously();
+        }
+        if (cancelled) return;
+
+        const ref = window.firebase.database().ref(FB_ROOT);
+        const snap = await ref.once('value');
+        if (cancelled) return;
+
+        const cloud = snap.val();
+        if (cloud && typeof cloud === 'object') {
+          // Cloud wins on first connect — authoritative if it exists.
+          const hydrated = { ...DEFAULT_STATE, ...cloud };
+          lastSyncJSONRef.current = JSON.stringify(hydrated);
+          dispatch({ type: 'HYDRATE', state: hydrated });
+        } else {
+          // Empty cloud: our local state will become the initial upstream copy
+          // on the next tick (push effect below).
+          lastSyncJSONRef.current = null;
+        }
+        hydratedFromCloudRef.current = true;
+        if (!cancelled) setSyncStatus('synced');
+
+        const onValue = (s) => {
+          const val = s.val();
+          if (!val || typeof val !== 'object') return;
+          const incoming = { ...DEFAULT_STATE, ...val };
+          const incomingJSON = JSON.stringify(incoming);
+          if (incomingJSON === lastSyncJSONRef.current) return; // our own echo
+          lastSyncJSONRef.current = incomingJSON;
+          dispatch({ type: 'HYDRATE', state: incoming });
+        };
+        ref.on('value', onValue);
+
+        const connRef = window.firebase.database().ref('.info/connected');
+        const onConn = (c) => {
+          if (cancelled) return;
+          if (c.val() === true) setSyncStatus('synced');
+          else setSyncStatus('offline');
+        };
+        connRef.on('value', onConn);
+
+        cleanup = () => {
+          try { ref.off('value', onValue); } catch {}
+          try { connRef.off('value', onConn); } catch {}
+        };
+      } catch (err) {
+        console.error('[NLO Checklists] Firebase sync init failed:', err);
+        if (!cancelled) setSyncStatus('error');
+      }
+    })();
+
+    return () => { cancelled = true; cleanup(); };
+  }, []);
+
+  // Push local state changes up to Firebase once we've hydrated from cloud.
+  // Echo-suppression via lastSyncJSONRef: if the JSON of what we're about to
+  // write matches what just came down the listener, we skip the write.
+  useEffect(() => {
+    if (!hydratedFromCloudRef.current) return;
+    if (!window.firebase?.database) return;
+    const asJSON = JSON.stringify(state);
+    if (asJSON === lastSyncJSONRef.current) return;
+    lastSyncJSONRef.current = asJSON;
+    window.firebase.database().ref(FB_ROOT).set(state).catch((err) => {
+      console.error('[NLO Checklists] Firebase write failed:', err);
+      setSyncStatus('error');
+    });
+  }, [state]);
+
   const setUser = (id) => {
     setCurrentUserId(id);
     if (id) localStorage.setItem('currentUserId', id); else localStorage.removeItem('currentUserId');
@@ -728,14 +859,22 @@ function AppRoot() {
 
   if (!currentUser) return <Login staff={state.staff} onPick={setUser} />;
 
+  const syncBadge = {
+    connecting: { text: 'Connecting to cloud…',                     cls: 'text-slate-400' },
+    synced:     { text: '☁ Synced across devices',                   cls: 'text-emerald-600' },
+    offline:    { text: '⚠ Offline — changes will sync when online', cls: 'text-amber-600' },
+    error:      { text: '⚠ Sync error — see browser console',        cls: 'text-red-600' },
+    disabled:   { text: 'Local only — Firebase SDK not loaded',      cls: 'text-slate-400' },
+  }[syncStatus] || { text: '', cls: '' };
+
   return (
     <div className="min-h-screen flex flex-col">
       <Header user={currentUser} state={state} onLogout={() => setUser(null)} />
       {currentUser.appRole === 'admin'
         ? <AdminView state={state} dispatch={dispatch} user={currentUser} />
         : <StaffView state={state} dispatch={dispatch} user={currentUser} />}
-      <footer className="text-center text-xs text-slate-400 py-4">
-        Local preview — data lives on this device only. Firebase sync comes next.
+      <footer className={`text-center text-xs py-4 ${syncBadge.cls}`}>
+        {syncBadge.text}
       </footer>
     </div>
   );
