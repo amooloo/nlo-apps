@@ -598,11 +598,6 @@ const fmtRel  = (ts) => {
   const u = m < 60 ? `${m}m` : h < 48 ? `${h}h` : `${d}d`;
   return diff >= 0 ? `in ${u}` : `${u} ago`;
 };
-const dueAtForSchedule = (schedule) => {
-  const [hh, mm] = (schedule.dueTime || '17:00').split(':').map(Number);
-  const d = new Date(); d.setHours(hh, mm, 0, 0);
-  return d.getTime();
-};
 // Months that a quarterly schedule with startMonth X fires in.
 // startMonth is 0-indexed (0=Jan, 1=Feb, 2=Mar) so the cycle is every 3 months.
 const QUARTERLY_CYCLES = {
@@ -610,16 +605,109 @@ const QUARTERLY_CYCLES = {
   1: { months: [1,4,7,10], label: 'Feb · May · Aug · Nov' },
   2: { months: [2,5,8,11], label: 'Mar · Jun · Sep · Dec' },
 };
+
+/**
+ * Stable cycle identifier for a schedule at a given date. Used as a dedupe
+ * key when auto-creating recurring instances — the app now creates ONE
+ * instance per cycle (not one per calendar day) for weekly / monthly /
+ * quarterly schedules so they stay visible every workday in the cycle.
+ */
+function cycleKeyFor(schedule, date) {
+  const d = date || new Date();
+  const y = d.getFullYear();
+  const m = d.getMonth();
+  const day = d.getDate();
+  switch (schedule?.freq) {
+    case 'weekly': {
+      // Key by the Monday of the current calendar week.
+      const dow = d.getDay();
+      const mondayOffset = dow === 0 ? -6 : 1 - dow;
+      const mon = new Date(y, m, day + mondayOffset);
+      return `W-${mon.getFullYear()}-${String(mon.getMonth()+1).padStart(2,'0')}-${String(mon.getDate()).padStart(2,'0')}`;
+    }
+    case 'monthly':
+      return `M-${y}-${String(m+1).padStart(2,'0')}`;
+    case 'quarterly': {
+      const sm = (schedule.startMonth ?? 0) % 3;
+      // Monotonic cycle index so the key changes only every 3 months.
+      const cycleIdx = Math.floor((y * 12 + m - sm) / 3);
+      return `Q-${cycleIdx}-s${sm}`;
+    }
+    // daily / weekdays / weekends → one instance per day (legacy behavior)
+    default:
+      return `D-${y}-${String(m+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+  }
+}
+
+/**
+ * Last Mon–Thu (NLO work week) within the current cycle for this schedule.
+ * Used to compute the due date for cycle-based schedules. Returns a Date.
+ */
+function lastWorkdayOfCycle(schedule, date) {
+  const d = date || new Date();
+  const y = d.getFullYear();
+  const m = d.getMonth();
+  const day = d.getDate();
+  let end;
+  switch (schedule?.freq) {
+    case 'weekly': {
+      // End of NLO work week = Thursday of current calendar week.
+      const dow = d.getDay();
+      const mondayOffset = dow === 0 ? -6 : 1 - dow;
+      const mon = new Date(y, m, day + mondayOffset);
+      end = new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + 3); // Thu
+      break;
+    }
+    case 'monthly':
+      end = new Date(y, m + 1, 0); // last day of this month
+      break;
+    case 'quarterly': {
+      const sm = (schedule.startMonth ?? 0) % 3;
+      const cycleIdx = Math.floor((y * 12 + m - sm) / 3);
+      const startTotal = cycleIdx * 3 + sm;
+      const endTotal = startTotal + 2; // third month of cycle
+      const endYear = Math.floor(endTotal / 12);
+      const endMonth = ((endTotal % 12) + 12) % 12;
+      end = new Date(endYear, endMonth + 1, 0); // last day of third month
+      break;
+    }
+    default:
+      end = new Date(y, m, day);
+  }
+  // Walk back to the nearest Mon-Thu.
+  while (end.getDay() < 1 || end.getDay() > 4) {
+    end.setDate(end.getDate() - 1);
+  }
+  return end;
+}
+
+const dueAtForSchedule = (schedule, referenceDate) => {
+  const [hh, mm] = (schedule?.dueTime || '17:00').split(':').map(Number);
+  const ref = referenceDate || new Date();
+  // For weekly / monthly / quarterly, due date = last workday of the cycle.
+  // For daily / weekdays / weekends, due date = today.
+  let d;
+  if (schedule?.freq === 'weekly' || schedule?.freq === 'monthly' || schedule?.freq === 'quarterly') {
+    d = lastWorkdayOfCycle(schedule, ref);
+  } else {
+    d = new Date(ref);
+  }
+  d.setHours(hh, mm, 0, 0);
+  return d.getTime();
+};
+
 const scheduleLabel = (s) => {
   if (!s) return '—';
-  const base = s.freq === 'daily'      ? 'Every day'
-             : s.freq === 'weekdays'   ? 'Weekdays (Mon–Thu)'
-             : s.freq === 'weekends'   ? 'Weekends'
-             : s.freq === 'weekly'     ? `Weekly on ${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][s.weekday ?? 1]}`
-             : s.freq === 'monthly'    ? `Monthly on day ${s.dayOfMonth ?? 1}`
-             : s.freq === 'quarterly'  ? `Quarterly (${(QUARTERLY_CYCLES[s.startMonth ?? 0] || QUARTERLY_CYCLES[0]).label}) on day ${s.dayOfMonth ?? 1}`
-             : s.freq;
-  return `${base} · due ${s.dueTime || '17:00'}`;
+  const due = s.dueTime || '17:00';
+  switch (s.freq) {
+    case 'daily':     return `Every day · due ${due}`;
+    case 'weekdays':  return `Every workday (Mon–Thu) · due ${due}`;
+    case 'weekends':  return `Weekends · due ${due}`;
+    case 'weekly':    return `Weekly · due Thursday ${due}`;
+    case 'monthly':   return `Monthly · due last workday of month ${due}`;
+    case 'quarterly': return `Quarterly (${(QUARTERLY_CYCLES[s.startMonth ?? 0] || QUARTERLY_CYCLES[0]).label}) · due last workday of cycle ${due}`;
+    default:          return `${s.freq} · due ${due}`;
+  }
 };
 /**
  * Resize + compress an image File to a JPEG data URL so it fits in localStorage.
@@ -703,21 +791,20 @@ function getMyCompliance(user, state, windowDays = 30) {
 
 const scheduleRunsToday = (s) => {
   const dow = dayOfWeek();
+  const isWorkday = dow >= 1 && dow <= 4; // NLO work week: Mon-Thu
   switch (s?.freq) {
     case 'daily':    return true;
-    case 'weekdays': return dow >= 1 && dow <= 4; // Mon-Thu (NLO work week)
+    case 'weekdays': return isWorkday;
     case 'weekends': return dow === 0 || dow === 6;
-    case 'weekly':   return dow === (s.weekday ?? 1);
-    case 'monthly':  return dayOfMonthNum() === (s.dayOfMonth ?? 1);
-    case 'quarterly': {
-      // Fires every 3 months starting from startMonth (0=Jan, 1=Feb, 2=Mar),
-      // on the configured dayOfMonth. startMonth % 3 anchors the cycle.
-      const startMonth = (s.startMonth ?? 0) % 3;
-      const curMonth   = new Date().getMonth();
-      return ((curMonth - startMonth) % 3 + 3) % 3 === 0
-          && dayOfMonthNum() === (s.dayOfMonth ?? 1);
-    }
-    default:         return false;
+    // Cycle-based schedules spawn on every workday inside the cycle; the
+    // INSTANCES_AUTO_CREATE dedupe (via cycleKey) makes sure we still create
+    // just ONE instance per cycle. This keeps weekly / monthly / quarterly
+    // checklists visible throughout the cycle instead of only appearing on
+    // one specific calendar day.
+    case 'weekly':    return isWorkday;
+    case 'monthly':   return isWorkday;
+    case 'quarterly': return isWorkday;
+    default:          return false;
   }
 };
 
@@ -845,6 +932,10 @@ function resolveAssignees(checklist, state, dateStr) {
 
 function makeInstance(checklist, { appointmentLabel, date, actorId, state }) {
   const instDate = date || todayISO();
+  // Build a stable Date for the instance's calendar day so cycle math is
+  // anchored at local noon (avoids DST / timezone edge cases when instDate
+  // comes from todayISO()).
+  const refDate = new Date(instDate + 'T12:00:00');
   return {
     id: uid(),
     checklistId: checklist.id,
@@ -854,11 +945,17 @@ function makeInstance(checklist, { appointmentLabel, date, actorId, state }) {
     roleId: checklist.roleId,
     assignedStaffIds: resolveAssignees(checklist, state, instDate),
     date: instDate,
+    // cycleKey lets us dedupe weekly / monthly / quarterly instances at the
+    // cycle level (one per week / month / quarter) instead of the old
+    // per-day spawn. Event instances stay null.
+    cycleKey: checklist.kind === 'recurring'
+      ? cycleKeyFor(checklist.schedule, refDate)
+      : null,
     appointmentLabel: appointmentLabel || '',
     createdAt: now(),
     createdBy: actorId,
     dueAt: checklist.kind === 'recurring'
-      ? dueAtForSchedule(checklist.schedule)
+      ? dueAtForSchedule(checklist.schedule, refDate)
       : now() + (checklist.slaMinutes || 45) * 60000,
     status: 'open',
     completedAt: null,
@@ -902,7 +999,26 @@ function reducer(state, action) {
     case 'CHECKLIST_SAVE': {
       const cl = action.checklist;
       const exists = state.checklists.some(x => x.id === cl.id);
-      next = { ...state, checklists: exists ? state.checklists.map(x => x.id === cl.id ? cl : x) : [...state.checklists, cl] };
+      const nextChecklists = exists
+        ? state.checklists.map(x => x.id === cl.id ? cl : x)
+        : [...state.checklists, cl];
+      // Propagate assignedStaffIds (and role) changes to existing OPEN
+      // (non-completed) instances of this checklist. Without this, changing
+      // who owns a checklist in the editor wouldn't flow through to the
+      // instance already spawned today / this cycle — the user would keep
+      // seeing the old assignees on their dashboard. Completed instances
+      // stay untouched as historical snapshots.
+      const nextInstances = state.instances.map(inst => {
+        if (inst.checklistId !== cl.id) return inst;
+        if (inst.status === 'completed') return inst;
+        return {
+          ...inst,
+          roleId: cl.roleId,
+          checklistName: cl.name,
+          assignedStaffIds: resolveAssignees(cl, { ...state, checklists: nextChecklists }, inst.date),
+        };
+      });
+      next = { ...state, checklists: nextChecklists, instances: nextInstances };
       break;
     }
     case 'CHECKLIST_DELETE':
@@ -953,6 +1069,7 @@ function reducer(state, action) {
     }
     case 'INSTANCES_AUTO_CREATE': {
       const date = todayISO();
+      const refDate = new Date(date + 'T12:00:00');
       const t = now();
       // Office-wide holiday → skip recurring generation entirely for today
       if (isHoliday(date, state.settings?.holidays)) return state;
@@ -963,7 +1080,27 @@ function reducer(state, action) {
         if (!scheduleRunsToday(cl.schedule)) return;
         if (cl.effectiveFrom  && t < cl.effectiveFrom)  return;
         if (cl.effectiveUntil && t > cl.effectiveUntil) return;
-        const already = state.instances.some(i => i.checklistId === cl.id && i.date === date);
+        // Cycle-based schedules (weekly / monthly / quarterly) spawn once per
+        // cycle using cycleKey; daily-ish schedules still spawn once per day.
+        // Instances from older versions didn't record cycleKey, so we fall
+        // back to the legacy per-date comparison for those.
+        const currentCycle = cycleKeyFor(cl.schedule, refDate);
+        const freq = cl.schedule?.freq;
+        const isCycleBased = freq === 'weekly' || freq === 'monthly' || freq === 'quarterly';
+        const already = state.instances.some(i => {
+          if (i.checklistId !== cl.id) return false;
+          if (isCycleBased) {
+            if (i.cycleKey) return i.cycleKey === currentCycle;
+            // Legacy instance (pre-cycleKey): derive its cycle key from the
+            // instance date so we still dedupe correctly during the rollover.
+            if (i.date) {
+              const legacyCycle = cycleKeyFor(cl.schedule, new Date(i.date + 'T12:00:00'));
+              return legacyCycle === currentCycle;
+            }
+            return false;
+          }
+          return i.date === date;
+        });
         if (already) return;
         const inst = makeInstance(cl, { actorId: 'system', state });
         if (inst.assignedStaffIds.length === 0) return;
@@ -2288,8 +2425,9 @@ function ChecklistEditor({ kind, state, checklist, onClose, onSave }) {
   const [name, setName] = useState(checklist?.name || '');
   const [roleId, setRoleId] = useState(checklist?.roleId || state.roles[0]?.id || '');
   const [freq, setFreq] = useState(checklist?.schedule?.freq || 'weekdays');
-  const [weekday, setWeekday] = useState(checklist?.schedule?.weekday ?? 1);
-  const [dayOfMonth, setDayOfMonth] = useState(checklist?.schedule?.dayOfMonth ?? 1);
+  // weekday / dayOfMonth are no longer user-pickable — weekly / monthly /
+  // quarterly show every workday in the cycle with the due date on the
+  // cycle's last workday. See cycleKeyFor / lastWorkdayOfCycle.
   const [startMonth, setStartMonth] = useState(checklist?.schedule?.startMonth ?? 0);
   const [dueTime, setDueTime] = useState(checklist?.schedule?.dueTime || '17:00');
   const [slaMinutes, setSlaMinutes] = useState(checklist?.slaMinutes || (kind === 'event' ? 45 : 60));
@@ -2401,51 +2539,38 @@ function ChecklistEditor({ kind, state, checklist, onClose, onSave }) {
         )}
 
         {kind === 'recurring' ? (
-          <div className="grid sm:grid-cols-3 gap-4">
-            <Field label="Frequency">
-              <select className="input" value={freq} onChange={e => setFreq(e.target.value)}>
-                <option value="daily">Every day</option>
-                <option value="weekdays">Weekdays (Mon–Thu)</option>
-                <option value="weekends">Weekends</option>
-                <option value="weekly">Weekly (one day)</option>
-                <option value="monthly">Monthly</option>
-                <option value="quarterly">Quarterly (every 3 months)</option>
-              </select>
-            </Field>
-            {freq === 'weekly' && (
-              <Field label="Day of week">
-                <select className="input" value={weekday} onChange={e => setWeekday(parseInt(e.target.value))}>
-                  {/* NLO work week is Mon-Thu only. Value must match Date.getDay(): 1=Mon … 4=Thu. */}
-                  {[['Mon',1],['Tue',2],['Wed',3],['Thu',4]].map(([d, i]) => <option key={i} value={i}>{d}</option>)}
+          <div className="space-y-3">
+            <div className="grid sm:grid-cols-3 gap-4">
+              <Field label="Frequency">
+                <select className="input" value={freq} onChange={e => setFreq(e.target.value)}>
+                  <option value="daily">Every day</option>
+                  <option value="weekdays">Weekdays (Mon–Thu)</option>
+                  <option value="weekends">Weekends</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="monthly">Monthly</option>
+                  <option value="quarterly">Quarterly (every 3 months)</option>
                 </select>
               </Field>
-            )}
-            {freq === 'monthly' && (
-              <Field label="Day of month" hint="If the month has fewer days (e.g. 30/31), it'll skip that month.">
-                <select className="input" value={dayOfMonth} onChange={e => setDayOfMonth(parseInt(e.target.value))}>
-                  {Array.from({length: 31}, (_, i) => i+1).map(n => <option key={n} value={n}>{n}</option>)}
-                </select>
-              </Field>
-            )}
-            {freq === 'quarterly' && (
-              <>
-                <Field label="Starting month" hint="Fires every 3 months from this anchor.">
+              {freq === 'quarterly' && (
+                <Field label="Starting month" hint="Anchors the 3-month cycle.">
                   <select className="input" value={startMonth} onChange={e => setStartMonth(parseInt(e.target.value))}>
                     <option value={0}>Jan · Apr · Jul · Oct</option>
                     <option value={1}>Feb · May · Aug · Nov</option>
                     <option value={2}>Mar · Jun · Sep · Dec</option>
                   </select>
                 </Field>
-                <Field label="Day of month" hint="If the month has fewer days, it'll skip that quarter.">
-                  <select className="input" value={dayOfMonth} onChange={e => setDayOfMonth(parseInt(e.target.value))}>
-                    {Array.from({length: 31}, (_, i) => i+1).map(n => <option key={n} value={n}>{n}</option>)}
-                  </select>
-                </Field>
-              </>
+              )}
+              <Field label="Due by (time of day)" hint="Overdue alerts fire after this time on the due date.">
+                <input type="time" className="input" value={dueTime} onChange={e => setDueTime(e.target.value)} />
+              </Field>
+            </div>
+            {(freq === 'weekly' || freq === 'monthly' || freq === 'quarterly') && (
+              <div className="rounded-lg bg-blue-50 border border-blue-100 text-sm text-blue-900 px-3 py-2">
+                {freq === 'weekly'    && <>Shows every workday (Mon–Thu) of the week — due on <b>Thursday</b> at the time above.</>}
+                {freq === 'monthly'   && <>Shows every workday of the month — due on the <b>last workday of the month</b> at the time above.</>}
+                {freq === 'quarterly' && <>Shows every workday of the 3-month cycle — due on the <b>last workday of the cycle</b> at the time above.</>}
+              </div>
             )}
-            <Field label="Due by (time of day)" hint="Overdue alerts fire after this.">
-              <input type="time" className="input" value={dueTime} onChange={e => setDueTime(e.target.value)} />
-            </Field>
           </div>
         ) : (
           <Field label="SLA (minutes)" hint="Due this many minutes after the checklist is started.">
@@ -2520,13 +2645,13 @@ function ChecklistEditor({ kind, state, checklist, onClose, onSave }) {
               effectiveUntil: effectiveUntilDate ? new Date(effectiveUntilDate + 'T23:59:59').getTime() : null,
             };
             if (kind === 'recurring') {
+              // Weekly / monthly / quarterly now show every workday in the
+              // cycle with the due date pinned to the last workday, so the
+              // old weekday / dayOfMonth pickers are gone from the UI. We
+              // leave `startMonth` on quarterly schedules because that still
+              // anchors which 3-month cycle applies.
               base.schedule = { freq, dueTime };
-              if (freq === 'weekly')    base.schedule.weekday    = weekday;
-              if (freq === 'monthly')   base.schedule.dayOfMonth = dayOfMonth;
-              if (freq === 'quarterly') {
-                base.schedule.startMonth = startMonth;
-                base.schedule.dayOfMonth = dayOfMonth;
-              }
+              if (freq === 'quarterly') base.schedule.startMonth = startMonth;
             }
             onSave(base);
           }}>Save checklist</button>
@@ -2912,17 +3037,16 @@ function seedDemoHistory(state) {
     for (let i = 15; i >= 1; i--) {
       const d = new Date(); d.setDate(d.getDate() - i); d.setHours(0, 0, 0, 0);
       const dow = d.getDay();
-      const dom = d.getDate();
       const sched = cl.schedule || {};
       if (sched.freq === 'weekdays' && (dow === 0 || dow === 5 || dow === 6)) continue; // Skip Fri/Sat/Sun — NLO is Mon-Thu
       if (sched.freq === 'weekends' && !(dow === 0 || dow === 6)) continue;
-      if (sched.freq === 'weekly'   && dow !== (sched.weekday ?? 1)) continue;
-      if (sched.freq === 'monthly'  && dom !== (sched.dayOfMonth ?? 1)) continue;
-      if (sched.freq === 'quarterly') {
-        const sm = (sched.startMonth ?? 0) % 3;
-        const m  = d.getMonth();
-        if (((m - sm) % 3 + 3) % 3 !== 0) continue;
-        if (dom !== (sched.dayOfMonth ?? 1)) continue;
+      // Cycle-based schedules create ONE past instance per cycle, placed on
+      // the cycle's last workday (matches the live scheduling model).
+      if (sched.freq === 'weekly' || sched.freq === 'monthly' || sched.freq === 'quarterly') {
+        const endDay = lastWorkdayOfCycle(sched, d);
+        if (d.getFullYear() !== endDay.getFullYear()
+         || d.getMonth()    !== endDay.getMonth()
+         || d.getDate()     !== endDay.getDate()) continue;
       }
 
       const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -2963,6 +3087,7 @@ function seedDemoHistory(state) {
         checklistId: cl.id, checklistName: cl.name, checklistSnapshot: cl,
         kind: 'recurring', roleId: cl.roleId, assignedStaffIds: assignees,
         date: dateStr, appointmentLabel: '',
+        cycleKey: cycleKeyFor(sched, d),
         createdAt: dueMs - 8 * 3600000, createdBy: 'system',
         dueAt: dueMs, status, completedAt, certifiedBy, certifiedAt,
         adminNotifiedAt: null, items,
