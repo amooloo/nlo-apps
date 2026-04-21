@@ -96,7 +96,7 @@ const __dbg = (location, message, data, hypothesisId) => {
 // Bump this string whenever new checklists are added to DEFAULT_STATE.
 // applySeedMigrations() uses it to idempotently merge missing seed
 // checklists into persisted user state (localStorage + Firebase).
-const CURRENT_SEED_VERSION = '2026-04-20-photo-storage';
+const CURRENT_SEED_VERSION = '2026-04-20-cycle-effective';
 const DEFAULT_STATE = {
   _seedVersion: CURRENT_SEED_VERSION,
   roles: [
@@ -709,6 +709,32 @@ const dueAtForSchedule = (schedule, referenceDate) => {
   return d.getTime();
 };
 
+/**
+ * Is the checklist "effective" for today's cycle?
+ *
+ * For cycle-based schedules (weekly / monthly / quarterly), a single instance
+ * covers the whole cycle — so a mid-cycle effectiveFrom should still spawn
+ * the instance for that cycle. We check whether the cycle's last workday is
+ * at or past effectiveFrom, and whether the reference day is at or before
+ * effectiveUntil.
+ *
+ * For daily-ish schedules, we compare the current instant directly.
+ */
+function isScheduleEffectiveNow(cl, refDate, now) {
+  const freq = cl?.schedule?.freq;
+  const isCycleBased = freq === 'weekly' || freq === 'monthly' || freq === 'quarterly';
+  const t = typeof now === 'number' ? now : Date.now();
+  if (isCycleBased) {
+    const cycleEnd = dueAtForSchedule(cl.schedule, refDate); // end-of-cycle due timestamp
+    if (cl.effectiveFrom  && cycleEnd < cl.effectiveFrom)  return false;
+    if (cl.effectiveUntil && t > cl.effectiveUntil)        return false;
+    return true;
+  }
+  if (cl.effectiveFrom  && t < cl.effectiveFrom)  return false;
+  if (cl.effectiveUntil && t > cl.effectiveUntil) return false;
+  return true;
+}
+
 const scheduleLabel = (s) => {
   if (!s) return '—';
   const due = s.dueTime || '17:00';
@@ -1216,9 +1242,7 @@ function reducer(state, action) {
         const today = todayISO();
         const refDate = new Date(today + 'T12:00:00');
         const t = now();
-        const withinEffective =
-          (!cl.effectiveFrom  || t >= cl.effectiveFrom) &&
-          (!cl.effectiveUntil || t <= cl.effectiveUntil);
+        const withinEffective = isScheduleEffectiveNow(cl, refDate, t);
         const notHoliday = !isHoliday(today, state.settings?.holidays);
         if (withinEffective && notHoliday) {
           const currentCycle = cycleKeyFor(cl.schedule, refDate);
@@ -1389,8 +1413,7 @@ function reducer(state, action) {
         if (cl.kind !== 'recurring') return;
         if (cl.archived) return;
         if (!scheduleRunsToday(cl.schedule)) return;
-        if (cl.effectiveFrom  && t < cl.effectiveFrom)  return;
-        if (cl.effectiveUntil && t > cl.effectiveUntil) return;
+        if (!isScheduleEffectiveNow(cl, refDate, t)) return;
         // Cycle-based schedules (weekly / monthly / quarterly) spawn once per
         // cycle using cycleKey; daily-ish schedules still spawn once per day.
         // Instances from older versions didn't record cycleKey, so we fall
