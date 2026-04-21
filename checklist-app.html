@@ -83,7 +83,7 @@ const { useState, useEffect, useMemo, useReducer, useRef } = React;
 // Bump this string whenever new checklists are added to DEFAULT_STATE.
 // applySeedMigrations() uses it to idempotently merge missing seed
 // checklists into persisted user state (localStorage + Firebase).
-const CURRENT_SEED_VERSION = '2026-04-20-batch-2-items-backfill';
+const CURRENT_SEED_VERSION = '2026-04-20-cycle-pto-fix';
 const DEFAULT_STATE = {
   _seedVersion: CURRENT_SEED_VERSION,
   roles: [
@@ -954,14 +954,23 @@ function resolveAssignees(checklist, state, dateStr) {
   const base = Array.isArray(checklist.assignedStaffIds)
     ? checklist.assignedStaffIds.slice()
     : [];
-  // Remove anyone who's on time off for the instance date
-  if (dateStr && state) {
-    return base.filter(id => {
-      const s = state.staff.find(x => x.id === id);
-      return s && !isStaffOff(s, dateStr);
-    });
-  }
-  return base;
+  if (!dateStr || !state) return base;
+  // PTO handling depends on whether the schedule is cycle-based.
+  // - Daily / weekdays / weekends / event: a single-day task. If the
+  //   assignee is on PTO that day, drop them for this instance.
+  // - Weekly / monthly / quarterly: the task persists across the entire
+  //   cycle (one instance per cycle, cycleKey-deduped). Filtering on the
+  //   spawn-day's PTO would permanently exclude anyone who happened to be
+  //   off on Monday, even though the task is due Thursday. Skip PTO
+  //   filtering for cycle-based instances — staff will simply see it when
+  //   they're back.
+  const freq = checklist.schedule?.freq;
+  const isCycleBased = freq === 'weekly' || freq === 'monthly' || freq === 'quarterly';
+  if (isCycleBased) return base;
+  return base.filter(id => {
+    const s = state.staff.find(x => x.id === id);
+    return s && !isStaffOff(s, dateStr);
+  });
 }
 
 function makeInstance(checklist, { appointmentLabel, date, actorId, state }) {
@@ -997,7 +1006,11 @@ function makeInstance(checklist, { appointmentLabel, date, actorId, state }) {
     certifiedAt: null,
     adminNotifiedAt: null,
     items: (checklist.kind === 'recurring'
-      ? checklist.items.filter(i => !(i.skipDays || []).includes(new Date(instDate).getDay()))
+      // Anchor at local noon so getDay() returns the calendar weekday for
+      // the instance date — without `T12:00:00`, an ISO date string parses
+      // as UTC midnight and can roll back to the previous day in Mountain
+      // / Pacific time. Matches reconcileInstanceItems.
+      ? checklist.items.filter(i => !(i.skipDays || []).includes(new Date(instDate + 'T12:00:00').getDay()))
       : checklist.items
     ).map(i => ({
       id: uid(),
@@ -1973,7 +1986,7 @@ function StaffView({ state, dispatch, user }) {
               </span>
             ))}
           </div>
-          {/* Group everything assigned to me (explicit + role-fallback) by frequency. */}
+          {/* Group everything explicitly assigned to me by frequency. */}
           {(() => {
             const mineByFreq = groupByFreq(myTeam);
             if (mineByFreq.length === 0) {
@@ -2157,6 +2170,32 @@ function AdminView({ state, dispatch, user }) {
 function TodayTab({ state, dispatch, user, scope }) {
   const [showSpawn, setShowSpawn] = useState(false);
   const [showInspection, setShowInspection] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
+  const [regenToast, setRegenToast] = useState(null); // { count, ts }
+  const instanceCountRef = useRef(state.instances.length);
+  useEffect(() => { instanceCountRef.current = state.instances.length; }, [state.instances.length]);
+
+  const handleRegenerate = () => {
+    if (regenerating) return;
+    setRegenerating(true);
+    const before = instanceCountRef.current;
+    dispatch({ type: 'INSTANCES_AUTO_CREATE' });
+    // Give React time to apply the reducer + re-render, then show feedback
+    setTimeout(() => {
+      const after = instanceCountRef.current;
+      const delta = after - before;
+      setRegenerating(false);
+      setRegenToast({
+        count: delta,
+        ts: Date.now(),
+        message: delta > 0
+          ? `Regenerated — ${delta} new checklist${delta === 1 ? '' : 's'} added`
+          : 'Regenerated — everything is up to date',
+      });
+      setTimeout(() => setRegenToast(null), 3500);
+    }, 600);
+  };
+
   const open = state.instances.filter(i => i.status !== 'completed' && (!scope || scope.canSeeInstance(i)));
   const completedToday = state.instances.filter(i => i.status === 'completed' && i.date === todayISO() && (!scope || scope.canSeeInstance(i))).slice(0, 30);
 
@@ -2170,10 +2209,34 @@ function TodayTab({ state, dispatch, user, scope }) {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h2 className="text-lg font-semibold text-slate-900">Today — {new Date().toLocaleDateString([], { weekday:'long', month:'short', day:'numeric' })}</h2>
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-2 flex-wrap items-center">
           <button className="btn btn-secondary" onClick={() => setShowInspection(true)}>🔍 Random inspection</button>
-          <button className="btn btn-secondary" onClick={() => dispatch({ type: 'INSTANCES_AUTO_CREATE' })}>Regenerate recurring</button>
+          <button
+            className="btn btn-secondary inline-flex items-center gap-2"
+            onClick={handleRegenerate}
+            disabled={regenerating}
+          >
+            {regenerating ? (
+              <>
+                <svg className="animate-spin h-4 w-4 text-slate-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                </svg>
+                <span>Regenerating…</span>
+              </>
+            ) : (
+              <span>Regenerate recurring</span>
+            )}
+          </button>
           <button className="btn btn-primary" onClick={() => setShowSpawn(true)}>+ Event checklist</button>
+          {regenToast && (
+            <span
+              key={regenToast.ts}
+              className={`pill ${regenToast.count > 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'}`}
+            >
+              {regenToast.message}
+            </span>
+          )}
         </div>
       </div>
 
@@ -2490,7 +2553,7 @@ function InstanceCard({ inst, state, dispatch, user, admin, readOnly, highlightA
                     <div className="text-xs text-slate-500 mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
                       {assignee
                         ? <span className={mine ? 'text-blue-700 font-medium' : ''}>Assigned: {assignee.name}{mine ? ' (you)' : ''}</span>
-                        : <span className="text-slate-400">Unassigned — anyone in {role?.name || 'role'}</span>}
+                        : <span className="text-slate-400">Unassigned — any {role?.name || 'team member'} can pick this up</span>}
                       {it.status === 'done' && it.completedBy && (<span>• Done by {state.staff.find(s => s.id === it.completedBy)?.name || '?'} {fmtRel(it.completedAt)}</span>)}
                     </div>
                   </div>
@@ -3409,11 +3472,12 @@ function seedDemoHistory(state) {
    ============================================================ */
 
 // Is this staff member currently a responsible party for this checklist?
-// Checklists can be explicitly assigned (assignedStaffIds) or implicitly
-// via role membership (falls back to everyone in the role).
+// Assignment is fully explicit — see resolveAssignees. A staff member is
+// "on" a checklist iff they appear in its assignedStaffIds array. There
+// is no role-based fallback: roles are only used to filter who's eligible
+// to be picked in the editor, not to auto-assign.
 function staffOnChecklist(staff, cl) {
   if (!cl) return false;
-  // Assignment is fully explicit — no role fallback. See resolveAssignees.
   return Array.isArray(cl.assignedStaffIds) && cl.assignedStaffIds.includes(staff.id);
 }
 
