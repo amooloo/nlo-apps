@@ -917,14 +917,15 @@ async function syncTimeOff(url, dispatch) {
 }
 
 function resolveAssignees(checklist, state, dateStr) {
-  // `assignedStaffIds == null` (undefined/null) means "never configured" →
-  // fall back to every staff member with this role. An explicit empty array
-  // means "admin removed everyone" → respect that and return []. Without
-  // this distinction, unchecking the last person would silently reassign the
-  // checklist back to the whole role.
-  const base = (checklist.assignedStaffIds == null)
-    ? (state?.staff || []).filter(s => s.roleIds?.includes(checklist.roleId)).map(s => s.id)
-    : checklist.assignedStaffIds.slice();
+  // Assignment is fully explicit — if `assignedStaffIds` is missing or
+  // empty, the checklist has no assignees and won't spawn/show up. Admin
+  // must pick staff via the editor or the Staff → Checklists dialog.
+  // (We deliberately removed the old "fall back to everyone in the role"
+  // behavior: it surprised admins by showing checklists to the whole role
+  // even for items they'd never touched.)
+  const base = Array.isArray(checklist.assignedStaffIds)
+    ? checklist.assignedStaffIds.slice()
+    : [];
   // Remove anyone who's on time off for the instance date
   if (dateStr && state) {
     return base.filter(id => {
@@ -1151,7 +1152,12 @@ function reducer(state, action) {
           && fresh.every(id => inst.assignedStaffIds?.includes(id));
         return same ? inst : { ...inst, assignedStaffIds: fresh, roleId: cl.roleId, checklistName: cl.name };
       });
-      state = { ...state, instances: reconciled };
+      // Third pass: drop open instances with no assignees — they can't
+      // serve anyone and would otherwise haunt the UI. This is the final
+      // safety net for legacy checklists that never had an explicit
+      // assignment list (under the new semantics those resolve to []).
+      const cleaned = reconciled.filter(i => i.status === 'completed' || (Array.isArray(i.assignedStaffIds) && i.assignedStaffIds.length > 0));
+      state = { ...state, instances: cleaned };
       // Office-wide holiday → skip recurring generation entirely for today
       if (isHoliday(date, state.settings?.holidays)) return state;
       const newOnes = [];
@@ -1809,13 +1815,10 @@ function StaffView({ state, dispatch, user }) {
   const roleNames = state.roles.filter(r => myRoleIds.includes(r.id)).map(r => r.name);
 
   const openToday = state.instances.filter(i => i.status !== 'completed');
-  // "My Checklists" tab: instances where I'm in the assignee list. Legacy
-  // instances with no assignedStaffIds field fall back to role membership;
-  // explicit empty arrays mean "nobody" and should NOT fall back.
+  // "My Checklists" tab: instances where I'm in the assignee list.
+  // Assignment is fully explicit — no role-fallback. Missing list = nobody.
   const myTeam = openToday.filter(i =>
-    i.assignedStaffIds == null
-      ? myRoleIds.includes(i.roleId)
-      : i.assignedStaffIds.includes(user.id)
+    Array.isArray(i.assignedStaffIds) && i.assignedStaffIds.includes(user.id)
   );
   // Browse tab: checklists I'm NOT on, where no specific item is claimed
   // by any individual — truly pick-up-able work.
@@ -1956,11 +1959,11 @@ function AdminView({ state, dispatch, user }) {
       visibleStaffIds,
       visibleRoleIds,
       canSeeInstance: (inst) => {
-        // Prefer explicit assignee list (including empty = nobody). Fall
-        // back to role membership only when the instance has no
-        // assignedStaffIds field at all (legacy records).
-        if (inst.assignedStaffIds == null) {
-          return visibleRoleIds.has(inst.roleId);
+        // Assignment is fully explicit — if nobody's on the list, nobody
+        // (including admins) can see the instance. This prevents ghost
+        // instances from showing up in admin scope.
+        if (!Array.isArray(inst.assignedStaffIds) || inst.assignedStaffIds.length === 0) {
+          return false;
         }
         return inst.assignedStaffIds.some(id => visibleStaffIds.has(id));
       },
@@ -2509,24 +2512,26 @@ function ChecklistDefsTab({ kind, state, dispatch, user, scope }) {
         {list.map(c => {
           const role = state.roles.find(r => r.id === c.roleId);
           const isSeed = (DEFAULT_STATE.checklists || []).some(s => s.id === c.id);
+          const hasAssignees = Array.isArray(c.assignedStaffIds) && c.assignedStaffIds.length > 0;
           return (
-            <div key={c.id} className={`card p-4 ${c.archived ? 'opacity-75 bg-slate-50' : ''}`}>
+            <div key={c.id} className={`card p-4 ${c.archived ? 'opacity-75 bg-slate-50' : ''} ${!hasAssignees && !c.archived ? 'border-amber-400 bg-amber-50/50' : ''}`}>
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <div className="font-semibold text-slate-900 flex items-center gap-2 flex-wrap">
                     {c.name}
                     {c.archived && <span className="pill bg-amber-100 text-amber-800">Archived</span>}
+                    {!hasAssignees && !c.archived && <span className="pill bg-amber-200 text-amber-900">⚠ Unassigned</span>}
                   </div>
                   <div className="text-xs text-slate-500 mt-0.5">
                     {role?.name || '—'} · {c.items.length} items
                     {c.kind === 'recurring' && <> · {scheduleLabel(c.schedule)}</>}
                     {c.kind === 'event'     && <> · SLA {c.slaMinutes}m</>}
                   </div>
-                  <div className="text-xs text-slate-500 mt-0.5">
-                    👥 {(c.assignedStaffIds && c.assignedStaffIds.length > 0)
+                  <div className={`text-xs mt-0.5 ${hasAssignees ? 'text-slate-500' : 'text-amber-700'}`}>
+                    👥 {hasAssignees
                       ? c.assignedStaffIds.slice(0, 4).map(id => state.staff.find(s => s.id === id)?.name?.split(' ')[0] || '?').join(', ')
                         + (c.assignedStaffIds.length > 4 ? `, +${c.assignedStaffIds.length - 4}` : '')
-                      : <em>everyone currently in the role</em>}
+                      : <em>Nobody assigned yet — this checklist won't show up for anyone until you pick staff in Edit.</em>}
                   </div>
                   {(c.effectiveFrom || c.effectiveUntil) && (
                     <div className="text-xs text-slate-500 mt-0.5">
@@ -3309,26 +3314,18 @@ function seedDemoHistory(state) {
 // via role membership (falls back to everyone in the role).
 function staffOnChecklist(staff, cl) {
   if (!cl) return false;
-  // See resolveAssignees — undefined means "never configured, fall back to
-  // role", empty array means "explicitly nobody".
-  if (cl.assignedStaffIds == null) {
-    return !!staff.roleIds?.includes(cl.roleId);
-  }
-  return cl.assignedStaffIds.includes(staff.id);
+  // Assignment is fully explicit — no role fallback. See resolveAssignees.
+  return Array.isArray(cl.assignedStaffIds) && cl.assignedStaffIds.includes(staff.id);
 }
 
 function countAssignedChecklists(staff, state) {
   return state.checklists.filter(c => !c.archived && staffOnChecklist(staff, c)).length;
 }
 
-// Return the canonical assigned list for a checklist — if it has an explicit
-// list (even an empty one), use that; otherwise materialize it from current
-// role membership so toggles can work on a stable snapshot.
+// Return the canonical assigned list for a checklist. Always explicit —
+// there's no role-fallback magic anymore. Missing list = empty list.
 function resolveAssignedList(cl, state) {
-  if (cl.assignedStaffIds == null) {
-    return state.staff.filter(s => s.roleIds?.includes(cl.roleId)).map(s => s.id);
-  }
-  return cl.assignedStaffIds.slice();
+  return Array.isArray(cl.assignedStaffIds) ? cl.assignedStaffIds.slice() : [];
 }
 
 function StaffChecklistsDialog({ staff, state, dispatch, onClose }) {
