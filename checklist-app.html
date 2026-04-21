@@ -83,7 +83,7 @@ const { useState, useEffect, useMemo, useReducer, useRef } = React;
 // Bump this string whenever new checklists are added to DEFAULT_STATE.
 // applySeedMigrations() uses it to idempotently merge missing seed
 // checklists into persisted user state (localStorage + Firebase).
-const CURRENT_SEED_VERSION = '2026-04-20-batch-1';
+const CURRENT_SEED_VERSION = '2026-04-20-batch-2-items-backfill';
 const DEFAULT_STATE = {
   _seedVersion: CURRENT_SEED_VERSION,
   roles: [
@@ -825,21 +825,49 @@ function applySeedMigrations(state) {
   if (!state || typeof state !== 'object') return state;
   const existingIds = new Set((state.checklists || []).map(c => c && c.id).filter(Boolean));
   const deletedIds = new Set(state.deletedChecklistIds || []);
-  // Don't re-seed anything the user explicitly deleted — that's what made
+  // (1) Add any brand-new seed checklists the user hasn't seen yet. We
+  // never re-seed anything the user explicitly deleted — that's what made
   // deletes appear to "come back at the bottom of the list" before.
   const missing = (DEFAULT_STATE.checklists || []).filter(c =>
     !existingIds.has(c.id) && !deletedIds.has(c.id)
   );
+  // (2) Backfill missing ITEMS on existing seed checklists. When the seed
+  // definition gains new items in a later release (e.g. OA #3 Weekly got
+  // additional items after the original seed shipped), admins ended up with
+  // stale checklists because the old migration only looked at checklist ids.
+  // We only ADD items that are completely missing — never overwrite or drop
+  // existing items — so admin customizations and renames stay intact. Match
+  // by item id first, then case-insensitive label text as a safety net.
+  const seedById = new Map((DEFAULT_STATE.checklists || []).map(c => [c.id, c]));
+  let itemsBackfilled = 0;
+  const backfilledChecklists = (state.checklists || []).map(cl => {
+    const seed = seedById.get(cl.id);
+    if (!seed || !Array.isArray(seed.items)) return cl;
+    const existingItemIds = new Set((cl.items || []).map(i => i && i.id).filter(Boolean));
+    const existingLabels = new Set((cl.items || [])
+      .map(i => (i?.label || '').trim().toLowerCase())
+      .filter(Boolean));
+    const newItems = seed.items.filter(si =>
+      !existingItemIds.has(si.id)
+      && !existingLabels.has((si.label || '').trim().toLowerCase())
+    );
+    if (newItems.length === 0) return cl;
+    itemsBackfilled += newItems.length;
+    return { ...cl, items: [...(cl.items || []), ...newItems] };
+  });
+  if (itemsBackfilled > 0) {
+    console.log('[NLO Checklists] Seed migration → backfilled', itemsBackfilled, 'missing items across existing checklists');
+  }
   if (missing.length === 0) {
-    return state._seedVersion === CURRENT_SEED_VERSION
-      ? state
-      : { ...state, _seedVersion: CURRENT_SEED_VERSION };
+    // Only the items-backfill (or nothing) changed. Keep _seedVersion fresh.
+    if (itemsBackfilled === 0 && state._seedVersion === CURRENT_SEED_VERSION) return state;
+    return { ...state, checklists: backfilledChecklists, _seedVersion: CURRENT_SEED_VERSION };
   }
   console.log('[NLO Checklists] Seed migration → adding',
     missing.length, 'new checklists:', missing.map(c => c.id).join(', '));
   return {
     ...state,
-    checklists: [...(state.checklists || []), ...missing],
+    checklists: [...backfilledChecklists, ...missing],
     _seedVersion: CURRENT_SEED_VERSION,
   };
 }
