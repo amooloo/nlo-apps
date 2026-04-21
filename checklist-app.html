@@ -917,9 +917,14 @@ async function syncTimeOff(url, dispatch) {
 }
 
 function resolveAssignees(checklist, state, dateStr) {
-  const base = (checklist.assignedStaffIds && checklist.assignedStaffIds.length > 0)
-    ? checklist.assignedStaffIds.slice()
-    : (state?.staff || []).filter(s => s.roleIds?.includes(checklist.roleId)).map(s => s.id);
+  // `assignedStaffIds == null` (undefined/null) means "never configured" →
+  // fall back to every staff member with this role. An explicit empty array
+  // means "admin removed everyone" → respect that and return []. Without
+  // this distinction, unchecking the last person would silently reassign the
+  // checklist back to the whole role.
+  const base = (checklist.assignedStaffIds == null)
+    ? (state?.staff || []).filter(s => s.roleIds?.includes(checklist.roleId)).map(s => s.id)
+    : checklist.assignedStaffIds.slice();
   // Remove anyone who's on time off for the instance date
   if (dateStr && state) {
     return base.filter(id => {
@@ -1073,18 +1078,26 @@ function reducer(state, action) {
       // Permanent delete. Record the id in deletedChecklistIds so the seed
       // migration won't re-add it on next hydrate (seed checklists have
       // stable ids; user-created ones with uid() are safe to list here too).
+      // Also drop any OPEN instances of this checklist so staff stop seeing
+      // orphaned items pointing at a checklist that no longer exists.
+      // Completed instances are kept as historical audit trail.
       next = {
         ...state,
         checklists: state.checklists.filter(c => c.id !== action.id),
+        instances: state.instances.filter(i => i.checklistId !== action.id || i.status === 'completed'),
         deletedChecklistIds: Array.from(new Set([...(state.deletedChecklistIds || []), action.id])),
       };
       break;
     case 'CHECKLIST_ARCHIVE':
+      // Archive hides the definition from admin/staff pickers AND closes out
+      // any still-open instances. Without this cleanup, staff kept seeing
+      // "old" checklists in their Today list long after they'd been archived.
       next = {
         ...state,
         checklists: state.checklists.map(c =>
           c.id === action.id ? { ...c, archived: true, archivedAt: now() } : c
         ),
+        instances: state.instances.filter(i => i.checklistId !== action.id || i.status === 'completed'),
       };
       break;
     case 'CHECKLIST_UNARCHIVE':
@@ -1119,12 +1132,17 @@ function reducer(state, action) {
       const date = todayISO();
       const refDate = new Date(date + 'T12:00:00');
       const t = now();
-      // First, refresh assignedStaffIds on every open instance so any drift
-      // from older versions (where CHECKLIST_SAVE didn't propagate) gets
-      // reconciled the next time auto-create runs. Completed instances stay
-      // as historical snapshots. This makes "Regenerate recurring" a reliable
-      // one-click recovery path for misassigned checklists.
-      const reconciled = state.instances.map(inst => {
+      // First pass: garbage-collect OPEN instances whose underlying
+      // checklist has been deleted or archived. Without this, zombies from
+      // before the archive/delete cleanup keep following staff around.
+      // Completed instances are always kept as historical snapshots.
+      const liveIds = new Set(state.checklists.filter(c => !c.archived).map(c => c.id));
+      const gc = state.instances.filter(i => i.status === 'completed' || liveIds.has(i.checklistId));
+      // Second pass: refresh assignedStaffIds on every remaining open
+      // instance so any drift from older versions (where CHECKLIST_SAVE
+      // didn't propagate) gets reconciled. This makes "Regenerate recurring"
+      // a reliable one-click recovery path for misassigned checklists.
+      const reconciled = gc.map(inst => {
         if (inst.status === 'completed') return inst;
         const cl = state.checklists.find(c => c.id === inst.checklistId);
         if (!cl) return inst;
@@ -1791,12 +1809,13 @@ function StaffView({ state, dispatch, user }) {
   const roleNames = state.roles.filter(r => myRoleIds.includes(r.id)).map(r => r.name);
 
   const openToday = state.instances.filter(i => i.status !== 'completed');
-  // "My Checklists" tab: instances where I'm in the assignee list
-  // (falls back to role membership for legacy instances without assignedStaffIds).
+  // "My Checklists" tab: instances where I'm in the assignee list. Legacy
+  // instances with no assignedStaffIds field fall back to role membership;
+  // explicit empty arrays mean "nobody" and should NOT fall back.
   const myTeam = openToday.filter(i =>
-    (i.assignedStaffIds && i.assignedStaffIds.length > 0)
-      ? i.assignedStaffIds.includes(user.id)
-      : myRoleIds.includes(i.roleId)
+    i.assignedStaffIds == null
+      ? myRoleIds.includes(i.roleId)
+      : i.assignedStaffIds.includes(user.id)
   );
   // Browse tab: checklists I'm NOT on, where no specific item is claimed
   // by any individual — truly pick-up-able work.
@@ -1937,11 +1956,13 @@ function AdminView({ state, dispatch, user }) {
       visibleStaffIds,
       visibleRoleIds,
       canSeeInstance: (inst) => {
-        // Prefer explicit assignee list; fall back to role membership.
-        if (inst.assignedStaffIds && inst.assignedStaffIds.length > 0) {
-          return inst.assignedStaffIds.some(id => visibleStaffIds.has(id));
+        // Prefer explicit assignee list (including empty = nobody). Fall
+        // back to role membership only when the instance has no
+        // assignedStaffIds field at all (legacy records).
+        if (inst.assignedStaffIds == null) {
+          return visibleRoleIds.has(inst.roleId);
         }
-        return visibleRoleIds.has(inst.roleId);
+        return inst.assignedStaffIds.some(id => visibleStaffIds.has(id));
       },
       canSeeStaff: (id) => visibleStaffIds.has(id),
     };
@@ -3288,10 +3309,12 @@ function seedDemoHistory(state) {
 // via role membership (falls back to everyone in the role).
 function staffOnChecklist(staff, cl) {
   if (!cl) return false;
-  if (cl.assignedStaffIds && cl.assignedStaffIds.length > 0) {
-    return cl.assignedStaffIds.includes(staff.id);
+  // See resolveAssignees — undefined means "never configured, fall back to
+  // role", empty array means "explicitly nobody".
+  if (cl.assignedStaffIds == null) {
+    return !!staff.roleIds?.includes(cl.roleId);
   }
-  return !!staff.roleIds?.includes(cl.roleId);
+  return cl.assignedStaffIds.includes(staff.id);
 }
 
 function countAssignedChecklists(staff, state) {
@@ -3299,13 +3322,13 @@ function countAssignedChecklists(staff, state) {
 }
 
 // Return the canonical assigned list for a checklist — if it has an explicit
-// list, use that; otherwise materialize it from current role membership so
-// toggles can work on a stable snapshot.
+// list (even an empty one), use that; otherwise materialize it from current
+// role membership so toggles can work on a stable snapshot.
 function resolveAssignedList(cl, state) {
-  if (cl.assignedStaffIds && cl.assignedStaffIds.length > 0) {
-    return cl.assignedStaffIds.slice();
+  if (cl.assignedStaffIds == null) {
+    return state.staff.filter(s => s.roleIds?.includes(cl.roleId)).map(s => s.id);
   }
-  return state.staff.filter(s => s.roleIds?.includes(cl.roleId)).map(s => s.id);
+  return cl.assignedStaffIds.slice();
 }
 
 function StaffChecklistsDialog({ staff, state, dispatch, onClose }) {
