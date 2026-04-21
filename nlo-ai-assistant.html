@@ -278,8 +278,9 @@
   </div>
 </div>
 
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script>
 // --- STAFF ROSTER (name → role mapping) ---
 var STAFF_ROSTER = {
@@ -308,9 +309,9 @@ var CONFIG = {
   SHEETS_WEBHOOK: 'https://script.google.com/macros/s/AKfycbwoohCS5Msft5znpRckxO5ALWxkXrGLMs0Sm3VxYbAk7W5EoC-tpqCLo6GZwO21ZBX3/exec',
 };
 
-// --- FIREBASE CONFIG (NLO Inventory — read-only) ---
+// --- FIREBASE CONFIG (NLO Inventory — read-only, matches inventory-dashboard.html) ---
 var NLO_FIREBASE_CONFIG = {
-  apiKey: "AIzaSyCZ7n3pLiD4cVvSqe9MSmEq32QIY50wToI",
+  apiKey: "AIzaSyBFCmDgAKkdfZ4Cb81nK0KCKXtONiwMJy4",
   authDomain: "nlo-inventory.firebaseapp.com",
   databaseURL: "https://nlo-inventory-default-rtdb.firebaseio.com",
   projectId: "nlo-inventory",
@@ -321,15 +322,33 @@ var NLO_FIREBASE_CONFIG = {
 
 var firebaseApp = firebase.initializeApp(NLO_FIREBASE_CONFIG);
 var db = firebase.database();
+var firebaseReady = false;
 var inventoryCache = null;
 var inventoryCacheTime = 0;
 var CACHE_TTL = 5 * 60 * 1000; // 5 min cache
+
+// --- FIREBASE AUTH (sign in anonymously for read access) ---
+(async function initFirebaseAuth() {
+  try {
+    await firebase.auth().signInAnonymously();
+    firebaseReady = true;
+    console.log('Firebase: anonymous auth succeeded — inventory reads enabled.');
+  } catch (err) {
+    // Anonymous auth may not be enabled; try reading without auth anyway
+    firebaseReady = true;
+    console.warn('Firebase: anonymous auth not available, will attempt unauthenticated reads.', err.code);
+  }
+})();
 
 // --- INVENTORY FUNCTIONS ---
 async function fetchInventory() {
   var now = Date.now();
   if (inventoryCache && (now - inventoryCacheTime) < CACHE_TTL) {
     return inventoryCache;
+  }
+  // Wait briefly for auth to complete if it hasn't yet
+  if (!firebaseReady) {
+    await new Promise(function(resolve) { setTimeout(resolve, 1500); });
   }
   try {
     var snapshot = await db.ref('nlo/items').once('value');
