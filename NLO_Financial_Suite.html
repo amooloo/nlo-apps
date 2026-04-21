@@ -724,103 +724,6 @@
     </div>
   </div>
 
-<!-- ==================== TAB: COMPLETION WITH REMAINING BALANCE ==================== -->
-<div class="tab-content" id="tab-crb">
-  <div class="screen-layout">
-    <div class="entry-form">
-      <div class="form-title">Completion of Orthodontic Treatment with a Remaining Balance</div>
-      <div class="form-subtitle">Use when a patient completes treatment but still has an outstanding balance. Documents the remaining amount, payment plan, and the patient's commitment to satisfy the balance before further treatment.</div>
-
-      <div class="form-section">
-        <h3>Patient Info</h3>
-        <div class="field-row">
-          <div class="field half">
-            <label for="crb_formDate">Date</label>
-            <input type="date" id="crb_formDate">
-          </div>
-        </div>
-        <div class="field-row">
-          <div class="field">
-            <label for="crb_patientName">Patient Name</label>
-            <input type="text" id="crb_patientName" autocomplete="off">
-          </div>
-        </div>
-        <div class="field-row">
-          <div class="field">
-            <label for="crb_responsibleParty">Responsible Party</label>
-            <div class="rp-row">
-              <input type="text" id="crb_responsibleParty" autocomplete="off">
-              <div class="self-toggle" id="crb_selfToggle" onclick="crb_toggleSelf()" title="Use patient name as responsible party">Self</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="form-section">
-        <h3>Balance &amp; Payment Plan</h3>
-        <div class="field-row">
-          <div class="field half">
-            <label for="crb_remainingBalance">Remaining Balance</label>
-            <div class="money-wrap">
-              <input type="text" id="crb_remainingBalance" inputmode="decimal" autocomplete="off" placeholder="0.00">
-            </div>
-          </div>
-        </div>
-        <div class="field-row">
-          <div class="field third">
-            <label for="crb_numPayments">Number of Monthly Payments</label>
-            <input type="number" id="crb_numPayments" min="1" max="120" placeholder="e.g. 8" autocomplete="off">
-          </div>
-          <div class="field third">
-            <label for="crb_dueDay">Payments Due On</label>
-            <select id="crb_dueDay">
-              <option value="5" selected>5th</option>
-              <option value="12">12th</option>
-              <option value="19">19th</option>
-              <option value="26">26th</option>
-            </select>
-          </div>
-        </div>
-        <div class="calc-summary" id="crb_calcSummary" style="display:none;">
-          <div class="calc-row">
-            <span class="calc-label">Remaining Balance</span>
-            <span class="calc-value" id="crb_calcBalance">$0.00</span>
-          </div>
-          <div class="calc-row total">
-            <span class="calc-label">Monthly Payment</span>
-            <span class="calc-value positive" id="crb_calcMonthly">$0.00 / mo</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="form-section">
-        <h3>FC Reminders</h3>
-        <ol style="font-size:0.82rem;color:#475569;line-height:1.55;">
-          <li>Treatment is complete &mdash; remaining balance must be paid.</li>
-          <li>Monthly payments continue per plan above.</li>
-          <li>Balances 30+ days past due may go to collections.</li>
-          <li>Balance must be satisfied before any future treatment at NLO.</li>
-        </ol>
-      </div>
-
-      <div class="btn-bar">
-        <button class="btn btn-clear" onclick="crb_clearForm()">Clear</button>
-        <button class="btn btn-print" onclick="crb_printForm()">Print for Signature</button>
-      </div>
-    </div>
-
-    <div class="guide-panel">
-      <h3>Completion Balance Guidelines</h3>
-      <ol>
-        <li>Verify the remaining balance in the patient's account before filling out.</li>
-        <li>Go over the payment plan with the patient/RP and confirm the monthly amount and due date.</li>
-        <li>Emphasize that the balance must be fully paid before any future orthodontic treatment can begin.</li>
-        <li>Print two copies &mdash; one for the office, one for the patient/RP.</li>
-      </ol>
-    </div>
-  </div>
-</div>
-
   <div class="tab-group">
     <div class="tab-group-label">Insurance</div>
     <div class="tab-group-tabs">
@@ -1416,6 +1319,105 @@
     </div>
   </div>
 </div>
+
+<!-- ==================== TAB: COMPLETION WITH REMAINING BALANCE ==================== -->
+<div class="tab-content" id="tab-crb">
+  <div class="screen-layout">
+    <div class="entry-form">
+      <div class="form-title">Completion of Orthodontic Treatment with a Remaining Balance</div>
+      <div class="form-subtitle">Use when a patient completes treatment but still has an outstanding balance. Documents the remaining amount, payment plan, and the patient's commitment to satisfy the balance before further treatment.</div>
+
+      <div class="form-section">
+        <h3>Patient Info</h3>
+        <div class="field-row">
+          <div class="field half">
+            <label for="crb_formDate">Date</label>
+            <input type="date" id="crb_formDate">
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="crb_patientName">Patient Name</label>
+            <input type="text" id="crb_patientName" autocomplete="off">
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="crb_responsibleParty">Responsible Party</label>
+            <div class="rp-row">
+              <input type="text" id="crb_responsibleParty" autocomplete="off">
+              <div class="self-toggle" id="crb_selfToggle" onclick="crb_toggleSelf()" title="Use patient name as responsible party">Self</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <h3>Balance &amp; Payment Plan</h3>
+        <div class="field-row">
+          <div class="field half">
+            <label for="crb_remainingBalance">Remaining Balance</label>
+            <div class="money-wrap">
+              <input type="text" id="crb_remainingBalance" inputmode="decimal" autocomplete="off" placeholder="0.00">
+            </div>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field third">
+            <label for="crb_numPayments">Number of Monthly Payments</label>
+            <input type="number" id="crb_numPayments" min="1" max="120" placeholder="e.g. 8" autocomplete="off">
+          </div>
+          <div class="field third">
+            <label for="crb_dueDay">Payments Due On</label>
+            <select id="crb_dueDay">
+              <option value="5" selected>5th</option>
+              <option value="12">12th</option>
+              <option value="19">19th</option>
+              <option value="26">26th</option>
+            </select>
+          </div>
+        </div>
+        <div class="calc-summary" id="crb_calcSummary" style="display:none;">
+          <div class="calc-row">
+            <span class="calc-label">Remaining Balance</span>
+            <span class="calc-value" id="crb_calcBalance">$0.00</span>
+          </div>
+          <div class="calc-row total">
+            <span class="calc-label">Monthly Payment</span>
+            <span class="calc-value positive" id="crb_calcMonthly">$0.00 / mo</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <h3>FC Reminders</h3>
+        <ol style="font-size:0.82rem;color:#475569;line-height:1.55;">
+          <li>Treatment is complete &mdash; remaining balance must be paid.</li>
+          <li>Monthly payments continue per plan above.</li>
+          <li>Balances 30+ days past due may go to collections.</li>
+          <li>Balance must be satisfied before any future treatment at NLO.</li>
+        </ol>
+      </div>
+
+      <div class="btn-bar">
+        <button class="btn btn-clear" onclick="crb_clearForm()">Clear</button>
+        <button class="btn btn-print" onclick="crb_printForm()">Print for Signature</button>
+      </div>
+    </div>
+
+    <div class="guide-panel">
+      <h3>Completion Balance Guidelines</h3>
+      <ol>
+        <li>Verify the remaining balance in the patient's account before filling out.</li>
+        <li>Go over the payment plan with the patient/RP and confirm the monthly amount and due date.</li>
+        <li>Emphasize that the balance must be fully paid before any future orthodontic treatment can begin.</li>
+        <li>Print two copies &mdash; one for the office, one for the patient/RP.</li>
+      </ol>
+    </div>
+  </div>
+</div>
+
+
 <div class="tab-content" id="tab-dc-decay">
   <div class="screen-layout">
     <div class="entry-form">
