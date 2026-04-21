@@ -1002,23 +1002,71 @@ function reducer(state, action) {
       const nextChecklists = exists
         ? state.checklists.map(x => x.id === cl.id ? cl : x)
         : [...state.checklists, cl];
-      // Propagate assignedStaffIds (and role) changes to existing OPEN
+      const nextStateForResolve = { ...state, checklists: nextChecklists };
+      // (1) Propagate assignedStaffIds (and role) changes to existing OPEN
       // (non-completed) instances of this checklist. Without this, changing
       // who owns a checklist in the editor wouldn't flow through to the
       // instance already spawned today / this cycle — the user would keep
       // seeing the old assignees on their dashboard. Completed instances
       // stay untouched as historical snapshots.
-      const nextInstances = state.instances.map(inst => {
+      let nextInstances = state.instances.map(inst => {
         if (inst.checklistId !== cl.id) return inst;
         if (inst.status === 'completed') return inst;
         return {
           ...inst,
           roleId: cl.roleId,
           checklistName: cl.name,
-          assignedStaffIds: resolveAssignees(cl, { ...state, checklists: nextChecklists }, inst.date),
+          assignedStaffIds: resolveAssignees(cl, nextStateForResolve, inst.date),
         };
       });
+      // (2) If this is a recurring checklist that runs today and there's
+      // no instance yet for the current cycle (e.g. auto-create skipped it
+      // earlier because it had zero assignees), spawn one NOW so the newly-
+      // assigned staff see it immediately instead of waiting up to 5 minutes
+      // for the next auto-create tick. This is also what makes toggling
+      // someone ON in the Staff → Checklists dialog feel instant.
+      let spawnedInst = null;
+      if (cl.kind === 'recurring' && !cl.archived && scheduleRunsToday(cl.schedule)) {
+        const today = todayISO();
+        const refDate = new Date(today + 'T12:00:00');
+        const t = now();
+        const withinEffective =
+          (!cl.effectiveFrom  || t >= cl.effectiveFrom) &&
+          (!cl.effectiveUntil || t <= cl.effectiveUntil);
+        const notHoliday = !isHoliday(today, state.settings?.holidays);
+        if (withinEffective && notHoliday) {
+          const currentCycle = cycleKeyFor(cl.schedule, refDate);
+          const freq = cl.schedule?.freq;
+          const isCycleBased = freq === 'weekly' || freq === 'monthly' || freq === 'quarterly';
+          const already = nextInstances.some(i => {
+            if (i.checklistId !== cl.id) return false;
+            if (isCycleBased) {
+              if (i.cycleKey) return i.cycleKey === currentCycle;
+              if (i.date) {
+                const legacyCycle = cycleKeyFor(cl.schedule, new Date(i.date + 'T12:00:00'));
+                return legacyCycle === currentCycle;
+              }
+              return false;
+            }
+            return i.date === today;
+          });
+          if (!already) {
+            const inst = makeInstance(cl, { actorId: 'system', state: nextStateForResolve });
+            if (inst.assignedStaffIds.length > 0) {
+              spawnedInst = inst;
+              nextInstances = [inst, ...nextInstances];
+            }
+          }
+        }
+      }
       next = { ...state, checklists: nextChecklists, instances: nextInstances };
+      if (spawnedInst) {
+        next = audit(next, {
+          action: 'instance_created', instanceId: spawnedInst.id,
+          checklistId: cl.id, actorId: 'system',
+          label: `Auto (on assignment change): ${spawnedInst.checklistName} (${spawnedInst.date})`,
+        });
+      }
       break;
     }
     case 'CHECKLIST_DELETE':
@@ -1071,6 +1119,21 @@ function reducer(state, action) {
       const date = todayISO();
       const refDate = new Date(date + 'T12:00:00');
       const t = now();
+      // First, refresh assignedStaffIds on every open instance so any drift
+      // from older versions (where CHECKLIST_SAVE didn't propagate) gets
+      // reconciled the next time auto-create runs. Completed instances stay
+      // as historical snapshots. This makes "Regenerate recurring" a reliable
+      // one-click recovery path for misassigned checklists.
+      const reconciled = state.instances.map(inst => {
+        if (inst.status === 'completed') return inst;
+        const cl = state.checklists.find(c => c.id === inst.checklistId);
+        if (!cl) return inst;
+        const fresh = resolveAssignees(cl, state, inst.date);
+        const same = fresh.length === (inst.assignedStaffIds?.length || 0)
+          && fresh.every(id => inst.assignedStaffIds?.includes(id));
+        return same ? inst : { ...inst, assignedStaffIds: fresh, roleId: cl.roleId, checklistName: cl.name };
+      });
+      state = { ...state, instances: reconciled };
       // Office-wide holiday → skip recurring generation entirely for today
       if (isHoliday(date, state.settings?.holidays)) return state;
       const newOnes = [];
@@ -1685,6 +1748,41 @@ function Header({ user, state, onLogout }) {
 }
 
 /* ============================================================
+   FREQUENCY CATEGORIES (shared by StaffView + InstanceCard)
+   ============================================================ */
+// Bucket an instance into one of five visible categories. `freq` on the
+// schedule tells us the rhythm; events get their own bucket regardless of
+// their underlying schedule (they aren't on a calendar cadence).
+function instanceFreqBucket(inst) {
+  if (inst.kind === 'event') return 'event';
+  const f = inst.checklistSnapshot?.schedule?.freq;
+  if (f === 'weekly')    return 'weekly';
+  if (f === 'monthly')   return 'monthly';
+  if (f === 'quarterly') return 'quarterly';
+  // daily / weekdays / weekends all read as "daily" to staff.
+  return 'daily';
+}
+// Visual metadata for each bucket. Using Tailwind palettes that already
+// appear elsewhere in the app so styles stay consistent.
+const FREQ_META = {
+  daily:     { label: 'Daily',     shortLabel: 'Daily',     pill: 'bg-blue-100 text-blue-800',       header: 'text-blue-800',    dot: 'bg-blue-500',    order: 1 },
+  weekly:    { label: 'Weekly',    shortLabel: 'Weekly',    pill: 'bg-emerald-100 text-emerald-800', header: 'text-emerald-800', dot: 'bg-emerald-500', order: 2 },
+  monthly:   { label: 'Monthly',   shortLabel: 'Monthly',   pill: 'bg-purple-100 text-purple-800',   header: 'text-purple-800',  dot: 'bg-purple-500',  order: 3 },
+  quarterly: { label: 'Quarterly', shortLabel: 'Quarterly', pill: 'bg-orange-100 text-orange-800',   header: 'text-orange-800',  dot: 'bg-orange-500',  order: 4 },
+  event:     { label: 'Event',     shortLabel: 'Event',     pill: 'bg-indigo-100 text-indigo-800',   header: 'text-indigo-800',  dot: 'bg-indigo-500',  order: 5 },
+};
+// Group an instance list into ordered buckets. Returns only buckets that
+// actually have items, in daily → weekly → monthly → quarterly → event order.
+function groupByFreq(list) {
+  const buckets = { daily: [], weekly: [], monthly: [], quarterly: [], event: [] };
+  list.forEach(i => { buckets[instanceFreqBucket(i)].push(i); });
+  return Object.entries(buckets)
+    .filter(([, items]) => items.length > 0)
+    .map(([key, items]) => ({ key, meta: FREQ_META[key], items }))
+    .sort((a, b) => a.meta.order - b.meta.order);
+}
+
+/* ============================================================
    STAFF VIEW
    ============================================================ */
 function StaffView({ state, dispatch, user }) {
@@ -1744,12 +1842,56 @@ function StaffView({ state, dispatch, user }) {
 
       {tab === 'mine' && (
         <>
-          <Section title="My tasks today" count={mineItems.length} empty="Nothing specifically assigned to you right now.">
-            {mineItems.map(inst => <InstanceCard key={inst.id} inst={inst} state={state} dispatch={dispatch} user={user} highlightAssignee={user.id} />)}
-          </Section>
-          <Section title="My team's checklists" count={teamRest.length} empty="Your team has nothing else pending.">
-            {teamRest.map(inst => <InstanceCard key={inst.id} inst={inst} state={state} dispatch={dispatch} user={user} />)}
-          </Section>
+          {/* Legend strip so staff can decode the colored frequency pills at a glance. */}
+          <div className="card p-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600">
+            <span className="font-medium text-slate-700">Checklist types:</span>
+            {Object.entries(FREQ_META).sort((a,b) => a[1].order - b[1].order).map(([key, meta]) => (
+              <span key={key} className="inline-flex items-center gap-1.5">
+                <span className={`inline-block w-2 h-2 rounded-full ${meta.dot}`} />
+                <span>{meta.label}</span>
+              </span>
+            ))}
+          </div>
+          {/* Group everything assigned to me (explicit + role-fallback) by frequency. */}
+          {(() => {
+            const mineByFreq = groupByFreq(myTeam);
+            if (mineByFreq.length === 0) {
+              return <div className="card p-6 text-center text-slate-400 text-sm">Nothing assigned to you right now.</div>;
+            }
+            return mineByFreq.map(({ key, meta, items }) => {
+              // Inside each frequency bucket, surface anything where a task
+              // is specifically assigned to this user, then the rest.
+              const specificallyMine = items.filter(i => i.items.some(it => it.assignedTo === user.id && it.status !== 'done'));
+              const teamInBucket     = items.filter(i => !specificallyMine.includes(i));
+              return (
+                <div key={key} className="space-y-3">
+                  <div className={`flex items-center gap-2 pt-1 border-b border-slate-200 pb-2 ${meta.header}`}>
+                    <span className={`inline-block w-2.5 h-2.5 rounded-full ${meta.dot}`} />
+                    <h3 className="font-semibold">{meta.label} checklists</h3>
+                    <span className={`pill ${meta.pill}`}>{items.length}</span>
+                  </div>
+                  {specificallyMine.length > 0 && (
+                    <div>
+                      <div className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Specifically assigned to you</div>
+                      <div className="space-y-3">
+                        {specificallyMine.map(inst => <InstanceCard key={inst.id} inst={inst} state={state} dispatch={dispatch} user={user} highlightAssignee={user.id} />)}
+                      </div>
+                    </div>
+                  )}
+                  {teamInBucket.length > 0 && (
+                    <div>
+                      {specificallyMine.length > 0 && (
+                        <div className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Your team</div>
+                      )}
+                      <div className="space-y-3">
+                        {teamInBucket.map(inst => <InstanceCard key={inst.id} inst={inst} state={state} dispatch={dispatch} user={user} />)}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            });
+          })()}
         </>
       )}
 
@@ -2177,8 +2319,15 @@ function InstanceCard({ inst, state, dispatch, user, admin, readOnly, highlightA
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-semibold text-slate-900">{inst.checklistName}</span>
             {inst.kind === 'event' && inst.appointmentLabel && (<span className="text-slate-500 text-sm">— {inst.appointmentLabel}</span>)}
+            {/* Frequency pill — identifies the cadence at a glance. Event
+                bucket supersedes any freq from a snapshot since events are
+                spawned on-demand, not on a calendar cycle. */}
+            {(() => {
+              const freqKey = instanceFreqBucket(inst);
+              const meta = FREQ_META[freqKey];
+              return <span className={`pill ${meta.pill}`}>{meta.label}</span>;
+            })()}
             {inst.kind === 'recurring' && <span className="pill bg-slate-100 text-slate-600">{inst.date}</span>}
-            {inst.kind === 'event'     && <span className="pill bg-indigo-100 text-indigo-800">Event</span>}
             {role && <span className="pill bg-slate-100 text-slate-600">{role.name}</span>}
             {inst.status === 'completed' && <span className="pill bg-green-100 text-green-800">Completed</span>}
             {overdue && <span className="pill bg-red-100 text-red-800">Overdue</span>}
