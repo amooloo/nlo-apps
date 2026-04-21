@@ -973,6 +973,10 @@ function makeInstance(checklist, { appointmentLabel, date, actorId, state }) {
       : checklist.items
     ).map(i => ({
       id: uid(),
+      // defId lets us map instance items back to the checklist definition
+      // so item-level edits (add / remove / rename) can be propagated into
+      // open instances without losing per-item state.
+      defId: i.id,
       label: i.label,
       assignedTo: i.defaultAssigneeId || null,
       status: 'pending',
@@ -980,6 +984,51 @@ function makeInstance(checklist, { appointmentLabel, date, actorId, state }) {
       completedAt: null,
     })),
   };
+}
+
+// Rebuild an instance's items list from a freshly-edited checklist
+// definition. Existing per-item state (done, assignedTo, completedBy,
+// completedAt) is preserved by matching on defId first and falling back to
+// label text for legacy instances that were created before defId existed.
+// Items removed from the definition are dropped; items added to the
+// definition become new pending items on the instance.
+function reconcileInstanceItems(inst, cl) {
+  if (!cl || !Array.isArray(cl.items)) return inst.items;
+  const byDefId = new Map();
+  const byLabel = new Map();
+  (inst.items || []).forEach(it => {
+    if (it.defId) byDefId.set(it.defId, it);
+    if (it.label) byLabel.set(it.label.trim().toLowerCase(), it);
+  });
+  // Respect per-weekday skipDays for recurring items, same as makeInstance.
+  const instDow = inst.date ? new Date(inst.date + 'T12:00:00').getDay() : new Date().getDay();
+  const defItems = inst.kind === 'recurring'
+    ? cl.items.filter(i => !(i.skipDays || []).includes(instDow))
+    : cl.items;
+  return defItems.map(di => {
+    // Preserve existing per-item state where we can find a match.
+    const existing = byDefId.get(di.id)
+      || byLabel.get((di.label || '').trim().toLowerCase());
+    if (existing) {
+      return {
+        ...existing,
+        // Re-link defId for future reconciliations.
+        defId: di.id,
+        // Admin may have renamed the item — pick up the new label.
+        label: di.label,
+      };
+    }
+    // Brand-new item — add as pending, use the definition's default owner.
+    return {
+      id: uid(),
+      defId: di.id,
+      label: di.label,
+      assignedTo: di.defaultAssigneeId || null,
+      status: 'pending',
+      completedBy: null,
+      completedAt: null,
+    };
+  });
 }
 
 function reducer(state, action) {
@@ -1009,12 +1058,14 @@ function reducer(state, action) {
         ? state.checklists.map(x => x.id === cl.id ? cl : x)
         : [...state.checklists, cl];
       const nextStateForResolve = { ...state, checklists: nextChecklists };
-      // (1) Propagate assignedStaffIds (and role) changes to existing OPEN
-      // (non-completed) instances of this checklist. Without this, changing
-      // who owns a checklist in the editor wouldn't flow through to the
-      // instance already spawned today / this cycle — the user would keep
-      // seeing the old assignees on their dashboard. Completed instances
-      // stay untouched as historical snapshots.
+      // (1) Propagate assignedStaffIds, role, name, AND item-list changes
+      // to existing OPEN (non-completed) instances of this checklist.
+      // Without this, editing the checklist (removing an item, renaming one,
+      // reassigning ownership) wouldn't flow through to instances already
+      // spawned today / this cycle — staff would keep seeing the old
+      // snapshot. Per-item state (done, assignedTo, completedBy,
+      // completedAt) is preserved via reconcileInstanceItems. Completed
+      // instances stay untouched as historical snapshots.
       let nextInstances = state.instances.map(inst => {
         if (inst.checklistId !== cl.id) return inst;
         if (inst.status === 'completed') return inst;
@@ -1022,7 +1073,9 @@ function reducer(state, action) {
           ...inst,
           roleId: cl.roleId,
           checklistName: cl.name,
+          checklistSnapshot: cl,
           assignedStaffIds: resolveAssignees(cl, nextStateForResolve, inst.date),
+          items: reconcileInstanceItems(inst, cl),
         };
       });
       // (2) If this is a recurring checklist that runs today and there's
@@ -1139,18 +1192,36 @@ function reducer(state, action) {
       // Completed instances are always kept as historical snapshots.
       const liveIds = new Set(state.checklists.filter(c => !c.archived).map(c => c.id));
       const gc = state.instances.filter(i => i.status === 'completed' || liveIds.has(i.checklistId));
-      // Second pass: refresh assignedStaffIds on every remaining open
-      // instance so any drift from older versions (where CHECKLIST_SAVE
-      // didn't propagate) gets reconciled. This makes "Regenerate recurring"
-      // a reliable one-click recovery path for misassigned checklists.
+      // Second pass: refresh assignedStaffIds AND the items list on every
+      // remaining open instance so any drift from older versions (where
+      // CHECKLIST_SAVE didn't propagate) gets reconciled. This makes
+      // "Regenerate recurring" a reliable one-click recovery path for
+      // misassigned checklists AND for instances whose item list got out
+      // of sync with the checklist definition.
       const reconciled = gc.map(inst => {
         if (inst.status === 'completed') return inst;
         const cl = state.checklists.find(c => c.id === inst.checklistId);
         if (!cl) return inst;
         const fresh = resolveAssignees(cl, state, inst.date);
-        const same = fresh.length === (inst.assignedStaffIds?.length || 0)
+        const assigneesSame = fresh.length === (inst.assignedStaffIds?.length || 0)
           && fresh.every(id => inst.assignedStaffIds?.includes(id));
-        return same ? inst : { ...inst, assignedStaffIds: fresh, roleId: cl.roleId, checklistName: cl.name };
+        const nextItems = reconcileInstanceItems(inst, cl);
+        const itemsSame = nextItems.length === (inst.items?.length || 0)
+          && nextItems.every((it, idx) => {
+            const prev = inst.items?.[idx];
+            return prev && prev.id === it.id && prev.label === it.label;
+          });
+        if (assigneesSame && itemsSame && inst.roleId === cl.roleId && inst.checklistName === cl.name) {
+          return inst;
+        }
+        return {
+          ...inst,
+          assignedStaffIds: fresh,
+          roleId: cl.roleId,
+          checklistName: cl.name,
+          checklistSnapshot: cl,
+          items: nextItems,
+        };
       });
       // Third pass: drop open instances with no assignees — they can't
       // serve anyone and would otherwise haunt the UI. This is the final
