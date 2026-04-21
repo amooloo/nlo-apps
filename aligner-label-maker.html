@@ -1194,7 +1194,7 @@
         <span style="font-size:1rem;">&#11015;</span> Lower
       </div>
     </div>
-    <p class="hint" style="margin-bottom:4px;">At least one arch must be selected &mdash; one label per retainer.</p>
+    <p class="hint" style="margin-bottom:4px;">At least one arch must be selected.</p>
 
     <div class="divider"></div>
     <div class="section-label">Whitening Trays</div>
@@ -1202,7 +1202,7 @@
     <div class="toggle-row" style="margin-bottom:10px;">
       <div>
         <div class="toggle-label">Include Whitening Trays</div>
-        <div class="toggle-sub">Prints a separate label per tray</div>
+        <div class="toggle-sub">Adds whitening info to the label</div>
       </div>
       <label class="switch">
         <input type="checkbox" id="r_hasWhitening" onchange="retainerToggleWhitening()" />
@@ -1228,7 +1228,7 @@
     <div class="toggle-row">
       <div>
         <div class="toggle-label">Include Models</div>
-        <div class="toggle-sub">Prints a label for the patient's models</div>
+        <div class="toggle-sub">Adds models to the label</div>
       </div>
       <label class="switch">
         <input type="checkbox" id="r_hasModels" />
@@ -1242,7 +1242,7 @@
     <div class="form-group">
       <label class="field-label">Notes <span style="font-weight:400;text-transform:none;font-size:0.68rem;">(optional)</span></label>
       <textarea id="r_notes" class="notes-input" placeholder="e.g. Bleach tray only &mdash; 2x daily for 30 min"></textarea>
-      <p class="hint">Notes will appear on every printed label.</p>
+      <p class="hint">Notes will appear on the printed label.</p>
     </div>
 
     <div style="margin-top:18px;">
