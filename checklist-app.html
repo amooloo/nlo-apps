@@ -549,6 +549,12 @@ const DEFAULT_STATE = {
     lastSyncAt: null,
     lastSyncError: null,
     holidays: [], // [{ date: 'YYYY-MM-DD', name: 'Thanksgiving' }]
+    // Office day window — today's checklists become the "active" day at
+    // `dayStartTime`, and anything completed after `dayEndTime` counts as
+    // Late on the Previous Days tab. These are office-wide defaults and
+    // can be adjusted in Settings.
+    dayStartTime: '07:00',
+    dayEndTime:   '17:30',
   },
 };
 
@@ -694,8 +700,12 @@ function lastWorkdayOfCycle(schedule, date) {
   return end;
 }
 
-const dueAtForSchedule = (schedule, referenceDate) => {
-  const [hh, mm] = (schedule?.dueTime || '17:00').split(':').map(Number);
+const DEFAULT_DAY_END = '17:30';
+const dueAtForSchedule = (schedule, referenceDate, fallbackDueTime) => {
+  // Per-checklist dueTime wins; fallback is the office-wide dayEnd setting
+  // (passed in) or a hard-coded 17:30 safety net.
+  const fb = /^\d{2}:\d{2}$/.test(fallbackDueTime || '') ? fallbackDueTime : DEFAULT_DAY_END;
+  const [hh, mm] = (schedule?.dueTime || fb).split(':').map(Number);
   const ref = referenceDate || new Date();
   // For weekly / monthly / quarterly, due date = last workday of the cycle.
   // For daily / weekdays / weekends, due date = today.
@@ -720,12 +730,12 @@ const dueAtForSchedule = (schedule, referenceDate) => {
  *
  * For daily-ish schedules, we compare the current instant directly.
  */
-function isScheduleEffectiveNow(cl, refDate, now) {
+function isScheduleEffectiveNow(cl, refDate, now, dayEndTime) {
   const freq = cl?.schedule?.freq;
   const isCycleBased = freq === 'weekly' || freq === 'monthly' || freq === 'quarterly';
   const t = typeof now === 'number' ? now : Date.now();
   if (isCycleBased) {
-    const cycleEnd = dueAtForSchedule(cl.schedule, refDate); // end-of-cycle due timestamp
+    const cycleEnd = dueAtForSchedule(cl.schedule, refDate, dayEndTime); // end-of-cycle due timestamp
     if (cl.effectiveFrom  && cycleEnd < cl.effectiveFrom)  return false;
     if (cl.effectiveUntil && t > cl.effectiveUntil)        return false;
     return true;
@@ -1100,7 +1110,7 @@ function makeInstance(checklist, { appointmentLabel, date, actorId, state }) {
     createdAt: now(),
     createdBy: actorId,
     dueAt: checklist.kind === 'recurring'
-      ? dueAtForSchedule(checklist.schedule, refDate)
+      ? dueAtForSchedule(checklist.schedule, refDate, state?.settings?.dayEndTime)
       : now() + (checklist.slaMinutes || 45) * 60000,
     status: 'open',
     completedAt: null,
@@ -1242,7 +1252,7 @@ function reducer(state, action) {
         const today = todayISO();
         const refDate = new Date(today + 'T12:00:00');
         const t = now();
-        const withinEffective = isScheduleEffectiveNow(cl, refDate, t);
+        const withinEffective = isScheduleEffectiveNow(cl, refDate, t, state.settings?.dayEndTime);
         const notHoliday = !isHoliday(today, state.settings?.holidays);
         if (withinEffective && notHoliday) {
           const currentCycle = cycleKeyFor(cl.schedule, refDate);
@@ -1413,7 +1423,7 @@ function reducer(state, action) {
         if (cl.kind !== 'recurring') return;
         if (cl.archived) return;
         if (!scheduleRunsToday(cl.schedule)) return;
-        if (!isScheduleEffectiveNow(cl, refDate, t)) return;
+        if (!isScheduleEffectiveNow(cl, refDate, t, state.settings?.dayEndTime)) return;
         // Cycle-based schedules (weekly / monthly / quarterly) spawn once per
         // cycle using cycleKey; daily-ish schedules still spawn once per day.
         // Instances from older versions didn't record cycleKey, so we fall
@@ -1671,7 +1681,9 @@ function AppRoot() {
   // loops where our own write comes back through the on('value') listener.
   const lastSyncJSONRef = useRef(null);
 
-  useEffect(() => { dispatch({ type: 'INSTANCES_AUTO_CREATE' }); }, []);
+  // INSTANCES_AUTO_CREATE runs from the visibility/focus/interval effect
+  // below (which dispatches immediately on mount too), so no separate
+  // on-mount dispatch is needed here anymore.
 
   // Auto-sync time-off from Google Sheet on mount if a URL is configured
   useEffect(() => {
@@ -1679,9 +1691,39 @@ function AppRoot() {
     if (url) syncTimeOff(url, dispatch);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  // Keep today's checklists fresh without making the user refresh. Three
+  // complementary triggers so the staff's "my checklist didn't appear yet"
+  // complaint goes away:
+  //   1. Polling tick (every 60s) — catches the date rollover at midnight
+  //      and any start-of-day window (e.g. 7 AM) crossings.
+  //   2. visibilitychange → when the tab becomes visible, immediately try
+  //      to create today's instances (handles laptop wake-from-sleep).
+  //   3. window focus → same idea for browsers that don't fire visibility.
+  // Each trigger also re-dispatches whenever the local calendar date or the
+  // rounded "current hour" has changed since the last successful run, so we
+  // don't spam the reducer.
   useEffect(() => {
-    const id = setInterval(() => dispatch({ type: 'INSTANCES_AUTO_CREATE' }), 5 * 60000);
-    return () => clearInterval(id);
+    let lastKey = '';
+    const run = () => {
+      const d = new Date();
+      // Key on local date + hour so we still catch 7 AM / 17:30 crossings
+      // without firing every single minute.
+      const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}:${d.getHours()}`;
+      if (key === lastKey) return;
+      lastKey = key;
+      dispatch({ type: 'INSTANCES_AUTO_CREATE' });
+    };
+    run();
+    const id = setInterval(run, 60_000);
+    const onVis = () => { if (document.visibilityState === 'visible') { lastKey = ''; run(); } };
+    const onFocus = () => { lastKey = ''; run(); };
+    document.addEventListener('visibilitychange', onVis);
+    window.addEventListener('focus', onFocus);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', onVis);
+      window.removeEventListener('focus', onFocus);
+    };
   }, []);
 
   useEffect(() => {
@@ -2092,7 +2134,27 @@ function StaffView({ state, dispatch, user }) {
   const myRoleIds = user.roleIds || [];
   const roleNames = state.roles.filter(r => myRoleIds.includes(r.id)).map(r => r.name);
 
-  const openToday = state.instances.filter(i => i.status !== 'completed');
+  // Today-only: cycle-based instances stay visible for their whole cycle;
+  // event checklists stay visible until completed; daily-ish schedules roll
+  // off when the date flips (the prior-day items land on "Previous Days").
+  const todayStr = todayISO();
+  const nowDate = new Date();
+  const openToday = state.instances.filter(i => {
+    if (i.status === 'completed') return false;
+    const snap = i.checklistSnapshot || {};
+    if (snap.kind === 'event') return true;
+    const freq = snap.schedule?.freq;
+    if (freq === 'weekly' || freq === 'monthly' || freq === 'quarterly') {
+      const currentCycle = cycleKeyFor(snap.schedule, nowDate);
+      if (i.cycleKey) return i.cycleKey === currentCycle;
+      if (i.date) {
+        const legacyCycle = cycleKeyFor(snap.schedule, new Date(i.date + 'T12:00:00'));
+        return legacyCycle === currentCycle;
+      }
+      return false;
+    }
+    return i.date === todayStr;
+  });
   // "My Checklists" tab: instances where I'm in the assignee list.
   // Assignment is fully explicit — no role-fallback. Missing list = nobody.
   const myTeam = openToday.filter(i =>
@@ -2306,6 +2368,7 @@ function AdminView({ state, dispatch, user }) {
       <div className="flex flex-wrap gap-1 border-b border-slate-200 -mx-2 px-2 overflow-x-auto">
         {[
           ['today',     'Today'],
+          ['previous',  'Previous days'],
           ['recurring', 'Recurring'],
           ['event',     'Event-Triggered'],
           ['roles',     'Roles'],
@@ -2337,6 +2400,7 @@ function AdminView({ state, dispatch, user }) {
         </div>
       )}
       {tab === 'today'     && <TodayTab     state={state} dispatch={dispatch} user={user} scope={scope} />}
+      {tab === 'previous'  && <PreviousDaysTab state={state} dispatch={dispatch} user={user} scope={scope} />}
       {tab === 'recurring' && <ChecklistDefsTab kind="recurring" state={state} dispatch={dispatch} user={user} scope={scope} />}
       {tab === 'event'     && <ChecklistDefsTab kind="event"     state={state} dispatch={dispatch} user={user} scope={scope} />}
       {tab === 'roles'     && <RolesTab     state={state} dispatch={dispatch} scope={scope} />}
@@ -2379,8 +2443,30 @@ function TodayTab({ state, dispatch, user, scope }) {
     }, 600);
   };
 
-  const open = state.instances.filter(i => i.status !== 'completed' && (!scope || scope.canSeeInstance(i)));
-  const completedToday = state.instances.filter(i => i.status === 'completed' && i.date === todayISO() && (!scope || scope.canSeeInstance(i))).slice(0, 30);
+  // Today-only filter: daily-ish schedules roll off when the date flips;
+  // cycle-based (weekly / monthly / quarterly) stay visible for the whole
+  // cycle; manually-spawned event checklists stay visible until completed.
+  // Yesterday's uncompleted items move to the "Previous days" tab.
+  const today = todayISO();
+  const nowDate = new Date();
+  const open = state.instances.filter(i => {
+    if (i.status === 'completed') return false;
+    if (scope && !scope.canSeeInstance(i)) return false;
+    const snap = i.checklistSnapshot || {};
+    if (snap.kind === 'event') return true;
+    const freq = snap.schedule?.freq;
+    if (freq === 'weekly' || freq === 'monthly' || freq === 'quarterly') {
+      const currentCycle = cycleKeyFor(snap.schedule, nowDate);
+      if (i.cycleKey) return i.cycleKey === currentCycle;
+      if (i.date) {
+        const legacyCycle = cycleKeyFor(snap.schedule, new Date(i.date + 'T12:00:00'));
+        return legacyCycle === currentCycle;
+      }
+      return false;
+    }
+    return i.date === today;
+  });
+  const completedToday = state.instances.filter(i => i.status === 'completed' && i.date === today && (!scope || scope.canSeeInstance(i))).slice(0, 30);
 
   const grouped = useMemo(() => {
     const groups = {};
@@ -2456,6 +2542,108 @@ function TodayTab({ state, dispatch, user, scope }) {
           }}
         />
       )}
+    </div>
+  );
+}
+
+/* ============================================================
+   ADMIN: PREVIOUS DAYS
+   ============================================================ */
+function PreviousDaysTab({ state, dispatch, user, scope }) {
+  // Window: last 30 calendar days, excluding today (today lives on Today tab).
+  // Cycle-based checklists for the *current* cycle are also hidden here since
+  // they're still live on Today; older cycles surface normally.
+  const today = todayISO();
+  const nowDate = new Date();
+  const cutoffMs = Date.now() - 30 * 24 * 60 * 60 * 1000;
+
+  const statusFor = (i) => {
+    if (i.status === 'completed') {
+      const doneAt = i.certifiedAt || i.completedAt || 0;
+      return (doneAt && i.dueAt && doneAt <= i.dueAt) ? 'ontime' : 'late';
+    }
+    return 'incomplete';
+  };
+
+  const rows = state.instances.filter(i => {
+    if (scope && !scope.canSeeInstance(i)) return false;
+    if (!i.date) return false;
+    if (i.date === today) return false;
+    const instMs = new Date(i.date + 'T12:00:00').getTime();
+    if (instMs < cutoffMs) return false;
+    const snap = i.checklistSnapshot || {};
+    const freq = snap.schedule?.freq;
+    if (freq === 'weekly' || freq === 'monthly' || freq === 'quarterly') {
+      const currentCycle = cycleKeyFor(snap.schedule, nowDate);
+      const theCycle = i.cycleKey || cycleKeyFor(snap.schedule, new Date(i.date + 'T12:00:00'));
+      if (theCycle === currentCycle) return false;
+    }
+    return true;
+  });
+
+  const byDate = useMemo(() => {
+    const m = {};
+    rows.forEach(i => { (m[i.date] ||= []).push(i); });
+    return Object.entries(m)
+      .sort(([a], [b]) => b.localeCompare(a)) // newest day first
+      .map(([date, items]) => {
+        const counts = { ontime: 0, late: 0, incomplete: 0 };
+        items.forEach(i => { counts[statusFor(i)]++; });
+        return { date, items, counts };
+      });
+  }, [rows]);
+
+  const labelFor = (k) => k === 'ontime' ? 'On time' : k === 'late' ? 'Late' : 'Incomplete';
+  const pillClass = (k) => k === 'ontime'
+    ? 'bg-emerald-100 text-emerald-800'
+    : k === 'late'
+      ? 'bg-amber-100 text-amber-800'
+      : 'bg-red-100 text-red-700';
+
+  const fmtHeader = (iso) => {
+    const d = new Date(iso + 'T12:00:00');
+    return d.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' });
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <h2 className="text-lg font-semibold text-slate-900">Previous days</h2>
+        <div className="text-xs text-slate-500">Last 30 days — items stay editable so staff can back-fill.</div>
+      </div>
+      {byDate.length === 0 && (
+        <div className="card p-6 text-center text-slate-400 text-sm">Nothing in the last 30 days.</div>
+      )}
+      {byDate.map(({ date, items, counts }) => (
+        <div key={date}>
+          <div className="flex flex-wrap items-center gap-2 mb-2">
+            <h3 className="font-semibold text-slate-700">{fmtHeader(date)}</h3>
+            <span className="text-xs text-slate-400">{date}</span>
+            {['incomplete', 'late', 'ontime'].filter(k => counts[k] > 0).map(k => (
+              <span key={k} className={`pill ${pillClass(k)}`}>{counts[k]} {labelFor(k)}</span>
+            ))}
+          </div>
+          <div className="space-y-3">
+            {items
+              .slice()
+              .sort((a, b) => {
+                const rank = { incomplete: 0, late: 1, ontime: 2 };
+                return rank[statusFor(a)] - rank[statusFor(b)];
+              })
+              .map(inst => {
+                const st = statusFor(inst);
+                return (
+                  <div key={inst.id} className="space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className={`pill ${pillClass(st)}`}>{labelFor(st)}</span>
+                    </div>
+                    <InstanceCard inst={inst} state={state} dispatch={dispatch} user={user} admin />
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -3030,7 +3218,7 @@ function ChecklistEditor({ kind, state, checklist, onClose, onSave }) {
   // quarterly show every workday in the cycle with the due date on the
   // cycle's last workday. See cycleKeyFor / lastWorkdayOfCycle.
   const [startMonth, setStartMonth] = useState(checklist?.schedule?.startMonth ?? 0);
-  const [dueTime, setDueTime] = useState(checklist?.schedule?.dueTime || '17:00');
+  const [dueTime, setDueTime] = useState(checklist?.schedule?.dueTime || state.settings?.dayEndTime || '17:30');
   const [slaMinutes, setSlaMinutes] = useState(checklist?.slaMinutes || (kind === 'event' ? 45 : 60));
   const [items, setItems] = useState(checklist?.items?.length ? checklist.items : [{ id: uid(), label: '', defaultAssigneeId: null }]);
 
@@ -3391,6 +3579,18 @@ function SettingsTab({ state, dispatch }) {
   const lastSyncAt = state.settings?.lastSyncAt;
   const lastError  = state.settings?.lastSyncError;
   const holidays   = state.settings?.holidays || [];
+  const dayStart   = state.settings?.dayStartTime || '07:00';
+  const dayEnd     = state.settings?.dayEndTime   || '17:30';
+  const [localStart, setLocalStart] = useState(dayStart);
+  const [localEnd,   setLocalEnd]   = useState(dayEnd);
+  useEffect(() => { setLocalStart(dayStart); }, [dayStart]);
+  useEffect(() => { setLocalEnd(dayEnd);     }, [dayEnd]);
+  const saveWindow = () => {
+    const patch = {};
+    if (/^\d{2}:\d{2}$/.test(localStart) && localStart !== dayStart) patch.dayStartTime = localStart;
+    if (/^\d{2}:\d{2}$/.test(localEnd)   && localEnd   !== dayEnd)   patch.dayEndTime   = localEnd;
+    if (Object.keys(patch).length) dispatch({ type: 'SETTINGS_UPDATE', patch });
+  };
 
   // Keep the input field in sync with the persisted URL (covers refreshes,
   // cross-tab updates, and syncs that touch settings).
@@ -3418,6 +3618,41 @@ function SettingsTab({ state, dispatch }) {
   return (
     <div className="space-y-4">
       <h2 className="text-lg font-semibold text-slate-900">Settings</h2>
+
+      <div className="card p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <div className="text-xl">🕑</div>
+          <div className="font-semibold text-slate-900">Office day window</div>
+        </div>
+        <p className="text-sm text-slate-600">
+          Staff see today's checklists starting at <strong>Day starts</strong>. Anything completed after <strong>Day ends</strong>
+          is marked <span className="pill bg-amber-100 text-amber-800">Late</span> on the Previous Days tab.
+          Yesterday's checklists roll off the Today tab once the date flips (midnight).
+        </p>
+        <div className="flex flex-wrap gap-3 items-end">
+          <Field label="Day starts at" hint="Time today's checklists become active.">
+            <input type="time" className="input w-32" value={localStart}
+              onChange={e => setLocalStart(e.target.value)} />
+          </Field>
+          <Field label="Day ends at" hint="Default due time — after this is Late.">
+            <input type="time" className="input w-32" value={localEnd}
+              onChange={e => setLocalEnd(e.target.value)} />
+          </Field>
+          <button className="btn btn-primary"
+            disabled={
+              !/^\d{2}:\d{2}$/.test(localStart) ||
+              !/^\d{2}:\d{2}$/.test(localEnd) ||
+              (localStart === dayStart && localEnd === dayEnd)
+            }
+            onClick={saveWindow}>Save</button>
+        </div>
+        <div className="text-xs text-slate-500">
+          Currently: <strong>{dayStart}</strong> – <strong>{dayEnd}</strong>.
+          Individual checklists can still have their own due time in the editor (e.g. an 8am opening task);
+          these settings are the office-wide defaults.
+        </div>
+      </div>
+
       <div className="card p-4 space-y-3">
         <div className="flex items-center gap-2">
           <div className="text-xl">🔄</div>
