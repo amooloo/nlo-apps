@@ -120,7 +120,7 @@ const DEFAULT_STATE = {
     // --- Front Desk ---
     {
       id: 'cl_fd_open', kind: 'recurring', name: 'Daily Front Desk — Open',
-      roleId: 'r_fd', schedule: { freq: 'weekdays', dueTime: '09:30' }, slaMinutes: 30,
+      roleId: 'r_fd', areaId: 'a_lobby', schedule: { freq: 'weekdays', dueTime: '09:30' }, slaMinutes: 30,
       items: [
         { id: 'it1', label: 'Unlock front doors and turn on lobby lights' },
         { id: 'it2', label: 'Boot computers and log into scheduling software' },
@@ -131,7 +131,7 @@ const DEFAULT_STATE = {
     },
     {
       id: 'cl_fd_close', kind: 'recurring', name: 'End of Day — Front Desk',
-      roleId: 'r_fd', schedule: { freq: 'weekdays', dueTime: '18:00' }, slaMinutes: 30,
+      roleId: 'r_fd', areaId: 'a_lobby', schedule: { freq: 'weekdays', dueTime: '18:00' }, slaMinutes: 30,
       items: [
         { id: 'it1', label: 'Reconcile daily cash/copay drawer' },
         { id: 'it2', label: 'File any loose paperwork' },
@@ -142,7 +142,7 @@ const DEFAULT_STATE = {
     // --- Orthodontic Assistants ---
     {
       id: 'cl_ca_morning', kind: 'recurring', name: 'Morning — Orthodontic Assistants',
-      roleId: 'r_oa', schedule: { freq: 'weekdays', dueTime: '09:00' }, slaMinutes: 30,
+      roleId: 'r_oa', areaId: 'a_clinic', schedule: { freq: 'weekdays', dueTime: '09:00' }, slaMinutes: 30,
       items: [
         { id: 'it1', label: 'Stock exam rooms with supplies' },
         { id: 'it2', label: 'Wipe and prep exam tables' },
@@ -152,7 +152,7 @@ const DEFAULT_STATE = {
     },
     {
       id: 'cl_ca_eod', kind: 'recurring', name: 'End of Day — Orthodontic Assistants',
-      roleId: 'r_oa', schedule: { freq: 'weekdays', dueTime: '18:00' }, slaMinutes: 60,
+      roleId: 'r_oa', areaId: 'a_clinic', schedule: { freq: 'weekdays', dueTime: '18:00' }, slaMinutes: 60,
       items: [
         { id: 'it1', label: 'Restock each exam room' },
         { id: 'it2', label: 'Wipe down exam tables and counters' },
@@ -164,7 +164,7 @@ const DEFAULT_STATE = {
     // --- Lab ---
     {
       id: 'cl_lab_daily', kind: 'recurring', name: 'Daily Lab — Morning Checks',
-      roleId: 'r_lab', schedule: { freq: 'weekdays', dueTime: '10:00' }, slaMinutes: 45,
+      roleId: 'r_lab', areaId: 'a_labs', schedule: { freq: 'weekdays', dueTime: '10:00' }, slaMinutes: 45,
       items: [
         { id: 'it1', label: 'Run QC on all analyzers' },
         { id: 'it2', label: 'Check reagent levels' },
@@ -174,7 +174,7 @@ const DEFAULT_STATE = {
     },
     {
       id: 'cl_lab_clean', kind: 'recurring', name: 'End of Day — Lab Clean-Up',
-      roleId: 'r_lab', schedule: { freq: 'weekdays', dueTime: '18:00' }, slaMinutes: 60,
+      roleId: 'r_lab', areaId: 'a_labs', schedule: { freq: 'weekdays', dueTime: '18:00' }, slaMinutes: 60,
       items: [
         { id: 'it1', label: 'Decontaminate all work surfaces' },
         { id: 'it2', label: 'Dispose of sharps and biohazards' },
@@ -185,7 +185,7 @@ const DEFAULT_STATE = {
     },
     {
       id: 'cl_lab_monthly', kind: 'recurring', name: 'Monthly Lab — QC Review',
-      roleId: 'r_lab', schedule: { freq: 'monthly', dayOfMonth: 1, dueTime: '17:00' }, slaMinutes: 120,
+      roleId: 'r_lab', areaId: 'a_labs', schedule: { freq: 'monthly', dayOfMonth: 1, dueTime: '17:00' }, slaMinutes: 120,
       items: [
         { id: 'it1', label: 'Review prior month QC trends' },
         { id: 'it2', label: 'Calibrate non-automated equipment' },
@@ -196,7 +196,7 @@ const DEFAULT_STATE = {
     // --- Office Manager ---
     {
       id: 'cl_om_day', kind: 'recurring', name: 'Admin Day — Office Manager',
-      roleId: 'r_om', schedule: { freq: 'weekdays', dueTime: '17:00' }, slaMinutes: 60,
+      roleId: 'r_om', areaId: 'a_workstation', schedule: { freq: 'weekdays', dueTime: '17:00' }, slaMinutes: 60,
       items: [
         { id: 'it1', label: 'Review daily schedule & staffing' },
         { id: 'it2', label: 'Check incoming supplier deliveries' },
@@ -207,7 +207,7 @@ const DEFAULT_STATE = {
     // --- Event-triggered ---
     {
       id: 'cl_new_patient', kind: 'event', name: 'New Patient Intake',
-      roleId: 'r_fd', slaMinutes: 45,
+      roleId: 'r_fd', areaId: 'a_lobby', slaMinutes: 45,
       items: [
         { id: 'it1', label: 'Verify insurance coverage' },
         { id: 'it2', label: 'Collect intake paperwork' },
@@ -218,7 +218,7 @@ const DEFAULT_STATE = {
     // --- Appointment Coordinator (Front Desk) ---
     {
       id: 'cl_ac_am_pre', kind: 'recurring', name: 'Appointment Coordinator — AM Before Huddle',
-      roleId: 'r_fd', schedule: { freq: 'weekdays', dueTime: '09:00' }, slaMinutes: 30,
+      roleId: 'r_fd', areaId: 'a_lobby', schedule: { freq: 'weekdays', dueTime: '09:00' }, slaMinutes: 30,
       items: [
         { id: 'it1',  label: 'Disarm the alarm' },
         { id: 'it2',  label: 'Turn on all front office computers' },
@@ -237,7 +237,7 @@ const DEFAULT_STATE = {
     },
     {
       id: 'cl_ac_am_post', kind: 'recurring', name: 'Appointment Coordinator — AM After Huddle',
-      roleId: 'r_fd', schedule: { freq: 'weekdays', dueTime: '09:45' }, slaMinutes: 30,
+      roleId: 'r_fd', areaId: 'a_lobby', schedule: { freq: 'weekdays', dueTime: '09:45' }, slaMinutes: 30,
       items: [
         { id: 'it1', label: 'Prepare new patient clipboard' },
         { id: 'it2', label: 'Check online forms for new patients' },
@@ -249,7 +249,7 @@ const DEFAULT_STATE = {
     },
     {
       id: 'cl_ac_pm', kind: 'recurring', name: 'Appointment Coordinator — PM Duties',
-      roleId: 'r_fd', schedule: { freq: 'weekdays', dueTime: '18:00' }, slaMinutes: 60,
+      roleId: 'r_fd', areaId: 'a_lobby', schedule: { freq: 'weekdays', dueTime: '18:00' }, slaMinutes: 60,
       items: [
         { id: 'it1',  label: 'After lunch — make coffee for Dr. and a bottle of water, put on his desk' },
         { id: 'it2',  label: 'Prepare the schedule for the next day' },
@@ -266,7 +266,7 @@ const DEFAULT_STATE = {
     // --- Orthodontic Assistant #1 (detailed workflow) ---
     {
       id: 'cl_oa1_open', kind: 'recurring', name: 'OA #1 — Opening Duties',
-      roleId: 'r_oa', schedule: { freq: 'weekdays', dueTime: '08:00' }, slaMinutes: 30,
+      roleId: 'r_oa', areaId: 'a_steril', schedule: { freq: 'weekdays', dueTime: '08:00' }, slaMinutes: 30,
       items: [
         { id: 'it1', label: 'Sterilization — check autoclave and put instruments away' },
         { id: 'it2', label: 'Sterilization — fill ultrasonic with new solution' },
@@ -279,7 +279,7 @@ const DEFAULT_STATE = {
     },
     {
       id: 'cl_oa1_charting', kind: 'recurring', name: 'OA #1 — Charting & Photos',
-      roleId: 'r_oa', schedule: { freq: 'weekdays', dueTime: '17:30' }, slaMinutes: 45,
+      roleId: 'r_oa', areaId: 'a_workstation', schedule: { freq: 'weekdays', dueTime: '17:30' }, slaMinutes: 45,
       items: [
         { id: 'it1', label: 'Ensure all patients are written up (tooth chart, appointment box, milestones)' },
         { id: 'it2', label: 'Upload all photos — SD cards should be empty each evening before leaving' },
@@ -291,7 +291,7 @@ const DEFAULT_STATE = {
     },
     {
       id: 'cl_oa1_close', kind: 'recurring', name: 'OA #1 — Closing Duties',
-      roleId: 'r_oa', schedule: { freq: 'weekdays', dueTime: '18:30' }, slaMinutes: 60,
+      roleId: 'r_oa', areaId: 'a_steril', schedule: { freq: 'weekdays', dueTime: '18:30' }, slaMinutes: 60,
       items: [
         { id: 'it1',  label: 'Treatment area — ensure chairs have air/water syringes and suction' },
         { id: 'it2',  label: 'Treatment area — chairs cleaned and ready for next day (Windex face mirrors)' },
@@ -315,7 +315,7 @@ const DEFAULT_STATE = {
     },
     {
       id: 'cl_oa1_weekly', kind: 'recurring', name: 'OA #1 — Weekly Admin (Tuesday AM)',
-      roleId: 'r_oa', schedule: { freq: 'weekly', weekday: 2, dueTime: '09:00' }, slaMinutes: 60,
+      roleId: 'r_oa', areaId: 'a_steril', schedule: { freq: 'weekly', weekday: 2, dueTime: '09:00' }, slaMinutes: 60,
       items: [
         { id: 'it1', label: 'Restock all chairs' },
         { id: 'it2', label: 'Restock cotton rolls, 2x2s in drawer' },
@@ -329,7 +329,7 @@ const DEFAULT_STATE = {
     },
     {
       id: 'cl_oa1_monthly', kind: 'recurring', name: 'OA #1 — Monthly Admin',
-      roleId: 'r_oa', schedule: { freq: 'monthly', dayOfMonth: 1, dueTime: '17:00' }, slaMinutes: 120,
+      roleId: 'r_oa', areaId: 'a_steril', schedule: { freq: 'monthly', dayOfMonth: 1, dueTime: '17:00' }, slaMinutes: 120,
       items: [
         { id: 'it1', label: 'Cold sterile (every 28 days) — instruments' },
         { id: 'it2', label: 'Cold sterile (every 28 days) — oil' },
@@ -341,7 +341,7 @@ const DEFAULT_STATE = {
     },
     {
       id: 'cl_oa1_quarterly', kind: 'recurring', name: 'OA #1 — Quarterly Admin',
-      roleId: 'r_oa', schedule: { freq: 'quarterly', startMonth: 0, dayOfMonth: 1, dueTime: '17:00' }, slaMinutes: 120,
+      roleId: 'r_oa', areaId: 'a_steril', schedule: { freq: 'quarterly', startMonth: 0, dayOfMonth: 1, dueTime: '17:00' }, slaMinutes: 120,
       items: [
         { id: 'it1', label: 'Clean / maintain suction' },
         { id: 'it2', label: 'Clean / maintain traps' },
@@ -350,7 +350,7 @@ const DEFAULT_STATE = {
     // --- Orthodontic Assistant #3 (detailed workflow) ---
     {
       id: 'cl_oa3_open', kind: 'recurring', name: 'OA #3 — Opening Duties',
-      roleId: 'r_oa', schedule: { freq: 'weekdays', dueTime: '08:00' }, slaMinutes: 30,
+      roleId: 'r_oa', areaId: 'a_steril', schedule: { freq: 'weekdays', dueTime: '08:00' }, slaMinutes: 30,
       items: [
         { id: 'it1', label: 'Records/Lab — ensure cameras are charged and ready for use' },
         { id: 'it2', label: 'Schedule — check your schedule prior to huddle and bring up details in meeting' },
@@ -361,7 +361,7 @@ const DEFAULT_STATE = {
     },
     {
       id: 'cl_oa3_charting', kind: 'recurring', name: 'OA #3 — Charting & Photos',
-      roleId: 'r_oa', schedule: { freq: 'weekdays', dueTime: '17:30' }, slaMinutes: 45,
+      roleId: 'r_oa', areaId: 'a_workstation', schedule: { freq: 'weekdays', dueTime: '17:30' }, slaMinutes: 45,
       items: [
         { id: 'it1', label: 'Ensure all patients are written up (tooth chart, appointment box, milestones)' },
         { id: 'it2', label: 'Upload all photos — SD cards should be empty each evening before leaving' },
@@ -373,7 +373,7 @@ const DEFAULT_STATE = {
     },
     {
       id: 'cl_oa3_close', kind: 'recurring', name: 'OA #3 — Closing Duties',
-      roleId: 'r_oa', schedule: { freq: 'weekdays', dueTime: '18:30' }, slaMinutes: 60,
+      roleId: 'r_oa', areaId: 'a_steril', schedule: { freq: 'weekdays', dueTime: '18:30' }, slaMinutes: 60,
       items: [
         { id: 'it1',  label: 'Treatment area — ensure chairs have air/water syringes and suction' },
         { id: 'it2',  label: 'Treatment area — chairs cleaned and ready for next day (Windex face mirrors)' },
@@ -384,11 +384,14 @@ const DEFAULT_STATE = {
         { id: 'it7',  label: 'Workstation — restock gloves in your work station' },
         { id: 'it8',  label: 'Workstation — wipe hand sink in your workstation and countertops' },
         { id: 'it9',  label: 'Workstation — RP stools in tx bay area are put away' },
-        { id: 'it10', label: 'Brushing station — clean sinks' },
-        { id: 'it11', label: 'Brushing station — wipe mirrors' },
-        { id: 'it12', label: 'Brushing station — wipe counters' },
-        { id: 'it13', label: 'Brushing station — restock paper towels, toothbrushes, cups, hand soap' },
-        { id: 'it14', label: 'Brushing station — take all trash out' },
+        // Parent item with subtasks — parent auto-completes when all subtasks are done.
+        { id: 'it10', label: 'Brushing station', subtasks: [
+          { id: 'st1', label: 'Clean sinks' },
+          { id: 'st2', label: 'Wipe mirrors' },
+          { id: 'st3', label: 'Wipe counters' },
+          { id: 'st4', label: 'Restock paper towels, toothbrushes, cups, hand soap' },
+          { id: 'st5', label: 'Take all trash out' },
+        ]},
         { id: 'it15', label: 'Lab — ensure all cases have been submitted (aligners or appliances)' },
         { id: 'it16', label: 'Lab — ensure retainers and whitening trays are ready for 8am pick up' },
         { id: 'it17', label: 'Lab — ensure Asana is updated (all tabs that pertain to you)' },
@@ -396,7 +399,7 @@ const DEFAULT_STATE = {
     },
     {
       id: 'cl_oa3_weekly', kind: 'recurring', name: 'OA #3 — Weekly Admin (Tuesday AM)',
-      roleId: 'r_oa', schedule: { freq: 'weekly', weekday: 2, dueTime: '09:00' }, slaMinutes: 60,
+      roleId: 'r_oa', areaId: 'a_steril', schedule: { freq: 'weekly', weekday: 2, dueTime: '09:00' }, slaMinutes: 60,
       items: [
         { id: 'it1',  label: 'Deep clean brushing station' },
         { id: 'it2',  label: 'Clean mirrors' },
@@ -416,7 +419,7 @@ const DEFAULT_STATE = {
     // --- Lab Tech (detailed job description) ---
     {
       id: 'cl_lab_tech_daily', kind: 'recurring', name: 'Lab Tech — Daily Job Description',
-      roleId: 'r_lab', schedule: { freq: 'weekdays', dueTime: '18:00' }, slaMinutes: 60,
+      roleId: 'r_lab', areaId: 'a_labs', schedule: { freq: 'weekdays', dueTime: '18:00' }, slaMinutes: 60,
       items: [
         { id: 'it1',  label: 'Make sure all retainers are done for next day' },
         { id: 'it2',  label: 'Make sure all Next Level Aligner cases are done by due date before leaving' },
@@ -438,7 +441,7 @@ const DEFAULT_STATE = {
     },
     {
       id: 'cl_lab_tech_weekly', kind: 'recurring', name: 'Lab Tech — Weekly (Thursday)',
-      roleId: 'r_lab', schedule: { freq: 'weekly', weekday: 4, dueTime: '18:00' }, slaMinutes: 45,
+      roleId: 'r_lab', areaId: 'a_labs', schedule: { freq: 'weekly', weekday: 4, dueTime: '18:00' }, slaMinutes: 45,
       items: [
         { id: 'it1', label: 'Drain chambers and clean out, then refill with new IPA 99%' },
       ].map(i => ({ ...i, defaultAssigneeId: null })),
@@ -446,7 +449,7 @@ const DEFAULT_STATE = {
     // --- Orthodontic Assistant #4 (detailed workflow) ---
     {
       id: 'cl_oa4_open', kind: 'recurring', name: 'OA #4 — Opening Duties',
-      roleId: 'r_oa', schedule: { freq: 'weekdays', dueTime: '08:00' }, slaMinutes: 30,
+      roleId: 'r_oa', areaId: 'a_steril', schedule: { freq: 'weekdays', dueTime: '08:00' }, slaMinutes: 30,
       items: [
         { id: 'it1', label: 'Records/Lab — ensure cameras are charged and ready for use' },
         { id: 'it2', label: 'Schedule — check your schedule prior to huddle and bring up details in meeting' },
@@ -456,7 +459,7 @@ const DEFAULT_STATE = {
     },
     {
       id: 'cl_oa4_charting', kind: 'recurring', name: 'OA #4 — Charting & Photos',
-      roleId: 'r_oa', schedule: { freq: 'weekdays', dueTime: '17:30' }, slaMinutes: 30,
+      roleId: 'r_oa', areaId: 'a_workstation', schedule: { freq: 'weekdays', dueTime: '17:30' }, slaMinutes: 30,
       items: [
         { id: 'it1', label: 'Ensure all patients are written up (tooth chart, appointment box, milestones)' },
         { id: 'it2', label: 'Upload all photos — SD cards should be empty each evening before leaving' },
@@ -465,7 +468,7 @@ const DEFAULT_STATE = {
     },
     {
       id: 'cl_oa4_close', kind: 'recurring', name: 'OA #4 — Closing Duties',
-      roleId: 'r_oa', schedule: { freq: 'weekdays', dueTime: '18:30' }, slaMinutes: 60,
+      roleId: 'r_oa', areaId: 'a_steril', schedule: { freq: 'weekdays', dueTime: '18:30' }, slaMinutes: 60,
       items: [
         { id: 'it1',  label: 'Treatment area — ensure chairs have air/water syringes and suction' },
         { id: 'it2',  label: 'Treatment area — chairs cleaned and ready for next day (Windex face mirrors)' },
@@ -486,7 +489,7 @@ const DEFAULT_STATE = {
     // --- Orthodontic Assistant #2 (detailed workflow) ---
     {
       id: 'cl_oa2_open', kind: 'recurring', name: 'OA #2 — Opening Duties',
-      roleId: 'r_oa', schedule: { freq: 'weekdays', dueTime: '08:00' }, slaMinutes: 30,
+      roleId: 'r_oa', areaId: 'a_steril', schedule: { freq: 'weekdays', dueTime: '08:00' }, slaMinutes: 30,
       items: [
         { id: 'it1', label: 'Schedule — check your schedule prior to huddle and bring up details in meeting' },
         { id: 'it2', label: 'Retainers — retainer and whitening trays ready at front desk by 8am (no exceptions)' },
@@ -495,7 +498,7 @@ const DEFAULT_STATE = {
     },
     {
       id: 'cl_oa2_charting', kind: 'recurring', name: 'OA #2 — Charting & Photos',
-      roleId: 'r_oa', schedule: { freq: 'weekdays', dueTime: '17:30' }, slaMinutes: 45,
+      roleId: 'r_oa', areaId: 'a_workstation', schedule: { freq: 'weekdays', dueTime: '17:30' }, slaMinutes: 45,
       items: [
         { id: 'it1', label: 'Ensure all patients are written up (tooth chart, appointment box, milestones)' },
         { id: 'it2', label: 'Upload all photos — SD cards should be empty each evening before leaving' },
@@ -507,7 +510,7 @@ const DEFAULT_STATE = {
     },
     {
       id: 'cl_oa2_close', kind: 'recurring', name: 'OA #2 — Closing Duties',
-      roleId: 'r_oa', schedule: { freq: 'weekdays', dueTime: '18:30' }, slaMinutes: 60,
+      roleId: 'r_oa', areaId: 'a_steril', schedule: { freq: 'weekdays', dueTime: '18:30' }, slaMinutes: 60,
       items: [
         { id: 'it1',  label: 'Treatment area — ensure chairs have air/water syringes and suction' },
         { id: 'it2',  label: 'Treatment area — chairs cleaned and ready for next day (Windex face mirrors)' },
@@ -522,14 +525,17 @@ const DEFAULT_STATE = {
     },
     {
       id: 'cl_oa2_weekly', kind: 'recurring', name: 'OA #2 — Weekly Admin (Tuesday AM)',
-      roleId: 'r_oa', schedule: { freq: 'weekly', weekday: 2, dueTime: '09:00' }, slaMinutes: 60,
+      roleId: 'r_oa', areaId: 'a_treatment', schedule: { freq: 'weekly', weekday: 2, dueTime: '09:00' }, slaMinutes: 60,
       items: [
         { id: 'it1',  label: 'Scan all assistants IPR sheets' },
-        { id: 'it2',  label: 'Deep clean chairs — clean chair cushions' },
-        { id: 'it3',  label: 'Deep clean chairs — wipe all hoses' },
-        { id: 'it4',  label: 'Deep clean chairs — clean all drawers out in chairs' },
-        { id: 'it5',  label: 'Deep clean chairs — clean high speed pedal and hose' },
-        { id: 'it6',  label: 'Deep clean chairs — clean glasses and Windex all face mirrors' },
+        // Parent task with 5 subtasks — parent auto-completes when every subtask is ticked.
+        { id: 'it2',  label: 'Deep clean chairs', subtasks: [
+          { id: 'st1', label: 'Clean chair cushions' },
+          { id: 'st2', label: 'Wipe all hoses' },
+          { id: 'st3', label: 'Clean all drawers out in chairs' },
+          { id: 'st4', label: 'Clean high speed pedal and hose' },
+          { id: 'st5', label: 'Clean glasses and Windex all face mirrors' },
+        ]},
         { id: 'it7',  label: 'Dust window sills in tx bay area' },
         { id: 'it8',  label: 'Dust cabinets in each work station' },
         { id: 'it9',  label: 'Clean windows in tx bay area' },
@@ -544,6 +550,17 @@ const DEFAULT_STATE = {
   // respects this list so hard-deleted seeds don't come back on the next
   // hydrate. Archived checklists stay in `checklists` with archived: true.
   deletedChecklistIds: [],
+  // Area tags — one per checklist. Seeded with the office's physical zones;
+  // staff can add / rename / delete in Settings. `areaId` on a checklist may
+  // be null (un-tagged).
+  areas: [
+    { id: 'a_labs',       name: 'Labs',          color: 'bg-purple-100 text-purple-800' },
+    { id: 'a_steril',     name: 'Sterilization', color: 'bg-rose-100 text-rose-800' },
+    { id: 'a_lobby',      name: 'Lobby',         color: 'bg-amber-100 text-amber-800' },
+    { id: 'a_clinic',     name: 'Clinic',        color: 'bg-sky-100 text-sky-800' },
+    { id: 'a_treatment',  name: 'Treatment',     color: 'bg-emerald-100 text-emerald-800' },
+    { id: 'a_workstation',name: 'Workstation',   color: 'bg-slate-100 text-slate-700' },
+  ],
   settings: {
     timeOffSyncUrl: '',
     lastSyncAt: null,
@@ -931,9 +948,18 @@ function applySeedMigrations(state) {
   // by item id first, then case-insensitive label text as a safety net.
   const seedById = new Map((DEFAULT_STATE.checklists || []).map(c => [c.id, c]));
   let itemsBackfilled = 0;
+  let areasBackfilled = 0;
   const backfilledChecklists = (state.checklists || []).map(cl => {
     const seed = seedById.get(cl.id);
-    if (!seed || !Array.isArray(seed.items)) return cl;
+    // (2a) Backfill areaId from seed when the existing checklist doesn't have
+    // one yet (e.g. long-time users whose saved state pre-dates the Areas
+    // feature). Never overwrite an areaId the admin already set.
+    let next = cl;
+    if (seed && seed.areaId && !cl.areaId) {
+      next = { ...next, areaId: seed.areaId };
+      areasBackfilled++;
+    }
+    if (!seed || !Array.isArray(seed.items)) return next;
     const existingItemIds = new Set((cl.items || []).map(i => i && i.id).filter(Boolean));
     const existingLabels = new Set((cl.items || [])
       .map(i => (i?.label || '').trim().toLowerCase())
@@ -942,12 +968,15 @@ function applySeedMigrations(state) {
       !existingItemIds.has(si.id)
       && !existingLabels.has((si.label || '').trim().toLowerCase())
     );
-    if (newItems.length === 0) return cl;
+    if (newItems.length === 0) return next;
     itemsBackfilled += newItems.length;
-    return { ...cl, items: [...(cl.items || []), ...newItems] };
+    return { ...next, items: [...(next.items || []), ...newItems] };
   });
   if (itemsBackfilled > 0) {
     console.log('[NLO Checklists] Seed migration → backfilled', itemsBackfilled, 'missing items across existing checklists');
+  }
+  if (areasBackfilled > 0) {
+    console.log('[NLO Checklists] Seed migration → backfilled area tags on', areasBackfilled, 'existing checklists');
   }
   if (missing.length === 0) {
     // Only the items-backfill (or nothing) changed. Keep _seedVersion fresh.
@@ -1135,6 +1164,19 @@ function makeInstance(checklist, { appointmentLabel, date, actorId, state }) {
       status: 'pending',
       completedBy: null,
       completedAt: null,
+      // Snapshot subtasks from the definition so admin changes after the
+      // instance spawns don't retroactively alter what staff saw. Each
+      // instance subtask gets its own id, tracks completion independently,
+      // and the parent's `status` is computed from its subtasks (never
+      // toggled directly by the user when subtasks exist).
+      subtasks: Array.isArray(i.subtasks) ? i.subtasks.map(st => ({
+        id: uid(),
+        defId: st.id,
+        label: st.label,
+        status: 'pending',
+        completedBy: null,
+        completedAt: null,
+      })) : [],
     })),
   };
 }
@@ -1162,13 +1204,37 @@ function reconcileInstanceItems(inst, cl) {
     // Preserve existing per-item state where we can find a match.
     const existing = byDefId.get(di.id)
       || byLabel.get((di.label || '').trim().toLowerCase());
+    const defSubtasks = Array.isArray(di.subtasks) ? di.subtasks : [];
     if (existing) {
+      // Reconcile subtasks the same way we reconcile items: preserve
+      // per-subtask state when we can match by defId (or label), add any
+      // net-new subtasks as pending, drop any that the admin removed.
+      const subByDef = new Map();
+      const subByLabel = new Map();
+      (existing.subtasks || []).forEach(st => {
+        if (st.defId) subByDef.set(st.defId, st);
+        if (st.label) subByLabel.set(st.label.trim().toLowerCase(), st);
+      });
+      const nextSubtasks = defSubtasks.map(ds => {
+        const prior = subByDef.get(ds.id)
+          || subByLabel.get((ds.label || '').trim().toLowerCase());
+        if (prior) return { ...prior, defId: ds.id, label: ds.label };
+        return {
+          id: uid(),
+          defId: ds.id,
+          label: ds.label,
+          status: 'pending',
+          completedBy: null,
+          completedAt: null,
+        };
+      });
       return {
         ...existing,
         // Re-link defId for future reconciliations.
         defId: di.id,
         // Admin may have renamed the item — pick up the new label.
         label: di.label,
+        subtasks: nextSubtasks,
       };
     }
     // Brand-new item — add as pending, use the definition's default owner.
@@ -1180,6 +1246,14 @@ function reconcileInstanceItems(inst, cl) {
       status: 'pending',
       completedBy: null,
       completedAt: null,
+      subtasks: defSubtasks.map(ds => ({
+        id: uid(),
+        defId: ds.id,
+        label: ds.label,
+        status: 'pending',
+        completedBy: null,
+        completedAt: null,
+      })),
     };
   });
 }
@@ -1461,12 +1535,19 @@ function reducer(state, action) {
       next = { ...state, instances: state.instances.filter(i => i.id !== action.id) }; break;
 
     case 'ITEM_TOGGLE': {
-      let targetLabel = '', wasDone = false;
+      let targetLabel = '', wasDone = false, blockedBySubtasks = false;
       const instances = state.instances.map(inst => {
         if (inst.id !== action.instanceId) return inst;
         if (inst.status === 'completed') return inst; // can't edit completed
         const items = inst.items.map(it => {
           if (it.id !== action.itemId) return it;
+          // If the item has subtasks, its parent status is derived — never
+          // toggled directly by the staff checkbox. The UI disables the
+          // checkbox, but guard here too.
+          if (Array.isArray(it.subtasks) && it.subtasks.length > 0) {
+            blockedBySubtasks = true;
+            return it;
+          }
           wasDone = it.status === 'done';
           if (!wasDone) targetLabel = it.label;
           return !wasDone
@@ -1476,12 +1557,96 @@ function reducer(state, action) {
         // NOTE: NO auto-completion here. Completion requires explicit certification.
         return { ...inst, items };
       });
+      if (blockedBySubtasks) return state;
       next = { ...state, instances };
       next = audit(next, {
         action: targetLabel ? 'item_completed' : 'item_reopened',
         instanceId: action.instanceId, itemId: action.itemId, actorId: action.actorId,
         label: targetLabel || '(item reopened)',
       });
+      break;
+    }
+
+    case 'SUBTASK_TOGGLE': {
+      // Toggle a single subtask. When all subtasks are done, the parent item
+      // auto-flips to `done` (with completedBy/At set to this action's
+      // actor / time). If any subtask is un-done, the parent flips back to
+      // `pending`. Parent `assignedTo` stays owned by whoever is assigned
+      // at the item level.
+      let toggledLabel = '', wasDone = false;
+      const instances = state.instances.map(inst => {
+        if (inst.id !== action.instanceId) return inst;
+        if (inst.status === 'completed') return inst; // can't edit completed
+        const items = inst.items.map(it => {
+          if (it.id !== action.itemId) return it;
+          if (!Array.isArray(it.subtasks) || it.subtasks.length === 0) return it;
+          const nextSubtasks = it.subtasks.map(st => {
+            if (st.id !== action.subtaskId) return st;
+            wasDone = st.status === 'done';
+            if (!wasDone) toggledLabel = st.label;
+            return !wasDone
+              ? { ...st, status: 'done', completedBy: action.actorId, completedAt: now() }
+              : { ...st, status: 'pending', completedBy: null, completedAt: null };
+          });
+          const allDone = nextSubtasks.every(st => st.status === 'done');
+          // Parent auto-completes when all subs done; auto-reopens otherwise.
+          // Preserve the parent's completedBy/At from the last completing
+          // subtask so the certification audit trail stays sensible.
+          const parentStatus = allDone ? 'done' : 'pending';
+          return {
+            ...it,
+            subtasks: nextSubtasks,
+            status: parentStatus,
+            completedBy: parentStatus === 'done' ? action.actorId : null,
+            completedAt: parentStatus === 'done' ? now() : null,
+          };
+        });
+        return { ...inst, items };
+      });
+      next = { ...state, instances };
+      next = audit(next, {
+        action: toggledLabel ? 'subtask_completed' : 'subtask_reopened',
+        instanceId: action.instanceId, itemId: action.itemId,
+        subtaskId: action.subtaskId, actorId: action.actorId,
+        label: toggledLabel || '(subtask reopened)',
+      });
+      break;
+    }
+
+    case 'AREA_ADD': {
+      const name = (action.name || '').trim();
+      if (!name) return state;
+      const id = action.id || ('a_' + uid().slice(0, 6));
+      const color = action.color || 'bg-slate-100 text-slate-700';
+      const areas = [...(state.areas || []), { id, name, color }];
+      next = { ...state, areas };
+      next = audit(next, { action: 'area_added', actorId: action.actorId || 'system', label: `Area added: ${name}` });
+      break;
+    }
+
+    case 'AREA_RENAME': {
+      const name = (action.name || '').trim();
+      if (!name) return state;
+      const areas = (state.areas || []).map(a =>
+        a.id === action.id
+          ? { ...a, name, color: action.color || a.color }
+          : a
+      );
+      next = { ...state, areas };
+      next = audit(next, { action: 'area_renamed', actorId: action.actorId || 'system', label: `Area renamed: ${name}` });
+      break;
+    }
+
+    case 'AREA_DELETE': {
+      // Deleting an area must NOT leave orphan areaIds on checklists.
+      // Clear areaId on any checklist that pointed at this area.
+      const area = (state.areas || []).find(a => a.id === action.id);
+      const areas = (state.areas || []).filter(a => a.id !== action.id);
+      const checklists = (state.checklists || []).map(cl =>
+        cl.areaId === action.id ? { ...cl, areaId: null } : cl
+      );
+      next = { ...state, areas, checklists };
+      next = audit(next, { action: 'area_deleted', actorId: action.actorId || 'system', label: `Area deleted: ${area?.name || action.id}` });
       break;
     }
 
@@ -2414,6 +2579,423 @@ function AdminView({ state, dispatch, user }) {
 /* ============================================================
    ADMIN: TODAY
    ============================================================ */
+// Aggregates the last N days of instances (+ audit log) into per-staff
+// scorecards for the admin dashboard. Replaces the old "wall of outstanding
+// checklists" with an at-a-glance leaderboard so the admin can see who's
+// on track, who's drifting, and where inspections are landing.
+function computeLeaderboard(state, scope, days = 30) {
+  const cutoffMs = Date.now() - days * 24 * 60 * 60 * 1000;
+  const today = todayISO();
+  const byStaff = new Map();
+  const getBucket = (id) => {
+    if (!byStaff.has(id)) {
+      byStaff.set(id, {
+        staffId: id,
+        ontime: 0,
+        late: 0,
+        incomplete: 0,
+        inspectionsPass: 0,
+        inspectionsFail: 0,
+        total: 0,
+      });
+    }
+    return byStaff.get(id);
+  };
+
+  // 1) Walk instances in the window. Per-item completions drive the
+  //    "on-time vs late" counters so a checklist with 5 items divided
+  //    among 3 staff splits credit fairly.
+  state.instances.forEach(inst => {
+    if (!inst.date) return;
+    const instMs = new Date(inst.date + 'T12:00:00').getTime();
+    if (instMs < cutoffMs) return;
+    if (scope && !scope.canSeeInstance(inst)) return;
+    (inst.items || []).forEach(it => {
+      const ownerId = it.completedBy || it.assignedTo;
+      if (!ownerId) return;
+      const b = getBucket(ownerId);
+      b.total++;
+      if (it.status === 'done') {
+        const doneAt = it.completedAt || inst.completedAt || 0;
+        const late = doneAt && inst.dueAt && doneAt > inst.dueAt;
+        if (late) b.late++; else b.ontime++;
+      } else if (inst.date !== today) {
+        // Still pending AND the day is behind us → incomplete.
+        b.incomplete++;
+      }
+    });
+  });
+
+  // 2) Audit-log inspections: count pass / fail per completer.
+  (state.auditLog || []).forEach(e => {
+    if (!e.at || e.at < cutoffMs) return;
+    if (e.action !== 'inspection_pass' && e.action !== 'inspection_fail') return;
+    // The inspection audit entry carries the instanceId + itemId that was
+    // inspected; we look it up to find who did the work.
+    const inst = state.instances.find(i => i.id === e.instanceId);
+    const it = inst?.items?.find(i => i.id === e.itemId);
+    const ownerId = it?.completedBy || it?.assignedTo;
+    if (!ownerId) return;
+    if (scope && inst && !scope.canSeeInstance(inst)) return;
+    const b = getBucket(ownerId);
+    if (e.action === 'inspection_pass') b.inspectionsPass++;
+    else b.inspectionsFail++;
+  });
+
+  return Array.from(byStaff.values())
+    .map(b => ({
+      ...b,
+      ontimePct: b.total > 0 ? Math.round((b.ontime / b.total) * 100) : 0,
+    }))
+    .sort((a, b) => {
+      // Sort by on-time % descending, breaking ties on total volume so a
+      // 100% / 1-item person doesn't out-rank a 92% / 200-item person.
+      if (b.ontimePct !== a.ontimePct) return b.ontimePct - a.ontimePct;
+      return b.total - a.total;
+    });
+}
+
+function DashboardSummary({ state, scope }) {
+  const today = todayISO();
+  const nowDate = new Date();
+  // Open-today = same filter as TodayTab (daily rolls off, cycle stays
+  // visible for current cycle, event instances stay visible).
+  const openToday = state.instances.filter(i => {
+    if (i.status === 'completed') return false;
+    if (scope && !scope.canSeeInstance(i)) return false;
+    const snap = i.checklistSnapshot || {};
+    if (snap.kind === 'event') return true;
+    const freq = snap.schedule?.freq;
+    if (freq === 'weekly' || freq === 'monthly' || freq === 'quarterly') {
+      const currentCycle = cycleKeyFor(snap.schedule, nowDate);
+      if (i.cycleKey) return i.cycleKey === currentCycle;
+      if (i.date) {
+        const legacyCycle = cycleKeyFor(snap.schedule, new Date(i.date + 'T12:00:00'));
+        return legacyCycle === currentCycle;
+      }
+      return false;
+    }
+    return i.date === today;
+  });
+  const overdueToday = openToday.filter(i => i.dueAt < now());
+  const completedToday = state.instances.filter(i =>
+    i.status === 'completed' && i.date === today && (!scope || scope.canSeeInstance(i))
+  );
+
+  // Area breakdown for the "Open by area" mini-chart.
+  const areaStats = useMemo(() => {
+    const counts = new Map();
+    openToday.forEach(i => {
+      const aid = i.checklistSnapshot?.areaId
+        ?? state.checklists.find(c => c.id === i.checklistId)?.areaId
+        ?? '_none';
+      counts.set(aid, (counts.get(aid) || 0) + 1);
+    });
+    const rows = Array.from(counts.entries()).map(([aid, n]) => {
+      const area = (state.areas || []).find(a => a.id === aid);
+      return {
+        id: aid,
+        name: area ? area.name : 'No area',
+        color: area ? area.color : 'bg-slate-100 text-slate-600',
+        count: n,
+      };
+    }).sort((a, b) => b.count - a.count);
+    const max = rows.reduce((m, r) => Math.max(m, r.count), 0) || 1;
+    return { rows, max };
+  }, [openToday, state.areas, state.checklists]);
+
+  const leaderboard = useMemo(() => computeLeaderboard(state, scope, 30), [state, scope]);
+
+  return (
+    <div className="grid lg:grid-cols-3 gap-3">
+      <div className="card p-4">
+        <div className="text-xs uppercase tracking-wide text-slate-500">Open today</div>
+        <div className="text-3xl font-semibold text-slate-900 mt-1">{openToday.length}</div>
+        <div className="text-xs text-slate-500 mt-1">
+          {overdueToday.length > 0
+            ? <span className="text-red-700 font-medium">{overdueToday.length} overdue</span>
+            : 'None overdue yet'}
+        </div>
+      </div>
+      <div className="card p-4">
+        <div className="text-xs uppercase tracking-wide text-slate-500">Completed today</div>
+        <div className="text-3xl font-semibold text-emerald-700 mt-1">{completedToday.length}</div>
+        <div className="text-xs text-slate-500 mt-1">
+          {openToday.length + completedToday.length > 0
+            ? `${Math.round((completedToday.length / (openToday.length + completedToday.length)) * 100)}% of today's total`
+            : 'Quiet day'}
+        </div>
+      </div>
+      <div className="card p-4">
+        <div className="text-xs uppercase tracking-wide text-slate-500">30-day on-time rate</div>
+        <div className="text-3xl font-semibold text-slate-900 mt-1">
+          {(() => {
+            const ontime = leaderboard.reduce((n, r) => n + r.ontime, 0);
+            const total  = leaderboard.reduce((n, r) => n + r.total,  0);
+            return total > 0 ? Math.round((ontime / total) * 100) + '%' : '—';
+          })()}
+        </div>
+        <div className="text-xs text-slate-500 mt-1">Across all tracked items</div>
+      </div>
+
+      {areaStats.rows.length > 0 && (
+        <div className="card p-4 lg:col-span-3">
+          <div className="flex items-center justify-between mb-2">
+            <div className="font-semibold text-slate-900">Open by area</div>
+            <div className="text-xs text-slate-500">What's outstanding right now</div>
+          </div>
+          <div className="space-y-2">
+            {areaStats.rows.map(r => (
+              <div key={r.id} className="flex items-center gap-2">
+                <span className={`pill ${r.color} shrink-0 w-28 text-center`}>{r.name}</span>
+                <div className="flex-1 h-3 bg-slate-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-blue-500"
+                    style={{ width: `${(r.count / areaStats.max) * 100}%` }} />
+                </div>
+                <div className="w-8 text-right text-sm text-slate-700">{r.count}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {leaderboard.length > 0 && (
+        <div className="card p-4 lg:col-span-3">
+          <div className="flex items-center justify-between mb-3">
+            <div className="font-semibold text-slate-900">Staff leaderboard · last 30 days</div>
+            <div className="text-xs text-slate-500">Sorted by on-time %</div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-xs uppercase tracking-wide text-slate-500">
+                  <th className="text-left py-1 pr-3">Staff</th>
+                  <th className="text-right px-2">On-time %</th>
+                  <th className="text-right px-2">On-time</th>
+                  <th className="text-right px-2">Late</th>
+                  <th className="text-right px-2">Incomplete</th>
+                  <th className="text-right px-2">Insp. ✓</th>
+                  <th className="text-right px-2">Insp. ✗</th>
+                </tr>
+              </thead>
+              <tbody>
+                {leaderboard.slice(0, 15).map(row => {
+                  const staff = state.staff.find(s => s.id === row.staffId);
+                  const pctClass = row.ontimePct >= 90
+                    ? 'bg-emerald-100 text-emerald-800'
+                    : row.ontimePct >= 75
+                      ? 'bg-amber-100 text-amber-800'
+                      : 'bg-red-100 text-red-700';
+                  return (
+                    <tr key={row.staffId} className="border-t border-slate-100">
+                      <td className="py-1.5 pr-3 text-slate-800">{staff?.name || '(unknown)'}</td>
+                      <td className="text-right px-2">
+                        <span className={`pill ${pctClass}`}>{row.ontimePct}%</span>
+                      </td>
+                      <td className="text-right px-2 text-emerald-700">{row.ontime}</td>
+                      <td className="text-right px-2 text-amber-700">{row.late}</td>
+                      <td className="text-right px-2 text-red-700">{row.incomplete}</td>
+                      <td className="text-right px-2 text-emerald-700">{row.inspectionsPass}</td>
+                      <td className="text-right px-2 text-red-700">{row.inspectionsFail}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Global admin search — hits checklist names, item labels, subtask labels,
+// area names, and assignee names, and scopes across live Today + last 30
+// days of history + the raw checklist definitions. Results cluster by
+// source so the admin can jump to exactly what they need.
+function GlobalSearchBar({ state, scope, user }) {
+  const [q, setQ] = useState('');
+  const [expanded, setExpanded] = useState(false);
+  const results = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    if (needle.length < 2) return null;
+    const today = todayISO();
+    const nowDate = new Date();
+    const cutoffMs = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    const areaById = new Map((state.areas || []).map(a => [a.id, a]));
+    const staffById = new Map(state.staff.map(s => [s.id, s]));
+    const matchesText = (t) => (t || '').toLowerCase().includes(needle);
+    const matchesStaff = (ids) => (ids || []).some(id =>
+      matchesText(staffById.get(id)?.name)
+    );
+
+    // (1) Checklist definitions
+    const checklistHits = [];
+    (state.checklists || []).forEach(cl => {
+      const reasons = [];
+      if (matchesText(cl.name)) reasons.push('name');
+      if (matchesStaff(cl.assignedStaffIds)) reasons.push('assignee');
+      const area = areaById.get(cl.areaId);
+      if (area && matchesText(area.name)) reasons.push('area');
+      const matchItems = [];
+      (cl.items || []).forEach(it => {
+        let itemReason = null;
+        if (matchesText(it.label)) itemReason = 'label';
+        const subMatches = (it.subtasks || []).filter(st => matchesText(st.label));
+        if (subMatches.length) itemReason = itemReason || 'subtask';
+        if (itemReason) matchItems.push({ label: it.label, subMatches });
+      });
+      if (matchItems.length) reasons.push('item');
+      if (reasons.length === 0) return;
+      checklistHits.push({ cl, reasons, matchItems, area });
+    });
+
+    // (2) Today / last-30-day instances (surface assignees + live progress)
+    const instanceHits = [];
+    state.instances.forEach(inst => {
+      if (!inst.date) return;
+      const instMs = new Date(inst.date + 'T12:00:00').getTime();
+      if (instMs < cutoffMs) return;
+      if (scope && !scope.canSeeInstance(inst)) return;
+      const reasons = [];
+      if (matchesText(inst.checklistName)) reasons.push('name');
+      if (matchesStaff(inst.assignedStaffIds)) reasons.push('assignee');
+      const matchItems = [];
+      (inst.items || []).forEach(it => {
+        const itemHit = matchesText(it.label);
+        const subHits = (it.subtasks || []).filter(st => matchesText(st.label));
+        if (itemHit || subHits.length) {
+          matchItems.push({
+            label: it.label,
+            assigneeName: staffById.get(it.assignedTo)?.name,
+            status: it.status,
+            subHits,
+          });
+        }
+      });
+      if (matchItems.length) reasons.push('item');
+      if (reasons.length === 0) return;
+      instanceHits.push({ inst, reasons, matchItems });
+    });
+    // Cap each bucket so long-term users with many checklists don't get a
+    // wall of results.
+    return {
+      checklists: checklistHits.slice(0, 20),
+      instances:  instanceHits.slice(0, 20),
+      total: checklistHits.length + instanceHits.length,
+    };
+  }, [q, state, scope]);
+
+  const isOpen = !!results && (expanded || q.trim().length >= 2);
+
+  return (
+    <div className="card p-3 space-y-2">
+      <div className="flex items-center gap-2">
+        <div className="text-slate-400 text-sm">🔎</div>
+        <input className="input flex-1"
+          placeholder="Search checklists, items, subtasks, areas, assignees…"
+          value={q}
+          onChange={e => { setQ(e.target.value); setExpanded(true); }} />
+        {q && (
+          <button className="btn btn-ghost text-slate-400 text-sm"
+            onClick={() => { setQ(''); setExpanded(false); }}>Clear</button>
+        )}
+      </div>
+      {isOpen && results && (
+        <div className="text-sm">
+          {results.total === 0 && (
+            <div className="text-slate-400 italic py-2">No matches.</div>
+          )}
+          {results.checklists.length > 0 && (
+            <div>
+              <div className="text-xs uppercase tracking-wide text-slate-500 mt-1 mb-1">Checklist definitions ({results.checklists.length})</div>
+              <ul className="divide-y divide-slate-100">
+                {results.checklists.map(({ cl, reasons, matchItems, area }) => {
+                  const role = state.roles.find(r => r.id === cl.roleId);
+                  const assignedNames = (cl.assignedStaffIds || [])
+                    .map(id => state.staff.find(s => s.id === id)?.name)
+                    .filter(Boolean);
+                  return (
+                    <li key={cl.id} className="py-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-medium text-slate-800">{cl.name}</span>
+                        {role && <span className="pill bg-slate-100 text-slate-600">{role.name}</span>}
+                        {area && <span className={`pill ${area.color}`}>{area.name}</span>}
+                        <span className="pill bg-blue-50 text-blue-700">
+                          {cl.kind === 'recurring' ? 'Recurring' : 'Event'}
+                        </span>
+                        <span className="text-xs text-slate-400">matched: {reasons.join(', ')}</span>
+                      </div>
+                      {matchItems.length > 0 && (
+                        <ul className="ml-4 mt-1 text-xs text-slate-600 list-disc">
+                          {matchItems.slice(0, 5).map((mi, i) => (
+                            <li key={i}>
+                              {mi.label}
+                              {mi.subMatches && mi.subMatches.length > 0 && (
+                                <span className="text-slate-400"> · subtasks: {mi.subMatches.map(s => s.label).join(', ')}</span>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      {assignedNames.length > 0 && (
+                        <div className="text-xs text-slate-500 mt-1">
+                          Assignees: {assignedNames.slice(0, 6).join(', ')}
+                          {assignedNames.length > 6 && ` +${assignedNames.length - 6} more`}
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+          {results.instances.length > 0 && (
+            <div>
+              <div className="text-xs uppercase tracking-wide text-slate-500 mt-2 mb-1">Open / recent instances ({results.instances.length})</div>
+              <ul className="divide-y divide-slate-100">
+                {results.instances.map(({ inst, reasons, matchItems }) => {
+                  const statusPill = inst.status === 'completed'
+                    ? <span className="pill bg-emerald-100 text-emerald-800">Completed</span>
+                    : inst.dueAt < now()
+                      ? <span className="pill bg-red-100 text-red-700">Overdue</span>
+                      : <span className="pill bg-amber-100 text-amber-800">Open</span>;
+                  return (
+                    <li key={inst.id} className="py-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-medium text-slate-800">{inst.checklistName}</span>
+                        <span className="pill bg-slate-100 text-slate-600">{inst.date}</span>
+                        {statusPill}
+                        <span className="text-xs text-slate-400">matched: {reasons.join(', ')}</span>
+                      </div>
+                      {matchItems.length > 0 && (
+                        <ul className="ml-4 mt-1 text-xs text-slate-600 list-disc">
+                          {matchItems.slice(0, 5).map((mi, i) => (
+                            <li key={i}>
+                              <span className={mi.status === 'done' ? 'line-through text-slate-400' : ''}>{mi.label}</span>
+                              {mi.assigneeName && <span className="text-slate-500"> — {mi.assigneeName}</span>}
+                              {mi.subHits && mi.subHits.length > 0 && (
+                                <span className="text-slate-400"> · subtasks: {mi.subHits.map(s => s.label).join(', ')}</span>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+      {q.trim().length >= 1 && q.trim().length < 2 && (
+        <div className="text-xs text-slate-400">Type at least 2 characters to search.</div>
+      )}
+    </div>
+  );
+}
+
 function TodayTab({ state, dispatch, user, scope }) {
   const [showSpawn, setShowSpawn] = useState(false);
   const [showInspection, setShowInspection] = useState(false);
@@ -2508,6 +3090,10 @@ function TodayTab({ state, dispatch, user, scope }) {
           )}
         </div>
       </div>
+
+      <DashboardSummary state={state} scope={scope} />
+
+      <GlobalSearchBar state={state} scope={scope} user={user} />
 
       {grouped.length === 0 && <div className="card p-6 text-center text-slate-400 text-sm">Nothing open right now.</div>}
       {grouped.map(({ role, items }) => (
@@ -2949,6 +3535,12 @@ function InstanceCard({ inst, state, dispatch, user, admin, readOnly, highlightA
   const overdue = inst.status !== 'completed' && inst.dueAt < now();
   const roleMembers = state.staff.filter(s => s.roleIds?.includes(inst.roleId));
   const certifier = inst.certifiedBy ? state.staff.find(s => s.id === inst.certifiedBy) : null;
+  // Area pill — looked up from live state.areas via the snapshot's areaId.
+  // We fall back to checklist definition in case the instance snapshot
+  // pre-dates the areas feature.
+  const defArea = (state.areas || []).find(a =>
+    a.id === (inst.checklistSnapshot?.areaId ?? state.checklists.find(c => c.id === inst.checklistId)?.areaId)
+  );
 
   return (
     <div className={`card p-4 ${overdue ? 'border-red-300 bg-red-50/40' : ''} ${allDone && !inst.completedAt ? 'border-green-300' : ''}`}>
@@ -2967,6 +3559,7 @@ function InstanceCard({ inst, state, dispatch, user, admin, readOnly, highlightA
             })()}
             {inst.kind === 'recurring' && <span className="pill bg-slate-100 text-slate-600">{inst.date}</span>}
             {role && <span className="pill bg-slate-100 text-slate-600">{role.name}</span>}
+            {defArea && <span className={`pill ${defArea.color || 'bg-slate-100 text-slate-700'}`}>{defArea.name}</span>}
             {inst.status === 'completed' && <span className="pill bg-green-100 text-green-800">Completed</span>}
             {overdue && <span className="pill bg-red-100 text-red-800">Overdue</span>}
           </div>
@@ -2994,28 +3587,67 @@ function InstanceCard({ inst, state, dispatch, user, admin, readOnly, highlightA
             {inst.items.map(it => {
               const assignee = state.staff.find(s => s.id === it.assignedTo);
               const mine = it.assignedTo === user.id;
-              const canCheck = !readOnly && inst.status !== 'completed' && (admin || mine || !it.assignedTo);
+              const hasSubs = Array.isArray(it.subtasks) && it.subtasks.length > 0;
+              const subsDone = hasSubs ? it.subtasks.filter(s => s.status === 'done').length : 0;
+              const subsTotal = hasSubs ? it.subtasks.length : 0;
+              const canCheckParent = !hasSubs && !readOnly && inst.status !== 'completed' && (admin || mine || !it.assignedTo);
+              // Staff can tick a subtask when they own the parent (or it's
+              // unassigned, or they're admin). Matches parent-checkbox gating.
+              const canCheckSub = !readOnly && inst.status !== 'completed' && (admin || mine || !it.assignedTo);
               return (
-                <li key={it.id} className={`flex items-start gap-3 py-2 px-2 rounded ${highlightAssignee === it.assignedTo ? 'bg-blue-50/60' : ''}`}>
-                  <input type="checkbox" checked={it.status === 'done'} disabled={!canCheck}
-                    onChange={() => dispatch({ type: 'ITEM_TOGGLE', instanceId: inst.id, itemId: it.id, actorId: user.id })}
-                    className="mt-1 h-4 w-4 accent-blue-600 disabled:opacity-40" />
-                  <div className="flex-1 min-w-0">
-                    <div className={`text-sm ${it.status === 'done' ? 'line-through text-slate-400' : 'text-slate-800'}`}>{it.label}</div>
-                    <div className="text-xs text-slate-500 mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                      {assignee
-                        ? <span className={mine ? 'text-blue-700 font-medium' : ''}>Assigned: {assignee.name}{mine ? ' (you)' : ''}</span>
-                        : <span className="text-slate-400">Unassigned — any {role?.name || 'team member'} can pick this up</span>}
-                      {it.status === 'done' && it.completedBy && (<span>• Done by {state.staff.find(s => s.id === it.completedBy)?.name || '?'} {fmtRel(it.completedAt)}</span>)}
+                <li key={it.id} className={`py-2 px-2 rounded ${highlightAssignee === it.assignedTo ? 'bg-blue-50/60' : ''}`}>
+                  <div className="flex items-start gap-3">
+                    <input type="checkbox" checked={it.status === 'done'}
+                      disabled={!canCheckParent}
+                      title={hasSubs ? 'Auto-completes when all subtasks are done' : undefined}
+                      onChange={() => dispatch({ type: 'ITEM_TOGGLE', instanceId: inst.id, itemId: it.id, actorId: user.id })}
+                      className="mt-1 h-4 w-4 accent-blue-600 disabled:opacity-40" />
+                    <div className="flex-1 min-w-0">
+                      <div className={`text-sm ${it.status === 'done' ? 'line-through text-slate-400' : 'text-slate-800'}`}>
+                        {it.label}
+                        {hasSubs && (
+                          <span className="ml-2 text-xs font-normal text-slate-500">
+                            ({subsDone}/{subsTotal} subtasks)
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-slate-500 mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                        {assignee
+                          ? <span className={mine ? 'text-blue-700 font-medium' : ''}>Assigned: {assignee.name}{mine ? ' (you)' : ''}</span>
+                          : <span className="text-slate-400">Unassigned — any {role?.name || 'team member'} can pick this up</span>}
+                        {it.status === 'done' && it.completedBy && (<span>• Done by {state.staff.find(s => s.id === it.completedBy)?.name || '?'} {fmtRel(it.completedAt)}</span>)}
+                      </div>
                     </div>
+                    {admin && !readOnly && (
+                      <select value={it.assignedTo || ''} title="Reassign within role"
+                        onChange={e => dispatch({ type: 'ITEM_ASSIGN', instanceId: inst.id, itemId: it.id, assigneeId: e.target.value || null, actorId: user.id })}
+                        className="input py-1 text-xs w-auto max-w-[180px]">
+                        <option value="">Unassigned</option>
+                        {roleMembers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                      </select>
+                    )}
                   </div>
-                  {admin && !readOnly && (
-                    <select value={it.assignedTo || ''} title="Reassign within role"
-                      onChange={e => dispatch({ type: 'ITEM_ASSIGN', instanceId: inst.id, itemId: it.id, assigneeId: e.target.value || null, actorId: user.id })}
-                      className="input py-1 text-xs w-auto max-w-[180px]">
-                      <option value="">Unassigned</option>
-                      {roleMembers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                    </select>
+                  {hasSubs && (
+                    <ul className="mt-1 ml-7 pl-3 border-l-2 border-slate-200 space-y-0.5">
+                      {it.subtasks.map(st => (
+                        <li key={st.id} className="flex items-start gap-2 py-0.5">
+                          <input type="checkbox" checked={st.status === 'done'}
+                            disabled={!canCheckSub}
+                            onChange={() => dispatch({ type: 'SUBTASK_TOGGLE', instanceId: inst.id, itemId: it.id, subtaskId: st.id, actorId: user.id })}
+                            className="mt-1 h-3.5 w-3.5 accent-blue-600 disabled:opacity-40" />
+                          <div className="flex-1 min-w-0">
+                            <div className={`text-sm ${st.status === 'done' ? 'line-through text-slate-400' : 'text-slate-700'}`}>
+                              {st.label}
+                            </div>
+                            {st.status === 'done' && st.completedBy && (
+                              <div className="text-xs text-slate-400">
+                                Done by {state.staff.find(s => s.id === st.completedBy)?.name || '?'} {fmtRel(st.completedAt)}
+                              </div>
+                            )}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
                   )}
                 </li>
               );
@@ -3220,7 +3852,15 @@ function ChecklistEditor({ kind, state, checklist, onClose, onSave }) {
   const [startMonth, setStartMonth] = useState(checklist?.schedule?.startMonth ?? 0);
   const [dueTime, setDueTime] = useState(checklist?.schedule?.dueTime || state.settings?.dayEndTime || '17:30');
   const [slaMinutes, setSlaMinutes] = useState(checklist?.slaMinutes || (kind === 'event' ? 45 : 60));
-  const [items, setItems] = useState(checklist?.items?.length ? checklist.items : [{ id: uid(), label: '', defaultAssigneeId: null }]);
+  const [areaId, setAreaId] = useState(checklist?.areaId ?? null);
+  // Normalize items to always carry a `subtasks` array so the editor UI and
+  // save payload don't have to keep defensive `|| []` checks everywhere.
+  const [items, setItems] = useState(() => {
+    const src = checklist?.items?.length
+      ? checklist.items
+      : [{ id: uid(), label: '', defaultAssigneeId: null, subtasks: [] }];
+    return src.map(it => ({ ...it, subtasks: Array.isArray(it.subtasks) ? it.subtasks : [] }));
+  });
 
   // Staff assignment — start with either the existing list OR everyone in the picked role
   const initialAssigned = checklist?.assignedStaffIds?.length
@@ -3249,10 +3889,38 @@ function ChecklistEditor({ kind, state, checklist, onClose, onSave }) {
   const assignedStaff = state.staff.filter(s => assignedStaffIds.includes(s.id));
 
   const update = (idx, patch) => setItems(items.map((it, i) => i === idx ? { ...it, ...patch } : it));
-  const addItem = () => setItems([...items, { id: uid(), label: '', defaultAssigneeId: null }]);
+  const addItem = () => setItems([...items, { id: uid(), label: '', defaultAssigneeId: null, subtasks: [] }]);
   const moveItem = (idx, dir) => {
     const newIdx = idx + dir; if (newIdx < 0 || newIdx >= items.length) return;
     const next = [...items]; [next[idx], next[newIdx]] = [next[newIdx], next[idx]]; setItems(next);
+  };
+
+  // Subtask helpers — a subtask is { id, label }. When any subtask exists
+  // the parent item's staff checkbox is derived (auto-completes when all
+  // subs are done) so admins get to structure complex tasks into granular
+  // steps without forcing staff to tick the parent manually.
+  const addSubtask = (idx) => {
+    const it = items[idx];
+    const subtasks = [...(it.subtasks || []), { id: uid(), label: '' }];
+    update(idx, { subtasks });
+  };
+  const updateSubtask = (idx, sIdx, patch) => {
+    const it = items[idx];
+    const subtasks = (it.subtasks || []).map((st, i) => i === sIdx ? { ...st, ...patch } : st);
+    update(idx, { subtasks });
+  };
+  const removeSubtask = (idx, sIdx) => {
+    const it = items[idx];
+    const subtasks = (it.subtasks || []).filter((_, i) => i !== sIdx);
+    update(idx, { subtasks });
+  };
+  const moveSubtask = (idx, sIdx, dir) => {
+    const it = items[idx];
+    const subtasks = [...(it.subtasks || [])];
+    const newIdx = sIdx + dir;
+    if (newIdx < 0 || newIdx >= subtasks.length) return;
+    [subtasks[sIdx], subtasks[newIdx]] = [subtasks[newIdx], subtasks[sIdx]];
+    update(idx, { subtasks });
   };
 
   return (
@@ -3268,6 +3936,13 @@ function ChecklistEditor({ kind, state, checklist, onClose, onSave }) {
             </select>
           </Field>
         </div>
+
+        <Field label="Area (office zone)" hint="Used for filtering the dashboard and for the area pill on checklist cards. Manage areas in Settings.">
+          <select className="input" value={areaId ?? ''} onChange={e => setAreaId(e.target.value || null)}>
+            <option value="">— No area —</option>
+            {(state.areas || []).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+          </select>
+        </Field>
 
         <Field label={`Assigned to (${assignedStaffIds.length} selected)`} hint="Check the people who should see and do this checklist. Only these people will see it on their dashboard.">
           <div className="border border-slate-200 rounded-lg bg-slate-50 p-3 max-h-60 overflow-auto space-y-3">
@@ -3408,6 +4083,43 @@ function ChecklistEditor({ kind, state, checklist, onClose, onSave }) {
                     )}
                   </div>
                 )}
+
+                {/* Subtasks — when present, the parent's staff checkbox is
+                    derived (auto-completes when all subs are done). Staff
+                    see subtasks indented beneath the parent. */}
+                {(it.subtasks && it.subtasks.length > 0) && (
+                  <div className="pl-6 mt-1 space-y-1 border-l-2 border-slate-200">
+                    {it.subtasks.map((st, sIdx) => (
+                      <div key={st.id} className="flex items-center gap-2">
+                        <span className="text-slate-400 text-xs w-4">↳</span>
+                        <input className="input flex-1 text-sm"
+                          value={st.label}
+                          onChange={e => updateSubtask(idx, sIdx, { label: e.target.value })}
+                          placeholder={`Subtask ${sIdx + 1}`} />
+                        <div className="flex">
+                          <button type="button" className="btn btn-ghost text-slate-400" title="Move up"
+                            onClick={() => moveSubtask(idx, sIdx, -1)}>↑</button>
+                          <button type="button" className="btn btn-ghost text-slate-400" title="Move down"
+                            onClick={() => moveSubtask(idx, sIdx, 1)}>↓</button>
+                          <button type="button" className="btn btn-ghost text-red-600" title="Remove subtask"
+                            onClick={() => removeSubtask(idx, sIdx)}>✕</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="pl-1">
+                  <button type="button"
+                    className="text-xs text-blue-600 hover:text-blue-800 hover:underline"
+                    onClick={() => addSubtask(idx)}>
+                    + Add subtask
+                  </button>
+                  {it.subtasks && it.subtasks.length > 0 && (
+                    <span className="text-xs text-slate-400 ml-2 italic">
+                      Parent auto-completes when all subtasks are done.
+                    </span>
+                  )}
+                </div>
               </div>
             ))}
           </div>
@@ -3436,9 +4148,17 @@ function ChecklistEditor({ kind, state, checklist, onClose, onSave }) {
               kind,
               name: name.trim(),
               roleId,
+              areaId: areaId || null,
               assignedStaffIds,
               slaMinutes,
-              items: items.filter(i => i.label.trim()),
+              // Strip empty-labeled items AND empty-labeled subtasks so we
+              // don't persist blank rows the admin started but abandoned.
+              items: items.filter(i => i.label.trim()).map(i => ({
+                ...i,
+                subtasks: Array.isArray(i.subtasks)
+                  ? i.subtasks.filter(st => (st.label || '').trim())
+                  : [],
+              })),
               effectiveFrom:  effectiveFromDate  ? new Date(effectiveFromDate  + 'T00:00:00').getTime() : null,
               effectiveUntil: effectiveUntilDate ? new Date(effectiveUntilDate + 'T23:59:59').getTime() : null,
             };
@@ -3572,6 +4292,98 @@ function StaffTab({ state, dispatch, scope, user }) {
 /* ============================================================
    ADMIN: SETTINGS (sync configuration — owner only)
    ============================================================ */
+// Manage the list of office-zone tags shown in the ChecklistEditor's Area
+// picker and the area pill on InstanceCards. Stored under state.areas.
+// Deleting an area clears the `areaId` on any checklist that pointed at it
+// (handled inside the AREA_DELETE reducer) so we never leave orphan ids.
+const AREA_COLORS = [
+  { value: 'bg-purple-100 text-purple-800', swatch: 'bg-purple-400', label: 'Purple' },
+  { value: 'bg-rose-100 text-rose-800',     swatch: 'bg-rose-400',   label: 'Rose' },
+  { value: 'bg-amber-100 text-amber-800',   swatch: 'bg-amber-400',  label: 'Amber' },
+  { value: 'bg-sky-100 text-sky-800',       swatch: 'bg-sky-400',    label: 'Sky' },
+  { value: 'bg-emerald-100 text-emerald-800', swatch: 'bg-emerald-400', label: 'Emerald' },
+  { value: 'bg-slate-100 text-slate-700',   swatch: 'bg-slate-400',  label: 'Slate' },
+  { value: 'bg-indigo-100 text-indigo-800', swatch: 'bg-indigo-400', label: 'Indigo' },
+  { value: 'bg-pink-100 text-pink-800',     swatch: 'bg-pink-400',   label: 'Pink' },
+];
+
+function AreasCard({ state, dispatch }) {
+  const [newName, setNewName] = useState('');
+  const [newColor, setNewColor] = useState(AREA_COLORS[0].value);
+  const areas = state.areas || [];
+  const usageByAreaId = React.useMemo(() => {
+    const m = new Map();
+    (state.checklists || []).forEach(cl => {
+      if (!cl.areaId) return;
+      m.set(cl.areaId, (m.get(cl.areaId) || 0) + 1);
+    });
+    return m;
+  }, [state.checklists]);
+
+  const onDelete = (area) => {
+    const used = usageByAreaId.get(area.id) || 0;
+    const msg = used > 0
+      ? `Delete area "${area.name}"? ${used} checklist${used === 1 ? '' : 's'} will become un-tagged (no other data is lost).`
+      : `Delete area "${area.name}"?`;
+    if (!confirm(msg)) return;
+    dispatch({ type: 'AREA_DELETE', id: area.id });
+  };
+
+  return (
+    <div className="card p-4 space-y-3">
+      <div className="flex items-center gap-2">
+        <div className="text-xl">🏷️</div>
+        <div className="font-semibold text-slate-900">Areas (office zones)</div>
+      </div>
+      <p className="text-sm text-slate-600">
+        Tag each checklist with a zone (e.g. <em>Labs</em>, <em>Sterilization</em>) so staff can filter and admins can see which area of the office is behind.
+      </p>
+
+      <div className="flex flex-wrap gap-2 items-end">
+        <Field label="Name">
+          <input className="input w-48" placeholder="e.g. X-Ray"
+            value={newName} onChange={e => setNewName(e.target.value)} />
+        </Field>
+        <Field label="Color">
+          <select className="input w-36" value={newColor} onChange={e => setNewColor(e.target.value)}>
+            {AREA_COLORS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+          </select>
+        </Field>
+        <button className="btn btn-primary" disabled={!newName.trim()}
+          onClick={() => {
+            dispatch({ type: 'AREA_ADD', name: newName.trim(), color: newColor });
+            setNewName('');
+          }}>+ Add area</button>
+      </div>
+
+      {areas.length === 0 ? (
+        <div className="text-sm text-slate-400 italic">No areas yet — add one above.</div>
+      ) : (
+        <ul className="divide-y divide-slate-100">
+          {areas.map(a => {
+            const used = usageByAreaId.get(a.id) || 0;
+            return (
+              <li key={a.id} className="py-2 flex flex-wrap items-center gap-2">
+                <span className={`pill ${a.color || 'bg-slate-100 text-slate-700'}`}>{a.name}</span>
+                <input className="input flex-1 min-w-[160px]" value={a.name}
+                  onChange={e => dispatch({ type: 'AREA_RENAME', id: a.id, name: e.target.value, color: a.color })} />
+                <select className="input w-36" value={a.color || AREA_COLORS[0].value}
+                  onChange={e => dispatch({ type: 'AREA_RENAME', id: a.id, name: a.name, color: e.target.value })}>
+                  {AREA_COLORS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                </select>
+                <span className="text-xs text-slate-500 whitespace-nowrap">
+                  {used} checklist{used === 1 ? '' : 's'}
+                </span>
+                <button className="btn btn-ghost text-red-600" onClick={() => onDelete(a)}>Delete</button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function SettingsTab({ state, dispatch }) {
   const currentUrl = state.settings?.timeOffSyncUrl || '';
   const [url, setUrl] = useState(currentUrl);
@@ -3652,6 +4464,8 @@ function SettingsTab({ state, dispatch }) {
           these settings are the office-wide defaults.
         </div>
       </div>
+
+      <AreasCard state={state} dispatch={dispatch} />
 
       <div className="card p-4 space-y-3">
         <div className="flex items-center gap-2">
