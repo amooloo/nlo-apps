@@ -120,7 +120,7 @@ const DEFAULT_STATE = {
     // --- Front Desk ---
     {
       id: 'cl_fd_open', kind: 'recurring', name: 'Daily Front Desk — Open',
-      roleId: 'r_fd', areaId: 'a_lobby', schedule: { freq: 'weekdays', dueTime: '09:30' }, slaMinutes: 30,
+      roleId: 'r_fd', positionIds: ['p_ac1'], areaId: 'a_lobby', schedule: { freq: 'weekdays', dueTime: '09:30' }, slaMinutes: 30,
       items: [
         { id: 'it1', label: 'Unlock front doors and turn on lobby lights' },
         { id: 'it2', label: 'Boot computers and log into scheduling software' },
@@ -131,7 +131,7 @@ const DEFAULT_STATE = {
     },
     {
       id: 'cl_fd_close', kind: 'recurring', name: 'End of Day — Front Desk',
-      roleId: 'r_fd', areaId: 'a_lobby', schedule: { freq: 'weekdays', dueTime: '18:00' }, slaMinutes: 30,
+      roleId: 'r_fd', positionIds: ['p_ac1'], areaId: 'a_lobby', schedule: { freq: 'weekdays', dueTime: '18:00' }, slaMinutes: 30,
       items: [
         { id: 'it1', label: 'Reconcile daily cash/copay drawer' },
         { id: 'it2', label: 'File any loose paperwork' },
@@ -164,7 +164,7 @@ const DEFAULT_STATE = {
     // --- Lab ---
     {
       id: 'cl_lab_daily', kind: 'recurring', name: 'Daily Lab — Morning Checks',
-      roleId: 'r_lab', areaId: 'a_labs', schedule: { freq: 'weekdays', dueTime: '10:00' }, slaMinutes: 45,
+      roleId: 'r_lab', positionIds: ['p_lab'], areaId: 'a_labs', schedule: { freq: 'weekdays', dueTime: '10:00' }, slaMinutes: 45,
       items: [
         { id: 'it1', label: 'Run QC on all analyzers' },
         { id: 'it2', label: 'Check reagent levels' },
@@ -174,7 +174,7 @@ const DEFAULT_STATE = {
     },
     {
       id: 'cl_lab_clean', kind: 'recurring', name: 'End of Day — Lab Clean-Up',
-      roleId: 'r_lab', areaId: 'a_labs', schedule: { freq: 'weekdays', dueTime: '18:00' }, slaMinutes: 60,
+      roleId: 'r_lab', positionIds: ['p_lab'], areaId: 'a_labs', schedule: { freq: 'weekdays', dueTime: '18:00' }, slaMinutes: 60,
       items: [
         { id: 'it1', label: 'Decontaminate all work surfaces' },
         { id: 'it2', label: 'Dispose of sharps and biohazards' },
@@ -185,7 +185,7 @@ const DEFAULT_STATE = {
     },
     {
       id: 'cl_lab_monthly', kind: 'recurring', name: 'Monthly Lab — QC Review',
-      roleId: 'r_lab', areaId: 'a_labs', schedule: { freq: 'monthly', dayOfMonth: 1, dueTime: '17:00' }, slaMinutes: 120,
+      roleId: 'r_lab', positionIds: ['p_lab'], areaId: 'a_labs', schedule: { freq: 'monthly', dayOfMonth: 1, dueTime: '17:00' }, slaMinutes: 120,
       items: [
         { id: 'it1', label: 'Review prior month QC trends' },
         { id: 'it2', label: 'Calibrate non-automated equipment' },
@@ -196,7 +196,7 @@ const DEFAULT_STATE = {
     // --- Office Manager ---
     {
       id: 'cl_om_day', kind: 'recurring', name: 'Admin Day — Office Manager',
-      roleId: 'r_om', areaId: 'a_workstation', schedule: { freq: 'weekdays', dueTime: '17:00' }, slaMinutes: 60,
+      roleId: 'r_om', positionIds: ['p_om'], areaId: 'a_workstation', schedule: { freq: 'weekdays', dueTime: '17:00' }, slaMinutes: 60,
       items: [
         { id: 'it1', label: 'Review daily schedule & staffing' },
         { id: 'it2', label: 'Check incoming supplier deliveries' },
@@ -207,7 +207,7 @@ const DEFAULT_STATE = {
     // --- Event-triggered ---
     {
       id: 'cl_new_patient', kind: 'event', name: 'New Patient Intake',
-      roleId: 'r_fd', areaId: 'a_lobby', slaMinutes: 45,
+      roleId: 'r_fd', positionIds: ['p_tc'], areaId: 'a_lobby', slaMinutes: 45,
       items: [
         { id: 'it1', label: 'Verify insurance coverage' },
         { id: 'it2', label: 'Collect intake paperwork' },
@@ -218,7 +218,7 @@ const DEFAULT_STATE = {
     // --- Appointment Coordinator (Front Desk) ---
     {
       id: 'cl_ac_am_pre', kind: 'recurring', name: 'Appointment Coordinator — AM Before Huddle',
-      roleId: 'r_fd', areaId: 'a_lobby', schedule: { freq: 'weekdays', dueTime: '09:00' }, slaMinutes: 30,
+      roleId: 'r_fd', positionIds: ['p_ac1'], areaId: 'a_lobby', schedule: { freq: 'weekdays', dueTime: '09:00' }, slaMinutes: 30,
       items: [
         { id: 'it1',  label: 'Disarm the alarm' },
         { id: 'it2',  label: 'Turn on all front office computers' },
@@ -237,7 +237,7 @@ const DEFAULT_STATE = {
     },
     {
       id: 'cl_ac_am_post', kind: 'recurring', name: 'Appointment Coordinator — AM After Huddle',
-      roleId: 'r_fd', areaId: 'a_lobby', schedule: { freq: 'weekdays', dueTime: '09:45' }, slaMinutes: 30,
+      roleId: 'r_fd', positionIds: ['p_ac1'], areaId: 'a_lobby', schedule: { freq: 'weekdays', dueTime: '09:45' }, slaMinutes: 30,
       items: [
         { id: 'it1', label: 'Prepare new patient clipboard' },
         { id: 'it2', label: 'Check online forms for new patients' },
@@ -249,7 +249,7 @@ const DEFAULT_STATE = {
     },
     {
       id: 'cl_ac_pm', kind: 'recurring', name: 'Appointment Coordinator — PM Duties',
-      roleId: 'r_fd', areaId: 'a_lobby', schedule: { freq: 'weekdays', dueTime: '18:00' }, slaMinutes: 60,
+      roleId: 'r_fd', positionIds: ['p_ac1'], areaId: 'a_lobby', schedule: { freq: 'weekdays', dueTime: '18:00' }, slaMinutes: 60,
       items: [
         { id: 'it1',  label: 'After lunch — make coffee for Dr. and a bottle of water, put on his desk' },
         { id: 'it2',  label: 'Prepare the schedule for the next day' },
@@ -266,7 +266,7 @@ const DEFAULT_STATE = {
     // --- Orthodontic Assistant #1 (detailed workflow) ---
     {
       id: 'cl_oa1_open', kind: 'recurring', name: 'OA #1 — Opening Duties',
-      roleId: 'r_oa', areaId: 'a_steril', schedule: { freq: 'weekdays', dueTime: '08:00' }, slaMinutes: 30,
+      roleId: 'r_oa', positionIds: ['p_oa1'], areaId: 'a_steril', schedule: { freq: 'weekdays', dueTime: '08:00' }, slaMinutes: 30,
       items: [
         { id: 'it1', label: 'Sterilization — check autoclave and put instruments away' },
         { id: 'it2', label: 'Sterilization — fill ultrasonic with new solution' },
@@ -279,7 +279,7 @@ const DEFAULT_STATE = {
     },
     {
       id: 'cl_oa1_charting', kind: 'recurring', name: 'OA #1 — Charting & Photos',
-      roleId: 'r_oa', areaId: 'a_workstation', schedule: { freq: 'weekdays', dueTime: '17:30' }, slaMinutes: 45,
+      roleId: 'r_oa', positionIds: ['p_oa1'], areaId: 'a_workstation', schedule: { freq: 'weekdays', dueTime: '17:30' }, slaMinutes: 45,
       items: [
         { id: 'it1', label: 'Ensure all patients are written up (tooth chart, appointment box, milestones)' },
         { id: 'it2', label: 'Upload all photos — SD cards should be empty each evening before leaving' },
@@ -291,7 +291,7 @@ const DEFAULT_STATE = {
     },
     {
       id: 'cl_oa1_close', kind: 'recurring', name: 'OA #1 — Closing Duties',
-      roleId: 'r_oa', areaId: 'a_steril', schedule: { freq: 'weekdays', dueTime: '18:30' }, slaMinutes: 60,
+      roleId: 'r_oa', positionIds: ['p_oa1'], areaId: 'a_steril', schedule: { freq: 'weekdays', dueTime: '18:30' }, slaMinutes: 60,
       items: [
         { id: 'it1',  label: 'Treatment area — ensure chairs have air/water syringes and suction' },
         { id: 'it2',  label: 'Treatment area — chairs cleaned and ready for next day (Windex face mirrors)' },
@@ -315,7 +315,7 @@ const DEFAULT_STATE = {
     },
     {
       id: 'cl_oa1_weekly', kind: 'recurring', name: 'OA #1 — Weekly Admin (Tuesday AM)',
-      roleId: 'r_oa', areaId: 'a_steril', schedule: { freq: 'weekly', weekday: 2, dueTime: '09:00' }, slaMinutes: 60,
+      roleId: 'r_oa', positionIds: ['p_oa1'], areaId: 'a_steril', schedule: { freq: 'weekly', weekday: 2, dueTime: '09:00' }, slaMinutes: 60,
       items: [
         { id: 'it1', label: 'Restock all chairs' },
         { id: 'it2', label: 'Restock cotton rolls, 2x2s in drawer' },
@@ -329,7 +329,7 @@ const DEFAULT_STATE = {
     },
     {
       id: 'cl_oa1_monthly', kind: 'recurring', name: 'OA #1 — Monthly Admin',
-      roleId: 'r_oa', areaId: 'a_steril', schedule: { freq: 'monthly', dayOfMonth: 1, dueTime: '17:00' }, slaMinutes: 120,
+      roleId: 'r_oa', positionIds: ['p_oa1'], areaId: 'a_steril', schedule: { freq: 'monthly', dayOfMonth: 1, dueTime: '17:00' }, slaMinutes: 120,
       items: [
         { id: 'it1', label: 'Cold sterile (every 28 days) — instruments' },
         { id: 'it2', label: 'Cold sterile (every 28 days) — oil' },
@@ -341,7 +341,7 @@ const DEFAULT_STATE = {
     },
     {
       id: 'cl_oa1_quarterly', kind: 'recurring', name: 'OA #1 — Quarterly Admin',
-      roleId: 'r_oa', areaId: 'a_steril', schedule: { freq: 'quarterly', startMonth: 0, dayOfMonth: 1, dueTime: '17:00' }, slaMinutes: 120,
+      roleId: 'r_oa', positionIds: ['p_oa1'], areaId: 'a_steril', schedule: { freq: 'quarterly', startMonth: 0, dayOfMonth: 1, dueTime: '17:00' }, slaMinutes: 120,
       items: [
         { id: 'it1', label: 'Clean / maintain suction' },
         { id: 'it2', label: 'Clean / maintain traps' },
@@ -350,7 +350,7 @@ const DEFAULT_STATE = {
     // --- Orthodontic Assistant #3 (detailed workflow) ---
     {
       id: 'cl_oa3_open', kind: 'recurring', name: 'OA #3 — Opening Duties',
-      roleId: 'r_oa', areaId: 'a_steril', schedule: { freq: 'weekdays', dueTime: '08:00' }, slaMinutes: 30,
+      roleId: 'r_oa', positionIds: ['p_oa3'], areaId: 'a_steril', schedule: { freq: 'weekdays', dueTime: '08:00' }, slaMinutes: 30,
       items: [
         { id: 'it1', label: 'Records/Lab — ensure cameras are charged and ready for use' },
         { id: 'it2', label: 'Schedule — check your schedule prior to huddle and bring up details in meeting' },
@@ -361,7 +361,7 @@ const DEFAULT_STATE = {
     },
     {
       id: 'cl_oa3_charting', kind: 'recurring', name: 'OA #3 — Charting & Photos',
-      roleId: 'r_oa', areaId: 'a_workstation', schedule: { freq: 'weekdays', dueTime: '17:30' }, slaMinutes: 45,
+      roleId: 'r_oa', positionIds: ['p_oa3'], areaId: 'a_workstation', schedule: { freq: 'weekdays', dueTime: '17:30' }, slaMinutes: 45,
       items: [
         { id: 'it1', label: 'Ensure all patients are written up (tooth chart, appointment box, milestones)' },
         { id: 'it2', label: 'Upload all photos — SD cards should be empty each evening before leaving' },
@@ -373,7 +373,7 @@ const DEFAULT_STATE = {
     },
     {
       id: 'cl_oa3_close', kind: 'recurring', name: 'OA #3 — Closing Duties',
-      roleId: 'r_oa', areaId: 'a_steril', schedule: { freq: 'weekdays', dueTime: '18:30' }, slaMinutes: 60,
+      roleId: 'r_oa', positionIds: ['p_oa3'], areaId: 'a_steril', schedule: { freq: 'weekdays', dueTime: '18:30' }, slaMinutes: 60,
       items: [
         { id: 'it1',  label: 'Treatment area — ensure chairs have air/water syringes and suction' },
         { id: 'it2',  label: 'Treatment area — chairs cleaned and ready for next day (Windex face mirrors)' },
@@ -399,7 +399,7 @@ const DEFAULT_STATE = {
     },
     {
       id: 'cl_oa3_weekly', kind: 'recurring', name: 'OA #3 — Weekly Admin (Tuesday AM)',
-      roleId: 'r_oa', areaId: 'a_steril', schedule: { freq: 'weekly', weekday: 2, dueTime: '09:00' }, slaMinutes: 60,
+      roleId: 'r_oa', positionIds: ['p_oa3'], areaId: 'a_steril', schedule: { freq: 'weekly', weekday: 2, dueTime: '09:00' }, slaMinutes: 60,
       items: [
         { id: 'it1',  label: 'Deep clean brushing station' },
         { id: 'it2',  label: 'Clean mirrors' },
@@ -419,7 +419,7 @@ const DEFAULT_STATE = {
     // --- Lab Tech (detailed job description) ---
     {
       id: 'cl_lab_tech_daily', kind: 'recurring', name: 'Lab Tech — Daily Job Description',
-      roleId: 'r_lab', areaId: 'a_labs', schedule: { freq: 'weekdays', dueTime: '18:00' }, slaMinutes: 60,
+      roleId: 'r_lab', positionIds: ['p_lab'], areaId: 'a_labs', schedule: { freq: 'weekdays', dueTime: '18:00' }, slaMinutes: 60,
       items: [
         { id: 'it1',  label: 'Make sure all retainers are done for next day' },
         { id: 'it2',  label: 'Make sure all Next Level Aligner cases are done by due date before leaving' },
@@ -441,7 +441,7 @@ const DEFAULT_STATE = {
     },
     {
       id: 'cl_lab_tech_weekly', kind: 'recurring', name: 'Lab Tech — Weekly (Thursday)',
-      roleId: 'r_lab', areaId: 'a_labs', schedule: { freq: 'weekly', weekday: 4, dueTime: '18:00' }, slaMinutes: 45,
+      roleId: 'r_lab', positionIds: ['p_lab'], areaId: 'a_labs', schedule: { freq: 'weekly', weekday: 4, dueTime: '18:00' }, slaMinutes: 45,
       items: [
         { id: 'it1', label: 'Drain chambers and clean out, then refill with new IPA 99%' },
       ].map(i => ({ ...i, defaultAssigneeId: null })),
@@ -449,7 +449,7 @@ const DEFAULT_STATE = {
     // --- Orthodontic Assistant #4 (detailed workflow) ---
     {
       id: 'cl_oa4_open', kind: 'recurring', name: 'OA #4 — Opening Duties',
-      roleId: 'r_oa', areaId: 'a_steril', schedule: { freq: 'weekdays', dueTime: '08:00' }, slaMinutes: 30,
+      roleId: 'r_oa', positionIds: ['p_oa4'], areaId: 'a_steril', schedule: { freq: 'weekdays', dueTime: '08:00' }, slaMinutes: 30,
       items: [
         { id: 'it1', label: 'Records/Lab — ensure cameras are charged and ready for use' },
         { id: 'it2', label: 'Schedule — check your schedule prior to huddle and bring up details in meeting' },
@@ -459,7 +459,7 @@ const DEFAULT_STATE = {
     },
     {
       id: 'cl_oa4_charting', kind: 'recurring', name: 'OA #4 — Charting & Photos',
-      roleId: 'r_oa', areaId: 'a_workstation', schedule: { freq: 'weekdays', dueTime: '17:30' }, slaMinutes: 30,
+      roleId: 'r_oa', positionIds: ['p_oa4'], areaId: 'a_workstation', schedule: { freq: 'weekdays', dueTime: '17:30' }, slaMinutes: 30,
       items: [
         { id: 'it1', label: 'Ensure all patients are written up (tooth chart, appointment box, milestones)' },
         { id: 'it2', label: 'Upload all photos — SD cards should be empty each evening before leaving' },
@@ -468,7 +468,7 @@ const DEFAULT_STATE = {
     },
     {
       id: 'cl_oa4_close', kind: 'recurring', name: 'OA #4 — Closing Duties',
-      roleId: 'r_oa', areaId: 'a_steril', schedule: { freq: 'weekdays', dueTime: '18:30' }, slaMinutes: 60,
+      roleId: 'r_oa', positionIds: ['p_oa4'], areaId: 'a_steril', schedule: { freq: 'weekdays', dueTime: '18:30' }, slaMinutes: 60,
       items: [
         { id: 'it1',  label: 'Treatment area — ensure chairs have air/water syringes and suction' },
         { id: 'it2',  label: 'Treatment area — chairs cleaned and ready for next day (Windex face mirrors)' },
@@ -489,7 +489,7 @@ const DEFAULT_STATE = {
     // --- Orthodontic Assistant #2 (detailed workflow) ---
     {
       id: 'cl_oa2_open', kind: 'recurring', name: 'OA #2 — Opening Duties',
-      roleId: 'r_oa', areaId: 'a_steril', schedule: { freq: 'weekdays', dueTime: '08:00' }, slaMinutes: 30,
+      roleId: 'r_oa', positionIds: ['p_oa2'], areaId: 'a_steril', schedule: { freq: 'weekdays', dueTime: '08:00' }, slaMinutes: 30,
       items: [
         { id: 'it1', label: 'Schedule — check your schedule prior to huddle and bring up details in meeting' },
         { id: 'it2', label: 'Retainers — retainer and whitening trays ready at front desk by 8am (no exceptions)' },
@@ -498,7 +498,7 @@ const DEFAULT_STATE = {
     },
     {
       id: 'cl_oa2_charting', kind: 'recurring', name: 'OA #2 — Charting & Photos',
-      roleId: 'r_oa', areaId: 'a_workstation', schedule: { freq: 'weekdays', dueTime: '17:30' }, slaMinutes: 45,
+      roleId: 'r_oa', positionIds: ['p_oa2'], areaId: 'a_workstation', schedule: { freq: 'weekdays', dueTime: '17:30' }, slaMinutes: 45,
       items: [
         { id: 'it1', label: 'Ensure all patients are written up (tooth chart, appointment box, milestones)' },
         { id: 'it2', label: 'Upload all photos — SD cards should be empty each evening before leaving' },
@@ -510,7 +510,7 @@ const DEFAULT_STATE = {
     },
     {
       id: 'cl_oa2_close', kind: 'recurring', name: 'OA #2 — Closing Duties',
-      roleId: 'r_oa', areaId: 'a_steril', schedule: { freq: 'weekdays', dueTime: '18:30' }, slaMinutes: 60,
+      roleId: 'r_oa', positionIds: ['p_oa2'], areaId: 'a_steril', schedule: { freq: 'weekdays', dueTime: '18:30' }, slaMinutes: 60,
       items: [
         { id: 'it1',  label: 'Treatment area — ensure chairs have air/water syringes and suction' },
         { id: 'it2',  label: 'Treatment area — chairs cleaned and ready for next day (Windex face mirrors)' },
@@ -525,7 +525,7 @@ const DEFAULT_STATE = {
     },
     {
       id: 'cl_oa2_weekly', kind: 'recurring', name: 'OA #2 — Weekly Admin (Tuesday AM)',
-      roleId: 'r_oa', areaId: 'a_treatment', schedule: { freq: 'weekly', weekday: 2, dueTime: '09:00' }, slaMinutes: 60,
+      roleId: 'r_oa', positionIds: ['p_oa2'], areaId: 'a_treatment', schedule: { freq: 'weekly', weekday: 2, dueTime: '09:00' }, slaMinutes: 60,
       items: [
         { id: 'it1',  label: 'Scan all assistants IPR sheets' },
         // Parent task with 5 subtasks — parent auto-completes when every subtask is ticked.
@@ -561,6 +561,30 @@ const DEFAULT_STATE = {
     { id: 'a_treatment',  name: 'Treatment',     color: 'bg-emerald-100 text-emerald-800' },
     { id: 'a_workstation',name: 'Workstation',   color: 'bg-slate-100 text-slate-700' },
   ],
+  // Positions ("seats") — stable slots that rotate among staff each quarter.
+  // A checklist can be assigned to one or more positions; when it spawns,
+  // the actual staff assignees come from both `assignedStaffIds` (direct)
+  // AND the current-quarter holders of any linked positions.
+  positions: [
+    { id: 'p_oa1', name: 'OA #1',                   roleId: 'r_oa'  },
+    { id: 'p_oa2', name: 'OA #2',                   roleId: 'r_oa'  },
+    { id: 'p_oa3', name: 'OA #3',                   roleId: 'r_oa'  },
+    { id: 'p_oa4', name: 'OA #4',                   roleId: 'r_oa'  },
+    { id: 'p_lab', name: 'Lab Tech',                roleId: 'r_lab' },
+    // Front Desk splits into four specialized seats. A Treatment Coordinator
+    // handles new-patient intake and consults; a Financial Coordinator owns
+    // billing/insurance; two Appointment Coordinators share the open/close
+    // and the AM/PM scheduling workflow. (AC #1 gets all the AC and FD
+    // open/close checklists by default — AC #2 is a seat to fill later.)
+    { id: 'p_tc',  name: 'Treatment Coordinator',   roleId: 'r_fd'  },
+    { id: 'p_fc',  name: 'Financial Coordinator',   roleId: 'r_fd'  },
+    { id: 'p_ac1', name: 'Appointment Coordinator #1', roleId: 'r_fd' },
+    { id: 'p_ac2', name: 'Appointment Coordinator #2', roleId: 'r_fd' },
+    { id: 'p_om',  name: 'Office Manager',          roleId: 'r_om'  },
+  ],
+  // Quarterly rotation. Keys look like '2026-Q2' (calendar quarters), values
+  // are { [positionId]: staffId }. Admin edits this via the Rotations tab.
+  positionAssignments: {},
   settings: {
     timeOffSyncUrl: '',
     lastSyncAt: null,
@@ -673,6 +697,49 @@ function cycleKeyFor(schedule, date) {
     default:
       return `D-${y}-${String(m+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
   }
+}
+
+// ---------- Calendar-quarter keys for the Rotations tab ----------
+// Positions rotate among staff once per calendar quarter. Keys look like
+// "2026-Q2" so they sort naturally and read clearly in the UI.
+
+/** Returns 'YYYY-Q1'..'YYYY-Q4' for the quarter containing `date`. */
+function quarterKeyFor(date) {
+  const d = date || new Date();
+  const q = Math.floor(d.getMonth() / 3) + 1;
+  return `${d.getFullYear()}-Q${q}`;
+}
+/** Returns the current calendar-quarter key (e.g. '2026-Q2'). */
+function currentQuarterKey() { return quarterKeyFor(new Date()); }
+/** Returns the quarter key immediately before the given one. */
+function previousQuarterKey(key) {
+  const [y, q] = String(key || '').split('-Q').map(Number);
+  if (!y || !q) return currentQuarterKey();
+  if (q === 1) return `${y - 1}-Q4`;
+  return `${y}-Q${q - 1}`;
+}
+/** Returns the quarter key immediately after the given one. */
+function nextQuarterKey(key) {
+  const [y, q] = String(key || '').split('-Q').map(Number);
+  if (!y || !q) return currentQuarterKey();
+  if (q === 4) return `${y + 1}-Q1`;
+  return `${y}-Q${q + 1}`;
+}
+/** Human-readable label, e.g. '2026 Q2 (Apr–Jun)'. */
+function quarterKeyLabel(key) {
+  const [y, q] = String(key || '').split('-Q').map(Number);
+  if (!y || !q) return key || '';
+  const ranges = { 1: 'Jan–Mar', 2: 'Apr–Jun', 3: 'Jul–Sep', 4: 'Oct–Dec' };
+  return `${y} Q${q} (${ranges[q]})`;
+}
+/**
+ * Returns the staff id currently holding a position for the given quarter,
+ * or null if no one is assigned. Looks in state.positionAssignments[key][posId].
+ */
+function getPositionHolder(state, positionId, quarterKey) {
+  if (!state || !positionId || !quarterKey) return null;
+  const q = state.positionAssignments && state.positionAssignments[quarterKey];
+  return (q && q[positionId]) || null;
 }
 
 /**
@@ -949,6 +1016,7 @@ function applySeedMigrations(state) {
   const seedById = new Map((DEFAULT_STATE.checklists || []).map(c => [c.id, c]));
   let itemsBackfilled = 0;
   let areasBackfilled = 0;
+  let positionsBackfilled = 0;
   const backfilledChecklists = (state.checklists || []).map(cl => {
     const seed = seedById.get(cl.id);
     // (2a) Backfill areaId from seed when the existing checklist doesn't have
@@ -958,6 +1026,15 @@ function applySeedMigrations(state) {
     if (seed && seed.areaId && !cl.areaId) {
       next = { ...next, areaId: seed.areaId };
       areasBackfilled++;
+    }
+    // (2b) Backfill positionIds from seed for the same reason — users whose
+    // saved state pre-dates the Positions feature should see their OA #1,
+    // OA #2, etc. checklists auto-linked to the matching seats. If the admin
+    // already set positionIds (even to []), leave it alone.
+    if (seed && Array.isArray(seed.positionIds) && seed.positionIds.length > 0
+        && !Array.isArray(cl.positionIds)) {
+      next = { ...next, positionIds: [...seed.positionIds] };
+      positionsBackfilled++;
     }
     if (!seed || !Array.isArray(seed.items)) return next;
     const existingItemIds = new Set((cl.items || []).map(i => i && i.id).filter(Boolean));
@@ -978,16 +1055,97 @@ function applySeedMigrations(state) {
   if (areasBackfilled > 0) {
     console.log('[NLO Checklists] Seed migration → backfilled area tags on', areasBackfilled, 'existing checklists');
   }
+  if (positionsBackfilled > 0) {
+    console.log('[NLO Checklists] Seed migration → backfilled position tags on', positionsBackfilled, 'existing checklists');
+  }
+
+  // (3) Backfill the `positions` array itself. Long-time users pre-date
+  // the Positions feature and won't have any seats defined yet. Any seed
+  // position the user hasn't deleted (tracked via deletedPositionIds, a
+  // parallel of deletedChecklistIds) gets added. We dedupe by id so admin
+  // edits to position names/roles survive.
+  const existingPositionIds = new Set((state.positions || []).map(p => p && p.id).filter(Boolean));
+  const deletedPositionIds = new Set(state.deletedPositionIds || []);
+  const missingPositions = (DEFAULT_STATE.positions || []).filter(p =>
+    !existingPositionIds.has(p.id) && !deletedPositionIds.has(p.id)
+  );
+  let mergedPositions = missingPositions.length > 0
+    ? [...(state.positions || []), ...missingPositions]
+    : (state.positions || []);
+  if (missingPositions.length > 0) {
+    console.log('[NLO Checklists] Seed migration → adding',
+      missingPositions.length, 'new positions:', missingPositions.map(p => p.id).join(', '));
+  }
+  // Ensure positionAssignments exists so downstream code can safely read it.
+  let positionAssignments = state.positionAssignments && typeof state.positionAssignments === 'object'
+    ? state.positionAssignments
+    : {};
+
+  // (3b) One-time Front Desk split: the original seed shipped a single
+  // "p_fd" (Front Desk) seat. The revised seed splits FD into four
+  // specialized seats (Treatment Coordinator, Financial Coordinator,
+  // Appointment Coordinator #1, #2). For any user whose state still
+  // contains p_fd, we:
+  //   - drop p_fd from positions
+  //   - redirect any p_fd assignment across every quarter to p_ac1
+  //     (AC #1 inherits the bulk of the old FD duties)
+  //   - rewrite any checklist.positionIds that still list 'p_fd' to 'p_ac1'
+  // This is idempotent — once p_fd is gone, the block is a no-op.
+  if (mergedPositions.some(p => p && p.id === 'p_fd')) {
+    mergedPositions = mergedPositions.filter(p => p.id !== 'p_fd');
+    const migratedAssignments = {};
+    let redirected = 0;
+    for (const [qKey, assigns] of Object.entries(positionAssignments)) {
+      const next = { ...assigns };
+      if (next.p_fd) {
+        // Only redirect to p_ac1 if that seat isn't already claimed for
+        // this quarter — don't silently clobber a deliberate AC #1 pick.
+        if (!next.p_ac1) next.p_ac1 = next.p_fd;
+        delete next.p_fd;
+        redirected++;
+      }
+      migratedAssignments[qKey] = next;
+    }
+    positionAssignments = migratedAssignments;
+    // Rewrite any checklist still pointing at p_fd. This matters for
+    // admin-edited checklists (the seeds themselves already moved to
+    // p_ac1 / p_tc, but user-created checklists might reference p_fd).
+    let rewrote = 0;
+    backfilledChecklists.forEach((cl, idx) => {
+      if (Array.isArray(cl.positionIds) && cl.positionIds.includes('p_fd')) {
+        const swapped = cl.positionIds.map(pid => pid === 'p_fd' ? 'p_ac1' : pid);
+        // Dedupe in case p_ac1 was already present.
+        backfilledChecklists[idx] = { ...cl, positionIds: Array.from(new Set(swapped)) };
+        rewrote++;
+      }
+    });
+    console.log('[NLO Checklists] Seed migration → Front Desk split: removed p_fd,',
+      'redirected', redirected, 'quarterly assignment(s) → p_ac1,',
+      'rewrote', rewrote, 'checklist position tag(s)');
+  }
+
   if (missing.length === 0) {
     // Only the items-backfill (or nothing) changed. Keep _seedVersion fresh.
-    if (itemsBackfilled === 0 && state._seedVersion === CURRENT_SEED_VERSION) return state;
-    return { ...state, checklists: backfilledChecklists, _seedVersion: CURRENT_SEED_VERSION };
+    if (itemsBackfilled === 0
+        && areasBackfilled === 0
+        && positionsBackfilled === 0
+        && missingPositions.length === 0
+        && state._seedVersion === CURRENT_SEED_VERSION) return state;
+    return {
+      ...state,
+      checklists: backfilledChecklists,
+      positions: mergedPositions,
+      positionAssignments,
+      _seedVersion: CURRENT_SEED_VERSION,
+    };
   }
   console.log('[NLO Checklists] Seed migration → adding',
     missing.length, 'new checklists:', missing.map(c => c.id).join(', '));
   return {
     ...state,
     checklists: [...backfilledChecklists, ...missing],
+    positions: mergedPositions,
+    positionAssignments,
     _seedVersion: CURRENT_SEED_VERSION,
   };
 }
@@ -1065,16 +1223,25 @@ async function syncTimeOff(url, dispatch) {
 }
 
 function resolveAssignees(checklist, state, dateStr) {
-  // Assignment is fully explicit — if `assignedStaffIds` is missing or
-  // empty, the checklist has no assignees and won't spawn/show up. Admin
-  // must pick staff via the editor or the Staff → Checklists dialog.
-  // (We deliberately removed the old "fall back to everyone in the role"
-  // behavior: it surprised admins by showing checklists to the whole role
-  // even for items they'd never touched.)
-  const base = Array.isArray(checklist.assignedStaffIds)
-    ? checklist.assignedStaffIds.slice()
-    : [];
-  if (!dateStr || !state) return base;
+  // Assignment has two layers and we UNION them:
+  // (a) Direct assignments — `assignedStaffIds` on the checklist.
+  // (b) Position-based assignments — for each id in `positionIds`, the
+  //     staff id currently holding that seat for the instance's quarter.
+  // Admins can use either (or both). An OA #1 checklist linked to p_oa1
+  // automatically gets whoever is holding OA #1 this quarter, but admin
+  // can still pin a specific person directly for one-offs.
+  const base = new Set(Array.isArray(checklist.assignedStaffIds)
+    ? checklist.assignedStaffIds
+    : []);
+  if (Array.isArray(checklist.positionIds) && state) {
+    const qKey = quarterKeyFor(dateStr ? new Date(dateStr + 'T12:00:00') : new Date());
+    for (const pid of checklist.positionIds) {
+      const holder = getPositionHolder(state, pid, qKey);
+      if (holder) base.add(holder);
+    }
+  }
+  const baseArr = Array.from(base);
+  if (!dateStr || !state) return baseArr;
   // PTO handling depends on whether the schedule is cycle-based.
   // - Daily / weekdays / weekends / event: a single-day task. If the
   //   assignee is on PTO that day, drop them for this instance.
@@ -1089,25 +1256,25 @@ function resolveAssignees(checklist, state, dateStr) {
   if (isCycleBased) {
     // #region agent log
     __dbg('resolveAssignees:cycle', 'cycle-based, returning base unfiltered', {
-      checklistId: checklist.id, checklistName: checklist.name, freq, dateStr, base,
+      checklistId: checklist.id, checklistName: checklist.name, freq, dateStr, base: baseArr,
     }, 'H2');
     // #endregion
-    return base;
+    return baseArr;
   }
-  const filtered = base.filter(id => {
+  const filtered = baseArr.filter(id => {
     const s = state.staff.find(x => x.id === id);
     return s && !isStaffOff(s, dateStr);
   });
   // #region agent log
-  if (base.length !== filtered.length || base.length === 0) {
-    const dropped = base.filter(id => !filtered.includes(id));
+  if (baseArr.length !== filtered.length || baseArr.length === 0) {
+    const dropped = baseArr.filter(id => !filtered.includes(id));
     const droppedDetails = dropped.map(id => {
       const s = state.staff.find(x => x.id === id);
       return { id, found: !!s, name: s?.name, off: s ? isStaffOff(s, dateStr) : null, timeOff: s?.timeOff };
     });
     __dbg('resolveAssignees:filter', 'PTO/missing-staff filter changed assignees', {
       checklistId: checklist.id, checklistName: checklist.name, freq, dateStr,
-      base, filtered, droppedDetails,
+      base: baseArr, filtered, droppedDetails,
     }, 'H2');
   }
   // #endregion
@@ -1275,8 +1442,25 @@ function reducer(state, action) {
       next = { ...state, staff: [...state.staff, { id: uid(), name: action.name, appRole: action.appRole || 'staff', roleIds: action.roleIds || [] }] }; break;
     case 'STAFF_UPDATE':
       next = { ...state, staff: state.staff.map(s => s.id === action.id ? { ...s, ...action.patch } : s) }; break;
-    case 'STAFF_DELETE':
-      next = { ...state, staff: state.staff.filter(s => s.id !== action.id) }; break;
+    case 'STAFF_DELETE': {
+      // Also vacate any position seats this staff member was holding across
+      // every quarter — otherwise resolveAssignees would keep routing tasks
+      // to a ghost id, and the Rotations tab would show a dangling staffId.
+      const nextAssignments = {};
+      for (const [qKey, assigns] of Object.entries(state.positionAssignments || {})) {
+        const cleaned = {};
+        for (const [posId, holderId] of Object.entries(assigns || {})) {
+          if (holderId !== action.id) cleaned[posId] = holderId;
+        }
+        nextAssignments[qKey] = cleaned;
+      }
+      next = {
+        ...state,
+        staff: state.staff.filter(s => s.id !== action.id),
+        positionAssignments: nextAssignments,
+      };
+      break;
+    }
 
     case 'CHECKLIST_SAVE': {
       const cl = action.checklist;
@@ -1647,6 +1831,115 @@ function reducer(state, action) {
       );
       next = { ...state, areas, checklists };
       next = audit(next, { action: 'area_deleted', actorId: action.actorId || 'system', label: `Area deleted: ${area?.name || action.id}` });
+      break;
+    }
+
+    // ---------- Positions / Rotations ----------
+    case 'POSITION_ADD': {
+      const name = (action.name || '').trim();
+      if (!name) return state;
+      const id = action.id || ('p_' + uid().slice(0, 6));
+      const roleId = action.roleId || null;
+      const positions = [...(state.positions || []), { id, name, roleId }];
+      next = { ...state, positions };
+      next = audit(next, { action: 'position_added', actorId: action.actorId || 'system', label: `Position added: ${name}` });
+      break;
+    }
+
+    case 'POSITION_RENAME': {
+      const name = (action.name || '').trim();
+      if (!name) return state;
+      const positions = (state.positions || []).map(p =>
+        p.id === action.id
+          ? { ...p, name, roleId: action.roleId !== undefined ? action.roleId : p.roleId }
+          : p
+      );
+      next = { ...state, positions };
+      next = audit(next, { action: 'position_renamed', actorId: action.actorId || 'system', label: `Position updated: ${name}` });
+      break;
+    }
+
+    case 'POSITION_DELETE': {
+      // Deleting a position must NOT leave orphan positionIds on checklists
+      // and must clear any quarterly assignments it had. Also remember the id
+      // in deletedPositionIds so applySeedMigrations doesn't re-seed it.
+      const pos = (state.positions || []).find(p => p.id === action.id);
+      const positions = (state.positions || []).filter(p => p.id !== action.id);
+      const checklists = (state.checklists || []).map(cl =>
+        Array.isArray(cl.positionIds) && cl.positionIds.includes(action.id)
+          ? { ...cl, positionIds: cl.positionIds.filter(x => x !== action.id) }
+          : cl
+      );
+      const positionAssignments = {};
+      for (const [qKey, assigns] of Object.entries(state.positionAssignments || {})) {
+        const cleaned = { ...assigns };
+        delete cleaned[action.id];
+        positionAssignments[qKey] = cleaned;
+      }
+      const deletedPositionIds = Array.from(new Set([
+        ...(state.deletedPositionIds || []),
+        action.id,
+      ]));
+      next = { ...state, positions, checklists, positionAssignments, deletedPositionIds };
+      next = audit(next, { action: 'position_deleted', actorId: action.actorId || 'system', label: `Position deleted: ${pos?.name || action.id}` });
+      break;
+    }
+
+    case 'POSITION_ASSIGN': {
+      // action: { quarterKey, positionId, staffId }
+      // staffId === null (or unset) unassigns the seat for that quarter.
+      const qKey = String(action.quarterKey || '').trim();
+      const positionId = action.positionId;
+      if (!qKey || !positionId) return state;
+      const quarter = { ...(state.positionAssignments?.[qKey] || {}) };
+      if (action.staffId) {
+        // One-person-per-seat rule: if this staff member is already holding
+        // another seat in this quarter, vacate the old one so they don't
+        // hold two simultaneously.
+        for (const [otherPosId, holderId] of Object.entries(quarter)) {
+          if (otherPosId !== positionId && holderId === action.staffId) {
+            delete quarter[otherPosId];
+          }
+        }
+        quarter[positionId] = action.staffId;
+      } else {
+        delete quarter[positionId];
+      }
+      const positionAssignments = { ...(state.positionAssignments || {}), [qKey]: quarter };
+      const pos = (state.positions || []).find(p => p.id === positionId);
+      const staff = (state.staff || []).find(s => s.id === action.staffId);
+      next = { ...state, positionAssignments };
+      next = audit(next, {
+        action: action.staffId ? 'position_assigned' : 'position_unassigned',
+        actorId: action.actorId || 'system',
+        label: action.staffId
+          ? `${pos?.name || positionId} → ${staff?.name || action.staffId} (${qKey})`
+          : `${pos?.name || positionId} vacated (${qKey})`,
+      });
+      break;
+    }
+
+    case 'POSITION_COPY_QUARTER': {
+      // action: { fromKey, toKey } — copy the entire seat map from one
+      // quarter to the next as a starting point. Does not overwrite any
+      // already-set assignments in the target quarter.
+      const fromKey = String(action.fromKey || '').trim();
+      const toKey = String(action.toKey || '').trim();
+      if (!fromKey || !toKey || fromKey === toKey) return state;
+      const from = state.positionAssignments?.[fromKey] || {};
+      const to = { ...(state.positionAssignments?.[toKey] || {}) };
+      let copied = 0;
+      for (const [posId, staffId] of Object.entries(from)) {
+        if (!to[posId] && staffId) { to[posId] = staffId; copied++; }
+      }
+      if (copied === 0) return state;
+      const positionAssignments = { ...(state.positionAssignments || {}), [toKey]: to };
+      next = { ...state, positionAssignments };
+      next = audit(next, {
+        action: 'position_copied_quarter',
+        actorId: action.actorId || 'system',
+        label: `Copied ${copied} seat${copied === 1 ? '' : 's'} from ${fromKey} → ${toKey}`,
+      });
       break;
     }
 
@@ -2538,6 +2831,7 @@ function AdminView({ state, dispatch, user }) {
           ['event',     'Event-Triggered'],
           ['roles',     'Roles'],
           ['staff',     'Staff'],
+          ['rotations', 'Rotations'],
           ['audit',     'Audit Log'],
           scope.isOwner ? ['settings', 'Settings'] : null,
         ].filter(Boolean).map(([k, l]) => (
@@ -2570,6 +2864,7 @@ function AdminView({ state, dispatch, user }) {
       {tab === 'event'     && <ChecklistDefsTab kind="event"     state={state} dispatch={dispatch} user={user} scope={scope} />}
       {tab === 'roles'     && <RolesTab     state={state} dispatch={dispatch} scope={scope} />}
       {tab === 'staff'     && <StaffTab     state={state} dispatch={dispatch} scope={scope} user={user} />}
+      {tab === 'rotations' && <RotationsTab state={state} dispatch={dispatch} scope={scope} user={user} />}
       {tab === 'audit'     && <AuditTab     state={state} dispatch={dispatch} scope={scope} />}
       {tab === 'settings'  && scope.isOwner && <SettingsTab state={state} dispatch={dispatch} />}
     </main>
@@ -3853,6 +4148,9 @@ function ChecklistEditor({ kind, state, checklist, onClose, onSave }) {
   const [dueTime, setDueTime] = useState(checklist?.schedule?.dueTime || state.settings?.dayEndTime || '17:30');
   const [slaMinutes, setSlaMinutes] = useState(checklist?.slaMinutes || (kind === 'event' ? 45 : 60));
   const [areaId, setAreaId] = useState(checklist?.areaId ?? null);
+  const [positionIds, setPositionIds] = useState(() =>
+    Array.isArray(checklist?.positionIds) ? [...checklist.positionIds] : []
+  );
   // Normalize items to always carry a `subtasks` array so the editor UI and
   // save payload don't have to keep defensive `|| []` checks everywhere.
   const [items, setItems] = useState(() => {
@@ -3943,6 +4241,62 @@ function ChecklistEditor({ kind, state, checklist, onClose, onSave }) {
             {(state.areas || []).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
           </select>
         </Field>
+
+        {/* Position-based assignment. Positions are "seats" that rotate among
+            staff every quarter (e.g. OA #1, OA #2, Lab Tech). We filter by the
+            picked role so the OA #1 seat shows up when editing an OA checklist.
+            Linked seats union with the direct Assigned-to list — admin can mix
+            both (great for one-off fills while a seat rotates). Manage the
+            quarterly rotation in the Rotations tab. */}
+        {(() => {
+          const positionsForRole = (state.positions || []).filter(p =>
+            !p.roleId || p.roleId === roleId
+          );
+          if (positionsForRole.length === 0 && positionIds.length === 0) return null;
+          const togglePos = (id) => setPositionIds(ids =>
+            ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id]
+          );
+          const qKey = currentQuarterKey();
+          return (
+            <Field label={`Positions (seats) — ${positionIds.length} linked`}
+                   hint={`The current holder of each linked position this quarter (${quarterKeyLabel(qKey)}) is automatically added to the Assigned-to list. Staff you check directly below still count — the two are unioned.`}>
+              <div className="border border-slate-200 rounded-lg bg-slate-50 p-3 space-y-1">
+                {positionsForRole.length === 0 ? (
+                  <div className="text-xs text-slate-500 italic">No positions match this role. Add one in the Rotations tab.</div>
+                ) : positionsForRole.map(p => {
+                  const holderId = getPositionHolder(state, p.id, qKey);
+                  const holder = holderId && state.staff.find(s => s.id === holderId);
+                  return (
+                    <label key={p.id} className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer hover:bg-white rounded px-1 py-0.5">
+                      <input type="checkbox" className="accent-blue-600"
+                        checked={positionIds.includes(p.id)}
+                        onChange={() => togglePos(p.id)} />
+                      <span className="font-medium">{p.name}</span>
+                      <span className="text-xs text-slate-500">
+                        {holder ? `· ${holder.name} this quarter` : '· unassigned this quarter'}
+                      </span>
+                    </label>
+                  );
+                })}
+                {/* Surface (and let the admin clear) any linked seats that no
+                    longer match the current role filter — e.g. role was
+                    changed after positions were picked. */}
+                {positionIds.filter(pid => !positionsForRole.some(p => p.id === pid)).map(pid => {
+                  const p = (state.positions || []).find(x => x.id === pid);
+                  return (
+                    <label key={pid} className="flex items-center gap-2 text-sm text-amber-700 cursor-pointer hover:bg-white rounded px-1 py-0.5">
+                      <input type="checkbox" className="accent-amber-600"
+                        checked={true}
+                        onChange={() => setPositionIds(ids => ids.filter(x => x !== pid))} />
+                      <span className="font-medium">{p?.name || pid}</span>
+                      <span className="text-xs">· (wrong role — click to unlink)</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </Field>
+          );
+        })()}
 
         <Field label={`Assigned to (${assignedStaffIds.length} selected)`} hint="Check the people who should see and do this checklist. Only these people will see it on their dashboard.">
           <div className="border border-slate-200 rounded-lg bg-slate-50 p-3 max-h-60 overflow-auto space-y-3">
@@ -4149,6 +4503,7 @@ function ChecklistEditor({ kind, state, checklist, onClose, onSave }) {
               name: name.trim(),
               roleId,
               areaId: areaId || null,
+              positionIds: Array.isArray(positionIds) ? positionIds : [],
               assignedStaffIds,
               slaMinutes,
               // Strip empty-labeled items AND empty-labeled subtasks so we
@@ -4284,6 +4639,236 @@ function StaffTab({ state, dispatch, scope, user }) {
       {checklistsFor && (
         <StaffChecklistsDialog staff={state.staff.find(s => s.id === checklistsFor.id) || checklistsFor}
           state={state} dispatch={dispatch} onClose={() => setChecklistsFor(null)} />
+      )}
+    </div>
+  );
+}
+
+/* ============================================================
+   ADMIN: ROTATIONS (positions / seats rotating quarterly)
+   ============================================================ */
+// Positions are named "seats" (OA #1, OA #2, Lab Tech, Front Desk, Office
+// Manager). Each quarter, admin picks who sits in each seat. Any checklist
+// linked to a seat gets routed to the current-quarter holder automatically,
+// which means rotating the team is now a single edit here instead of touching
+// every single checklist when Kaylee moves from OA #1 to OA #3.
+//
+// Data model:
+//   state.positions            — [{ id, name, roleId }]
+//   state.positionAssignments  — { [quarterKey]: { [positionId]: staffId } }
+//
+// One person per seat per quarter is enforced in the POSITION_ASSIGN reducer
+// (picking Kaylee for OA #1 when she was already OA #3 vacates OA #3).
+function RotationsTab({ state, dispatch, scope, user }) {
+  const [qKey, setQKey] = React.useState(currentQuarterKey());
+  const [showNew, setShowNew] = React.useState(false);
+  const [newName, setNewName] = React.useState('');
+  const [newRoleId, setNewRoleId] = React.useState(state.roles?.[0]?.id || '');
+  const isOwner = !scope || scope.isOwner;
+
+  const positions = state.positions || [];
+  const quarterMap = state.positionAssignments?.[qKey] || {};
+  const prevKey = previousQuarterKey(qKey);
+  const prevMap = state.positionAssignments?.[prevKey] || {};
+
+  // Per-position: which checklists link to it? Memoize so we don't re-scan
+  // the checklists array on every picker change.
+  const checklistsByPositionId = React.useMemo(() => {
+    const m = new Map();
+    (state.checklists || []).forEach(cl => {
+      if (Array.isArray(cl.positionIds)) {
+        cl.positionIds.forEach(pid => {
+          if (!m.has(pid)) m.set(pid, []);
+          m.get(pid).push(cl);
+        });
+      }
+    });
+    return m;
+  }, [state.checklists]);
+
+  // Which staff are eligible for a given position? We filter by the
+  // position's roleId — an OA seat shouldn't list the Office Manager.
+  const eligibleStaffFor = (pos) => {
+    if (!pos.roleId) return state.staff;
+    return state.staff.filter(s => s.roleIds?.includes(pos.roleId));
+  };
+
+  const onAssign = (positionId, staffId) => {
+    dispatch({ type: 'POSITION_ASSIGN', quarterKey: qKey, positionId, staffId: staffId || null, actorId: user?.id });
+  };
+
+  const onCopyPrev = () => {
+    const filledPrev = Object.keys(prevMap).length;
+    if (filledPrev === 0) { alert(`No assignments in ${quarterKeyLabel(prevKey)} to copy.`); return; }
+    if (!confirm(`Copy ${filledPrev} seat assignment${filledPrev === 1 ? '' : 's'} from ${quarterKeyLabel(prevKey)} to ${quarterKeyLabel(qKey)}? Existing assignments in this quarter won't be overwritten.`)) return;
+    dispatch({ type: 'POSITION_COPY_QUARTER', fromKey: prevKey, toKey: qKey, actorId: user?.id });
+  };
+
+  const onAddPosition = () => {
+    const name = newName.trim();
+    if (!name) return;
+    dispatch({ type: 'POSITION_ADD', name, roleId: newRoleId || null, actorId: user?.id });
+    setNewName(''); setShowNew(false);
+  };
+
+  const onDeletePosition = (pos) => {
+    const linkedCount = (checklistsByPositionId.get(pos.id) || []).length;
+    const msg = linkedCount > 0
+      ? `Delete "${pos.name}"? ${linkedCount} checklist${linkedCount === 1 ? '' : 's'} will lose this seat link (no staff assignments, PTO, or instances are touched).`
+      : `Delete "${pos.name}"?`;
+    if (!confirm(msg)) return;
+    dispatch({ type: 'POSITION_DELETE', id: pos.id, actorId: user?.id });
+  };
+
+  const onRenamePosition = (pos, patch) => {
+    dispatch({ type: 'POSITION_RENAME', id: pos.id,
+      name: patch.name ?? pos.name,
+      roleId: patch.roleId !== undefined ? patch.roleId : pos.roleId,
+      actorId: user?.id });
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-900">Rotations</h2>
+          <p className="text-sm text-slate-500">
+            Assign staff to seats quarterly. Checklists linked to a seat automatically go to whoever is holding it this quarter — rotate people without touching every checklist.
+          </p>
+        </div>
+      </div>
+
+      {/* Quarter navigator */}
+      <div className="card p-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <button className="btn btn-secondary" onClick={() => setQKey(previousQuarterKey(qKey))}>← Previous quarter</button>
+          <div className="text-base font-semibold text-slate-900 px-2">
+            {quarterKeyLabel(qKey)}
+            {qKey === currentQuarterKey() && <span className="ml-2 text-xs text-emerald-700 font-medium">· current</span>}
+          </div>
+          <button className="btn btn-secondary" onClick={() => setQKey(nextQuarterKey(qKey))}>Next quarter →</button>
+        </div>
+        <div className="flex items-center gap-2">
+          {qKey !== currentQuarterKey() && (
+            <button className="btn btn-ghost text-xs" onClick={() => setQKey(currentQuarterKey())}>Jump to current</button>
+          )}
+          {isOwner && (
+            <button className="btn btn-secondary text-sm" onClick={onCopyPrev}
+              title={`Copy seats from ${quarterKeyLabel(prevKey)}`}>
+              ⎘ Copy from previous quarter
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Seat table */}
+      <div className="card p-0 overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-slate-50 text-slate-600 text-xs uppercase tracking-wide">
+            <tr>
+              <th className="text-left p-3">Seat</th>
+              <th className="text-left p-3">Role</th>
+              <th className="text-left p-3">Who holds it this quarter</th>
+              <th className="text-left p-3">Linked checklists</th>
+              {isOwner && <th className="p-3 w-16"></th>}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {positions.length === 0 && (
+              <tr><td colSpan={isOwner ? 5 : 4} className="p-6 text-center text-slate-400 italic">
+                No positions yet. {isOwner && 'Add one below to start rotating.'}
+              </td></tr>
+            )}
+            {positions.map(pos => {
+              const holderId = quarterMap[pos.id] || '';
+              const eligible = eligibleStaffFor(pos);
+              const linkedCls = checklistsByPositionId.get(pos.id) || [];
+              const role = state.roles.find(r => r.id === pos.roleId);
+              const prevHolderId = prevMap[pos.id];
+              const prevHolder = prevHolderId && state.staff.find(s => s.id === prevHolderId);
+              return (
+                <tr key={pos.id} className="align-top hover:bg-slate-50">
+                  <td className="p-3">
+                    {isOwner ? (
+                      <input className="input text-sm" value={pos.name}
+                        onChange={e => onRenamePosition(pos, { name: e.target.value })} />
+                    ) : (
+                      <span className="font-medium text-slate-900">{pos.name}</span>
+                    )}
+                  </td>
+                  <td className="p-3">
+                    {isOwner ? (
+                      <select className="input text-sm" value={pos.roleId || ''}
+                        onChange={e => onRenamePosition(pos, { roleId: e.target.value || null })}>
+                        <option value="">— Any role —</option>
+                        {state.roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                      </select>
+                    ) : (
+                      <span className="text-slate-600 text-xs">{role?.name || '—'}</span>
+                    )}
+                  </td>
+                  <td className="p-3 min-w-[180px]">
+                    <select className="input text-sm" value={holderId}
+                      disabled={!isOwner}
+                      onChange={e => onAssign(pos.id, e.target.value)}>
+                      <option value="">— Unassigned —</option>
+                      {eligible.map(s => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                    </select>
+                    {prevHolder && prevHolderId !== holderId && (
+                      <div className="text-xs text-slate-400 mt-1">
+                        Last quarter: {prevHolder.name}
+                      </div>
+                    )}
+                  </td>
+                  <td className="p-3 text-xs text-slate-600">
+                    {linkedCls.length === 0 ? (
+                      <span className="italic text-slate-400">No checklists linked</span>
+                    ) : (
+                      <ul className="space-y-0.5">
+                        {linkedCls.slice(0, 5).map(cl => (
+                          <li key={cl.id}>{cl.name}</li>
+                        ))}
+                        {linkedCls.length > 5 && <li className="text-slate-400">+ {linkedCls.length - 5} more</li>}
+                      </ul>
+                    )}
+                  </td>
+                  {isOwner && (
+                    <td className="p-3 text-right">
+                      <button className="btn btn-ghost text-red-600 text-xs"
+                        onClick={() => onDeletePosition(pos)}>Delete</button>
+                    </td>
+                  )}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Add new position */}
+      {isOwner && (
+        <div className="card p-4 space-y-3">
+          {!showNew ? (
+            <button className="btn btn-secondary" onClick={() => setShowNew(true)}>+ Add position</button>
+          ) : (
+            <div className="flex flex-wrap items-end gap-2">
+              <Field label="Seat name">
+                <input className="input w-48" placeholder="e.g. OA #5"
+                  value={newName} onChange={e => setNewName(e.target.value)} />
+              </Field>
+              <Field label="Role" hint="Filters the staff picker for this seat.">
+                <select className="input w-48" value={newRoleId} onChange={e => setNewRoleId(e.target.value)}>
+                  <option value="">— Any role —</option>
+                  {state.roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                </select>
+              </Field>
+              <button className="btn btn-primary" disabled={!newName.trim()} onClick={onAddPosition}>Add</button>
+              <button className="btn btn-secondary" onClick={() => { setShowNew(false); setNewName(''); }}>Cancel</button>
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
