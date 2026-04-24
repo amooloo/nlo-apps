@@ -96,7 +96,7 @@ const __dbg = (location, message, data, hypothesisId) => {
 // Bump this string whenever new checklists are added to DEFAULT_STATE.
 // applySeedMigrations() uses it to idempotently merge missing seed
 // checklists into persisted user state (localStorage + Firebase).
-const CURRENT_SEED_VERSION = '2026-04-20-cycle-effective';
+const CURRENT_SEED_VERSION = '2026-04-24-oa-focus-titles';
 const DEFAULT_STATE = {
   _seedVersion: CURRENT_SEED_VERSION,
   roles: [
@@ -265,7 +265,7 @@ const DEFAULT_STATE = {
     },
     // --- Orthodontic Assistant #1 (detailed workflow) ---
     {
-      id: 'cl_oa1_open', kind: 'recurring', name: 'OA #1 — Opening Duties',
+      id: 'cl_oa1_open', kind: 'recurring', name: 'Opening — Sterilization',
       roleId: 'r_oa', positionIds: ['p_oa1'], areaId: 'a_steril', schedule: { freq: 'weekdays', dueTime: '08:00' }, slaMinutes: 30,
       items: [
         { id: 'it1', label: 'Sterilization — check autoclave and put instruments away' },
@@ -278,7 +278,7 @@ const DEFAULT_STATE = {
       ].map(i => ({ ...i, defaultAssigneeId: null })),
     },
     {
-      id: 'cl_oa1_charting', kind: 'recurring', name: 'OA #1 — Charting & Photos',
+      id: 'cl_oa1_charting', kind: 'recurring', name: 'Daily Charting & Photos',
       roleId: 'r_oa', positionIds: ['p_oa1'], areaId: 'a_workstation', schedule: { freq: 'weekdays', dueTime: '17:30' }, slaMinutes: 45,
       items: [
         { id: 'it1', label: 'Ensure all patients are written up (tooth chart, appointment box, milestones)' },
@@ -290,7 +290,7 @@ const DEFAULT_STATE = {
       ].map(i => ({ ...i, defaultAssigneeId: null })),
     },
     {
-      id: 'cl_oa1_close', kind: 'recurring', name: 'OA #1 — Closing Duties',
+      id: 'cl_oa1_close', kind: 'recurring', name: 'Closing — Sterilization & Lab',
       roleId: 'r_oa', positionIds: ['p_oa1'], areaId: 'a_steril', schedule: { freq: 'weekdays', dueTime: '18:30' }, slaMinutes: 60,
       items: [
         { id: 'it1',  label: 'Treatment area — ensure chairs have air/water syringes and suction' },
@@ -314,7 +314,7 @@ const DEFAULT_STATE = {
       ].map(i => ({ ...i, defaultAssigneeId: null })),
     },
     {
-      id: 'cl_oa1_weekly', kind: 'recurring', name: 'OA #1 — Weekly Admin (Tuesday AM)',
+      id: 'cl_oa1_weekly', kind: 'recurring', name: 'Weekly — Sterilization Deep Clean',
       roleId: 'r_oa', positionIds: ['p_oa1'], areaId: 'a_steril', schedule: { freq: 'weekly', weekday: 2, dueTime: '09:00' }, slaMinutes: 60,
       items: [
         { id: 'it1', label: 'Restock all chairs' },
@@ -328,7 +328,7 @@ const DEFAULT_STATE = {
       ].map(i => ({ ...i, defaultAssigneeId: null })),
     },
     {
-      id: 'cl_oa1_monthly', kind: 'recurring', name: 'OA #1 — Monthly Admin',
+      id: 'cl_oa1_monthly', kind: 'recurring', name: 'Monthly — Cold Sterile & Sharps',
       roleId: 'r_oa', positionIds: ['p_oa1'], areaId: 'a_steril', schedule: { freq: 'monthly', dayOfMonth: 1, dueTime: '17:00' }, slaMinutes: 120,
       items: [
         { id: 'it1', label: 'Cold sterile (every 28 days) — instruments' },
@@ -340,7 +340,7 @@ const DEFAULT_STATE = {
       ].map(i => ({ ...i, defaultAssigneeId: null })),
     },
     {
-      id: 'cl_oa1_quarterly', kind: 'recurring', name: 'OA #1 — Quarterly Admin',
+      id: 'cl_oa1_quarterly', kind: 'recurring', name: 'Quarterly — Suction & Traps',
       roleId: 'r_oa', positionIds: ['p_oa1'], areaId: 'a_steril', schedule: { freq: 'quarterly', startMonth: 0, dayOfMonth: 1, dueTime: '17:00' }, slaMinutes: 120,
       items: [
         { id: 'it1', label: 'Clean / maintain suction' },
@@ -349,7 +349,7 @@ const DEFAULT_STATE = {
     },
     // --- Orthodontic Assistant #3 (detailed workflow) ---
     {
-      id: 'cl_oa3_open', kind: 'recurring', name: 'OA #3 — Opening Duties',
+      id: 'cl_oa3_open', kind: 'recurring', name: 'Opening — Records & Cameras',
       roleId: 'r_oa', positionIds: ['p_oa3'], areaId: 'a_steril', schedule: { freq: 'weekdays', dueTime: '08:00' }, slaMinutes: 30,
       items: [
         { id: 'it1', label: 'Records/Lab — ensure cameras are charged and ready for use' },
@@ -360,7 +360,7 @@ const DEFAULT_STATE = {
       ].map(i => ({ ...i, defaultAssigneeId: null })),
     },
     {
-      id: 'cl_oa3_charting', kind: 'recurring', name: 'OA #3 — Charting & Photos',
+      id: 'cl_oa3_charting', kind: 'recurring', name: 'Daily Charting & Photos',
       roleId: 'r_oa', positionIds: ['p_oa3'], areaId: 'a_workstation', schedule: { freq: 'weekdays', dueTime: '17:30' }, slaMinutes: 45,
       items: [
         { id: 'it1', label: 'Ensure all patients are written up (tooth chart, appointment box, milestones)' },
@@ -372,7 +372,7 @@ const DEFAULT_STATE = {
       ].map(i => ({ ...i, defaultAssigneeId: null })),
     },
     {
-      id: 'cl_oa3_close', kind: 'recurring', name: 'OA #3 — Closing Duties',
+      id: 'cl_oa3_close', kind: 'recurring', name: 'Closing — Brushing Station & Scanners',
       roleId: 'r_oa', positionIds: ['p_oa3'], areaId: 'a_steril', schedule: { freq: 'weekdays', dueTime: '18:30' }, slaMinutes: 60,
       items: [
         { id: 'it1',  label: 'Treatment area — ensure chairs have air/water syringes and suction' },
@@ -398,7 +398,7 @@ const DEFAULT_STATE = {
       ].map(i => ({ ...i, defaultAssigneeId: null })),
     },
     {
-      id: 'cl_oa3_weekly', kind: 'recurring', name: 'OA #3 — Weekly Admin (Tuesday AM)',
+      id: 'cl_oa3_weekly', kind: 'recurring', name: 'Weekly — Brushing Station & Lab',
       roleId: 'r_oa', positionIds: ['p_oa3'], areaId: 'a_steril', schedule: { freq: 'weekly', weekday: 2, dueTime: '09:00' }, slaMinutes: 60,
       items: [
         { id: 'it1',  label: 'Deep clean brushing station' },
@@ -448,7 +448,7 @@ const DEFAULT_STATE = {
     },
     // --- Orthodontic Assistant #4 (detailed workflow) ---
     {
-      id: 'cl_oa4_open', kind: 'recurring', name: 'OA #4 — Opening Duties',
+      id: 'cl_oa4_open', kind: 'recurring', name: 'Opening — Records & Cameras (Light)',
       roleId: 'r_oa', positionIds: ['p_oa4'], areaId: 'a_steril', schedule: { freq: 'weekdays', dueTime: '08:00' }, slaMinutes: 30,
       items: [
         { id: 'it1', label: 'Records/Lab — ensure cameras are charged and ready for use' },
@@ -458,7 +458,7 @@ const DEFAULT_STATE = {
       ].map(i => ({ ...i, defaultAssigneeId: null })),
     },
     {
-      id: 'cl_oa4_charting', kind: 'recurring', name: 'OA #4 — Charting & Photos',
+      id: 'cl_oa4_charting', kind: 'recurring', name: 'Daily Charting & Photos (Light)',
       roleId: 'r_oa', positionIds: ['p_oa4'], areaId: 'a_workstation', schedule: { freq: 'weekdays', dueTime: '17:30' }, slaMinutes: 30,
       items: [
         { id: 'it1', label: 'Ensure all patients are written up (tooth chart, appointment box, milestones)' },
@@ -467,7 +467,7 @@ const DEFAULT_STATE = {
       ].map(i => ({ ...i, defaultAssigneeId: null })),
     },
     {
-      id: 'cl_oa4_close', kind: 'recurring', name: 'OA #4 — Closing Duties',
+      id: 'cl_oa4_close', kind: 'recurring', name: 'Closing — Consult Area',
       roleId: 'r_oa', positionIds: ['p_oa4'], areaId: 'a_steril', schedule: { freq: 'weekdays', dueTime: '18:30' }, slaMinutes: 60,
       items: [
         { id: 'it1',  label: 'Treatment area — ensure chairs have air/water syringes and suction' },
@@ -488,7 +488,7 @@ const DEFAULT_STATE = {
     },
     // --- Orthodontic Assistant #2 (detailed workflow) ---
     {
-      id: 'cl_oa2_open', kind: 'recurring', name: 'OA #2 — Opening Duties',
+      id: 'cl_oa2_open', kind: 'recurring', name: 'Opening — Schedule & Retainers',
       roleId: 'r_oa', positionIds: ['p_oa2'], areaId: 'a_steril', schedule: { freq: 'weekdays', dueTime: '08:00' }, slaMinutes: 30,
       items: [
         { id: 'it1', label: 'Schedule — check your schedule prior to huddle and bring up details in meeting' },
@@ -497,7 +497,7 @@ const DEFAULT_STATE = {
       ].map(i => ({ ...i, defaultAssigneeId: null })),
     },
     {
-      id: 'cl_oa2_charting', kind: 'recurring', name: 'OA #2 — Charting & Photos',
+      id: 'cl_oa2_charting', kind: 'recurring', name: 'Daily Charting & Photos',
       roleId: 'r_oa', positionIds: ['p_oa2'], areaId: 'a_workstation', schedule: { freq: 'weekdays', dueTime: '17:30' }, slaMinutes: 45,
       items: [
         { id: 'it1', label: 'Ensure all patients are written up (tooth chart, appointment box, milestones)' },
@@ -509,7 +509,7 @@ const DEFAULT_STATE = {
       ].map(i => ({ ...i, defaultAssigneeId: null })),
     },
     {
-      id: 'cl_oa2_close', kind: 'recurring', name: 'OA #2 — Closing Duties',
+      id: 'cl_oa2_close', kind: 'recurring', name: 'Closing — Treatment Bay',
       roleId: 'r_oa', positionIds: ['p_oa2'], areaId: 'a_steril', schedule: { freq: 'weekdays', dueTime: '18:30' }, slaMinutes: 60,
       items: [
         { id: 'it1',  label: 'Treatment area — ensure chairs have air/water syringes and suction' },
@@ -524,7 +524,7 @@ const DEFAULT_STATE = {
       ].map(i => ({ ...i, defaultAssigneeId: null })),
     },
     {
-      id: 'cl_oa2_weekly', kind: 'recurring', name: 'OA #2 — Weekly Admin (Tuesday AM)',
+      id: 'cl_oa2_weekly', kind: 'recurring', name: 'Weekly — Treatment Bay Deep Clean',
       roleId: 'r_oa', positionIds: ['p_oa2'], areaId: 'a_treatment', schedule: { freq: 'weekly', weekday: 2, dueTime: '09:00' }, slaMinutes: 60,
       items: [
         { id: 'it1',  label: 'Scan all assistants IPR sheets' },
@@ -1124,12 +1124,52 @@ function applySeedMigrations(state) {
       'rewrote', rewrote, 'checklist position tag(s)');
   }
 
+  // (3c) One-time title cleanup: the original OA #N checklists were named
+  // "OA #1 — Opening Duties" etc. With Positions shipped, the OA # prefix
+  // is redundant with the position badge, so we renamed the seeds to
+  // focus-area descriptors (e.g. "Opening — Sterilization"). This block
+  // renames a user's stored seed checklists to match — but ONLY when the
+  // stored name still equals the previous default (so admin edits to the
+  // title are preserved). Idempotent once titles are current.
+  const OA_TITLE_RENAMES = {
+    cl_oa1_open:      { from: 'OA #1 — Opening Duties',                  to: 'Opening — Sterilization' },
+    cl_oa1_charting:  { from: 'OA #1 — Charting & Photos',               to: 'Daily Charting & Photos' },
+    cl_oa1_close:     { from: 'OA #1 — Closing Duties',                  to: 'Closing — Sterilization & Lab' },
+    cl_oa1_weekly:    { from: 'OA #1 — Weekly Admin (Tuesday AM)',       to: 'Weekly — Sterilization Deep Clean' },
+    cl_oa1_monthly:   { from: 'OA #1 — Monthly Admin',                   to: 'Monthly — Cold Sterile & Sharps' },
+    cl_oa1_quarterly: { from: 'OA #1 — Quarterly Admin',                 to: 'Quarterly — Suction & Traps' },
+    cl_oa2_open:      { from: 'OA #2 — Opening Duties',                  to: 'Opening — Schedule & Retainers' },
+    cl_oa2_charting:  { from: 'OA #2 — Charting & Photos',               to: 'Daily Charting & Photos' },
+    cl_oa2_close:     { from: 'OA #2 — Closing Duties',                  to: 'Closing — Treatment Bay' },
+    cl_oa2_weekly:    { from: 'OA #2 — Weekly Admin (Tuesday AM)',       to: 'Weekly — Treatment Bay Deep Clean' },
+    cl_oa3_open:      { from: 'OA #3 — Opening Duties',                  to: 'Opening — Records & Cameras' },
+    cl_oa3_charting:  { from: 'OA #3 — Charting & Photos',               to: 'Daily Charting & Photos' },
+    cl_oa3_close:     { from: 'OA #3 — Closing Duties',                  to: 'Closing — Brushing Station & Scanners' },
+    cl_oa3_weekly:    { from: 'OA #3 — Weekly Admin (Tuesday AM)',       to: 'Weekly — Brushing Station & Lab' },
+    cl_oa4_open:      { from: 'OA #4 — Opening Duties',                  to: 'Opening — Records & Cameras (Light)' },
+    cl_oa4_charting:  { from: 'OA #4 — Charting & Photos',               to: 'Daily Charting & Photos (Light)' },
+    cl_oa4_close:     { from: 'OA #4 — Closing Duties',                  to: 'Closing — Consult Area' },
+  };
+  let titleRenames = 0;
+  backfilledChecklists.forEach((cl, idx) => {
+    const rename = OA_TITLE_RENAMES[cl && cl.id];
+    if (rename && cl.name === rename.from) {
+      backfilledChecklists[idx] = { ...cl, name: rename.to };
+      titleRenames++;
+    }
+  });
+  if (titleRenames > 0) {
+    console.log('[NLO Checklists] Seed migration → OA title cleanup:',
+      'renamed', titleRenames, 'checklist(s) to focus-area titles');
+  }
+
   if (missing.length === 0) {
     // Only the items-backfill (or nothing) changed. Keep _seedVersion fresh.
     if (itemsBackfilled === 0
         && areasBackfilled === 0
         && positionsBackfilled === 0
         && missingPositions.length === 0
+        && titleRenames === 0
         && state._seedVersion === CURRENT_SEED_VERSION) return state;
     return {
       ...state,
