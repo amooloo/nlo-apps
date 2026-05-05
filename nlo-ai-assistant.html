@@ -534,12 +534,17 @@ function logToSheets(type, question, answer) {
   if (!CONFIG.SHEETS_WEBHOOK) return;
   try {
     var payload = { type: type, question: question, answer: answer || '', timestamp: new Date().toISOString(), mode: currentMode, staffName: currentStaff ? currentStaff.name : '', staffRole: currentStaff ? currentStaff.role : '' };
-    // Use sendBeacon for reliable logging (handles Google's redirects better than fetch no-cors)
-    var sent = navigator.sendBeacon(CONFIG.SHEETS_WEBHOOK, new Blob([JSON.stringify(payload)], { type: 'application/json' }));
-    // Fallback to fetch if sendBeacon fails
-    if (!sent) {
-      fetch(CONFIG.SHEETS_WEBHOOK, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(payload) });
-    }
+    // Use fetch with keepalive (survives page unload like sendBeacon) and text/plain
+    // Content-Type to avoid the CORS preflight that Apps Script web apps don't handle.
+    // mode:'no-cors' tells the browser we don't need to read the response, and fetch
+    // properly follows the 302 redirect from script.google.com -> script.googleusercontent.com.
+    fetch(CONFIG.SHEETS_WEBHOOK, {
+      method: 'POST',
+      mode: 'no-cors',
+      keepalive: true,
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload)
+    });
   } catch(e) { console.log('Log error:', e); }
 }
 
