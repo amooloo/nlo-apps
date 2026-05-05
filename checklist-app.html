@@ -596,6 +596,13 @@ const DEFAULT_STATE = {
     // can be adjusted in Settings.
     dayStartTime: '07:00',
     dayEndTime:   '17:30',
+    // Compliance score window. If set, scores are calculated from this date
+    // forward instead of the legacy rolling 30-day window. Reset annually
+    // (typically Jan 1) to give everyone a fresh yearly scorecard. New
+    // staff are auto-stamped with their own personal scoreSinceDate when
+    // they're added so they don't inherit penalty for instances created
+    // before they joined.
+    scoreSinceDate: '2026-01-01',
   },
 };
 
@@ -914,7 +921,20 @@ async function uploadPhotoDataUrl(dataUrl, { prefix = 'inspections' } = {}) {
  * Returns a breakdown so the UI can show where the score came from.
  */
 function getMyCompliance(user, state, windowDays = 30) {
-  const windowStart = now() - windowDays * 86400000;
+  // Score window start. Picks the LATEST of:
+  //   - The user's personal scoreSinceDate (set on hire so new staff aren't
+  //     penalized for instances that existed before they joined)
+  //   - The office-wide scoreSinceDate from settings (annual reset, e.g. Jan 1)
+  // If neither is set, falls back to the legacy rolling `windowDays` window.
+  const dateStrToMs = (s) => {
+    if (!s || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return 0;
+    return new Date(s + 'T00:00:00').getTime();
+  };
+  const userStart = dateStrToMs(user.scoreSinceDate);
+  const orgStart  = dateStrToMs(state?.settings?.scoreSinceDate);
+  const windowStart = (userStart || orgStart)
+    ? Math.max(userStart, orgStart)
+    : now() - windowDays * 86400000;
   const roleIds = user.roleIds || [];
 
   // 1) CHECKLIST ON-TIME
@@ -1479,7 +1499,9 @@ function reducer(state, action) {
       next = { ...state, roles: state.roles.filter(r => r.id !== action.id) }; break;
 
     case 'STAFF_ADD':
-      next = { ...state, staff: [...state.staff, { id: uid(), name: action.name, appRole: action.appRole || 'staff', roleIds: action.roleIds || [] }] }; break;
+      // Stamp the new hire's score window start so they don't inherit
+      // penalty for past-due instances that pre-date them joining.
+      next = { ...state, staff: [...state.staff, { id: uid(), name: action.name, appRole: action.appRole || 'staff', roleIds: action.roleIds || [], scoreSinceDate: todayISO() }] }; break;
     case 'STAFF_UPDATE':
       next = { ...state, staff: state.staff.map(s => s.id === action.id ? { ...s, ...action.patch } : s) }; break;
     case 'STAFF_DELETE': {
@@ -5724,7 +5746,7 @@ function ComplianceCard({ user, state, windowDays = 30 }) {
   if (c.total === 0) {
     return (
       <div className="card p-3 bg-slate-50 border-slate-200 text-sm text-slate-700">
-        <strong>Your compliance:</strong> no past-due checklists or inspections in the last {windowDays} days yet. Keep going — this card will fill in as data builds up.
+        <strong>Your compliance:</strong> no past-due checklists or inspections in your score window yet. Keep going — this card will fill in as data builds up.
       </div>
     );
   }
