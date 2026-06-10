@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NLO AISA Portal</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #0f172a;
+    color: #e2e8f0;
+    min-height: 100vh;
+  }
+
+  .header {
+    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+    border-bottom: 1px solid #334155;
+    padding: 20px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .header h1 { font-size: 22px; font-weight: 700; color: #f8fafc; }
+  .header h1 span { color: #3b82f6; }
+  .header .version {
+    font-size: 12px; color: #64748b; background: #1e293b;
+    border: 1px solid #334155; padding: 4px 10px; border-radius: 12px;
+  }
+
+  /* Tabs */
+  .tabs {
+    display: flex; gap: 8px; padding: 16px 32px 0;
+  }
+  .tab-btn {
+    background: #1e293b; color: #94a3b8; border: 1px solid #334155;
+    border-bottom: none; padding: 10px 22px; border-radius: 10px 10px 0 0;
+    cursor: pointer; font-size: 14px; font-weight: 600;
+  }
+  .tab-btn.active { background: #334155; color: #f8fafc; border-color: #475569; }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* Setup Banner */
+  .setup-row { display: flex; gap: 12px; margin: 20px 32px 0; flex-wrap: wrap; }
+
+  .setup-banner {
+    background: #1e3a5f; border: 1px solid #2563eb; border-radius: 10px;
+    padding: 14px 20px; display: flex; align-items: center; gap: 10px; flex: 1; min-width: 300px;
+  }
+  .setup-banner.connected { background: #14532d; border-color: #22c55e; }
+  .setup-banner .icon { font-size: 20px; }
+  .setup-banner .text { font-size: 13px; color: #cbd5e1; white-space: nowrap; }
+  .setup-banner input {
+    flex: 1; background: #0f172a; border: 1px solid #475569; border-radius: 6px;
+    color: #e2e8f0; padding: 7px 10px; font-size: 12px; font-family: monospace; min-width: 180px;
+  }
+  .setup-banner button {
+    background: #2563eb; color: white; border: none; padding: 7px 14px;
+    border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; white-space: nowrap;
+  }
+  .setup-banner button:hover { background: #1d4ed8; }
+
+  .main { padding: 20px 32px; display: flex; gap: 24px; }
+  .left-panel { flex: 1; min-width: 0; }
+  .right-panel { width: 400px; flex-shrink: 0; }
+
+  /* Drop Zone */
+  .drop-zone {
+    border: 2px dashed #475569; border-radius: 16px; padding: 48px 24px;
+    text-align: center; transition: all 0.2s; cursor: pointer; background: #1e293b;
+  }
+  .drop-zone:hover, .drop-zone.drag-over {
+    border-color: #3b82f6; box-shadow: 0 0 30px rgba(59,130,246,0.1);
+  }
+  .drop-zone .icon { font-size: 48px; margin-bottom: 12px; }
+  .drop-zone h3 { font-size: 18px; color: #f8fafc; margin-bottom: 6px; }
+  .drop-zone p { font-size: 13px; color: #64748b; }
+  .drop-zone input { display: none; }
+
+  /* Photo Queue */
+  .queue-title { font-size: 16px; font-weight: 600; margin: 24px 0 12px; color: #f8fafc; }
+  .photo-queue { display: flex; flex-direction: column; gap: 14px; }
+
+  .photo-card {
+    background: #1e293b; border: 1px solid #334155; border-radius: 12px;
+    padding: 16px; transition: border-color 0.2s;
+  }
+  .photo-card:hover { border-color: #475569; }
+
+  .card-top { display: flex; gap: 16px; align-items: flex-start; }
+
+  .thumb {
+    width: 120px; height: 120px; border-radius: 8px; object-fit: cover;
+    background: #0f172a; display: block; flex-shrink: 0;
+  }
+
+  .card-top .details { flex: 1; min-width: 0; }
+  .card-top .details select,
+  .card-top .details input[type="text"] {
+    width: 100%; background: #0f172a; border: 1px solid #475569; border-radius: 6px;
+    color: #e2e8f0; padding: 8px 10px; font-size: 13px; margin-bottom: 8px;
+  }
+  .card-top .details select { cursor: pointer; }
+
+  .actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+
+  .btn-sm {
+    border: none; padding: 6px 10px; border-radius: 6px;
+    font-size: 11px; cursor: pointer; font-weight: 600; white-space: nowrap;
+  }
+  .btn-remove { background: #3b1c1c; color: #f87171; border: 1px solid #991b1b; }
+  .btn-remove:hover { background: #7f1d1d; }
+
+  .status-badge {
+    font-size: 10px; padding: 3px 8px; border-radius: 10px; font-weight: 600; margin-left: auto;
+  }
+  .status-pending { background: #1e293b; color: #94a3b8; border: 1px solid #475569; }
+  .status-uploading { background: #1e3a5f; color: #60a5fa; border: 1px solid #2563eb; }
+  .status-done { background: #14532d; color: #4ade80; border: 1px solid #22c55e; }
+  .status-error { background: #3b1c1c; color: #f87171; border: 1px solid #991b1b; }
+
+  /* Upload All */
+  .upload-section { margin-top: 20px; display: flex; gap: 12px; align-items: center; }
+  .btn-upload-all {
+    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+    color: white; border: none; padding: 14px 32px; border-radius: 10px;
+    font-size: 16px; font-weight: 700; cursor: pointer; flex: 1; transition: all 0.2s;
+  }
+  .btn-upload-all:hover { transform: translateY(-1px); box-shadow: 0 4px 20px rgba(37,99,235,0.4); }
+  .btn-upload-all:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+
+  /* Right Panel */
+  .output-panel {
+    background: #1e293b; border: 1px solid #334155; border-radius: 12px;
+    padding: 20px; position: sticky; top: 20px;
+  }
+  .output-panel h3 { font-size: 15px; font-weight: 600; color: #f8fafc; margin-bottom: 4px; }
+  .output-panel .subtitle { font-size: 12px; color: #64748b; margin-bottom: 16px; }
+
+  .output-block {
+    background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 12px;
+    margin-bottom: 12px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px;
+    color: #a5f3fc; white-space: pre-wrap; word-break: break-all; max-height: 400px;
+    overflow-y: auto; line-height: 1.6;
+  }
+  .output-block:empty::after {
+    content: "Upload photos to generate AISA references...";
+    color: #475569; font-style: italic; font-family: -apple-system, sans-serif;
+  }
+
+  .btn-copy {
+    background: #334155; color: #e2e8f0; border: none; padding: 8px 16px;
+    border-radius: 6px; font-size: 13px; cursor: pointer; font-weight: 600; width: 100%;
+  }
+  .btn-copy:hover { background: #475569; }
+  .btn-copy.copied { background: #14532d; color: #4ade80; }
+
+  /* Progress */
+  .progress-bar {
+    width: 100%; height: 4px; background: #334155; border-radius: 2px;
+    margin-top: 16px; overflow: hidden; display: none;
+  }
+  .progress-bar.active { display: block; }
+  .progress-bar .fill {
+    height: 100%; background: linear-gradient(90deg, #3b82f6, #60a5fa);
+    border-radius: 2px; transition: width 0.3s; width: 0%;
+  }
+
+  /* Admin Training Tab */
+  .admin-wrap { max-width: 600px; margin: 32px auto; padding: 0 32px; }
+  .admin-card {
+    background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 30px;
+  }
+  .admin-card h2 { color: #60a5fa; margin-bottom: 10px; font-size: 20px; }
+  .admin-card p { font-size: 13px; color: #94a3b8; margin-bottom: 20px; line-height: 1.5; }
+  .admin-upload-box {
+    border: 2px dashed #475569; padding: 30px; text-align: center;
+    border-radius: 8px; margin-bottom: 20px; background: #0f172a;
+  }
+  .admin-upload-box input { color: #e2e8f0; font-size: 13px; }
+  .admin-card label { font-size: 13px; color: #94a3b8; display: block; margin-bottom: 4px; }
+  .admin-card input[type="password"] {
+    width: 100%; padding: 10px 14px; background: #0f172a; border: 1px solid #475569;
+    border-radius: 6px; font-size: 14px; color: #e2e8f0; margin-bottom: 15px;
+  }
+  .btn-train {
+    background: #2563eb; color: white; border: none; padding: 12px 24px;
+    border-radius: 6px; cursor: pointer; font-size: 16px; font-weight: 600; width: 100%;
+  }
+  .btn-train:hover { background: #1d4ed8; }
+  #trainStatus { margin-top: 15px; font-weight: bold; text-align: center; font-size: 14px; }
+
+  @media (max-width: 900px) {
+    .main { flex-direction: column; }
+    .right-panel { width: 100%; }
+    .setup-row { flex-direction: column; }
+    .setup-banner { min-width: unset; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🦷 <span>NLO</span> AISA Portal</h1>
+  <span class="version">v3.0.0</span>
+</div>
+
+<div class="tabs">
+  <button class="tab-btn active" id="tabBtnPhotos" onclick="switchTab('photos')">📸 Photo Portal</button>
+  <button class="tab-btn" id="tabBtnAdmin" onclick="switchTab('admin')">🧠 Admin Training</button>
+</div>
+
+<!-- ========== TAB 1: PHOTO PORTAL ========== -->
+<div class="tab-content active" id="tab-photos">
+
+  <div class="setup-row">
+    <div class="setup-banner" id="setupBanner">
+      <span class="icon">⚙️</span>
+      <div class="text">Google Apps Script:</div>
+      <input type="text" id="scriptUrl" placeholder="https://script.google.com/macros/s/.../exec">
+      <button onclick="saveScriptUrl()">Connect</button>
+    </div>
+  </div>
+
+  <div class="main">
+    <!-- Left Panel -->
+    <div class="left-panel">
+      <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+        <div class="icon">📁</div>
+        <h3>Drop photos here</h3>
+        <p>or click to browse — JPG, PNG supported</p>
+        <input type="file" id="fileInput" accept="image/*" multiple>
+      </div>
+
+      <div class="queue-title" id="queueTitle" style="display:none">
+        📋 Photo Queue <span id="queueCount"></span>
+      </div>
+      <div class="photo-queue" id="photoQueue"></div>
+
+      <div class="upload-section" id="uploadSection" style="display:none">
+        <button class="btn-upload-all" id="btnUploadAll" onclick="uploadAll()">
+          🚀 Upload All to Google Drive
+        </button>
+      </div>
+      <div class="progress-bar" id="progressBar">
+        <div class="fill" id="progressFill"></div>
+      </div>
+    </div>
+
+    <!-- Right Panel -->
+    <div class="right-panel">
+      <div class="output-panel">
+        <h3>📋 AISA Training References</h3>
+        <p class="subtitle">Auto-generated — paste directly into training files</p>
+        <div class="output-block" id="outputBlock"></div>
+        <button class="btn-copy" id="btnCopy" onclick="copyOutput()">Copy All References</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== TAB 2: ADMIN TRAINING ========== -->
+<div class="tab-content" id="tab-admin">
+  <div class="admin-wrap">
+    <div class="admin-card">
+      <h2>🧠 Train AISA Knowledge Base</h2>
+      <p>Upload your updated Clinical Manual (.html) or Policy Document (.txt) here to update the AI's brain.</p>
+
+      <div class="admin-upload-box">
+        <input type="file" id="trainFileInput" accept=".html,.txt" />
+      </div>
+
+      <label for="adminKey">Admin Key:</label>
+      <input type="password" id="adminKey" placeholder="Enter admin key" />
+
+      <button class="btn-train" onclick="processAndTrain()">Upload &amp; Train Database</button>
+      <div id="trainStatus"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ================= Tabs =================
+function switchTab(name) {
+  document.getElementById("tab-photos").classList.toggle("active", name === "photos");
+  document.getElementById("tab-admin").classList.toggle("active", name === "admin");
+  document.getElementById("tabBtnPhotos").classList.toggle("active", name === "photos");
+  document.getElementById("tabBtnAdmin").classList.toggle("active", name === "admin");
+}
+
+// ================= Photo Portal =================
+let photos = [];
+let scriptUrl = localStorage.getItem("nlo_script_url") || "";
+let photoIdCounter = 0;
+
+const CATEGORIES = [
+  "MARA", "Herbst", "Herbst-Smith-Type-I", "Herbst-Smith-Type-II",
+  "RPE", "MSE", "MARPE", "Schwartz", "Hawley", "Finger-Spring",
+  "Bonding", "Brackets", "Instruments", "Archwires", "Elastics",
+  "Clinical-Before", "Clinical-After", "Clinical-Progress",
+  "Intraoral", "Extraoral", "Ceph", "Panoramic", "Patient-Education", "Office", "Other"
+];
+
+window.addEventListener("DOMContentLoaded", () => {
+  if (scriptUrl) {
+    document.getElementById("scriptUrl").value = scriptUrl;
+    markConnected();
+  }
+  setupDropZone();
+  setupFileInput();
+});
+
+function saveScriptUrl() {
+  scriptUrl = document.getElementById("scriptUrl").value.trim();
+  if (!scriptUrl) return;
+  localStorage.setItem("nlo_script_url", scriptUrl);
+  markConnected();
+}
+
+function markConnected() {
+  const banner = document.getElementById("setupBanner");
+  banner.classList.add("connected");
+  banner.querySelector(".icon").textContent = "✅";
+  banner.querySelector(".text").textContent = "Google Drive connected";
+}
+
+// ---- Drag & Drop ----
+function setupDropZone() {
+  const dz = document.getElementById("dropZone");
+  dz.addEventListener("dragover", (e) => { e.preventDefault(); dz.classList.add("drag-over"); });
+  dz.addEventListener("dragleave", () => dz.classList.remove("drag-over"));
+  dz.addEventListener("drop", (e) => {
+    e.preventDefault(); dz.classList.remove("drag-over");
+    handleFiles(e.dataTransfer.files);
+  });
+}
+
+function setupFileInput() {
+  document.getElementById("fileInput").addEventListener("change", (e) => {
+    handleFiles(e.target.files); e.target.value = "";
+  });
+}
+
+function handleFiles(fileList) {
+  for (const file of fileList) {
+    if (!file.type.startsWith("image/")) continue;
+    const id = ++photoIdCounter;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      photos.push({
+        id, file,
+        dataUrl: e.target.result,
+        category: "MARA",
+        description: "",
+        status: "pending",
+        result: null
+      });
+      renderQueue();
+    };
+    reader.readAsDataURL(file);
+  }
+}
+
+// ---- Render ----
+function renderQueue() {
+  const queue = document.getElementById("photoQueue");
+  const title = document.getElementById("queueTitle");
+  const upload = document.getElementById("uploadSection");
+
+  if (photos.length === 0) {
+    title.style.display = "none";
+    upload.style.display = "none";
+    queue.innerHTML = "";
+    return;
+  }
+
+  title.style.display = "block";
+  upload.style.display = "flex";
+  document.getElementById("queueCount").textContent = `(${photos.length})`;
+
+  queue.innerHTML = photos.map(p => {
+    const statusClass = `status-${p.status}`;
+    const statusText = p.status === "pending" ? "Ready" :
+                       p.status === "uploading" ? "Uploading..." :
+                       p.status === "done" ? "✓ Uploaded" : "Error";
+
+    const catOptions = CATEGORIES.map(c =>
+      `<option value="${c}" ${p.category === c ? "selected" : ""}>${c.replace(/-/g, " ")}</option>`
+    ).join("");
+
+    return `
+      <div class="photo-card" id="card-${p.id}">
+        <div class="card-top">
+          <img class="thumb" src="${p.dataUrl}" alt="">
+          <div class="details">
+            <select onchange="updatePhoto(${p.id}, 'category', this.value)">${catOptions}</select>
+            <input type="text" placeholder="Description (e.g. Elbow Close-Up, Side View)"
+                   value="${p.description}" oninput="updatePhoto(${p.id}, 'description', this.value)">
+            <div class="actions">
+              <button class="btn-sm btn-remove" onclick="removePhoto(${p.id})">✕ Remove</button>
+              <span class="status-badge ${statusClass}">${statusText}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+function updatePhoto(id, field, value) {
+  const p = photos.find(x => x.id === id);
+  if (p) p[field] = value;
+}
+
+function removePhoto(id) {
+  photos = photos.filter(x => x.id !== id);
+  renderQueue(); updateOutput();
+}
+
+// ---- Upload to Drive ----
+async function uploadAll() {
+  if (!scriptUrl) { alert("Connect your Google Apps Script URL first!"); return; }
+
+  const pending = photos.filter(p => p.status === "pending" || p.status === "error");
+  if (pending.length === 0) return;
+
+  const btn = document.getElementById("btnUploadAll");
+  btn.disabled = true; btn.textContent = "⏳ Uploading...";
+
+  const bar = document.getElementById("progressBar");
+  const fill = document.getElementById("progressFill");
+  bar.classList.add("active");
+
+  let completed = 0;
+  for (const photo of pending) {
+    photo.status = "uploading";
+    renderQueue();
+
+    try {
+      const base64 = photo.dataUrl.split(",")[1];
+      const mimeType = photo.dataUrl.split(";")[0].split(":")[1];
+
+      const payload = {
+        file: base64,
+        fileName: photo.file.name,
+        category: photo.category,
+        description: photo.description || photo.file.name.replace(/\.[^.]+$/, ""),
+        mimeType
+      };
+
+      let result;
+      try {
+        const resp = await fetch(scriptUrl, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain" },
+          body: JSON.stringify(payload)
+        });
+        const respText = await resp.text();
+        try {
+          result = JSON.parse(respText);
+        } catch (jsonErr) {
+          // Apps Script returned non-JSON (e.g., "OK") — treat as success if response was 200
+          if (resp.ok) {
+            result = {
+              success: true,
+              aisaReference: `[PHOTO: ${photo.category} — ${photo.description}]\n(Check your NLO-AISA-Photos folder in Google Drive)`
+            };
+          } else {
+            result = { success: false, error: `Server returned: ${respText}` };
+          }
+        }
+      } catch (e) {
+        console.error("Upload failed:", e);
+        result = {
+          success: false,
+          error: e.message || "Network error — check your Apps Script URL and try again"
+        };
+      }
+
+      if (result.success) {
+        photo.status = "done";
+        photo.result = result;
+      } else {
+        photo.status = "error";
+      }
+    } catch (err) {
+      photo.status = "error";
+    }
+
+    completed++;
+    fill.style.width = `${(completed / pending.length) * 100}%`;
+    renderQueue();
+  }
+
+  updateOutput();
+  btn.disabled = false;
+  btn.textContent = "🚀 Upload All to Google Drive";
+  setTimeout(() => { bar.classList.remove("active"); fill.style.width = "0%"; }, 2000);
+}
+
+// ---- Output ----
+function updateOutput() {
+  const block = document.getElementById("outputBlock");
+  const done = photos.filter(p => p.status === "done" && p.result);
+  if (done.length === 0) { block.textContent = ""; return; }
+  block.textContent = done.map(p =>
+    p.result.aisaReference ||
+    `[PHOTO: ${p.category} — ${p.description}]\nhttps://drive.google.com/thumbnail?id=${p.result.fileId}&sz=w800`
+  ).join("\n\n");
+}
+
+function copyOutput() {
+  const text = document.getElementById("outputBlock").textContent;
+  if (!text) return;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById("btnCopy");
+    btn.textContent = "✓ Copied!"; btn.classList.add("copied");
+    setTimeout(() => { btn.textContent = "Copy All References"; btn.classList.remove("copied"); }, 2000);
+  });
+}
+
+// ================= Admin Training =================
+const WORKER_TRAIN_URL = 'https://aisa-worker.akhavan-ak.workers.dev/train';
+
+async function processAndTrain() {
+  const fileInput = document.getElementById('trainFileInput');
+  const statusEl = document.getElementById('trainStatus');
+
+  if (fileInput.files.length === 0) {
+    statusEl.style.color = '#f87171';
+    statusEl.innerText = 'Please select a file first!';
+    return;
+  }
+
+  statusEl.style.color = '#60a5fa';
+  statusEl.innerText = 'Reading file...';
+
+  const file = fileInput.files[0];
+  const reader = new FileReader();
+
+  reader.onload = async function(e) {
+    let rawText = e.target.result;
+
+    // If it's an HTML file, strip out all the code tags so the AI just gets the readable text
+    if (file.name.endsWith('.html')) {
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = rawText;
+      rawText = tempDiv.innerText || tempDiv.textContent;
+    }
+
+    const adminKey = document.getElementById('adminKey').value.trim();
+    if (!adminKey) {
+      statusEl.style.color = '#f87171';
+      statusEl.innerText = 'Please enter the admin key.';
+      return;
+    }
+
+    // Derive fileLabel from the uploaded filename (without extension)
+    const fileLabel = file.name.replace(/\.[^.]+$/, '').trim();
+
+    statusEl.innerText = `Uploading "${fileLabel}" to Cloudflare... this may take a moment.`;
+
+    try {
+      const response = await fetch(WORKER_TRAIN_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Admin-Key': adminKey },
+        body: JSON.stringify({ text: rawText, fileLabel: fileLabel })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        statusEl.style.color = '#4ade80';
+        statusEl.innerText = `✅ Success! Uploaded ${data.chunksSaved} chunks for "${data.fileLabel || fileLabel}". Re-uploading this file will auto-replace old data.`;
+        fileInput.value = ''; // Clear the input
+      } else {
+        throw new Error(data.error);
+      }
+    } catch (err) {
+      statusEl.style.color = '#f87171';
+      statusEl.innerText = '❌ Error: ' + err.message;
+    }
+  };
+
+  reader.readAsText(file);
+}
+</script>
+</body>
+</html>
