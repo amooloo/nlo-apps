@@ -308,6 +308,31 @@
             color: #721C24;
         }
 
+        /* Tier pills (admin dashboard + employee card) */
+        .tier-pill {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .tier-1 {
+            background: #E8F4F8;
+            color: #1D3EA9;
+        }
+
+        .tier-2 {
+            background: #D9F4F0;
+            color: #1A7E72;
+        }
+
+        .tier-3 {
+            background: #FDF0D9;
+            color: #B07914;
+        }
+
         .info-note {
             background: #E8F4F8;
             border-left: 4px solid #1D3EA9;
@@ -777,6 +802,7 @@
                                 <th>Title</th>
                                 <th>Type</th>
                                 <th>Start Date</th>
+                                <th>Tier</th>
                                 <th>Sick</th>
                                 <th>Vacation</th>
                                 <th>Personal</th>
@@ -784,7 +810,7 @@
                             </tr>
                         </thead>
                         <tbody id="employeesTableBody">
-                            <tr><td colspan="8" style="text-align: center; padding: 20px;">Loading...</td></tr>
+                            <tr><td colspan="9" style="text-align: center; padding: 20px;">Loading...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -849,6 +875,13 @@
             return date.toLocaleDateString('en-US', options);
         }
 
+        // Round balances to 1 decimal and strip trailing zero (16.97777 -> 17, 4.50 -> 4.5)
+        function fmtNum(value) {
+            var n = parseFloat(value);
+            if (isNaN(n)) return value || '0';
+            return (Math.round(n * 10) / 10).toString();
+        }
+
         function getYearsEmployed(hireDate) {
             if (!hireDate) return 0;
             var hire = new Date(hireDate);
@@ -870,6 +903,12 @@
             if (t === 1) return 'Tier 1 — Entry (15 days/yr)';
             if (t === 2) return 'Tier 2 — Mid (20 days/yr)';
             return 'Tier 3 — Senior (25 days/yr)';
+        }
+
+        // Colored tier pill HTML, e.g. <span class="tier-pill tier-2">Tier 2</span>
+        function getTierPill(hireDate) {
+            var t = getTier(hireDate);
+            return '<span class="tier-pill tier-' + t + '">Tier ' + t + '</span>';
         }
 
         // Celebrate Primary Care contribution by tier. Membership is $65/month for the employee.
@@ -1022,7 +1061,7 @@
                         document.getElementById('jobTitle').textContent = escapeHTML(emp.title);
                         document.getElementById('employmentType').textContent = escapeHTML(emp.employmentType);
                         document.getElementById('startDate').textContent = formatDate(emp.hireDate);
-                        document.getElementById('vacationTier').textContent = getVacationTier(emp.hireDate);
+                        document.getElementById('vacationTier').innerHTML = getTierPill(emp.hireDate) + ' ' + escapeHTML(getVacationTier(emp.hireDate).split('— ')[1] || '');
                         document.getElementById('retirementEligibility').innerHTML = get401kEligibility(emp.hireDate);
 
                         // Celebrate Primary Care: tier-based contribution
@@ -1035,10 +1074,10 @@
                         var ret2 = document.getElementById('retirementEligibility2');
                         if (ret2) ret2.innerHTML = get401kEligibility(emp.hireDate);
 
-                        document.getElementById('vacationBalance').textContent = emp.vacationBalance;
-                        document.getElementById('sickBalance').textContent = emp.sickBalance;
-                        document.getElementById('personalBalance').textContent = emp.personalBalance;
-                        document.getElementById('ptoBalance').textContent = emp.ptoBalance;
+                        document.getElementById('vacationBalance').textContent = fmtNum(emp.vacationBalance);
+                        document.getElementById('sickBalance').textContent = fmtNum(emp.sickBalance);
+                        document.getElementById('personalBalance').textContent = fmtNum(emp.personalBalance);
+                        document.getElementById('ptoBalance').textContent = fmtNum(emp.ptoBalance);
 
                         showApp();
 
@@ -1076,7 +1115,7 @@
 
             allEmployees.forEach(function(emp) {
                 var row = document.createElement('tr');
-                row.innerHTML = '<td>' + escapeHTML(emp.name) + '</td><td>' + escapeHTML(emp.title) + '</td><td>' + escapeHTML(emp.employmentType) + '</td><td>' + formatDate(emp.hireDate) + '</td><td>' + emp.sickBalance + '</td><td>' + emp.vacationBalance + '</td><td>' + emp.personalBalance + '</td><td>' + emp.ptoBalance + '</td>';
+                row.innerHTML = '<td>' + escapeHTML(emp.name) + '</td><td>' + escapeHTML(emp.title) + '</td><td>' + escapeHTML(emp.employmentType) + '</td><td>' + formatDate(emp.hireDate) + '</td><td>' + getTierPill(emp.hireDate) + '</td><td>' + fmtNum(emp.sickBalance) + '</td><td>' + fmtNum(emp.vacationBalance) + '</td><td>' + fmtNum(emp.personalBalance) + '</td><td>' + fmtNum(emp.ptoBalance) + '</td>';
                 tbody.appendChild(row);
             });
         }
@@ -1142,39 +1181,4 @@
             document.getElementById('employeeNameSelect').value = '';
             document.getElementById('passwordInput').value = '';
             document.getElementById('loginError').textContent = '';
-            document.getElementById('loginError').classList.remove('show');
-        }
-
-        function switchTab(tabName) {
-            var tabs = document.querySelectorAll('.tab-content');
-            var buttons = document.querySelectorAll('.tab-button');
-
-            tabs.forEach(function(tab) {
-                tab.classList.remove('active');
-            });
-            buttons.forEach(function(btn) {
-                btn.classList.remove('active');
-            });
-
-            document.getElementById(tabName + 'Tab').classList.add('active');
-            document.querySelector('[data-tab="' + tabName + '"]').classList.add('active');
-        }
-
-        document.getElementById('signInButton').addEventListener('click', handleLogin);
-        document.getElementById('logoutButton').addEventListener('click', handleLogout);
-        document.getElementById('adjustBalanceButton').addEventListener('click', handleAdjustBalance);
-
-        document.querySelectorAll('.tab-button').forEach(function(btn) {
-            btn.addEventListener('click', function() {
-                switchTab(this.getAttribute('data-tab'));
-            });
-        });
-
-        document.getElementById('passwordInput').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') handleLogin();
-        });
-
-        loadEmployeeNames();
-    </script>
-</body>
-</html>
+            document.getElementById('loginError').cl
