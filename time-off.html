@@ -2119,8 +2119,11 @@ function renderCalendar() {
       events += `<div class="cal-event closed-label">Closed</div>`;
     }
 
-    // Find requests that span this date
+    // Find requests that span this date.
+    // Skip closed days (Fri-Sun + holidays): the office is closed, those days
+    // never count toward time off, so don't paint request chips on them.
     allRequests.forEach(r => {
+      if (isClosed) return;
       const rStart = parseLocalDate(r.startDate);
       const rEnd = parseLocalDate(r.endDate);
       const thisDate = parseLocalDate(dateStr);
