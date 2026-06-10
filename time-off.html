@@ -603,7 +603,7 @@
       display: flex;
       gap: 6px;
     }
-    .approve-btn, .deny-btn {
+    .approve-btn, .deny-btn, .archive-btn {
       padding: 8px 16px;
       border: none;
       border-radius: 8px;
@@ -615,7 +615,8 @@
     }
     .approve-btn { background: #1a9e78; color: white; }
     .deny-btn { background: #FA624D; color: white; }
-    .approve-btn:hover, .deny-btn:hover { opacity: 0.85; }
+    .archive-btn { background: transparent; color: #666; border: 1px solid #ccc; }
+    .approve-btn:hover, .deny-btn:hover, .archive-btn:hover { opacity: 0.85; }
 
     /* ---------- LOADING ---------- */
     .loading {
@@ -1176,6 +1177,12 @@
         <div class="requests-list" id="cancelled-list">
           <h3>Cancelled</h3>
         </div>
+        <details style="margin-top:16px;">
+          <summary style="cursor:pointer;font-size:0.8rem;font-weight:700;color:#666;padding:8px 0;">Archived requests</summary>
+          <div class="requests-list" id="archived-list">
+            <h3 style="display:none;">Archived</h3>
+          </div>
+        </details>
       </div>
     </div>
 
@@ -1986,7 +1993,7 @@ async function loadRequests() {
 // ============================================================
 function renderYourRequests() {
   const container = document.getElementById('your-requests-content');
-  const userRequests = allRequests.filter(r => r.employeeName === currentUser.name);
+  const userRequests = allRequests.filter(r => r.employeeName === currentUser.name && (r.status || '').toLowerCase() !== 'archived');
 
   if (userRequests.length === 0) {
     container.innerHTML = '<div class="your-requests-empty">You have not submitted any requests yet.</div>';
@@ -2124,6 +2131,7 @@ function renderCalendar() {
     // never count toward time off, so don't paint request chips on them.
     allRequests.forEach(r => {
       if (isClosed) return;
+      if ((r.status || '').toLowerCase() === 'archived') return;
       const rStart = parseLocalDate(r.startDate);
       const rEnd = parseLocalDate(r.endDate);
       const thisDate = parseLocalDate(dateStr);
@@ -2228,12 +2236,13 @@ async function renderManageList() {
   const approvedContainer = document.getElementById('approved-list');
   const deniedContainer = document.getElementById('denied-list');
   const cancelledContainer = document.getElementById('cancelled-list');
+  const archivedContainer = document.getElementById('archived-list');
 
   // Keep the employee filter in sync with the latest data
   populateEmployeeFilter();
 
   // Clear previous cards (keep h3)
-  [pendingContainer, approvedContainer, deniedContainer, cancelledContainer].forEach(c => {
+  [pendingContainer, approvedContainer, deniedContainer, cancelledContainer, archivedContainer].forEach(c => {
     Array.from(c.children).forEach(ch => { if (ch.tagName !== 'H3') ch.remove(); });
   });
 
@@ -2258,6 +2267,7 @@ async function renderManageList() {
   const approved = filtered.filter(r => (r.status || '').toLowerCase() === 'approved');
   const denied = filtered.filter(r => (r.status || '').toLowerCase() === 'denied');
   const cancelled = filtered.filter(r => (r.status || '').toLowerCase() === 'cancelled');
+  const archived = filtered.filter(r => (r.status || '').toLowerCase() === 'archived');
 
   // For admins and approvers, check balances on pending paid sick/vacation requests
   const canApprove = currentUser && (currentUser.role === 'admin' || currentUser.role === 'approver');
@@ -2322,6 +2332,9 @@ async function renderManageList() {
   if (cancelled.length === 0) cancelledContainer.insertAdjacentHTML('beforeend', '<p style="font-size:0.8rem;opacity:0.4;">No cancelled requests.</p>');
   cancelled.forEach(r => cancelledContainer.insertAdjacentHTML('beforeend', requestCardHTML(r, false)));
 
+  if (archived.length === 0) archivedContainer.insertAdjacentHTML('beforeend', '<p style="font-size:0.8rem;opacity:0.4;">No archived requests.</p>');
+  archived.forEach(r => archivedContainer.insertAdjacentHTML('beforeend', requestCardHTML(r, false)));
+
   document.getElementById('manage-loading').classList.add('hidden');
   document.getElementById('manage-content').classList.remove('hidden');
 }
@@ -2345,15 +2358,23 @@ function requestCardHTML(r, showActions) {
     balanceNoteHTML += `<div style="background:#FFF5F4;border:1px solid #FA624D;border-radius:6px;padding:8px 10px;margin-top:8px;font-size:0.72rem;color:#FA624D;font-weight:600;">&#9888; ${escapeHTML(r._balanceWarning)}</div>`;
   }
 
+  // Admins can archive any non-archived request: housekeeping for duplicates,
+  // tests and stale entries. No balance change, no notification.
+  const canArchive = currentUser && currentUser.role === 'admin' && status !== 'archived';
+  const archiveBtn = canArchive
+    ? `<button class="archive-btn" onclick="archiveWithConfirm('${escapeHTML(r.id)}',this)" title="Remove from view without approving or denying. Kept in the sheet.">Archive</button>`
+    : '';
+
   let actionsHTML = '';
   if (showActions) {
     actionsHTML = `
       <div class="approval-actions">
         <button class="approve-btn" onclick="approveWithCheck('${escapeHTML(r.id)}',this)">Approve</button>
         <button class="deny-btn" onclick="handleAction('${escapeHTML(r.id)}','deny',this)">Deny</button>
+        ${archiveBtn}
       </div>`;
   } else {
-    actionsHTML = `<span class="request-status ${escapeHTML(status)}">${escapeHTML(r.status)}</span>`;
+    actionsHTML = `<span class="request-status ${escapeHTML(status)}">${escapeHTML(r.status)}</span>${archiveBtn ? '<div class="approval-actions" style="margin-top:8px;">' + archiveBtn + '</div>' : ''}`;
   }
 
   return `
@@ -2365,6 +2386,13 @@ function requestCardHTML(r, showActions) {
       </div>
       ${actionsHTML}
     </div>`;
+}
+
+function archiveWithConfirm(id, btn) {
+  const req = allRequests.find(r => r.id === id);
+  const who = req ? req.employeeName + "'s " + req.requestType : 'this';
+  if (!confirm('Archive ' + who + ' request?\n\nIt will be hidden from all views (kept in the sheet). No balance change, no notification sent.')) return;
+  handleAction(id, 'archive', btn);
 }
 
 function approveWithCheck(id, btn) {
