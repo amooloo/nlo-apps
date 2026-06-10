@@ -223,7 +223,7 @@
       <span class="icon">⚙️</span>
       <div class="text">Google Apps Script:</div>
       <input type="text" id="scriptUrl" placeholder="https://script.google.com/macros/s/.../exec">
-      <button onclick="saveScriptUrl()">Connect</button>
+      <button onclick="saveScriptUrl()" title="Opens the Google Apps Script so you can sign in">Connect</button>
     </div>
   </div>
 
@@ -295,7 +295,8 @@ function switchTab(name) {
 
 // ================= Photo Portal =================
 let photos = [];
-let scriptUrl = localStorage.getItem("nlo_script_url") || "";
+const DEFAULT_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzaLkrZSIYl2MIzs10j21zHy078o63IWObWWHS7JKQDCi-vsQZrNDFobD5yWiu0bTaoMQ/exec";
+let scriptUrl = localStorage.getItem("nlo_script_url") || DEFAULT_SCRIPT_URL;
 let photoIdCounter = 0;
 
 const CATEGORIES = [
@@ -316,10 +317,12 @@ window.addEventListener("DOMContentLoaded", () => {
 });
 
 function saveScriptUrl() {
-  scriptUrl = document.getElementById("scriptUrl").value.trim();
-  if (!scriptUrl) return;
+  const entered = document.getElementById("scriptUrl").value.trim();
+  scriptUrl = entered || DEFAULT_SCRIPT_URL;
   localStorage.setItem("nlo_script_url", scriptUrl);
   markConnected();
+  // Open the Google Apps Script web app so the user can sign in to Google
+  window.open(scriptUrl, "_blank");
 }
 
 function markConnected() {
