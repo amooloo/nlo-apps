@@ -1007,11 +1007,13 @@
               <option value="">Select type...</option>
               <option>Vacation</option>
               <option>Sick Leave</option>
+              <option value="Personal Day">Personal Day</option>
               <option>Bereavement</option>
               <option>Medical Appointment</option>
               <option>Family Emergency</option>
               <option>Other</option>
             </select>
+            <div id="f-type-hint" style="display:none;font-size:0.72rem;color:#1A7E72;font-weight:600;margin-top:6px;">Personal days are not deducted from your vacation or sick balance.</div>
           </div>
           <div class="form-group">
             <label>Paid or Unpaid?</label>
@@ -1314,6 +1316,11 @@ function todayStr() {
 // ============================================================
 // LOGIN
 // ============================================================
+document.getElementById('f-type').addEventListener('change', function() {
+  document.getElementById('f-type-hint').style.display =
+    this.value.toLowerCase().indexOf('personal') >= 0 ? 'block' : 'none';
+});
+
 const passcodeInput = document.getElementById('passcode-input');
 passcodeInput.addEventListener('keydown', e => { if (e.key === 'Enter') validatePasscode(); });
 document.getElementById('newPasswordInput').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('confirmPasswordInput').focus(); });
@@ -2250,7 +2257,7 @@ async function renderManageList() {
       const pt = (r.paidType || '').toLowerCase();
       const rt = (r.requestType || '').toLowerCase();
       return pt.indexOf('paid') >= 0 && pt.indexOf('unpaid') < 0 &&
-             (rt.indexOf('sick') >= 0 || rt.indexOf('vacation') >= 0 || rt.indexOf('personal') >= 0);
+             (rt.indexOf('sick') >= 0 || rt.indexOf('vacation') >= 0);
     }).map(r => r.employeeName))];
 
     const balanceCache = {};
@@ -2269,7 +2276,8 @@ async function renderManageList() {
       if (pt.indexOf('paid') < 0 || pt.indexOf('unpaid') >= 0) return;
       const bal = balanceCache[r.employeeName];
       if (!bal) return;
-      const balType = rt.indexOf('sick') >= 0 ? 'sickLeave' : (rt.indexOf('vacation') >= 0 || rt.indexOf('personal') >= 0 ? 'vacation' : null);
+      // Personal Day intentionally excluded: it is never deducted from any balance.
+      const balType = rt.indexOf('sick') >= 0 ? 'sickLeave' : (rt.indexOf('vacation') >= 0 ? 'vacation' : null);
       if (!balType) return;
       const available = bal[balType];
       if (typeof available !== 'number') return;
