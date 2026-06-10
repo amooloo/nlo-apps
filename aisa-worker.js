@@ -11,7 +11,7 @@
 // ====================================================================
 // MODE TOGGLE: Set to "full" to send all training files as context,
 //              or "rag" to use vector search (legacy behavior).
-const KNOWLEDGE_MODE = "full";
+const KNOWLEDGE_MODE = "rag";
 
 // In-memory knowledge base cache (per isolate; refreshed every 5 min,
 // cleared immediately on /train in the same isolate)
@@ -303,7 +303,7 @@ async function getKnowledgeBase(question, env) {
   }
   if (!knowledgeBase && env.VECTORIZE) {
 	const questionEmbedding = await env.AI.run('@cf/baai/bge-base-en-v1.5', { text: [question] });
-	const searchResults = await env.VECTORIZE.query(questionEmbedding.data[0], { topK: 15, returnMetadata: true });
+	const searchResults = await env.VECTORIZE.query(questionEmbedding.data[0], { topK: 20, returnMetadata: true });
 	let contextSnippets = "";
 	for (const match of searchResults.matches) { if (match.metadata?.text) contextSnippets += match.metadata.text + "\n\n"; }
 	knowledgeBase = contextSnippets;
