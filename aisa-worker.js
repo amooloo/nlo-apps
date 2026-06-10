@@ -18,6 +18,11 @@ const KNOWLEDGE_MODE = "rag";
 let KB_CACHE = { text: null, ts: 0 };
 const KB_CACHE_TTL = 5 * 60 * 1000;
 
+// Answer cache: reuses final answers for repeated identical questions (6h TTL in KV).
+// Skipped for questions with images, live inventory data, or chat history.
+const ANSWER_CACHE_TTL_SECONDS = 6 * 60 * 60;
+let ANS_GEN = { val: '0', ts: 0 };
+
 export default {
 	async fetch(request, env, ctx) {
 	  const origin = request.headers.get('Origin') || '';
@@ -61,6 +66,8 @@ export default {
 			  await env.KNOWLEDGE_KV.put('__file_index__', JSON.stringify(fileIndex));
 			}
 			KB_CACHE = { text: null, ts: 0 }; // invalidate in-memory cache
+			try { await env.KNOWLEDGE_KV.put('__ans_gen__', String(Date.now())); } catch (e) {}
+			ANS_GEN = { val: '0', ts: 0 }; // invalidate answer cache
 		  }
 		  let totalSaved = 0;
 		  if (env.VECTORIZE) {
@@ -178,6 +185,8 @@ export default {
 			fileIndex = fileIndex.filter(f => f !== label);
 			await env.KNOWLEDGE_KV.put('__file_index__', JSON.stringify(fileIndex));
 			KB_CACHE = { text: null, ts: 0 }; // invalidate in-memory cache
+			try { await env.KNOWLEDGE_KV.put('__ans_gen__', String(Date.now())); } catch (e) {}
+			ANS_GEN = { val: '0', ts: 0 }; // invalidate answer cache
 		  }
 		  if (env.VECTORIZE) { try { const oldIds = []; for (let j = 0; j < 1000; j++) { oldIds.push(`${label}_chunk_${j}`); } for (let j = 0; j < oldIds.length; j += 100) { await env.VECTORIZE.deleteByIds(oldIds.slice(j, j + 100)); } } catch (e) {} }
 		  return new Response(JSON.stringify({ success: true, deleted: label }), { headers: { "Content-Type": "application/json", ...corsHeaders(origin) } });
@@ -211,6 +220,16 @@ export default {
 		  const bad = validateAsk(reqJson);
 		  if (bad) return bad(origin);
 
+		  // Answer cache: instant response for repeated questions
+		  const cacheKey = await answerCacheKey(reqJson, env);
+		  if (cacheKey) {
+			let cachedAnswer = null;
+			try { cachedAnswer = await env.KNOWLEDGE_KV.get(cacheKey); } catch (e) {}
+			if (cachedAnswer) {
+			  return new Response(JSON.stringify({ answer: cachedAnswer, cached: true }), { headers: { "Content-Type": "application/json", ...corsHeaders(origin) } });
+			}
+		  }
+
 		  const geminiBody = await buildGeminiBody(reqJson, env);
 
 		  const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${env.GEMINI_API_KEY}`;
@@ -226,6 +245,8 @@ export default {
 		  const geminiData = await geminiResponse.json();
 		  let finalAnswer = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "I'm sorry, I hit a snag. Can you try again?";
 		  finalAnswer = cleanAnswer(finalAnswer);
+
+		  if (cacheKey && finalAnswer) { try { await env.KNOWLEDGE_KV.put(cacheKey, finalAnswer, { expirationTtl: ANSWER_CACHE_TTL_SECONDS }); } catch (e) {} }
 
 		  return new Response(JSON.stringify({ answer: finalAnswer }), { headers: { "Content-Type": "application/json", ...corsHeaders(origin) } });
 		} catch (err) {
@@ -244,6 +265,16 @@ export default {
 		  const bad = validateAsk(reqJson);
 		  if (bad) return bad(origin);
 
+		  // Answer cache: instant response for repeated questions
+		  const cacheKey = await answerCacheKey(reqJson, env);
+		  if (cacheKey) {
+			let cachedAnswer = null;
+			try { cachedAnswer = await env.KNOWLEDGE_KV.get(cacheKey); } catch (e) {}
+			if (cachedAnswer) {
+			  return new Response(cachedAnswer, { headers: { "Content-Type": "text/plain; charset=utf-8", "X-Content-Type-Options": "nosniff", ...corsHeaders(origin) } });
+			}
+		  }
+
 		  const geminiBody = await buildGeminiBody(reqJson, env);
 
 		  const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse&key=${env.GEMINI_API_KEY}`;
@@ -257,7 +288,9 @@ export default {
 		  }
 
 		  const { readable, writable } = new TransformStream();
-		  const pump = streamSseToText(geminiResponse.body, writable);
+		  const pump = streamSseToText(geminiResponse.body, writable, async (fullText) => {
+			if (cacheKey && fullText) { try { await env.KNOWLEDGE_KV.put(cacheKey, cleanAnswer(fullText), { expirationTtl: ANSWER_CACHE_TTL_SECONDS }); } catch (e) {} }
+		  });
 		  if (ctx && ctx.waitUntil) ctx.waitUntil(pump);
 
 		  return new Response(readable, {
@@ -282,6 +315,29 @@ function validateAsk(reqJson) {
 	return (origin) => new Response(JSON.stringify({ error: 'Missing "question" field' }), { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders(origin) } });
   }
   return null;
+}
+
+// Build a cache key for the answer cache; returns null when the request
+// isn't cacheable (image attached, live inventory data, or mid-conversation).
+async function answerCacheKey(reqJson, env) {
+  if (!env.KNOWLEDGE_KV) return null;
+  const { question, inventoryData, history, image, staffName, staffRole } = reqJson;
+  if (image || inventoryData) return null;
+  if (Array.isArray(history) && history.length > 0) return null;
+  const norm = question.toLowerCase().trim().replace(/\s+/g, ' ').replace(/[?.!\s]+$/, '');
+  if (!norm) return null;
+  const gen = await getAnsGen(env);
+  return ('anscache:' + gen + ':' + (staffName || '') + ':' + (staffRole || '') + ':' + norm).slice(0, 480);
+}
+
+// Answer-cache generation: bumped on every /train or /delete-file so stale
+// answers are never served after a KB update (5-min memory cache).
+async function getAnsGen(env) {
+  if (ANS_GEN.ts && (Date.now() - ANS_GEN.ts) < 5 * 60 * 1000) return ANS_GEN.val;
+  let v = '0';
+  try { v = (await env.KNOWLEDGE_KV.get('__ans_gen__')) || '0'; } catch (e) {}
+  ANS_GEN = { val: v, ts: Date.now() };
+  return v;
 }
 
 async function getKnowledgeBase(question, env) {
@@ -441,12 +497,13 @@ function cleanAnswer(finalAnswer) {
 }
 
 // Convert Gemini's SSE stream into plain-text answer chunks
-async function streamSseToText(sseBody, writable) {
+async function streamSseToText(sseBody, writable, onDone) {
   const writer = writable.getWriter();
   const reader = sseBody.getReader();
   const decoder = new TextDecoder();
   const encoder = new TextEncoder();
   let buf = '';
+  let full = '';
   try {
 	while (true) {
 	  const { done, value } = await reader.read();
@@ -462,7 +519,7 @@ async function streamSseToText(sseBody, writable) {
 		try {
 		  const json = JSON.parse(data);
 		  const text = json.candidates?.[0]?.content?.parts?.[0]?.text;
-		  if (text) await writer.write(encoder.encode(text));
+		  if (text) { full += text; await writer.write(encoder.encode(text)); }
 		} catch (e) { /* ignore partial lines */ }
 	  }
 	}
@@ -470,6 +527,7 @@ async function streamSseToText(sseBody, writable) {
 	console.error('Stream pump error:', e);
   } finally {
 	try { await writer.close(); } catch (e) {}
+	if (onDone) { try { await onDone(full); } catch (e) {} }
   }
 }
 
