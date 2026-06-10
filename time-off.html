@@ -2217,7 +2217,13 @@ function requestMatchesFilters(r, f) {
   return true;
 }
 
+// Generation counter: renderManageList awaits balance checks mid-render, so two
+// overlapping calls (e.g. tab switch + data refresh) could both append cards,
+// painting every request twice. Only the newest render is allowed to finish.
+let _renderGen = 0;
+
 async function renderManageList() {
+  const myGen = ++_renderGen;
   const pendingContainer = document.getElementById('pending-list');
   const approvedContainer = document.getElementById('approved-list');
   const deniedContainer = document.getElementById('denied-list');
@@ -2294,6 +2300,16 @@ async function renderManageList() {
     });
   }
 
+  // A newer render started while we were awaiting balance checks — abandon this one.
+  if (myGen !== _renderGen) return;
+
+  // Flag true duplicates: same employee, dates, type and hours, both pending.
+  const _dupSeen = {};
+  pending.forEach(r => {
+    const key = [r.employeeName, r.startDate, r.endDate, r.requestType, r.hours || ''].join('|').toLowerCase();
+    if (_dupSeen[key]) { r._isDuplicate = true; } else { _dupSeen[key] = true; }
+  });
+
   if (pending.length === 0) pendingContainer.insertAdjacentHTML('beforeend', '<p style="font-size:0.8rem;opacity:0.4;">No pending requests.</p>');
   pending.forEach(r => pendingContainer.insertAdjacentHTML('beforeend', requestCardHTML(r, true)));
 
@@ -2322,8 +2338,11 @@ function requestCardHTML(r, showActions) {
   const hrsNote = computedHrs > 0 ? ` &middot; ${computedHrs} hrs total` : '';
 
   let balanceNoteHTML = '';
+  if (showActions && r._isDuplicate) {
+    balanceNoteHTML += `<div style="background:#FDF0D9;border:1px solid #F5A623;border-radius:6px;padding:8px 10px;margin-top:8px;font-size:0.72rem;color:#B07914;font-weight:600;">&#9888; Possible duplicate — an identical pending request exists above. Deny one of them.</div>`;
+  }
   if (showActions && r._balanceWarning) {
-    balanceNoteHTML = `<div style="background:#FFF5F4;border:1px solid #FA624D;border-radius:6px;padding:8px 10px;margin-top:8px;font-size:0.72rem;color:#FA624D;font-weight:600;">&#9888; ${escapeHTML(r._balanceWarning)}</div>`;
+    balanceNoteHTML += `<div style="background:#FFF5F4;border:1px solid #FA624D;border-radius:6px;padding:8px 10px;margin-top:8px;font-size:0.72rem;color:#FA624D;font-weight:600;">&#9888; ${escapeHTML(r._balanceWarning)}</div>`;
   }
 
   let actionsHTML = '';
