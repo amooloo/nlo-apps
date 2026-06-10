@@ -1181,4 +1181,39 @@
             document.getElementById('employeeNameSelect').value = '';
             document.getElementById('passwordInput').value = '';
             document.getElementById('loginError').textContent = '';
-            document.getElementById('loginError').cl
+            document.getElementById('loginError').classList.remove('show');
+        }
+
+        function switchTab(tabName) {
+            var tabs = document.querySelectorAll('.tab-content');
+            var buttons = document.querySelectorAll('.tab-button');
+
+            tabs.forEach(function(tab) {
+                tab.classList.remove('active');
+            });
+            buttons.forEach(function(btn) {
+                btn.classList.remove('active');
+            });
+
+            document.getElementById(tabName + 'Tab').classList.add('active');
+            document.querySelector('[data-tab="' + tabName + '"]').classList.add('active');
+        }
+
+        document.getElementById('signInButton').addEventListener('click', handleLogin);
+        document.getElementById('logoutButton').addEventListener('click', handleLogout);
+        document.getElementById('adjustBalanceButton').addEventListener('click', handleAdjustBalance);
+
+        document.querySelectorAll('.tab-button').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                switchTab(this.getAttribute('data-tab'));
+            });
+        });
+
+        document.getElementById('passwordInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') handleLogin();
+        });
+
+        loadEmployeeNames();
+    </script>
+</body>
+</html>
