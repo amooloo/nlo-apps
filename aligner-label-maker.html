@@ -601,18 +601,22 @@
     @media (max-width: 800px) { .main { grid-template-columns: 1fr; } }
 
     /* ══════════════════════════════════════
-       PRINT STYLES — one label per 4x2" page
+       PRINT STYLES — one label per page.
+       Pages are 2in wide x 4in tall (portrait) to match
+       the Zebra ZD410's 2"-wide printhead / 2x4" stock.
+       Each 4x2 label is rotated 90° onto the page, so no
+       driver rotation/scaling is needed.
        ══════════════════════════════════════ */
     @media print {
       @page {
-        size: 4in 2in;
+        size: 2in 4in;
         margin: 0 !important;
       }
 
       html, body {
         margin: 0 !important;
         padding: 0 !important;
-        width: 4in;
+        width: 2in;
         background: white !important;
       }
 
@@ -626,13 +630,29 @@
         padding: 0;
       }
 
+      /* One physical 2x4" label per page */
+      .print-page {
+        width: 2in;
+        height: 4in;
+        margin: 0;
+        padding: 0;
+        page-break-after: always;
+        page-break-inside: avoid;
+        overflow: hidden;
+        position: relative;
+        background: white;
+      }
+      .print-page:last-child {
+        page-break-after: auto;
+      }
+
       .print-label {
         width: 4in;
         height: 2in;
+        transform: rotate(90deg) translateY(-2in);
+        transform-origin: top left;
         padding: 0.12in 0.2in 0.1in;
         margin: 0;
-        page-break-after: always;
-        page-break-inside: avoid;
         box-sizing: border-box;
         font-family: Arial, Helvetica, sans-serif;
         display: grid;
@@ -646,10 +666,6 @@
         print-color-adjust: exact;
         text-rendering: geometricPrecision;
       }
-      .print-label:last-child {
-        page-break-after: auto;
-      }
-
       .print-label.print-at {
         border-left: 3pt solid #000;
       }
@@ -1841,7 +1857,7 @@
       return;
     }
     const container = document.getElementById('print-container');
-    container.innerHTML = selectedIdxs.map(i => buildPrintLabel(labelsData[i], i)).join('');
+    container.innerHTML = selectedIdxs.map(i => `<div class="print-page">${buildPrintLabel(labelsData[i], i)}</div>`).join('');
     // Small delay to let images load, then print
     setTimeout(() => window.print(), 150);
   }
@@ -2134,7 +2150,7 @@
   function retainerPrintLabels() {
     if (!retainerLabelsData.length) return;
     const container = document.getElementById('print-container');
-    container.innerHTML = retainerLabelsData.map(lbl => retainerBuildPrintLabel(lbl)).join('');
+    container.innerHTML = retainerLabelsData.map(lbl => `<div class="print-page">${retainerBuildPrintLabel(lbl)}</div>`).join('');
     setTimeout(() => window.print(), 150);
   }
 
