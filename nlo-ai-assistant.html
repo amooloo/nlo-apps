@@ -301,7 +301,7 @@ var conversationHistory = [];
 
 // --- CONFIG ---
 var CONFIG = {
-  VERSION: '3.0.0',
+  VERSION: '3.1.0',
   // API key is stored server-side in Cloudflare Worker (never in client code).
   // Update this URL after deploying your Cloudflare Worker.
   WORKER_URL: 'https://aisa-worker.akhavan-ak.workers.dev',
@@ -583,9 +583,13 @@ async function sendMessage() {
   var typingEl = addTyping();
 
   try {
-    var answer = await callGemini(question);
-    typingEl.remove();
-    addMessage('ai', answer);
+    var streamEl = null;
+    var answer = await callGemini(question, function(partial) {
+      if (!streamEl) { typingEl.remove(); streamEl = addMessage('ai', partial); }
+      else updateAiMessage(streamEl, partial);
+    });
+    if (streamEl) { updateAiMessage(streamEl, answer); }
+    else { typingEl.remove(); addMessage('ai', answer); }
     logToSheets('question', question, answer);
   } catch (err) {
     typingEl.remove();
@@ -612,6 +616,15 @@ function addMessage(type, content, isRawHtml) {
   }
   chat.appendChild(msg);
   chat.scrollTop = chat.scrollHeight;
+  return msg;
+}
+
+// Update an existing AI message bubble in place (used for streaming)
+function updateAiMessage(msgEl, content) {
+  var bubble = msgEl.querySelector('.msg-bubble');
+  if (bubble) bubble.innerHTML = renderMarkdown(content);
+  var chat = document.getElementById('chatArea');
+  chat.scrollTop = chat.scrollHeight;
 }
 
 function addTyping() {
@@ -625,7 +638,7 @@ function addTyping() {
 }
 
 // --- AISA WORKER (RAG) ---
-async function callGemini(question) {
+async function callGemini(question, onChunk) {
   var inventoryData = '';
   if (isInventoryQuestion(question)) {
     var items = await fetchInventory();
@@ -642,10 +655,42 @@ async function callGemini(question) {
   if (attachedImage) {
     payload.image = { data: attachedImage.data, mimeType: attachedImage.mimeType };
   }
+  var body = JSON.stringify(payload);
+
+  // 1) Try the streaming endpoint (/ask-stream). Silently falls back to /ask
+  //    if the Worker doesn't have it deployed yet.
+  try {
+    var sResp = await fetch(CONFIG.WORKER_URL + '/ask-stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: body
+    });
+    var ctype = sResp.headers.get('content-type') || '';
+    if (sResp.ok && sResp.body && ctype.indexOf('text/plain') !== -1) {
+      var reader = sResp.body.getReader();
+      var decoder = new TextDecoder();
+      var full = '';
+      while (true) {
+        var chunk = await reader.read();
+        if (chunk.done) break;
+        full += decoder.decode(chunk.value, { stream: true });
+        if (onChunk && full) onChunk(full);
+      }
+      full += decoder.decode();
+      if (full.trim()) {
+        pushHistory(question, full);
+        return full;
+      }
+    }
+  } catch (streamErr) {
+    console.warn('Streaming unavailable, falling back to /ask:', streamErr);
+  }
+
+  // 2) Fallback: classic /ask (full answer at once)
   var resp = await fetch(CONFIG.WORKER_URL + '/ask', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
+    body: body
   });
   if (!resp.ok) {
     var errData = await resp.json().catch(function() { return {}; });
@@ -654,10 +699,14 @@ async function callGemini(question) {
   }
   var data = await resp.json();
   if (data.answer == null || data.answer === '') throw new Error('No response generated');
-  conversationHistory.push({ role: 'user', parts: [{ text: question }] });
-  conversationHistory.push({ role: 'model', parts: [{ text: data.answer }] });
-  if (conversationHistory.length > 10) conversationHistory = conversationHistory.slice(-10);
+  pushHistory(question, data.answer);
   return data.answer;
+}
+
+function pushHistory(question, answer) {
+  conversationHistory.push({ role: 'user', parts: [{ text: question }] });
+  conversationHistory.push({ role: 'model', parts: [{ text: answer }] });
+  if (conversationHistory.length > 10) conversationHistory = conversationHistory.slice(-10);
 }
 
 // --- UTILITIES ---
