@@ -796,7 +796,11 @@ const dueAtForSchedule = (schedule, referenceDate, fallbackDueTime) => {
   // Per-checklist dueTime wins; fallback is the office-wide dayEnd setting
   // (passed in) or a hard-coded 17:30 safety net.
   const fb = /^\d{2}:\d{2}$/.test(fallbackDueTime || '') ? fallbackDueTime : DEFAULT_DAY_END;
-  const [hh, mm] = (schedule?.dueTime || fb).split(':').map(Number);
+  // Validate the per-checklist dueTime too — a malformed value (e.g. saved
+  // as "5:30 PM" or empty string) would otherwise produce NaN and break
+  // every due/overdue calculation for that checklist.
+  const dueStr = /^\d{1,2}:\d{2}$/.test(schedule?.dueTime || '') ? schedule.dueTime : fb;
+  const [hh, mm] = dueStr.split(':').map(Number);
   const ref = referenceDate || new Date();
   // For weekly / monthly / quarterly, due date = last workday of the cycle.
   // For daily / weekdays / weekends, due date = today.
@@ -808,6 +812,33 @@ const dueAtForSchedule = (schedule, referenceDate, fallbackDueTime) => {
   }
   d.setHours(hh, mm, 0, 0);
   return d.getTime();
+};
+
+/**
+ * Live due timestamp for an instance, recomputed on THIS device.
+ *
+ * The stored inst.dueAt was computed once, at spawn time, using the clock
+ * and timezone of whichever device happened to create the instance. If that
+ * device had a wrong clock or timezone, the bad timestamp synced to every
+ * device and checklists showed "Overdue" hours early (or due times looked
+ * shifted). Recomputing from the instance's calendar date + the schedule's
+ * dueTime at read time means each device judges due/overdue with its own
+ * local clock, and a single misconfigured device can no longer poison the
+ * status everyone else sees.
+ *
+ * Event-kind instances keep their stored SLA deadline (created + slaMinutes)
+ * since there's no wall-clock schedule to derive from. Falls back to the
+ * stored value if the snapshot/date is missing (very old instances).
+ */
+const instDueAt = (inst, settings) => {
+  if (inst?.kind === 'recurring' && inst.date && inst.checklistSnapshot?.schedule) {
+    return dueAtForSchedule(
+      inst.checklistSnapshot.schedule,
+      new Date(inst.date + 'T12:00:00'),
+      settings?.dayEndTime
+    );
+  }
+  return inst?.dueAt ?? 0;
 };
 
 /**
@@ -940,15 +971,16 @@ function getMyCompliance(user, state, windowDays = 30) {
   // 1) CHECKLIST ON-TIME
   const eligibleInstances = state.instances.filter(inst => {
     if (!roleIds.includes(inst.roleId)) return false;
-    if (inst.dueAt < windowStart) return false;
-    if (inst.dueAt > now())        return false;
+    const due = instDueAt(inst, state?.settings);
+    if (due < windowStart) return false;
+    if (due > now())       return false;
     return true;
   });
   let onTime = 0, late = 0, missed = 0;
   eligibleInstances.forEach(inst => {
     if (inst.status === 'completed') {
       const finishedAt = inst.certifiedAt || inst.completedAt;
-      if (finishedAt && finishedAt <= inst.dueAt) onTime++;
+      if (finishedAt && finishedAt <= instDueAt(inst, state?.settings)) onTime++;
       else late++;
     } else {
       missed++;
@@ -1559,6 +1591,13 @@ function reducer(state, action) {
           checklistSnapshot: cl,
           assignedStaffIds: resolveAssignees(cl, nextStateForResolve, inst.date),
           items: reconcileInstanceItems(inst, cl),
+          // Recompute the stored due timestamp from the NEW schedule so an
+          // admin editing "Due by" takes effect on instances already open
+          // today / this cycle (previously they kept the old due time until
+          // the next cycle spawned). Event instances keep their SLA deadline.
+          dueAt: inst.kind === 'recurring' && inst.date
+            ? dueAtForSchedule(cl.schedule, new Date(inst.date + 'T12:00:00'), state.settings?.dayEndTime)
+            : inst.dueAt,
         };
       });
       // (2) If this is a recurring checklist that runs today and there's
@@ -2849,8 +2888,8 @@ function AdminView({ state, dispatch, user }) {
   }, [state.staff, user]);
 
   const overdue = useMemo(
-    () => state.instances.filter(i => i.status !== 'completed' && i.dueAt < now() && scope.canSeeInstance(i)),
-    [state.instances, scope]
+    () => state.instances.filter(i => i.status !== 'completed' && instDueAt(i, state.settings) < now() && scope.canSeeInstance(i)),
+    [state.instances, state.settings, scope]
   );
 
   useEffect(() => {
@@ -2874,7 +2913,7 @@ function AdminView({ state, dispatch, user }) {
                     <li key={i.id}>
                       <span className="font-medium">{i.checklistName}</span>
                       {i.kind === 'event' && i.appointmentLabel && <> — {i.appointmentLabel}</>}
-                      <span className="text-red-600"> ({role?.name || '?'} · {fmtRel(i.dueAt)})</span>
+                      <span className="text-red-600"> ({role?.name || '?'} · {fmtRel(instDueAt(i, state.settings))})</span>
                     </li>
                   );
                 })}
@@ -2974,7 +3013,8 @@ function computeLeaderboard(state, scope, days = 30) {
       b.total++;
       if (it.status === 'done') {
         const doneAt = it.completedAt || inst.completedAt || 0;
-        const late = doneAt && inst.dueAt && doneAt > inst.dueAt;
+        const due = instDueAt(inst, state.settings);
+        const late = doneAt && due && doneAt > due;
         if (late) b.late++; else b.ontime++;
       } else if (inst.date !== today) {
         // Still pending AND the day is behind us → incomplete.
@@ -3034,7 +3074,7 @@ function DashboardSummary({ state, scope }) {
     }
     return i.date === today;
   });
-  const overdueToday = openToday.filter(i => i.dueAt < now());
+  const overdueToday = openToday.filter(i => instDueAt(i, state.settings) < now());
   const completedToday = state.instances.filter(i =>
     i.status === 'completed' && i.date === today && (!scope || scope.canSeeInstance(i))
   );
@@ -3314,7 +3354,7 @@ function GlobalSearchBar({ state, scope, user }) {
                 {results.instances.map(({ inst, reasons, matchItems }) => {
                   const statusPill = inst.status === 'completed'
                     ? <span className="pill bg-emerald-100 text-emerald-800">Completed</span>
-                    : inst.dueAt < now()
+                    : instDueAt(inst, state.settings) < now()
                       ? <span className="pill bg-red-100 text-red-700">Overdue</span>
                       : <span className="pill bg-amber-100 text-amber-800">Open</span>;
                   return (
@@ -3503,7 +3543,8 @@ function PreviousDaysTab({ state, dispatch, user, scope }) {
   const statusFor = (i) => {
     if (i.status === 'completed') {
       const doneAt = i.certifiedAt || i.completedAt || 0;
-      return (doneAt && i.dueAt && doneAt <= i.dueAt) ? 'ontime' : 'late';
+      const due = instDueAt(i, state.settings);
+      return (doneAt && due && doneAt <= due) ? 'ontime' : 'late';
     }
     return 'incomplete';
   };
@@ -3889,7 +3930,7 @@ function InstanceCard({ inst, state, dispatch, user, admin, readOnly, highlightA
   const progress = inst.items.filter(i => i.status === 'done').length;
   const total = inst.items.length;
   const allDone = progress === total && total > 0;
-  const overdue = inst.status !== 'completed' && inst.dueAt < now();
+  const overdue = inst.status !== 'completed' && instDueAt(inst, state.settings) < now();
   const roleMembers = state.staff.filter(s => s.roleIds?.includes(inst.roleId));
   const certifier = inst.certifiedBy ? state.staff.find(s => s.id === inst.certifiedBy) : null;
   // Area pill — looked up from live state.areas via the snapshot's areaId.
@@ -3924,7 +3965,7 @@ function InstanceCard({ inst, state, dispatch, user, admin, readOnly, highlightA
             {progress}/{total} done •{' '}
             {inst.status === 'completed'
               ? <>Certified {fmtRel(inst.certifiedAt || inst.completedAt)}{certifier ? ` by ${certifier.name}` : ''}</>
-              : <>Due <span className={overdue ? 'text-red-700 font-medium' : ''}>{fmtRel(inst.dueAt)}</span></>}
+              : <>Due <span className={overdue ? 'text-red-700 font-medium' : ''}>{fmtRel(instDueAt(inst, state.settings))}</span></>}
           </div>
         </button>
         <div className="flex items-center gap-2">
