@@ -220,7 +220,6 @@ const DEFAULT_STATE = {
       id: 'cl_ac_am_pre', kind: 'recurring', name: 'Appointment Coordinator — AM Before Huddle',
       roleId: 'r_fd', positionIds: ['p_ac1'], areaId: 'a_lobby', schedule: { freq: 'weekdays', dueTime: '09:00' }, slaMinutes: 30,
       items: [
-        { id: 'it1',  label: 'Disarm the alarm' },
         { id: 'it2',  label: 'Turn on all front office computers' },
         { id: 'it3',  label: 'Clock in' },
         { id: 'it4',  label: 'Turn on coffee maker, open blinds, turn on TV, floor lamp, and counter lights' },
@@ -231,7 +230,6 @@ const DEFAULT_STATE = {
         { id: 'it9',  label: 'Make sure lobby is neat and ready for patients (pillows, magazines, straighten chairs)' },
         { id: 'it10', label: 'Windex the front door glass (inside/outside)' },
         { id: 'it11', label: 'Print morning meeting report for Dr. A' },
-        { id: 'it12', label: 'Unlock front door after huddle' },
         { id: 'it13', label: 'Check patient restroom for re-stock and cleanliness' },
       ].map(i => ({ ...i, defaultAssigneeId: null })),
     },
@@ -240,10 +238,8 @@ const DEFAULT_STATE = {
       roleId: 'r_fd', positionIds: ['p_ac1'], areaId: 'a_lobby', schedule: { freq: 'weekdays', dueTime: '09:45' }, slaMinutes: 30,
       items: [
         { id: 'it1', label: 'Prepare new patient clipboard' },
-        { id: 'it2', label: 'Check online forms for new patients' },
         { id: 'it3', label: 'Make sure the tablets are charged and ready for new patients to use' },
         { id: 'it4', label: 'Check email' },
-        { id: 'it5', label: 'Send birthday texts on Weave' },
         { id: 'it6', label: 'Continue with daily duties (refer to full list)' },
       ].map(i => ({ ...i, defaultAssigneeId: null })),
     },
@@ -251,7 +247,6 @@ const DEFAULT_STATE = {
       id: 'cl_ac_pm', kind: 'recurring', name: 'Appointment Coordinator — PM Duties',
       roleId: 'r_fd', positionIds: ['p_ac1'], areaId: 'a_lobby', schedule: { freq: 'weekdays', dueTime: '18:00' }, slaMinutes: 60,
       items: [
-        { id: 'it1',  label: 'After lunch — make coffee for Dr. and a bottle of water, put on his desk' },
         { id: 'it2',  label: 'Prepare the schedule for the next day' },
         { id: 'it3',  label: 'Re-stock coffee station / turn off coffee machine' },
         { id: 'it4',  label: 'Vacuum / sweep, disinfect all touch surfaces' },
@@ -260,7 +255,6 @@ const DEFAULT_STATE = {
         { id: 'it7',  label: 'After the last patient — lock front door' },
         { id: 'it8',  label: 'Re-stock and organize patient restroom' },
         { id: 'it9',  label: 'Clock out' },
-        { id: 'it10', label: 'Last person to leave sets the security alarm' },
       ].map(i => ({ ...i, defaultAssigneeId: null })),
     },
     // --- Orthodontic Assistant #1 (detailed workflow) ---
