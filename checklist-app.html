@@ -7,7 +7,10 @@
 <script src="https://cdn.tailwindcss.com"></script>
 <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<!-- Pinned to Babel 7.x: Babel 8 changed @babel/preset-react's default JSX runtime to
+     "automatic", which emits `import {jsx} from "react/jsx-runtime"` — an ES import that
+     can't run inside this classic <script>, breaking the whole app before it mounts. -->
+<script src="https://unpkg.com/@babel/standalone@7.26.4/babel.min.js"></script>
 <!-- Firebase Realtime DB + Auth (reusing the nlo-inventory project, matches inventory-dashboard.html) -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
@@ -78,17 +81,6 @@
 <script type="text/babel">
 const { useState, useEffect, useMemo, useReducer, useRef } = React;
 
-// #region agent log
-const __dbg = (location, message, data, hypothesisId) => {
-  try {
-    fetch('http://127.0.0.1:7354/ingest/26f34d68-20cd-4ad5-9358-518d75bea745', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '2bab51' },
-      body: JSON.stringify({ sessionId: '2bab51', location, message, data, hypothesisId, timestamp: Date.now() }),
-    }).catch(() => {});
-  } catch {}
-};
-// #endregion
 
 /* ============================================================
    SEED DATA
@@ -220,6 +212,7 @@ const DEFAULT_STATE = {
       id: 'cl_ac_am_pre', kind: 'recurring', name: 'Appointment Coordinator — AM Before Huddle',
       roleId: 'r_fd', positionIds: ['p_ac1'], areaId: 'a_lobby', schedule: { freq: 'weekdays', dueTime: '09:00' }, slaMinutes: 30,
       items: [
+        { id: 'it1',  label: 'Disarm the alarm' },
         { id: 'it2',  label: 'Turn on all front office computers' },
         { id: 'it3',  label: 'Clock in' },
         { id: 'it4',  label: 'Turn on coffee maker, open blinds, turn on TV, floor lamp, and counter lights' },
@@ -230,6 +223,7 @@ const DEFAULT_STATE = {
         { id: 'it9',  label: 'Make sure lobby is neat and ready for patients (pillows, magazines, straighten chairs)' },
         { id: 'it10', label: 'Windex the front door glass (inside/outside)' },
         { id: 'it11', label: 'Print morning meeting report for Dr. A' },
+        { id: 'it12', label: 'Unlock front door after huddle' },
         { id: 'it13', label: 'Check patient restroom for re-stock and cleanliness' },
       ].map(i => ({ ...i, defaultAssigneeId: null })),
     },
@@ -238,8 +232,10 @@ const DEFAULT_STATE = {
       roleId: 'r_fd', positionIds: ['p_ac1'], areaId: 'a_lobby', schedule: { freq: 'weekdays', dueTime: '09:45' }, slaMinutes: 30,
       items: [
         { id: 'it1', label: 'Prepare new patient clipboard' },
+        { id: 'it2', label: 'Check online forms for new patients' },
         { id: 'it3', label: 'Make sure the tablets are charged and ready for new patients to use' },
         { id: 'it4', label: 'Check email' },
+        { id: 'it5', label: 'Send birthday texts on Weave' },
         { id: 'it6', label: 'Continue with daily duties (refer to full list)' },
       ].map(i => ({ ...i, defaultAssigneeId: null })),
     },
@@ -247,6 +243,7 @@ const DEFAULT_STATE = {
       id: 'cl_ac_pm', kind: 'recurring', name: 'Appointment Coordinator — PM Duties',
       roleId: 'r_fd', positionIds: ['p_ac1'], areaId: 'a_lobby', schedule: { freq: 'weekdays', dueTime: '18:00' }, slaMinutes: 60,
       items: [
+        { id: 'it1',  label: 'After lunch — make coffee for Dr. and a bottle of water, put on his desk' },
         { id: 'it2',  label: 'Prepare the schedule for the next day' },
         { id: 'it3',  label: 'Re-stock coffee station / turn off coffee machine' },
         { id: 'it4',  label: 'Vacuum / sweep, disinfect all touch surfaces' },
@@ -255,6 +252,7 @@ const DEFAULT_STATE = {
         { id: 'it7',  label: 'After the last patient — lock front door' },
         { id: 'it8',  label: 'Re-stock and organize patient restroom' },
         { id: 'it9',  label: 'Clock out' },
+        { id: 'it10', label: 'Last person to leave sets the security alarm' },
       ].map(i => ({ ...i, defaultAssigneeId: null })),
     },
     // --- Orthodontic Assistant #1 (detailed workflow) ---
@@ -629,6 +627,110 @@ function isAllowedEmail(email) {
 const FB_ROOT = 'nlo/checklistApp';
 const FB_KEYS = ['staff', 'roles', 'checklists', 'instances', 'auditLog', 'settings', 'acknowledgedFailures'];
 
+/* ============================================================
+   GRANULAR SYNC HELPERS
+   The old sync wrote the ENTIRE state blob on every change
+   (ref(FB_ROOT).set(state)). With several people using the app at
+   once, one device's write clobbered another's — checkmarks and whole
+   checklists would blink out and come back. These helpers let us sync
+   the high-churn collections (instances, auditLog) as id-keyed maps and
+   write only the records that actually changed via ref.update(), so
+   concurrent edits to *different* records merge on the server instead of
+   overwriting each other. Pure functions — unit-testable in isolation.
+   ============================================================ */
+// Top-level keys whose values are arrays of {id} records. Synced as
+// id-keyed objects in Firebase; everything else is written whole.
+const FB_COLLECTION_KEYS = ['instances', 'auditLog'];
+
+// Turn a raw Firebase snapshot value into our in-memory shape: id-keyed
+// collection objects (and legacy int-keyed arrays) become plain arrays,
+// newest first. Tolerates missing/empty nodes.
+function normalizeCloudState(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const out = { ...raw };
+  for (const key of FB_COLLECTION_KEYS) {
+    const v = raw[key];
+    if (Array.isArray(v)) out[key] = v.filter(Boolean);
+    else if (v && typeof v === 'object') out[key] = Object.keys(v).map(k => v[k]).filter(Boolean);
+    else out[key] = [];
+  }
+  if (Array.isArray(out.instances)) out.instances = [...out.instances].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  if (Array.isArray(out.auditLog))  out.auditLog  = [...out.auditLog].sort((a, b) => (b.at || 0) - (a.at || 0));
+  return out;
+}
+
+// Deterministic stringify (sorted object keys) used only for equality /
+// echo-suppression — never written to storage.
+function stableStringify(value) {
+  if (Array.isArray(value)) return '[' + value.map(stableStringify).join(',') + ']';
+  if (value && typeof value === 'object') {
+    return '{' + Object.keys(value).sort().map(k => JSON.stringify(k) + ':' + stableStringify(value[k])).join(',') + '}';
+  }
+  return JSON.stringify(value === undefined ? null : value);
+}
+
+// Canonical JSON for a whole state: collection records sorted by id so two
+// states with identical data but different ordering compare equal.
+function canonicalSyncJSON(state) {
+  if (!state || typeof state !== 'object') return stableStringify(state);
+  const norm = { ...state };
+  for (const key of FB_COLLECTION_KEYS) {
+    if (Array.isArray(state[key])) {
+      norm[key] = [...state[key]].filter(Boolean).sort((a, b) => {
+        const ai = (a && a.id) || '', bi = (b && b.id) || '';
+        return ai < bi ? -1 : ai > bi ? 1 : 0;
+      });
+    }
+  }
+  return stableStringify(norm);
+}
+
+// Build a Firebase update() map containing ONLY what changed between prev
+// and next. Collection records go to per-id paths (deletions → null);
+// other top-level keys are written whole when their JSON differs. Passing
+// prev=null writes everything (used for the first push to an empty cloud).
+function computeGranularUpdate(prev, next) {
+  const update = {};
+  const keys = new Set([...Object.keys(prev || {}), ...Object.keys(next || {})]);
+  for (const key of keys) {
+    if (FB_COLLECTION_KEYS.includes(key)) {
+      const prevArr = Array.isArray(prev && prev[key]) ? prev[key] : [];
+      const nextArr = Array.isArray(next && next[key]) ? next[key] : [];
+      const prevById = new Map(prevArr.filter(x => x && x.id).map(x => [x.id, x]));
+      const nextById = new Map(nextArr.filter(x => x && x.id).map(x => [x.id, x]));
+      for (const [id, rec] of nextById) {
+        const before = prevById.get(id);
+        if (!before || JSON.stringify(before) !== JSON.stringify(rec)) update[`${key}/${id}`] = rec;
+      }
+      for (const id of prevById.keys()) {
+        if (!nextById.has(id)) update[`${key}/${id}`] = null;
+      }
+    } else {
+      const a = prev ? prev[key] : undefined;
+      const b = next ? next[key] : undefined;
+      if (JSON.stringify(a) !== JSON.stringify(b)) update[key] = b === undefined ? null : b;
+    }
+  }
+  return update;
+}
+
+// Detect a collection node still stored the old way (a real array, or an
+// object with numeric keys) so we can rewrite it once as an id-keyed map.
+function legacyCollectionMigration(rawCloud, normalized) {
+  const updates = {};
+  for (const key of FB_COLLECTION_KEYS) {
+    const node = rawCloud ? rawCloud[key] : undefined;
+    const isLegacy = Array.isArray(node)
+      || (node && typeof node === 'object' && Object.keys(node).some(k => /^\d+$/.test(k)));
+    if (isLegacy) {
+      const map = {};
+      (normalized[key] || []).forEach(r => { if (r && r.id) map[r.id] = r; });
+      updates[key] = map;
+    }
+  }
+  return updates;
+}
+
 // Safe init: only call initializeApp once. Other NLO apps may share the page someday.
 function ensureFirebaseApp() {
   if (!window.firebase) return false;
@@ -741,6 +843,28 @@ function getPositionHolder(state, positionId, quarterKey) {
   if (!state || !positionId || !quarterKey) return null;
   const q = state.positionAssignments && state.positionAssignments[quarterKey];
   return (q && q[positionId]) || null;
+}
+
+/**
+ * Like getPositionHolder, but if the requested quarter has no holder for the
+ * position it walks back through prior quarters (up to ~2 years) and returns
+ * the most recent assignment. Position-based checklist ASSIGNMENT resolves
+ * through this so a recurring checklist doesn't lose every assignee — and
+ * silently vanish for staff — the instant a new calendar quarter begins,
+ * before an admin has copied the rotation forward. A seat "sticks" with its
+ * last known holder until it is explicitly reassigned in the Rotations tab.
+ * (The Rotations editor and checklist-editor labels keep using the exact,
+ *  quarter-specific getPositionHolder so their "this quarter" text stays true.)
+ */
+function effectivePositionHolder(state, positionId, quarterKey) {
+  if (!state || !positionId || !quarterKey) return null;
+  let key = quarterKey;
+  for (let i = 0; i < 9; i++) {
+    const holder = getPositionHolder(state, positionId, key);
+    if (holder) return holder;
+    key = previousQuarterKey(key);
+  }
+  return null;
 }
 
 /**
@@ -1322,7 +1446,10 @@ function resolveAssignees(checklist, state, dateStr) {
   if (Array.isArray(checklist.positionIds) && state) {
     const qKey = quarterKeyFor(dateStr ? new Date(dateStr + 'T12:00:00') : new Date());
     for (const pid of checklist.positionIds) {
-      const holder = getPositionHolder(state, pid, qKey);
+      // Use the look-back resolver: if this quarter's rotation hasn't been set
+      // up yet, fall back to the most recent prior holder so the checklist
+      // still spawns instead of disappearing for everyone.
+      const holder = effectivePositionHolder(state, pid, qKey);
       if (holder) base.add(holder);
     }
   }
@@ -1340,30 +1467,12 @@ function resolveAssignees(checklist, state, dateStr) {
   const freq = checklist.schedule?.freq;
   const isCycleBased = freq === 'weekly' || freq === 'monthly' || freq === 'quarterly';
   if (isCycleBased) {
-    // #region agent log
-    __dbg('resolveAssignees:cycle', 'cycle-based, returning base unfiltered', {
-      checklistId: checklist.id, checklistName: checklist.name, freq, dateStr, base: baseArr,
-    }, 'H2');
-    // #endregion
     return baseArr;
   }
   const filtered = baseArr.filter(id => {
     const s = state.staff.find(x => x.id === id);
     return s && !isStaffOff(s, dateStr);
   });
-  // #region agent log
-  if (baseArr.length !== filtered.length || baseArr.length === 0) {
-    const dropped = baseArr.filter(id => !filtered.includes(id));
-    const droppedDetails = dropped.map(id => {
-      const s = state.staff.find(x => x.id === id);
-      return { id, found: !!s, name: s?.name, off: s ? isStaffOff(s, dateStr) : null, timeOff: s?.timeOff };
-    });
-    __dbg('resolveAssignees:filter', 'PTO/missing-staff filter changed assignees', {
-      checklistId: checklist.id, checklistName: checklist.name, freq, dateStr,
-      base: baseArr, filtered, droppedDetails,
-    }, 'H2');
-  }
-  // #endregion
   return filtered;
 }
 
@@ -1373,8 +1482,18 @@ function makeInstance(checklist, { appointmentLabel, date, actorId, state }) {
   // anchored at local noon (avoids DST / timezone edge cases when instDate
   // comes from todayISO()).
   const refDate = new Date(instDate + 'T12:00:00');
+  const cycleKey = checklist.kind === 'recurring'
+    ? cycleKeyFor(checklist.schedule, refDate)
+    : null;
   return {
-    id: uid(),
+    // Recurring instances get a DETERMINISTIC id keyed by (checklist, cycle).
+    // This makes auto-generation idempotent across devices: if two clients
+    // spawn the same cycle's instance at once, they produce the same id, so
+    // the granular sync writes to the same path and they converge to ONE
+    // instance instead of creating duplicates — no cross-device lock needed.
+    // Event instances are manually spawned and may legitimately repeat (e.g.
+    // two new-patient checklists in a day), so they keep a random id.
+    id: checklist.kind === 'recurring' ? `${checklist.id}::${cycleKey}` : uid(),
     checklistId: checklist.id,
     checklistName: checklist.name,
     checklistSnapshot: checklist,
@@ -1385,9 +1504,7 @@ function makeInstance(checklist, { appointmentLabel, date, actorId, state }) {
     // cycleKey lets us dedupe weekly / monthly / quarterly instances at the
     // cycle level (one per week / month / quarter) instead of the old
     // per-day spawn. Event instances stay null.
-    cycleKey: checklist.kind === 'recurring'
-      ? cycleKeyFor(checklist.schedule, refDate)
-      : null,
+    cycleKey,
     appointmentLabel: appointmentLabel || '',
     createdAt: now(),
     createdBy: actorId,
@@ -1552,16 +1669,6 @@ function reducer(state, action) {
 
     case 'CHECKLIST_SAVE': {
       const cl = action.checklist;
-      // #region agent log
-      const __prevCl = state.checklists.find(x => x.id === cl.id);
-      __dbg('reducer:CHECKLIST_SAVE', 'incoming save', {
-        checklistId: cl.id, checklistName: cl.name, kind: cl.kind, roleId: cl.roleId,
-        incomingAssignedStaffIds: cl.assignedStaffIds,
-        previousAssignedStaffIds: __prevCl?.assignedStaffIds,
-        incomingItemCount: Array.isArray(cl.items) ? cl.items.length : null,
-        existedBefore: !!__prevCl,
-      }, 'H1+H4');
-      // #endregion
       const exists = state.checklists.some(x => x.id === cl.id);
       const nextChecklists = exists
         ? state.checklists.map(x => x.id === cl.id ? cl : x)
@@ -1741,33 +1848,19 @@ function reducer(state, action) {
       // serve anyone and would otherwise haunt the UI. This is the final
       // safety net for legacy checklists that never had an explicit
       // assignment list (under the new semantics those resolve to []).
-      const cleaned = reconciled.filter(i => i.status === 'completed' || (Array.isArray(i.assignedStaffIds) && i.assignedStaffIds.length > 0));
-      // #region agent log
-      const __droppedByCleanup = reconciled.filter(i => !cleaned.includes(i));
-      const __changedByReconcile = reconciled.filter((r, idx) => {
-        const orig = gc[idx];
-        if (!orig || orig.status === 'completed') return false;
-        const a = (r.assignedStaffIds || []).slice().sort().join(',');
-        const b = (orig.assignedStaffIds || []).slice().sort().join(',');
-        return a !== b;
-      }).map(i => {
-        const orig = gc.find(x => x.id === i.id);
-        return {
-          instanceId: i.id, checklistName: i.checklistName, date: i.date,
-          before: orig?.assignedStaffIds, after: i.assignedStaffIds,
-        };
-      });
-      if (__droppedByCleanup.length > 0 || __changedByReconcile.length > 0) {
-        __dbg('reducer:INSTANCES_AUTO_CREATE', 'reconcile/cleanup pass', {
-          gcCount: gc.length, reconciledCount: reconciled.length, cleanedCount: cleaned.length,
-          droppedByCleanup: __droppedByCleanup.map(i => ({
-            instanceId: i.id, checklistId: i.checklistId, checklistName: i.checklistName,
-            date: i.date, assignedStaffIds: i.assignedStaffIds,
-          })),
-          assignedChangedByReconcile: __changedByReconcile,
-        }, 'H3');
-      }
-      // #endregion
+      // BUT never drop an instance that already has work in progress: if a
+      // staff member has started ticking items, a transient empty assignee
+      // resolution (e.g. a momentarily stale state mid-sync under concurrent
+      // use) must not delete their progress out from under them.
+      const hasProgress = (i) => Array.isArray(i.items) && i.items.some(it =>
+        it.status === 'done' || it.completedAt ||
+        (Array.isArray(it.subtasks) && it.subtasks.some(st => st.status === 'done' || st.completedAt))
+      );
+      const cleaned = reconciled.filter(i =>
+        i.status === 'completed' ||
+        (Array.isArray(i.assignedStaffIds) && i.assignedStaffIds.length > 0) ||
+        hasProgress(i)
+      );
       state = { ...state, instances: cleaned };
       // Office-wide holiday → skip recurring generation entirely for today
       if (isHoliday(date, state.settings?.holidays)) return state;
@@ -2056,23 +2149,6 @@ function reducer(state, action) {
     }
 
     case 'ITEM_ASSIGN':
-      // #region agent log
-      {
-        const __inst = state.instances.find(i => i.id === action.instanceId);
-        const __it = __inst?.items.find(i => i.id === action.itemId);
-        const __target = state.staff.find(s => s.id === action.assigneeId);
-        __dbg('reducer:ITEM_ASSIGN', 'per-item reassign', {
-          instanceId: action.instanceId, itemId: action.itemId,
-          actorId: action.actorId, assigneeId: action.assigneeId,
-          assigneeFoundInStaff: !!__target, assigneeName: __target?.name,
-          previousAssignedTo: __it?.assignedTo,
-          itemLabel: __it?.label,
-          checklistName: __inst?.checklistName,
-          instanceAssignedStaffIds: __inst?.assignedStaffIds,
-          assigneeInInstanceAssignees: __inst?.assignedStaffIds?.includes(action.assigneeId),
-        }, 'H5');
-      }
-      // #endregion
       next = {
         ...state,
         instances: state.instances.map(inst => inst.id !== action.instanceId ? inst : {
@@ -2233,6 +2309,10 @@ function AppRoot() {
   // JSON of the last value we wrote up OR received down, used to squash echo
   // loops where our own write comes back through the on('value') listener.
   const lastSyncJSONRef = useRef(null);
+  // Best estimate of what's currently in the cloud, in in-memory shape. Used
+  // as the diff base so we push only the records that actually changed
+  // (see computeGranularUpdate) instead of the whole document.
+  const lastSyncedStateRef = useRef(null);
 
   // INSTANCES_AUTO_CREATE runs from the visibility/focus/interval effect
   // below (which dispatches immediately on mount too), so no separate
@@ -2310,6 +2390,7 @@ function AppRoot() {
         // Reset sync bookkeeping so a re-login does a fresh hydrate.
         hydratedFromCloudRef.current = false;
         lastSyncJSONRef.current = null;
+        lastSyncedStateRef.current = null;
         setSyncStatus('connecting');
         return;
       }
@@ -2346,11 +2427,20 @@ function AppRoot() {
 
         const cloud = snap.val();
         if (cloud && typeof cloud === 'object') {
-          const hydrated = applySeedMigrations({ ...DEFAULT_STATE, ...cloud });
-          lastSyncJSONRef.current = JSON.stringify(hydrated);
+          const normalized = normalizeCloudState(cloud);
+          const hydrated = applySeedMigrations({ ...DEFAULT_STATE, ...normalized });
+          // One-time: if instances/auditLog are still stored the old way (a
+          // plain array / numeric keys), rewrite those nodes as id-keyed maps
+          // so per-id granular writes don't end up coexisting with stale
+          // integer keys (which would duplicate records on the next read).
+          const legacy = legacyCollectionMigration(cloud, normalized);
+          if (Object.keys(legacy).length) { try { await ref.update(legacy); } catch {} }
+          lastSyncedStateRef.current = hydrated;
+          lastSyncJSONRef.current = canonicalSyncJSON(hydrated);
           dispatch({ type: 'HYDRATE', state: hydrated });
         } else {
           // Empty cloud: current local state will be pushed up on next tick.
+          lastSyncedStateRef.current = null;
           lastSyncJSONRef.current = null;
         }
         hydratedFromCloudRef.current = true;
@@ -2360,9 +2450,10 @@ function AppRoot() {
         const onValue = (s) => {
           const val = s.val();
           if (!val || typeof val !== 'object') return;
-          const incoming = applySeedMigrations({ ...DEFAULT_STATE, ...val });
-          const incomingJSON = JSON.stringify(incoming);
-          if (incomingJSON === lastSyncJSONRef.current) return; // echo
+          const incoming = applySeedMigrations({ ...DEFAULT_STATE, ...normalizeCloudState(val) });
+          const incomingJSON = canonicalSyncJSON(incoming);
+          if (incomingJSON === lastSyncJSONRef.current) return; // echo (our own write coming back)
+          lastSyncedStateRef.current = incoming;
           lastSyncJSONRef.current = incomingJSON;
           dispatch({ type: 'HYDRATE', state: incoming });
         };
@@ -2393,16 +2484,22 @@ function AppRoot() {
   }, [firebaseUser]);
 
   // Push local state changes up to Firebase once we've hydrated from cloud.
-  // Echo-suppression via lastSyncJSONRef: if the JSON of what we're about to
-  // write matches what just came down the listener, we skip the write.
+  // GRANULAR write: only the records that actually changed since the last
+  // known cloud state are written (per-id paths for instances/auditLog via
+  // ref.update), so a write from one device no longer clobbers concurrent
+  // edits another device made to different records. Echo-suppression via the
+  // canonical JSON skips the write when nothing is new relative to the cloud.
   useEffect(() => {
     if (!firebaseUser) return;
     if (!hydratedFromCloudRef.current) return;
     if (!window.firebase?.database) return;
-    const asJSON = JSON.stringify(state);
-    if (asJSON === lastSyncJSONRef.current) return;
-    lastSyncJSONRef.current = asJSON;
-    window.firebase.database().ref(FB_ROOT).set(state).catch((err) => {
+    const canon = canonicalSyncJSON(state);
+    if (canon === lastSyncJSONRef.current) return;
+    const update = computeGranularUpdate(lastSyncedStateRef.current, state);
+    lastSyncedStateRef.current = state;
+    lastSyncJSONRef.current = canon;
+    if (Object.keys(update).length === 0) return;
+    window.firebase.database().ref(FB_ROOT).update(update).catch((err) => {
       console.error('[NLO Checklists] Firebase write failed:', err);
       setSyncStatus('error');
       setSyncErrorMsg(err?.code ? (err.code + ': ' + (err.message || '')) : (err?.message || String(err)));
@@ -2713,23 +2810,6 @@ function StaffView({ state, dispatch, user }) {
   const myTeam = openToday.filter(i =>
     Array.isArray(i.assignedStaffIds) && i.assignedStaffIds.includes(user.id)
   );
-  // #region agent log
-  // Only log on tab=mine to avoid spam, and once per render via ref-equality on user.id+counts.
-  if (typeof window !== 'undefined') {
-    const sig = JSON.stringify({ uid: user.id, openCt: openToday.length, mineCt: myTeam.length });
-    if (window.__lastStaffViewSig !== sig) {
-      window.__lastStaffViewSig = sig;
-      __dbg('StaffView:render', 'computed myTeam', {
-        userId: user.id, userName: user.name, userRoleIds: user.roleIds,
-        openCount: openToday.length, myTeamCount: myTeam.length,
-        sampleOpenInstances: openToday.slice(0, 8).map(i => ({
-          id: i.id, checklistName: i.checklistName, checklistId: i.checklistId, date: i.date,
-          assignedStaffIds: i.assignedStaffIds, includesMe: (i.assignedStaffIds || []).includes(user.id),
-        })),
-      }, 'H6');
-    }
-  }
-  // #endregion
   // Browse tab: checklists I'm NOT on, where no specific item is claimed
   // by any individual — truly pick-up-able work.
   const others   = openToday.filter(i => !myTeam.includes(i) && i.items.every(it => !it.assignedTo));
@@ -4585,15 +4665,6 @@ function ChecklistEditor({ kind, state, checklist, onClose, onSave }) {
         <button className="btn btn-primary"
           disabled={!name.trim() || !roleId || !items.some(i => i.label.trim())}
           onClick={() => {
-            // #region agent log
-            __dbg('ChecklistEditor:save', 'admin clicked save', {
-              checklistId: checklist?.id || '(new)', name: name.trim(), kind, roleId,
-              assignedStaffIds, assignedCount: assignedStaffIds.length,
-              wasNew: !checklist,
-              originalAssignedStaffIds: checklist?.assignedStaffIds || null,
-              defaultAssigneesByItem: items.map(i => ({ id: i.id, label: i.label, defaultAssigneeId: i.defaultAssigneeId })),
-            }, 'H1');
-            // #endregion
             const base = {
               id: checklist?.id || uid(),
               kind,
@@ -5583,13 +5654,6 @@ function StaffChecklistsDialog({ staff, state, dispatch, onClose }) {
     const nextList = on
       ? currentList.filter(id => id !== staff.id)
       : Array.from(new Set([...currentList, staff.id]));
-    // #region agent log
-    __dbg('StaffChecklistsDialog:toggle', 'per-staff toggle dispatched', {
-      staffId: staff.id, staffName: staff.name, checklistId: cl.id, checklistName: cl.name,
-      wasOn: on, currentList, nextList,
-      clClosureAssignedStaffIds: cl.assignedStaffIds,
-    }, 'H4');
-    // #endregion
     dispatch({ type: 'CHECKLIST_SAVE', checklist: { ...cl, assignedStaffIds: nextList } });
   };
 
