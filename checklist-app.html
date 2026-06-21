@@ -1227,7 +1227,7 @@ function applySeedMigrations(state) {
     const newItems = seed.items.filter(si =>
       !existingItemIds.has(si.id)
       && !existingLabels.has((si.label || '').trim().toLowerCase())
-      && !deletedSeedItemIds.has(si.id)
+      && !deletedSeedItemIds.has(`${cl.id}::${si.id}`)
     );
     if (newItems.length === 0) return next;
     itemsBackfilled += newItems.length;
@@ -1699,8 +1699,12 @@ function reducer(state, action) {
         const supp = new Set(deletedSeedItemIds);
         for (const si of seedDef.items) {
           if (!si || !si.id) continue;
-          if (savedItemIds.has(si.id)) supp.delete(si.id); // restored → allow backfill again
-          else supp.add(si.id);                            // removed → suppress re-add
+          // Key by checklist+item: seed item ids (it1, it2, …) are REUSED
+          // across different checklists, so a bare item id would suppress the
+          // wrong checklist's items.
+          const key = `${cl.id}::${si.id}`;
+          if (savedItemIds.has(si.id)) supp.delete(key); // restored → allow backfill again
+          else supp.add(key);                            // removed → suppress re-add
         }
         deletedSeedItemIds = Array.from(supp);
       }
