@@ -542,6 +542,17 @@ const DEFAULT_STATE = {
   // respects this list so hard-deleted seeds don't come back on the next
   // hydrate. Archived checklists stay in `checklists` with archived: true.
   deletedChecklistIds: [],
+  // Recurring occurrences the user explicitly deleted, keyed by
+  // `${checklistId}::${cycleKey}` → timestamp. Auto-generation skips these so
+  // a deleted recurring task stays gone for its cycle instead of respawning on
+  // the next 60s tick. A new cycle has a new key, so the task returns normally
+  // next time. The manual "Regenerate recurring" button clears these.
+  deletedInstanceKeys: {},
+  // Built-in (seed) checklist ITEMS the admin has removed. Mirrors
+  // deletedChecklistIds: without this, the seed-migration item backfill
+  // re-adds any missing built-in item on the next hydrate, so deleting a
+  // task from a built-in recurring checklist wouldn't stick.
+  deletedSeedItemIds: [],
   // Area tags — one per checklist. Seeded with the office's physical zones;
   // staff can add / rename / delete in Settings. `areaId` on a checklist may
   // be null (un-tagged).
@@ -1170,6 +1181,8 @@ function applySeedMigrations(state) {
   if (!state || typeof state !== 'object') return state;
   const existingIds = new Set((state.checklists || []).map(c => c && c.id).filter(Boolean));
   const deletedIds = new Set(state.deletedChecklistIds || []);
+  // Seed items the admin removed — never re-add these in the backfill below.
+  const deletedSeedItemIds = new Set(state.deletedSeedItemIds || []);
   // (1) Add any brand-new seed checklists the user hasn't seen yet. We
   // never re-seed anything the user explicitly deleted — that's what made
   // deletes appear to "come back at the bottom of the list" before.
@@ -1214,6 +1227,7 @@ function applySeedMigrations(state) {
     const newItems = seed.items.filter(si =>
       !existingItemIds.has(si.id)
       && !existingLabels.has((si.label || '').trim().toLowerCase())
+      && !deletedSeedItemIds.has(si.id)
     );
     if (newItems.length === 0) return next;
     itemsBackfilled += newItems.length;
@@ -1674,6 +1688,22 @@ function reducer(state, action) {
         ? state.checklists.map(x => x.id === cl.id ? cl : x)
         : [...state.checklists, cl];
       const nextStateForResolve = { ...state, checklists: nextChecklists };
+      // Track removals of built-in (seed) ITEMS so the seed-migration backfill
+      // won't re-add them on the next hydrate. Items the admin restores (now
+      // present again) are pulled back out of the suppression list. Only seed
+      // checklists are backfilled, so user-created item removals already stick.
+      let deletedSeedItemIds = state.deletedSeedItemIds || [];
+      const seedDef = (DEFAULT_STATE.checklists || []).find(s => s.id === cl.id);
+      if (seedDef && Array.isArray(seedDef.items)) {
+        const savedItemIds = new Set((cl.items || []).map(i => i && i.id).filter(Boolean));
+        const supp = new Set(deletedSeedItemIds);
+        for (const si of seedDef.items) {
+          if (!si || !si.id) continue;
+          if (savedItemIds.has(si.id)) supp.delete(si.id); // restored → allow backfill again
+          else supp.add(si.id);                            // removed → suppress re-add
+        }
+        deletedSeedItemIds = Array.from(supp);
+      }
       // (1) Propagate assignedStaffIds, role, name, AND item-list changes
       // to existing OPEN (non-completed) instances of this checklist.
       // Without this, editing the checklist (removing an item, renaming one,
@@ -1739,7 +1769,7 @@ function reducer(state, action) {
           }
         }
       }
-      next = { ...state, checklists: nextChecklists, instances: nextInstances };
+      next = { ...state, checklists: nextChecklists, instances: nextInstances, deletedSeedItemIds };
       if (spawnedInst) {
         next = audit(next, {
           action: 'instance_created', instanceId: spawnedInst.id,
@@ -1807,6 +1837,13 @@ function reducer(state, action) {
       const date = todayISO();
       const refDate = new Date(date + 'T12:00:00');
       const t = now();
+      // The manual "Regenerate recurring" button passes force:true to rebuild
+      // everything, which also clears any per-occurrence delete suppressions
+      // (the admin explicitly asked to regenerate). Automatic ticks honor them.
+      const suppressedKeys = action.force ? {} : (state.deletedInstanceKeys || {});
+      if (action.force && Object.keys(state.deletedInstanceKeys || {}).length) {
+        state = { ...state, deletedInstanceKeys: {} };
+      }
       // First pass: garbage-collect OPEN instances whose underlying
       // checklist has been deleted or archived. Without this, zombies from
       // before the archive/delete cleanup keep following staff around.
@@ -1892,6 +1929,9 @@ function reducer(state, action) {
           return i.date === date;
         });
         if (already) return;
+        // Respect a user's explicit delete of this occurrence — don't respawn
+        // it for the same cycle (cleared by the manual force-regenerate above).
+        if (suppressedKeys[`${cl.id}::${currentCycle}`]) return;
         const inst = makeInstance(cl, { actorId: 'system', state });
         if (inst.assignedStaffIds.length === 0) return;
         newOnes.push(inst);
@@ -1903,8 +1943,22 @@ function reducer(state, action) {
       });
       break;
     }
-    case 'INSTANCE_DELETE':
-      next = { ...state, instances: state.instances.filter(i => i.id !== action.id) }; break;
+    case 'INSTANCE_DELETE': {
+      const target = state.instances.find(i => i.id === action.id);
+      // For a recurring occurrence, remember that this cycle was deleted so
+      // INSTANCES_AUTO_CREATE doesn't immediately respawn it. (Event instances
+      // are never auto-respawned, so they need no suppression key.)
+      let deletedInstanceKeys = state.deletedInstanceKeys || {};
+      if (target && target.kind === 'recurring' && target.cycleKey) {
+        deletedInstanceKeys = { ...deletedInstanceKeys, [`${target.checklistId}::${target.cycleKey}`]: now() };
+      }
+      next = {
+        ...state,
+        instances: state.instances.filter(i => i.id !== action.id),
+        deletedInstanceKeys,
+      };
+      break;
+    }
 
     case 'ITEM_TOGGLE': {
       let targetLabel = '', wasDone = false, blockedBySubtasks = false;
@@ -3479,7 +3533,9 @@ function TodayTab({ state, dispatch, user, scope }) {
     if (regenerating) return;
     setRegenerating(true);
     const before = instanceCountRef.current;
-    dispatch({ type: 'INSTANCES_AUTO_CREATE' });
+    // force:true rebuilds everything and clears per-occurrence delete
+    // suppressions, so this stays a reliable one-click recovery path.
+    dispatch({ type: 'INSTANCES_AUTO_CREATE', force: true });
     // Give React time to apply the reducer + re-render, then show feedback
     setTimeout(() => {
       const after = instanceCountRef.current;
