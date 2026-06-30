@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Staff Meeting — Next Level Orthodontics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --navy:#1B2F4C; --blue:#1D3EA9; --coral:#FA624D; --mint:#1a9e78;
+    --gold:#d9930a; --bg:#F2F3F4; --card:#fff; --line:#e4e7eb; --muted:#6b7a90;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Montserrat',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--navy);min-height:100vh;}
+  a{color:var(--blue);}
+
+  header{background:var(--navy);color:#fff;padding:22px 28px;display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap;}
+  header .ttl{display:flex;flex-direction:column;gap:3px;}
+  header h1{font-size:1.15rem;font-weight:800;letter-spacing:-.3px;}
+  header .sub{font-size:.66rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;opacity:.55;}
+  .whoami{display:flex;align-items:center;gap:12px;font-size:.82rem;}
+  .whoami .uname{font-weight:700;}
+  .whoami .signout{font-size:.72rem;color:#fff;opacity:.7;background:rgba(255,255,255,.12);border:none;padding:6px 12px;border-radius:8px;font-family:inherit;font-weight:600;cursor:pointer;}
+  .whoami .signout:hover{opacity:1;}
+
+  .wrap{max-width:1020px;margin:0 auto;padding:22px 18px 60px;}
+
+  .tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:20px;}
+  .tab{padding:9px 16px;border-radius:10px;background:#fff;border:2px solid transparent;font-family:inherit;font-weight:700;font-size:.8rem;color:var(--navy);cursor:pointer;opacity:.6;box-shadow:0 1px 3px rgba(27,47,76,.05);}
+  .tab.active{opacity:1;border-color:var(--blue);color:var(--blue);}
+  .tab .badge{display:inline-block;min-width:18px;text-align:center;background:var(--coral);color:#fff;border-radius:20px;font-size:.65rem;padding:1px 6px;margin-left:5px;}
+
+  .card{background:var(--card);border-radius:14px;padding:22px;box-shadow:0 1px 3px rgba(27,47,76,.06),0 4px 16px rgba(27,47,76,.04);margin-bottom:18px;}
+  .card h2{font-size:1rem;font-weight:800;margin-bottom:4px;letter-spacing:-.2px;}
+  .card .hint{font-size:.78rem;color:var(--muted);margin-bottom:16px;line-height:1.5;font-weight:500;}
+  .sec-label{font-size:.66rem;font-weight:800;text-transform:uppercase;letter-spacing:1.3px;color:var(--navy);opacity:.45;margin:18px 0 8px;}
+
+  label.fld{display:block;font-size:.74rem;font-weight:700;margin-bottom:6px;color:var(--navy);}
+  textarea,input[type=text],input[type=date],input[type=number],select.in{width:100%;font-family:inherit;font-size:.86rem;padding:11px 13px;border:1.5px solid var(--line);border-radius:10px;color:var(--navy);background:#fff;resize:vertical;font-weight:500;}
+  textarea:focus,input:focus,select.in:focus{outline:none;border-color:var(--blue);}
+  textarea{min-height:78px;line-height:1.5;}
+
+  .btn{font-family:inherit;font-weight:700;font-size:.82rem;padding:11px 18px;border-radius:10px;border:none;cursor:pointer;background:var(--blue);color:#fff;transition:.15s;}
+  .btn:hover{filter:brightness(1.07);}
+  .btn:disabled{opacity:.5;cursor:not-allowed;}
+  .btn.ghost{background:#eef1f6;color:var(--navy);}
+  .btn.coral{background:var(--coral);}
+  .btn.mint{background:var(--mint);}
+  .btn.sm{padding:7px 12px;font-size:.74rem;}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
+  .right{margin-left:auto;}
+  .saved{font-size:.74rem;color:var(--mint);font-weight:700;opacity:0;transition:.3s;}
+  .saved.show{opacity:1;}
+
+  .person-block{border:1.5px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px;}
+  .person-block .ph{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
+  .avatar{width:34px;height:34px;border-radius:50%;background:var(--blue);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.8rem;flex-shrink:0;}
+  .person-block .pname{font-weight:800;font-size:.92rem;}
+  .person-block .prole{font-size:.72rem;color:var(--muted);font-weight:600;}
+  .field-out{margin-top:8px;}
+  .field-out .flabel{font-size:.66rem;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--muted);}
+  .field-out .ftext{font-size:.86rem;line-height:1.55;white-space:pre-wrap;font-weight:500;margin-top:2px;}
+  .empty{color:var(--muted);font-style:italic;font-size:.84rem;}
+
+  table{width:100%;border-collapse:collapse;}
+  th,td{text-align:left;padding:9px 8px;font-size:.82rem;border-bottom:1px solid var(--line);}
+  th{font-size:.66rem;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);font-weight:800;}
+
+  .kpi-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-bottom:8px;}
+  .kpi-card{border:1.5px solid var(--line);border-radius:12px;padding:14px;}
+  .kpi-card .klabel{font-size:.68rem;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);}
+  .kpi-card .kval{font-size:1.5rem;font-weight:800;margin-top:4px;}
+  .kpi-card .kunit{font-size:.7rem;font-weight:600;color:var(--muted);margin-left:3px;}
+  .kpi-card .kdelta{font-size:.7rem;font-weight:700;margin-top:2px;}
+  .kdelta.up{color:var(--mint);} .kdelta.down{color:var(--coral);} .kdelta.flat{color:var(--muted);}
+
+  .ai-item{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--line);}
+  .ai-item.done .aitext{text-decoration:line-through;opacity:.55;}
+  .ai-item input[type=checkbox]{width:18px;height:18px;margin-top:2px;flex-shrink:0;cursor:pointer;}
+  .aitext{font-size:.88rem;font-weight:600;}
+  .aimeta{font-size:.72rem;color:var(--muted);font-weight:600;margin-top:2px;}
+  .chip{display:inline-block;font-size:.64rem;font-weight:800;text-transform:uppercase;letter-spacing:.5px;padding:2px 8px;border-radius:20px;background:#eef1f6;color:var(--navy);}
+  .chip.carry{background:rgba(250,98,77,.12);color:var(--coral);}
+  .del{background:none;border:none;color:var(--muted);cursor:pointer;font-size:1.1rem;line-height:1;}
+  .del:hover{color:var(--coral);}
+
+  .agenda-out{font-size:.9rem;line-height:1.65;font-weight:500;}
+  .agenda-out h1,.agenda-out h2,.agenda-out h3{font-weight:800;margin:14px 0 6px;}
+  .agenda-out h1{font-size:1.15rem;} .agenda-out h2{font-size:1rem;color:var(--blue);} .agenda-out h3{font-size:.9rem;}
+  .agenda-out ul{margin:6px 0 10px 20px;} .agenda-out li{margin-bottom:4px;}
+  .agenda-out strong{font-weight:800;}
+  .spinner{display:inline-block;width:16px;height:16px;border:2.5px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;vertical-align:-3px;}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .banner{padding:10px 14px;border-radius:10px;font-size:.78rem;font-weight:600;margin-bottom:14px;}
+  .banner.warn{background:rgba(246,175,36,.13);color:#9a6a00;}
+  .banner.info{background:rgba(29,62,169,.08);color:var(--blue);}
+  .muted{color:var(--muted);}
+  .hide{display:none!important;}
+  canvas{max-width:100%;}
+
+  /* Auth gate */
+  #authGate{position:fixed;inset:0;background:var(--navy);display:flex;align-items:center;justify-content:center;z-index:1000;padding:20px;}
+  #authGate .box{background:#fff;border-radius:18px;padding:40px 34px;max-width:380px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.3);}
+  #authGate h2{font-size:1.2rem;font-weight:800;margin-bottom:6px;}
+  #authGate p{font-size:.84rem;color:var(--muted);margin-bottom:22px;line-height:1.5;font-weight:500;}
+  #authGate .gbtn{display:inline-flex;align-items:center;gap:10px;background:#fff;border:1.5px solid var(--line);border-radius:10px;padding:12px 20px;font-family:inherit;font-weight:700;font-size:.9rem;color:var(--navy);cursor:pointer;}
+  #authGate .gbtn:hover{border-color:var(--blue);}
+  #authGate .err{color:var(--coral);font-size:.8rem;font-weight:700;margin-top:14px;min-height:18px;}
+  .crest{width:54px;height:54px;border-radius:14px;background:var(--blue);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;}
+
+  @media print{
+    header,.tabs,.no-print,#authGate{display:none!important;}
+    body{background:#fff;}
+    .wrap{max-width:100%;padding:0;}
+    .card{box-shadow:none;border:none;padding:0;margin:0;}
+    #printArea{display:block!important;}
+  }
+</style>
+</head>
+<body>
+
+<!-- ===== AUTH GATE ===== -->
+<div id="authGate">
+  <div class="box">
+    <div class="crest">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/>
+        <path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>
+      </svg>
+    </div>
+    <h2>Staff Meeting Hub</h2>
+    <p>Next Level Orthodontics internal tool. Sign in with your office Google account.</p>
+    <button class="gbtn" id="signInBtn">
+      <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#4285F4" d="M45.12 24.5c0-1.56-.14-3.06-.4-4.5H24v8.51h11.84c-.51 2.75-2.06 5.08-4.39 6.64v5.52h7.11c4.16-3.83 6.56-9.47 6.56-16.17z"/><path fill="#34A853" d="M24 46c5.94 0 10.92-1.97 14.56-5.33l-7.11-5.52c-1.97 1.32-4.49 2.1-7.45 2.1-5.73 0-10.58-3.87-12.31-9.07H4.34v5.7C7.96 41.07 15.4 46 24 46z"/><path fill="#FBBC05" d="M11.69 28.18C11.25 26.86 11 25.45 11 24s.25-2.86.69-4.18v-5.7H4.34C2.85 17.09 2 20.45 2 24s.85 6.91 2.34 9.88l7.35-5.7z"/><path fill="#EA4335" d="M24 10.75c3.23 0 6.13 1.11 8.41 3.29l6.31-6.31C34.91 4.18 29.93 2 24 2 15.4 2 7.96 6.93 4.34 14.12l7.35 5.7c1.73-5.2 6.58-9.07 12.31-9.07z"/></svg>
+      Sign in with Google
+    </button>
+    <div class="err" id="authErr"></div>
+  </div>
+</div>
+
+<header class="hide" id="appHeader">
+  <div class="ttl">
+    <h1>Staff Meeting Hub</h1>
+    <span class="sub">Next Level Orthodontics</span>
+  </div>
+  <div class="whoami">
+    <span class="uname" id="uName"></span>
+    <button class="signout" id="signOutBtn">Sign out</button>
+  </div>
+</header>
+
+<div class="wrap hide" id="appBody">
+  <div id="mtgBanner" class="banner info"></div>
+
+  <div class="tabs" id="tabs">
+    <button class="tab active" data-tab="submit">My Report</button>
+    <button class="tab" data-tab="board">Team Board <span class="badge hide" id="badgeBoard">0</span></button>
+    <button class="tab" data-tab="kpis">KPIs</button>
+    <button class="tab" data-tab="actions">Action Items <span class="badge hide" id="badgeActions">0</span></button>
+    <button class="tab" data-tab="agenda">Agenda</button>
+    <button class="tab" data-tab="settings">Settings</button>
+  </div>
+
+  <!-- ===== MY REPORT ===== -->
+  <section id="tab-submit" class="tabpane">
+    <div class="card">
+      <h2>My report for this meeting</h2>
+      <p class="hint">Add your updates, anything you want raised, and ideas. Saved automatically and visible to the team. Edit any time before the meeting.</p>
+      <label class="fld">Updates / what's going well</label>
+      <textarea id="f_updates" placeholder="Progress, wins, things the team should know about your area…"></textarea>
+      <div class="sec-label">Issues / concerns to discuss</div>
+      <textarea id="f_issues" placeholder="Problems, blockers, things that need a decision…"></textarea>
+      <div class="sec-label">Suggestions / ideas</div>
+      <textarea id="f_suggestions" placeholder="Improvements, new ideas, requests…"></textarea>
+      <div class="row" style="margin-top:14px;">
+        <button class="btn" id="saveSubmit">Save my report</button>
+        <span class="saved" id="savedMsg">✓ Saved</span>
+        <button class="btn ghost right" id="addActionFromMe">+ Propose an action item</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== TEAM BOARD ===== -->
+  <section id="tab-board" class="tabpane hide">
+    <div class="card">
+      <h2>Team board</h2>
+      <p class="hint">Everything the team has submitted for this meeting. This is what the agenda is built from.</p>
+      <div id="boardList"></div>
+    </div>
+  </section>
+
+  <!-- ===== KPIs ===== -->
+  <section id="tab-kpis" class="tabpane hide">
+    <div class="card">
+      <h2>Key performance indicators</h2>
+      <p class="hint">Enter this meeting's numbers. Trends are tracked across every meeting automatically.</p>
+      <div class="kpi-cards" id="kpiCards"></div>
+      <div id="kpiEntry"></div>
+      <div class="row" style="margin-top:8px;"><button class="btn sm" id="saveKpis">Save KPI values</button><span class="saved" id="savedKpi">✓ Saved</span></div>
+      <div class="sec-label">Trend</div>
+      <div class="row no-print" style="margin-bottom:10px;">
+        <select class="in" id="kpiPick" style="max-width:260px;"></select>
+      </div>
+      <canvas id="kpiChart" height="120"></canvas>
+      <p class="hint" id="kpiNoDefs" style="margin-top:12px;">No KPIs defined yet. Add them in <b>Settings → KPI definitions</b>.</p>
+    </div>
+  </section>
+
+  <!-- ===== ACTION ITEMS ===== -->
+  <section id="tab-actions" class="tabpane hide">
+    <div class="card">
+      <h2>Action items</h2>
+      <p class="hint">Open items carry over to every meeting until done. Completion rate is tracked below.</p>
+      <div class="kpi-cards" style="grid-template-columns:repeat(auto-fill,minmax(140px,1fr));">
+        <div class="kpi-card"><div class="klabel">Open</div><div class="kval" id="aiOpen">0</div></div>
+        <div class="kpi-card"><div class="klabel">Done</div><div class="kval" id="aiDone">0</div></div>
+        <div class="kpi-card"><div class="klabel">Completion rate</div><div class="kval" id="aiRate">—</div></div>
+      </div>
+      <div class="sec-label">Add an action item</div>
+      <div class="row" style="margin-bottom:8px;">
+        <input type="text" id="ai_text" placeholder="What needs to happen?" style="flex:2;min-width:220px;">
+        <select class="in" id="ai_owner" style="flex:1;min-width:130px;"><option value="">Owner…</option></select>
+        <input type="date" id="ai_due" class="in" style="flex:0 0 150px;">
+        <button class="btn" id="ai_add">Add</button>
+      </div>
+      <div class="sec-label">Open</div>
+      <div id="aiOpenList"></div>
+      <div class="sec-label">Completed</div>
+      <div id="aiDoneList"></div>
+    </div>
+  </section>
+
+  <!-- ===== AGENDA ===== -->
+  <section id="tab-agenda" class="tabpane hide">
+    <div class="card no-print">
+      <h2>Generate the agenda</h2>
+      <p class="hint">Builds a prioritized agenda from the team's reports, open action items, and KPI movement. Uses your AISA (Gemini) worker when available, with a structured template fallback.</p>
+      <div class="row">
+        <button class="btn coral" id="genAgenda">✨ Generate agenda</button>
+        <button class="btn ghost" id="printAgenda">Print / PDF</button>
+        <span class="saved" id="savedAgenda">✓ Generated</span>
+      </div>
+      <div id="agendaStatus" class="banner info hide" style="margin-top:14px;"></div>
+    </div>
+    <div class="card" id="printArea">
+      <div id="agendaOut" class="agenda-out"><p class="empty">No agenda generated yet.</p></div>
+    </div>
+  </section>
+
+  <!-- ===== SETTINGS ===== -->
+  <section id="tab-settings" class="tabpane hide">
+    <div class="card">
+      <h2>This meeting</h2>
+      <div class="row" style="margin-bottom:6px;">
+        <div style="flex:1;min-width:160px;"><label class="fld">Date</label><input type="date" id="set_date" class="in"></div>
+        <div style="flex:2;min-width:200px;"><label class="fld">Title</label><input type="text" id="set_title" class="in" placeholder="Weekly Staff Meeting"></div>
+      </div>
+      <div class="row">
+        <button class="btn sm" id="saveMeeting">Save meeting details</button>
+        <button class="btn sm coral right" id="newMeeting">Start a new meeting</button>
+      </div>
+      <p class="hint" style="margin-top:10px;">Starting a new meeting gives a fresh slate for reports &amp; KPI entries. Open action items carry over. Past meetings stay in history.</p>
+    </div>
+
+    <div class="card">
+      <h2>Staff roster</h2>
+      <p class="hint">Used for action-item owners and display. People sign in with their own Google account to submit — this list is just for assigning owners.</p>
+      <div id="rosterList"></div>
+      <div class="row" style="margin-top:8px;">
+        <input type="text" id="r_name" placeholder="Name" style="flex:1;min-width:140px;">
+        <input type="text" id="r_role" placeholder="Role (e.g. Front Desk)" style="flex:1;min-width:140px;">
+        <button class="btn sm" id="r_add">Add person</button>
+        <button class="btn sm ghost" id="r_import">Import from Checklist app</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>KPI definitions</h2>
+      <p class="hint">Define the metrics tracked each meeting (e.g. New Starts, Production, Collections, No-Shows).</p>
+      <div id="kpiDefList"></div>
+      <div class="row" style="margin-top:8px;">
+        <input type="text" id="k_label" placeholder="KPI name" style="flex:2;min-width:160px;">
+        <input type="text" id="k_unit" placeholder="Unit (e.g. $, %, count)" style="flex:1;min-width:120px;">
+        <button class="btn sm" id="k_add">Add KPI</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>AI worker</h2>
+      <p class="hint">Endpoint that generates the agenda. Defaults to your AISA worker. Leave default unless you've changed worker names.</p>
+      <label class="fld">Agenda endpoint URL</label>
+      <input type="text" id="set_endpoint" class="in" placeholder="https://aisa-worker.akhavan-ak.workers.dev/agenda">
+      <div class="row" style="margin-top:8px;"><button class="btn sm" id="saveEndpoint">Save</button><span class="saved" id="savedEndpoint">✓ Saved</span></div>
+    </div>
+
+    <div class="card">
+      <h2>Meeting history</h2>
+      <div id="historyList"></div>
+    </div>
+  </section>
+</div>
+
+<!-- Firebase + Chart.js -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+/* ---------- Firebase (shared NLO project) ---------- */
+const firebaseConfig = {
+  apiKey: "AIzaSyBFCmDgAKkdfZ4Cb81nK0KCKXtONiwMJy4",
+  authDomain: "nlo-inventory.firebaseapp.com",
+  databaseURL: "https://nlo-inventory-default-rtdb.firebaseio.com",
+  projectId: "nlo-inventory",
+  storageBucket: "nlo-inventory.firebasestorage.app",
+  messagingSenderId: "471691286148",
+  appId: "1:471691286148:web:b362a98186f648bd4914d1"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+const auth = firebase.auth();
+const ROOT = 'nlo/staffMeeting';
+const CHECKLIST_ROOT = 'nlo/checklistApp';
+const DEFAULT_ENDPOINT = 'https://aisa-worker.akhavan-ak.workers.dev/agenda';
+
+/* allow same accounts as the other NLO apps */
+const ALLOWED_EMAILS = ['akhavan.ak@gmail.com'];
+const ALLOWED_DOMAIN = 'thenextlevelorthodontics.com';
+function isAllowedEmail(email){ const e=(email||'').toLowerCase(); if(!e) return false; if(ALLOWED_EMAILS.indexOf(e)!==-1) return true; return e.endsWith('@'+ALLOWED_DOMAIN); }
+
+/* ---------- State ---------- */
+let state = {
+  meetingId:null, meeting:{}, roster:{}, kpiDefs:{}, submissions:{},
+  kpiValues:{}, actions:{}, meetings:{}, endpoint:DEFAULT_ENDPOINT,
+  me:null, meName:'', meEmail:'', booted:false
+};
+let kpiChart=null;
+
+/* ---------- Helpers ---------- */
+const $=id=>document.getElementById(id);
+const esc=s=>(s==null?'':String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const todayISO=()=>new Date().toLocaleDateString('en-CA');
+function fmtDate(iso){ if(!iso) return ''; const d=new Date(iso+'T00:00:00'); return d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'}); }
+function initials(n){ return (n||'?').split(/\s+/).map(w=>w[0]).slice(0,2).join('').toUpperCase(); }
+function flash(el){ el.classList.add('show'); setTimeout(()=>el.classList.remove('show'),1600); }
+function sortByOrder(obj){ return Object.entries(obj||{}).sort((a,b)=>(a[1].order||0)-(b[1].order||0)); }
+function emailKey(e){ return (e||'').toLowerCase().replace(/[.#$/\[\]]/g,'_'); }
+
+/* ---------- Auth ---------- */
+auth.onAuthStateChanged(user=>{
+  if(!user){ showGate(); return; }
+  const email=(user.email||'').toLowerCase();
+  if(!isAllowedEmail(email)){ $('authErr').textContent='Access denied for '+(email||'this account')+'.'; auth.signOut(); showGate(); return; }
+  state.meEmail=email; state.me=emailKey(email); state.meName=user.displayName||email.split('@')[0];
+  $('uName').textContent=state.meName;
+  $('authGate').classList.add('hide'); $('appHeader').classList.remove('hide'); $('appBody').classList.remove('hide');
+  if(!state.booted){ state.booted=true; boot(); }
+});
+function showGate(){ $('authGate').classList.remove('hide'); $('appHeader').classList.add('hide'); $('appBody').classList.add('hide'); }
+$('signInBtn').addEventListener('click',()=>{
+  const provider=new firebase.auth.GoogleAuthProvider();
+  provider.setCustomParameters({prompt:'select_account'});
+  $('authErr').textContent='';
+  auth.signInWithPopup(provider).catch(e=>{ $('authErr').textContent=e.message||'Sign-in failed.'; });
+});
+$('signOutBtn').addEventListener('click',()=>auth.signOut());
+
+/* ---------- Bootstrap ---------- */
+function boot(){
+  db.ref(ROOT+'/currentMeetingId').once('value').then(snap=>{
+    let id=snap.val();
+    if(!id){
+      id=todayISO();
+      db.ref(ROOT+'/currentMeetingId').set(id);
+      db.ref(`${ROOT}/meetings/${id}/meta`).update({date:id,title:'Weekly Staff Meeting',status:'collecting',createdAt:Date.now()});
+    }
+    state.meetingId=id;
+    attachListeners();
+  }).catch(err=>{ $('mtgBanner').className='banner warn'; $('mtgBanner').textContent='Database read failed: '+err.message+' — has the staffMeeting rule been added?'; });
+}
+function attachListeners(){
+  const m=state.meetingId;
+  db.ref(`${ROOT}/meetings/${m}/meta`).on('value',s=>{ state.meeting=s.val()||{}; renderMeetingHeader(); });
+  db.ref(`${ROOT}/meetings/${m}/submissions`).on('value',s=>{ state.submissions=s.val()||{}; renderBoard(); renderMyForm(); });
+  db.ref(`${ROOT}/meetings/${m}/kpis`).on('value',s=>{ state.kpiValues=s.val()||{}; renderKpis(); });
+  db.ref(`${ROOT}/meetings/${m}/agenda`).on('value',s=>{ renderAgenda(s.val()); });
+  db.ref(ROOT+'/roster').on('value',s=>{ state.roster=s.val()||{}; renderRosterUI(); renderOwnerSelects(); });
+  db.ref(ROOT+'/kpiDefs').on('value',s=>{ state.kpiDefs=s.val()||{}; renderKpiDefs(); renderKpis(); });
+  db.ref(ROOT+'/actionItems').on('value',s=>{ state.actions=s.val()||{}; renderActions(); });
+  db.ref(ROOT+'/meetings').on('value',s=>{ state.meetings=s.val()||{}; renderHistory(); renderKpiChart(); });
+  db.ref(ROOT+'/config/endpoint').on('value',s=>{ state.endpoint=s.val()||DEFAULT_ENDPOINT; $('set_endpoint').value=state.endpoint; });
+}
+
+/* ---------- Header / meeting ---------- */
+function renderMeetingHeader(){
+  const t=state.meeting.title||'Staff Meeting', d=state.meeting.date||state.meetingId;
+  $('mtgBanner').className='banner info';
+  $('mtgBanner').innerHTML=`<b>${esc(t)}</b> · ${esc(fmtDate(d))}`;
+  $('set_date').value=d; $('set_title').value=t;
+}
+
+/* ---------- My form ---------- */
+function renderMyForm(){
+  const sub=state.submissions[state.me]||{};
+  ['updates','issues','suggestions'].forEach(k=>{
+    const el=$('f_'+k);
+    if(document.activeElement!==el) el.value=sub[k]||'';
+  });
+}
+function saveMyReport(){
+  db.ref(`${ROOT}/meetings/${state.meetingId}/submissions/${state.me}`).set({
+    name:state.meName, email:state.meEmail,
+    updates:$('f_updates').value.trim(),
+    issues:$('f_issues').value.trim(),
+    suggestions:$('f_suggestions').value.trim(),
+    updatedAt:Date.now()
+  }).then(()=>flash($('savedMsg'))).catch(e=>alert('Save failed: '+e.message));
+}
+
+/* ---------- Team board ---------- */
+function renderBoard(){
+  const subs=Object.entries(state.submissions||{}).filter(([,v])=>v && (v.updates||v.issues||v.suggestions));
+  const badge=$('badgeBoard'); badge.textContent=subs.length; badge.classList.toggle('hide',subs.length===0);
+  const box=$('boardList');
+  if(!subs.length){ box.innerHTML='<p class="empty">No reports submitted yet.</p>'; return; }
+  box.innerHTML=subs.map(([id,v])=>{
+    const out=[];
+    if(v.updates) out.push(field('Updates',v.updates));
+    if(v.issues) out.push(field('Issues / concerns',v.issues));
+    if(v.suggestions) out.push(field('Suggestions',v.suggestions));
+    return `<div class="person-block">
+      <div class="ph"><div class="avatar">${esc(initials(v.name))}</div>
+        <div><div class="pname">${esc(v.name||'Unknown')}</div><div class="prole">${esc(v.role||'')}</div></div></div>
+      ${out.join('')}</div>`;
+  }).join('');
+}
+const field=(l,t)=>`<div class="field-out"><div class="flabel">${esc(l)}</div><div class="ftext">${esc(t)}</div></div>`;
+
+/* ---------- KPIs ---------- */
+function renderKpis(){
+  const defs=sortByOrder(state.kpiDefs);
+  $('kpiNoDefs').classList.toggle('hide',defs.length>0);
+  $('kpiEntry').innerHTML = defs.map(([id,d])=>`
+    <div class="row" style="margin-bottom:8px;">
+      <label class="fld" style="flex:1;min-width:140px;margin:0;">${esc(d.label)} ${d.unit?`<span class="muted">(${esc(d.unit)})</span>`:''}</label>
+      <input type="number" step="any" class="in kpiInput" data-id="${id}" value="${state.kpiValues[id]!=null?esc(state.kpiValues[id]):''}" style="flex:0 0 160px;">
+    </div>`).join('');
+  const prev=prevMeetingKpis();
+  $('kpiCards').innerHTML = defs.map(([id,d])=>{
+    const v=state.kpiValues[id];
+    let delta='';
+    if(v!=null && v!=='' && prev[id]!=null && prev[id]!==''){
+      const diff=Math.round((Number(v)-Number(prev[id]))*100)/100;
+      const cls=diff>0?'up':diff<0?'down':'flat';
+      const arrow=diff>0?'▲':diff<0?'▼':'—';
+      delta=`<div class="kdelta ${cls}">${arrow} ${diff>0?'+':''}${diff} vs last</div>`;
+    }
+    return `<div class="kpi-card"><div class="klabel">${esc(d.label)}</div>
+      <div class="kval">${v!=null&&v!==''?esc(v):'—'}<span class="kunit">${esc(d.unit||'')}</span></div>${delta}</div>`;
+  }).join('');
+  const pick=$('kpiPick'); const cur=pick.value;
+  pick.innerHTML=defs.map(([id,d])=>`<option value="${id}">${esc(d.label)}</option>`).join('');
+  if(cur && state.kpiDefs[cur]) pick.value=cur;
+  renderKpiChart();
+}
+function saveKpis(){
+  const obj={};
+  document.querySelectorAll('.kpiInput').forEach(i=>{ obj[i.dataset.id]= i.value===''?null:Number(i.value); });
+  db.ref(`${ROOT}/meetings/${state.meetingId}/kpis`).set(obj).then(()=>flash($('savedKpi'))).catch(e=>alert('Save failed: '+e.message));
+}
+function orderedMeetingIds(){ return Object.keys(state.meetings||{}).sort(); }
+function prevMeetingKpis(){
+  const ids=orderedMeetingIds(); const i=ids.indexOf(state.meetingId);
+  for(let j=i-1;j>=0;j--){ const k=state.meetings[ids[j]]&&state.meetings[ids[j]].kpis; if(k) return k; }
+  return {};
+}
+function renderKpiChart(){
+  if(typeof Chart==='undefined') return;
+  const kid=$('kpiPick').value; const canvas=$('kpiChart');
+  if(!kid){ if(kpiChart){kpiChart.destroy();kpiChart=null;} return; }
+  const ids=orderedMeetingIds().slice(-12);
+  const labels=ids.map(id=>fmtDate((state.meetings[id]&&state.meetings[id].meta&&state.meetings[id].meta.date)||id).replace(/, \d{4}$/,''));
+  const data=ids.map(id=>{ const v=state.meetings[id]&&state.meetings[id].kpis&&state.meetings[id].kpis[kid]; return v==null||v===''?null:Number(v); });
+  if(kpiChart) kpiChart.destroy();
+  kpiChart=new Chart(canvas,{type:'line',data:{labels,datasets:[{label:(state.kpiDefs[kid]&&state.kpiDefs[kid].label)||'',data,borderColor:'#1D3EA9',backgroundColor:'rgba(29,62,169,.1)',borderWidth:2.5,tension:.3,spanGaps:true,pointRadius:4,pointBackgroundColor:'#1D3EA9',fill:true}]},
+    options:{plugins:{legend:{display:false}},scales:{y:{beginAtZero:false}},maintainAspectRatio:false}});
+}
+
+/* ---------- Action items ---------- */
+function renderOwnerSelects(){
+  $('ai_owner').innerHTML='<option value="">Owner…</option>'+sortByOrder(state.roster).map(([,p])=>`<option value="${esc(p.name)}">${esc(p.name)}</option>`).join('');
+}
+function renderActions(){
+  const items=Object.entries(state.actions||{});
+  const open=items.filter(([,a])=>a.status!=='done');
+  const done=items.filter(([,a])=>a.status==='done');
+  $('aiOpen').textContent=open.length; $('aiDone').textContent=done.length;
+  $('aiRate').textContent= items.length? Math.round(done.length/items.length*100)+'%' : '—';
+  const badge=$('badgeActions'); badge.textContent=open.length; badge.classList.toggle('hide',open.length===0);
+  const row=([id,a])=>{
+    const carry=a.meetingId && a.meetingId!==state.meetingId && a.status!=='done';
+    const meta=[a.owner?esc(a.owner):'', a.due?('due '+esc(fmtDate(a.due))):'', carry?'<span class="chip carry">carried over</span>':''].filter(Boolean).join(' · ');
+    return `<div class="ai-item ${a.status==='done'?'done':''}">
+      <input type="checkbox" ${a.status==='done'?'checked':''} onchange="toggleAction('${id}',this.checked)">
+      <div style="flex:1"><div class="aitext">${esc(a.text)}</div><div class="aimeta">${meta}</div></div>
+      <button class="del" title="Delete" onclick="delAction('${id}')">×</button></div>`;
+  };
+  $('aiOpenList').innerHTML = open.length? open.map(row).join('') : '<p class="empty">No open action items.</p>';
+  $('aiDoneList').innerHTML = done.length? done.map(row).join('') : '<p class="empty">Nothing completed yet.</p>';
+}
+function addAction(text,owner,due){
+  text=(text||'').trim(); if(!text) return;
+  db.ref(ROOT+'/actionItems').push({text,owner:owner||'',due:due||'',status:'open',meetingId:state.meetingId,createdAt:Date.now()}).catch(e=>alert('Save failed: '+e.message));
+}
+window.toggleAction=(id,done)=>db.ref(`${ROOT}/actionItems/${id}`).update({status:done?'done':'open',completedAt:done?Date.now():null});
+window.delAction=(id)=>{ if(confirm('Delete this action item?')) db.ref(`${ROOT}/actionItems/${id}`).remove(); };
+
+/* ---------- Roster / KPI defs ---------- */
+function renderRosterUI(){
+  const rows=sortByOrder(state.roster);
+  $('rosterList').innerHTML = rows.length? `<table><thead><tr><th>Name</th><th>Role</th><th></th></tr></thead><tbody>${
+    rows.map(([id,p])=>`<tr><td>${esc(p.name)}</td><td>${esc(p.role||'')}</td><td style="text-align:right"><button class="del" onclick="delRoster('${id}')">×</button></td></tr>`).join('')
+  }</tbody></table>` : '<p class="empty">No staff added yet. Add people or import from the Checklist app.</p>';
+}
+window.delRoster=id=>{ if(confirm('Remove this person?')) db.ref(`${ROOT}/roster/${id}`).remove(); };
+function importRoster(){
+  db.ref(CHECKLIST_ROOT+'/staff').once('value').then(s=>{
+    const staff=s.val();
+    if(!staff){ alert('No staff found in the Checklist app.'); return; }
+    const list=Array.isArray(staff)?staff:Object.values(staff);
+    const existing=new Set(Object.values(state.roster||{}).map(p=>(p.name||'').toLowerCase()));
+    let added=0, base=Object.keys(state.roster||{}).length;
+    list.forEach(p=>{ const name=(p&&p.name||'').trim(); if(name && !existing.has(name.toLowerCase())){ db.ref(ROOT+'/roster').push({name,role:p.appRole&&p.appRole!=='staff'?p.appRole:'',order:base+added}); added++; } });
+    alert(added?`Imported ${added} staff member${added>1?'s':''}.`:'Roster already up to date.');
+  }).catch(e=>alert('Import failed: '+e.message));
+}
+function renderKpiDefs(){
+  const rows=sortByOrder(state.kpiDefs);
+  $('kpiDefList').innerHTML = rows.length? `<table><thead><tr><th>KPI</th><th>Unit</th><th></th></tr></thead><tbody>${
+    rows.map(([id,d])=>`<tr><td>${esc(d.label)}</td><td>${esc(d.unit||'')}</td><td style="text-align:right"><button class="del" onclick="delKpiDef('${id}')">×</button></td></tr>`).join('')
+  }</tbody></table>` : '<p class="empty">No KPIs defined yet.</p>';
+}
+window.delKpiDef=id=>{ if(confirm('Remove this KPI?')) db.ref(`${ROOT}/kpiDefs/${id}`).remove(); };
+
+/* ---------- History ---------- */
+function renderHistory(){
+  const ids=orderedMeetingIds().reverse();
+  $('historyList').innerHTML = ids.length? `<table><thead><tr><th>Date</th><th>Title</th><th>Reports</th><th></th></tr></thead><tbody>${
+    ids.map(id=>{ const m=state.meetings[id]||{}; const meta=m.meta||{}; const n=Object.keys(m.submissions||{}).length; const isCur=id===state.meetingId;
+      return `<tr><td>${esc(fmtDate(meta.date||id))} ${isCur?'<span class="chip">current</span>':''}</td><td>${esc(meta.title||'')}</td><td>${n}</td>
+        <td style="text-align:right">${isCur?'':`<button class="btn sm ghost" onclick="openMeeting('${id}')">Open</button>`}</td></tr>`;
+    }).join('')
+  }</tbody></table>` : '<p class="empty">No meetings yet.</p>';
+}
+window.openMeeting=id=>{ db.ref(ROOT+'/currentMeetingId').set(id).then(()=>location.reload()); };
+
+/* ---------- Agenda ---------- */
+function renderAgenda(a){
+  const out=$('agendaOut');
+  if(!a||!a.text){ out.innerHTML='<p class="empty">No agenda generated yet.</p>'; return; }
+  out.innerHTML=mdToHtml(a.text)+`<p class="muted" style="margin-top:18px;font-size:.72rem;">Generated ${new Date(a.generatedAt).toLocaleString()} · ${a.mode==='ai'?'AI (Gemini)':'Template'}</p>`;
+}
+function mdToHtml(md){
+  let h=esc(md);
+  h=h.replace(/^### (.*)$/gm,'<h3>$1</h3>').replace(/^## (.*)$/gm,'<h2>$1</h2>').replace(/^# (.*)$/gm,'<h1>$1</h1>').replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
+  h=h.replace(/(?:^|\n)((?:[-*] .*(?:\n|$))+)/g,(m,block)=>{
+    const items=block.trim().split('\n').map(l=>l.replace(/^[-*] /,'').trim()).map(t=>`<li>${t}</li>`).join('');
+    return '\n<ul>'+items+'</ul>';
+  });
+  h=h.replace(/\n{2,}/g,'<br><br>').replace(/(?<!>)\n(?!<)/g,'<br>');
+  return h;
+}
+function buildPayload(){
+  const reports=Object.values(state.submissions||{}).filter(v=>v&&(v.updates||v.issues||v.suggestions))
+    .map(v=>({name:v.name,role:v.role||'',updates:v.updates||'',issues:v.issues||'',suggestions:v.suggestions||''}));
+  const openActions=Object.values(state.actions||{}).filter(a=>a.status!=='done')
+    .map(a=>({text:a.text,owner:a.owner||'',due:a.due||'',carriedOver:!!(a.meetingId&&a.meetingId!==state.meetingId)}));
+  const prev=prevMeetingKpis();
+  const kpis=sortByOrder(state.kpiDefs).map(([id,d])=>({label:d.label,unit:d.unit||'',value:state.kpiValues[id]==null?null:state.kpiValues[id],previous:prev[id]==null?null:prev[id]}));
+  return {meetingTitle:state.meeting.title||'Staff Meeting',meetingDate:state.meeting.date||state.meetingId,reports,openActions,kpis};
+}
+async function generateAgenda(){
+  const btn=$('genAgenda'); const st=$('agendaStatus');
+  const payload=buildPayload();
+  if(!payload.reports.length && !payload.openActions.length){
+    st.className='banner warn'; st.classList.remove('hide'); st.textContent='Nothing to build from yet — add some reports or action items first.'; return;
+  }
+  btn.disabled=true; const orig=btn.innerHTML; btn.innerHTML='<span class="spinner"></span> Generating…';
+  st.className='banner info'; st.classList.remove('hide'); st.textContent='Contacting AI worker…';
+  let text=null, mode='ai';
+  try{
+    const r=await fetch(state.endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    if(r.ok){ const j=await r.json(); text=j.agenda||j.text||j.result||null; }
+    if(!text) throw new Error('empty');
+  }catch(e){
+    mode='template'; text=templateAgenda(payload);
+    st.className='banner warn'; st.textContent='AI worker not reachable — used the built-in template. (Deploy the /agenda endpoint to enable AI.)';
+  }
+  if(mode==='ai'){ st.className='banner info'; st.textContent='Agenda generated with AI.'; }
+  db.ref(`${ROOT}/meetings/${state.meetingId}/agenda`).set({text,generatedAt:Date.now(),mode}).then(()=>flash($('savedAgenda')));
+  btn.disabled=false; btn.innerHTML=orig;
+  setTimeout(()=>st.classList.add('hide'),6000);
+}
+function templateAgenda(p){
+  const L=[];
+  L.push(`# ${p.meetingTitle}`); L.push(`${fmtDate(p.meetingDate)}`); L.push('');
+  L.push('## 1. Welcome & KPI review');
+  if(p.kpis.length){ p.kpis.forEach(k=>{ let d=''; if(k.value!=null&&k.previous!=null){ const diff=Number(k.value)-Number(k.previous); d= diff>0?` (▲ +${diff})`:diff<0?` (▼ ${diff})`:' (flat)'; } L.push(`- **${k.label}:** ${k.value!=null?k.value:'—'}${k.unit?(' '+k.unit):''}${d}`); }); }
+  else L.push('- _No KPIs entered._');
+  L.push(''); L.push('## 2. Issues & decisions'); let n=0;
+  p.reports.forEach(r=>{ if(r.issues){ n++; L.push(`- **${r.name}${r.role?' ('+r.role+')':''}:** ${r.issues}`);} });
+  if(!n) L.push('- _No issues raised._');
+  L.push(''); L.push('## 3. Updates / round-the-room'); let u=0;
+  p.reports.forEach(r=>{ if(r.updates){ u++; L.push(`- **${r.name}:** ${r.updates}`);} });
+  if(!u) L.push('- _No updates submitted._');
+  L.push(''); L.push('## 4. Suggestions & ideas'); let s=0;
+  p.reports.forEach(r=>{ if(r.suggestions){ s++; L.push(`- **${r.name}:** ${r.suggestions}`);} });
+  if(!s) L.push('- _No suggestions submitted._');
+  L.push(''); L.push('## 5. Action items');
+  if(p.openActions.length){ p.openActions.forEach(a=>L.push(`- ${a.text}${a.owner?` — *${a.owner}*`:''}${a.due?` (due ${fmtDate(a.due)})`:''}${a.carriedOver?' [carried over]':''}`)); }
+  else L.push('- _No open action items._');
+  L.push(''); L.push('## 6. Wrap-up & next steps');
+  return L.join('\n');
+}
+
+/* ---------- Tabs ---------- */
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  t.classList.add('active');
+  document.querySelectorAll('.tabpane').forEach(p=>p.classList.add('hide'));
+  $('tab-'+t.dataset.tab).classList.remove('hide');
+  if(t.dataset.tab==='kpis') setTimeout(renderKpiChart,50);
+}));
+
+/* ---------- Wire events ---------- */
+$('saveSubmit').addEventListener('click',saveMyReport);
+$('addActionFromMe').addEventListener('click',()=>{ document.querySelector('[data-tab="actions"]').click(); $('ai_text').focus(); });
+$('saveKpis').addEventListener('click',saveKpis);
+$('kpiPick').addEventListener('change',renderKpiChart);
+$('ai_add').addEventListener('click',()=>{ addAction($('ai_text').value,$('ai_owner').value,$('ai_due').value); $('ai_text').value='';$('ai_due').value=''; });
+$('ai_text').addEventListener('keydown',e=>{ if(e.key==='Enter') $('ai_add').click(); });
+$('r_add').addEventListener('click',()=>{ const n=$('r_name').value.trim(); if(!n) return; db.ref(ROOT+'/roster').push({name:n,role:$('r_role').value.trim(),order:Object.keys(state.roster).length}); $('r_name').value='';$('r_role').value=''; });
+$('r_import').addEventListener('click',importRoster);
+$('k_add').addEventListener('click',()=>{ const l=$('k_label').value.trim(); if(!l) return; db.ref(ROOT+'/kpiDefs').push({label:l,unit:$('k_unit').value.trim(),order:Object.keys(state.kpiDefs).length}); $('k_label').value='';$('k_unit').value=''; });
+$('saveMeeting').addEventListener('click',()=>{ db.ref(`${ROOT}/meetings/${state.meetingId}/meta`).update({date:$('set_date').value||state.meetingId,title:$('set_title').value.trim()||'Staff Meeting'}).then(()=>flash($('savedMsg'))); });
+$('newMeeting').addEventListener('click',()=>{
+  const d=prompt('Date for the new meeting (YYYY-MM-DD):',todayISO()); if(!d) return;
+  db.ref(`${ROOT}/meetings/${d}/meta`).update({date:d,title:state.meeting.title||'Weekly Staff Meeting',status:'collecting',createdAt:Date.now()})
+    .then(()=>db.ref(ROOT+'/currentMeetingId').set(d)).then(()=>location.reload());
+});
+$('saveEndpoint').addEventListener('click',()=>{ db.ref(ROOT+'/config/endpoint').set($('set_endpoint').value.trim()||DEFAULT_ENDPOINT).then(()=>flash($('savedEndpoint'))); });
+$('genAgenda').addEventListener('click',generateAgenda);
+$('printAgenda').addEventListener('click',()=>window.print());
+</script>
+</body>
+</html>
