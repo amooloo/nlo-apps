@@ -420,7 +420,7 @@ const KPI_CATALOG = [
 let state = {
   meetingId:null, meeting:{}, roster:{}, kpiDefs:{}, submissions:{},
   kpiValues:{}, actions:{}, meetings:{}, endpoint:DEFAULT_ENDPOINT,
-  me:null, meName:'', meEmail:'', booted:false
+  me:null, meName:'', meEmail:'', booted:false, checklistStaff:[]
 };
 let kpiChart=null;
 
@@ -461,6 +461,14 @@ $('signOutBtn').addEventListener('click',()=>auth.signOut());
 function boot(){
   // seed KPI catalog once if none exist
   db.ref(ROOT+'/kpiDefs').once('value').then(s=>{ if(!s.val()) seedCatalog(false); });
+  // pull staff from the Checklist app so the owner dropdown fills itself
+  db.ref(CHECKLIST_ROOT+'/staff').once('value').then(s=>{
+    const staff=s.val(); if(!staff) return;
+    const list=Array.isArray(staff)?staff:Object.values(staff);
+    state.checklistStaff=list.map(p=>({name:(p&&p.name||'').trim(),role:p&&p.appRole&&p.appRole!=='staff'?p.appRole:''})).filter(p=>p.name);
+    renderOwnerSelects();
+    db.ref(ROOT+'/roster').once('value').then(rs=>{ if(!rs.val()) autoSeedRoster(); });
+  }).catch(()=>{});
   db.ref(ROOT+'/currentMeetingId').once('value').then(snap=>{
     let id=snap.val();
     if(!id){
@@ -646,7 +654,14 @@ window.editGoal=(id,val)=>{
 window.delKpi=id=>{ if(confirm('Remove this KPI from the catalog?')) db.ref(`${ROOT}/kpiDefs/${id}`).remove(); };
 
 /* ---------- Action items ---------- */
-function renderOwnerSelects(){ $('ai_owner').innerHTML='<option value="">Owner…</option>'+sortByOrder(state.roster).map(([,p])=>`<option value="${esc(p.name)}">${esc(p.name)}</option>`).join(''); }
+function autoSeedRoster(){ (state.checklistStaff||[]).forEach((p,i)=>db.ref(ROOT+'/roster').push({name:p.name,role:p.role||'',order:i})); }
+function renderOwnerSelects(){
+  const names=[];
+  sortByOrder(state.roster).forEach(([,p])=>{ if(p.name) names.push(p.name); });
+  (state.checklistStaff||[]).forEach(p=>{ if(p.name) names.push(p.name); });
+  const uniq=[...new Set(names)].sort((a,b)=>a.localeCompare(b));
+  $('ai_owner').innerHTML='<option value="">Owner…</option>'+uniq.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('');
+}
 function renderActions(){
   const items=Object.entries(state.actions||{});
   const open=items.filter(([,a])=>a.status!=='done'); const done=items.filter(([,a])=>a.status==='done');
@@ -721,10 +736,11 @@ function buildPayload(){
   const openActions=Object.values(state.actions||{}).filter(a=>a.status!=='done')
     .map(a=>({text:a.text,owner:a.owner||'',due:a.due||'',carriedOver:!!(a.meetingId&&a.meetingId!==state.meetingId)}));
   const prev=prevMeetingKpis();
+  // Only send KPIs that actually have a value entered, so empty goal rows don't crowd out the reports.
   const kpis=enabledDefs().map(([id,d])=>{
     const v=state.kpiValues[id]; const met=kpiMet(d,v);
-    return {label:d.label,role:d.role||'',unit:d.unit||'',goal:d.goal||'',value:v==null?null:v,previous:prev[id]==null?null:prev[id],onTarget:met};
-  });
+    return {label:d.label,role:d.role||'',unit:d.unit||'',goal:d.goal||'',value:(v==null||v==='')?null:v,previous:prev[id]==null?null:prev[id],onTarget:met};
+  }).filter(k=>k.value!=null);
   return {meetingTitle:state.meeting.title||'Monthly Staff Meeting',meetingMonth:monthLabel(state.meeting.date||state.meetingId),meetingDate:state.meeting.date||state.meetingId,reports,openActions,kpis};
 }
 async function generateAgenda(){
