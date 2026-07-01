@@ -16,16 +16,26 @@
   body{font-family:'Montserrat',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--navy);min-height:100vh;}
   a{color:var(--blue);}
 
-  header{background:var(--navy);color:#fff;padding:22px 28px;display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap;}
+  header{background:var(--navy);color:#fff;padding:20px 28px;display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap;}
   header .ttl{display:flex;flex-direction:column;gap:3px;}
-  header h1{font-size:1.15rem;font-weight:800;letter-spacing:-.3px;}
+  header h1{font-size:1.1rem;font-weight:800;letter-spacing:-.3px;}
   header .sub{font-size:.66rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;opacity:.55;}
   .whoami{display:flex;align-items:center;gap:12px;font-size:.82rem;}
   .whoami .uname{font-weight:700;}
   .whoami .signout{font-size:.72rem;color:#fff;opacity:.7;background:rgba(255,255,255,.12);border:none;padding:6px 12px;border-radius:8px;font-family:inherit;font-weight:600;cursor:pointer;}
   .whoami .signout:hover{opacity:1;}
 
-  .wrap{max-width:1020px;margin:0 auto;padding:22px 18px 60px;}
+  .wrap{max-width:1040px;margin:0 auto;padding:20px 18px 60px;}
+
+  /* Next meeting hero */
+  .hero{background:linear-gradient(135deg,#1D3EA9,#1B2F4C);color:#fff;border-radius:16px;padding:22px 26px;display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:20px;box-shadow:0 6px 24px rgba(27,47,76,.15);}
+  .hero .h-eyebrow{font-size:.66rem;font-weight:700;letter-spacing:1.8px;text-transform:uppercase;opacity:.72;}
+  .hero .h-month{font-size:1.9rem;font-weight:800;letter-spacing:-.5px;margin-top:2px;}
+  .hero .h-count{font-size:.8rem;font-weight:600;opacity:.8;margin-top:4px;}
+  .hero .h-right{text-align:right;display:flex;flex-direction:column;gap:6px;align-items:flex-end;}
+  .hero .h-right label{font-size:.64rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;opacity:.72;}
+  .hero input[type=date]{font-family:inherit;font-weight:700;font-size:.9rem;padding:9px 12px;border-radius:10px;border:none;background:rgba(255,255,255,.16);color:#fff;color-scheme:dark;}
+  .hero input[type=date]:focus{outline:2px solid rgba(255,255,255,.5);}
 
   .tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:20px;}
   .tab{padding:9px 16px;border-radius:10px;background:#fff;border:2px solid transparent;font-family:inherit;font-weight:700;font-size:.8rem;color:var(--navy);cursor:pointer;opacity:.6;box-shadow:0 1px 3px rgba(27,47,76,.05);}
@@ -53,6 +63,8 @@
   .right{margin-left:auto;}
   .saved{font-size:.74rem;color:var(--mint);font-weight:700;opacity:0;transition:.3s;}
   .saved.show{opacity:1;}
+  .linkout{font-size:.78rem;font-weight:700;color:var(--blue);text-decoration:none;}
+  .linkout:hover{text-decoration:underline;}
 
   .person-block{border:1.5px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px;}
   .person-block .ph{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
@@ -68,13 +80,32 @@
   th,td{text-align:left;padding:9px 8px;font-size:.82rem;border-bottom:1px solid var(--line);}
   th{font-size:.66rem;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);font-weight:800;}
 
-  .kpi-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-bottom:8px;}
-  .kpi-card{border:1.5px solid var(--line);border-radius:12px;padding:14px;}
-  .kpi-card .klabel{font-size:.68rem;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);}
-  .kpi-card .kval{font-size:1.5rem;font-weight:800;margin-top:4px;}
-  .kpi-card .kunit{font-size:.7rem;font-weight:600;color:var(--muted);margin-left:3px;}
-  .kpi-card .kdelta{font-size:.7rem;font-weight:700;margin-top:2px;}
+  /* KPI role groups */
+  .role-group{margin-bottom:20px;}
+  .role-head{display:flex;align-items:center;gap:10px;margin:0 0 10px;}
+  .role-head .rname{font-size:.82rem;font-weight:800;text-transform:uppercase;letter-spacing:.8px;color:var(--navy);}
+  .role-head .rline{flex:1;height:1px;background:var(--line);}
+  .kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;}
+  .kpi-card{border:1.5px solid var(--line);border-radius:12px;padding:13px 14px;position:relative;}
+  .kpi-card .klabel{font-size:.74rem;font-weight:700;line-height:1.3;min-height:2.2em;}
+  .kpi-card .kgoal{font-size:.66rem;font-weight:700;color:var(--muted);margin-top:3px;}
+  .kpi-card .krow{display:flex;align-items:center;gap:8px;margin-top:9px;}
+  .kpi-card .kinput{width:100%;padding:8px 10px;font-size:.9rem;font-weight:700;border:1.5px solid var(--line);border-radius:8px;font-family:inherit;color:var(--navy);}
+  .kpi-card .kinput:focus{outline:none;border-color:var(--blue);}
+  .kpi-card .kunit{font-size:.72rem;font-weight:700;color:var(--muted);}
+  .status-dot{position:absolute;top:12px;right:12px;font-size:.62rem;font-weight:800;text-transform:uppercase;letter-spacing:.4px;padding:2px 8px;border-radius:20px;}
+  .status-dot.met{background:rgba(26,158,120,.13);color:var(--mint);}
+  .status-dot.miss{background:rgba(250,98,77,.13);color:var(--coral);}
+  .kdelta{font-size:.66rem;font-weight:700;margin-top:5px;}
   .kdelta.up{color:var(--mint);} .kdelta.down{color:var(--coral);} .kdelta.flat{color:var(--muted);}
+
+  .cat-role{margin-bottom:16px;}
+  .cat-item{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--line);}
+  .cat-item input[type=checkbox]{width:17px;height:17px;cursor:pointer;flex-shrink:0;}
+  .cat-item .ci-label{flex:1;font-size:.82rem;font-weight:600;}
+  .cat-item .ci-goal{width:90px;}
+  .cat-item .ci-goal input{padding:6px 8px;font-size:.78rem;border:1px solid var(--line);border-radius:7px;width:100%;font-family:inherit;}
+  .cat-item .ci-core{font-size:.6rem;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--gold);}
 
   .ai-item{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--line);}
   .ai-item.done .aitext{text-decoration:line-through;opacity:.55;}
@@ -100,7 +131,6 @@
   .hide{display:none!important;}
   canvas{max-width:100%;}
 
-  /* Auth gate */
   #authGate{position:fixed;inset:0;background:var(--navy);display:flex;align-items:center;justify-content:center;z-index:1000;padding:20px;}
   #authGate .box{background:#fff;border-radius:18px;padding:40px 34px;max-width:380px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.3);}
   #authGate h2{font-size:1.2rem;font-weight:800;margin-bottom:6px;}
@@ -111,10 +141,11 @@
   .crest{width:54px;height:54px;border-radius:14px;background:var(--blue);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;}
 
   @media print{
-    header,.tabs,.no-print,#authGate{display:none!important;}
+    header,.tabs,.no-print,#authGate,.hero .h-right{display:none!important;}
     body{background:#fff;}
     .wrap{max-width:100%;padding:0;}
-    .card{box-shadow:none;border:none;padding:0;margin:0;}
+    .card,.hero{box-shadow:none;border:none;padding:0;margin:0 0 12px;}
+    .hero{background:none;color:#000;}
     #printArea{display:block!important;}
   }
 </style>
@@ -143,7 +174,7 @@
 <header class="hide" id="appHeader">
   <div class="ttl">
     <h1>Staff Meeting Hub</h1>
-    <span class="sub">Next Level Orthodontics</span>
+    <span class="sub">Next Level Orthodontics · Monthly</span>
   </div>
   <div class="whoami">
     <span class="uname" id="uName"></span>
@@ -152,7 +183,19 @@
 </header>
 
 <div class="wrap hide" id="appBody">
-  <div id="mtgBanner" class="banner info"></div>
+
+  <!-- NEXT MEETING HERO -->
+  <div class="hero">
+    <div class="h-left">
+      <div class="h-eyebrow">Next monthly staff meeting</div>
+      <div class="h-month" id="heroMonth">—</div>
+      <div class="h-count" id="heroCount"></div>
+    </div>
+    <div class="h-right no-print">
+      <label for="heroDate">Meeting date</label>
+      <input type="date" id="heroDate">
+    </div>
+  </div>
 
   <div class="tabs" id="tabs">
     <button class="tab active" data-tab="submit">My Report</button>
@@ -194,17 +237,17 @@
   <!-- ===== KPIs ===== -->
   <section id="tab-kpis" class="tabpane hide">
     <div class="card">
-      <h2>Key performance indicators</h2>
-      <p class="hint">Enter this meeting's numbers. Trends are tracked across every meeting automatically.</p>
-      <div class="kpi-cards" id="kpiCards"></div>
-      <div id="kpiEntry"></div>
-      <div class="row" style="margin-top:8px;"><button class="btn sm" id="saveKpis">Save KPI values</button><span class="saved" id="savedKpi">✓ Saved</span></div>
-      <div class="sec-label">Trend</div>
-      <div class="row no-print" style="margin-bottom:10px;">
-        <select class="in" id="kpiPick" style="max-width:260px;"></select>
+      <div class="row" style="margin-bottom:2px;">
+        <h2 style="margin:0;">KPIs — <span id="kpiMonthLabel"></span></h2>
+        <a class="linkout right" id="kpiSheetLink" href="https://drive.google.com/file/d/1o5XY53to3m4CqhU41MSs7G8C5BvSJWmG/view" target="_blank">Open KPI Bonus System sheet ↗</a>
       </div>
+      <p class="hint">Enter this month's actuals. Each metric is checked against its goal. Choose which KPIs to track in <b>Settings → KPI catalog</b>.</p>
+      <div id="kpiByRole"></div>
+      <div class="row" style="margin-top:8px;"><button class="btn sm" id="saveKpis">Save KPI values</button><span class="saved" id="savedKpi">✓ Saved</span></div>
+      <div class="sec-label">Month-over-month trend</div>
+      <div class="row no-print" style="margin-bottom:10px;"><select class="in" id="kpiPick" style="max-width:320px;"></select></div>
       <canvas id="kpiChart" height="120"></canvas>
-      <p class="hint" id="kpiNoDefs" style="margin-top:12px;">No KPIs defined yet. Add them in <b>Settings → KPI definitions</b>.</p>
+      <p class="hint" id="kpiNoDefs" style="margin-top:12px;">No KPIs enabled yet. Turn some on in <b>Settings → KPI catalog</b>.</p>
     </div>
   </section>
 
@@ -213,10 +256,10 @@
     <div class="card">
       <h2>Action items</h2>
       <p class="hint">Open items carry over to every meeting until done. Completion rate is tracked below.</p>
-      <div class="kpi-cards" style="grid-template-columns:repeat(auto-fill,minmax(140px,1fr));">
-        <div class="kpi-card"><div class="klabel">Open</div><div class="kval" id="aiOpen">0</div></div>
-        <div class="kpi-card"><div class="klabel">Done</div><div class="kval" id="aiDone">0</div></div>
-        <div class="kpi-card"><div class="klabel">Completion rate</div><div class="kval" id="aiRate">—</div></div>
+      <div class="kpi-grid" style="grid-template-columns:repeat(auto-fill,minmax(140px,1fr));margin-bottom:8px;">
+        <div class="kpi-card"><div class="klabel" style="min-height:0">Open</div><div class="h-month" style="font-size:1.5rem;color:var(--navy)" id="aiOpen">0</div></div>
+        <div class="kpi-card"><div class="klabel" style="min-height:0">Done</div><div class="h-month" style="font-size:1.5rem;color:var(--navy)" id="aiDone">0</div></div>
+        <div class="kpi-card"><div class="klabel" style="min-height:0">Completion rate</div><div class="h-month" style="font-size:1.5rem;color:var(--navy)" id="aiRate">—</div></div>
       </div>
       <div class="sec-label">Add an action item</div>
       <div class="row" style="margin-bottom:8px;">
@@ -236,7 +279,7 @@
   <section id="tab-agenda" class="tabpane hide">
     <div class="card no-print">
       <h2>Generate the agenda</h2>
-      <p class="hint">Builds a prioritized agenda from the team's reports, open action items, and KPI movement. Uses your AISA (Gemini) worker when available, with a structured template fallback.</p>
+      <p class="hint">Builds a prioritized agenda from the team's reports, open action items, and KPI performance vs goal. Uses your AISA (Gemini) worker, with a structured template fallback.</p>
       <div class="row">
         <button class="btn coral" id="genAgenda">✨ Generate agenda</button>
         <button class="btn ghost" id="printAgenda">Print / PDF</button>
@@ -255,18 +298,40 @@
       <h2>This meeting</h2>
       <div class="row" style="margin-bottom:6px;">
         <div style="flex:1;min-width:160px;"><label class="fld">Date</label><input type="date" id="set_date" class="in"></div>
-        <div style="flex:2;min-width:200px;"><label class="fld">Title</label><input type="text" id="set_title" class="in" placeholder="Weekly Staff Meeting"></div>
+        <div style="flex:2;min-width:200px;"><label class="fld">Title</label><input type="text" id="set_title" class="in" placeholder="Monthly Staff Meeting"></div>
       </div>
       <div class="row">
         <button class="btn sm" id="saveMeeting">Save meeting details</button>
-        <button class="btn sm coral right" id="newMeeting">Start a new meeting</button>
+        <button class="btn sm coral right" id="newMeeting">Start next month's meeting</button>
       </div>
-      <p class="hint" style="margin-top:10px;">Starting a new meeting gives a fresh slate for reports &amp; KPI entries. Open action items carry over. Past meetings stay in history.</p>
+      <p class="hint" style="margin-top:10px;">Starting next month's meeting gives a fresh slate for reports &amp; KPI actuals. Open action items carry over. Past months stay in history.</p>
+    </div>
+
+    <div class="card">
+      <h2>KPI catalog</h2>
+      <p class="hint">Seeded from your <a class="linkout" href="https://drive.google.com/file/d/1o5XY53to3m4CqhU41MSs7G8C5BvSJWmG/view" target="_blank">KPI Bonus System sheet ↗</a>. Check the KPIs you want to track in the meeting; edit any goal. <span class="ci-core">CORE</span> = on your bonus worksheet.</p>
+      <div class="row" style="margin-bottom:12px;">
+        <button class="btn sm ghost" id="seedCatalog">Load / restore NLO catalog</button>
+        <span class="saved" id="savedCat">✓ Saved</span>
+      </div>
+      <div id="catalogList"></div>
+      <div class="sec-label">Add a custom KPI</div>
+      <div class="row">
+        <input type="text" id="k_label" placeholder="KPI name" style="flex:2;min-width:150px;">
+        <select class="in" id="k_role" style="flex:1;min-width:150px;"></select>
+        <input type="text" id="k_goal" placeholder="Goal (e.g. 90%)" style="flex:0 0 120px;">
+        <select class="in" id="k_dir" style="flex:0 0 150px;">
+          <option value="up">Higher is better</option>
+          <option value="down">Lower is better</option>
+          <option value="target">Target (no pass/fail)</option>
+        </select>
+        <button class="btn sm" id="k_add">Add KPI</button>
+      </div>
     </div>
 
     <div class="card">
       <h2>Staff roster</h2>
-      <p class="hint">Used for action-item owners and display. People sign in with their own Google account to submit — this list is just for assigning owners.</p>
+      <p class="hint">Used for action-item owners. People sign in with their own Google account to submit.</p>
       <div id="rosterList"></div>
       <div class="row" style="margin-top:8px;">
         <input type="text" id="r_name" placeholder="Name" style="flex:1;min-width:140px;">
@@ -277,19 +342,8 @@
     </div>
 
     <div class="card">
-      <h2>KPI definitions</h2>
-      <p class="hint">Define the metrics tracked each meeting (e.g. New Starts, Production, Collections, No-Shows).</p>
-      <div id="kpiDefList"></div>
-      <div class="row" style="margin-top:8px;">
-        <input type="text" id="k_label" placeholder="KPI name" style="flex:2;min-width:160px;">
-        <input type="text" id="k_unit" placeholder="Unit (e.g. $, %, count)" style="flex:1;min-width:120px;">
-        <button class="btn sm" id="k_add">Add KPI</button>
-      </div>
-    </div>
-
-    <div class="card">
       <h2>AI worker</h2>
-      <p class="hint">Endpoint that generates the agenda. Defaults to your AISA worker. Leave default unless you've changed worker names.</p>
+      <p class="hint">Endpoint that generates the agenda. Defaults to your AISA worker.</p>
       <label class="fld">Agenda endpoint URL</label>
       <input type="text" id="set_endpoint" class="in" placeholder="https://aisa-worker.akhavan-ak.workers.dev/agenda">
       <div class="row" style="margin-top:8px;"><button class="btn sm" id="saveEndpoint">Save</button><span class="saved" id="savedEndpoint">✓ Saved</span></div>
@@ -324,11 +378,43 @@ const auth = firebase.auth();
 const ROOT = 'nlo/staffMeeting';
 const CHECKLIST_ROOT = 'nlo/checklistApp';
 const DEFAULT_ENDPOINT = 'https://aisa-worker.akhavan-ak.workers.dev/agenda';
+const KPI_SHEET_URL = 'https://drive.google.com/file/d/1o5XY53to3m4CqhU41MSs7G8C5BvSJWmG/view';
 
-/* allow same accounts as the other NLO apps */
 const ALLOWED_EMAILS = ['akhavan.ak@gmail.com'];
 const ALLOWED_DOMAIN = 'thenextlevelorthodontics.com';
 function isAllowedEmail(email){ const e=(email||'').toLowerCase(); if(!e) return false; if(ALLOWED_EMAILS.indexOf(e)!==-1) return true; return e.endsWith('@'+ALLOWED_DOMAIN); }
+
+/* ---------- Roles + KPI catalog (from KPI Bonus System sheet) ---------- */
+const ROLES = ['Treatment Coordinator','Financial Coordinator','Schedule Coordinator','Clinic','Office Manager'];
+// [role, label, goalDisplay, goalNum, unit, dir, core]
+const KPI_CATALOG = [
+  ['Treatment Coordinator','Conversion Rate per month','75%',75,'%','up',true],
+  ['Treatment Coordinator','Aligner Case Starts per month','17',17,'count','up',true],
+  ['Treatment Coordinator','Same Day Starts per month','15',15,'count','up',true],
+  ['Treatment Coordinator','Pending Follow Up (Origin of Starts)','50%',50,'%','up',true],
+  ['Treatment Coordinator','Close Rate','',null,'%','up',false],
+  ['Financial Coordinator','Patient Delinquencies','4%',4,'%','down',true],
+  ['Financial Coordinator','Insurance Delinquencies','4%',4,'%','down',true],
+  ['Financial Coordinator','Credits','$10,000',10000,'$','target',true],
+  ['Financial Coordinator','Collection Rate','95%',95,'%','up',true],
+  ['Financial Coordinator','Production Adjustment %','3%',3,'%','down',false],
+  ['Schedule Coordinator','Observation Patients Scheduled','90%',90,'%','up',true],
+  ['Schedule Coordinator','Active Patients w/o Appointments','7%',7,'%','down',true],
+  ['Schedule Coordinator','NP Leads (Scheduled Pts)','98%',98,'%','up',true],
+  ['Schedule Coordinator','No Shows (of Scheduled Pts)','7%',7,'%','down',true],
+  ['Schedule Coordinator','# of Patient Referrals','',null,'count','up',false],
+  ['Clinic','0 Chart Notes Missing Per Day','100%',100,'%','up',true],
+  ['Clinic','Active Patients over Tx Time','18%',18,'%','down',true],
+  ['Clinic','All Lab Appliances Back on Time','100%',100,'%','up',true],
+  ['Clinic','Repair Visits (of Completed Appts)','5%',5,'%','down',true],
+  ['Clinic','Spot Check Chart (1/tech/day)','60',60,'count','up',false],
+  ['Clinic','Correct Lab Appl Ready / Scans Submitted','100%',100,'%','up',false],
+  ['Office Manager','# of Reviews (FB, Google, etc.)','1',1,'count','up',true],
+  ['Office Manager','Standard Operating Procedures','1',1,'count','up',true],
+  ['Office Manager','Social Media Marketing posts/wk','2',2,'count','up',true],
+  ['Office Manager','Customized Onboarding Modules','1',1,'count','up',true],
+  ['Office Manager','Letters Sent (OM Spot Audits)','20',20,'count','up',false]
+];
 
 /* ---------- State ---------- */
 let state = {
@@ -343,10 +429,14 @@ const $=id=>document.getElementById(id);
 const esc=s=>(s==null?'':String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const todayISO=()=>new Date().toLocaleDateString('en-CA');
 function fmtDate(iso){ if(!iso) return ''; const d=new Date(iso+'T00:00:00'); return d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'}); }
+function monthLabel(iso){ if(!iso) return ''; const d=new Date(iso+'T00:00:00'); return d.toLocaleDateString('en-US',{month:'long',year:'numeric'}); }
+function monthShort(iso){ if(!iso) return ''; const d=new Date(iso+'T00:00:00'); return d.toLocaleDateString('en-US',{month:'short',year:'2-digit'}); }
+function addOneMonth(iso){ const d=new Date(iso+'T00:00:00'); d.setMonth(d.getMonth()+1); return d.toLocaleDateString('en-CA'); }
 function initials(n){ return (n||'?').split(/\s+/).map(w=>w[0]).slice(0,2).join('').toUpperCase(); }
 function flash(el){ el.classList.add('show'); setTimeout(()=>el.classList.remove('show'),1600); }
 function sortByOrder(obj){ return Object.entries(obj||{}).sort((a,b)=>(a[1].order||0)-(b[1].order||0)); }
 function emailKey(e){ return (e||'').toLowerCase().replace(/[.#$/\[\]]/g,'_'); }
+function enabledDefs(){ return sortByOrder(state.kpiDefs).filter(([,d])=>d.enabled!==false); }
 
 /* ---------- Auth ---------- */
 auth.onAuthStateChanged(user=>{
@@ -369,36 +459,40 @@ $('signOutBtn').addEventListener('click',()=>auth.signOut());
 
 /* ---------- Bootstrap ---------- */
 function boot(){
+  // seed KPI catalog once if none exist
+  db.ref(ROOT+'/kpiDefs').once('value').then(s=>{ if(!s.val()) seedCatalog(false); });
   db.ref(ROOT+'/currentMeetingId').once('value').then(snap=>{
     let id=snap.val();
     if(!id){
       id=todayISO();
       db.ref(ROOT+'/currentMeetingId').set(id);
-      db.ref(`${ROOT}/meetings/${id}/meta`).update({date:id,title:'Weekly Staff Meeting',status:'collecting',createdAt:Date.now()});
+      db.ref(`${ROOT}/meetings/${id}/meta`).update({date:id,title:'Monthly Staff Meeting',status:'collecting',createdAt:Date.now()});
     }
     state.meetingId=id;
     attachListeners();
-  }).catch(err=>{ $('mtgBanner').className='banner warn'; $('mtgBanner').textContent='Database read failed: '+err.message+' — has the staffMeeting rule been added?'; });
+  }).catch(err=>{ alert('Database read failed: '+err.message+' — has the staffMeeting rule been added?'); });
 }
 function attachListeners(){
   const m=state.meetingId;
-  db.ref(`${ROOT}/meetings/${m}/meta`).on('value',s=>{ state.meeting=s.val()||{}; renderMeetingHeader(); });
+  db.ref(`${ROOT}/meetings/${m}/meta`).on('value',s=>{ state.meeting=s.val()||{}; renderHero(); });
   db.ref(`${ROOT}/meetings/${m}/submissions`).on('value',s=>{ state.submissions=s.val()||{}; renderBoard(); renderMyForm(); });
   db.ref(`${ROOT}/meetings/${m}/kpis`).on('value',s=>{ state.kpiValues=s.val()||{}; renderKpis(); });
   db.ref(`${ROOT}/meetings/${m}/agenda`).on('value',s=>{ renderAgenda(s.val()); });
   db.ref(ROOT+'/roster').on('value',s=>{ state.roster=s.val()||{}; renderRosterUI(); renderOwnerSelects(); });
-  db.ref(ROOT+'/kpiDefs').on('value',s=>{ state.kpiDefs=s.val()||{}; renderKpiDefs(); renderKpis(); });
+  db.ref(ROOT+'/kpiDefs').on('value',s=>{ state.kpiDefs=s.val()||{}; renderCatalog(); renderKpis(); });
   db.ref(ROOT+'/actionItems').on('value',s=>{ state.actions=s.val()||{}; renderActions(); });
   db.ref(ROOT+'/meetings').on('value',s=>{ state.meetings=s.val()||{}; renderHistory(); renderKpiChart(); });
   db.ref(ROOT+'/config/endpoint').on('value',s=>{ state.endpoint=s.val()||DEFAULT_ENDPOINT; $('set_endpoint').value=state.endpoint; });
 }
 
-/* ---------- Header / meeting ---------- */
-function renderMeetingHeader(){
-  const t=state.meeting.title||'Staff Meeting', d=state.meeting.date||state.meetingId;
-  $('mtgBanner').className='banner info';
-  $('mtgBanner').innerHTML=`<b>${esc(t)}</b> · ${esc(fmtDate(d))}`;
+/* ---------- Hero / meeting header ---------- */
+function renderHero(){
+  const d=state.meeting.date||state.meetingId, t=state.meeting.title||'Monthly Staff Meeting';
+  $('heroMonth').textContent=monthLabel(d);
+  $('heroCount').textContent=fmtDate(d);
+  $('heroDate').value=d;
   $('set_date').value=d; $('set_title').value=t;
+  $('kpiMonthLabel').textContent=monthLabel(d);
 }
 
 /* ---------- My form ---------- */
@@ -412,9 +506,7 @@ function renderMyForm(){
 function saveMyReport(){
   db.ref(`${ROOT}/meetings/${state.meetingId}/submissions/${state.me}`).set({
     name:state.meName, email:state.meEmail,
-    updates:$('f_updates').value.trim(),
-    issues:$('f_issues').value.trim(),
-    suggestions:$('f_suggestions').value.trim(),
+    updates:$('f_updates').value.trim(), issues:$('f_issues').value.trim(), suggestions:$('f_suggestions').value.trim(),
     updatedAt:Date.now()
   }).then(()=>flash($('savedMsg'))).catch(e=>alert('Save failed: '+e.message));
 }
@@ -430,43 +522,64 @@ function renderBoard(){
     if(v.updates) out.push(field('Updates',v.updates));
     if(v.issues) out.push(field('Issues / concerns',v.issues));
     if(v.suggestions) out.push(field('Suggestions',v.suggestions));
-    return `<div class="person-block">
-      <div class="ph"><div class="avatar">${esc(initials(v.name))}</div>
-        <div><div class="pname">${esc(v.name||'Unknown')}</div><div class="prole">${esc(v.role||'')}</div></div></div>
-      ${out.join('')}</div>`;
+    return `<div class="person-block"><div class="ph"><div class="avatar">${esc(initials(v.name))}</div>
+      <div><div class="pname">${esc(v.name||'Unknown')}</div><div class="prole">${esc(v.role||'')}</div></div></div>${out.join('')}</div>`;
   }).join('');
 }
 const field=(l,t)=>`<div class="field-out"><div class="flabel">${esc(l)}</div><div class="ftext">${esc(t)}</div></div>`;
 
 /* ---------- KPIs ---------- */
+function kpiMet(d,val){
+  if(val==null||val===''||d.goalNum==null||d.dir==='target') return null;
+  const v=Number(val), g=Number(d.goalNum);
+  return d.dir==='down' ? v<=g : v>=g;
+}
 function renderKpis(){
-  const defs=sortByOrder(state.kpiDefs);
+  const defs=enabledDefs();
   $('kpiNoDefs').classList.toggle('hide',defs.length>0);
-  $('kpiEntry').innerHTML = defs.map(([id,d])=>`
-    <div class="row" style="margin-bottom:8px;">
-      <label class="fld" style="flex:1;min-width:140px;margin:0;">${esc(d.label)} ${d.unit?`<span class="muted">(${esc(d.unit)})</span>`:''}</label>
-      <input type="number" step="any" class="in kpiInput" data-id="${id}" value="${state.kpiValues[id]!=null?esc(state.kpiValues[id]):''}" style="flex:0 0 160px;">
-    </div>`).join('');
   const prev=prevMeetingKpis();
-  $('kpiCards').innerHTML = defs.map(([id,d])=>{
-    const v=state.kpiValues[id];
-    let delta='';
-    if(v!=null && v!=='' && prev[id]!=null && prev[id]!==''){
-      const diff=Math.round((Number(v)-Number(prev[id]))*100)/100;
-      const cls=diff>0?'up':diff<0?'down':'flat';
-      const arrow=diff>0?'▲':diff<0?'▼':'—';
-      delta=`<div class="kdelta ${cls}">${arrow} ${diff>0?'+':''}${diff} vs last</div>`;
-    }
-    return `<div class="kpi-card"><div class="klabel">${esc(d.label)}</div>
-      <div class="kval">${v!=null&&v!==''?esc(v):'—'}<span class="kunit">${esc(d.unit||'')}</span></div>${delta}</div>`;
-  }).join('');
-  const pick=$('kpiPick'); const cur=pick.value;
-  pick.innerHTML=defs.map(([id,d])=>`<option value="${id}">${esc(d.label)}</option>`).join('');
-  if(cur && state.kpiDefs[cur]) pick.value=cur;
+  const box=$('kpiByRole');
+  if(!defs.length){ box.innerHTML=''; syncKpiPicker(); return; }
+  let html='';
+  ROLES.concat(['Other']).forEach(role=>{
+    const rd=defs.filter(([,d])=>(d.role||'Other')===role);
+    if(!rd.length) return;
+    html+=`<div class="role-group"><div class="role-head"><span class="rname">${esc(role)}</span><span class="rline"></span></div><div class="kpi-grid">`;
+    rd.forEach(([id,d])=>{
+      const v=state.kpiValues[id];
+      const met=kpiMet(d,v);
+      let badge = met===null?'' : met?'<span class="status-dot met">✓ met</span>':'<span class="status-dot miss">▲ off</span>';
+      let delta='';
+      if(v!=null&&v!==''&&prev[id]!=null&&prev[id]!==''){
+        const diff=Math.round((Number(v)-Number(prev[id]))*100)/100;
+        const cls=diff>0?'up':diff<0?'down':'flat';
+        delta=`<div class="kdelta ${cls}">${diff>0?'▲ +':diff<0?'▼ ':''}${diff===0?'no change':diff} vs last month</div>`;
+      }
+      html+=`<div class="kpi-card">${badge}
+        <div class="klabel">${esc(d.label)}</div>
+        <div class="kgoal">Goal: ${esc(d.goal||(d.goalNum!=null?d.goalNum:'—'))}</div>
+        <div class="krow"><input type="number" step="any" class="kinput kpiInput" data-id="${id}" value="${v!=null&&v!==''?esc(v):''}"><span class="kunit">${esc(d.unit==='count'?'':d.unit||'')}</span></div>
+        ${delta}</div>`;
+    });
+    html+='</div></div>';
+  });
+  box.innerHTML=html;
+  syncKpiPicker();
   renderKpiChart();
 }
+function syncKpiPicker(){
+  const pick=$('kpiPick'); const cur=pick.value;
+  let html='';
+  ROLES.concat(['Other']).forEach(role=>{
+    const rd=enabledDefs().filter(([,d])=>(d.role||'Other')===role);
+    if(!rd.length) return;
+    html+=`<optgroup label="${esc(role)}">`+rd.map(([id,d])=>`<option value="${id}">${esc(d.label)}</option>`).join('')+'</optgroup>';
+  });
+  pick.innerHTML=html;
+  if(cur && state.kpiDefs[cur]) pick.value=cur;
+}
 function saveKpis(){
-  const obj={};
+  const obj=Object.assign({},state.kpiValues);
   document.querySelectorAll('.kpiInput').forEach(i=>{ obj[i.dataset.id]= i.value===''?null:Number(i.value); });
   db.ref(`${ROOT}/meetings/${state.meetingId}/kpis`).set(obj).then(()=>flash($('savedKpi'))).catch(e=>alert('Save failed: '+e.message));
 }
@@ -481,43 +594,81 @@ function renderKpiChart(){
   const kid=$('kpiPick').value; const canvas=$('kpiChart');
   if(!kid){ if(kpiChart){kpiChart.destroy();kpiChart=null;} return; }
   const ids=orderedMeetingIds().slice(-12);
-  const labels=ids.map(id=>fmtDate((state.meetings[id]&&state.meetings[id].meta&&state.meetings[id].meta.date)||id).replace(/, \d{4}$/,''));
+  const labels=ids.map(id=>monthShort((state.meetings[id]&&state.meetings[id].meta&&state.meetings[id].meta.date)||id));
   const data=ids.map(id=>{ const v=state.meetings[id]&&state.meetings[id].kpis&&state.meetings[id].kpis[kid]; return v==null||v===''?null:Number(v); });
+  const def=state.kpiDefs[kid]||{};
+  const ds=[{label:def.label||'',data,borderColor:'#1D3EA9',backgroundColor:'rgba(29,62,169,.1)',borderWidth:2.5,tension:.3,spanGaps:true,pointRadius:4,pointBackgroundColor:'#1D3EA9',fill:true}];
+  if(def.goalNum!=null){ ds.push({label:'Goal',data:ids.map(()=>def.goalNum),borderColor:'#FA624D',borderWidth:1.5,borderDash:[5,5],pointRadius:0,fill:false}); }
   if(kpiChart) kpiChart.destroy();
-  kpiChart=new Chart(canvas,{type:'line',data:{labels,datasets:[{label:(state.kpiDefs[kid]&&state.kpiDefs[kid].label)||'',data,borderColor:'#1D3EA9',backgroundColor:'rgba(29,62,169,.1)',borderWidth:2.5,tension:.3,spanGaps:true,pointRadius:4,pointBackgroundColor:'#1D3EA9',fill:true}]},
-    options:{plugins:{legend:{display:false}},scales:{y:{beginAtZero:false}},maintainAspectRatio:false}});
+  kpiChart=new Chart(canvas,{type:'line',data:{labels,datasets:ds},
+    options:{plugins:{legend:{display:def.goalNum!=null,labels:{boxWidth:12,font:{size:10}}}},scales:{y:{beginAtZero:false}},maintainAspectRatio:false}});
 }
 
-/* ---------- Action items ---------- */
-function renderOwnerSelects(){
-  $('ai_owner').innerHTML='<option value="">Owner…</option>'+sortByOrder(state.roster).map(([,p])=>`<option value="${esc(p.name)}">${esc(p.name)}</option>`).join('');
+/* ---------- KPI catalog (settings) ---------- */
+function seedCatalog(alertDone){
+  const existing=new Set(Object.values(state.kpiDefs||{}).map(d=>(d.label||'').toLowerCase()));
+  const updates={}; let added=0; let order=Object.keys(state.kpiDefs||{}).length;
+  KPI_CATALOG.forEach(row=>{
+    const [role,label,goal,goalNum,unit,dir,core]=row;
+    if(existing.has(label.toLowerCase())) return;
+    const key=db.ref(ROOT+'/kpiDefs').push().key;
+    updates[key]={role,label,goal,goalNum:goalNum,unit,dir,core:!!core,enabled:!!core,order:order++};
+    added++;
+  });
+  if(added) db.ref(ROOT+'/kpiDefs').update(updates);
+  if(alertDone) setTimeout(()=>{ flash($('savedCat')); if(!added) alert('Catalog already loaded.'); },200);
 }
+function renderCatalog(){
+  const box=$('catalogList');
+  const byRole={}; sortByOrder(state.kpiDefs).forEach(([id,d])=>{ const r=d.role||'Other'; (byRole[r]=byRole[r]||[]).push([id,d]); });
+  const roleSel=$('k_role'); if(roleSel && roleSel.options.length!==ROLES.length+1) roleSel.innerHTML=ROLES.map(r=>`<option>${esc(r)}</option>`).join('')+'<option>Other</option>';
+  if(!Object.keys(state.kpiDefs||{}).length){ box.innerHTML='<p class="empty">Catalog not loaded yet — click "Load / restore NLO catalog".</p>'; return; }
+  let html='';
+  ROLES.concat(['Other']).forEach(role=>{
+    const rows=byRole[role]; if(!rows||!rows.length) return;
+    html+=`<div class="cat-role"><div class="role-head"><span class="rname">${esc(role)}</span><span class="rline"></span></div>`;
+    rows.forEach(([id,d])=>{
+      html+=`<div class="cat-item">
+        <input type="checkbox" ${d.enabled!==false?'checked':''} onchange="toggleKpi('${id}',this.checked)">
+        <span class="ci-label">${esc(d.label)} ${d.core?'<span class="ci-core">core</span>':''}</span>
+        <span class="ci-goal"><input type="text" value="${esc(d.goal||'')}" onchange="editGoal('${id}',this.value)" placeholder="goal"></span>
+        <button class="del" title="Remove" onclick="delKpi('${id}')">×</button></div>`;
+    });
+    html+='</div>';
+  });
+  box.innerHTML=html;
+}
+window.toggleKpi=(id,on)=>db.ref(`${ROOT}/kpiDefs/${id}`).update({enabled:on});
+window.editGoal=(id,val)=>{
+  const m=(val||'').match(/-?\d[\d,.]*/); const num=m?Number(m[0].replace(/,/g,'')):null;
+  db.ref(`${ROOT}/kpiDefs/${id}`).update({goal:val,goalNum:num}).then(()=>flash($('savedCat')));
+};
+window.delKpi=id=>{ if(confirm('Remove this KPI from the catalog?')) db.ref(`${ROOT}/kpiDefs/${id}`).remove(); };
+
+/* ---------- Action items ---------- */
+function renderOwnerSelects(){ $('ai_owner').innerHTML='<option value="">Owner…</option>'+sortByOrder(state.roster).map(([,p])=>`<option value="${esc(p.name)}">${esc(p.name)}</option>`).join(''); }
 function renderActions(){
   const items=Object.entries(state.actions||{});
-  const open=items.filter(([,a])=>a.status!=='done');
-  const done=items.filter(([,a])=>a.status==='done');
+  const open=items.filter(([,a])=>a.status!=='done'); const done=items.filter(([,a])=>a.status==='done');
   $('aiOpen').textContent=open.length; $('aiDone').textContent=done.length;
   $('aiRate').textContent= items.length? Math.round(done.length/items.length*100)+'%' : '—';
   const badge=$('badgeActions'); badge.textContent=open.length; badge.classList.toggle('hide',open.length===0);
   const row=([id,a])=>{
     const carry=a.meetingId && a.meetingId!==state.meetingId && a.status!=='done';
     const meta=[a.owner?esc(a.owner):'', a.due?('due '+esc(fmtDate(a.due))):'', carry?'<span class="chip carry">carried over</span>':''].filter(Boolean).join(' · ');
-    return `<div class="ai-item ${a.status==='done'?'done':''}">
-      <input type="checkbox" ${a.status==='done'?'checked':''} onchange="toggleAction('${id}',this.checked)">
+    return `<div class="ai-item ${a.status==='done'?'done':''}"><input type="checkbox" ${a.status==='done'?'checked':''} onchange="toggleAction('${id}',this.checked)">
       <div style="flex:1"><div class="aitext">${esc(a.text)}</div><div class="aimeta">${meta}</div></div>
       <button class="del" title="Delete" onclick="delAction('${id}')">×</button></div>`;
   };
   $('aiOpenList').innerHTML = open.length? open.map(row).join('') : '<p class="empty">No open action items.</p>';
   $('aiDoneList').innerHTML = done.length? done.map(row).join('') : '<p class="empty">Nothing completed yet.</p>';
 }
-function addAction(text,owner,due){
-  text=(text||'').trim(); if(!text) return;
-  db.ref(ROOT+'/actionItems').push({text,owner:owner||'',due:due||'',status:'open',meetingId:state.meetingId,createdAt:Date.now()}).catch(e=>alert('Save failed: '+e.message));
-}
+function addAction(text,owner,due){ text=(text||'').trim(); if(!text) return;
+  db.ref(ROOT+'/actionItems').push({text,owner:owner||'',due:due||'',status:'open',meetingId:state.meetingId,createdAt:Date.now()}).catch(e=>alert('Save failed: '+e.message)); }
 window.toggleAction=(id,done)=>db.ref(`${ROOT}/actionItems/${id}`).update({status:done?'done':'open',completedAt:done?Date.now():null});
 window.delAction=(id)=>{ if(confirm('Delete this action item?')) db.ref(`${ROOT}/actionItems/${id}`).remove(); };
 
-/* ---------- Roster / KPI defs ---------- */
+/* ---------- Roster ---------- */
 function renderRosterUI(){
   const rows=sortByOrder(state.roster);
   $('rosterList').innerHTML = rows.length? `<table><thead><tr><th>Name</th><th>Role</th><th></th></tr></thead><tbody>${
@@ -527,8 +678,7 @@ function renderRosterUI(){
 window.delRoster=id=>{ if(confirm('Remove this person?')) db.ref(`${ROOT}/roster/${id}`).remove(); };
 function importRoster(){
   db.ref(CHECKLIST_ROOT+'/staff').once('value').then(s=>{
-    const staff=s.val();
-    if(!staff){ alert('No staff found in the Checklist app.'); return; }
+    const staff=s.val(); if(!staff){ alert('No staff found in the Checklist app.'); return; }
     const list=Array.isArray(staff)?staff:Object.values(staff);
     const existing=new Set(Object.values(state.roster||{}).map(p=>(p.name||'').toLowerCase()));
     let added=0, base=Object.keys(state.roster||{}).length;
@@ -536,20 +686,13 @@ function importRoster(){
     alert(added?`Imported ${added} staff member${added>1?'s':''}.`:'Roster already up to date.');
   }).catch(e=>alert('Import failed: '+e.message));
 }
-function renderKpiDefs(){
-  const rows=sortByOrder(state.kpiDefs);
-  $('kpiDefList').innerHTML = rows.length? `<table><thead><tr><th>KPI</th><th>Unit</th><th></th></tr></thead><tbody>${
-    rows.map(([id,d])=>`<tr><td>${esc(d.label)}</td><td>${esc(d.unit||'')}</td><td style="text-align:right"><button class="del" onclick="delKpiDef('${id}')">×</button></td></tr>`).join('')
-  }</tbody></table>` : '<p class="empty">No KPIs defined yet.</p>';
-}
-window.delKpiDef=id=>{ if(confirm('Remove this KPI?')) db.ref(`${ROOT}/kpiDefs/${id}`).remove(); };
 
 /* ---------- History ---------- */
 function renderHistory(){
   const ids=orderedMeetingIds().reverse();
-  $('historyList').innerHTML = ids.length? `<table><thead><tr><th>Date</th><th>Title</th><th>Reports</th><th></th></tr></thead><tbody>${
+  $('historyList').innerHTML = ids.length? `<table><thead><tr><th>Month</th><th>Title</th><th>Reports</th><th></th></tr></thead><tbody>${
     ids.map(id=>{ const m=state.meetings[id]||{}; const meta=m.meta||{}; const n=Object.keys(m.submissions||{}).length; const isCur=id===state.meetingId;
-      return `<tr><td>${esc(fmtDate(meta.date||id))} ${isCur?'<span class="chip">current</span>':''}</td><td>${esc(meta.title||'')}</td><td>${n}</td>
+      return `<tr><td>${esc(monthLabel(meta.date||id))} ${isCur?'<span class="chip">current</span>':''}</td><td>${esc(meta.title||'')}</td><td>${n}</td>
         <td style="text-align:right">${isCur?'':`<button class="btn sm ghost" onclick="openMeeting('${id}')">Open</button>`}</td></tr>`;
     }).join('')
   }</tbody></table>` : '<p class="empty">No meetings yet.</p>';
@@ -578,12 +721,14 @@ function buildPayload(){
   const openActions=Object.values(state.actions||{}).filter(a=>a.status!=='done')
     .map(a=>({text:a.text,owner:a.owner||'',due:a.due||'',carriedOver:!!(a.meetingId&&a.meetingId!==state.meetingId)}));
   const prev=prevMeetingKpis();
-  const kpis=sortByOrder(state.kpiDefs).map(([id,d])=>({label:d.label,unit:d.unit||'',value:state.kpiValues[id]==null?null:state.kpiValues[id],previous:prev[id]==null?null:prev[id]}));
-  return {meetingTitle:state.meeting.title||'Staff Meeting',meetingDate:state.meeting.date||state.meetingId,reports,openActions,kpis};
+  const kpis=enabledDefs().map(([id,d])=>{
+    const v=state.kpiValues[id]; const met=kpiMet(d,v);
+    return {label:d.label,role:d.role||'',unit:d.unit||'',goal:d.goal||'',value:v==null?null:v,previous:prev[id]==null?null:prev[id],onTarget:met};
+  });
+  return {meetingTitle:state.meeting.title||'Monthly Staff Meeting',meetingMonth:monthLabel(state.meeting.date||state.meetingId),meetingDate:state.meeting.date||state.meetingId,reports,openActions,kpis};
 }
 async function generateAgenda(){
-  const btn=$('genAgenda'); const st=$('agendaStatus');
-  const payload=buildPayload();
+  const btn=$('genAgenda'); const st=$('agendaStatus'); const payload=buildPayload();
   if(!payload.reports.length && !payload.openActions.length){
     st.className='banner warn'; st.classList.remove('hide'); st.textContent='Nothing to build from yet — add some reports or action items first.'; return;
   }
@@ -594,10 +739,8 @@ async function generateAgenda(){
     const r=await fetch(state.endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     if(r.ok){ const j=await r.json(); text=j.agenda||j.text||j.result||null; }
     if(!text) throw new Error('empty');
-  }catch(e){
-    mode='template'; text=templateAgenda(payload);
-    st.className='banner warn'; st.textContent='AI worker not reachable — used the built-in template. (Deploy the /agenda endpoint to enable AI.)';
-  }
+  }catch(e){ mode='template'; text=templateAgenda(payload);
+    st.className='banner warn'; st.textContent='AI worker not reachable — used the built-in template.'; }
   if(mode==='ai'){ st.className='banner info'; st.textContent='Agenda generated with AI.'; }
   db.ref(`${ROOT}/meetings/${state.meetingId}/agenda`).set({text,generatedAt:Date.now(),mode}).then(()=>flash($('savedAgenda')));
   btn.disabled=false; btn.innerHTML=orig;
@@ -605,19 +748,16 @@ async function generateAgenda(){
 }
 function templateAgenda(p){
   const L=[];
-  L.push(`# ${p.meetingTitle}`); L.push(`${fmtDate(p.meetingDate)}`); L.push('');
-  L.push('## 1. Welcome & KPI review');
-  if(p.kpis.length){ p.kpis.forEach(k=>{ let d=''; if(k.value!=null&&k.previous!=null){ const diff=Number(k.value)-Number(k.previous); d= diff>0?` (▲ +${diff})`:diff<0?` (▼ ${diff})`:' (flat)'; } L.push(`- **${k.label}:** ${k.value!=null?k.value:'—'}${k.unit?(' '+k.unit):''}${d}`); }); }
+  L.push(`# ${p.meetingTitle}`); L.push(`${p.meetingMonth}`); L.push('');
+  L.push('## 1. KPI review vs goal');
+  if(p.kpis.length){ p.kpis.forEach(k=>{ const st=k.onTarget===true?' ✓':k.onTarget===false?' ⚠ off goal':''; L.push(`- **${k.label}** (${k.role}): ${k.value!=null?k.value:'—'}${k.unit==='%'?'%':''} / goal ${k.goal||'—'}${st}`); }); }
   else L.push('- _No KPIs entered._');
   L.push(''); L.push('## 2. Issues & decisions'); let n=0;
-  p.reports.forEach(r=>{ if(r.issues){ n++; L.push(`- **${r.name}${r.role?' ('+r.role+')':''}:** ${r.issues}`);} });
-  if(!n) L.push('- _No issues raised._');
+  p.reports.forEach(r=>{ if(r.issues){ n++; L.push(`- **${r.name}${r.role?' ('+r.role+')':''}:** ${r.issues}`);} }); if(!n) L.push('- _No issues raised._');
   L.push(''); L.push('## 3. Updates / round-the-room'); let u=0;
-  p.reports.forEach(r=>{ if(r.updates){ u++; L.push(`- **${r.name}:** ${r.updates}`);} });
-  if(!u) L.push('- _No updates submitted._');
+  p.reports.forEach(r=>{ if(r.updates){ u++; L.push(`- **${r.name}:** ${r.updates}`);} }); if(!u) L.push('- _No updates submitted._');
   L.push(''); L.push('## 4. Suggestions & ideas'); let s=0;
-  p.reports.forEach(r=>{ if(r.suggestions){ s++; L.push(`- **${r.name}:** ${r.suggestions}`);} });
-  if(!s) L.push('- _No suggestions submitted._');
+  p.reports.forEach(r=>{ if(r.suggestions){ s++; L.push(`- **${r.name}:** ${r.suggestions}`);} }); if(!s) L.push('- _No suggestions submitted._');
   L.push(''); L.push('## 5. Action items');
   if(p.openActions.length){ p.openActions.forEach(a=>L.push(`- ${a.text}${a.owner?` — *${a.owner}*`:''}${a.due?` (due ${fmtDate(a.due)})`:''}${a.carriedOver?' [carried over]':''}`)); }
   else L.push('- _No open action items._');
@@ -627,8 +767,7 @@ function templateAgenda(p){
 
 /* ---------- Tabs ---------- */
 document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
-  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
-  t.classList.add('active');
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active')); t.classList.add('active');
   document.querySelectorAll('.tabpane').forEach(p=>p.classList.add('hide'));
   $('tab-'+t.dataset.tab).classList.remove('hide');
   if(t.dataset.tab==='kpis') setTimeout(renderKpiChart,50);
@@ -639,15 +778,24 @@ $('saveSubmit').addEventListener('click',saveMyReport);
 $('addActionFromMe').addEventListener('click',()=>{ document.querySelector('[data-tab="actions"]').click(); $('ai_text').focus(); });
 $('saveKpis').addEventListener('click',saveKpis);
 $('kpiPick').addEventListener('change',renderKpiChart);
+$('heroDate').addEventListener('change',e=>{ const d=e.target.value||state.meetingId; db.ref(`${ROOT}/meetings/${state.meetingId}/meta`).update({date:d}); });
 $('ai_add').addEventListener('click',()=>{ addAction($('ai_text').value,$('ai_owner').value,$('ai_due').value); $('ai_text').value='';$('ai_due').value=''; });
 $('ai_text').addEventListener('keydown',e=>{ if(e.key==='Enter') $('ai_add').click(); });
+$('seedCatalog').addEventListener('click',()=>seedCatalog(true));
+$('k_add').addEventListener('click',()=>{
+  const l=$('k_label').value.trim(); if(!l) return;
+  const goal=$('k_goal').value.trim(); const m=goal.match(/-?\d[\d,.]*/); const num=m?Number(m[0].replace(/,/g,'')):null;
+  const unit=goal.indexOf('%')>=0?'%':goal.indexOf('$')>=0?'$':'count';
+  db.ref(ROOT+'/kpiDefs').push({label:l,role:$('k_role').value,goal,goalNum:num,unit,dir:$('k_dir').value,core:false,enabled:true,order:Object.keys(state.kpiDefs).length});
+  $('k_label').value='';$('k_goal').value='';
+});
 $('r_add').addEventListener('click',()=>{ const n=$('r_name').value.trim(); if(!n) return; db.ref(ROOT+'/roster').push({name:n,role:$('r_role').value.trim(),order:Object.keys(state.roster).length}); $('r_name').value='';$('r_role').value=''; });
 $('r_import').addEventListener('click',importRoster);
-$('k_add').addEventListener('click',()=>{ const l=$('k_label').value.trim(); if(!l) return; db.ref(ROOT+'/kpiDefs').push({label:l,unit:$('k_unit').value.trim(),order:Object.keys(state.kpiDefs).length}); $('k_label').value='';$('k_unit').value=''; });
-$('saveMeeting').addEventListener('click',()=>{ db.ref(`${ROOT}/meetings/${state.meetingId}/meta`).update({date:$('set_date').value||state.meetingId,title:$('set_title').value.trim()||'Staff Meeting'}).then(()=>flash($('savedMsg'))); });
+$('saveMeeting').addEventListener('click',()=>{ db.ref(`${ROOT}/meetings/${state.meetingId}/meta`).update({date:$('set_date').value||state.meetingId,title:$('set_title').value.trim()||'Monthly Staff Meeting'}).then(()=>flash($('savedMsg'))); });
 $('newMeeting').addEventListener('click',()=>{
-  const d=prompt('Date for the new meeting (YYYY-MM-DD):',todayISO()); if(!d) return;
-  db.ref(`${ROOT}/meetings/${d}/meta`).update({date:d,title:state.meeting.title||'Weekly Staff Meeting',status:'collecting',createdAt:Date.now()})
+  const suggested=addOneMonth(state.meeting.date||state.meetingId);
+  const d=prompt('Date for next month\'s meeting (YYYY-MM-DD):',suggested); if(!d) return;
+  db.ref(`${ROOT}/meetings/${d}/meta`).update({date:d,title:'Monthly Staff Meeting',status:'collecting',createdAt:Date.now()})
     .then(()=>db.ref(ROOT+'/currentMeetingId').set(d)).then(()=>location.reload());
 });
 $('saveEndpoint').addEventListener('click',()=>{ db.ref(ROOT+'/config/endpoint').set($('set_endpoint').value.trim()||DEFAULT_ENDPOINT).then(()=>flash($('savedEndpoint'))); });
