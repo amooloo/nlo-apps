@@ -308,47 +308,6 @@
             color: #721C24;
         }
 
-        /* Tier pills (admin dashboard + employee card) */
-        .tier-pill {
-            display: inline-block;
-            padding: 4px 10px;
-            border-radius: 20px;
-            font-size: 0.72rem;
-            font-weight: 700;
-            white-space: nowrap;
-        }
-
-        .tier-1 {
-            background: #E8F4F8;
-            color: #1D3EA9;
-        }
-
-        .tier-2 {
-            background: #D9F4F0;
-            color: #1A7E72;
-        }
-
-        .tier-3 {
-            background: #FDF0D9;
-            color: #B07914;
-        }
-
-        .tier-ref-table th {
-            background: transparent;
-            border-bottom: 1px solid #e0e4e8;
-            padding: 10px 12px;
-            font-size: 0.72rem;
-        }
-
-        .tier-ref-table td {
-            padding: 10px 12px;
-            font-size: 0.85rem;
-        }
-
-        .tier-ref-table tr:hover {
-            background: transparent;
-        }
-
         .info-note {
             background: #E8F4F8;
             border-left: 4px solid #1D3EA9;
@@ -718,36 +677,17 @@
                     <div class="card">
                         <div class="card-title">Vacation Balance</div>
                         <div class="card-value" style="color: #1D3EA9;" id="vacationBalance">0</div>
-                        <div class="card-unit">days (includes PTO)</div>
+                        <div class="card-unit" id="vacationBalanceUnit">hours</div>
                     </div>
                     <div class="card">
                         <div class="card-title">Sick Leave Balance</div>
                         <div class="card-value" style="color: #E85D75;" id="sickBalance">0</div>
-                        <div class="card-unit">days</div>
-                    </div>
-                    <div class="card">
-                        <div class="card-title">Personal Days</div>
-                        <div class="card-value" style="color: #2DBCAD;" id="personalBalance">0</div>
-                        <div class="card-unit">hours (24 hrs/year)</div>
+                        <div class="card-unit" id="sickBalanceUnit">hours</div>
                     </div>
                 </div>
 
-                <div class="info-note" style="margin-bottom: 28px;">
+                <div class="info-note">
                     <strong>Need to request time off?</strong> Use the Time Off Request app to submit your requests. Your manager will review and approve them there.
-                </div>
-
-                <div class="card" style="margin-bottom: 28px;">
-                    <div class="card-title">Tier Reference</div>
-                    <table class="tier-ref-table">
-                        <thead>
-                            <tr><th>Tier</th><th>Years of Service</th><th>Vacation</th><th>Celebrate Primary Care</th></tr>
-                        </thead>
-                        <tbody>
-                            <tr><td><span class="tier-pill tier-1">Tier 1</span></td><td>After orientation &ndash; 2 yrs</td><td>15 days/yr</td><td>Practice pays ~$10, you pay ~$55</td></tr>
-                            <tr><td><span class="tier-pill tier-2">Tier 2</span></td><td>2 &ndash; 5 yrs</td><td>20 days/yr</td><td>50/50 split ($32.50 each)</td></tr>
-                            <tr><td><span class="tier-pill tier-3">Tier 3</span></td><td>5+ yrs</td><td>25 days/yr</td><td>Practice pays 100% ($65)</td></tr>
-                        </tbody>
-                    </table>
                 </div>
 
                 <!-- ─── Celebrate Primary Care ─── -->
@@ -819,20 +759,6 @@
             <div class="tab-content" id="adminTab">
                 <div class="welcome-message">Admin Dashboard</div>
 
-                <div class="card" style="margin-bottom: 28px;">
-                    <div class="card-title">Tier Reference</div>
-                    <table class="tier-ref-table">
-                        <thead>
-                            <tr><th>Tier</th><th>Years of Service</th><th>Vacation</th><th>Celebrate Primary Care</th></tr>
-                        </thead>
-                        <tbody>
-                            <tr><td><span class="tier-pill tier-1">Tier 1</span></td><td>After orientation &ndash; 2 yrs</td><td>15 days/yr</td><td>Practice pays ~$10, you pay ~$55</td></tr>
-                            <tr><td><span class="tier-pill tier-2">Tier 2</span></td><td>2 &ndash; 5 yrs</td><td>20 days/yr</td><td>50/50 split ($32.50 each)</td></tr>
-                            <tr><td><span class="tier-pill tier-3">Tier 3</span></td><td>5+ yrs</td><td>25 days/yr</td><td>Practice pays 100% ($65)</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-
                 <div class="admin-table">
                     <table id="employeesTable">
                         <thead>
@@ -841,14 +767,12 @@
                                 <th>Title</th>
                                 <th>Type</th>
                                 <th>Start Date</th>
-                                <th>Tier</th>
-                                <th>Sick</th>
-                                <th>Vacation</th>
-                                <th>Personal</th>
+                                <th>Sick (hrs)</th>
+                                <th>Vacation (hrs)</th>
                             </tr>
                         </thead>
                         <tbody id="employeesTableBody">
-                            <tr><td colspan="8" style="text-align: center; padding: 20px;">Loading...</td></tr>
+                            <tr><td colspan="6" style="text-align: center; padding: 20px;">Loading...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -870,7 +794,6 @@
                                 <option value="">Select type...</option>
                                 <option value="vacation">Vacation</option>
                                 <option value="sick">Sick Leave</option>
-                                <option value="personal">Personal Days</option>
                             </select>
                         </div>
                         <div>
@@ -912,18 +835,6 @@
             return date.toLocaleDateString('en-US', options);
         }
 
-        // Round balances to 1 decimal and strip trailing zero (16.97777 -> 17, 4.50 -> 4.5)
-        function fmtNum(value) {
-            var n = parseFloat(value);
-            if (isNaN(n)) return value || '0';
-            return (Math.round(n * 10) / 10).toString();
-        }
-
-        // PTO = Vacation for our purposes: display the two backend balances as one.
-        function mergedVacation(emp) {
-            return (parseFloat(emp.vacationBalance) || 0) + (parseFloat(emp.ptoBalance) || 0);
-        }
-
         function getYearsEmployed(hireDate) {
             if (!hireDate) return 0;
             var hire = new Date(hireDate);
@@ -942,15 +853,20 @@
 
         function getVacationTier(hireDate) {
             var t = getTier(hireDate);
-            if (t === 1) return 'Tier 1 — Entry (15 days/yr)';
-            if (t === 2) return 'Tier 2 — Mid (20 days/yr)';
-            return 'Tier 3 — Senior (25 days/yr)';
+            if (t === 1) return 'Tier 1 — Entry (34 hrs/yr = 4 days)';
+            if (t === 2) return 'Tier 2 — Mid (68 hrs/yr = 8 days)';
+            return 'Tier 3 — Senior (102 hrs/yr = 12 days)';
         }
 
-        // Colored tier pill HTML, e.g. <span class="tier-pill tier-2">Tier 2</span>
-        function getTierPill(hireDate) {
-            var t = getTier(hireDate);
-            return '<span class="tier-pill tier-' + t + '">Tier ' + t + '</span>';
+        // Balances are stored in HOURS. One workday = 8.5 hours.
+        var HOURS_PER_DAY = 8.5;
+        function fmtHours(h) {
+            var n = parseFloat(h) || 0;
+            return (Math.round(n * 100) / 100);
+        }
+        function daysEquiv(h) {
+            var n = parseFloat(h) || 0;
+            return (n / HOURS_PER_DAY).toFixed(1);
         }
 
         // Celebrate Primary Care contribution by tier. Membership is $65/month for the employee.
@@ -1103,7 +1019,7 @@
                         document.getElementById('jobTitle').textContent = escapeHTML(emp.title);
                         document.getElementById('employmentType').textContent = escapeHTML(emp.employmentType);
                         document.getElementById('startDate').textContent = formatDate(emp.hireDate);
-                        document.getElementById('vacationTier').innerHTML = getTierPill(emp.hireDate) + ' ' + escapeHTML(getVacationTier(emp.hireDate).split('— ')[1] || '');
+                        document.getElementById('vacationTier').textContent = getVacationTier(emp.hireDate);
                         document.getElementById('retirementEligibility').innerHTML = get401kEligibility(emp.hireDate);
 
                         // Celebrate Primary Care: tier-based contribution
@@ -1116,9 +1032,10 @@
                         var ret2 = document.getElementById('retirementEligibility2');
                         if (ret2) ret2.innerHTML = get401kEligibility(emp.hireDate);
 
-                        document.getElementById('vacationBalance').textContent = fmtNum(mergedVacation(emp));
-                        document.getElementById('sickBalance').textContent = fmtNum(emp.sickBalance);
-                        document.getElementById('personalBalance').textContent = fmtNum(emp.personalBalance);
+                        document.getElementById('vacationBalance').textContent = fmtHours(emp.vacationBalance);
+                        document.getElementById('vacationBalanceUnit').textContent = 'hours (≈ ' + daysEquiv(emp.vacationBalance) + ' days)';
+                        document.getElementById('sickBalance').textContent = fmtHours(emp.sickBalance);
+                        document.getElementById('sickBalanceUnit').textContent = 'hours (≈ ' + daysEquiv(emp.sickBalance) + ' days)';
 
                         showApp();
 
@@ -1156,7 +1073,7 @@
 
             allEmployees.forEach(function(emp) {
                 var row = document.createElement('tr');
-                row.innerHTML = '<td>' + escapeHTML(emp.name) + '</td><td>' + escapeHTML(emp.title) + '</td><td>' + escapeHTML(emp.employmentType) + '</td><td>' + formatDate(emp.hireDate) + '</td><td>' + getTierPill(emp.hireDate) + '</td><td>' + fmtNum(emp.sickBalance) + '</td><td>' + fmtNum(mergedVacation(emp)) + '</td><td>' + fmtNum(emp.personalBalance) + '</td>';
+                row.innerHTML = '<td>' + escapeHTML(emp.name) + '</td><td>' + escapeHTML(emp.title) + '</td><td>' + escapeHTML(emp.employmentType) + '</td><td>' + formatDate(emp.hireDate) + '</td><td>' + fmtHours(emp.sickBalance) + '</td><td>' + fmtHours(emp.vacationBalance) + '</td>';
                 tbody.appendChild(row);
             });
         }
