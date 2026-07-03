@@ -538,6 +538,73 @@ function ScaleToFit({ children, minWidth }) {
   );
 }
 
+// ─── Recent patients (localStorage) ───────────────────────────────────────────
+function getRecentPatients() {
+  try { return JSON.parse(localStorage.getItem("ipr_recent") || "[]"); } catch (e) { return []; }
+}
+function pushRecentPatient(p) {
+  if (!p || !p.id) return;
+  try {
+    const list = getRecentPatients().filter(x => x.id !== p.id);
+    list.unshift({ id: p.id, patient_id: p.patient_id, name: p.name });
+    localStorage.setItem("ipr_recent", JSON.stringify(list.slice(0, 8)));
+  } catch (e) {}
+}
+
+// ─── One-click amount palette ─────────────────────────────────────────────────
+const CHIP_AMOUNTS = ["0.1", "0.2", "0.3", "0.4", "0.5"];
+function AmountPalette({ chipAmt, setChipAmt, compact }) {
+  const chipStyle = (active, color) => ({
+    minWidth: compact ? 44 : 54,
+    padding: compact ? "8px 10px" : "12px 14px",
+    borderRadius: 10,
+    border: active ? `2.5px solid ${color || "#2563eb"}` : "2px solid #e2e8f0",
+    background: active ? (color ? color + "18" : "#eff6ff") : "white",
+    color: active ? (color || "#1d4ed8") : "#475569",
+    fontSize: compact ? 14 : 16,
+    fontWeight: 800,
+    cursor: "pointer",
+    transition: "all 0.12s",
+    fontFamily: "inherit"
+  });
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 8,
+      flexWrap: "wrap",
+      background: "#f8fafc",
+      border: "1.5px solid #e2e8f0",
+      borderRadius: 12,
+      padding: compact ? "8px 10px" : "10px 14px",
+      marginBottom: 14,
+      position: "sticky",
+      top: 8,
+      zIndex: 500,
+      boxShadow: "0 2px 8px #0001"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: { fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: 0.5, marginRight: 2 }
+  }, "Pick amount, then click contacts:"),
+  CHIP_AMOUNTS.map(a => /*#__PURE__*/React.createElement("button", {
+    key: a,
+    onClick: () => setChipAmt(a),
+    style: chipStyle(chipAmt === a)
+  }, a)),
+  /*#__PURE__*/React.createElement("button", {
+    onClick: () => setChipAmt("erase"),
+    style: chipStyle(chipAmt === "erase", "#dc2626")
+  }, "⌫ Erase"),
+  /*#__PURE__*/React.createElement("button", {
+    onClick: () => setChipAmt(null),
+    style: chipStyle(chipAmt === null, "#7c3aed"),
+    title: "Turn click-entry off and type values manually"
+  }, "⌨ Type"),
+  chipAmt && chipAmt !== "erase" && /*#__PURE__*/React.createElement("span", {
+    style: { fontSize: 11, color: "#94a3b8", fontWeight: 600 }
+  }, "click a contact again to clear it"));
+}
+
 // ─── IPR Arch Row ─────────────────────────────────────────────────────────────
 function ArchRow({
   teeth,
@@ -547,7 +614,8 @@ function ArchRow({
   quadLeft,
   quadRight,
   cumRef,
-  readOnly
+  readOnly,
+  chipAmt
 }) {
   const keys = Object.keys(contacts);
   const total = sumContacts(contacts);
@@ -677,6 +745,12 @@ function ArchRow({
       step: "0.1",
       value: val,
       readOnly: !!readOnly,
+      onMouseDown: e => {
+        if (readOnly || chipAmt === undefined || chipAmt === null) return;
+        e.preventDefault();
+        if (chipAmt === "erase") { onChange(contactKey, ""); return; }
+        onChange(contactKey, val === chipAmt ? "" : chipAmt);
+      },
       onChange: e => { if (readOnly) return; onChange(contactKey, e.target.value); },
       onBlur: e => {
         if (readOnly) return;
@@ -704,7 +778,7 @@ function ArchRow({
         color: hasVal ? isMidline ? "#c2410c" : "#dc2626" : "#c0c9d8",
         outline: "none",
         padding: 0,
-        cursor: readOnly ? "not-allowed" : "text",
+        cursor: readOnly ? "not-allowed" : (chipAmt != null ? "pointer" : "text"),
         flexShrink: 0
       }
     }), hasVal && /*#__PURE__*/React.createElement("span", {
@@ -1757,6 +1831,9 @@ function App() {
 
   // UI state
   const [activeTab, setActiveTab] = React.useState("ipr");
+  const [chipAmt, setChipAmt] = React.useState("0.3"); // one-click entry amount; null = type mode; "erase" = eraser
+  const [lastSavedAt, setLastSavedAt] = React.useState(null); // Date of last successful auto/manual save
+  const [showMenu, setShowMenu] = React.useState(false); // header ⋯ overflow menu
   const [saved, setSaved] = React.useState(false);
   const [quickText, setQuickText] = React.useState("");
   const [quickMsg, setQuickMsg] = React.useState(null);
@@ -2017,6 +2094,7 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
   };
   const handleSaveToRecord = async (opts = {}) => {
     const keepOpen = opts.keepOpen === true;
+    const silent = opts.silent === true; // autosave: no wizard, no reset, quiet status
     setSyncStatus("saving");
     setSyncMsg("");
     try {
@@ -2025,6 +2103,7 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
       // Create patient if needed
       if (!patientId) {
         if (!(patient.patientId || "").trim()) {
+          if (silent) { setSyncStatus("idle"); return false; }
           // No patient loaded — open wizard so they can select/create one, then auto-save
           setSyncStatus("idle");
           setPendingSave(true);
@@ -2036,6 +2115,7 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
         const existing = await sbGet(`patients?patient_id=ilike.${enc}&limit=1`);
         if (existing && existing.length > 0) {
           setDbPatient(existing[0]);
+          pushRecentPatient(existing[0]);
           patientId = existing[0].id;
         } else {
           // Store initials in the name column (required by DB schema); patient_id is the primary identifier
@@ -2045,6 +2125,7 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
           });
           const newPat = created[0];
           setDbPatient(newPat);
+          pushRecentPatient(newPat);
           patientId = newPat.id;
         }
       }
@@ -2096,6 +2177,15 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
         }
       }
       setSyncStatus("saved");
+      setLastSavedAt(new Date());
+      if (silent) {
+        setSyncMsg("Auto-saved ✓");
+        setTimeout(() => {
+          setSyncStatus("idle");
+          setSyncMsg("");
+        }, 2000);
+        return true;
+      }
       if (keepOpen) {
         setSyncMsg("Saved to patient record ✓");
         setTimeout(() => {
@@ -2121,6 +2211,20 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
       return false;
     }
   };
+
+  // ─── Autosave: debounced save 2.5s after the last edit, once a patient is loaded ───
+  const autosaveSkipRef = React.useRef(true);
+  React.useEffect(() => {
+    // skip the very first run (initial mount / draft restore)
+    if (autosaveSkipRef.current) { autosaveSkipRef.current = false; return; }
+    if (!dbPatient || readOnly || flowStep !== null) return;
+    const t = setTimeout(() => {
+      if (syncStatus === "saving") return;
+      handleSaveToRecord({ silent: true });
+    }, 2500);
+    return () => clearTimeout(t);
+  }, [upper, lower, notes, gaugeVerified, upperSpaces, lowerSpaces, upperBT, lowerBT, patient.date, patient.assistantInitials]);
+
   const handleChange = setter => (key, val) => setter(prev => ({
     ...prev,
     [key]: val
@@ -2337,11 +2441,32 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
 
     const selectPatientForVisit = async (p) => {
       setSelectedPatient(p);
+      pushRecentPatient(p);
       try {
         const visits = await sbGet(`visits?patient_uuid=eq.${p.id}&order=date.desc&limit=50`);
         setVisitHistoryForSelected(visits || []);
       } catch (e) {
         setVisitHistoryForSelected([]);
+      }
+    };
+
+    // Search-as-you-type (300ms debounce, min 2 chars)
+    React.useEffect(() => {
+      const q = searchInputVal.trim();
+      if (q.length < 2) return;
+      const t = setTimeout(() => { doSearch(); }, 300);
+      return () => clearTimeout(t);
+    }, [searchInputVal]);
+
+    // One-tap recent patient: load and jump straight to visit selection
+    const openRecent = async (rp) => {
+      setFlowStep('search');
+      try {
+        const rows = await sbGet(`patients?id=eq.${rp.id}&limit=1`);
+        if (rows && rows.length > 0) { selectPatientForVisit(rows[0]); }
+        else { setSearchInputVal(rp.patient_id || ''); }
+      } catch (e) {
+        setSearchInputVal(rp.patient_id || '');
       }
     };
 
@@ -2351,7 +2476,7 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
         patientId: selectedPatient.patient_id,
         initials: selectedPatient.name,
         date: new Date().toISOString().slice(0, 10),
-        assistantInitials: ''
+        assistantInitials: (function(){ try { return localStorage.getItem('ipr_last_asst') || ''; } catch(e) { return ''; } })()
       });
       setDbPatient(selectedPatient);
       setCurrentVisitId(null);
@@ -2462,7 +2587,7 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
     };
 
     if (flowStep === 'choose') {
-      return /*#__PURE__*/React.createElement("div", { style: overlayStyle }, /*#__PURE__*/React.createElement("div", { style: dialogStyle }, /*#__PURE__*/React.createElement("h2", { style: { fontSize: 20, fontWeight: 700, marginBottom: 24, color: '#0f172a' } }, "Start New Entry"), /*#__PURE__*/React.createElement("div", { style: { display: 'flex', flexDirection: 'column', gap: 12 } }, /*#__PURE__*/React.createElement("button", { onClick: () => setFlowStep('search'), style: { padding: '18px 24px', borderRadius: 8, border: '2px solid #0369a1', background: 'white', cursor: 'pointer', fontSize: 14, fontWeight: 600, color: '#0369a1', textAlign: 'left', transition: 'all 0.2s' } }, /*#__PURE__*/React.createElement("div", { style: { fontWeight: 700, marginBottom: 6 } }, "🔍 Search Existing Patient"), "Find and load a patient's records"), /*#__PURE__*/React.createElement("button", { onClick: () => setFlowStep('newPatient'), style: { padding: '18px 24px', borderRadius: 8, border: '2px solid #22c55e', background: 'white', cursor: 'pointer', fontSize: 14, fontWeight: 600, color: '#22c55e', textAlign: 'left', transition: 'all 0.2s' } }, /*#__PURE__*/React.createElement("div", { style: { fontWeight: 700, marginBottom: 6 } }, "➕ New Patient"), "Create a new patient record")), /*#__PURE__*/React.createElement("button", { onClick: () => setFlowStep(null), style: { marginTop: 20, padding: '10px 16px', borderRadius: 6, border: '1px solid #e2e8f0', background: 'white', cursor: 'pointer', fontSize: 13, color: '#64748b', width: '100%' } }, "Close")));
+      return /*#__PURE__*/React.createElement("div", { style: overlayStyle }, /*#__PURE__*/React.createElement("div", { style: dialogStyle }, /*#__PURE__*/React.createElement("h2", { style: { fontSize: 20, fontWeight: 700, marginBottom: 24, color: '#0f172a' } }, "Start New Entry"), (() => { const recents = getRecentPatients(); return recents.length > 0 && /*#__PURE__*/React.createElement("div", { style: { marginBottom: 18 } }, /*#__PURE__*/React.createElement("div", { style: { fontSize: 11, fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 } }, "Recent Patients — one click"), /*#__PURE__*/React.createElement("div", { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 } }, recents.map(rp => /*#__PURE__*/React.createElement("button", { key: rp.id, onClick: () => openRecent(rp), style: { padding: '12px 12px', borderRadius: 8, border: '1.5px solid #bae6fd', background: '#f0f9ff', cursor: 'pointer', fontSize: 13, fontWeight: 700, color: '#0369a1', textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, rp.patient_id, /*#__PURE__*/React.createElement("span", { style: { fontWeight: 500, color: '#64748b', marginLeft: 6 } }, rp.name))))); })(), /*#__PURE__*/React.createElement("div", { style: { display: 'flex', flexDirection: 'column', gap: 12 } }, /*#__PURE__*/React.createElement("button", { onClick: () => setFlowStep('search'), style: { padding: '18px 24px', borderRadius: 8, border: '2px solid #0369a1', background: 'white', cursor: 'pointer', fontSize: 14, fontWeight: 600, color: '#0369a1', textAlign: 'left', transition: 'all 0.2s' } }, /*#__PURE__*/React.createElement("div", { style: { fontWeight: 700, marginBottom: 6 } }, "🔍 Search Existing Patient"), "Find and load a patient's records"), /*#__PURE__*/React.createElement("button", { onClick: () => setFlowStep('newPatient'), style: { padding: '18px 24px', borderRadius: 8, border: '2px solid #22c55e', background: 'white', cursor: 'pointer', fontSize: 14, fontWeight: 600, color: '#22c55e', textAlign: 'left', transition: 'all 0.2s' } }, /*#__PURE__*/React.createElement("div", { style: { fontWeight: 700, marginBottom: 6 } }, "➕ New Patient"), "Create a new patient record")), /*#__PURE__*/React.createElement("button", { onClick: () => setFlowStep(null), style: { marginTop: 20, padding: '10px 16px', borderRadius: 6, border: '1px solid #e2e8f0', background: 'white', cursor: 'pointer', fontSize: 13, color: '#64748b', width: '100%' } }, "Close")));
     }
 
     if (flowStep === 'search') {
@@ -2483,7 +2608,7 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
     if (flowStep === 'prescribed') {
       const prescribedUpperTotal = sumContacts(prescribedUpper);
       const prescribedLowerTotal = sumContacts(prescribedLower);
-      return /*#__PURE__*/React.createElement("div", { style: overlayStyle }, /*#__PURE__*/React.createElement("div", { style: { ...dialogStyle, maxWidth: 1020, padding: '28px 24px' } }, /*#__PURE__*/React.createElement("h2", { style: { fontSize: 18, fontWeight: 700, marginBottom: 6, color: '#0f172a' } }, "Prescribed IPR"), /*#__PURE__*/React.createElement("p", { style: { fontSize: 12, color: '#64748b', marginBottom: 20 } }, "Enter the planned (prescribed) IPR amounts"), /*#__PURE__*/React.createElement("div", { style: { marginBottom: 20 } }, /*#__PURE__*/React.createElement(ArchRow, { teeth: UPPER, contacts: prescribedUpper, onChange: handleChange(setPrescribedUpper), label: "Upper Arch (Prescribed)", quadLeft: "UR", quadRight: "UL" })), /*#__PURE__*/React.createElement("div", { style: { marginBottom: 24 } }, /*#__PURE__*/React.createElement(ArchRow, { teeth: LOWER, contacts: prescribedLower, onChange: handleChange(setPrescribedLower), label: "Lower Arch (Prescribed)", quadLeft: "LR", quadRight: "LL" })), /*#__PURE__*/React.createElement("button", { onClick: handlePrescribedDone, style: { width: '100%', padding: '12px', borderRadius: 8, border: 'none', background: '#22c55e', color: 'white', fontWeight: 700, cursor: 'pointer', fontSize: 14, marginBottom: 8 } }, "Done — Start Charting"), /*#__PURE__*/React.createElement("button", { onClick: () => setFlowStep('visitSetup'), style: { width: '100%', padding: '10px 16px', borderRadius: 6, border: '1px solid #e2e8f0', background: 'white', cursor: 'pointer', fontSize: 13, color: '#64748b' } }, "Back")));
+      return /*#__PURE__*/React.createElement("div", { style: overlayStyle }, /*#__PURE__*/React.createElement("div", { style: { ...dialogStyle, maxWidth: 1020, padding: '28px 24px' } }, /*#__PURE__*/React.createElement("h2", { style: { fontSize: 18, fontWeight: 700, marginBottom: 6, color: '#0f172a' } }, "Prescribed IPR"), /*#__PURE__*/React.createElement("p", { style: { fontSize: 12, color: '#64748b', marginBottom: 20 } }, "Enter the planned (prescribed) IPR amounts"), /*#__PURE__*/React.createElement(AmountPalette, { chipAmt: chipAmt, setChipAmt: setChipAmt, compact: true }), /*#__PURE__*/React.createElement("div", { style: { marginBottom: 20 } }, /*#__PURE__*/React.createElement(ArchRow, { teeth: UPPER, contacts: prescribedUpper, onChange: handleChange(setPrescribedUpper), label: "Upper Arch (Prescribed)", quadLeft: "UR", quadRight: "UL", chipAmt: chipAmt })), /*#__PURE__*/React.createElement("div", { style: { marginBottom: 24 } }, /*#__PURE__*/React.createElement(ArchRow, { teeth: LOWER, contacts: prescribedLower, onChange: handleChange(setPrescribedLower), label: "Lower Arch (Prescribed)", quadLeft: "LR", quadRight: "LL", chipAmt: chipAmt })), /*#__PURE__*/React.createElement("button", { onClick: handlePrescribedDone, style: { width: '100%', padding: '12px', borderRadius: 8, border: 'none', background: '#22c55e', color: 'white', fontWeight: 700, cursor: 'pointer', fontSize: 14, marginBottom: 8 } }, "Done — Start Charting"), /*#__PURE__*/React.createElement("button", { onClick: () => setFlowStep('visitSetup'), style: { width: '100%', padding: '10px 16px', borderRadius: 6, border: '1px solid #e2e8f0', background: 'white', cursor: 'pointer', fontSize: 13, color: '#64748b' } }, "Back")));
     }
 
     if (flowStep === 'records') {
@@ -2730,7 +2855,7 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
       color: "#0f172a",
       letterSpacing: -0.5
     }
-  }, "IPR Tracker", /*#__PURE__*/React.createElement("span", { style: { fontSize: 11, fontWeight: 500, color: "#94a3b8", marginLeft: 8 } }, "v2.3")), /*#__PURE__*/React.createElement("p", {
+  }, "IPR Tracker", /*#__PURE__*/React.createElement("span", { style: { fontSize: 11, fontWeight: 500, color: "#94a3b8", marginLeft: 8 } }, "v2.4 · chairside")), /*#__PURE__*/React.createElement("p", {
     style: {
       fontSize: 12,
       color: "#94a3b8",
@@ -2775,50 +2900,25 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
   }, /*#__PURE__*/React.createElement("button", {
     onClick: () => setFlowStep('choose'),
     style: {
-      width: 36,
-      height: 36,
-      borderRadius: "50%",
+      padding: "10px 18px",
+      borderRadius: 10,
       border: "none",
       background: "#22c55e",
       color: "white",
-      fontSize: 18,
-      fontWeight: 700,
+      fontSize: 14,
+      fontWeight: 800,
       cursor: "pointer",
       display: "flex",
       alignItems: "center",
-      justifyContent: "center",
+      gap: 6,
       transition: "all 0.2s"
     },
-    title: "New entry"
-  }, "+"), /*#__PURE__*/React.createElement("button", {
-    onClick: () => setFlowStep('records'),
-    style: {
-      padding: "8px 14px",
-      borderRadius: 8,
-      border: "1.5px solid #cbd5e1",
-      background: "white",
-      fontSize: 13,
-      cursor: "pointer",
-      color: "#64748b",
-      fontWeight: 600
-    }
-  }, /*#__PURE__*/React.createElement("svg", { width: 14, height: 14, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round", style: { marginRight: 5, verticalAlign: "-2px" } }, /*#__PURE__*/React.createElement("circle", { cx: 11, cy: 11, r: 8 }), /*#__PURE__*/React.createElement("line", { x1: 21, y1: 21, x2: 16.65, y2: 16.65 })), "Records"), /*#__PURE__*/React.createElement("button", {
-    onClick: handleExport,
-    style: {
-      padding: "8px 14px",
-      borderRadius: 8,
-      border: "1.5px solid #cbd5e1",
-      background: "white",
-      fontSize: 13,
-      cursor: "pointer",
-      color: "#64748b",
-      fontWeight: 600
-    }
-  }, /*#__PURE__*/React.createElement("svg", { width: 14, height: 14, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round", style: { marginRight: 5, verticalAlign: "-2px" } }, /*#__PURE__*/React.createElement("path", { d: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" }), /*#__PURE__*/React.createElement("polyline", { points: "7 10 12 15 17 10" }), /*#__PURE__*/React.createElement("line", { x1: 12, y1: 15, x2: 12, y2: 3 })), "Export"), /*#__PURE__*/React.createElement("button", {
+    title: "Start a new visit or load a patient"
+  }, "\uFF0B New Visit"), /*#__PURE__*/React.createElement("button", {
     onClick: () => handleSaveAndPreview('print'),
     style: {
-      padding: "8px 14px",
-      borderRadius: 8,
+      padding: "10px 16px",
+      borderRadius: 10,
       border: "none",
       background: "#2563eb",
       color: "white",
@@ -2826,29 +2926,80 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
       fontWeight: 700,
       cursor: "pointer"
     }
-  }, /*#__PURE__*/React.createElement("svg", { width: 14, height: 14, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round", style: { marginRight: 5, verticalAlign: "-2px" } }, /*#__PURE__*/React.createElement("polyline", { points: "6 9 6 2 18 2 18 9" }), /*#__PURE__*/React.createElement("path", { d: "M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" }), /*#__PURE__*/React.createElement("rect", { x: 6, y: 14, width: 12, height: 8 })), "Print"), /*#__PURE__*/React.createElement("button", {
-    onClick: () => { setPrintBlank(true); setTimeout(() => {
-      const printEl = document.querySelector('.print-only');
-      if (!printEl) { setPrintBlank(false); return; }
-      const w = window.open('', '_blank', 'width=900,height=700');
-      w.document.write('<!DOCTYPE html><html><head><style>body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#0f172a;margin:0;padding:14px 18px;}@page{margin:12mm 10mm;}.print-toolbar{position:sticky;top:0;z-index:9999;background:#1e293b;padding:10px 20px;display:flex;gap:10px;align-items:center;margin:-14px -18px 16px -18px;}@media print{.print-toolbar{display:none !important;}}</style></head><body>');
-      w.document.write('<div class="print-toolbar"><button onclick="window.print()" style="padding:8px 24px;border-radius:6px;border:none;background:#2563eb;color:white;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">Print</button><button onclick="window.close()" style="padding:8px 24px;border-radius:6px;border:1px solid #475569;background:transparent;color:#cbd5e1;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;">Cancel</button></div>');
-      w.document.write(printEl.innerHTML);
-      w.document.write('</body></html>');
-      w.document.close();
-      setPrintBlank(false);
-    }, 150); },
+  }, /*#__PURE__*/React.createElement("svg", { width: 14, height: 14, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round", style: { marginRight: 5, verticalAlign: "-2px" } }, /*#__PURE__*/React.createElement("polyline", { points: "6 9 6 2 18 2 18 9" }), /*#__PURE__*/React.createElement("path", { d: "M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" }), /*#__PURE__*/React.createElement("rect", { x: 6, y: 14, width: 12, height: 8 })), "Print"), /*#__PURE__*/React.createElement("div", {
+    style: { position: "relative" }
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => setShowMenu(m => !m),
+    title: "More: Records, Export PDF, Blank form",
     style: {
-      padding: "8px 14px",
-      borderRadius: 8,
+      width: 40,
+      height: 40,
+      borderRadius: 10,
       border: "1.5px solid #cbd5e1",
+      background: showMenu ? "#f1f5f9" : "white",
+      color: "#475569",
+      fontSize: 20,
+      fontWeight: 800,
+      cursor: "pointer",
+      lineHeight: 1
+    }
+  }, "\u22EF"), showMenu && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    onClick: () => setShowMenu(false),
+    style: { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 998 }
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "absolute",
+      right: 0,
+      top: 46,
+      zIndex: 999,
       background: "white",
-      color: "#64748b",
+      border: "1px solid #e2e8f0",
+      borderRadius: 10,
+      boxShadow: "0 8px 24px #0002",
+      minWidth: 190,
+      overflow: "hidden"
+    }
+  }, [{
+    label: "\uD83D\uDD0D Patient Records",
+    fn: () => { setShowMenu(false); setFlowStep('records'); }
+  }, {
+    label: "\u2B07 Export as PDF",
+    fn: () => { setShowMenu(false); handleExport(); }
+  }, {
+    label: "\uD83D\uDCC4 Print Blank Form",
+    fn: () => {
+      setShowMenu(false);
+      setPrintBlank(true);
+      setTimeout(() => {
+        const printEl = document.querySelector('.print-only');
+        if (!printEl) { setPrintBlank(false); return; }
+        const w = window.open('', '_blank', 'width=900,height=700');
+        w.document.write('<!DOCTYPE html><html><head><style>body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#0f172a;margin:0;padding:14px 18px;}@page{margin:12mm 10mm;}.print-toolbar{position:sticky;top:0;z-index:9999;background:#1e293b;padding:10px 20px;display:flex;gap:10px;align-items:center;margin:-14px -18px 16px -18px;}@media print{.print-toolbar{display:none !important;}}</style></head><body>');
+        w.document.write('<div class="print-toolbar"><button onclick="window.print()" style="padding:8px 24px;border-radius:6px;border:none;background:#2563eb;color:white;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">Print</button><button onclick="window.close()" style="padding:8px 24px;border-radius:6px;border:1px solid #475569;background:transparent;color:#cbd5e1;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;">Cancel</button></div>');
+        w.document.write(printEl.innerHTML);
+        w.document.write('</body></html>');
+        w.document.close();
+        setPrintBlank(false);
+      }, 150);
+    }
+  }].map(item => /*#__PURE__*/React.createElement("button", {
+    key: item.label,
+    onClick: item.fn,
+    style: {
+      display: "block",
+      width: "100%",
+      textAlign: "left",
+      padding: "12px 16px",
+      border: "none",
+      borderBottom: "1px solid #f1f5f9",
+      background: "white",
       fontSize: 13,
       fontWeight: 600,
-      cursor: "pointer"
+      color: "#334155",
+      cursor: "pointer",
+      fontFamily: "inherit"
     }
-  }, /*#__PURE__*/React.createElement("svg", { width: 14, height: 14, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round", style: { marginRight: 5, verticalAlign: "-2px" } }, /*#__PURE__*/React.createElement("rect", { x: 3, y: 3, width: 18, height: 18, rx: 2 }), /*#__PURE__*/React.createElement("line", { x1: 8, y1: 8, x2: 16, y2: 8 }), /*#__PURE__*/React.createElement("line", { x1: 8, y1: 12, x2: 16, y2: 12 }), /*#__PURE__*/React.createElement("line", { x1: 8, y1: 16, x2: 12, y2: 16 })), "Blank"))), patient.patientId && /*#__PURE__*/React.createElement("div", {
+  }, item.label))))))), patient.patientId && /*#__PURE__*/React.createElement("div", {
     style: {
       background: "#f0fdf4",
       border: "1px solid #86efac",
@@ -2880,7 +3031,7 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
     }
   })), /*#__PURE__*/React.createElement("span", null, "Asst: ", /*#__PURE__*/React.createElement("select", {
     value: patient.assistantInitials || "",
-    onChange: e => setPatient({ ...patient, assistantInitials: e.target.value }),
+    onChange: e => { try { localStorage.setItem('ipr_last_asst', e.target.value); } catch (err) {} setPatient({ ...patient, assistantInitials: e.target.value }); },
     style: {
       padding: "4px 6px",
       border: "1px solid #86efac",
@@ -2892,7 +3043,15 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
     }
   }, /*#__PURE__*/React.createElement("option", { value: "" }, "—"),
      STAFF_NAMES.map(n => /*#__PURE__*/React.createElement("option", { key: n, value: n }, n))
-  ))), dbConnected !== null && /*#__PURE__*/React.createElement("span", {
+  ))), !readOnly && /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 12,
+      fontWeight: 700,
+      whiteSpace: "nowrap",
+      color: syncStatus === "error" ? "#dc2626" : syncStatus === "saving" ? "#0369a1" : lastSavedAt ? "#16a34a" : "#94a3b8"
+    },
+    title: "Changes save automatically a moment after you stop editing"
+  }, syncStatus === "saving" ? "Saving…" : syncStatus === "error" ? "⚠ Save failed" : lastSavedAt ? `✓ Saved ${lastSavedAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : "Autosave on"), dbConnected !== null && /*#__PURE__*/React.createElement("span", {
     title: dbConnected ? `Database connected${dbPatientCount !== null ? ` · ${dbPatientCount} patient${dbPatientCount !== 1 ? "s" : ""}` : ""}` : "Database not reachable — check internet connection",
     style: {
       width: 8,
@@ -2932,7 +3091,10 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
       borderRadius: 10,
       padding: "1px 6px"
     }
-  }, upperBTCount + lowerBTCount > 0 ? `▼${upperBTCount + lowerBTCount}` : "", upperSpacesTotal + lowerSpacesTotal > 0 ? ` ${(upperSpacesTotal + lowerSpacesTotal).toFixed(1)}mm` : ""))), activeTab === "ipr" && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+  }, upperBTCount + lowerBTCount > 0 ? `▼${upperBTCount + lowerBTCount}` : "", upperSpacesTotal + lowerSpacesTotal > 0 ? ` ${(upperSpacesTotal + lowerSpacesTotal).toFixed(1)}mm` : ""))), activeTab === "ipr" && /*#__PURE__*/React.createElement(React.Fragment, null, !readOnly && /*#__PURE__*/React.createElement(AmountPalette, {
+    chipAmt: chipAmt,
+    setChipAmt: setChipAmt
+  }), /*#__PURE__*/React.createElement("div", {
     style: {
       padding: "20px 20px 14px",
       background: "white",
@@ -2949,7 +3111,8 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
     quadLeft: "UR",
     quadRight: "UL",
     cumRef: prevUpper,
-    readOnly: readOnly
+    readOnly: readOnly,
+    chipAmt: chipAmt
   }), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
@@ -2985,7 +3148,8 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
     quadLeft: "LR",
     quadRight: "LL",
     cumRef: prevLower,
-    readOnly: readOnly
+    readOnly: readOnly,
+    chipAmt: chipAmt
   }), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
