@@ -730,13 +730,13 @@ function archToothShape(tooth, p, key, opts) {
   const S = "#94a3b8", G = "#d3dae3", F = "#fdfefe", SW = 1.7;
   let parts = [];
   if (num <= 2) {
-    // Incisor: thin mesiodistal blade, fully rounded corners (stadium-ish, labial side fuller)
+    // Incisor: thin mesiodistal blade, convex (rounded) labial face, rounded corners
     const rx = num === 1 ? 17 : 14;
     const hT = 9.5, hB = 7.5; // labial / lingual half-heights
     parts = [
       /*#__PURE__*/React.createElement("path", {
         key: "b",
-        d: `M ${24 - rx + 6} ${24 - hT} L ${24 + rx - 6} ${24 - hT} Q ${24 + rx} ${24 - hT} ${24 + rx} 24 Q ${24 + rx} ${24 + hB} ${24 + rx - 6} ${24 + hB} L ${24 - rx + 6} ${24 + hB} Q ${24 - rx} ${24 + hB} ${24 - rx} 24 Q ${24 - rx} ${24 - hT} ${24 - rx + 6} ${24 - hT} Z`,
+        d: `M ${24 - rx + 6} ${24 - hT} Q 24 ${24 - hT - 5.5} ${24 + rx - 6} ${24 - hT} Q ${24 + rx} ${24 - hT} ${24 + rx} 24 Q ${24 + rx} ${24 + hB} ${24 + rx - 6} ${24 + hB} L ${24 - rx + 6} ${24 + hB} Q ${24 - rx} ${24 + hB} ${24 - rx} 24 Q ${24 - rx} ${24 - hT} ${24 - rx + 6} ${24 - hT} Z`,
         fill: F, stroke: S, strokeWidth: SW
       }),
       /*#__PURE__*/React.createElement("path", {
@@ -746,16 +746,16 @@ function archToothShape(tooth, p, key, opts) {
       })
     ];
   } else if (num === 3) {
-    // Canine: pointed oval (cusp tip bulge on the labial side)
+    // Canine: pointed oval (cusp tip bulge on the labial side), 30% enlarged
     parts = [
       /*#__PURE__*/React.createElement("path", {
         key: "b",
-        d: "M 11 24 Q 15 12 24 10.5 Q 33 12 37 24 Q 33 33 24 34.5 Q 15 33 11 24 Z",
+        d: "M 7.1 24 Q 12.3 8.4 24 6.45 Q 35.7 8.4 40.9 24 Q 35.7 35.7 24 37.65 Q 12.3 35.7 7.1 24 Z",
         fill: F, stroke: S, strokeWidth: SW
       }),
       /*#__PURE__*/React.createElement("path", {
         key: "g",
-        d: "M 24 15 L 24 30",
+        d: "M 24 12.3 L 24 31.8",
         fill: "none", stroke: G, strokeWidth: 1.2
       })
     ];
