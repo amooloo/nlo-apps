@@ -727,6 +727,7 @@ function archPositions(count, invert, boxOffset) {
 function archToothShape(tooth, p, key, opts) {
   opts = opts || {};
   const num = parseInt(tooth.replace(/[A-Z]/g, ""), 10);
+  const isLower = tooth[0] === "L"; // lower arch is mirrored — flip glyph so labial side faces outward
   const S = "#94a3b8", G = "#d3dae3", F = "#fdfefe", SW = 1.7;
   let parts = [];
   if (num <= 2) {
@@ -822,7 +823,7 @@ function archToothShape(tooth, p, key, opts) {
     width: 68, height: 68, viewBox: "0 0 48 48",
     style: {
       display: "block",
-      transform: `rotate(${p.rot}deg)`,
+      transform: `rotate(${p.rot}deg)${isLower ? " scaleY(-1)" : ""}`,
       filter: opts.missing ? "none" : "drop-shadow(0 1px 1.5px #0002)"
     }
   }, parts), /*#__PURE__*/React.createElement("span", {
