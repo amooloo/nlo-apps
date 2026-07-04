@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NLO Office Calendar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Montserrat:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --navy-800:#1B2F4C; --navy-900:#11203A; --navy-700:#294169; --navy-border:#385686;
+  --off-white:#F2F3F4; --white:#FFFFFF;
+  --blue-600:#1D3EA9; --blue-700:#16318C; --blue-500:#2E52C9; --blue-100:#E5EAF8;
+  --coral-500:#FA624D; --coral-700:#D8412E; --coral-200:#FFC8BF; --coral-100:#FFE7E1;
+  --mint-500:#64F4C9; --mint-700:#1F9E7E; --mint-200:#C0FBEC; --mint-100:#E2FBF4;
+  --amber-600:#E29A14; --amber-700:#C2820A; --amber-100:#FEF2D7;
+  --grey-50:#F7F8F9; --grey-100:#ECEEF0; --grey-200:#DCE0E4; --grey-300:#C3C9D0;
+  --grey-400:#969FAB; --grey-500:#6B7685; --grey-600:#4C5868; --grey-700:#33404F;
+  --muted-on-navy:#A7B2C2;
+  --font-display:'Oswald',system-ui,sans-serif;
+  --font-body:'Montserrat',system-ui,sans-serif;
+  --font-mono:'IBM Plex Mono',monospace;
+}
+html,body{margin:0;padding:0;background:var(--off-white);}
+*{box-sizing:border-box;}
+body{font-family:var(--font-body);color:var(--grey-700);}
+@keyframes nloFadeUp{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+input,select,textarea,button{font-family:var(--font-body);}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--blue-500);outline-offset:1px;}
+.disp{font-family:var(--font-display);text-transform:uppercase;}
+.fadeup{animation:nloFadeUp .25s ease;}
+.fadeup-fast{animation:nloFadeUp .2s ease;}
+.hov-cell:hover{box-shadow:0 4px 14px rgba(27,47,76,.14);}
+.hov-grey:hover{background:var(--grey-100);}
+.hov-navy7:hover{background:var(--navy-700);}
+.hov-coral7:hover{background:var(--coral-700) !important;}
+.hov-blue7:hover{background:var(--blue-700) !important;}
+.hov-navy9:hover{background:var(--navy-900) !important;}
+.hov-coral1:hover{background:var(--coral-100);}
+.hov-amber7:hover{background:var(--amber-700) !important;}
+.hov-staffpill:hover{background:var(--navy-700);color:#F2F3F4 !important;}
+button{cursor:pointer;}
+.pill-btn{border:none;border-radius:999px;font-family:var(--font-display);font-weight:600;text-transform:uppercase;letter-spacing:.08em;}
+@media (max-width:700px){
+  .month-cell{min-height:74px !important;}
+  .detail-panel{width:100vw !important;}
+}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script>
+/* ================= CONFIG ================= */
+const firebaseConfig = {
+  apiKey: "AIzaSyBFCmDgAKkdfZ4Cb81nK0KCKXtONiwMJy4",
+  authDomain: "nlo-inventory.firebaseapp.com",
+  databaseURL: "https://nlo-inventory-default-rtdb.firebaseio.com",
+  projectId: "nlo-inventory",
+  storageBucket: "nlo-inventory.firebasestorage.app",
+  messagingSenderId: "471691286148",
+  appId: "1:471691286148:web:b362a98186f648bd4914d1"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+const CAL_ROOT = "nlo/calendar";
+
+/* Time-Off Request app backend (Apps Script). Approved requests + holiday
+   list sync from here — same endpoint the Checklist app uses. */
+const TIMEOFF_API = "https://script.google.com/macros/s/AKfycbxvI_d6muf_OepqurNrxnV2O0bMaGjnyNH6SKKNqQcvXMzjN6ZBjc26aa5LkN3Grj2J/exec";
+const SYNC_INTERVAL_MIN = 15;
+
+/* Staff roster seeded from Gusto (active employees, July 2026). Editable in Settings. */
+const SEED_STAFF = {
+  s_amir:     { name: "Dr. Akhavan",            active: true },
+  s_sarah:    { name: "Sarah (Clinical Lead)",  active: true },
+  s_wila:     { name: "Wila (TC)",              active: true },
+  s_savannah: { name: "Savannah (AC)",          active: true },
+  s_eve:      { name: "Eve (Marketing)",        active: true },
+  s_bri:      { name: "Bri (OA)",               active: true },
+  s_kaylee:   { name: "Kaylee (OA)",            active: true },
+  s_gwen:     { name: "Gwen (OA)",              active: true },
+  s_angelika: { name: "Angelika (OA)",          active: true }
+};
+
+const LOGO_SRC = "data:image/png;base64,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";
+
+/* ================= STATE ================= */
+const S = {
+  view: window.matchMedia("(max-width:700px)").matches ? "agenda" : "month",
+  cursor: null,
+  filters: { pto: true, event: true, task: true },
+  admin: false,
+  data: null,               // mirrors RTDB: {events, staff, settings, adminDays}
+  detailDate: null,
+  pinOpen: false, pinValue: "", pinError: false,
+  entryOpen: false, form: null, blackoutWarn: false, formError: "",
+  settingsOpen: false, pinSaved: false,
+  paintMode: false,
+  sync: { timeOff: [], holidays: [], at: null, err: null },
+  seeded: false,
+  connected: false
+};
+
+/* ================= DATE HELPERS ================= */
+function fmt(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+function parseD(s){ const p=s.split("-").map(Number); return new Date(p[0],p[1]-1,p[2]); }
+function addDays(s,n){ const d=parseD(s); d.setDate(d.getDate()+n); return fmt(d); }
+function todayStr(){ return fmt(new Date()); }
+function weekStart(s){ const d=parseD(s); const off=(d.getDay()+6)%7; return addDays(s,-off); }
+const MONTHS=["January","February","March","April","May","June","July","August","September","October","November","December"];
+const SMON=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const DAYS=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+function isClosedDay(s){ const g=parseD(s).getDay(); return g===5||g===6||g===0; }
+function prettyDate(s){ const d=parseD(s); return SMON[d.getMonth()]+" "+d.getDate(); }
+function prettyRange(a,b){
+  if(!b||b===a) return prettyDate(a);
+  const da=parseD(a),db=parseD(b);
+  if(da.getMonth()===db.getMonth()&&da.getFullYear()===db.getFullYear()) return SMON[da.getMonth()]+" "+da.getDate()+"–"+db.getDate();
+  return prettyDate(a)+" – "+prettyDate(b);
+}
+function fmtTime(t){
+  if(!t) return "";
+  const p=t.split(":").map(Number);
+  const h12=((p[0]+11)%12)+1, ampm=p[0]>=12?"PM":"AM";
+  return h12+(p[1]?":"+String(p[1]).padStart(2,"0"):"")+" "+ampm;
+}
+function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+
+/* ================= FIXED HOLIDAYS (fallback — mirrors backend/handbook) ================= */
+function nthWeekday(y,m,wd,n){ const first=new Date(y,m,1); const off=(wd-first.getDay()+7)%7; return new Date(y,m,1+off+(n-1)*7); }
+function lastWeekday(y,m,wd){ const last=new Date(y,m+1,0); const off=(last.getDay()-wd+7)%7; return new Date(y,m,last.getDate()-off); }
+function fixedHolidaysForYear(y){
+  const out={};
+  out[fmt(new Date(y,0,1))]="New Year's Day";
+  out[fmt(lastWeekday(y,4,1))]="Memorial Day";
+  out[fmt(new Date(y,6,4))]="Independence Day";
+  out[fmt(nthWeekday(y,8,1,1))]="Labor Day";
+  const thx=nthWeekday(y,10,4,4);
+  const before=new Date(thx); before.setDate(thx.getDate()-1);
+  const after=new Date(thx); after.setDate(thx.getDate()+1);
+  out[fmt(before)]="Day Before Thanksgiving";
+  out[fmt(thx)]="Thanksgiving Day";
+  out[fmt(after)]="Day After Thanksgiving";
+  out[fmt(new Date(y,11,25))]="Christmas Day";
+  return out;
+}
+function holidayMap(){
+  const map={};
+  if(S.sync.holidays && S.sync.holidays.length){
+    S.sync.holidays.forEach(h=>{ if(h&&h.date) map[String(h.date).slice(0,10)]={label:h.label||"Day Off",source:h.source||"custom"}; });
+  } else {
+    const y=new Date().getFullYear();
+    [y-1,y,y+1].forEach(yy=>{ const f=fixedHolidaysForYear(yy); Object.keys(f).forEach(k=>{ map[k]={label:f[k],source:"fixed"}; }); });
+  }
+  return map;
+}
+
+/* ================= TIME-OFF SYNC ================= */
+async function syncTimeOff(){
+  try{
+    const sep=TIMEOFF_API.includes("?")?"&":"?";
+    const res=await fetch(TIMEOFF_API+sep+"action=getchecklistsync",{method:"GET",redirect:"follow"});
+    if(!res.ok) throw new Error("HTTP "+res.status);
+    const j=await res.json();
+    if(j.ok===false) throw new Error(j.error||"Sync error");
+    S.sync={ timeOff:(j.timeOff||[]), holidays:(j.holidays||[]), at:new Date(), err:null };
+  }catch(e){
+    S.sync.err=e.message||String(e);
+    S.sync.at=S.sync.at||null;
+  }
+  render();
+}
+setInterval(syncTimeOff, SYNC_INTERVAL_MIN*60*1000);
+
+/* ================= DATA (Firebase RTDB) ================= */
+function fbErr(e){ S.dbError=(e&&e.message)||"write denied"; alert("Couldn't save — the database rejected the write.\nPublish the nlo/calendar rules block in Firebase (see FIREBASE_RULES_NLO_CALENDAR.txt)."); render(); }
+function fbSet(path,val){ db.ref(CAL_ROOT+"/"+path).set(val).catch(fbErr); }
+function fbRemove(path){ db.ref(CAL_ROOT+"/"+path).remove().catch(fbErr); }
+db.ref(CAL_ROOT).on("value",(snap)=>{
+  const v=snap.val()||{};
+  S.data={
+    events: v.events||{},
+    staff: v.staff||{},
+    settings: v.settings||{ adminPin:"2468", blackoutDates:{} },
+    adminDays: v.adminDays||{}
+  };
+  S.connected=true;
+  /* one-time seed: staff roster from Gusto + default PIN */
+  if(!S.seeded && (!v.staff || Object.keys(v.staff).length===0)){
+    S.seeded=true;
+    fbSet("staff",SEED_STAFF);
+    if(!v.settings) fbSet("settings",{ adminPin:"2468", blackoutDates:{} });
+  }
+  render();
+},(err)=>{
+  S.connected=false;
+  S.data=S.data||{events:{},staff:{},settings:{adminPin:"2468",blackoutDates:{}},adminDays:{}};
+  S.dbError=err&&err.message?err.message:"Database permission denied";
+  render();
+});
+
+/* ================= ENTRY QUERIES ================= */
+function occursOn(e,ds){
+  if(e.recurrence){
+    if(ds<e.startDate) return false;
+    const d=parseD(ds), b=parseD(e.startDate);
+    if(d.getDate()!==b.getDate()) return false;
+    if(e.recurrence==="monthly") return true;
+    const mdiff=(d.getFullYear()-b.getFullYear())*12+(d.getMonth()-b.getMonth());
+    if(e.recurrence==="quarterly") return mdiff%3===0;
+    if(e.recurrence==="yearly") return d.getMonth()===b.getMonth();
+    return false;
+  }
+  const end=e.endDate||e.startDate;
+  return ds>=e.startDate && ds<=end;
+}
+
+function entriesFor(ds,ignoreFilters){
+  const data=S.data; if(!data) return [];
+  const out=[];
+  /* holiday (from Time-Off backend / handbook) */
+  const hol=holidayMap()[ds];
+  if(hol) out.push({ id:"hol_"+ds, type:"holiday", title:hol.label, startDate:ds, endDate:ds, time:null,
+                     notes: hol.source==="fixed" ? "Office closed — paid holiday (policy manual)" : "Office closed",
+                     recurrence:null, synced:true });
+  /* manual calendar entries */
+  Object.keys(data.events).forEach(id=>{
+    const e=data.events[id];
+    if(!ignoreFilters && S.filters[e.type]===false) return;
+    if(e.type==="pto" && officeClosed(ds)) return; // office is closed — PTO doesn't apply
+    if(occursOn(e,ds)) out.push(Object.assign({id},e));
+  });
+  /* approved time off synced from the Time-Off Request app */
+  if((ignoreFilters || S.filters.pto) && !officeClosed(ds)){
+      S.sync.timeOff.forEach((r,i)=>{
+        const start=String(r.start||"").slice(0,10), end=String(r.end||r.start||"").slice(0,10);
+        if(!start) return;
+        if(ds>=start && ds<=(end||start)){
+          out.push({ id:"to_"+(r.id||i), type:"pto", title:r.requestType||r.reason||"PTO",
+                     staffId:null, staffName:r.employeeName||"PTO",
+                     startDate:start, endDate:end||start, time:null,
+                     notes:(r.paidType?String(r.paidType):"")+(r.hours?(" · "+r.hours+" hrs"):""),
+                     recurrence:null, synced:true });
+        }
+    });
+  }
+  const order={holiday:0,pto:1,event:2,task:3};
+  out.sort((a,b)=>(order[a.type]-order[b.type])||String(a.time||"").localeCompare(String(b.time||""))||String(a.title).localeCompare(b.title));
+  return out;
+}
+
+function typeColors(t){
+  if(t==="pto")     return {bg:"#FFE7E1",fg:"#C13A28",edge:"#FA624D",glyph:"●",label:"PTO"};
+  if(t==="task")    return {bg:"#FEF2D7",fg:"#996709",edge:"#E29A14",glyph:"▲",label:"Task"};
+  if(t==="holiday") return {bg:"#1B2F4C",fg:"#FFFFFF",edge:"#1B2F4C",glyph:"★",label:"Holiday"};
+  return {bg:"#E5EAF8",fg:"#16318C",edge:"#1D3EA9",glyph:"■",label:"Event"};
+}
+function entryLabel(e){ return e.type==="pto"?(e.staffName||"PTO"):e.title; }
+function entrySub(e){
+  if(e.type==="pto"){
+    let s="Out "+prettyRange(e.startDate,e.endDate);
+    if(e.synced) s+=" · Time-Off app";
+    return s;
+  }
+  if(e.type==="holiday") return "Office closed";
+  const parts=[e.time?fmtTime(e.time):"All day"];
+  if(e.recurrence) parts.push("repeats "+e.recurrence);
+  return parts.join(" · ");
+}
+function isBlackout(ds){ const s=S.data&&S.data.settings; return !!(s&&s.blackoutDates&&s.blackoutDates[ds]); }
+/* office is closed Fri/Sat/Sun and on holidays — PTO is meaningless on those days */
+function officeClosed(ds){ return isClosedDay(ds) || !!holidayMap()[ds]; }
+function nextOpenDay(ds){ let d=ds,i=0; while(officeClosed(d)&&i<14){ d=addDays(d,1); i++; } return d; }
+function adminDayOf(ds){ return (S.data&&S.data.adminDays&&S.data.adminDays[ds])||null; } // 'admin' | 'meeting' | null
+
+/* ================= MUTATIONS ================= */
+function blankForm(ds){
+  const d=ds||todayStr();
+  return {id:null,type:"event",title:"",staffId:"",startDate:d,endDate:d,allDay:true,time:"09:00",notes:"",recurrence:""};
+}
+function readFormDom(){
+  const f=S.form; if(!f) return;
+  const g=id=>document.getElementById(id);
+  if(g("f-title")) f.title=g("f-title").value;
+  if(g("f-staff")) f.staffId=g("f-staff").value;
+  if(g("f-start")) f.startDate=g("f-start").value||f.startDate;
+  if(g("f-end")) f.endDate=g("f-end").value||f.endDate;
+  if(g("f-time")) f.time=g("f-time").value||f.time;
+  if(g("f-rec")) f.recurrence=g("f-rec").value;
+  if(g("f-notes")) f.notes=g("f-notes").value;
+  if(g("f-allday")) f.allDay=g("f-allday").checked;
+}
+function saveEntry(force){
+  readFormDom();
+  const f=S.form, data=S.data;
+  if(f.type==="pto"&&!f.staffId){ S.formError="Pick a staff member for PTO."; S.blackoutWarn=false; return render(); }
+  if(f.type!=="pto"&&!f.title.trim()){ S.formError="Give this entry a title."; S.blackoutWarn=false; return render(); }
+  if(!f.startDate){ S.formError="Start date is required."; S.blackoutWarn=false; return render(); }
+  let end=f.endDate||f.startDate;
+  if(end<f.startDate) end=f.startDate;
+  if(f.type==="pto"&&!force){
+    let ds=f.startDate,hit=false;
+    while(ds<=end){ if(isBlackout(ds)){hit=true;break;} ds=addDays(ds,1); }
+    if(hit){ S.blackoutWarn=true; S.formError=""; return render(); }
+  }
+  const staff=f.staffId?data.staff[f.staffId]:null;
+  const rec={
+    type:f.type,
+    title:f.type==="pto"?(f.title.trim()||"PTO"):f.title.trim(),
+    staffId:f.type==="pto"?f.staffId:null,
+    staffName:f.type==="pto"&&staff?staff.name:null,
+    startDate:f.startDate, endDate:end,
+    time:f.type==="event"&&!f.allDay?f.time:null,
+    notes:f.notes.trim(),
+    recurrence:f.type==="task"&&f.recurrence?f.recurrence:null,
+    createdAt:Date.now()
+  };
+  const id=f.id||("e"+Date.now()+Math.floor(Math.random()*999));
+  if(f.id&&data.events[f.id]) rec.createdAt=data.events[f.id].createdAt;
+  fbSet("events/"+id,rec);
+  S.entryOpen=false; S.form=null; S.blackoutWarn=false; S.formError="";
+  render();
+}
+function deleteEntry(id){
+  if(!window.confirm("Delete this entry?")) return;
+  fbRemove("events/"+id);
+  S.entryOpen=false; S.form=null;
+  render();
+}
+function setAdminDay(ds,val){
+  if(val) fbSet("adminDays/"+ds,val);
+  else fbRemove("adminDays/"+ds);
+}
+function cycleAdminDay(ds){
+  const cur=adminDayOf(ds);
+  setAdminDay(ds, cur===null?"admin":(cur==="admin"?"meeting":null));
+}
+
+/* ================= RENDER ================= */
+function adminDayTag(ds,small){
+  const ad=adminDayOf(ds);
+  if(!ad) return "";
+  const fs=small?"10px":"11px";
+  if(ad==="meeting")
+    return `<span class="disp" style="font-weight:600;letter-spacing:.08em;font-size:${fs};background:var(--coral-500);color:#fff;border-radius:4px;padding:2px 6px;">Admin + Mtg</span>`;
+  return `<span class="disp" style="font-weight:600;letter-spacing:.08em;font-size:${fs};background:var(--mint-500);color:var(--navy-900);border-radius:4px;padding:2px 6px;">Admin</span>`;
+}
+
+function render(){
+  const app=document.getElementById("app");
+  if(!S.data){ app.innerHTML=`<div style="padding:60px;text-align:center;color:var(--grey-500);font-size:16px;">Loading calendar…</div>`; return; }
+  const today=todayStr();
+  if(!S.cursor) S.cursor=today;
+  const cursor=S.cursor, cd=parseD(cursor), view=S.view, data=S.data;
+
+  /* period label */
+  let periodLabel=MONTHS[cd.getMonth()]+" "+cd.getFullYear();
+  if(view==="week"){ const ws=weekStart(cursor),we=addDays(ws,6); periodLabel=prettyRange(ws,we)+", "+parseD(ws).getFullYear(); }
+  else if(view==="agenda"){ periodLabel="Upcoming · from "+prettyDate(cursor); }
+
+  /* who's out — next two OPEN office days (Fri/Sat/Sun + holidays skipped) */
+  const d1=nextOpenDay(today);
+  const d2=nextOpenDay(addDays(d1,1));
+  const dayLbl=(ds)=>{
+    if(ds===today) return "Today";
+    if(ds===addDays(today,1)) return "Tomorrow";
+    const d=parseD(ds); return DAYS[d.getDay()].slice(0,3)+" "+prettyDate(ds);
+  };
+  const lbl1=dayLbl(d1), lbl2=dayLbl(d2);
+  const outToday=entriesFor(d1,true).filter(e=>e.type==="pto").map(e=>e.staffName||"PTO");
+  const outTomorrow=entriesFor(d2,true).filter(e=>e.type==="pto").map(e=>e.staffName||"PTO");
+  const anyOut=outToday.length>0||outTomorrow.length>0;
+
+  /* ---- header ---- */
+  let h=`<header style="background:var(--navy-800);color:#F2F3F4;padding:12px 22px;display:flex;align-items:center;gap:18px;flex-wrap:wrap;">
+    <img src="${LOGO_SRC}" alt="Next Level Orthodontics" style="height:36px;display:block;">
+    <div class="disp" style="font-weight:600;font-size:19px;letter-spacing:.16em;color:var(--mint-500);border-left:2px solid var(--navy-border);padding-left:16px;line-height:1.2;">Office Calendar</div>
+    <div style="flex:1;"></div>
+    <div style="display:flex;gap:4px;background:var(--navy-900);border-radius:999px;padding:4px;">`;
+  [["month","Month"],["week","Week"],["agenda","Agenda"]].forEach(([v,l])=>{
+    const on=view===v;
+    h+=`<button data-act="view" data-v="${v}" class="pill-btn" style="padding:8px 18px;font-size:14px;background:${on?"#F2F3F4":"transparent"};color:${on?"#1B2F4C":"#A7B2C2"};">${l}</button>`;
+  });
+  h+=`</div>`;
+  if(S.admin){
+    h+=`<div style="display:flex;align-items:center;gap:10px;">
+      <button data-act="open-add" class="pill-btn hov-coral7" style="padding:10px 20px;font-size:14px;background:var(--coral-500);color:#fff;">+ Add entry</button>
+      <button data-act="open-settings" class="pill-btn hov-navy7" style="border:2px solid var(--navy-border);padding:8px 16px;font-size:13px;background:transparent;color:#F2F3F4;">Settings</button>
+      <button data-act="lock-admin" title="Exit admin mode" style="border:none;border-radius:999px;padding:8px 14px;font-size:13px;background:var(--mint-500);color:var(--navy-900);font-weight:700;">\u{1F513} Admin</button>
+    </div>`;
+  } else {
+    h+=`<button data-act="open-pin" title="Unlock admin mode" class="hov-staffpill" style="border:2px solid var(--navy-border);border-radius:999px;padding:8px 16px;font-size:13px;background:transparent;color:#A7B2C2;font-weight:600;">\u{1F512} Staff view</button>`;
+  }
+  h+=`</header>`;
+
+  /* ---- who's out banner ---- */
+  if(anyOut){
+    h+=`<div style="background:var(--coral-100);border-bottom:1px solid var(--coral-200);padding:10px 24px;display:flex;align-items:baseline;gap:20px;flex-wrap:wrap;">
+      <span class="disp" style="font-weight:600;letter-spacing:.14em;font-size:13px;color:var(--coral-700);">Who's out</span>`;
+    if(outToday.length) h+=`<span style="font-size:15px;color:var(--navy-800);"><strong style="font-weight:700;">${lbl1}:</strong> ${esc(outToday.join(", "))}</span>`;
+    if(outTomorrow.length) h+=`<span style="font-size:15px;color:var(--grey-600);"><strong style="font-weight:700;color:var(--navy-800);">${lbl2}:</strong> ${esc(outTomorrow.join(", "))}</span>`;
+    h+=`</div>`;
+  } else {
+    h+=`<div style="background:var(--mint-100);border-bottom:1px solid var(--mint-200);padding:10px 24px;display:flex;align-items:baseline;gap:14px;">
+      <span class="disp" style="font-weight:600;letter-spacing:.14em;font-size:13px;color:var(--mint-700);">Who's out</span>
+      <span style="font-size:15px;color:var(--navy-800);">Full team in ${lbl1==="Today"?"today":lbl1} and ${lbl2==="Tomorrow"?"tomorrow":lbl2}.</span>
+    </div>`;
+  }
+  if(S.dbError && !S.connected){
+    h+=`<div style="background:var(--amber-100);padding:8px 24px;font-size:13.5px;color:var(--amber-700);font-weight:600;">⚠ Cannot reach the shared database (${esc(S.dbError)}). Check the Firebase rules for nlo/calendar.</div>`;
+  }
+
+  /* ---- toolbar ---- */
+  h+=`<div style="display:flex;align-items:center;gap:16px;padding:18px 24px 10px;flex-wrap:wrap;">
+    <h1 class="disp" style="margin:0;font-weight:700;letter-spacing:.01em;font-size:34px;line-height:1;color:var(--navy-800);">${esc(periodLabel)}</h1>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <button data-act="prev" aria-label="Previous" class="hov-grey" style="border:1px solid var(--grey-300);border-radius:10px;width:38px;height:38px;background:#fff;color:var(--navy-800);font-size:17px;line-height:1;">‹</button>
+      <button data-act="today" class="hov-grey" style="border:1px solid var(--grey-300);border-radius:10px;height:38px;padding:0 16px;background:#fff;color:var(--navy-800);font-weight:600;font-size:14px;">Today</button>
+      <button data-act="next" aria-label="Next" class="hov-grey" style="border:1px solid var(--grey-300);border-radius:10px;width:38px;height:38px;background:#fff;color:var(--navy-800);font-size:17px;line-height:1;">›</button>
+    </div>
+    <div style="flex:1;"></div>`;
+  if(S.admin){
+    h+=S.paintMode
+      ? `<button data-act="paint-toggle" class="disp" style="border:none;border-radius:999px;padding:9px 18px;font-weight:600;letter-spacing:.08em;font-size:13px;background:var(--navy-800);color:var(--mint-500);">✏ Click days: admin → +mtg → clear · Done</button>`
+      : `<button data-act="paint-toggle" class="disp hov-grey" style="border:2px solid var(--mint-700);border-radius:999px;padding:8px 16px;font-weight:600;letter-spacing:.08em;font-size:13px;background:#fff;color:var(--mint-700);">✏ Mark admin days</button>`;
+  }
+  h+=`<div style="display:flex;gap:8px;flex-wrap:wrap;">`;
+  [["pto","●","PTO","--coral-500","#FFE7E1","#C13A28"],["event","■","Events","--blue-600","#E5EAF8","#16318C"],["task","▲","Tasks","--amber-600","#FEF2D7","#996709"]].forEach(([k,g,l,bc,bg,fg])=>{
+    const on=S.filters[k];
+    h+=`<button data-act="filter" data-f="${k}" style="border-radius:999px;padding:8px 16px;font-weight:600;font-size:14px;display:flex;align-items:center;gap:8px;border:2px solid var(${bc});background:${on?bg:"#FFFFFF"};color:${on?fg:"#969FAB"};"><span style="font-size:11px;">${g}</span> ${l}</button>`;
+  });
+  h+=`</div></div>`;
+
+  /* ---- views ---- */
+  if(view==="month") h+=renderMonth(today,cd);
+  else if(view==="week") h+=renderWeek(today,cursor);
+  else h+=renderAgenda(today,cursor);
+
+  /* ---- overlays ---- */
+  if(S.detailDate) h+=renderDetail(today,S.detailDate);
+  if(S.pinOpen) h+=renderPin();
+  if(S.entryOpen&&S.form) h+=renderEntry();
+  if(S.settingsOpen) h+=renderSettings();
+
+  app.innerHTML=h;
+  const pin=document.getElementById("pin-input");
+  if(pin){ pin.focus(); pin.value=S.pinValue; }
+}
+
+function renderMonth(today,cd){
+  let h=`<div class="fadeup" style="padding:8px 24px 28px;">
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:0 8px;padding:0 0 6px;">`;
+  ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].forEach((n,i)=>{
+    h+=`<div class="disp" style="font-weight:600;letter-spacing:.12em;font-size:13px;color:${i>3?"#969FAB":"#4C5868"};text-align:left;padding:4px 10px;">${n}</div>`;
+  });
+  h+=`</div><div style="display:grid;grid-template-columns:repeat(7,1fr);gap:8px;">`;
+  const first=new Date(cd.getFullYear(),cd.getMonth(),1);
+  const gridStart=weekStart(fmt(first));
+  for(let i=0;i<42;i++){
+    const ds=addDays(gridStart,i);
+    const d=parseD(ds);
+    const inMonth=d.getMonth()===cd.getMonth();
+    const isToday=ds===today;
+    const closed=isClosedDay(ds);
+    const blackout=isBlackout(ds);
+    const entries=entriesFor(ds);
+    const MAX=3;
+    const ad=adminDayOf(ds);
+    const adTint=ad==="meeting"?"#FFE7E1":"#E2FBF4";
+    const bg=blackout?"repeating-linear-gradient(135deg,#ECEEF0 0 6px,#F7F8F9 6px 12px)":(ad?adTint:(closed?"#F0F1F3":"#FFFFFF"));
+    h+=`<div data-act="open-day" data-date="${ds}" class="hov-cell month-cell" style="position:relative;min-height:118px;border-radius:12px;padding:8px;cursor:pointer;display:flex;flex-direction:column;gap:4px;overflow:hidden;border:${isToday?"2px solid #1D3EA9":(ad?("1px solid "+(ad==="meeting"?"#FFC8BF":"#C0FBEC")):"1px solid #DCE0E4")};background:${bg};opacity:${inMonth?"1":"0.45"};">`;
+    if(ad) h+=`<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;"><span class="disp" style="transform:rotate(-16deg);font-weight:700;font-size:15px;letter-spacing:.16em;color:${ad==="meeting"?"#D8412E":"#1F9E7E"};opacity:.45;white-space:nowrap;">${ad==="meeting"?"Admin + Mtg":"Admin Day"}</span></div>`;
+    h+=`<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+        <span style="font-weight:700;font-size:15px;min-width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;border-radius:999px;background:${isToday?"#1D3EA9":"transparent"};color:${isToday?"#FFFFFF":(closed?"#969FAB":"#1B2F4C")};">${d.getDate()}</span>`;
+    if(blackout) h+=`<span class="disp" style="font-weight:600;letter-spacing:.1em;font-size:10px;background:var(--navy-800);color:#fff;border-radius:4px;padding:2px 6px;">No PTO</span>`;
+    h+=`</div>`;
+    entries.slice(0,MAX).forEach(e=>{
+      const c=typeColors(e.type);
+      const label=e.type==="event"&&e.time?fmtTime(e.time)+" "+entryLabel(e):entryLabel(e);
+      h+=`<div style="font-size:13px;font-weight:600;border-radius:6px;padding:3px 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:6px;background:${c.bg};color:${c.fg};"><span style="font-size:9px;flex:none;">${c.glyph}</span><span style="overflow:hidden;text-overflow:ellipsis;">${esc(label)}</span></div>`;
+    });
+    if(entries.length>MAX) h+=`<div style="font-size:12px;font-weight:600;color:var(--grey-500);padding:0 8px;">+${entries.length-MAX} more</div>`;
+    h+=`</div>`;
+  }
+  h+=`</div></div>`;
+  return h;
+}
+
+function renderWeek(today,cursor){
+  const ws=weekStart(cursor);
+  let h=`<div class="fadeup" style="padding:8px 24px 28px;"><div style="display:grid;grid-template-columns:repeat(7,1fr);gap:10px;align-items:stretch;">`;
+  for(let i=0;i<7;i++){
+    const ds=addDays(ws,i);
+    const d=parseD(ds);
+    const isToday=ds===today;
+    const closed=isClosedDay(ds);
+    const blackout=isBlackout(ds);
+    const adW=adminDayOf(ds);
+    const weekBg=adW?(adW==="meeting"?"#FFE7E1":"#E2FBF4"):(closed?"#F0F1F3":"#FFFFFF");
+    h+=`<div data-act="open-day" data-date="${ds}" class="hov-cell" style="border-radius:14px;min-height:380px;padding:12px;display:flex;flex-direction:column;gap:8px;cursor:pointer;border:${isToday?"2px solid #1D3EA9":"1px solid #DCE0E4"};background:${weekBg};">
+      <div style="display:flex;align-items:baseline;gap:8px;border-bottom:1px solid var(--grey-200);padding-bottom:8px;">
+        <span class="disp" style="font-weight:600;letter-spacing:.1em;font-size:13px;color:${isToday?"#1D3EA9":"#6B7685"};">${DAYS[d.getDay()].slice(0,3)}</span>
+        <span style="font-weight:700;font-size:20px;color:${isToday?"#1D3EA9":"#1B2F4C"};">${d.getDate()}</span>`;
+    if(closed) h+=`<span style="font-size:11px;font-weight:600;color:var(--grey-400);text-transform:uppercase;letter-spacing:.08em;">Closed</span>`;
+    h+=`</div>`;
+    if(blackout) h+=`<span class="disp" style="font-weight:600;letter-spacing:.1em;font-size:11px;background:var(--navy-800);color:#fff;border-radius:4px;padding:3px 8px;align-self:flex-start;">No PTO — blackout</span>`;
+    if(adminDayOf(ds)) h+=`<div style="align-self:flex-start;">${adminDayTag(ds)}</div>`;
+    entriesFor(ds).forEach(e=>{
+      const c=typeColors(e.type);
+      h+=`<div style="border-radius:8px;padding:8px 10px;background:${c.bg};">
+        <div style="display:flex;align-items:center;gap:7px;font-weight:700;font-size:14px;color:${c.fg};"><span style="font-size:9px;flex:none;">${c.glyph}</span><span>${esc(entryLabel(e))}</span></div>
+        <div style="font-size:12.5px;font-weight:500;margin-top:2px;color:${c.fg};opacity:.85;">${esc(entrySub(e))}</div>
+      </div>`;
+    });
+    h+=`</div>`;
+  }
+  h+=`</div></div>`;
+  return h;
+}
+
+function renderAgenda(today,cursor){
+  let h=`<div class="fadeup" style="padding:8px 24px 40px;max-width:860px;width:100%;margin:0 auto;">`;
+  let count=0;
+  for(let i=0;i<45;i++){
+    const ds=addDays(cursor,i);
+    const entries=entriesFor(ds);
+    const ad=adminDayOf(ds);
+    if(!entries.length&&!ad) continue;
+    count++;
+    const d=parseD(ds);
+    const isToday=ds===today;
+    h+=`<div style="margin-bottom:22px;">
+      <div data-act="open-day" data-date="${ds}" style="display:flex;align-items:center;gap:12px;cursor:pointer;margin-bottom:8px;">
+        <span class="disp" style="font-weight:700;letter-spacing:.06em;font-size:20px;color:${isToday?"#1D3EA9":"#1B2F4C"};">${DAYS[d.getDay()]} · ${SMON[d.getMonth()]} ${d.getDate()}</span>`;
+    if(isToday) h+=`<span class="disp" style="font-weight:600;letter-spacing:.1em;font-size:12px;background:var(--blue-600);color:#fff;border-radius:999px;padding:3px 12px;">Today</span>`;
+    if(isBlackout(ds)) h+=`<span class="disp" style="font-weight:600;letter-spacing:.1em;font-size:12px;background:var(--navy-800);color:#fff;border-radius:4px;padding:3px 10px;">No PTO</span>`;
+    h+=adminDayTag(ds);
+    h+=`<div style="flex:1;height:1px;background:var(--grey-200);"></div></div>
+      <div style="display:flex;flex-direction:column;gap:8px;">`;
+    entries.forEach(e=>{
+      const c=typeColors(e.type);
+      const timeLabel=e.time?fmtTime(e.time):(e.type==="pto"?prettyRange(e.startDate,e.endDate):"All day");
+      h+=`<div style="background:var(--white);border:1px solid var(--grey-200);border-left:6px solid ${c.edge};border-radius:10px;padding:14px 16px;display:flex;gap:14px;align-items:baseline;">
+        <span style="font-family:var(--font-mono);font-size:14px;font-weight:500;color:var(--grey-500);min-width:76px;flex:none;">${esc(timeLabel)}</span>
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:700;font-size:17px;color:var(--navy-800);">${esc(entryLabel(e))}</div>`;
+      if(e.notes) h+=`<div style="font-size:14px;color:var(--grey-500);margin-top:3px;">${esc(e.notes)}</div>`;
+      h+=`</div><span style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;flex:none;color:${c.edge};">${c.label}</span>
+      </div>`;
+    });
+    h+=`</div></div>`;
+  }
+  if(count===0) h+=`<div style="text-align:center;padding:60px 20px;color:var(--grey-500);font-size:16px;">Nothing scheduled in the next 45 days.</div>`;
+  h+=`</div>`;
+  return h;
+}
+
+function renderDetail(today,dd){
+  const d=parseD(dd);
+  const ad=adminDayOf(dd);
+  const hol=holidayMap()[dd];
+  let sub=(dd===today?"Today · ":"")+(hol?("Office closed — "+hol.label):(isClosedDay(dd)?"Office closed (Mon–Thu 8–5)":"Office open 8 AM – 5 PM"));
+  const list=entriesFor(dd);
+  let h=`<div data-act="close-detail" style="position:fixed;inset:0;background:rgba(17,32,58,.42);z-index:60;"></div>
+  <div class="fadeup-fast detail-panel" style="position:fixed;top:0;right:0;bottom:0;width:min(420px,100vw);background:#fff;z-index:61;box-shadow:-12px 0 40px rgba(17,32,58,.25);display:flex;flex-direction:column;">
+    <div style="background:var(--navy-800);color:#F2F3F4;padding:20px 22px;display:flex;align-items:flex-start;gap:12px;">
+      <div style="flex:1;">
+        <div class="disp" style="font-weight:700;font-size:26px;line-height:1.05;">${DAYS[d.getDay()]}, ${SMON[d.getMonth()]} ${d.getDate()}</div>
+        <div style="font-size:14px;color:#A7B2C2;margin-top:4px;">${esc(sub)}</div>
+      </div>
+      <button data-act="close-detail" aria-label="Close" style="border:none;background:var(--navy-700);color:#F2F3F4;border-radius:999px;width:34px;height:34px;font-size:16px;">✕</button>
+    </div>`;
+  if(isBlackout(dd)) h+=`<div class="disp" style="background:var(--navy-800);color:#E29A14;padding:8px 22px;font-size:13px;font-weight:600;letter-spacing:.06em;">Blackout date — PTO not allowed</div>`;
+  if(ad==="admin") h+=`<div class="disp" style="background:var(--mint-100);color:var(--mint-700);padding:8px 22px;font-size:13px;font-weight:600;letter-spacing:.06em;border-bottom:1px solid var(--mint-200);">Admin day — flexible (Dr. A can schedule off)</div>`;
+  if(ad==="meeting") h+=`<div class="disp" style="background:var(--coral-100);color:var(--coral-700);padding:8px 22px;font-size:13px;font-weight:600;letter-spacing:.06em;border-bottom:1px solid var(--coral-200);">Admin day + staff meeting — Dr. A must attend</div>`;
+  /* quick admin-day toggle (admin only) */
+  if(S.admin){
+    const opt=(val,label,on,onBg,onFg)=>`<button data-act="adminday" data-date="${dd}" data-v="${val}" style="flex:1;border:none;border-radius:999px;padding:8px 6px;font-weight:700;font-size:12.5px;background:${on?onBg:"transparent"};color:${on?onFg:"#4C5868"};">${label}</button>`;
+    h+=`<div style="padding:12px 22px;border-bottom:1px solid var(--grey-200);">
+      <div class="disp" style="font-weight:600;letter-spacing:.12em;font-size:12px;color:var(--grey-600);margin-bottom:8px;">Mark this day</div>
+      <div style="display:flex;gap:6px;background:var(--grey-100);border-radius:999px;padding:4px;">
+        ${opt("","Regular",!ad,"#1B2F4C","#FFFFFF")}
+        ${opt("admin","Admin day",ad==="admin","#64F4C9","#11203A")}
+        ${opt("meeting","Admin + mtg",ad==="meeting","#FA624D","#FFFFFF")}
+      </div>
+    </div>`;
+  }
+  h+=`<div style="flex:1;overflow-y:auto;padding:18px 22px;display:flex;flex-direction:column;gap:10px;">`;
+  if(!list.length) h+=`<div style="color:var(--grey-500);font-size:15px;padding:20px 0;">Nothing scheduled this day.</div>`;
+  list.forEach(e=>{
+    const c=typeColors(e.type);
+    h+=`<div style="border:1px solid var(--grey-200);border-left:6px solid ${c.edge};border-radius:10px;padding:12px 14px;">
+      <div style="display:flex;align-items:baseline;gap:10px;">
+        <div style="flex:1;font-weight:700;font-size:16px;color:var(--navy-800);">${esc(entryLabel(e))}</div>
+        <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:${c.edge};">${c.label}</span>
+      </div>
+      <div style="font-size:13.5px;color:var(--grey-500);margin-top:3px;">${esc(entrySub(e))}</div>`;
+    if(e.notes) h+=`<div style="font-size:14px;color:var(--grey-600);margin-top:6px;">${esc(e.notes)}</div>`;
+    if(S.admin&&!e.synced){
+      h+=`<div style="display:flex;gap:8px;margin-top:10px;">
+        <button data-act="edit-entry" data-id="${e.id}" class="hov-grey" style="border:1px solid var(--grey-300);background:#fff;border-radius:8px;padding:6px 14px;font-size:13px;font-weight:600;color:var(--navy-800);">Edit</button>
+        <button data-act="del-entry" data-id="${e.id}" class="hov-coral1" style="border:1px solid var(--coral-200);background:#fff;border-radius:8px;padding:6px 14px;font-size:13px;font-weight:600;color:var(--coral-700);">Delete</button>
+      </div>`;
+    } else if(S.admin&&e.synced&&e.type==="pto"){
+      h+=`<div style="font-size:12.5px;color:var(--grey-400);margin-top:8px;">Synced from the Time-Off Request app — manage it there.</div>`;
+    }
+    h+=`</div>`;
+  });
+  h+=`</div>`;
+  if(S.admin){
+    h+=`<div style="padding:14px 22px;border-top:1px solid var(--grey-200);">
+      <button data-act="add-for-day" data-date="${dd}" class="pill-btn hov-blue7" style="width:100%;padding:13px;font-size:15px;background:var(--blue-600);color:#fff;">+ Add entry on this day</button>
+    </div>`;
+  }
+  h+=`</div>`;
+  return h;
+}
+
+function renderPin(){
+  return `<div data-act="close-pin" style="position:fixed;inset:0;background:rgba(17,32,58,.5);z-index:70;"></div>
+  <div style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:71;background:#fff;border-radius:16px;padding:28px;width:min(360px,92vw);box-shadow:0 24px 60px rgba(17,32,58,.35);">
+    <div class="disp" style="font-weight:700;font-size:24px;color:var(--navy-800);">Admin unlock</div>
+    <div style="font-size:14px;color:var(--grey-500);margin:6px 0 16px;">Enter the office admin PIN.</div>
+    <input type="password" inputmode="numeric" id="pin-input" placeholder="••••" style="width:100%;font-size:26px;letter-spacing:.4em;text-align:center;padding:12px;border:2px solid var(--grey-300);border-radius:10px;color:var(--navy-800);">
+    ${S.pinError?`<div style="color:var(--coral-700);font-size:13.5px;font-weight:600;margin-top:8px;">Wrong PIN — try again.</div>`:""}
+    <div style="display:flex;gap:10px;margin-top:18px;">
+      <button data-act="close-pin" class="hov-grey" style="flex:1;border:1px solid var(--grey-300);background:#fff;border-radius:999px;padding:11px;font-weight:600;font-size:14px;color:var(--navy-800);">Cancel</button>
+      <button data-act="submit-pin" class="pill-btn hov-navy9" style="flex:1;padding:11px;font-size:14px;background:var(--navy-800);color:#fff;">Unlock</button>
+    </div>
+  </div>`;
+}
+
+function renderEntry(){
+  const f=S.form;
+  const typeBtn=(t,g,l)=>{
+    const on=f.type===t;
+    return `<button data-act="form-type" data-v="${t}" style="flex:1;border:none;border-radius:999px;padding:9px;font-weight:700;font-size:14px;background:${on?"#1B2F4C":"transparent"};color:${on?"#FFFFFF":"#4C5868"};">${g} ${l}</button>`;
+  };
+  const lab=`display:flex;flex-direction:column;gap:5px;font-size:13px;font-weight:700;color:var(--grey-600);text-transform:uppercase;letter-spacing:.06em;`;
+  const inp=`padding:10px;border:2px solid var(--grey-300);border-radius:10px;font-size:15px;color:var(--navy-800);`;
+  let h=`<div data-act="close-entry" style="position:fixed;inset:0;background:rgba(17,32,58,.5);z-index:70;"></div>
+  <div style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:71;background:#fff;border-radius:16px;padding:26px;width:min(460px,94vw);max-height:92vh;overflow-y:auto;box-shadow:0 24px 60px rgba(17,32,58,.35);">
+    <div class="disp" style="font-weight:700;font-size:24px;color:var(--navy-800);margin-bottom:16px;">${f.id?"Edit entry":"Add entry"}</div>
+    <div style="display:flex;gap:6px;background:var(--grey-100);border-radius:999px;padding:4px;margin-bottom:16px;">
+      ${typeBtn("pto","●","PTO")}${typeBtn("event","■","Event")}${typeBtn("task","▲","Task")}
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px;">`;
+  if(f.type==="pto"){
+    h+=`<label style="${lab}">Staff member
+      <select id="f-staff" style="${inp}background:#fff;"><option value="">— Select staff —</option>`;
+    Object.keys(S.data.staff).filter(id=>S.data.staff[id].active).forEach(id=>{
+      h+=`<option value="${id}" ${f.staffId===id?"selected":""}>${esc(S.data.staff[id].name)}</option>`;
+    });
+    h+=`</select></label>`;
+  }
+  h+=`<label style="${lab}">${f.type==="pto"?"Label (optional)":"Title"}
+      <input type="text" id="f-title" value="${esc(f.title)}" placeholder="${f.type==="pto"?"e.g. Vacation, Sick day":(f.type==="task"?"e.g. Supply order due":"e.g. Staff meeting")}" style="${inp}">
+    </label>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <label style="${lab}">Start date<input type="date" id="f-start" value="${f.startDate}" style="${inp}font-size:14px;"></label>
+      <label style="${lab}">End date<input type="date" id="f-end" value="${f.endDate}" style="${inp}font-size:14px;"></label>
+    </div>`;
+  if(f.type==="event"){
+    h+=`<div style="display:flex;align-items:center;gap:14px;">
+      <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:var(--navy-800);cursor:pointer;">
+        <input type="checkbox" id="f-allday" ${f.allDay?"checked":""} style="width:18px;height:18px;accent-color:#1D3EA9;"> All-day
+      </label>`;
+    if(!f.allDay) h+=`<input type="time" id="f-time" value="${f.time}" style="padding:8px;border:2px solid var(--grey-300);border-radius:10px;font-size:14px;color:var(--navy-800);">`;
+    h+=`</div>`;
+  }
+  if(f.type==="task"){
+    h+=`<label style="${lab}">Repeats
+      <select id="f-rec" style="${inp}background:#fff;">
+        <option value="" ${!f.recurrence?"selected":""}>Does not repeat</option>
+        <option value="monthly" ${f.recurrence==="monthly"?"selected":""}>Monthly</option>
+        <option value="quarterly" ${f.recurrence==="quarterly"?"selected":""}>Quarterly</option>
+        <option value="yearly" ${f.recurrence==="yearly"?"selected":""}>Yearly</option>
+      </select></label>`;
+  }
+  h+=`<label style="${lab}">Notes<textarea id="f-notes" rows="2" style="${inp}resize:vertical;min-height:56px;">${esc(f.notes)}</textarea></label>`;
+  if(S.formError) h+=`<div style="color:var(--coral-700);font-size:13.5px;font-weight:600;">${esc(S.formError)}</div>`;
+  if(S.blackoutWarn){
+    h+=`<div style="background:var(--amber-100);border:1px solid #F5DFA9;border-radius:10px;padding:12px 14px;">
+      <div style="font-weight:700;font-size:14px;color:var(--amber-700);">⚠ Blackout date conflict</div>
+      <div style="font-size:13.5px;color:var(--grey-600);margin-top:4px;">This PTO overlaps a blackout date. Save anyway?</div>
+      <button data-act="save-anyway" class="hov-amber7" style="margin-top:10px;border:none;background:var(--amber-600);border-radius:999px;padding:8px 18px;font-weight:700;font-size:13px;color:#fff;">Save anyway</button>
+    </div>`;
+  }
+  h+=`</div><div style="display:flex;gap:10px;margin-top:20px;align-items:center;">`;
+  if(f.id) h+=`<button data-act="del-from-form" data-id="${f.id}" class="hov-coral1" style="border:1px solid var(--coral-200);background:#fff;border-radius:999px;padding:11px 18px;font-weight:600;font-size:14px;color:var(--coral-700);">Delete</button>`;
+  h+=`<div style="flex:1;"></div>
+    <button data-act="close-entry" class="hov-grey" style="border:1px solid var(--grey-300);background:#fff;border-radius:999px;padding:11px 20px;font-weight:600;font-size:14px;color:var(--navy-800);">Cancel</button>
+    <button data-act="save-entry" class="pill-btn hov-blue7" style="padding:11px 26px;font-size:14px;background:var(--blue-600);color:#fff;">Save</button>
+  </div></div>`;
+  return h;
+}
+
+function renderSettings(){
+  const data=S.data;
+  const blackoutList=Object.keys(data.settings.blackoutDates||{}).sort();
+  const syncNote=S.sync.at
+    ? "Last synced "+S.sync.at.toLocaleTimeString([], {hour:"numeric",minute:"2-digit"})+(S.sync.err?" · last attempt failed: "+S.sync.err:"")
+    : (S.sync.err?"Sync failed: "+S.sync.err:"Not synced yet.");
+  let h=`<div data-act="close-settings" style="position:fixed;inset:0;background:rgba(17,32,58,.5);z-index:70;"></div>
+  <div style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:71;background:#fff;border-radius:16px;padding:26px;width:min(480px,94vw);max-height:92vh;overflow-y:auto;box-shadow:0 24px 60px rgba(17,32,58,.35);">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;">
+      <div class="disp" style="flex:1;font-weight:700;font-size:24px;color:var(--navy-800);">Admin settings</div>
+      <button data-act="close-settings" aria-label="Close" style="border:none;background:var(--grey-100);color:var(--navy-800);border-radius:999px;width:34px;height:34px;font-size:15px;">✕</button>
+    </div>
+    <div class="disp" style="font-weight:600;letter-spacing:.12em;font-size:14px;color:var(--blue-600);margin-bottom:10px;">Staff list</div>
+    <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px;">`;
+  Object.keys(data.staff).forEach(id=>{
+    const s=data.staff[id];
+    h+=`<div style="display:flex;align-items:center;gap:10px;border:1px solid var(--grey-200);border-radius:10px;padding:8px 12px;">
+      <label style="display:flex;align-items:center;gap:10px;flex:1;cursor:pointer;font-size:15px;font-weight:600;color:${s.active?"#1B2F4C":"#969FAB"};">
+        <input type="checkbox" data-chg="staff-toggle" data-id="${id}" ${s.active?"checked":""} style="width:18px;height:18px;accent-color:#1D3EA9;"> ${esc(s.name)}
+      </label>
+      ${s.active?"":`<span style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--grey-400);">Inactive</span>`}
+      <button data-act="staff-remove" data-id="${id}" aria-label="Remove staff" style="border:none;background:transparent;color:var(--grey-400);font-size:15px;padding:4px;">✕</button>
+    </div>`;
+  });
+  h+=`</div>
+    <div style="display:flex;gap:8px;margin-bottom:6px;">
+      <input type="text" id="new-staff" placeholder="Add staff member…" style="flex:1;padding:10px;border:2px solid var(--grey-300);border-radius:10px;font-size:14px;color:var(--navy-800);">
+      <button data-act="staff-add" class="hov-navy9" style="border:none;background:var(--navy-800);border-radius:10px;padding:10px 18px;font-weight:700;font-size:14px;color:#fff;">Add</button>
+    </div>
+    <div style="font-size:12.5px;color:var(--grey-400);margin-bottom:24px;">Roster seeded from Gusto (active employees).</div>
+
+    <div class="disp" style="font-weight:600;letter-spacing:.12em;font-size:14px;color:var(--blue-600);margin-bottom:10px;">Time-Off app sync</div>
+    <div style="font-size:14px;color:var(--grey-600);margin-bottom:4px;">Approved requests from the Time-Off Request app and office holidays appear on the calendar automatically.</div>
+    <div style="font-size:12.5px;color:var(--grey-400);margin-bottom:12px;">${esc(syncNote)}</div>
+    <button data-act="sync-now" class="hov-grey" style="border:1px solid var(--grey-300);background:#fff;border-radius:999px;padding:8px 18px;font-weight:600;font-size:13px;color:var(--navy-800);margin-bottom:24px;">Sync now</button>
+
+    <div class="disp" style="font-weight:600;letter-spacing:.12em;font-size:14px;color:var(--blue-600);margin-bottom:10px;">Blackout dates (no PTO)</div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;">`;
+  if(!blackoutList.length) h+=`<span style="font-size:14px;color:var(--grey-500);">None set.</span>`;
+  blackoutList.forEach(ds=>{
+    h+=`<span style="display:inline-flex;align-items:center;gap:8px;background:var(--navy-800);color:#fff;border-radius:999px;padding:6px 8px 6px 14px;font-size:13.5px;font-weight:600;">${prettyDate(ds)}, ${parseD(ds).getFullYear()}
+      <button data-act="blackout-remove" data-date="${ds}" aria-label="Remove blackout" style="border:none;background:var(--navy-700);color:#fff;border-radius:999px;width:22px;height:22px;font-size:11px;line-height:1;">✕</button>
+    </span>`;
+  });
+  h+=`</div>
+    <div style="display:flex;gap:8px;margin-bottom:24px;">
+      <input type="date" id="new-blackout" style="flex:1;padding:9px;border:2px solid var(--grey-300);border-radius:10px;font-size:14px;color:var(--navy-800);">
+      <button data-act="blackout-add" class="hov-navy9" style="border:none;background:var(--navy-800);border-radius:10px;padding:10px 18px;font-weight:700;font-size:14px;color:#fff;">Add</button>
+    </div>
+
+    <div class="disp" style="font-weight:600;letter-spacing:.12em;font-size:14px;color:var(--blue-600);margin-bottom:10px;">Admin PIN</div>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <input type="text" inputmode="numeric" id="pin-field" placeholder="New PIN (4–6 digits)" style="flex:1;padding:10px;border:2px solid var(--grey-300);border-radius:10px;font-size:14px;color:var(--navy-800);letter-spacing:.2em;">
+      <button data-act="pin-save" class="hov-navy9" style="border:none;background:var(--navy-800);border-radius:10px;padding:10px 18px;font-weight:700;font-size:14px;color:#fff;">Save</button>
+    </div>
+    ${S.pinSaved?`<div style="color:var(--mint-700);font-size:13.5px;font-weight:600;margin-top:8px;">PIN updated.</div>`:""}
+  </div>`;
+  return h;
+}
+
+/* ================= EVENTS ================= */
+document.getElementById("app").addEventListener("click",(ev)=>{
+  const el=ev.target.closest("[data-act]");
+  if(!el) return;
+  const act=el.dataset.act;
+  const today=todayStr();
+  switch(act){
+    case "view": S.view=el.dataset.v; render(); break;
+    case "prev": case "next": {
+      const n=act==="prev"?-1:1;
+      if(S.view==="month"){ const cd=parseD(S.cursor||today); S.cursor=fmt(new Date(cd.getFullYear(),cd.getMonth()+n,1)); }
+      else S.cursor=addDays(S.cursor||today,n*7);
+      render(); break;
+    }
+    case "today": S.cursor=today; render(); break;
+    case "filter": { const k=el.dataset.f; S.filters[k]=!S.filters[k]; render(); break; }
+    case "open-day":
+      if(S.admin&&S.paintMode){ cycleAdminDay(el.dataset.date); break; }
+      S.detailDate=el.dataset.date; render(); break;
+    case "paint-toggle": S.paintMode=!S.paintMode; render(); break;
+    case "close-detail": if(ev.target===el||el.tagName==="BUTTON"){ S.detailDate=null; render(); } break;
+    case "open-pin": S.pinOpen=true; S.pinValue=""; S.pinError=false; render(); break;
+    case "close-pin": if(ev.target===el||el.tagName==="BUTTON"){ S.pinOpen=false; S.pinValue=""; S.pinError=false; render(); } break;
+    case "submit-pin": trySubmitPin(); break;
+    case "lock-admin": S.admin=false; S.paintMode=false; render(); break;
+    case "open-add": S.form=blankForm(S.detailDate||today); S.entryOpen=true; S.blackoutWarn=false; S.formError=""; render(); break;
+    case "add-for-day": S.form=blankForm(el.dataset.date); S.entryOpen=true; S.blackoutWarn=false; S.formError=""; render(); break;
+    case "close-entry": if(ev.target===el||el.tagName==="BUTTON"){ S.entryOpen=false; S.form=null; S.blackoutWarn=false; S.formError=""; render(); } break;
+    case "form-type": readFormDom(); S.form.type=el.dataset.v; S.blackoutWarn=false; S.formError=""; render(); break;
+    case "save-entry": saveEntry(false); break;
+    case "save-anyway": saveEntry(true); break;
+    case "del-from-form": deleteEntry(el.dataset.id); break;
+    case "edit-entry": {
+      const e=S.data.events[el.dataset.id];
+      if(!e) break;
+      S.form={ id:el.dataset.id, type:e.type, title:(e.type==="pto"&&e.title==="PTO")?"":e.title, staffId:e.staffId||"",
+               startDate:e.startDate, endDate:e.endDate||e.startDate, allDay:!e.time, time:e.time||"09:00",
+               notes:e.notes||"", recurrence:e.recurrence||"" };
+      S.entryOpen=true; S.blackoutWarn=false; S.formError=""; render(); break;
+    }
+    case "del-entry": deleteEntry(el.dataset.id); break;
+    case "adminday": setAdminDay(el.dataset.date, el.dataset.v||null); break;
+    case "open-settings": S.settingsOpen=true; S.pinSaved=false; render(); break;
+    case "close-settings": if(ev.target===el||el.tagName==="BUTTON"){ S.settingsOpen=false; render(); } break;
+    case "sync-now": syncTimeOff(); break;
+    case "staff-remove": {
+      const id=el.dataset.id;
+      if(!window.confirm("Remove "+S.data.staff[id].name+" from the staff list? Existing PTO entries stay on the calendar.")) break;
+      fbRemove("staff/"+id); break;
+    }
+    case "staff-add": {
+      const inp=document.getElementById("new-staff");
+      const name=(inp.value||"").trim();
+      if(!name) break;
+      fbSet("staff/s"+Date.now(),{name,active:true});
+      inp.value=""; break;
+    }
+    case "blackout-remove": fbRemove("settings/blackoutDates/"+el.dataset.date); break;
+    case "blackout-add": {
+      const inp=document.getElementById("new-blackout");
+      if(!inp.value) break;
+      fbSet("settings/blackoutDates/"+inp.value,true);
+      inp.value=""; break;
+    }
+    case "pin-save": {
+      const inp=document.getElementById("pin-field");
+      const p=(inp.value||"").replace(/\D/g,"").slice(0,6);
+      if(p.length<4) break;
+      fbSet("settings/adminPin",p);
+      S.pinSaved=true; render(); break;
+    }
+  }
+});
+
+document.getElementById("app").addEventListener("change",(ev)=>{
+  const el=ev.target.closest("[data-chg]");
+  if(el&&el.dataset.chg==="staff-toggle"){
+    fbSet("staff/"+el.dataset.id+"/active",el.checked);
+    return;
+  }
+  if(ev.target.id==="f-allday"){ readFormDom(); render(); }
+  if(ev.target.id==="f-start"){
+    readFormDom();
+    if(S.form.endDate<S.form.startDate){ S.form.endDate=S.form.startDate; render(); }
+  }
+});
+
+document.getElementById("app").addEventListener("keydown",(ev)=>{
+  if(ev.target.id==="pin-input"){
+    S.pinValue=ev.target.value;
+    if(ev.key==="Enter"){ setTimeout(trySubmitPin,0); }
+  }
+});
+document.getElementById("app").addEventListener("input",(ev)=>{
+  if(ev.target.id==="pin-input"){ S.pinValue=ev.target.value; }
+});
+
+function trySubmitPin(){
+  const el=document.getElementById("pin-input");
+  const val=el?el.value:S.pinValue;
+  const pin=(S.data&&S.data.settings&&S.data.settings.adminPin)||"2468";
+  if(val===pin){ S.admin=true; S.pinOpen=false; S.pinValue=""; S.pinError=false; }
+  else { S.pinValue=val; S.pinError=true; }
+  render();
+}
+
+/* ================= BOOT ================= */
+render();
+syncTimeOff();
+</script>
+</body>
+</html>
