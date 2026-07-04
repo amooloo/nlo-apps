@@ -75,16 +75,33 @@ const SYNC_INTERVAL_MIN = 15;
 
 /* Staff roster seeded from Gusto (active employees, July 2026). Editable in Settings. */
 const SEED_STAFF = {
-  s_amir:     { name: "Dr. Akhavan",            active: true },
-  s_sarah:    { name: "Sarah (Clinical Lead)",  active: true },
-  s_wila:     { name: "Wila (TC)",              active: true },
-  s_savannah: { name: "Savannah (AC)",          active: true },
-  s_eve:      { name: "Eve (Marketing)",        active: true },
-  s_bri:      { name: "Bri (OA)",               active: true },
-  s_kaylee:   { name: "Kaylee (OA)",            active: true },
-  s_gwen:     { name: "Gwen (OA)",              active: true },
-  s_angelika: { name: "Angelika (OA)",          active: true }
+  s_amir:     { name: "Dr. Akhavan",            active: true, birthday: "1984-03-25", hireDate: "2019-05-22" },
+  s_sarah:    { name: "Sarah (Clinical Lead)",  active: true, birthday: "1994-01-15", hireDate: "2019-05-22" },
+  s_wila:     { name: "Wila (TC)",              active: true, birthday: "1964-08-24", hireDate: "2019-05-22" },
+  s_savannah: { name: "Savannah (AC)",          active: true, birthday: "1996-11-22", hireDate: "2022-04-18" },
+  s_eve:      { name: "Eve (Marketing)",        active: true, birthday: "1984-12-31", hireDate: "2020-01-06" },
+  s_bri:      { name: "Bri (OA)",               active: true, birthday: "2001-05-29", hireDate: "2021-05-12" },
+  s_kaylee:   { name: "Kaylee (OA)",            active: true, birthday: "2003-12-13", hireDate: "2024-09-16" },
+  s_gwen:     { name: "Gwen (OA)",              active: true, birthday: "1967-06-24", hireDate: "2025-04-28" },
+  s_angelika: { name: "Angelika (OA)",          active: true, birthday: "1999-09-13", hireDate: "2025-10-02" }
 };
+
+/* Vacation tiers — NLO employee handbook (policy manual):
+   Tier 1 after orientation (2.83 hrs/mo, cap 34), Tier 2 after 2 full years
+   (5.67 hrs/mo, cap 68), Tier 3 after 5 full years (8.5 hrs/mo, cap 102). */
+function tierFor(years){
+  if(years>=5) return {n:3,rate:8.5,cap:102};
+  if(years>=2) return {n:2,rate:5.67,cap:68};
+  return {n:1,rate:2.83,cap:34};
+}
+function fullYearsSince(dateStr,asOf){
+  const h=parseD(dateStr), a=parseD(asOf);
+  let y=a.getFullYear()-h.getFullYear();
+  const anniv=new Date(a.getFullYear(),h.getMonth(),h.getDate());
+  if(a<anniv) y--;
+  return Math.max(0,y);
+}
+function firstName(n){ return String(n||"").split(" (")[0].split(" ")[0]; }
 
 const LOGO_SRC = "data:image/png;base64,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";
 
@@ -100,6 +117,7 @@ const S = {
   entryOpen: false, form: null, blackoutWarn: false, formError: "",
   settingsOpen: false, pinSaved: false,
   paintMode: false,
+  editStaffId: null,
   sync: { timeOff: [], holidays: [], at: null, err: null },
   seeded: false,
   connected: false
@@ -110,7 +128,7 @@ function fmt(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0
 function parseD(s){ const p=s.split("-").map(Number); return new Date(p[0],p[1]-1,p[2]); }
 function addDays(s,n){ const d=parseD(s); d.setDate(d.getDate()+n); return fmt(d); }
 function todayStr(){ return fmt(new Date()); }
-function weekStart(s){ const d=parseD(s); const off=(d.getDay()+6)%7; return addDays(s,-off); }
+function weekStart(s){ const d=parseD(s); const off=d.getDay(); return addDays(s,-off); } // weeks start Sunday
 const MONTHS=["January","February","March","April","May","June","July","August","September","October","November","December"];
 const SMON=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const DAYS=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
@@ -156,6 +174,9 @@ function holidayMap(){
     const y=new Date().getFullYear();
     [y-1,y,y+1].forEach(yy=>{ const f=fixedHolidaysForYear(yy); Object.keys(f).forEach(k=>{ map[k]={label:f[k],source:"fixed"}; }); });
   }
+  /* office-specific closures managed in Settings (e.g. First Day of School, Winter Holidays) */
+  const cl=(S.data&&S.data.settings&&S.data.settings.closures)||{};
+  Object.keys(cl).forEach(d=>{ map[d]={label:cl[d]||"Office closed",source:"office"}; });
   return map;
 }
 
@@ -208,6 +229,8 @@ function occursOn(e,ds){
   if(e.recurrence){
     if(ds<e.startDate) return false;
     const d=parseD(ds), b=parseD(e.startDate);
+    if(e.recurrence==="weekly") return d.getDay()===b.getDay();
+    if(e.recurrence==="biweekly"){ const days=Math.round((d-b)/86400000); return d.getDay()===b.getDay() && days%14===0; }
     if(d.getDate()!==b.getDate()) return false;
     if(e.recurrence==="monthly") return true;
     const mdiff=(d.getFullYear()-b.getFullYear())*12+(d.getMonth()-b.getMonth());
@@ -227,6 +250,28 @@ function entriesFor(ds,ignoreFilters){
   if(hol) out.push({ id:"hol_"+ds, type:"holiday", title:hol.label, startDate:ds, endDate:ds, time:null,
                      notes: hol.source==="fixed" ? "Office closed — paid holiday (policy manual)" : "Office closed",
                      recurrence:null, synced:true });
+  /* birthdays + work anniversaries (derived from the staff list — nothing stored) */
+  Object.keys(data.staff||{}).forEach(sid=>{
+    const st=data.staff[sid];
+    if(!st||!st.active) return;
+    const mmdd=ds.slice(5), yr=parseD(ds).getFullYear();
+    if(st.birthday && st.birthday.slice(5)===mmdd && yr>parseD(st.birthday).getFullYear()){
+      out.push({ id:"bd_"+sid+"_"+yr, type:"bday", title:firstName(st.name)+"'s birthday", staffId:sid, staffName:st.name,
+                 startDate:ds, endDate:ds, time:null, notes:"", recurrence:null, synced:true });
+    }
+    if(st.hireDate && st.hireDate.slice(5)===mmdd){
+      const n=yr-parseD(st.hireDate).getFullYear();
+      if(n>=1){
+        const t=tierFor(n);
+        let title="🎉 "+firstName(st.name)+" — "+n+" year"+(n>1?"s":"");
+        let notes="Vacation Tier "+t.n+" ("+t.rate+" hrs/mo, cap "+t.cap+" hrs/yr)";
+        if(n===2) notes="Moves up to Tier 2 today — 5.67 hrs/mo, cap 68 hrs/yr 🎊";
+        if(n===5) notes="Moves up to Tier 3 today — 8.5 hrs/mo, cap 102 hrs/yr 🎊";
+        out.push({ id:"an_"+sid+"_"+yr, type:"anniv", title:title, staffId:sid, staffName:st.name,
+                   startDate:ds, endDate:ds, time:null, notes:notes, recurrence:null, synced:true });
+      }
+    }
+  });
   /* manual calendar entries */
   Object.keys(data.events).forEach(id=>{
     const e=data.events[id];
@@ -243,32 +288,40 @@ function entriesFor(ds,ignoreFilters){
           out.push({ id:"to_"+(r.id||i), type:"pto", title:r.requestType||r.reason||"PTO",
                      staffId:null, staffName:r.employeeName||"PTO",
                      startDate:start, endDate:end||start, time:null,
+                     unpaid:String(r.paidType||"").toLowerCase().indexOf("unpaid")>=0,
                      notes:(r.paidType?String(r.paidType):"")+(r.hours?(" · "+r.hours+" hrs"):""),
                      recurrence:null, synced:true });
         }
     });
   }
-  const order={holiday:0,pto:1,event:2,task:3};
+  const order={holiday:0,pto:1,bday:2,anniv:3,event:4,task:5};
   out.sort((a,b)=>(order[a.type]-order[b.type])||String(a.time||"").localeCompare(String(b.time||""))||String(a.title).localeCompare(b.title));
   return out;
 }
 
 function typeColors(t){
   if(t==="pto")     return {bg:"#FFE7E1",fg:"#C13A28",edge:"#FA624D",glyph:"●",label:"PTO"};
+  if(t==="bday")    return {bg:"#E2FBF4",fg:"#137a61",edge:"#64F4C9",glyph:"🎂",label:"Birthday"};
+  if(t==="anniv")   return {bg:"#E5EAF8",fg:"#16318C",edge:"#2E52C9",glyph:"🎉",label:"Anniversary"};
   if(t==="task")    return {bg:"#FEF2D7",fg:"#996709",edge:"#E29A14",glyph:"▲",label:"Task"};
   if(t==="holiday") return {bg:"#1B2F4C",fg:"#FFFFFF",edge:"#1B2F4C",glyph:"★",label:"Holiday"};
   return {bg:"#E5EAF8",fg:"#16318C",edge:"#1D3EA9",glyph:"■",label:"Event"};
 }
-function entryLabel(e){ return e.type==="pto"?(e.staffName||"PTO"):e.title; }
+function entryLabel(e){ return e.type==="pto"?((e.staffName||"PTO")+(e.unpaid?" — unpaid":"")):e.title; }
+function entryTypeLabel(e){ return e.type==="pto"?(e.unpaid?"Unpaid":"PTO"):typeColors(e.type).label; }
 function entrySub(e){
   if(e.type==="pto"){
-    let s="Out "+prettyRange(e.startDate,e.endDate);
-    if(e.synced) s+=" · Time-Off app";
-    return s;
+    const parts=["Out "+prettyRange(e.startDate,e.endDate)];
+    if(e.title&&e.title!=="PTO") parts.push(e.title);
+    parts.push(e.unpaid?"Unpaid (no PTO used)":"Paid");
+    if(e.synced) parts.push("Time-Off app");
+    return parts.join(" · ");
   }
   if(e.type==="holiday") return "Office closed";
+  if(e.type==="bday") return "Happy birthday! 🎂🎈";
+  if(e.type==="anniv") return "Work anniversary";
   const parts=[e.time?fmtTime(e.time):"All day"];
-  if(e.recurrence) parts.push("repeats "+e.recurrence);
+  if(e.recurrence) parts.push("repeats "+(e.recurrence==="biweekly"?"every 2 weeks":e.recurrence));
   return parts.join(" · ");
 }
 function isBlackout(ds){ const s=S.data&&S.data.settings; return !!(s&&s.blackoutDates&&s.blackoutDates[ds]); }
@@ -280,7 +333,7 @@ function adminDayOf(ds){ return (S.data&&S.data.adminDays&&S.data.adminDays[ds])
 /* ================= MUTATIONS ================= */
 function blankForm(ds){
   const d=ds||todayStr();
-  return {id:null,type:"event",title:"",staffId:"",startDate:d,endDate:d,allDay:true,time:"09:00",notes:"",recurrence:""};
+  return {id:null,type:"event",title:"",staffId:"",startDate:d,endDate:d,allDay:true,time:"09:00",notes:"",recurrence:"",unpaid:false};
 }
 function readFormDom(){
   const f=S.form; if(!f) return;
@@ -293,6 +346,7 @@ function readFormDom(){
   if(g("f-rec")) f.recurrence=g("f-rec").value;
   if(g("f-notes")) f.notes=g("f-notes").value;
   if(g("f-allday")) f.allDay=g("f-allday").checked;
+  if(g("f-unpaid")) f.unpaid=g("f-unpaid").checked;
 }
 function saveEntry(force){
   readFormDom();
@@ -317,6 +371,7 @@ function saveEntry(force){
     time:f.type==="event"&&!f.allDay?f.time:null,
     notes:f.notes.trim(),
     recurrence:f.type==="task"&&f.recurrence?f.recurrence:null,
+    unpaid:f.type==="pto"&&!!f.unpaid,
     createdAt:Date.now()
   };
   const id=f.id||("e"+Date.now()+Math.floor(Math.random()*999));
@@ -454,8 +509,8 @@ function render(){
 function renderMonth(today,cd){
   let h=`<div class="fadeup" style="padding:8px 24px 28px;">
     <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:0 8px;padding:0 0 6px;">`;
-  ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].forEach((n,i)=>{
-    h+=`<div class="disp" style="font-weight:600;letter-spacing:.12em;font-size:13px;color:${i>3?"#969FAB":"#4C5868"};text-align:left;padding:4px 10px;">${n}</div>`;
+  ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].forEach((n,i)=>{
+    h+=`<div class="disp" style="font-weight:600;letter-spacing:.12em;font-size:13px;color:${(i===0||i>4)?"#969FAB":"#4C5868"};text-align:left;padding:4px 10px;">${n}</div>`;
   });
   h+=`</div><div style="display:grid;grid-template-columns:repeat(7,1fr);gap:8px;">`;
   const first=new Date(cd.getFullYear(),cd.getMonth(),1);
@@ -549,7 +604,7 @@ function renderAgenda(today,cursor){
         <div style="flex:1;min-width:0;">
           <div style="font-weight:700;font-size:17px;color:var(--navy-800);">${esc(entryLabel(e))}</div>`;
       if(e.notes) h+=`<div style="font-size:14px;color:var(--grey-500);margin-top:3px;">${esc(e.notes)}</div>`;
-      h+=`</div><span style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;flex:none;color:${c.edge};">${c.label}</span>
+      h+=`</div><span style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;flex:none;color:${c.edge};">${entryTypeLabel(e)}</span>
       </div>`;
     });
     h+=`</div></div>`;
@@ -596,7 +651,7 @@ function renderDetail(today,dd){
     h+=`<div style="border:1px solid var(--grey-200);border-left:6px solid ${c.edge};border-radius:10px;padding:12px 14px;">
       <div style="display:flex;align-items:baseline;gap:10px;">
         <div style="flex:1;font-weight:700;font-size:16px;color:var(--navy-800);">${esc(entryLabel(e))}</div>
-        <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:${c.edge};">${c.label}</span>
+        <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:${c.edge};">${entryTypeLabel(e)}</span>
       </div>
       <div style="font-size:13.5px;color:var(--grey-500);margin-top:3px;">${esc(entrySub(e))}</div>`;
     if(e.notes) h+=`<div style="font-size:14px;color:var(--grey-600);margin-top:6px;">${esc(e.notes)}</div>`;
@@ -607,6 +662,8 @@ function renderDetail(today,dd){
       </div>`;
     } else if(S.admin&&e.synced&&e.type==="pto"){
       h+=`<div style="font-size:12.5px;color:var(--grey-400);margin-top:8px;">Synced from the Time-Off Request app — manage it there.</div>`;
+    } else if(S.admin&&(e.type==="bday"||e.type==="anniv")){
+      h+=`<div style="font-size:12.5px;color:var(--grey-400);margin-top:8px;">From the staff list — edit in Settings → Staff.</div>`;
     }
     h+=`</div>`;
   });
@@ -655,7 +712,10 @@ function renderEntry(){
     Object.keys(S.data.staff).filter(id=>S.data.staff[id].active).forEach(id=>{
       h+=`<option value="${id}" ${f.staffId===id?"selected":""}>${esc(S.data.staff[id].name)}</option>`;
     });
-    h+=`</select></label>`;
+    h+=`</select></label>
+      <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:var(--navy-800);cursor:pointer;">
+        <input type="checkbox" id="f-unpaid" ${f.unpaid?"checked":""} style="width:18px;height:18px;accent-color:#1D3EA9;"> Unpaid time off (no PTO balance used)
+      </label>`;
   }
   h+=`<label style="${lab}">${f.type==="pto"?"Label (optional)":"Title"}
       <input type="text" id="f-title" value="${esc(f.title)}" placeholder="${f.type==="pto"?"e.g. Vacation, Sick day":(f.type==="task"?"e.g. Supply order due":"e.g. Staff meeting")}" style="${inp}">
@@ -676,6 +736,8 @@ function renderEntry(){
     h+=`<label style="${lab}">Repeats
       <select id="f-rec" style="${inp}background:#fff;">
         <option value="" ${!f.recurrence?"selected":""}>Does not repeat</option>
+        <option value="weekly" ${f.recurrence==="weekly"?"selected":""}>Weekly</option>
+        <option value="biweekly" ${f.recurrence==="biweekly"?"selected":""}>Every 2 weeks</option>
         <option value="monthly" ${f.recurrence==="monthly"?"selected":""}>Monthly</option>
         <option value="quarterly" ${f.recurrence==="quarterly"?"selected":""}>Quarterly</option>
         <option value="yearly" ${f.recurrence==="yearly"?"selected":""}>Yearly</option>
@@ -711,29 +773,77 @@ function renderSettings(){
       <div class="disp" style="flex:1;font-weight:700;font-size:24px;color:var(--navy-800);">Admin settings</div>
       <button data-act="close-settings" aria-label="Close" style="border:none;background:var(--grey-100);color:var(--navy-800);border-radius:999px;width:34px;height:34px;font-size:15px;">✕</button>
     </div>
-    <div class="disp" style="font-weight:600;letter-spacing:.12em;font-size:14px;color:var(--blue-600);margin-bottom:10px;">Staff list</div>
+    <div class="disp" style="font-weight:600;letter-spacing:.12em;font-size:14px;color:var(--blue-600);margin-bottom:10px;">Staff</div>
     <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px;">`;
+  const inpSm=`padding:8px;border:2px solid var(--grey-300);border-radius:8px;font-size:13px;color:var(--navy-800);`;
   Object.keys(data.staff).forEach(id=>{
-    const s=data.staff[id];
-    h+=`<div style="display:flex;align-items:center;gap:10px;border:1px solid var(--grey-200);border-radius:10px;padding:8px 12px;">
-      <label style="display:flex;align-items:center;gap:10px;flex:1;cursor:pointer;font-size:15px;font-weight:600;color:${s.active?"#1B2F4C":"#969FAB"};">
-        <input type="checkbox" data-chg="staff-toggle" data-id="${id}" ${s.active?"checked":""} style="width:18px;height:18px;accent-color:#1D3EA9;"> ${esc(s.name)}
-      </label>
-      ${s.active?"":`<span style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--grey-400);">Inactive</span>`}
-      <button data-act="staff-remove" data-id="${id}" aria-label="Remove staff" style="border:none;background:transparent;color:var(--grey-400);font-size:15px;padding:4px;">✕</button>
-    </div>`;
+    const st=data.staff[id];
+    if(S.editStaffId===id){
+      h+=`<div style="border:2px solid var(--blue-500);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:8px;">
+        <input type="text" id="se-name" value="${esc(st.name)}" placeholder="Name" style="${inpSm}font-size:14px;font-weight:600;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--grey-600);">🎂 Birthday<input type="date" id="se-bday" value="${st.birthday||""}" style="${inpSm}"></label>
+          <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--grey-600);">Date of hire<input type="date" id="se-hire" value="${st.hireDate||""}" style="${inpSm}"></label>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;">
+          <button data-act="staff-edit-cancel" class="hov-grey" style="border:1px solid var(--grey-300);background:#fff;border-radius:999px;padding:7px 14px;font-size:13px;font-weight:600;color:var(--navy-800);">Cancel</button>
+          <button data-act="staff-edit-save" data-id="${id}" class="hov-navy9" style="border:none;background:var(--navy-800);border-radius:999px;padding:7px 16px;font-size:13px;font-weight:700;color:#fff;">Save</button>
+        </div>
+      </div>`;
+    } else {
+      let meta=[];
+      if(st.birthday) meta.push("🎂 "+prettyDate(st.birthday));
+      if(st.hireDate){
+        const t=tierFor(fullYearsSince(st.hireDate,todayStr()));
+        meta.push("Hired "+prettyDate(st.hireDate)+", "+parseD(st.hireDate).getFullYear()+" · Tier "+t.n);
+      }
+      h+=`<div style="display:flex;align-items:center;gap:10px;border:1px solid var(--grey-200);border-radius:10px;padding:8px 12px;">
+        <label style="display:flex;align-items:center;gap:10px;flex:1;cursor:pointer;min-width:0;">
+          <input type="checkbox" data-chg="staff-toggle" data-id="${id}" ${st.active?"checked":""} style="width:18px;height:18px;accent-color:#1D3EA9;flex:none;">
+          <span style="min-width:0;">
+            <span style="display:block;font-size:15px;font-weight:600;color:${st.active?"#1B2F4C":"#969FAB"};">${esc(st.name)}</span>
+            ${meta.length?`<span style="display:block;font-size:12px;color:var(--grey-400);">${esc(meta.join("  ·  "))}</span>`:""}
+          </span>
+        </label>
+        ${st.active?"":`<span style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--grey-400);flex:none;">Inactive</span>`}
+        <button data-act="staff-edit" data-id="${id}" class="hov-grey" style="border:1px solid var(--grey-300);background:#fff;border-radius:8px;padding:5px 12px;font-size:12.5px;font-weight:600;color:var(--navy-800);flex:none;">Edit</button>
+        <button data-act="staff-remove" data-id="${id}" aria-label="Remove staff" style="border:none;background:transparent;color:var(--grey-400);font-size:15px;padding:4px;flex:none;">✕</button>
+      </div>`;
+    }
   });
   h+=`</div>
-    <div style="display:flex;gap:8px;margin-bottom:6px;">
-      <input type="text" id="new-staff" placeholder="Add staff member…" style="flex:1;padding:10px;border:2px solid var(--grey-300);border-radius:10px;font-size:14px;color:var(--navy-800);">
-      <button data-act="staff-add" class="hov-navy9" style="border:none;background:var(--navy-800);border-radius:10px;padding:10px 18px;font-weight:700;font-size:14px;color:#fff;">Add</button>
+    <div style="border:1px dashed var(--grey-300);border-radius:10px;padding:10px 12px;margin-bottom:6px;display:flex;flex-direction:column;gap:8px;">
+      <input type="text" id="new-staff" placeholder="Add staff member — name" style="${inpSm}font-size:14px;font-weight:600;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--grey-600);">🎂 Birthday<input type="date" id="new-staff-bday" style="${inpSm}"></label>
+        <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--grey-600);">Date of hire<input type="date" id="new-staff-hire" style="${inpSm}"></label>
+      </div>
+      <button data-act="staff-add" class="hov-navy9" style="border:none;background:var(--navy-800);border-radius:999px;padding:9px;font-weight:700;font-size:14px;color:#fff;">Add staff member</button>
     </div>
-    <div style="font-size:12.5px;color:var(--grey-400);margin-bottom:24px;">Roster seeded from Gusto (active employees).</div>
+    <div style="font-size:12.5px;color:var(--grey-400);margin-bottom:24px;">Birthday 🎂 and work-anniversary 🎉 entries (with vacation-tier milestones at 2 and 5 years) appear on the calendar automatically. Removing someone deletes all their calendar entries.</div>
 
     <div class="disp" style="font-weight:600;letter-spacing:.12em;font-size:14px;color:var(--blue-600);margin-bottom:10px;">Time-Off app sync</div>
     <div style="font-size:14px;color:var(--grey-600);margin-bottom:4px;">Approved requests from the Time-Off Request app and office holidays appear on the calendar automatically.</div>
     <div style="font-size:12.5px;color:var(--grey-400);margin-bottom:12px;">${esc(syncNote)}</div>
     <button data-act="sync-now" class="hov-grey" style="border:1px solid var(--grey-300);background:#fff;border-radius:999px;padding:8px 18px;font-weight:600;font-size:13px;color:var(--navy-800);margin-bottom:24px;">Sync now</button>
+
+    <div class="disp" style="font-weight:600;letter-spacing:.12em;font-size:14px;color:var(--blue-600);margin-bottom:10px;">Office closures</div>
+    <div style="font-size:13px;color:var(--grey-500);margin-bottom:10px;">Office-specific closed days (beyond the handbook holidays) — shown as ★ holidays; PTO is never counted on them.</div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;">`;
+  const closures=data.settings.closures||{};
+  const clKeys=Object.keys(closures).sort();
+  if(!clKeys.length) h+=`<span style="font-size:14px;color:var(--grey-500);">None set.</span>`;
+  clKeys.forEach(ds=>{
+    h+=`<span style="display:inline-flex;align-items:center;gap:8px;background:var(--navy-800);color:#fff;border-radius:999px;padding:6px 8px 6px 14px;font-size:13.5px;font-weight:600;">★ ${esc(closures[ds])} — ${prettyDate(ds)}, ${parseD(ds).getFullYear()}
+      <button data-act="closure-remove" data-date="${ds}" aria-label="Remove closure" style="border:none;background:var(--navy-700);color:#fff;border-radius:999px;width:22px;height:22px;font-size:11px;line-height:1;">✕</button>
+    </span>`;
+  });
+  h+=`</div>
+    <div style="display:flex;gap:8px;margin-bottom:24px;flex-wrap:wrap;">
+      <input type="date" id="new-closure-date" style="padding:9px;border:2px solid var(--grey-300);border-radius:10px;font-size:14px;color:var(--navy-800);">
+      <input type="text" id="new-closure-label" placeholder="Label, e.g. Winter Holidays" style="flex:1;min-width:160px;padding:9px;border:2px solid var(--grey-300);border-radius:10px;font-size:14px;color:var(--navy-800);">
+      <button data-act="closure-add" class="hov-navy9" style="border:none;background:var(--navy-800);border-radius:10px;padding:10px 18px;font-weight:700;font-size:14px;color:#fff;">Add</button>
+    </div>
 
     <div class="disp" style="font-weight:600;letter-spacing:.12em;font-size:14px;color:var(--blue-600);margin-bottom:10px;">Blackout dates (no PTO)</div>
     <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;">`;
@@ -796,7 +906,7 @@ document.getElementById("app").addEventListener("click",(ev)=>{
       if(!e) break;
       S.form={ id:el.dataset.id, type:e.type, title:(e.type==="pto"&&e.title==="PTO")?"":e.title, staffId:e.staffId||"",
                startDate:e.startDate, endDate:e.endDate||e.startDate, allDay:!e.time, time:e.time||"09:00",
-               notes:e.notes||"", recurrence:e.recurrence||"" };
+               notes:e.notes||"", recurrence:e.recurrence||"", unpaid:!!e.unpaid };
       S.entryOpen=true; S.blackoutWarn=false; S.formError=""; render(); break;
     }
     case "del-entry": deleteEntry(el.dataset.id); break;
@@ -806,15 +916,43 @@ document.getElementById("app").addEventListener("click",(ev)=>{
     case "sync-now": syncTimeOff(); break;
     case "staff-remove": {
       const id=el.dataset.id;
-      if(!window.confirm("Remove "+S.data.staff[id].name+" from the staff list? Existing PTO entries stay on the calendar.")) break;
-      fbRemove("staff/"+id); break;
+      if(!window.confirm("Remove "+S.data.staff[id].name+"?\n\nThis also deletes ALL their calendar entries — PTO, birthday, and work-anniversary dates.")) break;
+      Object.keys(S.data.events).forEach(eid=>{ if(S.data.events[eid].staffId===id) fbRemove("events/"+eid); });
+      fbRemove("staff/"+id);
+      if(S.editStaffId===id) S.editStaffId=null;
+      break;
     }
     case "staff-add": {
-      const inp=document.getElementById("new-staff");
-      const name=(inp.value||"").trim();
+      const name=(document.getElementById("new-staff").value||"").trim();
       if(!name) break;
-      fbSet("staff/s"+Date.now(),{name,active:true});
-      inp.value=""; break;
+      const bday=document.getElementById("new-staff-bday").value||null;
+      const hire=document.getElementById("new-staff-hire").value||null;
+      const rec={name,active:true};
+      if(bday) rec.birthday=bday;
+      if(hire) rec.hireDate=hire;
+      fbSet("staff/s"+Date.now(),rec);
+      break;
+    }
+    case "staff-edit": S.editStaffId=el.dataset.id; render(); break;
+    case "staff-edit-cancel": S.editStaffId=null; render(); break;
+    case "staff-edit-save": {
+      const id=el.dataset.id;
+      const name=(document.getElementById("se-name").value||"").trim();
+      if(!name) break;
+      const upd={ name,
+        birthday: document.getElementById("se-bday").value||null,
+        hireDate: document.getElementById("se-hire").value||null };
+      db.ref(CAL_ROOT+"/staff/"+id).update(upd).catch(fbErr);
+      S.editStaffId=null;
+      break;
+    }
+    case "closure-remove": fbRemove("settings/closures/"+el.dataset.date); break;
+    case "closure-add": {
+      const d=document.getElementById("new-closure-date").value;
+      const lbl=(document.getElementById("new-closure-label").value||"").trim()||"Office closed";
+      if(!d) break;
+      fbSet("settings/closures/"+d,lbl);
+      break;
     }
     case "blackout-remove": fbRemove("settings/blackoutDates/"+el.dataset.date); break;
     case "blackout-add": {
