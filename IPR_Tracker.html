@@ -675,12 +675,13 @@ function ScaleToFit({ children, minWidth }) {
 // maxilla (∩, incisors at top); invert=true → mandible (∪, incisors at bottom).
 const ARCH_W = 740, ARCH_H = 500;
 function archPositions(count, invert, boxOffset) {
-  // Tapered-U dental arch: x = a·t, depth = k·|t|^n (t ∈ [-1,1]).
-  // Narrow across, deep down, arms nearly parallel — teeth spaced evenly by arc length.
-  const a = 248, k = 330, n = 2.3, apex = 128;
+  // U dental arch: anterior tracks the classic taper (linear part) while the
+  // sin() part saturates x at the ends so the posterior arms come in and run
+  // near-parallel instead of flaring; depth = k·|t|^n (t ∈ [-1,1]).
+  const a = 205, c = 0.75, k = 330, n = 2.2, apex = 128;
   const cx = ARCH_W / 2;
   const curve = t => ({
-    x: cx + a * t,
+    x: cx + a * ((1 - c) * t + c * Math.sin(t * Math.PI / 2)),
     y: invert ? (ARCH_H - apex) - k * Math.pow(Math.abs(t), n) : apex + k * Math.pow(Math.abs(t), n)
   });
   // arc-length table
