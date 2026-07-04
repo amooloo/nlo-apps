@@ -56,7 +56,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
   }
 </style>
 
-<div id="root"></div>
+<div id="authGate" style="display:flex;position:fixed;inset:0;z-index:9999;background:#0f172a;flex-direction:column;align-items:center;justify-content:center;gap:18px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <div style="font-size:26px;font-weight:700;color:#f1f5f9;">NLO IPR Tracker</div>
+  <div style="font-size:14px;color:#94a3b8;">Sign in with your office Google account</div>
+  <button id="signInBtn" style="padding:12px 28px;font-size:16px;font-weight:600;border:none;border-radius:10px;background:#3b82f6;color:#fff;cursor:pointer;">Sign in with Google</button>
+  <div id="authErr" style="color:#f87171;font-size:13px;max-width:340px;text-align:center;"></div>
+</div>
+<div id="root" style="display:none"></div>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <script>/**
  * @license React
  * react.production.min.js
@@ -358,48 +367,170 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
 })();
 </script>
 <script>
-// ─── Supabase config ──────────────────────────────────────────────────────────
-const SUPABASE_URL = "https://iazittnigcjsjurreufv.supabase.co";
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlheml0dG5pZ2Nqc2p1cnJldWZ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ3ODMyMjMsImV4cCI6MjA5MDM1OTIyM30.aEJO6laiZkjk1kDRCBnAw2TtnQXB41L4WlTmpbTYBD4";
-const SB_HEADERS = {
-  "apikey": SUPABASE_KEY,
-  "Authorization": `Bearer ${SUPABASE_KEY}`,
-  "Content-Type": "application/json",
-  "Prefer": "return=representation"
+// ─── Firebase config (shared NLO project — same as Cadence / Staff Meeting) ───
+const firebaseConfig = {
+  apiKey: "AIzaSyBFCmDgAKkdfZ4Cb81nK0KCKXtONiwMJy4",
+  authDomain: "nlo-inventory.firebaseapp.com",
+  databaseURL: "https://nlo-inventory-default-rtdb.firebaseio.com",
+  projectId: "nlo-inventory",
+  storageBucket: "nlo-inventory.firebasestorage.app",
+  messagingSenderId: "471691286148",
+  appId: "1:471691286148:web:b362a98186f648bd4914d1"
 };
-async function sbGet(path) {
-  const r = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
-    headers: SB_HEADERS
-  });
-  if (!r.ok) throw new Error(await r.text());
-  return r.json();
+firebase.initializeApp(firebaseConfig);
+const fbAuth = firebase.auth();
+const fbDB = firebase.database();
+const IPR_ROOT = "nlo/ipr";
+const ALLOWED_EMAILS = ["akhavan.ak@gmail.com"];
+const ALLOWED_DOMAIN = "thenextlevelorthodontics.com";
+function isAllowedEmail(email) {
+  const e = (email || "").toLowerCase();
+  if (!e) return false;
+  if (ALLOWED_EMAILS.indexOf(e) !== -1) return true;
+  return e.endsWith("@" + ALLOWED_DOMAIN);
 }
-async function sbPost(path, body) {
-  const r = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
-    method: "POST",
-    headers: SB_HEADERS,
-    body: JSON.stringify(body)
+
+// ─── Data layer: same sbGet/sbPost/sbPatch/sbDelete API, backed by Firebase ───
+// Supabase-style query strings (eq., ilike., or=(), order=, limit=) are parsed
+// and evaluated client-side. Data lives at nlo/ipr/patients/{id} and
+// nlo/ipr/visits/{patient_uuid}/{visit_id}.
+function fbSanitize(obj) {
+  // Firebase rejects undefined; JSON round-trip strips them (and functions)
+  return JSON.parse(JSON.stringify(obj === undefined ? null : obj));
+}
+function fbParseCond(field, spec) {
+  // spec like "eq.15-6541" or "ilike.*jg*"
+  const dot = spec.indexOf(".");
+  return { field: field, op: spec.slice(0, dot), val: spec.slice(dot + 1) };
+}
+function fbIlikeRegex(pat) {
+  const esc = pat.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*");
+  return new RegExp("^" + esc + "$", "i");
+}
+function fbMatch(row, c) {
+  const v = row[c.field] === undefined || row[c.field] === null ? "" : String(row[c.field]);
+  if (c.op === "eq") return v === c.val;
+  if (c.op === "ilike") return fbIlikeRegex(c.val).test(v);
+  return false;
+}
+function fbOrder(rows, orderSpec) {
+  if (!orderSpec) return rows;
+  const keys = orderSpec.split(",").map(s => {
+    const parts = s.split(".");
+    return { field: parts[0], desc: parts[1] === "desc" };
   });
-  if (!r.ok) throw new Error(await r.text());
-  const t = await r.text();
-  return t ? JSON.parse(t) : null;
+  return rows.slice().sort((a, b) => {
+    for (const k of keys) {
+      const av = a[k.field] === undefined || a[k.field] === null ? "" : String(a[k.field]);
+      const bv = b[k.field] === undefined || b[k.field] === null ? "" : String(b[k.field]);
+      if (av < bv) return k.desc ? 1 : -1;
+      if (av > bv) return k.desc ? -1 : 1;
+    }
+    return 0;
+  });
+}
+function fbLimit(rows, lim) {
+  const n = parseInt(lim, 10);
+  return isNaN(n) ? rows : rows.slice(0, n);
+}
+async function sbGet(path) {
+  const q = path.split("?");
+  const table = q[0];
+  const params = new URLSearchParams(q[1] || "");
+  if (table === "patients") {
+    const snap = await fbDB.ref(IPR_ROOT + "/patients").once("value");
+    let rows = Object.values(snap.val() || {});
+    for (const [k, v] of params.entries()) {
+      if (k === "select" || k === "order" || k === "limit") continue;
+      if (k === "or") {
+        const conds = v.replace(/^\(/, "").replace(/\)$/, "").split(",").map(s => {
+          const dot = s.indexOf(".");
+          return fbParseCond(s.slice(0, dot), s.slice(dot + 1));
+        });
+        rows = rows.filter(r => conds.some(c => fbMatch(r, c)));
+      } else {
+        const c = fbParseCond(k, v);
+        rows = rows.filter(r => fbMatch(r, c));
+      }
+    }
+    return fbLimit(fbOrder(rows, params.get("order")), params.get("limit"));
+  }
+  if (table === "visits") {
+    const puSpec = params.get("patient_uuid") || "";
+    const pu = puSpec.replace(/^eq\./, "");
+    if (!pu) return [];
+    const snap = await fbDB.ref(IPR_ROOT + "/visits/" + pu).once("value");
+    const rows = Object.values(snap.val() || {});
+    return fbLimit(fbOrder(rows, params.get("order") || "date.desc"), params.get("limit"));
+  }
+  throw new Error("Unknown table: " + table);
+}
+async function sbPost(table, body) {
+  const id = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + "-" + Math.random().toString(36).slice(2));
+  const row = fbSanitize({ ...body, id: id, created_at: new Date().toISOString() });
+  if (table === "patients") {
+    await fbDB.ref(IPR_ROOT + "/patients/" + id).set(row);
+    return [row];
+  }
+  if (table === "visits") {
+    if (!row.patient_uuid) throw new Error("Visit missing patient_uuid");
+    await fbDB.ref(IPR_ROOT + "/visits/" + row.patient_uuid + "/" + id).set(row);
+    return [row];
+  }
+  throw new Error("Unknown table: " + table);
 }
 async function sbPatch(path, body) {
-  const r = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
-    method: "PATCH",
-    headers: SB_HEADERS,
-    body: JSON.stringify(body)
-  });
-  if (!r.ok) throw new Error(await r.text());
-  const t = await r.text();
-  return t ? JSON.parse(t) : null;
+  const q = path.split("?");
+  const table = q[0];
+  const params = new URLSearchParams(q[1] || "");
+  const id = (params.get("id") || "").replace(/^eq\./, "");
+  if (!id) throw new Error("PATCH needs id=eq.<id>");
+  if (table === "visits") {
+    let pu = body && body.patient_uuid;
+    if (!pu) {
+      // locate the visit by scanning (rare fallback)
+      const snap = await fbDB.ref(IPR_ROOT + "/visits").once("value");
+      const all = snap.val() || {};
+      for (const k of Object.keys(all)) {
+        if (all[k] && all[k][id]) { pu = k; break; }
+      }
+      if (!pu) throw new Error("Visit not found: " + id);
+    }
+    const upd = fbSanitize({ ...body, id: id });
+    await fbDB.ref(IPR_ROOT + "/visits/" + pu + "/" + id).update(upd);
+    return [upd];
+  }
+  if (table === "patients") {
+    const upd = fbSanitize({ ...body, id: id });
+    await fbDB.ref(IPR_ROOT + "/patients/" + id).update(upd);
+    return [upd];
+  }
+  throw new Error("Unknown table: " + table);
 }
 async function sbDelete(path) {
-  const r = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
-    method: "DELETE",
-    headers: SB_HEADERS
-  });
-  if (!r.ok) throw new Error(await r.text());
+  const q = path.split("?");
+  const table = q[0];
+  const params = new URLSearchParams(q[1] || "");
+  const id = (params.get("id") || "").replace(/^eq\./, "");
+  if (!id) throw new Error("DELETE needs id=eq.<id>");
+  if (table === "patients") {
+    // cascade: remove the patient and all their visits
+    await fbDB.ref(IPR_ROOT + "/visits/" + id).remove();
+    await fbDB.ref(IPR_ROOT + "/patients/" + id).remove();
+    return;
+  }
+  if (table === "visits") {
+    const snap = await fbDB.ref(IPR_ROOT + "/visits").once("value");
+    const all = snap.val() || {};
+    for (const k of Object.keys(all)) {
+      if (all[k] && all[k][id]) {
+        await fbDB.ref(IPR_ROOT + "/visits/" + k + "/" + id).remove();
+        return;
+      }
+    }
+    return;
+  }
+  throw new Error("Unknown table: " + table);
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -538,6 +669,460 @@ function ScaleToFit({ children, minWidth }) {
   );
 }
 
+// ─── Occlusal arch-form geometry ──────────────────────────────────────────────
+// Teeth as circles along a U-shaped arch (occlusal view); each interproximal
+// contact gets a leader line radiating outward to its entry box. invert=false →
+// maxilla (∩, incisors at top); invert=true → mandible (∪, incisors at bottom).
+const ARCH_W = 740, ARCH_H = 500;
+function archPositions(count, invert, boxOffset) {
+  // Tapered-U dental arch: x = a·t, depth = k·|t|^n (t ∈ [-1,1]).
+  // Narrow across, deep down, arms nearly parallel — teeth spaced evenly by arc length.
+  const a = 248, k = 330, n = 2.3, apex = 128;
+  const cx = ARCH_W / 2;
+  const curve = t => ({
+    x: cx + a * t,
+    y: invert ? (ARCH_H - apex) - k * Math.pow(Math.abs(t), n) : apex + k * Math.pow(Math.abs(t), n)
+  });
+  // arc-length table
+  const SAMPLES = 800, pts = [], cum = [0];
+  for (let i = 0; i <= SAMPLES; i++) pts.push(curve(-1 + 2 * i / SAMPLES));
+  for (let i = 1; i <= SAMPLES; i++) cum.push(cum[i - 1] + Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y));
+  const total = cum[SAMPLES];
+  const tAt = s => {
+    let lo = 0, hi = SAMPLES;
+    while (lo < hi) { const m = (lo + hi) >> 1; if (cum[m] < s) lo = m + 1; else hi = m; }
+    return -1 + 2 * lo / SAMPLES;
+  };
+  // position + outward normal + tangent rotation at parameter t
+  const frame = t => {
+    const e = 0.004;
+    const p = curve(t);
+    const p1 = curve(Math.max(-1, t - e)), p2 = curve(Math.min(1, t + e));
+    let tx = p2.x - p1.x, ty = p2.y - p1.y;
+    const L = Math.hypot(tx, ty) || 1; tx /= L; ty /= L;
+    let nx = -ty, ny = tx;
+    const cyI = invert ? (ARCH_H - apex) - k * 0.5 : apex + k * 0.5; // interior reference
+    if (nx * (p.x - cx) + ny * (p.y - cyI) < 0) { nx = -nx; ny = -ny; }
+    return { p, nx, ny, rot: Math.atan2(ty, tx) * 180 / Math.PI };
+  };
+  const teeth = [], contacts = [];
+  const seg = total / (count - 1);
+  for (let i = 0; i < count; i++) {
+    const f = frame(tAt(i * seg));
+    teeth.push({ x: f.p.x, y: f.p.y, rot: f.rot });
+    if (i < count - 1) {
+      const fm = frame(tAt((i + 0.5) * seg));
+      contacts.push({
+        x: fm.p.x + fm.nx * 38, y: fm.p.y + fm.ny * 38,
+        bx: fm.p.x + fm.nx * boxOffset, by: fm.p.y + fm.ny * boxOffset,
+        gx: Math.max(16, Math.min(ARCH_W - 16, fm.p.x + fm.nx * (boxOffset + 44))),
+        gy: Math.max(12, Math.min(ARCH_H - 12, fm.p.y + fm.ny * (boxOffset + 44)))
+      });
+    }
+  }
+  return { teeth, contacts };
+}
+// Occlusal-view tooth glyph. Drawn with the mesiodistal axis horizontal in a
+// 48×48 viewBox, then rotated to follow the arch tangent.
+function archToothShape(tooth, p, key, opts) {
+  opts = opts || {};
+  const num = parseInt(tooth.replace(/[A-Z]/g, ""), 10);
+  const S = "#94a3b8", G = "#d3dae3", F = "#fdfefe", SW = 1.7;
+  let parts = [];
+  if (num <= 2) {
+    // Incisor: thin mesiodistal blade, fully rounded corners (stadium-ish, labial side fuller)
+    const rx = num === 1 ? 17 : 14;
+    const hT = 9.5, hB = 7.5; // labial / lingual half-heights
+    parts = [
+      /*#__PURE__*/React.createElement("path", {
+        key: "b",
+        d: `M ${24 - rx + 6} ${24 - hT} L ${24 + rx - 6} ${24 - hT} Q ${24 + rx} ${24 - hT} ${24 + rx} 24 Q ${24 + rx} ${24 + hB} ${24 + rx - 6} ${24 + hB} L ${24 - rx + 6} ${24 + hB} Q ${24 - rx} ${24 + hB} ${24 - rx} 24 Q ${24 - rx} ${24 - hT} ${24 - rx + 6} ${24 - hT} Z`,
+        fill: F, stroke: S, strokeWidth: SW
+      }),
+      /*#__PURE__*/React.createElement("path", {
+        key: "g",
+        d: `M ${24 - rx + 5} 24 Q 24 ${24 - 4} ${24 + rx - 5} 24`,
+        fill: "none", stroke: G, strokeWidth: 1.2
+      })
+    ];
+  } else if (num === 3) {
+    // Canine: pointed oval (cusp tip bulge on the labial side)
+    parts = [
+      /*#__PURE__*/React.createElement("path", {
+        key: "b",
+        d: "M 11 24 Q 15 12 24 10.5 Q 33 12 37 24 Q 33 33 24 34.5 Q 15 33 11 24 Z",
+        fill: F, stroke: S, strokeWidth: SW
+      }),
+      /*#__PURE__*/React.createElement("path", {
+        key: "g",
+        d: "M 24 15 L 24 30",
+        fill: "none", stroke: G, strokeWidth: 1.2
+      })
+    ];
+  } else if (num <= 5) {
+    // Premolar: buccolingually oval, central mesiodistal groove between two cusps
+    parts = [
+      /*#__PURE__*/React.createElement("ellipse", {
+        key: "b", cx: 24, cy: 24, rx: 13, ry: 15.5,
+        fill: F, stroke: S, strokeWidth: SW
+      }),
+      /*#__PURE__*/React.createElement("path", {
+        key: "g",
+        d: "M 14 24 Q 24 21.5 34 24",
+        fill: "none", stroke: G, strokeWidth: 1.4
+      }),
+      /*#__PURE__*/React.createElement("path", {
+        key: "g2",
+        d: "M 19 24 Q 18 18 20 14 M 29 24 Q 30 18 28 14 M 19 24 Q 18 30 20 33.5 M 29 24 Q 30 30 28 33.5",
+        fill: "none", stroke: G, strokeWidth: 1
+      })
+    ];
+  } else {
+    // Molar: rounded rhomboid with a groove cross (4 cusps); 2nd molar slightly smaller
+    const w = num === 6 ? 18.5 : 16.5, h = num === 6 ? 17 : 15;
+    parts = [
+      /*#__PURE__*/React.createElement("path", {
+        key: "b",
+        d: `M ${24 - w} ${24 - h * 0.35} Q ${24 - w - 1} ${24 - h} ${24 - w * 0.45} ${24 - h} L ${24 + w * 0.5} ${24 - h} Q ${24 + w + 1} ${24 - h} ${24 + w} ${24 - h * 0.3} L ${24 + w} ${24 + h * 0.35} Q ${24 + w + 1} ${24 + h} ${24 + w * 0.45} ${24 + h} L ${24 - w * 0.5} ${24 + h} Q ${24 - w - 1} ${24 + h} ${24 - w} ${24 + h * 0.3} Z`,
+        fill: F, stroke: S, strokeWidth: SW
+      }),
+      /*#__PURE__*/React.createElement("path", {
+        key: "g",
+        d: `M ${24 - w + 4} 24 Q 24 ${24 - 3} ${24 + w - 4} 24 M 24 ${24 - h + 4} Q ${24 + 2} 24 24 ${24 + h - 4}`,
+        fill: "none", stroke: G, strokeWidth: 1.4
+      }),
+      /*#__PURE__*/React.createElement("path", {
+        key: "g2",
+        d: `M ${24 - w + 4} ${24 - h * 0.5} Q ${24 - w * 0.4} ${24 - h * 0.3} ${24 - w * 0.35} ${24 - h + 4} M ${24 + w - 4} ${24 - h * 0.5} Q ${24 + w * 0.4} ${24 - h * 0.3} ${24 + w * 0.35} ${24 - h + 4}`,
+        fill: "none", stroke: G, strokeWidth: 0.9
+      })
+    ];
+  }
+  if (opts.missing) {
+    // ghost the tooth: dashed outline only, no grooves
+    parts = [React.cloneElement(parts[0], { fill: "#f8fafc", stroke: "#cbd5e1", strokeDasharray: "4 3" })];
+  }
+  return /*#__PURE__*/React.createElement("div", {
+    key: key,
+    title: opts.missing ? `${tooth} — missing` : tooth,
+    onClick: opts.selectable ? opts.onClick : undefined,
+    style: {
+      position: "absolute",
+      left: p.x - 34,
+      top: p.y - 34,
+      width: 68,
+      height: 68,
+      pointerEvents: opts.selectable ? "auto" : "none",
+      cursor: opts.selectable ? "pointer" : "default",
+      borderRadius: "50%",
+      outline: opts.selectable ? "2px dashed #94a3b8" : "none",
+      outlineOffset: -4
+    }
+  }, /*#__PURE__*/React.createElement("svg", {
+    width: 68, height: 68, viewBox: "0 0 48 48",
+    style: {
+      display: "block",
+      transform: `rotate(${p.rot}deg)`,
+      filter: opts.missing ? "none" : "drop-shadow(0 1px 1.5px #0002)"
+    }
+  }, parts), /*#__PURE__*/React.createElement("span", {
+    style: {
+      position: "absolute",
+      top: "50%",
+      left: "50%",
+      transform: "translate(-50%, -50%)",
+      fontSize: 10.5,
+      fontWeight: 800,
+      color: opts.missing ? "#d4dae2" : "#94a3b8",
+      textDecoration: opts.missing ? "line-through" : "none",
+      textShadow: "0 0 3px #fff, 0 0 3px #fff"
+    }
+  }, opts.missing ? "✕" : num));
+}
+function archHeader(label, badges) {
+  return /*#__PURE__*/React.createElement("div", {
+    style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: { fontWeight: 700, fontSize: 14, color: "#475569" }
+  }, label), /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center" } }, badges));
+}
+function archQuadLabels(quadLeft, quadRight, invert) {
+  const y = invert ? 26 : ARCH_H - 40;
+  const mk = (txt, left) => /*#__PURE__*/React.createElement("span", {
+    key: txt,
+    style: {
+      position: "absolute",
+      top: y,
+      left: left ? 10 : undefined,
+      right: left ? undefined : 10,
+      fontSize: 11,
+      color: "#94a3b8",
+      fontWeight: 800,
+      letterSpacing: 0.5,
+      textTransform: "uppercase"
+    }
+  }, txt);
+  return [mk(quadLeft, true), mk(quadRight, false)];
+}
+
+// ─── Arch form: IPR entry ─────────────────────────────────────────────────────
+function ArchFormIPR({ teeth, contacts, onChange, label, quadLeft, quadRight, cumRef, readOnly, chipAmt, invert, missing, onToggleMissing }) {
+  const keys = Object.keys(contacts);
+  const total = sumContacts(contacts);
+  const prevTotal = cumRef ? sumContacts(cumRef) : 0;
+  const pos = archPositions(teeth.length, invert, 96);
+  const missingMode = chipAmt === "missing" && !readOnly && onToggleMissing;
+  const adjMissing = i => !!(missing && (missing[teeth[i]] || missing[teeth[i + 1]]));
+  return /*#__PURE__*/React.createElement("div", { style: { marginBottom: 8 } },
+    archHeader(label, [
+      cumRef && prevTotal > 0 && /*#__PURE__*/React.createElement("span", {
+        key: "prev",
+        style: { fontSize: 12, fontWeight: 600, color: "#7c3aed", background: "#f5f3ff", padding: "2px 8px", borderRadius: 4 }
+      }, `Prev: ${prevTotal.toFixed(1)}mm`),
+      /*#__PURE__*/React.createElement("span", {
+        key: "total",
+        style: {
+          fontSize: 13, fontWeight: 700,
+          color: total > 0 ? "#dc2626" : "#cbd5e1",
+          background: total > 0 ? "#fef2f2" : "transparent",
+          padding: total > 0 ? "2px 12px" : "2px 0",
+          borderRadius: 20, transition: "all 0.2s"
+        }
+      }, total > 0 ? `${total.toFixed(1)} mm total` : "—")
+    ]),
+    /*#__PURE__*/React.createElement(ScaleToFit, null,
+      /*#__PURE__*/React.createElement("div", {
+        style: { position: "relative", width: ARCH_W, height: ARCH_H, flexShrink: 0 }
+      },
+      /*#__PURE__*/React.createElement("svg", {
+        width: ARCH_W, height: ARCH_H,
+        style: { position: "absolute", top: 0, left: 0, pointerEvents: "none" }
+      }, pos.contacts.map((c, i) => /*#__PURE__*/React.createElement("line", {
+        key: i,
+        x1: c.x, y1: c.y, x2: c.bx, y2: c.by,
+        stroke: adjMissing(i) ? "#e8edf3" : (i === 6 ? "#fdba74" : "#cbd5e1"),
+        strokeDasharray: adjMissing(i) ? "3 4" : "none",
+        strokeWidth: 1.5
+      }))),
+      teeth.map((tooth, i) => archToothShape(tooth, pos.teeth[i], tooth, {
+        missing: !!(missing && missing[tooth]),
+        selectable: !!missingMode,
+        onClick: missingMode ? () => onToggleMissing(tooth) : undefined
+      })),
+      archQuadLabels(quadLeft, quadRight, invert),
+      pos.contacts.map((c, i) => {
+        const contactKey = keys[i];
+        if (!contactKey) return null;
+        const val = contacts[contactKey];
+        const hasVal = parseFloat(val) > 0;
+        const isMidline = i === 6;
+        const disabled = adjMissing(i);
+        return /*#__PURE__*/React.createElement("div", {
+          key: contactKey,
+          style: {
+            position: "absolute",
+            left: c.bx - 21,
+            top: c.by - 26,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            opacity: disabled ? 0.25 : 1,
+            pointerEvents: disabled ? "none" : "auto"
+          }
+        }, /*#__PURE__*/React.createElement("input", {
+          type: "number",
+          min: "0",
+          max: "0.8",
+          step: "0.1",
+          value: val,
+          readOnly: !!readOnly,
+          disabled: disabled,
+          onMouseDown: e => {
+            if (readOnly || chipAmt === undefined || chipAmt === null || chipAmt === "missing") return;
+            e.preventDefault();
+            if (chipAmt === "erase") { onChange(contactKey, ""); return; }
+            onChange(contactKey, val === chipAmt ? "" : chipAmt);
+          },
+          onChange: e => { if (readOnly) return; onChange(contactKey, e.target.value); },
+          onBlur: e => {
+            if (readOnly) return;
+            const v = parseFloat(e.target.value);
+            if (!isNaN(v)) {
+              if (v < 0) onChange(contactKey, "0");
+              else if (v > 0.8) onChange(contactKey, String(Math.min(v, 0.8).toFixed(1)));
+              else onChange(contactKey, String(Math.round(v * 10) / 10));
+            } else if (e.target.value.trim() === "") {
+              onChange(contactKey, "");
+            }
+          },
+          placeholder: "\xB7",
+          title: contactKey.replace("|", " → "),
+          style: {
+            width: 42,
+            height: 46,
+            textAlign: "center",
+            border: isMidline ? `2px solid ${hasVal ? "#f97316" : "#fed7aa"}` : `1.5px solid ${hasVal ? "#ef4444" : "#e2e8f0"}`,
+            borderRadius: 8,
+            fontSize: 14,
+            fontWeight: hasVal ? 700 : 400,
+            background: hasVal ? (isMidline ? "#fff7ed" : "#fef2f2") : "white",
+            color: hasVal ? (isMidline ? "#c2410c" : "#dc2626") : "#c0c9d8",
+            outline: "none",
+            padding: 0,
+            cursor: readOnly ? "not-allowed" : (chipAmt != null ? "pointer" : "text"),
+            boxShadow: "0 1px 3px #0001"
+          }
+        }), isMidline && /*#__PURE__*/React.createElement("span", {
+          style: { fontSize: 9, color: "#f97316", fontWeight: 700, marginTop: 1 }
+        }, "mid"));
+      }),
+      cumRef && pos.contacts.map((c, i) => {
+        const contactKey = keys[i];
+        if (!contactKey || !(parseFloat(cumRef[contactKey]) > 0)) return null;
+        return /*#__PURE__*/React.createElement("div", {
+          key: "cum" + contactKey,
+          title: "Cumulative from previous visits",
+          style: {
+            position: "absolute",
+            left: c.gx - 16,
+            top: c.gy - 9,
+            fontSize: 9,
+            color: "white",
+            fontWeight: 700,
+            background: "#7c3aed",
+            padding: "1px 5px",
+            borderRadius: 8,
+            whiteSpace: "nowrap"
+          }
+        }, cumRef[contactKey]);
+      })
+    ))
+  );
+}
+
+// ─── Arch form: Spaces & Black Triangles entry ────────────────────────────────
+function ArchFormSpaces({ teeth, spaces, bt, onSpaceChange, onBTChange, label, quadLeft, quadRight, readOnly, chipAmt, invert, missing, onToggleMissing }) {
+  const keys = Object.keys(spaces);
+  const total = sumContacts(spaces);
+  const btCount = Object.values(bt).filter(Boolean).length;
+  const pos = archPositions(teeth.length, invert, 96);
+  const missingMode = chipAmt === "missing" && !readOnly && onToggleMissing;
+  const adjMissing = i => !!(missing && (missing[teeth[i]] || missing[teeth[i + 1]]));
+  return /*#__PURE__*/React.createElement("div", { style: { marginBottom: 8 } },
+    archHeader(label, [
+      total > 0 && /*#__PURE__*/React.createElement("span", {
+        key: "sp",
+        style: { fontSize: 12, fontWeight: 700, color: "#0369a1", background: "#e0f2fe", padding: "2px 10px", borderRadius: 20 }
+      }, total.toFixed(1), " mm"),
+      btCount > 0 && /*#__PURE__*/React.createElement("span", {
+        key: "bt",
+        style: { fontSize: 12, fontWeight: 700, color: "#fff", background: "#1a1a1a", padding: "2px 10px", borderRadius: 20 }
+      }, "▼ ", btCount),
+      total === 0 && btCount === 0 && /*#__PURE__*/React.createElement("span", {
+        key: "none",
+        style: { fontSize: 13, color: "#cbd5e1" }
+      }, "—")
+    ]),
+    /*#__PURE__*/React.createElement(ScaleToFit, null,
+      /*#__PURE__*/React.createElement("div", {
+        style: { position: "relative", width: ARCH_W, height: ARCH_H, flexShrink: 0 }
+      },
+      /*#__PURE__*/React.createElement("svg", {
+        width: ARCH_W, height: ARCH_H,
+        style: { position: "absolute", top: 0, left: 0, pointerEvents: "none" }
+      }, pos.contacts.map((c, i) => /*#__PURE__*/React.createElement("line", {
+        key: i,
+        x1: c.x, y1: c.y, x2: c.bx, y2: c.by,
+        stroke: adjMissing(i) ? "#e8edf3" : (i === 6 ? "#7dd3fc" : "#cbd5e1"),
+        strokeDasharray: adjMissing(i) ? "3 4" : "none",
+        strokeWidth: 1.5
+      }))),
+      teeth.map((tooth, i) => archToothShape(tooth, pos.teeth[i], tooth, {
+        missing: !!(missing && missing[tooth]),
+        selectable: !!missingMode,
+        onClick: missingMode ? () => onToggleMissing(tooth) : undefined
+      })),
+      archQuadLabels(quadLeft, quadRight, invert),
+      pos.contacts.map((c, i) => {
+        const contactKey = keys[i];
+        if (!contactKey) return null;
+        const spaceVal = spaces[contactKey];
+        const btVal = bt[contactKey];
+        const hasSpace = parseFloat(spaceVal) > 0;
+        const isMidline = i === 6;
+        const disabled = adjMissing(i);
+        return /*#__PURE__*/React.createElement("div", {
+          key: contactKey,
+          style: {
+            position: "absolute",
+            left: c.bx - 19,
+            top: c.by - 32,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 2,
+            opacity: disabled ? 0.25 : 1,
+            pointerEvents: disabled ? "none" : "auto"
+          }
+        }, /*#__PURE__*/React.createElement("input", {
+          type: "number",
+          min: "0",
+          max: "9.9",
+          step: "0.1",
+          value: spaceVal,
+          readOnly: !!readOnly,
+          disabled: disabled,
+          onMouseDown: e => {
+            if (readOnly || chipAmt === undefined || chipAmt === null || chipAmt === "missing") return;
+            e.preventDefault();
+            if (chipAmt === "erase") { onSpaceChange(contactKey, ""); return; }
+            onSpaceChange(contactKey, spaceVal === chipAmt ? "" : chipAmt);
+          },
+          onChange: e => { if (readOnly) return; onSpaceChange(contactKey, e.target.value); },
+          placeholder: "\xB7",
+          title: `Space: ${contactKey.replace("|", " → ")}`,
+          style: {
+            width: 38,
+            height: 36,
+            textAlign: "center",
+            border: isMidline ? `2px solid ${hasSpace ? "#0284c7" : "#bae6fd"}` : `1.5px solid ${hasSpace ? "#0284c7" : "#e2e8f0"}`,
+            borderRadius: 8,
+            fontSize: 13,
+            fontWeight: hasSpace ? 700 : 400,
+            background: hasSpace ? "#e0f2fe" : "white",
+            color: hasSpace ? "#0369a1" : "#c0c9d8",
+            outline: "none",
+            padding: 0,
+            cursor: readOnly ? "not-allowed" : (chipAmt != null ? "pointer" : "text"),
+            boxShadow: "0 1px 3px #0001"
+          }
+        }), /*#__PURE__*/React.createElement("button", {
+          onClick: () => { if (readOnly) return; onBTChange(contactKey, !btVal); },
+          disabled: !!readOnly,
+          title: `Black triangle at ${contactKey.replace("|", " → ")}`,
+          style: {
+            width: 38,
+            height: 24,
+            border: btVal ? "2px solid #111" : "1.5px solid #e2e8f0",
+            borderRadius: 6,
+            background: btVal ? "#111" : "white",
+            color: btVal ? "white" : "#d1d5db",
+            fontSize: 12,
+            cursor: readOnly ? "not-allowed" : "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 0,
+            lineHeight: 1,
+            fontFamily: "inherit",
+            opacity: readOnly && !btVal ? 0.5 : 1
+          }
+        }, "▼"));
+      })
+    ))
+  );
+}
+
 // ─── Recent patients (localStorage) ───────────────────────────────────────────
 function getRecentPatients() {
   try { return JSON.parse(localStorage.getItem("ipr_recent") || "[]"); } catch (e) { return []; }
@@ -553,7 +1138,8 @@ function pushRecentPatient(p) {
 
 // ─── One-click amount palette ─────────────────────────────────────────────────
 const CHIP_AMOUNTS = ["0.1", "0.2", "0.3", "0.4", "0.5"];
-function AmountPalette({ chipAmt, setChipAmt, compact }) {
+const SPACE_CHIP_AMOUNTS = ["0.1", "0.2", "0.3", "0.5", "1.0", "1.5", "2.0"];
+function AmountPalette({ chipAmt, setChipAmt, compact, amounts }) {
   const chipStyle = (active, color) => ({
     minWidth: compact ? 44 : 54,
     padding: compact ? "8px 10px" : "12px 14px",
@@ -586,7 +1172,7 @@ function AmountPalette({ chipAmt, setChipAmt, compact }) {
   }, /*#__PURE__*/React.createElement("span", {
     style: { fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: 0.5, marginRight: 2 }
   }, "Pick amount, then click contacts:"),
-  CHIP_AMOUNTS.map(a => /*#__PURE__*/React.createElement("button", {
+  (amounts || CHIP_AMOUNTS).map(a => /*#__PURE__*/React.createElement("button", {
     key: a,
     onClick: () => setChipAmt(a),
     style: chipStyle(chipAmt === a)
@@ -596,11 +1182,19 @@ function AmountPalette({ chipAmt, setChipAmt, compact }) {
     style: chipStyle(chipAmt === "erase", "#dc2626")
   }, "⌫ Erase"),
   /*#__PURE__*/React.createElement("button", {
+    onClick: () => setChipAmt("missing"),
+    style: chipStyle(chipAmt === "missing", "#334155"),
+    title: "Mark or unmark missing teeth"
+  }, "✕ Missing"),
+  /*#__PURE__*/React.createElement("button", {
     onClick: () => setChipAmt(null),
     style: chipStyle(chipAmt === null, "#7c3aed"),
     title: "Turn click-entry off and type values manually"
   }, "⌨ Type"),
-  chipAmt && chipAmt !== "erase" && /*#__PURE__*/React.createElement("span", {
+  chipAmt === "missing" && /*#__PURE__*/React.createElement("span", {
+    style: { fontSize: 11, color: "#334155", fontWeight: 700 }
+  }, "click a TOOTH to mark it missing (click again to restore)"),
+  chipAmt && chipAmt !== "erase" && chipAmt !== "missing" && /*#__PURE__*/React.createElement("span", {
     style: { fontSize: 11, color: "#94a3b8", fontWeight: 600 }
   }, "click a contact again to clear it"));
 }
@@ -802,7 +1396,8 @@ function SpacesArchRow({
   label,
   quadLeft,
   quadRight,
-  readOnly
+  readOnly,
+  chipAmt
 }) {
   const keys = Object.keys(spaces);
   const total = sumContacts(spaces);
@@ -923,6 +1518,12 @@ function SpacesArchRow({
       step: "0.1",
       value: spaceVal,
       readOnly: !!readOnly,
+      onMouseDown: e => {
+        if (readOnly || chipAmt === undefined || chipAmt === null) return;
+        e.preventDefault();
+        if (chipAmt === "erase") { onSpaceChange(contactKey, ""); return; }
+        onSpaceChange(contactKey, spaceVal === chipAmt ? "" : chipAmt);
+      },
       onChange: e => { if (readOnly) return; onSpaceChange(contactKey, e.target.value); },
       placeholder: "\xB7",
       title: `Space: ${contactKey.replace("|", " → ")}`,
@@ -938,7 +1539,7 @@ function SpacesArchRow({
         color: hasSpace ? "#0369a1" : "#c0c9d8",
         outline: "none",
         padding: 0,
-        cursor: readOnly ? "not-allowed" : "text",
+        cursor: readOnly ? "not-allowed" : (chipAmt != null ? "pointer" : "text"),
         flexShrink: 0
       }
     }), /*#__PURE__*/React.createElement("button", {
@@ -1811,6 +2412,29 @@ function App() {
   const [lowerSpaces, setLowerSpaces] = React.useState(() => load("ipr_lower_spaces", initContacts(LOWER)));
   const [upperBT, setUpperBT] = React.useState(() => load("ipr_upper_bt", initBT(UPPER)));
   const [lowerBT, setLowerBT] = React.useState(() => load("ipr_lower_bt", initBT(LOWER)));
+  const [missingTeeth, setMissingTeeth] = React.useState(() => load("ipr_missing", {}));
+
+  // Toggle a tooth missing/present. Marking missing also clears its adjacent contacts
+  // (IPR, spaces, BT) since those contacts no longer exist clinically.
+  const toggleMissing = tooth => {
+    setMissingTeeth(prev => {
+      const nowMissing = !prev[tooth];
+      if (nowMissing) {
+        const isU = tooth[0] === "U";
+        const arr = isU ? UPPER : LOWER;
+        const i = arr.indexOf(tooth);
+        const ck = Object.keys(initContacts(arr));
+        const affected = [ck[i - 1], ck[i]].filter(Boolean);
+        const clearVals = obj => { const o = { ...obj }; affected.forEach(k => { if (k in o) o[k] = ""; }); return o; };
+        const clearBools = obj => { const o = { ...obj }; affected.forEach(k => { if (k in o) o[k] = false; }); return o; };
+        if (isU) { setUpper(clearVals); setUpperSpaces(clearVals); setUpperBT(clearBools); setPrescribedUpper(clearVals); }
+        else { setLower(clearVals); setLowerSpaces(clearVals); setLowerBT(clearBools); setPrescribedLower(clearVals); }
+      }
+      const next = { ...prev };
+      if (nowMissing) next[tooth] = true; else delete next[tooth];
+      return next;
+    });
+  };
 
   // Patient record state
   const [dbPatient, setDbPatient] = React.useState(null); // { id, name, patient_id }
@@ -1832,6 +2456,7 @@ function App() {
   // UI state
   const [activeTab, setActiveTab] = React.useState("ipr");
   const [chipAmt, setChipAmt] = React.useState("0.3"); // one-click entry amount; null = type mode; "erase" = eraser
+  const [spaceChipAmt, setSpaceChipAmt] = React.useState("0.5"); // same, for the Spaces tab
   const [lastSavedAt, setLastSavedAt] = React.useState(null); // Date of last successful auto/manual save
   const [showMenu, setShowMenu] = React.useState(false); // header ⋯ overflow menu
   const [saved, setSaved] = React.useState(false);
@@ -1850,13 +2475,9 @@ function App() {
 const [dbConnected, setDbConnected] = React.useState(null); // null=checking, true/false
   const [dbPatientCount, setDbPatientCount] = React.useState(null);
   React.useEffect(() => {
-    sbGet("patients?select=id&limit=1").then(r => {
+    sbGet("patients?select=id").then(r => {
       setDbConnected(true);
-      // Also get total count
-      return fetch(`${SUPABASE_URL}/rest/v1/patients?select=id`, { headers: { ...SB_HEADERS, "Prefer": "count=exact" }, method: "HEAD" });
-    }).then(r => {
-      const count = r && r.headers ? r.headers.get("content-range") : null;
-      if (count) { const m = count.match(/\/(\d+)/); if (m) setDbPatientCount(parseInt(m[1])); }
+      setDbPatientCount(r.length);
     }).catch(() => { setDbConnected(false); });
   }, []);
 
@@ -1989,11 +2610,12 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
       sessionStorage.setItem("ipr_lower_spaces", JSON.stringify(lowerSpaces));
       sessionStorage.setItem("ipr_upper_bt", JSON.stringify(upperBT));
       sessionStorage.setItem("ipr_lower_bt", JSON.stringify(lowerBT));
+      sessionStorage.setItem("ipr_missing", JSON.stringify(missingTeeth));
       setSaved(true);
       setTimeout(() => setSaved(false), 1500);
     }, 500);
     return () => clearTimeout(saveTimer);
-  }, [patient, upper, lower, notes, gaugeVerified, upperSpaces, lowerSpaces, upperBT, lowerBT]);
+  }, [patient, upper, lower, notes, gaugeVerified, upperSpaces, lowerSpaces, upperBT, lowerBT, missingTeeth]);
 
   // Patient search
   const handleSearch = async () => {
@@ -2150,6 +2772,10 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
         visitData.prescribed_upper = prescribedUpper;
         visitData.prescribed_lower = prescribedLower;
       }
+      // To add: ALTER TABLE visits ADD COLUMN missing_teeth jsonb;
+      if (window.__missingTeethColumnExists !== false) {
+        visitData.missing_teeth = missingTeeth;
+      }
       const doSave = async (data) => {
         if (currentVisitId) {
           await sbPatch(`visits?id=eq.${currentVisitId}`, data);
@@ -2163,17 +2789,23 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
           setSyncMsg("Saved to patient record ✓");
         }
       };
-      try {
-        await doSave(visitData);
-      } catch (retryErr) {
-        if (hasPrescribedCols && String(retryErr).includes("prescribed_")) {
-          // Columns don't exist yet — retry without them
-          window.__prescribedColumnsExist = false;
-          delete visitData.prescribed_upper;
-          delete visitData.prescribed_lower;
+      // Save, progressively stripping optional columns the DB may not have yet
+      for (let attempt = 0; ; attempt++) {
+        try {
           await doSave(visitData);
-        } else {
-          throw retryErr;
+          break;
+        } catch (retryErr) {
+          const msg = String(retryErr);
+          if (attempt < 3 && msg.includes("prescribed_") && ("prescribed_upper" in visitData)) {
+            window.__prescribedColumnsExist = false;
+            delete visitData.prescribed_upper;
+            delete visitData.prescribed_lower;
+          } else if (attempt < 3 && msg.includes("missing_teeth") && ("missing_teeth" in visitData)) {
+            window.__missingTeethColumnExists = false;
+            delete visitData.missing_teeth;
+          } else {
+            throw retryErr;
+          }
         }
       }
       setSyncStatus("saved");
@@ -2223,7 +2855,7 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
       handleSaveToRecord({ silent: true });
     }, 2500);
     return () => clearTimeout(t);
-  }, [upper, lower, notes, gaugeVerified, upperSpaces, lowerSpaces, upperBT, lowerBT, patient.date, patient.assistantInitials]);
+  }, [upper, lower, notes, gaugeVerified, upperSpaces, lowerSpaces, upperBT, lowerBT, missingTeeth, patient.date, patient.assistantInitials]);
 
   const handleChange = setter => (key, val) => setter(prev => ({
     ...prev,
@@ -2490,6 +3122,13 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
       setLowerBT(initBT(LOWER));
       setPrescribedUpper(initContacts(UPPER));
       setPrescribedLower(initContacts(LOWER));
+      // carry missing teeth forward from the most recent visit (anatomy doesn't change between visits)
+      (async () => {
+        try {
+          const last = await sbGet(`visits?patient_uuid=eq.${selectedPatient.id}&order=date.desc&limit=1&select=missing_teeth`);
+          setMissingTeeth(last && last[0] && last[0].missing_teeth ? jp(last[0].missing_teeth, {}) : {});
+        } catch (e) { setMissingTeeth({}); }
+      })();
       setReadOnly(false);
       setFlowStep(null);
     };
@@ -2514,6 +3153,7 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
       setLowerBT(jp(v.lower_bt, initBT(LOWER)));
       setPrescribedUpper(jp(v.prescribed_upper, initContacts(UPPER)));
       setPrescribedLower(jp(v.prescribed_lower, initContacts(LOWER)));
+      setMissingTeeth(jp(v.missing_teeth, {}));
       setReadOnly(true); // viewing a saved past visit — read-only
       setFlowStep(null);
     };
@@ -2540,6 +3180,7 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
       setLowerBT(initBT(LOWER));
       setPrescribedUpper(initContacts(UPPER));
       setPrescribedLower(initContacts(LOWER));
+      setMissingTeeth({});
       setReadOnly(false);
       setFlowStep('visitSetup');
     };
@@ -2608,7 +3249,7 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
     if (flowStep === 'prescribed') {
       const prescribedUpperTotal = sumContacts(prescribedUpper);
       const prescribedLowerTotal = sumContacts(prescribedLower);
-      return /*#__PURE__*/React.createElement("div", { style: overlayStyle }, /*#__PURE__*/React.createElement("div", { style: { ...dialogStyle, maxWidth: 1020, padding: '28px 24px' } }, /*#__PURE__*/React.createElement("h2", { style: { fontSize: 18, fontWeight: 700, marginBottom: 6, color: '#0f172a' } }, "Prescribed IPR"), /*#__PURE__*/React.createElement("p", { style: { fontSize: 12, color: '#64748b', marginBottom: 20 } }, "Enter the planned (prescribed) IPR amounts"), /*#__PURE__*/React.createElement(AmountPalette, { chipAmt: chipAmt, setChipAmt: setChipAmt, compact: true }), /*#__PURE__*/React.createElement("div", { style: { marginBottom: 20 } }, /*#__PURE__*/React.createElement(ArchRow, { teeth: UPPER, contacts: prescribedUpper, onChange: handleChange(setPrescribedUpper), label: "Upper Arch (Prescribed)", quadLeft: "UR", quadRight: "UL", chipAmt: chipAmt })), /*#__PURE__*/React.createElement("div", { style: { marginBottom: 24 } }, /*#__PURE__*/React.createElement(ArchRow, { teeth: LOWER, contacts: prescribedLower, onChange: handleChange(setPrescribedLower), label: "Lower Arch (Prescribed)", quadLeft: "LR", quadRight: "LL", chipAmt: chipAmt })), /*#__PURE__*/React.createElement("button", { onClick: handlePrescribedDone, style: { width: '100%', padding: '12px', borderRadius: 8, border: 'none', background: '#22c55e', color: 'white', fontWeight: 700, cursor: 'pointer', fontSize: 14, marginBottom: 8 } }, "Done — Start Charting"), /*#__PURE__*/React.createElement("button", { onClick: () => setFlowStep('visitSetup'), style: { width: '100%', padding: '10px 16px', borderRadius: 6, border: '1px solid #e2e8f0', background: 'white', cursor: 'pointer', fontSize: 13, color: '#64748b' } }, "Back")));
+      return /*#__PURE__*/React.createElement("div", { style: overlayStyle }, /*#__PURE__*/React.createElement("div", { style: { ...dialogStyle, maxWidth: 1020, padding: '28px 24px' } }, /*#__PURE__*/React.createElement("h2", { style: { fontSize: 18, fontWeight: 700, marginBottom: 6, color: '#0f172a' } }, "Prescribed IPR"), /*#__PURE__*/React.createElement("p", { style: { fontSize: 12, color: '#64748b', marginBottom: 20 } }, "Enter the planned (prescribed) IPR amounts"), /*#__PURE__*/React.createElement(AmountPalette, { chipAmt: chipAmt, setChipAmt: setChipAmt, compact: true }), /*#__PURE__*/React.createElement("div", { style: { marginBottom: 20 } }, /*#__PURE__*/React.createElement(ArchFormIPR, { teeth: UPPER, contacts: prescribedUpper, onChange: handleChange(setPrescribedUpper), label: "Upper Arch (Prescribed)", quadLeft: "UR", quadRight: "UL", chipAmt: chipAmt, invert: false, missing: missingTeeth, onToggleMissing: toggleMissing })), /*#__PURE__*/React.createElement("div", { style: { marginBottom: 24 } }, /*#__PURE__*/React.createElement(ArchFormIPR, { teeth: LOWER, contacts: prescribedLower, onChange: handleChange(setPrescribedLower), label: "Lower Arch (Prescribed)", quadLeft: "LR", quadRight: "LL", chipAmt: chipAmt, invert: true, missing: missingTeeth, onToggleMissing: toggleMissing })), /*#__PURE__*/React.createElement("button", { onClick: handlePrescribedDone, style: { width: '100%', padding: '12px', borderRadius: 8, border: 'none', background: '#22c55e', color: 'white', fontWeight: 700, cursor: 'pointer', fontSize: 14, marginBottom: 8 } }, "Done — Start Charting"), /*#__PURE__*/React.createElement("button", { onClick: () => setFlowStep('visitSetup'), style: { width: '100%', padding: '10px 16px', borderRadius: 6, border: '1px solid #e2e8f0', background: 'white', cursor: 'pointer', fontSize: 13, color: '#64748b' } }, "Back")));
     }
 
     if (flowStep === 'records') {
@@ -2760,8 +3401,9 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
   // Used by the Cancel button and by handleSaveToRecord's post-save flow.
   const clearAllState = () => {
     ["ipr_patient","ipr_upper","ipr_lower","ipr_notes","ipr_gauge",
-     "ipr_upper_spaces","ipr_lower_spaces","ipr_upper_bt","ipr_lower_bt"
+     "ipr_upper_spaces","ipr_lower_spaces","ipr_upper_bt","ipr_lower_bt","ipr_missing"
     ].forEach(k => sessionStorage.removeItem(k));
+    setMissingTeeth({});
     setPatient({ name: "", patientId: "", date: new Date().toISOString().slice(0, 10), assistantInitials: "" });
     setUpper(initContacts(UPPER));
     setLower(initContacts(LOWER));
@@ -3103,16 +3745,19 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
       marginBottom: 20,
       boxShadow: "0 1px 4px #0001"
     }
-  }, /*#__PURE__*/React.createElement(ArchRow, {
+  }, /*#__PURE__*/React.createElement(ArchFormIPR, {
     teeth: UPPER,
     contacts: upper,
     onChange: handleChange(setUpper),
-    label: "Upper Arch",
+    label: "Upper Arch (Maxilla)",
     quadLeft: "UR",
     quadRight: "UL",
     cumRef: prevUpper,
     readOnly: readOnly,
-    chipAmt: chipAmt
+    chipAmt: chipAmt,
+    invert: false,
+    missing: missingTeeth,
+    onToggleMissing: toggleMissing
   }), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
@@ -3140,16 +3785,19 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
       height: 1,
       background: "#e2e8f0"
     }
-  })), /*#__PURE__*/React.createElement(ArchRow, {
+  })), /*#__PURE__*/React.createElement(ArchFormIPR, {
     teeth: LOWER,
     contacts: lower,
     onChange: handleChange(setLower),
-    label: "Lower Arch",
+    label: "Lower Arch (Mandible)",
     quadLeft: "LR",
     quadRight: "LL",
     cumRef: prevLower,
     readOnly: readOnly,
-    chipAmt: chipAmt
+    chipAmt: chipAmt,
+    invert: true,
+    missing: missingTeeth,
+    onToggleMissing: toggleMissing
   }), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
@@ -3544,7 +4192,11 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
     },
     onFocus: e => { if (readOnly) return; e.target.style.borderColor = "#3b82f6"; },
     onBlur: e => e.target.style.borderColor = "#e2e8f0"
-  }))), activeTab === "spaces" && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+  }))), activeTab === "spaces" && /*#__PURE__*/React.createElement(React.Fragment, null, !readOnly && /*#__PURE__*/React.createElement(AmountPalette, {
+    chipAmt: spaceChipAmt,
+    setChipAmt: setSpaceChipAmt,
+    amounts: SPACE_CHIP_AMOUNTS
+  }), /*#__PURE__*/React.createElement("div", {
     style: {
       padding: "20px 20px 14px",
       background: "white",
@@ -3553,16 +4205,20 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
       marginBottom: 20,
       boxShadow: "0 1px 4px #0001"
     }
-  }, /*#__PURE__*/React.createElement(SpacesArchRow, {
+  }, /*#__PURE__*/React.createElement(ArchFormSpaces, {
     teeth: UPPER,
     spaces: upperSpaces,
     bt: upperBT,
     onSpaceChange: handleChange(setUpperSpaces),
     onBTChange: handleChange(setUpperBT),
-    label: "Upper Arch",
+    label: "Upper Arch (Maxilla)",
     quadLeft: "UR",
     quadRight: "UL",
-    readOnly: readOnly
+    readOnly: readOnly,
+    chipAmt: spaceChipAmt,
+    invert: false,
+    missing: missingTeeth,
+    onToggleMissing: toggleMissing
   }), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
@@ -3590,16 +4246,20 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
       height: 1,
       background: "#e2e8f0"
     }
-  })), /*#__PURE__*/React.createElement(SpacesArchRow, {
+  })), /*#__PURE__*/React.createElement(ArchFormSpaces, {
     teeth: LOWER,
     spaces: lowerSpaces,
     bt: lowerBT,
     onSpaceChange: handleChange(setLowerSpaces),
     onBTChange: handleChange(setLowerBT),
-    label: "Lower Arch",
+    label: "Lower Arch (Mandible)",
     quadLeft: "LR",
     quadRight: "LL",
-    readOnly: readOnly
+    readOnly: readOnly,
+    chipAmt: spaceChipAmt,
+    invert: true,
+    missing: missingTeeth,
+    onToggleMissing: toggleMissing
   })), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
@@ -3879,8 +4539,37 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
     onClose: () => setShowCumChart(false)
   }));
 }
-const root = ReactDOM.createRoot(document.getElementById("root"));
-root.render(/*#__PURE__*/React.createElement(App, null));
+// ─── Auth gate: mount the app only after an allowed Google sign-in ───────────
+const rootEl = document.getElementById("root");
+const gateEl = document.getElementById("authGate");
+const root = ReactDOM.createRoot(rootEl);
+let appMounted = false;
+fbAuth.onAuthStateChanged(user => {
+  const email = (user && user.email || "").toLowerCase();
+  if (user && isAllowedEmail(email)) {
+    gateEl.style.display = "none";
+    rootEl.style.display = "";
+    if (!appMounted) {
+      appMounted = true;
+      root.render(/*#__PURE__*/React.createElement(App, null));
+    }
+  } else {
+    if (user) {
+      document.getElementById("authErr").textContent = "Access denied for " + (email || "this account") + ".";
+      fbAuth.signOut();
+    }
+    gateEl.style.display = "flex";
+    rootEl.style.display = "none";
+  }
+});
+document.getElementById("signInBtn").addEventListener("click", () => {
+  const provider = new firebase.auth.GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: "select_account" });
+  document.getElementById("authErr").textContent = "";
+  fbAuth.signInWithPopup(provider).catch(e => {
+    document.getElementById("authErr").textContent = e.message || "Sign-in failed.";
+  });
+});
 
 </script>
 </body>
