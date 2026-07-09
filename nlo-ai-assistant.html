@@ -54,7 +54,10 @@
   header h1 { font-size: 0; width: 0; overflow: hidden; }
   .header-inner { display: contents; }
   .header-right { display: flex; align-items: center; gap: 12px; }
-  .header-user { font-size: 13px; color: var(--nlo-grey-600); font-weight: 500; }
+  .header-user { font-size: 13px; color: var(--nlo-grey-600); font-weight: 500; display: flex; align-items: center; gap: 7px; }
+  .header-user-photo { width: 26px; height: 26px; border-radius: 50%; object-fit: cover; flex-shrink: 0; border: 2px solid var(--nlo-grey-200); }
+  .login-row-photo { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; flex-shrink: 0; border: 2px solid var(--nlo-grey-200); }
+  .login-row { align-items: center; }
   #versionTag { font-size: 11px; color: var(--nlo-grey-400); letter-spacing: 0.5px; }
   #userGreeting { display: none !important; } /* handled by header-user */
 
@@ -85,9 +88,10 @@
   /* ── MESSAGES ── */
   .msg { display: flex; gap: 10px; align-items: flex-start; animation: fadeIn 0.25s cubic-bezier(0.16,1,0.3,1); }
   @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
-  .msg-avatar { width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; flex-shrink: 0; margin-top: 2px; }
+  .msg-avatar { width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; flex-shrink: 0; margin-top: 2px; overflow: hidden; }
   .msg-user .msg-avatar { background: var(--nlo-navy); color: white; }
   .msg-ai .msg-avatar { background: var(--nlo-grey-100); color: var(--nlo-grey-600); }
+  .msg-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 8px; display: block; }
   .msg-bubble { flex: 1; min-width: 0; }
   .msg-user .msg-bubble { background: var(--nlo-navy); color: white; border-radius: var(--radius) var(--radius) 4px var(--radius); padding: 10px 14px; font-size: 0.875rem; line-height: 1.5; max-width: 80%; margin-left: auto; }
   .msg-ai .msg-bubble { background: var(--nlo-grey-50); border: 1px solid var(--nlo-grey-200); border-radius: var(--radius) var(--radius) var(--radius) 4px; padding: 14px 16px; font-size: 0.875rem; line-height: 1.65; color: var(--nlo-grey-700); }
@@ -334,16 +338,17 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script>
 // --- STAFF ROSTER (name → role mapping) ---
+var _NLO_PHOTOS = 'https://thenextlevelorthodontics.com/wp-content/uploads/';
 var STAFF_ROSTER = {
-  'Dr. Akhavan': { role: 'Owner / Orthodontist', shortRole: 'owner' },
-  'Eve': { role: 'Marketing Coordinator', shortRole: 'marketing' },
-  'Wila': { role: 'Treatment Coordinator', shortRole: 'tc' },
-  'Savannah': { role: 'Appointment Coordinator', shortRole: 'scheduling' },
-  'Sarah': { role: 'Office Coordinator', shortRole: 'office_coordinator' },
-  'Brianna': { role: 'Orthodontic Assistant', shortRole: 'da' },
-  'Gwen': { role: 'Orthodontic Assistant', shortRole: 'da' },
-  'Angelika': { role: 'Orthodontic Assistant', shortRole: 'da' },
-  'Kaylee': { role: 'Orthodontic Assistant', shortRole: 'da' },
+  'Dr. Akhavan': { role: 'Owner / Orthodontist', shortRole: 'owner',            photo: _NLO_PHOTOS + '2019/11/Orthodontist-Amir-Akhavan-Gainesville-FL-Next-Level-Orthodontics-240x300.jpg' },
+  'Eve':         { role: 'Marketing Coordinator', shortRole: 'marketing',        photo: _NLO_PHOTOS + '2026/04/1-300x300.png' },
+  'Wila':        { role: 'Treatment Coordinator', shortRole: 'tc',               photo: _NLO_PHOTOS + '2026/04/2-300x300.png' },
+  'Savannah':    { role: 'Appointment Coordinator', shortRole: 'scheduling',     photo: _NLO_PHOTOS + '2026/04/3-300x300.png' },
+  'Sarah':       { role: 'Office Coordinator', shortRole: 'office_coordinator',  photo: _NLO_PHOTOS + '2026/04/4-300x300.png' },
+  'Brianna':     { role: 'Orthodontic Assistant', shortRole: 'da',               photo: _NLO_PHOTOS + '2026/04/5-300x300.png' },
+  'Gwen':        { role: 'Orthodontic Assistant', shortRole: 'da',               photo: _NLO_PHOTOS + '2026/03/Gwen-300x300.png' },
+  'Angelika':    { role: 'Orthodontic Assistant', shortRole: 'da',               photo: _NLO_PHOTOS + '2026/03/Angelika-300x300.png' },
+  'Kaylee':      { role: 'Orthodontic Assistant', shortRole: 'da',               photo: _NLO_PHOTOS + '2026/03/Kaylee-300x300.png' },
 };
 var currentStaff = null;
 
@@ -356,7 +361,7 @@ var CONFIG = {
   // API key is stored server-side in Cloudflare Worker (never in client code).
   // Update this URL after deploying your Cloudflare Worker.
   WORKER_URL: 'https://aisa-worker.akhavan-ak.workers.dev',
-  GEMINI_MODEL: 'gemini-2.5-flash',
+  GEMINI_MODEL: 'gemini-3.5-flash',
   SHEETS_WEBHOOK: 'https://script.google.com/macros/s/AKfycbwoohCS5Msft5znpRckxO5ALWxkXrGLMs0Sm3VxYbAk7W5EoC-tpqCLo6GZwO21ZBX3/exec',
 };
 
@@ -492,9 +497,13 @@ function populateStaffDropdown() {
   var list = document.getElementById('loginList');
   if (list) {
     Object.keys(STAFF_ROSTER).sort().forEach(function(name) {
+      var staff = STAFF_ROSTER[name];
       var btn = document.createElement('button');
       btn.className = 'login-row';
-      btn.innerHTML = '<span class="login-row-name">' + name + '</span><span class="login-row-role">' + STAFF_ROSTER[name].role + '</span>';
+      var photoHtml = staff.photo
+        ? '<img class="login-row-photo" src="' + staff.photo + '" alt="' + name + '" />'
+        : '';
+      btn.innerHTML = photoHtml + '<span class="login-row-name">' + name + '</span><span class="login-row-role">' + staff.role + '</span>';
       btn.onclick = function() { loginUser(name); };
       list.appendChild(btn);
     });
@@ -519,10 +528,15 @@ function checkLoginReady() {
 function loginUser(name) {
   if (!name) name = document.getElementById('staffSelect').value;
   if (!name) return;
-  currentStaff = { name: name, role: STAFF_ROSTER[name].role, shortRole: STAFF_ROSTER[name].shortRole };
+  var staffData = STAFF_ROSTER[name];
+  currentStaff = { name: name, role: staffData.role, shortRole: staffData.shortRole, photo: staffData.photo || null };
   document.getElementById('loginScreen').style.display = 'none';
   var greeting = document.getElementById('userGreeting');
-  if (greeting) { greeting.textContent = name; greeting.style.display = 'inline-block'; }
+  if (greeting) {
+    var photoTag = currentStaff.photo ? '<img class="header-user-photo" src="' + currentStaff.photo + '" alt="' + name + '" />' : '';
+    greeting.innerHTML = photoTag + '<span>' + name + '</span>';
+    greeting.style.display = 'flex';
+  }
   document.getElementById('questionInput').focus();
   console.log('Logged in as:', currentStaff.name, '(' + currentStaff.role + ')');
 }
@@ -678,10 +692,12 @@ function addMessage(type, content, isRawHtml) {
   var chat = document.getElementById('chatArea');
   var msg = document.createElement('div');
   msg.className = 'msg msg-' + type;
-  var userIcon = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
+  var userAvatarHtml = (currentStaff && currentStaff.photo)
+    ? '<img src="' + currentStaff.photo + '" alt="' + currentStaff.name + '" />'
+    : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
   var aiIcon = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a7 7 0 017 7c0 2.38-1.19 4.47-3 5.74V17a1 1 0 01-1 1h-2a1 1 0 01-1-1v-2.26C10.19 13.47 9 11.38 9 9a7 7 0 017-7z"/><path d="M9 18h6"/><path d="M10 22h4"/></svg>';
   if (type === 'user') {
-    msg.innerHTML = '<div class="msg-avatar">' + userIcon + '</div><div class="msg-bubble">' + (isRawHtml ? content : escapeHtml(content)) + '</div>';
+    msg.innerHTML = '<div class="msg-avatar">' + userAvatarHtml + '</div><div class="msg-bubble">' + (isRawHtml ? content : escapeHtml(content)) + '</div>';
   } else {
     msg.innerHTML = '<div class="msg-avatar">' + aiIcon + '</div><div class="msg-bubble">' + renderMarkdown(content) + '</div>';
   }
