@@ -1544,8 +1544,10 @@
         </div>
         <div class="field-row">
           <div class="field third">
-            <label for="crb_numPayments">Number of Monthly Payments</label>
-            <input type="number" id="crb_numPayments" min="1" max="120" placeholder="e.g. 8" autocomplete="off">
+            <label for="crb_monthlyPayment">Monthly Payment ($)</label>
+            <div class="money-wrap">
+              <input type="text" id="crb_monthlyPayment" inputmode="decimal" autocomplete="off" placeholder="0.00">
+            </div>
           </div>
           <div class="field third">
             <label for="crb_dueDay">Payments Due On</label>
@@ -1562,9 +1564,13 @@
             <span class="calc-label">Remaining Balance</span>
             <span class="calc-value" id="crb_calcBalance">$0.00</span>
           </div>
-          <div class="calc-row total">
+          <div class="calc-row">
             <span class="calc-label">Monthly Payment</span>
             <span class="calc-value positive" id="crb_calcMonthly">$0.00 / mo</span>
+          </div>
+          <div class="calc-row total">
+            <span class="calc-label">Payments Remaining</span>
+            <span class="calc-value positive" id="crb_calcNumPayments">0 payments</span>
           </div>
         </div>
       </div>
@@ -1586,6 +1592,33 @@
           </div>
         </div>
         <p style="font-size:0.75rem;color:#94a3b8;line-height:1.5;margin-top:6px;">Turn this on when insurance has not yet paid its full portion &mdash; the printed form will state that any insurance balance left unpaid, even after treatment is complete, becomes the patient/RP&rsquo;s responsibility. Leave the amount blank to print the clause without a specific figure.</p>
+      </div>
+
+      <div class="form-section">
+        <h3>Paid-in-Full Discount</h3>
+        <div class="field-row" style="align-items:center;">
+          <label style="display:flex;align-items:center;gap:9px;font-size:0.85rem;font-weight:600;color:#334155;cursor:pointer;">
+            <input type="checkbox" id="crb_pifToggle" onchange="crb_pifToggleChanged()" style="width:16px;height:16px;accent-color:#2563eb;cursor:pointer;">
+            Offer paid-in-full option with 10% discount
+          </label>
+        </div>
+        <div id="crb_pifSummary" style="display:none;margin-top:10px;">
+          <div class="calc-summary">
+            <div class="calc-row">
+              <span class="calc-label">Original Balance</span>
+              <span class="calc-value" id="crb_pifOriginal">$0.00</span>
+            </div>
+            <div class="calc-row">
+              <span class="calc-label">10% Discount</span>
+              <span class="calc-value" id="crb_pifDiscount" style="color:#dc2626;">&minus;$0.00</span>
+            </div>
+            <div class="calc-row total">
+              <span class="calc-label">Pay-in-Full Amount</span>
+              <span class="calc-value positive" id="crb_pifAmount">$0.00</span>
+            </div>
+          </div>
+        </div>
+        <p style="font-size:0.75rem;color:#94a3b8;line-height:1.5;margin-top:6px;">When enabled, the printed form will include an initialed option for the patient/RP to pay the remaining balance in full today at a 10% discount.</p>
       </div>
 
       <div class="form-section">
@@ -3354,6 +3387,11 @@
     <div class="agreement">
       <span class="initial-line"></span>
       <p>The total remaining balance of <strong id="crb_p_balance2"></strong> will be paid in <strong id="crb_p_numPayments"></strong> monthly payments of <strong id="crb_p_monthlyAmt"></strong>. Monthly payments are due on the <strong><u id="crb_p_dueDay"></u></strong> of the month.</p>
+    </div>
+
+    <div class="agreement" id="crb_p_pifClause" style="display:none;">
+      <span class="initial-line"></span>
+      <p><strong>Paid-in-Full Option:</strong> As an alternative to the payment plan above, I may choose to satisfy the remaining balance in full today at a 10% discount. My discounted pay-in-full amount would be <strong id="crb_p_pifAmount"></strong> (a savings of <strong id="crb_p_pifSavings"></strong>). This option is available today only.</p>
     </div>
 
     <div class="agreement">
@@ -5254,19 +5292,37 @@
     if (n > 0) this.value = fmtMoney(n);
     crb_updateCalc();
   });
-  document.getElementById('crb_numPayments').addEventListener('input', crb_updateCalc);
+  document.getElementById('crb_monthlyPayment').addEventListener('blur', function() {
+    const n = parseFloat(this.value.replace(/[^0-9.]/g,'')) || 0;
+    if (n > 0) this.value = fmtMoney(n);
+    crb_updateCalc();
+  });
+  document.getElementById('crb_monthlyPayment').addEventListener('input', crb_updateCalc);
 
   function crb_updateCalc() {
     const balance = parseFloat(document.getElementById('crb_remainingBalance').value.replace(/[^0-9.]/g,'')) || 0;
-    const num = parseInt(document.getElementById('crb_numPayments').value) || 0;
+    const monthly = parseFloat(document.getElementById('crb_monthlyPayment').value.replace(/[^0-9.]/g,'')) || 0;
     const summary = document.getElementById('crb_calcSummary');
-    if (balance > 0 && num > 0) {
-      const monthly = balance / num;
+    if (balance > 0 && monthly > 0) {
+      const numPayments = Math.ceil(balance / monthly);
       document.getElementById('crb_calcBalance').textContent = fmtMoney(balance);
       document.getElementById('crb_calcMonthly').textContent = fmtMoney(monthly) + ' / mo';
+      document.getElementById('crb_calcNumPayments').textContent = numPayments + (numPayments === 1 ? ' payment' : ' payments');
       summary.style.display = '';
     } else {
       summary.style.display = 'none';
+    }
+    crb_updatePifSummary();
+  }
+
+  function crb_updatePifSummary() {
+    const balance = parseFloat(document.getElementById('crb_remainingBalance').value.replace(/[^0-9.]/g,'')) || 0;
+    if (document.getElementById('crb_pifToggle').checked && balance > 0) {
+      const discount = balance * 0.10;
+      const pifAmt = balance - discount;
+      document.getElementById('crb_pifOriginal').textContent = fmtMoney(balance);
+      document.getElementById('crb_pifDiscount').textContent = '\u2212' + fmtMoney(discount);
+      document.getElementById('crb_pifAmount').textContent = fmtMoney(pifAmt);
     }
   }
 
@@ -5278,8 +5334,8 @@
 
   function crb_printForm() {
     const balance = parseFloat(document.getElementById('crb_remainingBalance').value.replace(/[^0-9.]/g,'')) || 0;
-    const num = parseInt(document.getElementById('crb_numPayments').value) || 0;
-    const monthly = num > 0 ? balance / num : 0;
+    const monthly = parseFloat(document.getElementById('crb_monthlyPayment').value.replace(/[^0-9.]/g,'')) || 0;
+    const numPayments = (balance > 0 && monthly > 0) ? Math.ceil(balance / monthly) : 0;
     const balStr = fmtMoney(balance);
     const monthlyStr = fmtMoney(monthly);
 
@@ -5294,16 +5350,28 @@
     document.getElementById('crb_p_balance1').textContent = balStr;
     document.getElementById('crb_p_balance2').textContent = balStr;
     document.getElementById('crb_p_balance3').textContent = balStr;
-    document.getElementById('crb_p_numPayments').textContent = num;
+    document.getElementById('crb_p_numPayments').textContent = numPayments;
     document.getElementById('crb_p_monthlyAmt').textContent = monthlyStr;
     document.getElementById('crb_p_dueDay').textContent = crb_getDueOrdinal();
+
+    // Paid-in-full discount clause (toggleable)
+    const pifOn = document.getElementById('crb_pifToggle').checked;
+    const pifClause = document.getElementById('crb_p_pifClause');
+    if (pifOn && balance > 0) {
+      const discount = balance * 0.10;
+      const pifAmt = balance - discount;
+      document.getElementById('crb_p_pifAmount').textContent = fmtMoney(pifAmt);
+      document.getElementById('crb_p_pifSavings').textContent = fmtMoney(discount);
+      pifClause.style.display = '';
+    } else {
+      pifClause.style.display = 'none';
+    }
 
     // Pending insurance balance clause (toggleable)
     const insOn = document.getElementById('crb_insToggle').checked;
     const insClause = document.getElementById('crb_p_insClause');
     if (insOn) {
       const insAmt = parseFloat((document.getElementById('crb_insBalance').value || '').replace(/[^0-9.]/g, '')) || 0;
-      const amtPhrase = insAmt > 0 ? ' of ' + fmtMoney(insAmt) : '';
       document.getElementById('crb_p_insClauseText').innerHTML =
         'I understand that a pending insurance balance' + (insAmt > 0 ? ' of <strong>' + fmtMoney(insAmt) + '</strong>' : '') +
         ' remains for services rendered. Insurance benefits are an estimate and are not a guarantee of payment. ' +
@@ -5324,16 +5392,24 @@
     if (!on) document.getElementById('crb_insBalance').value = '';
   }
 
+  function crb_pifToggleChanged() {
+    const on = document.getElementById('crb_pifToggle').checked;
+    document.getElementById('crb_pifSummary').style.display = on ? '' : 'none';
+    if (on) crb_updatePifSummary();
+  }
+
   function crb_clearForm() {
     document.getElementById('crb_insToggle').checked = false;
     crb_insToggleChanged();
+    document.getElementById('crb_pifToggle').checked = false;
+    crb_pifToggleChanged();
     document.getElementById('crb_patientName').value = '';
     document.getElementById('crb_responsibleParty').value = '';
     document.getElementById('crb_responsibleParty').readOnly = false;
     document.getElementById('crb_selfToggle').classList.remove('active');
     document.getElementById('crb_formDate').value = todayStr;
     document.getElementById('crb_remainingBalance').value = '';
-    document.getElementById('crb_numPayments').value = '';
+    document.getElementById('crb_monthlyPayment').value = '';
     document.getElementById('crb_dueDay').value = '5';
     document.getElementById('crb_calcSummary').style.display = 'none';
   }
