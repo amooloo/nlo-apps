@@ -606,6 +606,14 @@
       padding: 12px 20px;
     }
     .btn-clear:hover { background: #e5e7eb; }
+    .btn-save {
+      background: #e8f5ee;
+      color: #157347;
+      border: 1px solid #bfe3cf;
+      flex: 0 0 auto;
+      padding: 12px 20px;
+    }
+    .btn-save:hover { background: #d7eee1; }
 
     /* ==================== PRINT DOCUMENT (hidden on screen) ==================== */
     .print-doc {
@@ -2207,6 +2215,13 @@
     <div class="entry-form" style="width:820px; min-width:auto; max-width:820px; overflow:hidden;">
       <div class="form-title">AAO Transfer Form &mdash; Patient in Active Treatment</div>
       <div class="form-subtitle">Use when transferring a patient in active treatment to another orthodontist. This is the standard AAO form &mdash; it documents diagnosis, appliances, treatment progress, financials, and includes a records release authorization.</div>
+      <div id="aao_draftBanner" style="display:none;background:#fff8e6;border:1px solid #f0d48a;border-radius:8px;padding:12px 16px;margin-bottom:18px;font-size:13px;color:#6b5310;">
+        <strong>Unfinished draft found:</strong> <span id="aao_draftBannerInfo"></span>
+        <div style="margin-top:9px;display:flex;gap:10px;">
+          <button onclick="aao_resumeDraft()" style="padding:7px 16px;font-size:12.5px;font-weight:700;color:#fff;background:#b35900;border:none;border-radius:6px;cursor:pointer;font-family:inherit;">Resume Draft</button>
+          <button onclick="aao_discardDraft()" style="padding:7px 16px;font-size:12.5px;font-weight:600;color:#6b5310;background:transparent;border:1px solid #d9bd77;border-radius:6px;cursor:pointer;font-family:inherit;">Discard</button>
+        </div>
+      </div>
 
       <div class="form-section">
         <h3>Transfer Info</h3>
@@ -2483,8 +2498,13 @@
         </div>
         <div class="field-row">
           <div class="field">
-            <label for="aao_retentionRec">Retention and Third Molar Recommendations</label>
-            <textarea id="aao_retentionRec" rows="2" style="width:100%;font-family:inherit;font-size:inherit;padding:8px;border:1.5px solid #bbb;border-radius:6px;resize:vertical;"></textarea>
+            <label>Retention and Third Molar Recommendations</label>
+            <div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:12px;">
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" id="aao_retRemove3rd"> Remove 3rd Molars</label>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" id="aao_retEssix"> Upper &amp; Lower Clear Essix Retainer</label>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" id="aao_retHawley"> Hawley Retainer</label>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" id="aao_retFixed"> Direct Bond (Fixed Retainer)</label>
+            </div>
           </div>
         </div>
         <div class="field-row">
@@ -2558,13 +2578,12 @@
           </div>
         </div>
         <div class="guide-note" style="margin-top:8px;">
-          Check which records are included. Remaining details (casts, cephs, tracings, photos, etc.) will be <strong>handwritten or checked on the printed form</strong>.
+          Check which records are included. Remaining details (cephs, tracings, photos, etc.) will be <strong>handwritten or checked on the printed form</strong>.
         </div>
         <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:12px;">
-          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" id="aao_recCasts"> Casts</label>
           <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" id="aao_recCephs"> Cephalograms</label>
           <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" id="aao_recTracings"> Tracings</label>
-          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" id="aao_recIntraRads"> Intraoral Radiographs</label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" id="aao_recCBCT"> CBCT</label>
           <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" id="aao_recFacialPhotos"> Facial Photos</label>
           <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" id="aao_recIntraPhotos"> Intraoral Photos</label>
         </div>
@@ -2584,8 +2603,12 @@
 
       <div class="btn-bar">
         <button class="btn btn-clear" onclick="aao_clear()">Clear</button>
+        <button class="btn btn-save" onclick="aao_saveDraft()">Save Draft</button>
+        <button class="btn btn-save" onclick="document.getElementById('aao_loadFile').click()">Load Draft</button>
         <button class="btn btn-print" onclick="aao_print()">Print Transfer Form</button>
       </div>
+      <input type="file" id="aao_loadFile" accept=".json,application/json" style="display:none;" onchange="aao_loadDraftFile(this)">
+      <div id="aao_draftStatus" style="margin-top:10px;font-size:12.5px;font-weight:600;color:#16a34a;min-height:16px;"></div>
     </div>
   </div>
 </div>
@@ -5207,7 +5230,14 @@
     document.getElementById('aao_p_pctComplete').textContent = document.getElementById('aao_pctComplete').value || '';
     // Recommendations
     document.getElementById('aao_p_txRecommendations').textContent = document.getElementById('aao_txRecommendations').value || '';
-    document.getElementById('aao_p_retentionRec').textContent = document.getElementById('aao_retentionRec').value || '';
+    const retOptions = [
+      ['aao_retRemove3rd', 'Remove 3rd molars'],
+      ['aao_retEssix', 'Upper and lower clear Essix retainer'],
+      ['aao_retHawley', 'Hawley retainer'],
+      ['aao_retFixed', 'Direct bond (fixed retainer)']
+    ];
+    const retList = retOptions.filter(function(o) { return document.getElementById(o[0]).checked; }).map(function(o) { return o[1]; });
+    document.getElementById('aao_p_retentionRec').textContent = retList.join('; ');
     document.getElementById('aao_p_additionalComments').textContent = document.getElementById('aao_additionalComments').value || '';
     // Financial
     document.getElementById('aao_p_feeType').textContent = document.getElementById('aao_feeType').value || '';
@@ -5222,8 +5252,8 @@
     document.getElementById('aao_p_overpaid').textContent = document.getElementById('aao_overpaid').value || '';
     // Records
     document.getElementById('aao_p_recordsDate').textContent = document.getElementById('aao_recordsDate').value || '';
-    const recChecks = ['Casts','Cephs','Tracings','IntraRads','FacialPhotos','IntraPhotos'];
-    const recLabels = ['Casts','Cephalograms','Tracings','Intraoral Radiographs','Facial Photographs','Intraoral Photographs'];
+    const recChecks = ['Cephs','Tracings','CBCT','FacialPhotos','IntraPhotos'];
+    const recLabels = ['Cephalograms','Tracings','CBCT','Facial Photographs','Intraoral Photographs'];
     let recList = [];
     recChecks.forEach((id, i) => {
       if (document.getElementById('aao_rec' + id).checked) recList.push(recLabels[i]);
@@ -5242,7 +5272,7 @@
       'aao_appliance','aao_applianceOther','aao_bandsDate','aao_bandsDetails','aao_archwireMax','aao_archwireMand','aao_extraoral','aao_elastics','aao_removable',
       'aao_oralHygiene','aao_headgear','aao_elasticsCoop','aao_appointments','aao_brokenAppliances','aao_attitude','aao_motivation',
       'aao_originalTime','aao_remainingTime','aao_pctComplete',
-      'aao_txRecommendations','aao_retentionRec','aao_additionalComments',
+      'aao_txRecommendations','aao_additionalComments',
       'aao_feeType','aao_feesActive','aao_feesExtras','aao_terms','aao_thirdParty',
       'aao_totalCharges','aao_totalPaid','aao_unpaidAmount','aao_balanceNotCharged','aao_overpaid',
       'aao_recordsDate'];
@@ -5252,9 +5282,12 @@
     document.getElementById('aao_formDate').value = todayStr;
     document.getElementById('aao_formDateError').textContent = '';
     document.getElementById('aao_applianceOtherWrap').style.display = 'none';
-    ['aao_recCasts','aao_recCephs','aao_recTracings','aao_recIntraRads','aao_recFacialPhotos','aao_recIntraPhotos'].forEach(id => {
+    ['aao_recCephs','aao_recTracings','aao_recCBCT','aao_recFacialPhotos','aao_recIntraPhotos',
+     'aao_retRemove3rd','aao_retEssix','aao_retHawley','aao_retFixed'].forEach(id => {
       document.getElementById(id).checked = false;
     });
+    try { localStorage.removeItem(AAO_DRAFT_KEY); } catch (e) {}
+    document.getElementById('aao_draftBanner').style.display = 'none';
   }
   document.getElementById('aao_formDate').value = todayStr;
   document.getElementById('aao_formDate')?.addEventListener('blur', function() {
@@ -5264,6 +5297,125 @@
   document.getElementById('aao_appliance').addEventListener('change', function() {
     document.getElementById('aao_applianceOtherWrap').style.display = this.value === 'Other' ? '' : 'none';
   });
+
+  // ==================== AAO DRAFT SAVE / RESUME ====================
+  const AAO_DRAFT_KEY = 'nlo_aao_transfer_draft';
+
+  function aao_collect() {
+    const data = { _app: 'NLO AAO Transfer Draft', _savedAt: new Date().toISOString() };
+    document.querySelectorAll('#tab-aao-transfer input, #tab-aao-transfer select, #tab-aao-transfer textarea').forEach(function(el) {
+      if (el.type === 'file') return;
+      if (el.type === 'radio') { if (el.checked) data['radio:' + el.name] = el.value; return; }
+      if (!el.id) return;
+      if (el.type === 'checkbox') data[el.id] = el.checked;
+      else data[el.id] = el.value;
+    });
+    return data;
+  }
+
+  function aao_apply(data) {
+    Object.keys(data).forEach(function(key) {
+      if (key.charAt(0) === '_') return;
+      if (key.indexOf('radio:') === 0) {
+        const r = document.querySelector('input[name="' + key.slice(6) + '"][value="' + data[key] + '"]');
+        if (r) r.checked = true;
+        return;
+      }
+      const el = document.getElementById(key);
+      if (!el || el.type === 'file') return;
+      if (el.type === 'checkbox') el.checked = !!data[key];
+      else el.value = data[key];
+    });
+    document.getElementById('aao_applianceOtherWrap').style.display =
+      document.getElementById('aao_appliance').value === 'Other' ? '' : 'none';
+  }
+
+  function aao_saveDraft() {
+    const data = aao_collect();
+    const rawName = (document.getElementById('aao_patientName').value || '').trim();
+    const safeName = rawName.replace(/[^A-Za-z0-9 _-]/g, '').replace(/\s+/g, '_') || 'Draft';
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'AAO_Transfer_' + safeName + '_' + (data['aao_formDate'] || todayStr) + '.json';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function() { URL.revokeObjectURL(a.href); }, 5000);
+    aao_setDraftStatus('Draft saved to this computer (check your Downloads folder). Use "Load Draft" to resume it anytime.');
+  }
+
+  function aao_loadDraftFile(input) {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function() {
+      try {
+        const data = JSON.parse(reader.result);
+        if (!data || data._app !== 'NLO AAO Transfer Draft') throw new Error('invalid');
+        aao_apply(data);
+        aao_autosaveNow();
+        document.getElementById('aao_draftBanner').style.display = 'none';
+        aao_setDraftStatus('Draft loaded \u2014 you can continue editing.');
+      } catch (e) {
+        aao_setDraftStatus('That file is not a valid AAO Transfer draft.', true);
+      }
+      input.value = '';
+    };
+    reader.readAsText(file);
+  }
+
+  let aao_statusTimer = null;
+  function aao_setDraftStatus(msg, isError) {
+    const el = document.getElementById('aao_draftStatus');
+    el.textContent = msg;
+    el.style.color = isError ? '#dc2626' : '#16a34a';
+    clearTimeout(aao_statusTimer);
+    aao_statusTimer = setTimeout(function() { el.textContent = ''; }, 8000);
+  }
+
+  // Autosave in the background so nothing is lost if the page closes
+  let aao_autosaveTimer = null;
+  function aao_autosave() {
+    clearTimeout(aao_autosaveTimer);
+    aao_autosaveTimer = setTimeout(aao_autosaveNow, 600);
+  }
+  function aao_autosaveNow() {
+    try { localStorage.setItem(AAO_DRAFT_KEY, JSON.stringify(aao_collect())); } catch (e) {}
+  }
+  document.getElementById('tab-aao-transfer').addEventListener('input', aao_autosave);
+  document.getElementById('tab-aao-transfer').addEventListener('change', aao_autosave);
+
+  function aao_resumeDraft() {
+    try {
+      const data = JSON.parse(localStorage.getItem(AAO_DRAFT_KEY));
+      if (data) aao_apply(data);
+    } catch (e) {}
+    document.getElementById('aao_draftBanner').style.display = 'none';
+  }
+
+  function aao_discardDraft() {
+    try { localStorage.removeItem(AAO_DRAFT_KEY); } catch (e) {}
+    document.getElementById('aao_draftBanner').style.display = 'none';
+  }
+
+  // On load: offer to resume an unfinished draft from this browser
+  (function aao_checkSavedDraft() {
+    let data = null;
+    try { data = JSON.parse(localStorage.getItem(AAO_DRAFT_KEY)); } catch (e) {}
+    if (!data) return;
+    const skip = { 'aao_formDate': 1, 'aao_fromDoctor': 1, 'aao_fromPhone': 1 };
+    const hasContent = Object.keys(data).some(function(k) {
+      if (k.charAt(0) === '_' || k.indexOf('radio:') === 0 || skip[k]) return false;
+      return data[k] !== '' && data[k] !== false;
+    });
+    if (!hasContent) return;
+    const who = data['aao_patientName'] ? '"' + data['aao_patientName'] + '"' : 'unnamed patient';
+    let when = '';
+    if (data._savedAt) { try { when = ' \u2014 last edited ' + new Date(data._savedAt).toLocaleString(); } catch (e) {} }
+    document.getElementById('aao_draftBannerInfo').textContent = who + when;
+    document.getElementById('aao_draftBanner').style.display = '';
+  })();
 
   // ==================== COMPLETION WITH REMAINING BALANCE LOGIC ====================
   document.getElementById('crb_formDate').value = todayStr;
