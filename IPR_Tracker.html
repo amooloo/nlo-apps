@@ -547,6 +547,20 @@ function initBT(teeth) {
   for (let i = 0; i < teeth.length - 1; i++) c[`${teeth[i]}|${teeth[i + 1]}`] = false;
   return c;
 }
+// Firebase RTDB does NOT preserve object key order — children come back sorted
+// alphabetically. The arch renderers and quick-entry range logic assume the
+// anatomical insertion order produced by initContacts()/initBT(), so every
+// contact map loaded from the DB must be re-keyed into canonical order first.
+// (Values are looked up by key, so no data changes — only ordering.)
+function canonContacts(teeth, raw, blank) {
+  const src = raw || {};
+  const c = {};
+  for (let i = 0; i < teeth.length - 1; i++) {
+    const k = `${teeth[i]}|${teeth[i + 1]}`;
+    c[k] = src[k] === undefined || src[k] === null ? blank : src[k];
+  }
+  return c;
+}
 function sumContacts(contacts) {
   return Object.values(contacts).reduce((s, v) => s + (parseFloat(v) || 0), 0);
 }
@@ -913,7 +927,7 @@ function ArchFormIPR({ teeth, contacts, onChange, label, quadLeft, quadRight, cu
       })),
       archQuadLabels(quadLeft, quadRight, invert),
       pos.contacts.map((c, i) => {
-        const contactKey = keys[i];
+        const contactKey = `${teeth[i]}|${teeth[i + 1]}`; // position-derived — never trust object key order
         if (!contactKey) return null;
         const val = contacts[contactKey];
         const hasVal = parseFloat(val) > 0;
@@ -979,7 +993,7 @@ function ArchFormIPR({ teeth, contacts, onChange, label, quadLeft, quadRight, cu
         }, "mid"));
       }),
       cumRef && pos.contacts.map((c, i) => {
-        const contactKey = keys[i];
+        const contactKey = `${teeth[i]}|${teeth[i + 1]}`;
         if (!contactKey || !(parseFloat(cumRef[contactKey]) > 0)) return null;
         return /*#__PURE__*/React.createElement("div", {
           key: "cum" + contactKey,
@@ -1046,7 +1060,7 @@ function ArchFormSpaces({ teeth, spaces, bt, onSpaceChange, onBTChange, label, q
       })),
       archQuadLabels(quadLeft, quadRight, invert),
       pos.contacts.map((c, i) => {
-        const contactKey = keys[i];
+        const contactKey = `${teeth[i]}|${teeth[i + 1]}`;
         if (!contactKey) return null;
         const spaceVal = spaces[contactKey];
         const btVal = bt[contactKey];
@@ -1291,7 +1305,7 @@ function ArchRow({
     }
   }, teeth.map((tooth, i) => {
     const isMidline = i === 6;
-    const contactKey = keys[i];
+    const contactKey = i < teeth.length - 1 ? `${teeth[i]}|${teeth[i + 1]}` : null;
     const val = contactKey ? contacts[contactKey] : "";
     const hasVal = parseFloat(val) > 0;
     return /*#__PURE__*/React.createElement("div", {
@@ -1482,7 +1496,7 @@ function SpacesArchRow({
     }
   }, teeth.map((tooth, i) => {
     const isMidline = i === 6;
-    const contactKey = keys[i];
+    const contactKey = i < teeth.length - 1 ? `${teeth[i]}|${teeth[i + 1]}` : null;
     const spaceVal = contactKey ? spaces[contactKey] : "";
     const btVal = contactKey ? bt[contactKey] : false;
     const hasSpace = parseFloat(spaceVal) > 0;
@@ -2406,14 +2420,14 @@ function App() {
     date: today,
     assistantInitials: ""
   }));
-  const [upper, setUpper] = React.useState(() => load("ipr_upper", initContacts(UPPER)));
-  const [lower, setLower] = React.useState(() => load("ipr_lower", initContacts(LOWER)));
+  const [upper, setUpper] = React.useState(() => canonContacts(UPPER, load("ipr_upper", null), ""));
+  const [lower, setLower] = React.useState(() => canonContacts(LOWER, load("ipr_lower", null), ""));
   const [notes, setNotes] = React.useState(() => load("ipr_notes", ""));
   const [gaugeVerified, setGaugeVerified] = React.useState(() => load("ipr_gauge", false));
-  const [upperSpaces, setUpperSpaces] = React.useState(() => load("ipr_upper_spaces", initContacts(UPPER)));
-  const [lowerSpaces, setLowerSpaces] = React.useState(() => load("ipr_lower_spaces", initContacts(LOWER)));
-  const [upperBT, setUpperBT] = React.useState(() => load("ipr_upper_bt", initBT(UPPER)));
-  const [lowerBT, setLowerBT] = React.useState(() => load("ipr_lower_bt", initBT(LOWER)));
+  const [upperSpaces, setUpperSpaces] = React.useState(() => canonContacts(UPPER, load("ipr_upper_spaces", null), ""));
+  const [lowerSpaces, setLowerSpaces] = React.useState(() => canonContacts(LOWER, load("ipr_lower_spaces", null), ""));
+  const [upperBT, setUpperBT] = React.useState(() => canonContacts(UPPER, load("ipr_upper_bt", null), false));
+  const [lowerBT, setLowerBT] = React.useState(() => canonContacts(LOWER, load("ipr_lower_bt", null), false));
   const [missingTeeth, setMissingTeeth] = React.useState(() => load("ipr_missing", {}));
 
   // Toggle a tooth missing/present. Marking missing also clears its adjacent contacts
@@ -2700,12 +2714,12 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
     }
   };
   const handleLoadVisit = v => {
-    setUpper(jp(v.upper_ipr, initContacts(UPPER)));
-    setLower(jp(v.lower_ipr, initContacts(LOWER)));
-    setUpperSpaces(jp(v.upper_spaces, initContacts(UPPER)));
-    setLowerSpaces(jp(v.lower_spaces, initContacts(LOWER)));
-    setUpperBT(jp(v.upper_bt, initBT(UPPER)));
-    setLowerBT(jp(v.lower_bt, initBT(LOWER)));
+    setUpper(canonContacts(UPPER, jp(v.upper_ipr, null), ""));
+    setLower(canonContacts(LOWER, jp(v.lower_ipr, null), ""));
+    setUpperSpaces(canonContacts(UPPER, jp(v.upper_spaces, null), ""));
+    setLowerSpaces(canonContacts(LOWER, jp(v.lower_spaces, null), ""));
+    setUpperBT(canonContacts(UPPER, jp(v.upper_bt, null), false));
+    setLowerBT(canonContacts(LOWER, jp(v.lower_bt, null), false));
     setNotes(v.notes || "");
     setGaugeVerified(v.gauge_verified || false);
     setPatient(prev => ({
@@ -3145,16 +3159,16 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
       });
       setDbPatient(selectedPatient);
       setCurrentVisitId(v.id);
-      setUpper(jp(v.upper_ipr, initContacts(UPPER)));
-      setLower(jp(v.lower_ipr, initContacts(LOWER)));
+      setUpper(canonContacts(UPPER, jp(v.upper_ipr, null), ""));
+      setLower(canonContacts(LOWER, jp(v.lower_ipr, null), ""));
       setNotes(v.notes || '');
       setGaugeVerified(v.gauge_verified || false);
-      setUpperSpaces(jp(v.upper_spaces, initContacts(UPPER)));
-      setLowerSpaces(jp(v.lower_spaces, initContacts(LOWER)));
-      setUpperBT(jp(v.upper_bt, initBT(UPPER)));
-      setLowerBT(jp(v.lower_bt, initBT(LOWER)));
-      setPrescribedUpper(jp(v.prescribed_upper, initContacts(UPPER)));
-      setPrescribedLower(jp(v.prescribed_lower, initContacts(LOWER)));
+      setUpperSpaces(canonContacts(UPPER, jp(v.upper_spaces, null), ""));
+      setLowerSpaces(canonContacts(LOWER, jp(v.lower_spaces, null), ""));
+      setUpperBT(canonContacts(UPPER, jp(v.upper_bt, null), false));
+      setLowerBT(canonContacts(LOWER, jp(v.lower_bt, null), false));
+      setPrescribedUpper(canonContacts(UPPER, jp(v.prescribed_upper, null), ""));
+      setPrescribedLower(canonContacts(LOWER, jp(v.prescribed_lower, null), ""));
       setMissingTeeth(jp(v.missing_teeth, {}));
       setReadOnly(true); // viewing a saved past visit — read-only
       setFlowStep(null);
@@ -3301,16 +3315,16 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
         });
         setDbPatient(p);
         setCurrentVisitId(v.id);
-        setUpper(jp(v.upper_ipr, initContacts(UPPER)));
-        setLower(jp(v.lower_ipr, initContacts(LOWER)));
+        setUpper(canonContacts(UPPER, jp(v.upper_ipr, null), ""));
+        setLower(canonContacts(LOWER, jp(v.lower_ipr, null), ""));
         setNotes(v.notes || '');
         setGaugeVerified(v.gauge_verified || false);
-        setUpperSpaces(jp(v.upper_spaces, initContacts(UPPER)));
-        setLowerSpaces(jp(v.lower_spaces, initContacts(LOWER)));
-        setUpperBT(jp(v.upper_bt, initBT(UPPER)));
-        setLowerBT(jp(v.lower_bt, initBT(LOWER)));
-        setPrescribedUpper(jp(v.prescribed_upper, initContacts(UPPER)));
-        setPrescribedLower(jp(v.prescribed_lower, initContacts(LOWER)));
+        setUpperSpaces(canonContacts(UPPER, jp(v.upper_spaces, null), ""));
+        setLowerSpaces(canonContacts(LOWER, jp(v.lower_spaces, null), ""));
+        setUpperBT(canonContacts(UPPER, jp(v.upper_bt, null), false));
+        setLowerBT(canonContacts(LOWER, jp(v.lower_bt, null), false));
+        setPrescribedUpper(canonContacts(UPPER, jp(v.prescribed_upper, null), ""));
+        setPrescribedLower(canonContacts(LOWER, jp(v.prescribed_lower, null), ""));
         // Load full visit history for this patient
         sbGet(`visits?patient_uuid=eq.${p.id}&order=date.desc`).then(h => setVisitHistory(h || [])).catch(() => {});
         setReadOnly(true);
@@ -3499,7 +3513,7 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
       color: "#0f172a",
       letterSpacing: -0.5
     }
-  }, "IPR Tracker", /*#__PURE__*/React.createElement("span", { style: { fontSize: 11, fontWeight: 500, color: "#94a3b8", marginLeft: 8 } }, "v2.4 · chairside")), /*#__PURE__*/React.createElement("p", {
+  }, "IPR Tracker", /*#__PURE__*/React.createElement("span", { style: { fontSize: 11, fontWeight: 500, color: "#94a3b8", marginLeft: 8 } }, "v2.5 · chairside")), /*#__PURE__*/React.createElement("p", {
     style: {
       fontSize: 12,
       color: "#94a3b8",
