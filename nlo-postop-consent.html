@@ -6,136 +6,155 @@
 <title>Post-Op &amp; Consents — Next Level Orthodontics</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=BenchNine:wght@400;700&family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=BenchNine:wght@400;700&family=Montserrat:wght@400;500;600;700;800&family=Oswald:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{
-  --navy:#1B2F4C;
-  --navy-deep:#142339;
-  --accent:#1D3EA9;
-  --accent2:#162f80;
-  --coral:#FA624D;
-  --mint:#64F4C9;
-  --mint-deep:#1a9e78;
-  --gold:#F6AF24;
-  --gold-deep:#d9930a;
-  --border:#e2e8f0;
-  --text:#1B2F4C;
-  --muted:#64748b;
-  --warn:#d97706;
-  --bg:#F2F3F4;
+  --navy-900:#11203A; --navy-800:#1B2F4C; --navy-700:#294169; --navy-600:#385686; --navy-500:#5471A0;
+  --blue-700:#16318C; --blue-600:#1D3EA9; --blue-500:#2E52C9;
+  --coral-700:#D8412E; --coral-500:#FA624D; --coral-100:#FFE7E1;
+  --mint-500:#64F4C9; --mint-200:#C0FBEC; --mint-100:#E2FBF4;
+  --amber-700:#C2820A; --amber-200:#FCE2A6; --amber-100:#FEF2D7;
+  --off-white:#F2F3F4; --white:#FFFFFF;
+  --grey-100:#ECEEF0; --grey-200:#DCE0E4; --grey-300:#C3C9D0; --grey-400:#969FAB; --grey-500:#6B7685; --grey-600:#4C5868; --grey-700:#33404F;
+  --on-dark:#F2F3F4; --on-dark-muted:#A7B2C2;
+  --font-display:'Oswald','Arial Narrow',sans-serif;
+  --font-body:'Montserrat',system-ui,sans-serif;
+  --radius-sm:8px; --radius-md:14px; --radius-pill:999px;
+  --shadow-xs:0 1px 2px rgba(17,32,58,.07);
+  --shadow-sm:0 2px 6px rgba(17,32,58,.08);
+  --shadow-md:0 8px 24px rgba(17,32,58,.10);
+  --ease:cubic-bezier(0.4,0,0.2,1);
   --sidebar:268px;
+  /* legacy aliases used by inline styles */
+  --navy:#1B2F4C; --accent:#1D3EA9; --accent2:#16318C; --coral:#FA624D; --mint:#64F4C9;
+  --gold:#C2820A; --gold-deep:#C2820A; --border:#DCE0E4; --text:#1B2F4C; --muted:#6B7685; --bg:#F2F3F4;
 }
-body{font-family:'Montserrat',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);display:flex;min-height:100vh;font-size:14px}
+body{font-family:var(--font-body);background:var(--off-white);color:var(--grey-700);display:flex;min-height:100vh;font-size:14px}
 
-#sidebar{width:var(--sidebar);background:var(--navy);color:#e2e8f0;display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;overflow-y:auto;z-index:100}
-.sb-logo{padding:22px 18px 16px;border-bottom:1px solid rgba(255,255,255,.1);text-align:left}
-.sb-logo img{height:46px;width:auto;display:block;margin-bottom:12px}
-.sb-logo a{color:#fff;text-decoration:none;font-size:11px;opacity:.6;display:block;margin-bottom:8px;letter-spacing:.4px}
-.sb-logo a:hover{opacity:1}
-.sb-logo h2{color:#fff;font-size:14px;font-weight:700;letter-spacing:.2px}
-.sb-logo p{font-size:10px;color:var(--gold);margin-top:2px;letter-spacing:1.2px;text-transform:uppercase;font-weight:600}
-.sb-section{padding:14px 14px 4px;font-size:10px;letter-spacing:1.4px;color:rgba(255,255,255,.4);text-transform:uppercase;font-weight:700;margin-top:6px}
-.sb-item{display:block;padding:9px 14px;font-size:13px;color:rgba(255,255,255,.78);cursor:pointer;border-radius:6px;margin:1px 8px;border:none;background:none;width:calc(100% - 16px);text-align:left;transition:.15s;font-family:inherit;font-weight:500}
+#sidebar{width:var(--sidebar);background:var(--navy-800);color:var(--on-dark);display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;overflow-y:auto;z-index:100}
+.sb-logo{padding:22px 18px 16px;border-bottom:1px solid var(--navy-700);text-align:left}
+.sb-logo img{height:40px;width:auto;display:block;margin-bottom:14px}
+.sb-logo a{display:inline-flex;align-items:center;gap:6px;font-family:var(--font-display);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:#fff;text-decoration:none;border:2px solid var(--navy-600);border-radius:var(--radius-pill);padding:6px 12px;margin-bottom:14px;transition:border-color 140ms var(--ease),background 140ms var(--ease)}
+.sb-logo a:hover{border-color:var(--navy-500);background:var(--navy-700)}
+.sb-logo h2{font-family:var(--font-display);color:#fff;font-size:16px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;line-height:1.2}
+.sb-logo p{font-family:var(--font-display);font-size:10px;color:var(--mint-500);margin-top:4px;letter-spacing:0.14em;text-transform:uppercase;font-weight:600}
+.sb-section{font-family:var(--font-display);padding:16px 16px 6px;font-size:10px;letter-spacing:0.14em;color:var(--on-dark-muted);text-transform:uppercase;font-weight:600;margin-top:6px}
+.sb-item{display:block;padding:8px 14px;font-size:13px;color:rgba(255,255,255,.82);cursor:pointer;border-radius:var(--radius-pill);margin:2px 10px;border:none;background:none;width:calc(100% - 20px);text-align:left;transition:background 140ms var(--ease),color 140ms var(--ease);font-family:var(--font-body);font-weight:500}
 .sb-item:hover{background:rgba(255,255,255,.08);color:#fff}
-.sb-item.active{background:var(--accent);color:#fff;font-weight:600}
-.sb-item .tag{font-size:9px;background:rgba(255,255,255,.18);padding:1px 6px;border-radius:8px;margin-left:5px;font-weight:600;letter-spacing:.4px}
+.sb-item.active{background:var(--blue-600);color:#fff;font-weight:600;box-shadow:var(--shadow-xs)}
+.sb-item:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(46,82,201,0.4)}
+.sb-item .tag{font-family:var(--font-display);font-size:9px;background:rgba(255,255,255,.18);padding:2px 7px;border-radius:var(--radius-pill);margin-left:6px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase}
 
 #main{margin-left:var(--sidebar);flex:1;display:flex;flex-direction:column;min-height:100vh}
-.topbar{background:#fff;border-bottom:1px solid var(--border);padding:14px 28px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50}
-#page-title{font-size:16px;font-weight:700;color:var(--text);letter-spacing:-.1px}
-.sub{font-size:12px;color:var(--muted);margin-top:1px;font-weight:500}
-.back-btn{font-size:12px;color:var(--accent);text-decoration:none;font-weight:600;letter-spacing:.2px}
-.back-btn:hover{text-decoration:underline}
+.topbar{background:var(--white);border-bottom:1px solid var(--grey-200);padding:14px 28px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50}
+#page-title{font-family:var(--font-display);font-size:17px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--navy-800)}
+.sub{font-size:12px;color:var(--grey-500);margin-top:2px;font-weight:500}
+.back-btn{font-family:var(--font-display);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--blue-600);text-decoration:none;border:1.5px solid var(--grey-300);border-radius:var(--radius-pill);padding:7px 14px;white-space:nowrap;transition:border-color 140ms var(--ease),background 140ms var(--ease)}
+.back-btn:hover{text-decoration:none;border-color:var(--blue-600);background:#F7F8FF}
 
 .panel{display:none;padding:26px 28px;max-width:880px}
 .panel.active{display:block}
-.section-title{font-size:20px;font-weight:800;color:var(--navy);margin-bottom:4px;letter-spacing:-.3px}
-.section-sub{font-size:13px;color:var(--muted);margin-bottom:22px;font-weight:500}
+.section-title{font-family:var(--font-display);font-size:24px;font-weight:700;text-transform:uppercase;line-height:1.05;color:var(--navy-800);margin-bottom:4px}
+.section-sub{font-size:13px;color:var(--grey-600);margin-bottom:22px;font-weight:500;line-height:1.55}
 
-.card{background:#fff;border:1px solid var(--border);border-radius:12px;margin-bottom:20px;overflow:hidden;box-shadow:0 1px 2px rgba(27,47,76,.04)}
-.card-hdr{background:var(--navy);color:#fff;padding:13px 18px;display:flex;align-items:center;justify-content:space-between}
-.card-hdr h3{font-size:14px;font-weight:700;letter-spacing:.1px}
-.card-hdr .badge{font-size:10px;background:rgba(255,255,255,.18);padding:3px 9px;border-radius:10px;font-weight:600;letter-spacing:.4px;text-transform:uppercase}
+.card{background:var(--white);border:1px solid var(--grey-200);border-radius:var(--radius-md);margin-bottom:20px;overflow:hidden;box-shadow:var(--shadow-sm)}
+.card-hdr{background:transparent;color:var(--navy-800);padding:16px 18px 12px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--grey-200)}
+.card-hdr h3{display:flex;align-items:center;gap:12px;font-family:var(--font-display);font-size:15px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:var(--navy-800)}
+.card-hdr h3::before{content:'';width:22px;height:4px;border-radius:2px;background:var(--mint-500);flex:0 0 auto}
+.card-hdr .badge{font-family:var(--font-display);font-size:10px;background:var(--grey-100);color:var(--grey-600);padding:4px 10px;border-radius:var(--radius-pill);font-weight:600;letter-spacing:0.08em;text-transform:uppercase}
 .card-body{padding:18px}
 
 .three-col{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px 18px}
 .two-col{display:grid;grid-template-columns:1fr 1fr;gap:14px 18px}
 .field{display:flex;flex-direction:column;gap:5px}
-.field label{font-size:10.5px;font-weight:700;color:var(--muted);letter-spacing:.5px;text-transform:uppercase}
-.field input,.field select,.field textarea{border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:13px;color:var(--text);background:#fafafa;font-family:inherit;transition:.15s;font-weight:500}
-.field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--accent);background:#fff;box-shadow:0 0 0 3px rgba(29,62,169,.12)}
+.field label{font-size:11px;font-weight:600;color:var(--grey-600);letter-spacing:0.06em;text-transform:uppercase}
+.field input,.field select{height:38px;border:1px solid var(--grey-300);border-radius:var(--radius-sm);padding:0 12px;font-size:14px;color:var(--navy-800);background:var(--white);font-family:var(--font-body);font-weight:500;transition:border-color 140ms var(--ease),box-shadow 140ms var(--ease)}
+.field textarea{border:1px solid var(--grey-300);border-radius:var(--radius-sm);padding:9px 12px;font-size:14px;color:var(--navy-800);background:var(--white);font-family:var(--font-body);font-weight:500;transition:border-color 140ms var(--ease),box-shadow 140ms var(--ease)}
+.field input::placeholder,.field textarea::placeholder{color:var(--grey-400)}
+.field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--blue-500);background:var(--white);box-shadow:0 0 0 3px rgba(46,82,201,0.15)}
 .field textarea{resize:vertical;min-height:64px}
 .field.span2{grid-column:span 2}
 .field.span3{grid-column:span 3}
 
 .radio-group{display:flex;gap:14px;flex-wrap:wrap;margin-top:2px}
-.radio-group label{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:500;text-transform:none;letter-spacing:0;cursor:pointer;color:var(--text)}
+.radio-group label{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:500;text-transform:none;letter-spacing:0;cursor:pointer;color:var(--grey-700)}
+.radio-group input[type=radio]{accent-color:var(--blue-600);cursor:pointer}
 .check-group{display:flex;flex-direction:column;gap:8px;margin-top:4px}
-.check-group label{display:flex;align-items:flex-start;gap:9px;font-size:13px;cursor:pointer;font-weight:500;text-transform:none;letter-spacing:0;color:var(--text);line-height:1.5}
-.check-group input[type=checkbox]{width:14px;height:14px;margin-top:2px;flex-shrink:0;accent-color:var(--accent)}
+.check-group label{display:flex;align-items:flex-start;gap:9px;font-size:13px;cursor:pointer;font-weight:500;text-transform:none;letter-spacing:0;color:var(--grey-700);line-height:1.5}
+.check-group input[type=checkbox]{width:15px;height:15px;margin-top:2px;flex-shrink:0;accent-color:var(--blue-600);cursor:pointer}
 
-.guide{background:#eef2fb;border:1px solid #c8d4ee;border-left:4px solid var(--accent);border-radius:8px;padding:14px 16px}
-.guide h4{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;color:var(--accent2);margin-bottom:10px}
-.guide ol{padding-left:18px;font-size:12.5px;color:#1e2f5e;line-height:1.75}
+.guide{background:var(--amber-100);border:1px solid var(--amber-200);border-radius:var(--radius-sm);padding:14px 16px}
+.guide h4{font-family:var(--font-display);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--amber-700);margin-bottom:10px}
+.guide ol{padding-left:18px;font-size:12.5px;color:var(--grey-700);line-height:1.7}
 .guide li{margin-bottom:5px}
-.guide strong{color:var(--navy);font-weight:700}
+.guide strong{color:var(--navy-800);font-weight:700}
 
-.note{background:#fff7ec;border:1px solid #fbe1ad;border-left:4px solid var(--gold-deep);border-radius:8px;padding:11px 14px;font-size:12.5px;color:#7a4a09;line-height:1.6;font-weight:500}
-.note strong{color:#5e3805;font-weight:700}
+.note{background:var(--amber-100);border:1px solid var(--amber-200);border-radius:var(--radius-sm);padding:11px 14px;font-size:12.5px;color:var(--navy-800);line-height:1.6;font-weight:500}
+.note strong{font-family:var(--font-display);color:var(--amber-700);font-weight:600;text-transform:uppercase;font-size:11px;letter-spacing:0.08em}
 
 .sig-block{display:none}
 .sig-grid{display:grid;grid-template-columns:1fr 1fr;gap:32px;margin-top:8px}
 .sig-line{border-bottom:1.5px solid #334155;padding-top:42px}
-.sig-label{font-size:11px;color:#64748b;margin-top:5px;text-align:center;font-weight:600;letter-spacing:.2px}
+.sig-label{font-size:11px;color:var(--grey-500);margin-top:5px;text-align:center;font-weight:600;letter-spacing:0.02em}
 
-.btn-row{display:flex;gap:10px;margin-top:18px}
-.btn{padding:9px 20px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;border:none;font-family:inherit;transition:.15s;letter-spacing:.2px}
-.btn-primary{background:var(--accent);color:#fff}
-.btn-primary:hover{background:var(--accent2)}
-.btn-outline{background:#fff;color:var(--text);border:1px solid var(--border)}
-.btn-outline:hover{background:#f8fafc;border-color:#cbd5e1}
+.btn-row{display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-top:18px}
+.btn{font-family:var(--font-display);font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;border-radius:var(--radius-pill);cursor:pointer;border:none;transition:background 140ms var(--ease),box-shadow 140ms var(--ease),transform 140ms var(--ease),border-color 140ms var(--ease)}
+.btn:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(46,82,201,0.15)}
+.btn-primary{display:inline-flex;align-items:center;gap:8px;background:var(--blue-600);color:#fff;padding:11px 22px;box-shadow:var(--shadow-xs)}
+.btn-primary:hover{background:var(--blue-700);transform:translateY(-1px);box-shadow:var(--shadow-md)}
+.btn-outline{background:transparent;color:var(--navy-800);border:1.5px solid var(--grey-300);padding:10px 18px}
+.btn-outline:hover{background:var(--grey-100);border-color:var(--grey-300)}
 
 .home-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:16px}
-.home-card{background:#fff;border:1px solid var(--border);border-radius:12px;padding:18px;cursor:pointer;transition:.15s;position:relative;overflow:hidden;box-shadow:0 1px 2px rgba(27,47,76,.04)}
-.home-card:hover{border-color:var(--accent);box-shadow:0 4px 14px rgba(29,62,169,.1);transform:translateY(-2px)}
-.home-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--accent)}
-.home-card.consent::before{background:var(--coral)}
-.home-card.consent:hover{border-color:var(--coral);box-shadow:0 4px 14px rgba(250,98,77,.12)}
-.home-card h3{font-size:14px;font-weight:700;margin-bottom:5px;color:var(--navy);letter-spacing:-.1px}
-.home-card p{font-size:12px;color:var(--muted);line-height:1.55;font-weight:500}
-.home-card .hc-tag{font-size:10px;color:var(--accent);text-transform:uppercase;letter-spacing:.6px;font-weight:700;margin-top:10px;display:block}
-.home-card.consent .hc-tag{color:var(--coral)}
+.home-card{background:var(--white);border:1px solid var(--grey-200);border-radius:var(--radius-md);padding:18px;cursor:pointer;transition:border-color 140ms var(--ease),box-shadow 140ms var(--ease),transform 140ms var(--ease);position:relative;overflow:hidden;box-shadow:var(--shadow-xs)}
+.home-card:hover{border-color:var(--blue-600);box-shadow:var(--shadow-md);transform:translateY(-2px)}
+.home-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--blue-600)}
+.home-card.consent::before{background:var(--coral-500)}
+.home-card.consent:hover{border-color:var(--coral-500);box-shadow:0 8px 24px rgba(250,98,77,.14)}
+.home-card h3{font-family:var(--font-display);font-size:14px;font-weight:600;text-transform:uppercase;letter-spacing:0.03em;margin-bottom:5px;color:var(--navy-800)}
+.home-card p{font-size:12px;color:var(--grey-500);line-height:1.55;font-weight:500}
+.home-card .hc-tag{font-family:var(--font-display);font-size:10px;color:var(--blue-600);text-transform:uppercase;letter-spacing:0.08em;font-weight:600;margin-top:10px;display:block}
+.home-card.consent .hc-tag{color:var(--coral-700)}
 
-.grid-label{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1.2px;color:var(--muted);margin-bottom:12px}
+.grid-label{display:flex;align-items:center;gap:10px;font-family:var(--font-display);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.12em;color:var(--grey-500);margin-bottom:12px}
+.grid-label::before{content:'';width:22px;height:4px;border-radius:2px;background:var(--mint-500);flex:0 0 auto}
 
 
 /* ==================== LANGUAGE TOGGLE ==================== */
 .lang-toggle {
   display: inline-flex;
   align-items: center;
-  background: #f1f5f9;
-  border-radius: 18px;
-  padding: 2px;
+  gap: 2px;
+  background: var(--grey-100);
+  border-radius: var(--radius-pill);
+  padding: 3px;
   margin-right: 14px;
-  border: 1px solid var(--border);
+  border: none;
 }
 .lang-btn {
   border: none;
   background: transparent;
-  font-family: inherit;
+  font-family: var(--font-display);
   font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.6px;
-  padding: 5px 11px;
-  border-radius: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 6px 12px;
+  border-radius: var(--radius-pill);
   cursor: pointer;
-  color: var(--muted);
-  transition: 0.15s;
+  color: var(--grey-600);
+  transition: color 140ms var(--ease), background 140ms var(--ease), box-shadow 140ms var(--ease);
 }
-.lang-btn:hover { color: var(--text); }
-.lang-btn.active { background: var(--accent); color: #fff; box-shadow: 0 1px 3px rgba(29,62,169,.25); }
+.lang-btn:hover { color: var(--navy-800); }
+.lang-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(46,82,201,0.15); }
+.lang-btn.active { background: var(--navy-800); color: #fff; box-shadow: var(--shadow-xs); }
 .topbar-right { display: flex; align-items: center; gap: 4px; }
+
+
+.btn-primary::before{content:'';width:14px;height:14px;flex:0 0 auto;background:currentColor;
+  -webkit-mask:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z'/></svg>") center/contain no-repeat;
+  mask:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z'/></svg>") center/contain no-repeat}
 
 @media print { .lang-toggle { display: none !important; } }
 
@@ -422,7 +441,7 @@ body{font-family:'Montserrat',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto
     <p>Clinical Forms</p>
   </div>
   <div class="sb-section">Post-Op Instructions</div>
-  <button class="sb-item" onclick="show('home')">🏠 Home</button>
+  <button class="sb-item" onclick="show('home')">Home</button>
   <button class="sb-item" onclick="show('postop-braces')">Braces — General</button>
   <button class="sb-item" onclick="show('postop-bond')">Bonding / Debond</button>
   <button class="sb-item" onclick="show('postop-expander')">Expander Placement</button>
@@ -525,7 +544,7 @@ body{font-family:'Montserrat',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto
         </ol>
       </div></div>
     </div>
-    <div class="btn-row"><button class="btn btn-primary" onclick="doPrint()">🖨 Print Instructions</button><button class="btn btn-outline" onclick="clearPanel()">Clear</button></div>
+    <div class="btn-row"><button class="btn btn-outline" onclick="clearPanel()">Clear</button><button class="btn btn-primary" onclick="doPrint()">Print Instructions</button></div>
   </div>
 
   <!-- POST-OP: BONDING / DEBOND -->
@@ -554,7 +573,7 @@ body{font-family:'Montserrat',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto
         </ol>
       </div></div>
     </div>
-    <div class="btn-row"><button class="btn btn-primary" onclick="doPrint()">🖨 Print Instructions</button><button class="btn btn-outline" onclick="clearPanel()">Clear</button></div>
+    <div class="btn-row"><button class="btn btn-outline" onclick="clearPanel()">Clear</button><button class="btn btn-primary" onclick="doPrint()">Print Instructions</button></div>
   </div>
 
   <!-- POST-OP: EXPANDER -->
@@ -587,7 +606,7 @@ body{font-family:'Montserrat',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto
         </ol>
       </div></div>
     </div>
-    <div class="btn-row"><button class="btn btn-primary" onclick="doPrint()">🖨 Print Instructions</button><button class="btn btn-outline" onclick="clearPanel()">Clear</button></div>
+    <div class="btn-row"><button class="btn btn-outline" onclick="clearPanel()">Clear</button><button class="btn btn-primary" onclick="doPrint()">Print Instructions</button></div>
   </div>
 
   <!-- POST-OP: FUNCTIONAL APPLIANCE — FRAMEWORK DELIVERY (Visit 2) -->
@@ -633,7 +652,7 @@ body{font-family:'Montserrat',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto
         </ol>
       </div></div>
     </div>
-    <div class="btn-row"><button class="btn btn-primary" onclick="doPrint()">🖨 Print Instructions</button><button class="btn btn-outline" onclick="clearPanel()">Clear</button></div>
+    <div class="btn-row"><button class="btn btn-outline" onclick="clearPanel()">Clear</button><button class="btn btn-primary" onclick="doPrint()">Print Instructions</button></div>
   </div>
 
   <!-- POST-OP: FUNCTIONAL APPLIANCE — ARM CONNECTION / ACTIVATION (Visit 3) -->
@@ -677,7 +696,7 @@ body{font-family:'Montserrat',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto
         </ol>
       </div></div>
     </div>
-    <div class="btn-row"><button class="btn btn-primary" onclick="doPrint()">🖨 Print Instructions</button><button class="btn btn-outline" onclick="clearPanel()">Clear</button></div>
+    <div class="btn-row"><button class="btn btn-outline" onclick="clearPanel()">Clear</button><button class="btn btn-primary" onclick="doPrint()">Print Instructions</button></div>
   </div>
 
 
@@ -715,7 +734,7 @@ body{font-family:'Montserrat',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto
         </ol>
       </div></div>
     </div>
-    <div class="btn-row"><button class="btn btn-primary" onclick="doPrint()">🖨 Print Instructions</button><button class="btn btn-outline" onclick="clearPanel()">Clear</button></div>
+    <div class="btn-row"><button class="btn btn-outline" onclick="clearPanel()">Clear</button><button class="btn btn-primary" onclick="doPrint()">Print Instructions</button></div>
   </div>
 
   <!-- POST-OP: MARPE ACTIVATION -->
@@ -756,7 +775,7 @@ body{font-family:'Montserrat',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto
         </ol>
       </div></div>
     </div>
-    <div class="btn-row"><button class="btn btn-primary" onclick="doPrint()">🖨 Print Instructions</button><button class="btn btn-outline" onclick="clearPanel()">Clear</button></div>
+    <div class="btn-row"><button class="btn btn-outline" onclick="clearPanel()">Clear</button><button class="btn btn-primary" onclick="doPrint()">Print Instructions</button></div>
   </div>
 
   <!-- POST-OP: GINGIVECTOMY -->
@@ -811,7 +830,7 @@ body{font-family:'Montserrat',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto
         </div>
       </div>
     </div>
-    <div class="btn-row"><button class="btn btn-primary" onclick="doPrint()">🖨 Print Instructions</button><button class="btn btn-outline" onclick="clearPanel()">Clear</button></div>
+    <div class="btn-row"><button class="btn btn-outline" onclick="clearPanel()">Clear</button><button class="btn btn-primary" onclick="doPrint()">Print Instructions</button></div>
   </div>
 
   <!-- POST-OP: ALIGNER -->
@@ -842,7 +861,7 @@ body{font-family:'Montserrat',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto
         </ol>
       </div></div>
     </div>
-    <div class="btn-row"><button class="btn btn-primary" onclick="doPrint()">🖨 Print Instructions</button><button class="btn btn-outline" onclick="clearPanel()">Clear</button></div>
+    <div class="btn-row"><button class="btn btn-outline" onclick="clearPanel()">Clear</button><button class="btn btn-primary" onclick="doPrint()">Print Instructions</button></div>
   </div>
 
   <!-- POST-OP: RETAINER -->
@@ -872,7 +891,7 @@ body{font-family:'Montserrat',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto
         </ol>
       </div></div>
     </div>
-    <div class="btn-row"><button class="btn btn-primary" onclick="doPrint()">🖨 Print Instructions</button><button class="btn btn-outline" onclick="clearPanel()">Clear</button></div>
+    <div class="btn-row"><button class="btn btn-outline" onclick="clearPanel()">Clear</button><button class="btn btn-primary" onclick="doPrint()">Print Instructions</button></div>
   </div>
 
   <!-- CONSENT: BRACES -->
@@ -913,7 +932,7 @@ body{font-family:'Montserrat',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto
       <p style="font-size:11px;color:#64748b;margin-top:10px">By signing, patient/RP confirms they have read, understood, and had the opportunity to ask questions about all risks and benefits of treatment.</p>
       </div>
     </div>
-    <div class="btn-row"><button class="btn btn-primary" onclick="doPrint()">🖨 Print for Signature</button><button class="btn btn-outline" onclick="clearPanel()">Clear</button></div>
+    <div class="btn-row"><button class="btn btn-outline" onclick="clearPanel()">Clear</button><button class="btn btn-primary" onclick="doPrint()">Print for Signature</button></div>
   </div>
 
   <!-- CONSENT: ALIGNER -->
@@ -957,7 +976,7 @@ body{font-family:'Montserrat',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto
         <div><div class="sig-line"></div><div class="sig-label">Patient / RP Signature &amp; Date</div></div>
       </div></div>
     </div>
-    <div class="btn-row"><button class="btn btn-primary" onclick="doPrint()">🖨 Print for Signature</button><button class="btn btn-outline" onclick="clearPanel()">Clear</button></div>
+    <div class="btn-row"><button class="btn btn-outline" onclick="clearPanel()">Clear</button><button class="btn btn-primary" onclick="doPrint()">Print for Signature</button></div>
   </div>
 
   <!-- CONSENT: SURGICAL -->
@@ -993,7 +1012,7 @@ body{font-family:'Montserrat',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto
         <div><div class="sig-line"></div><div class="sig-label">Patient / RP Signature &amp; Date</div></div>
       </div></div>
     </div>
-    <div class="btn-row"><button class="btn btn-primary" onclick="doPrint()">🖨 Print for Signature</button><button class="btn btn-outline" onclick="clearPanel()">Clear</button></div>
+    <div class="btn-row"><button class="btn btn-outline" onclick="clearPanel()">Clear</button><button class="btn btn-primary" onclick="doPrint()">Print for Signature</button></div>
   </div>
 
   <!-- CONSENT: MARPE -->
@@ -1030,7 +1049,7 @@ body{font-family:'Montserrat',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto
         <div><div class="sig-line"></div><div class="sig-label">Patient / RP Signature &amp; Date</div></div>
       </div></div>
     </div>
-    <div class="btn-row"><button class="btn btn-primary" onclick="doPrint()">🖨 Print for Signature</button><button class="btn btn-outline" onclick="clearPanel()">Clear</button></div>
+    <div class="btn-row"><button class="btn btn-outline" onclick="clearPanel()">Clear</button><button class="btn btn-primary" onclick="doPrint()">Print for Signature</button></div>
   </div>
 
   <!-- CONSENT: TAD -->
@@ -1085,7 +1104,7 @@ body{font-family:'Montserrat',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto
         <div><div class="sig-line"></div><div class="sig-label">Patient / RP Signature &amp; Date</div></div>
       </div></div>
     </div>
-    <div class="btn-row"><button class="btn btn-primary" onclick="doPrint()">🖨 Print for Signature</button><button class="btn btn-outline" onclick="clearPanel()">Clear</button></div>
+    <div class="btn-row"><button class="btn btn-outline" onclick="clearPanel()">Clear</button><button class="btn btn-primary" onclick="doPrint()">Print for Signature</button></div>
   </div>
 
   <!-- CONSENT: IMPACTED TOOTH -->
@@ -1126,7 +1145,7 @@ body{font-family:'Montserrat',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto
         <div><div class="sig-line"></div><div class="sig-label">Patient / RP Signature &amp; Date</div></div>
       </div></div>
     </div>
-    <div class="btn-row"><button class="btn btn-primary" onclick="doPrint()">🖨 Print for Signature</button><button class="btn btn-outline" onclick="clearPanel()">Clear</button></div>
+    <div class="btn-row"><button class="btn btn-outline" onclick="clearPanel()">Clear</button><button class="btn btn-primary" onclick="doPrint()">Print for Signature</button></div>
   </div>
 
   <!-- CONSENT: RETAINER -->
@@ -1162,7 +1181,7 @@ body{font-family:'Montserrat',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto
         <div><div class="sig-line"></div><div class="sig-label">Patient / RP Signature &amp; Date</div></div>
       </div></div>
     </div>
-    <div class="btn-row"><button class="btn btn-primary" onclick="doPrint()">🖨 Print for Signature</button><button class="btn btn-outline" onclick="clearPanel()">Clear</button></div>
+    <div class="btn-row"><button class="btn btn-outline" onclick="clearPanel()">Clear</button><button class="btn btn-primary" onclick="doPrint()">Print for Signature</button></div>
   </div>
 
   <!-- CONSENT: GINGIVECTOMY -->
@@ -1223,7 +1242,7 @@ body{font-family:'Montserrat',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto
         <div><div class="sig-line"></div><div class="sig-label">Patient / RP Signature &amp; Date</div></div>
       </div></div>
     </div>
-    <div class="btn-row"><button class="btn btn-primary" onclick="doPrint()">🖨 Print for Signature</button><button class="btn btn-outline" onclick="clearPanel()">Clear</button></div>
+    <div class="btn-row"><button class="btn btn-outline" onclick="clearPanel()">Clear</button><button class="btn btn-primary" onclick="doPrint()">Print for Signature</button></div>
   </div>
 
   <!-- CONSENT: BONDED LINGUAL RETAINER -->
@@ -1262,7 +1281,7 @@ body{font-family:'Montserrat',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto
         <div><div class="sig-line"></div><div class="sig-label">Patient / RP Signature &amp; Date</div></div>
       </div></div>
     </div>
-    <div class="btn-row"><button class="btn btn-primary" onclick="doPrint()">🖨 Print for Signature</button><button class="btn btn-outline" onclick="clearPanel()">Clear</button></div>
+    <div class="btn-row"><button class="btn btn-outline" onclick="clearPanel()">Clear</button><button class="btn btn-primary" onclick="doPrint()">Print for Signature</button></div>
   </div>
 
   <!-- CONSENT: OSA / ORAL APPLIANCE -->
@@ -1305,7 +1324,7 @@ body{font-family:'Montserrat',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto
         <div><div class="sig-line"></div><div class="sig-label">Patient / RP Signature &amp; Date</div></div>
       </div></div>
     </div>
-    <div class="btn-row"><button class="btn btn-primary" onclick="doPrint()">🖨 Print for Signature</button><button class="btn btn-outline" onclick="clearPanel()">Clear</button></div>
+    <div class="btn-row"><button class="btn btn-outline" onclick="clearPanel()">Clear</button><button class="btn btn-primary" onclick="doPrint()">Print for Signature</button></div>
   </div>
 
   <!-- CONSENT: MOUTHGUARD RELEASE WAIVER -->
@@ -1344,7 +1363,7 @@ body{font-family:'Montserrat',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto
         <div><div class="sig-line"></div><div class="sig-label">Parent / Guardian Signature &amp; Date</div></div>
       </div></div>
     </div>
-    <div class="btn-row"><button class="btn btn-primary" onclick="doPrint()">🖨 Print for Signature</button><button class="btn btn-outline" onclick="clearPanel()">Clear</button></div>
+    <div class="btn-row"><button class="btn btn-outline" onclick="clearPanel()">Clear</button><button class="btn btn-primary" onclick="doPrint()">Print for Signature</button></div>
   </div>
 
   <!-- CONSENT: PHOTOS -->
@@ -1379,7 +1398,7 @@ body{font-family:'Montserrat',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto
         <div><div class="sig-line"></div><div class="sig-label">Patient / RP Signature &amp; Date</div></div>
       </div></div>
     </div>
-    <div class="btn-row"><button class="btn btn-primary" onclick="doPrint()">🖨 Print for Signature</button><button class="btn btn-outline" onclick="clearPanel()">Clear</button></div>
+    <div class="btn-row"><button class="btn btn-outline" onclick="clearPanel()">Clear</button><button class="btn btn-primary" onclick="doPrint()">Print for Signature</button></div>
   </div>
 
   <!-- ==================== PRINT DOCUMENT (letterhead, print-only) ==================== -->
@@ -1465,8 +1484,8 @@ const I18N = {
     "page_title": "Post-Op y Consentimientos Informados",
     "page_sub": "Next Level Orthodontics · Gainesville, FL",
     "back_btn": "← Apps NLO",
-    "print_for_sig": "🖨 Imprimir para Firma",
-    "print_instructions": "🖨 Imprimir Instrucciones",
+    "print_for_sig": "Imprimir para Firma",
+    "print_instructions": "Imprimir Instrucciones",
     "clear": "Borrar",
     "sb_section_postop": "Instrucciones Post-Op",
     "sb_section_consent": "Consentimientos Informados",
@@ -1576,7 +1595,7 @@ const I18N = {
     "Total Swings": "Total de Giros"
   },
   "sidebar": {
-    "home": "🏠 Inicio",
+    "home": "Inicio",
     "postop-braces": "Brackets — Generales",
     "postop-bond": "Adhesión / Retiro",
     "postop-expander": "Colocación de Expansor",
