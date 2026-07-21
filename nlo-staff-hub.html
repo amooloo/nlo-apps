@@ -2624,10 +2624,16 @@ async function fbWriteNow() {
 function fbStartSnapshot() {
   if (!fbDocRef) return;
   if (fbUnsub) { fbUnsub(); fbUnsub = null; }
-  fbUnsub = fbDocRef.onSnapshot(function (snap) {
+  fbUnsub = fbDocRef.onSnapshot({ includeMetadataChanges: true }, function (snap) {
     if (snap.metadata && snap.metadata.hasPendingWrites) return;   // our own write echoing back
     var d = snap.data(); if (!d || !d.data) return;
-    if ((d.rev || 0) <= lastAppliedRev) { setSyncState(snap.metadata && snap.metadata.fromCache ? 'offline' : 'synced'); return; }
+    if ((d.rev || 0) <= lastAppliedRev) {
+      // A cached snapshot fires first on every load; only call it "offline" if the
+      // browser is genuinely offline. Otherwise we're connected/synced.
+      var fromCache = snap.metadata && snap.metadata.fromCache;
+      setSyncState((fromCache && typeof navigator !== 'undefined' && navigator.onLine === false) ? 'offline' : 'synced');
+      return;
+    }
     // remote change from another device → decrypt and apply
     decryptJSON(d.data, cryptoKey).then(function (data) {
       var openId = route.staffId;
