@@ -1,416 +1,432 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>NLO Apps — Next Level Orthodontics</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>NLO Apps — Next Level Orthodontics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
 
-    body {
-      font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #F2F3F4;
-      min-height: 100vh;
-      color: #1B2F4C;
-    }
+body {
+font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+background: #F2F3F4;
+min-height: 100vh;
+color: #1B2F4C;
+}
 
-    header {
-      background: #1B2F4C;
-      color: white;
-      padding: 40px 32px 36px;
-      text-align: center;
-    }
+header {
+background: #1B2F4C;
+color: white;
+padding: 40px 32px 36px;
+text-align: center;
+}
 
-    .logo-row {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin-bottom: 14px;
-    }
+.logo-row {
+display: flex;
+align-items: center;
+justify-content: center;
+margin-bottom: 14px;
+}
 
-    .logo-row img {
-      height: 110px;
-      width: auto;
-      display: block;
-    }
+.logo-row img {
+height: 110px;
+width: auto;
+display: block;
+}
 
-    header h1 {
-      font-size: 0.75rem;
-      font-weight: 600;
-      letter-spacing: 3px;
-      text-transform: uppercase;
-      opacity: 0.55;
-      margin-top: 0;
-    }
+header h1 {
+font-size: 0.75rem;
+font-weight: 600;
+letter-spacing: 3px;
+text-transform: uppercase;
+opacity: 0.55;
+margin-top: 0;
+}
 
-    .main {
-      max-width: 940px;
-      margin: 40px auto;
-      padding: 0 20px;
-    }
+.main {
+max-width: 940px;
+margin: 40px auto;
+padding: 0 20px;
+}
 
-    .section-title {
-      font-size: 0.7rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 1.5px;
-      color: #1B2F4C;
-      opacity: 0.4;
-      margin-bottom: 18px;
-    }
+.section-title {
+font-size: 0.7rem;
+font-weight: 700;
+text-transform: uppercase;
+letter-spacing: 1.5px;
+color: #1B2F4C;
+opacity: 0.4;
+margin-bottom: 18px;
+}
 
-    .apps-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
-      gap: 20px;
-    }
+.apps-grid {
+display: grid;
+grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+gap: 20px;
+}
 
-    .app-card {
-      background: white;
-      border-radius: 14px;
-      padding: 28px;
-      box-shadow: 0 1px 3px rgba(27,47,76,0.06), 0 4px 16px rgba(27,47,76,0.04);
-      transition: all 0.2s ease;
-      text-decoration: none;
-      color: inherit;
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-      border: 2px solid transparent;
-      cursor: pointer;
-    }
+.app-card {
+background: white;
+border-radius: 14px;
+padding: 28px;
+box-shadow: 0 1px 3px rgba(27,47,76,0.06), 0 4px 16px rgba(27,47,76,0.04);
+transition: all 0.2s ease;
+text-decoration: none;
+color: inherit;
+display: flex;
+flex-direction: column;
+gap: 14px;
+border: 2px solid transparent;
+cursor: pointer;
+}
 
-    .app-card:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 4px 12px rgba(27,47,76,0.1), 0 8px 28px rgba(27,47,76,0.08);
-    }
+.app-card:hover {
+transform: translateY(-3px);
+box-shadow: 0 4px 12px rgba(27,47,76,0.1), 0 8px 28px rgba(27,47,76,0.08);
+}
 
-    .app-icon {
-      width: 52px;
-      height: 52px;
-      border-radius: 12px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-    }
+.app-icon {
+width: 52px;
+height: 52px;
+border-radius: 12px;
+display: flex;
+align-items: center;
+justify-content: center;
+flex-shrink: 0;
+}
 
-    .app-card h3 {
-      font-size: 1rem;
-      font-weight: 700;
-      color: #1B2F4C;
-      letter-spacing: -0.2px;
-    }
+.app-card h3 {
+font-size: 1rem;
+font-weight: 700;
+color: #1B2F4C;
+letter-spacing: -0.2px;
+}
 
-    .app-card p {
-      font-size: 0.82rem;
-      color: #1B2F4C;
-      opacity: 0.55;
-      line-height: 1.55;
-      font-weight: 500;
-    }
+.app-card p {
+font-size: 0.82rem;
+color: #1B2F4C;
+opacity: 0.55;
+line-height: 1.55;
+font-weight: 500;
+}
 
-    .app-tag {
-      display: inline-block;
-      font-size: 0.62rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.8px;
-      padding: 4px 12px;
-      border-radius: 20px;
-      margin-top: auto;
-      width: fit-content;
-    }
+.app-tag {
+display: inline-block;
+font-size: 0.62rem;
+font-weight: 700;
+text-transform: uppercase;
+letter-spacing: 0.8px;
+padding: 4px 12px;
+border-radius: 20px;
+margin-top: auto;
+width: fit-content;
+}
 
-    /* NLO Brand Color Themes */
+/* NLO Brand Color Themes */
 
-    /* Blue — brand blue #1D3EA9 */
-    .theme-blue .app-icon { background: rgba(29,62,169,0.08); }
-    .theme-blue .app-icon svg { stroke: #1D3EA9; }
-    .theme-blue .app-tag { background: rgba(29,62,169,0.1); color: #1D3EA9; }
-    .theme-blue:hover { border-color: #1D3EA9; }
+/* Blue — brand blue #1D3EA9 */
+.theme-blue .app-icon { background: rgba(29,62,169,0.08); }
+.theme-blue .app-icon svg { stroke: #1D3EA9; }
+.theme-blue .app-tag { background: rgba(29,62,169,0.1); color: #1D3EA9; }
+.theme-blue:hover { border-color: #1D3EA9; }
 
-    /* Coral — brand coral #FA624D */
-    .theme-coral .app-icon { background: rgba(250,98,77,0.08); }
-    .theme-coral .app-icon svg { stroke: #FA624D; }
-    .theme-coral .app-tag { background: rgba(250,98,77,0.1); color: #FA624D; }
-    .theme-coral:hover { border-color: #FA624D; }
+/* Coral — brand coral #FA624D */
+.theme-coral .app-icon { background: rgba(250,98,77,0.08); }
+.theme-coral .app-icon svg { stroke: #FA624D; }
+.theme-coral .app-tag { background: rgba(250,98,77,0.1); color: #FA624D; }
+.theme-coral:hover { border-color: #FA624D; }
 
-    /* Mint — brand mint #64F4C9 mapped to darker teal for readability */
-    .theme-mint .app-icon { background: rgba(100,244,201,0.12); }
-    .theme-mint .app-icon svg { stroke: #1a9e78; }
-    .theme-mint .app-tag { background: rgba(100,244,201,0.15); color: #1a9e78; }
-    .theme-mint:hover { border-color: #64F4C9; }
+/* Mint — brand mint #64F4C9 mapped to darker teal for readability */
+.theme-mint .app-icon { background: rgba(100,244,201,0.12); }
+.theme-mint .app-icon svg { stroke: #1a9e78; }
+.theme-mint .app-tag { background: rgba(100,244,201,0.15); color: #1a9e78; }
+.theme-mint:hover { border-color: #64F4C9; }
 
-    /* Gold — brand gold #F6AF24 */
-    .theme-gold .app-icon { background: rgba(246,175,36,0.1); }
-    .theme-gold .app-icon svg { stroke: #d9930a; }
-    .theme-gold .app-tag { background: rgba(246,175,36,0.12); color: #d9930a; }
-    .theme-gold:hover { border-color: #F6AF24; }
+/* Gold — brand gold #F6AF24 */
+.theme-gold .app-icon { background: rgba(246,175,36,0.1); }
+.theme-gold .app-icon svg { stroke: #d9930a; }
+.theme-gold .app-tag { background: rgba(246,175,36,0.12); color: #d9930a; }
+.theme-gold:hover { border-color: #F6AF24; }
 
-    /* Navy — brand navy #1B2F4C */
-    .theme-navy .app-icon { background: rgba(27,47,76,0.07); }
-    .theme-navy .app-icon svg { stroke: #1B2F4C; }
-    .theme-navy .app-tag { background: rgba(27,47,76,0.08); color: #1B2F4C; }
-    .theme-navy:hover { border-color: #1B2F4C; }
+/* Navy — brand navy #1B2F4C */
+.theme-navy .app-icon { background: rgba(27,47,76,0.07); }
+.theme-navy .app-icon svg { stroke: #1B2F4C; }
+.theme-navy .app-tag { background: rgba(27,47,76,0.08); color: #1B2F4C; }
+.theme-navy:hover { border-color: #1B2F4C; }
 
-    footer {
-      text-align: center;
-      padding: 36px 20px;
-      font-size: 0.72rem;
-      font-weight: 600;
-      letter-spacing: 0.5px;
-      color: #1B2F4C;
-      opacity: 0.3;
-    }
+footer {
+text-align: center;
+padding: 36px 20px;
+font-size: 0.72rem;
+font-weight: 600;
+letter-spacing: 0.5px;
+color: #1B2F4C;
+opacity: 0.3;
+}
 
-    @media (max-width: 600px) {
-      .apps-grid { grid-template-columns: 1fr; }
-      header { padding: 28px 20px 24px; }
-      .logo-row img { height: 80px; }
-      header h1 { font-size: 0.7rem; }
-    }
-  </style>
+@media (max-width: 600px) {
+.apps-grid { grid-template-columns: 1fr; }
+header { padding: 28px 20px 24px; }
+.logo-row img { height: 80px; }
+header h1 { font-size: 0.7rem; }
+}
+</style>
 </head>
 <body>
 
 <header>
-  <div class="logo-row">
-    <img src="logo-white.png" alt="Next Level Orthodontics" />
-  </div>
-  <h1>Internal Tools</h1>
+<div class="logo-row">
+<img src="logo-white.png" alt="Next Level Orthodontics" />
+</div>
+<h1>Internal Tools</h1>
 </header>
 
 <div class="main">
-  <div class="section-title">Applications</div>
+<div class="section-title">Applications</div>
 
-  <div class="apps-grid">
+<div class="apps-grid">
 
-    <!-- NLO AI Assistant -->
-    <a href="nlo-ai-assistant.html" class="app-card theme-blue">
-      <div class="app-icon">
-        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 2a4 4 0 014 4v1a1 1 0 01-1 1H9a1 1 0 01-1-1V6a4 4 0 014-4z"/>
-          <path d="M9 12h6"/>
-          <path d="M9 16h6"/>
-          <rect x="7" y="8" width="10" height="12" rx="2"/>
-          <path d="M12 20v2"/>
-          <path d="M8 22h8"/>
-        </svg>
-      </div>
-      <h3>NLO AI Assistant</h3>
-      <p>AI-powered assistant for clinical and administrative support across the practice.</p>
-      <span class="app-tag">AI &amp; Automation</span>
-    </a>
+<!-- NLO AI Assistant -->
+<a href="nlo-ai-assistant.html" class="app-card theme-blue">
+<div class="app-icon">
+<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<path d="M12 2a4 4 0 014 4v1a1 1 0 01-1 1H9a1 1 0 01-1-1V6a4 4 0 014-4z"/>
+<path d="M9 12h6"/>
+<path d="M9 16h6"/>
+<rect x="7" y="8" width="10" height="12" rx="2"/>
+<path d="M12 20v2"/>
+<path d="M8 22h8"/>
+</svg>
+</div>
+<h3>NLO AI Assistant</h3>
+<p>AI-powered assistant for clinical and administrative support across the practice.</p>
+<span class="app-tag">AI &amp; Automation</span>
+</a>
 
-    <!-- NLO Inventory -->
-    <a href="https://nlo-inventory.web.app" class="app-card theme-coral" target="_blank">
-      <div class="app-icon">
-        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
-        </svg>
-      </div>
-      <h3>NLO Inventory</h3>
-      <p>Track supplies, monitor stock levels with low-stock alerts, and manage vendor info across 18+ product categories.</p>
-      <span class="app-tag">Inventory &amp; Supplies</span>
-    </a>
+<!-- NLO Inventory -->
+<a href="https://nlo-inventory.web.app" class="app-card theme-coral" target="_blank">
+<div class="app-icon">
+<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+</svg>
+</div>
+<h3>NLO Inventory</h3>
+<p>Track supplies, monitor stock levels with low-stock alerts, and manage vendor info across 18+ product categories.</p>
+<span class="app-tag">Inventory &amp; Supplies</span>
+</a>
 
-    <!-- Aligner Label Maker -->
-    <a href="aligner-label-maker.html" class="app-card theme-blue">
-      <div class="app-icon">
-        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="2" y="3" width="20" height="14" rx="2"/>
-          <path d="M8 21h8"/>
-          <path d="M12 17v4"/>
-        </svg>
-      </div>
-      <h3>Aligner Label Maker</h3>
-      <p>Generate and print 2x4" thermoforming labels for upper and lower aligner stages. Direct print to GK420d.</p>
-      <span class="app-tag">Labels &amp; Printing</span>
-    </a>
+<!-- Aligner Label Maker -->
+<a href="aligner-label-maker.html" class="app-card theme-blue">
+<div class="app-icon">
+<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<rect x="2" y="3" width="20" height="14" rx="2"/>
+<path d="M8 21h8"/>
+<path d="M12 17v4"/>
+</svg>
+</div>
+<h3>Aligner Label Maker</h3>
+<p>Generate and print 2x4" thermoforming labels for upper and lower aligner stages. Direct print to GK420d.</p>
+<span class="app-tag">Labels &amp; Printing</span>
+</a>
 
-    <!-- Clinical SOP Manual -->
-    <a href="nlo-sop-manual.html" class="app-card theme-mint">
-      <div class="app-icon">
-        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M4 19.5A2.5 2.5 0 016.5 17H20"/>
-          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/>
-          <line x1="8" y1="7" x2="16" y2="7"/>
-          <line x1="8" y1="11" x2="14" y2="11"/>
-        </svg>
-      </div>
-      <h3>Clinical SOP Manual</h3>
-      <p>Standard operating procedures for clinical workflows, protocols, and staff reference across the practice.</p>
-      <span class="app-tag">Procedures &amp; Training</span>
-    </a>
+<!-- Clinical SOP Manual -->
+<a href="nlo-sop-manual.html" class="app-card theme-mint">
+<div class="app-icon">
+<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<path d="M4 19.5A2.5 2.5 0 016.5 17H20"/>
+<path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/>
+<line x1="8" y1="7" x2="16" y2="7"/>
+<line x1="8" y1="11" x2="14" y2="11"/>
+</svg>
+</div>
+<h3>Clinical SOP Manual</h3>
+<p>Standard operating procedures for clinical workflows, protocols, and staff reference across the practice.</p>
+<span class="app-tag">Procedures &amp; Training</span>
+</a>
 
-    <!-- Staff Benefits Tracker -->
-    <a href="benefits.html" class="app-card theme-gold">
-      <div class="app-icon">
-        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/>
-          <circle cx="9" cy="7" r="4"/>
-          <path d="M22 21v-2a4 4 0 00-3-3.87"/>
-          <path d="M16 3.13a4 4 0 010 7.75"/>
-        </svg>
-      </div>
-      <h3>Staff Benefits Tracker</h3>
-      <p>View and manage PTO balances — vacation, sick, personal &amp; CE hours. Admins can run accruals and adjust balances.</p>
-      <span class="app-tag">Benefits &amp; PTO</span>
-    </a>
+<!-- Staff Benefits Tracker -->
+<a href="benefits.html" class="app-card theme-gold">
+<div class="app-icon">
+<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/>
+<circle cx="9" cy="7" r="4"/>
+<path d="M22 21v-2a4 4 0 00-3-3.87"/>
+<path d="M16 3.13a4 4 0 010 7.75"/>
+</svg>
+</div>
+<h3>Staff Benefits Tracker</h3>
+<p>View and manage PTO balances — vacation, sick, personal &amp; CE hours. Admins can run accruals and adjust balances.</p>
+<span class="app-tag">Benefits &amp; PTO</span>
+</a>
 
-    <!-- Time-Off Requests -->
-    <a href="time-off.html" class="app-card theme-navy">
-      <div class="app-icon">
-        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-          <line x1="16" y1="2" x2="16" y2="6"/>
-          <line x1="8" y1="2" x2="8" y2="6"/>
-          <line x1="3" y1="10" x2="21" y2="10"/>
-          <path d="M8 14h.01"/>
-          <path d="M12 14h.01"/>
-          <path d="M16 14h.01"/>
-          <path d="M8 18h.01"/>
-          <path d="M12 18h.01"/>
-        </svg>
-      </div>
-      <h3>Time-Off Requests</h3>
-      <p>Submit and manage time-off requests. Admins can approve, deny, and view the team calendar with blackout dates.</p>
-      <span class="app-tag">Scheduling &amp; Leave</span>
-    </a>
+<!-- Time-Off Requests -->
+<a href="time-off.html" class="app-card theme-navy">
+<div class="app-icon">
+<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+<line x1="16" y1="2" x2="16" y2="6"/>
+<line x1="8" y1="2" x2="8" y2="6"/>
+<line x1="3" y1="10" x2="21" y2="10"/>
+<path d="M8 14h.01"/>
+<path d="M12 14h.01"/>
+<path d="M16 14h.01"/>
+<path d="M8 18h.01"/>
+<path d="M12 18h.01"/>
+</svg>
+</div>
+<h3>Time-Off Requests</h3>
+<p>Submit and manage time-off requests. Admins can approve, deny, and view the team calendar with blackout dates.</p>
+<span class="app-tag">Scheduling &amp; Leave</span>
+</a>
 
-    <!-- Transfer Out Calculator -->
-    <a href="transfer-out-calculator.html" class="app-card theme-coral">
-      <div class="app-icon">
-        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="4" y="2" width="16" height="20" rx="2"/>
-          <line x1="8" y1="6" x2="16" y2="6"/>
-          <line x1="8" y1="10" x2="16" y2="10"/>
-          <line x1="8" y1="14" x2="12" y2="14"/>
-          <path d="M15 17l2 2 4-4"/>
-        </svg>
-      </div>
-      <h3>Transfer Out Calculator</h3>
-      <p>Calculate patient balances for treatment transfers out of office — fees, payments, and refund or amount owed. Print-ready.</p>
-      <span class="app-tag">Billing &amp; Transfers</span>
-    </a>
+<!-- Transfer Out Calculator -->
+<a href="transfer-out-calculator.html" class="app-card theme-coral">
+<div class="app-icon">
+<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<rect x="4" y="2" width="16" height="20" rx="2"/>
+<line x1="8" y1="6" x2="16" y2="6"/>
+<line x1="8" y1="10" x2="16" y2="10"/>
+<line x1="8" y1="14" x2="12" y2="14"/>
+<path d="M15 17l2 2 4-4"/>
+</svg>
+</div>
+<h3>Transfer Out Calculator</h3>
+<p>Calculate patient balances for treatment transfers out of office — fees, payments, and refund or amount owed. Print-ready.</p>
+<span class="app-tag">Billing &amp; Transfers</span>
+</a>
 
-    <!-- Financial Suite -->
-    <a href="NLO_Financial_Suite.html" class="app-card theme-gold">
-      <div class="app-icon">
-        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="12" y1="1" x2="12" y2="23"/>
-          <path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>
-        </svg>
-      </div>
-      <h3>Financial Suite</h3>
-      <p>Fill out and print financial forms — altered arrangements, courtesy agreements, CC authorizations, discontinuations, and waivers.</p>
-      <span class="app-tag">Finance &amp; Documents</span>
-    </a>
+<!-- Financial Suite -->
+<a href="NLO_Financial_Suite.html" class="app-card theme-gold">
+<div class="app-icon">
+<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<line x1="12" y1="1" x2="12" y2="23"/>
+<path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>
+</svg>
+</div>
+<h3>Financial Suite</h3>
+<p>Fill out and print financial forms — altered arrangements, courtesy agreements, CC authorizations, discontinuations, and waivers.</p>
+<span class="app-tag">Finance &amp; Documents</span>
+</a>
 
-    <!-- IPR Tracker -->
-    <a href="IPR_Tracker.html" class="app-card theme-mint">
-      <div class="app-icon">
-        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 2C9 2 7 4 7 7c0 2 1 3 1 5 0 4-2 5-2 8a2 2 0 004 0c0-3 1-5 2-5s2 2 2 5a2 2 0 004 0c0-3-2-4-2-8 0-2 1-3 1-5 0-3-2-5-5-5z"/>
-          <line x1="9" y1="9" x2="15" y2="9"/>
-          <line x1="9" y1="13" x2="15" y2="13"/>
-        </svg>
-      </div>
-      <h3>IPR Tracker</h3>
-      <p>Track interproximal reduction by tooth and visit. Record amounts, visualize progress, and print treatment summaries.</p>
-      <span class="app-tag">Clinical &amp; Treatment</span>
-    </a>
+<!-- IPR Tracker -->
+<a href="IPR_Tracker.html" class="app-card theme-mint">
+<div class="app-icon">
+<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<path d="M12 2C9 2 7 4 7 7c0 2 1 3 1 5 0 4-2 5-2 8a2 2 0 004 0c0-3 1-5 2-5s2 2 2 5a2 2 0 004 0c0-3-2-4-2-8 0-2 1-3 1-5 0-3-2-5-5-5z"/>
+<line x1="9" y1="9" x2="15" y2="9"/>
+<line x1="9" y1="13" x2="15" y2="13"/>
+</svg>
+</div>
+<h3>IPR Tracker</h3>
+<p>Track interproximal reduction by tooth and visit. Record amounts, visualize progress, and print treatment summaries.</p>
+<span class="app-tag">Clinical &amp; Treatment</span>
+</a>
 
-    <!-- Post-Op & Consents -->
-    <a href="nlo-postop-consent.html" class="app-card theme-coral">
-      <div class="app-icon">
-        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M9 2h6a2 2 0 012 2v0H7v0a2 2 0 012-2z"/>
-          <rect x="5" y="4" width="14" height="18" rx="2"/>
-          <line x1="9" y1="10" x2="15" y2="10"/>
-          <line x1="9" y1="14" x2="15" y2="14"/>
-          <line x1="9" y1="18" x2="13" y2="18"/>
-        </svg>
-      </div>
-      <h3>Post-Op &amp; Consents</h3>
-      <p>Print-ready post-op instructions and informed consent forms — braces, aligners, expanders, functional appliances, MARPE, TADs, and more.</p>
-      <span class="app-tag">Clinical Forms</span>
-    </a>
+<!-- Post-Op & Consents -->
+<a href="nlo-postop-consent.html" class="app-card theme-coral">
+<div class="app-icon">
+<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<path d="M9 2h6a2 2 0 012 2v0H7v0a2 2 0 012-2z"/>
+<rect x="5" y="4" width="14" height="18" rx="2"/>
+<line x1="9" y1="10" x2="15" y2="10"/>
+<line x1="9" y1="14" x2="15" y2="14"/>
+<line x1="9" y1="18" x2="13" y2="18"/>
+</svg>
+</div>
+<h3>Post-Op &amp; Consents</h3>
+<p>Print-ready post-op instructions and informed consent forms — braces, aligners, expanders, functional appliances, MARPE, TADs, and more.</p>
+<span class="app-tag">Clinical Forms</span>
+</a>
 
-    <!-- AISA Portal -->
-    <a href="nlo-aisa-portal.html" class="app-card theme-blue">
-      <div class="app-icon">
-        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="3" y="3" width="18" height="14" rx="2"/>
-          <circle cx="9" cy="9" r="2"/>
-          <path d="M21 13l-4-4-6 6-2-2-4 4"/>
-          <path d="M8 21h8"/>
-          <path d="M12 17v4"/>
-        </svg>
-      </div>
-      <h3>AISA Portal</h3>
-      <p>Upload and categorize patient photos, and train the AISA knowledge base with clinical references and guidance.</p>
-      <span class="app-tag">AI &amp; Photos</span>
-    </a>
+<!-- AISA Portal -->
+<a href="nlo-aisa-portal.html" class="app-card theme-blue">
+<div class="app-icon">
+<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<rect x="3" y="3" width="18" height="14" rx="2"/>
+<circle cx="9" cy="9" r="2"/>
+<path d="M21 13l-4-4-6 6-2-2-4 4"/>
+<path d="M8 21h8"/>
+<path d="M12 17v4"/>
+</svg>
+</div>
+<h3>AISA Portal</h3>
+<p>Upload and categorize patient photos, and train the AISA knowledge base with clinical references and guidance.</p>
+<span class="app-tag">AI &amp; Photos</span>
+</a>
 
-    <!-- Cadence -->
-    <a href="cadence.html" class="app-card theme-mint">
-      <div class="app-icon">
-        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
-        </svg>
-      </div>
-      <h3>Cadence</h3>
-      <p>Clinical operations board — coordinate team cadence, role coverage, and recurring daily workflows across the practice.</p>
-      <span class="app-tag">Clinical Operations</span>
-    </a>
+<!-- Cadence -->
+<a href="cadence.html" class="app-card theme-mint">
+<div class="app-icon">
+<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+</svg>
+</div>
+<h3>Cadence</h3>
+<p>Clinical operations board — coordinate team cadence, role coverage, and recurring daily workflows across the practice.</p>
+<span class="app-tag">Clinical Operations</span>
+</a>
 
-    <!-- Staff Meeting Hub -->
-    <a href="staff-meeting.html" class="app-card theme-gold">
-      <div class="app-icon">
-        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
-          <circle cx="9" cy="7" r="4"/>
-          <path d="M23 21v-2a4 4 0 00-3-3.87"/>
-          <path d="M16 3.13a4 4 0 010 7.75"/>
-          <path d="M19 8v6M22 11h-6"/>
-        </svg>
-      </div>
-      <h3>Staff Meeting Hub</h3>
-      <p>Team submits reports, issues &amp; suggestions; track KPIs and action items; auto-generate a prioritized meeting agenda with AI.</p>
-      <span class="app-tag">Meetings &amp; KPIs</span>
-    </a>
+<!-- Staff Meeting Hub -->
+<a href="staff-meeting.html" class="app-card theme-gold">
+<div class="app-icon">
+<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
+<circle cx="9" cy="7" r="4"/>
+<path d="M23 21v-2a4 4 0 00-3-3.87"/>
+<path d="M16 3.13a4 4 0 010 7.75"/>
+<path d="M19 8v6M22 11h-6"/>
+</svg>
+</div>
+<h3>Staff Meeting Hub</h3>
+<p>Team submits reports, issues &amp; suggestions; track KPIs and action items; auto-generate a prioritized meeting agenda with AI.</p>
+<span class="app-tag">Meetings &amp; KPIs</span>
+</a>
 
-    <!-- Office Calendar -->
-    <a href="nlo-calendar.html" class="app-card theme-navy">
-      <div class="app-icon">
-        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="3" y="4" width="18" height="18" rx="2"/>
-          <line x1="16" y1="2" x2="16" y2="6"/>
-          <line x1="8" y1="2" x2="8" y2="6"/>
-          <line x1="3" y1="10" x2="21" y2="10"/>
-          <path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/>
-        </svg>
-      </div>
-      <h3>Office Calendar</h3>
-      <p>Shared office calendar — PTO synced from Time-Off Requests, events, task deadlines, holidays, and admin-day planning.</p>
-      <span class="app-tag">Scheduling</span>
-    </a>
+<!-- Office Calendar -->
+<a href="nlo-calendar.html" class="app-card theme-navy">
+<div class="app-icon">
+<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<rect x="3" y="4" width="18" height="18" rx="2"/>
+<line x1="16" y1="2" x2="16" y2="6"/>
+<line x1="8" y1="2" x2="8" y2="6"/>
+<line x1="3" y1="10" x2="21" y2="10"/>
+<path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/>
+</svg>
+</div>
+<h3>Office Calendar</h3>
+<p>Shared office calendar — PTO synced from Time-Off Requests, events, task deadlines, holidays, and admin-day planning.</p>
+<span class="app-tag">Scheduling</span>
+</a>
 
-    <!--
-    ADD MORE APPS HERE
-    Available themes: theme-blue, theme-coral, theme-mint, theme-gold, theme-navy
-    -->
+<!-- Staff Hub -->
+<a href="nlo-staff-hub.html" class="app-card theme-navy">
+<div class="app-icon">
+<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<rect x="3" y="4" width="18" height="16" rx="2"/>
+<circle cx="9" cy="10" r="2"/>
+<path d="M5.6 16.5c.4-1.7 1.9-2.4 3.4-2.4s3 .7 3.4 2.4"/>
+<line x1="14.5" y1="9" x2="18" y2="9"/>
+<line x1="14.5" y1="13" x2="18" y2="13"/>
+</svg>
+</div>
+<h3>Staff Hub</h3>
+<p>Secure HR tracking — staff profiles, notes &amp; observations, performance reviews, KPIs, certifications, and to-discuss lists. Encrypted, with AI insights.</p>
+<span class="app-tag">HR &amp; Staff</span>
+</a>
 
-  </div>
+<!--
+ADD MORE APPS HERE
+Available themes: theme-blue, theme-coral, theme-mint, theme-gold, theme-navy
+-->
+
+</div>
 </div>
 
 <footer>
-  Next Level Orthodontics &middot; Internal Tools
+Next Level Orthodontics &middot; Internal Tools
 </footer>
 
 </body>
