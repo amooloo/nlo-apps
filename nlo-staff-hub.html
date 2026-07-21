@@ -341,46 +341,6 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<style>
-/* ===== AI assistant + reports module ===== */
-#aiOut{max-height:46vh;overflow-y:auto;display:flex;flex-direction:column;gap:10px;margin-bottom:12px;padding-right:4px}
-.aiMsg{border-radius:12px;padding:10px 14px;font-size:13.5px;line-height:1.55;max-width:92%}
-.aiMsg.user{align-self:flex-end;background:var(--blue-100);color:var(--navy);font-weight:500}
-.aiMsg.bot{align-self:flex-start;background:var(--grey-50);border:1px solid var(--grey-100);max-width:100%;width:100%}
-.aiMsg.bot p{margin:0 0 8px}
-.aiMsg.bot p:last-child{margin-bottom:0}
-.aiMsg.bot ul,.aiMsg.bot ol{margin:2px 0 10px 20px}
-.aiMsg.bot li{margin-bottom:4px}
-.aiH{font-weight:700;color:var(--navy);margin:6px 0 6px;font-size:13.5px;font-family:var(--fb)}
-.aiMsg code{background:var(--grey-100);border-radius:4px;padding:1px 5px;font-size:12px}
-.aiErr{color:var(--coral-700);background:var(--coral-100);border:1px solid var(--coral-200)}
-.aiThink span{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--grey-400);margin-right:4px;animation:aiB 1s infinite}
-.aiThink span:nth-child(2){animation-delay:.18s}
-.aiThink span:nth-child(3){animation-delay:.36s}
-@keyframes aiB{0%,80%,100%{opacity:.3;transform:translateY(0)}40%{opacity:1;transform:translateY(-3px)}}
-.aiBar{display:flex;gap:9px;align-items:flex-end}
-.aiBar textarea{flex:1;padding:10px 13px;border:1.5px solid var(--grey-200);border-radius:10px;outline:none;resize:vertical;min-height:46px;font:inherit;color:var(--body-c)}
-.aiBar textarea:focus{border-color:var(--blue)}
-label.ckRow{display:flex;align-items:flex-start;gap:9px;padding:5px 0;font-size:13.5px;cursor:pointer;font-family:var(--fb);text-transform:none;letter-spacing:0;font-weight:500;color:var(--body-c);margin:0}
-label.ckRow input{width:16px;height:16px;accent-color:var(--blue);margin-top:2px;flex:none}
-</style>
-
-<style>
-/* ===== Cloud sync ===== */
-.sideSync{display:flex;align-items:center;gap:7px;font-size:11.5px;font-weight:600;font-family:var(--fb);padding:7px 10px;border-radius:8px;border:none;text-align:left;cursor:pointer;transition:background var(--fast)}
-.sideSync .i{flex:none}
-.sideSync.ok{background:rgba(100,244,201,.12);color:var(--mint)}
-.sideSync.busy{background:rgba(255,255,255,.06);color:#a9bdd0}
-.sideSync.warn{background:rgba(246,175,36,.14);color:var(--amber)}
-.sideSync.bad{background:rgba(250,98,77,.16);color:var(--coral)}
-.sideSync:hover{filter:brightness(1.12)}
-.cloudLine{display:flex;align-items:center;justify-content:center;gap:7px;font-size:12.5px;color:var(--mut);margin:4px 0 14px;padding:8px 10px;border-radius:9px;background:var(--grey-50);border:1px solid var(--grey-100)}
-.cloudLine.ok{color:var(--mint-700);background:var(--mint-100);border-color:var(--mint-200)}
-.cloudLine.warn{color:var(--amber-700);background:var(--amber-100);border-color:var(--amber-200)}
-.cloudLine .i{flex:none}
-.syncPill{display:inline-flex;align-items:center;gap:6px;border-radius:99px;padding:3px 11px;font-size:11.5px;font-weight:700}
-</style>
-
 </head>
 <body>
 
@@ -459,6 +419,7 @@ label.ckRow input{width:16px;height:16px;accent-color:var(--blue);margin-top:2px
 <div id="modalWrap"></div>
 <div id="toasts"></div>
 <div id="printArea" style="display:none"></div>
+
 <script>
 'use strict';
 /* =====================================================
@@ -703,7 +664,7 @@ function renderNav() {
   const c = navCounts();
   const groups = [
     { label:null, items:[['dashboard','Dashboard','grid',0]] },
-    { label:'People', items:[['staff','Staff','users',0],['reviews','Reviews','clipboard',c.revDue],['timeoff','Time-off','sun',0]] },
+    { label:'People', items:[['staff','Staff','users',0],['reviews','Reviews','clipboard',c.revDue]] },
     { label:'Tracking', items:[['kpis','KPIs','chart',0],['certs','Certifications','award',c.certAl]] },
     { label:'Workspace', items:[['settings','Settings','gear',0]] }
   ];
@@ -712,7 +673,8 @@ function renderNav() {
     g.items.map(([k, label, icn, n]) =>
       `<button class="nv ${route.page === k || (route.page === 'staffDetail' && k === 'staff') ? 'on' : ''}" data-act="nav" data-id="${k}">${ic(icn, 17)} ${label}${n ? `<span class="pill">${n}</span>` : ''}</button>`
     ).join('')
-  ).join('');
+  ).join('') +
+    `<button class="nv" data-act="openCapture" style="margin-top:14px;color:var(--blue);font-weight:600">${ic('spark', 17)} Quick Capture</button>`;
   $('#officeNameTop').textContent = S.settings.officeName || 'Next Level Orthodontics';
 }
 H.nav = t => go(t.dataset.id);
@@ -785,7 +747,7 @@ function viewDashboard() {
   return `
   ${pageHeadHTML(new Date().toLocaleDateString('en-US',{weekday:'long', month:'long', day:'numeric', year:'numeric'}), greet,
     `Here’s where things stand across the team at ${esc(S.settings.officeName)}.`,
-    `<div style="display:flex;gap:9px;flex-wrap:wrap"><button class="btn btn-sec" data-act="practiceReport">${ic('printer',15)} Report</button><button class="btn btn-sec" data-act="aiTeam">${ic('spark',15)} AI insights</button><button class="btn btn-pri" data-act="addStaff">${ic('plus',15)} Add staff</button></div>`)}
+    `<div style="display:flex;gap:9px;flex-wrap:wrap"><button class="btn btn-pri" data-act="openCapture">${ic('spark',15)} Quick Capture</button><button class="btn btn-sec" data-act="practiceReport">${ic('printer',15)} Report</button><button class="btn btn-sec" data-act="aiTeam">${ic('spark',15)} AI insights</button><button class="btn btn-sec" data-act="addStaff">${ic('plus',15)} Add staff</button></div>`)}
   <div class="grid cards4" style="margin-bottom:18px">
     <div class="stat" data-act="nav" data-id="staff"><span class="statChip c-blue">${ic('users',20)}</span><div><div class="num">${act_.length}</div><div class="lbl">Active staff</div></div></div>
     <div class="stat" data-act="nav" data-id="reviews"><span class="statChip ${c.revDue ? 'c-amber' : 'c-grey'}">${ic('clipboard',20)}</span><div><div class="num">${c.revDue}</div><div class="lbl">Reviews due</div></div></div>
@@ -859,8 +821,7 @@ function viewStaffDetail() {
     ['discuss','Discuss' + (openTopics(p.id).length ? ` (${openTopics(p.id).length})` : '')],
     ['reviews','Reviews'],
     ['kpis','KPIs'],
-    ['certs','Certs'],
-    ['timeoff','Time-off']
+    ['certs','Certs']
   ];
   let body = '';
   switch (route.subtab) {
@@ -2305,6 +2266,251 @@ document.addEventListener('keydown', e => {
 
 
 /* =====================================================
+   QUICK CAPTURE
+   Talk, type, or paste a raw brain-dump. The AI splits it,
+   tidies it, and files each piece to the right person as a
+   note or a 1-on-1 topic. Nothing saves until the manager
+   reviews it. Uses the same AI key as the assistant.
+   ===================================================== */
+
+ICONS.mic = '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/><path d="M8 21h8"/>';
+
+const QC_KINDS = {
+  praise:   'Praise / Win',
+  coaching: 'Coaching',
+  concern:  'Concern',
+  general:  'General note',
+  discuss:  'To discuss (1-on-1)'
+};
+const QC_NOTE_KINDS = ['praise', 'coaching', 'concern', 'general'];
+
+const QC_SYS = `You turn a manager's raw, messy notes about their orthodontic practice staff — typed, spoken aloud, or pasted from a voice recorder — into clean, structured HR log entries.
+You will be given today's date, the current staff roster, and the raw text.
+Respond with ONLY valid minified JSON, no markdown code fences and no commentary, in exactly this shape:
+{"items":[{"staff":"<exact full name from the roster, or empty string if unclear>","kind":"praise|coaching|concern|general|discuss","text":"<the cleaned-up entry, a short sentence or two>","date":"<YYYY-MM-DD or empty>","followUp":true or false}]}
+Guidelines:
+- Break the input into separate items whenever it covers different people or clearly different topics. One person can have several items.
+- Match each item to the right person using the names and nicknames in the roster.
+- Choose kind: "praise" for wins and good work, "coaching" for guidance or constructive feedback, "concern" for problems or worries, "general" for neutral observations, and "discuss" for something the manager wants to raise at that person's next 1-on-1.
+- Clean up grammar and turn spoken filler into clear prose, but NEVER invent facts, numbers, names, dates, or quotes that are not in the input.
+- Set followUp to true only when the manager clearly needs to act on it or come back to it.
+- If a relative date like "yesterday", "this morning", or "Monday" appears, resolve it against today's date; otherwise leave date empty.
+- If you cannot tell who an item is about, set staff to an empty string (the manager will assign it).
+- If the input has nothing usable, return {"items":[]}.`;
+
+function qcRoster() {
+  return activeStaff().map(p => {
+    const m = (p.profileNote || '').match(/goes by ([A-Za-z]+)/i);
+    return '- ' + p.name + (m ? ' "' + m[1] + '"' : '') + (p.role ? ' (' + p.role + ')' : '');
+  }).join('\n');
+}
+
+function qcMatchStaff(name) {
+  if (!name) return '';
+  const list = activeStaff();
+  const n = String(name).trim().toLowerCase();
+  if (!n) return '';
+  let hit = list.find(p => p.name.toLowerCase() === n);
+  if (hit) return hit.id;
+  hit = list.find(p => { const m = (p.profileNote || '').match(/goes by ([A-Za-z]+)/i); return m && m[1].toLowerCase() === n; });
+  if (hit) return hit.id;
+  hit = list.find(p => p.name.toLowerCase().split(' ')[0] === n);
+  if (hit) return hit.id;
+  hit = list.find(p => p.name.toLowerCase().includes(n) || n.includes(p.name.toLowerCase().split(' ')[0]));
+  return hit ? hit.id : '';
+}
+
+let qcRec = null, qcListening = false;
+
+H.openCapture = () => {
+  if (!S) return;
+  if (activeStaff().length === 0) { toast('Add staff first, then capture notes about them', true); return; }
+  qcListening = false; qcRec = null;
+  openModal(`<div class="mh"><h3>${ic('spark', 18)} Quick Capture</h3><button class="x" data-act="closeModal">✕</button></div>
+  <div class="mb" id="qcBody">${qcInputHTML()}</div>`, true);
+  setTimeout(() => { const t = $('#qcText'); if (t) t.focus(); }, 40);
+};
+
+function qcInputHTML() {
+  const ready = aiReady();
+  const micSupported = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+  return `
+    <p class="muted" style="margin:-2px 0 12px;font-size:13.5px">Talk, type, or paste your notes — a rambling brain-dump is fine. The AI splits it up, tidies it, and files each piece to the right person as a note or a 1-on-1 topic. You review everything before it saves.</p>
+    <textarea id="qcText" placeholder="e.g. Caught up with the team today. Bri did a great job calming a nervous new patient — really proud of her. Need to talk to Kaylee about clocking in late twice this week. And remind Eve about the open-house flyers at her next check-in." style="min-height:150px;width:100%;line-height:1.55"></textarea>
+    <div style="display:flex;gap:9px;flex-wrap:wrap;align-items:center;margin-top:12px">
+      ${micSupported ? `<button class="btn btn-sec" id="qcMicBtn" data-act="qcMic" type="button">${ic('mic', 15)} Talk</button>` : ''}
+      <button class="btn btn-pri" data-act="qcOrganize" type="button" id="qcGoBtn">${ic('spark', 15)} Organize with AI</button>
+      <span class="tiny muted" id="qcHint">${ready ? 'Uses your ' + providerLabel() + ' key.' : 'Needs an AI key — set one up in Settings → AI assistant.'}</span>
+    </div>
+    ${micSupported ? `<div class="tiny muted" style="margin-top:9px;line-height:1.5">${ic('mic', 12)} Voice uses your browser's speech recognition (in Chrome the audio is sent to Google to transcribe). Prefer to keep it fully private? Type or paste instead — that stays on your device until you press Organize.</div>` : ''}
+    <div id="qcErr" class="tiny" style="color:var(--coral-600);margin-top:10px"></div>`;
+}
+
+function qcSetMicBtn() {
+  const b = $('#qcMicBtn'); if (!b) return;
+  b.innerHTML = ic('mic', 15) + (qcListening ? ' Stop' : ' Talk');
+  b.classList.toggle('btn-pri', qcListening);
+  b.classList.toggle('btn-sec', !qcListening);
+}
+
+H.qcMic = () => {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { toast('Voice input isn’t supported in this browser', true); return; }
+  if (qcListening && qcRec) { try { qcRec.stop(); } catch (e) {} return; }
+  qcRec = new SR();
+  qcRec.lang = 'en-US'; qcRec.continuous = true; qcRec.interimResults = true;
+  let base = ($('#qcText') || {}).value || '';
+  qcRec.onresult = e => {
+    let fin = '', interim = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const r = e.results[i];
+      if (r.isFinal) fin += r[0].transcript; else interim += r[0].transcript;
+    }
+    if (fin) base = (base ? base.replace(/\s*$/, '') + ' ' : '') + fin.trim();
+    const t = $('#qcText'); if (t) t.value = base + (interim ? (base ? ' ' : '') + interim : '');
+  };
+  qcRec.onend = () => { qcListening = false; qcSetMicBtn(); };
+  qcRec.onerror = ev => {
+    qcListening = false; qcSetMicBtn();
+    if (ev.error === 'not-allowed' || ev.error === 'service-not-allowed') {
+      const el = $('#qcErr'); if (el) el.textContent = 'Microphone access was blocked — allow the mic in your address bar, or just type instead.';
+    }
+  };
+  try { qcRec.start(); qcListening = true; qcSetMicBtn(); } catch (e) { qcListening = false; qcSetMicBtn(); }
+};
+
+H.qcToSettings = () => { closeModal(); go('settings'); };
+
+function qcParse(raw) {
+  if (!raw) return [];
+  let s = String(raw).trim().replace(/^```(json)?/i, '').replace(/```$/, '').trim();
+  const m = s.match(/\{[\s\S]*\}/);
+  if (!m) return [];
+  let obj;
+  try { obj = JSON.parse(m[0]); } catch (e) { return []; }
+  const arr = (obj && obj.items) || [];
+  if (!Array.isArray(arr)) return [];
+  return arr.filter(it => it && it.text && String(it.text).trim()).map(it => ({
+    staffId: qcMatchStaff(it.staff || ''),
+    kind: QC_KINDS[it.kind] ? it.kind : 'general',
+    text: String(it.text).trim(),
+    date: /^\d{4}-\d{2}-\d{2}$/.test(it.date || '') ? it.date : '',
+    followUp: !!it.followUp
+  }));
+}
+
+H.qcOrganize = async () => {
+  const err = $('#qcErr'); if (err) err.textContent = '';
+  const text = ($('#qcText') || {}).value ? $('#qcText').value.trim() : '';
+  if (!text) { if (err) err.textContent = 'Write, paste, or dictate something first.'; return; }
+  if (!aiReady()) {
+    if (err) err.innerHTML = 'You need an AI key first. <a href="#" data-act="qcToSettings" style="color:var(--blue);font-weight:600">Set one up in Settings</a> — Google Gemini has a free tier.';
+    return;
+  }
+  if (qcListening && qcRec) { try { qcRec.stop(); } catch (e) {} }
+  const btn = $('#qcGoBtn'); if (btn) { btn.disabled = true; btn.innerHTML = ic('spark', 15) + ' Organizing…'; }
+  const prompt = 'Today is ' + todayYMD() + '.\n\nStaff roster:\n' + qcRoster() + '\n\nRaw notes:\n"""\n' + text + '\n"""';
+  try {
+    const raw = await askAI([{ role: 'user', text: prompt }], QC_SYS);
+    const items = qcParse(raw);
+    if (!items.length) {
+      if (btn) { btn.disabled = false; btn.innerHTML = ic('spark', 15) + ' Organize with AI'; }
+      if (err) err.textContent = 'The AI didn’t find anything to file here. Try adding a little more detail.';
+      return;
+    }
+    qcRenderReview(items);
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.innerHTML = ic('spark', 15) + ' Organize with AI'; }
+    if (err) err.textContent = (e && e.message) ? e.message : 'Something went wrong — try again.';
+  }
+};
+
+function qcRenderReview(items) {
+  const body = $('#qcBody'); if (!body) return;
+  const staffOpts = sid => activeStaff().map(p => `<option value="${p.id}" ${p.id === sid ? 'selected' : ''}>${esc(p.name)}</option>`).join('');
+  const kindOpts = k => Object.entries(QC_KINDS).map(([kk, lbl]) => `<option value="${kk}" ${kk === k ? 'selected' : ''}>${lbl}</option>`).join('');
+  const rows = items.map((it, i) => `
+    <div class="qcItem" data-i="${i}" style="border:1px solid ${it.staffId ? 'var(--line)' : 'var(--amber-600)'};border-radius:12px;padding:12px 13px;margin-bottom:10px;background:var(--card)">
+      <div class="frow" style="gap:8px;flex-wrap:wrap">
+        <div class="field" style="min-width:150px"><label>Person</label>
+          <select id="qcS${i}">${it.staffId ? '' : '<option value="">— pick a person —</option>'}${staffOpts(it.staffId)}</select></div>
+        <div class="field" style="min-width:150px"><label>Kind</label><select id="qcK${i}">${kindOpts(it.kind)}</select></div>
+        <div class="field" style="max-width:150px"><label>Date</label><input type="date" id="qcD${i}" value="${it.date || todayYMD()}"></div>
+      </div>
+      <div class="field" style="margin-top:8px"><label>Entry</label><textarea id="qcT${i}" style="min-height:52px;line-height:1.5">${esc(it.text)}</textarea></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
+        <label class="tiny" style="display:flex;align-items:center;gap:7px;color:var(--ink)"><input type="checkbox" id="qcF${i}" ${it.followUp ? 'checked' : ''} style="width:15px;height:15px;accent-color:var(--blue)"> Flag for follow-up <span class="muted">(notes only)</span></label>
+        <button class="btn-ghost tiny" data-act="qcDrop" data-i="${i}" type="button">Remove</button>
+      </div>
+    </div>`).join('');
+  const n = items.length;
+  body.innerHTML = `
+    <p class="muted" style="margin:-2px 0 12px;font-size:13.5px">Here’s what I pulled out — ${n} item${n === 1 ? '' : 's'}. Fix anyone I mis-filed, tweak the wording, then save. Anything outlined in amber still needs a person picked.</p>
+    <div id="qcList" style="max-height:46vh;overflow:auto;padding-right:2px">${rows}</div>
+    <div class="mf" style="margin-top:14px;display:flex;justify-content:space-between">
+      <button class="btn btn-sec" data-act="qcBack" type="button">${ic('chevL', 14)} Back to text</button>
+      <button class="btn btn-pri" data-act="qcSave" type="button">${ic('checkC', 15)} Save to staff records</button>
+    </div>`;
+}
+
+function qcCollect() {
+  const out = [];
+  document.querySelectorAll('.qcItem').forEach(el => {
+    const i = el.dataset.i;
+    out.push({
+      staffId: ($('#qcS' + i) || {}).value || '',
+      kind: ($('#qcK' + i) || {}).value || 'general',
+      date: ($('#qcD' + i) || {}).value || todayYMD(),
+      text: ($('#qcT' + i) || {}).value ? $('#qcT' + i).value.trim() : '',
+      followUp: !!($('#qcF' + i) || {}).checked
+    });
+  });
+  return out;
+}
+
+H.qcBack = () => { const body = $('#qcBody'); if (body) body.innerHTML = qcInputHTML(); };
+
+H.qcDrop = t => {
+  const items = qcCollect();
+  const i = +t.dataset.i;
+  if (i >= 0 && i < items.length) items.splice(i, 1);
+  if (!items.length) { const body = $('#qcBody'); if (body) body.innerHTML = qcInputHTML(); return; }
+  qcRenderReview(items);
+};
+
+H.qcSave = () => {
+  const items = qcCollect().filter(x => x.text);
+  if (!items.length) { toast('Nothing to save', true); return; }
+  if (items.some(x => !x.staffId)) { toast('Pick a person for each item first', true); qcRenderReview(items); return; }
+  let nNotes = 0, nTopics = 0;
+  items.forEach(it => {
+    if (it.kind === 'discuss') {
+      S.topics.push({ id: uid(), staffId: it.staffId, text: it.text, created: Date.now(), done: false, doneDate: null });
+      nTopics++;
+    } else {
+      const cat = QC_NOTE_KINDS.indexOf(it.kind) >= 0 ? it.kind : 'general';
+      S.notes.push({ id: uid(), staffId: it.staffId, date: it.date || todayYMD(), cat, text: it.text, followUp: !!it.followUp, followUpDone: false, created: Date.now() });
+      nNotes++;
+    }
+  });
+  const parts = [];
+  if (nNotes) parts.push(nNotes + ' note' + (nNotes === 1 ? '' : 's'));
+  if (nTopics) parts.push(nTopics + ' discussion topic' + (nTopics === 1 ? '' : 's'));
+  if (typeof act === 'function') act('Quick Capture added ' + parts.join(' and '));
+  persist(); closeModal(); render();
+  toast('Saved ' + parts.join(' and '));
+};
+
+/* stop dictation if the capture modal is dismissed */
+document.addEventListener('click', e => {
+  if (qcListening && qcRec && e.target.closest('[data-act="closeModal"]')) { try { qcRec.stop(); } catch (x) {} qcListening = false; }
+}, true);
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && qcListening && qcRec) { try { qcRec.stop(); } catch (x) {} qcListening = false; }
+});
+
+
+/* =====================================================
    FIREBASE AUTH + FIRESTORE SYNC
    Sign in with email + password. The password ALSO derives
    the AES key (PBKDF2 + per-account salt stored in the doc),
@@ -2694,4 +2900,5 @@ H.eraseAll = function () {
 };
 
 </script>
+
 </body></html>
