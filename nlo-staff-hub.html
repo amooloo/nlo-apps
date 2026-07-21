@@ -2700,11 +2700,16 @@ async function fbSignIn() {
     var cred = await fbAuth.signInWithEmailAndPassword(email, pw);
     fbUser = cred.user;
     fbDocRef = fbDB.collection(FB_COLLECTION).doc(fbUser.uid);
-    var snap = await fbDocRef.get();
+    // Read the AUTHORITATIVE server copy. source:'server' throws if the server can't be
+    // reached, so a transient/offline read can never masquerade as "new user" and let an
+    // empty workspace overwrite existing data.
+    var snap;
+    try { snap = await fbDocRef.get({ source: 'server' }); }
+    catch (readErr) { throw { __loadFail: true }; }
     if (snap.exists && snap.data() && snap.data().data) {
       await fbLoadFromDoc(snap.data(), pw);
     } else {
-      // authed but no data doc yet → start fresh workspace
+      // Server explicitly confirms there is no data doc → genuine brand-new workspace.
       keySalt = crypto.getRandomValues(new Uint8Array(16));
       cryptoKey = await deriveKey(pw, keySalt, KDF_ITER);
       S = defaultState(); localRev = 0; lastAppliedRev = 0;
@@ -2712,7 +2717,8 @@ async function fbSignIn() {
     }
     fbEnter();
   } catch (e) {
-    if (e && (e.name === 'OperationError' || (e.message || '').indexOf('decrypt') > -1)) authError('That password can’t unlock this account’s data. If you recently reset your password, restore from a backup.');
+    if (e && e.__loadFail) authError('Signed in, but couldn’t reach your data on the server just now. Your data is safe — check your connection and click Sign in again.');
+    else if (e && (e.name === 'OperationError' || (e.message || '').indexOf('decrypt') > -1)) authError('That password can’t unlock this account’s data. If you recently reset your password, restore from a backup.');
     else authError(fbErr(e));
     fbAuthing = false; btn.disabled = false; btn.textContent = 'Sign in';
   }
@@ -2747,17 +2753,18 @@ async function fbReauth() {
   try {
     fbUser = fbAuth.currentUser;
     fbDocRef = fbDB.collection(FB_COLLECTION).doc(fbUser.uid);
-    var snap = await fbDocRef.get();
-    if (!snap.exists || !snap.data() || !snap.data().data) {
+    // Authoritative server read — unlock must never let a stale/empty read overwrite data.
+    var snap = await fbDocRef.get({ source: 'server' });
+    if (snap.exists && snap.data() && snap.data().data) {
+      await fbLoadFromDoc(snap.data(), pw);
+    } else {
       keySalt = crypto.getRandomValues(new Uint8Array(16));
       cryptoKey = await deriveKey(pw, keySalt, KDF_ITER);
-      S = defaultState(); await fbWriteNow();
-    } else {
-      await fbLoadFromDoc(snap.data(), pw);
+      S = defaultState(); localRev = 0; lastAppliedRev = 0; await fbWriteNow();
     }
     fbEnter();
   } catch (e) {
-    fbAuthing = false; authError('Incorrect password. Try again.');
+    fbAuthing = false; authError('Couldn’t unlock — wrong password, or the server was unreachable. Your data is safe; try again.');
     btn.disabled = false; btn.textContent = 'Unlock';
   }
 }
