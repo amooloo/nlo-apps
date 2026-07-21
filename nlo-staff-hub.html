@@ -518,6 +518,17 @@ const INC_SEV = {
   moderate: { label:'Moderate', badge:'b-amber' },
   serious:  { label:'Serious',  badge:'b-red' }
 };
+/* Shimmin Consulting communication colors — used on staff + fed to the AI so coaching fits each person's style */
+const STAFF_COLORS = {
+  red:    { label:'Red — Driven',      animal:'Shark',  hex:'#E5484D', tone:'Be direct and get to the bottom line fast. Lead with results and outcomes, give them decisions to make and a sense of control, and respect their time. Avoid chit-chat, indecision, and long back-story.' },
+  blue:   { label:'Blue — Expressive', animal:'Monkey', hex:'#1D3EA9', tone:'Keep it upbeat, personal, and big-picture. Recognize them, let them talk, and paint the vision and why it is exciting. Avoid dry facts, heavy detail, and anything that feels boring or restrictive.' },
+  green:  { label:'Green — Analytical', animal:'Owl',    hex:'#1A9E78', tone:'Bring facts, specifics, and the reasons why. Be accurate, give them the details and time to process, and do not round numbers or rush them. Avoid vagueness, pressure, and being put on the spot.' },
+  purple: { label:'Purple — Amiable',   animal:'Koala',  hex:'#7A5AA6', tone:'Be warm and personal and frame things around the team and harmony. Reassure them, offer steady support, and ease gently into hard topics. Avoid bluntness, conflict, and pushiness.' }
+};
+const colorMeta = c => STAFF_COLORS[c] || null;
+function colorDot(c, size) { const m = colorMeta(c); if (!m) return ''; const s = size || 9; return `<span title="${esc(m.label)} (${m.animal})" style="display:inline-block;width:${s}px;height:${s}px;border-radius:50%;background:${m.hex};flex:0 0 auto;vertical-align:middle"></span>`; }
+function colorBadge(c) { const m = colorMeta(c); if (!m) return ''; return `<span class="badge" title="${esc(m.tone)}" style="background:${m.hex}1A;color:${m.hex};border:1px solid ${m.hex}55">${esc(m.label)}</span>`; }
+function colorOptsHTML(sel) { return '<option value="">— not set —</option>' + Object.entries(STAFF_COLORS).map(([k, m]) => `<option value="${k}" ${sel === k ? 'selected' : ''}>${esc(m.label)} (${m.animal})</option>`).join(''); }
 const TO_TYPES = {
   callout: { label:'Call-out',      badge:'b-red',   ic:'phone' },
   tardy:   { label:'Tardy',         badge:'b-amber', ic:'clock' },
@@ -795,7 +806,7 @@ function viewStaffList() {
     const tp = openTopics(p.id).length;
     const certAl = S.certs.filter(cc => cc.staffId === p.id && certStatus(cc).d != null && certStatus(cc).d <= (S.settings.certAlertDays||60)).length;
     return `<div class="sCard ${p.status === 'former' ? 'former' : ''}" data-act="openStaff" data-id="${p.id}">
-      <div class="inline">${avHTML(p)}<div><div class="nm">${esc(p.name)}</div><div class="rl">${esc(p.role || '')}</div></div></div>
+      <div class="inline">${avHTML(p)}<div><div class="nm">${esc(p.name)} ${colorDot(p.color)}</div><div class="rl">${esc(p.role || '')}</div></div></div>
       <div class="meta">
         ${p.hireDate ? `<span>${ic('calendar',14)} Hired ${fmtD(p.hireDate)} · ${tenure(p.hireDate)}</span>` : ''}
         ${p.employment ? `<span>${ic('briefcase',14)} ${esc(p.employment)}</span>` : ''}
@@ -837,7 +848,7 @@ function viewStaffDetail() {
   <div class="detHead">
     ${avHTML(p,'lg')}
     <div class="info">
-      <h2>${esc(p.name)} ${p.status === 'former' ? '<span class="badge b-gray">Former</span>' : `<span class="badge ${st.cls}">Review: ${st.label}</span>`}</h2>
+      <h2>${esc(p.name)} ${p.status === 'former' ? '<span class="badge b-gray">Former</span>' : `<span class="badge ${st.cls}">Review: ${st.label}</span>`} ${colorBadge(p.color)}</h2>
       <div class="muted" style="margin-top:3px">${esc(p.role || '')}${p.employment ? ' · ' + esc(p.employment) : ''}</div>
       <div class="meta">
         ${p.hireDate ? `<span>${ic('calendar',14)} Hired ${fmtD(p.hireDate)} (${tenure(p.hireDate)})</span>` : ''}
@@ -991,7 +1002,7 @@ H.topicDone = t => {
 /* ---------- staff add / edit ---------- */
 function staffModal(p) {
   const isNew = !p;
-  p = p || { name:'', role:'', employment:'Full-time', hireDate:'', birthday:'', phone:'', email:'', profileNote:'', nextReview:'' };
+  p = p || { name:'', role:'', employment:'Full-time', hireDate:'', birthday:'', phone:'', email:'', profileNote:'', nextReview:'', color:'' };
   openModal(`<div class="mh"><h3>${isNew ? 'Add staff member' : 'Edit ' + esc(p.name)}</h3><button class="x" data-act="closeModal">✕</button></div>
   <div class="mb">
     <div class="frow">
@@ -1010,13 +1021,14 @@ function staffModal(p) {
       <div class="field"><label>Phone</label><input type="tel" id="sfPhone" value="${esc(p.phone)}"></div>
       <div class="field"><label>Email</label><input type="email" id="sfEmail" value="${esc(p.email)}"></div>
     </div>
+    <div class="field"><label>Communication color <span class="tiny">(Shimmin — tailors AI coaching to their style)</span></label><select id="sfColor">${colorOptsHTML(p.color)}</select></div>
     <div class="field"><label>Profile note <span class="tiny">(strengths, preferences, context)</span></label><textarea id="sfNote" style="min-height:56px">${esc(p.profileNote)}</textarea></div>
   </div>
   <div class="mf"><button class="btn btn-sec" data-act="closeModal">Cancel</button><button class="btn btn-pri" id="sfSave">${isNew ? 'Add staff member' : 'Save changes'}</button></div>`);
   $('#sfSave').onclick = () => {
     const name = $('#sfName').value.trim();
     if (!name) { toast('Name is required', true); return; }
-    const vals = { name, role:$('#sfRole').value.trim(), employment:$('#sfEmp').value, hireDate:$('#sfHire').value, birthday:$('#sfBday').value, phone:$('#sfPhone').value.trim(), email:$('#sfEmail').value.trim(), profileNote:$('#sfNote').value.trim(), nextReview:$('#sfNext').value };
+    const vals = { name, role:$('#sfRole').value.trim(), employment:$('#sfEmp').value, hireDate:$('#sfHire').value, birthday:$('#sfBday').value, phone:$('#sfPhone').value.trim(), email:$('#sfEmail').value.trim(), profileNote:$('#sfNote').value.trim(), nextReview:$('#sfNext').value, color:$('#sfColor').value };
     if (isNew) {
       const np = Object.assign({ id:uid(), status:'active', created:Date.now() }, vals);
       S.staff.push(np); act('Added staff member ' + name);
@@ -1768,7 +1780,7 @@ function aiCfg() {
 }
 const aiReady = () => !!(S && aiCfg().key);
 const providerLabel = () => aiCfg().provider === 'claude' ? 'Anthropic (Claude)' : 'Google (Gemini)';
-const AI_SYS = 'You are an experienced, practical HR advisor for a small single-location orthodontic practice. You are talking to the practice owner, who manages a small clinical and front-office team. Ground everything in the data provided — never invent events, numbers, or quotes. Be concise, warm, and concrete: suggest actual wording and specific next steps. Praise honestly, flag patterns early, and stay fair to the employee’s side of the story. For serious disciplinary, medical-leave, or termination matters, recommend consulting an HR professional or employment attorney (this is informal guidance, not legal advice). Use short markdown headings and bullet points. Keep answers under ~350 words unless asked for more.';
+const AI_SYS = 'You are an experienced, practical HR advisor for a small single-location orthodontic practice. You are talking to the practice owner, who manages a small clinical and front-office team. Ground everything in the data provided — never invent events, numbers, or quotes. Be concise, warm, and concrete: suggest actual wording and specific next steps. Praise honestly, flag patterns early, and stay fair to the employee’s side of the story. For serious disciplinary, medical-leave, or termination matters, recommend consulting an HR professional or employment attorney (this is informal guidance, not legal advice). Use short markdown headings and bullet points. Keep answers under ~350 words unless asked for more. When a staff member’s Shimmin communication color is provided (Red/Driven — direct & results-first; Blue/Expressive — upbeat & big-picture; Green/Analytical — factual & detailed; Purple/Amiable — warm & team-oriented), tailor how you phrase feedback, coaching, motivation, and conversation openers to fit that color, and briefly note when you are doing so.';
 
 /* ---------- provider calls ---------- */
 function aiErrMsg(status, msg) {
@@ -1817,6 +1829,7 @@ function ctxStaff(p) {
   L.push('Practice: ' + S.settings.officeName + '. Today: ' + todayYMD() + '.');
   L.push('Employee: ' + p.name + ' — ' + (p.role || 'no role') + ', ' + (p.employment || '') + ', hired ' + (p.hireDate || '?') + (p.hireDate ? ' (' + tenure(p.hireDate) + ' tenure)' : '') + (p.status === 'former' ? ' — FORMER EMPLOYEE' : '') + '.');
   if (p.profileNote) L.push('Profile note: ' + p.profileNote);
+  if (p.color && typeof STAFF_COLORS !== 'undefined' && STAFF_COLORS[p.color]) { var cc = STAFF_COLORS[p.color]; L.push('Communication color (Shimmin): ' + cc.label + ' — ' + cc.animal + '. Tailor any advice on how to talk to, coach, motivate, deliver feedback to, or review ' + (p.name || 'them') + ' to fit this style: ' + cc.tone); }
   const st = reviewStatus(p);
   L.push('Next review: ' + (p.nextReview ? fmtD(p.nextReview) + ' (' + st.label + ')' : 'not scheduled'));
   const notes = S.notes.filter(n => n.staffId === p.id).sort((a,b) => b.date.localeCompare(a.date)).slice(0, 25);
@@ -1864,7 +1877,7 @@ function ctxTeam() {
     const lr = lastReviewOf(p.id); const avg = lr ? revAvg(lr) : null;
     const c = ytdCounts(p.id);
     const certAl = S.certs.filter(cc => cc.staffId === p.id && certStatus(cc).d != null && certStatus(cc).d <= (S.settings.certAlertDays || 60)).map(cc => cc.name + ' — ' + certStatus(cc).label);
-    L.push('• ' + p.name + ' (' + (p.role || '—') + ', ' + (tenure(p.hireDate) || '?') + ' tenure): review ' + st.label + (avg ? ', last review ' + avg.toFixed(1) + '/5' : ', never reviewed') +
+    L.push('• ' + p.name + ' (' + (p.role || '—') + ', ' + (tenure(p.hireDate) || '?') + ' tenure)' + (typeof STAFF_COLORS !== 'undefined' && p.color && STAFF_COLORS[p.color] ? ' [' + STAFF_COLORS[p.color].label + ']' : '') + ': review ' + st.label + (avg ? ', last review ' + avg.toFixed(1) + '/5' : ', never reviewed') +
       '; notes last 90d: ' + (Object.keys(nc).length ? Object.entries(nc).map(([k,v]) => NOTE_CATS[k].label + ' ×' + v).join(', ') : 'none') +
       (incs.length ? '; incidents ×' + incs.length : '') +
       '; attendance YTD: ' + (Object.keys(c).length ? Object.entries(c).map(([k,v]) => TO_TYPES[k].label + ' ×' + v).join(', ') : 'clean') +
