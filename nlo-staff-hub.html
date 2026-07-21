@@ -338,6 +338,9 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
   #printArea{position:absolute;left:0;top:0;width:100%}
 }
 </style>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <style>
 /* ===== AI assistant + reports module ===== */
 #aiOut{max-height:46vh;overflow-y:auto;display:flex;flex-direction:column;gap:10px;margin-bottom:12px;padding-right:4px}
@@ -427,6 +430,9 @@ label.ckRow input{width:16px;height:16px;accent-color:var(--blue);margin-top:2px
       <div class="lockFoot">Forgot it? <a href="#" id="lockRestore">Restore an encrypted backup</a> to get back in</div>
       <div class="lockFoot" id="unlockCloudFoot" style="display:none">Syncing across devices? <a href="#" id="unlockCloudLink">Connect this browser to your cloud</a></div>
     </div>
+
+    <!-- Firebase email sign-in / sign-up (rendered by JS) -->
+    <div class="lockCard" id="authCard"><div class="lsub" style="margin-top:8px;text-align:center">Loading…</div></div>
 
     <div class="lockMeta"><svg class="i" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 2.8v5.5c0 4.4-3 7.5-7 9.2-4-1.7-7-4.8-7-9.2V5.8z"></path><path d="M9.2 12l2 2 3.6-3.8"></path></svg> Encrypted · offline · private</div>
   </div>
@@ -609,116 +615,21 @@ function storedBlob() {
   try { return JSON.parse(localStorage.getItem(STORE_KEY) || 'null'); } catch (e) { return null; }
 }
 async function persist() {
-  if (!S || !cryptoKey || !keySalt) return;
-  const state = S, key = cryptoKey, salt = b64(keySalt);
-  try {
-    const data = await encryptJSON(state, key);
-    localStorage.setItem(STORE_KEY, JSON.stringify({ app:'nlo-staff-hub', v:1, kdf:{ alg:'PBKDF2-SHA256', iter:KDF_ITER, salt }, data }));
-    if (typeof bumpRev === 'function') { bumpRev(); schedulePush(); }
-  } catch (e) {
-    toast('Could not save — ' + e.message, true);
-  }
+  if (!S || !cryptoKey) return;
+  if (typeof fbQueueWrite === 'function') fbQueueWrite();   // save to Firestore (encrypted), debounced
 }
 function act(text) {
   S.activity.unshift({ ts: Date.now(), text });
   if (S.activity.length > 200) S.activity.length = 200;
 }
 
-/* ---------- lock / unlock ---------- */
-function showLock() {
-  const has = !!storedBlob();
-  $('#lockWrap').style.display = 'flex';
-  $('#app').style.display = 'none';
-  $('#setupCard').style.display = has ? 'none' : 'block';
-  $('#unlockCard').style.display = has ? 'block' : 'none';
-  const on = (typeof cloudOn === 'function' && cloudOn());
-  const uf = $('#unlockCloudFoot'); if (uf) uf.style.display = (has && !on) ? '' : 'none';
-  if (has && on && typeof lockScreenCloudCheck === 'function') lockScreenCloudCheck();
-  else { const us = $('#unlockSync'); if (us) us.style.display = 'none'; }
-  setTimeout(() => { (has ? $('#unlockPw') : $('#setupPw1')).focus(); }, 60);
-}
-function lockNow(msg) {
-  S = null; cryptoKey = null; keySalt = null;
-  $('#main').innerHTML = ''; $('#modalWrap').classList.remove('open'); $('#modalWrap').innerHTML = '';
-  if (msg) $('#unlockMsg').textContent = msg;
-  showLock();
-}
-async function doSetup() {
-  const p1 = $('#setupPw1').value, p2 = $('#setupPw2').value;
-  const err = $('#setupErr');
-  err.style.display = 'none';
-  if (p1.length < 8) { err.textContent = 'Passphrase must be at least 8 characters.'; err.style.display = 'block'; return; }
-  if (p1 !== p2) { err.textContent = 'Passphrases don’t match.'; err.style.display = 'block'; return; }
-  if (!$('#setupAck').checked) { err.textContent = 'Please check the box to confirm you understand the passphrase can’t be recovered.'; err.style.display = 'block'; return; }
-  const btn = $('#setupBtn'); btn.disabled = true; btn.textContent = 'Encrypting…';
-  try {
-    keySalt = crypto.getRandomValues(new Uint8Array(16));
-    cryptoKey = await deriveKey(p1, keySalt, KDF_ITER);
-    S = defaultState();
-    act('Created NLO Staff Hub');
-    await persist();
-    enterApp();
-  } catch (e) {
-    err.textContent = 'Setup failed: ' + e.message; err.style.display = 'block';
-  }
-  btn.disabled = false; btn.textContent = 'Create & open';
-}
-async function doUnlock() {
-  const err = $('#unlockErr');
-  err.style.display = 'none';
-  if (Date.now() < coolUntil) {
-    err.textContent = 'Too many attempts — wait ' + Math.ceil((coolUntil - Date.now())/1000) + 's and try again.';
-    err.style.display = 'block'; return;
-  }
-  const pw = $('#unlockPw').value;
-  if (!pw && storedBlob()) { if (!$('#unlockPw').value) return; }
-  const btn = $('#unlockBtn'); btn.disabled = true; btn.textContent = 'Unlocking…';
-  let blob = storedBlob();
-  // ---- cloud reconcile before decrypt: make sure we unlock the newest copy ----
-  if (typeof cloudOn === 'function' && cloudOn()) {
-    btn.textContent = 'Checking cloud…';
-    let pulled = null;
-    try { pulled = await cloudPull(); } catch (e) { setSyncState('offline'); }
-    if (pulled && !pulled.empty) {
-      const sm = syncMeta();
-      const localRev = blob ? (sm.rev || 0) : -1;
-      const lastSynced = sm.lastSyncedRev || 0;
-      if (blob && localRev > lastSynced && (pulled.rev || 0) !== localRev && (pulled.rev || 0) > lastSynced) {
-        btn.disabled = false; btn.textContent = 'Unlock'; return unlockConflict(pulled);
-      }
-      if (!blob || (pulled.rev || 0) > localRev) {
-        localStorage.setItem(STORE_KEY, JSON.stringify(pulled.blob));
-        setSyncMeta({ rev: pulled.rev, lastSyncedRev: pulled.rev, updatedAt: pulled.updatedAt });
-        blob = pulled.blob;
-      }
-    }
-    btn.textContent = 'Unlocking…';
-  }
-  if (!blob) { btn.disabled = false; btn.textContent = 'Unlock'; showLock(); return; }
-  if (!pw) { btn.disabled = false; btn.textContent = 'Unlock'; return; }
-  try {
-    const salt = unb64(blob.kdf.salt);
-    const key = await deriveKey(pw, salt, blob.kdf.iter || KDF_ITER);
-    const data = await decryptJSON(blob.data, key);
-    S = Object.assign(defaultState(), data);
-    S.settings = Object.assign(defaultState().settings, data.settings || {});
-    cryptoKey = key; keySalt = salt; failCount = 0;
-    $('#unlockPw').value = '';
-    if (typeof afterUnlockCloudSync === 'function') afterUnlockCloudSync();
-    enterApp();
-  } catch (e) {
-    failCount++;
-    if (failCount >= 5) { coolUntil = Date.now() + 30000; failCount = 0; err.textContent = 'Wrong passphrase. Locked for 30 seconds.'; }
-    else err.textContent = 'Wrong passphrase — try again. (' + (5 - failCount) + ' attempts before a 30s pause)';
-    err.style.display = 'block';
-    $('#unlockPw').select();
-  }
-  btn.disabled = false; btn.textContent = 'Unlock';
-}
+/* ---------- lock / unlock (Firebase email sign-in) ---------- */
+function showLock() { if (typeof showAuth === 'function') showAuth(); }
+function lockNow(msg) { if (typeof fbLock === 'function') fbLock(msg); }
+/* (passphrase setup/unlock replaced by Firebase email sign-in — see firebase_sync.js) */
 function enterApp() {
   $('#lockWrap').style.display = 'none';
   $('#app').style.display = 'flex';
-  $('#unlockMsg').textContent = 'Staff data is encrypted. Enter your passphrase to unlock.';
   route.page = 'dashboard'; route.staffId = null;
   lastActivity = Date.now();
   if (idleTimer) clearInterval(idleTimer);
@@ -805,7 +716,7 @@ function renderNav() {
   $('#officeNameTop').textContent = S.settings.officeName || 'Next Level Orthodontics';
 }
 H.nav = t => go(t.dataset.id);
-H.lockNow = () => { if (typeof flushPush === 'function') flushPush(); lockNow(); };
+H.lockNow = () => { lockNow(); };
 
 function pageHeadHTML(eyebrow, title, sub, actions) {
   return `<div class="pageHead">
@@ -1664,11 +1575,10 @@ function viewSettings() {
       <div class="setRow"><div class="st"><b>Auto-lock after</b><span>Minutes of inactivity before the app locks itself (0 = never)</span></div><input type="number" min="0" max="120" value="${S.settings.autoLockMin}" data-chg="setVal" data-key="autoLockMin"> <span class="muted">min</span></div>
       <div class="setRow"><div class="st"><b>Review reminders</b><span>Flag reviews “due soon” this many days ahead</span></div><input type="number" min="7" max="90" value="${S.settings.reviewAlertDays}" data-chg="setVal" data-key="reviewAlertDays"> <span class="muted">days</span></div>
       <div class="setRow"><div class="st"><b>Certification alerts</b><span>Warn this many days before a cert expires</span></div><input type="number" min="14" max="180" value="${S.settings.certAlertDays}" data-chg="setVal" data-key="certAlertDays"> <span class="muted">days</span></div>
-      <div class="setRow"><div class="st"><b>Change passphrase</b><span>Re-encrypts everything under a new passphrase</span></div><button class="btn btn-sec btn-sm" data-act="changePass">${ic('key',13)} Change…</button></div>
     </div></div>
     <div>
     <div class="panel" style="margin-bottom:18px"><div class="ph"><h3>${ic('download',16)}Backup &amp; restore</h3></div><div class="pb">
-      <p class="muted" style="margin-bottom:14px">Your data lives only in this browser (${counts.staff} staff · ${counts.notes} notes &amp; incidents · ${counts.reviews} reviews). Back up regularly — if the browser data is ever cleared, the backup file is your safety net.</p>
+      <p class="muted" style="margin-bottom:14px">You currently have ${counts.staff} staff · ${counts.notes} notes &amp; incidents · ${counts.reviews} reviews. Your data syncs to the cloud, but an occasional encrypted backup is still your safety net — especially before changing or resetting your password.</p>
       <div style="display:flex;gap:9px;flex-wrap:wrap">
         <button class="btn btn-pri btn-sm" data-act="expEnc">${ic('download',13)} Encrypted backup</button>
         <button class="btn btn-sec btn-sm" data-act="restore">${ic('upload',13)} Restore…</button>
@@ -1677,9 +1587,9 @@ function viewSettings() {
       <p class="tiny" style="margin-top:12px">The encrypted backup (.json) is unreadable without your passphrase — safe to keep on a USB drive or private cloud folder. The readable export is <b>not</b> encrypted; avoid saving it anywhere shared, and never in a public GitHub repo.</p>
     </div></div>
     <div class="panel" style="margin-bottom:18px"><div class="ph"><h3>${ic('shield',16)}How your data is protected</h3></div><div class="pb">
-      <p class="muted">Everything is encrypted with AES-256-GCM before it touches disk, using a key derived from your passphrase (PBKDF2, 600,000 rounds). The app itself never sends data over the network and works fully offline. The one exception is the optional AI assistant: when you click an AI button, the relevant staff summary is sent to the provider you configured — never automatically, never in the background. The app auto-locks after inactivity, and five wrong passphrase attempts adds a 30-second pause. Your Windows login is still the first line of defense: lock the computer when you step away.</p>
+      <p class="muted">Everything is encrypted with AES-256-GCM using a key derived from your password (PBKDF2, 600,000 rounds) before it's stored, so the cloud only ever holds an unreadable blob — no one else, not even Google, can read your staff notes. It syncs automatically across every device you sign in on. The one exception is the optional AI assistant: when you click an AI button, the relevant staff summary is sent to the provider you configured — never automatically. The app locks after inactivity; sign back in with your password to continue.</p>
     </div></div>
-    ${cloudSettingsCard()}
+    ${accountCard()}
     ${aiSettingsCard()}
     <div class="panel"><div class="ph"><h3>${ic('alert',16)}Danger zone</h3></div><div class="pb">
       <div class="setRow"><div class="st"><b>Erase all data</b><span>Permanently deletes everything on this computer</span></div><button class="btn btn-danger btn-sm" data-act="eraseAll">Erase…</button></div>
@@ -1864,16 +1774,20 @@ window.addEventListener('afterprint', () => { const pa = $('#printArea'); if (pa
 
 function init() {
   if (!window.crypto || !crypto.subtle) {
-    document.body.innerHTML = '<div style="padding:40px;font-family:sans-serif;max-width:520px;margin:0 auto"><h2>Secure context needed</h2><p>This app needs the browser’s encryption engine (Web Crypto). Open the file directly in Chrome or Edge — if you’re serving it from a website, it must use https.</p></div>';
+    document.body.innerHTML = '<div style="padding:40px;font-family:sans-serif;max-width:520px;margin:0 auto"><h2>Secure context needed</h2><p>This app needs the browser’s encryption engine (Web Crypto). Open it over https (e.g. your nlo-apps link) in Chrome or Edge.</p></div>';
     return;
   }
-  $('#setupBtn').addEventListener('click', doSetup);
-  $('#unlockBtn').addEventListener('click', doUnlock);
-  $('#lockRestore').addEventListener('click', e => { e.preventDefault(); H.restore(); });
-  const scl = $('#setupCloudLink'); if (scl) scl.addEventListener('click', e => { e.preventDefault(); cloudConnectModal(true); });
-  const ucl = $('#unlockCloudLink'); if (ucl) ucl.addEventListener('click', e => { e.preventDefault(); cloudConnectModal(true); });
-  window.addEventListener('beforeunload', () => { if (S) { persist(); if (typeof flushPush === 'function') flushPush(); } });
-  showLock();
+  if (typeof fbAvailable !== 'function' || !fbAvailable()) {
+    document.body.innerHTML = '<div style="padding:40px;font-family:sans-serif;max-width:520px;margin:0 auto"><h2>Couldn’t load the sync engine</h2><p>Staff Hub needs to reach Firebase to sign in and sync. Check your internet connection and reload the page.</p></div>';
+    return;
+  }
+  fbInit();
+  window.addEventListener('beforeunload', () => { if (S && typeof fbWriteNow === 'function') { try { fbWriteNow(); } catch (e) {} } });
+  let firstAuth = true;
+  fbAuth.onAuthStateChanged(() => {
+    if (firstAuth) { firstAuth = false; showAuth(); return; }
+    if (!S && !fbAuthing) showAuth();   // signed out elsewhere (ignore mid sign-in)
+  });
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 
@@ -2391,294 +2305,393 @@ document.addEventListener('keydown', e => {
 
 
 /* =====================================================
-   CLOUD SYNC MODULE (Cloudflare Worker + KV)
-   The app already encrypts everything before it leaves the
-   browser, so the cloud only ever stores an opaque blob.
-   This layer pushes that blob up on change and pulls it on
-   unlock, so every browser/computer sees the latest data.
+   FIREBASE AUTH + FIRESTORE SYNC
+   Sign in with email + password. The password ALSO derives
+   the AES key (PBKDF2 + per-account salt stored in the doc),
+   so data is end-to-end encrypted — Firebase only ever holds
+   an unreadable blob. Real-time sync via Firestore onSnapshot.
    ===================================================== */
 
 ICONS.cloud = '<path d="M6.5 19h11a3.8 3.8 0 0 0 .4-7.6 5.3 5.3 0 0 0-10.2-1.6A4 4 0 0 0 6.5 19z"/>';
 ICONS.cloudOff = '<path d="M6.5 19h9.5a3.8 3.8 0 0 0 1.9-7.1"/><path d="M7.7 8.2A5.3 5.3 0 0 1 17.7 10a3.9 3.9 0 0 1 .8.3"/><path d="M6.5 19a4 4 0 0 1-1-7.8"/><path d="m3.5 3.5 17 17"/>';
 ICONS.cloudCheck = '<path d="M6.5 19h11a3.8 3.8 0 0 0 .4-7.6 5.3 5.3 0 0 0-10.2-1.6A4 4 0 0 0 6.5 19z"/><path d="m9.5 14 2 2 3.5-3.5"/>';
+ICONS.mailIcon = '<rect x="3.5" y="5.5" width="17" height="13" rx="2"/><path d="m4.5 7.5 7.5 5.5 7.5-5.5"/>';
+ICONS.out = '<path d="M9.5 21H5.5A1.5 1.5 0 0 1 4 19.5v-15A1.5 1.5 0 0 1 5.5 3h4"/><path d="m16 16 5-4-5-4"/><path d="M21 12H9.5"/>';
 
-const CLOUD_KEY = 'nloStaffHub_cloud';   // { url, token, device }  (plaintext access creds)
-const SYNC_KEY  = 'nloStaffHub_sync';    // { rev, lastSyncedRev, updatedAt }
-let syncState = 'off';                    // off|synced|syncing|pending|offline|error|conflict
-let syncErr = '';
-let pushTimer = null, retryTimer = null, pushInFlight = false, pushAgain = false;
+/* ---- Firebase project config (filled in for Amir's project) ---- */
+const FB_CONFIG = {
+  apiKey: "AIzaSyBhS4WoMSx78fNdObvPBmvft8zq5CiMw9M",
+  authDomain: "nlo-staff-hub.firebaseapp.com",
+  projectId: "nlo-staff-hub",
+  storageBucket: "nlo-staff-hub.firebasestorage.app",
+  messagingSenderId: "29097520373",
+  appId: "1:29097520373:web:8d585efe0a168a84a429bc"
+};
+const FB_COLLECTION = 'staffhub';
 
-/* ---------- storage helpers ---------- */
-function cloudCfg() { try { return JSON.parse(localStorage.getItem(CLOUD_KEY) || 'null') || {}; } catch (e) { return {}; } }
-function setCloudCfg(o) { localStorage.setItem(CLOUD_KEY, JSON.stringify(o || {})); }
-function syncMeta() { try { return JSON.parse(localStorage.getItem(SYNC_KEY) || 'null') || { rev:0, lastSyncedRev:0, updatedAt:0 }; } catch (e) { return { rev:0, lastSyncedRev:0, updatedAt:0 }; } }
-function setSyncMeta(o) { localStorage.setItem(SYNC_KEY, JSON.stringify(o || {})); }
-const cloudOn = () => { const c = cloudCfg(); return !!(c.url && c.token); };
-function ensureDevice() { const c = cloudCfg(); if (!c.device) { c.device = (crypto.randomUUID ? crypto.randomUUID() : uid()); setCloudCfg(c); } return c.device; }
-function normURL(u) { u = (u || '').trim(); if (!u) return ''; if (!/^https?:\/\//i.test(u)) u = 'https://' + u; return u.replace(/\/+$/, ''); }
-function apiURL(base, path) { return normURL(base) + path; }
-async function fetchT(url, opts, ms) {
-  const ac = new AbortController(); const t = setTimeout(() => ac.abort(), ms || 15000);
-  try { return await fetch(url, Object.assign({ signal: ac.signal }, opts)); }
-  finally { clearTimeout(t); }
-}
+let fbAuth = null, fbDB = null, fbUser = null, fbDocRef = null, fbUnsub = null;
+let fbWriteTimer = null, fbWriteInFlight = false, fbWriteAgain = false;
+let localRev = 0, lastAppliedRev = 0;
+let syncState = 'off';        // off|synced|saving|offline|error
+let authMode = 'signin';      // signin|signup
+let fbAuthing = false;        // true while a sign-in/up/unlock is in flight
 
-/* ---------- state indicator ---------- */
-function setSyncState(s, detail) { syncState = s; if (detail != null) syncErr = detail; renderSyncStatus(); }
-function renderSyncStatus() {
-  const el = $('#syncStatus'); if (!el) return;
-  if (!cloudOn()) { el.style.display = 'none'; return; }
-  el.style.display = '';
-  const map = {
-    synced:   ['cloudCheck', 'Synced to cloud', 'ok'],
-    syncing:  ['cloud', 'Syncing…', 'busy'],
-    pending:  ['cloud', 'Saving to cloud…', 'busy'],
-    offline:  ['cloudOff', 'Offline — will sync', 'warn'],
-    error:    ['cloudOff', 'Sync issue — tap', 'warn'],
-    conflict: ['alert', 'Sync conflict — tap', 'bad']
-  };
-  const s = map[syncState] || map.synced;
-  el.className = 'sideSync ' + s[2];
-  el.innerHTML = ic(s[0], 14) + ' ' + s[1];
-}
-H.syncClick = () => { if (syncState === 'conflict') return; go('settings'); setTimeout(() => { const c = $('#cloudCard'); if (c) c.scrollIntoView({ behavior:'smooth', block:'center' }); }, 60); };
+function fbAvailable() { return typeof window !== 'undefined' && !!window.firebase && !!firebase.initializeApp; }
+function fbConfigured() { return FB_CONFIG.apiKey && FB_CONFIG.apiKey.indexOf('__') !== 0; }
 
-/* ---------- low-level cloud calls ---------- */
-async function cloudHealth() {
-  const c = cloudCfg(); if (!c.url) throw new Error('no url');
-  const r = await fetchT(apiURL(c.url, '/health'), {}, 9000);
-  if (!r.ok) throw new Error('HTTP ' + r.status);
+function fbInit() {
+  if (!fbAvailable()) return false;
+  if (!firebase.apps || !firebase.apps.length) firebase.initializeApp(FB_CONFIG);
+  fbAuth = firebase.auth();
+  fbDB = firebase.firestore();
+  try { fbDB.enablePersistence({ synchronizeTabs: true }).catch(function () {}); } catch (e) {}
+  try { if (firebase.auth.Auth) fbAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL); } catch (e) {}
   return true;
 }
-function cloudHttpErr(status) {
-  if (status === 401 || status === 403) return 'sync token rejected';
-  if (status === 404) return 'endpoint not found — check the URL';
-  if (status >= 500) return 'cloud server error (' + status + ')';
-  return 'HTTP ' + status;
-}
-async function cloudPullWith(cfg) {
-  let r;
-  try { r = await fetchT(apiURL(cfg.url, '/data'), { headers: { authorization: 'Bearer ' + cfg.token } }); }
-  catch (e) { throw new Error('couldn’t reach the cloud (offline or wrong URL)'); }
-  if (!r.ok) throw new Error(cloudHttpErr(r.status));
-  return await r.json();   // { empty:true } | { rev, updatedAt, device, blob }
-}
-const cloudPull = () => cloudPullWith(cloudCfg());
 
-/* ---------- push (debounced) ---------- */
-function bumpRev() { const sm = syncMeta(); sm.rev = (sm.rev || 0) + 1; sm.updatedAt = Date.now(); setSyncMeta(sm); }
-function schedulePush(delay) {
-  if (!cloudOn() || !S) return;
-  if ((syncMeta().lastSyncedRev || 0) < (syncMeta().rev || 0)) setSyncState('pending');
-  clearTimeout(pushTimer);
-  pushTimer = setTimeout(cloudPushNow, delay == null ? 1600 : delay);
+/* ---------- friendly error text ---------- */
+function fbErr(e) {
+  var c = (e && e.code) || '';
+  if (c.indexOf('user-not-found') > -1 || c.indexOf('wrong-password') > -1 || c.indexOf('invalid-credential') > -1 || c.indexOf('invalid-login') > -1) return 'Email or password is incorrect.';
+  if (c.indexOf('email-already-in-use') > -1) return 'An account with that email already exists — try signing in instead.';
+  if (c.indexOf('weak-password') > -1) return 'Password should be at least 6 characters (8+ recommended).';
+  if (c.indexOf('invalid-email') > -1) return 'That doesn’t look like a valid email address.';
+  if (c.indexOf('too-many-requests') > -1) return 'Too many attempts — wait a minute and try again.';
+  if (c.indexOf('network') > -1) return 'Network problem — check your internet connection.';
+  return (e && e.message) ? e.message.replace(/^Firebase:\s*/, '') : 'Something went wrong.';
 }
-function scheduleRetry() { clearTimeout(retryTimer); retryTimer = setTimeout(() => { if (cloudOn() && S) cloudPushNow(); }, 20000); }
-async function cloudPushNow() {
-  if (!cloudOn() || !S) return;
-  const sm = syncMeta();
-  if ((sm.lastSyncedRev || 0) >= (sm.rev || 0)) { setSyncState('synced'); return; }
-  if (pushInFlight) { pushAgain = true; return; }
-  pushInFlight = true; setSyncState('syncing');
+
+/* ---------- sync status indicator ---------- */
+function setSyncState(s) { syncState = s; renderSyncStatus(); }
+function renderSyncStatus() {
+  var el = $('#syncStatus'); if (!el) return;
+  if (!fbUser) { el.style.display = 'none'; return; }
+  el.style.display = '';
+  var map = {
+    synced:  ['cloudCheck', 'Synced', 'ok'],
+    saving:  ['cloud', 'Saving…', 'busy'],
+    offline: ['cloudOff', 'Offline — will sync', 'warn'],
+    error:   ['cloudOff', 'Sync issue', 'warn']
+  };
+  var m = map[syncState] || map.synced;
+  el.className = 'sideSync ' + m[2];
+  el.innerHTML = ic(m[0], 14) + ' ' + m[1];
+}
+H.syncClick = function () { go('settings'); setTimeout(function () { var c = $('#acctCard'); if (c) c.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 60); };
+
+/* ---------- load state from a Firestore doc payload ---------- */
+async function fbLoadFromDoc(d, pw) {
+  var salt = unb64(d.kdf.salt);
+  var key = await deriveKey(pw, salt, d.kdf.iter || KDF_ITER);
+  var data = await decryptJSON(d.data, key);   // throws if password wrong
+  S = Object.assign(defaultState(), data);
+  S.settings = Object.assign(defaultState().settings, data.settings || {});
+  cryptoKey = key; keySalt = salt;
+  localRev = d.rev || 0; lastAppliedRev = d.rev || 0;
+}
+
+/* ---------- write (debounced) ---------- */
+function fbQueueWrite() {
+  if (!fbUser || !cryptoKey || !S) return;
+  setSyncState('saving');
+  clearTimeout(fbWriteTimer);
+  fbWriteTimer = setTimeout(fbWriteNow, 1200);
+}
+async function fbWriteNow() {
+  if (!fbUser || !cryptoKey || !S || !fbDocRef) return;
+  if (fbWriteInFlight) { fbWriteAgain = true; return; }
+  fbWriteInFlight = true;
   try {
-    const blob = storedBlob(); if (!blob) { pushInFlight = false; return; }
-    const c = cloudCfg();
-    const body = { prevRev: sm.lastSyncedRev || 0, rev: sm.rev || 1, updatedAt: sm.updatedAt || Date.now(), device: ensureDevice(), blob };
-    const r = await fetchT(apiURL(c.url, '/data'), { method:'PUT', headers:{ authorization:'Bearer ' + c.token, 'content-type':'application/json' }, body: JSON.stringify(body) });
-    if (r.status === 409) { const cur = await r.json(); pushInFlight = false; return handlePushConflict(cur); }
-    if (!r.ok) throw new Error(cloudHttpErr(r.status));
-    const sm2 = syncMeta(); sm2.lastSyncedRev = body.rev; setSyncMeta(sm2);
-    setSyncState((syncMeta().rev || 0) > body.rev ? 'pending' : 'synced');
+    var data = await encryptJSON(S, cryptoKey);
+    localRev = (localRev || 0) + 1; lastAppliedRev = localRev;
+    var payload = { app: 'nlo-staff-hub', v: 1, kdf: { alg: 'PBKDF2-SHA256', iter: KDF_ITER, salt: b64(keySalt) }, data: data, rev: localRev, updatedAt: Date.now() };
+    await fbDocRef.set(payload);
+    setSyncState('synced');
   } catch (e) {
-    setSyncState((typeof navigator !== 'undefined' && navigator.onLine === false) ? 'offline' : 'error', e.message);
-    scheduleRetry();
-    pushInFlight = false; return;
+    setSyncState((typeof navigator !== 'undefined' && navigator.onLine === false) ? 'offline' : 'error');
   }
-  pushInFlight = false;
-  if (pushAgain) { pushAgain = false; schedulePush(300); }
-}
-function flushPush() { if (cloudOn() && S && (syncMeta().lastSyncedRev || 0) < (syncMeta().rev || 0)) { clearTimeout(pushTimer); cloudPushNow(); } }
-
-/* ---------- conflict (two devices changed the same base) ---------- */
-function handlePushConflict(cur) {
-  setSyncState('conflict');
-  const when = cur && cur.updatedAt ? new Date(cur.updatedAt).toLocaleString() : 'recently';
-  openModal(`<div class="mh"><h3>${ic('alert',16)} Sync conflict</h3><button class="x" data-act="closeModal">✕</button></div>
-  <div class="mb">
-    <div class="warnBox">This device has changes that haven’t synced, and the cloud copy was updated somewhere else (${esc(when)}). They can’t be merged automatically — pick which version to keep.</div>
-    <p class="muted" style="margin-bottom:10px">Not sure? Download a backup of <b>this device’s</b> version first, then choose.</p>
-    <button class="btn btn-sec btn-sm" data-act="expEnc">${ic('download',13)} Backup this device first</button>
-  </div>
-  <div class="mf">
-    <button class="btn btn-sec" data-act="conflictUseCloud">Use cloud version</button>
-    <button class="btn btn-pri" data-act="conflictKeepLocal">Keep this device</button>
-  </div>`);
-  window.__conflictCur = cur;
-}
-H.conflictKeepLocal = () => {
-  const cur = window.__conflictCur || {};
-  const sm = syncMeta();
-  sm.lastSyncedRev = cur.rev || 0;            // pretend we were up to date with cloud…
-  sm.rev = (cur.rev || 0) + 1;                // …then bump above it so our push wins
-  sm.updatedAt = Date.now();
-  setSyncMeta(sm);
-  closeModal(); toast('Keeping this device’s version — syncing up');
-  schedulePush(200);
-};
-H.conflictUseCloud = () => {
-  const cur = window.__conflictCur;
-  if (!cur || !cur.blob) { closeModal(); return; }
-  localStorage.setItem(STORE_KEY, JSON.stringify(cur.blob));
-  setSyncMeta({ rev: cur.rev, lastSyncedRev: cur.rev, updatedAt: cur.updatedAt });
-  closeModal();
-  lockNow('Loaded the cloud version — unlock to continue.');
-};
-
-/* ---------- reconcile helpers ---------- */
-// while already unlocked (e.g. just connected in Settings)
-async function reconcileWhileUnlocked(pulled) {
-  const sm = syncMeta();
-  if (pulled && !pulled.empty && (pulled.rev || 0) > (sm.rev || 0)) {
-    confirmModal('Load the cloud version?', 'The cloud has a newer copy than this device. Loading it will replace what’s currently on this browser (you’ll re-enter your passphrase).', () => {
-      localStorage.setItem(STORE_KEY, JSON.stringify(pulled.blob));
-      setSyncMeta({ rev: pulled.rev, lastSyncedRev: pulled.rev, updatedAt: pulled.updatedAt });
-      lockNow('Loaded the cloud version — unlock to continue.');
-    });
-  } else {
-    // local is same or newer → make sure cloud has it
-    const s2 = syncMeta();
-    if ((s2.lastSyncedRev || 0) >= (s2.rev || 0)) { s2.rev = (s2.rev || 0) + 1; s2.updatedAt = Date.now(); setSyncMeta(s2); }
-    schedulePush(200);
-  }
+  fbWriteInFlight = false;
+  if (fbWriteAgain) { fbWriteAgain = false; fbQueueWrite(); }
 }
 
-/* ---------- connect flow (lock screen or settings) ---------- */
-function cloudConnectModal(fromLock) {
-  const c = cloudCfg();
-  openModal(`<div class="mh"><h3>${ic('cloud',16)} Connect cloud sync</h3><button class="x" data-act="closeModal">✕</button></div>
-  <div class="mb">
-    <div class="infoBox">Enter the address of your Staff Hub Worker and your sync token (the same one on every device). Your data stays encrypted — the cloud only holds an unreadable copy.</div>
-    <div class="field"><label>Worker URL</label><input type="text" id="ccUrl" value="${esc(c.url || '')}" placeholder="https://staffhub-sync.yourname.workers.dev"></div>
-    <div class="field"><label>Sync token</label><div class="pwRow"><input type="password" id="ccToken" value="${esc(c.token || '')}" placeholder="the secret token you set on the Worker"><button class="peek" data-peek="ccToken" type="button">show</button></div></div>
-    <div id="ccMsg" class="cloudLine" style="display:none"></div>
-  </div>
-  <div class="mf"><button class="btn btn-sec" data-act="closeModal">Cancel</button><button class="btn btn-pri" id="ccGo">Connect</button></div>`);
-  $('#ccGo').onclick = async () => {
-    const url = normURL($('#ccUrl').value), token = $('#ccToken').value.trim();
-    const msg = $('#ccMsg');
-    if (!url || !token) { toast('Enter both the URL and the token', true); return; }
-    const b = $('#ccGo'); b.disabled = true; b.textContent = 'Connecting…';
-    msg.style.display = ''; msg.className = 'cloudLine'; msg.innerHTML = ic('cloud',13) + ' Checking…';
-    try {
-      const cfg = Object.assign({}, cloudCfg(), { url, token, device: ensureDevice() });
-      const pulled = await cloudPullWith(cfg);
-      setCloudCfg(cfg);
-      if (S) { S.settings.cloud = { url, token }; await persist(); }
+/* ---------- real-time listener ---------- */
+function fbStartSnapshot() {
+  if (!fbDocRef) return;
+  if (fbUnsub) { fbUnsub(); fbUnsub = null; }
+  fbUnsub = fbDocRef.onSnapshot(function (snap) {
+    if (snap.metadata && snap.metadata.hasPendingWrites) return;   // our own write echoing back
+    var d = snap.data(); if (!d || !d.data) return;
+    if ((d.rev || 0) <= lastAppliedRev) { setSyncState(snap.metadata && snap.metadata.fromCache ? 'offline' : 'synced'); return; }
+    // remote change from another device → decrypt and apply
+    decryptJSON(d.data, cryptoKey).then(function (data) {
+      var openId = route.staffId;
+      S = Object.assign(defaultState(), data);
+      S.settings = Object.assign(defaultState().settings, data.settings || {});
+      localRev = d.rev || 0; lastAppliedRev = d.rev || 0;
+      if (route.page === 'staffDetail' && openId && !staffById(openId)) route.page = 'staff';
+      render(); renderSyncStatus();
+      setSyncState('synced');
+    }).catch(function () {});
+  }, function () { setSyncState('error'); });
+}
 
-      if (pulled && !pulled.empty) {
-        if (!S) {
-          // fresh browser → load cloud data so it can be unlocked
-          localStorage.setItem(STORE_KEY, JSON.stringify(pulled.blob));
-          setSyncMeta({ rev: pulled.rev, lastSyncedRev: pulled.rev, updatedAt: pulled.updatedAt });
-          closeModal(); toast('Cloud data loaded — enter your passphrase'); showLock();
-        } else {
-          closeModal(); renderSyncStatus(); toast('Cloud connected'); reconcileWhileUnlocked(pulled);
-        }
-      } else {
-        // no data in cloud yet
-        setSyncMeta(Object.assign(syncMeta(), { lastSyncedRev: 0 }));
-        if (S) { closeModal(); renderSyncStatus(); toast('Cloud connected — this device’s data will sync up now'); const sm = syncMeta(); if ((sm.lastSyncedRev||0) >= (sm.rev||0)) { sm.rev = (sm.rev||0)+1; sm.updatedAt = Date.now(); setSyncMeta(sm); } schedulePush(300); }
-        else { closeModal(); toast('Cloud connected. No data there yet — set a passphrase to start.'); showLock(); }
-      }
-    } catch (e) {
-      msg.className = 'cloudLine warn'; msg.innerHTML = ic('cloudOff',13) + ' ' + esc(e.message);
-      b.disabled = false; b.textContent = 'Connect';
+/* ---------- auth screen rendering ---------- */
+function showAuth() {
+  var wrap = $('#lockWrap'); if (wrap) wrap.style.display = 'flex';
+  $('#app').style.display = 'none';
+  var signedIn = !!(fbAuth && fbAuth.currentUser);
+  $('#setupCard').style.display = 'none';
+  $('#unlockCard').style.display = 'none';
+  $('#authCard').style.display = 'block';
+  if (signedIn) renderReauth(); else renderAuthForm();
+}
+function renderAuthForm() {
+  var isSignup = authMode === 'signup';
+  $('#authCard').innerHTML =
+    '<h1>' + (isSignup ? 'Create your account' : 'Welcome back') + '</h1>' +
+    '<div class="lsub">' + (isSignup ? 'Set up your encrypted staff & HR workspace' : 'Sign in to your staff & HR workspace') + '</div>' +
+    '<div class="lockErr" id="authErr"></div>' +
+    '<div class="field"><label>Email</label><input type="email" id="authEmail" autocomplete="username" placeholder="you@example.com"></div>' +
+    '<div class="field"><label>Password</label><div class="pwRow"><input type="password" id="authPw" autocomplete="' + (isSignup ? 'new-password' : 'current-password') + '" placeholder="' + (isSignup ? 'At least 8 characters' : 'Your password') + '"><button class="peek" data-peek="authPw" type="button">show</button></div></div>' +
+    (isSignup ? '<div class="strength"><i id="pwStrength"></i></div><div class="field"><label>Confirm password</label><div class="pwRow"><input type="password" id="authPw2" autocomplete="new-password" placeholder="Type it again"><button class="peek" data-peek="authPw2" type="button">show</button></div></div>' +
+        '<div class="ackBox"><input type="checkbox" id="authAck"><span><b>Important:</b> your password also encrypts your data. If you ever fully reset it and have no backup, the data can’t be recovered — so keep it somewhere safe and grab a backup now and then.</span></div>' : '') +
+    '<button class="btn btn-pri btn-block" id="authGo">' + (isSignup ? 'Create account & open' : 'Sign in') + '</button>' +
+    (isSignup ? '' : '<div class="lockFoot" style="margin-top:12px"><a href="#" id="authForgot">Forgot password?</a></div>') +
+    '<div class="lockFoot" style="margin-top:10px">' + (isSignup ? 'Already have an account? <a href="#" id="authToggle">Sign in</a>' : 'First time here? <a href="#" id="authToggle">Create an account</a>') + '</div>';
+  var t = $('#authToggle'); if (t) t.onclick = function (e) { e.preventDefault(); authMode = isSignup ? 'signin' : 'signup'; renderAuthForm(); setTimeout(function(){ var em=$('#authEmail'); if(em) em.focus(); }, 40); };
+  var f = $('#authForgot'); if (f) f.onclick = function (e) { e.preventDefault(); fbForgot(); };
+  $('#authGo').onclick = isSignup ? fbSignUp : fbSignIn;
+  setTimeout(function () { var em = $('#authEmail'); if (em) em.focus(); }, 50);
+}
+function renderReauth() {
+  var email = (fbAuth.currentUser && fbAuth.currentUser.email) || '';
+  $('#authCard').innerHTML =
+    '<h1>Locked</h1><div class="lsub">Enter your password to unlock</div>' +
+    '<p class="desc">Signed in as <b>' + esc(email) + '</b>. Your password unlocks the encrypted data on this device.</p>' +
+    '<div class="lockErr" id="authErr"></div>' +
+    '<div class="field"><label>Password</label><div class="pwRow"><input type="password" id="authPw" autocomplete="current-password" placeholder="Your password"><button class="peek" data-peek="authPw" type="button">show</button></div></div>' +
+    '<button class="btn btn-pri btn-block" id="authGo">Unlock</button>' +
+    '<div class="lockFoot" style="margin-top:12px"><a href="#" id="authSignout">Not you? Sign out</a></div>';
+  $('#authGo').onclick = fbReauth;
+  var so = $('#authSignout'); if (so) so.onclick = function (e) { e.preventDefault(); fbSignOut(); };
+  setTimeout(function () { var p = $('#authPw'); if (p) p.focus(); }, 50);
+}
+function authError(msg) { var e = $('#authErr'); if (e) { e.textContent = msg; e.style.display = 'block'; } }
+
+/* ---------- auth actions ---------- */
+async function fbSignIn() {
+  var email = ($('#authEmail').value || '').trim(), pw = $('#authPw').value;
+  authError('');
+  if (!email || !pw) { authError('Enter your email and password.'); return; }
+  var btn = $('#authGo'); btn.disabled = true; btn.textContent = 'Signing in…'; fbAuthing = true;
+  try {
+    var cred = await fbAuth.signInWithEmailAndPassword(email, pw);
+    fbUser = cred.user;
+    fbDocRef = fbDB.collection(FB_COLLECTION).doc(fbUser.uid);
+    var snap = await fbDocRef.get();
+    if (snap.exists && snap.data() && snap.data().data) {
+      await fbLoadFromDoc(snap.data(), pw);
+    } else {
+      // authed but no data doc yet → start fresh workspace
+      keySalt = crypto.getRandomValues(new Uint8Array(16));
+      cryptoKey = await deriveKey(pw, keySalt, KDF_ITER);
+      S = defaultState(); localRev = 0; lastAppliedRev = 0;
+      await fbWriteNow();
     }
+    fbEnter();
+  } catch (e) {
+    if (e && (e.name === 'OperationError' || (e.message || '').indexOf('decrypt') > -1)) authError('That password can’t unlock this account’s data. If you recently reset your password, restore from a backup.');
+    else authError(fbErr(e));
+    fbAuthing = false; btn.disabled = false; btn.textContent = 'Sign in';
+  }
+}
+async function fbSignUp() {
+  var email = ($('#authEmail').value || '').trim(), pw = $('#authPw').value, pw2 = $('#authPw2').value;
+  authError('');
+  if (!email) { authError('Enter your email.'); return; }
+  if (pw.length < 8) { authError('Password must be at least 8 characters.'); return; }
+  if (pw !== pw2) { authError('Passwords don’t match.'); return; }
+  if (!$('#authAck').checked) { authError('Please check the box to confirm you understand the password protects your data.'); return; }
+  var btn = $('#authGo'); btn.disabled = true; btn.textContent = 'Creating…'; fbAuthing = true;
+  try {
+    var cred = await fbAuth.createUserWithEmailAndPassword(email, pw);
+    fbUser = cred.user;
+    fbDocRef = fbDB.collection(FB_COLLECTION).doc(fbUser.uid);
+    keySalt = crypto.getRandomValues(new Uint8Array(16));
+    cryptoKey = await deriveKey(pw, keySalt, KDF_ITER);
+    S = defaultState(); localRev = 0; lastAppliedRev = 0;
+    act('Created NLO Staff Hub');
+    await fbWriteNow();
+    fbEnter();
+  } catch (e) {
+    authError(fbErr(e));
+    fbAuthing = false; btn.disabled = false; btn.textContent = 'Create account & open';
+  }
+}
+async function fbReauth() {
+  var pw = $('#authPw').value; authError('');
+  if (!pw) return;
+  var btn = $('#authGo'); btn.disabled = true; btn.textContent = 'Unlocking…'; fbAuthing = true;
+  try {
+    fbUser = fbAuth.currentUser;
+    fbDocRef = fbDB.collection(FB_COLLECTION).doc(fbUser.uid);
+    var snap = await fbDocRef.get();
+    if (!snap.exists || !snap.data() || !snap.data().data) {
+      keySalt = crypto.getRandomValues(new Uint8Array(16));
+      cryptoKey = await deriveKey(pw, keySalt, KDF_ITER);
+      S = defaultState(); await fbWriteNow();
+    } else {
+      await fbLoadFromDoc(snap.data(), pw);
+    }
+    fbEnter();
+  } catch (e) {
+    fbAuthing = false; authError('Incorrect password. Try again.');
+    btn.disabled = false; btn.textContent = 'Unlock';
+  }
+}
+function fbForgot() {
+  var email = ($('#authEmail') && $('#authEmail').value || '').trim();
+  openModal('<div class="mh"><h3>Reset password</h3><button class="x" data-act="closeModal">✕</button></div>' +
+    '<div class="mb"><div class="field"><label>Email</label><input type="email" id="frEmail" value="' + esc(email) + '"></div>' +
+    '<div class="warnBox">Heads up: because your password also encrypts your data, resetting it means the data already in your account can only be recovered from a backup file. If you still know your current password, use <b>Settings → Change password</b> instead (that keeps your data).</div></div>' +
+    '<div class="mf"><button class="btn btn-sec" data-act="closeModal">Cancel</button><button class="btn btn-pri" id="frGo">Send reset email</button></div>');
+  $('#frGo').onclick = async function () {
+    var em = ($('#frEmail').value || '').trim(); if (!em) { toast('Enter your email', true); return; }
+    try { await fbAuth.sendPasswordResetEmail(em); closeModal(); toast('Reset email sent to ' + em); }
+    catch (e) { toast(fbErr(e), true); }
   };
 }
-H.cloudConnect = () => cloudConnectModal(false);
-H.cloudConnectLock = () => cloudConnectModal(true);
-
-/* ---------- settings card ---------- */
-function cloudSettingsCard() {
-  const c = cloudCfg(); const sm = syncMeta(); const on = cloudOn();
-  const last = sm.updatedAt ? new Date(sm.updatedAt).toLocaleString() : '—';
-  const pending = (sm.lastSyncedRev || 0) < (sm.rev || 0);
-  const statusPill = !on ? '<span class="syncPill b-gray">Not connected</span>'
-    : syncState === 'synced' ? '<span class="syncPill b-green">Synced</span>'
-    : syncState === 'conflict' ? '<span class="syncPill b-red">Conflict</span>'
-    : (syncState === 'offline' || syncState === 'error') ? '<span class="syncPill b-amber">' + (syncState === 'offline' ? 'Offline' : 'Sync issue') + '</span>'
-    : pending ? '<span class="syncPill b-amber">Saving…</span>' : '<span class="syncPill b-green">Connected</span>';
-  return `<div class="panel" id="cloudCard" style="margin-bottom:18px"><div class="ph"><h3>${ic('cloud',16)}Cloud sync ${statusPill}</h3></div><div class="pb">
-    <p class="muted" style="margin-bottom:6px">Keeps your data on your Cloudflare account so it’s the same on every browser and computer, and safe if this browser’s data is cleared. It’s still encrypted end-to-end — Cloudflare only stores an unreadable copy.</p>
-    ${on ? `
-      <div class="setRow"><div class="st"><b>Worker URL</b><span>${esc(c.url)}</span></div></div>
-      <div class="setRow"><div class="st"><b>Last change</b><span>${esc(last)}${pending ? ' · not yet uploaded' : ''}</span></div></div>
-      <div class="setRow"><div class="st"><b>Sync now</b><span>Force an upload/refresh</span></div><button class="btn btn-sec btn-sm" data-act="syncNow">${ic('cloud',13)} Sync now</button></div>
-      <div class="setRow"><div class="st"><b>This browser</b><span>Disconnect stops syncing here (your local encrypted copy stays)</span></div><button class="btn btn-sec btn-sm" data-act="cloudDisconnect">Disconnect</button></div>
-    ` : `
-      <div class="infoBox">Deploy the little Worker on Cloudflare (I gave you the code + steps), then connect this browser to it.</div>
-      <button class="btn btn-pri btn-sm" data-act="cloudConnect">${ic('cloud',13)} Connect this browser</button>
-    `}
-    <p class="tiny" style="margin-top:12px">Same Worker URL + token on every device = one shared, always-current copy. The token lets a device fetch the (still-encrypted) data; the passphrase is what actually opens it. Keep both safe.</p>
-  </div></div>`;
+function fbSignOut() {
+  if (fbUnsub) { fbUnsub(); fbUnsub = null; }
+  S = null; cryptoKey = null; keySalt = null; fbUser = null; fbDocRef = null; localRev = 0; lastAppliedRev = 0;
+  if (idleTimer) clearInterval(idleTimer);
+  var doShow = function () { authMode = 'signin'; showAuth(); };
+  if (fbAuth && fbAuth.currentUser) fbAuth.signOut().then(doShow).catch(doShow); else doShow();
 }
-H.syncNow = async () => {
-  if (!cloudOn()) return;
-  toast('Syncing…');
-  try {
-    const pulled = await cloudPull();
-    const sm = syncMeta();
-    if (pulled && !pulled.empty && (pulled.rev || 0) > (sm.rev || 0)) { reconcileWhileUnlocked(pulled); return; }
-    const s2 = syncMeta(); if ((s2.lastSyncedRev || 0) >= (s2.rev || 0)) { s2.rev = (s2.rev || 0) + 1; s2.updatedAt = Date.now(); setSyncMeta(s2); }
-    await cloudPushNow();
-    if (syncState === 'synced') toast('Up to date');
-    if (render && route.page === 'settings') render();
-  } catch (e) { setSyncState('error', e.message); toast('Sync failed: ' + e.message, true); }
+function fbEnter() {
+  fbAuthing = false;
+  fbStartSnapshot();
+  setSyncState('synced');
+  enterApp();
+}
+
+/* re-lock (idle) without signing out: keep the Firebase session, drop the key */
+function fbLock(msg) {
+  if (fbUnsub) { fbUnsub(); fbUnsub = null; }
+  S = null; cryptoKey = null; keySalt = null;
+  $('#main').innerHTML = ''; $('#modalWrap').classList.remove('open'); $('#modalWrap').innerHTML = '';
+  showAuth();
+  if (msg) { var e = $('#authErr'); if (e) { e.textContent = msg; e.style.display = 'block'; } }
+}
+
+/* ---------- settings: account card ---------- */
+function accountCard() {
+  var email = (fbUser && fbUser.email) || '';
+  return '<div class="panel" id="acctCard" style="margin-bottom:18px"><div class="ph"><h3>' + ic('cloud', 16) + 'Account & sync <span class="badge b-green" style="margin-left:8px">Signed in</span></h3></div><div class="pb">' +
+    '<p class="muted" style="margin-bottom:6px">Signed in as <b>' + esc(email) + '</b>. Your data syncs automatically to every browser and device where you sign in — no codes to copy. It stays end-to-end encrypted with your password, so no one else (not even Google) can read it.</p>' +
+    '<div class="setRow"><div class="st"><b>Change password</b><span>Updates your login and re-encrypts your data (keeps everything)</span></div><button class="btn btn-sec btn-sm" data-act="fbChangePw">' + ic('key', 13) + ' Change…</button></div>' +
+    '<div class="setRow"><div class="st"><b>Sign out</b><span>Locks this browser; sign back in anytime</span></div><button class="btn btn-sec btn-sm" data-act="fbSignOut">' + ic('out', 13) + ' Sign out</button></div>' +
+    '<p class="tiny" style="margin-top:10px">Tip: keep an occasional encrypted backup (below) — it’s the safety net if you ever reset your password.</p>' +
+    '</div></div>';
+}
+H.fbSignOut = function () { fbSignOut(); };
+H.fbChangePw = function () {
+  openModal('<div class="mh"><h3>Change password</h3><button class="x" data-act="closeModal">✕</button></div>' +
+    '<div class="mb">' +
+    '<div class="field"><label>Current password</label><div class="pwRow"><input type="password" id="cpOld"><button class="peek" data-peek="cpOld" type="button">show</button></div></div>' +
+    '<div class="field"><label>New password (8+ characters)</label><div class="pwRow"><input type="password" id="cpNew1"><button class="peek" data-peek="cpNew1" type="button">show</button></div></div>' +
+    '<div class="field"><label>Confirm new password</label><div class="pwRow"><input type="password" id="cpNew2"><button class="peek" data-peek="cpNew2" type="button">show</button></div></div>' +
+    '<div class="infoBox">This re-encrypts your data under the new password and keeps everything. Do this instead of “forgot password” whenever you can.</div></div>' +
+    '<div class="mf"><button class="btn btn-sec" data-act="closeModal">Cancel</button><button class="btn btn-pri" id="cpGo">Change password</button></div>');
+  $('#cpGo').onclick = async function () {
+    var oldP = $('#cpOld').value, n1 = $('#cpNew1').value, n2 = $('#cpNew2').value;
+    if (n1.length < 8) { toast('New password must be 8+ characters', true); return; }
+    if (n1 !== n2) { toast('New passwords don’t match', true); return; }
+    var btn = $('#cpGo'); btn.disabled = true; btn.textContent = 'Updating…';
+    try {
+      var cred = firebase.auth.EmailAuthProvider.credential(fbUser.email, oldP);
+      await fbUser.reauthenticateWithCredential(cred);
+      await fbUser.updatePassword(n1);
+      keySalt = crypto.getRandomValues(new Uint8Array(16));
+      cryptoKey = await deriveKey(n1, keySalt, KDF_ITER);
+      act('Changed password');
+      await fbWriteNow();
+      closeModal(); toast('Password changed — everything kept');
+    } catch (e) {
+      toast(fbErr(e), true); btn.disabled = false; btn.textContent = 'Change password';
+    }
+  };
 };
-H.cloudDisconnect = () => {
-  confirmModal('Disconnect cloud sync on this browser?', 'This browser will stop syncing. Your encrypted data stays here, and the cloud copy is untouched — other devices keep working. You can reconnect anytime with the same URL and token.', () => {
-    setCloudCfg({});
-    if (S && S.settings) { delete S.settings.cloud; persist(); }
-    setSyncState('off'); render(); toast('Disconnected from cloud on this browser');
+
+/* ---------- seed import (used to load Gusto staff as DATA, not hardcoded) ---------- */
+function importStaffList(list) {
+  if (!S || !Array.isArray(list)) return 0;
+  var n = 0;
+  list.forEach(function (r) {
+    if (!r || !r.name) return;
+    if (S.staff.some(function (p) { return p.name.toLowerCase() === String(r.name).toLowerCase(); })) return;
+    S.staff.push(Object.assign({ id: uid(), status: 'active', created: Date.now(), role: '', employment: 'Full-time', hireDate: '', birthday: '', phone: '', email: '', profileNote: '', nextReview: '' }, r));
+    n++;
   });
+  if (n) { act('Imported ' + n + ' staff members'); persist(); render(); }
+  return n;
+}
+
+/* ---------- backup / restore / erase (Firebase-aware; override earlier handlers) ---------- */
+H.expEnc = async function () {
+  if (!S || !cryptoKey) { toast('Nothing to back up yet', true); return; }
+  var data = await encryptJSON(S, cryptoKey);
+  var raw = JSON.stringify({ app: 'nlo-staff-hub', v: 1, kdf: { alg: 'PBKDF2-SHA256', iter: KDF_ITER, salt: b64(keySalt) }, data: data });
+  download('nlo-staff-backup-' + todayYMD() + '.json', raw);
+  toast('Encrypted backup downloaded');
 };
-
-/* ---------- lock-screen indicator ---------- */
-async function lockScreenCloudCheck() {
-  const el = $('#unlockSync'); if (!el) return;
-  if (!cloudOn()) { el.style.display = 'none'; return; }
-  el.style.display = ''; el.className = 'cloudLine'; el.innerHTML = ic('cloud',13) + ' Checking cloud…';
-  try { await cloudHealth(); el.className = 'cloudLine ok'; el.innerHTML = ic('cloudCheck',13) + ' Cloud connected — you’ll get the latest on unlock'; }
-  catch (e) { el.className = 'cloudLine warn'; el.innerHTML = ic('cloudOff',13) + ' Cloud unreachable — you can still unlock with your local copy'; }
-}
-
-/* ---------- pre-unlock conflict (rare) ---------- */
-function unlockConflict(pulled) {
-  openModal(`<div class="mh"><h3>${ic('alert',16)} Which version?</h3><button class="x" data-act="closeModal">✕</button></div>
-  <div class="mb"><div class="warnBox">This browser has changes that were never uploaded, and the cloud has a newer copy from another device. Pick which to keep — they can’t be merged.</div></div>
-  <div class="mf"><button class="btn btn-sec" id="ucCloud">Use cloud version</button><button class="btn btn-pri" id="ucLocal">Keep this browser</button></div>`);
-  $('#ucCloud').onclick = () => { localStorage.setItem(STORE_KEY, JSON.stringify(pulled.blob)); setSyncMeta({ rev: pulled.rev, lastSyncedRev: pulled.rev, updatedAt: pulled.updatedAt }); closeModal(); doUnlock(); };
-  $('#ucLocal').onclick = () => { const sm = syncMeta(); sm.lastSyncedRev = pulled.rev; sm.rev = (pulled.rev || 0) + 1; sm.updatedAt = Date.now(); setSyncMeta(sm); closeModal(); doUnlock(); };
-}
-
-/* ---------- after a successful unlock ---------- */
-function afterUnlockCloudSync() {
-  // restore cloud creds from the (now-decrypted) backup if this browser doesn't have them
-  if (!cloudOn() && S && S.settings && S.settings.cloud && S.settings.cloud.url && S.settings.cloud.token) {
-    setCloudCfg({ url: S.settings.cloud.url, token: S.settings.cloud.token, device: ensureDevice() });
-  }
-  if (!cloudOn()) { setSyncState('off'); return; }
-  const sm = syncMeta();
-  if ((sm.lastSyncedRev || 0) < (sm.rev || 0)) { setSyncState('pending'); schedulePush(600); }
-  else setSyncState('synced');
-}
-
-/* online/offline nudges */
-if (typeof window !== 'undefined') {
-  window.addEventListener('online', () => { if (cloudOn() && S) { setSyncState('pending'); schedulePush(500); } });
-  window.addEventListener('offline', () => { if (cloudOn()) setSyncState('offline'); });
-}
+H.restore = function () {
+  var inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = '.json,application/json';
+  inp.onchange = function () {
+    var f = inp.files[0]; if (!f) return;
+    var rd = new FileReader();
+    rd.onload = function () {
+      var blob;
+      try { blob = JSON.parse(rd.result); } catch (e) { toast('Could not read that file', true); return; }
+      if (!blob || blob.app !== 'nlo-staff-hub' || !blob.data || !blob.kdf) { toast('That doesn’t look like a Staff Hub backup', true); return; }
+      openModal('<div class="mh"><h3>Restore backup</h3><button class="x" data-act="closeModal">✕</button></div>' +
+        '<div class="mb"><div class="warnBox">This replaces everything currently in your account with the backup’s contents (and syncs it to your other devices). Enter the password this backup was made with.</div>' +
+        '<div class="field"><label>Backup password</label><div class="pwRow"><input type="password" id="rsPw"><button class="peek" data-peek="rsPw" type="button">show</button></div></div></div>' +
+        '<div class="mf"><button class="btn btn-sec" data-act="closeModal">Cancel</button><button class="btn btn-pri" id="rsGo">Restore</button></div>');
+      $('#rsGo').onclick = async function () {
+        var pw = $('#rsPw').value; if (!pw) { toast('Enter the backup password', true); return; }
+        var btn = $('#rsGo'); btn.disabled = true; btn.textContent = 'Restoring…';
+        try {
+          var key = await deriveKey(pw, unb64(blob.kdf.salt), blob.kdf.iter || KDF_ITER);
+          var data = await decryptJSON(blob.data, key);
+          S = Object.assign(defaultState(), data);
+          S.settings = Object.assign(defaultState().settings, data.settings || {});
+          // re-encrypt under the CURRENT account password so it syncs going forward
+          localRev = localRev + 1;
+          await fbWriteNow();
+          closeModal(); render(); renderSyncStatus(); toast('Backup restored');
+        } catch (e) {
+          toast('Wrong password for that backup, or the file is damaged', true);
+          btn.disabled = false; btn.textContent = 'Restore';
+        }
+      };
+    };
+    rd.readAsText(f);
+  };
+  inp.click();
+};
+H.eraseAll = function () {
+  openModal('<div class="mh"><h3>Erase all data</h3><button class="x" data-act="closeModal">✕</button></div>' +
+    '<div class="mb"><div class="dangerBox">This permanently deletes every staff profile, note, review, and log from your account and all synced devices. If there’s no backup, it’s gone.</div>' +
+    '<div class="field"><label>Type <b>ERASE</b> to confirm</label><input type="text" id="erConfirm" autocomplete="off"></div></div>' +
+    '<div class="mf"><button class="btn btn-sec" data-act="closeModal">Cancel</button><button class="btn btn-danger" id="erGo">Erase everything</button></div>');
+  $('#erGo').onclick = async function () {
+    if (($('#erConfirm').value || '').trim() !== 'ERASE') { toast('Type ERASE to confirm', true); return; }
+    try { if (fbDocRef) await fbDocRef.delete(); } catch (e) {}
+    closeModal(); toast('All data erased'); fbSignOut();
+  };
+};
 
 </script>
 </body></html>
