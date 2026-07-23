@@ -861,6 +861,7 @@ function viewStaffDetail() {
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn btn-sec btn-sm" data-act="aiPerson" data-id="${p.id}">${ic('spark',13)} AI</button>
       <button class="btn btn-sec btn-sm" data-act="staffReport" data-id="${p.id}">${ic('printer',13)} Report</button>
+      <button class="btn btn-sec btn-sm" data-act="openAssess" data-id="${p.id}">${ic('target',13)} ${p.color ? 'Color quiz' : 'Find color'}</button>
       <button class="btn btn-sec btn-sm" data-act="editStaff" data-id="${p.id}">${ic('edit',13)} Edit</button>
       <button class="btn btn-sec btn-sm" data-act="archiveStaff" data-id="${p.id}">${p.status === 'former' ? ic('undo',13) + ' Reactivate' : ic('archive',13) + ' Archive'}</button>
     </div>
@@ -2520,6 +2521,93 @@ document.addEventListener('click', e => {
 }, true);
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && qcListening && qcRec) { try { qcRec.stop(); } catch (x) {} qcListening = false; }
+});
+
+
+/* =====================================================
+   COLOR ASSESSMENT (Shimmin "Success Signals" model)
+   Check the words that fit → tally into Red/Blue/Green/
+   Purple → shows a primary + secondary → saves the
+   primary onto the staff member's communication color.
+   ===================================================== */
+
+const COLOR_TRAITS = {
+  red:    ['Direct', 'Decisive', 'Practical', 'Fast-paced', 'Bottom-line focused', 'Likes to lead', 'Results-oriented', 'Action-focused', 'Accountable', 'Disciplined', 'On time & on task', 'Gets things done'],
+  blue:   ['Energetic', 'Playful', 'Fun-loving', 'Spontaneous', 'A risk-taker', 'Enthusiastic', 'Talkative', 'Creative', 'Adventurous', 'Inspiring', 'Flexible', 'Loves variety'],
+  green:  ['Factual', 'Analytical', 'Plans ahead', 'Thorough', 'Accurate', 'Logical', 'Detail-oriented', 'Asks "why" a lot', 'Cautious', 'Strategic', 'Quality-focused', 'Independent'],
+  purple: ['Supportive', 'Considerate', 'Avoids conflict', 'People-oriented', 'A team player', 'Helpful', 'Warm & friendly', 'Sensitive to others', 'Patient', 'Values harmony', 'Loyal', 'Nurturing']
+};
+
+let assessFor = null, assessItems = [];
+
+H.openAssess = t => {
+  if (!S) return;
+  const id = (t && t.dataset && t.dataset.id) ? t.dataset.id : null;
+  const p = id ? staffById(id) : null;
+  assessFor = p ? p.id : null;
+  const list = [];
+  Object.keys(COLOR_TRAITS).forEach(c => COLOR_TRAITS[c].forEach(tr => list.push({ tr, c })));
+  for (let i = list.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const x = list[i]; list[i] = list[j]; list[j] = x; }
+  assessItems = list;
+  const who = p ? esc(p.name) : 'this person';
+  openModal(`<div class="mh"><h3>${ic('target', 18)} Color Assessment</h3><button class="x" data-act="closeModal">✕</button></div>
+  <div class="mb" id="assessBody">
+    <p class="muted" style="margin:-2px 0 12px;font-size:13.5px">Check every word that genuinely describes <b>${who}</b> — go with your gut, there are no wrong answers. It tallies into your Shimmin “Success Signals” colors and gives a primary + secondary.</p>
+    <div id="assessGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(205px,1fr));gap:5px 16px;max-height:48vh;overflow:auto;padding-right:4px">
+      ${assessItems.map((it, i) => `<label style="display:flex;align-items:center;gap:8px;font-size:13.5px;padding:4px 2px;cursor:pointer"><input type="checkbox" id="ax${i}" style="width:15px;height:15px;accent-color:var(--blue);flex:0 0 auto"> ${esc(it.tr)}</label>`).join('')}
+    </div>
+    <div class="mf" style="margin-top:14px;display:flex;justify-content:space-between;align-items:center">
+      <span class="tiny muted" id="assessCount">0 selected</span>
+      <button class="btn btn-pri" data-act="assessResult" type="button">See the result ${ic('chevR', 14)}</button>
+    </div>
+  </div>`, true);
+};
+
+function assessTally() {
+  const t = { red: 0, blue: 0, green: 0, purple: 0 };
+  assessItems.forEach((it, i) => { const el = $('#ax' + i); if (el && el.checked) t[it.c]++; });
+  return t;
+}
+
+H.assessResult = () => {
+  const t = assessTally();
+  const total = t.red + t.blue + t.green + t.purple;
+  if (total < 3) { toast('Pick a few more that fit first', true); return; }
+  const order = ['red', 'blue', 'green', 'purple'].sort((a, b) => t[b] - t[a]);
+  const primary = order[0], secondary = order[1];
+  const pm = STAFF_COLORS[primary], sm = STAFF_COLORS[secondary];
+  const max = t[primary] || 1;
+  const bar = c => { const m = STAFF_COLORS[c]; const pct = Math.round((t[c] / max) * 100); return `<div style="display:flex;align-items:center;gap:8px;margin:5px 0"><span style="width:130px;font-size:13px;color:${m.hex};font-weight:600">${m.label}</span><span style="flex:1;height:10px;background:var(--line);border-radius:6px;overflow:hidden"><span style="display:block;height:100%;width:${pct}%;background:${m.hex}"></span></span><span class="tiny muted" style="width:24px;text-align:right">${t[c]}</span></div>`; };
+  const p = assessFor ? staffById(assessFor) : null;
+  const tie = t[secondary] === t[primary];
+  $('#assessBody').innerHTML = `
+    <div style="text-align:center;margin:2px 0 14px">
+      <div class="tiny muted">Primary color</div>
+      <div style="font-size:22px;font-weight:700;color:${pm.hex};margin:3px 0">${colorDot(primary, 14)} ${esc(pm.label)} <span style="font-size:14px;color:var(--mut)">(${pm.animal})</span></div>
+      <div class="tiny muted">Secondary: <b style="color:${sm.hex}">${esc(sm.label)}</b>${tie ? ' — very close, could go either way' : ''}</div>
+    </div>
+    <div style="max-width:470px;margin:0 auto 14px">${order.map(bar).join('')}</div>
+    <div class="warnBox" style="font-size:13px;background:${pm.hex}12;border-color:${pm.hex}55;color:var(--ink)"><b>Working with a ${pm.label.split(' — ')[0]}:</b> ${esc(pm.tone)}</div>
+    <div class="mf" style="margin-top:14px;display:flex;justify-content:space-between">
+      <button class="btn btn-sec" data-act="openAssess" ${assessFor ? `data-id="${assessFor}"` : ''} type="button">${ic('undo', 13)} Retake</button>
+      ${p ? `<button class="btn btn-pri" data-act="assessSave" data-color="${primary}" data-id="${p.id}" type="button">${ic('checkC', 15)} Save as ${esc(p.name)}’s color</button>` : '<button class="btn btn-sec" data-act="closeModal">Done</button>'}
+    </div>`;
+};
+
+H.assessSave = t => {
+  const p = staffById(t.dataset.id); if (!p) { closeModal(); return; }
+  p.color = t.dataset.color;
+  const lbl = (STAFF_COLORS[p.color] || {}).label || p.color;
+  if (typeof act === 'function') act('Set ' + p.name + '’s communication color to ' + lbl + ' (assessment)');
+  persist(); closeModal(); render(); toast(p.name + ' → ' + lbl);
+};
+
+/* live "N selected" counter */
+document.addEventListener('change', e => {
+  if (e.target && /^ax\d+$/.test(e.target.id || '')) {
+    const c = $('#assessCount');
+    if (c) { const n = assessItems.filter((it, i) => { const el = $('#ax' + i); return el && el.checked; }).length; c.textContent = n + ' selected'; }
+  }
 });
 
 
