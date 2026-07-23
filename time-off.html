@@ -2049,7 +2049,7 @@ async function cancelRequest(id) {
       showToast('Request cancelled.');
       await loadRequests();
       renderCalendar();
-      if (currentUser.role === 'admin') renderManageList();
+      if (currentUser.role === 'admin' || currentUser.role === 'approver') renderManageList();
     } else {
       showToast(data.message || data.error || 'Could not cancel request.');
     }
@@ -2366,7 +2366,16 @@ function requestCardHTML(r, showActions) {
     : '';
 
   let actionsHTML = '';
-  if (showActions) {
+  // Nobody reviews their own request: on a reviewer's OWN pending card show a
+  // note instead of Approve/Deny (the backend enforces this rule too).
+  const isOwnRequest = currentUser && r.employeeName === currentUser.name;
+  if (showActions && isOwnRequest) {
+    actionsHTML = `
+      <div class="approval-actions" style="align-items:center;">
+        <span style="font-size:0.72rem;opacity:0.55;font-style:italic;">Your request &mdash; awaiting another reviewer</span>
+        ${archiveBtn}
+      </div>`;
+  } else if (showActions) {
     actionsHTML = `
       <div class="approval-actions">
         <button class="approve-btn" onclick="approveWithCheck('${escapeHTML(r.id)}',this)">Approve</button>
