@@ -50,8 +50,17 @@ button{cursor:pointer;}
 </head>
 <body>
 <div id="app"></div>
+<div id="authGate" style="position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:var(--navy-900);padding:24px;">
+  <div style="max-width:380px;width:100%;background:#fff;border-radius:16px;padding:34px 30px;box-shadow:0 18px 50px rgba(0,0,0,.35);text-align:center;">
+    <div class="disp" style="font-size:22px;font-weight:700;color:var(--navy-800);letter-spacing:.04em;">NLO Office Calendar</div>
+    <p style="color:var(--grey-500);font-size:14px;line-height:1.5;margin:10px 0 22px;">Sign in with your Next Level Orthodontics account to continue.</p>
+    <button id="signInBtn" class="pill-btn" style="background:var(--blue-600);color:#fff;padding:12px 22px;font-size:14px;width:100%;letter-spacing:.06em;">Sign in with Google</button>
+    <div id="authErr" style="color:var(--coral-700);font-size:13px;margin-top:14px;min-height:16px;"></div>
+  </div>
+</div>
 
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <script>
 /* ================= CONFIG ================= */
@@ -66,7 +75,18 @@ const firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
+const auth = firebase.auth();
 const CAL_ROOT = "nlo/calendar";
+
+/* ---------- Access control (must be mirrored in Firebase Security Rules) ---------- */
+const ALLOWED_EMAILS = ["akhavan.ak@gmail.com"];
+const ALLOWED_DOMAIN = "thenextlevelorthodontics.com";
+function isAllowedEmail(email){
+  const e = (email || "").toLowerCase();
+  if (!e) return false;
+  if (ALLOWED_EMAILS.indexOf(e) !== -1) return true;
+  return e.endsWith("@" + ALLOWED_DOMAIN);
+}
 
 /* Time-Off Request app backend (Apps Script). Approved requests + holiday
    list sync from here — same endpoint the Checklist app uses. */
@@ -201,6 +221,7 @@ setInterval(syncTimeOff, SYNC_INTERVAL_MIN*60*1000);
 function fbErr(e){ S.dbError=(e&&e.message)||"write denied"; alert("Couldn't save — the database rejected the write.\nPublish the nlo/calendar rules block in Firebase (see FIREBASE_RULES_NLO_CALENDAR.txt)."); render(); }
 function fbSet(path,val){ db.ref(CAL_ROOT+"/"+path).set(val).catch(fbErr); }
 function fbRemove(path){ db.ref(CAL_ROOT+"/"+path).remove().catch(fbErr); }
+function startCalSync(){
 db.ref(CAL_ROOT).on("value",(snap)=>{
   const v=snap.val()||{};
   S.data={
@@ -223,6 +244,7 @@ db.ref(CAL_ROOT).on("value",(snap)=>{
   S.dbError=err&&err.message?err.message:"Database permission denied";
   render();
 });
+}
 
 /* ================= ENTRY QUERIES ================= */
 function occursOn(e,ds){
@@ -1003,9 +1025,28 @@ function trySubmitPin(){
   render();
 }
 
-/* ================= BOOT ================= */
-render();
-syncTimeOff();
+/* ================= AUTH GATE + BOOT ================= */
+let calBooted=false;
+auth.onAuthStateChanged(user=>{
+  const gate=document.getElementById("authGate");
+  const appEl=document.getElementById("app");
+  const email=(user&&user.email||"").toLowerCase();
+  if(user && isAllowedEmail(email)){
+    gate.style.display="none";
+    appEl.style.display="";
+    if(!calBooted){ calBooted=true; startCalSync(); render(); syncTimeOff(); }
+  } else {
+    if(user){ document.getElementById("authErr").textContent="Access denied for "+(email||"this account")+"."; auth.signOut(); }
+    gate.style.display="flex";
+    appEl.style.display="none";
+  }
+});
+document.getElementById("signInBtn").addEventListener("click",()=>{
+  const provider=new firebase.auth.GoogleAuthProvider();
+  provider.setCustomParameters({prompt:"select_account"});
+  document.getElementById("authErr").textContent="";
+  auth.signInWithPopup(provider).catch(e=>{ document.getElementById("authErr").textContent=e.message||"Sign-in failed."; });
+});
 </script>
 </body>
 </html>
