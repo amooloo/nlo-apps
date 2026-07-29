@@ -279,7 +279,7 @@
   <section id="tab-notes" class="tabpane hide">
     <div class="card no-print">
       <h2>Notes from your last meeting</h2>
-      <p class="hint">Paste in whatever you jotted down (or a voice-transcript, e.g. from Plaud) during the last staff meeting. AI pulls out a summary, action items, and anything to carry into the next meeting — using the same AISA (Gemini) worker as the agenda generator, with a plain fallback if it's unreachable.</p>
+      <p class="hint">Paste in whatever you jotted down (or a voice-transcript, e.g. from Plaud) during the last staff meeting. AI pulls out a summary, action items, and anything to carry into the next meeting — using the same AISA (Gemini) worker as the agenda generator, with a plain fallback if it's unreachable. Very long notes are trimmed to fit the AI worker's message-length limit; if that matters, split long transcripts into a couple of passes.</p>
       <textarea id="f_lastNotes" style="min-height:170px;" placeholder="Paste or type your notes from the last meeting…"></textarea>
       <div class="row" style="margin-top:12px;">
         <button class="btn ghost" id="saveLastNotes">Save notes</button>
@@ -780,19 +780,26 @@ function buildPayload(){
 // Builds a fully-specified prompt for the AISA worker's /ask route (there's no
 // dedicated /agenda endpoint — this asks it a plain question and gets back
 // {answer: "..."} like the office Q&A assistant does).
+// The worker rejects questions over ~4000 characters, so everything here is
+// built to a strict budget: per-field caps first, then a hard final trim.
+const AI_QUESTION_BUDGET = 3600;
+function capText(s,n){ s=String(s||''); return s.length>n ? s.slice(0,Math.max(0,n-1)).trim()+'…' : s; }
 function agendaPrompt(p){
-  const L=['You are an operations assistant helping the practice owner prepare the agenda for a monthly staff meeting at Next Level Orthodontics. This is NOT a knowledge-base or SOP question — do not look up or cite SOP references, and do not ask a clarifying question. Just produce the agenda described below from the data provided.',
-    '', `MEETING: ${p.meetingTitle} — ${p.meetingMonth}`, '', 'TEAM REPORTS:'];
-  if(p.reports.length) p.reports.forEach(r=>{ L.push(`- ${r.name}${r.role?' ('+r.role+')':''}:`); if(r.updates) L.push('  Updates: '+r.updates); if(r.issues) L.push('  Issues: '+r.issues); if(r.suggestions) L.push('  Suggestions: '+r.suggestions); });
-  else L.push('(none submitted)');
-  L.push('', 'OPEN ACTION ITEMS:');
-  if(p.openActions.length) p.openActions.forEach(a=>L.push(`- ${a.text}${a.owner?' — '+a.owner:''}${a.due?' (due '+a.due+')':''}${a.carriedOver?' [carried over]':''}`));
-  else L.push('(none)');
-  L.push('', 'KPI PERFORMANCE VS GOAL:');
-  if(p.kpis.length) p.kpis.forEach(k=>L.push(`- ${k.label} (${k.role}): ${k.value}${k.unit==='%'?'%':''} vs goal ${k.goal||'—'} — ${k.onTarget===true?'ON TARGET':k.onTarget===false?'OFF TARGET':'no target set'}`));
-  else L.push('(none entered)');
-  L.push('', 'Produce a prioritized meeting agenda in markdown with exactly these section headers, in this order: "## 1. KPI review vs goal", "## 2. Issues & decisions", "## 3. Updates / round-the-room", "## 4. Suggestions & ideas", "## 5. Action items", "## 6. Wrap-up & next steps". Use short bullet points under each — no more than 1-2 lines per bullet. Respond with ONLY the agenda markdown, nothing before or after it.');
-  return L.join('\n');
+  const header=['You are an operations assistant helping the practice owner prepare the agenda for a monthly staff meeting at Next Level Orthodontics. This is NOT a knowledge-base or SOP question — do not look up or cite SOP references, and do not ask a clarifying question. Just produce the agenda described below from the data provided.',
+    '', `MEETING: ${p.meetingTitle} — ${p.meetingMonth}`, ''].join('\n');
+  const footer=['', 'Produce a prioritized meeting agenda in markdown with exactly these section headers, in this order: "## 1. KPI review vs goal", "## 2. Issues & decisions", "## 3. Updates / round-the-room", "## 4. Suggestions & ideas", "## 5. Action items", "## 6. Wrap-up & next steps". Use short bullet points under each — no more than 1-2 lines per bullet. Respond with ONLY the agenda markdown, nothing before or after it.'].join('\n');
+  const B=['TEAM REPORTS:'];
+  if(p.reports.length) p.reports.forEach(r=>{ B.push(`- ${r.name}${r.role?' ('+r.role+')':''}:`); if(r.updates) B.push('  Updates: '+capText(r.updates,240)); if(r.issues) B.push('  Issues: '+capText(r.issues,240)); if(r.suggestions) B.push('  Suggestions: '+capText(r.suggestions,240)); });
+  else B.push('(none submitted)');
+  B.push('', 'OPEN ACTION ITEMS:');
+  if(p.openActions.length) p.openActions.slice(0,25).forEach(a=>B.push(`- ${capText(a.text,140)}${a.owner?' — '+a.owner:''}${a.due?' (due '+a.due+')':''}${a.carriedOver?' [carried over]':''}`));
+  else B.push('(none)');
+  B.push('', 'KPI PERFORMANCE VS GOAL:');
+  if(p.kpis.length) p.kpis.slice(0,30).forEach(k=>B.push(`- ${k.label} (${k.role}): ${k.value}${k.unit==='%'?'%':''} vs goal ${k.goal||'—'} — ${k.onTarget===true?'ON TARGET':k.onTarget===false?'OFF TARGET':'no target set'}`));
+  else B.push('(none entered)');
+  const budget=AI_QUESTION_BUDGET-header.length-footer.length-2;
+  const body=capText(B.join('\n'),Math.max(200,budget));
+  return header+body+footer;
 }
 async function generateAgenda(){
   const btn=$('genAgenda'); const st=$('agendaStatus'); const payload=buildPayload();
@@ -851,13 +858,17 @@ function saveLastNotes(){
     .then(()=>flash($('savedNotes'))).catch(e=>alert('Save failed: '+e.message));
 }
 function notesPrompt(raw,title,month){
-  return ['You are an operations assistant helping analyze notes from a staff meeting at Next Level Orthodontics. This is NOT a knowledge-base or SOP question — do not look up or cite SOP references, and do not ask a clarifying question.',
-    '', `MEETING: ${title} — ${month}`, '', "RAW NOTES (may be messy, informal, or a rough transcript):", raw.slice(0,6000), '',
+  const header=['You are an operations assistant helping analyze notes from a staff meeting at Next Level Orthodontics. This is NOT a knowledge-base or SOP question — do not look up or cite SOP references, and do not ask a clarifying question.',
+    '', `MEETING: ${title} — ${month}`, '', 'RAW NOTES (may be messy, informal, or a rough transcript):', ''].join('\n');
+  const footer=['',
     'Reply in EXACTLY this markdown structure, nothing before or after it:',
     '## Summary', '(3-5 sentence recap of what was discussed and decided)', '',
     '## Action Items', '- Owner — the task (include a due date only if mentioned; if no owner is named, write "Unassigned —")', '',
     '## Carry to Next Meeting', '- open questions or unresolved topics', '',
     'Ground everything strictly in the notes above — never invent attendees, numbers, or decisions that aren\'t there. If a section has nothing to report, write "Nothing came up" under that heading instead.'].join('\n');
+  const budget=AI_QUESTION_BUDGET-header.length-footer.length-2;
+  const body=capText(raw,Math.max(200,budget));
+  return header+body+footer;
 }
 async function analyzeLastNotes(){
   const btn=$('analyzeNotes'); const st=$('notesStatus');
