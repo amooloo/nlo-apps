@@ -202,6 +202,7 @@
     <button class="tab" data-tab="board">Team Board <span class="badge hide" id="badgeBoard">0</span></button>
     <button class="tab" data-tab="kpis">KPIs</button>
     <button class="tab" data-tab="actions">Action Items <span class="badge hide" id="badgeActions">0</span></button>
+    <button class="tab" data-tab="notes">Meeting Notes</button>
     <button class="tab" data-tab="agenda">Agenda</button>
     <button class="tab" data-tab="settings">Settings</button>
   </div>
@@ -239,7 +240,6 @@
     <div class="card">
       <div class="row" style="margin-bottom:2px;">
         <h2 style="margin:0;">KPIs — <span id="kpiMonthLabel"></span></h2>
-        <a class="linkout right" id="kpiSheetLink" href="https://drive.google.com/file/d/1o5XY53to3m4CqhU41MSs7G8C5BvSJWmG/view" target="_blank">Open KPI Bonus System sheet ↗</a>
       </div>
       <p class="hint">Enter this month's actuals. Each metric is checked against its goal. Choose which KPIs to track in <b>Settings → KPI catalog</b>.</p>
       <div id="kpiByRole"></div>
@@ -272,6 +272,28 @@
       <div id="aiOpenList"></div>
       <div class="sec-label">Completed</div>
       <div id="aiDoneList"></div>
+    </div>
+  </section>
+
+  <!-- ===== MEETING NOTES ===== -->
+  <section id="tab-notes" class="tabpane hide">
+    <div class="card no-print">
+      <h2>Notes from your last meeting</h2>
+      <p class="hint">Paste in whatever you jotted down (or a voice-transcript, e.g. from Plaud) during the last staff meeting. AI pulls out a summary, action items, and anything to carry into the next meeting — using the same AISA (Gemini) worker as the agenda generator, with a plain fallback if it's unreachable.</p>
+      <textarea id="f_lastNotes" style="min-height:170px;" placeholder="Paste or type your notes from the last meeting…"></textarea>
+      <div class="row" style="margin-top:12px;">
+        <button class="btn ghost" id="saveLastNotes">Save notes</button>
+        <button class="btn coral" id="analyzeNotes">✨ Analyze with AI</button>
+        <span class="saved" id="savedNotes">✓ Saved</span>
+      </div>
+      <div id="notesStatus" class="banner info hide" style="margin-top:14px;"></div>
+    </div>
+    <div class="card" id="notesResultCard">
+      <div class="row" style="margin-bottom:2px;">
+        <h2 style="margin:0;">Summary &amp; action items</h2>
+        <button class="btn sm ghost right no-print" id="addNotesActions">+ Add action items to list above</button>
+      </div>
+      <div id="notesOut" class="agenda-out" style="margin-top:10px;"><p class="empty">No analysis yet — paste your notes above and click Analyze.</p></div>
     </div>
   </section>
 
@@ -309,7 +331,7 @@
 
     <div class="card">
       <h2>KPI catalog</h2>
-      <p class="hint">Seeded from your <a class="linkout" href="https://drive.google.com/file/d/1o5XY53to3m4CqhU41MSs7G8C5BvSJWmG/view" target="_blank">KPI Bonus System sheet ↗</a>. Check the KPIs you want to track in the meeting; edit any goal. <span class="ci-core">CORE</span> = on your bonus worksheet.</p>
+      <p class="hint">Seeded from the practice's KPI bonus system. Check the KPIs you want to track in the meeting; edit any goal. <span class="ci-core">CORE</span> = on your bonus worksheet.</p>
       <div class="row" style="margin-bottom:12px;">
         <button class="btn sm ghost" id="seedCatalog">Load / restore NLO catalog</button>
         <span class="saved" id="savedCat">✓ Saved</span>
@@ -343,9 +365,9 @@
 
     <div class="card">
       <h2>AI worker</h2>
-      <p class="hint">Endpoint that generates the agenda. Defaults to your AISA worker.</p>
-      <label class="fld">Agenda endpoint URL</label>
-      <input type="text" id="set_endpoint" class="in" placeholder="https://aisa-worker.akhavan-ak.workers.dev/agenda">
+      <p class="hint">Endpoint used to generate the agenda and analyze meeting notes. Defaults to your AISA worker's chat route (the same one the office Q&amp;A assistant uses).</p>
+      <label class="fld">AI endpoint URL</label>
+      <input type="text" id="set_endpoint" class="in" placeholder="https://aisa-worker.akhavan-ak.workers.dev/ask">
       <div class="row" style="margin-top:8px;"><button class="btn sm" id="saveEndpoint">Save</button><span class="saved" id="savedEndpoint">✓ Saved</span></div>
     </div>
 
@@ -377,8 +399,10 @@ const db = firebase.database();
 const auth = firebase.auth();
 const ROOT = 'nlo/staffMeeting';
 const CHECKLIST_ROOT = 'nlo/checklistApp';
-const DEFAULT_ENDPOINT = 'https://aisa-worker.akhavan-ak.workers.dev/agenda';
-const KPI_SHEET_URL = 'https://drive.google.com/file/d/1o5XY53to3m4CqhU41MSs7G8C5BvSJWmG/view';
+// The AISA worker only exposes /ask (and /ask-stream) as a working chat route —
+// there's no dedicated /agenda or /notes endpoint, so we ask it a fully-specified
+// question and parse its plain-text answer instead.
+const DEFAULT_ENDPOINT = 'https://aisa-worker.akhavan-ak.workers.dev/ask';
 
 const ALLOWED_EMAILS = ['akhavan.ak@gmail.com'];
 const ALLOWED_DOMAIN = 'thenextlevelorthodontics.com';
@@ -420,7 +444,7 @@ const KPI_CATALOG = [
 let state = {
   meetingId:null, meeting:{}, roster:{}, kpiDefs:{}, submissions:{},
   kpiValues:{}, actions:{}, meetings:{}, endpoint:DEFAULT_ENDPOINT,
-  me:null, meName:'', meEmail:'', booted:false, checklistStaff:[]
+  me:null, meName:'', meEmail:'', booted:false, checklistStaff:[], lastNotes:{}
 };
 let kpiChart=null;
 
@@ -486,6 +510,7 @@ function attachListeners(){
   db.ref(`${ROOT}/meetings/${m}/submissions`).on('value',s=>{ state.submissions=s.val()||{}; renderBoard(); renderMyForm(); });
   db.ref(`${ROOT}/meetings/${m}/kpis`).on('value',s=>{ state.kpiValues=s.val()||{}; renderKpis(); });
   db.ref(`${ROOT}/meetings/${m}/agenda`).on('value',s=>{ renderAgenda(s.val()); });
+  db.ref(`${ROOT}/meetings/${m}/lastNotes`).on('value',s=>{ state.lastNotes=s.val()||{}; renderLastNotes(); });
   db.ref(ROOT+'/roster').on('value',s=>{ state.roster=s.val()||{}; renderRosterUI(); renderOwnerSelects(); });
   db.ref(ROOT+'/kpiDefs').on('value',s=>{ state.kpiDefs=s.val()||{}; renderCatalog(); renderKpis(); });
   db.ref(ROOT+'/actionItems').on('value',s=>{ state.actions=s.val()||{}; renderActions(); });
@@ -743,6 +768,23 @@ function buildPayload(){
   }).filter(k=>k.value!=null);
   return {meetingTitle:state.meeting.title||'Monthly Staff Meeting',meetingMonth:monthLabel(state.meeting.date||state.meetingId),meetingDate:state.meeting.date||state.meetingId,reports,openActions,kpis};
 }
+// Builds a fully-specified prompt for the AISA worker's /ask route (there's no
+// dedicated /agenda endpoint — this asks it a plain question and gets back
+// {answer: "..."} like the office Q&A assistant does).
+function agendaPrompt(p){
+  const L=['You are an operations assistant helping the practice owner prepare the agenda for a monthly staff meeting at Next Level Orthodontics. This is NOT a knowledge-base or SOP question — do not look up or cite SOP references, and do not ask a clarifying question. Just produce the agenda described below from the data provided.',
+    '', `MEETING: ${p.meetingTitle} — ${p.meetingMonth}`, '', 'TEAM REPORTS:'];
+  if(p.reports.length) p.reports.forEach(r=>{ L.push(`- ${r.name}${r.role?' ('+r.role+')':''}:`); if(r.updates) L.push('  Updates: '+r.updates); if(r.issues) L.push('  Issues: '+r.issues); if(r.suggestions) L.push('  Suggestions: '+r.suggestions); });
+  else L.push('(none submitted)');
+  L.push('', 'OPEN ACTION ITEMS:');
+  if(p.openActions.length) p.openActions.forEach(a=>L.push(`- ${a.text}${a.owner?' — '+a.owner:''}${a.due?' (due '+a.due+')':''}${a.carriedOver?' [carried over]':''}`));
+  else L.push('(none)');
+  L.push('', 'KPI PERFORMANCE VS GOAL:');
+  if(p.kpis.length) p.kpis.forEach(k=>L.push(`- ${k.label} (${k.role}): ${k.value}${k.unit==='%'?'%':''} vs goal ${k.goal||'—'} — ${k.onTarget===true?'ON TARGET':k.onTarget===false?'OFF TARGET':'no target set'}`));
+  else L.push('(none entered)');
+  L.push('', 'Produce a prioritized meeting agenda in markdown with exactly these section headers, in this order: "## 1. KPI review vs goal", "## 2. Issues & decisions", "## 3. Updates / round-the-room", "## 4. Suggestions & ideas", "## 5. Action items", "## 6. Wrap-up & next steps". Use short bullet points under each — no more than 1-2 lines per bullet. Respond with ONLY the agenda markdown, nothing before or after it.');
+  return L.join('\n');
+}
 async function generateAgenda(){
   const btn=$('genAgenda'); const st=$('agendaStatus'); const payload=buildPayload();
   if(!payload.reports.length && !payload.openActions.length){
@@ -752,11 +794,12 @@ async function generateAgenda(){
   st.className='banner info'; st.classList.remove('hide'); st.textContent='Contacting AI worker…';
   let text=null, mode='ai';
   try{
-    const r=await fetch(state.endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-    if(r.ok){ const j=await r.json(); text=j.agenda||j.text||j.result||null; }
+    const r=await fetch(state.endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:agendaPrompt(payload)})});
+    if(!r.ok){ const errJ=await r.json().catch(()=>({})); throw new Error(errJ.error||('AI worker error ('+r.status+')')); }
+    const j=await r.json(); text=j.answer||j.agenda||j.text||j.result||null;
     if(!text) throw new Error('empty');
   }catch(e){ mode='template'; text=templateAgenda(payload);
-    st.className='banner warn'; st.textContent='AI worker not reachable — used the built-in template.'; }
+    st.className='banner warn'; st.textContent='AI worker not reachable ('+e.message+') — used the built-in template.'; }
   if(mode==='ai'){ st.className='banner info'; st.textContent='Agenda generated with AI.'; }
   db.ref(`${ROOT}/meetings/${state.meetingId}/agenda`).set({text,generatedAt:Date.now(),mode}).then(()=>flash($('savedAgenda')));
   btn.disabled=false; btn.innerHTML=orig;
@@ -779,6 +822,89 @@ function templateAgenda(p){
   else L.push('- _No open action items._');
   L.push(''); L.push('## 6. Wrap-up & next steps');
   return L.join('\n');
+}
+
+/* ---------- Meeting notes (paste last meeting's notes, AI extracts summary/action items) ---------- */
+function renderLastNotes(){
+  const n=state.lastNotes||{};
+  const el=$('f_lastNotes');
+  if(document.activeElement!==el) el.value=n.text||'';
+  const out=$('notesOut');
+  if(n.analysis){
+    out.innerHTML=mdToHtml(n.analysis)+`<p class="muted" style="margin-top:14px;font-size:.72rem;">Analyzed ${n.analyzedAt?new Date(n.analyzedAt).toLocaleString():''} · ${n.mode==='ai'?'AI (Gemini)':'Plain recap'}</p>`;
+  } else {
+    out.innerHTML='<p class="empty">No analysis yet — paste your notes above and click Analyze.</p>';
+  }
+}
+function saveLastNotes(){
+  const text=$('f_lastNotes').value.trim();
+  db.ref(`${ROOT}/meetings/${state.meetingId}/lastNotes`).update({text,updatedAt:Date.now()})
+    .then(()=>flash($('savedNotes'))).catch(e=>alert('Save failed: '+e.message));
+}
+function notesPrompt(raw,title,month){
+  return ['You are an operations assistant helping analyze notes from a staff meeting at Next Level Orthodontics. This is NOT a knowledge-base or SOP question — do not look up or cite SOP references, and do not ask a clarifying question.',
+    '', `MEETING: ${title} — ${month}`, '', "RAW NOTES (may be messy, informal, or a rough transcript):", raw.slice(0,6000), '',
+    'Reply in EXACTLY this markdown structure, nothing before or after it:',
+    '## Summary', '(3-5 sentence recap of what was discussed and decided)', '',
+    '## Action Items', '- Owner — the task (include a due date only if mentioned; if no owner is named, write "Unassigned —")', '',
+    '## Carry to Next Meeting', '- open questions or unresolved topics', '',
+    'Ground everything strictly in the notes above — never invent attendees, numbers, or decisions that aren\'t there. If a section has nothing to report, write "Nothing came up" under that heading instead.'].join('\n');
+}
+async function analyzeLastNotes(){
+  const btn=$('analyzeNotes'); const st=$('notesStatus');
+  const raw=($('f_lastNotes').value||'').trim();
+  if(!raw){ st.className='banner warn'; st.classList.remove('hide'); st.textContent='Paste in some notes first.'; return; }
+  saveLastNotes();
+  btn.disabled=true; const orig=btn.innerHTML; btn.innerHTML='<span class="spinner"></span> Analyzing…';
+  st.className='banner info'; st.classList.remove('hide'); st.textContent='Contacting AI worker…';
+  let text=null, mode='ai';
+  const prompt=notesPrompt(raw, state.meeting.title||'Monthly Staff Meeting', monthLabel(state.meeting.date||state.meetingId));
+  try{
+    const r=await fetch(state.endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:prompt})});
+    if(!r.ok){ const errJ=await r.json().catch(()=>({})); throw new Error(errJ.error||('AI worker error ('+r.status+')')); }
+    const j=await r.json(); text=j.answer||j.notes||j.text||j.result||null;
+    if(!text) throw new Error('empty');
+  }catch(e){
+    mode='template'; text=templateNotes(raw);
+    st.className='banner warn'; st.textContent='AI worker not reachable ('+e.message+') — showing a plain recap instead of an AI summary.';
+  }
+  if(mode==='ai'){ st.className='banner info'; st.textContent='Notes analyzed with AI.'; }
+  db.ref(`${ROOT}/meetings/${state.meetingId}/lastNotes`).update({analysis:text,analyzedAt:Date.now(),mode}).then(()=>flash($('savedNotes')));
+  btn.disabled=false; btn.innerHTML=orig;
+  setTimeout(()=>st.classList.add('hide'),8000);
+}
+function templateNotes(raw){
+  const lines=raw.split('\n').map(l=>l.trim()).filter(Boolean);
+  const actionish=lines.filter(l=>/^[-*]|(?:^|\b)(action|todo|to-do|follow[\s-]?up)\b/i.test(l));
+  const L=['## Summary',
+    '_The AI worker wasn\'t reachable, so this is a plain recap rather than a real summary — try again later, or check the endpoint in Settings._','',
+    '## Action Items'];
+  if(actionish.length) actionish.forEach(l=>L.push('- Unassigned — '+l.replace(/^[-*]\s*/,'')));
+  else L.push('- _None auto-detected — review the raw notes below and add items manually._');
+  L.push('', '## Carry to Next Meeting', '- _Review the raw notes below for anything unresolved._', '', '## Raw notes');
+  lines.forEach(l=>L.push(l));
+  return L.join('\n');
+}
+function extractActionLines(md){
+  const m=(md||'').match(/##\s*Action Items\s*\n([\s\S]*?)(\n##|$)/i);
+  if(!m) return [];
+  return m[1].split('\n').map(l=>l.trim()).filter(l=>/^[-*]\s+/.test(l)).map(l=>l.replace(/^[-*]\s+/,'').trim())
+    .filter(l=>l && !/^_.*_$/.test(l));
+}
+function addNotesActionItems(){
+  const n=state.lastNotes||{};
+  if(!n.analysis){ alert('Analyze the notes first — there\'s nothing to add yet.'); return; }
+  const items=extractActionLines(n.analysis);
+  if(!items.length){ alert('No action items found in the analysis.'); return; }
+  let added=0;
+  items.forEach(l=>{
+    const m=l.match(/^([^—-]+?)\s*[—-]\s*(.+)$/);
+    let owner='', text=l;
+    if(m){ text=m[2].trim(); owner=/^unassigned$/i.test(m[1].trim())?'':m[1].trim(); }
+    addAction(text,owner,'');
+    added++;
+  });
+  alert(`Added ${added} action item${added===1?'':'s'} to the Action Items tab.`);
 }
 
 /* ---------- Tabs ---------- */
@@ -817,6 +943,9 @@ $('newMeeting').addEventListener('click',()=>{
 $('saveEndpoint').addEventListener('click',()=>{ db.ref(ROOT+'/config/endpoint').set($('set_endpoint').value.trim()||DEFAULT_ENDPOINT).then(()=>flash($('savedEndpoint'))); });
 $('genAgenda').addEventListener('click',generateAgenda);
 $('printAgenda').addEventListener('click',()=>window.print());
+$('saveLastNotes').addEventListener('click',saveLastNotes);
+$('analyzeNotes').addEventListener('click',analyzeLastNotes);
+$('addNotesActions').addEventListener('click',addNotesActionItems);
 </script>
 </body>
 </html>
