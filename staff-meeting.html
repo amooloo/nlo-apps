@@ -515,7 +515,16 @@ function attachListeners(){
   db.ref(ROOT+'/kpiDefs').on('value',s=>{ state.kpiDefs=s.val()||{}; renderCatalog(); renderKpis(); });
   db.ref(ROOT+'/actionItems').on('value',s=>{ state.actions=s.val()||{}; renderActions(); });
   db.ref(ROOT+'/meetings').on('value',s=>{ state.meetings=s.val()||{}; renderHistory(); renderKpiChart(); });
-  db.ref(ROOT+'/config/endpoint').on('value',s=>{ state.endpoint=s.val()||DEFAULT_ENDPOINT; $('set_endpoint').value=state.endpoint; });
+  db.ref(ROOT+'/config/endpoint').on('value',s=>{
+    let ep=s.val()||DEFAULT_ENDPOINT;
+    // Self-heal a stale endpoint saved before /agenda and /notes were retired in favor of /ask.
+    if(/\/(agenda|notes)\/?$/.test(ep)){
+      const fixed=ep.replace(/\/(agenda|notes)\/?$/,'/ask');
+      db.ref(ROOT+'/config/endpoint').set(fixed);
+      ep=fixed;
+    }
+    state.endpoint=ep; $('set_endpoint').value=state.endpoint;
+  });
 }
 
 /* ---------- Hero / meeting header ---------- */
