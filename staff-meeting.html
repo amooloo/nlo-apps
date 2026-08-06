@@ -37,6 +37,28 @@
   .hero input[type=date]{font-family:inherit;font-weight:700;font-size:.9rem;padding:9px 12px;border-radius:10px;border:none;background:rgba(255,255,255,.16);color:#fff;color-scheme:dark;}
   .hero input[type=date]:focus{outline:2px solid rgba(255,255,255,.5);}
 
+  /* Quick capture bar */
+  .qbar{position:sticky;top:0;z-index:40;background:var(--card);border-radius:14px;padding:12px 14px;margin-bottom:16px;
+        box-shadow:0 1px 3px rgba(27,47,76,.06),0 6px 20px rgba(27,47,76,.07);border:1.5px solid var(--line);}
+  .qbar .qrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  .qbar input[type=text]{flex:1;min-width:200px;border:none;background:#f5f7fa;font-weight:600;}
+  .qbar input[type=text]:focus{background:#fff;border:1.5px solid var(--blue);}
+  .qbar .qhint{font-size:.68rem;color:var(--muted);font-weight:600;margin-top:7px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  .qbar .qflash{color:var(--mint);font-weight:800;opacity:0;transition:.2s;}
+  .qbar .qflash.show{opacity:1;}
+
+  .qn-item{display:flex;gap:10px;align-items:flex-start;padding:11px 4px;border-bottom:1px solid var(--line);}
+  .qn-item:last-child{border-bottom:none;}
+  .qn-item .qn-text{flex:1;font-size:.86rem;font-weight:600;line-height:1.45;}
+  .qn-item .qn-meta{font-size:.68rem;color:var(--muted);font-weight:600;margin-top:3px;}
+  .qn-item select.qn-cat{width:auto;min-width:150px;font-size:.72rem;font-weight:700;padding:6px 9px;border-radius:8px;}
+  .qn-item.used{opacity:.5;}
+  .qn-item.used .qn-text{text-decoration:line-through;}
+  .cat-pill{display:inline-block;font-size:.6rem;font-weight:800;letter-spacing:.6px;text-transform:uppercase;padding:2px 8px;border-radius:20px;color:#fff;}
+  .cat-issue{background:var(--coral);} .cat-update{background:var(--blue);} .cat-suggestion{background:var(--mint);}
+  .cat-kpi{background:var(--gold);} .cat-action{background:var(--navy);}
+  .qgroup{margin-bottom:6px;}
+
   .tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:20px;}
   .tab{padding:9px 16px;border-radius:10px;background:#fff;border:2px solid transparent;font-family:inherit;font-weight:700;font-size:.8rem;color:var(--navy);cursor:pointer;opacity:.6;box-shadow:0 1px 3px rgba(27,47,76,.05);}
   .tab.active{opacity:1;border-color:var(--blue);color:var(--blue);}
@@ -197,8 +219,23 @@
     </div>
   </div>
 
+  <!-- QUICK CAPTURE BAR -->
+  <div class="qbar no-print">
+    <div class="qrow">
+      <input type="text" id="q_text" placeholder="Quick thought for the meeting… e.g. &quot;charts aren't getting done on time&quot;">
+      <select class="in" id="q_cat" style="max-width:180px;"></select>
+      <button class="btn" id="q_add">Add</button>
+      <span class="qflash" id="q_saved">✓ Captured</span>
+    </div>
+    <div class="qhint">
+      <span>Filed automatically into the right agenda section — change the dropdown if it guessed wrong.</span>
+      <span id="q_guessNote"></span>
+    </div>
+  </div>
+
   <div class="tabs" id="tabs">
     <button class="tab active" data-tab="submit">My Report</button>
+    <button class="tab" data-tab="quick">Quick Notes <span class="badge hide" id="badgeQuick">0</span></button>
     <button class="tab" data-tab="board">Team Board <span class="badge hide" id="badgeBoard">0</span></button>
     <button class="tab" data-tab="kpis">KPIs</button>
     <button class="tab" data-tab="actions">Action Items <span class="badge hide" id="badgeActions">0</span></button>
@@ -223,6 +260,18 @@
         <span class="saved" id="savedMsg">✓ Saved</span>
         <button class="btn ghost right" id="addActionFromMe">+ Propose an action item</button>
       </div>
+    </div>
+  </section>
+
+  <!-- ===== QUICK NOTES ===== -->
+  <section id="tab-quick" class="tabpane hide">
+    <div class="card">
+      <div class="row" style="margin-bottom:2px;">
+        <h2 style="margin:0;">Quick notes for this meeting</h2>
+        <button class="btn sm ghost right no-print" id="q_clearUsed">Clear covered items</button>
+      </div>
+      <p class="hint">Anything jotted in the bar above lands here, sorted into the agenda section it belongs in. Each one flows into the generated agenda automatically. Tick an item once it's been covered, or send it straight to the Action Items list.</p>
+      <div id="quickList"></div>
     </div>
   </section>
 
@@ -444,7 +493,7 @@ const KPI_CATALOG = [
 let state = {
   meetingId:null, meeting:{}, roster:{}, kpiDefs:{}, submissions:{},
   kpiValues:{}, actions:{}, meetings:{}, endpoint:DEFAULT_ENDPOINT,
-  me:null, meName:'', meEmail:'', booted:false, checklistStaff:[], lastNotes:{}
+  me:null, meName:'', meEmail:'', booted:false, checklistStaff:[], lastNotes:{}, quickNotes:{}
 };
 let kpiChart=null;
 
@@ -511,6 +560,7 @@ function attachListeners(){
   db.ref(`${ROOT}/meetings/${m}/kpis`).on('value',s=>{ state.kpiValues=s.val()||{}; renderKpis(); });
   db.ref(`${ROOT}/meetings/${m}/agenda`).on('value',s=>{ renderAgenda(s.val()); });
   db.ref(`${ROOT}/meetings/${m}/lastNotes`).on('value',s=>{ state.lastNotes=s.val()||{}; renderLastNotes(); });
+  db.ref(`${ROOT}/meetings/${m}/quickNotes`).on('value',s=>{ state.quickNotes=s.val()||{}; renderQuickNotes(); });
   db.ref(ROOT+'/roster').on('value',s=>{ state.roster=s.val()||{}; renderRosterUI(); renderOwnerSelects(); });
   db.ref(ROOT+'/kpiDefs').on('value',s=>{ state.kpiDefs=s.val()||{}; renderCatalog(); renderKpis(); });
   db.ref(ROOT+'/actionItems').on('value',s=>{ state.actions=s.val()||{}; renderActions(); });
@@ -717,6 +767,101 @@ function addAction(text,owner,due){ text=(text||'').trim(); if(!text) return;
 window.toggleAction=(id,done)=>db.ref(`${ROOT}/actionItems/${id}`).update({status:done?'done':'open',completedAt:done?Date.now():null});
 window.delAction=(id)=>{ if(confirm('Delete this action item?')) db.ref(`${ROOT}/actionItems/${id}`).remove(); };
 
+/* ---------- Quick capture ----------
+   A one-line inbox: type a stray thought any time and it gets auto-filed into
+   the agenda section it belongs in. The guess is a local keyword heuristic
+   (instant, no AI call, works offline) and is always editable. */
+const QUICK_CATS = [
+  ['issue',      'Issue / concern',  '2. Issues & decisions'],
+  ['action',     'Action item',      '5. Action items'],
+  ['suggestion', 'Suggestion / idea','4. Suggestions & ideas'],
+  ['kpi',        'KPI / numbers',    '1. KPI review'],
+  ['update',     'Update / FYI',     '3. Updates / round-the-room']
+];
+const catLabel   = c => (QUICK_CATS.find(x=>x[0]===c)||QUICK_CATS[0])[1];
+const catSection = c => (QUICK_CATS.find(x=>x[0]===c)||QUICK_CATS[0])[2];
+
+const CAT_RULES = [
+  ['action', 3, /\b(need(s)? to|needs doing|make sure|remind|follow[\s-]?up|order (more|new)|reorder|schedule (a|an|the)?|book|call |email |send |print |post |fix |assign|set up|sign up|put in|add to|get (a|an|the) |buy |replace |update the|renew|submit )/i],
+  ['action', 2, /\b(by (mon|tue|wed|thu|fri|sat|sun|next week|month end|end of)|before the next meeting|todo|to-do|action item)\b/i],
+  ['suggestion',3,/\b(what if|how about|should we|could we|can we|maybe we|i think we should|idea:|suggestion:|propose|it would be (nice|good|great)|let'?s try|consider |worth trying|why don'?t we)\b/i],
+  ['issue',    3, /\b(problem|issue|concern|complain|complaint|broken|not working|isn'?t working|doesn'?t work|keeps? (happening|breaking|getting)|falling behind|behind on|running late|not getting done|aren'?t getting done|never gets|no one is|nobody is|too many|too much|struggling|confus|frustrat|missed|missing|mistake|error|dropped the ball|bottleneck|understaffed|short[\s-]?staffed)\b/i],
+  ['issue',    1, /\b(late|slow|delay|backed up|piling up|overdue|not on time|off track)\b/i],
+  ['kpi',      3, /\b(kpi|metric|goal|target|numbers? (are|were|look)|conversion|collection rate|delinquen|no[\s-]?shows?|case starts|same day starts|production|referrals?|reviews? (count|number)|bonus)\b/i],
+  ['kpi',      1, /\d+\s?%|\$\s?\d/],
+  ['update',   2, /\b(fyi|heads up|update:|just so (you|everyone) know|finished|completed|wrapped up|went well|all set|now live|started using|trained|new (patient )?flow is|we (got|hired|added))\b/i]
+];
+function guessCategory(text){
+  const t=' '+String(text||'').trim()+' ';
+  if(!t.trim()) return 'issue';
+  const score={};
+  CAT_RULES.forEach(([cat,w,re])=>{ if(re.test(t)) score[cat]=(score[cat]||0)+w; });
+  // A question mark with no strong signal usually means "something to raise", not an update.
+  if(/\?\s*$/.test(t.trim()) && !score.action && !score.suggestion) score.issue=(score.issue||0)+1;
+  const ranked=Object.entries(score).sort((a,b)=>b[1]-a[1]||QUICK_CATS.findIndex(x=>x[0]===a[0])-QUICK_CATS.findIndex(x=>x[0]===b[0]));
+  // Nothing matched — a stray thought jotted mid-day is most often something to raise.
+  return ranked.length? ranked[0][0] : 'issue';
+}
+function fillQuickCatSelect(){
+  $('q_cat').innerHTML='<option value="">Auto-sort ✨</option>'+QUICK_CATS.map(([v,l])=>`<option value="${v}">${esc(l)}</option>`).join('');
+}
+function showLiveGuess(){
+  const txt=$('q_text').value.trim(), note=$('q_guessNote');
+  if(!txt || $('q_cat').value){ note.innerHTML=''; return; }
+  const c=guessCategory(txt);
+  note.innerHTML=`→ <span class="cat-pill cat-${c}">${esc(catLabel(c))}</span>`;
+}
+function addQuickNote(){
+  const text=$('q_text').value.trim(); if(!text) return;
+  const picked=$('q_cat').value;
+  const cat=picked||guessCategory(text);
+  db.ref(`${ROOT}/meetings/${state.meetingId}/quickNotes`).push({
+    text, cat, auto:!picked, name:state.meName, email:state.meEmail, status:'open', createdAt:Date.now()
+  }).then(()=>{
+    $('q_text').value=''; $('q_cat').value=''; $('q_guessNote').innerHTML='';
+    flash($('q_saved'));
+  }).catch(e=>alert('Save failed: '+e.message));
+}
+function quickEntries(){
+  return Object.entries(state.quickNotes||{}).sort((a,b)=>(a[1].createdAt||0)-(b[1].createdAt||0));
+}
+function renderQuickNotes(){
+  const all=quickEntries();
+  const open=all.filter(([,n])=>n.status!=='used');
+  const badge=$('badgeQuick'); badge.textContent=open.length; badge.classList.toggle('hide',open.length===0);
+  const box=$('quickList');
+  if(!all.length){ box.innerHTML='<p class="empty">Nothing captured yet — use the bar at the top of the page any time something comes up.</p>'; return; }
+  let html='';
+  QUICK_CATS.forEach(([cat,label,section])=>{
+    const rows=all.filter(([,n])=>(n.cat||'issue')===cat);
+    if(!rows.length) return;
+    html+=`<div class="qgroup"><div class="role-head"><span class="rname"><span class="cat-pill cat-${cat}">${esc(label)}</span></span><span class="rline"></span><span class="prole" style="font-size:.66rem;color:var(--muted);font-weight:700;">Agenda §${esc(section)}</span></div>`;
+    rows.forEach(([id,n])=>{
+      const meta=[n.name?esc(n.name):'', n.createdAt?new Date(n.createdAt).toLocaleDateString('en-US',{month:'short',day:'numeric'}):'', n.auto===false?'manually filed':'auto-filed'].filter(Boolean).join(' · ');
+      html+=`<div class="qn-item ${n.status==='used'?'used':''}">
+        <input type="checkbox" ${n.status==='used'?'checked':''} title="Mark as covered" onchange="toggleQuick('${id}',this.checked)">
+        <div style="flex:1;min-width:160px;"><div class="qn-text">${esc(n.text)}</div><div class="qn-meta">${meta}</div></div>
+        <select class="in qn-cat no-print" onchange="setQuickCat('${id}',this.value)">${
+          QUICK_CATS.map(([v,l])=>`<option value="${v}" ${v===(n.cat||'issue')?'selected':''}>${esc(l)}</option>`).join('')
+        }</select>
+        ${n.status==='used'?'':`<button class="btn sm ghost no-print" title="Add to the Action Items list" onclick="quickToAction('${id}')">→ Action</button>`}
+        <button class="del no-print" title="Delete" onclick="delQuick('${id}')">×</button>
+      </div>`;
+    });
+    html+='</div>';
+  });
+  box.innerHTML=html;
+}
+window.toggleQuick=(id,used)=>db.ref(`${ROOT}/meetings/${state.meetingId}/quickNotes/${id}`).update({status:used?'used':'open'});
+window.setQuickCat=(id,cat)=>db.ref(`${ROOT}/meetings/${state.meetingId}/quickNotes/${id}`).update({cat,auto:false});
+window.delQuick=id=>{ if(confirm('Delete this quick note?')) db.ref(`${ROOT}/meetings/${state.meetingId}/quickNotes/${id}`).remove(); };
+window.quickToAction=id=>{
+  const n=(state.quickNotes||{})[id]; if(!n) return;
+  addAction(n.text,'','');
+  db.ref(`${ROOT}/meetings/${state.meetingId}/quickNotes/${id}`).update({cat:'action',auto:false,status:'used'});
+  document.querySelector('[data-tab="actions"]').click();
+};
+
 /* ---------- Roster ---------- */
 function renderRosterUI(){
   const rows=sortByOrder(state.roster);
@@ -775,7 +920,10 @@ function buildPayload(){
     const v=state.kpiValues[id]; const met=kpiMet(d,v);
     return {label:d.label,role:d.role||'',unit:d.unit||'',goal:d.goal||'',value:(v==null||v==='')?null:v,previous:prev[id]==null?null:prev[id],onTarget:met};
   }).filter(k=>k.value!=null);
-  return {meetingTitle:state.meeting.title||'Monthly Staff Meeting',meetingMonth:monthLabel(state.meeting.date||state.meetingId),meetingDate:state.meeting.date||state.meetingId,reports,openActions,kpis};
+  // Quick-capture notes still open for this meeting, already filed by section.
+  const quick=quickEntries().filter(([,n])=>n.status!=='used')
+    .map(([,n])=>({text:n.text||'',cat:n.cat||'issue',name:n.name||''}));
+  return {meetingTitle:state.meeting.title||'Monthly Staff Meeting',meetingMonth:monthLabel(state.meeting.date||state.meetingId),meetingDate:state.meeting.date||state.meetingId,reports,openActions,kpis,quick};
 }
 // Builds a fully-specified prompt for the AISA worker's /ask route (there's no
 // dedicated /agenda endpoint — this asks it a plain question and gets back
@@ -787,10 +935,14 @@ function capText(s,n){ s=String(s||''); return s.length>n ? s.slice(0,Math.max(0
 function agendaPrompt(p){
   const header=['You are an operations assistant helping the practice owner prepare the agenda for a monthly staff meeting at Next Level Orthodontics. This is NOT a knowledge-base or SOP question — do not look up or cite SOP references, and do not ask a clarifying question. Just produce the agenda described below from the data provided.',
     '', `MEETING: ${p.meetingTitle} — ${p.meetingMonth}`, ''].join('\n');
-  const footer=['', 'Produce a prioritized meeting agenda in markdown with exactly these section headers, in this order: "## 1. KPI review vs goal", "## 2. Issues & decisions", "## 3. Updates / round-the-room", "## 4. Suggestions & ideas", "## 5. Action items", "## 6. Wrap-up & next steps". Use short bullet points under each — no more than 1-2 lines per bullet. Respond with ONLY the agenda markdown, nothing before or after it.'].join('\n');
+  const footer=['', 'Produce a prioritized meeting agenda in markdown with exactly these section headers, in this order: "## 1. KPI review vs goal", "## 2. Issues & decisions", "## 3. Updates / round-the-room", "## 4. Suggestions & ideas", "## 5. Action items", "## 6. Wrap-up & next steps". Every QUICK NOTE must appear as a bullet in the numbered section it is tagged with — keep the person\'s own wording, just tidy it. Use short bullet points under each — no more than 1-2 lines per bullet. Respond with ONLY the agenda markdown, nothing before or after it.'].join('\n');
   const B=['TEAM REPORTS:'];
   if(p.reports.length) p.reports.forEach(r=>{ B.push(`- ${r.name}${r.role?' ('+r.role+')':''}:`); if(r.updates) B.push('  Updates: '+capText(r.updates,240)); if(r.issues) B.push('  Issues: '+capText(r.issues,240)); if(r.suggestions) B.push('  Suggestions: '+capText(r.suggestions,240)); });
   else B.push('(none submitted)');
+  if((p.quick||[]).length){
+    B.push('', 'QUICK NOTES (each is already tagged with the agenda section it belongs in):');
+    p.quick.slice(0,20).forEach(q=>B.push(`- [§${catSection(q.cat)}] ${capText(q.text,140)}${q.name?' — raised by '+q.name:''}`));
+  }
   B.push('', 'OPEN ACTION ITEMS:');
   if(p.openActions.length) p.openActions.slice(0,25).forEach(a=>B.push(`- ${capText(a.text,140)}${a.owner?' — '+a.owner:''}${a.due?' (due '+a.due+')':''}${a.carriedOver?' [carried over]':''}`));
   else B.push('(none)');
@@ -803,7 +955,7 @@ function agendaPrompt(p){
 }
 async function generateAgenda(){
   const btn=$('genAgenda'); const st=$('agendaStatus'); const payload=buildPayload();
-  if(!payload.reports.length && !payload.openActions.length){
+  if(!payload.reports.length && !payload.openActions.length && !(payload.quick||[]).length){
     st.className='banner warn'; st.classList.remove('hide'); st.textContent='Nothing to build from yet — add some reports or action items first.'; return;
   }
   btn.disabled=true; const orig=btn.innerHTML; btn.innerHTML='<span class="spinner"></span> Generating…';
@@ -823,19 +975,25 @@ async function generateAgenda(){
 }
 function templateAgenda(p){
   const L=[];
+  const quickFor=cat=>(p.quick||[]).filter(q=>(q.cat||'issue')===cat);
+  const pushQuick=cat=>{ let c=0; quickFor(cat).forEach(q=>{ c++; L.push(`- ${q.text}${q.name?` — *${q.name}*`:''} _(quick note)_`); }); return c; };
   L.push(`# ${p.meetingTitle}`); L.push(`${p.meetingMonth}`); L.push('');
   L.push('## 1. KPI review vs goal');
   if(p.kpis.length){ p.kpis.forEach(k=>{ const st=k.onTarget===true?' ✓':k.onTarget===false?' ⚠ off goal':''; L.push(`- **${k.label}** (${k.role}): ${k.value!=null?k.value:'—'}${k.unit==='%'?'%':''} / goal ${k.goal||'—'}${st}`); }); }
-  else L.push('- _No KPIs entered._');
+  else if(!quickFor('kpi').length) L.push('- _No KPIs entered._');
+  pushQuick('kpi');
   L.push(''); L.push('## 2. Issues & decisions'); let n=0;
-  p.reports.forEach(r=>{ if(r.issues){ n++; L.push(`- **${r.name}${r.role?' ('+r.role+')':''}:** ${r.issues}`);} }); if(!n) L.push('- _No issues raised._');
+  p.reports.forEach(r=>{ if(r.issues){ n++; L.push(`- **${r.name}${r.role?' ('+r.role+')':''}:** ${r.issues}`);} });
+  n+=pushQuick('issue'); if(!n) L.push('- _No issues raised._');
   L.push(''); L.push('## 3. Updates / round-the-room'); let u=0;
-  p.reports.forEach(r=>{ if(r.updates){ u++; L.push(`- **${r.name}:** ${r.updates}`);} }); if(!u) L.push('- _No updates submitted._');
+  p.reports.forEach(r=>{ if(r.updates){ u++; L.push(`- **${r.name}:** ${r.updates}`);} });
+  u+=pushQuick('update'); if(!u) L.push('- _No updates submitted._');
   L.push(''); L.push('## 4. Suggestions & ideas'); let s=0;
-  p.reports.forEach(r=>{ if(r.suggestions){ s++; L.push(`- **${r.name}:** ${r.suggestions}`);} }); if(!s) L.push('- _No suggestions submitted._');
-  L.push(''); L.push('## 5. Action items');
-  if(p.openActions.length){ p.openActions.forEach(a=>L.push(`- ${a.text}${a.owner?` — *${a.owner}*`:''}${a.due?` (due ${fmtDate(a.due)})`:''}${a.carriedOver?' [carried over]':''}`)); }
-  else L.push('- _No open action items._');
+  p.reports.forEach(r=>{ if(r.suggestions){ s++; L.push(`- **${r.name}:** ${r.suggestions}`);} });
+  s+=pushQuick('suggestion'); if(!s) L.push('- _No suggestions submitted._');
+  L.push(''); L.push('## 5. Action items'); let a5=0;
+  if(p.openActions.length){ a5=p.openActions.length; p.openActions.forEach(a=>L.push(`- ${a.text}${a.owner?` — *${a.owner}*`:''}${a.due?` (due ${fmtDate(a.due)})`:''}${a.carriedOver?' [carried over]':''}`)); }
+  a5+=pushQuick('action'); if(!a5) L.push('- _No open action items._');
   L.push(''); L.push('## 6. Wrap-up & next steps');
   return L.join('\n');
 }
@@ -966,6 +1124,18 @@ $('printAgenda').addEventListener('click',()=>window.print());
 $('saveLastNotes').addEventListener('click',saveLastNotes);
 $('analyzeNotes').addEventListener('click',analyzeLastNotes);
 $('addNotesActions').addEventListener('click',addNotesActionItems);
+fillQuickCatSelect();
+$('q_add').addEventListener('click',addQuickNote);
+$('q_text').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); addQuickNote(); } });
+$('q_text').addEventListener('input',showLiveGuess);
+$('q_cat').addEventListener('change',showLiveGuess);
+$('q_clearUsed').addEventListener('click',()=>{
+  const used=quickEntries().filter(([,n])=>n.status==='used');
+  if(!used.length){ alert('Nothing marked as covered yet.'); return; }
+  if(!confirm(`Delete ${used.length} covered quick note${used.length===1?'':'s'}?`)) return;
+  const upd={}; used.forEach(([id])=>upd[id]=null);
+  db.ref(`${ROOT}/meetings/${state.meetingId}/quickNotes`).update(upd);
+});
 </script>
 </body>
 </html>
