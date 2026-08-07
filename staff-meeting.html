@@ -781,23 +781,52 @@ const QUICK_CATS = [
 const catLabel   = c => (QUICK_CATS.find(x=>x[0]===c)||QUICK_CATS[0])[1];
 const catSection = c => (QUICK_CATS.find(x=>x[0]===c)||QUICK_CATS[0])[2];
 
+// Weighted keyword rules, tuned for how an ortho office actually phrases things.
+// Highest total score wins; ties break by QUICK_CATS order.
 const CAT_RULES = [
-  ['action', 3, /\b(need(s)? to|needs doing|make sure|remind|follow[\s-]?up|order (more|new)|reorder|schedule (a|an|the)?|book|call |email |send |print |post |fix |assign|set up|sign up|put in|add to|get (a|an|the) |buy |replace |update the|renew|submit )/i],
-  ['action', 2, /\b(by (mon|tue|wed|thu|fri|sat|sun|next week|month end|end of)|before the next meeting|todo|to-do|action item)\b/i],
-  ['suggestion',3,/\b(what if|how about|should we|could we|can we|maybe we|i think we should|idea:|suggestion:|propose|it would be (nice|good|great)|let'?s try|consider |worth trying|why don'?t we)\b/i],
-  ['issue',    3, /\b(problem|issue|concern|complain|complaint|broken|not working|isn'?t working|doesn'?t work|keeps? (happening|breaking|getting)|falling behind|behind on|running late|not getting done|aren'?t getting done|never gets|no one is|nobody is|too many|too much|struggling|confus|frustrat|missed|missing|mistake|error|dropped the ball|bottleneck|understaffed|short[\s-]?staffed)\b/i],
-  ['issue',    1, /\b(late|slow|delay|backed up|piling up|overdue|not on time|off track)\b/i],
-  ['kpi',      3, /\b(kpi|metric|goal|target|numbers? (are|were|look)|conversion|collection rate|delinquen|no[\s-]?shows?|case starts|same day starts|production|referrals?|reviews? (count|number)|bonus)\b/i],
+  // --- Action: something somebody has to go do ---
+  ['action', 3, /\b(need(s)? to|needs doing|need(s)? doing|make sure|remind|follow[\s-]?up|order (more|new|another)|re-?order|restock|stock up|schedule (a|an|the)?|book|call |email |send |print |post |fix |assign|set up|sign up|put in|add to|get (a|an|the) |buy |replace |update the|renew|submit |ask .{2,20} to |have .{2,20} (do|call|send|order|fix)|can someone|somebody needs|someone needs|we should just|let'?s (get|order|book|move|switch|start))/i],
+  ['action', 3, /\b((we'?re|were|are|is) (out of|almost out of)|running (out|low) (on|of)|low on |down to (our|the) last)\b/i],
+  ['action', 2, /\b(by (mon|tue|wed|thu|fri|sat|sun|next week|month end|end of|the end)|before (the )?(next meeting|monday|the meeting)|todo|to-?do|action item|asap)\b/i],
+  ['action', 2, /\b[A-Z][a-z]{2,}\s+(needs to|has to|should|is going to|will)\b/],           // "Sara needs to…" (case-sensitive on purpose)
+  ['action', 2, /\b(order|reorder|restock|schedule|print|call|email|send|fix|clean|replace|check)\b.*\b(brackets?|wires?|bands?|elastics?|aligners?|trays?|retainers?|bonding|adhesive|gloves|masks|bibs|supplies|autoclave|scanner|itero|x-?ray|pano|forms?|paperwork|statements?|claims?)\b/i],
+
+  // --- Suggestion: an idea being floated ---
+  ['suggestion',3,/\b(what if|how about|should we|could we|can we|maybe we|we could|i think we should|idea:|suggestion:|propose|recommend|it would be (nice|good|great|helpful)|it'?d be (nice|good|easier)|let'?s try|worth (trying|considering|a shot)|why don'?t we|might be worth|thoughts on|instead of|open to)\b/i],
+
+  // --- Issue: something is going wrong ---
+  ['issue',    3, /\b(problem|issue|concern|complain|complaint|broken|not working|isn'?t working|doesn'?t work|keeps? (happening|breaking|getting|coming|going)|falling behind|behind on|running (late|behind)|not getting done|aren'?t getting done|isn'?t getting done|never gets|no one (is|ever)|nobody (is|ever)|too many|too much|too long|struggling|confus|frustrat|missed|missing|mistake|error|dropped the ball|bottleneck|understaffed|short[\s-]?staffed|is a mess|are a mess|not stocked|not ready|wasn'?t ready|still not|hasn'?t been|didn'?t get|double[\s-]?book|over[\s-]?book|jammed|out of order|down again|had to redo|redone|remake|complain)\b/i],
+  ['issue',    2, /\b(chart notes?|charts?|scans?|sterilization|sterilizer|instruments?|ops?\b|chairs?|lab cases?|appliances?|retainers?|brackets?|x-?rays?|phones?|front desk|check[\s-]?out|check[\s-]?in|huddle|schedule)\b.{0,30}\b(late|behind|not|never|aren'?t|isn'?t|missing|piling|backed up|slow|wrong|mess|delay)/i],
+  ['issue',    1, /\b(late|slow|delay|backed up|piling up|overdue|not on time|off track|waiting|wait time|no[\s-]?call)\b/i],
+
+  // --- KPI: a number vs a goal ---
+  ['kpi',      3, /\b(kpi|metric|goal|target|numbers? (are|were|look|came)|conversion|close rate|collection(s| rate)|delinquen|credits?\b|no[\s-]?shows?|case starts|same[\s-]?day starts|start(s)? (were|are|was)|observation|obs patients|pending follow|active patients|tx time|production|adjustment %|referrals?|google reviews?|reviews? (count|number|were|are)|a\/r\b|accounts receivable|bonus)\b/i],
   ['kpi',      1, /\d+\s?%|\$\s?\d/],
-  ['update',   2, /\b(fyi|heads up|update:|just so (you|everyone) know|finished|completed|wrapped up|went well|all set|now live|started using|trained|new (patient )?flow is|we (got|hired|added))\b/i]
+
+  // --- Update: FYI, nothing needed ---
+  ['update',   2, /\b(fyi|heads up|update:|just so (you|everyone) know(s)?|finished|completed|wrapped up|went well|all set|now live|is live|went live|started using|trained|onboard(ed|ing) (is|went)|came in|arrived|installed|we (got|hired|added|started|finished)|shout[\s-]?out|kudos|great job|nice work)\b/i]
 ];
+// Words that mean "this is the KPI itself" rather than a passing mention.
+const KPI_STOPWORDS = new Set(['per','of','the','and','a','an','in','on','to','month','day','rate','%','w/o','pts','#']);
 function guessCategory(text){
-  const t=' '+String(text||'').trim()+' ';
-  if(!t.trim()) return 'issue';
+  const raw=String(text||'').trim();
+  if(!raw) return 'issue';
+  const t=' '+raw+' ';
   const score={};
   CAT_RULES.forEach(([cat,w,re])=>{ if(re.test(t)) score[cat]=(score[cat]||0)+w; });
+  // If the note mentions an actual KPI from YOUR enabled catalog *and* carries a number,
+  // treat it as a KPI line — this keeps up automatically as you edit the catalog.
+  if(/\d/.test(raw) && typeof enabledDefs==='function'){
+    const low=' '+raw.toLowerCase()+' ';
+    const hit=enabledDefs().some(([,d])=>{
+      const words=String(d.label||'').toLowerCase().split(/[^a-z%\/#]+/).filter(w=>w.length>2&&!KPI_STOPWORDS.has(w));
+      if(words.length<2) return false;
+      return words.filter(w=>low.indexOf(w)!==-1).length>=2;
+    });
+    if(hit) score.kpi=(score.kpi||0)+2;
+  }
   // A question mark with no strong signal usually means "something to raise", not an update.
-  if(/\?\s*$/.test(t.trim()) && !score.action && !score.suggestion) score.issue=(score.issue||0)+1;
+  if(/\?\s*$/.test(raw) && !score.action && !score.suggestion) score.issue=(score.issue||0)+1;
   const ranked=Object.entries(score).sort((a,b)=>b[1]-a[1]||QUICK_CATS.findIndex(x=>x[0]===a[0])-QUICK_CATS.findIndex(x=>x[0]===b[0]));
   // Nothing matched — a stray thought jotted mid-day is most often something to raise.
   return ranked.length? ranked[0][0] : 'issue';
