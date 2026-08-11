@@ -854,9 +854,11 @@
     const remainingFee = totalFee - feeRecs;
     document.getElementById('remainingFee').value = fmt(remainingFee);
 
-    // Step 4 — Fee for All AJ mirrors Total Fee from Step 3
-    document.getElementById('feeAllAJ').value = fmt(totalFee);
-    const feeAllAJ = totalFee;
+    // Step 4 — Fee for All AJ is the REMAINING fee from Step 3 (total fee minus
+    // the recs/TxPlan/lab fee). The recs fee is added back whole in Step 5, so
+    // pro-rating the full total fee here would double-count it.
+    document.getElementById('feeAllAJ').value = fmt(remainingFee);
+    const feeAllAJ = remainingFee;
     const mosPct = num('mosPct');
     const feeDueAJ = feeAllAJ * mosPct;
     document.getElementById('feeDueAJ').value = fmt(feeDueAJ);
