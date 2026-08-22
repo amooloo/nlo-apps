@@ -57,7 +57,7 @@
   .setup-banner .text { font-size: 13px; color: #cbd5e1; white-space: nowrap; }
   .setup-banner input {
     flex: 1; background: #0f172a; border: 1px solid #475569; border-radius: 6px;
-    color: #e2e8f0; padding: 7px 10px; font-size: 12px; font-family: monospace; min-width: 180px;
+    color: #e2e8f0; padding: 7px 10px; font-size: 12px; font-family: monospace; min-width: 140px;
   }
   .setup-banner button {
     background: #2563eb; color: white; border: none; padding: 7px 14px;
@@ -67,7 +67,7 @@
 
   .main { padding: 20px 32px; display: flex; gap: 24px; }
   .left-panel { flex: 1; min-width: 0; }
-  .right-panel { width: 400px; flex-shrink: 0; }
+  .right-panel { width: 420px; flex-shrink: 0; }
 
   /* Drop Zone */
   .drop-zone {
@@ -83,7 +83,18 @@
   .drop-zone input { display: none; }
 
   /* Photo Queue */
-  .queue-title { font-size: 16px; font-weight: 600; margin: 24px 0 12px; color: #f8fafc; }
+  .queue-title {
+    font-size: 16px; font-weight: 600; margin: 24px 0 12px; color: #f8fafc;
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  }
+  .queue-title .spacer { flex: 1; }
+  .btn-ghost {
+    background: #1e293b; color: #94a3b8; border: 1px solid #334155;
+    padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer;
+  }
+  .btn-ghost:hover { background: #334155; color: #e2e8f0; }
+  .btn-ghost:disabled { opacity: 0.45; cursor: not-allowed; }
+
   .photo-queue { display: flex; flex-direction: column; gap: 14px; }
 
   .photo-card {
@@ -91,6 +102,8 @@
     padding: 16px; transition: border-color 0.2s;
   }
   .photo-card:hover { border-color: #475569; }
+  .photo-card.analyzing { border-color: #2563eb; }
+  .photo-card.failed { border-color: #991b1b; }
 
   .card-top { display: flex; gap: 16px; align-items: flex-start; }
 
@@ -101,11 +114,36 @@
 
   .card-top .details { flex: 1; min-width: 0; }
   .card-top .details select,
-  .card-top .details input[type="text"] {
+  .card-top .details input[type="text"],
+  .card-top .details textarea {
     width: 100%; background: #0f172a; border: 1px solid #475569; border-radius: 6px;
     color: #e2e8f0; padding: 8px 10px; font-size: 13px; margin-bottom: 8px;
+    font-family: inherit; line-height: 1.5;
   }
+  .card-top .details textarea { resize: vertical; min-height: 62px; }
   .card-top .details select { cursor: pointer; }
+
+  .field-label {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em;
+    color: #64748b; font-weight: 700; margin-bottom: 3px; display: block;
+  }
+  .row-2 { display: flex; gap: 8px; }
+  .row-2 > * { flex: 1; min-width: 0; }
+
+  .ai-note {
+    background: #0f172a; border: 1px solid #334155; border-left: 3px solid #3b82f6;
+    border-radius: 6px; padding: 8px 10px; font-size: 12px; color: #cbd5e1;
+    margin-bottom: 8px; line-height: 1.5;
+  }
+  .ai-note strong { color: #93c5fd; }
+  .ai-note.warn { border-left-color: #f59e0b; }
+  .ai-note.warn strong { color: #fcd34d; }
+
+  .keywords { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 8px; }
+  .kw {
+    background: #0f172a; border: 1px solid #334155; color: #94a3b8;
+    font-size: 11px; padding: 2px 8px; border-radius: 10px;
+  }
 
   .actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 
@@ -115,14 +153,25 @@
   }
   .btn-remove { background: #3b1c1c; color: #f87171; border: 1px solid #991b1b; }
   .btn-remove:hover { background: #7f1d1d; }
+  .btn-redo { background: #1e293b; color: #93c5fd; border: 1px solid #334155; }
+  .btn-redo:hover { background: #334155; }
+
+  .hint-row { display: flex; gap: 6px; margin-bottom: 8px; }
+  .hint-row input { margin-bottom: 0 !important; }
 
   .status-badge {
     font-size: 10px; padding: 3px 8px; border-radius: 10px; font-weight: 600; margin-left: auto;
   }
   .status-pending { background: #1e293b; color: #94a3b8; border: 1px solid #475569; }
+  .status-analyzing { background: #1e3a5f; color: #60a5fa; border: 1px solid #2563eb; }
   .status-uploading { background: #1e3a5f; color: #60a5fa; border: 1px solid #2563eb; }
   .status-done { background: #14532d; color: #4ade80; border: 1px solid #22c55e; }
   .status-error { background: #3b1c1c; color: #f87171; border: 1px solid #991b1b; }
+
+  .conf { font-size: 10px; padding: 3px 8px; border-radius: 10px; font-weight: 600; }
+  .conf-high { background: #14532d; color: #4ade80; border: 1px solid #22c55e; }
+  .conf-medium { background: #422006; color: #fbbf24; border: 1px solid #b45309; }
+  .conf-low { background: #3b1c1c; color: #f87171; border: 1px solid #991b1b; }
 
   /* Upload All */
   .upload-section { margin-top: 20px; display: flex; gap: 12px; align-items: center; }
@@ -140,12 +189,19 @@
     padding: 20px; position: sticky; top: 20px;
   }
   .output-panel h3 { font-size: 15px; font-weight: 600; color: #f8fafc; margin-bottom: 4px; }
-  .output-panel .subtitle { font-size: 12px; color: #64748b; margin-bottom: 16px; }
+  .output-panel .subtitle { font-size: 12px; color: #64748b; margin-bottom: 14px; }
+
+  .out-tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+  .out-tab {
+    flex: 1; background: #0f172a; color: #94a3b8; border: 1px solid #334155;
+    padding: 8px 10px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer;
+  }
+  .out-tab.active { background: #334155; color: #f8fafc; border-color: #475569; }
 
   .output-block {
     background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 12px;
     margin-bottom: 12px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px;
-    color: #a5f3fc; white-space: pre-wrap; word-break: break-all; max-height: 400px;
+    color: #a5f3fc; white-space: pre-wrap; word-break: break-word; max-height: 460px;
     overflow-y: auto; line-height: 1.6;
   }
   .output-block:empty::after {
@@ -200,6 +256,7 @@
     .right-panel { width: 100%; }
     .setup-row { flex-direction: column; }
     .setup-banner { min-width: unset; }
+    .output-panel { position: static; }
   }
 </style>
 </head>
@@ -207,7 +264,7 @@
 
 <div class="header">
   <h1>🦷 <span>NLO</span> AISA Portal</h1>
-  <span class="version">v3.0.0</span>
+  <span class="version">v4.0.0 · AI photo reader</span>
 </div>
 
 <div class="tabs">
@@ -225,6 +282,12 @@
       <input type="text" id="scriptUrl" placeholder="https://script.google.com/macros/s/.../exec">
       <button onclick="saveScriptUrl()" title="Opens the Google Apps Script so you can sign in">Connect</button>
     </div>
+    <div class="setup-banner" id="aiBanner">
+      <span class="icon">🤖</span>
+      <div class="text">AI key:</div>
+      <input type="password" id="aiKey" placeholder="Admin key — unlocks auto-describe">
+      <button onclick="saveAiKey()" title="Stored in this browser only">Save</button>
+    </div>
   </div>
 
   <div class="main">
@@ -233,12 +296,15 @@
       <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
         <div class="icon">📁</div>
         <h3>Drop photos here</h3>
-        <p>or click to browse — JPG, PNG supported</p>
+        <p>AISA reads each one and writes its own description — JPG, PNG, HEIC</p>
         <input type="file" id="fileInput" accept="image/*" multiple>
       </div>
 
       <div class="queue-title" id="queueTitle" style="display:none">
-        📋 Photo Queue <span id="queueCount"></span>
+        <span>📋 Photo Queue <span id="queueCount"></span></span>
+        <span class="spacer"></span>
+        <button class="btn-ghost" id="btnAnalyzeAll" onclick="analyzeAll()">🤖 Re-read all</button>
+        <button class="btn-ghost" id="btnClear" onclick="clearQueue()">Clear</button>
       </div>
       <div class="photo-queue" id="photoQueue"></div>
 
@@ -255,8 +321,12 @@
     <!-- Right Panel -->
     <div class="right-panel">
       <div class="output-panel">
-        <h3>📋 AISA Training References</h3>
-        <p class="subtitle">Auto-generated — paste directly into training files</p>
+        <h3>📋 References</h3>
+        <p class="subtitle">Auto-generated — nothing to type</p>
+        <div class="out-tabs">
+          <button class="out-tab active" id="outTabAisa" onclick="switchOutput('aisa')">For AISA</button>
+          <button class="out-tab" id="outTabClaude" onclick="switchOutput('claude')">For Claude</button>
+        </div>
         <div class="output-block" id="outputBlock"></div>
         <button class="btn-copy" id="btnCopy" onclick="copyOutput()">Copy All References</button>
       </div>
@@ -293,11 +363,17 @@ function switchTab(name) {
   document.getElementById("tabBtnAdmin").classList.toggle("active", name === "admin");
 }
 
-// ================= Photo Portal =================
-let photos = [];
+// ================= Config =================
+const WORKER_BASE = 'https://aisa-worker.akhavan-ak.workers.dev';
+const WORKER_TRAIN_URL = WORKER_BASE + '/train';
+const WORKER_DESCRIBE_URL = WORKER_BASE + '/describe';
 const DEFAULT_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzaLkrZSIYl2MIzs10j21zHy078o63IWObWWHS7JKQDCi-vsQZrNDFobD5yWiu0bTaoMQ/exec";
+
 let scriptUrl = localStorage.getItem("nlo_script_url") || DEFAULT_SCRIPT_URL;
+let aiKey = localStorage.getItem("nlo_admin_key") || "";
+let photos = [];
 let photoIdCounter = 0;
+let outputMode = "aisa";
 
 const CATEGORIES = [
   "MARA", "Herbst", "Herbst-Smith-Type-I", "Herbst-Smith-Type-II",
@@ -311,6 +387,11 @@ window.addEventListener("DOMContentLoaded", () => {
   if (scriptUrl) {
     document.getElementById("scriptUrl").value = scriptUrl;
     markConnected();
+  }
+  if (aiKey) {
+    document.getElementById("aiKey").value = aiKey;
+    document.getElementById("adminKey").value = aiKey;
+    markAiReady();
   }
   setupDropZone();
   setupFileInput();
@@ -332,6 +413,24 @@ function markConnected() {
   banner.querySelector(".text").textContent = "Google Drive connected";
 }
 
+function saveAiKey() {
+  aiKey = document.getElementById("aiKey").value.trim();
+  localStorage.setItem("nlo_admin_key", aiKey);
+  document.getElementById("adminKey").value = aiKey;
+  if (aiKey) {
+    markAiReady();
+    // Anything still waiting on a key can go now
+    analyzeAll();
+  }
+}
+
+function markAiReady() {
+  const banner = document.getElementById("aiBanner");
+  banner.classList.add("connected");
+  banner.querySelector(".icon").textContent = "🤖";
+  banner.querySelector(".text").textContent = "AI reader ready";
+}
+
 // ---- Drag & Drop ----
 function setupDropZone() {
   const dz = document.getElementById("dropZone");
@@ -350,26 +449,148 @@ function setupFileInput() {
 }
 
 function handleFiles(fileList) {
+  const added = [];
+  let remaining = 0;
   for (const file of fileList) {
     if (!file.type.startsWith("image/")) continue;
+    remaining++;
     const id = ++photoIdCounter;
     const reader = new FileReader();
     reader.onload = (e) => {
-      photos.push({
+      const p = {
         id, file,
         dataUrl: e.target.result,
-        category: "MARA",
+        category: "Other",
+        caption: file.name.replace(/\.[^.]+$/, ""),
         description: "",
-        status: "pending",
+        keywords: [],
+        confidence: "",
+        suggestedSection: "",
+        sectionRationale: "",
+        hint: "",
+        aiState: "queued",   // queued | analyzing | done | error | nokey
+        aiError: "",
+        status: "pending",   // pending | uploading | done | error
         result: null
-      });
+      };
+      photos.push(p);
+      added.push(p);
       renderQueue();
+      if (--remaining === 0) analyzeQueue(added);
     };
     reader.readAsDataURL(file);
   }
 }
 
-// ---- Render ----
+// ================= AI description =================
+
+// Shrink before sending — faster round trip, and keeps us under the size cap.
+// The full-resolution original is what actually goes to Google Drive.
+function makeVisionCopy(dataUrl) {
+  return new Promise((resolve) => {
+    const fallback = () => resolve({
+      data: dataUrl.split(",")[1],
+      mimeType: dataUrl.split(";")[0].split(":")[1]
+    });
+    const img = new Image();
+    img.onload = () => {
+      const MAX = 1400;
+      let width = img.width, height = img.height;
+      if (width > MAX || height > MAX) {
+        const scale = MAX / Math.max(width, height);
+        width = Math.round(width * scale);
+        height = Math.round(height * scale);
+      }
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = width; canvas.height = height;
+        canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+        const out = canvas.toDataURL("image/jpeg", 0.85);
+        resolve({ data: out.split(",")[1], mimeType: "image/jpeg" });
+      } catch (e) { fallback(); }
+    };
+    img.onerror = fallback;
+    img.src = dataUrl;
+  });
+}
+
+async function describePhoto(photo) {
+  if (!aiKey) {
+    photo.aiState = "nokey";
+    renderQueue();
+    return;
+  }
+  photo.aiState = "analyzing";
+  photo.aiError = "";
+  renderQueue();
+
+  try {
+    const shrunk = await makeVisionCopy(photo.dataUrl);
+    const resp = await fetch(WORKER_DESCRIBE_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Admin-Key": aiKey },
+      body: JSON.stringify({
+        image: shrunk,
+        fileName: photo.file.name,
+        hint: photo.hint || "",
+        categories: CATEGORIES
+      })
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok || !data.success) throw new Error(data.error || ("Worker returned " + resp.status));
+
+    photo.category = CATEGORIES.indexOf(data.category) >= 0 ? data.category : "Other";
+    photo.caption = data.caption || photo.caption;
+    photo.description = data.description || "";
+    photo.keywords = Array.isArray(data.keywords) ? data.keywords : [];
+    photo.confidence = data.confidence || "";
+    photo.suggestedSection = data.suggestedSection || "";
+    photo.sectionRationale = data.sectionRationale || "";
+    photo.aiState = "done";
+  } catch (err) {
+    photo.aiState = "error";
+    photo.aiError = err.message || "Could not reach the AI reader";
+  }
+  renderQueue();
+  updateOutput();
+}
+
+// Two at a time — polite to the worker, still quick for a big drop.
+async function analyzeQueue(list) {
+  const pending = list.filter(p => p.aiState === "queued" || p.aiState === "nokey" || p.aiState === "error");
+  if (pending.length === 0) return;
+  const LANES = Math.min(2, pending.length);
+  let idx = 0;
+  async function lane() {
+    while (idx < pending.length) {
+      const p = pending[idx++];
+      await describePhoto(p);
+    }
+  }
+  const lanes = [];
+  for (let i = 0; i < LANES; i++) lanes.push(lane());
+  await Promise.all(lanes);
+}
+
+function analyzeAll() {
+  analyzeQueue(photos);
+}
+
+function reanalyze(id) {
+  const p = photos.find(x => x.id === id);
+  if (!p) return;
+  const box = document.getElementById("hint-" + id);
+  if (box) p.hint = box.value.trim();
+  describePhoto(p);
+}
+
+// ================= Render =================
+function esc(s) {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
 function renderQueue() {
   const queue = document.getElementById("photoQueue");
   const title = document.getElementById("queueTitle");
@@ -382,42 +603,77 @@ function renderQueue() {
     return;
   }
 
-  title.style.display = "block";
+  title.style.display = "flex";
   upload.style.display = "flex";
-  document.getElementById("queueCount").textContent = `(${photos.length})`;
+  document.getElementById("queueCount").textContent = "(" + photos.length + ")";
 
   queue.innerHTML = photos.map(p => {
-    const statusClass = `status-${p.status}`;
-    const statusText = p.status === "pending" ? "Ready" :
+    const statusClass = p.aiState === "analyzing" ? "status-analyzing" : "status-" + p.status;
+    const statusText = p.aiState === "analyzing" ? "🤖 Reading photo..." :
+                       p.status === "pending" ? "Ready" :
                        p.status === "uploading" ? "Uploading..." :
                        p.status === "done" ? "✓ Uploaded" : "Error";
 
     const catOptions = CATEGORIES.map(c =>
-      `<option value="${c}" ${p.category === c ? "selected" : ""}>${c.replace(/-/g, " ")}</option>`
+      '<option value="' + c + '" ' + (p.category === c ? "selected" : "") + '>' + c.replace(/-/g, " ") + '</option>'
     ).join("");
 
-    return `
-      <div class="photo-card" id="card-${p.id}">
-        <div class="card-top">
-          <img class="thumb" src="${p.dataUrl}" alt="">
-          <div class="details">
-            <select onchange="updatePhoto(${p.id}, 'category', this.value)">${catOptions}</select>
-            <input type="text" placeholder="Description (e.g. Elbow Close-Up, Side View)"
-                   value="${p.description}" oninput="updatePhoto(${p.id}, 'description', this.value)">
-            <div class="actions">
-              <button class="btn-sm btn-remove" onclick="removePhoto(${p.id})">✕ Remove</button>
-              <span class="status-badge ${statusClass}">${statusText}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
+    let note = "";
+    if (p.aiState === "nokey") {
+      note = '<div class="ai-note warn"><strong>Enter your admin key above</strong> and AISA will describe this photo for you.</div>';
+    } else if (p.aiState === "error") {
+      note = '<div class="ai-note warn"><strong>Couldn\'t read this one:</strong> ' + esc(p.aiError) + ' — type a description yourself, or hit Re-read.</div>';
+    } else if (p.aiState === "done" && p.suggestedSection) {
+      note = '<div class="ai-note"><strong>Goes in:</strong> ' + esc(p.suggestedSection) + (p.sectionRationale ? " — " + esc(p.sectionRationale) : "") + '</div>';
+    } else if (p.aiState === "done" && p.sectionRationale) {
+      note = '<div class="ai-note warn"><strong>No matching section yet:</strong> ' + esc(p.sectionRationale) + '</div>';
+    }
+
+    const kw = p.keywords.length
+      ? '<div class="keywords">' + p.keywords.map(k => '<span class="kw">' + esc(k) + '</span>').join("") + '</div>'
+      : "";
+
+    const conf = p.confidence
+      ? '<span class="conf conf-' + esc(p.confidence) + '">AI confidence: ' + esc(p.confidence) + '</span>' : "";
+
+    return '' +
+      '<div class="photo-card ' + (p.aiState === "analyzing" ? "analyzing" : "") + ' ' + (p.aiState === "error" ? "failed" : "") + '" id="card-' + p.id + '">' +
+        '<div class="card-top">' +
+          '<img class="thumb" src="' + p.dataUrl + '" alt="">' +
+          '<div class="details">' +
+            '<div class="row-2">' +
+              '<div>' +
+                '<span class="field-label">Category</span>' +
+                '<select onchange="updatePhoto(' + p.id + ', \'category\', this.value)">' + catOptions + '</select>' +
+              '</div>' +
+              '<div>' +
+                '<span class="field-label">Caption — becomes the file name</span>' +
+                '<input type="text" value="' + esc(p.caption) + '" oninput="updatePhoto(' + p.id + ', \'caption\', this.value)">' +
+              '</div>' +
+            '</div>' +
+            '<span class="field-label">Description AISA and Claude will read</span>' +
+            '<textarea placeholder="' + (p.aiState === "analyzing" ? "Reading the photo..." : "What does this photo show?") + '" ' +
+                      'oninput="updatePhoto(' + p.id + ', \'description\', this.value)">' + esc(p.description) + '</textarea>' +
+            kw +
+            note +
+            '<div class="hint-row">' +
+              '<input type="text" id="hint-' + p.id + '" placeholder="Correction or context for the AI (e.g. this is a Type II Herbst)" value="' + esc(p.hint) + '">' +
+              '<button class="btn-sm btn-redo" onclick="reanalyze(' + p.id + ')">🤖 Re-read</button>' +
+            '</div>' +
+            '<div class="actions">' +
+              '<button class="btn-sm btn-remove" onclick="removePhoto(' + p.id + ')">✕ Remove</button>' +
+              conf +
+              '<span class="status-badge ' + statusClass + '">' + statusText + '</span>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
   }).join("");
 }
 
 function updatePhoto(id, field, value) {
   const p = photos.find(x => x.id === id);
-  if (p) p[field] = value;
+  if (p) { p[field] = value; updateOutput(); }
 }
 
 function removePhoto(id) {
@@ -425,12 +681,20 @@ function removePhoto(id) {
   renderQueue(); updateOutput();
 }
 
-// ---- Upload to Drive ----
+function clearQueue() {
+  if (photos.length && !confirm("Clear the whole queue?")) return;
+  photos = [];
+  renderQueue(); updateOutput();
+}
+
+// ================= Upload to Drive =================
 async function uploadAll() {
   if (!scriptUrl) { alert("Connect your Google Apps Script URL first!"); return; }
 
   const pending = photos.filter(p => p.status === "pending" || p.status === "error");
   if (pending.length === 0) return;
+
+  if (pending.some(p => p.aiState === "analyzing") && !confirm("AISA is still reading some photos. Upload anyway?")) return;
 
   const btn = document.getElementById("btnUploadAll");
   btn.disabled = true; btn.textContent = "⏳ Uploading...";
@@ -452,7 +716,11 @@ async function uploadAll() {
         file: base64,
         fileName: photo.file.name,
         category: photo.category,
-        description: photo.description || photo.file.name.replace(/\.[^.]+$/, ""),
+        // Short caption drives the Drive file name; the long description rides along
+        description: photo.caption || photo.file.name.replace(/\.[^.]+$/, ""),
+        fullDescription: photo.description || "",
+        keywords: (photo.keywords || []).join(", "),
+        suggestedSection: photo.suggestedSection || "",
         mimeType
       };
 
@@ -471,10 +739,10 @@ async function uploadAll() {
           if (resp.ok) {
             result = {
               success: true,
-              aisaReference: `[PHOTO: ${photo.category} — ${photo.description}]\n(Check your NLO-AISA-Photos folder in Google Drive)`
+              aisaReference: "[PHOTO: " + photo.category + " — " + photo.caption + "]\n(Check your NLO-AISA-Photos folder in Google Drive)"
             };
           } else {
-            result = { success: false, error: `Server returned: ${respText}` };
+            result = { success: false, error: "Server returned: " + respText };
           }
         }
       } catch (e) {
@@ -496,7 +764,7 @@ async function uploadAll() {
     }
 
     completed++;
-    fill.style.width = `${(completed / pending.length) * 100}%`;
+    fill.style.width = ((completed / pending.length) * 100) + "%";
     renderQueue();
   }
 
@@ -506,15 +774,49 @@ async function uploadAll() {
   setTimeout(() => { bar.classList.remove("active"); fill.style.width = "0%"; }, 2000);
 }
 
-// ---- Output ----
+// ================= Output =================
+function thumbUrl(p) {
+  if (p.result && p.result.fileId) return "https://drive.google.com/thumbnail?id=" + p.result.fileId + "&sz=w800";
+  return "";
+}
+
+// Compact block the knowledge base and AISA already understand.
+function aisaBlock(p) {
+  const url = thumbUrl(p);
+  const label = p.category + " — " + p.caption;
+  if (!url) return (p.result && p.result.aisaReference) || ("[PHOTO: " + label + "]");
+  return "[PHOTO: " + label + "]\n" + url;
+}
+
+// Rich block: everything Claude needs to place the photo without seeing it.
+function claudeBlock(p) {
+  const url = thumbUrl(p);
+  const lines = [];
+  lines.push("[PHOTO: " + p.category + " — " + p.caption + "]");
+  if (url) lines.push(url);
+  if (p.description) lines.push("Shows: " + p.description);
+  if (p.suggestedSection) lines.push("Suggested section: " + p.suggestedSection + (p.sectionRationale ? " (" + p.sectionRationale + ")" : ""));
+  if (p.keywords && p.keywords.length) lines.push("Keywords: " + p.keywords.join(", "));
+  if (p.confidence) lines.push("AI confidence: " + p.confidence);
+  return lines.join("\n");
+}
+
+function switchOutput(mode) {
+  outputMode = mode;
+  document.getElementById("outTabAisa").classList.toggle("active", mode === "aisa");
+  document.getElementById("outTabClaude").classList.toggle("active", mode === "claude");
+  document.querySelector(".output-panel .subtitle").textContent =
+    mode === "aisa" ? "Paste into the manual — AISA shows these inline"
+                    : "Paste to Claude — it can place the photo without a re-upload";
+  updateOutput();
+}
+
 function updateOutput() {
   const block = document.getElementById("outputBlock");
   const done = photos.filter(p => p.status === "done" && p.result);
   if (done.length === 0) { block.textContent = ""; return; }
-  block.textContent = done.map(p =>
-    p.result.aisaReference ||
-    `[PHOTO: ${p.category} — ${p.description}]\nhttps://drive.google.com/thumbnail?id=${p.result.fileId}&sz=w800`
-  ).join("\n\n");
+  const build = outputMode === "aisa" ? aisaBlock : claudeBlock;
+  block.textContent = done.map(build).join("\n\n");
 }
 
 function copyOutput() {
@@ -528,8 +830,6 @@ function copyOutput() {
 }
 
 // ================= Admin Training =================
-const WORKER_TRAIN_URL = 'https://aisa-worker.akhavan-ak.workers.dev/train';
-
 async function processAndTrain() {
   const fileInput = document.getElementById('trainFileInput');
   const statusEl = document.getElementById('trainStatus');
@@ -562,11 +862,16 @@ async function processAndTrain() {
       statusEl.innerText = 'Please enter the admin key.';
       return;
     }
+    // Keep the photo tab's AI key in sync
+    aiKey = adminKey;
+    localStorage.setItem('nlo_admin_key', adminKey);
+    document.getElementById('aiKey').value = adminKey;
+    markAiReady();
 
     // Derive fileLabel from the uploaded filename (without extension)
     const fileLabel = file.name.replace(/\.[^.]+$/, '').trim();
 
-    statusEl.innerText = `Uploading "${fileLabel}" to Cloudflare... this may take a moment.`;
+    statusEl.innerText = 'Uploading "' + fileLabel + '" to Cloudflare... this may take a moment.';
 
     try {
       const response = await fetch(WORKER_TRAIN_URL, {
@@ -579,7 +884,7 @@ async function processAndTrain() {
 
       if (data.success) {
         statusEl.style.color = '#4ade80';
-        statusEl.innerText = `✅ Success! Uploaded ${data.chunksSaved} chunks for "${data.fileLabel || fileLabel}". Re-uploading this file will auto-replace old data.`;
+        statusEl.innerText = '✅ Success! Uploaded ' + data.chunksSaved + ' chunks for "' + (data.fileLabel || fileLabel) + '". Re-uploading this file will auto-replace old data.';
         fileInput.value = ''; // Clear the input
       } else {
         throw new Error(data.error);

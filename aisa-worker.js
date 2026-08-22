@@ -302,9 +302,212 @@ export default {
 		}
 	  }
 
+	  // ====================================================================
+	  // ROUTE 4: PHOTO VISION (/describe) — requires ADMIN_KEY
+	  // Takes one image, returns category + caption + description + keywords
+	  // + a suggested placement section pulled from the knowledge base.
+	  // Used by the AISA Photo Portal so nobody has to type descriptions.
+	  // ====================================================================
+	  if (url.pathname === "/describe" && request.method === "POST") {
+		const authKey = request.headers.get('X-Admin-Key') || '';
+		const storedKey = env['ADMIN-KEY'] || env['ADMIN_KEY'] || env.ADMIN_KEY;
+		if (!storedKey || authKey !== storedKey) {
+		  return new Response(JSON.stringify({ success: false, error: 'Unauthorized — check your admin key.' }), { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders(origin) } });
+		}
+		try {
+		  const reqJson = await request.json();
+		  const img = reqJson.image || {};
+		  if (!img.data || !img.mimeType) {
+			return new Response(JSON.stringify({ success: false, error: 'Missing image.data / image.mimeType' }), { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders(origin) } });
+		  }
+		  if (img.data.length > MAX_IMAGE_B64) {
+			return new Response(JSON.stringify({ success: false, error: 'Image too large — please resize under 6 MB.' }), { status: 413, headers: { "Content-Type": "application/json", ...corsHeaders(origin) } });
+		  }
+
+		  const categories = Array.isArray(reqJson.categories) && reqJson.categories.length ? reqJson.categories : DEFAULT_PHOTO_CATEGORIES;
+		  const hint = (reqJson.hint || '').toString().slice(0, 300);
+		  const fileName = (reqJson.fileName || '').toString().slice(0, 200);
+
+		  // ---- Pass 1: look at the photo ----
+		  const vision = await describeImage({ img, categories, hint, fileName }, env);
+
+		  // ---- Pass 2: where does it belong? (RAG over the trained manuals) ----
+		  let placement = { suggestedSection: '', sectionRationale: '', sourceFile: '' };
+		  try {
+			placement = await suggestPlacement(vision, env);
+		  } catch (e) { console.error('placement lookup failed:', e); }
+
+		  return new Response(JSON.stringify({
+			success: true,
+			category: vision.category,
+			caption: vision.caption,
+			description: vision.description,
+			keywords: vision.keywords || [],
+			confidence: vision.confidence || 'medium',
+			suggestedSection: placement.suggestedSection || '',
+			sectionRationale: placement.sectionRationale || '',
+			sourceFile: placement.sourceFile || ''
+		  }), { headers: { "Content-Type": "application/json", ...corsHeaders(origin) } });
+		} catch (err) {
+		  console.error('Worker /describe error:', err);
+		  return new Response(JSON.stringify({ success: false, error: err.message }), { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders(origin) } });
+		}
+	  }
+
 	  return new Response("NLO Worker is Running!", { headers: { "Content-Type": "text/plain", ...corsHeaders(origin) } });
 	}
 };
+
+// ====================================================================
+// PHOTO VISION HELPERS (/describe)
+// ====================================================================
+
+const MAX_IMAGE_B64 = 8 * 1024 * 1024; // ~6 MB of binary once base64-decoded
+
+const DEFAULT_PHOTO_CATEGORIES = [
+  "MARA", "Herbst", "Herbst-Smith-Type-I", "Herbst-Smith-Type-II",
+  "RPE", "MSE", "MARPE", "Schwartz", "Hawley", "Finger-Spring",
+  "Bonding", "Brackets", "Instruments", "Archwires", "Elastics",
+  "Clinical-Before", "Clinical-After", "Clinical-Progress",
+  "Intraoral", "Extraoral", "Ceph", "Panoramic", "Patient-Education", "Office", "Other"
+];
+
+async function describeImage({ img, categories, hint, fileName }, env) {
+  const systemText = `You are the photo librarian for Next Level Orthodontics' clinical knowledge base (AISA).
+
+A team member has uploaded a photo. Your job is to describe it accurately enough that someone who CANNOT see the image can decide exactly where it belongs in the clinical manual.
+
+RULES:
+- Look carefully at what is actually in the frame. Never guess an appliance name you cannot see. If the appliance type is ambiguous, say so in the description and choose the broader category (e.g. "Intraoral") instead of inventing a specific one.
+- Read any text, labels, arrows, packaging, or handwriting in the image and quote it exactly.
+- Use correct orthodontic vocabulary: arch (maxillary/mandibular), side (right/left), view (occlusal, buccal, lingual, frontal, lateral), tooth numbering when clearly identifiable (e.g. UR6, LL5), and appliance parts by name (bands, tubes, arms, expander screw, offset bend, hooks, ligatures, elastomerics).
+- If it is a patient clinical photo, describe the clinical situation without identifying the patient. Never invent a patient name, age, or chart number.
+- If it is a supply, instrument, or product package, name the product and manufacturer only if it is legible in the image.
+
+OUTPUT FIELDS:
+- category: choose EXACTLY ONE from this list: ${categories.join(', ')}
+- caption: a short human label, 3-8 words, title case, no trailing period (this becomes the photo's file name and the [PHOTO:] tag).
+- description: 2-4 sentences. What is shown, from what view, what the teaching point is, and any visible text. This is what a colleague reads INSTEAD of seeing the picture, so make it concretely useful.
+- keywords: 4-8 lowercase search terms a clinical assistant might type when looking for this photo.
+- confidence: "high" if you are sure what the appliance/subject is, "medium" if reasonably sure, "low" if the image is unclear or ambiguous.`;
+
+  const userParts = [];
+  let ask = 'Describe this photo for the AISA knowledge base.';
+  if (fileName) ask += `\nOriginal file name (may or may not be meaningful): "${fileName}"`;
+  if (hint) ask += `\nThe uploader added this hint — trust it over your own guess where they conflict: "${hint}"`;
+  userParts.push({ text: ask });
+  userParts.push({ inline_data: { mime_type: img.mimeType, data: img.data } });
+
+  const body = {
+	system_instruction: { parts: [{ text: systemText }] },
+	contents: [{ role: 'user', parts: userParts }],
+	generationConfig: {
+	  temperature: 0.2,
+	  maxOutputTokens: 700,
+	  thinkingConfig: { thinkingBudget: 0 },
+	  responseMimeType: 'application/json',
+	  responseSchema: {
+		type: 'OBJECT',
+		properties: {
+		  category: { type: 'STRING', enum: categories },
+		  caption: { type: 'STRING' },
+		  description: { type: 'STRING' },
+		  keywords: { type: 'ARRAY', items: { type: 'STRING' } },
+		  confidence: { type: 'STRING', enum: ['high', 'medium', 'low'] }
+		},
+		required: ['category', 'caption', 'description', 'keywords', 'confidence']
+	  }
+	}
+  };
+
+  const parsed = await callGeminiJson(body, env);
+  const category = categories.includes(parsed.category) ? parsed.category : 'Other';
+  return {
+	category,
+	caption: (parsed.caption || 'Untitled Photo').replace(/[\\/:*?"<>|]/g, '').trim().slice(0, 80),
+	description: (parsed.description || '').trim(),
+	keywords: Array.isArray(parsed.keywords) ? parsed.keywords.slice(0, 8) : [],
+	confidence: parsed.confidence || 'medium'
+  };
+}
+
+// Uses the trained manuals to suggest which section the photo belongs in.
+async function suggestPlacement(vision, env) {
+  const query = `${vision.caption}. ${vision.description} ${(vision.keywords || []).join(' ')}`.slice(0, 900);
+  const context = await retrievePlacementContext(query, env);
+  if (!context) return { suggestedSection: '', sectionRationale: '', sourceFile: '' };
+
+  const body = {
+	system_instruction: { parts: [{ text: `You place photos into Next Level Orthodontics' clinical manuals.
+
+You are given a photo description and excerpts from the trained manuals. Name the ONE section the photo best illustrates.
+
+RULES:
+- Only name a section that actually appears in the excerpts. Quote its heading or SOP number as written (e.g. "SOP-CL-002 — Herbst Delivery", "MARA — Adjustment Appointments").
+- If nothing in the excerpts is a good match, return an empty suggestedSection and explain in one line what section would need to exist.
+- rationale: ONE sentence, max 20 words.` }] },
+	contents: [{ role: 'user', parts: [{ text: `PHOTO:\n${query}\n\n=== MANUAL EXCERPTS ===\n${context}` }] }],
+	generationConfig: {
+	  temperature: 0.1,
+	  maxOutputTokens: 300,
+	  thinkingConfig: { thinkingBudget: 0 },
+	  responseMimeType: 'application/json',
+	  responseSchema: {
+		type: 'OBJECT',
+		properties: {
+		  suggestedSection: { type: 'STRING' },
+		  sectionRationale: { type: 'STRING' },
+		  sourceFile: { type: 'STRING' }
+		},
+		required: ['suggestedSection', 'sectionRationale']
+	  }
+	}
+  };
+
+  const parsed = await callGeminiJson(body, env);
+  return {
+	suggestedSection: (parsed.suggestedSection || '').trim(),
+	sectionRationale: (parsed.sectionRationale || '').trim(),
+	sourceFile: (parsed.sourceFile || '').trim()
+  };
+}
+
+// Pulls candidate manual sections for the placement pass.
+async function retrievePlacementContext(query, env) {
+  // Full-context mode: the whole KB is already in KV, but it is far too big for
+  // a placement prompt — fall through to vectors, which give us ranked sections.
+  if (env.VECTORIZE && env.AI) {
+	try {
+	  const emb = await env.AI.run('@cf/baai/bge-base-en-v1.5', { text: [query] });
+	  const results = await env.VECTORIZE.query(emb.data[0], { topK: 8, returnMetadata: true });
+	  let out = '';
+	  for (const m of results.matches || []) {
+		if (m.metadata?.text) out += m.metadata.text.slice(0, 1200) + '\n\n---\n\n';
+	  }
+	  return out.slice(0, 12000);
+	} catch (e) { console.error('vector placement lookup failed:', e); }
+  }
+  return '';
+}
+
+async function callGeminiJson(body, env) {
+  const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${env.GEMINI_API_KEY}`;
+  const resp = await fetch(geminiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  if (!resp.ok) {
+	const errData = await resp.json().catch(() => ({}));
+	throw new Error(errData?.error?.message || `Gemini API error (${resp.status})`);
+  }
+  const data = await resp.json();
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  if (!text) throw new Error('Gemini returned an empty response.');
+  try {
+	return JSON.parse(text);
+  } catch (e) {
+	const match = text.match(/\{[\s\S]*\}/);
+	if (match) return JSON.parse(match[0]);
+	throw new Error('Could not parse the model response as JSON.');
+  }
+}
 
 // ====================================================================
 // SHARED HELPERS for /ask and /ask-stream
