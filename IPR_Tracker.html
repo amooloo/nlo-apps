@@ -2409,6 +2409,136 @@ function PrintChart({
   }, "IPR Tracker \xB7 Palmer Notation")));
 }
 
+// ─── Chart note text ──────────────────────────────────────────────────────────
+// Turns this visit's IPR / residual-spacing / black-triangle data into plain text
+// that pastes straight into the patient's chart. Contacts are listed in arch
+// order (UR7→UL7, LR7→LL7) in Palmer notation, matching the printed form.
+const NOTE_DASH = "–"; // en dash — reads as a range and survives paste into chart software
+function noteRowsOf(obj) {
+  return Object.entries(obj).filter(([, v]) => parseFloat(v) > 0);
+}
+function noteBTsOf(obj) {
+  return Object.entries(obj).filter(([, v]) => v).map(([k]) => k);
+}
+function mm1(v) {
+  return (parseFloat(v) || 0).toFixed(1);
+}
+// "UR3|UR2" → "UR3–UR2". Compact format passes "-" so it stays ASCII.
+function ckLabel(k, dash) {
+  return k.split("|").join(dash || NOTE_DASH);
+}
+// terse drops the "mm" suffix and the leading zero: "0.3mm" → ".3"
+function listRows(rows, dash, terse) {
+  return rows.map(([k, v]) => terse
+    ? `${ckLabel(k, dash)} ${mm1(v).replace(/^0/, "")}`
+    : `${ckLabel(k, dash)} ${mm1(v)}mm`).join(", ");
+}
+function joinAnd(arr) {
+  if (arr.length <= 1) return arr.join("");
+  if (arr.length === 2) return arr.join(" and ");
+  return arr.slice(0, -1).join(", ") + ", and " + arr[arr.length - 1];
+}
+function buildChartNote(o) {
+  const uIPR = noteRowsOf(o.upper), lIPR = noteRowsOf(o.lower);
+  const uSp = noteRowsOf(o.upperSpaces), lSp = noteRowsOf(o.lowerSpaces);
+  const uBT = noteBTsOf(o.upperBT), lBT = noteBTsOf(o.lowerBT);
+  const uIPRt = sumContacts(o.upper), lIPRt = sumContacts(o.lower);
+  const uSpt = sumContacts(o.upperSpaces), lSpt = sumContacts(o.lowerSpaces);
+  const hasIPR = uIPR.length > 0 || lIPR.length > 0;
+  const hasSp = uSp.length > 0 || lSp.length > 0;
+  const hasBT = uBT.length > 0 || lBT.length > 0;
+  // Cumulative only means something once there is more than one visit on file.
+  const showCum = !!(o.incCum && o.cumUpper && o.visitCount > 1);
+  const cUt = o.cumUpper ? sumContacts(o.cumUpper) : 0;
+  const cLt = o.cumLower ? sumContacts(o.cumLower) : 0;
+
+  if (o.format === "narrative") {
+    const parts = [];
+    if (o.incIPR) {
+      if (hasIPR) {
+        const seg = [];
+        if (uIPR.length) seg.push(`upper ${listRows(uIPR)} (${mm1(uIPRt)}mm)`);
+        if (lIPR.length) seg.push(`lower ${listRows(lIPR)} (${mm1(lIPRt)}mm)`);
+        parts.push(`IPR completed this visit: ${seg.join("; ")}; total ${mm1(uIPRt + lIPRt)}mm.`);
+      } else {
+        parts.push("No IPR performed this visit.");
+      }
+    }
+    if (hasSp) {
+      const seg = [];
+      if (uSp.length) seg.push(`upper ${listRows(uSp)} (${mm1(uSpt)}mm)`);
+      if (lSp.length) seg.push(`lower ${listRows(lSp)} (${mm1(lSpt)}mm)`);
+      parts.push(`Residual spacing: ${seg.join("; ")}; total ${mm1(uSpt + lSpt)}mm.`);
+    } else {
+      parts.push("No residual spacing noted.");
+    }
+    parts.push(hasBT
+      ? `Black triangle${uBT.length + lBT.length > 1 ? "s" : ""} present at ${joinAnd(uBT.concat(lBT).map(k => ckLabel(k)))}.`
+      : "No black triangles noted.");
+    if (showCum) parts.push(`Cumulative IPR to date (${o.visitCount} visits): upper ${mm1(cUt)}mm, lower ${mm1(cLt)}mm, total ${mm1(cUt + cLt)}mm.`);
+    return parts.join(" ");
+  }
+
+  if (o.format === "lines") {
+    const blocks = [];
+    if (o.incIPR) {
+      const s = ["IPR THIS VISIT"];
+      if (hasIPR) {
+        if (uIPR.length) s.push(`Upper: ${listRows(uIPR)} (${mm1(uIPRt)}mm)`);
+        if (lIPR.length) s.push(`Lower: ${listRows(lIPR)} (${mm1(lIPRt)}mm)`);
+        s.push(`Total: ${mm1(uIPRt + lIPRt)}mm`);
+      } else s.push("None this visit");
+      blocks.push(s.join("\n"));
+    }
+    const sp = ["SPACING"];
+    if (hasSp) {
+      if (uSp.length) sp.push(`Upper: ${listRows(uSp)} (${mm1(uSpt)}mm)`);
+      if (lSp.length) sp.push(`Lower: ${listRows(lSp)} (${mm1(lSpt)}mm)`);
+      sp.push(`Total: ${mm1(uSpt + lSpt)}mm`);
+    } else sp.push("None noted");
+    blocks.push(sp.join("\n"));
+    const bt = ["BLACK TRIANGLES"];
+    if (hasBT) {
+      if (uBT.length) bt.push(`Upper: ${uBT.map(k => ckLabel(k)).join(", ")}`);
+      if (lBT.length) bt.push(`Lower: ${lBT.map(k => ckLabel(k)).join(", ")}`);
+      bt.push(`Total: ${uBT.length + lBT.length}`);
+    } else bt.push("None noted");
+    blocks.push(bt.join("\n"));
+    if (showCum) blocks.push(`CUMULATIVE IPR (${o.visitCount} visits)\nUpper: ${mm1(cUt)}mm   Lower: ${mm1(cLt)}mm   Total: ${mm1(cUt + cLt)}mm`);
+    return blocks.join("\n\n");
+  }
+
+  // compact
+  const c = [];
+  if (o.incIPR) {
+    if (hasIPR) {
+      const seg = [];
+      if (uIPR.length) seg.push(`U: ${listRows(uIPR, "-", true)}`);
+      if (lIPR.length) seg.push(`L: ${listRows(lIPR, "-", true)}`);
+      c.push(`IPR ${seg.join(" | ")} | Tot ${mm1(uIPRt + lIPRt)}mm`);
+    } else c.push("IPR: none");
+  }
+  if (hasSp) {
+    const seg = [];
+    if (uSp.length) seg.push(`U: ${listRows(uSp, "-", true)}`);
+    if (lSp.length) seg.push(`L: ${listRows(lSp, "-", true)}`);
+    c.push(`Sp ${seg.join(" | ")} | Tot ${mm1(uSpt + lSpt)}mm`);
+  } else c.push("Sp: none");
+  c.push(hasBT ? `BT: ${uBT.concat(lBT).map(k => ckLabel(k, "-")).join(", ")}` : "BT: none");
+  if (showCum) c.push(`Cum IPR ${o.visitCount}v: U ${mm1(cUt)} / L ${mm1(cLt)} / T ${mm1(cUt + cLt)}mm`);
+  return c.join("\n");
+}
+// UI preference (not patient data) — localStorage so it survives across sessions
+function prefLoad(key, fallback) {
+  try {
+    const v = localStorage.getItem(key);
+    return v === null ? fallback : JSON.parse(v);
+  } catch (e) { return fallback; }
+}
+function prefSave(key, val) {
+  try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) {}
+}
+
 // ─── Main App ─────────────────────────────────────────────────────────────────
 function App() {
   const today = new Date().toISOString().slice(0, 10);
@@ -2480,6 +2610,13 @@ function App() {
   const [quickMsg, setQuickMsg] = React.useState(null);
   const [showCumChart, setShowCumChart] = React.useState(false);
   const [printBlank, setPrintBlank] = React.useState(false);
+
+  // Chart-note tab
+  const [noteFormat, setNoteFormat] = React.useState(() => prefLoad("ipr_note_format", "lines"));
+  const [noteIncIPR, setNoteIncIPR] = React.useState(() => prefLoad("ipr_note_inc_ipr", true));
+  const [noteIncCum, setNoteIncCum] = React.useState(() => prefLoad("ipr_note_inc_cum", true));
+  const [noteText, setNoteText] = React.useState("");   // what's in the box (may be hand-edited)
+  const [noteCopied, setNoteCopied] = React.useState(false);
 
     // Wizard flow state
   const [flowStep, setFlowStep] = React.useState(null); // null | "choose" | "search" | "newPatient" | "visitSetup" | "prescribed"
@@ -2985,6 +3122,44 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
   const lowerSpacesRows = Object.entries(lowerSpaces).filter(([, v]) => parseFloat(v) > 0);
   const upperBTRows = Object.entries(upperBT).filter(([, v]) => v);
   const lowerBTRows = Object.entries(lowerBT).filter(([, v]) => v);
+
+  // ── Chart note ──────────────────────────────────────────────────────────────
+  // Regenerated whenever the clinical data or the format options change. Hand
+  // edits to the box survive until the underlying data changes, so a stale note
+  // can never be copied into a chart after a value was corrected.
+  const generatedNote = React.useMemo(() => buildChartNote({
+    format: noteFormat,
+    incIPR: noteIncIPR,
+    incCum: noteIncCum,
+    upper, lower, upperSpaces, lowerSpaces, upperBT, lowerBT,
+    cumUpper, cumLower,
+    visitCount: visitHistory.length
+  }), [noteFormat, noteIncIPR, noteIncCum, upper, lower, upperSpaces, lowerSpaces, upperBT, lowerBT, cumUpper, cumLower, visitHistory.length]);
+  React.useEffect(() => {
+    setNoteText(generatedNote);
+    setNoteCopied(false);
+  }, [generatedNote]);
+  const noteEdited = noteText !== generatedNote;
+  const copyChartNote = async () => {
+    const text = noteText;
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch (e) {
+      // clipboard API blocked (insecure context / permissions) — fall back
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand("copy"); } catch (e2) {}
+      document.body.removeChild(ta);
+    }
+    setNoteCopied(true);
+    setTimeout(() => setNoteCopied(false), 2000);
+  };
+  const setFmt = f => { setNoteFormat(f); prefSave("ipr_note_format", f); };
+
   const field = (label, key, type, placeholder) => /*#__PURE__*/React.createElement("div", {
     key: key
   }, /*#__PURE__*/React.createElement("label", {
@@ -3749,7 +3924,11 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
       borderRadius: 10,
       padding: "1px 6px"
     }
-  }, upperBTCount + lowerBTCount > 0 ? `▼${upperBTCount + lowerBTCount}` : "", upperSpacesTotal + lowerSpacesTotal > 0 ? ` ${(upperSpacesTotal + lowerSpacesTotal).toFixed(1)}mm` : ""))), activeTab === "ipr" && /*#__PURE__*/React.createElement(React.Fragment, null, !readOnly && /*#__PURE__*/React.createElement(AmountPalette, {
+  }, upperBTCount + lowerBTCount > 0 ? `▼${upperBTCount + lowerBTCount}` : "", upperSpacesTotal + lowerSpacesTotal > 0 ? ` ${(upperSpacesTotal + lowerSpacesTotal).toFixed(1)}mm` : "")), /*#__PURE__*/React.createElement("button", {
+    style: TAB_STYLE(activeTab === "note"),
+    onClick: () => setActiveTab("note"),
+    title: "Plain-text summary to paste into the patient's chart"
+  }, "Chart Note")), activeTab === "ipr" &&/*#__PURE__*/React.createElement(React.Fragment, null, !readOnly && /*#__PURE__*/React.createElement(AmountPalette, {
     chipAmt: chipAmt,
     setChipAmt: setChipAmt
   }), /*#__PURE__*/React.createElement("div", {
@@ -4482,7 +4661,82 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
         borderBottom: "1px solid #f8fafc"
       }
     }, "\u25BC ", a, " \u2013 ", b));
-  }))))))), /*#__PURE__*/React.createElement("div", {
+  }))))))), activeTab === "note" && React.createElement("div", {
+    style: { background: "white", borderRadius: 12, border: "1px solid #e2e8f0", padding: "18px 20px", marginBottom: 20, boxShadow: "0 1px 4px #0001" }
+  },
+    React.createElement("div", {
+      style: { display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 10, marginBottom: 14 }
+    },
+      React.createElement("div", null,
+        React.createElement("div", { style: { fontSize: 15, fontWeight: 800, color: "#0f172a" } }, "Chart Note"),
+        React.createElement("div", { style: { fontSize: 12, color: "#64748b", marginTop: 2 } }, "Plain text for the patient's chart — Palmer notation, arch order.")
+      ),
+      React.createElement("div", { style: { display: "flex", gap: 6 } },
+        [["narrative", "Narrative"], ["lines", "Labeled lines"], ["compact", "Compact"]].map(([v, lab]) =>
+          React.createElement("button", {
+            key: v,
+            onClick: () => setFmt(v),
+            style: {
+              padding: "6px 13px", borderRadius: 20,
+              border: noteFormat === v ? "1.5px solid #0369a1" : "1.5px solid #e2e8f0",
+              background: noteFormat === v ? "#e0f2fe" : "white",
+              color: noteFormat === v ? "#0369a1" : "#64748b",
+              fontSize: 12, fontWeight: 700, cursor: "pointer", transition: "all 0.15s"
+            }
+          }, lab))
+      )
+    ),
+    React.createElement("div", {
+      style: { display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap", marginBottom: 12, fontSize: 12.5, color: "#475569" }
+    },
+      React.createElement("label", { style: { display: "flex", alignItems: "center", gap: 6, cursor: "pointer" } },
+        React.createElement("input", {
+          type: "checkbox", checked: noteIncIPR,
+          onChange: e => { setNoteIncIPR(e.target.checked); prefSave("ipr_note_inc_ipr", e.target.checked); },
+          style: { cursor: "pointer" }
+        }), "IPR this visit"),
+      React.createElement("label", {
+        title: visitHistory.length > 1 ? "" : "Needs more than one visit on file",
+        style: { display: "flex", alignItems: "center", gap: 6, cursor: visitHistory.length > 1 ? "pointer" : "default", opacity: visitHistory.length > 1 ? 1 : 0.45 }
+      },
+        React.createElement("input", {
+          type: "checkbox", checked: noteIncCum, disabled: visitHistory.length <= 1,
+          onChange: e => { setNoteIncCum(e.target.checked); prefSave("ipr_note_inc_cum", e.target.checked); },
+          style: { cursor: "inherit" }
+        }), `Cumulative IPR${visitHistory.length > 1 ? ` (${visitHistory.length} visits)` : ""}`),
+      React.createElement("span", { style: { marginLeft: "auto", fontSize: 11.5, color: "#94a3b8" } }, "Spacing & black triangles always included")
+    ),
+    React.createElement("textarea", {
+      value: noteText,
+      onChange: e => setNoteText(e.target.value),
+      spellCheck: false,
+      style: {
+        width: "100%", minHeight: noteFormat === "lines" ? 210 : 130,
+        padding: "12px 14px", borderRadius: 8, border: "1.5px solid #e2e8f0",
+        background: "#f8fafc", fontSize: 13, lineHeight: 1.6,
+        fontFamily: "ui-monospace,SFMono-Regular,Menlo,Consolas,monospace",
+        color: "#0f172a", resize: "vertical", outline: "none", boxSizing: "border-box"
+      }
+    }),
+    React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, marginTop: 12, flexWrap: "wrap" } },
+      React.createElement("button", {
+        onClick: copyChartNote,
+        style: {
+          padding: "10px 22px", borderRadius: 8, border: "none",
+          background: noteCopied ? "#16a34a" : "#0369a1", color: "white",
+          fontSize: 14, fontWeight: 700, cursor: "pointer", transition: "background 0.2s"
+        }
+      }, noteCopied ? "✓ Copied" : "Copy to clipboard"),
+      noteEdited && React.createElement("button", {
+        key: "reset",
+        onClick: () => setNoteText(generatedNote),
+        title: "Discard your edits and rebuild from the charted values",
+        style: { padding: "9px 16px", borderRadius: 8, border: "1.5px solid #cbd5e1", background: "white", color: "#64748b", fontSize: 13, fontWeight: 600, cursor: "pointer" }
+      }, "↺ Reset"),
+      noteEdited && React.createElement("span", { key: "ed", style: { fontSize: 12, color: "#b45309", fontWeight: 600 } }, "Edited by hand"),
+      React.createElement("span", { style: { marginLeft: "auto", fontSize: 11.5, color: "#94a3b8" } }, "Rebuilds automatically when you change a value")
+    )
+  ), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       alignItems: "center",
