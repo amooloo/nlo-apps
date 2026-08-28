@@ -1223,7 +1223,7 @@ function renderArchive(){
     const actionHTML=actionItems.length?
       `<div style="margin-top:8px;"><div class="sec-label">Action items</div><ul style="margin:6px 0 0 20px; padding:0;">`+
       actionItems.slice(0,5).map(ai=>`<li style="margin-bottom:3px; font-size:.82rem;">${esc(ai)}</li>`).join('')+
-      (actionItems.length>5?`<li style="margin-top:4px; color:var(--muted); font-size:.78rem;"><em>…and ${actionItems.length-5} more</em></li>`:`")+
+      (actionItems.length>5?`<li style="margin-top:4px; color:var(--muted); font-size:.78rem;"><em>…and ${actionItems.length-5} more</em></li>`:``)+
       `</ul></div>`:'';
     return `<div class="archive-card" onclick="toggleArchiveCard('${id}')">
       <div class="archive-header">
