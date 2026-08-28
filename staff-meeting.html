@@ -548,13 +548,20 @@ auth.onAuthStateChanged(user=>{
   if(!state.booted){ state.booted=true; boot(); }
 });
 function showGate(){ $('authGate').classList.remove('hide'); $('appHeader').classList.add('hide'); $('appBody').classList.add('hide'); }
-$('signInBtn').addEventListener('click',()=>{
-  const provider=new firebase.auth.GoogleAuthProvider();
-  provider.setCustomParameters({prompt:'select_account'});
-  $('authErr').textContent='';
-  auth.signInWithPopup(provider).catch(e=>{ $('authErr').textContent=e.message||'Sign-in failed.'; });
-});
-$('signOutBtn').addEventListener('click',()=>auth.signOut());
+
+// Wire auth buttons once DOM is ready
+function wireAuthButtons(){
+  const signInBtn=$('signInBtn');
+  const signOutBtn=$('signOutBtn');
+  if(!signInBtn || !signOutBtn) { console.warn('Auth buttons not found'); return; }
+  signInBtn.addEventListener('click',()=>{
+    const provider=new firebase.auth.GoogleAuthProvider();
+    provider.setCustomParameters({prompt:'select_account'});
+    $('authErr').textContent='';
+    auth.signInWithPopup(provider).catch(e=>{ $('authErr').textContent=e.message||'Sign-in failed.'; });
+  });
+  signOutBtn.addEventListener('click',()=>auth.signOut());
+}
 
 /* ---------- Bootstrap ---------- */
 function boot(){
@@ -1136,6 +1143,7 @@ function addNotesActionItems(){
 
 // Archive search listener
 document.addEventListener('DOMContentLoaded',()=>{
+  wireAuthButtons();
   const archSearch=$('archiveSearch');
   if(archSearch) archSearch.addEventListener('input',renderArchive);
   document.querySelector('[data-tab="archive"]')?.addEventListener('click',renderArchive);
