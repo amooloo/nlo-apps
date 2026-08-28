@@ -162,6 +162,19 @@
   #authGate .err{color:var(--coral);font-size:.8rem;font-weight:700;margin-top:14px;min-height:18px;}
   .crest{width:54px;height:54px;border-radius:14px;background:var(--blue);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;}
 
+
+  /* Meeting archive card */
+  .archive-card{border:1.5px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px;cursor:pointer;transition:.15s;}
+  .archive-card:hover{background:#fafbfc;border-color:var(--blue);}
+  .archive-card.expanded{background:#fafbfc;border-color:var(--blue);}
+  .archive-header{display:flex;align-items:center;justify-content:space-between;gap:12px;}
+  .archive-month{font-weight:800;font-size:.95rem;color:var(--navy);}
+  .archive-meta{font-size:.72rem;color:var(--muted);font-weight:600;}
+  .archive-content{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);display:none;}
+  .archive-card.expanded .archive-content{display:block;}
+  .archive-search{margin-bottom:16px;}
+  .archive-search input{width:100%;max-width:320px;}
+
   @media print{
     header,.tabs,.no-print,#authGate,.hero .h-right{display:none!important;}
     body{background:#fff;}
@@ -234,12 +247,13 @@
   </div>
 
   <div class="tabs" id="tabs">
-    <button class="tab active" data-tab="submit">My Report</button>
+    <button class="tab active" data-tab="submit">My Updates</button>
     <button class="tab" data-tab="quick">Quick Notes <span class="badge hide" id="badgeQuick">0</span></button>
-    <button class="tab" data-tab="board">Team Board <span class="badge hide" id="badgeBoard">0</span></button>
+    <button class="tab" data-tab="board">Team Reports <span class="badge hide" id="badgeBoard">0</span></button>
     <button class="tab" data-tab="kpis">KPIs</button>
     <button class="tab" data-tab="actions">Action Items <span class="badge hide" id="badgeActions">0</span></button>
-    <button class="tab" data-tab="notes">Meeting Notes</button>
+    <button class="tab" data-tab="notes">This Meeting's Notes</button>
+    <button class="tab" data-tab="archive">Meeting Archive</button>
     <button class="tab" data-tab="agenda">Agenda</button>
     <button class="tab" data-tab="settings">Settings</button>
   </div>
@@ -247,7 +261,7 @@
   <!-- ===== MY REPORT ===== -->
   <section id="tab-submit" class="tabpane">
     <div class="card">
-      <h2>My report for this meeting</h2>
+      <h2>My updates & ideas for this meeting</h2>
       <p class="hint">Add your updates, anything you want raised, and ideas. Saved automatically and visible to the team. Edit any time before the meeting.</p>
       <label class="fld">Updates / what's going well</label>
       <textarea id="f_updates" placeholder="Progress, wins, things the team should know about your area…"></textarea>
@@ -278,7 +292,7 @@
   <!-- ===== TEAM BOARD ===== -->
   <section id="tab-board" class="tabpane hide">
     <div class="card">
-      <h2>Team board</h2>
+      <h2>Team reports for this meeting</h2>
       <p class="hint">Everything the team has submitted for this meeting. This is what the agenda is built from.</p>
       <div id="boardList"></div>
     </div>
@@ -327,7 +341,7 @@
   <!-- ===== MEETING NOTES ===== -->
   <section id="tab-notes" class="tabpane hide">
     <div class="card no-print">
-      <h2>Notes from your last meeting</h2>
+      <h2>This meeting's notes (from Plaud or manual capture)</h2>
       <p class="hint">Paste in whatever you jotted down (or a voice-transcript, e.g. from Plaud) during the last staff meeting. AI pulls out a summary, action items, and anything to carry into the next meeting — using the same AISA (Gemini) worker as the agenda generator, with a plain fallback if it's unreachable. Very long notes are trimmed to fit the AI worker's message-length limit; if that matters, split long transcripts into a couple of passes.</p>
       <textarea id="f_lastNotes" style="min-height:170px;" placeholder="Paste or type your notes from the last meeting…"></textarea>
       <div class="row" style="margin-top:12px;">
@@ -347,6 +361,18 @@
   </section>
 
   <!-- ===== AGENDA ===== -->
+    <!-- ===== MEETING ARCHIVE ===== -->
+  <section id="tab-archive" class="tabpane hide">
+    <div class="card no-print">
+      <h2>Meeting archive & history</h2>
+      <p class="hint">Browse and search past meetings. Click any meeting to view its summary, extracted action items, and full notes.</p>
+      <div class="archive-search">
+        <input type="text" id="archiveSearch" class="in" placeholder="Search by month, topic, name…" style="max-width:400px;">
+      </div>
+      <div id="archiveList"></div>
+    </div>
+  </section>
+
   <section id="tab-agenda" class="tabpane hide">
     <div class="card no-print">
       <h2>Generate the agenda</h2>
@@ -784,27 +810,26 @@ const catSection = c => (QUICK_CATS.find(x=>x[0]===c)||QUICK_CATS[0])[2];
 // Weighted keyword rules, tuned for how an ortho office actually phrases things.
 // Highest total score wins; ties break by QUICK_CATS order.
 const CAT_RULES = [
-  // --- Action: something somebody has to go do ---
-  ['action', 3, /\b(need(s)? to|needs doing|need(s)? doing|make sure|remind|follow[\s-]?up|order (more|new|another)|re-?order|restock|stock up|schedule (a|an|the)?|book|call |email |send |print |post |fix |assign|set up|sign up|put in|add to|get (a|an|the) |buy |replace |update the|renew|submit |ask .{2,20} to |have .{2,20} (do|call|send|order|fix)|can someone|somebody needs|someone needs|we should just|let'?s (get|order|book|move|switch|start))/i],
-  ['action', 3, /\b((we'?re|were|are|is) (out of|almost out of)|running (out|low) (on|of)|low on |down to (our|the) last)\b/i],
-  ['action', 2, /\b(by (mon|tue|wed|thu|fri|sat|sun|next week|month end|end of|the end)|before (the )?(next meeting|monday|the meeting)|todo|to-?do|action item|asap)\b/i],
-  ['action', 2, /\b[A-Z][a-z]{2,}\s+(needs to|has to|should|is going to|will)\b/],           // "Sara needs to…" (case-sensitive on purpose)
-  ['action', 2, /\b(order|reorder|restock|schedule|print|call|email|send|fix|clean|replace|check)\b.*\b(brackets?|wires?|bands?|elastics?|aligners?|trays?|retainers?|bonding|adhesive|gloves|masks|bibs|supplies|autoclave|scanner|itero|x-?ray|pano|forms?|paperwork|statements?|claims?)\b/i],
-
-  // --- Suggestion: an idea being floated ---
-  ['suggestion',3,/\b(what if|how about|should we|could we|can we|maybe we|we could|i think we should|idea:|suggestion:|propose|recommend|it would be (nice|good|great|helpful)|it'?d be (nice|good|easier)|let'?s try|worth (trying|considering|a shot)|why don'?t we|might be worth|thoughts on|instead of|open to)\b/i],
-
-  // --- Issue: something is going wrong ---
-  ['issue',    3, /\b(problem|issue|concern|complain|complaint|broken|not working|isn'?t working|doesn'?t work|keeps? (happening|breaking|getting|coming|going)|falling behind|behind on|running (late|behind)|not getting done|aren'?t getting done|isn'?t getting done|never gets|no one (is|ever)|nobody (is|ever)|too many|too much|too long|struggling|confus|frustrat|missed|missing|mistake|error|dropped the ball|bottleneck|understaffed|short[\s-]?staffed|is a mess|are a mess|not stocked|not ready|wasn'?t ready|still not|hasn'?t been|didn'?t get|double[\s-]?book|over[\s-]?book|jammed|out of order|down again|had to redo|redone|remake|complain)\b/i],
-  ['issue',    2, /\b(chart notes?|charts?|scans?|sterilization|sterilizer|instruments?|ops?\b|chairs?|lab cases?|appliances?|retainers?|brackets?|x-?rays?|phones?|front desk|check[\s-]?out|check[\s-]?in|huddle|schedule)\b.{0,30}\b(late|behind|not|never|aren'?t|isn'?t|missing|piling|backed up|slow|wrong|mess|delay)/i],
-  ['issue',    1, /\b(late|slow|delay|backed up|piling up|overdue|not on time|off track|waiting|wait time|no[\s-]?call)\b/i],
-
-  // --- KPI: a number vs a goal ---
-  ['kpi',      3, /\b(kpi|metric|goal|target|numbers? (are|were|look|came)|conversion|close rate|collection(s| rate)|delinquen|credits?\b|no[\s-]?shows?|case starts|same[\s-]?day starts|start(s)? (were|are|was)|observation|obs patients|pending follow|active patients|tx time|production|adjustment %|referrals?|google reviews?|reviews? (count|number|were|are)|a\/r\b|accounts receivable|bonus)\b/i],
+  ['action', 4, /\b([A-Z][a-z]{2,}|we|someone|they)\s+(needs? to|will|should|has to|must|is going to)\b/i],
+  ['action', 4, /\b(assign|give|delegate)\b.*\b(to|for)\s+([A-Z][a-z]|\w+\s+\w+)/i],
+  ['action', 3, /\b(by\s+(?:mon|tue|wed|thu|fri|sat|sun|next week|month end|eom|end of month|end of [a-z]+))\b/i],
+  ['action', 3, /\b(due\s+(?:by|at|on)?|deadline|todo|to-do|action item|immediately|asap|urgent)\b/i],
+  ['action', 3, /\b(follow[\s-]?up|follow[\s-]?up with|follow[\s-]?up on|reach out|call|email|send|order|book|schedule)\b/i],
+  ['action', 2, /\b(order|reorder|restock|schedule|print|email|send|fix|clean|replace|check)\b.*\b(brackets?|wires?|bands?|elastics?|aligners?|trays?|retainers?|bonding|supplies)\b/i],
+  ['suggestion',3,/\b(what if|how about|should we|could we|can we|maybe|perhaps|we could|we might)\b/i],
+  ['suggestion',3,/\b(idea:|suggestion:|propose|recommend|it would be (nice|good|great|helpful)|it'd be (nice|good|easier))\b/i],
+  ['suggestion',2,/\b(worth (trying|considering|a shot)|thoughts on|instead of|open to)\b/i],
+  ['issue',    4, /\b(problem|issue|concern|broken|not working|isn't working|doesn't work)\b/i],
+  ['issue',    3, /\b(behind (on|schedule)|running (late|behind)|falling behind|late|slow|delay|bottleneck)\b/i],
+  ['issue',    3, /\b(isn't getting done|aren't getting done|not getting done|never gets|nobody|no one)\b/i],
+  ['issue',    2, /\b(struggling|confus|frustrat|mistake|error|missing|dropped|double[\s-]?book|understaffed|short[\s-]?staff)\b/i],
+  ['issue',    1, /\b(late|slow|delay|backed up|piling up|overdue|not on time|off track)\b/i],
+  ['kpi',      3, /\b(kpi|metric|goal|target|conversion|close rate|collection)\b/i],
+  ['kpi',      3, /\b(numbers? (are|were|look|came)|delinquen|credits?|no[\s-]?show|case start)\b/i],
   ['kpi',      1, /\d+\s?%|\$\s?\d/],
-
-  // --- Update: FYI, nothing needed ---
-  ['update',   2, /\b(fyi|heads up|update:|just so (you|everyone) know(s)?|finished|completed|wrapped up|went well|all set|now live|is live|went live|started using|trained|onboard(ed|ing) (is|went)|came in|arrived|installed|we (got|hired|added|started|finished)|shout[\s-]?out|kudos|great job|nice work)\b/i]
+  ['update',   2, /\b(fyi|heads up|update:|finished|completed|wrapped up|went well|all set)\b/i],
+  ['update',   2, /\b(now live|went live|started using|trained|came in|arrived|installed)\b/i],
+  ['update',   1, /\b(shout[\s-]?out|kudos|great job|nice work)\b/i]
 ];
 // Words that mean "this is the KPI itself" rather than a passing mention.
 const KPI_STOPWORDS = new Set(['per','of','the','and','a','an','in','on','to','month','day','rate','%','w/o','pts','#']);
@@ -1045,14 +1070,8 @@ function saveLastNotes(){
     .then(()=>flash($('savedNotes'))).catch(e=>alert('Save failed: '+e.message));
 }
 function notesPrompt(raw,title,month){
-  const header=['You are an operations assistant helping analyze notes from a staff meeting at Next Level Orthodontics. This is NOT a knowledge-base or SOP question — do not look up or cite SOP references, and do not ask a clarifying question.',
-    '', `MEETING: ${title} — ${month}`, '', 'RAW NOTES (may be messy, informal, or a rough transcript):', ''].join('\n');
-  const footer=['',
-    'Reply in EXACTLY this markdown structure, nothing before or after it:',
-    '## Summary', '(3-5 sentence recap of what was discussed and decided)', '',
-    '## Action Items', '- Owner — the task (include a due date only if mentioned; if no owner is named, write "Unassigned —")', '',
-    '## Carry to Next Meeting', '- open questions or unresolved topics', '',
-    'Ground everything strictly in the notes above — never invent attendees, numbers, or decisions that aren\'t there. If a section has nothing to report, write "Nothing came up" under that heading instead.'].join('\n');
+  const header=['You are an operations assistant analyzing notes from a staff meeting at Next Level Orthodontics. This is NOT a knowledge-base or SOP question — do not look up or cite references.','',`MEETING: ${title} — ${month}`,'','RAW NOTES (may be messy, informal, or rough transcript):',''].join('\n');
+  const footer=['','Reply in EXACTLY this markdown structure, nothing before or after it:','','## Summary','(3-5 sentence recap of what was discussed and decided)','','## Action Items','CRITICAL: Only list items where:','- A person\'s name is mentioned as owner, OR','- Explicit language like "will", "needs to", "must", "should [person]", "assign to", OR','- A due date or deadline is mentioned','Format: Owner — the task (include due date if mentioned; if no owner, write "Unassigned —")','Do NOT extract vague passing mentions like "we should discuss X" or "X came up" — those are discussion points, not action items.','If a section has nothing to report, write "Nothing came up" under that heading instead.','','## Carry to Next Meeting','- open questions or unresolved topics','- Do NOT include action items here; only discussions or decisions still pending.','','Ground everything strictly in the notes above — never invent attendees, decisions, or tasks that aren\'t explicitly there.'].join('\n');
   const budget=AI_QUESTION_BUDGET-header.length-footer.length-2;
   const body=capText(raw,Math.max(200,budget));
   return header+body+footer;
@@ -1114,6 +1133,14 @@ function addNotesActionItems(){
   alert(`Added ${added} action item${added===1?'':'s'} to the Action Items tab.`);
 }
 
+
+// Archive search listener
+document.addEventListener('DOMContentLoaded',()=>{
+  const archSearch=$('archiveSearch');
+  if(archSearch) archSearch.addEventListener('input',renderArchive);
+  document.querySelector('[data-tab="archive"]')?.addEventListener('click',renderArchive);
+});
+
 /* ---------- Tabs ---------- */
 document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
   document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active')); t.classList.add('active');
@@ -1165,6 +1192,84 @@ $('q_clearUsed').addEventListener('click',()=>{
   const upd={}; used.forEach(([id])=>upd[id]=null);
   db.ref(`${ROOT}/meetings/${state.meetingId}/quickNotes`).update(upd);
 });
+
+/* ---------- Meeting Archive ---------- */
+function renderArchive(){
+  const ids=orderedMeetingIds().reverse();
+  const searchTerm=($('archiveSearch')?.value||'').toLowerCase();
+  let filtered=ids.map(id=>{
+    const m=state.meetings[id]||{}; const meta=m.meta||{}; const month=monthLabel(meta.date||id);
+    const isCur=id===state.meetingId;
+    if(searchTerm){
+      const text=(month+' '+(meta.title||'')+' '+(m.lastNotes?.analysis||'')).toLowerCase();
+      if(!text.includes(searchTerm)) return null;
+    }
+    return {id,meta,m,month,isCur};
+  }).filter(Boolean);
+  const box=$('archiveList');
+  if(!filtered.length){box.innerHTML='<p class="empty">No past meetings found.</p>';return;}
+  box.innerHTML=filtered.map(({id,meta,m,month,isCur})=>{
+    const notes=m.lastNotes||{}; const analysis=notes.analysis||'';
+    const actionItems=extractActionLines(analysis);
+    const summary=extractSummary(analysis);
+    const actionHTML=actionItems.length?
+      `<div style="margin-top:8px;"><div class="sec-label">Action items</div><ul style="margin:6px 0 0 20px; padding:0;">`+
+      actionItems.slice(0,5).map(ai=>`<li style="margin-bottom:3px; font-size:.82rem;">${esc(ai)}</li>`).join('')+
+      (actionItems.length>5?`<li style="margin-top:4px; color:var(--muted); font-size:.78rem;"><em>…and ${actionItems.length-5} more</em></li>`:`")+
+      `</ul></div>`:'';
+    return `<div class="archive-card" onclick="toggleArchiveCard('${id}')">
+      <div class="archive-header">
+        <div style="flex:1;">
+          <div class="archive-month">${esc(month)}${isCur?' <span class="chip">current</span>':''}</div>
+          <div class="archive-meta">${esc(meta.title||'Monthly Staff Meeting')} · ${Object.keys(m.submissions||{}).length} reports submitted</div>
+        </div>
+        <div style="color:var(--muted); font-size:1.2rem;">▼</div>
+      </div>
+      <div class="archive-content">
+        <div class="sec-label">Summary</div>
+        <div style="font-size:.88rem; line-height:1.5; color:var(--navy); margin-bottom:10px;">${summary||'<em style="color:var(--muted);">No analysis yet</em>'}</div>
+        ${actionHTML}
+        <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
+          <button class="btn sm ghost" onclick="event.stopPropagation(); showArchiveNotes('${id}')">View full notes</button>
+          ${notes.analysis?`<button class="btn sm ghost" onclick="event.stopPropagation(); reanalyzeArchiveMeeting('${id}')">Re-analyze</button>`:''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+function toggleArchiveCard(id){
+  const card=document.querySelector(`.archive-card[onclick*="${id}"]`);
+  if(card) card.classList.toggle('expanded');
+}
+function extractSummary(md){
+  const m=(md||'').match(/##\s*Summary\s*\n([\s\S]*?)(\n##|$)/i);
+  if(!m) return ''; return m[1].trim().split('\n')[0].trim().slice(0,180);
+}
+function showArchiveNotes(id){
+  const m=(state.meetings[id]||{}).lastNotes||{}; const notes=m.text||'';
+  if(!notes){alert('No notes saved for this meeting.');return;}
+  const modal=document.createElement('div');
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:1001;padding:20px;';
+  modal.innerHTML=`<div style="background:#fff;border-radius:12px;padding:24px;max-width:600px;width:100%;max-height:80vh;overflow-y:auto;"><h3 style="margin-bottom:12px;">Full Notes</h3><pre style="white-space:pre-wrap;font-size:.82rem;line-height:1.5;margin:0;">${esc(notes)}</pre><button class="btn" onclick="this.parentElement.parentElement.remove()" style="margin-top:12px;">Close</button></div>`;
+  document.body.appendChild(modal);
+}
+async function reanalyzeArchiveMeeting(id){
+  const m=(state.meetings[id]||{}).lastNotes||{}; const notes=m.text||'';
+  if(!notes){alert('No notes to analyze.');return;}
+  const meeting=state.meetings[id]||{meta:{}};
+  const title=meeting.meta?.title||'Monthly Staff Meeting';
+  const month=monthLabel(meeting.meta?.date||id);
+  const prompt=notesPrompt(notes,title,month);
+  let text=null,mode='ai';
+  try{
+    const r=await fetch(state.endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:prompt})});
+    if(!r.ok) throw new Error('AI worker error');
+    const j=await r.json(); text=j.answer||j.notes||j.text||j.result||null;
+    if(!text) throw new Error('empty');
+  }catch(e){mode='template';text=templateNotes(notes);}
+  db.ref(`${ROOT}/meetings/${id}/lastNotes`).update({analysis:text,analyzedAt:Date.now(),mode})
+    .then(()=>{alert('Re-analyzed. Refresh to see updates.');renderArchive();});
+}
 </script>
 </body>
 </html>
