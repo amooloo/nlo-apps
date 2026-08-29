@@ -36,6 +36,8 @@
   .hero .h-right label{font-size:.64rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;opacity:.72;}
   .hero input[type=date]{font-family:inherit;font-weight:700;font-size:.9rem;padding:9px 12px;border-radius:10px;border:none;background:rgba(255,255,255,.16);color:#fff;color-scheme:dark;}
   .hero input[type=date]:focus{outline:2px solid rgba(255,255,255,.5);}
+  .hero .hero-new{background:var(--coral);color:#fff;margin-top:4px;white-space:nowrap;}
+  .hero .hero-new:hover{filter:brightness(1.08);}
 
   /* Quick capture bar */
   .qbar{position:sticky;top:0;z-index:40;background:var(--card);border-radius:14px;padding:12px 14px;margin-bottom:16px;
@@ -169,6 +171,7 @@
   .archive-card.expanded{background:#fafbfc;border-color:var(--blue);}
   .archive-header{display:flex;align-items:center;justify-content:space-between;gap:12px;}
   .archive-month{font-weight:800;font-size:.95rem;color:var(--navy);}
+  .archive-date{font-size:.74rem;font-weight:700;color:var(--blue);margin-top:2px;}
   .archive-meta{font-size:.72rem;color:var(--muted);font-weight:600;}
   .archive-content{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);display:none;}
   .archive-card.expanded .archive-content{display:block;}
@@ -229,6 +232,7 @@
     <div class="h-right no-print">
       <label for="heroDate">Meeting date</label>
       <input type="date" id="heroDate">
+      <button class="btn sm hero-new" id="heroNewMeeting">Start new meeting →</button>
     </div>
   </div>
 
@@ -529,6 +533,7 @@ const esc=s=>(s==null?'':String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt
 const todayISO=()=>new Date().toLocaleDateString('en-CA');
 function fmtDate(iso){ if(!iso) return ''; const d=new Date(iso+'T00:00:00'); return d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'}); }
 function monthLabel(iso){ if(!iso) return ''; const d=new Date(iso+'T00:00:00'); return d.toLocaleDateString('en-US',{month:'long',year:'numeric'}); }
+function longDate(iso){ if(!iso) return ''; const d=new Date(iso+'T00:00:00'); if(isNaN(d)) return iso; return d.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'}); }
 function monthShort(iso){ if(!iso) return ''; const d=new Date(iso+'T00:00:00'); return d.toLocaleDateString('en-US',{month:'short',year:'2-digit'}); }
 function addOneMonth(iso){ const d=new Date(iso+'T00:00:00'); d.setMonth(d.getMonth()+1); return d.toLocaleDateString('en-CA'); }
 function initials(n){ return (n||'?').split(/\s+/).map(w=>w[0]).slice(0,2).join('').toUpperCase(); }
@@ -1144,6 +1149,8 @@ function addNotesActionItems(){
 // Archive search listener
 document.addEventListener('DOMContentLoaded',()=>{
   wireAuthButtons();
+  const heroNew=$('heroNewMeeting');
+  if(heroNew) heroNew.addEventListener('click',startNewMeeting);
   const archSearch=$('archiveSearch');
   if(archSearch) archSearch.addEventListener('input',renderArchive);
   document.querySelector('[data-tab="archive"]')?.addEventListener('click',renderArchive);
@@ -1176,12 +1183,54 @@ $('k_add').addEventListener('click',()=>{
 $('r_add').addEventListener('click',()=>{ const n=$('r_name').value.trim(); if(!n) return; db.ref(ROOT+'/roster').push({name:n,role:$('r_role').value.trim(),order:Object.keys(state.roster).length}); $('r_name').value='';$('r_role').value=''; });
 $('r_import').addEventListener('click',importRoster);
 $('saveMeeting').addEventListener('click',()=>{ db.ref(`${ROOT}/meetings/${state.meetingId}/meta`).update({date:$('set_date').value||state.meetingId,title:$('set_title').value.trim()||'Monthly Staff Meeting'}).then(()=>flash($('savedMsg'))); });
-$('newMeeting').addEventListener('click',()=>{
-  const suggested=addOneMonth(state.meeting.date||state.meetingId);
-  const d=prompt('Date for next month\'s meeting (YYYY-MM-DD):',suggested); if(!d) return;
-  db.ref(`${ROOT}/meetings/${d}/meta`).update({date:d,title:'Monthly Staff Meeting',status:'collecting',createdAt:Date.now()})
-    .then(()=>db.ref(ROOT+'/currentMeetingId').set(d)).then(()=>location.reload());
-});
+function startNewMeeting(){
+  const curId=state.meetingId;
+  const curLabel=monthLabel(state.meeting.date||curId);
+  const nQuick=Object.keys(state.quickNotes||{}).length;
+  const nReports=Object.keys(state.submissions||{}).length;
+  const analyzed=!!(state.lastNotes&&state.lastNotes.analysis);
+  const hasNotes=!!(state.lastNotes&&state.lastNotes.text);
+
+  // Nudge: the archive card is built from the AI analysis, so warn if it's missing.
+  if(hasNotes && !analyzed){
+    if(!confirm(`Heads up — ${curLabel} has notes pasted in but they haven't been analyzed yet.\n\nIf you start a new meeting now, the archive card for ${curLabel} won't have a summary or action items. You can still re-analyze it later from the Meeting Archive tab.\n\nStart the new meeting anyway?`)) return;
+  }
+
+  const summary=[
+    `Archive ${curLabel} and start a new meeting?`,
+    '',
+    `WHAT GETS ARCHIVED (${curLabel}):`,
+    `  • ${nReports} team report${nReports===1?'':'s'}`,
+    `  • ${nQuick} quick note${nQuick===1?'':'s'}`,
+    `  • Meeting notes${analyzed?' + AI summary and action items':hasNotes?' (not yet analyzed)':' (none)'}`,
+    '  • KPI actuals for the month',
+    '',
+    'WHAT CARRIES OVER TO THE NEW MEETING:',
+    '  • Open action items (anything not checked off)',
+    '  • Your roster and KPI catalog',
+    '',
+    `Nothing is deleted — ${curLabel} stays in the Meeting Archive tab.`
+  ].join('\n');
+  if(!confirm(summary)) return;
+
+  const suggested=addOneMonth(state.meeting.date||curId);
+  const d=prompt('Date for the new meeting (YYYY-MM-DD):',suggested); if(!d) return;
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(d)){ alert('Please use the format YYYY-MM-DD, e.g. '+suggested); return; }
+  if(d===curId){ alert('That is the meeting you are already in. Pick a different date.'); return; }
+  if(state.meetings&&state.meetings[d]){
+    if(!confirm(`A meeting already exists for ${monthLabel(d)} (${d}).\n\nSwitch to it instead of creating a new one? Its existing data will be left as-is.`)) return;
+    db.ref(ROOT+'/currentMeetingId').set(d).then(()=>location.reload());
+    return;
+  }
+
+  // Stamp the outgoing meeting as archived, then create and switch to the new one.
+  db.ref(`${ROOT}/meetings/${curId}/meta`).update({status:'archived',archivedAt:Date.now()})
+    .then(()=>db.ref(`${ROOT}/meetings/${d}/meta`).update({date:d,title:'Monthly Staff Meeting',status:'collecting',createdAt:Date.now()}))
+    .then(()=>db.ref(ROOT+'/currentMeetingId').set(d))
+    .then(()=>location.reload())
+    .catch(e=>alert('Could not start the new meeting: '+e.message));
+}
+$('newMeeting').addEventListener('click',startNewMeeting);
 $('saveEndpoint').addEventListener('click',()=>{ db.ref(ROOT+'/config/endpoint').set($('set_endpoint').value.trim()||DEFAULT_ENDPOINT).then(()=>flash($('savedEndpoint'))); });
 $('genAgenda').addEventListener('click',generateAgenda);
 $('printAgenda').addEventListener('click',()=>window.print());
@@ -1225,11 +1274,17 @@ function renderArchive(){
       actionItems.slice(0,5).map(ai=>`<li style="margin-bottom:3px; font-size:.82rem;">${esc(ai)}</li>`).join('')+
       (actionItems.length>5?`<li style="margin-top:4px; color:var(--muted); font-size:.78rem;"><em>…and ${actionItems.length-5} more</em></li>`:``)+
       `</ul></div>`:'';
+    const fullDate=longDate(meta.date||id);
+    const nRep=Object.keys(m.submissions||{}).length;
+    const nQn=Object.keys(m.quickNotes||{}).length;
+    const bits=[`${nRep} report${nRep===1?'':'s'}`,`${nQn} quick note${nQn===1?'':'s'}`];
+    if(actionItems.length) bits.push(`${actionItems.length} action item${actionItems.length===1?'':'s'}`);
     return `<div class="archive-card" onclick="toggleArchiveCard('${id}')">
       <div class="archive-header">
         <div style="flex:1;">
           <div class="archive-month">${esc(month)}${isCur?' <span class="chip">current</span>':''}</div>
-          <div class="archive-meta">${esc(meta.title||'Monthly Staff Meeting')} · ${Object.keys(m.submissions||{}).length} reports submitted</div>
+          <div class="archive-date">${esc(fullDate)}</div>
+          <div class="archive-meta">${esc(meta.title||'Monthly Staff Meeting')} · ${bits.join(' · ')}</div>
         </div>
         <div style="color:var(--muted); font-size:1.2rem;">▼</div>
       </div>
