@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bank Deposit Slip</title>
+<style>
+  :root{
+    --ground:#eceef2;
+    --surface:#ffffff;
+    --surface-2:#f7f8fa;
+    --ink:#111722;
+    --ink-2:#4b5563;
+    --muted:#8b93a1;
+    --line:#e3e6ec;
+    --line-2:#eef0f4;
+    --accent:#14396f;
+    --accent-hi:#0d2a57;
+    --accent-soft:#e9eff9;
+    --danger:#c8102e;
+    --ok:#15803d;
+    --ok-soft:#e8f5ee;
+    --warn:#a34a05;
+    --warn-soft:#fdf1e3;
+    --radius:10px;
+    --shadow:0 1px 2px rgba(16,24,40,.04), 0 8px 24px rgba(16,24,40,.06);
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --ground:#0d1015;
+      --surface:#171b22;
+      --surface-2:#1e232c;
+      --ink:#e7eaf0;
+      --ink-2:#b3bac6;
+      --muted:#7d8695;
+      --line:#272d38;
+      --line-2:#20252e;
+      --accent:#4d82d8;
+      --accent-hi:#5f91e4;
+      --accent-soft:#182437;
+      --danger:#e2566d;
+      --ok:#54c98c;
+      --ok-soft:#14291f;
+      --warn:#d99a4e;
+      --warn-soft:#2a2115;
+      --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+    }
+  }
+
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--ground);color:var(--ink);
+    font-size:15px;line-height:1.45;padding:24px 16px 32px;
+    -webkit-font-smoothing:antialiased;
+  }
+  .num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1}
+  .wrap{max-width:520px;margin:0 auto}
+  .card{
+    background:var(--surface);border:1px solid var(--line);
+    border-radius:14px;box-shadow:var(--shadow);overflow:hidden;
+  }
+
+  header{
+    padding:18px 20px 16px;border-bottom:1px solid var(--line);
+    display:flex;align-items:baseline;justify-content:space-between;gap:12px;
+  }
+  header h1{font-size:19px;font-weight:650;letter-spacing:-.01em}
+  header .bank{font-size:12px;color:var(--muted);font-weight:500;display:flex;align-items:center;gap:6px}
+  header .bank::before{content:"";width:7px;height:7px;border-radius:2px;background:var(--danger);display:inline-block}
+
+  .body{padding:18px 20px 12px}
+
+  .sec{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:0 0 8px}
+  .body > .sec:not(:first-child){margin-top:28px}
+  .sec h2{font-size:11px;font-weight:650;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+  .sec .tally{font-size:14px;font-weight:600;color:var(--ink)}
+  .sec .tally.zero{color:var(--muted);font-weight:500}
+  .pill{
+    display:inline-block;margin-left:6px;padding:1px 6px;border-radius:20px;
+    background:var(--surface-2);border:1px solid var(--line);
+    font-size:10.5px;font-weight:600;color:var(--ink-2);letter-spacing:0;vertical-align:1px;
+  }
+
+  .ledger{border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+  .row{
+    display:grid;grid-template-columns:52px 72px 1fr;align-items:center;gap:12px;
+    padding:5px 12px;border-bottom:1px solid var(--line-2);
+  }
+  .row:last-child{border-bottom:none}
+  .row.coin{background:var(--surface-2);border-top:1px solid var(--line)}
+  .row .denom{
+    font-size:13.5px;font-weight:600;color:var(--muted);
+    text-align:right;letter-spacing:-.01em;transition:color .15s;
+  }
+  .row.filled .denom{color:var(--ink)}
+
+  input[type=number]{
+    width:100%;font:inherit;font-size:14px;font-variant-numeric:tabular-nums;
+    padding:6px 8px;text-align:center;color:var(--ink);background:var(--surface);
+    border:1px solid var(--line);border-radius:7px;
+    transition:border-color .15s, box-shadow .15s, background .15s;
+    -moz-appearance:textfield;
+  }
+  input[type=number]::-webkit-outer-spin-button,
+  input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+  input[type=number]::placeholder{color:var(--muted);opacity:.65}
+  input[type=number]:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+  .row:not(.filled) input{background:var(--surface-2);border-color:var(--line-2)}
+  .row:not(.filled) input:focus{background:var(--surface);border-color:var(--accent)}
+  .row.coin:not(.filled) input{background:var(--surface)}
+
+  .row .ext{text-align:right;font-size:14px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--ink)}
+  .row .ext.none{color:var(--muted);font-weight:400;opacity:.5}
+
+  .addbar{display:flex;gap:8px;margin-bottom:10px}
+  .addbar input{flex:1;text-align:left;padding:9px 12px;font-size:15px}
+  .btn{
+    appearance:none;font:inherit;cursor:pointer;border:1px solid transparent;border-radius:8px;
+    font-weight:600;font-size:14px;
+    transition:background .15s,border-color .15s,color .15s,transform .08s;
+  }
+  .btn:active{transform:translateY(1px)}
+  .btn-primary{background:var(--accent);color:#fff;padding:9px 18px}
+  .btn-primary:hover{background:var(--accent-hi)}
+  .btn-ghost{background:var(--surface);color:var(--ink-2);border-color:var(--line);padding:9px 14px}
+  .btn-ghost:hover{background:var(--surface-2);color:var(--ink)}
+
+  .checks{border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+  .chk{
+    display:grid;grid-template-columns:26px 1fr 28px;align-items:center;gap:10px;
+    padding:8px 10px 8px 12px;border-bottom:1px solid var(--line-2);
+  }
+  .chk:last-child{border-bottom:none}
+  .chk .i{font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .chk .amt{font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+  .chk .x{
+    appearance:none;border:none;background:none;cursor:pointer;color:var(--muted);
+    font-size:17px;line-height:1;padding:3px 6px;border-radius:6px;
+    transition:color .15s,background .15s;
+  }
+  .chk .x:hover{color:var(--danger);background:var(--surface-2)}
+
+  .empty{
+    padding:16px 12px;text-align:center;color:var(--muted);font-size:13px;
+    border:1px dashed var(--line);border-radius:var(--radius);
+  }
+
+  .ds{display:flex;gap:8px;align-items:center}
+  .ds input{flex:1;text-align:left;padding:9px 12px;font-size:15px}
+  .ds .verdict{
+    flex:0 0 auto;min-width:118px;text-align:right;
+    font-size:13.5px;font-weight:600;font-variant-numeric:tabular-nums;
+    padding:8px 11px;border-radius:8px;border:1px solid var(--line);
+    color:var(--muted);background:var(--surface-2);
+  }
+  .ds .verdict.ok{color:var(--ok);background:var(--ok-soft);border-color:transparent}
+  .ds .verdict.off{color:var(--warn);background:var(--warn-soft);border-color:transparent}
+  .hint{font-size:11.5px;color:var(--muted);margin-top:7px}
+
+  .total{
+    position:sticky;bottom:0;z-index:5;margin:24px -20px 0;padding:12px 20px 14px;
+    background:var(--surface);border-top:1px solid var(--line);
+  }
+  .total .line{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:10px}
+  .total .label{font-size:11px;font-weight:650;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+  .total .amt{font-size:26px;font-weight:680;letter-spacing:-.02em;font-variant-numeric:tabular-nums;color:var(--ink)}
+  .total .amt.zero{color:var(--muted);font-weight:500}
+  .actions{display:flex;gap:8px}
+  .actions .btn-primary{flex:1}
+
+  .toast{
+    margin-top:10px;padding:9px 12px;border-radius:8px;font-size:13px;text-align:center;
+    background:var(--accent-soft);color:var(--accent);border:1px solid var(--line);
+  }
+
+  /* ---------- print ---------- */
+  #slip{display:none}
+  @media print{
+    body{background:#fff;color:#000;padding:0}
+    .wrap{display:none!important}
+    #slip{
+      display:block!important;padding:.45in;max-width:7.5in;
+      font-family:-apple-system,"Segoe UI",Arial,sans-serif;color:#000;
+    }
+    #slip h2{font-size:17px;font-weight:700;padding-bottom:6px;border-bottom:2px solid #000}
+    #slip .meta{display:flex;justify-content:space-between;font-size:11px;margin:6px 0 16px}
+    #slip h3{
+      font-size:10px;text-transform:uppercase;letter-spacing:.08em;
+      margin:16px 0 5px;padding-bottom:3px;border-bottom:1px solid #888;
+    }
+    #slip table{width:100%;border-collapse:collapse;font-size:11.5px}
+    #slip th{
+      text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:.06em;
+      padding:4px 6px;border-bottom:1px solid #000;
+    }
+    #slip td{padding:4px 6px;border-bottom:1px solid #e0e0e0}
+    #slip .r{text-align:right;font-variant-numeric:tabular-nums}
+    #slip tr.sub td{font-weight:700;border-top:1px solid #000;border-bottom:none}
+    #slip .grand{
+      margin-top:16px;padding:9px 12px;border:2px solid #000;
+      display:flex;justify-content:space-between;font-size:15px;font-weight:700;
+    }
+    #slip .recon{margin-top:10px;font-size:11px}
+    #slip .recon div{display:flex;justify-content:space-between;padding:2px 12px}
+    #slip .sig{display:flex;gap:34px;margin-top:44px;font-size:9.5px}
+    #slip .sig div{flex:1;border-top:1px solid #000;padding-top:4px}
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="card">
+    <header>
+      <h1>Deposit Slip</h1>
+      <span class="bank">Bank of America</span>
+    </header>
+
+    <div class="body">
+      <div class="sec">
+        <h2>Cash</h2>
+        <span class="tally zero num" id="cashTally">$0.00</span>
+      </div>
+
+      <div class="ledger" id="ledger">
+        <div class="row" data-den="100"><span class="denom">$100</span><input type="number" id="bill100" min="0" step="1" placeholder="0" inputmode="numeric"><span class="ext none num">—</span></div>
+        <div class="row" data-den="50"><span class="denom">$50</span><input type="number" id="bill50" min="0" step="1" placeholder="0" inputmode="numeric"><span class="ext none num">—</span></div>
+        <div class="row" data-den="20"><span class="denom">$20</span><input type="number" id="bill20" min="0" step="1" placeholder="0" inputmode="numeric"><span class="ext none num">—</span></div>
+        <div class="row" data-den="10"><span class="denom">$10</span><input type="number" id="bill10" min="0" step="1" placeholder="0" inputmode="numeric"><span class="ext none num">—</span></div>
+        <div class="row" data-den="5"><span class="denom">$5</span><input type="number" id="bill5" min="0" step="1" placeholder="0" inputmode="numeric"><span class="ext none num">—</span></div>
+        <div class="row" data-den="1"><span class="denom">$1</span><input type="number" id="bill1" min="0" step="1" placeholder="0" inputmode="numeric"><span class="ext none num">—</span></div>
+        <div class="row coin" data-den="coin"><span class="denom">Coin</span><input type="number" id="coins" min="0" step="0.01" placeholder="0.00" inputmode="decimal"><span class="ext none num">—</span></div>
+      </div>
+
+      <div class="sec">
+        <h2>Checks<span class="pill" id="chkCount">0</span></h2>
+        <span class="tally zero num" id="chkTally">$0.00</span>
+      </div>
+
+      <div class="addbar">
+        <input type="number" id="checkInput" step="0.01" min="0" placeholder="Check amount" inputmode="decimal">
+        <button class="btn btn-primary" onclick="addCheck()">Add</button>
+      </div>
+
+      <div id="checkList"></div>
+
+      <div class="sec">
+        <h2>Day sheet</h2>
+      </div>
+      <div class="ds">
+        <input type="number" id="daySheet" step="0.01" min="0" placeholder="Collected per day sheet" inputmode="decimal">
+        <span class="verdict num" id="verdict">—</span>
+      </div>
+      <div class="hint">Optional — checks your count against what the software says you collected.</div>
+
+      <div class="total">
+        <div class="line">
+          <span class="label">Total deposit</span>
+          <span class="amt zero num" id="grand">$0.00</span>
+        </div>
+        <div class="actions">
+          <button class="btn btn-ghost" onclick="clearAll()">Clear</button>
+          <button class="btn btn-primary" onclick="printSlip()">Print deposit slip</button>
+        </div>
+        <div id="toast"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="slip"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  var DENOMS = [100,50,20,10,5,1];
+  var checks = [];
+  var $ = function(id){ return document.getElementById(id); };
+
+  function money(n){
+    n = Number(n) || 0;
+    return '$' + n.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2});
+  }
+  function countOf(den){
+    var v = parseInt($('bill'+den).value, 10);
+    return (isNaN(v) || v < 0) ? 0 : v;
+  }
+  function coinOf(){
+    var v = parseFloat($('coins').value);
+    return (isNaN(v) || v < 0) ? 0 : v;
+  }
+  function cashTotal(){
+    var t = 0;
+    DENOMS.forEach(function(d){ t += countOf(d) * d; });
+    return Math.round((t + coinOf()) * 100) / 100;
+  }
+  function checksTotal(){
+    return Math.round(checks.reduce(function(s,c){ return s + c; }, 0) * 100) / 100;
+  }
+  function daySheet(){
+    var raw = $('daySheet').value;
+    if(raw === '') return null;
+    var v = parseFloat(raw);
+    return (isNaN(v) || v < 0) ? null : v;
+  }
+  function variance(){
+    var ds = daySheet();
+    if(ds === null) return null;
+    return Math.round((cashTotal() + checksTotal() - ds) * 100) / 100;
+  }
+
+  function paint(){
+    Array.prototype.forEach.call(document.querySelectorAll('#ledger .row'), function(row){
+      var den = row.getAttribute('data-den');
+      var val = den === 'coin' ? coinOf() : countOf(den) * Number(den);
+      var ext = row.querySelector('.ext');
+      row.classList.toggle('filled', val > 0);
+      ext.classList.toggle('none', val === 0);
+      ext.textContent = val > 0 ? money(val) : '—';
+    });
+
+    var c = cashTotal(), k = checksTotal(), g = Math.round((c + k) * 100) / 100;
+    var ct = $('cashTally'), kt = $('chkTally'), gr = $('grand');
+    ct.textContent = money(c); ct.classList.toggle('zero', c === 0);
+    kt.textContent = money(k); kt.classList.toggle('zero', k === 0);
+    gr.textContent = money(g); gr.classList.toggle('zero', g === 0);
+    $('chkCount').textContent = checks.length;
+
+    var v = variance(), el = $('verdict');
+    el.classList.remove('ok','off');
+    if(v === null){ el.textContent = '—'; }
+    else if(v === 0){ el.textContent = 'Balanced'; el.classList.add('ok'); }
+    else {
+      el.textContent = (v > 0 ? 'Over ' : 'Short ') + money(Math.abs(v));
+      el.classList.add('off');
+    }
+  }
+
+  function renderChecks(){
+    var el = $('checkList');
+    if(!checks.length){ el.innerHTML = '<div class="empty">No checks entered</div>'; return; }
+    var html = '<div class="checks">';
+    checks.forEach(function(amt, i){
+      html += '<div class="chk"><span class="i num">' + (i+1) + '</span>' +
+              '<span class="amt num">' + money(amt) + '</span>' +
+              '<button class="x" title="Remove" data-i="' + i + '">&times;</button></div>';
+    });
+    el.innerHTML = html + '</div>';
+  }
+
+  window.addCheck = function(){
+    var input = $('checkInput');
+    var amt = parseFloat(input.value);
+    if(isNaN(amt) || amt <= 0){ input.focus(); return; }
+    checks.push(Math.round(amt * 100) / 100);
+    input.value = '';
+    renderChecks(); paint(); input.focus();
+  };
+
+  window.clearAll = function(){
+    DENOMS.forEach(function(d){ $('bill'+d).value = ''; });
+    $('coins').value = '';
+    $('checkInput').value = '';
+    $('daySheet').value = '';
+    checks = [];
+    renderChecks(); paint();
+    $('toast').innerHTML = '';
+    $('bill100').focus();
+  };
+
+  function toast(msg){
+    $('toast').innerHTML = '<div class="toast">' + msg + '</div>';
+    setTimeout(function(){ $('toast').innerHTML = ''; }, 3000);
+  }
+
+  window.printSlip = function(){
+    var c = cashTotal(), k = checksTotal(), g = Math.round((c + k) * 100) / 100;
+    if(g === 0){ toast('Enter cash or checks first'); return; }
+
+    var bills = [];
+    DENOMS.forEach(function(d){
+      if(countOf(d) > 0) bills.push({denom:d, count:countOf(d), value:countOf(d)*d});
+    });
+
+    var billRows = bills.length
+      ? bills.map(function(b){
+          return '<tr><td>$' + b.denom + ' bills</td><td class="r">' + b.count +
+                 '</td><td class="r">' + money(b.value) + '</td></tr>';
+        }).join('')
+      : '<tr><td colspan="3" style="color:#777">No bills</td></tr>';
+    var coinRow = coinOf() > 0
+      ? '<tr><td>Coin</td><td class="r">&mdash;</td><td class="r">' + money(coinOf()) + '</td></tr>' : '';
+    var checkRows = checks.length
+      ? checks.map(function(x,i){
+          return '<tr><td>Check ' + (i+1) + '</td><td class="r">' + money(x) + '</td></tr>';
+        }).join('')
+      : '<tr><td colspan="2" style="color:#777">No checks</td></tr>';
+
+    var ds = daySheet(), v = variance();
+    var recon = ds === null ? '' :
+      '<div class="recon">' +
+        '<div><span>Day sheet collected</span><span>' + money(ds) + '</span></div>' +
+        '<div><span>Variance</span><span>' +
+          (v === 0 ? 'Balanced' : (v > 0 ? 'Over ' : 'Short ') + money(Math.abs(v))) +
+        '</span></div>' +
+      '</div>';
+
+    $('slip').innerHTML =
+      '<h2>Deposit Slip</h2>' +
+      '<div class="meta"><span>Bank of America</span><span>' +
+        new Date().toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'}) +
+      '</span></div>' +
+      '<h3>Cash by denomination</h3>' +
+      '<table><thead><tr><th>Denomination</th><th class="r">Count</th><th class="r">Amount</th></tr></thead>' +
+      '<tbody>' + billRows + coinRow +
+      '<tr class="sub"><td>Cash subtotal</td><td></td><td class="r">' + money(c) + '</td></tr>' +
+      '</tbody></table>' +
+      '<h3>Checks (' + checks.length + ')</h3>' +
+      '<table><thead><tr><th>Item</th><th class="r">Amount</th></tr></thead><tbody>' + checkRows +
+      '<tr class="sub"><td>Checks subtotal</td><td class="r">' + money(k) + '</td></tr>' +
+      '</tbody></table>' +
+      '<div class="grand"><span>TOTAL DEPOSIT</span><span>' + money(g) + '</span></div>' +
+      recon +
+      '<div class="sig"><div>Prepared by</div><div>Verified by</div><div>Bank receipt #</div></div>';
+
+    window.print();
+  };
+
+  /* wiring: Enter walks down the denominations, then coin, then the check field */
+  var chain = DENOMS.map(function(d){ return 'bill'+d; }).concat(['coins','checkInput']);
+  chain.forEach(function(id, i){
+    var el = $(id);
+    el.addEventListener('input', paint);
+    el.addEventListener('keydown', function(e){
+      if(e.key !== 'Enter') return;
+      e.preventDefault();
+      if(id === 'checkInput'){ window.addCheck(); return; }
+      $(chain[i+1]).focus();
+      $(chain[i+1]).select();
+    });
+  });
+  $('daySheet').addEventListener('input', paint);
+
+  $('checkList').addEventListener('click', function(e){
+    var b = e.target.closest('.x');
+    if(!b) return;
+    checks.splice(Number(b.getAttribute('data-i')), 1);
+    renderChecks(); paint();
+  });
+
+  renderChecks();
+  paint();
+  $('bill100').focus();
+})();
+</script>
+</body>
+</html>
