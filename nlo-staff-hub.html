@@ -337,6 +337,16 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
   #printArea,#printArea *{visibility:visible}
   #printArea{position:absolute;left:0;top:0;width:100%}
 }
+/* ---------- certificate photos ---------- */
+.certUp{display:flex;gap:14px;align-items:flex-start}
+.certUpThumb{flex:none;width:80px;height:80px;border-radius:8px;overflow:hidden;background:var(--grey-100);border:1px solid var(--grey-200);display:flex;align-items:center;justify-content:center;color:var(--grey-400)}
+.certUpThumb img{width:100%;height:100%;object-fit:cover;display:block}
+.certUpBody{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px}
+.certUpBody .tiny{line-height:1.45}
+.certThumb{width:34px;height:34px;border-radius:5px;object-fit:cover;cursor:pointer;border:1px solid var(--grey-200);display:block;transition:transform var(--fast) var(--ease),border-color var(--fast) var(--ease)}
+.certThumb:hover{transform:scale(1.08);border-color:var(--navy)}
+.certFull{max-width:100%;max-height:68vh;border-radius:8px;box-shadow:var(--sh-sm);display:block;margin:0 auto}
+.certLoad{display:flex;align-items:center;justify-content:center;min-height:180px;color:var(--mut);font-size:13px}
 </style>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
@@ -455,7 +465,12 @@ function tenure(hire) {
 const AV_COLORS = ['#1D3EA9','#1F9E7E','#E29A14','#EE4F3A','#385686','#2E52C9','#34C49E','#C2820A','#D8412E','#5471A0'];
 const avColor = name => AV_COLORS[[...String(name)].reduce((a,c)=>a+c.charCodeAt(0),0) % AV_COLORS.length];
 const initials = name => String(name||'?').trim().split(/\s+/).map(w=>w[0]).slice(0,2).join('').toUpperCase();
-const b64 = buf => btoa(String.fromCharCode(...new Uint8Array(buf)));
+const b64 = buf => {
+  const u = new Uint8Array(buf), CH = 0x8000;
+  let s = '';
+  for (let i = 0; i < u.length; i += CH) s += String.fromCharCode.apply(null, u.subarray(i, i + CH));
+  return btoa(s);
+};
 const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
 const plural = (n, w) => n + ' ' + w + (n === 1 ? '' : 's');
 
@@ -500,6 +515,7 @@ const ICONS = {
   key:'<circle cx="8" cy="15.5" r="4.2"/><path d="m11.2 12.3 8.3-8.3"/><path d="m16.5 7 2.6 2.6M14 9.5l2 2"/>',
   trash:'<path d="M4.5 6.5h15"/><path d="M8.5 6.5V5a1.5 1.5 0 0 1 1.5-1.5h4A1.5 1.5 0 0 1 15.5 5v1.5"/><path d="m6.5 6.5.8 12.6a2 2 0 0 0 2 1.9h5.4a2 2 0 0 0 2-1.9l.8-12.6"/>',
   briefcase:'<rect x="3.5" y="7.5" width="17" height="12.5" rx="2"/><path d="M8.5 7.5V6A2.5 2.5 0 0 1 11 3.5h2A2.5 2.5 0 0 1 15.5 6v1.5"/><path d="M3.5 12.5h17"/>',
+  spark:'<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"></path><path d="M18.5 15.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"></path>',
   activity:'<path d="M3.5 12h4l2.5-6.5 4 13L16.5 12h4"/>'
 };
 const ic = (n, s, cls) => `<svg class="i ${cls || ''}" width="${s || 17}" height="${s || 17}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICONS[n] || ''}</svg>`;
@@ -1411,39 +1427,322 @@ H.editKpiDef = t => {
 function certModal(staffId, certId) {
   const c = certId ? S.certs.find(x => x.id === certId) : null;
   const sid = c ? c.staffId : staffId;
+  certPhotoOrig = (c && c.thumb) || '';
+  certPhotoFullOrig = (c && photoCache[c.id]) || '';
+  certPhotoBuf = null;
   openModal(`<div class="mh"><h3>${c ? 'Edit certification' : 'Add certification'}</h3><button class="x" data-act="closeModal">✕</button></div>
   <div class="mb">
-    ${!sid ? `<div class="field"><label>Staff member *</label><select id="cfStaff">${activeStaff().map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select></div>` : `<div class="infoBox">For <b>${esc(staffName(sid))}</b></div>`}
+    ${!sid ? `<div class="field"><label>Staff member *</label><select id="cfStaff">${activeStaff().map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select></div>` : `<div class="infoBox">For <b id="cfForName">${esc(staffName(sid))}</b></div>`}
     <div class="field"><label>Certification / license *</label><input type="text" id="cfName" value="${c ? esc(c.name) : ''}" list="certList" placeholder="e.g. Radiology / X-ray Certification"><datalist id="certList">${CERT_SUGGEST.map(x => `<option value="${x}">`).join('')}</datalist></div>
     <div class="frow">
       <div class="field"><label>Issued</label><input type="date" id="cfIssued" value="${c ? esc(c.issued || '') : ''}"></div>
       <div class="field"><label>Expires <span class="tiny">(blank = doesn’t expire)</span></label><input type="date" id="cfExpires" value="${c ? esc(c.expires || '') : ''}"></div>
     </div>
     <div class="field"><label>Notes</label><input type="text" id="cfNotes" value="${c ? esc(c.notes || '') : ''}" placeholder="cert #, provider…"></div>
+    ${certPhotoUI()}
   </div>
   <div class="mf"><button class="btn btn-sec" data-act="closeModal">Cancel</button><button class="btn btn-pri" id="cfSave">${c ? 'Save changes' : 'Add certification'}</button></div>`);
-  $('#cfSave').onclick = () => {
+  wireCertPhoto(c);
+  $('#cfSave').onclick = async () => {
     const name = $('#cfName').value.trim();
     if (!name) { toast('Certification name is required', true); return; }
     const staffSel = $('#cfStaff');
     const useSid = sid || (staffSel ? staffSel.value : null);
     if (!useSid) { toast('Pick a staff member', true); return; }
     const vals = { name, issued:$('#cfIssued').value, expires:$('#cfExpires').value, notes:$('#cfNotes').value.trim() };
-    if (c) { Object.assign(c, vals); act('Updated cert “' + name + '” for ' + staffName(c.staffId)); }
-    else { S.certs.push(Object.assign({ id:uid(), staffId:useSid }, vals)); act('Added cert “' + name + '” for ' + staffName(useSid)); }
+    if (certPhotoBuf !== null) { vals.thumb = certPhotoBuf ? certPhotoBuf.thumb : ''; vals.hasPhoto = !!certPhotoBuf; }
+    const btn = $('#cfSave');
+    if (certPhotoBuf !== null && btn) { btn.disabled = true; btn.textContent = 'Saving photo\u2026'; }
+    let rec;
+    if (c) { Object.assign(c, vals); rec = c; act('Updated cert “' + name + '” for ' + staffName(c.staffId)); }
+    else { rec = Object.assign({ id:uid(), staffId:useSid }, vals); S.certs.push(rec); act('Added cert “' + name + '” for ' + staffName(useSid)); }
+    try {
+      if (certPhotoBuf) await savePhotoDoc(rec.id, certPhotoBuf.full);
+      else if (certPhotoBuf === '') await deletePhotoDoc(rec.id);
+    } catch (e) {
+      if (btn) { btn.disabled = false; btn.textContent = c ? 'Save changes' : 'Add certification'; }
+      rec.thumb = ''; rec.hasPhoto = false;
+      toast('Saved the details, but the photo didn\u2019t upload \u2014 ' + e.message, true);
+      persist(); closeModal(); render();
+      return;
+    }
     persist(); closeModal(); render(); toast('Saved');
   };
 }
 H.addCert = t => certModal(t.dataset.id || null, null);
 H.editCert = t => certModal(null, t.dataset.id);
 H.delCert = t => confirmModal('Remove this certification?', '', () => {
-  S.certs = S.certs.filter(x => x.id !== t.dataset.id); persist(); render(); toast('Removed');
+  const id = t.dataset.id;
+  const gone = S.certs.find(x => x.id === id);
+  S.certs = S.certs.filter(x => x.id !== id);
+  if (gone && gone.hasPhoto) deletePhotoDoc(id);
+  persist(); render(); toast('Removed');
 });
+/* =====================================================
+   CERTIFICATE PHOTOS
+   The main Firestore doc (staffhub/{uid}) holds the whole encrypted state and
+   Firestore caps a document at 1 MiB, so a full-size photo CANNOT live in it.
+   Layout used here:
+     c.thumb    ~2KB 96px jpeg, inline in the main doc  -> instant table thumbs
+     c.hasPhoto flag
+     full photo -> staffhub/{uid}/certPhotos/{certId}, its own 1 MiB doc,
+                   encrypted with the same AES key, fetched only when viewed.
+   ===================================================== */
+const CERT_IMG_MAX = 1600, CERT_IMG_Q = 0.72;   // full copy, lives in its own doc
+const CERT_THUMB_MAX = 96, CERT_THUMB_Q = 0.5;  // inline thumb, must stay tiny
+const CERT_DOC_CEILING = 900 * 1024;            // refuse a photo doc bigger than this
+
+let certPhotoOrig = '';     // thumb already on the cert being edited
+let certPhotoBuf = null;    // null = unchanged, '' = removed, {full,thumb} = new
+let certPhotoFullOrig = ''; // full image loaded for the cert being edited
+const photoCache = Object.create(null);
+
+const currentCertThumb = () => (certPhotoBuf === null ? certPhotoOrig : (certPhotoBuf ? certPhotoBuf.thumb : ''));
+const currentCertFull  = () => (certPhotoBuf === null ? certPhotoFullOrig : (certPhotoBuf ? certPhotoBuf.full : ''));
+
+function dataUrlBytes(d) { if (!d) return 0; const i = d.indexOf(','); return Math.round((d.length - i - 1) * 3 / 4); }
+function fmtBytes(b) { return b < 1024 ? b + ' B' : b < 1048576 ? Math.round(b / 1024) + ' KB' : (b / 1048576).toFixed(1) + ' MB'; }
+
+function shrinkTo(file, maxEdge, q) {
+  return new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onerror = () => reject(new Error('Could not read that file.'));
+    fr.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('That file isn\u2019t an image the browser can open \u2014 try a JPG or PNG.'));
+      img.onload = () => {
+        let w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+        if (!w || !h) { reject(new Error('That image came through empty.')); return; }
+        const k = Math.min(1, maxEdge / Math.max(w, h));
+        w = Math.max(1, Math.round(w * k)); h = Math.max(1, Math.round(h * k));
+        const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+        const cx = cv.getContext('2d');
+        cx.fillStyle = '#fff'; cx.fillRect(0, 0, w, h);
+        cx.drawImage(img, 0, 0, w, h);
+        resolve(cv.toDataURL('image/jpeg', q));
+      };
+      img.src = fr.result;
+    };
+    fr.readAsDataURL(file);
+  });
+}
+async function makeCertImages(file) {
+  const full = await shrinkTo(file, CERT_IMG_MAX, CERT_IMG_Q);
+  if (dataUrlBytes(full) * 1.4 > CERT_DOC_CEILING) {
+    const smaller = await shrinkTo(file, 1100, 0.6);
+    if (dataUrlBytes(smaller) * 1.4 > CERT_DOC_CEILING) throw new Error('That image is too large even after shrinking \u2014 try a photo rather than a scan.');
+    return { full: smaller, thumb: await shrinkTo(file, CERT_THUMB_MAX, CERT_THUMB_Q) };
+  }
+  return { full, thumb: await shrinkTo(file, CERT_THUMB_MAX, CERT_THUMB_Q) };
+}
+
+/* ---- per-photo Firestore doc ---- */
+function certPhotoRef(certId) {
+  if (!fbUser || !fbDB || !certId) return null;
+  return fbDB.collection(FB_COLLECTION).doc(fbUser.uid).collection('certPhotos').doc(certId);
+}
+async function savePhotoDoc(certId, fullDataUrl) {
+  const ref = certPhotoRef(certId);
+  if (!ref || !cryptoKey) throw new Error('Not signed in \u2014 can\u2019t save the photo.');
+  const data = await encryptJSON({ img: fullDataUrl }, cryptoKey);
+  await ref.set({ app:'nlo-staff-hub', v:1, data:data, updatedAt: Date.now() });
+  photoCache[certId] = fullDataUrl;
+}
+async function loadPhotoDoc(certId) {
+  if (photoCache[certId] !== undefined) return photoCache[certId];
+  const ref = certPhotoRef(certId);
+  if (!ref || !cryptoKey) return '';
+  try {
+    const snap = await ref.get();
+    const d = snap && (snap.exists === false ? null : snap.data());
+    if (!d || !d.data) { photoCache[certId] = ''; return ''; }
+    const out = await decryptJSON(d.data, cryptoKey);
+    photoCache[certId] = (out && out.img) || '';
+    return photoCache[certId];
+  } catch (e) { return ''; }
+}
+async function deletePhotoDoc(certId) {
+  const ref = certPhotoRef(certId);
+  delete photoCache[certId];
+  if (!ref) return;
+  try { await ref.delete(); } catch (e) {}
+}
+
+/* ---- vision extraction ---- */
+const CERT_PROMPT = 'You are reading a photo of a professional certificate, licence or CPR/BLS card belonging to an employee of a dental practice. Transcribe only what is actually printed on it. Reply with ONLY a JSON object and nothing else \u2014 no markdown fence, no commentary \u2014 with exactly these keys: {"name":"","holder":"","issued":"","expires":"","number":"","issuer":""}. name = the credential or course title, e.g. "BLS Provider" or "Dental Radiography Certification". holder = the person it is issued to. issued and expires = ISO dates YYYY-MM-DD; if only a month and year are printed, use the first day of that month; if a date is not shown, use "". number = the certificate, licence or eCard number. issuer = the issuing organisation. Use an empty string for anything you cannot read clearly. Never guess or infer a value that is not printed.';
+
+function parseCertJSON(txt) {
+  if (!txt) return null;
+  const a = txt.indexOf('{'), b = txt.lastIndexOf('}');
+  if (a < 0 || b <= a) return null;
+  try { const o = JSON.parse(txt.slice(a, b + 1)); return o && typeof o === 'object' ? o : null; } catch (e) { return null; }
+}
+const isoDate = v => (/^\d{4}-\d{2}-\d{2}$/.test(v || '') ? v : '');
+
+async function askAIVision(dataUrl, prompt) {
+  const cfg = aiCfg();
+  if (!cfg.key) throw new Error('Add your API key in Settings \u2192 AI assistant first.');
+  const raw = dataUrl.slice(dataUrl.indexOf(',') + 1);
+  let r, j;
+  try {
+    if (cfg.provider === 'claude') {
+      r = await fetch('https://api.anthropic.com/v1/messages', {
+        method:'POST',
+        headers:{ 'content-type':'application/json', 'x-api-key':cfg.key, 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
+        body: JSON.stringify({ model: cfg.modelC || 'claude-sonnet-4-5', max_tokens: 900,
+          messages:[{ role:'user', content:[
+            { type:'image', source:{ type:'base64', media_type:'image/jpeg', data: raw } },
+            { type:'text', text: prompt } ] }] })
+      });
+      j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(aiErrMsg(r.status, j.error && j.error.message));
+      return (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('').trim();
+    }
+    const model = cfg.modelG || 'gemini-2.5-flash';
+    r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent?key=' + encodeURIComponent(cfg.key), {
+      method:'POST', headers:{ 'content-type':'application/json' },
+      body: JSON.stringify({ contents:[{ role:'user', parts:[
+          { inline_data:{ mime_type:'image/jpeg', data: raw } },
+          { text: prompt } ] }],
+        generationConfig:{ maxOutputTokens: 2048, temperature: 0 } })
+    });
+    j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(aiErrMsg(r.status, j.error && j.error.message));
+    const cand = (j.candidates || [])[0];
+    return cand && cand.content && cand.content.parts ? cand.content.parts.map(p => p.text || '').join('').trim() : '';
+  } catch (e) {
+    if (e instanceof TypeError) throw new Error('Couldn\u2019t reach ' + providerLabel() + ' \u2014 check your internet connection.');
+    throw e;
+  }
+}
+
+/* ---- modal UI ---- */
+function certPhotoUI() {
+  const t = currentCertThumb(), has = !!t;
+  return `<div class="field"><label>Certificate photo</label>
+    <div class="certUp">
+      <div class="certUpThumb" id="cfThumbWrap">${has ? `<img src="${t}" alt="Certificate photo">` : ic('award',26)}</div>
+      <div class="certUpBody">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <button type="button" class="btn btn-sec btn-sm" id="cfPickBtn" data-act="certPickPhoto">${ic('upload',13)} <span>${has ? 'Replace photo' : 'Upload photo'}</span></button>
+          <button type="button" class="btn btn-sec btn-sm" id="cfReadBtn" data-act="certReadPhoto"${has ? '' : ' disabled'}>${ic('spark',13)} Read details</button>
+          <button type="button" class="btn-ghost btn-sm" id="cfDropBtn" data-act="certDropPhoto"${has ? '' : ' hidden'}>Remove</button>
+        </div>
+        <div class="tiny" id="cfPhotoNote">${has
+          ? 'Stored encrypted in your account.'
+          : 'A photo or scan of the card. It is encrypted with your password before it leaves this browser \u2014 Firebase only ever holds an unreadable blob.'}</div>
+      </div>
+    </div>
+    <input type="file" id="cfPhotoInput" accept="image/*" style="display:none">
+  </div>`;
+}
+function refreshCertPhotoUI(note) {
+  const wrap = $('#cfThumbWrap'), btn = $('#cfReadBtn'), n = $('#cfPhotoNote'), t = currentCertThumb();
+  if (wrap) wrap.innerHTML = t ? `<img src="${t}" alt="Certificate photo">` : ic('award',26);
+  if (btn) btn.disabled = !currentCertFull();
+  const drop = $('#cfDropBtn'); if (drop) drop.hidden = !t;
+  const pick = $('#cfPickBtn'); if (pick && pick.querySelector('span')) pick.querySelector('span').textContent = t ? 'Replace photo' : 'Upload photo';
+  if (n) n.textContent = note != null ? note : (t ? 'Stored encrypted in your account.' : 'No photo attached.');
+}
+function wireCertPhoto(c) {
+  const inp = $('#cfPhotoInput');
+  if (!inp) return;
+  inp.addEventListener('change', async () => {
+    const f = inp.files && inp.files[0];
+    inp.value = '';
+    if (!f) return;
+    if (f.type && !/^image\//.test(f.type)) { toast('Pick an image file \u2014 a photo or screenshot of the card.', true); return; }
+    const n = $('#cfPhotoNote'); if (n) n.textContent = 'Processing photo\u2026';
+    try {
+      certPhotoBuf = await makeCertImages(f);
+      refreshCertPhotoUI();
+      if (aiCfg().key) H.certReadPhoto();
+    } catch (e) { toast(e.message, true); refreshCertPhotoUI(e.message); }
+  });
+  // pull the existing full-size copy in the background so "Read details" works on an edit
+  if (c && c.hasPhoto) loadPhotoDoc(c.id).then(img => {
+    if (certPhotoBuf === null) { certPhotoFullOrig = img; const b = $('#cfReadBtn'); if (b) b.disabled = !img; }
+  });
+}
+H.certPickPhoto = () => { const i = $('#cfPhotoInput'); if (i) i.click(); };
+H.certDropPhoto = () => { certPhotoBuf = ''; refreshCertPhotoUI('Photo removed \u2014 save to confirm.'); };
+H.certReadPhoto = async () => {
+  const d = currentCertFull();
+  if (!d) { toast('Upload a photo first', true); return; }
+  if (!aiReady()) return aiNudge();
+  const btn = $('#cfReadBtn'), n = $('#cfPhotoNote');
+  const label = ic('spark',13) + ' Read details';
+  if (btn) { btn.disabled = true; btn.innerHTML = ic('spark',13) + ' Reading\u2026'; }
+  if (n) n.textContent = 'Reading the certificate\u2026';
+  try {
+    const o = parseCertJSON(await askAIVision(d, CERT_PROMPT));
+    if (!o) throw new Error('Couldn\u2019t make sense of that one \u2014 try a straighter, sharper photo, or type the details in.');
+    const put = (sel, val) => {
+      const el = $(sel); if (!el || !val) return false;
+      if (el.value && el.value.trim()) return false;
+      el.value = val; return true;
+    };
+    const got = [], kept = [];
+    const nm = (o.name || '').trim();
+    if (nm) ((put('#cfName', nm) && got.push('name')) || kept.push('name'));
+    const iss = isoDate(o.issued), exp = isoDate(o.expires);
+    if (iss) ((put('#cfIssued', iss) && got.push('issued')) || kept.push('issued'));
+    if (exp) ((put('#cfExpires', exp) && got.push('expires')) || kept.push('expires'));
+    const bits = [];
+    if ((o.number || '').trim()) bits.push('#' + o.number.trim());
+    if ((o.issuer || '').trim()) bits.push(o.issuer.trim());
+    if (bits.length) ((put('#cfNotes', bits.join(' \u00b7 ')) && got.push('notes')) || kept.push('notes'));
+    let msg = got.length ? 'Filled ' + got.join(', ') + ' \u2014 check it against the photo before saving.' : 'Nothing new to fill in.';
+    if (kept.length) msg += ' Left your own ' + kept.join(', ') + ' alone.';
+    const holder = (o.holder || '').trim(), who = certModalStaffName();
+    if (holder && who && !nameLooksLike(holder, who)) msg += ' \u26a0 The card reads \u201c' + holder + '\u201d, not ' + who + '.';
+    refreshCertPhotoUI(msg);
+  } catch (e) {
+    refreshCertPhotoUI(e.message);
+    toast(e.message, true);
+  }
+  if (btn) { btn.disabled = false; btn.innerHTML = label; }
+};
+function nameLooksLike(a, b) {
+  const w = s => s.toLowerCase().replace(/[^a-z ]/g, ' ').split(/\s+/).filter(x => x.length > 2);
+  const A = w(a), B = w(b);
+  return A.some(x => B.indexOf(x) >= 0);
+}
+function certModalStaffName() {
+  const sel = $('#cfStaff');
+  if (sel && sel.value) return staffName(sel.value);
+  const box = $('#cfForName');
+  return box ? box.textContent.trim() : '';
+}
+H.certLightbox = async t => {
+  const c = S.certs.find(x => x.id === t.dataset.id);
+  if (!c) return;
+  const foot = `<div class="mf"><span class="tiny">${esc(staffName(c.staffId))}${c.expires ? ' \u00b7 expires ' + fmtD(c.expires) : ''}</span><div class="sp"></div><button class="btn btn-sec" data-act="certDownload" data-id="${c.id}">${ic('download',13)} Download</button><button class="btn btn-sec" data-act="closeModal">Close</button></div>`;
+  openModal(`<div class="mh"><h3>${esc(c.name)}</h3><button class="x" data-act="closeModal">\u2715</button></div>
+  <div class="mb" style="background:var(--grey-100)"><div class="certLoad" id="cfLightbox">Loading photo\u2026</div></div>${foot}`, true);
+  const img = await loadPhotoDoc(c.id);
+  const box = $('#cfLightbox');
+  if (!box) return;
+  if (img) box.outerHTML = `<img src="${img}" class="certFull" alt="${esc(c.name)}">`;
+  else box.textContent = 'That photo could not be loaded.';
+};
+H.certDownload = async t => {
+  const c = S.certs.find(x => x.id === t.dataset.id);
+  if (!c) return;
+  const img = await loadPhotoDoc(c.id);
+  if (!img) { toast('No photo to download', true); return; }
+  const a = document.createElement('a');
+  a.href = img;
+  a.download = (staffName(c.staffId) + ' - ' + c.name).replace(/[^\w \-.]/g, '').trim() + '.jpg';
+  document.body.appendChild(a); a.click(); a.remove();
+};
+
 function certRowsHTML(list, withStaff) {
   return `<div class="tscroll"><table class="tbl">
-    <tr>${withStaff ? '<th>Staff member</th>' : ''}<th>Certification</th><th>Issued</th><th>Expires</th><th>Status</th><th></th></tr>
+    <tr>${withStaff ? '<th>Staff member</th>' : ''}<th></th><th>Certification</th><th>Issued</th><th>Expires</th><th>Status</th><th></th></tr>
     ${list.map(x => `<tr>
       ${withStaff ? `<td><div class="inline" style="cursor:pointer" data-act="openStaffTab" data-id="${x.p.id}" data-tab="certs">${avHTML(x.p,'sm')}<b>${esc(x.p.name)}</b></div></td>` : ''}
+      <td style="width:42px;padding-right:0">${x.c.thumb ? `<img class="certThumb" src="${x.c.thumb}" data-act="certLightbox" data-id="${x.c.id}" alt="" title="View certificate">` : ''}</td>
       <td><b>${esc(x.c.name)}</b>${x.c.notes ? `<div class="tiny">${esc(x.c.notes)}</div>` : ''}</td>
       <td>${x.c.issued ? fmtD(x.c.issued) : '—'}</td>
       <td>${x.c.expires ? fmtD(x.c.expires) : '—'}</td>
@@ -2712,6 +3011,13 @@ async function fbWriteNow() {
     var data = await encryptJSON(S, cryptoKey);
     localRev = (localRev || 0) + 1; lastAppliedRev = localRev;
     var payload = { app: 'nlo-staff-hub', v: 1, kdf: { alg: 'PBKDF2-SHA256', iter: KDF_ITER, salt: b64(keySalt) }, data: data, rev: localRev, updatedAt: Date.now() };
+    var payloadBytes = JSON.stringify(payload).length;
+    if (payloadBytes > 1000000) {   // Firestore hard-caps a document at 1,048,576 bytes
+      setSyncState('error');
+      if (typeof toast === 'function') toast('Your data has reached Firestore\u2019s 1 MB per-record limit (' + Math.round(payloadBytes / 1024) + ' KB) and did NOT save. Remove some certificate photos or old notes.', true);
+      fbWriteInFlight = false;
+      return;
+    }
     await fbDocRef.set(payload);
     setSyncState('synced');
   } catch (e) {
