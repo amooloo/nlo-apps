@@ -347,6 +347,11 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
 .certThumb:hover{transform:scale(1.08);border-color:var(--navy)}
 .certFull{max-width:100%;max-height:68vh;border-radius:8px;box-shadow:var(--sh-sm);display:block;margin:0 auto}
 .certLoad{display:flex;align-items:center;justify-content:center;min-height:180px;color:var(--mut);font-size:13px}
+.certPdf{width:100%;height:70vh;border:0;border-radius:8px;background:#fff;display:block}
+.certThumbWrap{position:relative;display:inline-block;cursor:pointer}
+.certUpThumb{position:relative}
+.pdfTag{position:absolute;left:0;bottom:0;background:var(--navy);color:#fff;font-size:9px;font-weight:700;letter-spacing:.04em;padding:1px 4px;border-radius:0 4px 0 6px;pointer-events:none}
+.pdfTag.sm{font-size:7.5px;padding:1px 3px;border-radius:0 3px 0 4px}
 </style>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
@@ -1429,6 +1434,7 @@ function certModal(staffId, certId) {
   const sid = c ? c.staffId : staffId;
   certPhotoOrig = (c && c.thumb) || '';
   certPhotoFullOrig = (c && photoCache[c.id]) || '';
+  certPhotoKindOrig = (c && c.fileKind) || 'image';
   certPhotoBuf = null;
   openModal(`<div class="mh"><h3>${c ? 'Edit certification' : 'Add certification'}</h3><button class="x" data-act="closeModal">✕</button></div>
   <div class="mb">
@@ -1450,19 +1456,19 @@ function certModal(staffId, certId) {
     const useSid = sid || (staffSel ? staffSel.value : null);
     if (!useSid) { toast('Pick a staff member', true); return; }
     const vals = { name, issued:$('#cfIssued').value, expires:$('#cfExpires').value, notes:$('#cfNotes').value.trim() };
-    if (certPhotoBuf !== null) { vals.thumb = certPhotoBuf ? certPhotoBuf.thumb : ''; vals.hasPhoto = !!certPhotoBuf; }
+    if (certPhotoBuf !== null) { vals.thumb = certPhotoBuf ? certPhotoBuf.thumb : ''; vals.hasPhoto = !!certPhotoBuf; vals.fileKind = certPhotoBuf ? certPhotoBuf.kind : ''; }
     const btn = $('#cfSave');
     if (certPhotoBuf !== null && btn) { btn.disabled = true; btn.textContent = 'Saving photo\u2026'; }
     let rec;
     if (c) { Object.assign(c, vals); rec = c; act('Updated cert “' + name + '” for ' + staffName(c.staffId)); }
     else { rec = Object.assign({ id:uid(), staffId:useSid }, vals); S.certs.push(rec); act('Added cert “' + name + '” for ' + staffName(useSid)); }
     try {
-      if (certPhotoBuf) await savePhotoDoc(rec.id, certPhotoBuf.full);
+      if (certPhotoBuf) await savePhotoDoc(rec.id, certPhotoBuf.full, certPhotoBuf.kind);
       else if (certPhotoBuf === '') await deletePhotoDoc(rec.id);
     } catch (e) {
       if (btn) { btn.disabled = false; btn.textContent = c ? 'Save changes' : 'Add certification'; }
-      rec.thumb = ''; rec.hasPhoto = false;
-      toast('Saved the details, but the photo didn\u2019t upload \u2014 ' + e.message, true);
+      rec.thumb = ''; rec.hasPhoto = false; rec.fileKind = '';
+      toast('Saved the details, but the file didn\u2019t upload \u2014 ' + e.message, true);
       persist(); closeModal(); render();
       return;
     }
@@ -1494,11 +1500,13 @@ const CERT_DOC_CEILING = 900 * 1024;            // refuse a photo doc bigger tha
 
 let certPhotoOrig = '';     // thumb already on the cert being edited
 let certPhotoBuf = null;    // null = unchanged, '' = removed, {full,thumb} = new
-let certPhotoFullOrig = ''; // full image loaded for the cert being edited
+let certPhotoFullOrig = ''; // full image/PDF loaded for the cert being edited
+let certPhotoKindOrig = 'image';
 const photoCache = Object.create(null);
 
 const currentCertThumb = () => (certPhotoBuf === null ? certPhotoOrig : (certPhotoBuf ? certPhotoBuf.thumb : ''));
 const currentCertFull  = () => (certPhotoBuf === null ? certPhotoFullOrig : (certPhotoBuf ? certPhotoBuf.full : ''));
+const currentCertKind  = () => (certPhotoBuf === null ? (certPhotoKindOrig || 'image') : (certPhotoBuf ? certPhotoBuf.kind : 'image'));
 
 function dataUrlBytes(d) { if (!d) return 0; const i = d.indexOf(','); return Math.round((d.length - i - 1) * 3 / 4); }
 function fmtBytes(b) { return b < 1024 ? b + ' B' : b < 1048576 ? Math.round(b / 1024) + ' KB' : (b / 1048576).toFixed(1) + ' MB'; }
@@ -1536,15 +1544,114 @@ async function makeCertImages(file) {
   return { full, thumb: await shrinkTo(file, CERT_THUMB_MAX, CERT_THUMB_Q) };
 }
 
+/* ---- PDF support ----------------------------------------------------------
+   Certificates often arrive as a PDF (AHA eCards, state licence downloads).
+   The original PDF is what gets stored, so Amir keeps the real document. pdf.js
+   renders page 1 locally to make the table thumbnail and the image handed to the
+   AI, which keeps extraction on the image path already proven for both providers.
+   pdf.js is fetched only when a PDF is actually picked.                       */
+const PDFJS_SRC    = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+const PDFJS_WORKER = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+let pdfjsPending = null;
+
+const isPdfFile = f => !!f && (f.type === 'application/pdf' || /\.pdf$/i.test(f.name || ''));
+const isPdfData = d => /^data:application\/pdf/i.test(d || '');
+const isCertFileOk = f => !!f && (isPdfFile(f) || !f.type || /^image\//.test(f.type));
+
+function loadPdfJs() {
+  if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+  if (pdfjsPending) return pdfjsPending;
+  pdfjsPending = new Promise((resolve, reject) => {
+    const el = document.createElement('script');
+    el.src = PDFJS_SRC;
+    el.onload = () => {
+      if (!window.pdfjsLib) { pdfjsPending = null; reject(new Error('The PDF reader didn\u2019t load properly \u2014 try again.')); return; }
+      try { window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER; } catch (e) {}
+      resolve(window.pdfjsLib);
+    };
+    el.onerror = () => { pdfjsPending = null; reject(new Error('Couldn\u2019t load the PDF reader \u2014 check your internet connection, or upload a photo of the certificate instead.')); };
+    document.head.appendChild(el);
+  });
+  return pdfjsPending;
+}
+function readAsDataURL(file) {
+  return new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onerror = () => reject(new Error('Could not read that file.'));
+    fr.onload = () => resolve(fr.result);
+    fr.readAsDataURL(file);
+  });
+}
+function fitCanvas(src, maxEdge) {
+  const k = Math.min(1, maxEdge / Math.max(src.width, src.height));
+  if (k === 1) return src;
+  const cv = document.createElement('canvas');
+  cv.width = Math.max(1, Math.round(src.width * k));
+  cv.height = Math.max(1, Math.round(src.height * k));
+  const cx = cv.getContext('2d');
+  cx.fillStyle = '#fff'; cx.fillRect(0, 0, cv.width, cv.height);
+  cx.drawImage(src, 0, 0, cv.width, cv.height);
+  return cv;
+}
+async function pdfPageCanvas(pdfDataUrl, maxEdge) {
+  const lib = await loadPdfJs();
+  let bytes;
+  try { bytes = unb64(pdfDataUrl.slice(pdfDataUrl.indexOf(',') + 1)); }
+  catch (e) { throw new Error('That PDF could not be read.'); }
+  let doc;
+  try { doc = await lib.getDocument({ data: bytes }).promise; }
+  catch (e) { throw new Error('That PDF could not be opened \u2014 if it is password protected, remove the password or upload a photo of it instead.'); }
+  const page = await doc.getPage(1);
+  const base = page.getViewport({ scale: 1 });
+  const scale = Math.max(0.1, Math.min(4, maxEdge / Math.max(base.width, base.height)));
+  const vp = page.getViewport({ scale: scale });
+  const cv = document.createElement('canvas');
+  cv.width = Math.max(1, Math.round(vp.width));
+  cv.height = Math.max(1, Math.round(vp.height));
+  const cx = cv.getContext('2d');
+  cx.fillStyle = '#fff'; cx.fillRect(0, 0, cv.width, cv.height);
+  await page.render({ canvasContext: cx, viewport: vp }).promise;
+  return cv;
+}
+
+/* Returns { kind, full, thumb, page, note } where `full` is what gets stored,
+   `page` is always a jpeg the AI can read, and `note` explains any fallback. */
+async function makeCertFile(file) {
+  if (!isPdfFile(file)) {
+    const r = await makeCertImages(file);
+    return { kind: 'image', full: r.full, thumb: r.thumb, page: r.full, note: '' };
+  }
+  const raw = await readAsDataURL(file);
+  const canvas = await pdfPageCanvas(raw, CERT_IMG_MAX);
+  const page  = canvas.toDataURL('image/jpeg', CERT_IMG_Q);
+  const thumb = fitCanvas(canvas, CERT_THUMB_MAX).toDataURL('image/jpeg', CERT_THUMB_Q);
+  if (dataUrlBytes(raw) * 1.4 > CERT_DOC_CEILING) {
+    // Too big to keep the PDF itself; keep a rendered page image so nothing is lost silently.
+    return { kind: 'image', full: page, thumb: thumb, page: page,
+             note: 'That PDF was too large to store, so a picture of page 1 was saved instead.' };
+  }
+  return { kind: 'pdf', full: raw, thumb: thumb, page: page, note: '' };
+}
+
+/* The AI always gets an image, even when the stored copy is a PDF. */
+async function certImageForAI() {
+  if (certPhotoBuf && certPhotoBuf.page) return certPhotoBuf.page;
+  const full = currentCertFull();
+  if (!full) return '';
+  if (!isPdfData(full)) return full;
+  const cv = await pdfPageCanvas(full, CERT_IMG_MAX);
+  return cv.toDataURL('image/jpeg', CERT_IMG_Q);
+}
+
 /* ---- per-photo Firestore doc ---- */
 function certPhotoRef(certId) {
   if (!fbUser || !fbDB || !certId) return null;
   return fbDB.collection(FB_COLLECTION).doc(fbUser.uid).collection('certPhotos').doc(certId);
 }
-async function savePhotoDoc(certId, fullDataUrl) {
+async function savePhotoDoc(certId, fullDataUrl, kind) {
   const ref = certPhotoRef(certId);
-  if (!ref || !cryptoKey) throw new Error('Not signed in \u2014 can\u2019t save the photo.');
-  const data = await encryptJSON({ img: fullDataUrl }, cryptoKey);
+  if (!ref || !cryptoKey) throw new Error('Not signed in \u2014 can\u2019t save the file.');
+  const data = await encryptJSON({ img: fullDataUrl, kind: kind || 'image' }, cryptoKey);
   await ref.set({ app:'nlo-staff-hub', v:1, data:data, updatedAt: Date.now() });
   photoCache[certId] = fullDataUrl;
 }
@@ -1557,7 +1664,7 @@ async function loadPhotoDoc(certId) {
     const d = snap && (snap.exists === false ? null : snap.data());
     if (!d || !d.data) { photoCache[certId] = ''; return ''; }
     const out = await decryptJSON(d.data, cryptoKey);
-    photoCache[certId] = (out && out.img) || '';
+    photoCache[certId] = (out && out.img) || '';   // the data URL carries its own mime type
     return photoCache[certId];
   } catch (e) { return ''; }
 }
@@ -1621,27 +1728,27 @@ function certPhotoUI() {
   const t = currentCertThumb(), has = !!t;
   return `<div class="field"><label>Certificate photo</label>
     <div class="certUp">
-      <div class="certUpThumb" id="cfThumbWrap">${has ? `<img src="${t}" alt="Certificate photo">` : ic('award',26)}</div>
+      <div class="certUpThumb" id="cfThumbWrap">${has ? `<img src="${t}" alt="Certificate">${currentCertKind() === 'pdf' ? '<span class="pdfTag">PDF</span>' : ''}` : ic('award',26)}</div>
       <div class="certUpBody">
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-          <button type="button" class="btn btn-sec btn-sm" id="cfPickBtn" data-act="certPickPhoto">${ic('upload',13)} <span>${has ? 'Replace photo' : 'Upload photo'}</span></button>
+          <button type="button" class="btn btn-sec btn-sm" id="cfPickBtn" data-act="certPickPhoto">${ic('upload',13)} <span>${has ? 'Replace file' : 'Upload photo or PDF'}</span></button>
           <button type="button" class="btn btn-sec btn-sm" id="cfReadBtn" data-act="certReadPhoto"${has ? '' : ' disabled'}>${ic('spark',13)} Read details</button>
           <button type="button" class="btn-ghost btn-sm" id="cfDropBtn" data-act="certDropPhoto"${has ? '' : ' hidden'}>Remove</button>
         </div>
         <div class="tiny" id="cfPhotoNote">${has
           ? 'Stored encrypted in your account.'
-          : 'A photo or scan of the card. It is encrypted with your password before it leaves this browser \u2014 Firebase only ever holds an unreadable blob.'}</div>
+          : 'A photo, scan or PDF of the card. It is encrypted with your password before it leaves this browser \u2014 Firebase only ever holds an unreadable blob.'}</div>
       </div>
     </div>
-    <input type="file" id="cfPhotoInput" accept="image/*" style="display:none">
+    <input type="file" id="cfPhotoInput" accept="image/*,application/pdf,.pdf" style="display:none">
   </div>`;
 }
 function refreshCertPhotoUI(note) {
   const wrap = $('#cfThumbWrap'), btn = $('#cfReadBtn'), n = $('#cfPhotoNote'), t = currentCertThumb();
-  if (wrap) wrap.innerHTML = t ? `<img src="${t}" alt="Certificate photo">` : ic('award',26);
+  if (wrap) wrap.innerHTML = t ? `<img src="${t}" alt="Certificate">` + (currentCertKind() === 'pdf' ? '<span class="pdfTag">PDF</span>' : '') : ic('award',26);
   if (btn) btn.disabled = !currentCertFull();
   const drop = $('#cfDropBtn'); if (drop) drop.hidden = !t;
-  const pick = $('#cfPickBtn'); if (pick && pick.querySelector('span')) pick.querySelector('span').textContent = t ? 'Replace photo' : 'Upload photo';
+  const pick = $('#cfPickBtn'); if (pick && pick.querySelector('span')) pick.querySelector('span').textContent = t ? 'Replace file' : 'Upload photo or PDF';
   if (n) n.textContent = note != null ? note : (t ? 'Stored encrypted in your account.' : 'No photo attached.');
 }
 function wireCertPhoto(c) {
@@ -1651,13 +1758,13 @@ function wireCertPhoto(c) {
     const f = inp.files && inp.files[0];
     inp.value = '';
     if (!f) return;
-    if (f.type && !/^image\//.test(f.type)) { toast('Pick an image file \u2014 a photo or screenshot of the card.', true); return; }
-    const n = $('#cfPhotoNote'); if (n) n.textContent = 'Processing photo\u2026';
+    if (!isCertFileOk(f)) { toast('Pick an image or a PDF \u2014 a photo, screenshot or the PDF the issuer sent.', true); return; }
+    const n = $('#cfPhotoNote'); if (n) n.textContent = isPdfFile(f) ? 'Reading the PDF\u2026' : 'Processing photo\u2026';
     try {
-      certPhotoBuf = await makeCertImages(f);
-      refreshCertPhotoUI();
+      certPhotoBuf = await makeCertFile(f);
+      refreshCertPhotoUI(certPhotoBuf.note || null);
       if (aiCfg().key) H.certReadPhoto();
-    } catch (e) { toast(e.message, true); refreshCertPhotoUI(e.message); }
+    } catch (e) { certPhotoBuf = null; toast(e.message, true); refreshCertPhotoUI(e.message); }
   });
   // pull the existing full-size copy in the background so "Read details" works on an edit
   if (c && c.hasPhoto) loadPhotoDoc(c.id).then(img => {
@@ -1667,14 +1774,15 @@ function wireCertPhoto(c) {
 H.certPickPhoto = () => { const i = $('#cfPhotoInput'); if (i) i.click(); };
 H.certDropPhoto = () => { certPhotoBuf = ''; refreshCertPhotoUI('Photo removed \u2014 save to confirm.'); };
 H.certReadPhoto = async () => {
-  const d = currentCertFull();
-  if (!d) { toast('Upload a photo first', true); return; }
+  if (!currentCertFull()) { toast('Upload a photo or PDF first', true); return; }
   if (!aiReady()) return aiNudge();
   const btn = $('#cfReadBtn'), n = $('#cfPhotoNote');
   const label = ic('spark',13) + ' Read details';
   if (btn) { btn.disabled = true; btn.innerHTML = ic('spark',13) + ' Reading\u2026'; }
   if (n) n.textContent = 'Reading the certificate\u2026';
   try {
+    const d = await certImageForAI();
+    if (!d) throw new Error('Couldn\u2019t turn that file into something readable.');
     const o = parseCertJSON(await askAIVision(d, CERT_PROMPT));
     if (!o) throw new Error('Couldn\u2019t make sense of that one \u2014 try a straighter, sharper photo, or type the details in.');
     const put = (sel, val) => {
@@ -1720,29 +1828,39 @@ H.certLightbox = async t => {
   const foot = `<div class="mf"><span class="tiny">${esc(staffName(c.staffId))}${c.expires ? ' \u00b7 expires ' + fmtD(c.expires) : ''}</span><div class="sp"></div><button class="btn btn-sec" data-act="certDownload" data-id="${c.id}">${ic('download',13)} Download</button><button class="btn btn-sec" data-act="closeModal">Close</button></div>`;
   openModal(`<div class="mh"><h3>${esc(c.name)}</h3><button class="x" data-act="closeModal">\u2715</button></div>
   <div class="mb" style="background:var(--grey-100)"><div class="certLoad" id="cfLightbox">Loading photo\u2026</div></div>${foot}`, true);
-  const img = await loadPhotoDoc(c.id);
+  const file = await loadPhotoDoc(c.id);
   const box = $('#cfLightbox');
   if (!box) return;
-  if (img) box.outerHTML = `<img src="${img}" class="certFull" alt="${esc(c.name)}">`;
-  else box.textContent = 'That photo could not be loaded.';
+  if (!file) { box.textContent = 'That file could not be loaded.'; return; }
+  if (isPdfData(file)) {
+    const url = dataUrlToBlobUrl(file);
+    box.outerHTML = `<iframe src="${url}" class="certPdf" title="${esc(c.name)}"></iframe>`;
+  } else {
+    box.outerHTML = `<img src="${file}" class="certFull" alt="${esc(c.name)}">`;
+  }
 };
 H.certDownload = async t => {
   const c = S.certs.find(x => x.id === t.dataset.id);
   if (!c) return;
-  const img = await loadPhotoDoc(c.id);
-  if (!img) { toast('No photo to download', true); return; }
+  const file = await loadPhotoDoc(c.id);
+  if (!file) { toast('Nothing to download', true); return; }
   const a = document.createElement('a');
-  a.href = img;
-  a.download = (staffName(c.staffId) + ' - ' + c.name).replace(/[^\w \-.]/g, '').trim() + '.jpg';
+  a.href = file;
+  a.download = (staffName(c.staffId) + ' - ' + c.name).replace(/[^\w \-.]/g, '').trim() + (isPdfData(file) ? '.pdf' : '.jpg');
   document.body.appendChild(a); a.click(); a.remove();
 };
+function dataUrlToBlobUrl(d) {
+  const i = d.indexOf(','), mime = (d.slice(5, i).split(';')[0]) || 'application/octet-stream';
+  const bytes = unb64(d.slice(i + 1));
+  return URL.createObjectURL(new Blob([bytes], { type: mime }));
+}
 
 function certRowsHTML(list, withStaff) {
   return `<div class="tscroll"><table class="tbl">
     <tr>${withStaff ? '<th>Staff member</th>' : ''}<th></th><th>Certification</th><th>Issued</th><th>Expires</th><th>Status</th><th></th></tr>
     ${list.map(x => `<tr>
       ${withStaff ? `<td><div class="inline" style="cursor:pointer" data-act="openStaffTab" data-id="${x.p.id}" data-tab="certs">${avHTML(x.p,'sm')}<b>${esc(x.p.name)}</b></div></td>` : ''}
-      <td style="width:42px;padding-right:0">${x.c.thumb ? `<img class="certThumb" src="${x.c.thumb}" data-act="certLightbox" data-id="${x.c.id}" alt="" title="View certificate">` : ''}</td>
+      <td style="width:42px;padding-right:0">${x.c.thumb ? `<span class="certThumbWrap" data-act="certLightbox" data-id="${x.c.id}" title="View certificate${x.c.fileKind === 'pdf' ? ' (PDF)' : ''}"><img class="certThumb" src="${x.c.thumb}" alt="">${x.c.fileKind === 'pdf' ? '<span class="pdfTag sm">PDF</span>' : ''}</span>` : ''}</td>
       <td><b>${esc(x.c.name)}</b>${x.c.notes ? `<div class="tiny">${esc(x.c.notes)}</div>` : ''}</td>
       <td>${x.c.issued ? fmtD(x.c.issued) : '—'}</td>
       <td>${x.c.expires ? fmtD(x.c.expires) : '—'}</td>
