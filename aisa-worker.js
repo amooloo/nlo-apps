@@ -33,8 +33,12 @@
 //      header, per-IP rate limit + daily question cap.
 //   9. Staff picker removed from the frontend — answers no longer vary
 //      by who is asking, so the answer cache is shared by everyone.
-//  10. Model is one setting (MODEL). Admins can A/B other models per
-//      request with the X-AISA-Model / X-AISA-Thinking headers.
+//  10. Model + thinking level are a LIVE SETTING saved from the Training
+//      portal ("Save as live" → POST /settings, stored in KV). MODEL /
+//      THINKING_LEVEL below are only the fallback. Admins can still A/B a
+//      model per request with the X-AISA-Model / X-AISA-Thinking headers.
+//      2026-09-27: switched to gemini-3.8-flash (same 37/39 on the check
+//      set as 3.5 Flash, ~2.8 s vs ~4.0 s median, lower price).
 //  11. BLUE/GREEN RETRAINS: /train and the new /reindex build a new
 //      index generation first and switch over only when it is complete,
 //      so answers never go blank mid-retrain. Old generation is then
@@ -45,10 +49,10 @@
 // match), v2.0 (streaming, answer cache).
 // ====================================================================
 
-const WORKER_VERSION = '2.4';
+const WORKER_VERSION = '2.4.1';
 
-// ---------- Model ----------
-const MODEL = 'gemini-3.5-flash';
+// ---------- Model (fallback — the live choice is saved from the portal) ----------
+const MODEL = 'gemini-3.8-flash';
 const THINKING_LEVEL = 'medium';   // accuracy first (see v2.3.3); low/medium/high
 const MODEL_ALLOW = ['gemini-3.5-flash', 'gemini-3.6-flash', 'gemini-3.7-flash', 'gemini-3.8-flash'];
 const THINKING_ALLOW = ['low', 'medium', 'high'];
@@ -85,6 +89,7 @@ let IDX_STATE = { ts: 0 };
 let CSTORE = new Map();
 let RATE_BUCKET = new Map();
 let USAGE = { day: '', count: 0, ts: 0 };
+let LIVE = { kv: null, ts: 0, model: MODEL, thinking: THINKING_LEVEL, updatedAt: null };
 
 export default {
   async fetch(request, env, ctx) {
@@ -108,7 +113,7 @@ export default {
       }
 
       // ---------- Admin (X-Admin-Key header only) ----------
-      const adminRoutes = ['/train', '/reindex', '/files', '/health', '/delete-file', '/purge-stale', '/describe'];
+      const adminRoutes = ['/train', '/reindex', '/files', '/health', '/delete-file', '/purge-stale', '/describe', '/settings'];
       if (adminRoutes.includes(path)) {
         if (!checkAdmin(request, env)) return jsonResponse({ success: false, error: 'Unauthorized — send the admin key in the X-Admin-Key header.' }, 401, origin);
         if (path === '/train' && request.method === 'POST') return await handleTrain(request, env, origin);
@@ -118,6 +123,8 @@ export default {
         if (path === '/delete-file' && request.method === 'POST') return await handleDeleteFile(request, env, origin);
         if (path === '/purge-stale' && (request.method === 'POST' || request.method === 'GET')) return await handlePurgeStale(env, origin);
         if (path === '/describe' && request.method === 'POST') return await handleDescribe(request, env, origin);
+        if (path === '/settings' && request.method === 'POST') return await handleSettings(request, env, origin);
+        if (path === '/settings' && request.method === 'GET') return jsonResponse(settingsView(await getLiveSettings(env)), 200, origin);
       }
 
       if (path === '/purge-old') return jsonResponse({ error: 'Retired: use /purge-stale (or /reindex, which cleans up automatically).' }, 410, origin);
@@ -141,15 +148,17 @@ async function handleAsk(request, env, ctx, origin, stream) {
   const bad = validateAsk(reqJson);
   if (bad) return jsonResponse({ error: bad }, 400, origin);
 
-  // Admin-only overrides for A/B testing (bypass the answer cache)
+  // Live model/thinking (saved from the portal), plus admin-only per-request
+  // overrides for A/B testing (overrides bypass the answer cache).
+  const live = await getLiveSettings(env);
   const isAdmin = checkAdmin(request, env);
-  const model = (isAdmin && MODEL_ALLOW.includes(request.headers.get('X-AISA-Model') || '')) ? request.headers.get('X-AISA-Model') : MODEL;
-  const thinking = (isAdmin && THINKING_ALLOW.includes((request.headers.get('X-AISA-Thinking') || '').toLowerCase())) ? request.headers.get('X-AISA-Thinking').toLowerCase() : THINKING_LEVEL;
-  const overridden = model !== MODEL || thinking !== THINKING_LEVEL;
+  const model = (isAdmin && MODEL_ALLOW.includes(request.headers.get('X-AISA-Model') || '')) ? request.headers.get('X-AISA-Model') : live.model;
+  const thinking = (isAdmin && THINKING_ALLOW.includes((request.headers.get('X-AISA-Thinking') || '').toLowerCase())) ? request.headers.get('X-AISA-Thinking').toLowerCase() : live.thinking;
+  const overridden = model !== live.model || thinking !== live.thinking;
   const noCache = overridden || (isAdmin && request.headers.get('X-AISA-No-Cache') === '1');
 
-  // 1) Answer cache
-  const cacheKey = noCache ? null : await answerCacheKey(reqJson, env);
+  // 1) Answer cache (keyed by model + thinking, so a model switch never serves old answers)
+  const cacheKey = noCache ? null : await answerCacheKey(reqJson, env, model, thinking);
   if (cacheKey) {
     let hit = null;
     try { hit = await env.KNOWLEDGE_KV.get(cacheKey, 'json'); } catch (e) {}
@@ -745,11 +754,13 @@ async function handleFiles(env, origin) {
     const [text, rec] = await Promise.all([env.KNOWLEDGE_KV.get(`file:${label}`), env.KNOWLEDGE_KV.get(`idx:${label}`, 'json')]);
     return { label, characters: text ? text.length : 0, index: rec || 'legacy (not yet rebuilt)' };
   }));
-  return jsonResponse({ worker: WORKER_VERSION, model: MODEL, fileCount: files.length, files }, 200, origin);
+  const live = await getLiveSettings(env);
+  return jsonResponse({ worker: WORKER_VERSION, model: live.model, thinking: live.thinking, fileCount: files.length, files }, 200, origin);
 }
 
 async function handleHealth(env, origin) {
-  const out = { ok: true, worker: WORKER_VERSION, model: MODEL, thinking: THINKING_LEVEL, chunker: CHUNKER_VERSION, time: new Date().toISOString() };
+  const live = await getLiveSettings(env, true);
+  const out = { ok: true, worker: WORKER_VERSION, model: live.model, thinking: live.thinking, live: settingsView(live), chunker: CHUNKER_VERSION, time: new Date().toISOString() };
   try {
     const idx = await getIndexState(env, true);
     out.searchMode = idx.mode === 'v2' ? 'v2 (rebuilt index)' : 'legacy (run Rebuild index)';
@@ -930,6 +941,39 @@ async function politeDeleteByIds(env, ids, state) {
 }
 
 // ====================================================================
+// LIVE SETTINGS (model + thinking level, saved from the Training portal)
+// ====================================================================
+async function getLiveSettings(env, fresh) {
+  if (!fresh && LIVE.kv === env.KNOWLEDGE_KV && LIVE.ts && Date.now() - LIVE.ts < 30000) return LIVE;
+  let s = null;
+  try { s = env.KNOWLEDGE_KV ? await env.KNOWLEDGE_KV.get('__settings__', 'json') : null; } catch (e) {}
+  LIVE = {
+    kv: env.KNOWLEDGE_KV, ts: Date.now(),
+    model: s && MODEL_ALLOW.includes(s.model) ? s.model : MODEL,
+    thinking: s && THINKING_ALLOW.includes(s.thinking) ? s.thinking : THINKING_LEVEL,
+    updatedAt: (s && s.updatedAt) || null
+  };
+  return LIVE;
+}
+function settingsView(live) {
+  return { model: live.model, thinking: live.thinking, updatedAt: live.updatedAt, fallback: { model: MODEL, thinking: THINKING_LEVEL }, allowedModels: MODEL_ALLOW, allowedThinking: THINKING_ALLOW };
+}
+async function handleSettings(request, env, origin) {
+  let body = {};
+  try { body = await request.json(); } catch (e) {}
+  const cur = await getLiveSettings(env, true);
+  const model = body.model ? String(body.model) : cur.model;
+  const thinking = body.thinking ? String(body.thinking).toLowerCase() : cur.thinking;
+  if (!MODEL_ALLOW.includes(model)) return jsonResponse({ success: false, error: 'Unknown model: ' + model }, 400, origin);
+  if (!THINKING_ALLOW.includes(thinking)) return jsonResponse({ success: false, error: 'Unknown thinking level: ' + thinking }, 400, origin);
+  const rec = { model, thinking, updatedAt: new Date().toISOString() };
+  await env.KNOWLEDGE_KV.put('__settings__', JSON.stringify(rec));
+  LIVE = { kv: env.KNOWLEDGE_KV, ts: Date.now(), ...rec };
+  logEvent(null, { evt: 'settings', model, thinking });
+  return jsonResponse(Object.assign({ success: true, note: 'Takes effect within about 30 seconds.' }, settingsView(LIVE)), 200, origin);
+}
+
+// ====================================================================
 // SMALL HELPERS
 // ====================================================================
 function jsonResponse(obj, status, origin) {
@@ -979,7 +1023,7 @@ function countQuestion(env, ctx) {
 }
 
 // Answer cache: question-only key (answers no longer depend on who asks).
-async function answerCacheKey(reqJson, env) {
+async function answerCacheKey(reqJson, env, model, thinking) {
   if (!env.KNOWLEDGE_KV) return null;
   const { question, inventoryData, history, image } = reqJson;
   if (image || inventoryData) return null;
@@ -987,7 +1031,7 @@ async function answerCacheKey(reqJson, env) {
   const norm = question.toLowerCase().trim().replace(/\s+/g, ' ').replace(/[?.!\s]+$/, '');
   if (!norm) return null;
   const gen = await getAnsGen(env);
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(MODEL + '|' + THINKING_LEVEL + '|' + norm));
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode((model || MODEL) + '|' + (thinking || THINKING_LEVEL) + '|' + norm));
   const hex = [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, '0')).join('');
   return 'anscache2:' + gen + ':' + hex;
 }
@@ -1366,7 +1410,8 @@ async function retrievePhotoContext(query, env) {
 }
 
 async function geminiJson(env, body) {
-  const resp = await callGemini(env, body, false, MODEL);
+  const live = await getLiveSettings(env);
+  const resp = await callGemini(env, body, false, live.model);
   if (!resp.ok) throw new Error(await geminiError(resp));
   const data = await resp.json();
   const parts = (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) || [];

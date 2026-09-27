@@ -257,6 +257,10 @@
   .maint-grid button small { display: block; font-weight: 400; color: #94a3b8; margin-top: 3px; font-size: 11px; }
   .maint-opts { display: flex; gap: 8px; align-items: center; font-size: 12px; color: #94a3b8; margin-bottom: 12px; flex-wrap: wrap; }
   .maint-opts select { background: #0f172a; color: #e2e8f0; border: 1px solid #475569; border-radius: 6px; padding: 5px 8px; font-size: 12px; }
+  .maint-opts .maint-save { background: #2563eb; color: #fff; border: none; border-radius: 6px; padding: 6px 12px; font-size: 12px; font-weight: 600; cursor: pointer; }
+  .maint-opts .maint-save:hover { background: #1d4ed8; }
+  #maintLive { color: #94a3b8; }
+  .maint-hint { font-size: 11px; color: #94a3b8; margin: -6px 0 12px; }
   #maintStatus { font-size: 13px; color: #cbd5e1; line-height: 1.5; white-space: pre-wrap; }
   #maintStatus table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 12px; white-space: normal; }
   #maintStatus td { border-top: 1px solid #334155; padding: 6px 4px; vertical-align: top; }
@@ -374,7 +378,7 @@
         <button onclick="maintTest()">Accuracy check<small>~35 test questions, pass/fail + speed</small></button>
       </div>
       <div class="maint-opts">
-        Model for the accuracy check:
+        Model:
         <select id="maintModel">
           <option value="">Live setting</option>
           <option value="gemini-3.5-flash">Gemini 3.5 Flash</option>
@@ -387,7 +391,10 @@
           <option value="medium">medium</option>
           <option value="high">high</option>
         </select>
+        <button class="maint-save" onclick="maintSaveLive()">Save as live</button>
+        <span id="maintLive"></span>
       </div>
+      <p class="maint-hint">Try a model with <b>Accuracy check</b> first, then <b>Save as live</b> to switch AISA for everyone.</p>
       <div id="maintBusyNote" style="font-size:12px;color:#fbbf24;min-height:16px;"></div>
       <div id="maintStatus"></div>
     </div>
@@ -435,6 +442,7 @@ window.addEventListener("DOMContentLoaded", () => {
   }
   setupDropZone();
   setupFileInput();
+  refreshLive();
 });
 
 function saveScriptUrl() {
@@ -979,6 +987,41 @@ async function maintHealth() {
       'Knowledge base: ' + kb + '\nSearch: ' + d.searchMode + '\n' + files +
       '\nVectors stored: ' + (vc ?? '?') + (d.expectedVectors ? ' (expected ≈ ' + d.expectedVectors + ')' : '') +
       '\nQuestions today: ' + (d.questionsToday ?? '?') + ' of ' + (d.dailyCap ?? '?'));
+    showLive(d.live || { model: d.model, thinking: d.thinking });
+  } catch (e) { maintSay('❌ ' + e.message, true); }
+  finally { maintEnd(); }
+}
+function prettyModel(m) { return String(m || '').replace(/^gemini-/, 'Gemini ').replace(/-flash$/, ' Flash'); }
+function showLive(d) {
+  if (!d || !d.model) return;
+  const el = document.getElementById('maintLive');
+  if (el) el.textContent = 'Live now: ' + prettyModel(d.model) + ' · ' + d.thinking + ' thinking';
+  const o = document.querySelector('#maintModel option[value=""]'); if (o) o.textContent = 'Live (' + prettyModel(d.model) + ')';
+  const t = document.querySelector('#maintThinking option[value=""]'); if (t) t.textContent = 'Live (' + d.thinking + ')';
+}
+async function refreshLive() {
+  const k = (document.getElementById('adminKey').value || aiKey || '').trim();
+  if (!k) return;
+  try {
+    const r = await fetch(WORKER_BASE + '/settings', { headers: { 'X-Admin-Key': k } });
+    if (r.ok) showLive(await r.json());
+  } catch (e) { /* older worker or offline — menus keep their defaults */ }
+}
+async function maintSaveLive() {
+  const model = document.getElementById('maintModel').value;
+  const thinking = document.getElementById('maintThinking').value;
+  if (!model && !thinking) { maintSay('Pick a model and/or thinking level above, then Save as live.', true); return; }
+  if (maintBusy) { alertBusy(); return; }
+  const label = (model ? prettyModel(model) : 'the current model') + (thinking ? ' with ' + thinking + ' thinking' : '');
+  if (!confirmStep('Switch AISA to ' + label + ' for everyone?')) return;
+  if (!maintStart('Save as live')) return;
+  try {
+    const body = {}; if (model) body.model = model; if (thinking) body.thinking = thinking;
+    const d = await maintCall('/settings', 'POST', body); if (!d) return;
+    maintSay('✅ AISA now uses ' + prettyModel(d.model) + ' with ' + d.thinking + ' thinking. Takes effect within about 30 seconds.');
+    document.getElementById('maintModel').value = '';
+    document.getElementById('maintThinking').value = '';
+    showLive(d);
   } catch (e) { maintSay('❌ ' + e.message, true); }
   finally { maintEnd(); }
 }
