@@ -527,6 +527,32 @@ let state = {
 };
 let kpiChart=null;
 
+/* ---------- Shared office roster (nlo/cadence/roster/people) - written only by Staff Hub, read-only here ---------- */
+function nloRosterToday(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function nloRosterActive(p){return !!p && p.active!==false && !(p.end && p.end<=nloRosterToday());}
+let nloRoster=null; /* roster people; null = missing/empty/unreadable, so the old Checklist-based lists are used unchanged */
+function nloRosterSet(v){
+  const l=v&&typeof v==='object'?Object.keys(v).map(k=>{ const p=v[k]; return p&&typeof p==='object'?Object.assign({},p,{id:String(p.id||k),name:String(p.name||'').trim()}):null; }).filter(p=>p&&p.name):[];
+  nloRoster=l.length?l:null;
+}
+/* roster person for an app record: same id first, else case-insensitive full name (this app stores full names) */
+function nloRosterMatch(id,name){
+  if(!nloRoster) return null;
+  const byId=id?nloRoster.find(p=>p.id===id):null; if(byId) return byId;
+  const n=String(name||'').trim().toLowerCase();
+  return n?(nloRoster.find(p=>p.name.toLowerCase()===n)||null):null;
+}
+/* this app's own roster rows store only a name, so borrow the Checklist id for that name (renamed people still match) */
+function nloRosterMatchName(name){
+  if(!nloRoster) return null;
+  const n=String(name||'').trim().toLowerCase(); const c=(state.checklistStaff||[]).find(p=>p.name.toLowerCase()===n);
+  return nloRosterMatch(c&&c.id,name);
+}
+function nloRosterWatch(){
+  const apply=v=>{ const had=!!nloRoster; nloRosterSet(v); if(had||nloRoster){ renderRosterUI(); renderOwnerSelects(); } };
+  db.ref('nlo/cadence/roster/people').on('value',s=>apply(s.val()),()=>apply(null));
+}
+
 /* ---------- Helpers ---------- */
 const $=id=>document.getElementById(id);
 const esc=s=>(s==null?'':String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -576,8 +602,8 @@ function boot(){
   db.ref(CHECKLIST_ROOT+'/staff').once('value').then(s=>{
     const staff=s.val(); if(!staff) return;
     const list=Array.isArray(staff)?staff:Object.values(staff);
-    state.checklistStaff=list.map(p=>({name:(p&&p.name||'').trim(),role:p&&p.appRole&&p.appRole!=='staff'?p.appRole:''})).filter(p=>p.name);
-    renderOwnerSelects();
+    state.checklistStaff=list.map(p=>({id:(p&&p.id)||'',name:(p&&p.name||'').trim(),role:p&&p.appRole&&p.appRole!=='staff'?p.appRole:''})).filter(p=>p.name);
+    renderOwnerSelects(); if(nloRoster) renderRosterUI();
     db.ref(ROOT+'/roster').once('value').then(rs=>{ if(!rs.val()) autoSeedRoster(); });
   }).catch(()=>{});
   db.ref(ROOT+'/currentMeetingId').once('value').then(snap=>{
@@ -599,6 +625,7 @@ function attachListeners(){
   db.ref(`${ROOT}/meetings/${m}/agenda`).on('value',s=>{ renderAgenda(s.val()); });
   db.ref(`${ROOT}/meetings/${m}/lastNotes`).on('value',s=>{ state.lastNotes=s.val()||{}; renderLastNotes(); });
   db.ref(`${ROOT}/meetings/${m}/quickNotes`).on('value',s=>{ state.quickNotes=s.val()||{}; renderQuickNotes(); });
+  nloRosterWatch();
   db.ref(ROOT+'/roster').on('value',s=>{ state.roster=s.val()||{}; renderRosterUI(); renderOwnerSelects(); });
   db.ref(ROOT+'/kpiDefs').on('value',s=>{ state.kpiDefs=s.val()||{}; renderCatalog(); renderKpis(); });
   db.ref(ROOT+'/actionItems').on('value',s=>{ state.actions=s.val()||{}; renderActions(); });
@@ -779,8 +806,9 @@ window.delKpi=id=>{ if(confirm('Remove this KPI from the catalog?')) db.ref(`${R
 function autoSeedRoster(){ (state.checklistStaff||[]).forEach((p,i)=>db.ref(ROOT+'/roster').push({name:p.name,role:p.role||'',order:i})); }
 function renderOwnerSelects(){
   const names=[];
-  sortByOrder(state.roster).forEach(([,p])=>{ if(p.name) names.push(p.name); });
-  (state.checklistStaff||[]).forEach(p=>{ if(p.name) names.push(p.name); });
+  sortByOrder(state.roster).forEach(([,p])=>{ if(p.name && !nloRosterMatchName(p.name)) names.push(p.name); });
+  (state.checklistStaff||[]).forEach(p=>{ if(p.name && !nloRosterMatch(p.id,p.name)) names.push(p.name); });
+  (nloRoster||[]).forEach(p=>{ if(nloRosterActive(p)) names.push(p.name); });
   const uniq=[...new Set(names)].sort((a,b)=>a.localeCompare(b));
   $('ai_owner').innerHTML='<option value="">Owner…</option>'+uniq.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('');
 }
@@ -930,8 +958,10 @@ window.quickToAction=id=>{
 
 /* ---------- Roster ---------- */
 function renderRosterUI(){
-  const rows=sortByOrder(state.roster);
-  $('rosterList').innerHTML = rows.length? `<table><thead><tr><th>Name</th><th>Role</th><th></th></tr></thead><tbody>${
+  const rows=sortByOrder(state.roster).filter(([,p])=>!nloRosterMatchName(p.name));
+  const shared=(nloRoster||[]).filter(p=>nloRosterActive(p)).sort((a,b)=>a.name.localeCompare(b.name));
+  $('rosterList').innerHTML = (rows.length||shared.length)? `<table><thead><tr><th>Name</th><th>Role</th><th></th></tr></thead><tbody>${
+    shared.map(p=>`<tr><td>${esc(p.name)}</td><td>${esc(p.title||'')}</td><td style="text-align:right"><span class="chip" title="Add or remove this person in Staff Hub">Staff Hub</span></td></tr>`).join('')+
     rows.map(([id,p])=>`<tr><td>${esc(p.name)}</td><td>${esc(p.role||'')}</td><td style="text-align:right"><button class="del" onclick="delRoster('${id}')">×</button></td></tr>`).join('')
   }</tbody></table>` : '<p class="empty">No staff added yet. Add people or import from the Checklist app.</p>';
 }
@@ -942,7 +972,7 @@ function importRoster(){
     const list=Array.isArray(staff)?staff:Object.values(staff);
     const existing=new Set(Object.values(state.roster||{}).map(p=>(p.name||'').toLowerCase()));
     let added=0, base=Object.keys(state.roster||{}).length;
-    list.forEach(p=>{ const name=(p&&p.name||'').trim(); if(name && !existing.has(name.toLowerCase())){ db.ref(ROOT+'/roster').push({name,role:p.appRole&&p.appRole!=='staff'?p.appRole:'',order:base+added}); added++; } });
+    list.forEach(p=>{ const name=(p&&p.name||'').trim(); if(name && !existing.has(name.toLowerCase()) && !nloRosterMatch(p&&p.id,name)){ db.ref(ROOT+'/roster').push({name,role:p.appRole&&p.appRole!=='staff'?p.appRole:'',order:base+added}); added++; } });
     alert(added?`Imported ${added} staff member${added>1?'s':''}.`:'Roster already up to date.');
   }).catch(e=>alert('Import failed: '+e.message));
 }

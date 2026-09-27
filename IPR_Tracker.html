@@ -536,7 +536,61 @@ async function sbDelete(path) {
 // ─── Constants ────────────────────────────────────────────────────────────────
 const UPPER = ["UR7", "UR6", "UR5", "UR4", "UR3", "UR2", "UR1", "UL1", "UL2", "UL3", "UL4", "UL5", "UL6", "UL7"];
 const LOWER = ["LR7", "LR6", "LR5", "LR4", "LR3", "LR2", "LR1", "LL1", "LL2", "LL3", "LL4", "LL5", "LL6", "LL7"];
-const STAFF_NAMES = ["Bri", "Angie", "Kaylee", "Sarah", "Dr. A", "Gwen"];
+/* Chairside assistant list comes from the shared staff roster (nlo/cadence/roster, written only by Staff Hub; this app only reads it).
+   STAFF_NAMES_FALLBACK is used when the roster is missing, empty or unreadable. Bri removed: she has left the practice. */
+const STAFF_NAMES_FALLBACK = ["Angie", "Kaylee", "Sarah", "Dr. A", "Gwen"];
+function nloRosterToday(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function nloRosterActive(p){return !!p && p.active!==false && !(p.end && p.end<=nloRosterToday());}
+function iprNamesFromRoster(people) {
+  try {
+    const list = people && typeof people === "object" ? Object.values(people).filter(p => p && typeof p === "object") : [];
+    const chair = list.filter(p => p.chairside === true && nloRosterActive(p));
+    if (!chair.length) return STAFF_NAMES_FALLBACK;
+    const key = x => String(x || "").trim().toLowerCase();
+    const out = [];
+    const add = n => { n = String(n || "").trim(); if (n && !out.some(x => key(x) === key(n))) out.push(n); };
+    chair.forEach(p => add(p.nick || p.first || p.name));
+    /* a fallback name with no roster record at all is left as it is today */
+    STAFF_NAMES_FALLBACK.forEach(n => { if (!list.some(p => key(p.nick) === key(n) || key(p.first) === key(n))) add(n); });
+    /* alphabetical by nickname, the doctor last */
+    const dr = n => /^dr\b/i.test(n) ? 1 : 0;
+    return out.sort((a, b) => dr(a) - dr(b) || a.localeCompare(b));
+  } catch (e) { return STAFF_NAMES_FALLBACK; }
+}
+let iprStaffNamesCur = STAFF_NAMES_FALLBACK;
+const iprRosterSubs = new Set();
+let iprRosterRef = null, iprRosterCb = null;
+function iprStaffNamesNow() { return iprStaffNamesCur; }
+function iprRosterSubscribe(f) { iprRosterSubs.add(f); return () => { iprRosterSubs.delete(f); }; }
+function iprRosterApply(people) {
+  const next = iprNamesFromRoster(people);
+  if (next.join("\n") === iprStaffNamesCur.join("\n")) return;
+  iprStaffNamesCur = next;
+  iprRosterSubs.forEach(f => f());
+}
+function iprRosterStart() {
+  if (iprRosterRef) return;
+  try {
+    const r = fbDB.ref("nlo/cadence/roster/people");
+    iprRosterRef = r;
+    iprRosterCb = snap => iprRosterApply(snap && snap.val());
+    r.on("value", iprRosterCb, () => { if (iprRosterRef === r) iprRosterRef = null; iprRosterApply(null); });
+  } catch (e) { iprRosterRef = null; iprRosterApply(null); }
+}
+function iprRosterStop() {
+  try { if (iprRosterRef) iprRosterRef.off("value", iprRosterCb); } catch (e) {}
+  iprRosterRef = null;
+}
+/* Assistant <select>: re-renders live when the roster changes. A saved name that is no longer on the list
+   (e.g. a former assistant on an old visit) is added as an extra option for that record only, so it still
+   shows and is kept as-is if the visit is saved again. */
+function IprAsstSelect(props) {
+  const { blank, ...rest } = props;
+  const names = React.useSyncExternalStore(iprRosterSubscribe, iprStaffNamesNow);
+  const v = props.value || "";
+  const list = v && names.indexOf(v) === -1 ? names.concat([v]) : names;
+  return React.createElement("select", rest, React.createElement("option", { value: "" }, blank), list.map(n => React.createElement("option", { key: n, value: n }, n)));
+}
 function initContacts(teeth) {
   const c = {};
   for (let i = 0; i < teeth.length - 1; i++) c[`${teeth[i]}|${teeth[i + 1]}`] = "";
@@ -3299,7 +3353,7 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
         patientId: selectedPatient.patient_id,
         initials: selectedPatient.name,
         date: new Date().toISOString().slice(0, 10),
-        assistantInitials: (function(){ try { return localStorage.getItem('ipr_last_asst') || ''; } catch(e) { return ''; } })()
+        assistantInitials: (function(){ try { const a = localStorage.getItem('ipr_last_asst') || ''; return iprStaffNamesNow().indexOf(a) !== -1 ? a : ''; } catch(e) { return ''; } })()
       });
       setDbPatient(selectedPatient);
       setCurrentVisitId(null);
@@ -3434,7 +3488,7 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
     }
 
     if (flowStep === 'visitSetup') {
-      return /*#__PURE__*/React.createElement("div", { style: overlayStyle }, /*#__PURE__*/React.createElement("div", { style: dialogStyle }, /*#__PURE__*/React.createElement("h2", { style: { fontSize: 18, fontWeight: 700, marginBottom: 24, color: '#0f172a' } }, "Visit Setup"), /*#__PURE__*/React.createElement("div", { style: { display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 24 } }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", { style: { fontSize: 12, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 6 } }, "Visit Date"), /*#__PURE__*/React.createElement("input", { type: "date", value: patient.date, onChange: (e) => setPatient(p => ({ ...p, date: e.target.value })), style: { width: '100%', padding: '10px 12px', borderRadius: 6, border: '1px solid #e2e8f0', fontSize: 13 } })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", { style: { fontSize: 12, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 6 } }, "Assistant"), /*#__PURE__*/React.createElement("select", { value: patient.assistantInitials, onChange: (e) => setPatient(p => ({ ...p, assistantInitials: e.target.value })), style: { width: '100%', padding: '10px 12px', borderRadius: 6, border: '1px solid #e2e8f0', fontSize: 13, background: 'white', cursor: 'pointer' } }, /*#__PURE__*/React.createElement("option", { value: "" }, "Select..."), STAFF_NAMES.map(n => /*#__PURE__*/React.createElement("option", { key: n, value: n }, n))))), /*#__PURE__*/React.createElement("div", { style: { fontSize: 14, fontWeight: 600, color: '#0f172a', marginBottom: 12 } }, "Enter prescribed IPR first?"), /*#__PURE__*/React.createElement("div", { style: { display: 'flex', gap: 8 } }, /*#__PURE__*/React.createElement("button", { onClick: () => handleVisitSetupContinue(true), style: { flex: 1, padding: '12px', borderRadius: 8, border: 'none', background: '#7c3aed', color: 'white', fontWeight: 700, cursor: 'pointer', fontSize: 14 } }, "Yes"), /*#__PURE__*/React.createElement("button", { onClick: () => handleVisitSetupContinue(false), style: { flex: 1, padding: '12px', borderRadius: 8, border: '2px solid #cbd5e1', background: 'white', color: '#64748b', fontWeight: 600, cursor: 'pointer', fontSize: 14 } }, "Skip"))));
+      return /*#__PURE__*/React.createElement("div", { style: overlayStyle }, /*#__PURE__*/React.createElement("div", { style: dialogStyle }, /*#__PURE__*/React.createElement("h2", { style: { fontSize: 18, fontWeight: 700, marginBottom: 24, color: '#0f172a' } }, "Visit Setup"), /*#__PURE__*/React.createElement("div", { style: { display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 24 } }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", { style: { fontSize: 12, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 6 } }, "Visit Date"), /*#__PURE__*/React.createElement("input", { type: "date", value: patient.date, onChange: (e) => setPatient(p => ({ ...p, date: e.target.value })), style: { width: '100%', padding: '10px 12px', borderRadius: 6, border: '1px solid #e2e8f0', fontSize: 13 } })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", { style: { fontSize: 12, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 6 } }, "Assistant"), /*#__PURE__*/React.createElement(IprAsstSelect, { blank: "Select...", value: patient.assistantInitials, onChange: (e) => setPatient(p => ({ ...p, assistantInitials: e.target.value })), style: { width: '100%', padding: '10px 12px', borderRadius: 6, border: '1px solid #e2e8f0', fontSize: 13, background: 'white', cursor: 'pointer' } }))), /*#__PURE__*/React.createElement("div", { style: { fontSize: 14, fontWeight: 600, color: '#0f172a', marginBottom: 12 } }, "Enter prescribed IPR first?"), /*#__PURE__*/React.createElement("div", { style: { display: 'flex', gap: 8 } }, /*#__PURE__*/React.createElement("button", { onClick: () => handleVisitSetupContinue(true), style: { flex: 1, padding: '12px', borderRadius: 8, border: 'none', background: '#7c3aed', color: 'white', fontWeight: 700, cursor: 'pointer', fontSize: 14 } }, "Yes"), /*#__PURE__*/React.createElement("button", { onClick: () => handleVisitSetupContinue(false), style: { flex: 1, padding: '12px', borderRadius: 8, border: '2px solid #cbd5e1', background: 'white', color: '#64748b', fontWeight: 600, cursor: 'pointer', fontSize: 14 } }, "Skip"))));
     }
 
     if (flowStep === 'prescribed') {
@@ -3862,7 +3916,8 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
       fontSize: 12,
       fontFamily: "inherit"
     }
-  })), /*#__PURE__*/React.createElement("span", null, "Asst: ", /*#__PURE__*/React.createElement("select", {
+  })), /*#__PURE__*/React.createElement("span", null, "Asst: ", /*#__PURE__*/React.createElement(IprAsstSelect, {
+    blank: "—",
     value: patient.assistantInitials || "",
     onChange: e => { try { localStorage.setItem('ipr_last_asst', e.target.value); } catch (err) {} setPatient({ ...patient, assistantInitials: e.target.value }); },
     style: {
@@ -3874,8 +3929,7 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
       background: "white",
       cursor: "pointer"
     }
-  }, /*#__PURE__*/React.createElement("option", { value: "" }, "—"),
-     STAFF_NAMES.map(n => /*#__PURE__*/React.createElement("option", { key: n, value: n }, n))
+  }
   ))), !readOnly && /*#__PURE__*/React.createElement("span", {
     style: {
       fontSize: 12,
@@ -4823,7 +4877,9 @@ fbAuth.onAuthStateChanged(user => {
       appMounted = true;
       root.render(/*#__PURE__*/React.createElement(App, null));
     }
+    iprRosterStart();
   } else {
+    iprRosterStop();
     if (user) {
       document.getElementById("authErr").textContent = "Access denied for " + (email || "this account") + ".";
       fbAuth.signOut();

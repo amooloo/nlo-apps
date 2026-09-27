@@ -93,17 +93,18 @@ function isAllowedEmail(email){
 const TIMEOFF_API = "https://script.google.com/macros/s/AKfycbxvI_d6muf_OepqurNrxnV2O0bMaGjnyNH6SKKNqQcvXMzjN6ZBjc26aa5LkN3Grj2J/exec";
 const SYNC_INTERVAL_MIN = 15;
 
-/* Staff roster seeded from Gusto (active employees, July 2026). Editable in Settings. */
+/* Staff roster seeded from Gusto (active employees, July 2026). Editable in Settings.
+   Names only: birthdays and hire dates are kept in Firebase (Settings > Staff), never in this public file. */
 const SEED_STAFF = {
-  s_amir:     { name: "Dr. Akhavan",            active: true, birthday: "1984-03-25", hireDate: "2019-05-22" },
-  s_sarah:    { name: "Sarah (Clinical Lead)",  active: true, birthday: "1994-01-15", hireDate: "2019-05-22" },
-  s_wila:     { name: "Wila (TC)",              active: true, birthday: "1964-08-24", hireDate: "2019-05-22" },
-  s_savannah: { name: "Savannah (AC)",          active: true, birthday: "1996-11-22", hireDate: "2022-04-18" },
-  s_eve:      { name: "Eve (Marketing)",        active: true, birthday: "1984-12-31", hireDate: "2020-01-06" },
-  s_bri:      { name: "Bri (OA)",               active: true, birthday: "2001-05-29", hireDate: "2021-05-12" },
-  s_kaylee:   { name: "Kaylee (OA)",            active: true, birthday: "2003-12-13", hireDate: "2024-09-16" },
-  s_gwen:     { name: "Gwen (OA)",              active: true, birthday: "1967-06-24", hireDate: "2025-04-28" },
-  s_angelika: { name: "Angelika (OA)",          active: true, birthday: "1999-09-13", hireDate: "2025-10-02" }
+  s_amir:     { name: "Dr. Akhavan",            active: true },
+  s_sarah:    { name: "Sarah (Clinical Lead)",  active: true },
+  s_wila:     { name: "Wila (TC)",              active: true },
+  s_savannah: { name: "Savannah (AC)",          active: true },
+  s_eve:      { name: "Eve (Marketing)",        active: true },
+  s_bri:      { name: "Bri (OA)",               active: true },
+  s_kaylee:   { name: "Kaylee (OA)",            active: true },
+  s_gwen:     { name: "Gwen (OA)",              active: true },
+  s_angelika: { name: "Angelika (OA)",          active: true }
 };
 
 /* Vacation tiers — NLO employee handbook (policy manual):
@@ -217,6 +218,46 @@ async function syncTimeOff(){
 }
 setInterval(syncTimeOff, SYNC_INTERVAL_MIN*60*1000);
 
+/* ================= SHARED STAFF ROSTER (Staff Hub) =================
+   Read-only view of nlo/cadence/roster/people (only Staff Hub writes it). Each calendar staff
+   record is matched to a roster person by id, else full name, else first name / nick against the
+   "First (Role)" label. People the roster marks as left drop out of birthdays, anniversaries and
+   the PTO staff picker (Settings still lists them, marked "Left"). Active roster people missing
+   from the calendar list are added at render time only, never written to nlo/calendar/staff.
+   No roster (missing, empty or unreadable) = the calendar's own list, exactly as before. */
+const ROSTER_PEOPLE = "nlo/cadence/roster/people";
+let calRoster = null;
+function nloRosterToday(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function nloRosterActive(p){return !!p && p.active!==false && !(p.end && p.end<=nloRosterToday());}
+const ROSTER_ROLE_SHORT = { "orthodontic assistant":"OA", "treatment coordinator":"TC", "appointment coordinator":"AC", "marketing coordinator":"Marketing", "clinical lead":"Clinical Lead" };
+function rosterLabel(p){
+  const nm=String(p.nick||p.first||p.name||"").trim(), t=String(p.title||"").trim().toLowerCase();
+  const r=Object.prototype.hasOwnProperty.call(ROSTER_ROLE_SHORT,t)?ROSTER_ROLE_SHORT[t]:"";
+  return r?nm+" ("+r+")":nm;
+}
+function calStaff(){
+  const raw=(S.data&&S.data.staff)||{}, ppl=calRoster;
+  const ids=ppl?Object.keys(ppl).filter(k=>ppl[k]&&typeof ppl[k]==="object"):[];
+  if(!ids.length) return raw;
+  const norm=x=>String(x==null?"":x).trim().toLowerCase();
+  const only=test=>{ const c=ids.filter(test); return c.length===1?c[0]:null; };
+  const out={}, claimed={};
+  Object.keys(raw).forEach(id=>{
+    const st=raw[id];
+    if(!st||typeof st!=="object"){ out[id]=st; return; }
+    const full=norm(st.name), label=norm(String(st.name==null?"":st.name).split(" (")[0]);
+    let pid=ids.indexOf(id)>=0?id:null;
+    if(!pid&&full) pid=only(k=>{ const n=norm(ppl[k].name); return !!n&&(n===full||n===label); });
+    if(!pid&&label) pid=only(k=>norm(ppl[k].nick)===label||norm(ppl[k].first)===label);
+    if(pid){ claimed[pid]=true; if(!nloRosterActive(ppl[pid])){ out[id]=Object.assign({},st,{active:false,left:true}); return; } }
+    out[id]=st;
+  });
+  ids.forEach(pid=>{
+    if(!claimed[pid]&&!raw[pid]&&/^[\w-]+$/.test(pid)&&nloRosterActive(ppl[pid])) out[pid]={ name:rosterLabel(ppl[pid])||pid, active:true, roster:true };
+  });
+  return out;
+}
+
 /* ================= DATA (Firebase RTDB) ================= */
 function fbErr(e){ S.dbError=(e&&e.message)||"write denied"; alert("Couldn't save — the database rejected the write.\nPublish the nlo/calendar rules block in Firebase (see FIREBASE_RULES_NLO_CALENDAR.txt)."); render(); }
 function fbSet(path,val){ db.ref(CAL_ROOT+"/"+path).set(val).catch(fbErr); }
@@ -244,6 +285,12 @@ db.ref(CAL_ROOT).on("value",(snap)=>{
   S.dbError=err&&err.message?err.message:"Database permission denied";
   render();
 });
+/* shared staff roster (Staff Hub): read-only live listener; missing or unreadable = keep the calendar's own list */
+db.ref(ROSTER_PEOPLE).on("value",(snap)=>{
+  const r=snap.val();
+  calRoster=(r&&typeof r==="object")?r:null;
+  render();
+},()=>{ calRoster=null; render(); });
 }
 
 /* ================= ENTRY QUERIES ================= */
@@ -273,8 +320,9 @@ function entriesFor(ds,ignoreFilters){
                      notes: hol.source==="fixed" ? "Office closed — paid holiday (policy manual)" : "Office closed",
                      recurrence:null, synced:true });
   /* birthdays + work anniversaries (derived from the staff list — nothing stored) */
-  Object.keys(data.staff||{}).forEach(sid=>{
-    const st=data.staff[sid];
+  const staffL=calStaff();
+  Object.keys(staffL).forEach(sid=>{
+    const st=staffL[sid];
     if(!st||!st.active) return;
     const mmdd=ds.slice(5), yr=parseD(ds).getFullYear();
     if(st.birthday && st.birthday.slice(5)===mmdd && yr>parseD(st.birthday).getFullYear()){
@@ -383,7 +431,7 @@ function saveEntry(force){
     while(ds<=end){ if(isBlackout(ds)){hit=true;break;} ds=addDays(ds,1); }
     if(hit){ S.blackoutWarn=true; S.formError=""; return render(); }
   }
-  const staff=f.staffId?data.staff[f.staffId]:null;
+  const staff=f.staffId?calStaff()[f.staffId]:null;
   const rec={
     type:f.type,
     title:f.type==="pto"?(f.title.trim()||"PTO"):f.title.trim(),
@@ -731,8 +779,9 @@ function renderEntry(){
   if(f.type==="pto"){
     h+=`<label style="${lab}">Staff member
       <select id="f-staff" style="${inp}background:#fff;"><option value="">— Select staff —</option>`;
-    Object.keys(S.data.staff).filter(id=>S.data.staff[id].active).forEach(id=>{
-      h+=`<option value="${id}" ${f.staffId===id?"selected":""}>${esc(S.data.staff[id].name)}</option>`;
+    const staffL=calStaff();
+    Object.keys(staffL).filter(id=>staffL[id].active||(staffL[id].left&&id===f.staffId)).forEach(id=>{
+      h+=`<option value="${id}" ${f.staffId===id?"selected":""}>${esc(staffL[id].name)}</option>`;
     });
     h+=`</select></label>
       <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:var(--navy-800);cursor:pointer;">
@@ -798,8 +847,9 @@ function renderSettings(){
     <div class="disp" style="font-weight:600;letter-spacing:.12em;font-size:14px;color:var(--blue-600);margin-bottom:10px;">Staff</div>
     <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px;">`;
   const inpSm=`padding:8px;border:2px solid var(--grey-300);border-radius:8px;font-size:13px;color:var(--navy-800);`;
-  Object.keys(data.staff).forEach(id=>{
-    const st=data.staff[id];
+  const staffL=calStaff();
+  Object.keys(staffL).forEach(id=>{
+    const st=staffL[id];
     if(S.editStaffId===id){
       h+=`<div style="border:2px solid var(--blue-500);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:8px;">
         <input type="text" id="se-name" value="${esc(st.name)}" placeholder="Name" style="${inpSm}font-size:14px;font-weight:600;">
@@ -819,17 +869,19 @@ function renderSettings(){
         const t=tierFor(fullYearsSince(st.hireDate,todayStr()));
         meta.push("Hired "+prettyDate(st.hireDate)+", "+parseD(st.hireDate).getFullYear()+" · Tier "+t.n);
       }
+      if(st.left) meta.push("Marked as left in Staff Hub");
+      if(st.roster) meta.push("From the Staff Hub roster");
       h+=`<div style="display:flex;align-items:center;gap:10px;border:1px solid var(--grey-200);border-radius:10px;padding:8px 12px;">
         <label style="display:flex;align-items:center;gap:10px;flex:1;cursor:pointer;min-width:0;">
-          <input type="checkbox" data-chg="staff-toggle" data-id="${id}" ${st.active?"checked":""} style="width:18px;height:18px;accent-color:#1D3EA9;flex:none;">
+          <input type="checkbox" data-chg="staff-toggle" data-id="${id}" ${st.active?"checked":""}${st.left||st.roster?" disabled":""} style="width:18px;height:18px;accent-color:#1D3EA9;flex:none;">
           <span style="min-width:0;">
             <span style="display:block;font-size:15px;font-weight:600;color:${st.active?"#1B2F4C":"#969FAB"};">${esc(st.name)}</span>
             ${meta.length?`<span style="display:block;font-size:12px;color:var(--grey-400);">${esc(meta.join("  ·  "))}</span>`:""}
           </span>
         </label>
-        ${st.active?"":`<span style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--grey-400);flex:none;">Inactive</span>`}
+        ${st.left?`<span style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--coral-700);flex:none;">Left</span>`:st.active?"":`<span style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--grey-400);flex:none;">Inactive</span>`}
         <button data-act="staff-edit" data-id="${id}" class="hov-grey" style="border:1px solid var(--grey-300);background:#fff;border-radius:8px;padding:5px 12px;font-size:12.5px;font-weight:600;color:var(--navy-800);flex:none;">Edit</button>
-        <button data-act="staff-remove" data-id="${id}" aria-label="Remove staff" style="border:none;background:transparent;color:var(--grey-400);font-size:15px;padding:4px;flex:none;">✕</button>
+        ${st.roster?"":`<button data-act="staff-remove" data-id="${id}" aria-label="Remove staff" style="border:none;background:transparent;color:var(--grey-400);font-size:15px;padding:4px;flex:none;">✕</button>`}
       </div>`;
     }
   });
@@ -964,6 +1016,8 @@ document.getElementById("app").addEventListener("click",(ev)=>{
       const upd={ name,
         birthday: document.getElementById("se-bday").value||null,
         hireDate: document.getElementById("se-hire").value||null };
+      /* first save for a Staff Hub-only person creates their calendar record */
+      if(!S.data.staff[id]) upd.active=true;
       db.ref(CAL_ROOT+"/staff/"+id).update(upd).catch(fbErr);
       S.editStaffId=null;
       break;
