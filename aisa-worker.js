@@ -59,6 +59,8 @@
 //      be re-rendered without re-reading the manual (POST /map {rerender}).
 //      The best-matching chunk is shown as a source even when the reranker
 //      under-scores it (tables).
+//  2.5.2: Section Guide lines are compact so all ~93 sections fit (2.5.1
+//      stopped at §44); descriptions are cut at a word boundary.
 //  11. BLUE/GREEN RETRAINS: /train and the new /reindex build a new
 //      index generation first and switch over only when it is complete,
 //      so answers never go blank mid-retrain. Old generation is then
@@ -69,7 +71,7 @@
 // match), v2.0 (streaming, answer cache).
 // ====================================================================
 
-const WORKER_VERSION = '2.5.1';
+const WORKER_VERSION = '2.5.2';
 
 // ---------- Model (fallback — the live choice is saved from the portal) ----------
 const MODEL = 'gemini-3.8-flash';
@@ -93,7 +95,7 @@ const NEIGHBOR_CHUNKS = 3;      // continuation chunks added right after the top
 
 // ---------- Office map (automatic overview of the whole manual) ----------
 const MAP_PART_CHARS = 360000;  // ~90k tokens per extraction call (stays under per-minute token limits)
-const MAP_MAX_CHARS = 22000;    // cap on the map sent with each question (~5.5k tokens)
+const MAP_MAX_CHARS = 23000;    // cap on the map sent with each question (~5.8k tokens)
 const MAP_TIMEOUT_MS = 170000;
 
 // ---------- Caches / limits ----------
@@ -1190,6 +1192,12 @@ function mapTokens(s) {
     .split(' ').filter(Boolean).map(t => (t.length > 3 && t.endsWith('s') && !t.endsWith('ss')) ? t.slice(0, -1) : t)
     .filter(t => !MAP_STOP_TOKENS.has(t) && t !== 'dr');
 }
+function clip(s, n) {
+  s = String(s || '').trim().replace(/[.;\s]+$/, '');
+  if (s.length <= n) return s;
+  const cut = s.lastIndexOf(' ', n - 1);
+  return s.slice(0, cut > n * 0.6 ? cut : n - 1).replace(/[,;:\s]+$/, '') + '…';
+}
 function mapKey(s) { const t = mapTokens(s); return t.length ? t.join(' ') : String(s || '').toLowerCase().trim(); }
 function secNums(arr) { return (Array.isArray(arr) ? arr : [arr]).map(x => String(x == null ? '' : x).replace(/[^0-9]/g, '')).filter(Boolean); }
 
@@ -1206,7 +1214,7 @@ function mergeMapParts(results) {
         const key = mapKey(it[nameF]);
         if (!key) continue;
         const e = groups[g].get(key) || { name: String(it[nameF]).trim().slice(0, 80), descs: [], secs: new Set() };
-        const d = String(it[descF] || '').trim().replace(/[.;\s]+$/, '').slice(0, 100);
+        const d = clip(it[descF], 100);
         if (d && !e.descs.some(x => mapKey(x) === mapKey(d))) e.descs.push(d);
         secNums(it.sections).forEach(x => e.secs.add(x));
         groups[g].set(key, e);
@@ -1215,7 +1223,7 @@ function mergeMapParts(results) {
     for (const sct of (Array.isArray(r.sections) ? r.sections : [])) {
       const num = String((sct && sct.num) || '').replace(/[^0-9]/g, '');
       if (!num || sections.has(num)) continue;
-      sections.set(num, { num, title: String(sct.title || '').trim().slice(0, 70), covers: String(sct.covers || '').trim().replace(/[.;\s]+$/, '').slice(0, 110) });
+      sections.set(num, { num, title: clip(String(sct.title || '').replace(/^NLO[- ]+/i, '').replace(/\.txt$/i, ''), 48), covers: clip(sct.covers, 72) });
     }
   }
   // Fold name variants into the fuller name ("Sarah" → "Sarah Gauthier",
@@ -1246,13 +1254,23 @@ function renderOfficeMap({ groups, sections }) {
     for (const e of arr) { const l = line(e) + '\n'; if (used + l.length > budget) break; out += l; used += l.length; }
     return arr.length ? out + '\n' : '';
   };
-  let out = block('SYSTEMS & SOFTWARE NLO USES', groups.systems, 6500) +
-    block('WHO HANDLES WHAT', groups.roles, 4000) +
-    block('OUTSIDE PARTNERS (labs, vendors, insurers, consultants, referrals)', groups.partners, 4500);
+  let out = block('SYSTEMS & SOFTWARE NLO USES', groups.systems, 6000) +
+    block('WHO HANDLES WHAT', groups.roles, 3500) +
+    block('OUTSIDE PARTNERS (labs, vendors, insurers, consultants, referrals)', groups.partners, 3800);
   const secs = [...sections.values()].sort((a, b) => Number(a.num) - Number(b.num));
   if (secs.length) {
+    // Every section gets a line; the "covers" text shrinks to whatever room
+    // is left so the guide always reaches the last section.
+    const GUIDE_BUDGET = 9500;
     let guide = 'SECTION GUIDE\n';
-    for (const x of secs) { const l = '§' + x.num + ' ' + x.title + (x.covers ? ' — ' + x.covers : '') + '\n'; if (guide.length + l.length > 6500) break; guide += l; }
+    const heads = secs.map(x => '§' + x.num + ' ' + x.title);
+    const headLen = heads.reduce((a, h) => a + h.length + 1, guide.length);
+    const room = Math.min(72, Math.floor((GUIDE_BUDGET - headLen) / secs.length) - 3);
+    secs.forEach((x, i) => {
+      const c = room >= 20 && x.covers ? clip(x.covers, room) : '';
+      const l = heads[i] + (c ? ' — ' + c : '') + '\n';
+      if (guide.length + l.length <= GUIDE_BUDGET) guide += l;
+    });
     out += guide;
   }
   return out.slice(0, MAP_MAX_CHARS);
