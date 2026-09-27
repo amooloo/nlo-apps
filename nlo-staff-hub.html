@@ -518,6 +518,33 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
   #navTabs .nv[data-act="openCapture"]{margin-top:0 !important}
   .sideLock{white-space:nowrap}
 }
+/* ---------- separation (end of employment) ---------- */
+.sepPanel{margin-bottom:22px}
+.sepPanel .panel .ph{flex-wrap:wrap}
+.sepPend{display:flex;align-items:center;gap:9px;margin:16px 20px 0;padding:10px 14px;border-radius:10px;background:var(--amber-100);color:var(--amber-700);font-size:13px;font-weight:600}
+.sepPend svg{flex:none}
+.sepKV{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px 22px;padding:18px 20px 4px}
+.sepKV .k{font-family:var(--fd);font-weight:500;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--grey-500);margin-bottom:4px}
+.sepKV .v{font-size:14px;font-weight:600;color:var(--navy)}
+.sepKV .v small{font-size:12px;font-weight:500;color:var(--grey-500)}
+.sepDet{margin:14px 20px 0;padding:12px 14px;border-radius:10px;background:var(--grey-50);border:1px solid var(--grey-100);font-size:13.5px;line-height:1.55;white-space:pre-wrap;color:var(--grey-700)}
+.sepChecks{padding:16px 20px 18px}
+.sepCkHd{display:flex;align-items:center;gap:10px;font-family:var(--fd);font-weight:600;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--navy);margin-bottom:6px}
+.sepCkHd span{font-family:var(--fb);letter-spacing:0;text-transform:none;font-size:11.5px;font-weight:700;color:var(--grey-500);background:var(--grey-100);border-radius:99px;padding:2px 9px}
+.sepCkGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:0 24px}
+.sepCk{display:flex;align-items:flex-start;gap:10px;padding:7px 0;font-size:13.5px;color:var(--grey-700);cursor:pointer}
+.sepCk input{flex:none;width:17px;height:17px;margin-top:1px;accent-color:var(--blue)}
+.sepCk.done span{color:var(--grey-400);text-decoration:line-through}
+/* printed record */
+.sepPOpts{display:flex;flex-wrap:wrap;align-items:center;gap:.05in .26in;margin:.06in 0 .1in}
+.sepPOpt{display:inline-flex;align-items:center;gap:.06in;white-space:nowrap}
+.sepPOpt .nhBox{margin:0}
+.sepPDet{margin:.12in 0 .1in;break-inside:avoid;page-break-inside:avoid}
+.sepPDet .l{font-family:var(--fd);font-weight:500;font-size:7pt;letter-spacing:.13em;text-transform:uppercase;color:#6B7685;margin-bottom:.03in}
+.sepPDet .t{border:.75pt solid #C3C9D0;border-radius:2.5pt;padding:.07in .1in;font-size:9.5pt;white-space:pre-wrap;color:#11203A}
+.sepPDet .ln{border-bottom:.6pt solid #969FAB;height:.3in}
+.nhBox.on{position:relative}
+.nhBox.on::after{content:"";position:absolute;left:.036in;top:.004in;width:.034in;height:.07in;border:solid #1B2F4C;border-width:0 1.4pt 1.4pt 0;transform:rotate(45deg)}
 </style>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
@@ -891,6 +918,7 @@ function emptyHTML(icon, text) { return `<div class="empty"><div class="eIc">${i
 function avHTML(p, cls) { return `<span class="av ${cls || ''}" style="background:${avColor(p.name)}">${esc(initials(p.name))}</span>`; }
 
 function render() {
+  sepSweep();
   renderNav();
   const m = $('#main');
   switch (route.page) {
@@ -998,9 +1026,10 @@ function viewStaffList() {
       <div class="meta">
         ${p.hireDate ? `<span>${ic('calendar',14)} Hired ${fmtD(p.hireDate)} · ${tenure(p.hireDate)}</span>` : ''}
         ${p.employment ? `<span>${ic('briefcase',14)} ${esc(p.employment)}</span>` : ''}
+        ${sepListMetaHTML(p)}
       </div>
       <div class="flags">
-        ${p.status === 'former' ? '<span class="badge b-gray">Former</span>' : `<span class="badge ${st.cls}">Review: ${st.label}</span>`}
+        ${p.status === 'former' ? sepBadgeHTML(p) : `<span class="badge ${st.cls}">Review: ${st.label}</span>${sepLeavingBadge(p)}`}
         ${tp ? `<span class="badge b-blue">${plural(tp,'topic')}</span>` : ''}
         ${certAl ? `<span class="badge b-red">${plural(certAl,'cert alert')}</span>` : ''}
       </div>
@@ -1036,13 +1065,14 @@ function viewStaffDetail() {
   <div class="detHead">
     ${avHTML(p,'lg')}
     <div class="info">
-      <h2>${esc(p.name)} ${p.status === 'former' ? '<span class="badge b-gray">Former</span>' : `<span class="badge ${st.cls}">Review: ${st.label}</span>`} ${colorBadge(p.color)}</h2>
+      <h2>${esc(p.name)} ${p.status === 'former' ? sepBadgeHTML(p) : `<span class="badge ${st.cls}">Review: ${st.label}</span>${sepLeavingBadge(p)}`} ${colorBadge(p.color)}</h2>
       <div class="muted" style="margin-top:3px">${esc(p.role || '')}${p.employment ? ' · ' + esc(p.employment) : ''}</div>
       <div class="meta">
         ${p.hireDate ? `<span>${ic('calendar',14)} Hired ${fmtD(p.hireDate)} (${tenure(p.hireDate)})</span>` : ''}
         ${p.birthday ? `<span>${ic('cake',14)} ${fmtDShort(p.birthday)}</span>` : ''}
         ${p.phone ? `<span>${ic('phone',14)} ${esc(p.phone)}</span>` : ''}
         ${p.email ? `<span>${ic('mail',14)} ${esc(p.email)}</span>` : ''}
+        ${sepMetaHTML(p)}
       </div>
       ${p.profileNote ? `<div class="muted" style="margin-top:10px;max-width:560px">${esc(p.profileNote)}</div>` : ''}
     </div>
@@ -1051,9 +1081,11 @@ function viewStaffDetail() {
       <button class="btn btn-sec btn-sm" data-act="staffReport" data-id="${p.id}">${ic('printer',13)} Report</button>
       <button class="btn btn-sec btn-sm" data-act="openAssess" data-id="${p.id}">${ic('target',13)} ${p.color ? 'Color quiz' : 'Find color'}</button>
       <button class="btn btn-sec btn-sm" data-act="editStaff" data-id="${p.id}">${ic('edit',13)} Edit</button>
+      ${sepHeadBtnHTML(p)}
       <button class="btn btn-sec btn-sm" data-act="archiveStaff" data-id="${p.id}">${p.status === 'former' ? ic('undo',13) + ' Reactivate' : ic('archive',13) + ' Archive'}</button>
     </div>
   </div>
+  ${p.sep ? sepPanelHTML(p) : ''}
   <div class="subtabs">${tabs.map(([k,l]) => `<button class="stab ${route.subtab === k ? 'on' : ''}" data-act="subtab" data-id="${k}">${l}</button>`).join('')}</div>
   ${body}`;
 }
@@ -1234,10 +1266,16 @@ H.editStaff = t => staffModal(staffById(t.dataset.id));
 H.archiveStaff = t => {
   const p = staffById(t.dataset.id); if (!p) return;
   if (p.status === 'former') {
-    p.status = 'active'; delete p.endDate; act('Reactivated ' + p.name);
-    persist(); render(); toast(p.name + ' reactivated');
+    const back = () => {
+      const cur = staffById(p.id); if (!cur) return;
+      if (cur.sep) { cur.pastSeps = (Array.isArray(cur.pastSeps) ? cur.pastSeps : []).concat([cur.sep]); delete cur.sep; }
+      cur.status = 'active'; delete cur.endDate; act('Reactivated ' + cur.name);
+      persist(); render(); toast(cur.name + ' reactivated');
+    };
+    if (p.sep) confirmModal('Reactivate ' + p.name + '?', 'They’ll move back to active staff. Their separation record (' + sepT(p.sep).label + ', last day ' + fmtD(p.sep.lastDay) + ') stays in their file history.', back);
+    else back();
   } else {
-    confirmModal('Archive ' + p.name + '?', 'They’ll move to “former staff.” All notes, reviews, and history are kept, and you can reactivate any time.', () => {
+    confirmModal('Archive ' + p.name + '?', 'They’ll move to “former staff.” All notes, reviews, and history are kept, and you can reactivate any time. To record a resignation or termination and the reason, use “End employment” instead.', () => {
       p.status = 'former'; p.endDate = todayYMD(); act('Archived ' + p.name);
       persist(); render(); toast(p.name + ' archived');
     });
@@ -2412,7 +2450,7 @@ async function askAI(messages, sys) {
 function ctxStaff(p) {
   const L = [];
   L.push('Practice: ' + S.settings.officeName + '. Today: ' + todayYMD() + '.');
-  L.push('Employee: ' + p.name + ' — ' + (p.role || 'no role') + ', ' + (p.employment || '') + ', hired ' + (p.hireDate || '?') + (p.hireDate ? ' (' + tenure(p.hireDate) + ' tenure)' : '') + (p.status === 'former' ? ' — FORMER EMPLOYEE' : '') + '.');
+  L.push('Employee: ' + p.name + ' — ' + (p.role || 'no role') + ', ' + (p.employment || '') + ', hired ' + (p.hireDate || '?') + (p.hireDate ? ' (' + tenure(p.hireDate) + ' tenure)' : '') + (p.status === 'former' ? ' — FORMER EMPLOYEE' : '') + sepAIText(p) + '.');
   if (p.profileNote) L.push('Profile note: ' + p.profileNote);
   if (p.color && typeof STAFF_COLORS !== 'undefined' && STAFF_COLORS[p.color]) { var cc = STAFF_COLORS[p.color]; L.push('Communication color (Shimmin): ' + cc.label + ' — ' + cc.animal + '. Tailor any advice on how to talk to, coach, motivate, deliver feedback to, or review ' + (p.name || 'them') + ' to fit this style: ' + cc.tone); }
   const st = reviewStatus(p);
@@ -2691,6 +2729,7 @@ function buildStaffReport(p, o, aiText) {
   B.push(`<table class="ptbl">
     <tr><th>Name / role</th><td>${esc(p.name)} — ${esc(p.role || '—')} (${esc(p.employment || '—')})</td></tr>
     <tr><th>Hired</th><td>${p.hireDate ? fmtD(p.hireDate) + ' · ' + tenure(p.hireDate) + ' tenure' : '—'}${p.status === 'former' ? ' · FORMER (through ' + fmtD(p.endDate || '') + ')' : ''}</td></tr>
+    ${sepReportRowsHTML(p)}
     <tr><th>Contact</th><td>${esc([p.phone, p.email].filter(Boolean).join(' · ') || '—')}</td></tr>
     ${p.profileNote ? `<tr><th>Profile note</th><td>${esc(p.profileNote)}</td></tr>` : ''}
     <tr><th>Next review</th><td>${p.nextReview ? fmtD(p.nextReview) : 'not scheduled'}</td></tr>
@@ -2808,13 +2847,14 @@ function buildPracticeReport(r, o, aiText) {
   const due = staff.filter(p => { const s = reviewStatus(p); return s.order <= 1; });
   const certSoon = S.certs.map(c => ({ c, p:staffById(c.staffId), st:certStatus(c) })).filter(x => x.p && x.p.status !== 'former' && x.st.d != null && x.st.d <= 90).sort((a,b) => a.st.d - b.st.d);
   B.push(`<table class="ptbl">
-    <tr><th>Active staff</th><td>${staff.length}${hired.length ? ' · ' + plural(hired.length,'hire') + ' this period' : ''}${archived.length ? ' · ' + plural(archived.length,'departure') : ''}</td></tr>
+    <tr><th>Active staff</th><td>${staff.length}${hired.length ? ' · ' + plural(hired.length,'hire') + ' this period' : ''}${archived.length ? ' · ' + plural(archived.length,'departure') + sepMixText(archived) : ''}</td></tr>
     <tr><th>Reviews</th><td>${revsDone.length} completed this period · ${due.length} due/overdue now</td></tr>
     <tr><th>Attendance</th><td>${tos.length ? Object.entries(tos.reduce((a,x) => { a[x.type] = (a[x.type] || 0) + 1; return a; }, {})).map(([k,v]) => (TO_TYPES[k] || {}).label + ': ' + v).join(' · ') : 'No entries logged'}</td></tr>
     <tr><th>Notes & incidents</th><td>${notes.length} notes · ${incs.length} incident write-ups</td></tr>
     <tr><th>Certifications</th><td>${certSoon.length ? plural(certSoon.length,'cert') + ' expired or expiring within 90 days' : 'None expiring within 90 days'}</td></tr>
   </table>`);
   if (aiText) B.push(`<div class="aiBox"><b>Executive summary</b> <span class="small">(AI-generated — review for accuracy)</span><br>${esc(aiText)}</div>`);
+  if (archived.length) B.push(sepDeparturesHTML(archived));
   if (o.rev) {
     B.push('<div class="sec">Reviews</div>');
     B.push(revsDone.length ? '<table class="rtbl"><tr><th>Staff member</th><th>Date</th><th>Type</th><th>Overall</th></tr>' +
@@ -4959,6 +4999,225 @@ H.nhDelForm = t => {
 };
 const nhNavOrig = H.nav;
 H.nav = t => { if (t && t.dataset && t.dataset.id === 'newhire') route.nhHire = null; nhNavOrig(t); };
+
+/* =====================================================================
+   Separation — ending someone's employment (resigned, terminated, laid off…)
+   The record lives on the staff member as p.sep; if they are later rehired,
+   earlier records move to p.pastSeps so nothing is lost.
+   ===================================================================== */
+const SEP_TYPES = {
+  resigned:   { label:'Resigned',        kind:'Voluntary',   reasons:['Took another job', 'Pay or benefits', 'Schedule or hours', 'Moving away', 'Going back to school', 'Family or personal reasons', 'Career change', 'Didn’t say', 'Other'] },
+  terminated: { label:'Terminated',      kind:'Involuntary', reasons:['Attendance or tardiness', 'Performance', 'Policy violation or misconduct', 'Didn’t work out in the 90-day period', 'Other'] },
+  laidoff:    { label:'Laid off',        kind:'Involuntary', reasons:['Position eliminated', 'Not enough work or hours', 'Other'] },
+  abandoned:  { label:'Job abandonment', kind:'Voluntary',   reasons:['No call, no show', 'Other'] },
+  retired:    { label:'Retired',         kind:'Voluntary',   reasons:['Retirement', 'Other'] },
+  other:      { label:'Other',           kind:'',            reasons:['Mutual agreement', 'End of a temporary job', 'Other'] }
+};
+const SEP_REHIRE = { yes:'Yes', maybe:'Maybe — review first', no:'No' };
+const SEP_CHECKS = [
+  ['keys',     'Office key returned & alarm code changed'],
+  ['edge',     'Ortho2 Edge login turned off & taken off the schedule template'],
+  ['access',   'Weave, email & computer logins turned off'],
+  ['pay',      'Final paycheck processed & removed from payroll'],
+  ['benefits', 'Health insurance & 401(k) providers notified'],
+  ['property', 'Office property returned'],
+  ['exit',     'Exit interview (optional)']
+];
+const SEP_YMD = /^\d{4}-\d{2}-\d{2}$/;
+const sepT = s => SEP_TYPES[s && s.type] || SEP_TYPES.other;
+const sepFirst = p => String((p && p.name) || '').trim().split(/\s+/)[0] || 'They';
+
+/* last day reached -> move to former staff (runs on every render; cheap and idempotent) */
+function sepSweep() {
+  if (!S || !Array.isArray(S.staff)) return;
+  const today = todayYMD();
+  let n = 0;
+  S.staff.forEach(p => {
+    if (p && p.sep && p.status !== 'former' && SEP_YMD.test(p.sep.lastDay || '') && p.sep.lastDay <= today) {
+      p.status = 'former'; p.endDate = p.sep.lastDay; n++;
+      act('Moved ' + p.name + ' to former staff — last day ' + fmtD(p.sep.lastDay) + ' (' + sepT(p.sep).label + ')');
+    }
+  });
+  if (n) persist();
+}
+
+/* ---------- badges & bits used by the staff list and profile ---------- */
+function sepBadgeHTML(p) {
+  if (!p.sep) return '<span class="badge b-gray">Former</span>';
+  return `<span class="badge b-gray">${esc(sepT(p.sep).label)}</span>` + (p.sep.rehire === 'no' ? ' <span class="badge b-red">No rehire</span>' : '');
+}
+function sepLeavingBadge(p) {
+  return p.sep && p.status !== 'former' ? ` <span class="badge b-amber">Leaving ${esc(fmtDShort(p.sep.lastDay))}</span>` : '';
+}
+function sepListMetaHTML(p) {
+  return p.status === 'former' && p.endDate ? `<span>${ic('door', 14)} Last day ${fmtD(p.endDate)}</span>` : '';
+}
+function sepMetaHTML(p) {
+  const out = [];
+  if (p.status === 'former' && p.endDate) out.push(`<span>${ic('door', 14)} Last day ${fmtD(p.endDate)}</span>`);
+  const past = Array.isArray(p.pastSeps) && p.pastSeps.length ? p.pastSeps[p.pastSeps.length - 1] : null;
+  if (past && p.status !== 'former') out.push(`<span>${ic('undo', 14)} Rehired — left ${past.lastDay ? fmtD(past.lastDay) + ' ' : ''}(${esc(sepT(past).label)})</span>`);
+  return out.join('');
+}
+function sepHeadBtnHTML(p) {
+  if (p.sep) return '';
+  return `<button class="btn btn-sec btn-sm" data-act="sepStart" data-id="${p.id}">${ic('door', 13)} ${p.status === 'former' ? 'Record how they left' : 'End employment'}</button>`;
+}
+
+/* ---------- panel on the profile ---------- */
+function sepPanelHTML(p) {
+  const s = p.sep, T = sepT(s), pending = p.status !== 'former', C = (s.checks && typeof s.checks === 'object') ? s.checks : {};
+  const kv = (k, v) => v ? `<div><div class="k">${k}</div><div class="v">${v}</div></div>` : '';
+  const d = daysUntil(s.lastDay);
+  const done = SEP_CHECKS.filter(([k]) => C[k]).length;
+  const body =
+    (pending ? `<div class="sepPend">${ic('clock', 15)} <span>${d != null && d > 0 ? 'Last day is ' + fmtD(s.lastDay) + ' — in ' + plural(d, 'day') + '. ' + esc(sepFirst(p)) + ' stays on the active roster until then.' : 'Last day: ' + fmtD(s.lastDay) + '.'}</span></div>` : '') +
+    `<div class="sepKV">
+      ${kv('How they left', esc(T.label) + (T.kind ? ` <small>· ${T.kind}</small>` : ''))}
+      ${kv('Reason', esc(s.reason || ''))}
+      ${kv('Notice given', s.notice ? fmtD(s.notice) : '')}
+      ${kv(pending ? 'Last day' : 'Last day worked', fmtD(s.lastDay))}
+      ${kv('Eligible for rehire', s.rehire ? esc(SEP_REHIRE[s.rehire] || s.rehire) : '<small>Not decided</small>')}
+    </div>` +
+    (s.details ? `<div class="sepDet">${esc(s.details)}</div>` : '') +
+    `<div class="sepChecks"><div class="sepCkHd">Offboarding checklist <span>${done} of ${SEP_CHECKS.length}</span></div><div class="sepCkGrid">` +
+    SEP_CHECKS.map(([k, l]) => `<label class="sepCk ${C[k] ? 'done' : ''}"><input type="checkbox" data-chg="sepCheck" data-id="${p.id}" data-k="${k}" ${C[k] ? 'checked' : ''}><span>${esc(l)}</span></label>`).join('') +
+    '</div></div>';
+  const head = `<button class="btn btn-sec btn-sm" data-act="sepPrint" data-id="${p.id}">${ic('printer', 13)} Print</button>` +
+    `<button class="btn btn-sec btn-sm" data-act="sepEdit" data-id="${p.id}">${ic('edit', 13)} Edit</button>` +
+    (pending ? `<button class="btn btn-sec btn-sm" data-act="sepCancel" data-id="${p.id}">${ic('undo', 13)} Cancel departure</button>` : '');
+  return `<div class="sepPanel">${panelHTML((pending ? 'Leaving — ' : 'Separation — ') + esc(T.label), null, body, head, 'door')}</div>`;
+}
+
+/* ---------- record / edit ---------- */
+function sepModal(p) {
+  const isNew = !p.sep;
+  const s = Object.assign({ type:'', reason:'', lastDay: (p.status === 'former' && p.endDate) || todayYMD(), notice:'', rehire:'', details:'' }, p.sep || {});
+  let type = SEP_TYPES[s.type] ? s.type : '';
+  const reasonOpts = (t, cur) => {
+    const list = t ? SEP_TYPES[t].reasons.slice() : [];
+    if (cur && list.indexOf(cur) < 0) list.unshift(cur);
+    return `<option value="">${t ? 'Choose a reason…' : 'Pick how they left first'}</option>` + list.map(r => `<option ${r === cur ? 'selected' : ''}>${esc(r)}</option>`).join('');
+  };
+  openModal(`<div class="mh"><h3>${isNew ? 'End employment' : 'Edit separation'} — ${esc(p.name)}</h3><button class="x" data-act="closeModal">✕</button></div>
+  <div class="mb">
+    ${isNew ? `<div class="infoBox">${esc(sepFirst(p))} moves to former staff after their last day. Notes, reviews and history are all kept. Stick to the facts — this record can matter later for unemployment claims or reference checks.</div>` : ''}
+    <div class="field"><label>How did they leave? *</label><div class="chips" id="sepTypes">${Object.entries(SEP_TYPES).map(([k, v]) => `<button type="button" class="chip ${k === type ? 'on' : ''}" data-v="${k}">${v.label}</button>`).join('')}</div></div>
+    <div class="frow">
+      <div class="field"><label>Reason</label><select id="sepReason" ${type ? '' : 'disabled'}>${reasonOpts(type, s.reason)}</select></div>
+      <div class="field"><label>Eligible for rehire?</label><select id="sepRehire"><option value="">Not decided</option>${Object.entries(SEP_REHIRE).map(([k, v]) => `<option value="${k}" ${s.rehire === k ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
+    </div>
+    <div class="frow">
+      <div class="field"><label>Last day worked *</label><input type="date" id="sepLast" value="${esc(s.lastDay)}"></div>
+      <div class="field"><label>Notice given <span class="tiny">(when they told you, or were told)</span></label><input type="date" id="sepNotice" value="${esc(s.notice)}"></div>
+    </div>
+    <div class="field"><label>Details <span class="tiny">(what happened — facts, dates, who was there)</span></label><textarea id="sepDetails" placeholder="e.g. Gave two weeks’ notice by email on 9/12. Taking a job closer to home. Left on good terms.">${esc(s.details)}</textarea></div>
+  </div>
+  <div class="mf"><button class="btn btn-sec" data-act="closeModal">Cancel</button><button class="btn btn-pri" id="sepSave">${isNew ? 'End employment' : 'Save changes'}</button></div>`);
+  $('#sepTypes').onclick = e => {
+    const b = e.target.closest('[data-v]'); if (!b) return;
+    type = b.dataset.v;
+    document.querySelectorAll('#sepTypes .chip').forEach(c => c.classList.toggle('on', c === b));
+    const sel = $('#sepReason'), cur = sel.value;
+    sel.innerHTML = reasonOpts(type, SEP_TYPES[type].reasons.indexOf(cur) >= 0 ? cur : '');
+    sel.disabled = false;
+  };
+  $('#sepSave').onclick = () => {
+    if (!type) { toast('Pick how they left', true); return; }
+    const lastDay = $('#sepLast').value, notice = $('#sepNotice').value;
+    if (!SEP_YMD.test(lastDay)) { toast('Add their last day worked', true); return; }
+    const cur = staffById(p.id); if (!cur) { closeModal(); return; }
+    const prev = cur.sep, wasFormer = cur.status === 'former';
+    cur.sep = { type, reason: $('#sepReason').value, lastDay, notice: SEP_YMD.test(notice) ? notice : '', rehire: $('#sepRehire').value,
+      details: $('#sepDetails').value.trim(), checks: (prev && prev.checks && typeof prev.checks === 'object') ? prev.checks : {},
+      created: (prev && prev.created) || Date.now(), updated: Date.now() };
+    const gone = lastDay <= todayYMD();
+    if (gone) { cur.status = 'former'; cur.endDate = lastDay; }
+    else { cur.status = 'active'; delete cur.endDate; }
+    const lbl = sepT(cur.sep).label;
+    act(prev ? 'Updated separation record for ' + cur.name
+      : gone ? (wasFormer ? 'Recorded separation — ' : 'Ended employment — ') + cur.name + ' (' + lbl + ')'
+      : 'Recorded departure — ' + cur.name + ' (' + lbl + '), last day ' + fmtD(lastDay));
+    persist(); closeModal(); render();
+    toast(prev ? 'Separation record updated' : gone ? (wasFormer ? 'Separation record saved' : cur.name + ' moved to former staff') : sepFirst(cur) + '’s last day is set for ' + fmtD(lastDay));
+  };
+}
+H.sepStart = t => { const p = staffById(t.dataset.id); if (p) sepModal(p); };
+H.sepEdit = H.sepStart;
+H.sepCheck = t => {
+  const p = staffById(t.dataset.id); if (!p || !p.sep) return;
+  if (!p.sep.checks || typeof p.sep.checks !== 'object') p.sep.checks = {};
+  p.sep.checks[t.dataset.k] = !!t.checked;
+  persist(); render();
+};
+H.sepCancel = t => {
+  const p = staffById(t.dataset.id); if (!p || !p.sep) return;
+  confirmModal('Cancel ' + sepFirst(p) + '’s departure?', 'This removes the “' + sepT(p.sep).label + '” record and keeps ' + sepFirst(p) + ' on the active roster. Use it if they changed their mind or it was entered by mistake.', () => {
+    const cur = staffById(p.id); if (!cur || !cur.sep) return;
+    delete cur.sep;
+    act('Cancelled departure — ' + cur.name); persist(); render(); toast('Departure cancelled');
+  });
+};
+
+/* ---------- printable record (NLO letterhead, same print pipeline as the new-hire forms) ---------- */
+function sepDocHTML(p, ctx) {
+  const s = p.sep, T = sepT(s), C = (s.checks && typeof s.checks === 'object') ? s.checks : {};
+  const F = (label, val, w) => `<div class="nhF" style="flex-grow:${w || 1}"><div class="l">${esc(label)}</div><div class="v">${esc(val || '')}</div></div>`;
+  const opt = (on, label) => `<span class="sepPOpt"><span class="nhBox${on ? ' on' : ''}"></span>${esc(label)}</span>`;
+  const body =
+    '<h3>Employee</h3>' +
+    `<div class="nhFields">${F('Employee name', p.name, 1.7)}${F('Position', p.role, 1.5)}</div>` +
+    `<div class="nhFields">${F('Date hired', p.hireDate ? fmtD(p.hireDate) : '')}${F('Employment', p.employment)}${F('Notice given', s.notice ? fmtD(s.notice) : '')}${F('Last day worked', fmtD(s.lastDay))}</div>` +
+    '<h3>Separation</h3>' +
+    `<div class="sepPOpts">${Object.keys(SEP_TYPES).map(k => opt(k === s.type, SEP_TYPES[k].label)).join('')}</div>` +
+    `<div class="nhFields">${F('Reason', s.reason, 2.3)}${F('Voluntary / involuntary', T.kind, 1)}</div>` +
+    `<div class="sepPDet"><div class="l">Details</div>${s.details ? `<div class="t">${esc(s.details)}</div>` : '<div class="ln"></div><div class="ln"></div><div class="ln"></div>'}</div>` +
+    `<div class="sepPOpts"><b>Eligible for rehire?</b>${Object.entries(SEP_REHIRE).map(([k, v]) => opt(s.rehire === k, v)).join('')}</div>` +
+    '<h3>Offboarding</h3>' +
+    `<div class="nhCks two">${SEP_CHECKS.map(([k, l]) => `<div class="nhCk"><span class="nhBox${C[k] ? ' on' : ''}"></span><span>${esc(l)}</span></div>`).join('')}</div>` +
+    `<div class="nhFields sigrow">${F('Practice representative signature', '', 1.7)}${F('Date', '', 0.8)}</div>` +
+    `<div class="nhFields sigrow">${F('Employee signature (optional)', '', 1.7)}${F('Date', '', 0.8)}</div>`;
+  return `<section class="nhDoc">${nhLetterheadHTML(ctx)}<div class="nhTitleRow"><h1 class="nhTitle">Employee Separation Record</h1><span class="nhRev">Confidential · personnel file</span></div><div class="nhBody">${body}</div></section>`;
+}
+H.sepPrint = async t => {
+  const p = staffById(t.dataset.id); if (!p || !p.sep) return;
+  try {
+    await nhLoadLogo();
+    const ctx = { lh: nhLH(), logo: nhLogoUrl, practice: (S.settings && S.settings.officeName) || 'Next Level Orthodontics' };
+    await nhDoPrint(sepDocHTML(p, ctx), 'Separation Record - ' + p.name);
+  } catch (e) { toast((e && e.message) || 'Couldn’t prepare the record for printing', true); }
+};
+
+/* ---------- reports & AI context ---------- */
+function sepReportRowsHTML(p) {
+  const row = (s, label) => {
+    const T = sepT(s);
+    const bits = [T.label + (T.kind ? ' (' + T.kind.toLowerCase() + ')' : ''), s.reason, s.notice ? 'notice given ' + fmtD(s.notice) : '',
+      'last day ' + fmtD(s.lastDay), s.rehire ? 'eligible for rehire: ' + (SEP_REHIRE[s.rehire] || s.rehire) : ''].filter(Boolean);
+    return `<tr><th>${label}</th><td>${esc(bits.join(' · '))}${s.details ? '<br>' + esc(s.details).replace(/\n/g, '<br>') : ''}</td></tr>`;
+  };
+  let h = p.sep ? row(p.sep, p.status === 'former' ? 'Separation' : 'Leaving') : '';
+  (Array.isArray(p.pastSeps) ? p.pastSeps : []).forEach(s => { h += row(s, 'Earlier separation'); });
+  return h;
+}
+function sepMixText(list) {
+  const c = {};
+  list.forEach(p => { const k = p.sep ? sepT(p.sep).label.toLowerCase() : 'archived'; c[k] = (c[k] || 0) + 1; });
+  const parts = Object.entries(c).map(([k, v]) => v + ' ' + k);
+  return parts.length ? ' (' + parts.join(', ') + ')' : '';
+}
+function sepDeparturesHTML(list) {
+  return '<div class="sec">Departures</div><table class="rtbl"><tr><th>Staff member</th><th>Last day</th><th>How they left</th><th>Reason</th><th>Rehire?</th></tr>' +
+    list.slice().sort((a, b) => String(a.endDate || '').localeCompare(String(b.endDate || ''))).map(p => {
+      const s = p.sep;
+      return `<tr><td>${esc(p.name)}</td><td>${fmtDShort(p.endDate)}</td><td>${s ? esc(sepT(s).label) : 'Archived'}</td><td>${esc((s && s.reason) || '—')}</td><td>${s && s.rehire ? esc(SEP_REHIRE[s.rehire] || s.rehire) : '—'}</td></tr>`;
+    }).join('') + '</table>';
+}
+function sepAIText(p) {
+  if (!p.sep) return '';
+  const s = p.sep;
+  return (p.status === 'former' ? '' : ' — LEAVING') + ' (' + sepT(s).label + (s.reason ? ': ' + s.reason : '') + '; last day ' + s.lastDay + (s.rehire ? '; eligible for rehire: ' + (SEP_REHIRE[s.rehire] || s.rehire) : '') + ')';
+}
 
 </script>
 
