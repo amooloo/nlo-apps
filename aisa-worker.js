@@ -39,6 +39,19 @@
 //      model per request with the X-AISA-Model / X-AISA-Thinking headers.
 //      2026-09-27: switched to gemini-3.8-flash (same 37/39 on the check
 //      set as 3.5 Flash, ~2.8 s vs ~4.0 s median, lower price).
+//  2.4.2 (2026-09-27, vacation-days miss): chunker v3 turns ALL-CAPS
+//      handbook headings ("VACATION BENEFITS") into chunk labels and never
+//      starts a chunk mid-sentence; "nothing found" now needs BOTH a weak
+//      rerank score and a weak vector score (the reranker under-scores
+//      tables); prompt: hypothetical "for example, if…" text is not policy,
+//      and AISA doesn't know who is asking (give the rule/table, no guess).
+//  2.5.0 (2026-09-27, "which software…" missed Weave): OFFICE MAP — on every
+//      upload/rebuild Gemini reads the whole manual once (in parts) and
+//      writes a short overview: systems & software and what each is for,
+//      who handles what, outside partners, and what each section covers.
+//      It goes with every question (POST /map builds it, GET /map shows
+//      it). Also: the next chunk under the same heading is added after the
+//      top matches, and list questions must list everything that applies.
 //  11. BLUE/GREEN RETRAINS: /train and the new /reindex build a new
 //      index generation first and switch over only when it is complete,
 //      so answers never go blank mid-retrain. Old generation is then
@@ -49,7 +62,7 @@
 // match), v2.0 (streaming, answer cache).
 // ====================================================================
 
-const WORKER_VERSION = '2.4.1';
+const WORKER_VERSION = '2.5.0';
 
 // ---------- Model (fallback — the live choice is saved from the portal) ----------
 const MODEL = 'gemini-3.8-flash';
@@ -65,9 +78,16 @@ const USE_QUERY_PREFIX = true;
 const VEC_TOPK = 50;            // max allowed with returnMetadata 'all'
 const RERANK_POOL = 30;         // vector candidates sent to the reranker
 const CONTEXT_CHUNKS = 8;       // excerpts that go to Gemini
-const LOW_CONF_SCORE = 0.2;     // best rerank score below this = "nothing found"
+const LOW_CONF_SCORE = 0.2;     // best rerank score below this…
+const LOW_CONF_VEC = 0.62;      // …AND best vector similarity below this = "nothing found"
 const MIN_KEEP_SCORE = 0.02;    // excerpts below this are dropped (keeping at least 3)
 const SOURCE_MIN_SCORE = 0.3;   // only confident excerpts are shown as sources
+const NEIGHBOR_CHUNKS = 3;      // continuation chunks added right after the top matches
+
+// ---------- Office map (automatic overview of the whole manual) ----------
+const MAP_PART_CHARS = 360000;  // ~90k tokens per extraction call (stays under per-minute token limits)
+const MAP_MAX_CHARS = 22000;    // cap on the map sent with each question (~5.5k tokens)
+const MAP_TIMEOUT_MS = 170000;
 
 // ---------- Caches / limits ----------
 const ANSWER_CACHE_TTL_SECONDS = 6 * 60 * 60;
@@ -90,6 +110,7 @@ let CSTORE = new Map();
 let RATE_BUCKET = new Map();
 let USAGE = { day: '', count: 0, ts: 0 };
 let LIVE = { kv: null, ts: 0, model: MODEL, thinking: THINKING_LEVEL, updatedAt: null };
+let MAP_CACHE = { kv: null, ts: 0, val: null };
 
 export default {
   async fetch(request, env, ctx) {
@@ -113,7 +134,7 @@ export default {
       }
 
       // ---------- Admin (X-Admin-Key header only) ----------
-      const adminRoutes = ['/train', '/reindex', '/files', '/health', '/delete-file', '/purge-stale', '/describe', '/settings'];
+      const adminRoutes = ['/train', '/reindex', '/files', '/health', '/delete-file', '/purge-stale', '/describe', '/settings', '/map'];
       if (adminRoutes.includes(path)) {
         if (!checkAdmin(request, env)) return jsonResponse({ success: false, error: 'Unauthorized — send the admin key in the X-Admin-Key header.' }, 401, origin);
         if (path === '/train' && request.method === 'POST') return await handleTrain(request, env, origin);
@@ -125,6 +146,8 @@ export default {
         if (path === '/describe' && request.method === 'POST') return await handleDescribe(request, env, origin);
         if (path === '/settings' && request.method === 'POST') return await handleSettings(request, env, origin);
         if (path === '/settings' && request.method === 'GET') return jsonResponse(settingsView(await getLiveSettings(env)), 200, origin);
+        if (path === '/map' && request.method === 'POST') return await handleMapBuild(request, env, origin);
+        if (path === '/map' && request.method === 'GET') return await handleMapGet(env, origin);
       }
 
       if (path === '/purge-old') return jsonResponse({ error: 'Retired: use /purge-stale (or /reindex, which cleans up automatically).' }, 410, origin);
@@ -183,7 +206,7 @@ async function handleAsk(request, env, ctx, origin, stream) {
   const geminiBody = await buildGeminiBody(reqJson, env, r, thinking);
   const meta = {
     evt: 'ask', q: reqJson.question.slice(0, 150), model, thinking, mode: r.mode,
-    lowConfidence: r.lowConfidence, topScore: round3(r.topScore), exact: r.exactTokens,
+    lowConfidence: r.lowConfidence, topScore: round3(r.topScore), topVec: round3(r.topVec), exact: r.exactTokens,
     top: r.chosen.slice(0, 5).map(c => ({ s: round3(c.rr), v: round3(c.vs), p: c.path.slice(0, 90) })),
     ms: { retrieval: tRetrieved - t0, embed: r.ms.embed, vector: r.ms.vector, rerank: r.ms.rerank }
   };
@@ -241,7 +264,7 @@ function validateAsk(reqJson) {
 async function retrieve(reqJson, env) {
   const { question, history } = reqJson;
   const searchQuery = buildSearchQuery(question, history);
-  const out = { mode: 'none', chosen: [], sources: [], lowConfidence: true, topScore: 0, exactTokens: [], degraded: false, ms: {} };
+  const out = { mode: 'none', chosen: [], sources: [], lowConfidence: true, topScore: 0, topVec: 0, exactTokens: [], degraded: false, ms: {} };
   if (!env.VECTORIZE || !env.AI) { out.degraded = true; return out; }
 
   let t = Date.now();
@@ -267,6 +290,7 @@ async function retrieve(reqJson, env) {
     seen.add(text);
     all.push({ id: m.id, vs: m.score, text, path: pathOf(text), active: isActiveId(m.id, idx) });
   }
+  out.topVec = all.reduce((m, c) => Math.max(m, c.vs || 0), 0);
   let pool = all.filter(c => c.active);
   if (pool.length < 8) pool = all;
   pool = pool.slice(0, RERANK_POOL);
@@ -314,8 +338,30 @@ async function retrieve(reqJson, env) {
   }
   chosen = chosen.filter((c, k) => k < 3 || c.exact || c.rr >= MIN_KEEP_SCORE);
 
+  // Small-to-big: bring the next chunk under the same heading right after each
+  // of the top matches, so a table's rules or a procedure's next steps come along.
+  if (idx.mode === 'v2' && chosen.length) {
+    const expanded = [];
+    let added = 0;
+    for (let k = 0; k < chosen.length; k++) {
+      const c = chosen[k];
+      expanded.push(c);
+      if (k >= 3 || added >= NEIGHBOR_CHUNKS || c.neighbor) continue;
+      const loc = locateId(c.id, idx);
+      if (!loc) continue;
+      const store = await getChunkStore(env, loc.label, loc.gen);
+      const next = store && store[loc.i + 1];
+      if (!next || pathOf(next) !== c.path || chosen.some(x => x.text === next) || expanded.some(x => x.text === next)) continue;
+      expanded.push({ id: vecId(loc.label, loc.gen, loc.i + 1), vs: 0, rr: c.rr, text: next, path: c.path, active: true, neighbor: true });
+      added++;
+    }
+    chosen = expanded;
+  }
+
   out.topScore = ranked.length ? ranked[0].rr : 0;
-  out.lowConfidence = out.degraded ? false : (out.topScore < LOW_CONF_SCORE && !exactHits.length);
+  // "Nothing found" only when the reranker AND the vector search both come up weak —
+  // the small reranker under-scores tables (e.g. the vacation accrual table).
+  out.lowConfidence = out.degraded ? false : (out.topScore < LOW_CONF_SCORE && out.topVec < LOW_CONF_VEC && !exactHits.length);
   out.chosen = chosen;
   out.sources = out.lowConfidence ? [] : sourcesOf(chosen);
   return out;
@@ -416,6 +462,11 @@ async function buildGeminiBody(reqJson, env, r, thinking) {
     ? `\nAUTHORITATIVE VERSION INFO (injected by the system, always current): You are running NLO Master Knowledge Base VERSION ${kbVer.version}${kbVer.lastUpdated ? ', last updated ' + kbVer.lastUpdated : ''}. If anyone asks what version you are or how current your knowledge is, answer with exactly this version — it overrides any version number found in the excerpts.\n`
     : '';
 
+  const officeMap = env.KNOWLEDGE_KV ? await getOfficeMap(env) : null;
+  const mapBlock = (officeMap && officeMap.text)
+    ? `\n=== OFFICE MAP (automatic overview of the whole manual, rebuilt on every upload) ===\n${officeMap.text.trim()}\n`
+    : '';
+
   let knowledge = '';
   r.chosen.forEach((c, k) => { knowledge += `\n--- Excerpt ${k + 1} ---\n${c.text.trim()}\n`; });
   if (!knowledge) knowledge = '\n(No excerpts were retrieved for this question.)\n';
@@ -449,6 +500,7 @@ RESPONSE LENGTH — DEFAULT TO SHORT:
 - Do NOT repeat the question back or paraphrase it before answering.
 - Do NOT add a closing line like "Let me know if you need anything else!" unless you genuinely need clarification. Just stop when the answer is done.
 - If the user asks for more detail, THEN expand. Trust them to ask follow-ups.
+- Exception: when asked WHICH or WHAT tools, apps, software, people, partners, options or steps — list every one that applies (one short line each). Don't stop at the "main" ones.
 
 FORMATTING RULES — Keep it scannable:
 - Use **bold** for key terms, names, codes, and important details.
@@ -491,14 +543,17 @@ BEHAVIOR:
 3. CHAT HISTORY: You have access to the recent conversation. Use it to stay in context.
 
 4. GROUNDING — THESE RULES COME BEFORE EVERYTHING ELSE ABOUT CONTENT:
-   a. Office-specific facts — names, phone numbers, emails, addresses, fees, codes, appointment lengths, products and brands, materials, machine settings, protocol steps, timings and counts (turns, swings, weeks, seconds) — must come ONLY from the knowledge base excerpts below. Never fill a gap with a "typical" value.
+   a. Office-specific facts — names, phone numbers, emails, addresses, fees, codes, appointment lengths, products and brands, materials, machine settings, protocol steps, timings and counts (turns, swings, weeks, seconds) — must come ONLY from the knowledge base excerpts or the OFFICE MAP below. Never fill a gap with a "typical" value.
    b. NEVER invent contact details. Give a name, phone number, email or address only if it appears in the excerpts. If it is not there, say you don't have it on file and suggest checking with Sarah or Dr. Akhavan.
    c. NEVER say or imply that the office uses a product, brand, device, material or technique unless the excerpts say so. General dental knowledge must be labeled as general ("In general, ..."), never phrased as "we use" or "our office".
    d. General orthodontic knowledge is fine for definitions and background (the FOUNDATIONAL category), clearly labeled as general.
-   e. If the excerpts don't contain the answer, say: "I'm not finding that specific detail in our manuals yet. I can flag that for Dr. Akhavan, or is there something else I can help with?" Do not guess.
+   e. If the excerpts don't contain the answer, say: "I'm not finding that specific detail in our manuals yet. I can flag that for Dr. Akhavan, or is there something else I can help with?" Do not guess. If they answer only part of the question, give that part and say in a few words what the manual doesn't cover — don't tack the not-found line onto a real answer.
    f. Excerpts labeled NEGATIVE EXAMPLES contain statements marked INCORRECT on purpose. Never repeat an INCORRECT line as fact — use the CORRECT line.
    g. If two excerpts conflict, follow the more specific SOP, mention the discrepancy in one short line, and suggest confirming with Dr. Akhavan.
    h. Each excerpt starts with its location in the manual in [brackets]. Use it to judge which excerpt applies (e.g., MARPE vs RPE, braces vs aligners) and to cite the SOP.
+   i. Hypothetical examples in the manual ("For example, if full-time employees earn 1 week…") only illustrate a rule — they are NOT the office's actual numbers. Use the actual policy text or table instead.
+   j. You don't know who is asking. When the answer depends on the person (years of service, role, full-/part-time, schedule), give the rule or table that applies to each case — don't assume their situation. Show the manual's units (e.g. hours); if you convert (hours to days), say what you assumed.
+   k. The OFFICE MAP is an automatic overview of the WHOLE manual (every system and what it's for, who handles what, outside partners, what each section covers). Use it for broad questions ("which software/apps do we use for…", "who handles…", "which labs…") and to make sure a list is complete — then add details from the excerpts. For specific steps, numbers, settings and template names rely on the excerpts; if only the map mentions something, say so briefly and name its section.
 
 5. IMAGES: If the user has attached an image, analyze it in context of their question (e.g., identifying orthodontic supplies, reading labels, checking equipment).
 
@@ -511,7 +566,7 @@ BEHAVIOR:
    - For DOCUMENTS: Use a regular Markdown link: [View: Document title](URL)
 
 7. PRIVACY: Do not ask for or repeat patient names or other patient identifiers. If a question includes them, answer the general question without repeating the identifiers.
-${searchNote}
+${mapBlock}${searchNote}
 === KNOWLEDGE BASE EXCERPTS (most relevant first) ===
 ${knowledge}`;
 
@@ -547,14 +602,14 @@ ${knowledge}`;
 // ====================================================================
 // GEMINI
 // ====================================================================
-async function callGemini(env, body, stream, model) {
+async function callGemini(env, body, stream, model, timeoutMs) {
   const endpoint = stream ? 'streamGenerateContent?alt=sse' : 'generateContent';
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model || MODEL}:${endpoint}`;
   const doFetch = async (b) => {
     // Time out if Gemini doesn't START responding within 45s. Streams are
     // not cut once they begin (long answers must be allowed to finish).
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 45000);
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs || 45000);
     try {
       return await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': env.GEMINI_API_KEY }, body: JSON.stringify(b), signal: ctrl.signal });
     } finally { clearTimeout(timer); }
@@ -766,6 +821,11 @@ async function handleHealth(env, origin) {
     out.searchMode = idx.mode === 'v2' ? 'v2 (rebuilt index)' : 'legacy (run Rebuild index)';
     out.files = idx.fileIndex.map(l => ({ label: l, index: idx.labels[l] || null }));
     out.expectedVectors = Object.values(idx.labels).reduce((s, r) => s + (r.count || 0), 0) || null;
+    out.rebuildRecommended = idx.fileIndex.some(l => !idx.labels[l] || idx.labels[l].chunker !== CHUNKER_VERSION);
+    const m = await getOfficeMap(env, true);
+    out.officeMap = m ? { builtAt: m.builtAt, words: m.words, parts: m.parts, kbVersion: m.kbVersion || null, stale: m.sig !== mapSignature(idx) } : null;
+    const job = await env.KNOWLEDGE_KV.get('mapjob', 'json');
+    if (job) out.officeMapJob = { done: job.results.length, of: job.parts.length, startedAt: job.startedAt };
   } catch (e) { out.ok = false; out.kvError = e.message; }
   try { out.vectorizeIndex = await env.VECTORIZE.describe(); } catch (e) { out.vectorizeNote = 'describe() unavailable: ' + e.message; }
   try { out.kbVersion = await getKbVersion(env); } catch (e) {}
@@ -878,6 +938,15 @@ async function warmCaches(env) {
   for (const label of Object.keys(idx.labels)) await getChunkStore(env, label, idx.labels[label].gen);
 }
 
+function locateId(id, idx) {
+  const m = String(id || '').match(/^(.*)\.g([0-9a-z]+)\.(\d+)$/);
+  if (!m) return null;
+  for (const label of Object.keys(idx.labels)) {
+    if (idBase(label) === m[1] && idx.labels[label].gen === m[2]) return { label, gen: m[2], i: parseInt(m[3], 10) };
+  }
+  return null;
+}
+
 function isActiveId(id, idx) {
   const m = String(id).match(/^(.*)\.g([0-9a-z]+)\.(\d+)$/);
   if (!m) return idx.mode === 'legacy';
@@ -971,6 +1040,175 @@ async function handleSettings(request, env, origin) {
   LIVE = { kv: env.KNOWLEDGE_KV, ts: Date.now(), ...rec };
   logEvent(null, { evt: 'settings', model, thinking });
   return jsonResponse(Object.assign({ success: true, note: 'Takes effect within about 30 seconds.' }, settingsView(LIVE)), 200, origin);
+}
+
+// ====================================================================
+// OFFICE MAP — an automatic overview of the whole manual, built in parts
+// (POST /map, called repeatedly by the portal until done) and sent with
+// every question. Rebuilt after every upload/rebuild; the previous map
+// stays in use until the new one is finished.
+// ====================================================================
+async function getOfficeMap(env, fresh) {
+  if (!fresh && MAP_CACHE.kv === env.KNOWLEDGE_KV && MAP_CACHE.ts && Date.now() - MAP_CACHE.ts < 60000) return MAP_CACHE.val;
+  let v = null;
+  try { v = await env.KNOWLEDGE_KV.get('map:current', 'json'); } catch (e) {}
+  MAP_CACHE = { kv: env.KNOWLEDGE_KV, ts: Date.now(), val: v };
+  return v;
+}
+
+function mapSignature(idx) {
+  return idx.fileIndex.map(l => l + '@' + ((idx.labels[l] && idx.labels[l].gen) || 'legacy')).join('|');
+}
+
+// Drop the historical CHANGE LOG at the END of the file (a section's own
+// "CHANGE LOG" block earlier in the file is left alone).
+function stripChangeLog(text) {
+  const t = String(text || '');
+  let last = null;
+  for (const m of t.matchAll(/\n[=═]{4,}[ \t]*\n[ \t]*CHANGE ?LOG\b[^\n]*\n/gi)) last = m;
+  return (last && last.index > t.length * 0.6) ? t.slice(0, last.index) : t;
+}
+
+// Split one file into parts of at most MAP_PART_CHARS, at section stamps where possible.
+function planMapParts(label, text) {
+  const body = stripChangeLog(text);
+  const starts = [0];
+  const re = /^[ \t]*\[SECTION STAMP\][ \t]*$/gm;
+  let m;
+  while ((m = re.exec(body))) if (m.index > 0) starts.push(m.index);
+  starts.push(body.length);
+  const parts = [];
+  let partStart = 0;
+  for (let k = 1; k < starts.length; k++) {
+    const secStart = starts[k - 1], secEnd = starts[k];
+    if (secEnd - partStart > MAP_PART_CHARS && secStart > partStart) { parts.push({ label, start: partStart, end: secStart }); partStart = secStart; }
+    while (secEnd - partStart > MAP_PART_CHARS) {
+      let cut = body.lastIndexOf('\n', partStart + MAP_PART_CHARS);
+      if (cut <= partStart) cut = partStart + MAP_PART_CHARS;
+      parts.push({ label, start: partStart, end: cut });
+      partStart = cut;
+    }
+  }
+  if (partStart < body.length) parts.push({ label, start: partStart, end: body.length });
+  return parts;
+}
+
+async function handleMapBuild(request, env, origin) {
+  let body = {};
+  try { body = await request.json(); } catch (e) {}
+  const idx = await getIndexState(env, true);
+  if (!idx.fileIndex.length) return jsonResponse({ success: false, error: 'No knowledge base uploaded yet.' }, 400, origin);
+  const sig = mapSignature(idx);
+  let job = null;
+  try { job = await env.KNOWLEDGE_KV.get('mapjob', 'json'); } catch (e) {}
+  if (!job || job.sig !== sig || body.restart) {
+    const parts = [];
+    for (const label of idx.fileIndex) {
+      const text = await env.KNOWLEDGE_KV.get(`file:${label}`);
+      if (text) parts.push(...planMapParts(label, text));
+    }
+    if (!parts.length) return jsonResponse({ success: false, error: 'Stored knowledge base text not found.' }, 400, origin);
+    job = { sig, parts, results: [], startedAt: new Date().toISOString() };
+  }
+  const k = job.results.length;
+  if (k < job.parts.length) {
+    const part = job.parts[k];
+    const text = stripChangeLog((await env.KNOWLEDGE_KV.get(`file:${part.label}`)) || '').slice(part.start, part.end);
+    const live = await getLiveSettings(env);
+    let result;
+    try { result = await extractMapPart(env, text, k + 1, job.parts.length, live.model); }
+    catch (e) {
+      await env.KNOWLEDGE_KV.put('mapjob', JSON.stringify(job));
+      return jsonResponse({ success: false, error: 'Office map part ' + (k + 1) + ' of ' + job.parts.length + ' failed: ' + e.message + ' — run it again to retry.', part: k, of: job.parts.length }, 502, origin);
+    }
+    job.results.push(result);
+    await env.KNOWLEDGE_KV.put('mapjob', JSON.stringify(job));
+  }
+  if (job.results.length < job.parts.length) {
+    return jsonResponse({ success: true, done: false, part: job.results.length, of: job.parts.length }, 200, origin);
+  }
+  const text = renderOfficeMap(mergeMapParts(job.results));
+  const kbv = await getKbVersion(env);
+  const rec = { text, sig, builtAt: new Date().toISOString(), kbVersion: (kbv && kbv.version) || null, parts: job.parts.length, words: text.split(/\s+/).filter(Boolean).length };
+  await env.KNOWLEDGE_KV.put('map:current', JSON.stringify(rec));
+  try { await env.KNOWLEDGE_KV.delete('mapjob'); } catch (e) {}
+  MAP_CACHE = { kv: env.KNOWLEDGE_KV, ts: Date.now(), val: rec };
+  await bumpAnswerGen(env);
+  logEvent(null, { evt: 'map', parts: rec.parts, words: rec.words });
+  return jsonResponse({ success: true, done: true, parts: rec.parts, words: rec.words, builtAt: rec.builtAt }, 200, origin);
+}
+
+async function handleMapGet(env, origin) {
+  const [m, idx] = await Promise.all([getOfficeMap(env, true), getIndexState(env, true)]);
+  if (!m) return jsonResponse({ success: true, exists: false }, 200, origin);
+  return jsonResponse({ success: true, exists: true, text: m.text, builtAt: m.builtAt, words: m.words, parts: m.parts, kbVersion: m.kbVersion, stale: m.sig !== mapSignature(idx) }, 200, origin);
+}
+
+async function extractMapPart(env, text, k, n, model) {
+  const sys = `You build an OFFICE MAP for AISA, the staff assistant at Next Level Orthodontics (NLO). You get part ${k} of ${n} of NLO's staff manual.
+Extract ONLY what this text states about NLO. Copy names exactly as written. No general knowledge, no guesses.
+Ignore hypothetical examples ("for example, if..."), negative-example lines marked INCORRECT, and change-log history.
+Reply with ONLY a JSON object of this shape:
+{"systems":[{"name":"","use":"","sections":[]}],"roles":[{"who":"","handles":"","sections":[]}],"partners":[{"name":"","for":"","sections":[]}],"sections":[{"num":"","title":"","covers":""}]}
+- systems: EVERY software, app, web app, portal, platform, device software or online service NLO staff use (practice management, patient texting/communication, reminders, remote monitoring, imaging, scanning, lab/design, payments/financing, payroll/HR, forms, task tracking, file storage). "use" = what NLO uses it for, max 15 words.
+- roles: job roles and named staff, with what they handle (max 18 words).
+- partners: outside labs, vendors, suppliers, insurers, consultants, referral offices/doctors — what NLO uses them for (max 12 words).
+- sections: each manual section that appears in this part (from its SECTION # stamp or heading), with the questions it answers (max 20 words).
+- "sections" inside systems/roles/partners = the section numbers where that item appears (numbers only).`;
+  const body = {
+    system_instruction: { parts: [{ text: sys }] },
+    contents: [{ role: 'user', parts: [{ text: 'MANUAL TEXT (part ' + k + ' of ' + n + '):\n\n' + text }] }],
+    generationConfig: { maxOutputTokens: 16384, responseMimeType: 'application/json', thinkingConfig: { thinkingLevel: 'low' } }
+  };
+  const resp = await callGemini(env, body, false, model, MAP_TIMEOUT_MS);
+  if (!resp.ok) throw new Error(await geminiError(resp));
+  return parseJsonReply(await resp.json());
+}
+
+function mapKey(s) { return String(s || '').toLowerCase().replace(/[™®©]/g, '').replace(/\([^)]*\)/g, ' ').replace(/[^a-z0-9]+/g, ' ').trim(); }
+function secNums(arr) { return (Array.isArray(arr) ? arr : [arr]).map(x => String(x == null ? '' : x).replace(/[^0-9]/g, '')).filter(Boolean); }
+
+function mergeMapParts(results) {
+  const spec = { systems: ['name', 'use'], roles: ['who', 'handles'], partners: ['name', 'for'] };
+  const groups = { systems: new Map(), roles: new Map(), partners: new Map() };
+  const sections = new Map();
+  for (const r of results) {
+    if (!r || typeof r !== 'object') continue;
+    for (const g of Object.keys(spec)) {
+      const [nameF, descF] = spec[g];
+      for (const it of (Array.isArray(r[g]) ? r[g] : [])) {
+        if (!it || !it[nameF]) continue;
+        const key = mapKey(it[nameF]);
+        if (!key) continue;
+        const e = groups[g].get(key) || { name: String(it[nameF]).trim().slice(0, 80), descs: [], secs: new Set() };
+        const d = String(it[descF] || '').trim().slice(0, 140);
+        if (d && e.descs.length < 3 && !e.descs.some(x => mapKey(x) === mapKey(d))) e.descs.push(d);
+        secNums(it.sections).forEach(x => e.secs.add(x));
+        groups[g].set(key, e);
+      }
+    }
+    for (const sct of (Array.isArray(r.sections) ? r.sections : [])) {
+      const num = String((sct && sct.num) || '').replace(/[^0-9]/g, '');
+      if (!num || sections.has(num)) continue;
+      sections.set(num, { num, title: String(sct.title || '').trim().slice(0, 80), covers: String(sct.covers || '').trim().slice(0, 160) });
+    }
+  }
+  return { groups, sections };
+}
+
+function renderOfficeMap({ groups, sections }) {
+  const line = (e) => '- ' + e.name + (e.descs.length ? ': ' + e.descs.join('; ') : '') +
+    (e.secs.size ? ' (§' + [...e.secs].sort((a, b) => Number(a) - Number(b)).slice(0, 6).join(', §') + ')' : '');
+  const block = (title, m, cap) => {
+    const arr = [...m.values()].sort((a, b) => b.secs.size - a.secs.size).slice(0, cap); // most-mentioned first
+    return arr.length ? title + '\n' + arr.map(line).join('\n') + '\n\n' : '';
+  };
+  let out = block('SYSTEMS & SOFTWARE NLO USES', groups.systems, 80) +
+    block('WHO HANDLES WHAT', groups.roles, 50) +
+    block('OUTSIDE PARTNERS (labs, vendors, insurers, consultants, referrals)', groups.partners, 80);
+  const secs = [...sections.values()].sort((a, b) => Number(a.num) - Number(b.num));
+  if (secs.length) out += 'SECTION GUIDE\n' + secs.map(x => '§' + x.num + ' ' + x.title + (x.covers ? ' — ' + x.covers : '')).join('\n') + '\n';
+  return out.slice(0, MAP_MAX_CHARS);
 }
 
 // ====================================================================
@@ -1109,7 +1347,7 @@ function corsHeaders(origin) {
 // ====================================================================
 // CHUNKER v2 — structure-aware chunks with a full heading path.
 // ====================================================================
-const CHUNKER_VERSION = 2;
+const CHUNKER_VERSION = 3;
 
 const CHUNK_TARGET = 1100;   // start a new chunk once the body passes this
 const CHUNK_MAX = 1600;      // no single piece may exceed this
@@ -1125,6 +1363,20 @@ const TOC_RE = /^\s*SECTION\s+(\S+)\s+—\s+(.*)\(([^()]+\.txt)\)\s*$/;
 const INLINE_HEAD_RE = /^\s*(?:={3}|-{3})\s*(\S.*?\S|\S)\s*(?:={3}|-{3})\s*$/;
 const SKIP_TITLE_RE = /^(NLO MASTER KNOWLEDGE BASE — METADATA|AISA IDENTITY|TABLE OF CONTENTS|SECTION STAMP KEY|BEGIN KNOWLEDGE BASE CONTENT|CHANGE ?LOG)/i;
 const NOISE_LINE_RE = /^\s*(\[AUDIENCE TAGS\].*|\[END OF SECTION[^\]]*\]|Copyright © \d{4} .*All Rights Reserved|Printed Date: \S+ Page \d+)\s*$/;
+// A standalone ALL-CAPS line of 2-7 words with no digits and no trailing colon is a
+// heading in the handbook-style parts of the KB ("VACATION BENEFITS", "PAID HOLIDAYS").
+const CAPS_HEAD_RE = /^[A-Z][A-Z &\/'’()\-—,]{6,58}[A-Z)]$/;
+function capsHeading(line) {
+  const t = line.trim();
+  if (!CAPS_HEAD_RE.test(t) || /\d/.test(t)) return null;
+  const words = t.split(/\s+/).filter(w => /[A-Z]/.test(w));
+  if (words.length < 2 || words.length > 7) return null;
+  const small = new Set(['AND', 'OR', 'OF', 'THE', 'TO', 'FOR', 'IN', 'ON', 'AT', 'A', 'AN', 'BY', 'WITH']);
+  return t.toLowerCase().split(/(\s+|\/|-)/).map((w, i) => {
+    if (!/[a-z]/.test(w)) return w;
+    return (i > 0 && small.has(w.toUpperCase())) ? w : w.charAt(0).toUpperCase() + w.slice(1);
+  }).join('');
+}
 
 function tidyLine(line) {
   // Collapse wide space runs (column padding) — saves tokens, keeps meaning.
@@ -1161,7 +1413,17 @@ function splitLong(p) {
       if (rest) cur = rest;
       continue;
     }
-    if (cur && cur.length + line.length + 1 > CHUNK_TARGET) pushCur();
+    if (cur && cur.length + line.length + 1 > CHUNK_TARGET) {
+      // Cut after the last line that ends a sentence, so no piece starts mid-sentence
+      // (a piece that began "week paid vacation after 1 year..." read like policy).
+      const ls = cur.split('\n');
+      let cut = -1, len = 0;
+      for (let k = 0; k < ls.length; k++) { len += ls[k].length + 1; if (/[.!?:;]["')\]]?\s*$/.test(ls[k]) && len >= CHUNK_TARGET * 0.35) cut = k; }
+      if (cut >= 0 && cut < ls.length - 1) {
+        out.push(ls.slice(0, cut + 1).join('\n').trim());
+        cur = ls.slice(cut + 1).join('\n');
+      } else pushCur();
+    }
     cur += (cur ? '\n' : '') + line;
   }
   pushCur();
@@ -1281,6 +1543,9 @@ function buildChunksV2(text, fileTitle) {
 
     if (skip) continue;
     if (NOISE_LINE_RE.test(raw)) continue;
+
+    const capsHead = capsHeading(raw);
+    if (capsHead) { flushAll(); l3 = capsHead; continue; }
 
     const ih = raw.match(INLINE_HEAD_RE);
     if (ih && /^page \d+$/i.test(ih[1].trim())) { endPara(); continue; }
@@ -1413,7 +1678,10 @@ async function geminiJson(env, body) {
   const live = await getLiveSettings(env);
   const resp = await callGemini(env, body, false, live.model);
   if (!resp.ok) throw new Error(await geminiError(resp));
-  const data = await resp.json();
+  return parseJsonReply(await resp.json());
+}
+
+function parseJsonReply(data) {
   const parts = (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) || [];
   let text = '';
   for (const p of parts) { if (typeof p.text === 'string' && !p.thought) text += p.text; }

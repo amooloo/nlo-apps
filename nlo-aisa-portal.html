@@ -375,7 +375,8 @@
         <button onclick="maintHealth()">Check status<small>KB version, index, questions today</small></button>
         <button onclick="maintReindex()">Rebuild search index<small>Re-chunks the stored KB (~1 min)</small></button>
         <button onclick="maintPurge()">Clean up old search data<small>Removes leftovers from old uploads</small></button>
-        <button onclick="maintTest()">Accuracy check<small>~35 test questions, pass/fail + speed</small></button>
+        <button onclick="maintTest()">Accuracy check<small>~40 test questions, pass/fail + speed</small></button>
+        <button onclick="maintMapView()">Office map<small>AISA's overview of the whole manual</small></button>
       </div>
       <div class="maint-opts">
         Model:
@@ -932,8 +933,10 @@ async function processAndTrain() {
 
       if (data.success) {
         statusEl.style.color = '#4ade80';
-        statusEl.innerText = '✅ Success! Uploaded ' + data.chunksSaved + ' chunks for "' + (data.fileLabel || fileLabel) + '". Re-uploading this file will auto-replace old data.';
+        const uploaded = '✅ Uploaded ' + data.chunksSaved + ' chunks for "' + (data.fileLabel || fileLabel) + '". ';
+        statusEl.innerText = uploaded + 'Now building the office map…';
         fileInput.value = ''; // Clear the input
+        await buildOfficeMap(t => { statusEl.innerText = uploaded + t; });
       } else {
         throw new Error(data.error);
       }
@@ -986,8 +989,42 @@ async function maintHealth() {
     maintSay('Worker v' + d.worker + ' · model ' + d.model + ' (' + d.thinking + ' thinking)\n' +
       'Knowledge base: ' + kb + '\nSearch: ' + d.searchMode + '\n' + files +
       '\nVectors stored: ' + (vc ?? '?') + (d.expectedVectors ? ' (expected ≈ ' + d.expectedVectors + ')' : '') +
-      '\nQuestions today: ' + (d.questionsToday ?? '?') + ' of ' + (d.dailyCap ?? '?'));
+      '\nQuestions today: ' + (d.questionsToday ?? '?') + ' of ' + (d.dailyCap ?? '?') +
+      (d.rebuildRecommended ? '\n⚠ The search index was built with an older format — tap "Rebuild search index".' : '') +
+      '\nOffice map: ' + (d.officeMap ? ('built ' + String(d.officeMap.builtAt || '').slice(0, 16).replace('T', ' ') + ' UTC, ' + d.officeMap.words + ' words' + (d.officeMap.stale ? ' — out of date, tap "Office map" to rebuild' : '')) : 'not built yet — tap "Office map"') +
+      (d.officeMapJob ? ' (building: ' + d.officeMapJob.done + ' of ' + d.officeMapJob.of + ' parts done)' : ''));
     showLive(d.live || { model: d.model, thinking: d.thinking });
+  } catch (e) { maintSay('❌ ' + e.message, true); }
+  finally { maintEnd(); }
+}
+// Office map: built in parts (each ~30 s) by calling POST /map until done.
+async function buildOfficeMap(say) {
+  try {
+    for (let i = 0; i < 30; i++) {
+      const d = await maintCall('/map', 'POST', {});
+      if (!d) return false;
+      if (d.done) { say('✅ Office map built (' + d.words + ' words from ' + d.parts + ' parts).'); return true; }
+      say('Building the office map… ' + d.part + ' of ' + d.of + ' parts done (about 30 seconds each). Answers keep working meanwhile.');
+    }
+    say('Office map is still building — tap "Office map" to continue.');
+  } catch (e) { say('❌ ' + e.message); }
+  return false;
+}
+function showMap(d) {
+  const el = document.getElementById('maintStatus');
+  el.innerHTML = '';
+  el.style.color = '#cbd5e1';
+  el.textContent = 'OFFICE MAP — built ' + String(d.builtAt || '').slice(0, 16).replace('T', ' ') + ' UTC · ' + d.words + ' words' + (d.kbVersion ? ' · KB v' + d.kbVersion : '') + '\n\n' + d.text;
+}
+async function maintMapView() {
+  if (!maintStart('Office map')) return;
+  try {
+    const d = await maintCall('/map', 'GET'); if (!d) return;
+    if (!d.exists || d.stale) {
+      maintSay((d.exists ? 'The office map is out of date' : 'No office map yet') + ' — building it now…');
+      const ok = await buildOfficeMap(t => maintSay(t));
+      if (ok) { const d2 = await maintCall('/map', 'GET'); if (d2 && d2.exists) showMap(d2); }
+    } else showMap(d);
   } catch (e) { maintSay('❌ ' + e.message, true); }
   finally { maintEnd(); }
 }
@@ -1034,6 +1071,7 @@ async function maintReindex() {
     const d = await maintCall('/reindex', 'POST', {}); if (!d) return;
     const lines = (d.results || []).map(r => r.error ? ('❌ ' + r.label + ': ' + r.error) : ('✅ ' + r.label + ': ' + r.chunks + ' chunks, ' + r.deletedOld + ' old vectors removed' + (r.rateLimited ? ' (cleanup paused — run "Clean up" in a minute)' : '')));
     maintSay(lines.join('\n') || 'Nothing to rebuild.', !d.success);
+    if (d.success) await buildOfficeMap(t => maintSay(lines.join('\n') + '\n' + t));
   } catch (e) { maintSay('❌ ' + e.message, true); }
   finally { maintEnd(); }
 }

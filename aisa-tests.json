@@ -137,6 +137,19 @@
   "ans": "first molar"
  },
  {
+  "q": "How many vacation days do I get?",
+  "ans": "34|68|102",
+  "forbid": "3 weeks"
+ },
+ {
+  "q": "Which software do we use to communicate with patients?",
+  "ans": "Weave"
+ },
+ {
+  "q": "How do I request time off?",
+  "ans": "Time.?Off Request"
+ },
+ {
   "q": "What's the guest Wi-Fi password?",
   "neg": true
  },
