@@ -5251,7 +5251,10 @@ var ROSTER_OWNER = { id: 's_amir', name: 'Dr. Amir Akhavan', first: 'Amir', last
 var ROSTER_LEGACY_IDS = { betz: ['s_sarah', 'sar'], brower: ['s_bri', 'bri'], doty: ['s_kaylee', 'kay'], rodis: ['s_gwen', 'gw'], rodriguez: ['s_angelika', 'ang'], jordan: ['s_wila', 'wi'], schmaltz: ['s_savannah', 'sav'], pavlova: ['s_eve', 'ev'] };
 /* who was on the IPR chairside list, and the names the apps showed, before the roster existed */
 var ROSTER_LEGACY_CHAIRSIDE = ['s_sarah', 's_bri', 's_kaylee', 's_gwen', 's_angelika'];
-var ROSTER_LEGACY_NICK = { s_angelika: 'Angie' };
+/* the first name each person already goes by on the office apps (HR records can hold legal names) */
+var ROSTER_LEGACY_GOESBY = { s_wila: 'Wila', s_eve: 'Eve', s_bri: 'Bri' };
+/* chairside (IPR) labels that differ from the name someone goes by */
+var ROSTER_CHAIR_LABEL = { s_angelika: 'Angie' };
 var rosterApp = null, rosterUser = null, rosterTimer = null, rosterSent = '', rosterPrev = null, rosterLoaded = false;
 var rosterStatus = 'off', rosterErr = '', rosterAt = 0;
 
@@ -5266,27 +5269,54 @@ function rosterChairside(p) {
   if (typeof p.chairside === 'boolean') return p.chairside;
   return /assistant|orthodont|clinic|lab tech|hygien/i.test(p.role || '');
 }
+/* legacy id for someone the office apps already knew: same last name, and either the usual
+   first-name start or the only current staff member with that last name */
+function rosterLegacyId(p, list) {
+  const n = rosterNameParts(p && p.name), f = rosterSlug(n.first), l = rosterSlug(n.last);
+  const leg = ROSTER_LEGACY_IDS[l];
+  if (!leg) return '';
+  const sameLast = list.filter(q => q && q.name && rosterSlug(rosterNameParts(q.name).last) === l).length;
+  return (f.indexOf(leg[1]) === 0 || sameLast === 1) ? leg[0] : '';
+}
 /* one-time per person: a stable roster id, plus how the office apps already listed them */
 function rosterMigrate() {
   if (!S || !Array.isArray(S.staff)) return false;
   const used = new Set([ROSTER_OWNER.id]);
   S.staff.forEach(p => { if (p && p.rosterId) used.add(p.rosterId); });
   let changed = false;
+  if (!S.settings) S.settings = {};
+  if ((S.settings.rosterMig || 0) < 2) {
+    /* repair (runs once): re-link anyone who got a brand-new id although the apps already knew them
+       (HR legal first name), and let "Angie" be Angelika's chairside label rather than her name everywhere */
+    const legacyIds = Object.keys(ROSTER_LEGACY_IDS).map(k => ROSTER_LEGACY_IDS[k][0]);
+    S.staff.forEach(p => {
+      if (!p || !p.name || !p.rosterId) return;
+      const want = rosterLegacyId(p, S.staff);
+      if (want && p.rosterId !== want && legacyIds.indexOf(p.rosterId) < 0 && !used.has(want)) {
+        used.delete(p.rosterId);
+        if (rosterPrev) delete rosterPrev[p.rosterId];
+        p.rosterId = want; used.add(want);
+      }
+      if (p.rosterId === 's_angelika' && p.nick === 'Angie') delete p.nick;
+    });
+    S.settings.rosterMig = 2; changed = true;
+  }
   S.staff.forEach(p => {
     if (!p || !p.name) return;
     if (!p.rosterId) {
       const n = rosterNameParts(p.name), f = rosterSlug(n.first) || 'staff', l = rosterSlug(n.last);
       let id = rosterIsOwner(p) ? ROSTER_OWNER.id : '';
-      const leg = ROSTER_LEGACY_IDS[l];
-      if (!id && leg && f.indexOf(leg[1]) === 0 && !used.has(leg[0])) id = leg[0];
+      const leg = rosterLegacyId(p, S.staff);
+      if (!id && leg && !used.has(leg)) id = leg;
       if (!id) { id = 's_' + f; if (used.has(id)) id = 's_' + f + (l ? l[0] : ''); let k = 2; while (used.has(id)) id = 's_' + f + (l ? l[0] : '') + (k++); }
       p.rosterId = id; used.add(id); changed = true;
     }
     if (typeof p.chairside !== 'boolean') { p.chairside = ROSTER_LEGACY_CHAIRSIDE.indexOf(p.rosterId) >= 0 || rosterChairside(p); changed = true; }
-    if (p.nick === undefined && ROSTER_LEGACY_NICK[p.rosterId]) { p.nick = ROSTER_LEGACY_NICK[p.rosterId]; changed = true; }
+    if (p.nick === undefined && ROSTER_LEGACY_GOESBY[p.rosterId]) { p.nick = ROSTER_LEGACY_GOESBY[p.rosterId]; changed = true; }
   });
   return changed;
 }
+
 function rosterEnd(p) {
   if (p.sep && SEP_YMD.test(p.sep.lastDay || '')) return p.sep.lastDay;
   if (p.status === 'former' && SEP_YMD.test(p.endDate || '')) return p.endDate;
@@ -5294,10 +5324,11 @@ function rosterEnd(p) {
 }
 function rosterPerson(p) {
   const n = rosterNameParts(p.name);
+  const pref = String(p.nick || '').trim() || n.first;   /* the name they go by at the office; legal names stay in Staff Hub */
   const o = {
-    id: p.rosterId, name: String(p.name).trim(), first: n.first, last: n.last,
-    nick: String(p.nick || '').trim() || n.first,
-    short: n.first + (n.last ? ' ' + n.last.charAt(0).toUpperCase() + '.' : ''),
+    id: p.rosterId, name: pref + (n.last ? ' ' + n.last : ''), first: pref, last: n.last,
+    nick: ROSTER_CHAIR_LABEL[p.rosterId] || pref,
+    short: pref + (n.last ? ' ' + n.last.charAt(0).toUpperCase() + '.' : ''),
     title: String(p.role || '').trim(), chairside: rosterChairside(p), active: p.status !== 'former'
   };
   const end = rosterEnd(p);
