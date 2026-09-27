@@ -352,6 +352,165 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
 .certUpThumb{position:relative}
 .pdfTag{position:absolute;left:0;bottom:0;background:var(--navy);color:#fff;font-size:9px;font-weight:700;letter-spacing:.04em;padding:1px 4px;border-radius:0 4px 0 6px;pointer-events:none}
 .pdfTag.sm{font-size:7.5px;padding:1px 3px;border-radius:0 3px 0 4px}
+/* ---------- new hire paperwork: section UI ---------- */
+.nhRow{display:flex;align-items:center;gap:13px;padding:12px 20px;border-bottom:1px solid var(--grey-100)}
+.nhRow:last-child{border-bottom:none}
+.nhRow.off .nhRowT{opacity:.5}
+.nhRowIc{width:34px;height:42px;border-radius:6px;background:var(--grey-50);border:1px solid var(--grey-200);display:flex;align-items:center;justify-content:center;color:var(--navy-500);flex:none;overflow:hidden}
+.nhRowIc.sm{width:26px;height:32px;border-radius:5px}
+.nhRowIc img{width:100%;height:100%;object-fit:cover;object-position:top center;display:block}
+.nhRowT{flex:1;min-width:0}
+.nhRowT b{color:var(--navy);font-size:13.5px}
+.nhRowT .tiny{display:block;margin-top:3px;line-height:1.45}
+.nhRowA{display:flex;align-items:center;gap:2px;flex-wrap:wrap;justify-content:flex-end}
+.nhLink{cursor:pointer}
+.nhRowA a.btn-ghost,.nhRowA a.btn{text-decoration:none}
+.nhLink:hover{color:var(--blue);text-decoration:underline;text-underline-offset:2px}
+.nhInc{width:17px;height:17px;accent-color:var(--blue);flex:none;cursor:pointer}
+.nhDoneB{border:none;cursor:pointer}
+.nhDoneB:hover{background:var(--mint-200)}
+.nhMark{color:var(--blue)}
+.nhSubHd{font-family:var(--fd);font-weight:500;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--grey-500);padding:12px 20px 6px;border-bottom:1px solid var(--grey-100);background:var(--grey-50)}
+.nhProg{display:inline-block;width:110px;height:7px;border-radius:99px;background:var(--grey-100);overflow:hidden;vertical-align:middle}
+.nhProg i{display:block;height:100%;border-radius:99px;background:var(--mint-600)}
+.nhHeadActs{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:flex-end}
+.nhTask{padding:8px 20px !important;cursor:pointer;align-items:center !important;border-bottom:1px solid var(--grey-100)}
+.nhTask .tiny{margin-left:auto;white-space:nowrap}
+.nhNotes{width:100%;min-height:96px;padding:10px 12px;border:1.5px solid var(--grey-200);border-radius:10px;outline:none;resize:vertical;font-size:13.5px;background:#fff}
+.nhNotes:focus{border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-100)}
+.nhFormHint{display:flex;align-items:center;gap:7px;font-weight:600;color:var(--navy);font-size:13px;margin:4px 0 12px;padding-top:14px;border-top:1px solid var(--grey-100)}
+.nhAddBar{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.nhAddBar>.muted{flex:1;min-width:240px}
+.nhAddBtns{display:flex;gap:8px;flex-wrap:wrap}
+.nhHireRow{cursor:pointer;transition:background var(--fast) var(--ease)}
+.nhHireRow:hover{background:var(--grey-50)}
+.nhHireWhen{width:210px;font-size:13px;color:var(--grey-700)}
+.nhHireWhen .tiny{display:none}
+.nhHireProg{width:200px;display:flex;align-items:center;gap:9px}
+.nhDet{border:1px solid var(--grey-200);border-radius:12px;padding:0 14px;margin:12px 0 0;background:var(--grey-50)}
+.nhDet[open]{padding-bottom:4px;background:#fff}
+.nhDet summary{display:flex;align-items:center;gap:8px;cursor:pointer;padding:12px 0;font-weight:600;color:var(--navy);font-size:13px;list-style:none}
+.nhDet summary::-webkit-details-marker{display:none}
+.nhDet summary::after{content:"+";margin-left:auto;font-size:17px;color:var(--grey-400);font-weight:500}
+.nhDet[open] summary::after{content:"−"}
+.nhDet summary .tiny{font-weight:500}
+.nhAddrRow{display:grid;grid-template-columns:2.2fr 1.3fr .7fr 1fr;gap:14px}
+.nhDetGrid{display:grid;grid-template-columns:auto 1fr;gap:7px 16px;font-size:13px}
+.nhDetGrid .k{color:var(--mut);white-space:nowrap}
+.nhDetGrid .v{color:var(--navy);font-weight:600;min-width:0;overflow-wrap:anywhere}
+.nhHidden{font-size:12px;color:var(--mut);display:flex;flex-wrap:wrap;gap:4px 14px;align-items:center}
+.nhCkRow{display:flex;align-items:center;gap:9px;font-size:13px;color:var(--grey-700);margin:6px 0;cursor:pointer}
+.nhCkRow input{width:16px;height:16px;accent-color:var(--blue)}
+.modal.xwide{max-width:1180px}
+.nhPrevBox{background:var(--grey-100);max-height:72vh;overflow:auto}
+.nhPrev{display:flex;flex-direction:column;align-items:center;gap:16px;min-width:0}
+.nhPaper{width:8.5in;min-height:11in;padding:.45in .55in .5in;background:#fff;box-shadow:0 2px 12px rgba(17,32,58,.16);flex:none;box-sizing:border-box}
+.nhPaper.mini{min-height:0;padding-bottom:.3in}
+.nhEd{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);gap:18px;align-items:start}
+.nhEdTa{width:100%;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace !important;font-size:12.5px !important;line-height:1.55 !important;min-height:430px !important;white-space:pre-wrap}
+.nhEdR{background:var(--grey-100);border-radius:12px;padding:12px;max-height:74vh;overflow:auto;position:sticky;top:0}
+.nhEdLbl{font-family:var(--fd);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--grey-500);margin:0 0 8px 2px}
+.nhHelp{margin-top:4px;font-size:12px;color:var(--grey-600)}
+.nhHelp summary{cursor:pointer;font-weight:600;color:var(--blue);padding:4px 0}
+.nhHelp table{border-collapse:collapse;width:100%;margin-top:6px}
+.nhHelp td{padding:5px 8px;border-bottom:1px solid var(--grey-100);vertical-align:top}
+.nhHelp td:first-child{width:46%}
+.nhHelp code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11.5px;background:var(--grey-100);padding:1px 5px;border-radius:4px;color:var(--navy);white-space:pre-wrap}
+.nhPick{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.nhDrop{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;text-align:center;border:1.5px dashed var(--grey-300);border-radius:14px;padding:26px 16px;cursor:pointer;color:var(--navy);background:#fff;transition:border-color var(--fast) var(--ease),background var(--fast) var(--ease)}
+.nhDrop:hover{border-color:var(--blue);background:var(--blue-100)}
+.nhDrop input{display:none}
+.nhDrop svg{color:var(--blue)}
+.nhDrop b{font-size:14px}
+.nhThumbs{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 14px}
+.nhThumbs img{height:96px;border:1px solid var(--grey-200);border-radius:4px;background:#fff;box-shadow:var(--sh-xs)}
+@media (max-width:920px){
+  .nhEd{grid-template-columns:1fr}
+  .nhEdR{position:static;max-height:none}
+  .nhPick{grid-template-columns:1fr}
+  .nhRow{flex-wrap:wrap}
+  .nhRowA{width:100%;justify-content:flex-start;padding-left:47px}
+  .nhHeadActs{justify-content:flex-start;width:100%}
+  .nhHireRow .nhHireWhen,.nhHireRow .nhHireProg{width:100%;padding-left:43px}
+  .nhHireRow .nhHireWhen .tiny{display:inline}
+  .nhHireRow .nhRowA{padding-left:43px}
+  .nhAddrRow{grid-template-columns:1fr 1fr}
+}
+/* long toasts on phones: full-width rounded card instead of a stretched pill */
+@media (max-width:560px){
+  #toasts{width:calc(100vw - 32px)}
+  .toast{border-radius:16px;max-width:100%}
+}
+
+/* ---------- new hire paperwork: printed forms (preview + print) ---------- */
+.nhDoc{font-family:var(--fb);color:#1d2733;font-size:9.5pt;line-height:1.46;text-align:left;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.nhDoc b{font-weight:700;color:#11203A}
+.nhLH{display:flex;align-items:center;justify-content:space-between;gap:.3in;height:.8in;border-bottom:1.6pt solid #1B2F4C;position:relative}
+.nhLH::after{content:"";position:absolute;left:0;bottom:-1.6pt;width:1.05in;height:1.6pt;background:#34C49E}
+.nhLH .nhLogo{height:.64in;width:auto;display:block}
+.nhLogoTxt{font-family:var(--fd);font-weight:600;font-size:15pt;letter-spacing:.1em;text-transform:uppercase;color:#1B2F4C}
+.nhLHi{text-align:right;font-size:7.8pt;line-height:1.55;color:#294169;letter-spacing:.02em}
+.nhTitleRow{display:flex;align-items:baseline;justify-content:space-between;gap:.25in;margin:.2in 0 .02in}
+.nhTitle{font-family:var(--fd);font-weight:600;font-size:15.5pt;letter-spacing:.05em;text-transform:uppercase;color:#1B2F4C;margin:0;line-height:1.15}
+.nhRev{font-size:6.8pt;color:#8A939F;white-space:nowrap;letter-spacing:.02em}
+.nhBody{margin-top:.12in}
+.nhBody p{margin:0 0 .085in}
+.nhBody h3{font-family:var(--fd);font-weight:600;font-size:10pt;letter-spacing:.13em;text-transform:uppercase;color:#1B2F4C;margin:.155in 0 .065in;padding-bottom:.035in;border-bottom:.6pt solid #C3C9D0;break-after:avoid;page-break-after:avoid}
+.nhBody h4{font-weight:700;font-size:9.5pt;color:#1B2F4C;margin:.12in 0 .03in;break-after:avoid;page-break-after:avoid}
+.nhBody ul{margin:0 0 .1in .19in;padding:0}
+.nhBody li{margin:0 0 .045in;padding-left:.02in}
+.nhNote{background:#EEF1F5;border-left:2.4pt solid #1B2F4C;padding:.07in .12in;margin:.06in 0 .12in;font-size:8.6pt;color:#33404F;break-inside:avoid;page-break-inside:avoid}
+.nhNote p{margin:0}
+.nhNote p + p{margin-top:.04in}
+.nhRule{border:0;border-top:.6pt solid #C3C9D0;margin:.15in 0}
+.nhBox{display:inline-block;width:.125in;height:.125in;border:1pt solid #1B2F4C;border-radius:1.2pt;vertical-align:-.015in;margin:0 .03in 0 0;background:#fff}
+.nhCks{margin:.03in 0 .1in}
+.nhCks.two{columns:2;column-gap:.35in}
+.nhCk{display:flex;gap:.08in;align-items:flex-start;margin:0 0 .05in;break-inside:avoid;page-break-inside:avoid}
+.nhCk .nhBox{flex:none;margin:.02in 0 0}
+.nhFields{display:flex;align-items:stretch;gap:.2in;margin:.085in 0 .025in;break-inside:avoid;page-break-inside:avoid}
+.nhF{flex:1 1 0;min-width:0;display:flex;flex-direction:column;justify-content:flex-end}
+.nhF .l{font-family:var(--fd);font-weight:500;font-size:7pt;line-height:1.25;letter-spacing:.13em;text-transform:uppercase;color:#6B7685;margin-bottom:.02in}
+.nhF .v{border-bottom:.75pt solid #33404F;padding:0 .04in .03in;display:flex;align-items:flex-end;font-size:10pt;color:#11203A;font-weight:500;min-height:.26in}
+.nhFields.sigrow{margin-top:.18in}
+.nhFields.sigrow .nhF{justify-content:flex-start}
+.nhFields.sigrow .nhF .v{min-height:.44in}
+.nhFields.sigrow .nhF .l{order:2;margin:.035in 0 0}
+.nhF.sp .v{border-bottom-color:transparent}
+.nhF.sp .l{visibility:hidden}
+.nhLines{margin:.1in 0 .06in;break-inside:avoid;page-break-inside:avoid}
+.nhLines .l{font-family:var(--fd);font-weight:500;font-size:7pt;letter-spacing:.13em;text-transform:uppercase;color:#6B7685}
+.nhLines .ln{border-bottom:.6pt solid #969FAB;height:.3in}
+.nhDigits{display:flex;align-items:center;gap:.15in;margin:.09in 0;break-inside:avoid;page-break-inside:avoid}
+.nhDigits .l{flex:0 0 1.75in;font-family:var(--fd);font-weight:500;font-size:7.2pt;letter-spacing:.13em;text-transform:uppercase;color:#6B7685}
+.nhDigits .bx{display:flex}
+.nhDigits .bx span{width:.27in;height:.3in;border:.75pt solid #33404F;margin-left:-.75pt;background:#fff}
+.nhDigits .bx span:first-child{margin-left:0}
+.nhBlank{display:inline-block;min-width:1.6in;border-bottom:.75pt solid #33404F;height:1em;vertical-align:-.15em;margin:0 .02in}
+.nhGap{display:inline-block;width:.28in}
+.nhTbl{width:100%;border-collapse:collapse;margin:.06in 0 .13in;font-size:8.6pt;table-layout:fixed}
+.nhTbl th{background:#EEF1F5;color:#1B2F4C;font-family:var(--fd);font-weight:500;font-size:7.2pt;letter-spacing:.12em;text-transform:uppercase;text-align:left;padding:.05in .07in;border:.6pt solid #969FAB}
+.nhTbl td{border:.6pt solid #969FAB;padding:.045in .07in;height:.33in;vertical-align:top}
+.nhTbl tr{break-inside:avoid;page-break-inside:avoid}
+.nhPB{height:0}
+.nhSlim{display:flex;align-items:center;justify-content:space-between;gap:.2in;height:.42in;border-bottom:1pt solid #1B2F4C;margin-bottom:.14in}
+.nhSlim img{height:.3in;width:auto;display:block}
+.nhSlim span{font-family:var(--fd);font-weight:500;font-size:7.8pt;letter-spacing:.13em;text-transform:uppercase;color:#1B2F4C}
+.nhUpImg{display:flex;justify-content:center;margin-top:.15in}
+.nhUpImg img{display:block}
+@media screen{
+  .nhPaper .nhPB{border-top:1.5px dashed #969FAB;margin:.3in -.55in .24in;position:relative}
+  .nhPaper .nhPB::after{content:"page break";position:absolute;right:.55in;top:-.09in;background:#fff;padding:0 6px;font-family:var(--fd);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:#969FAB}
+  body.nhPrinting #printArea{display:none !important}
+}
+@media print{
+  body.nhPrinting #app,body.nhPrinting #lockWrap,body.nhPrinting #modalWrap,body.nhPrinting #toasts{display:none !important}
+  body.nhPrinting #printArea{position:static !important;width:auto !important;padding:0 !important}
+  body.nhPrinting{background:#fff !important}
+  .nhPrintRoot .nhDoc + .nhDoc{break-before:page;page-break-before:always}
+  .nhPB{display:none}
+  .nhNewPage{break-before:page;page-break-before:always}
+}
 </style>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
@@ -696,7 +855,7 @@ function renderNav() {
   const c = navCounts();
   const groups = [
     { label:null, items:[['dashboard','Dashboard','grid',0]] },
-    { label:'People', items:[['staff','Staff','users',0],['reviews','Reviews','clipboard',c.revDue]] },
+    { label:'People', items:[['staff','Staff','users',0],['newhire','New Hire Paperwork','fileText',nhNavCount()],['reviews','Reviews','clipboard',c.revDue]] },
     { label:'Tracking', items:[['kpis','KPIs','chart',0],['certs','Certifications','award',c.certAl]] },
     { label:'Workspace', items:[['settings','Settings','gear',0]] }
   ];
@@ -735,6 +894,7 @@ function render() {
     case 'kpis': m.innerHTML = viewKPIs(); break;
     case 'certs': m.innerHTML = viewCerts(); break;
     case 'timeoff': m.innerHTML = viewTimeoff(); break;
+    case 'newhire': m.innerHTML = viewNewHire(); break;
     case 'settings': m.innerHTML = viewSettings(); break;
     default: m.innerHTML = viewDashboard();
   }
@@ -3436,6 +3596,1362 @@ H.eraseAll = function () {
     closeModal(); toast('All data erased'); fbSignOut();
   };
 };
+
+/* =====================================================
+   NEW HIRE PAPERWORK MODULE
+   Every onboarding form printed on NLO letterhead: single forms,
+   blank packets, or a new hire's packet with their details filled
+   in; a per-hire tracker for what came back signed; and outside
+   forms (Bent Ericksen, shared drive…) uploaded as PDF/photo and
+   re-printed on letterhead. Anything added or edited in the app
+   is saved inside the encrypted Staff Hub data, not in this file.
+   ===================================================== */
+
+ICONS.fileText = '<path d="M14 3.5H7A1.5 1.5 0 0 0 5.5 5v14A1.5 1.5 0 0 0 7 20.5h10a1.5 1.5 0 0 0 1.5-1.5V8z"/><path d="M14 3.5V8h4.5"/><path d="M9 12.5h6M9 16h6"/>';
+ICONS.external = '<path d="M14 4.5h5.5V10"/><path d="M19.5 4.5 11 13"/><path d="M18 14v4.5a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 4 18.5v-11A1.5 1.5 0 0 1 5.5 6H10"/>';
+ICONS.eye = '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>';
+ICONS.userPlus = '<circle cx="9.5" cy="8" r="3.4"/><path d="M3.5 19.5c.5-3.2 2.9-5 6-5s5.5 1.8 6 5"/><path d="M18.5 8v6M15.5 11h6"/>';
+
+/* ---------- new-hire paperwork: built-in forms ----------
+   Each form is plain text in a small markup (see NH_HELP_HTML below).
+   Wording comes from NLO's own documents (Welcome Sheet, Offer Letter)
+   and the Shimmin templates in Drive, adapted to Next Level Orthodontics. */
+const NH_REV = '2026-09';
+const NH_FORMS = [
+  { id:'offer', group:'hiring', title:'Official Offer Letter', packet:false, letter:true,
+    desc:'Your offer letter with position, schedule, wage and start date filled in from the new hire’s details. Includes an acceptance signature.',
+    body:`{offer_date}
+
+Dear {first},
+
+We were very excited to meet and get to know you during our interview process. We have been impressed with your background and would like to formally offer you the position of {position} here at {practice}!
+
+This is a {employment} position, {schedule}. Please note that Dr. Akhavan is an at-will employer. That means that either you or Dr. Akhavan is free to end the employment relationship at any time, with or without notice or cause.
+
+We will be offering you an hourly wage of {wage}.
+?wage2 After you hit your performance benchmarks and successfully complete your training period, we will evaluate raising your pay to {wage2} an hour.
+After 90 days of employment you will be eligible for paid holidays, which consist of New Year’s Day, Memorial Day, 4th of July, Labor Day, Thanksgiving Day and Christmas Day. You will also be eligible for paid vacation.
+
+Your expected starting date is {start}.
+?respond_by We would like to have your response by {respond_by}.
+
+In the meantime, please feel free to contact me at {contact} with any questions.
+
+We are all looking forward to having you on our team!
+
+Best regards,
+[[{doctor} ~sig]] [[- *0.8]]
+
+# Acceptance of offer
+I accept this offer of employment as described above, and I understand that my employment with {practice} is at-will.
+[[Signature *1.6]] [[Date]]
+[[Printed name =name *1.6]] [[-]]` },
+
+  { id:'application', group:'hiring', title:'Employment Application', packet:false,
+    desc:'Two-page application for candidates and working interviews. Asks the pay they’re looking for, but not their pay history.',
+    body:`> {practice} is an equal opportunity employer. All applicants for positions within our organization are considered without regard to race, color, age, sex, religion, national origin, sexual orientation, status as a qualified individual with a disability, marital or veteran status, or any other classification protected by applicable federal, state or local law.
+# Personal information
+[[Full name =name *2]] [[Today’s date]]
+[[Street address =street *2.2]] [[City =city *1.1]] [[State =state *0.45]] [[ZIP =zip *0.6]]
+[[Phone =cell]] [[Email =email *1.6]]
+[[Position applied for =position *1.3]] [[Date available =start *0.9]] [[Full / part time =employment *0.9]] [[Desired pay (hourly or salary) *1.4]]
+Are you legally authorized to work in the United States?   [ ] Yes   [ ] No
+Have you worked for {practice} before?   [ ] Yes   [ ] No      If yes, when? __________
+[[How did you hear about this position? *1.2]] [[Licenses & certifications (type, number, expiration) *1.8]]
+# Education
+| School name & location *2.4 | Years completed | Graduated? *0.9 | Degree / course of study *1.8 |
+| High school | | | |
+| College | | | |
+| Other | | | |
+# Employment history
+Beginning with your most recent employer, list the jobs you have held in the last ten (10) years. You may attach a résumé, but not in place of completing this section. (All information provided is subject to verification.)
+| Company name & location *2 | From – to *1.05 | Position held *1.25 | Supervisor & phone *1.45 | Contact? *0.75 | Reason for leaving *1.5 |
+| | | | | | |:1.6
+| | | | | | |:1.6
+| | | | | | |:1.6
+===
+# References
+Please list three (3) individual references from people who are familiar with your work, skills, ability and character. (Information provided is subject to verification.)
+| Name / title / company *2.6 | Telephone *1.3 | Years known / relationship *1.5 |
+| | | |:1.3
+| | | |:1.3
+| | | |:1.3
+# Please read carefully before signing
+For consideration for employment with {practice}, you must complete this application in its entirety and sign where indicated below. This application will remain valid for employment consideration for only sixty (60) days from today’s date. After sixty (60) days, you must re-apply for consideration for any position.
+**1. Employment at-will.** I understand that if hired, the employment relationship is at-will and of an indefinite duration. Employment at-will means that either {practice} or I may, for any reason not prohibited by law, terminate the employment relationship at any time, with or without cause and without notice. Further, no agreement to the contrary will be recognized by {practice} unless made in writing and signed by Dr. Akhavan.
+**2. Accuracy.** I certify that the answers given by me are true and correct without omissions of any kind whatsoever. I understand that intentional falsification of information, misleading statements or omissions made by me in connection with my application, or in responding to requests for information, will be sufficient grounds for my rejection as a candidate for employment or for my immediate discharge.
+**3. References.** I understand that any offer of employment will be contingent upon obtaining satisfactory employment and/or character references. I hereby authorize all references and former employers listed on my employment application to give {practice} all information concerning my previous employment and any pertinent information they might have, personal or otherwise, and release all parties from any claims, causes of action, or liability from damages that may or could result in furnishing such information.
+**4. Examinations.** I consent to take any physical examinations, including but not limited to tests for alcohol or drugs, that may be requested by {practice} (1) following an offer of employment and prior to commencement of work; and (2) during my employment, consistent with applicable law, including but not limited to the Americans With Disabilities Act. I further authorize any health care professional who performs such an examination or who has other information concerning my physical, mental or other medical status to release such information to {practice}.
+[[Applicant signature *2]] [[Date]]` },
+
+  { id:'checklist', group:'packet', title:'New Hire Checklist', packet:true, office:true,
+    desc:'Office copy for the personnel file — every packet form, the copies to collect, setup, orientation and the 90-day milestones.',
+    body:`> Office use — keep with the personnel file. Never write passwords or alarm codes on this sheet.
+[[Employee =name *1.5]] [[Position =position *1.4]] [[Start date =start]]
+# Paperwork returned
+[[forms]]
+# Copies needed from employee
+[ ] Dental radiography certificate (clinical)
+[ ] CPR / BLS card
+[ ] Voided check or bank letter for direct deposit
+[ ] I-9 documents — examined within 3 business days
+# Setup
+[ ] Added to payroll
+[ ] Staff Hub profile + 90-day review date
+[ ] Ortho2 Edge login (clinical: template column)
+[ ] Weave & email access
+[ ] Time clock procedure reviewed
+[ ] Time-off request process reviewed
+[ ] Hep B vaccine offered within 10 working days
+[ ] Training schedule set with their lead
+# Day-one orientation
+[ ] Welcome sheet reviewed
+[ ] Sick / vacation policy explained
+[ ] Computers, phones & cell phones
+[ ] Food, drink & gum policy
+[ ] Office tour, recycling & shred
+[ ] Referring offices (GDs) introduced
+# After 90 days
+[ ] 90-day review with Dr. Akhavan
+[ ] Holiday pay eligibility begins
+[ ] Official NLO uniforms ordered
+[ ] Key & alarm access — receipt signed
+[ ] 401(k) enrollment when eligible
+[[Completed by *1.6]] [[Date]]` },
+
+  { id:'payroll', group:'packet', title:'Payroll Enrollment', packet:true, office:true,
+    desc:'Office copy for setting up payroll — pay, hours, direct deposit and withholding. Filed with the W-4; SSNs stay on paper.',
+    body:`> Office use — completed by the office manager when setting up payroll. File with the employee’s W-4. Never type Social Security numbers into Staff Hub.
+[[Employee =name *2]] [[Date hired =start]]
+[[Address =street *2.3]] [[City =city *1.1]] [[State =state *0.45]] [[ZIP =zip *0.6]]
+[[Home phone =home_phone]] [[Cell phone =cell]] [[Social Security number]]
+[[Job title =position *1.6]] [[Full / part time =employment]] [[Average hours per week =hours]]
+[[Starting pay (hourly) =wage]] [[Pay after training =wage2]] [[Pay frequency =payfreq *1.3]]
+Direct deposit:   [ ] No   [ ] Yes — authorization and voided check attached
+Federal withholding:   [ ] Form W-4 attached      Filing status on the W-4 (Step 1c):
+[ ] Single or married filing separately
+[ ] Married filing jointly
+[ ] Head of household
+[[Entered into payroll by *1.6]] [[Date]]
+[[Employer / manager signature *1.6]] [[Date]]` },
+
+  { id:'welcome', group:'packet', title:'New Hire Welcome Sheet', packet:true,
+    desc:'Parking, meetings, holiday pay, pay periods, hours, first day, uniform and the 90-day review.',
+    body:`Hi {first|there}! We are so excited you are joining the {practice} team. We wanted to take a moment to welcome you to the practice, but more importantly go through some things with you to make sure you feel right at home here at our office.
+- **Parking:** When parking, we ask that you park in the side parking lots located to the right or left of our office. We like to reserve the spots directly in front of our office for patients.
+- **Team meetings:** We do a daily morning meeting each morning before seeing patients, on patient days. We ask that you arrive at least 10–15 minutes early to set up for the day. We also have a monthly team meeting.
+- **Holiday pay:** If a holiday falls on a day you would have worked, then you will receive holiday pay based on the typical hours you would have worked that day. So if a holiday falls on a Friday, but you don’t work Fridays, then you won’t be paid for that holiday. If the holiday falls on a day you usually work and that day you usually only work 5 hours, then you will only be paid for 5 hours of holiday pay.
+- **Pay periods:** We get paid every other Tuesday.
+- **Work days & hours:** {practice} sees patients Monday–Thursday from 8 AM–5 PM, with lunch taken daily from 1–2 PM. Every morning before the team meeting you will complete your morning checklist, and before leaving for the day you will complete your afternoon checklist and turn it in to the team leader. We will go over your checklist with you in person when you come in. Your “admin day” is the time you complete all your weekly checklist duties — admin days are used to tackle those big tasks that are too time-consuming to do on patient days.
+- **1st day work expectations:** When you arrive, the doors will be locked while we set up for the day and go through our morning meeting. Just knock on the door, or call your office manager’s cell, and they will unlock the door for you. We will go over a complete training guide and schedule with you. You will then dive right into training with your direct lead.
+- **Uniform:** During your 90-day waiting period we ask that you wear plain black scrubs every day that do not have other office logos on them, and a black closed-toe shoe (tennis shoes). Uniforms should be wrinkle- and stain-free. Hair should be neatly styled (if clinical, pulled back in a neat bun or ponytail) — no messy hair — with natural, moderate make-up, and nails clean and trimmed. No excessive nail length or crazy nail designs or colors, please.
+- **90-day review:** After 90 days, Dr. Akhavan will sit down with you and perform a 90-day review. Once your 90-day period is up you will be able to receive holiday pay, we will order your official Next Level uniforms, and you will be given a key to the office and access to our alarm panel.
+We look forward to seeing you soon, and if you need anything please let us know!` },
+
+  { id:'info', group:'packet', title:'New Employee Information', packet:true,
+    desc:'Contact details, date of birth, two emergency contacts, scrub sizes and certifications on file.',
+    body:`[[Full name =name *2]] [[Preferred name =preferred]] [[Today’s date]]
+[[Current address =street *2.3]] [[City =city *1.1]] [[State =state *0.45]] [[ZIP =zip *0.6]]
+[[Date of birth =dob]] [[Home phone =home_phone]] [[Cell phone =cell]]
+[[Email address =email *2]] [[Scrub size (top / bottom) =scrubs]]
+[[Position =position *1.6]] [[Start date =start]] [[Full / part time =employment]]
+# In case of an emergency
+## Primary contact
+[[Name =ec1_name *1.6]] [[Relationship to you =ec1_rel *1.2]]
+[[Cell phone =ec1_phone]] [[Home phone]] [[Work phone]] [[Email address *1.4]]
+## Secondary contact
+[[Name =ec2_name *1.6]] [[Relationship to you =ec2_rel *1.2]]
+[[Cell phone =ec2_phone]] [[Home phone]] [[Work phone]] [[Email address *1.4]]
+# Licenses & certifications
+> Clinical team: please attach copies. We track expiration dates so you get a reminder before anything lapses.
+| Certification *2 | Number *1.3 | Issued | Expires |
+| FL dental radiography | | | |
+| CPR / BLS | | | |
+To keep our records current, please let the office know whenever any of this information changes.
+[[Employee signature *2]] [[Date]]` },
+
+  { id:'deposit', group:'packet', title:'Direct Deposit Authorization', packet:true,
+    desc:'Your direct deposit form — up to two accounts by amount or percentage, with account and routing number boxes. Account numbers stay on paper.',
+    body:`I hereby authorize {practice} to directly deposit my pay in the bank account(s) listed below in the percentages specified. (If two accounts are designated, deposits are to be made in whole percentages of pay to total 100%.) I have attached a voided personalized check (checking accounts) or deposit slip (savings accounts) for each account specified below. No more than two accounts may be designated. This authorization is to remain in force until the Company has received written authorization from me of its termination or change. Also, I hereby grant {practice} the right to correct any such electronic funds transfer resulting from an erroneous overpayment by debiting my account to the extent of such overpayment.
+[[Name (print) =name *2]] [[-]]
+[[Signature *2]] [[Date]]
+# Account #1 (check only one)
+[ ] Checking (attach voided check)
+[ ] Savings (attach deposit slip and obtain ABA routing number from your bank)
+[[Financial institution *1.7]] [[Telephone]]
+[[Street address *1.7]] [[City, state and ZIP code *1.5]]
+[[boxes:17 Personal account number]]
+[[boxes:9 ABA (routing) number]]
+Amount of pay to be deposited into this account:   $____________ or ________%
+# Account #2 (check only one)
+[ ] Checking (attach voided check)
+[ ] Savings (attach deposit slip and obtain ABA routing number from your bank)
+[[Financial institution *1.7]] [[Telephone]]
+[[Street address *1.7]] [[City, state and ZIP code *1.5]]
+[[boxes:17 Personal account number]]
+[[boxes:9 ABA (routing) number]]
+Amount of pay to be deposited into this account:   $____________ or ________%` },
+
+  { id:'paystub', group:'packet', title:'Electronic Paystub Authorization', packet:true,
+    desc:'Consent to receive paystubs electronically each pay period, with the right to switch back to paper.',
+    body:`I agree that {practice} may provide my paystub to me electronically each pay period, instead of on paper.
+I understand that I can opt out at any time by letting the office know, and my paystubs will go back to paper.
+[[Employee name =name *2]] [[-]]
+[[Email for paystub notices =email *2]] [[-]]
+[[Employee signature *2]] [[Date]]` },
+
+  { id:'handbook', group:'packet', title:'Policy Manual Acknowledgment', packet:true,
+    desc:'Receipt of the Personnel Policy Manual — not a contract, at-will employment, agreement to follow the policies. Office section on top.',
+    body:`## To be completed by the office
+[[Employee name =name *1.6]] [[Please sign and return by =start *1.1]]
+[[Policies effective =policy_date *1.1]] [[- *1.6]]
+If you have any questions about these policies, please ask Dr. Akhavan or the office manager right away.
+[[Employer signature *1.6]] [[Date]]
+---
+## Employee acknowledgment
+- I understand that the policies and procedures in the {practice} Personnel Policy Manual are not a contract of employment, express or implied, and do not create any contractual obligation on the part of {practice}.
+- I understand that my employment is at-will. It is not for any set length of time, and either {practice} or I may end it at any time, with or without cause.
+- This at-will statement is the complete and final understanding between {practice} and me about the nature of my employment. No verbal or side agreement changes it.
+- I have read and understand the policies in the Personnel Policy Manual and agree to follow them, and I understand that by continuing my employment I accept these policies.
+[[Employee signature *1.6]] [[Date]]` },
+
+  { id:'jobdesc', group:'packet', title:'Job Description Acknowledgment', packet:true,
+    desc:'Confirms the new team member received and reviewed their job description — a summary of the role, not a contract.',
+    body:`I received a copy of my job description and reviewed it with a manager on __________________.
+By signing below, I confirm that:
+- I have read my job description and understand what it expects of me — including who I report to, the qualifications and skills the role requires, its physical requirements, and its essential duties.
+- It summarizes my role. It is not a complete list of tasks, and I may be asked to take on other duties as the office needs.
+- It is not a contract of employment and does not change my at-will status.
+- I agree to carry out my duties as it describes, and to ask my manager whenever something is unclear.
+[[Employee name =name *1.6]] [[Job title =position *1.4]]
+[[Employee signature *1.6]] [[Date]]
+[[Reviewed with (manager) *1.6]] [[Date]]` },
+
+  { id:'hipaa', group:'packet', title:'HIPAA & Confidentiality Agreement', packet:true,
+    desc:'Patient privacy (HIPAA), practice business information, passwords and reporting — plus HIPAA training date.',
+    body:`As a member of the {practice} team, I will have access to confidential information, including patients’ protected health information (PHI) and the practice’s business records. This information is protected by law, including the Health Insurance Portability and Accountability Act (HIPAA), and by practice policy.
+I agree that:
+- I will access, use and share patient information only as my job requires, and only the minimum necessary.
+- I will not discuss patients or their care where others can overhear, and never outside the office — including with family and friends.
+- I will not post, text, photograph or share anything about patients on social media or personal devices, even without names.
+- I will keep my passwords private, lock or log off my workstation when I step away, and never use another person’s login.
+- I will not remove patient or practice records from the office, or send them to a personal email account or device.
+- I will not try to read or review information that has not been made available to me for my work.
+- I will report any suspected privacy or security problem to the office manager or Dr. Akhavan right away.
+- I will treat the practice’s business information — such as financial records, fee schedules, patient lists and vendor terms — as confidential.
+- My duty to protect this information continues after my employment ends.
+I understand that violating this agreement may result in disciplinary action, up to and including termination, and may carry civil or criminal penalties under the law.
+> Nothing in this agreement limits your right to discuss your own wages, hours or working conditions.
+[[Employee name =name *1.6]] [[Position =position *1.4]] [[HIPAA training date]]
+[[Employee signature *1.6]] [[Date]]
+[[Office manager signature *1.6]] [[Date]]` },
+
+  { id:'tech', group:'packet', title:'Technology, Cell Phone & Social Media Policy', packet:true,
+    desc:'Office computers & email, personal cell phone use, and social media — with the friendly-reminder-first approach.',
+    body:`We understand that staying connected is important, both personally and professionally. This policy keeps our focus on patients and protects their privacy, while still allowing reasonable, responsible use of personal devices.
+# Office computers, email & internet
+- Office computers, email, internet and practice software are for practice business. Keep work email professional in tone.
+- Don’t install software, change settings, or connect personal devices to office computers without approval.
+- Never share passwords, and lock or log off your workstation when you step away.
+- Activity on practice systems and accounts is not private and may be reviewed.
+# Cell phones
+- Keep personal calls, texts and social media to breaks and lunch, away from patient areas. Ringers stay on silent during patient care.
+- If you need to take an urgent call, step away to a private area and let your lead know.
+- Use the office phones for work communication. Never photograph patients, charts or screens on a personal phone.
+- We all make mistakes — we’ll start with a friendly reminder. If the policy is broken again after a verbal reminder, additional disciplinary action may follow.
+- If you have special circumstances that require more phone access, talk with Dr. Akhavan or your clinical or admin lead. We’ll find a solution that works.
+# Social media
+- Never post patient information, photos or anything that could identify a patient — even with names removed.
+- Only authorized team members post for {practice} or use the practice name and logo on social media.
+- Harassment, threats or discriminatory comments about coworkers or patients are not allowed — online or off.
+- Personal social media use happens on your own time, not during working hours.
+> Nothing in this policy limits your right to discuss wages, hours or other working conditions with coworkers or others.
+I have read this policy and agree to follow it.
+[[Employee name =name *1.6]] [[Position =position *1.4]]
+[[Employee signature *1.6]] [[Date]]` },
+
+  { id:'safety', group:'packet', title:'Maintaining a Safe Workplace', packet:true,
+    desc:'Everyday safety expectations for the office — training first, SDS and PPE, sharps, and reporting injuries or exposures right away.',
+    body:`Safety is part of everyone’s job at {practice}. Please follow these practices every day:
+- Don’t start a task — including new equipment or a new procedure — until you’ve been trained to do it safely.
+- If a task or situation ever seems unsafe, stop and ask your lead before going on.
+- Know the chemicals you work with: read the label and the Safety Data Sheet (SDS) before use, and never mix or transfer products without training.
+- Wear the personal protective equipment (PPE) your task calls for — gloves, mask, protective eyewear, gown — and keep it clean and in good repair.
+- Put wires, burs and other sharps only in a sharps container.
+- Keep guards, warning signs and emergency equipment (eyewash station, fire extinguisher, exits) in place and unblocked.
+- Report any unsafe condition right away, and report every work injury or exposure — even a small cut or splash — to your lead or Dr. Akhavan immediately.
+Safe work procedures for your role, as covered in your training, must be followed at all times. Our safety program only works when everyone takes part.
+[[Employee name =name *1.6]] [[Position =position *1.4]]
+[[Employee signature *1.6]] [[Date]]` },
+
+  { id:'commit', group:'packet', title:'New Employee Commitment Sheet', packet:true,
+    desc:'The new team member’s commitment to patients, teammates and growth — and that they’ve read their job description.',
+    body:`I, {name}, understand that my role as {position} at {practice} is a significant responsibility and will make it a priority to do the best of my ability for my patients and my team.
+I am committing to the following as my role in this office:
+- I will support the mission statement, the values and goals of this office.
+- I will always do my job to the best of my ability to make sure I am providing the most patient-centered care possible.
+- I will continue to always expand my knowledge to improve my skills for the betterment of the practice.
+- I will always support and encourage my co-workers.
+I have read and understand my job description and fully agree to this Letter of Commitment.
+[[Signature *2]] [[Date]]
+[[Print name =name *2]] [[-]]` },
+
+  { id:'hepb', group:'packet', title:'Hepatitis B Vaccination Record & Declination', packet:true, clinical:true,
+    desc:'OSHA Bloodborne Pathogens form: already vaccinated, request the vaccine, or decline using OSHA’s required wording.',
+    body:`{practice} offers the hepatitis B vaccine series at no cost to team members whose job involves possible exposure to blood or other potentially infectious materials, as required by OSHA’s Bloodborne Pathogens Standard (29 CFR 1910.1030). Please check and complete ONE option below.
+[[Employee name =name *1.6]] [[Position =position *1.4]]
+# [ ] Option 1 — Already vaccinated
+I have already completed the hepatitis B vaccine series.
+[[Dose 1 date]] [[Dose 2 date]] [[Dose 3 date (if 3-dose)]] [[Titer / immunity result, if known *1.5]]
+> Please attach a copy of your vaccination record.
+# [ ] Option 2 — Vaccination requested
+I want to receive the hepatitis B vaccine series at no charge to me.
+# [ ] Option 3 — Declination
+I understand that due to my occupational exposure to blood or other potentially infectious materials I may be at risk of acquiring hepatitis B virus (HBV) infection. I have been given the opportunity to be vaccinated with hepatitis B vaccine, at no charge to myself. However, I decline hepatitis B vaccination at this time. I understand that by declining this vaccine, I continue to be at risk of acquiring hepatitis B, a serious disease. If in the future I continue to have occupational exposure to blood or other potentially infectious materials and I want to be vaccinated with hepatitis B vaccine, I can receive the vaccination series at no charge to me.
+[[Employee signature *1.6]] [[Date]]
+---
+## Office use
+[[Vaccine offered on]] [[First day with exposure =start]] [[Recorded by *1.4]]
+> Make the vaccine available within 10 working days of initial assignment. This is a confidential medical record — keep it separate from the personnel file for the length of employment plus 30 years.` },
+
+  { id:'favorites', group:'packet', title:'My Favorite Things', packet:true,
+    desc:'Just-for-fun team survey — treats, drinks, birthdays and hobbies, so we can celebrate each other.',
+    body:`> Just for fun and completely optional — it helps us celebrate you!
+[[Full name =name *1.6]] [[Birthday (month / day) =bday]]
+[[Kids]] [[Pets]]
+[[Allergies (for team treats) *2]]
+# A few of my favorite things…
+[[Candy bar]] [[Candy]]
+[[Cookie]] [[Cake]]
+[[Dessert]] [[Snack food]]
+[[Drink / soda]] [[Starbucks order]]
+[[Fast food]] [[Restaurants]]
+[[Color]] [[Flowers]]
+[[Scent]] [[Lotion / scent]]
+[[Gum / mint]] [[Chapstick / lip gloss]]
+[[Stores / brands]] [[Magazines / books]]
+[[Spa treatment]] [[Salon of choice]]
+[[Hobbies *2]]
+[[Email =email *2]]` },
+
+  { id:'intro', group:'packet', title:'Get to Know You', packet:true,
+    desc:'Optional, just-for-fun questions — shows, trips, treats, pets, and how they like to be recognized.',
+    body:`> Optional and just for fun — share as much or as little as you like!
+[[Name =name *2]] [[Date]]
+[[lines:2 How do you like to spend a day off?]]
+[[lines:2 What are you watching, reading or listening to right now?]]
+[[lines:2 A concert, show or game you’d love to see live?]]
+[[lines:2 Favorite treat — and your idea of a perfect dinner out?]]
+[[lines:2 Best trip you’ve taken, and the next one you’re dreaming about?]]
+[[lines:2 Hobbies or interests we might not guess?]]
+[[lines:2 Any pets? Tell us about them!]]
+[[lines:2 How do you like to be recognized when you do great work?]]
+[[lines:2 Anything else you’d like the team to know about you?]]` },
+
+  { id:'keys', group:'later', title:'Key & Office Access Receipt', packet:false,
+    desc:'Office key, alarm access and uniforms issued after the 90-day review — and returned at separation.',
+    body:`I acknowledge receiving the items below from {practice}. I will keep them secure, will not copy keys or share alarm codes, will report any loss right away, and will return all items on or before my last day of employment.
+[[Employee name =name *1.6]] [[Position =position *1.4]]
+| Item *2.2 | Key # / description *1.6 | Date issued | Issued by | Date returned |
+| Office key | | | | |
+| Alarm access (never write the code here) | | | | |
+| NLO uniforms (qty) | | | | |
+| | | | | |
+[[Employee signature *1.6]] [[Date]]
+[[Issued by (office manager) *1.6]] [[Date]]` }
+];
+
+const NH_OFFICIAL = [
+  { id:'i9', title:'Form I-9 — Employment Eligibility Verification', short:'Form I-9 (with copies of documents)', url:'https://www.uscis.gov/i-9',
+    note:'The employee completes Section 1 by their first day; you examine their documents and complete Section 2 within 3 business days. Best practice: keep I-9s in their own binder, not the personnel file.' },
+  { id:'w4', title:'Form W-4 — Employee’s Withholding Certificate', short:'Form W-4', url:'https://www.irs.gov/pub/irs-pdf/fw4.pdf',
+    note:'Print the current year’s form from the IRS. Florida has no state income tax, so there’s no state withholding form.' },
+  { id:'aca', title:'Health Insurance Marketplace Notice', short:'Marketplace coverage notice (given)', given:true,
+    url:'https://www.dol.gov/agencies/ebsa/laws-and-regulations/laws/affordable-care-act/for-employers-and-advisers/coverage-options-notice',
+    note:'Give to every new employee within 14 days of their start date — full- or part-time, whether or not the practice offers a health plan. The DOL has a model notice for each case; fill in Part B.' }
+];
+
+const NH_NEW_TEMPLATE = `Type or paste the form text here — one paragraph per line.
+# A section heading
+- A bullet point
+[ ] A checkbox line
+[[Employee name =name *1.6]] [[Position =position *1.4]]
+[[Employee signature *1.6]] [[Date]]`;
+
+
+const NH_MAX_PAGES = 8;                  // pages per uploaded form
+const NH_RENDER_PX = 2000;               // uploaded pages are rendered ~235 dpi across the page
+const NH_PAGE_MAX_RAW = 540 * 1024;      // one page per Firestore doc; ~1.8x overhead once encrypted -> stays under 1 MiB
+const NH_LH_DEFAULT = { addr1:'320 NW 76th Drive', addr2:'Gainesville, FL 32607', phone:'(352) 332-7466', web:'thenextlevelorthodontics.com', signer:'Dr. Amir Akhavan', contact:'', payfreq:'Biweekly — every other Tuesday', policy:'' };
+const NH_TEAMS = { clinical:'Clinical', admin:'Front office / admin', lab:'Lab' };
+const NH_GROUPS = [
+  { id:'hiring',   label:'Before day one',             icon:'briefcase', sub:'Offer letter & application' },
+  { id:'packet',   label:'New-hire packet',            icon:'clipboard', sub:'Printed together for day one' },
+  { id:'official', label:'Official government forms',  icon:'shield',    sub:'Always print the current version from the source' },
+  { id:'later',    label:'After the 90-day review',    icon:'key',       sub:'' }
+];
+const NH_TASKS = [
+  { sec:'Setup', items:[['payroll','Added to payroll'],['staffhub','Staff Hub profile + 90-day review date'],['edge','Ortho2 Edge login (clinical: template column)'],['weave','Weave & email access'],['clock','Time clock procedure reviewed'],['timeoff','Time-off request process reviewed'],['hepb','Hep B vaccine offered within 10 working days','clin'],['training','Training schedule set with their lead']] },
+  { sec:'Day-one orientation', items:[['welcome','Welcome sheet reviewed'],['policy','Sick / vacation policy explained'],['phones','Computers, phones & cell phones'],['food','Food, drink & gum policy'],['tour','Office tour, recycling & shred'],['gd','Referring offices (GDs) introduced']] },
+  { sec:'After 90 days', items:[['rev90','90-day review with Dr. Akhavan'],['holiday','Holiday pay eligibility begins'],['uniform','Official NLO uniforms ordered'],['key','Key & alarm access — receipt signed'],['k401','401(k) enrollment when eligible']] }
+];
+const NH_KEYS = new Set(['name','first','preferred','position','team','employment','schedule','start','hours','wage','wage2','offer_date','respond_by','today',
+  'dob','bday','street','city','state','zip','cell','home_phone','email','scrubs','ec1_name','ec1_rel','ec1_phone','ec2_name','ec2_rel','ec2_phone',
+  'practice','doctor','practice_address','practice_phone','website','contact','payfreq','policy_date']);
+/* the per-person details entered once on the new-hire record: [record field, label, input type] */
+const NH_PERSONAL = [['preferred','Preferred name','text'],['dob','Date of birth','date'],['cell','Cell phone','tel'],['homePhone','Home phone','tel'],['email','Personal email','email'],
+  ['street','Street address','text'],['city','City','text'],['state','State','text'],['zip','ZIP','text'],['scrubs','Scrub size (top / bottom)','text']];
+const NH_EC = [['ec1Name','Primary contact — name','text'],['ec1Rel','Relationship','text'],['ec1Phone','Phone','tel'],['ec2Name','Second contact — name','text'],['ec2Rel','Relationship','text'],['ec2Phone','Phone','tel']];
+
+/* ---------- state ---------- */
+function nhS() {
+  if (!S.nh || typeof S.nh !== 'object' || Array.isArray(S.nh)) S.nh = {};
+  const n = S.nh;
+  if (!Array.isArray(n.hires)) n.hires = [];
+  if (!n.forms || typeof n.forms !== 'object' || Array.isArray(n.forms)) n.forms = {};
+  if (!Array.isArray(n.custom)) n.custom = [];
+  if (!Array.isArray(n.hidden)) n.hidden = [];
+  if (!n.lh || typeof n.lh !== 'object' || Array.isArray(n.lh)) n.lh = {};
+  return n;
+}
+function nhLH() {
+  const lh = nhS().lh, o = Object.assign({}, NH_LH_DEFAULT);
+  ['addr1', 'addr2', 'phone', 'signer'].forEach(k => { if (typeof lh[k] === 'string' && lh[k].trim()) o[k] = lh[k].trim(); });
+  ['web', 'contact', 'payfreq', 'policy'].forEach(k => { if (typeof lh[k] === 'string') o[k] = lh[k].trim(); });
+  return o;
+}
+const nhHire = id => nhS().hires.find(h => h.id === id) || null;
+function nhAllForms() {
+  const n = nhS();
+  const out = NH_FORMS.map(f => {
+    const o = n.forms[f.id];
+    const content = !!(o && (o.title || typeof o.body === 'string'));
+    return Object.assign({}, f, { builtIn:true, kind:'markup', edited: content,
+      title: (o && o.title) || f.title, body: (o && typeof o.body === 'string') ? o.body : f.body,
+      packet: (o && typeof o.packet === 'boolean') ? o.packet : !!f.packet, rev: (content && o.updated) || NH_REV });
+  });
+  n.custom.forEach(c => { if (c && c.id) out.push(Object.assign({ group:'packet', kind:'markup', packet:false }, c, { builtIn:false, rev: c.updated || c.created || NH_REV })); });
+  return out;
+}
+const nhVisibleForms = () => { const hid = nhS().hidden; return nhAllForms().filter(f => hid.indexOf(f.id) < 0); };
+const nhFormById = id => nhAllForms().find(f => f.id === id) || null;
+function nhIncluded(f, h) {
+  if (h && h.inc && typeof h.inc[f.id] === 'boolean') return h.inc[f.id];
+  if (h && f.clinical && h.team === 'admin') return false;
+  return !!f.packet;
+}
+const nhPacketForms = h => nhVisibleForms().filter(f => f.group === 'packet' && nhIncluded(f, h));
+function nhProgress(h) {
+  const ids = nhPacketForms(h).filter(f => !f.office).map(f => f.id).concat(NH_OFFICIAL.map(o => o.id));
+  const done = ids.filter(id => h.done && h.done[id]).length;
+  return { done, total: ids.length };
+}
+function nhNavCount() {
+  try { return nhS().hires.filter(h => h.status !== 'done' && (p => p.done < p.total)(nhProgress(h))).length; }
+  catch (e) { return 0; }
+}
+
+/* ---------- merge values ---------- */
+function nhMoney(v) {
+  const s = String(v == null ? '' : v).trim(); if (!s) return '';
+  const t = s.replace(/[$,\s]/g, '');
+  if (!/^\d+(\.\d+)?$/.test(t)) return s;
+  const n = parseFloat(t);
+  return '$' + (Number.isInteger(n) ? String(n) : n.toFixed(2));
+}
+const nhLong = ymd => { const d = parseYMD(ymd); return d ? d.toLocaleDateString('en-US', { month:'long', day:'numeric', year:'numeric' }) : ''; };
+const nhNumDate = ymd => { const d = parseYMD(ymd); return d ? String(d.getMonth() + 1).padStart(2, '0') + '/' + String(d.getDate()).padStart(2, '0') + '/' + d.getFullYear() : ''; };
+const nhMonthDay = ymd => { const d = parseYMD(ymd); return d ? d.toLocaleDateString('en-US', { month:'long', day:'numeric' }) : ''; };
+function nhVals(h) {
+  const L = nhLH(), practice = (S.settings && S.settings.officeName) || 'Next Level Orthodontics';
+  const v = { practice, doctor: L.signer, practice_address: [L.addr1, L.addr2].filter(Boolean).join(', '), practice_phone: L.phone, website: L.web,
+    contact: L.contact || L.phone, payfreq: L.payfreq, policy_date: /^\d{4}-\d{2}-\d{2}$/.test(L.policy) ? nhLong(L.policy) : L.policy };
+  if (!h) return v;
+  const name = String(h.name || '').trim(), t = x => String(x == null ? '' : x).trim();
+  return Object.assign(v, {
+    name, first: t(h.preferred) || name.split(/\s+/)[0] || '', preferred: t(h.preferred), position: t(h.position), team: NH_TEAMS[h.team] || '',
+    employment: String(h.employment || '').toLowerCase(), schedule: t(h.schedule), start: nhLong(h.start), hours: t(h.hours),
+    wage: nhMoney(h.wage), wage2: nhMoney(h.wage2), offer_date: nhLong(h.offerDate || todayYMD()),
+    respond_by: nhLong(h.respondBy), today: nhLong(todayYMD()),
+    dob: nhNumDate(h.dob), bday: nhMonthDay(h.dob), street: t(h.street), city: t(h.city), state: t(h.state), zip: t(h.zip),
+    cell: t(h.cell), home_phone: t(h.homePhone), email: t(h.email), scrubs: t(h.scrubs),
+    ec1_name: t(h.ec1Name), ec1_rel: t(h.ec1Rel), ec1_phone: t(h.ec1Phone), ec2_name: t(h.ec2Name), ec2_rel: t(h.ec2Rel), ec2_phone: t(h.ec2Phone)
+  });
+}
+function nhCtx(h) {
+  const vals = nhVals(h);
+  const formList = nhPacketForms(h).filter(f => !f.office).map(f => f.title).concat(NH_OFFICIAL.map(o => o.short));
+  return { vals, blank: !h, lh: nhLH(), logo: nhLogoUrl, practice: vals.practice, formList, title: '' };
+}
+
+/* ---------- letterhead logo: the app's own white logo, recolored navy ---------- */
+let nhLogoUrl = '', nhLogoPending = null;
+function nhLoadLogo() {
+  if (nhLogoUrl) return Promise.resolve(nhLogoUrl);
+  if (nhLogoPending) return nhLogoPending;
+  const el = $('.sideTop img') || $('.lockBrand img');
+  const src = el && el.getAttribute('src');
+  if (!src) return Promise.resolve('');
+  nhLogoPending = new Promise(resolve => {
+    const done = u => { nhLogoUrl = u || ''; nhLogoPending = null; resolve(nhLogoUrl); };
+    const im = new Image();
+    im.onload = () => {
+      try {
+        const cv = document.createElement('canvas');
+        cv.width = im.naturalWidth; cv.height = im.naturalHeight;
+        const cx = cv.getContext('2d');
+        cx.drawImage(im, 0, 0);
+        cx.globalCompositeOperation = 'source-in';
+        cx.fillStyle = '#1B2F4C'; cx.fillRect(0, 0, cv.width, cv.height);
+        if (cv.toBlob) cv.toBlob(b => done(b ? URL.createObjectURL(b) : cv.toDataURL('image/png')), 'image/png');
+        else done(cv.toDataURL('image/png'));
+      } catch (e) { done(''); }
+    };
+    im.onerror = () => done('');
+    im.src = src;
+  });
+  return nhLogoPending;
+}
+
+/* ---------- form markup -> HTML ---------- */
+function nhInline(text, ctx) {
+  let s = esc(text);
+  s = s.replace(/\*\*([^*]+?)\*\*/g, '<b>$1</b>');
+  s = s.replace(/\[ \]/g, '<span class="nhBox"></span>');
+  s = s.replace(/_{3,}/g, m => '<span class="nhBlank" style="min-width:' + Math.max(0.45, Math.min(5.5, m.length * 0.085)).toFixed(2) + 'in"></span>');
+  s = s.replace(/ {3,}/g, '<span class="nhGap"></span>');
+  s = s.replace(/\{\s*([a-z0-9_]+)\s*(?:\|([^{}]*))?\}/gi, (m, k, fb) => {
+    k = k.toLowerCase();
+    if (!NH_KEYS.has(k)) return m;
+    const v = ctx.vals[k];
+    if (v) return esc(v);
+    if (fb) return fb;
+    return '<span class="nhBlank"></span>';
+  });
+  return s;
+}
+function nhField(inner, ctx, sigRow) {
+  const parts = String(inner).trim().split(/\s+/).filter(Boolean);
+  let w = 1, key = null, spacer = false;
+  const keep = [];
+  parts.forEach((p, i) => {
+    if (i === 0 && p === '-') spacer = true;
+    else if (/^\*\d+(\.\d+)?$/.test(p)) w = parseFloat(p.slice(1)) || 1;
+    else if (/^=[a-z0-9_]+$/i.test(p)) key = p.slice(1).toLowerCase();
+    else if (p === '~sig') { /* handled at row level */ }
+    else keep.push(p);
+  });
+  const grow = 'flex-grow:' + Math.max(0.1, Math.min(8, w));
+  if (spacer) return `<div class="nhF sp" style="${grow}"><div class="l">&nbsp;</div><div class="v"></div></div>`;
+  const val = key && ctx.vals[key] ? esc(ctx.vals[key]) : '';
+  return `<div class="nhF" style="${grow}"><div class="l">${nhInline(keep.join(' '), ctx) || '&nbsp;'}</div><div class="v">${val}</div></div>`;
+}
+function nhFieldRow(line, ctx) {
+  const toks = line.match(/\[\[[\s\S]*?\]\]/g) || [];
+  const inners = toks.map(t => t.slice(2, -2));
+  const sig = inners.some(t => /(^|\s)~sig(\s|$)/.test(t) || /signature/i.test(t));
+  return `<div class="nhFields${sig ? ' sigrow' : ''}">${inners.map(t => nhField(t, ctx, sig)).join('')}</div>`;
+}
+function nhChecks(items, ctx) {
+  const two = items.length >= 4 && items.every(t => t.length <= 52);
+  return `<div class="nhCks${two ? ' two' : ''}">${items.map(t => `<div class="nhCk"><span class="nhBox"></span><span>${nhInline(t, ctx)}</span></div>`).join('')}</div>`;
+}
+function nhTable(rows, ctx) {
+  const cells = r => r.trim().replace(/^\|/, '').replace(/\|\s*$/, '').split('|').map(c => c.trim());
+  const body = rows.filter(r => !/^\|?\s*:?-{3,}/.test(r.trim()));
+  if (!body.length) return '';
+  const head = cells(body[0]);
+  const widths = head.map(h => { const m = h.match(/\s\*(\d+(?:\.\d+)?)$/); return m ? Math.max(0.2, parseFloat(m[1])) : 1; });
+  const heads = head.map(h => h.replace(/\s\*(\d+(?:\.\d+)?)$/, ''));
+  const tot = widths.reduce((a, b) => a + b, 0) || 1;
+  let html = '<table class="nhTbl"><colgroup>' + widths.map(w => `<col style="width:${(w / tot * 100).toFixed(2)}%">`).join('') + '</colgroup><tr>' + heads.map(h => `<th>${nhInline(h, ctx)}</th>`).join('') + '</tr>';
+  body.slice(1).forEach(r => {
+    let hx = '';
+    const hm = r.match(/\|\s*:(\d+(?:\.\d+)?)\s*$/);
+    if (hm) { r = r.slice(0, hm.index + 1); hx = ` style="height:${(0.33 * Math.max(1, Math.min(6, parseFloat(hm[1])))).toFixed(3)}in"`; }
+    const c = cells(r);
+    html += `<tr${hx}>` + heads.map((_, i) => `<td>${nhInline(c[i] || '', ctx)}</td>`).join('') + '</tr>';
+  });
+  return html + '</table>';
+}
+function nhSlimHTML(ctx, title, newPage) {
+  return `<div class="nhSlim${newPage ? ' nhNewPage' : ''}">${ctx.logo ? `<img src="${ctx.logo}" alt="">` : `<span>${esc(ctx.practice)}</span>`}<span>${esc(title)}</span></div>`;
+}
+function nhBlocks(body, ctx) {
+  const lines = [];
+  String(body || '').replace(/\r\n?/g, '\n').split('\n').forEach(raw => {
+    let line = raw.trim();
+    const m = line.match(/^\?([a-z0-9_]+)\s+([\s\S]*)$/i);
+    if (m) {
+      if (!ctx.blank && !ctx.vals[m[1].toLowerCase()]) return;   // conditional line, value missing -> skip
+      line = m[2].trim();
+    }
+    lines.push(line);
+  });
+  let out = '', i = 0;
+  const FIELDS = /^(\s*\[\[(?:(?!\]\]).)*\]\])+\s*$/;
+  while (i < lines.length) {
+    const line = lines[i];
+    if (!line) { i++; continue; }
+    if (line === '===') { out += `<div class="nhPB"></div>${nhSlimHTML(ctx, ctx.title + ' — continued', true)}`; i++; continue; }
+    if (line === '---') { out += '<hr class="nhRule">'; i++; continue; }
+    if (/^## /.test(line)) { out += `<h4>${nhInline(line.slice(3), ctx)}</h4>`; i++; continue; }
+    if (/^# /.test(line)) { out += `<h3>${nhInline(line.slice(2), ctx)}</h3>`; i++; continue; }
+    const take = re => { const got = []; while (i < lines.length && re.test(lines[i])) got.push(lines[i++]); return got; };
+    if (/^> /.test(line) || line === '>') { out += `<div class="nhNote">${take(/^>( |$)/).map(l => `<p>${nhInline(l.replace(/^> ?/, ''), ctx)}</p>`).join('')}</div>`; continue; }
+    if (/^- /.test(line)) { out += `<ul>${take(/^- /).map(l => `<li>${nhInline(l.slice(2), ctx)}</li>`).join('')}</ul>`; continue; }
+    if (/^\[ \]\s/.test(line)) { out += nhChecks(take(/^\[ \]\s/).map(l => l.replace(/^\[ \]\s+/, '')), ctx); continue; }
+    if (/^\|/.test(line)) { out += nhTable(take(/^\|/), ctx); continue; }
+    if (FIELDS.test(line)) {
+      const lm = line.match(/^\[\[\s*lines\s*:\s*(\d+)\s*([^\]]*)\]\]$/i);
+      const bm = line.match(/^\[\[\s*boxes\s*:\s*(\d+)\s*([^\]]*)\]\]$/i);
+      if (bm) {
+        const nB = Math.max(1, Math.min(24, parseInt(bm[1], 10) || 1));
+        out += `<div class="nhDigits"><div class="l">${nhInline(bm[2].trim(), ctx) || '&nbsp;'}</div><div class="bx">${'<span></span>'.repeat(nB)}</div></div>`;
+      } else if (lm) {
+        const nL = Math.max(1, Math.min(20, parseInt(lm[1], 10) || 1));
+        out += `<div class="nhLines">${lm[2].trim() ? `<div class="l">${nhInline(lm[2].trim(), ctx)}</div>` : ''}${'<div class="ln"></div>'.repeat(nL)}</div>`;
+      } else if (/^\[\[\s*forms\s*\]\]$/i.test(line)) {
+        out += nhChecks(ctx.formList || [], ctx);
+      } else out += nhFieldRow(line, ctx);
+      i++; continue;
+    }
+    out += `<p>${nhInline(line, ctx)}</p>`; i++;
+  }
+  return out;
+}
+function nhRevLabel(f) { const d = parseYMD(String(f.rev || NH_REV).slice(0, 7) + '-01'); return d ? d.toLocaleDateString('en-US', { month:'short', year:'numeric' }) : ''; }
+function nhLetterheadHTML(ctx) {
+  const L = ctx.lh;
+  const logo = ctx.logo ? `<img class="nhLogo" src="${ctx.logo}" alt="${esc(ctx.practice)}">` : `<div class="nhLogoTxt">${esc(ctx.practice)}</div>`;
+  const lines = [L.addr1, L.addr2, [L.phone, L.web].filter(Boolean).join('  ·  ')].filter(Boolean).map(esc);
+  return `<header class="nhLH">${logo}<div class="nhLHi">${lines.join('<br>')}</div></header>`;
+}
+function nhDocHTML(f, ctx) {
+  const title = f.title || 'Untitled form';
+  ctx.title = title;
+  return `<section class="nhDoc">${nhLetterheadHTML(ctx)}<div class="nhTitleRow"><h1 class="nhTitle">${esc(title)}</h1>${f.letter ? '' : `<span class="nhRev">Rev. ${esc(nhRevLabel(f))}</span>`}</div>` +
+    `<div class="nhBody">${nhBlocks(f.body, ctx)}</div></section>`;
+}
+function nhUploadPageHTML(f, pg, src, i, ctx) {
+  const availW = 7.4, availH = i === 0 ? 8.95 : 9.25;
+  const w = Math.max(0.5, +pg.w || 7.4), h = Math.max(0.5, +pg.h || 9);
+  const k = Math.min(1, availW / w, availH / h);
+  return `<section class="nhDoc nhUp">${i === 0 ? nhLetterheadHTML(ctx) : nhSlimHTML(ctx, f.title + ' — page ' + (i + 1))}` +
+    `<div class="nhUpImg"><img src="${src}" alt="" style="width:${(w * k).toFixed(3)}in;height:${(h * k).toFixed(3)}in"></div></section>`;
+}
+async function nhSections(f, h) {
+  const ctx = nhCtx(h);
+  if (f.kind === 'upload') {
+    const pages = Array.isArray(f.pages) ? f.pages : [];
+    if (!pages.length) throw new Error('“' + f.title + '” has no saved pages.');
+    const out = [];
+    for (let i = 0; i < pages.length; i++) {
+      const src = await loadPhotoDoc(pages[i].doc);
+      if (!src) throw new Error('Couldn’t load page ' + (i + 1) + ' of “' + f.title + '” — check your connection and try again.');
+      out.push(nhUploadPageHTML(f, pages[i], src, i, ctx));
+    }
+    return out;
+  }
+  return [nhDocHTML(f, ctx)];
+}
+
+/* ---------- printing ---------- */
+let nhPrintTitle = null, nhPrintSeq = 0, nhPrintActive = 0;
+async function nhPrint(items, title) {
+  if (!items || !items.length) { toast('Nothing to print', true); return; }
+  try {
+    await nhLoadLogo();
+    const parts = [];
+    for (const it of items) (await nhSections(it.f, it.h)).forEach(p => parts.push(p));
+    await nhDoPrint(parts.join(''), title);
+  } catch (e) { toast((e && e.message) || 'Couldn’t prepare the forms for printing', true); }
+}
+function nhDoPrint(html, title) {
+  const job = ++nhPrintSeq;
+  nhPrintActive = 0;   // a late 'afterprint' from an earlier job must not tear this one down
+  const pa = $('#printArea');
+  pa.innerHTML = `<div class="nhPrintRoot">${html}</div>`;
+  pa.style.display = 'block';
+  document.body.classList.add('nhPrinting');
+  let st = document.getElementById('nhPageRule');
+  if (!st) { st = document.createElement('style'); st.id = 'nhPageRule'; document.head.appendChild(st); }
+  st.textContent = '@page{size:letter;margin:0.45in 0.55in 0.5in}';
+  if (nhPrintTitle == null) nhPrintTitle = document.title;
+  document.title = String(title || 'NLO form').replace(/[\\/:*?"<>|]+/g, '-');
+  const imgs = Array.from(pa.querySelectorAll('img'));
+  return Promise.all(imgs.map(im => (im.complete && im.naturalWidth) ? null : new Promise(r => { im.onload = im.onerror = r; setTimeout(r, 5000); })))
+    .then(() => (document.fonts && document.fonts.ready) ? document.fonts.ready : null)
+    .then(() => { if (job !== nhPrintSeq) return; nhPrintActive = job; window.print(); });
+}
+function nhAfterPrint() {
+  if (!nhPrintActive || !document.body.classList.contains('nhPrinting')) return;
+  nhPrintActive = 0;
+  document.body.classList.remove('nhPrinting');
+  const st = document.getElementById('nhPageRule'); if (st) st.textContent = '';
+  if (nhPrintTitle != null) { document.title = nhPrintTitle; nhPrintTitle = null; }
+  const pa = $('#printArea'); if (pa) { pa.innerHTML = ''; pa.style.display = 'none'; }
+}
+window.addEventListener('afterprint', nhAfterPrint);
+
+/* ---------- on-screen preview paper ---------- */
+function nhFitPapers(root) {
+  (root ? [root] : $$('.nhPrev')).forEach(box => {
+    const avail = box.clientWidth;
+    if (!avail) return;
+    const z = Math.max(0.25, Math.min(1, (avail - 4) / 816));
+    $$('.nhPaper', box).forEach(p => { p.style.zoom = z; });
+  });
+}
+window.addEventListener('resize', () => { if ($('.nhPrev')) nhFitPapers(); });
+
+/* =====================================================
+   Views
+   ===================================================== */
+function viewNewHire() {
+  try { return nhView(); }
+  catch (e) {
+    try { console.error(e); } catch (x) {}
+    return pageHeadHTML('People', 'New Hire Paperwork') + `<div class="dangerBox">Something went wrong showing this page: ${esc(e && e.message)}</div>`;
+  }
+}
+function nhView() {
+  const n = nhS();
+  if (route.nhHire) { const h = nhHire(route.nhHire); if (h) return nhHireView(h); route.nhHire = null; }
+  const active = n.hires.filter(h => h.status !== 'done');
+  const done = n.hires.filter(h => h.status === 'done');
+  const tab = route.nhTab || (active.length ? 'hires' : 'forms');
+  const nForms = nhVisibleForms().length + NH_OFFICIAL.length;
+  return `${pageHeadHTML('People', 'New Hire Paperwork', 'All of our onboarding forms on NLO letterhead. Print one form, a blank packet, or a new hire’s whole packet with their name, position and start date filled in.',
+    `<button class="btn btn-sec" data-act="nhPrintBlank">${ic('printer', 15)} Blank packet</button><button class="btn btn-pri" data-act="nhAddHire">${ic('plus', 15)} New hire</button>`)}
+  <div class="subtabs"><button class="stab ${tab === 'hires' ? 'on' : ''}" data-act="nhTab" data-id="hires">New hires${active.length ? ' · ' + active.length : ''}</button><button class="stab ${tab === 'forms' ? 'on' : ''}" data-act="nhTab" data-id="forms">Form library · ${nForms}</button></div>
+  ${tab === 'hires' ? nhHiresHTML(active, done) : nhLibraryHTML()}`;
+}
+
+function nhHiresHTML(active, done) {
+  const byStart = (a, b) => (a.start || '9999').localeCompare(b.start || '9999');
+  const row = h => {
+    const p = nhProgress(h), pct = p.total ? Math.round(p.done / p.total * 100) : 0;
+    const d = h.start ? daysUntil(h.start) : null;
+    const when = h.start ? fmtD(h.start) + (d != null && d > 0 ? ` <span class="badge b-blue">in ${plural(d, 'day')}</span>` : d === 0 ? ' <span class="badge b-green">Today</span>' : '') : '<span class="muted">Not set</span>';
+    return `<div class="nhRow nhHireRow" data-act="nhOpen" data-id="${h.id}">
+      ${avHTML(h, 'sm')}
+      <div class="nhRowT"><b>${esc(h.name)}</b><span class="tiny">${esc(h.position || '—')}${h.team && NH_TEAMS[h.team] ? ' · ' + esc(NH_TEAMS[h.team]) : ''}</span></div>
+      <div class="nhHireWhen"><span class="tiny">Starts</span> ${when}</div>
+      <div class="nhHireProg"><span class="nhProg"><i style="width:${pct}%"></i></span><span class="tiny">${p.done}/${p.total} complete</span></div>
+      <div class="nhRowA">${h.status === 'done' ? '<span class="badge b-green">Complete</span>' : `<button class="btn btn-sec btn-sm" data-act="nhPrintPacket" data-id="${h.id}">${ic('printer', 13)} Packet</button>`}</div>
+    </div>`;
+  };
+  const table = list => list.slice().sort(byStart).map(row).join('');
+  let html = panelHTML('Onboarding now', active.length, active.length ? table(active) :
+    emptyHTML('userPlus', 'No one is onboarding right now. Add a new hire to print their packet with name, position and start date filled in — then check off each form as it comes back signed.'), '', 'userPlus');
+  if (done.length) html += `<div style="margin-top:18px">${panelHTML('Completed', done.length, table(done), '', 'checkC')}</div>`;
+  return html;
+}
+
+function nhLibraryHTML() {
+  const n = nhS(), all = nhAllForms(), hid = n.hidden;
+  const vis = all.filter(f => hid.indexOf(f.id) < 0);
+  const rowFor = f => {
+    const badges = [
+      f.office ? '<span class="badge b-gray">Office use</span>' : '',
+      f.clinical ? '<span class="badge b-amber">Clinical &amp; lab</span>' : '',
+      f.kind === 'upload' ? `<span class="badge b-blue">Uploaded · ${plural((f.pages || []).length, 'page')}</span>` : '',
+      !f.builtIn && f.kind !== 'upload' ? '<span class="badge b-blue">Added</span>' : '',
+      f.edited ? '<span class="badge b-purple">Edited</span>' : '',
+      f.group === 'packet' && !f.packet ? '<span class="badge b-gray">Optional</span>' : ''
+    ].filter(Boolean).join(' ');
+    const icon = f.thumb ? `<img src="${f.thumb}" alt="">` : ic('fileText', 18);
+    const acts = [
+      `<button class="btn-ghost btn-sm" data-act="nhPreview" data-id="${f.id}">${ic('eye', 13)} Preview</button>`,
+      `<button class="btn-ghost btn-sm" data-act="nhPrintOne" data-id="${f.id}">${ic('printer', 13)} Print</button>`,
+      `<button class="btn-ghost btn-sm" data-act="nhEditForm" data-id="${f.id}">${ic('edit', 13)} ${f.kind === 'upload' ? 'Details' : 'Edit'}</button>`,
+      f.builtIn ? `<button class="btn-ghost btn-sm" data-act="nhHideForm" data-id="${f.id}" title="Hide this form — restore it any time">Hide</button>`
+                : `<button class="btn-ghost btn-sm" data-act="nhDelForm" data-id="${f.id}" title="Delete this form">${ic('trash', 13)}</button>`
+    ];
+    return `<div class="nhRow"><div class="nhRowIc">${icon}</div><div class="nhRowT"><b class="nhLink" data-act="nhPreview" data-id="${f.id}">${esc(f.title)}</b> ${badges}<span class="tiny">${esc(f.desc || '')}</span></div><div class="nhRowA">${acts.join('')}</div></div>`;
+  };
+  const official = NH_OFFICIAL.map(o => `<div class="nhRow"><div class="nhRowIc">${ic('shield', 18)}</div><div class="nhRowT"><b>${esc(o.title)}</b> <span class="badge b-navy">Official</span><span class="tiny">${esc(o.note)}</span></div><div class="nhRowA"><a class="btn btn-sec btn-sm" href="${o.url}" target="_blank" rel="noopener">${ic('external', 13)} Get current form</a></div></div>`).join('');
+  const groups = NH_GROUPS.map(g => {
+    const body = g.id === 'official' ? official : vis.filter(f => f.group === g.id).map(rowFor).join('');
+    if (!body) return '';
+    return `<div class="panel" style="margin-bottom:18px"><div class="ph"><h3>${ic(g.icon, 16)}${esc(g.label)}</h3><div class="sp"></div>${g.sub ? `<span class="tiny">${esc(g.sub)}</span>` : ''}</div><div class="pb flush">${body}</div></div>`;
+  }).join('');
+  const hidden = all.filter(f => hid.indexOf(f.id) >= 0);
+  return `<div class="tlAdd nhAddBar">
+      <span class="muted">Have a form from Bent Ericksen, the shared drive, or anywhere else? Add it here — it prints on NLO letterhead and is stored encrypted with the rest of Staff Hub.</span>
+      <div class="nhAddBtns"><button class="btn btn-sec btn-sm" data-act="nhLetterhead">${ic('gear', 13)} Letterhead</button><button class="btn btn-pri btn-sm" data-act="nhAddForm">${ic('plus', 13)} Add a form</button></div>
+    </div>
+    ${groups}
+    ${hidden.length ? `<div class="nhHidden">Hidden forms: ${hidden.map(f => `<span>${esc(f.title)} <button class="btn-ghost btn-sm" data-act="nhUnhide" data-id="${f.id}">Restore</button></span>`).join('')}</div>` : ''}
+    <p class="tiny" style="margin-top:12px">Printing tip: in the print dialog, turn off “Headers and footers” once (the browser remembers it) so the page address and date don’t print on your forms.</p>`;
+}
+
+function nhHireView(h) {
+  const p = nhProgress(h);
+  const staff = h.staffId ? staffById(h.staffId) : null;
+  const forms = nhVisibleForms();
+  const packet = forms.filter(f => f.group === 'packet');
+  const hiring = forms.filter(f => f.group === 'hiring');
+  const later = forms.filter(f => f.group === 'later');
+  const doneBtn = (id, given) => {
+    const d = h.done && h.done[id];
+    return d ? `<button class="badge b-green nhDoneB" data-act="nhDone" data-id="${h.id}" data-f="${id}" title="${given ? 'Given' : 'Returned'} ${fmtD(d)} — click to undo">${ic('check', 12)} ${fmtDShort(d)}</button>`
+             : `<button class="btn-ghost btn-sm nhMark" data-act="nhDone" data-id="${h.id}" data-f="${id}">${given ? 'Mark given' : 'Mark returned'}</button>`;
+  };
+  const fRow = (f, withInc) => {
+    const inc = withInc ? nhIncluded(f, h) : true;
+    return `<div class="nhRow${inc ? '' : ' off'}">
+      ${withInc ? `<input type="checkbox" class="nhInc" data-chg="nhInc" data-id="${h.id}" data-f="${f.id}" ${inc ? 'checked' : ''} title="Include in this packet">` : `<div class="nhRowIc sm">${ic('fileText', 15)}</div>`}
+      <div class="nhRowT"><b class="nhLink" data-act="nhPreview" data-id="${f.id}" data-h="${h.id}">${esc(f.title)}</b>${f.office ? ' <span class="badge b-gray">Office use</span>' : ''}${f.clinical ? ' <span class="badge b-amber">Clinical &amp; lab</span>' : ''}</div>
+      <div class="nhRowA"><button class="btn-ghost btn-sm" data-act="nhPrintOne" data-id="${f.id}" data-h="${h.id}">${ic('printer', 13)} Print</button>${f.office ? '' : doneBtn(f.id)}</div>
+    </div>`;
+  };
+  const offRow = o => `<div class="nhRow"><div class="nhRowIc sm">${ic('shield', 15)}</div><div class="nhRowT"><b>${esc(o.title)}</b></div><div class="nhRowA"><a class="btn-ghost btn-sm" href="${o.url}" target="_blank" rel="noopener">${ic('external', 13)} Get form</a>${doneBtn(o.id, o.given)}</div></div>`;
+  let tDone = 0, tAll = 0;
+  const tasks = NH_TASKS.map(sec => {
+    const items = sec.items.filter(it => !(it[2] === 'clin' && h.team === 'admin'));
+    return `<div class="nhSubHd">${esc(sec.sec)}</div>` + items.map(([id, lbl]) => {
+      const d = h.tasks && h.tasks[id]; tAll++; if (d) tDone++;
+      return `<label class="topicRow nhTask${d ? ' done' : ''}"><input type="checkbox" data-chg="nhTask" data-id="${h.id}" data-t="${id}" ${d ? 'checked' : ''}><span class="tx">${esc(lbl)}</span>${d ? `<span class="tiny">${fmtDShort(d)}</span>` : ''}</label>`;
+    }).join('');
+  }).join('');
+  const inPacket = packet.filter(f => nhIncluded(f, h)).length;
+  const addr = [h.street, [h.city, [h.state, h.zip].filter(Boolean).join(' ')].filter(Boolean).join(', ')].filter(Boolean).join(', ');
+  const ec = (n, r, ph) => n ? n + (r ? ' (' + r + ')' : '') + (ph ? ' · ' + ph : '') : '';
+  const details = [['Position', h.position], ['Start date', h.start ? fmtD(h.start) : ''], ['Pay', nhMoney(h.wage) ? nhMoney(h.wage) + '/hr' + (h.hours ? ' · ' + h.hours + ' hrs/wk' : '') : ''],
+    ['Cell phone', h.cell], ['Email', h.email], ['Address', addr], ['Date of birth', h.dob ? fmtD(h.dob) : ''],
+    ['Emergency contact', ec(h.ec1Name, h.ec1Rel, h.ec1Phone)], ['Second contact', ec(h.ec2Name, h.ec2Rel, h.ec2Phone)]];
+  const missing = details.filter(d => !d[1]).length;
+  const detailsHTML = `<div class="pb"><div class="nhDetGrid">${details.map(([k, x]) => `<div class="k">${k}</div><div class="v">${x ? esc(x) : '<span class="muted">—</span>'}</div>`).join('')}</div>
+    <p class="tiny" style="margin-top:12px">Entered once, printed on every form.${missing ? ' Blank details print as lines to fill in by hand.' : ''}</p></div>`;
+  return `
+  <button class="btn-ghost" data-act="nhBack" style="margin-bottom:14px">${ic('chevL', 15)} All new hires</button>
+  <div class="detHead">
+    ${avHTML(h, 'lg')}
+    <div class="info">
+      <h2>${esc(h.name)} ${h.status === 'done' ? '<span class="badge b-green">Onboarding complete</span>' : ''}</h2>
+      <div class="muted">${esc(h.position || 'Position not set')}${h.team && NH_TEAMS[h.team] ? ' · ' + esc(NH_TEAMS[h.team]) : ''}${h.employment ? ' · ' + esc(h.employment) : ''}</div>
+      <div class="meta"><span>${ic('calendar', 14)} Starts ${h.start ? fmtD(h.start) : '—'}</span><span>${ic('checkC', 14)} ${p.done} of ${p.total} forms complete</span>${staff ? `<span class="nhLink" data-act="openStaffTab" data-id="${staff.id}" data-tab="timeline">${ic('users', 14)} Staff profile</span>` : ''}</div>
+    </div>
+    <div class="nhHeadActs">
+      <button class="btn btn-pri" data-act="nhPrintPacket" data-id="${h.id}">${ic('printer', 15)} Print packet</button>
+      <button class="btn btn-sec btn-sm" data-act="nhEditHire" data-id="${h.id}">${ic('edit', 13)} Edit</button>
+      ${staff ? '' : `<button class="btn btn-sec btn-sm" data-act="nhRoster" data-id="${h.id}">${ic('userPlus', 13)} Add to staff roster</button>`}
+      <button class="btn btn-sec btn-sm" data-act="nhComplete" data-id="${h.id}">${h.status === 'done' ? `${ic('undo', 13)} Reopen` : `${ic('check', 13)} Mark complete`}</button>
+      <button class="btn-ghost btn-sm" data-act="nhDelHire" data-id="${h.id}">Delete</button>
+    </div>
+  </div>
+  <div class="dashGrid">
+    <div class="colStack">
+      ${panelHTML('Day-one packet', inPacket + ' forms', packet.map(f => fRow(f, true)).join('') + `<div class="nhSubHd">Official forms — print from the source</div>` + NH_OFFICIAL.map(offRow).join(''),
+        `<button class="btn btn-sec btn-sm" data-act="nhPrintPacket" data-id="${h.id}">${ic('printer', 13)} Print packet</button>`, 'clipboard')}
+      ${hiring.length ? panelHTML('Before day one', null, hiring.map(f => fRow(f, false)).join(''), '', 'briefcase') : ''}
+      ${later.length ? panelHTML('After the 90-day review', null, later.map(f => fRow(f, false)).join(''), '', 'key') : ''}
+    </div>
+    <div class="colStack">
+      ${panelHTML('Details on the forms', null, detailsHTML, `<button class="btn btn-sec btn-sm" data-act="nhEditHire" data-id="${h.id}">${ic('edit', 13)} Edit details</button>`, 'fileText')}
+      ${panelHTML('Onboarding checklist', tDone + '/' + tAll, tasks, '', 'checkC')}
+      ${panelHTML('Notes', null, `<div class="pb"><textarea class="nhNotes" data-chg="nhNote" data-id="${h.id}" placeholder="Anything to remember — equipment ordered, training plan, questions they asked…">${esc(h.notes || '')}</textarea></div>`, '', 'note')}
+    </div>
+  </div>`;
+}
+
+/* =====================================================
+   Modals
+   ===================================================== */
+function nhHireModal(id) {
+  const h = id ? nhHire(id) : null;
+  if (id && !h) return;
+  const v = h || { name:'', position:'', team:'clinical', employment:'Full-time', start:'', hours:'', schedule:'Monday–Thursday', wage:'', wage2:'', offerDate: todayYMD(), respondBy:'' };
+  const staffOpts = !h ? activeStaff().map(p => `<option value="${p.id}">${esc(p.name)}${p.role ? ' — ' + esc(p.role) : ''}</option>`).join('') : '';
+  const inp = (key, label, type, extra) => `<div class="field"><label>${label}</label><input type="${type || 'text'}" id="nhF_${key}" value="${esc(v[key] || '')}"${extra || ''}></div>`;
+  const grid = (list, cls) => `<div class="${cls || 'frow'}">${list.map(([k, l, t]) => inp(k, l, t)).join('')}</div>`;
+  const hasP = NH_PERSONAL.some(([k]) => v[k]), hasE = NH_EC.some(([k]) => v[k]);
+  const P = Object.fromEntries(NH_PERSONAL.map(x => [x[0], x]));
+  openModal(`<div class="mh"><h3>${h ? 'Edit ' + esc(h.name) : 'New hire'}</h3><button class="x" data-act="closeModal">✕</button></div>
+  <div class="mb">
+    <div class="infoBox">Enter details once — every form prints with them filled in. Anything left blank prints as a line to write on.</div>
+    ${staffOpts ? `<div class="field"><label>Start from <span class="tiny">(optional — someone already on the staff roster)</span></label><select id="nhFrom"><option value="">— New person —</option>${staffOpts}</select></div>` : ''}
+    <div class="frow">
+      <div class="field"><label>Full name *</label><input type="text" id="nhF_name" value="${esc(v.name)}" placeholder="e.g. Jordan Rivera"></div>
+      <div class="field"><label>Position</label><input type="text" id="nhF_position" value="${esc(v.position)}" list="nhRoleList" placeholder="e.g. Orthodontic Assistant"><datalist id="nhRoleList">${ROLE_SUGGEST.map(r => `<option value="${esc(r)}">`).join('')}</datalist></div>
+    </div>
+    <div class="frow3">
+      <div class="field"><label>Team</label><select id="nhF_team">${Object.entries(NH_TEAMS).map(([k, l]) => `<option value="${k}" ${v.team === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></div>
+      <div class="field"><label>Employment</label><select id="nhF_employment">${['Full-time', 'Part-time'].map(e => `<option ${v.employment === e ? 'selected' : ''}>${e}</option>`).join('')}</select></div>
+      ${inp('start', 'Start date', 'date')}
+    </div>
+    <div class="nhFormHint">${ic('fileText', 14)} Pay &amp; offer letter</div>
+    <div class="frow3">
+      ${inp('wage', 'Hourly wage', 'text', ' placeholder="$19"')}
+      ${inp('wage2', 'After training <span class="tiny">(optional)</span>', 'text', ' placeholder="$20"')}
+      ${inp('hours', 'Hours per week', 'text', ' placeholder="36"')}
+    </div>
+    <div class="frow3">
+      ${inp('schedule', 'Schedule', 'text')}
+      ${inp('offerDate', 'Offer date', 'date')}
+      ${inp('respondBy', 'Respond by <span class="tiny">(optional)</span>', 'date')}
+    </div>
+    <details class="nhDet"${hasP ? ' open' : ''}><summary>${ic('users', 14)} Personal details <span class="tiny">— address, phones, email, birthday</span></summary>
+      ${grid([P.preferred, P.dob, P.scrubs], 'frow3')}
+      ${grid([P.cell, P.homePhone, P.email], 'frow3')}
+      <div class="nhAddrRow">${inp('street', 'Street address', 'text')}${inp('city', 'City', 'text')}${inp('state', 'State', 'text', ' placeholder="FL" maxlength="20"')}${inp('zip', 'ZIP', 'text')}</div>
+    </details>
+    <details class="nhDet"${hasE ? ' open' : ''}><summary>${ic('phone', 14)} Emergency contacts</summary>
+      ${grid(NH_EC.slice(0, 3), 'frow3')}
+      ${grid(NH_EC.slice(3), 'frow3')}
+    </details>
+    <div class="tiny" style="margin-top:12px">The Hep B form is included automatically for clinical and lab hires. Social Security and bank account numbers are never stored here — they’re written on the signed paper forms only.</div>
+  </div>
+  <div class="mf"><button class="btn btn-sec" data-act="closeModal">Cancel</button><button class="btn btn-pri" id="nhSave">${h ? 'Save changes' : 'Add new hire'}</button></div>`, true);
+  const from = $('#nhFrom');
+  if (from) from.onchange = () => {
+    const p = staffById(from.value); if (!p) return;
+    const set = (k, x) => { const el = $('#nhF_' + k); if (el && x) el.value = x; };
+    set('name', p.name); set('position', p.role); set('start', p.hireDate); set('cell', p.phone); set('email', p.email);
+    $('#nhF_employment').value = /part/i.test(p.employment || '') ? 'Part-time' : 'Full-time';
+    if (p.phone || p.email) { const d = $('.nhDet'); if (d) d.open = true; }
+  };
+  $('#nhSave').onclick = () => {
+    const val = k => { const el = $('#nhF_' + k); return el ? String(el.value || '').trim() : ''; };
+    const name = val('name');
+    if (!name) { toast('Name is required', true); return; }
+    const vals = { name, team: val('team'), employment: val('employment') };
+    ['position', 'start', 'hours', 'wage', 'wage2', 'schedule', 'offerDate', 'respondBy'].concat(NH_PERSONAL.map(x => x[0]), NH_EC.map(x => x[0])).forEach(k => { vals[k] = val(k); });
+    if (h) {
+      const cur = nhHire(h.id); if (!cur) { closeModal(); render(); return; }
+      Object.assign(cur, vals); act('Updated onboarding details for ' + name);
+      persist(); closeModal(); render(); toast('Saved');
+      return;
+    }
+    const staffId = (from && from.value) || null;
+    const nh = Object.assign({ id: uid(), status:'active', created: Date.now(), staffId, inc:{}, done:{}, tasks:{}, notes:'' }, vals);
+    if (staffId) nh.tasks.staffhub = todayYMD();
+    nhS().hires.push(nh); act('Started onboarding for ' + name);
+    persist(); closeModal();
+    route.page = 'newhire'; route.nhHire = nh.id; route.nhTab = 'hires';
+    render(); window.scrollTo(0, 0); toast(name + ' added — print their packet when you’re ready');
+  };
+  if (!h) { const el = $('#nhF_name'); if (el) el.focus(); }
+}
+
+async function nhPreviewModal(fid, hid) {
+  const f = nhFormById(fid); if (!f) return;
+  const h = hid ? nhHire(hid) : null;
+  await nhLoadLogo();
+  let parts;
+  try { parts = await nhSections(f, h); } catch (e) { toast(e.message, true); return; }
+  openModal(`<div class="mh"><h3>${esc(f.title)}${h ? ' — ' + esc(h.name) : ''}</h3><button class="x" data-act="closeModal">✕</button></div>
+    <div class="mb nhPrevBox"><div class="nhPrev">${parts.map(p => `<div class="nhPaper">${p}</div>`).join('')}</div></div>
+    <div class="mf">${f.kind === 'upload' ? '' : `<button class="btn btn-sec" data-act="nhEditForm" data-id="${f.id}">${ic('edit', 14)} Edit form</button>`}<div class="sp"></div><button class="btn btn-sec" data-act="closeModal">Close</button><button class="btn btn-pri" data-act="nhPrintOne" data-id="${f.id}"${h ? ` data-h="${h.id}"` : ''}>${ic('printer', 14)} Print</button></div>`, true);
+  nhFitPapers();
+}
+
+const NH_HELP_HTML = `<details class="nhHelp"><summary>How to format a form</summary><table>
+  <tr><td><code># Section</code></td><td>Section heading</td></tr>
+  <tr><td><code>- text</code></td><td>Bullet point</td></tr>
+  <tr><td><code>[ ] text</code></td><td>Checkbox line (a <code>[ ]</code> inside text is a box too)</td></tr>
+  <tr><td><code>&gt; text</code></td><td>Shaded note</td></tr>
+  <tr><td><code>**bold**</code></td><td>Bold</td></tr>
+  <tr><td><code>______</code></td><td>Blank to write on</td></tr>
+  <tr><td><code>[[Full name]] [[Date]]</code></td><td>A row of fill-in lines</td></tr>
+  <tr><td><code>[[Employee signature]] [[Date]]</code></td><td>Signature line (any label with “signature”)</td></tr>
+  <tr><td><code>[[Name =name]]</code></td><td>Line pre-filled with the new hire’s name</td></tr>
+  <tr><td><code>[[Address *2]]</code></td><td>Field twice as wide · <code>[[-]]</code> empty space</td></tr>
+  <tr><td><code>[[lines:3 Comments]]</code></td><td>Three writing lines</td></tr>
+  <tr><td><code>[[boxes:9 Routing number]]</code></td><td>A row of 9 boxes for digits</td></tr>
+  <tr><td><code>| Item | Date |</code></td><td>Table — first row is the heading, empty rows are for writing</td></tr>
+  <tr><td><code>| | |:2</code></td><td>A taller writing row (2× height)</td></tr>
+  <tr><td><code>===</code> &nbsp; <code>---</code></td><td>Page break · divider line</td></tr>
+  <tr><td><code>{name} {first} {position} {start} {today} {practice}</code></td><td>Filled in from the new hire (blank line on blank copies)</td></tr>
+  <tr><td><code>=email =cell =street =city =state =zip =dob =hours =wage</code></td><td>More details you can pre-fill into <code>[[fields]]</code> — also <code>=preferred =home_phone =scrubs =ec1_name =ec1_phone</code></td></tr>
+  <tr><td><code>?wage2 text</code></td><td>Line only prints when that detail is filled in</td></tr>
+</table></details>`;
+
+function nhEditModal(fid) {
+  const f0 = fid ? nhFormById(fid) : null;
+  if (fid && !f0) return;
+  if (f0 && f0.kind === 'upload') { nhUploadDetailsModal(f0); return; }
+  const isNew = !f0;
+  const cur = f0 || { id:null, title:'', desc:'', body: NH_NEW_TEMPLATE, group:'packet', packet:true, clinical:false, kind:'markup', builtIn:false };
+  const groupOpts = NH_GROUPS.filter(g => g.id !== 'official').map(g => `<option value="${g.id}" ${cur.group === g.id ? 'selected' : ''}>${esc(g.label)}</option>`).join('');
+  openModal(`<div class="mh"><h3>${isNew ? 'New form' : 'Edit ' + esc(cur.title)}</h3><button class="x" data-act="closeModal">✕</button></div>
+  <div class="mb"><div class="nhEd">
+    <div class="nhEdL">
+      <div class="field"><label>Form title</label><input type="text" id="nhEdTitle" value="${esc(cur.title)}" placeholder="e.g. Uniform Policy Acknowledgment"></div>
+      ${cur.builtIn ? (cur.group === 'packet' ? `<label class="nhCkRow"><input type="checkbox" id="nhEdPacket" ${cur.packet ? 'checked' : ''}> Include in new-hire packets by default</label>` : '') : `<div class="frow">
+        <div class="field"><label>Section</label><select id="nhEdGroup">${groupOpts}</select></div>
+        <div class="field"><label>Short description</label><input type="text" id="nhEdDesc" value="${esc(cur.desc || '')}" placeholder="Shown in the form library"></div>
+      </div>
+      <label class="nhCkRow"><input type="checkbox" id="nhEdPacket" ${cur.packet ? 'checked' : ''}> Include in new-hire packets by default</label>
+      <label class="nhCkRow"><input type="checkbox" id="nhEdClin" ${cur.clinical ? 'checked' : ''}> Clinical &amp; lab hires only</label>`}
+      <div class="field" style="margin-top:10px"><label>Form text <span class="tiny">— one paragraph per line</span></label><textarea id="nhEdBody" class="nhEdTa" spellcheck="true">${esc(cur.body)}</textarea></div>
+      ${NH_HELP_HTML}
+    </div>
+    <div class="nhEdR"><div class="nhEdLbl">Live preview · blank copy</div><div class="nhPrev" id="nhEdPrev"></div></div>
+  </div></div>
+  <div class="mf">${cur.builtIn && cur.edited ? `<button class="btn btn-sec" id="nhEdReset">${ic('undo', 14)} Restore original</button>` : ''}<div class="sp"></div><button class="btn btn-sec" data-act="closeModal">Cancel</button><button class="btn btn-pri" id="nhEdSave">${isNew ? 'Add form' : 'Save form'}</button></div>`, true);
+  const modal = $('#modalWrap .modal'); if (modal) modal.classList.add('xwide');
+  const upd = () => {
+    const box = $('#nhEdPrev'); if (!box) return;
+    const tmp = Object.assign({}, cur, { title: ($('#nhEdTitle').value || '').trim() || 'Untitled form', body: $('#nhEdBody').value, rev: todayYMD() });
+    box.innerHTML = `<div class="nhPaper">${nhDocHTML(tmp, nhCtx(null))}</div>`;
+    nhFitPapers(box);
+  };
+  let tmr = null;
+  const deb = () => { clearTimeout(tmr); tmr = setTimeout(upd, 220); };
+  $('#nhEdBody').addEventListener('input', deb);
+  $('#nhEdTitle').addEventListener('input', deb);
+  upd(); nhLoadLogo().then(upd);
+  const reset = $('#nhEdReset');
+  if (reset) reset.onclick = () => {
+    const base = NH_FORMS.find(x => x.id === cur.id); if (!base) return;
+    confirmModal('Restore the original “' + base.title + '”?', 'Your edits to this form will be discarded.', () => {
+      delete nhS().forms[cur.id]; act('Restored original form “' + base.title + '”');
+      persist(); render(); toast('Original restored');
+    });
+  };
+  $('#nhEdSave').onclick = () => {
+    const title = ($('#nhEdTitle').value || '').trim(), body = $('#nhEdBody').value;
+    if (!title) { toast('Give the form a title', true); return; }
+    if (!body.trim()) { toast('The form has no text yet', true); return; }
+    const n = nhS();
+    if (cur.builtIn) {
+      const base = NH_FORMS.find(x => x.id === cur.id) || {};
+      const pkEl = $('#nhEdPacket'), pk = pkEl ? pkEl.checked : !!base.packet;
+      const o = {};
+      if (title !== base.title) o.title = title;
+      if (body !== base.body) o.body = body;
+      if (pk !== !!base.packet) o.packet = pk;
+      if (Object.keys(o).length) { o.updated = todayYMD(); n.forms[cur.id] = o; } else delete n.forms[cur.id];
+      act('Edited form “' + title + '”');
+    } else {
+      const vals = { title, body, desc: ($('#nhEdDesc').value || '').trim(), group: $('#nhEdGroup').value, packet: $('#nhEdPacket').checked, clinical: $('#nhEdClin').checked, updated: todayYMD() };
+      if (isNew) { n.custom.push(Object.assign({ id: 'cf' + uid(), kind:'markup', created: todayYMD() }, vals)); act('Added form “' + title + '”'); }
+      else { const c = n.custom.find(x => x.id === cur.id); if (c) Object.assign(c, vals); act('Edited form “' + title + '”'); }
+    }
+    persist(); closeModal(); route.page = 'newhire'; if (!route.nhHire) route.nhTab = 'forms'; render(); toast(isNew ? 'Form added' : 'Form saved');
+  };
+}
+
+function nhUploadDetailsModal(f) {
+  const groupOpts = NH_GROUPS.filter(g => g.id !== 'official').map(g => `<option value="${g.id}" ${f.group === g.id ? 'selected' : ''}>${esc(g.label)}</option>`).join('');
+  openModal(`<div class="mh"><h3>Form details</h3><button class="x" data-act="closeModal">✕</button></div>
+  <div class="mb">
+    <div class="field"><label>Form title</label><input type="text" id="nhUdTitle" value="${esc(f.title)}"></div>
+    <div class="frow"><div class="field"><label>Section</label><select id="nhUdGroup">${groupOpts}</select></div>
+      <div class="field"><label>Short description</label><input type="text" id="nhUdDesc" value="${esc(f.desc || '')}"></div></div>
+    <label class="nhCkRow"><input type="checkbox" id="nhUdPacket" ${f.packet ? 'checked' : ''}> Include in new-hire packets by default</label>
+    <label class="nhCkRow"><input type="checkbox" id="nhUdClin" ${f.clinical ? 'checked' : ''}> Clinical &amp; lab hires only</label>
+    <div class="tiny" style="margin-top:10px">Uploaded ${esc(fmtD(f.created))}${f.source ? ' from “' + esc(f.source) + '”' : ''} · ${plural((f.pages || []).length, 'page')}. To change the pages themselves, delete this form and upload the new version.</div>
+  </div>
+  <div class="mf"><button class="btn btn-sec" data-act="closeModal">Cancel</button><button class="btn btn-pri" id="nhUdSave">Save</button></div>`);
+  $('#nhUdSave').onclick = () => {
+    const title = ($('#nhUdTitle').value || '').trim();
+    if (!title) { toast('Give the form a title', true); return; }
+    const c = nhS().custom.find(x => x.id === f.id); if (!c) { closeModal(); return; }
+    Object.assign(c, { title, desc: ($('#nhUdDesc').value || '').trim(), group: $('#nhUdGroup').value, packet: $('#nhUdPacket').checked, clinical: $('#nhUdClin').checked, updated: todayYMD() });
+    persist(); closeModal(); render(); toast('Saved');
+  };
+}
+
+/* ---------- uploads: PDF / photo -> trimmed page images -> encrypted docs ---------- */
+function nhTrim(cv) {
+  const W = cv.width, H = cv.height;
+  let data;
+  try { data = cv.getContext('2d').getImageData(0, 0, W, H).data; } catch (e) { return cv; }
+  const TH = 236 * 3;
+  const ink = (x, y) => { const i = (y * W + x) * 4; return data[i] + data[i + 1] + data[i + 2] < TH; };
+  const rowInk = y => { for (let x = 0; x < W; x += 2) if (ink(x, y)) return true; return false; };
+  let top = 0; while (top < H && !rowInk(top)) top++;
+  if (top >= H) return cv;   // blank page: keep as is
+  let bot = H - 1; while (bot > top && !rowInk(bot)) bot--;
+  const colInk = x => { for (let y = top; y <= bot; y += 2) if (ink(x, y)) return true; return false; };
+  let left = 0; while (left < W && !colInk(left)) left++;
+  let right = W - 1; while (right > left && !colInk(right)) right--;
+  const pad = Math.round(Math.min(W, H) * 0.012);
+  const x0 = Math.max(0, left - pad), y0 = Math.max(0, top - pad), x1 = Math.min(W, right + pad + 1), y1 = Math.min(H, bot + pad + 1);
+  if (x1 - x0 >= W * 0.97 && y1 - y0 >= H * 0.97) return cv;
+  const out = document.createElement('canvas'); out.width = x1 - x0; out.height = y1 - y0;
+  const cx = out.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, out.width, out.height);
+  cx.drawImage(cv, x0, y0, out.width, out.height, 0, 0, out.width, out.height);
+  return out;
+}
+function nhEncodePage(cv, wIn, hIn) {
+  let src = cv;
+  for (let pass = 0; pass < 3; pass++) {
+    const tries = [['image/png'], ['image/jpeg', 0.9], ['image/jpeg', 0.8]];
+    for (const t of tries) {
+      const d = src.toDataURL(t[0], t[1]);
+      if (dataUrlBytes(d) <= NH_PAGE_MAX_RAW) return { data: d, w: wIn, h: hIn, preview: fitCanvas(src, 180).toDataURL('image/jpeg', 0.75), cv: src };
+    }
+    src = fitCanvas(src, Math.round(Math.max(src.width, src.height) * 0.75));
+  }
+  throw new Error('One of the pages is too detailed to store even after compressing — try a cleaner scan, or export the form as a PDF.');
+}
+function nhImageFromFile(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const im = new Image();
+    im.onload = () => { URL.revokeObjectURL(url); resolve(im); };
+    im.onerror = () => { URL.revokeObjectURL(url); reject(new Error('That image couldn’t be opened — try a JPG or PNG.')); };
+    im.src = url;
+  });
+}
+async function nhPrepareUpload(file, say) {
+  const pages = [];
+  if (isPdfFile(file)) {
+    say('Opening the PDF…');
+    const lib = await loadPdfJs();
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    let doc;
+    try { doc = await lib.getDocument({ data: bytes }).promise; }
+    catch (e) { throw new Error('That PDF couldn’t be opened — if it’s password-protected, remove the password and try again.'); }
+    if (doc.numPages > NH_MAX_PAGES) throw new Error('That PDF has ' + doc.numPages + ' pages. Forms can be up to ' + NH_MAX_PAGES + ' pages — save just the pages you need as a new PDF.');
+    for (let i = 1; i <= doc.numPages; i++) {
+      say('Reading page ' + i + ' of ' + doc.numPages + '…');
+      const page = await doc.getPage(i);
+      const base = page.getViewport({ scale: 1 });
+      const scale = Math.min(4, NH_RENDER_PX / Math.max(1, base.width));
+      const vp = page.getViewport({ scale });
+      const cv = document.createElement('canvas');
+      cv.width = Math.max(1, Math.round(vp.width)); cv.height = Math.max(1, Math.round(vp.height));
+      const cx = cv.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, cv.width, cv.height);
+      await page.render({ canvasContext: cx, viewport: vp }).promise;
+      const t = nhTrim(cv), pxPerIn = scale * 72;
+      pages.push(nhEncodePage(t, t.width / pxPerIn, t.height / pxPerIn));
+    }
+    try { doc.destroy(); } catch (e) {}
+  } else {
+    say('Reading the image…');
+    const im = await nhImageFromFile(file);
+    const W0 = im.naturalWidth || im.width, H0 = im.naturalHeight || im.height;
+    if (!W0 || !H0) throw new Error('That image came through empty.');
+    const k = Math.min(1, 2400 / Math.max(W0, H0));
+    const cv = document.createElement('canvas'); cv.width = Math.max(1, Math.round(W0 * k)); cv.height = Math.max(1, Math.round(H0 * k));
+    const cx = cv.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, cv.width, cv.height); cx.drawImage(im, 0, 0, cv.width, cv.height);
+    const t = nhTrim(cv);
+    pages.push(nhEncodePage(t, 7.4, 7.4 * t.height / t.width));   // a photo has no physical size: fit the page width
+  }
+  const bytes = pages.reduce((a, p) => a + dataUrlBytes(p.data), 0);
+  const thumb = fitCanvas(pages[0].cv, 110).toDataURL('image/jpeg', 0.7);
+  pages.forEach(p => { delete p.cv; });
+  return { pages, bytes, thumb };
+}
+async function nhSaveUpload(prep, meta) {
+  const id = 'uf' + uid();
+  const saved = [];
+  try {
+    for (let i = 0; i < prep.pages.length; i++) {
+      const docId = 'nhf_' + id + '_' + i;
+      await savePhotoDoc(docId, prep.pages[i].data, 'image');
+      saved.push(docId);
+    }
+  } catch (e) {
+    for (const d of saved) await deletePhotoDoc(d);
+    const why = String((e && (e.code || e.message)) || '');
+    throw new Error(/permission/i.test(why)
+      ? 'Firebase blocked the upload — the Firestore rule for the certPhotos folder needs to be published (the same rule certificate photos use).'
+      : 'Couldn’t save the pages — ' + ((e && e.message) || 'check your connection and try again') + '.');
+  }
+  nhS().custom.push({ id, kind:'upload', title: meta.title, desc: meta.desc, group: meta.group, packet: meta.packet, clinical: meta.clinical,
+    pages: prep.pages.map((p, i) => ({ doc: 'nhf_' + id + '_' + i, w: Math.round(p.w * 1000) / 1000, h: Math.round(p.h * 1000) / 1000 })),
+    thumb: prep.thumb, source: meta.source || '', created: todayYMD(), updated: todayYMD() });
+  act('Added form “' + meta.title + '”');
+  persist();
+  return id;
+}
+let nhUpToken = null;
+function nhAddFormModal() {
+  const groupOpts = NH_GROUPS.filter(g => g.id !== 'official').map(g => `<option value="${g.id}" ${g.id === 'packet' ? 'selected' : ''}>${esc(g.label)}</option>`).join('');
+  openModal(`<div class="mh"><h3>Add a form</h3><button class="x" data-act="closeModal">✕</button></div>
+  <div class="mb">
+    <div class="nhPick" id="nhPick">
+      <label class="nhDrop"><input type="file" id="nhUpFile" accept="application/pdf,.pdf,image/*">${ic('upload', 24)}<b>Upload a PDF or photo</b><span class="tiny">Bent Ericksen, shared drive, any form — it prints on NLO letterhead</span></label>
+      <button class="nhDrop" type="button" data-act="nhNewMarkup">${ic('edit', 24)}<b>Type or paste a form</b><span class="tiny">Paste the text from Word, then add blanks and signature lines</span></button>
+    </div>
+    <div id="nhUpStep" style="display:none">
+      <div id="nhUpStatus" class="infoBox">Working…</div>
+      <div class="nhThumbs" id="nhUpThumbs"></div>
+      <div class="frow"><div class="field"><label>Form title</label><input type="text" id="nhUpTitle"></div>
+        <div class="field"><label>Section</label><select id="nhUpGroup">${groupOpts}</select></div></div>
+      <div class="field"><label>Short description <span class="tiny">(optional)</span></label><input type="text" id="nhUpDesc" placeholder="Shown in the form library"></div>
+      <label class="nhCkRow"><input type="checkbox" id="nhUpPacket" checked> Include in new-hire packets by default</label>
+      <label class="nhCkRow"><input type="checkbox" id="nhUpClin"> Clinical &amp; lab hires only</label>
+    </div>
+    <p class="tiny" style="margin-top:14px">Word file? In Word choose File → Save As → PDF, then upload that PDF — or use “Type or paste.” Up to ${NH_MAX_PAGES} pages per form.</p>
+  </div>
+  <div class="mf"><button class="btn btn-sec" data-act="closeModal">Cancel</button><button class="btn btn-pri" id="nhUpSave" disabled>Save form</button></div>`);
+  const token = {}; nhUpToken = token;
+  let prep = null, fileName = '';
+  $('#nhUpFile').onchange = async () => {
+    const file = $('#nhUpFile').files[0]; if (!file) return;
+    if (!isPdfFile(file) && !/^image\//.test(file.type || '')) { toast('Pick a PDF, JPG or PNG — save Word files as PDF first', true); return; }
+    fileName = file.name || '';
+    $('#nhPick').style.display = 'none'; $('#nhUpStep').style.display = '';
+    const status = $('#nhUpStatus');
+    const say = m => { if (nhUpToken === token && status) { status.className = 'infoBox'; status.textContent = m; } };
+    $('#nhUpTitle').value = fileName.replace(/\.[a-z0-9]{2,5}$/i, '').replace(/[_]+/g, ' ').replace(/\s+/g, ' ').trim();
+    try {
+      prep = await nhPrepareUpload(file, say);
+      const thumbs = $('#nhUpThumbs'), saveBtn = $('#nhUpSave');
+      if (nhUpToken !== token || !thumbs || !saveBtn) return;
+      thumbs.innerHTML = prep.pages.map(p => `<img src="${p.preview}" alt="">`).join('');
+      say(plural(prep.pages.length, 'page') + ' ready (' + fmtBytes(prep.bytes) + '). Each page prints below the NLO letterhead.');
+      saveBtn.disabled = false;
+    } catch (e) {
+      if (nhUpToken !== token) return;
+      prep = null;
+      if (status) { status.className = 'dangerBox'; status.textContent = (e && e.message) || 'Couldn’t read that file.'; }
+    }
+  };
+  $('#nhUpSave').onclick = async () => {
+    if (!prep) return;
+    const title = ($('#nhUpTitle').value || '').trim();
+    if (!title) { toast('Give the form a title', true); return; }
+    const btn = $('#nhUpSave'); btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      await nhSaveUpload(prep, { title, desc: ($('#nhUpDesc').value || '').trim(), group: $('#nhUpGroup').value, packet: $('#nhUpPacket').checked, clinical: $('#nhUpClin').checked, source: fileName });
+      if (nhUpToken === token) closeModal();
+      nhUpToken = null;
+      route.page = 'newhire'; if (!route.nhHire) route.nhTab = 'forms';
+      render(); toast('“' + title + '” added to the form library');
+    } catch (e) {
+      const st = $('#nhUpStatus');
+      if (nhUpToken === token && st) { st.className = 'dangerBox'; st.textContent = (e && e.message) || 'Couldn’t save that form.'; }
+      toast('Couldn’t save the form', true);
+      if (nhUpToken === token) { btn.disabled = false; btn.textContent = 'Save form'; }
+    }
+  };
+}
+
+function nhLetterheadModal() {
+  const L = nhLH();
+  openModal(`<div class="mh"><h3>Letterhead &amp; form defaults</h3><button class="x" data-act="closeModal">✕</button></div>
+  <div class="mb">
+    <div class="frow"><div class="field"><label>Street address</label><input type="text" id="nhL1" value="${esc(L.addr1)}"></div>
+      <div class="field"><label>City, state ZIP</label><input type="text" id="nhL2" value="${esc(L.addr2)}"></div></div>
+    <div class="frow"><div class="field"><label>Phone</label><input type="text" id="nhLp" value="${esc(L.phone)}"></div>
+      <div class="field"><label>Website <span class="tiny">(leave blank to hide)</span></label><input type="text" id="nhLw" value="${esc(L.web)}"></div></div>
+    <div class="frow"><div class="field"><label>Offer letters signed by</label><input type="text" id="nhLs" value="${esc(L.signer)}"></div>
+      <div class="field"><label>Offer letter “contact me at”</label><input type="text" id="nhLc" value="${esc(L.contact)}" placeholder="${esc(L.phone)}"></div></div>
+    <div class="frow"><div class="field"><label>Pay frequency <span class="tiny">(Payroll Enrollment)</span></label><input type="text" id="nhLf" value="${esc(L.payfreq)}"></div>
+      <div class="field"><label>Policy manual effective date <span class="tiny">(optional)</span></label><input type="date" id="nhLd" value="${esc(/^\d{4}-\d{2}-\d{2}$/.test(L.policy) ? L.policy : '')}"></div></div>
+    <div class="tiny">The logo comes from Staff Hub itself; the practice name is set in Settings. These details are saved encrypted with the rest of your data.</div>
+    <div class="nhPrev" id="nhLPrev" style="margin-top:14px"></div>
+  </div>
+  <div class="mf"><button class="btn btn-sec" data-act="closeModal">Cancel</button><button class="btn btn-pri" id="nhLSave">Save</button></div>`, true);
+  const vals = () => ({ addr1: $('#nhL1').value.trim(), addr2: $('#nhL2').value.trim(), phone: $('#nhLp').value.trim(), web: $('#nhLw').value.trim(), signer: $('#nhLs').value.trim(), contact: $('#nhLc').value.trim(), payfreq: $('#nhLf').value.trim(), policy: $('#nhLd').value });
+  const upd = () => {
+    const box = $('#nhLPrev'); if (!box) return;
+    const ctx = nhCtx(null);
+    const v = vals();
+    ctx.lh = Object.assign({}, NH_LH_DEFAULT, { web: v.web }, Object.fromEntries(Object.entries(v).filter(([k, x]) => x && ['addr1', 'addr2', 'phone'].includes(k))));
+    box.innerHTML = `<div class="nhPaper mini"><section class="nhDoc">${nhLetterheadHTML(ctx)}</section></div>`;
+    nhFitPapers(box);
+  };
+  ['#nhL1', '#nhL2', '#nhLp', '#nhLw'].forEach(s => $(s).addEventListener('input', upd));
+  upd(); nhLoadLogo().then(upd);
+  $('#nhLSave').onclick = () => { nhS().lh = vals(); act('Updated letterhead details'); persist(); closeModal(); render(); toast('Letterhead saved'); };
+}
+
+/* =====================================================
+   Actions
+   ===================================================== */
+H.nhTab = t => { route.nhTab = t.dataset.id; render(); };
+H.nhOpen = t => { route.nhHire = t.dataset.id; render(); window.scrollTo(0, 0); };
+H.nhBack = () => { route.nhHire = null; route.nhTab = 'hires'; render(); window.scrollTo(0, 0); };
+H.nhAddHire = () => nhHireModal(null);
+H.nhEditHire = t => nhHireModal(t.dataset.id);
+H.nhPreview = t => { nhPreviewModal(t.dataset.id, t.dataset.h || null); };
+H.nhEditForm = t => nhEditModal(t.dataset.id);
+H.nhAddForm = () => nhAddFormModal();
+H.nhNewMarkup = () => nhEditModal(null);
+H.nhLetterhead = () => nhLetterheadModal();
+H.nhDone = t => {
+  const h = nhHire(t.dataset.id); if (!h) return;
+  if (!h.done || typeof h.done !== 'object') h.done = {};
+  const f = t.dataset.f;
+  if (h.done[f]) delete h.done[f]; else h.done[f] = todayYMD();
+  persist(); render();
+};
+H.nhInc = t => {
+  const h = nhHire(t.dataset.id); if (!h) return;
+  if (!h.inc || typeof h.inc !== 'object') h.inc = {};
+  h.inc[t.dataset.f] = !!t.checked;
+  persist(); render();
+};
+H.nhTask = t => {
+  const h = nhHire(t.dataset.id); if (!h) return;
+  if (!h.tasks || typeof h.tasks !== 'object') h.tasks = {};
+  if (t.checked) h.tasks[t.dataset.t] = todayYMD(); else delete h.tasks[t.dataset.t];
+  persist(); render();
+};
+H.nhNote = t => {
+  const h = nhHire(t.dataset.id); if (!h) return;
+  h.notes = t.value; persist(); toast('Notes saved');
+};
+H.nhComplete = t => {
+  const h = nhHire(t.dataset.id); if (!h) return;
+  if (h.status === 'done') { h.status = 'active'; delete h.completed; act('Reopened onboarding for ' + h.name); toast('Reopened'); }
+  else { h.status = 'done'; h.completed = todayYMD(); act('Completed onboarding for ' + h.name); toast(h.name + '’s onboarding is complete'); }
+  persist(); render();
+};
+H.nhDelHire = t => {
+  const h = nhHire(t.dataset.id); if (!h) return;
+  confirmModal('Delete ' + h.name + '’s onboarding record?', 'This removes the paperwork tracker only. Their staff profile, if they have one, is not touched.', () => {
+    const n = nhS(); n.hires = n.hires.filter(x => x.id !== h.id);
+    route.nhHire = null; act('Deleted onboarding record for ' + h.name);
+    persist(); render(); toast('Deleted');
+  });
+};
+H.nhRoster = t => {
+  const h = nhHire(t.dataset.id); if (!h) return;
+  const link = (hire, p) => { hire.staffId = p.id; if (!hire.tasks || typeof hire.tasks !== 'object') hire.tasks = {}; if (!hire.tasks.staffhub) hire.tasks.staffhub = todayYMD(); };
+  const same = activeStaff().find(p => String(p.name || '').trim().toLowerCase() === String(h.name || '').trim().toLowerCase());
+  if (same) {
+    confirmModal('Link to ' + same.name + '’s existing profile?', 'Someone with this name is already on the staff roster. Linking avoids a duplicate profile.', () => {
+      const cur = nhHire(h.id), p = staffById(same.id); if (!cur || !p) return;
+      link(cur, p); persist(); render(); toast('Linked to ' + p.name + '’s profile');
+    });
+    return;
+  }
+  const np = { id: uid(), status:'active', created: Date.now(), name: h.name, role: h.position || '', employment: h.employment || 'Full-time', hireDate: h.start || '',
+    birthday: h.dob || '', phone: h.cell || h.homePhone || '', email: h.email || '', profileNote:'', nextReview: h.start ? addMonthsYMD(h.start, 3) : '', color:'' };
+  S.staff.push(np); link(h, np); act('Added staff member ' + h.name + ' (from onboarding)');
+  persist(); render(); toast(h.name + ' added to the staff roster' + (h.start ? ' — 90-day review date set' : ''));
+};
+H.nhPrintPacket = t => {
+  const h = nhHire(t.dataset.id); if (!h) return;
+  const list = nhPacketForms(h);
+  if (!list.length) { toast('No forms are checked for this packet', true); return; }
+  nhPrint(list.map(f => ({ f, h })), 'NLO New Hire Packet - ' + h.name);
+};
+H.nhPrintBlank = () => { nhPrint(nhPacketForms(null).map(f => ({ f, h: null })), 'NLO New Hire Packet - blank'); };
+H.nhPrintOne = t => {
+  const f = nhFormById(t.dataset.id); if (!f) return;
+  const h = t.dataset.h ? nhHire(t.dataset.h) : null;
+  nhPrint([{ f, h }], f.title + (h ? ' - ' + h.name : ''));
+};
+H.nhHideForm = t => {
+  const n = nhS(), id = t.dataset.id;
+  if (n.hidden.indexOf(id) < 0) n.hidden.push(id);
+  persist(); render(); toast('Hidden — restore it from the bottom of the library');
+};
+H.nhUnhide = t => { const n = nhS(); n.hidden = n.hidden.filter(x => x !== t.dataset.id); persist(); render(); toast('Restored'); };
+H.nhDelForm = t => {
+  const f = nhS().custom.find(x => x.id === t.dataset.id); if (!f) return;
+  confirmModal('Delete “' + f.title + '”?', 'It will be removed from the form library and from every packet. This can’t be undone.', () => {
+    const n = nhS();
+    n.custom = n.custom.filter(x => x.id !== f.id);
+    n.hires.forEach(h => { if (h.inc) delete h.inc[f.id]; if (h.done) delete h.done[f.id]; });
+    act('Deleted form “' + f.title + '”'); persist(); render(); toast('Form deleted');
+    (f.pages || []).forEach(pg => { deletePhotoDoc(pg.doc); });
+  });
+};
+const nhNavOrig = H.nav;
+H.nav = t => { if (t && t.dataset && t.dataset.id === 'newhire') route.nhHire = null; nhNavOrig(t); };
 
 </script>
 
