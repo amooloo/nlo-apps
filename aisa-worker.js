@@ -52,6 +52,13 @@
 //      It goes with every question (POST /map builds it, GET /map shows
 //      it). Also: the next chunk under the same heading is added after the
 //      top matches, and list questions must list everything that applies.
+//  2.5.1: office map is tidier and smaller — name variants merged ("Sarah" +
+//      "Sarah Gauthier", "Time-Off Requests app" + "Time Off Request App"),
+//      2 short descriptions per item, a fixed budget per block so the
+//      Section Guide is never cut off; raw extraction kept so the map can
+//      be re-rendered without re-reading the manual (POST /map {rerender}).
+//      The best-matching chunk is shown as a source even when the reranker
+//      under-scores it (tables).
 //  11. BLUE/GREEN RETRAINS: /train and the new /reindex build a new
 //      index generation first and switch over only when it is complete,
 //      so answers never go blank mid-retrain. Old generation is then
@@ -62,7 +69,7 @@
 // match), v2.0 (streaming, answer cache).
 // ====================================================================
 
-const WORKER_VERSION = '2.5.0';
+const WORKER_VERSION = '2.5.1';
 
 // ---------- Model (fallback — the live choice is saved from the portal) ----------
 const MODEL = 'gemini-3.8-flash';
@@ -429,7 +436,7 @@ function sourcesOf(chosen) {
   const out = [];
   for (const c of chosen) {
     if (out.length >= 3) break;
-    if (!(c.rr >= SOURCE_MIN_SCORE || c.exact) || !c.path) continue;
+    if (!(c.rr >= SOURCE_MIN_SCORE || c.exact || (c === chosen[0] && c.vs >= LOW_CONF_VEC)) || !c.path || c.neighbor) continue;
     const parts = c.path.split(' › ');
     const sop = (c.path.match(/\bSOP-[A-Z]{2,5}-\d{2,3}[A-Z]?\b/) || [])[0];
     let label;
@@ -1110,6 +1117,17 @@ async function handleMapBuild(request, env, origin) {
     if (!parts.length) return jsonResponse({ success: false, error: 'Stored knowledge base text not found.' }, 400, origin);
     job = { sig, parts, results: [], startedAt: new Date().toISOString() };
   }
+  if (body.rerender) {
+    const raw = await env.KNOWLEDGE_KV.get('map:raw', 'json');
+    const cur = await getOfficeMap(env, true);
+    if (!raw || !cur) return jsonResponse({ success: false, error: 'Nothing to re-render yet — build the map first.' }, 400, origin);
+    const text = renderOfficeMap(mergeMapParts(raw));
+    const rec = Object.assign({}, cur, { text, words: text.split(/\s+/).filter(Boolean).length, renderedAt: new Date().toISOString() });
+    await env.KNOWLEDGE_KV.put('map:current', JSON.stringify(rec));
+    MAP_CACHE = { kv: env.KNOWLEDGE_KV, ts: Date.now(), val: rec };
+    await bumpAnswerGen(env);
+    return jsonResponse({ success: true, done: true, rerendered: true, parts: rec.parts, words: rec.words, builtAt: rec.builtAt }, 200, origin);
+  }
   const k = job.results.length;
   if (k < job.parts.length) {
     const part = job.parts[k];
@@ -1131,6 +1149,7 @@ async function handleMapBuild(request, env, origin) {
   const kbv = await getKbVersion(env);
   const rec = { text, sig, builtAt: new Date().toISOString(), kbVersion: (kbv && kbv.version) || null, parts: job.parts.length, words: text.split(/\s+/).filter(Boolean).length };
   await env.KNOWLEDGE_KV.put('map:current', JSON.stringify(rec));
+  try { await env.KNOWLEDGE_KV.put('map:raw', JSON.stringify(job.results)); } catch (e) {}
   try { await env.KNOWLEDGE_KV.delete('mapjob'); } catch (e) {}
   MAP_CACHE = { kv: env.KNOWLEDGE_KV, ts: Date.now(), val: rec };
   await bumpAnswerGen(env);
@@ -1165,7 +1184,13 @@ Reply with ONLY a JSON object of this shape:
   return parseJsonReply(await resp.json());
 }
 
-function mapKey(s) { return String(s || '').toLowerCase().replace(/[™®©]/g, '').replace(/\([^)]*\)/g, ' ').replace(/[^a-z0-9]+/g, ' ').trim(); }
+const MAP_STOP_TOKENS = new Set(['software', 'app', 'apps', 'application', 'portal', 'platform', 'system', 'the', 'online', 'tool', 'web']);
+function mapTokens(s) {
+  return String(s || '').toLowerCase().replace(/[™®©]/g, '').replace(/\([^)]*\)/g, ' ').replace(/[^a-z0-9]+/g, ' ').trim()
+    .split(' ').filter(Boolean).map(t => (t.length > 3 && t.endsWith('s') && !t.endsWith('ss')) ? t.slice(0, -1) : t)
+    .filter(t => !MAP_STOP_TOKENS.has(t) && t !== 'dr');
+}
+function mapKey(s) { const t = mapTokens(s); return t.length ? t.join(' ') : String(s || '').toLowerCase().trim(); }
 function secNums(arr) { return (Array.isArray(arr) ? arr : [arr]).map(x => String(x == null ? '' : x).replace(/[^0-9]/g, '')).filter(Boolean); }
 
 function mergeMapParts(results) {
@@ -1181,8 +1206,8 @@ function mergeMapParts(results) {
         const key = mapKey(it[nameF]);
         if (!key) continue;
         const e = groups[g].get(key) || { name: String(it[nameF]).trim().slice(0, 80), descs: [], secs: new Set() };
-        const d = String(it[descF] || '').trim().slice(0, 140);
-        if (d && e.descs.length < 3 && !e.descs.some(x => mapKey(x) === mapKey(d))) e.descs.push(d);
+        const d = String(it[descF] || '').trim().replace(/[.;\s]+$/, '').slice(0, 100);
+        if (d && !e.descs.some(x => mapKey(x) === mapKey(d))) e.descs.push(d);
         secNums(it.sections).forEach(x => e.secs.add(x));
         groups[g].set(key, e);
       }
@@ -1190,24 +1215,46 @@ function mergeMapParts(results) {
     for (const sct of (Array.isArray(r.sections) ? r.sections : [])) {
       const num = String((sct && sct.num) || '').replace(/[^0-9]/g, '');
       if (!num || sections.has(num)) continue;
-      sections.set(num, { num, title: String(sct.title || '').trim().slice(0, 80), covers: String(sct.covers || '').trim().slice(0, 160) });
+      sections.set(num, { num, title: String(sct.title || '').trim().slice(0, 70), covers: String(sct.covers || '').trim().replace(/[.;\s]+$/, '').slice(0, 110) });
+    }
+  }
+  // Fold name variants into the fuller name ("Sarah" → "Sarah Gauthier",
+  // "Outlook" → "Microsoft Outlook") when exactly one fuller match exists.
+  for (const g of Object.keys(groups)) {
+    const m = groups[g];
+    const keys = [...m.keys()].sort((a, b) => a.split(' ').length - b.split(' ').length);
+    for (const a of keys) {
+      if (!m.has(a)) continue;
+      const at = a.split(' ');
+      const cands = [...m.keys()].filter(b => b !== a && (() => { const bt = b.split(' '); return bt.length - at.length === 1 && at.every(t => bt.includes(t)); })());
+      if (cands.length !== 1) continue;
+      const into = m.get(cands[0]), from = m.get(a);
+      for (const d of from.descs) if (!into.descs.some(x => mapKey(x) === mapKey(d))) into.descs.push(d);
+      from.secs.forEach(x => into.secs.add(x));
+      m.delete(a);
     }
   }
   return { groups, sections };
 }
 
 function renderOfficeMap({ groups, sections }) {
-  const line = (e) => '- ' + e.name + (e.descs.length ? ': ' + e.descs.join('; ') : '') +
-    (e.secs.size ? ' (§' + [...e.secs].sort((a, b) => Number(a) - Number(b)).slice(0, 6).join(', §') + ')' : '');
-  const block = (title, m, cap) => {
-    const arr = [...m.values()].sort((a, b) => b.secs.size - a.secs.size).slice(0, cap); // most-mentioned first
-    return arr.length ? title + '\n' + arr.map(line).join('\n') + '\n\n' : '';
+  const line = (e) => '- ' + e.name + (e.descs.length ? ': ' + e.descs.slice(0, 2).join('; ') : '') +
+    (e.secs.size ? ' (§' + [...e.secs].sort((a, b) => Number(a) - Number(b)).slice(0, 4).join(', §') + ')' : '');
+  const block = (title, m, budget) => {
+    const arr = [...m.values()].sort((a, b) => b.secs.size - a.secs.size); // most-mentioned first
+    let out = title + '\n', used = out.length;
+    for (const e of arr) { const l = line(e) + '\n'; if (used + l.length > budget) break; out += l; used += l.length; }
+    return arr.length ? out + '\n' : '';
   };
-  let out = block('SYSTEMS & SOFTWARE NLO USES', groups.systems, 80) +
-    block('WHO HANDLES WHAT', groups.roles, 50) +
-    block('OUTSIDE PARTNERS (labs, vendors, insurers, consultants, referrals)', groups.partners, 80);
+  let out = block('SYSTEMS & SOFTWARE NLO USES', groups.systems, 6500) +
+    block('WHO HANDLES WHAT', groups.roles, 4000) +
+    block('OUTSIDE PARTNERS (labs, vendors, insurers, consultants, referrals)', groups.partners, 4500);
   const secs = [...sections.values()].sort((a, b) => Number(a.num) - Number(b.num));
-  if (secs.length) out += 'SECTION GUIDE\n' + secs.map(x => '§' + x.num + ' ' + x.title + (x.covers ? ' — ' + x.covers : '')).join('\n') + '\n';
+  if (secs.length) {
+    let guide = 'SECTION GUIDE\n';
+    for (const x of secs) { const l = '§' + x.num + ' ' + x.title + (x.covers ? ' — ' + x.covers : '') + '\n'; if (guide.length + l.length > 6500) break; guide += l; }
+    out += guide;
+  }
   return out.slice(0, MAP_MAX_CHARS);
 }
 
