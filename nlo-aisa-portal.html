@@ -388,6 +388,7 @@
           <option value="high">high</option>
         </select>
       </div>
+      <div id="maintBusyNote" style="font-size:12px;color:#fbbf24;min-height:16px;"></div>
       <div id="maintStatus"></div>
     </div>
   </div>
@@ -943,6 +944,16 @@ function maintKey() {
   if (!k) { maintSay('Enter the admin key above first.', true); return null; }
   return k;
 }
+let maintBusy = '';
+function maintStart(name) {
+  if (maintBusy) { alertBusy(); return false; }
+  maintBusy = name; return true;
+}
+function maintEnd() { maintBusy = ''; }
+function alertBusy() {
+  const note = document.getElementById('maintBusyNote');
+  if (note) { note.textContent = '⏳ Please wait — ' + maintBusy + ' is still running.'; setTimeout(() => { if (note) note.textContent = ''; }, 4000); }
+}
 function maintSay(text, bad) {
   const el = document.getElementById('maintStatus');
   el.innerHTML = '';
@@ -957,6 +968,7 @@ async function maintCall(path, method, body) {
   return data;
 }
 async function maintHealth() {
+  if (!maintStart('Check status')) return;
   maintSay('Checking…');
   try {
     const d = await maintCall('/health', 'GET'); if (!d) return;
@@ -968,17 +980,22 @@ async function maintHealth() {
       '\nVectors stored: ' + (vc ?? '?') + (d.expectedVectors ? ' (expected ≈ ' + d.expectedVectors + ')' : '') +
       '\nQuestions today: ' + (d.questionsToday ?? '?') + ' of ' + (d.dailyCap ?? '?'));
   } catch (e) { maintSay('❌ ' + e.message, true); }
+  finally { maintEnd(); }
 }
 async function maintReindex() {
+  if (maintBusy) { alertBusy(); return; }
   if (!confirmStep('Rebuild the search index from the knowledge base already stored on the server?')) return;
+  if (!maintStart('Rebuild search index')) return;
   maintSay('Rebuilding… this takes about a minute. Answers keep working while it runs.');
   try {
     const d = await maintCall('/reindex', 'POST', {}); if (!d) return;
     const lines = (d.results || []).map(r => r.error ? ('❌ ' + r.label + ': ' + r.error) : ('✅ ' + r.label + ': ' + r.chunks + ' chunks, ' + r.deletedOld + ' old vectors removed' + (r.rateLimited ? ' (cleanup paused — run "Clean up" in a minute)' : '')));
     maintSay(lines.join('\n') || 'Nothing to rebuild.', !d.success);
   } catch (e) { maintSay('❌ ' + e.message, true); }
+  finally { maintEnd(); }
 }
 async function maintPurge() {
+  if (!maintStart('Clean up')) return;
   maintSay('Looking for leftover search data…');
   try {
     for (let i = 0; i < 8; i++) {
@@ -989,6 +1006,7 @@ async function maintPurge() {
     }
     maintSay('Still some leftovers — run it again.');
   } catch (e) { maintSay('❌ ' + e.message, true); }
+  finally { maintEnd(); }
 }
 function confirmStep(msg) {
   // Inline confirm (no browser dialog): second click within 6s confirms.
@@ -1005,6 +1023,10 @@ const NOT_FOUND_RE = /not finding|don't have|do not have|not (listed|on file|ava
 const NOT_FOUND_LINE_RE = /not finding that specific detail/i;
 async function maintTest() {
   const key = maintKey(); if (!key) return;
+  if (!maintStart('Accuracy check')) return;
+  try { await runAccuracyCheck(key); } finally { maintEnd(); }
+}
+async function runAccuracyCheck(key) {
   let tests;
   try { tests = await (await fetch('aisa-tests.json?' + Date.now())).json(); }
   catch (e) { maintSay('❌ Could not load aisa-tests.json', true); return; }
