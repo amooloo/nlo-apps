@@ -157,6 +157,55 @@ width: fit-content;
 .theme-navy .app-tag { background: rgba(27,47,76,0.08); color: #1B2F4C; }
 .theme-navy:hover { border-color: #1B2F4C; }
 
+/* Admin group: tools only the office admin needs; collapsed by default */
+.admin-group {
+margin-top: 44px;
+padding-top: 22px;
+border-top: 1px solid rgba(27,47,76,0.1);
+}
+
+.admin-group > summary {
+list-style: none;
+display: flex;
+align-items: center;
+gap: 10px;
+width: fit-content;
+margin-left: -12px;
+padding: 8px 14px 8px 12px;
+border-radius: 10px;
+cursor: pointer;
+user-select: none;
+color: #1B2F4C;
+transition: background 0.2s ease;
+}
+
+.admin-group > summary::-webkit-details-marker { display: none; }
+.admin-group > summary:hover { background: rgba(27,47,76,0.05); }
+.admin-group > summary:focus-visible { outline: 2px solid #1D3EA9; outline-offset: 2px; }
+
+.admin-title {
+font-size: 0.7rem;
+font-weight: 700;
+text-transform: uppercase;
+letter-spacing: 1.5px;
+opacity: 0.55;
+}
+
+.admin-count {
+font-size: 0.62rem;
+font-weight: 700;
+letter-spacing: 0.5px;
+padding: 3px 9px;
+border-radius: 20px;
+background: rgba(27,47,76,0.07);
+opacity: 0.75;
+}
+
+.admin-lock, .admin-chevron { flex-shrink: 0; stroke: #1B2F4C; opacity: 0.5; }
+.admin-chevron { transition: transform 0.2s ease; }
+.admin-group[open] .admin-chevron { transform: rotate(90deg); }
+.admin-group .apps-grid { margin-top: 18px; }
+
 footer {
 text-align: center;
 padding: 36px 20px;
@@ -282,22 +331,6 @@ header h1 { font-size: 0.7rem; }
 <span class="app-tag">Scheduling &amp; Leave</span>
 </a>
 
-<!-- Transfer Out Calculator -->
-<a href="transfer-out-calculator.html" class="app-card theme-coral">
-<div class="app-icon">
-<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-<rect x="4" y="2" width="16" height="20" rx="2"/>
-<line x1="8" y1="6" x2="16" y2="6"/>
-<line x1="8" y1="10" x2="16" y2="10"/>
-<line x1="8" y1="14" x2="12" y2="14"/>
-<path d="M15 17l2 2 4-4"/>
-</svg>
-</div>
-<h3>Transfer Out Calculator</h3>
-<p>Calculate patient balances for treatment transfers out of office — fees, payments, and refund or amount owed. Print-ready.</p>
-<span class="app-tag">Billing &amp; Transfers</span>
-</a>
-
 <!-- Financial Suite -->
 <a href="NLO_Financial_Suite.html" class="app-card theme-gold">
 <div class="app-icon">
@@ -307,7 +340,7 @@ header h1 { font-size: 0.7rem; }
 </svg>
 </div>
 <h3>Financial Suite</h3>
-<p>Fill out and print financial forms — altered arrangements, courtesy agreements, CC authorizations, discontinuations, and waivers.</p>
+<p>Fill out and print financial forms — altered arrangements, courtesy agreements, CC authorizations, discontinuations, and waivers — plus the transfer-out balance calculator.</p>
 <span class="app-tag">Finance &amp; Documents</span>
 </a>
 
@@ -339,22 +372,6 @@ header h1 { font-size: 0.7rem; }
 <h3>Post-Op &amp; Consents</h3>
 <p>Print-ready post-op instructions and informed consent forms — braces, aligners, expanders, functional appliances, MARPE, TADs, and more.</p>
 <span class="app-tag">Clinical Forms</span>
-</a>
-
-<!-- AISA Portal -->
-<a href="nlo-aisa-portal.html" class="app-card theme-blue">
-<div class="app-icon">
-<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-<rect x="3" y="3" width="18" height="14" rx="2"/>
-<circle cx="9" cy="9" r="2"/>
-<path d="M21 13l-4-4-6 6-2-2-4 4"/>
-<path d="M8 21h8"/>
-<path d="M12 17v4"/>
-</svg>
-</div>
-<h3>AISA Portal</h3>
-<p>Upload and categorize patient photos, and train the AISA knowledge base with clinical references and guidance.</p>
-<span class="app-tag">AI &amp; Photos</span>
 </a>
 
 <!-- Cadence -->
@@ -401,21 +418,23 @@ header h1 { font-size: 0.7rem; }
 <span class="app-tag">Scheduling</span>
 </a>
 
-<!-- Staff Hub -->
-<a href="nlo-staff-hub.html" class="app-card theme-navy">
-<div class="app-icon">
-<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-<rect x="3" y="4" width="18" height="16" rx="2"/>
-<circle cx="9" cy="10" r="2"/>
-<path d="M5.6 16.5c.4-1.7 1.9-2.4 3.4-2.4s3 .7 3.4 2.4"/>
-<line x1="14.5" y1="9" x2="18" y2="9"/>
-<line x1="14.5" y1="13" x2="18" y2="13"/>
-</svg>
+<!--
+ADD MORE APPS HERE
+Available themes: theme-blue, theme-coral, theme-mint, theme-gold, theme-navy
+-->
+
 </div>
-<h3>Staff Hub</h3>
-<p>Secure HR tracking — staff profiles, notes &amp; observations, performance reviews, KPIs, certifications, and to-discuss lists. Encrypted, with AI insights.</p>
-<span class="app-tag">HR &amp; Staff</span>
-</a>
+
+<!-- Admin: tools the team doesn't need day to day. Collapsed until someone opens it. -->
+<details class="admin-group" id="adminGroup">
+<summary>
+<svg class="admin-lock" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>
+<span class="admin-title">Admin</span>
+<span class="admin-count">3 tools</span>
+<svg class="admin-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+</summary>
+
+<div class="apps-grid">
 
 <!-- Bank Deposit -->
 <a href="bank-deposit.html" class="app-card theme-gold">
@@ -432,13 +451,55 @@ header h1 { font-size: 0.7rem; }
 <span class="app-tag">Banking &amp; Deposits</span>
 </a>
 
+<!-- Staff Hub -->
+<a href="nlo-staff-hub.html" class="app-card theme-navy">
+<div class="app-icon">
+<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<rect x="3" y="4" width="18" height="16" rx="2"/>
+<circle cx="9" cy="10" r="2"/>
+<path d="M5.6 16.5c.4-1.7 1.9-2.4 3.4-2.4s3 .7 3.4 2.4"/>
+<line x1="14.5" y1="9" x2="18" y2="9"/>
+<line x1="14.5" y1="13" x2="18" y2="13"/>
+</svg>
+</div>
+<h3>Staff Hub</h3>
+<p>Secure HR tracking — staff profiles, notes &amp; observations, performance reviews, KPIs, certifications, and to-discuss lists. Encrypted, with AI insights.</p>
+<span class="app-tag">HR &amp; Staff</span>
+</a>
+
+<!-- AISA Portal -->
+<a href="nlo-aisa-portal.html" class="app-card theme-blue">
+<div class="app-icon">
+<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<rect x="3" y="3" width="18" height="14" rx="2"/>
+<circle cx="9" cy="9" r="2"/>
+<path d="M21 13l-4-4-6 6-2-2-4 4"/>
+<path d="M8 21h8"/>
+<path d="M12 17v4"/>
+</svg>
+</div>
+<h3>AISA Portal</h3>
+<p>Upload and categorize patient photos, and train the AISA knowledge base with clinical references and guidance.</p>
+<span class="app-tag">AI &amp; Photos</span>
+</a>
+
 <!--
-ADD MORE APPS HERE
-Available themes: theme-blue, theme-coral, theme-mint, theme-gold, theme-navy
+ADD ADMIN-ONLY APPS HERE (same card markup as above)
 -->
 
 </div>
+</details>
 </div>
+
+<script>
+/* keep the Admin count honest if cards are added or removed */
+(function () {
+  var g = document.getElementById('adminGroup');
+  if (!g) return;
+  var n = g.querySelectorAll('.app-card').length, c = g.querySelector('.admin-count');
+  if (c) c.textContent = n + (n === 1 ? ' tool' : ' tools');
+})();
+</script>
 
 <footer>
 Next Level Orthodontics &middot; Internal Tools
