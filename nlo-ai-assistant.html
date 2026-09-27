@@ -43,7 +43,7 @@
   /* ── HEADER ── */
   header {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 14px 24px; border-bottom: 1px solid var(--nlo-grey-200);
+    padding: 14px 24px 14px 132px; border-bottom: 1px solid var(--nlo-grey-200); /* left room for the fixed "NLO Apps" pill */
     position: sticky; top: 0; background: var(--nlo-white); z-index: 10; flex-shrink: 0;
   }
   .header-left { display: flex; align-items: baseline; gap: 24px; }
@@ -54,9 +54,7 @@
   header h1 { font-size: 0; width: 0; overflow: hidden; }
   .header-inner { display: contents; }
   .header-right { display: flex; align-items: center; gap: 12px; }
-  .header-user { font-size: 13px; color: var(--nlo-grey-600); font-weight: 500; }
   #versionTag { font-size: 11px; color: var(--nlo-grey-400); letter-spacing: 0.5px; }
-  #userGreeting { display: none !important; } /* handled by header-user */
 
   /* ── MODE TABS (inline in header) ── */
   .mode-tabs { display: flex; gap: 20px; }
@@ -164,31 +162,14 @@
   .btn-submit { background: var(--nlo-coral); color: white; }
   .btn-submit:hover { background: var(--nlo-coral-700); }
 
-  /* ── LOGIN SCREEN ── */
-  .login-overlay { position: fixed; inset: 0; z-index: 999; background: var(--nlo-white); display: flex; flex-direction: column; }
-  .login-topbar { display: flex; align-items: center; justify-content: space-between; padding: 16px 24px; border-bottom: 1px solid var(--nlo-grey-200); }
-  .login-topbar-logo { font-family: var(--font-display); font-weight: 700; text-transform: uppercase; font-size: 20px; color: var(--nlo-navy); letter-spacing: 1px; }
-  .login-topbar-logo span { color: var(--nlo-coral); }
-  .login-topbar-link { font-size: 11px; font-weight: 600; letter-spacing: 1px; color: var(--nlo-grey-500); text-decoration: none; text-transform: uppercase; }
-  .login-topbar-link:hover { color: var(--nlo-navy); }
-  .login-body { flex: 1; display: flex; align-items: center; justify-content: center; padding: 32px 24px; overflow-y: auto; }
-  .login-inner { width: 100%; max-width: 400px; }
-  .login-heading { font-family: var(--font-display); font-weight: 700; text-transform: uppercase; font-size: 2rem; line-height: 1.1; color: var(--nlo-navy); margin-bottom: 6px; }
-  .login-subheading { font-size: 13px; color: var(--nlo-grey-500); margin-bottom: 24px; }
-  .login-list { display: flex; flex-direction: column; border-top: 1px solid var(--nlo-grey-200); }
-  .login-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; width: 100%; padding: 14px 2px; background: none; border: none; border-bottom: 1px solid var(--nlo-grey-200); cursor: pointer; text-align: left; font-family: var(--font-body); transition: all 0.14s ease; }
-  .login-row:hover { padding-left: 10px; border-bottom-color: var(--nlo-navy); }
-  .login-row-name { font-weight: 600; font-size: 15px; color: var(--nlo-navy); }
-  .login-row-role { font-size: 11px; color: var(--nlo-grey-400); }
-  .login-footer { padding: 14px 24px; font-size: 11px; color: var(--nlo-grey-400); letter-spacing: 0.5px; }
-  /* hide legacy login elements */
-  .login-card { display: none !important; }
-  .login-greeting { font-size: 0.78rem; color: var(--nlo-navy); padding: 3px 12px; background: var(--nlo-grey-100); border-radius: var(--radius-pill); display: inline-block; font-weight: 600; }
+  /* ── SOURCES LINE (under each answer) ── */
+  .msg-sources { margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--nlo-grey-200); font-size: 0.72rem; color: var(--nlo-grey-500); line-height: 1.45; }
+  .msg-sources b { font-weight: 600; color: var(--nlo-grey-600); }
 
   /* ── RESPONSIVE ── */
   @media (max-width: 480px) {
-    header { padding: 12px 16px; }
-    .header-logo { font-size: 17px; }
+    header { padding: 12px 16px 12px 124px; }
+    .header-logo { display: none; } /* the pill + "Ask AISA" tab already say where you are */
     .mode-tabs { gap: 16px; }
     .welcome-card { padding: 20px 0 10px; }
     .msg-user .msg-bubble { max-width: 90%; }
@@ -240,28 +221,6 @@
 </style>
 
 
-<!-- LOGIN SCREEN -->
-<div class="login-overlay" id="loginScreen">
-  <div class="login-topbar">
-    <div class="login-topbar-logo">AISA<span>.</span></div>
-    <a href="index.html" class="login-topbar-link">NLO Apps</a>
-  </div>
-  <div class="login-body">
-    <div class="login-inner">
-      <div class="login-heading">Who's working today?</div>
-      <div class="login-subheading">Select your name to start.</div>
-      <div class="login-list" id="loginList"></div>
-    </div>
-  </div>
-  <div class="login-footer" id="loginFooter"></div>
-  <!-- legacy elements hidden but kept for JS compatibility -->
-  <div class="login-card" aria-hidden="true">
-    <h1>AISA</h1>
-    <select id="staffSelect" onchange="checkLoginReady()" style="display:none"></select>
-    <button id="loginBtn" style="display:none" onclick="loginUser()">Let's Go</button>
-  </div>
-</div>
-
 <header>
   <div class="header-inner">
     <div class="header-left">
@@ -273,7 +232,6 @@
       </div>
     </div>
     <div class="header-right">
-      <div class="header-user" id="userGreeting"></div>
       <div id="versionTag"></div>
     </div>
   </div>
@@ -325,7 +283,7 @@
     <div class="feedback-bar">
       <span class="feedback-link" onclick="openFeedback()">Have a suggestion or found an error? Let us know</span>
     </div>
-    <div class="disclaimer">AI-generated answers — always verify critical decisions with your supervisor</div>
+    <div class="disclaimer">AI-generated answers — verify critical decisions with your supervisor · Please don't enter patient names</div>
   </div>
 </div>
 
@@ -333,29 +291,15 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script>
-// --- STAFF ROSTER (name → role mapping) ---
-var STAFF_ROSTER = {
-  'Dr. Akhavan': { role: 'Owner / Orthodontist', shortRole: 'owner' },
-  'Eve': { role: 'Marketing Coordinator', shortRole: 'marketing' },
-  'Wila': { role: 'Treatment Coordinator', shortRole: 'tc' },
-  'Savannah': { role: 'Appointment Coordinator', shortRole: 'scheduling' },
-  'Sarah': { role: 'Office Coordinator', shortRole: 'office_coordinator' },
-  'Gwen': { role: 'Orthodontic Assistant', shortRole: 'da' },
-  'Angelika': { role: 'Orthodontic Assistant', shortRole: 'da' },
-  'Kaylee': { role: 'Orthodontic Assistant', shortRole: 'da' },
-};
-var currentStaff = null;
-
 // --- CONVERSATION (Gemini-style turns; persisted for /ask until mode switch or reload) ---
 var conversationHistory = [];
 
 // --- CONFIG ---
 var CONFIG = {
-  VERSION: '3.2.0',
+  VERSION: '3.3.0',
   // API key is stored server-side in Cloudflare Worker (never in client code).
   // Update this URL after deploying your Cloudflare Worker.
   WORKER_URL: 'https://aisa-worker.akhavan-ak.workers.dev',
-  GEMINI_MODEL: 'gemini-2.5-flash',
   SHEETS_WEBHOOK: 'https://script.google.com/macros/s/AKfycbwoohCS5Msft5znpRckxO5ALWxkXrGLMs0Sm3VxYbAk7W5EoC-tpqCLo6GZwO21ZBX3/exec',
 };
 
@@ -429,14 +373,18 @@ async function fetchInventory() {
 }
 
 function isInventoryQuestion(text) {
+  // Only real stock questions pull live inventory (it slows the answer and
+  // turns off the answer cache). "How many turns for the RPE?" is not one.
   var lower = text.toLowerCase();
-  var keywords = ['inventory', 'stock', 'supply', 'supplies', 'how many', 'do we have',
-    'in stock', 'reorder', 're-order', 'running low', 'out of', 'order more',
-    'bracket', 'wire', 'elastic', 'band', 'archwire', 'molar', 'bonding',
-    'adhesive', 'ligature', 'chain', 'separator', 'retainer', 'aligner',
-    'gloves', 'masks', 'gauze', 'wax', 'fluoride', 'prophy', 'cement',
-    'quantity', 'qty', 'par level', 'vendor', 'supplier'];
-  return keywords.some(function(kw) { return lower.includes(kw); });
+  var stockPhrases = ['inventory', 'in stock', 'out of stock', 'stock level', 'restock', 'reorder', 're-order',
+    'running low', 'run low', 'low on', 'ran out', 'run out', 'order more', 'need to order', 'par level',
+    'supplies', 'how much stock', 'quantity', 'qty'];
+  if (stockPhrases.some(function(p) { return lower.includes(p); })) return true;
+  var askWords = ['do we have', 'how many', 'any left', 'left?', 'on hand', 'enough'];
+  var items = ['bracket', 'wire', 'elastic', 'band', 'archwire', 'molar tube', 'tube', 'adhesive', 'ligature',
+    'chain', 'separator', 'gloves', 'mask', 'gauze', 'wax', 'fluoride', 'prophy', 'cement', 'primer', 'etch',
+    'retainer material', 'aligner material', 'sheets', 'resin', 'bib', 'cotton roll', 'tad', 'screw'];
+  return askWords.some(function(w) { return lower.includes(w); }) && items.some(function(it) { return lower.includes(it); });
 }
 
 function formatInventoryForPrompt(items) {
@@ -499,59 +447,20 @@ var ASK_QUESTIONS = [
   'Are we running low on any supplies?',
 ];
 
-// --- LOGIN ---
-function populateStaffDropdown() {
-  // Build the clickable list (v2 design)
-  var list = document.getElementById('loginList');
-  if (list) {
-    Object.keys(STAFF_ROSTER).sort().forEach(function(name) {
-      var btn = document.createElement('button');
-      btn.className = 'login-row';
-      btn.innerHTML = '<span class="login-row-name">' + name + '</span><span class="login-row-role">' + STAFF_ROSTER[name].role + '</span>';
-      btn.onclick = function() { loginUser(name); };
-      list.appendChild(btn);
-    });
-  }
-  // Also populate hidden select for compatibility
-  var select = document.getElementById('staffSelect');
-  if (select) {
-    Object.keys(STAFF_ROSTER).sort().forEach(function(name) {
-      var opt = document.createElement('option');
-      opt.value = name;
-      opt.textContent = name;
-      select.appendChild(opt);
-    });
-  }
-  var footer = document.getElementById('loginFooter');
-  if (footer) footer.textContent = 'v' + CONFIG.VERSION;
-}
-function checkLoginReady() {
-  var btn = document.getElementById('loginBtn');
-  if (btn) btn.disabled = !document.getElementById('staffSelect').value;
-}
-function loginUser(name) {
-  if (!name) name = document.getElementById('staffSelect').value;
-  if (!name) return;
-  currentStaff = { name: name, role: STAFF_ROSTER[name].role, shortRole: STAFF_ROSTER[name].shortRole };
-  document.getElementById('loginScreen').style.display = 'none';
-  var greeting = document.getElementById('userGreeting');
-  if (greeting) { greeting.textContent = name; greeting.style.display = 'inline-block'; }
-  document.getElementById('questionInput').focus();
-  console.log('Logged in as:', currentStaff.name, '(' + currentStaff.role + ')');
-}
-
 // --- INIT ---
 document.addEventListener('DOMContentLoaded', function() {
   console.log('AISA v' + CONFIG.VERSION + ' loaded (knowledge base via Cloudflare RAG worker).');
   var vt = document.getElementById('versionTag');
   if (vt) vt.textContent = 'v' + CONFIG.VERSION;
-  populateStaffDropdown();
   loadKbVersion();
+  var qi = document.getElementById('questionInput');
+  if (qi) qi.focus();
 });
 
 // --- KB VERSION BADGE ---
 // Fetches the live knowledge-base version from the worker (/version) and
-// appends it to the version tag + login footer, e.g. "v3.2.0 · KB v2.53".
+// appends it to the version tag, e.g. "v3.3.0 · KB v3.16". The call also
+// wakes the worker so the first question doesn't pay a cold start.
 // It updates by itself on every KB retrain — this HTML never needs
 // re-uploading just to show a new KB version.
 function loadKbVersion() {
@@ -563,8 +472,6 @@ function loadKbVersion() {
       var tip = d.lastUpdated ? ('Knowledge base last updated ' + d.lastUpdated) : '';
       var vt = document.getElementById('versionTag');
       if (vt) { vt.textContent = text; if (tip) vt.title = tip; }
-      var footer = document.getElementById('loginFooter');
-      if (footer) { footer.textContent = text; if (tip) footer.title = tip; }
     })
     .catch(function() { /* worker offline or pre-v2.3 worker — badge stays app-only */ });
 }
@@ -638,7 +545,7 @@ function submitFeedback() {
 function logToSheets(type, question, answer) {
   if (!CONFIG.SHEETS_WEBHOOK) return;
   try {
-    var payload = { type: type, question: question, answer: answer || '', timestamp: new Date().toISOString(), mode: currentMode, staffName: currentStaff ? currentStaff.name : '', staffRole: currentStaff ? currentStaff.role : '' };
+    var payload = { type: type, question: question, answer: answer || '', timestamp: new Date().toISOString(), mode: currentMode };
     // Use fetch with keepalive (survives page unload like sendBeacon) and text/plain
     // Content-Type to avoid the CORS preflight that Apps Script web apps don't handle.
     // mode:'no-cors' tells the browser we don't need to read the response, and fetch
@@ -694,7 +601,8 @@ async function sendMessage() {
       else updateAiMessage(streamEl, partial);
     });
     if (streamEl) { updateAiMessage(streamEl, answer); }
-    else { typingEl.remove(); addMessage('ai', answer); }
+    else { typingEl.remove(); streamEl = addMessage('ai', answer); }
+    addSourcesLine(streamEl, lastSources);
     logToSheets('question', question, answer);
   } catch (err) {
     typingEl.remove();
@@ -743,7 +651,25 @@ function addTyping() {
 }
 
 // --- AISA WORKER (RAG) ---
+// Sections the worker says the answer came from (header X-AISA-Sources on
+// the stream, "sources" on /ask). Shown as a small "From:" line.
+var lastSources = [];
+function parseSources(h) {
+  if (!h) return [];
+  try { var v = JSON.parse(decodeURIComponent(h)); return Array.isArray(v) ? v.slice(0, 3) : []; } catch (e) { return []; }
+}
+function addSourcesLine(msgEl, sources) {
+  if (!msgEl || !sources || !sources.length) return;
+  var bubble = msgEl.querySelector('.msg-bubble');
+  if (!bubble) return;
+  var div = document.createElement('div');
+  div.className = 'msg-sources';
+  div.innerHTML = '<b>From:</b> ' + sources.map(escapeHtml).join(' · ');
+  bubble.appendChild(div);
+}
+
 async function callGemini(question, onChunk) {
+  lastSources = [];
   var inventoryData = '';
   if (isInventoryQuestion(question)) {
     var items = await fetchInventory();
@@ -752,9 +678,7 @@ async function callGemini(question, onChunk) {
   var payload = {
     question: question,
     inventoryData: inventoryData,
-    history: conversationHistory,
-    staffName: currentStaff ? currentStaff.name : '',
-    staffRole: currentStaff ? currentStaff.role : ''
+    history: conversationHistory
   };
   // Include the attached image if present
   if (attachedImage) {
@@ -772,6 +696,7 @@ async function callGemini(question, onChunk) {
     });
     var ctype = sResp.headers.get('content-type') || '';
     if (sResp.ok && sResp.body && ctype.indexOf('text/plain') !== -1) {
+      lastSources = parseSources(sResp.headers.get('X-AISA-Sources'));
       var reader = sResp.body.getReader();
       var decoder = new TextDecoder();
       var full = '';
@@ -804,6 +729,7 @@ async function callGemini(question, onChunk) {
   }
   var data = await resp.json();
   if (data.answer == null || data.answer === '') throw new Error('No response generated');
+  lastSources = Array.isArray(data.sources) ? data.sources : [];
   pushHistory(question, data.answer);
   return data.answer;
 }

@@ -1,0 +1,160 @@
+[
+ {
+  "q": "What's the literal Edge Cloud name for the Day 60 collections letter?",
+  "ans": "FC- ?#4"
+ },
+ {
+  "q": "What status do we use in Edge for dismissed patients?",
+  "ans": "Inactive Financial"
+ },
+ {
+  "q": "Is Letter #4 sent certified?",
+  "ans": "\\bnot\\b|\\bno\\b"
+ },
+ {
+  "q": "What is FC- #7?",
+  "ans": "Discont"
+ },
+ {
+  "q": "How many turns for a standalone RPE?",
+  "ans": "\\b28\\b"
+ },
+ {
+  "q": "How many swings do we do in the office when we first activate a MARPE?",
+  "ans": "\\b6\\b|six"
+ },
+ {
+  "q": "What's the maximum expansion on the MARPE Tiger Screw?",
+  "ans": "6 ?mm"
+ },
+ {
+  "q": "A MARPE patient has no gap between the front teeth after 2 weeks of turning. What should they do?",
+  "ans": "stop"
+ },
+ {
+  "q": "Who places the TADs for a MARPE case?",
+  "ans": "OS|oral surgeon|perio|surgeon"
+ },
+ {
+  "q": "What address do we give MARPE patients for the TAD placement office?",
+  "ans": "1800 SE 17th"
+ },
+ {
+  "q": "Who do I call after hours if Dr. Akhavan doesn't answer?",
+  "ans": "Sarah"
+ },
+ {
+  "q": "What are the office hours?",
+  "ans": "Thursday"
+ },
+ {
+  "q": "What time is the morning huddle?",
+  "ans": "7:40"
+ },
+ {
+  "q": "Who is our workers' comp carrier and what number do we call to file a claim?",
+  "ans": "Hartford"
+ },
+ {
+  "q": "What is appointment code 802?",
+  "ans": "Long Comfort"
+ },
+ {
+  "q": "What appointment code do we use to deliver the D2 distalizer?",
+  "ans": "430"
+ },
+ {
+  "q": "What curing light setting do we use for Band-Lok?",
+  "ans": "3.second|3-sec|three.second"
+ },
+ {
+  "q": "Do we take photos after delivering InSmile braces?",
+  "ans": "\\byes\\b|required"
+ },
+ {
+  "q": "Are post-delivery photos required on bonding day for regular braces?",
+  "ans": "\\bno\\b|not required"
+ },
+ {
+  "q": "What program do I use on the Ministar for Zendura A?",
+  "ans": "132"
+ },
+ {
+  "q": "What ISO should the Olympus camera be set to?",
+  "ans": "200"
+ },
+ {
+  "q": "What's GEHA's payer ID?",
+  "ans": "91062"
+ },
+ {
+  "q": "What is SOP-IC-002?",
+  "ans": "[Ss]teriliz"
+ },
+ {
+  "q": "Which SOP covers canine substitution bracket selection?",
+  "ans": "SOP-CL-031"
+ },
+ {
+  "q": "Who handles insurance at our office?",
+  "ans": "Financial Coordinator"
+ },
+ {
+  "q": "How long is each appointment interval in the working stage of braces?",
+  "ans": "8.10"
+ },
+ {
+  "q": "What do I do if a patient has a medical emergency in the chair?",
+  "ans": "911"
+ },
+ {
+  "q": "Do we heat treat Retainium wire before bonding?",
+  "ans": "\\bno\\b|\\bnot\\b|n't"
+ },
+ {
+  "q": "Does the patient take home the model for the D2 opposing-arch retainer?",
+  "ans": "\\bno\\b|office|stays"
+ },
+ {
+  "q": "How do I submit a new appliance case after the scan?",
+  "ans": "Tally"
+ },
+ {
+  "q": "What bonding primer do we use?",
+  "ans": "Assure Plus"
+ },
+ {
+  "q": "What isolation system do we use chairside?",
+  "ans": "Isoretract",
+  "forbid": "Isolite"
+ },
+ {
+  "q": "SOP-CL-029",
+  "ans": "MARPE"
+ },
+ {
+  "q": "In the universal numbering system, which tooth is #3?",
+  "ans": "first molar"
+ },
+ {
+  "q": "What's the guest Wi-Fi password?",
+  "neg": true
+ },
+ {
+  "q": "What's the cell phone number for our Invisalign territory manager?",
+  "neg": true,
+  "forbid": "\\(?\\d{3}\\)?[-. ]\\d{3}[-. ]\\d{4}"
+ },
+ {
+  "q": "How many parking spaces does the office have for patients?",
+  "neg": true
+ },
+ {
+  "q": "What is Dr. Akhavan's home address?",
+  "neg": true
+ },
+ {
+  "q": "Which veterinary clinic does the office recommend to patients?",
+  "neg": true
+ }
+]

@@ -250,6 +250,18 @@
   }
   .btn-train:hover { background: #1d4ed8; }
   #trainStatus { margin-top: 15px; font-weight: bold; text-align: center; font-size: 14px; }
+  .maint-card { margin-top: 20px; }
+  .maint-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+  .maint-grid button { background: #0f172a; color: #e2e8f0; border: 1px solid #475569; padding: 10px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; text-align: left; }
+  .maint-grid button:hover { border-color: #60a5fa; }
+  .maint-grid button small { display: block; font-weight: 400; color: #94a3b8; margin-top: 3px; font-size: 11px; }
+  .maint-opts { display: flex; gap: 8px; align-items: center; font-size: 12px; color: #94a3b8; margin-bottom: 12px; flex-wrap: wrap; }
+  .maint-opts select { background: #0f172a; color: #e2e8f0; border: 1px solid #475569; border-radius: 6px; padding: 5px 8px; font-size: 12px; }
+  #maintStatus { font-size: 13px; color: #cbd5e1; line-height: 1.5; white-space: pre-wrap; }
+  #maintStatus table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 12px; white-space: normal; }
+  #maintStatus td { border-top: 1px solid #334155; padding: 6px 4px; vertical-align: top; }
+  #maintStatus .ok { color: #4ade80; } #maintStatus .bad { color: #f87171; }
+  @media (max-width: 600px) { .maint-grid { grid-template-columns: 1fr; } }
 
   @media (max-width: 900px) {
     .main { flex-direction: column; }
@@ -350,6 +362,33 @@
 
       <button class="btn-train" onclick="processAndTrain()">Upload &amp; Train Database</button>
       <div id="trainStatus"></div>
+    </div>
+
+    <div class="admin-card maint-card">
+      <h2>🔧 Maintenance</h2>
+      <p>Uses the admin key above. Run <b>Accuracy check</b> after every knowledge base upload or worker change.</p>
+      <div class="maint-grid">
+        <button onclick="maintHealth()">Check status<small>KB version, index, questions today</small></button>
+        <button onclick="maintReindex()">Rebuild search index<small>Re-chunks the stored KB (~1 min)</small></button>
+        <button onclick="maintPurge()">Clean up old search data<small>Removes leftovers from old uploads</small></button>
+        <button onclick="maintTest()">Accuracy check<small>~35 test questions, pass/fail + speed</small></button>
+      </div>
+      <div class="maint-opts">
+        Model for the accuracy check:
+        <select id="maintModel">
+          <option value="">Live setting</option>
+          <option value="gemini-3.5-flash">Gemini 3.5 Flash</option>
+          <option value="gemini-3.6-flash">Gemini 3.6 Flash</option>
+          <option value="gemini-3.8-flash">Gemini 3.8 Flash</option>
+        </select>
+        <select id="maintThinking">
+          <option value="">Live thinking level</option>
+          <option value="low">low</option>
+          <option value="medium">medium</option>
+          <option value="high">high</option>
+        </select>
+      </div>
+      <div id="maintStatus"></div>
     </div>
   </div>
 </div>
@@ -871,7 +910,7 @@ async function processAndTrain() {
     // Derive fileLabel from the uploaded filename (without extension)
     const fileLabel = file.name.replace(/\.[^.]+$/, '').trim();
 
-    statusEl.innerText = 'Uploading "' + fileLabel + '" to Cloudflare... this may take a moment.';
+    statusEl.innerText = 'Uploading "' + fileLabel + '" and rebuilding the search index — this takes about a minute...';
 
     try {
       const response = await fetch(WORKER_TRAIN_URL, {
@@ -897,6 +936,115 @@ async function processAndTrain() {
 
   reader.readAsText(file);
 }
+
+// ================= Maintenance (worker v2.4+) =================
+function maintKey() {
+  const k = (document.getElementById('adminKey').value || aiKey || '').trim();
+  if (!k) { maintSay('Enter the admin key above first.', true); return null; }
+  return k;
+}
+function maintSay(text, bad) {
+  const el = document.getElementById('maintStatus');
+  el.innerHTML = '';
+  el.style.color = bad ? '#f87171' : '#cbd5e1';
+  el.textContent = text;
+}
+async function maintCall(path, method, body) {
+  const key = maintKey(); if (!key) return null;
+  const resp = await fetch(WORKER_BASE + path, { method, headers: { 'Content-Type': 'application/json', 'X-Admin-Key': key }, body: body ? JSON.stringify(body) : undefined });
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok) throw new Error(data.error || ('HTTP ' + resp.status));
+  return data;
+}
+async function maintHealth() {
+  maintSay('Checking…');
+  try {
+    const d = await maintCall('/health', 'GET'); if (!d) return;
+    const kb = d.kbVersion ? ('v' + d.kbVersion.version + (d.kbVersion.lastUpdated ? ' (' + d.kbVersion.lastUpdated + ')' : '')) : 'unknown';
+    const files = (d.files || []).map(f => '  • ' + f.label + ': ' + (f.index ? (f.index.count + ' chunks, built ' + (f.index.builtAt || '').slice(0, 16).replace('T', ' ')) : 'not rebuilt yet')).join('\n');
+    const vc = d.vectorizeIndex && (d.vectorizeIndex.vectorCount ?? d.vectorizeIndex.vectorsCount);
+    maintSay('Worker v' + d.worker + ' · model ' + d.model + ' (' + d.thinking + ' thinking)\n' +
+      'Knowledge base: ' + kb + '\nSearch: ' + d.searchMode + '\n' + files +
+      '\nVectors stored: ' + (vc ?? '?') + (d.expectedVectors ? ' (expected ≈ ' + d.expectedVectors + ')' : '') +
+      '\nQuestions today: ' + (d.questionsToday ?? '?') + ' of ' + (d.dailyCap ?? '?'));
+  } catch (e) { maintSay('❌ ' + e.message, true); }
+}
+async function maintReindex() {
+  if (!confirmStep('Rebuild the search index from the knowledge base already stored on the server?')) return;
+  maintSay('Rebuilding… this takes about a minute. Answers keep working while it runs.');
+  try {
+    const d = await maintCall('/reindex', 'POST', {}); if (!d) return;
+    const lines = (d.results || []).map(r => r.error ? ('❌ ' + r.label + ': ' + r.error) : ('✅ ' + r.label + ': ' + r.chunks + ' chunks, ' + r.deletedOld + ' old vectors removed' + (r.rateLimited ? ' (cleanup paused — run "Clean up" in a minute)' : '')));
+    maintSay(lines.join('\n') || 'Nothing to rebuild.', !d.success);
+  } catch (e) { maintSay('❌ ' + e.message, true); }
+}
+async function maintPurge() {
+  maintSay('Looking for leftover search data…');
+  try {
+    for (let i = 0; i < 8; i++) {
+      const d = await maintCall('/purge-stale', 'POST', {}); if (!d) return;
+      if (d.clean) { maintSay('✅ Clean — no leftover search data.'); return; }
+      if (d.rateLimited) { maintSay('Paused by Cloudflare rate limits — progress saved. Try again in a minute.'); return; }
+      maintSay('Removed leftovers (' + d.idsDeletedThisCall + ' ids)… checking again');
+    }
+    maintSay('Still some leftovers — run it again.');
+  } catch (e) { maintSay('❌ ' + e.message, true); }
+}
+function confirmStep(msg) {
+  // Inline confirm (no browser dialog): second click within 6s confirms.
+  const now = Date.now();
+  if (window.__maintConfirm && now - window.__maintConfirm < 6000) { window.__maintConfirm = 0; return true; }
+  window.__maintConfirm = now;
+  maintSay(msg + '  Click again to confirm.');
+  return false;
+}
+// Negative questions pass when AISA declines (any of these phrasings).
+// Positive questions only fail on the exact not-found line — a right answer
+// can still say "we don't have a separate insurance coordinator".
+const NOT_FOUND_RE = /not finding|don't have|do not have|not (listed|on file|available|in our)|no [^.]{0,30}(listed|on file)|couldn't find|can't find|cannot find/i;
+const NOT_FOUND_LINE_RE = /not finding that specific detail/i;
+async function maintTest() {
+  const key = maintKey(); if (!key) return;
+  let tests;
+  try { tests = await (await fetch('aisa-tests.json?' + Date.now())).json(); }
+  catch (e) { maintSay('❌ Could not load aisa-tests.json', true); return; }
+  const model = document.getElementById('maintModel').value;
+  const thinking = document.getElementById('maintThinking').value;
+  const el = document.getElementById('maintStatus');
+  el.style.color = '#cbd5e1';
+  el.innerHTML = '<div id="maintSummary">Running ' + tests.length + ' questions…</div><table id="maintTable"></table>';
+  const table = document.getElementById('maintTable');
+  let pass = 0, times = [];
+  for (const t of tests) {
+    const headers = { 'Content-Type': 'application/json', 'X-Admin-Key': key, 'X-AISA-No-Cache': '1' };
+    if (model) headers['X-AISA-Model'] = model;
+    if (thinking) headers['X-AISA-Thinking'] = thinking;
+    const started = performance.now();
+    let answer = '', ok = false, why = '';
+    try {
+      const resp = await fetch(WORKER_BASE + '/ask', { method: 'POST', headers, body: JSON.stringify({ question: t.q }) });
+      const d = await resp.json();
+      if (!resp.ok) throw new Error(d.error || ('HTTP ' + resp.status));
+      answer = d.answer || '';
+      if (t.neg) { ok = NOT_FOUND_RE.test(answer); why = ok ? '' : 'should have said it is not in the manuals'; }
+      else {
+        const saidNotFound = NOT_FOUND_LINE_RE.test(answer);
+        ok = new RegExp(t.ans, 'i').test(answer) && !saidNotFound;
+        why = ok ? '' : (saidNotFound ? 'said not found' : 'expected /' + t.ans + '/');
+      }
+      if (ok && t.forbid && new RegExp(t.forbid, 'i').test(answer)) { ok = false; why = 'contains forbidden /' + t.forbid + '/'; }
+    } catch (e) { why = e.message; }
+    const secs = (performance.now() - started) / 1000;
+    times.push(secs); if (ok) pass++;
+    const row = table.insertRow();
+    row.innerHTML = '<td class="' + (ok ? 'ok' : 'bad') + '">' + (ok ? '✓' : '✗') + '</td><td>' + escapeHtml(t.q) +
+      (ok ? '' : '<br><span class="bad">' + escapeHtml(why) + '</span><br><span style="color:#94a3b8">' + escapeHtml(answer.slice(0, 220)) + '</span>') +
+      '</td><td style="white-space:nowrap">' + secs.toFixed(1) + 's</td>';
+    const sorted = times.slice().sort((a, b) => a - b);
+    document.getElementById('maintSummary').textContent = pass + ' / ' + times.length + ' passed · median ' + sorted[Math.floor(sorted.length / 2)].toFixed(1) + 's · ' + (model || 'live model') + (thinking ? ' · ' + thinking : '') + (times.length < tests.length ? ' · running…' : '');
+  }
+}
+function escapeHtml(s) { const d = document.createElement('div'); d.textContent = String(s); return d.innerHTML; }
 </script>
 </body>
 </html>
