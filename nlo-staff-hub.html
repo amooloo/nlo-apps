@@ -511,6 +511,13 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
   .nhPB{display:none}
   .nhNewPage{break-before:page;page-break-before:always}
 }
+/* Phones & tablets: show every menu tab (wrapping onto more rows) instead of one full-width tab per sideways swipe */
+@media (max-width:920px){
+  #navTabs{flex-wrap:wrap;overflow-x:visible}
+  #navTabs .nv{width:auto}
+  #navTabs .nv[data-act="openCapture"]{margin-top:0 !important}
+  .sideLock{white-space:nowrap}
+}
 </style>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
