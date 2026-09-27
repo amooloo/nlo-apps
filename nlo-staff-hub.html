@@ -549,6 +549,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 </head>
 <body>
 
@@ -803,6 +804,7 @@ function storedBlob() {
 async function persist() {
   if (!S || !cryptoKey) return;
   if (typeof fbQueueWrite === 'function') fbQueueWrite();   // save to Firestore (encrypted), debounced
+  if (typeof rosterQueue === 'function') rosterQueue();     // share the basic team list with the other office apps
 }
 function act(text) {
   S.activity.unshift({ ts: Date.now(), text });
@@ -826,6 +828,7 @@ function enterApp() {
   }, 15000);
   render();
   if (typeof renderSyncStatus === 'function') renderSyncStatus();
+  if (typeof rosterInit === 'function') { try { rosterInit(); } catch (e) {} }
 }
 ['click','keydown','pointerdown','scroll'].forEach(ev => document.addEventListener(ev, () => { lastActivity = Date.now(); }, { passive:true }));
 
@@ -1231,6 +1234,10 @@ function staffModal(p) {
       <div class="field"><label>Role</label><input type="text" id="sfRole" value="${esc(p.role)}" list="roleList" placeholder="e.g. Orthodontic Assistant"><datalist id="roleList">${ROLE_SUGGEST.map(r => `<option value="${r}">`).join('')}</datalist></div>
     </div>
     <div class="frow">
+      <div class="field"><label>Goes by <span class="tiny">(name on the office apps)</span></label><input type="text" id="sfNick" value="${esc(p.nick || '')}" placeholder="${esc(String(p.name || '').trim().split(/\s+/)[0] || 'e.g. Angie')}"></div>
+      <div class="field" style="display:flex;align-items:flex-end"><label style="display:flex;align-items:center;gap:8px;margin:0 0 10px;font-family:var(--fb);font-size:13px;color:var(--grey-700);font-weight:500;text-transform:none;letter-spacing:0"><input type="checkbox" id="sfChair" ${rosterChairside(p) ? 'checked' : ''} style="width:16px;height:16px;accent-color:var(--blue)"> Works chairside (IPR list)</label></div>
+    </div>
+    <div class="frow">
       <div class="field"><label>Employment</label><select id="sfEmp">${['Full-time','Part-time','PRN / Temp','Contractor'].map(e => `<option ${p.employment === e ? 'selected' : ''}>${e}</option>`).join('')}</select></div>
       <div class="field"><label>Hire date</label><input type="date" id="sfHire" value="${esc(p.hireDate)}"></div>
     </div>
@@ -1246,10 +1253,14 @@ function staffModal(p) {
     <div class="field"><label>Profile note <span class="tiny">(strengths, preferences, context)</span></label><textarea id="sfNote" style="min-height:56px">${esc(p.profileNote)}</textarea></div>
   </div>
   <div class="mf"><button class="btn btn-sec" data-act="closeModal">Cancel</button><button class="btn btn-pri" id="sfSave">${isNew ? 'Add staff member' : 'Save changes'}</button></div>`);
+  if (isNew) {   /* new hires: tick "chairside" from the role until the box is changed by hand */
+    const chair = $('#sfChair'), roleIn = $('#sfRole');
+    if (chair && roleIn) { chair.onchange = () => { chair.dataset.touched = '1'; }; roleIn.addEventListener('input', () => { if (!chair.dataset.touched) chair.checked = rosterChairside({ role: roleIn.value }); }); }
+  }
   $('#sfSave').onclick = () => {
     const name = $('#sfName').value.trim();
     if (!name) { toast('Name is required', true); return; }
-    const vals = { name, role:$('#sfRole').value.trim(), employment:$('#sfEmp').value, hireDate:$('#sfHire').value, birthday:$('#sfBday').value, phone:$('#sfPhone').value.trim(), email:$('#sfEmail').value.trim(), profileNote:$('#sfNote').value.trim(), nextReview:$('#sfNext').value, color:$('#sfColor').value };
+    const vals = { name, role:$('#sfRole').value.trim(), employment:$('#sfEmp').value, hireDate:$('#sfHire').value, birthday:$('#sfBday').value, phone:$('#sfPhone').value.trim(), email:$('#sfEmail').value.trim(), profileNote:$('#sfNote').value.trim(), nextReview:$('#sfNext').value, color:$('#sfColor').value, nick:$('#sfNick').value.trim(), chairside:$('#sfChair').checked };
     if (isNew) {
       const np = Object.assign({ id:uid(), status:'active', created:Date.now() }, vals);
       S.staff.push(np); act('Added staff member ' + name);
@@ -2173,6 +2184,7 @@ function viewSettings() {
       <div class="setRow"><div class="st"><b>Certification alerts</b><span>Warn this many days before a cert expires</span></div><input type="number" min="14" max="180" value="${S.settings.certAlertDays}" data-chg="setVal" data-key="certAlertDays"> <span class="muted">days</span></div>
     </div></div>
     <div>
+    ${rosterPanelHTML()}
     <div class="panel" style="margin-bottom:18px"><div class="ph"><h3>${ic('download',16)}Backup &amp; restore</h3></div><div class="pb">
       <p class="muted" style="margin-bottom:14px">You currently have ${counts.staff} staff · ${counts.notes} notes &amp; incidents · ${counts.reviews} reviews. Your data syncs to the cloud, but an occasional encrypted backup is still your safety net — especially before changing or resetting your password.</p>
       <div style="display:flex;gap:9px;flex-wrap:wrap">
@@ -5218,6 +5230,178 @@ function sepAIText(p) {
   const s = p.sep;
   return (p.status === 'former' ? '' : ' — LEAVING') + ' (' + sepT(s).label + (s.reason ? ': ' + s.reason : '') + '; last day ' + s.lastDay + (s.rehire ? '; eligible for rehire: ' + (SEP_REHIRE[s.rehire] || s.rehire) : '') + ')';
 }
+
+
+/* =====================================================
+   OFFICE ROSTER
+   Shares a small, non-sensitive team list with the other
+   NLO apps (Cadence, calendar, IPR tracker, staff meeting,
+   inventory) so staff are added or ended in one place.
+   Only name, role, "goes by", chairside and active/last day
+   leave Staff Hub. Notes, reviews, pay, contact details and
+   everything else stay encrypted here.
+   Stored at nlo/cadence/roster in the nlo-inventory database
+   (the location the staff apps are already allowed to read).
+   ===================================================== */
+var ROSTER_FB = { apiKey: "AIzaSyBFCmDgAKkdfZ4Cb81nK0KCKXtONiwMJy4", authDomain: "nlo-inventory.firebaseapp.com", databaseURL: "https://nlo-inventory-default-rtdb.firebaseio.com", projectId: "nlo-inventory", storageBucket: "nlo-inventory.firebasestorage.app", messagingSenderId: "471691286148", appId: "1:471691286148:web:b362a98186f648bd4914d1" };
+var ROSTER_PATH = 'nlo/cadence/roster';
+var ROSTER_OWNER = { id: 's_amir', name: 'Dr. Amir Akhavan', first: 'Amir', last: 'Akhavan', nick: 'Dr. A', short: 'Dr. A', title: 'Orthodontist / Owner', chairside: true, active: true };
+/* ids the office apps already used before the roster existed: last name -> [id, first-name prefix]
+   (HR records can hold legal first names, e.g. Brianna for Bri, so match on last name + prefix) */
+var ROSTER_LEGACY_IDS = { betz: ['s_sarah', 'sar'], brower: ['s_bri', 'bri'], doty: ['s_kaylee', 'kay'], rodis: ['s_gwen', 'gw'], rodriguez: ['s_angelika', 'ang'], jordan: ['s_wila', 'wi'], schmaltz: ['s_savannah', 'sav'], pavlova: ['s_eve', 'ev'] };
+/* who was on the IPR chairside list, and the names the apps showed, before the roster existed */
+var ROSTER_LEGACY_CHAIRSIDE = ['s_sarah', 's_bri', 's_kaylee', 's_gwen', 's_angelika'];
+var ROSTER_LEGACY_NICK = { s_angelika: 'Angie' };
+var rosterApp = null, rosterUser = null, rosterTimer = null, rosterSent = '', rosterPrev = null, rosterLoaded = false;
+var rosterStatus = 'off', rosterErr = '', rosterAt = 0;
+
+function rosterSlug(x) { return String(x || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z]/g, ''); }
+function rosterNameParts(name) {
+  const w = String(name || '').trim().split(/\s+/).filter(Boolean);
+  return { first: w[0] || '', last: w.length > 1 ? w[w.length - 1] : '' };
+}
+function rosterIsOwner(p) { const n = rosterNameParts(p && p.name); return rosterSlug(n.first) === 'amir' && rosterSlug(n.last) === 'akhavan'; }
+function rosterChairside(p) {
+  if (!p) return false;
+  if (typeof p.chairside === 'boolean') return p.chairside;
+  return /assistant|orthodont|clinic|lab tech|hygien/i.test(p.role || '');
+}
+/* one-time per person: a stable roster id, plus how the office apps already listed them */
+function rosterMigrate() {
+  if (!S || !Array.isArray(S.staff)) return false;
+  const used = new Set([ROSTER_OWNER.id]);
+  S.staff.forEach(p => { if (p && p.rosterId) used.add(p.rosterId); });
+  let changed = false;
+  S.staff.forEach(p => {
+    if (!p || !p.name) return;
+    if (!p.rosterId) {
+      const n = rosterNameParts(p.name), f = rosterSlug(n.first) || 'staff', l = rosterSlug(n.last);
+      let id = rosterIsOwner(p) ? ROSTER_OWNER.id : '';
+      const leg = ROSTER_LEGACY_IDS[l];
+      if (!id && leg && f.indexOf(leg[1]) === 0 && !used.has(leg[0])) id = leg[0];
+      if (!id) { id = 's_' + f; if (used.has(id)) id = 's_' + f + (l ? l[0] : ''); let k = 2; while (used.has(id)) id = 's_' + f + (l ? l[0] : '') + (k++); }
+      p.rosterId = id; used.add(id); changed = true;
+    }
+    if (typeof p.chairside !== 'boolean') { p.chairside = ROSTER_LEGACY_CHAIRSIDE.indexOf(p.rosterId) >= 0 || rosterChairside(p); changed = true; }
+    if (p.nick === undefined && ROSTER_LEGACY_NICK[p.rosterId]) { p.nick = ROSTER_LEGACY_NICK[p.rosterId]; changed = true; }
+  });
+  return changed;
+}
+function rosterEnd(p) {
+  if (p.sep && SEP_YMD.test(p.sep.lastDay || '')) return p.sep.lastDay;
+  if (p.status === 'former' && SEP_YMD.test(p.endDate || '')) return p.endDate;
+  return '';
+}
+function rosterPerson(p) {
+  const n = rosterNameParts(p.name);
+  const o = {
+    id: p.rosterId, name: String(p.name).trim(), first: n.first, last: n.last,
+    nick: String(p.nick || '').trim() || n.first,
+    short: n.first + (n.last ? ' ' + n.last.charAt(0).toUpperCase() + '.' : ''),
+    title: String(p.role || '').trim(), chairside: rosterChairside(p), active: p.status !== 'former'
+  };
+  const end = rosterEnd(p);
+  if (end) o.end = end;
+  return o;
+}
+function rosterPeople() {
+  const people = {};
+  people[ROSTER_OWNER.id] = Object.assign({}, ROSTER_OWNER);
+  S.staff.forEach(p => { if (p && p.name && p.rosterId && p.rosterId !== ROSTER_OWNER.id) people[p.rosterId] = rosterPerson(p); });
+  /* anyone shared before but since deleted from Staff Hub stays listed as "left", so no app keeps showing them */
+  Object.keys(rosterPrev || {}).forEach(id => {
+    const q = rosterPrev[id];
+    if (!people[id] && q && q.name) people[id] = Object.assign({}, q, { active: false });
+  });
+  return people;
+}
+function rosterErrText(e) {
+  const c = String((e && (e.code || e.message)) || '');
+  if (/permission|PERMISSION_DENIED/i.test(c)) return 'That Google account can’t update the office roster. Use akhavan.ak@gmail.com or an @thenextlevelorthodontics.com account.';
+  if (/popup-blocked/.test(c)) return 'The sign-in window was blocked. Allow pop-ups for this page and try again.';
+  if (/network|unavailable|offline/i.test(c)) return 'No connection right now — the roster will update when you’re back online.';
+  return 'Couldn’t update the office roster (' + (c || 'unknown error') + ').';
+}
+function rosterInit() {
+  if (rosterApp) return rosterApp;
+  if (typeof firebase === 'undefined' || !firebase.initializeApp || !firebase.database || !firebase.apps) return null;
+  if (!firebase.apps.some(a => a && a.name === '[DEFAULT]')) return null;   /* Staff Hub's own sign-in must be set up first */
+  try { rosterApp = firebase.app('nloRoster'); } catch (e) { rosterApp = firebase.initializeApp(ROSTER_FB, 'nloRoster'); }
+  rosterApp.auth().onAuthStateChanged(u => {
+    rosterUser = u || null; rosterLoaded = false; rosterSent = ''; rosterErr = '';
+    rosterStatus = u ? 'ready' : 'off';
+    if (u) rosterQueue(200);
+    rosterPanelRefresh();
+  });
+  return rosterApp;
+}
+function rosterQueue(ms) {
+  if (!rosterUser) return;
+  clearTimeout(rosterTimer);
+  rosterTimer = setTimeout(rosterPublish, ms == null ? 1500 : ms);
+}
+async function rosterPublish() {
+  if (!rosterApp || !rosterUser || !S || !Array.isArray(S.staff) || !S.staff.length) return;
+  try {
+    if (!rosterLoaded) {
+      const snap = await rosterApp.database().ref(ROSTER_PATH + '/people').once('value');
+      rosterPrev = snap.val() || {}; rosterLoaded = true;
+    }
+    if (rosterMigrate() && typeof fbQueueWrite === 'function') fbQueueWrite();
+    const people = rosterPeople();
+    const json = JSON.stringify(people);
+    if (json === rosterSent) return;
+    rosterStatus = 'saving'; rosterPanelRefresh();
+    await rosterApp.database().ref(ROSTER_PATH).set({ v: 1, source: 'staff-hub', updatedAt: Date.now(), people: people });
+    rosterSent = json; rosterPrev = people; rosterAt = Date.now(); rosterStatus = 'ready'; rosterErr = '';
+  } catch (e) {
+    rosterStatus = 'error'; rosterErr = rosterErrText(e);
+  }
+  rosterPanelRefresh();
+}
+function rosterStatusLine(p) {
+  if (p.status === 'former') return '<span class="badge b-gray">Left' + (rosterEnd(p) ? ' ' + esc(fmtD(rosterEnd(p))) : '') + '</span>';
+  if (p.sep && SEP_YMD.test(p.sep.lastDay || '')) return '<span class="badge b-amber">Leaving ' + esc(fmtD(p.sep.lastDay)) + '</span>';
+  return '<span class="badge b-green">Active</span>';
+}
+function rosterPanelHTML() {
+  const list = (S && Array.isArray(S.staff) ? S.staff : []).filter(p => p && p.name)
+    .sort((a, b) => ((a.status === 'former') - (b.status === 'former')) || String(a.name).localeCompare(String(b.name)));
+  const fbReady = typeof firebase !== 'undefined' && !!firebase.database;
+  let head;
+  if (!fbReady) head = '<p class="muted">Needs an internet connection. Reload once you’re online.</p>';
+  else if (!rosterUser) head = `<p class="muted" style="margin-bottom:12px">Share a basic team list with Cadence, the calendar, the IPR tracker, staff meeting and inventory. Add a hire or end someone’s employment here and those apps follow. Only name, role, “goes by”, chairside and last day are shared. Notes, reviews, pay and personal details stay encrypted in Staff Hub.</p>
+      <button class="btn btn-pri btn-sm" data-act="rosterConnect">${ic('users',13)} Connect with Google</button>
+      <p class="tiny" style="margin-top:10px">One-time on this device. Use akhavan.ak@gmail.com or an @thenextlevelorthodontics.com account.</p>`;
+  else {
+    const when = rosterAt ? new Date(rosterAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
+    const state = rosterStatus === 'error' ? `<span style="color:var(--coral-700)">${esc(rosterErr)}</span>`
+      : rosterStatus === 'saving' ? 'Sharing…' : (when ? 'Shared at ' + esc(when) : 'Connected');
+    head = `<p class="muted" style="margin-bottom:10px">${state} · signed in as ${esc(rosterUser.email || '')}</p>
+      <div style="display:flex;gap:9px;flex-wrap:wrap;margin-bottom:12px"><button class="btn btn-sec btn-sm" data-act="rosterNow">Share now</button><button class="btn btn-sec btn-sm" data-act="rosterDisconnect">Disconnect</button></div>`;
+  }
+  const rows = list.map(p => {
+    const n = rosterNameParts(p.name), nick = String(p.nick || '').trim();
+    return `<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-top:1px solid var(--grey-100)"><div style="flex:1;min-width:0"><b style="font-size:13px;color:var(--navy)">${esc(p.name)}</b>${nick && nick !== n.first ? ' <span class="muted">· goes by ' + esc(nick) + '</span>' : ''}<div class="tiny">${esc(p.role || 'No role set')}${rosterChairside(p) ? ' · chairside' : ''}</div></div>${rosterStatusLine(p)}</div>`;
+  }).join('');
+  return `<div class="panel" style="margin-bottom:18px" id="rosterPanel"><div class="ph"><h3>${ic('users',16)}Office roster</h3></div><div class="pb">${head}${rows ? '<div class="tiny" style="margin:4px 0 2px">What the other apps see (edit a person to change “goes by” or chairside):</div>' + rows : ''}</div></div>`;
+}
+function rosterPanelRefresh() {
+  const el = document.getElementById('rosterPanel');
+  if (el && route && route.page === 'settings') el.outerHTML = rosterPanelHTML();
+}
+H.rosterConnect = () => {
+  const app = rosterInit();
+  if (!app) { toast('Couldn’t reach Firebase. Check the connection and reload.', true); return; }
+  const prov = new firebase.auth.GoogleAuthProvider();
+  try { prov.setCustomParameters({ prompt: 'select_account' }); } catch (e) {}
+  app.auth().signInWithPopup(prov).then(() => toast('Office roster connected')).catch(e => {
+    if (e && /popup-closed-by-user|cancelled-popup-request/.test(e.code || '')) return;
+    rosterStatus = 'error'; rosterErr = rosterErrText(e); rosterPanelRefresh(); toast(rosterErr, true);
+  });
+};
+H.rosterNow = () => { rosterSent = ''; rosterQueue(0); };
+H.rosterDisconnect = () => { if (rosterApp) rosterApp.auth().signOut(); };
 
 </script>
 
