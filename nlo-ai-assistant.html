@@ -166,6 +166,15 @@
   .msg-sources { margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--nlo-grey-200); font-size: 0.72rem; color: var(--nlo-grey-500); line-height: 1.45; }
   .msg-sources b { font-weight: 600; color: var(--nlo-grey-600); }
 
+  /* ── CHOICES (tappable follow-up questions under a vague / not-found answer) ── */
+  .msg-choices { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+  .choice-btn { display: block; width: 100%; text-align: left; font-family: var(--font-body); font-size: 0.84rem; font-weight: 500; line-height: 1.4; color: var(--nlo-navy); background: var(--nlo-white); border: 1.5px solid var(--nlo-grey-200); border-radius: var(--radius-sm); padding: 9px 12px; cursor: pointer; transition: border-color var(--transition), background var(--transition), color var(--transition); -webkit-tap-highlight-color: transparent; }
+  .choice-btn:hover:not(:disabled) { border-color: var(--nlo-navy); background: var(--nlo-grey-50); }
+  .choice-btn:focus-visible { outline: 2px solid var(--nlo-coral); outline-offset: 1px; }
+  .choice-btn.choice-other { color: var(--nlo-grey-500); border-style: dashed; }
+  .choice-btn:disabled { cursor: default; opacity: 0.5; }
+  .choice-btn.chosen { opacity: 1; border-color: var(--nlo-navy); background: var(--nlo-navy); color: var(--nlo-white); }
+
   /* ── RESPONSIVE ── */
   @media (max-width: 480px) {
     header { padding: 12px 16px 12px 124px; }
@@ -296,7 +305,7 @@ var conversationHistory = [];
 
 // --- CONFIG ---
 var CONFIG = {
-  VERSION: '3.3.0',
+  VERSION: '3.4.0',
   // API key is stored server-side in Cloudflare Worker (never in client code).
   // Update this URL after deploying your Cloudflare Worker.
   WORKER_URL: 'https://aisa-worker.akhavan-ak.workers.dev',
@@ -580,6 +589,9 @@ async function sendMessage() {
   if (CONFIG.WORKER_URL.includes('YOUR-SUBDOMAIN')) { showToast('Worker URL not configured.'); return; }
   var welcome = document.getElementById('welcomeCard');
   if (welcome) welcome.style.display = 'none';
+  // Earlier choice buttons are finished once a new question goes out
+  document.querySelectorAll('.msg-choices .choice-btn').forEach(function(b) { b.disabled = true; });
+  input.placeholder = 'Ask a question…';
 
   // Show user message (with image if attached)
   var userHtml = escapeHtml(question);
@@ -597,13 +609,18 @@ async function sendMessage() {
   try {
     var streamEl = null;
     var answer = await callGemini(question, function(partial) {
-      if (!streamEl) { typingEl.remove(); streamEl = addMessage('ai', partial); }
-      else updateAiMessage(streamEl, partial);
+      var view = splitChoices(partial, true).text;   // the choices block never shows as text
+      if (!view.trim()) return;
+      if (!streamEl) { typingEl.remove(); streamEl = addMessage('ai', view); }
+      else updateAiMessage(streamEl, view);
     });
-    if (streamEl) { updateAiMessage(streamEl, answer); }
-    else { typingEl.remove(); streamEl = addMessage('ai', answer); }
+    var parsed = splitChoices(answer, false);
+    var shown = parsed.text.trim() ? parsed.text : (parsed.choices.length ? 'Which of these do you mean?' : answer);
+    if (streamEl) { updateAiMessage(streamEl, shown); }
+    else { typingEl.remove(); streamEl = addMessage('ai', shown); }
     addSourcesLine(streamEl, lastSources);
-    logToSheets('question', question, answer);
+    addChoices(streamEl, parsed.choices);
+    logToSheets('question', question, parsed.choices.length ? shown + '\n[Choices] ' + parsed.choices.join(' | ') : shown);
   } catch (err) {
     typingEl.remove();
     addMessage('ai', 'Sorry, I was not able to get an answer. ' + (err.message || 'Please try again.'));
@@ -668,6 +685,74 @@ function addSourcesLine(msgEl, sources) {
   bubble.appendChild(div);
 }
 
+// --- CHOICES ---
+// When a question is vague or the manuals don't cover it, the worker ends its
+// answer with
+//   [[CHOICES]]
+//   - A more specific question
+//   - Another one
+// Those become tappable buttons (plus "Something else…" to type your own)
+// instead of a dead-end "not found".
+var CHOICES_MARK = '[[CHOICES]]';
+function splitChoices(text, streaming) {
+  text = String(text || '');
+  var i = text.indexOf(CHOICES_MARK);
+  if (i === -1) {
+    if (streaming) {
+      // hide the start of a marker that is still arriving ("[", "[[", "[[CHO"…)
+      for (var k = Math.min(CHOICES_MARK.length - 1, text.length); k > 0; k--) {
+        if (CHOICES_MARK.indexOf(text.slice(-k)) === 0) { text = text.slice(0, -k); break; }
+      }
+    }
+    return { text: text, choices: [] };
+  }
+  var choices = [];
+  if (!streaming) {
+    text.slice(i + CHOICES_MARK.length).split('\n').forEach(function(line) {
+      var c = line.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, '').replace(/\*\*/g, '').trim();
+      if (c && c.indexOf('[[') !== 0 && c.length <= 160 && choices.indexOf(c) === -1 && choices.length < 4) choices.push(c);
+    });
+  }
+  return { text: text.slice(0, i).replace(/\s+$/, ''), choices: choices };
+}
+function addChoices(msgEl, choices) {
+  if (!msgEl || !choices || !choices.length) return;
+  var bubble = msgEl.querySelector('.msg-bubble');
+  if (!bubble) return;
+  var box = document.createElement('div');
+  box.className = 'msg-choices';
+  choices.forEach(function(c) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'choice-btn';
+    b.textContent = c;
+    b.onclick = function() { pickChoice(box, b, c); };
+    box.appendChild(b);
+  });
+  var other = document.createElement('button');
+  other.type = 'button';
+  other.className = 'choice-btn choice-other';
+  other.textContent = 'Something else… (type your own)';
+  other.onclick = function() { pickChoice(box, other, null); };
+  box.appendChild(other);
+  bubble.appendChild(box);
+  var chat = document.getElementById('chatArea');
+  chat.scrollTop = chat.scrollHeight;
+}
+function pickChoice(box, btn, text) {
+  if (isLoading || btn.disabled) return;
+  var input = document.getElementById('questionInput');
+  if (text === null) {            // "Something else…": type your own
+    input.placeholder = 'Type your question…';
+    input.focus();
+    return;
+  }
+  box.querySelectorAll('.choice-btn').forEach(function(b) { b.disabled = true; });
+  btn.classList.add('chosen');
+  input.value = text;
+  sendMessage();
+}
+
 async function callGemini(question, onChunk) {
   lastSources = [];
   var inventoryData = '';
@@ -678,7 +763,8 @@ async function callGemini(question, onChunk) {
   var payload = {
     question: question,
     inventoryData: inventoryData,
-    history: conversationHistory
+    history: conversationHistory,
+    choices: true            // this page can show follow-up questions as buttons
   };
   // Include the attached image if present
   if (attachedImage) {
@@ -730,8 +816,10 @@ async function callGemini(question, onChunk) {
   var data = await resp.json();
   if (data.answer == null || data.answer === '') throw new Error('No response generated');
   lastSources = Array.isArray(data.sources) ? data.sources : [];
-  pushHistory(question, data.answer);
-  return data.answer;
+  var full = data.answer;
+  if (Array.isArray(data.choices) && data.choices.length) full += '\n\n' + CHOICES_MARK + '\n- ' + data.choices.join('\n- ');
+  pushHistory(question, full);
+  return full;
 }
 
 function pushHistory(question, answer) {

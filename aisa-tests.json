@@ -134,7 +134,7 @@
  },
  {
   "q": "In the universal numbering system, which tooth is #3?",
-  "ans": "first molar"
+  "ans": "first molar|1st molar"
  },
  {
   "q": "How many vacation days do I get?",
@@ -148,6 +148,23 @@
  {
   "q": "How do I request time off?",
   "ans": "Time.?Off Request"
+ },
+ {
+  "q": "what do I need for an adjusmtnet procedure?",
+  "ans": "archwire|ligature|SOP-CL-002"
+ },
+ {
+  "q": "How many vacaton days do I get?",
+  "ans": "34|68|102",
+  "forbid": "3 weeks"
+ },
+ {
+  "q": "What do I need for an appointment?",
+  "choices": true
+ },
+ {
+  "q": "How do I set up the tray?",
+  "choices": true
  },
  {
   "q": "What's the guest Wi-Fi password?",

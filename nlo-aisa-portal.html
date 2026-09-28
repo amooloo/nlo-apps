@@ -1101,7 +1101,7 @@ function confirmStep(msg) {
 // Positive questions only fail on the exact not-found line — a right answer
 // can still say "we don't have a separate insurance coordinator".
 const NOT_FOUND_RE = /not finding|don't have|do not have|not (listed|on file|available|in our)|no [^.]{0,30}(listed|on file)|couldn't find|can't find|cannot find/i;
-const NOT_FOUND_LINE_RE = /not finding that specific detail/i;
+const NOT_FOUND_LINE_RE = /not finding that specific detail|couldn't find that in our manuals/i;
 async function maintTest() {
   const key = maintKey(); if (!key) return;
   if (!maintStart('Accuracy check')) return;
@@ -1117,34 +1117,39 @@ async function runAccuracyCheck(key) {
   el.style.color = '#cbd5e1';
   el.innerHTML = '<div id="maintSummary">Running ' + tests.length + ' questions…</div><table id="maintTable"></table>';
   const table = document.getElementById('maintTable');
-  let pass = 0, times = [];
+  let pass = 0, times = [], withChoices = 0;
   for (const t of tests) {
     const headers = { 'Content-Type': 'application/json', 'X-Admin-Key': key, 'X-AISA-No-Cache': '1' };
     if (model) headers['X-AISA-Model'] = model;
     if (thinking) headers['X-AISA-Thinking'] = thinking;
     const started = performance.now();
-    let answer = '', ok = false, why = '';
+    let answer = '', choices = [], ok = false, why = '';
     try {
-      const resp = await fetch(WORKER_BASE + '/ask', { method: 'POST', headers, body: JSON.stringify({ question: t.q }) });
+      // Ask the way the AISA app does (it shows follow-up questions as buttons)
+      const resp = await fetch(WORKER_BASE + '/ask', { method: 'POST', headers, body: JSON.stringify({ question: t.q, choices: true }) });
       const d = await resp.json();
       if (!resp.ok) throw new Error(d.error || ('HTTP ' + resp.status));
-      answer = d.answer || '';
+      answer = (d.answer || '').replace(/[\u2018\u2019]/g, "'");   // curly apostrophes grade like straight ones
+      choices = Array.isArray(d.choices) ? d.choices : [];
+      if (choices.length) withChoices++;
       if (t.neg) { ok = NOT_FOUND_RE.test(answer); why = ok ? '' : 'should have said it is not in the manuals'; }
-      else {
+      else if (t.ans) {
         const saidNotFound = NOT_FOUND_LINE_RE.test(answer);
         ok = new RegExp(t.ans, 'i').test(answer) && !saidNotFound;
         why = ok ? '' : (saidNotFound ? 'said not found' : 'expected /' + t.ans + '/');
-      }
-      if (ok && t.forbid && new RegExp(t.forbid, 'i').test(answer)) { ok = false; why = 'contains forbidden /' + t.forbid + '/'; }
+      } else ok = true;
+      if (ok && t.choices && choices.length < 2) { ok = false; why = 'should have offered choices (tappable follow-up questions)'; }
+      if (ok && t.forbid && new RegExp(t.forbid, 'i').test(answer + ' ' + choices.join(' '))) { ok = false; why = 'contains forbidden /' + t.forbid + '/'; }
     } catch (e) { why = e.message; }
     const secs = (performance.now() - started) / 1000;
     times.push(secs); if (ok) pass++;
     const row = table.insertRow();
     row.innerHTML = '<td class="' + (ok ? 'ok' : 'bad') + '">' + (ok ? '✓' : '✗') + '</td><td>' + escapeHtml(t.q) +
       (ok ? '' : '<br><span class="bad">' + escapeHtml(why) + '</span><br><span style="color:#94a3b8">' + escapeHtml(answer.slice(0, 220)) + '</span>') +
+      (choices.length ? '<br><span style="color:#94a3b8">Choices: ' + escapeHtml(choices.join(' · ')) + '</span>' : '') +
       '</td><td style="white-space:nowrap">' + secs.toFixed(1) + 's</td>';
     const sorted = times.slice().sort((a, b) => a - b);
-    document.getElementById('maintSummary').textContent = pass + ' / ' + times.length + ' passed · median ' + sorted[Math.floor(sorted.length / 2)].toFixed(1) + 's · ' + (model || 'live model') + (thinking ? ' · ' + thinking : '') + (times.length < tests.length ? ' · running…' : '');
+    document.getElementById('maintSummary').textContent = pass + ' / ' + times.length + ' passed · median ' + sorted[Math.floor(sorted.length / 2)].toFixed(1) + 's · ' + (model || 'live model') + (thinking ? ' · ' + thinking : '') + ' · choices offered on ' + withChoices + (times.length < tests.length ? ' · running…' : '');
   }
 }
 function escapeHtml(s) { const d = document.createElement('div'); d.textContent = String(s); return d.innerHTML; }
