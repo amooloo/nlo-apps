@@ -1,0 +1,85 @@
+============================================================
+NLO TRAINING PICTURES
+============================================================
+Reference pictures used in NLO's new-hire onboarding app: tray setups and orthodontic basics. Each entry says what the picture shows, the SOP it goes with, and where it appears in the onboarding app. When a question is about one of these setups or terms, show the picture.
+
+============================================================
+DEBOND TRAY (BRACES REMOVAL) — PICTURE
+============================================================
+The standard debond tray (removing braces, RB). On the left: cheek retractors and the photo mirror for the final photo series. On the tray: mouth mirror, the color-marked debonding cutter (NLO's dull ligature cutter; never a standard bracket remover), scaler, cotton pliers, the high-speed handpiece with its bur block (the four Komet burs in order of use), gauze and cotton rolls. Also set out the UV/black light, prophy cup and paste, and the warmed-up scanner (SOP-CL-003).
+In the onboarding app: Clinical → Debonds, Bite Turbos & Retainers → Day of debond: the checklist.
+Search words: debond tray, debond setup, deband, removing braces, RB, bracket removal, debonding instruments, what goes on the debond tray.
+[PHOTO: Debond tray setup]
+https://amooloo.github.io/nlo-apps/img/onboarding/debond-tray.jpg
+
+============================================================
+DEBOND WITH A BONDED (FIXED) RETAINER — TRAY PICTURE
+============================================================
+The debond tray plus the bonded-retainer supplies from SOP-CL-024 (Retainium direct bond retainer): the Retainium wire, etch, bonding resin, flowable composite, floss to hold the wire in place, cotton rolls and retractors, and the curing light with its orange shield in front.
+In the onboarding app: Clinical → Debonds, Bite Turbos & Retainers → Day of debond: the checklist, and the Retainium SOP lesson.
+Search words: fixed retainer setup, bonded retainer tray, permanent retainer, lingual retainer, Retainium, debond with fixed retainer, DB retainer.
+[PHOTO: Debond tray with bonded (fixed) retainer supplies]
+https://amooloo.github.io/nlo-apps/img/onboarding/debond-fixed-retainer-tray.jpg
+
+============================================================
+BRACES BONDING TRAY — PICTURE
+============================================================
+The tray for a braces bonding (start) appointment (SOP-CL-001). The patient's bracket kit sits in the instrument cassette, laid out by tooth. Beside it: etch, primer and adhesive (with its dispenser), a microbrush, cheek retractors and cotton rolls, a lighter for annealing wire ends outside the mouth only (SOP-CL-027), and the curing light with its orange shield.
+In the onboarding app: Clinical → Bonding Braces → The bonding tray and buttering brackets, and the "Set up a bonding tray" sign-off.
+Search words: bonding tray, bonding setup, braces start setup, bracket kit, bracket pad, what goes on the bonding tray, bond appointment.
+[PHOTO: Braces bonding tray setup]
+https://amooloo.github.io/nlo-apps/img/onboarding/bonding-tray.jpg
+
+============================================================
+HAWLEY RETAINER DELIVERY TRAY — PICTURE
+============================================================
+The setup for delivering a Hawley retainer (wire and acrylic, from Partners Dental Studio). Hawleys are delivered in the chair (Edge codes 434, 435 with a pontic, 414 with a finger spring), not handed over at the front desk like clear retainers. The tray: cotton pliers (tweezers), mouth mirror, bird beak pliers and 3-prong pliers. The bird beak and 3-prong pliers adjust the wire bow and the clasps so the retainer fits snugly. They are two different pliers: the bird beak has one round, cone-shaped beak and one flat-sided beak; the 3-prong has two prongs on one jaw and a single prong that closes between them.
+In the onboarding app: Clinical → Debonds, Bite Turbos & Retainers → Retainer pickup and the final retainer check, and Clinical → Adjustments → Orthodontic instruments.
+Search words: Hawley setup, Hawley delivery, removable retainer delivery, bird beak plier, 3-prong plier, three prong plier, adjusting a Hawley, clasp adjustment.
+[PHOTO: Hawley retainer delivery tray]
+https://amooloo.github.io/nlo-apps/img/onboarding/hawley-delivery-tray.jpg
+
+============================================================
+BITE CLASSES: CLASS I, II AND III — PICTURE
+============================================================
+Normal occlusion and Class I, II and III malocclusion, shown by the first molars (shaded). In a normal bite the upper first molar sits about half a tooth behind the lower first molar and every tooth lines up smoothly. Class I keeps that molar fit but other teeth are crowded, spaced or out of line. In Class II the lower first molar sits too far back (patients often call it an overbite or buck teeth). In Class III it sits too far forward (an underbite). Class II elastics pull the lower teeth forward; Class III elastics pull the other way.
+In the onboarding app: Foundations → Orthodontics 101 → Bites: Class I, II and III, and more, and Clinical → Elastics → Elastic configurations.
+Search words: Angle classification, molar relationship, Class 1, Class 2, Class 3, malocclusion, bite class, underbite, buck teeth.
+[PHOTO: Bite classes: normal occlusion and Class I, II and III (first molars shaded)]
+https://amooloo.github.io/nlo-apps/img/onboarding/bite-classes.jpg
+
+============================================================
+OVERJET AND OVERBITE — PICTURE
+============================================================
+Overjet is how far the upper front teeth stick out in front of the lower ones, measured front to back. Overbite is how far the upper front teeth cover the lower ones, measured top to bottom. Families often say "overbite" when the upper teeth stick out; that is usually overjet. A deep bite means too much overbite.
+In the onboarding app: Foundations → Orthodontics 101 → Bites, and TC → The New-Patient Exam, Step by Step.
+Search words: overjet, overbite, deep bite, buck teeth, teeth stick out, horizontal overlap, vertical overlap.
+[PHOTO: Overjet (front to back) and overbite (top to bottom)]
+https://amooloo.github.io/nlo-apps/img/onboarding/overjet-overbite.jpg
+
+============================================================
+CURVE OF SPEE — PICTURE
+============================================================
+Seen from the side, the chewing surfaces of the lower teeth run along a curve that rises toward the back molars. A deep curve usually goes with a deep bite. Leveling it is part of the early work of braces and aligners, and it is what reverse-curve (RC) wires are for.
+In the onboarding app: Foundations → Orthodontics 101 → Bites: Class I, II and III, and more.
+Search words: curve of Spee, leveling, deep curve, reverse curve wire, RC wire, occlusal plane side view.
+[PHOTO: Curve of Spee, seen from the side]
+https://amooloo.github.io/nlo-apps/img/onboarding/curve-of-spee.png
+
+============================================================
+CURVE OF WILSON — PICTURE
+============================================================
+Seen from the front, the lower molars lean slightly toward the tongue and the upper molars slightly toward the cheek, so the left and right back teeth sit on a shallow side-to-side curve. Expansion, or anything else that tips the back teeth, changes it. That tip is what BCT and LCT (buccal and lingual crown torque) describe in chart notes.
+In the onboarding app: Foundations → Orthodontics 101 → Bites: Class I, II and III, and more.
+Search words: curve of Wilson, molar torque, buccal crown torque, lingual crown torque, BCT, LCT, expansion.
+[PHOTO: Curve of Wilson, seen from the front]
+https://amooloo.github.io/nlo-apps/img/onboarding/curve-of-wilson.png
+
+============================================================
+BOTH CURVES ON THE LOWER JAW (CURVE OF MONSON) — PICTURE
+============================================================
+Together, the curve of Spee and the curve of Wilson make the chewing surfaces of the lower teeth sit on a gently curved, bowl-like surface, sometimes called the curve of Monson. These natural curves help the back teeth work together as the jaw moves.
+In the onboarding app: Foundations → Orthodontics 101 → Bites: Class I, II and III, and more.
+Search words: curve of Monson, occlusal curves, compensating curve, lower jaw, mandible.
+[PHOTO: Both curves on the lower jaw (curve of Monson)]
+https://amooloo.github.io/nlo-apps/img/onboarding/occlusal-curves-lower-jaw.png
