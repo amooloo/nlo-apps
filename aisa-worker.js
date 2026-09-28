@@ -71,6 +71,12 @@
 //      the corrected search is used only if it scores better. The answer
 //      cache key now includes the worker version, so a deploy never serves
 //      answers written under the previous rules.
+//  2.6.1 (after the live check): choices must be likely meanings or closely
+//      related tasks — no padding; off-topic questions get "ask Sarah or
+//      Dr. Akhavan" instead of loose suggestions; no clarifying question in
+//      the text when buttons are shown. A spelling-fixed search also counts
+//      as better when it turns a weak search confident on the vector score
+//      (tables). The reranker gets 4 s, then the vector order is used.
 //  11. BLUE/GREEN RETRAINS: /train and the new /reindex build a new
 //      index generation first and switch over only when it is complete,
 //      so answers never go blank mid-retrain. Old generation is then
@@ -81,7 +87,7 @@
 // match), v2.0 (streaming, answer cache).
 // ====================================================================
 
-const WORKER_VERSION = '2.6.0';
+const WORKER_VERSION = '2.6.1';
 
 // ---------- Model (fallback — the live choice is saved from the portal) ----------
 const MODEL = 'gemini-3.8-flash';
@@ -103,6 +109,7 @@ const MIN_KEEP_SCORE = 0.02;    // excerpts below this are dropped (keeping at l
 const SOURCE_MIN_SCORE = 0.3;   // only confident excerpts are shown as sources
 const NEIGHBOR_CHUNKS = 3;      // continuation chunks added right after the top matches
 const TYPO_RETRY_BELOW = 0.3;   // best rerank score under this → try the search again with spelling fixed
+const RERANK_TIMEOUT_MS = 4000; // slower than this → use the vector order instead of waiting
 
 // ---------- Choices (tappable follow-up questions in the app) ----------
 const CHOICES_MARK = '[[CHOICES]]';
@@ -307,7 +314,12 @@ async function retrieve(reqJson, env) {
   } catch (e) { console.error('Spelling check failed:', e && e.message); }
   if (!fix || !fix.fixes.length) return out;
   const again = await retrieveOnce(fix.text, buildSearchQuery(fix.text, history), env);
-  const better = !again.degraded && again.topScore >= out.topScore + 0.1 && again.topScore >= LOW_CONF_SCORE;
+  // Better = a clearly higher rerank score, or (like the "nothing found" test)
+  // it turns a weak search into a confident one on the vector score — the
+  // reranker under-scores tables such as the vacation accrual table.
+  const better = !again.degraded && (
+    (again.topScore >= out.topScore + 0.1 && again.topScore >= LOW_CONF_SCORE) ||
+    (out.lowConfidence && !again.lowConfidence && again.topVec >= out.topVec + 0.03));
   const pick = better ? again : out;
   pick.fixes = fix.fixes;
   pick.firstScore = out.topScore;
@@ -370,7 +382,13 @@ async function retrieveOnce(question, searchQuery, env) {
     return out; // nothing retrieved — lowConfidence stays true
   }
   try {
-    const rr = await env.AI.run(RERANK_MODEL, { query: searchQuery.slice(0, 1000), contexts: pool.map(c => ({ text: c.text.slice(0, 1800) })) });
+    // Don't let a slow reranker hold up the answer (seen once at 12.5 s) —
+    // past RERANK_TIMEOUT_MS the vector order is used instead (not cached).
+    let timer;
+    const rr = await Promise.race([
+      env.AI.run(RERANK_MODEL, { query: searchQuery.slice(0, 1000), contexts: pool.map(c => ({ text: c.text.slice(0, 1800) })) }),
+      new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('rerank timed out after ' + RERANK_TIMEOUT_MS + ' ms')), RERANK_TIMEOUT_MS); })
+    ]).finally(() => clearTimeout(timer));
     const list = (rr && (rr.response || rr.result || rr.data)) || [];
     for (const item of list) {
       const i = (item.id !== undefined ? item.id : item.index);
@@ -625,12 +643,12 @@ async function buildGeminiBody(reqJson, env, r, thinking) {
     ? `1. CLEAR QUESTION → JUST ANSWER. VAGUE OR NOT IN THE MANUALS → OFFER CHOICES:
    - If the question is specific, just answer it (e.g., "How many turns for a standalone RPE?" → 28). No choices — never add them after a complete answer just to suggest related topics.
    - If it is vague or could mean different things (e.g., "What do I need for an adjustment?" — braces or aligners?), briefly answer the most likely meaning if the excerpts cover it, then offer choices for the other meanings.
-   - If the excerpts don't answer it, never leave the person at a dead end: say so in one short sentence, then offer choices — the closest questions our manuals DO answer (pick them from the excerpts and the OFFICE MAP).
+   - If the excerpts don't answer it, never leave the person at a dead end: say so in one short sentence, then offer choices — the closest questions our manuals DO answer (pick them from the excerpts and the OFFICE MAP). If nothing in the manuals is close (e.g., a question about something the office doesn't cover), skip the choices and say who could help (Sarah or Dr. Akhavan).
    - Choices go at the very end of the reply, in exactly this format (the app turns them into buttons):
      ${CHOICES_MARK}
      - First question
      - Second question
-     Give 2-4 choices. Each is a complete question of 12 words or fewer, phrased the way a staff member would ask it, specific enough to answer from the manuals, and different from the others. Don't repeat the original question, and don't write "or ask something else" — the app adds a "Something else" button.`
+     Give 2-4 choices. Each is a complete question of 12 words or fewer, phrased the way a staff member would ask it, specific enough to answer from the manuals, and different from the others. Every choice must be a likely meaning of their question or a closely related task — never pad the list with unrelated topics (two good choices beat four loose ones). Don't repeat the original question. When you give choices, don't also ask a clarifying question in the text or write "or ask something else" — the buttons do that, and the app adds a "Something else" button.`
     : `1. CLARIFY ONLY WHEN IT MATTERS:
    - If the question is specific, just answer it (e.g., "How many turns for a standalone RPE?" → 28).
    - If the answer depends on the situation and the options fit in 2-3 short bullets, give each option briefly instead of asking.
