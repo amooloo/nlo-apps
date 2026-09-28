@@ -49,6 +49,15 @@ Search words: D2 setup, D2 delivery, D2 appliance, distalizer delivery, bond dis
 https://amooloo.github.io/nlo-apps/img/onboarding/d2-delivery-tray.jpg
 
 ============================================================
+DETAILING APPOINTMENT TRAY — PICTURE
+============================================================
+The setup for a detailing appointment near the end of braces, on the 16x22 finishing wire (SOP-CL-018). It is the regular adjustment cassette plus two pliers for Dr. Akhavan's wire bends: the arch forming plier (arch former), which shapes the curve of the archwire, and the Tweed plier, which bends rectangular wire, including torque bends. While the patient brushes, lay out both pliers and label each removed wire by arch and side so Dr. Akhavan can bend it.
+In the onboarding app: Clinical → Detailing, Equipment & Down-Time → Detailing Appointment (Braces), and Clinical → Adjustments → Orthodontic instruments.
+Search words: detailing setup, detailing tray, detailing appointment, Tweed plier, arch forming plier, arch former, finishing bends, wire bends, 16x22 TMA, Resolve.
+[PHOTO: Detailing tray: adjustment cassette, arch former and Tweed plier]
+https://amooloo.github.io/nlo-apps/img/onboarding/detailing-tray.jpg
+
+============================================================
 BITE CLASSES: CLASS I, II AND III — PICTURE
 ============================================================
 Normal occlusion and Class I, II and III malocclusion, shown by the first molars (shaded). In a normal bite the upper first molar sits about half a tooth behind the lower first molar and every tooth lines up smoothly. Class I keeps that molar fit but other teeth are crowded, spaced or out of line. In Class II the lower first molar sits too far back (patients often call it an overbite or buck teeth). In Class III it sits too far forward (an underbite). Class II elastics pull the lower teeth forward; Class III elastics pull the other way.
