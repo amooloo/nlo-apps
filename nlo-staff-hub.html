@@ -1068,13 +1068,14 @@ function viewStaffDetail() {
   <div class="detHead">
     ${avHTML(p,'lg')}
     <div class="info">
-      <h2>${esc(p.name)} ${p.status === 'former' ? sepBadgeHTML(p) : `<span class="badge ${st.cls}">Review: ${st.label}</span>${sepLeavingBadge(p)}`} ${colorBadge(p.color)}</h2>
+      <h2>${esc(p.name)} ${p.status === 'former' ? sepBadgeHTML(p) : `<span class="badge ${st.cls}">Review: ${st.label}</span>${sepLeavingBadge(p)}`} ${colorBadge(p.color)}${quizBadgeHTML(p)}</h2>
       <div class="muted" style="margin-top:3px">${esc(p.role || '')}${p.employment ? ' · ' + esc(p.employment) : ''}</div>
       <div class="meta">
         ${p.hireDate ? `<span>${ic('calendar',14)} Hired ${fmtD(p.hireDate)} (${tenure(p.hireDate)})</span>` : ''}
         ${p.birthday ? `<span>${ic('cake',14)} ${fmtDShort(p.birthday)}</span>` : ''}
         ${p.phone ? `<span>${ic('phone',14)} ${esc(p.phone)}</span>` : ''}
         ${p.email ? `<span>${ic('mail',14)} ${esc(p.email)}</span>` : ''}
+        ${quizMetaHTML(p)}
         ${sepMetaHTML(p)}
       </div>
       ${p.profileNote ? `<div class="muted" style="margin-top:10px;max-width:560px">${esc(p.profileNote)}</div>` : ''}
@@ -3189,6 +3190,7 @@ H.openAssess = t => {
   openModal(`<div class="mh"><h3>${ic('target', 18)} Color Assessment</h3><button class="x" data-act="closeModal">✕</button></div>
   <div class="mb" id="assessBody">
     <p class="muted" style="margin:-2px 0 12px;font-size:13.5px">Check every word that genuinely describes <b>${who}</b> — go with your gut, there are no wrong answers. It tallies into your Shimmin “Success Signals” colors and gives a primary + secondary.</p>
+    ${quizAssessRow(p)}
     <div id="assessGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(205px,1fr));gap:5px 16px;max-height:48vh;overflow:auto;padding-right:4px">
       ${assessItems.map((it, i) => `<label style="display:flex;align-items:center;gap:8px;font-size:13.5px;padding:4px 2px;cursor:pointer"><input type="checkbox" id="ax${i}" style="width:15px;height:15px;accent-color:var(--blue);flex:0 0 auto"> ${esc(it.tr)}</label>`).join('')}
     </div>
@@ -3246,6 +3248,329 @@ document.addEventListener('change', e => {
   }
 });
 
+
+/* =====================================================
+   COLOR QUIZ BY LINK
+   Send a team member a one-time link to color-quiz.html so they
+   take the Color Assessment on their own phone, with no login.
+   Firestore, under this account:
+     staffhub/{uid}/colorQuiz/{code}     the invite: first name + staff id
+     staffhub/{uid}/colorAnswers/{code}  their answers: 48 ones/zeros in
+                                         COLOR_TRAITS order (red, blue, green, purple)
+   Making a link, turning one off, and importing answers each save the
+   encrypted record in the SAME Firestore transaction as the quiz docs
+   (quizAtomic), so answers are never deleted before they're saved and a
+   link is never live without being on record.
+   Needs the Firestore rules that let a link read its invite and send
+   answers once. color-quiz.html has its own copy of COLOR_TRAITS: keep in sync.
+   ===================================================== */
+ICONS.link = '<path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1.2 1.2"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1.2-1.2"/>';
+ICONS.copy = '<rect x="8.5" y="8.5" width="12" height="12" rx="2"/><path d="M15.5 8.5V5.5a2 2 0 0 0-2-2h-8a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h3"/>';
+
+const QUIZ_URL = 'https://amooloo.github.io/nlo-apps/color-quiz.html';
+const QUIZ_QR_LIB = 'https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js';
+const QUIZ_QR_SRI = 'sha512-ZDSPMa/JM1D+7kdg2x3BsruQ6T/JpJo3jWDWkCZsP+5yVyp1KfESqLI+7RqB5k24F7p2cV7i2YHh/890y6P6Sw==';
+const QUIZ_ORDER = ['red', 'blue', 'green', 'purple'];
+let quizUnsub = null, quizWatchTimer = null, quizBusy = false, quizQrLoad = null, quizCopyTexts = {}, quizPending = [];
+const quizClaiming = new Set(), quizTries = {};
+
+function quizTraitList() { const L = []; QUIZ_ORDER.forEach(c => COLOR_TRAITS[c].forEach(tr => L.push({ tr, c }))); return L; }
+function quizFirst(p) { return String((p && p.nick) || '').trim() || rosterNameParts(p && p.name).first || 'there'; }
+function quizCode() {
+  const b = crypto.getRandomValues(new Uint8Array(16));
+  return btoa(String.fromCharCode.apply(null, b)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+function quizCol(name) { return fbDB.collection(FB_COLLECTION).doc(fbUser.uid).collection(name); }
+function quizUrl(code) { return QUIZ_URL + '#u=' + encodeURIComponent(fbUser.uid) + '&t=' + code; }
+function quizDay(ms) { return new Date(ms || Date.now()).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); }
+function quizColorName(c) { return STAFF_COLORS[c] ? STAFF_COLORS[c].label.split(' — ')[0] : ''; }
+const quizSleep = ms => new Promise(r => setTimeout(r, ms));
+function quizLog(st, text) { st.activity = st.activity || []; st.activity.unshift({ ts: Date.now(), text }); if (st.activity.length > 200) st.activity.length = 200; }
+function quizErrText(r) {
+  if (r && r.stale) return 'Staff Hub is still syncing. Try again in a moment.';
+  const e = r && r.err, c = String((e && (e.code || e.message)) || '');
+  if (/permission/i.test(c)) return 'Firebase isn’t set up for quiz links yet. Publish the updated Firestore rules (a one-time step), then try again.';
+  if (/unavailable|network|offline|deadline/i.test(c)) return 'No connection right now. Try again when you’re online.';
+  return 'Something went wrong' + (c ? ' (' + c + ')' : '') + '. Try again.';
+}
+/* re-render, unless a note is being typed on the page (it catches up on the next render) */
+function quizRender() {
+  const a = document.activeElement, m = $('#main');
+  if (a && m && m.contains(a) && (a.tagName === 'TEXTAREA' || (a.tagName === 'INPUT' && !/^(checkbox|radio|button|submit)$/i.test(a.type)))) return;
+  render();
+}
+
+/* Save S (with a change) and the quiz docs in ONE transaction, only when this copy of Staff Hub has
+   the latest record. prepare(tx, copy) does its reads, edits the copy of S and returns { write(tx) },
+   or null to do nothing. Returns { ok, rev, plan } | { stale } | { tooBig } | { err } | { skip }. */
+async function quizAtomic(prepare) {
+  if (!S || !cryptoKey || !keySalt || !fbDocRef || !fbDB) return { skip: true };
+  if (fbWriteInFlight) return { stale: true };
+  const key = cryptoKey, salt = keySalt, base = lastAppliedRev, docRef = fbDocRef, snap = JSON.stringify(S);
+  fbWriteInFlight = true;   /* normal saves wait until this lands */
+  let res;
+  try {
+    res = await fbDB.runTransaction(async tx => {
+      const cur = await tx.get(docRef);
+      const d = cur.exists ? cur.data() : null;
+      if (!d || (d.rev || 0) !== base) return { stale: true };
+      const copy = JSON.parse(snap);
+      const plan = await prepare(tx, copy);
+      if (!plan) return { skip: true };
+      const data = await encryptJSON(copy, key);
+      const payload = { app: 'nlo-staff-hub', v: 1, kdf: { alg: 'PBKDF2-SHA256', iter: KDF_ITER, salt: b64(salt) }, data: data, rev: base + 1, updatedAt: Date.now() };
+      if (JSON.stringify(payload).length > 1000000) return { tooBig: true };
+      if (plan.write) plan.write(tx);
+      tx.set(docRef, payload);
+      return { ok: true, rev: base + 1, plan: plan };
+    });
+  } catch (e) { res = { err: e }; }
+  fbWriteInFlight = false;
+  if (res && res.ok && res.rev > lastAppliedRev) { lastAppliedRev = res.rev; localRev = Math.max(localRev || 0, res.rev); setSyncState('synced'); }
+  if (res && res.tooBig) toast('Your data has reached Firestore’s 1 MB per-record limit, so this couldn’t be saved. Remove some certificate photos or old notes.', true);
+  if (fbWriteAgain) { fbWriteAgain = false; fbWriteNow(); }
+  return res || { skip: true };
+}
+
+/* Put one set of answers onto the person in state st (S or a copy of it). Safe to run twice. */
+function quizApplyTo(st, code, sid, data) {
+  const staff = (st && st.staff) || [];
+  const p = staff.find(x => x && x.colorLink && x.colorLink.t === code) || (sid ? staff.find(x => x && x.id === sid) : null);
+  if (!p) return null;
+  if (p.colorQuizCode === code) return { p: p, already: true };
+  p.colorQuizCode = code;
+  if (p.colorLink && p.colorLink.t === code) delete p.colorLink;
+  const bits = String((data && data.picks) || ''), list = quizTraitList();
+  const t = { red: 0, blue: 0, green: 0, purple: 0 };
+  if (/^[01]{48}$/.test(bits) && list.length === 48) list.forEach((it, i) => { if (bits.charAt(i) === '1') t[it.c]++; });
+  if (t.red + t.blue + t.green + t.purple < 3) {
+    quizLog(st, p.name + ' sent the color quiz back almost blank; their color was left as it was');
+    return { p: p, blank: true };
+  }
+  const order = QUIZ_ORDER.slice().sort((a, b) => t[b] - t[a]);
+  const primary = order[0], secondary = t[order[1]] > 0 ? order[1] : null;
+  const at = data && data.at && typeof data.at.toMillis === 'function' ? data.at.toMillis() : Date.now();
+  p.color = primary;
+  p.colorQuiz = { primary: primary, secondary: secondary, tally: t, picks: bits, at: at, via: 'link' };
+  quizLog(st, p.name + ' took the color quiz from their link: ' + STAFF_COLORS[primary].label + (secondary ? ' (secondary ' + STAFF_COLORS[secondary].label + ')' : ''));
+  return { p: p, primary: primary, secondary: secondary };
+}
+function quizDoneToast(info) {
+  if (!info || !info.p) return;
+  if (info.blank) toast(quizFirst(info.p) + ' sent the quiz back almost blank. Send a new link if you want them to redo it.', true);
+  else toast(quizFirst(info.p) + ' finished the color quiz: ' + STAFF_COLORS[info.primary].label);
+}
+
+/* ---- bits shown on the person's page and in the assessment ---- */
+function quizBadgeHTML(p) {
+  if (!p || !p.colorLink) return '';
+  return ` <button type="button" class="badge b-blue" data-act="quizLinkShow" data-id="${p.id}" style="border:0;cursor:pointer;font-family:inherit" title="Waiting for their answers. Click to see or turn off the link.">${ic('link', 11)} Quiz link sent</button>`;
+}
+function quizMetaHTML(p) {
+  const q = p && p.colorQuiz;
+  if (!q || !STAFF_COLORS[q.primary]) return '';
+  return `<span title="From their own answers to the color quiz">${ic('target', 14)} Own quiz ${esc(quizDay(q.at))}: ${esc(quizColorName(q.primary))}${STAFF_COLORS[q.secondary] ? ', then ' + esc(quizColorName(q.secondary)) : ''}</span>`;
+}
+function quizAssessRow(p) {
+  if (!p) return '';
+  const f = esc(quizFirst(p));
+  const box = 'display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--blue-100);border-radius:10px;padding:9px 12px;margin:-4px 0 12px;font-size:13px;color:var(--navy)';
+  if (p.colorLink) return `<div style="${box}"><span style="flex:1;min-width:180px">A quiz link is out to ${f}. Their answers will show up here when they finish.</span><button class="btn btn-sec btn-sm" data-act="quizLinkShow" data-id="${p.id}" type="button">${ic('link', 13)} See the link</button></div>`;
+  return `<div style="${box}"><span style="flex:1;min-width:180px">Or let ${f} take it on their own phone.</span><button class="btn btn-sec btn-sm" data-act="quizLinkMake" data-id="${p.id}" type="button">${ic('link', 13)} Send ${f} a link</button></div>`;
+}
+
+/* ---- the link dialog: QR code, copy, text, email, turn off ---- */
+function quizLinkDialog(p) {
+  const L = p && p.colorLink;
+  if (!L || !L.t || !fbUser) return;
+  const f = quizFirst(p), url = quizUrl(L.t);
+  const msg = 'Hi ' + f + '! Please take this quick color quiz for the team. It takes about 2 minutes: ' + url;
+  quizCopyTexts = { link: url, msg: msg };
+  const phone = String(p.phone || '').replace(/[^\d+]/g, '');
+  const email = String(p.email || '').trim();
+  openModal(`<div class="mh" data-quizcode="${esc(L.t)}"><h3>${ic('link', 18)} Color quiz link for ${esc(f)}</h3><button class="x" data-act="closeModal">✕</button></div>
+  <div class="mb">
+    <p class="muted" style="font-size:13.5px;margin:-4px 0 16px">${esc(f)} opens it on their phone, checks the words that fit, and sees their color. No login needed. The answers come straight back here and set ${esc(f)}’s communication color. The link works once, and anyone who has it could use it, so send it only to ${esc(f)}.</p>
+    <div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap">
+      <div data-quizqr="${esc(url)}" style="width:164px;height:164px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;background:#fff;border:1px solid var(--line);border-radius:12px;padding:6px"><span class="tiny">Loading QR code…</span></div>
+      <div style="flex:1;min-width:220px">
+        <div class="muted" style="font-size:12.5px;margin-bottom:8px">Have ${esc(f)} scan the code with their phone camera, or send the link:</div>
+        <div style="display:flex;gap:8px;align-items:center"><div class="field" style="margin:0;flex:1;min-width:0"><input type="text" id="quizUrl" readonly value="${esc(url)}" style="font-size:12.5px;padding:8px 10px" onclick="this.select()"></div><button class="btn btn-sec btn-sm" data-act="quizCopy" data-what="link" type="button">${ic('copy', 13)} Copy</button></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+          ${phone ? `<a class="btn btn-sec btn-sm" style="text-decoration:none" href="sms:${esc(phone)}?&body=${encodeURIComponent(msg)}">${ic('message', 13)} Text it</a>` : ''}
+          ${email ? `<a class="btn btn-sec btn-sm" style="text-decoration:none" href="mailto:${esc(email)}?subject=${encodeURIComponent('Quick color quiz')}&body=${encodeURIComponent(msg)}">${ic('mail', 13)} Email it</a>` : ''}
+          <button class="btn btn-sec btn-sm" data-act="quizCopy" data-what="msg" type="button">${ic('copy', 13)} Copy a message</button>
+        </div>
+      </div>
+    </div>
+    <p class="muted" style="font-size:12.5px;margin-top:16px">Made ${esc(quizDay(L.at))}. Waiting for ${esc(f)}’s answers. They land in Staff Hub even if it’s closed when ${esc(f)} finishes.</p>
+  </div>
+  <div class="mf" style="justify-content:space-between"><button class="btn btn-sec" data-act="quizLinkOff" data-id="${p.id}" type="button">Turn off link</button><button class="btn btn-pri" data-act="closeModal" type="button">Done</button></div>`);
+  quizMountQr();
+}
+function quizLoadQr() {
+  if (window.qrcode) return Promise.resolve();
+  if (!quizQrLoad) quizQrLoad = new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = QUIZ_QR_LIB; s.integrity = QUIZ_QR_SRI; s.crossOrigin = 'anonymous'; s.referrerPolicy = 'no-referrer';
+    s.onload = () => res();
+    s.onerror = () => { quizQrLoad = null; rej(new Error('qr')); };
+    document.head.appendChild(s);
+  });
+  return quizQrLoad;
+}
+function quizMountQr() {
+  $$('[data-quizqr]').forEach(el => {
+    quizLoadQr().then(() => {
+      const q = window.qrcode(0, 'M');
+      q.addData(el.dataset.quizqr); q.make();
+      el.innerHTML = q.createSvgTag({ cellSize: 4, margin: 2, scalable: true });
+      const svg = el.querySelector('svg');
+      if (svg) { svg.style.width = '100%'; svg.style.height = '100%'; svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', 'QR code for the quiz link'); }
+    }).catch(() => { el.innerHTML = '<span class="tiny" style="text-align:center">QR code unavailable offline. Copy the link instead.</span>'; });
+  });
+}
+
+H.quizLinkMake = async t => {
+  if (!S) return;
+  const p0 = staffById(t.dataset.id);
+  if (!p0) return;
+  if (p0.colorLink && p0.colorLink.t) { quizLinkDialog(p0); return; }
+  if (!fbUser || !fbDB) { toast('Sign in to Staff Hub first.', true); return; }
+  if (quizBusy) return;
+  quizBusy = true;
+  const label = t.innerHTML;
+  t.disabled = true; t.textContent = 'Making the link…';
+  const code = quizCode(), sid = p0.id, at = Date.now(), first = quizFirst(p0).slice(0, 40);
+  let res = { skip: true };
+  for (let i = 0; i < 6; i++) {
+    res = await quizAtomic(async (tx, copy) => {
+      const cp = copy.staff.find(x => x && x.id === sid);
+      if (!cp) return null;
+      cp.colorLink = { t: code, at: at };
+      quizLog(copy, 'Made a color quiz link for ' + cp.name);
+      return { write: w => w.set(quizCol('colorQuiz').doc(code), { v: 1, first: first, sid: sid, at: at }) };
+    });
+    if (!res.stale) break;
+    await quizSleep(800);
+  }
+  quizBusy = false;
+  const p = S && staffById(sid);
+  if (res.ok && p) {
+    if (!(p.colorLink && p.colorLink.t === code)) { p.colorLink = { t: code, at: at }; quizLog(S, 'Made a color quiz link for ' + p.name); }
+    if (!quizUnsub) quizWatchStart();
+    quizRender();
+    quizLinkDialog(p);
+    return;
+  }
+  if (document.body.contains(t)) { t.disabled = false; t.innerHTML = label; }
+  if (!res.skip && !res.tooBig) toast(quizErrText(res), true);
+};
+H.quizLinkShow = t => { const p = S && staffById(t.dataset.id); if (p && p.colorLink) quizLinkDialog(p); };
+H.quizCopy = t => {
+  const txt = quizCopyTexts[t.dataset.what] || '';
+  if (!txt) return;
+  const ok = () => toast(t.dataset.what === 'msg' ? 'Message copied. Paste it into a text or email.' : 'Link copied');
+  const fallback = () => {
+    const ta = document.createElement('textarea');
+    ta.value = txt; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.top = '-1000px';
+    document.body.appendChild(ta); ta.select();
+    let done = false;
+    try { done = document.execCommand('copy'); } catch (e) {}
+    ta.remove();
+    if (done) ok(); else toast('Couldn’t copy. Select the link and copy it by hand.', true);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(ok, fallback); else fallback();
+};
+H.quizLinkOff = t => {
+  const p = S && staffById(t.dataset.id);
+  if (!p || !p.colorLink) { closeModal(); return; }
+  const f = quizFirst(p), code = p.colorLink.t, sid = p.id;
+  confirmModal('Turn off ' + f + '’s quiz link?', 'The link stops working right away. You can make a new one any time.', async () => {
+    let res = { skip: true };
+    for (let i = 0; i < 6; i++) {
+      res = await quizAtomic(async (tx, copy) => {
+        const ansRef = quizCol('colorAnswers').doc(code), invRef = quizCol('colorQuiz').doc(code);
+        const ans = await tx.get(ansRef);
+        const data = ans.exists ? ans.data() : null;
+        let got = null;
+        if (data) got = quizApplyTo(copy, code, sid, data);   /* their answers just came in: keep them */
+        else {
+          const cp = copy.staff.find(x => x && x.id === sid);
+          if (cp && cp.colorLink && cp.colorLink.t === code) { delete cp.colorLink; quizLog(copy, 'Turned off ' + cp.name + '’s color quiz link'); }
+        }
+        return { data: data, got: got, write: w => { w.delete(invRef); if (data) w.delete(ansRef); } };
+      });
+      if (!res.stale) break;
+      await quizSleep(800);
+    }
+    if (!res.ok) { if (!res.skip && !res.tooBig) toast(quizErrText(res), true); return; }
+    const pl = res.plan;
+    if (pl.data) {
+      const live = S ? quizApplyTo(S, code, sid, pl.data) : null;
+      quizRender();
+      const info = live && !live.already ? live : pl.got;
+      toast(f + '’s answers had just come in, so they were saved' + (info && info.primary ? ': ' + STAFF_COLORS[info.primary].label : '') + '. The link is off.');
+      return;
+    }
+    const cur = S && staffById(sid);
+    if (cur && cur.colorLink && cur.colorLink.t === code) { delete cur.colorLink; quizLog(S, 'Turned off ' + cur.name + '’s color quiz link'); }
+    quizRender(); toast('Link turned off');
+  });
+};
+
+/* ---- answers coming back: watched while Staff Hub is unlocked ---- */
+function quizWatchStart() {
+  quizWatchStop();
+  if (!fbUser || !fbDB) return;
+  try {
+    quizUnsub = quizCol('colorAnswers').onSnapshot(snap => {
+      quizPending = snap.docs.map(d => d.id);
+      quizPending.forEach(code => { quizClaim(code); });
+    }, () => {
+      /* e.g. the new rules aren't published yet: try again in a minute */
+      quizUnsub = null; quizPending = [];
+      quizWatchTimer = setTimeout(() => { if (S && fbUser) quizWatchStart(); }, 60000);
+    });
+  } catch (e) { quizUnsub = null; }
+}
+function quizWatchStop() {
+  clearTimeout(quizWatchTimer); quizWatchTimer = null;
+  if (quizUnsub) { try { quizUnsub(); } catch (e) {} quizUnsub = null; }
+  quizPending = [];
+}
+function quizRescan() { quizPending.forEach(code => { quizTries[code] = 0; quizClaim(code); }); }
+function quizRetry(code) {
+  quizTries[code] = (quizTries[code] || 0) + 1;
+  if (quizTries[code] > 30) return;   /* the next sync or unlock tries again */
+  setTimeout(() => { if (S) quizClaim(code); }, Math.min(30000, 1500 * quizTries[code]));
+}
+async function quizClaim(code) {
+  if (!S || !fbUser || !fbDB || quizClaiming.has(code) || quizPending.indexOf(code) < 0) return;
+  quizClaiming.add(code);
+  let res;
+  try {
+    res = await quizAtomic(async (tx, copy) => {
+      const ansRef = quizCol('colorAnswers').doc(code), invRef = quizCol('colorQuiz').doc(code);
+      const ans = await tx.get(ansRef);
+      if (!ans.exists) return null;   /* already imported by another open copy of Staff Hub */
+      const inv = await tx.get(invRef);
+      const data = ans.data(), sid = inv.exists ? ((inv.data() || {}).sid || null) : null;
+      const got = quizApplyTo(copy, code, sid, data);   /* null: that person is gone, so the answers are just dropped */
+      return { data: data, sid: sid, got: got, write: w => { w.delete(ansRef); if (inv.exists) w.delete(invRef); } };
+    });
+  } finally { quizClaiming.delete(code); }
+  if (res.ok) {
+    quizTries[code] = 0;
+    const pl = res.plan;
+    const live = S ? quizApplyTo(S, code, pl.sid, pl.data) : null;
+    const info = live && !live.already ? live : pl.got;
+    const open = document.querySelector('[data-quizcode]');
+    if (open && open.getAttribute('data-quizcode') === code) closeModal();
+    quizRender();
+    quizDoneToast(info);
+  } else if (res.stale || res.err) quizRetry(code);
+}
 
 /* =====================================================
    FIREBASE AUTH + FIRESTORE SYNC
@@ -3341,13 +3666,14 @@ function fbQueueWrite() {
   fbWriteTimer = setTimeout(fbWriteNow, 1200);
 }
 async function fbWriteNow() {
-  if (!fbUser || !cryptoKey || !S || !fbDocRef) return;
+  if (!fbUser || !cryptoKey || !keySalt || !S || !fbDocRef) return;
   if (fbWriteInFlight) { fbWriteAgain = true; return; }
   fbWriteInFlight = true;
   try {
+    var saltNow = keySalt;   /* taken before the await: an idle lock during encryption clears keySalt */
     var data = await encryptJSON(S, cryptoKey);
     localRev = (localRev || 0) + 1; lastAppliedRev = localRev;
-    var payload = { app: 'nlo-staff-hub', v: 1, kdf: { alg: 'PBKDF2-SHA256', iter: KDF_ITER, salt: b64(keySalt) }, data: data, rev: localRev, updatedAt: Date.now() };
+    var payload = { app: 'nlo-staff-hub', v: 1, kdf: { alg: 'PBKDF2-SHA256', iter: KDF_ITER, salt: b64(saltNow) }, data: data, rev: localRev, updatedAt: Date.now() };
     var payloadBytes = JSON.stringify(payload).length;
     if (payloadBytes > 1000000) {   // Firestore hard-caps a document at 1,048,576 bytes
       setSyncState('error');
@@ -3387,6 +3713,7 @@ function fbStartSnapshot() {
       if (route.page === 'staffDetail' && openId && !staffById(openId)) route.page = 'staff';
       render(); renderSyncStatus();
       setSyncState('synced');
+      if (typeof quizRescan === 'function') quizRescan();
     }).catch(function () {});
   }, function () { setSyncState('error'); });
 }
@@ -3526,6 +3853,7 @@ function fbForgot() {
 }
 function fbSignOut() {
   if (fbUnsub) { fbUnsub(); fbUnsub = null; }
+  if (typeof quizWatchStop === 'function') quizWatchStop();
   S = null; cryptoKey = null; keySalt = null; fbUser = null; fbDocRef = null; localRev = 0; lastAppliedRev = 0;
   if (idleTimer) clearInterval(idleTimer);
   var doShow = function () { authMode = 'signin'; showAuth(); };
@@ -3536,11 +3864,13 @@ function fbEnter() {
   fbStartSnapshot();
   setSyncState('synced');
   enterApp();
+  if (typeof quizWatchStart === 'function') quizWatchStart();
 }
 
 /* re-lock (idle) without signing out: keep the Firebase session, drop the key */
 function fbLock(msg) {
   if (fbUnsub) { fbUnsub(); fbUnsub = null; }
+  if (typeof quizWatchStop === 'function') quizWatchStop();
   S = null; cryptoKey = null; keySalt = null;
   $('#main').innerHTML = ''; $('#modalWrap').classList.remove('open'); $('#modalWrap').innerHTML = '';
   showAuth();

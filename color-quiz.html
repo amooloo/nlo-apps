@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1B2F4C">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>Color Quiz — Next Level Orthodontics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Oswald:wght@400;500&display=swap" rel="stylesheet">
+<!--
+  NLO color quiz: the page a team member opens from the link Dr. Akhavan sends from Staff Hub.
+  No login. The link carries Staff Hub's account id (u) and a one-time invite code (t).
+  The answers are written once to Firestore (project nlo-staff-hub) and Staff Hub imports them
+  into the person's encrypted record, then deletes the invite and the answers.
+-->
+<style>
+:root{
+  --navy:#1B2F4C;--navy-900:#11203A;
+  --blue:#1D3EA9;--blue-700:#16318C;--blue-100:#E5EAF8;
+  --coral-700:#D8412E;
+  --mint-100:#E2FBF4;
+  --g100:#ECEEF0;--g200:#DCE0E4;--g300:#C3C9D0;--g500:#6B7685;--g600:#4C5868;
+  --off:#F2F3F4;--card:#fff;
+  --fb:'Montserrat',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --fd:'Oswald','Montserrat',system-ui,sans-serif;
+  --r:14px;
+  --sh:0 1px 3px rgba(27,47,76,.07),0 4px 16px rgba(27,47,76,.05);
+  --safe-b:env(safe-area-inset-bottom,0px);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{font-family:var(--fb);background:var(--off);color:var(--navy);min-height:100vh;font-size:15px;line-height:1.5}
+button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
+.hide{display:none!important}
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+
+.top{position:sticky;top:0;z-index:20;background:var(--navy);color:#fff;box-shadow:0 2px 12px rgba(17,32,58,.25)}
+.top-in{max-width:680px;margin:0 auto;display:flex;align-items:center;gap:12px;padding:10px 16px;min-height:56px}
+.top img{height:28px;width:auto;display:block}
+.brand-t{font-family:var(--fd);font-size:18px;letter-spacing:.6px;text-transform:uppercase;font-weight:500;line-height:1.15}
+.brand-t small{display:block;font-family:var(--fb);font-size:10px;letter-spacing:1.6px;opacity:.65;font-weight:600}
+
+main{max-width:680px;margin:0 auto;padding:22px 16px calc(112px + var(--safe-b))}
+h1{font-family:var(--fd);font-weight:500;font-size:30px;letter-spacing:.3px;line-height:1.15;margin-bottom:6px}
+.lead{color:var(--g600);font-size:15px;margin-bottom:18px}
+.card{background:var(--card);border-radius:var(--r);box-shadow:var(--sh);padding:18px 16px}
+.card h2{font-size:16px;font-weight:700;margin-bottom:2px}
+.sub{color:var(--g500);font-size:13.5px;margin-bottom:14px}
+.fine{color:var(--g500);font-size:12.5px;text-align:center;margin-top:14px}
+
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+@media (min-width:560px){.grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.chip{position:relative;display:flex;align-items:center;gap:10px;min-height:50px;padding:9px 11px;border:1.5px solid var(--g200);border-radius:12px;background:#fff;font-weight:600;font-size:14px;line-height:1.25;cursor:pointer;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;transition:border-color .14s,background .14s}
+.chip input{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none}
+.chip .bx{flex:0 0 auto;width:20px;height:20px;border-radius:6px;border:2px solid var(--g300);display:flex;align-items:center;justify-content:center;transition:background .14s,border-color .14s}
+.chip .bx svg{opacity:0;transition:opacity .14s}
+.chip.on{border-color:var(--blue);background:var(--blue-100)}
+.chip.on .bx{background:var(--blue);border-color:var(--blue)}
+.chip.on .bx svg{opacity:1}
+.chip input:focus-visible + .bx{outline:2px solid var(--blue);outline-offset:2px}
+
+.bar{position:fixed;left:0;right:0;bottom:0;z-index:30;background:#fff;box-shadow:0 -4px 20px rgba(17,32,58,.10);padding:12px 16px calc(12px + var(--safe-b))}
+.bar-in{max-width:680px;margin:0 auto;display:flex;align-items:center;gap:12px}
+.count{flex:1;font-size:13.5px;color:var(--g600);font-weight:600;line-height:1.3}
+.count b{color:var(--navy);font-size:15px}
+.count .hint{font-weight:500}
+.count .err{color:var(--coral-700)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 20px;border-radius:12px;font-weight:700;font-size:15px;background:var(--blue);color:#fff;box-shadow:0 2px 8px rgba(29,62,169,.25);transition:background .14s}
+.btn:hover{background:var(--blue-700)}
+.btn:disabled{background:var(--g300);box-shadow:none;cursor:default}
+
+.msg{text-align:center;padding:30px 20px}
+.msg .ico{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;background:var(--blue-100);color:var(--blue)}
+.msg h2{font-family:var(--fd);font-weight:500;font-size:22px;margin-bottom:6px}
+.msg p{color:var(--g600);font-size:14.5px;max-width:420px;margin:0 auto}
+.msg .btn{margin-top:18px}
+.spin{width:30px;height:30px;border:3px solid var(--g200);border-top-color:var(--blue);border-radius:50%;animation:sp .8s linear infinite;margin:6px auto 12px}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+.sent{display:flex;align-items:center;gap:10px;background:var(--mint-100);color:#136B55;border-radius:12px;padding:11px 13px;font-weight:600;font-size:14px;margin-bottom:14px}
+.sent svg{flex:0 0 auto}
+.res-top{text-align:center;padding:6px 0 4px}
+.kicker{font-size:11.5px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:var(--g500)}
+.dot{width:76px;height:76px;border-radius:50%;margin:12px auto 10px;box-shadow:0 6px 18px rgba(17,32,58,.18)}
+.big{font-family:var(--fd);font-weight:500;font-size:30px;line-height:1.1}
+.animal{font-size:14px;color:var(--g500);font-weight:600;margin-top:3px}
+.second{font-size:14px;color:var(--g600);margin-top:10px}
+.about{border-radius:12px;padding:13px 14px;font-size:14px;line-height:1.55;margin-top:16px;border:1px solid}
+.bars{margin:18px 0 6px}
+.brow{display:flex;align-items:center;gap:10px;margin:8px 0}
+.brow .l{width:64px;font-size:13px;font-weight:700}
+.brow .t{flex:1;height:10px;background:var(--g100);border-radius:6px;overflow:hidden}
+.brow .t i{display:block;height:100%;border-radius:6px}
+.brow .n{width:22px;text-align:right;font-size:12.5px;color:var(--g500);font-weight:600}
+</style>
+</head>
+<body>
+<header class="top"><div class="top-in"><img src="logo-white.png" alt="" onerror="this.style.display='none'"><div class="brand-t">Color Quiz<small>Next Level Orthodontics</small></div></div></header>
+<main id="main" aria-live="polite"><div class="card msg"><div class="spin"></div><p>Loading…</p></div></main>
+<div class="bar hide" id="bar"><div class="bar-in"><div class="count" id="count"></div><button class="btn" id="go" type="button" disabled>Done — see my color</button></div></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  /* Shimmin "Success Signals" words. KEEP IN SYNC with COLOR_TRAITS in nlo-staff-hub.html:
+     answers travel as 48 ones/zeros in exactly this order (red, blue, green, purple, 12 each). */
+  var ORDER = ['red', 'blue', 'green', 'purple'];
+  var TRAITS = {
+    red:    ['Direct', 'Decisive', 'Practical', 'Fast-paced', 'Bottom-line focused', 'Likes to lead', 'Results-oriented', 'Action-focused', 'Accountable', 'Disciplined', 'On time & on task', 'Gets things done'],
+    blue:   ['Energetic', 'Playful', 'Fun-loving', 'Spontaneous', 'A risk-taker', 'Enthusiastic', 'Talkative', 'Creative', 'Adventurous', 'Inspiring', 'Flexible', 'Loves variety'],
+    green:  ['Factual', 'Analytical', 'Plans ahead', 'Thorough', 'Accurate', 'Logical', 'Detail-oriented', 'Asks "why" a lot', 'Cautious', 'Strategic', 'Quality-focused', 'Independent'],
+    purple: ['Supportive', 'Considerate', 'Avoids conflict', 'People-oriented', 'A team player', 'Helpful', 'Warm & friendly', 'Sensitive to others', 'Patient', 'Values harmony', 'Loyal', 'Nurturing']
+  };
+  var COLORS = {
+    red:    { label: 'Red — Driven',       short: 'Red',    animal: 'Shark',  hex: '#E5484D',
+              about: 'You’re direct, decisive and focused on results. You like to lead, move fast and get things done, and you do your best work with clear goals, quick decisions and people who get to the point.' },
+    blue:   { label: 'Blue — Expressive',  short: 'Blue',   animal: 'Monkey', hex: '#1D3EA9',
+              about: 'You’re energetic, creative and fun to be around. You bring enthusiasm and fresh ideas, you love variety, and you do your best work when you can see the big picture and run with it.' },
+    green:  { label: 'Green — Analytical', short: 'Green',  animal: 'Owl',    hex: '#1A9E78',
+              about: 'You’re thorough, logical and accurate. You plan ahead, ask good questions and care about getting things right, and you do your best work with clear facts, the reasons why, and time to think.' },
+    purple: { label: 'Purple — Amiable',   short: 'Purple', animal: 'Koala',  hex: '#7A5AA6',
+              about: 'You’re warm, patient and loyal, the teammate everyone can count on. You keep things calm and friendly, and you do your best work with steady support and time to adjust to change.' }
+  };
+  /* Staff Hub's Firebase project (public web config, same as nlo-staff-hub.html) */
+  var FB = { apiKey: 'AIzaSyBhS4WoMSx78fNdObvPBmvft8zq5CiMw9M', authDomain: 'nlo-staff-hub.firebaseapp.com', projectId: 'nlo-staff-hub', storageBucket: 'nlo-staff-hub.firebasestorage.app', messagingSenderId: '29097520373', appId: '1:29097520373:web:8d585efe0a168a84a429bc' };
+  var MIN_PICKS = 3;
+  var GO_LABEL = 'Done — see my color';
+
+  var LIST = [];
+  ORDER.forEach(function (c) { TRAITS[c].forEach(function (tr) { LIST.push({ tr: tr, c: c }); }); });
+
+  var ICON = {
+    tick:  '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+    check: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="m8.5 12.3 2.4 2.4 4.6-5"/></svg>',
+    link:  '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1.2 1.2"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1.2-1.2"/></svg>',
+    alert: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4.3 21.2 20H2.8z"/><path d="M12 10.2v4"/><path d="M12 17.2h.01"/></svg>',
+    wifi:  '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 9a14 14 0 0 1 19 0"/><path d="M5.5 12.5a9.5 9.5 0 0 1 13 0"/><path d="M8.7 16a5 5 0 0 1 6.6 0"/><path d="M12 19.5h.01"/></svg>'
+  };
+
+  var $ = function (s) { return document.querySelector(s); };
+  var main = $('#main'), bar = $('#bar'), go = $('#go'), count = $('#count');
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (ch) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]; }); }
+
+  /* #u=<Staff Hub account id>&t=<one-time invite code> */
+  var link = (function () {
+    var h = new URLSearchParams(String(location.hash || '').replace(/^#/, ''));
+    var u = h.get('u') || '', t = h.get('t') || '';
+    return (/^[A-Za-z0-9]{10,128}$/.test(u) && /^[A-Za-z0-9_-]{20,40}$/.test(t)) ? { u: u, t: t } : null;
+  })();
+
+  var picks = LIST.map(function () { return false; });   /* in the fixed order above */
+  var first = '', sending = false, invRef = null, ansRef = null;
+
+  /* progress survives a reload on the same phone */
+  var KEY = link ? 'nloColorQuiz:' + link.t : '';
+  function load() { try { return JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { return null; } }
+  function save(o) { try { localStorage.setItem(KEY, JSON.stringify(o)); } catch (e) {} }
+  function bits(p) { return p.map(function (x) { return x ? '1' : '0'; }).join(''); }
+  function fromBits(s) { return String(s || '').split('').map(function (ch) { return ch === '1'; }); }
+
+  /* the same shuffled order every time this link is opened */
+  function rng(seed) {
+    var h = 2166136261;
+    for (var i = 0; i < seed.length; i++) { h ^= seed.charCodeAt(i); h = Math.imul(h, 16777619); }
+    var a = h >>> 0;
+    return function () {
+      a = (a + 0x6D2B79F5) | 0;
+      var t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  function shuffledOrder(seed) {
+    var r = rng(seed), idx = LIST.map(function (_, i) { return i; });
+    for (var i = idx.length - 1; i > 0; i--) { var j = Math.floor(r() * (i + 1)); var x = idx[i]; idx[i] = idx[j]; idx[j] = x; }
+    return idx;
+  }
+
+  function tally(p) { var t = { red: 0, blue: 0, green: 0, purple: 0 }; p.forEach(function (on, i) { if (on) t[LIST[i].c]++; }); return t; }
+  function rank(t) { return ORDER.slice().sort(function (a, b) { return t[b] - t[a]; }); }
+  function nPicked() { return picks.filter(Boolean).length; }
+
+  function show(html, withBar) { main.innerHTML = html; bar.classList.toggle('hide', !withBar); window.scrollTo(0, 0); }
+  function message(icon, title, text, retry) {
+    show('<div class="card msg"><div class="ico">' + icon + '</div><h2>' + esc(title) + '</h2><p>' + esc(text) + '</p>' +
+      (retry ? '<button class="btn" type="button" id="retry">Try again</button>' : '') + '</div>', false);
+    if (retry) $('#retry').onclick = function () { location.reload(); };
+  }
+  function usedUp() { message(ICON.link, 'This link has been used', 'This color quiz link was already used or turned off. If you still need to take the quiz, ask Dr. Akhavan for a new link.'); }
+  function alreadySent() { message(ICON.check, 'Already sent', 'Your answers were already sent to Dr. Akhavan. Thank you!'); }
+
+  function quizView() {
+    show(
+      '<h1>' + (first ? 'Hi ' + esc(first) + '!' : 'Hi there!') + '</h1>' +
+      '<p class="lead">Dr. Akhavan would like you to take the <b>Color Assessment</b>, a quick way to see how you like to communicate and work, so we can work even better together.</p>' +
+      '<div class="card"><h2>Check every word that sounds like you</h2><p class="sub">Go with your gut. There are no wrong answers, and it takes about 2 minutes.</p><div class="grid">' +
+      shuffledOrder(link.t).map(function (i) {
+        return '<label class="chip' + (picks[i] ? ' on' : '') + '"><input type="checkbox" data-i="' + i + '"' + (picks[i] ? ' checked' : '') + '><span class="bx">' + ICON.tick + '</span><span>' + esc(LIST[i].tr) + '</span></label>';
+      }).join('') +
+      '</div></div><p class="fine">Your answers go only to Dr. Akhavan.</p>', true);
+    Array.prototype.forEach.call(main.querySelectorAll('input[data-i]'), function (el) {
+      el.addEventListener('change', function () {
+        picks[+el.dataset.i] = el.checked;
+        el.parentNode.classList.toggle('on', el.checked);
+        save({ picks: bits(picks) });
+        updateBar();
+      });
+    });
+    updateBar();
+  }
+  function updateBar(note) {
+    var n = nPicked();
+    count.innerHTML = note ? note : '<b>' + n + '</b> selected' + (n < MIN_PICKS ? '<br><span class="hint">Pick at least ' + MIN_PICKS + '</span>' : '');
+    go.disabled = sending || n < MIN_PICKS;
+  }
+
+  function resultView(p, justSent) {
+    var t = tally(p), o = rank(t), pc = COLORS[o[0]], max = t[o[0]] || 1;
+    var sc = t[o[1]] > 0 ? COLORS[o[1]] : null, tie = !!sc && t[o[1]] === t[o[0]];
+    show(
+      '<div class="sent">' + ICON.check + (justSent ? 'Sent to Dr. Akhavan. Thank you' + (first ? ', ' + esc(first) : '') + '!' : 'You already sent your answers to Dr. Akhavan.') + '</div>' +
+      '<div class="card"><div class="res-top"><div class="kicker">Your color</div>' +
+      '<div class="dot" style="background:' + pc.hex + '"></div>' +
+      '<div class="big" style="color:' + pc.hex + '">' + esc(pc.label) + '</div>' +
+      '<div class="animal">The ' + esc(pc.animal) + '</div>' +
+      (sc ? '<div class="second">Secondary color: <b style="color:' + sc.hex + '">' + esc(sc.label) + '</b>' + (tie ? ' (very close, could go either way)' : '') + '</div>' : '') + '</div>' +
+      '<div class="about" style="background:' + pc.hex + '12;border-color:' + pc.hex + '40">' + esc(pc.about) + '</div>' +
+      '<div class="bars">' + o.map(function (c) {
+        var m = COLORS[c];
+        return '<div class="brow"><span class="l" style="color:' + m.hex + '">' + esc(m.short) + '</span><span class="t"><i style="width:' + Math.round(t[c] / max * 100) + '%;background:' + m.hex + '"></i></span><span class="n">' + t[c] + '</span></div>';
+      }).join('') + '</div>' +
+      '<p class="sub" style="margin:10px 0 0">Everyone has some of all four colors. Your top one is how you usually like to communicate and work.</p></div>' +
+      '<p class="fine">You can close this page now.</p>', false);
+  }
+
+  function send() {
+    if (sending || nPicked() < MIN_PICKS) return;
+    sending = true; go.textContent = 'Sending…'; updateBar();
+    var answer = bits(picks);
+    var slow = setTimeout(function () { updateBar('<span class="hint">Still sending… check that you’re connected to the internet.</span>'); }, 12000);
+    ansRef.set({ v: 1, picks: answer, at: firebase.firestore.FieldValue.serverTimestamp() }).then(function () {
+      clearTimeout(slow);
+      save({ picks: answer, sent: Date.now() });
+      resultView(picks, true);
+    }).catch(function (e) {
+      clearTimeout(slow);
+      sending = false; go.textContent = GO_LABEL;
+      if (e && e.code === 'permission-denied') {
+        /* either answers were already sent (maybe from another phone) or the link was just turned off */
+        invRef.get().then(function (s) {
+          if (s.exists) { save({ sent: Date.now(), dup: true }); alreadySent(); } else usedUp();
+        }).catch(usedUp);
+        return;
+      }
+      updateBar('<span class="err">Couldn’t send. Check your connection and tap the button again.</span>');
+    });
+  }
+  go.addEventListener('click', send);
+
+  function boot() {
+    if (!link) { message(ICON.link, 'This link is incomplete', 'It looks like part of the link got cut off. Open it again from the text or email, or ask Dr. Akhavan to send it again.'); return; }
+    var st = load();
+    if (st && st.sent) { if (st.dup || typeof st.picks !== 'string' || st.picks.length !== LIST.length) alreadySent(); else resultView(fromBits(st.picks), false); return; }
+    if (st && typeof st.picks === 'string' && st.picks.length === LIST.length) picks = fromBits(st.picks);
+    if (typeof firebase === 'undefined' || !firebase.initializeApp || !firebase.firestore) {
+      message(ICON.wifi, 'Can’t connect', 'This page didn’t finish loading. Check your internet connection and try again.', true); return;
+    }
+    if (!firebase.apps.length) firebase.initializeApp(FB);
+    var base = firebase.firestore().collection('staffhub').doc(link.u);
+    invRef = base.collection('colorQuiz').doc(link.t);
+    ansRef = base.collection('colorAnswers').doc(link.t);
+    invRef.get().then(function (s) {
+      if (!s.exists) { usedUp(); return; }
+      /* a first name only: letters, spaces, apostrophes, periods, hyphens */
+      first = String((s.data() || {}).first || '').replace(/[^\p{L}\p{M}' .-]/gu, '').replace(/\s+/g, ' ').trim().slice(0, 24);
+      quizView();
+    }).catch(function (e) {
+      if (e && e.code === 'permission-denied') message(ICON.alert, 'This link isn’t working yet', 'Please let Dr. Akhavan know so he can fix it.');
+      else message(ICON.wifi, 'Can’t connect', 'Check your internet connection and try again.', true);
+    });
+  }
+  boot();
+})();
+</script>
+</body>
+</html>
