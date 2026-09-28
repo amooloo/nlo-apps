@@ -61,6 +61,16 @@
 //      under-scores it (tables).
 //  2.5.2: Section Guide lines are compact so all ~93 sections fit (2.5.1
 //      stopped at §44); descriptions are cut at a word boundary.
+//  2.6.0 ("what do I need for an adjusmtnet procedure?" hit a dead end):
+//      CHOICES — when the app sends {choices:true}, a vague question or one
+//      the manuals don't answer ends with a [[CHOICES]] block of 2–4 follow-up
+//      questions the manuals DO answer; the app shows them as buttons plus
+//      "Something else". /ask returns them as a separate "choices" array.
+//      TYPOS — when the first search comes back weak, misspelled words are
+//      corrected against the manual's own vocabulary and the search is re-run;
+//      the corrected search is used only if it scores better. The answer
+//      cache key now includes the worker version, so a deploy never serves
+//      answers written under the previous rules.
 //  11. BLUE/GREEN RETRAINS: /train and the new /reindex build a new
 //      index generation first and switch over only when it is complete,
 //      so answers never go blank mid-retrain. Old generation is then
@@ -71,7 +81,7 @@
 // match), v2.0 (streaming, answer cache).
 // ====================================================================
 
-const WORKER_VERSION = '2.5.2';
+const WORKER_VERSION = '2.6.0';
 
 // ---------- Model (fallback — the live choice is saved from the portal) ----------
 const MODEL = 'gemini-3.8-flash';
@@ -92,6 +102,10 @@ const LOW_CONF_VEC = 0.62;      // …AND best vector similarity below this = "n
 const MIN_KEEP_SCORE = 0.02;    // excerpts below this are dropped (keeping at least 3)
 const SOURCE_MIN_SCORE = 0.3;   // only confident excerpts are shown as sources
 const NEIGHBOR_CHUNKS = 3;      // continuation chunks added right after the top matches
+const TYPO_RETRY_BELOW = 0.3;   // best rerank score under this → try the search again with spelling fixed
+
+// ---------- Choices (tappable follow-up questions in the app) ----------
+const CHOICES_MARK = '[[CHOICES]]';
 
 // ---------- Office map (automatic overview of the whole manual) ----------
 const MAP_PART_CHARS = 360000;  // ~90k tokens per extraction call (stays under per-minute token limits)
@@ -120,6 +134,7 @@ let RATE_BUCKET = new Map();
 let USAGE = { day: '', count: 0, ts: 0 };
 let LIVE = { kv: null, ts: 0, model: MODEL, thinking: THINKING_LEVEL, updatedAt: null };
 let MAP_CACHE = { kv: null, ts: 0, val: null };
+let VOCAB = { key: '', words: null, byLen: null };
 
 export default {
   async fetch(request, env, ctx) {
@@ -197,7 +212,8 @@ async function handleAsk(request, env, ctx, origin, stream) {
     if (hit && hit.a) {
       logEvent(ctx, { evt: 'ask', cached: true, q: reqJson.question.slice(0, 150), ms: Date.now() - t0 });
       if (stream) return new Response(hit.a, { headers: { ...textHeaders(origin), 'X-AISA-Sources': encodeSources(hit.s), 'X-AISA-Cache': 'hit' } });
-      return jsonResponse({ answer: hit.a, sources: hit.s || [], cached: true }, 200, origin);
+      const sp = splitChoices(hit.a);
+      return jsonResponse(Object.assign({ answer: sp.text, sources: hit.s || [], cached: true }, reqJson.choices === true ? { choices: sp.choices } : {}), 200, origin);
     }
   }
 
@@ -217,7 +233,9 @@ async function handleAsk(request, env, ctx, origin, stream) {
     evt: 'ask', q: reqJson.question.slice(0, 150), model, thinking, mode: r.mode,
     lowConfidence: r.lowConfidence, topScore: round3(r.topScore), topVec: round3(r.topVec), exact: r.exactTokens,
     top: r.chosen.slice(0, 5).map(c => ({ s: round3(c.rr), v: round3(c.vs), p: c.path.slice(0, 90) })),
-    ms: { retrieval: tRetrieved - t0, embed: r.ms.embed, vector: r.ms.vector, rerank: r.ms.rerank }
+    spelling: r.fixes ? { fixes: r.fixes.map(f => f.from + '→' + f.to), used: !!r.spellFixed, firstScore: round3(r.firstScore) } : undefined,
+    choicesUI: reqJson.choices === true,
+    ms: { retrieval: tRetrieved - t0, embed: r.ms.embed, vector: r.ms.vector, rerank: r.ms.rerank, retry: r.ms.retry }
   };
 
   if (!stream) {
@@ -239,8 +257,9 @@ async function handleAsk(request, env, ctx, origin, stream) {
       const put = env.KNOWLEDGE_KV.put(cacheKey, JSON.stringify({ a: answer, s: r.sources }), { expirationTtl: ANSWER_CACHE_TTL_SECONDS }).catch(() => {});
       if (ctx && ctx.waitUntil) ctx.waitUntil(put);
     }
-    logEvent(ctx, Object.assign(meta, { finish: cand.finishReason, tokens: usageOf(data.usageMetadata), ms: Object.assign(meta.ms, { total: Date.now() - t0 }) }));
-    return jsonResponse({ answer, sources: r.sources }, 200, origin);
+    const sp = splitChoices(answer);
+    logEvent(ctx, Object.assign(meta, { finish: cand.finishReason, choices: sp.choices.length, tokens: usageOf(data.usageMetadata), ms: Object.assign(meta.ms, { total: Date.now() - t0 }) }));
+    return jsonResponse(Object.assign({ answer: sp.text, sources: r.sources }, reqJson.choices === true ? { choices: sp.choices } : {}), 200, origin);
   }
 
   const resp = await callGemini(env, geminiBody, true, model);
@@ -254,7 +273,7 @@ async function handleAsk(request, env, ctx, origin, stream) {
     if (cacheKey && res.complete && res.full.trim() && !r.degraded) {
       try { await env.KNOWLEDGE_KV.put(cacheKey, JSON.stringify({ a: cleanAnswer(res.full), s: r.sources }), { expirationTtl: ANSWER_CACHE_TTL_SECONDS }); } catch (e) {}
     }
-    logEvent(null, Object.assign(meta, { finish: res.finishReason, clientGone: res.clientGone, tokens: usageOf(res.usage), ms: Object.assign(meta.ms, { firstToken: res.firstTokenAt ? res.firstTokenAt - t0 : null, total: Date.now() - t0 }) }));
+    logEvent(null, Object.assign(meta, { finish: res.finishReason, clientGone: res.clientGone, choices: splitChoices(res.full).choices.length, tokens: usageOf(res.usage), ms: Object.assign(meta.ms, { firstToken: res.firstTokenAt ? res.firstTokenAt - t0 : null, total: Date.now() - t0 }) }));
   });
   if (ctx && ctx.waitUntil) ctx.waitUntil(pump);
   return new Response(readable, { headers: { ...textHeaders(origin), 'X-AISA-Sources': encodeSources(r.sources), 'X-AISA-Cache': 'miss' } });
@@ -272,7 +291,32 @@ function validateAsk(reqJson) {
 // ====================================================================
 async function retrieve(reqJson, env) {
   const { question, history } = reqJson;
-  const searchQuery = buildSearchQuery(question, history);
+  const out = await retrieveOnce(question, buildSearchQuery(question, history), env);
+  if (out.degraded || out.mode !== 'v2' || out.topScore >= TYPO_RETRY_BELOW) return out;
+
+  // Weak search: the question may be misspelled ("adjusmtnet"). The search
+  // matches meaning, and a misspelled word means nothing to it — so fix words
+  // that aren't in the manual but are 1–2 letters away from a manual word, and
+  // search again. Keep the second search only if it scores better, so a
+  // wrong "fix" can never make an answer worse.
+  const t = Date.now();
+  let fix = null;
+  try {
+    const vocab = await getVocab(env, await getIndexState(env));
+    fix = vocab ? spellFix(question, vocab) : null;
+  } catch (e) { console.error('Spelling check failed:', e && e.message); }
+  if (!fix || !fix.fixes.length) return out;
+  const again = await retrieveOnce(fix.text, buildSearchQuery(fix.text, history), env);
+  const better = !again.degraded && again.topScore >= out.topScore + 0.1 && again.topScore >= LOW_CONF_SCORE;
+  const pick = better ? again : out;
+  pick.fixes = fix.fixes;
+  pick.firstScore = out.topScore;
+  if (better) pick.spellFixed = fix.text;
+  pick.ms.retry = Date.now() - t;
+  return pick;
+}
+
+async function retrieveOnce(question, searchQuery, env) {
   const out = { mode: 'none', chosen: [], sources: [], lowConfidence: true, topScore: 0, topVec: 0, exactTokens: [], degraded: false, ms: {} };
   if (!env.VECTORIZE || !env.AI) { out.degraded = true; return out; }
 
@@ -391,6 +435,92 @@ function buildSearchQuery(question, history) {
   return (question + '\n(Context from previous question: ' + prev + ')').slice(0, 1500);
 }
 
+// ---------- Spelling (built from the manual itself, once per index generation) ----------
+async function getVocab(env, idx) {
+  const labels = Object.keys(idx.labels || {});
+  const key = labels.map(l => l + ':' + idx.labels[l].gen).join('|');
+  if (!key) return null;
+  if (VOCAB.key === key && VOCAB.words) return VOCAB;
+  const words = new Map();
+  const add = (w) => words.set(w, (words.get(w) || 0) + 1);
+  for (const label of labels) {
+    const store = await getChunkStore(env, label, idx.labels[label].gen);
+    if (!store) continue;
+    for (const text of store) {
+      const low = text.toLowerCase();
+      for (const w of low.match(/[a-z]{4,}/g) || []) add(w);
+      for (const w of low.match(/[a-z]+(?:-[a-z]+)+/g) || []) { const j = w.replace(/-/g, ''); if (j.length >= 4) add(j); } // "o-ties" → "oties"
+    }
+  }
+  if (!words.size) return null;
+  const byLen = new Map();
+  for (const w of words.keys()) { if (!byLen.has(w.length)) byLen.set(w.length, []); byLen.get(w.length).push(w); }
+  VOCAB = { key, words, byLen };
+  return VOCAB;
+}
+
+// Optimal-string-alignment distance (a swap of two neighbours counts as one
+// edit), giving up early once it exceeds max.
+function editDistance(a, b, max) {
+  const n = a.length, m = b.length;
+  if (Math.abs(n - m) > max) return max + 1;
+  let prev2 = null, prev = Array.from({ length: m + 1 }, (_, j) => j);
+  for (let i = 1; i <= n; i++) {
+    const cur = [i];
+    let rowMin = i;
+    for (let j = 1; j <= m; j++) {
+      let v = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      if (prev2 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) v = Math.min(v, prev2[j - 2] + 1);
+      cur.push(v);
+      if (v < rowMin) rowMin = v;
+    }
+    if (rowMin > max) return max + 1;
+    prev2 = prev; prev = cur;
+  }
+  return prev[m];
+}
+
+// Replace words of 5+ letters that never appear in the manual with the
+// closest manual word (1 edit for short words, 2 for longer ones; ties go to
+// the more common word). Plain inflections ("schools" → "school") are left alone.
+function spellFix(question, vocab) {
+  const fixes = [];
+  const text = String(question || '').replace(/[A-Za-z]{5,}/g, (w) => {
+    const lw = w.toLowerCase();
+    if (vocab.words.has(lw)) return w;
+    const maxD = lw.length <= 6 ? 1 : 2;
+    let best = null, bestD = maxD + 1, bestF = 0;
+    for (let L = lw.length - maxD; L <= lw.length + maxD; L++) {
+      for (const cand of (vocab.byLen.get(L) || [])) {
+        const d = editDistance(lw, cand, maxD);
+        if (d > maxD) continue;
+        const f = vocab.words.get(cand);
+        if (d < bestD || (d === bestD && f > bestF)) { best = cand; bestD = d; bestF = f; }
+      }
+    }
+    const inflection = (a, b) => a.startsWith(b) && /^(s|es|ed|d|ing|er|ers|ly)$/.test(a.slice(b.length));
+    if (!best || bestF < 3 || inflection(lw, best) || inflection(best, lw)) return w;
+    fixes.push({ from: w, to: best });
+    return best;
+  });
+  return { text, fixes };
+}
+
+// "Answer…\n[[CHOICES]]\n- Question 1\n- Question 2" → { text, choices }
+function splitChoices(answer) {
+  const s = String(answer || '');
+  const i = s.indexOf(CHOICES_MARK);
+  if (i === -1) return { text: s, choices: [] };
+  const choices = [];
+  for (const line of s.slice(i + CHOICES_MARK.length).split('\n')) {
+    const c = line.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, '').replace(/\*\*/g, '').trim();
+    if (!c || c.startsWith('[[') || c.length > 160 || choices.includes(c)) continue;
+    choices.push(c);
+    if (choices.length >= 4) break;
+  }
+  return { text: s.slice(0, i).trim(), choices };
+}
+
 function exactTokens(question) {
   const q = String(question || '');
   const out = [];
@@ -479,9 +609,35 @@ async function buildGeminiBody(reqJson, env, r, thinking) {
   let knowledge = '';
   r.chosen.forEach((c, k) => { knowledge += `\n--- Excerpt ${k + 1} ---\n${c.text.trim()}\n`; });
   if (!knowledge) knowledge = '\n(No excerpts were retrieved for this question.)\n';
-  const searchNote = r.lowConfidence
-    ? '\nSEARCH NOTE: The manual search found nothing that closely matches this question. If it asks how OUR office does something (a protocol, setting, product, fee, code, schedule, policy, person or contact) and no excerpt below clearly answers it, reply with the not-found line from the GROUNDING rules instead of filling the gap. General dental/orthodontic knowledge, questions about an attached image, and casual conversation can still be answered normally (label general knowledge as general).\n'
+
+  // The app can show tappable follow-up questions ("choices") — only when it says so.
+  const choicesUI = reqJson.choices === true;
+  let searchNote = r.lowConfidence
+    ? '\nSEARCH NOTE: The manual search found nothing that closely matches this question. If it asks how OUR office does something (a protocol, setting, product, fee, code, schedule, policy, person or contact) and no excerpt below clearly answers it, ' +
+      (choicesUI ? 'say in one sentence that you couldn\'t find it and offer choices (BEHAVIOR rule 1) instead of filling the gap.' : 'reply with the not-found line from the GROUNDING rules instead of filling the gap.') +
+      ' General dental/orthodontic knowledge, questions about an attached image, and casual conversation can still be answered normally (label general knowledge as general).\n'
     : '';
+  if (r.spellFixed) {
+    searchNote += `\nSEARCH NOTE: The question looks misspelled, so the manual was searched for: "${r.spellFixed.slice(0, 300)}". Answer that reading. If a misspelled word could also mean something else, say in a few words what you assumed (e.g., "Assuming you meant **adjustment**:").\n`;
+  }
+
+  const clarifyRule = choicesUI
+    ? `1. CLEAR QUESTION → JUST ANSWER. VAGUE OR NOT IN THE MANUALS → OFFER CHOICES:
+   - If the question is specific, just answer it (e.g., "How many turns for a standalone RPE?" → 28). No choices — never add them after a complete answer just to suggest related topics.
+   - If it is vague or could mean different things (e.g., "What do I need for an adjustment?" — braces or aligners?), briefly answer the most likely meaning if the excerpts cover it, then offer choices for the other meanings.
+   - If the excerpts don't answer it, never leave the person at a dead end: say so in one short sentence, then offer choices — the closest questions our manuals DO answer (pick them from the excerpts and the OFFICE MAP).
+   - Choices go at the very end of the reply, in exactly this format (the app turns them into buttons):
+     ${CHOICES_MARK}
+     - First question
+     - Second question
+     Give 2-4 choices. Each is a complete question of 12 words or fewer, phrased the way a staff member would ask it, specific enough to answer from the manuals, and different from the others. Don't repeat the original question, and don't write "or ask something else" — the app adds a "Something else" button.`
+    : `1. CLARIFY ONLY WHEN IT MATTERS:
+   - If the question is specific, just answer it (e.g., "How many turns for a standalone RPE?" → 28).
+   - If the answer depends on the situation and the options fit in 2-3 short bullets, give each option briefly instead of asking.
+   - Ask ONE short clarifying question (offering 2-4 options) only when covering every option would be long or could mislead.`;
+  const notFoundRule = choicesUI
+    ? `e. If the excerpts don't contain the answer, say "I couldn't find that in our manuals." and offer choices (BEHAVIOR rule 1). Do not guess. If they answer only part of the question, give that part and say in a few words what the manual doesn't cover — don't tack the not-found sentence onto a real answer.`
+    : `e. If the excerpts don't contain the answer, say: "I'm not finding that specific detail in our manuals yet. I can flag that for Dr. Akhavan, or is there something else I can help with?" Do not guess. If they answer only part of the question, give that part and say in a few words what the manual doesn't cover — don't tack the not-found line onto a real answer.`;
 
   const systemInstruction = `You are AISA, a friendly and experienced Senior Clinical Assistant at Next Level Orthodontics.
 ${versionLine}
@@ -540,10 +696,7 @@ CONTENT CATEGORIES — Adjust your style based on what the question is about:
 - Brainstorming (gift ideas, team activities) can be creative and can use what the staff bios say about the person being discussed — but never invent facts about a person (birthdays, titles, start dates, family details).
 
 BEHAVIOR:
-1. CLARIFY ONLY WHEN IT MATTERS:
-   - If the question is specific, just answer it (e.g., "How many turns for a standalone RPE?" → 28).
-   - If the answer depends on the situation and the options fit in 2-3 short bullets, give each option briefly instead of asking.
-   - Ask ONE short clarifying question (offering 2-4 options) only when covering every option would be long or could mislead.
+${clarifyRule}
 
 2. ANSWER THE SPECIFIC QUESTION:
    - Give ONLY the information needed to answer the question. Nothing extra. Nothing "while we're on the topic."
@@ -556,7 +709,7 @@ BEHAVIOR:
    b. NEVER invent contact details. Give a name, phone number, email or address only if it appears in the excerpts. If it is not there, say you don't have it on file and suggest checking with Sarah or Dr. Akhavan.
    c. NEVER say or imply that the office uses a product, brand, device, material or technique unless the excerpts say so. General dental knowledge must be labeled as general ("In general, ..."), never phrased as "we use" or "our office".
    d. General orthodontic knowledge is fine for definitions and background (the FOUNDATIONAL category), clearly labeled as general.
-   e. If the excerpts don't contain the answer, say: "I'm not finding that specific detail in our manuals yet. I can flag that for Dr. Akhavan, or is there something else I can help with?" Do not guess. If they answer only part of the question, give that part and say in a few words what the manual doesn't cover — don't tack the not-found line onto a real answer.
+   ${notFoundRule}
    f. Excerpts labeled NEGATIVE EXAMPLES contain statements marked INCORRECT on purpose. Never repeat an INCORRECT line as fact — use the CORRECT line.
    g. If two excerpts conflict, follow the more specific SOP, mention the discrepancy in one short line, and suggest confirming with Dr. Akhavan.
    h. Each excerpt starts with its location in the manual in [brackets]. Use it to judge which excerpt applies (e.g., MARPE vs RPE, braces vs aligners) and to cite the SOP.
@@ -1334,7 +1487,9 @@ async function answerCacheKey(reqJson, env, model, thinking) {
   const norm = question.toLowerCase().trim().replace(/\s+/g, ' ').replace(/[?.!\s]+$/, '');
   if (!norm) return null;
   const gen = await getAnsGen(env);
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode((model || MODEL) + '|' + (thinking || THINKING_LEVEL) + '|' + norm));
+  // Worker version: a deploy with new rules never serves answers written under the old ones.
+  // Choices flag: the app that shows buttons gets a different answer than one that can't.
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(WORKER_VERSION + '|' + (reqJson.choices === true ? 'c' : '-') + '|' + (model || MODEL) + '|' + (thinking || THINKING_LEVEL) + '|' + norm));
   const hex = [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, '0')).join('');
   return 'anscache2:' + gen + ':' + hex;
 }
