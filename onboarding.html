@@ -243,6 +243,10 @@ details.src li{margin:3px 0}
 .md table{border-collapse:collapse;width:100%;font-size:14px;display:block;overflow-x:auto}
 .md th,.md td{border:1px solid var(--g200);padding:8px 10px;text-align:left;vertical-align:top}
 .md th{background:var(--g50);font-weight:700;color:var(--navy)}
+.md .fig{margin:16px 0 4px;text-align:center}
+.md .fig a{display:block}
+.md .fig img{display:block;max-width:100%;height:auto;margin:0 auto;background:#fff;border:1px solid var(--g200);border-radius:12px;padding:10px}
+.md .fig figcaption{font-size:13.5px;line-height:1.45;color:var(--g600);margin-top:8px}
 .co{border-radius:12px;padding:12px 14px;border-left:4px solid var(--blue);background:var(--blue-100);color:var(--navy)}
 .co-tip{border-color:var(--mint-700);background:var(--mint-100)}
 .co-imp{border-color:var(--amber);background:var(--amber-100)}
@@ -638,9 +642,24 @@ function calloutKind(t) {
   if (/ask/.test(k)) return 'ask';
   return 'why';
 }
-function md(src) {
+/* images: a line of its own, ![caption](link). Links: https (Google Drive share links become
+   Drive thumbnails, like the SOP manual) or a picture shipped with the app (img/onboarding/x.png). */
+const IMG_RE = /^\s*!\[([^\]]*)\]\(\s*([^\s)]+)\s*\)\s*$/;
+function imgSrc(u) {
+  u = String(u || '').trim(); let m;
+  if ((m = /^https:\/\/drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?(?:export=\w+&)?id=)([\w-]{20,})/.exec(u))) return 'https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w1600';
+  if (/^https:\/\/[^\s"'<>]+$/.test(u)) return u;
+  if (/^[a-z0-9][\w/-]*\.(png|jpe?g|gif|webp|svg)$/i.test(u) && u.indexOf('..') < 0) return u;
+  return '';
+}
+function figure(cap, src) {
+  const alt = cap.replace(/[*`]/g, '').trim();
+  return `<figure class="fig"><a href="${esc(src)}" target="_blank" rel="noopener" title="Open full size"><img src="${esc(src)}" alt="${esc(alt)}" loading="lazy"></a>${cap.trim() ? `<figcaption>${mdInline(cap.trim())}</figcaption>` : ''}</figure>`;
+}
+function md(src, opt) {
   const lines = String(src || '').replace(/\r\n?/g, '\n').split('\n');
   const out = [];
+  const imgs = !(opt && opt.noImg);
   let i = 0;
   const isList = l => /^\s*([-*+]|\d+[.)])\s+/.test(l);
   const isTableSep = l => /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(l);
@@ -649,6 +668,7 @@ function md(src) {
     const line = lines[i];
     if (!line.trim()) { i++; continue; }
     let m;
+    if (imgs && (m = IMG_RE.exec(line)) && imgSrc(m[2])) { out.push(figure(m[1], imgSrc(m[2]))); i++; continue; }
     if ((m = /^(#{1,4})\s+(.*)$/.exec(line))) {
       const lvl = clamp(m[1].length, 2, 4);
       out.push(`<h${lvl}>${mdInline(m[2])}</h${lvl}>`); i++; continue;
@@ -676,7 +696,7 @@ function md(src) {
       continue;
     }
     const para = [];
-    while (i < lines.length && lines[i].trim() && !isList(lines[i]) && !/^\s*>/.test(lines[i]) && !/^#{1,4}\s/.test(lines[i]) && !(/^\s*\|/.test(lines[i]) && i + 1 < lines.length && isTableSep(lines[i + 1]))) { para.push(lines[i].trim()); i++; }
+    while (i < lines.length && lines[i].trim() && !isList(lines[i]) && !/^\s*>/.test(lines[i]) && !/^#{1,4}\s/.test(lines[i]) && !(imgs && IMG_RE.test(lines[i]) && para.length) && !(/^\s*\|/.test(lines[i]) && i + 1 < lines.length && isTableSep(lines[i + 1]))) { para.push(lines[i].trim()); i++; }
     out.push('<p>' + mdInline(para.join(' ')) + '</p>');
   }
   return out.join('');
@@ -2188,7 +2208,7 @@ function edLessonHtml(l, i) {
     fields = `<div class="fld"><label>Title</label><input class="in" data-el="${i}" data-f="title" value="${esc(l.title || '')}"></div>`;
     if (l.kind === 'sop') fields += `<div class="fld"><label>SOP</label><input class="in" data-el="${i}" data-f="sop" value="${esc(l.sop || '')}" placeholder="e.g. sop-ic-002" list="sopList"><datalist id="sopList">${SOPS.list.map(s => `<option value="${esc(s.id)}">${esc(s.code)} ${esc(s.title)}</option>`).join('')}</datalist><div class="hint">${SOPS.list.length ? 'Start typing an SOP id or pick from the list.' : '<a href="#" data-act="loadSopList">Load the SOP list</a>'}</div></div>`;
     if (l.kind === 'doc' || l.kind === 'video') fields += `<div class="fld"><label>Link (https://…)</label><input class="in" data-el="${i}" data-f="url" value="${esc(l.url || '')}"><label class="chk" style="margin-top:8px"><input type="checkbox" data-el="${i}" data-f="office" ${l.office ? 'checked' : ''}> Office computers only (it may show patient information, so it won’t open on phones)</label></div>`;
-    if (['read', 'sop', 'doc', 'video', 'skill', 'task', 'ack'].indexOf(l.kind) >= 0) fields += `<div class="fld"><label>${l.kind === 'read' ? 'Lesson text' : 'Intro / instructions'} <span class="tiny">(## heading, **bold**, - bullets, 1. steps, > **Tip:** callout, | tables |)</span></label><textarea class="in code" data-el="${i}" data-f="body">${esc(l.body || '')}</textarea><button class="btn btn-g btn-sm" data-act="edPreview" data-i="${i}">${ic('eye', 14)}Preview</button><div id="edPrev${i}"></div></div>`;
+    if (['read', 'sop', 'doc', 'video', 'skill', 'task', 'ack'].indexOf(l.kind) >= 0) fields += `<div class="fld"><label>${l.kind === 'read' ? 'Lesson text' : 'Intro / instructions'} <span class="tiny">(## heading, **bold**, - bullets, 1. steps, > **Tip:** callout, | tables |, ![caption](picture link) on its own line)</span></label><textarea class="in code" data-el="${i}" data-f="body">${esc(l.body || '')}</textarea><button class="btn btn-g btn-sm" data-act="edPreview" data-i="${i}">${ic('eye', 14)}Preview</button><div id="edPrev${i}"></div></div>`;
     if (l.kind === 'ack') fields += `<div class="fld"><label>Statement they agree to</label><input class="in" data-el="${i}" data-f="statement" value="${esc(l.statement || '')}"></div>`;
     if (l.kind === 'task') fields += `<div class="fld"><label>Checklist items (one per line)</label><textarea class="in" data-el="${i}" data-f="stepsText">${esc(arr(l.steps).join('\n'))}</textarea></div>`;
     if (l.kind === 'skill') fields += `<div class="fld"><label>What the trainer checks (one per line)</label><textarea class="in" data-el="${i}" data-f="criteriaText">${esc(arr(l.criteria).join('\n'))}</textarea></div>
@@ -2379,7 +2399,7 @@ function aisaVisible() {
 function aisaMsgsHtml() {
   const ctx = aisaContext();
   const last = AISA.msgs[AISA.msgs.length - 1];
-  return (AISA.msgs.length ? AISA.msgs.map(m => `<div class="bub ${m.r === 'u' ? 'u' : 'a md'}">${m.r === 'u' ? esc(m.t) : md(m.t)}</div>`).join('')
+  return (AISA.msgs.length ? AISA.msgs.map(m => `<div class="bub ${m.r === 'u' ? 'u' : 'a md'}">${m.r === 'u' ? esc(m.t) : md(m.t, { noImg: true })}</div>`).join('')
     : `<div class="bub a"><b>Hi ${esc(pfirst(S.actor))}!</b> Ask me anything about how we do things at NLO${ctx ? ' — for example about “' + esc(ctx) + '”' : ''}. I answer from our SOPs; when it really matters, double-check with your trainer.</div>`)
     + (AISA.busy && !(last && last.r === 'a' && last.streaming) ? '<div class="bub a"><div class="spin" style="width:20px;height:20px;border-width:2px;margin:0"></div></div>' : '');
 }
@@ -2424,7 +2444,7 @@ async function aisaSend() {
     if (r.ok && r.body && ct.indexOf('text/plain') >= 0) {
       const msg = { r: 'a', t: '', streaming: true }; AISA.msgs.push(msg); renderAisa();
       const rd = r.body.getReader(); const dec = new TextDecoder();
-      for (;;) { const ch = await rd.read(); if (ch.done) break; msg.t += dec.decode(ch.value, { stream: true }); const last = $$('#aisaMsgs .bub.a').pop(); if (last) { last.innerHTML = md(msg.t); const b = $('#aisaMsgs'); b.scrollTop = b.scrollHeight; } else renderAisa(); }
+      for (;;) { const ch = await rd.read(); if (ch.done) break; msg.t += dec.decode(ch.value, { stream: true }); const last = $$('#aisaMsgs .bub.a').pop(); if (last) { last.innerHTML = md(msg.t, { noImg: true }); const b = $('#aisaMsgs'); b.scrollTop = b.scrollHeight; } else renderAisa(); }
       msg.t += dec.decode(); msg.streaming = false; answer = msg.t;
     }
   } catch (e) { answer = ''; }
