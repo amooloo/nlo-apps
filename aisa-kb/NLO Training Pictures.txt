@@ -10,7 +10,7 @@ The standard debond tray (removing braces, RB). On the left: cheek retractors an
 In the onboarding app: Clinical → Debonds, Bite Turbos & Retainers → Day of debond: the checklist.
 Search words: debond tray, debond setup, deband, removing braces, RB, bracket removal, debonding instruments, what goes on the debond tray.
 [PHOTO: Debond tray setup]
-https://amooloo.github.io/nlo-apps/img/onboarding/debond-tray.jpg
+https://drive.google.com/thumbnail?id=1T1G7EOODrKBTjZgyioF2SizonQyxmgiB&sz=w800
 
 ============================================================
 DEBOND WITH A BONDED (FIXED) RETAINER — TRAY PICTURE
@@ -19,7 +19,7 @@ The debond tray plus the bonded-retainer supplies from SOP-CL-024 (Retainium dir
 In the onboarding app: Clinical → Debonds, Bite Turbos & Retainers → Day of debond: the checklist, and the Retainium SOP lesson.
 Search words: fixed retainer setup, bonded retainer tray, permanent retainer, lingual retainer, Retainium, debond with fixed retainer, DB retainer.
 [PHOTO: Debond tray with bonded (fixed) retainer supplies]
-https://amooloo.github.io/nlo-apps/img/onboarding/debond-fixed-retainer-tray.jpg
+https://drive.google.com/thumbnail?id=14YV_KWR2o6A2B_uUraDyo2MGkGtx7Iz2&sz=w800
 
 ============================================================
 BRACES BONDING TRAY — PICTURE
@@ -35,27 +35,36 @@ HAWLEY RETAINER DELIVERY TRAY — PICTURE
 ============================================================
 The setup for delivering a Hawley retainer (wire and acrylic, from Partners Dental Studio). Hawleys are delivered in the chair (Edge codes 434, 435 with a pontic, 414 with a finger spring), not handed over at the front desk like clear retainers. The tray: cotton pliers (tweezers), mouth mirror, bird beak pliers and 3-prong pliers. The bird beak and 3-prong pliers adjust the wire bow and the clasps so the retainer fits snugly. They are two different pliers: the bird beak has one round, cone-shaped beak and one flat-sided beak; the 3-prong has two prongs on one jaw and a single prong that closes between them.
 In the onboarding app: Clinical → Debonds, Bite Turbos & Retainers → Retainer pickup and the final retainer check, and Clinical → Adjustments → Orthodontic instruments.
-Search words: Hawley setup, Hawley delivery, removable retainer delivery, bird beak plier, 3-prong plier, three prong plier, adjusting a Hawley, clasp adjustment.
+Search words: Hawley setup, Hawley delivery, labeled instrument tray, cotton pliers, tweezers, mouth mirror, removable retainer delivery, bird beak plier, 3-prong plier, three prong plier, adjusting a Hawley, clasp adjustment.
 [PHOTO: Hawley retainer delivery tray]
-https://amooloo.github.io/nlo-apps/img/onboarding/hawley-delivery-tray.jpg
+https://drive.google.com/thumbnail?id=13m7fT9XLrxAhLklY4oz3Zk1STeT9dek_&sz=w800
 
 ============================================================
 D2 DISTALIZER DELIVERY TRAY — PICTURE
 ============================================================
 The setup for bonding a D2 distalizer and delivering the opposing-arch retainer (SOP-CL-030, Edge code 430). The D2 arrives already sized and confirmed by Dr. Akhavan in NL Lab; nothing is sized or adjusted chairside. The tray: the sterile instrument pack, a wire cutter, the adhesive dispenser, gauze and cotton rolls, cheek retractors, the patient's D2 case, Assure Plus, etch and a microbrush, and the curing light. Also set out the elastics for the patient's class (Class II: 2 bags Sea Lion + 2 bags Cheetah; Class III: 4 bags Sea Lion).
 In the onboarding app: Clinical → Assisting Doctor Procedures → TADs, topical anesthetic and the D2 distalizer, and the D2 SOP lesson.
-Search words: D2 setup, D2 delivery, D2 appliance, distalizer delivery, bond distalizer, Class II corrector, what goes on the D2 tray.
+Search words: D2 setup, D2 delivery, D2 appliance, distalizer delivery, bond distalizer, Class II corrector, what goes on the D2 tray, Ledex curing light.
 [PHOTO: D2 distalizer delivery setup]
-https://amooloo.github.io/nlo-apps/img/onboarding/d2-delivery-tray.jpg
+https://drive.google.com/thumbnail?id=13InaJzieyYJzzsF0utNRLTJ2bZrUQhCd&sz=w800
 
 ============================================================
 DETAILING APPOINTMENT TRAY — PICTURE
 ============================================================
 The setup for a detailing appointment near the end of braces, on the 16x22 finishing wire (SOP-CL-018). It is the regular adjustment cassette plus two pliers for Dr. Akhavan's wire bends: the arch forming plier (arch former), which shapes the curve of the archwire, and the Tweed plier, which bends rectangular wire, including torque bends. While the patient brushes, lay out both pliers and label each removed wire by arch and side so Dr. Akhavan can bend it.
 In the onboarding app: Clinical → Detailing, Equipment & Down-Time → Detailing Appointment (Braces), and Clinical → Adjustments → Orthodontic instruments.
-Search words: detailing setup, detailing tray, detailing appointment, Tweed plier, arch forming plier, arch former, finishing bends, wire bends, 16x22 TMA, Resolve.
+Search words: detailing setup, detailing tray, detailing appointment, Tweed plier, tweet plier, arch forming plier, arch former, finishing bends, wire bends, 16x22 TMA, Resolve.
 [PHOTO: Detailing tray: adjustment cassette, arch former and Tweed plier]
 https://amooloo.github.io/nlo-apps/img/onboarding/detailing-tray.jpg
+
+============================================================
+GINGIVECTOMY TRAY (GUM CONTOURING WITH THE ELECTROSURGE) — PICTURE
+============================================================
+The setup for a gingivectomy or gum contouring with the Sensimatic 700SE electrosurge (SOP-EQ-001). Dr. Akhavan does the procedure; the assistant sets up, assists and cleans up. On the left: cheek retractors and the photo mirror for before-and-after photos. On the tray: the aspirating syringe in its sterile pouch, a local anesthetic carpule and a disposable syringe, topical anesthetic with cotton-tip applicators (SOP-CL-016), a mouth mirror and perio probe, electrosurge electrodes, cheek retractors, a suction tip, cotton rolls and 2x2 gauze. Chlorhexidine gluconate 0.12% rinse and a cup sit above the tray. The metal mirror and probe are for before and after: once the electrosurge is on, only plastic (non-conducting) instruments go near the tissue. Never use the electrosurge on a patient with a pacemaker or other implanted electronic device.
+In the onboarding app: Clinical → Detailing, Equipment & Down-Time → The electrosurge unit: safety first.
+Search words: gingivectomy, gingivectomy setup, gum contouring, gingival contouring, electrosurge, electrosurgery, Sensimatic, tray setup, chlorhexidine, aspirating syringe, anesthetic, cheek retractors, intraoral mirror.
+[PHOTO: Gingivectomy tray setup (electrosurge)]
+https://drive.google.com/thumbnail?id=1ZGHYoMmTyEq7dgmCUU9ddaGXeaNoOfJC&sz=w800
 
 ============================================================
 BITE CLASSES: CLASS I, II AND III — PICTURE
