@@ -656,10 +656,16 @@ function figure(cap, src) {
   const alt = cap.replace(/[*`]/g, '').trim();
   return `<figure class="fig"><a href="${esc(src)}" target="_blank" rel="noopener" title="Open full size"><img src="${esc(src)}" alt="${esc(alt)}" loading="lazy"></a>${cap.trim() ? `<figcaption>${mdInline(cap.trim())}</figcaption>` : ''}</figure>`;
 }
+/* AISA answers may show pictures from NLO's own sources only: the app's picture folder and Drive thumbnails */
+const TRUSTED_IMG_RE = /^(https:\/\/amooloo\.github\.io\/nlo-apps\/img\/|https:\/\/drive\.google\.com\/thumbnail\?|img\/onboarding\/)/;
 function md(src, opt) {
-  const lines = String(src || '').replace(/\r\n?/g, '\n').split('\n');
+  const trusted = !!(opt && opt.trustedImg);
+  let text = String(src || '').replace(/\r\n?/g, '\n');
+  if (trusted) text = text.replace(/!\[[^\]\n]*\]\([^)\s]+\)/g, m => '\n' + m + '\n'); /* a picture inside a sentence gets its own line */
+  const lines = text.split('\n');
   const out = [];
   const imgs = !(opt && opt.noImg);
+  const okImg = u => { const s = imgSrc(u); return s && (!trusted || TRUSTED_IMG_RE.test(s)) ? s : ''; };
   let i = 0;
   const isList = l => /^\s*([-*+]|\d+[.)])\s+/.test(l);
   const isTableSep = l => /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(l);
@@ -668,7 +674,7 @@ function md(src, opt) {
     const line = lines[i];
     if (!line.trim()) { i++; continue; }
     let m;
-    if (imgs && (m = IMG_RE.exec(line)) && imgSrc(m[2])) { out.push(figure(m[1], imgSrc(m[2]))); i++; continue; }
+    if (imgs && (m = IMG_RE.exec(line)) && okImg(m[2])) { out.push(figure(m[1], okImg(m[2]))); i++; continue; }
     if ((m = /^(#{1,4})\s+(.*)$/.exec(line))) {
       const lvl = clamp(m[1].length, 2, 4);
       out.push(`<h${lvl}>${mdInline(m[2])}</h${lvl}>`); i++; continue;
@@ -2399,7 +2405,7 @@ function aisaVisible() {
 function aisaMsgsHtml() {
   const ctx = aisaContext();
   const last = AISA.msgs[AISA.msgs.length - 1];
-  return (AISA.msgs.length ? AISA.msgs.map(m => `<div class="bub ${m.r === 'u' ? 'u' : 'a md'}">${m.r === 'u' ? esc(m.t) : md(m.t, { noImg: true })}</div>`).join('')
+  return (AISA.msgs.length ? AISA.msgs.map(m => `<div class="bub ${m.r === 'u' ? 'u' : 'a md'}">${m.r === 'u' ? esc(m.t) : md(m.t, { trustedImg: true })}</div>`).join('')
     : `<div class="bub a"><b>Hi ${esc(pfirst(S.actor))}!</b> Ask me anything about how we do things at NLO${ctx ? ' — for example about “' + esc(ctx) + '”' : ''}. I answer from our SOPs; when it really matters, double-check with your trainer.</div>`)
     + (AISA.busy && !(last && last.r === 'a' && last.streaming) ? '<div class="bub a"><div class="spin" style="width:20px;height:20px;border-width:2px;margin:0"></div></div>' : '');
 }
@@ -2444,7 +2450,7 @@ async function aisaSend() {
     if (r.ok && r.body && ct.indexOf('text/plain') >= 0) {
       const msg = { r: 'a', t: '', streaming: true }; AISA.msgs.push(msg); renderAisa();
       const rd = r.body.getReader(); const dec = new TextDecoder();
-      for (;;) { const ch = await rd.read(); if (ch.done) break; msg.t += dec.decode(ch.value, { stream: true }); const last = $$('#aisaMsgs .bub.a').pop(); if (last) { last.innerHTML = md(msg.t, { noImg: true }); const b = $('#aisaMsgs'); b.scrollTop = b.scrollHeight; } else renderAisa(); }
+      for (;;) { const ch = await rd.read(); if (ch.done) break; msg.t += dec.decode(ch.value, { stream: true }); const last = $$('#aisaMsgs .bub.a').pop(); if (last) { last.innerHTML = md(msg.t, { trustedImg: true }); const b = $('#aisaMsgs'); b.scrollTop = b.scrollHeight; } else renderAisa(); }
       msg.t += dec.decode(); msg.streaming = false; answer = msg.t;
     }
   } catch (e) { answer = ''; }
