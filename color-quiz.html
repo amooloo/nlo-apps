@@ -11,8 +11,9 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Oswald:wght@400;500&display=swap" rel="stylesheet">
 <!--
-  NLO color quiz: the page a team member opens from the link Dr. Akhavan sends from Staff Hub.
+  NLO color quiz: the page a team member (or a job candidate) opens from the link Dr. Akhavan sends from Staff Hub.
   No login. The link carries Staff Hub's account id (u) and a one-time invite code (t).
+  The invite holds a first name, and k:'c' when it was sent to a candidate (only the wording changes).
   The answers are written once to Firestore (project nlo-staff-hub) and Staff Hub imports them
   into the person's encrypted record, then deletes the invite and the answers.
 -->
@@ -155,7 +156,7 @@ h1{font-family:var(--fd);font-weight:500;font-size:30px;letter-spacing:.3px;line
   })();
 
   var picks = LIST.map(function () { return false; });   /* in the fixed order above */
-  var first = '', sending = false, invRef = null, ansRef = null;
+  var first = '', cand = false, sending = false, invRef = null, ansRef = null;
 
   /* progress survives a reload on the same phone */
   var KEY = link ? 'nloColorQuiz:' + link.t : '';
@@ -198,7 +199,9 @@ h1{font-family:var(--fd);font-weight:500;font-size:30px;letter-spacing:.3px;line
   function quizView() {
     show(
       '<h1>' + (first ? 'Hi ' + esc(first) + '!' : 'Hi there!') + '</h1>' +
-      '<p class="lead">Dr. Akhavan would like you to take the <b>Color Assessment</b>, a quick way to see how you like to communicate and work, so we can work even better together.</p>' +
+      (cand
+        ? '<p class="lead">Thanks for your interest in Next Level Orthodontics! Dr. Akhavan would like you to take the <b>Color Assessment</b>, a quick way to see how you like to communicate and work.</p>'
+        : '<p class="lead">Dr. Akhavan would like you to take the <b>Color Assessment</b>, a quick way to see how you like to communicate and work, so we can work even better together.</p>') +
       '<div class="card"><h2>Check every word that sounds like you</h2><p class="sub">Go with your gut. There are no wrong answers, and it takes about 2 minutes.</p><div class="grid">' +
       shuffledOrder(link.t).map(function (i) {
         return '<label class="chip' + (picks[i] ? ' on' : '') + '"><input type="checkbox" data-i="' + i + '"' + (picks[i] ? ' checked' : '') + '><span class="bx">' + ICON.tick + '</span><span>' + esc(LIST[i].tr) + '</span></label>';
@@ -279,6 +282,7 @@ h1{font-family:var(--fd);font-weight:500;font-size:30px;letter-spacing:.3px;line
       if (!s.exists) { usedUp(); return; }
       /* a first name only: letters, spaces, apostrophes, periods, hyphens */
       first = String((s.data() || {}).first || '').replace(/[^\p{L}\p{M}' .-]/gu, '').replace(/\s+/g, ' ').trim().slice(0, 24);
+      cand = (s.data() || {}).k === 'c';   /* sent to a job candidate rather than a team member */
       quizView();
     }).catch(function (e) {
       if (e && e.code === 'permission-denied') message(ICON.alert, 'This link isn’t working yet', 'Please let Dr. Akhavan know so he can fix it.');

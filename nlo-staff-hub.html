@@ -387,6 +387,9 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
 .nhHireWhen{width:210px;font-size:13px;color:var(--grey-700)}
 .nhHireWhen .tiny{display:none}
 .nhHireProg{width:200px;display:flex;align-items:center;gap:9px}
+.candClrCol{width:230px;font-size:13px;color:var(--grey-700)}
+.candClr{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}
+.candClr .tiny{margin:0}
 .nhDet{border:1px solid var(--grey-200);border-radius:12px;padding:0 14px;margin:12px 0 0;background:var(--grey-50)}
 .nhDet[open]{padding-bottom:4px;background:#fff}
 .nhDet summary{display:flex;align-items:center;gap:8px;cursor:pointer;padding:12px 0;font-weight:600;color:var(--navy);font-size:13px;list-style:none}
@@ -434,6 +437,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
   .nhHireRow .nhHireWhen,.nhHireRow .nhHireProg{width:100%;padding-left:43px}
   .nhHireRow .nhHireWhen .tiny{display:inline}
   .nhHireRow .nhRowA{padding-left:43px}
+  .nhHireRow .candClrCol{width:100%;padding-left:43px}
   .nhAddrRow{grid-template-columns:1fr 1fr}
 }
 /* long toasts on phones: full-width rounded card instead of a stretched pill */
@@ -3251,10 +3255,11 @@ document.addEventListener('change', e => {
 
 /* =====================================================
    COLOR QUIZ BY LINK
-   Send a team member a one-time link to color-quiz.html so they
-   take the Color Assessment on their own phone, with no login.
+   Send a team member (or a candidate, see CANDIDATES) a one-time link to
+   color-quiz.html so they take the Color Assessment on their own phone, with no login.
    Firestore, under this account:
-     staffhub/{uid}/colorQuiz/{code}     the invite: first name + staff id
+     staffhub/{uid}/colorQuiz/{code}     the invite: first name + staff or candidate id
+                                         (+ k:'c' for a candidate, which changes the page's wording)
      staffhub/{uid}/colorAnswers/{code}  their answers: 48 ones/zeros in
                                          COLOR_TRAITS order (red, blue, green, purple)
    Making a link, turning one off, and importing answers each save the
@@ -3272,6 +3277,7 @@ const QUIZ_QR_LIB = 'https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4
 const QUIZ_QR_SRI = 'sha512-ZDSPMa/JM1D+7kdg2x3BsruQ6T/JpJo3jWDWkCZsP+5yVyp1KfESqLI+7RqB5k24F7p2cV7i2YHh/890y6P6Sw==';
 const QUIZ_ORDER = ['red', 'blue', 'green', 'purple'];
 let quizUnsub = null, quizWatchTimer = null, quizBusy = false, quizQrLoad = null, quizCopyTexts = {}, quizPending = [];
+let quizLostTimer = null, quizLostBusy = false;
 const quizClaiming = new Set(), quizTries = {};
 
 function quizTraitList() { const L = []; QUIZ_ORDER.forEach(c => COLOR_TRAITS[c].forEach(tr => L.push({ tr, c }))); return L; }
@@ -3286,6 +3292,14 @@ function quizDay(ms) { return new Date(ms || Date.now()).toLocaleDateString('en-
 function quizColorName(c) { return STAFF_COLORS[c] ? STAFF_COLORS[c].label.split(' — ')[0] : ''; }
 const quizSleep = ms => new Promise(r => setTimeout(r, ms));
 function quizLog(st, text) { st.activity = st.activity || []; st.activity.unshift({ ts: Date.now(), text }); if (st.activity.length > 200) st.activity.length = 200; }
+/* who a link can belong to: a staff member (S.staff) or a candidate (S.nh.cands), in S or a copy of it */
+function quizHolderIn(st, id) {
+  if (!st || !id) return null;
+  return ((st.staff || []).find(x => x && x.id === id)) || candList(st).find(x => x && x.id === id) || null;
+}
+function quizHolder(id) { return quizHolderIn(S, id); }
+function quizIsCand(st, p) { return !!p && candList(st).indexOf(p) >= 0; }
+function quizShortDay(ms) { return new Date(ms || Date.now()).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); }
 function quizErrText(r) {
   if (r && r.stale) return 'Staff Hub is still syncing. Try again in a moment.';
   const e = r && r.err, c = String((e && (e.code || e.message)) || '');
@@ -3295,6 +3309,7 @@ function quizErrText(r) {
 }
 /* re-render, unless a note is being typed on the page (it catches up on the next render) */
 function quizRender() {
+  if (!S) return;   /* locked while a quiz save was finishing */
   const a = document.activeElement, m = $('#main');
   if (a && m && m.contains(a) && (a.tagName === 'TEXTAREA' || (a.tagName === 'INPUT' && !/^(checkbox|radio|button|submit)$/i.test(a.type)))) return;
   render();
@@ -3302,8 +3317,11 @@ function quizRender() {
 
 /* Save S (with a change) and the quiz docs in ONE transaction, only when this copy of Staff Hub has
    the latest record. prepare(tx, copy) does its reads, edits the copy of S and returns { write(tx) },
-   or null to do nothing. Returns { ok, rev, plan } | { stale } | { tooBig } | { err } | { skip }. */
-async function quizAtomic(prepare) {
+   or null to do nothing. apply(plan), if given, makes the same change to the live S and runs right
+   after the commit, before anything else can save or copy S: a save that was queued meanwhile must
+   not write out an S that doesn't have the change yet (it would overwrite the transaction's save).
+   Returns { ok, rev, plan, live } | { stale } | { tooBig } | { err } | { skip }. */
+async function quizAtomic(prepare, apply) {
   if (!S || !cryptoKey || !keySalt || !fbDocRef || !fbDB) return { skip: true };
   if (fbWriteInFlight) return { stale: true };
   const key = cryptoKey, salt = keySalt, base = lastAppliedRev, docRef = fbDocRef, snap = JSON.stringify(S);
@@ -3325,40 +3343,66 @@ async function quizAtomic(prepare) {
       return { ok: true, rev: base + 1, plan: plan };
     });
   } catch (e) { res = { err: e }; }
+  if (res && res.ok) {
+    if (res.rev > lastAppliedRev) { lastAppliedRev = res.rev; localRev = Math.max(localRev || 0, res.rev); setSyncState('synced'); }
+    if (apply && S) { try { res.live = apply(res.plan); } catch (e) { try { console.error(e); } catch (x) {} } }
+  }
   fbWriteInFlight = false;
-  if (res && res.ok && res.rev > lastAppliedRev) { lastAppliedRev = res.rev; localRev = Math.max(localRev || 0, res.rev); setSyncState('synced'); }
   if (res && res.tooBig) toast('Your data has reached Firestore’s 1 MB per-record limit, so this couldn’t be saved. Remove some certificate photos or old notes.', true);
-  if (fbWriteAgain) { fbWriteAgain = false; fbWriteNow(); }
+  if (fbWriteAgain) { fbWriteAgain = false; fbWriteNow(); }   /* S already has the change (apply) */
   return res || { skip: true };
 }
 
 /* Put one set of answers onto the person in state st (S or a copy of it). Safe to run twice. */
 function quizApplyTo(st, code, sid, data) {
-  const staff = (st && st.staff) || [];
-  const p = staff.find(x => x && x.colorLink && x.colorLink.t === code) || (sid ? staff.find(x => x && x.id === sid) : null);
+  const staff = (st && st.staff) || [], cands = candList(st);
+  const byLink = x => x && x.colorLink && x.colorLink.t === code, byId = x => x && x.id === sid;
+  const p = staff.find(byLink) || cands.find(byLink) || (sid ? (staff.find(byId) || cands.find(byId)) : null);
   if (!p) return null;
-  if (p.colorQuizCode === code) return { p: p, already: true };
+  const cand = cands.indexOf(p) >= 0, who = (cand ? 'Candidate ' : '') + p.name;
+  if (p.colorQuizCode === code) return { p: p, already: true, cand: cand };
   p.colorQuizCode = code;
   if (p.colorLink && p.colorLink.t === code) delete p.colorLink;
   const bits = String((data && data.picks) || ''), list = quizTraitList();
   const t = { red: 0, blue: 0, green: 0, purple: 0 };
   if (/^[01]{48}$/.test(bits) && list.length === 48) list.forEach((it, i) => { if (bits.charAt(i) === '1') t[it.c]++; });
   if (t.red + t.blue + t.green + t.purple < 3) {
-    quizLog(st, p.name + ' sent the color quiz back almost blank; their color was left as it was');
-    return { p: p, blank: true };
+    quizLog(st, who + ' sent the color quiz back almost blank; their color was left as it was');
+    return { p: p, blank: true, cand: cand };
   }
   const order = QUIZ_ORDER.slice().sort((a, b) => t[b] - t[a]);
   const primary = order[0], secondary = t[order[1]] > 0 ? order[1] : null;
   const at = data && data.at && typeof data.at.toMillis === 'function' ? data.at.toMillis() : Date.now();
   p.color = primary;
   p.colorQuiz = { primary: primary, secondary: secondary, tally: t, picks: bits, at: at, via: 'link' };
-  quizLog(st, p.name + ' took the color quiz from their link: ' + STAFF_COLORS[primary].label + (secondary ? ' (secondary ' + STAFF_COLORS[secondary].label + ')' : ''));
-  return { p: p, primary: primary, secondary: secondary };
+  quizLog(st, who + ' took the color quiz from their link: ' + STAFF_COLORS[primary].label + (secondary ? ' (secondary ' + STAFF_COLORS[secondary].label + ')' : ''));
+  if (cand) quizCarry(st, p);
+  return { p: p, primary: primary, secondary: secondary, cand: cand };
+}
+/* Copy src's own-quiz result (a candidate or new-hire record) onto target, unless target already
+   has one at least as new. Like an import, it also sets target's communication color. */
+function quizCarryInto(target, src) {
+  const q = src && src.colorQuiz;
+  if (!target || !q || !STAFF_COLORS[q.primary]) return false;
+  if (target.colorQuiz && (target.colorQuiz.at || 0) >= (q.at || 0)) return false;
+  target.color = q.primary;
+  target.colorQuiz = JSON.parse(JSON.stringify(q));
+  return true;
+}
+/* a hired candidate's result also reaches their new-hire record and, if they're on the roster, their profile */
+function quizCarry(st, c) {
+  if (!c || !c.hireId) return;
+  const h = ((st && st.nh && st.nh.hires) || []).find(x => x && x.id === c.hireId);
+  if (!h) return;
+  quizCarryInto(h, c);
+  const sp = h.staffId ? ((st.staff || []).find(x => x && x.id === h.staffId)) : null;
+  if (sp && quizCarryInto(sp, c)) quizLog(st, sp.name + '’s communication color was set from their candidate color quiz');
 }
 function quizDoneToast(info) {
   if (!info || !info.p) return;
-  if (info.blank) toast(quizFirst(info.p) + ' sent the quiz back almost blank. Send a new link if you want them to redo it.', true);
-  else toast(quizFirst(info.p) + ' finished the color quiz: ' + STAFF_COLORS[info.primary].label);
+  const f = quizFirst(info.p) + (info.cand ? ' (candidate)' : '');
+  if (info.blank) toast(f + ' sent the quiz back almost blank. Send a new link if you want them to redo it.', true);
+  else toast(f + ' finished the color quiz: ' + STAFF_COLORS[info.primary].label);
 }
 
 /* ---- bits shown on the person's page and in the assessment ---- */
@@ -3383,14 +3427,16 @@ function quizAssessRow(p) {
 function quizLinkDialog(p) {
   const L = p && p.colorLink;
   if (!L || !L.t || !fbUser) return;
+  const cand = quizIsCand(S, p);
   const f = quizFirst(p), url = quizUrl(L.t);
-  const msg = 'Hi ' + f + '! Please take this quick color quiz for the team. It takes about 2 minutes: ' + url;
+  const msg = cand ? 'Hi ' + f + '! Thanks for your interest in Next Level Orthodontics. Please take this quick color quiz. It takes about 2 minutes: ' + url
+                   : 'Hi ' + f + '! Please take this quick color quiz for the team. It takes about 2 minutes: ' + url;
   quizCopyTexts = { link: url, msg: msg };
   const phone = String(p.phone || '').replace(/[^\d+]/g, '');
   const email = String(p.email || '').trim();
   openModal(`<div class="mh" data-quizcode="${esc(L.t)}"><h3>${ic('link', 18)} Color quiz link for ${esc(f)}</h3><button class="x" data-act="closeModal">✕</button></div>
   <div class="mb">
-    <p class="muted" style="font-size:13.5px;margin:-4px 0 16px">${esc(f)} opens it on their phone, checks the words that fit, and sees their color. No login needed. The answers come straight back here and set ${esc(f)}’s communication color. The link works once, and anyone who has it could use it, so send it only to ${esc(f)}.</p>
+    <p class="muted" style="font-size:13.5px;margin:-4px 0 16px">${esc(f)} opens it on their phone, checks the words that fit, and sees their color. No login needed. ${cand ? `The answers come straight back to ${esc(f)}’s candidate card here.` : `The answers come straight back here and set ${esc(f)}’s communication color.`} The link works once, and anyone who has it could use it, so send it only to ${esc(f)}.</p>
     <div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap">
       <div data-quizqr="${esc(url)}" style="width:164px;height:164px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;background:#fff;border:1px solid var(--line);border-radius:12px;padding:6px"><span class="tiny">Loading QR code…</span></div>
       <div style="flex:1;min-width:220px">
@@ -3398,7 +3444,7 @@ function quizLinkDialog(p) {
         <div style="display:flex;gap:8px;align-items:center"><div class="field" style="margin:0;flex:1;min-width:0"><input type="text" id="quizUrl" readonly value="${esc(url)}" style="font-size:12.5px;padding:8px 10px" onclick="this.select()"></div><button class="btn btn-sec btn-sm" data-act="quizCopy" data-what="link" type="button">${ic('copy', 13)} Copy</button></div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
           ${phone ? `<a class="btn btn-sec btn-sm" style="text-decoration:none" href="sms:${esc(phone)}?&body=${encodeURIComponent(msg)}">${ic('message', 13)} Text it</a>` : ''}
-          ${email ? `<a class="btn btn-sec btn-sm" style="text-decoration:none" href="mailto:${esc(email)}?subject=${encodeURIComponent('Quick color quiz')}&body=${encodeURIComponent(msg)}">${ic('mail', 13)} Email it</a>` : ''}
+          ${email ? `<a class="btn btn-sec btn-sm" style="text-decoration:none" href="mailto:${esc(email)}?subject=${encodeURIComponent(cand ? 'Color quiz from Next Level Orthodontics' : 'Quick color quiz')}&body=${encodeURIComponent(msg)}">${ic('mail', 13)} Email it</a>` : ''}
           <button class="btn btn-sec btn-sm" data-act="quizCopy" data-what="msg" type="button">${ic('copy', 13)} Copy a message</button>
         </div>
       </div>
@@ -3431,42 +3477,54 @@ function quizMountQr() {
   });
 }
 
-H.quizLinkMake = async t => {
+/* make a link for staff member or candidate `id`; btn (optional) shows "Making the link…" meanwhile */
+async function quizMakeFor(id, btn) {
   if (!S) return;
-  const p0 = staffById(t.dataset.id);
+  const p0 = quizHolder(id);
   if (!p0) return;
-  if (p0.colorLink && p0.colorLink.t) { quizLinkDialog(p0); return; }
+  if (p0.colorLink && p0.colorLink.t && !p0.colorLink.lost) { quizLinkDialog(p0); return; }
   if (!fbUser || !fbDB) { toast('Sign in to Staff Hub first.', true); return; }
   if (quizBusy) return;
   quizBusy = true;
-  const label = t.innerHTML;
-  t.disabled = true; t.textContent = 'Making the link…';
+  const label = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'Making the link…'; }
+  const cand = quizIsCand(S, p0);
   const code = quizCode(), sid = p0.id, at = Date.now(), first = quizFirst(p0).slice(0, 40);
+  const inv = { v: 1, first: first, sid: sid, at: at };
+  if (cand) inv.k = 'c';
+  const who = x => (cand ? 'candidate ' : '') + x.name;
   let res = { skip: true };
   for (let i = 0; i < 6; i++) {
     res = await quizAtomic(async (tx, copy) => {
-      const cp = copy.staff.find(x => x && x.id === sid);
+      const cp = quizHolderIn(copy, sid);
       if (!cp) return null;
       cp.colorLink = { t: code, at: at };
-      quizLog(copy, 'Made a color quiz link for ' + cp.name);
-      return { write: w => w.set(quizCol('colorQuiz').doc(code), { v: 1, first: first, sid: sid, at: at }) };
+      quizLog(copy, 'Made a color quiz link for ' + who(cp));
+      return { write: w => w.set(quizCol('colorQuiz').doc(code), inv) };
+    }, () => {
+      const lp = quizHolder(sid);
+      if (lp && !(lp.colorLink && lp.colorLink.t === code)) { lp.colorLink = { t: code, at: at }; quizLog(S, 'Made a color quiz link for ' + who(lp)); }
     });
     if (!res.stale) break;
     await quizSleep(800);
   }
   quizBusy = false;
-  const p = S && staffById(sid);
+  const p = S && quizHolder(sid);
   if (res.ok && p) {
-    if (!(p.colorLink && p.colorLink.t === code)) { p.colorLink = { t: code, at: at }; quizLog(S, 'Made a color quiz link for ' + p.name); }
     if (!quizUnsub) quizWatchStart();
     quizRender();
     quizLinkDialog(p);
     return;
   }
-  if (document.body.contains(t)) { t.disabled = false; t.innerHTML = label; }
+  if (btn && document.body.contains(btn)) { btn.disabled = false; btn.innerHTML = label; }
   if (!res.skip && !res.tooBig) toast(quizErrText(res), true);
+}
+H.quizLinkMake = t => { quizMakeFor(t.dataset.id, t); };
+H.quizLinkShow = t => {
+  const p = S && quizHolder(t.dataset.id);
+  if (!p || !p.colorLink) return;
+  if (p.colorLink.lost) quizMakeFor(p.id, t); else quizLinkDialog(p);
 };
-H.quizLinkShow = t => { const p = S && staffById(t.dataset.id); if (p && p.colorLink) quizLinkDialog(p); };
 H.quizCopy = t => {
   const txt = quizCopyTexts[t.dataset.what] || '';
   if (!txt) return;
@@ -3483,7 +3541,7 @@ H.quizCopy = t => {
   if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(ok, fallback); else fallback();
 };
 H.quizLinkOff = t => {
-  const p = S && staffById(t.dataset.id);
+  const p = S && quizHolder(t.dataset.id);
   if (!p || !p.colorLink) { closeModal(); return; }
   const f = quizFirst(p), code = p.colorLink.t, sid = p.id;
   confirmModal('Turn off ' + f + '’s quiz link?', 'The link stops working right away. You can make a new one any time.', async () => {
@@ -3496,26 +3554,28 @@ H.quizLinkOff = t => {
         let got = null;
         if (data) got = quizApplyTo(copy, code, sid, data);   /* their answers just came in: keep them */
         else {
-          const cp = copy.staff.find(x => x && x.id === sid);
+          const cp = quizHolderIn(copy, sid);
           if (cp && cp.colorLink && cp.colorLink.t === code) { delete cp.colorLink; quizLog(copy, 'Turned off ' + cp.name + '’s color quiz link'); }
         }
         return { data: data, got: got, write: w => { w.delete(invRef); if (data) w.delete(ansRef); } };
+      }, pl => {
+        if (pl.data) return quizApplyTo(S, code, sid, pl.data);
+        const cur = quizHolder(sid);
+        if (cur && cur.colorLink && cur.colorLink.t === code) { delete cur.colorLink; quizLog(S, 'Turned off ' + cur.name + '’s color quiz link'); }
+        return null;
       });
       if (!res.stale) break;
       await quizSleep(800);
     }
     if (!res.ok) { if (!res.skip && !res.tooBig) toast(quizErrText(res), true); return; }
     const pl = res.plan;
+    quizRender(); candRefresh(sid);
     if (pl.data) {
-      const live = S ? quizApplyTo(S, code, sid, pl.data) : null;
-      quizRender();
-      const info = live && !live.already ? live : pl.got;
+      const live = res.live, info = live && !live.already ? live : pl.got;
       toast(f + '’s answers had just come in, so they were saved' + (info && info.primary ? ': ' + STAFF_COLORS[info.primary].label : '') + '. The link is off.');
       return;
     }
-    const cur = S && staffById(sid);
-    if (cur && cur.colorLink && cur.colorLink.t === code) { delete cur.colorLink; quizLog(S, 'Turned off ' + cur.name + '’s color quiz link'); }
-    quizRender(); toast('Link turned off');
+    toast('Link turned off');
   });
 };
 
@@ -3527,6 +3587,7 @@ function quizWatchStart() {
     quizUnsub = quizCol('colorAnswers').onSnapshot(snap => {
       quizPending = snap.docs.map(d => d.id);
       quizPending.forEach(code => { quizClaim(code); });
+      quizLostSoon();
     }, () => {
       /* e.g. the new rules aren't published yet: try again in a minute */
       quizUnsub = null; quizPending = [];
@@ -3536,10 +3597,11 @@ function quizWatchStart() {
 }
 function quizWatchStop() {
   clearTimeout(quizWatchTimer); quizWatchTimer = null;
+  clearTimeout(quizLostTimer); quizLostTimer = null;
   if (quizUnsub) { try { quizUnsub(); } catch (e) {} quizUnsub = null; }
   quizPending = [];
 }
-function quizRescan() { quizPending.forEach(code => { quizTries[code] = 0; quizClaim(code); }); }
+function quizRescan() { quizPending.forEach(code => { quizTries[code] = 0; quizClaim(code); }); quizLostSoon(); }
 function quizRetry(code) {
   quizTries[code] = (quizTries[code] || 0) + 1;
   if (quizTries[code] > 30) return;   /* the next sync or unlock tries again */
@@ -3558,18 +3620,59 @@ async function quizClaim(code) {
       const data = ans.data(), sid = inv.exists ? ((inv.data() || {}).sid || null) : null;
       const got = quizApplyTo(copy, code, sid, data);   /* null: that person is gone, so the answers are just dropped */
       return { data: data, sid: sid, got: got, write: w => { w.delete(ansRef); if (inv.exists) w.delete(invRef); } };
-    });
+    }, pl => quizApplyTo(S, code, pl.sid, pl.data));
   } finally { quizClaiming.delete(code); }
   if (res.ok) {
     quizTries[code] = 0;
     const pl = res.plan;
-    const live = S ? quizApplyTo(S, code, pl.sid, pl.data) : null;
+    const live = res.live;
     const info = live && !live.already ? live : pl.got;
     const open = document.querySelector('[data-quizcode]');
     if (open && open.getAttribute('data-quizcode') === code) closeModal();
     quizRender();
+    if (info && info.p) candRefresh(info.p.id);
     quizDoneToast(info);
   } else if (res.stale || res.err) quizRetry(code);
+}
+
+/* A candidate link whose invite is gone but whose answers never arrived. That happens when a copy of
+   Staff Hub from before candidates existed (still open on another device) imported the answers and,
+   finding no staff member for them, dropped them. Mark the link so the card says so and offers a new
+   one. The marking runs in a transaction that re-reads the invite, the answers and the record, so an
+   import by another open copy is never mistaken for a lost link. */
+function quizLostSoon() { clearTimeout(quizLostTimer); quizLostTimer = setTimeout(quizCheckLost, 2000); }
+async function quizCheckLost() {
+  if (!S || !fbUser || !fbDB) return;
+  if (quizLostBusy) { quizLostSoon(); return; }   /* a check is running: look again after it */
+  const out = candList(S).filter(c => c && c.colorLink && c.colorLink.t && !c.colorLink.lost && quizPending.indexOf(c.colorLink.t) < 0 && !quizClaiming.has(c.colorLink.t));
+  if (!out.length) return;
+  quizLostBusy = true;
+  let again = false;
+  try {
+    for (const c of out) {
+      const code = c.colorLink && c.colorLink.t, cid = c.id;
+      if (!code || !S) continue;
+      let inv;
+      try { inv = await quizCol('colorQuiz').doc(code).get({ source: 'server' }); } catch (e) { continue; }
+      if (inv.exists || quizPending.indexOf(code) >= 0) continue;
+      const note = x => 'Candidate ' + x.name + '’s color quiz link was used, but the answers didn’t arrive';
+      const res = await quizAtomic(async (tx, copy) => {
+        if ((await tx.get(quizCol('colorQuiz').doc(code))).exists) return null;
+        if ((await tx.get(quizCol('colorAnswers').doc(code))).exists) return null;
+        const cc = candList(copy).find(x => x && x.id === cid);
+        if (!cc || !cc.colorLink || cc.colorLink.t !== code || cc.colorLink.lost) return null;
+        cc.colorLink.lost = Date.now();
+        quizLog(copy, note(cc));
+        return {};
+      }, () => {
+        const cur = candById(cid);
+        if (cur && cur.colorLink && cur.colorLink.t === code && !cur.colorLink.lost) { cur.colorLink.lost = Date.now(); quizLog(S, note(cur)); }
+      });
+      if (res.ok) { quizRender(); candRefresh(cid); }
+      else if (res.stale) again = true;   /* the record moved on meanwhile: check again once it's caught up */
+    }
+  } finally { quizLostBusy = false; }
+  if (again && S) quizLostSoon();
 }
 
 /* =====================================================
@@ -4400,6 +4503,7 @@ function nhS() {
   if (!n.forms || typeof n.forms !== 'object' || Array.isArray(n.forms)) n.forms = {};
   if (!Array.isArray(n.custom)) n.custom = [];
   if (!Array.isArray(n.hidden)) n.hidden = [];
+  if (!Array.isArray(n.cands)) n.cands = [];
   if (!n.lh || typeof n.lh !== 'object' || Array.isArray(n.lh)) n.lh = {};
   return n;
 }
@@ -4709,12 +4813,17 @@ function nhView() {
   if (route.nhHire) { const h = nhHire(route.nhHire); if (h) return nhHireView(h); route.nhHire = null; }
   const active = n.hires.filter(h => h.status !== 'done');
   const done = n.hires.filter(h => h.status === 'done');
-  const tab = route.nhTab || (active.length ? 'hires' : 'forms');
+  const candsOpen = n.cands.filter(candIsOpen);
+  const tab = route.nhTab || (active.length ? 'hires' : candsOpen.length ? 'cands' : 'forms');
   const nForms = nhVisibleForms().length + NH_OFFICIAL.length;
-  return `${pageHeadHTML('People', 'New Hire Paperwork', 'All of our onboarding forms on NLO letterhead. Print one form, a blank packet, or a new hire’s whole packet with their name, position and start date filled in.',
-    `<button class="btn btn-sec" data-act="nhPrintBlank">${ic('printer', 15)} Blank packet</button><button class="btn btn-pri" data-act="nhAddHire">${ic('plus', 15)} New hire</button>`)}
-  <div class="subtabs"><button class="stab ${tab === 'hires' ? 'on' : ''}" data-act="nhTab" data-id="hires">New hires${active.length ? ' · ' + active.length : ''}</button><button class="stab ${tab === 'forms' ? 'on' : ''}" data-act="nhTab" data-id="forms">Form library · ${nForms}</button></div>
-  ${tab === 'hires' ? nhHiresHTML(active, done) : nhLibraryHTML()}`;
+  const head = tab === 'cands'
+    ? pageHeadHTML('People', 'New Hire Paperwork', 'People you’re interviewing. Send them the color quiz before you hire; if you hire them, their details and color carry over to their paperwork and staff profile.',
+        `<button class="btn btn-sec" data-act="nhAddHire">${ic('plus', 15)} New hire</button><button class="btn btn-pri" data-act="candAdd">${ic('userPlus', 15)} Add candidate</button>`)
+    : pageHeadHTML('People', 'New Hire Paperwork', 'All of our onboarding forms on NLO letterhead. Print one form, a blank packet, or a new hire’s whole packet with their name, position and start date filled in.',
+        `<button class="btn btn-sec" data-act="nhPrintBlank">${ic('printer', 15)} Blank packet</button><button class="btn btn-pri" data-act="nhAddHire">${ic('plus', 15)} New hire</button>`);
+  return `${head}
+  <div class="subtabs"><button class="stab ${tab === 'cands' ? 'on' : ''}" data-act="nhTab" data-id="cands">Candidates${candsOpen.length ? ' · ' + candsOpen.length : ''}</button><button class="stab ${tab === 'hires' ? 'on' : ''}" data-act="nhTab" data-id="hires">New hires${active.length ? ' · ' + active.length : ''}</button><button class="stab ${tab === 'forms' ? 'on' : ''}" data-act="nhTab" data-id="forms">Form library · ${nForms}</button></div>
+  ${tab === 'cands' ? candTabHTML() : tab === 'hires' ? nhHiresHTML(active, done) : nhLibraryHTML()}`;
 }
 
 function nhHiresHTML(active, done) {
@@ -4821,7 +4930,7 @@ function nhHireView(h) {
     <div class="info">
       <h2>${esc(h.name)} ${h.status === 'done' ? '<span class="badge b-green">Onboarding complete</span>' : ''}</h2>
       <div class="muted">${esc(h.position || 'Position not set')}${h.team && NH_TEAMS[h.team] ? ' · ' + esc(NH_TEAMS[h.team]) : ''}${h.employment ? ' · ' + esc(h.employment) : ''}</div>
-      <div class="meta"><span>${ic('calendar', 14)} Starts ${h.start ? fmtD(h.start) : '—'}</span><span>${ic('checkC', 14)} ${p.done} of ${p.total} forms complete</span>${staff ? `<span class="nhLink" data-act="openStaffTab" data-id="${staff.id}" data-tab="timeline">${ic('users', 14)} Staff profile</span>` : ''}</div>
+      <div class="meta"><span>${ic('calendar', 14)} Starts ${h.start ? fmtD(h.start) : '—'}</span><span>${ic('checkC', 14)} ${p.done} of ${p.total} forms complete</span>${staff ? `<span class="nhLink" data-act="openStaffTab" data-id="${staff.id}" data-tab="timeline">${ic('users', 14)} Staff profile</span>` : ''}${candHireMetaHTML(h)}</div>
     </div>
     <div class="nhHeadActs">
       <button class="btn btn-pri" data-act="nhPrintPacket" data-id="${h.id}">${ic('printer', 15)} Print packet</button>
@@ -4849,18 +4958,20 @@ function nhHireView(h) {
 /* =====================================================
    Modals
    ===================================================== */
-function nhHireModal(id) {
+function nhHireModal(id, candId) {
   const h = id ? nhHire(id) : null;
   if (id && !h) return;
-  const v = h || { name:'', position:'', team:'clinical', employment:'Full-time', start:'', hours:'', schedule:'Monday–Thursday', wage:'', wage2:'', offerDate: todayYMD(), respondBy:'' };
-  const staffOpts = !h ? activeStaff().map(p => `<option value="${p.id}">${esc(p.name)}${p.role ? ' — ' + esc(p.role) : ''}</option>`).join('') : '';
+  const cd = !h && candId ? candById(candId) : null;   /* hiring a candidate: start from their card */
+  const v = h || Object.assign({ name:'', position:'', team:'clinical', employment:'Full-time', start:'', hours:'', schedule:'Monday–Thursday', wage:'', wage2:'', offerDate: todayYMD(), respondBy:'' },
+    cd ? { name: cd.name || '', position: cd.position || '', cell: cd.phone || '', email: cd.email || '', team: candTeamGuess(cd.position) } : {});
+  const staffOpts = !h && !cd ? activeStaff().map(p => `<option value="${p.id}">${esc(p.name)}${p.role ? ' — ' + esc(p.role) : ''}</option>`).join('') : '';
   const inp = (key, label, type, extra) => `<div class="field"><label>${label}</label><input type="${type || 'text'}" id="nhF_${key}" value="${esc(v[key] || '')}"${extra || ''}></div>`;
   const grid = (list, cls) => `<div class="${cls || 'frow'}">${list.map(([k, l, t]) => inp(k, l, t)).join('')}</div>`;
   const hasP = NH_PERSONAL.some(([k]) => v[k]), hasE = NH_EC.some(([k]) => v[k]);
   const P = Object.fromEntries(NH_PERSONAL.map(x => [x[0], x]));
-  openModal(`<div class="mh"><h3>${h ? 'Edit ' + esc(h.name) : 'New hire'}</h3><button class="x" data-act="closeModal">✕</button></div>
+  openModal(`<div class="mh"><h3>${h ? 'Edit ' + esc(h.name) : cd ? 'Hire ' + esc(cd.name) : 'New hire'}</h3><button class="x" data-act="closeModal">✕</button></div>
   <div class="mb">
-    <div class="infoBox">Enter details once — every form prints with them filled in. Anything left blank prints as a line to write on.</div>
+    <div class="infoBox">${cd ? `Filled in from ${esc(quizFirst(cd))}’s candidate card${cd.colorQuiz ? ', and their color quiz result comes along' : ''}. ` : ''}Enter details once — every form prints with them filled in. Anything left blank prints as a line to write on.</div>
     ${staffOpts ? `<div class="field"><label>Start from <span class="tiny">(optional — someone already on the staff roster)</span></label><select id="nhFrom"><option value="">— New person —</option>${staffOpts}</select></div>` : ''}
     <div class="frow">
       <div class="field"><label>Full name *</label><input type="text" id="nhF_name" value="${esc(v.name)}" placeholder="e.g. Jordan Rivera"></div>
@@ -4893,7 +5004,7 @@ function nhHireModal(id) {
     </details>
     <div class="tiny" style="margin-top:12px">The Hep B form is included automatically for clinical and lab hires. Social Security and bank account numbers are never stored here — they’re written on the signed paper forms only.</div>
   </div>
-  <div class="mf"><button class="btn btn-sec" data-act="closeModal">Cancel</button><button class="btn btn-pri" id="nhSave">${h ? 'Save changes' : 'Add new hire'}</button></div>`, true);
+  <div class="mf"><button class="btn btn-sec" data-act="closeModal">Cancel</button><button class="btn btn-pri" id="nhSave">${h ? 'Save changes' : cd ? 'Hire and start paperwork' : 'Add new hire'}</button></div>`, true);
   const from = $('#nhFrom');
   if (from) from.onchange = () => {
     const p = staffById(from.value); if (!p) return;
@@ -4917,7 +5028,9 @@ function nhHireModal(id) {
     const staffId = (from && from.value) || null;
     const nh = Object.assign({ id: uid(), status:'active', created: Date.now(), staffId, inc:{}, done:{}, tasks:{}, notes:'' }, vals);
     if (staffId) nh.tasks.staffhub = todayYMD();
-    nhS().hires.push(nh); act('Started onboarding for ' + name);
+    const cc = cd ? candById(cd.id) : null;
+    if (cc) { nh.candId = cc.id; quizCarryInto(nh, cc); cc.status = 'hired'; cc.hireId = nh.id; cc.closedAt = todayYMD(); }
+    nhS().hires.push(nh); act(cc ? 'Hired candidate ' + name + ' and started their onboarding' : 'Started onboarding for ' + name);
     persist(); closeModal();
     route.page = 'newhire'; route.nhHire = nh.id; route.nhTab = 'hires';
     render(); window.scrollTo(0, 0); toast(name + ' added — print their packet when you’re ready');
@@ -5291,13 +5404,18 @@ H.nhDelHire = t => {
   const h = nhHire(t.dataset.id); if (!h) return;
   confirmModal('Delete ' + h.name + '’s onboarding record?', 'This removes the paperwork tracker only. Their staff profile, if they have one, is not touched.', () => {
     const n = nhS(); n.hires = n.hires.filter(x => x.id !== h.id);
+    n.cands.forEach(c => { if (c && c.hireId === h.id) delete c.hireId; });   /* their candidate card stays */
     route.nhHire = null; act('Deleted onboarding record for ' + h.name);
     persist(); render(); toast('Deleted');
   });
 };
 H.nhRoster = t => {
   const h = nhHire(t.dataset.id); if (!h) return;
-  const link = (hire, p) => { hire.staffId = p.id; if (!hire.tasks || typeof hire.tasks !== 'object') hire.tasks = {}; if (!hire.tasks.staffhub) hire.tasks.staffhub = todayYMD(); };
+  const link = (hire, p) => { hire.staffId = p.id; if (!hire.tasks || typeof hire.tasks !== 'object') hire.tasks = {}; if (!hire.tasks.staffhub) hire.tasks.staffhub = todayYMD();
+    /* their color quiz from when they were a candidate comes along (newest own quiz wins, as with any quiz import) */
+    const had = p.color, cd = hire.candId ? candById(hire.candId) : null;
+    const a = quizCarryInto(p, hire), b = cd ? quizCarryInto(p, cd) : false;
+    if ((a || b) && had && had !== p.color) act(p.name + '’s communication color changed to ' + STAFF_COLORS[p.color].label + ' from their candidate color quiz'); };
   const same = activeStaff().find(p => String(p.name || '').trim().toLowerCase() === String(h.name || '').trim().toLowerCase());
   if (same) {
     confirmModal('Link to ' + same.name + '’s existing profile?', 'Someone with this name is already on the staff roster. Linking avoids a duplicate profile.', () => {
@@ -5341,6 +5459,217 @@ H.nhDelForm = t => {
 };
 const nhNavOrig = H.nav;
 H.nav = t => { if (t && t.dataset && t.dataset.id === 'newhire') route.nhHire = null; nhNavOrig(t); };
+
+/* =====================================================================
+   CANDIDATES — people being interviewed, before they're hired (the
+   "Candidates" tab of New Hire Paperwork). Mainly so a candidate can take
+   the color quiz by link, exactly like staff (see COLOR QUIZ BY LINK).
+   Kept in S.nh.cands, never in S.staff, so candidates never reach the
+   shared roster, reviews, KPIs, reports or the AI.
+     { id, name, position, phone, email, notes, created,
+       status: 'active' | 'hired' | 'passed', closedAt (YMD), hireId,
+       color, colorQuiz, colorLink, colorQuizCode }   (quiz fields as on staff)
+   Hiring one starts a new-hire record (nh.candId) with their details and
+   quiz result; "Add to staff roster" carries the result to the profile.
+   ===================================================================== */
+function candList(st) { return (st && st.nh && Array.isArray(st.nh.cands)) ? st.nh.cands : []; }
+function candById(id) { return (S && id) ? (candList(S).find(c => c && c.id === id) || null) : null; }
+function candIsOpen(c) { return !!c && c.status !== 'hired' && c.status !== 'passed'; }
+function candTeamGuess(pos) {
+  const s = String(pos || '');
+  if (/\blab\b/i.test(s)) return 'lab';
+  if (/front|desk|schedul|financ|office|marketing|reception|billing|admin/i.test(s)) return 'admin';
+  return 'clinical';
+}
+
+function candTabHTML() {
+  const all = nhS().cands;
+  const open = all.filter(candIsOpen).sort((a, b) => (b.created || 0) - (a.created || 0));
+  const closed = all.filter(c => !candIsOpen(c)).sort((a, b) => String(b.closedAt || '').localeCompare(String(a.closedAt || '')) || (b.created || 0) - (a.created || 0));
+  let html = `<div class="infoBox" style="margin-bottom:18px">Send each candidate the color quiz. It takes about 2 minutes on their phone with no login, and their answers land on their card here. Sending it to every candidate at the same stage keeps the results comparable.</div>`;
+  html += panelHTML('Candidates', open.length, open.length ? open.map(candRowHTML).join('') :
+    emptyHTML('userPlus', 'No candidates right now. Add someone you’re interviewing to send them the color quiz.'), '', 'users');
+  if (closed.length) html += `<div style="margin-top:18px">${panelHTML('Hired or not moving forward', closed.length, closed.map(candRowHTML).join(''), '', 'archive')}</div>`;
+  return html;
+}
+function candColorCell(c) {
+  const q = c.colorQuiz;
+  if (q && STAFF_COLORS[q.primary]) {
+    return `<span class="candClr">${colorDot(q.primary, 11)} <b style="color:${STAFF_COLORS[q.primary].hex}">${esc(STAFF_COLORS[q.primary].label)}</b>${STAFF_COLORS[q.secondary] ? `<span class="tiny">then ${esc(quizColorName(q.secondary))}</span>` : ''}</span>`;
+  }
+  if (c.colorLink && c.colorLink.lost) return '<span class="badge b-amber">Quiz answers didn’t arrive</span>';
+  if (c.colorLink) return `<span class="badge b-blue">${ic('link', 11)} Quiz sent ${esc(quizShortDay(c.colorLink.at))}</span>`;
+  return '<span class="tiny">No color quiz yet</span>';
+}
+function candRowHTML(c) {
+  const open = candIsOpen(c);
+  const status = c.status === 'hired' ? ` <span class="badge b-green">Hired${c.closedAt ? ' ' + esc(fmtDShort(c.closedAt)) : ''}</span>`
+    : c.status === 'passed' ? ' <span class="badge b-gray">Not moving forward</span>' : '';
+  const sub = [c.position, 'added ' + quizShortDay(c.created)].filter(Boolean).map(esc).join(' · ');
+  let btn = '';
+  if (open && !c.colorQuiz) btn = (c.colorLink && !c.colorLink.lost)
+    ? `<button class="btn btn-sec btn-sm" data-act="quizLinkShow" data-id="${c.id}" type="button">${ic('link', 13)} See link</button>`
+    : `<button class="btn btn-sec btn-sm" data-act="quizLinkMake" data-id="${c.id}" type="button">${ic('link', 13)} ${c.colorLink ? 'Send a new link' : 'Send quiz'}</button>`;
+  return `<div class="nhRow nhHireRow" data-act="candOpen" data-id="${c.id}">
+    ${avHTML(c, 'sm')}
+    <div class="nhRowT"><b>${esc(c.name)}</b>${status}<span class="tiny">${sub}</span></div>
+    <div class="candClrCol">${candColorCell(c)}</div>
+    <div class="nhRowA">${btn}</div>
+  </div>`;
+}
+/* a color quiz result as a small card: primary, secondary, the four tallies, and how to work with them */
+function quizResultHTML(q, title) {
+  const t = q.tally || {}, pm = STAFF_COLORS[q.primary], sm = STAFF_COLORS[q.secondary];
+  const order = QUIZ_ORDER.slice().sort((a, b) => (t[b] || 0) - (t[a] || 0));
+  const max = Math.max(1, t[q.primary] || 0), tie = !!sm && (t[q.secondary] || 0) === (t[q.primary] || 0);
+  const bar = c => { const m = STAFF_COLORS[c], n = t[c] || 0; return `<div style="display:flex;align-items:center;gap:8px;margin:4px 0"><span style="width:138px;font-size:12.5px;color:${m.hex};font-weight:600">${esc(m.label)}</span><span style="flex:1;height:9px;background:var(--grey-100);border-radius:6px;overflow:hidden"><span style="display:block;height:100%;width:${Math.round(n / max * 100)}%;background:${m.hex}"></span></span><span class="tiny" style="width:22px;text-align:right">${n}</span></div>`; };
+  return `<div style="border:1px solid var(--grey-200);border-radius:12px;padding:14px 16px">
+    <div class="tiny" style="margin-bottom:4px">${esc(title)}</div>
+    <div style="font-size:19px;font-weight:700;color:${pm.hex}">${colorDot(q.primary, 13)} ${esc(pm.label)} <span style="font-size:13px;color:var(--mut);font-weight:600">(${esc(pm.animal)})</span></div>
+    ${sm ? `<div class="tiny" style="margin-top:2px">Secondary: <b style="color:${sm.hex}">${esc(sm.label)}</b>${tie ? ' — very close, could go either way' : ''}</div>` : ''}
+    <div style="margin:10px 0">${order.map(bar).join('')}</div>
+    <div class="warnBox" style="margin:0;font-size:12.5px;background:${pm.hex}12;color:var(--ink)"><b>Working with a ${esc(quizColorName(q.primary))}:</b> ${esc(pm.tone)}</div>
+  </div>`;
+}
+function candColorBoxHTML(c) {
+  const f = esc(quizFirst(c)), open = candIsOpen(c), L = c.colorLink;
+  const box = 'display:flex;align-items:center;gap:10px;flex-wrap:wrap;border-radius:10px;padding:10px 12px;font-size:13px;margin:0';
+  if (c.colorQuiz && STAFF_COLORS[c.colorQuiz.primary]) {
+    const again = !open ? '' : (L && !L.lost)
+      ? `<button class="btn-ghost btn-sm" data-act="quizLinkShow" data-id="${c.id}" type="button">${ic('link', 13)} See their new link</button>`
+      : `<button class="btn-ghost btn-sm" data-act="quizLinkMake" data-id="${c.id}" type="button">${ic('link', 13)} Send a new link</button>`;
+    return quizResultHTML(c.colorQuiz, 'Their color quiz · ' + quizDay(c.colorQuiz.at)) + (again ? `<div style="text-align:right;margin-top:6px">${again}</div>` : '');
+  }
+  if (L && L.lost) return !open ? '<div class="tiny">Their color quiz answers didn’t arrive.</div>' : `<div class="warnBox" style="${box}"><span style="flex:1;min-width:200px">${f} used the quiz link, but the answers didn’t reach Staff Hub. That can happen if an older copy of Staff Hub was open on another device. Send ${f} a new link.</span><button class="btn btn-sec btn-sm" data-act="quizLinkMake" data-id="${c.id}" type="button">${ic('link', 13)} Send a new link</button></div>`;
+  if (L) return `<div style="${box};background:var(--blue-100);color:var(--navy)"><span style="flex:1;min-width:200px">Quiz link sent ${esc(quizDay(L.at))}. ${f}’s answers show up here when they finish.</span><button class="btn btn-sec btn-sm" data-act="quizLinkShow" data-id="${c.id}" type="button">${ic('link', 13)} See the link</button></div>`;
+  if (!open) return '<div class="tiny">No color quiz.</div>';
+  return `<div style="${box};background:var(--blue-100);color:var(--navy)"><span style="flex:1;min-width:200px">Send ${f} the color quiz. They take it on their phone in about 2 minutes, and the answers land here.</span><button class="btn btn-pri btn-sm" data-act="quizLinkMake" data-id="${c.id}" type="button">${ic('link', 13)} Send ${f} a link</button></div>`;
+}
+/* re-draw the quiz part of an open candidate card (after answers arrive, a link is turned off, …) */
+function candRefresh(id) {
+  const box = id ? document.querySelector('#modalWrap [data-candcolor="' + id + '"]') : null;
+  const c = box ? candById(id) : null;
+  if (box && c) box.innerHTML = candColorBoxHTML(c);
+}
+function candModal(id) {
+  const c = candById(id); if (!c) { closeModal(); render(); return; }
+  const hire = c.hireId ? nhHire(c.hireId) : null;
+  const contact = [c.phone ? `<span style="display:inline-flex;align-items:center;gap:5px">${ic('phone', 13)} ${esc(c.phone)}</span>` : '', c.email ? `<span style="display:inline-flex;align-items:center;gap:5px">${ic('mail', 13)} ${esc(c.email)}</span>` : ''].join('');
+  const statusLine = c.status === 'hired' ? `<div class="infoBox" style="background:var(--mint-100);color:var(--mint-700)">Hired${c.closedAt ? ' ' + esc(fmtD(c.closedAt)) : ''}.${hire ? ' Their new hire paperwork is started.' : ''}</div>`
+    : c.status === 'passed' ? `<div class="infoBox" style="background:var(--grey-100);color:var(--grey-600)">Not moving forward${c.closedAt ? ' (' + esc(fmtD(c.closedAt)) + ')' : ''}.</div>` : '';
+  const foot = [`<button class="btn-ghost btn-sm" data-act="candDel" data-id="${c.id}" type="button">${ic('trash', 13)} Delete</button>`, '<div class="sp"></div>',
+    `<button class="btn btn-sec btn-sm" data-act="candEdit" data-id="${c.id}" type="button">${ic('edit', 13)} Edit</button>`];
+  if (c.status === 'passed' || (c.status === 'hired' && !hire)) foot.push(`<button class="btn btn-sec btn-sm" data-act="candReopen" data-id="${c.id}" type="button">${ic('undo', 13)} Back to candidates</button>`);
+  if (candIsOpen(c)) foot.push(`<button class="btn btn-sec btn-sm" data-act="candPass" data-id="${c.id}" type="button">Not moving forward</button>`);
+  if (hire) foot.push(`<button class="btn btn-pri btn-sm" data-act="candOpenHire" data-id="${c.id}" type="button">${ic('fileText', 13)} Open their paperwork</button>`);
+  else if (c.status !== 'passed') foot.push(`<button class="btn btn-pri btn-sm" data-act="candHire" data-id="${c.id}" type="button">${ic('userPlus', 13)} Hire — start paperwork</button>`);
+  openModal(`<div class="mh" data-candmodal="${esc(c.id)}"><h3>${esc(c.name)}</h3><button class="x" data-act="closeModal">✕</button></div>
+  <div class="mb">
+    <div class="muted" style="font-size:13px;margin:-4px 0 14px;display:flex;gap:6px 16px;flex-wrap:wrap;align-items:center"><span>${esc(c.position || 'Position not set')}</span>${contact}</div>
+    ${statusLine}
+    <div data-candcolor="${esc(c.id)}">${candColorBoxHTML(c)}</div>
+    <div class="field" style="margin:16px 0 0"><label>Notes</label><textarea class="nhNotes" data-chg="candNote" data-id="${c.id}" placeholder="Interview notes, availability, next step…">${esc(c.notes || '')}</textarea></div>
+  </div>
+  <div class="mf" style="flex-wrap:wrap">${foot.join('')}</div>`, true);
+}
+function candEditModal(id) {
+  const c = id ? candById(id) : null;
+  if (id && !c) return;
+  const v = c || { name:'', position:'', phone:'', email:'' };
+  openModal(`<div class="mh"><h3>${c ? 'Edit ' + esc(c.name) : 'Add a candidate'}</h3><button class="x" data-act="closeModal">✕</button></div>
+  <div class="mb">
+    <div class="frow">
+      <div class="field"><label>Full name *</label><input type="text" id="cdName" value="${esc(v.name)}" placeholder="e.g. Jordan Rivera" autocomplete="off"></div>
+      <div class="field"><label>Position</label><input type="text" id="cdPos" value="${esc(v.position || '')}" list="cdRoleList" placeholder="e.g. Orthodontic Assistant" autocomplete="off"><datalist id="cdRoleList">${ROLE_SUGGEST.map(r => `<option value="${esc(r)}">`).join('')}</datalist></div>
+    </div>
+    <div class="frow">
+      <div class="field"><label>Cell phone</label><input type="tel" id="cdPhone" value="${esc(v.phone || '')}" placeholder="To text the quiz link"></div>
+      <div class="field"><label>Email</label><input type="email" id="cdEmail" value="${esc(v.email || '')}" placeholder="To email the quiz link"></div>
+    </div>
+    <div class="tiny">Kept encrypted in Staff Hub like everything else. The quiz link itself carries only their first name.</div>
+  </div>
+  <div class="mf"><button class="btn btn-sec" data-act="closeModal" type="button">Cancel</button>${c ? '<button class="btn btn-pri" id="cdSave" type="button">Save</button>' : '<button class="btn btn-sec" id="cdSave" type="button">Add</button><button class="btn btn-pri" id="cdSaveSend" type="button">Add &amp; send the quiz</button>'}</div>`);
+  const save = send => {
+    const val = k => { const el = $('#' + k); return el ? String(el.value || '').trim() : ''; };
+    const name = val('cdName');
+    if (!name) { toast('Name is required', true); return; }
+    const vals = { name, position: val('cdPos'), phone: val('cdPhone'), email: val('cdEmail') };
+    if (vals.email && !/^[^\s@?&#<>"]+@[^\s@?&#<>"]+\.[^\s@?&#<>"]+$/.test(vals.email)) { toast('That email address doesn’t look right', true); return; }
+    if (c) {
+      const cur = candById(c.id); if (!cur) { closeModal(); render(); return; }
+      Object.assign(cur, vals); act('Updated candidate ' + name);
+      persist(); render(); candModal(cur.id); toast('Saved');
+      return;
+    }
+    const nc = Object.assign({ id: uid(), status: 'active', created: Date.now(), notes: '' }, vals);
+    nhS().cands.push(nc); act('Added candidate ' + name);
+    persist(); closeModal();
+    route.page = 'newhire'; route.nhHire = null; route.nhTab = 'cands';
+    render(); window.scrollTo(0, 0);
+    if (send) quizMakeFor(nc.id, document.querySelector('#main [data-act="quizLinkMake"][data-id="' + nc.id + '"]'));
+    else toast(name + ' added');
+  };
+  $('#cdSave').onclick = () => save(false);
+  const ss = $('#cdSaveSend'); if (ss) ss.onclick = () => save(true);
+  if (!c) { const el = $('#cdName'); if (el) el.focus(); }
+}
+/* on a new-hire page: their color from the candidate quiz, and a way back to the card */
+function candHireMetaHTML(h) {
+  const q = h && h.colorQuiz, cd = h && h.candId ? candById(h.candId) : null;
+  let out = '';
+  if (q && STAFF_COLORS[q.primary]) out += `<span title="From their color quiz as a candidate">${colorDot(q.primary, 10)} ${esc(quizColorName(q.primary))}${STAFF_COLORS[q.secondary] ? ', then ' + esc(quizColorName(q.secondary)) : ''}</span>`;
+  if (cd) out += `<span class="nhLink" data-act="candOpen" data-id="${cd.id}">${ic('users', 14)} Candidate card</span>`;
+  return out;
+}
+
+H.candAdd = () => candEditModal(null);
+H.candEdit = t => candEditModal(t.dataset.id);
+H.candOpen = t => candModal(t.dataset.id);
+H.candNote = t => { const c = candById(t.dataset.id); if (!c) return; c.notes = t.value; persist(); toast('Notes saved'); };
+H.candPass = t => {
+  const c = candById(t.dataset.id); if (!c) return;
+  c.status = 'passed'; c.closedAt = todayYMD(); act('Candidate ' + c.name + ': not moving forward');
+  persist(); closeModal(); render(); toast(quizFirst(c) + ' moved to “not moving forward”');
+};
+H.candReopen = t => {
+  const c = candById(t.dataset.id); if (!c) return;
+  c.status = 'active'; delete c.closedAt; act('Moved ' + c.name + ' back to the candidate list');
+  persist(); render(); candModal(c.id); toast('Back on the candidate list');
+};
+H.candHire = t => { const c = candById(t.dataset.id); if (!c) return; nhHireModal(null, c.id); };
+H.candOpenHire = t => {
+  const c = candById(t.dataset.id), h = c && c.hireId ? nhHire(c.hireId) : null;
+  if (!h) return;
+  closeModal(); route.page = 'newhire'; route.nhHire = h.id; route.nhTab = 'hires'; render(); window.scrollTo(0, 0);
+};
+H.candDel = t => {
+  const c = candById(t.dataset.id); if (!c) return;
+  const name = c.name, cid = c.id, live = !!(c.colorLink && c.colorLink.t && !c.colorLink.lost);
+  const paper = c.hireId && nhHire(c.hireId);
+  confirmModal('Delete ' + name + '?', 'This removes their candidate card' + (c.colorQuiz ? ' and color quiz result' : '') + (live ? ', and their quiz link stops working' : '') + '.' + (paper ? ' Their new hire paperwork is not touched.' : '') + ' This can’t be undone.', async () => {
+    const dropLocal = () => { const n = nhS(); if (n.cands.some(x => x.id === cid)) { n.cands = n.cands.filter(x => x.id !== cid); quizLog(S, 'Deleted candidate ' + name); return true; } return false; };
+    const cur = candById(cid);
+    if (!cur) { render(); return; }
+    if (!cur.colorLink) { dropLocal(); persist(); render(); toast('Deleted'); return; }
+    /* they have a quiz link: remove the card and the invite (whatever link the saved record has) together */
+    let res = { skip: true };
+    for (let i = 0; i < 6; i++) {
+      res = await quizAtomic(async (tx, copy) => {
+        const cc = candList(copy).find(x => x && x.id === cid);
+        if (!cc) return null;
+        const code = cc.colorLink && cc.colorLink.t;
+        copy.nh.cands = candList(copy).filter(x => !(x && x.id === cid));
+        quizLog(copy, 'Deleted candidate ' + name);
+        return { write: w => { if (code) { w.delete(quizCol('colorQuiz').doc(code)); w.delete(quizCol('colorAnswers').doc(code)); } } };
+      }, () => dropLocal());
+      if (!res.stale) break;
+      await quizSleep(800);
+    }
+    if (res.ok) { quizRender(); toast('Deleted'); return; }
+    if (res.skip && S) { if (dropLocal()) persist(); render(); toast('Deleted'); return; }
+    if (!res.tooBig) toast(quizErrText(res), true);
+  });
+};
 
 /* =====================================================================
    Separation — ending someone's employment (resigned, terminated, laid off…)
