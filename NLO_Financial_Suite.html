@@ -665,6 +665,28 @@
       padding: 9px 18px;
     }
     .btn-save:hover { border-color: var(--blue-600); background: #F7F8FF; }
+    .weave-copy-status {
+      font-size: 12px;
+      line-height: 1.45;
+      text-align: right;
+      margin-top: 10px;
+      min-height: 1em;
+    }
+    .weave-copy-status.ok { color: #15803d; }
+    .weave-copy-status.err { color: #b91c1c; }
+    .weave-copy-preview {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 11.5px;
+      line-height: 1.55;
+      white-space: pre-wrap;
+      color: var(--navy-800);
+      background: #F7F8F9;
+      border: 1px solid var(--grey-200);
+      border-radius: var(--radius-sm);
+      padding: 10px 12px;
+      margin-top: 8px;
+    }
+    @media print { .weave-copy-status, .weave-copy-preview { display: none !important; } }
 
     /* ==================== BATCH PRINT PANEL ==================== */
     .batch-wrap {
@@ -1806,8 +1828,11 @@
 
       <div class="btn-bar">
         <button class="btn btn-clear" onclick="crb_clearForm()">Clear</button>
+        <button class="btn btn-save" onclick="crb_copyForWeave()">Copy for Weave</button>
         <button class="btn btn-print" onclick="crb_printForm()">Print for Signature</button>
       </div>
+      <div class="weave-copy-status" id="crb_weaveStatus" role="status" aria-live="polite"></div>
+      <pre class="weave-copy-preview" id="crb_weavePreview" style="display:none;"></pre>
     </div>
 
     <div class="guide-panel">
@@ -1817,6 +1842,7 @@
         <li>Go over the payment plan with the patient/RP and confirm the monthly amount and due date.</li>
         <li>Emphasize that the balance must be fully paid before any future orthodontic treatment can begin.</li>
         <li>Print two copies &mdash; one for the office, one for the patient/RP.</li>
+        <li><strong>Signing remotely?</strong> Click <em>Copy for Weave</em>. In Weave, open the patient &rarr; <em>Send Form</em> &rarr; <em>Completion of Orthodontic Treatment with a Remaining Balance</em> &rarr; <em>Next</em> &rarr; <em>Add Office Use Only Note</em> &rarr; paste, then text it to the patient/RP. The numbers show read-only at the top of their form and are saved in the signed PDF.</li>
       </ol>
     </div>
   </div>
@@ -6381,6 +6407,121 @@
     document.getElementById('crb_monthlyPayment').value = '';
     document.getElementById('crb_dueDay').value = '5';
     document.getElementById('crb_calcSummary').style.display = 'none';
+    crb_clearWeaveStatus();
+  }
+
+  // ---- Remote signing via Weave ----
+  // Builds the "Account Summary" text that goes in Weave's Office Use Only Note
+  // (Send Form > Next > Add More Details > Add Office Use Only Note). The Weave form
+  // "Completion of Orthodontic Treatment with a Remaining Balance" carries the clause
+  // text and refers to this summary; the note shows read-only at the top of the
+  // patient's form and is archived with the signed submission PDF.
+  function crb_buildWeaveSummary() {
+    const balance = parseFloat(document.getElementById('crb_remainingBalance').value.replace(/[^0-9.]/g,'')) || 0;
+    const monthly = parseFloat(document.getElementById('crb_monthlyPayment').value.replace(/[^0-9.]/g,'')) || 0;
+    const patient = document.getElementById('crb_patientName').value.trim();
+    const rp = document.getElementById('crb_responsibleParty').value.trim();
+    const dv = document.getElementById('crb_formDate').value;
+
+    const missing = [];
+    if (!patient) missing.push('patient name');
+    if (!rp) missing.push('responsible party');
+    if (!(balance > 0)) missing.push('remaining balance');
+    if (!(monthly > 0)) missing.push('monthly payment');
+    if (!dv) missing.push('date');
+    if (missing.length) {
+      const list = missing.length === 1 ? missing[0]
+        : missing.slice(0, -1).join(', ') + ' and ' + missing[missing.length - 1];
+      return { error: 'Enter the ' + list + ' first.' };
+    }
+    if (monthly > balance) return { error: 'The monthly payment is larger than the remaining balance.' };
+
+    const [y, m, d] = dv.split('-');
+    const dateStr = m + '/' + d + '/' + y;
+    const cents = function(n) { return Math.round(n * 100); };
+    const numPayments = Math.ceil(balance / monthly);
+    const finalPayment = (cents(balance) - cents(monthly) * (numPayments - 1)) / 100;
+
+    let plan;
+    if (numPayments === 1) {
+      plan = '1 payment of ' + fmtMoney(balance) + ', due on the ' + crb_getDueOrdinal();
+    } else {
+      plan = numPayments + ' monthly payments of ' + fmtMoney(monthly);
+      if (cents(finalPayment) !== cents(monthly)) plan += ' (final payment ' + fmtMoney(finalPayment) + ')';
+      plan += ', due on the ' + crb_getDueOrdinal() + ' of each month';
+    }
+
+    const lines = [
+      'ACCOUNT SUMMARY - as of ' + dateStr,
+      'Patient: ' + patient,
+      'Responsible Party: ' + rp,
+      'Remaining balance (responsible party portion, not including expected insurance payments): ' + fmtMoney(balance),
+      'Payment plan: ' + plan
+    ];
+
+    if (document.getElementById('crb_pifToggle').checked) {
+      const discount = cents(balance * 0.10) / 100;
+      const pifAmt = (cents(balance) - cents(discount)) / 100;
+      lines.push('Paid-in-Full Option: ' + fmtMoney(pifAmt) + ' if paid in full by ' + dateStr +
+        ' (10% discount, a savings of ' + fmtMoney(discount) + ')');
+    }
+
+    if (document.getElementById('crb_insToggle').checked) {
+      const insAmt = parseFloat((document.getElementById('crb_insBalance').value || '').replace(/[^0-9.]/g, '')) || 0;
+      lines.push('Pending insurance balance: ' + (insAmt > 0 ? fmtMoney(insAmt) + ' (awaiting insurance payment)' : 'awaiting insurance payment (amount not yet final)'));
+    }
+
+    return { text: lines.join('\n') };
+  }
+
+  function crb_setWeaveStatus(msg, kind) {
+    const el = document.getElementById('crb_weaveStatus');
+    el.textContent = msg;
+    el.className = 'weave-copy-status' + (kind ? ' ' + kind : '');
+  }
+
+  function crb_clearWeaveStatus() {
+    crb_setWeaveStatus('', '');
+    const pre = document.getElementById('crb_weavePreview');
+    pre.textContent = '';
+    pre.style.display = 'none';
+  }
+
+  function crb_copyForWeave() {
+    const res = crb_buildWeaveSummary();
+    const pre = document.getElementById('crb_weavePreview');
+    if (res.error) {
+      pre.style.display = 'none';
+      crb_setWeaveStatus(res.error, 'err');
+      return;
+    }
+    pre.textContent = res.text;
+    pre.style.display = '';
+
+    const done = function() {
+      crb_setWeaveStatus('Copied. In Weave: Send Form → Next → Add Office Use Only Note → paste. Check the numbers below match the account.', 'ok');
+    };
+    const fallback = function() {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = res.text;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        const ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+        if (ok) { done(); return; }
+      } catch (e) {}
+      crb_setWeaveStatus('Could not copy automatically. Select the summary below and copy it.', 'err');
+    };
+
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(res.text).then(done, fallback);
+    } else {
+      fallback();
+    }
   }
 
   // ==================== PRIVACY & PHOTO RELEASE LOGIC ====================
