@@ -931,7 +931,7 @@ function render() {
   switch (route.page) {
     case 'dashboard': m.innerHTML = viewDashboard(); break;
     case 'staff': m.innerHTML = viewStaffList(); break;
-    case 'staffDetail': m.innerHTML = viewStaffDetail(); break;
+    case 'staffDetail': m.innerHTML = viewStaffDetail(); stabIntoView(); break;
     case 'reviews': m.innerHTML = viewReviews(); break;
     case 'kpis': m.innerHTML = viewKPIs(); break;
     case 'certs': m.innerHTML = viewCerts(); break;
@@ -1056,7 +1056,8 @@ function viewStaffDetail() {
     ['discuss','Discuss' + (openTopics(p.id).length ? ` (${openTopics(p.id).length})` : '')],
     ['reviews','Reviews'],
     ['kpis','KPIs'],
-    ['certs','Certs']
+    ['certs','Certs'],
+    ['color','Color']
   ];
   let body = '';
   switch (route.subtab) {
@@ -1064,6 +1065,7 @@ function viewStaffDetail() {
     case 'reviews': body = subReviews(p); break;
     case 'kpis': body = subKPIs(p); break;
     case 'certs': body = subCerts(p); break;
+    case 'color': body = subColor(p); break;
     case 'timeoff': body = subTimeoff(p); break;
     default: body = subTimeline(p);
   }
@@ -1072,7 +1074,7 @@ function viewStaffDetail() {
   <div class="detHead">
     ${avHTML(p,'lg')}
     <div class="info">
-      <h2>${esc(p.name)} ${p.status === 'former' ? sepBadgeHTML(p) : `<span class="badge ${st.cls}">Review: ${st.label}</span>${sepLeavingBadge(p)}`} ${colorBadge(p.color)}${quizBadgeHTML(p)}</h2>
+      <h2>${esc(p.name)} ${p.status === 'former' ? sepBadgeHTML(p) : `<span class="badge ${st.cls}">Review: ${st.label}</span>${sepLeavingBadge(p)}`} ${colorBadgeBtn(p)}${quizBadgeHTML(p)}</h2>
       <div class="muted" style="margin-top:3px">${esc(p.role || '')}${p.employment ? ' · ' + esc(p.employment) : ''}</div>
       <div class="meta">
         ${p.hireDate ? `<span>${ic('calendar',14)} Hired ${fmtD(p.hireDate)} (${tenure(p.hireDate)})</span>` : ''}
@@ -1098,6 +1100,13 @@ function viewStaffDetail() {
   ${body}`;
 }
 H.subtab = t => { route.subtab = t.dataset.id; render(); };
+/* on a phone the tab row scrolls sideways: keep the open tab in sight (e.g. Color, opened from the header) */
+function stabIntoView() {
+  const bar = $('#main .subtabs'), on = bar && bar.querySelector('.stab.on');
+  if (!on || bar.scrollWidth <= bar.clientWidth) return;
+  const off = on.getBoundingClientRect().left - bar.getBoundingClientRect().left;
+  bar.scrollLeft = Math.max(0, bar.scrollLeft + off - (bar.clientWidth - on.offsetWidth) / 2);
+}
 
 /* ---------- Timeline (notes + incidents) ---------- */
 function subTimeline(p) {
@@ -3179,7 +3188,7 @@ const COLOR_TRAITS = {
   purple: ['Supportive', 'Considerate', 'Avoids conflict', 'People-oriented', 'A team player', 'Helpful', 'Warm & friendly', 'Sensitive to others', 'Patient', 'Values harmony', 'Loyal', 'Nurturing']
 };
 
-let assessFor = null, assessItems = [];
+let assessFor = null, assessItems = [], assessLast = null;   /* assessLast: the result on screen, so Save keeps all of it */
 
 H.openAssess = t => {
   if (!S) return;
@@ -3215,21 +3224,15 @@ H.assessResult = () => {
   const t = assessTally();
   const total = t.red + t.blue + t.green + t.purple;
   if (total < 3) { toast('Pick a few more that fit first', true); return; }
-  const order = ['red', 'blue', 'green', 'purple'].sort((a, b) => t[b] - t[a]);
-  const primary = order[0], secondary = order[1];
-  const pm = STAFF_COLORS[primary], sm = STAFF_COLORS[secondary];
-  const max = t[primary] || 1;
-  const bar = c => { const m = STAFF_COLORS[c]; const pct = Math.round((t[c] / max) * 100); return `<div style="display:flex;align-items:center;gap:8px;margin:5px 0"><span style="width:130px;font-size:13px;color:${m.hex};font-weight:600">${m.label}</span><span style="flex:1;height:10px;background:var(--line);border-radius:6px;overflow:hidden"><span style="display:block;height:100%;width:${pct}%;background:${m.hex}"></span></span><span class="tiny muted" style="width:24px;text-align:right">${t[c]}</span></div>`; };
+  const order = QUIZ_ORDER.slice().sort((a, b) => t[b] - t[a]);
+  const primary = order[0], secondary = t[order[1]] > 0 ? order[1] : null;
+  /* the answers in the quiz link's fixed order (COLOR_TRAITS order), so the word lists line up with the quiz */
+  const on = new Set(assessItems.filter((it, i) => { const el = $('#ax' + i); return el && el.checked; }).map(it => it.c + '|' + it.tr));
+  const picks = quizTraitList().map(it => on.has(it.c + '|' + it.tr) ? '1' : '0').join('');
+  assessLast = { forId: assessFor, primary: primary, secondary: secondary, tally: t, picks: picks, at: Date.now(), via: 'assess' };
   const p = assessFor ? staffById(assessFor) : null;
-  const tie = t[secondary] === t[primary];
   $('#assessBody').innerHTML = `
-    <div style="text-align:center;margin:2px 0 14px">
-      <div class="tiny muted">Primary color</div>
-      <div style="font-size:22px;font-weight:700;color:${pm.hex};margin:3px 0">${colorDot(primary, 14)} ${esc(pm.label)} <span style="font-size:14px;color:var(--mut)">(${pm.animal})</span></div>
-      <div class="tiny muted">Secondary: <b style="color:${sm.hex}">${esc(sm.label)}</b>${tie ? ' — very close, could go either way' : ''}</div>
-    </div>
-    <div style="max-width:470px;margin:0 auto 14px">${order.map(bar).join('')}</div>
-    <div class="warnBox" style="font-size:13px;background:${pm.hex}12;border-color:${pm.hex}55;color:var(--ink)"><b>Working with a ${pm.label.split(' — ')[0]}:</b> ${esc(pm.tone)}</div>
+    ${quizResultHTML(assessLast, 'Result')}
     <div class="mf" style="margin-top:14px;display:flex;justify-content:space-between">
       <button class="btn btn-sec" data-act="openAssess" ${assessFor ? `data-id="${assessFor}"` : ''} type="button">${ic('undo', 13)} Retake</button>
       ${p ? `<button class="btn btn-pri" data-act="assessSave" data-color="${primary}" data-id="${p.id}" type="button">${ic('checkC', 15)} Save as ${esc(p.name)}’s color</button>` : '<button class="btn btn-sec" data-act="closeModal">Done</button>'}
@@ -3238,9 +3241,13 @@ H.assessResult = () => {
 
 H.assessSave = t => {
   const p = staffById(t.dataset.id); if (!p) { closeModal(); return; }
-  p.color = t.dataset.color;
+  const r = assessLast && assessLast.forId === p.id ? assessLast : null;
+  p.color = r ? r.primary : t.dataset.color;
+  /* the whole result, so their Color tab can show the secondary color, the tallies and the words */
+  if (r) p.colorAssess = { primary: r.primary, secondary: r.secondary, tally: r.tally, picks: r.picks, at: r.at, via: 'assess' };
+  assessLast = null;
   const lbl = (STAFF_COLORS[p.color] || {}).label || p.color;
-  if (typeof act === 'function') act('Set ' + p.name + '’s communication color to ' + lbl + ' (assessment)');
+  if (typeof act === 'function') act('Set ' + p.name + '’s communication color to ' + lbl + (r && STAFF_COLORS[r.secondary] ? ' (secondary ' + STAFF_COLORS[r.secondary].label + ')' : '') + ' (assessment)');
   persist(); closeModal(); render(); toast(p.name + ' → ' + lbl);
 };
 
@@ -3410,10 +3417,24 @@ function quizBadgeHTML(p) {
   if (!p || !p.colorLink) return '';
   return ` <button type="button" class="badge b-blue" data-act="quizLinkShow" data-id="${p.id}" style="border:0;cursor:pointer;font-family:inherit" title="Waiting for their answers. Click to see or turn off the link.">${ic('link', 11)} Quiz link sent</button>`;
 }
+/* a staff member's saved color results, newest first: their own quiz (from a link, or as a candidate)
+   and the in-app Color Assessment */
+function colorResults(p) {
+  const out = [];
+  if (p && p.colorQuiz && STAFF_COLORS[p.colorQuiz.primary]) out.push({ q: p.colorQuiz, short: 'Own quiz', title: 'Their color quiz' });
+  if (p && p.colorAssess && STAFF_COLORS[p.colorAssess.primary]) out.push({ q: p.colorAssess, short: 'Assessment', title: 'Color Assessment in Staff Hub' });
+  return out.sort((a, b) => (b.q.at || 0) - (a.q.at || 0));
+}
 function quizMetaHTML(p) {
-  const q = p && p.colorQuiz;
-  if (!q || !STAFF_COLORS[q.primary]) return '';
-  return `<span title="From their own answers to the color quiz">${ic('target', 14)} Own quiz ${esc(quizDay(q.at))}: ${esc(quizColorName(q.primary))}${STAFF_COLORS[q.secondary] ? ', then ' + esc(quizColorName(q.secondary)) : ''}</span>`;
+  const r = colorResults(p)[0];
+  if (!r) return '';
+  const q = r.q;
+  return `<span data-act="subtab" data-id="color" style="cursor:pointer;color:var(--blue)" title="See their color details">${ic('target', 14)} ${r.short} ${esc(quizDay(q.at))}: ${esc(quizColorName(q.primary))}${STAFF_COLORS[q.secondary] ? ', then ' + esc(quizColorName(q.secondary)) : ''}</span>`;
+}
+/* the color badge in a staff member's header: opens their Color tab */
+function colorBadgeBtn(p) {
+  const m = colorMeta(p && p.color); if (!m) return '';
+  return `<button type="button" class="badge" data-act="subtab" data-id="color" title="See ${esc(quizFirst(p))}’s color details" style="background:${m.hex}1A;color:${m.hex};border:1px solid ${m.hex}55;cursor:pointer">${esc(m.label)}</button>`;
 }
 function quizAssessRow(p) {
   if (!p) return '';
@@ -5517,7 +5538,65 @@ function candRowHTML(c) {
     <div class="nhRowA">${btn}</div>
   </div>`;
 }
-/* a color quiz result as a small card: primary, secondary, the four tallies, and how to work with them */
+/* what each color is like: the quiz page's description of each color, said about the person */
+const COLOR_ABOUT = {
+  red:    'Direct, decisive and focused on results. Likes to lead, moves fast and gets things done, and does their best work with clear goals, quick decisions and people who get to the point.',
+  blue:   'Energetic, creative and fun to be around. Brings enthusiasm and fresh ideas, loves variety, and does their best work when they can see the big picture and run with it.',
+  green:  'Thorough, logical and accurate. Plans ahead, asks good questions and cares about getting things right, and does their best work with clear facts, the reasons why, and time to think.',
+  purple: 'Warm, patient and loyal, the teammate everyone can count on. Keeps things calm and friendly, and does their best work with steady support and time to adjust to change.'
+};
+/* one color's box: what it's like and how to work with it (tinted for the primary color). lead is HTML. */
+function colorAboutBox(c, lead, tint) {
+  const m = STAFF_COLORS[c]; if (!m) return '';
+  return `<div style="margin-top:8px;border-radius:10px;padding:10px 12px;font-size:12.5px;line-height:1.5;color:var(--ink);background:${tint ? m.hex + '12' : 'var(--grey-50)'};border:1px solid ${m.hex}${tint ? '40' : '2E'}">
+    <div><b style="color:${m.hex}">${lead}</b> ${esc(COLOR_ABOUT[c] || '')}</div>
+    <div style="margin-top:5px"><b>Working with a ${esc(quizColorName(c))}:</b> ${esc(m.tone)}</div>
+  </div>`;
+}
+/* the 48 answers split into the words checked and skipped, by color (null if the answers weren't saved) */
+function quizWordsSplit(q) {
+  const bits = String((q && q.picks) || ''), list = quizTraitList();
+  if (!/^[01]{48}$/.test(bits) || list.length !== 48) return null;
+  const on = {}, off = {};
+  QUIZ_ORDER.forEach(c => { on[c] = []; off[c] = []; });
+  let n = 0;
+  list.forEach((it, i) => { if (bits.charAt(i) === '1') { on[it.c].push(it.tr); n++; } else off[it.c].push(it.tr); });
+  return { on: on, off: off, n: n };
+}
+/* which word lists are open, so a re-draw (a sync, answers arriving) doesn't fold them back up: the list
+   on screen wins, then what was last chosen this session, then the default */
+const quizWordsOpen = {};
+document.addEventListener('toggle', e => {
+  const d = e.target;
+  if (d && d.dataset && d.dataset.qw) quizWordsOpen[d.dataset.qw] = d.open;
+}, true);
+function quizWordsHTML(q) {
+  const w = quizWordsSplit(q);
+  if (!w) return '';
+  const skipped = 48 - w.n;
+  const note = w.n >= 30 ? ' With this many checked, the skipped words say more than the bars.'
+             : w.n <= 8 ? ' With this few checked, treat the result as a rough read.' : '';
+  const chip = (c, tr, on) => { const m = STAFF_COLORS[c]; return `<span style="display:inline-block;margin:2px 4px 2px 0;padding:2px 9px;border-radius:99px;font-size:12px;line-height:1.5;color:var(--ink);${on ? `background:${m.hex}14;border:1px solid ${m.hex}4D` : `background:var(--card);border:1px dashed ${m.hex}80`}">${esc(tr)}</span>`; };
+  const group = (set, on) => QUIZ_ORDER.map(c => {
+    const m = STAFF_COLORS[c], words = set[c];
+    return `<div style="display:flex;gap:8px;align-items:baseline;margin:4px 0"><span style="flex:0 0 50px;font-size:12px;font-weight:700;color:${m.hex}">${esc(quizColorName(c))}</span><div style="flex:1;min-width:0">${words.length ? words.map(tr => chip(c, tr, on)).join('') : `<span class="tiny">${on ? 'none' : 'none, checked all 12'}</span>`}</div></div>`;
+  }).join('');
+  const key = String(q.at || 0);
+  const list = (kind, label, count, body, dflt) => {
+    const k = key + ':' + kind, live = document.querySelector('details[data-qw="' + CSS.escape(k) + '"]');
+    if (live) quizWordsOpen[k] = live.open;
+    const open = Object.prototype.hasOwnProperty.call(quizWordsOpen, k) ? quizWordsOpen[k] : dflt;
+    return `<details data-qw="${esc(k)}"${open ? ' open' : ''} style="margin-top:6px"><summary style="cursor:pointer;font-size:12.5px;font-weight:600;color:var(--navy);padding:3px 0">${label} (${count})</summary><div style="margin:2px 0 4px">${body}</div></details>`;
+  };
+  const skippedOpen = skipped <= w.n;   /* the shorter list starts open; skipped wins a tie */
+  return `<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--grey-200)">
+    <div class="tiny" style="color:var(--mut)">Checked ${w.n} of 48 words.${note}</div>
+    ${list('s', 'Words skipped', skipped, group(w.off, false), skippedOpen)}
+    ${list('c', 'Words checked', w.n, group(w.on, true), !skippedOpen)}
+  </div>`;
+}
+/* a color result as a card: primary and secondary color, the four tallies, what their top two colors are
+   like and how to work with each, and the words checked and skipped (when all 48 answers were saved) */
 function quizResultHTML(q, title) {
   const t = q.tally || {}, pm = STAFF_COLORS[q.primary], sm = STAFF_COLORS[q.secondary];
   const order = QUIZ_ORDER.slice().sort((a, b) => (t[b] || 0) - (t[a] || 0));
@@ -5526,10 +5605,42 @@ function quizResultHTML(q, title) {
   return `<div style="border:1px solid var(--grey-200);border-radius:12px;padding:14px 16px">
     <div class="tiny" style="margin-bottom:4px">${esc(title)}</div>
     <div style="font-size:19px;font-weight:700;color:${pm.hex}">${colorDot(q.primary, 13)} ${esc(pm.label)} <span style="font-size:13px;color:var(--mut);font-weight:600">(${esc(pm.animal)})</span></div>
-    ${sm ? `<div class="tiny" style="margin-top:2px">Secondary: <b style="color:${sm.hex}">${esc(sm.label)}</b>${tie ? ' — very close, could go either way' : ''}</div>` : ''}
+    ${sm ? `<div class="tiny" style="margin-top:2px">Secondary: <b style="color:${sm.hex}">${esc(sm.label)}</b> (${esc(sm.animal)})${tie ? ' — very close, could go either way' : ''}</div>` : ''}
     <div style="margin:10px 0">${order.map(bar).join('')}</div>
-    <div class="warnBox" style="margin:0;font-size:12.5px;background:${pm.hex}12;color:var(--ink)"><b>Working with a ${esc(quizColorName(q.primary))}:</b> ${esc(pm.tone)}</div>
+    ${colorAboutBox(q.primary, esc(quizColorName(q.primary)) + ':', true)}
+    ${sm ? colorAboutBox(q.secondary, 'Secondary, ' + esc(quizColorName(q.secondary)) + ':', false) : ''}
+    ${quizWordsHTML(q)}
   </div>`;
+}
+/* the Color tab on a staff member's page: their communication color, every result saved for them
+   (their own quiz and the in-app assessment), and ways to get a fresh one */
+function subColor(p) {
+  const f = esc(quizFirst(p)), m = colorMeta(p.color), res = colorResults(p), L = p.colorLink, former = p.status === 'former';
+  const box = 'display:flex;align-items:center;gap:10px;flex-wrap:wrap;border-radius:10px;padding:10px 12px;font-size:13px;margin:0 0 14px';
+  const linkBtn = former ? '' : (L && !L.lost)
+    ? `<button class="btn btn-sec btn-sm" data-act="quizLinkShow" data-id="${p.id}" type="button">${ic('link', 13)} See the link</button>`
+    : `<button class="btn btn-sec btn-sm" data-act="quizLinkMake" data-id="${p.id}" type="button">${ic('link', 13)} ${L ? 'Send a new link' : 'Send ' + f + ' the quiz'}</button>`;
+  const assessBtn = `<button class="btn btn-sec btn-sm" data-act="openAssess" data-id="${p.id}" type="button">${ic('target', 13)} Color Assessment</button>`;
+  const out = [];
+  if (L && !former) out.push(L.lost
+    ? `<div class="warnBox" style="${box}"><span style="flex:1;min-width:200px">${f} used the quiz link, but the answers didn’t reach Staff Hub. Send ${f} a new link.</span>${linkBtn}</div>`
+    : `<div style="${box};background:var(--blue-100);color:var(--navy)"><span style="flex:1;min-width:200px">A quiz link is out to ${f}${L.at ? ', sent ' + esc(quizDay(L.at)) : ''}. Their answers show up here when they finish.</span>${linkBtn}</div>`);
+  const btns = (L && !L.lost ? '' : linkBtn) + assessBtn;
+  if (res.length) {
+    if (m && res[0].q.primary !== p.color) out.push(`<div class="infoBox">${f}’s communication color is set to <b>${esc(m.label)}</b>. Their latest result below says ${esc(quizColorName(res[0].q.primary))}.</div>`);
+    out.push(res.map(r => quizResultHTML(r.q, r.title + ' · ' + quizDay(r.q.at))).join('<div style="height:14px"></div>'));
+    out.push(`<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-top:14px">${btns}</div>`);
+  } else if (m) {
+    out.push(`<div style="border:1px solid var(--grey-200);border-radius:12px;padding:14px 16px">
+      <div class="tiny" style="margin-bottom:4px">Communication color</div>
+      <div style="font-size:19px;font-weight:700;color:${m.hex}">${colorDot(p.color, 13)} ${esc(m.label)} <span style="font-size:13px;color:var(--mut);font-weight:600">(${esc(m.animal)})</span></div>
+      ${colorAboutBox(p.color, esc(quizColorName(p.color)) + ':', true)}
+    </div>`);
+    out.push(`<div style="${box};margin:14px 0 0;background:var(--blue-100);color:var(--navy)"><span style="flex:1;min-width:200px">Only ${f}’s main color was saved, so there’s no secondary color, tally or word list yet. ${L && !L.lost ? 'Their quiz answers will fill it in.' : former ? 'Redo the Color Assessment to see all of it.' : 'Send ' + f + ' the quiz (about 2 minutes on their phone) or redo the Color Assessment to see all of it.'}</span>${btns}</div>`);
+  } else {
+    out.push(`<div style="${box};margin:0;background:var(--blue-100);color:var(--navy)"><span style="flex:1;min-width:200px">No color for ${f} yet. ${L && !L.lost ? 'Their quiz answers will show up here.' : former ? 'You can still do the Color Assessment here.' : 'Send ' + f + ' the quiz (about 2 minutes on their phone) or do the Color Assessment here.'}</span>${btns}</div>`);
+  }
+  return `<div class="panel"><div class="pb"><div style="max-width:680px">${out.join('')}</div></div></div>`;
 }
 function candColorBoxHTML(c) {
   const f = esc(quizFirst(c)), open = candIsOpen(c), L = c.colorLink;
