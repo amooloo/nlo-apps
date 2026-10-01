@@ -199,6 +199,13 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
 .sCard .meta svg{color:var(--grey-400)}
 .sCard .flags{display:flex;gap:6px;flex-wrap:wrap;margin-top:14px}
 .sCard.former{opacity:.6}
+.sCard.clr{background:var(--cc);border-color:var(--cc);color:#fff}
+.sCard.clr .nm,.sCard.clr .rl,.sCard.clr .meta,.sCard.clr .meta svg{color:#fff}
+.sCard.clr .rl,.sCard.clr .meta{opacity:.92}
+.sCard.clr .av{box-shadow:0 0 0 3px rgba(255,255,255,.85)}
+.sCard.clr .badge{background:#fff;border-color:#fff}
+.sCard.clr.former{opacity:.75;filter:grayscale(1)}
+.sCard .cname{display:block;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;opacity:.92;margin-top:3px}
 
 /* ---------- Staff detail ---------- */
 .detHead{background:var(--card);border:1px solid var(--grey-200);border-radius:var(--r);box-shadow:var(--sh-xs);padding:26px;display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap;margin-bottom:20px}
@@ -1049,8 +1056,9 @@ function viewStaffList() {
     const st = reviewStatus(p);
     const tp = openTopics(p.id).length;
     const certAl = S.certs.filter(cc => cc.staffId === p.id && certStatus(cc).d != null && certStatus(cc).d <= (S.settings.certAlertDays||60)).length;
-    return `<div class="sCard ${p.status === 'former' ? 'former' : ''}" data-act="openStaff" data-id="${p.id}">
-      <div class="inline">${avHTML(p)}<div><div class="nm">${esc(p.name)} ${colorDot(p.color)}</div><div class="rl">${esc(p.role || '')}</div></div></div>
+    const cm = colorMeta(p.color);
+    return `<div class="sCard ${cm ? 'clr' : ''} ${p.status === 'former' ? 'former' : ''}" ${cm ? `style="--cc:${cm.hex}" title="${esc(cm.label)} (${cm.animal})"` : ''} data-act="openStaff" data-id="${p.id}">
+      <div class="inline">${avHTML(p)}<div><div class="nm">${esc(p.name)}${cm ? '' : ' '}</div><div class="rl">${esc(p.role || '')}</div>${cm ? `<span class="cname">${esc(cm.label.split(' — ')[0])} · ${esc(cm.animal)}</span>` : ''}</div></div>
       <div class="meta">
         ${p.hireDate ? `<span>${ic('calendar',14)} Hired ${fmtD(p.hireDate)} · ${tenure(p.hireDate)}</span>` : ''}
         ${p.employment ? `<span>${ic('briefcase',14)} ${esc(p.employment)}</span>` : ''}
