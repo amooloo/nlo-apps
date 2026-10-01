@@ -871,10 +871,30 @@ const iprRosterSubs = new Set();
 let iprRosterRef = null, iprRosterCb = null;
 function iprStaffNamesNow() { return iprStaffNamesCur; }
 function iprRosterSubscribe(f) { iprRosterSubs.add(f); return () => { iprRosterSubs.delete(f); }; }
+/* small round photos for the assistant picker, keyed by the name shown in the list (nick, first name or full name).
+   Photos come from Staff Hub through the roster; someone who has left shows in grayscale. No photo = nothing extra is drawn. */
+let iprPhotosCur = {}, iprPhotosSig = "";
+function iprPhotosNow() { return iprPhotosCur; }
+function iprPhotosFromRoster(people) {
+  const m = {};
+  try {
+    Object.values(people && typeof people === "object" ? people : {}).forEach(p => {
+      if (!p || typeof p !== "object" || typeof p.photo !== "string" || p.photo.indexOf("data:image/jpeg;base64,") !== 0 || p.photo.length >= 30000) return;
+      const o = { photo: p.photo, gone: !nloRosterActive(p) };
+      [p.nick, p.first, p.name].forEach(n => { n = String(n || "").trim().toLowerCase(); if (n && !m[n]) m[n] = o; });
+    });
+  } catch (e) {}
+  return m;
+}
 function iprRosterApply(people) {
+  const ph = iprPhotosFromRoster(people);
+  const sig = Object.keys(ph).sort().map(k => k + (ph[k].gone ? "g" : "a") + ph[k].photo.length + ph[k].photo.slice(-24)).join("|");
+  const photosChanged = sig !== iprPhotosSig;
+  if (photosChanged) { iprPhotosCur = ph; iprPhotosSig = sig; }
   const next = iprNamesFromRoster(people);
-  if (next.join("\n") === iprStaffNamesCur.join("\n")) return;
-  iprStaffNamesCur = next;
+  const namesChanged = next.join("\n") !== iprStaffNamesCur.join("\n");
+  if (!namesChanged && !photosChanged) return;
+  if (namesChanged) iprStaffNamesCur = next;
   iprRosterSubs.forEach(f => f());
 }
 function iprRosterStart() {
@@ -898,7 +918,14 @@ function IprAsstSelect(props) {
   const names = React.useSyncExternalStore(iprRosterSubscribe, iprStaffNamesNow);
   const v = props.value || "";
   const list = v && names.indexOf(v) === -1 ? names.concat([v]) : names;
-  return React.createElement("select", rest, React.createElement("option", { value: "" }, blank), list.map(n => React.createElement("option", { key: n, value: n }, n)));
+  const photos = React.useSyncExternalStore(iprRosterSubscribe, iprPhotosNow);
+  const info = v ? photos[String(v).trim().toLowerCase()] : null;
+  const opts = [React.createElement("option", { key: "", value: "" }, blank)].concat(list.map(n => React.createElement("option", { key: n, value: n }, n)));
+  if (!info) return React.createElement("select", rest, opts);
+  const face = React.createElement("span", { "aria-hidden": "true", style: { width: 28, height: 28, borderRadius: "50%", flex: "none", overflow: "hidden", display: "inline-flex", filter: info.gone ? "grayscale(1)" : undefined } },
+    React.createElement("img", { src: info.photo, alt: "", style: { width: "100%", height: "100%", objectFit: "cover", display: "block" } }));
+  return React.createElement("span", { style: { display: "flex", alignItems: "center", gap: 8, minWidth: 0 } }, face,
+    React.createElement("select", { ...rest, style: { ...(rest.style || {}), flex: "1 1 auto" } }, opts));
 }
 function initContacts(teeth) {
   const c = {};

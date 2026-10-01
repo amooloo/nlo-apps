@@ -172,7 +172,8 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
 .tbl tr:last-child td{border-bottom:none}
 .tbl tr.rowClick{cursor:pointer}
 .tbl tr.rowClick:hover td{background:var(--grey-50)}
-.av{width:38px;height:38px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:13.5px;flex:none;letter-spacing:.02em}
+.av{width:38px;height:38px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:13.5px;flex:none;letter-spacing:.02em;overflow:hidden}
+.av img{width:100%;height:100%;object-fit:cover;display:block;border-radius:50%}
 .av.lg{width:64px;height:64px;font-size:22px}
 .av.sm{width:30px;height:30px;font-size:11px}
 .inline{display:flex;align-items:center;gap:11px}
@@ -922,7 +923,27 @@ function panelHTML(title, count, body, headExtra, icon) {
   return `<div class="panel"><div class="ph"><h3>${icon ? ic(icon, 16) : ''}${title}</h3>${count != null ? `<span class="cnt">${count}</span>` : ''}<div class="sp"></div>${headExtra || ''}</div><div class="pb flush">${body}</div></div>`;
 }
 function emptyHTML(icon, text) { return `<div class="empty"><div class="eIc">${ic(icon, 34)}</div><p>${text}</p></div>`; }
-function avHTML(p, cls) { return `<span class="av ${cls || ''}" style="background:${avColor(p.name)}">${esc(initials(p.name))}</span>`; }
+function photoOK(p) { return !!p && typeof p.photo === 'string' && p.photo.indexOf('data:image/jpeg;base64,') === 0 && p.photo.length < 30000; }
+function avGone(p) { try { return !!p && (p.status === 'former' || (typeof rosterEnd === 'function' && !!rosterEnd(p) && rosterEnd(p) <= todayYMD())); } catch (e) { return false; } }
+function avHTML(p, cls) { return `<span class="av ${cls || ''}" style="background:${avColor(p.name)}${avGone(p) ? ';filter:grayscale(1)' : ''}">${photoOK(p) ? '<img src="' + p.photo + '" alt="">' : esc(initials(p.name))}</span>`; }
+/* a picked photo becomes a small centred square (128 px JPEG, about 4 KB) so it travels with the roster */
+function photoFromFile(file) {
+  return new Promise((resolve, reject) => {
+    if (!file || !/^image\//.test(file.type || '')) { reject(new Error('not an image')); return; }
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = () => {
+      try {
+        const w = img.naturalWidth, h = img.naturalHeight, s = Math.min(w, h), c = document.createElement('canvas');
+        c.width = c.height = 128;
+        const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, 128, 128);
+        g.drawImage(img, (w - s) / 2, (h - s) / 2, s, s, 0, 0, 128, 128);
+        URL.revokeObjectURL(url); resolve(c.toDataURL('image/jpeg', 0.82));
+      } catch (e) { URL.revokeObjectURL(url); reject(e); }
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('unreadable image')); };
+    img.src = url;
+  });
+}
 
 function render() {
   sepSweep();
@@ -1072,7 +1093,7 @@ function viewStaffDetail() {
   return `
   <button class="btn-ghost" data-act="nav" data-id="staff" style="margin:-8px 0 14px -10px">${ic('chevL',14)} All staff</button>
   <div class="detHead">
-    ${avHTML(p,'lg')}
+    <span data-act="editStaff" data-id="${p.id}" title="Add or change photo" style="cursor:pointer;display:inline-flex">${avHTML(p,'lg')}</span>
     <div class="info">
       <h2>${esc(p.name)} ${p.status === 'former' ? sepBadgeHTML(p) : `<span class="badge ${st.cls}">Review: ${st.label}</span>${sepLeavingBadge(p)}`} ${colorBadgeBtn(p)}${quizBadgeHTML(p)}</h2>
       <div class="muted" style="margin-top:3px">${esc(p.role || '')}${p.employment ? ' · ' + esc(p.employment) : ''}</div>
@@ -1251,6 +1272,10 @@ function staffModal(p) {
       <div class="field"><label>Goes by <span class="tiny">(name on the office apps)</span></label><input type="text" id="sfNick" value="${esc(p.nick || '')}" placeholder="${esc(String(p.name || '').trim().split(/\s+/)[0] || 'e.g. Angie')}"></div>
       <div class="field" style="display:flex;align-items:flex-end"><label style="display:flex;align-items:center;gap:8px;margin:0 0 10px;font-family:var(--fb);font-size:13px;color:var(--grey-700);font-weight:500;text-transform:none;letter-spacing:0"><input type="checkbox" id="sfChair" ${rosterChairside(p) ? 'checked' : ''} style="width:16px;height:16px;accent-color:var(--blue)"> Works chairside (IPR list)</label></div>
     </div>
+    <div class="field"><label>Photo <span class="tiny">(shows as a small round picture on the office apps)</span></label>
+      <div style="display:flex;align-items:center;gap:12px"><span id="sfPhotoPrev"></span>
+        <button type="button" class="btn btn-sec btn-sm" id="sfPhotoPick">Choose photo</button><button type="button" class="btn btn-sec btn-sm" id="sfPhotoClear">Remove</button>
+        <input type="file" id="sfPhotoFile" accept="image/*" style="display:none"></div></div>
     <div class="frow">
       <div class="field"><label>Employment</label><select id="sfEmp">${['Full-time','Part-time','PRN / Temp','Contractor'].map(e => `<option ${p.employment === e ? 'selected' : ''}>${e}</option>`).join('')}</select></div>
       <div class="field"><label>Hire date</label><input type="date" id="sfHire" value="${esc(p.hireDate)}"></div>
@@ -1267,6 +1292,15 @@ function staffModal(p) {
     <div class="field"><label>Profile note <span class="tiny">(strengths, preferences, context)</span></label><textarea id="sfNote" style="min-height:56px">${esc(p.profileNote)}</textarea></div>
   </div>
   <div class="mf"><button class="btn btn-sec" data-act="closeModal">Cancel</button><button class="btn btn-pri" id="sfSave">${isNew ? 'Add staff member' : 'Save changes'}</button></div>`);
+  let sfPhoto = photoOK(p) ? p.photo : '';
+  const sfPhotoShow = () => { const nm = $('#sfName') ? $('#sfName').value : p.name; $('#sfPhotoPrev').innerHTML = avHTML({ name: nm || '?', photo: sfPhoto }, 'lg'); $('#sfPhotoClear').style.display = sfPhoto ? '' : 'none'; };
+  sfPhotoShow();
+  $('#sfPhotoPick').onclick = () => $('#sfPhotoFile').click();
+  $('#sfPhotoClear').onclick = () => { sfPhoto = ''; sfPhotoShow(); };
+  $('#sfPhotoFile').onchange = e => {
+    const file = e.target.files && e.target.files[0]; e.target.value = '';
+    if (file) photoFromFile(file).then(d => { sfPhoto = d; sfPhotoShow(); }).catch(() => toast('Couldn’t read that picture. Try a JPG or PNG.', true));
+  };
   if (isNew) {   /* new hires: tick "chairside" from the role until the box is changed by hand */
     const chair = $('#sfChair'), roleIn = $('#sfRole');
     if (chair && roleIn) { chair.onchange = () => { chair.dataset.touched = '1'; }; roleIn.addEventListener('input', () => { if (!chair.dataset.touched) chair.checked = rosterChairside({ role: roleIn.value }); }); }
@@ -1275,6 +1309,7 @@ function staffModal(p) {
     const name = $('#sfName').value.trim();
     if (!name) { toast('Name is required', true); return; }
     const vals = { name, role:$('#sfRole').value.trim(), employment:$('#sfEmp').value, hireDate:$('#sfHire').value, birthday:$('#sfBday').value, phone:$('#sfPhone').value.trim(), email:$('#sfEmail').value.trim(), profileNote:$('#sfNote').value.trim(), nextReview:$('#sfNext').value, color:$('#sfColor').value, nick:$('#sfNick').value.trim(), chairside:$('#sfChair').checked };
+    if (sfPhoto) vals.photo = sfPhoto; else if (!isNew) delete p.photo;
     if (isNew) {
       const np = Object.assign({ id:uid(), status:'active', created:Date.now() }, vals);
       S.staff.push(np); act('Added staff member ' + name);
@@ -6103,6 +6138,7 @@ function rosterPerson(p) {
   };
   const end = rosterEnd(p);
   if (end) o.end = end;
+  if (photoOK(p)) o.photo = p.photo;
   return o;
 }
 function rosterPeople() {
@@ -6179,11 +6215,11 @@ function rosterPanelHTML() {
     const state = rosterStatus === 'error' ? `<span style="color:var(--coral-700)">${esc(rosterErr)}</span>`
       : rosterStatus === 'saving' ? 'Sharing…' : (when ? 'Shared at ' + esc(when) : 'Connected');
     head = `<p class="muted" style="margin-bottom:10px">${state} · signed in as ${esc(rosterUser.email || '')}</p>
-      <div style="display:flex;gap:9px;flex-wrap:wrap;margin-bottom:12px"><button class="btn btn-sec btn-sm" data-act="rosterNow">Share now</button><button class="btn btn-sec btn-sm" data-act="rosterDisconnect">Disconnect</button></div>`;
+      <div style="display:flex;gap:9px;flex-wrap:wrap;margin-bottom:12px"><button class="btn btn-sec btn-sm" data-act="rosterNow">Share now</button><button class="btn btn-sec btn-sm" data-act="rosterPhotos">Add photos</button><button class="btn btn-sec btn-sm" data-act="rosterDisconnect">Disconnect</button></div>`;
   }
   const rows = list.map(p => {
     const n = rosterNameParts(p.name), nick = String(p.nick || '').trim();
-    return `<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-top:1px solid var(--grey-100)"><div style="flex:1;min-width:0"><b style="font-size:13px;color:var(--navy)">${esc(p.name)}</b>${nick && nick !== n.first ? ' <span class="muted">· goes by ' + esc(nick) + '</span>' : ''}<div class="tiny">${esc(p.role || 'No role set')}${rosterChairside(p) ? ' · chairside' : ''}</div></div>${rosterStatusLine(p)}</div>`;
+    return `<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-top:1px solid var(--grey-100)">${avHTML(p)}<div style="flex:1;min-width:0"><b style="font-size:13px;color:var(--navy)">${esc(p.name)}</b>${nick && nick !== n.first ? ' <span class="muted">· goes by ' + esc(nick) + '</span>' : ''}<div class="tiny">${esc(p.role || 'No role set')}${rosterChairside(p) ? ' · chairside' : ''}</div></div>${rosterStatusLine(p)}</div>`;
   }).join('');
   return `<div class="panel" style="margin-bottom:18px" id="rosterPanel"><div class="ph"><h3>${ic('users',16)}Office roster</h3></div><div class="pb">${head}${rows ? '<div class="tiny" style="margin:4px 0 2px">What the other apps see (edit a person to change “goes by” or chairside):</div>' + rows : ''}</div></div>`;
 }
@@ -6202,6 +6238,22 @@ H.rosterConnect = () => {
   });
 };
 H.rosterNow = () => { rosterSent = ''; rosterQueue(0); };
+/* pick several pictures at once; each file is matched to a person by the first name in its file name (Kaylee.png, Gwen.jpg ...) */
+H.rosterPhotos = () => {
+  const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*'; inp.multiple = true;
+  inp.onchange = async () => {
+    const files = Array.from(inp.files || []); let ok = 0; const miss = [];
+    for (const f of files) {
+      const key = rosterSlug(String(f.name).replace(/\.[^.]*$/, '').split(/[\s_\-.]+/)[0]);
+      const hits = S.staff.filter(p => p && p.name && p.status !== 'former' && (rosterSlug(p.nick) === key || rosterSlug(rosterNameParts(p.name).first) === key));
+      if (hits.length !== 1) { miss.push(f.name); continue; }
+      try { hits[0].photo = await photoFromFile(f); act('Added photo for ' + hits[0].name); ok++; } catch (e) { miss.push(f.name); }
+    }
+    if (ok) { persist(); render(); rosterQueue(0); }
+    toast(ok + ' photo' + (ok === 1 ? '' : 's') + ' added' + (miss.length ? '. Couldn’t match: ' + miss.join(', ') + ' (name the file after the person’s first name)' : ''), !ok);
+  };
+  inp.click();
+};
 H.rosterDisconnect = () => { if (rosterApp) rosterApp.auth().signOut(); };
 
 </script>

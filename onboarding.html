@@ -48,7 +48,8 @@ img{max-width:100%}
 .who{display:flex;align-items:center;gap:8px;padding:5px 10px 5px 5px;border-radius:999px;background:rgba(255,255,255,.1);color:#fff;font-weight:600;font-size:13px;max-width:220px}
 .who:hover{background:rgba(255,255,255,.18)}
 .who span.n{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.av{width:30px;height:30px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0;color:#fff;background:var(--blue);letter-spacing:.3px}
+.av{width:30px;height:30px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0;color:#fff;background:var(--blue);letter-spacing:.3px;overflow:hidden}
+.av img{width:100%;height:100%;object-fit:cover;display:block;border-radius:50%}
 .av.lg{width:46px;height:46px;font-size:16px}
 .av.xl{width:64px;height:64px;font-size:22px}
 .menu{position:absolute;right:12px;top:52px;background:#fff;color:var(--navy);border-radius:12px;box-shadow:var(--sh2);min-width:230px;padding:6px;z-index:60}
@@ -506,7 +507,12 @@ function plural(n, w, pl) { return n + ' ' + (n === 1 ? w : (pl || w + 's')); }
 function firstName(p) { if (!p) return ''; return p.first || String(p.name || '').split(/\s+/)[0] || ''; }
 function initials(name) { const w = String(name || '?').replace(/^Dr\.?\s+/i, '').trim().split(/\s+/).filter(Boolean); return ((w[0] || '?')[0] + (w.length > 1 ? w[w.length - 1][0] : '')).toUpperCase(); }
 function avColor(id) { let h = 0; String(id || '').split('').forEach(c => { h = (h * 31 + c.charCodeAt(0)) >>> 0; }); return AV_COLORS[h % AV_COLORS.length]; }
-function avatar(p, cls) { const n = p ? (p.name || p.first || '?') : '?'; return `<span class="av ${cls || ''}" style="background:${avColor(p && p.id)}">${esc(initials(n))}</span>`; }
+function avatar(p, cls) {
+  const n = p ? (p.name || p.first || '?') : '?';
+  const ph = p && typeof p.photo === 'string' && p.photo.indexOf('data:image/jpeg;base64,') === 0 && p.photo.length < 30000 ? p.photo : '';
+  const gone = !!p && (p.active === false || (p.end && p.end < today()));
+  return `<span class="av ${cls || ''}" style="background:${avColor(p && p.id)}${gone ? ';filter:grayscale(1)' : ''}">${ph ? '<img src="' + ph + '" alt="">' : esc(initials(n))}</span>`;
+}
 function randId(n) { const a = 'abcdefghjkmnpqrstuvwxyz23456789'; const b = new Uint8Array(n || 8); crypto.getRandomValues(b); return Array.from(b, x => a[x % a.length]).join(''); }
 function debounce(fn, ms) { let t; return function () { clearTimeout(t); const a = arguments; t = setTimeout(() => fn.apply(null, a), ms); }; }
 function hex(buf) { return Array.from(new Uint8Array(buf), b => b.toString(16).padStart(2, '0')).join(''); }

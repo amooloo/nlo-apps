@@ -553,6 +553,15 @@ function nloRosterWatch(){
   db.ref('nlo/cadence/roster/people').on('value',s=>apply(s.val()),()=>apply(null));
 }
 
+/* small round picture for a roster person (photo comes from Staff Hub); grayscale once they have left */
+function mtgAv(p,sz){
+  if(!p) return '';
+  const nm=String(p.name||'?').replace(/^Dr\.?\s+/i,'').trim(), ini=(nm.split(/\s+/).map(w=>w[0]||'').filter((x,i,a)=>i===0||i===a.length-1).join('')||'?').toUpperCase();
+  const ph=typeof p.photo==='string'&&p.photo.indexOf('data:image/jpeg;base64,')===0&&p.photo.length<30000?p.photo:'';
+  const g=nloRosterActive(p)?'':'filter:grayscale(1);';
+  return `<span style="width:${sz}px;height:${sz}px;border-radius:50%;background:#294169;color:#fff;font-size:${Math.round(sz*.4)}px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;flex:none;overflow:hidden;vertical-align:middle;${g}">${ph?`<img src="${ph}" alt="" style="width:100%;height:100%;object-fit:cover;display:block;">`:ini}</span>`;
+}
+
 /* ---------- Helpers ---------- */
 const $=id=>document.getElementById(id);
 const esc=s=>(s==null?'':String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -820,7 +829,8 @@ function renderActions(){
   const badge=$('badgeActions'); badge.textContent=open.length; badge.classList.toggle('hide',open.length===0);
   const row=([id,a])=>{
     const carry=a.meetingId && a.meetingId!==state.meetingId && a.status!=='done';
-    const meta=[a.owner?esc(a.owner):'', a.due?('due '+esc(fmtDate(a.due))):'', carry?'<span class="chip carry">carried over</span>':''].filter(Boolean).join(' · ');
+    const op=a.owner?nloRosterMatchName(a.owner):null;
+    const meta=[a.owner?(op?mtgAv(op,18)+' ':'')+esc(a.owner):'', a.due?('due '+esc(fmtDate(a.due))):'', carry?'<span class="chip carry">carried over</span>':''].filter(Boolean).join(' · ');
     return `<div class="ai-item ${a.status==='done'?'done':''}"><input type="checkbox" ${a.status==='done'?'checked':''} onchange="toggleAction('${id}',this.checked)">
       <div style="flex:1"><div class="aitext">${esc(a.text)}</div><div class="aimeta">${meta}</div></div>
       <button class="del" title="Delete" onclick="delAction('${id}')">×</button></div>`;
@@ -961,7 +971,7 @@ function renderRosterUI(){
   const rows=sortByOrder(state.roster).filter(([,p])=>!nloRosterMatchName(p.name));
   const shared=(nloRoster||[]).filter(p=>nloRosterActive(p)).sort((a,b)=>a.name.localeCompare(b.name));
   $('rosterList').innerHTML = (rows.length||shared.length)? `<table><thead><tr><th>Name</th><th>Role</th><th></th></tr></thead><tbody>${
-    shared.map(p=>`<tr><td>${esc(p.name)}</td><td>${esc(p.title||'')}</td><td style="text-align:right"><span class="chip" title="Add or remove this person in Staff Hub">Staff Hub</span></td></tr>`).join('')+
+    shared.map(p=>`<tr><td><span style="display:inline-flex;align-items:center;gap:8px">${mtgAv(p,28)}${esc(p.name)}</span></td><td>${esc(p.title||'')}</td><td style="text-align:right"><span class="chip" title="Add or remove this person in Staff Hub">Staff Hub</span></td></tr>`).join('')+
     rows.map(([id,p])=>`<tr><td>${esc(p.name)}</td><td>${esc(p.role||'')}</td><td style="text-align:right"><button class="del" onclick="delRoster('${id}')">×</button></td></tr>`).join('')
   }</tbody></table>` : '<p class="empty">No staff added yet. Add people or import from the Checklist app.</p>';
 }

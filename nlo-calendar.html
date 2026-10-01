@@ -235,6 +235,12 @@ function rosterLabel(p){
   const r=Object.prototype.hasOwnProperty.call(ROSTER_ROLE_SHORT,t)?ROSTER_ROLE_SHORT[t]:"";
   return r?nm+" ("+r+")":nm;
 }
+function nloRosterPhoto(p){return p&&typeof p.photo==="string"&&p.photo.indexOf("data:image/jpeg;base64,")===0&&p.photo.length<30000?p.photo:null;}
+function calAvatar(st,sz){
+  const nm=String(st&&st.name||"?").replace(/\s*\(.*$/,"").trim(), ini=(nm.split(/\s+/).map(w=>w[0]||"").slice(0,2).join("")||"?").toUpperCase();
+  const g=st&&st.left?"filter:grayscale(1);":"";
+  return `<span style="width:${sz}px;height:${sz}px;border-radius:50%;background:#294169;color:#fff;font-size:${Math.round(sz*.38)}px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;flex:none;overflow:hidden;${g}">${st&&st.photo?`<img src="${st.photo}" alt="" style="width:100%;height:100%;object-fit:cover;display:block;">`:esc(ini)}</span>`;
+}
 function calStaff(){
   const raw=(S.data&&S.data.staff)||{}, ppl=calRoster;
   const ids=ppl?Object.keys(ppl).filter(k=>ppl[k]&&typeof ppl[k]==="object"):[];
@@ -249,11 +255,12 @@ function calStaff(){
     let pid=ids.indexOf(id)>=0?id:null;
     if(!pid&&full) pid=only(k=>{ const n=norm(ppl[k].name); return !!n&&(n===full||n===label); });
     if(!pid&&label) pid=only(k=>norm(ppl[k].nick)===label||norm(ppl[k].first)===label);
-    if(pid){ claimed[pid]=true; if(!nloRosterActive(ppl[pid])){ out[id]=Object.assign({},st,{active:false,left:true}); return; } }
-    out[id]=st;
+    let ph=null;
+    if(pid){ claimed[pid]=true; ph=nloRosterPhoto(ppl[pid]); if(!nloRosterActive(ppl[pid])){ out[id]=Object.assign({},st,{active:false,left:true},ph?{photo:ph}:{}); return; } }
+    out[id]=ph?Object.assign({},st,{photo:ph}):st;
   });
   ids.forEach(pid=>{
-    if(!claimed[pid]&&!raw[pid]&&/^[\w-]+$/.test(pid)&&nloRosterActive(ppl[pid])) out[pid]={ name:rosterLabel(ppl[pid])||pid, active:true, roster:true };
+    if(!claimed[pid]&&!raw[pid]&&/^[\w-]+$/.test(pid)&&nloRosterActive(ppl[pid])) out[pid]=Object.assign({ name:rosterLabel(ppl[pid])||pid, active:true, roster:true },nloRosterPhoto(ppl[pid])?{photo:nloRosterPhoto(ppl[pid])}:{});
   });
   return out;
 }
@@ -874,6 +881,7 @@ function renderSettings(){
       h+=`<div style="display:flex;align-items:center;gap:10px;border:1px solid var(--grey-200);border-radius:10px;padding:8px 12px;">
         <label style="display:flex;align-items:center;gap:10px;flex:1;cursor:pointer;min-width:0;">
           <input type="checkbox" data-chg="staff-toggle" data-id="${id}" ${st.active?"checked":""}${st.left||st.roster?" disabled":""} style="width:18px;height:18px;accent-color:#1D3EA9;flex:none;">
+          ${calAvatar(st,34)}
           <span style="min-width:0;">
             <span style="display:block;font-size:15px;font-weight:600;color:${st.active?"#1B2F4C":"#969FAB"};">${esc(st.name)}</span>
             ${meta.length?`<span style="display:block;font-size:12px;color:var(--grey-400);">${esc(meta.join("  ·  "))}</span>`:""}
