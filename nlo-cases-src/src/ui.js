@@ -396,7 +396,7 @@ function renderView() {
   $('#topSlot').innerHTML = topBar();
   v.innerHTML = h;
   if (active) { const q = $('#q'); q.focus(); q.setSelectionRange(q.value.length, q.value.length); }
-  phPaint(); savPaint(); if (S.view === 'admin') shPaint();
+  phPaint(); savPaint(); logoPaint(v); if (S.view === 'admin') shPaint();
 }
 /* staff photos (brought in from Staff Hub, kept on the person's roster entry) on every staff avatar */
 function savPaint(root) {
@@ -408,6 +408,16 @@ function savPaint(root) {
 
 /* ---------- small pieces ---------- */
 function typeBadge(c) { const t = typeOf(c); return '<span class="badge ' + t.cls + '">' + esc(t.l) + '</span>'; }
+/* the board and the case lists show the company's logo instead of the name (Amir, 2 Oct 2026): Oliv, Angel, Invisalign,
+   uLab, InSmile from logos.js; in-house sets the office NL mark; types with no company (retainers, appliances, MARPE,
+   models) keep the name. The picture is set after render (logoPaint), so no image data sits in this markup. */
+function typeMark(c, small) {
+  const t = typeOf(c), lg = typeof LOGOS !== 'undefined' && LOGOS[c.type], cls = 'tlogo' + (small ? ' sm' : '');
+  if (lg) return '<span class="' + cls + ' lg-' + esc(c.type) + '" title="' + esc(t.l) + '"><img data-logo="' + esc(c.type) + '" width="' + lg.w + '" height="' + lg.h + '" alt="' + esc(t.l) + '" draggable="false"></span>';
+  if (c.type === 'nla') { const l = c.variant === 'finishing' ? 'Finishing aligners (in-house)' : t.l; return '<span class="' + cls + ' nl" title="' + esc(l) + '" role="img" aria-label="' + esc(l) + '">' + typeSvg('nl') + '</span>'; }
+  return typeBadge(c);
+}
+function logoPaint(root) { if (typeof LOGOS === 'undefined') return; $$('img[data-logo]:not([src])', root || document).forEach(i => { const lg = LOGOS[i.dataset.logo]; if (lg) i.src = lg.src; }); }
 /* the case's next date: lab completion until the lab work is done, then delivery (see dueOf) */
 function dueChip(c) { return dateChip(c, dueOf(c), 'No date'); }
 /* the delivery date alone: the lists show this while they're filtered by delivery date */
@@ -592,7 +602,7 @@ function kcard(c, last, steps) {
     '<div class="kHd">' + ptAv(c, 32) + '<div class="pt">' + esc(c.patient || '(no name)') + '</div></div>' + (c.detail || alN(c) ? '<div class="dt">' + esc(c.detail || '') + alignerMini(c) + '</div>' : '') +
     (flags ? '<div class="flags">' + flags + '</div>' : '') +
     (steps ? '<div class="kstep">' + progHTML(c, steps) + '<div><b>' + esc(stageLabel(c)) + '</b><span>' + (steps.indexOf(c.stage) + 1) + ' of ' + steps.length + '</span></div></div>' : '') +
-    '<div class="ft">' + (mixed ? typeBadge(c) : '') + dueChip(c) + trackLinks(c) + avatar(c) +
+    '<div class="ft">' + (mixed ? typeMark(c, true) : '') + dueChip(c) + trackLinks(c) + avatar(c) +
     '<button class="adv" data-act="' + (last ? 'complete' : 'advance') + '" data-id="' + esc(c.id) + '" title="' + (last ? 'Mark complete' : 'Move to next stage') + '" aria-label="' + (last ? 'Mark complete' : 'Move to next stage') + '">' + ic(last ? 'done' : 'next', 17) + '</button></div></div>';
 }
 
@@ -710,7 +720,7 @@ function listBodyHTML(base) {
     list.map(c => { const g = stageGroup(flowOf(c), c.stage), ship = shipFlag(c) + trackLinks(c);
       return '<tr class="click" data-act="open" data-id="' + esc(c.id) + '" tabindex="0"><td><div class="ptCell">' + ptAv(c, 36) + '<div class="ptTxt"><div class="pt">' + esc(c.patient || '(no name)') + '</div><div class="small muted">' + esc(c.detail || '') + alignerMini(c) + '</div>' +
       (ship ? '<div class="flags onlyM">' + ship + '</div>' : '') + '</div></div></td>' +
-      '<td class="hideM">' + typeBadge(c) + '</td><td class="stg">' + progHTML(c) + '<div class="small">' + esc(stageLabel(c)) + (g ? ' <span class="muted">· ' + esc(g.l.toLowerCase()) + ' ' + (g.stages.indexOf(c.stage) + 1) + '/' + g.stages.length + '</span>' : '') + '</div>' +
+      '<td class="hideM">' + typeMark(c) + '</td><td class="stg">' + progHTML(c) + '<div class="small">' + esc(stageLabel(c)) + (g ? ' <span class="muted">· ' + esc(g.l.toLowerCase()) + ' ' + (g.stages.indexOf(c.stage) + 1) + '/' + g.stages.length + '</span>' : '') + '</div>' +
       (recFlag(c) || holdFlag(c) ? '<div class="flags">' + recFlag(c) + holdFlag(c) + '</div>' : '') + '<div class="flags onlyM">' + chip(c) + '</div></td><td class="hideM">' + chip(c) + '</td>' +
       '<td class="hideM shipCol">' + (ship ? '<div class="flags">' + ship + '</div>' : '') + '</td>' +
       '<td class="hideM">' + avatar(c) + ' <span class="small">' + esc(staffName(c.assignee, c.assigneeName)) + '</span></td><td class="hideM small muted">' + esc(c.updatedAt ? fmtWhen(c.updatedAt) : '') + '</td></tr>'; }).join('') +
@@ -725,7 +735,7 @@ function viewDone() {
     (S.closedDays < 3650 ? '<button class="btn btn-ghost" data-act="moreClosed">Show older</button>' : '') + '</div>';
   if (!list.length) return h + '<div class="card"><div class="empty">No completed cases' + (S.q ? ' match' : '') + '.</div></div>';
   return h + '<div class="card tblWrap"><table class="tbl"><thead><tr><th>Patient</th><th class="hideM">Type</th><th>Completed</th><th class="hideM">Last stage</th></tr></thead><tbody>' +
-    list.map(c => '<tr class="click" data-act="openClosed" data-id="' + esc(c.id) + '" tabindex="0"><td><div class="ptCell">' + ptAv(c, 36) + '<div class="ptTxt"><div class="pt">' + esc(c.patient) + '</div><div class="small muted">' + esc(c.detail || '') + '</div></div></div></td><td class="hideM">' + typeBadge(c) + '</td><td class="small">' + esc(fmtWhen(c.closedAt)) + '</td><td class="hideM small">' + esc(stageLabel(c)) + '</td></tr>').join('') +
+    list.map(c => '<tr class="click" data-act="openClosed" data-id="' + esc(c.id) + '" tabindex="0"><td><div class="ptCell">' + ptAv(c, 36) + '<div class="ptTxt"><div class="pt">' + esc(c.patient) + '</div><div class="small muted">' + esc(c.detail || '') + '</div></div></div></td><td class="hideM">' + typeMark(c) + '</td><td class="small">' + esc(fmtWhen(c.closedAt)) + '</td><td class="hideM small">' + esc(stageLabel(c)) + '</td></tr>').join('') +
     '</tbody></table></div>';
 }
 async function loadClosed() {
@@ -1131,7 +1141,7 @@ function onChange(e) {
   if (t.matches && t.matches('input[data-old]')) { if (t.checked) S.oldOff.delete(t.dataset.old); else S.oldOff.add(t.dataset.old); syncOld(); return; }
   if (t.id === 'oldMonths') { S.oldMonths = Number(t.value) || 3; S.oldOff.clear(); renderView(); return; }
   if (t.id === 'oldNoDate') { S.oldNoDate = t.checked; renderView(); return; }
-  if (t.dataset.f === 'delDay') { S.f.delDay = t.value; const lb = $('#listBody'); if (lb) { lb.innerHTML = listBodyHTML(listBase()); phPaint(); savPaint(lb); } return; }
+  if (t.dataset.f === 'delDay') { S.f.delDay = t.value; const lb = $('#listBody'); if (lb) { lb.innerHTML = listBodyHTML(listBase()); phPaint(); savPaint(lb); logoPaint(lb); } return; }
   if (t.dataset.f) { S.f[t.dataset.f] = t.value; if (t.dataset.f === 'type') S.f.stage = '';
     // "Delivery on a day…": start on today and open the date picker
     const pickDay = t.dataset.f === 'del' && t.value === 'day'; if (pickDay && !S.f.delDay) S.f.delDay = todayISO();

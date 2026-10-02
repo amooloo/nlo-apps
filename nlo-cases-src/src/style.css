@@ -340,6 +340,16 @@ body.demo #drawer{bottom:31px} body.demo #side{padding-bottom:31px} body.demo #v
 .tsvg .tst{fill:var(--amber-200)}
 .tsvg .tbs{fill:var(--amber-200);stroke:var(--navy);stroke-width:1.6;stroke-linejoin:round}
 .tsvg .nlb{fill:var(--navy)} .tsvg .nlf{fill:#fff}
+/* company logos in place of the type name (board cards, case lists) */
+.tlogo{display:inline-flex;align-items:center;vertical-align:middle;line-height:0}
+.tlogo img{display:block;width:auto;height:auto;max-height:22px;max-width:84px;object-fit:contain}
+.tlogo.lg-ulab img{max-height:28px}
+.tlogo.lg-oliv img{max-height:24px}
+.tlogo.sm img{max-height:16px;max-width:64px}
+.tlogo.sm.lg-ulab img{max-height:22px}
+.tlogo.sm.lg-oliv img{max-height:18px}
+.tlogo.nl .tsvg{width:26px;height:26px}
+.tlogo.sm.nl .tsvg{width:20px;height:20px}
 .tt[aria-checked="true"] .nlb{fill:var(--mint)} .tt[aria-checked="true"] .nlf{fill:var(--navy-900)}
 .pickRow{display:flex;flex-wrap:wrap;gap:7px}
 .pick{border:1.5px solid var(--grey-200);border-radius:99px;padding:7px 13px;font-size:13px;font-weight:600;color:var(--grey-700);background:#fff;min-height:38px;text-align:left;line-height:1.25}
