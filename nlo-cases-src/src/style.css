@@ -178,6 +178,8 @@ svg.i{flex:none;display:inline-block;vertical-align:-3px}
 /* ---------- Table ---------- */
 .filters{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
 .filters select{padding:8px 12px;border:1.5px solid var(--grey-200);border-radius:999px;background:#fff;font-weight:600;font-size:12.5px;min-height:38px;color:var(--grey-700)}
+.filters select.on{border-color:var(--blue);background:var(--blue-100);color:var(--blue-700)}
+.filters input[type=date]{padding:6px 12px;border:1.5px solid var(--blue);border-radius:999px;background:#fff;font:inherit;font-weight:600;font-size:12.5px;min-height:38px;color:var(--grey-700)}
 table.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
 .tbl th{text-align:left;font-family:var(--fd);font-weight:500;font-size:11px;text-transform:uppercase;letter-spacing:.13em;color:var(--grey-500);padding:11px 14px;border-bottom:1px solid var(--grey-100);white-space:nowrap}
 .tbl th button{font:inherit;color:inherit;letter-spacing:inherit;text-transform:inherit}
@@ -211,14 +213,20 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
 .dFt{padding:12px 22px;border-top:1px solid var(--grey-100);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .sec{margin-top:18px}
 .sec h5{font-family:var(--fd);font-weight:500;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--grey-500);margin-bottom:8px}
-.stepper{display:flex;flex-direction:column;gap:6px}
-.step{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:10px;border:1.5px solid var(--grey-200);text-align:left;font-weight:600;font-size:13px;color:var(--grey-600);background:#fff;min-height:40px}
-.step:hover{border-color:var(--blue-200);background:var(--blue-100)}
-.step .n{width:22px;height:22px;border-radius:50%;background:var(--grey-100);color:var(--grey-500);font-size:11px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;flex:none}
+/* the case's stages: circles joined by a line down the side, filled in up to the current stage */
+.stepper{display:flex;flex-direction:column;gap:2px}
+.step{position:relative;display:flex;align-items:center;gap:12px;padding:8px 13px;border-radius:10px;border:0;text-align:left;font-weight:600;font-size:13px;color:var(--grey-600);background:transparent;min-height:40px}
+.step:hover{background:var(--blue-100)}
+.step .n{position:relative;z-index:1;width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:inset 0 0 0 2px var(--grey-300);color:var(--grey-500);font-size:11px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;flex:none}
 .step.past{color:var(--grey-500)}
-.step.past .n{background:var(--mint-200);color:var(--mint-700)}
-.step.cur{border-color:var(--blue);background:var(--blue-100);color:var(--blue-700)}
-.step.cur .n{background:var(--blue);color:#fff}
+.step.past .n{background:var(--mint-600);box-shadow:none;color:#fff}
+.step.cur{background:var(--blue-100);box-shadow:inset 0 0 0 1.5px var(--blue-200);color:var(--blue-700)}
+.step.cur .n{background:var(--blue);box-shadow:0 0 0 3px var(--blue-200);color:#fff}
+.step::before,.step::after{content:'';position:absolute;left:24px;width:2px;background:var(--grey-200)}
+.step::before{top:-2px;bottom:50%}
+.step::after{top:50%;bottom:0}
+.step.past::before,.step.cur::before,.step.past::after{background:var(--mint-600)}
+.stepper>.step:first-child::before,.stepper>.step:last-child::after{display:none}
 .kv{display:grid;grid-template-columns:repeat(2,1fr);gap:10px 16px}
 .kv div{min-width:0}
 .kv .k{font-family:var(--fd);font-weight:500;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--grey-500)}
@@ -275,6 +283,8 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
   .kv{grid-template-columns:1fr 1fr}
   .col{flex-basis:82vw;max-height:none}
   .tbl .hideM{display:none}
+  .tbl td,.tbl th{padding-left:8px;padding-right:8px}
+  td.stg{min-width:128px}
   .modal{padding:20px 18px}
   .lockCard{padding:26px 22px 22px}
 }
@@ -368,22 +378,30 @@ body.demo #drawer{bottom:31px} body.demo #side{padding-bottom:31px} body.demo #v
 .isvg .tbl{fill:none;stroke:var(--ink);stroke-width:1.7;stroke-linecap:round}
 .isvg .tbf{fill:var(--ink)}
 .isvg .tlk{fill:none;stroke:var(--acc);stroke-width:2.4;stroke-linecap:round}
-/* stage progress: a mark per stage (mint = done, navy = now, grey = to come); "In fabrication" steps share a band */
-.sprog{display:flex;align-items:center;gap:3px;width:100%;max-width:200px;margin:3px 0 5px}
-.sprog i{flex:1 1 0;min-width:4px;height:6px;border-radius:3px;background:var(--grey-200)}
-.sprog i.d{background:var(--mint-600)}
-.sprog i.c{background:var(--navy);height:9px;box-shadow:0 0 0 2px var(--mint-200)}
-.sprog .pg{display:flex;align-items:center;gap:2px;flex:4.2 1 0;padding:2px 3px;border-radius:6px;background:var(--mint-100);box-shadow:inset 0 0 0 1px var(--mint-200)}
-.sprog .pg i{height:5px}
-.sprog .pg i.c{height:8px}
-.sprog.sub{max-width:none;margin:0 0 4px}
+/* stage progress: a circle per stage joined by a line (mint = done, navy with a halo = now, hollow = to come);
+   the line fills in up to the current stage; "In fabrication" steps share a band */
+.sprog{display:flex;align-items:center;width:100%;max-width:210px;min-height:16px;margin:3px 0 5px;padding:0 3px}
+.sprog i{flex:none;width:10px;height:10px;border-radius:50%;background:#fff;box-shadow:inset 0 0 0 2px var(--grey-300)}
+.sprog i.d{background:var(--mint-600);box-shadow:none}
+.sprog i.c{width:12px;height:12px;background:var(--navy);box-shadow:0 0 0 3px var(--mint-200);z-index:1}
+.sprog b{flex:1 1 0;min-width:4px;height:2px;background:var(--grey-200)}
+.sprog b.d{background:var(--mint-600)}
+.sprog .pg{display:flex;align-items:center;flex:3.4 1 0;padding:3px 5px;border-radius:99px;background:var(--mint-100);box-shadow:inset 0 0 0 1px var(--mint-200)}
+.sprog .pg i{width:7px;height:7px;box-shadow:inset 0 0 0 1.5px var(--grey-300)}
+.sprog .pg i.d{box-shadow:none}
+.sprog .pg i.c{width:9px;height:9px;box-shadow:0 0 0 2px #fff}
+.sprog .pg b{min-width:2px}
+.sprog.sub{max-width:none;margin:2px 0 6px}
 td.stg{min-width:150px}
 .kstep{margin-top:8px;padding:7px 8px 6px;border-radius:8px;background:var(--mint-100)}
 .kstep>div{display:flex;align-items:baseline;gap:6px;font-size:12px;color:var(--navy)}
 .kstep>div span{margin-left:auto;font-size:11px;color:var(--grey-500)}
 .col.grp{background:var(--grey-100)}
-.stepGrp{margin:6px 0 0;font-family:var(--fd);font-weight:500;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--mint-700)}
-.step.sub{margin-left:16px;min-height:34px;padding:6px 10px;font-size:12.5px}
+.stepGrp{position:relative;padding:7px 0 3px 49px;font-family:var(--fd);font-weight:500;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--mint-700)}
+.stepGrp::before{content:'';position:absolute;left:24px;top:-2px;bottom:0;width:2px;background:var(--grey-200)}
+.stepGrp.d::before{background:var(--mint-600)}
+.step.sub{min-height:34px;padding-top:5px;padding-bottom:5px;font-size:12.5px}
+.step.sub .n{width:20px;height:20px;margin:0 2px;font-size:10.5px}
 /* in-house aligners: this set and the patient's total */
 .alRow{display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap}
 .alRow .field{width:130px;margin:0}

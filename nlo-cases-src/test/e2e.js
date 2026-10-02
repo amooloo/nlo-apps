@@ -176,6 +176,13 @@ async function openByName(p, name) {
   check(await owner.isVisible('.kc:has-text("' + P2 + '") .due.over:has-text("Delivery")'), 'a past delivery date shows as late');
   await owner.click('#nav-today'); await owner.waitForSelector('.tile.red .n');
   check(Number(await owner.textContent('.tile.red .n')) >= 1, 'Today shows an overdue count');
+  // the lists filter by the delivery date alone, not the lab date (Amir, 2 Oct 2026)
+  await owner.click('#nav-list'); await owner.selectOption('select[data-f=del]', 'past');
+  await owner.waitForSelector('#listBody tr.click:has-text("' + P2 + '")', { timeout: 15000 });
+  check(/Delivery/.test(await owner.textContent('#listBody thead')) && await owner.isVisible('#listBody tr.click:has-text("' + P2 + '") td.hideM .due.over:has-text("Delivery")'), 'All open cases: “Delivery date passed” finds it, with a Delivery column');
+  await owner.selectOption('select[data-f=del]', 'none'); await sleep(300);
+  check(!(await owner.isVisible('#listBody tr.click:has-text("' + P2 + '")')), '“No delivery date” leaves it out');
+  await owner.click('[data-act=clearF]');
   await owner.click('#nav-board');
   for (let i = 0; i < 3; i++) { await owner.click('.kc:has-text("' + P2 + '") .adv'); await sleep(900); }
   await owner.waitForSelector('section[aria-label="Front desk pickup"] .kc:has-text("' + P2 + '")', { timeout: 15000 });
@@ -595,7 +602,8 @@ async function openByName(p, name) {
   check(/2 of 7/.test(await owner.textContent(nCard + ' .kstep')) && (await owner.locator(nCard + ' .sprog i.d').count()) === 1, 'the arrow moves it one step (Send to printer, 2 of 7)');
   await owner.click('#nav-list'); await owner.fill('#q', 'Nadia Setcount');
   const nRow = 'tr.click:has-text("Nadia Setcount")'; await owner.waitForSelector(nRow + ' .sprog');
-  check((await owner.locator(nRow + ' .sprog i').count()) === 11 && (await owner.locator(nRow + ' .sprog .pg i').count()) === 7 && (await owner.locator(nRow + ' .sprog i.d').count()) === 3 && (await owner.locator(nRow + ' .sprog i.c').count()) === 1, 'list: a progress bar with every step marked (3 done, now on step 4 of 11)');
+  check((await owner.locator(nRow + ' .sprog i').count()) === 11 && (await owner.locator(nRow + ' .sprog .pg i').count()) === 7 && (await owner.locator(nRow + ' .sprog i.d').count()) === 3 && (await owner.locator(nRow + ' .sprog i.c').count()) === 1
+    && (await owner.locator(nRow + ' .sprog b').count()) === 10 && (await owner.locator(nRow + ' .sprog b.d').count()) === 3, 'list: a circle for every step joined by a line (3 done, now on step 4 of 11, the line filled up to it)');
   check(/Send to printer · in fabrication 2\/7/.test(await owner.textContent(nRow + ' td.stg')), 'list: says Send to printer, in fabrication 2/7');
   await owner.click(nRow); await owner.waitForSelector('#drawer .stepper');
   await owner.click('#drawer .dFt [data-act=complete]'); await owner.waitForSelector('#drawer', { state: 'hidden', timeout: 15000 }).catch(() => {});
@@ -608,11 +616,12 @@ async function openByName(p, name) {
   await owner.click('.pickRow[data-g=initial] .pick[data-v=no]'); await owner.fill('#cf-alU', '12'); await owner.fill('#cf-alL', '10');
   await owner.waitForSelector('#cf-alTotal:has-text("Patient total: 62 aligners")', { timeout: 20000 });
   check(await owner.isVisible('#cf-alTotal .alSet:has-text("Initial 40")') && await owner.isVisible('#cf-alTotal .alSet.me:has-text("Refinement 1 22")'), 'New case adds the earlier set: Initial 40 + Refinement 1 22 = 62 aligners');
+  await owner.waitForSelector('#cf-alTotal:has-text("est. $99.00")', { timeout: 15000 }).catch(() => {}); // the new cost reaches the form with the settings update
   check(/est\. \$99\.00/.test(await owner.textContent('#cf-alTotal')) && /est\. \$279\.00/.test(await owner.textContent('#cf-alTotal')), 'estimated cost: this set 22 × $4.50 = $99.00; patient 62 × $4.50 = $279.00');
   await owner.click('#ncSave'); await owner.waitForSelector('#modalWrap', { state: 'detached', timeout: 20000 });
   await owner.click('#nav-list'); await owner.fill('#q', 'Nadia Setcount'); await owner.waitForSelector('tr.click:has-text("Nadia Setcount") .alMini:has-text("62 total")', { timeout: 20000 });
   check(/22 aligners/.test(await owner.textContent('tr.click:has-text("Nadia Setcount") .alMini')), 'list: 22 aligners · 62 total');
-  await owner.click('tr.click:has-text("Nadia Setcount")'); await owner.waitForSelector('#alBox');
+  await owner.click('tr.click:has-text("Nadia Setcount")'); await owner.waitForSelector('#alBox'); await owner.waitForSelector('#alBox:has-text("est. $99.00")', { timeout: 15000 }).catch(() => {});
   check(/Patient total: 62 aligners/.test(await owner.textContent('#alBox')) && /Refinement 1/.test(await owner.textContent('#alBox')) && /est\. \$99\.00/.test(await owner.textContent('#alBox')), 'the refinement case shows its estimated cost and the patient’s total');
   await owner.click('#drawer [data-act=closeDrawer] >> nth=0'); await owner.fill('#q', '');
   check(await owner.evaluate(() => {
@@ -801,7 +810,8 @@ async function openByName(p, name) {
   const run1 = gas.ctx.setup();
   check(/4 emails sent/.test(run1) && gas.triggers.length === 1, 'the script (run in a stand-in for Google) passes its encryption self-test, sends the 4 lab emails and turns on its 10-minute check (' + run1 + ')');
   const st = name => owner.evaluate(n => { const c = openCases().find(x => x.patient === n); return c ? { stage: c.stage, tracking: c.tracking || '', labRef: c.labRef || '', planUrl: c.planUrl || '', hold: c.labHold || null } : null; }, name);
-  await owner.waitForFunction(() => { const s = n => (openCases().find(x => x.patient === n) || {}).stage; return s('Opal Brightwater') === 'dra' && s('Ulysses Marchetti') === 'shipped' && s('Priya Quillfeather') === 'shipped' && s('Anya Velasquez') === 'dra'; }, null, { timeout: 30000 });
+  await owner.waitForFunction(() => { const s = n => (openCases().find(x => x.patient === n) || {}).stage; return s('Opal Brightwater') === 'dra' && s('Ulysses Marchetti') === 'shipped' && s('Priya Quillfeather') === 'shipped' && s('Anya Velasquez') === 'dra'
+    && !!(openCases().find(x => x.patient === 'Mira Holdsworth') || {}).labHold; }, null, { timeout: 30000 }).catch(() => {});
   const o = await st('Opal Brightwater'), u = await st('Ulysses Marchetti'), pq = await st('Priya Quillfeather'), mh = await st('Mira Holdsworth'), an = await st('Anya Velasquez');
   check(o.labRef === '700111' && o.planUrl === 'https://portal.olivortho.com/cases/700111', 'Oliv “setup is ready” → Dr. A action, with Oliv’s case # and the plan link');
   check(u.tracking === '777766665555' && u.labRef === 'ZQ88', 'uLab shipped → Shipped, with the FedEx tracking # and the order #');

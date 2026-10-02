@@ -3,7 +3,7 @@
    ===================================================================== */
 const S = {
   demo: false, emu: false, cases: new Map(), closed: [], oldOff: new Set(), oldMonths: 3, oldNoDate: false, bulkBusy: '', closedDays: 90, roster: [], members: [], settings: { idleMin: 10 },
-  view: 'today', boardFlow: 'outside', q: '', f: { type: '', stage: '', who: '', due: '', grp: '', ship: '' }, sort: { k: 'due', dir: 1 },
+  view: 'today', boardFlow: 'outside', q: '', f: noFilters(), sort: { k: 'due', dir: 1 },
   openId: null, editing: false, editBase: null, lastLogin: '', tempPw: '', loginPw: '', lastAct: Date.now(), idleTimer: null,
   inApp: false, renderQ: false, firstLoad: true
 };
@@ -299,6 +299,24 @@ function byDue(a, b) {
   const x = dueDateOf(a) || '9999', y = dueDateOf(b) || '9999';
   return x < y ? -1 : x > y ? 1 : String(a.patient).localeCompare(String(b.patient));
 }
+/* the list filters; del/delDay filter by the delivery date alone, not the lab date (Amir, 2 Oct 2026) */
+function noFilters() { return { type: '', stage: '', who: '', due: '', del: '', delDay: '', grp: '', ship: '' }; }
+const DEL_OPTS = [['all', 'All, sorted by delivery date'], ['past', 'Delivery date passed'], ['today', 'Delivery today'], ['tomorrow', 'Delivery tomorrow'],
+  ['week', 'Delivery in the next 7 days'], ['14', 'Delivery in the next 14 days'], ['day', 'Delivery on a day…'], ['none', 'No delivery date']];
+function delMatch(c, f) {
+  if (f.del === 'all') return true;
+  if (f.del === 'day') return !f.delDay || c.deliveryDate === f.delDay;
+  const d = dayDiff(c.deliveryDate);
+  if (f.del === 'none') return d === null;
+  if (d === null) return false;
+  return f.del === 'past' ? d < 0 : f.del === 'today' ? d === 0 : f.del === 'tomorrow' ? d === 1 : f.del === 'week' ? d >= 0 && d <= 6 : f.del === '14' ? d >= 0 && d <= 14 : true;
+}
+/* the date the lists show and sort by: the next date, or the delivery date while they're filtered by delivery */
+function listDate(c) { return (S.f.del ? c.deliveryDate : dueDateOf(c)) || ''; }
+function byListDate(a, b) {
+  const x = listDate(a) || '9999', y = listDate(b) || '9999';
+  return x < y ? -1 : x > y ? 1 : String(a.patient).localeCompare(String(b.patient));
+}
 function counts() {
   const all = openCases(); const me = meSid();
   return {
@@ -369,8 +387,8 @@ function renderView() {
   let h = '';
   if (S.view === 'today') h = viewToday();
   else if (S.view === 'board') h = viewBoard();
-  else if (S.view === 'list') h = viewList(openCases(), true);
-  else if (S.view === 'mine') h = viewList(openCases().filter(c => c.assignee === meSid()), false);
+  else if (S.view === 'list') h = viewList(listBase(), true);
+  else if (S.view === 'mine') h = viewList(listBase(), false);
   else if (S.view === 'done') h = viewDone();
   else if (S.view === 'admin') h = isOwner() ? viewAdmin() : '';
   else if (S.view === 'import') h = isOwner() ? viewImport() : '';
@@ -391,9 +409,11 @@ function savPaint(root) {
 /* ---------- small pieces ---------- */
 function typeBadge(c) { const t = typeOf(c); return '<span class="badge ' + t.cls + '">' + esc(t.l) + '</span>'; }
 /* the case's next date: lab completion until the lab work is done, then delivery (see dueOf) */
-function dueChip(c) {
-  const x = dueOf(c);
-  if (!x) return '<span class="due none">No date</span>';
+function dueChip(c) { return dateChip(c, dueOf(c), 'No date'); }
+/* the delivery date alone: the lists show this while they're filtered by delivery date */
+function delChip(c) { return dateChip(c, c.deliveryDate ? { d: c.deliveryDate, k: 'delivery' } : null, 'No delivery date'); }
+function dateChip(c, x, none) {
+  if (!x) return '<span class="due none">' + none + '</span>';
   const d = dayDiff(x.d), z = x.k === 'zoom', w = x.k === 'lab' ? 'Lab' : x.k === 'delivery' ? 'Delivery' : z ? 'Zoom' : 'Due';
   const at = z && c.zoomTime ? ' ' + fmtTime(c.zoomTime) : '', i = ic(z ? 'video' : 'clock', 13);
   const tip = ' title="' + esc((x.k === 'lab' ? 'Lab completion' : z ? 'Zoom call' : w) + ': ' + fmtDay(x.d) + at) + '"';
@@ -449,16 +469,19 @@ function chartNote(c) {
   if (c.shipToPatient) L.push('Aligners to be shipped to the patient.');
   return L.join('\n').replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[–—]/g, '-');
 }
-/* stage progress: one mark per stage (done, current, to come); a stage group (In fabrication) sits in its own band */
+/* stage progress: a circle per stage (done, current, to come) joined by a line that fills in up to the current stage
+   (Amir, 2 Oct 2026: circles connected with a line, not a row of rectangles); a stage group (In fabrication) sits in its own band */
 function progHTML(c, only) {
   const f = flowOf(c), si = stageIndex(c), keys = only || f.stages.map(s => s[0]);
-  let h = '';
+  let h = '', first = true;
   f.stages.forEach(([k, l], i) => {
     if (!keys.includes(k)) return;
     const g = !only && stageGroup(f, k);
+    if (!first) h += '<b' + (i <= si ? ' class="d"' : '') + '></b>'; // the line into this stage: filled once the case has got here
     if (g && g.stages[0] === k) h += '<span class="pg" title="' + esc(g.l) + '">';
     h += '<i class="' + (i < si ? 'd' : i === si ? 'c' : '') + '" title="' + esc(l) + '"></i>';
     if (g && g.stages[g.stages.length - 1] === k) h += '</span>';
+    first = false;
   });
   const n = keys.indexOf(c.stage) + 1;
   return '<span class="sprog' + (only ? ' sub' : '') + '" role="img" aria-label="' + esc((n ? 'Step ' + n + ' of ' + keys.length + ': ' : '') + stageLabel(c)) + '">' + h + '</span>';
@@ -582,6 +605,7 @@ function applyFilters(list) {
     if (f.who === '_none' && (c.assignee || c.assigneeName)) return false;
     if (f.who && f.who !== '_none' && c.assignee !== f.who) return false;
     if (f.due) { const b = dueBucket(c); if (f.due === 'week' ? !['today', 'week'].includes(b) : f.due === '14' ? !['today', 'week', '14'].includes(b) : b !== f.due) return false; }
+    if (f.del && !delMatch(c, f)) return false;
     if (f.grp === 'dr' && !DR_STAGES.includes(c.stage)) return false;
     if (f.grp === 'fab' && !FAB_STAGES.includes(c.stage)) return false;
     if (f.grp === 'arrived' && c.stage !== 'arrived') return false;
@@ -592,8 +616,8 @@ function applyFilters(list) {
 function sortList(list) {
   const { k, dir } = S.sort;
   const val = c => k === 'patient' ? String(c.patient || '').toLowerCase() : k === 'type' ? typeOf(c).l : k === 'stage' ? stageIndex(c) : k === 'who' ? staffName(c.assignee, c.assigneeName) : k === 'updated' ? -(c.updatedAt || 0)
-    : k === 'ship' ? (c.shipToPatient ? 0 : trackList(c).length ? 1 : 2) : (dueDateOf(c) || '9999');
-  return list.slice().sort((a, b) => { const x = val(a), y = val(b); return (x < y ? -1 : x > y ? 1 : byDue(a, b)) * dir; });
+    : k === 'ship' ? (c.shipToPatient ? 0 : trackList(c).length ? 1 : 2) : (listDate(c) || '9999');
+  return list.slice().sort((a, b) => { const x = val(a), y = val(b); return (x < y ? -1 : x > y ? 1 : byListDate(a, b)) * dir; });
 }
 /* ---------- Today: clean up old cases in bulk (e.g. leftovers from the Asana import; Amir, 2 Oct 2026) ---------- */
 function ageOf(c) { return [c.deliveryDate, c.labDate, c.scanDate, c.dueDate].filter(Boolean).sort().pop() || ''; }
@@ -663,25 +687,33 @@ function viewList(base, showWho) {
     '<select data-f="type" aria-label="Type"><option value="">All types</option>' + typesShown(Array.from(S.cases.values()), f.type).map(t => '<option value="' + t.k + '"' + (f.type === t.k ? ' selected' : '') + '>' + esc(t.l) + '</option>').join('') + '</select>' +
     (stageOpts.length ? '<select data-f="stage" aria-label="Stage"><option value="">All stages</option>' + stageOpts.map(([k, l]) => '<option value="' + k + '"' + (f.stage === k ? ' selected' : '') + '>' + esc(l) + '</option>').join('') + '</select>' : '') +
     (showWho ? '<select data-f="who" aria-label="Assigned to"><option value="">Anyone</option><option value="_none"' + (f.who === '_none' ? ' selected' : '') + '>Unassigned</option>' + activeRoster().map(r => '<option value="' + esc(r.sid) + '"' + (f.who === r.sid ? ' selected' : '') + '>' + esc(r.name) + '</option>').join('') + '</select>' : '') +
-    '<select data-f="due" aria-label="Lab or delivery date"><option value="">Any date</option>' + [['over', 'Late'], ['today', 'Today'], ['week', 'Next 7 days'], ['14', 'Next 14 days'], ['none', 'No lab or delivery date']].map(([k, l]) => '<option value="' + k + '"' + (f.due === k ? ' selected' : '') + '>' + l + '</option>').join('') + '</select>' +
+    '<select data-f="due" aria-label="Next date (lab, then delivery)"><option value="">Any next date</option>' + [['over', 'Late'], ['today', 'Today'], ['week', 'Next 7 days'], ['14', 'Next 14 days'], ['none', 'No lab or delivery date']].map(([k, l]) => '<option value="' + k + '"' + (f.due === k ? ' selected' : '') + '>' + l + '</option>').join('') + '</select>' +
+    '<select data-f="del" aria-label="Delivery date"' + (f.del ? ' class="on"' : '') + '><option value="">Any delivery date</option>' + DEL_OPTS.map(([k, l]) => '<option value="' + k + '"' + (f.del === k ? ' selected' : '') + '>' + l + '</option>').join('') + '</select>' +
+    (f.del === 'day' ? '<input type="date" id="fDelDay" data-f="delDay" value="' + esc(f.delDay || '') + '" aria-label="Delivery day">' : '') +
     (grpLabel ? '<button class="chip on" data-act="clearGrp">' + esc(grpLabel) + ' ✕</button>' : '') +
     (base.some(c => c.shipToPatient) || f.ship ? '<button class="chip flt' + (f.ship ? ' on' : '') + '" data-act="shipF" aria-pressed="' + !!f.ship + '">' + ic('truck', 15) + 'Ship to patient<span class="c">' + base.filter(c => c.shipToPatient && matchesQ(c)).length + '</span></button>' : '') +
-    ((f.type || f.stage || f.who || f.due || f.grp || f.ship) ? '<button class="btn btn-ghost" data-act="clearF">Clear filters</button>' : '') + '</div>';
-  const list = sortList(applyFilters(base));
+    ((f.type || f.stage || f.who || f.due || f.del || f.grp || f.ship) ? '<button class="btn btn-ghost" data-act="clearF">Clear filters</button>' : '') + '</div>';
+  return h + '<div id="listBody">' + listBodyHTML(base) + '</div>';
+}
+/* the cases on All open cases / My cases (the delivery day box redraws just this, so typing a date isn't interrupted) */
+function listBase() { return S.view === 'mine' ? openCases().filter(c => c.assignee === meSid()) : openCases(); }
+function listBodyHTML(base) {
+  const f = S.f, list = sortList(applyFilters(base));
   if (list.some(c => c.type === 'nla')) ensureHist();
-  if (!list.length) return h + '<div class="card"><div class="empty">' + (base.length ? 'No cases match.' : 'No open cases yet.') + '</div></div>';
+  if (!list.length) return '<div class="card"><div class="empty">' + (base.length ? 'No cases match.' : 'No open cases yet.') + '</div></div>';
   const th = (k, l, cls) => '<th class="' + (cls || '') + '"><button data-act="sort" data-k="' + k + '">' + l + (S.sort.k === k ? (S.sort.dir > 0 ? ' ↑' : ' ↓') : '') + '</button></th>';
   // Shipping: the Ship to patient alert and one-click tracking get their own column (on phones they sit under the name)
-  h += '<div class="card tblWrap"><table class="tbl"><thead><tr>' + th('patient', 'Patient') + th('type', 'Type', 'hideM') + th('stage', 'Stage') + th('due', 'Next date') + th('ship', 'Shipping', 'hideM') + th('who', 'Assigned', 'hideM') + th('updated', 'Updated', 'hideM') + '</tr></thead><tbody>' +
+  // on phones the date sits under the stage instead of in a column off to the side
+  const chip = c => f.del ? delChip(c) : dueChip(c);
+  return '<div class="card tblWrap"><table class="tbl"><thead><tr>' + th('patient', 'Patient') + th('type', 'Type', 'hideM') + th('stage', 'Stage') + th('due', f.del ? 'Delivery' : 'Next date', 'hideM') + th('ship', 'Shipping', 'hideM') + th('who', 'Assigned', 'hideM') + th('updated', 'Updated', 'hideM') + '</tr></thead><tbody>' +
     list.map(c => { const g = stageGroup(flowOf(c), c.stage), ship = shipFlag(c) + trackLinks(c);
       return '<tr class="click" data-act="open" data-id="' + esc(c.id) + '" tabindex="0"><td><div class="ptCell">' + ptAv(c, 36) + '<div class="ptTxt"><div class="pt">' + esc(c.patient || '(no name)') + '</div><div class="small muted">' + esc(c.detail || '') + alignerMini(c) + '</div>' +
       (ship ? '<div class="flags onlyM">' + ship + '</div>' : '') + '</div></div></td>' +
       '<td class="hideM">' + typeBadge(c) + '</td><td class="stg">' + progHTML(c) + '<div class="small">' + esc(stageLabel(c)) + (g ? ' <span class="muted">· ' + esc(g.l.toLowerCase()) + ' ' + (g.stages.indexOf(c.stage) + 1) + '/' + g.stages.length + '</span>' : '') + '</div>' +
-      (recFlag(c) || holdFlag(c) ? '<div class="flags">' + recFlag(c) + holdFlag(c) + '</div>' : '') + '</td><td>' + dueChip(c) + '</td>' +
+      (recFlag(c) || holdFlag(c) ? '<div class="flags">' + recFlag(c) + holdFlag(c) + '</div>' : '') + '<div class="flags onlyM">' + chip(c) + '</div></td><td class="hideM">' + chip(c) + '</td>' +
       '<td class="hideM shipCol">' + (ship ? '<div class="flags">' + ship + '</div>' : '') + '</td>' +
       '<td class="hideM">' + avatar(c) + ' <span class="small">' + esc(staffName(c.assignee, c.assigneeName)) + '</span></td><td class="hideM small muted">' + esc(c.updatedAt ? fmtWhen(c.updatedAt) : '') + '</td></tr>'; }).join('') +
     '</tbody></table></div><div class="small muted" style="margin-top:8px">' + list.length + ' case' + (list.length === 1 ? '' : 's') + '</div>';
-  return h;
 }
 
 /* ---------- Completed ---------- */
@@ -785,7 +817,7 @@ function renderDrawer() {
     ((PORTALS[c.type] || []).length || safeUrl(c.planUrl) ? '<div class="portals">' + (safeUrl(c.planUrl) && okLabLink(c.type, c.planUrl) ? '<a class="btn btn-pri btn-sm" data-act="portal" href="' + esc(safeUrl(c.planUrl)) + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'View treatment plan</a>' : '') + (PORTALS[c.type] || []).map(p => '<a class="btn btn-sec btn-sm" data-act="portal" href="' + esc(p.u) + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'Open ' + esc(p.l) + '</a>').join('') +
       '<span class="small muted">Opening a portal copies the patient’s name — paste it in the portal’s search.</span></div>' : '') +
     '<div class="sec" style="margin-top:4px"><h5>Stage</h5><div class="stepper">' + flow.stages.map(([k, l], i) => { const g = stageGroup(flow, k);
-      return (g && g.stages[0] === k ? '<div class="stepGrp">' + esc(g.l) + '</div>' : '') +
+      return (g && g.stages[0] === k ? '<div class="stepGrp' + (i <= si ? ' d' : '') + '">' + esc(g.l) + '</div>' : '') +
       '<button class="step ' + (i < si ? 'past' : i === si ? 'cur' : '') + (g ? ' sub' : '') + '" data-act="setStage" data-k="' + k + '"' + (done ? ' disabled' : '') + ' aria-pressed="' + (i === si) + '"><span class="n">' + (i < si ? '✓' : i + 1) + '</span>' + esc(l) + '</button>'; }).join('') + '</div></div>' +
     (flow === FLOWS.marpe ? marpeBoxHTML(c, done) : '') +
     '<div class="sec"><h5>Details</h5><div class="kv">' +
@@ -1015,8 +1047,8 @@ function onClick(e) {
   if (t.tagName === 'SELECT') return;
   if (a === 'advance' || a === 'complete') { e.stopPropagation(); }
   switch (a) {
-    case 'nav': S.view = t.dataset.v; if (S.view !== 'list') S.f = { type: '', stage: '', who: '', due: '', grp: '', ship: '' }; renderNav(); renderView(); window.scrollTo(0, 0); break;
-    case 'tile': { const f = t.dataset.f; S.f = { type: '', stage: '', who: '', due: '', grp: '', ship: '' };
+    case 'nav': S.view = t.dataset.v; if (S.view !== 'list') S.f = noFilters(); renderNav(); renderView(); window.scrollTo(0, 0); break;
+    case 'tile': { const f = t.dataset.f; S.f = noFilters();
       if (f === 'mine') { S.view = 'mine'; } else { S.view = 'list'; if (['over', 'week', 'none'].includes(f)) S.f.due = f; else S.f.grp = f; }
       renderNav(); renderView(); break; }
     case 'flow': S.boardFlow = t.dataset.k; renderView(); break;
@@ -1048,7 +1080,7 @@ function onClick(e) {
     case 'delCase': (async () => { const c = findCase(S.openId); if (await confirmBox('Delete this case?', 'This removes ' + c.patient + ' from every list. Dr. A can bring it back from Team & security for 90 days. To finish a case normally, use “Mark complete” instead.', 'Delete', true)) { const cid = S.openId; closeDrawer(true); act(() => B.deleteCase(cid), 'Case deleted'); } })(); break;
     case 'newCase': newCaseModal(); break;
     case 'closeModal': closeModal(); break;
-    case 'clearF': S.f = { type: '', stage: '', who: '', due: '', grp: '', ship: '' }; renderView(); break;
+    case 'clearF': S.f = noFilters(); renderView(); break;
     case 'oldDone': bulkComplete(oldTicked()); break;
     case 'oldDel': bulkDelete(oldTicked()); break;
     case 'oldAll': case 'oldNone': { const on = a === 'oldAll'; $$('#cleanCard input[data-old]').forEach(i => { i.checked = on; if (on) S.oldOff.delete(i.dataset.old); else S.oldOff.add(i.dataset.old); }); syncOld(); break; }
@@ -1081,7 +1113,13 @@ function onChange(e) {
   if (t.matches && t.matches('input[data-old]')) { if (t.checked) S.oldOff.delete(t.dataset.old); else S.oldOff.add(t.dataset.old); syncOld(); return; }
   if (t.id === 'oldMonths') { S.oldMonths = Number(t.value) || 3; S.oldOff.clear(); renderView(); return; }
   if (t.id === 'oldNoDate') { S.oldNoDate = t.checked; renderView(); return; }
-  if (t.dataset.f) { S.f[t.dataset.f] = t.value; if (t.dataset.f === 'type') S.f.stage = ''; renderView(); return; }
+  if (t.dataset.f === 'delDay') { S.f.delDay = t.value; const lb = $('#listBody'); if (lb) { lb.innerHTML = listBodyHTML(listBase()); phPaint(); savPaint(lb); } return; }
+  if (t.dataset.f) { S.f[t.dataset.f] = t.value; if (t.dataset.f === 'type') S.f.stage = '';
+    // "Delivery on a day…": start on today and open the date picker
+    const pickDay = t.dataset.f === 'del' && t.value === 'day'; if (pickDay && !S.f.delDay) S.f.delDay = todayISO();
+    renderView();
+    if (pickDay) { const d = $('#fDelDay'); if (d) { d.focus(); try { d.showPicker(); } catch (e) { } } }
+    return; }
   if (t.id === 'assignSel') {
     const to = t.value; const id = S.openId; const c = findCase(id); if (!c) return;
     act(() => B.mutateCase(id, d => { d.assignee = to; if (to) d.assigneeName = ''; }, { a: 'assign', to }), to ? 'Assigned to ' + staffName(to) : 'Unassigned');
