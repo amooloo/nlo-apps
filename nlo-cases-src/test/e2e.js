@@ -622,7 +622,7 @@ async function openByName(p, name) {
   await owner.click('#drawer .dFt [data-act=complete]'); await owner.waitForSelector('#drawer', { state: 'hidden', timeout: 15000 }).catch(() => {});
   await sleep(800);
   await owner.click('#nav-admin'); await owner.fill('#alPer', '4.5'); await owner.press('#alPer', 'Tab');
-  await owner.waitForSelector('.toast:has-text("Saved")', { timeout: 15000 });
+  await owner.waitForFunction(() => S.settings.alPerAligner === 4.5, null, { timeout: 15000 }); // (a "Saved" toast could be an older one)
   check(true, 'Dr. A sets the cost per aligner in Team & security');
   await owner.click('.topBar [data-act=newCase]'); await owner.waitForSelector('#ncForm');
   await owner.click('#ncForm .tt[data-tile=nla]'); await owner.fill('#cf-patient', 'Nadia Setcount'); await owner.fill('#cf-chart', '77-1234');

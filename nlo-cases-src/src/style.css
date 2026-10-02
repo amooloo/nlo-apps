@@ -180,6 +180,20 @@ svg.i{flex:none;display:inline-block;vertical-align:-3px}
 .filters{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
 .filters select{padding:8px 12px;border:1.5px solid var(--grey-200);border-radius:999px;background:#fff;font-weight:600;font-size:12.5px;min-height:38px;color:var(--grey-700)}
 .filters select.on{border-color:var(--blue);background:var(--blue-100);color:var(--blue-700)}
+/* hide / show list columns */
+.colWrap{position:relative;margin-left:auto}
+.colBtn .c{margin-left:6px;font-size:11px;font-weight:700;background:var(--blue-100);color:var(--blue-700);border-radius:99px;padding:1px 7px}
+.colMenu{position:absolute;right:0;top:calc(100% + 6px);z-index:40;min-width:210px;background:#fff;border:1px solid var(--grey-200);border-radius:12px;box-shadow:var(--sh-xl);padding:10px 12px}
+.colHd{font-family:var(--fd);font-weight:500;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--grey-500);margin:2px 0 6px}
+.colOpt{display:flex;align-items:center;gap:9px;padding:6px 2px;font-size:13.5px;font-weight:600;color:var(--navy);cursor:pointer}
+.colOpt input{width:17px;height:17px;accent-color:var(--navy)}
+.colMenu .linkBtn{margin:4px 0 2px}
+.colNote{margin-top:6px}
+.thIn{display:inline-flex;align-items:center;gap:4px}
+.thHide{display:inline-flex;padding:3px;border-radius:6px;color:var(--grey-400);opacity:0;transition:opacity .12s}
+.tbl th:hover .thHide,.thHide:focus-visible{opacity:1}
+.thHide:hover{color:var(--navy);background:var(--grey-100)}
+@media (hover:none){ .thHide{opacity:.7} }
 .filters input[type=date]{padding:6px 12px;border:1.5px solid var(--blue);border-radius:999px;background:#fff;font:inherit;font-weight:600;font-size:12.5px;min-height:38px;color:var(--grey-700)}
 table.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
 .tbl th{text-align:left;font-family:var(--fd);font-weight:500;font-size:11px;text-transform:uppercase;letter-spacing:.13em;color:var(--grey-500);padding:11px 14px;border-bottom:1px solid var(--grey-100);white-space:nowrap}

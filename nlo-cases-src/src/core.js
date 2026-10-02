@@ -23,10 +23,12 @@ const KDF_ITER = 600000;
 
 /* ---------- Case types and the stages each one moves through ---------- */
 const FLOWS = {
-  outside: { label: 'Outside aligners & braces', labDone: 'shipped', stages: [
+  /* labDone: from this stage on, the case's next date is its delivery date, not the lab date. Outside labs: once the case
+     is in Manufacturing (Amir, 2 Oct 2026: "once it goes to manufacturing … it should be showing the delivery date") */
+  outside: { label: 'Outside aligners & braces', labDone: 'mfg', stages: [
     ['submit', 'To submit'], ['dra', 'Dr. A action'], ['mfg', 'Manufacturing'],
     ['shipped', 'Shipped'], ['arrived', 'Arrived'], ['milestones', 'Checked into Milestones'] ] },
-  appliance: { label: 'Appliances', labDone: 'shipped', stages: [
+  appliance: { label: 'Appliances', labDone: 'mfg', stages: [
     ['submit', 'To submit'], ['hold', 'Hold (CBCT/Zoom)'], ['submitted', 'Submitted to lab'],
     ['mfg', 'Manufacturing'], ['shipped', 'Shipped'], ['milestones', 'Checked into Milestones'] ] },
   /* MARPE has its own steps (Amir, 2 Oct 2026): the STL scan and a CBCT of the upper and lower jaws on file first,
@@ -114,7 +116,8 @@ function atLabel(v) { const o = AT_OPTS.find(x => x.v === v); return o ? o.l : '
 function hasAT(c) { return ['U', 'L', 'UL'].includes(c.atTemplates); }
 /* from Export STLs on, an in-house set needs its aligner counts and the attachment-template answer */
 function alignersMissing(c) { return !((Number(c.alU) || 0) + (Number(c.alL) || 0) > 0) || !c.atTemplates; }
-/* The date a case is working toward: its lab completion date until the lab work is done, then its delivery date.
+/* The date a case is working toward: its lab completion date until the lab work is done (outside labs and appliances:
+   until the case is in Manufacturing), then its delivery date.
    (No separate due date any more — Amir, 2 Oct 2026. Older cases that only have one still use it.) */
 function dueOf(c) {
   const f = flowOf(c), at = k => f.stages.findIndex(s => s[0] === k), si = stageIndex(c), done = f.labDone ? at(f.labDone) : -1;

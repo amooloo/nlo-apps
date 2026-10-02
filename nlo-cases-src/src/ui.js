@@ -34,7 +34,8 @@ const IC = {
   clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
   download: '<path d="M12 4v11M7.5 10.5L12 15l4.5-4.5"/><path d="M4 19.5h16"/>',
   refresh: '<path d="M19.5 12a7.5 7.5 0 11-2.2-5.3"/><path d="M19.5 4v4.5H15"/>',
-  menu: '<path d="M4 7h16M4 12h16M4 17h16"/>'
+  menu: '<path d="M4 7h16M4 12h16M4 17h16"/>',
+  cols: '<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M9.5 4.5v15M14.5 4.5v15"/>'
 };
 function ic(n, s) { s = s || 18; return '<svg class="i" width="' + s + '" height="' + s + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (IC[n] || '') + '</svg>'; }
 
@@ -337,7 +338,16 @@ function queueRender(kind) {
   S.renderKinds = (S.renderKinds || new Set()); S.renderKinds.add(kind || 'cases');
   if (S.renderQ) return; S.renderQ = true;
   requestAnimationFrame(() => {
-    S.renderQ = false; const kinds = S.renderKinds; S.renderKinds = new Set(); if (!S.inApp) return;
+    S.renderQ = false; if (!S.inApp) return;
+    // someone is typing in a box on this screen (e.g. the aligner cost in Team & security): wait until they leave it, so a
+    // live update arriving that moment doesn't redraw the box and lose what they typed
+    const ae = document.activeElement;
+    if (ae && ae.matches && ae.matches('#view input:not([type]), #view input[type=text], #view input[type=number], #view input[type=email], #view input[type=password], #view input[type=tel], #view input[type=url], #view textarea') && ae.value !== ae.defaultValue) {
+      renderNav();
+      if (S.renderWaitEl !== ae) { S.renderWaitEl = ae; ae.addEventListener('blur', () => { if (S.renderWaitEl === ae) S.renderWaitEl = null; queueRender(); }, { once: true }); }
+      return;
+    }
+    const kinds = S.renderKinds; S.renderKinds = new Set();
     renderNav();
     if (S.view === 'import' || S.view === 'account') return;
     if (S.view === 'admin' && !kinds.has('team')) return;
@@ -703,27 +713,54 @@ function viewList(base, showWho) {
     (f.del === 'day' ? '<input type="date" id="fDelDay" data-f="delDay" value="' + esc(f.delDay || '') + '" aria-label="Delivery day">' : '') +
     (grpLabel ? '<button class="chip on" data-act="clearGrp">' + esc(grpLabel) + ' ✕</button>' : '') +
     (base.some(c => c.shipToPatient) || f.ship ? '<button class="chip flt' + (f.ship ? ' on' : '') + '" data-act="shipF" aria-pressed="' + !!f.ship + '">' + ic('truck', 15) + 'Ship to patient<span class="c">' + base.filter(c => c.shipToPatient && matchesQ(c)).length + '</span></button>' : '') +
-    ((f.type || f.stage || f.who || f.due || f.del || f.grp || f.ship) ? '<button class="btn btn-ghost" data-act="clearF">Clear filters</button>' : '') + '</div>';
+    ((f.type || f.stage || f.who || f.due || f.del || f.grp || f.ship) ? '<button class="btn btn-ghost" data-act="clearF">Clear filters</button>' : '') +
+    colsControlHTML(LIST_COLS.map(x => x[0])) + '</div>';
   return h + '<div id="listBody">' + listBodyHTML(base) + '</div>';
 }
 /* the cases on All open cases / My cases (the delivery day box redraws just this, so typing a date isn't interrupted) */
 function listBase() { return S.view === 'mine' ? openCases().filter(c => c.assignee === meSid()) : openCases(); }
+/* columns anyone can hide on their computer (Amir, 2 Oct 2026: "can I just click it and make it hidden?"): the eye on a
+   column's heading hides it, the Columns menu brings it back; remembered on this computer only (not patient data) */
+const LIST_COLS = [['type', 'Type'], ['stage', 'Stage'], ['due', 'Next date'], ['ship', 'Shipping'], ['who', 'Assigned'], ['updated', 'Updated']];
+function hiddenCols() {
+  if (!S.hidCols) { try { S.hidCols = new Set(JSON.parse(localStorage.getItem('nloCases.hiddenCols') || '[]').filter(k => LIST_COLS.some(x => x[0] === k))); } catch (e) { S.hidCols = new Set(); } }
+  return S.hidCols;
+}
+function setColHidden(k, hide) {
+  const h = hiddenCols(); if (hide) h.add(k); else h.delete(k);
+  try { localStorage.setItem('nloCases.hiddenCols', JSON.stringify(Array.from(h))); } catch (e) { }
+}
+function colLabel(k) { return k === 'due' && S.f.del ? 'Delivery' : k === 'stage' && S.view === 'done' ? 'Last stage' : (LIST_COLS.find(x => x[0] === k) || [k, k])[1]; }
+/* the Columns button and its menu (keys = the columns this table has) */
+function colsControlHTML(keys) {
+  const hid = hiddenCols(), n = keys.filter(k => hid.has(k)).length;
+  return '<div class="colWrap"><button type="button" class="btn btn-ghost colBtn" data-act="colMenu" aria-expanded="' + !!S.colMenu + '" aria-haspopup="true">' + ic('cols', 16) + 'Columns' + (n ? '<span class="c">' + n + ' hidden</span>' : '') + '</button>' +
+    (S.colMenu ? '<div class="colMenu" role="group" aria-label="Columns to show"><div class="colHd">Show these columns</div>' + keys.map(k => '<label class="colOpt"><input type="checkbox" data-col="' + k + '"' + (hid.has(k) ? '' : ' checked') + '> ' + esc(colLabel(k)) + '</label>').join('') +
+      (n ? '<button type="button" class="linkBtn" data-act="showCols">Show all</button>' : '') + '<div class="small muted colNote">Saved on this computer</div></div>' : '') + '</div>';
+}
 function listBodyHTML(base) {
   const f = S.f, list = sortList(applyFilters(base));
   if (list.some(c => c.type === 'nla')) ensureHist();
   if (!list.length) return '<div class="card"><div class="empty">' + (base.length ? 'No cases match.' : 'No open cases yet.') + '</div></div>';
-  const th = (k, l, cls) => '<th class="' + (cls || '') + '"><button data-act="sort" data-k="' + k + '">' + l + (S.sort.k === k ? (S.sort.dir > 0 ? ' ↑' : ' ↓') : '') + '</button></th>';
+  const hid = hiddenCols(), on = k => !hid.has(k);
+  // a heading sorts; its eye hides the column (the Columns menu above the table brings it back)
+  const th = (k, l, cls) => '<th class="' + (cls || '') + '"><span class="thIn"><button data-act="sort" data-k="' + k + '">' + l + (S.sort.k === k ? (S.sort.dir > 0 ? ' ↑' : ' ↓') : '') + '</button>' +
+    (k === 'patient' ? '' : '<button class="thHide" data-act="hideCol" data-k="' + k + '" title="Hide this column" aria-label="Hide the ' + esc(l) + ' column">' + ic('eyeOff', 14) + '</button>') + '</span></th>';
   // Shipping: the Ship to patient alert and one-click tracking get their own column (on phones they sit under the name)
-  // on phones the date sits under the stage instead of in a column off to the side
-  const chip = c => f.del ? delChip(c) : dueChip(c);
-  return '<div class="card tblWrap"><table class="tbl"><thead><tr>' + th('patient', 'Patient') + th('type', 'Type', 'hideM') + th('stage', 'Stage') + th('due', f.del ? 'Delivery' : 'Next date', 'hideM') + th('ship', 'Shipping', 'hideM') + th('who', 'Assigned', 'hideM') + th('updated', 'Updated', 'hideM') + '</tr></thead><tbody>' +
-    list.map(c => { const g = stageGroup(flowOf(c), c.stage), ship = shipFlag(c) + trackLinks(c);
+  // on phones the date sits under the stage (or the name, with Stage hidden) instead of in a column off to the side
+  const chip = c => f.del ? delChip(c) : dueChip(c), dateM = c => on('due') ? '<div class="flags onlyM">' + chip(c) + '</div>' : '';
+  return '<div class="card tblWrap"><table class="tbl"><thead><tr>' + th('patient', 'Patient') + (on('type') ? th('type', 'Type', 'hideM') : '') + (on('stage') ? th('stage', 'Stage') : '') + (on('due') ? th('due', colLabel('due'), 'hideM') : '') +
+      (on('ship') ? th('ship', 'Shipping', 'hideM') : '') + (on('who') ? th('who', 'Assigned', 'hideM') : '') + (on('updated') ? th('updated', 'Updated', 'hideM') : '') + '</tr></thead><tbody>' +
+    list.map(c => { const g = stageGroup(flowOf(c), c.stage), ship = on('ship') ? shipFlag(c) + trackLinks(c) : '';
       return '<tr class="click" data-act="open" data-id="' + esc(c.id) + '" tabindex="0"><td><div class="ptCell">' + ptAv(c, 36) + '<div class="ptTxt"><div class="pt">' + esc(c.patient || '(no name)') + '</div><div class="small muted">' + esc(c.detail || '') + alignerMini(c) + '</div>' +
-      (ship ? '<div class="flags onlyM">' + ship + '</div>' : '') + '</div></div></td>' +
-      '<td class="hideM">' + typeMark(c) + '</td><td class="stg">' + progHTML(c) + '<div class="small">' + esc(stageLabel(c)) + (g ? ' <span class="muted">· ' + esc(g.l.toLowerCase()) + ' ' + (g.stages.indexOf(c.stage) + 1) + '/' + g.stages.length + '</span>' : '') + '</div>' +
-      (recFlag(c) || holdFlag(c) ? '<div class="flags">' + recFlag(c) + holdFlag(c) + '</div>' : '') + '<div class="flags onlyM">' + chip(c) + '</div></td><td class="hideM">' + chip(c) + '</td>' +
-      '<td class="hideM shipCol">' + (ship ? '<div class="flags">' + ship + '</div>' : '') + '</td>' +
-      '<td class="hideM">' + avatar(c) + ' <span class="small">' + esc(staffName(c.assignee, c.assigneeName)) + '</span></td><td class="hideM small muted">' + esc(c.updatedAt ? fmtWhen(c.updatedAt) : '') + '</td></tr>'; }).join('') +
+      (ship ? '<div class="flags onlyM">' + ship + '</div>' : '') + (on('stage') ? '' : dateM(c)) + '</div></div></td>' +
+      (on('type') ? '<td class="hideM">' + typeMark(c) + '</td>' : '') +
+      (on('stage') ? '<td class="stg">' + progHTML(c) + '<div class="small">' + esc(stageLabel(c)) + (g ? ' <span class="muted">· ' + esc(g.l.toLowerCase()) + ' ' + (g.stages.indexOf(c.stage) + 1) + '/' + g.stages.length + '</span>' : '') + '</div>' +
+        (recFlag(c) || holdFlag(c) ? '<div class="flags">' + recFlag(c) + holdFlag(c) + '</div>' : '') + dateM(c) + '</td>' : '') +
+      (on('due') ? '<td class="hideM">' + chip(c) + '</td>' : '') +
+      (on('ship') ? '<td class="hideM shipCol">' + (ship ? '<div class="flags">' + ship + '</div>' : '') + '</td>' : '') +
+      (on('who') ? '<td class="hideM">' + avatar(c) + ' <span class="small">' + esc(staffName(c.assignee, c.assigneeName)) + '</span></td>' : '') +
+      (on('updated') ? '<td class="hideM small muted">' + esc(c.updatedAt ? fmtWhen(c.updatedAt) : '') + '</td>' : '') + '</tr>'; }).join('') +
     '</tbody></table></div><div class="small muted" style="margin-top:8px">' + list.length + ' case' + (list.length === 1 ? '' : 's') + '</div>';
 }
 
@@ -732,10 +769,13 @@ function viewDone() {
   if (!S.closedLoaded) { loadClosed(); return '<div class="empty">Loading completed cases…</div>'; }
   const list = S.closed.filter(matchesQ).sort((a, b) => (b.closedAt || 0) - (a.closedAt || 0));
   let h = '<div class="filters"><span class="small muted">Completed in the last ' + S.closedDays + ' days</span>' +
-    (S.closedDays < 3650 ? '<button class="btn btn-ghost" data-act="moreClosed">Show older</button>' : '') + '</div>';
+    (S.closedDays < 3650 ? '<button class="btn btn-ghost" data-act="moreClosed">Show older</button>' : '') + colsControlHTML(['type', 'stage']) + '</div>';
   if (!list.length) return h + '<div class="card"><div class="empty">No completed cases' + (S.q ? ' match' : '') + '.</div></div>';
-  return h + '<div class="card tblWrap"><table class="tbl"><thead><tr><th>Patient</th><th class="hideM">Type</th><th>Completed</th><th class="hideM">Last stage</th></tr></thead><tbody>' +
-    list.map(c => '<tr class="click" data-act="openClosed" data-id="' + esc(c.id) + '" tabindex="0"><td><div class="ptCell">' + ptAv(c, 36) + '<div class="ptTxt"><div class="pt">' + esc(c.patient) + '</div><div class="small muted">' + esc(c.detail || '') + '</div></div></div></td><td class="hideM">' + typeMark(c) + '</td><td class="small">' + esc(fmtWhen(c.closedAt)) + '</td><td class="hideM small">' + esc(stageLabel(c)) + '</td></tr>').join('') +
+  const hid = hiddenCols(), on = k => !hid.has(k);
+  const th = (k, l, cls) => '<th class="' + (cls || '') + '"><span class="thIn">' + l + '<button class="thHide" data-act="hideCol" data-k="' + k + '" title="Hide this column" aria-label="Hide the ' + esc(l) + ' column">' + ic('eyeOff', 14) + '</button></span></th>';
+  return h + '<div class="card tblWrap"><table class="tbl"><thead><tr><th>Patient</th>' + (on('type') ? th('type', 'Type', 'hideM') : '') + '<th>Completed</th>' + (on('stage') ? th('stage', 'Last stage', 'hideM') : '') + '</tr></thead><tbody>' +
+    list.map(c => '<tr class="click" data-act="openClosed" data-id="' + esc(c.id) + '" tabindex="0"><td><div class="ptCell">' + ptAv(c, 36) + '<div class="ptTxt"><div class="pt">' + esc(c.patient) + '</div><div class="small muted">' + esc(c.detail || '') + '</div></div></div></td>' +
+      (on('type') ? '<td class="hideM">' + typeMark(c) + '</td>' : '') + '<td class="small">' + esc(fmtWhen(c.closedAt)) + '</td>' + (on('stage') ? '<td class="hideM small">' + esc(stageLabel(c)) + '</td>' : '') + '</tr>').join('') +
     '</tbody></table></div>';
 }
 async function loadClosed() {
@@ -1069,6 +1109,8 @@ async function completeCase(id) {
   } catch (e) { toast(errText(e), { bad: true }); }
 }
 function onClick(e) {
+  // a click anywhere outside the Columns menu closes it
+  if (S.colMenu && !e.target.closest('.colWrap')) { S.colMenu = false; const m = $('.colMenu'); if (m) { const w = m.closest('.colWrap'); m.remove(); const bt = $('.colBtn', w); if (bt) bt.setAttribute('aria-expanded', 'false'); } }
   const t = e.target.closest('[data-act]'); if (!t) return;
   const a = t.dataset.act; const id = t.dataset.id;
   if (t.tagName === 'SELECT') return;
@@ -1109,6 +1151,10 @@ function onClick(e) {
     case 'newCase': newCaseModal(); break;
     case 'closeModal': closeModal(); break;
     case 'clearF': S.f = noFilters(); renderView(); break;
+    case 'colMenu': S.colMenu = !S.colMenu; renderView(); break;
+    case 'hideCol': { const k = t.dataset.k, l = colLabel(k); e.stopPropagation(); setColHidden(k, true); renderView();
+      toast('“' + l + '” column hidden — bring it back from Columns', { action: 'Undo', onAction: () => { setColHidden(k, false); renderView(); } }); break; }
+    case 'showCols': hiddenCols().clear(); setColHidden('', false); S.colMenu = false; renderView(); break;
     case 'oldDone': bulkComplete(oldTicked()); break;
     case 'oldDel': bulkDelete(oldTicked()); break;
     case 'oldAll': case 'oldNone': { const on = a === 'oldAll'; $$('#cleanCard input[data-old]').forEach(i => { i.checked = on; if (on) S.oldOff.delete(i.dataset.old); else S.oldOff.add(i.dataset.old); }); syncOld(); break; }
@@ -1141,6 +1187,7 @@ function onChange(e) {
   if (t.matches && t.matches('input[data-old]')) { if (t.checked) S.oldOff.delete(t.dataset.old); else S.oldOff.add(t.dataset.old); syncOld(); return; }
   if (t.id === 'oldMonths') { S.oldMonths = Number(t.value) || 3; S.oldOff.clear(); renderView(); return; }
   if (t.id === 'oldNoDate') { S.oldNoDate = t.checked; renderView(); return; }
+  if (t.dataset.col) { setColHidden(t.dataset.col, !t.checked); S.colMenu = true; renderView(); return; }
   if (t.dataset.f === 'delDay') { S.f.delDay = t.value; const lb = $('#listBody'); if (lb) { lb.innerHTML = listBodyHTML(listBase()); phPaint(); savPaint(lb); logoPaint(lb); } return; }
   if (t.dataset.f) { S.f[t.dataset.f] = t.value; if (t.dataset.f === 'type') S.f.stage = '';
     // "Delivery on a day…": start on today and open the date picker
