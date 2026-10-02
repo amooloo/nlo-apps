@@ -1561,7 +1561,7 @@ function logEvent(ctx, obj) {
 function round3(x) { return typeof x === 'number' ? Math.round(x * 1000) / 1000 : x; }
 
 // --- CORS ---
-const ALLOWED_HOSTS = ['amooloo.github.io'];
+const ALLOWED_HOSTS = ['amooloo.github.io', 'apps.thenextlevelorthodontics.com'];
 function isAllowedOrigin(origin) {
   if (!origin || origin === 'null') return true;
   try {
