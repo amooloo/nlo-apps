@@ -204,7 +204,7 @@ function bindLockForms(mode) {
     if (p1.length < 10) return lockScreen('setup', { err: 'Use at least 10 characters.' });
     if (p1 !== p2) return lockScreen('setup', { err: 'The two passwords don’t match.' });
     const btn = $('button[type=submit]', sf); busyBtn(btn, true, 'Creating…');
-    S.setup = { name: $('#suName').value.trim(), email: $('#suEmail').value.trim(), pw: p1 };
+    S.setup = { name: $('#suName').value.trim(), email: $('#suEmail').value.trim().toLowerCase(), pw: p1 };
     try {
       const verified = await B.setupAccount(S.setup.email, p1);
       if (verified) await finishSetup(); else lockScreen('verify');

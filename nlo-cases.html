@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-kZ6QGlK4rUZHo5czQU7kCk1mPvZ6En/V5ToTJ+htD4A=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-61xlSVeg7jytOIlsBziOUr33TB5aVmQmEexO2zoUqCQ=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO Cases</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -379,10 +379,10 @@ body.demo #drawer{bottom:31px} body.demo #side{padding-bottom:31px} body.demo #v
 
 /* ---------- Firebase project (filled in after the project is created) ---------- */
 const FB_CONFIG = {
-  apiKey: "__API_KEY__",
-  authDomain: "__AUTH_DOMAIN__",
-  projectId: "__PROJECT_ID__",
-  appId: "__APP_ID__"
+  apiKey: "AIzaSyAoPSh6DaKTeg-NplM-UaPoxlFdTo0u4go",
+  authDomain: "nlo-cases.firebaseapp.com",
+  projectId: "nlo-cases",
+  appId: "1:1050188201609:web:df7890b26686b41a395058"
 };
 /* Synthetic login addresses for staff usernames (no mail is ever sent to them). */
 const STAFF_DOMAIN = 'staff.thenextlevelorthodontics.com';
@@ -1527,7 +1527,7 @@ function bindLockForms(mode) {
     if (p1.length < 10) return lockScreen('setup', { err: 'Use at least 10 characters.' });
     if (p1 !== p2) return lockScreen('setup', { err: 'The two passwords don’t match.' });
     const btn = $('button[type=submit]', sf); busyBtn(btn, true, 'Creating…');
-    S.setup = { name: $('#suName').value.trim(), email: $('#suEmail').value.trim(), pw: p1 };
+    S.setup = { name: $('#suName').value.trim(), email: $('#suEmail').value.trim().toLowerCase(), pw: p1 };
     try {
       const verified = await B.setupAccount(S.setup.email, p1);
       if (verified) await finishSetup(); else lockScreen('verify');
