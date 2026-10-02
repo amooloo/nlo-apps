@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-61xlSVeg7jytOIlsBziOUr33TB5aVmQmEexO2zoUqCQ=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-FY0nSh64ExyYd9mKtqwjeWnYlu5ZprgYMHEs0SiRLn8=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO Cases</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -304,6 +304,38 @@ body.demo #drawer{bottom:31px} body.demo #side{padding-bottom:31px} body.demo #v
 .pick:hover{border-color:var(--mint-600);background:var(--mint-100);color:var(--navy)}
 .pick[aria-pressed="true"]{background:var(--mint);border-color:var(--mint-600);color:var(--navy-900)}
 .pick[aria-pressed="true"]::before{content:"✓ ";font-weight:700}
+/* Dr. A's instructions: Maintain / Improve goals and picture tiles. The pictures keep their colors;
+   only the tile behind them changes when picked (white teeth on navy). */
+.goalGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(236px,1fr));gap:8px;margin-bottom:10px}
+.goal{display:grid;grid-template-columns:40px minmax(0,1fr);column-gap:10px;row-gap:6px;align-items:center;padding:10px 12px;border:1.5px solid var(--grey-200);border-radius:14px;background:#fff}
+.goal .isvg{grid-row:1/span 2;width:40px;height:40px}
+.goal:has(.pick[aria-pressed="true"]){border-color:var(--mint-600)}
+.goalB{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.goalB b{font-size:13.5px;color:var(--navy);line-height:1.2}
+.goalB span{margin-left:6px;font-size:11.5px;color:var(--grey-500)}
+.goal .pickRow{gap:5px;flex-wrap:nowrap}
+.goal .pick{min-height:30px;padding:4px 11px}
+.pickRow.itGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(92px,1fr));gap:8px}
+.pick.itile{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:6px;min-height:104px;padding:12px 8px 10px;border-radius:14px;text-align:center;color:var(--navy);background:#fff}
+.pick.itile span{font-size:12px;font-weight:600;line-height:1.25}
+.pick.itile:hover{background:#fff;border-color:var(--navy-500);color:var(--navy)}
+.pick.itile[aria-pressed="true"]{background:var(--navy);border-color:var(--navy);color:#fff;--line:var(--navy-900);--acc:var(--mint);--ink:var(--navy-900)}
+.pick.itile[aria-pressed="true"]::before{content:none}
+.pick.itile[aria-pressed="true"]::after{content:"";position:absolute;top:7px;right:7px;width:16px;height:16px;border-radius:50%;background:var(--mint) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4.5 8.3l2.3 2.3 4.7-4.9' fill='none' stroke='%2311203A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/16px no-repeat}
+.isvg{flex:none;width:48px;height:48px;overflow:visible;--line:var(--navy);--acc:var(--mint-700);--ink:#fff}
+.pick.itile[aria-pressed="true"] .isvg{--line:var(--navy-900);--acc:var(--mint);--ink:var(--navy-900)}
+.isvg .tk{fill:#fff;stroke:var(--line);stroke-width:1.8;stroke-linejoin:round}
+.isvg .tl{fill:none;stroke:var(--line);stroke-width:1.8;stroke-linecap:round}
+.isvg .tt{stroke-width:1.1;opacity:.55}
+.isvg .tg{fill:var(--coral-200)}
+.isvg .td{fill:var(--navy-900)}
+.isvg .ta{fill:none;stroke:var(--acc);stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.isvg .tdl{stroke-dasharray:3 3}
+.isvg .tf{fill:var(--acc)}
+.isvg .ts{fill:var(--acc);fill-opacity:.22;stroke:var(--acc);stroke-width:2;stroke-linejoin:round}
+.isvg .tbl{fill:none;stroke:var(--ink);stroke-width:1.7;stroke-linecap:round}
+.isvg .tbf{fill:var(--ink)}
+.isvg .tlk{fill:none;stroke:var(--acc);stroke-width:2.4;stroke-linecap:round}
 .cfMore{margin-top:10px;border-top:1px solid var(--grey-100);padding-top:10px}
 .cfMore summary{cursor:pointer;font-size:12.5px;font-weight:600;color:var(--grey-600);padding:6px 0}
 @media (max-width:860px){ #modalWrap{padding:0} .modal.wide{border-radius:0;min-height:100vh} .tileGrid{grid-template-columns:repeat(2,1fr)} }
@@ -1837,7 +1869,7 @@ function refreshDrawer(gone) {
 async function loadHistory(id) {
   try { const h = await B.caseLog(id); if (S.openId === id) { S.history = h; const el = $('#histBox'); if (el) el.innerHTML = historyHTML(findCase(id)); } } catch (e) { }
 }
-const FIELD_LABELS = { teeth: 'tooth chart', teethNote: 'tooth chart', chart: 'chart #', titanUrl: 'Titan link', initial: 'initial/refinement', appliances: 'appliance', lab: 'lab', arches: 'arch', retKinds: 'retainer type', instrPicks: 'Dr. A’s instructions', instrOther: 'Dr. A’s instructions', extras: 'extras', variant: 'case type', type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery date', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes' };
+const FIELD_LABELS = { teeth: 'tooth chart', teethNote: 'tooth chart', chart: 'chart #', titanUrl: 'Titan link', initial: 'initial/refinement', appliances: 'appliance', lab: 'lab', arches: 'arch', retKinds: 'retainer type', goals: 'Dr. A’s instructions', instrPicks: 'Dr. A’s instructions', instrOther: 'Dr. A’s instructions', extras: 'extras', variant: 'case type', type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery date', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes' };
 function historyHTML(c) {
   const h = S.history; if (!h) return '<div class="small muted">Loading…</div>'; if (!h.length) return '<div class="small muted">No history yet.</div>';
   const stageName = k => { const s = c && flowOf(c).stages.find(x => x[0] === k); return s ? s[1] : k; };
@@ -2099,9 +2131,6 @@ const PICK = {
   appliances: ['Herbst with Rollo Band', 'Space Closing Herbst', 'MARA', 'MSE', 'MARPE', 'Rapid Palatal Expander (RPE)', 'D2 distalizer', 'Finger spring with no labial bow', 'Hawley retainers', 'Schwartz'],
   labs: ['Specialty Orthodontic Lab', 'Partner Dental Studios', 'In-house (NL Lab)'],
   scanners: ['Allied Star', 'iTero'],
-  instr: ['Close all remaining residual spaces/gaps', 'Needs settling of posterior occlusion', 'Resolve black triangles', 'Anterior bite opening mechanics', 'Anterior open bite mechanics',
-    'Aligners are not tracking well', 'Need to change attachment/hooks on one or more teeth', 'Class II correction is needed', 'Class III correction is needed',
-    'Midline needs to be corrected', 'No posterior teeth movement', 'Active retention', 'Accepting current OJ/OB'],
   extras: ['No IPR', 'No elastics', 'Mid-course correction'],
   arches: ['Upper', 'Lower'], retKinds: ['TT’s', 'WT’s']
 };
@@ -2111,8 +2140,72 @@ const PICK = {
 const LAB_SPEC = 'Specialty Orthodontic Lab', LAB_PART = 'Partner Dental Studios', LAB_IN = 'In-house (NL Lab)';
 const LAB_FOR = { 'Herbst with Rollo Band': LAB_SPEC, 'Space Closing Herbst': LAB_SPEC, 'MARA': LAB_SPEC, 'MSE': LAB_SPEC, 'MARPE': LAB_PART,
   'Rapid Palatal Expander (RPE)': LAB_PART, 'D2 distalizer': LAB_IN, 'Finger spring with no labial bow': LAB_PART, 'Hawley retainers': LAB_PART, 'Schwartz': LAB_PART };
-/* instruction buttons that only make sense for aligners (hidden for braces) */
+/* Dr. A's instructions: midline, AP and overbite are Maintain / Improve; the rest are picture tiles.
+   v = the full instruction saved on the case (same wording as the Tally form), l = the tile's short label */
+const GOALS = [{ k: 'midline', l: 'Midline', t: 'midline', ic: 'midline' }, { k: 'ap', l: 'AP', s: 'Class II / III', t: 'AP', ic: 'ap' }, { k: 'ob', l: 'Overbite', t: 'overbite', ic: 'ob' }];
+const INSTR = [
+  { v: 'Close all remaining residual spaces/gaps', l: 'Close spaces', ic: 'spaces' },
+  { v: 'Resolve black triangles', l: 'Black triangles', ic: 'bt' },
+  { v: 'Needs settling of posterior occlusion', l: 'Settle posteriors', ic: 'settle' },
+  { v: 'Aligners are not tracking well', l: 'Not tracking', ic: 'track' },
+  { v: 'Need to change attachment/hooks on one or more teeth', l: 'Change attachments', ic: 'attach' },
+  { v: 'No posterior teeth movement', l: 'No posterior movement', ic: 'lock' },
+  { v: 'Active retention', l: 'Active retention', ic: 'retain' }
+];
+/* instruction tiles that only make sense for aligners (hidden for braces) */
 const ALIGNER_ONLY_INSTR = ['Aligners are not tracking well', 'Need to change attachment/hooks on one or more teeth'];
+function goalText(goals) { goals = goals || {}; return GOALS.filter(gl => goals[gl.k]).map(gl => (goals[gl.k] === 'improve' ? 'Improve ' : 'Maintain ') + gl.t); }
+
+/* ---------- instruction pictures (48×48, built from a few tooth shapes; colors come from CSS) ---------- */
+const INSTR_ICONS = (() => {
+  const f = n => +n.toFixed(2);
+  // upper incisor crown, front view: left x, width w, cervical y c, incisal y e
+  const inc = (x, w, c, e) => { const h = e - c, r = Math.min(3.4, w / 3.4);
+    return 'M' + f(x + 1.3) + ' ' + c + 'C' + f(x + .2) + ' ' + f(c + h * .3) + ' ' + f(x - .4) + ' ' + f(c + h * .66) + ' ' + f(x) + ' ' + f(e - r)
+      + 'Q' + f(x + .4) + ' ' + e + ' ' + f(x + r) + ' ' + e + 'H' + f(x + w - r) + 'Q' + f(x + w - .4) + ' ' + e + ' ' + f(x + w) + ' ' + f(e - r)
+      + 'C' + f(x + w + .4) + ' ' + f(c + h * .66) + ' ' + f(x + w - .2) + ' ' + f(c + h * .3) + ' ' + f(x + w - 1.3) + ' ' + c + 'Z'; };
+  // incisor that narrows toward the gum on one side (black triangles): side 1 = narrow on the right, -1 = on the left
+  const taper = (x, w, c, e, side) => side > 0
+    ? 'M' + f(x + 1.3) + ' ' + c + 'H' + f(x + w - 4.2) + 'L' + f(x + w) + ' ' + f(e - 9) + 'V' + f(e - 3.4) + 'Q' + f(x + w - .4) + ' ' + e + ' ' + f(x + w - 3.4) + ' ' + e + 'H' + f(x + 3.4) + 'Q' + f(x + .4) + ' ' + e + ' ' + f(x) + ' ' + f(e - 3.4) + 'C' + f(x - .4) + ' ' + f(c + (e - c) * .6) + ' ' + f(x + .2) + ' ' + f(c + (e - c) * .3) + ' ' + f(x + 1.3) + ' ' + c + 'Z'
+    : 'M' + f(x + w - 1.3) + ' ' + c + 'H' + f(x + 4.2) + 'L' + f(x) + ' ' + f(e - 9) + 'V' + f(e - 3.4) + 'Q' + f(x + .4) + ' ' + e + ' ' + f(x + 3.4) + ' ' + e + 'H' + f(x + w - 3.4) + 'Q' + f(x + w - .4) + ' ' + e + ' ' + f(x + w) + ' ' + f(e - 3.4) + 'C' + f(x + w + .4) + ' ' + f(c + (e - c) * .6) + ' ' + f(x + w - .2) + ' ' + f(c + (e - c) * .3) + ' ' + f(x + w - 1.3) + ' ' + c + 'Z';
+  // gum over upper teeth: rounded ends, an arc over each tooth, papillae between
+  const gum = (teeth, top, apex, pap) => { const L = teeth[0][0] - 4, R = teeth[teeth.length - 1][0] + teeth[teeth.length - 1][1] + 4, rr = Math.min(3, (pap - top) / 2);
+    let d = 'M' + f(L + rr) + ' ' + top + 'H' + f(R - rr) + 'Q' + f(R) + ' ' + top + ' ' + f(R) + ' ' + f(top + rr) + 'V' + pap;
+    teeth.slice().reverse().forEach(([x, w], i, a) => { const right = x + w + (i === 0 ? 4 : 0), left = x - (i === a.length - 1 ? 4 : 0);
+      d += 'L' + f(right) + ' ' + pap + 'Q' + f(x + w / 2) + ' ' + f(2 * apex - pap) + ' ' + f(left) + ' ' + pap; });
+    return '<path class="tg" d="' + d + 'V' + f(top + rr) + 'Q' + f(L) + ' ' + top + ' ' + f(L + rr) + ' ' + top + 'Z"/>'; };
+  // molar, side view (roots up, crown down; flip = lower molar)
+  const MOLAR = 'M3 10C2.6 6 3.2 2.4 5.2.8 6.4-.1 7.6.6 8 2c.6 2.4 1.2 4.4 3 5.2 1.8-.8 2.4-2.8 3-5.2.4-1.4 1.6-2.1 2.8-1.2 2 1.6 2.6 5.2 2.2 9.2 2.6 1.5 3.2 5 2 8-1.5 3.2-3 3-4.5 3-3.5 0-4.5-1.5-5.5-2-1 .5-2 2-5.5 2-1.5 0-3 .2-4.5-3C-.2 15 .4 11.5 3 10z';
+  const molar = (x, y, flip, s) => { s = s || 1; return '<g transform="translate(' + x + ' ' + y + ') scale(' + s + ' ' + (flip ? -s : s) + ')"><path class="tk" d="' + MOLAR + '"/><path class="tl tt" d="M3 10q8 1.6 16 0"/></g>'; };
+  const t = (x, w, c, e) => '<path class="tk" d="' + inc(x, w, c, e) + '"/>';
+  // upper central incisors at Dr. A's ideal width-to-height ratio, 75–80% (visible crown: gum line to incisal edge);
+  // lower incisors are narrower; black-triangle teeth are triangular (wide at the edge, narrow at the gum)
+  const W = (apex, e, r) => f((r || .78) * (e - apex));
+  const wS = W(10, 30), xS = f((48 - 2 * wS - 7) / 2), wM = W(9, 30), xM = f((48 - 2 * wM - 1) / 2);
+  const wU = W(8, 29), xU = f((48 - 2 * wU - 1) / 2), wL = W(5, 24, .6), xL = f((48 - 2 * wL - 1) / 2);
+  const wT = W(8, 28), wA = W(8.5, 32), wB = W(9, 33, .75);
+  return {
+    spaces: t(xS, wS, 9, 30) + t(xS + wS + 7, wS, 9, 30) + gum([[xS, wS], [xS + wS + 7, wS]], 4.5, 10, 14)
+      + '<path class="ta" d="M9 38.5h9.5m-3.2-3.2 3.2 3.2-3.2 3.2M39 38.5h-9.5m3.2-3.2-3.2 3.2 3.2 3.2"/>',
+    bt: '<path class="tk" d="' + taper(24 - wB, wB, 10, 33, 1) + '"/><path class="tk" d="' + taper(24, wB, 10, 33, -1) + '"/>'
+      + '<path class="td" d="M20.4 12.2h7.2L24 24.6z"/>' + gum([[24 - wB, wB], [24, wB]], 4, 9, 12.2),
+    settle: molar(13, .5) + molar(13, 47.5, true)
+      + '<path class="ta" d="M6 13.5v7.5m-3-3 3 3 3-3M6 34.5V27m-3 3 3-3 3 3M42 13.5v7.5m-3-3 3 3 3-3M42 34.5V27m-3 3 3-3 3 3"/>',
+    track: t(24 - wT / 2, wT, 7, 28) + gum([[24 - wT / 2, wT]], 3.5, 8, 12) + '<g transform="rotate(-9 24 24)"><path class="ts" d="' + inc(24 - wT / 2 - 3.6, wT + 7.2, 15.5, 35.5) + '"/></g>',
+    attach: t(7, wA, 7.5, 32) + gum([[7, wA]], 3.5, 8.5, 12.5) + '<rect class="tf" x="' + f(7 + wA / 2 - 4.5) + '" y="17" width="9" height="6.4" rx="1.6"/>'
+      + '<circle class="tf" cx="37" cy="35.5" r="8.8"/><path class="tbl" d="M33 34a4.3 4.3 0 0 1 7.5-1.9M41 37a4.3 4.3 0 0 1-7.5 1.9"/><path class="tbf" d="M41.4 29.8v3.5h-3.5zM32.6 41.2v-3.5h3.5z"/>',
+    lock: molar(4, 44, true, 1.05) + '<path class="tlk" d="M34.5 31v-3.2a4.5 4.5 0 0 1 9 0V31"/><rect class="tf" x="32" y="30" width="14" height="11.5" rx="2.6"/><circle class="tbf" cx="39" cy="34.8" r="1.6"/><path class="tbl" d="M39 35.8v2.6"/>',
+    retain: '<path class="tk" d="M7.5 41C6 21 13 8 24 8s18 13 16.5 33c-.1.9-.8 1.5-1.7 1.5h-4.1c-1 0-1.7-.8-1.6-1.8C34 25 30 16 24 16s-10 9-9.1 24.7c.1 1-.6 1.8-1.6 1.8H9.2c-.9 0-1.6-.6-1.7-1.5z"/>'
+      + '<path class="tl tt" d="M11.2 33.5h3.3M10.6 25.5l3.4.9M13.4 17.6l2.9 1.9M19.3 11.5l1.6 3.1M28.7 11.5l-1.6 3.1M34.6 17.6l-2.9 1.9M37.4 25.5l-3.4.9M36.8 33.5h-3.3"/>'
+      + '<path class="ta" d="M18.5 30l3.8 3.8 7.4-7.6"/>',
+    midline: t(xM, wM, 8, 30) + t(xM + wM + 1, wM, 8, 30) + gum([[xM, wM], [xM + wM + 1, wM]], 3.5, 9, 13) + '<path class="ta tdl" d="M24 2.5v41"/>',
+    ap: molar(5, 2.5, false, .9) + molar(23.2, 45.5, true, .9) + '<path class="ta" d="M8 24h32m-3.4-3.4L40 24l-3.4 3.4M11.4 20.6 8 24l3.4 3.4"/>',
+    ob: '<g transform="matrix(1 0 0 -1 0 48)">' + t(xL, wL, 4.5, 24) + t(xL + wL + 1, wL, 4.5, 24) + gum([[xL, wL], [xL + wL + 1, wL]], 1.5, 5, 8.2) + '</g>'
+      + t(xU, wU, 7, 29) + t(xU + wU + 1, wU, 7, 29) + gum([[xU, wU], [xU + wU + 1, wU]], 2.5, 8, 12)
+      + '<path class="ta" d="M44.8 22v8.5m-2.6-2.6 2.6 2.6 2.6-2.6m-5.2-5.9 2.6-2.6 2.6 2.6"/>'
+  };
+})();
+function instrSvg(k) { return '<svg class="isvg" viewBox="0 0 48 48" aria-hidden="true" focusable="false">' + (INSTR_ICONS[k] || '') + '</svg>'; }
 const TILES = [
   { v: 'oliv', l: 'Oliv', s: 'Aligners' }, { v: 'nla', l: 'In-house', s: 'Aligners · NL Lab' }, { v: 'finishing', l: 'Finishing aligners', s: 'In-house · NL Lab' },
   { v: 'retainer', l: 'Retainers', s: 'TT’s / WT’s' }, { v: 'mouthguard', l: 'Mouthguard', s: 'In-house · complimentary' }, { v: 'appliance', l: 'Appliance', s: 'Herbst, RPE, MARPE…' },
@@ -2128,7 +2221,7 @@ function groupOfTile(v) { return ALIGNERISH.includes(v) ? 'aligner' : BRACES.inc
 /* how the submission is labelled on the case: refinement for aligners, digital enhancement for InSmile */
 function submissionLabel(v) { return v === 'yes' ? 'Initial submission' : v === 'no' ? 'Refinement' : /^de[123]$/.test(v || '') ? 'Digital enhancement ' + v.slice(2) + ' (DE' + v.slice(2) + ')' : ''; }
 const FORM_KEYS = ['type', 'patient', 'chart', 'detail', 'stage', 'assignee', 'assistant', 'scanner', 'scanDate', 'dueDate', 'labDate', 'deliveryDate',
-  'initial', 'appliances', 'lab', 'arches', 'retKinds', 'instrPicks', 'instrOther', 'instructions', 'extras', 'teeth', 'cc', 'ipr', 'notes', 'titanUrl'];
+  'initial', 'appliances', 'lab', 'arches', 'retKinds', 'goals', 'instrPicks', 'instrOther', 'instructions', 'extras', 'teeth', 'cc', 'ipr', 'notes', 'titanUrl'];
 
 /* ---------- tooth chart (Palmer, 7s to 7s, same teeth as the IPR Tracker) ---------- */
 const TEETH_U = ['UR7', 'UR6', 'UR5', 'UR4', 'UR3', 'UR2', 'UR1', 'UL1', 'UL2', 'UL3', 'UL4', 'UL5', 'UL6', 'UL7'];
@@ -2221,7 +2314,8 @@ function caseFormHTML(c, isNew) {
   const opt = (v, l, sel) => '<option value="' + esc(v) + '"' + (sel ? ' selected' : '') + '>' + esc(l) + '</option>';
   const people = (sel, none) => opt('', none) + activeRoster().map(r => opt(r.sid, r.name, sel === r.sid)).join('');
   const date = (id, l, v) => '<div class="field"><label for="' + id + '">' + l + '</label><input type="date" id="' + id + '" value="' + esc(v || '') + '"></div>';
-  const instrOther = c.instrOther != null ? c.instrOther : ((c.instrPicks || []).length ? '' : (c.instructions || ''));
+  const instrOther = c.instrOther != null ? c.instrOther : (((c.instrPicks || []).length || Object.keys(c.goals || {}).length) ? '' : (c.instructions || ''));
+  const picks = c.instrPicks || [], oldPicks = picks.filter(v => !INSTR.some(it => it.v === v));
   const ccs = learnedCCs();
   return '<div class="cf" data-new="' + (isNew ? 1 : 0) + '">' +
     '<div class="cfSec"><h5>Case type</h5><div class="tileGrid" role="radiogroup" aria-label="Case type">' + TILES.filter(t => !t.legacy || t.v === tile).map(t =>
@@ -2238,8 +2332,13 @@ function caseFormHTML(c, isNew) {
     '<div class="cfSec"><h5>Dates</h5><div class="pickRow" style="margin-bottom:8px"><button type="button" class="pick sm" data-scan="0">Scanned today</button><button type="button" class="pick sm" data-scan="-1">Yesterday</button></div>' +
     '<div class="grid4">' + date('cf-scanDate', 'Scan date', c.scanDate) + date('cf-dueDate', g === 'aligner' || g === 'braces' ? 'Due for Dr. A' : 'Due date', c.dueDate) + date('cf-labDate', 'Lab completion', c.labDate) + date('cf-deliveryDate', 'Delivery', c.deliveryDate) + '</div>' +
     '<div class="hint small muted" id="cf-autoHint" style="margin:-4px 0 0">Filled in from the scan date — change any of them.</div></div>' +
-    '<div class="cfSec"' + show('aligner braces') + '><h5>Dr. A’s instructions from last visit</h5>' + pickRow('instrPicks', withSaved(PICK.instr, c.instrPicks), c.instrPicks || [], true) +
-    '<div class="field" style="margin-top:8px"><label for="cf-instrOther">Other instructions</label><textarea id="cf-instrOther" rows="2" placeholder="Only if it isn’t one of the buttons">' + esc(instrOther) + '</textarea></div></div>' +
+    '<div class="cfSec"' + show('aligner braces') + '><h5>Dr. A’s instructions from last visit</h5>' +
+    '<div class="goalGrid">' + GOALS.map(gl => '<div class="goal">' + instrSvg(gl.ic) + '<div class="goalB"><b>' + esc(gl.l) + '</b>' + (gl.s ? '<span>' + esc(gl.s) + '</span>' : '') + '</div>' +
+      pickRow('goal_' + gl.k, [{ v: 'maintain', l: 'Maintain' }, { v: 'improve', l: 'Improve' }], (c.goals || {})[gl.k] || '', false, 'sm') + '</div>').join('') + '</div>' +
+    '<div class="pickRow itGrid" role="group" aria-label="Instructions" data-g="instrPicks" data-multi="1">' + INSTR.map(it =>
+      '<button type="button" class="pick itile" data-v="' + esc(it.v) + '" aria-pressed="' + picks.includes(it.v) + '" title="' + esc(it.v) + '">' + instrSvg(it.ic) + '<span>' + esc(it.l) + '</span></button>').join('') + '</div>' +
+    (oldPicks.length ? '<div class="hint small muted" style="margin:10px 0 6px">Earlier choices on this case</div>' + pickRow('instrPicks', oldPicks, oldPicks, true) : '') +
+    '<div class="field" style="margin-top:10px"><label for="cf-instrOther">Other instructions</label><textarea id="cf-instrOther" rows="2" placeholder="Only if it isn’t one of the pictures">' + esc(instrOther) + '</textarea></div></div>' +
     '<div class="cfSec"' + show('aligner') + '><h5>Tooth chart</h5><div class="tc" id="cf-tc"><div class="pickRow tcTools" role="radiogroup" aria-label="Marker">' +
     MARKS.map((m, i) => '<button type="button" class="pick sm tool m-' + m.k + '" data-tool="' + m.k + '" role="radio" aria-checked="' + (i === 0) + '">' + esc(m.l) + '</button>').join('') +
     '<span class="tcSep"></span><button type="button" class="pick sm" data-tq="ant">Anteriors 3–3</button><button type="button" class="pick sm" data-tq="post">Posteriors 4–7</button><button type="button" class="pick sm" data-tq="all">All teeth</button><button type="button" class="pick sm" data-tq="clear">Clear</button></div>' +
@@ -2271,17 +2370,18 @@ function readCaseForm(root) {
   o.lab = pressed(root, 'lab')[0] || '';
   o.appliances = pressed(root, 'appliances'); o.arches = pressed(root, 'arches'); o.retKinds = pressed(root, 'retKinds');
   o.instrPicks = pressed(root, 'instrPicks'); o.extras = pressed(root, 'extras');
+  o.goals = {}; GOALS.forEach(gl => { const v = pressed(root, 'goal_' + gl.k)[0]; if (v) o.goals[gl.k] = v; });
   try { o.teeth = canonTeeth(JSON.parse($('#cf-teeth', root).value || '{}')); } catch (e) { o.teeth = {}; }
   o.teethNote = teethSummary(o.teeth);
   const g = groupOfTile(tile);
   if (g === 'braces') o.instrPicks = o.instrPicks.filter(x => !ALIGNER_ONLY_INSTR.includes(x));
-  if (g !== 'aligner' && g !== 'braces') o.instrPicks = [];
+  if (g !== 'aligner' && g !== 'braces') { o.instrPicks = []; o.goals = {}; }
   if (g !== 'aligner') { o.extras = []; o.teeth = {}; o.teethNote = ''; }
   if (g !== 'appliance') { o.appliances = []; o.lab = ''; }
   if (g !== 'retainer') { o.arches = []; o.retKinds = []; }
   if (tile === 'mouthguard') o.retKinds = [];
   if (!(o.type === 'nla')) o.titanUrl = '';
-  o.instructions = o.instrPicks.concat(o.instrOther ? [o.instrOther] : []).join('; ');
+  o.instructions = goalText(o.goals).concat(o.instrPicks, o.instrOther ? [o.instrOther] : []).join('; ');
   return o;
 }
 /* what's being made, from the taps */

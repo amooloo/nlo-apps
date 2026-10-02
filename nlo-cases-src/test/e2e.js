@@ -361,19 +361,22 @@ async function openByName(p, name) {
   await owner.click('#ncForm .tt[data-tile=oliv]'); await owner.fill('#cf-patient', 'Petra Tapform');
   await owner.click('.pickRow[data-g=initial] .pick[data-v=no]');
   await owner.click('.pickRow[data-g=assistant] .pick:has-text("Gwen")');
-  await owner.click('.pickRow[data-g=instrPicks] .pick:has-text("Resolve black triangles")');
-  await owner.click('.pickRow[data-g=instrPicks] .pick:has-text("Midline needs to be corrected")');
+  await owner.click('.pickRow[data-g=instrPicks] .pick[data-v="Resolve black triangles"]');
+  await owner.click('.pickRow[data-g=goal_midline] .pick[data-v=improve]');
+  await owner.click('.pickRow[data-g=goal_ob] .pick[data-v=maintain]');
   await owner.click('.pickRow[data-g=extras] .pick:has-text("No elastics")');
   await owner.click('.pickRow[data-cc] .pick:has-text("None")');
   check(await owner.inputValue('#cf-detail') === 'Aligners (Oliv) – refinement', 'what’s-being-made fills itself from the taps');
   await owner.click('#ncSave'); await owner.waitForSelector('#modalWrap', { state: 'detached', timeout: 20000 });
   await openByName(owner, 'Petra Tapform');
-  check(await owner.isVisible('#drawer .txt:has-text("Resolve black triangles; Midline needs to be corrected")'), 'tapped instructions saved as text');
+  check(await owner.isVisible('#drawer .txt:has-text("Improve midline; Maintain overbite; Resolve black triangles")'), 'tapped instructions (Maintain/Improve and pictures) saved as text');
   check(await owner.isVisible('#drawer .badge:has-text("No elastics")') && await owner.isVisible('#drawer .badge:has-text("Refinement")'), 'extras and refinement shown on the case');
   check(/Gwen/.test(await owner.textContent('#drawer .kv')), 'assistant saved from a tap');
   await owner.click('#drawer [data-act=edit]'); await owner.waitForSelector('#drawer .cf');
-  check((await owner.locator('#drawer .pickRow[data-g=instrPicks] .pick[aria-pressed=true]').count()) === 2, 'editing restores the tapped choices');
-  await owner.click('#drawer .pickRow[data-g=instrPicks] .pick:has-text("Midline needs to be corrected")');
+  check((await owner.locator('#drawer .pickRow[data-g=instrPicks] .pick[aria-pressed=true]').count()) === 1
+    && (await owner.getAttribute('#drawer .pickRow[data-g=goal_midline] .pick[data-v=improve]', 'aria-pressed')) === 'true'
+    && (await owner.getAttribute('#drawer .pickRow[data-g=goal_ob] .pick[data-v=maintain]', 'aria-pressed')) === 'true', 'editing restores the tapped choices');
+  await owner.click('#drawer .pickRow[data-g=goal_midline] .pick[data-v=improve]');
   await owner.click('[data-act=saveEdit]'); await owner.waitForSelector('#drawer .stepper', { timeout: 20000 });
   check(!(await owner.isVisible('#drawer .txt:has-text("Midline")')), 'un-tapping an instruction removes it');
   await owner.click('#drawer [data-act=closeDrawer] >> nth=0');
@@ -451,7 +454,7 @@ async function openByName(p, name) {
   await owner.click('.topBar [data-act=newCase]'); await owner.waitForSelector('#ncForm');
   await owner.click('#ncForm .tt[data-tile=insmile]'); await owner.fill('#cf-patient', 'Ines Smilewright');
   check(await owner.isVisible('.pickRow[data-g=initialDE]') && !(await owner.isVisible('.pickRow[data-g=initial]')), 'asks Initial / DE 1 / DE 2 / DE 3 instead of refinement');
-  check(!(await owner.isVisible('.pickRow[data-g=instrPicks] .pick:has-text("Aligners are not tracking well")')) && await owner.isVisible('.pickRow[data-g=instrPicks] .pick:has-text("Class II correction is needed")'), 'aligner-only instructions hidden for braces');
+  check(!(await owner.isVisible('.pickRow[data-g=instrPicks] .pick[data-v="Aligners are not tracking well"]')) && await owner.isVisible('.pickRow[data-g=instrPicks] .pick[data-v="Resolve black triangles"]') && await owner.isVisible('.pickRow[data-g=goal_ap]'), 'aligner-only pictures hidden for braces; AP and the rest stay');
   check(!(await owner.isVisible('#cf-tc')), 'no aligner tooth chart for braces');
   await owner.click('.pickRow[data-g=initialDE] .pick[data-v=de2]');
   check(await owner.inputValue('#cf-detail') === 'InSmile braces – DE2', 'detail reads InSmile braces – DE2');
