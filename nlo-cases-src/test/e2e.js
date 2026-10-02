@@ -1035,6 +1035,11 @@ async function openByName(p, name) {
   await owner.click('#rulesCard [data-act=rulesCheck]'); await owner.waitForSelector('.toast:has-text("up to date")', { timeout: 15000 });
   await owner.waitForFunction(() => !document.querySelector('#rulesCard') && !document.body.classList.contains('phOff'), null, { timeout: 10000 });
   check(true, 'after publishing them, Check again turns photos and email updates on (the card goes away)');
+  await sleep(1500); // a mailbox check-in arriving now can only reach the page through the restarted live listener
+  await fetch(`http://127.0.0.1:8080/v1/projects/${PROJECT}/databases/(default)/documents/mailbeat/b${'c'.repeat(32)}`, { method: 'PATCH', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fields: { box: { stringValue: 'records@example.com' }, seen: { integerValue: '1' }, sent: { integerValue: '1' }, err: { stringValue: '' }, ver: { stringValue: '1' }, at: { timestampValue: new Date().toISOString() } } }) });
+  await owner.waitForFunction(() => !!(MAILS.state && (MAILS.state.beats || []).some(b => b.box === 'records@example.com')), null, { timeout: 15000 });
+  check(true, 'live updates the old rules refused (e.g. a mailbox’s check-in) come through right after Check again, without signing in again');
 
   await owner.screenshot({ path: 'shots/e2e-admin.png', fullPage: true });
   // 403s are checked precisely (by section) in the forbidden list below

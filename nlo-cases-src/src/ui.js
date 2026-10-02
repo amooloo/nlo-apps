@@ -229,7 +229,7 @@ function enterApp() {
   S.inApp = true; S.cases = new Map(); S.closed = []; S.hist = null; S.histLoaded = false; S.firstLoad = true; S.lastAct = Date.now();
   $('#lockWrap').classList.add('hidden'); $('#app').classList.remove('hidden');
   renderShell(); renderView();
-  B.start({
+  S.h = {
     cases(up, gone) {
       // a stage move still being saved wins over an older copy arriving from the server (quick → → → clicks)
       up.forEach(c => { const p = S.pend && S.pend[c.id]; if (p) { c.stage = p.to; if (p.extra) Object.assign(c, p.extra); } S.cases.set(c.id, c); }); gone.forEach(id => S.cases.delete(id));
@@ -245,22 +245,26 @@ function enterApp() {
     revoked() { lockOut('Your access to NLO Cases was turned off.'); },
     rekeyed() { },
     error(e) { if (/permission/.test((e && e.code) || '')) lockOut('Your access changed. Sign in again.'); else toast(errText(e), { bad: true }); }
-  });
+  };
+  B.start(S.h);
   clearInterval(S.idleTimer);
   S.idleTimer = setInterval(() => {
     const mins = Number(S.settings.idleMin) || 10;
     if (S.inApp && Date.now() - S.lastAct > mins * 60000) lockOut('Locked after ' + mins + ' minutes without activity.');
   }, 15000);
   clearInterval(S.mailTimer); S.mailTimer = setInterval(mailSync, 180000); // also catches emails a case couldn't take yet
-  rulesCheck();
+  S.rulesOld = false; rulesCheck();
 }
 /* features that need newer security rules (patient photos, email updates) stay out of sight until the owner publishes them */
 async function rulesCheck() {
+  const was = !!S.rulesOld;
   S.rulesOld = false; document.body.classList.remove('phOff');
   if (!B.rulesCurrent) return true;
   const ok = await B.rulesCurrent(); if (!S.inApp) return ok;
   S.rulesOld = !ok; document.body.classList.toggle('phOff', !ok);
   if (!ok) queueRender('team');
+  // just published: the live updates the older rules refused (lab inbox, mailbox check-ins) start again without signing in again
+  if (ok && was && S.h) { B.start(S.h); MAILS.state = null; queueRender('team'); }
   return ok;
 }
 async function lockOut(msg) {

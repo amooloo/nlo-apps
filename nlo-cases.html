@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-7+CrTq6epV7bHPb58Bzb/b3WgkKKRxF6796oEQfbj/s=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-zpELR0Gzx+3/q2B5o7z2RDAdHWgKdcYP0UypxzZEYRc=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO Cases</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -2199,7 +2199,7 @@ function enterApp() {
   S.inApp = true; S.cases = new Map(); S.closed = []; S.hist = null; S.histLoaded = false; S.firstLoad = true; S.lastAct = Date.now();
   $('#lockWrap').classList.add('hidden'); $('#app').classList.remove('hidden');
   renderShell(); renderView();
-  B.start({
+  S.h = {
     cases(up, gone) {
       // a stage move still being saved wins over an older copy arriving from the server (quick → → → clicks)
       up.forEach(c => { const p = S.pend && S.pend[c.id]; if (p) { c.stage = p.to; if (p.extra) Object.assign(c, p.extra); } S.cases.set(c.id, c); }); gone.forEach(id => S.cases.delete(id));
@@ -2215,22 +2215,26 @@ function enterApp() {
     revoked() { lockOut('Your access to NLO Cases was turned off.'); },
     rekeyed() { },
     error(e) { if (/permission/.test((e && e.code) || '')) lockOut('Your access changed. Sign in again.'); else toast(errText(e), { bad: true }); }
-  });
+  };
+  B.start(S.h);
   clearInterval(S.idleTimer);
   S.idleTimer = setInterval(() => {
     const mins = Number(S.settings.idleMin) || 10;
     if (S.inApp && Date.now() - S.lastAct > mins * 60000) lockOut('Locked after ' + mins + ' minutes without activity.');
   }, 15000);
   clearInterval(S.mailTimer); S.mailTimer = setInterval(mailSync, 180000); // also catches emails a case couldn't take yet
-  rulesCheck();
+  S.rulesOld = false; rulesCheck();
 }
 /* features that need newer security rules (patient photos, email updates) stay out of sight until the owner publishes them */
 async function rulesCheck() {
+  const was = !!S.rulesOld;
   S.rulesOld = false; document.body.classList.remove('phOff');
   if (!B.rulesCurrent) return true;
   const ok = await B.rulesCurrent(); if (!S.inApp) return ok;
   S.rulesOld = !ok; document.body.classList.toggle('phOff', !ok);
   if (!ok) queueRender('team');
+  // just published: the live updates the older rules refused (lab inbox, mailbox check-ins) start again without signing in again
+  if (ok && was && S.h) { B.start(S.h); MAILS.state = null; queueRender('team'); }
   return ok;
 }
 async function lockOut(msg) {
