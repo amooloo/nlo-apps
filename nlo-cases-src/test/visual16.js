@@ -17,7 +17,7 @@ const OUT = process.argv[2] || 'shots';
   const by = {}; rows.forEach(r => { by[r.type] = by[r.type] || r; });
   console.log('   ' + Object.values(by).map(r => r.type + ': ' + (r.img ? 'logo ' + r.img.w + '×' + r.img.h + (r.img.ok ? '' : ' NOT LOADED') : r.nl ? 'NL mark' : r.pill ? 'name pill' : '?')).join(' | '));
   check(['oliv', 'angel', 'invisalign', 'ulab', 'insmile'].filter(k => by[k]).every(k => by[k].img && by[k].img.ok && !by[k].pill), 'list: Oliv, Angel, Invisalign, uLab and InSmile show their logos (loaded, no pill)');
-  check(by.nla && by.nla.nl && !by.nla.pill, 'list: in-house sets show the NL mark');
+  check(by.nla && by.nla.img && by.nla.img.ok && /In-house/.test(by.nla.img.alt) && !by.nla.pill, 'list: in-house sets show the Next Level Orthodontics logo');
   check(['retainer', 'appliance', 'marpe', 'models', 'mouthguard'].filter(k => by[k]).every(k => by[k].pill), 'list: types with no company keep their name');
   check(rows.every(r => !r.img || r.img.alt), 'every logo has its company name for screen readers (alt)');
   await p.screenshot({ path: OUT + '/v16-list.png', clip: { x: 232, y: 0, width: 1128, height: 1000 } });
@@ -28,7 +28,8 @@ const OUT = process.argv[2] || 'shots';
   check(kc.length > 0 && kc.every(Boolean) && !(await p.locator('.kc .ft .badge').count()), 'board (outside aligners): each card shows the company logo, no pills (' + kc.length + ' cards)');
   await p.screenshot({ path: OUT + '/v16-board-outside.png', clip: { x: 232, y: 60, width: 1128, height: 600 } });
   await p.click('.boardTabs [data-k=inhouse]'); await p.waitForSelector('.kc'); await p.waitForTimeout(150);
-  check((await p.locator('.kc .ft .tlogo.nl svg').count()) > 0, 'board (in-house): the NL mark on the cards');
+  check((await p.locator('.kc .ft .tlogo.lg-nlo img').count()) > 0 && await p.evaluate(() => Array.from(document.querySelectorAll('.kc .ft .tlogo.lg-nlo img')).every(i => i.complete && i.naturalWidth > 0)), 'board (in-house): the Next Level Orthodontics logo on the cards');
+  await p.screenshot({ path: OUT + '/v16-board-inhouse.png', clip: { x: 232, y: 60, width: 1128, height: 520 } });
   await p.click('.boardTabs [data-k=retainer]'); await p.waitForSelector('.kc'); await p.waitForTimeout(150);
   check((await p.locator('.kc .ft .badge').count()) > 0, 'board (retainers & mouthguards): names stay (no company)');
   // Completed and My cases

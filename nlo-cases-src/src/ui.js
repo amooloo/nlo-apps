@@ -419,12 +419,15 @@ function savPaint(root) {
 /* ---------- small pieces ---------- */
 function typeBadge(c) { const t = typeOf(c); return '<span class="badge ' + t.cls + '">' + esc(t.l) + '</span>'; }
 /* the board and the case lists show the company's logo instead of the name (Amir, 2 Oct 2026): Oliv, Angel, Invisalign,
-   uLab, InSmile from logos.js; in-house sets the office NL mark; types with no company (retainers, appliances, MARPE,
+   uLab, InSmile from logos.js; in-house sets the Next Level Orthodontics logo; types with no company (retainers, appliances, MARPE,
    models) keep the name. The picture is set after render (logoPaint), so no image data sits in this markup. */
 function typeMark(c, small) {
   const t = typeOf(c), lg = typeof LOGOS !== 'undefined' && LOGOS[c.type], cls = 'tlogo' + (small ? ' sm' : '');
   if (lg) return '<span class="' + cls + ' lg-' + esc(c.type) + '" title="' + esc(t.l) + '"><img data-logo="' + esc(c.type) + '" width="' + lg.w + '" height="' + lg.h + '" alt="' + esc(t.l) + '" draggable="false"></span>';
-  if (c.type === 'nla') { const l = c.variant === 'finishing' ? 'Finishing aligners (in-house)' : t.l; return '<span class="' + cls + ' nl" title="' + esc(l) + '" role="img" aria-label="' + esc(l) + '">' + typeSvg('nl') + '</span>'; }
+  // in-house sets: the office's own Next Level Orthodontics logo (Amir's file, 2 Oct 2026), wide like the companies' logos
+  if (c.type === 'nla') { const l = c.variant === 'finishing' ? 'Finishing aligners (in-house)' : t.l, nl = typeof LOGOS !== 'undefined' && LOGOS.nlo;
+    return nl ? '<span class="' + cls + ' lg-nlo" title="' + esc(l) + '"><img data-logo="nlo" width="' + nl.w + '" height="' + nl.h + '" alt="' + esc(l) + '" draggable="false"></span>'
+      : '<span class="' + cls + ' nl" title="' + esc(l) + '" role="img" aria-label="' + esc(l) + '">' + typeSvg('nl') + '</span>'; }
   return typeBadge(c);
 }
 function logoPaint(root) { if (typeof LOGOS === 'undefined') return; $$('img[data-logo]:not([src])', root || document).forEach(i => { const lg = LOGOS[i.dataset.logo]; if (lg) i.src = lg.src; }); }
