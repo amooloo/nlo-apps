@@ -1,0 +1,423 @@
+/* =====================================================================
+   Firebase backend. Nothing readable about a patient ever leaves the
+   browser: case bodies and history are sealed with the office key ring.
+   Plain fields on a case doc: v (key version), status, rev, by/sid,
+   createdAt/updatedAt/closedAt — none of them identify a patient.
+   ===================================================================== */
+function errCode(code, msg) { const e = new Error(msg || code); e.code = code; return e; }
+
+const FB = {
+  emu: false, app: null, auth: null, db: null, cfg: null,
+  uid: null, me: null, priv: null, ring: null, keys: null, curV: 0, ringV: 0,
+  unsubs: [], pending: 0, onSync: null,
+
+  ts() { return firebase.firestore.FieldValue.serverTimestamp(); },
+  del() { return firebase.firestore.FieldValue.delete(); },
+  tsMs(t) { return t && t.toMillis ? t.toMillis() : (t || null); },
+  isOwner() { return !!(FB.me && FB.me.role === 'owner'); },
+
+  available() { return typeof firebase !== 'undefined' && !!firebase.initializeApp; },
+  configured() { return FB.emu || FB_CONFIG.apiKey.indexOf('__') !== 0; },
+  init(emu) {
+    FB.emu = !!emu;
+    FB.cfg = FB.emu ? { apiKey: 'demo-key', authDomain: 'localhost', projectId: 'demo-nlo-cases', appId: 'demo' } : FB_CONFIG;
+    if (!FB.available() || !FB.configured()) return false;
+    FB.app = firebase.apps.length ? firebase.app() : firebase.initializeApp(FB.cfg);
+    FB.auth = firebase.auth(); FB.db = firebase.firestore();
+    if (FB.emu) { FB.auth.useEmulator('http://127.0.0.1:9099', { disableWarnings: true }); FB.db.useEmulator('127.0.0.1', 8080); }
+    return true;
+  },
+  async ready() {
+    // Never keep a session across reloads: the key ring only lives in memory, so a reload means sign in again.
+    try { await FB.auth.setPersistence(firebase.auth.Auth.Persistence.NONE); } catch (e) { }
+  },
+  busy(n) { FB.pending += n; if (FB.onSync) FB.onSync(); },
+  async track(p) { FB.busy(1); try { return await p; } finally { FB.busy(-1); } },
+
+  /* ---------- sign in ---------- */
+  async emailFor(login) {
+    const s = String(login || '').trim();
+    if (s.includes('@')) return s.toLowerCase();
+    const un = slug(s); if (!un) throw errCode('no-user');
+    const snap = await FB.db.doc('logins/' + un).get();
+    if (!snap.exists) throw errCode('no-user');
+    return snap.data().email;
+  },
+  async signIn(login, pw) {
+    const email = await FB.emailFor(login);
+    const cred = await FB.auth.signInWithEmailAndPassword(email, pw);
+    FB.uid = cred.user.uid;
+    const ms = await FB.db.doc('members/' + FB.uid).get();
+    if (!ms.exists) { await FB.signOut(); throw errCode('not-member'); }
+    const m = ms.data();
+    if (!m.active) { await FB.signOut(); throw errCode('inactive'); }
+    FB.me = Object.assign({ uid: FB.uid }, m);
+    if (m.mustSetup) {
+      if (m.priv) { // set a password already but didn't finish: try it
+        try { await FB.unlockWith(pw, m); await FB.db.doc('members/' + FB.uid).update({ mustSetup: false, boot: FB.del(), lastLogin: FB.ts() }); return { state: 'ok' }; } catch (e) { }
+      }
+      return { state: 'first' };
+    }
+    try { await FB.unlockWith(pw, m); }
+    catch (e) { return { state: m.role === 'owner' ? 'recover' : 'broken' }; }
+    FB.db.doc('members/' + FB.uid).update({ lastLogin: FB.ts() }).catch(() => { });
+    return { state: 'ok' };
+  },
+  async unlockWith(pw, m) {
+    let bytes;
+    try { bytes = await Crypto.pwOpen(pw, m.priv, 'priv:' + FB.uid); }
+    catch (e) { if (!m.privPrev) throw e; bytes = await Crypto.pwOpen(pw, m.privPrev, 'priv:' + FB.uid); }
+    FB.priv = await Crypto.importPriv(bytes);
+    await FB.loadRing(m);
+  },
+  async loadRing(m) {
+    const ring = Crypto.ringFrom(await Crypto.openFrom(FB.priv, m.ring, 'ring:' + FB.uid));
+    FB.ring = ring; FB.keys = await Crypto.ringKeys(ring); FB.ringV = m.ringV || 0;
+    const k = await FB.db.doc('meta/keys').get();
+    FB.curV = k.exists ? k.data().current : 1;
+  },
+  /* first sign-in with a temporary password: choose a real one */
+  async firstSetup(tempPw, newPw) {
+    const m = FB.me; const uid = FB.uid;
+    let ring;
+    try { ring = Crypto.ringFrom(await Crypto.pwOpen(tempPw, m.boot, 'boot:' + uid)); }
+    catch (e) { throw errCode('boot-failed'); }
+    const cur = (await FB.db.doc('meta/keys').get()).data().current;
+    if (!ring[cur]) throw errCode('boot-stale');
+    const pair = await Crypto.newPair(); const pub = await Crypto.pubJwk(pair);
+    const pbytes = await Crypto.privBytes(pair);
+    const priv = await Crypto.pwSeal(newPw, pbytes, 'priv:' + uid);
+    const ringBox = await Crypto.sealTo(pub, Crypto.ringBytes(ring), 'ring:' + uid);
+    await FB.db.doc('members/' + uid).update({ pub, priv, ring: ringBox, ringV: cur });
+    await FB.auth.currentUser.updatePassword(newPw);
+    await FB.db.doc('members/' + uid).update({ mustSetup: false, boot: FB.del(), lastLogin: FB.ts() });
+    FB.priv = await Crypto.importPriv(pbytes); FB.ring = ring; FB.keys = await Crypto.ringKeys(ring); FB.curV = cur; FB.ringV = cur;
+    FB.me = Object.assign({}, FB.me, { mustSetup: false, pub });
+  },
+  /* owner forgot password → reset by email → recovery code restores the key ring */
+  async recover(pw, code) {
+    const uid = FB.uid;
+    const r = (await FB.db.doc('meta/recovery').get()).data();
+    let ring;
+    try {
+      const rpriv = await Crypto.importPriv(await Crypto.pwOpen(normCode(code), r.priv, 'recovery-priv'));
+      ring = Crypto.ringFrom(await Crypto.openFrom(rpriv, r.ring, 'ring:recovery'));
+    } catch (e) { throw errCode('bad-code'); }
+    const pair = await Crypto.newPair(); const pub = await Crypto.pubJwk(pair); const pbytes = await Crypto.privBytes(pair);
+    const priv = await Crypto.pwSeal(pw, pbytes, 'priv:' + uid);
+    const ringBox = await Crypto.sealTo(pub, Crypto.ringBytes(ring), 'ring:' + uid);
+    const v = Math.max.apply(null, Object.keys(ring).map(Number));
+    await FB.db.doc('members/' + uid).update({ pub, priv, privPrev: FB.del(), ring: ringBox, ringV: v, lastLogin: FB.ts() });
+    FB.priv = await Crypto.importPriv(pbytes); FB.ring = ring; FB.keys = await Crypto.ringKeys(ring); FB.ringV = v;
+    FB.curV = (await FB.db.doc('meta/keys').get()).data().current;
+  },
+  async sendReset(email) { await FB.auth.sendPasswordResetEmail(email); },
+  async changePassword(cur, next) {
+    const u = FB.auth.currentUser;
+    await u.reauthenticateWithCredential(firebase.auth.EmailAuthProvider.credential(u.email, cur));
+    const m = (await FB.db.doc('members/' + FB.uid).get()).data();
+    let bytes;
+    try { bytes = await Crypto.pwOpen(cur, m.priv, 'priv:' + FB.uid); }
+    catch (e) { bytes = await Crypto.pwOpen(cur, m.privPrev, 'priv:' + FB.uid); }
+    const priv = await Crypto.pwSeal(next, bytes, 'priv:' + FB.uid);
+    // keep the old sealed copy until the login password has really changed
+    const privPrev = await Crypto.pwSeal(cur, bytes, 'priv:' + FB.uid);
+    await FB.db.doc('members/' + FB.uid).update({ priv, privPrev });
+    await u.updatePassword(next);
+    await FB.db.doc('members/' + FB.uid).update({ privPrev: FB.del() });
+  },
+
+  /* ---------- first-time office setup (owner) ---------- */
+  /* step 1: create (or reuse) the owner's account and make sure the email is verified */
+  async setupAccount(email, pw) {
+    let cred;
+    try { cred = await FB.auth.createUserWithEmailAndPassword(email, pw); }
+    catch (e) { if (/email-already-in-use/.test(e.code || '')) cred = await FB.auth.signInWithEmailAndPassword(email, pw); else throw e; }
+    FB.uid = cred.user.uid;
+    if (!cred.user.emailVerified) await cred.user.sendEmailVerification();
+    return cred.user.emailVerified;
+  },
+  async setupVerified() {
+    const u = FB.auth.currentUser; if (!u) return false;
+    await u.reload(); await u.getIdToken(true);
+    return FB.auth.currentUser.emailVerified;
+  },
+  async resendVerify() { const u = FB.auth.currentUser; if (u) await u.sendEmailVerification(); },
+  /* step 2: create the office (key ring, owner record, recovery code) */
+  async setupOwner(name, pw) {
+    const uid = FB.uid = FB.auth.currentUser.uid;
+    const sid = slug(name.split(/\s+/)[0]) || 'owner';
+    const ring = { '1': Crypto.newRingKey() };
+    const pair = await Crypto.newPair(); const pub = await Crypto.pubJwk(pair); const pbytes = await Crypto.privBytes(pair);
+    const priv = await Crypto.pwSeal(pw, pbytes, 'priv:' + uid);
+    const ringBox = await Crypto.sealTo(pub, Crypto.ringBytes(ring), 'ring:' + uid);
+    const code = recoveryCode();
+    const rec = await FB.recoveryDoc(code, ring);
+    const b = FB.db.batch();
+    b.set(FB.db.doc('members/' + uid), { staffId: sid, username: '', name, role: 'owner', active: true, mustSetup: false, pub, priv, ring: ringBox, ringV: 1, gen: 0, createdAt: FB.ts(), lastLogin: FB.ts() });
+    b.set(FB.db.doc('meta/setup'), { owner: uid, at: FB.ts() });
+    b.set(FB.db.doc('meta/keys'), { current: 1 });
+    b.set(FB.db.doc('meta/settings'), { idleMin: 10 });
+    b.set(FB.db.doc('meta/recovery'), rec);
+    b.set(FB.db.doc('roster/' + sid), { name, initials: initials(name), role: 'owner', active: true, username: '', gen: 0 });
+    await b.commit();
+    FB.me = { uid, staffId: sid, username: '', name, role: 'owner', active: true, pub };
+    FB.priv = await Crypto.importPriv(pbytes); FB.ring = ring; FB.keys = await Crypto.ringKeys(ring); FB.curV = 1; FB.ringV = 1;
+    return code;
+  },
+  async recoveryDoc(code, ring) {
+    const rpair = await Crypto.newPair(); const rpub = await Crypto.pubJwk(rpair);
+    const rpriv = await Crypto.pwSeal(normCode(code), await Crypto.privBytes(rpair), 'recovery-priv');
+    const rring = await Crypto.sealTo(rpub, Crypto.ringBytes(ring), 'ring:recovery');
+    return { pub: rpub, priv: rpriv, ring: rring, ringV: Math.max.apply(null, Object.keys(ring).map(Number)) };
+  },
+  async newRecoveryCode() {
+    const code = recoveryCode();
+    await FB.db.doc('meta/recovery').set(await FB.recoveryDoc(code, FB.ring));
+    return code;
+  },
+
+  async signOut() {
+    FB.stop();
+    FB.priv = FB.ring = FB.keys = FB.me = FB.uid = null; FB.curV = FB.ringV = 0;
+    try { await FB.auth.signOut(); } catch (e) { }
+  },
+  stop() { FB.unsubs.forEach(u => { try { u(); } catch (e) { } }); FB.unsubs = []; },
+
+  /* ---------- live data ---------- */
+  async decryptDoc(id, d) {
+    const key = FB.keys && FB.keys[d.v];
+    if (!key) throw errCode('no-key', 'Missing key version ' + d.v);
+    const data = await Crypto.openJSON(key, d, 'case:' + id);
+    return Object.assign(data, { id, rev: d.rev, v: d.v, status: d.status, by: d.sid || '', updatedAt: FB.tsMs(d.updatedAt), createdAtSrv: FB.tsMs(d.createdAt), closedAt: FB.tsMs(d.closedAt) });
+  },
+  start(h) {
+    FB.stop();
+    const uid = FB.uid;
+    FB.unsubs.push(FB.db.doc('members/' + uid).onSnapshot(async s => {
+      if (!s.exists || !s.data().active) return h.revoked();
+      const m = s.data();
+      if (m.ringV && m.ringV !== FB.ringV && m.ring) { try { await FB.loadRing(m); h.rekeyed(); } catch (e) { h.error(e); } }
+    }, e => h.revoked(e)));
+    FB.unsubs.push(FB.db.doc('meta/keys').onSnapshot(s => { if (s.exists) FB.curV = s.data().current; }, () => { }));
+    FB.unsubs.push(FB.db.doc('meta/settings').onSnapshot(s => h.settings(s.exists ? s.data() : {}), () => { }));
+    FB.unsubs.push(FB.db.collection('roster').onSnapshot(s => h.roster(s.docs.map(d => Object.assign({ sid: d.id }, d.data()))), e => h.error(e)));
+    FB.unsubs.push(FB.db.collection('cases').where('status', '==', 'open').onSnapshot(async snap => {
+      const up = [], gone = [];
+      for (const ch of snap.docChanges()) {
+        if (ch.type === 'removed') { gone.push(ch.doc.id); continue; }
+        try { up.push(await FB.decryptDoc(ch.doc.id, ch.doc.data())); }
+        catch (e) { up.push({ id: ch.doc.id, locked: true, status: 'open', type: 'misc', patient: '(locked case)', stage: '' }); }
+      }
+      h.cases(up, gone, snap.metadata.fromCache);
+    }, e => h.error(e)));
+    if (FB.isOwner()) {
+      FB.unsubs.push(FB.db.collection('members').onSnapshot(s => h.members(s.docs.map(d => Object.assign({ uid: d.id }, d.data()))), e => h.error(e)));
+    }
+  },
+  async loadClosed(days) {
+    const since = firebase.firestore.Timestamp.fromMillis(Date.now() - days * 86400000);
+    const snap = await FB.db.collection('cases').where('closedAt', '>=', since).get();
+    const out = [];
+    for (const d of snap.docs) { try { out.push(await FB.decryptDoc(d.id, d.data())); } catch (e) { } }
+    return out;
+  },
+  async loadAll() {
+    const snap = await FB.db.collection('cases').get();
+    const out = [];
+    for (const d of snap.docs) { try { out.push(await FB.decryptDoc(d.id, d.data())); } catch (e) { } }
+    return out;
+  },
+  async caseLog(id) {
+    const snap = await FB.db.collection('log').where('caseId', '==', id).get();
+    const out = [];
+    for (const d of snap.docs) {
+      const x = d.data(); const key = FB.keys[x.v];
+      try { out.push(Object.assign(await Crypto.openJSON(key, x, 'log:' + d.id), { at: FB.tsMs(x.at), sid: x.sid })); } catch (e) { }
+    }
+    return out.sort((a, b) => (a.at || 0) - (b.at || 0));
+  },
+  async activity(days) {
+    const since = firebase.firestore.Timestamp.fromMillis(Date.now() - days * 86400000);
+    const snap = await FB.db.collection('log').where('at', '>=', since).get();
+    const out = [];
+    for (const d of snap.docs) {
+      const x = d.data(); const key = FB.keys[x.v];
+      try { out.push(Object.assign(await Crypto.openJSON(key, x, 'log:' + d.id), { at: FB.tsMs(x.at), sid: x.sid, caseId: x.caseId })); } catch (e) { }
+    }
+    return out.sort((a, b) => (b.at || 0) - (a.at || 0));
+  },
+
+  /* ---------- writes ---------- */
+  clean(data) { const o = Object.assign({}, data); ['id', 'rev', 'v', 'status', 'by', 'updatedAt', 'createdAtSrv', 'closedAt', 'locked', 'assigneeLabel'].forEach(k => delete o[k]); return o; },
+  /* history entry at the fixed id "<case>_<rev>"; prev = the encrypted copy this write replaces */
+  async logOps(batchOrTx, caseId, rev, prev, action) {
+    const lid = caseId + '_' + rev; const ref = FB.db.doc('log/' + lid);
+    const box = await Crypto.sealJSON(FB.keys[FB.curV], action, 'log:' + lid);
+    batchOrTx.set(ref, { caseId, rev, uid: FB.uid, sid: FB.me.staffId, at: FB.ts(), v: FB.curV, iv: box.iv, ct: box.ct, prev: prev || null });
+  },
+  async createCases(list, progress) {
+    // list: [{data, status:'open'|'done', closedAt:ms}]; small batches keep each one well inside the rules' lookup limit
+    const PER = 5; let n = 0;
+    for (let i = 0; i < list.length; i += PER) {
+      const b = FB.db.batch();
+      for (const item of list.slice(i, i + PER)) {
+        const ref = FB.db.collection('cases').doc();
+        const v = FB.curV; const box = await Crypto.sealJSON(FB.keys[v], FB.clean(item.data), 'case:' + ref.id);
+        const done = item.status === 'done';
+        b.set(ref, { v, iv: box.iv, ct: box.ct, status: done ? 'done' : 'open', rev: 1, by: FB.uid, sid: FB.me.staffId, createdAt: FB.ts(), updatedAt: FB.ts(), closedAt: done ? firebase.firestore.Timestamp.fromMillis(item.closedAt || Date.now()) : null });
+        await FB.logOps(b, ref.id, 1, null, item.action || { a: 'create' });
+        item.id = ref.id;
+      }
+      await FB.track(b.commit()); n += Math.min(PER, list.length - i); if (progress) progress(n, list.length);
+    }
+    return list.map(x => x.id);
+  },
+  async createCase(data) { const ids = await FB.createCases([{ data, status: 'open' }]); return ids[0]; },
+  /* fn(data) edits the latest decrypted copy in place; return 'done' / 'open' to change status */
+  /* one person's writes to the same case run one after another, never racing each other */
+  queues: {},
+  mutateCase(id, fn, action) {
+    const run = () => FB._mutate(id, fn, action, 0);
+    const p = (FB.queues[id] || Promise.resolve()).then(run, run);
+    FB.queues[id] = p.catch(() => { });
+    return p;
+  },
+  async _mutate(id, fn, action, tries) {
+    const ref = FB.db.doc('cases/' + id);
+    try {
+      await FB.track(FB.db.runTransaction(async tx => {
+        const s = await tx.get(ref); if (!s.exists) throw errCode('gone');
+        const d = s.data(); const data = FB.clean(await FB.decryptDoc(id, d));
+        const st = fn(data); const status = st === 'done' || st === 'open' ? st : d.status;
+        const v = FB.curV; const box = await Crypto.sealJSON(FB.keys[v], data, 'case:' + id);
+        const closedAt = status === 'done' ? (d.status === 'done' && d.closedAt ? d.closedAt : FB.ts()) : null;
+        tx.update(ref, { v, iv: box.iv, ct: box.ct, status, rev: d.rev + 1, by: FB.uid, sid: FB.me.staffId, updatedAt: FB.ts(), closedAt });
+        await FB.logOps(tx, id, d.rev + 1, { v: d.v, iv: d.iv, ct: d.ct }, action || { a: 'save' });
+      }));
+    } catch (e) {
+      if (tries < 2 && /permission/i.test(e.code || e.message || '')) {
+        // the office key may have just been changed: refresh it and try again
+        const m = (await FB.db.doc('members/' + FB.uid).get()).data();
+        if (!m || !m.active) throw e;
+        await FB.loadRing(m);
+        await new Promise(r => setTimeout(r, 150 + Math.random() * 350));
+        return FB._mutate(id, fn, action, tries + 1);
+      }
+      throw e;
+    }
+  },
+  /* owner only; the last encrypted copy stays in history, so a delete can be undone */
+  async deleteCase(id) {
+    const ref = FB.db.doc('cases/' + id);
+    await FB.track(FB.db.runTransaction(async tx => {
+      const s = await tx.get(ref); if (!s.exists) throw errCode('gone'); const d = s.data();
+      await FB.logOps(tx, id, d.rev + 1, { v: d.v, iv: d.iv, ct: d.ct }, { a: 'delete' });
+      tx.delete(ref);
+    }));
+  },
+  /* every saved version of one case, newest first (the copy each write replaced, plus the current one) */
+  async caseVersions(id) {
+    const snap = await FB.db.collection('log').where('caseId', '==', id).get();
+    const out = [];
+    for (const d of snap.docs) {
+      const x = d.data(); if (!x.prev) continue;
+      let who = null; try { who = await Crypto.openJSON(FB.keys[x.v], x, 'log:' + d.id); } catch (e) { }
+      let data = null; try { data = await Crypto.openJSON(FB.keys[x.prev.v], x.prev, 'case:' + id); } catch (e) { }
+      out.push({ rev: x.rev - 1, replacedAt: FB.tsMs(x.at), replacedBy: x.sid, replacedHow: who && who.a, data });
+    }
+    return out.sort((a, b) => b.rev - a.rev);
+  },
+  async restoreVersion(id, data) {
+    const keep = FB.clean(data);
+    return FB.mutateCase(id, d => { Object.keys(d).forEach(k => delete d[k]); Object.assign(d, keep); }, { a: 'restore' });
+  },
+  /* cases deleted in the last N days, recovered from their history entry */
+  async deletedCases(days) {
+    const since = firebase.firestore.Timestamp.fromMillis(Date.now() - days * 86400000);
+    const snap = await FB.db.collection('log').where('at', '>=', since).get();
+    const out = [];
+    for (const d of snap.docs) {
+      const x = d.data(); if (!x.prev) continue;
+      let act = null; try { act = await Crypto.openJSON(FB.keys[x.v], x, 'log:' + d.id); } catch (e) { continue; }
+      if (!act || act.a !== 'delete') continue;
+      const still = await FB.db.doc('cases/' + x.caseId).get(); if (still.exists) continue;
+      try { out.push({ caseId: x.caseId, at: FB.tsMs(x.at), sid: x.sid, data: await Crypto.openJSON(FB.keys[x.prev.v], x.prev, 'case:' + x.caseId) }); } catch (e) { }
+    }
+    return out.sort((a, b) => b.at - a.at);
+  },
+  async undelete(item) { return FB.createCases([{ data: item.data, status: 'open', action: { a: 'restore' } }]); },
+  async saveSettings(patch) { await FB.track(FB.db.doc('meta/settings').set(patch, { merge: true })); },
+
+  /* ---------- team (owner) ---------- */
+  async issue(o, extra) {
+    const email = o.username + '.' + o.gen + '@' + STAFF_DOMAIN;
+    const temp = tempPassword();
+    const sec = firebase.initializeApp(FB.cfg, 'issue' + Date.now());
+    let newUid;
+    try {
+      const sa = sec.auth();
+      if (FB.emu) sa.useEmulator('http://127.0.0.1:9099', { disableWarnings: true });
+      try { await sa.setPersistence(firebase.auth.Auth.Persistence.NONE); } catch (e) { }
+      const c = await sa.createUserWithEmailAndPassword(email, temp); newUid = c.user.uid;
+      await sa.signOut();
+    } finally { try { await sec.delete(); } catch (e) { } }
+    const boot = await Crypto.pwSeal(temp, Crypto.ringBytes(FB.ring), 'boot:' + newUid);
+    const b = FB.db.batch();
+    b.set(FB.db.doc('members/' + newUid), { staffId: o.sid, username: o.username, name: o.name, role: 'staff', active: true, mustSetup: true, boot, ringV: FB.curV, gen: o.gen, createdAt: FB.ts() });
+    b.set(FB.db.doc('roster/' + o.sid), { name: o.name, initials: initials(o.name), role: 'staff', active: true, username: o.username, gen: o.gen });
+    b.set(FB.db.doc('logins/' + o.username), { email });
+    if (extra) extra(b);
+    await FB.track(b.commit());
+    return { temp, username: o.username };
+  },
+  async addStaff(name, username) {
+    username = slug(username);
+    if (!/^[a-z0-9][a-z0-9.\-]{1,29}$/.test(username)) throw errCode('bad-username');
+    const [lg, rs] = await Promise.all([FB.db.doc('logins/' + username).get(), FB.db.doc('roster/' + username).get()]);
+    if (lg.exists || (rs.exists && rs.data().active)) throw errCode('taken');
+    const gen = (rs.exists ? (rs.data().gen || 0) : 0) + 1;
+    return FB.issue({ sid: username, name: name.trim(), username, gen });
+  },
+  async reissue(sid) {
+    const rs = (await FB.db.doc('roster/' + sid).get()).data();
+    const olds = (await FB.db.collection('members').where('staffId', '==', sid).get()).docs.filter(d => d.data().active);
+    return FB.issue({ sid, name: rs.name, username: rs.username || sid, gen: (rs.gen || 1) + 1 }, b => olds.forEach(d => b.update(d.ref, { active: false })));
+  },
+  async removeStaff(sid) {
+    const rs = (await FB.db.doc('roster/' + sid).get()).data();
+    const olds = (await FB.db.collection('members').where('staffId', '==', sid).get()).docs;
+    const b = FB.db.batch();
+    olds.forEach(d => { if (d.data().active) b.update(d.ref, { active: false }); });
+    b.update(FB.db.doc('roster/' + sid), { active: false });
+    if (rs.username) b.delete(FB.db.doc('logins/' + rs.username));
+    await FB.track(b.commit());
+  },
+  /* new office key; everyone still active gets it; every case is re-sealed under it */
+  async rotate(progress) {
+    const newV = FB.curV + 1;
+    const ring2 = Object.assign({}, FB.ring, { [newV]: Crypto.newRingKey() });
+    const ms = await FB.db.collection('members').get();
+    const b = FB.db.batch(); let pendingInvites = 0; const badKeys = [];
+    for (const d of ms.docs) {
+      const m = d.data(); if (!m.active) continue;
+      if (m.pub && m.ring) {
+        try { b.update(d.ref, { ring: await Crypto.sealTo(m.pub, Crypto.ringBytes(ring2), 'ring:' + d.id), ringV: newV }); }
+        catch (e) { badKeys.push(m.name || m.staffId); }
+      } else pendingInvites++;
+    }
+    const rec = (await FB.db.doc('meta/recovery').get()).data();
+    b.update(FB.db.doc('meta/recovery'), { ring: await Crypto.sealTo(rec.pub, Crypto.ringBytes(ring2), 'ring:recovery'), ringV: newV });
+    await FB.track(b.commit());
+    await FB.track(FB.db.doc('meta/keys').update({ current: newV }));
+    FB.ring = ring2; FB.keys = await Crypto.ringKeys(ring2); FB.curV = newV; FB.ringV = newV;
+    const all = (await FB.db.collection('cases').get()).docs.filter(d => d.data().v < newV);
+    let n = 0, failed = 0;
+    for (let i = 0; i < all.length; i += 15) {
+      await Promise.all(all.slice(i, i + 15).map(d => FB.mutateCase(d.id, () => { }, { a: 'rekey' }).catch(() => { failed++; })));
+      n += Math.min(15, all.length - i); if (progress) progress(n, all.length);
+    }
+    if (failed) throw errCode('rekey-partial', failed + ' case(s) could not be re-sealed yet');
+    return { cases: all.length, pendingInvites, badKeys };
+  }
+};

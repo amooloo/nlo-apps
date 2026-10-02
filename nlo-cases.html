@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://*.googleapis.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-svuMDTrzDBVNj4vdCsNRLUT03mdbxp+cthwTjJSUEAY=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO Cases</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -13,6 +13,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Oswald:wght@500;600&display=swap" rel="stylesheet">
 <style>
 :root{
+  --teal:#00796B; --teal-700:#00695C; --teal-100:#E0F2F1;
   --navy-900:#11203A; --navy:#1B2F4C; --navy-700:#294169; --navy-600:#385686; --navy-500:#5471A0;
   --blue-700:#16318C; --blue:#1D3EA9; --blue-500:#2E52C9; --blue-200:#BCC8EE; --blue-100:#E5EAF8;
   --coral-700:#C2361F; --coral-600:#E2432E; --coral:#FA624D; --coral-200:#FFC8BF; --coral-100:#FFE7E1;
@@ -281,6 +282,29 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
 body.demo #drawer{bottom:31px} body.demo #side{padding-bottom:31px} body.demo #view{padding-bottom:90px}
 .nameCell{display:flex;align-items:center;gap:9px}
 
+/* ---------- teal action + tap-first case form ---------- */
+.btn-teal{background:var(--teal);color:#fff;box-shadow:var(--sh-xs)}
+.btn-teal:hover{background:var(--teal-700);box-shadow:var(--sh-md)}
+.modal.wide{max-width:820px}
+.cf h5{font-family:var(--fd);font-weight:500;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--grey-500);margin:14px 0 8px}
+.cfSec{padding:2px 0 6px;border-bottom:1px solid var(--grey-100)}
+.cfSec:last-of-type{border-bottom:none}
+.tileGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:8px}
+.tt{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;min-height:58px;padding:10px 12px;border-radius:12px;border:1.5px solid var(--grey-200);background:#fff;color:var(--navy);transition:border-color .12s var(--ease),background .12s var(--ease)}
+.tt b{font-size:14px} .tt span{font-size:11.5px;color:var(--grey-500)}
+.tt:hover{border-color:var(--teal);background:var(--teal-100)}
+.tt[aria-checked="true"]{background:var(--teal);border-color:var(--teal);color:#fff}
+.tt[aria-checked="true"] span{color:#D7F2EE}
+.pickRow{display:flex;flex-wrap:wrap;gap:7px}
+.pick{border:1.5px solid var(--grey-200);border-radius:99px;padding:7px 13px;font-size:13px;font-weight:600;color:var(--grey-700);background:#fff;min-height:38px;text-align:left;line-height:1.25}
+.pick.sm{min-height:34px;padding:5px 12px;font-size:12.5px}
+.pick:hover{border-color:var(--teal);color:var(--teal-700)}
+.pick[aria-pressed="true"]{background:var(--teal);border-color:var(--teal);color:#fff}
+.pick[aria-pressed="true"]::before{content:"✓ ";font-weight:700}
+.cfMore{margin-top:10px;border-top:1px solid var(--grey-100);padding-top:10px}
+.cfMore summary{cursor:pointer;font-size:12.5px;font-weight:600;color:var(--grey-600);padding:6px 0}
+@media (max-width:860px){ #modalWrap{padding:0} .modal.wide{border-radius:0;min-height:100vh} .tileGrid{grid-template-columns:repeat(2,1fr)} }
+
 </style>
 </head>
 <body>
@@ -305,6 +329,7 @@ body.demo #drawer{bottom:31px} body.demo #side{padding-bottom:31px} body.demo #v
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script>
 'use strict';
 /* =====================================================================
@@ -385,14 +410,14 @@ function fmtDay(iso) { if (!iso) return ''; const [y, m, d] = iso.split('-').map
 function fmtWhen(ms) { if (!ms) return ''; const d = new Date(ms); return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ', ' + d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }); }
 function initials(name) { const p = String(name || '').trim().split(/\s+/).filter(Boolean); if (!p.length) return '?'; return (p[0][0] + (p.length > 1 ? p[p.length - 1][0] : '')).toUpperCase(); }
 function slug(s) { return String(s || '').toLowerCase().normalize('NFKD').replace(/[^\w.\-]+/g, '').replace(/_/g, '').slice(0, 30); }
-function tempPassword() {
-  const A = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; const r = crypto.getRandomValues(new Uint8Array(12));
-  let s = ''; for (let i = 0; i < 12; i++) { s += A[r[i] % A.length]; if (i === 3 || i === 7) s += '-'; } return s;
+/* random characters without modulo bias (rejection sampling) */
+function randChars(n) {
+  const A = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789', lim = 256 - (256 % A.length); let out = '';
+  while (out.length < n) { for (const b of crypto.getRandomValues(new Uint8Array(n * 2))) { if (b < lim && out.length < n) out += A[b % A.length]; } }
+  return out;
 }
-function recoveryCode() {
-  const A = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; const r = crypto.getRandomValues(new Uint8Array(24));
-  let s = ''; for (let i = 0; i < 24; i++) { s += A[r[i] % A.length]; if (i % 4 === 3 && i < 23) s += '-'; } return s;
-}
+function tempPassword() { return randChars(12).replace(/(.{4})(?=.)/g, '$1-'); }
+function recoveryCode() { return randChars(24).replace(/(.{4})(?=.)/g, '$1-'); }
 function normCode(s) { return String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '').replace(/(.{4})(?=.)/g, '$1-'); }
 
 /* ---------- crypto ---------- */
@@ -574,9 +599,15 @@ function asanaRowsFromCSV(text) {
     completed: !!(r['Completed At'] || '').trim(), completedAt: r['Completed At'] || ''
   }));
 }
+/* spreadsheet-safe cell: a leading = + - @ (or tab/CR) would be run as a formula by Excel/Sheets */
+function csvCell(v) {
+  let s = String(v == null ? '' : v);
+  if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+  return '"' + s.replace(/"/g, '""') + '"';
+}
 function caseToCSVRow(c) {
-  return [c.patient, typeOf(c).l, c.detail, stageLabel(c), c.status === 'done' ? 'Completed' : 'Open', c.dueDate, c.scanDate, c.labDate, c.deliveryDate, c.assigneeLabel || '', c.instructions, c.cc, c.ipr, c.notes]
-    .map(v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"').join(',');
+  return [c.patient, typeOf(c).l, c.detail, stageLabel(c), c.status === 'done' ? 'Completed' : 'Open', c.dueDate, c.scanDate, c.labDate, c.deliveryDate, c.assigneeLabel || '', c.instructions, c.cc, c.ipr, c.notes, c.chart, c.titanUrl, (c.extras || []).join('; '), c.initial === 'yes' ? 'Initial' : c.initial === 'no' ? 'Refinement' : '', c.lab || '']
+    .map(csvCell).join(',');
 }
 
 /* =====================================================================
@@ -629,11 +660,7 @@ const FB = {
     const cred = await FB.auth.signInWithEmailAndPassword(email, pw);
     FB.uid = cred.user.uid;
     const ms = await FB.db.doc('members/' + FB.uid).get();
-    if (!ms.exists) {
-      const setup = await FB.db.doc('meta/setup').get();
-      await FB.signOut();
-      throw errCode(setup.exists ? 'not-member' : 'no-setup');
-    }
+    if (!ms.exists) { await FB.signOut(); throw errCode('not-member'); }
     const m = ms.data();
     if (!m.active) { await FB.signOut(); throw errCode('inactive'); }
     FB.me = Object.assign({ uid: FB.uid }, m);
@@ -713,9 +740,24 @@ const FB = {
   },
 
   /* ---------- first-time office setup (owner) ---------- */
-  async setupOwner(name, email, pw) {
-    const cred = await FB.auth.createUserWithEmailAndPassword(email, pw);
-    const uid = FB.uid = cred.user.uid;
+  /* step 1: create (or reuse) the owner's account and make sure the email is verified */
+  async setupAccount(email, pw) {
+    let cred;
+    try { cred = await FB.auth.createUserWithEmailAndPassword(email, pw); }
+    catch (e) { if (/email-already-in-use/.test(e.code || '')) cred = await FB.auth.signInWithEmailAndPassword(email, pw); else throw e; }
+    FB.uid = cred.user.uid;
+    if (!cred.user.emailVerified) await cred.user.sendEmailVerification();
+    return cred.user.emailVerified;
+  },
+  async setupVerified() {
+    const u = FB.auth.currentUser; if (!u) return false;
+    await u.reload(); await u.getIdToken(true);
+    return FB.auth.currentUser.emailVerified;
+  },
+  async resendVerify() { const u = FB.auth.currentUser; if (u) await u.sendEmailVerification(); },
+  /* step 2: create the office (key ring, owner record, recovery code) */
+  async setupOwner(name, pw) {
+    const uid = FB.uid = FB.auth.currentUser.uid;
     const sid = slug(name.split(/\s+/)[0]) || 'owner';
     const ring = { '1': Crypto.newRingKey() };
     const pair = await Crypto.newPair(); const pub = await Crypto.pubJwk(pair); const pbytes = await Crypto.privBytes(pair);
@@ -820,25 +862,26 @@ const FB = {
 
   /* ---------- writes ---------- */
   clean(data) { const o = Object.assign({}, data); ['id', 'rev', 'v', 'status', 'by', 'updatedAt', 'createdAtSrv', 'closedAt', 'locked', 'assigneeLabel'].forEach(k => delete o[k]); return o; },
-  async logOps(batchOrTx, caseId, action) {
-    const ref = FB.db.collection('log').doc();
-    const box = await Crypto.sealJSON(FB.keys[FB.curV], action, 'log:' + ref.id);
-    batchOrTx.set(ref, { caseId, uid: FB.uid, sid: FB.me.staffId, at: FB.ts(), v: FB.curV, iv: box.iv, ct: box.ct });
+  /* history entry at the fixed id "<case>_<rev>"; prev = the encrypted copy this write replaces */
+  async logOps(batchOrTx, caseId, rev, prev, action) {
+    const lid = caseId + '_' + rev; const ref = FB.db.doc('log/' + lid);
+    const box = await Crypto.sealJSON(FB.keys[FB.curV], action, 'log:' + lid);
+    batchOrTx.set(ref, { caseId, rev, uid: FB.uid, sid: FB.me.staffId, at: FB.ts(), v: FB.curV, iv: box.iv, ct: box.ct, prev: prev || null });
   },
   async createCases(list, progress) {
-    // list: [{data, status:'open'|'done', closedAt:ms}]; 40 cases (80 writes) per batch
-    let n = 0;
-    for (let i = 0; i < list.length; i += 40) {
+    // list: [{data, status:'open'|'done', closedAt:ms}]; small batches keep each one well inside the rules' lookup limit
+    const PER = 5; let n = 0;
+    for (let i = 0; i < list.length; i += PER) {
       const b = FB.db.batch();
-      for (const item of list.slice(i, i + 40)) {
+      for (const item of list.slice(i, i + PER)) {
         const ref = FB.db.collection('cases').doc();
         const v = FB.curV; const box = await Crypto.sealJSON(FB.keys[v], FB.clean(item.data), 'case:' + ref.id);
         const done = item.status === 'done';
         b.set(ref, { v, iv: box.iv, ct: box.ct, status: done ? 'done' : 'open', rev: 1, by: FB.uid, sid: FB.me.staffId, createdAt: FB.ts(), updatedAt: FB.ts(), closedAt: done ? firebase.firestore.Timestamp.fromMillis(item.closedAt || Date.now()) : null });
-        await FB.logOps(b, ref.id, item.action || { a: 'create' });
+        await FB.logOps(b, ref.id, 1, null, item.action || { a: 'create' });
         item.id = ref.id;
       }
-      await FB.track(b.commit()); n += Math.min(40, list.length - i); if (progress) progress(n, list.length);
+      await FB.track(b.commit()); n += Math.min(PER, list.length - i); if (progress) progress(n, list.length);
     }
     return list.map(x => x.id);
   },
@@ -862,7 +905,7 @@ const FB = {
         const v = FB.curV; const box = await Crypto.sealJSON(FB.keys[v], data, 'case:' + id);
         const closedAt = status === 'done' ? (d.status === 'done' && d.closedAt ? d.closedAt : FB.ts()) : null;
         tx.update(ref, { v, iv: box.iv, ct: box.ct, status, rev: d.rev + 1, by: FB.uid, sid: FB.me.staffId, updatedAt: FB.ts(), closedAt });
-        if (action) await FB.logOps(tx, id, action);
+        await FB.logOps(tx, id, d.rev + 1, { v: d.v, iv: d.iv, ct: d.ct }, action || { a: 'save' });
       }));
     } catch (e) {
       if (tries < 2 && /permission/i.test(e.code || e.message || '')) {
@@ -876,7 +919,46 @@ const FB = {
       throw e;
     }
   },
-  async deleteCase(id) { await FB.track(FB.db.doc('cases/' + id).delete()); },
+  /* owner only; the last encrypted copy stays in history, so a delete can be undone */
+  async deleteCase(id) {
+    const ref = FB.db.doc('cases/' + id);
+    await FB.track(FB.db.runTransaction(async tx => {
+      const s = await tx.get(ref); if (!s.exists) throw errCode('gone'); const d = s.data();
+      await FB.logOps(tx, id, d.rev + 1, { v: d.v, iv: d.iv, ct: d.ct }, { a: 'delete' });
+      tx.delete(ref);
+    }));
+  },
+  /* every saved version of one case, newest first (the copy each write replaced, plus the current one) */
+  async caseVersions(id) {
+    const snap = await FB.db.collection('log').where('caseId', '==', id).get();
+    const out = [];
+    for (const d of snap.docs) {
+      const x = d.data(); if (!x.prev) continue;
+      let who = null; try { who = await Crypto.openJSON(FB.keys[x.v], x, 'log:' + d.id); } catch (e) { }
+      let data = null; try { data = await Crypto.openJSON(FB.keys[x.prev.v], x.prev, 'case:' + id); } catch (e) { }
+      out.push({ rev: x.rev - 1, replacedAt: FB.tsMs(x.at), replacedBy: x.sid, replacedHow: who && who.a, data });
+    }
+    return out.sort((a, b) => b.rev - a.rev);
+  },
+  async restoreVersion(id, data) {
+    const keep = FB.clean(data);
+    return FB.mutateCase(id, d => { Object.keys(d).forEach(k => delete d[k]); Object.assign(d, keep); }, { a: 'restore' });
+  },
+  /* cases deleted in the last N days, recovered from their history entry */
+  async deletedCases(days) {
+    const since = firebase.firestore.Timestamp.fromMillis(Date.now() - days * 86400000);
+    const snap = await FB.db.collection('log').where('at', '>=', since).get();
+    const out = [];
+    for (const d of snap.docs) {
+      const x = d.data(); if (!x.prev) continue;
+      let act = null; try { act = await Crypto.openJSON(FB.keys[x.v], x, 'log:' + d.id); } catch (e) { continue; }
+      if (!act || act.a !== 'delete') continue;
+      const still = await FB.db.doc('cases/' + x.caseId).get(); if (still.exists) continue;
+      try { out.push({ caseId: x.caseId, at: FB.tsMs(x.at), sid: x.sid, data: await Crypto.openJSON(FB.keys[x.prev.v], x.prev, 'case:' + x.caseId) }); } catch (e) { }
+    }
+    return out.sort((a, b) => b.at - a.at);
+  },
+  async undelete(item) { return FB.createCases([{ data: item.data, status: 'open', action: { a: 'restore' } }]); },
   async saveSettings(patch) { await FB.track(FB.db.doc('meta/settings').set(patch, { merge: true })); },
 
   /* ---------- team (owner) ---------- */
@@ -928,11 +1010,13 @@ const FB = {
     const newV = FB.curV + 1;
     const ring2 = Object.assign({}, FB.ring, { [newV]: Crypto.newRingKey() });
     const ms = await FB.db.collection('members').get();
-    const b = FB.db.batch(); let pendingInvites = 0;
+    const b = FB.db.batch(); let pendingInvites = 0; const badKeys = [];
     for (const d of ms.docs) {
       const m = d.data(); if (!m.active) continue;
-      if (m.pub && m.ring) b.update(d.ref, { ring: await Crypto.sealTo(m.pub, Crypto.ringBytes(ring2), 'ring:' + d.id), ringV: newV });
-      else pendingInvites++;
+      if (m.pub && m.ring) {
+        try { b.update(d.ref, { ring: await Crypto.sealTo(m.pub, Crypto.ringBytes(ring2), 'ring:' + d.id), ringV: newV }); }
+        catch (e) { badKeys.push(m.name || m.staffId); }
+      } else pendingInvites++;
     }
     const rec = (await FB.db.doc('meta/recovery').get()).data();
     b.update(FB.db.doc('meta/recovery'), { ring: await Crypto.sealTo(rec.pub, Crypto.ringBytes(ring2), 'ring:recovery'), ringV: newV });
@@ -942,11 +1026,11 @@ const FB = {
     const all = (await FB.db.collection('cases').get()).docs.filter(d => d.data().v < newV);
     let n = 0, failed = 0;
     for (let i = 0; i < all.length; i += 15) {
-      await Promise.all(all.slice(i, i + 15).map(d => FB.mutateCase(d.id, () => { }, null).catch(() => { failed++; })));
+      await Promise.all(all.slice(i, i + 15).map(d => FB.mutateCase(d.id, () => { }, { a: 'rekey' }).catch(() => { failed++; })));
       n += Math.min(15, all.length - i); if (progress) progress(n, all.length);
     }
     if (failed) throw errCode('rekey-partial', failed + ' case(s) could not be re-sealed yet');
-    return { cases: all.length, pendingInvites };
+    return { cases: all.length, pendingInvites, badKeys };
   }
 };
 
@@ -1024,13 +1108,14 @@ const DEMO = {
   async createCase(data) { return (await DEMO.createCases([{ data }]))[0]; },
   async mutateCase(id, fn, action) {
     const c = DEMO.cases.get(id); if (!c) throw errCode('gone');
+    (DEMO.versions[id] = DEMO.versions[id] || []).push({ rev: c.rev, replacedAt: Date.now(), replacedBy: DEMO.me.staffId, replacedHow: action && action.a, data: JSON.parse(JSON.stringify(c)) });
     const data = JSON.parse(JSON.stringify(c)); const st = fn(data);
     if (st === 'done' || st === 'open') { data.status = st; data.closedAt = st === 'done' ? Date.now() : null; }
     data.rev++; data.updatedAt = Date.now(); data.by = DEMO.me.staffId;
     DEMO.cases.set(id, data); if (action) DEMO.logs.push(Object.assign({ caseId: id, at: Date.now(), sid: DEMO.me.staffId }, action));
     await new Promise(r => setTimeout(r, 60)); DEMO.emit(data);
   },
-  async deleteCase(id) { const c = DEMO.cases.get(id); DEMO.cases.delete(id); if (c && DEMO.h) DEMO.h.cases([], [id], false); },
+  async deleteCase(id) { const c = DEMO.cases.get(id); if (c) DEMO.deleted.push({ caseId: id, at: Date.now(), sid: DEMO.me.staffId, data: JSON.parse(JSON.stringify(c)) }); DEMO.cases.delete(id); if (c && DEMO.h) DEMO.h.cases([], [id], false); },
   async loadClosed() { return Array.from(DEMO.cases.values()).filter(c => c.status === 'done').map(c => JSON.parse(JSON.stringify(c))); },
   async loadAll() { return Array.from(DEMO.cases.values()).map(c => JSON.parse(JSON.stringify(c))); },
   async caseLog(id) { return DEMO.logs.filter(l => l.caseId === id).slice().sort((a, b) => a.at - b.at); },
@@ -1047,9 +1132,154 @@ const DEMO = {
   async removeStaff(sid) { DEMO.roster.forEach(r => { if (r.sid === sid) r.active = false; }); DEMO.members.forEach(m => { if (m.staffId === sid) m.active = false; }); DEMO.h.roster(DEMO.roster.slice()); DEMO.h.members(DEMO.members.slice()); },
   async rotate(progress) { const n = DEMO.cases.size; for (let i = 1; i <= n; i++) { if (progress) progress(i, n); } DEMO.curV++; return { cases: n, pendingInvites: 0 }; },
   async newRecoveryCode() { return recoveryCode(); },
+  async caseVersions(id) { return (DEMO.versions[id] || []).slice().reverse(); },
+  async restoreVersion(id, data) { return DEMO.mutateCase(id, d => { Object.keys(d).forEach(k => { if (!['id', 'rev', 'v', 'status', 'by', 'updatedAt', 'closedAt'].includes(k)) delete d[k]; }); Object.assign(d, JSON.parse(JSON.stringify(data))); }, { a: 'restore' }); },
+  async deletedCases() { return DEMO.deleted.slice().reverse(); },
+  async undelete(item) { DEMO.deleted = DEMO.deleted.filter(x => x !== item); return DEMO.createCases([{ data: item.data, action: { a: 'restore' } }]); },
+  versions: {}, deleted: [],
   async changePassword() { },
   get curV_() { return DEMO.curV; }
 };
+
+/* =====================================================================
+   IPR Tracker link — reads the IPR Tracker's own records (nlo-inventory
+   Realtime Database, nlo/ipr) for a chart # and builds the same chart
+   note the IPR Tracker's "Chart note" tab makes ("lines" format), so the
+   case gets it without copy and paste. Read-only; the IPR Tracker is not
+   changed. Sign-in is the IPR Tracker's own Google sign-in, once per device.
+   ===================================================================== */
+const IPR_FB = {
+  apiKey: "AIzaSyBFCmDgAKkdfZ4Cb81nK0KCKXtONiwMJy4",
+  authDomain: "nlo-inventory.firebaseapp.com",
+  databaseURL: "https://nlo-inventory-default-rtdb.firebaseio.com",
+  projectId: "nlo-inventory",
+  appId: "1:471691286148:web:b362a98186f648bd4914d1"
+};
+const IPR_URL = 'IPR_Tracker.html';
+const IPR_UPPER = ["UR7", "UR6", "UR5", "UR4", "UR3", "UR2", "UR1", "UL1", "UL2", "UL3", "UL4", "UL5", "UL6", "UL7"];
+const IPR_LOWER = ["LR7", "LR6", "LR5", "LR4", "LR3", "LR2", "LR1", "LL1", "LL2", "LL3", "LL4", "LL5", "LL6", "LL7"];
+
+/* --- copied unchanged from IPR_Tracker.html so the text matches exactly --- */
+const NOTE_DASH = "–";
+function iprInit(teeth) { const c = {}; for (let i = 0; i < teeth.length - 1; i++) c[`${teeth[i]}|${teeth[i + 1]}`] = ""; return c; }
+function canonContacts(teeth, raw, blank) {
+  const src = raw || {}; const c = {};
+  for (let i = 0; i < teeth.length - 1; i++) { const k = `${teeth[i]}|${teeth[i + 1]}`; c[k] = src[k] === undefined || src[k] === null ? blank : src[k]; }
+  return c;
+}
+function sumContacts(contacts) { return Object.values(contacts).reduce((s, v) => s + (parseFloat(v) || 0), 0); }
+function jp(val, fallback) { if (!val) return fallback; if (typeof val === 'string') { try { return JSON.parse(val); } catch (e) { return fallback; } } return val; }
+function addContacts(a, b) { const result = {}; Object.keys(a).forEach(k => { result[k] = String((parseFloat(a[k]) || 0) + (parseFloat(b[k]) || 0)); }); return result; }
+function noteRowsOf(obj) { return Object.entries(obj).filter(([, v]) => parseFloat(v) > 0); }
+function noteBTsOf(obj) { return Object.entries(obj).filter(([, v]) => v).map(([k]) => k); }
+function mm1(v) { return (parseFloat(v) || 0).toFixed(1); }
+function ckLabel(k, dash) { return k.split("|").join(dash || NOTE_DASH); }
+function listRows(rows, dash, terse) { return rows.map(([k, v]) => terse ? `${ckLabel(k, dash)} ${mm1(v).replace(/^0/, "")}` : `${ckLabel(k, dash)} ${mm1(v)}mm`).join(", "); }
+function buildChartNote(o) {
+  const uIPR = noteRowsOf(o.upper), lIPR = noteRowsOf(o.lower);
+  const uSp = noteRowsOf(o.upperSpaces), lSp = noteRowsOf(o.lowerSpaces);
+  const uBT = noteBTsOf(o.upperBT), lBT = noteBTsOf(o.lowerBT);
+  const uIPRt = sumContacts(o.upper), lIPRt = sumContacts(o.lower);
+  const uSpt = sumContacts(o.upperSpaces), lSpt = sumContacts(o.lowerSpaces);
+  const hasIPR = uIPR.length > 0 || lIPR.length > 0;
+  const hasSp = uSp.length > 0 || lSp.length > 0;
+  const hasBT = uBT.length > 0 || lBT.length > 0;
+  const showCum = !!(o.incCum && o.cumUpper && o.visitCount > 1);
+  const cUt = o.cumUpper ? sumContacts(o.cumUpper) : 0;
+  const cLt = o.cumLower ? sumContacts(o.cumLower) : 0;
+  // "lines" format — the IPR Tracker's default
+  const blocks = [];
+  if (o.incIPR) {
+    const s = ["IPR THIS VISIT"];
+    if (hasIPR) {
+      if (uIPR.length) s.push(`Upper: ${listRows(uIPR)} (${mm1(uIPRt)}mm)`);
+      if (lIPR.length) s.push(`Lower: ${listRows(lIPR)} (${mm1(lIPRt)}mm)`);
+      s.push(`Total: ${mm1(uIPRt + lIPRt)}mm`);
+    } else s.push("None this visit");
+    blocks.push(s.join("\n"));
+  }
+  const sp = ["SPACING"];
+  if (hasSp) {
+    if (uSp.length) sp.push(`Upper: ${listRows(uSp)} (${mm1(uSpt)}mm)`);
+    if (lSp.length) sp.push(`Lower: ${listRows(lSp)} (${mm1(lSpt)}mm)`);
+    sp.push(`Total: ${mm1(uSpt + lSpt)}mm`);
+  } else sp.push("None noted");
+  blocks.push(sp.join("\n"));
+  const bt = ["BLACK TRIANGLES"];
+  if (hasBT) {
+    if (uBT.length) bt.push(`Upper: ${uBT.map(k => ckLabel(k)).join(", ")}`);
+    if (lBT.length) bt.push(`Lower: ${lBT.map(k => ckLabel(k)).join(", ")}`);
+    bt.push(`Total: ${uBT.length + lBT.length}`);
+  } else bt.push("None noted");
+  blocks.push(bt.join("\n"));
+  if (showCum) blocks.push(`CUMULATIVE IPR (${o.visitCount} visits)\nUpper: ${mm1(cUt)}mm   Lower: ${mm1(cLt)}mm   Total: ${mm1(cUt + cLt)}mm`);
+  return blocks.join("\n\n");
+}
+/* --- end of copied code --- */
+
+/* Build the note for the newest visit of a patient's visit list (pure; used by tests too). */
+function iprNoteFromVisits(visits) {
+  const vs = visits.slice().sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')) || String(b.created_at || '').localeCompare(String(a.created_at || '')));
+  const v = vs[0];
+  const cum = (key, teeth) => vs.reduce((acc, x) => addContacts(acc, canonContacts(teeth, jp(x[key], null), "")), iprInit(teeth));
+  return {
+    date: v.date || '', assistant: v.assistant_initials || '', visits: vs.length,
+    note: buildChartNote({
+      upper: canonContacts(IPR_UPPER, jp(v.upper_ipr, null), ""), lower: canonContacts(IPR_LOWER, jp(v.lower_ipr, null), ""),
+      upperSpaces: canonContacts(IPR_UPPER, jp(v.upper_spaces, null), ""), lowerSpaces: canonContacts(IPR_LOWER, jp(v.lower_spaces, null), ""),
+      upperBT: canonContacts(IPR_UPPER, jp(v.upper_bt, null), false), lowerBT: canonContacts(IPR_LOWER, jp(v.lower_bt, null), false),
+      incIPR: true, incCum: true, cumUpper: cum('upper_ipr', IPR_UPPER), cumLower: cum('lower_ipr', IPR_LOWER), visitCount: vs.length
+    })
+  };
+}
+
+const IPR = {
+  app: null, auth: null, db: null, emu: false,
+  init() {
+    if (IPR.app) return true;
+    if (typeof firebase === 'undefined' || !firebase.initializeApp || !firebase.database) return false;
+    IPR.emu = !!(typeof S !== 'undefined' && S.emu);
+    const cfg = IPR.emu ? { apiKey: 'demo-key', authDomain: 'localhost', projectId: 'demo-nlo-cases', databaseURL: 'https://demo-nlo-cases.firebaseio.com', appId: 'demo' } : IPR_FB;
+    IPR.app = firebase.initializeApp(cfg, 'ipr');
+    IPR.auth = IPR.app.auth(); IPR.db = IPR.app.database();
+    if (IPR.emu) { IPR.auth.useEmulator('http://127.0.0.1:9099', { disableWarnings: true }); IPR.db.useEmulator('127.0.0.1', 9000); }
+    // this tab only, and signed out whenever NLO Cases locks (so it never outlives the person's session)
+    try { IPR.auth.setPersistence(firebase.auth.Auth.Persistence.SESSION); } catch (e) { }
+    return true;
+  },
+  user() { return IPR.auth && IPR.auth.currentUser; },
+  waitUser() { return new Promise(res => { const off = IPR.auth.onAuthStateChanged(u => { off(); res(u); }); }); },
+  async connect() {
+    if (IPR.emu) return IPR.auth.signInAnonymously();
+    const p = new firebase.auth.GoogleAuthProvider(); p.setCustomParameters({ prompt: 'select_account' });
+    return IPR.auth.signInWithPopup(p);
+  },
+  async disconnect() { if (IPR.auth) await IPR.auth.signOut(); },
+  norm(id) { return String(id || '').toLowerCase().replace(/[^a-z0-9]/g, ''); },
+  /* { status: 'not-found' | 'no-visits' | 'ok', note, date, visits, assistant, initials } */
+  async latest(chart) {
+    const n = IPR.norm(chart); if (!n) return { status: 'not-found' };
+    const snap = await IPR.db.ref('nlo/ipr/patients').once('value');
+    const pts = Object.values(snap.val() || {}).filter(p => IPR.norm(p.patient_id) === n);
+    if (!pts.length) return { status: 'not-found' };
+    let visits = [];
+    for (const p of pts) { const s = await IPR.db.ref('nlo/ipr/visits/' + p.id).once('value'); visits = visits.concat(Object.values(s.val() || {})); }
+    if (!visits.length) return { status: 'no-visits', initials: pts[0].name || '' };
+    return Object.assign({ status: 'ok', initials: pts[0].name || '' }, iprNoteFromVisits(visits));
+  }
+};
+/* demo mode: a made-up visit so the link can be tried without the real database */
+const IPR_DEMO = {
+  user() { return { email: 'demo' }; }, async connect() { }, async disconnect() { }, init() { return true; }, waitUser: async () => ({ email: 'demo' }),
+  async latest(chart) {
+    if (!IPR.norm(chart)) return { status: 'not-found' };
+    return Object.assign({ status: 'ok', initials: 'DM' }, iprNoteFromVisits([
+      { date: addDays(todayISO(), -21), upper_ipr: { 'UR2|UR1': '0.2' }, lower_ipr: {}, upper_spaces: {}, lower_spaces: {}, upper_bt: {}, lower_bt: {} },
+      { date: todayISO(), upper_ipr: {}, lower_ipr: { 'LR3|LR2': '0.2', 'LL1|LL2': '0.1' }, upper_spaces: { 'UR1|UL1': '0.3' }, lower_spaces: {}, upper_bt: { 'UR1|UL1': true }, lower_bt: {} }
+    ]));
+  }
+};
+function iprLink() { return S.demo ? IPR_DEMO : IPR; }
 
 /* =====================================================================
    UI
@@ -1185,6 +1415,11 @@ function lockScreen(mode, info) {
       '<div class="field"><label for="suPw1">Password</label><input id="suPw1" type="password" autocomplete="new-password" minlength="10" required><div class="hint">At least 10 characters.</div></div>' +
       '<div class="field"><label for="suPw2">Type it again</label><input id="suPw2" type="password" autocomplete="new-password" minlength="10" required></div>' +
       '<button class="btn btn-pri btn-block" type="submit">Create office</button></form>';
+  } else if (mode === 'verify') {
+    h = '<h1>Check your email</h1><div class="lsub">One-time check that this is really you</div>' + err +
+      '<p class="desc">We sent a link to <b>' + esc(S.setup ? S.setup.email : '') + '</b>. Open it, then come back here and press Continue.</p>' +
+      '<form id="verifyForm"><button class="btn btn-pri btn-block" type="submit">Continue</button></form>' +
+      '<div class="lockFoot">No email? Check spam, or <button class="linkBtn" data-act="resendVerify" type="button">send it again</button></div>';
   } else if (mode === 'code') {
     h = '<h1>Your recovery code</h1><div class="lsub">The only way back in if you forget your password</div>' +
       '<p class="desc">Print it or write it down and keep it somewhere safe, away from the computer. Nobody else has a copy — not even Claude or Google.</p>' +
@@ -1194,9 +1429,20 @@ function lockScreen(mode, info) {
       '<button class="btn btn-pri btn-block" data-act="codeDone" disabled id="codeDone">Open NLO Cases</button>';
   }
   card.innerHTML = h;
-  const f = $('input:not([value=""]):not([type=checkbox])', card) && mode === 'login' && $('#lgUser').value ? $('#lgPw') : $('input', card);
-  if (f) setTimeout(() => f.focus(), 30);
+  // focus right away (never later, so it can't pull the cursor away from someone already typing)
+  const f = mode === 'login' && $('#lgUser').value ? $('#lgPw') : $('input:not([type=checkbox])', card);
+  if (f) f.focus();
   bindLockForms(mode);
+}
+async function finishSetup() {
+  try {
+    const code = await B.setupOwner(S.setup.name, S.setup.pw);
+    S.lastLogin = S.setup.email; try { localStorage.setItem('nloCases.lastLogin', S.lastLogin); } catch (x) { }
+    S.setup = null; history.replaceState(null, '', location.pathname + location.search);
+    lockScreen('code', { code });
+  } catch (x) {
+    lockScreen('setup', { err: /permission/.test(x.code || '') ? 'Setup was refused: either this office is already set up, or that email isn’t the practice owner’s.' : errText(x) });
+  }
 }
 function firstName(n) { return String(n || '').replace(/^dr\.?\s+/i, '').split(/\s+/)[0] || ''; }
 function busyBtn(btn, on, label) { if (!btn) return; if (on) { btn.dataset.l = btn.textContent; btn.textContent = label || 'Working…'; btn.disabled = true; } else { btn.textContent = btn.dataset.l || btn.textContent; btn.disabled = false; } }
@@ -1241,12 +1487,17 @@ function bindLockForms(mode) {
     if (p1.length < 10) return lockScreen('setup', { err: 'Use at least 10 characters.' });
     if (p1 !== p2) return lockScreen('setup', { err: 'The two passwords don’t match.' });
     const btn = $('button[type=submit]', sf); busyBtn(btn, true, 'Creating…');
+    S.setup = { name: $('#suName').value.trim(), email: $('#suEmail').value.trim(), pw: p1 };
     try {
-      const code = await B.setupOwner($('#suName').value.trim(), $('#suEmail').value.trim(), p1);
-      S.lastLogin = $('#suEmail').value.trim(); try { localStorage.setItem('nloCases.lastLogin', S.lastLogin); } catch (x) { }
-      history.replaceState(null, '', location.pathname + location.search);
-      lockScreen('code', { code });
-    } catch (x) { lockScreen('setup', { err: /permission/.test(x.code || '') ? 'This office is already set up. Sign in instead.' : errText(x) }); }
+      const verified = await B.setupAccount(S.setup.email, p1);
+      if (verified) await finishSetup(); else lockScreen('verify');
+    } catch (x) { lockScreen('setup', { err: errText(x) }); }
+  };
+  const vf = $('#verifyForm');
+  if (vf) vf.onsubmit = async e => {
+    e.preventDefault(); const btn = $('button[type=submit]', vf); busyBtn(btn, true, 'Checking…');
+    try { if (await B.setupVerified()) await finishSetup(); else lockScreen('verify', { err: 'Not verified yet. Open the link in the email, then press Continue.' }); }
+    catch (x) { lockScreen('verify', { err: errText(x) }); }
   };
   const ack = $('#codeAck'); if (ack) ack.onchange = () => { $('#codeDone').disabled = !ack.checked; };
 }
@@ -1262,9 +1513,9 @@ function enterApp() {
       S.firstLoad = false; queueRender();
       if (S.openId && (up.some(c => c.id === S.openId) || gone.includes(S.openId))) refreshDrawer(gone.includes(S.openId));
     },
-    roster(list) { S.roster = list; queueRender(); },
-    members(list) { S.members = list; if (S.view === 'admin') queueRender(); },
-    settings(s) { S.settings = Object.assign({ idleMin: 10 }, s || {}); if (S.view === 'admin') queueRender(); },
+    roster(list) { S.roster = list; queueRender('team'); },
+    members(list) { S.members = list; if (S.view === 'admin') queueRender('team'); },
+    settings(s) { S.settings = Object.assign({ idleMin: 10 }, s || {}); if (S.view === 'admin') queueRender('team'); },
     revoked() { lockOut('Your access to NLO Cases was turned off.'); },
     rekeyed() { },
     error(e) { if (/permission/.test((e && e.code) || '')) lockOut('Your access changed. Sign in again.'); else toast(errText(e), { bad: true }); }
@@ -1279,7 +1530,8 @@ async function lockOut(msg) {
   if (!S.inApp) return;
   S.inApp = false; clearInterval(S.idleTimer);
   closeModal(); closeDrawer(true);
-  S.cases = new Map(); S.closed = []; S.members = []; S.roster = [];
+  S.cases = new Map(); S.closed = []; S.members = []; S.roster = []; S.iprCache = {}; S.verList = null; S.delList = null; S.impList = null;
+  try { await iprLink().disconnect(); } catch (e) { }
   $('#view').innerHTML = '';
   await B.signOut();
   lockScreen('login', { ok: msg });
@@ -1294,7 +1546,7 @@ function activeRoster() { return S.roster.filter(r => r.active).sort((a, b) => (
 function openCases() { return Array.from(S.cases.values()).filter(c => !c.locked); }
 function matchesQ(c) {
   if (!S.q) return true; const q = S.q.toLowerCase();
-  return [c.patient, c.detail, typeOf(c).l, stageLabel(c), staffName(c.assignee, c.assigneeName)].some(x => String(x || '').toLowerCase().includes(q));
+  return [c.patient, c.chart, c.detail, typeOf(c).l, stageLabel(c), staffName(c.assignee, c.assigneeName)].some(x => String(x || '').toLowerCase().includes(q));
 }
 function dueBucket(c) {
   const d = dayDiff(c.dueDate); if (d === null) return 'none';
@@ -1318,8 +1570,19 @@ function counts() {
 }
 
 /* ---------- rendering ---------- */
-/* live updates redraw data screens only; screens holding typed input (import, account) keep their state */
-function queueRender() { if (S.renderQ) return; S.renderQ = true; requestAnimationFrame(() => { S.renderQ = false; if (!S.inApp) return; renderNav(); if (S.view !== 'import' && S.view !== 'account') renderView(); }); }
+/* live updates redraw data screens only; Team & security redraws for team/settings changes;
+   screens holding typed input (import, account) keep their state */
+function queueRender(kind) {
+  S.renderKinds = (S.renderKinds || new Set()); S.renderKinds.add(kind || 'cases');
+  if (S.renderQ) return; S.renderQ = true;
+  requestAnimationFrame(() => {
+    S.renderQ = false; const kinds = S.renderKinds; S.renderKinds = new Set(); if (!S.inApp) return;
+    renderNav();
+    if (S.view === 'import' || S.view === 'account') return;
+    if (S.view === 'admin' && !kinds.has('team')) return;
+    renderView();
+  });
+}
 const NAV = [
   ['today', 'Today', 'today'], ['board', 'Board', 'board'], ['list', 'All open cases', 'list'], ['mine', 'My cases', 'user'], ['done', 'Completed', 'done']
 ];
@@ -1356,7 +1619,7 @@ const TITLES = { today: 'Today', board: 'Board', list: 'All open cases', mine: '
 function topBar(extra) {
   return '<div class="topBar"><h2>' + esc(TITLES[S.view]) + '</h2>' +
     (['today', 'board', 'list', 'mine', 'done'].includes(S.view) ? '<label class="searchBox">' + ic('search', 17) + '<span class="hidden">Search</span><input id="q" type="search" placeholder="Search patient, type, stage…" value="' + esc(S.q) + '" aria-label="Search cases"></label>' : '<span style="flex:1"></span>') +
-    (extra || '') + '<button class="btn btn-act" data-act="newCase">' + ic('plus', 16) + 'New case</button></div>';
+    (extra || '') + '<button class="btn btn-teal" data-act="newCase">' + ic('plus', 16) + 'New case</button></div>';
 }
 function renderView() {
   const v = $('#view'); const active = document.activeElement && document.activeElement.id === 'q';
@@ -1534,17 +1797,18 @@ function refreshDrawer(gone) {
 async function loadHistory(id) {
   try { const h = await B.caseLog(id); if (S.openId === id) { S.history = h; const el = $('#histBox'); if (el) el.innerHTML = historyHTML(findCase(id)); } } catch (e) { }
 }
-const FIELD_LABELS = { type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery date', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes' };
+const FIELD_LABELS = { chart: 'chart #', titanUrl: 'Titan link', initial: 'initial/refinement', appliances: 'appliance', lab: 'lab', arches: 'arch', retKinds: 'retainer type', instrPicks: 'Dr. A’s instructions', instrOther: 'Dr. A’s instructions', extras: 'extras', isReset: 'reset', type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery date', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes' };
 function historyHTML(c) {
   const h = S.history; if (!h) return '<div class="small muted">Loading…</div>'; if (!h.length) return '<div class="small muted">No history yet.</div>';
   const stageName = k => { const s = c && flowOf(c).stages.find(x => x[0] === k); return s ? s[1] : k; };
-  return h.slice().reverse().map(x => {
+  return h.filter(x => x.a !== 'rekey' && x.a !== 'save').reverse().map(x => {
     let t = '';
     if (x.a === 'create') t = 'created the case'; else if (x.a === 'import') t = 'imported it from Asana';
     else if (x.a === 'stage') t = 'moved it to ' + stageName(x.to); else if (x.a === 'comment') t = 'added a comment';
     else if (x.a === 'close') t = 'marked it complete'; else if (x.a === 'reopen') t = 'reopened it';
     else if (x.a === 'assign') t = x.to ? 'assigned it to ' + staffName(x.to, x.to) : 'unassigned it';
-    else if (x.a === 'edit') t = 'changed ' + (x.fields || []).map(f => FIELD_LABELS[f] || f).join(', ');
+    else if (x.a === 'edit') t = 'changed ' + Array.from(new Set((x.fields || []).filter(f => f !== 'instructions').map(f => FIELD_LABELS[f] || f))).join(', ');
+    else if (x.a === 'restore') t = 'restored an earlier version';
     else t = x.a;
     return '<div class="hist"><time>' + esc(fmtWhen(x.at)) + '</time><span><b>' + esc(firstName(staffName(x.sid, x.sid)) || x.sid) + '</b> ' + esc(t) + '</span></div>';
   }).join('');
@@ -1555,6 +1819,12 @@ function renderDrawer() {
     '<div class="dBd"><div id="drawerNotice"></div>' + caseFormHTML(S.editBase, false) + '</div>' +
     '<div class="dFt"><button class="btn btn-pri" data-act="saveEdit">Save changes</button><button class="btn btn-sec" data-act="cancelEdit">Cancel</button></div>';
     wireCaseForm(d, false); return; }
+  if (c.locked) {
+    d.innerHTML = '<div class="dHd"><div style="flex:1"><h3>Case can’t be opened</h3></div><button class="iconBtn" data-act="closeDrawer" aria-label="Close">' + ic('x') + '</button></div>' +
+      '<div class="dBd"><div class="notice bad">This case’s saved copy can’t be decrypted — it may have been damaged.</div>' +
+      (isOwner() ? '<p class="small" style="margin-bottom:12px">Every earlier version is kept. Pick the last good one to restore it.</p><button class="btn btn-pri" data-act="versions">' + ic('clock', 16) + 'Restore a saved version</button>' : '<p class="small">Ask Dr. A — he can restore it from its saved versions.</p>') + '</div>';
+    return;
+  }
   const keepCmt = $('#cmtText') ? $('#cmtText').value : ''; const hadFocus = document.activeElement && document.activeElement.id === 'cmtText';
   const done = c.status === 'done'; const flow = flowOf(c); const si = stageIndex(c);
   const kv = (k, v) => '<div><div class="k">' + k + '</div><div class="v">' + (v || '<span class="muted">—</span>') + '</div></div>';
@@ -1571,69 +1841,52 @@ function renderDrawer() {
     '<div style="grid-column:1/-1"><div class="k">Assigned to</div>' + assignSel + '</div>' +
     kv('Due', c.dueDate ? dueChip(c) + ' <span class="small muted">' + esc(fmtDay(c.dueDate)) + '</span>' : '') + kv('Scan date', esc(fmtDay(c.scanDate))) +
     kv('Lab completion', esc(fmtDay(c.labDate))) + kv('Delivery', esc(fmtDay(c.deliveryDate))) +
-    kv('Assistant', esc(staffName(c.assistant, c.assistantName))) + kv('Scanner', esc(c.scanner)) +
+    kv('Assistant', esc(staffName(c.assistant, c.assistantName))) + kv('Scanner', esc(c.scanner)) + kv('Chart #', esc(c.chart || '')) +
     kv('Created', esc((c.createdAt ? fmtWhen(c.createdAt) : '') + (c.createdBy ? ' · ' + firstName(staffName(c.createdBy, '')) : ''))) + kv('Last update', esc(c.updatedAt ? fmtWhen(c.updatedAt) + (c.by ? ' · ' + firstName(staffName(c.by, '')) : '') : '')) +
     '</div></div>' +
-    txt('Dr. A’s instructions', c.instructions) + txt('Patient’s CC from last visit', c.cc) + txt('IPR & spacing', c.ipr) + txt('Notes', c.notes) +
+    (safeUrl(c.titanUrl) ? '<div class="sec"><a class="btn btn-sec btn-sm" href="' + esc(safeUrl(c.titanUrl)) + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'Open in Titan</a></div>' : '') +
+    ((c.appliances || []).length || c.lab || c.initial ? '<div class="sec"><h5>Case</h5><div class="pickRow">' + (c.appliances || []).map(x => '<span class="badge t-appl">' + esc(x) + '</span>').join('') + (c.lab ? '<span class="badge">' + esc(c.lab) + '</span>' : '') + (c.initial ? '<span class="badge">' + (c.initial === 'yes' ? 'Initial submission' : 'Refinement') + '</span>' : '') + '</div></div>' : '') +
+    txt('Dr. A’s instructions', c.instructions) +
+    ((c.extras || []).length ? '<div class="sec"><h5>Also</h5><div class="pickRow">' + c.extras.map(x => '<span class="badge t-retx">' + esc(x) + '</span>').join('') + '</div></div>' : '') +
+    txt('Patient’s CC from last visit', c.cc) + txt('IPR & spacing', c.ipr) +
+    (typeOf(c).aligner && !done ? '<div class="sec" id="iprBox">' + iprBoxHTML(c) + '</div>' : '') + txt('Notes', c.notes) +
     '<div class="sec"><h5>Comments</h5>' + ((c.comments || []).map(x => '<div class="cmt"><span class="av">' + esc(initials(staffName(x.by, x.by))) + '</span><div><div class="w"><b>' + esc(firstName(staffName(x.by, x.by))) + '</b> · ' + esc(fmtWhen(x.at)) + '</div><div style="white-space:pre-wrap;overflow-wrap:anywhere">' + esc(x.text) + '</div></div></div>').join('') || '<div class="small muted" style="margin-bottom:6px">No comments yet.</div>') +
     (done ? '' : '<div class="field" style="margin-top:8px;margin-bottom:6px"><label for="cmtText" class="hidden">Add a comment</label><textarea id="cmtText" rows="2" placeholder="Add a comment…"></textarea></div><button class="btn btn-sec btn-sm" data-act="addCmt">Add comment</button>') + '</div>' +
     '<div class="sec"><h5>History</h5><div id="histBox">' + historyHTML(c) + '</div></div></div>' +
     '<div class="dFt">' + (done ? '<button class="btn btn-sec" data-act="reopen">Reopen</button>' :
       '<button class="btn btn-mint" data-act="complete" data-id="' + esc(c.id) + '">' + ic('done', 16) + 'Mark complete</button><button class="btn btn-sec" data-act="edit">' + ic('edit', 16) + 'Edit</button>') +
-    (isOwner() ? '<span style="flex:1"></span><button class="btn btn-ghost" data-act="delCase" style="color:var(--coral-700)">' + ic('trash', 16) + 'Delete</button>' : '') + '</div>';
+    (isOwner() ? '<span style="flex:1"></span><button class="btn btn-ghost" data-act="versions">' + ic('clock', 16) + 'Versions</button><button class="btn btn-ghost" data-act="delCase" style="color:var(--coral-700)">' + ic('trash', 16) + 'Delete</button>' : '') + '</div>';
   const t = $('#cmtText'); if (t) { t.value = keepCmt; if (hadFocus) t.focus(); }
+  if (typeOf(c).aligner && c.chart && !done) iprAutoLoad(c);
 }
-
-/* ---------- case form (new + edit) ---------- */
-function caseFormHTML(c, isNew) {
-  c = c || {};
-  const t = c.type || ''; const stages = t ? FLOWS[TYPE[t].flow].stages : [];
-  const opt = (v, l, sel) => '<option value="' + esc(v) + '"' + (sel ? ' selected' : '') + '>' + esc(l) + '</option>';
-  const people = (sel, none) => opt('', none) + activeRoster().map(r => opt(r.sid, r.name, sel === r.sid)).join('');
-  const date = (id, l, v) => '<div class="field"><label for="' + id + '">' + l + '</label><input type="date" id="' + id + '" value="' + esc(v || '') + '"></div>';
-  return '<div class="grid2"><div class="field"><label for="cf-type">Type *</label><select id="cf-type" required>' + opt('', 'Choose…') + TYPES.map(x => opt(x.k, x.l, t === x.k)).join('') + '</select></div>' +
-    '<div class="field"><label for="cf-patient">Patient name *</label><input id="cf-patient" autocomplete="off" value="' + esc(c.patient || '') + '" required></div></div>' +
-    '<div class="grid2"><div class="field"><label for="cf-detail">What’s being made</label><input id="cf-detail" placeholder="e.g. Aligners, U/L TT’s, Herbst" value="' + esc(c.detail || '') + '"></div>' +
-    '<div class="field"><label for="cf-stage">Stage</label><select id="cf-stage"' + (t ? '' : ' disabled') + '>' + stages.map(([k, l]) => opt(k, l, (c.stage || stages[0][0]) === k)).join('') + '</select></div></div>' +
-    '<div class="grid2"><div class="field"><label for="cf-assignee">Assigned to</label><select id="cf-assignee">' + people(c.assignee, 'Unassigned') + '</select></div>' +
-    '<div class="field"><label for="cf-assistant">Assistant</label><select id="cf-assistant">' + people(c.assistant, '—') + '</select></div></div>' +
-    '<div class="grid4">' + date('cf-scanDate', 'Scan date', c.scanDate) + date('cf-dueDate', 'Due date', c.dueDate) + date('cf-labDate', 'Lab completion', c.labDate) + date('cf-deliveryDate', 'Delivery', c.deliveryDate) + '</div>' +
-    '<div class="hint small muted" id="cf-auto" style="margin:-6px 0 12px' + (isNew ? '' : ';display:none') + '">For aligners, due / lab / delivery default to 2 / 3 / 4 weeks after the scan. Change any of them.</div>' +
-    '<div class="grid2"><div class="field"><label for="cf-scanner">Scanner</label><select id="cf-scanner">' + opt('', '—') + SCANNERS.map(s => opt(s, s, c.scanner === s)).join('') + (c.scanner && !SCANNERS.includes(c.scanner) ? opt(c.scanner, c.scanner, true) : '') + '</select></div><div></div></div>' +
-    '<div class="field"><label for="cf-instructions">Dr. A’s instructions</label><textarea id="cf-instructions" rows="2">' + esc(c.instructions || '') + '</textarea></div>' +
-    '<div class="field"><label for="cf-cc">Patient’s CC from last visit</label><textarea id="cf-cc" rows="2">' + esc(c.cc || '') + '</textarea></div>' +
-    '<div class="field"><label for="cf-ipr">IPR &amp; spacing</label><textarea id="cf-ipr" rows="2" placeholder="Paste from the IPR & Spacing Tracker">' + esc(c.ipr || '') + '</textarea></div>' +
-    '<div class="field"><label for="cf-notes">Notes</label><textarea id="cf-notes" rows="2">' + esc(c.notes || '') + '</textarea></div>';
+/* ---------- IPR Tracker box in the case drawer ---------- */
+function iprBoxHTML(c) {
+  const L = iprLink();
+  const head = '<h5 style="display:flex;align-items:center;gap:8px">From the IPR Tracker<span style="flex:1"></span><a class="btn btn-ghost" href="' + IPR_URL + '" target="_blank" rel="noopener" style="min-height:28px;padding:2px 10px;font-size:12px">Open IPR Tracker</a></h5>';
+  if (!c.chart) return head + '<div class="small muted">Add the chart # (Edit) to pull the latest IPR and spacing automatically.</div>';
+  if (!L.init()) return head + '<div class="small muted">IPR link unavailable in this browser.</div>';
+  if (!L.user()) return head + '<div class="small" style="margin-bottom:8px">Connect this computer to the IPR Tracker once (same Google sign-in as the IPR Tracker).</div><button class="btn btn-sec btn-sm" data-act="iprConnect">Connect IPR Tracker</button>';
+  const r = (S.iprCache || {})[IPR.norm(c.chart)];
+  if (!r) return head + '<div class="small muted">Loading…</div>';
+  if (r.error) return head + '<div class="small" style="color:var(--coral-700)">' + esc(r.error) + '</div> <button class="btn btn-ghost" data-act="iprRefresh">Try again</button>';
+  if (r.status === 'not-found') return head + '<div class="small muted">No IPR Tracker patient with chart # ' + esc(c.chart) + '.</div>';
+  if (r.status === 'no-visits') return head + '<div class="small muted">Patient found, but no visits recorded yet.</div>';
+  const same = String(c.ipr || '').trim() === r.note.trim();
+  return head + '<div class="small muted" style="margin-bottom:6px">Latest visit ' + esc(fmtDay(r.date)) + (r.assistant ? ' · ' + esc(r.assistant) : '') + ' · ' + r.visits + ' visit' + (r.visits === 1 ? '' : 's') + ' on file</div>' +
+    '<div class="txt">' + esc(r.note) + '</div><div style="margin-top:8px;display:flex;gap:8px">' +
+    (same ? '<span class="stat ok">Saved on this case</span>' : '<button class="btn btn-sec btn-sm" data-act="iprUse">Use this on the case</button>') +
+    '<button class="btn btn-ghost" data-act="iprRefresh">' + ic('refresh', 14) + 'Refresh</button></div>';
 }
-const FORM_KEYS = ['type', 'patient', 'detail', 'stage', 'assignee', 'assistant', 'scanDate', 'dueDate', 'labDate', 'deliveryDate', 'scanner', 'instructions', 'cc', 'ipr', 'notes'];
-function readCaseForm(root) { const o = {}; FORM_KEYS.forEach(k => { const el = $('#cf-' + k, root); o[k] = el ? String(el.value || '').trim() : ''; }); return o; }
-function defaultAssignee(type) {
-  const d = (S.settings.defaults || {})[type]; if (d && staff(d) && staff(d).active) return d;
-  const byFirst = n => (activeRoster().find(r => firstName(r.name).toLowerCase() === n) || {}).sid || '';
-  const owner = (activeRoster().find(r => r.role === 'owner') || {}).sid || '';
-  if (['oliv', 'angel', 'invisalign', 'appliance'].includes(type)) return byFirst('sarah') || '';
-  if (['ulab', 'inbrace', 'retainer'].includes(type)) return meSid();
-  return owner;
-}
-function wireCaseForm(root, isNew) {
-  const type = $('#cf-type', root), stage = $('#cf-stage', root), scan = $('#cf-scanDate', root);
-  const autoIds = ['cf-dueDate', 'cf-labDate', 'cf-deliveryDate'];
-  if (isNew) autoIds.forEach(id => { const el = $('#' + id, root); el.dataset.auto = el.value ? '0' : '1'; el.addEventListener('input', () => { el.dataset.auto = '0'; }); });
-  const fillDates = () => {
-    if (!isNew) return; const t = TYPE[type.value]; if (!t || !t.aligner || !scan.value) return;
-    [['cf-dueDate', 14], ['cf-labDate', 21], ['cf-deliveryDate', 28]].forEach(([id, n]) => { const el = $('#' + id, root); if (el.dataset.auto === '1') el.value = addDays(scan.value, n); });
-  };
-  type.addEventListener('change', () => {
-    const t = TYPE[type.value];
-    stage.innerHTML = t ? FLOWS[t.flow].stages.map(([k, l]) => '<option value="' + k + '">' + esc(l) + '</option>').join('') : ''; stage.disabled = !t;
-    if (isNew && t) { $('#cf-assignee', root).value = defaultAssignee(type.value); if (!$('#cf-detail', root).value) $('#cf-detail', root).placeholder = t.aligner ? 'Aligners' : 'e.g. U/L TT’s, Herbst'; if (t.aligner && !$('#cf-scanner', root).value) $('#cf-scanner', root).value = 'Allied Star'; }
-    fillDates();
-  });
-  scan.addEventListener('change', fillDates); scan.addEventListener('input', fillDates);
-}
-function editDirty() {
-  const d = $('#drawer'); if (!d || !S.editing || !S.editBase) return false;
-  const now = readCaseForm(d); return FORM_KEYS.some(k => String(now[k] || '') !== String(S.editBase[k] || ''));
+async function iprAutoLoad(c, force) {
+  const L = iprLink(); if (!L.init()) return;
+  if (!L.user()) { await L.waitUser(); if (!L.user()) return; }
+  const k = IPR.norm(c.chart); S.iprCache = S.iprCache || {};
+  if (S.iprCache[k] && !force) { const b = $('#iprBox'); if (b) b.innerHTML = iprBoxHTML(c); return; }
+  if (S.iprLoading === k) return; S.iprLoading = k;
+  try { S.iprCache[k] = await L.latest(c.chart); }
+  catch (e) { S.iprCache[k] = { error: /permission|denied/i.test(String(e && (e.code || e.message))) ? 'This Google account can’t read the IPR Tracker.' : 'Couldn’t reach the IPR Tracker.' }; }
+  S.iprLoading = null;
+  const cur = findCase(S.openId); const b = $('#iprBox'); if (b && cur && IPR.norm(cur.chart) === k) b.innerHTML = iprBoxHTML(cur);
 }
 
 /* ---------- modals ---------- */
@@ -1643,33 +1896,52 @@ function openModal(html, onReady) {
   w.innerHTML = '<div class="modal" role="dialog" aria-modal="true">' + html + '</div>';
   w.addEventListener('mousedown', e => { if (e.target === w) closeModal(); });
   document.body.appendChild(w);
-  const f = $('input,select,textarea', w); if (f) setTimeout(() => f.focus(), 30);
+  const f = $('input:not([type=hidden]),select,textarea', w); if (f) f.focus();
   if (onReady) onReady(w);
   return w;
 }
 function closeModal() { const w = $('#modalWrap'); if (w) w.remove(); }
-function confirmBox(title, body, okLabel, danger) {
+/* text is plain text (escaped here), never HTML */
+function confirmBox(title, text, okLabel, danger) {
   return new Promise(res => {
-    openModal('<h3>' + esc(title) + '</h3><p class="lsub" style="font-size:13.5px;color:var(--grey-600)">' + body + '</p><div class="mFt"><button class="btn btn-sec" id="cbNo">Cancel</button><button class="btn ' + (danger ? 'btn-danger' : 'btn-pri') + '" id="cbYes">' + esc(okLabel) + '</button></div>', w => {
-      $('#cbNo', w).onclick = () => { closeModal(); res(false); }; $('#cbYes', w).onclick = () => { closeModal(); res(true); }; setTimeout(() => $('#cbYes', w).focus(), 40);
+    openModal('<h3>' + esc(title) + '</h3><p class="lsub" style="font-size:13.5px;color:var(--grey-600)">' + esc(text) + '</p><div class="mFt"><button class="btn btn-sec" id="cbNo">Cancel</button><button class="btn ' + (danger ? 'btn-danger' : 'btn-pri') + '" id="cbYes">' + esc(okLabel) + '</button></div>', w => {
+      $('#cbNo', w).onclick = () => { closeModal(); res(false); }; $('#cbYes', w).onclick = () => { closeModal(); res(true); }; $('#cbYes', w).focus();
     });
   });
 }
-function newCaseModal() {
-  const base = { scanDate: todayISO(), assistant: meSid() };
-  openModal('<h3>New case</h3><div class="lsub">Fill this in after the scan. It’s encrypted before it leaves this computer.</div><div id="ncErr"></div><form id="ncForm">' + caseFormHTML(base, true) +
-    '<div class="mFt"><button class="btn btn-sec" type="button" data-act="closeModal">Cancel</button><button class="btn btn-pri" type="submit" id="ncSave">Create case</button></div></form>', w => {
-      wireCaseForm(w, true);
-      $('#ncForm', w).onsubmit = async e => {
-        e.preventDefault(); const data = readCaseForm(w);
-        if (!data.type || !data.patient) { $('#ncErr', w).innerHTML = '<div class="lockErr">Choose a type and enter the patient’s name.</div>'; return; }
-        data.stage = data.stage || firstStage(data.type);
-        Object.assign(data, { comments: [], createdAt: Date.now(), createdBy: meSid() });
-        busyBtn($('#ncSave', w), true, 'Saving…');
-        try { await B.createCase(data); closeModal(); toast('Case created for ' + data.patient); }
-        catch (x) { busyBtn($('#ncSave', w), false); $('#ncErr', w).innerHTML = '<div class="lockErr">' + esc(errText(x)) + '</div>'; }
-      };
-    });
+/* New case / edit form: fill the IPR box from the IPR Tracker using the chart # */
+async function iprPull(btn) {
+  const root = btn.closest('.modal') || $('#drawer'); const msg = $('#cf-iprMsg', root);
+  const chart = ($('#cf-chart', root).value || '').trim();
+  if (!chart) { msg.textContent = 'Enter the chart # first.'; return; }
+  const L = iprLink(); if (!L.init()) { msg.textContent = 'IPR link unavailable in this browser.'; return; }
+  try {
+    if (!L.user()) await L.connect();
+    msg.textContent = 'Reading the IPR Tracker…';
+    const r = await L.latest(chart);
+    if (r.status === 'not-found') { msg.textContent = 'No IPR Tracker patient with chart # ' + chart + '.'; return; }
+    if (r.status === 'no-visits') { msg.textContent = 'Patient found, but no visits recorded yet.'; return; }
+    $('#cf-ipr', root).value = r.note; msg.textContent = 'From the visit on ' + fmtDay(r.date) + (r.initials ? ' (' + r.initials + ')' : '') + '.';
+  } catch (e) { msg.textContent = /popup/i.test(String(e && (e.code || e.message))) ? 'Allow pop-ups for this site, then try again.' : /permission|denied/i.test(String(e && (e.code || e.message))) ? 'This Google account can’t read the IPR Tracker.' : 'Couldn’t reach the IPR Tracker.'; }
+}
+
+/* ---------- saved versions (owner) ---------- */
+async function versionsModal(id) {
+  openModal('<h3>Saved versions</h3><div class="lsub">Every change keeps the copy it replaced. Restoring makes that copy current again (and keeps today’s too).</div><div id="verList"><div class="small muted">Loading…</div></div><div class="mFt"><button class="btn btn-sec" data-act="closeModal">Close</button></div>');
+  try {
+    const list = await B.caseVersions(id); S.verList = list; S.verId = id;
+    const how = { stage: 'moved', comment: 'commented', edit: 'edited', close: 'completed', reopen: 'reopened', assign: 'reassigned', restore: 'restored', save: 'saved', rekey: 'key change', delete: 'deleted' };
+    $('#verList').innerHTML = list.length ? '<div class="tblWrap"><table class="tbl"><thead><tr><th>Version</th><th>Contents</th><th></th></tr></thead><tbody>' + list.map((v, i) =>
+      '<tr><td class="small"><b>#' + v.rev + '</b><div class="muted">replaced ' + esc(fmtWhen(v.replacedAt)) + '<br>by ' + esc(firstName(staffName(v.replacedBy, v.replacedBy))) + (v.replacedHow ? ' (' + esc(how[v.replacedHow] || v.replacedHow) + ')' : '') + '</div></td>' +
+      '<td class="small">' + (v.data ? '<b>' + esc(v.data.patient || '') + '</b><div class="muted">' + esc(typeOf(v.data).l + ' · ' + stageLabel(v.data) + (v.data.dueDate ? ' · due ' + fmtDate(v.data.dueDate) : '')) + '</div>' : '<span style="color:var(--coral-700)">Can’t be read</span>') + '</td>' +
+      '<td style="text-align:right">' + (v.data ? '<button class="btn btn-sec btn-sm" data-act="restoreVer" data-i="' + i + '">Restore</button>' : '') + '</td></tr>').join('') + '</tbody></table></div>'
+      : '<div class="small muted">No earlier versions yet.</div>';
+  } catch (x) { $('#verList').innerHTML = '<div class="lockErr">' + esc(errText(x)) + '</div>'; }
+}
+async function restoreVer(i) {
+  const v = S.verList && S.verList[i]; if (!v || !v.data) return;
+  try { await B.restoreVersion(S.verId, v.data); closeModal(); toast('Version #' + v.rev + ' restored'); if (S.openId === S.verId) { const c = findCase(S.verId); if (c) { c.locked = false; } loadHistory(S.verId); } }
+  catch (x) { toast(errText(x), { bad: true }); }
 }
 
 /* ---------- actions ---------- */
@@ -1713,7 +1985,7 @@ function onClick(e) {
     case 'edit': { const c = findCase(S.openId); S.editBase = JSON.parse(JSON.stringify(c)); S.editing = true; renderDrawer(); break; }
     case 'cancelEdit': S.editing = false; renderDrawer(); break;
     case 'saveEdit': saveEdit(); break;
-    case 'delCase': (async () => { const c = findCase(S.openId); if (await confirmBox('Delete this case?', 'This permanently removes <b>' + esc(c.patient) + '</b> and can’t be undone. To finish a case normally, use “Mark complete” instead.', 'Delete', true)) { const cid = S.openId; closeDrawer(true); act(() => B.deleteCase(cid), 'Case deleted'); } })(); break;
+    case 'delCase': (async () => { const c = findCase(S.openId); if (await confirmBox('Delete this case?', 'This removes ' + c.patient + ' from every list. Dr. A can bring it back from Team & security for 90 days. To finish a case normally, use “Mark complete” instead.', 'Delete', true)) { const cid = S.openId; closeDrawer(true); act(() => B.deleteCase(cid), 'Case deleted'); } })(); break;
     case 'newCase': newCaseModal(); break;
     case 'closeModal': closeModal(); break;
     case 'clearF': S.f = { type: '', stage: '', who: '', due: '', grp: '' }; renderView(); break;
@@ -1727,6 +1999,15 @@ function onClick(e) {
     case 'copyCode': navigator.clipboard && navigator.clipboard.writeText(t.dataset.code).then(() => toast('Copied')); break;
     case 'printCode': printCode(); break;
     case 'codeDone': enterApp(); break;
+    case 'resendVerify': B.resendVerify().then(() => toast('Sent again')).catch(x => toast(errText(x), { bad: true })); break;
+    case 'versions': versionsModal(S.openId); break;
+    case 'iprConnect': iprLink().connect().then(() => { const c = findCase(S.openId); if (c) { const b = $('#iprBox'); if (b) b.innerHTML = iprBoxHTML(c); iprAutoLoad(c, true); } if (S.view === 'account') renderView(); }).catch(x => toast(errText(x), { bad: true })); break;
+    case 'iprDisconnect': iprLink().disconnect().then(() => { S.iprCache = {}; renderView(); toast('IPR Tracker disconnected on this computer'); }); break;
+    case 'iprRefresh': { const c = findCase(S.openId); if (c) { (S.iprCache || {})[IPR.norm(c.chart)] = null; const b = $('#iprBox'); if (b) b.innerHTML = iprBoxHTML(c); iprAutoLoad(c, true); } break; }
+    case 'iprUse': { const c = findCase(S.openId); const r = c && (S.iprCache || {})[IPR.norm(c.chart)]; if (!r || !r.note) return;
+      act(() => B.mutateCase(c.id, d => { d.ipr = r.note; }, { a: 'edit', fields: ['ipr'] }), 'IPR note saved on the case'); break; }
+    case 'iprPull': iprPull(t); break;
+    case 'restoreVer': restoreVer(Number(t.dataset.i)); break;
     default: if (ADMIN_ACTS[a]) ADMIN_ACTS[a](t, e);
   }
 }
@@ -1744,13 +2025,14 @@ function onInput(e) { if (e.target.id === 'q') { S.q = e.target.value; renderVie
 async function saveEdit() {
   const d = $('#drawer'); const now = readCaseForm(d);
   if (!now.type || !now.patient) { $('#drawerNotice').innerHTML = '<div class="notice bad">Type and patient name are required.</div>'; return; }
-  const base = S.editBase; const changed = FORM_KEYS.filter(k => String(now[k] || '') !== String(base[k] || ''));
+  if (now.titanUrl && !safeUrl(now.titanUrl)) { $('#drawerNotice').innerHTML = '<div class="notice bad">The Titan link must start with https://</div>'; return; }
+  const base = S.editBase; const changed = FORM_KEYS.filter(k => !sameVal(now[k], base[k])).concat(!!now.isReset !== !!base.isReset ? ['isReset'] : []);
   if (!changed.length) { S.editing = false; renderDrawer(); return; }
   const btn = $('[data-act=saveEdit]', d); busyBtn(btn, true, 'Saving…');
   const id = S.openId;
   try {
     await B.mutateCase(id, x => {
-      changed.forEach(k => { x[k] = now[k]; });
+      changed.forEach(k => { x[k] = Array.isArray(now[k]) ? now[k].slice() : now[k]; });
       if (changed.includes('assignee') && now.assignee) x.assigneeName = '';
       if (changed.includes('assistant') && now.assistant) x.assistantName = '';
       if (changed.includes('type') && !FLOWS[TYPE[x.type].flow].stages.some(s => s[0] === x.stage)) x.stage = firstStage(x.type);
@@ -1763,6 +2045,214 @@ function printCode() {
   const w = window.open('', '_blank', 'width=600,height=400'); if (!w) return;
   w.document.write('<title>NLO Cases recovery code</title><body style="font-family:sans-serif;padding:40px"><h2>NLO Cases — recovery code</h2><p>Keep this somewhere safe. It unlocks the office’s case data if the owner password is forgotten.</p><pre style="font-size:26px;letter-spacing:2px">' + esc(code) + '</pre><p>Printed ' + esc(new Date().toLocaleString()) + '</p></body>');
   w.document.close(); w.focus(); w.print();
+}
+
+/* =====================================================================
+   New case / edit form — tap first, type only the patient's name.
+   Choices mirror the office's Tally "Appliance submission form" so
+   nothing is lost moving off Tally (assistant, scanner, appliance and
+   aligner type, lab, initial submission, Dr. A's instructions, extras).
+   ===================================================================== */
+const PICK = {
+  appliances: ['Herbst with Rollo Band', 'Space Closing Herbst', 'Rapid Palatal Expander (RPE)', 'Finger spring with no labial bow', 'Hawley retainers', 'MARPE', 'Schwartz'],
+  labs: ['Specialty Lab', 'Partner Dental Studio', 'In-house (NL Lab)'],
+  scanners: ['Allied Star', 'iTero'],
+  instr: ['Close all remaining residual spaces/gaps', 'Needs settling of posterior occlusion', 'Resolve black triangles', 'Anterior bite opening mechanics', 'Anterior open bite mechanics',
+    'Aligners are not tracking well', 'Need to change attachment/hooks on one or more teeth', 'Class II correction is needed', 'Class III correction is needed',
+    'Midline needs to be corrected', 'No posterior teeth movement', 'Active retention', 'Accepting current OJ/OB'],
+  extras: ['No IPR', 'NO attachments on anteriors', 'NO attachments at all', 'Implant teeth', 'Pontic needed', 'No elastics', 'Mid-course correction', 'Next Level Express (5 aligners or less)'],
+  arches: ['Upper', 'Lower'], retKinds: ['TT’s', 'WT’s']
+};
+/* lab routing from the office KB: Partners = RPE, Schwartz, Hawley, finger spring, MARPE; Specialty = Herbst */
+const LAB_FOR = { 'Herbst with Rollo Band': 'Specialty Lab', 'Space Closing Herbst': 'Specialty Lab', 'Rapid Palatal Expander (RPE)': 'Partner Dental Studio', 'Finger spring with no labial bow': 'Partner Dental Studio', 'Hawley retainers': 'Partner Dental Studio', 'MARPE': 'Partner Dental Studio', 'Schwartz': 'Partner Dental Studio' };
+const TILES = [
+  { v: 'oliv', l: 'Oliv', s: 'Aligners' }, { v: 'nla', l: 'In-house', s: 'Aligners · NL Lab' }, { v: 'reset', l: 'Reset', s: 'In-house · 1 aligner' },
+  { v: 'retainer', l: 'Retainers', s: 'TT’s / WT’s' }, { v: 'appliance', l: 'Appliance', s: 'Herbst, RPE, MARPE…' },
+  { v: 'angel', l: 'Angel', s: 'Aligners' }, { v: 'ulab', l: 'uLab', s: 'Aligners' }, { v: 'invisalign', l: 'Invisalign', s: 'Aligners' },
+  { v: 'inbrace', l: 'InBrace / Brava', s: 'Lingual' }, { v: 'retreat', l: 'Retreatment', s: 'Review & proposal' }, { v: 'misc', l: 'Dr. A (misc.)', s: 'Study models, TxP…' }
+];
+const ALIGNERISH = ['oliv', 'angel', 'invisalign', 'ulab', 'nla', 'reset', 'inbrace'];
+function groupOfTile(v) { return ALIGNERISH.includes(v) ? 'aligner' : v === 'appliance' ? 'appliance' : v === 'retainer' ? 'retainer' : 'other'; }
+const FORM_KEYS = ['type', 'patient', 'chart', 'detail', 'stage', 'assignee', 'assistant', 'scanner', 'scanDate', 'dueDate', 'labDate', 'deliveryDate',
+  'initial', 'appliances', 'lab', 'arches', 'retKinds', 'instrPicks', 'instrOther', 'instructions', 'extras', 'cc', 'ipr', 'notes', 'titanUrl'];
+function safeUrl(u) { return /^https:\/\/[^\s<>"']+$/i.test(String(u || '').trim()) ? String(u).trim() : ''; }
+function sameVal(a, b) { return JSON.stringify(a == null ? '' : a) === JSON.stringify(b == null ? '' : b); }
+/* the next n clinic days (the office is open Monday–Thursday) */
+function addClinicDays(iso, n) {
+  let d = iso; let left = n;
+  while (left > 0) { d = addDays(d, 1); const [y, m, dd] = d.split('-').map(Number); const wd = new Date(y, m - 1, dd).getDay(); if (wd >= 1 && wd <= 4) left--; }
+  return d;
+}
+function defaultAssignee(type) {
+  const d = (S.settings.defaults || {})[type]; if (d && staff(d) && staff(d).active) return d;
+  const byFirst = n => (activeRoster().find(r => firstName(r.name).toLowerCase() === n) || {}).sid || '';
+  const owner = (activeRoster().find(r => r.role === 'owner') || {}).sid || '';
+  if (['oliv', 'angel', 'invisalign', 'appliance'].includes(type)) return byFirst('sarah') || '';
+  if (['ulab', 'inbrace', 'retainer'].includes(type)) return meSid();
+  return owner;
+}
+/* the patient's CC phrases this office uses most (learned from decrypted cases, in this browser only) */
+function learnedCCs() {
+  const n = {};
+  Array.from(S.cases.values()).concat(S.closed || []).forEach(c => {
+    const t = String(c.cc || '').trim(); if (t.length < 3 || t.length > 90 || /^(-|na|n\/a|none)$/i.test(t)) return;
+    const k = t.toLowerCase(); n[k] = n[k] || { t, c: 0 }; n[k].c++;
+  });
+  return Object.values(n).filter(x => x.c >= 2).sort((a, b) => b.c - a.c).slice(0, 6).map(x => x.t);
+}
+function pickRow(group, options, chosen, multi, extraCls) {
+  const on = v => multi ? (chosen || []).includes(v) : chosen === v;
+  return '<div class="pickRow" role="group" data-g="' + group + '" data-multi="' + (multi ? 1 : 0) + '">' + options.map(o => {
+    const v = typeof o === 'string' ? o : o.v; const l = typeof o === 'string' ? o : o.l;
+    return '<button type="button" class="pick' + (extraCls ? ' ' + extraCls : '') + '" data-v="' + esc(v) + '" aria-pressed="' + on(v) + '">' + esc(l) + '</button>';
+  }).join('') + '</div>';
+}
+function caseFormHTML(c, isNew) {
+  c = c || {};
+  const tile = c.type === 'nla' && c.isReset ? 'reset' : (c.type || '');
+  const g = groupOfTile(tile);
+  const show = (groups) => ' data-show="' + groups + '"' + (groups.split(' ').includes(g) ? '' : ' style="display:none"');
+  const roster = activeRoster().filter(r => r.role !== 'owner');
+  const stages = c.type ? FLOWS[TYPE[c.type].flow].stages : [];
+  const opt = (v, l, sel) => '<option value="' + esc(v) + '"' + (sel ? ' selected' : '') + '>' + esc(l) + '</option>';
+  const people = (sel, none) => opt('', none) + activeRoster().map(r => opt(r.sid, r.name, sel === r.sid)).join('');
+  const date = (id, l, v) => '<div class="field"><label for="' + id + '">' + l + '</label><input type="date" id="' + id + '" value="' + esc(v || '') + '"></div>';
+  const instrOther = c.instrOther != null ? c.instrOther : ((c.instrPicks || []).length ? '' : (c.instructions || ''));
+  const ccs = learnedCCs();
+  return '<div class="cf" data-new="' + (isNew ? 1 : 0) + '">' +
+    '<div class="cfSec"><h5>Case type</h5><div class="tileGrid" role="radiogroup" aria-label="Case type">' + TILES.map(t =>
+      '<button type="button" class="tt" role="radio" data-tile="' + t.v + '" aria-checked="' + (tile === t.v) + '"><b>' + esc(t.l) + '</b><span>' + esc(t.s) + '</span></button>').join('') + '</div></div>' +
+    '<div class="cfSec"><div class="grid2"><div class="field"><label for="cf-patient">Patient name *</label><input id="cf-patient" autocomplete="off" value="' + esc(c.patient || '') + '" required></div>' +
+    '<div class="field"><label for="cf-chart">Chart #</label><input id="cf-chart" autocomplete="off" spellcheck="false" inputmode="text" placeholder="For the IPR Tracker link" value="' + esc(c.chart || '') + '"></div></div></div>' +
+    '<div class="cfSec"' + show('appliance') + '><h5>Appliance</h5>' + pickRow('appliances', PICK.appliances, c.appliances || [], true) +
+    '<h5>Lab</h5>' + pickRow('lab', PICK.labs, c.lab || '', false) + '</div>' +
+    '<div class="cfSec"' + show('retainer') + '><h5>Arch</h5>' + pickRow('arches', PICK.arches, c.arches || [], true) + '<h5>Making</h5>' + pickRow('retKinds', PICK.retKinds, c.retKinds || [], true) + '</div>' +
+    '<div class="cfSec"' + show('aligner appliance') + '><h5>Initial submission?</h5>' + pickRow('initial', [{ v: 'yes', l: 'Yes — first set' }, { v: 'no', l: 'No — refinement' }], c.initial || '', false) + '</div>' +
+    '<div class="cfSec"><h5>Assistant</h5>' + pickRow('assistant', roster.map(r => ({ v: r.sid, l: firstName(r.name) })), c.assistant || '', false) +
+    '<div' + show('aligner appliance retainer') + '><h5>Scanner</h5>' + pickRow('scanner', PICK.scanners, c.scanner || '', false) + '</div></div>' +
+    '<div class="cfSec"><h5>Dates</h5><div class="pickRow" style="margin-bottom:8px"><button type="button" class="pick sm" data-scan="0">Scanned today</button><button type="button" class="pick sm" data-scan="-1">Yesterday</button></div>' +
+    '<div class="grid4">' + date('cf-scanDate', 'Scan date', c.scanDate) + date('cf-dueDate', g === 'aligner' ? 'Due for Dr. A' : 'Due date', c.dueDate) + date('cf-labDate', 'Lab completion', c.labDate) + date('cf-deliveryDate', 'Delivery', c.deliveryDate) + '</div>' +
+    '<div class="hint small muted" id="cf-autoHint" style="margin:-4px 0 0">Filled in from the scan date — change any of them.</div></div>' +
+    '<div class="cfSec"' + show('aligner') + '><h5>Dr. A’s instructions from last visit</h5>' + pickRow('instrPicks', PICK.instr, c.instrPicks || [], true) +
+    '<div class="field" style="margin-top:8px"><label for="cf-instrOther">Other instructions</label><textarea id="cf-instrOther" rows="2" placeholder="Only if it isn’t one of the buttons">' + esc(instrOther) + '</textarea></div>' +
+    '<h5>Also</h5>' + pickRow('extras', PICK.extras, c.extras || [], true) + '</div>' +
+    '<div class="cfSec"' + show('aligner appliance') + '><h5>Patient’s CC from last visit</h5>' +
+    '<div class="pickRow" data-cc="1">' + ['None'].concat(ccs).map(t => '<button type="button" class="pick sm" data-cc="' + esc(t) + '">' + esc(t) + '</button>').join('') + '</div>' +
+    '<div class="field" style="margin-top:8px"><label for="cf-cc" class="hidden">Patient’s CC</label><input id="cf-cc" autocomplete="off" placeholder="Tap above or type" value="' + esc(c.cc || '') + '"></div></div>' +
+    '<div class="cfSec"' + show('aligner') + '><div class="field"><label for="cf-ipr" style="display:flex;align-items:center;gap:8px">IPR, spacing &amp; black triangles<span style="flex:1"></span><button type="button" class="btn btn-ghost" data-act="iprPull" style="min-height:30px;padding:2px 10px;font-size:12px">' + ic('download', 14) + 'Get from IPR Tracker</button></label>' +
+    '<textarea id="cf-ipr" rows="3" placeholder="Tap “Get from IPR Tracker” (uses the chart #)">' + esc(c.ipr || '') + '</textarea><div class="hint" id="cf-iprMsg"></div></div></div>' +
+    '<div class="cfSec" id="cf-titanWrap"' + show(c.type === 'nla' || tile === 'reset' ? g : '__never') + '><div class="field"><label for="cf-titanUrl">Titan link</label><input id="cf-titanUrl" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://… (Titan’s shared web-viewer link)" value="' + esc(c.titanUrl || '') + '"></div></div>' +
+    '<details class="cfMore"' + (isNew ? '' : ' open') + '><summary>More: what’s being made, stage, who it’s assigned to, notes</summary>' +
+    '<div class="grid2" style="margin-top:12px"><div class="field"><label for="cf-detail">What’s being made</label><input id="cf-detail" value="' + esc(c.detail || '') + '" data-auto="' + (isNew || !c.detail ? 1 : 0) + '"></div>' +
+    '<div class="field"><label for="cf-stage">Stage</label><select id="cf-stage">' + stages.map(([k, l]) => opt(k, l, (c.stage || (stages[0] || [])[0]) === k)).join('') + '</select></div></div>' +
+    '<div class="grid2"><div class="field"><label for="cf-assignee">Assigned to</label><select id="cf-assignee">' + people(c.assignee, 'Unassigned') + '</select></div><div></div></div>' +
+    '<div class="field"><label for="cf-notes">Notes</label><textarea id="cf-notes" rows="2">' + esc(c.notes || '') + '</textarea></div></details>' +
+    '<input type="hidden" id="cf-tile" value="' + esc(tile) + '"></div>';
+}
+function pressed(root, g) { return $$('.pickRow[data-g="' + g + '"] .pick[aria-pressed="true"]', root).map(b => b.dataset.v); }
+function readCaseForm(root) {
+  const tile = $('#cf-tile', root).value;
+  const o = { type: tile === 'reset' ? 'nla' : tile, isReset: tile === 'reset' };
+  ['patient', 'chart', 'detail', 'stage', 'assignee', 'scanDate', 'dueDate', 'labDate', 'deliveryDate', 'instrOther', 'cc', 'ipr', 'notes', 'titanUrl'].forEach(k => { const el = $('#cf-' + k, root); o[k] = el ? String(el.value || '').trim() : ''; });
+  o.assistant = pressed(root, 'assistant')[0] || '';
+  o.scanner = pressed(root, 'scanner')[0] || '';
+  o.initial = pressed(root, 'initial')[0] || '';
+  o.lab = pressed(root, 'lab')[0] || '';
+  o.appliances = pressed(root, 'appliances'); o.arches = pressed(root, 'arches'); o.retKinds = pressed(root, 'retKinds');
+  o.instrPicks = pressed(root, 'instrPicks'); o.extras = pressed(root, 'extras');
+  const g = groupOfTile(tile);
+  if (g !== 'aligner') { o.instrPicks = []; o.extras = []; }
+  if (g !== 'appliance') { o.appliances = []; o.lab = ''; }
+  if (g !== 'retainer') { o.arches = []; o.retKinds = []; }
+  if (!(o.type === 'nla')) o.titanUrl = '';
+  o.instructions = o.instrPicks.concat(o.instrOther ? [o.instrOther] : []).join('; ');
+  return o;
+}
+/* what's being made, from the taps */
+function autoDetail(o, tile) {
+  const t = TILES.find(x => x.v === tile);
+  if (tile === 'reset') return 'Reset (1 aligner)';
+  if (['oliv', 'angel', 'invisalign', 'ulab', 'nla'].includes(tile)) return 'Aligners (' + (tile === 'nla' ? 'In-House' : t.l) + ')' + (o.initial === 'no' ? ' – refinement' : '');
+  if (tile === 'inbrace') return 'InBrace/Brava' + (o.initial === 'no' ? ' – refinement' : '');
+  if (tile === 'appliance') return o.appliances.join(', ');
+  if (tile === 'retainer') {
+    const arch = o.arches.length === 2 ? 'U/L' : o.arches[0] === 'Upper' ? 'U' : o.arches[0] === 'Lower' ? 'L' : '';
+    const kinds = o.retKinds.join(' and ');
+    return [arch, kinds].filter(Boolean).join(' ');
+  }
+  return '';
+}
+function wireCaseForm(root, isNew) {
+  const $r = s => $(s, root);
+  const autoIds = ['cf-dueDate', 'cf-labDate', 'cf-deliveryDate'];
+  autoIds.forEach(id => { const el = $r('#' + id); el.dataset.auto = (isNew && !el.value) ? '1' : '0'; el.addEventListener('input', () => { el.dataset.auto = '0'; }); });
+  const det = $r('#cf-detail'); det.addEventListener('input', () => { det.dataset.auto = '0'; });
+  const refresh = (typeChanged) => {
+    const tile = $r('#cf-tile').value; const g = groupOfTile(tile); const o = readCaseForm(root);
+    $$('[data-show]', root).forEach(el => { el.style.display = el.dataset.show.split(' ').includes(g) ? '' : 'none'; });
+    const tw = $r('#cf-titanWrap'); if (tw) tw.style.display = (tile === 'nla' || tile === 'reset') ? '' : 'none';
+    const dueLbl = $('label[for="cf-dueDate"]', root); if (dueLbl) dueLbl.textContent = g === 'aligner' && tile !== 'reset' ? 'Due for Dr. A' : 'Due date';
+    if (typeChanged) {
+      const type = o.type, stage = $r('#cf-stage');
+      stage.innerHTML = type ? FLOWS[TYPE[type].flow].stages.map(([k, l]) => '<option value="' + k + '"' + (tile === 'reset' && k === 'reset' ? ' selected' : '') + '>' + esc(l) + '</option>').join('') : '';
+      if (isNew && type) $r('#cf-assignee').value = defaultAssignee(type);
+      if (isNew && ['aligner', 'appliance', 'retainer'].includes(g) && !pressed(root, 'scanner').length) setPick(root, 'scanner', 'Allied Star', true);
+    }
+    // dates from the scan date (only fields nobody has typed into)
+    const scan = $r('#cf-scanDate').value;
+    if (isNew && scan) {
+      const plan = tile === 'reset' || tile === 'retainer' ? { 'cf-dueDate': addClinicDays(scan, 2), 'cf-labDate': '', 'cf-deliveryDate': '' }
+        : g === 'aligner' ? { 'cf-dueDate': addDays(scan, 14), 'cf-labDate': addDays(scan, 21), 'cf-deliveryDate': addDays(scan, 28) }
+          : { 'cf-dueDate': '', 'cf-labDate': '', 'cf-deliveryDate': '' };
+      autoIds.forEach(id => { const el = $r('#' + id); if (el.dataset.auto === '1') el.value = plan[id]; });
+    }
+    if (det.dataset.auto === '1') det.value = autoDetail(o, tile);
+  };
+  root.addEventListener('click', e => {
+    const tt = e.target.closest('.tt[data-tile]');
+    if (tt && root.contains(tt)) { $$('.tt', root).forEach(b => b.setAttribute('aria-checked', String(b === tt))); $r('#cf-tile').value = tt.dataset.tile; refresh(true); return; }
+    const pk = e.target.closest('.pickRow[data-g] .pick');
+    if (pk && root.contains(pk)) {
+      const row = pk.closest('.pickRow'); const multi = row.dataset.multi === '1'; const was = pk.getAttribute('aria-pressed') === 'true';
+      if (multi) pk.setAttribute('aria-pressed', String(!was));
+      else { $$('.pick', row).forEach(b => b.setAttribute('aria-pressed', 'false')); if (!was) pk.setAttribute('aria-pressed', 'true'); }
+      if (row.dataset.g === 'appliances') { const ap = pressed(root, 'appliances'); const lab = ap.map(a => LAB_FOR[a]).find(Boolean); if (lab && !pressed(root, 'lab').length) setPick(root, 'lab', lab, true); }
+      refresh(false); return;
+    }
+    const sc = e.target.closest('[data-scan]');
+    if (sc && root.contains(sc)) { $r('#cf-scanDate').value = addDays(todayISO(), Number(sc.dataset.scan)); refresh(false); return; }
+    const cc = e.target.closest('.pick[data-cc]');
+    if (cc && root.contains(cc)) { $r('#cf-cc').value = cc.dataset.cc === 'None' ? 'None' : cc.dataset.cc; return; }
+  });
+  $r('#cf-scanDate').addEventListener('change', () => refresh(false));
+  $r('#cf-scanDate').addEventListener('input', () => refresh(false));
+  refresh(false);
+}
+function setPick(root, g, v, on) { const b = $('.pickRow[data-g="' + g + '"] .pick[data-v="' + CSS.escape(v) + '"]', root); if (b) b.setAttribute('aria-pressed', String(!!on)); }
+function editDirty() {
+  const d = $('#drawer'); if (!d || !S.editing || !S.editBase) return false;
+  const now = readCaseForm(d); return FORM_KEYS.some(k => !sameVal(now[k], S.editBase[k]));
+}
+function newCaseModal() {
+  const roster = activeRoster().filter(r => r.role !== 'owner');
+  const base = { scanDate: todayISO(), assistant: roster.some(r => r.sid === meSid()) ? meSid() : '' };
+  openModal('<h3>New case</h3><div class="lsub">Tap through it after the scan. Only the patient’s name needs typing. Encrypted before it leaves this computer.</div><div id="ncErr"></div><form id="ncForm" novalidate>' + caseFormHTML(base, true) +
+    '<div class="mFt"><button class="btn btn-sec" type="button" data-act="closeModal">Cancel</button><button class="btn btn-teal" type="submit" id="ncSave">' + ic('plus', 16) + 'Create case</button></div></form>', w => {
+      w.querySelector('.modal').classList.add('wide');
+      wireCaseForm(w, true);
+      $('#ncForm', w).onsubmit = async e => {
+        e.preventDefault(); const data = readCaseForm(w);
+        const err = m => { $('#ncErr', w).innerHTML = '<div class="lockErr" role="alert">' + esc(m) + '</div>'; $('#ncErr', w).scrollIntoView({ block: 'nearest' }); };
+        if (!data.type) return err('Tap a case type.');
+        if (!data.patient) return err('Enter the patient’s name.');
+        if (data.titanUrl && !safeUrl(data.titanUrl)) return err('The Titan link must start with https://');
+        data.stage = data.stage || firstStage(data.type);
+        Object.assign(data, { comments: [], createdAt: Date.now(), createdBy: meSid() });
+        busyBtn($('#ncSave', w), true, 'Saving…');
+        try { await B.createCase(data); closeModal(); toast('Case created for ' + data.patient); }
+        catch (x) { busyBtn($('#ncSave', w), false); err(errText(x)); }
+      };
+    });
 }
 
 /* =====================================================================
@@ -1800,15 +2290,16 @@ function viewAdmin() {
   const defaults = '<div class="card" style="margin-top:18px"><div class="cardHd"><h3>Who gets new cases</h3><span class="sub">Default “assigned to” on the New case form</span></div><div class="cardBd"><div class="grid2">' +
     TYPES.map(t => '<div class="field"><label for="def-' + t.k + '">' + esc(t.l) + '</label><select id="def-' + t.k + '" data-act-def="' + t.k + '"><option value="">Automatic</option>' + activeRoster().map(r => '<option value="' + esc(r.sid) + '"' + (((S.settings.defaults || {})[t.k]) === r.sid ? ' selected' : '') + '>' + esc(r.name) + '</option>').join('') + '</select></div>').join('') +
     '</div><div class="small muted">Automatic: Oliv, Angel, Invisalign and appliances go to Sarah; uLab, InBrace and retainers to whoever creates the case; the rest to Dr. A.</div></div></div>';
+  const deleted = '<div class="card" style="margin-top:18px"><div class="cardHd"><h3>Deleted cases</h3><span class="sub">Last 90 days</span><span style="flex:1"></span><button class="btn btn-ghost" data-act="loadDeleted">' + ic('refresh', 15) + 'Load</button></div><div class="cardBd" id="delBox"><div class="small muted">Deleted cases can be brought back. Click Load.</div></div></div>';
   const actv = '<div class="card" style="margin-top:18px"><div class="cardHd"><h3>Recent activity</h3><span class="sub">Last 7 days</span><span style="flex:1"></span><button class="btn btn-ghost" data-act="loadActivity">' + ic('refresh', 15) + 'Load</button></div><div class="cardBd" id="actBox"><div class="small muted">Shows who changed what. Click Load.</div></div></div>';
-  return '<div class="adminGrid"><div>' + team + defaults + '</div><div>' + sec + actv + '</div></div>';
+  return '<div class="adminGrid"><div>' + team + defaults + '</div><div>' + sec + actv + deleted + '</div></div>';
 }
 function viewImport() {
   return '<div class="adminGrid"><div><div class="card"><div class="cardHd"><h3>Import from Asana</h3></div><div class="cardBd">' +
     '<p class="small" style="margin-bottom:12px">Brings your Asana case tasks in here. It runs in this browser, so patient names go straight from Asana into the encrypted app. Cases already imported are skipped.</p>' +
     '<div class="sec" style="margin-top:4px"><h5>Option 1 — Asana token (all projects at once)</h5>' +
     '<p class="small muted" style="margin-bottom:8px">In Asana: profile photo → Settings → Apps → Developer apps → Create new token. Paste it here; it’s used once and not saved.</p>' +
-    '<form id="asForm2" onsubmit="return false"><div class="field"><label for="asTok">Personal access token</label><input id="asTok" type="password" autocomplete="off"></div>' +
+    '<form id="asForm2"><div class="field"><label for="asTok">Personal access token</label><input id="asTok" type="password" autocomplete="off"></div>' +
     '<button class="btn btn-sec btn-sm" data-act="asLoad" type="submit">Load my Asana projects</button></form><div id="asProj" style="margin-top:12px"></div></div>' +
     '<div class="sec"><h5>Option 2 — CSV files</h5><p class="small muted" style="margin-bottom:8px">In each Asana project: ⌄ next to the name → Export/Print → CSV. Pick all the files together.</p>' +
     '<input type="file" id="csvFiles" accept=".csv,text/csv" multiple class="inp"></div>' +
@@ -1824,9 +2315,16 @@ function viewAccount() {
     '<div class="field"><label for="pwCur">Current password</label><input type="password" id="pwCur" autocomplete="current-password" required></div>' +
     '<div class="field"><label for="pwN1">New password</label><input type="password" id="pwN1" autocomplete="new-password" minlength="8" required></div>' +
     '<div class="field"><label for="pwN2">Type it again</label><input type="password" id="pwN2" autocomplete="new-password" minlength="8" required></div>' +
-    '<button class="btn btn-pri" type="submit">Change password</button></form></div></div>';
+    '<button class="btn btn-pri" type="submit">Change password</button></form></div></div>' +
+    '<div class="card" style="max-width:520px;margin-top:18px"><div class="cardHd"><h3>IPR Tracker link</h3></div><div class="cardBd">' + iprAccountHTML() + '</div></div>';
 }
 
+function iprAccountHTML() {
+  const L = iprLink(); if (!L.init()) return '<div class="small muted">Not available in this browser.</div>';
+  const u = L.user();
+  return u ? '<p class="small" style="margin-bottom:10px">Reading the IPR Tracker as <b>' + esc(u.email || 'signed in') + '</b> until you lock or sign out. Cases with a chart # show the latest IPR note.</p><button class="btn btn-sec btn-sm" data-act="iprDisconnect">Disconnect now</button>'
+    : '<p class="small" style="margin-bottom:10px">Not connected. Connect with the Google account the IPR Tracker uses; it disconnects again when you lock or sign out.</p><button class="btn btn-sec btn-sm" data-act="iprConnect">Connect IPR Tracker</button>';
+}
 /* ---------- staff dialogs ---------- */
 function issuedModal(name, res, reissue) {
   S.shownCode = res.temp;
@@ -1877,24 +2375,37 @@ const ADMIN_ACTS = {
       openModal('<h3>New recovery code</h3><div class="lsub">Print it or write it down. The old one no longer works.</div><div class="codeBox" id="recShow">' + esc(code) + '</div><div class="mFt"><button class="btn btn-sec" data-act="printCode">Print</button><button class="btn btn-pri" data-act="closeModal">I saved it</button></div>');
     } catch (x) { toast(errText(x), { bad: true }); }
   },
-  async loadActivity() {
-    const box = $('#actBox'); box.innerHTML = '<div class="small muted">Loading…</div>';
+  async loadDeleted() {
+    if (!$('#delBox')) return; $('#delBox').innerHTML = '<div class="small muted">Loading…</div>';
     try {
-      const list = await B.activity(7);
+      const list = await B.deletedCases(90); S.delList = list;
+      const box = $('#delBox'); if (!box) return;
+      box.innerHTML = list.length ? list.map((x, i) => '<div class="row" style="cursor:default"><span class="grow"><span class="pt">' + esc(x.data.patient || '(no name)') + '</span><span class="meta">' + esc(typeOf(x.data).l + ' · deleted ' + fmtWhen(x.at) + ' by ' + firstName(staffName(x.sid, x.sid))) + '</span></span><button class="btn btn-sec btn-sm" data-act="undelete" data-i="' + i + '">Restore</button></div>').join('')
+        : '<div class="small muted">Nothing deleted in the last 90 days.</div>';
+    } catch (x) { const box = $('#delBox'); if (box) box.innerHTML = '<div class="small" style="color:var(--coral-700)">' + esc(errText(x)) + '</div>'; }
+  },
+  async undelete(t) {
+    const x = S.delList && S.delList[Number(t.dataset.i)]; if (!x) return;
+    try { await B.undelete(x); toast((x.data.patient || 'Case') + ' restored'); ADMIN_ACTS.loadDeleted(); } catch (e) { toast(errText(e), { bad: true }); }
+  },
+  async loadActivity() {
+    if (!$('#actBox')) return; $('#actBox').innerHTML = '<div class="small muted">Loading…</div>';
+    try {
+      const list = await B.activity(7); const box = $('#actBox'); if (!box) return;
       if (!list.length) { box.innerHTML = '<div class="small muted">No activity in the last 7 days.</div>'; return; }
-      box.innerHTML = list.slice(0, 80).map(x => {
+      box.innerHTML = list.filter(x => x.a !== 'rekey').slice(0, 80).map(x => {
         const c = S.cases.get(x.caseId); const who = firstName(staffName(x.sid, x.sid));
-        const what = { create: 'created', import: 'imported', stage: 'moved', comment: 'commented on', close: 'completed', reopen: 'reopened', assign: 'reassigned', edit: 'edited' }[x.a] || x.a;
+        const what = { create: 'created', import: 'imported', stage: 'moved', comment: 'commented on', close: 'completed', reopen: 'reopened', assign: 'reassigned', edit: 'edited', restore: 'restored', delete: 'deleted', save: 'saved', rekey: 're-sealed' }[x.a] || x.a;
         return '<div class="hist"><time>' + esc(fmtWhen(x.at)) + '</time><span><b>' + esc(who) + '</b> ' + esc(what) + ' ' + (c ? '<button class="linkBtn" data-act="open" data-id="' + esc(c.id) + '">' + esc(c.patient) + '</button>' : 'a completed case') + '</span></div>';
       }).join('');
-    } catch (x) { box.innerHTML = '<div class="small" style="color:var(--coral-700)">' + esc(errText(x)) + '</div>'; }
+    } catch (x) { const box = $('#actBox'); if (box) box.innerHTML = '<div class="small" style="color:var(--coral-700)">' + esc(errText(x)) + '</div>'; }
   },
   async exportCSV() {
     if (!await confirmBox('Download every case?', 'The file will contain patient names. Keep it on an office computer and delete it when you’re done.', 'Download')) return;
     try {
       const all = await B.loadAll();
       all.forEach(c => { c.assigneeLabel = staffName(c.assignee, c.assigneeName); });
-      const head = ['Patient', 'Type', 'Detail', 'Stage', 'Status', 'Due', 'Scan', 'Lab completion', 'Delivery', 'Assigned', 'Dr. A instructions', 'Patient CC', 'IPR & spacing', 'Notes'].join(',');
+      const head = ['Patient', 'Type', 'Detail', 'Stage', 'Status', 'Due', 'Scan', 'Lab completion', 'Delivery', 'Assigned', 'Dr. A instructions', 'Patient CC', 'IPR & spacing', 'Notes', 'Chart #', 'Titan link', 'Also', 'Initial/refinement', 'Lab'].join(',');
       const blob = new Blob(['﻿' + head + '\n' + all.map(caseToCSVRow).join('\n')], { type: 'text/csv' });
       const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'nlo-cases-' + todayISO() + '.csv'; document.body.appendChild(a); a.click();
       setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
@@ -1996,6 +2507,7 @@ document.addEventListener('change', async e => {
   }
 });
 document.addEventListener('submit', async e => {
+  if (e.target.id === 'asForm2') { e.preventDefault(); return; }
   if (e.target.id !== 'pwForm') return; e.preventDefault();
   const cur = $('#pwCur').value, a = $('#pwN1').value, b = $('#pwN2').value;
   if (a.length < 8) return toast('Use at least 8 characters.', { bad: true });
@@ -2010,7 +2522,7 @@ async function rotateWithProgress(title) {
   try {
     const r = await B.rotate((n, tot) => { const b = $('#rotBar'); if (b) b.style.width = Math.round(n / tot * 100) + '%'; });
     closeModal();
-    toast('Office key changed. ' + r.cases + ' case' + (r.cases === 1 ? '' : 's') + ' re-sealed.' + (r.pendingInvites ? ' ' + r.pendingInvites + ' unused invite(s) need reissuing.' : ''), { ms: 6000 });
+    toast('Office key changed. ' + r.cases + ' case' + (r.cases === 1 ? '' : 's') + ' re-sealed.' + (r.pendingInvites ? ' ' + r.pendingInvites + ' unused invite(s) need reissuing.' : '') + (r.badKeys && r.badKeys.length ? ' Couldn’t give the new key to ' + r.badKeys.join(', ') + ' — reissue their login.' : ''), { ms: 9000 });
     queueRender();
   } catch (x) { closeModal(); toast('Key change stopped: ' + errText(x) + '. Run “Change office key now” again.', { bad: true, ms: 8000 }); }
 }
