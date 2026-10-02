@@ -63,6 +63,13 @@ const TYPES = [
   { k: 'misc', l: 'Other (misc.)', flow: 'misc', cls: 't-misc', legacy: true }
 ];
 const TYPE = Object.fromEntries(TYPES.map(t => [t.k, t]));
+/* where each outside aligner company's cases are worked on (Amir, 2 Oct 2026; not for appliances or InSmile) */
+const PORTALS = {
+  oliv: [{ l: 'Oliv portal', u: 'https://portal.olivortho.com/' }, { l: 'Dental Monitoring', u: 'https://dental-monitoring.com/doctor/login' }],
+  invisalign: [{ l: 'Invisalign Doctor Site', u: 'https://vip.invisalign.com/' }],
+  angel: [{ l: 'Angel iOrtho', u: 'https://iortho.angelalign.com/' }],
+  ulab: [{ l: 'uLab portal', u: 'https://hub.ulabsystems.net/' }]
+};
 /* types to offer in pickers: retired types only while some case still uses them (or one is already chosen) */
 function typesShown(cases, chosen) { return TYPES.filter(t => !t.legacy || t.k === chosen || (cases || []).some(c => c.type === t.k)); }
 const SCANNERS = ['Allied Star', 'iTero', 'Other'];

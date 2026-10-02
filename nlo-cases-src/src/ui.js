@@ -615,6 +615,7 @@ function renderDrawer() {
     '<button class="iconBtn" data-act="closeDrawer" aria-label="Close">' + ic('x') + '</button></div>' +
     '<div class="dBd"><div id="drawerNotice"></div>' +
     (done ? '<div class="notice info">Completed ' + esc(fmtWhen(c.closedAt)) + '</div>' : '') +
+    ((PORTALS[c.type] || []).length ? '<div class="portals">' + PORTALS[c.type].map(p => '<a class="btn btn-sec btn-sm" href="' + esc(p.u) + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'Open ' + esc(p.l) + '</a>').join('') + '</div>' : '') +
     '<div class="sec" style="margin-top:4px"><h5>Stage</h5><div class="stepper">' + flow.stages.map(([k, l], i) => { const g = stageGroup(flow, k);
       return (g && g.stages[0] === k ? '<div class="stepGrp">' + esc(g.l) + '</div>' : '') +
       '<button class="step ' + (i < si ? 'past' : i === si ? 'cur' : '') + (g ? ' sub' : '') + '" data-act="setStage" data-k="' + k + '"' + (done ? ' disabled' : '') + ' aria-pressed="' + (i === si) + '"><span class="n">' + (i < si ? '✓' : i + 1) + '</span>' + esc(l) + '</button>'; }).join('') + '</div></div>' +

@@ -51,7 +51,8 @@ function viewImport() {
     '<button class="btn btn-sec btn-sm" data-act="asLoad" type="submit">Load my Asana projects</button></form><div id="asProj" style="margin-top:12px"></div></div>' +
     '<div class="sec"><h5>Option 2 — CSV files</h5><p class="small muted" style="margin-bottom:8px">In each Asana project: ⌄ next to the name → Export/Print → CSV. Pick all the files together.</p>' +
     '<input type="file" id="csvFiles" accept=".csv,text/csv" multiple class="inp"></div>' +
-    '<label class="small" style="display:flex;gap:8px;align-items:center;margin-top:14px"><input type="checkbox" id="impDone"> Also bring completed tasks (history)</label>' +
+    '<label class="small" style="display:flex;gap:8px;align-items:center;margin-top:14px"><input type="checkbox" id="impDelivered" checked> Leave out cases already delivered — sitting in the last column (Front desk pick up, Checked into Milestones, Checked In) with a date more than 7 days ago or none</label>' +
+    '<label class="small" style="display:flex;gap:8px;align-items:center;margin-top:8px"><input type="checkbox" id="impDone"> Also bring completed tasks (history)</label>' +
     '<div id="impPreview" style="margin-top:14px"></div></div></div></div>' +
     '<div><div class="card"><div class="cardHd"><h3>Export</h3></div><div class="cardBd"><p class="small" style="margin-bottom:12px">Downloads every case (open and completed) as a spreadsheet. <b>The file contains patient names</b> — keep it on an office computer and delete it when you’re done.</p>' +
     '<button class="btn btn-sec btn-sm" data-act="exportCSV">' + ic('download', 15) + 'Download all cases (CSV)</button></div></div></div></div>';
@@ -227,20 +228,27 @@ async function previewImport(rows) {
   let existing;
   try { existing = new Set((await B.loadAll()).map(c => c.src && c.src.asana).filter(Boolean)); } catch (e) { existing = new Set(); }
   const roster = S.roster.map(r => ({ sid: r.sid, name: r.name }));
-  const list = []; let skipped = 0, doneSkipped = 0;
+  const list = []; let skipped = 0, doneSkipped = 0, delivered = 0;
+  const skipDelivered = !$('#impDelivered') || $('#impDelivered').checked, weekAgo = addDays(todayISO(), -7);
   rows.forEach(t => {
     if (t.gid && existing.has(String(t.gid))) { skipped++; return; }
     if (t.completed && !incDone) { doneSkipped++; return; }
-    const c = caseFromAsana(t, t.project, roster); if (!c.patient) return; list.push(c);
+    const c = caseFromAsana(t, t.project, roster); if (!c.patient) return;
+    // still open in Asana but already at the end (picked up / checked in) and not recent: delivered, so leave it out
+    if (skipDelivered && !t.completed && typeOf(c).flow !== 'misc') {
+      const st = flowOf(c).stages, when = c.deliveryDate || '';
+      if (c.stage === st[st.length - 1][0] && (!when || when < weekAgo)) { delivered++; return; }
+    }
+    list.push(c);
   });
-  S.impList = list;
+  S.impList = list; S.impRows = rows;
   const byType = {}; list.forEach(c => { const k = typeOf(c).l + (c._done ? ' (completed)' : ''); byType[k] = (byType[k] || 0) + 1; });
   const unmatched = Array.from(new Set(list.filter(c => c.assigneeName).map(c => c.assigneeName)));
   const box = $('#impPreview'); if (!box) return;
   box.innerHTML = '<div class="card" style="box-shadow:none"><div class="cardBd" style="padding:14px 16px">' +
     '<div class="flabel">Ready to import: ' + list.length + '</div>' +
     (list.length ? '<ul class="small" style="padding-left:18px;margin:6px 0 10px">' + Object.keys(byType).map(k => '<li>' + esc(k) + ': ' + byType[k] + '</li>').join('') + '</ul>' : '') +
-    (skipped ? '<div class="small muted">' + skipped + ' already imported — skipped.</div>' : '') + (doneSkipped ? '<div class="small muted">' + doneSkipped + ' completed tasks left out.</div>' : '') +
+    (skipped ? '<div class="small muted">' + skipped + ' already imported — skipped.</div>' : '') + (doneSkipped ? '<div class="small muted">' + doneSkipped + ' completed tasks left out.</div>' : '') + (delivered ? '<div class="small muted">' + delivered + ' already delivered (last column, older than a week) left out.</div>' : '') +
     (unmatched.length ? '<div class="notice" style="margin-top:10px">No login yet for: ' + esc(unmatched.join(', ')) + '. Their cases import with the name shown; add them on Team &amp; security first if you want them linked.</div>' : '') +
     (list.length ? '<button class="btn btn-pri btn-sm" style="margin-top:12px" data-act="doImport">Import ' + list.length + ' cases</button>' : '') + '</div></div>';
 }
@@ -254,6 +262,7 @@ document.addEventListener('change', async e => {
     }
     previewImport(rows);
   }
+  if (t.id === 'impDelivered' && S.impRows) previewImport(S.impRows);
   if (t.dataset && t.dataset.actDef) {
     const defs = Object.assign({}, S.settings.defaults || {}); defs[t.dataset.actDef] = t.value;
     act(() => B.saveSettings({ defaults: defs }), 'Saved');

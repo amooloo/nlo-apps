@@ -29,8 +29,8 @@ const INSTR = [
   { v: 'No posterior teeth movement', l: 'No posterior movement', ic: 'lock' },
   { v: 'Active retention', l: 'Active retention', ic: 'retain' }
 ];
-/* instruction tiles that only make sense for aligners (hidden for braces) */
-const ALIGNER_ONLY_INSTR = ['Aligners are not tracking well', 'Need to change attachment/hooks on one or more teeth'];
+/* instruction tiles that only make sense for aligners (hidden for braces; Active retention off for InSmile — Amir, 2 Oct 2026) */
+const ALIGNER_ONLY_INSTR = ['Aligners are not tracking well', 'Need to change attachment/hooks on one or more teeth', 'Active retention'];
 function goalText(goals) { goals = goals || {}; return GOALS.filter(gl => goals[gl.k]).map(gl => (goals[gl.k] === 'improve' ? 'Improve ' : 'Maintain ') + gl.t); }
 
 /* ---------- pictures (48×48, built from a few tooth shapes; colors come from CSS): Dr. A's instructions and the case types ---------- */
