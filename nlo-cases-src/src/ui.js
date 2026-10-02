@@ -419,7 +419,7 @@ function viewBoard() {
   return h;
 }
 function kcard(c, last) {
-  const mixed = S.boardFlow === 'outside' || S.boardFlow === 'inhouse';
+  const mixed = S.boardFlow === 'outside' || S.boardFlow === 'inhouse' || S.boardFlow === 'retainer';
   return '<div class="kc" data-act="open" data-id="' + esc(c.id) + '" role="button" tabindex="0">' +
     '<div class="pt">' + esc(c.patient || '(no name)') + '</div>' + (c.detail ? '<div class="dt">' + esc(c.detail) + '</div>' : '') +
     '<div class="ft">' + (mixed ? typeBadge(c) : '') + dueChip(c) + avatar(c) +
@@ -562,7 +562,7 @@ function renderDrawer() {
     kv('Created', esc((c.createdAt ? fmtWhen(c.createdAt) : '') + (c.createdBy ? ' · ' + firstName(staffName(c.createdBy, '')) : ''))) + kv('Last update', esc(c.updatedAt ? fmtWhen(c.updatedAt) + (c.by ? ' · ' + firstName(staffName(c.by, '')) : '') : '')) +
     '</div></div>' +
     (safeUrl(c.titanUrl) ? '<div class="sec"><a class="btn btn-sec btn-sm" href="' + esc(safeUrl(c.titanUrl)) + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'Open in Titan</a></div>' : '') +
-    ((c.appliances || []).length || c.lab || c.initial ? '<div class="sec"><h5>Case</h5><div class="pickRow">' + (c.appliances || []).map(x => '<span class="badge t-appl">' + esc(x) + '</span>').join('') + (c.lab ? '<span class="badge">' + esc(c.lab) + '</span>' : '') + (c.initial ? '<span class="badge">' + (c.initial === 'yes' ? 'Initial submission' : 'Refinement') + '</span>' : '') + '</div></div>' : '') +
+    ((c.appliances || []).length || c.lab || c.initial ? '<div class="sec"><h5>Case</h5><div class="pickRow">' + (c.appliances || []).map(x => '<span class="badge t-appl">' + esc(x) + '</span>').join('') + (c.lab ? '<span class="badge">' + esc(c.lab) + '</span>' : '') + (c.initial ? '<span class="badge">' + esc(submissionLabel(c.initial)) + '</span>' : '') + '</div></div>' : '') +
     txt('Dr. A’s instructions', c.instructions) +
     (c.teeth && Object.keys(c.teeth).length ? '<div class="sec"><h5>Tooth chart</h5><div class="tc ro">' + toothChartHTML(c.teeth, true) + '</div><div class="txt" style="margin-top:8px">' + esc(teethSummary(c.teeth)) + '</div></div>' : '') +
     ((c.extras || []).length ? '<div class="sec"><h5>Also</h5><div class="pickRow">' + c.extras.map(x => '<span class="badge t-retx">' + esc(x) + '</span>').join('') + '</div></div>' : '') +
@@ -612,7 +612,8 @@ function openModal(html, onReady) {
   closeModal();
   const w = document.createElement('div'); w.id = 'modalWrap';
   w.innerHTML = '<div class="modal" role="dialog" aria-modal="true">' + html + '</div>';
-  w.addEventListener('mousedown', e => { if (e.target === w) closeModal(); });
+  // a stray click outside a case form must not throw away what was tapped in
+  w.addEventListener('mousedown', e => { if (e.target === w && !w.querySelector('#ncForm')) closeModal(); });
   document.body.appendChild(w);
   const f = $('input:not([type=hidden]),select,textarea', w); if (f) f.focus();
   if (onReady) onReady(w);

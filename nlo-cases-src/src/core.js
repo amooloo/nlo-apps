@@ -23,7 +23,7 @@ const KDF_ITER = 600000;
 
 /* ---------- Case types and the stages each one moves through ---------- */
 const FLOWS = {
-  outside: { label: 'Outside aligners & InBrace', stages: [
+  outside: { label: 'Outside aligners & braces', stages: [
     ['submit', 'To submit'], ['dra', 'Dr. A action'], ['mfg', 'Manufacturing'],
     ['shipped', 'Shipped'], ['arrived', 'Arrived'], ['milestones', 'Checked into Milestones'] ] },
   appliance: { label: 'Appliances', stages: [
@@ -32,7 +32,7 @@ const FLOWS = {
   inhouse: { label: 'In-house lab', stages: [
     ['txp', 'TxP needed'], ['reset', 'Reset needed in 2 days'], ['fab', 'In fabrication'],
     ['pack', 'Made – needs packaging'], ['checkedin', 'Checked in'] ] },
-  retainer: { label: 'Retainers & whitening', stages: [
+  retainer: { label: 'Retainers & mouthguards', stages: [
     ['print', 'Printing'], ['milestones', 'Milestones'], ['sarah', 'On Sarah’s desk'], ['pickup', 'Front desk pickup'] ] },
   retreat: { label: 'Retreatment', stages: [
     ['intake', 'Intake & assessment'], ['review', 'Pending review'], ['proposal', 'Send proposal'],
@@ -44,10 +44,12 @@ const TYPES = [
   { k: 'angel', l: 'Angel Aligners', flow: 'outside', cls: 't-aligner', aligner: true },
   { k: 'invisalign', l: 'Invisalign', flow: 'outside', cls: 't-aligner', aligner: true },
   { k: 'ulab', l: 'uLab', flow: 'outside', cls: 't-aligner', aligner: true },
+  { k: 'insmile', l: 'InSmile', flow: 'outside', cls: 't-aligner' },
   { k: 'inbrace', l: 'InBrace', flow: 'outside', cls: 't-aligner' },
   { k: 'nla', l: 'In-house aligners', flow: 'inhouse', cls: 't-lab', aligner: true },
   { k: 'appliance', l: 'Appliance', flow: 'appliance', cls: 't-appl' },
   { k: 'retainer', l: 'Retainers & whitening', flow: 'retainer', cls: 't-ret' },
+  { k: 'mouthguard', l: 'Mouthguard', flow: 'retainer', cls: 't-ret' },
   { k: 'retreat', l: 'Retreatment', flow: 'retreat', cls: 't-retx' },
   { k: 'misc', l: 'Dr. A (misc.)', flow: 'misc', cls: 't-misc' }
 ];
@@ -178,7 +180,7 @@ function splitName(name) {
   return [s, ''];
 }
 const PROJECT_TYPES = [
-  [/oliv/i, 'oliv'], [/angel/i, 'angel'], [/invisalign/i, 'invisalign'], [/ulab/i, 'ulab'], [/inbrace/i, 'inbrace'],
+  [/oliv/i, 'oliv'], [/angel/i, 'angel'], [/invisalign/i, 'invisalign'], [/ulab/i, 'ulab'], [/insmile/i, 'insmile'], [/inbrace/i, 'inbrace'],
   [/nl lab|next level lab|in-?house/i, 'nla'], [/appliance/i, 'appliance'], [/retainer|whitening/i, 'retainer'], [/retreat/i, 'retreat']
 ];
 function typeFromProject(p) { const hit = PROJECT_TYPES.find(([re]) => re.test(p || '')); return hit ? hit[1] : ''; }
@@ -186,7 +188,7 @@ function stageFromSection(type, section) {
   const s = String(section || '').toLowerCase();
   const flow = FLOWS[(TYPE[type] || TYPE.misc).flow].stages.map(x => x[0]);
   const pick = k => flow.includes(k) ? k : flow[0];
-  if (type === 'retainer') {
+  if (type === 'retainer' || type === 'mouthguard') {
     if (/tt|wt/.test(s) && /-/.test(s)) return pick('print');
     if (/milestone/.test(s)) return pick('milestones');
     if (/sarah/.test(s)) return pick('sarah');
@@ -221,6 +223,7 @@ function caseFromAsana(t, projectName, roster) {
   const sectionName = t.section || '';
   let type = typeFromProject(projectName);
   if (type === 'nla' && /misc/i.test(sectionName)) type = 'misc';
+  if (type === 'retainer' && /mouth\s*guard/i.test(t.name || '')) type = 'mouthguard';
   if (!type) type = 'misc';
   const n = parseNotes(t.notes);
   const [pt, detail] = splitName(t.name);
@@ -230,7 +233,7 @@ function caseFromAsana(t, projectName, roster) {
     return hit ? hit.sid : '';
   };
   let assignee = findStaff(t.assignee);
-  if (type === 'retainer' && /-\s*tt/i.test(sectionName)) assignee = findStaff(sectionName.split('-')[0]) || assignee;
+  if ((type === 'retainer' || type === 'mouthguard') && /-\s*tt/i.test(sectionName)) assignee = findStaff(sectionName.split('-')[0]) || assignee;
   const iso = s => { s = String(s || '').trim(); if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10); const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/); if (m) { const y = m[3].length === 2 ? '20' + m[3] : m[3]; return y + '-' + m[1].padStart(2, '0') + '-' + m[2].padStart(2, '0'); } return ''; };
   let detailText = detail;
   if (!detailText && n.appliance) detailText = n.appliance + (n.alignerType ? ' (' + n.alignerType + ')' : '');
@@ -273,6 +276,6 @@ function csvCell(v) {
   return '"' + s.replace(/"/g, '""') + '"';
 }
 function caseToCSVRow(c) {
-  return [c.patient, typeOf(c).l, c.detail, stageLabel(c), c.status === 'done' ? 'Completed' : 'Open', c.dueDate, c.scanDate, c.labDate, c.deliveryDate, c.assigneeLabel || '', c.instructions, c.cc, c.ipr, c.notes, c.chart, c.titanUrl, (c.extras || []).join('; '), c.initial === 'yes' ? 'Initial' : c.initial === 'no' ? 'Refinement' : '', c.lab || '', (c.teethNote || '').replace(/\n/g, '; ')]
+  return [c.patient, typeOf(c).l, c.detail, stageLabel(c), c.status === 'done' ? 'Completed' : 'Open', c.dueDate, c.scanDate, c.labDate, c.deliveryDate, c.assigneeLabel || '', c.instructions, c.cc, c.ipr, c.notes, c.chart, c.titanUrl, (c.extras || []).join('; '), typeof submissionLabel === 'function' ? submissionLabel(c.initial) : '', c.lab || '', (c.teethNote || '').replace(/\n/g, '; ')]
     .map(csvCell).join(',');
 }

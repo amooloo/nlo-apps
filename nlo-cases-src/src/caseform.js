@@ -5,8 +5,8 @@
    aligner type, lab, initial submission, Dr. A's instructions, extras).
    ===================================================================== */
 const PICK = {
-  appliances: ['Herbst with Rollo Band', 'Space Closing Herbst', 'Rapid Palatal Expander (RPE)', 'Finger spring with no labial bow', 'Hawley retainers', 'MARPE', 'Schwartz'],
-  labs: ['Specialty Lab', 'Partner Dental Studio', 'In-house (NL Lab)'],
+  appliances: ['Herbst with Rollo Band', 'Space Closing Herbst', 'MARA', 'MSE', 'MARPE', 'Rapid Palatal Expander (RPE)', 'D2 distalizer', 'Finger spring with no labial bow', 'Hawley retainers', 'Schwartz'],
+  labs: ['Specialty Orthodontic Lab', 'Partner Dental Studios', 'In-house (NL Lab)'],
   scanners: ['Allied Star', 'iTero'],
   instr: ['Close all remaining residual spaces/gaps', 'Needs settling of posterior occlusion', 'Resolve black triangles', 'Anterior bite opening mechanics', 'Anterior open bite mechanics',
     'Aligners are not tracking well', 'Need to change attachment/hooks on one or more teeth', 'Class II correction is needed', 'Class III correction is needed',
@@ -14,18 +14,28 @@ const PICK = {
   extras: ['No IPR', 'No elastics', 'Mid-course correction', 'Next Level Express (5 aligners or less)'],
   arches: ['Upper', 'Lower'], retKinds: ['TT’s', 'WT’s']
 };
-/* lab routing from the office KB: Partners = RPE, Schwartz, Hawley, finger spring, MARPE; Specialty = Herbst */
-const LAB_FOR = { 'Herbst with Rollo Band': 'Specialty Lab', 'Space Closing Herbst': 'Specialty Lab', 'Rapid Palatal Expander (RPE)': 'Partner Dental Studio', 'Finger spring with no labial bow': 'Partner Dental Studio', 'Hawley retainers': 'Partner Dental Studio', 'MARPE': 'Partner Dental Studio', 'Schwartz': 'Partner Dental Studio' };
+/* lab routing from the AISA KB / SOP manual: MSE → Specialty Orthodontic Lab (SOP-CL-020); MARPE → Partner Dental Studios (SOP-CL-029);
+   D2 distalizer → in-house, no outside prescription (lab workflow, Layer 3 exception); Herbst, MARA → Specialty; RPE, Schwartz,
+   Hawley, finger spring → Partners (KB lab routing) */
+const LAB_SPEC = 'Specialty Orthodontic Lab', LAB_PART = 'Partner Dental Studios', LAB_IN = 'In-house (NL Lab)';
+const LAB_FOR = { 'Herbst with Rollo Band': LAB_SPEC, 'Space Closing Herbst': LAB_SPEC, 'MARA': LAB_SPEC, 'MSE': LAB_SPEC, 'MARPE': LAB_PART,
+  'Rapid Palatal Expander (RPE)': LAB_PART, 'D2 distalizer': LAB_IN, 'Finger spring with no labial bow': LAB_PART, 'Hawley retainers': LAB_PART, 'Schwartz': LAB_PART };
+/* instruction buttons that only make sense for aligners (hidden for braces) */
+const ALIGNER_ONLY_INSTR = ['Aligners are not tracking well', 'Need to change attachment/hooks on one or more teeth'];
 const TILES = [
   { v: 'oliv', l: 'Oliv', s: 'Aligners' }, { v: 'nla', l: 'In-house', s: 'Aligners · NL Lab' }, { v: 'finishing', l: 'Finishing aligners', s: 'In-house · NL Lab' },
-  { v: 'retainer', l: 'Retainers', s: 'TT’s / WT’s' }, { v: 'appliance', l: 'Appliance', s: 'Herbst, RPE, MARPE…' },
+  { v: 'retainer', l: 'Retainers', s: 'TT’s / WT’s' }, { v: 'mouthguard', l: 'Mouthguard', s: 'In-house · complimentary' }, { v: 'appliance', l: 'Appliance', s: 'Herbst, RPE, MARPE…' },
   { v: 'angel', l: 'Angel', s: 'Aligners' }, { v: 'ulab', l: 'uLab', s: 'Aligners' }, { v: 'invisalign', l: 'Invisalign', s: 'Aligners' },
-  { v: 'inbrace', l: 'InBrace / Brava', s: 'Lingual' }, { v: 'retreat', l: 'Retreatment', s: 'Review & proposal' }, { v: 'misc', l: 'Dr. A (misc.)', s: 'Study models, TxP…' }
+  { v: 'insmile', l: 'InSmile', s: 'Braces · Smartwire IDB' }, { v: 'inbrace', l: 'InBrace / Brava', s: 'Lingual' },
+  { v: 'retreat', l: 'Retreatment', s: 'Review & proposal' }, { v: 'misc', l: 'Dr. A (misc.)', s: 'Study models, TxP…' }
 ];
-const ALIGNERISH = ['oliv', 'angel', 'invisalign', 'ulab', 'nla', 'finishing', 'inbrace'];
+const ALIGNERISH = ['oliv', 'angel', 'invisalign', 'ulab', 'nla', 'finishing'];
+const BRACES = ['insmile', 'inbrace'];
 /* tiles that are in-house (NL Lab) aligner cases */
 const INHOUSE_TILES = ['nla', 'finishing'];
-function groupOfTile(v) { return ALIGNERISH.includes(v) ? 'aligner' : v === 'appliance' ? 'appliance' : v === 'retainer' ? 'retainer' : 'other'; }
+function groupOfTile(v) { return ALIGNERISH.includes(v) ? 'aligner' : BRACES.includes(v) ? 'braces' : v === 'appliance' ? 'appliance' : (v === 'retainer' || v === 'mouthguard') ? 'retainer' : 'other'; }
+/* how the submission is labelled on the case: refinement for aligners, digital enhancement for InSmile */
+function submissionLabel(v) { return v === 'yes' ? 'Initial submission' : v === 'no' ? 'Refinement' : /^de[123]$/.test(v || '') ? 'Digital enhancement ' + v.slice(2) + ' (DE' + v.slice(2) + ')' : ''; }
 const FORM_KEYS = ['type', 'patient', 'chart', 'detail', 'stage', 'assignee', 'assistant', 'scanner', 'scanDate', 'dueDate', 'labDate', 'deliveryDate',
   'initial', 'appliances', 'lab', 'arches', 'retKinds', 'instrPicks', 'instrOther', 'instructions', 'extras', 'teeth', 'cc', 'ipr', 'notes', 'titanUrl'];
 
@@ -88,7 +98,7 @@ function defaultAssignee(type) {
   const byFirst = n => (activeRoster().find(r => firstName(r.name).toLowerCase() === n) || {}).sid || '';
   const owner = (activeRoster().find(r => r.role === 'owner') || {}).sid || '';
   if (['oliv', 'angel', 'invisalign', 'appliance'].includes(type)) return byFirst('sarah') || '';
-  if (['ulab', 'inbrace', 'retainer'].includes(type)) return meSid();
+  if (['ulab', 'insmile', 'inbrace', 'retainer', 'mouthguard'].includes(type)) return meSid();
   return owner;
 }
 /* the patient's CC phrases this office uses most (learned from decrypted cases, in this browser only) */
@@ -112,6 +122,7 @@ function caseFormHTML(c, isNew) {
   const tile = c.type === 'nla' && c.variant === 'finishing' ? 'finishing' : (c.type || '');
   const g = groupOfTile(tile);
   const show = (groups) => ' data-show="' + groups + '"' + (groups.split(' ').includes(g) ? '' : ' style="display:none"');
+  const showTiles = (tiles) => ' data-tiles="' + tiles + '"' + (tiles.split(' ').includes(tile) ? '' : ' style="display:none"');
   const roster = activeRoster().filter(r => r.role !== 'owner');
   const stages = c.type ? FLOWS[TYPE[c.type].flow].stages : [];
   const opt = (v, l, sel) => '<option value="' + esc(v) + '"' + (sel ? ' selected' : '') + '>' + esc(l) + '</option>';
@@ -125,23 +136,24 @@ function caseFormHTML(c, isNew) {
     '<div class="cfSec"><div class="grid2"><div class="field"><label for="cf-patient">Patient name *</label><input id="cf-patient" autocomplete="off" value="' + esc(c.patient || '') + '" required></div>' +
     '<div class="field"><label for="cf-chart">Chart #</label><input id="cf-chart" autocomplete="off" spellcheck="false" inputmode="text" placeholder="For the IPR Tracker link" value="' + esc(c.chart || '') + '"></div></div></div>' +
     '<div class="cfSec"' + show('appliance') + '><h5>Appliance</h5>' + pickRow('appliances', PICK.appliances, c.appliances || [], true) +
-    '<h5>Lab</h5>' + pickRow('lab', PICK.labs, c.lab || '', false) + '</div>' +
-    '<div class="cfSec"' + show('retainer') + '><h5>Arch</h5>' + pickRow('arches', PICK.arches, c.arches || [], true) + '<h5>Making</h5>' + pickRow('retKinds', PICK.retKinds, c.retKinds || [], true) + '</div>' +
-    '<div class="cfSec"' + show('aligner appliance') + '><h5>Initial submission?</h5>' + pickRow('initial', [{ v: 'yes', l: 'Yes — first set' }, { v: 'no', l: 'No — refinement' }], c.initial || '', false) + '</div>' +
+    '<h5>Lab</h5>' + pickRow('lab', PICK.labs, c.lab || '', false) + '<div class="hint small" id="cf-labHint" style="margin-top:6px"></div></div>' +
+    '<div class="cfSec"' + show('retainer') + '><h5>Arch</h5>' + pickRow('arches', PICK.arches, c.arches || [], true) + '<div id="cf-retKindsWrap"' + (tile === 'mouthguard' ? ' style="display:none"' : '') + '><h5>Making</h5>' + pickRow('retKinds', PICK.retKinds, c.retKinds || [], true) + '</div></div>' +
+    '<div class="cfSec"' + show('aligner') + '><h5>Initial submission?</h5>' + pickRow('initial', [{ v: 'yes', l: 'Yes — first set' }, { v: 'no', l: 'No — refinement' }], c.initial || '', false) + '</div>' +
+    '<div class="cfSec"' + showTiles('insmile') + '><h5>Initial or digital enhancement?</h5>' + pickRow('initialDE', [{ v: 'yes', l: 'Initial' }, { v: 'de1', l: 'DE 1' }, { v: 'de2', l: 'DE 2' }, { v: 'de3', l: 'DE 3' }], c.initial || '', false) + '</div>' +
     '<div class="cfSec"><h5>Assistant</h5>' + pickRow('assistant', roster.map(r => ({ v: r.sid, l: firstName(r.name) })), c.assistant || '', false) +
-    '<div' + show('aligner appliance retainer') + '><h5>Scanner</h5>' + pickRow('scanner', PICK.scanners, c.scanner || '', false) + '</div></div>' +
+    '<div' + show('aligner braces appliance retainer') + '><h5>Scanner</h5>' + pickRow('scanner', PICK.scanners, c.scanner || '', false) + '</div></div>' +
     '<div class="cfSec"><h5>Dates</h5><div class="pickRow" style="margin-bottom:8px"><button type="button" class="pick sm" data-scan="0">Scanned today</button><button type="button" class="pick sm" data-scan="-1">Yesterday</button></div>' +
-    '<div class="grid4">' + date('cf-scanDate', 'Scan date', c.scanDate) + date('cf-dueDate', g === 'aligner' ? 'Due for Dr. A' : 'Due date', c.dueDate) + date('cf-labDate', 'Lab completion', c.labDate) + date('cf-deliveryDate', 'Delivery', c.deliveryDate) + '</div>' +
+    '<div class="grid4">' + date('cf-scanDate', 'Scan date', c.scanDate) + date('cf-dueDate', g === 'aligner' || g === 'braces' ? 'Due for Dr. A' : 'Due date', c.dueDate) + date('cf-labDate', 'Lab completion', c.labDate) + date('cf-deliveryDate', 'Delivery', c.deliveryDate) + '</div>' +
     '<div class="hint small muted" id="cf-autoHint" style="margin:-4px 0 0">Filled in from the scan date — change any of them.</div></div>' +
-    '<div class="cfSec"' + show('aligner') + '><h5>Dr. A’s instructions from last visit</h5>' + pickRow('instrPicks', PICK.instr, c.instrPicks || [], true) +
-    '<div class="field" style="margin-top:8px"><label for="cf-instrOther">Other instructions</label><textarea id="cf-instrOther" rows="2" placeholder="Only if it isn’t one of the buttons">' + esc(instrOther) + '</textarea></div>' +
-    '<h5>Tooth chart</h5><div class="tc" id="cf-tc"><div class="pickRow tcTools" role="radiogroup" aria-label="Marker">' +
+    '<div class="cfSec"' + show('aligner braces') + '><h5>Dr. A’s instructions from last visit</h5>' + pickRow('instrPicks', PICK.instr, c.instrPicks || [], true) +
+    '<div class="field" style="margin-top:8px"><label for="cf-instrOther">Other instructions</label><textarea id="cf-instrOther" rows="2" placeholder="Only if it isn’t one of the buttons">' + esc(instrOther) + '</textarea></div></div>' +
+    '<div class="cfSec"' + show('aligner') + '><h5>Tooth chart</h5><div class="tc" id="cf-tc"><div class="pickRow tcTools" role="radiogroup" aria-label="Marker">' +
     MARKS.map((m, i) => '<button type="button" class="pick sm tool m-' + m.k + '" data-tool="' + m.k + '" role="radio" aria-checked="' + (i === 0) + '">' + esc(m.l) + '</button>').join('') +
     '<span class="tcSep"></span><button type="button" class="pick sm" data-tq="ant">Anteriors 3–3</button><button type="button" class="pick sm" data-tq="post">Posteriors 4–7</button><button type="button" class="pick sm" data-tq="all">All teeth</button><button type="button" class="pick sm" data-tq="clear">Clear</button></div>' +
     '<div id="cf-tcChart">' + toothChartHTML(c.teeth, false) + '</div><div class="tcSum" id="cf-teethSum">' + esc(teethSummary(c.teeth) || 'Tap a marker, then tap teeth.') + '</div>' +
     '<input type="hidden" id="cf-teeth" value="' + esc(JSON.stringify(canonTeeth(c.teeth))) + '"></div>' +
     '<h5>Also</h5>' + pickRow('extras', PICK.extras, c.extras || [], true) + '</div>' +
-    '<div class="cfSec"' + show('aligner appliance') + '><h5>Patient’s CC from last visit</h5>' +
+    '<div class="cfSec"' + show('aligner braces appliance') + '><h5>Patient’s CC from last visit</h5>' +
     '<div class="pickRow" data-cc="1">' + ['None'].concat(ccs).map(t => '<button type="button" class="pick sm" data-cc="' + esc(t) + '">' + esc(t) + '</button>').join('') + '</div>' +
     '<div class="field" style="margin-top:8px"><label for="cf-cc" class="hidden">Patient’s CC</label><input id="cf-cc" autocomplete="off" placeholder="Tap above or type" value="' + esc(c.cc || '') + '"></div></div>' +
     '<div class="cfSec"' + show('aligner') + '><div class="field"><label for="cf-ipr" style="display:flex;align-items:center;gap:8px">IPR, spacing &amp; black triangles<span style="flex:1"></span><button type="button" class="btn btn-ghost" data-act="iprPull" style="min-height:30px;padding:2px 10px;font-size:12px">' + ic('download', 14) + 'Get from IPR Tracker</button></label>' +
@@ -161,16 +173,20 @@ function readCaseForm(root) {
   ['patient', 'chart', 'detail', 'stage', 'assignee', 'scanDate', 'dueDate', 'labDate', 'deliveryDate', 'instrOther', 'cc', 'ipr', 'notes', 'titanUrl'].forEach(k => { const el = $('#cf-' + k, root); o[k] = el ? String(el.value || '').trim() : ''; });
   o.assistant = pressed(root, 'assistant')[0] || '';
   o.scanner = pressed(root, 'scanner')[0] || '';
-  o.initial = pressed(root, 'initial')[0] || '';
+  const g0 = groupOfTile(tile);
+  o.initial = tile === 'insmile' ? (pressed(root, 'initialDE')[0] || '') : g0 === 'aligner' ? (pressed(root, 'initial')[0] || '') : '';
   o.lab = pressed(root, 'lab')[0] || '';
   o.appliances = pressed(root, 'appliances'); o.arches = pressed(root, 'arches'); o.retKinds = pressed(root, 'retKinds');
   o.instrPicks = pressed(root, 'instrPicks'); o.extras = pressed(root, 'extras');
   try { o.teeth = canonTeeth(JSON.parse($('#cf-teeth', root).value || '{}')); } catch (e) { o.teeth = {}; }
   o.teethNote = teethSummary(o.teeth);
   const g = groupOfTile(tile);
-  if (g !== 'aligner') { o.instrPicks = []; o.extras = []; o.teeth = {}; o.teethNote = ''; }
+  if (g === 'braces') o.instrPicks = o.instrPicks.filter(x => !ALIGNER_ONLY_INSTR.includes(x));
+  if (g !== 'aligner' && g !== 'braces') o.instrPicks = [];
+  if (g !== 'aligner') { o.extras = []; o.teeth = {}; o.teethNote = ''; }
   if (g !== 'appliance') { o.appliances = []; o.lab = ''; }
   if (g !== 'retainer') { o.arches = []; o.retKinds = []; }
+  if (tile === 'mouthguard') o.retKinds = [];
   if (!(o.type === 'nla')) o.titanUrl = '';
   o.instructions = o.instrPicks.concat(o.instrOther ? [o.instrOther] : []).join('; ');
   return o;
@@ -180,10 +196,12 @@ function autoDetail(o, tile) {
   const t = TILES.find(x => x.v === tile);
   if (tile === 'finishing') return 'Finishing aligners' + (o.initial === 'no' ? ' – refinement' : '');
   if (['oliv', 'angel', 'invisalign', 'ulab', 'nla'].includes(tile)) return 'Aligners (' + (tile === 'nla' ? 'In-House' : t.l) + ')' + (o.initial === 'no' ? ' – refinement' : '');
-  if (tile === 'inbrace') return 'InBrace/Brava' + (o.initial === 'no' ? ' – refinement' : '');
+  if (tile === 'inbrace') return 'InBrace/Brava';
+  if (tile === 'insmile') return 'InSmile braces' + (/^de[123]$/.test(o.initial) ? ' – DE' + o.initial.slice(2) : '');
   if (tile === 'appliance') return o.appliances.join(', ');
-  if (tile === 'retainer') {
+  if (tile === 'retainer' || tile === 'mouthguard') {
     const arch = o.arches.length === 2 ? 'U/L' : o.arches[0] === 'Upper' ? 'U' : o.arches[0] === 'Lower' ? 'L' : '';
+    if (tile === 'mouthguard') return 'Mouthguard' + (arch ? ' (' + arch + ')' : '');
     const kinds = o.retKinds.join(' and ');
     return [arch, kinds].filter(Boolean).join(' ');
   }
@@ -197,19 +215,23 @@ function wireCaseForm(root, isNew) {
   const refresh = (typeChanged) => {
     const tile = $r('#cf-tile').value; const g = groupOfTile(tile); const o = readCaseForm(root);
     $$('[data-show]', root).forEach(el => { el.style.display = el.dataset.show.split(' ').includes(g) ? '' : 'none'; });
+    $$('[data-tiles]', root).forEach(el => { el.style.display = el.dataset.tiles.split(' ').includes(tile) ? '' : 'none'; });
+    $$('.pickRow[data-g="instrPicks"] .pick', root).forEach(b => { if (ALIGNER_ONLY_INSTR.includes(b.dataset.v)) b.style.display = g === 'braces' ? 'none' : ''; });
     const tw = $r('#cf-titanWrap'); if (tw) tw.style.display = INHOUSE_TILES.includes(tile) ? '' : 'none';
-    const dueLbl = $('label[for="cf-dueDate"]', root); if (dueLbl) dueLbl.textContent = g === 'aligner' ? 'Due for Dr. A' : 'Due date';
+    const rk = $r('#cf-retKindsWrap'); if (rk) rk.style.display = tile === 'mouthguard' ? 'none' : '';
+    const dueLbl = $('label[for="cf-dueDate"]', root); if (dueLbl) dueLbl.textContent = g === 'aligner' || g === 'braces' ? 'Due for Dr. A' : 'Due date';
     if (typeChanged) {
       const type = o.type, stage = $r('#cf-stage');
       stage.innerHTML = type ? FLOWS[TYPE[type].flow].stages.map(([k, l]) => '<option value="' + k + '">' + esc(l) + '</option>').join('') : '';
-      if (isNew && type) $r('#cf-assignee').value = defaultAssignee(type);
-      if (isNew && ['aligner', 'appliance', 'retainer'].includes(g) && !pressed(root, 'scanner').length) setPick(root, 'scanner', 'Allied Star', true);
+      if (isNew && type) { stage.dataset.manual = ''; $r('#cf-assignee').dataset.manual = ''; $r('#cf-assignee').value = defaultAssignee(type); }
+      if (isNew && ['aligner', 'braces', 'appliance', 'retainer'].includes(g) && !pressed(root, 'scanner').length) setPick(root, 'scanner', 'Allied Star', true);
+      if (g === 'appliance') routeLab(root, isNew);
     }
     // dates from the scan date (only fields nobody has typed into)
     const scan = $r('#cf-scanDate').value;
     if (isNew && scan) {
-      const plan = tile === 'retainer' ? { 'cf-dueDate': addClinicDays(scan, 2), 'cf-labDate': '', 'cf-deliveryDate': '' }
-        : g === 'aligner' ? { 'cf-dueDate': addDays(scan, 14), 'cf-labDate': addDays(scan, 21), 'cf-deliveryDate': addDays(scan, 28) }
+      const plan = (tile === 'retainer' || tile === 'mouthguard') ? { 'cf-dueDate': addClinicDays(scan, 2), 'cf-labDate': '', 'cf-deliveryDate': '' }
+        : (g === 'aligner' || g === 'braces') ? { 'cf-dueDate': addDays(scan, 14), 'cf-labDate': addDays(scan, 21), 'cf-deliveryDate': addDays(scan, 28) }
           : { 'cf-dueDate': '', 'cf-labDate': '', 'cf-deliveryDate': '' };
       autoIds.forEach(id => { const el = $r('#' + id); if (el.dataset.auto === '1') el.value = plan[id]; });
     }
@@ -223,7 +245,8 @@ function wireCaseForm(root, isNew) {
       const row = pk.closest('.pickRow'); const multi = row.dataset.multi === '1'; const was = pk.getAttribute('aria-pressed') === 'true';
       if (multi) pk.setAttribute('aria-pressed', String(!was));
       else { $$('.pick', row).forEach(b => b.setAttribute('aria-pressed', 'false')); if (!was) pk.setAttribute('aria-pressed', 'true'); }
-      if (row.dataset.g === 'appliances') { const ap = pressed(root, 'appliances'); const lab = ap.map(a => LAB_FOR[a]).find(Boolean); if (lab && !pressed(root, 'lab').length) setPick(root, 'lab', lab, true); }
+      if (row.dataset.g === 'lab') row.dataset.manual = '1';
+      if (row.dataset.g === 'appliances') routeLab(root, isNew);
       refresh(false); return;
     }
     const tool = e.target.closest('.tcTools [data-tool]');
@@ -247,9 +270,25 @@ function wireCaseForm(root, isNew) {
     const cc = e.target.closest('.pick[data-cc]');
     if (cc && root.contains(cc)) { $r('#cf-cc').value = cc.dataset.cc === 'None' ? 'None' : cc.dataset.cc; return; }
   });
+  ['cf-stage', 'cf-assignee'].forEach(id => $r('#' + id).addEventListener('change', e => { e.target.dataset.manual = '1'; }));
+  // editing: a lab already on the case stays unless someone taps another one
+  const labRow = $('.pickRow[data-g="lab"]', root); if (!isNew && labRow && pressed(root, 'lab').length) labRow.dataset.manual = '1';
   $r('#cf-scanDate').addEventListener('change', () => refresh(false));
   $r('#cf-scanDate').addEventListener('input', () => refresh(false));
   refresh(false);
+}
+/* pre-select the lab for the tapped appliances (unless someone picked a lab by hand); in-house D2 starts in fabrication with Dr. A */
+function routeLab(root, isNew) {
+  const ap = pressed(root, 'appliances'); const labs = Array.from(new Set(ap.map(a => LAB_FOR[a]).filter(Boolean)));
+  const row = $('.pickRow[data-g="lab"]', root); const hint = $('#cf-labHint', root);
+  if (row && row.dataset.manual !== '1') { $$('.pick', row).forEach(b => b.setAttribute('aria-pressed', 'false')); if (labs[0]) setPick(root, 'lab', labs[0], true); }
+  if (hint) hint.textContent = labs.length > 1 ? 'These go to different labs (' + labs.join(', ') + ') — make one case per lab.' : labs.length ? 'Lab picked from the office routing — tap another to change.' : '';
+  if (hint) hint.style.color = labs.length > 1 ? 'var(--coral-700)' : 'var(--grey-500)';
+  if (!isNew) return;
+  const inHouse = labs.length === 1 && labs[0] === LAB_IN;
+  const st = $('#cf-stage', root), as = $('#cf-assignee', root);
+  if (st && st.dataset.manual !== '1') st.value = inHouse ? 'mfg' : 'submit';
+  if (as && as.dataset.manual !== '1') as.value = inHouse ? ((activeRoster().find(r => r.role === 'owner') || {}).sid || '') : defaultAssignee('appliance');
 }
 function setPick(root, g, v, on) { const b = $('.pickRow[data-g="' + g + '"] .pick[data-v="' + CSS.escape(v) + '"]', root); if (b) b.setAttribute('aria-pressed', String(!!on)); }
 function editDirty() {
