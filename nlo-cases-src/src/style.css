@@ -457,6 +457,9 @@ td.shipCol .flags{margin-top:0}
 .gate{background:var(--grey-50);border:1px solid var(--grey-100);border-radius:12px;padding:12px 14px;margin-bottom:12px;font-size:13.5px;color:var(--navy)}
 .gate>b{display:block;margin-bottom:6px}
 .gateRow{display:flex;align-items:center;gap:10px;font-weight:600;padding:6px 0;cursor:pointer}
+.gate .alRow{margin:4px 0 10px}
+.gate .h5n{font-weight:500;color:var(--grey-500);font-size:12px}
+.alAt{font-size:13px;color:var(--navy);margin:4px 0 2px}
 .gateRow input{width:18px;height:18px;accent-color:var(--navy);flex:none}
 .tsvg .tms{fill:var(--navy)}
 .tsvg .tjs{fill:#fff;stroke:var(--navy);stroke-width:1.2}

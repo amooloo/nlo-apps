@@ -30,7 +30,8 @@ async function verifyEmail(email) {
 async function newPage(browser, label, errs, vp) {
   const ctx = await browser.newContext({ viewport: vp || { width: 1360, height: 900 }, acceptDownloads: true });
   await routes(ctx); const p = await ctx.newPage(); watch(p, errs, label); global.__errs = errs; (global.__pages = global.__pages || []).push({ l: label, p });
-  p.on('response', r => { if (r.status() === 403) forbidden.push(label + ' @ ' + SECTION + ' :: ' + r.request().method() + ' ' + r.url().replace(/\?.*/, '')); });
+  p.on('response', r => { if (r.status() === 403) { let docs = ''; try { docs = Array.from(new Set((r.request().postData() || '').match(/documents\/[A-Za-z_]+\/[A-Za-z0-9_\-]+/g) || [])).map(x => x.replace('documents/', '')).join(' '); } catch (e) { }
+    forbidden.push(label + ' @ ' + SECTION + ' :: ' + r.request().method() + ' ' + r.url().replace(/\?.*/, '') + (docs ? ' [' + docs + ']' : '') + ' ' + new Date().toISOString().slice(11, 23)); } });
   return p;
 }
 async function signIn(p, user, pw) {
@@ -361,9 +362,16 @@ async function openByName(p, name) {
   await owner.fill('#cf-titanUrl', 'https://titan.example/cases/12345'); await owner.click('#ncSave');
   await owner.waitForSelector('#modalWrap', { state: 'detached', timeout: 20000 });
   await openByName(owner, 'Tobias Titancase');
-  const href = await owner.getAttribute('#drawer a:has-text("Open in Titan")', 'href');
-  check(href === 'https://titan.example/cases/12345', 'Open in Titan goes to the saved link');
-  check((await owner.getAttribute('#drawer a:has-text("Open in Titan")', 'rel')).includes('noopener'), 'Titan link opens safely in a new tab');
+  const href = await owner.getAttribute('#drawer a:has-text("Open this case in Titan")', 'href');
+  check(href === 'https://titan.example/cases/12345', 'Open this case in Titan goes to the saved link');
+  check((await owner.getAttribute('#drawer a:has-text("Open this case in Titan")', 'rel')).includes('noopener'), 'Titan link opens safely in a new tab');
+  check(await owner.getAttribute('#drawer .portals a:has-text("Open Titan (web)")', 'href') === 'https://client.titandentaldesign.com/Live/index.html'
+    && await owner.getAttribute('#drawer .portals a:has-text("Open Titan beta (web)")', 'href') === 'https://client.titandentaldesign.com/EA/index.html', 'in-house cases open Titan’s web version and its beta');
+  await owner.evaluate(() => { window.__copied = null; navigator.clipboard.writeText = t => { window.__copied = t; return Promise.resolve(); }; });
+  await owner.evaluate(() => { const a = document.querySelector('#drawer .portals a[href*="titandentaldesign.com/EA"]'); a.addEventListener('click', e => e.preventDefault(), { once: true }); a.click(); });
+  await owner.waitForFunction(() => window.__copied, null, { timeout: 5000 }).catch(() => {});
+  check(await owner.evaluate(() => window.__copied) === 'Tobias Titancase', 'opening Titan copies the patient’s name to paste in Titan’s search');
+  await owner.evaluate(() => { delete navigator.clipboard.writeText; }); // the real clipboard again (later steps read it)
   await owner.click('#drawer [data-act=closeDrawer] >> nth=0');
 
   console.log('\n# Tap-first form: choices land on the case');
@@ -592,7 +600,11 @@ async function openByName(p, name) {
   await owner.click('#ncSave'); await owner.waitForSelector('#modalWrap', { state: 'detached', timeout: 20000 });
   await openByName(owner, 'Nadia Setcount');
   check((await owner.locator('#drawer .stepGrp:has-text("In fabrication")').count()) === 1 && (await owner.locator('#drawer .step.sub').count()) === 7, 'the stepper shows the seven fabrication steps under In fabrication');
-  await owner.click('#drawer .step[data-k=fab]'); await owner.waitForSelector('#drawer .step.cur[data-k=fab]', { timeout: 15000 });
+  await owner.click('#drawer .step[data-k=fab]'); await owner.waitForSelector('#gAl', { timeout: 10000 });
+  check(await owner.inputValue('#gAlU') === '20' && await owner.inputValue('#gAlL') === '20' && await owner.isDisabled('#gGo'), 'Export STLs asks for the aligners (filled in: U 20 · L 20) and waits for the attachment-template answer');
+  await owner.click('.pickRow[data-g=gAt] .pick[data-v=UL]'); await owner.click('#gGo');
+  await owner.waitForSelector('#drawer .step.cur[data-k=fab]', { timeout: 15000 });
+  check(/Attachment templates: Upper & Lower/.test(await owner.textContent('#alBox')), 'the answer is saved with the move (Attachment templates: Upper & Lower)');
   check(/40 aligners in this set \(U 20 · L 20\)/.test(await owner.textContent('#alBox')) && /Patient total: 40 aligners/.test(await owner.textContent('#alBox')), 'the case shows its 40 aligners (U 20 · L 20) and the patient total');
   await owner.click('#drawer [data-act=closeDrawer] >> nth=0');
   await owner.click('#nav-board'); await owner.fill('#q', ''); await owner.click('[data-act=flow][data-k=inhouse]');

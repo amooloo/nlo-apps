@@ -513,6 +513,7 @@ function alignerTotalHTML(c, inForm) {
   const arches = c.alU || c.alL ? ' (U ' + (c.alU || 0) + ' · L ' + (c.alL || 0) + ')' : '';
   return '<div class="alThis">' + (me.n ? '<b>' + me.n + '</b> aligners in this set' + (inForm ? '' : arches + ' · ' + esc(me.l)) + (est != null ? ' <span class="alEst">est. ' + money(est) + '</span>' : '')
       : '<span class="muted">' + (inForm ? 'Enter the upper and lower aligners from Titan.' : 'Aligners in this set not entered yet — add the upper and lower counts from Titan with Edit.') + '</span>') + '</div>' +
+    (inForm ? '' : '<div class="alAt">Attachment templates: ' + (c.atTemplates ? '<b>' + esc(atLabel(c.atTemplates)) + '</b>' : '<span class="muted">not answered yet — asked when it moves to Export STLs</span>') + '</div>') +
     '<div class="alSum"><span class="alT">Patient total: <b>' + total + '</b> aligners' + (estAll != null && total ? ' <span class="alEst">est. ' + money(estAll) + '</span>' : '') + '</span>' + (sets.length > 1 || inForm ? parts : '') + '</div>' +
     (missing ? '<div class="small muted">' + missing + ' set' + (missing > 1 ? 's have' : ' has') + ' no count yet, so the total may be low.</div>' : '') +
     (est == null && isOwner() && me.n ? '<div class="small muted">Set the cost per aligner in Team &amp; security to see an estimated cost.</div>' : '') + wait +
@@ -760,7 +761,7 @@ function refreshDrawer(gone) {
 async function loadHistory(id) {
   try { const h = await B.caseLog(id); if (S.openId === id) { S.history = h; const el = $('#histBox'); if (el) el.innerHTML = historyHTML(findCase(id)); } } catch (e) { }
 }
-const FIELD_LABELS = { photo: 'photo', labRef: 'lab case #', labHold: 'lab hold', planUrl: 'plan link', shipToPatient: 'ship to patient', records: 'records on file', zoomDate: 'Zoom call', zoomTime: 'Zoom call', tracking: 'tracking #', carrier: 'carrier', teeth: 'tooth chart', teethNote: 'tooth chart', chart: 'chart #', titanUrl: 'Titan link', initial: 'initial/refinement', appliances: 'appliance', lab: 'lab', arches: 'arch', retKinds: 'retainer type', goals: 'Dr. A’s instructions', instrPicks: 'Dr. A’s instructions', instrOther: 'Dr. A’s instructions', extras: 'extras', variant: 'case type', type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery date', deliveryTime: 'delivery time', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes' };
+const FIELD_LABELS = { photo: 'photo', labRef: 'lab case #', labHold: 'lab hold', planUrl: 'plan link', shipToPatient: 'ship to patient', records: 'records on file', zoomDate: 'Zoom call', zoomTime: 'Zoom call', tracking: 'tracking #', carrier: 'carrier', teeth: 'tooth chart', teethNote: 'tooth chart', chart: 'chart #', titanUrl: 'Titan link', initial: 'initial/refinement', appliances: 'appliance', lab: 'lab', arches: 'arch', retKinds: 'retainer type', goals: 'Dr. A’s instructions', instrPicks: 'Dr. A’s instructions', instrOther: 'Dr. A’s instructions', extras: 'extras', variant: 'case type', type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery date', deliveryTime: 'delivery time', alU: 'aligners', alL: 'aligners', aligners: 'aligners', atTemplates: 'attachment templates', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes' };
 function historyHTML(c) {
   const h = S.history; if (!h) return '<div class="small muted">Loading…</div>'; if (!h.length) return '<div class="small muted">No history yet.</div>';
   const stageName = k => { const s = c && flowOf(c).stages.find(x => x[0] === k); return s ? s[1] : k; };
@@ -814,7 +815,10 @@ function renderDrawer() {
     // a MARPE entered (or imported) as an appliance before MARPE had its own steps: one click moves it over
     (!done && isOldMarpe(c) ? '<div class="notice info mpOld"><span>MARPE has its own steps now: records, lab, Zoom call, design approval, delivery.</span><button class="btn btn-sec btn-sm" data-act="toMarpe">Switch to MARPE steps</button></div>' : '') +
     // the lab's own link to this patient's plan (from its email), then the company portals
-    ((PORTALS[c.type] || []).length || safeUrl(c.planUrl) ? '<div class="portals">' + (safeUrl(c.planUrl) && okLabLink(c.type, c.planUrl) ? '<a class="btn btn-pri btn-sm" data-act="portal" href="' + esc(safeUrl(c.planUrl)) + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'View treatment plan</a>' : '') + (PORTALS[c.type] || []).map(p => '<a class="btn btn-sec btn-sm" data-act="portal" href="' + esc(p.u) + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'Open ' + esc(p.l) + '</a>').join('') +
+    // in-house: the case's own Titan link first (when saved), then Titan's web version and its beta
+    ((PORTALS[c.type] || []).length || safeUrl(c.planUrl) || safeUrl(c.titanUrl) ? '<div class="portals">' +
+      (safeUrl(c.titanUrl) ? '<a class="btn btn-pri btn-sm" data-act="portal" href="' + esc(safeUrl(c.titanUrl)) + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'Open this case in Titan</a>' : '') +
+      (safeUrl(c.planUrl) && okLabLink(c.type, c.planUrl) ? '<a class="btn btn-pri btn-sm" data-act="portal" href="' + esc(safeUrl(c.planUrl)) + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'View treatment plan</a>' : '') + (PORTALS[c.type] || []).map(p => '<a class="btn btn-sec btn-sm" data-act="portal" href="' + esc(p.u) + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'Open ' + esc(p.l) + '</a>').join('') +
       '<span class="small muted">Opening a portal copies the patient’s name — paste it in the portal’s search.</span></div>' : '') +
     '<div class="sec" style="margin-top:4px"><h5>Stage</h5><div class="stepper">' + flow.stages.map(([k, l], i) => { const g = stageGroup(flow, k);
       return (g && g.stages[0] === k ? '<div class="stepGrp' + (i <= si ? ' d' : '') + '">' + esc(g.l) + '</div>' : '') +
@@ -833,7 +837,6 @@ function renderDrawer() {
     kv('Assistant', esc(staffName(c.assistant, c.assistantName))) + kv('Scanner', esc(c.scanner)) + kv('Chart #', esc(c.chart || '')) +
     kv('Created', esc((c.createdAt ? fmtWhen(c.createdAt) : '') + (c.createdBy ? ' · ' + firstName(staffName(c.createdBy, '')) : ''))) + kv('Last update', esc(c.updatedAt ? fmtWhen(c.updatedAt) + (c.by ? ' · ' + firstName(staffName(c.by, '')) : '') : '')) +
     '</div></div>' +
-    (safeUrl(c.titanUrl) ? '<div class="sec"><a class="btn btn-sec btn-sm" href="' + esc(safeUrl(c.titanUrl)) + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'Open in Titan</a></div>' : '') +
     ((c.appliances || []).length || c.lab || c.initial || (c.extras || []).length ? '<div class="sec"><h5>Case</h5><div class="pickRow">' + (c.appliances || []).map(x => '<span class="badge t-appl">' + esc(x) + '</span>').join('') + (c.lab ? '<span class="badge">' + esc(c.lab) + '</span>' : '') + (c.initial ? '<span class="badge">' + esc(submissionLabel(c.initial)) + '</span>' : '') + (c.extras || []).map(x => '<span class="badge t-retx">' + esc(x) + '</span>').join('') + '</div></div>' : '') +
     (c.type === 'nla' ? '<div class="sec" id="alBox"><h5>Aligners</h5>' + alignerTotalHTML(c, false) + '</div>' : '') +
     // retainers & whitening trays: a label for the bag, then it offers to complete the case (Amir, 2 Oct 2026)
@@ -874,16 +877,26 @@ function stageGateModal(c, to, needs, extra) {
       '<label class="gateRow"><input type="checkbox" data-rec="' + k + '"' + (r.includes(k) ? ' checked' : '') + '>' + esc(l) + '</label>').join('') + '</div>' : '') +
     (needs.includes('zoom') ? '<div class="gate"><b>When is the Zoom call?</b><div class="zoomRow"><div class="field"><label for="gZoomDate">Date</label><input type="date" id="gZoomDate"></div>' +
       '<div class="field"><label for="gZoomTime">Time</label><input type="time" id="gZoomTime"></div></div></div>' : '') +
+    // in-house: the aligners in this set (from Titan) and any attachment templates, as it reaches Export STLs
+    (needs.includes('aligners') ? '<div class="gate" id="gAl"><b>How many aligners in this set? <span class="h5n">from Titan</span></b><div class="alRow">' +
+      '<div class="field"><label for="gAlU">Upper aligners</label><input id="gAlU" type="number" inputmode="numeric" min="0" max="99" step="1" placeholder="0" value="' + esc(c.alU || '') + '"></div>' +
+      '<div class="field"><label for="gAlL">Lower aligners</label><input id="gAlL" type="number" inputmode="numeric" min="0" max="99" step="1" placeholder="0" value="' + esc(c.alL || '') + '"></div></div>' +
+      '<b style="margin-top:6px">Any attachment templates?</b>' + pickRow('gAt', AT_OPTS, c.atTemplates || '', false) + '</div>' : '') +
     '<div class="mFt"><button class="btn btn-sec" type="button" data-act="closeModal">Cancel</button><button class="btn btn-pri" type="button" id="gGo">Move to “' + esc(lbl) + '”</button></div>', w => {
-      const go = $('#gGo', w), zd = $('#gZoomDate', w);
-      const ok = () => $$('input[data-rec]', w).every(i => i.checked) && (!zd || !!zd.value);
+      const go = $('#gGo', w), zd = $('#gZoomDate', w), al = $('#gAl', w);
+      const n = id => Math.min(99, Math.max(0, parseInt($(id, w).value, 10) || 0));
+      const atV = () => (($('.pickRow[data-g=gAt] .pick[aria-pressed=true]', w) || {}).dataset || {}).v || '';
+      const ok = () => $$('input[data-rec]', w).every(i => i.checked) && (!zd || !!zd.value) && (!al || (n('#gAlU') + n('#gAlL') > 0 && !!atV()));
       const sync = () => { go.disabled = !ok(); };
-      w.addEventListener('change', sync); w.addEventListener('input', sync); sync();
+      w.addEventListener('change', sync); w.addEventListener('input', sync);
+      w.addEventListener('click', e => { const b = e.target.closest('.pickRow[data-g=gAt] .pick'); if (!b) return; $$('.pickRow[data-g=gAt] .pick', w).forEach(x => x.setAttribute('aria-pressed', String(x === b))); sync(); });
+      sync();
       go.onclick = () => {
         if (!ok()) return; const add = Object.assign({}, extra);
         if ($('#gRecs', w)) add.records = MARPE_RECORDS.map(x => x[0]);
         if (zd) { add.zoomDate = zd.value; add.zoomTime = $('#gZoomTime', w).value || ''; }
-        closeModal(); moveStage(c.id, to, add);
+        if (al) { const u = n('#gAlU'), l = n('#gAlL'); add.alU = u || ''; add.alL = l || ''; add.aligners = u + l || ''; add.atTemplates = atV(); }
+        closeModal(); moveStage(c.id, to, add, needs);
       };
     });
 }
@@ -1021,11 +1034,12 @@ async function copyText(s) {
 }
 async function act(fn, okMsg) { try { await fn(); if (okMsg) toast(okMsg); } catch (e) { toast(errText(e), { bad: true }); } }
 function nextStage(c) { const st = flowOf(c).stages; const i = stageIndex(c); return i >= 0 && i < st.length - 1 ? st[i + 1][0] : null; }
-/* `extra` = fields saved with the move (e.g. MARPE records, the Zoom call); a move that still needs something asks first */
-async function moveStage(id, to, extra) {
+/* `extra` = fields saved with the move (e.g. MARPE records, the Zoom call, aligner counts); a move that still needs something
+   asks first; `asked` = what the asking window already collected */
+async function moveStage(id, to, extra, asked) {
   const c = findCase(id); if (!c || c.stage === to) return;
   extra = extra || {};
-  const needs = stageNeeds(Object.assign({}, c, extra), to);
+  const needs = stageNeeds(Object.assign({}, c, extra), to).filter(x => !(asked || []).includes(x));
   if (needs.length) { stageGateModal(c, to, needs, extra); return; }
   const from = c.stage, fields = Object.keys(extra), before = {}; fields.forEach(k => { before[k] = c[k]; });
   c.stage = to; Object.assign(c, extra); queueRender(); if (S.openId === id) renderDrawer();
@@ -1144,8 +1158,10 @@ async function saveEdit() {
   const base = S.editBase; const changed = FORM_KEYS.filter(k => !sameVal(now[k], base[k])).concat((now.variant || '') !== (base.variant || '') ? ['variant'] : []);
   if (!changed.length) { S.editing = false; renderDrawer(); return; }
   // the same checks as moving the stage from the case: MARPE records before the lab, a date for the Zoom call
-  const needs = changed.includes('stage') && !changed.includes('type') ? stageNeeds(Object.assign({}, base, now, { stage: base.stage }), now.stage) : [];
-  if (needs.length) { $('#drawerNotice').innerHTML = '<div class="notice bad">' + (needs.includes('records') ? 'Tick both records (STL scan and CBCT) under Records on file before moving it to ' + esc(stageLabel(now)) + '.' : 'Add the Zoom call date before moving it to Zoom call scheduled.') + '</div>'; $('#drawerNotice').scrollIntoView({ block: 'nearest' }); return; }
+  // (in-house: the form has the aligner counts and attachment templates, so only missing ones stop the save)
+  const needs = (changed.includes('stage') && !changed.includes('type') ? stageNeeds(Object.assign({}, base, now, { stage: base.stage }), now.stage) : [])
+    .filter(x => x !== 'aligners' || alignersMissing(now));
+  if (needs.length) { $('#drawerNotice').innerHTML = '<div class="notice bad">' + (needs.includes('records') ? 'Tick both records (STL scan and CBCT) under Records on file before moving it to ' + esc(stageLabel(now)) + '.' : needs.includes('aligners') ? 'Enter the upper and lower aligners and pick Attachment templates before moving it to ' + esc(stageLabel(now)) + '.' : 'Add the Zoom call date before moving it to Zoom call scheduled.') + '</div>'; $('#drawerNotice').scrollIntoView({ block: 'nearest' }); return; }
   const btn = $('[data-act=saveEdit]', d); busyBtn(btn, true, 'Saving…');
   const id = S.openId;
   try {

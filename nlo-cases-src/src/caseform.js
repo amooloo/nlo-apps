@@ -153,7 +153,7 @@ function submissionLabel(v) { return v === 'yes' ? 'Initial submission' : v === 
 /* fields added later save '' when empty (not [] or false), so older cases without them don't look edited */
 const FORM_KEYS = ['type', 'patient', 'chart', 'detail', 'stage', 'assignee', 'assistant', 'scanner', 'scanDate', 'labDate', 'deliveryDate', 'deliveryTime', 'aligners',
   'initial', 'appliances', 'lab', 'arches', 'retKinds', 'goals', 'instrPicks', 'instrOther', 'instructions', 'extras', 'teeth', 'cc', 'ipr', 'notes', 'titanUrl', 'alU', 'alL',
-  'shipToPatient', 'records', 'zoomDate', 'zoomTime', 'tracking', 'labRef'];
+  'shipToPatient', 'records', 'zoomDate', 'zoomTime', 'tracking', 'labRef', 'atTemplates'];
 
 /* delivery time: every half hour, 7:00 AM to 7:00 PM (Amir, 2 Oct 2026: "30 mins increments are fine") */
 const HALF_HOURS = Array.from({ length: 25 }, (_, i) => { const m = 7 * 60 + i * 30; return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); });
@@ -379,7 +379,8 @@ function caseFormHTML(c, isNew) {
     '<div class="cfSec"' + showTiles(INHOUSE_TILES.join(' ')) + '><h5>Aligners in this set <span class="h5n">count each arch from Titan</span></h5><div class="alRow">' +
       '<div class="field"><label for="cf-alU">Upper aligners</label><input id="cf-alU" type="number" inputmode="numeric" min="0" max="99" step="1" placeholder="0" value="' + esc(c.alU || '') + '"></div>' +
       '<div class="field"><label for="cf-alL">Lower aligners</label><input id="cf-alL" type="number" inputmode="numeric" min="0" max="99" step="1" placeholder="0" value="' + esc(c.alL || '') + '"></div>' +
-      '<div class="alTot" id="cf-alTotal" aria-live="polite"></div></div></div>' +
+      '<div class="alTot" id="cf-alTotal" aria-live="polite"></div></div>' +
+      '<h5>Attachment templates <span class="h5n">asked again when it moves to Export STLs</span></h5>' + pickRow('atTemplates', AT_OPTS, c.atTemplates || '', false) + '</div>' +
     '<div class="cfSec"' + showTiles('insmile') + '><h5>Initial or digital enhancement?</h5>' + pickRow('initialDE', [{ v: 'yes', l: 'Initial' }, { v: 'de1', l: 'DE 1' }, { v: 'de2', l: 'DE 2' }, { v: 'de3', l: 'DE 3' }], c.initial || '', false) + '</div>' +
     '<div class="cfSec"><h5>Assistant</h5>' + staffPickRow('assistant', withSavedStaff(roster, c.assistant), c.assistant || '') +
     '<div' + show('aligner braces appliance marpe retainer models') + '><h5>Scanner</h5>' + pickRow('scanner', PICK.scanners, c.scanner || '', false) + '</div></div>' +
@@ -473,6 +474,7 @@ function readCaseForm(root) {
   if (!(o.type === 'nla')) o.titanUrl = '';
   // in-house: aligners per arch; the set's total is upper + lower (aligners, not stages)
   const num = id => { const v = parseInt(($(id, root) || {}).value, 10); return o.type === 'nla' && v > 0 ? Math.min(v, 99) : ''; };
+  o.atTemplates = o.type === 'nla' ? (pressed(root, 'atTemplates')[0] || '') : '';
   o.alU = num('#cf-alU'); o.alL = num('#cf-alL'); o.aligners = (o.alU || 0) + (o.alL || 0) || '';
   o.instructions = goalText(o.goals).concat(o.instrPicks, o.instrOther ? [o.instrOther] : []).join('; ');
   return o;
@@ -672,6 +674,7 @@ function newCaseModal() {
         const needs = stageNeeds(Object.assign({}, data, { stage: firstStage(data.type) }), data.stage);
         if (needs.includes('records')) return err('Tick both records (STL scan and CBCT) before starting it at ' + stageLabel(data) + '.');
         if (needs.includes('zoom')) return err('Add the Zoom call date to start it at Zoom call scheduled.');
+        if (needs.includes('aligners') && alignersMissing(data)) return err('Enter the upper and lower aligners and pick Attachment templates to start it at ' + stageLabel(data) + '.');
         Object.assign(data, { comments: [], createdAt: Date.now(), createdBy: meSid() });
         busyBtn($('#ncSave', w), true, 'Saving…');
         try {

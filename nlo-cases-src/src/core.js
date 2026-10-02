@@ -70,8 +70,10 @@ const TYPES = [
   { k: 'misc', l: 'Other (misc.)', flow: 'misc', cls: 't-misc', legacy: true }
 ];
 const TYPE = Object.fromEntries(TYPES.map(t => [t.k, t]));
-/* where each outside aligner company's cases are worked on (Amir, 2 Oct 2026; not for appliances or InSmile) */
+/* where each aligner company's cases are worked on (Amir, 2 Oct 2026; not for appliances or InSmile); in-house sets open
+   Titan's web version, the released one and the early-access (beta) one — opening any of them copies the patient's name */
 const PORTALS = {
+  nla: [{ l: 'Titan (web)', u: 'https://client.titandentaldesign.com/Live/index.html' }, { l: 'Titan beta (web)', u: 'https://client.titandentaldesign.com/EA/index.html' }],
   oliv: [{ l: 'Oliv portal', u: 'https://portal.olivortho.com/' }, { l: 'Dental Monitoring', u: 'https://dental-monitoring.com/doctor/login' }],
   invisalign: [{ l: 'Invisalign Doctor Site', u: 'https://vip.invisalign.com/' }],
   angel: [{ l: 'Angel iOrtho', u: 'https://iortho.angelalign.com/cas/login?service=https://iortho.angelalign.com/OPM/shiro-cas' }],
@@ -94,14 +96,24 @@ function stageIndex(c) { return flowOf(c).stages.findIndex(x => x[0] === c.stage
 function firstStage(type) { return FLOWS[(TYPE[type] || TYPE.misc).flow].stages[0][0]; }
 /* the stage group a stage belongs to (e.g. the in-house "In fabrication" steps), or null */
 function stageGroup(flow, k) { return (flow.groups || []).find(g => g.stages.includes(k)) || null; }
-/* what a stage move still needs first: MARPE records before the case reaches the lab, and a date to be "Zoom call scheduled" */
+/* what a stage move still needs first: MARPE records before the case reaches the lab, and a date to be "Zoom call scheduled";
+   in-house aligners: the upper/lower aligner counts and any attachment templates as the case reaches Export STLs
+   (Amir, 2 Oct 2026; the move always asks, filled in with what the case already has) */
 function stageNeeds(c, to) {
-  if (typeOf(c).flow !== 'marpe') return [];
-  const keys = flowOf(c).stages.map(s => s[0]), from = keys.indexOf(c.stage), ti = keys.indexOf(to), sub = keys.indexOf('submitted'), out = [];
+  const fl = typeOf(c).flow, keys = flowOf(c).stages.map(s => s[0]), from = keys.indexOf(c.stage), ti = keys.indexOf(to), out = [];
+  if (fl === 'inhouse') { const fab = keys.indexOf('fab'); if (fab >= 0 && ti >= fab && from < fab) out.push('aligners'); return out; }
+  if (fl !== 'marpe') return out;
+  const sub = keys.indexOf('submitted');
   if (ti >= sub && from < sub && recordsMissing(c).length) out.push('records');
   if (to === 'zoom' && !c.zoomDate) out.push('zoom');
   return out;
 }
+/* attachment templates on an in-house set: none, upper, lower or both ('' = not answered yet) */
+const AT_OPTS = [{ v: 'none', l: 'None' }, { v: 'U', l: 'Upper' }, { v: 'L', l: 'Lower' }, { v: 'UL', l: 'Upper & Lower' }];
+function atLabel(v) { const o = AT_OPTS.find(x => x.v === v); return o ? o.l : ''; }
+function hasAT(c) { return ['U', 'L', 'UL'].includes(c.atTemplates); }
+/* from Export STLs on, an in-house set needs its aligner counts and the attachment-template answer */
+function alignersMissing(c) { return !((Number(c.alU) || 0) + (Number(c.alL) || 0) > 0) || !c.atTemplates; }
 /* The date a case is working toward: its lab completion date until the lab work is done, then its delivery date.
    (No separate due date any more — Amir, 2 Oct 2026. Older cases that only have one still use it.) */
 function dueOf(c) {
@@ -388,6 +400,6 @@ function csvCell(v) {
 }
 function caseToCSVRow(c) {
   return [c.patient, typeOf(c).l, c.detail, stageLabel(c), c.status === 'done' ? 'Completed' : 'Open', c.scanDate, c.labDate, c.deliveryDate ? c.deliveryDate + (c.deliveryTime ? ' ' + c.deliveryTime : '') : '', c.assigneeLabel || '', c.instructions, c.cc, c.ipr, c.notes, c.chart, c.titanUrl, (c.extras || []).join('; '), typeof submissionLabel === 'function' ? submissionLabel(c.initial) : '', c.lab || '', (c.teethNote || '').replace(/\n/g, '; '), c.aligners || '',
-    c.shipToPatient ? 'Yes' : '', MARPE_RECORDS.filter(([k]) => (c.records || []).includes(k)).map(x => x[1]).join('; '), c.zoomDate ? c.zoomDate + (c.zoomTime ? ' ' + c.zoomTime : '') : '']
+    c.shipToPatient ? 'Yes' : '', MARPE_RECORDS.filter(([k]) => (c.records || []).includes(k)).map(x => x[1]).join('; '), c.zoomDate ? c.zoomDate + (c.zoomTime ? ' ' + c.zoomTime : '') : '', atLabel(c.atTemplates)]
     .map(csvCell).join(',');
 }

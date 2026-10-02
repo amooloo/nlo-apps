@@ -101,7 +101,7 @@ function printLabelPages(pages, onDone) {
 
 function labelsModal(c) {
   const uT = Number(c.alU) || 0, lT = Number(c.alL) || 0;
-  const st = { patient: c.patient || '', setType: labelSetType(c), uOn: uT > 0, lOn: lT > 0, uTotal: uT, lTotal: lT, uStart: 1, lStart: 1, at: false, days: 7, start: c.deliveryDate || '' };
+  const st = { patient: c.patient || '', setType: labelSetType(c), uOn: uT > 0, lOn: lT > 0, uTotal: uT, lTotal: lT, uStart: 1, lStart: 1, at: hasAT(c), days: 7, start: c.deliveryDate || '' };
   let labels = [], off = new Set();
   const num = (id, v, lbl) => '<div class="field"><label for="' + id + '">' + lbl + '</label><input id="' + id + '" type="number" inputmode="numeric" min="1" max="99" value="' + v + '"></div>';
   openModal('<h3>Aligner labels</h3><div class="lsub">The Label Maker’s labels, filled in from this case. One 2×4 in label per page on the Zebra; check each value before printing.</div>' +
@@ -109,7 +109,7 @@ function labelsModal(c) {
     '<div class="field"><label for="lb-set">Set</label><input id="lb-set" value="' + esc(st.setType) + '"></div></div>' +
     '<div class="lbArch"><label class="lbOn"><input type="checkbox" id="lb-uOn"' + (st.uOn ? ' checked' : '') + '> Upper</label>' + num('lb-uTotal', st.uTotal || '', 'Stages') + num('lb-uStart', 1, 'Starting at') + '</div>' +
     '<div class="lbArch"><label class="lbOn"><input type="checkbox" id="lb-lOn"' + (st.lOn ? ' checked' : '') + '> Lower</label>' + num('lb-lTotal', st.lTotal || '', 'Stages') + num('lb-lStart', 1, 'Starting at') + '</div>' +
-    '<label class="lbAt"><input type="checkbox" id="lb-at"> Attachment template label (prints before stage 1)</label>' +
+    '<label class="lbAt"><input type="checkbox" id="lb-at"' + (st.at ? ' checked' : '') + '> Attachment template label (prints before stage 1)</label>' +
     '<div class="grid2"><div class="field"><label>Days per stage</label><div class="pickRow" id="lb-days">' + [7, 10, 14].map(d => '<button type="button" class="pick sm" data-days="' + d + '" aria-pressed="' + (d === 7) + '">' + d + ' days</button>').join('') + '</div></div>' +
     '<div class="field"><label for="lb-start">Start date <span class="h5n">for switch dates (optional)</span></label><input id="lb-start" type="date" value="' + esc(st.start) + '"></div></div>' +
     '<div class="lbHead"><b id="lb-count"></b><span style="flex:1"></span><label class="small"><input type="checkbox" id="lb-all" checked> Select all</label></div>' +

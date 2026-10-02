@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-2clliKXeldDDeioh21RPwVOw8L5huj58Bt1dnaAEpP4=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-ZywuP/kpcmsPc6ofJHRx0jtri+zLRqDHhhOilEHU7rI=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO Cases</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -471,6 +471,9 @@ td.shipCol .flags{margin-top:0}
 .gate{background:var(--grey-50);border:1px solid var(--grey-100);border-radius:12px;padding:12px 14px;margin-bottom:12px;font-size:13.5px;color:var(--navy)}
 .gate>b{display:block;margin-bottom:6px}
 .gateRow{display:flex;align-items:center;gap:10px;font-weight:600;padding:6px 0;cursor:pointer}
+.gate .alRow{margin:4px 0 10px}
+.gate .h5n{font-weight:500;color:var(--grey-500);font-size:12px}
+.alAt{font-size:13px;color:var(--navy);margin:4px 0 2px}
 .gateRow input{width:18px;height:18px;accent-color:var(--navy);flex:none}
 .tsvg .tms{fill:var(--navy)}
 .tsvg .tjs{fill:#fff;stroke:var(--navy);stroke-width:1.2}
@@ -790,8 +793,10 @@ const TYPES = [
   { k: 'misc', l: 'Other (misc.)', flow: 'misc', cls: 't-misc', legacy: true }
 ];
 const TYPE = Object.fromEntries(TYPES.map(t => [t.k, t]));
-/* where each outside aligner company's cases are worked on (Amir, 2 Oct 2026; not for appliances or InSmile) */
+/* where each aligner company's cases are worked on (Amir, 2 Oct 2026; not for appliances or InSmile); in-house sets open
+   Titan's web version, the released one and the early-access (beta) one — opening any of them copies the patient's name */
 const PORTALS = {
+  nla: [{ l: 'Titan (web)', u: 'https://client.titandentaldesign.com/Live/index.html' }, { l: 'Titan beta (web)', u: 'https://client.titandentaldesign.com/EA/index.html' }],
   oliv: [{ l: 'Oliv portal', u: 'https://portal.olivortho.com/' }, { l: 'Dental Monitoring', u: 'https://dental-monitoring.com/doctor/login' }],
   invisalign: [{ l: 'Invisalign Doctor Site', u: 'https://vip.invisalign.com/' }],
   angel: [{ l: 'Angel iOrtho', u: 'https://iortho.angelalign.com/cas/login?service=https://iortho.angelalign.com/OPM/shiro-cas' }],
@@ -814,14 +819,24 @@ function stageIndex(c) { return flowOf(c).stages.findIndex(x => x[0] === c.stage
 function firstStage(type) { return FLOWS[(TYPE[type] || TYPE.misc).flow].stages[0][0]; }
 /* the stage group a stage belongs to (e.g. the in-house "In fabrication" steps), or null */
 function stageGroup(flow, k) { return (flow.groups || []).find(g => g.stages.includes(k)) || null; }
-/* what a stage move still needs first: MARPE records before the case reaches the lab, and a date to be "Zoom call scheduled" */
+/* what a stage move still needs first: MARPE records before the case reaches the lab, and a date to be "Zoom call scheduled";
+   in-house aligners: the upper/lower aligner counts and any attachment templates as the case reaches Export STLs
+   (Amir, 2 Oct 2026; the move always asks, filled in with what the case already has) */
 function stageNeeds(c, to) {
-  if (typeOf(c).flow !== 'marpe') return [];
-  const keys = flowOf(c).stages.map(s => s[0]), from = keys.indexOf(c.stage), ti = keys.indexOf(to), sub = keys.indexOf('submitted'), out = [];
+  const fl = typeOf(c).flow, keys = flowOf(c).stages.map(s => s[0]), from = keys.indexOf(c.stage), ti = keys.indexOf(to), out = [];
+  if (fl === 'inhouse') { const fab = keys.indexOf('fab'); if (fab >= 0 && ti >= fab && from < fab) out.push('aligners'); return out; }
+  if (fl !== 'marpe') return out;
+  const sub = keys.indexOf('submitted');
   if (ti >= sub && from < sub && recordsMissing(c).length) out.push('records');
   if (to === 'zoom' && !c.zoomDate) out.push('zoom');
   return out;
 }
+/* attachment templates on an in-house set: none, upper, lower or both ('' = not answered yet) */
+const AT_OPTS = [{ v: 'none', l: 'None' }, { v: 'U', l: 'Upper' }, { v: 'L', l: 'Lower' }, { v: 'UL', l: 'Upper & Lower' }];
+function atLabel(v) { const o = AT_OPTS.find(x => x.v === v); return o ? o.l : ''; }
+function hasAT(c) { return ['U', 'L', 'UL'].includes(c.atTemplates); }
+/* from Export STLs on, an in-house set needs its aligner counts and the attachment-template answer */
+function alignersMissing(c) { return !((Number(c.alU) || 0) + (Number(c.alL) || 0) > 0) || !c.atTemplates; }
 /* The date a case is working toward: its lab completion date until the lab work is done, then its delivery date.
    (No separate due date any more — Amir, 2 Oct 2026. Older cases that only have one still use it.) */
 function dueOf(c) {
@@ -1108,7 +1123,7 @@ function csvCell(v) {
 }
 function caseToCSVRow(c) {
   return [c.patient, typeOf(c).l, c.detail, stageLabel(c), c.status === 'done' ? 'Completed' : 'Open', c.scanDate, c.labDate, c.deliveryDate ? c.deliveryDate + (c.deliveryTime ? ' ' + c.deliveryTime : '') : '', c.assigneeLabel || '', c.instructions, c.cc, c.ipr, c.notes, c.chart, c.titanUrl, (c.extras || []).join('; '), typeof submissionLabel === 'function' ? submissionLabel(c.initial) : '', c.lab || '', (c.teethNote || '').replace(/\n/g, '; '), c.aligners || '',
-    c.shipToPatient ? 'Yes' : '', MARPE_RECORDS.filter(([k]) => (c.records || []).includes(k)).map(x => x[1]).join('; '), c.zoomDate ? c.zoomDate + (c.zoomTime ? ' ' + c.zoomTime : '') : '']
+    c.shipToPatient ? 'Yes' : '', MARPE_RECORDS.filter(([k]) => (c.records || []).includes(k)).map(x => x[1]).join('; '), c.zoomDate ? c.zoomDate + (c.zoomTime ? ' ' + c.zoomTime : '') : '', atLabel(c.atTemplates)]
     .map(csvCell).join(',');
 }
 
@@ -1728,6 +1743,8 @@ const DEMO = {
     Object.assign(mp[0], { records: ['stl'], lab: 'Partner Dental Studios' });
     Object.assign(mp[1], { records: ['stl', 'cbct'], lab: 'Partner Dental Studios', zoomDate: addDays(t, 2), zoomTime: '12:30' });
     Object.assign(mp[2], { records: ['stl', 'cbct'], lab: 'Partner Dental Studios', zoomDate: addDays(t, -9), zoomTime: '13:00' });
+    // in-house sets past Export STLs: attachment templates answered (some with, some without)
+    all.filter(c => c.type === 'nla' && stageIndex(c) >= FLOWS.inhouse.stages.findIndex(x => x[0] === 'fab')).forEach((c, i) => { c.atTemplates = ['UL', 'none', 'U'][i % 3]; });
     // retainers: upper and lower, retainers and whitening trays (matches their detail line)
     all.filter(c => c.type === 'retainer').forEach(c => Object.assign(c, { arches: ['Upper', 'Lower'], retKinds: ['TT’s', 'WT’s'] }));
     // aligners going straight to the patient, and shipments with one-click tracking (sample numbers)
@@ -2544,6 +2561,7 @@ function alignerTotalHTML(c, inForm) {
   const arches = c.alU || c.alL ? ' (U ' + (c.alU || 0) + ' · L ' + (c.alL || 0) + ')' : '';
   return '<div class="alThis">' + (me.n ? '<b>' + me.n + '</b> aligners in this set' + (inForm ? '' : arches + ' · ' + esc(me.l)) + (est != null ? ' <span class="alEst">est. ' + money(est) + '</span>' : '')
       : '<span class="muted">' + (inForm ? 'Enter the upper and lower aligners from Titan.' : 'Aligners in this set not entered yet — add the upper and lower counts from Titan with Edit.') + '</span>') + '</div>' +
+    (inForm ? '' : '<div class="alAt">Attachment templates: ' + (c.atTemplates ? '<b>' + esc(atLabel(c.atTemplates)) + '</b>' : '<span class="muted">not answered yet — asked when it moves to Export STLs</span>') + '</div>') +
     '<div class="alSum"><span class="alT">Patient total: <b>' + total + '</b> aligners' + (estAll != null && total ? ' <span class="alEst">est. ' + money(estAll) + '</span>' : '') + '</span>' + (sets.length > 1 || inForm ? parts : '') + '</div>' +
     (missing ? '<div class="small muted">' + missing + ' set' + (missing > 1 ? 's have' : ' has') + ' no count yet, so the total may be low.</div>' : '') +
     (est == null && isOwner() && me.n ? '<div class="small muted">Set the cost per aligner in Team &amp; security to see an estimated cost.</div>' : '') + wait +
@@ -2791,7 +2809,7 @@ function refreshDrawer(gone) {
 async function loadHistory(id) {
   try { const h = await B.caseLog(id); if (S.openId === id) { S.history = h; const el = $('#histBox'); if (el) el.innerHTML = historyHTML(findCase(id)); } } catch (e) { }
 }
-const FIELD_LABELS = { photo: 'photo', labRef: 'lab case #', labHold: 'lab hold', planUrl: 'plan link', shipToPatient: 'ship to patient', records: 'records on file', zoomDate: 'Zoom call', zoomTime: 'Zoom call', tracking: 'tracking #', carrier: 'carrier', teeth: 'tooth chart', teethNote: 'tooth chart', chart: 'chart #', titanUrl: 'Titan link', initial: 'initial/refinement', appliances: 'appliance', lab: 'lab', arches: 'arch', retKinds: 'retainer type', goals: 'Dr. A’s instructions', instrPicks: 'Dr. A’s instructions', instrOther: 'Dr. A’s instructions', extras: 'extras', variant: 'case type', type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery date', deliveryTime: 'delivery time', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes' };
+const FIELD_LABELS = { photo: 'photo', labRef: 'lab case #', labHold: 'lab hold', planUrl: 'plan link', shipToPatient: 'ship to patient', records: 'records on file', zoomDate: 'Zoom call', zoomTime: 'Zoom call', tracking: 'tracking #', carrier: 'carrier', teeth: 'tooth chart', teethNote: 'tooth chart', chart: 'chart #', titanUrl: 'Titan link', initial: 'initial/refinement', appliances: 'appliance', lab: 'lab', arches: 'arch', retKinds: 'retainer type', goals: 'Dr. A’s instructions', instrPicks: 'Dr. A’s instructions', instrOther: 'Dr. A’s instructions', extras: 'extras', variant: 'case type', type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery date', deliveryTime: 'delivery time', alU: 'aligners', alL: 'aligners', aligners: 'aligners', atTemplates: 'attachment templates', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes' };
 function historyHTML(c) {
   const h = S.history; if (!h) return '<div class="small muted">Loading…</div>'; if (!h.length) return '<div class="small muted">No history yet.</div>';
   const stageName = k => { const s = c && flowOf(c).stages.find(x => x[0] === k); return s ? s[1] : k; };
@@ -2845,7 +2863,10 @@ function renderDrawer() {
     // a MARPE entered (or imported) as an appliance before MARPE had its own steps: one click moves it over
     (!done && isOldMarpe(c) ? '<div class="notice info mpOld"><span>MARPE has its own steps now: records, lab, Zoom call, design approval, delivery.</span><button class="btn btn-sec btn-sm" data-act="toMarpe">Switch to MARPE steps</button></div>' : '') +
     // the lab's own link to this patient's plan (from its email), then the company portals
-    ((PORTALS[c.type] || []).length || safeUrl(c.planUrl) ? '<div class="portals">' + (safeUrl(c.planUrl) && okLabLink(c.type, c.planUrl) ? '<a class="btn btn-pri btn-sm" data-act="portal" href="' + esc(safeUrl(c.planUrl)) + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'View treatment plan</a>' : '') + (PORTALS[c.type] || []).map(p => '<a class="btn btn-sec btn-sm" data-act="portal" href="' + esc(p.u) + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'Open ' + esc(p.l) + '</a>').join('') +
+    // in-house: the case's own Titan link first (when saved), then Titan's web version and its beta
+    ((PORTALS[c.type] || []).length || safeUrl(c.planUrl) || safeUrl(c.titanUrl) ? '<div class="portals">' +
+      (safeUrl(c.titanUrl) ? '<a class="btn btn-pri btn-sm" data-act="portal" href="' + esc(safeUrl(c.titanUrl)) + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'Open this case in Titan</a>' : '') +
+      (safeUrl(c.planUrl) && okLabLink(c.type, c.planUrl) ? '<a class="btn btn-pri btn-sm" data-act="portal" href="' + esc(safeUrl(c.planUrl)) + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'View treatment plan</a>' : '') + (PORTALS[c.type] || []).map(p => '<a class="btn btn-sec btn-sm" data-act="portal" href="' + esc(p.u) + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'Open ' + esc(p.l) + '</a>').join('') +
       '<span class="small muted">Opening a portal copies the patient’s name — paste it in the portal’s search.</span></div>' : '') +
     '<div class="sec" style="margin-top:4px"><h5>Stage</h5><div class="stepper">' + flow.stages.map(([k, l], i) => { const g = stageGroup(flow, k);
       return (g && g.stages[0] === k ? '<div class="stepGrp' + (i <= si ? ' d' : '') + '">' + esc(g.l) + '</div>' : '') +
@@ -2864,7 +2885,6 @@ function renderDrawer() {
     kv('Assistant', esc(staffName(c.assistant, c.assistantName))) + kv('Scanner', esc(c.scanner)) + kv('Chart #', esc(c.chart || '')) +
     kv('Created', esc((c.createdAt ? fmtWhen(c.createdAt) : '') + (c.createdBy ? ' · ' + firstName(staffName(c.createdBy, '')) : ''))) + kv('Last update', esc(c.updatedAt ? fmtWhen(c.updatedAt) + (c.by ? ' · ' + firstName(staffName(c.by, '')) : '') : '')) +
     '</div></div>' +
-    (safeUrl(c.titanUrl) ? '<div class="sec"><a class="btn btn-sec btn-sm" href="' + esc(safeUrl(c.titanUrl)) + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'Open in Titan</a></div>' : '') +
     ((c.appliances || []).length || c.lab || c.initial || (c.extras || []).length ? '<div class="sec"><h5>Case</h5><div class="pickRow">' + (c.appliances || []).map(x => '<span class="badge t-appl">' + esc(x) + '</span>').join('') + (c.lab ? '<span class="badge">' + esc(c.lab) + '</span>' : '') + (c.initial ? '<span class="badge">' + esc(submissionLabel(c.initial)) + '</span>' : '') + (c.extras || []).map(x => '<span class="badge t-retx">' + esc(x) + '</span>').join('') + '</div></div>' : '') +
     (c.type === 'nla' ? '<div class="sec" id="alBox"><h5>Aligners</h5>' + alignerTotalHTML(c, false) + '</div>' : '') +
     // retainers & whitening trays: a label for the bag, then it offers to complete the case (Amir, 2 Oct 2026)
@@ -2905,16 +2925,26 @@ function stageGateModal(c, to, needs, extra) {
       '<label class="gateRow"><input type="checkbox" data-rec="' + k + '"' + (r.includes(k) ? ' checked' : '') + '>' + esc(l) + '</label>').join('') + '</div>' : '') +
     (needs.includes('zoom') ? '<div class="gate"><b>When is the Zoom call?</b><div class="zoomRow"><div class="field"><label for="gZoomDate">Date</label><input type="date" id="gZoomDate"></div>' +
       '<div class="field"><label for="gZoomTime">Time</label><input type="time" id="gZoomTime"></div></div></div>' : '') +
+    // in-house: the aligners in this set (from Titan) and any attachment templates, as it reaches Export STLs
+    (needs.includes('aligners') ? '<div class="gate" id="gAl"><b>How many aligners in this set? <span class="h5n">from Titan</span></b><div class="alRow">' +
+      '<div class="field"><label for="gAlU">Upper aligners</label><input id="gAlU" type="number" inputmode="numeric" min="0" max="99" step="1" placeholder="0" value="' + esc(c.alU || '') + '"></div>' +
+      '<div class="field"><label for="gAlL">Lower aligners</label><input id="gAlL" type="number" inputmode="numeric" min="0" max="99" step="1" placeholder="0" value="' + esc(c.alL || '') + '"></div></div>' +
+      '<b style="margin-top:6px">Any attachment templates?</b>' + pickRow('gAt', AT_OPTS, c.atTemplates || '', false) + '</div>' : '') +
     '<div class="mFt"><button class="btn btn-sec" type="button" data-act="closeModal">Cancel</button><button class="btn btn-pri" type="button" id="gGo">Move to “' + esc(lbl) + '”</button></div>', w => {
-      const go = $('#gGo', w), zd = $('#gZoomDate', w);
-      const ok = () => $$('input[data-rec]', w).every(i => i.checked) && (!zd || !!zd.value);
+      const go = $('#gGo', w), zd = $('#gZoomDate', w), al = $('#gAl', w);
+      const n = id => Math.min(99, Math.max(0, parseInt($(id, w).value, 10) || 0));
+      const atV = () => (($('.pickRow[data-g=gAt] .pick[aria-pressed=true]', w) || {}).dataset || {}).v || '';
+      const ok = () => $$('input[data-rec]', w).every(i => i.checked) && (!zd || !!zd.value) && (!al || (n('#gAlU') + n('#gAlL') > 0 && !!atV()));
       const sync = () => { go.disabled = !ok(); };
-      w.addEventListener('change', sync); w.addEventListener('input', sync); sync();
+      w.addEventListener('change', sync); w.addEventListener('input', sync);
+      w.addEventListener('click', e => { const b = e.target.closest('.pickRow[data-g=gAt] .pick'); if (!b) return; $$('.pickRow[data-g=gAt] .pick', w).forEach(x => x.setAttribute('aria-pressed', String(x === b))); sync(); });
+      sync();
       go.onclick = () => {
         if (!ok()) return; const add = Object.assign({}, extra);
         if ($('#gRecs', w)) add.records = MARPE_RECORDS.map(x => x[0]);
         if (zd) { add.zoomDate = zd.value; add.zoomTime = $('#gZoomTime', w).value || ''; }
-        closeModal(); moveStage(c.id, to, add);
+        if (al) { const u = n('#gAlU'), l = n('#gAlL'); add.alU = u || ''; add.alL = l || ''; add.aligners = u + l || ''; add.atTemplates = atV(); }
+        closeModal(); moveStage(c.id, to, add, needs);
       };
     });
 }
@@ -3052,11 +3082,12 @@ async function copyText(s) {
 }
 async function act(fn, okMsg) { try { await fn(); if (okMsg) toast(okMsg); } catch (e) { toast(errText(e), { bad: true }); } }
 function nextStage(c) { const st = flowOf(c).stages; const i = stageIndex(c); return i >= 0 && i < st.length - 1 ? st[i + 1][0] : null; }
-/* `extra` = fields saved with the move (e.g. MARPE records, the Zoom call); a move that still needs something asks first */
-async function moveStage(id, to, extra) {
+/* `extra` = fields saved with the move (e.g. MARPE records, the Zoom call, aligner counts); a move that still needs something
+   asks first; `asked` = what the asking window already collected */
+async function moveStage(id, to, extra, asked) {
   const c = findCase(id); if (!c || c.stage === to) return;
   extra = extra || {};
-  const needs = stageNeeds(Object.assign({}, c, extra), to);
+  const needs = stageNeeds(Object.assign({}, c, extra), to).filter(x => !(asked || []).includes(x));
   if (needs.length) { stageGateModal(c, to, needs, extra); return; }
   const from = c.stage, fields = Object.keys(extra), before = {}; fields.forEach(k => { before[k] = c[k]; });
   c.stage = to; Object.assign(c, extra); queueRender(); if (S.openId === id) renderDrawer();
@@ -3175,8 +3206,10 @@ async function saveEdit() {
   const base = S.editBase; const changed = FORM_KEYS.filter(k => !sameVal(now[k], base[k])).concat((now.variant || '') !== (base.variant || '') ? ['variant'] : []);
   if (!changed.length) { S.editing = false; renderDrawer(); return; }
   // the same checks as moving the stage from the case: MARPE records before the lab, a date for the Zoom call
-  const needs = changed.includes('stage') && !changed.includes('type') ? stageNeeds(Object.assign({}, base, now, { stage: base.stage }), now.stage) : [];
-  if (needs.length) { $('#drawerNotice').innerHTML = '<div class="notice bad">' + (needs.includes('records') ? 'Tick both records (STL scan and CBCT) under Records on file before moving it to ' + esc(stageLabel(now)) + '.' : 'Add the Zoom call date before moving it to Zoom call scheduled.') + '</div>'; $('#drawerNotice').scrollIntoView({ block: 'nearest' }); return; }
+  // (in-house: the form has the aligner counts and attachment templates, so only missing ones stop the save)
+  const needs = (changed.includes('stage') && !changed.includes('type') ? stageNeeds(Object.assign({}, base, now, { stage: base.stage }), now.stage) : [])
+    .filter(x => x !== 'aligners' || alignersMissing(now));
+  if (needs.length) { $('#drawerNotice').innerHTML = '<div class="notice bad">' + (needs.includes('records') ? 'Tick both records (STL scan and CBCT) under Records on file before moving it to ' + esc(stageLabel(now)) + '.' : needs.includes('aligners') ? 'Enter the upper and lower aligners and pick Attachment templates before moving it to ' + esc(stageLabel(now)) + '.' : 'Add the Zoom call date before moving it to Zoom call scheduled.') + '</div>'; $('#drawerNotice').scrollIntoView({ block: 'nearest' }); return; }
   const btn = $('[data-act=saveEdit]', d); busyBtn(btn, true, 'Saving…');
   const id = S.openId;
   try {
@@ -3358,7 +3391,7 @@ function submissionLabel(v) { return v === 'yes' ? 'Initial submission' : v === 
 /* fields added later save '' when empty (not [] or false), so older cases without them don't look edited */
 const FORM_KEYS = ['type', 'patient', 'chart', 'detail', 'stage', 'assignee', 'assistant', 'scanner', 'scanDate', 'labDate', 'deliveryDate', 'deliveryTime', 'aligners',
   'initial', 'appliances', 'lab', 'arches', 'retKinds', 'goals', 'instrPicks', 'instrOther', 'instructions', 'extras', 'teeth', 'cc', 'ipr', 'notes', 'titanUrl', 'alU', 'alL',
-  'shipToPatient', 'records', 'zoomDate', 'zoomTime', 'tracking', 'labRef'];
+  'shipToPatient', 'records', 'zoomDate', 'zoomTime', 'tracking', 'labRef', 'atTemplates'];
 
 /* delivery time: every half hour, 7:00 AM to 7:00 PM (Amir, 2 Oct 2026: "30 mins increments are fine") */
 const HALF_HOURS = Array.from({ length: 25 }, (_, i) => { const m = 7 * 60 + i * 30; return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); });
@@ -3584,7 +3617,8 @@ function caseFormHTML(c, isNew) {
     '<div class="cfSec"' + showTiles(INHOUSE_TILES.join(' ')) + '><h5>Aligners in this set <span class="h5n">count each arch from Titan</span></h5><div class="alRow">' +
       '<div class="field"><label for="cf-alU">Upper aligners</label><input id="cf-alU" type="number" inputmode="numeric" min="0" max="99" step="1" placeholder="0" value="' + esc(c.alU || '') + '"></div>' +
       '<div class="field"><label for="cf-alL">Lower aligners</label><input id="cf-alL" type="number" inputmode="numeric" min="0" max="99" step="1" placeholder="0" value="' + esc(c.alL || '') + '"></div>' +
-      '<div class="alTot" id="cf-alTotal" aria-live="polite"></div></div></div>' +
+      '<div class="alTot" id="cf-alTotal" aria-live="polite"></div></div>' +
+      '<h5>Attachment templates <span class="h5n">asked again when it moves to Export STLs</span></h5>' + pickRow('atTemplates', AT_OPTS, c.atTemplates || '', false) + '</div>' +
     '<div class="cfSec"' + showTiles('insmile') + '><h5>Initial or digital enhancement?</h5>' + pickRow('initialDE', [{ v: 'yes', l: 'Initial' }, { v: 'de1', l: 'DE 1' }, { v: 'de2', l: 'DE 2' }, { v: 'de3', l: 'DE 3' }], c.initial || '', false) + '</div>' +
     '<div class="cfSec"><h5>Assistant</h5>' + staffPickRow('assistant', withSavedStaff(roster, c.assistant), c.assistant || '') +
     '<div' + show('aligner braces appliance marpe retainer models') + '><h5>Scanner</h5>' + pickRow('scanner', PICK.scanners, c.scanner || '', false) + '</div></div>' +
@@ -3678,6 +3712,7 @@ function readCaseForm(root) {
   if (!(o.type === 'nla')) o.titanUrl = '';
   // in-house: aligners per arch; the set's total is upper + lower (aligners, not stages)
   const num = id => { const v = parseInt(($(id, root) || {}).value, 10); return o.type === 'nla' && v > 0 ? Math.min(v, 99) : ''; };
+  o.atTemplates = o.type === 'nla' ? (pressed(root, 'atTemplates')[0] || '') : '';
   o.alU = num('#cf-alU'); o.alL = num('#cf-alL'); o.aligners = (o.alU || 0) + (o.alL || 0) || '';
   o.instructions = goalText(o.goals).concat(o.instrPicks, o.instrOther ? [o.instrOther] : []).join('; ');
   return o;
@@ -3877,6 +3912,7 @@ function newCaseModal() {
         const needs = stageNeeds(Object.assign({}, data, { stage: firstStage(data.type) }), data.stage);
         if (needs.includes('records')) return err('Tick both records (STL scan and CBCT) before starting it at ' + stageLabel(data) + '.');
         if (needs.includes('zoom')) return err('Add the Zoom call date to start it at Zoom call scheduled.');
+        if (needs.includes('aligners') && alignersMissing(data)) return err('Enter the upper and lower aligners and pick Attachment templates to start it at ' + stageLabel(data) + '.');
         Object.assign(data, { comments: [], createdAt: Date.now(), createdBy: meSid() });
         busyBtn($('#ncSave', w), true, 'Saving…');
         try {
@@ -3991,7 +4027,7 @@ function printLabelPages(pages, onDone) {
 
 function labelsModal(c) {
   const uT = Number(c.alU) || 0, lT = Number(c.alL) || 0;
-  const st = { patient: c.patient || '', setType: labelSetType(c), uOn: uT > 0, lOn: lT > 0, uTotal: uT, lTotal: lT, uStart: 1, lStart: 1, at: false, days: 7, start: c.deliveryDate || '' };
+  const st = { patient: c.patient || '', setType: labelSetType(c), uOn: uT > 0, lOn: lT > 0, uTotal: uT, lTotal: lT, uStart: 1, lStart: 1, at: hasAT(c), days: 7, start: c.deliveryDate || '' };
   let labels = [], off = new Set();
   const num = (id, v, lbl) => '<div class="field"><label for="' + id + '">' + lbl + '</label><input id="' + id + '" type="number" inputmode="numeric" min="1" max="99" value="' + v + '"></div>';
   openModal('<h3>Aligner labels</h3><div class="lsub">The Label Maker’s labels, filled in from this case. One 2×4 in label per page on the Zebra; check each value before printing.</div>' +
@@ -3999,7 +4035,7 @@ function labelsModal(c) {
     '<div class="field"><label for="lb-set">Set</label><input id="lb-set" value="' + esc(st.setType) + '"></div></div>' +
     '<div class="lbArch"><label class="lbOn"><input type="checkbox" id="lb-uOn"' + (st.uOn ? ' checked' : '') + '> Upper</label>' + num('lb-uTotal', st.uTotal || '', 'Stages') + num('lb-uStart', 1, 'Starting at') + '</div>' +
     '<div class="lbArch"><label class="lbOn"><input type="checkbox" id="lb-lOn"' + (st.lOn ? ' checked' : '') + '> Lower</label>' + num('lb-lTotal', st.lTotal || '', 'Stages') + num('lb-lStart', 1, 'Starting at') + '</div>' +
-    '<label class="lbAt"><input type="checkbox" id="lb-at"> Attachment template label (prints before stage 1)</label>' +
+    '<label class="lbAt"><input type="checkbox" id="lb-at"' + (st.at ? ' checked' : '') + '> Attachment template label (prints before stage 1)</label>' +
     '<div class="grid2"><div class="field"><label>Days per stage</label><div class="pickRow" id="lb-days">' + [7, 10, 14].map(d => '<button type="button" class="pick sm" data-days="' + d + '" aria-pressed="' + (d === 7) + '">' + d + ' days</button>').join('') + '</div></div>' +
     '<div class="field"><label for="lb-start">Start date <span class="h5n">for switch dates (optional)</span></label><input id="lb-start" type="date" value="' + esc(st.start) + '"></div></div>' +
     '<div class="lbHead"><b id="lb-count"></b><span style="flex:1"></span><label class="small"><input type="checkbox" id="lb-all" checked> Select all</label></div>' +
@@ -4260,7 +4296,7 @@ const ADMIN_ACTS = {
     try {
       const all = await B.loadAll();
       all.forEach(c => { c.assigneeLabel = staffName(c.assignee, c.assigneeName); });
-      const head = ['Patient', 'Type', 'Detail', 'Stage', 'Status', 'Scan', 'Lab completion', 'Delivery', 'Assigned', 'Dr. A instructions', 'Patient CC', 'IPR & spacing', 'Notes', 'Chart #', 'Titan link', 'Also', 'Initial/refinement', 'Lab', 'Tooth chart', 'Aligners in set', 'Ship to patient', 'Records on file', 'Zoom call'].join(',');
+      const head = ['Patient', 'Type', 'Detail', 'Stage', 'Status', 'Scan', 'Lab completion', 'Delivery', 'Assigned', 'Dr. A instructions', 'Patient CC', 'IPR & spacing', 'Notes', 'Chart #', 'Titan link', 'Also', 'Initial/refinement', 'Lab', 'Tooth chart', 'Aligners in set', 'Ship to patient', 'Records on file', 'Zoom call', 'Attachment templates'].join(',');
       const blob = new Blob(['﻿' + head + '\n' + all.map(caseToCSVRow).join('\n')], { type: 'text/csv' });
       const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'nlo-cases-' + todayISO() + '.csv'; document.body.appendChild(a); a.click();
       setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
