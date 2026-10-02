@@ -90,6 +90,7 @@ const DEMO = {
     h.leads(Array.from(DEMO.leads.values()).filter(l => l.status === 'open').map(DEMO.copy), [], false);
     h.intake(DEMO.intake ? { kid: DEMO.intake.kid, key: true, at: DEMO.intake.at } : null);
     h.inbox(DEMO.inboxList());
+    h.mail([]); h.mailRoute({ senders: WEB_SENDERS.slice() });
     // a website request arrives a few seconds after signing in, to show it being filed automatically
     clearTimeout(DEMO.tmr);
     if (!DEMO.arrived) DEMO.tmr = setTimeout(() => { DEMO.arrived = true; DEMO.arrive({ name: 'Morgan Example', parent: 'Alex Example', phone: '352-555-0177', email: 'alex.example@example.com', message: 'Hi! We would like to schedule a free consultation for our son. Mornings work best.' }); }, 6000);
@@ -160,6 +161,13 @@ const DEMO = {
   async intakeStats() { return DEMO.stats; },
   /* the "Send a test request" button: in the demo the request arrives without leaving the page */
   async sendTest() { setTimeout(() => DEMO.arrive({ name: 'Test Request', parent: '', phone: '352-555-0199', email: 'test@example.com', message: 'Test request sent from NLO Leads settings.' }, true), 1500); },
+  /* website requests by email: in the demo they arrive through the instant feed above */
+  async openMail() { throw errCode('gone'); },
+  async commitMailLead() { throw errCode('gone'); },
+  async leadUsed(id) { return DEMO.leads.has(id); },
+  async dropMail() { },
+  async addMailSender() { },
+  async mailBeats() { return [{ box: 'office@example.com', at: Date.now() - 4 * 60000, err: '' }, { box: 'records@example.com', at: Date.now() - 7 * 60000, err: '' }]; },
   async resealAll() { return { leads: 0, failed: 0, intake: false }; },
   async oldCount() { return 0; },
   async changePassword() { }

@@ -882,6 +882,16 @@ async function openByName(p, name) {
   await owner.waitForSelector('.toast:has-text("2 email updates dismissed")', { timeout: 20000 });
   await owner.waitForFunction(async () => !document.querySelector('#mailCard') && (await B.inboxLoad()).length === 0, null, { timeout: 20000 });
   check(true, 'Dismiss all clears the card (and the emails)');
+  // the website's appointment requests come through the same script, but they're NLO Leads' (it files them and clears them)
+  check(/thenextlevelorthodontics@orthohost\.com/.test(JSON.stringify((await fsDump(['meta'])).find(d => d.name.endsWith('/meta/inbox')).fields.senders)), 'the script’s sender list includes the website form’s mailer');
+  gas2.messages.push({ id: 'w1', date: Date.now(), from: 'thenextlevelorthodontics@orthohost.com', subject: 'Website Appointment Request - Sky',
+    text: 'Patient Name: Sky Madeup\nParent Name:\nEmail: sky.madeup@example.com\nPhone: 3525550142\nMessage: Hello\n\n---\n\nDate: October 2, 2026\nPage URL: https://thenextlevelorthodontics.com/request-an-appointment/' },
+  { id: 'w2', date: Date.now() + 1000, from: 'Asana <no-reply@asana.com>', subject: 'Website Appointment Request - Sky', text: 'Error processing your incoming email' });
+  check(/2 emails sent/.test(gas2.ctx.checkMail()), 'a website request and Asana’s notice in the same thread go through the script');
+  await owner.waitForFunction(async () => (await B.inboxLoad()).length === 2, null, { timeout: 20000 }); await sleep(2500);
+  check(await owner.evaluate(() => !MAILS.unread.length && !MAILS.list.length && !document.querySelector('#mailCard')), 'NLO Cases leaves them alone: no “format the app doesn’t read” note, nothing on Today');
+  check((await owner.evaluate(async () => (await B.inboxLoad()).length)) === 2, '…and leaves them in the inbox for NLO Leads');
+  await owner.evaluate(async () => { for (const d of await B.inboxLoad()) await B.inboxDelete(d.id); }); // what NLO Leads does once it has them
   await owner.click('#nav-admin'); await owner.waitForSelector('#mailAdmin .mlBeat:has-text("office@example.com")', { timeout: 20000 });
   check(true, 'Team & security shows each mailbox’s last check');
   await owner.click('#mailAdmin [data-act=mailOff]'); await owner.click('#cbYes'); await owner.waitForSelector('.toast:has-text("turned off")', { timeout: 20000 });

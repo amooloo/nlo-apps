@@ -7,8 +7,13 @@
    open cases — and applies it: moves the case forward (never back), saves the tracking #, the lab's case #
    and the plan link, notes a lab hold. Updates it can't place wait on Today for someone to pick the case.
    Reading the emails happens here, not in the script, so a new lab format only needs an app update.
+   The website's appointment requests come through the same script (the last sender below) but belong to
+   NLO Leads, which files each one and takes it out of the inbox — see leadsMail().
    ===================================================================== */
-const MAIL_SENDERS = ['ulabsystems.com', 'partnersdentalstudio.com', 'olivortho.com', 'angelaligner.com', 'angelalign.com'];
+const MAIL_SENDERS = ['ulabsystems.com', 'partnersdentalstudio.com', 'olivortho.com', 'angelaligner.com', 'angelalign.com', 'thenextlevelorthodontics@orthohost.com'];
+/* a website appointment request, or something about one in the same thread (Asana's notice): NLO Leads' to handle, so
+   this app leaves it alone (one left for a month — NLO Leads never opened — is cleared like any old email) */
+function leadsMail(m) { return /thenextlevelorthodontics@orthohost\.com/i.test(String(m.from || '')) || /website appointment request/i.test(String(m.subject || '')); }
 const MAIL_CO = {
   ulab: { l: 'uLab', types: ['ulab'], hosts: ['ulabsystems.com', 'udesign.cloud'] },
   partners: { l: 'Partners Dental Studio', types: ['appliance', 'marpe'], lab: 'Partner Dental Studios', hosts: ['partnersdentalstudio.com'] },
@@ -232,6 +237,7 @@ async function mailSync() {
     };
     for (const d of docs) {
       if (!d.mail) { unread.push({ d, bad: true }); continue; }
+      if (leadsMail(d.mail)) { if (Date.now() - (d.at || Date.now()) > 30 * 864e5) await B.inboxDelete(d.id).catch(() => { }); continue; }
       const evs = mailParse(d.mail);
       if (!evs.length) { // not a format the app reads yet: kept a month, so a newer app can still read it
         if (Date.now() - (d.at || Date.now()) > 30 * 864e5) await B.inboxDelete(d.id).catch(() => { }); else unread.push({ d });
@@ -265,10 +271,12 @@ async function mailSync() {
   } catch (e) { if (window.console) console.warn('email updates:', e && e.message); }
   finally { MAILS.busy = false; if (MAILS.again) { MAILS.again = false; setTimeout(mailSync, 400); } }
 }
-/* the owner's app keeps the script's sender list current (so a new lab doesn't need a new script) */
+/* the owner's app keeps the script's sender list current (so a new lab doesn't need a new script); looked at again at
+   most once a minute, since a page opened before an update (until it's reloaded) puts its own older list back */
 async function mailOwnerChecks() {
   try {
-    const st = MAILS.state || await B.mailState(); MAILS.state = st;
+    const fresh = MAILS.state && Date.now() - (MAILS.stateAt || 0) < 60000;
+    const st = fresh ? MAILS.state : await B.mailState(); if (!fresh) { MAILS.state = st; MAILS.stateAt = Date.now(); }
     if (st && st.pub && JSON.stringify(st.pub.senders || []) !== JSON.stringify(MAIL_SENDERS)) { await B.mailSenders(MAIL_SENDERS); MAILS.state = null; }
   } catch (e) { }
 }

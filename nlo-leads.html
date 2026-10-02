@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-QW+OJD2jamONm7F3jvwC9qkJ6p9x74g/YDXzyyUEaEw=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://app.asana.com https://*.run.app http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:8090; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-Gk5G6UwSFBkEN6S+ZA2Q/iERq0ZlmlQpGsj7OIuWctI=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://app.asana.com https://*.run.app http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:8090; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO Leads</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -919,22 +919,29 @@ function leadStats(list, nowMs, days) {
 function fmtHours(h) { if (h == null) return '—'; if (h < 1) return Math.max(1, Math.round(h * 60)) + ' min'; if (h < 48) return Math.round(h) + ' h'; return Math.round(h / 24) + ' days'; }
 
 /* ---------- Asana (the "New Leads – Appointment Requests" project) ---------- */
-/* the "Label: value" text the website form emails (and Asana keeps as the task notes) */
+/* the "Label: value" text the website form emails (and Asana keeps as the task notes). The form's fields come first;
+   the line of dashes before Date/Time/Page URL… is the form's own, so only the LAST such line starts that part — a
+   "Time: after 3" or a row of dashes typed into the message stays in the message. Without that line, the first
+   Date/Time/… line starts it. */
+const LEAD_META = /^(date|time|page url|user agent|remote ip|powered by|credit)\s*:/i;
+function leadMetaStart(lines) {
+  for (let i = lines.length - 1; i >= 0; i--) if (/^-{3,}$/.test(lines[i].trim())) return { at: i, dash: true };
+  const i = lines.findIndex(l => LEAD_META.test(l.trim()));
+  return { at: i < 0 ? lines.length : i, dash: false };
+}
 function parseLeadText(text) {
-  const out = { name: '', parent: '', email: '', phone: '', message: '', extra: {}, date: '', page: '' };
-  const lines = String(text || '').replace(/\r/g, '').split('\n');
-  const META = /^(date|time|page url|user agent|remote ip|powered by|credit)\s*:/i;
+  const out = { name: '', parent: '', email: '', phone: '', message: '', extra: {}, date: '', page: '', time: '', ip: '' };
+  const lines = String(text || '').replace(/\r/g, '').split('\n'), ms = leadMetaStart(lines);
   const kindOf = k => /^(parent|guardian)/.test(k) ? 'parent' : /^(patient|child|name|full name|your name)/.test(k) ? 'name' : /e-?mail/.test(k) ? 'email'
     : /phone|mobile|cell|tel/.test(k) ? 'phone' : /message|comment|question|note|detail|help/.test(k) ? 'message' : 'extra';
-  let cur = null, meta = false;
-  for (const raw of lines) {
-    const line = raw.trim();
-    if (/^-{3,}$/.test(line)) { meta = true; cur = null; continue; }
+  let cur = null;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (ms.dash && i === ms.at) continue;
     const m = line.match(/^([^:]{1,40}):\s*(.*)$/);
-    if (meta || (m && META.test(line))) {
-      meta = true;
-      if (m && /^date$/i.test(m[1].trim())) out.date = m[2].trim();
-      if (m && /^page url$/i.test(m[1].trim())) out.page = m[2].trim();
+    if (i >= ms.at) {
+      const k = m ? m[1].trim().toLowerCase() : '';
+      if (k === 'date') out.date = m[2].trim(); else if (k === 'page url') out.page = m[2].trim(); else if (k === 'time') out.time = m[2].trim(); else if (k === 'remote ip') out.ip = m[2].trim();
       continue;
     }
     if (m) {
@@ -955,6 +962,69 @@ function parseWhen(x) {
   x = String(x || '').trim(); if (!x) return 0;
   const m = x.match(/^(\d{4})-(\d{2})-(\d{2})$/); if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12).getTime();
   return Date.parse(x) || 0;
+}
+
+/* ---------- website requests that come by email ----------
+   The website's form emails every appointment request (to Dr. A's Gmail and records@, among others). The NLO Cases
+   email reader in those two inboxes seals each one into the shared email inbox; Leads opens it there and files it.
+   (Amir, 2 Oct 2026: the Cloud Shell setup for the instant feed was too much — this needs nothing set up.) */
+const WEB_SENDERS = ['thenextlevelorthodontics@orthohost.com'];
+/* requests sent before this went live are already being worked in Asana, so they aren't added again */
+const WEB_MAIL_FROM = Date.UTC(2026, 9, 2, 19, 0); // 2 Oct 2026, 3:00 PM Eastern
+/* The website's mailer sends three kinds of email; only the appointment form's ("Website Appointment Request - <name>")
+   is a lead — the same ones Asana got. Its "Website Contact Submission" (job questions, patients' messages) and
+   "Virtual Appt Request" emails aren't, and neither are Asana's notices or replies about a request.
+   'request' = a lead; 'other' = website-related but not a lead (taken out of the inbox); '' = not ours (lab email) */
+const WEB_APPT = /^(\[[^\]]{0,30}\]\s*){0,3}website appointment request\b/i;
+function webMailKind(m) {
+  const from = String((m && m.from) || '').toLowerCase(), subject = String((m && m.subject) || '').trim();
+  const site = WEB_SENDERS.some(s => from.includes(s));
+  if (WEB_APPT.test(subject) && (site || !/asana\.com/.test(from))) return 'request'; // from elsewhere: added, flagged for a look
+  if (site || /website appointment request/i.test(subject)) return 'other';
+  return '';
+}
+/* the email's text; when it came only as HTML, its lines are rebuilt from the tags */
+function mailText(m) {
+  const t = String((m && m.text) || '').replace(/\r/g, '');
+  if (/\S/.test(t)) return t;
+  return String((m && m.html) || '').replace(/<br\s*\/?>/gi, '\n').replace(/<\/(p|div|tr|li|h[1-6])>/gi, '\n').replace(/<[^<>]*>/g, ' ')
+    .replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#0?39;|&apos;/g, '\'').replace(/&amp;/g, '&')
+    .replace(/[ \t]+/g, ' ').replace(/ *\n */g, '\n');
+}
+const LINKY = /https?:\/\/|www\.|\b[a-z0-9-]+\.(com|net|org|ru|xyz|info|biz|top|io|co)\b/i;
+/* the same reasons to look first as the instant feed uses, plus an obvious test (a made-up "Test" name or test@ address) */
+function webFlags(r, readable) {
+  const out = [], F = (k, why) => out.push({ k, why });
+  if (/\btest\b/i.test(r.name + ' ' + r.parent) || /^test[^@]*@/i.test(r.email)) F('test', 'Looks like a test request');
+  if (LINKY.test(r.name) || LINKY.test(r.parent)) F('spam', 'Web link in the name');
+  if ((r.message.match(/https?:\/\/|www\./gi) || []).length >= 3) F('spam', 'Several web links in the message');
+  if (!readable) F('check', 'The email’s form fields couldn’t be read — see the original');
+  else {
+    if (!phoneInfo(r.phone).ok && !validEmail(r.email)) F('check', 'No working phone number or email');
+    if (!r.name && !r.parent) F('check', 'No name');
+    else if (/\d/.test(r.name + r.parent) || r.name.length > 60) F('check', 'The name looks odd');
+  }
+  return out;
+}
+/* the website's email → the same request the instant feed hands over (see leadFromInbox). Fields are cut to size
+   before any check runs on them; the saved original is the form's part only (not the IP address or browser). */
+function webRequestFromMail(m) {
+  const text = mailText(m), lines = text.split('\n'), fieldsPart = lines.slice(0, leadMetaStart(lines).at).join('\n');
+  const p = parseLeadText(text), readable = !!(p.name || p.parent || p.email || p.phone || p.message);
+  const r = { name: clip(p.name, 120), parent: clip(p.parent, 120), email: clip(p.email, 200), phone: clip(p.phone, 60), message: clip(p.message, 4000),
+    extra: p.extra, page: clip(p.page, 300), raw: clip(fieldsPart, 8000), test: false };
+  r.flags = webFlags(r, readable);
+  if (!WEB_SENDERS.some(s => String(m.from || '').toLowerCase().includes(s))) r.flags.push({ k: 'check', why: 'Came from ' + clip(m.from, 80) + ', not the website’s usual address' });
+  return r;
+}
+/* Both inboxes get the same email, so the lead's id is made from what the person sent (the form's fields and when, from
+   where): both copies give the same id — even if one inbox tags the subject or adds a banner — and the security rules let
+   an id be used only once. One lead, whichever computer or copy gets there first. */
+async function webLeadId(m) {
+  const norm = s => String(s || '').replace(/\s+/g, ' ').trim().toLowerCase(), p = parseLeadText(mailText(m));
+  const sent = [p.name, p.parent, p.email, p.phone, p.message];
+  const sig = sent.some(Boolean) ? sent.concat([p.date, p.time, p.ip]).map(norm).join('|') : norm(m.from) + '|' + norm(m.subject) + '|' + norm(mailText(m));
+  return 'e' + (await Crypto.sha256hex('nlo-leads:website-email|' + sig)).slice(0, 19);
 }
 const ASANA_RES = [[/schedul/i, 'sched'], [/follow/i, 'follow'], [/voice\s*mail|\bvm\b/i, 'vm'], [/no answer|no response|didn.?t answer/i, 'none'], [/sent|no reply/i, 'sent'], [/not interested|declin/i, 'no']];
 function asanaRes(text) { const hit = ASANA_RES.find(([re]) => re.test(text || '')); return hit ? hit[1] : ''; }
@@ -1030,13 +1100,14 @@ const LEAD_CSV_HEAD = ['Name', 'Parent', 'Phone', 'Email', 'Message', 'Source', 
    browser: lead bodies and history are sealed with the office key ring.
    Plain fields on a lead doc: v (key version), status, rev, by/sid,
    createdAt/updatedAt/closedAt — none of them identify anyone.
-   Website requests wait in `leadInbox`, sealed to the intake public key by
-   the receiving service; a signed-in browser opens them and files them.
+   Website requests arrive by email: the NLO Cases email reader seals them into
+   `inbox` and a signed-in browser opens and files them. (The optional instant
+   feed puts them in `leadInbox`, sealed to the intake public key.)
    ===================================================================== */
 const FB = {
   emu: false, app: null, auth: null, db: null, cfg: null,
   uid: null, me: null, priv: null, ring: null, keys: null, curV: 0, ringV: 0,
-  intake: null, inboxDocs: new Map(),
+  intake: null, inboxDocs: new Map(), mailDocs: new Map(), mailPriv: null,
   unsubs: [], pending: 0, onSync: null,
 
   ts() { return firebase.firestore.FieldValue.serverTimestamp(); },
@@ -1156,7 +1227,7 @@ const FB = {
   },
   async signOut() {
     FB.stop();
-    FB.priv = FB.ring = FB.keys = FB.me = FB.uid = FB.intake = null; FB.curV = FB.ringV = 0; FB.inboxDocs = new Map();
+    FB.priv = FB.ring = FB.keys = FB.me = FB.uid = FB.intake = FB.mailPriv = null; FB.curV = FB.ringV = 0; FB.inboxDocs = new Map(); FB.mailDocs = new Map();
     try { await FB.auth.signOut(); } catch (e) { }
   },
   stop() { FB.unsubs.forEach(u => { try { u(); } catch (e) { } }); FB.unsubs = []; },
@@ -1194,6 +1265,13 @@ const FB = {
       h.inbox(s.docs.map(d => ({ id: d.id, at: FB.tsMs(d.data().at) || 0, kid: d.data().kid })).sort((a, b) => a.at - b.at));
     }, () => { FB.inboxDocs = new Map(); h.inbox([]); }));
     FB.unsubs.push(FB.db.doc('meta/intake').onSnapshot(async s => { await FB.loadIntake(s.exists ? s.data() : null); h.intake(FB.intake); }, () => { FB.intake = null; h.intake(null); }));
+    // website requests that came by email: the NLO Cases email reader seals every email it forwards into `inbox`
+    // (lab emails too — those are NLO Cases' and are never changed here) and lists which senders it forwards in meta/inbox
+    FB.unsubs.push(FB.db.collection('inbox').onSnapshot(s => {
+      FB.mailDocs = new Map(s.docs.map(d => [d.id, d.data()]));
+      h.mail(s.docs.map(d => ({ id: d.id, at: FB.tsMs(d.data().at) || 0 })).sort((a, b) => a.at - b.at));
+    }, () => { FB.mailDocs = new Map(); h.mail([]); }));
+    FB.unsubs.push(FB.db.doc('meta/inbox').onSnapshot(s => h.mailRoute(s.exists ? { senders: (s.data().senders || []).map(String) } : null), () => h.mailRoute(null)));
     if (FB.isOwner()) {
       FB.unsubs.push(FB.db.collection('members').onSnapshot(s => h.members(s.docs.map(d => Object.assign({ uid: d.id }, d.data()))), e => h.error(e)));
     }
@@ -1371,6 +1449,57 @@ const FB = {
   },
   async leadExists(id) { return (await FB.db.doc('leads/' + id).get()).exists; },
   async dismissInbox(id) { await FB.track(FB.db.doc('leadInbox/' + id).delete()); },
+
+  /* ---------- website requests that came by email ---------- */
+  /* the private half of NLO Cases' inbox key, sealed with the office key: opened once (again for a key set up since) */
+  async mailKey(kid) {
+    if (!FB.mailPriv || !FB.mailPriv[kid]) {
+      const priv = {}, s = await FB.db.doc('meta/inboxKey').get();
+      if (s.exists) for (const k of Object.keys(s.data().keys || {})) {
+        const box = s.data().keys[k];
+        try { priv[k] = await Crypto.importPriv(await Crypto.open(FB.keys[box.v], box, 'inboxkey:' + k)); } catch (e) { priv[k] = null; }
+      }
+      FB.mailPriv = priv;
+    }
+    return FB.mailPriv[kid] || null;
+  },
+  async openMail(id) {
+    const d = FB.mailDocs.get(id); if (!d) throw errCode('gone');
+    const key = await FB.mailKey(d.kid); if (!key) throw errCode('unreadable', 'Locked with a key this login can’t open');
+    try { return { mail: JSON.parse(TD.decode(await Crypto.openFrom(key, { epk: d.epk, iv: d.iv, ct: d.ct }, 'inbox:' + id))), at: FB.tsMs(d.at) || Date.now() }; }
+    catch (e) { throw errCode('unreadable', 'This email could not be opened'); }
+  },
+  /* file it as a new lead under the id made from the email, and take that copy out of the inbox — all or nothing */
+  async commitMailLead(mailId, id, data, retried) {
+    const v = FB.curV, box = await Crypto.sealJSON(FB.keys[v], FB.clean(data), 'lead:' + id);
+    await Crypto.openJSON(FB.keys[v], box, 'lead:' + id);
+    const b = FB.db.batch();
+    b.set(FB.db.doc('leads/' + id), { v, iv: box.iv, ct: box.ct, status: 'open', rev: 1, by: FB.uid, sid: FB.me.staffId, createdAt: FB.ts(), updatedAt: FB.ts(), closedAt: null });
+    await FB.logOps(b, id, 1, null, { a: 'create', how: 'website' });
+    b.delete(FB.db.doc('inbox/' + mailId));
+    try { await FB.track(b.commit()); }
+    catch (e) {
+      // refused: another computer (or the other inbox's copy) got there first, or the office key changed a moment ago
+      if (retried || !/permission/i.test(e.code || e.message || '') || await FB.leadUsed(id)) throw e;
+      const m = (await FB.db.doc('members/' + FB.uid).get()).data(); if (!m || !m.active) throw e;
+      await FB.loadRing(m);
+      return FB.commitMailLead(mailId, id, data, true);
+    }
+  },
+  /* this id was filed before (even if the lead was deleted since, its first history entry stays) */
+  async leadUsed(id) {
+    const [a, b] = await Promise.all([FB.db.doc('leads/' + id).get(), FB.db.doc('leadLog/' + id + '_1').get()]);
+    return a.exists || b.exists;
+  },
+  /* take a website email out of the inbox without a lead: the other inbox's copy, Asana's notice, or one from before this went live */
+  async dropMail(id) { await FB.track(FB.db.doc('inbox/' + id).delete()); },
+  /* owner: put the website's mailer back on NLO Cases' email-reader list (rules: owner only, same key and fields) */
+  async addMailSender(s) { await FB.track(FB.db.doc('meta/inbox').update({ senders: firebase.firestore.FieldValue.arrayUnion(s) })); },
+  /* when each inbox's email reader last checked (no patient data) */
+  async mailBeats() {
+    const s = await FB.db.collection('mailbeat').get();
+    return s.docs.map(d => ({ box: d.data().box || '', at: FB.tsMs(d.data().at) || 0, err: d.data().err || '' })).sort((a, b) => a.box.localeCompare(b.box));
+  },
   /* owner: create the intake key pair and the secret that goes in the website's webhook address */
   async setupIntake() {
     if (!FB.isOwner()) throw errCode('permission');
@@ -1522,6 +1651,7 @@ const DEMO = {
     h.leads(Array.from(DEMO.leads.values()).filter(l => l.status === 'open').map(DEMO.copy), [], false);
     h.intake(DEMO.intake ? { kid: DEMO.intake.kid, key: true, at: DEMO.intake.at } : null);
     h.inbox(DEMO.inboxList());
+    h.mail([]); h.mailRoute({ senders: WEB_SENDERS.slice() });
     // a website request arrives a few seconds after signing in, to show it being filed automatically
     clearTimeout(DEMO.tmr);
     if (!DEMO.arrived) DEMO.tmr = setTimeout(() => { DEMO.arrived = true; DEMO.arrive({ name: 'Morgan Example', parent: 'Alex Example', phone: '352-555-0177', email: 'alex.example@example.com', message: 'Hi! We would like to schedule a free consultation for our son. Mornings work best.' }); }, 6000);
@@ -1592,6 +1722,13 @@ const DEMO = {
   async intakeStats() { return DEMO.stats; },
   /* the "Send a test request" button: in the demo the request arrives without leaving the page */
   async sendTest() { setTimeout(() => DEMO.arrive({ name: 'Test Request', parent: '', phone: '352-555-0199', email: 'test@example.com', message: 'Test request sent from NLO Leads settings.' }, true), 1500); },
+  /* website requests by email: in the demo they arrive through the instant feed above */
+  async openMail() { throw errCode('gone'); },
+  async commitMailLead() { throw errCode('gone'); },
+  async leadUsed(id) { return DEMO.leads.has(id); },
+  async dropMail() { },
+  async addMailSender() { },
+  async mailBeats() { return [{ box: 'office@example.com', at: Date.now() - 4 * 60000, err: '' }, { box: 'records@example.com', at: Date.now() - 7 * 60000, err: '' }]; },
   async resealAll() { return { leads: 0, failed: 0, intake: false }; },
   async oldCount() { return 0; },
   async changePassword() { }
@@ -1608,7 +1745,8 @@ const S = {
   view: 'today', q: '', f: { who: '', due: '', src: '', step: '' }, sort: { k: 'due', dir: 1 },
   openId: null, editing: false, editBase: null, ui: {}, lastLogin: '', loginPw: '', lastAct: Date.now(), idleTimer: null,
   inApp: false, renderQ: false, firstLoad: true, loadErr: '',
-  inbox: [], inboxBad: {}, intake: null, ingesting: false, filedHere: new Set(), seen: new Set(), pend: {}, srv: {}, res: null, resDays: 30
+  inbox: [], inboxBad: {}, intake: null, ingesting: false, filedHere: new Set(), seen: new Set(), pend: {}, srv: {}, res: null, resDays: 30,
+  mail: [], mailSeen: {}, mailRoute: null
 };
 let B = null;
 const ACT = {}; // click actions: data-act="name" → ACT.name(target, event)
@@ -1780,7 +1918,8 @@ function bindLockForms() {
 /* ---------- enter / leave ---------- */
 function enterApp() {
   Object.assign(S, { inApp: true, leads: new Map(), closed: [], closedLoaded: false, hist: null, histLoaded: false, histLoading: null, firstLoad: true, loadErr: '', lastAct: Date.now(),
-    inbox: [], inboxBad: {}, inboxTry: {}, inboxWait: {}, intake: null, filedHere: new Set(), seen: new Set(), pend: {}, srv: {}, res: null, view: 'today', openId: null, editing: false, feed: null, showHook: false });
+    inbox: [], inboxBad: {}, inboxTry: {}, inboxWait: {}, intake: null, filedHere: new Set(), seen: new Set(), pend: {}, srv: {}, res: null, view: 'today', openId: null, editing: false, feed: null, showHook: false,
+    mail: [], mailSeen: {}, mailRoute: null, beats: null, beatsAt: 0 });
   $('#lockWrap').classList.add('hidden'); $('#app').classList.remove('hidden');
   renderShell(); renderView();
   B.start({
@@ -1802,6 +1941,8 @@ function enterApp() {
     settings(s) { S.settings = Object.assign({ idleMin: 10 }, s || {}); S.cfg = leadCfg(S.settings); queueRender('settings'); },
     inbox(list) { S.inbox = list; Object.keys(S.inboxBad).forEach(id => { if (!list.some(x => x.id === id)) delete S.inboxBad[id]; }); queueRender('inbox'); ingestSoon(); },
     intake(info) { S.intake = info; queueRender('inbox'); ingestSoon(); },
+    mail(list) { S.mail = list; Object.keys(S.mailSeen).forEach(id => { if (!list.some(x => x.id === id)) delete S.mailSeen[id]; }); ingestSoon(); },
+    mailRoute(info) { S.mailRoute = info; queueRender('inbox'); keepWebSender(); },
     revoked() { lockOut('Your access was turned off.'); },
     rekeyed() { if (S.inApp) setTimeout(resealIfNeeded, 1500); },
     error(e) { if (/permission/.test((e && e.code) || '')) lockOut('Your access changed. Sign in again.'); else toast(errText(e), { bad: true }); }
@@ -1810,7 +1951,7 @@ function enterApp() {
   S.idleTimer = setInterval(() => {
     const mins = Number(S.settings.idleMin) || 10;
     if (S.inApp && Date.now() - S.lastAct > mins * 60000) lockOut('Locked after ' + mins + ' minutes without activity.');
-    else if (S.inApp) { updateTitle(); if (S.inbox.length) ingestSoon(); }
+    else if (S.inApp) { updateTitle(); if (S.inbox.length || mailTodo().length) ingestSoon(); }
   }, 15000);
   ensureHist();
   if (isOwner()) setTimeout(resealIfNeeded, 5000);
@@ -1987,13 +2128,17 @@ function viewToday() {
     (flagged.length ? flagged.map(l => leadRow(l, (FLAG_LABEL[l.flag] || '') + (l.flagWhy ? ' — ' + l.flagWhy : ''))).join('') : '<div class="empty">Nothing to check.</div>') + '</div></div>';
   return h + '<div class="twoCol"><div>' + left + coming + '</div><div>' + look + feedCardSmall() + '</div></div>';
 }
-/* the website feed on Today: what came in, and anything stuck */
+/* website requests come by email once NLO Cases' email reader forwards the website's emails (the owner's NLO Cases page
+   adds the website to its list by itself); the optional instant feed counts once its address is saved */
+function mailRouteOn() { return !!(S.mailRoute && (S.mailRoute.senders || []).some(s => WEB_SENDERS.includes(String(s).toLowerCase()))); }
+function websiteOn() { return mailRouteOn() || !!(S.intake && (S.cfg.feedUrl || '').trim()); }
+/* the website requests card on Today: what came in */
 function feedCardSmall() {
   const web = openLeads().filter(l => l.src && l.src.kind === 'website').map(receivedAt).sort((a, b) => b - a)[0];
-  const line = !S.intake ? (isOwner() ? 'Not connected yet. Set it up in Settings → Website feed.' : 'Not connected yet.') :
+  const line = !websiteOn() ? (isOwner() ? 'Not switched on yet. Open NLO Cases once — it switches this on by itself.' : 'Not switched on yet.') :
     (web ? 'Last request ' + fmtAgo(web) + '.' : 'No open website requests right now.');
   return '<div class="card" style="margin-top:18px"><div class="cardHd"><h3>Website requests</h3></div><div class="cardBd small">' +
-    '<p>' + esc(line) + '</p><p class="muted" style="margin-top:6px">Requests from the website’s appointment form are added here automatically, sealed, with the five follow-up attempts planned.</p></div></div>';
+    '<p>' + esc(line) + '</p><p class="muted" style="margin-top:6px">Requests from the website’s appointment form are added here automatically (within about 10 minutes), sealed, with the five follow-up attempts planned.</p></div></div>';
 }
 function fmtAgo(ms) {
   const m = Math.round((Date.now() - ms) / 60000);
@@ -2162,47 +2307,115 @@ async function loadResults(days) {
 /* ---------- website requests: open each one and file it as a lead ---------- */
 /* the person new leads go to files them first (the owner when nobody is set); any other open computer waits a few
    seconds and steps in only if the request is still waiting, so two computers rarely try the same one */
+/* emails in NLO Cases' inbox this computer hasn't looked at yet (a lab email is looked at once, then left alone) */
+function mailTodo() { return S.mail.filter(x => !S.mailSeen[x.id]); }
 function ingestSoon() {
-  clearTimeout(S.ingT); if (!S.inApp || !S.inbox.length) return;
+  clearTimeout(S.ingT); if (!S.inApp || (!S.inbox.length && !mailTodo().length)) return;
   const who = pickAssignee(S.cfg, S.roster), first = who ? who === meSid() : isOwner();
   S.ingT = setTimeout(ingest, S.demo ? 400 : first ? 300 + Math.random() * 700 : 4000 + Math.random() * 4000);
 }
 async function ingest() {
-  if (!S.inApp || S.ingesting || !S.inbox.length || S.firstLoad) { if (S.inApp && S.inbox.length && !S.ingesting) ingestSoon(); return; }
-  if (!B.canIngest()) { queueRender('inbox'); return; }
+  const mailN = mailTodo().length;
+  if (!S.inApp || S.ingesting || S.firstLoad || (!S.inbox.length && !mailN)) { if (S.inApp && !S.ingesting && (S.inbox.length || mailN)) ingestSoon(); return; }
   S.ingesting = true; const filed = [];
   try {
     await Promise.race([ensureHist(), new Promise(r => setTimeout(r, 8000))]);
-    for (const item of S.inbox.slice()) {
-      if (!S.inApp) break;
-      if (S.inboxBad[item.id] || !S.inbox.some(x => x.id === item.id) || Date.now() < (S.inboxWait[item.id] || 0)) continue;
-      try {
-        const { payload, at } = await B.openInbox(item.id);
-        const l = leadFromInbox(payload, at, S.cfg, pickAssignee(S.cfg, S.roster), leadPool());
-        l.createdAt = Date.now(); l.createdBy = meSid();
-        S.filedHere.add(item.id);
-        await B.commitIntake(item.id, l);
-        filed.push(Object.assign(l, { id: item.id }));
-      } catch (e) {
-        if (e.code === 'gone') continue;
-        if (e.code === 'no-intake-key') break;
-        if (e.code === 'unreadable') { S.inboxBad[item.id] = e.message || 'Couldn’t be opened'; continue; }
-        if (await B.leadExists(item.id).catch(() => false)) {
-          // another computer filed it first (that same save normally removes the request too)
-          console.info('NLO Leads: another computer filed this website request first');
-          if (S.inbox.some(x => x.id === item.id)) { if (isOwner()) await B.dismissInbox(item.id).catch(() => { }); else S.inboxBad[item.id] = 'Already added as a lead'; }
-          continue;
-        }
-        // anything else (a dropped connection, the office key changing that moment): try again a little later
-        const n = S.inboxTry[item.id] = (S.inboxTry[item.id] || 0) + 1;
-        if (n >= 4) S.inboxBad[item.id] = 'Couldn’t be added: ' + errText(e); else S.inboxWait[item.id] = Date.now() + n * 15000;
-      }
-    }
+    if (S.inbox.length && B.canIngest()) await ingestFeed(filed);
+    if (mailTodo().length) await ingestMail(filed);
   } finally { S.ingesting = false; queueRender('inbox'); }
   filed.forEach(l => toast((l.flag ? 'Website request (needs a look): ' : 'New website request: ') + shortName(l), { action: 'Open', onAction: () => openDrawer(l.id) }));
   // more to do: right away, or when the next one that failed is due another try
-  const left = S.inbox.filter(x => !S.inboxBad[x.id] && !filed.some(f => f.id === x.id));
+  const left = (B.canIngest() ? S.inbox.filter(x => !S.inboxBad[x.id] && !filed.some(f => f.id === x.id)) : []).concat(mailTodo());
   if (left.length) { clearTimeout(S.ingT); S.ingT = setTimeout(ingest, Math.max(1500, Math.min(...left.map(x => (S.inboxWait[x.id] || 0) - Date.now())))); }
+}
+/* website requests that came by email (NLO Cases' email reader seals them into the shared email inbox) */
+async function ingestMail(filed) {
+  for (const item of mailTodo()) {
+    if (!S.inApp) break;
+    if (Date.now() < (S.inboxWait[item.id] || 0) || !S.mail.some(x => x.id === item.id)) continue;
+    let mail, at;
+    try { ({ mail, at } = await B.openMail(item.id)); }
+    catch (e) {
+      if (e.code === 'gone') { S.mailSeen[item.id] = 'done'; continue; }
+      // can't be opened right now: look again shortly (a connection problem) or in 10 minutes (a key problem — NLO Cases shows those too)
+      retryMail(item.id, e.code === 'unreadable' ? 600000 : 0); continue;
+    }
+    const kind = webMailKind(mail);
+    if (!kind) { S.mailSeen[item.id] = 'skip'; continue; } // a lab email: NLO Cases' to handle
+    const sent = Number(mail.date) || at;
+    let id = '';
+    try {
+      // the website's contact and virtual-visit forms, Asana's notice about a request, or a request from before this went
+      // live (it's in Asana): not a new lead, so just take it out of the inbox (the email itself stays in Gmail)
+      if (kind === 'other' || sent < WEB_MAIL_FROM) { await B.dropMail(item.id); S.mailSeen[item.id] = 'done'; continue; }
+      const req = webRequestFromMail(mail);
+      id = await webLeadId(mail);
+      // the other inbox's copy of a request that's already a lead, or one the instant feed brought in already
+      if (S.leads.has(id) || await B.leadUsed(id) || feedTwin(req, sent)) { await B.dropMail(item.id); S.mailSeen[item.id] = 'done'; continue; }
+      const l = leadFromInbox(req, sent, S.cfg, pickAssignee(S.cfg, S.roster), leadPool());
+      l.createdAt = Date.now(); l.createdBy = meSid(); l.src.via = 'email';
+      S.filedHere.add(id);
+      await B.commitMailLead(item.id, id, l);
+      S.mailSeen[item.id] = 'done';
+      filed.push(Object.assign(l, { id }));
+    } catch (e) {
+      if (e.code === 'gone') { S.mailSeen[item.id] = 'done'; continue; }
+      if (id && await B.leadUsed(id).catch(() => false)) {
+        // another computer filed it first (the same save takes its copy out of the inbox)
+        console.info('NLO Leads: another computer filed this website request first');
+        await B.dropMail(item.id).catch(() => { }); S.mailSeen[item.id] = 'done'; continue;
+      }
+      // anything else (a dropped connection, the office key changing that moment): try again a little later
+      retryMail(item.id, 0);
+    }
+  }
+}
+/* one to try again: 15 s, 30 s, 45 s … at most 5 minutes apart — never given up on while this computer is signed in */
+function retryMail(id, minWait) {
+  const n = S.inboxTry[id] = (S.inboxTry[id] || 0) + 1;
+  S.inboxWait[id] = Date.now() + Math.max(minWait || 0, Math.min(n, 20) * 15000);
+}
+/* the same request already came in through the instant feed: same name and the same phone number or email, sent within half an hour */
+function feedTwin(req, sent) {
+  const norm = s => String(s || '').replace(/\s+/g, ' ').trim().toLowerCase(), ph = phoneInfo(req.phone), em = norm(req.email);
+  const who = norm(properName(req.name)) + '|' + norm(properName(req.parent));
+  return openLeads().some(l => l.src && l.src.kind === 'website' && l.src.via !== 'email' && Math.abs(receivedAt(l) - sent) < 30 * 60000
+    && norm(l.name) + '|' + norm(l.parent) === who
+    && ((ph.ok && phoneInfo(l.phone).ok && phoneInfo(l.phone).digits === ph.digits) || (!!em && norm(l.email) === em)));
+}
+/* The owner's Leads keeps the website on NLO Cases' email-reader list: an NLO Cases page opened before this update
+   (until it's reloaded) puts its own older list back. At most once a minute. */
+function keepWebSender() {
+  if (S.demo || !isOwner() || !S.mailRoute || mailRouteOn() || Date.now() - (S.senderAt || 0) < 60000) return;
+  S.senderAt = Date.now(); B.addMailSender(WEB_SENDERS[0]).catch(() => { });
+}
+/* website requests from the optional instant feed */
+async function ingestFeed(filed) {
+  for (const item of S.inbox.slice()) {
+    if (!S.inApp) break;
+    if (S.inboxBad[item.id] || !S.inbox.some(x => x.id === item.id) || Date.now() < (S.inboxWait[item.id] || 0)) continue;
+    try {
+      const { payload, at } = await B.openInbox(item.id);
+      const l = leadFromInbox(payload, at, S.cfg, pickAssignee(S.cfg, S.roster), leadPool());
+      l.createdAt = Date.now(); l.createdBy = meSid();
+      S.filedHere.add(item.id);
+      await B.commitIntake(item.id, l);
+      filed.push(Object.assign(l, { id: item.id }));
+    } catch (e) {
+      if (e.code === 'gone') continue;
+      if (e.code === 'no-intake-key') break;
+      if (e.code === 'unreadable') { S.inboxBad[item.id] = e.message || 'Couldn’t be opened'; continue; }
+      if (await B.leadExists(item.id).catch(() => false)) {
+        // another computer filed it first (that same save normally removes the request too)
+        console.info('NLO Leads: another computer filed this website request first');
+        if (S.inbox.some(x => x.id === item.id)) { if (isOwner()) await B.dismissInbox(item.id).catch(() => { }); else S.inboxBad[item.id] = 'Already added as a lead'; }
+        continue;
+      }
+      // anything else (a dropped connection, the office key changing that moment): try again a little later
+      const n = S.inboxTry[item.id] = (S.inboxTry[item.id] || 0) + 1;
+      if (n >= 4) S.inboxBad[item.id] = 'Couldn’t be added: ' + errText(e); else S.inboxWait[item.id] = Date.now() + n * 15000;
+    }
+  }
 }
 /* owner: after the office key changed in NLO Cases, re-seal leads (and the feed's keys) under the newest key */
 async function resealIfNeeded(tries) {
@@ -2698,8 +2911,32 @@ function viewSettings() {
 
 /* ---------- website feed ---------- */
 function feedUrlFull(secret) { const base = (S.cfg.feedUrl || '').trim(); return base && secret ? base + (base.includes('?') ? '&' : '?') + 'k=' + encodeURIComponent(secret) : ''; }
-function feedCardHTML() { return '<div class="card" id="feedCard"><div class="cardHd"><h3>Website feed</h3><span class="sub">The website’s appointment form → here, automatically</span></div><div class="cardBd" id="feedBd"></div></div>'; }
+/* Website requests come in by email (nothing to set up); the instant feed is an optional extra for the technically minded */
+function feedCardHTML() {
+  return '<div class="card" id="feedCard"><div class="cardHd"><h3>Website requests</h3><span class="sub">The website’s appointment form → here, automatically</span></div><div class="cardBd">' +
+    '<div id="mailRoute">' + mailRouteHTML() + '</div>' +
+    '<details class="help" id="instantFeed"' + (S.instantOpen || (S.intake && (S.cfg.feedUrl || '').trim()) ? ' open' : '') + '><summary data-act="instantToggle">Instant feed (optional, technical)</summary>' +
+    '<p class="small muted" style="margin:8px 0 10px">Not needed — email already brings every request in. This adds a small Google Cloud service so requests arrive within seconds instead of minutes.</p>' +
+    '<div id="feedBd"></div></details></div></div>';
+}
+function mailRouteHTML() {
+  const on = mailRouteOn();
+  let h = '<div class="feedSt"><span class="dot ' + (on ? 'ok' : '') + '"></span><b>' + (on ? 'On' : 'Not on yet') + '</b> — ' +
+    (on ? 'requests come in by email, within about 10 minutes' : 'open NLO Cases once and it switches this on by itself') + '</div>' +
+    '<p class="small muted" style="margin-top:6px">The website emails each appointment request to your Gmail and records@. The NLO Cases email reader in those inboxes seals it and passes it here. It’s added once even though both inboxes get it, and its follow-up plan starts from when it was sent. Requests sent before 2 Oct, 3 PM stay in Asana.</p>';
+  const beats = S.beats;
+  if (beats) h += beats.length ? '<div class="small" style="margin-top:6px">' + beats.map(b => esc(b.box) + ': checked ' + esc(fmtAgo(b.at)) + (b.err ? ' — <span class="bad">' + esc(b.err) + '</span>' : '')).join('<br>') + '</div>'
+    : '<div class="small bad" style="margin-top:6px">The email reader hasn’t checked in yet. Set it up in NLO Cases → Team &amp; security → Email updates.</div>';
+  return h;
+}
+/* when each inbox's email reader last checked (looked up at most once a minute while Settings is open) */
+function loadBeats() {
+  S.beatsAt = Date.now();
+  B.mailBeats().then(b => { S.beats = b; const mr = $('#mailRoute'); if (mr) mr.innerHTML = mailRouteHTML(); }).catch(() => { });
+}
 function updateFeedStatus() {
+  const mr = $('#mailRoute'); if (mr) mr.innerHTML = mailRouteHTML();
+  if (mr && (!S.beatsAt || Date.now() - S.beatsAt > 60000)) loadBeats();
   const bd = $('#feedBd'); if (!bd) return;
   const state = S.intake ? 'on' : 'none';
   if (bd.dataset.state !== state) { bd.dataset.state = state; bd.innerHTML = feedBodyHTML(); if (S.intake) loadFeed(); return; }
@@ -2753,6 +2990,8 @@ function cloudShellHelp() {
     '<p class="small muted">It runs on Google’s free allowance at this office’s volume. The service can only lock a request with the feed key and store it — it can’t open leads.</p></details>';
 }
 Object.assign(ACT, {
+  /* the instant feed's section stays as the owner left it when Settings redraws (the click comes before it opens or closes) */
+  instantToggle(t) { S.instantOpen = !t.parentElement.open; },
   async setupFeed() {
     if (!await confirmBox('Set up the website feed?', 'This makes the feed’s key and the private address for the website form. Nothing changes on the website until you add that address to the form.', 'Set it up')) return;
     try {

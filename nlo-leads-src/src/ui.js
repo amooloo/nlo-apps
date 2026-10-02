@@ -9,7 +9,8 @@ const S = {
   view: 'today', q: '', f: { who: '', due: '', src: '', step: '' }, sort: { k: 'due', dir: 1 },
   openId: null, editing: false, editBase: null, ui: {}, lastLogin: '', loginPw: '', lastAct: Date.now(), idleTimer: null,
   inApp: false, renderQ: false, firstLoad: true, loadErr: '',
-  inbox: [], inboxBad: {}, intake: null, ingesting: false, filedHere: new Set(), seen: new Set(), pend: {}, srv: {}, res: null, resDays: 30
+  inbox: [], inboxBad: {}, intake: null, ingesting: false, filedHere: new Set(), seen: new Set(), pend: {}, srv: {}, res: null, resDays: 30,
+  mail: [], mailSeen: {}, mailRoute: null
 };
 let B = null;
 const ACT = {}; // click actions: data-act="name" → ACT.name(target, event)
@@ -181,7 +182,8 @@ function bindLockForms() {
 /* ---------- enter / leave ---------- */
 function enterApp() {
   Object.assign(S, { inApp: true, leads: new Map(), closed: [], closedLoaded: false, hist: null, histLoaded: false, histLoading: null, firstLoad: true, loadErr: '', lastAct: Date.now(),
-    inbox: [], inboxBad: {}, inboxTry: {}, inboxWait: {}, intake: null, filedHere: new Set(), seen: new Set(), pend: {}, srv: {}, res: null, view: 'today', openId: null, editing: false, feed: null, showHook: false });
+    inbox: [], inboxBad: {}, inboxTry: {}, inboxWait: {}, intake: null, filedHere: new Set(), seen: new Set(), pend: {}, srv: {}, res: null, view: 'today', openId: null, editing: false, feed: null, showHook: false,
+    mail: [], mailSeen: {}, mailRoute: null, beats: null, beatsAt: 0 });
   $('#lockWrap').classList.add('hidden'); $('#app').classList.remove('hidden');
   renderShell(); renderView();
   B.start({
@@ -203,6 +205,8 @@ function enterApp() {
     settings(s) { S.settings = Object.assign({ idleMin: 10 }, s || {}); S.cfg = leadCfg(S.settings); queueRender('settings'); },
     inbox(list) { S.inbox = list; Object.keys(S.inboxBad).forEach(id => { if (!list.some(x => x.id === id)) delete S.inboxBad[id]; }); queueRender('inbox'); ingestSoon(); },
     intake(info) { S.intake = info; queueRender('inbox'); ingestSoon(); },
+    mail(list) { S.mail = list; Object.keys(S.mailSeen).forEach(id => { if (!list.some(x => x.id === id)) delete S.mailSeen[id]; }); ingestSoon(); },
+    mailRoute(info) { S.mailRoute = info; queueRender('inbox'); keepWebSender(); },
     revoked() { lockOut('Your access was turned off.'); },
     rekeyed() { if (S.inApp) setTimeout(resealIfNeeded, 1500); },
     error(e) { if (/permission/.test((e && e.code) || '')) lockOut('Your access changed. Sign in again.'); else toast(errText(e), { bad: true }); }
@@ -211,7 +215,7 @@ function enterApp() {
   S.idleTimer = setInterval(() => {
     const mins = Number(S.settings.idleMin) || 10;
     if (S.inApp && Date.now() - S.lastAct > mins * 60000) lockOut('Locked after ' + mins + ' minutes without activity.');
-    else if (S.inApp) { updateTitle(); if (S.inbox.length) ingestSoon(); }
+    else if (S.inApp) { updateTitle(); if (S.inbox.length || mailTodo().length) ingestSoon(); }
   }, 15000);
   ensureHist();
   if (isOwner()) setTimeout(resealIfNeeded, 5000);
@@ -388,13 +392,17 @@ function viewToday() {
     (flagged.length ? flagged.map(l => leadRow(l, (FLAG_LABEL[l.flag] || '') + (l.flagWhy ? ' — ' + l.flagWhy : ''))).join('') : '<div class="empty">Nothing to check.</div>') + '</div></div>';
   return h + '<div class="twoCol"><div>' + left + coming + '</div><div>' + look + feedCardSmall() + '</div></div>';
 }
-/* the website feed on Today: what came in, and anything stuck */
+/* website requests come by email once NLO Cases' email reader forwards the website's emails (the owner's NLO Cases page
+   adds the website to its list by itself); the optional instant feed counts once its address is saved */
+function mailRouteOn() { return !!(S.mailRoute && (S.mailRoute.senders || []).some(s => WEB_SENDERS.includes(String(s).toLowerCase()))); }
+function websiteOn() { return mailRouteOn() || !!(S.intake && (S.cfg.feedUrl || '').trim()); }
+/* the website requests card on Today: what came in */
 function feedCardSmall() {
   const web = openLeads().filter(l => l.src && l.src.kind === 'website').map(receivedAt).sort((a, b) => b - a)[0];
-  const line = !S.intake ? (isOwner() ? 'Not connected yet. Set it up in Settings → Website feed.' : 'Not connected yet.') :
+  const line = !websiteOn() ? (isOwner() ? 'Not switched on yet. Open NLO Cases once — it switches this on by itself.' : 'Not switched on yet.') :
     (web ? 'Last request ' + fmtAgo(web) + '.' : 'No open website requests right now.');
   return '<div class="card" style="margin-top:18px"><div class="cardHd"><h3>Website requests</h3></div><div class="cardBd small">' +
-    '<p>' + esc(line) + '</p><p class="muted" style="margin-top:6px">Requests from the website’s appointment form are added here automatically, sealed, with the five follow-up attempts planned.</p></div></div>';
+    '<p>' + esc(line) + '</p><p class="muted" style="margin-top:6px">Requests from the website’s appointment form are added here automatically (within about 10 minutes), sealed, with the five follow-up attempts planned.</p></div></div>';
 }
 function fmtAgo(ms) {
   const m = Math.round((Date.now() - ms) / 60000);
@@ -563,47 +571,115 @@ async function loadResults(days) {
 /* ---------- website requests: open each one and file it as a lead ---------- */
 /* the person new leads go to files them first (the owner when nobody is set); any other open computer waits a few
    seconds and steps in only if the request is still waiting, so two computers rarely try the same one */
+/* emails in NLO Cases' inbox this computer hasn't looked at yet (a lab email is looked at once, then left alone) */
+function mailTodo() { return S.mail.filter(x => !S.mailSeen[x.id]); }
 function ingestSoon() {
-  clearTimeout(S.ingT); if (!S.inApp || !S.inbox.length) return;
+  clearTimeout(S.ingT); if (!S.inApp || (!S.inbox.length && !mailTodo().length)) return;
   const who = pickAssignee(S.cfg, S.roster), first = who ? who === meSid() : isOwner();
   S.ingT = setTimeout(ingest, S.demo ? 400 : first ? 300 + Math.random() * 700 : 4000 + Math.random() * 4000);
 }
 async function ingest() {
-  if (!S.inApp || S.ingesting || !S.inbox.length || S.firstLoad) { if (S.inApp && S.inbox.length && !S.ingesting) ingestSoon(); return; }
-  if (!B.canIngest()) { queueRender('inbox'); return; }
+  const mailN = mailTodo().length;
+  if (!S.inApp || S.ingesting || S.firstLoad || (!S.inbox.length && !mailN)) { if (S.inApp && !S.ingesting && (S.inbox.length || mailN)) ingestSoon(); return; }
   S.ingesting = true; const filed = [];
   try {
     await Promise.race([ensureHist(), new Promise(r => setTimeout(r, 8000))]);
-    for (const item of S.inbox.slice()) {
-      if (!S.inApp) break;
-      if (S.inboxBad[item.id] || !S.inbox.some(x => x.id === item.id) || Date.now() < (S.inboxWait[item.id] || 0)) continue;
-      try {
-        const { payload, at } = await B.openInbox(item.id);
-        const l = leadFromInbox(payload, at, S.cfg, pickAssignee(S.cfg, S.roster), leadPool());
-        l.createdAt = Date.now(); l.createdBy = meSid();
-        S.filedHere.add(item.id);
-        await B.commitIntake(item.id, l);
-        filed.push(Object.assign(l, { id: item.id }));
-      } catch (e) {
-        if (e.code === 'gone') continue;
-        if (e.code === 'no-intake-key') break;
-        if (e.code === 'unreadable') { S.inboxBad[item.id] = e.message || 'Couldn’t be opened'; continue; }
-        if (await B.leadExists(item.id).catch(() => false)) {
-          // another computer filed it first (that same save normally removes the request too)
-          console.info('NLO Leads: another computer filed this website request first');
-          if (S.inbox.some(x => x.id === item.id)) { if (isOwner()) await B.dismissInbox(item.id).catch(() => { }); else S.inboxBad[item.id] = 'Already added as a lead'; }
-          continue;
-        }
-        // anything else (a dropped connection, the office key changing that moment): try again a little later
-        const n = S.inboxTry[item.id] = (S.inboxTry[item.id] || 0) + 1;
-        if (n >= 4) S.inboxBad[item.id] = 'Couldn’t be added: ' + errText(e); else S.inboxWait[item.id] = Date.now() + n * 15000;
-      }
-    }
+    if (S.inbox.length && B.canIngest()) await ingestFeed(filed);
+    if (mailTodo().length) await ingestMail(filed);
   } finally { S.ingesting = false; queueRender('inbox'); }
   filed.forEach(l => toast((l.flag ? 'Website request (needs a look): ' : 'New website request: ') + shortName(l), { action: 'Open', onAction: () => openDrawer(l.id) }));
   // more to do: right away, or when the next one that failed is due another try
-  const left = S.inbox.filter(x => !S.inboxBad[x.id] && !filed.some(f => f.id === x.id));
+  const left = (B.canIngest() ? S.inbox.filter(x => !S.inboxBad[x.id] && !filed.some(f => f.id === x.id)) : []).concat(mailTodo());
   if (left.length) { clearTimeout(S.ingT); S.ingT = setTimeout(ingest, Math.max(1500, Math.min(...left.map(x => (S.inboxWait[x.id] || 0) - Date.now())))); }
+}
+/* website requests that came by email (NLO Cases' email reader seals them into the shared email inbox) */
+async function ingestMail(filed) {
+  for (const item of mailTodo()) {
+    if (!S.inApp) break;
+    if (Date.now() < (S.inboxWait[item.id] || 0) || !S.mail.some(x => x.id === item.id)) continue;
+    let mail, at;
+    try { ({ mail, at } = await B.openMail(item.id)); }
+    catch (e) {
+      if (e.code === 'gone') { S.mailSeen[item.id] = 'done'; continue; }
+      // can't be opened right now: look again shortly (a connection problem) or in 10 minutes (a key problem — NLO Cases shows those too)
+      retryMail(item.id, e.code === 'unreadable' ? 600000 : 0); continue;
+    }
+    const kind = webMailKind(mail);
+    if (!kind) { S.mailSeen[item.id] = 'skip'; continue; } // a lab email: NLO Cases' to handle
+    const sent = Number(mail.date) || at;
+    let id = '';
+    try {
+      // the website's contact and virtual-visit forms, Asana's notice about a request, or a request from before this went
+      // live (it's in Asana): not a new lead, so just take it out of the inbox (the email itself stays in Gmail)
+      if (kind === 'other' || sent < WEB_MAIL_FROM) { await B.dropMail(item.id); S.mailSeen[item.id] = 'done'; continue; }
+      const req = webRequestFromMail(mail);
+      id = await webLeadId(mail);
+      // the other inbox's copy of a request that's already a lead, or one the instant feed brought in already
+      if (S.leads.has(id) || await B.leadUsed(id) || feedTwin(req, sent)) { await B.dropMail(item.id); S.mailSeen[item.id] = 'done'; continue; }
+      const l = leadFromInbox(req, sent, S.cfg, pickAssignee(S.cfg, S.roster), leadPool());
+      l.createdAt = Date.now(); l.createdBy = meSid(); l.src.via = 'email';
+      S.filedHere.add(id);
+      await B.commitMailLead(item.id, id, l);
+      S.mailSeen[item.id] = 'done';
+      filed.push(Object.assign(l, { id }));
+    } catch (e) {
+      if (e.code === 'gone') { S.mailSeen[item.id] = 'done'; continue; }
+      if (id && await B.leadUsed(id).catch(() => false)) {
+        // another computer filed it first (the same save takes its copy out of the inbox)
+        console.info('NLO Leads: another computer filed this website request first');
+        await B.dropMail(item.id).catch(() => { }); S.mailSeen[item.id] = 'done'; continue;
+      }
+      // anything else (a dropped connection, the office key changing that moment): try again a little later
+      retryMail(item.id, 0);
+    }
+  }
+}
+/* one to try again: 15 s, 30 s, 45 s … at most 5 minutes apart — never given up on while this computer is signed in */
+function retryMail(id, minWait) {
+  const n = S.inboxTry[id] = (S.inboxTry[id] || 0) + 1;
+  S.inboxWait[id] = Date.now() + Math.max(minWait || 0, Math.min(n, 20) * 15000);
+}
+/* the same request already came in through the instant feed: same name and the same phone number or email, sent within half an hour */
+function feedTwin(req, sent) {
+  const norm = s => String(s || '').replace(/\s+/g, ' ').trim().toLowerCase(), ph = phoneInfo(req.phone), em = norm(req.email);
+  const who = norm(properName(req.name)) + '|' + norm(properName(req.parent));
+  return openLeads().some(l => l.src && l.src.kind === 'website' && l.src.via !== 'email' && Math.abs(receivedAt(l) - sent) < 30 * 60000
+    && norm(l.name) + '|' + norm(l.parent) === who
+    && ((ph.ok && phoneInfo(l.phone).ok && phoneInfo(l.phone).digits === ph.digits) || (!!em && norm(l.email) === em)));
+}
+/* The owner's Leads keeps the website on NLO Cases' email-reader list: an NLO Cases page opened before this update
+   (until it's reloaded) puts its own older list back. At most once a minute. */
+function keepWebSender() {
+  if (S.demo || !isOwner() || !S.mailRoute || mailRouteOn() || Date.now() - (S.senderAt || 0) < 60000) return;
+  S.senderAt = Date.now(); B.addMailSender(WEB_SENDERS[0]).catch(() => { });
+}
+/* website requests from the optional instant feed */
+async function ingestFeed(filed) {
+  for (const item of S.inbox.slice()) {
+    if (!S.inApp) break;
+    if (S.inboxBad[item.id] || !S.inbox.some(x => x.id === item.id) || Date.now() < (S.inboxWait[item.id] || 0)) continue;
+    try {
+      const { payload, at } = await B.openInbox(item.id);
+      const l = leadFromInbox(payload, at, S.cfg, pickAssignee(S.cfg, S.roster), leadPool());
+      l.createdAt = Date.now(); l.createdBy = meSid();
+      S.filedHere.add(item.id);
+      await B.commitIntake(item.id, l);
+      filed.push(Object.assign(l, { id: item.id }));
+    } catch (e) {
+      if (e.code === 'gone') continue;
+      if (e.code === 'no-intake-key') break;
+      if (e.code === 'unreadable') { S.inboxBad[item.id] = e.message || 'Couldn’t be opened'; continue; }
+      if (await B.leadExists(item.id).catch(() => false)) {
+        // another computer filed it first (that same save normally removes the request too)
+        console.info('NLO Leads: another computer filed this website request first');
+        if (S.inbox.some(x => x.id === item.id)) { if (isOwner()) await B.dismissInbox(item.id).catch(() => { }); else S.inboxBad[item.id] = 'Already added as a lead'; }
+        continue;
+      }
+      // anything else (a dropped connection, the office key changing that moment): try again a little later
+      const n = S.inboxTry[item.id] = (S.inboxTry[item.id] || 0) + 1;
+      if (n >= 4) S.inboxBad[item.id] = 'Couldn’t be added: ' + errText(e); else S.inboxWait[item.id] = Date.now() + n * 15000;
+    }
+  }
 }
 /* owner: after the office key changed in NLO Cases, re-seal leads (and the feed's keys) under the newest key */
 async function resealIfNeeded(tries) {

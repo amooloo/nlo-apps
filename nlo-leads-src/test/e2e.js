@@ -107,8 +107,10 @@ const leadOf = (p, n) => p.evaluate(n => { const l = Array.from(S.leads.values()
   await sleep(600);
   check((await fsDump(['leadInbox'])).length === 0, 'nothing stored');
 
-  console.log('\n# Owner sets up the website feed');
-  await owner.click('#nav-settings'); await owner.waitForSelector('[data-act=setupFeed]');
+  console.log('\n# Owner sets up the instant website feed (optional; folded away under Website requests)');
+  await owner.click('#nav-settings'); await owner.waitForSelector('#instantFeed summary');
+  check(!(await owner.isVisible('[data-act=setupFeed]')), 'the instant feed’s setup is folded away (email brings requests in without it)');
+  await owner.click('#instantFeed summary'); await owner.waitForSelector('[data-act=setupFeed]');
   await owner.click('[data-act=setupFeed]'); await owner.click('#cbYes');
   await owner.waitForSelector('#feedStatus .feedSt:has-text("On")', { timeout: 20000 });
   const intake = (await fsDump(['meta'])).find(d => d.name.endsWith('/meta/intake'));
@@ -219,6 +221,80 @@ const leadOf = (p, n) => p.evaluate(n => { const l = Array.from(S.leads.values()
   await waitLead(owner, 'Riley Demo');
   check(!(await owner.evaluate(() => openLeads().some(l => l.name === 'Old Address'))), 'the old address stores nothing');
 
+  console.log('\n# Website requests by email: the NLO Cases email reader (nothing to set up in Leads)');
+  await owner.click('#nav-today'); await owner.click('#nav-settings'); await owner.waitForSelector('#mailRoute .feedSt');
+  check(/Not on yet/.test(await owner.textContent('#mailRoute .feedSt')), 'before NLO Cases’ email reader exists, Settings says it’s not on yet');
+  // Dr. A sets up email updates in NLO Cases (done once, for the lab emails)
+  await ownerC.click('#nav-admin'); await ownerC.waitForSelector('#mailAdmin [data-act=mailSetup]', { timeout: 20000 });
+  await ownerC.click('#mailAdmin [data-act=mailSetup]'); await ownerC.click('#cbYes');
+  await ownerC.waitForSelector('#mlScript', { timeout: 30000 });
+  const mailScript = await ownerC.inputValue('#mlScript');
+  await ownerC.click('.modal [data-act=closeModal]');
+  const inboxMeta = (await fsDump(['meta'])).find(d => d.name.endsWith('/meta/inbox'));
+  check(/thenextlevelorthodontics@orthohost\.com/.test(JSON.stringify(inboxMeta.fields.senders)), 'NLO Cases’ email reader is told to forward the website form’s emails too');
+  await owner.waitForFunction(() => /On/.test(document.querySelector('#mailRoute .feedSt').textContent), null, { timeout: 15000 });
+  check(true, 'Leads → Settings: website requests by email are On');
+  // the real Gmail script (as NLO Cases hands it out), run in a stand-in for Google with made-up emails
+  const { makeGas } = require(path.join(__dirname, '..', '..', 'nlo-cases-src', 'test', 'gas.js'));
+  const webText = (n, p, e, ph, msg) => 'Patient Name: ' + n + '\nParent Name: ' + (p || '') + '\nEmail: ' + e + '\nPhone: ' + ph + '\nMessage: ' + msg +
+    '\n\n---\n\nDate: October 2, 2026\nTime: 4:10 pm\nPage URL: https://thenextlevelorthodontics.com/request-an-appointment/\nUser Agent: Mozilla/5.0\nRemote IP: 198.51.100.44\nPowered by: Elementor';
+  const now = Date.now();
+  const reqA = { id: 'w1', date: now - 60000, from: 'thenextlevelorthodontics@orthohost.com', to: 'records@example.com, office@example.com', subject: 'Website Appointment Request - Sky',
+    text: webText('Sky Madeup', 'Robin Madeup', 'robin.madeup@example.com', '3525550142', 'Consult for Invisalign please — marker-e5') };
+  const asanaNote = { id: 'w2', date: now - 50000, from: 'Asana <no-reply@asana.com>', subject: 'Website Appointment Request - Sky', text: 'Error processing your incoming email. Your task was successfully created in Asana.' };
+  const labMail = { id: 'w3', date: now - 40000, from: 'uLab Systems <noreply@ulabsystems.com>', subject: 'Your uLab order ZQ55 has shipped.', text: 'Order Number: ZQ55\nPatient Name: Lab Madeup' };
+  const beforeGoLive = { id: 'w4', date: Date.UTC(2026, 9, 1, 15), from: 'thenextlevelorthodontics@orthohost.com', subject: 'Website Appointment Request - Earlier',
+    text: webText('Earlier Madeup', '', 'earlier@example.com', '3525550143', 'Sent the day before go-live') };
+  // the website's general contact form comes from the same address but isn't a lead (it never went to Asana either)
+  const contactForm = { id: 'w7', date: now - 30000, from: 'thenextlevelorthodontics@orthohost.com', subject: 'Website Contact Submission',
+    text: 'Name: Jobseeker Madeup\nEmail: jobs.madeup@example.com\nMessage: Are you hiring assistants?\n\n---\n\nDate: October 2, 2026' };
+  const gasA = makeGas({ source: mailScript, messages: [reqA, asanaNote, labMail, beforeGoLive, contactForm], user: 'office@example.com' });
+  const runA = gasA.ctx.setup();
+  check(/5 emails sent/.test(runA), 'Dr. A’s Gmail: the reader seals the request, Asana’s notice in its thread, a lab email, an older request and a contact-form email (' + runA + ')');
+  await waitLead(sav, 'Sky Madeup'); await waitLead(owner, 'Sky Madeup'); await waitLead(gwen, 'Sky Madeup');
+  check(true, 'the website request shows up in Leads on every signed-in computer, by itself');
+  for (let i = 0; i < 40 && (await fsDump(['inbox'])).length !== 1; i++) await sleep(500);
+  const leftMail = await ownerC.evaluate(async () => (await B.inboxLoad()).map(d => d.mail && d.mail.subject));
+  check(leftMail.length === 1 && /uLab order ZQ55/.test(leftMail[0]), 'Leads clears Asana’s notice, the pre-go-live request and the contact-form email; the lab email is left for NLO Cases (' + leftMail.join(' | ') + ')');
+  check(!(await owner.evaluate(() => openLeads().some(l => l.name === 'Earlier Madeup'))), 'a request sent before go-live (already in Asana) is not added');
+  check(!(await owner.evaluate(() => openLeads().some(l => /Jobseeker/.test(l.name || '')))), 'the website’s contact-form email is not a lead');
+  const sky = await leadOf(sav, 'Sky Madeup');
+  check(sky.parent === 'Robin Madeup' && sky.phone === '3525550142' && sky.email === 'robin.madeup@example.com' && /marker-e5/.test(sky.message) && sky.src.kind === 'website' && sky.src.via === 'email'
+    && sky.steps.length === 5 && /^e[0-9a-f]{19}$/.test(sky.id) && !/Remote IP|198\.51/.test(sky.src.raw || ''), 'its details and five attempts are in place; the IP address isn’t kept (id ' + sky.id + ')');
+  check(sky.assignee === savSid && !sky.flag, 'assigned to Savannah, nothing to check');
+  await sleep(2000);
+  check(await leadsNamed(owner, 'Sky Madeup') === 1 && await leadsNamed(gwen, 'Sky Madeup') === 1, 'filed once, though three computers were signed in');
+  const gasR = makeGas({ source: mailScript, messages: [Object.assign({}, reqA, { id: 'r1', date: now - 20000 })], user: 'records@example.com' });
+  check(/1 email sent/.test(gasR.ctx.setup()), 'records@: its reader forwards its own copy of the same email later');
+  for (let i = 0; i < 40 && (await fsDump(['inbox'])).length !== 1; i++) await sleep(500);
+  await sleep(1500);
+  check(await leadsNamed(owner, 'Sky Madeup') === 1 && (await fsDump(['inbox'])).length === 1, 'the second copy is cleared without a second lead');
+  gasA.messages.push({ id: 'w5', date: Date.now(), from: 'thenextlevelorthodontics@orthohost.com', subject: 'Website Appointment Request - Test', text: webText('Test Test', '', 'test@example.com', '3525550100', 'Trying the form') });
+  check(/1 email sent/.test(gasA.ctx.checkMail()), 'a made-up test through the real form…');
+  await sav.waitForFunction(() => openLeads().some(l => l.name === 'Test Test' && l.flag === 'test'), null, { timeout: 30000 });
+  check(true, '…waits under Need a look as a test');
+  check(await ownerC.evaluate(() => !MAILS.unread.length && MAILS.list.length === 1), 'NLO Cases shows only the lab email (no “format the app doesn’t read” note for website emails)');
+  await owner.click('#nav-today'); await owner.click('#nav-settings'); await owner.evaluate(() => { S.beatsAt = 0; updateFeedStatus(); });
+  await owner.waitForFunction(() => /office@example\.com: checked/.test(document.querySelector('#mailRoute').textContent) && /records@example\.com: checked/.test(document.querySelector('#mailRoute').textContent), null, { timeout: 15000 });
+  check(true, 'Settings shows when each inbox’s reader last checked');
+  // the instant feed is set up in this test too: the same request through both ways is one lead
+  check(await post(HOOK2, elementor({ name: 'Twin Madeup', email: 'twin.madeup@example.com', phone: '352-555-0150', message: 'Sent once' })) === 200, 'a request through the instant feed…');
+  await waitLead(owner, 'Twin Madeup');
+  gasA.messages.push({ id: 'w8', date: Date.now(), from: 'thenextlevelorthodontics@orthohost.com', subject: 'Website Appointment Request - Twin', text: webText('Twin Madeup', '', 'twin.madeup@example.com', '(352) 555-0150', 'Sent once') });
+  check(/1 email sent/.test(gasA.ctx.checkMail()), '…and its email a few minutes later…');
+  for (let i = 0; i < 40 && (await fsDump(['inbox'])).length !== 1; i++) await sleep(500);
+  await sleep(1500);
+  check(await leadsNamed(owner, 'Twin Madeup') === 1 && (await fsDump(['inbox'])).length === 1, '…stay one lead (the email copy is cleared)');
+  // an NLO Cases page opened before this update puts its older sender list back; Dr. A's Leads restores the website
+  const inboxDoc = `http://127.0.0.1:8080/v1/projects/${PROJECT}/databases/(default)/documents/meta/inbox`;
+  await fetch(inboxDoc + '?updateMask.fieldPaths=senders', { method: 'PATCH', headers: { Authorization: 'Bearer owner', 'content-type': 'application/json' },
+    body: JSON.stringify({ fields: { senders: { arrayValue: { values: ['ulabsystems.com', 'partnersdentalstudio.com', 'olivortho.com', 'angelaligner.com', 'angelalign.com'].map(s => ({ stringValue: s })) } } } }) });
+  let back = false;
+  for (let i = 0; i < 30 && !back; i++) { await sleep(500); back = /thenextlevelorthodontics@orthohost\.com/.test(JSON.stringify((await (await fetch(inboxDoc, { headers: { Authorization: 'Bearer owner' } })).json()).fields.senders)); }
+  check(back, 'when an older NLO Cases page takes the website off the email reader’s list, Dr. A’s Leads puts it back');
+  dump = JSON.stringify(await fsDump(['leads', 'leadLog', 'leadInbox', 'inbox', 'meta', 'mailbeat']));
+  check(!/Sky|Robin|robin\.madeup|marker-e5|5550142|Earlier Madeup|198\.51\.100\.44|Lab Madeup|ZQ55|Jobseeker|Twin Madeup/.test(dump), 'nothing readable about any of it in Firestore (inbox, leads, history)');
+
   console.log('\n# Lead added by hand, closed with a reason, reopened');
   await gwen.evaluate(() => closeDrawer(true)); await sav.evaluate(() => closeDrawer(true));
   await gwen.click('.topBar [data-act=newLead]'); await gwen.waitForSelector('#nlForm');
@@ -255,6 +331,9 @@ const leadOf = (p, n) => p.evaluate(n => { const l = Array.from(S.leads.values()
   check(ik.fields.priv.mapValue.fields.v.integerValue === '2', 'the feed’s private key re-sealed under version 2 too');
   check(await post(HOOK2, elementor({ name: 'Harper Testcase', parent: 'Morgan Testcase', email: 'morgan.t@example.com', phone: '352-555-0104' })) === 200, 'a request after the key change…');
   await waitLead(sav, 'Harper Testcase'); check(true, '…is opened and filed as usual');
+  gasA.messages.push({ id: 'w6', date: Date.now(), from: 'thenextlevelorthodontics@orthohost.com', subject: 'Website Appointment Request - Avery Late', text: webText('Avery Late', 'Pat Late', 'pat.late@example.com', '3525550145', 'After the key change') });
+  check(/1 email sent/.test(gasA.ctx.checkMail()), 'an emailed request after the key change…');
+  await waitLead(sav, 'Avery Late'); check(true, '…comes in as usual too');
   const hp = await leadOf(sav, 'Harper Testcase');
   await sav.evaluate(id => openDrawer(id), hp.id); await sav.waitForSelector('#drawer .nowBox');
   await sav.click('#drawer [data-act=logRes][data-res=vm]');

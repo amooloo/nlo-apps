@@ -18,8 +18,32 @@ function viewSettings() {
 
 /* ---------- website feed ---------- */
 function feedUrlFull(secret) { const base = (S.cfg.feedUrl || '').trim(); return base && secret ? base + (base.includes('?') ? '&' : '?') + 'k=' + encodeURIComponent(secret) : ''; }
-function feedCardHTML() { return '<div class="card" id="feedCard"><div class="cardHd"><h3>Website feed</h3><span class="sub">The website’s appointment form → here, automatically</span></div><div class="cardBd" id="feedBd"></div></div>'; }
+/* Website requests come in by email (nothing to set up); the instant feed is an optional extra for the technically minded */
+function feedCardHTML() {
+  return '<div class="card" id="feedCard"><div class="cardHd"><h3>Website requests</h3><span class="sub">The website’s appointment form → here, automatically</span></div><div class="cardBd">' +
+    '<div id="mailRoute">' + mailRouteHTML() + '</div>' +
+    '<details class="help" id="instantFeed"' + (S.instantOpen || (S.intake && (S.cfg.feedUrl || '').trim()) ? ' open' : '') + '><summary data-act="instantToggle">Instant feed (optional, technical)</summary>' +
+    '<p class="small muted" style="margin:8px 0 10px">Not needed — email already brings every request in. This adds a small Google Cloud service so requests arrive within seconds instead of minutes.</p>' +
+    '<div id="feedBd"></div></details></div></div>';
+}
+function mailRouteHTML() {
+  const on = mailRouteOn();
+  let h = '<div class="feedSt"><span class="dot ' + (on ? 'ok' : '') + '"></span><b>' + (on ? 'On' : 'Not on yet') + '</b> — ' +
+    (on ? 'requests come in by email, within about 10 minutes' : 'open NLO Cases once and it switches this on by itself') + '</div>' +
+    '<p class="small muted" style="margin-top:6px">The website emails each appointment request to your Gmail and records@. The NLO Cases email reader in those inboxes seals it and passes it here. It’s added once even though both inboxes get it, and its follow-up plan starts from when it was sent. Requests sent before 2 Oct, 3 PM stay in Asana.</p>';
+  const beats = S.beats;
+  if (beats) h += beats.length ? '<div class="small" style="margin-top:6px">' + beats.map(b => esc(b.box) + ': checked ' + esc(fmtAgo(b.at)) + (b.err ? ' — <span class="bad">' + esc(b.err) + '</span>' : '')).join('<br>') + '</div>'
+    : '<div class="small bad" style="margin-top:6px">The email reader hasn’t checked in yet. Set it up in NLO Cases → Team &amp; security → Email updates.</div>';
+  return h;
+}
+/* when each inbox's email reader last checked (looked up at most once a minute while Settings is open) */
+function loadBeats() {
+  S.beatsAt = Date.now();
+  B.mailBeats().then(b => { S.beats = b; const mr = $('#mailRoute'); if (mr) mr.innerHTML = mailRouteHTML(); }).catch(() => { });
+}
 function updateFeedStatus() {
+  const mr = $('#mailRoute'); if (mr) mr.innerHTML = mailRouteHTML();
+  if (mr && (!S.beatsAt || Date.now() - S.beatsAt > 60000)) loadBeats();
   const bd = $('#feedBd'); if (!bd) return;
   const state = S.intake ? 'on' : 'none';
   if (bd.dataset.state !== state) { bd.dataset.state = state; bd.innerHTML = feedBodyHTML(); if (S.intake) loadFeed(); return; }
@@ -73,6 +97,8 @@ function cloudShellHelp() {
     '<p class="small muted">It runs on Google’s free allowance at this office’s volume. The service can only lock a request with the feed key and store it — it can’t open leads.</p></details>';
 }
 Object.assign(ACT, {
+  /* the instant feed's section stays as the owner left it when Settings redraws (the click comes before it opens or closes) */
+  instantToggle(t) { S.instantOpen = !t.parentElement.open; },
   async setupFeed() {
     if (!await confirmBox('Set up the website feed?', 'This makes the feed’s key and the private address for the website form. Nothing changes on the website until you add that address to the form.', 'Set it up')) return;
     try {

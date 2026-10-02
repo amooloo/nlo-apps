@@ -279,5 +279,82 @@ t('CSV export cells that start like formulas are neutralised', () => {
   const row = L.leadToCSVRow(Object.assign(fresh({ name: '=cmd' }), { status: 'open' }), 'Sav'); assert.ok(row.startsWith('"\'=cmd"'), row);
 });
 
-console.log('\nPASS ' + pass + '  FAIL ' + fail);
-process.exit(fail ? 1 : 0);
+console.log('\n# Website requests by email (through the NLO Cases email reader)');
+// laid out exactly like the website form's email (Elementor's "all fields"), every detail made up
+const WEBMAIL = { v: 1, box: 'office@example.com', id: 'g1', from: 'thenextlevelorthodontics@orthohost.com', to: 'records@example.com, office@example.com',
+  subject: 'Website Appointment Request - Sky', date: at(2026, 10, 5, 13, 39), html: '',
+  text: 'Patient Name: Sky Madeup\nParent Name:\nEmail: sky.parent@example.com\nPhone: 3525550142\nMessage: Hello,\n\nWe would like a consult for our two kids.\n\nThanks: Sky\n\n---\n\n' +
+    'Date: October 5, 2026\nTime: 1:39 pm\nPage URL: https://thenextlevelorthodontics.com/request-an-appointment/\nUser Agent: Mozilla/5.0 (Macintosh)\nRemote IP: 198.51.100.7\nPowered by: Elementor' };
+t('only the appointment form’s email is a lead; the website’s other forms, Asana’s notice and replies are not; lab emails aren’t ours', () => {
+  const site = 'thenextlevelorthodontics@orthohost.com';
+  eq(L.webMailKind(WEBMAIL), 'request'); eq(L.webMailKind(Object.assign({}, WEBMAIL, { from: 'NLO Website <TheNextLevelOrthodontics@OrthoHost.com>' })), 'request');
+  eq(L.webMailKind(Object.assign({}, WEBMAIL, { subject: '[External] Website Appointment Request - Sky' })), 'request'); // a tagged subject in one inbox
+  eq(L.webMailKind({ from: site, subject: 'Website Contact Submission' }), 'other'); // job questions, patients' messages — never in Asana either
+  eq(L.webMailKind({ from: site, subject: 'Virtual Appt Request' }), 'other');
+  eq(L.webMailKind({ from: 'Asana <no-reply@asana.com>', subject: 'Website Appointment Request - Sky' }), 'other');
+  eq(L.webMailKind({ from: 'records@example.com', subject: 'Re: Website Appointment Request - Sky' }), 'other');
+  eq(L.webMailKind({ from: 'Someone Else <form@example.com>', subject: 'Website Appointment Request - Sky' }), 'request'); // the form, from another address
+  eq(L.webMailKind({ from: 'uLab Systems <noreply@ulabsystems.com>', subject: 'Your uLab order ZQ88 has shipped.' }), '');
+  eq(L.webMailKind({ from: 'friend@example.com', subject: 'Lunch' }), ''); eq(L.webMailKind({}), '');
+  eq(L.webRequestFromMail(Object.assign({}, WEBMAIL, { from: 'Someone Else <form@example.com>' })).flags.map(f => f.k), ['check']); // flagged for a look
+});
+t('a message can hold “Time: …” lines and rows of dashes; only the form’s own last --- line starts the date/IP part', () => {
+  const text = 'Patient Name: Sky Madeup\nPhone: 3525550142\nMessage: We need a consult.\nTime: after 3pm works best\n-----\nThanks!\n\n---\n\nDate: October 5, 2026\nTime: 1:39 pm\nRemote IP: 198.51.100.7';
+  const r = L.webRequestFromMail(Object.assign({}, WEBMAIL, { text }));
+  eq(r.message, 'We need a consult.\nTime: after 3pm works best\n-----\nThanks!');
+  assert.ok(/Thanks!/.test(r.raw) && !/198\.51|1:39 pm/.test(r.raw), r.raw);
+  const noDash = L.webRequestFromMail(Object.assign({}, WEBMAIL, { text: 'Patient Name: Sky Madeup\nPhone: 3525550142\nDate: October 5, 2026\nRemote IP: 198.51.100.7' }));
+  assert.ok(!/198\.51/.test(noDash.raw), 'without the --- line the original still stops at the first date/IP line: ' + noDash.raw);
+});
+t('very long or odd input is read quickly', () => {
+  const t0 = Date.now();
+  L.webRequestFromMail(Object.assign({}, WEBMAIL, { text: 'Patient Name: ' + 'a-'.repeat(20000) + '\n' + '\n'.repeat(40000) + 'x' }));
+  L.webRequestFromMail(Object.assign({}, WEBMAIL, { text: '', html: '<'.repeat(120000) }));
+  assert.ok(Date.now() - t0 < 1500, 'took ' + (Date.now() - t0) + ' ms');
+});
+t('its fields are read: patient, an empty parent, email, phone and the whole message; the lines after --- are not kept', () => {
+  const r = L.webRequestFromMail(WEBMAIL);
+  eq([r.name, r.parent, r.email, r.phone], ['Sky Madeup', '', 'sky.parent@example.com', '3525550142']);
+  eq(r.message, 'Hello,\nWe would like a consult for our two kids.\nThanks: Sky');
+  eq(r.page, 'https://thenextlevelorthodontics.com/request-an-appointment/'); eq(r.flags, []); eq(r.test, false);
+  assert.ok(/^Patient Name: Sky Madeup/.test(r.raw) && !/Remote IP|198\.51|Mozilla|Powered/.test(r.raw), 'the original keeps the form, not the IP address or browser: ' + r.raw);
+});
+t('an email that came only as HTML is read the same way', () => {
+  const html = '<p>Patient Name: Sky Madeup<br>Parent Name: <br>Email: sky.parent@example.com<br>Phone: 3525550142<br>Message: Hello &amp; thanks</p><p>---</p><p>Date: October 5, 2026<br>Remote IP: 198.51.100.7</p>';
+  const r = L.webRequestFromMail(Object.assign({}, WEBMAIL, { text: '', html }));
+  eq([r.name, r.parent, r.email, r.phone, r.message], ['Sky Madeup', '', 'sky.parent@example.com', '3525550142', 'Hello & thanks']); eq(r.flags, []);
+});
+t('tests, spam and unreadable emails wait for a look', () => {
+  const f = text => L.webRequestFromMail(Object.assign({}, WEBMAIL, { text })).flags.map(x => x.k);
+  eq(f('Patient Name: Test Test\nEmail: test@example.com\nPhone: 3525550100\nMessage: trying the form'), ['test']);
+  eq(f('Patient Name: Sky Madeup\nEmail: test@example.com\nPhone: 3525550100'), ['test']);
+  eq(f('Patient Name: Cheap Followers www.example.com\nEmail: promo@example.com\nMessage: hi'), ['spam']);
+  eq(f('Patient Name: Sky\nMessage: links http://a.example http://b.example www.c.example\nPhone: 3525550100'), ['spam']);
+  eq(f('Patient Name: Sky Madeup\nMessage: please call'), ['check']);
+  eq(f('Hi, please call me back'), ['check']);
+  eq(f('Patient Name: Testa Madeup\nPhone: 3525550100'), []); // a name that only starts with "Test" is not a test
+});
+t('a request becomes a lead with the five attempts planned from when it was sent', () => {
+  const l = L.leadFromInbox(L.webRequestFromMail(WEBMAIL), WEBMAIL.date, CFG, 'savannah', []);
+  eq([l.name, l.phone, l.email, l.src.kind, l.assignee, l.flag], ['Sky Madeup', '3525550142', 'sky.parent@example.com', 'website', 'savannah', '']);
+  eq(dues(l), ['2026-10-05', '2026-10-05', '2026-10-06', '2026-10-12', '2026-10-19']);
+});
+t('requests sent before 2 Oct 2026, 3 PM Eastern (already in Asana) are left out', () => {
+  eq(new Date(L.WEB_MAIL_FROM).toString().slice(0, 24), 'Fri Oct 02 2026 15:00:00');
+});
+async function ta(name, fn) { try { await fn(); pass++; console.log('  ok  ' + name); } catch (e) { fail++; console.log('  FAIL ' + name + '\n       ' + (e && e.message ? e.message.split('\n').slice(0, 4).join('\n       ') : e)); } }
+(async () => {
+  await ta('both inboxes’ copies of one email give the same lead id (so it’s filed once); a different request gives another', async () => {
+    const a = await L.webLeadId(WEBMAIL);
+    const b = await L.webLeadId(Object.assign({}, WEBMAIL, { box: 'records@example.com', id: 'r9', to: 'someone@example.com', date: WEBMAIL.date + 2000 }));
+    eq(a, b); assert.ok(/^e[0-9a-f]{19}$/.test(a), a);
+    assert.notStrictEqual(await L.webLeadId(Object.assign({}, WEBMAIL, { text: WEBMAIL.text.replace('Sky Madeup', 'Sam Madeup') })), a);
+    eq(await L.webLeadId(Object.assign({}, WEBMAIL, { text: WEBMAIL.text.replace(/\n/g, '\r\n') + '\n' })), a); // line endings don't matter
+    // one inbox tags the subject, shows the sender differently or adds a banner line: still the same request
+    eq(await L.webLeadId(Object.assign({}, WEBMAIL, { subject: '[External] ' + WEBMAIL.subject, from: 'NLO Website <thenextlevelorthodontics@orthohost.com>', text: 'CAUTION: sent from outside the office.\n' + WEBMAIL.text })), a);
+    // the same person sending the form again later is a new request (the duplicate check flags it)
+    assert.notStrictEqual(await L.webLeadId(Object.assign({}, WEBMAIL, { text: WEBMAIL.text.replace('Time: 1:39 pm', 'Time: 4:02 pm') })), a);
+  });
+  console.log('\nPASS ' + pass + '  FAIL ' + fail);
+  process.exit(fail ? 1 : 0);
+})();

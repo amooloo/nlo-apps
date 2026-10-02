@@ -27,11 +27,14 @@ function makeGas(o) {
   const GmailApp = {
     search(q, start, max) {
       GmailApp.lastQuery = q;
-      const domains = Array.from(q.matchAll(/from:([^\s{}]+)/g)).map(x => x[1].toLowerCase());
+      const senders = Array.from(q.matchAll(/from:([^\s{}]+)/g)).map(x => x[1].toLowerCase());
       const after = Number((/after:(\d+)/.exec(q) || [])[1] || 0) * 1000, wantLabel = /label:lab-update/.test(q);
-      const hit = messages.filter(m => m.date >= after && (domains.some(d => m.from.toLowerCase().includes('@' + d) || m.from.toLowerCase().includes('.' + d)) || (wantLabel && (m.labels || []).includes('Lab Update'))));
-      // one thread per subject, like Gmail's conversation view
-      const threads = {}; hit.forEach(m => { (threads[m.subject] = threads[m.subject] || []).push(m); });
+      // from:domain matches anyone at that domain; from:name@domain matches that one address (as in Gmail)
+      const fromHit = f => senders.some(d => d.includes('@') ? f.includes(d) : f.includes('@' + d) || f.includes('.' + d));
+      const hit = messages.filter(m => m.date >= after && (fromHit(m.from.toLowerCase()) || (wantLabel && (m.labels || []).includes('Lab Update'))));
+      // one thread per subject, like Gmail's conversation view; a thread comes back whole (replies from anyone included)
+      const subjects = new Set(hit.map(m => m.subject));
+      const threads = {}; messages.filter(m => subjects.has(m.subject)).forEach(m => { (threads[m.subject] = threads[m.subject] || []).push(m); });
       return Object.values(threads).slice(start || 0, (start || 0) + (max || 100)).map(list => ({ getMessages: () => list.map(msgObj) }));
     }
   };

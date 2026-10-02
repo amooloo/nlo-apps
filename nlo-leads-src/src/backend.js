@@ -3,13 +3,14 @@
    browser: lead bodies and history are sealed with the office key ring.
    Plain fields on a lead doc: v (key version), status, rev, by/sid,
    createdAt/updatedAt/closedAt — none of them identify anyone.
-   Website requests wait in `leadInbox`, sealed to the intake public key by
-   the receiving service; a signed-in browser opens them and files them.
+   Website requests arrive by email: the NLO Cases email reader seals them into
+   `inbox` and a signed-in browser opens and files them. (The optional instant
+   feed puts them in `leadInbox`, sealed to the intake public key.)
    ===================================================================== */
 const FB = {
   emu: false, app: null, auth: null, db: null, cfg: null,
   uid: null, me: null, priv: null, ring: null, keys: null, curV: 0, ringV: 0,
-  intake: null, inboxDocs: new Map(),
+  intake: null, inboxDocs: new Map(), mailDocs: new Map(), mailPriv: null,
   unsubs: [], pending: 0, onSync: null,
 
   ts() { return firebase.firestore.FieldValue.serverTimestamp(); },
@@ -129,7 +130,7 @@ const FB = {
   },
   async signOut() {
     FB.stop();
-    FB.priv = FB.ring = FB.keys = FB.me = FB.uid = FB.intake = null; FB.curV = FB.ringV = 0; FB.inboxDocs = new Map();
+    FB.priv = FB.ring = FB.keys = FB.me = FB.uid = FB.intake = FB.mailPriv = null; FB.curV = FB.ringV = 0; FB.inboxDocs = new Map(); FB.mailDocs = new Map();
     try { await FB.auth.signOut(); } catch (e) { }
   },
   stop() { FB.unsubs.forEach(u => { try { u(); } catch (e) { } }); FB.unsubs = []; },
@@ -167,6 +168,13 @@ const FB = {
       h.inbox(s.docs.map(d => ({ id: d.id, at: FB.tsMs(d.data().at) || 0, kid: d.data().kid })).sort((a, b) => a.at - b.at));
     }, () => { FB.inboxDocs = new Map(); h.inbox([]); }));
     FB.unsubs.push(FB.db.doc('meta/intake').onSnapshot(async s => { await FB.loadIntake(s.exists ? s.data() : null); h.intake(FB.intake); }, () => { FB.intake = null; h.intake(null); }));
+    // website requests that came by email: the NLO Cases email reader seals every email it forwards into `inbox`
+    // (lab emails too — those are NLO Cases' and are never changed here) and lists which senders it forwards in meta/inbox
+    FB.unsubs.push(FB.db.collection('inbox').onSnapshot(s => {
+      FB.mailDocs = new Map(s.docs.map(d => [d.id, d.data()]));
+      h.mail(s.docs.map(d => ({ id: d.id, at: FB.tsMs(d.data().at) || 0 })).sort((a, b) => a.at - b.at));
+    }, () => { FB.mailDocs = new Map(); h.mail([]); }));
+    FB.unsubs.push(FB.db.doc('meta/inbox').onSnapshot(s => h.mailRoute(s.exists ? { senders: (s.data().senders || []).map(String) } : null), () => h.mailRoute(null)));
     if (FB.isOwner()) {
       FB.unsubs.push(FB.db.collection('members').onSnapshot(s => h.members(s.docs.map(d => Object.assign({ uid: d.id }, d.data()))), e => h.error(e)));
     }
@@ -344,6 +352,57 @@ const FB = {
   },
   async leadExists(id) { return (await FB.db.doc('leads/' + id).get()).exists; },
   async dismissInbox(id) { await FB.track(FB.db.doc('leadInbox/' + id).delete()); },
+
+  /* ---------- website requests that came by email ---------- */
+  /* the private half of NLO Cases' inbox key, sealed with the office key: opened once (again for a key set up since) */
+  async mailKey(kid) {
+    if (!FB.mailPriv || !FB.mailPriv[kid]) {
+      const priv = {}, s = await FB.db.doc('meta/inboxKey').get();
+      if (s.exists) for (const k of Object.keys(s.data().keys || {})) {
+        const box = s.data().keys[k];
+        try { priv[k] = await Crypto.importPriv(await Crypto.open(FB.keys[box.v], box, 'inboxkey:' + k)); } catch (e) { priv[k] = null; }
+      }
+      FB.mailPriv = priv;
+    }
+    return FB.mailPriv[kid] || null;
+  },
+  async openMail(id) {
+    const d = FB.mailDocs.get(id); if (!d) throw errCode('gone');
+    const key = await FB.mailKey(d.kid); if (!key) throw errCode('unreadable', 'Locked with a key this login can’t open');
+    try { return { mail: JSON.parse(TD.decode(await Crypto.openFrom(key, { epk: d.epk, iv: d.iv, ct: d.ct }, 'inbox:' + id))), at: FB.tsMs(d.at) || Date.now() }; }
+    catch (e) { throw errCode('unreadable', 'This email could not be opened'); }
+  },
+  /* file it as a new lead under the id made from the email, and take that copy out of the inbox — all or nothing */
+  async commitMailLead(mailId, id, data, retried) {
+    const v = FB.curV, box = await Crypto.sealJSON(FB.keys[v], FB.clean(data), 'lead:' + id);
+    await Crypto.openJSON(FB.keys[v], box, 'lead:' + id);
+    const b = FB.db.batch();
+    b.set(FB.db.doc('leads/' + id), { v, iv: box.iv, ct: box.ct, status: 'open', rev: 1, by: FB.uid, sid: FB.me.staffId, createdAt: FB.ts(), updatedAt: FB.ts(), closedAt: null });
+    await FB.logOps(b, id, 1, null, { a: 'create', how: 'website' });
+    b.delete(FB.db.doc('inbox/' + mailId));
+    try { await FB.track(b.commit()); }
+    catch (e) {
+      // refused: another computer (or the other inbox's copy) got there first, or the office key changed a moment ago
+      if (retried || !/permission/i.test(e.code || e.message || '') || await FB.leadUsed(id)) throw e;
+      const m = (await FB.db.doc('members/' + FB.uid).get()).data(); if (!m || !m.active) throw e;
+      await FB.loadRing(m);
+      return FB.commitMailLead(mailId, id, data, true);
+    }
+  },
+  /* this id was filed before (even if the lead was deleted since, its first history entry stays) */
+  async leadUsed(id) {
+    const [a, b] = await Promise.all([FB.db.doc('leads/' + id).get(), FB.db.doc('leadLog/' + id + '_1').get()]);
+    return a.exists || b.exists;
+  },
+  /* take a website email out of the inbox without a lead: the other inbox's copy, Asana's notice, or one from before this went live */
+  async dropMail(id) { await FB.track(FB.db.doc('inbox/' + id).delete()); },
+  /* owner: put the website's mailer back on NLO Cases' email-reader list (rules: owner only, same key and fields) */
+  async addMailSender(s) { await FB.track(FB.db.doc('meta/inbox').update({ senders: firebase.firestore.FieldValue.arrayUnion(s) })); },
+  /* when each inbox's email reader last checked (no patient data) */
+  async mailBeats() {
+    const s = await FB.db.collection('mailbeat').get();
+    return s.docs.map(d => ({ box: d.data().box || '', at: FB.tsMs(d.data().at) || 0, err: d.data().err || '' })).sort((a, b) => a.box.localeCompare(b.box));
+  },
   /* owner: create the intake key pair and the secret that goes in the website's webhook address */
   async setupIntake() {
     if (!FB.isOwner()) throw errCode('permission');

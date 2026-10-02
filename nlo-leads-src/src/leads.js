@@ -308,22 +308,29 @@ function leadStats(list, nowMs, days) {
 function fmtHours(h) { if (h == null) return '—'; if (h < 1) return Math.max(1, Math.round(h * 60)) + ' min'; if (h < 48) return Math.round(h) + ' h'; return Math.round(h / 24) + ' days'; }
 
 /* ---------- Asana (the "New Leads – Appointment Requests" project) ---------- */
-/* the "Label: value" text the website form emails (and Asana keeps as the task notes) */
+/* the "Label: value" text the website form emails (and Asana keeps as the task notes). The form's fields come first;
+   the line of dashes before Date/Time/Page URL… is the form's own, so only the LAST such line starts that part — a
+   "Time: after 3" or a row of dashes typed into the message stays in the message. Without that line, the first
+   Date/Time/… line starts it. */
+const LEAD_META = /^(date|time|page url|user agent|remote ip|powered by|credit)\s*:/i;
+function leadMetaStart(lines) {
+  for (let i = lines.length - 1; i >= 0; i--) if (/^-{3,}$/.test(lines[i].trim())) return { at: i, dash: true };
+  const i = lines.findIndex(l => LEAD_META.test(l.trim()));
+  return { at: i < 0 ? lines.length : i, dash: false };
+}
 function parseLeadText(text) {
-  const out = { name: '', parent: '', email: '', phone: '', message: '', extra: {}, date: '', page: '' };
-  const lines = String(text || '').replace(/\r/g, '').split('\n');
-  const META = /^(date|time|page url|user agent|remote ip|powered by|credit)\s*:/i;
+  const out = { name: '', parent: '', email: '', phone: '', message: '', extra: {}, date: '', page: '', time: '', ip: '' };
+  const lines = String(text || '').replace(/\r/g, '').split('\n'), ms = leadMetaStart(lines);
   const kindOf = k => /^(parent|guardian)/.test(k) ? 'parent' : /^(patient|child|name|full name|your name)/.test(k) ? 'name' : /e-?mail/.test(k) ? 'email'
     : /phone|mobile|cell|tel/.test(k) ? 'phone' : /message|comment|question|note|detail|help/.test(k) ? 'message' : 'extra';
-  let cur = null, meta = false;
-  for (const raw of lines) {
-    const line = raw.trim();
-    if (/^-{3,}$/.test(line)) { meta = true; cur = null; continue; }
+  let cur = null;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (ms.dash && i === ms.at) continue;
     const m = line.match(/^([^:]{1,40}):\s*(.*)$/);
-    if (meta || (m && META.test(line))) {
-      meta = true;
-      if (m && /^date$/i.test(m[1].trim())) out.date = m[2].trim();
-      if (m && /^page url$/i.test(m[1].trim())) out.page = m[2].trim();
+    if (i >= ms.at) {
+      const k = m ? m[1].trim().toLowerCase() : '';
+      if (k === 'date') out.date = m[2].trim(); else if (k === 'page url') out.page = m[2].trim(); else if (k === 'time') out.time = m[2].trim(); else if (k === 'remote ip') out.ip = m[2].trim();
       continue;
     }
     if (m) {
@@ -344,6 +351,69 @@ function parseWhen(x) {
   x = String(x || '').trim(); if (!x) return 0;
   const m = x.match(/^(\d{4})-(\d{2})-(\d{2})$/); if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12).getTime();
   return Date.parse(x) || 0;
+}
+
+/* ---------- website requests that come by email ----------
+   The website's form emails every appointment request (to Dr. A's Gmail and records@, among others). The NLO Cases
+   email reader in those two inboxes seals each one into the shared email inbox; Leads opens it there and files it.
+   (Amir, 2 Oct 2026: the Cloud Shell setup for the instant feed was too much — this needs nothing set up.) */
+const WEB_SENDERS = ['thenextlevelorthodontics@orthohost.com'];
+/* requests sent before this went live are already being worked in Asana, so they aren't added again */
+const WEB_MAIL_FROM = Date.UTC(2026, 9, 2, 19, 0); // 2 Oct 2026, 3:00 PM Eastern
+/* The website's mailer sends three kinds of email; only the appointment form's ("Website Appointment Request - <name>")
+   is a lead — the same ones Asana got. Its "Website Contact Submission" (job questions, patients' messages) and
+   "Virtual Appt Request" emails aren't, and neither are Asana's notices or replies about a request.
+   'request' = a lead; 'other' = website-related but not a lead (taken out of the inbox); '' = not ours (lab email) */
+const WEB_APPT = /^(\[[^\]]{0,30}\]\s*){0,3}website appointment request\b/i;
+function webMailKind(m) {
+  const from = String((m && m.from) || '').toLowerCase(), subject = String((m && m.subject) || '').trim();
+  const site = WEB_SENDERS.some(s => from.includes(s));
+  if (WEB_APPT.test(subject) && (site || !/asana\.com/.test(from))) return 'request'; // from elsewhere: added, flagged for a look
+  if (site || /website appointment request/i.test(subject)) return 'other';
+  return '';
+}
+/* the email's text; when it came only as HTML, its lines are rebuilt from the tags */
+function mailText(m) {
+  const t = String((m && m.text) || '').replace(/\r/g, '');
+  if (/\S/.test(t)) return t;
+  return String((m && m.html) || '').replace(/<br\s*\/?>/gi, '\n').replace(/<\/(p|div|tr|li|h[1-6])>/gi, '\n').replace(/<[^<>]*>/g, ' ')
+    .replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#0?39;|&apos;/g, '\'').replace(/&amp;/g, '&')
+    .replace(/[ \t]+/g, ' ').replace(/ *\n */g, '\n');
+}
+const LINKY = /https?:\/\/|www\.|\b[a-z0-9-]+\.(com|net|org|ru|xyz|info|biz|top|io|co)\b/i;
+/* the same reasons to look first as the instant feed uses, plus an obvious test (a made-up "Test" name or test@ address) */
+function webFlags(r, readable) {
+  const out = [], F = (k, why) => out.push({ k, why });
+  if (/\btest\b/i.test(r.name + ' ' + r.parent) || /^test[^@]*@/i.test(r.email)) F('test', 'Looks like a test request');
+  if (LINKY.test(r.name) || LINKY.test(r.parent)) F('spam', 'Web link in the name');
+  if ((r.message.match(/https?:\/\/|www\./gi) || []).length >= 3) F('spam', 'Several web links in the message');
+  if (!readable) F('check', 'The email’s form fields couldn’t be read — see the original');
+  else {
+    if (!phoneInfo(r.phone).ok && !validEmail(r.email)) F('check', 'No working phone number or email');
+    if (!r.name && !r.parent) F('check', 'No name');
+    else if (/\d/.test(r.name + r.parent) || r.name.length > 60) F('check', 'The name looks odd');
+  }
+  return out;
+}
+/* the website's email → the same request the instant feed hands over (see leadFromInbox). Fields are cut to size
+   before any check runs on them; the saved original is the form's part only (not the IP address or browser). */
+function webRequestFromMail(m) {
+  const text = mailText(m), lines = text.split('\n'), fieldsPart = lines.slice(0, leadMetaStart(lines).at).join('\n');
+  const p = parseLeadText(text), readable = !!(p.name || p.parent || p.email || p.phone || p.message);
+  const r = { name: clip(p.name, 120), parent: clip(p.parent, 120), email: clip(p.email, 200), phone: clip(p.phone, 60), message: clip(p.message, 4000),
+    extra: p.extra, page: clip(p.page, 300), raw: clip(fieldsPart, 8000), test: false };
+  r.flags = webFlags(r, readable);
+  if (!WEB_SENDERS.some(s => String(m.from || '').toLowerCase().includes(s))) r.flags.push({ k: 'check', why: 'Came from ' + clip(m.from, 80) + ', not the website’s usual address' });
+  return r;
+}
+/* Both inboxes get the same email, so the lead's id is made from what the person sent (the form's fields and when, from
+   where): both copies give the same id — even if one inbox tags the subject or adds a banner — and the security rules let
+   an id be used only once. One lead, whichever computer or copy gets there first. */
+async function webLeadId(m) {
+  const norm = s => String(s || '').replace(/\s+/g, ' ').trim().toLowerCase(), p = parseLeadText(mailText(m));
+  const sent = [p.name, p.parent, p.email, p.phone, p.message];
+  const sig = sent.some(Boolean) ? sent.concat([p.date, p.time, p.ip]).map(norm).join('|') : norm(m.from) + '|' + norm(m.subject) + '|' + norm(mailText(m));
+  return 'e' + (await Crypto.sha256hex('nlo-leads:website-email|' + sig)).slice(0, 19);
 }
 const ASANA_RES = [[/schedul/i, 'sched'], [/follow/i, 'follow'], [/voice\s*mail|\bvm\b/i, 'vm'], [/no answer|no response|didn.?t answer/i, 'none'], [/sent|no reply/i, 'sent'], [/not interested|declin/i, 'no']];
 function asanaRes(text) { const hit = ASANA_RES.find(([re]) => re.test(text || '')); return hit ? hit[1] : ''; }
