@@ -272,7 +272,7 @@ async function lockOut(msg) {
   S.inApp = false; clearInterval(S.idleTimer); clearInterval(S.mailTimer);
   closeModal(); closeDrawer(true);
   S.cases = new Map(); S.closed = []; S.hist = null; S.histLoaded = false; S.members = []; S.roster = []; S.iprCache = {}; S.verList = null; S.delList = null; S.impList = null;
-  Object.assign(MAILS, { list: [], unread: [], pick: {}, sig: '', state: null, stateAt: 0, script: '' });
+  Object.assign(MAILS, { list: [], unread: [], pick: {}, sig: '', state: null, stateAt: 0, script: '', gone: new Set(), goneFp: new Set(), hk: null, mem: null });
   phReset(); SH.data = null; SH.err = '';
   try { await iprLink().disconnect(); } catch (e) { }
   $('#view').innerHTML = '';
@@ -338,12 +338,12 @@ function renderShell() {
     '<button class="navBtn" data-act="nav" data-v="account" id="' + (mob ? 'm' : '') + 'nav-account">' + ic('key') + '<span>My account</span></button>';
   $('#side').innerHTML = '<div class="sideTop"><img src="logo-white.png" alt="Next Level Orthodontics"><div class="appTag">Cases</div></div>' +
     '<nav class="nav" aria-label="Main">' + navBtns(false) + '</nav>' +
-    '<div class="sideFoot"><div class="whoBox"><span class="av">' + esc(initials(B.me.name)) + '</span><div><b>' + esc(B.me.name) + '</b>' + (owner ? 'Owner' : 'Staff') + '</div></div>' +
+    '<div class="sideFoot"><div class="whoBox"><span class="av" data-sav="' + esc(B.me.staffId || '') + '">' + esc(initials(B.me.name)) + '</span><div><b>' + esc(B.me.name) + '</b>' + (owner ? 'Owner' : 'Staff') + '</div></div>' +
     '<button class="sideLock" data-act="lock">' + ic('lock', 16) + 'Lock</button><div class="syncLine" id="syncLine"></div></div>';
   $('#mobTop').innerHTML = '<img src="logo-white.png" alt="NLO"><span class="appTag" style="font-size:11px;letter-spacing:.24em">Cases</span><span style="flex:1"></span>' +
     '<button class="iconBtn" style="color:#fff" data-act="newCase" aria-label="New case">' + ic('plus') + '</button><button class="iconBtn" style="color:#fff" data-act="lock" aria-label="Lock">' + ic('lock') + '</button>';
   $('#mobNav').innerHTML = navBtns(true);
-  renderSync(); renderNav();
+  renderSync(); renderNav(); savPaint($('#side'));
 }
 function renderNav() {
   const c = counts();
@@ -378,7 +378,14 @@ function renderView() {
   $('#topSlot').innerHTML = topBar();
   v.innerHTML = h;
   if (active) { const q = $('#q'); q.focus(); q.setSelectionRange(q.value.length, q.value.length); }
-  phPaint(); if (S.view === 'admin') shPaint();
+  phPaint(); savPaint(); if (S.view === 'admin') shPaint();
+}
+/* staff photos (brought in from Staff Hub, kept on the person's roster entry) on every staff avatar */
+function savPaint(root) {
+  $$('[data-sav]:not(.ph)', root || document).forEach(el => {
+    const r = staff(el.dataset.sav); if (!r || !/^data:image\/jpeg;base64,/.test(r.photo || '')) return;
+    el.textContent = ''; const im = document.createElement('img'); im.alt = ''; im.src = r.photo; el.appendChild(im); el.classList.add('ph');
+  });
 }
 
 /* ---------- small pieces ---------- */
@@ -496,7 +503,7 @@ function alignerMini(c) {
 }
 function avatar(c) {
   const r = staff(c.assignee);
-  if (r) return '<span class="av" title="' + esc(r.name) + '">' + esc(r.initials || initials(r.name)) + '</span>';
+  if (r) return '<span class="av" data-sav="' + esc(r.sid) + '" title="' + esc(r.name) + '">' + esc(r.initials || initials(r.name)) + '</span>';
   if (c.assigneeName) return '<span class="av none" title="' + esc(c.assigneeName) + '">' + esc(initials(c.assigneeName)) + '</span>';
   return '<span class="av none" title="Unassigned">–</span>';
 }
@@ -746,10 +753,14 @@ function historyHTML(c) {
 }
 function renderDrawer() {
   const d = $('#drawer'); const c = findCase(S.openId); if (!d || !c) return;
-  if (S.editing) { d.innerHTML = '<div class="dHd"><div style="flex:1"><h3>Edit case</h3></div><button class="iconBtn" data-act="closeDrawer" aria-label="Close">' + ic('x') + '</button></div>' +
+  if (S.editing) { // the patient's name stays big at the top while editing (Amir), and follows the name field as it's typed
+    d.innerHTML = '<div class="dHd dEdit">' + ptAv(c, 64) + '<div style="flex:1;min-width:0"><div class="dEditLbl">' + ic('edit', 13) + 'Editing case</div><h3 id="dEditName">' + esc(c.patient || '(no name)') + '</h3>' +
+      '<div class="sub">' + typeBadge(c) + (c.detail ? '<span class="small muted">' + esc(c.detail) + '</span>' : '') + '</div></div><button class="iconBtn" data-act="closeDrawer" aria-label="Close">' + ic('x') + '</button></div>' +
     '<div class="dBd"><div id="drawerNotice"></div>' + caseFormHTML(S.editBase, false) + '</div>' +
     '<div class="dFt"><button class="btn btn-pri" data-act="saveEdit">Save changes</button><button class="btn btn-sec" data-act="cancelEdit">Cancel</button></div>';
-    wireCaseForm(d, false); return; }
+    wireCaseForm(d, false); phPaint(); savPaint(d);
+    const nm = $('#cf-patient', d), hd = $('#dEditName', d); if (nm && hd) nm.addEventListener('input', () => { hd.textContent = nm.value.trim() || '(no name)'; });
+    return; }
   if (c.locked) {
     d.innerHTML = '<div class="dHd"><div style="flex:1"><h3>Case can’t be opened</h3></div><button class="iconBtn" data-act="closeDrawer" aria-label="Close">' + ic('x') + '</button></div>' +
       '<div class="dBd"><div class="notice bad">This case’s saved copy can’t be decrypted — it may have been damaged.</div>' +
@@ -778,7 +789,8 @@ function renderDrawer() {
       '<button class="step ' + (i < si ? 'past' : i === si ? 'cur' : '') + (g ? ' sub' : '') + '" data-act="setStage" data-k="' + k + '"' + (done ? ' disabled' : '') + ' aria-pressed="' + (i === si) + '"><span class="n">' + (i < si ? '✓' : i + 1) + '</span>' + esc(l) + '</button>'; }).join('') + '</div></div>' +
     (flow === FLOWS.marpe ? marpeBoxHTML(c, done) : '') +
     '<div class="sec"><h5>Details</h5><div class="kv">' +
-    '<div style="grid-column:1/-1"><div class="k">Assigned to</div>' + assignSel + '</div>' +
+    '<div style="grid-column:1/-1"><div class="k">Assigned to' + (!c.assignee && c.assigneeName ? ' <span class="muted" style="text-transform:none;letter-spacing:0">(Asana: ' + esc(c.assigneeName) + ')</span>' : '') + '</div>' +
+      '<div class="staffRow dAssign" role="radiogroup" aria-label="Assigned to">' + [null].concat(withSavedStaff(activeRoster(), c.assignee)).map(r => staffTile(r, (c.assignee || '') === (r ? r.sid : ''), 'aTile', ' role="radio" data-act="assignTo"' + (done ? ' disabled' : ''))).join('') + '</div></div>' +
     kv('Scan date', esc(fmtDay(c.scanDate))) +
     kv('Lab completion', c.labDate ? esc(fmtDay(c.labDate)) + (!done && (dueOf(c) || {}).k === 'lab' ? ' ' + dueChip(c) : '') : '') +
     kv('Delivery', c.deliveryDate ? esc(fmtDay(c.deliveryDate)) + (!done && (dueOf(c) || {}).k === 'delivery' ? ' ' + dueChip(c) : '') : '') +
@@ -797,14 +809,14 @@ function renderDrawer() {
     txt('Patient’s CC from last visit', c.cc) + txt('IPR & spacing', c.ipr) +
     '<div class="sec"><h5 class="noteHd">Chart note<span class="small muted">to paste into the patient’s chart</span><span style="flex:1"></span><button class="btn btn-sec btn-sm" data-act="copyNote">Copy</button></h5><div class="txt" id="noteTxt">' + esc(chartNote(c)) + '</div></div>' +
     (typeOf(c).aligner && !done ? '<div class="sec" id="iprBox">' + iprBoxHTML(c) + '</div>' : '') + txt('Notes', c.notes) +
-    '<div class="sec"><h5>Comments</h5>' + ((c.comments || []).map(x => '<div class="cmt"><span class="av">' + esc(initials(staffName(x.by, x.by))) + '</span><div><div class="w"><b>' + esc(firstName(staffName(x.by, x.by))) + '</b> · ' + esc(fmtWhen(x.at)) + '</div><div style="white-space:pre-wrap;overflow-wrap:anywhere">' + esc(x.text) + '</div></div></div>').join('') || '<div class="small muted" style="margin-bottom:6px">No comments yet.</div>') +
+    '<div class="sec"><h5>Comments</h5>' + ((c.comments || []).map(x => '<div class="cmt"><span class="av" data-sav="' + esc(x.by || '') + '">' + esc(initials(staffName(x.by, x.by))) + '</span><div><div class="w"><b>' + esc(firstName(staffName(x.by, x.by))) + '</b> · ' + esc(fmtWhen(x.at)) + '</div><div style="white-space:pre-wrap;overflow-wrap:anywhere">' + esc(x.text) + '</div></div></div>').join('') || '<div class="small muted" style="margin-bottom:6px">No comments yet.</div>') +
     (done ? '' : '<div class="field" style="margin-top:8px;margin-bottom:6px"><label for="cmtText" class="hidden">Add a comment</label><textarea id="cmtText" rows="2" placeholder="Add a comment…"></textarea></div><button class="btn btn-sec btn-sm" data-act="addCmt">Add comment</button>') + '</div>' +
     '<div class="sec"><h5>History</h5><div id="histBox">' + historyHTML(c) + '</div></div></div>' +
     '<div class="dFt">' + (done ? '<button class="btn btn-sec" data-act="reopen">Reopen</button>' :
       '<button class="btn btn-mint" data-act="complete" data-id="' + esc(c.id) + '">' + ic('done', 16) + 'Mark complete</button><button class="btn btn-sec" data-act="edit">' + ic('edit', 16) + 'Edit</button>') +
     (isOwner() ? '<span style="flex:1"></span><button class="btn btn-ghost" data-act="versions">' + ic('clock', 16) + 'Versions</button><button class="btn btn-ghost" data-act="delCase" style="color:var(--coral-700)">' + ic('trash', 16) + 'Delete</button>' : '') + '</div>';
   const t = $('#cmtText'); if (t) { t.value = keepCmt; if (hadFocus) t.focus(); }
-  phPaint(); phWireDrawer(d);
+  phPaint(); savPaint(d); phWireDrawer(d);
   if (typeOf(c).aligner && c.chart && !done) iprAutoLoad(c);
   if (c.type === 'nla') ensureHist();
 }
@@ -1025,6 +1037,9 @@ function onClick(e) {
     case 'portal': { const c = findCase(S.openId); // the link itself opens the portal in a new tab
       if (c && c.patient) copyText(c.patient).then(ok => toast(ok ? 'Copied “' + c.patient + '” — paste it in the portal’s search' : 'Couldn’t copy the name — type it in the portal', ok ? {} : { bad: true })); break; }
     case 'reopen': act(async () => { await B.mutateCase(S.openId, () => 'open', { a: 'reopen' }); S.closed = S.closed.filter(c => c.id !== S.openId); closeDrawer(true); }, 'Reopened'); break;
+    case 'assignTo': { const to = t.dataset.v || '', id = S.openId, c = findCase(id); if (!c || (c.assignee || '') === to) break;
+      $$('#drawer .dAssign .aTile').forEach(b => b.setAttribute('aria-pressed', String(b === t)));
+      act(() => B.mutateCase(id, d => { d.assignee = to; if (to) d.assigneeName = ''; }, { a: 'assign', to }), to ? 'Assigned to ' + staffName(to) : 'Unassigned'); break; }
     case 'addCmt': { const txt = ($('#cmtText').value || '').trim(); if (!txt) return; const cid = S.openId;
       $('#cmtText').value = ''; act(() => B.mutateCase(cid, d => { d.comments = (d.comments || []).concat([{ id: uid8(), at: Date.now(), by: meSid(), text: txt }]); }, { a: 'comment' })); break; }
     case 'edit': { const c = findCase(S.openId); S.editBase = JSON.parse(JSON.stringify(c)); S.editing = true; renderDrawer(); break; }
@@ -1061,8 +1076,8 @@ function onClick(e) {
 }
 function onChange(e) {
   const t = e.target;
-  if (t.classList && t.classList.contains('mlSel')) { const x = MAILS.list[Number(t.dataset.mail)]; if (x) { MAILS.pick[x.ev.key] = t.value; const b = $('[data-act=mailApply][data-n="' + t.dataset.mail + '"]'); if (b) b.disabled = !t.value;
-    const ph = $('[data-mlph="' + t.dataset.mail + '"]'); if (ph) { ph.innerHTML = ptAv(t.value ? findCase(t.value) : null, 32); phPaint(); } } return; }
+  if (t.classList && t.classList.contains('mlSel')) { const x = MAILS.list.find(g => g.id === t.dataset.g); if (x) { MAILS.pick[x.id] = t.value; const b = $('[data-act=mailApply][data-g="' + CSS.escape(x.id) + '"]'); if (b) b.disabled = !t.value;
+    const ph = $('[data-mlph="' + CSS.escape(x.id) + '"]'); if (ph) { ph.innerHTML = ptAv(t.value ? findCase(t.value) : null, 32); phPaint(); } } return; }
   if (t.matches && t.matches('input[data-old]')) { if (t.checked) S.oldOff.delete(t.dataset.old); else S.oldOff.add(t.dataset.old); syncOld(); return; }
   if (t.id === 'oldMonths') { S.oldMonths = Number(t.value) || 3; S.oldOff.clear(); renderView(); return; }
   if (t.id === 'oldNoDate') { S.oldNoDate = t.checked; renderView(); return; }
@@ -1092,13 +1107,16 @@ async function saveEdit() {
   const btn = $('[data-act=saveEdit]', d); busyBtn(btn, true, 'Saving…');
   const id = S.openId;
   try {
-    await B.mutateCase(id, x => {
+    const apply = x => {
       changed.forEach(k => { x[k] = Array.isArray(now[k]) ? now[k].slice() : now[k]; });
       if (changed.includes('assignee') && now.assignee) x.assigneeName = '';
       if (changed.includes('assistant') && now.assistant) x.assistantName = '';
       if (changed.includes('tracking')) x.carrier = ''; // a carrier named by a lab email belonged to the old number
       if (changed.includes('type') && !FLOWS[TYPE[x.type].flow].stages.some(s => s[0] === x.stage)) x.stage = firstStage(x.type);
-    }, { a: 'edit', fields: changed });
+    };
+    await B.mutateCase(id, apply, { a: 'edit', fields: changed });
+    // show the saved copy right away (the live update from the server follows a moment later)
+    const cur = findCase(id); if (cur) apply(cur);
     S.editing = false; toast('Saved'); renderDrawer(); loadHistory(id);
   } catch (x) { busyBtn(btn, false); toast(errText(x), { bad: true }); }
 }

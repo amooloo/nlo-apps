@@ -272,11 +272,11 @@ async function openByName(p, name) {
   check(await owner.isVisible('#drawer .step.cur:has-text("To submit")'), 'imported stage mapped from the Asana section');
   check(await owner.isVisible('#drawer .txt:has-text("Close all spaces")'), 'Tally fields parsed into the case');
   check(await owner.isVisible('#drawer .txt:has-text("LR4–LR3 0.2mm")'), 'multi-line IPR note kept');
-  check((await owner.inputValue('#assignSel')) === 'sarah', 'Asana assignee matched to the staff login');
+  check((await owner.getAttribute('#drawer .dAssign .aTile[aria-pressed=true]', 'data-v')) === 'sarah', 'Asana assignee matched to the staff login');
   await owner.click('#drawer [data-act=closeDrawer] >> nth=0');
   await openByName(owner, 'Bartholomew Notreal');
   check(await owner.isVisible('#drawer .step.cur:has-text("Printing")'), 'retainer section mapped to Printing');
-  check((await owner.inputValue('#assignSel')) === 'gwen', 'retainer assigned to the assistant named in the section');
+  check((await owner.getAttribute('#drawer .dAssign .aTile[aria-pressed=true]', 'data-v')) === 'gwen', 'retainer assigned to the assistant named in the section');
   await owner.click('#drawer [data-act=closeDrawer] >> nth=0');
   await owner.click('#nav-import'); await owner.setInputFiles('#csvFiles', csvPath);
   await owner.waitForSelector('#impPreview:has-text("already imported")', { timeout: 20000 });
@@ -381,6 +381,7 @@ async function openByName(p, name) {
     && (await owner.getAttribute('#drawer .pickRow[data-g=goal_ob] .pick[data-v=maintain]', 'aria-pressed')) === 'true', 'editing restores the tapped choices');
   await owner.click('#drawer .pickRow[data-g=goal_midline] .pick[data-v=improve]');
   await owner.click('[data-act=saveEdit]'); await owner.waitForSelector('#drawer .stepper', { timeout: 20000 });
+  await owner.waitForFunction(() => !Array.from(document.querySelectorAll('#drawer .txt')).some(e => /midline/i.test(e.textContent)), null, { timeout: 10000 }).catch(() => { });
   check(!(await owner.isVisible('#drawer .txt:has-text("Midline")')), 'un-tapping an instruction removes it');
   await owner.click('#drawer [data-act=closeDrawer] >> nth=0');
   dump = JSON.stringify(await fsDump());
@@ -833,6 +834,31 @@ async function openByName(p, name) {
   check(!(await st('Mira Holdsworth')).hold, 'a hold someone cleared isn’t brought back by the same hold in the next summary');
   dump = JSON.stringify(await fsDump());
   check(!/Brightwater|Marchetti|Quillfeather|Velasquez|Holdsworth|Robin T|700111|ZQ88|lower jaw/.test(dump), 'no patient name, case # or hold reason is readable anywhere in the database');
+  // the same update in both mailboxes and in the next day's summary is one row; Dismiss clears every copy, and it stays dismissed
+  const holdHtml = (d, nm) => '<p>No Cases Received Today</p><p>No Cases Shipped Today</p><p>Cases On Hold in the last 7 Days</p><table><tr><th>Patient Name</th><th>Case Number</th><th>Hold Date</th><th>Hold Reason</th></tr><tr><td>' + nm + '</td><td>55999</td><td>10-01-2026</td><td>Need a new scan</td></tr></table><p>' + d + '</p>';
+  const mA = { id: 'h1', date: Date.now() - 2 * H, from: 'general@partnersdentalstudio.com', subject: 'Daily Cases Received, Shipped, and Held', text: '', html: holdHtml('day 1', 'Wren Z.') };
+  const mB = { id: 'h2', date: Date.now() - H, from: 'general@partnersdentalstudio.com', subject: 'Daily Cases Received, Shipped, and Held', text: '', html: holdHtml('day 2', 'Wren Z.') };
+  gas.messages.push(mA); gas.ctx.checkMail();
+  const gas2 = makeGas({ source: script, messages: [Object.assign({}, mA, { id: 'r1' }), Object.assign({}, mB, { id: 'r2' })], user: 'records@example.com' });
+  check(/2 emails sent/.test(gas2.ctx.setup()), 'a second mailbox (records@) runs the same script');
+  await owner.click('#nav-today'); await owner.waitForSelector('#mailCard .mlRow:has-text("Wren Z.")', { timeout: 30000 });
+  await owner.waitForFunction(() => /in 3 emails/.test((document.querySelector('#mailCard') || {}).textContent || ''), null, { timeout: 30000 });
+  check((await owner.locator('#mailCard .mlRow:has-text("Wren Z.")').count()) === 1, 'the same hold in 3 emails (both mailboxes, two days) shows once: “in 3 emails”');
+  await owner.click('#mailCard .mlRow:has-text("Wren Z.") [data-act=mailSkip]');
+  await owner.waitForFunction(async () => (await B.inboxLoad()).length === 0, null, { timeout: 20000 });
+  check(!(await owner.isVisible('#mailCard .mlRow:has-text("Wren Z.")')), 'Dismiss clears every copy (all 3 emails leave the inbox)');
+  gas2.messages.push({ id: 'r3', date: Date.now(), from: 'general@partnersdentalstudio.com', subject: 'Daily Cases Received, Shipped, and Held', text: '', html: holdHtml('day 3', 'Wren Z.') });
+  gas2.ctx.checkMail();
+  await owner.waitForFunction(async () => (await B.inboxLoad()).length === 0, null, { timeout: 30000 });
+  check(!(await owner.isVisible('#mailCard .mlRow:has-text("Wren Z.")')), 'the next day’s summary with the same hold doesn’t bring it back');
+  gas2.messages.push({ id: 'r4', date: Date.now(), from: 'general@partnersdentalstudio.com', subject: 'Daily Cases Received, Shipped, and Held', text: '', html:
+    '<p>Cases Received Today</p><table><tr><th>Patient Name</th><th>Case Number</th></tr><tr><td>Yara Q.</td><td>56001</td></tr><tr><td>Xeno P.</td><td>56002</td></tr></table><p>No Cases Shipped Today</p>' });
+  gas2.ctx.checkMail();
+  await owner.waitForFunction(() => document.querySelectorAll('#mailCard .mlRow').length === 2, null, { timeout: 30000 });
+  await owner.click('#mailCard [data-act=mailSkipAll]'); await owner.click('#cbYes');
+  await owner.waitForSelector('.toast:has-text("2 email updates dismissed")', { timeout: 20000 });
+  await owner.waitForFunction(async () => !document.querySelector('#mailCard') && (await B.inboxLoad()).length === 0, null, { timeout: 20000 });
+  check(true, 'Dismiss all clears the card (and the emails)');
   await owner.click('#nav-admin'); await owner.waitForSelector('#mailAdmin .mlBeat:has-text("office@example.com")', { timeout: 20000 });
   check(true, 'Team & security shows each mailbox’s last check');
   await owner.click('#mailAdmin [data-act=mailOff]'); await owner.click('#cbYes'); await owner.waitForSelector('.toast:has-text("turned off")', { timeout: 20000 });
@@ -1019,6 +1045,36 @@ async function openByName(p, name) {
   await rput('nlo/cadence/roster/people/s_sarah', rp('s_sarah', 'Sarah', 'Tester', 'Treatment coordinator', { active: false, end: '2026-10-01' }));
   await owner.click('#shBox [data-act=shRefresh]'); await owner.waitForSelector('#shBox .shGrp.bad .shRow:has-text("Sarah Tester")', { timeout: 20000 });
   check(await owner.isVisible('#shBox .shGrp.bad [data-act=removeStaff][data-sid=sarah]'), 'when Staff Hub ends someone’s employment, Team & security flags them with Remove login');
+  // staff photos from Staff Hub: brought onto NLO Cases' own team list, so staff (who don't use Staff Hub) see them too
+  const staffPic = await owner.evaluate(() => { const c = document.createElement('canvas'); c.width = c.height = 240; const g = c.getContext('2d'); g.fillStyle = '#5471A0'; g.fillRect(0, 0, 240, 240); g.fillStyle = '#F6D2B8'; g.beginPath(); g.arc(120, 110, 60, 0, 7); g.fill(); return c.toDataURL('image/jpeg', 0.9); });
+  await rput('nlo/cadence/roster/people/s_gwen', rp('s_gwen', 'Gwen', 'Tester', 'Orthodontic assistant', { photo: staffPic }));
+  await owner.click('#shBox [data-act=shRefresh]'); await owner.waitForSelector('.toast:has-text("staff photo")', { timeout: 20000 });
+  const gwenRow = (await fsDump()).find(d => d.name.endsWith('/roster/gwen'));
+  check(gwenRow && /^data:image\/jpeg;base64,/.test(gwenRow.fields.photo.stringValue) && gwenRow.fields.photo.stringValue.length < 12000 && gwenRow.fields.photoSrc, 'Gwen’s Staff Hub photo is brought in, shrunk (' + (gwenRow && gwenRow.fields.photo ? gwenRow.fields.photo.stringValue.length : 0) + ' characters)');
+  await owner.waitForSelector('#app tr:has-text("Gwen Tester") .av.ph img', { timeout: 20000 });
+  check(true, 'the team list shows her photo');
+  await gwen.click('#nav-today'); await gwen.waitForSelector('#side .whoBox .av.ph img', { timeout: 20000 });
+  check(true, 'and Gwen sees it in her own app (no Staff Hub sign-in needed)');
+  await owner.click('#shBox [data-act=shRefresh]'); await owner.waitForTimeout(1500);
+  check(!(await owner.isVisible('.toast:has-text("2 staff photos")')) && (await fsDump()).find(d => d.name.endsWith('/roster/gwen')).fields.photoSrc.stringValue === gwenRow.fields.photoSrc.stringValue, 'an unchanged photo isn’t brought in again');
+  // staff as photo tiles with names underneath: Assistant and Assigned to
+  await owner.click('.topBar [data-act=newCase]'); await owner.waitForSelector('#ncForm .staffRow[data-g=assistant] .sTile[data-v=gwen] .av.ph img', { timeout: 10000 });
+  check(/Gwen/.test(await owner.textContent('#ncForm .staffRow[data-g=assistant] .sTile[data-v=gwen] .sNm')), 'New case: the Assistant choices are staff photos with the name underneath');
+  await owner.click('#ncForm .tt[data-tile=retainer]'); await owner.fill('#cf-patient', 'Tobias Tilepick');
+  await owner.click('#ncForm .staffRow[data-g=assistant] .sTile[data-v=gwen]');
+  await owner.click('#ncForm details.cfMore summary'); await owner.click('#ncForm .aTiles .aTile[data-v=nina]');
+  await owner.click('#ncSave'); await owner.waitForSelector('#modalWrap', { state: 'detached', timeout: 20000 });
+  await owner.waitForFunction(() => openCases().some(c => c.patient === 'Tobias Tilepick'), null, { timeout: 20000 });
+  const tt = await owner.evaluate(() => { const c = openCases().find(x => x.patient === 'Tobias Tilepick'); return { a: c.assistant, b: c.assignee, id: c.id }; });
+  check(tt.a === 'gwen' && tt.b === 'nina', 'the tiles set the assistant and who it’s assigned to');
+  await owner.evaluate(id => openDrawer(id), tt.id); await owner.waitForSelector('#drawer .dAssign .aTile[data-v=nina][aria-pressed=true]');
+  await owner.click('#drawer .dAssign .aTile[data-v=gwen]'); await owner.waitForSelector('.toast:has-text("Assigned to Gwen")', { timeout: 20000 });
+  await owner.waitForFunction(id => (openCases().find(c => c.id === id) || {}).assignee === 'gwen', tt.id, { timeout: 20000 });
+  check(true, 'in the case, tapping a photo reassigns it');
+  await owner.click('#drawer [data-act=edit]'); await owner.waitForSelector('#dEditName');
+  check(await owner.textContent('#dEditName') === 'Tobias Tilepick' && /Editing case/i.test(await owner.textContent('#drawer .dEditLbl')), 'Edit case shows the patient’s name big at the top');
+  await owner.fill('#cf-patient', 'Tobias Tilepick Jr'); check(await owner.textContent('#dEditName') === 'Tobias Tilepick Jr', 'and it follows the name as it’s typed');
+  await owner.click('#drawer [data-act=cancelEdit]'); await owner.click('#drawer [data-act=closeDrawer] >> nth=0');
 
   console.log('\n# Older security rules still live: photos wait, and Team & security hands out the new rules');
   const putRules = async content => { const r = await fetch(`http://127.0.0.1:8080/emulator/v1/projects/${PROJECT}:securityRules`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rules: { files: [{ name: 'firestore.rules', content }] } }) }); if (!r.ok) throw new Error('rules PUT ' + r.status + ' ' + await r.text()); };

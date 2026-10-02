@@ -373,7 +373,7 @@ function caseFormHTML(c, isNew) {
       '<div class="field"><label for="cf-alL">Lower aligners</label><input id="cf-alL" type="number" inputmode="numeric" min="0" max="99" step="1" placeholder="0" value="' + esc(c.alL || '') + '"></div>' +
       '<div class="alTot" id="cf-alTotal" aria-live="polite"></div></div></div>' +
     '<div class="cfSec"' + showTiles('insmile') + '><h5>Initial or digital enhancement?</h5>' + pickRow('initialDE', [{ v: 'yes', l: 'Initial' }, { v: 'de1', l: 'DE 1' }, { v: 'de2', l: 'DE 2' }, { v: 'de3', l: 'DE 3' }], c.initial || '', false) + '</div>' +
-    '<div class="cfSec"><h5>Assistant</h5>' + pickRow('assistant', roster.map(r => ({ v: r.sid, l: firstName(r.name) })), c.assistant || '', false) +
+    '<div class="cfSec"><h5>Assistant</h5>' + staffPickRow('assistant', withSavedStaff(roster, c.assistant), c.assistant || '') +
     '<div' + show('aligner braces appliance marpe retainer models') + '><h5>Scanner</h5>' + pickRow('scanner', PICK.scanners, c.scanner || '', false) + '</div></div>' +
     '<div class="cfSec"><h5>Dates</h5><div class="pickRow" style="margin-bottom:8px"><button type="button" class="pick sm" data-scan="0">Scanned today</button><button type="button" class="pick sm" data-scan="-1">Yesterday</button></div>' +
     '<div class="grid3">' + date('cf-scanDate', 'Scan date', c.scanDate) + date('cf-labDate', 'Lab completion', c.labDate) + date('cf-deliveryDate', 'Delivery', c.deliveryDate) + '</div>' +
@@ -409,11 +409,30 @@ function caseFormHTML(c, isNew) {
     '<details class="cfMore"' + (isNew ? '' : ' open') + '><summary>More: what’s being made, stage, who it’s assigned to, notes</summary>' +
     '<div class="grid2" style="margin-top:12px"><div class="field"><label for="cf-detail">What’s being made</label><input id="cf-detail" value="' + esc(c.detail || '') + '" data-auto="' + (isNew || !c.detail ? 1 : 0) + '"></div>' +
     '<div class="field"><label for="cf-stage">Stage</label><select id="cf-stage">' + stages.map(([k, l]) => opt(k, l, (c.stage || (stages[0] || [])[0]) === k)).join('') + '</select></div></div>' +
-    '<div class="grid2"><div class="field"><label for="cf-assignee">Assigned to</label><select id="cf-assignee">' + people(c.assignee, 'Unassigned') + '</select></div>' +
-    '<div class="field"><label for="cf-tracking">Tracking #</label><input id="cf-tracking" autocomplete="off" spellcheck="false" placeholder="UPS, FedEx or USPS — becomes a Track button" value="' + esc(c.tracking || '') + '"></div></div>' +
+    '<div class="field"><label>Assigned to</label>' + assignTilesHTML('cf-assignee', c.assignee) + '</div>' +
+    '<div class="grid2"><div class="field"><label for="cf-tracking">Tracking #</label><input id="cf-tracking" autocomplete="off" spellcheck="false" placeholder="UPS, FedEx or USPS — becomes a Track button" value="' + esc(c.tracking || '') + '"></div></div>' +
     '<div class="grid2"><div class="field"><label for="cf-labRef">Lab case # / patient ID</label><input id="cf-labRef" autocomplete="off" spellcheck="false" placeholder="The lab’s own number (lab emails fill it in)" value="' + esc(c.labRef || '') + '"></div><div></div></div>' +
     '<div class="field"><label for="cf-notes">Notes</label><textarea id="cf-notes" rows="2">' + esc(c.notes || '') + '</textarea></div></details>' +
     '<input type="hidden" id="cf-tile" value="' + esc(tile) + '"></div>';
+}
+/* staff as photo tiles with the name underneath (Amir: "their photos with their names underneath instead of just a text box").
+   Photos come from Staff Hub (Team & security → From Staff Hub); without one, the initials show. */
+function staffLabel(r) { return r ? (r.role === 'owner' ? 'Dr. A' : firstName(r.name)) : 'Nobody'; }
+function staffTile(r, on, cls, extra) {
+  return '<button type="button" class="' + cls + ' sTile" data-v="' + esc(r ? r.sid : '') + '" aria-pressed="' + !!on + '"' + (extra || '') + ' title="' + esc(r ? r.name : 'Not assigned to anyone') + '">' +
+    '<span class="av sAv' + (r ? '' : ' none') + '"' + (r ? ' data-sav="' + esc(r.sid) + '"' : '') + '>' + (r ? esc(r.initials || initials(r.name)) : '–') + '</span><span class="sNm">' + esc(staffLabel(r)) + '</span></button>';
+}
+/* the assistant: a pick row (one at a time) of staff tiles */
+function staffPickRow(group, people, chosen) {
+  return '<div class="pickRow staffRow" role="group" data-g="' + group + '" data-multi="0">' + people.map(r => staffTile(r, chosen === r.sid, 'pick')).join('') + '</div>';
+}
+/* "assigned to" in the form: tiles (with Nobody) over a hidden field the rest of the form reads and sets */
+function assignTilesHTML(id, chosen) {
+  return '<input type="hidden" id="' + id + '" value="' + esc(chosen || '') + '"><div class="staffRow aTiles" data-for="' + id + '" role="radiogroup" aria-label="Assigned to">' +
+    [null].concat(activeRoster()).map(r => staffTile(r, (chosen || '') === (r ? r.sid : ''), 'aTile', ' role="radio"')).join('') + '</div>';
+}
+function assignTilesSync(root) {
+  $$('.aTiles[data-for]', root).forEach(row => { const inp = $('#' + row.dataset.for, root); if (!inp) return; $$('.aTile', row).forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === inp.value))); });
 }
 function pressed(root, g) { return $$('.pickRow[data-g="' + g + '"] .pick[aria-pressed="true"]', root).map(b => b.dataset.v); }
 function readCaseForm(root) {
@@ -498,7 +517,7 @@ function wireCaseForm(root, isNew) {
       autoIds.forEach(id => { const el = $r('#' + id); if (el.dataset.auto === '1') el.value = plan[id]; });
     }
     if (det.dataset.auto === '1') det.value = autoDetail(o, tile);
-    alTot();
+    assignTilesSync(root); alTot();
   };
   // in-house aligners: this set plus the patient's earlier sets (matched by chart #, else name)
   const cfEl = $('.cf', root) || root;
@@ -526,6 +545,8 @@ function wireCaseForm(root, isNew) {
       if (row.dataset.g === 'appliances') routeLab(root, isNew);
       refresh(false); return;
     }
+    const at = e.target.closest('.aTiles .aTile');
+    if (at && root.contains(at)) { const row = at.closest('.aTiles'), inp = $('#' + row.dataset.for, root); if (inp) { inp.value = at.dataset.v; inp.dataset.manual = '1'; assignTilesSync(root); } return; }
     const ship = e.target.closest('#cf-ship');
     if (ship && root.contains(ship)) {
       const on = ship.getAttribute('aria-pressed') !== 'true'; ship.setAttribute('aria-pressed', String(on));
@@ -596,7 +617,7 @@ function wireCaseForm(root, isNew) {
     const tooth = e.target.closest && e.target.closest('#cf-tc .tooth');
     if (tooth && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); tooth.dispatchEvent(new MouseEvent('click', { bubbles: true })); }
   });
-  ['cf-stage', 'cf-assignee'].forEach(id => $r('#' + id).addEventListener('change', e => { e.target.dataset.manual = '1'; }));
+  $r('#cf-stage').addEventListener('change', e => { e.target.dataset.manual = '1'; }); // (Assigned to: marked by its tiles)
   // editing: a lab already on the case stays unless someone taps another one
   const labRow = $('.pickRow[data-g="lab"]', root); if (!isNew && labRow && pressed(root, 'lab').length) labRow.dataset.manual = '1';
   $r('#cf-scanDate').addEventListener('change', () => refresh(false));
@@ -616,7 +637,10 @@ function routeLab(root, isNew) {
   const st = $('#cf-stage', root), as = $('#cf-assignee', root);
   if (st && st.dataset.manual !== '1') st.value = inHouse ? 'mfg' : 'submit';
   if (as && as.dataset.manual !== '1') as.value = inHouse ? ((activeRoster().find(r => r.role === 'owner') || {}).sid || '') : defaultAssignee('appliance');
+  assignTilesSync(root);
 }
+/* a case's assistant who has since left still shows (picked) when the case is edited */
+function withSavedStaff(list, sid) { if (!sid || list.some(r => r.sid === sid)) return list; const r = staff(sid); return r ? list.concat([r]) : list; }
 function setPick(root, g, v, on) { const b = $('.pickRow[data-g="' + g + '"] .pick[data-v="' + CSS.escape(v) + '"]', root); if (b) b.setAttribute('aria-pressed', String(!!on)); }
 function editDirty() {
   const d = $('#drawer'); if (!d || !S.editing || !S.editBase) return false;
@@ -628,7 +652,7 @@ function newCaseModal() {
   openModal('<h3>New case</h3><div class="lsub">Tap through it after the scan. Only the patient’s name needs typing. Encrypted before it leaves this computer.</div><div id="ncErr"></div><form id="ncForm" novalidate>' + caseFormHTML(base, true) +
     '<div class="mFt"><button class="btn btn-sec" type="button" data-act="closeModal">Cancel</button><button class="btn btn-teal" type="submit" id="ncSave">' + ic('plus', 16) + 'Create case</button></div></form>', w => {
       w.querySelector('.modal').classList.add('wide');
-      wireCaseForm(w, true); phWireForm(w);
+      wireCaseForm(w, true); phWireForm(w); savPaint(w);
       $('#ncForm', w).onsubmit = async e => {
         e.preventDefault(); const data = readCaseForm(w);
         const err = m => { $('#ncErr', w).innerHTML = '<div class="lockErr" role="alert">' + esc(m) + '</div>'; $('#ncErr', w).scrollIntoView({ block: 'nearest' }); };

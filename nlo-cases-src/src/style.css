@@ -632,3 +632,22 @@ body.phOff .pav,body.phOff .dPh,body.phOff .phSlot,body.phOff .phTgl,body.phOff 
 .av.shAv.ph{background:var(--grey-200)}
 .av.shAv img{width:100%;height:100%;object-fit:cover;display:block}
 .shFoot{margin-top:10px}
+/* editing a case: the patient's name stays big at the top */
+.dEdit h3{font-size:25px}
+.dEditLbl{display:inline-flex;align-items:center;gap:5px;font-family:var(--fd);font-weight:500;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--blue);margin-bottom:2px}
+/* staff as photo tiles with the name underneath (Assistant, Assigned to) */
+.staffRow{display:flex;flex-wrap:wrap;gap:8px}
+.sTile,.pick.sTile{display:flex;flex-direction:column;align-items:center;gap:5px;padding:7px 6px 6px;min-width:66px;min-height:0;border-radius:14px;border:1.5px solid transparent;background:none;color:var(--grey-700);text-align:center;line-height:1.2;cursor:pointer}
+.sTile .av.sAv{width:46px;height:46px;font-size:14px}
+.sTile .sNm{font-size:12px;font-weight:600;max-width:78px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sTile:hover,.pick.sTile:hover{background:var(--mint-100);border-color:transparent;color:var(--navy)}
+.sTile[aria-pressed="true"],.pick.sTile[aria-pressed="true"]{background:var(--mint-100);border-color:var(--mint-600);color:var(--navy-900)}
+.pick.sTile[aria-pressed="true"]::before{content:none}
+.sTile[aria-pressed="true"] .av{box-shadow:0 0 0 2px #fff,0 0 0 4px var(--mint-600)}
+.sTile[aria-pressed="true"] .sNm{color:var(--navy);font-weight:700}
+.sTile:disabled{opacity:.65;cursor:default}
+.sTile:disabled:hover{background:none}
+.dAssign{margin-top:4px}
+/* a staff photo from Staff Hub in place of the initials */
+.av.ph{background:var(--grey-200);overflow:hidden;padding:0}
+.av.ph img{width:100%;height:100%;object-fit:cover;display:block}

@@ -15,7 +15,7 @@ function viewAdmin() {
     people.map(r => {
       const st = r.role === 'owner' ? { k: 'ok', l: 'Owner', m: S.members.find(m => m.staffId === r.sid && m.active) } : memberStatus(r.sid);
       const last = st.m && st.m.lastLogin ? fmtWhen(FB.tsMs ? FB.tsMs(st.m.lastLogin) : st.m.lastLogin) : '';
-      return '<tr><td><div class="nameCell"><span class="av">' + esc(r.initials || initials(r.name)) + '</span><b>' + esc(r.name) + '</b></div></td><td class="small">' + esc(r.username || (r.role === 'owner' ? 'email login' : '')) + '</td>' +
+      return '<tr><td><div class="nameCell"><span class="av" data-sav="' + esc(r.sid) + '">' + esc(r.initials || initials(r.name)) + '</span><b>' + esc(r.name) + '</b></div></td><td class="small">' + esc(r.username || (r.role === 'owner' ? 'email login' : '')) + '</td>' +
         '<td><span class="stat ' + st.k + '">' + esc(st.l) + '</span></td><td class="hideM small muted">' + esc(last) + '</td><td style="text-align:right;white-space:nowrap">' +
         (r.role === 'owner' ? '' : r.active ? '<button class="btn btn-ghost" data-act="reissue" data-sid="' + esc(r.sid) + '">Reissue login</button><button class="btn btn-ghost" style="color:var(--coral-700)" data-act="removeStaff" data-sid="' + esc(r.sid) + '">Remove</button>'
           : '<button class="btn btn-ghost" data-act="readd" data-sid="' + esc(r.sid) + '">Add back</button>') + '</td></tr>';
@@ -73,7 +73,7 @@ function viewImport() {
 }
 function viewAccount() {
   const me = B.me || {};
-  return '<div class="card" style="max-width:520px"><div class="cardHd"><span class="av lg">' + esc(initials(me.name)) + '</span><div><h3>' + esc(me.name || '') + '</h3><div class="sub">' + (me.role === 'owner' ? 'Owner · email login' : 'Username: ' + esc(me.username || '')) + '</div></div></div>' +
+  return '<div class="card" style="max-width:520px"><div class="cardHd"><span class="av lg" data-sav="' + esc(me.staffId || '') + '">' + esc(initials(me.name)) + '</span><div><h3>' + esc(me.name || '') + '</h3><div class="sub">' + (me.role === 'owner' ? 'Owner · email login' : 'Username: ' + esc(me.username || '')) + '</div></div></div>' +
     '<div class="cardBd"><form id="pwForm"><div class="sec" style="margin-top:0"><h5>Change password</h5></div>' +
     '<div class="field"><label for="pwCur">Current password</label><input type="password" id="pwCur" autocomplete="current-password" required></div>' +
     '<div class="field"><label for="pwN1">New password</label><input type="password" id="pwN1" autocomplete="new-password" minlength="8" required></div>' +
@@ -351,7 +351,7 @@ function shUsername(p) {
 }
 async function shLoad() {
   if (SH.loading) return; SH.loading = true; SH.err = '';
-  try { SH.data = (await iprLink().roster()) || { people: {} }; SH.at = Date.now(); }
+  try { SH.data = (await iprLink().roster()) || { people: {} }; SH.at = Date.now(); shPhotos(); }
   catch (e) { SH.data = null; SH.err = /permission|denied/i.test(String(e && (e.code || e.message))) ? 'This Google account can’t read the office roster. Connect with the account Staff Hub shares it with.' : 'Couldn’t reach the office roster. Check the connection and try again.'; }
   SH.loading = false; if (S.view === 'admin') queueRender('team');
 }
@@ -372,6 +372,32 @@ function shBoxHTML() {
     (st.leaving.length ? '<div class="shGrp"><h6>Leaving soon</h6>' + st.leaving.map(x => row(x.p, '<span class="small muted">remove on ' + esc(fmtDate(x.p.end)) + '</span>', '')).join('') + '</div>' : '') +
     (!st.add.length && !st.left.length ? '<p class="small" style="margin:6px 0 2px;color:var(--mint-700)">' + ic('done', 15) + ' Everyone on Staff Hub’s roster has a login, and nobody who left still does.</p>' : '') +
     '<p class="small muted shFoot">' + st.linked + ' linked' + (when ? ' · roster shared ' + esc(when) : '') + '. Add a hire or end someone’s employment in Staff Hub; it shows up here.</p></div>';
+}
+/* bring each linked person's Staff Hub photo onto their NLO Cases roster entry (Amir: "import staff photos"), so everyone sees it,
+   staff included (they don't sign in to Staff Hub). Shrunk to 96 px; only when the Staff Hub photo has changed. */
+async function shPhotos() {
+  if (!isOwner() || !B.setStaffPhoto || SH.syncing) return; SH.syncing = true; let n = 0;
+  try {
+    const people = shPeople();
+    for (const r of S.roster) {
+      const p = shMatch(r, people); if (!p) continue;
+      const src = /^data:image\/(jpeg|png|webp);base64,/.test(p.photo || '') ? p.photo : '';
+      const h = src ? Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', TE.encode(src))).subarray(0, 8), b => b.toString(16).padStart(2, '0')).join('') : '';
+      if ((r.photoSrc || '') === h) continue;
+      const small = src ? await shrinkPhoto(src, 96) : ''; if (src && !small) continue;
+      await B.setStaffPhoto(r.sid, small, h); n++;
+    }
+  } catch (e) { } finally { SH.syncing = false; }
+  if (n) toast(n + ' staff photo' + (n > 1 ? 's' : '') + ' brought in from Staff Hub');
+}
+function shrinkPhoto(src, px) {
+  return new Promise(res => {
+    const im = new Image();
+    im.onload = () => { try { const c = document.createElement('canvas'); c.width = c.height = px; const g = c.getContext('2d'), s = Math.min(im.naturalWidth, im.naturalHeight);
+      g.fillStyle = '#fff'; g.fillRect(0, 0, px, px); g.imageSmoothingQuality = 'high';
+      g.drawImage(im, (im.naturalWidth - s) / 2, (im.naturalHeight - s) / 2, s, s, 0, 0, px, px); res(c.toDataURL('image/jpeg', 0.85)); } catch (e) { res(''); } };
+    im.onerror = () => res(''); im.src = src;
+  });
 }
 /* staff photos from Staff Hub (data: URLs from the roster) are set after drawing, like the company logos */
 function shPaint() { $$('[data-shph]').forEach(el => { const p = shPeople().find(x => x.id === el.dataset.shph); if (p && /^data:image\/jpeg;base64,/.test(p.photo || '')) { el.textContent = ''; const im = document.createElement('img'); im.alt = ''; im.src = p.photo; el.appendChild(im); el.classList.add('ph'); } }); }

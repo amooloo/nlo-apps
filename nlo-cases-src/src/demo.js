@@ -156,6 +156,11 @@ const DEMO = {
     DEMO.h.roster(DEMO.roster.slice()); DEMO.h.members(DEMO.members.slice());
     return { temp: tempPassword(), username };
   },
+  async setStaffPhoto(sid, photo, src) {
+    const r = DEMO.roster.find(x => x.sid === sid); if (!r) return;
+    if (photo) Object.assign(r, { photo, photoSrc: src }); else { delete r.photo; delete r.photoSrc; }
+    DEMO.h.roster(DEMO.roster.map(x => Object.assign({}, x)));
+  },
   async reissue(sid) { const r = DEMO.roster.find(x => x.sid === sid); DEMO.members.forEach(m => { if (m.staffId === sid) m.mustSetup = true; }); DEMO.h.members(DEMO.members.slice()); return { temp: tempPassword(), username: r.username || sid }; },
   async removeStaff(sid) { DEMO.roster.forEach(r => { if (r.sid === sid) r.active = false; }); DEMO.members.forEach(m => { if (m.staffId === sid) m.active = false; }); DEMO.h.roster(DEMO.roster.slice()); DEMO.h.members(DEMO.members.slice()); },
   async rotate(progress) { const n = DEMO.cases.size; for (let i = 1; i <= n; i++) { if (progress) progress(i, n); } DEMO.curV++; return { cases: n, pendingInvites: 0 }; },

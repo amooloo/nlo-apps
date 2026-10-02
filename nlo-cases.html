@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-zpELR0Gzx+3/q2B5o7z2RDAdHWgKdcYP0UypxzZEYRc=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-1Smx10saUsSQI18WJOyNljYvrLBz+neRrfGa4gRFln4=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO Cases</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -646,6 +646,25 @@ body.phOff .pav,body.phOff .dPh,body.phOff .phSlot,body.phOff .phTgl,body.phOff 
 .av.shAv.ph{background:var(--grey-200)}
 .av.shAv img{width:100%;height:100%;object-fit:cover;display:block}
 .shFoot{margin-top:10px}
+/* editing a case: the patient's name stays big at the top */
+.dEdit h3{font-size:25px}
+.dEditLbl{display:inline-flex;align-items:center;gap:5px;font-family:var(--fd);font-weight:500;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--blue);margin-bottom:2px}
+/* staff as photo tiles with the name underneath (Assistant, Assigned to) */
+.staffRow{display:flex;flex-wrap:wrap;gap:8px}
+.sTile,.pick.sTile{display:flex;flex-direction:column;align-items:center;gap:5px;padding:7px 6px 6px;min-width:66px;min-height:0;border-radius:14px;border:1.5px solid transparent;background:none;color:var(--grey-700);text-align:center;line-height:1.2;cursor:pointer}
+.sTile .av.sAv{width:46px;height:46px;font-size:14px}
+.sTile .sNm{font-size:12px;font-weight:600;max-width:78px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sTile:hover,.pick.sTile:hover{background:var(--mint-100);border-color:transparent;color:var(--navy)}
+.sTile[aria-pressed="true"],.pick.sTile[aria-pressed="true"]{background:var(--mint-100);border-color:var(--mint-600);color:var(--navy-900)}
+.pick.sTile[aria-pressed="true"]::before{content:none}
+.sTile[aria-pressed="true"] .av{box-shadow:0 0 0 2px #fff,0 0 0 4px var(--mint-600)}
+.sTile[aria-pressed="true"] .sNm{color:var(--navy);font-weight:700}
+.sTile:disabled{opacity:.65;cursor:default}
+.sTile:disabled:hover{background:none}
+.dAssign{margin-top:4px}
+/* a staff photo from Staff Hub in place of the initials */
+.av.ph{background:var(--grey-200);overflow:hidden;padding:0}
+.av.ph img{width:100%;height:100%;object-fit:cover;display:block}
 
 </style>
 </head>
@@ -1563,6 +1582,10 @@ const FB = {
     const gen = (rs.exists ? (rs.data().gen || 0) : 0) + 1;
     return FB.issue({ sid: username, name: name.trim(), username, gen, rid: rid || '' });
   },
+  /* owner: a staff photo from Staff Hub (a small data: URL, not patient data) on the person's roster entry; '' removes it */
+  async setStaffPhoto(sid, photo, src) {
+    await FB.track(FB.db.doc('roster/' + sid).update(photo ? { photo, photoSrc: src } : { photo: FB.del(), photoSrc: FB.del() }));
+  },
   async reissue(sid) {
     const rs = (await FB.db.doc('roster/' + sid).get()).data();
     const olds = (await FB.db.collection('members').where('staffId', '==', sid).get()).docs.filter(d => d.data().active);
@@ -1777,6 +1800,11 @@ const DEMO = {
     DEMO.h.roster(DEMO.roster.slice()); DEMO.h.members(DEMO.members.slice());
     return { temp: tempPassword(), username };
   },
+  async setStaffPhoto(sid, photo, src) {
+    const r = DEMO.roster.find(x => x.sid === sid); if (!r) return;
+    if (photo) Object.assign(r, { photo, photoSrc: src }); else { delete r.photo; delete r.photoSrc; }
+    DEMO.h.roster(DEMO.roster.map(x => Object.assign({}, x)));
+  },
   async reissue(sid) { const r = DEMO.roster.find(x => x.sid === sid); DEMO.members.forEach(m => { if (m.staffId === sid) m.mustSetup = true; }); DEMO.h.members(DEMO.members.slice()); return { temp: tempPassword(), username: r.username || sid }; },
   async removeStaff(sid) { DEMO.roster.forEach(r => { if (r.sid === sid) r.active = false; }); DEMO.members.forEach(m => { if (m.staffId === sid) m.active = false; }); DEMO.h.roster(DEMO.roster.slice()); DEMO.h.members(DEMO.members.slice()); },
   async rotate(progress) { const n = DEMO.cases.size; for (let i = 1; i <= n; i++) { if (progress) progress(i, n); } DEMO.curV++; return { cases: n, pendingInvites: 0 }; },
@@ -1958,12 +1986,13 @@ const IPR_DEMO = {
   },
   /* a made-up office roster: the demo's staff, one new hire without a login, one who has left */
   async roster() {
+    const face = async n => 'data:image/jpeg;base64,' + b64(await demoFace(n)); // drawn faces, like the demo's patients
     const p = (id, first, last, title, extra) => Object.assign({ id, name: first + (last ? ' ' + last : ''), first, last, nick: first, short: first, title, chairside: true, active: true }, extra || {});
     return { v: 1, source: 'staff-hub', updatedAt: Date.now() - 3600e3, people: {
       s_amir: p('s_amir', 'Amir', 'Akhavan', 'Orthodontist / Owner', { name: 'Dr. Amir Akhavan', nick: 'Dr. A', short: 'Dr. A' }),
-      s_sarah: p('s_sarah', 'Sarah', '', 'Treatment coordinator', { chairside: false }), s_angelika: p('s_angelika', 'Angelika', '', 'Lab lead'),
-      s_gwen: p('s_gwen', 'Gwen', '', 'Orthodontic assistant'), s_kaylee: p('s_kaylee', 'Kaylee', '', 'Orthodontic assistant', { active: false, end: addDays(todayISO(), -2) }),
-      s_nora: p('s_nora', 'Nora', 'Newhire', 'Orthodontic assistant'), s_lena: p('s_lena', 'Lena', 'Leaveson', 'Front desk', { chairside: false, end: addDays(todayISO(), 9) }) } };
+      s_sarah: p('s_sarah', 'Sarah', '', 'Treatment coordinator', { chairside: false, photo: await face(103) }), s_angelika: p('s_angelika', 'Angelika', '', 'Lab lead', { photo: await face(104) }),
+      s_gwen: p('s_gwen', 'Gwen', '', 'Orthodontic assistant', { photo: await face(101) }), s_kaylee: p('s_kaylee', 'Kaylee', '', 'Orthodontic assistant', { active: false, end: addDays(todayISO(), -2), photo: await face(102) }),
+      s_nora: p('s_nora', 'Nora', 'Newhire', 'Orthodontic assistant', { photo: await face(105) }), s_lena: p('s_lena', 'Lena', 'Leaveson', 'Front desk', { chairside: false, end: addDays(todayISO(), 9) }) } };
   }
 };
 function iprLink() { return S.demo ? IPR_DEMO : IPR; }
@@ -2242,7 +2271,7 @@ async function lockOut(msg) {
   S.inApp = false; clearInterval(S.idleTimer); clearInterval(S.mailTimer);
   closeModal(); closeDrawer(true);
   S.cases = new Map(); S.closed = []; S.hist = null; S.histLoaded = false; S.members = []; S.roster = []; S.iprCache = {}; S.verList = null; S.delList = null; S.impList = null;
-  Object.assign(MAILS, { list: [], unread: [], pick: {}, sig: '', state: null, stateAt: 0, script: '' });
+  Object.assign(MAILS, { list: [], unread: [], pick: {}, sig: '', state: null, stateAt: 0, script: '', gone: new Set(), goneFp: new Set(), hk: null, mem: null });
   phReset(); SH.data = null; SH.err = '';
   try { await iprLink().disconnect(); } catch (e) { }
   $('#view').innerHTML = '';
@@ -2308,12 +2337,12 @@ function renderShell() {
     '<button class="navBtn" data-act="nav" data-v="account" id="' + (mob ? 'm' : '') + 'nav-account">' + ic('key') + '<span>My account</span></button>';
   $('#side').innerHTML = '<div class="sideTop"><img src="logo-white.png" alt="Next Level Orthodontics"><div class="appTag">Cases</div></div>' +
     '<nav class="nav" aria-label="Main">' + navBtns(false) + '</nav>' +
-    '<div class="sideFoot"><div class="whoBox"><span class="av">' + esc(initials(B.me.name)) + '</span><div><b>' + esc(B.me.name) + '</b>' + (owner ? 'Owner' : 'Staff') + '</div></div>' +
+    '<div class="sideFoot"><div class="whoBox"><span class="av" data-sav="' + esc(B.me.staffId || '') + '">' + esc(initials(B.me.name)) + '</span><div><b>' + esc(B.me.name) + '</b>' + (owner ? 'Owner' : 'Staff') + '</div></div>' +
     '<button class="sideLock" data-act="lock">' + ic('lock', 16) + 'Lock</button><div class="syncLine" id="syncLine"></div></div>';
   $('#mobTop').innerHTML = '<img src="logo-white.png" alt="NLO"><span class="appTag" style="font-size:11px;letter-spacing:.24em">Cases</span><span style="flex:1"></span>' +
     '<button class="iconBtn" style="color:#fff" data-act="newCase" aria-label="New case">' + ic('plus') + '</button><button class="iconBtn" style="color:#fff" data-act="lock" aria-label="Lock">' + ic('lock') + '</button>';
   $('#mobNav').innerHTML = navBtns(true);
-  renderSync(); renderNav();
+  renderSync(); renderNav(); savPaint($('#side'));
 }
 function renderNav() {
   const c = counts();
@@ -2348,7 +2377,14 @@ function renderView() {
   $('#topSlot').innerHTML = topBar();
   v.innerHTML = h;
   if (active) { const q = $('#q'); q.focus(); q.setSelectionRange(q.value.length, q.value.length); }
-  phPaint(); if (S.view === 'admin') shPaint();
+  phPaint(); savPaint(); if (S.view === 'admin') shPaint();
+}
+/* staff photos (brought in from Staff Hub, kept on the person's roster entry) on every staff avatar */
+function savPaint(root) {
+  $$('[data-sav]:not(.ph)', root || document).forEach(el => {
+    const r = staff(el.dataset.sav); if (!r || !/^data:image\/jpeg;base64,/.test(r.photo || '')) return;
+    el.textContent = ''; const im = document.createElement('img'); im.alt = ''; im.src = r.photo; el.appendChild(im); el.classList.add('ph');
+  });
 }
 
 /* ---------- small pieces ---------- */
@@ -2466,7 +2502,7 @@ function alignerMini(c) {
 }
 function avatar(c) {
   const r = staff(c.assignee);
-  if (r) return '<span class="av" title="' + esc(r.name) + '">' + esc(r.initials || initials(r.name)) + '</span>';
+  if (r) return '<span class="av" data-sav="' + esc(r.sid) + '" title="' + esc(r.name) + '">' + esc(r.initials || initials(r.name)) + '</span>';
   if (c.assigneeName) return '<span class="av none" title="' + esc(c.assigneeName) + '">' + esc(initials(c.assigneeName)) + '</span>';
   return '<span class="av none" title="Unassigned">–</span>';
 }
@@ -2716,10 +2752,14 @@ function historyHTML(c) {
 }
 function renderDrawer() {
   const d = $('#drawer'); const c = findCase(S.openId); if (!d || !c) return;
-  if (S.editing) { d.innerHTML = '<div class="dHd"><div style="flex:1"><h3>Edit case</h3></div><button class="iconBtn" data-act="closeDrawer" aria-label="Close">' + ic('x') + '</button></div>' +
+  if (S.editing) { // the patient's name stays big at the top while editing (Amir), and follows the name field as it's typed
+    d.innerHTML = '<div class="dHd dEdit">' + ptAv(c, 64) + '<div style="flex:1;min-width:0"><div class="dEditLbl">' + ic('edit', 13) + 'Editing case</div><h3 id="dEditName">' + esc(c.patient || '(no name)') + '</h3>' +
+      '<div class="sub">' + typeBadge(c) + (c.detail ? '<span class="small muted">' + esc(c.detail) + '</span>' : '') + '</div></div><button class="iconBtn" data-act="closeDrawer" aria-label="Close">' + ic('x') + '</button></div>' +
     '<div class="dBd"><div id="drawerNotice"></div>' + caseFormHTML(S.editBase, false) + '</div>' +
     '<div class="dFt"><button class="btn btn-pri" data-act="saveEdit">Save changes</button><button class="btn btn-sec" data-act="cancelEdit">Cancel</button></div>';
-    wireCaseForm(d, false); return; }
+    wireCaseForm(d, false); phPaint(); savPaint(d);
+    const nm = $('#cf-patient', d), hd = $('#dEditName', d); if (nm && hd) nm.addEventListener('input', () => { hd.textContent = nm.value.trim() || '(no name)'; });
+    return; }
   if (c.locked) {
     d.innerHTML = '<div class="dHd"><div style="flex:1"><h3>Case can’t be opened</h3></div><button class="iconBtn" data-act="closeDrawer" aria-label="Close">' + ic('x') + '</button></div>' +
       '<div class="dBd"><div class="notice bad">This case’s saved copy can’t be decrypted — it may have been damaged.</div>' +
@@ -2748,7 +2788,8 @@ function renderDrawer() {
       '<button class="step ' + (i < si ? 'past' : i === si ? 'cur' : '') + (g ? ' sub' : '') + '" data-act="setStage" data-k="' + k + '"' + (done ? ' disabled' : '') + ' aria-pressed="' + (i === si) + '"><span class="n">' + (i < si ? '✓' : i + 1) + '</span>' + esc(l) + '</button>'; }).join('') + '</div></div>' +
     (flow === FLOWS.marpe ? marpeBoxHTML(c, done) : '') +
     '<div class="sec"><h5>Details</h5><div class="kv">' +
-    '<div style="grid-column:1/-1"><div class="k">Assigned to</div>' + assignSel + '</div>' +
+    '<div style="grid-column:1/-1"><div class="k">Assigned to' + (!c.assignee && c.assigneeName ? ' <span class="muted" style="text-transform:none;letter-spacing:0">(Asana: ' + esc(c.assigneeName) + ')</span>' : '') + '</div>' +
+      '<div class="staffRow dAssign" role="radiogroup" aria-label="Assigned to">' + [null].concat(withSavedStaff(activeRoster(), c.assignee)).map(r => staffTile(r, (c.assignee || '') === (r ? r.sid : ''), 'aTile', ' role="radio" data-act="assignTo"' + (done ? ' disabled' : ''))).join('') + '</div></div>' +
     kv('Scan date', esc(fmtDay(c.scanDate))) +
     kv('Lab completion', c.labDate ? esc(fmtDay(c.labDate)) + (!done && (dueOf(c) || {}).k === 'lab' ? ' ' + dueChip(c) : '') : '') +
     kv('Delivery', c.deliveryDate ? esc(fmtDay(c.deliveryDate)) + (!done && (dueOf(c) || {}).k === 'delivery' ? ' ' + dueChip(c) : '') : '') +
@@ -2767,14 +2808,14 @@ function renderDrawer() {
     txt('Patient’s CC from last visit', c.cc) + txt('IPR & spacing', c.ipr) +
     '<div class="sec"><h5 class="noteHd">Chart note<span class="small muted">to paste into the patient’s chart</span><span style="flex:1"></span><button class="btn btn-sec btn-sm" data-act="copyNote">Copy</button></h5><div class="txt" id="noteTxt">' + esc(chartNote(c)) + '</div></div>' +
     (typeOf(c).aligner && !done ? '<div class="sec" id="iprBox">' + iprBoxHTML(c) + '</div>' : '') + txt('Notes', c.notes) +
-    '<div class="sec"><h5>Comments</h5>' + ((c.comments || []).map(x => '<div class="cmt"><span class="av">' + esc(initials(staffName(x.by, x.by))) + '</span><div><div class="w"><b>' + esc(firstName(staffName(x.by, x.by))) + '</b> · ' + esc(fmtWhen(x.at)) + '</div><div style="white-space:pre-wrap;overflow-wrap:anywhere">' + esc(x.text) + '</div></div></div>').join('') || '<div class="small muted" style="margin-bottom:6px">No comments yet.</div>') +
+    '<div class="sec"><h5>Comments</h5>' + ((c.comments || []).map(x => '<div class="cmt"><span class="av" data-sav="' + esc(x.by || '') + '">' + esc(initials(staffName(x.by, x.by))) + '</span><div><div class="w"><b>' + esc(firstName(staffName(x.by, x.by))) + '</b> · ' + esc(fmtWhen(x.at)) + '</div><div style="white-space:pre-wrap;overflow-wrap:anywhere">' + esc(x.text) + '</div></div></div>').join('') || '<div class="small muted" style="margin-bottom:6px">No comments yet.</div>') +
     (done ? '' : '<div class="field" style="margin-top:8px;margin-bottom:6px"><label for="cmtText" class="hidden">Add a comment</label><textarea id="cmtText" rows="2" placeholder="Add a comment…"></textarea></div><button class="btn btn-sec btn-sm" data-act="addCmt">Add comment</button>') + '</div>' +
     '<div class="sec"><h5>History</h5><div id="histBox">' + historyHTML(c) + '</div></div></div>' +
     '<div class="dFt">' + (done ? '<button class="btn btn-sec" data-act="reopen">Reopen</button>' :
       '<button class="btn btn-mint" data-act="complete" data-id="' + esc(c.id) + '">' + ic('done', 16) + 'Mark complete</button><button class="btn btn-sec" data-act="edit">' + ic('edit', 16) + 'Edit</button>') +
     (isOwner() ? '<span style="flex:1"></span><button class="btn btn-ghost" data-act="versions">' + ic('clock', 16) + 'Versions</button><button class="btn btn-ghost" data-act="delCase" style="color:var(--coral-700)">' + ic('trash', 16) + 'Delete</button>' : '') + '</div>';
   const t = $('#cmtText'); if (t) { t.value = keepCmt; if (hadFocus) t.focus(); }
-  phPaint(); phWireDrawer(d);
+  phPaint(); savPaint(d); phWireDrawer(d);
   if (typeOf(c).aligner && c.chart && !done) iprAutoLoad(c);
   if (c.type === 'nla') ensureHist();
 }
@@ -2995,6 +3036,9 @@ function onClick(e) {
     case 'portal': { const c = findCase(S.openId); // the link itself opens the portal in a new tab
       if (c && c.patient) copyText(c.patient).then(ok => toast(ok ? 'Copied “' + c.patient + '” — paste it in the portal’s search' : 'Couldn’t copy the name — type it in the portal', ok ? {} : { bad: true })); break; }
     case 'reopen': act(async () => { await B.mutateCase(S.openId, () => 'open', { a: 'reopen' }); S.closed = S.closed.filter(c => c.id !== S.openId); closeDrawer(true); }, 'Reopened'); break;
+    case 'assignTo': { const to = t.dataset.v || '', id = S.openId, c = findCase(id); if (!c || (c.assignee || '') === to) break;
+      $$('#drawer .dAssign .aTile').forEach(b => b.setAttribute('aria-pressed', String(b === t)));
+      act(() => B.mutateCase(id, d => { d.assignee = to; if (to) d.assigneeName = ''; }, { a: 'assign', to }), to ? 'Assigned to ' + staffName(to) : 'Unassigned'); break; }
     case 'addCmt': { const txt = ($('#cmtText').value || '').trim(); if (!txt) return; const cid = S.openId;
       $('#cmtText').value = ''; act(() => B.mutateCase(cid, d => { d.comments = (d.comments || []).concat([{ id: uid8(), at: Date.now(), by: meSid(), text: txt }]); }, { a: 'comment' })); break; }
     case 'edit': { const c = findCase(S.openId); S.editBase = JSON.parse(JSON.stringify(c)); S.editing = true; renderDrawer(); break; }
@@ -3031,8 +3075,8 @@ function onClick(e) {
 }
 function onChange(e) {
   const t = e.target;
-  if (t.classList && t.classList.contains('mlSel')) { const x = MAILS.list[Number(t.dataset.mail)]; if (x) { MAILS.pick[x.ev.key] = t.value; const b = $('[data-act=mailApply][data-n="' + t.dataset.mail + '"]'); if (b) b.disabled = !t.value;
-    const ph = $('[data-mlph="' + t.dataset.mail + '"]'); if (ph) { ph.innerHTML = ptAv(t.value ? findCase(t.value) : null, 32); phPaint(); } } return; }
+  if (t.classList && t.classList.contains('mlSel')) { const x = MAILS.list.find(g => g.id === t.dataset.g); if (x) { MAILS.pick[x.id] = t.value; const b = $('[data-act=mailApply][data-g="' + CSS.escape(x.id) + '"]'); if (b) b.disabled = !t.value;
+    const ph = $('[data-mlph="' + CSS.escape(x.id) + '"]'); if (ph) { ph.innerHTML = ptAv(t.value ? findCase(t.value) : null, 32); phPaint(); } } return; }
   if (t.matches && t.matches('input[data-old]')) { if (t.checked) S.oldOff.delete(t.dataset.old); else S.oldOff.add(t.dataset.old); syncOld(); return; }
   if (t.id === 'oldMonths') { S.oldMonths = Number(t.value) || 3; S.oldOff.clear(); renderView(); return; }
   if (t.id === 'oldNoDate') { S.oldNoDate = t.checked; renderView(); return; }
@@ -3062,13 +3106,16 @@ async function saveEdit() {
   const btn = $('[data-act=saveEdit]', d); busyBtn(btn, true, 'Saving…');
   const id = S.openId;
   try {
-    await B.mutateCase(id, x => {
+    const apply = x => {
       changed.forEach(k => { x[k] = Array.isArray(now[k]) ? now[k].slice() : now[k]; });
       if (changed.includes('assignee') && now.assignee) x.assigneeName = '';
       if (changed.includes('assistant') && now.assistant) x.assistantName = '';
       if (changed.includes('tracking')) x.carrier = ''; // a carrier named by a lab email belonged to the old number
       if (changed.includes('type') && !FLOWS[TYPE[x.type].flow].stages.some(s => s[0] === x.stage)) x.stage = firstStage(x.type);
-    }, { a: 'edit', fields: changed });
+    };
+    await B.mutateCase(id, apply, { a: 'edit', fields: changed });
+    // show the saved copy right away (the live update from the server follows a moment later)
+    const cur = findCase(id); if (cur) apply(cur);
     S.editing = false; toast('Saved'); renderDrawer(); loadHistory(id);
   } catch (x) { busyBtn(btn, false); toast(errText(x), { bad: true }); }
 }
@@ -3457,7 +3504,7 @@ function caseFormHTML(c, isNew) {
       '<div class="field"><label for="cf-alL">Lower aligners</label><input id="cf-alL" type="number" inputmode="numeric" min="0" max="99" step="1" placeholder="0" value="' + esc(c.alL || '') + '"></div>' +
       '<div class="alTot" id="cf-alTotal" aria-live="polite"></div></div></div>' +
     '<div class="cfSec"' + showTiles('insmile') + '><h5>Initial or digital enhancement?</h5>' + pickRow('initialDE', [{ v: 'yes', l: 'Initial' }, { v: 'de1', l: 'DE 1' }, { v: 'de2', l: 'DE 2' }, { v: 'de3', l: 'DE 3' }], c.initial || '', false) + '</div>' +
-    '<div class="cfSec"><h5>Assistant</h5>' + pickRow('assistant', roster.map(r => ({ v: r.sid, l: firstName(r.name) })), c.assistant || '', false) +
+    '<div class="cfSec"><h5>Assistant</h5>' + staffPickRow('assistant', withSavedStaff(roster, c.assistant), c.assistant || '') +
     '<div' + show('aligner braces appliance marpe retainer models') + '><h5>Scanner</h5>' + pickRow('scanner', PICK.scanners, c.scanner || '', false) + '</div></div>' +
     '<div class="cfSec"><h5>Dates</h5><div class="pickRow" style="margin-bottom:8px"><button type="button" class="pick sm" data-scan="0">Scanned today</button><button type="button" class="pick sm" data-scan="-1">Yesterday</button></div>' +
     '<div class="grid3">' + date('cf-scanDate', 'Scan date', c.scanDate) + date('cf-labDate', 'Lab completion', c.labDate) + date('cf-deliveryDate', 'Delivery', c.deliveryDate) + '</div>' +
@@ -3493,11 +3540,30 @@ function caseFormHTML(c, isNew) {
     '<details class="cfMore"' + (isNew ? '' : ' open') + '><summary>More: what’s being made, stage, who it’s assigned to, notes</summary>' +
     '<div class="grid2" style="margin-top:12px"><div class="field"><label for="cf-detail">What’s being made</label><input id="cf-detail" value="' + esc(c.detail || '') + '" data-auto="' + (isNew || !c.detail ? 1 : 0) + '"></div>' +
     '<div class="field"><label for="cf-stage">Stage</label><select id="cf-stage">' + stages.map(([k, l]) => opt(k, l, (c.stage || (stages[0] || [])[0]) === k)).join('') + '</select></div></div>' +
-    '<div class="grid2"><div class="field"><label for="cf-assignee">Assigned to</label><select id="cf-assignee">' + people(c.assignee, 'Unassigned') + '</select></div>' +
-    '<div class="field"><label for="cf-tracking">Tracking #</label><input id="cf-tracking" autocomplete="off" spellcheck="false" placeholder="UPS, FedEx or USPS — becomes a Track button" value="' + esc(c.tracking || '') + '"></div></div>' +
+    '<div class="field"><label>Assigned to</label>' + assignTilesHTML('cf-assignee', c.assignee) + '</div>' +
+    '<div class="grid2"><div class="field"><label for="cf-tracking">Tracking #</label><input id="cf-tracking" autocomplete="off" spellcheck="false" placeholder="UPS, FedEx or USPS — becomes a Track button" value="' + esc(c.tracking || '') + '"></div></div>' +
     '<div class="grid2"><div class="field"><label for="cf-labRef">Lab case # / patient ID</label><input id="cf-labRef" autocomplete="off" spellcheck="false" placeholder="The lab’s own number (lab emails fill it in)" value="' + esc(c.labRef || '') + '"></div><div></div></div>' +
     '<div class="field"><label for="cf-notes">Notes</label><textarea id="cf-notes" rows="2">' + esc(c.notes || '') + '</textarea></div></details>' +
     '<input type="hidden" id="cf-tile" value="' + esc(tile) + '"></div>';
+}
+/* staff as photo tiles with the name underneath (Amir: "their photos with their names underneath instead of just a text box").
+   Photos come from Staff Hub (Team & security → From Staff Hub); without one, the initials show. */
+function staffLabel(r) { return r ? (r.role === 'owner' ? 'Dr. A' : firstName(r.name)) : 'Nobody'; }
+function staffTile(r, on, cls, extra) {
+  return '<button type="button" class="' + cls + ' sTile" data-v="' + esc(r ? r.sid : '') + '" aria-pressed="' + !!on + '"' + (extra || '') + ' title="' + esc(r ? r.name : 'Not assigned to anyone') + '">' +
+    '<span class="av sAv' + (r ? '' : ' none') + '"' + (r ? ' data-sav="' + esc(r.sid) + '"' : '') + '>' + (r ? esc(r.initials || initials(r.name)) : '–') + '</span><span class="sNm">' + esc(staffLabel(r)) + '</span></button>';
+}
+/* the assistant: a pick row (one at a time) of staff tiles */
+function staffPickRow(group, people, chosen) {
+  return '<div class="pickRow staffRow" role="group" data-g="' + group + '" data-multi="0">' + people.map(r => staffTile(r, chosen === r.sid, 'pick')).join('') + '</div>';
+}
+/* "assigned to" in the form: tiles (with Nobody) over a hidden field the rest of the form reads and sets */
+function assignTilesHTML(id, chosen) {
+  return '<input type="hidden" id="' + id + '" value="' + esc(chosen || '') + '"><div class="staffRow aTiles" data-for="' + id + '" role="radiogroup" aria-label="Assigned to">' +
+    [null].concat(activeRoster()).map(r => staffTile(r, (chosen || '') === (r ? r.sid : ''), 'aTile', ' role="radio"')).join('') + '</div>';
+}
+function assignTilesSync(root) {
+  $$('.aTiles[data-for]', root).forEach(row => { const inp = $('#' + row.dataset.for, root); if (!inp) return; $$('.aTile', row).forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === inp.value))); });
 }
 function pressed(root, g) { return $$('.pickRow[data-g="' + g + '"] .pick[aria-pressed="true"]', root).map(b => b.dataset.v); }
 function readCaseForm(root) {
@@ -3582,7 +3648,7 @@ function wireCaseForm(root, isNew) {
       autoIds.forEach(id => { const el = $r('#' + id); if (el.dataset.auto === '1') el.value = plan[id]; });
     }
     if (det.dataset.auto === '1') det.value = autoDetail(o, tile);
-    alTot();
+    assignTilesSync(root); alTot();
   };
   // in-house aligners: this set plus the patient's earlier sets (matched by chart #, else name)
   const cfEl = $('.cf', root) || root;
@@ -3610,6 +3676,8 @@ function wireCaseForm(root, isNew) {
       if (row.dataset.g === 'appliances') routeLab(root, isNew);
       refresh(false); return;
     }
+    const at = e.target.closest('.aTiles .aTile');
+    if (at && root.contains(at)) { const row = at.closest('.aTiles'), inp = $('#' + row.dataset.for, root); if (inp) { inp.value = at.dataset.v; inp.dataset.manual = '1'; assignTilesSync(root); } return; }
     const ship = e.target.closest('#cf-ship');
     if (ship && root.contains(ship)) {
       const on = ship.getAttribute('aria-pressed') !== 'true'; ship.setAttribute('aria-pressed', String(on));
@@ -3680,7 +3748,7 @@ function wireCaseForm(root, isNew) {
     const tooth = e.target.closest && e.target.closest('#cf-tc .tooth');
     if (tooth && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); tooth.dispatchEvent(new MouseEvent('click', { bubbles: true })); }
   });
-  ['cf-stage', 'cf-assignee'].forEach(id => $r('#' + id).addEventListener('change', e => { e.target.dataset.manual = '1'; }));
+  $r('#cf-stage').addEventListener('change', e => { e.target.dataset.manual = '1'; }); // (Assigned to: marked by its tiles)
   // editing: a lab already on the case stays unless someone taps another one
   const labRow = $('.pickRow[data-g="lab"]', root); if (!isNew && labRow && pressed(root, 'lab').length) labRow.dataset.manual = '1';
   $r('#cf-scanDate').addEventListener('change', () => refresh(false));
@@ -3700,7 +3768,10 @@ function routeLab(root, isNew) {
   const st = $('#cf-stage', root), as = $('#cf-assignee', root);
   if (st && st.dataset.manual !== '1') st.value = inHouse ? 'mfg' : 'submit';
   if (as && as.dataset.manual !== '1') as.value = inHouse ? ((activeRoster().find(r => r.role === 'owner') || {}).sid || '') : defaultAssignee('appliance');
+  assignTilesSync(root);
 }
+/* a case's assistant who has since left still shows (picked) when the case is edited */
+function withSavedStaff(list, sid) { if (!sid || list.some(r => r.sid === sid)) return list; const r = staff(sid); return r ? list.concat([r]) : list; }
 function setPick(root, g, v, on) { const b = $('.pickRow[data-g="' + g + '"] .pick[data-v="' + CSS.escape(v) + '"]', root); if (b) b.setAttribute('aria-pressed', String(!!on)); }
 function editDirty() {
   const d = $('#drawer'); if (!d || !S.editing || !S.editBase) return false;
@@ -3712,7 +3783,7 @@ function newCaseModal() {
   openModal('<h3>New case</h3><div class="lsub">Tap through it after the scan. Only the patient’s name needs typing. Encrypted before it leaves this computer.</div><div id="ncErr"></div><form id="ncForm" novalidate>' + caseFormHTML(base, true) +
     '<div class="mFt"><button class="btn btn-sec" type="button" data-act="closeModal">Cancel</button><button class="btn btn-teal" type="submit" id="ncSave">' + ic('plus', 16) + 'Create case</button></div></form>', w => {
       w.querySelector('.modal').classList.add('wide');
-      wireCaseForm(w, true); phWireForm(w);
+      wireCaseForm(w, true); phWireForm(w); savPaint(w);
       $('#ncForm', w).onsubmit = async e => {
         e.preventDefault(); const data = readCaseForm(w);
         const err = m => { $('#ncErr', w).innerHTML = '<div class="lockErr" role="alert">' + esc(m) + '</div>'; $('#ncErr', w).scrollIntoView({ block: 'nearest' }); };
@@ -3907,7 +3978,7 @@ function viewAdmin() {
     people.map(r => {
       const st = r.role === 'owner' ? { k: 'ok', l: 'Owner', m: S.members.find(m => m.staffId === r.sid && m.active) } : memberStatus(r.sid);
       const last = st.m && st.m.lastLogin ? fmtWhen(FB.tsMs ? FB.tsMs(st.m.lastLogin) : st.m.lastLogin) : '';
-      return '<tr><td><div class="nameCell"><span class="av">' + esc(r.initials || initials(r.name)) + '</span><b>' + esc(r.name) + '</b></div></td><td class="small">' + esc(r.username || (r.role === 'owner' ? 'email login' : '')) + '</td>' +
+      return '<tr><td><div class="nameCell"><span class="av" data-sav="' + esc(r.sid) + '">' + esc(r.initials || initials(r.name)) + '</span><b>' + esc(r.name) + '</b></div></td><td class="small">' + esc(r.username || (r.role === 'owner' ? 'email login' : '')) + '</td>' +
         '<td><span class="stat ' + st.k + '">' + esc(st.l) + '</span></td><td class="hideM small muted">' + esc(last) + '</td><td style="text-align:right;white-space:nowrap">' +
         (r.role === 'owner' ? '' : r.active ? '<button class="btn btn-ghost" data-act="reissue" data-sid="' + esc(r.sid) + '">Reissue login</button><button class="btn btn-ghost" style="color:var(--coral-700)" data-act="removeStaff" data-sid="' + esc(r.sid) + '">Remove</button>'
           : '<button class="btn btn-ghost" data-act="readd" data-sid="' + esc(r.sid) + '">Add back</button>') + '</td></tr>';
@@ -3965,7 +4036,7 @@ function viewImport() {
 }
 function viewAccount() {
   const me = B.me || {};
-  return '<div class="card" style="max-width:520px"><div class="cardHd"><span class="av lg">' + esc(initials(me.name)) + '</span><div><h3>' + esc(me.name || '') + '</h3><div class="sub">' + (me.role === 'owner' ? 'Owner · email login' : 'Username: ' + esc(me.username || '')) + '</div></div></div>' +
+  return '<div class="card" style="max-width:520px"><div class="cardHd"><span class="av lg" data-sav="' + esc(me.staffId || '') + '">' + esc(initials(me.name)) + '</span><div><h3>' + esc(me.name || '') + '</h3><div class="sub">' + (me.role === 'owner' ? 'Owner · email login' : 'Username: ' + esc(me.username || '')) + '</div></div></div>' +
     '<div class="cardBd"><form id="pwForm"><div class="sec" style="margin-top:0"><h5>Change password</h5></div>' +
     '<div class="field"><label for="pwCur">Current password</label><input type="password" id="pwCur" autocomplete="current-password" required></div>' +
     '<div class="field"><label for="pwN1">New password</label><input type="password" id="pwN1" autocomplete="new-password" minlength="8" required></div>' +
@@ -4243,7 +4314,7 @@ function shUsername(p) {
 }
 async function shLoad() {
   if (SH.loading) return; SH.loading = true; SH.err = '';
-  try { SH.data = (await iprLink().roster()) || { people: {} }; SH.at = Date.now(); }
+  try { SH.data = (await iprLink().roster()) || { people: {} }; SH.at = Date.now(); shPhotos(); }
   catch (e) { SH.data = null; SH.err = /permission|denied/i.test(String(e && (e.code || e.message))) ? 'This Google account can’t read the office roster. Connect with the account Staff Hub shares it with.' : 'Couldn’t reach the office roster. Check the connection and try again.'; }
   SH.loading = false; if (S.view === 'admin') queueRender('team');
 }
@@ -4264,6 +4335,32 @@ function shBoxHTML() {
     (st.leaving.length ? '<div class="shGrp"><h6>Leaving soon</h6>' + st.leaving.map(x => row(x.p, '<span class="small muted">remove on ' + esc(fmtDate(x.p.end)) + '</span>', '')).join('') + '</div>' : '') +
     (!st.add.length && !st.left.length ? '<p class="small" style="margin:6px 0 2px;color:var(--mint-700)">' + ic('done', 15) + ' Everyone on Staff Hub’s roster has a login, and nobody who left still does.</p>' : '') +
     '<p class="small muted shFoot">' + st.linked + ' linked' + (when ? ' · roster shared ' + esc(when) : '') + '. Add a hire or end someone’s employment in Staff Hub; it shows up here.</p></div>';
+}
+/* bring each linked person's Staff Hub photo onto their NLO Cases roster entry (Amir: "import staff photos"), so everyone sees it,
+   staff included (they don't sign in to Staff Hub). Shrunk to 96 px; only when the Staff Hub photo has changed. */
+async function shPhotos() {
+  if (!isOwner() || !B.setStaffPhoto || SH.syncing) return; SH.syncing = true; let n = 0;
+  try {
+    const people = shPeople();
+    for (const r of S.roster) {
+      const p = shMatch(r, people); if (!p) continue;
+      const src = /^data:image\/(jpeg|png|webp);base64,/.test(p.photo || '') ? p.photo : '';
+      const h = src ? Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', TE.encode(src))).subarray(0, 8), b => b.toString(16).padStart(2, '0')).join('') : '';
+      if ((r.photoSrc || '') === h) continue;
+      const small = src ? await shrinkPhoto(src, 96) : ''; if (src && !small) continue;
+      await B.setStaffPhoto(r.sid, small, h); n++;
+    }
+  } catch (e) { } finally { SH.syncing = false; }
+  if (n) toast(n + ' staff photo' + (n > 1 ? 's' : '') + ' brought in from Staff Hub');
+}
+function shrinkPhoto(src, px) {
+  return new Promise(res => {
+    const im = new Image();
+    im.onload = () => { try { const c = document.createElement('canvas'); c.width = c.height = px; const g = c.getContext('2d'), s = Math.min(im.naturalWidth, im.naturalHeight);
+      g.fillStyle = '#fff'; g.fillRect(0, 0, px, px); g.imageSmoothingQuality = 'high';
+      g.drawImage(im, (im.naturalWidth - s) / 2, (im.naturalHeight - s) / 2, s, s, 0, 0, px, px); res(c.toDataURL('image/jpeg', 0.85)); } catch (e) { res(''); } };
+    im.onerror = () => res(''); im.src = src;
+  });
 }
 /* staff photos from Staff Hub (data: URLs from the roster) are set after drawing, like the company logos */
 function shPaint() { $$('[data-shph]').forEach(el => { const p = shPeople().find(x => x.id === el.dataset.shph); if (p && /^data:image\/jpeg;base64,/.test(p.photo || '')) { el.textContent = ''; const im = document.createElement('img'); im.alt = ''; im.src = p.photo; el.appendChild(im); el.classList.add('ph'); } }); }
@@ -4459,7 +4556,36 @@ async function mailApply(ev, c) {
 }
 
 /* ---------- keeping up with the inbox ---------- */
-const MAILS = { list: [], unread: [], pick: {}, sig: '', busy: false, again: false, state: null, stateAt: 0 };
+const MAILS = { list: [], unread: [], pick: {}, sig: '', busy: false, again: false, state: null, stateAt: 0, gone: new Set(), goneFp: new Set() };
+/* the same update in several emails is one update: both mailboxes can get the same email, Partners lists a patient
+   day after day, and a shipment can be announced twice. A new setup from Oliv/Angel counts as new (its email date is part of it). */
+function mailFp(ev) {
+  return [ev.co, ev.kind, nameTokens(ev.name).join(' '), normRef(ev.ref), String(ev.tracking || trackFromUrl(ev.trackUrl) || '').replace(/\s+/g, '').toUpperCase(),
+    ev.kind === 'hold' ? (ev.holdDate || '') + '|' + String(ev.reason || '').toLowerCase() : '', ev.kind === 'plan' ? String(ev.at || '') : ''].join('|');
+}
+/* updates dismissed or applied on this computer are remembered here for 30 days (a keyed hash, no names), so the same
+   update in a later email — the next day's Partners summary, a copy in the other mailbox — doesn't come back */
+const MAILMEM = 'nloCases.mailGone';
+async function mailHash(fp) {
+  if (!MAILS.hk) {
+    const ring = B === FB && FB.ring ? FB.ring : null, v = ring ? Math.min.apply(null, Object.keys(ring).map(Number)) : 0;
+    const raw = ring ? unb64(ring[v]) : TE.encode('nlo-cases-demo-only-key-material!');
+    const base = await crypto.subtle.importKey('raw', raw, 'HKDF', false, ['deriveKey']);
+    MAILS.hk = await crypto.subtle.deriveKey({ name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(32), info: TE.encode('mail-dismissed') }, base, { name: 'HMAC', hash: 'SHA-256', length: 256 }, false, ['sign']);
+  }
+  const sig = new Uint8Array(await crypto.subtle.sign('HMAC', MAILS.hk, TE.encode(fp)));
+  return Array.from(sig.subarray(0, 12), b => b.toString(16).padStart(2, '0')).join('');
+}
+function mailMemLoad() {
+  if (MAILS.mem) return MAILS.mem; let a = [];
+  try { a = JSON.parse(localStorage.getItem(MAILMEM) || '[]'); } catch (e) { }
+  const cut = Date.now() - 30 * 864e5; MAILS.mem = new Map((Array.isArray(a) ? a : []).filter(x => x && x.h && x.t > cut).map(x => [x.h, x.t]));
+  return MAILS.mem;
+}
+async function mailMemAdd(fp) {
+  const m = mailMemLoad(); m.set(await mailHash(fp), Date.now());
+  try { localStorage.setItem(MAILMEM, JSON.stringify(Array.from(m, ([h, t]) => ({ h, t })).slice(-3000))); } catch (e) { }
+}
 async function histReady() { ensureHist(); for (let i = 0; i < 100 && !S.histLoaded && S.inApp; i++) await new Promise(r => setTimeout(r, 100)); }
 async function mailSync() {
   if (!S.inApp || !B.inboxLoad || S.firstLoad) return;
@@ -4468,7 +4594,14 @@ async function mailSync() {
   try {
     const docs = await B.inboxLoad(); if (!S.inApp) return;
     if (docs.length) await histReady();
-    const open = openCases(), closed = (S.hist || []).concat(S.closed || []), list = [], unread = [];
+    const open = openCases(), closed = (S.hist || []).concat(S.closed || []), groups = new Map(), unread = [], mem = mailMemLoad();
+    // updates waiting for someone, one row per update however many emails carry it
+    const wait = (d, i, ev, cands) => {
+      const fp = mailFp(ev); let g = groups.get(fp);
+      if (!g) { g = { id: d.id + ':' + i, fp, ev, items: [], cands: cands || [] }; groups.set(fp, g); }
+      g.items.push({ d, i, key: d.id + ':' + i }); if ((ev.at || 0) > (g.ev.at || 0)) g.ev = ev;
+      if (!g.cands.length && cands && cands.length) g.cands = cands;
+    };
     for (const d of docs) {
       if (!d.mail) { unread.push({ d, bad: true }); continue; }
       const evs = mailParse(d.mail);
@@ -4480,21 +4613,25 @@ async function mailSync() {
       for (let i = 0; i < evs.length; i++) {
         if (done.has(i)) continue;
         const ev = Object.assign(evs[i], { key: d.id + ':' + i, at: d.mail.date || d.at || Date.now() });
+        // dealt with already (this copy, or the same update in another email): mark it done here too, never show it again
+        const fp = mailFp(ev);
+        if (MAILS.gone.has(ev.key) || MAILS.goneFp.has(fp) || mem.has(await mailHash(fp))) { done.add(i); add.push(i); continue; }
         const m = mailMatch(ev, open, closed);
-        if (m.c || m.done) todo.push({ i, ev, m }); else list.push({ d, i, ev, cands: m.many || [] });
+        if (m.c || m.done) todo.push({ i, ev, m }); else wait(d, i, ev, m.many);
       }
       // what can be applied is applied by one open app (the one that claims the email); the rest wait on Today
       if (todo.length && await B.inboxClaim(d.id)) {
         for (const { i, ev, m } of todo) {
           let ok = !!m.done; if (m.c) { try { await mailApply(ev, m.c); ok = true; } catch (e) { ok = e && e.code === 'skip'; } }
-          if (ok) { done.add(i); add.push(i); } else list.push({ d, i, ev, cands: [m.c] });
+          if (ok) { done.add(i); add.push(i); } else wait(d, i, ev, [m.c]);
         }
-        if (done.size >= evs.length) await B.inboxDelete(d.id).catch(() => { });
-        else if (add.length) await B.inboxDone(d.id, add).catch(() => { });
       }
+      if (done.size >= evs.length) await B.inboxDelete(d.id).catch(() => { });
+      else if (add.length) await B.inboxDone(d.id, add).catch(() => { });
     }
+    const list = Array.from(groups.values()).filter(g => !MAILS.goneFp.has(g.fp)).sort((a, b) => (b.ev.at || 0) - (a.ev.at || 0));
     MAILS.list = list; MAILS.unread = unread;
-    const sig = list.map(x => x.ev.key).join() + '|' + unread.length;
+    const sig = list.map(x => x.id + '#' + x.items.length).join() + '|' + unread.length;
     if (sig !== MAILS.sig) { MAILS.sig = sig; if (S.view === 'today' || S.view === 'admin') queueRender('team'); }
     if (isOwner()) mailOwnerChecks();
   } catch (e) { if (window.console) console.warn('email updates:', e && e.message); }
@@ -4507,39 +4644,46 @@ async function mailOwnerChecks() {
     if (st && st.pub && JSON.stringify(st.pub.senders || []) !== JSON.stringify(MAIL_SENDERS)) { await B.mailSenders(MAIL_SENDERS); MAILS.state = null; }
   } catch (e) { }
 }
-async function mailResolve(n, how) {
-  const x = MAILS.list[n]; if (!x) return;
+async function mailResolve(gid, how) {
+  const x = MAILS.list.find(g => g.id === gid); if (!x) return;
   if (how === 'apply') {
-    const c = findCase(MAILS.pick[x.ev.key] || (x.cands.length === 1 ? x.cands[0].id : '')); if (!c) return;
-    try { await mailApply(x.ev, c); toast('Applied to ' + (c.patient || 'the case')); }
+    const c = findCase(MAILS.pick[x.id] || (x.cands.length === 1 ? x.cands[0].id : '')); if (!c) return;
+    try { await mailApply(x.ev, c); toast('Applied to ' + (c.patient || 'the case')); } // (it saves the lab's case #: later emails for this patient match on it)
     catch (e) { if (!(e && e.code === 'skip')) { toast(errText(e), { bad: true }); return; } toast('Nothing to change on ' + (c.patient || 'that case')); }
-    if (!c.labRef && x.ev.ref) { /* saved by mailApply: later emails for this patient match on it */ }
   }
-  MAILS.list = MAILS.list.filter(y => y !== x); MAILS.sig = ''; queueRender();
-  try { await B.inboxDone(x.d.id, [x.i]); } catch (e) { }
+  await mailForget(x);
   mailSync();
+}
+/* an update is dealt with: this app won't show it again, and its next sync (which runs right after, one at a time)
+   marks every email carrying it done for everyone, or removes the email once nothing in it is left */
+async function mailForget(g) {
+  MAILS.goneFp.add(g.fp); g.items.forEach(it => MAILS.gone.add(it.key));
+  MAILS.list = MAILS.list.filter(y => y !== g); MAILS.sig = ''; queueRender();
+  try { await mailMemAdd(g.fp); } catch (e) { }
 }
 
 /* ---------- Today: updates waiting for a case ---------- */
 function mailCardHTML() {
   const L = MAILS.list; if (!L.length) return '';
   const open = openCases().filter(c => !c.locked).sort((a, b) => String(a.patient || '').localeCompare(String(b.patient || '')));
-  return '<div class="card mailCard" id="mailCard"><div class="cardHd"><h3>Email updates</h3><span class="sub">' + L.length + ' from lab emails need a case — pick the one each belongs to</span></div><div class="cardBd">' +
-    L.map((x, n) => {
-      const ev = x.ev, co = MAIL_CO[ev.co], pick = MAILS.pick[ev.key] || (x.cands.length === 1 ? x.cands[0].id : '');
+  return '<div class="card mailCard" id="mailCard"><div class="cardHd"><h3>Email updates</h3><span class="sub">' + L.length + ' from lab emails didn’t match an open case — pick the case, or dismiss</span><span style="flex:1"></span>' +
+    (L.length > 1 ? '<button class="btn btn-ghost btn-sm" data-act="mailSkipAll" title="Nothing to do for any of these">Dismiss all</button>' : '') + '</div><div class="cardBd">' +
+    L.map(x => {
+      const ev = x.ev, co = MAIL_CO[ev.co], pick = MAILS.pick[x.id] || (x.cands.length === 1 ? x.cands[0].id : ''), gid = esc(x.id);
       const opt = c => '<option value="' + esc(c.id) + '"' + (pick === c.id ? ' selected' : '') + '>' + esc((c.patient || '(no name)') + ' · ' + typeOf(c).l + ' · ' + stageLabel(c)) + '</option>';
       const mine = open.filter(c => co.types.includes(c.type)), rest = open.filter(c => !co.types.includes(c.type));
       return '<div class="mlRow"><div class="mlWhat"><span class="badge ' + TYPE[co.types[0]].cls + '">' + esc(co.l) + '</span><b>' + esc(MAIL_KIND[ev.kind] || ev.kind) + '</b>' +
         '<span class="mlName">' + esc(ev.name) + '</span>' + (ev.ref ? '<span class="small muted">#' + esc(ev.ref) + '</span>' : '') +
         (ev.tracking ? '<span class="small muted">' + esc((trackInfo(ev.tracking) || {}).carrier || 'tracking') + ' ' + esc(ev.tracking) + '</span>' : '') +
         (ev.reason ? '<span class="small" style="color:var(--coral-700)">' + esc(ev.reason) + '</span>' : '') +
-        '<span class="small muted">' + esc(fmtWhen(ev.at)) + '</span>' + (x.cands.length > 1 ? '<span class="small" style="color:var(--amber-700)">' + x.cands.length + ' possible cases</span>' : '') + '</div>' +
-        '<div class="mlDo"><span class="mlPh" data-mlph="' + n + '">' + ptAv(pick ? findCase(pick) : null, 32) + '</span><select class="inp mlSel" data-mail="' + n + '" aria-label="Case for this update"><option value="">Pick the case…</option>' +
+        '<span class="small muted">' + esc(fmtWhen(ev.at)) + '</span>' + (x.items.length > 1 ? '<span class="small muted">in ' + x.items.length + ' emails</span>' : '') +
+        (x.cands.length > 1 ? '<span class="small" style="color:var(--amber-700)">' + x.cands.length + ' possible cases</span>' : '') + '</div>' +
+        '<div class="mlDo"><span class="mlPh" data-mlph="' + gid + '">' + ptAv(pick ? findCase(pick) : null, 32) + '</span><select class="inp mlSel" data-g="' + gid + '" aria-label="Case for this update"><option value="">Pick the case…</option>' +
         (x.cands.length > 1 ? '<optgroup label="Possible matches">' + x.cands.map(opt).join('') + '</optgroup>' : '') +
         (mine.length ? '<optgroup label="' + esc(co.l) + ' cases">' + mine.map(opt).join('') + '</optgroup>' : '') +
         (rest.length ? '<optgroup label="Other open cases">' + rest.map(opt).join('') + '</optgroup>' : '') + '</select>' +
-        '<button class="btn btn-mint btn-sm" data-act="mailApply" data-n="' + n + '"' + (pick ? '' : ' disabled') + '>Apply</button>' +
-        '<button class="btn btn-ghost btn-sm" data-act="mailSkip" data-n="' + n + '" title="Nothing to do for this one">Dismiss</button></div></div>';
+        '<button class="btn btn-mint btn-sm" data-act="mailApply" data-g="' + gid + '"' + (pick ? '' : ' disabled') + '>Apply</button>' +
+        '<button class="btn btn-ghost btn-sm" data-act="mailSkip" data-g="' + gid + '" title="Nothing to do for this one">Dismiss</button></div></div>';
     }).join('') + '</div></div>';
 }
 
@@ -4607,8 +4751,15 @@ Object.assign(ADMIN_ACTS, {
     if (!await confirmBox('Turn off email updates?', 'The email robot’s login stops working right away, so the scripts can’t send anything more. Also open each script and run “stop” so it stops trying. You can set it up again any time.', 'Turn off', true)) return;
     try { await B.mailOff(); MAILS.state = null; loadMailState(); toast('Email updates turned off'); } catch (e) { toast(errText(e), { bad: true }); }
   },
-  mailApply(t) { mailResolve(Number(t.dataset.n), 'apply'); },
-  mailSkip(t) { mailResolve(Number(t.dataset.n), 'skip'); }
+  mailApply(t) { mailResolve(t.dataset.g, 'apply'); },
+  mailSkip(t) { mailResolve(t.dataset.g, 'skip'); },
+  async mailSkipAll(t) {
+    const L = MAILS.list.slice(); if (!L.length) return;
+    if (!await confirmBox('Dismiss all ' + L.length + ' email updates?', 'They’re cleared from Today for everyone. Nothing changes on any case.', 'Dismiss all')) return;
+    busyBtn(t, true, 'Dismissing…');
+    await Promise.all(L.map(g => mailForget(g)));
+    toast(L.length + ' email update' + (L.length > 1 ? 's' : '') + ' dismissed'); mailSync();
+  }
 });
 
 /* =====================================================================

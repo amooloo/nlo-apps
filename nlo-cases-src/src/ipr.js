@@ -140,12 +140,13 @@ const IPR_DEMO = {
   },
   /* a made-up office roster: the demo's staff, one new hire without a login, one who has left */
   async roster() {
+    const face = async n => 'data:image/jpeg;base64,' + b64(await demoFace(n)); // drawn faces, like the demo's patients
     const p = (id, first, last, title, extra) => Object.assign({ id, name: first + (last ? ' ' + last : ''), first, last, nick: first, short: first, title, chairside: true, active: true }, extra || {});
     return { v: 1, source: 'staff-hub', updatedAt: Date.now() - 3600e3, people: {
       s_amir: p('s_amir', 'Amir', 'Akhavan', 'Orthodontist / Owner', { name: 'Dr. Amir Akhavan', nick: 'Dr. A', short: 'Dr. A' }),
-      s_sarah: p('s_sarah', 'Sarah', '', 'Treatment coordinator', { chairside: false }), s_angelika: p('s_angelika', 'Angelika', '', 'Lab lead'),
-      s_gwen: p('s_gwen', 'Gwen', '', 'Orthodontic assistant'), s_kaylee: p('s_kaylee', 'Kaylee', '', 'Orthodontic assistant', { active: false, end: addDays(todayISO(), -2) }),
-      s_nora: p('s_nora', 'Nora', 'Newhire', 'Orthodontic assistant'), s_lena: p('s_lena', 'Lena', 'Leaveson', 'Front desk', { chairside: false, end: addDays(todayISO(), 9) }) } };
+      s_sarah: p('s_sarah', 'Sarah', '', 'Treatment coordinator', { chairside: false, photo: await face(103) }), s_angelika: p('s_angelika', 'Angelika', '', 'Lab lead', { photo: await face(104) }),
+      s_gwen: p('s_gwen', 'Gwen', '', 'Orthodontic assistant', { photo: await face(101) }), s_kaylee: p('s_kaylee', 'Kaylee', '', 'Orthodontic assistant', { active: false, end: addDays(todayISO(), -2), photo: await face(102) }),
+      s_nora: p('s_nora', 'Nora', 'Newhire', 'Orthodontic assistant', { photo: await face(105) }), s_lena: p('s_lena', 'Lena', 'Leaveson', 'Front desk', { chairside: false, end: addDays(todayISO(), 9) }) } };
   }
 };
 function iprLink() { return S.demo ? IPR_DEMO : IPR; }

@@ -184,7 +184,36 @@ async function mailApply(ev, c) {
 }
 
 /* ---------- keeping up with the inbox ---------- */
-const MAILS = { list: [], unread: [], pick: {}, sig: '', busy: false, again: false, state: null, stateAt: 0 };
+const MAILS = { list: [], unread: [], pick: {}, sig: '', busy: false, again: false, state: null, stateAt: 0, gone: new Set(), goneFp: new Set() };
+/* the same update in several emails is one update: both mailboxes can get the same email, Partners lists a patient
+   day after day, and a shipment can be announced twice. A new setup from Oliv/Angel counts as new (its email date is part of it). */
+function mailFp(ev) {
+  return [ev.co, ev.kind, nameTokens(ev.name).join(' '), normRef(ev.ref), String(ev.tracking || trackFromUrl(ev.trackUrl) || '').replace(/\s+/g, '').toUpperCase(),
+    ev.kind === 'hold' ? (ev.holdDate || '') + '|' + String(ev.reason || '').toLowerCase() : '', ev.kind === 'plan' ? String(ev.at || '') : ''].join('|');
+}
+/* updates dismissed or applied on this computer are remembered here for 30 days (a keyed hash, no names), so the same
+   update in a later email — the next day's Partners summary, a copy in the other mailbox — doesn't come back */
+const MAILMEM = 'nloCases.mailGone';
+async function mailHash(fp) {
+  if (!MAILS.hk) {
+    const ring = B === FB && FB.ring ? FB.ring : null, v = ring ? Math.min.apply(null, Object.keys(ring).map(Number)) : 0;
+    const raw = ring ? unb64(ring[v]) : TE.encode('nlo-cases-demo-only-key-material!');
+    const base = await crypto.subtle.importKey('raw', raw, 'HKDF', false, ['deriveKey']);
+    MAILS.hk = await crypto.subtle.deriveKey({ name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(32), info: TE.encode('mail-dismissed') }, base, { name: 'HMAC', hash: 'SHA-256', length: 256 }, false, ['sign']);
+  }
+  const sig = new Uint8Array(await crypto.subtle.sign('HMAC', MAILS.hk, TE.encode(fp)));
+  return Array.from(sig.subarray(0, 12), b => b.toString(16).padStart(2, '0')).join('');
+}
+function mailMemLoad() {
+  if (MAILS.mem) return MAILS.mem; let a = [];
+  try { a = JSON.parse(localStorage.getItem(MAILMEM) || '[]'); } catch (e) { }
+  const cut = Date.now() - 30 * 864e5; MAILS.mem = new Map((Array.isArray(a) ? a : []).filter(x => x && x.h && x.t > cut).map(x => [x.h, x.t]));
+  return MAILS.mem;
+}
+async function mailMemAdd(fp) {
+  const m = mailMemLoad(); m.set(await mailHash(fp), Date.now());
+  try { localStorage.setItem(MAILMEM, JSON.stringify(Array.from(m, ([h, t]) => ({ h, t })).slice(-3000))); } catch (e) { }
+}
 async function histReady() { ensureHist(); for (let i = 0; i < 100 && !S.histLoaded && S.inApp; i++) await new Promise(r => setTimeout(r, 100)); }
 async function mailSync() {
   if (!S.inApp || !B.inboxLoad || S.firstLoad) return;
@@ -193,7 +222,14 @@ async function mailSync() {
   try {
     const docs = await B.inboxLoad(); if (!S.inApp) return;
     if (docs.length) await histReady();
-    const open = openCases(), closed = (S.hist || []).concat(S.closed || []), list = [], unread = [];
+    const open = openCases(), closed = (S.hist || []).concat(S.closed || []), groups = new Map(), unread = [], mem = mailMemLoad();
+    // updates waiting for someone, one row per update however many emails carry it
+    const wait = (d, i, ev, cands) => {
+      const fp = mailFp(ev); let g = groups.get(fp);
+      if (!g) { g = { id: d.id + ':' + i, fp, ev, items: [], cands: cands || [] }; groups.set(fp, g); }
+      g.items.push({ d, i, key: d.id + ':' + i }); if ((ev.at || 0) > (g.ev.at || 0)) g.ev = ev;
+      if (!g.cands.length && cands && cands.length) g.cands = cands;
+    };
     for (const d of docs) {
       if (!d.mail) { unread.push({ d, bad: true }); continue; }
       const evs = mailParse(d.mail);
@@ -205,21 +241,25 @@ async function mailSync() {
       for (let i = 0; i < evs.length; i++) {
         if (done.has(i)) continue;
         const ev = Object.assign(evs[i], { key: d.id + ':' + i, at: d.mail.date || d.at || Date.now() });
+        // dealt with already (this copy, or the same update in another email): mark it done here too, never show it again
+        const fp = mailFp(ev);
+        if (MAILS.gone.has(ev.key) || MAILS.goneFp.has(fp) || mem.has(await mailHash(fp))) { done.add(i); add.push(i); continue; }
         const m = mailMatch(ev, open, closed);
-        if (m.c || m.done) todo.push({ i, ev, m }); else list.push({ d, i, ev, cands: m.many || [] });
+        if (m.c || m.done) todo.push({ i, ev, m }); else wait(d, i, ev, m.many);
       }
       // what can be applied is applied by one open app (the one that claims the email); the rest wait on Today
       if (todo.length && await B.inboxClaim(d.id)) {
         for (const { i, ev, m } of todo) {
           let ok = !!m.done; if (m.c) { try { await mailApply(ev, m.c); ok = true; } catch (e) { ok = e && e.code === 'skip'; } }
-          if (ok) { done.add(i); add.push(i); } else list.push({ d, i, ev, cands: [m.c] });
+          if (ok) { done.add(i); add.push(i); } else wait(d, i, ev, [m.c]);
         }
-        if (done.size >= evs.length) await B.inboxDelete(d.id).catch(() => { });
-        else if (add.length) await B.inboxDone(d.id, add).catch(() => { });
       }
+      if (done.size >= evs.length) await B.inboxDelete(d.id).catch(() => { });
+      else if (add.length) await B.inboxDone(d.id, add).catch(() => { });
     }
+    const list = Array.from(groups.values()).filter(g => !MAILS.goneFp.has(g.fp)).sort((a, b) => (b.ev.at || 0) - (a.ev.at || 0));
     MAILS.list = list; MAILS.unread = unread;
-    const sig = list.map(x => x.ev.key).join() + '|' + unread.length;
+    const sig = list.map(x => x.id + '#' + x.items.length).join() + '|' + unread.length;
     if (sig !== MAILS.sig) { MAILS.sig = sig; if (S.view === 'today' || S.view === 'admin') queueRender('team'); }
     if (isOwner()) mailOwnerChecks();
   } catch (e) { if (window.console) console.warn('email updates:', e && e.message); }
@@ -232,39 +272,46 @@ async function mailOwnerChecks() {
     if (st && st.pub && JSON.stringify(st.pub.senders || []) !== JSON.stringify(MAIL_SENDERS)) { await B.mailSenders(MAIL_SENDERS); MAILS.state = null; }
   } catch (e) { }
 }
-async function mailResolve(n, how) {
-  const x = MAILS.list[n]; if (!x) return;
+async function mailResolve(gid, how) {
+  const x = MAILS.list.find(g => g.id === gid); if (!x) return;
   if (how === 'apply') {
-    const c = findCase(MAILS.pick[x.ev.key] || (x.cands.length === 1 ? x.cands[0].id : '')); if (!c) return;
-    try { await mailApply(x.ev, c); toast('Applied to ' + (c.patient || 'the case')); }
+    const c = findCase(MAILS.pick[x.id] || (x.cands.length === 1 ? x.cands[0].id : '')); if (!c) return;
+    try { await mailApply(x.ev, c); toast('Applied to ' + (c.patient || 'the case')); } // (it saves the lab's case #: later emails for this patient match on it)
     catch (e) { if (!(e && e.code === 'skip')) { toast(errText(e), { bad: true }); return; } toast('Nothing to change on ' + (c.patient || 'that case')); }
-    if (!c.labRef && x.ev.ref) { /* saved by mailApply: later emails for this patient match on it */ }
   }
-  MAILS.list = MAILS.list.filter(y => y !== x); MAILS.sig = ''; queueRender();
-  try { await B.inboxDone(x.d.id, [x.i]); } catch (e) { }
+  await mailForget(x);
   mailSync();
+}
+/* an update is dealt with: this app won't show it again, and its next sync (which runs right after, one at a time)
+   marks every email carrying it done for everyone, or removes the email once nothing in it is left */
+async function mailForget(g) {
+  MAILS.goneFp.add(g.fp); g.items.forEach(it => MAILS.gone.add(it.key));
+  MAILS.list = MAILS.list.filter(y => y !== g); MAILS.sig = ''; queueRender();
+  try { await mailMemAdd(g.fp); } catch (e) { }
 }
 
 /* ---------- Today: updates waiting for a case ---------- */
 function mailCardHTML() {
   const L = MAILS.list; if (!L.length) return '';
   const open = openCases().filter(c => !c.locked).sort((a, b) => String(a.patient || '').localeCompare(String(b.patient || '')));
-  return '<div class="card mailCard" id="mailCard"><div class="cardHd"><h3>Email updates</h3><span class="sub">' + L.length + ' from lab emails need a case — pick the one each belongs to</span></div><div class="cardBd">' +
-    L.map((x, n) => {
-      const ev = x.ev, co = MAIL_CO[ev.co], pick = MAILS.pick[ev.key] || (x.cands.length === 1 ? x.cands[0].id : '');
+  return '<div class="card mailCard" id="mailCard"><div class="cardHd"><h3>Email updates</h3><span class="sub">' + L.length + ' from lab emails didn’t match an open case — pick the case, or dismiss</span><span style="flex:1"></span>' +
+    (L.length > 1 ? '<button class="btn btn-ghost btn-sm" data-act="mailSkipAll" title="Nothing to do for any of these">Dismiss all</button>' : '') + '</div><div class="cardBd">' +
+    L.map(x => {
+      const ev = x.ev, co = MAIL_CO[ev.co], pick = MAILS.pick[x.id] || (x.cands.length === 1 ? x.cands[0].id : ''), gid = esc(x.id);
       const opt = c => '<option value="' + esc(c.id) + '"' + (pick === c.id ? ' selected' : '') + '>' + esc((c.patient || '(no name)') + ' · ' + typeOf(c).l + ' · ' + stageLabel(c)) + '</option>';
       const mine = open.filter(c => co.types.includes(c.type)), rest = open.filter(c => !co.types.includes(c.type));
       return '<div class="mlRow"><div class="mlWhat"><span class="badge ' + TYPE[co.types[0]].cls + '">' + esc(co.l) + '</span><b>' + esc(MAIL_KIND[ev.kind] || ev.kind) + '</b>' +
         '<span class="mlName">' + esc(ev.name) + '</span>' + (ev.ref ? '<span class="small muted">#' + esc(ev.ref) + '</span>' : '') +
         (ev.tracking ? '<span class="small muted">' + esc((trackInfo(ev.tracking) || {}).carrier || 'tracking') + ' ' + esc(ev.tracking) + '</span>' : '') +
         (ev.reason ? '<span class="small" style="color:var(--coral-700)">' + esc(ev.reason) + '</span>' : '') +
-        '<span class="small muted">' + esc(fmtWhen(ev.at)) + '</span>' + (x.cands.length > 1 ? '<span class="small" style="color:var(--amber-700)">' + x.cands.length + ' possible cases</span>' : '') + '</div>' +
-        '<div class="mlDo"><span class="mlPh" data-mlph="' + n + '">' + ptAv(pick ? findCase(pick) : null, 32) + '</span><select class="inp mlSel" data-mail="' + n + '" aria-label="Case for this update"><option value="">Pick the case…</option>' +
+        '<span class="small muted">' + esc(fmtWhen(ev.at)) + '</span>' + (x.items.length > 1 ? '<span class="small muted">in ' + x.items.length + ' emails</span>' : '') +
+        (x.cands.length > 1 ? '<span class="small" style="color:var(--amber-700)">' + x.cands.length + ' possible cases</span>' : '') + '</div>' +
+        '<div class="mlDo"><span class="mlPh" data-mlph="' + gid + '">' + ptAv(pick ? findCase(pick) : null, 32) + '</span><select class="inp mlSel" data-g="' + gid + '" aria-label="Case for this update"><option value="">Pick the case…</option>' +
         (x.cands.length > 1 ? '<optgroup label="Possible matches">' + x.cands.map(opt).join('') + '</optgroup>' : '') +
         (mine.length ? '<optgroup label="' + esc(co.l) + ' cases">' + mine.map(opt).join('') + '</optgroup>' : '') +
         (rest.length ? '<optgroup label="Other open cases">' + rest.map(opt).join('') + '</optgroup>' : '') + '</select>' +
-        '<button class="btn btn-mint btn-sm" data-act="mailApply" data-n="' + n + '"' + (pick ? '' : ' disabled') + '>Apply</button>' +
-        '<button class="btn btn-ghost btn-sm" data-act="mailSkip" data-n="' + n + '" title="Nothing to do for this one">Dismiss</button></div></div>';
+        '<button class="btn btn-mint btn-sm" data-act="mailApply" data-g="' + gid + '"' + (pick ? '' : ' disabled') + '>Apply</button>' +
+        '<button class="btn btn-ghost btn-sm" data-act="mailSkip" data-g="' + gid + '" title="Nothing to do for this one">Dismiss</button></div></div>';
     }).join('') + '</div></div>';
 }
 
@@ -332,6 +379,13 @@ Object.assign(ADMIN_ACTS, {
     if (!await confirmBox('Turn off email updates?', 'The email robot’s login stops working right away, so the scripts can’t send anything more. Also open each script and run “stop” so it stops trying. You can set it up again any time.', 'Turn off', true)) return;
     try { await B.mailOff(); MAILS.state = null; loadMailState(); toast('Email updates turned off'); } catch (e) { toast(errText(e), { bad: true }); }
   },
-  mailApply(t) { mailResolve(Number(t.dataset.n), 'apply'); },
-  mailSkip(t) { mailResolve(Number(t.dataset.n), 'skip'); }
+  mailApply(t) { mailResolve(t.dataset.g, 'apply'); },
+  mailSkip(t) { mailResolve(t.dataset.g, 'skip'); },
+  async mailSkipAll(t) {
+    const L = MAILS.list.slice(); if (!L.length) return;
+    if (!await confirmBox('Dismiss all ' + L.length + ' email updates?', 'They’re cleared from Today for everyone. Nothing changes on any case.', 'Dismiss all')) return;
+    busyBtn(t, true, 'Dismissing…');
+    await Promise.all(L.map(g => mailForget(g)));
+    toast(L.length + ' email update' + (L.length > 1 ? 's' : '') + ' dismissed'); mailSync();
+  }
 });

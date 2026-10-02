@@ -498,6 +498,10 @@ const FB = {
     const gen = (rs.exists ? (rs.data().gen || 0) : 0) + 1;
     return FB.issue({ sid: username, name: name.trim(), username, gen, rid: rid || '' });
   },
+  /* owner: a staff photo from Staff Hub (a small data: URL, not patient data) on the person's roster entry; '' removes it */
+  async setStaffPhoto(sid, photo, src) {
+    await FB.track(FB.db.doc('roster/' + sid).update(photo ? { photo, photoSrc: src } : { photo: FB.del(), photoSrc: FB.del() }));
+  },
   async reissue(sid) {
     const rs = (await FB.db.doc('roster/' + sid).get()).data();
     const olds = (await FB.db.collection('members').where('staffId', '==', sid).get()).docs.filter(d => d.data().active);
