@@ -120,7 +120,8 @@ function instrSvg(k) { return '<svg class="isvg" viewBox="0 0 48 48" aria-hidden
 /* a tile's picture: the company's own logo when we have it (pasted by Amir), otherwise our drawing */
 function tileArt(t) {
   const lg = typeof LOGOS !== 'undefined' && LOGOS[t.v];
-  return '<span class="tmed' + (lg ? ' lg' : '') + '">' + (lg ? '<img src="' + lg.src + '" width="' + lg.w + '" height="' + lg.h + '" alt="" draggable="false">' : typeSvg(t.ic)) + '</span>';
+  // the picture is set once the form is on the page (wireCaseForm), so no image address sits in this markup
+  return '<span class="tmed' + (lg ? ' lg' : '') + '">' + (lg ? '<img data-logo="' + esc(t.v) + '" width="' + lg.w + '" height="' + lg.h + '" alt="" draggable="false">' : typeSvg(t.ic)) + '</span>';
 }
 function typeSvg(k) { return '<svg class="isvg tsvg" viewBox="0 0 48 48" aria-hidden="true" focusable="false">' + (TYPE_ICONS[k] || TYPE_ICONS.tooth) + '</svg>'; }
 /* ic = drawing, c = tint; a company logo in LOGOS (logos.js) takes the drawing's place */
@@ -441,6 +442,7 @@ function autoDetail(o, tile) {
 }
 function wireCaseForm(root, isNew) {
   const $r = s => $(s, root);
+  $$('img[data-logo]', root).forEach(i => { const lg = LOGOS[i.dataset.logo]; if (lg) i.src = lg.src; });
   const autoIds = ['cf-labDate', 'cf-deliveryDate'];
   autoIds.forEach(id => { const el = $r('#' + id); el.dataset.auto = (isNew && !el.value) ? '1' : '0'; el.addEventListener('input', () => { el.dataset.auto = '0'; }); });
   const det = $r('#cf-detail'); det.addEventListener('input', () => { det.dataset.auto = '0'; });

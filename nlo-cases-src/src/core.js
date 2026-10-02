@@ -67,8 +67,8 @@ const TYPE = Object.fromEntries(TYPES.map(t => [t.k, t]));
 const PORTALS = {
   oliv: [{ l: 'Oliv portal', u: 'https://portal.olivortho.com/' }, { l: 'Dental Monitoring', u: 'https://dental-monitoring.com/doctor/login' }],
   invisalign: [{ l: 'Invisalign Doctor Site', u: 'https://vip.invisalign.com/' }],
-  angel: [{ l: 'Angel iOrtho', u: 'https://iortho.angelalign.com/' }],
-  ulab: [{ l: 'uLab portal', u: 'https://hub.ulabsystems.net/' }]
+  angel: [{ l: 'Angel iOrtho', u: 'https://iortho.angelalign.com/cas/login?service=https://iortho.angelalign.com/OPM/shiro-cas' }],
+  ulab: [{ l: 'uDesign Cloud', u: 'https://udesign.cloud/' }]
 };
 /* types to offer in pickers: retired types only while some case still uses them (or one is already chosen) */
 function typesShown(cases, chosen) { return TYPES.filter(t => !t.legacy || t.k === chosen || (cases || []).some(c => c.type === t.k)); }

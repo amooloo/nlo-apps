@@ -2,7 +2,7 @@
    UI
    ===================================================================== */
 const S = {
-  demo: false, emu: false, cases: new Map(), closed: [], closedDays: 90, roster: [], members: [], settings: { idleMin: 10 },
+  demo: false, emu: false, cases: new Map(), closed: [], sel: new Set(), bulkBusy: '', closedDays: 90, roster: [], members: [], settings: { idleMin: 10 },
   view: 'today', boardFlow: 'outside', q: '', f: { type: '', stage: '', who: '', due: '', grp: '' }, sort: { k: 'due', dir: 1 },
   openId: null, editing: false, editBase: null, lastLogin: '', tempPw: '', loginPw: '', lastAct: Date.now(), idleTimer: null,
   inApp: false, renderQ: false, firstLoad: true
@@ -226,7 +226,8 @@ function enterApp() {
   renderShell(); renderView();
   B.start({
     cases(up, gone) {
-      up.forEach(c => S.cases.set(c.id, c)); gone.forEach(id => S.cases.delete(id));
+      // a stage move still being saved wins over an older copy arriving from the server (quick → → → clicks)
+      up.forEach(c => { const p = S.pend && S.pend[c.id]; if (p) c.stage = p.to; S.cases.set(c.id, c); }); gone.forEach(id => S.cases.delete(id));
       S.firstLoad = false; queueRender();
       if (S.openId && (up.some(c => c.id === S.openId) || gone.includes(S.openId))) refreshDrawer(gone.includes(S.openId));
     },
@@ -508,6 +509,46 @@ function sortList(list) {
   const val = c => k === 'patient' ? String(c.patient || '').toLowerCase() : k === 'type' ? typeOf(c).l : k === 'stage' ? stageIndex(c) : k === 'who' ? staffName(c.assignee, c.assigneeName) : k === 'updated' ? -(c.updatedAt || 0) : (dueDateOf(c) || '9999');
   return list.slice().sort((a, b) => { const x = val(a), y = val(b); return (x < y ? -1 : x > y ? 1 : byDue(a, b)) * dir; });
 }
+/* ---------- bulk actions on the list (e.g. clearing out old imported cases) ---------- */
+function bulkBarHTML() {
+  const n = (S.sel || new Set()).size, busy = S.bulkBusy, dis = busy ? ' disabled' : '';
+  return '<div class="bulkBar" id="bulkBar"' + (n || busy ? '' : ' hidden') + '><b class="bulkN">' + esc(busy || n + ' selected') + '</b>' +
+    '<button class="btn btn-mint btn-sm" data-act="bulkDone"' + dis + '>' + ic('done', 15) + 'Mark complete</button>' +
+    (isOwner() ? '<button class="btn btn-sec btn-sm" data-act="bulkDel" style="color:var(--coral-700)"' + dis + '>' + ic('trash', 15) + 'Delete</button>' : '') +
+    '<span style="flex:1"></span><button class="btn btn-ghost btn-sm" data-act="bulkClear"' + dis + '>Clear selection</button></div>';
+}
+function syncBulk() {
+  const n = S.sel.size, bar = $('#bulkBar'); if (bar && !S.bulkBusy) { bar.hidden = !n; $('.bulkN', bar).textContent = n + ' selected'; }
+  const all = $('input[data-selall]'); if (all) { all.checked = n > 0 && n === (S.shown || []).length; all.indeterminate = n > 0 && !all.checked; }
+  $$('tr.click[data-id]').forEach(tr => tr.classList.toggle('sel', S.sel.has(tr.dataset.id)));
+}
+/* run one action over many cases, four at a time, showing progress in the bar */
+async function bulkRun(ids, fn, verb) {
+  const queue = ids.slice(), total = ids.length; const ok = [], bad = [];
+  // while it runs the bar shows progress and its buttons stay off, even when the list redraws
+  const label = () => { S.bulkBusy = verb + ' ' + (ok.length + bad.length) + ' of ' + total + '…'; const el = $('#bulkBar .bulkN'); if (el) el.textContent = S.bulkBusy; };
+  label(); const bar = $('#bulkBar'); if (bar) bar.hidden = false; $$('#bulkBar button').forEach(b => { b.disabled = true; });
+  const worker = async () => { while (queue.length) { const id = queue.shift(); try { await fn(id); ok.push(id); } catch (e) { bad.push(id); } label(); } };
+  try { await Promise.all([worker(), worker(), worker(), worker()]); } finally { S.bulkBusy = ''; }
+  return { ok, bad };
+}
+async function bulkComplete() {
+  const ids = Array.from(S.sel); if (!ids.length) return;
+  if (!(await confirmBox('Mark ' + ids.length + ' case' + (ids.length > 1 ? 's' : '') + ' complete?', 'They move to Completed. You can undo right after, or reopen any of them later.', 'Mark complete'))) return;
+  const keep = ids.map(id => findCase(id)).filter(Boolean).map(c => Object.assign({}, c));
+  const { ok, bad } = await bulkRun(ids, id => B.mutateCase(id, () => 'done', { a: 'close' }), 'Completing');
+  if (S.hist) keep.filter(c => ok.includes(c.id)).forEach(c => S.hist.unshift(Object.assign(c, { status: 'done', closedAt: Date.now() })));
+  S.sel.clear(); S.closedLoaded = false; queueRender();
+  toast(ok.length + ' marked complete' + (bad.length ? ' · ' + bad.length + ' couldn’t be changed' : ''), { bad: !!bad.length, action: ok.length ? 'Undo' : '', ms: 9000,
+    onAction: () => bulkRun(ok, id => B.mutateCase(id, () => 'open', { a: 'reopen' }), 'Reopening').then(r => { if (S.hist) S.hist = S.hist.filter(c => !r.ok.includes(c.id)); S.closedLoaded = false; queueRender(); toast(r.ok.length + ' reopened'); }) });
+}
+async function bulkDelete() {
+  const ids = Array.from(S.sel); if (!ids.length || !isOwner()) return;
+  if (!(await confirmBox('Delete ' + ids.length + ' case' + (ids.length > 1 ? 's' : '') + '?', 'They leave every list. You can bring any of them back from Team & security → Deleted cases for 90 days. To finish cases normally, use “Mark complete” instead.', 'Delete', true))) return;
+  const { ok, bad } = await bulkRun(ids, id => B.deleteCase(id), 'Deleting');
+  S.sel.clear(); queueRender();
+  toast(ok.length + ' deleted' + (bad.length ? ' · ' + bad.length + ' couldn’t be deleted' : ''), { bad: !!bad.length });
+}
 function viewList(base, showWho) {
   if (S.firstLoad && !S.demo) return '<div class="empty">Loading cases…</div>';
   const f = S.f;
@@ -522,11 +563,13 @@ function viewList(base, showWho) {
     ((f.type || f.stage || f.who || f.due || f.grp) ? '<button class="btn btn-ghost" data-act="clearF">Clear filters</button>' : '') + '</div>';
   const list = sortList(applyFilters(base));
   if (list.some(c => c.type === 'nla')) ensureHist();
+  // bulk select: only cases on screen stay selected
+  S.sel = new Set(Array.from(S.sel || []).filter(id => list.some(c => c.id === id))); S.shown = list.map(c => c.id);
   if (!list.length) return h + '<div class="card"><div class="empty">' + (base.length ? 'No cases match.' : 'No open cases yet.') + '</div></div>';
   const th = (k, l, cls) => '<th class="' + (cls || '') + '"><button data-act="sort" data-k="' + k + '">' + l + (S.sort.k === k ? (S.sort.dir > 0 ? ' ↑' : ' ↓') : '') + '</button></th>';
-  h += '<div class="card tblWrap"><table class="tbl"><thead><tr>' + th('patient', 'Patient') + th('type', 'Type', 'hideM') + th('stage', 'Stage') + th('due', 'Next date') + th('who', 'Assigned', 'hideM') + th('updated', 'Updated', 'hideM') + '</tr></thead><tbody>' +
+  h += bulkBarHTML() + '<div class="card tblWrap"><table class="tbl"><thead><tr><th class="ck"><input type="checkbox" data-selall aria-label="Select all ' + list.length + ' cases shown"' + (S.sel.size && S.sel.size === list.length ? ' checked' : '') + '></th>' + th('patient', 'Patient') + th('type', 'Type', 'hideM') + th('stage', 'Stage') + th('due', 'Next date') + th('who', 'Assigned', 'hideM') + th('updated', 'Updated', 'hideM') + '</tr></thead><tbody>' +
     list.map(c => { const g = stageGroup(flowOf(c), c.stage);
-      return '<tr class="click" data-act="open" data-id="' + esc(c.id) + '" tabindex="0"><td><div class="pt">' + esc(c.patient || '(no name)') + '</div><div class="small muted">' + esc(c.detail || '') + alignerMini(c) + '</div></td>' +
+      return '<tr class="click' + (S.sel.has(c.id) ? ' sel' : '') + '" data-act="open" data-id="' + esc(c.id) + '" tabindex="0"><td class="ck"><input type="checkbox" data-sel="' + esc(c.id) + '" aria-label="Select ' + esc(c.patient || 'case') + '"' + (S.sel.has(c.id) ? ' checked' : '') + '></td><td><div class="pt">' + esc(c.patient || '(no name)') + '</div><div class="small muted">' + esc(c.detail || '') + alignerMini(c) + '</div></td>' +
       '<td class="hideM">' + typeBadge(c) + '</td><td class="stg">' + progHTML(c) + '<div class="small">' + esc(stageLabel(c)) + (g ? ' <span class="muted">· ' + esc(g.l.toLowerCase()) + ' ' + (g.stages.indexOf(c.stage) + 1) + '/' + g.stages.length + '</span>' : '') + '</div></td><td>' + dueChip(c) + '</td>' +
       '<td class="hideM">' + avatar(c) + ' <span class="small">' + esc(staffName(c.assignee, c.assigneeName)) + '</span></td><td class="hideM small muted">' + esc(c.updatedAt ? fmtWhen(c.updatedAt) : '') + '</td></tr>'; }).join('') +
     '</tbody></table></div><div class="small muted" style="margin-top:8px">' + list.length + ' case' + (list.length === 1 ? '' : 's') + '</div>';
@@ -615,7 +658,8 @@ function renderDrawer() {
     '<button class="iconBtn" data-act="closeDrawer" aria-label="Close">' + ic('x') + '</button></div>' +
     '<div class="dBd"><div id="drawerNotice"></div>' +
     (done ? '<div class="notice info">Completed ' + esc(fmtWhen(c.closedAt)) + '</div>' : '') +
-    ((PORTALS[c.type] || []).length ? '<div class="portals">' + PORTALS[c.type].map(p => '<a class="btn btn-sec btn-sm" href="' + esc(p.u) + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'Open ' + esc(p.l) + '</a>').join('') + '</div>' : '') +
+    ((PORTALS[c.type] || []).length ? '<div class="portals">' + PORTALS[c.type].map(p => '<a class="btn btn-sec btn-sm" data-act="portal" href="' + esc(p.u) + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'Open ' + esc(p.l) + '</a>').join('') +
+      '<span class="small muted">Opening a portal copies the patient’s name — paste it in the portal’s search.</span></div>' : '') +
     '<div class="sec" style="margin-top:4px"><h5>Stage</h5><div class="stepper">' + flow.stages.map(([k, l], i) => { const g = stageGroup(flow, k);
       return (g && g.stages[0] === k ? '<div class="stepGrp">' + esc(g.l) + '</div>' : '') +
       '<button class="step ' + (i < si ? 'past' : i === si ? 'cur' : '') + (g ? ' sub' : '') + '" data-act="setStage" data-k="' + k + '"' + (done ? ' disabled' : '') + ' aria-pressed="' + (i === si) + '"><span class="n">' + (i < si ? '✓' : i + 1) + '</span>' + esc(l) + '</button>'; }).join('') + '</div></div>' +
@@ -732,13 +776,23 @@ async function restoreVer(i) {
 }
 
 /* ---------- actions ---------- */
+/* copy text for pasting elsewhere (falls back to the older copy command if the clipboard API is blocked) */
+async function copyText(s) {
+  try { await navigator.clipboard.writeText(s); return true; } catch (e) { }
+  try {
+    const ta = document.createElement('textarea'); ta.value = s; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
+    document.body.appendChild(ta); ta.select(); const ok = document.execCommand('copy'); ta.remove(); return ok;
+  } catch (e) { return false; }
+}
 async function act(fn, okMsg) { try { await fn(); if (okMsg) toast(okMsg); } catch (e) { toast(errText(e), { bad: true }); } }
 function nextStage(c) { const st = flowOf(c).stages; const i = stageIndex(c); return i >= 0 && i < st.length - 1 ? st[i + 1][0] : null; }
 async function moveStage(id, to) {
   const c = findCase(id); if (!c || c.stage === to) return;
   const from = c.stage; c.stage = to; queueRender(); if (S.openId === id) renderDrawer();
+  S.pend = S.pend || {}; const mine = S.pend[id] = { to };
   try { await B.mutateCase(id, d => { d.stage = to; }, { a: 'stage', from, to }); }
-  catch (e) { c.stage = from; queueRender(); if (S.openId === id) renderDrawer(); toast(errText(e), { bad: true }); }
+  catch (e) { const cur = findCase(id); if (cur && S.pend[id] === mine) { cur.stage = from; queueRender(); if (S.openId === id) renderDrawer(); } toast(errText(e), { bad: true }); }
+  finally { if (S.pend[id] === mine) delete S.pend[id]; }
 }
 async function completeCase(id) {
   const c = findCase(id); if (!c) return;
@@ -751,6 +805,7 @@ async function completeCase(id) {
   } catch (e) { toast(errText(e), { bad: true }); }
 }
 function onClick(e) {
+  if (e.target.closest('td.ck, th.ck')) return; // bulk-select checkboxes (handled on change)
   const t = e.target.closest('[data-act]'); if (!t) return;
   const a = t.dataset.act; const id = t.dataset.id;
   if (t.tagName === 'SELECT') return;
@@ -767,6 +822,8 @@ function onClick(e) {
     case 'advance': { const c = findCase(id); const n = c && nextStage(c); if (n) moveStage(id, n); break; }
     case 'complete': completeCase(id); break;
     case 'setStage': moveStage(S.openId, t.dataset.k); break;
+    case 'portal': { const c = findCase(S.openId); // the link itself opens the portal in a new tab
+      if (c && c.patient) copyText(c.patient).then(ok => toast(ok ? 'Copied “' + c.patient + '” — paste it in the portal’s search' : 'Couldn’t copy the name — type it in the portal', ok ? {} : { bad: true })); break; }
     case 'reopen': act(async () => { await B.mutateCase(S.openId, () => 'open', { a: 'reopen' }); S.closed = S.closed.filter(c => c.id !== S.openId); closeDrawer(true); }, 'Reopened'); break;
     case 'addCmt': { const txt = ($('#cmtText').value || '').trim(); if (!txt) return; const cid = S.openId;
       $('#cmtText').value = ''; act(() => B.mutateCase(cid, d => { d.comments = (d.comments || []).concat([{ id: uid8(), at: Date.now(), by: meSid(), text: txt }]); }, { a: 'comment' })); break; }
@@ -777,6 +834,9 @@ function onClick(e) {
     case 'newCase': newCaseModal(); break;
     case 'closeModal': closeModal(); break;
     case 'clearF': S.f = { type: '', stage: '', who: '', due: '', grp: '' }; renderView(); break;
+    case 'bulkDone': bulkComplete(); break;
+    case 'bulkDel': bulkDelete(); break;
+    case 'bulkClear': S.sel.clear(); $$('input[data-sel]').forEach(i => { i.checked = false; }); syncBulk(); break;
     case 'clearGrp': S.f.grp = ''; renderView(); break;
     case 'sort': { const k = t.dataset.k; S.sort = { k, dir: S.sort.k === k ? -S.sort.dir : 1 }; renderView(); break; }
     case 'moreClosed': S.closedDays = S.closedDays < 365 ? 365 : 3650; S.closedLoaded = false; renderView(); break;
@@ -801,6 +861,8 @@ function onClick(e) {
 }
 function onChange(e) {
   const t = e.target;
+  if (t.matches && t.matches('input[data-sel]')) { S.sel = S.sel || new Set(); if (t.checked) S.sel.add(t.dataset.sel); else S.sel.delete(t.dataset.sel); syncBulk(); return; }
+  if (t.matches && t.matches('input[data-selall]')) { S.sel = new Set(t.checked ? S.shown || [] : []); $$('input[data-sel]').forEach(i => { i.checked = t.checked; }); syncBulk(); return; }
   if (t.dataset.f) { S.f[t.dataset.f] = t.value; if (t.dataset.f === 'type') S.f.stage = ''; renderView(); return; }
   if (t.id === 'assignSel') {
     const to = t.value; const id = S.openId; const c = findCase(id); if (!c) return;

