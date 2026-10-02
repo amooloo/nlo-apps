@@ -1,0 +1,2022 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://*.googleapis.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta name="theme-color" content="#1B2F4C">
+<title>NLO Cases</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Oswald:wght@500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --navy-900:#11203A; --navy:#1B2F4C; --navy-700:#294169; --navy-600:#385686; --navy-500:#5471A0;
+  --blue-700:#16318C; --blue:#1D3EA9; --blue-500:#2E52C9; --blue-200:#BCC8EE; --blue-100:#E5EAF8;
+  --coral-700:#C2361F; --coral-600:#E2432E; --coral:#FA624D; --coral-200:#FFC8BF; --coral-100:#FFE7E1;
+  --mint-700:#167A61; --mint-600:#1F9E7E; --mint:#64F4C9; --mint-200:#C0FBEC; --mint-100:#E2FBF4;
+  --amber-700:#8F5D00; --amber-600:#C2820A; --amber:#F6AF24; --amber-200:#FCE2A6; --amber-100:#FEF2D7;
+  --grey-50:#F7F8F9; --grey-100:#ECEEF0; --grey-200:#DCE0E4; --grey-300:#C3C9D0; --grey-400:#8A94A1; --grey-500:#5F6A79; --grey-600:#4C5868; --grey-700:#33404F;
+  --off:#F2F3F4; --card:#FFFFFF;
+  --fd:'Oswald',system-ui,sans-serif;
+  --fb:'Montserrat',system-ui,-apple-system,sans-serif;
+  --sh-xs:0 1px 2px rgba(17,32,58,.07); --sh-sm:0 2px 6px rgba(17,32,58,.08);
+  --sh-md:0 8px 24px rgba(17,32,58,.10); --sh-lg:0 18px 48px rgba(17,32,58,.15); --sh-xl:0 32px 70px rgba(17,32,58,.22);
+  --r-sm:8px; --r:14px; --r-lg:22px;
+  --ease:cubic-bezier(.4,0,.2,1);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{font-family:var(--fb);background:var(--off);color:var(--grey-700);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+button{font:inherit;cursor:pointer;border:none;background:none;color:inherit}
+input,select,textarea{font:inherit;color:var(--grey-700)}
+a{color:var(--blue)}
+:focus-visible{outline:2px solid var(--blue-500);outline-offset:2px;border-radius:4px}
+svg.i{flex:none;display:inline-block;vertical-align:-3px}
+.hidden{display:none !important}
+.muted{color:var(--grey-500)}
+.small{font-size:12.5px}
+
+/* ---------- Demo banner ---------- */
+#demoBar{position:fixed;left:0;right:0;bottom:0;z-index:2000;background:var(--amber);color:var(--navy-900);text-align:center;font-family:var(--fd);font-weight:600;letter-spacing:.08em;text-transform:uppercase;font-size:12px;padding:7px 12px}
+
+/* ---------- Lock ---------- */
+#lockWrap{position:fixed;inset:0;background:linear-gradient(158deg,var(--navy-900) 0%,var(--navy) 62%,#20395C 100%);display:flex;align-items:center;justify-content:center;z-index:1000;padding:20px;overflow:hidden auto}
+#lockWrap::before{content:"";position:absolute;width:680px;height:680px;border-radius:50%;border:88px solid rgba(255,255,255,.03);top:-300px;right:-220px;pointer-events:none}
+#lockWrap::after{content:"";position:absolute;width:520px;height:520px;border-radius:50%;border:70px solid rgba(100,244,201,.045);bottom:-260px;left:-180px;pointer-events:none}
+.lockCol{position:relative;display:flex;flex-direction:column;align-items:center;gap:22px;width:100%;max-width:440px;margin:auto;padding:24px 0}
+.lockBrand{display:flex;flex-direction:column;align-items:center;gap:14px}
+.lockBrand img{width:160px;height:auto;display:block}
+.appTag{font-family:var(--fd);font-weight:500;font-size:13px;letter-spacing:.34em;text-transform:uppercase;color:var(--mint);text-indent:.34em}
+.lockCard{background:#fff;border-radius:var(--r-lg);box-shadow:var(--sh-xl);width:100%;padding:32px 34px 28px}
+.lockCard h1{font-family:var(--fd);font-weight:600;font-size:22px;letter-spacing:.03em;text-transform:uppercase;color:var(--navy)}
+.lockCard .lsub{font-size:12.5px;color:var(--grey-500);margin-top:3px}
+.lockCard p.desc{color:var(--grey-500);font-size:13.5px;margin:12px 0 18px}
+.lockErr{background:var(--coral-100);color:var(--coral-700);border-radius:10px;padding:10px 14px;font-size:13px;font-weight:500;margin-bottom:14px}
+.lockOk{background:var(--mint-100);color:var(--mint-700);border-radius:10px;padding:10px 14px;font-size:13px;font-weight:500;margin-bottom:14px}
+.lockFoot{margin-top:16px;font-size:12px;color:var(--grey-400);text-align:center}
+.lockFoot a,.linkBtn{color:var(--blue);font-weight:600;text-decoration:underline;text-underline-offset:2px}
+.lockMeta{display:flex;align-items:center;gap:7px;font-size:11.5px;letter-spacing:.06em;color:#9DB0CC;text-transform:uppercase;font-family:var(--fd);font-weight:500}
+.ackBox{display:flex;gap:10px;align-items:flex-start;background:var(--amber-100);border-radius:10px;padding:12px 14px;font-size:12.5px;color:var(--amber-700);margin-bottom:16px;line-height:1.5}
+.ackBox input{margin-top:2px;accent-color:var(--amber-600)}
+.codeBox{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:20px;letter-spacing:.08em;background:var(--grey-50);border:1.5px dashed var(--grey-300);border-radius:12px;padding:16px;text-align:center;color:var(--navy);word-break:break-all;margin:6px 0 14px;user-select:all}
+
+/* ---------- Fields ---------- */
+.field{margin-bottom:14px}
+.field label,.flabel{display:block;font-family:var(--fd);font-weight:500;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--grey-500);margin-bottom:6px}
+.field input,.field select,.field textarea,.inp{width:100%;padding:10px 13px;border:1.5px solid var(--grey-200);border-radius:10px;background:#fff;outline:none;transition:border-color .14s var(--ease),box-shadow .14s var(--ease);min-height:42px}
+.field input:focus,.field select:focus,.field textarea:focus,.inp:focus{border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-100)}
+.field textarea{resize:vertical;min-height:70px;line-height:1.45}
+.field .hint{font-size:11.5px;color:var(--grey-500);margin-top:5px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:0 14px}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:0 14px}
+
+/* ---------- Buttons ---------- */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:40px;padding:9px 20px;border-radius:999px;font-family:var(--fd);font-weight:600;font-size:13px;letter-spacing:.06em;text-transform:uppercase;line-height:1.1;white-space:nowrap;transition:background .14s var(--ease),transform .14s var(--ease),box-shadow .14s var(--ease)}
+.btn:active{transform:scale(.985)}
+.btn-pri{background:var(--navy);color:#fff;box-shadow:var(--sh-xs)}
+.btn-pri:hover{background:var(--navy-900);box-shadow:var(--sh-md)}
+.btn-act{background:var(--blue);color:#fff}
+.btn-act:hover{background:var(--blue-700)}
+.btn-sec{background:#fff;border:1.5px solid var(--grey-300);color:var(--navy)}
+.btn-sec:hover{background:var(--grey-100)}
+.btn-danger{background:var(--coral-600);color:#fff}
+.btn-danger:hover{background:var(--coral-700)}
+.btn-mint{background:var(--mint-600);color:#fff}
+.btn-mint:hover{background:var(--mint-700)}
+.btn-ghost{color:var(--grey-600);padding:6px 12px;min-height:34px;border-radius:999px;font-family:var(--fb);font-weight:600;font-size:12.5px;letter-spacing:0;text-transform:none}
+.btn-ghost:hover{background:var(--grey-100);color:var(--navy)}
+.btn-sm{min-height:34px;padding:6px 14px;font-size:12px}
+.btn-block{width:100%}
+.btn[disabled]{opacity:.55;cursor:not-allowed;transform:none !important;box-shadow:none !important}
+.iconBtn{width:40px;height:40px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;color:var(--grey-600)}
+.iconBtn:hover{background:var(--grey-100);color:var(--navy)}
+
+/* ---------- Shell ---------- */
+#app{display:flex;min-height:100vh}
+#side{width:232px;flex:none;background:var(--navy);color:#fff;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto}
+.sideTop{padding:28px 22px 20px;border-bottom:1px solid rgba(255,255,255,.07)}
+.sideTop img{width:126px;height:auto;display:block}
+.sideTop .appTag{margin-top:12px;font-size:11px;letter-spacing:.3em;text-indent:0;text-align:left}
+.nav{padding:10px 12px;display:flex;flex-direction:column;gap:2px}
+.navLbl{font-family:var(--fd);font-weight:500;font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:#7E92B5;padding:14px 12px 6px}
+.navBtn{display:flex;align-items:center;gap:11px;width:100%;padding:10px 12px;border-radius:10px;color:#C9D4E5;font-weight:600;font-size:13.5px;text-align:left}
+.navBtn:hover{background:rgba(255,255,255,.06);color:#fff}
+.navBtn.on{background:rgba(100,244,201,.12);color:var(--mint)}
+.navBtn .cnt{margin-left:auto;font-size:11px;font-weight:700;background:rgba(255,255,255,.12);color:#fff;border-radius:99px;padding:1px 8px}
+.navBtn .cnt.red{background:var(--coral-600)}
+.sideFoot{margin-top:auto;padding:16px 20px 22px;border-top:1px solid rgba(255,255,255,.07);display:flex;flex-direction:column;gap:10px}
+.whoBox{display:flex;align-items:center;gap:10px;font-size:12.5px;color:#DCE4EE}
+.whoBox b{display:block;color:#fff;font-size:13px}
+.sideLock{display:flex;align-items:center;justify-content:center;gap:9px;width:100%;padding:9px 14px;border-radius:999px;border:1.5px solid rgba(255,255,255,.22);color:#DCE4EE;font-family:var(--fd);font-weight:600;font-size:12.5px;letter-spacing:.08em;text-transform:uppercase}
+.sideLock:hover{background:rgba(255,255,255,.09);color:#fff}
+.syncLine{display:flex;align-items:center;gap:7px;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;font-family:var(--fd);font-weight:500;color:#9DB0CC}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--grey-400);flex:none}
+.dot.ok{background:var(--mint)} .dot.busy{background:var(--amber)} .dot.bad{background:var(--coral)}
+
+#main{flex:1;min-width:0;display:flex;flex-direction:column}
+.topBar{display:flex;align-items:center;gap:14px;padding:18px 28px 14px;position:sticky;top:0;z-index:20;background:var(--off)}
+.topBar h2{font-family:var(--fd);font-weight:600;font-size:24px;letter-spacing:.02em;text-transform:uppercase;color:var(--navy);white-space:nowrap}
+.searchBox{flex:1;max-width:380px;margin-left:auto;position:relative}
+.searchBox input{width:100%;padding:10px 14px 10px 38px;border-radius:999px;border:1.5px solid var(--grey-200);background:#fff;outline:none;min-height:42px}
+.searchBox input:focus{border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-100)}
+.searchBox svg{position:absolute;left:13px;top:12px;color:var(--grey-400)}
+#view{padding:4px 28px 60px;flex:1}
+.mobBar{display:none}
+
+/* ---------- Cards / tiles ---------- */
+.card{background:#fff;border-radius:var(--r);box-shadow:var(--sh-xs);border:1px solid var(--grey-100)}
+.cardHd{display:flex;align-items:center;gap:10px;padding:16px 20px 12px}
+.cardHd h3{font-family:var(--fd);font-weight:600;font-size:15px;letter-spacing:.05em;text-transform:uppercase;color:var(--navy)}
+.cardHd .sub{font-size:12px;color:var(--grey-500)}
+.cardBd{padding:4px 20px 18px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px;margin-bottom:18px}
+.tile{background:#fff;border-radius:var(--r);border:1px solid var(--grey-100);box-shadow:var(--sh-xs);padding:14px 16px;text-align:left;display:flex;flex-direction:column;gap:2px;min-height:92px;transition:box-shadow .14s var(--ease),transform .14s var(--ease)}
+.tile:hover{box-shadow:var(--sh-md);transform:translateY(-1px)}
+.tile .n{font-family:var(--fd);font-weight:600;font-size:30px;line-height:1.1;color:var(--navy)}
+.tile .l{font-size:12.5px;font-weight:600;color:var(--grey-600)}
+.tile.red .n{color:var(--coral-700)} .tile.amber .n{color:var(--amber-700)} .tile.blue .n{color:var(--blue)} .tile.mint .n{color:var(--mint-700)}
+.twoCol{display:grid;grid-template-columns:1.4fr 1fr;gap:18px;align-items:start}
+
+/* ---------- Due groups ---------- */
+.dueGrp{margin-bottom:6px}
+.dueGrp h4{font-family:var(--fd);font-weight:500;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--grey-500);padding:12px 0 6px;border-bottom:1px solid var(--grey-100)}
+.dueGrp h4.red{color:var(--coral-700)}
+.row{display:flex;align-items:center;gap:12px;padding:10px 8px;border-bottom:1px solid var(--grey-100);cursor:pointer;border-radius:8px;width:100%;text-align:left}
+.row:hover{background:var(--grey-50)}
+.row .pt{font-weight:700;color:var(--navy);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .meta{font-size:12px;color:var(--grey-500);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .grow{flex:1;min-width:0;display:flex;flex-direction:column}
+.empty{padding:28px 10px;text-align:center;color:var(--grey-500);font-size:13px}
+
+/* ---------- Badges ---------- */
+.badge{display:inline-flex;align-items:center;gap:5px;border-radius:99px;padding:2px 9px;font-size:11px;font-weight:700;letter-spacing:.02em;white-space:nowrap;background:var(--grey-100);color:var(--grey-600)}
+.badge.t-aligner{background:var(--blue-100);color:var(--blue-700)}
+.badge.t-lab{background:var(--mint-100);color:var(--mint-700)}
+.badge.t-appl{background:#EFE7FB;color:#5B3A99}
+.badge.t-ret{background:var(--amber-100);color:var(--amber-700)}
+.badge.t-retx{background:var(--coral-100);color:var(--coral-700)}
+.badge.t-misc{background:var(--grey-100);color:var(--grey-600)}
+.due{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:700;border-radius:99px;padding:2px 8px;white-space:nowrap;background:var(--grey-100);color:var(--grey-600)}
+.due.over{background:var(--coral-100);color:var(--coral-700)}
+.due.soon{background:var(--amber-100);color:var(--amber-700)}
+.due.none{background:transparent;color:var(--grey-400);font-weight:600}
+.av{width:28px;height:28px;border-radius:50%;background:var(--navy-600);color:#fff;font-size:11px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;flex:none;letter-spacing:.02em}
+.av.none{background:var(--grey-200);color:var(--grey-500)}
+.av.lg{width:36px;height:36px;font-size:13px}
+
+/* ---------- Board ---------- */
+.boardTabs,.chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.chip{border:1.5px solid var(--grey-200);border-radius:99px;padding:6px 14px;font-size:12.5px;font-weight:600;color:var(--grey-600);background:#fff;min-height:36px}
+.chip:hover{border-color:var(--navy-500);color:var(--navy)}
+.chip.on{background:var(--navy);border-color:var(--navy);color:#fff}
+.chip .c{opacity:.7;margin-left:4px}
+.board{display:flex;gap:12px;overflow-x:auto;padding-bottom:12px;align-items:flex-start;scroll-snap-type:x proximity}
+.col{flex:1 0 225px;max-width:320px;background:var(--grey-100);border-radius:var(--r);padding:10px;scroll-snap-align:start;max-height:calc(100vh - 230px);display:flex;flex-direction:column}
+.colHd{display:flex;align-items:center;gap:8px;padding:4px 6px 10px}
+.colHd h4{font-family:var(--fd);font-weight:600;font-size:12.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--navy)}
+.colHd .c{margin-left:auto;font-size:11.5px;font-weight:700;color:var(--grey-500)}
+.colBd{display:flex;flex-direction:column;gap:8px;overflow-y:auto;min-height:40px;padding:2px}
+.kc{position:relative;background:#fff;border-radius:11px;box-shadow:var(--sh-xs);border:1px solid var(--grey-200);padding:10px 11px;display:flex;flex-direction:column;gap:6px;cursor:pointer;text-align:left;width:100%}
+.kc:hover{box-shadow:var(--sh-md);border-color:var(--grey-300)}
+.kc .pt{font-weight:700;color:var(--navy);font-size:13.5px;line-height:1.3;padding-right:36px}
+.kc .dt{font-size:12px;color:var(--grey-500);line-height:1.35}
+.kc .ft{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.kc .adv{position:absolute;top:8px;right:8px;width:32px;height:32px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;color:var(--blue);background:var(--blue-100)}
+.kc .adv:hover{background:var(--blue);color:#fff}
+
+/* ---------- Table ---------- */
+.filters{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+.filters select{padding:8px 12px;border:1.5px solid var(--grey-200);border-radius:999px;background:#fff;font-weight:600;font-size:12.5px;min-height:38px;color:var(--grey-700)}
+table.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
+.tbl th{text-align:left;font-family:var(--fd);font-weight:500;font-size:11px;text-transform:uppercase;letter-spacing:.13em;color:var(--grey-500);padding:11px 14px;border-bottom:1px solid var(--grey-100);white-space:nowrap}
+.tbl th button{font:inherit;color:inherit;letter-spacing:inherit;text-transform:inherit}
+.tbl td{padding:11px 14px;border-bottom:1px solid var(--grey-100);vertical-align:middle}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tr.click{cursor:pointer}
+.tbl tr.click:hover td{background:var(--grey-50)}
+.tbl .pt{font-weight:700;color:var(--navy)}
+.tblWrap{overflow-x:auto}
+
+/* ---------- Drawer ---------- */
+#scrim{position:fixed;inset:0;background:rgba(17,32,58,.35);z-index:900}
+#drawer{position:fixed;top:0;right:0;bottom:0;width:min(560px,100%);background:#fff;z-index:901;box-shadow:var(--sh-xl);display:flex;flex-direction:column}
+.dHd{padding:20px 22px 14px;border-bottom:1px solid var(--grey-100);display:flex;gap:12px;align-items:flex-start}
+.dHd h3{font-family:var(--fd);font-weight:600;font-size:21px;letter-spacing:.02em;color:var(--navy);line-height:1.2}
+.dHd .sub{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px}
+.dBd{flex:1;overflow-y:auto;padding:16px 22px 26px}
+.dFt{padding:12px 22px;border-top:1px solid var(--grey-100);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.sec{margin-top:18px}
+.sec h5{font-family:var(--fd);font-weight:500;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--grey-500);margin-bottom:8px}
+.stepper{display:flex;flex-direction:column;gap:6px}
+.step{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:10px;border:1.5px solid var(--grey-200);text-align:left;font-weight:600;font-size:13px;color:var(--grey-600);background:#fff;min-height:40px}
+.step:hover{border-color:var(--blue-200);background:var(--blue-100)}
+.step .n{width:22px;height:22px;border-radius:50%;background:var(--grey-100);color:var(--grey-500);font-size:11px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;flex:none}
+.step.past{color:var(--grey-500)}
+.step.past .n{background:var(--mint-200);color:var(--mint-700)}
+.step.cur{border-color:var(--blue);background:var(--blue-100);color:var(--blue-700)}
+.step.cur .n{background:var(--blue);color:#fff}
+.kv{display:grid;grid-template-columns:repeat(2,1fr);gap:10px 16px}
+.kv div{min-width:0}
+.kv .k{font-family:var(--fd);font-weight:500;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--grey-500)}
+.kv .v{font-weight:600;color:var(--navy);overflow-wrap:anywhere}
+.txt{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--grey-50);border-radius:10px;padding:10px 12px;font-size:13px}
+.cmt{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--grey-100)}
+.cmt:last-child{border-bottom:none}
+.cmt .w{font-size:12px;color:var(--grey-500)}
+.cmt .w b{color:var(--navy)}
+.hist{font-size:12.5px;color:var(--grey-600);padding:5px 0;display:flex;gap:8px}
+.hist time{color:var(--grey-400);white-space:nowrap;font-size:11.5px;min-width:96px}
+.notice{background:var(--amber-100);color:var(--amber-700);border-radius:10px;padding:9px 12px;font-size:12.5px;font-weight:600;margin-bottom:12px}
+.notice.info{background:var(--blue-100);color:var(--blue-700)}
+.notice.bad{background:var(--coral-100);color:var(--coral-700)}
+
+/* ---------- Modal ---------- */
+#modalWrap{position:fixed;inset:0;background:rgba(17,32,58,.45);z-index:950;display:flex;align-items:flex-start;justify-content:center;padding:40px 16px;overflow-y:auto}
+.modal{background:#fff;border-radius:var(--r-lg);box-shadow:var(--sh-xl);width:100%;max-width:640px;padding:24px 26px 22px}
+.modal h3{font-family:var(--fd);font-weight:600;font-size:20px;letter-spacing:.03em;text-transform:uppercase;color:var(--navy);margin-bottom:4px}
+.modal .lsub{font-size:12.5px;color:var(--grey-500);margin-bottom:16px}
+.mFt{display:flex;gap:10px;justify-content:flex-end;margin-top:8px;flex-wrap:wrap}
+
+/* ---------- Toast ---------- */
+#toasts{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);z-index:3000;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none}
+.toast{background:var(--navy-900);color:#fff;border-radius:12px;padding:11px 18px;font-size:13px;font-weight:600;box-shadow:var(--sh-lg);max-width:min(520px,92vw)}
+.toast.bad{background:var(--coral-700)}
+
+/* ---------- Admin ---------- */
+.adminGrid{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}
+.stat{white-space:nowrap;display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;border-radius:99px;padding:2px 9px}
+.stat.ok{background:var(--mint-100);color:var(--mint-700)}
+.stat.wait{background:var(--amber-100);color:var(--amber-700)}
+.stat.off{background:var(--grey-100);color:var(--grey-500)}
+.prog{height:8px;border-radius:99px;background:var(--grey-100);overflow:hidden;margin:10px 0}
+.prog i{display:block;height:100%;background:var(--blue);width:0;transition:width .2s var(--ease)}
+
+/* ---------- Responsive ---------- */
+@media (max-width:1100px){ .twoCol,.adminGrid{grid-template-columns:1fr} }
+@media (max-width:860px){
+  #app{flex-direction:column}
+  #side{display:none}
+  .mobBar{display:flex;align-items:center;gap:8px;background:var(--navy);color:#fff;padding:10px 12px;position:sticky;top:0;z-index:30}
+  .mobBar img{height:26px;width:auto}
+  .mobNav{display:flex;gap:4px;overflow-x:auto;background:var(--navy);padding:0 10px 10px;position:sticky;top:46px;z-index:29}
+  .mobNav .navBtn{width:auto;white-space:nowrap;padding:8px 12px;font-size:12.5px}
+  .topBar{padding:12px 16px 10px;flex-wrap:wrap;position:static}
+  .topBar h2{font-size:20px}
+  .searchBox{order:3;max-width:none;flex-basis:100%;margin-left:0}
+  #view{padding:4px 16px 70px}
+  .grid2,.grid3,.grid4{grid-template-columns:1fr}
+  .kv{grid-template-columns:1fr 1fr}
+  .col{flex-basis:82vw;max-height:none}
+  .tbl .hideM{display:none}
+  .modal{padding:20px 18px}
+  .lockCard{padding:26px 22px 22px}
+}
+@media (min-width:861px){ .mobNav{display:none} }
+@media print{ #side,.topBar,.mobBar,.mobNav{display:none} }
+
+body.demo #drawer{bottom:31px} body.demo #side{padding-bottom:31px} body.demo #view{padding-bottom:90px}
+.nameCell{display:flex;align-items:center;gap:9px}
+
+</style>
+</head>
+<body>
+<div id="lockWrap">
+  <div class="lockCol">
+    <div class="lockBrand"><img src="logo-white.png" alt="Next Level Orthodontics"><div class="appTag">Cases</div></div>
+    <div class="lockCard" id="lockCard"><div class="lsub" style="text-align:center">Loading…</div></div>
+    <div class="lockMeta"><svg class="i" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 2.8v5.5c0 4.4-3 7.5-7 9.2-4-1.7-7-4.8-7-9.2V5.8z"/><path d="M9.2 12l2 2 3.6-3.8"/></svg>Encrypted on this device before it’s saved</div>
+  </div>
+</div>
+<div id="app" class="hidden">
+  <aside id="side"></aside>
+  <div id="main">
+    <div class="mobBar" id="mobTop"></div>
+    <nav class="mobNav" id="mobNav" aria-label="Main"></nav>
+    <div id="topSlot"></div>
+    <main id="view"></main>
+  </div>
+</div>
+<div id="toasts" aria-live="polite"></div>
+<div id="demoBar" class="hidden">Demo — made-up patients, nothing is saved</div>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+'use strict';
+/* =====================================================================
+   NLO Cases — encrypted case tracker for Next Level Orthodontics
+   - Every case is encrypted in the browser (AES-256-GCM) before it is
+     stored; Firestore only holds ciphertext plus non-identifying flags.
+   - Each person has their own login. The office key ring is sealed to
+     each person's own key pair (ECDH P-256), whose private half is
+     sealed with a key derived from their password (PBKDF2-SHA256 600k).
+   - Removing someone deactivates them (rules cut access at once) and
+     rotates the office key so later data is under a key they never had.
+   ===================================================================== */
+
+/* ---------- Firebase project (filled in after the project is created) ---------- */
+const FB_CONFIG = {
+  apiKey: "__API_KEY__",
+  authDomain: "__AUTH_DOMAIN__",
+  projectId: "__PROJECT_ID__",
+  appId: "__APP_ID__"
+};
+/* Synthetic login addresses for staff usernames (no mail is ever sent to them). */
+const STAFF_DOMAIN = 'staff.thenextlevelorthodontics.com';
+const KDF_ITER = 600000;
+
+/* ---------- Case types and the stages each one moves through ---------- */
+const FLOWS = {
+  outside: { label: 'Outside aligners & InBrace', stages: [
+    ['submit', 'To submit'], ['dra', 'Dr. A action'], ['mfg', 'Manufacturing'],
+    ['shipped', 'Shipped'], ['arrived', 'Arrived'], ['milestones', 'Checked into Milestones'] ] },
+  appliance: { label: 'Appliances', stages: [
+    ['submit', 'To submit'], ['hold', 'Hold (CBCT/Zoom)'], ['submitted', 'Submitted to lab'],
+    ['mfg', 'Manufacturing'], ['shipped', 'Shipped'], ['milestones', 'Checked into Milestones'] ] },
+  inhouse: { label: 'In-house lab', stages: [
+    ['txp', 'TxP needed'], ['reset', 'Reset needed in 2 days'], ['fab', 'In fabrication'],
+    ['pack', 'Made – needs packaging'], ['checkedin', 'Checked in'] ] },
+  retainer: { label: 'Retainers & whitening', stages: [
+    ['print', 'Printing'], ['milestones', 'Milestones'], ['sarah', 'On Sarah’s desk'], ['pickup', 'Front desk pickup'] ] },
+  retreat: { label: 'Retreatment', stages: [
+    ['intake', 'Intake & assessment'], ['review', 'Pending review'], ['proposal', 'Send proposal'],
+    ['progress', 'In progress'], ['completed', 'Completed'] ] },
+  misc: { label: 'Dr. A (misc.)', stages: [ ['todo', 'To do'], ['waiting', 'Waiting'] ] }
+};
+const TYPES = [
+  { k: 'oliv', l: 'Oliv', flow: 'outside', cls: 't-aligner', aligner: true },
+  { k: 'angel', l: 'Angel Aligners', flow: 'outside', cls: 't-aligner', aligner: true },
+  { k: 'invisalign', l: 'Invisalign', flow: 'outside', cls: 't-aligner', aligner: true },
+  { k: 'ulab', l: 'uLab', flow: 'outside', cls: 't-aligner', aligner: true },
+  { k: 'inbrace', l: 'InBrace', flow: 'outside', cls: 't-aligner' },
+  { k: 'nla', l: 'In-house aligners', flow: 'inhouse', cls: 't-lab', aligner: true },
+  { k: 'appliance', l: 'Appliance', flow: 'appliance', cls: 't-appl' },
+  { k: 'retainer', l: 'Retainers & whitening', flow: 'retainer', cls: 't-ret' },
+  { k: 'retreat', l: 'Retreatment', flow: 'retreat', cls: 't-retx' },
+  { k: 'misc', l: 'Dr. A (misc.)', flow: 'misc', cls: 't-misc' }
+];
+const TYPE = Object.fromEntries(TYPES.map(t => [t.k, t]));
+const SCANNERS = ['Allied Star', 'iTero', 'Other'];
+/* Stages that need the doctor, and stages where the case is in fabrication. */
+const DR_STAGES = ['dra', 'txp', 'todo', 'review'];
+const FAB_STAGES = ['mfg', 'fab', 'print', 'submitted'];
+
+function typeOf(c) { return TYPE[c.type] || TYPE.misc; }
+function flowOf(c) { return FLOWS[typeOf(c).flow]; }
+function stageLabel(c) { const s = flowOf(c).stages.find(x => x[0] === c.stage); return s ? s[1] : (c.stage || '—'); }
+function stageIndex(c) { return flowOf(c).stages.findIndex(x => x[0] === c.stage); }
+function firstStage(type) { return FLOWS[(TYPE[type] || TYPE.misc).flow].stages[0][0]; }
+
+/* ---------- small utils ---------- */
+const $ = (s, r) => (r || document).querySelector(s);
+const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function uid8() { return Array.from(crypto.getRandomValues(new Uint8Array(6)), b => b.toString(16).padStart(2, '0')).join(''); }
+function todayISO() { const d = new Date(); return isoOf(d); }
+function isoOf(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+function addDays(iso, n) { const [y, m, d] = iso.split('-').map(Number); const dt = new Date(y, m - 1, d); dt.setDate(dt.getDate() + n); return isoOf(dt); }
+function dayDiff(iso) { if (!iso) return null; const [y, m, d] = iso.split('-').map(Number); const a = new Date(y, m - 1, d); const t = new Date(); t.setHours(0, 0, 0, 0); return Math.round((a - t) / 86400000); }
+function fmtDate(iso) { if (!iso) return ''; const [y, m, d] = iso.split('-').map(Number); const dt = new Date(y, m - 1, d); const opts = { month: 'short', day: 'numeric' }; if (y !== new Date().getFullYear()) opts.year = 'numeric'; return dt.toLocaleDateString(undefined, opts); }
+function fmtDay(iso) { if (!iso) return ''; const [y, m, d] = iso.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }); }
+function fmtWhen(ms) { if (!ms) return ''; const d = new Date(ms); return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ', ' + d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }); }
+function initials(name) { const p = String(name || '').trim().split(/\s+/).filter(Boolean); if (!p.length) return '?'; return (p[0][0] + (p.length > 1 ? p[p.length - 1][0] : '')).toUpperCase(); }
+function slug(s) { return String(s || '').toLowerCase().normalize('NFKD').replace(/[^\w.\-]+/g, '').replace(/_/g, '').slice(0, 30); }
+function tempPassword() {
+  const A = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; const r = crypto.getRandomValues(new Uint8Array(12));
+  let s = ''; for (let i = 0; i < 12; i++) { s += A[r[i] % A.length]; if (i === 3 || i === 7) s += '-'; } return s;
+}
+function recoveryCode() {
+  const A = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; const r = crypto.getRandomValues(new Uint8Array(24));
+  let s = ''; for (let i = 0; i < 24; i++) { s += A[r[i] % A.length]; if (i % 4 === 3 && i < 23) s += '-'; } return s;
+}
+function normCode(s) { return String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '').replace(/(.{4})(?=.)/g, '$1-'); }
+
+/* ---------- crypto ---------- */
+const TE = new TextEncoder(), TD = new TextDecoder();
+function b64(buf) {
+  const u = buf instanceof Uint8Array ? buf : new Uint8Array(buf), CH = 0x8000;
+  let s = ''; for (let i = 0; i < u.length; i += CH) s += String.fromCharCode.apply(null, u.subarray(i, i + CH));
+  return btoa(s);
+}
+function unb64(s) { const bin = atob(s); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; }
+function rnd(n) { return crypto.getRandomValues(new Uint8Array(n)); }
+const Crypto = {
+  async pwKey(pw, salt, iter) {
+    const base = await crypto.subtle.importKey('raw', TE.encode(pw), 'PBKDF2', false, ['deriveKey']);
+    return crypto.subtle.deriveKey({ name: 'PBKDF2', hash: 'SHA-256', salt, iterations: iter }, base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+  },
+  async seal(key, bytes, aad) {
+    const iv = rnd(12);
+    const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv, additionalData: TE.encode(aad) }, key, bytes);
+    return { iv: b64(iv), ct: b64(ct) };
+  },
+  async open(key, box, aad) {
+    const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(box.iv), additionalData: TE.encode(aad) }, key, unb64(box.ct));
+    return new Uint8Array(pt);
+  },
+  async sealJSON(key, obj, aad) { return Crypto.seal(key, TE.encode(JSON.stringify(obj)), aad); },
+  async openJSON(key, box, aad) { return JSON.parse(TD.decode(await Crypto.open(key, box, aad))); },
+  async pwSeal(pw, bytes, aad, iter) {
+    iter = iter || KDF_ITER; const salt = rnd(16);
+    const k = await Crypto.pwKey(pw, salt, iter); const box = await Crypto.seal(k, bytes, aad);
+    return { salt: b64(salt), iter, iv: box.iv, ct: box.ct };
+  },
+  async pwOpen(pw, box, aad) { const k = await Crypto.pwKey(pw, unb64(box.salt), box.iter || KDF_ITER); return Crypto.open(k, box, aad); },
+  EC: { name: 'ECDH', namedCurve: 'P-256' },
+  async newPair() { return crypto.subtle.generateKey(Crypto.EC, true, ['deriveBits']); },
+  async pubJwk(pair) { const j = await crypto.subtle.exportKey('jwk', pair.publicKey); return { kty: j.kty, crv: j.crv, x: j.x, y: j.y }; },
+  async privBytes(pair) { return new Uint8Array(await crypto.subtle.exportKey('pkcs8', pair.privateKey)); },
+  async importPriv(bytes) { return crypto.subtle.importKey('pkcs8', bytes, Crypto.EC, false, ['deriveBits']); },
+  async boxKey(bits, info) {
+    const hk = await crypto.subtle.importKey('raw', bits, 'HKDF', false, ['deriveKey']);
+    return crypto.subtle.deriveKey({ name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(32), info: TE.encode(info) }, hk, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+  },
+  async sealTo(pub, bytes, info) {
+    const pk = await crypto.subtle.importKey('jwk', { kty: pub.kty, crv: pub.crv, x: pub.x, y: pub.y, ext: true }, Crypto.EC, false, []);
+    const eph = await Crypto.newPair();
+    const bits = await crypto.subtle.deriveBits({ name: 'ECDH', public: pk }, eph.privateKey, 256);
+    const k = await Crypto.boxKey(bits, info); const box = await Crypto.seal(k, bytes, info);
+    return { epk: await Crypto.pubJwk(eph), iv: box.iv, ct: box.ct };
+  },
+  async openFrom(priv, box, info) {
+    const e = box.epk;
+    const epk = await crypto.subtle.importKey('jwk', { kty: e.kty, crv: e.crv, x: e.x, y: e.y, ext: true }, Crypto.EC, false, []);
+    const bits = await crypto.subtle.deriveBits({ name: 'ECDH', public: epk }, priv, 256);
+    const k = await Crypto.boxKey(bits, info); return Crypto.open(k, box, info);
+  },
+  /* key ring = { "1": base64(32 random bytes), "2": ... } */
+  newRingKey() { return b64(rnd(32)); },
+  async ringKeys(ring) {
+    const out = {};
+    for (const v of Object.keys(ring)) out[v] = await crypto.subtle.importKey('raw', unb64(ring[v]), { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+    return out;
+  },
+  ringBytes(ring) { return TE.encode(JSON.stringify(ring)); },
+  ringFrom(bytes) { return JSON.parse(TD.decode(bytes)); }
+};
+
+/* ---------- parse Asana task text (Tally-style "Key: value" notes) ---------- */
+const NOTE_KEYS = [
+  ['patient', /^patient\s*:/i], ['appliance', /^appliance type\s*:/i], ['alignerType', /^aligner type\s*:/i],
+  ['scanner', /^scanner\s*:/i], ['assistant', /^assistant\s*:/i], ['scanDate', /^scan date\s*:/i],
+  ['labDate', /^lab completion date\s*:/i], ['deliveryDate', /^delivery date\s*:/i],
+  ['instructions', /^dr\.?\s*a'?’?s instructions\s*:/i], ['cc', /^patient'?’?s cc( from last visit)?\s*:/i],
+  ['ipr', /^ipr\s*(&|and)\s*spacing( tracker app)?\s*:?/i]
+];
+function parseNotes(notes) {
+  const out = {}; const rest = []; let cur = null;
+  String(notes || '').replace(/\r/g, '').split('\n').forEach(line => {
+    const hit = NOTE_KEYS.find(([, re]) => re.test(line.trim()));
+    if (hit) { cur = hit[0]; out[cur] = line.trim().replace(hit[1], '').trim(); return; }
+    if (cur === 'ipr' || cur === 'instructions' || cur === 'cc') { out[cur] = (out[cur] ? out[cur] + '\n' : '') + line; return; }
+    cur = null; if (line.trim()) rest.push(line);
+  });
+  Object.keys(out).forEach(k => { out[k] = out[k].trim(); if (/^(-|na|n\/a|none)$/i.test(out[k])) out[k] = ''; });
+  out.rest = rest.join('\n').trim();
+  return out;
+}
+function splitName(name) {
+  const s = String(name || '').trim();
+  let m = s.match(/^(.+?)\s+[-–]\s+(.+)$/); if (m) return [m[1].trim(), m[2].trim()];
+  m = s.match(/^(.+?)\s*\((.+)$/); if (m) return [m[1].trim(), ('(' + m[2]).trim()];
+  return [s, ''];
+}
+const PROJECT_TYPES = [
+  [/oliv/i, 'oliv'], [/angel/i, 'angel'], [/invisalign/i, 'invisalign'], [/ulab/i, 'ulab'], [/inbrace/i, 'inbrace'],
+  [/nl lab|next level lab|in-?house/i, 'nla'], [/appliance/i, 'appliance'], [/retainer|whitening/i, 'retainer'], [/retreat/i, 'retreat']
+];
+function typeFromProject(p) { const hit = PROJECT_TYPES.find(([re]) => re.test(p || '')); return hit ? hit[1] : ''; }
+function stageFromSection(type, section) {
+  const s = String(section || '').toLowerCase();
+  const flow = FLOWS[(TYPE[type] || TYPE.misc).flow].stages.map(x => x[0]);
+  const pick = k => flow.includes(k) ? k : flow[0];
+  if (type === 'retainer') {
+    if (/tt|wt/.test(s) && /-/.test(s)) return pick('print');
+    if (/milestone/.test(s)) return pick('milestones');
+    if (/sarah/.test(s)) return pick('sarah');
+    if (/pick ?up|front desk/.test(s)) return pick('pickup');
+    return flow[0];
+  }
+  if (type === 'nla' || type === 'misc') {
+    if (/misc/.test(s)) return 'todo';
+    if (/txp/.test(s)) return pick('txp');
+    if (/reset/.test(s)) return pick('reset');
+    if (/fabrication/.test(s)) return pick('fab');
+    if (/package|made/.test(s)) return pick('pack');
+    if (/checked in/.test(s)) return pick('checkedin');
+    return flow[0];
+  }
+  if (type === 'retreat') {
+    if (/intake/.test(s)) return 'intake'; if (/review/.test(s)) return 'review'; if (/proposal/.test(s)) return 'proposal';
+    if (/progress/.test(s)) return 'progress'; if (/complete/.test(s)) return 'completed'; return flow[0];
+  }
+  if (/submit/.test(s) && /to submit/.test(s)) return pick('submit');
+  if (/action/.test(s)) return pick('dra');
+  if (/hold|cbct|zoom/.test(s)) return pick('hold');
+  if (/submitted/.test(s)) return pick('submitted');
+  if (/manufactur/.test(s)) return pick('mfg');
+  if (/shipped/.test(s)) return pick('shipped');
+  if (/arrived/.test(s)) return pick('arrived');
+  if (/milestone/.test(s)) return pick('milestones');
+  return flow[0];
+}
+/* Turn one Asana task into case data. `roster` maps first names to staff ids. */
+function caseFromAsana(t, projectName, roster) {
+  const sectionName = t.section || '';
+  let type = typeFromProject(projectName);
+  if (type === 'nla' && /misc/i.test(sectionName)) type = 'misc';
+  if (!type) type = 'misc';
+  const n = parseNotes(t.notes);
+  const [pt, detail] = splitName(t.name);
+  const findStaff = name => {
+    const first = String(name || '').trim().split(/\s+/)[0].toLowerCase(); if (!first) return '';
+    const hit = roster.find(r => String(r.name || '').toLowerCase().split(/\s+/)[0] === first);
+    return hit ? hit.sid : '';
+  };
+  let assignee = findStaff(t.assignee);
+  if (type === 'retainer' && /-\s*tt/i.test(sectionName)) assignee = findStaff(sectionName.split('-')[0]) || assignee;
+  const iso = s => { s = String(s || '').trim(); if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10); const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/); if (m) { const y = m[3].length === 2 ? '20' + m[3] : m[3]; return y + '-' + m[1].padStart(2, '0') + '-' + m[2].padStart(2, '0'); } return ''; };
+  let detailText = detail;
+  if (!detailText && n.appliance) detailText = n.appliance + (n.alignerType ? ' (' + n.alignerType + ')' : '');
+  return {
+    type, patient: (n.patient || pt || '').trim(), detail: detailText, stage: stageFromSection(type, sectionName),
+    assignee, assigneeName: assignee ? '' : (t.assignee || ''),
+    scanDate: iso(n.scanDate), dueDate: iso(t.due), labDate: iso(n.labDate), deliveryDate: iso(n.deliveryDate),
+    scanner: n.scanner || '', assistant: findStaff(n.assistant) || '', assistantName: findStaff(n.assistant) ? '' : (n.assistant || ''),
+    instructions: n.instructions || '', cc: n.cc || '', ipr: n.ipr || '', notes: n.rest || '',
+    comments: [], src: { asana: String(t.gid || '') }, importedAt: Date.now(),
+    _done: !!t.completed, _closedAt: t.completedAt ? Date.parse(t.completedAt) || null : null
+  };
+}
+/* Minimal RFC-4180 CSV parser (quoted fields, embedded newlines, "" escapes). */
+function parseCSV(text) {
+  const rows = []; let row = [], f = '', q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) { if (c === '"') { if (text[i + 1] === '"') { f += '"'; i++; } else q = false; } else f += c; continue; }
+    if (c === '"') q = true; else if (c === ',') { row.push(f); f = ''; }
+    else if (c === '\n') { row.push(f); rows.push(row); row = []; f = ''; }
+    else if (c !== '\r') f += c;
+  }
+  if (f !== '' || row.length) { row.push(f); rows.push(row); }
+  if (!rows.length) return [];
+  const head = rows[0].map(h => h.replace(/^﻿/, '').trim());
+  return rows.slice(1).filter(r => r.some(x => x.trim())).map(r => Object.fromEntries(head.map((h, i) => [h, r[i] == null ? '' : r[i]])));
+}
+function asanaRowsFromCSV(text) {
+  return parseCSV(text).filter(r => !r['Parent task']).map(r => ({
+    gid: r['Task ID'] || '', name: r['Name'] || '', notes: r['Notes'] || '', due: r['Due Date'] || '',
+    assignee: r['Assignee'] || '', section: r['Section/Column'] || '', project: r['Projects'] || '',
+    completed: !!(r['Completed At'] || '').trim(), completedAt: r['Completed At'] || ''
+  }));
+}
+function caseToCSVRow(c) {
+  return [c.patient, typeOf(c).l, c.detail, stageLabel(c), c.status === 'done' ? 'Completed' : 'Open', c.dueDate, c.scanDate, c.labDate, c.deliveryDate, c.assigneeLabel || '', c.instructions, c.cc, c.ipr, c.notes]
+    .map(v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"').join(',');
+}
+
+/* =====================================================================
+   Firebase backend. Nothing readable about a patient ever leaves the
+   browser: case bodies and history are sealed with the office key ring.
+   Plain fields on a case doc: v (key version), status, rev, by/sid,
+   createdAt/updatedAt/closedAt — none of them identify a patient.
+   ===================================================================== */
+function errCode(code, msg) { const e = new Error(msg || code); e.code = code; return e; }
+
+const FB = {
+  emu: false, app: null, auth: null, db: null, cfg: null,
+  uid: null, me: null, priv: null, ring: null, keys: null, curV: 0, ringV: 0,
+  unsubs: [], pending: 0, onSync: null,
+
+  ts() { return firebase.firestore.FieldValue.serverTimestamp(); },
+  del() { return firebase.firestore.FieldValue.delete(); },
+  tsMs(t) { return t && t.toMillis ? t.toMillis() : (t || null); },
+  isOwner() { return !!(FB.me && FB.me.role === 'owner'); },
+
+  available() { return typeof firebase !== 'undefined' && !!firebase.initializeApp; },
+  configured() { return FB.emu || FB_CONFIG.apiKey.indexOf('__') !== 0; },
+  init(emu) {
+    FB.emu = !!emu;
+    FB.cfg = FB.emu ? { apiKey: 'demo-key', authDomain: 'localhost', projectId: 'demo-nlo-cases', appId: 'demo' } : FB_CONFIG;
+    if (!FB.available() || !FB.configured()) return false;
+    FB.app = firebase.apps.length ? firebase.app() : firebase.initializeApp(FB.cfg);
+    FB.auth = firebase.auth(); FB.db = firebase.firestore();
+    if (FB.emu) { FB.auth.useEmulator('http://127.0.0.1:9099', { disableWarnings: true }); FB.db.useEmulator('127.0.0.1', 8080); }
+    return true;
+  },
+  async ready() {
+    // Never keep a session across reloads: the key ring only lives in memory, so a reload means sign in again.
+    try { await FB.auth.setPersistence(firebase.auth.Auth.Persistence.NONE); } catch (e) { }
+  },
+  busy(n) { FB.pending += n; if (FB.onSync) FB.onSync(); },
+  async track(p) { FB.busy(1); try { return await p; } finally { FB.busy(-1); } },
+
+  /* ---------- sign in ---------- */
+  async emailFor(login) {
+    const s = String(login || '').trim();
+    if (s.includes('@')) return s.toLowerCase();
+    const un = slug(s); if (!un) throw errCode('no-user');
+    const snap = await FB.db.doc('logins/' + un).get();
+    if (!snap.exists) throw errCode('no-user');
+    return snap.data().email;
+  },
+  async signIn(login, pw) {
+    const email = await FB.emailFor(login);
+    const cred = await FB.auth.signInWithEmailAndPassword(email, pw);
+    FB.uid = cred.user.uid;
+    const ms = await FB.db.doc('members/' + FB.uid).get();
+    if (!ms.exists) {
+      const setup = await FB.db.doc('meta/setup').get();
+      await FB.signOut();
+      throw errCode(setup.exists ? 'not-member' : 'no-setup');
+    }
+    const m = ms.data();
+    if (!m.active) { await FB.signOut(); throw errCode('inactive'); }
+    FB.me = Object.assign({ uid: FB.uid }, m);
+    if (m.mustSetup) {
+      if (m.priv) { // set a password already but didn't finish: try it
+        try { await FB.unlockWith(pw, m); await FB.db.doc('members/' + FB.uid).update({ mustSetup: false, boot: FB.del(), lastLogin: FB.ts() }); return { state: 'ok' }; } catch (e) { }
+      }
+      return { state: 'first' };
+    }
+    try { await FB.unlockWith(pw, m); }
+    catch (e) { return { state: m.role === 'owner' ? 'recover' : 'broken' }; }
+    FB.db.doc('members/' + FB.uid).update({ lastLogin: FB.ts() }).catch(() => { });
+    return { state: 'ok' };
+  },
+  async unlockWith(pw, m) {
+    let bytes;
+    try { bytes = await Crypto.pwOpen(pw, m.priv, 'priv:' + FB.uid); }
+    catch (e) { if (!m.privPrev) throw e; bytes = await Crypto.pwOpen(pw, m.privPrev, 'priv:' + FB.uid); }
+    FB.priv = await Crypto.importPriv(bytes);
+    await FB.loadRing(m);
+  },
+  async loadRing(m) {
+    const ring = Crypto.ringFrom(await Crypto.openFrom(FB.priv, m.ring, 'ring:' + FB.uid));
+    FB.ring = ring; FB.keys = await Crypto.ringKeys(ring); FB.ringV = m.ringV || 0;
+    const k = await FB.db.doc('meta/keys').get();
+    FB.curV = k.exists ? k.data().current : 1;
+  },
+  /* first sign-in with a temporary password: choose a real one */
+  async firstSetup(tempPw, newPw) {
+    const m = FB.me; const uid = FB.uid;
+    let ring;
+    try { ring = Crypto.ringFrom(await Crypto.pwOpen(tempPw, m.boot, 'boot:' + uid)); }
+    catch (e) { throw errCode('boot-failed'); }
+    const cur = (await FB.db.doc('meta/keys').get()).data().current;
+    if (!ring[cur]) throw errCode('boot-stale');
+    const pair = await Crypto.newPair(); const pub = await Crypto.pubJwk(pair);
+    const pbytes = await Crypto.privBytes(pair);
+    const priv = await Crypto.pwSeal(newPw, pbytes, 'priv:' + uid);
+    const ringBox = await Crypto.sealTo(pub, Crypto.ringBytes(ring), 'ring:' + uid);
+    await FB.db.doc('members/' + uid).update({ pub, priv, ring: ringBox, ringV: cur });
+    await FB.auth.currentUser.updatePassword(newPw);
+    await FB.db.doc('members/' + uid).update({ mustSetup: false, boot: FB.del(), lastLogin: FB.ts() });
+    FB.priv = await Crypto.importPriv(pbytes); FB.ring = ring; FB.keys = await Crypto.ringKeys(ring); FB.curV = cur; FB.ringV = cur;
+    FB.me = Object.assign({}, FB.me, { mustSetup: false, pub });
+  },
+  /* owner forgot password → reset by email → recovery code restores the key ring */
+  async recover(pw, code) {
+    const uid = FB.uid;
+    const r = (await FB.db.doc('meta/recovery').get()).data();
+    let ring;
+    try {
+      const rpriv = await Crypto.importPriv(await Crypto.pwOpen(normCode(code), r.priv, 'recovery-priv'));
+      ring = Crypto.ringFrom(await Crypto.openFrom(rpriv, r.ring, 'ring:recovery'));
+    } catch (e) { throw errCode('bad-code'); }
+    const pair = await Crypto.newPair(); const pub = await Crypto.pubJwk(pair); const pbytes = await Crypto.privBytes(pair);
+    const priv = await Crypto.pwSeal(pw, pbytes, 'priv:' + uid);
+    const ringBox = await Crypto.sealTo(pub, Crypto.ringBytes(ring), 'ring:' + uid);
+    const v = Math.max.apply(null, Object.keys(ring).map(Number));
+    await FB.db.doc('members/' + uid).update({ pub, priv, privPrev: FB.del(), ring: ringBox, ringV: v, lastLogin: FB.ts() });
+    FB.priv = await Crypto.importPriv(pbytes); FB.ring = ring; FB.keys = await Crypto.ringKeys(ring); FB.ringV = v;
+    FB.curV = (await FB.db.doc('meta/keys').get()).data().current;
+  },
+  async sendReset(email) { await FB.auth.sendPasswordResetEmail(email); },
+  async changePassword(cur, next) {
+    const u = FB.auth.currentUser;
+    await u.reauthenticateWithCredential(firebase.auth.EmailAuthProvider.credential(u.email, cur));
+    const m = (await FB.db.doc('members/' + FB.uid).get()).data();
+    let bytes;
+    try { bytes = await Crypto.pwOpen(cur, m.priv, 'priv:' + FB.uid); }
+    catch (e) { bytes = await Crypto.pwOpen(cur, m.privPrev, 'priv:' + FB.uid); }
+    const priv = await Crypto.pwSeal(next, bytes, 'priv:' + FB.uid);
+    // keep the old sealed copy until the login password has really changed
+    const privPrev = await Crypto.pwSeal(cur, bytes, 'priv:' + FB.uid);
+    await FB.db.doc('members/' + FB.uid).update({ priv, privPrev });
+    await u.updatePassword(next);
+    await FB.db.doc('members/' + FB.uid).update({ privPrev: FB.del() });
+  },
+
+  /* ---------- first-time office setup (owner) ---------- */
+  async setupOwner(name, email, pw) {
+    const cred = await FB.auth.createUserWithEmailAndPassword(email, pw);
+    const uid = FB.uid = cred.user.uid;
+    const sid = slug(name.split(/\s+/)[0]) || 'owner';
+    const ring = { '1': Crypto.newRingKey() };
+    const pair = await Crypto.newPair(); const pub = await Crypto.pubJwk(pair); const pbytes = await Crypto.privBytes(pair);
+    const priv = await Crypto.pwSeal(pw, pbytes, 'priv:' + uid);
+    const ringBox = await Crypto.sealTo(pub, Crypto.ringBytes(ring), 'ring:' + uid);
+    const code = recoveryCode();
+    const rec = await FB.recoveryDoc(code, ring);
+    const b = FB.db.batch();
+    b.set(FB.db.doc('members/' + uid), { staffId: sid, username: '', name, role: 'owner', active: true, mustSetup: false, pub, priv, ring: ringBox, ringV: 1, gen: 0, createdAt: FB.ts(), lastLogin: FB.ts() });
+    b.set(FB.db.doc('meta/setup'), { owner: uid, at: FB.ts() });
+    b.set(FB.db.doc('meta/keys'), { current: 1 });
+    b.set(FB.db.doc('meta/settings'), { idleMin: 10 });
+    b.set(FB.db.doc('meta/recovery'), rec);
+    b.set(FB.db.doc('roster/' + sid), { name, initials: initials(name), role: 'owner', active: true, username: '', gen: 0 });
+    await b.commit();
+    FB.me = { uid, staffId: sid, username: '', name, role: 'owner', active: true, pub };
+    FB.priv = await Crypto.importPriv(pbytes); FB.ring = ring; FB.keys = await Crypto.ringKeys(ring); FB.curV = 1; FB.ringV = 1;
+    return code;
+  },
+  async recoveryDoc(code, ring) {
+    const rpair = await Crypto.newPair(); const rpub = await Crypto.pubJwk(rpair);
+    const rpriv = await Crypto.pwSeal(normCode(code), await Crypto.privBytes(rpair), 'recovery-priv');
+    const rring = await Crypto.sealTo(rpub, Crypto.ringBytes(ring), 'ring:recovery');
+    return { pub: rpub, priv: rpriv, ring: rring, ringV: Math.max.apply(null, Object.keys(ring).map(Number)) };
+  },
+  async newRecoveryCode() {
+    const code = recoveryCode();
+    await FB.db.doc('meta/recovery').set(await FB.recoveryDoc(code, FB.ring));
+    return code;
+  },
+
+  async signOut() {
+    FB.stop();
+    FB.priv = FB.ring = FB.keys = FB.me = FB.uid = null; FB.curV = FB.ringV = 0;
+    try { await FB.auth.signOut(); } catch (e) { }
+  },
+  stop() { FB.unsubs.forEach(u => { try { u(); } catch (e) { } }); FB.unsubs = []; },
+
+  /* ---------- live data ---------- */
+  async decryptDoc(id, d) {
+    const key = FB.keys && FB.keys[d.v];
+    if (!key) throw errCode('no-key', 'Missing key version ' + d.v);
+    const data = await Crypto.openJSON(key, d, 'case:' + id);
+    return Object.assign(data, { id, rev: d.rev, v: d.v, status: d.status, by: d.sid || '', updatedAt: FB.tsMs(d.updatedAt), createdAtSrv: FB.tsMs(d.createdAt), closedAt: FB.tsMs(d.closedAt) });
+  },
+  start(h) {
+    FB.stop();
+    const uid = FB.uid;
+    FB.unsubs.push(FB.db.doc('members/' + uid).onSnapshot(async s => {
+      if (!s.exists || !s.data().active) return h.revoked();
+      const m = s.data();
+      if (m.ringV && m.ringV !== FB.ringV && m.ring) { try { await FB.loadRing(m); h.rekeyed(); } catch (e) { h.error(e); } }
+    }, e => h.revoked(e)));
+    FB.unsubs.push(FB.db.doc('meta/keys').onSnapshot(s => { if (s.exists) FB.curV = s.data().current; }, () => { }));
+    FB.unsubs.push(FB.db.doc('meta/settings').onSnapshot(s => h.settings(s.exists ? s.data() : {}), () => { }));
+    FB.unsubs.push(FB.db.collection('roster').onSnapshot(s => h.roster(s.docs.map(d => Object.assign({ sid: d.id }, d.data()))), e => h.error(e)));
+    FB.unsubs.push(FB.db.collection('cases').where('status', '==', 'open').onSnapshot(async snap => {
+      const up = [], gone = [];
+      for (const ch of snap.docChanges()) {
+        if (ch.type === 'removed') { gone.push(ch.doc.id); continue; }
+        try { up.push(await FB.decryptDoc(ch.doc.id, ch.doc.data())); }
+        catch (e) { up.push({ id: ch.doc.id, locked: true, status: 'open', type: 'misc', patient: '(locked case)', stage: '' }); }
+      }
+      h.cases(up, gone, snap.metadata.fromCache);
+    }, e => h.error(e)));
+    if (FB.isOwner()) {
+      FB.unsubs.push(FB.db.collection('members').onSnapshot(s => h.members(s.docs.map(d => Object.assign({ uid: d.id }, d.data()))), e => h.error(e)));
+    }
+  },
+  async loadClosed(days) {
+    const since = firebase.firestore.Timestamp.fromMillis(Date.now() - days * 86400000);
+    const snap = await FB.db.collection('cases').where('closedAt', '>=', since).get();
+    const out = [];
+    for (const d of snap.docs) { try { out.push(await FB.decryptDoc(d.id, d.data())); } catch (e) { } }
+    return out;
+  },
+  async loadAll() {
+    const snap = await FB.db.collection('cases').get();
+    const out = [];
+    for (const d of snap.docs) { try { out.push(await FB.decryptDoc(d.id, d.data())); } catch (e) { } }
+    return out;
+  },
+  async caseLog(id) {
+    const snap = await FB.db.collection('log').where('caseId', '==', id).get();
+    const out = [];
+    for (const d of snap.docs) {
+      const x = d.data(); const key = FB.keys[x.v];
+      try { out.push(Object.assign(await Crypto.openJSON(key, x, 'log:' + d.id), { at: FB.tsMs(x.at), sid: x.sid })); } catch (e) { }
+    }
+    return out.sort((a, b) => (a.at || 0) - (b.at || 0));
+  },
+  async activity(days) {
+    const since = firebase.firestore.Timestamp.fromMillis(Date.now() - days * 86400000);
+    const snap = await FB.db.collection('log').where('at', '>=', since).get();
+    const out = [];
+    for (const d of snap.docs) {
+      const x = d.data(); const key = FB.keys[x.v];
+      try { out.push(Object.assign(await Crypto.openJSON(key, x, 'log:' + d.id), { at: FB.tsMs(x.at), sid: x.sid, caseId: x.caseId })); } catch (e) { }
+    }
+    return out.sort((a, b) => (b.at || 0) - (a.at || 0));
+  },
+
+  /* ---------- writes ---------- */
+  clean(data) { const o = Object.assign({}, data); ['id', 'rev', 'v', 'status', 'by', 'updatedAt', 'createdAtSrv', 'closedAt', 'locked', 'assigneeLabel'].forEach(k => delete o[k]); return o; },
+  async logOps(batchOrTx, caseId, action) {
+    const ref = FB.db.collection('log').doc();
+    const box = await Crypto.sealJSON(FB.keys[FB.curV], action, 'log:' + ref.id);
+    batchOrTx.set(ref, { caseId, uid: FB.uid, sid: FB.me.staffId, at: FB.ts(), v: FB.curV, iv: box.iv, ct: box.ct });
+  },
+  async createCases(list, progress) {
+    // list: [{data, status:'open'|'done', closedAt:ms}]; 40 cases (80 writes) per batch
+    let n = 0;
+    for (let i = 0; i < list.length; i += 40) {
+      const b = FB.db.batch();
+      for (const item of list.slice(i, i + 40)) {
+        const ref = FB.db.collection('cases').doc();
+        const v = FB.curV; const box = await Crypto.sealJSON(FB.keys[v], FB.clean(item.data), 'case:' + ref.id);
+        const done = item.status === 'done';
+        b.set(ref, { v, iv: box.iv, ct: box.ct, status: done ? 'done' : 'open', rev: 1, by: FB.uid, sid: FB.me.staffId, createdAt: FB.ts(), updatedAt: FB.ts(), closedAt: done ? firebase.firestore.Timestamp.fromMillis(item.closedAt || Date.now()) : null });
+        await FB.logOps(b, ref.id, item.action || { a: 'create' });
+        item.id = ref.id;
+      }
+      await FB.track(b.commit()); n += Math.min(40, list.length - i); if (progress) progress(n, list.length);
+    }
+    return list.map(x => x.id);
+  },
+  async createCase(data) { const ids = await FB.createCases([{ data, status: 'open' }]); return ids[0]; },
+  /* fn(data) edits the latest decrypted copy in place; return 'done' / 'open' to change status */
+  /* one person's writes to the same case run one after another, never racing each other */
+  queues: {},
+  mutateCase(id, fn, action) {
+    const run = () => FB._mutate(id, fn, action, 0);
+    const p = (FB.queues[id] || Promise.resolve()).then(run, run);
+    FB.queues[id] = p.catch(() => { });
+    return p;
+  },
+  async _mutate(id, fn, action, tries) {
+    const ref = FB.db.doc('cases/' + id);
+    try {
+      await FB.track(FB.db.runTransaction(async tx => {
+        const s = await tx.get(ref); if (!s.exists) throw errCode('gone');
+        const d = s.data(); const data = FB.clean(await FB.decryptDoc(id, d));
+        const st = fn(data); const status = st === 'done' || st === 'open' ? st : d.status;
+        const v = FB.curV; const box = await Crypto.sealJSON(FB.keys[v], data, 'case:' + id);
+        const closedAt = status === 'done' ? (d.status === 'done' && d.closedAt ? d.closedAt : FB.ts()) : null;
+        tx.update(ref, { v, iv: box.iv, ct: box.ct, status, rev: d.rev + 1, by: FB.uid, sid: FB.me.staffId, updatedAt: FB.ts(), closedAt });
+        if (action) await FB.logOps(tx, id, action);
+      }));
+    } catch (e) {
+      if (tries < 2 && /permission/i.test(e.code || e.message || '')) {
+        // the office key may have just been changed: refresh it and try again
+        const m = (await FB.db.doc('members/' + FB.uid).get()).data();
+        if (!m || !m.active) throw e;
+        await FB.loadRing(m);
+        await new Promise(r => setTimeout(r, 150 + Math.random() * 350));
+        return FB._mutate(id, fn, action, tries + 1);
+      }
+      throw e;
+    }
+  },
+  async deleteCase(id) { await FB.track(FB.db.doc('cases/' + id).delete()); },
+  async saveSettings(patch) { await FB.track(FB.db.doc('meta/settings').set(patch, { merge: true })); },
+
+  /* ---------- team (owner) ---------- */
+  async issue(o, extra) {
+    const email = o.username + '.' + o.gen + '@' + STAFF_DOMAIN;
+    const temp = tempPassword();
+    const sec = firebase.initializeApp(FB.cfg, 'issue' + Date.now());
+    let newUid;
+    try {
+      const sa = sec.auth();
+      if (FB.emu) sa.useEmulator('http://127.0.0.1:9099', { disableWarnings: true });
+      try { await sa.setPersistence(firebase.auth.Auth.Persistence.NONE); } catch (e) { }
+      const c = await sa.createUserWithEmailAndPassword(email, temp); newUid = c.user.uid;
+      await sa.signOut();
+    } finally { try { await sec.delete(); } catch (e) { } }
+    const boot = await Crypto.pwSeal(temp, Crypto.ringBytes(FB.ring), 'boot:' + newUid);
+    const b = FB.db.batch();
+    b.set(FB.db.doc('members/' + newUid), { staffId: o.sid, username: o.username, name: o.name, role: 'staff', active: true, mustSetup: true, boot, ringV: FB.curV, gen: o.gen, createdAt: FB.ts() });
+    b.set(FB.db.doc('roster/' + o.sid), { name: o.name, initials: initials(o.name), role: 'staff', active: true, username: o.username, gen: o.gen });
+    b.set(FB.db.doc('logins/' + o.username), { email });
+    if (extra) extra(b);
+    await FB.track(b.commit());
+    return { temp, username: o.username };
+  },
+  async addStaff(name, username) {
+    username = slug(username);
+    if (!/^[a-z0-9][a-z0-9.\-]{1,29}$/.test(username)) throw errCode('bad-username');
+    const [lg, rs] = await Promise.all([FB.db.doc('logins/' + username).get(), FB.db.doc('roster/' + username).get()]);
+    if (lg.exists || (rs.exists && rs.data().active)) throw errCode('taken');
+    const gen = (rs.exists ? (rs.data().gen || 0) : 0) + 1;
+    return FB.issue({ sid: username, name: name.trim(), username, gen });
+  },
+  async reissue(sid) {
+    const rs = (await FB.db.doc('roster/' + sid).get()).data();
+    const olds = (await FB.db.collection('members').where('staffId', '==', sid).get()).docs.filter(d => d.data().active);
+    return FB.issue({ sid, name: rs.name, username: rs.username || sid, gen: (rs.gen || 1) + 1 }, b => olds.forEach(d => b.update(d.ref, { active: false })));
+  },
+  async removeStaff(sid) {
+    const rs = (await FB.db.doc('roster/' + sid).get()).data();
+    const olds = (await FB.db.collection('members').where('staffId', '==', sid).get()).docs;
+    const b = FB.db.batch();
+    olds.forEach(d => { if (d.data().active) b.update(d.ref, { active: false }); });
+    b.update(FB.db.doc('roster/' + sid), { active: false });
+    if (rs.username) b.delete(FB.db.doc('logins/' + rs.username));
+    await FB.track(b.commit());
+  },
+  /* new office key; everyone still active gets it; every case is re-sealed under it */
+  async rotate(progress) {
+    const newV = FB.curV + 1;
+    const ring2 = Object.assign({}, FB.ring, { [newV]: Crypto.newRingKey() });
+    const ms = await FB.db.collection('members').get();
+    const b = FB.db.batch(); let pendingInvites = 0;
+    for (const d of ms.docs) {
+      const m = d.data(); if (!m.active) continue;
+      if (m.pub && m.ring) b.update(d.ref, { ring: await Crypto.sealTo(m.pub, Crypto.ringBytes(ring2), 'ring:' + d.id), ringV: newV });
+      else pendingInvites++;
+    }
+    const rec = (await FB.db.doc('meta/recovery').get()).data();
+    b.update(FB.db.doc('meta/recovery'), { ring: await Crypto.sealTo(rec.pub, Crypto.ringBytes(ring2), 'ring:recovery'), ringV: newV });
+    await FB.track(b.commit());
+    await FB.track(FB.db.doc('meta/keys').update({ current: newV }));
+    FB.ring = ring2; FB.keys = await Crypto.ringKeys(ring2); FB.curV = newV; FB.ringV = newV;
+    const all = (await FB.db.collection('cases').get()).docs.filter(d => d.data().v < newV);
+    let n = 0, failed = 0;
+    for (let i = 0; i < all.length; i += 15) {
+      await Promise.all(all.slice(i, i + 15).map(d => FB.mutateCase(d.id, () => { }, null).catch(() => { failed++; })));
+      n += Math.min(15, all.length - i); if (progress) progress(n, all.length);
+    }
+    if (failed) throw errCode('rekey-partial', failed + ' case(s) could not be re-sealed yet');
+    return { cases: all.length, pendingInvites };
+  }
+};
+
+/* =====================================================================
+   Demo backend: made-up patients, everything in memory, nothing saved.
+   Opened with ?demo — lets the office try the app before Firebase exists.
+   ===================================================================== */
+const DEMO = {
+  me: null, h: null, cases: new Map(), logs: [], roster: [], members: [], settings: { idleMin: 30 }, curV: 1,
+  isOwner() { return true; },
+  async emailFor(l) { return l; },
+  async signIn() {
+    DEMO.me = { uid: 'u-amir', staffId: 'amir', name: 'Dr. Akhavan', role: 'owner', active: true };
+    if (!DEMO.cases.size) DEMO.seed();
+    return { state: 'ok' };
+  },
+  async signOut() { DEMO.h = null; },
+  stop() { },
+  seed() {
+    DEMO.roster = [
+      { sid: 'amir', name: 'Dr. Akhavan', initials: 'DA', role: 'owner', active: true, username: '' },
+      { sid: 'sarah', name: 'Sarah (demo)', initials: 'S', role: 'staff', active: true, username: 'sarah' },
+      { sid: 'angelika', name: 'Angelika (demo)', initials: 'A', role: 'staff', active: true, username: 'angelika' },
+      { sid: 'gwen', name: 'Gwen (demo)', initials: 'G', role: 'staff', active: true, username: 'gwen' },
+      { sid: 'kaylee', name: 'Kaylee (demo)', initials: 'K', role: 'staff', active: true, username: 'kaylee' }
+    ];
+    DEMO.members = DEMO.roster.map((r, i) => ({ uid: 'u-' + r.sid, staffId: r.sid, name: r.name, username: r.username, role: r.role, active: true, mustSetup: i === 4, lastLogin: { toMillis: () => Date.now() - i * 3600e3 } }));
+    const first = ['Avery', 'Jordan', 'Riley', 'Morgan', 'Casey', 'Taylor', 'Quinn', 'Rowan', 'Skyler', 'Harper', 'Emerson', 'Finley', 'Parker', 'Reese', 'Sawyer', 'Hayden', 'Dakota', 'Elliot', 'Blake', 'Jamie', 'Logan', 'Peyton', 'Drew', 'Kendall'];
+    const last = ['Sample', 'Demo', 'Testcase', 'Example', 'Placeholder', 'Mockley'];
+    const t = todayISO();
+    const plan = [
+      ['oliv', 'submit', 'sarah', 9], ['oliv', 'dra', 'amir', 2], ['oliv', 'mfg', 'sarah', 12], ['oliv', 'shipped', 'sarah', 4], ['oliv', 'arrived', 'sarah', -1],
+      ['angel', 'mfg', 'sarah', 6], ['ulab', 'submit', 'gwen', 1], ['inbrace', 'dra', 'amir', 5], ['invisalign', 'milestones', 'sarah', 0],
+      ['nla', 'txp', 'amir', -2], ['nla', 'txp', 'amir', 3], ['nla', 'reset', 'angelika', 2], ['nla', 'fab', 'angelika', 6], ['nla', 'fab', 'kaylee', 8], ['nla', 'pack', 'gwen', 1],
+      ['appliance', 'submit', 'sarah', 7], ['appliance', 'hold', 'amir', null], ['appliance', 'mfg', 'sarah', 15],
+      ['retainer', 'print', 'angelika', 1], ['retainer', 'print', 'gwen', null], ['retainer', 'sarah', 'sarah', 0], ['retainer', 'pickup', 'sarah', -3],
+      ['retreat', 'review', 'amir', 10], ['misc', 'todo', 'amir', 4]
+    ];
+    const details = { oliv: 'Aligners (Oliv)', angel: 'Aligners (Angel)', ulab: 'Aligners (uLab)', inbrace: 'InBrace IDB', invisalign: 'Aligners (Invisalign)', nla: 'Aligners (In-House)', appliance: 'Herbst', retainer: "U/L TT's and WT's", retreat: 'Relapse — lower incisors', misc: 'Study models' };
+    plan.forEach((p, i) => {
+      const [type, stage, who, due] = p; const id = 'demo' + i;
+      const scan = addDays(t, -10 + (i % 7));
+      DEMO.cases.set(id, {
+        id, rev: 1, v: 1, status: 'open', by: 'amir', updatedAt: Date.now() - i * 3600e3, closedAt: null,
+        type, patient: first[i % first.length] + ' ' + last[i % last.length], detail: details[type], stage, assignee: who,
+        scanDate: TYPE[type].aligner ? scan : '', dueDate: due == null ? '' : addDays(t, due), labDate: TYPE[type].aligner ? addDays(scan, 21) : '', deliveryDate: TYPE[type].aligner ? addDays(scan, 28) : '',
+        scanner: TYPE[type].aligner ? 'Allied Star' : '', assistant: ['angelika', 'gwen', 'kaylee'][i % 3],
+        instructions: TYPE[type].aligner ? 'Close remaining spaces, improve bite.' : '', cc: '', ipr: i % 3 === 0 ? 'UR2–UR1 0.1mm, UR1–UL1 0.1mm' : '', notes: '',
+        comments: i % 4 === 0 ? [{ id: 'c' + i, at: Date.now() - 7200e3, by: 'sarah', text: 'Submitted in the portal.' }] : [], createdAt: Date.now() - 86400e3 * (i + 2), createdBy: 'amir'
+      });
+      DEMO.logs.push({ caseId: id, a: 'create', at: Date.now() - 86400e3 * (i + 2), sid: 'amir' });
+    });
+    for (let j = 0; j < 6; j++) {
+      const id = 'demoDone' + j;
+      DEMO.cases.set(id, { id, rev: 3, v: 1, status: 'done', by: 'sarah', updatedAt: Date.now() - j * 86400e3, closedAt: Date.now() - j * 86400e3, type: j % 2 ? 'retainer' : 'oliv', patient: first[(j + 9) % first.length] + ' ' + last[(j + 2) % last.length], detail: j % 2 ? "U/L TT's" : 'Aligners (Oliv)', stage: j % 2 ? 'pickup' : 'milestones', assignee: 'sarah', dueDate: addDays(t, -j - 1), comments: [], createdAt: Date.now() - 20 * 86400e3 });
+    }
+  },
+  start(h) {
+    DEMO.h = h;
+    h.settings(DEMO.settings); h.roster(DEMO.roster.slice()); h.members(DEMO.members.slice());
+    h.cases(Array.from(DEMO.cases.values()).filter(c => c.status === 'open').map(c => JSON.parse(JSON.stringify(c))), [], false);
+  },
+  emit(c) {
+    if (!DEMO.h) return;
+    if (c.status === 'open') DEMO.h.cases([JSON.parse(JSON.stringify(c))], [], false);
+    else DEMO.h.cases([], [c.id], false);
+  },
+  async createCases(list) {
+    return list.map(item => {
+      const id = 'demo' + uid8();
+      const c = Object.assign({}, item.data, { id, rev: 1, v: 1, status: item.status || 'open', by: DEMO.me.staffId, updatedAt: Date.now(), closedAt: item.status === 'done' ? (item.closedAt || Date.now()) : null });
+      DEMO.cases.set(id, c); DEMO.logs.push({ caseId: id, a: (item.action || { a: 'create' }).a, at: Date.now(), sid: DEMO.me.staffId }); DEMO.emit(c); return id;
+    });
+  },
+  async createCase(data) { return (await DEMO.createCases([{ data }]))[0]; },
+  async mutateCase(id, fn, action) {
+    const c = DEMO.cases.get(id); if (!c) throw errCode('gone');
+    const data = JSON.parse(JSON.stringify(c)); const st = fn(data);
+    if (st === 'done' || st === 'open') { data.status = st; data.closedAt = st === 'done' ? Date.now() : null; }
+    data.rev++; data.updatedAt = Date.now(); data.by = DEMO.me.staffId;
+    DEMO.cases.set(id, data); if (action) DEMO.logs.push(Object.assign({ caseId: id, at: Date.now(), sid: DEMO.me.staffId }, action));
+    await new Promise(r => setTimeout(r, 60)); DEMO.emit(data);
+  },
+  async deleteCase(id) { const c = DEMO.cases.get(id); DEMO.cases.delete(id); if (c && DEMO.h) DEMO.h.cases([], [id], false); },
+  async loadClosed() { return Array.from(DEMO.cases.values()).filter(c => c.status === 'done').map(c => JSON.parse(JSON.stringify(c))); },
+  async loadAll() { return Array.from(DEMO.cases.values()).map(c => JSON.parse(JSON.stringify(c))); },
+  async caseLog(id) { return DEMO.logs.filter(l => l.caseId === id).slice().sort((a, b) => a.at - b.at); },
+  async activity() { return DEMO.logs.slice().sort((a, b) => b.at - a.at).slice(0, 60); },
+  async saveSettings(p) { Object.assign(DEMO.settings, p); if (DEMO.h) DEMO.h.settings(DEMO.settings); },
+  async addStaff(name, username) {
+    username = slug(username); if (DEMO.roster.some(r => r.sid === username && r.active)) throw errCode('taken');
+    DEMO.roster = DEMO.roster.filter(r => r.sid !== username).concat([{ sid: username, name, initials: initials(name), role: 'staff', active: true, username }]);
+    DEMO.members.push({ uid: 'u-' + username + uid8(), staffId: username, name, username, role: 'staff', active: true, mustSetup: true });
+    DEMO.h.roster(DEMO.roster.slice()); DEMO.h.members(DEMO.members.slice());
+    return { temp: tempPassword(), username };
+  },
+  async reissue(sid) { const r = DEMO.roster.find(x => x.sid === sid); DEMO.members.forEach(m => { if (m.staffId === sid) m.mustSetup = true; }); DEMO.h.members(DEMO.members.slice()); return { temp: tempPassword(), username: r.username || sid }; },
+  async removeStaff(sid) { DEMO.roster.forEach(r => { if (r.sid === sid) r.active = false; }); DEMO.members.forEach(m => { if (m.staffId === sid) m.active = false; }); DEMO.h.roster(DEMO.roster.slice()); DEMO.h.members(DEMO.members.slice()); },
+  async rotate(progress) { const n = DEMO.cases.size; for (let i = 1; i <= n; i++) { if (progress) progress(i, n); } DEMO.curV++; return { cases: n, pendingInvites: 0 }; },
+  async newRecoveryCode() { return recoveryCode(); },
+  async changePassword() { },
+  get curV_() { return DEMO.curV; }
+};
+
+/* =====================================================================
+   UI
+   ===================================================================== */
+const S = {
+  demo: false, emu: false, cases: new Map(), closed: [], closedDays: 90, roster: [], members: [], settings: { idleMin: 10 },
+  view: 'today', boardFlow: 'outside', q: '', f: { type: '', stage: '', who: '', due: '', grp: '' }, sort: { k: 'due', dir: 1 },
+  openId: null, editing: false, editBase: null, lastLogin: '', tempPw: '', loginPw: '', lastAct: Date.now(), idleTimer: null,
+  inApp: false, renderQ: false, firstLoad: true
+};
+let B = null;
+
+/* ---------- icons ---------- */
+const IC = {
+  today: '<rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/><path d="M8.5 15l2.2 2 4.8-4.5"/>',
+  board: '<rect x="3.5" y="4" width="5" height="16" rx="1.5"/><rect x="9.5" y="4" width="5" height="11" rx="1.5"/><rect x="15.5" y="4" width="5" height="7" rx="1.5"/>',
+  list: '<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>',
+  user: '<circle cx="12" cy="8" r="4"/><path d="M4.5 20c1.3-3.6 4.2-5.5 7.5-5.5s6.2 1.9 7.5 5.5"/>',
+  done: '<circle cx="12" cy="12" r="8.5"/><path d="M8.2 12.3l2.5 2.4 5.2-5.2"/>',
+  team: '<circle cx="9" cy="8.5" r="3.3"/><path d="M3 19.5c.9-3.2 3.2-5 6-5s5.1 1.8 6 5"/><circle cx="17" cy="9.5" r="2.6"/><path d="M16.5 14.6c2.3.2 3.9 1.8 4.5 4.4"/>',
+  import: '<path d="M12 3.5v11M7.5 10l4.5 4.5 4.5-4.5"/><path d="M4 16.5v2a2 2 0 002 2h12a2 2 0 002-2v-2"/>',
+  lock: '<rect x="5" y="10.5" width="14" height="10" rx="2.3"/><path d="M8 10.5V7.8a4 4 0 018 0v2.7"/>',
+  search: '<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  next: '<path d="M9 6l6 6-6 6"/>',
+  x: '<path d="M6 6l12 12M18 6L6 18"/>',
+  trash: '<path d="M4.5 7h15M9.5 7V4.8h5V7M6.5 7l1 12.5h9l1-12.5"/>',
+  shield: '<path d="M12 3l7 2.8v5.5c0 4.4-3 7.5-7 9.2-4-1.7-7-4.8-7-9.2V5.8z"/><path d="M9.2 12l2 2 3.6-3.8"/>',
+  key: '<circle cx="8" cy="15" r="4"/><path d="M11 12l8.5-8.5M16.5 6.5l2.5 2.5M14.5 8.5l2 2"/>',
+  edit: '<path d="M4 20h4l10.5-10.5-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/>',
+  clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+  download: '<path d="M12 4v11M7.5 10.5L12 15l4.5-4.5"/><path d="M4 19.5h16"/>',
+  refresh: '<path d="M19.5 12a7.5 7.5 0 11-2.2-5.3"/><path d="M19.5 4v4.5H15"/>',
+  menu: '<path d="M4 7h16M4 12h16M4 17h16"/>'
+};
+function ic(n, s) { s = s || 18; return '<svg class="i" width="' + s + '" height="' + s + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (IC[n] || '') + '</svg>'; }
+
+/* ---------- toasts ---------- */
+function toast(msg, opt) {
+  opt = opt || {}; const el = document.createElement('div'); el.className = 'toast' + (opt.bad ? ' bad' : ''); el.setAttribute('role', 'status');
+  el.innerHTML = esc(msg) + (opt.action ? ' <button class="linkBtn" style="color:var(--mint);margin-left:10px;pointer-events:auto">' + esc(opt.action) + '</button>' : '');
+  if (opt.action) el.querySelector('button').onclick = () => { opt.onAction(); el.remove(); };
+  $('#toasts').appendChild(el); setTimeout(() => el.remove(), opt.ms || (opt.action ? 7000 : 3800));
+}
+function errText(e) {
+  const c = (e && (e.code || e.message)) || '';
+  if (/no-user/.test(c)) return 'No login with that username.';
+  if (/invalid-credential|wrong-password|user-not-found|invalid-login/.test(c)) return 'Username or password is incorrect.';
+  if (/inactive/.test(c)) return 'This login has been turned off. Ask Dr. A.';
+  if (/not-member/.test(c)) return 'That account isn’t part of the office.';
+  if (/no-setup/.test(c)) return 'The office hasn’t been set up yet.';
+  if (/too-many-requests/.test(c)) return 'Too many attempts. Wait a minute and try again.';
+  if (/network|unavailable/.test(c)) return 'Can’t reach the server. Check the internet connection.';
+  if (/email-already-in-use/.test(c)) return 'An account with that email already exists.';
+  if (/weak-password/.test(c)) return 'Password needs at least 8 characters.';
+  if (/invalid-email/.test(c)) return 'That email address doesn’t look right.';
+  if (/boot-failed/.test(c)) return 'That temporary password didn’t work. Ask Dr. A to reissue your login.';
+  if (/boot-stale/.test(c)) return 'This invite expired after a security update. Ask Dr. A to reissue your login.';
+  if (/bad-code/.test(c)) return 'That recovery code didn’t work. Check it and try again.';
+  if (/taken/.test(c)) return 'That username is already in use.';
+  if (/bad-username/.test(c)) return 'Usernames are 2–30 letters or numbers (dots and dashes OK).';
+  if (/permission/.test(c)) return 'Not allowed. Your access may have changed.';
+  if (/gone/.test(c)) return 'That case no longer exists.';
+  if (/requires-recent-login/.test(c)) return 'Please sign in again, then retry.';
+  return (e && e.message) ? String(e.message).replace(/^Firebase:\s*/, '') : 'Something went wrong.';
+}
+
+/* ---------- boot ---------- */
+function boot() {
+  const qs = new URLSearchParams(location.search);
+  const local = location.protocol === 'file:' || /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+  S.demo = qs.has('demo'); S.emu = local && qs.has('emu');
+  try { S.lastLogin = localStorage.getItem('nloCases.lastLogin') || ''; } catch (e) { }
+  document.addEventListener('click', onClick);
+  document.addEventListener('change', onChange);
+  document.addEventListener('input', onInput);
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { if ($('#modalWrap')) closeModal(); else if (S.openId) closeDrawer(); }
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('.kc[data-act], tr.click[data-act]')) { e.preventDefault(); e.target.click(); }
+  });
+  ['pointerdown', 'keydown', 'wheel', 'touchstart'].forEach(ev => document.addEventListener(ev, () => { S.lastAct = Date.now(); }, { passive: true }));
+  if (S.demo) { B = DEMO; $('#demoBar').classList.remove('hidden'); document.body.classList.add('demo'); lockScreen('login'); return; }
+  B = FB;
+  if (!FB.init(S.emu)) { lockScreen('unconfigured'); return; }
+  FB.onSync = renderSync;
+  FB.ready().then(() => lockScreen(location.hash === '#setup' ? 'setup' : 'login'));
+  window.addEventListener('online', renderSync); window.addEventListener('offline', renderSync);
+}
+
+/* ---------- lock screens ---------- */
+function lockScreen(mode, info) {
+  info = info || {};
+  $('#lockWrap').classList.remove('hidden'); $('#app').classList.add('hidden');
+  const card = $('#lockCard'); let h = '';
+  const err = info.err ? '<div class="lockErr" role="alert">' + esc(info.err) + '</div>' : '';
+  const ok = info.ok ? '<div class="lockOk" role="status">' + esc(info.ok) + '</div>' : '';
+  if (mode === 'unconfigured') {
+    h = '<h1>Almost ready</h1><div class="lsub">This copy isn’t connected to the office database yet.</div>' +
+      '<p class="desc">Dr. A: finish the Firebase setup, then reload. To look around with made-up patients, open the demo.</p>' +
+      '<a class="btn btn-pri btn-block" href="?demo">Open the demo</a>';
+  } else if (mode === 'login') {
+    h = '<h1>Sign in</h1><div class="lsub">Next Level Orthodontics · cases</div>' + err + ok +
+      '<form id="loginForm" autocomplete="on" style="margin-top:16px">' +
+      '<div class="field"><label for="lgUser">Username</label><input id="lgUser" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" value="' + esc(S.demo ? 'demo' : S.lastLogin) + '" required></div>' +
+      '<div class="field"><label for="lgPw">Password</label><input id="lgPw" type="password" autocomplete="current-password" ' + (S.demo ? 'value="demo"' : '') + ' required></div>' +
+      '<button class="btn btn-pri btn-block" id="lgBtn" type="submit">Sign in</button></form>' +
+      '<div class="lockFoot">Forgot your password? Ask Dr. A to reissue your login.' + (S.demo ? '' : '<br><button class="linkBtn" data-act="forgot" type="button">Dr. A: reset by email</button>') + '</div>';
+  } else if (mode === 'first') {
+    h = '<h1>Welcome, ' + esc(firstName(B.me && B.me.name)) + '</h1><div class="lsub">Choose your own password</div>' + err +
+      '<p class="desc">Only you will know it. Use at least 8 characters. If you forget it, Dr. A can reissue your login.</p>' +
+      '<form id="firstForm"><div class="field"><label for="fpw1">New password</label><input id="fpw1" type="password" autocomplete="new-password" minlength="8" required></div>' +
+      '<div class="field"><label for="fpw2">Type it again</label><input id="fpw2" type="password" autocomplete="new-password" minlength="8" required></div>' +
+      '<button class="btn btn-pri btn-block" id="fBtn" type="submit">Save and continue</button></form>';
+  } else if (mode === 'recover') {
+    h = '<h1>Unlock with your recovery code</h1><div class="lsub">Your password changed, so the office key needs your recovery code once.</div>' + err +
+      '<form id="recForm" style="margin-top:16px"><div class="field"><label for="recCode">Recovery code</label><input id="recCode" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="XXXX-XXXX-XXXX-XXXX-XXXX-XXXX" required></div>' +
+      '<button class="btn btn-pri btn-block" type="submit">Unlock</button></form>' +
+      '<div class="lockFoot"><button class="linkBtn" data-act="lockSignOut" type="button">Cancel</button></div>';
+  } else if (mode === 'broken') {
+    h = '<h1>Login needs a reset</h1><div class="lsub">Your password was changed outside the app.</div><p class="desc">Ask Dr. A to reissue your login from Team &amp; security. It takes a minute.</p>' +
+      '<button class="btn btn-sec btn-block" data-act="lockSignOut">Back</button>';
+  } else if (mode === 'forgot') {
+    h = '<h1>Reset by email</h1><div class="lsub">For Dr. A’s email login</div>' + err + ok +
+      '<form id="forgotForm" style="margin-top:16px"><div class="field"><label for="fgEmail">Your email</label><input id="fgEmail" type="email" autocomplete="email" required></div>' +
+      '<button class="btn btn-pri btn-block" type="submit">Send reset link</button></form>' +
+      '<p class="desc small" style="margin:14px 0 0">After you pick a new password, sign in with it. You’ll be asked for your recovery code once.</p>' +
+      '<div class="lockFoot"><button class="linkBtn" data-act="toLogin" type="button">Back to sign in</button></div>';
+  } else if (mode === 'setup') {
+    h = '<h1>Set up the office</h1><div class="lsub">One time only · creates the owner account</div>' + err +
+      '<form id="setupForm" style="margin-top:16px">' +
+      '<div class="field"><label for="suName">Your name</label><input id="suName" autocomplete="name" value="Dr. Amir Akhavan" required></div>' +
+      '<div class="field"><label for="suEmail">Your email</label><input id="suEmail" type="email" autocomplete="email" required><div class="hint">You’ll sign in with this. Password resets go here.</div></div>' +
+      '<div class="field"><label for="suPw1">Password</label><input id="suPw1" type="password" autocomplete="new-password" minlength="10" required><div class="hint">At least 10 characters.</div></div>' +
+      '<div class="field"><label for="suPw2">Type it again</label><input id="suPw2" type="password" autocomplete="new-password" minlength="10" required></div>' +
+      '<button class="btn btn-pri btn-block" type="submit">Create office</button></form>';
+  } else if (mode === 'code') {
+    h = '<h1>Your recovery code</h1><div class="lsub">The only way back in if you forget your password</div>' +
+      '<p class="desc">Print it or write it down and keep it somewhere safe, away from the computer. Nobody else has a copy — not even Claude or Google.</p>' +
+      '<div class="codeBox" id="recShow">' + esc(info.code) + '</div>' +
+      '<div style="display:flex;gap:8px;margin-bottom:14px"><button class="btn btn-sec btn-sm" data-act="copyCode" data-code="' + esc(info.code) + '">Copy</button><button class="btn btn-sec btn-sm" data-act="printCode">Print</button></div>' +
+      '<label class="ackBox"><input type="checkbox" id="codeAck"><span>I saved my recovery code somewhere safe.</span></label>' +
+      '<button class="btn btn-pri btn-block" data-act="codeDone" disabled id="codeDone">Open NLO Cases</button>';
+  }
+  card.innerHTML = h;
+  const f = $('input:not([value=""]):not([type=checkbox])', card) && mode === 'login' && $('#lgUser').value ? $('#lgPw') : $('input', card);
+  if (f) setTimeout(() => f.focus(), 30);
+  bindLockForms(mode);
+}
+function firstName(n) { return String(n || '').replace(/^dr\.?\s+/i, '').split(/\s+/)[0] || ''; }
+function busyBtn(btn, on, label) { if (!btn) return; if (on) { btn.dataset.l = btn.textContent; btn.textContent = label || 'Working…'; btn.disabled = true; } else { btn.textContent = btn.dataset.l || btn.textContent; btn.disabled = false; } }
+function bindLockForms(mode) {
+  const lf = $('#loginForm');
+  if (lf) lf.onsubmit = async e => {
+    e.preventDefault(); const btn = $('#lgBtn'); const user = $('#lgUser').value.trim(); const pw = $('#lgPw').value;
+    busyBtn(btn, true, 'Signing in…');
+    try {
+      const r = await B.signIn(user, pw);
+      S.lastLogin = user; try { localStorage.setItem('nloCases.lastLogin', user); } catch (x) { }
+      S.loginPw = pw;
+      if (r.state === 'ok') { S.loginPw = ''; enterApp(); }
+      else lockScreen(r.state);
+    } catch (x) { busyBtn(btn, false); lockScreen('login', { err: errText(x) }); }
+  };
+  const ff = $('#firstForm');
+  if (ff) ff.onsubmit = async e => {
+    e.preventDefault(); const a = $('#fpw1').value, b = $('#fpw2').value;
+    if (a.length < 8) return lockScreen('first', { err: 'Use at least 8 characters.' });
+    if (a !== b) return lockScreen('first', { err: 'The two passwords don’t match.' });
+    if (a === S.loginPw) return lockScreen('first', { err: 'Pick something different from the temporary password.' });
+    busyBtn($('#fBtn'), true, 'Saving…');
+    try { await B.firstSetup(S.loginPw, a); S.loginPw = ''; enterApp(); }
+    catch (x) { lockScreen('first', { err: errText(x) }); }
+  };
+  const rf = $('#recForm');
+  if (rf) rf.onsubmit = async e => {
+    e.preventDefault(); const btn = $('button[type=submit]', rf); busyBtn(btn, true, 'Unlocking…');
+    try { await B.recover(S.loginPw, $('#recCode').value); S.loginPw = ''; toast('Unlocked. Your recovery code still works — keep it safe.'); enterApp(); }
+    catch (x) { lockScreen('recover', { err: errText(x) }); }
+  };
+  const fg = $('#forgotForm');
+  if (fg) fg.onsubmit = async e => {
+    e.preventDefault();
+    try { await B.sendReset($('#fgEmail').value.trim()); lockScreen('forgot', { ok: 'If that email has a login, a reset link is on its way.' }); }
+    catch (x) { lockScreen('forgot', { err: errText(x) }); }
+  };
+  const sf = $('#setupForm');
+  if (sf) sf.onsubmit = async e => {
+    e.preventDefault(); const p1 = $('#suPw1').value, p2 = $('#suPw2').value;
+    if (p1.length < 10) return lockScreen('setup', { err: 'Use at least 10 characters.' });
+    if (p1 !== p2) return lockScreen('setup', { err: 'The two passwords don’t match.' });
+    const btn = $('button[type=submit]', sf); busyBtn(btn, true, 'Creating…');
+    try {
+      const code = await B.setupOwner($('#suName').value.trim(), $('#suEmail').value.trim(), p1);
+      S.lastLogin = $('#suEmail').value.trim(); try { localStorage.setItem('nloCases.lastLogin', S.lastLogin); } catch (x) { }
+      history.replaceState(null, '', location.pathname + location.search);
+      lockScreen('code', { code });
+    } catch (x) { lockScreen('setup', { err: /permission/.test(x.code || '') ? 'This office is already set up. Sign in instead.' : errText(x) }); }
+  };
+  const ack = $('#codeAck'); if (ack) ack.onchange = () => { $('#codeDone').disabled = !ack.checked; };
+}
+
+/* ---------- enter / leave ---------- */
+function enterApp() {
+  S.inApp = true; S.cases = new Map(); S.closed = []; S.firstLoad = true; S.lastAct = Date.now();
+  $('#lockWrap').classList.add('hidden'); $('#app').classList.remove('hidden');
+  renderShell(); renderView();
+  B.start({
+    cases(up, gone) {
+      up.forEach(c => S.cases.set(c.id, c)); gone.forEach(id => S.cases.delete(id));
+      S.firstLoad = false; queueRender();
+      if (S.openId && (up.some(c => c.id === S.openId) || gone.includes(S.openId))) refreshDrawer(gone.includes(S.openId));
+    },
+    roster(list) { S.roster = list; queueRender(); },
+    members(list) { S.members = list; if (S.view === 'admin') queueRender(); },
+    settings(s) { S.settings = Object.assign({ idleMin: 10 }, s || {}); if (S.view === 'admin') queueRender(); },
+    revoked() { lockOut('Your access to NLO Cases was turned off.'); },
+    rekeyed() { },
+    error(e) { if (/permission/.test((e && e.code) || '')) lockOut('Your access changed. Sign in again.'); else toast(errText(e), { bad: true }); }
+  });
+  clearInterval(S.idleTimer);
+  S.idleTimer = setInterval(() => {
+    const mins = Number(S.settings.idleMin) || 10;
+    if (S.inApp && Date.now() - S.lastAct > mins * 60000) lockOut('Locked after ' + mins + ' minutes without activity.');
+  }, 15000);
+}
+async function lockOut(msg) {
+  if (!S.inApp) return;
+  S.inApp = false; clearInterval(S.idleTimer);
+  closeModal(); closeDrawer(true);
+  S.cases = new Map(); S.closed = []; S.members = []; S.roster = [];
+  $('#view').innerHTML = '';
+  await B.signOut();
+  lockScreen('login', { ok: msg });
+}
+
+/* ---------- derived data ---------- */
+function meSid() { return B.me ? B.me.staffId : ''; }
+function isOwner() { return B.isOwner(); }
+function staff(sid) { return S.roster.find(r => r.sid === sid); }
+function staffName(sid, fallback) { const r = staff(sid); return r ? r.name : (fallback || ''); }
+function activeRoster() { return S.roster.filter(r => r.active).sort((a, b) => (a.role === 'owner' ? -1 : 0) - (b.role === 'owner' ? -1 : 0) || a.name.localeCompare(b.name)); }
+function openCases() { return Array.from(S.cases.values()).filter(c => !c.locked); }
+function matchesQ(c) {
+  if (!S.q) return true; const q = S.q.toLowerCase();
+  return [c.patient, c.detail, typeOf(c).l, stageLabel(c), staffName(c.assignee, c.assigneeName)].some(x => String(x || '').toLowerCase().includes(q));
+}
+function dueBucket(c) {
+  const d = dayDiff(c.dueDate); if (d === null) return 'none';
+  if (d < 0) return 'over'; if (d === 0) return 'today'; if (d <= 6) return 'week'; if (d <= 14) return '14'; return 'later';
+}
+function byDue(a, b) {
+  const x = a.dueDate || '9999', y = b.dueDate || '9999';
+  return x < y ? -1 : x > y ? 1 : String(a.patient).localeCompare(String(b.patient));
+}
+function counts() {
+  const all = openCases(); const me = meSid();
+  return {
+    all: all.length,
+    over: all.filter(c => dueBucket(c) === 'over').length,
+    week: all.filter(c => ['today', 'week'].includes(dueBucket(c))).length,
+    dr: all.filter(c => DR_STAGES.includes(c.stage)).length,
+    fab: all.filter(c => FAB_STAGES.includes(c.stage)).length,
+    arrived: all.filter(c => c.stage === 'arrived').length,
+    mine: all.filter(c => c.assignee === me).length
+  };
+}
+
+/* ---------- rendering ---------- */
+/* live updates redraw data screens only; screens holding typed input (import, account) keep their state */
+function queueRender() { if (S.renderQ) return; S.renderQ = true; requestAnimationFrame(() => { S.renderQ = false; if (!S.inApp) return; renderNav(); if (S.view !== 'import' && S.view !== 'account') renderView(); }); }
+const NAV = [
+  ['today', 'Today', 'today'], ['board', 'Board', 'board'], ['list', 'All open cases', 'list'], ['mine', 'My cases', 'user'], ['done', 'Completed', 'done']
+];
+function renderShell() {
+  const owner = isOwner();
+  const navBtns = mob => NAV.map(([k, l, i]) => '<button class="navBtn" data-act="nav" data-v="' + k + '" id="' + (mob ? 'm' : '') + 'nav-' + k + '">' + ic(i) + '<span>' + l + '</span><span class="cnt hidden"></span></button>').join('') +
+    (mob ? '' : '<div class="navLbl">Office</div>') +
+    (owner ? '<button class="navBtn" data-act="nav" data-v="admin" id="' + (mob ? 'm' : '') + 'nav-admin">' + ic('team') + '<span>Team &amp; security</span></button>' +
+      '<button class="navBtn" data-act="nav" data-v="import" id="' + (mob ? 'm' : '') + 'nav-import">' + ic('import') + '<span>Import &amp; export</span></button>' : '') +
+    '<button class="navBtn" data-act="nav" data-v="account" id="' + (mob ? 'm' : '') + 'nav-account">' + ic('key') + '<span>My account</span></button>';
+  $('#side').innerHTML = '<div class="sideTop"><img src="logo-white.png" alt="Next Level Orthodontics"><div class="appTag">Cases</div></div>' +
+    '<nav class="nav" aria-label="Main">' + navBtns(false) + '</nav>' +
+    '<div class="sideFoot"><div class="whoBox"><span class="av">' + esc(initials(B.me.name)) + '</span><div><b>' + esc(B.me.name) + '</b>' + (owner ? 'Owner' : 'Staff') + '</div></div>' +
+    '<button class="sideLock" data-act="lock">' + ic('lock', 16) + 'Lock</button><div class="syncLine" id="syncLine"></div></div>';
+  $('#mobTop').innerHTML = '<img src="logo-white.png" alt="NLO"><span class="appTag" style="font-size:11px;letter-spacing:.24em">Cases</span><span style="flex:1"></span>' +
+    '<button class="iconBtn" style="color:#fff" data-act="newCase" aria-label="New case">' + ic('plus') + '</button><button class="iconBtn" style="color:#fff" data-act="lock" aria-label="Lock">' + ic('lock') + '</button>';
+  $('#mobNav').innerHTML = navBtns(true);
+  renderSync(); renderNav();
+}
+function renderNav() {
+  const c = counts();
+  const set = (k, n, red) => ['nav-', 'mnav-'].forEach(p => { const el = $('#' + p + k + ' .cnt'); if (!el) return; el.textContent = n; el.classList.toggle('hidden', !n); el.classList.toggle('red', !!red); });
+  set('today', c.over, true); set('list', c.all); set('mine', c.mine);
+  $$('.navBtn[data-v]').forEach(b => b.classList.toggle('on', b.dataset.v === S.view));
+}
+function renderSync() {
+  const el = $('#syncLine'); if (!el) return;
+  let cls = 'ok', t = S.demo ? 'Demo · nothing saved' : 'Live · encrypted';
+  if (!navigator.onLine) { cls = 'bad'; t = 'Offline'; }
+  else if (B && B.pending) { cls = 'busy'; t = 'Saving…'; }
+  el.innerHTML = '<span class="dot ' + cls + '"></span>' + t;
+}
+const TITLES = { today: 'Today', board: 'Board', list: 'All open cases', mine: 'My cases', done: 'Completed', admin: 'Team & security', import: 'Import & export', account: 'My account' };
+function topBar(extra) {
+  return '<div class="topBar"><h2>' + esc(TITLES[S.view]) + '</h2>' +
+    (['today', 'board', 'list', 'mine', 'done'].includes(S.view) ? '<label class="searchBox">' + ic('search', 17) + '<span class="hidden">Search</span><input id="q" type="search" placeholder="Search patient, type, stage…" value="' + esc(S.q) + '" aria-label="Search cases"></label>' : '<span style="flex:1"></span>') +
+    (extra || '') + '<button class="btn btn-act" data-act="newCase">' + ic('plus', 16) + 'New case</button></div>';
+}
+function renderView() {
+  const v = $('#view'); const active = document.activeElement && document.activeElement.id === 'q';
+  let h = '';
+  if (S.view === 'today') h = viewToday();
+  else if (S.view === 'board') h = viewBoard();
+  else if (S.view === 'list') h = viewList(openCases(), true);
+  else if (S.view === 'mine') h = viewList(openCases().filter(c => c.assignee === meSid()), false);
+  else if (S.view === 'done') h = viewDone();
+  else if (S.view === 'admin') h = isOwner() ? viewAdmin() : '';
+  else if (S.view === 'import') h = isOwner() ? viewImport() : '';
+  else if (S.view === 'account') h = viewAccount();
+  $('#topSlot').innerHTML = topBar();
+  v.innerHTML = h;
+  if (active) { const q = $('#q'); q.focus(); q.setSelectionRange(q.value.length, q.value.length); }
+}
+
+/* ---------- small pieces ---------- */
+function typeBadge(c) { const t = typeOf(c); return '<span class="badge ' + t.cls + '">' + esc(t.l) + '</span>'; }
+function dueChip(c) {
+  if (!c.dueDate) return '<span class="due none">No due date</span>';
+  const d = dayDiff(c.dueDate);
+  if (d < 0) return '<span class="due over" title="' + esc(fmtDay(c.dueDate)) + '">' + ic('clock', 13) + (d === -1 ? '1 day late' : (-d) + ' days late') + '</span>';
+  if (d === 0) return '<span class="due soon">' + ic('clock', 13) + 'Due today</span>';
+  if (d === 1) return '<span class="due soon">' + ic('clock', 13) + 'Tomorrow</span>';
+  if (d <= 3) return '<span class="due soon">' + ic('clock', 13) + esc(fmtDay(c.dueDate)) + '</span>';
+  return '<span class="due">' + esc(fmtDate(c.dueDate)) + '</span>';
+}
+function avatar(c) {
+  const r = staff(c.assignee);
+  if (r) return '<span class="av" title="' + esc(r.name) + '">' + esc(r.initials || initials(r.name)) + '</span>';
+  if (c.assigneeName) return '<span class="av none" title="' + esc(c.assigneeName) + '">' + esc(initials(c.assigneeName)) + '</span>';
+  return '<span class="av none" title="Unassigned">–</span>';
+}
+function row(c, meta) {
+  return '<button class="row" data-act="open" data-id="' + esc(c.id) + '">' + avatar(c) +
+    '<span class="grow"><span class="pt">' + esc(c.patient || '(no name)') + '</span><span class="meta">' + esc(meta != null ? meta : (typeOf(c).l + ' · ' + stageLabel(c) + (c.detail ? ' · ' + c.detail : ''))) + '</span></span>' + dueChip(c) + '</button>';
+}
+
+/* ---------- Today ---------- */
+function viewToday() {
+  const c = counts(); const all = openCases().filter(matchesQ);
+  if (S.firstLoad && !S.demo) return '<div class="empty">Loading cases…</div>';
+  const tile = (n, l, cls, act) => '<button class="tile ' + cls + '" data-act="tile" data-f="' + act + '"><span class="n">' + n + '</span><span class="l">' + l + '</span></button>';
+  let h = '<div class="tiles">' + tile(c.over, 'Overdue', 'red', 'over') + tile(c.week, 'Due in the next 7 days', 'amber', 'week') + tile(c.dr, 'Needs Dr. A', 'blue', 'dr') +
+    tile(c.fab, 'In fabrication', '', 'fab') + tile(c.arrived, 'Arrived — check in', 'mint', 'arrived') + tile(c.mine, 'Assigned to me', '', 'mine') + '</div>';
+  const soon = all.filter(x => x.dueDate && dayDiff(x.dueDate) <= 14).sort(byDue);
+  const groups = [];
+  soon.forEach(x => {
+    const d = dayDiff(x.dueDate);
+    const key = d < 0 ? 'Overdue' : d === 0 ? 'Today' : d === 1 ? 'Tomorrow' : fmtDay(x.dueDate);
+    let g = groups.find(g => g.k === key); if (!g) { g = { k: key, red: d < 0, items: [] }; groups.push(g); } g.items.push(x);
+  });
+  const left = '<div class="card"><div class="cardHd"><h3>Coming up</h3><span class="sub">Overdue and the next 14 days</span></div><div class="cardBd">' +
+    (groups.length ? groups.map(g => '<div class="dueGrp"><h4 class="' + (g.red ? 'red' : '') + '">' + esc(g.k) + ' · ' + g.items.length + '</h4>' + g.items.map(x => row(x)).join('') + '</div>').join('') :
+      '<div class="empty">Nothing due in the next two weeks.</div>') + '</div></div>';
+  const dr = all.filter(x => DR_STAGES.includes(x.stage)).sort(byDue);
+  const noDate = all.filter(x => !x.dueDate).length;
+  const right = '<div class="card"><div class="cardHd"><h3>Needs Dr. A</h3><span class="sub">' + dr.length + ' waiting</span></div><div class="cardBd">' +
+    (dr.length ? dr.map(x => row(x)).join('') : '<div class="empty">Nothing waiting on Dr. A.</div>') + '</div></div>' +
+    (noDate ? '<div class="card" style="margin-top:14px"><div class="cardBd" style="padding:14px 20px"><button class="linkBtn" data-act="tile" data-f="none">' + noDate + ' open case' + (noDate > 1 ? 's have' : ' has') + ' no due date</button></div></div>' : '');
+  return h + '<div class="twoCol"><div>' + left + '</div><div>' + right + '</div></div>';
+}
+
+/* ---------- Board ---------- */
+function viewBoard() {
+  const all = openCases().filter(matchesQ);
+  const flowsUsed = Object.keys(FLOWS);
+  let h = '<div class="boardTabs" role="tablist">' + flowsUsed.map(k => {
+    const n = all.filter(c => typeOf(c).flow === k).length;
+    return '<button class="chip' + (S.boardFlow === k ? ' on' : '') + '" role="tab" aria-selected="' + (S.boardFlow === k) + '" data-act="flow" data-k="' + k + '">' + esc(FLOWS[k].label) + '<span class="c">' + n + '</span></button>';
+  }).join('') + '</div>';
+  const flow = FLOWS[S.boardFlow];
+  const inFlow = all.filter(c => typeOf(c).flow === S.boardFlow);
+  h += '<div class="board">' + flow.stages.map(([sk, sl], i) => {
+    const items = inFlow.filter(c => c.stage === sk || (i === 0 && !flow.stages.some(s => s[0] === c.stage))).sort(byDue);
+    return '<section class="col" aria-label="' + esc(sl) + '"><div class="colHd"><h4>' + esc(sl) + '</h4><span class="c">' + items.length + '</span></div><div class="colBd">' +
+      (items.map(c => kcard(c, i === flow.stages.length - 1)).join('') || '<div class="empty" style="padding:14px 4px">—</div>') + '</div></section>';
+  }).join('') + '</div>';
+  return h;
+}
+function kcard(c, last) {
+  const mixed = S.boardFlow === 'outside' || S.boardFlow === 'inhouse';
+  return '<div class="kc" data-act="open" data-id="' + esc(c.id) + '" role="button" tabindex="0">' +
+    '<div class="pt">' + esc(c.patient || '(no name)') + '</div>' + (c.detail ? '<div class="dt">' + esc(c.detail) + '</div>' : '') +
+    '<div class="ft">' + (mixed ? typeBadge(c) : '') + dueChip(c) + avatar(c) +
+    '<button class="adv" data-act="' + (last ? 'complete' : 'advance') + '" data-id="' + esc(c.id) + '" title="' + (last ? 'Mark complete' : 'Move to next stage') + '" aria-label="' + (last ? 'Mark complete' : 'Move to next stage') + '">' + ic(last ? 'done' : 'next', 17) + '</button></div></div>';
+}
+
+/* ---------- List ---------- */
+function applyFilters(list) {
+  const f = S.f;
+  return list.filter(c => {
+    if (!matchesQ(c)) return false;
+    if (f.type && c.type !== f.type) return false;
+    if (f.stage && c.stage !== f.stage) return false;
+    if (f.who === '_none' && (c.assignee || c.assigneeName)) return false;
+    if (f.who && f.who !== '_none' && c.assignee !== f.who) return false;
+    if (f.due) { const b = dueBucket(c); if (f.due === 'week' ? !['today', 'week'].includes(b) : f.due === '14' ? !['today', 'week', '14'].includes(b) : b !== f.due) return false; }
+    if (f.grp === 'dr' && !DR_STAGES.includes(c.stage)) return false;
+    if (f.grp === 'fab' && !FAB_STAGES.includes(c.stage)) return false;
+    if (f.grp === 'arrived' && c.stage !== 'arrived') return false;
+    return true;
+  });
+}
+function sortList(list) {
+  const { k, dir } = S.sort;
+  const val = c => k === 'patient' ? String(c.patient || '').toLowerCase() : k === 'type' ? typeOf(c).l : k === 'stage' ? stageIndex(c) : k === 'who' ? staffName(c.assignee, c.assigneeName) : k === 'updated' ? -(c.updatedAt || 0) : (c.dueDate || '9999');
+  return list.slice().sort((a, b) => { const x = val(a), y = val(b); return (x < y ? -1 : x > y ? 1 : byDue(a, b)) * dir; });
+}
+function viewList(base, showWho) {
+  if (S.firstLoad && !S.demo) return '<div class="empty">Loading cases…</div>';
+  const f = S.f;
+  const stageOpts = f.type ? FLOWS[TYPE[f.type].flow].stages : [];
+  const grpLabel = { dr: 'Needs Dr. A', fab: 'In fabrication', arrived: 'Arrived' }[f.grp];
+  let h = '<div class="filters">' +
+    '<select data-f="type" aria-label="Type"><option value="">All types</option>' + TYPES.map(t => '<option value="' + t.k + '"' + (f.type === t.k ? ' selected' : '') + '>' + esc(t.l) + '</option>').join('') + '</select>' +
+    (stageOpts.length ? '<select data-f="stage" aria-label="Stage"><option value="">All stages</option>' + stageOpts.map(([k, l]) => '<option value="' + k + '"' + (f.stage === k ? ' selected' : '') + '>' + esc(l) + '</option>').join('') + '</select>' : '') +
+    (showWho ? '<select data-f="who" aria-label="Assigned to"><option value="">Anyone</option><option value="_none"' + (f.who === '_none' ? ' selected' : '') + '>Unassigned</option>' + activeRoster().map(r => '<option value="' + esc(r.sid) + '"' + (f.who === r.sid ? ' selected' : '') + '>' + esc(r.name) + '</option>').join('') + '</select>' : '') +
+    '<select data-f="due" aria-label="Due"><option value="">Any due date</option>' + [['over', 'Overdue'], ['today', 'Due today'], ['week', 'Next 7 days'], ['14', 'Next 14 days'], ['none', 'No due date']].map(([k, l]) => '<option value="' + k + '"' + (f.due === k ? ' selected' : '') + '>' + l + '</option>').join('') + '</select>' +
+    (grpLabel ? '<button class="chip on" data-act="clearGrp">' + esc(grpLabel) + ' ✕</button>' : '') +
+    ((f.type || f.stage || f.who || f.due || f.grp) ? '<button class="btn btn-ghost" data-act="clearF">Clear filters</button>' : '') + '</div>';
+  const list = sortList(applyFilters(base));
+  if (!list.length) return h + '<div class="card"><div class="empty">' + (base.length ? 'No cases match.' : 'No open cases yet.') + '</div></div>';
+  const th = (k, l, cls) => '<th class="' + (cls || '') + '"><button data-act="sort" data-k="' + k + '">' + l + (S.sort.k === k ? (S.sort.dir > 0 ? ' ↑' : ' ↓') : '') + '</button></th>';
+  h += '<div class="card tblWrap"><table class="tbl"><thead><tr>' + th('patient', 'Patient') + th('type', 'Type', 'hideM') + th('stage', 'Stage') + th('due', 'Due') + th('who', 'Assigned', 'hideM') + th('updated', 'Updated', 'hideM') + '</tr></thead><tbody>' +
+    list.map(c => '<tr class="click" data-act="open" data-id="' + esc(c.id) + '" tabindex="0"><td><div class="pt">' + esc(c.patient || '(no name)') + '</div><div class="small muted">' + esc(c.detail || '') + '</div></td>' +
+      '<td class="hideM">' + typeBadge(c) + '</td><td>' + esc(stageLabel(c)) + '</td><td>' + dueChip(c) + '</td>' +
+      '<td class="hideM">' + avatar(c) + ' <span class="small">' + esc(staffName(c.assignee, c.assigneeName)) + '</span></td><td class="hideM small muted">' + esc(c.updatedAt ? fmtWhen(c.updatedAt) : '') + '</td></tr>').join('') +
+    '</tbody></table></div><div class="small muted" style="margin-top:8px">' + list.length + ' case' + (list.length === 1 ? '' : 's') + '</div>';
+  return h;
+}
+
+/* ---------- Completed ---------- */
+function viewDone() {
+  if (!S.closedLoaded) { loadClosed(); return '<div class="empty">Loading completed cases…</div>'; }
+  const list = S.closed.filter(matchesQ).sort((a, b) => (b.closedAt || 0) - (a.closedAt || 0));
+  let h = '<div class="filters"><span class="small muted">Completed in the last ' + S.closedDays + ' days</span>' +
+    (S.closedDays < 3650 ? '<button class="btn btn-ghost" data-act="moreClosed">Show older</button>' : '') + '</div>';
+  if (!list.length) return h + '<div class="card"><div class="empty">No completed cases' + (S.q ? ' match' : '') + '.</div></div>';
+  return h + '<div class="card tblWrap"><table class="tbl"><thead><tr><th>Patient</th><th class="hideM">Type</th><th>Completed</th><th class="hideM">Last stage</th></tr></thead><tbody>' +
+    list.map(c => '<tr class="click" data-act="openClosed" data-id="' + esc(c.id) + '" tabindex="0"><td><div class="pt">' + esc(c.patient) + '</div><div class="small muted">' + esc(c.detail || '') + '</div></td><td class="hideM">' + typeBadge(c) + '</td><td class="small">' + esc(fmtWhen(c.closedAt)) + '</td><td class="hideM small">' + esc(stageLabel(c)) + '</td></tr>').join('') +
+    '</tbody></table></div>';
+}
+async function loadClosed() {
+  if (S.closedLoading) return; S.closedLoading = true;
+  try { S.closed = await B.loadClosed(S.closedDays); S.closedLoaded = true; }
+  catch (e) { toast(errText(e), { bad: true }); S.closedLoaded = true; S.closed = []; }
+  S.closedLoading = false; if (S.view === 'done') renderView();
+}
+
+/* ---------- Drawer ---------- */
+function findCase(id) { return S.cases.get(id) || S.closed.find(c => c.id === id); }
+function openDrawer(id) {
+  S.openId = id; S.editing = false; S.history = null;
+  if (!$('#drawer')) {
+    const scrim = document.createElement('div'); scrim.id = 'scrim'; scrim.dataset.act = 'closeDrawer'; document.body.appendChild(scrim);
+    const d = document.createElement('aside'); d.id = 'drawer'; d.setAttribute('role', 'dialog'); d.setAttribute('aria-modal', 'true'); d.setAttribute('aria-label', 'Case'); document.body.appendChild(d);
+  }
+  renderDrawer(); loadHistory(id);
+}
+function closeDrawer(force) {
+  if (!force && S.editing && editDirty() && !confirm('Discard your changes?')) return;
+  S.openId = null; S.editing = false; const d = $('#drawer'), s = $('#scrim'); if (d) d.remove(); if (s) s.remove();
+}
+function refreshDrawer(gone) {
+  if (!S.openId) return;
+  if (gone && !S.closed.some(c => c.id === S.openId)) {
+    if (S.editing) { const n = $('#drawerNotice'); if (n) n.innerHTML = '<div class="notice bad">Someone just completed or deleted this case.</div>'; return; }
+    closeDrawer(true); return;
+  }
+  if (S.editing) { const n = $('#drawerNotice'); if (n) n.innerHTML = '<div class="notice">Someone else just updated this case. Saving will keep their changes and apply yours on top.</div>'; return; }
+  renderDrawer(); loadHistory(S.openId);
+}
+async function loadHistory(id) {
+  try { const h = await B.caseLog(id); if (S.openId === id) { S.history = h; const el = $('#histBox'); if (el) el.innerHTML = historyHTML(findCase(id)); } } catch (e) { }
+}
+const FIELD_LABELS = { type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery date', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes' };
+function historyHTML(c) {
+  const h = S.history; if (!h) return '<div class="small muted">Loading…</div>'; if (!h.length) return '<div class="small muted">No history yet.</div>';
+  const stageName = k => { const s = c && flowOf(c).stages.find(x => x[0] === k); return s ? s[1] : k; };
+  return h.slice().reverse().map(x => {
+    let t = '';
+    if (x.a === 'create') t = 'created the case'; else if (x.a === 'import') t = 'imported it from Asana';
+    else if (x.a === 'stage') t = 'moved it to ' + stageName(x.to); else if (x.a === 'comment') t = 'added a comment';
+    else if (x.a === 'close') t = 'marked it complete'; else if (x.a === 'reopen') t = 'reopened it';
+    else if (x.a === 'assign') t = x.to ? 'assigned it to ' + staffName(x.to, x.to) : 'unassigned it';
+    else if (x.a === 'edit') t = 'changed ' + (x.fields || []).map(f => FIELD_LABELS[f] || f).join(', ');
+    else t = x.a;
+    return '<div class="hist"><time>' + esc(fmtWhen(x.at)) + '</time><span><b>' + esc(firstName(staffName(x.sid, x.sid)) || x.sid) + '</b> ' + esc(t) + '</span></div>';
+  }).join('');
+}
+function renderDrawer() {
+  const d = $('#drawer'); const c = findCase(S.openId); if (!d || !c) return;
+  if (S.editing) { d.innerHTML = '<div class="dHd"><div style="flex:1"><h3>Edit case</h3></div><button class="iconBtn" data-act="closeDrawer" aria-label="Close">' + ic('x') + '</button></div>' +
+    '<div class="dBd"><div id="drawerNotice"></div>' + caseFormHTML(S.editBase, false) + '</div>' +
+    '<div class="dFt"><button class="btn btn-pri" data-act="saveEdit">Save changes</button><button class="btn btn-sec" data-act="cancelEdit">Cancel</button></div>';
+    wireCaseForm(d, false); return; }
+  const keepCmt = $('#cmtText') ? $('#cmtText').value : ''; const hadFocus = document.activeElement && document.activeElement.id === 'cmtText';
+  const done = c.status === 'done'; const flow = flowOf(c); const si = stageIndex(c);
+  const kv = (k, v) => '<div><div class="k">' + k + '</div><div class="v">' + (v || '<span class="muted">—</span>') + '</div></div>';
+  const txt = (k, v) => v ? '<div class="sec"><h5>' + k + '</h5><div class="txt">' + esc(v) + '</div></div>' : '';
+  const assignSel = '<select class="inp" id="assignSel" data-act-change="assign" aria-label="Assigned to" style="min-height:36px;padding:6px 10px"' + (done ? ' disabled' : '') + '><option value="">Unassigned' + (c.assigneeName ? ' (Asana: ' + esc(c.assigneeName) + ')' : '') + '</option>' +
+    activeRoster().map(r => '<option value="' + esc(r.sid) + '"' + (c.assignee === r.sid ? ' selected' : '') + '>' + esc(r.name) + '</option>').join('') + '</select>';
+  d.innerHTML = '<div class="dHd"><div style="flex:1;min-width:0"><h3>' + esc(c.patient || '(no name)') + '</h3><div class="sub">' + typeBadge(c) + (c.detail ? '<span class="small muted">' + esc(c.detail) + '</span>' : '') + '</div></div>' +
+    '<button class="iconBtn" data-act="closeDrawer" aria-label="Close">' + ic('x') + '</button></div>' +
+    '<div class="dBd"><div id="drawerNotice"></div>' +
+    (done ? '<div class="notice info">Completed ' + esc(fmtWhen(c.closedAt)) + '</div>' : '') +
+    '<div class="sec" style="margin-top:4px"><h5>Stage</h5><div class="stepper">' + flow.stages.map(([k, l], i) =>
+      '<button class="step ' + (i < si ? 'past' : i === si ? 'cur' : '') + '" data-act="setStage" data-k="' + k + '"' + (done ? ' disabled' : '') + ' aria-pressed="' + (i === si) + '"><span class="n">' + (i < si ? '✓' : i + 1) + '</span>' + esc(l) + '</button>').join('') + '</div></div>' +
+    '<div class="sec"><h5>Details</h5><div class="kv">' +
+    '<div style="grid-column:1/-1"><div class="k">Assigned to</div>' + assignSel + '</div>' +
+    kv('Due', c.dueDate ? dueChip(c) + ' <span class="small muted">' + esc(fmtDay(c.dueDate)) + '</span>' : '') + kv('Scan date', esc(fmtDay(c.scanDate))) +
+    kv('Lab completion', esc(fmtDay(c.labDate))) + kv('Delivery', esc(fmtDay(c.deliveryDate))) +
+    kv('Assistant', esc(staffName(c.assistant, c.assistantName))) + kv('Scanner', esc(c.scanner)) +
+    kv('Created', esc((c.createdAt ? fmtWhen(c.createdAt) : '') + (c.createdBy ? ' · ' + firstName(staffName(c.createdBy, '')) : ''))) + kv('Last update', esc(c.updatedAt ? fmtWhen(c.updatedAt) + (c.by ? ' · ' + firstName(staffName(c.by, '')) : '') : '')) +
+    '</div></div>' +
+    txt('Dr. A’s instructions', c.instructions) + txt('Patient’s CC from last visit', c.cc) + txt('IPR & spacing', c.ipr) + txt('Notes', c.notes) +
+    '<div class="sec"><h5>Comments</h5>' + ((c.comments || []).map(x => '<div class="cmt"><span class="av">' + esc(initials(staffName(x.by, x.by))) + '</span><div><div class="w"><b>' + esc(firstName(staffName(x.by, x.by))) + '</b> · ' + esc(fmtWhen(x.at)) + '</div><div style="white-space:pre-wrap;overflow-wrap:anywhere">' + esc(x.text) + '</div></div></div>').join('') || '<div class="small muted" style="margin-bottom:6px">No comments yet.</div>') +
+    (done ? '' : '<div class="field" style="margin-top:8px;margin-bottom:6px"><label for="cmtText" class="hidden">Add a comment</label><textarea id="cmtText" rows="2" placeholder="Add a comment…"></textarea></div><button class="btn btn-sec btn-sm" data-act="addCmt">Add comment</button>') + '</div>' +
+    '<div class="sec"><h5>History</h5><div id="histBox">' + historyHTML(c) + '</div></div></div>' +
+    '<div class="dFt">' + (done ? '<button class="btn btn-sec" data-act="reopen">Reopen</button>' :
+      '<button class="btn btn-mint" data-act="complete" data-id="' + esc(c.id) + '">' + ic('done', 16) + 'Mark complete</button><button class="btn btn-sec" data-act="edit">' + ic('edit', 16) + 'Edit</button>') +
+    (isOwner() ? '<span style="flex:1"></span><button class="btn btn-ghost" data-act="delCase" style="color:var(--coral-700)">' + ic('trash', 16) + 'Delete</button>' : '') + '</div>';
+  const t = $('#cmtText'); if (t) { t.value = keepCmt; if (hadFocus) t.focus(); }
+}
+
+/* ---------- case form (new + edit) ---------- */
+function caseFormHTML(c, isNew) {
+  c = c || {};
+  const t = c.type || ''; const stages = t ? FLOWS[TYPE[t].flow].stages : [];
+  const opt = (v, l, sel) => '<option value="' + esc(v) + '"' + (sel ? ' selected' : '') + '>' + esc(l) + '</option>';
+  const people = (sel, none) => opt('', none) + activeRoster().map(r => opt(r.sid, r.name, sel === r.sid)).join('');
+  const date = (id, l, v) => '<div class="field"><label for="' + id + '">' + l + '</label><input type="date" id="' + id + '" value="' + esc(v || '') + '"></div>';
+  return '<div class="grid2"><div class="field"><label for="cf-type">Type *</label><select id="cf-type" required>' + opt('', 'Choose…') + TYPES.map(x => opt(x.k, x.l, t === x.k)).join('') + '</select></div>' +
+    '<div class="field"><label for="cf-patient">Patient name *</label><input id="cf-patient" autocomplete="off" value="' + esc(c.patient || '') + '" required></div></div>' +
+    '<div class="grid2"><div class="field"><label for="cf-detail">What’s being made</label><input id="cf-detail" placeholder="e.g. Aligners, U/L TT’s, Herbst" value="' + esc(c.detail || '') + '"></div>' +
+    '<div class="field"><label for="cf-stage">Stage</label><select id="cf-stage"' + (t ? '' : ' disabled') + '>' + stages.map(([k, l]) => opt(k, l, (c.stage || stages[0][0]) === k)).join('') + '</select></div></div>' +
+    '<div class="grid2"><div class="field"><label for="cf-assignee">Assigned to</label><select id="cf-assignee">' + people(c.assignee, 'Unassigned') + '</select></div>' +
+    '<div class="field"><label for="cf-assistant">Assistant</label><select id="cf-assistant">' + people(c.assistant, '—') + '</select></div></div>' +
+    '<div class="grid4">' + date('cf-scanDate', 'Scan date', c.scanDate) + date('cf-dueDate', 'Due date', c.dueDate) + date('cf-labDate', 'Lab completion', c.labDate) + date('cf-deliveryDate', 'Delivery', c.deliveryDate) + '</div>' +
+    '<div class="hint small muted" id="cf-auto" style="margin:-6px 0 12px' + (isNew ? '' : ';display:none') + '">For aligners, due / lab / delivery default to 2 / 3 / 4 weeks after the scan. Change any of them.</div>' +
+    '<div class="grid2"><div class="field"><label for="cf-scanner">Scanner</label><select id="cf-scanner">' + opt('', '—') + SCANNERS.map(s => opt(s, s, c.scanner === s)).join('') + (c.scanner && !SCANNERS.includes(c.scanner) ? opt(c.scanner, c.scanner, true) : '') + '</select></div><div></div></div>' +
+    '<div class="field"><label for="cf-instructions">Dr. A’s instructions</label><textarea id="cf-instructions" rows="2">' + esc(c.instructions || '') + '</textarea></div>' +
+    '<div class="field"><label for="cf-cc">Patient’s CC from last visit</label><textarea id="cf-cc" rows="2">' + esc(c.cc || '') + '</textarea></div>' +
+    '<div class="field"><label for="cf-ipr">IPR &amp; spacing</label><textarea id="cf-ipr" rows="2" placeholder="Paste from the IPR & Spacing Tracker">' + esc(c.ipr || '') + '</textarea></div>' +
+    '<div class="field"><label for="cf-notes">Notes</label><textarea id="cf-notes" rows="2">' + esc(c.notes || '') + '</textarea></div>';
+}
+const FORM_KEYS = ['type', 'patient', 'detail', 'stage', 'assignee', 'assistant', 'scanDate', 'dueDate', 'labDate', 'deliveryDate', 'scanner', 'instructions', 'cc', 'ipr', 'notes'];
+function readCaseForm(root) { const o = {}; FORM_KEYS.forEach(k => { const el = $('#cf-' + k, root); o[k] = el ? String(el.value || '').trim() : ''; }); return o; }
+function defaultAssignee(type) {
+  const d = (S.settings.defaults || {})[type]; if (d && staff(d) && staff(d).active) return d;
+  const byFirst = n => (activeRoster().find(r => firstName(r.name).toLowerCase() === n) || {}).sid || '';
+  const owner = (activeRoster().find(r => r.role === 'owner') || {}).sid || '';
+  if (['oliv', 'angel', 'invisalign', 'appliance'].includes(type)) return byFirst('sarah') || '';
+  if (['ulab', 'inbrace', 'retainer'].includes(type)) return meSid();
+  return owner;
+}
+function wireCaseForm(root, isNew) {
+  const type = $('#cf-type', root), stage = $('#cf-stage', root), scan = $('#cf-scanDate', root);
+  const autoIds = ['cf-dueDate', 'cf-labDate', 'cf-deliveryDate'];
+  if (isNew) autoIds.forEach(id => { const el = $('#' + id, root); el.dataset.auto = el.value ? '0' : '1'; el.addEventListener('input', () => { el.dataset.auto = '0'; }); });
+  const fillDates = () => {
+    if (!isNew) return; const t = TYPE[type.value]; if (!t || !t.aligner || !scan.value) return;
+    [['cf-dueDate', 14], ['cf-labDate', 21], ['cf-deliveryDate', 28]].forEach(([id, n]) => { const el = $('#' + id, root); if (el.dataset.auto === '1') el.value = addDays(scan.value, n); });
+  };
+  type.addEventListener('change', () => {
+    const t = TYPE[type.value];
+    stage.innerHTML = t ? FLOWS[t.flow].stages.map(([k, l]) => '<option value="' + k + '">' + esc(l) + '</option>').join('') : ''; stage.disabled = !t;
+    if (isNew && t) { $('#cf-assignee', root).value = defaultAssignee(type.value); if (!$('#cf-detail', root).value) $('#cf-detail', root).placeholder = t.aligner ? 'Aligners' : 'e.g. U/L TT’s, Herbst'; if (t.aligner && !$('#cf-scanner', root).value) $('#cf-scanner', root).value = 'Allied Star'; }
+    fillDates();
+  });
+  scan.addEventListener('change', fillDates); scan.addEventListener('input', fillDates);
+}
+function editDirty() {
+  const d = $('#drawer'); if (!d || !S.editing || !S.editBase) return false;
+  const now = readCaseForm(d); return FORM_KEYS.some(k => String(now[k] || '') !== String(S.editBase[k] || ''));
+}
+
+/* ---------- modals ---------- */
+function openModal(html, onReady) {
+  closeModal();
+  const w = document.createElement('div'); w.id = 'modalWrap';
+  w.innerHTML = '<div class="modal" role="dialog" aria-modal="true">' + html + '</div>';
+  w.addEventListener('mousedown', e => { if (e.target === w) closeModal(); });
+  document.body.appendChild(w);
+  const f = $('input,select,textarea', w); if (f) setTimeout(() => f.focus(), 30);
+  if (onReady) onReady(w);
+  return w;
+}
+function closeModal() { const w = $('#modalWrap'); if (w) w.remove(); }
+function confirmBox(title, body, okLabel, danger) {
+  return new Promise(res => {
+    openModal('<h3>' + esc(title) + '</h3><p class="lsub" style="font-size:13.5px;color:var(--grey-600)">' + body + '</p><div class="mFt"><button class="btn btn-sec" id="cbNo">Cancel</button><button class="btn ' + (danger ? 'btn-danger' : 'btn-pri') + '" id="cbYes">' + esc(okLabel) + '</button></div>', w => {
+      $('#cbNo', w).onclick = () => { closeModal(); res(false); }; $('#cbYes', w).onclick = () => { closeModal(); res(true); }; setTimeout(() => $('#cbYes', w).focus(), 40);
+    });
+  });
+}
+function newCaseModal() {
+  const base = { scanDate: todayISO(), assistant: meSid() };
+  openModal('<h3>New case</h3><div class="lsub">Fill this in after the scan. It’s encrypted before it leaves this computer.</div><div id="ncErr"></div><form id="ncForm">' + caseFormHTML(base, true) +
+    '<div class="mFt"><button class="btn btn-sec" type="button" data-act="closeModal">Cancel</button><button class="btn btn-pri" type="submit" id="ncSave">Create case</button></div></form>', w => {
+      wireCaseForm(w, true);
+      $('#ncForm', w).onsubmit = async e => {
+        e.preventDefault(); const data = readCaseForm(w);
+        if (!data.type || !data.patient) { $('#ncErr', w).innerHTML = '<div class="lockErr">Choose a type and enter the patient’s name.</div>'; return; }
+        data.stage = data.stage || firstStage(data.type);
+        Object.assign(data, { comments: [], createdAt: Date.now(), createdBy: meSid() });
+        busyBtn($('#ncSave', w), true, 'Saving…');
+        try { await B.createCase(data); closeModal(); toast('Case created for ' + data.patient); }
+        catch (x) { busyBtn($('#ncSave', w), false); $('#ncErr', w).innerHTML = '<div class="lockErr">' + esc(errText(x)) + '</div>'; }
+      };
+    });
+}
+
+/* ---------- actions ---------- */
+async function act(fn, okMsg) { try { await fn(); if (okMsg) toast(okMsg); } catch (e) { toast(errText(e), { bad: true }); } }
+function nextStage(c) { const st = flowOf(c).stages; const i = stageIndex(c); return i >= 0 && i < st.length - 1 ? st[i + 1][0] : null; }
+async function moveStage(id, to) {
+  const c = findCase(id); if (!c || c.stage === to) return;
+  const from = c.stage; c.stage = to; queueRender(); if (S.openId === id) renderDrawer();
+  try { await B.mutateCase(id, d => { d.stage = to; }, { a: 'stage', from, to }); }
+  catch (e) { c.stage = from; queueRender(); if (S.openId === id) renderDrawer(); toast(errText(e), { bad: true }); }
+}
+async function completeCase(id) {
+  const c = findCase(id); if (!c) return;
+  try {
+    await B.mutateCase(id, () => 'done', { a: 'close' });
+    if (S.openId === id) closeDrawer(true);
+    S.closedLoaded = false;
+    toast((c.patient || 'Case') + ' marked complete', { action: 'Undo', onAction: () => act(() => B.mutateCase(id, () => 'open', { a: 'reopen' }), 'Reopened') });
+  } catch (e) { toast(errText(e), { bad: true }); }
+}
+function onClick(e) {
+  const t = e.target.closest('[data-act]'); if (!t) return;
+  const a = t.dataset.act; const id = t.dataset.id;
+  if (t.tagName === 'SELECT') return;
+  if (a === 'advance' || a === 'complete') { e.stopPropagation(); }
+  switch (a) {
+    case 'nav': S.view = t.dataset.v; if (S.view !== 'list') S.f = { type: '', stage: '', who: '', due: '', grp: '' }; renderNav(); renderView(); window.scrollTo(0, 0); break;
+    case 'tile': { const f = t.dataset.f; S.f = { type: '', stage: '', who: '', due: '', grp: '' };
+      if (f === 'mine') { S.view = 'mine'; } else { S.view = 'list'; if (['over', 'week', 'none'].includes(f)) S.f.due = f; else S.f.grp = f; }
+      renderNav(); renderView(); break; }
+    case 'flow': S.boardFlow = t.dataset.k; renderView(); break;
+    case 'open': openDrawer(id); break;
+    case 'openClosed': openDrawer(id); break;
+    case 'closeDrawer': closeDrawer(); break;
+    case 'advance': { const c = findCase(id); const n = c && nextStage(c); if (n) moveStage(id, n); break; }
+    case 'complete': completeCase(id); break;
+    case 'setStage': moveStage(S.openId, t.dataset.k); break;
+    case 'reopen': act(async () => { await B.mutateCase(S.openId, () => 'open', { a: 'reopen' }); S.closed = S.closed.filter(c => c.id !== S.openId); closeDrawer(true); }, 'Reopened'); break;
+    case 'addCmt': { const txt = ($('#cmtText').value || '').trim(); if (!txt) return; const cid = S.openId;
+      $('#cmtText').value = ''; act(() => B.mutateCase(cid, d => { d.comments = (d.comments || []).concat([{ id: uid8(), at: Date.now(), by: meSid(), text: txt }]); }, { a: 'comment' })); break; }
+    case 'edit': { const c = findCase(S.openId); S.editBase = JSON.parse(JSON.stringify(c)); S.editing = true; renderDrawer(); break; }
+    case 'cancelEdit': S.editing = false; renderDrawer(); break;
+    case 'saveEdit': saveEdit(); break;
+    case 'delCase': (async () => { const c = findCase(S.openId); if (await confirmBox('Delete this case?', 'This permanently removes <b>' + esc(c.patient) + '</b> and can’t be undone. To finish a case normally, use “Mark complete” instead.', 'Delete', true)) { const cid = S.openId; closeDrawer(true); act(() => B.deleteCase(cid), 'Case deleted'); } })(); break;
+    case 'newCase': newCaseModal(); break;
+    case 'closeModal': closeModal(); break;
+    case 'clearF': S.f = { type: '', stage: '', who: '', due: '', grp: '' }; renderView(); break;
+    case 'clearGrp': S.f.grp = ''; renderView(); break;
+    case 'sort': { const k = t.dataset.k; S.sort = { k, dir: S.sort.k === k ? -S.sort.dir : 1 }; renderView(); break; }
+    case 'moreClosed': S.closedDays = S.closedDays < 365 ? 365 : 3650; S.closedLoaded = false; renderView(); break;
+    case 'lock': lockOut('Locked. Sign in to continue.'); break;
+    case 'lockSignOut': B.signOut().then(() => lockScreen('login')); break;
+    case 'forgot': lockScreen('forgot'); break;
+    case 'toLogin': lockScreen('login'); break;
+    case 'copyCode': navigator.clipboard && navigator.clipboard.writeText(t.dataset.code).then(() => toast('Copied')); break;
+    case 'printCode': printCode(); break;
+    case 'codeDone': enterApp(); break;
+    default: if (ADMIN_ACTS[a]) ADMIN_ACTS[a](t, e);
+  }
+}
+function onChange(e) {
+  const t = e.target;
+  if (t.dataset.f) { S.f[t.dataset.f] = t.value; if (t.dataset.f === 'type') S.f.stage = ''; renderView(); return; }
+  if (t.id === 'assignSel') {
+    const to = t.value; const id = S.openId; const c = findCase(id); if (!c) return;
+    act(() => B.mutateCase(id, d => { d.assignee = to; if (to) d.assigneeName = ''; }, { a: 'assign', to }), to ? 'Assigned to ' + staffName(to) : 'Unassigned');
+    return;
+  }
+  if (t.dataset.setting) { const v = t.dataset.setting === 'idleMin' ? Number(t.value) : t.value; act(() => B.saveSettings({ [t.dataset.setting]: v }), 'Saved'); }
+}
+function onInput(e) { if (e.target.id === 'q') { S.q = e.target.value; renderView(); } }
+async function saveEdit() {
+  const d = $('#drawer'); const now = readCaseForm(d);
+  if (!now.type || !now.patient) { $('#drawerNotice').innerHTML = '<div class="notice bad">Type and patient name are required.</div>'; return; }
+  const base = S.editBase; const changed = FORM_KEYS.filter(k => String(now[k] || '') !== String(base[k] || ''));
+  if (!changed.length) { S.editing = false; renderDrawer(); return; }
+  const btn = $('[data-act=saveEdit]', d); busyBtn(btn, true, 'Saving…');
+  const id = S.openId;
+  try {
+    await B.mutateCase(id, x => {
+      changed.forEach(k => { x[k] = now[k]; });
+      if (changed.includes('assignee') && now.assignee) x.assigneeName = '';
+      if (changed.includes('assistant') && now.assistant) x.assistantName = '';
+      if (changed.includes('type') && !FLOWS[TYPE[x.type].flow].stages.some(s => s[0] === x.stage)) x.stage = firstStage(x.type);
+    }, { a: 'edit', fields: changed });
+    S.editing = false; toast('Saved'); renderDrawer(); loadHistory(id);
+  } catch (x) { busyBtn(btn, false); toast(errText(x), { bad: true }); }
+}
+function printCode() {
+  const code = $('#recShow') ? $('#recShow').textContent : (S.shownCode || '');
+  const w = window.open('', '_blank', 'width=600,height=400'); if (!w) return;
+  w.document.write('<title>NLO Cases recovery code</title><body style="font-family:sans-serif;padding:40px"><h2>NLO Cases — recovery code</h2><p>Keep this somewhere safe. It unlocks the office’s case data if the owner password is forgotten.</p><pre style="font-size:26px;letter-spacing:2px">' + esc(code) + '</pre><p>Printed ' + esc(new Date().toLocaleString()) + '</p></body>');
+  w.document.close(); w.focus(); w.print();
+}
+
+/* =====================================================================
+   Team & security, import & export, my account
+   ===================================================================== */
+function memberStatus(sid) {
+  const ms = S.members.filter(m => m.staffId === sid);
+  const act = ms.find(m => m.active);
+  if (!act) return { k: 'off', l: 'Removed' };
+  if (act.mustSetup) return { k: 'wait', l: 'Waiting for first sign-in', m: act };
+  return { k: 'ok', l: 'Active', m: act };
+}
+function viewAdmin() {
+  const people = S.roster.slice().sort((a, b) => (b.active - a.active) || (a.role === 'owner' ? -1 : b.role === 'owner' ? 1 : a.name.localeCompare(b.name)));
+  const team = '<div class="card"><div class="cardHd"><h3>Team</h3><span class="sub">Everyone signs in with their own login</span><span style="flex:1"></span><button class="btn btn-act btn-sm" data-act="addStaff">' + ic('plus', 15) + 'Add person</button></div>' +
+    '<div class="tblWrap"><table class="tbl"><thead><tr><th>Name</th><th>Username</th><th>Status</th><th class="hideM">Last sign-in</th><th></th></tr></thead><tbody>' +
+    people.map(r => {
+      const st = r.role === 'owner' ? { k: 'ok', l: 'Owner', m: S.members.find(m => m.staffId === r.sid && m.active) } : memberStatus(r.sid);
+      const last = st.m && st.m.lastLogin ? fmtWhen(FB.tsMs ? FB.tsMs(st.m.lastLogin) : st.m.lastLogin) : '';
+      return '<tr><td><div class="nameCell"><span class="av">' + esc(r.initials || initials(r.name)) + '</span><b>' + esc(r.name) + '</b></div></td><td class="small">' + esc(r.username || (r.role === 'owner' ? 'email login' : '')) + '</td>' +
+        '<td><span class="stat ' + st.k + '">' + esc(st.l) + '</span></td><td class="hideM small muted">' + esc(last) + '</td><td style="text-align:right;white-space:nowrap">' +
+        (r.role === 'owner' ? '' : r.active ? '<button class="btn btn-ghost" data-act="reissue" data-sid="' + esc(r.sid) + '">Reissue login</button><button class="btn btn-ghost" style="color:var(--coral-700)" data-act="removeStaff" data-sid="' + esc(r.sid) + '">Remove</button>'
+          : '<button class="btn btn-ghost" data-act="readd" data-sid="' + esc(r.sid) + '">Add back</button>') + '</td></tr>';
+    }).join('') + '</tbody></table></div>' +
+    '<div class="cardBd small muted" style="padding-top:10px">Forgot password? Use <b>Reissue login</b>: they get a new temporary password and choose their own at sign-in. Removing someone cuts their access immediately and changes the office key.</div></div>';
+  const kv = (FB && FB.curV) || (DEMO && DEMO.curV) || 1;
+  const sec = '<div class="card"><div class="cardHd"><h3>Security</h3></div><div class="cardBd">' +
+    '<div class="field"><label for="idleSel">Lock after no activity</label><select id="idleSel" data-setting="idleMin">' + [5, 10, 15, 30, 60].map(n => '<option value="' + n + '"' + (Number(S.settings.idleMin || 10) === n ? ' selected' : '') + '>' + n + ' minutes</option>').join('') + '</select></div>' +
+    '<div class="sec"><h5>Office key</h5><p class="small" style="margin-bottom:10px">Version ' + kv + '. Every case is sealed with it in the browser. It changes automatically when someone is removed.</p><button class="btn btn-sec btn-sm" data-act="rotate">' + ic('refresh', 15) + 'Change office key now</button></div>' +
+    '<div class="sec"><h5>Recovery code</h5><p class="small" style="margin-bottom:10px">Unlocks the office data if you forget your password. Making a new one turns the old one off.</p><button class="btn btn-sec btn-sm" data-act="newCode">' + ic('key', 15) + 'Make a new recovery code</button></div>' +
+    '<div class="sec"><h5>HIPAA checklist</h5><ul class="small" style="padding-left:18px;line-height:1.7">' +
+    '<li>Google BAA accepted for this Firebase project (Google Cloud console → IAM &amp; Admin → HIPAA Business Associate Addendum → Review and accept)</li>' +
+    '<li>Every person has their own login — no shared passwords</li><li>Patient cases no longer kept in Asana or Tally</li><li>Recovery code printed and stored safely</li></ul></div>' +
+    '</div></div>';
+  const defaults = '<div class="card" style="margin-top:18px"><div class="cardHd"><h3>Who gets new cases</h3><span class="sub">Default “assigned to” on the New case form</span></div><div class="cardBd"><div class="grid2">' +
+    TYPES.map(t => '<div class="field"><label for="def-' + t.k + '">' + esc(t.l) + '</label><select id="def-' + t.k + '" data-act-def="' + t.k + '"><option value="">Automatic</option>' + activeRoster().map(r => '<option value="' + esc(r.sid) + '"' + (((S.settings.defaults || {})[t.k]) === r.sid ? ' selected' : '') + '>' + esc(r.name) + '</option>').join('') + '</select></div>').join('') +
+    '</div><div class="small muted">Automatic: Oliv, Angel, Invisalign and appliances go to Sarah; uLab, InBrace and retainers to whoever creates the case; the rest to Dr. A.</div></div></div>';
+  const actv = '<div class="card" style="margin-top:18px"><div class="cardHd"><h3>Recent activity</h3><span class="sub">Last 7 days</span><span style="flex:1"></span><button class="btn btn-ghost" data-act="loadActivity">' + ic('refresh', 15) + 'Load</button></div><div class="cardBd" id="actBox"><div class="small muted">Shows who changed what. Click Load.</div></div></div>';
+  return '<div class="adminGrid"><div>' + team + defaults + '</div><div>' + sec + actv + '</div></div>';
+}
+function viewImport() {
+  return '<div class="adminGrid"><div><div class="card"><div class="cardHd"><h3>Import from Asana</h3></div><div class="cardBd">' +
+    '<p class="small" style="margin-bottom:12px">Brings your Asana case tasks in here. It runs in this browser, so patient names go straight from Asana into the encrypted app. Cases already imported are skipped.</p>' +
+    '<div class="sec" style="margin-top:4px"><h5>Option 1 — Asana token (all projects at once)</h5>' +
+    '<p class="small muted" style="margin-bottom:8px">In Asana: profile photo → Settings → Apps → Developer apps → Create new token. Paste it here; it’s used once and not saved.</p>' +
+    '<form id="asForm2" onsubmit="return false"><div class="field"><label for="asTok">Personal access token</label><input id="asTok" type="password" autocomplete="off"></div>' +
+    '<button class="btn btn-sec btn-sm" data-act="asLoad" type="submit">Load my Asana projects</button></form><div id="asProj" style="margin-top:12px"></div></div>' +
+    '<div class="sec"><h5>Option 2 — CSV files</h5><p class="small muted" style="margin-bottom:8px">In each Asana project: ⌄ next to the name → Export/Print → CSV. Pick all the files together.</p>' +
+    '<input type="file" id="csvFiles" accept=".csv,text/csv" multiple class="inp"></div>' +
+    '<label class="small" style="display:flex;gap:8px;align-items:center;margin-top:14px"><input type="checkbox" id="impDone"> Also bring completed tasks (history)</label>' +
+    '<div id="impPreview" style="margin-top:14px"></div></div></div></div>' +
+    '<div><div class="card"><div class="cardHd"><h3>Export</h3></div><div class="cardBd"><p class="small" style="margin-bottom:12px">Downloads every case (open and completed) as a spreadsheet. <b>The file contains patient names</b> — keep it on an office computer and delete it when you’re done.</p>' +
+    '<button class="btn btn-sec btn-sm" data-act="exportCSV">' + ic('download', 15) + 'Download all cases (CSV)</button></div></div></div></div>';
+}
+function viewAccount() {
+  const me = B.me || {};
+  return '<div class="card" style="max-width:520px"><div class="cardHd"><span class="av lg">' + esc(initials(me.name)) + '</span><div><h3>' + esc(me.name || '') + '</h3><div class="sub">' + (me.role === 'owner' ? 'Owner · email login' : 'Username: ' + esc(me.username || '')) + '</div></div></div>' +
+    '<div class="cardBd"><form id="pwForm"><div class="sec" style="margin-top:0"><h5>Change password</h5></div>' +
+    '<div class="field"><label for="pwCur">Current password</label><input type="password" id="pwCur" autocomplete="current-password" required></div>' +
+    '<div class="field"><label for="pwN1">New password</label><input type="password" id="pwN1" autocomplete="new-password" minlength="8" required></div>' +
+    '<div class="field"><label for="pwN2">Type it again</label><input type="password" id="pwN2" autocomplete="new-password" minlength="8" required></div>' +
+    '<button class="btn btn-pri" type="submit">Change password</button></form></div></div>';
+}
+
+/* ---------- staff dialogs ---------- */
+function issuedModal(name, res, reissue) {
+  S.shownCode = res.temp;
+  openModal('<h3>' + (reissue ? 'New login for ' : 'Login for ') + esc(name) + '</h3><div class="lsub">Give these to ' + esc(firstName(name)) + ' in person. The temporary password only works once.</div>' +
+    '<div class="kv" style="margin-bottom:6px"><div><div class="k">Username</div><div class="v" style="font-size:18px">' + esc(res.username) + '</div></div><div><div class="k">Temporary password</div><div class="v" style="font-size:18px;font-family:ui-monospace,Menlo,monospace;user-select:all">' + esc(res.temp) + '</div></div></div>' +
+    '<p class="small muted" style="margin:10px 0 4px">They open NLO Cases, sign in with these, then choose their own password.' + (reissue ? ' Their old password no longer works.' : '') + '</p>' +
+    '<div class="mFt"><button class="btn btn-sec" data-act="copyCode" data-code="' + esc('Username: ' + res.username + '  Temporary password: ' + res.temp) + '">Copy</button><button class="btn btn-pri" data-act="closeModal">Done</button></div>');
+}
+const ADMIN_ACTS = {
+  addStaff() {
+    openModal('<h3>Add a person</h3><div class="lsub">They get a username and a temporary password. They choose their own password the first time they sign in.</div><div id="asErr"></div><form id="asForm">' +
+      '<div class="field"><label for="asName">Full name</label><input id="asName" required autocomplete="off"></div>' +
+      '<div class="field"><label for="asUser">Username</label><input id="asUser" required autocomplete="off" autocapitalize="none" spellcheck="false"><div class="hint">Lowercase, no spaces. Usually their first name.</div></div>' +
+      '<div class="mFt"><button class="btn btn-sec" type="button" data-act="closeModal">Cancel</button><button class="btn btn-pri" type="submit">Create login</button></div></form>', w => {
+        const n = $('#asName', w), u = $('#asUser', w); let touched = false;
+        u.addEventListener('input', () => { touched = true; });
+        n.addEventListener('input', () => { if (!touched) u.value = slug(firstName(n.value)); });
+        $('#asForm', w).onsubmit = async e => {
+          e.preventDefault(); const btn = $('button[type=submit]', w); busyBtn(btn, true, 'Creating…');
+          try { const r = await B.addStaff(n.value.trim(), u.value.trim()); issuedModal(n.value.trim(), r, false); }
+          catch (x) { busyBtn(btn, false); $('#asErr', w).innerHTML = '<div class="lockErr">' + esc(errText(x)) + '</div>'; }
+        };
+      });
+  },
+  async reissue(t) {
+    const r = staff(t.dataset.sid); if (!r) return;
+    if (!await confirmBox('Reissue ' + firstName(r.name) + '’s login?', 'Their current password stops working and you’ll get a new temporary password to give them.', 'Reissue')) return;
+    try { const res = await B.reissue(r.sid); issuedModal(r.name, res, true); } catch (x) { toast(errText(x), { bad: true }); }
+  },
+  async readd(t) {
+    const r = staff(t.dataset.sid); if (!r) return;
+    try { const res = await B.reissue(r.sid); issuedModal(r.name, res, true); } catch (x) { toast(errText(x), { bad: true }); }
+  },
+  async removeStaff(t) {
+    const r = staff(t.dataset.sid); if (!r) return;
+    if (!await confirmBox('Remove ' + r.name + '?', 'They lose access right away. The office key changes so cases are re-sealed under a key they never had. Cases assigned to them stay assigned until you change them.', 'Remove', true)) return;
+    try { await B.removeStaff(r.sid); await rotateWithProgress('Removed ' + firstName(r.name) + '. Changing the office key…'); }
+    catch (x) { toast(errText(x), { bad: true }); }
+  },
+  async rotate() {
+    if (!await confirmBox('Change the office key?', 'Every case is re-sealed under a new key. Takes a few seconds. Anyone signed in keeps working.', 'Change key')) return;
+    rotateWithProgress('Changing the office key…');
+  },
+  async newCode() {
+    if (!await confirmBox('Make a new recovery code?', 'Your old recovery code will stop working.', 'Make new code')) return;
+    try {
+      const code = await B.newRecoveryCode(); S.shownCode = code;
+      openModal('<h3>New recovery code</h3><div class="lsub">Print it or write it down. The old one no longer works.</div><div class="codeBox" id="recShow">' + esc(code) + '</div><div class="mFt"><button class="btn btn-sec" data-act="printCode">Print</button><button class="btn btn-pri" data-act="closeModal">I saved it</button></div>');
+    } catch (x) { toast(errText(x), { bad: true }); }
+  },
+  async loadActivity() {
+    const box = $('#actBox'); box.innerHTML = '<div class="small muted">Loading…</div>';
+    try {
+      const list = await B.activity(7);
+      if (!list.length) { box.innerHTML = '<div class="small muted">No activity in the last 7 days.</div>'; return; }
+      box.innerHTML = list.slice(0, 80).map(x => {
+        const c = S.cases.get(x.caseId); const who = firstName(staffName(x.sid, x.sid));
+        const what = { create: 'created', import: 'imported', stage: 'moved', comment: 'commented on', close: 'completed', reopen: 'reopened', assign: 'reassigned', edit: 'edited' }[x.a] || x.a;
+        return '<div class="hist"><time>' + esc(fmtWhen(x.at)) + '</time><span><b>' + esc(who) + '</b> ' + esc(what) + ' ' + (c ? '<button class="linkBtn" data-act="open" data-id="' + esc(c.id) + '">' + esc(c.patient) + '</button>' : 'a completed case') + '</span></div>';
+      }).join('');
+    } catch (x) { box.innerHTML = '<div class="small" style="color:var(--coral-700)">' + esc(errText(x)) + '</div>'; }
+  },
+  async exportCSV() {
+    if (!await confirmBox('Download every case?', 'The file will contain patient names. Keep it on an office computer and delete it when you’re done.', 'Download')) return;
+    try {
+      const all = await B.loadAll();
+      all.forEach(c => { c.assigneeLabel = staffName(c.assignee, c.assigneeName); });
+      const head = ['Patient', 'Type', 'Detail', 'Stage', 'Status', 'Due', 'Scan', 'Lab completion', 'Delivery', 'Assigned', 'Dr. A instructions', 'Patient CC', 'IPR & spacing', 'Notes'].join(',');
+      const blob = new Blob(['﻿' + head + '\n' + all.map(caseToCSVRow).join('\n')], { type: 'text/csv' });
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'nlo-cases-' + todayISO() + '.csv'; document.body.appendChild(a); a.click();
+      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    } catch (x) { toast(errText(x), { bad: true }); }
+  },
+  async asLoad() {
+    const tok = $('#asTok').value.trim(); const box = $('#asProj');
+    if (!tok) { box.innerHTML = '<div class="lockErr">Paste your Asana token first.</div>'; return; }
+    box.innerHTML = '<div class="small muted">Loading projects…</div>';
+    try {
+      const ws = await asana(tok, '/workspaces?limit=100');
+      let projects = [];
+      for (const w of ws.data) { const p = await asana(tok, '/projects?workspace=' + w.gid + '&archived=false&limit=100&opt_fields=name'); projects = projects.concat(p.data); }
+      S.asTok = tok;
+      box.innerHTML = '<div class="flabel">Projects to import</div>' + projects.map(p => {
+        const t = typeFromProject(p.name); const on = !!t;
+        return '<label class="small" style="display:flex;gap:8px;align-items:center;padding:4px 0"><input type="checkbox" class="asP" value="' + esc(p.gid) + '" data-name="' + esc(p.name) + '"' + (on ? ' checked' : '') + '> ' + esc(p.name) + (t ? ' <span class="badge ' + TYPE[t].cls + '">' + esc(TYPE[t].l) + '</span>' : ' <span class="small muted">(not a case project)</span>') + '</label>';
+      }).join('') + '<button class="btn btn-sec btn-sm" style="margin-top:10px" data-act="asFetch">Preview import</button>';
+    } catch (x) {
+      box.innerHTML = '<div class="lockErr">' + esc(/Failed to fetch|NetworkError|TypeError/.test(String(x)) ? 'Asana didn’t allow this from the browser. Use the CSV option instead.' : errText(x)) + '</div>';
+    }
+  },
+  async asFetch() {
+    const picks = $$('.asP:checked'); const box = $('#impPreview'); box.innerHTML = '<div class="small muted">Reading tasks from Asana…</div>';
+    const incDone = $('#impDone').checked;
+    try {
+      const rows = [];
+      for (const p of picks) {
+        let path = '/projects/' + p.value + '/tasks?limit=100&opt_fields=name,notes,due_on,completed,completed_at,assignee.name,memberships.section.name,memberships.project.gid' + (incDone ? '' : '&completed_since=now');
+        while (path) {
+          const r = await asana(S.asTok, path);
+          r.data.forEach(t => {
+            const mem = (t.memberships || []).find(m => m.project && m.project.gid === p.value) || (t.memberships || [])[0] || {};
+            rows.push({ gid: t.gid, name: t.name, notes: t.notes, due: t.due_on || '', assignee: t.assignee ? t.assignee.name : '', section: mem.section ? mem.section.name : '', project: p.dataset.name, completed: t.completed, completedAt: t.completed_at || '' });
+          });
+          path = r.next_page ? r.next_page.path : null;
+        }
+      }
+      S.asTok = ''; $('#asTok').value = '';
+      previewImport(rows);
+    } catch (x) { box.innerHTML = '<div class="lockErr">' + esc(errText(x)) + '</div>'; }
+  },
+  async doImport() {
+    const list = S.impList || []; if (!list.length) return;
+    const box = $('#impPreview');
+    box.innerHTML = '<div class="small">Importing ' + list.length + ' cases…</div><div class="prog"><i id="impBar"></i></div>';
+    try {
+      await B.createCases(list.map(c => {
+        const done = c._done; const closedAt = c._closedAt; const data = Object.assign({}, c); delete data._done; delete data._closedAt;
+        data.createdAt = Date.now(); data.createdBy = meSid();
+        return { data, status: done ? 'done' : 'open', closedAt, action: { a: 'import' } };
+      }), (n, tot) => { const b = $('#impBar'); if (b) b.style.width = Math.round(n / tot * 100) + '%'; });
+      S.impList = null; S.closedLoaded = false;
+      box.innerHTML = '<div class="lockOk">Imported ' + list.length + ' cases. Check the Board, then archive or clean up the Asana projects.</div>';
+    } catch (x) { box.innerHTML = '<div class="lockErr">' + esc(errText(x)) + ' — nothing after this point was imported. Run it again; finished ones are skipped.</div>'; }
+  }
+};
+async function asana(tok, path) {
+  const r = await fetch('https://app.asana.com/api/1.0' + path, { headers: { Authorization: 'Bearer ' + tok, Accept: 'application/json' } });
+  if (r.status === 401) throw errCode('asana-auth', 'Asana rejected that token.');
+  if (!r.ok) throw errCode('asana', 'Asana error ' + r.status);
+  return r.json();
+}
+async function previewImport(rows) {
+  const incDone = $('#impDone').checked; $('#impPreview').innerHTML = '<div class="small muted">Checking what’s already here…</div>';
+  let existing;
+  try { existing = new Set((await B.loadAll()).map(c => c.src && c.src.asana).filter(Boolean)); } catch (e) { existing = new Set(); }
+  const roster = S.roster.map(r => ({ sid: r.sid, name: r.name }));
+  const list = []; let skipped = 0, doneSkipped = 0;
+  rows.forEach(t => {
+    if (t.gid && existing.has(String(t.gid))) { skipped++; return; }
+    if (t.completed && !incDone) { doneSkipped++; return; }
+    const c = caseFromAsana(t, t.project, roster); if (!c.patient) return; list.push(c);
+  });
+  S.impList = list;
+  const byType = {}; list.forEach(c => { const k = typeOf(c).l + (c._done ? ' (completed)' : ''); byType[k] = (byType[k] || 0) + 1; });
+  const unmatched = Array.from(new Set(list.filter(c => c.assigneeName).map(c => c.assigneeName)));
+  const box = $('#impPreview'); if (!box) return;
+  box.innerHTML = '<div class="card" style="box-shadow:none"><div class="cardBd" style="padding:14px 16px">' +
+    '<div class="flabel">Ready to import: ' + list.length + '</div>' +
+    (list.length ? '<ul class="small" style="padding-left:18px;margin:6px 0 10px">' + Object.keys(byType).map(k => '<li>' + esc(k) + ': ' + byType[k] + '</li>').join('') + '</ul>' : '') +
+    (skipped ? '<div class="small muted">' + skipped + ' already imported — skipped.</div>' : '') + (doneSkipped ? '<div class="small muted">' + doneSkipped + ' completed tasks left out.</div>' : '') +
+    (unmatched.length ? '<div class="notice" style="margin-top:10px">No login yet for: ' + esc(unmatched.join(', ')) + '. Their cases import with the name shown; add them on Team &amp; security first if you want them linked.</div>' : '') +
+    (list.length ? '<button class="btn btn-pri btn-sm" style="margin-top:12px" data-act="doImport">Import ' + list.length + ' cases</button>' : '') + '</div></div>';
+}
+document.addEventListener('change', async e => {
+  const t = e.target;
+  if (t.id === 'csvFiles' && t.files.length) {
+    const rows = [];
+    for (const f of t.files) {
+      const text = await f.text(); const proj = f.name.replace(/\.csv$/i, '');
+      asanaRowsFromCSV(text).forEach(r => { r.project = typeFromProject(r.project) ? r.project : proj; rows.push(r); });
+    }
+    previewImport(rows);
+  }
+  if (t.dataset && t.dataset.actDef) {
+    const defs = Object.assign({}, S.settings.defaults || {}); defs[t.dataset.actDef] = t.value;
+    act(() => B.saveSettings({ defaults: defs }), 'Saved');
+  }
+});
+document.addEventListener('submit', async e => {
+  if (e.target.id !== 'pwForm') return; e.preventDefault();
+  const cur = $('#pwCur').value, a = $('#pwN1').value, b = $('#pwN2').value;
+  if (a.length < 8) return toast('Use at least 8 characters.', { bad: true });
+  if (a !== b) return toast('The two new passwords don’t match.', { bad: true });
+  const btn = $('#pwForm button[type=submit]'); busyBtn(btn, true, 'Changing…');
+  try { await B.changePassword(cur, a); toast('Password changed'); e.target.reset(); }
+  catch (x) { toast(/invalid-credential|wrong-password/.test(x.code || '') ? 'Current password is wrong.' : errText(x), { bad: true }); }
+  busyBtn(btn, false);
+});
+async function rotateWithProgress(title) {
+  openModal('<h3>Office key</h3><div class="lsub" id="rotMsg">' + esc(title) + '</div><div class="prog"><i id="rotBar"></i></div>');
+  try {
+    const r = await B.rotate((n, tot) => { const b = $('#rotBar'); if (b) b.style.width = Math.round(n / tot * 100) + '%'; });
+    closeModal();
+    toast('Office key changed. ' + r.cases + ' case' + (r.cases === 1 ? '' : 's') + ' re-sealed.' + (r.pendingInvites ? ' ' + r.pendingInvites + ' unused invite(s) need reissuing.' : ''), { ms: 6000 });
+    queueRender();
+  } catch (x) { closeModal(); toast('Key change stopped: ' + errText(x) + '. Run “Change office key now” again.', { bad: true, ms: 8000 }); }
+}
+
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
+
+</script>
+</body>
+</html>
