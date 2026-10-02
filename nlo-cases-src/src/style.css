@@ -184,14 +184,19 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
 .tbl td{padding:11px 14px;border-bottom:1px solid var(--grey-100);vertical-align:middle}
 .tbl tr:last-child td{border-bottom:none}
 .tbl tr.click{cursor:pointer}
-.tbl .ck{width:44px;padding-right:0;cursor:default}
-.tbl .ck input{width:18px;height:18px;accent-color:var(--navy);cursor:pointer;vertical-align:middle}
-.tbl tr.sel td{background:var(--mint-100)}
-.bulkBar{position:sticky;top:8px;z-index:5;display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 10px;padding:10px 14px;border-radius:var(--r);background:var(--navy);color:#fff;box-shadow:var(--sh-md)}
-.bulkBar[hidden]{display:none}
-.bulkBar .bulkN{font-size:13.5px;margin-right:6px}
-.bulkBar .btn-ghost{color:#fff}
-.bulkBar .btn-sec{background:#fff}
+.cleanup{margin-bottom:18px;border:1.5px solid var(--amber-200)}
+.cleanup .oldPick select{margin-left:6px;padding:5px 8px;border-radius:8px;border:1.5px solid var(--grey-200);font:inherit;font-size:12.5px}
+.cleanup .oldNo{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.oldList{max-height:320px;overflow:auto;border:1px solid var(--grey-100);border-radius:10px}
+.oldRow{display:grid;grid-template-columns:22px minmax(0,1.2fr) minmax(0,1.6fr) auto;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--grey-100);cursor:pointer}
+.oldRow:last-child{border-bottom:none}
+.oldRow:hover{background:var(--grey-50)}
+.oldRow input{width:17px;height:17px;accent-color:var(--navy)}
+.oldRow .pt{font-weight:700;color:var(--navy);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.oldRow .muted{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.oldD{color:var(--coral-700);font-weight:600}
+.oldAct{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px}
+.oldAct b{font-size:13px;color:var(--navy);margin-right:4px}
 .tbl tr.click:hover td{background:var(--grey-50)}
 .tbl .pt{font-weight:700;color:var(--navy)}
 .tblWrap{overflow-x:auto}
