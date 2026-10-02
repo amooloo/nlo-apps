@@ -8,7 +8,7 @@ const PICK = {
   appliances: ['Herbst with Rollo Band', 'Space Closing Herbst', 'MARA', 'MSE', 'MARPE', 'Rapid Palatal Expander (RPE)', 'D2 distalizer', 'Finger spring with no labial bow', 'Hawley retainers', 'Schwartz'],
   labs: ['Specialty Orthodontic Lab', 'Partner Dental Studios', 'In-house (NL Lab)'],
   scanners: ['Allied Star', 'iTero'],
-  extras: ['No IPR', 'No elastics', 'Mid-course correction'],
+  extras: ['No IPR', 'No elastics'],
   arches: ['Upper', 'Lower'], retKinds: ['TT’s', 'WT’s']
 };
 /* lab routing from the AISA KB / SOP manual: MSE → Specialty Orthodontic Lab (SOP-CL-020); MARPE → Partner Dental Studios (SOP-CL-029);
@@ -96,7 +96,7 @@ const BRACES = ['insmile', 'inbrace'];
 const INHOUSE_TILES = ['nla', 'finishing'];
 function groupOfTile(v) { return ALIGNERISH.includes(v) ? 'aligner' : BRACES.includes(v) ? 'braces' : v === 'appliance' ? 'appliance' : (v === 'retainer' || v === 'mouthguard') ? 'retainer' : 'other'; }
 /* how the submission is labelled on the case: refinement for aligners, digital enhancement for InSmile */
-function submissionLabel(v) { return v === 'yes' ? 'Initial submission' : v === 'no' ? 'Refinement' : /^de[123]$/.test(v || '') ? 'Digital enhancement ' + v.slice(2) + ' (DE' + v.slice(2) + ')' : ''; }
+function submissionLabel(v) { return v === 'yes' ? 'Initial submission' : v === 'no' ? 'Refinement' : v === 'mid' ? 'Mid-course correction' : /^de[123]$/.test(v || '') ? 'Digital enhancement ' + v.slice(2) + ' (DE' + v.slice(2) + ')' : ''; }
 const FORM_KEYS = ['type', 'patient', 'chart', 'detail', 'stage', 'assignee', 'assistant', 'scanner', 'scanDate', 'dueDate', 'labDate', 'deliveryDate',
   'initial', 'appliances', 'lab', 'arches', 'retKinds', 'goals', 'instrPicks', 'instrOther', 'instructions', 'extras', 'teeth', 'cc', 'ipr', 'notes', 'titanUrl'];
 
@@ -105,47 +105,136 @@ const TEETH_U = ['UR7', 'UR6', 'UR5', 'UR4', 'UR3', 'UR2', 'UR1', 'UL1', 'UL2', 
 const TEETH_L = ['LR7', 'LR6', 'LR5', 'LR4', 'LR3', 'LR2', 'LR1', 'LL1', 'LL2', 'LL3', 'LL4', 'LL5', 'LL6', 'LL7'];
 const ANTERIORS = ['UR3', 'UR2', 'UR1', 'UL1', 'UL2', 'UL3', 'LR3', 'LR2', 'LR1', 'LL1', 'LL2', 'LL3'];
 const POSTERIORS = TEETH_U.concat(TEETH_L).filter(k => !ANTERIORS.includes(k));
+const ALL_TEETH = TEETH_U.concat(TEETH_L);
+const UPPER_ANT = ANTERIORS.filter(k => k[0] === 'U'), LOWER_ANT = ANTERIORS.filter(k => k[0] === 'L');
 const MARKS = [
-  { k: 'noatt', l: 'No attachment', s: 'NA' }, { k: 'implant', l: 'Implant', s: 'Im' }, { k: 'pontic', l: 'Pontic', s: 'P' },
-  { k: 'missing', l: 'Missing', s: '×' }, { k: 'nomove', l: 'Don’t move', s: 'DM' }
+  { k: 'noatt', l: 'No attachment' }, { k: 'implant', l: 'Implant' }, { k: 'crown', l: 'Crown' }, { k: 'pontic', l: 'Pontic' },
+  { k: 'missing', l: 'Missing' }, { k: 'nomove', l: 'Don’t move' }
 ];
+/* "No attachments on…" shortcuts (the teeth they mark) */
+const NOATT_SCOPES = [{ v: 'uant', l: 'Upper anteriors', teeth: UPPER_ANT }, { v: 'ant', l: 'All anteriors', teeth: ANTERIORS }, { v: 'all', l: 'All teeth', teeth: ALL_TEETH }, { v: 'pick', l: 'Choose teeth' }];
+function sameSet(a, b) { return a.length === b.length && a.every(k => b.includes(k)); }
+const isMissing = (t, k) => ((t || {})[k] || []).includes('missing');
+function noattScopeOf(t) { // missing teeth don't count against a group
+  const on = ALL_TEETH.filter(k => ((t || {})[k] || []).includes('noatt')); if (!on.length) return '';
+  const hit = NOATT_SCOPES.find(sc => sc.teeth && sameSet(on, sc.teeth.filter(k => !isMissing(t, k)))); return hit ? hit.v : 'pick';
+}
 /* teeth object in a fixed order so saved copies compare equal */
 function canonTeeth(t) {
   const out = {}; t = t || {};
-  TEETH_U.concat(TEETH_L).forEach(k => { const m = MARKS.map(x => x.k).filter(x => (t[k] || []).includes(x)); if (m.length) out[k] = m; });
+  ALL_TEETH.forEach(k => { const m = MARKS.map(x => x.k).filter(x => (t[k] || []).includes(x)); if (m.length) out[k] = m; });
   return out;
 }
+/* a tooth can't be missing and anything else, or an implant and a pontic at once */
+function setMark(t, k, mk, on) {
+  let a = (t[k] || []).filter(x => x !== mk);
+  if (on) {
+    if (mk === 'missing') a = [];
+    else { a = a.filter(x => x !== 'missing'); if (mk === 'implant') a = a.filter(x => x !== 'pontic'); if (mk === 'pontic') a = a.filter(x => x !== 'implant'); }
+    a.push(mk);
+  }
+  t[k] = a;
+}
 /* "No attachment: UR3 to UL3, LR3 to LL3" — runs of 3+ neighbours become "to" ranges
-   (a dash would read like an IPR contact) */
+   (a dash would read like an IPR contact); whole groups are named */
 function teethSummary(t) {
   t = canonTeeth(t); const lines = [];
-  const all = TEETH_U.concat(TEETH_L);
-  const same = (a, b) => a.length === b.length && a.every(k => b.includes(k));
+  const groups = [[ALL_TEETH, 'all teeth'], [ANTERIORS, 'all anteriors (3–3)'], [UPPER_ANT, 'upper anteriors (3–3)'], [LOWER_ANT, 'lower anteriors (3–3)'], [POSTERIORS, 'all posteriors (4–7)']];
   MARKS.forEach(m => {
-    const on = all.filter(k => (t[k] || []).includes(m.k));
-    if (on.length && same(on, all)) { lines.push(m.l + ': all teeth'); return; }
-    if (on.length && same(on, ANTERIORS)) { lines.push(m.l + ': all anteriors (3–3)'); return; }
-    if (on.length && same(on, POSTERIORS)) { lines.push(m.l + ': all posteriors (4–7)'); return; }
+    const on = ALL_TEETH.filter(k => (t[k] || []).includes(m.k)); if (!on.length) return;
+    const grp = groups.find(([list]) => sameSet(on, list)); if (grp) { lines.push(m.l + ': ' + grp[1]); return; }
     const parts = [];
     [TEETH_U, TEETH_L].forEach(arch => {
       let run = [];
       const flush = () => { if (run.length >= 3) parts.push(run[0] + ' to ' + run[run.length - 1]); else parts.push.apply(parts, run); run = []; };
       arch.forEach(k => { if ((t[k] || []).includes(m.k)) run.push(k); else flush(); }); flush();
     });
-    if (parts.length) lines.push(m.l + ': ' + parts.join(', '));
+    lines.push(m.l + ': ' + parts.join(', '));
   });
   return lines.join('\n');
 }
-function toothBtn(k, marks, ro) {
-  const num = k.slice(2), m = MARKS.filter(x => (marks || []).includes(x.k));
-  const label = k + (m.length ? ': ' + m.map(x => x.l).join(', ') : '');
-  return '<button type="button" class="tooth' + m.map(x => ' m-' + x.k).join('') + '" data-t="' + k + '" aria-label="' + esc(label) + '" title="' + esc(label) + '"' + (ro ? ' disabled' : '') + '><b>' + num + '</b><small>' + esc(m.map(x => x.s).join(' ')) + '</small></button>';
+/* ---------- the chart: front view, upper roots up, lower roots down.
+   Crowns: white; crowned teeth faded yellow; implants grey with a screw instead of a root;
+   pontics have no root; missing teeth are a dashed outline. ---------- */
+const TOOTH_GEO = { // mm-ish (roots shortened so the chart stays compact): w width, c crown height, r root length
+  U1: { w: 8.5, c: 10.4, r: 9.5, k: 'inc' }, U2: { w: 6.6, c: 9, r: 9.2, k: 'inc' }, U3: { w: 7.6, c: 10, r: 12, k: 'can' },
+  U4: { w: 7, c: 8.2, r: 9.6, k: 'pm2' }, U5: { w: 6.8, c: 7.8, r: 9.6, k: 'pm' }, U6: { w: 10, c: 7.4, r: 8.6, k: 'mol' }, U7: { w: 9.2, c: 7, r: 8, k: 'mol' },
+  L1: { w: 5.2, c: 8.8, r: 9, k: 'inc' }, L2: { w: 5.8, c: 9.2, r: 9.6, k: 'inc' }, L3: { w: 7, c: 10.6, r: 11.6, k: 'can' },
+  L4: { w: 7, c: 8.4, r: 9.8, k: 'pm' }, L5: { w: 7.1, c: 8, r: 9.8, k: 'pm' }, L6: { w: 11, c: 7.6, r: 9, k: 'mol' }, L7: { w: 10.4, c: 7.2, r: 8.6, k: 'mol' }
+};
+const geoOf = k => TOOTH_GEO[k[0] + k[2]];
+const n2 = v => +v.toFixed(2);
+function crownD(g) { // local coords: apex y=0, CEJ y=r, biting edge y=r+c
+  const { w, c, r, k } = g, a = r, b = r + c, P = (x, y) => n2(x * w) + ' ' + n2(y);
+  if (k === 'mol') return 'M' + P(.1, a) + 'C' + P(-.01, a + .2 * c) + ' ' + P(-.03, a + .6 * c) + ' ' + P(.03, b - 1.2) + 'Q' + P(.1, b + .1) + ' ' + P(.26, b) + 'Q' + P(.42, b) + ' ' + P(.5, b - .55) + 'Q' + P(.58, b) + ' ' + P(.74, b) + 'Q' + P(.9, b + .1) + ' ' + P(.97, b - 1.2) + 'C' + P(1.03, a + .6 * c) + ' ' + P(1.01, a + .2 * c) + ' ' + P(.9, a) + 'Z';
+  if (k === 'can') return 'M' + P(.14, a) + 'C' + P(.01, a + .25 * c) + ' ' + P(-.04, a + .55 * c) + ' ' + P(.03, b - 2.8) + 'Q' + P(.22, b - 1.1) + ' ' + P(.5, b) + 'Q' + P(.78, b - 1.1) + ' ' + P(.97, b - 2.8) + 'C' + P(1.04, a + .55 * c) + ' ' + P(.99, a + .25 * c) + ' ' + P(.86, a) + 'Z';
+  if (k === 'pm' || k === 'pm2') return 'M' + P(.14, a) + 'C' + P(0, a + .25 * c) + ' ' + P(-.05, a + .58 * c) + ' ' + P(.06, b - 2.2) + 'Q' + P(.27, b - .2) + ' ' + P(.5, b) + 'Q' + P(.73, b - .2) + ' ' + P(.94, b - 2.2) + 'C' + P(1.05, a + .58 * c) + ' ' + P(1, a + .25 * c) + ' ' + P(.86, a) + 'Z';
+  return 'M' + P(.14, a) + 'C' + P(.02, a + .25 * c) + ' ' + P(-.03, a + .62 * c) + ' ' + P(.02, b - 1.5) + 'Q' + P(.05, b) + ' ' + P(.2, b) + 'H' + n2(.8 * w) + 'Q' + P(.95, b) + ' ' + P(.98, b - 1.5) + 'C' + P(1.03, a + .62 * c) + ' ' + P(.98, a + .25 * c) + ' ' + P(.86, a) + 'Z';
+}
+function rootD(g) {
+  const { w, r, k } = g, P = (x, y) => n2(x * w) + ' ' + n2(y * r);
+  if (k === 'mol') return 'M' + P(.1, 1) + 'C' + P(.05, .55) + ' ' + P(.12, .06) + ' ' + P(.25, .02) + 'C' + P(.35, 0) + ' ' + P(.4, .36) + ' ' + P(.43, .6) + 'Q' + P(.5, .74) + ' ' + P(.57, .6) + 'C' + P(.6, .36) + ' ' + P(.65, 0) + ' ' + P(.75, .02) + 'C' + P(.88, .06) + ' ' + P(.95, .55) + ' ' + P(.9, 1) + 'Z';
+  if (k === 'pm2') return 'M' + P(.14, 1) + 'C' + P(.12, .5) + ' ' + P(.2, .08) + ' ' + P(.33, .03) + 'C' + P(.42, .06) + ' ' + P(.46, .25) + ' ' + P(.5, .36) + 'C' + P(.54, .25) + ' ' + P(.58, .06) + ' ' + P(.67, .03) + 'C' + P(.8, .08) + ' ' + P(.88, .5) + ' ' + P(.86, 1) + 'Z';
+  return 'M' + P(.14, 1) + 'C' + P(.15, .45) + ' ' + P(.36, 0) + ' ' + P(.5, 0) + 'C' + P(.64, 0) + ' ' + P(.85, .45) + ' ' + P(.86, 1) + 'Z';
+}
+function implantSvg(g) { // a tapered screw where the root would be
+  const { w, r } = g, top = r, bot = .1 * r, a = .25 * w, b = .75 * w, a2 = .35 * w, b2 = .65 * w;
+  let s = '<path class="tcImp" d="M' + n2(a) + ' ' + n2(top) + 'L' + n2(b) + ' ' + n2(top) + 'L' + n2(b2) + ' ' + n2(bot + 1.2) + 'Q' + n2(.5 * w) + ' ' + n2(bot - .6) + ' ' + n2(a2) + ' ' + n2(bot + 1.2) + 'Z"/>';
+  for (let i = 1; i <= 5; i++) { const y = top - i * (top - bot) / 6.3, f = (top - y) / (top - bot), l = a + (a2 - a) * f, rr = b - (b - b2) * f;
+    s += '<path class="tcThr" d="M' + n2(l + .3) + ' ' + n2(y + .45) + 'L' + n2(rr - .3) + ' ' + n2(y - .45) + '"/>'; }
+  return s;
 }
 function toothChartHTML(t, ro) {
   t = canonTeeth(t);
-  const arch = (teeth, lbl) => '<div class="tcArch"><span class="tcLbl">' + lbl + '</span>' + teeth.slice(0, 7).map(k => toothBtn(k, t[k], ro)).join('') + '<i class="tcMid" aria-hidden="true"></i>' + teeth.slice(7).map(k => toothBtn(k, t[k], ro)).join('') + '</div>';
-  return '<div class="tcGrid">' + arch(TEETH_U, 'U') + arch(TEETH_L, 'L') + '</div>';
+  const GAP = .7, MID = 1.4, PADX = 6, TOP = 1.5, BAND = 8.5;
+  const width = arch => arch.reduce((s, k) => s + geoOf(k).w, 0) + GAP * 12 + MID;
+  const W = Math.max(width(TEETH_U), width(TEETH_L)) + 2 * PADX;
+  const HU = Math.max.apply(null, TEETH_U.map(k => geoOf(k).r + geoOf(k).c)), HL = Math.max.apply(null, TEETH_L.map(k => geoOf(k).r + geoOf(k).c));
+  const occU = TOP + HU, occL = occU + BAND, H = occL + HL + TOP, out = [];
+  [[TEETH_U, true], [TEETH_L, false]].forEach(([arch, up]) => {
+    let x = (W - width(arch)) / 2;
+    arch.forEach((k, i) => {
+      const g = geoOf(k), m = t[k] || [], has = v => m.includes(v);
+      const miss = has('missing'), imp = has('implant') && !miss, pon = has('pontic') && !miss && !imp, cr = has('crown') && !miss;
+      const tf = 'translate(' + n2(x) + ' ' + n2(up ? occU - (g.r + g.c) : occL + g.r + g.c) + ')' + (up ? '' : ' scale(1 -1)');
+      const cx = x + g.w / 2, crownY = up ? occU - g.c / 2 : occL + g.c / 2, rootY = up ? occU - g.c - g.r * .5 : occL + g.c + g.r * .5;
+      const label = k + (m.length ? ': ' + MARKS.filter(z => m.includes(z.k)).map(z => z.l).join(', ') : '');
+      let s = '<g class="tooth' + m.map(v => ' m-' + v).join('') + '" data-t="' + k + '"' + (ro ? '' : ' role="button" tabindex="0"') + ' aria-label="' + esc(label) + '"><title>' + esc(label) + '</title>'
+        + '<rect class="hit" x="' + n2(x - GAP / 2) + '" y="' + n2(up ? TOP - .5 : occL) + '" width="' + n2(g.w + GAP) + '" height="' + n2((up ? HU : HL) + .5) + '" rx="1.6"/><g transform="' + tf + '">';
+      if (miss) s += '<path class="tcGhost" d="' + rootD(g) + '"/><path class="tcGhost" d="' + crownD(g) + '"/>';
+      else s += (imp ? implantSvg(g) : pon ? '' : '<path class="root" d="' + rootD(g) + '"/>') + '<path class="crown' + (imp ? ' imp' : cr ? ' cr' : '') + '" d="' + crownD(g) + '"/>';
+      s += '</g>';
+      if (has('noatt') && !miss) { const aw = Math.min(3.6, g.w * .46), ah = Math.min(2.4, g.c * .26), x0 = cx - aw / 2, y0 = crownY - ah / 2;
+        s += '<g class="tcNa"><rect x="' + n2(x0) + '" y="' + n2(y0) + '" width="' + n2(aw) + '" height="' + n2(ah) + '" rx=".5"/><path d="M' + n2(x0 - .5) + ' ' + n2(y0 - .5) + 'L' + n2(x0 + aw + .5) + ' ' + n2(y0 + ah + .5) + 'M' + n2(x0 + aw + .5) + ' ' + n2(y0 - .5) + 'L' + n2(x0 - .5) + ' ' + n2(y0 + ah + .5) + '"/></g>'; }
+      if (has('nomove') && !miss) s += '<g class="tcLock"><path d="M' + n2(cx - 1) + ' ' + n2(rootY - .2) + 'v-.9a1 1 0 0 1 2 0v.9"/><rect x="' + n2(cx - 1.55) + '" y="' + n2(rootY - .3) + '" width="3.1" height="2.5" rx=".5"/></g>';
+      out.push(s + '<text class="tcNum" x="' + n2(cx) + '" y="' + n2(up ? occU + 3.3 : occL - 1.6) + '">' + k[2] + '</text></g>');
+      x += g.w + GAP + (i === 6 ? MID : 0);
+    });
+  });
+  const mid = n2(W / 2), band = n2(occU + BAND / 2);
+  return '<svg class="tcSvg" viewBox="0 0 ' + n2(W) + ' ' + n2(H) + '" role="group" aria-label="Tooth chart (R is the patient’s right)">'
+    + '<path class="tcMidl" d="M' + mid + ' .5V' + n2(H - .5) + '"/><path class="tcOcc" d="M' + n2(PADX - 2) + ' ' + band + 'H' + n2(W - PADX + 2) + '"/>'
+    + '<text class="tcSide" x="1.2" y="' + n2(+band + 1) + '">R</text><text class="tcSide" x="' + n2(W - 1.2) + '" y="' + n2(+band + 1) + '" text-anchor="end">L</text>'
+    + out.join('') + '</svg>';
 }
+/* small glyphs on the marker buttons */
+const MARK_GLYPH = {
+  noatt: '<rect x="3" y="5" width="10" height="6" rx="1.4" fill="#64F4C9"/><path d="M2.5 3.5l11 9M13.5 3.5l-11 9" stroke="#D8412E" stroke-width="1.6" stroke-linecap="round"/>',
+  implant: '<path d="M3.5 7.5c0-2.5 1.6-4 4.5-4s4.5 1.5 4.5 4z" fill="#C3C9D0" stroke="#4C5868" stroke-width="1"/><path d="M5.5 8.2h5l-1 6.3H6.5z" fill="#969FAB" stroke="#4C5868" stroke-width=".9" stroke-linejoin="round"/><path d="M5.8 10.2h4.4M6.1 12.2h3.8" stroke="#4C5868" stroke-width=".8"/>',
+  crown: '<path d="M3.5 4.5s1.8-1 4.5-1 4.5 1 4.5 1c.5 3 .3 6-.6 8.4-.4 1-1.2 1.6-2.2 1.6H6.3c-1 0-1.8-.6-2.2-1.6-.9-2.4-1.1-5.4-.6-8.4z" fill="#FCE2A6" stroke="#C2820A" stroke-width="1.1"/>',
+  pontic: '<path d="M3.5 4.5s1.8-1 4.5-1 4.5 1 4.5 1c.5 3 .3 6-.6 8.4-.4 1-1.2 1.6-2.2 1.6H6.3c-1 0-1.8-.6-2.2-1.6-.9-2.4-1.1-5.4-.6-8.4z" fill="#fff" stroke="#1B2F4C" stroke-width="1.1"/><path d="M2 2h12" stroke="#FFC8BF" stroke-width="2" stroke-linecap="round"/>',
+  missing: '<path d="M3.5 4.5s1.8-1 4.5-1 4.5 1 4.5 1c.5 3 .3 6-.6 8.4-.4 1-1.2 1.6-2.2 1.6H6.3c-1 0-1.8-.6-2.2-1.6-.9-2.4-1.1-5.4-.6-8.4z" fill="none" stroke="#969FAB" stroke-width="1.1" stroke-dasharray="1.6 1.3"/>',
+  nomove: '<path d="M5.3 7.5V5.6a2.7 2.7 0 0 1 5.4 0v1.9" fill="none" stroke="#1B2F4C" stroke-width="1.5"/><rect x="3.8" y="7.2" width="8.4" height="6.8" rx="1.5" fill="#1B2F4C"/>'
+};
+function markGlyph(k) { return '<svg class="mkg" viewBox="0 0 16 16" aria-hidden="true" focusable="false">' + (MARK_GLYPH[k] || '') + '</svg>'; }
+/* "No IPR / No attachments / No elastics": the thing itself with a coral "no" badge */
+const NO_BADGE = '<circle cx="38.5" cy="37.5" r="8.6" fill="#FA624D"/><path d="M35.1 34.1l6.8 6.8M41.9 34.1l-6.8 6.8" stroke="#fff" stroke-width="2.3" stroke-linecap="round"/>';
+const RX_ICONS = {
+  noipr: '<rect x="2.5" y="8" width="38" height="23" rx="7" fill="none" stroke="currentColor" stroke-width="2.4"/><text x="21.5" y="24.6" text-anchor="middle" font-size="14" font-weight="800" fill="currentColor" font-family="Montserrat,system-ui,sans-serif" letter-spacing=".4">IPR</text>' + NO_BADGE,
+  noatt: '<path class="tk" d="M9.8 8C8.7 14 8.3 24 8.7 31.4Q9.1 36 12.6 36H26.4Q29.9 36 30.3 31.4C30.7 24 30.3 14 29.2 8Z"/><rect class="tg" x="6.5" y="3" width="26" height="7.2" rx="3.6"/><rect class="tf" x="13.8" y="17" width="11.4" height="7.4" rx="1.8"/>' + NO_BADGE,
+  noelastic: '<ellipse class="ta" cx="21" cy="21" rx="17" ry="4.6" transform="rotate(45 21 21)" style="stroke-width:2.8"/><circle cx="9" cy="9" r="3.8" fill="currentColor"/><circle cx="33" cy="33" r="3.8" fill="currentColor"/>' + NO_BADGE
+};
+function rxSvg(k) { return '<svg class="isvg rxsvg" viewBox="0 0 48 48" aria-hidden="true" focusable="false">' + (RX_ICONS[k] || '') + '</svg>'; }
 function safeUrl(u) { return /^https:\/\/[^\s<>"']+$/i.test(String(u || '').trim()) ? String(u).trim() : ''; }
 function sameVal(a, b) { return JSON.stringify(a == null ? '' : a) === JSON.stringify(b == null ? '' : b); }
 /* the next n clinic days (the office is open Monday–Thursday) */
@@ -193,6 +282,11 @@ function caseFormHTML(c, isNew) {
   const date = (id, l, v) => '<div class="field"><label for="' + id + '">' + l + '</label><input type="date" id="' + id + '" value="' + esc(v || '') + '"></div>';
   const instrOther = c.instrOther != null ? c.instrOther : (((c.instrPicks || []).length || Object.keys(c.goals || {}).length) ? '' : (c.instructions || ''));
   const picks = c.instrPicks || [], oldPicks = picks.filter(v => !INSTR.some(it => it.v === v));
+  // Mid-course correction used to be an "Also" choice; it is now a kind of submission
+  const extras = (c.extras || []).filter(x => x !== 'Mid-course correction'), oldExtras = extras.filter(x => !PICK.extras.includes(x));
+  const initialVal = !c.initial && (c.extras || []).includes('Mid-course correction') ? 'mid' : (c.initial || '');
+  const teeth0 = canonTeeth(c.teeth), scope0 = noattScopeOf(teeth0);
+  const rxTile = (v, ic, l) => '<button type="button" class="pick rxTile" data-v="' + esc(v) + '" aria-pressed="' + extras.includes(v) + '">' + rxSvg(ic) + '<span><b>' + esc(l) + '</b></span></button>';
   const ccs = learnedCCs();
   return '<div class="cf" data-new="' + (isNew ? 1 : 0) + '">' +
     '<div class="cfSec"><h5>Case type</h5><div class="tileGrid" role="radiogroup" aria-label="Case type">' + TILES.filter(t => !t.legacy || t.v === tile).map(t =>
@@ -202,7 +296,7 @@ function caseFormHTML(c, isNew) {
     '<div class="cfSec"' + show('appliance') + '><h5>Appliance</h5>' + pickRow('appliances', withSaved(PICK.appliances, c.appliances), c.appliances || [], true) +
     '<h5>Lab</h5>' + pickRow('lab', withSaved(PICK.labs, c.lab), c.lab || '', false) + '<div class="hint small" id="cf-labHint" style="margin-top:6px"></div></div>' +
     '<div class="cfSec"' + show('retainer') + '><h5>Arch</h5>' + pickRow('arches', PICK.arches, c.arches || [], true) + '<div id="cf-retKindsWrap"' + (tile === 'mouthguard' ? ' style="display:none"' : '') + '><h5>Making</h5>' + pickRow('retKinds', PICK.retKinds, c.retKinds || [], true) + '</div></div>' +
-    '<div class="cfSec"' + show('aligner') + '><h5>Initial submission?</h5>' + pickRow('initial', [{ v: 'yes', l: 'Yes — first set' }, { v: 'no', l: 'No — refinement' }], c.initial || '', false) + '</div>' +
+    '<div class="cfSec"' + show('aligner') + '><h5>Initial submission?</h5>' + pickRow('initial', [{ v: 'yes', l: 'Yes — first set' }, { v: 'no', l: 'No — refinement' }, { v: 'mid', l: 'Mid-course correction' }], initialVal, false) + '</div>' +
     '<div class="cfSec"' + showTiles('insmile') + '><h5>Initial or digital enhancement?</h5>' + pickRow('initialDE', [{ v: 'yes', l: 'Initial' }, { v: 'de1', l: 'DE 1' }, { v: 'de2', l: 'DE 2' }, { v: 'de3', l: 'DE 3' }], c.initial || '', false) + '</div>' +
     '<div class="cfSec"><h5>Assistant</h5>' + pickRow('assistant', roster.map(r => ({ v: r.sid, l: firstName(r.name) })), c.assistant || '', false) +
     '<div' + show('aligner braces appliance retainer') + '><h5>Scanner</h5>' + pickRow('scanner', PICK.scanners, c.scanner || '', false) + '</div></div>' +
@@ -216,12 +310,18 @@ function caseFormHTML(c, isNew) {
       '<button type="button" class="pick itile" data-v="' + esc(it.v) + '" aria-pressed="' + picks.includes(it.v) + '" title="' + esc(it.v) + '">' + instrSvg(it.ic) + '<span>' + esc(it.l) + '</span></button>').join('') + '</div>' +
     (oldPicks.length ? '<div class="hint small muted" style="margin:10px 0 6px">Earlier choices on this case</div>' + pickRow('instrPicks', oldPicks, oldPicks, true) : '') +
     '<div class="field" style="margin-top:10px"><label for="cf-instrOther">Other instructions</label><textarea id="cf-instrOther" rows="2" placeholder="Only if it isn’t one of the pictures">' + esc(instrOther) + '</textarea></div></div>' +
-    '<div class="cfSec"' + show('aligner') + '><h5>Tooth chart</h5><div class="tc" id="cf-tc"><div class="pickRow tcTools" role="radiogroup" aria-label="Marker">' +
-    MARKS.map((m, i) => '<button type="button" class="pick sm tool m-' + m.k + '" data-tool="' + m.k + '" role="radio" aria-checked="' + (i === 0) + '">' + esc(m.l) + '</button>').join('') +
-    '<span class="tcSep"></span><button type="button" class="pick sm" data-tq="ant">Anteriors 3–3</button><button type="button" class="pick sm" data-tq="post">Posteriors 4–7</button><button type="button" class="pick sm" data-tq="all">All teeth</button><button type="button" class="pick sm" data-tq="clear">Clear</button></div>' +
-    '<div id="cf-tcChart">' + toothChartHTML(c.teeth, false) + '</div><div class="tcSum" id="cf-teethSum">' + esc(teethSummary(c.teeth) || 'Tap a marker, then tap teeth.') + '</div>' +
-    '<input type="hidden" id="cf-teeth" value="' + esc(JSON.stringify(canonTeeth(c.teeth))) + '"></div>' +
-    '<h5>Also</h5>' + pickRow('extras', withSaved(PICK.extras, c.extras), c.extras || [], true) + '</div>' +
+    '<div class="cfSec"' + show('aligner') + '><h5>Teeth, IPR &amp; attachments</h5>' +
+    '<div class="pickRow rxGrid" data-g="extras" data-multi="1">' + rxTile('No IPR', 'noipr', 'No IPR') +
+      '<button type="button" class="rxTile" id="cf-noatt" aria-pressed="' + !!scope0 + '" aria-controls="cf-noattScope">' + rxSvg('noatt') + '<span><b>No attachments</b><small id="cf-noattSub">' + esc(scope0 ? NOATT_SCOPES.find(x => x.v === scope0).l : '') + '</small></span></button>' +
+      rxTile('No elastics', 'noelastic', 'No elastics') + '</div>' +
+    '<div class="noattScope" id="cf-noattScope"' + (scope0 ? '' : ' hidden') + '><span class="lbl">No attachments on</span>' + NOATT_SCOPES.map(sc =>
+      '<button type="button" class="pick sm" data-scope="' + sc.v + '" aria-pressed="' + (scope0 === sc.v) + '">' + esc(sc.l) + '</button>').join('') + '</div>' +
+    (oldExtras.length ? '<div class="hint small muted" style="margin:10px 0 6px">Earlier choices on this case</div>' + pickRow('extras', oldExtras, oldExtras, true) : '') +
+    '<div class="tc" id="cf-tc"><div class="pickRow tcTools" role="radiogroup" aria-label="Marker">' +
+    MARKS.map((m, i) => '<button type="button" class="pick sm tool m-' + m.k + '" data-tool="' + m.k + '" role="radio" aria-checked="' + (i === 0) + '">' + markGlyph(m.k) + esc(m.l) + '</button>').join('') + '</div>' +
+    '<div class="pickRow tcQuick"><span class="lbl">Mark a whole group</span><button type="button" class="pick sm" data-tq="uant">Upper 3–3</button><button type="button" class="pick sm" data-tq="ant">Anteriors 3–3</button><button type="button" class="pick sm" data-tq="post">Posteriors 4–7</button><button type="button" class="pick sm" data-tq="all">All teeth</button><span class="tcSep"></span><button type="button" class="pick sm" data-tq="clear">Clear chart</button></div>' +
+    '<div id="cf-tcChart">' + toothChartHTML(teeth0, false) + '</div><div class="tcSum" id="cf-teethSum">' + esc(teethSummary(teeth0) || 'Pick a marker, then tap teeth.') + '</div>' +
+    '<input type="hidden" id="cf-teeth" value="' + esc(JSON.stringify(teeth0)) + '"></div></div>' +
     '<div class="cfSec"' + show('aligner braces appliance') + '><h5>Patient’s CC from last visit</h5>' +
     '<div class="pickRow" data-cc="1">' + ['None'].concat(ccs).map(t => '<button type="button" class="pick sm" data-cc="' + esc(t) + '">' + esc(t) + '</button>').join('') + '</div>' +
     '<div class="field" style="margin-top:8px"><label for="cf-cc" class="hidden">Patient’s CC</label><input id="cf-cc" autocomplete="off" placeholder="Tap above or type" value="' + esc(c.cc || '') + '"></div></div>' +
@@ -264,8 +364,9 @@ function readCaseForm(root) {
 /* what's being made, from the taps */
 function autoDetail(o, tile) {
   const t = TILES.find(x => x.v === tile);
-  if (tile === 'finishing') return 'Finishing aligners' + (o.initial === 'no' ? ' – refinement' : '');
-  if (['oliv', 'angel', 'invisalign', 'ulab', 'nla'].includes(tile)) return 'Aligners (' + (tile === 'nla' ? 'In-House' : t.l) + ')' + (o.initial === 'no' ? ' – refinement' : '');
+  const sub = o.initial === 'no' ? ' – refinement' : o.initial === 'mid' ? ' – mid-course correction' : '';
+  if (tile === 'finishing') return 'Finishing aligners' + sub;
+  if (['oliv', 'angel', 'invisalign', 'ulab', 'nla'].includes(tile)) return 'Aligners (' + (tile === 'nla' ? 'In-House' : t.l) + ')' + sub;
   if (tile === 'inbrace') return 'InBrace/Brava';
   if (tile === 'insmile') return 'InSmile braces' + (/^de[123]$/.test(o.initial) ? ' – DE' + o.initial.slice(2) : '');
   if (tile === 'appliance') return o.appliances.join(', ');
@@ -321,24 +422,56 @@ function wireCaseForm(root, isNew) {
     }
     const tool = e.target.closest('.tcTools [data-tool]');
     if (tool && root.contains(tool)) { $$('.tcTools [data-tool]', root).forEach(b => b.setAttribute('aria-checked', String(b === tool))); return; }
-    const tq = e.target.closest('.tcTools [data-tq]'), tooth = e.target.closest('#cf-tc .tooth');
+    const nat = e.target.closest('#cf-noatt');
+    if (nat && root.contains(nat)) {
+      if (nat.getAttribute('aria-pressed') === 'true') { const t = readTeeth(); ALL_TEETH.forEach(k => setMark(t, k, 'noatt', false)); drawTeeth(t); $r('#cf-noattScope').hidden = true; }
+      else { nat.setAttribute('aria-pressed', 'true'); $r('#cf-noattScope').hidden = false; }
+      syncNoatt(); return;
+    }
+    const scp = e.target.closest('#cf-noattScope [data-scope]');
+    if (scp && root.contains(scp)) {
+      const sc = NOATT_SCOPES.find(x => x.v === scp.dataset.scope);
+      if (sc.teeth) { const t = readTeeth(); ALL_TEETH.forEach(k => setMark(t, k, 'noatt', sc.teeth.includes(k) && !isMissing(t, k))); drawTeeth(t); }
+      else { setTool('noatt'); $r('#cf-tcChart').scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+      $$('#cf-noattScope [data-scope]', root).forEach(b => b.setAttribute('aria-pressed', String(b === scp)));
+      syncNoatt(sc.v); return;
+    }
+    const tq = e.target.closest('.tcQuick [data-tq]'), tooth = e.target.closest('#cf-tc .tooth');
     if ((tq || tooth) && root.contains(tq || tooth)) {
-      const cur = ($('.tcTools [data-tool][aria-checked="true"]', root) || {}).dataset; const mk = (cur && cur.tool) || 'noatt';
-      let t = {}; try { t = JSON.parse($r('#cf-teeth').value || '{}'); } catch (x) { }
-      const has = k => (t[k] || []).includes(mk);
-      const set = (k, on) => { const a = (t[k] || []).filter(x => x !== mk); if (on) a.push(mk); t[k] = a; };
-      if (tooth) set(tooth.dataset.t, !has(tooth.dataset.t));
+      const mk = (($('.tcTools [data-tool][aria-checked="true"]', root) || {}).dataset || {}).tool || 'noatt';
+      let t = readTeeth(); const has = k => (t[k] || []).includes(mk);
+      if (tooth) setMark(t, tooth.dataset.t, mk, !has(tooth.dataset.t));
       else if (tq.dataset.tq === 'clear') t = {};
-      else { const list = tq.dataset.tq === 'ant' ? ANTERIORS : tq.dataset.tq === 'post' ? POSTERIORS : TEETH_U.concat(TEETH_L); const allOn = list.every(has); list.forEach(k => set(k, !allOn)); }
-      t = canonTeeth(t); $r('#cf-teeth').value = JSON.stringify(t);
-      $r('#cf-tcChart').innerHTML = toothChartHTML(t, false);
-      $r('#cf-teethSum').textContent = teethSummary(t) || 'Tap a marker, then tap teeth.';
+      else { // whole groups skip missing teeth (unless marking them missing)
+        const list = ({ uant: UPPER_ANT, ant: ANTERIORS, post: POSTERIORS }[tq.dataset.tq] || ALL_TEETH).filter(k => mk === 'missing' || !isMissing(t, k));
+        const allOn = list.every(has); list.forEach(k => setMark(t, k, mk, !allOn));
+      }
+      const refocus = tooth && document.activeElement === tooth ? tooth.dataset.t : '';
+      drawTeeth(t); syncNoatt();
+      if (refocus) { const el = $r('#cf-tcChart .tooth[data-t="' + refocus + '"]'); if (el) el.focus(); }
       return;
     }
     const sc = e.target.closest('[data-scan]');
     if (sc && root.contains(sc)) { $r('#cf-scanDate').value = addDays(todayISO(), Number(sc.dataset.scan)); refresh(false); return; }
     const cc = e.target.closest('.pick[data-cc]');
     if (cc && root.contains(cc)) { $r('#cf-cc').value = cc.dataset.cc === 'None' ? 'None' : cc.dataset.cc; return; }
+  });
+  // teeth: read, draw, and keep the "No attachments" tile in step with the chart
+  const readTeeth = () => { try { return JSON.parse($r('#cf-teeth').value || '{}'); } catch (x) { return {}; } };
+  const drawTeeth = t => { t = canonTeeth(t); $r('#cf-teeth').value = JSON.stringify(t); $r('#cf-tcChart').innerHTML = toothChartHTML(t, false); $r('#cf-teethSum').textContent = teethSummary(t) || 'Pick a marker, then tap teeth.'; };
+  const setTool = k => $$('.tcTools [data-tool]', root).forEach(b => b.setAttribute('aria-checked', String(b.dataset.tool === k)));
+  const syncNoatt = picked => {
+    const tile = $r('#cf-noatt'); if (!tile) return;
+    const t = readTeeth(), scope = noattScopeOf(t), n = ALL_TEETH.filter(k => (t[k] || []).includes('noatt')).length;
+    const on = !!scope || (tile.getAttribute('aria-pressed') === 'true' && !$r('#cf-noattScope').hidden);
+    tile.setAttribute('aria-pressed', String(on)); $r('#cf-noattScope').hidden = !on;
+    const shown = scope || (picked === 'pick' ? 'pick' : '');
+    $$('#cf-noattScope [data-scope]', root).forEach(b => b.setAttribute('aria-pressed', String(b.dataset.scope === shown)));
+    $r('#cf-noattSub').textContent = scope === 'pick' ? n + (n === 1 ? ' tooth' : ' teeth') : scope ? NOATT_SCOPES.find(x => x.v === scope).l : on ? 'Choose where' : '';
+  };
+  root.addEventListener('keydown', e => {
+    const tooth = e.target.closest && e.target.closest('#cf-tc .tooth');
+    if (tooth && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); tooth.dispatchEvent(new MouseEvent('click', { bubbles: true })); }
   });
   ['cf-stage', 'cf-assignee'].forEach(id => $r('#' + id).addEventListener('change', e => { e.target.dataset.manual = '1'; }));
   // editing: a lab already on the case stays unless someone taps another one
