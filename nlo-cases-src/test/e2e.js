@@ -619,6 +619,26 @@ async function openByName(p, name) {
     return a === 'print' && b === 'wash' && c === 'fab' && rows.length === 1 && caseFromAsana(rows[0], 'NL Lab', []).stage === 'send';
   }), 'Asana import: the NL Lab checklist (subtasks) picks the fabrication step, from the API or a CSV');
 
+  console.log('\n# Aligner labels from the case (the Label Maker, filled in)');
+  await openByName(owner, 'Tobias Titancase'); await owner.waitForSelector('#alBox');
+  check(await owner.isDisabled('#alBox [data-act=labels]'), 'Print labels waits until the aligner counts are entered');
+  await owner.click('#drawer [data-act=closeDrawer] >> nth=0');
+  await openByName(owner, 'Nadia Setcount'); await owner.waitForSelector('#alBox [data-act=labels]:not([disabled])');
+  await owner.click('#alBox [data-act=labels]'); await owner.waitForSelector('#lb-list .lbRow');
+  check(await owner.inputValue('#lb-patient') === 'Nadia Setcount' && await owner.inputValue('#lb-set') === 'Refinement #1' && await owner.inputValue('#lb-uTotal') === '12' && await owner.inputValue('#lb-lTotal') === '10', 'labels open filled in: patient, Refinement #1, upper 12, lower 10');
+  check(/^13 labels/.test(await owner.textContent('#lb-count')) && (await owner.locator('#lb-prev .print-label').count()) === 2, '1 box label + 12 stage labels, with a preview');
+  await owner.check('#lb-at');
+  check(/^14 labels/.test(await owner.textContent('#lb-count')), 'the attachment template adds a label');
+  await owner.evaluate(() => { window.__printed = null; window.print = () => { window.__printed = { n: document.querySelectorAll('#print-container .print-page').length, box: document.querySelector('#print-container .print-box').textContent, cls: document.body.classList.contains('printLabels'), page: !!document.getElementById('lbPage') }; window.dispatchEvent(new Event('afterprint')); }; });
+  await owner.click('#lb-print'); await owner.waitForFunction(() => window.__printed, null, { timeout: 10000 });
+  const pr = await owner.evaluate(() => window.__printed);
+  check(pr.n === 14 && /23 aligners/.test(pr.box) && /Upper\s*12 aligners/.test(pr.box) && pr.cls && pr.page, 'Print sends 14 labels, one 2×4 page each (box: upper 12, lower 10, AT, total 23)');
+  check(!(await owner.evaluate(() => document.body.classList.contains('printLabels') || !!document.getElementById('lbPage'))) && (await owner.evaluate(() => document.querySelector('#print-container').innerHTML)) === '', 'after printing the page is back to normal');
+  const [lbDl] = await Promise.all([owner.waitForEvent('download', { timeout: 15000 }), owner.click('#lb-csv')]);
+  const lbCsv = fs.readFileSync(await lbDl.path(), 'utf8').trim().split('\n');
+  check(lbCsv[0] === 'PATIENT,SETTYPE,LINE1LEFT,LINE1RIGHT,LINE2LEFT,LINE2RIGHT,WEAR,SWITCHDATE' && lbCsv.length === 15 && /UPPER: Stage 1 of 12/.test(lbCsv[3]), 'CSV for Label Live has the same columns and one row per label');
+  await owner.click('.modal [data-act=closeModal]'); await owner.click('#drawer [data-act=closeDrawer] >> nth=0'); await owner.fill('#q', '');
+
   console.log('\n# Company portals on outside aligner cases');
   await openByName(owner, 'Petra Tapform');
   check(await owner.isVisible('#drawer .portals a[href="https://portal.olivortho.com/"][target=_blank]') && await owner.isVisible('#drawer .portals a[href="https://dental-monitoring.com/doctor/login"]'), 'an Oliv case links to the Oliv portal and Dental Monitoring');

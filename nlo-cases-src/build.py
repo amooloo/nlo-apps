@@ -2,7 +2,7 @@ import pathlib, shutil, sys
 root = pathlib.Path(__file__).parent
 src = root / 'src'
 t = (src / 'template.html').read_text()
-js = '\n'.join((src / f).read_text() for f in ['core.js', 'backend.js', 'demo.js', 'ipr.js', 'ui.js', 'logos.js', 'caseform.js', 'admin.js'])
+js = '\n'.join((src / f).read_text() for f in ['core.js', 'backend.js', 'demo.js', 'ipr.js', 'ui.js', 'logos.js', 'caseform.js', 'labels.js', 'admin.js'])
 js += "\nif (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();\n"
 cfg = root / 'fbconfig.js'
 if cfg.exists():
@@ -30,4 +30,7 @@ assert '</script' not in js.lower(), 'script body must not contain </script'
 (root / 'dist' / 'app.js').write_text(js)
 logo = next((p for p in [root.parent / 'logo-white.png', pathlib.Path('/home/claude/nlo-apps/logo-white.png')] if p.exists()), None)
 if logo: shutil.copy(logo, root / 'dist' / 'logo-white.png')
+# the black NLO logo printed on aligner labels (same image as the Label Maker's)
+lbl = next((p for p in [root.parent / 'nlo-label-logo.png', root / 'nlo-label-logo.png'] if p.exists()), None)
+if lbl: shutil.copy(lbl, root / 'dist' / 'nlo-label-logo.png')
 print('built', len(out), 'bytes')

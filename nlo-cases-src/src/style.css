@@ -454,3 +454,53 @@ a.btn{text-decoration:none}
 .rxTile[aria-pressed="true"] .rxsvg{--line:var(--navy-900);--acc:var(--mint)}
 .noattScope{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin:0 0 12px;padding:10px 12px;border-radius:12px;background:var(--grey-50);border:1px solid var(--grey-100)}
 .noattScope[hidden]{display:none}
+
+/* ---------- aligner labels (same layout as the Label Maker: 4×2 in, black on white) ---------- */
+.print-label{width:4in;height:2in;padding:.12in .2in .1in;box-sizing:border-box;font-family:Arial,Helvetica,sans-serif;display:grid;grid-template-rows:auto 1fr auto;overflow:hidden;background:#fff;position:relative;color:#000;line-height:1.2}
+.print-label.print-at,.print-label.print-box{border-left:3pt solid #000}
+.print-label .p-top{display:flex;justify-content:space-between;align-items:flex-start;gap:4px}
+.print-label .p-top>div:first-child{flex:1;min-width:0}
+.print-label .p-patient{font-size:14pt;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.print-label .p-set-type{font-size:7pt;font-weight:700;text-transform:uppercase;letter-spacing:.4pt;margin-top:1pt}
+.print-label .p-logo{max-height:.63in;max-width:1.68in;object-fit:contain}
+.print-label .p-mid{display:flex;align-items:center;gap:8pt;padding:3pt 0}
+.print-label .p-arch{flex:1}
+.print-label .p-arch-title{font-size:8pt;font-weight:700;text-transform:uppercase;letter-spacing:.4pt}
+.print-label .p-arch-stage{font-size:13pt;font-weight:700}
+.print-label .p-arch-stage span{font-size:9pt;font-weight:400}
+.print-label .p-arch-done{font-size:10pt;font-weight:700;font-style:italic}
+.print-label .p-arch-night{font-size:8pt;font-style:italic}
+.print-label .p-divider{width:1.5pt;background:#000;align-self:stretch}
+.print-label .p-at-center{display:flex;align-items:center;justify-content:center;font-size:14pt;font-weight:700}
+.print-label .p-box-body{display:flex;flex-direction:column;justify-content:center;gap:3pt}
+.print-label .p-box-row{display:flex;align-items:baseline;gap:5pt}
+.print-label .p-box-lbl{font-size:8pt;font-weight:700;text-transform:uppercase;width:36pt}
+.print-label .p-box-val{font-size:11pt;font-weight:700}
+.print-label .p-box-sub{font-size:8pt}
+.print-label .p-box-div{height:1pt;background:#000;margin:2pt 0}
+.print-label .p-bot{display:flex;justify-content:space-between;align-items:center;border-top:1pt solid #000;padding-top:4pt;gap:4pt}
+.print-label .p-wear{font-size:9pt;font-weight:700;font-style:italic}
+.print-label .p-switch{font-size:9pt;font-weight:700;text-align:right}
+.print-label .p-num{font-size:7pt}
+#print-container{display:none}
+.alLbl{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px}
+.lbArch{display:grid;grid-template-columns:110px 1fr 1fr;gap:0 12px;align-items:end}
+.lbOn,.lbAt{display:flex;align-items:center;gap:8px;font-weight:700;color:var(--navy);font-size:13.5px;padding-bottom:22px}
+.lbAt{padding:0;margin:2px 0 12px;font-weight:600;font-size:13px}
+.lbHead{display:flex;align-items:center;gap:10px;margin:6px 0 6px}
+.lbHead b{color:var(--navy)}
+.lbList{max-height:190px;overflow:auto;border:1px solid var(--grey-100);border-radius:10px}
+.lbRow{display:flex;align-items:center;gap:10px;padding:6px 12px;border-bottom:1px solid var(--grey-100);font-size:12.5px;cursor:pointer}
+.lbRow:last-child{border-bottom:none}
+.lbRow input{accent-color:var(--navy)}
+.lbPrev{display:flex;gap:12px;flex-wrap:wrap;margin-top:12px}
+.lbPrevBox{width:calc(4in * .78);height:calc(2in * .78);overflow:hidden;border:1px solid var(--grey-300);border-radius:6px;background:#fff;box-shadow:var(--sh-xs)}
+.lbPrevBox .print-label{transform:scale(.78);transform-origin:top left}
+@media print{
+  body.printLabels{margin:0 !important;padding:0 !important;background:#fff !important}
+  body.printLabels > *:not(#print-container){display:none !important}
+  body.printLabels #print-container{display:block !important;margin:0;padding:0}
+  body.printLabels .print-page{width:2in;height:4in;margin:0;padding:0;page-break-after:always;break-after:page;page-break-inside:avoid;overflow:hidden;position:relative;background:#fff}
+  body.printLabels .print-page:last-child{page-break-after:auto;break-after:auto}
+  body.printLabels .print-label{transform:rotate(90deg) translateY(-2in);transform-origin:top left;-webkit-print-color-adjust:exact;print-color-adjust:exact;-webkit-font-smoothing:none;text-rendering:geometricPrecision}
+}

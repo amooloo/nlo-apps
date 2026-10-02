@@ -11,6 +11,7 @@ let B = null;
 
 /* ---------- icons ---------- */
 const IC = {
+  print: '<path d="M7 9V3.5h10V9"/><rect x="3.5" y="9" width="17" height="8" rx="2"/><path d="M7 14h10v6.5H7z"/>',
   today: '<rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/><path d="M8.5 15l2.2 2 4.8-4.5"/>',
   board: '<rect x="3.5" y="4" width="5" height="16" rx="1.5"/><rect x="9.5" y="4" width="5" height="11" rx="1.5"/><rect x="15.5" y="4" width="5" height="7" rx="1.5"/>',
   list: '<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>',
@@ -412,7 +413,9 @@ function alignerTotalHTML(c, inForm) {
       : '<span class="muted">' + (inForm ? 'Enter the upper and lower aligners from Titan.' : 'Aligners in this set not entered yet — add the upper and lower counts from Titan with Edit.') + '</span>') + '</div>' +
     '<div class="alSum"><span class="alT">Patient total: <b>' + total + '</b> aligners' + (estAll != null && total ? ' <span class="alEst">est. ' + money(estAll) + '</span>' : '') + '</span>' + (sets.length > 1 || inForm ? parts : '') + '</div>' +
     (missing ? '<div class="small muted">' + missing + ' set' + (missing > 1 ? 's have' : ' has') + ' no count yet, so the total may be low.</div>' : '') +
-    (est == null && isOwner() && me.n ? '<div class="small muted">Set the cost per aligner in Team &amp; security to see an estimated cost.</div>' : '') + wait;
+    (est == null && isOwner() && me.n ? '<div class="small muted">Set the cost per aligner in Team &amp; security to see an estimated cost.</div>' : '') + wait +
+    (inForm ? '' : '<div class="alLbl"><button class="btn btn-sec btn-sm" data-act="labels"' + (me.n ? '' : ' disabled') + '>' + ic('print', 15) + 'Print labels</button>' +
+      (me.n ? '<span class="small muted">The Label Maker’s labels, already filled in</span>' : '<span class="small muted">Available once the upper and lower aligners are entered (Edit)</span>') + '</div>');
 }
 function alignerMini(c) {
   if (c.type !== 'nla') return '';
@@ -838,6 +841,7 @@ function onClick(e) {
     case 'advance': { const c = findCase(id); const n = c && nextStage(c); if (n) moveStage(id, n); break; }
     case 'complete': completeCase(id); break;
     case 'setStage': moveStage(S.openId, t.dataset.k); break;
+    case 'labels': { const c = findCase(S.openId); if (c && alN(c)) labelsModal(c); break; }
     case 'portal': { const c = findCase(S.openId); // the link itself opens the portal in a new tab
       if (c && c.patient) copyText(c.patient).then(ok => toast(ok ? 'Copied “' + c.patient + '” — paste it in the portal’s search' : 'Couldn’t copy the name — type it in the portal', ok ? {} : { bad: true })); break; }
     case 'reopen': act(async () => { await B.mutateCase(S.openId, () => 'open', { a: 'reopen' }); S.closed = S.closed.filter(c => c.id !== S.openId); closeDrawer(true); }, 'Reopened'); break;
