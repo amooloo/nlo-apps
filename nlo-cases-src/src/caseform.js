@@ -33,6 +33,7 @@ const FORM_KEYS = ['type', 'patient', 'chart', 'detail', 'stage', 'assignee', 'a
 const TEETH_U = ['UR7', 'UR6', 'UR5', 'UR4', 'UR3', 'UR2', 'UR1', 'UL1', 'UL2', 'UL3', 'UL4', 'UL5', 'UL6', 'UL7'];
 const TEETH_L = ['LR7', 'LR6', 'LR5', 'LR4', 'LR3', 'LR2', 'LR1', 'LL1', 'LL2', 'LL3', 'LL4', 'LL5', 'LL6', 'LL7'];
 const ANTERIORS = ['UR3', 'UR2', 'UR1', 'UL1', 'UL2', 'UL3', 'LR3', 'LR2', 'LR1', 'LL1', 'LL2', 'LL3'];
+const POSTERIORS = TEETH_U.concat(TEETH_L).filter(k => !ANTERIORS.includes(k));
 const MARKS = [
   { k: 'noatt', l: 'No attachment', s: 'NA' }, { k: 'implant', l: 'Implant', s: 'Im' }, { k: 'pontic', l: 'Pontic', s: 'P' },
   { k: 'missing', l: 'Missing', s: '×' }, { k: 'nomove', l: 'Don’t move', s: 'DM' }
@@ -47,7 +48,13 @@ function canonTeeth(t) {
    (a dash would read like an IPR contact) */
 function teethSummary(t) {
   t = canonTeeth(t); const lines = [];
+  const all = TEETH_U.concat(TEETH_L);
+  const same = (a, b) => a.length === b.length && a.every(k => b.includes(k));
   MARKS.forEach(m => {
+    const on = all.filter(k => (t[k] || []).includes(m.k));
+    if (on.length && same(on, all)) { lines.push(m.l + ': all teeth'); return; }
+    if (on.length && same(on, ANTERIORS)) { lines.push(m.l + ': all anteriors (3–3)'); return; }
+    if (on.length && same(on, POSTERIORS)) { lines.push(m.l + ': all posteriors (4–7)'); return; }
     const parts = [];
     [TEETH_U, TEETH_L].forEach(arch => {
       let run = [];
@@ -130,7 +137,7 @@ function caseFormHTML(c, isNew) {
     '<div class="field" style="margin-top:8px"><label for="cf-instrOther">Other instructions</label><textarea id="cf-instrOther" rows="2" placeholder="Only if it isn’t one of the buttons">' + esc(instrOther) + '</textarea></div>' +
     '<h5>Tooth chart</h5><div class="tc" id="cf-tc"><div class="pickRow tcTools" role="radiogroup" aria-label="Marker">' +
     MARKS.map((m, i) => '<button type="button" class="pick sm tool m-' + m.k + '" data-tool="' + m.k + '" role="radio" aria-checked="' + (i === 0) + '">' + esc(m.l) + '</button>').join('') +
-    '<span class="tcSep"></span><button type="button" class="pick sm" data-tq="ant">Anteriors 3–3</button><button type="button" class="pick sm" data-tq="all">All teeth</button><button type="button" class="pick sm" data-tq="clear">Clear</button></div>' +
+    '<span class="tcSep"></span><button type="button" class="pick sm" data-tq="ant">Anteriors 3–3</button><button type="button" class="pick sm" data-tq="post">Posteriors 4–7</button><button type="button" class="pick sm" data-tq="all">All teeth</button><button type="button" class="pick sm" data-tq="clear">Clear</button></div>' +
     '<div id="cf-tcChart">' + toothChartHTML(c.teeth, false) + '</div><div class="tcSum" id="cf-teethSum">' + esc(teethSummary(c.teeth) || 'Tap a marker, then tap teeth.') + '</div>' +
     '<input type="hidden" id="cf-teeth" value="' + esc(JSON.stringify(canonTeeth(c.teeth))) + '"></div>' +
     '<h5>Also</h5>' + pickRow('extras', PICK.extras, c.extras || [], true) + '</div>' +
@@ -229,7 +236,7 @@ function wireCaseForm(root, isNew) {
       const set = (k, on) => { const a = (t[k] || []).filter(x => x !== mk); if (on) a.push(mk); t[k] = a; };
       if (tooth) set(tooth.dataset.t, !has(tooth.dataset.t));
       else if (tq.dataset.tq === 'clear') t = {};
-      else { const list = tq.dataset.tq === 'ant' ? ANTERIORS : TEETH_U.concat(TEETH_L); const allOn = list.every(has); list.forEach(k => set(k, !allOn)); }
+      else { const list = tq.dataset.tq === 'ant' ? ANTERIORS : tq.dataset.tq === 'post' ? POSTERIORS : TEETH_U.concat(TEETH_L); const allOn = list.every(has); list.forEach(k => set(k, !allOn)); }
       t = canonTeeth(t); $r('#cf-teeth').value = JSON.stringify(t);
       $r('#cf-tcChart').innerHTML = toothChartHTML(t, false);
       $r('#cf-teethSum').textContent = teethSummary(t) || 'Tap a marker, then tap teeth.';
