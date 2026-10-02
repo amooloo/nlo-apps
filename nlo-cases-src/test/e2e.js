@@ -15,7 +15,7 @@ const forbidden = [];
 async function fsDump() {
   // read every document as raw JSON with the emulator's admin bypass
   const out = [];
-  for (const col of ['cases', 'log', 'members', 'roster', 'meta', 'logins', 'inbox', 'mailbeat', 'mailbots']) {
+  for (const col of ['cases', 'log', 'members', 'roster', 'meta', 'logins', 'inbox', 'mailbeat', 'mailbots', 'photos']) {
     const r = await fetch(`http://127.0.0.1:8080/v1/projects/${PROJECT}/databases/(default)/documents/${col}?pageSize=1000`, { headers: { Authorization: 'Bearer owner' } });
     const j = await r.json(); (j.documents || []).forEach(d => out.push(d));
   }
@@ -840,6 +840,108 @@ async function openByName(p, name) {
   let offErr = ''; try { gas.ctx.checkMail(); } catch (e) { offErr = e.message; }
   check(/inbox key|turned off/.test(offErr), 'after Turn off the script can’t send anything');
   await owner.click('#nav-today');
+
+  console.log('\n# Patient photos: added, reused, changed, removed, pasted, blurred, re-sealed');
+  // test pictures drawn in the page (made-up), as a camera or a file would give them
+  const pic = async (color, name) => ({ name, mimeType: 'image/jpeg', buffer: Buffer.from(await owner.evaluate(cl => { const c = document.createElement('canvas'); c.width = 1200; c.height = 1500; const g = c.getContext('2d');
+    g.fillStyle = cl; g.fillRect(0, 0, 1200, 1500); g.fillStyle = '#f1c7a5'; g.beginPath(); g.ellipse(600, 620, 260, 330, 0, 0, 7); g.fill(); g.fillStyle = '#222'; g.fillRect(470, 560, 40, 40); g.fillRect(690, 560, 40, 40);
+    return c.toDataURL('image/jpeg', 0.92).split(',')[1]; }, color), 'base64') });
+  const picA = await pic('#3a7bd5', 'a.jpg'), picB = await pic('#d53a7b', 'b.jpg');
+  const PP = 'Pia Portrait';
+  const ptCases = pg => pg.evaluate(n => openCases().filter(c => c.patient === n).map(c => ({ id: c.id, type: c.type, photo: c.photo || '' })), PP);
+  const photoDocs = async () => (await fsDump()).filter(d => d.name.includes('/photos/'));
+  const editorSave = async (pg, file) => { await pg.setInputFiles('#phFile', file); await pg.waitForSelector('#phCrop:not([hidden])'); await pg.click('#phWrap [data-ph=save]'); await pg.waitForSelector('#phWrap', { state: 'detached', timeout: 20000 }); };
+  // 1) New case with a photo taken in the form
+  await owner.click('#nav-today'); await owner.click('.topBar [data-act=newCase]'); await owner.waitForSelector('#ncForm #cf-photo');
+  await owner.click('#ncForm .tt[data-tile=oliv]'); await owner.fill('#cf-patient', PP);
+  await owner.click('#cf-photo'); await owner.waitForSelector('#phWrap .phDrop');
+  await editorSave(owner, picA);
+  check(/Change photo/.test(await owner.textContent('#cf-photo .phSlotL')), 'the New case form takes a photo (cropped in the browser) before the case is saved');
+  await owner.click('#ncSave'); await owner.waitForSelector('#modalWrap', { state: 'detached', timeout: 20000 });
+  await owner.waitForFunction(n => openCases().some(c => c.patient === n && c.photo), PP, { timeout: 20000 });
+  let pc = await ptCases(owner); const idA = pc[0].id;
+  let pd = await photoDocs();
+  const pdA = pd.find(d => d.name.endsWith('/photos/' + idA));
+  check(!!pdA && Object.keys(pdA.fields).sort().join() === 'at,by,ct,iv,pv,v' && pdA.fields.pv.stringValue === pc[0].photo, 'the photo is saved with the new case: only sealed bytes, its version id and who/when (photos/' + idA.slice(0, 6) + '…)');
+  check(!pdA.fields.ct.stringValue.startsWith('/9j/') && pdA.fields.ct.stringValue.length < 60000, 'what’s stored isn’t a readable JPEG, and it’s small (' + pdA.fields.ct.stringValue.length + ' characters)');
+  const shrunk = await owner.evaluate(async id => { const r = await B.getPhoto(id); const im = new Image(); im.src = 'data:image/jpeg;base64,' + b64(r.bytes); await im.decode(); return [im.naturalWidth, im.naturalHeight, r.bytes.length]; }, idA);
+  check(shrunk[0] === 160 && shrunk[1] === 160 && shrunk[2] < 30000, 'the 1200×1500 picture was cut to a 160×160 square before it left the browser (' + shrunk.join(' × ').replace(/ × (\d+)$/, ', $1 bytes') + ')');
+  // 2) Gwen sees it next to the name
+  await gwen.click('#nav-list'); await gwen.fill('#q', PP);
+  await gwen.waitForSelector('tr.click:has-text("' + PP + '") .pav.on img', { timeout: 20000 });
+  check(/^data:image\/jpeg;base64,/.test(await gwen.getAttribute('tr.click:has-text("' + PP + '") .pav.on img', 'src')), 'Gwen sees the photo next to the name (opened with the office key in her browser)');
+  // 3) The patient's next case brings the photo along; one case made without it
+  await owner.click('.topBar [data-act=newCase]'); await owner.waitForSelector('#ncForm #cf-photo');
+  await owner.click('#ncForm .tt[data-tile=retainer]'); await owner.fill('#cf-patient', PP);
+  await owner.waitForSelector('#cf-photo.set', { timeout: 15000 });
+  check(/From their other case/.test(await owner.textContent('#cf-photo .phSlotL')), 'a new case for the same patient picks up their photo');
+  await owner.click('#ncSave'); await owner.waitForSelector('#modalWrap', { state: 'detached', timeout: 20000 });
+  await owner.click('.topBar [data-act=newCase]'); await owner.waitForSelector('#ncForm #cf-photo');
+  await owner.click('#ncForm .tt[data-tile=models]'); await owner.fill('#cf-patient', PP); await owner.waitForSelector('#cf-photo.set', { timeout: 15000 });
+  await owner.click('#cf-photo'); await owner.click('#phWrap [data-ph=remove]'); await owner.waitForSelector('#phWrap', { state: 'detached' });
+  check(!(await owner.isVisible('#cf-photo.set')), '…or not, if it’s taken off in the form');
+  await owner.fill('#cf-chart', '77-1'); await owner.waitForTimeout(600);
+  check(!(await owner.isVisible('#cf-photo.set')), 'and it doesn’t come back while typing');
+  await owner.click('#ncSave'); await owner.waitForSelector('#modalWrap', { state: 'detached', timeout: 20000 });
+  await owner.waitForFunction(n => openCases().filter(c => c.patient === n).length === 3, PP, { timeout: 20000 });
+  pc = await ptCases(owner);
+  const idR = pc.find(c => c.type === 'retainer').id, idM = pc.find(c => c.type === 'models').id;
+  check(!!pc.find(c => c.type === 'retainer').photo && !pc.find(c => c.type === 'models').photo && pc.find(c => c.type === 'retainer').photo !== pc[0].photo, 'retainer case: its own copy of the photo; study models: none');
+  // 4) Gwen changes the photo on the Oliv case: it also goes on the photo-less case; Undo puts things back
+  const bytesA = await owner.evaluate(id => B.getPhoto(id).then(r => b64(r.bytes)), idA);
+  await gwen.evaluate(id => openDrawer(id), idA); await gwen.waitForSelector('#drawer .dPh .pav.on', { timeout: 20000 });
+  await gwen.click('#drawer .dPh'); await gwen.waitForSelector('#phWrap #phNow.on', { timeout: 10000 });
+  check(await gwen.isVisible('#phWrap [data-ph=remove]'), 'the case’s photo opens in the photo window (with Remove photo)');
+  await editorSave(gwen, picB);
+  await gwen.waitForSelector('.toast:has-text("Photo changed")', { timeout: 20000 });
+  check(/also on 1 other open case/.test(await gwen.textContent('.toast:has-text("Photo changed")')), 'Gwen changes the photo; the patient’s case without one gets it too (' + (await gwen.textContent('.toast:has-text("Photo changed")')).replace(/Undo/, '').trim() + ')');
+  await gwen.waitForSelector('#histBox .hist:has-text("changed the photo")', { timeout: 20000 });
+  check(true, 'the case’s history shows who changed the photo');
+  await owner.waitForFunction(id => !!(openCases().find(c => c.id === id) || {}).photo, idM, { timeout: 20000 });
+  const bytesB = await owner.evaluate(id => B.getPhoto(id).then(r => b64(r.bytes)), idA);
+  check(bytesB !== bytesA && bytesB === await owner.evaluate(id => B.getPhoto(id).then(r => b64(r.bytes)), idM), 'the new picture is on both cases');
+  await gwen.click('.toast:has-text("Photo changed") button'); await gwen.waitForSelector('.toast:has-text("Undone")', { timeout: 20000 });
+  await owner.waitForFunction(id => !(openCases().find(c => c.id === id) || {}).photo, idM, { timeout: 20000 });
+  check(await owner.evaluate(id => B.getPhoto(id).then(r => b64(r.bytes)), idA) === bytesA && !(await photoDocs()).some(d => d.name.endsWith('/photos/' + idM)), 'Undo puts the old picture back and takes it off the other case');
+  await gwen.click('#drawer [data-act=closeDrawer] >> nth=0');
+  // 5) Remove a photo; then paste one in
+  await owner.evaluate(id => openDrawer(id), idR); await owner.waitForSelector('#drawer .dPh .pav.on', { timeout: 20000 });
+  await owner.click('#drawer .dPh'); await owner.click('#phWrap [data-ph=remove]'); await owner.waitForSelector('.toast:has-text("Photo removed")', { timeout: 20000 });
+  await owner.waitForFunction(id => !(openCases().find(c => c.id === id) || {}).photo, idR, { timeout: 20000 });
+  check(!(await photoDocs()).some(d => d.name.endsWith('/photos/' + idR)) && !(await owner.isVisible('#drawer .dPh .pav.on')), 'Remove photo deletes the stored picture; the case shows the plain placeholder');
+  await owner.evaluate(async b => { const bin = atob(b), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+    const dt = new DataTransfer(); dt.items.add(new File([u], 'clip.png', { type: 'image/jpeg' })); document.querySelector('#drawer').dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true })); }, picB.buffer.toString('base64'));
+  await owner.waitForSelector('#phCrop:not([hidden])', { timeout: 10000 }); await owner.click('#phWrap [data-ph=save]');
+  await owner.waitForSelector('.toast:has-text("Photo added")', { timeout: 20000 });
+  check(true, 'pasting a picture (e.g. a screenshot) while a case is open adds it as the photo');
+  await owner.evaluate(async () => { const t = document.querySelector('#cmtText'); t.focus(); const dt = new DataTransfer(); dt.setData('text/plain', 'just text'); t.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true })); });
+  check(!(await owner.isVisible('#phWrap')), 'pasting text into the comment box stays text');
+  await owner.click('#drawer [data-act=closeDrawer] >> nth=0');
+  // 6) Blur on this computer
+  await owner.click('#nav-list'); await owner.fill('#q', PP); await owner.waitForSelector('.topBar [data-act=phHide]');
+  await owner.click('.topBar [data-act=phHide]');
+  check(await owner.evaluate(() => document.body.classList.contains('phHide') && localStorage.getItem('nloCases.hidePhotos') === '1') &&
+    /blur/.test(await owner.evaluate(() => getComputedStyle(document.querySelector('tr.click .pav.on img')).filter)), 'Hide photos blurs them on this computer (and remembers it here)');
+  await owner.click('.topBar [data-act=phHide]');
+  check(!(await owner.evaluate(() => document.body.classList.contains('phHide'))), 'and shows them again');
+  await owner.fill('#q', '');
+  // 7) Office key change: photos are re-sealed; Gwen opens them with the new key
+  const vBefore = await owner.evaluate(() => B.curV);
+  await owner.click('#nav-admin'); await owner.click('[data-act=rotate]'); await owner.click('#cbYes');
+  await owner.waitForSelector('.toast:has-text("Office key changed")', { timeout: 60000 });
+  check(/photos? re-sealed/.test(await owner.textContent('.toast:has-text("Office key changed")')), 'changing the office key re-seals the photos too');
+  pd = await photoDocs();
+  check(pd.length >= 2 && pd.every(d => d.fields.v.integerValue === String(vBefore + 1)), 'every stored photo is now on key version ' + (vBefore + 1) + ' (' + pd.length + ' photos)');
+  await gwen.evaluate(() => { PH.cache.clear(); }); await gwen.click('#nav-today'); await gwen.click('#nav-list'); await gwen.fill('#q', PP);
+  await gwen.waitForSelector('tr.click:has-text("Oliv") .pav.on img', { timeout: 20000 });
+  check(true, 'Gwen (still signed in) opens the re-sealed photos');
+  // 8) Deleting a case takes its photo with it
+  await owner.evaluate(id => openDrawer(id), idR); await owner.waitForSelector('#drawer [data-act=delCase]');
+  await owner.click('#drawer [data-act=delCase]'); await owner.click('#cbYes'); await owner.waitForSelector('.toast:has-text("Case deleted")', { timeout: 20000 });
+  check(!(await photoDocs()).some(d => d.name.endsWith('/photos/' + idR)), 'a deleted case’s photo is deleted with it');
+  dump = JSON.stringify(await fsDump());
+  check(!/Pia|Portrait/.test(dump), 'the patient’s name isn’t readable anywhere in the database');
+  await gwen.fill('#q', ''); await owner.click('#nav-today');
 
   console.log('\n# Today: clean up old cases in bulk (complete with undo, delete)');
   await owner.evaluate(async () => {

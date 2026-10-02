@@ -144,7 +144,7 @@ const ADMIN_ACTS = {
       if (!list.length) { box.innerHTML = '<div class="small muted">No activity in the last 7 days.</div>'; return; }
       box.innerHTML = list.filter(x => x.a !== 'rekey').slice(0, 80).map(x => {
         const c = S.cases.get(x.caseId); const who = x.a === 'email' ? ((MAIL_CO[x.co] || {}).l || 'Lab') + ' email' : firstName(staffName(x.sid, x.sid));
-        const what = { create: 'created', import: 'imported', stage: 'moved', comment: 'commented on', close: 'completed', reopen: 'reopened', assign: 'reassigned', edit: 'edited', restore: 'restored', delete: 'deleted', save: 'saved', rekey: 're-sealed', email: 'updated' }[x.a] || x.a;
+        const what = { create: 'created', import: 'imported', stage: 'moved', comment: 'commented on', close: 'completed', reopen: 'reopened', assign: 'reassigned', edit: 'edited', restore: 'restored', delete: 'deleted', save: 'saved', rekey: 're-sealed', email: 'updated', photo: 'changed the photo of' }[x.a] || x.a;
         return '<div class="hist"><time>' + esc(fmtWhen(x.at)) + '</time><span><b>' + esc(who) + '</b> ' + esc(what) + ' ' + (c ? '<button class="linkBtn" data-act="open" data-id="' + esc(c.id) + '">' + esc(c.patient) + '</button>' : 'a completed case') + '</span></div>';
       }).join('');
     } catch (x) { const box = $('#actBox'); if (box) box.innerHTML = '<div class="small" style="color:var(--coral-700)">' + esc(errText(x)) + '</div>'; }
@@ -284,7 +284,7 @@ async function rotateWithProgress(title) {
   try {
     const r = await B.rotate((n, tot) => { const b = $('#rotBar'); if (b) b.style.width = Math.round(n / tot * 100) + '%'; });
     closeModal();
-    toast('Office key changed. ' + r.cases + ' case' + (r.cases === 1 ? '' : 's') + ' re-sealed.' + (r.pendingInvites ? ' ' + r.pendingInvites + ' unused invite(s) need reissuing.' : '') + (r.badKeys && r.badKeys.length ? ' Couldn’t give the new key to ' + r.badKeys.join(', ') + ' — reissue their login.' : ''), { ms: 9000 });
+    toast('Office key changed. ' + r.cases + ' case' + (r.cases === 1 ? '' : 's') + (r.photos ? ' and ' + r.photos + ' photo' + (r.photos === 1 ? '' : 's') : '') + ' re-sealed.' + (r.pendingInvites ? ' ' + r.pendingInvites + ' unused invite(s) need reissuing.' : '') + (r.badKeys && r.badKeys.length ? ' Couldn’t give the new key to ' + r.badKeys.join(', ') + ' — reissue their login.' : ''), { ms: 9000 });
     queueRender();
   } catch (x) { closeModal(); toast('Key change stopped: ' + errText(x) + '. Run “Change office key now” again.', { bad: true, ms: 8000 }); }
 }

@@ -82,6 +82,23 @@ const DEMO = {
       const id = 'demoDone' + j;
       DEMO.cases.set(id, { id, rev: 3, v: 1, status: 'done', by: 'sarah', updatedAt: Date.now() - j * 86400e3, closedAt: Date.now() - j * 86400e3, type: j % 2 ? 'retainer' : 'oliv', patient: first[(j + 9) % first.length] + ' ' + last[(j + 2) % last.length], detail: j % 2 ? "U/L TT's" : 'Aligners (Oliv)', stage: j % 2 ? 'pickup' : 'milestones', assignee: 'sarah', deliveryDate: addDays(t, -j - 1), comments: [], createdAt: Date.now() - 20 * 86400e3 });
     }
+    // patient photos: drawn cartoon faces (no real people), on about two thirds of the open cases
+    // (the same made-up name always gets the same face, like a patient whose photo came along from their other case)
+    const faceOf = n => Array.from(String(n)).reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) % 9973, 7);
+    Array.from(DEMO.cases.values()).forEach((c, i) => { if (i % 3 !== 2) { c.photo = 'dv' + i; DEMO.photos.set(c.id, { pv: c.photo, face: faceOf(c.patient) }); } });
+  },
+  /* patient photos (in memory) */
+  photos: new Map(),
+  async getPhoto(id) {
+    const p = DEMO.photos.get(id); if (!p) return null;
+    if (!p.bytes) p.bytes = await demoFace(p.face);
+    return { pv: p.pv, bytes: p.bytes };
+  },
+  async setPhoto(id, bytes, action) {
+    const pv = bytes ? 'dv' + uid8() : '';
+    await DEMO.mutateCase(id, d => { if (!bytes && !d.photo) return 'skip'; d.photo = pv; }, action || { a: 'photo', how: bytes ? 'add' : 'remove' });
+    if (bytes) DEMO.photos.set(id, { pv, bytes }); else DEMO.photos.delete(id);
+    return pv;
   },
   start(h) {
     DEMO.h = h;
@@ -109,10 +126,12 @@ const DEMO = {
     return list.map(item => {
       const id = 'demo' + uid8();
       const c = Object.assign({}, item.data, { id, rev: 1, v: 1, status: item.status || 'open', by: DEMO.me.staffId, updatedAt: Date.now(), closedAt: item.status === 'done' ? (item.closedAt || Date.now()) : null });
+      if (item.photo) { c.photo = 'dv' + uid8(); DEMO.photos.set(id, { pv: c.photo, bytes: item.photo }); }
+      item.id = id; item.photoV = c.photo || '';
       DEMO.cases.set(id, c); DEMO.logs.push({ caseId: id, a: (item.action || { a: 'create' }).a, at: Date.now(), sid: DEMO.me.staffId }); DEMO.emit(c); return id;
     });
   },
-  async createCase(data) { return (await DEMO.createCases([{ data }]))[0]; },
+  async createCase(data, photo) { return (await DEMO.createCases([{ data, photo: photo || null }]))[0]; },
   async mutateCase(id, fn, action) {
     const c = DEMO.cases.get(id); if (!c) throw errCode('gone');
     const data = JSON.parse(JSON.stringify(c)); const st = fn(data);
@@ -123,7 +142,7 @@ const DEMO = {
     DEMO.cases.set(id, data); if (action) DEMO.logs.push(Object.assign({ caseId: id, at: Date.now(), sid: DEMO.me.staffId }, action));
     await new Promise(r => setTimeout(r, 60)); DEMO.emit(data);
   },
-  async deleteCase(id) { const c = DEMO.cases.get(id); if (c) DEMO.deleted.push({ caseId: id, at: Date.now(), sid: DEMO.me.staffId, data: JSON.parse(JSON.stringify(c)) }); DEMO.cases.delete(id); if (c && DEMO.h) DEMO.h.cases([], [id], false); },
+  async deleteCase(id) { const c = DEMO.cases.get(id); if (c) DEMO.deleted.push({ caseId: id, at: Date.now(), sid: DEMO.me.staffId, data: JSON.parse(JSON.stringify(c)) }); DEMO.cases.delete(id); DEMO.photos.delete(id); if (c && DEMO.h) DEMO.h.cases([], [id], false); },
   async loadClosed() { return Array.from(DEMO.cases.values()).filter(c => c.status === 'done').map(c => JSON.parse(JSON.stringify(c))); },
   async loadAll() { return Array.from(DEMO.cases.values()).map(c => JSON.parse(JSON.stringify(c))); },
   async caseLog(id) { return DEMO.logs.filter(l => l.caseId === id).slice().sort((a, b) => a.at - b.at); },
@@ -143,8 +162,34 @@ const DEMO = {
   async caseVersions(id) { return (DEMO.versions[id] || []).slice().reverse(); },
   async restoreVersion(id, data) { return DEMO.mutateCase(id, d => { Object.keys(d).forEach(k => { if (!['id', 'rev', 'v', 'status', 'by', 'updatedAt', 'closedAt'].includes(k)) delete d[k]; }); Object.assign(d, JSON.parse(JSON.stringify(data))); }, { a: 'restore' }); },
   async deletedCases() { return DEMO.deleted.slice().reverse(); },
-  async undelete(item) { DEMO.deleted = DEMO.deleted.filter(x => x !== item); return DEMO.createCases([{ data: item.data, action: { a: 'restore' } }]); },
+  async undelete(item) { DEMO.deleted = DEMO.deleted.filter(x => x !== item); const data = Object.assign({}, item.data); delete data.photo; return DEMO.createCases([{ data, action: { a: 'restore' } }]); },
   versions: {}, deleted: [],
   async changePassword() { },
   get curV_() { return DEMO.curV; }
 };
+/* a made-up cartoon face for the demo (drawn, not a photo of anyone): a JPEG like the real ones */
+function demoFace(n) {
+  const R = k => { const x = Math.sin((n + 1) * 9301 + k * 49297) * 233280; return x - Math.floor(x); };
+  const pick = (a, k) => a[Math.floor(R(k) * a.length)];
+  const cv = document.createElement('canvas'); cv.width = cv.height = 160; const g = cv.getContext('2d');
+  g.fillStyle = pick(['#C0FBEC', '#E5EAF8', '#FEF2D7', '#FFE7E1', '#E8ECF2', '#BCC8EE'], 1); g.fillRect(0, 0, 160, 160);
+  const skin = pick(['#F6D2B8', '#EBC09E', '#D9A47E', '#B97F57', '#8E5A3B', '#6B4128'], 2), hair = pick(['#2B1D14', '#4A3121', '#7A4E2D', '#B9894A', '#E2C27A', '#1B1B1B'], 3);
+  const ell = (x, y, rx, ry, c) => { g.fillStyle = c; g.beginPath(); g.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2); g.fill(); };
+  const long = R(4) > .55;
+  if (long) { g.fillStyle = hair; g.beginPath(); g.moveTo(38, 80); g.quadraticCurveTo(40, 30, 80, 28); g.quadraticCurveTo(120, 30, 122, 80); g.lineTo(126, 132); g.lineTo(34, 132); g.closePath(); g.fill(); }
+  g.fillStyle = pick(['#1D3EA9', '#34C49E', '#FA624D', '#F6AF24', '#385686', '#5471A0'], 5); g.beginPath(); g.moveTo(22, 160); g.quadraticCurveTo(28, 122, 80, 118); g.quadraticCurveTo(132, 122, 138, 160); g.closePath(); g.fill();
+  g.fillStyle = skin; g.fillRect(68, 100, 24, 22);
+  ell(80, 78, 33, 39, skin); ell(47, 80, 6, 9, skin); ell(113, 80, 6, 9, skin);
+  g.fillStyle = hair; g.beginPath();
+  if (R(6) > .5) { g.ellipse(80, 54, 36, 24, 0, Math.PI, Math.PI * 2); g.lineTo(116, 62); g.quadraticCurveTo(84, 44, 46, 64); } else { g.ellipse(80, 56, 35, 26, 0, Math.PI * 1.02, Math.PI * 1.98); g.quadraticCurveTo(70, 52, 45, 66); }
+  g.closePath(); g.fill();
+  if (!long && R(7) > .7) ell(80, 30, 13, 11, hair);
+  ell(67, 78, 3.6, 4.4, '#1B2F4C'); ell(93, 78, 3.6, 4.4, '#1B2F4C');
+  g.strokeStyle = hair; g.lineWidth = 2.4; g.lineCap = 'round';
+  g.beginPath(); g.moveTo(61, 69); g.lineTo(72, 68); g.moveTo(88, 68); g.lineTo(99, 69); g.stroke();
+  g.fillStyle = '#fff'; g.beginPath(); g.moveTo(66, 95); g.quadraticCurveTo(80, 110, 94, 95); g.closePath(); g.fill();
+  g.strokeStyle = '#B9C2CE'; g.lineWidth = 1.6; g.beginPath(); g.moveTo(68, 98); g.lineTo(92, 98); g.stroke(); // braces wire
+  g.fillStyle = '#969FAB'; [71, 76, 80, 84, 89].forEach(x => g.fillRect(x - 1.5, 96.5, 3, 3));
+  g.strokeStyle = '#9C4A3A'; g.lineWidth = 2; g.beginPath(); g.moveTo(66, 95); g.quadraticCurveTo(80, 110, 94, 95); g.stroke();
+  return new Promise(res => cv.toBlob(b => b.arrayBuffer().then(a => res(new Uint8Array(a))), 'image/jpeg', 0.85));
+}

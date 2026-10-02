@@ -123,6 +123,28 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // ---------- patient photos ----------
+    // One small picture per case, sealed in the browser with the office key like the case itself.
+    // It changes only together with a save of its case (so the case's history shows who added or
+    // changed it), or with a brand-new case; the owner re-seals pictures unchanged after a key change.
+    function caseDoc(id) { return /databases/$(db)/documents/cases/$(id); }
+    function caseSavedNow(id) { return exists(caseDoc(id)) && existsAfter(caseDoc(id)) && getAfter(caseDoc(id)).data.rev == get(caseDoc(id)).data.rev + 1; }
+    match /photos/{id} {
+      function okPhoto() {
+        let d = request.resource.data;
+        return d.keys().hasOnly(['v', 'iv', 'ct', 'pv', 'at', 'by']) && d.v == curV()
+          && d.iv is string && d.iv.size() <= 24 && d.ct is string && d.ct.size() <= 90000
+          && d.pv is string && d.pv.size() > 0 && d.pv.size() <= 20
+          && d.by == request.auth.uid && d.at == request.time;
+      }
+      allow get: if isMember();
+      allow list: if isOwner();
+      allow create: if isMember() && okPhoto() && existsAfter(caseDoc(id)) && (!exists(caseDoc(id)) || caseSavedNow(id));
+      allow update: if isMember() && okPhoto() && existsAfter(caseDoc(id))
+        && (caseSavedNow(id) || (isOwner() && request.resource.data.pv == resource.data.pv));
+      allow delete: if isMember() && (!existsAfter(caseDoc(id)) || caseSavedNow(id));
+    }
+
     // ---------- lab-email updates ----------
     // A small Google Apps Script in the office's Gmail accounts forwards lab emails, sealed to the office
     // inbox key so only the app can open them. Its own login (made by the owner) can add sealed items to the

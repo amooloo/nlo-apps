@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-TJ0Ptuis7terbBKNvo0bM590TbLSZ+kgzrVLfvDdbu8=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-axj76fR2g52uMHK3BKmkPknGuE5BPsCArFT40d4G3NY=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO Cases</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -577,6 +577,58 @@ a.btn{text-decoration:none}
 .noteHd{display:flex;align-items:center;gap:8px}
 .noteHd .small{text-transform:none;letter-spacing:0;font-family:var(--fb)}
 #noteTxt{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;line-height:1.5}
+
+/* ---------- Patient photos ---------- */
+.pav{--s:32px;width:var(--s);height:var(--s);border-radius:50%;flex:none;display:inline-flex;align-items:flex-end;justify-content:center;overflow:hidden;background:var(--grey-100);color:var(--grey-300);vertical-align:middle}
+.pav svg{width:80%;height:80%;fill:currentColor}
+.pav img{width:100%;height:100%;object-fit:cover;display:block;transition:filter .15s var(--ease),transform .15s var(--ease)}
+.pav.on{background:var(--grey-200)}
+.pav.s28{--s:28px} .pav.s32{--s:32px} .pav.s36{--s:36px} .pav.s64{--s:64px} .pav.s96{--s:96px}
+/* "Hide photos" on this computer: blurred until hovered (the photo editor always shows it) */
+body.phHide .pav.on img{filter:blur(7px) saturate(.5);transform:scale(1.35)}
+body.phHide .pav.on:hover img,body.phHide #phWrap .pav.on img{filter:none;transform:none}
+.phTgl[aria-pressed="true"]{color:var(--coral-700);background:var(--coral-100)}
+.kHd{display:flex;align-items:center;gap:9px;padding-right:36px;min-width:0}
+.kc .kHd .pt{padding-right:0;min-width:0;overflow-wrap:anywhere}
+.ptCell{display:flex;align-items:center;gap:12px}
+.ptTxt{min-width:0}
+.mlPh{display:inline-flex;align-items:center}
+.dPh{position:relative;flex:none;border-radius:50%;padding:0;margin:-4px 0 0 -2px}
+.dPh .dPhCam{position:absolute;right:-3px;bottom:-3px;width:25px;height:25px;border-radius:50%;background:#fff;color:var(--navy);display:inline-flex;align-items:center;justify-content:center;box-shadow:var(--sh-sm);border:1px solid var(--grey-200)}
+.dPh:hover .pav{box-shadow:0 0 0 3px var(--mint-200)}
+.dPh.over .pav,.phSlot.over .pav{box-shadow:0 0 0 3px var(--mint)}
+.ptRowF{display:flex;gap:16px;align-items:center}
+.ptRowF .grid2{flex:1;min-width:0}
+.phSlot{display:flex;flex-direction:column;align-items:center;gap:6px;flex:none;padding:4px;border-radius:12px}
+.phSlot:hover .pav{box-shadow:0 0 0 3px var(--mint-200)}
+.phSlotL{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:700;color:var(--blue);white-space:nowrap}
+.phSlot.set .phSlotL{color:var(--grey-600)}
+#phWrap{position:fixed;inset:0;z-index:980;background:rgba(17,32,58,.5);display:flex;align-items:center;justify-content:center;padding:16px}
+#phWrap.over .phBox{box-shadow:0 0 0 3px var(--mint),var(--sh-xl)}
+.phBox{background:#fff;border-radius:var(--r-lg);box-shadow:var(--sh-xl);width:min(420px,100%);max-height:calc(100vh - 32px);overflow:auto;display:flex;flex-direction:column}
+.phHd{display:flex;align-items:flex-start;gap:10px;padding:18px 16px 4px 22px}
+.phHd h3{font-family:var(--fd);font-weight:600;font-size:20px;color:var(--navy);letter-spacing:.02em}
+.phName{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.phPick,.phCrop{padding:10px 22px 2px}
+.phDrop{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;border:2px dashed var(--grey-200);border-radius:var(--r);padding:20px 16px;cursor:pointer;color:var(--navy)}
+.phDrop:hover,#phWrap.over .phDrop{border-color:var(--mint-600);background:var(--mint-100)}
+.phDrop b{font-size:14px}
+.phBtns{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:14px}
+.phStage{position:relative;width:min(260px,calc(100vw - 84px));aspect-ratio:1/1;margin:2px auto 0;border-radius:12px;overflow:hidden;touch-action:none;cursor:grab;background:var(--grey-100)}
+.phStage:active{cursor:grabbing}
+.phStage canvas{display:block}
+.phRing{position:absolute;inset:0;border-radius:50%;box-shadow:0 0 0 999px rgba(17,32,58,.45),inset 0 0 0 2px rgba(255,255,255,.9);pointer-events:none}
+.phZoom{display:flex;align-items:center;gap:6px;justify-content:center;margin-top:10px}
+.phZoom input{flex:1;max-width:170px;accent-color:var(--navy)}
+.phTip{text-align:center;margin-top:2px}
+.phErr{color:var(--coral-700);font-size:12.5px;font-weight:600;padding:0 22px}
+.phErr:not(:empty){padding-top:10px}
+.phFt{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:14px 22px 18px}
+@media (max-width:760px){
+  .ptRowF{align-items:flex-start}
+  .row .av{display:none}
+}
+#phWrap [hidden]{display:none !important}
 
 </style>
 </head>
@@ -1339,33 +1391,38 @@ const FB = {
     batchOrTx.set(ref, { caseId, rev, uid: FB.uid, sid: FB.me.staffId, at: FB.ts(), v: FB.curV, iv: box.iv, ct: box.ct, prev: prev || null });
   },
   async createCases(list, progress) {
-    // list: [{data, status:'open'|'done', closedAt:ms}]; small batches keep each one well inside the rules' lookup limit
+    // list: [{data, status:'open'|'done', closedAt:ms, photo?:bytes}]; small batches keep each one well inside the rules' lookup limit
     const PER = 5; let n = 0;
     for (let i = 0; i < list.length; i += PER) {
       const b = FB.db.batch();
       for (const item of list.slice(i, i + PER)) {
         const ref = FB.db.collection('cases').doc();
-        const v = FB.curV; const box = await Crypto.sealJSON(FB.keys[v], FB.clean(item.data), 'case:' + ref.id);
+        const v = FB.curV, body = FB.clean(item.data);
+        // a patient photo goes in with the new case (same batch), under its own version id
+        let ph = null; if (item.photo) { body.photo = uid8(); ph = await FB.photoBox(ref.id, item.photo, body.photo); }
+        const box = await Crypto.sealJSON(FB.keys[v], body, 'case:' + ref.id);
         const done = item.status === 'done';
         b.set(ref, { v, iv: box.iv, ct: box.ct, status: done ? 'done' : 'open', rev: 1, by: FB.uid, sid: FB.me.staffId, createdAt: FB.ts(), updatedAt: FB.ts(), closedAt: done ? firebase.firestore.Timestamp.fromMillis(item.closedAt || Date.now()) : null });
         await FB.logOps(b, ref.id, 1, null, item.action || { a: 'create' });
-        item.id = ref.id;
+        if (ph) b.set(FB.db.doc('photos/' + ref.id), ph);
+        item.id = ref.id; item.photoV = body.photo || '';
       }
       await FB.track(b.commit()); n += Math.min(PER, list.length - i); if (progress) progress(n, list.length);
     }
     return list.map(x => x.id);
   },
-  async createCase(data) { const ids = await FB.createCases([{ data, status: 'open' }]); return ids[0]; },
-  /* fn(data) edits the latest decrypted copy in place; return 'done' / 'open' to change status */
+  async createCase(data, photo) { const ids = await FB.createCases([{ data, status: 'open', photo: photo || null }]); return ids[0]; },
+  /* fn(data) edits the latest decrypted copy in place; return 'done' / 'open' to change status.
+     ops(tx), if given, adds other writes that must land together with this save (e.g. the case's photo) */
   /* one person's writes to the same case run one after another, never racing each other */
   queues: {},
-  mutateCase(id, fn, action) {
-    const run = () => FB._mutate(id, fn, action, 0);
+  mutateCase(id, fn, action, ops) {
+    const run = () => FB._mutate(id, fn, action, 0, ops);
     const p = (FB.queues[id] || Promise.resolve()).then(run, run);
     FB.queues[id] = p.catch(() => { });
     return p;
   },
-  async _mutate(id, fn, action, tries) {
+  async _mutate(id, fn, action, tries, ops) {
     const ref = FB.db.doc('cases/' + id);
     try {
       await FB.track(FB.db.runTransaction(async tx => {
@@ -1377,6 +1434,7 @@ const FB = {
         const closedAt = status === 'done' ? (d.status === 'done' && d.closedAt ? d.closedAt : FB.ts()) : null;
         tx.update(ref, { v, iv: box.iv, ct: box.ct, status, rev: d.rev + 1, by: FB.uid, sid: FB.me.staffId, updatedAt: FB.ts(), closedAt });
         await FB.logOps(tx, id, d.rev + 1, { v: d.v, iv: d.iv, ct: d.ct }, action || { a: 'save' });
+        if (ops) await ops(tx, data);
       }));
     } catch (e) {
       if (tries < 2 && /permission/i.test(e.code || e.message || '')) {
@@ -1385,19 +1443,39 @@ const FB = {
         if (!m || !m.active) throw e;
         await FB.loadRing(m);
         await new Promise(r => setTimeout(r, 150 + Math.random() * 350));
-        return FB._mutate(id, fn, action, tries + 1);
+        return FB._mutate(id, fn, action, tries + 1, ops);
       }
       throw e;
     }
   },
-  /* owner only; the last encrypted copy stays in history, so a delete can be undone */
+  /* owner only; the last encrypted copy stays in history, so a delete can be undone (its photo goes with it) */
   async deleteCase(id) {
     const ref = FB.db.doc('cases/' + id);
     await FB.track(FB.db.runTransaction(async tx => {
       const s = await tx.get(ref); if (!s.exists) throw errCode('gone'); const d = s.data();
       await FB.logOps(tx, id, d.rev + 1, { v: d.v, iv: d.iv, ct: d.ct }, { a: 'delete' });
-      tx.delete(ref);
+      tx.delete(ref); tx.delete(FB.db.doc('photos/' + id));
     }));
+  },
+  /* ---------- patient photos: one small picture per case (photos/{caseId}), sealed with the office key like the case.
+     The case's own `photo` field holds the picture's version id, so the picture changes together with a case save
+     (and shows in its history), and an open app knows when its copy is out of date. ---------- */
+  async photoBox(id, bytes, pv) {
+    const v = FB.curV; const box = await Crypto.seal(FB.keys[v], bytes, 'photo:' + id);
+    return { v, iv: box.iv, ct: box.ct, pv, at: FB.ts(), by: FB.uid };
+  },
+  /* { pv, bytes } or null */
+  async getPhoto(id) {
+    const s = await FB.db.doc('photos/' + id).get(); if (!s.exists) return null;
+    const x = s.data(); if (!FB.keys[x.v]) throw errCode('no-key');
+    return { pv: x.pv, bytes: await Crypto.open(FB.keys[x.v], x, 'photo:' + id) };
+  },
+  /* set (bytes) or remove (null) a case's photo; returns the new version id ('' when removed) */
+  async setPhoto(id, bytes, action) {
+    const pv = bytes ? uid8() : '';
+    await FB.mutateCase(id, d => { if (!bytes && !d.photo) return 'skip'; d.photo = pv; }, action || { a: 'photo', how: bytes ? 'add' : 'remove' },
+      async tx => { const ref = FB.db.doc('photos/' + id); if (bytes) tx.set(ref, await FB.photoBox(id, bytes, pv)); else tx.delete(ref); });
+    return pv;
   },
   /* every saved version of one case, newest first (the copy each write replaced, plus the current one) */
   async caseVersions(id) {
@@ -1429,7 +1507,8 @@ const FB = {
     }
     return out.sort((a, b) => b.at - a.at);
   },
-  async undelete(item) { return FB.createCases([{ data: item.data, status: 'open', action: { a: 'restore' } }]); },
+  // (a restored case comes back as a new case; its photo was removed with it)
+  async undelete(item) { const data = Object.assign({}, item.data); delete data.photo; return FB.createCases([{ data, status: 'open', action: { a: 'restore' } }]); },
   async saveSettings(patch) { await FB.track(FB.db.doc('meta/settings').set(patch, { merge: true })); },
 
   /* ---------- team (owner) ---------- */
@@ -1495,13 +1574,26 @@ const FB = {
     await FB.track(FB.db.doc('meta/keys').update({ current: newV }));
     FB.ring = ring2; FB.keys = await Crypto.ringKeys(ring2); FB.curV = newV; FB.ringV = newV;
     const all = (await FB.db.collection('cases').get()).docs.filter(d => d.data().v < newV);
+    // patient photos are re-sealed too (same picture, same version id); one whose case is gone is removed
+    const pics = (await FB.db.collection('photos').get()).docs.filter(d => d.data().v < newV);
+    const total = all.length + pics.length;
     let n = 0, failed = 0;
     for (let i = 0; i < all.length; i += 15) {
       await Promise.all(all.slice(i, i + 15).map(d => FB.mutateCase(d.id, () => { }, { a: 'rekey' }).catch(() => { failed++; })));
-      n += Math.min(15, all.length - i); if (progress) progress(n, all.length);
+      n += Math.min(15, all.length - i); if (progress) progress(n, total);
     }
-    if (failed) throw errCode('rekey-partial', failed + ' case(s) could not be re-sealed yet');
-    return { cases: all.length, pendingInvites, badKeys };
+    for (let i = 0; i < pics.length; i += 15) {
+      await Promise.all(pics.slice(i, i + 15).map(async d => {
+        try {
+          const x = d.data(), bytes = await Crypto.open(FB.keys[x.v], x, 'photo:' + d.id), box = await Crypto.seal(FB.keys[newV], bytes, 'photo:' + d.id);
+          if (!(await FB.db.doc('cases/' + d.id).get()).exists) { await d.ref.delete(); return; }
+          await FB.track(d.ref.update({ v: newV, iv: box.iv, ct: box.ct, at: FB.ts(), by: FB.uid }));
+        } catch (e) { failed++; }
+      }));
+      n += Math.min(15, pics.length - i); if (progress) progress(n, total);
+    }
+    if (failed) throw errCode('rekey-partial', failed + ' case(s) or photo(s) could not be re-sealed yet');
+    return { cases: all.length, photos: pics.length, pendingInvites, badKeys };
   }
 };
 
@@ -1589,6 +1681,23 @@ const DEMO = {
       const id = 'demoDone' + j;
       DEMO.cases.set(id, { id, rev: 3, v: 1, status: 'done', by: 'sarah', updatedAt: Date.now() - j * 86400e3, closedAt: Date.now() - j * 86400e3, type: j % 2 ? 'retainer' : 'oliv', patient: first[(j + 9) % first.length] + ' ' + last[(j + 2) % last.length], detail: j % 2 ? "U/L TT's" : 'Aligners (Oliv)', stage: j % 2 ? 'pickup' : 'milestones', assignee: 'sarah', deliveryDate: addDays(t, -j - 1), comments: [], createdAt: Date.now() - 20 * 86400e3 });
     }
+    // patient photos: drawn cartoon faces (no real people), on about two thirds of the open cases
+    // (the same made-up name always gets the same face, like a patient whose photo came along from their other case)
+    const faceOf = n => Array.from(String(n)).reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) % 9973, 7);
+    Array.from(DEMO.cases.values()).forEach((c, i) => { if (i % 3 !== 2) { c.photo = 'dv' + i; DEMO.photos.set(c.id, { pv: c.photo, face: faceOf(c.patient) }); } });
+  },
+  /* patient photos (in memory) */
+  photos: new Map(),
+  async getPhoto(id) {
+    const p = DEMO.photos.get(id); if (!p) return null;
+    if (!p.bytes) p.bytes = await demoFace(p.face);
+    return { pv: p.pv, bytes: p.bytes };
+  },
+  async setPhoto(id, bytes, action) {
+    const pv = bytes ? 'dv' + uid8() : '';
+    await DEMO.mutateCase(id, d => { if (!bytes && !d.photo) return 'skip'; d.photo = pv; }, action || { a: 'photo', how: bytes ? 'add' : 'remove' });
+    if (bytes) DEMO.photos.set(id, { pv, bytes }); else DEMO.photos.delete(id);
+    return pv;
   },
   start(h) {
     DEMO.h = h;
@@ -1616,10 +1725,12 @@ const DEMO = {
     return list.map(item => {
       const id = 'demo' + uid8();
       const c = Object.assign({}, item.data, { id, rev: 1, v: 1, status: item.status || 'open', by: DEMO.me.staffId, updatedAt: Date.now(), closedAt: item.status === 'done' ? (item.closedAt || Date.now()) : null });
+      if (item.photo) { c.photo = 'dv' + uid8(); DEMO.photos.set(id, { pv: c.photo, bytes: item.photo }); }
+      item.id = id; item.photoV = c.photo || '';
       DEMO.cases.set(id, c); DEMO.logs.push({ caseId: id, a: (item.action || { a: 'create' }).a, at: Date.now(), sid: DEMO.me.staffId }); DEMO.emit(c); return id;
     });
   },
-  async createCase(data) { return (await DEMO.createCases([{ data }]))[0]; },
+  async createCase(data, photo) { return (await DEMO.createCases([{ data, photo: photo || null }]))[0]; },
   async mutateCase(id, fn, action) {
     const c = DEMO.cases.get(id); if (!c) throw errCode('gone');
     const data = JSON.parse(JSON.stringify(c)); const st = fn(data);
@@ -1630,7 +1741,7 @@ const DEMO = {
     DEMO.cases.set(id, data); if (action) DEMO.logs.push(Object.assign({ caseId: id, at: Date.now(), sid: DEMO.me.staffId }, action));
     await new Promise(r => setTimeout(r, 60)); DEMO.emit(data);
   },
-  async deleteCase(id) { const c = DEMO.cases.get(id); if (c) DEMO.deleted.push({ caseId: id, at: Date.now(), sid: DEMO.me.staffId, data: JSON.parse(JSON.stringify(c)) }); DEMO.cases.delete(id); if (c && DEMO.h) DEMO.h.cases([], [id], false); },
+  async deleteCase(id) { const c = DEMO.cases.get(id); if (c) DEMO.deleted.push({ caseId: id, at: Date.now(), sid: DEMO.me.staffId, data: JSON.parse(JSON.stringify(c)) }); DEMO.cases.delete(id); DEMO.photos.delete(id); if (c && DEMO.h) DEMO.h.cases([], [id], false); },
   async loadClosed() { return Array.from(DEMO.cases.values()).filter(c => c.status === 'done').map(c => JSON.parse(JSON.stringify(c))); },
   async loadAll() { return Array.from(DEMO.cases.values()).map(c => JSON.parse(JSON.stringify(c))); },
   async caseLog(id) { return DEMO.logs.filter(l => l.caseId === id).slice().sort((a, b) => a.at - b.at); },
@@ -1650,11 +1761,37 @@ const DEMO = {
   async caseVersions(id) { return (DEMO.versions[id] || []).slice().reverse(); },
   async restoreVersion(id, data) { return DEMO.mutateCase(id, d => { Object.keys(d).forEach(k => { if (!['id', 'rev', 'v', 'status', 'by', 'updatedAt', 'closedAt'].includes(k)) delete d[k]; }); Object.assign(d, JSON.parse(JSON.stringify(data))); }, { a: 'restore' }); },
   async deletedCases() { return DEMO.deleted.slice().reverse(); },
-  async undelete(item) { DEMO.deleted = DEMO.deleted.filter(x => x !== item); return DEMO.createCases([{ data: item.data, action: { a: 'restore' } }]); },
+  async undelete(item) { DEMO.deleted = DEMO.deleted.filter(x => x !== item); const data = Object.assign({}, item.data); delete data.photo; return DEMO.createCases([{ data, action: { a: 'restore' } }]); },
   versions: {}, deleted: [],
   async changePassword() { },
   get curV_() { return DEMO.curV; }
 };
+/* a made-up cartoon face for the demo (drawn, not a photo of anyone): a JPEG like the real ones */
+function demoFace(n) {
+  const R = k => { const x = Math.sin((n + 1) * 9301 + k * 49297) * 233280; return x - Math.floor(x); };
+  const pick = (a, k) => a[Math.floor(R(k) * a.length)];
+  const cv = document.createElement('canvas'); cv.width = cv.height = 160; const g = cv.getContext('2d');
+  g.fillStyle = pick(['#C0FBEC', '#E5EAF8', '#FEF2D7', '#FFE7E1', '#E8ECF2', '#BCC8EE'], 1); g.fillRect(0, 0, 160, 160);
+  const skin = pick(['#F6D2B8', '#EBC09E', '#D9A47E', '#B97F57', '#8E5A3B', '#6B4128'], 2), hair = pick(['#2B1D14', '#4A3121', '#7A4E2D', '#B9894A', '#E2C27A', '#1B1B1B'], 3);
+  const ell = (x, y, rx, ry, c) => { g.fillStyle = c; g.beginPath(); g.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2); g.fill(); };
+  const long = R(4) > .55;
+  if (long) { g.fillStyle = hair; g.beginPath(); g.moveTo(38, 80); g.quadraticCurveTo(40, 30, 80, 28); g.quadraticCurveTo(120, 30, 122, 80); g.lineTo(126, 132); g.lineTo(34, 132); g.closePath(); g.fill(); }
+  g.fillStyle = pick(['#1D3EA9', '#34C49E', '#FA624D', '#F6AF24', '#385686', '#5471A0'], 5); g.beginPath(); g.moveTo(22, 160); g.quadraticCurveTo(28, 122, 80, 118); g.quadraticCurveTo(132, 122, 138, 160); g.closePath(); g.fill();
+  g.fillStyle = skin; g.fillRect(68, 100, 24, 22);
+  ell(80, 78, 33, 39, skin); ell(47, 80, 6, 9, skin); ell(113, 80, 6, 9, skin);
+  g.fillStyle = hair; g.beginPath();
+  if (R(6) > .5) { g.ellipse(80, 54, 36, 24, 0, Math.PI, Math.PI * 2); g.lineTo(116, 62); g.quadraticCurveTo(84, 44, 46, 64); } else { g.ellipse(80, 56, 35, 26, 0, Math.PI * 1.02, Math.PI * 1.98); g.quadraticCurveTo(70, 52, 45, 66); }
+  g.closePath(); g.fill();
+  if (!long && R(7) > .7) ell(80, 30, 13, 11, hair);
+  ell(67, 78, 3.6, 4.4, '#1B2F4C'); ell(93, 78, 3.6, 4.4, '#1B2F4C');
+  g.strokeStyle = hair; g.lineWidth = 2.4; g.lineCap = 'round';
+  g.beginPath(); g.moveTo(61, 69); g.lineTo(72, 68); g.moveTo(88, 68); g.lineTo(99, 69); g.stroke();
+  g.fillStyle = '#fff'; g.beginPath(); g.moveTo(66, 95); g.quadraticCurveTo(80, 110, 94, 95); g.closePath(); g.fill();
+  g.strokeStyle = '#B9C2CE'; g.lineWidth = 1.6; g.beginPath(); g.moveTo(68, 98); g.lineTo(92, 98); g.stroke(); // braces wire
+  g.fillStyle = '#969FAB'; [71, 76, 80, 84, 89].forEach(x => g.fillRect(x - 1.5, 96.5, 3, 3));
+  g.strokeStyle = '#9C4A3A'; g.lineWidth = 2; g.beginPath(); g.moveTo(66, 95); g.quadraticCurveTo(80, 110, 94, 95); g.stroke();
+  return new Promise(res => cv.toBlob(b => b.arrayBuffer().then(a => res(new Uint8Array(a))), 'image/jpeg', 0.85));
+}
 
 /* =====================================================================
    IPR Tracker link — reads the IPR Tracker's own records (nlo-inventory
@@ -1871,12 +2008,13 @@ function boot() {
   const qs = new URLSearchParams(location.search);
   const local = location.protocol === 'file:' || /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
   S.demo = qs.has('demo'); S.emu = local && qs.has('emu');
+  phInit();
   try { S.lastLogin = localStorage.getItem('nloCases.lastLogin') || ''; } catch (e) { }
   document.addEventListener('click', onClick);
   document.addEventListener('change', onChange);
   document.addEventListener('input', onInput);
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') { if ($('#modalWrap')) closeModal(); else if (S.openId) closeDrawer(); }
+    if (e.key === 'Escape') { if ($('#phWrap')) phClose(); else if ($('#modalWrap')) closeModal(); else if (S.openId) closeDrawer(); }
     if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('.kc[data-act], tr.click[data-act]')) { e.preventDefault(); e.target.click(); }
   });
   ['pointerdown', 'keydown', 'wheel', 'touchstart'].forEach(ev => document.addEventListener(ev, () => { S.lastAct = Date.now(); }, { passive: true }));
@@ -2056,6 +2194,7 @@ async function lockOut(msg) {
   closeModal(); closeDrawer(true);
   S.cases = new Map(); S.closed = []; S.hist = null; S.histLoaded = false; S.members = []; S.roster = []; S.iprCache = {}; S.verList = null; S.delList = null; S.impList = null;
   Object.assign(MAILS, { list: [], unread: [], pick: {}, sig: '', state: null, stateAt: 0, script: '' });
+  phReset();
   try { await iprLink().disconnect(); } catch (e) { }
   $('#view').innerHTML = '';
   await B.signOut();
@@ -2144,7 +2283,7 @@ const TITLES = { today: 'Today', board: 'Board', list: 'All open cases', mine: '
 function topBar(extra) {
   return '<div class="topBar"><h2>' + esc(TITLES[S.view]) + '</h2>' +
     (['today', 'board', 'list', 'mine', 'done'].includes(S.view) ? '<label class="searchBox">' + ic('search', 17) + '<span class="hidden">Search</span><input id="q" type="search" placeholder="Search patient, type, stage…" value="' + esc(S.q) + '" aria-label="Search cases"></label>' : '<span style="flex:1"></span>') +
-    (extra || '') + '<button class="btn btn-teal" data-act="newCase">' + ic('plus', 16) + 'New case</button></div>';
+    (extra || '') + (['today', 'board', 'list', 'mine', 'done'].includes(S.view) && phAny() ? phHideBtn() : '') + '<button class="btn btn-teal" data-act="newCase">' + ic('plus', 16) + 'New case</button></div>';
 }
 function renderView() {
   const v = $('#view'); const active = document.activeElement && document.activeElement.id === 'q';
@@ -2160,6 +2299,7 @@ function renderView() {
   $('#topSlot').innerHTML = topBar();
   v.innerHTML = h;
   if (active) { const q = $('#q'); q.focus(); q.setSelectionRange(q.value.length, q.value.length); }
+  phPaint();
 }
 
 /* ---------- small pieces ---------- */
@@ -2282,8 +2422,8 @@ function avatar(c) {
   return '<span class="av none" title="Unassigned">–</span>';
 }
 function row(c, meta) {
-  return '<button class="row" data-act="open" data-id="' + esc(c.id) + '">' + avatar(c) +
-    '<span class="grow"><span class="pt">' + esc(c.patient || '(no name)') + '</span><span class="meta">' + esc(meta != null ? meta : (typeOf(c).l + ' · ' + stageLabel(c) + (c.detail ? ' · ' + c.detail : ''))) + '</span></span>' + shipFlag(c, true) + dueChip(c) + '</button>';
+  return '<button class="row" data-act="open" data-id="' + esc(c.id) + '">' + ptAv(c, 36) +
+    '<span class="grow"><span class="pt">' + esc(c.patient || '(no name)') + '</span><span class="meta">' + esc(meta != null ? meta : (typeOf(c).l + ' · ' + stageLabel(c) + (c.detail ? ' · ' + c.detail : ''))) + '</span></span>' + shipFlag(c, true) + dueChip(c) + avatar(c) + '</button>';
 }
 
 /* ---------- Today ---------- */
@@ -2339,7 +2479,7 @@ function kcard(c, last, steps) {
   const mixed = S.boardFlow === 'outside' || S.boardFlow === 'inhouse' || S.boardFlow === 'retainer';
   const flags = shipFlag(c) + recFlag(c) + holdFlag(c);
   return '<div class="kc" data-act="open" data-id="' + esc(c.id) + '" role="button" tabindex="0">' +
-    '<div class="pt">' + esc(c.patient || '(no name)') + '</div>' + (c.detail || alN(c) ? '<div class="dt">' + esc(c.detail || '') + alignerMini(c) + '</div>' : '') +
+    '<div class="kHd">' + ptAv(c, 32) + '<div class="pt">' + esc(c.patient || '(no name)') + '</div></div>' + (c.detail || alN(c) ? '<div class="dt">' + esc(c.detail || '') + alignerMini(c) + '</div>' : '') +
     (flags ? '<div class="flags">' + flags + '</div>' : '') +
     (steps ? '<div class="kstep">' + progHTML(c, steps) + '<div><b>' + esc(stageLabel(c)) + '</b><span>' + (steps.indexOf(c.stage) + 1) + ' of ' + steps.length + '</span></div></div>' : '') +
     '<div class="ft">' + (mixed ? typeBadge(c) : '') + dueChip(c) + trackLinks(c) + avatar(c) +
@@ -2448,8 +2588,8 @@ function viewList(base, showWho) {
   // Shipping: the Ship to patient alert and one-click tracking get their own column (on phones they sit under the name)
   h += '<div class="card tblWrap"><table class="tbl"><thead><tr>' + th('patient', 'Patient') + th('type', 'Type', 'hideM') + th('stage', 'Stage') + th('due', 'Next date') + th('ship', 'Shipping', 'hideM') + th('who', 'Assigned', 'hideM') + th('updated', 'Updated', 'hideM') + '</tr></thead><tbody>' +
     list.map(c => { const g = stageGroup(flowOf(c), c.stage), ship = shipFlag(c) + trackLinks(c);
-      return '<tr class="click" data-act="open" data-id="' + esc(c.id) + '" tabindex="0"><td><div class="pt">' + esc(c.patient || '(no name)') + '</div><div class="small muted">' + esc(c.detail || '') + alignerMini(c) + '</div>' +
-      (ship ? '<div class="flags onlyM">' + ship + '</div>' : '') + '</td>' +
+      return '<tr class="click" data-act="open" data-id="' + esc(c.id) + '" tabindex="0"><td><div class="ptCell">' + ptAv(c, 36) + '<div class="ptTxt"><div class="pt">' + esc(c.patient || '(no name)') + '</div><div class="small muted">' + esc(c.detail || '') + alignerMini(c) + '</div>' +
+      (ship ? '<div class="flags onlyM">' + ship + '</div>' : '') + '</div></div></td>' +
       '<td class="hideM">' + typeBadge(c) + '</td><td class="stg">' + progHTML(c) + '<div class="small">' + esc(stageLabel(c)) + (g ? ' <span class="muted">· ' + esc(g.l.toLowerCase()) + ' ' + (g.stages.indexOf(c.stage) + 1) + '/' + g.stages.length + '</span>' : '') + '</div>' +
       (recFlag(c) || holdFlag(c) ? '<div class="flags">' + recFlag(c) + holdFlag(c) + '</div>' : '') + '</td><td>' + dueChip(c) + '</td>' +
       '<td class="hideM shipCol">' + (ship ? '<div class="flags">' + ship + '</div>' : '') + '</td>' +
@@ -2466,7 +2606,7 @@ function viewDone() {
     (S.closedDays < 3650 ? '<button class="btn btn-ghost" data-act="moreClosed">Show older</button>' : '') + '</div>';
   if (!list.length) return h + '<div class="card"><div class="empty">No completed cases' + (S.q ? ' match' : '') + '.</div></div>';
   return h + '<div class="card tblWrap"><table class="tbl"><thead><tr><th>Patient</th><th class="hideM">Type</th><th>Completed</th><th class="hideM">Last stage</th></tr></thead><tbody>' +
-    list.map(c => '<tr class="click" data-act="openClosed" data-id="' + esc(c.id) + '" tabindex="0"><td><div class="pt">' + esc(c.patient) + '</div><div class="small muted">' + esc(c.detail || '') + '</div></td><td class="hideM">' + typeBadge(c) + '</td><td class="small">' + esc(fmtWhen(c.closedAt)) + '</td><td class="hideM small">' + esc(stageLabel(c)) + '</td></tr>').join('') +
+    list.map(c => '<tr class="click" data-act="openClosed" data-id="' + esc(c.id) + '" tabindex="0"><td><div class="ptCell">' + ptAv(c, 36) + '<div class="ptTxt"><div class="pt">' + esc(c.patient) + '</div><div class="small muted">' + esc(c.detail || '') + '</div></div></div></td><td class="hideM">' + typeBadge(c) + '</td><td class="small">' + esc(fmtWhen(c.closedAt)) + '</td><td class="hideM small">' + esc(stageLabel(c)) + '</td></tr>').join('') +
     '</tbody></table></div>';
 }
 async function loadClosed() {
@@ -2502,7 +2642,7 @@ function refreshDrawer(gone) {
 async function loadHistory(id) {
   try { const h = await B.caseLog(id); if (S.openId === id) { S.history = h; const el = $('#histBox'); if (el) el.innerHTML = historyHTML(findCase(id)); } } catch (e) { }
 }
-const FIELD_LABELS = { labRef: 'lab case #', labHold: 'lab hold', planUrl: 'plan link', shipToPatient: 'ship to patient', records: 'records on file', zoomDate: 'Zoom call', zoomTime: 'Zoom call', tracking: 'tracking #', carrier: 'carrier', teeth: 'tooth chart', teethNote: 'tooth chart', chart: 'chart #', titanUrl: 'Titan link', initial: 'initial/refinement', appliances: 'appliance', lab: 'lab', arches: 'arch', retKinds: 'retainer type', goals: 'Dr. A’s instructions', instrPicks: 'Dr. A’s instructions', instrOther: 'Dr. A’s instructions', extras: 'extras', variant: 'case type', type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery date', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes' };
+const FIELD_LABELS = { photo: 'photo', labRef: 'lab case #', labHold: 'lab hold', planUrl: 'plan link', shipToPatient: 'ship to patient', records: 'records on file', zoomDate: 'Zoom call', zoomTime: 'Zoom call', tracking: 'tracking #', carrier: 'carrier', teeth: 'tooth chart', teethNote: 'tooth chart', chart: 'chart #', titanUrl: 'Titan link', initial: 'initial/refinement', appliances: 'appliance', lab: 'lab', arches: 'arch', retKinds: 'retainer type', goals: 'Dr. A’s instructions', instrPicks: 'Dr. A’s instructions', instrOther: 'Dr. A’s instructions', extras: 'extras', variant: 'case type', type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery date', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes' };
 function historyHTML(c) {
   const h = S.history; if (!h) return '<div class="small muted">Loading…</div>'; if (!h.length) return '<div class="small muted">No history yet.</div>';
   const stageName = k => { const s = c && flowOf(c).stages.find(x => x[0] === k); return s ? s[1] : k; };
@@ -2515,6 +2655,7 @@ function historyHTML(c) {
     else if (x.a === 'assign') t = x.to ? 'assigned it to ' + staffName(x.to, x.to) : 'unassigned it';
     else if (x.a === 'edit') t = 'changed ' + Array.from(new Set((x.fields || []).filter(f => f !== 'instructions').map(f => FIELD_LABELS[f] || f))).join(', ');
     else if (x.a === 'restore') t = 'restored an earlier version';
+    else if (x.a === 'photo') t = { add: 'added a photo', change: 'changed the photo', remove: 'removed the photo', copy: 'added the photo from another of the patient’s cases', undo: 'put the earlier photo back' }[x.how] || 'changed the photo';
     else if (x.a === 'email') { // applied from a lab email (mail.js); shown as the email, not the person whose app applied it
       const f = Array.from(new Set((x.fields || []).filter(k => k !== 'mailIds').map(k => FIELD_LABELS[k] || k)));
       t = (x.to ? 'moved it to ' + stageName(x.to) + (f.length ? ' and saved the ' : '') : f.length ? 'saved the ' : 'updated it') + f.join(', ');
@@ -2542,7 +2683,7 @@ function renderDrawer() {
   const txt = (k, v) => v ? '<div class="sec"><h5>' + k + '</h5><div class="txt">' + esc(v) + '</div></div>' : '';
   const assignSel = '<select class="inp" id="assignSel" data-act-change="assign" aria-label="Assigned to" style="min-height:36px;padding:6px 10px"' + (done ? ' disabled' : '') + '><option value="">Unassigned' + (c.assigneeName ? ' (Asana: ' + esc(c.assigneeName) + ')' : '') + '</option>' +
     activeRoster().map(r => '<option value="' + esc(r.sid) + '"' + (c.assignee === r.sid ? ' selected' : '') + '>' + esc(r.name) + '</option>').join('') + '</select>';
-  d.innerHTML = '<div class="dHd"><div style="flex:1;min-width:0"><h3>' + esc(c.patient || '(no name)') + '</h3><div class="sub">' + typeBadge(c) + (c.detail ? '<span class="small muted">' + esc(c.detail) + '</span>' : '') + '</div></div>' +
+  d.innerHTML = '<div class="dHd"><button type="button" class="dPh" data-act="phEdit" title="' + (c.photo ? 'Change or remove the photo' : 'Add a photo of the patient') + '" aria-label="' + (c.photo ? 'Patient photo: change or remove' : 'Add a patient photo') + '">' + ptAv(c, 64) + '<span class="dPhCam">' + ic('camera', 13) + '</span></button><div style="flex:1;min-width:0"><h3>' + esc(c.patient || '(no name)') + '</h3><div class="sub">' + typeBadge(c) + (c.detail ? '<span class="small muted">' + esc(c.detail) + '</span>' : '') + '</div></div>' +
     '<button class="iconBtn" data-act="closeDrawer" aria-label="Close">' + ic('x') + '</button></div>' +
     '<div class="dBd"><div id="drawerNotice"></div>' +
     (done ? '<div class="notice info">Completed ' + esc(fmtWhen(c.closedAt)) + '</div>' : '') +
@@ -2584,6 +2725,7 @@ function renderDrawer() {
       '<button class="btn btn-mint" data-act="complete" data-id="' + esc(c.id) + '">' + ic('done', 16) + 'Mark complete</button><button class="btn btn-sec" data-act="edit">' + ic('edit', 16) + 'Edit</button>') +
     (isOwner() ? '<span style="flex:1"></span><button class="btn btn-ghost" data-act="versions">' + ic('clock', 16) + 'Versions</button><button class="btn btn-ghost" data-act="delCase" style="color:var(--coral-700)">' + ic('trash', 16) + 'Delete</button>' : '') + '</div>';
   const t = $('#cmtText'); if (t) { t.value = keepCmt; if (hadFocus) t.focus(); }
+  phPaint(); phWireDrawer(d);
   if (typeOf(c).aligner && c.chart && !done) iprAutoLoad(c);
   if (c.type === 'nla') ensureHist();
 }
@@ -2728,7 +2870,7 @@ async function versionsModal(id) {
   openModal('<h3>Saved versions</h3><div class="lsub">Every change keeps the copy it replaced. Restoring makes that copy current again (and keeps today’s too).</div><div id="verList"><div class="small muted">Loading…</div></div><div class="mFt"><button class="btn btn-sec" data-act="closeModal">Close</button></div>');
   try {
     const list = await B.caseVersions(id); S.verList = list; S.verId = id;
-    const how = { stage: 'moved', comment: 'commented', edit: 'edited', close: 'completed', reopen: 'reopened', assign: 'reassigned', restore: 'restored', save: 'saved', rekey: 'key change', delete: 'deleted' };
+    const how = { stage: 'moved', comment: 'commented', edit: 'edited', close: 'completed', reopen: 'reopened', assign: 'reassigned', restore: 'restored', save: 'saved', rekey: 'key change', delete: 'deleted', photo: 'photo changed', email: 'lab email' };
     $('#verList').innerHTML = list.length ? '<div class="tblWrap"><table class="tbl"><thead><tr><th>Version</th><th>Contents</th><th></th></tr></thead><tbody>' + list.map((v, i) =>
       '<tr><td class="small"><b>#' + v.rev + '</b><div class="muted">replaced ' + esc(fmtWhen(v.replacedAt)) + '<br>by ' + esc(firstName(staffName(v.replacedBy, v.replacedBy))) + (v.replacedHow ? ' (' + esc(how[v.replacedHow] || v.replacedHow) + ')' : '') + '</div></td>' +
       '<td class="small">' + (v.data ? '<b>' + esc(v.data.patient || '') + '</b><div class="muted">' + esc(typeOf(v.data).l + ' · ' + stageLabel(v.data) + (dueDateOf(v.data) ? ' · ' + fmtDate(dueDateOf(v.data)) : '')) + '</div>' : '<span style="color:var(--coral-700)">Can’t be read</span>') + '</td>' +
@@ -2840,7 +2982,8 @@ function onClick(e) {
 }
 function onChange(e) {
   const t = e.target;
-  if (t.classList && t.classList.contains('mlSel')) { const x = MAILS.list[Number(t.dataset.mail)]; if (x) { MAILS.pick[x.ev.key] = t.value; const b = $('[data-act=mailApply][data-n="' + t.dataset.mail + '"]'); if (b) b.disabled = !t.value; } return; }
+  if (t.classList && t.classList.contains('mlSel')) { const x = MAILS.list[Number(t.dataset.mail)]; if (x) { MAILS.pick[x.ev.key] = t.value; const b = $('[data-act=mailApply][data-n="' + t.dataset.mail + '"]'); if (b) b.disabled = !t.value;
+    const ph = $('[data-mlph="' + t.dataset.mail + '"]'); if (ph) { ph.innerHTML = ptAv(t.value ? findCase(t.value) : null, 32); phPaint(); } } return; }
   if (t.matches && t.matches('input[data-old]')) { if (t.checked) S.oldOff.delete(t.dataset.old); else S.oldOff.add(t.dataset.old); syncOld(); return; }
   if (t.id === 'oldMonths') { S.oldMonths = Number(t.value) || 3; S.oldOff.clear(); renderView(); return; }
   if (t.id === 'oldNoDate') { S.oldNoDate = t.checked; renderView(); return; }
@@ -3248,8 +3391,9 @@ function caseFormHTML(c, isNew) {
   return '<div class="cf" data-new="' + (isNew ? 1 : 0) + '" data-id="' + esc(c.id || '') + '">' +
     '<div class="cfSec"><h5>Case type</h5><div class="tileGrid" role="radiogroup" aria-label="Case type">' + TILES.filter(t => !t.legacy || t.v === tile).map(t =>
       '<button type="button" class="tt' + (t.c ? ' c-' + t.c : '') + '" role="radio" data-tile="' + t.v + '" aria-checked="' + (tile === t.v) + '">' + tileArt(t) + '<b>' + esc(t.l) + '</b><span>' + esc(t.s) + '</span></button>').join('') + '</div></div>' +
-    '<div class="cfSec"><div class="grid2"><div class="field"><label for="cf-patient">Patient name *</label><input id="cf-patient" autocomplete="off" value="' + esc(c.patient || '') + '" required></div>' +
-    '<div class="field"><label for="cf-chart">Chart #</label><input id="cf-chart" autocomplete="off" spellcheck="false" inputmode="text" placeholder="For the IPR Tracker link" value="' + esc(c.chart || '') + '"></div></div></div>' +
+    // a new case can take the patient's photo right here (a case being edited changes it from the case itself)
+    '<div class="cfSec"><div class="ptRowF">' + (isNew ? phSlotHTML() : '') + '<div class="grid2"><div class="field"><label for="cf-patient">Patient name *</label><input id="cf-patient" autocomplete="off" value="' + esc(c.patient || '') + '" required></div>' +
+    '<div class="field"><label for="cf-chart">Chart #</label><input id="cf-chart" autocomplete="off" spellcheck="false" inputmode="text" placeholder="For the IPR Tracker link" value="' + esc(c.chart || '') + '"></div></div></div></div>' +
     '<div class="cfSec"' + show('appliance marpe') + '><div' + show('appliance') + '><h5>Appliance</h5>' + pickRow('appliances', withSaved(PICK.appliances, c.appliances), c.appliances || [], true) + '</div>' +
     '<h5>Lab</h5>' + pickRow('lab', withSaved(PICK.labs, c.lab), c.lab || '', false) + '<div class="hint small" id="cf-labHint" style="margin-top:6px"></div></div>' +
     // MARPE: the two records the lab needs, and the Zoom call once it's set up
@@ -3519,7 +3663,7 @@ function newCaseModal() {
   openModal('<h3>New case</h3><div class="lsub">Tap through it after the scan. Only the patient’s name needs typing. Encrypted before it leaves this computer.</div><div id="ncErr"></div><form id="ncForm" novalidate>' + caseFormHTML(base, true) +
     '<div class="mFt"><button class="btn btn-sec" type="button" data-act="closeModal">Cancel</button><button class="btn btn-teal" type="submit" id="ncSave">' + ic('plus', 16) + 'Create case</button></div></form>', w => {
       w.querySelector('.modal').classList.add('wide');
-      wireCaseForm(w, true);
+      wireCaseForm(w, true); phWireForm(w);
       $('#ncForm', w).onsubmit = async e => {
         e.preventDefault(); const data = readCaseForm(w);
         const err = m => { $('#ncErr', w).innerHTML = '<div class="lockErr" role="alert">' + esc(m) + '</div>'; $('#ncErr', w).scrollIntoView({ block: 'nearest' }); };
@@ -3533,7 +3677,7 @@ function newCaseModal() {
         Object.assign(data, { comments: [], createdAt: Date.now(), createdBy: meSid() });
         busyBtn($('#ncSave', w), true, 'Saving…');
         try {
-          await B.createCase(data); closeModal();
+          await B.createCase(data, w._ph ? w._ph.bytes : null); closeModal();
           toast('Case created for ' + data.patient, { action: 'Copy chart note', ms: 12000, onAction: () => copyText(chartNote(data)).then(ok => toast(ok ? 'Chart note copied — paste it into the patient’s chart' : 'Couldn’t copy — open the case to copy its chart note', ok ? {} : { bad: true })) });
         }
         catch (x) { busyBtn($('#ncSave', w), false); err(errText(x)); }
@@ -3843,7 +3987,7 @@ const ADMIN_ACTS = {
       if (!list.length) { box.innerHTML = '<div class="small muted">No activity in the last 7 days.</div>'; return; }
       box.innerHTML = list.filter(x => x.a !== 'rekey').slice(0, 80).map(x => {
         const c = S.cases.get(x.caseId); const who = x.a === 'email' ? ((MAIL_CO[x.co] || {}).l || 'Lab') + ' email' : firstName(staffName(x.sid, x.sid));
-        const what = { create: 'created', import: 'imported', stage: 'moved', comment: 'commented on', close: 'completed', reopen: 'reopened', assign: 'reassigned', edit: 'edited', restore: 'restored', delete: 'deleted', save: 'saved', rekey: 're-sealed', email: 'updated' }[x.a] || x.a;
+        const what = { create: 'created', import: 'imported', stage: 'moved', comment: 'commented on', close: 'completed', reopen: 'reopened', assign: 'reassigned', edit: 'edited', restore: 'restored', delete: 'deleted', save: 'saved', rekey: 're-sealed', email: 'updated', photo: 'changed the photo of' }[x.a] || x.a;
         return '<div class="hist"><time>' + esc(fmtWhen(x.at)) + '</time><span><b>' + esc(who) + '</b> ' + esc(what) + ' ' + (c ? '<button class="linkBtn" data-act="open" data-id="' + esc(c.id) + '">' + esc(c.patient) + '</button>' : 'a completed case') + '</span></div>';
       }).join('');
     } catch (x) { const box = $('#actBox'); if (box) box.innerHTML = '<div class="small" style="color:var(--coral-700)">' + esc(errText(x)) + '</div>'; }
@@ -3983,7 +4127,7 @@ async function rotateWithProgress(title) {
   try {
     const r = await B.rotate((n, tot) => { const b = $('#rotBar'); if (b) b.style.width = Math.round(n / tot * 100) + '%'; });
     closeModal();
-    toast('Office key changed. ' + r.cases + ' case' + (r.cases === 1 ? '' : 's') + ' re-sealed.' + (r.pendingInvites ? ' ' + r.pendingInvites + ' unused invite(s) need reissuing.' : '') + (r.badKeys && r.badKeys.length ? ' Couldn’t give the new key to ' + r.badKeys.join(', ') + ' — reissue their login.' : ''), { ms: 9000 });
+    toast('Office key changed. ' + r.cases + ' case' + (r.cases === 1 ? '' : 's') + (r.photos ? ' and ' + r.photos + ' photo' + (r.photos === 1 ? '' : 's') : '') + ' re-sealed.' + (r.pendingInvites ? ' ' + r.pendingInvites + ' unused invite(s) need reissuing.' : '') + (r.badKeys && r.badKeys.length ? ' Couldn’t give the new key to ' + r.badKeys.join(', ') + ' — reissue their login.' : ''), { ms: 9000 });
     queueRender();
   } catch (x) { closeModal(); toast('Key change stopped: ' + errText(x) + '. Run “Change office key now” again.', { bad: true, ms: 8000 }); }
 }
@@ -4249,7 +4393,7 @@ function mailCardHTML() {
         (ev.tracking ? '<span class="small muted">' + esc((trackInfo(ev.tracking) || {}).carrier || 'tracking') + ' ' + esc(ev.tracking) + '</span>' : '') +
         (ev.reason ? '<span class="small" style="color:var(--coral-700)">' + esc(ev.reason) + '</span>' : '') +
         '<span class="small muted">' + esc(fmtWhen(ev.at)) + '</span>' + (x.cands.length > 1 ? '<span class="small" style="color:var(--amber-700)">' + x.cands.length + ' possible cases</span>' : '') + '</div>' +
-        '<div class="mlDo"><select class="inp mlSel" data-mail="' + n + '" aria-label="Case for this update"><option value="">Pick the case…</option>' +
+        '<div class="mlDo"><span class="mlPh" data-mlph="' + n + '">' + ptAv(pick ? findCase(pick) : null, 32) + '</span><select class="inp mlSel" data-mail="' + n + '" aria-label="Case for this update"><option value="">Pick the case…</option>' +
         (x.cands.length > 1 ? '<optgroup label="Possible matches">' + x.cands.map(opt).join('') + '</optgroup>' : '') +
         (mine.length ? '<optgroup label="' + esc(co.l) + ' cases">' + mine.map(opt).join('') + '</optgroup>' : '') +
         (rest.length ? '<optgroup label="Other open cases">' + rest.map(opt).join('') + '</optgroup>' : '') + '</select>' +
@@ -4324,6 +4468,334 @@ Object.assign(ADMIN_ACTS, {
   },
   mailApply(t) { mailResolve(Number(t.dataset.n), 'apply'); },
   mailSkip(t) { mailResolve(Number(t.dataset.n), 'skip'); }
+});
+
+/* =====================================================================
+   Patient photos (Amir, 2 Oct 2026: "much easier to recall cases").
+   One small square picture per case, shown next to the patient's name.
+   - Cropped and shrunk here to a 160 px JPEG (a few KB), which also drops
+     the camera's EXIF data (location etc.); the full-size picture never
+     leaves the device.
+   - Sealed with the office key like the case itself (backend photos/{id});
+     the case's own `photo` field holds the picture's version id, so a new
+     or changed photo is a normal case save and shows in its history.
+   - Loaded only for names on screen, kept in memory until the app locks.
+   - "Hide photos" blurs them on this device (screens patients can see).
+   ===================================================================== */
+const PHOTO_PX = 160;
+const PH = { cache: new Map(), loading: new Map(), active: 0, waiters: [], io: null, hide: false, gen: 0, onFile: null };
+Object.assign(IC, {
+  minus: '<path d="M5 12h14"/>',
+  camera: '<path d="M4 8h3.2l1.6-2.5h6.4L16.8 8H20a1 1 0 011 1v9a1 1 0 01-1 1H4a1 1 0 01-1-1V9a1 1 0 011-1z"/><circle cx="12" cy="13.2" r="3.7"/>',
+  image: '<rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><circle cx="9" cy="9.5" r="1.8"/><path d="M4 17.5l5-4.5 4 3.5 2.6-2.2L20 18"/>',
+  eye: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>',
+  eyeOff: '<path d="M3 3l18 18"/><path d="M10.6 5.6A10 10 0 0112 5.5C18 5.5 21.5 12 21.5 12a17 17 0 01-3.2 4M6.6 6.7C3.9 8.5 2.5 12 2.5 12S6 18.5 12 18.5c1.6 0 3-.4 4.3-1"/><path d="M9.9 9.9a3 3 0 004.2 4.2"/>'
+});
+const PH_SIL = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="9.2" r="4.3"/><path d="M3.6 22c.8-4.6 4.3-7.4 8.4-7.4s7.6 2.8 8.4 7.4z"/></svg>';
+
+/* the round picture next to a patient's name (a plain placeholder until, and unless, the case has a photo) */
+function ptAv(c, size) {
+  const has = !!(c && c.id && c.photo && !c.locked);
+  return '<span class="pav s' + (size || 32) + (has ? ' has' : '') + '"' + (c && c.id ? ' data-pav="' + esc(c.id) + '"' : '') + (has ? ' data-pv="' + esc(c.photo) + '"' : '') + ' aria-hidden="true">' + PH_SIL + '</span>';
+}
+function phUrl(bytes) { return 'data:image/jpeg;base64,' + b64(bytes); }
+function phPut(id, pv, bytes) { const e = { pv, seen: pv, bytes, url: phUrl(bytes) }; PH.cache.set(id, e); return e; }
+function phCached(id, pv) { const x = PH.cache.get(id); return x && x.url && (x.pv === pv || x.seen === pv) ? x : null; }
+function phShow(el, url) {
+  el.innerHTML = ''; const im = document.createElement('img'); im.alt = ''; im.decoding = 'async'; im.src = url;
+  el.appendChild(im); el.classList.add('on');
+}
+function phBlank(el) { el.classList.remove('on'); el.innerHTML = PH_SIL; }
+/* after anything is drawn: fill in photos already in memory, fetch the rest once they're on screen */
+function phPaint() {
+  if (!S.inApp) return;
+  if (PH.io) PH.io.disconnect();
+  $$('.pav.has:not(.on)').forEach(el => {
+    const x = phCached(el.dataset.pav, el.dataset.pv);
+    if (x) { phShow(el, x.url); return; }
+    if (!window.IntersectionObserver) { phLoad(el.dataset.pav, el.dataset.pv); return; }
+    if (!PH.io) PH.io = new IntersectionObserver(list => list.forEach(e => {
+      if (e.isIntersecting) { PH.io.unobserve(e.target); phLoad(e.target.dataset.pav, e.target.dataset.pv); }
+    }), { rootMargin: '300px 0px' });
+    PH.io.observe(el);
+  });
+}
+function phFill(id) {
+  const x = PH.cache.get(id); if (!x || !x.url) return;
+  $$('.pav.has[data-pav="' + CSS.escape(id) + '"]').forEach(el => { if (x.pv === el.dataset.pv || x.seen === el.dataset.pv) phShow(el, x.url); });
+}
+/* a few at a time, so a long list doesn't fire dozens of reads at once */
+async function phSlot() { while (PH.active >= 4) await new Promise(r => PH.waiters.push(r)); PH.active++; }
+function phFree() { PH.active--; const w = PH.waiters.shift(); if (w) w(); }
+/* the case's current photo ({ pv, bytes, url }) or null; `pv` is the version the case names */
+function phLoad(id, pv) {
+  const x = PH.cache.get(id);
+  if (x && (x.pv === pv || x.seen === pv)) { phFill(id); return Promise.resolve(x.url ? x : null); }
+  const lk = id + '|' + pv; if (PH.loading.has(lk)) return PH.loading.get(lk);
+  const gen = PH.gen;
+  const p = (async () => {
+    await phSlot();
+    try {
+      if (gen !== PH.gen) return null;
+      const r = await B.getPhoto(id);
+      if (gen !== PH.gen) return null; // locked meanwhile
+      // (a case restored to an older version can name an older version id than the picture it has: keep showing that picture)
+      const e = r ? Object.assign(phPut(id, r.pv, r.bytes), { seen: pv }) : { pv: '', seen: pv, url: '' };
+      PH.cache.set(id, e); phFill(id); return e.url ? e : null;
+    } catch (err) { return null; }
+    finally { phFree(); PH.loading.delete(lk); }
+  })();
+  PH.loading.set(lk, p); return p;
+}
+function phReset() { PH.gen++; PH.cache.clear(); PH.loading.clear(); if (PH.io) PH.io.disconnect(); PH.io = null; phClose(); }
+
+/* ---------- "Hide photos" on this device ---------- */
+function phInit() {
+  try { PH.hide = localStorage.getItem('nloCases.hidePhotos') === '1'; } catch (e) { }
+  document.body.classList.toggle('phHide', PH.hide);
+  phBindPaste();
+}
+function phAny() { return PH.hide || openCases().some(c => c.photo); }
+function phHideBtn() {
+  return '<button class="iconBtn phTgl" data-act="phHide" aria-pressed="' + PH.hide + '" title="' + (PH.hide ? 'Patient photos are blurred on this computer — click to show them' : 'Blur patient photos on this computer (for screens patients can see)') + '" aria-label="' + (PH.hide ? 'Show patient photos' : 'Hide patient photos') + '">' + ic(PH.hide ? 'eyeOff' : 'eye', 19) + '</button>';
+}
+function phToggleHide() {
+  PH.hide = !PH.hide;
+  try { localStorage.setItem('nloCases.hidePhotos', PH.hide ? '1' : '0'); } catch (e) { }
+  document.body.classList.toggle('phHide', PH.hide);
+  $$('[data-act=phHide]').forEach(b => { b.outerHTML = phHideBtn(); });
+  toast(PH.hide ? 'Patient photos are blurred on this computer. Hover over one to see it.' : 'Patient photos are shown again.');
+}
+
+/* ---------- the photo editor: take / choose / paste / drop a picture, then fit the face in the circle ---------- */
+function phClose() { const w = $('#phWrap'); if (w) w.remove(); PH.onFile = null; }
+function phIsPic(f) { return !!f && (/^image\//.test(f.type || '') || /\.(jpe?g|png|gif|webp|bmp|heic|heif)$/i.test(f.name || '')); }
+/* o: { name, current (data: URL or ''), file, onSave(bytes) → Promise, onRemove() → Promise (optional) } */
+function phEditor(o) {
+  phClose();
+  const touch = !!(window.matchMedia && matchMedia('(pointer: coarse)').matches);
+  const back = document.activeElement;
+  const w = document.createElement('div'); w.id = 'phWrap';
+  w.innerHTML = '<div class="phBox" role="dialog" aria-modal="true" aria-labelledby="phTitle">' +
+    '<div class="phHd"><div style="flex:1;min-width:0"><h3 id="phTitle">Patient photo</h3>' + (o.name ? '<div class="small muted phName">' + esc(o.name) + '</div>' : '') + '</div>' +
+      '<button type="button" class="iconBtn" data-ph="close" aria-label="Close">' + ic('x') + '</button></div>' +
+    '<div class="phPick" id="phPick"><div class="phDrop" id="phDrop" tabindex="0" role="button" aria-label="Choose a photo">' +
+      '<span class="pav s96' + (o.current ? '' : ' none') + '" id="phNow">' + PH_SIL + '</span>' +
+      '<b>' + (touch ? 'Take a photo or choose one' : 'Drop a photo here, or paste one (Ctrl+V)') + '</b>' +
+      '<span class="small muted">' + (touch ? '' : 'A screenshot from the imaging software works too. ') + 'It’s cut to a small square and encrypted on this device; the full-size picture isn’t kept.</span></div>' +
+      '<div class="phBtns">' + (touch ? '<button type="button" class="btn btn-pri" data-ph="camera">' + ic('camera', 16) + 'Take photo</button>' : '') +
+        '<button type="button" class="btn ' + (touch ? 'btn-sec' : 'btn-pri') + '" data-ph="file">' + ic('image', 16) + 'Choose a file</button>' +
+        (o.onRemove ? '<button type="button" class="btn btn-ghost" data-ph="remove" style="color:var(--coral-700)">' + ic('trash', 16) + 'Remove photo</button>' : '') + '</div></div>' +
+    '<div class="phCrop" id="phCrop" hidden><div class="phStage" id="phStage" tabindex="0" aria-label="Photo: drag or use the arrow keys to move it, + and − to zoom"><canvas id="phCv"></canvas><div class="phRing"></div></div>' +
+      '<div class="phZoom"><button type="button" class="iconBtn" data-ph="out" aria-label="Zoom out">' + ic('minus', 18) + '</button>' +
+        '<input type="range" id="phZ" min="1" max="4" step="0.01" value="1" aria-label="Zoom">' +
+        '<button type="button" class="iconBtn" data-ph="in" aria-label="Zoom in">' + ic('plus', 18) + '</button>' +
+        '<button type="button" class="btn btn-ghost btn-sm" data-ph="rotate">' + ic('refresh', 15) + 'Rotate</button></div>' +
+      '<div class="small muted phTip">Drag to center the face' + (touch ? ', pinch to zoom.' : '. Zoom with the slider or the mouse wheel.') + '</div></div>' +
+    '<div class="phErr" id="phErr" role="alert"></div>' +
+    '<div class="phFt"><button type="button" class="btn btn-ghost" data-ph="back" hidden>Choose another</button><span style="flex:1"></span>' +
+      '<button type="button" class="btn btn-sec" data-ph="close">Cancel</button><button type="button" class="btn btn-teal" data-ph="save" disabled>Use photo</button></div>' +
+    '<input type="file" accept="image/*" capture="environment" id="phCam" hidden><input type="file" accept="image/*" id="phFile" hidden></div>';
+  document.body.appendChild(w);
+  const q = s => $(s, w), stage = q('#phStage'), cv = q('#phCv'), zr = q('#phZ'), save = q('[data-ph=save]'), errEl = q('#phErr');
+  if (o.current) phShow(q('#phNow'), o.current);
+  const st = { src: null, S: 260, s0: 1, z: 1, x: 0, y: 0 };
+  const err = m => { errEl.textContent = m || ''; };
+  const draw = () => {
+    if (!st.src) return; const S = st.S, dpr = window.devicePixelRatio || 1, px = Math.round(S * dpr);
+    if (cv.width !== px) { cv.width = cv.height = px; cv.style.width = cv.style.height = S + 'px'; }
+    const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.fillStyle = '#fff'; g.fillRect(0, 0, S, S);
+    const sc = st.s0 * st.z; g.imageSmoothingQuality = 'high'; g.drawImage(st.src, st.x, st.y, st.src.width * sc, st.src.height * sc);
+  };
+  const clamp = () => { const sc = st.s0 * st.z; st.x = Math.min(0, Math.max(st.S - st.src.width * sc, st.x)); st.y = Math.min(0, Math.max(st.S - st.src.height * sc, st.y)); };
+  const zoomTo = (z, px, py) => {
+    if (!st.src) return; z = Math.max(1, Math.min(4, z)); const s1 = st.s0 * st.z, s2 = st.s0 * z;
+    px = px == null ? st.S / 2 : px; py = py == null ? st.S / 2 : py;
+    st.x = px - (px - st.x) * s2 / s1; st.y = py - (py - st.y) * s2 / s1; st.z = z; clamp(); draw(); zr.value = String(z);
+  };
+  const crop = () => {
+    q('#phPick').hidden = true; q('#phCrop').hidden = false; q('[data-ph=back]').hidden = false;
+    st.S = stage.clientWidth || 260; st.s0 = Math.max(st.S / st.src.width, st.S / st.src.height); st.z = 1; zr.value = '1';
+    // centered across; a bit above the middle down (faces sit in the upper part of most portraits)
+    st.x = (st.S - st.src.width * st.s0) / 2; st.y = (st.S - st.src.height * st.s0) * 0.35; clamp(); draw();
+    save.disabled = false; err(''); stage.focus();
+  };
+  const load = f => {
+    err('');
+    if (!phIsPic(f)) { err('That isn’t a picture. Use a photo (JPEG or PNG) or a screenshot.'); return; }
+    if (f.size > 40e6) { err('That picture is too large (over 40 MB).'); return; }
+    const rd = new FileReader();
+    rd.onerror = () => err('Couldn’t read that picture.');
+    rd.onload = () => {
+      const im = new Image();
+      im.onerror = () => err('This picture can’t be opened in the browser. Use a JPEG or PNG, or take a screenshot of it.');
+      im.onload = () => {
+        // very large pictures are scaled down first so dragging stays smooth (the browser has already turned it upright)
+        const k = Math.min(1, 1600 / Math.max(im.naturalWidth, im.naturalHeight)), c = document.createElement('canvas');
+        c.width = Math.max(1, Math.round(im.naturalWidth * k)); c.height = Math.max(1, Math.round(im.naturalHeight * k));
+        c.getContext('2d').drawImage(im, 0, 0, c.width, c.height); st.src = c; crop();
+      };
+      im.src = rd.result;
+    };
+    rd.readAsDataURL(f);
+  };
+  PH.onFile = load;
+  const rotate = () => { const s = st.src, c = document.createElement('canvas'); c.width = s.height; c.height = s.width; const g = c.getContext('2d'); g.translate(c.width, 0); g.rotate(Math.PI / 2); g.drawImage(s, 0, 0); st.src = c; crop(); };
+  const output = async () => {
+    const c = document.createElement('canvas'); c.width = c.height = PHOTO_PX; const g = c.getContext('2d');
+    const k = PHOTO_PX / st.S, sc = st.s0 * st.z * k;
+    g.fillStyle = '#fff'; g.fillRect(0, 0, PHOTO_PX, PHOTO_PX); g.imageSmoothingQuality = 'high';
+    g.drawImage(st.src, st.x * k, st.y * k, st.src.width * sc, st.src.height * sc);
+    for (const qty of [0.86, 0.72, 0.55]) {
+      const b = await new Promise(r => c.toBlob(r, 'image/jpeg', qty)); if (!b) throw new Error('Couldn’t make the picture.');
+      const bytes = new Uint8Array(await b.arrayBuffer()); if (bytes.length <= 40000 || qty === 0.55) return bytes;
+    }
+  };
+  const done = () => { phClose(); if (back && back.isConnected && back.focus) back.focus(); };
+  w.addEventListener('click', async e => {
+    const b = e.target.closest('[data-ph]'); if (!b) { if (e.target.closest('#phDrop')) q('#phFile').click(); return; }
+    const k = b.dataset.ph;
+    if (k === 'close') done();
+    else if (k === 'camera') q('#phCam').click();
+    else if (k === 'file') q('#phFile').click();
+    else if (k === 'back') { q('#phPick').hidden = false; q('#phCrop').hidden = true; b.hidden = true; save.disabled = true; st.src = null; err(''); }
+    else if (k === 'in') zoomTo(st.z * 1.15); else if (k === 'out') zoomTo(st.z / 1.15);
+    else if (k === 'rotate') { if (st.src) rotate(); }
+    else if (k === 'remove') { busyBtn(b, true, 'Removing…'); try { await o.onRemove(); done(); } catch (x) { busyBtn(b, false); err(errText(x)); } }
+    else if (k === 'save') {
+      if (!st.src) return; busyBtn(save, true, 'Saving…');
+      try { await o.onSave(await output()); done(); } catch (x) { busyBtn(save, false); err(errText(x)); }
+    }
+  });
+  ['#phCam', '#phFile'].forEach(s => q(s).addEventListener('change', e => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) load(f); }));
+  q('#phDrop').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); q('#phFile').click(); } });
+  w.addEventListener('dragover', e => { e.preventDefault(); w.classList.add('over'); });
+  w.addEventListener('dragleave', e => { if (e.target === w) w.classList.remove('over'); });
+  w.addEventListener('drop', e => { e.preventDefault(); w.classList.remove('over'); const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]; if (f) load(f); });
+  zr.addEventListener('input', () => zoomTo(Number(zr.value)));
+  // drag to move; two fingers to zoom
+  const pts = new Map();
+  stage.addEventListener('pointerdown', e => { if (!st.src) return; stage.setPointerCapture(e.pointerId); pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); });
+  stage.addEventListener('pointermove', e => {
+    const prev = pts.get(e.pointerId); if (!prev || !st.src) return; const cur = { x: e.clientX, y: e.clientY };
+    if (pts.size === 1) { st.x += cur.x - prev.x; st.y += cur.y - prev.y; clamp(); draw(); }
+    else { const other = Array.from(pts.entries()).find(([k]) => k !== e.pointerId)[1], d1 = Math.hypot(prev.x - other.x, prev.y - other.y), d2 = Math.hypot(cur.x - other.x, cur.y - other.y), r = stage.getBoundingClientRect();
+      if (d1 > 0) zoomTo(st.z * d2 / d1, (cur.x + other.x) / 2 - r.left, (cur.y + other.y) / 2 - r.top); }
+    pts.set(e.pointerId, cur);
+  });
+  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(t => stage.addEventListener(t, e => pts.delete(e.pointerId)));
+  stage.addEventListener('wheel', e => { if (!st.src) return; e.preventDefault(); const r = stage.getBoundingClientRect(); zoomTo(st.z * Math.exp(-e.deltaY * 0.0015), e.clientX - r.left, e.clientY - r.top); }, { passive: false });
+  stage.addEventListener('keydown', e => {
+    if (!st.src) return; const m = { ArrowLeft: [8, 0], ArrowRight: [-8, 0], ArrowUp: [0, 8], ArrowDown: [0, -8] }[e.key];
+    if (m) { e.preventDefault(); st.x += m[0]; st.y += m[1]; clamp(); draw(); }
+    else if (e.key === '+' || e.key === '=') { e.preventDefault(); zoomTo(st.z * 1.1); } else if (e.key === '-') { e.preventDefault(); zoomTo(st.z / 1.1); }
+    else if (e.key === 'Enter') { e.preventDefault(); save.click(); }
+  });
+  if (o.file) load(o.file); else (q('[data-ph=camera]') || q('#phDrop')).focus();
+  return w;
+}
+
+/* ---------- a case's photo (from the case, or by pasting a picture while it's open) ---------- */
+function phCaseEdit(c, file) {
+  if (!c || c.locked) return;
+  const x = c.photo ? phCached(c.id, c.photo) : null;
+  phEditor({ name: c.patient, current: x ? x.url : '', file, onSave: bytes => phSaveCase(c.id, bytes), onRemove: c.photo ? () => phRemoveCase(c.id) : null });
+  if (c.photo && !x) phLoad(c.id, c.photo).then(r => { const el = $('#phNow'); if (r && el) { el.classList.remove('none'); phShow(el, r.url); } });
+}
+const skipOk = e => { if (!(e && e.code === 'skip')) throw e; };
+async function phSaveCase(id, bytes) {
+  const c = findCase(id); if (!c) throw errCode('gone');
+  const old = c.photo ? (phCached(id, c.photo) || await phLoad(id, c.photo)) : null, oldBytes = old && old.bytes;
+  const pv = await B.setPhoto(id, bytes, { a: 'photo', how: c.photo ? 'change' : 'add' });
+  phPut(id, pv, bytes); c.photo = pv;
+  // the same patient's other open cases that have no photo yet get it too
+  const copied = [];
+  for (const o of openCases().filter(o => o.id !== id && !o.photo && !o.locked && samePatient(o, c))) {
+    try { const p2 = await B.setPhoto(o.id, bytes, { a: 'photo', how: 'copy' }); phPut(o.id, p2, bytes); o.photo = p2; copied.push(o.id); } catch (e) { }
+  }
+  queueRender(); if (S.openId === id && !S.editing) renderDrawer();
+  toast((old ? 'Photo changed' : 'Photo added') + (copied.length ? ' (also on ' + copied.length + ' other open case' + (copied.length > 1 ? 's' : '') + ' for this patient)' : ''), { action: 'Undo', ms: 9000, onAction: () => act(async () => {
+    if (oldBytes) { const p = await B.setPhoto(id, oldBytes, { a: 'photo', how: 'undo' }); phPut(id, p, oldBytes); }
+    else await B.setPhoto(id, null, { a: 'photo', how: 'remove' }).catch(skipOk);
+    for (const oid of copied) await B.setPhoto(oid, null, { a: 'photo', how: 'remove' }).catch(skipOk);
+  }, 'Undone') });
+}
+async function phRemoveCase(id) {
+  const c = findCase(id); const x = c && c.photo ? (phCached(id, c.photo) || await phLoad(id, c.photo)) : null, keep = x && x.bytes;
+  await B.setPhoto(id, null, { a: 'photo', how: 'remove' }).catch(skipOk);
+  if (c) c.photo = ''; queueRender(); if (S.openId === id && !S.editing) renderDrawer();
+  toast('Photo removed', keep ? { action: 'Undo', onAction: () => act(async () => { const p = await B.setPhoto(id, keep, { a: 'photo', how: 'undo' }); phPut(id, p, keep); }, 'Photo put back') } : {});
+}
+/* the drawer's photo also takes a picture dropped on it */
+function phWireDrawer(d) {
+  const b = $('.dPh', d); if (!b) return;
+  b.addEventListener('dragover', e => { e.preventDefault(); b.classList.add('over'); });
+  b.addEventListener('dragleave', () => b.classList.remove('over'));
+  b.addEventListener('drop', e => { e.preventDefault(); b.classList.remove('over'); const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]; const c = findCase(S.openId); if (f && c) phCaseEdit(c, f); });
+}
+
+/* ---------- New case form: the photo goes in with the case; a patient who already has one gets it again ---------- */
+function phSlotHTML() {
+  return '<button type="button" class="phSlot" id="cf-photo" data-act="cfPhoto" aria-label="Patient photo">' + ptAv(null, 64) + '<span class="phSlotL">' + ic('camera', 13) + '<span>Add photo</span></span></button>';
+}
+function phWireForm(root) {
+  const slot = $('#cf-photo', root); if (!slot) return;
+  root._ph = null; root._phOff = '';
+  ensureHist(); // completed cases too, to find this patient's photo
+  slot.addEventListener('dragover', e => { e.preventDefault(); slot.classList.add('over'); });
+  slot.addEventListener('dragleave', () => slot.classList.remove('over'));
+  slot.addEventListener('drop', e => { e.preventDefault(); slot.classList.remove('over'); const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]; if (f) phFormEdit(root, f); });
+  let t = null; const look = () => { clearTimeout(t); t = setTimeout(() => phFormReuse(root), 350); };
+  ['#cf-patient', '#cf-chart'].forEach(s => { const el = $(s, root); if (el) el.addEventListener('input', look); });
+}
+function phFormEdit(root, file) {
+  const cur = root._ph;
+  phEditor({ name: ($('#cf-patient', root) || {}).value || '', current: cur ? cur.url : '', file,
+    onSave: async bytes => { root._ph = { bytes, url: phUrl(bytes), from: 'new' }; phFormShow(root); },
+    // (taking a reused photo off sticks for this patient while the form is open)
+    onRemove: cur ? async () => { if (cur.from === 'reuse') root._phOff = normName(($('#cf-patient', root) || {}).value); root._ph = null; phFormShow(root); } : null });
+}
+function phFormShow(root) {
+  const slot = $('#cf-photo', root); if (!slot) return; const p = root._ph, av = $('.pav', slot);
+  if (p) phShow(av, p.url); else phBlank(av);
+  slot.classList.toggle('set', !!p);
+  $('.phSlotL span', slot).textContent = p ? (p.from === 'reuse' ? 'From their other case' : 'Change photo') : 'Add photo';
+}
+function phFormReuse(root) {
+  if (!root.isConnected || (root._ph && root._ph.from === 'new')) return; // a photo picked here wins
+  const probe = { patient: (($('#cf-patient', root) || {}).value || '').trim(), chart: (($('#cf-chart', root) || {}).value || '').trim() };
+  const src = probe.patient ? casePool().filter(x => x && x.id && x.photo && !x.locked && samePatient(x, probe)).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0] : null;
+  if (!src) { if (root._ph) { root._ph = null; phFormShow(root); } return; }
+  if ((root._phOff && root._phOff === normName(probe.patient)) || (root._ph && root._ph.srcId === src.id)) return;
+  phLoad(src.id, src.photo).then(x => {
+    if (!x || !x.bytes || !root.isConnected || (root._ph && root._ph.from === 'new')) return;
+    root._ph = { bytes: x.bytes, url: x.url, from: 'reuse', srcId: src.id }; phFormShow(root);
+  });
+}
+
+/* ---------- pasting a picture: into the photo editor, the New case form, or the open case ---------- */
+function phClipFile(dt) {
+  if (!dt) return null;
+  const it = Array.from(dt.items || []).find(i => i.kind === 'file' && /^image\//.test(i.type));
+  return it ? it.getAsFile() : null;
+}
+function phBindPaste() {
+  document.addEventListener('paste', e => {
+    if (!S.inApp) return;
+    const f = phClipFile(e.clipboardData); if (!f) return;
+    // text being pasted into a field stays text (copying from a web page can carry a picture along)
+    const t = e.target, editable = t && (t.isContentEditable || /^(INPUT|TEXTAREA)$/.test(t.tagName));
+    if (editable && Array.from(e.clipboardData.types || []).includes('text/plain')) return;
+    if ($('#phWrap')) { e.preventDefault(); if (PH.onFile) PH.onFile(f); return; }
+    const nc = $('#ncForm'); if (nc) { const root = nc.closest('#modalWrap'); if (root && $('#cf-photo', root)) { e.preventDefault(); phFormEdit(root, f); } return; }
+    if (S.openId && !S.editing && $('#drawer') && !$('#modalWrap')) { const c = findCase(S.openId); if (c && !c.locked) { e.preventDefault(); phCaseEdit(c, f); } }
+  });
+}
+
+Object.assign(ADMIN_ACTS, {
+  phHide() { phToggleHide(); },
+  phEdit() { const c = findCase(S.openId); if (c) phCaseEdit(c); },
+  cfPhoto(t) { const root = t.closest('#modalWrap'); if (root) phFormEdit(root); }
 });
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();

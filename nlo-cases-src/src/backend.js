@@ -343,33 +343,38 @@ const FB = {
     batchOrTx.set(ref, { caseId, rev, uid: FB.uid, sid: FB.me.staffId, at: FB.ts(), v: FB.curV, iv: box.iv, ct: box.ct, prev: prev || null });
   },
   async createCases(list, progress) {
-    // list: [{data, status:'open'|'done', closedAt:ms}]; small batches keep each one well inside the rules' lookup limit
+    // list: [{data, status:'open'|'done', closedAt:ms, photo?:bytes}]; small batches keep each one well inside the rules' lookup limit
     const PER = 5; let n = 0;
     for (let i = 0; i < list.length; i += PER) {
       const b = FB.db.batch();
       for (const item of list.slice(i, i + PER)) {
         const ref = FB.db.collection('cases').doc();
-        const v = FB.curV; const box = await Crypto.sealJSON(FB.keys[v], FB.clean(item.data), 'case:' + ref.id);
+        const v = FB.curV, body = FB.clean(item.data);
+        // a patient photo goes in with the new case (same batch), under its own version id
+        let ph = null; if (item.photo) { body.photo = uid8(); ph = await FB.photoBox(ref.id, item.photo, body.photo); }
+        const box = await Crypto.sealJSON(FB.keys[v], body, 'case:' + ref.id);
         const done = item.status === 'done';
         b.set(ref, { v, iv: box.iv, ct: box.ct, status: done ? 'done' : 'open', rev: 1, by: FB.uid, sid: FB.me.staffId, createdAt: FB.ts(), updatedAt: FB.ts(), closedAt: done ? firebase.firestore.Timestamp.fromMillis(item.closedAt || Date.now()) : null });
         await FB.logOps(b, ref.id, 1, null, item.action || { a: 'create' });
-        item.id = ref.id;
+        if (ph) b.set(FB.db.doc('photos/' + ref.id), ph);
+        item.id = ref.id; item.photoV = body.photo || '';
       }
       await FB.track(b.commit()); n += Math.min(PER, list.length - i); if (progress) progress(n, list.length);
     }
     return list.map(x => x.id);
   },
-  async createCase(data) { const ids = await FB.createCases([{ data, status: 'open' }]); return ids[0]; },
-  /* fn(data) edits the latest decrypted copy in place; return 'done' / 'open' to change status */
+  async createCase(data, photo) { const ids = await FB.createCases([{ data, status: 'open', photo: photo || null }]); return ids[0]; },
+  /* fn(data) edits the latest decrypted copy in place; return 'done' / 'open' to change status.
+     ops(tx), if given, adds other writes that must land together with this save (e.g. the case's photo) */
   /* one person's writes to the same case run one after another, never racing each other */
   queues: {},
-  mutateCase(id, fn, action) {
-    const run = () => FB._mutate(id, fn, action, 0);
+  mutateCase(id, fn, action, ops) {
+    const run = () => FB._mutate(id, fn, action, 0, ops);
     const p = (FB.queues[id] || Promise.resolve()).then(run, run);
     FB.queues[id] = p.catch(() => { });
     return p;
   },
-  async _mutate(id, fn, action, tries) {
+  async _mutate(id, fn, action, tries, ops) {
     const ref = FB.db.doc('cases/' + id);
     try {
       await FB.track(FB.db.runTransaction(async tx => {
@@ -381,6 +386,7 @@ const FB = {
         const closedAt = status === 'done' ? (d.status === 'done' && d.closedAt ? d.closedAt : FB.ts()) : null;
         tx.update(ref, { v, iv: box.iv, ct: box.ct, status, rev: d.rev + 1, by: FB.uid, sid: FB.me.staffId, updatedAt: FB.ts(), closedAt });
         await FB.logOps(tx, id, d.rev + 1, { v: d.v, iv: d.iv, ct: d.ct }, action || { a: 'save' });
+        if (ops) await ops(tx, data);
       }));
     } catch (e) {
       if (tries < 2 && /permission/i.test(e.code || e.message || '')) {
@@ -389,19 +395,39 @@ const FB = {
         if (!m || !m.active) throw e;
         await FB.loadRing(m);
         await new Promise(r => setTimeout(r, 150 + Math.random() * 350));
-        return FB._mutate(id, fn, action, tries + 1);
+        return FB._mutate(id, fn, action, tries + 1, ops);
       }
       throw e;
     }
   },
-  /* owner only; the last encrypted copy stays in history, so a delete can be undone */
+  /* owner only; the last encrypted copy stays in history, so a delete can be undone (its photo goes with it) */
   async deleteCase(id) {
     const ref = FB.db.doc('cases/' + id);
     await FB.track(FB.db.runTransaction(async tx => {
       const s = await tx.get(ref); if (!s.exists) throw errCode('gone'); const d = s.data();
       await FB.logOps(tx, id, d.rev + 1, { v: d.v, iv: d.iv, ct: d.ct }, { a: 'delete' });
-      tx.delete(ref);
+      tx.delete(ref); tx.delete(FB.db.doc('photos/' + id));
     }));
+  },
+  /* ---------- patient photos: one small picture per case (photos/{caseId}), sealed with the office key like the case.
+     The case's own `photo` field holds the picture's version id, so the picture changes together with a case save
+     (and shows in its history), and an open app knows when its copy is out of date. ---------- */
+  async photoBox(id, bytes, pv) {
+    const v = FB.curV; const box = await Crypto.seal(FB.keys[v], bytes, 'photo:' + id);
+    return { v, iv: box.iv, ct: box.ct, pv, at: FB.ts(), by: FB.uid };
+  },
+  /* { pv, bytes } or null */
+  async getPhoto(id) {
+    const s = await FB.db.doc('photos/' + id).get(); if (!s.exists) return null;
+    const x = s.data(); if (!FB.keys[x.v]) throw errCode('no-key');
+    return { pv: x.pv, bytes: await Crypto.open(FB.keys[x.v], x, 'photo:' + id) };
+  },
+  /* set (bytes) or remove (null) a case's photo; returns the new version id ('' when removed) */
+  async setPhoto(id, bytes, action) {
+    const pv = bytes ? uid8() : '';
+    await FB.mutateCase(id, d => { if (!bytes && !d.photo) return 'skip'; d.photo = pv; }, action || { a: 'photo', how: bytes ? 'add' : 'remove' },
+      async tx => { const ref = FB.db.doc('photos/' + id); if (bytes) tx.set(ref, await FB.photoBox(id, bytes, pv)); else tx.delete(ref); });
+    return pv;
   },
   /* every saved version of one case, newest first (the copy each write replaced, plus the current one) */
   async caseVersions(id) {
@@ -433,7 +459,8 @@ const FB = {
     }
     return out.sort((a, b) => b.at - a.at);
   },
-  async undelete(item) { return FB.createCases([{ data: item.data, status: 'open', action: { a: 'restore' } }]); },
+  // (a restored case comes back as a new case; its photo was removed with it)
+  async undelete(item) { const data = Object.assign({}, item.data); delete data.photo; return FB.createCases([{ data, status: 'open', action: { a: 'restore' } }]); },
   async saveSettings(patch) { await FB.track(FB.db.doc('meta/settings').set(patch, { merge: true })); },
 
   /* ---------- team (owner) ---------- */
@@ -499,12 +526,25 @@ const FB = {
     await FB.track(FB.db.doc('meta/keys').update({ current: newV }));
     FB.ring = ring2; FB.keys = await Crypto.ringKeys(ring2); FB.curV = newV; FB.ringV = newV;
     const all = (await FB.db.collection('cases').get()).docs.filter(d => d.data().v < newV);
+    // patient photos are re-sealed too (same picture, same version id); one whose case is gone is removed
+    const pics = (await FB.db.collection('photos').get()).docs.filter(d => d.data().v < newV);
+    const total = all.length + pics.length;
     let n = 0, failed = 0;
     for (let i = 0; i < all.length; i += 15) {
       await Promise.all(all.slice(i, i + 15).map(d => FB.mutateCase(d.id, () => { }, { a: 'rekey' }).catch(() => { failed++; })));
-      n += Math.min(15, all.length - i); if (progress) progress(n, all.length);
+      n += Math.min(15, all.length - i); if (progress) progress(n, total);
     }
-    if (failed) throw errCode('rekey-partial', failed + ' case(s) could not be re-sealed yet');
-    return { cases: all.length, pendingInvites, badKeys };
+    for (let i = 0; i < pics.length; i += 15) {
+      await Promise.all(pics.slice(i, i + 15).map(async d => {
+        try {
+          const x = d.data(), bytes = await Crypto.open(FB.keys[x.v], x, 'photo:' + d.id), box = await Crypto.seal(FB.keys[newV], bytes, 'photo:' + d.id);
+          if (!(await FB.db.doc('cases/' + d.id).get()).exists) { await d.ref.delete(); return; }
+          await FB.track(d.ref.update({ v: newV, iv: box.iv, ct: box.ct, at: FB.ts(), by: FB.uid }));
+        } catch (e) { failed++; }
+      }));
+      n += Math.min(15, pics.length - i); if (progress) progress(n, total);
+    }
+    if (failed) throw errCode('rekey-partial', failed + ' case(s) or photo(s) could not be re-sealed yet');
+    return { cases: all.length, photos: pics.length, pendingInvites, badKeys };
   }
 };

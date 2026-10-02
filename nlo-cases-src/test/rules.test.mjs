@@ -216,6 +216,52 @@ db = env.authenticatedContext('bot').firestore();
 await no('a robot that was turned off can’t add to the inbox', setDoc(doc(db, 'inbox/m' + '3'.repeat(40)), sealed()));
 await no('…or read the inbox key', getDoc(doc(db, 'meta/inbox')));
 
+console.log('\n# Patient photos');
+await seed();
+const PH = (uid, extra) => Object.assign({ v: 2, iv: 'aXY=', ct: 'cGhvdG8=', pv: 'p1', at: serverTimestamp(), by: uid }, extra || {});
+// a photo change goes in one batch with a save of its case (and that save's history entry), the way the app does it
+function photoWrite(db, uid, sid, rev, ph, mode, caseId) {
+  caseId = caseId || 'c1'; const b = writeBatch(db);
+  b.update(doc(db, 'cases/' + caseId), caseUpd(uid, sid, { rev })); b.set(doc(db, 'log/' + caseId + '_' + rev), histDoc(uid, sid, caseId, rev, PREV));
+  if (mode === 'delete') b.delete(doc(db, 'photos/' + caseId)); else b.set(doc(db, 'photos/' + caseId), ph);
+  return b.commit();
+}
+db = env.authenticatedContext('gwen').firestore();
+await no('staff cannot add a photo without saving its case', setDoc(doc(db, 'photos/c1'), PH('gwen')));
+await no('a photo can’t carry anything else (e.g. a name)', photoWrite(db, 'gwen', 'gwen', 4, PH('gwen', { patient: 'Leak Example' })));
+await no('a photo must use the current office key', photoWrite(db, 'gwen', 'gwen', 4, PH('gwen', { v: 1 })));
+await no('a photo can’t be signed as someone else', photoWrite(db, 'gwen', 'gwen', 4, PH('owner')));
+await no('a photo can’t be backdated', photoWrite(db, 'gwen', 'gwen', 4, PH('gwen', { at: Timestamp.fromMillis(1) })));
+await no('a photo can’t be huge', photoWrite(db, 'gwen', 'gwen', 4, PH('gwen', { ct: 'A'.repeat(90004) })));
+await no('a photo needs its version id', photoWrite(db, 'gwen', 'gwen', 4, PH('gwen', { pv: '' })));
+await ok('staff add a photo together with a save of its case', photoWrite(db, 'gwen', 'gwen', 4, PH('gwen')));
+await ok('staff read a case’s photo', getDoc(doc(db, 'photos/c1')));
+await no('staff cannot list every photo', getDocs(collection(db, 'photos')));
+await ok('staff change the photo with a case save', photoWrite(db, 'gwen', 'gwen', 5, PH('gwen', { pv: 'p2' })));
+await no('staff cannot swap the picture quietly (same version id, no case save)', updateDoc(doc(db, 'photos/c1'), { ct: 'b3RoZXI=', at: serverTimestamp(), by: 'gwen' }));
+await no('staff cannot delete a photo without saving its case', deleteDoc(doc(db, 'photos/c1')));
+await no('a photo needs a real case', setDoc(doc(db, 'photos/nope'), PH('gwen')));
+await ok('staff remove the photo with a case save', photoWrite(db, 'gwen', 'gwen', 6, null, 'delete'));
+await ok('a new case and its photo go in together', (async () => { const b = writeBatch(db);
+  b.set(doc(db, 'cases/c7'), caseUpd('gwen', 'gwen', { rev: 1, createdAt: serverTimestamp() })); b.set(doc(db, 'log/c7_1'), histDoc('gwen', 'gwen', 'c7', 1, null)); b.set(doc(db, 'photos/c7'), PH('gwen'));
+  return b.commit(); })());
+db = env.authenticatedContext('kay').firestore();
+await no('a removed person cannot read photos', getDoc(doc(db, 'photos/c7')));
+await no('a removed person cannot add a photo', photoWrite(db, 'kay', 'kaylee', 7, PH('kay')));
+await no('a stranger cannot read photos', getDoc(doc(env.authenticatedContext('stranger').firestore(), 'photos/c7')));
+await no('a signed-out visitor cannot read photos', getDoc(doc(env.unauthenticatedContext().firestore(), 'photos/c7')));
+db = env.authenticatedContext('owner').firestore();
+await ok('owner lists photos (to re-seal them after a key change)', getDocs(collection(db, 'photos')));
+await ok('owner changes the office key', updateDoc(doc(db, 'meta/keys'), { current: 3 }));
+await no('owner cannot re-seal under the old key', updateDoc(doc(db, 'photos/c7'), { v: 2, iv: 'bmV3', ct: 'bmV3', at: serverTimestamp(), by: 'owner' }));
+await ok('owner re-seals a photo unchanged under the new key', updateDoc(doc(db, 'photos/c7'), { v: 3, iv: 'bmV3', ct: 'bmV3', at: serverTimestamp(), by: 'owner' }));
+await no('…but not as a new picture without a case save', updateDoc(doc(db, 'photos/c7'), { v: 3, iv: 'bmV3', ct: 'bmV3', pv: 'p9', at: serverTimestamp(), by: 'owner' }));
+await ok('a deleted case takes its photo with it', (async () => { const b = writeBatch(db);
+  b.delete(doc(db, 'cases/c7')); b.set(doc(db, 'log/c7_2'), histDoc('owner', 'amir', 'c7', 2, { v: 2, ...box })); b.delete(doc(db, 'photos/c7'));
+  return b.commit(); })());
+await env.withSecurityRulesDisabled(async c => { await setDoc(doc(c.firestore(), 'photos/gone'), { v: 2, ...box, pv: 'p1', at: Timestamp.now(), by: 'owner' }); });
+await ok('a photo left without its case can be cleared away', deleteDoc(doc(env.authenticatedContext('gwen').firestore(), 'photos/gone')));
+
 console.log('\n# First-time office setup');
 await env.clearFirestore();
 const OWNER = { email: 'dr.test@example.com', email_verified: true };
