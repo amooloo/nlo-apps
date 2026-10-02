@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-UbLsGCEz4jqzwjw3JETbF51ZWkYEBF7A2tP1vDT3Gcs=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-MUcLDctF2m6Cuv2+B7TpiVWdYkolQw2LfX9o97vd6cE=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO Cases</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -412,6 +412,49 @@ td.stg{min-width:150px}
 .alSet b{color:var(--navy)}
 .alSet.me{background:var(--mint-100);box-shadow:inset 0 0 0 1px var(--mint-600)}
 .alMini{display:inline-block;white-space:nowrap;margin-left:6px;padding:1px 7px;border-radius:99px;background:var(--mint-100);color:var(--mint-700);font-weight:600;font-size:11px}
+/* flags: Ship to patient (an alert wherever the case shows), one-click tracking, MARPE records */
+.flags{display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+.flag{display:inline-flex;align-items:center;gap:4px;border-radius:99px;padding:2px 9px 2px 7px;font-size:11.5px;font-weight:700;white-space:nowrap;line-height:1.5}
+.flag.ship{background:var(--amber);color:var(--navy-900);box-shadow:inset 0 0 0 1px var(--amber-600)}
+.flag.rec{background:var(--coral-100);color:var(--coral-700)}
+.flag.ready{background:var(--mint-100);color:var(--mint-700)}
+a.flag.trk{background:var(--blue-100);color:var(--blue-700);text-decoration:none}
+a.flag.trk:hover{background:var(--blue);color:#fff}
+.row .flag{flex:none}
+td .flags{margin-top:4px}
+td.shipCol .flags{margin-top:0}
+.onlyM{display:none !important}
+@media (max-width:860px){ .onlyM{display:flex !important} .mpGrid{grid-template-columns:minmax(0,1fr) !important;gap:6px !important} }
+.notice.ship{display:flex;align-items:center;gap:8px;background:var(--amber);color:var(--navy-900);box-shadow:inset 0 0 0 1.5px var(--amber-600);font-size:14px}
+.chip.flt{display:inline-flex;align-items:center;gap:6px}
+.notice.mpOld{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.notice.mpOld span{flex:1;min-width:200px}
+.chip.flt.on .i{color:var(--amber)}
+.trkLine{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+/* case form: the Ship to patient switch */
+.shipTgl{position:relative;display:flex;align-items:center;gap:12px;width:100%;max-width:440px;min-height:58px;margin:12px 0 4px;padding:10px 16px;border:1.5px dashed var(--amber-600);border-radius:14px;background:#fff;color:var(--navy);text-align:left;line-height:1.25}
+.shipTgl b{display:block;font-size:14px}
+.shipTgl small{display:block;font-size:11.5px;font-weight:600;color:var(--grey-500)}
+.shipTgl:hover{background:var(--amber-100)}
+.shipTgl .i{flex:none;color:var(--amber-700)}
+.shipTgl[aria-pressed="true"]{background:var(--amber);border-style:solid;color:var(--navy-900)}
+.shipTgl[aria-pressed="true"] small,.shipTgl[aria-pressed="true"] .i{color:var(--navy-900)}
+.shipTgl[aria-pressed="true"]::after{content:"";position:absolute;top:8px;right:8px;width:18px;height:18px;border-radius:50%;background:var(--navy) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4.5 8.3l2.3 2.3 4.7-4.9' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/18px no-repeat}
+/* MARPE: records on file and the Zoom call */
+.zoomRow{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
+.zoomRow .field{width:190px;margin:0 0 6px}
+.mpGrid{display:grid;grid-template-columns:118px minmax(0,1fr);gap:10px 12px;align-items:center}
+.mpK{font-family:var(--fd);font-weight:500;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--grey-500)}
+.mpV{display:flex;flex-wrap:wrap;gap:7px;align-items:center;min-width:0}
+.mpWhen{display:inline-flex;align-items:center;gap:6px;color:var(--navy);font-size:13.5px}
+.mpWhen .i{color:var(--blue)}
+.mpHint{margin-top:8px}
+.gate{background:var(--grey-50);border:1px solid var(--grey-100);border-radius:12px;padding:12px 14px;margin-bottom:12px;font-size:13.5px;color:var(--navy)}
+.gate>b{display:block;margin-bottom:6px}
+.gateRow{display:flex;align-items:center;gap:10px;font-weight:600;padding:6px 0;cursor:pointer}
+.gateRow input{width:18px;height:18px;accent-color:var(--navy);flex:none}
+.tsvg .tms{fill:var(--navy)}
+.tsvg .tjs{fill:#fff;stroke:var(--navy);stroke-width:1.2}
 .portals{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:2px 0 4px}
 .portals .small{flex-basis:100%}
 a.btn{text-decoration:none}
@@ -577,6 +620,12 @@ const FLOWS = {
   appliance: { label: 'Appliances', labDone: 'shipped', stages: [
     ['submit', 'To submit'], ['hold', 'Hold (CBCT/Zoom)'], ['submitted', 'Submitted to lab'],
     ['mfg', 'Manufacturing'], ['shipped', 'Shipped'], ['milestones', 'Checked into Milestones'] ] },
+  /* MARPE has its own steps (Amir, 2 Oct 2026): the STL scan and a CBCT of the upper and lower jaws on file first,
+     then the lab, a Zoom call on a set date, design approval, delivery. The Zoom call is the case's next date until
+     the design is approved; after that, the delivery date. */
+  marpe: { label: 'MARPE', labDone: 'approved', zoomUntil: 'approved', stages: [
+    ['records', 'Records: STL + CBCT'], ['submitted', 'Submitted to lab'], ['zoom', 'Zoom call scheduled'],
+    ['approved', 'Design approved'], ['delivered', 'Delivered'] ] },
   /* in fabrication = the NL Lab checklist each Asana case carried as subtasks (Exported STLs → Final Wash and Dry);
      the board shows the seven steps as one "In fabrication" column */
   inhouse: { label: 'In-house lab', labDone: 'pack', stages: [
@@ -602,6 +651,7 @@ const TYPES = [
   { k: 'inbrace', l: 'InBrace', flow: 'outside', cls: 't-aligner', legacy: true },
   { k: 'nla', l: 'In-house aligners', flow: 'inhouse', cls: 't-lab', aligner: true },
   { k: 'appliance', l: 'Appliance', flow: 'appliance', cls: 't-appl' },
+  { k: 'marpe', l: 'MARPE', flow: 'marpe', cls: 't-appl' },
   { k: 'retainer', l: 'Retainers & whitening', flow: 'retainer', cls: 't-ret' },
   { k: 'mouthguard', l: 'Mouthguard', flow: 'retainer', cls: 't-ret' },
   { k: 'models', l: 'Study models', flow: 'models', cls: 't-misc' },
@@ -623,7 +673,10 @@ function typesShown(cases, chosen) { return TYPES.filter(t => !t.legacy || t.k =
 const SCANNERS = ['Allied Star', 'iTero', 'Other'];
 /* Stages that need the doctor, and stages where the case is in fabrication. */
 const DR_STAGES = ['dra', 'txp', 'todo', 'review'];
-const FAB_STAGES = ['mfg', 'fab', 'send', 'print', 'thermo', 'trim', 'polish', 'wash', 'submitted'];
+const FAB_STAGES = ['mfg', 'fab', 'send', 'print', 'thermo', 'trim', 'polish', 'wash', 'submitted', 'approved'];
+/* MARPE: both records have to be on file before the case goes to the lab (Amir, 2 Oct 2026) */
+const MARPE_RECORDS = [['stl', 'STL scan', 'STL'], ['cbct', 'CBCT (upper & lower jaws)', 'CBCT']];
+function recordsMissing(c) { const r = c.records || []; return MARPE_RECORDS.filter(([k]) => !r.includes(k)); }
 
 function typeOf(c) { return TYPE[c.type] || TYPE.misc; }
 function flowOf(c) { return FLOWS[typeOf(c).flow]; }
@@ -632,11 +685,20 @@ function stageIndex(c) { return flowOf(c).stages.findIndex(x => x[0] === c.stage
 function firstStage(type) { return FLOWS[(TYPE[type] || TYPE.misc).flow].stages[0][0]; }
 /* the stage group a stage belongs to (e.g. the in-house "In fabrication" steps), or null */
 function stageGroup(flow, k) { return (flow.groups || []).find(g => g.stages.includes(k)) || null; }
+/* what a stage move still needs first: MARPE records before the case reaches the lab, and a date to be "Zoom call scheduled" */
+function stageNeeds(c, to) {
+  if (typeOf(c).flow !== 'marpe') return [];
+  const keys = flowOf(c).stages.map(s => s[0]), from = keys.indexOf(c.stage), ti = keys.indexOf(to), sub = keys.indexOf('submitted'), out = [];
+  if (ti >= sub && from < sub && recordsMissing(c).length) out.push('records');
+  if (to === 'zoom' && !c.zoomDate) out.push('zoom');
+  return out;
+}
 /* The date a case is working toward: its lab completion date until the lab work is done, then its delivery date.
    (No separate due date any more — Amir, 2 Oct 2026. Older cases that only have one still use it.) */
 function dueOf(c) {
-  const f = flowOf(c), done = f.labDone ? f.stages.findIndex(s => s[0] === f.labDone) : -1;
-  if (c.labDate && (done < 0 || stageIndex(c) < done)) return { d: c.labDate, k: 'lab' };
+  const f = flowOf(c), at = k => f.stages.findIndex(s => s[0] === k), si = stageIndex(c), done = f.labDone ? at(f.labDone) : -1;
+  if (c.zoomDate && f.zoomUntil && si < at(f.zoomUntil)) return { d: c.zoomDate, k: 'zoom' };
+  if (c.labDate && (done < 0 || si < done)) return { d: c.labDate, k: 'lab' };
   if (c.deliveryDate) return { d: c.deliveryDate, k: 'delivery' };
   if (c.dueDate) return { d: c.dueDate, k: 'due' };
   return null;
@@ -677,6 +739,19 @@ function addDays(iso, n) { const [y, m, d] = iso.split('-').map(Number); const d
 function dayDiff(iso) { if (!iso) return null; const [y, m, d] = iso.split('-').map(Number); const a = new Date(y, m - 1, d); const t = new Date(); t.setHours(0, 0, 0, 0); return Math.round((a - t) / 86400000); }
 function fmtDate(iso) { if (!iso) return ''; const [y, m, d] = iso.split('-').map(Number); const dt = new Date(y, m - 1, d); const opts = { month: 'short', day: 'numeric' }; if (y !== new Date().getFullYear()) opts.year = 'numeric'; return dt.toLocaleDateString(undefined, opts); }
 function fmtDay(iso) { if (!iso) return ''; const [y, m, d] = iso.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }); }
+function fmtTime(t) { const m = /^(\d{1,2}):(\d{2})/.exec(t || ''); if (!m) return ''; const h = +m[1]; return ((h + 11) % 12 + 1) + ':' + m[2] + ' ' + (h < 12 ? 'AM' : 'PM'); }
+/* one-click tracking: the carrier's own page, from the carrier named in a lab email or the number's shape
+   (UPS 1Z…, USPS 20–22 digits starting with 9, FedEx 12/15/20/22 digits) */
+const TRACK_URL = { ups: 'https://www.ups.com/track?tracknum=', fedex: 'https://www.fedex.com/fedextrack/?trknbr=', usps: 'https://tools.usps.com/go/TrackConfirmAction?tLabels=', dhl: 'https://www.dhl.com/us-en/home/tracking/tracking-express.html?submit=1&tracking-id=' };
+const CARRIER_NAME = { ups: 'UPS', fedex: 'FedEx', usps: 'USPS', dhl: 'DHL' };
+function trackInfo(num, carrier) {
+  const n = String(num || '').replace(/[\s-]+/g, '').toUpperCase(); if (!/^[A-Z0-9]{8,34}$/.test(n)) return null;
+  let k = String(carrier || '').toLowerCase().replace(/[^a-z]/g, '');
+  if (!TRACK_URL[k]) k = /^1Z[0-9A-Z]{16}$/.test(n) ? 'ups' : /^9\d{19,21}$/.test(n) ? 'usps' : /^(\d{12}|\d{15}|\d{20}|\d{22})$/.test(n) ? 'fedex' : '';
+  return { n, carrier: CARRIER_NAME[k] || '', url: k ? TRACK_URL[k] + encodeURIComponent(n) : '' };
+}
+/* a case can carry more than one number (spaces, commas or new lines between them) */
+function trackList(c) { return String((c && c.tracking) || '').split(/[\s,;]+/).map(x => trackInfo(x, c.carrier)).filter(Boolean); }
 function fmtWhen(ms) { if (!ms) return ''; const d = new Date(ms); return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ', ' + d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }); }
 function initials(name) { const p = String(name || '').trim().split(/\s+/).filter(Boolean); if (!p.length) return '?'; return (p[0][0] + (p.length > 1 ? p[p.length - 1][0] : '')).toUpperCase(); }
 function slug(s) { return String(s || '').toLowerCase().normalize('NFKD').replace(/[^\w.\-]+/g, '').replace(/_/g, '').slice(0, 30); }
@@ -813,6 +888,13 @@ function stageFromSection(type, section, subtasks) {
     if (/checked in/.test(s)) return pick('checkedin');
     return flow[0];
   }
+  if (type === 'marpe') { // from the Appliance project: on hold for the CBCT/Zoom (before it was submitted) = gathering records
+    if (/submitted/.test(s)) return 'submitted';
+    if (/zoom/.test(s) && !/hold/.test(s)) return 'zoom';
+    if (/approv|manufactur|shipped|arrived|milestone/.test(s)) return 'approved';
+    if (/deliver/.test(s)) return 'delivered';
+    return 'records';
+  }
   if (type === 'retreat') {
     if (/intake/.test(s)) return 'intake'; if (/review/.test(s)) return 'review'; if (/proposal/.test(s)) return 'proposal';
     if (/progress/.test(s)) return 'progress'; if (/complete/.test(s)) return 'completed'; return flow[0];
@@ -830,12 +912,14 @@ function stageFromSection(type, section, subtasks) {
 /* Turn one Asana task into case data. `roster` maps first names to staff ids. */
 function caseFromAsana(t, projectName, roster) {
   const sectionName = t.section || '';
+  const n = parseNotes(t.notes);
   let type = typeFromProject(projectName);
   if (type === 'nla' && /misc/i.test(sectionName)) type = 'misc';
   if (type === 'retainer' && /mouth\s*guard/i.test(t.name || '')) type = 'mouthguard';
   if (!type) type = 'misc';
   if (type === 'misc' && /\bmodels?\b/i.test(t.name || '')) type = 'models';
-  const n = parseNotes(t.notes);
+  // MARPE cases have their own steps now; in Asana they sat in the Appliance project
+  if (type === 'appliance' && /\bmarpe\b/i.test((t.name || '') + ' ' + (n.appliance || ''))) type = 'marpe';
   const [pt, detail] = splitName(t.name);
   const findStaff = name => {
     const first = String(name || '').trim().split(/\s+/)[0].toLowerCase(); if (!first) return '';
@@ -889,7 +973,8 @@ function csvCell(v) {
   return '"' + s.replace(/"/g, '""') + '"';
 }
 function caseToCSVRow(c) {
-  return [c.patient, typeOf(c).l, c.detail, stageLabel(c), c.status === 'done' ? 'Completed' : 'Open', c.scanDate, c.labDate, c.deliveryDate, c.assigneeLabel || '', c.instructions, c.cc, c.ipr, c.notes, c.chart, c.titanUrl, (c.extras || []).join('; '), typeof submissionLabel === 'function' ? submissionLabel(c.initial) : '', c.lab || '', (c.teethNote || '').replace(/\n/g, '; '), c.aligners || '']
+  return [c.patient, typeOf(c).l, c.detail, stageLabel(c), c.status === 'done' ? 'Completed' : 'Open', c.scanDate, c.labDate, c.deliveryDate, c.assigneeLabel || '', c.instructions, c.cc, c.ipr, c.notes, c.chart, c.titanUrl, (c.extras || []).join('; '), typeof submissionLabel === 'function' ? submissionLabel(c.initial) : '', c.lab || '', (c.teethNote || '').replace(/\n/g, '; '), c.aligners || '',
+    c.shipToPatient ? 'Yes' : '', MARPE_RECORDS.filter(([k]) => (c.records || []).includes(k)).map(x => x[1]).join('; '), c.zoomDate ? c.zoomDate + (c.zoomTime ? ' ' + c.zoomTime : '') : '']
     .map(csvCell).join(',');
 }
 
@@ -1350,9 +1435,10 @@ const DEMO = {
       ['nla', 'txp', 'amir', -2], ['nla', 'txp', 'amir', 3], ['nla', 'reset', 'angelika', 2], ['nla', 'thermo', 'angelika', 6], ['nla', 'send', 'kaylee', 8], ['nla', 'pack', 'gwen', 1],
       ['appliance', 'submit', 'sarah', 7], ['appliance', 'hold', 'amir', null], ['appliance', 'mfg', 'sarah', 15],
       ['retainer', 'print', 'angelika', 1], ['retainer', 'print', 'gwen', null], ['retainer', 'sarah', 'sarah', 0], ['retainer', 'pickup', 'sarah', -3],
-      ['ulab', 'mfg', 'gwen', 10], ['models', 'print', 'kaylee', 4], ['mouthguard', 'print', 'kaylee', 2], ['insmile', 'mfg', 'sarah', 9]
+      ['ulab', 'mfg', 'gwen', 10], ['models', 'print', 'kaylee', 4], ['mouthguard', 'print', 'kaylee', 2], ['insmile', 'mfg', 'sarah', 9],
+      ['marpe', 'records', 'sarah', null], ['marpe', 'zoom', 'amir', 16], ['marpe', 'approved', 'sarah', 12]
     ];
-    const details = { oliv: 'Aligners (Oliv)', angel: 'Aligners (Angel)', ulab: 'Aligners (uLab)', invisalign: 'Aligners (Invisalign)', nla: 'Aligners (In-House)', appliance: 'Herbst', retainer: "U/L TT's and WT's", models: 'Study models', mouthguard: 'Mouthguard (U)', insmile: 'InSmile braces' };
+    const details = { oliv: 'Aligners (Oliv)', angel: 'Aligners (Angel)', ulab: 'Aligners (uLab)', invisalign: 'Aligners (Invisalign)', nla: 'Aligners (In-House)', appliance: 'Herbst', retainer: "U/L TT's and WT's", models: 'Study models', mouthguard: 'Mouthguard (U)', insmile: 'InSmile braces', marpe: 'MARPE' };
     plan.forEach((p, i) => {
       const [type, stage, who, due] = p; const id = 'demo' + i;
       const scan = addDays(t, -10 + (i % 7));
@@ -1367,6 +1453,15 @@ const DEMO = {
       });
       DEMO.logs.push({ caseId: id, a: 'create', at: Date.now() - 86400e3 * (i + 2), sid: 'amir' });
     });
+    // MARPE: one still waiting on its CBCT, one with the Zoom call in two days, one approved; Partners makes them
+    const all = Array.from(DEMO.cases.values()), mp = all.filter(c => c.type === 'marpe');
+    Object.assign(mp[0], { records: ['stl'], lab: 'Partner Dental Studios' });
+    Object.assign(mp[1], { records: ['stl', 'cbct'], lab: 'Partner Dental Studios', zoomDate: addDays(t, 2), zoomTime: '12:30' });
+    Object.assign(mp[2], { records: ['stl', 'cbct'], lab: 'Partner Dental Studios', zoomDate: addDays(t, -9), zoomTime: '13:00' });
+    // aligners going straight to the patient, and shipments with one-click tracking (sample numbers)
+    Object.assign(all.find(c => c.type === 'oliv' && c.stage === 'shipped'), { shipToPatient: true, tracking: '1Z999AA10123456784' });
+    Object.assign(all.find(c => c.type === 'nla' && c.stage === 'pack'), { shipToPatient: true });
+    Object.assign(all.find(c => c.type === 'ulab' && c.stage === 'mfg'), { tracking: '123456789012' });
     // one in-house patient on a refinement, with the finished initial set behind it (shows the aligner total)
     const ref = Array.from(DEMO.cases.values()).find(c => c.type === 'nla' && c.stage === 'thermo');
     Object.assign(ref, { chart: '15-1001', initial: 'no', alU: 10, alL: 8, detail: 'Aligners (In-House) – refinement' });
@@ -1575,7 +1670,7 @@ function iprLink() { return S.demo ? IPR_DEMO : IPR; }
    ===================================================================== */
 const S = {
   demo: false, emu: false, cases: new Map(), closed: [], oldOff: new Set(), oldMonths: 3, oldNoDate: false, bulkBusy: '', closedDays: 90, roster: [], members: [], settings: { idleMin: 10 },
-  view: 'today', boardFlow: 'outside', q: '', f: { type: '', stage: '', who: '', due: '', grp: '' }, sort: { k: 'due', dir: 1 },
+  view: 'today', boardFlow: 'outside', q: '', f: { type: '', stage: '', who: '', due: '', grp: '', ship: '' }, sort: { k: 'due', dir: 1 },
   openId: null, editing: false, editBase: null, lastLogin: '', tempPw: '', loginPw: '', lastAct: Date.now(), idleTimer: null,
   inApp: false, renderQ: false, firstLoad: true
 };
@@ -1583,7 +1678,10 @@ let B = null;
 
 /* ---------- icons ---------- */
 const IC = {
-  print: '<path d="M7 9V3.5h10V9"/><rect x="3.5" y="9" width="17" height="8" rx="2"/><path d="M7 14h10v6.5H7z"/>',
+  truck: '<path d="M2.5 5.5h11v10h-11z"/><path d="M13.5 9h4.3l3.2 3.5v3h-7.5"/><circle cx="6.5" cy="17.5" r="2"/><circle cx="17.5" cy="17.5" r="2"/>',
+  video: '<rect x="2.5" y="6.5" width="13" height="11" rx="2.5"/><path d="M15.5 10.4l6-3.4v10l-6-3.4z"/>',
+  ext: '<path d="M13.5 4.5h6v6M19.5 4.5L11 13"/><path d="M17 13.5v5a1.5 1.5 0 01-1.5 1.5h-10A1.5 1.5 0 014 18.5v-10A1.5 1.5 0 015.5 7h5"/>',
+  print:'<path d="M7 9V3.5h10V9"/><rect x="3.5" y="9" width="17" height="8" rx="2"/><path d="M7 14h10v6.5H7z"/>',
   today: '<rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/><path d="M8.5 15l2.2 2 4.8-4.5"/>',
   board: '<rect x="3.5" y="4" width="5" height="16" rx="1.5"/><rect x="9.5" y="4" width="5" height="11" rx="1.5"/><rect x="15.5" y="4" width="5" height="7" rx="1.5"/>',
   list: '<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>',
@@ -1800,7 +1898,7 @@ function enterApp() {
   B.start({
     cases(up, gone) {
       // a stage move still being saved wins over an older copy arriving from the server (quick → → → clicks)
-      up.forEach(c => { const p = S.pend && S.pend[c.id]; if (p) c.stage = p.to; S.cases.set(c.id, c); }); gone.forEach(id => S.cases.delete(id));
+      up.forEach(c => { const p = S.pend && S.pend[c.id]; if (p) { c.stage = p.to; if (p.extra) Object.assign(c, p.extra); } S.cases.set(c.id, c); }); gone.forEach(id => S.cases.delete(id));
       S.firstLoad = false; queueRender();
       if (S.openId && (up.some(c => c.id === S.openId) || gone.includes(S.openId))) refreshDrawer(gone.includes(S.openId));
     },
@@ -1934,13 +2032,28 @@ function typeBadge(c) { const t = typeOf(c); return '<span class="badge ' + t.cl
 function dueChip(c) {
   const x = dueOf(c);
   if (!x) return '<span class="due none">No date</span>';
-  const d = dayDiff(x.d), w = x.k === 'lab' ? 'Lab' : x.k === 'delivery' ? 'Delivery' : 'Due';
-  const tip = ' title="' + esc((x.k === 'lab' ? 'Lab completion' : w) + ': ' + fmtDay(x.d)) + '"';
-  if (d < 0) return '<span class="due over"' + tip + '>' + ic('clock', 13) + w + ' ' + (d === -1 ? '1 day late' : (-d) + ' days late') + '</span>';
-  if (d === 0) return '<span class="due soon"' + tip + '>' + ic('clock', 13) + w + ' today</span>';
-  if (d === 1) return '<span class="due soon"' + tip + '>' + ic('clock', 13) + w + ' tomorrow</span>';
-  if (d <= 3) return '<span class="due soon"' + tip + '>' + ic('clock', 13) + w + ' ' + esc(fmtDay(x.d)) + '</span>';
-  return '<span class="due"' + tip + '>' + w + ' ' + esc(fmtDate(x.d)) + '</span>';
+  const d = dayDiff(x.d), z = x.k === 'zoom', w = x.k === 'lab' ? 'Lab' : x.k === 'delivery' ? 'Delivery' : z ? 'Zoom' : 'Due';
+  const at = z && c.zoomTime ? ' ' + fmtTime(c.zoomTime) : '', i = ic(z ? 'video' : 'clock', 13);
+  const tip = ' title="' + esc((x.k === 'lab' ? 'Lab completion' : z ? 'Zoom call' : w) + ': ' + fmtDay(x.d) + at) + '"';
+  // a Zoom call that has passed while the design isn't approved yet: someone should move the case on
+  if (d < 0) return '<span class="due over"' + tip + '>' + i + w + ' ' + (z ? 'was ' + (d === -1 ? 'yesterday' : (-d) + ' days ago') : d === -1 ? '1 day late' : (-d) + ' days late') + '</span>';
+  if (d === 0) return '<span class="due soon"' + tip + '>' + i + w + ' today' + esc(at) + '</span>';
+  if (d === 1) return '<span class="due soon"' + tip + '>' + i + w + ' tomorrow' + esc(at) + '</span>';
+  if (d <= 3) return '<span class="due soon"' + tip + '>' + i + w + ' ' + esc(fmtDay(x.d)) + '</span>';
+  return '<span class="due"' + tip + '>' + (z ? i : '') + w + ' ' + esc(fmtDate(x.d)) + '</span>';
+}
+/* ---------- flags: ship to patient (an alert wherever the case shows), one-click tracking, MARPE records ---------- */
+function shipFlag(c, short) { return c.shipToPatient ? '<span class="flag ship" title="Ship to patient">' + ic('truck', 13) + (short ? 'Ship' : 'Ship to patient') + '</span>' : ''; }
+function trackLinks(c) {
+  return trackList(c).filter(t => t.url).map(t => '<a class="flag trk" data-act="track" href="' + esc(t.url) + '" target="_blank" rel="noopener noreferrer" title="Track ' + esc((t.carrier ? t.carrier + ' ' : '') + t.n) + '">' +
+    ic('ext', 12) + 'Track' + (t.carrier ? ' ' + esc(t.carrier) : '') + '</a>').join('');
+}
+/* while a MARPE case is gathering its records: what's still missing, or that both are on file */
+function recFlag(c) {
+  if (typeOf(c).flow !== 'marpe' || stageIndex(c) > 0) return '';
+  const miss = recordsMissing(c);
+  return miss.length ? '<span class="flag rec" title="Needed before it goes to the lab">Needs ' + esc(miss.map(x => x[2]).join(' + ')) + '</span>'
+    : '<span class="flag ready" title="STL scan and CBCT on file">' + ic('done', 13) + 'Records on file</span>';
 }
 /* stage progress: one mark per stage (done, current, to come); a stage group (In fabrication) sits in its own band */
 function progHTML(c, only) {
@@ -2002,7 +2115,7 @@ function avatar(c) {
 }
 function row(c, meta) {
   return '<button class="row" data-act="open" data-id="' + esc(c.id) + '">' + avatar(c) +
-    '<span class="grow"><span class="pt">' + esc(c.patient || '(no name)') + '</span><span class="meta">' + esc(meta != null ? meta : (typeOf(c).l + ' · ' + stageLabel(c) + (c.detail ? ' · ' + c.detail : ''))) + '</span></span>' + dueChip(c) + '</button>';
+    '<span class="grow"><span class="pt">' + esc(c.patient || '(no name)') + '</span><span class="meta">' + esc(meta != null ? meta : (typeOf(c).l + ' · ' + stageLabel(c) + (c.detail ? ' · ' + c.detail : ''))) + '</span></span>' + shipFlag(c, true) + dueChip(c) + '</button>';
 }
 
 /* ---------- Today ---------- */
@@ -2019,7 +2132,7 @@ function viewToday() {
     const key = d < 0 ? 'Late' : d === 0 ? 'Today' : d === 1 ? 'Tomorrow' : fmtDay(dueDateOf(x));
     let g = groups.find(g => g.k === key); if (!g) { g = { k: key, red: d < 0, items: [] }; groups.push(g); } g.items.push(x);
   });
-  const left = '<div class="card"><div class="cardHd"><h3>Coming up</h3><span class="sub">Lab and delivery dates: late and the next 14 days</span></div><div class="cardBd">' +
+  const left = '<div class="card"><div class="cardHd"><h3>Coming up</h3><span class="sub">Lab, delivery and Zoom dates: late and the next 14 days</span></div><div class="cardBd">' +
     (groups.length ? groups.map(g => '<div class="dueGrp"><h4 class="' + (g.red ? 'red' : '') + '">' + esc(g.k) + ' · ' + g.items.length + '</h4>' + g.items.map(x => row(x)).join('') + '</div>').join('') :
       '<div class="empty">No lab or delivery dates in the next two weeks.</div>') + '</div></div>';
   const dr = all.filter(x => DR_STAGES.includes(x.stage)).sort(byDue);
@@ -2056,10 +2169,12 @@ function viewBoard() {
 }
 function kcard(c, last, steps) {
   const mixed = S.boardFlow === 'outside' || S.boardFlow === 'inhouse' || S.boardFlow === 'retainer';
+  const flags = shipFlag(c) + recFlag(c);
   return '<div class="kc" data-act="open" data-id="' + esc(c.id) + '" role="button" tabindex="0">' +
     '<div class="pt">' + esc(c.patient || '(no name)') + '</div>' + (c.detail || alN(c) ? '<div class="dt">' + esc(c.detail || '') + alignerMini(c) + '</div>' : '') +
+    (flags ? '<div class="flags">' + flags + '</div>' : '') +
     (steps ? '<div class="kstep">' + progHTML(c, steps) + '<div><b>' + esc(stageLabel(c)) + '</b><span>' + (steps.indexOf(c.stage) + 1) + ' of ' + steps.length + '</span></div></div>' : '') +
-    '<div class="ft">' + (mixed ? typeBadge(c) : '') + dueChip(c) + avatar(c) +
+    '<div class="ft">' + (mixed ? typeBadge(c) : '') + dueChip(c) + trackLinks(c) + avatar(c) +
     '<button class="adv" data-act="' + (last ? 'complete' : 'advance') + '" data-id="' + esc(c.id) + '" title="' + (last ? 'Mark complete' : 'Move to next stage') + '" aria-label="' + (last ? 'Mark complete' : 'Move to next stage') + '">' + ic(last ? 'done' : 'next', 17) + '</button></div></div>';
 }
 
@@ -2076,12 +2191,14 @@ function applyFilters(list) {
     if (f.grp === 'dr' && !DR_STAGES.includes(c.stage)) return false;
     if (f.grp === 'fab' && !FAB_STAGES.includes(c.stage)) return false;
     if (f.grp === 'arrived' && c.stage !== 'arrived') return false;
+    if (f.ship && !c.shipToPatient) return false;
     return true;
   });
 }
 function sortList(list) {
   const { k, dir } = S.sort;
-  const val = c => k === 'patient' ? String(c.patient || '').toLowerCase() : k === 'type' ? typeOf(c).l : k === 'stage' ? stageIndex(c) : k === 'who' ? staffName(c.assignee, c.assigneeName) : k === 'updated' ? -(c.updatedAt || 0) : (dueDateOf(c) || '9999');
+  const val = c => k === 'patient' ? String(c.patient || '').toLowerCase() : k === 'type' ? typeOf(c).l : k === 'stage' ? stageIndex(c) : k === 'who' ? staffName(c.assignee, c.assigneeName) : k === 'updated' ? -(c.updatedAt || 0)
+    : k === 'ship' ? (c.shipToPatient ? 0 : trackList(c).length ? 1 : 2) : (dueDateOf(c) || '9999');
   return list.slice().sort((a, b) => { const x = val(a), y = val(b); return (x < y ? -1 : x > y ? 1 : byDue(a, b)) * dir; });
 }
 /* ---------- Today: clean up old cases in bulk (e.g. leftovers from the Asana import; Amir, 2 Oct 2026) ---------- */
@@ -2154,15 +2271,20 @@ function viewList(base, showWho) {
     (showWho ? '<select data-f="who" aria-label="Assigned to"><option value="">Anyone</option><option value="_none"' + (f.who === '_none' ? ' selected' : '') + '>Unassigned</option>' + activeRoster().map(r => '<option value="' + esc(r.sid) + '"' + (f.who === r.sid ? ' selected' : '') + '>' + esc(r.name) + '</option>').join('') + '</select>' : '') +
     '<select data-f="due" aria-label="Lab or delivery date"><option value="">Any date</option>' + [['over', 'Late'], ['today', 'Today'], ['week', 'Next 7 days'], ['14', 'Next 14 days'], ['none', 'No lab or delivery date']].map(([k, l]) => '<option value="' + k + '"' + (f.due === k ? ' selected' : '') + '>' + l + '</option>').join('') + '</select>' +
     (grpLabel ? '<button class="chip on" data-act="clearGrp">' + esc(grpLabel) + ' ✕</button>' : '') +
-    ((f.type || f.stage || f.who || f.due || f.grp) ? '<button class="btn btn-ghost" data-act="clearF">Clear filters</button>' : '') + '</div>';
+    (base.some(c => c.shipToPatient) || f.ship ? '<button class="chip flt' + (f.ship ? ' on' : '') + '" data-act="shipF" aria-pressed="' + !!f.ship + '">' + ic('truck', 15) + 'Ship to patient<span class="c">' + base.filter(c => c.shipToPatient && matchesQ(c)).length + '</span></button>' : '') +
+    ((f.type || f.stage || f.who || f.due || f.grp || f.ship) ? '<button class="btn btn-ghost" data-act="clearF">Clear filters</button>' : '') + '</div>';
   const list = sortList(applyFilters(base));
   if (list.some(c => c.type === 'nla')) ensureHist();
   if (!list.length) return h + '<div class="card"><div class="empty">' + (base.length ? 'No cases match.' : 'No open cases yet.') + '</div></div>';
   const th = (k, l, cls) => '<th class="' + (cls || '') + '"><button data-act="sort" data-k="' + k + '">' + l + (S.sort.k === k ? (S.sort.dir > 0 ? ' ↑' : ' ↓') : '') + '</button></th>';
-  h += '<div class="card tblWrap"><table class="tbl"><thead><tr>' + th('patient', 'Patient') + th('type', 'Type', 'hideM') + th('stage', 'Stage') + th('due', 'Next date') + th('who', 'Assigned', 'hideM') + th('updated', 'Updated', 'hideM') + '</tr></thead><tbody>' +
-    list.map(c => { const g = stageGroup(flowOf(c), c.stage);
-      return '<tr class="click" data-act="open" data-id="' + esc(c.id) + '" tabindex="0"><td><div class="pt">' + esc(c.patient || '(no name)') + '</div><div class="small muted">' + esc(c.detail || '') + alignerMini(c) + '</div></td>' +
-      '<td class="hideM">' + typeBadge(c) + '</td><td class="stg">' + progHTML(c) + '<div class="small">' + esc(stageLabel(c)) + (g ? ' <span class="muted">· ' + esc(g.l.toLowerCase()) + ' ' + (g.stages.indexOf(c.stage) + 1) + '/' + g.stages.length + '</span>' : '') + '</div></td><td>' + dueChip(c) + '</td>' +
+  // Shipping: the Ship to patient alert and one-click tracking get their own column (on phones they sit under the name)
+  h += '<div class="card tblWrap"><table class="tbl"><thead><tr>' + th('patient', 'Patient') + th('type', 'Type', 'hideM') + th('stage', 'Stage') + th('due', 'Next date') + th('ship', 'Shipping', 'hideM') + th('who', 'Assigned', 'hideM') + th('updated', 'Updated', 'hideM') + '</tr></thead><tbody>' +
+    list.map(c => { const g = stageGroup(flowOf(c), c.stage), ship = shipFlag(c) + trackLinks(c);
+      return '<tr class="click" data-act="open" data-id="' + esc(c.id) + '" tabindex="0"><td><div class="pt">' + esc(c.patient || '(no name)') + '</div><div class="small muted">' + esc(c.detail || '') + alignerMini(c) + '</div>' +
+      (ship ? '<div class="flags onlyM">' + ship + '</div>' : '') + '</td>' +
+      '<td class="hideM">' + typeBadge(c) + '</td><td class="stg">' + progHTML(c) + '<div class="small">' + esc(stageLabel(c)) + (g ? ' <span class="muted">· ' + esc(g.l.toLowerCase()) + ' ' + (g.stages.indexOf(c.stage) + 1) + '/' + g.stages.length + '</span>' : '') + '</div>' +
+      (recFlag(c) ? '<div class="flags">' + recFlag(c) + '</div>' : '') + '</td><td>' + dueChip(c) + '</td>' +
+      '<td class="hideM shipCol">' + (ship ? '<div class="flags">' + ship + '</div>' : '') + '</td>' +
       '<td class="hideM">' + avatar(c) + ' <span class="small">' + esc(staffName(c.assignee, c.assigneeName)) + '</span></td><td class="hideM small muted">' + esc(c.updatedAt ? fmtWhen(c.updatedAt) : '') + '</td></tr>'; }).join('') +
     '</tbody></table></div><div class="small muted" style="margin-top:8px">' + list.length + ' case' + (list.length === 1 ? '' : 's') + '</div>';
   return h;
@@ -2212,14 +2334,15 @@ function refreshDrawer(gone) {
 async function loadHistory(id) {
   try { const h = await B.caseLog(id); if (S.openId === id) { S.history = h; const el = $('#histBox'); if (el) el.innerHTML = historyHTML(findCase(id)); } } catch (e) { }
 }
-const FIELD_LABELS = { teeth: 'tooth chart', teethNote: 'tooth chart', chart: 'chart #', titanUrl: 'Titan link', initial: 'initial/refinement', appliances: 'appliance', lab: 'lab', arches: 'arch', retKinds: 'retainer type', goals: 'Dr. A’s instructions', instrPicks: 'Dr. A’s instructions', instrOther: 'Dr. A’s instructions', extras: 'extras', variant: 'case type', type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery date', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes' };
+const FIELD_LABELS = { shipToPatient: 'ship to patient', records: 'records on file', zoomDate: 'Zoom call', zoomTime: 'Zoom call', tracking: 'tracking #', carrier: 'carrier', teeth: 'tooth chart', teethNote: 'tooth chart', chart: 'chart #', titanUrl: 'Titan link', initial: 'initial/refinement', appliances: 'appliance', lab: 'lab', arches: 'arch', retKinds: 'retainer type', goals: 'Dr. A’s instructions', instrPicks: 'Dr. A’s instructions', instrOther: 'Dr. A’s instructions', extras: 'extras', variant: 'case type', type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery date', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes' };
 function historyHTML(c) {
   const h = S.history; if (!h) return '<div class="small muted">Loading…</div>'; if (!h.length) return '<div class="small muted">No history yet.</div>';
   const stageName = k => { const s = c && flowOf(c).stages.find(x => x[0] === k); return s ? s[1] : k; };
   return h.filter(x => x.a !== 'rekey' && x.a !== 'save').reverse().map(x => {
     let t = '';
     if (x.a === 'create') t = 'created the case'; else if (x.a === 'import') t = 'imported it from Asana';
-    else if (x.a === 'stage') t = 'moved it to ' + stageName(x.to); else if (x.a === 'comment') t = 'added a comment';
+    else if (x.a === 'stage') t = 'moved it to ' + stageName(x.to) + ((x.fields || []).length ? ' (and set ' + Array.from(new Set(x.fields.map(f => FIELD_LABELS[f] || f))).join(', ') + ')' : '');
+    else if (x.a === 'comment') t = 'added a comment';
     else if (x.a === 'close') t = 'marked it complete'; else if (x.a === 'reopen') t = 'reopened it';
     else if (x.a === 'assign') t = x.to ? 'assigned it to ' + staffName(x.to, x.to) : 'unassigned it';
     else if (x.a === 'edit') t = 'changed ' + Array.from(new Set((x.fields || []).filter(f => f !== 'instructions').map(f => FIELD_LABELS[f] || f))).join(', ');
@@ -2250,17 +2373,23 @@ function renderDrawer() {
     '<button class="iconBtn" data-act="closeDrawer" aria-label="Close">' + ic('x') + '</button></div>' +
     '<div class="dBd"><div id="drawerNotice"></div>' +
     (done ? '<div class="notice info">Completed ' + esc(fmtWhen(c.closedAt)) + '</div>' : '') +
+    (c.shipToPatient ? '<div class="notice ship" role="note">' + ic('truck', 18) + '<span><b>Ship to patient</b></span></div>' : '') +
+    // a MARPE entered (or imported) as an appliance before MARPE had its own steps: one click moves it over
+    (!done && isOldMarpe(c) ? '<div class="notice info mpOld"><span>MARPE has its own steps now: records, lab, Zoom call, design approval, delivery.</span><button class="btn btn-sec btn-sm" data-act="toMarpe">Switch to MARPE steps</button></div>' : '') +
     ((PORTALS[c.type] || []).length ? '<div class="portals">' + PORTALS[c.type].map(p => '<a class="btn btn-sec btn-sm" data-act="portal" href="' + esc(p.u) + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'Open ' + esc(p.l) + '</a>').join('') +
       '<span class="small muted">Opening a portal copies the patient’s name — paste it in the portal’s search.</span></div>' : '') +
     '<div class="sec" style="margin-top:4px"><h5>Stage</h5><div class="stepper">' + flow.stages.map(([k, l], i) => { const g = stageGroup(flow, k);
       return (g && g.stages[0] === k ? '<div class="stepGrp">' + esc(g.l) + '</div>' : '') +
       '<button class="step ' + (i < si ? 'past' : i === si ? 'cur' : '') + (g ? ' sub' : '') + '" data-act="setStage" data-k="' + k + '"' + (done ? ' disabled' : '') + ' aria-pressed="' + (i === si) + '"><span class="n">' + (i < si ? '✓' : i + 1) + '</span>' + esc(l) + '</button>'; }).join('') + '</div></div>' +
+    (flow === FLOWS.marpe ? marpeBoxHTML(c, done) : '') +
     '<div class="sec"><h5>Details</h5><div class="kv">' +
     '<div style="grid-column:1/-1"><div class="k">Assigned to</div>' + assignSel + '</div>' +
     kv('Scan date', esc(fmtDay(c.scanDate))) +
     kv('Lab completion', c.labDate ? esc(fmtDay(c.labDate)) + (!done && (dueOf(c) || {}).k === 'lab' ? ' ' + dueChip(c) : '') : '') +
     kv('Delivery', c.deliveryDate ? esc(fmtDay(c.deliveryDate)) + (!done && (dueOf(c) || {}).k === 'delivery' ? ' ' + dueChip(c) : '') : '') +
     (c.dueDate && !c.deliveryDate ? kv('Due (older case)', esc(fmtDay(c.dueDate))) : '') +
+    (String(c.tracking || '').trim() ? kv('Tracking', trackList(c).length ? trackList(c).map(t => '<span class="trkLine">' + esc(t.n) + (t.carrier ? ' <span class="muted small">' + esc(t.carrier) + '</span>' : '') +
+      (t.url ? ' <a class="flag trk" href="' + esc(t.url) + '" target="_blank" rel="noopener noreferrer">' + ic('ext', 12) + 'Track</a>' : '') + '</span>').join('') : esc(c.tracking)) : '') +
     kv('Assistant', esc(staffName(c.assistant, c.assistantName))) + kv('Scanner', esc(c.scanner)) + kv('Chart #', esc(c.chart || '')) +
     kv('Created', esc((c.createdAt ? fmtWhen(c.createdAt) : '') + (c.createdBy ? ' · ' + firstName(staffName(c.createdBy, '')) : ''))) + kv('Last update', esc(c.updatedAt ? fmtWhen(c.updatedAt) + (c.by ? ' · ' + firstName(staffName(c.by, '')) : '') : '')) +
     '</div></div>' +
@@ -2280,6 +2409,75 @@ function renderDrawer() {
   const t = $('#cmtText'); if (t) { t.value = keepCmt; if (hadFocus) t.focus(); }
   if (typeOf(c).aligner && c.chart && !done) iprAutoLoad(c);
   if (c.type === 'nla') ensureHist();
+}
+/* ---------- MARPE: records on file and the Zoom call (drawer box, the check before a stage move, the Zoom date) ---------- */
+function marpeBoxHTML(c, done) {
+  const r = c.records || [], x = dueOf(c), dis = done ? ' disabled' : '';
+  const when = c.zoomDate ? '<b>' + esc(fmtDay(c.zoomDate)) + (c.zoomTime ? ' · ' + esc(fmtTime(c.zoomTime)) : '') + '</b>' : '<span class="muted">Not set yet</span>';
+  return '<div class="sec" id="mpBox"><h5>MARPE</h5><div class="mpGrid">' +
+    '<div class="mpK">Records on file</div><div class="mpV">' + MARPE_RECORDS.map(([k, l]) =>
+      '<button type="button" class="pick sm" data-act="rec" data-k="' + k + '" aria-pressed="' + r.includes(k) + '"' + dis + '>' + esc(l) + '</button>').join('') + '</div>' +
+    '<div class="mpK">Zoom call</div><div class="mpV"><span class="mpWhen">' + ic('video', 16) + when + '</span>' + (x && x.k === 'zoom' && !done ? dueChip(c) : '') +
+      (done ? '' : '<button type="button" class="btn btn-sec btn-sm" data-act="zoomSet">' + (c.zoomDate ? 'Change' : 'Set the date') + '</button>') + '</div></div>' +
+    (recordsMissing(c).length && stageIndex(c) <= 0 && !done ? '<div class="small muted mpHint">Both have to be on file before it moves to Submitted to lab.</div>' : '') + '</div>';
+}
+/* before a stage move goes through, ask for what it needs (see stageNeeds); `extra` = fields already collected */
+function stageGateModal(c, to, needs, extra) {
+  const lbl = (flowOf(c).stages.find(s => s[0] === to) || [0, to])[1], r = extra.records || c.records || [];
+  openModal('<h3>' + esc(lbl) + '</h3><div class="lsub">' + esc((c.patient || '') + ' · ' + typeOf(c).l) + '</div>' +
+    (needs.includes('records') ? '<div class="gate" id="gRecs"><b>Before it goes to the lab, both have to be on file:</b>' + MARPE_RECORDS.map(([k, l]) =>
+      '<label class="gateRow"><input type="checkbox" data-rec="' + k + '"' + (r.includes(k) ? ' checked' : '') + '>' + esc(l) + '</label>').join('') + '</div>' : '') +
+    (needs.includes('zoom') ? '<div class="gate"><b>When is the Zoom call?</b><div class="zoomRow"><div class="field"><label for="gZoomDate">Date</label><input type="date" id="gZoomDate"></div>' +
+      '<div class="field"><label for="gZoomTime">Time</label><input type="time" id="gZoomTime"></div></div></div>' : '') +
+    '<div class="mFt"><button class="btn btn-sec" type="button" data-act="closeModal">Cancel</button><button class="btn btn-pri" type="button" id="gGo">Move to “' + esc(lbl) + '”</button></div>', w => {
+      const go = $('#gGo', w), zd = $('#gZoomDate', w);
+      const ok = () => $$('input[data-rec]', w).every(i => i.checked) && (!zd || !!zd.value);
+      const sync = () => { go.disabled = !ok(); };
+      w.addEventListener('change', sync); w.addEventListener('input', sync); sync();
+      go.onclick = () => {
+        if (!ok()) return; const add = Object.assign({}, extra);
+        if ($('#gRecs', w)) add.records = MARPE_RECORDS.map(x => x[0]);
+        if (zd) { add.zoomDate = zd.value; add.zoomTime = $('#gZoomTime', w).value || ''; }
+        closeModal(); moveStage(c.id, to, add);
+      };
+    });
+}
+/* set or change the Zoom call; before that step, saving also moves the case to "Zoom call scheduled" */
+function zoomModal(c) {
+  const keys = flowOf(c).stages.map(s => s[0]), before = keys.indexOf(c.stage) < keys.indexOf('zoom');
+  openModal('<h3>Zoom call</h3><div class="lsub">' + esc((c.patient || '') + ' · ' + typeOf(c).l) + '</div>' +
+    '<div class="zoomRow"><div class="field"><label for="zmDate">Date</label><input type="date" id="zmDate" value="' + esc(c.zoomDate || '') + '"></div>' +
+    '<div class="field"><label for="zmTime">Time</label><input type="time" id="zmTime" value="' + esc(c.zoomTime || '') + '"></div></div>' +
+    (before ? '<div class="small muted" style="margin:-4px 0 12px">Saving moves the case to “Zoom call scheduled”.</div>' : '') +
+    '<div class="mFt">' + (c.zoomDate ? '<button class="btn btn-ghost" type="button" id="zmClear" style="margin-right:auto">Clear the date</button>' : '') +
+    '<button class="btn btn-sec" type="button" data-act="closeModal">Cancel</button><button class="btn btn-pri" type="button" id="zmSave">Save</button></div>', w => {
+      const d = $('#zmDate', w), save = $('#zmSave', w), sync = () => { save.disabled = !d.value; };
+      d.addEventListener('input', sync); d.addEventListener('change', sync); sync();
+      save.onclick = () => {
+        const z = { zoomDate: d.value, zoomTime: $('#zmTime', w).value || '' }; if (!z.zoomDate) return; closeModal();
+        if (before) moveStage(c.id, 'zoom', z);
+        else act(() => B.mutateCase(c.id, x => { Object.assign(x, z); }, { a: 'edit', fields: ['zoomDate', 'zoomTime'] }), 'Zoom call set for ' + fmtDay(z.zoomDate) + (z.zoomTime ? ', ' + fmtTime(z.zoomTime) : ''));
+      };
+      const clr = $('#zmClear', w);
+      if (clr) clr.onclick = () => { closeModal(); act(() => B.mutateCase(c.id, x => { x.zoomDate = ''; x.zoomTime = ''; }, { a: 'edit', fields: ['zoomDate', 'zoomTime'] }), 'Zoom call date cleared'); };
+    });
+}
+function isOldMarpe(c) { return c.type === 'appliance' && ((c.appliances || []).includes('MARPE') || /\bmarpe\b/i.test(c.detail || '')); }
+/* an older appliance case that is a MARPE: same case, MARPE steps (its step carried over by name: Manufacturing → Design approved…) */
+function toMarpe(c) {
+  const to = stageFromSection('marpe', stageLabel(c));
+  act(() => B.mutateCase(c.id, d => {
+    d.type = 'marpe'; d.stage = to; d.appliances = (d.appliances || []).filter(a => a !== 'MARPE'); if (!d.lab) d.lab = LAB_PART;
+  }, { a: 'edit', fields: ['type', 'stage'] }), 'Moved to the MARPE steps (' + FLOWS.marpe.stages.find(s => s[0] === to)[1] + ')');
+}
+/* tick a MARPE record on or off right from the case */
+function toggleRecord(btn) {
+  const c = findCase(S.openId); if (!c || c.status === 'done') return;
+  const k = btn.dataset.k, on = btn.getAttribute('aria-pressed') !== 'true', prev = c.records, cid = c.id;
+  const next = recs => { const r = (recs || []).filter(x => x !== k); if (on) r.push(k); const out = MARPE_RECORDS.map(x => x[0]).filter(x => r.includes(x)); return out.length ? out : ''; };
+  btn.setAttribute('aria-pressed', String(on)); c.records = next(c.records); queueRender();
+  B.mutateCase(cid, d => { d.records = next(d.records); }, { a: 'edit', fields: ['records'] })
+    .catch(e => { const cur = findCase(cid); if (cur) { cur.records = prev; queueRender(); if (S.openId === cid) renderDrawer(); } toast(errText(e), { bad: true }); });
 }
 /* ---------- IPR Tracker box in the case drawer ---------- */
 function iprBoxHTML(c) {
@@ -2378,12 +2576,17 @@ async function copyText(s) {
 }
 async function act(fn, okMsg) { try { await fn(); if (okMsg) toast(okMsg); } catch (e) { toast(errText(e), { bad: true }); } }
 function nextStage(c) { const st = flowOf(c).stages; const i = stageIndex(c); return i >= 0 && i < st.length - 1 ? st[i + 1][0] : null; }
-async function moveStage(id, to) {
+/* `extra` = fields saved with the move (e.g. MARPE records, the Zoom call); a move that still needs something asks first */
+async function moveStage(id, to, extra) {
   const c = findCase(id); if (!c || c.stage === to) return;
-  const from = c.stage; c.stage = to; queueRender(); if (S.openId === id) renderDrawer();
-  S.pend = S.pend || {}; const mine = S.pend[id] = { to };
-  try { await B.mutateCase(id, d => { d.stage = to; }, { a: 'stage', from, to }); }
-  catch (e) { const cur = findCase(id); if (cur && S.pend[id] === mine) { cur.stage = from; queueRender(); if (S.openId === id) renderDrawer(); } toast(errText(e), { bad: true }); }
+  extra = extra || {};
+  const needs = stageNeeds(Object.assign({}, c, extra), to);
+  if (needs.length) { stageGateModal(c, to, needs, extra); return; }
+  const from = c.stage, fields = Object.keys(extra), before = {}; fields.forEach(k => { before[k] = c[k]; });
+  c.stage = to; Object.assign(c, extra); queueRender(); if (S.openId === id) renderDrawer();
+  S.pend = S.pend || {}; const mine = S.pend[id] = { to, extra };
+  try { await B.mutateCase(id, d => { d.stage = to; Object.assign(d, extra); }, Object.assign({ a: 'stage', from, to }, fields.length ? { fields } : {})); }
+  catch (e) { const cur = findCase(id); if (cur && S.pend[id] === mine) { cur.stage = from; Object.assign(cur, before); queueRender(); if (S.openId === id) renderDrawer(); } toast(errText(e), { bad: true }); }
   finally { if (S.pend[id] === mine) delete S.pend[id]; }
 }
 async function completeCase(id) {
@@ -2402,8 +2605,8 @@ function onClick(e) {
   if (t.tagName === 'SELECT') return;
   if (a === 'advance' || a === 'complete') { e.stopPropagation(); }
   switch (a) {
-    case 'nav': S.view = t.dataset.v; if (S.view !== 'list') S.f = { type: '', stage: '', who: '', due: '', grp: '' }; renderNav(); renderView(); window.scrollTo(0, 0); break;
-    case 'tile': { const f = t.dataset.f; S.f = { type: '', stage: '', who: '', due: '', grp: '' };
+    case 'nav': S.view = t.dataset.v; if (S.view !== 'list') S.f = { type: '', stage: '', who: '', due: '', grp: '', ship: '' }; renderNav(); renderView(); window.scrollTo(0, 0); break;
+    case 'tile': { const f = t.dataset.f; S.f = { type: '', stage: '', who: '', due: '', grp: '', ship: '' };
       if (f === 'mine') { S.view = 'mine'; } else { S.view = 'list'; if (['over', 'week', 'none'].includes(f)) S.f.due = f; else S.f.grp = f; }
       renderNav(); renderView(); break; }
     case 'flow': S.boardFlow = t.dataset.k; renderView(); break;
@@ -2414,6 +2617,11 @@ function onClick(e) {
     case 'complete': completeCase(id); break;
     case 'setStage': moveStage(S.openId, t.dataset.k); break;
     case 'labels': { const c = findCase(S.openId); if (c && alN(c)) labelsModal(c); break; }
+    case 'rec': toggleRecord(t); break;
+    case 'toMarpe': { const c = findCase(S.openId); if (c && isOldMarpe(c)) toMarpe(c); break; }
+    case 'zoomSet': { const c = findCase(S.openId); if (c) zoomModal(c); break; }
+    case 'shipF': S.f.ship = S.f.ship ? '' : '1'; renderView(); break;
+    case 'track': break; // the link itself opens the carrier's page in a new tab (and doesn't open the case)
     case 'portal': { const c = findCase(S.openId); // the link itself opens the portal in a new tab
       if (c && c.patient) copyText(c.patient).then(ok => toast(ok ? 'Copied “' + c.patient + '” — paste it in the portal’s search' : 'Couldn’t copy the name — type it in the portal', ok ? {} : { bad: true })); break; }
     case 'reopen': act(async () => { await B.mutateCase(S.openId, () => 'open', { a: 'reopen' }); S.closed = S.closed.filter(c => c.id !== S.openId); closeDrawer(true); }, 'Reopened'); break;
@@ -2425,7 +2633,7 @@ function onClick(e) {
     case 'delCase': (async () => { const c = findCase(S.openId); if (await confirmBox('Delete this case?', 'This removes ' + c.patient + ' from every list. Dr. A can bring it back from Team & security for 90 days. To finish a case normally, use “Mark complete” instead.', 'Delete', true)) { const cid = S.openId; closeDrawer(true); act(() => B.deleteCase(cid), 'Case deleted'); } })(); break;
     case 'newCase': newCaseModal(); break;
     case 'closeModal': closeModal(); break;
-    case 'clearF': S.f = { type: '', stage: '', who: '', due: '', grp: '' }; renderView(); break;
+    case 'clearF': S.f = { type: '', stage: '', who: '', due: '', grp: '', ship: '' }; renderView(); break;
     case 'oldDone': bulkComplete(oldTicked()); break;
     case 'oldDel': bulkDelete(oldTicked()); break;
     case 'oldAll': case 'oldNone': { const on = a === 'oldAll'; $$('#cleanCard input[data-old]').forEach(i => { i.checked = on; if (on) S.oldOff.delete(i.dataset.old); else S.oldOff.add(i.dataset.old); }); syncOld(); break; }
@@ -2476,6 +2684,9 @@ async function saveEdit() {
   if (now.titanUrl && !safeUrl(now.titanUrl)) { $('#drawerNotice').innerHTML = '<div class="notice bad">The Titan link must start with https://</div>'; return; }
   const base = S.editBase; const changed = FORM_KEYS.filter(k => !sameVal(now[k], base[k])).concat((now.variant || '') !== (base.variant || '') ? ['variant'] : []);
   if (!changed.length) { S.editing = false; renderDrawer(); return; }
+  // the same checks as moving the stage from the case: MARPE records before the lab, a date for the Zoom call
+  const needs = changed.includes('stage') && !changed.includes('type') ? stageNeeds(Object.assign({}, base, now, { stage: base.stage }), now.stage) : [];
+  if (needs.length) { $('#drawerNotice').innerHTML = '<div class="notice bad">' + (needs.includes('records') ? 'Tick both records (STL scan and CBCT) under Records on file before moving it to ' + esc(stageLabel(now)) + '.' : 'Add the Zoom call date before moving it to Zoom call scheduled.') + '</div>'; $('#drawerNotice').scrollIntoView({ block: 'nearest' }); return; }
   const btn = $('[data-act=saveEdit]', d); busyBtn(btn, true, 'Saving…');
   const id = S.openId;
   try {
@@ -2483,6 +2694,7 @@ async function saveEdit() {
       changed.forEach(k => { x[k] = Array.isArray(now[k]) ? now[k].slice() : now[k]; });
       if (changed.includes('assignee') && now.assignee) x.assigneeName = '';
       if (changed.includes('assistant') && now.assistant) x.assistantName = '';
+      if (changed.includes('tracking')) x.carrier = ''; // a carrier named by a lab email belonged to the old number
       if (changed.includes('type') && !FLOWS[TYPE[x.type].flow].stages.some(s => s[0] === x.stage)) x.stage = firstStage(x.type);
     }, { a: 'edit', fields: changed });
     S.editing = false; toast('Saved'); renderDrawer(); loadHistory(id);
@@ -2505,7 +2717,8 @@ const LOGOS = {"angel":{"src":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAASw
    aligner type, lab, initial submission, Dr. A's instructions, extras).
    ===================================================================== */
 const PICK = {
-  appliances: ['Herbst with Rollo Band', 'Space Closing Herbst', 'MARA', 'MSE', 'MARPE', 'Rapid Palatal Expander (RPE)', 'D2 distalizer', 'Finger spring with no labial bow', 'Hawley retainers', 'Schwartz'],
+  // MARPE has its own case type and steps now (older appliance cases with it keep the choice through withSaved)
+  appliances: ['Herbst with Rollo Band', 'Space Closing Herbst', 'MARA', 'MSE', 'Rapid Palatal Expander (RPE)', 'D2 distalizer', 'Finger spring with no labial bow', 'Hawley retainers', 'Schwartz'],
   labs: ['Specialty Orthodontic Lab', 'Partner Dental Studios', 'In-house (NL Lab)'],
   scanners: ['Allied Star', 'iTero'],
   extras: ['No IPR', 'No elastics'],
@@ -2609,6 +2822,13 @@ const [INSTR_ICONS, TYPE_ICONS] = (() => {
       + '<rect class="tbd" x="7.6" y="31.8" width="9.2" height="8.8" rx="2.2"/><rect class="tbd" x="31.2" y="31.8" width="9.2" height="8.8" rx="2.2"/>'
       + '<rect class="tsc" x="19.4" y="18.6" width="9.2" height="12" rx="2.4"/><circle class="tbf2" cx="24" cy="24.6" r="1.7"/>'
       + '<path class="ta" d="M6.2 13.8H1.8m1.9-1.9-1.9 1.9 1.9 1.9M41.8 13.8h4.4m-1.9-1.9 1.9 1.9-1.9 1.9"/>',
+    // MARPE: the expander body held by four miniscrews, arms to the molar bands, widening the palate
+    marpe: '<path class="tl tt2 tdl2" d="M9.5 41C8.3 22 14.2 9.5 24 9.5S39.7 22 38.5 41"/>'
+      + '<path class="tl" d="M17.2 27.4Q13 28.8 12.3 32.2M30.8 27.4Q35 28.8 35.7 32.2"/>'
+      + '<rect class="tbd" x="7.6" y="31.8" width="9.2" height="8.8" rx="2.2"/><rect class="tbd" x="31.2" y="31.8" width="9.2" height="8.8" rx="2.2"/>'
+      + '<rect class="tsc" x="16.6" y="14.4" width="14.8" height="17.4" rx="3.4"/><rect class="tjs" x="21" y="21.5" width="6" height="3.2" rx="1"/>'
+      + [[20, 17.8], [28, 17.8], [20, 28.4], [28, 28.4]].map(([x, y]) => '<circle class="tms" cx="' + x + '" cy="' + y + '" r="1.8"/>').join('')
+      + '<path class="ta" d="M6.2 13.8H1.8m1.9-1.9-1.9 1.9 1.9 1.9M41.8 13.8h4.4m-1.9-1.9 1.9 1.9-1.9 1.9"/>',
     // lower front teeth standing in a printed model on its base
     models: '<g transform="matrix(1 0 0 -1 0 47)"><path class="tk" d="' + [[5.9, 8.6, 35], [15.5, 8, 34.5], [24.5, 8, 34.5], [33.5, 8.6, 35]].map(([x, w, e]) => inc(x, w, 21, e)).join('') + '"/></g>'
       + '<path class="tst" d="M4.5 25Q24 29.4 43.5 25V30H4.5z"/><path class="tbs" d="M4.5 28.6H43.5V36.8Q43.5 39.8 40.5 39.8H7.5Q4.5 39.8 4.5 36.8z"/><path class="tl tt2" d="M8 34.6h32"/>',
@@ -2627,9 +2847,10 @@ function typeSvg(k) { return '<svg class="isvg tsvg" viewBox="0 0 48 48" aria-hi
 /* ic = drawing, c = tint; a company logo in LOGOS (logos.js) takes the drawing's place */
 const TILES = [
   { v: 'oliv', l: 'Oliv', s: 'Aligners', ic: 'tray', c: 'mint' }, { v: 'nla', l: 'In-house', s: 'Aligners · NL Lab', ic: 'nl', c: 'nl' }, { v: 'finishing', l: 'Finishing aligners', s: 'In-house · NL Lab', ic: 'finish' },
-  { v: 'retainer', l: 'Retainers', s: 'TT’s / WT’s', ic: 'retainer' }, { v: 'mouthguard', l: 'Mouthguard', s: 'In-house · complimentary', ic: 'guard' }, { v: 'appliance', l: 'Appliance', s: 'Herbst, RPE, MARPE…', ic: 'appl' },
+  { v: 'retainer', l: 'Retainers', s: 'TT’s / WT’s', ic: 'retainer' }, { v: 'mouthguard', l: 'Mouthguard', s: 'In-house · complimentary', ic: 'guard' }, { v: 'appliance', l: 'Appliance', s: 'Herbst, RPE, MSE…', ic: 'appl' },
   { v: 'angel', l: 'Angel', s: 'Aligners', ic: 'tray', c: 'coral' }, { v: 'ulab', l: 'uLab', s: 'Aligners', ic: 'tray', c: 'amber' }, { v: 'invisalign', l: 'Invisalign', s: 'Aligners', ic: 'tray', c: 'blue' },
   { v: 'insmile', l: 'InSmile', s: 'Braces · Smartwire IDB', ic: 'braces', c: 'navy' }, { v: 'models', l: 'Study models', s: '3D-printed in‑house', ic: 'models' },
+  { v: 'marpe', l: 'MARPE', s: 'STL + CBCT · Zoom', ic: 'marpe' },
   /* retired: shown only when editing a case that already is one */
   { v: 'inbrace', l: 'InBrace / Brava', s: 'Lingual', ic: 'tooth', legacy: true },
   { v: 'retreat', l: 'Retreatment', s: 'Review & proposal', ic: 'tooth', legacy: true }, { v: 'misc', l: 'Other (misc.)', s: 'Older or imported case', ic: 'tooth', legacy: true }
@@ -2638,11 +2859,13 @@ const ALIGNERISH = ['oliv', 'angel', 'invisalign', 'ulab', 'nla', 'finishing'];
 const BRACES = ['insmile', 'inbrace'];
 /* tiles that are in-house (NL Lab) aligner cases */
 const INHOUSE_TILES = ['nla', 'finishing'];
-function groupOfTile(v) { return ALIGNERISH.includes(v) ? 'aligner' : BRACES.includes(v) ? 'braces' : v === 'appliance' ? 'appliance' : (v === 'retainer' || v === 'mouthguard') ? 'retainer' : v === 'models' ? 'models' : 'other'; }
+function groupOfTile(v) { return ALIGNERISH.includes(v) ? 'aligner' : BRACES.includes(v) ? 'braces' : v === 'appliance' ? 'appliance' : v === 'marpe' ? 'marpe' : (v === 'retainer' || v === 'mouthguard') ? 'retainer' : v === 'models' ? 'models' : 'other'; }
 /* how the submission is labelled on the case: refinement for aligners, digital enhancement for InSmile */
 function submissionLabel(v) { return v === 'yes' ? 'Initial submission' : v === 'no' ? 'Refinement' : v === 'mid' ? 'Mid-course correction' : /^de[123]$/.test(v || '') ? 'Digital enhancement ' + v.slice(2) + ' (DE' + v.slice(2) + ')' : ''; }
+/* fields added later save '' when empty (not [] or false), so older cases without them don't look edited */
 const FORM_KEYS = ['type', 'patient', 'chart', 'detail', 'stage', 'assignee', 'assistant', 'scanner', 'scanDate', 'labDate', 'deliveryDate', 'aligners',
-  'initial', 'appliances', 'lab', 'arches', 'retKinds', 'goals', 'instrPicks', 'instrOther', 'instructions', 'extras', 'teeth', 'cc', 'ipr', 'notes', 'titanUrl', 'alU', 'alL'];
+  'initial', 'appliances', 'lab', 'arches', 'retKinds', 'goals', 'instrPicks', 'instrOther', 'instructions', 'extras', 'teeth', 'cc', 'ipr', 'notes', 'titanUrl', 'alU', 'alL',
+  'shipToPatient', 'records', 'zoomDate', 'zoomTime', 'tracking'];
 
 /* ---------- tooth chart (Palmer, 7s to 7s, same teeth as the IPR Tracker) ---------- */
 const TEETH_U = ['UR7', 'UR6', 'UR5', 'UR4', 'UR3', 'UR2', 'UR1', 'UL1', 'UL2', 'UL3', 'UL4', 'UL5', 'UL6', 'UL7'];
@@ -2801,7 +3024,7 @@ function defaultAssignee(type) {
   const d = (S.settings.defaults || {})[type]; if (d && staff(d) && staff(d).active) return d;
   const byFirst = n => (activeRoster().find(r => firstName(r.name).toLowerCase() === n) || {}).sid || '';
   const owner = (activeRoster().find(r => r.role === 'owner') || {}).sid || '';
-  if (['oliv', 'angel', 'invisalign', 'appliance'].includes(type)) return byFirst('sarah') || '';
+  if (['oliv', 'angel', 'invisalign', 'appliance', 'marpe'].includes(type)) return byFirst('sarah') || '';
   if (['ulab', 'insmile', 'inbrace', 'retainer', 'mouthguard', 'models'].includes(type)) return meSid();
   return owner;
 }
@@ -2847,8 +3070,13 @@ function caseFormHTML(c, isNew) {
       '<button type="button" class="tt' + (t.c ? ' c-' + t.c : '') + '" role="radio" data-tile="' + t.v + '" aria-checked="' + (tile === t.v) + '">' + tileArt(t) + '<b>' + esc(t.l) + '</b><span>' + esc(t.s) + '</span></button>').join('') + '</div></div>' +
     '<div class="cfSec"><div class="grid2"><div class="field"><label for="cf-patient">Patient name *</label><input id="cf-patient" autocomplete="off" value="' + esc(c.patient || '') + '" required></div>' +
     '<div class="field"><label for="cf-chart">Chart #</label><input id="cf-chart" autocomplete="off" spellcheck="false" inputmode="text" placeholder="For the IPR Tracker link" value="' + esc(c.chart || '') + '"></div></div></div>' +
-    '<div class="cfSec"' + show('appliance') + '><h5>Appliance</h5>' + pickRow('appliances', withSaved(PICK.appliances, c.appliances), c.appliances || [], true) +
+    '<div class="cfSec"' + show('appliance marpe') + '><div' + show('appliance') + '><h5>Appliance</h5>' + pickRow('appliances', withSaved(PICK.appliances, c.appliances), c.appliances || [], true) + '</div>' +
     '<h5>Lab</h5>' + pickRow('lab', withSaved(PICK.labs, c.lab), c.lab || '', false) + '<div class="hint small" id="cf-labHint" style="margin-top:6px"></div></div>' +
+    // MARPE: the two records the lab needs, and the Zoom call once it's set up
+    '<div class="cfSec"' + show('marpe') + '><h5>Records on file <span class="h5n">both have to be on file before it goes to the lab</span></h5>' +
+      pickRow('records', MARPE_RECORDS.map(([v, l]) => ({ v, l })), c.records || [], true) +
+      '<h5>Zoom call <span class="h5n">once the lab sets it up</span></h5><div class="zoomRow">' + date('cf-zoomDate', 'Date', c.zoomDate) +
+      '<div class="field"><label for="cf-zoomTime">Time</label><input type="time" id="cf-zoomTime" value="' + esc(c.zoomTime || '') + '"></div></div></div>' +
     '<div class="cfSec"' + show('retainer') + '><h5>Arch</h5>' + pickRow('arches', PICK.arches, c.arches || [], true) + '<div id="cf-retKindsWrap"' + (tile === 'mouthguard' ? ' style="display:none"' : '') + '><h5>Making</h5>' + pickRow('retKinds', PICK.retKinds, c.retKinds || [], true) + '</div></div>' +
     '<div class="cfSec"' + show('aligner') + '><h5>Initial submission?</h5>' + pickRow('initial', [{ v: 'yes', l: 'Yes — first set' }, { v: 'no', l: 'No — refinement' }, { v: 'mid', l: 'Mid-course correction' }], initialVal, false) + '</div>' +
     '<div class="cfSec"' + showTiles(INHOUSE_TILES.join(' ')) + '><h5>Aligners in this set <span class="h5n">count each arch from Titan</span></h5><div class="alRow">' +
@@ -2857,10 +3085,13 @@ function caseFormHTML(c, isNew) {
       '<div class="alTot" id="cf-alTotal" aria-live="polite"></div></div></div>' +
     '<div class="cfSec"' + showTiles('insmile') + '><h5>Initial or digital enhancement?</h5>' + pickRow('initialDE', [{ v: 'yes', l: 'Initial' }, { v: 'de1', l: 'DE 1' }, { v: 'de2', l: 'DE 2' }, { v: 'de3', l: 'DE 3' }], c.initial || '', false) + '</div>' +
     '<div class="cfSec"><h5>Assistant</h5>' + pickRow('assistant', roster.map(r => ({ v: r.sid, l: firstName(r.name) })), c.assistant || '', false) +
-    '<div' + show('aligner braces appliance retainer models') + '><h5>Scanner</h5>' + pickRow('scanner', PICK.scanners, c.scanner || '', false) + '</div></div>' +
+    '<div' + show('aligner braces appliance marpe retainer models') + '><h5>Scanner</h5>' + pickRow('scanner', PICK.scanners, c.scanner || '', false) + '</div></div>' +
     '<div class="cfSec"><h5>Dates</h5><div class="pickRow" style="margin-bottom:8px"><button type="button" class="pick sm" data-scan="0">Scanned today</button><button type="button" class="pick sm" data-scan="-1">Yesterday</button></div>' +
     '<div class="grid3">' + date('cf-scanDate', 'Scan date', c.scanDate) + date('cf-labDate', 'Lab completion', c.labDate) + date('cf-deliveryDate', 'Delivery', c.deliveryDate) + '</div>' +
-    '<div class="hint small muted" id="cf-autoHint" style="margin:-4px 0 0">Filled in from the scan date — change any of them.</div></div>' +
+    '<div class="hint small muted" id="cf-autoHint" style="margin:-4px 0 0">Filled in from the scan date — change any of them.</div>' +
+    // aligners going straight to the patient: an alert on the case everywhere it shows (Amir, 2 Oct 2026)
+    '<div' + show('aligner') + '><button type="button" class="shipTgl" id="cf-ship" aria-pressed="' + !!c.shipToPatient + '">' + ic('truck', 22) +
+      '<span><b>Ship to patient</b><small>Shows as an alert on the case</small></span></button></div></div>' +
     '<div class="cfSec"' + show('aligner braces') + '><h5>Dr. A’s instructions from last visit</h5>' +
     '<div class="goalGrid">' + GOALS.map(gl => '<div class="goal">' + instrSvg(gl.ic) + '<div class="goalB"><b>' + esc(gl.l) + '</b>' + (gl.s ? '<span>' + esc(gl.s) + '</span>' : '') + '</div>' +
       pickRow('goal_' + gl.k, [{ v: 'maintain', l: 'Maintain' }, { v: 'improve', l: 'Improve' }], (c.goals || {})[gl.k] || '', false, 'sm') + '</div>').join('') + '</div>' +
@@ -2880,7 +3111,7 @@ function caseFormHTML(c, isNew) {
     '<div class="pickRow tcQuick"><span class="lbl">Mark a whole group</span><button type="button" class="pick sm" data-tq="uant">Upper 3–3</button><button type="button" class="pick sm" data-tq="ant">Anteriors 3–3</button><button type="button" class="pick sm" data-tq="post">Posteriors 4–7</button><button type="button" class="pick sm" data-tq="all">All teeth</button><span class="tcSep"></span><button type="button" class="pick sm" data-tq="clear">Clear chart</button></div>' +
     '<div id="cf-tcChart">' + toothChartHTML(teeth0, false) + '</div><div class="tcSum" id="cf-teethSum">' + esc(teethSummary(teeth0) || 'Pick a marker, then tap teeth.') + '</div>' +
     '<input type="hidden" id="cf-teeth" value="' + esc(JSON.stringify(teeth0)) + '"></div></div>' +
-    '<div class="cfSec"' + show('aligner braces appliance') + '><h5>Patient’s CC from last visit</h5>' +
+    '<div class="cfSec"' + show('aligner braces appliance marpe') + '><h5>Patient’s CC from last visit</h5>' +
     '<div class="pickRow" data-cc="1">' + ['None'].concat(ccs).map(t => '<button type="button" class="pick sm" data-cc="' + esc(t) + '">' + esc(t) + '</button>').join('') + '</div>' +
     '<div class="field" style="margin-top:8px"><label for="cf-cc" class="hidden">Patient’s CC</label><input id="cf-cc" autocomplete="off" placeholder="Tap above or type" value="' + esc(c.cc || '') + '"></div></div>' +
     '<div class="cfSec"' + show('aligner') + '><div class="field"><label for="cf-ipr" style="display:flex;align-items:center;gap:8px">IPR, spacing &amp; black triangles<span style="flex:1"></span><button type="button" class="btn btn-ghost" data-act="iprPull" style="min-height:30px;padding:2px 10px;font-size:12px">' + ic('download', 14) + 'Get from IPR Tracker</button></label>' +
@@ -2889,7 +3120,8 @@ function caseFormHTML(c, isNew) {
     '<details class="cfMore"' + (isNew ? '' : ' open') + '><summary>More: what’s being made, stage, who it’s assigned to, notes</summary>' +
     '<div class="grid2" style="margin-top:12px"><div class="field"><label for="cf-detail">What’s being made</label><input id="cf-detail" value="' + esc(c.detail || '') + '" data-auto="' + (isNew || !c.detail ? 1 : 0) + '"></div>' +
     '<div class="field"><label for="cf-stage">Stage</label><select id="cf-stage">' + stages.map(([k, l]) => opt(k, l, (c.stage || (stages[0] || [])[0]) === k)).join('') + '</select></div></div>' +
-    '<div class="grid2"><div class="field"><label for="cf-assignee">Assigned to</label><select id="cf-assignee">' + people(c.assignee, 'Unassigned') + '</select></div><div></div></div>' +
+    '<div class="grid2"><div class="field"><label for="cf-assignee">Assigned to</label><select id="cf-assignee">' + people(c.assignee, 'Unassigned') + '</select></div>' +
+    '<div class="field"><label for="cf-tracking">Tracking #</label><input id="cf-tracking" autocomplete="off" spellcheck="false" placeholder="UPS, FedEx or USPS — becomes a Track button" value="' + esc(c.tracking || '') + '"></div></div>' +
     '<div class="field"><label for="cf-notes">Notes</label><textarea id="cf-notes" rows="2">' + esc(c.notes || '') + '</textarea></div></details>' +
     '<input type="hidden" id="cf-tile" value="' + esc(tile) + '"></div>';
 }
@@ -2897,7 +3129,7 @@ function pressed(root, g) { return $$('.pickRow[data-g="' + g + '"] .pick[aria-p
 function readCaseForm(root) {
   const tile = $('#cf-tile', root).value;
   const o = { type: INHOUSE_TILES.includes(tile) ? 'nla' : tile, variant: tile === 'finishing' ? 'finishing' : '' };
-  ['patient', 'chart', 'detail', 'stage', 'assignee', 'scanDate', 'labDate', 'deliveryDate', 'instrOther', 'cc', 'ipr', 'notes', 'titanUrl'].forEach(k => { const el = $('#cf-' + k, root); o[k] = el ? String(el.value || '').trim() : ''; });
+  ['patient', 'chart', 'detail', 'stage', 'assignee', 'scanDate', 'labDate', 'deliveryDate', 'instrOther', 'cc', 'ipr', 'notes', 'titanUrl', 'zoomDate', 'zoomTime', 'tracking'].forEach(k => { const el = $('#cf-' + k, root); o[k] = el ? String(el.value || '').trim() : ''; });
   o.assistant = pressed(root, 'assistant')[0] || '';
   o.scanner = pressed(root, 'scanner')[0] || '';
   const g0 = groupOfTile(tile);
@@ -2912,7 +3144,12 @@ function readCaseForm(root) {
   if (g === 'braces') o.instrPicks = o.instrPicks.filter(x => !ALIGNER_ONLY_INSTR.includes(x));
   if (g !== 'aligner' && g !== 'braces') { o.instrPicks = []; o.goals = {}; }
   if (g !== 'aligner') { o.extras = []; o.teeth = {}; o.teethNote = ''; }
-  if (g !== 'appliance') { o.appliances = []; o.lab = ''; }
+  if (g !== 'appliance' && g !== 'marpe') { o.appliances = []; o.lab = ''; }
+  if (g === 'marpe') o.appliances = [];
+  // MARPE: records on file and the Zoom call; aligners: ship to patient (empty is '', see FORM_KEYS)
+  const recs = pressed(root, 'records'); o.records = g === 'marpe' && recs.length ? recs : '';
+  if (g !== 'marpe') { o.zoomDate = ''; o.zoomTime = ''; } else if (!o.zoomDate) o.zoomTime = '';
+  const ship = $('#cf-ship', root); o.shipToPatient = g === 'aligner' && ship && ship.getAttribute('aria-pressed') === 'true' ? true : '';
   if (g !== 'retainer') { o.arches = []; o.retKinds = []; }
   if (tile === 'mouthguard') o.retKinds = [];
   if (!(o.type === 'nla')) o.titanUrl = '';
@@ -2932,6 +3169,7 @@ function autoDetail(o, tile) {
   if (tile === 'insmile') return 'InSmile braces' + (/^de[123]$/.test(o.initial) ? ' – DE' + o.initial.slice(2) : '');
   if (tile === 'appliance') return o.appliances.join(', ');
   if (tile === 'models') return 'Study models';
+  if (tile === 'marpe') return 'MARPE';
   if (tile === 'retainer' || tile === 'mouthguard') {
     const arch = o.arches.length === 2 ? 'U/L' : o.arches[0] === 'Upper' ? 'U' : o.arches[0] === 'Lower' ? 'L' : '';
     if (tile === 'mouthguard') return 'Mouthguard' + (arch ? ' (' + arch + ')' : '');
@@ -2957,8 +3195,8 @@ function wireCaseForm(root, isNew) {
       const type = o.type, stage = $r('#cf-stage');
       stage.innerHTML = type ? FLOWS[TYPE[type].flow].stages.map(([k, l]) => '<option value="' + k + '">' + esc(l) + '</option>').join('') : '';
       if (isNew && type) { stage.dataset.manual = ''; $r('#cf-assignee').dataset.manual = ''; $r('#cf-assignee').value = defaultAssignee(type); }
-      if (isNew && ['aligner', 'braces', 'appliance', 'retainer', 'models'].includes(g) && !pressed(root, 'scanner').length) setPick(root, 'scanner', 'Allied Star', true);
-      if (g === 'appliance') routeLab(root, isNew);
+      if (isNew && ['aligner', 'braces', 'appliance', 'marpe', 'retainer', 'models'].includes(g) && !pressed(root, 'scanner').length) setPick(root, 'scanner', 'Allied Star', true);
+      if (g === 'appliance' || g === 'marpe') routeLab(root, isNew);
     }
     // dates from the scan date (only fields nobody has typed into)
     const scan = $r('#cf-scanDate').value;
@@ -2994,6 +3232,8 @@ function wireCaseForm(root, isNew) {
       if (row.dataset.g === 'appliances') routeLab(root, isNew);
       refresh(false); return;
     }
+    const ship = e.target.closest('#cf-ship');
+    if (ship && root.contains(ship)) { ship.setAttribute('aria-pressed', String(ship.getAttribute('aria-pressed') !== 'true')); return; }
     const tool = e.target.closest('.tcTools [data-tool]');
     if (tool && root.contains(tool)) { $$('.tcTools [data-tool]', root).forEach(b => b.setAttribute('aria-checked', String(b === tool))); return; }
     const nat = e.target.closest('#cf-noatt');
@@ -3056,12 +3296,13 @@ function wireCaseForm(root, isNew) {
 }
 /* pre-select the lab for the tapped appliances (unless someone picked a lab by hand); in-house D2 starts in fabrication with Dr. A */
 function routeLab(root, isNew) {
-  const ap = pressed(root, 'appliances'); const labs = Array.from(new Set(ap.map(a => LAB_FOR[a]).filter(Boolean)));
+  const marpe = ($('#cf-tile', root) || {}).value === 'marpe';
+  const ap = marpe ? ['MARPE'] : pressed(root, 'appliances'); const labs = Array.from(new Set(ap.map(a => LAB_FOR[a]).filter(Boolean)));
   const row = $('.pickRow[data-g="lab"]', root); const hint = $('#cf-labHint', root);
   if (row && row.dataset.manual !== '1') { $$('.pick', row).forEach(b => b.setAttribute('aria-pressed', 'false')); if (labs[0]) setPick(root, 'lab', labs[0], true); }
   if (hint) hint.textContent = labs.length > 1 ? 'These go to different labs (' + labs.join(', ') + ') — make one case per lab.' : labs.length ? 'Lab picked from the office routing — tap another to change.' : '';
   if (hint) hint.style.color = labs.length > 1 ? 'var(--coral-700)' : 'var(--grey-500)';
-  if (!isNew) return;
+  if (!isNew || marpe) return; // a MARPE case starts at its first step (records) with the default person
   const inHouse = labs.length === 1 && labs[0] === LAB_IN;
   const st = $('#cf-stage', root), as = $('#cf-assignee', root);
   if (st && st.dataset.manual !== '1') st.value = inHouse ? 'mfg' : 'submit';
@@ -3086,6 +3327,9 @@ function newCaseModal() {
         if (!data.patient) return err('Enter the patient’s name.');
         if (data.titanUrl && !safeUrl(data.titanUrl)) return err('The Titan link must start with https://');
         data.stage = data.stage || firstStage(data.type);
+        const needs = stageNeeds(Object.assign({}, data, { stage: firstStage(data.type) }), data.stage);
+        if (needs.includes('records')) return err('Tick both records (STL scan and CBCT) before starting it at ' + stageLabel(data) + '.');
+        if (needs.includes('zoom')) return err('Add the Zoom call date to start it at Zoom call scheduled.');
         Object.assign(data, { comments: [], createdAt: Date.now(), createdBy: meSid() });
         busyBtn($('#ncSave', w), true, 'Saving…');
         try { await B.createCase(data); closeModal(); toast('Case created for ' + data.patient); }
@@ -3406,7 +3650,7 @@ const ADMIN_ACTS = {
     try {
       const all = await B.loadAll();
       all.forEach(c => { c.assigneeLabel = staffName(c.assignee, c.assigneeName); });
-      const head = ['Patient', 'Type', 'Detail', 'Stage', 'Status', 'Scan', 'Lab completion', 'Delivery', 'Assigned', 'Dr. A instructions', 'Patient CC', 'IPR & spacing', 'Notes', 'Chart #', 'Titan link', 'Also', 'Initial/refinement', 'Lab', 'Tooth chart', 'Aligners in set'].join(',');
+      const head = ['Patient', 'Type', 'Detail', 'Stage', 'Status', 'Scan', 'Lab completion', 'Delivery', 'Assigned', 'Dr. A instructions', 'Patient CC', 'IPR & spacing', 'Notes', 'Chart #', 'Titan link', 'Also', 'Initial/refinement', 'Lab', 'Tooth chart', 'Aligners in set', 'Ship to patient', 'Records on file', 'Zoom call'].join(',');
       const blob = new Blob(['﻿' + head + '\n' + all.map(caseToCSVRow).join('\n')], { type: 'text/csv' });
       const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'nlo-cases-' + todayISO() + '.csv'; document.body.appendChild(a); a.click();
       setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);

@@ -5,7 +5,8 @@
    aligner type, lab, initial submission, Dr. A's instructions, extras).
    ===================================================================== */
 const PICK = {
-  appliances: ['Herbst with Rollo Band', 'Space Closing Herbst', 'MARA', 'MSE', 'MARPE', 'Rapid Palatal Expander (RPE)', 'D2 distalizer', 'Finger spring with no labial bow', 'Hawley retainers', 'Schwartz'],
+  // MARPE has its own case type and steps now (older appliance cases with it keep the choice through withSaved)
+  appliances: ['Herbst with Rollo Band', 'Space Closing Herbst', 'MARA', 'MSE', 'Rapid Palatal Expander (RPE)', 'D2 distalizer', 'Finger spring with no labial bow', 'Hawley retainers', 'Schwartz'],
   labs: ['Specialty Orthodontic Lab', 'Partner Dental Studios', 'In-house (NL Lab)'],
   scanners: ['Allied Star', 'iTero'],
   extras: ['No IPR', 'No elastics'],
@@ -109,6 +110,13 @@ const [INSTR_ICONS, TYPE_ICONS] = (() => {
       + '<rect class="tbd" x="7.6" y="31.8" width="9.2" height="8.8" rx="2.2"/><rect class="tbd" x="31.2" y="31.8" width="9.2" height="8.8" rx="2.2"/>'
       + '<rect class="tsc" x="19.4" y="18.6" width="9.2" height="12" rx="2.4"/><circle class="tbf2" cx="24" cy="24.6" r="1.7"/>'
       + '<path class="ta" d="M6.2 13.8H1.8m1.9-1.9-1.9 1.9 1.9 1.9M41.8 13.8h4.4m-1.9-1.9 1.9 1.9-1.9 1.9"/>',
+    // MARPE: the expander body held by four miniscrews, arms to the molar bands, widening the palate
+    marpe: '<path class="tl tt2 tdl2" d="M9.5 41C8.3 22 14.2 9.5 24 9.5S39.7 22 38.5 41"/>'
+      + '<path class="tl" d="M17.2 27.4Q13 28.8 12.3 32.2M30.8 27.4Q35 28.8 35.7 32.2"/>'
+      + '<rect class="tbd" x="7.6" y="31.8" width="9.2" height="8.8" rx="2.2"/><rect class="tbd" x="31.2" y="31.8" width="9.2" height="8.8" rx="2.2"/>'
+      + '<rect class="tsc" x="16.6" y="14.4" width="14.8" height="17.4" rx="3.4"/><rect class="tjs" x="21" y="21.5" width="6" height="3.2" rx="1"/>'
+      + [[20, 17.8], [28, 17.8], [20, 28.4], [28, 28.4]].map(([x, y]) => '<circle class="tms" cx="' + x + '" cy="' + y + '" r="1.8"/>').join('')
+      + '<path class="ta" d="M6.2 13.8H1.8m1.9-1.9-1.9 1.9 1.9 1.9M41.8 13.8h4.4m-1.9-1.9 1.9 1.9-1.9 1.9"/>',
     // lower front teeth standing in a printed model on its base
     models: '<g transform="matrix(1 0 0 -1 0 47)"><path class="tk" d="' + [[5.9, 8.6, 35], [15.5, 8, 34.5], [24.5, 8, 34.5], [33.5, 8.6, 35]].map(([x, w, e]) => inc(x, w, 21, e)).join('') + '"/></g>'
       + '<path class="tst" d="M4.5 25Q24 29.4 43.5 25V30H4.5z"/><path class="tbs" d="M4.5 28.6H43.5V36.8Q43.5 39.8 40.5 39.8H7.5Q4.5 39.8 4.5 36.8z"/><path class="tl tt2" d="M8 34.6h32"/>',
@@ -127,9 +135,10 @@ function typeSvg(k) { return '<svg class="isvg tsvg" viewBox="0 0 48 48" aria-hi
 /* ic = drawing, c = tint; a company logo in LOGOS (logos.js) takes the drawing's place */
 const TILES = [
   { v: 'oliv', l: 'Oliv', s: 'Aligners', ic: 'tray', c: 'mint' }, { v: 'nla', l: 'In-house', s: 'Aligners · NL Lab', ic: 'nl', c: 'nl' }, { v: 'finishing', l: 'Finishing aligners', s: 'In-house · NL Lab', ic: 'finish' },
-  { v: 'retainer', l: 'Retainers', s: 'TT’s / WT’s', ic: 'retainer' }, { v: 'mouthguard', l: 'Mouthguard', s: 'In-house · complimentary', ic: 'guard' }, { v: 'appliance', l: 'Appliance', s: 'Herbst, RPE, MARPE…', ic: 'appl' },
+  { v: 'retainer', l: 'Retainers', s: 'TT’s / WT’s', ic: 'retainer' }, { v: 'mouthguard', l: 'Mouthguard', s: 'In-house · complimentary', ic: 'guard' }, { v: 'appliance', l: 'Appliance', s: 'Herbst, RPE, MSE…', ic: 'appl' },
   { v: 'angel', l: 'Angel', s: 'Aligners', ic: 'tray', c: 'coral' }, { v: 'ulab', l: 'uLab', s: 'Aligners', ic: 'tray', c: 'amber' }, { v: 'invisalign', l: 'Invisalign', s: 'Aligners', ic: 'tray', c: 'blue' },
   { v: 'insmile', l: 'InSmile', s: 'Braces · Smartwire IDB', ic: 'braces', c: 'navy' }, { v: 'models', l: 'Study models', s: '3D-printed in‑house', ic: 'models' },
+  { v: 'marpe', l: 'MARPE', s: 'STL + CBCT · Zoom', ic: 'marpe' },
   /* retired: shown only when editing a case that already is one */
   { v: 'inbrace', l: 'InBrace / Brava', s: 'Lingual', ic: 'tooth', legacy: true },
   { v: 'retreat', l: 'Retreatment', s: 'Review & proposal', ic: 'tooth', legacy: true }, { v: 'misc', l: 'Other (misc.)', s: 'Older or imported case', ic: 'tooth', legacy: true }
@@ -138,11 +147,13 @@ const ALIGNERISH = ['oliv', 'angel', 'invisalign', 'ulab', 'nla', 'finishing'];
 const BRACES = ['insmile', 'inbrace'];
 /* tiles that are in-house (NL Lab) aligner cases */
 const INHOUSE_TILES = ['nla', 'finishing'];
-function groupOfTile(v) { return ALIGNERISH.includes(v) ? 'aligner' : BRACES.includes(v) ? 'braces' : v === 'appliance' ? 'appliance' : (v === 'retainer' || v === 'mouthguard') ? 'retainer' : v === 'models' ? 'models' : 'other'; }
+function groupOfTile(v) { return ALIGNERISH.includes(v) ? 'aligner' : BRACES.includes(v) ? 'braces' : v === 'appliance' ? 'appliance' : v === 'marpe' ? 'marpe' : (v === 'retainer' || v === 'mouthguard') ? 'retainer' : v === 'models' ? 'models' : 'other'; }
 /* how the submission is labelled on the case: refinement for aligners, digital enhancement for InSmile */
 function submissionLabel(v) { return v === 'yes' ? 'Initial submission' : v === 'no' ? 'Refinement' : v === 'mid' ? 'Mid-course correction' : /^de[123]$/.test(v || '') ? 'Digital enhancement ' + v.slice(2) + ' (DE' + v.slice(2) + ')' : ''; }
+/* fields added later save '' when empty (not [] or false), so older cases without them don't look edited */
 const FORM_KEYS = ['type', 'patient', 'chart', 'detail', 'stage', 'assignee', 'assistant', 'scanner', 'scanDate', 'labDate', 'deliveryDate', 'aligners',
-  'initial', 'appliances', 'lab', 'arches', 'retKinds', 'goals', 'instrPicks', 'instrOther', 'instructions', 'extras', 'teeth', 'cc', 'ipr', 'notes', 'titanUrl', 'alU', 'alL'];
+  'initial', 'appliances', 'lab', 'arches', 'retKinds', 'goals', 'instrPicks', 'instrOther', 'instructions', 'extras', 'teeth', 'cc', 'ipr', 'notes', 'titanUrl', 'alU', 'alL',
+  'shipToPatient', 'records', 'zoomDate', 'zoomTime', 'tracking'];
 
 /* ---------- tooth chart (Palmer, 7s to 7s, same teeth as the IPR Tracker) ---------- */
 const TEETH_U = ['UR7', 'UR6', 'UR5', 'UR4', 'UR3', 'UR2', 'UR1', 'UL1', 'UL2', 'UL3', 'UL4', 'UL5', 'UL6', 'UL7'];
@@ -301,7 +312,7 @@ function defaultAssignee(type) {
   const d = (S.settings.defaults || {})[type]; if (d && staff(d) && staff(d).active) return d;
   const byFirst = n => (activeRoster().find(r => firstName(r.name).toLowerCase() === n) || {}).sid || '';
   const owner = (activeRoster().find(r => r.role === 'owner') || {}).sid || '';
-  if (['oliv', 'angel', 'invisalign', 'appliance'].includes(type)) return byFirst('sarah') || '';
+  if (['oliv', 'angel', 'invisalign', 'appliance', 'marpe'].includes(type)) return byFirst('sarah') || '';
   if (['ulab', 'insmile', 'inbrace', 'retainer', 'mouthguard', 'models'].includes(type)) return meSid();
   return owner;
 }
@@ -347,8 +358,13 @@ function caseFormHTML(c, isNew) {
       '<button type="button" class="tt' + (t.c ? ' c-' + t.c : '') + '" role="radio" data-tile="' + t.v + '" aria-checked="' + (tile === t.v) + '">' + tileArt(t) + '<b>' + esc(t.l) + '</b><span>' + esc(t.s) + '</span></button>').join('') + '</div></div>' +
     '<div class="cfSec"><div class="grid2"><div class="field"><label for="cf-patient">Patient name *</label><input id="cf-patient" autocomplete="off" value="' + esc(c.patient || '') + '" required></div>' +
     '<div class="field"><label for="cf-chart">Chart #</label><input id="cf-chart" autocomplete="off" spellcheck="false" inputmode="text" placeholder="For the IPR Tracker link" value="' + esc(c.chart || '') + '"></div></div></div>' +
-    '<div class="cfSec"' + show('appliance') + '><h5>Appliance</h5>' + pickRow('appliances', withSaved(PICK.appliances, c.appliances), c.appliances || [], true) +
+    '<div class="cfSec"' + show('appliance marpe') + '><div' + show('appliance') + '><h5>Appliance</h5>' + pickRow('appliances', withSaved(PICK.appliances, c.appliances), c.appliances || [], true) + '</div>' +
     '<h5>Lab</h5>' + pickRow('lab', withSaved(PICK.labs, c.lab), c.lab || '', false) + '<div class="hint small" id="cf-labHint" style="margin-top:6px"></div></div>' +
+    // MARPE: the two records the lab needs, and the Zoom call once it's set up
+    '<div class="cfSec"' + show('marpe') + '><h5>Records on file <span class="h5n">both have to be on file before it goes to the lab</span></h5>' +
+      pickRow('records', MARPE_RECORDS.map(([v, l]) => ({ v, l })), c.records || [], true) +
+      '<h5>Zoom call <span class="h5n">once the lab sets it up</span></h5><div class="zoomRow">' + date('cf-zoomDate', 'Date', c.zoomDate) +
+      '<div class="field"><label for="cf-zoomTime">Time</label><input type="time" id="cf-zoomTime" value="' + esc(c.zoomTime || '') + '"></div></div></div>' +
     '<div class="cfSec"' + show('retainer') + '><h5>Arch</h5>' + pickRow('arches', PICK.arches, c.arches || [], true) + '<div id="cf-retKindsWrap"' + (tile === 'mouthguard' ? ' style="display:none"' : '') + '><h5>Making</h5>' + pickRow('retKinds', PICK.retKinds, c.retKinds || [], true) + '</div></div>' +
     '<div class="cfSec"' + show('aligner') + '><h5>Initial submission?</h5>' + pickRow('initial', [{ v: 'yes', l: 'Yes — first set' }, { v: 'no', l: 'No — refinement' }, { v: 'mid', l: 'Mid-course correction' }], initialVal, false) + '</div>' +
     '<div class="cfSec"' + showTiles(INHOUSE_TILES.join(' ')) + '><h5>Aligners in this set <span class="h5n">count each arch from Titan</span></h5><div class="alRow">' +
@@ -357,10 +373,13 @@ function caseFormHTML(c, isNew) {
       '<div class="alTot" id="cf-alTotal" aria-live="polite"></div></div></div>' +
     '<div class="cfSec"' + showTiles('insmile') + '><h5>Initial or digital enhancement?</h5>' + pickRow('initialDE', [{ v: 'yes', l: 'Initial' }, { v: 'de1', l: 'DE 1' }, { v: 'de2', l: 'DE 2' }, { v: 'de3', l: 'DE 3' }], c.initial || '', false) + '</div>' +
     '<div class="cfSec"><h5>Assistant</h5>' + pickRow('assistant', roster.map(r => ({ v: r.sid, l: firstName(r.name) })), c.assistant || '', false) +
-    '<div' + show('aligner braces appliance retainer models') + '><h5>Scanner</h5>' + pickRow('scanner', PICK.scanners, c.scanner || '', false) + '</div></div>' +
+    '<div' + show('aligner braces appliance marpe retainer models') + '><h5>Scanner</h5>' + pickRow('scanner', PICK.scanners, c.scanner || '', false) + '</div></div>' +
     '<div class="cfSec"><h5>Dates</h5><div class="pickRow" style="margin-bottom:8px"><button type="button" class="pick sm" data-scan="0">Scanned today</button><button type="button" class="pick sm" data-scan="-1">Yesterday</button></div>' +
     '<div class="grid3">' + date('cf-scanDate', 'Scan date', c.scanDate) + date('cf-labDate', 'Lab completion', c.labDate) + date('cf-deliveryDate', 'Delivery', c.deliveryDate) + '</div>' +
-    '<div class="hint small muted" id="cf-autoHint" style="margin:-4px 0 0">Filled in from the scan date — change any of them.</div></div>' +
+    '<div class="hint small muted" id="cf-autoHint" style="margin:-4px 0 0">Filled in from the scan date — change any of them.</div>' +
+    // aligners going straight to the patient: an alert on the case everywhere it shows (Amir, 2 Oct 2026)
+    '<div' + show('aligner') + '><button type="button" class="shipTgl" id="cf-ship" aria-pressed="' + !!c.shipToPatient + '">' + ic('truck', 22) +
+      '<span><b>Ship to patient</b><small>Shows as an alert on the case</small></span></button></div></div>' +
     '<div class="cfSec"' + show('aligner braces') + '><h5>Dr. A’s instructions from last visit</h5>' +
     '<div class="goalGrid">' + GOALS.map(gl => '<div class="goal">' + instrSvg(gl.ic) + '<div class="goalB"><b>' + esc(gl.l) + '</b>' + (gl.s ? '<span>' + esc(gl.s) + '</span>' : '') + '</div>' +
       pickRow('goal_' + gl.k, [{ v: 'maintain', l: 'Maintain' }, { v: 'improve', l: 'Improve' }], (c.goals || {})[gl.k] || '', false, 'sm') + '</div>').join('') + '</div>' +
@@ -380,7 +399,7 @@ function caseFormHTML(c, isNew) {
     '<div class="pickRow tcQuick"><span class="lbl">Mark a whole group</span><button type="button" class="pick sm" data-tq="uant">Upper 3–3</button><button type="button" class="pick sm" data-tq="ant">Anteriors 3–3</button><button type="button" class="pick sm" data-tq="post">Posteriors 4–7</button><button type="button" class="pick sm" data-tq="all">All teeth</button><span class="tcSep"></span><button type="button" class="pick sm" data-tq="clear">Clear chart</button></div>' +
     '<div id="cf-tcChart">' + toothChartHTML(teeth0, false) + '</div><div class="tcSum" id="cf-teethSum">' + esc(teethSummary(teeth0) || 'Pick a marker, then tap teeth.') + '</div>' +
     '<input type="hidden" id="cf-teeth" value="' + esc(JSON.stringify(teeth0)) + '"></div></div>' +
-    '<div class="cfSec"' + show('aligner braces appliance') + '><h5>Patient’s CC from last visit</h5>' +
+    '<div class="cfSec"' + show('aligner braces appliance marpe') + '><h5>Patient’s CC from last visit</h5>' +
     '<div class="pickRow" data-cc="1">' + ['None'].concat(ccs).map(t => '<button type="button" class="pick sm" data-cc="' + esc(t) + '">' + esc(t) + '</button>').join('') + '</div>' +
     '<div class="field" style="margin-top:8px"><label for="cf-cc" class="hidden">Patient’s CC</label><input id="cf-cc" autocomplete="off" placeholder="Tap above or type" value="' + esc(c.cc || '') + '"></div></div>' +
     '<div class="cfSec"' + show('aligner') + '><div class="field"><label for="cf-ipr" style="display:flex;align-items:center;gap:8px">IPR, spacing &amp; black triangles<span style="flex:1"></span><button type="button" class="btn btn-ghost" data-act="iprPull" style="min-height:30px;padding:2px 10px;font-size:12px">' + ic('download', 14) + 'Get from IPR Tracker</button></label>' +
@@ -389,7 +408,8 @@ function caseFormHTML(c, isNew) {
     '<details class="cfMore"' + (isNew ? '' : ' open') + '><summary>More: what’s being made, stage, who it’s assigned to, notes</summary>' +
     '<div class="grid2" style="margin-top:12px"><div class="field"><label for="cf-detail">What’s being made</label><input id="cf-detail" value="' + esc(c.detail || '') + '" data-auto="' + (isNew || !c.detail ? 1 : 0) + '"></div>' +
     '<div class="field"><label for="cf-stage">Stage</label><select id="cf-stage">' + stages.map(([k, l]) => opt(k, l, (c.stage || (stages[0] || [])[0]) === k)).join('') + '</select></div></div>' +
-    '<div class="grid2"><div class="field"><label for="cf-assignee">Assigned to</label><select id="cf-assignee">' + people(c.assignee, 'Unassigned') + '</select></div><div></div></div>' +
+    '<div class="grid2"><div class="field"><label for="cf-assignee">Assigned to</label><select id="cf-assignee">' + people(c.assignee, 'Unassigned') + '</select></div>' +
+    '<div class="field"><label for="cf-tracking">Tracking #</label><input id="cf-tracking" autocomplete="off" spellcheck="false" placeholder="UPS, FedEx or USPS — becomes a Track button" value="' + esc(c.tracking || '') + '"></div></div>' +
     '<div class="field"><label for="cf-notes">Notes</label><textarea id="cf-notes" rows="2">' + esc(c.notes || '') + '</textarea></div></details>' +
     '<input type="hidden" id="cf-tile" value="' + esc(tile) + '"></div>';
 }
@@ -397,7 +417,7 @@ function pressed(root, g) { return $$('.pickRow[data-g="' + g + '"] .pick[aria-p
 function readCaseForm(root) {
   const tile = $('#cf-tile', root).value;
   const o = { type: INHOUSE_TILES.includes(tile) ? 'nla' : tile, variant: tile === 'finishing' ? 'finishing' : '' };
-  ['patient', 'chart', 'detail', 'stage', 'assignee', 'scanDate', 'labDate', 'deliveryDate', 'instrOther', 'cc', 'ipr', 'notes', 'titanUrl'].forEach(k => { const el = $('#cf-' + k, root); o[k] = el ? String(el.value || '').trim() : ''; });
+  ['patient', 'chart', 'detail', 'stage', 'assignee', 'scanDate', 'labDate', 'deliveryDate', 'instrOther', 'cc', 'ipr', 'notes', 'titanUrl', 'zoomDate', 'zoomTime', 'tracking'].forEach(k => { const el = $('#cf-' + k, root); o[k] = el ? String(el.value || '').trim() : ''; });
   o.assistant = pressed(root, 'assistant')[0] || '';
   o.scanner = pressed(root, 'scanner')[0] || '';
   const g0 = groupOfTile(tile);
@@ -412,7 +432,12 @@ function readCaseForm(root) {
   if (g === 'braces') o.instrPicks = o.instrPicks.filter(x => !ALIGNER_ONLY_INSTR.includes(x));
   if (g !== 'aligner' && g !== 'braces') { o.instrPicks = []; o.goals = {}; }
   if (g !== 'aligner') { o.extras = []; o.teeth = {}; o.teethNote = ''; }
-  if (g !== 'appliance') { o.appliances = []; o.lab = ''; }
+  if (g !== 'appliance' && g !== 'marpe') { o.appliances = []; o.lab = ''; }
+  if (g === 'marpe') o.appliances = [];
+  // MARPE: records on file and the Zoom call; aligners: ship to patient (empty is '', see FORM_KEYS)
+  const recs = pressed(root, 'records'); o.records = g === 'marpe' && recs.length ? recs : '';
+  if (g !== 'marpe') { o.zoomDate = ''; o.zoomTime = ''; } else if (!o.zoomDate) o.zoomTime = '';
+  const ship = $('#cf-ship', root); o.shipToPatient = g === 'aligner' && ship && ship.getAttribute('aria-pressed') === 'true' ? true : '';
   if (g !== 'retainer') { o.arches = []; o.retKinds = []; }
   if (tile === 'mouthguard') o.retKinds = [];
   if (!(o.type === 'nla')) o.titanUrl = '';
@@ -432,6 +457,7 @@ function autoDetail(o, tile) {
   if (tile === 'insmile') return 'InSmile braces' + (/^de[123]$/.test(o.initial) ? ' – DE' + o.initial.slice(2) : '');
   if (tile === 'appliance') return o.appliances.join(', ');
   if (tile === 'models') return 'Study models';
+  if (tile === 'marpe') return 'MARPE';
   if (tile === 'retainer' || tile === 'mouthguard') {
     const arch = o.arches.length === 2 ? 'U/L' : o.arches[0] === 'Upper' ? 'U' : o.arches[0] === 'Lower' ? 'L' : '';
     if (tile === 'mouthguard') return 'Mouthguard' + (arch ? ' (' + arch + ')' : '');
@@ -457,8 +483,8 @@ function wireCaseForm(root, isNew) {
       const type = o.type, stage = $r('#cf-stage');
       stage.innerHTML = type ? FLOWS[TYPE[type].flow].stages.map(([k, l]) => '<option value="' + k + '">' + esc(l) + '</option>').join('') : '';
       if (isNew && type) { stage.dataset.manual = ''; $r('#cf-assignee').dataset.manual = ''; $r('#cf-assignee').value = defaultAssignee(type); }
-      if (isNew && ['aligner', 'braces', 'appliance', 'retainer', 'models'].includes(g) && !pressed(root, 'scanner').length) setPick(root, 'scanner', 'Allied Star', true);
-      if (g === 'appliance') routeLab(root, isNew);
+      if (isNew && ['aligner', 'braces', 'appliance', 'marpe', 'retainer', 'models'].includes(g) && !pressed(root, 'scanner').length) setPick(root, 'scanner', 'Allied Star', true);
+      if (g === 'appliance' || g === 'marpe') routeLab(root, isNew);
     }
     // dates from the scan date (only fields nobody has typed into)
     const scan = $r('#cf-scanDate').value;
@@ -494,6 +520,8 @@ function wireCaseForm(root, isNew) {
       if (row.dataset.g === 'appliances') routeLab(root, isNew);
       refresh(false); return;
     }
+    const ship = e.target.closest('#cf-ship');
+    if (ship && root.contains(ship)) { ship.setAttribute('aria-pressed', String(ship.getAttribute('aria-pressed') !== 'true')); return; }
     const tool = e.target.closest('.tcTools [data-tool]');
     if (tool && root.contains(tool)) { $$('.tcTools [data-tool]', root).forEach(b => b.setAttribute('aria-checked', String(b === tool))); return; }
     const nat = e.target.closest('#cf-noatt');
@@ -556,12 +584,13 @@ function wireCaseForm(root, isNew) {
 }
 /* pre-select the lab for the tapped appliances (unless someone picked a lab by hand); in-house D2 starts in fabrication with Dr. A */
 function routeLab(root, isNew) {
-  const ap = pressed(root, 'appliances'); const labs = Array.from(new Set(ap.map(a => LAB_FOR[a]).filter(Boolean)));
+  const marpe = ($('#cf-tile', root) || {}).value === 'marpe';
+  const ap = marpe ? ['MARPE'] : pressed(root, 'appliances'); const labs = Array.from(new Set(ap.map(a => LAB_FOR[a]).filter(Boolean)));
   const row = $('.pickRow[data-g="lab"]', root); const hint = $('#cf-labHint', root);
   if (row && row.dataset.manual !== '1') { $$('.pick', row).forEach(b => b.setAttribute('aria-pressed', 'false')); if (labs[0]) setPick(root, 'lab', labs[0], true); }
   if (hint) hint.textContent = labs.length > 1 ? 'These go to different labs (' + labs.join(', ') + ') — make one case per lab.' : labs.length ? 'Lab picked from the office routing — tap another to change.' : '';
   if (hint) hint.style.color = labs.length > 1 ? 'var(--coral-700)' : 'var(--grey-500)';
-  if (!isNew) return;
+  if (!isNew || marpe) return; // a MARPE case starts at its first step (records) with the default person
   const inHouse = labs.length === 1 && labs[0] === LAB_IN;
   const st = $('#cf-stage', root), as = $('#cf-assignee', root);
   if (st && st.dataset.manual !== '1') st.value = inHouse ? 'mfg' : 'submit';
@@ -586,6 +615,9 @@ function newCaseModal() {
         if (!data.patient) return err('Enter the patient’s name.');
         if (data.titanUrl && !safeUrl(data.titanUrl)) return err('The Titan link must start with https://');
         data.stage = data.stage || firstStage(data.type);
+        const needs = stageNeeds(Object.assign({}, data, { stage: firstStage(data.type) }), data.stage);
+        if (needs.includes('records')) return err('Tick both records (STL scan and CBCT) before starting it at ' + stageLabel(data) + '.');
+        if (needs.includes('zoom')) return err('Add the Zoom call date to start it at Zoom call scheduled.');
         Object.assign(data, { comments: [], createdAt: Date.now(), createdBy: meSid() });
         busyBtn($('#ncSave', w), true, 'Saving…');
         try { await B.createCase(data); closeModal(); toast('Case created for ' + data.patient); }

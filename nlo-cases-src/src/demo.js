@@ -31,9 +31,10 @@ const DEMO = {
       ['nla', 'txp', 'amir', -2], ['nla', 'txp', 'amir', 3], ['nla', 'reset', 'angelika', 2], ['nla', 'thermo', 'angelika', 6], ['nla', 'send', 'kaylee', 8], ['nla', 'pack', 'gwen', 1],
       ['appliance', 'submit', 'sarah', 7], ['appliance', 'hold', 'amir', null], ['appliance', 'mfg', 'sarah', 15],
       ['retainer', 'print', 'angelika', 1], ['retainer', 'print', 'gwen', null], ['retainer', 'sarah', 'sarah', 0], ['retainer', 'pickup', 'sarah', -3],
-      ['ulab', 'mfg', 'gwen', 10], ['models', 'print', 'kaylee', 4], ['mouthguard', 'print', 'kaylee', 2], ['insmile', 'mfg', 'sarah', 9]
+      ['ulab', 'mfg', 'gwen', 10], ['models', 'print', 'kaylee', 4], ['mouthguard', 'print', 'kaylee', 2], ['insmile', 'mfg', 'sarah', 9],
+      ['marpe', 'records', 'sarah', null], ['marpe', 'zoom', 'amir', 16], ['marpe', 'approved', 'sarah', 12]
     ];
-    const details = { oliv: 'Aligners (Oliv)', angel: 'Aligners (Angel)', ulab: 'Aligners (uLab)', invisalign: 'Aligners (Invisalign)', nla: 'Aligners (In-House)', appliance: 'Herbst', retainer: "U/L TT's and WT's", models: 'Study models', mouthguard: 'Mouthguard (U)', insmile: 'InSmile braces' };
+    const details = { oliv: 'Aligners (Oliv)', angel: 'Aligners (Angel)', ulab: 'Aligners (uLab)', invisalign: 'Aligners (Invisalign)', nla: 'Aligners (In-House)', appliance: 'Herbst', retainer: "U/L TT's and WT's", models: 'Study models', mouthguard: 'Mouthguard (U)', insmile: 'InSmile braces', marpe: 'MARPE' };
     plan.forEach((p, i) => {
       const [type, stage, who, due] = p; const id = 'demo' + i;
       const scan = addDays(t, -10 + (i % 7));
@@ -48,6 +49,15 @@ const DEMO = {
       });
       DEMO.logs.push({ caseId: id, a: 'create', at: Date.now() - 86400e3 * (i + 2), sid: 'amir' });
     });
+    // MARPE: one still waiting on its CBCT, one with the Zoom call in two days, one approved; Partners makes them
+    const all = Array.from(DEMO.cases.values()), mp = all.filter(c => c.type === 'marpe');
+    Object.assign(mp[0], { records: ['stl'], lab: 'Partner Dental Studios' });
+    Object.assign(mp[1], { records: ['stl', 'cbct'], lab: 'Partner Dental Studios', zoomDate: addDays(t, 2), zoomTime: '12:30' });
+    Object.assign(mp[2], { records: ['stl', 'cbct'], lab: 'Partner Dental Studios', zoomDate: addDays(t, -9), zoomTime: '13:00' });
+    // aligners going straight to the patient, and shipments with one-click tracking (sample numbers)
+    Object.assign(all.find(c => c.type === 'oliv' && c.stage === 'shipped'), { shipToPatient: true, tracking: '1Z999AA10123456784' });
+    Object.assign(all.find(c => c.type === 'nla' && c.stage === 'pack'), { shipToPatient: true });
+    Object.assign(all.find(c => c.type === 'ulab' && c.stage === 'mfg'), { tracking: '123456789012' });
     // one in-house patient on a refinement, with the finished initial set behind it (shows the aligner total)
     const ref = Array.from(DEMO.cases.values()).find(c => c.type === 'nla' && c.stage === 'thermo');
     Object.assign(ref, { chart: '15-1001', initial: 'no', alU: 10, alL: 8, detail: 'Aligners (In-House) – refinement' });

@@ -3,7 +3,7 @@
    ===================================================================== */
 const S = {
   demo: false, emu: false, cases: new Map(), closed: [], oldOff: new Set(), oldMonths: 3, oldNoDate: false, bulkBusy: '', closedDays: 90, roster: [], members: [], settings: { idleMin: 10 },
-  view: 'today', boardFlow: 'outside', q: '', f: { type: '', stage: '', who: '', due: '', grp: '' }, sort: { k: 'due', dir: 1 },
+  view: 'today', boardFlow: 'outside', q: '', f: { type: '', stage: '', who: '', due: '', grp: '', ship: '' }, sort: { k: 'due', dir: 1 },
   openId: null, editing: false, editBase: null, lastLogin: '', tempPw: '', loginPw: '', lastAct: Date.now(), idleTimer: null,
   inApp: false, renderQ: false, firstLoad: true
 };
@@ -11,7 +11,10 @@ let B = null;
 
 /* ---------- icons ---------- */
 const IC = {
-  print: '<path d="M7 9V3.5h10V9"/><rect x="3.5" y="9" width="17" height="8" rx="2"/><path d="M7 14h10v6.5H7z"/>',
+  truck: '<path d="M2.5 5.5h11v10h-11z"/><path d="M13.5 9h4.3l3.2 3.5v3h-7.5"/><circle cx="6.5" cy="17.5" r="2"/><circle cx="17.5" cy="17.5" r="2"/>',
+  video: '<rect x="2.5" y="6.5" width="13" height="11" rx="2.5"/><path d="M15.5 10.4l6-3.4v10l-6-3.4z"/>',
+  ext: '<path d="M13.5 4.5h6v6M19.5 4.5L11 13"/><path d="M17 13.5v5a1.5 1.5 0 01-1.5 1.5h-10A1.5 1.5 0 014 18.5v-10A1.5 1.5 0 015.5 7h5"/>',
+  print:'<path d="M7 9V3.5h10V9"/><rect x="3.5" y="9" width="17" height="8" rx="2"/><path d="M7 14h10v6.5H7z"/>',
   today: '<rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/><path d="M8.5 15l2.2 2 4.8-4.5"/>',
   board: '<rect x="3.5" y="4" width="5" height="16" rx="1.5"/><rect x="9.5" y="4" width="5" height="11" rx="1.5"/><rect x="15.5" y="4" width="5" height="7" rx="1.5"/>',
   list: '<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>',
@@ -228,7 +231,7 @@ function enterApp() {
   B.start({
     cases(up, gone) {
       // a stage move still being saved wins over an older copy arriving from the server (quick → → → clicks)
-      up.forEach(c => { const p = S.pend && S.pend[c.id]; if (p) c.stage = p.to; S.cases.set(c.id, c); }); gone.forEach(id => S.cases.delete(id));
+      up.forEach(c => { const p = S.pend && S.pend[c.id]; if (p) { c.stage = p.to; if (p.extra) Object.assign(c, p.extra); } S.cases.set(c.id, c); }); gone.forEach(id => S.cases.delete(id));
       S.firstLoad = false; queueRender();
       if (S.openId && (up.some(c => c.id === S.openId) || gone.includes(S.openId))) refreshDrawer(gone.includes(S.openId));
     },
@@ -362,13 +365,28 @@ function typeBadge(c) { const t = typeOf(c); return '<span class="badge ' + t.cl
 function dueChip(c) {
   const x = dueOf(c);
   if (!x) return '<span class="due none">No date</span>';
-  const d = dayDiff(x.d), w = x.k === 'lab' ? 'Lab' : x.k === 'delivery' ? 'Delivery' : 'Due';
-  const tip = ' title="' + esc((x.k === 'lab' ? 'Lab completion' : w) + ': ' + fmtDay(x.d)) + '"';
-  if (d < 0) return '<span class="due over"' + tip + '>' + ic('clock', 13) + w + ' ' + (d === -1 ? '1 day late' : (-d) + ' days late') + '</span>';
-  if (d === 0) return '<span class="due soon"' + tip + '>' + ic('clock', 13) + w + ' today</span>';
-  if (d === 1) return '<span class="due soon"' + tip + '>' + ic('clock', 13) + w + ' tomorrow</span>';
-  if (d <= 3) return '<span class="due soon"' + tip + '>' + ic('clock', 13) + w + ' ' + esc(fmtDay(x.d)) + '</span>';
-  return '<span class="due"' + tip + '>' + w + ' ' + esc(fmtDate(x.d)) + '</span>';
+  const d = dayDiff(x.d), z = x.k === 'zoom', w = x.k === 'lab' ? 'Lab' : x.k === 'delivery' ? 'Delivery' : z ? 'Zoom' : 'Due';
+  const at = z && c.zoomTime ? ' ' + fmtTime(c.zoomTime) : '', i = ic(z ? 'video' : 'clock', 13);
+  const tip = ' title="' + esc((x.k === 'lab' ? 'Lab completion' : z ? 'Zoom call' : w) + ': ' + fmtDay(x.d) + at) + '"';
+  // a Zoom call that has passed while the design isn't approved yet: someone should move the case on
+  if (d < 0) return '<span class="due over"' + tip + '>' + i + w + ' ' + (z ? 'was ' + (d === -1 ? 'yesterday' : (-d) + ' days ago') : d === -1 ? '1 day late' : (-d) + ' days late') + '</span>';
+  if (d === 0) return '<span class="due soon"' + tip + '>' + i + w + ' today' + esc(at) + '</span>';
+  if (d === 1) return '<span class="due soon"' + tip + '>' + i + w + ' tomorrow' + esc(at) + '</span>';
+  if (d <= 3) return '<span class="due soon"' + tip + '>' + i + w + ' ' + esc(fmtDay(x.d)) + '</span>';
+  return '<span class="due"' + tip + '>' + (z ? i : '') + w + ' ' + esc(fmtDate(x.d)) + '</span>';
+}
+/* ---------- flags: ship to patient (an alert wherever the case shows), one-click tracking, MARPE records ---------- */
+function shipFlag(c, short) { return c.shipToPatient ? '<span class="flag ship" title="Ship to patient">' + ic('truck', 13) + (short ? 'Ship' : 'Ship to patient') + '</span>' : ''; }
+function trackLinks(c) {
+  return trackList(c).filter(t => t.url).map(t => '<a class="flag trk" data-act="track" href="' + esc(t.url) + '" target="_blank" rel="noopener noreferrer" title="Track ' + esc((t.carrier ? t.carrier + ' ' : '') + t.n) + '">' +
+    ic('ext', 12) + 'Track' + (t.carrier ? ' ' + esc(t.carrier) : '') + '</a>').join('');
+}
+/* while a MARPE case is gathering its records: what's still missing, or that both are on file */
+function recFlag(c) {
+  if (typeOf(c).flow !== 'marpe' || stageIndex(c) > 0) return '';
+  const miss = recordsMissing(c);
+  return miss.length ? '<span class="flag rec" title="Needed before it goes to the lab">Needs ' + esc(miss.map(x => x[2]).join(' + ')) + '</span>'
+    : '<span class="flag ready" title="STL scan and CBCT on file">' + ic('done', 13) + 'Records on file</span>';
 }
 /* stage progress: one mark per stage (done, current, to come); a stage group (In fabrication) sits in its own band */
 function progHTML(c, only) {
@@ -430,7 +448,7 @@ function avatar(c) {
 }
 function row(c, meta) {
   return '<button class="row" data-act="open" data-id="' + esc(c.id) + '">' + avatar(c) +
-    '<span class="grow"><span class="pt">' + esc(c.patient || '(no name)') + '</span><span class="meta">' + esc(meta != null ? meta : (typeOf(c).l + ' · ' + stageLabel(c) + (c.detail ? ' · ' + c.detail : ''))) + '</span></span>' + dueChip(c) + '</button>';
+    '<span class="grow"><span class="pt">' + esc(c.patient || '(no name)') + '</span><span class="meta">' + esc(meta != null ? meta : (typeOf(c).l + ' · ' + stageLabel(c) + (c.detail ? ' · ' + c.detail : ''))) + '</span></span>' + shipFlag(c, true) + dueChip(c) + '</button>';
 }
 
 /* ---------- Today ---------- */
@@ -447,7 +465,7 @@ function viewToday() {
     const key = d < 0 ? 'Late' : d === 0 ? 'Today' : d === 1 ? 'Tomorrow' : fmtDay(dueDateOf(x));
     let g = groups.find(g => g.k === key); if (!g) { g = { k: key, red: d < 0, items: [] }; groups.push(g); } g.items.push(x);
   });
-  const left = '<div class="card"><div class="cardHd"><h3>Coming up</h3><span class="sub">Lab and delivery dates: late and the next 14 days</span></div><div class="cardBd">' +
+  const left = '<div class="card"><div class="cardHd"><h3>Coming up</h3><span class="sub">Lab, delivery and Zoom dates: late and the next 14 days</span></div><div class="cardBd">' +
     (groups.length ? groups.map(g => '<div class="dueGrp"><h4 class="' + (g.red ? 'red' : '') + '">' + esc(g.k) + ' · ' + g.items.length + '</h4>' + g.items.map(x => row(x)).join('') + '</div>').join('') :
       '<div class="empty">No lab or delivery dates in the next two weeks.</div>') + '</div></div>';
   const dr = all.filter(x => DR_STAGES.includes(x.stage)).sort(byDue);
@@ -484,10 +502,12 @@ function viewBoard() {
 }
 function kcard(c, last, steps) {
   const mixed = S.boardFlow === 'outside' || S.boardFlow === 'inhouse' || S.boardFlow === 'retainer';
+  const flags = shipFlag(c) + recFlag(c);
   return '<div class="kc" data-act="open" data-id="' + esc(c.id) + '" role="button" tabindex="0">' +
     '<div class="pt">' + esc(c.patient || '(no name)') + '</div>' + (c.detail || alN(c) ? '<div class="dt">' + esc(c.detail || '') + alignerMini(c) + '</div>' : '') +
+    (flags ? '<div class="flags">' + flags + '</div>' : '') +
     (steps ? '<div class="kstep">' + progHTML(c, steps) + '<div><b>' + esc(stageLabel(c)) + '</b><span>' + (steps.indexOf(c.stage) + 1) + ' of ' + steps.length + '</span></div></div>' : '') +
-    '<div class="ft">' + (mixed ? typeBadge(c) : '') + dueChip(c) + avatar(c) +
+    '<div class="ft">' + (mixed ? typeBadge(c) : '') + dueChip(c) + trackLinks(c) + avatar(c) +
     '<button class="adv" data-act="' + (last ? 'complete' : 'advance') + '" data-id="' + esc(c.id) + '" title="' + (last ? 'Mark complete' : 'Move to next stage') + '" aria-label="' + (last ? 'Mark complete' : 'Move to next stage') + '">' + ic(last ? 'done' : 'next', 17) + '</button></div></div>';
 }
 
@@ -504,12 +524,14 @@ function applyFilters(list) {
     if (f.grp === 'dr' && !DR_STAGES.includes(c.stage)) return false;
     if (f.grp === 'fab' && !FAB_STAGES.includes(c.stage)) return false;
     if (f.grp === 'arrived' && c.stage !== 'arrived') return false;
+    if (f.ship && !c.shipToPatient) return false;
     return true;
   });
 }
 function sortList(list) {
   const { k, dir } = S.sort;
-  const val = c => k === 'patient' ? String(c.patient || '').toLowerCase() : k === 'type' ? typeOf(c).l : k === 'stage' ? stageIndex(c) : k === 'who' ? staffName(c.assignee, c.assigneeName) : k === 'updated' ? -(c.updatedAt || 0) : (dueDateOf(c) || '9999');
+  const val = c => k === 'patient' ? String(c.patient || '').toLowerCase() : k === 'type' ? typeOf(c).l : k === 'stage' ? stageIndex(c) : k === 'who' ? staffName(c.assignee, c.assigneeName) : k === 'updated' ? -(c.updatedAt || 0)
+    : k === 'ship' ? (c.shipToPatient ? 0 : trackList(c).length ? 1 : 2) : (dueDateOf(c) || '9999');
   return list.slice().sort((a, b) => { const x = val(a), y = val(b); return (x < y ? -1 : x > y ? 1 : byDue(a, b)) * dir; });
 }
 /* ---------- Today: clean up old cases in bulk (e.g. leftovers from the Asana import; Amir, 2 Oct 2026) ---------- */
@@ -582,15 +604,20 @@ function viewList(base, showWho) {
     (showWho ? '<select data-f="who" aria-label="Assigned to"><option value="">Anyone</option><option value="_none"' + (f.who === '_none' ? ' selected' : '') + '>Unassigned</option>' + activeRoster().map(r => '<option value="' + esc(r.sid) + '"' + (f.who === r.sid ? ' selected' : '') + '>' + esc(r.name) + '</option>').join('') + '</select>' : '') +
     '<select data-f="due" aria-label="Lab or delivery date"><option value="">Any date</option>' + [['over', 'Late'], ['today', 'Today'], ['week', 'Next 7 days'], ['14', 'Next 14 days'], ['none', 'No lab or delivery date']].map(([k, l]) => '<option value="' + k + '"' + (f.due === k ? ' selected' : '') + '>' + l + '</option>').join('') + '</select>' +
     (grpLabel ? '<button class="chip on" data-act="clearGrp">' + esc(grpLabel) + ' ✕</button>' : '') +
-    ((f.type || f.stage || f.who || f.due || f.grp) ? '<button class="btn btn-ghost" data-act="clearF">Clear filters</button>' : '') + '</div>';
+    (base.some(c => c.shipToPatient) || f.ship ? '<button class="chip flt' + (f.ship ? ' on' : '') + '" data-act="shipF" aria-pressed="' + !!f.ship + '">' + ic('truck', 15) + 'Ship to patient<span class="c">' + base.filter(c => c.shipToPatient && matchesQ(c)).length + '</span></button>' : '') +
+    ((f.type || f.stage || f.who || f.due || f.grp || f.ship) ? '<button class="btn btn-ghost" data-act="clearF">Clear filters</button>' : '') + '</div>';
   const list = sortList(applyFilters(base));
   if (list.some(c => c.type === 'nla')) ensureHist();
   if (!list.length) return h + '<div class="card"><div class="empty">' + (base.length ? 'No cases match.' : 'No open cases yet.') + '</div></div>';
   const th = (k, l, cls) => '<th class="' + (cls || '') + '"><button data-act="sort" data-k="' + k + '">' + l + (S.sort.k === k ? (S.sort.dir > 0 ? ' ↑' : ' ↓') : '') + '</button></th>';
-  h += '<div class="card tblWrap"><table class="tbl"><thead><tr>' + th('patient', 'Patient') + th('type', 'Type', 'hideM') + th('stage', 'Stage') + th('due', 'Next date') + th('who', 'Assigned', 'hideM') + th('updated', 'Updated', 'hideM') + '</tr></thead><tbody>' +
-    list.map(c => { const g = stageGroup(flowOf(c), c.stage);
-      return '<tr class="click" data-act="open" data-id="' + esc(c.id) + '" tabindex="0"><td><div class="pt">' + esc(c.patient || '(no name)') + '</div><div class="small muted">' + esc(c.detail || '') + alignerMini(c) + '</div></td>' +
-      '<td class="hideM">' + typeBadge(c) + '</td><td class="stg">' + progHTML(c) + '<div class="small">' + esc(stageLabel(c)) + (g ? ' <span class="muted">· ' + esc(g.l.toLowerCase()) + ' ' + (g.stages.indexOf(c.stage) + 1) + '/' + g.stages.length + '</span>' : '') + '</div></td><td>' + dueChip(c) + '</td>' +
+  // Shipping: the Ship to patient alert and one-click tracking get their own column (on phones they sit under the name)
+  h += '<div class="card tblWrap"><table class="tbl"><thead><tr>' + th('patient', 'Patient') + th('type', 'Type', 'hideM') + th('stage', 'Stage') + th('due', 'Next date') + th('ship', 'Shipping', 'hideM') + th('who', 'Assigned', 'hideM') + th('updated', 'Updated', 'hideM') + '</tr></thead><tbody>' +
+    list.map(c => { const g = stageGroup(flowOf(c), c.stage), ship = shipFlag(c) + trackLinks(c);
+      return '<tr class="click" data-act="open" data-id="' + esc(c.id) + '" tabindex="0"><td><div class="pt">' + esc(c.patient || '(no name)') + '</div><div class="small muted">' + esc(c.detail || '') + alignerMini(c) + '</div>' +
+      (ship ? '<div class="flags onlyM">' + ship + '</div>' : '') + '</td>' +
+      '<td class="hideM">' + typeBadge(c) + '</td><td class="stg">' + progHTML(c) + '<div class="small">' + esc(stageLabel(c)) + (g ? ' <span class="muted">· ' + esc(g.l.toLowerCase()) + ' ' + (g.stages.indexOf(c.stage) + 1) + '/' + g.stages.length + '</span>' : '') + '</div>' +
+      (recFlag(c) ? '<div class="flags">' + recFlag(c) + '</div>' : '') + '</td><td>' + dueChip(c) + '</td>' +
+      '<td class="hideM shipCol">' + (ship ? '<div class="flags">' + ship + '</div>' : '') + '</td>' +
       '<td class="hideM">' + avatar(c) + ' <span class="small">' + esc(staffName(c.assignee, c.assigneeName)) + '</span></td><td class="hideM small muted">' + esc(c.updatedAt ? fmtWhen(c.updatedAt) : '') + '</td></tr>'; }).join('') +
     '</tbody></table></div><div class="small muted" style="margin-top:8px">' + list.length + ' case' + (list.length === 1 ? '' : 's') + '</div>';
   return h;
@@ -640,14 +667,15 @@ function refreshDrawer(gone) {
 async function loadHistory(id) {
   try { const h = await B.caseLog(id); if (S.openId === id) { S.history = h; const el = $('#histBox'); if (el) el.innerHTML = historyHTML(findCase(id)); } } catch (e) { }
 }
-const FIELD_LABELS = { teeth: 'tooth chart', teethNote: 'tooth chart', chart: 'chart #', titanUrl: 'Titan link', initial: 'initial/refinement', appliances: 'appliance', lab: 'lab', arches: 'arch', retKinds: 'retainer type', goals: 'Dr. A’s instructions', instrPicks: 'Dr. A’s instructions', instrOther: 'Dr. A’s instructions', extras: 'extras', variant: 'case type', type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery date', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes' };
+const FIELD_LABELS = { shipToPatient: 'ship to patient', records: 'records on file', zoomDate: 'Zoom call', zoomTime: 'Zoom call', tracking: 'tracking #', carrier: 'carrier', teeth: 'tooth chart', teethNote: 'tooth chart', chart: 'chart #', titanUrl: 'Titan link', initial: 'initial/refinement', appliances: 'appliance', lab: 'lab', arches: 'arch', retKinds: 'retainer type', goals: 'Dr. A’s instructions', instrPicks: 'Dr. A’s instructions', instrOther: 'Dr. A’s instructions', extras: 'extras', variant: 'case type', type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery date', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes' };
 function historyHTML(c) {
   const h = S.history; if (!h) return '<div class="small muted">Loading…</div>'; if (!h.length) return '<div class="small muted">No history yet.</div>';
   const stageName = k => { const s = c && flowOf(c).stages.find(x => x[0] === k); return s ? s[1] : k; };
   return h.filter(x => x.a !== 'rekey' && x.a !== 'save').reverse().map(x => {
     let t = '';
     if (x.a === 'create') t = 'created the case'; else if (x.a === 'import') t = 'imported it from Asana';
-    else if (x.a === 'stage') t = 'moved it to ' + stageName(x.to); else if (x.a === 'comment') t = 'added a comment';
+    else if (x.a === 'stage') t = 'moved it to ' + stageName(x.to) + ((x.fields || []).length ? ' (and set ' + Array.from(new Set(x.fields.map(f => FIELD_LABELS[f] || f))).join(', ') + ')' : '');
+    else if (x.a === 'comment') t = 'added a comment';
     else if (x.a === 'close') t = 'marked it complete'; else if (x.a === 'reopen') t = 'reopened it';
     else if (x.a === 'assign') t = x.to ? 'assigned it to ' + staffName(x.to, x.to) : 'unassigned it';
     else if (x.a === 'edit') t = 'changed ' + Array.from(new Set((x.fields || []).filter(f => f !== 'instructions').map(f => FIELD_LABELS[f] || f))).join(', ');
@@ -678,17 +706,23 @@ function renderDrawer() {
     '<button class="iconBtn" data-act="closeDrawer" aria-label="Close">' + ic('x') + '</button></div>' +
     '<div class="dBd"><div id="drawerNotice"></div>' +
     (done ? '<div class="notice info">Completed ' + esc(fmtWhen(c.closedAt)) + '</div>' : '') +
+    (c.shipToPatient ? '<div class="notice ship" role="note">' + ic('truck', 18) + '<span><b>Ship to patient</b></span></div>' : '') +
+    // a MARPE entered (or imported) as an appliance before MARPE had its own steps: one click moves it over
+    (!done && isOldMarpe(c) ? '<div class="notice info mpOld"><span>MARPE has its own steps now: records, lab, Zoom call, design approval, delivery.</span><button class="btn btn-sec btn-sm" data-act="toMarpe">Switch to MARPE steps</button></div>' : '') +
     ((PORTALS[c.type] || []).length ? '<div class="portals">' + PORTALS[c.type].map(p => '<a class="btn btn-sec btn-sm" data-act="portal" href="' + esc(p.u) + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'Open ' + esc(p.l) + '</a>').join('') +
       '<span class="small muted">Opening a portal copies the patient’s name — paste it in the portal’s search.</span></div>' : '') +
     '<div class="sec" style="margin-top:4px"><h5>Stage</h5><div class="stepper">' + flow.stages.map(([k, l], i) => { const g = stageGroup(flow, k);
       return (g && g.stages[0] === k ? '<div class="stepGrp">' + esc(g.l) + '</div>' : '') +
       '<button class="step ' + (i < si ? 'past' : i === si ? 'cur' : '') + (g ? ' sub' : '') + '" data-act="setStage" data-k="' + k + '"' + (done ? ' disabled' : '') + ' aria-pressed="' + (i === si) + '"><span class="n">' + (i < si ? '✓' : i + 1) + '</span>' + esc(l) + '</button>'; }).join('') + '</div></div>' +
+    (flow === FLOWS.marpe ? marpeBoxHTML(c, done) : '') +
     '<div class="sec"><h5>Details</h5><div class="kv">' +
     '<div style="grid-column:1/-1"><div class="k">Assigned to</div>' + assignSel + '</div>' +
     kv('Scan date', esc(fmtDay(c.scanDate))) +
     kv('Lab completion', c.labDate ? esc(fmtDay(c.labDate)) + (!done && (dueOf(c) || {}).k === 'lab' ? ' ' + dueChip(c) : '') : '') +
     kv('Delivery', c.deliveryDate ? esc(fmtDay(c.deliveryDate)) + (!done && (dueOf(c) || {}).k === 'delivery' ? ' ' + dueChip(c) : '') : '') +
     (c.dueDate && !c.deliveryDate ? kv('Due (older case)', esc(fmtDay(c.dueDate))) : '') +
+    (String(c.tracking || '').trim() ? kv('Tracking', trackList(c).length ? trackList(c).map(t => '<span class="trkLine">' + esc(t.n) + (t.carrier ? ' <span class="muted small">' + esc(t.carrier) + '</span>' : '') +
+      (t.url ? ' <a class="flag trk" href="' + esc(t.url) + '" target="_blank" rel="noopener noreferrer">' + ic('ext', 12) + 'Track</a>' : '') + '</span>').join('') : esc(c.tracking)) : '') +
     kv('Assistant', esc(staffName(c.assistant, c.assistantName))) + kv('Scanner', esc(c.scanner)) + kv('Chart #', esc(c.chart || '')) +
     kv('Created', esc((c.createdAt ? fmtWhen(c.createdAt) : '') + (c.createdBy ? ' · ' + firstName(staffName(c.createdBy, '')) : ''))) + kv('Last update', esc(c.updatedAt ? fmtWhen(c.updatedAt) + (c.by ? ' · ' + firstName(staffName(c.by, '')) : '') : '')) +
     '</div></div>' +
@@ -708,6 +742,75 @@ function renderDrawer() {
   const t = $('#cmtText'); if (t) { t.value = keepCmt; if (hadFocus) t.focus(); }
   if (typeOf(c).aligner && c.chart && !done) iprAutoLoad(c);
   if (c.type === 'nla') ensureHist();
+}
+/* ---------- MARPE: records on file and the Zoom call (drawer box, the check before a stage move, the Zoom date) ---------- */
+function marpeBoxHTML(c, done) {
+  const r = c.records || [], x = dueOf(c), dis = done ? ' disabled' : '';
+  const when = c.zoomDate ? '<b>' + esc(fmtDay(c.zoomDate)) + (c.zoomTime ? ' · ' + esc(fmtTime(c.zoomTime)) : '') + '</b>' : '<span class="muted">Not set yet</span>';
+  return '<div class="sec" id="mpBox"><h5>MARPE</h5><div class="mpGrid">' +
+    '<div class="mpK">Records on file</div><div class="mpV">' + MARPE_RECORDS.map(([k, l]) =>
+      '<button type="button" class="pick sm" data-act="rec" data-k="' + k + '" aria-pressed="' + r.includes(k) + '"' + dis + '>' + esc(l) + '</button>').join('') + '</div>' +
+    '<div class="mpK">Zoom call</div><div class="mpV"><span class="mpWhen">' + ic('video', 16) + when + '</span>' + (x && x.k === 'zoom' && !done ? dueChip(c) : '') +
+      (done ? '' : '<button type="button" class="btn btn-sec btn-sm" data-act="zoomSet">' + (c.zoomDate ? 'Change' : 'Set the date') + '</button>') + '</div></div>' +
+    (recordsMissing(c).length && stageIndex(c) <= 0 && !done ? '<div class="small muted mpHint">Both have to be on file before it moves to Submitted to lab.</div>' : '') + '</div>';
+}
+/* before a stage move goes through, ask for what it needs (see stageNeeds); `extra` = fields already collected */
+function stageGateModal(c, to, needs, extra) {
+  const lbl = (flowOf(c).stages.find(s => s[0] === to) || [0, to])[1], r = extra.records || c.records || [];
+  openModal('<h3>' + esc(lbl) + '</h3><div class="lsub">' + esc((c.patient || '') + ' · ' + typeOf(c).l) + '</div>' +
+    (needs.includes('records') ? '<div class="gate" id="gRecs"><b>Before it goes to the lab, both have to be on file:</b>' + MARPE_RECORDS.map(([k, l]) =>
+      '<label class="gateRow"><input type="checkbox" data-rec="' + k + '"' + (r.includes(k) ? ' checked' : '') + '>' + esc(l) + '</label>').join('') + '</div>' : '') +
+    (needs.includes('zoom') ? '<div class="gate"><b>When is the Zoom call?</b><div class="zoomRow"><div class="field"><label for="gZoomDate">Date</label><input type="date" id="gZoomDate"></div>' +
+      '<div class="field"><label for="gZoomTime">Time</label><input type="time" id="gZoomTime"></div></div></div>' : '') +
+    '<div class="mFt"><button class="btn btn-sec" type="button" data-act="closeModal">Cancel</button><button class="btn btn-pri" type="button" id="gGo">Move to “' + esc(lbl) + '”</button></div>', w => {
+      const go = $('#gGo', w), zd = $('#gZoomDate', w);
+      const ok = () => $$('input[data-rec]', w).every(i => i.checked) && (!zd || !!zd.value);
+      const sync = () => { go.disabled = !ok(); };
+      w.addEventListener('change', sync); w.addEventListener('input', sync); sync();
+      go.onclick = () => {
+        if (!ok()) return; const add = Object.assign({}, extra);
+        if ($('#gRecs', w)) add.records = MARPE_RECORDS.map(x => x[0]);
+        if (zd) { add.zoomDate = zd.value; add.zoomTime = $('#gZoomTime', w).value || ''; }
+        closeModal(); moveStage(c.id, to, add);
+      };
+    });
+}
+/* set or change the Zoom call; before that step, saving also moves the case to "Zoom call scheduled" */
+function zoomModal(c) {
+  const keys = flowOf(c).stages.map(s => s[0]), before = keys.indexOf(c.stage) < keys.indexOf('zoom');
+  openModal('<h3>Zoom call</h3><div class="lsub">' + esc((c.patient || '') + ' · ' + typeOf(c).l) + '</div>' +
+    '<div class="zoomRow"><div class="field"><label for="zmDate">Date</label><input type="date" id="zmDate" value="' + esc(c.zoomDate || '') + '"></div>' +
+    '<div class="field"><label for="zmTime">Time</label><input type="time" id="zmTime" value="' + esc(c.zoomTime || '') + '"></div></div>' +
+    (before ? '<div class="small muted" style="margin:-4px 0 12px">Saving moves the case to “Zoom call scheduled”.</div>' : '') +
+    '<div class="mFt">' + (c.zoomDate ? '<button class="btn btn-ghost" type="button" id="zmClear" style="margin-right:auto">Clear the date</button>' : '') +
+    '<button class="btn btn-sec" type="button" data-act="closeModal">Cancel</button><button class="btn btn-pri" type="button" id="zmSave">Save</button></div>', w => {
+      const d = $('#zmDate', w), save = $('#zmSave', w), sync = () => { save.disabled = !d.value; };
+      d.addEventListener('input', sync); d.addEventListener('change', sync); sync();
+      save.onclick = () => {
+        const z = { zoomDate: d.value, zoomTime: $('#zmTime', w).value || '' }; if (!z.zoomDate) return; closeModal();
+        if (before) moveStage(c.id, 'zoom', z);
+        else act(() => B.mutateCase(c.id, x => { Object.assign(x, z); }, { a: 'edit', fields: ['zoomDate', 'zoomTime'] }), 'Zoom call set for ' + fmtDay(z.zoomDate) + (z.zoomTime ? ', ' + fmtTime(z.zoomTime) : ''));
+      };
+      const clr = $('#zmClear', w);
+      if (clr) clr.onclick = () => { closeModal(); act(() => B.mutateCase(c.id, x => { x.zoomDate = ''; x.zoomTime = ''; }, { a: 'edit', fields: ['zoomDate', 'zoomTime'] }), 'Zoom call date cleared'); };
+    });
+}
+function isOldMarpe(c) { return c.type === 'appliance' && ((c.appliances || []).includes('MARPE') || /\bmarpe\b/i.test(c.detail || '')); }
+/* an older appliance case that is a MARPE: same case, MARPE steps (its step carried over by name: Manufacturing → Design approved…) */
+function toMarpe(c) {
+  const to = stageFromSection('marpe', stageLabel(c));
+  act(() => B.mutateCase(c.id, d => {
+    d.type = 'marpe'; d.stage = to; d.appliances = (d.appliances || []).filter(a => a !== 'MARPE'); if (!d.lab) d.lab = LAB_PART;
+  }, { a: 'edit', fields: ['type', 'stage'] }), 'Moved to the MARPE steps (' + FLOWS.marpe.stages.find(s => s[0] === to)[1] + ')');
+}
+/* tick a MARPE record on or off right from the case */
+function toggleRecord(btn) {
+  const c = findCase(S.openId); if (!c || c.status === 'done') return;
+  const k = btn.dataset.k, on = btn.getAttribute('aria-pressed') !== 'true', prev = c.records, cid = c.id;
+  const next = recs => { const r = (recs || []).filter(x => x !== k); if (on) r.push(k); const out = MARPE_RECORDS.map(x => x[0]).filter(x => r.includes(x)); return out.length ? out : ''; };
+  btn.setAttribute('aria-pressed', String(on)); c.records = next(c.records); queueRender();
+  B.mutateCase(cid, d => { d.records = next(d.records); }, { a: 'edit', fields: ['records'] })
+    .catch(e => { const cur = findCase(cid); if (cur) { cur.records = prev; queueRender(); if (S.openId === cid) renderDrawer(); } toast(errText(e), { bad: true }); });
 }
 /* ---------- IPR Tracker box in the case drawer ---------- */
 function iprBoxHTML(c) {
@@ -806,12 +909,17 @@ async function copyText(s) {
 }
 async function act(fn, okMsg) { try { await fn(); if (okMsg) toast(okMsg); } catch (e) { toast(errText(e), { bad: true }); } }
 function nextStage(c) { const st = flowOf(c).stages; const i = stageIndex(c); return i >= 0 && i < st.length - 1 ? st[i + 1][0] : null; }
-async function moveStage(id, to) {
+/* `extra` = fields saved with the move (e.g. MARPE records, the Zoom call); a move that still needs something asks first */
+async function moveStage(id, to, extra) {
   const c = findCase(id); if (!c || c.stage === to) return;
-  const from = c.stage; c.stage = to; queueRender(); if (S.openId === id) renderDrawer();
-  S.pend = S.pend || {}; const mine = S.pend[id] = { to };
-  try { await B.mutateCase(id, d => { d.stage = to; }, { a: 'stage', from, to }); }
-  catch (e) { const cur = findCase(id); if (cur && S.pend[id] === mine) { cur.stage = from; queueRender(); if (S.openId === id) renderDrawer(); } toast(errText(e), { bad: true }); }
+  extra = extra || {};
+  const needs = stageNeeds(Object.assign({}, c, extra), to);
+  if (needs.length) { stageGateModal(c, to, needs, extra); return; }
+  const from = c.stage, fields = Object.keys(extra), before = {}; fields.forEach(k => { before[k] = c[k]; });
+  c.stage = to; Object.assign(c, extra); queueRender(); if (S.openId === id) renderDrawer();
+  S.pend = S.pend || {}; const mine = S.pend[id] = { to, extra };
+  try { await B.mutateCase(id, d => { d.stage = to; Object.assign(d, extra); }, Object.assign({ a: 'stage', from, to }, fields.length ? { fields } : {})); }
+  catch (e) { const cur = findCase(id); if (cur && S.pend[id] === mine) { cur.stage = from; Object.assign(cur, before); queueRender(); if (S.openId === id) renderDrawer(); } toast(errText(e), { bad: true }); }
   finally { if (S.pend[id] === mine) delete S.pend[id]; }
 }
 async function completeCase(id) {
@@ -830,8 +938,8 @@ function onClick(e) {
   if (t.tagName === 'SELECT') return;
   if (a === 'advance' || a === 'complete') { e.stopPropagation(); }
   switch (a) {
-    case 'nav': S.view = t.dataset.v; if (S.view !== 'list') S.f = { type: '', stage: '', who: '', due: '', grp: '' }; renderNav(); renderView(); window.scrollTo(0, 0); break;
-    case 'tile': { const f = t.dataset.f; S.f = { type: '', stage: '', who: '', due: '', grp: '' };
+    case 'nav': S.view = t.dataset.v; if (S.view !== 'list') S.f = { type: '', stage: '', who: '', due: '', grp: '', ship: '' }; renderNav(); renderView(); window.scrollTo(0, 0); break;
+    case 'tile': { const f = t.dataset.f; S.f = { type: '', stage: '', who: '', due: '', grp: '', ship: '' };
       if (f === 'mine') { S.view = 'mine'; } else { S.view = 'list'; if (['over', 'week', 'none'].includes(f)) S.f.due = f; else S.f.grp = f; }
       renderNav(); renderView(); break; }
     case 'flow': S.boardFlow = t.dataset.k; renderView(); break;
@@ -842,6 +950,11 @@ function onClick(e) {
     case 'complete': completeCase(id); break;
     case 'setStage': moveStage(S.openId, t.dataset.k); break;
     case 'labels': { const c = findCase(S.openId); if (c && alN(c)) labelsModal(c); break; }
+    case 'rec': toggleRecord(t); break;
+    case 'toMarpe': { const c = findCase(S.openId); if (c && isOldMarpe(c)) toMarpe(c); break; }
+    case 'zoomSet': { const c = findCase(S.openId); if (c) zoomModal(c); break; }
+    case 'shipF': S.f.ship = S.f.ship ? '' : '1'; renderView(); break;
+    case 'track': break; // the link itself opens the carrier's page in a new tab (and doesn't open the case)
     case 'portal': { const c = findCase(S.openId); // the link itself opens the portal in a new tab
       if (c && c.patient) copyText(c.patient).then(ok => toast(ok ? 'Copied “' + c.patient + '” — paste it in the portal’s search' : 'Couldn’t copy the name — type it in the portal', ok ? {} : { bad: true })); break; }
     case 'reopen': act(async () => { await B.mutateCase(S.openId, () => 'open', { a: 'reopen' }); S.closed = S.closed.filter(c => c.id !== S.openId); closeDrawer(true); }, 'Reopened'); break;
@@ -853,7 +966,7 @@ function onClick(e) {
     case 'delCase': (async () => { const c = findCase(S.openId); if (await confirmBox('Delete this case?', 'This removes ' + c.patient + ' from every list. Dr. A can bring it back from Team & security for 90 days. To finish a case normally, use “Mark complete” instead.', 'Delete', true)) { const cid = S.openId; closeDrawer(true); act(() => B.deleteCase(cid), 'Case deleted'); } })(); break;
     case 'newCase': newCaseModal(); break;
     case 'closeModal': closeModal(); break;
-    case 'clearF': S.f = { type: '', stage: '', who: '', due: '', grp: '' }; renderView(); break;
+    case 'clearF': S.f = { type: '', stage: '', who: '', due: '', grp: '', ship: '' }; renderView(); break;
     case 'oldDone': bulkComplete(oldTicked()); break;
     case 'oldDel': bulkDelete(oldTicked()); break;
     case 'oldAll': case 'oldNone': { const on = a === 'oldAll'; $$('#cleanCard input[data-old]').forEach(i => { i.checked = on; if (on) S.oldOff.delete(i.dataset.old); else S.oldOff.add(i.dataset.old); }); syncOld(); break; }
@@ -904,6 +1017,9 @@ async function saveEdit() {
   if (now.titanUrl && !safeUrl(now.titanUrl)) { $('#drawerNotice').innerHTML = '<div class="notice bad">The Titan link must start with https://</div>'; return; }
   const base = S.editBase; const changed = FORM_KEYS.filter(k => !sameVal(now[k], base[k])).concat((now.variant || '') !== (base.variant || '') ? ['variant'] : []);
   if (!changed.length) { S.editing = false; renderDrawer(); return; }
+  // the same checks as moving the stage from the case: MARPE records before the lab, a date for the Zoom call
+  const needs = changed.includes('stage') && !changed.includes('type') ? stageNeeds(Object.assign({}, base, now, { stage: base.stage }), now.stage) : [];
+  if (needs.length) { $('#drawerNotice').innerHTML = '<div class="notice bad">' + (needs.includes('records') ? 'Tick both records (STL scan and CBCT) under Records on file before moving it to ' + esc(stageLabel(now)) + '.' : 'Add the Zoom call date before moving it to Zoom call scheduled.') + '</div>'; $('#drawerNotice').scrollIntoView({ block: 'nearest' }); return; }
   const btn = $('[data-act=saveEdit]', d); busyBtn(btn, true, 'Saving…');
   const id = S.openId;
   try {
@@ -911,6 +1027,7 @@ async function saveEdit() {
       changed.forEach(k => { x[k] = Array.isArray(now[k]) ? now[k].slice() : now[k]; });
       if (changed.includes('assignee') && now.assignee) x.assigneeName = '';
       if (changed.includes('assistant') && now.assistant) x.assistantName = '';
+      if (changed.includes('tracking')) x.carrier = ''; // a carrier named by a lab email belonged to the old number
       if (changed.includes('type') && !FLOWS[TYPE[x.type].flow].stages.some(s => s[0] === x.stage)) x.stage = firstStage(x.type);
     }, { a: 'edit', fields: changed });
     S.editing = false; toast('Saved'); renderDrawer(); loadHistory(id);

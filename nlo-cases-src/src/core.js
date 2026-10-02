@@ -29,6 +29,12 @@ const FLOWS = {
   appliance: { label: 'Appliances', labDone: 'shipped', stages: [
     ['submit', 'To submit'], ['hold', 'Hold (CBCT/Zoom)'], ['submitted', 'Submitted to lab'],
     ['mfg', 'Manufacturing'], ['shipped', 'Shipped'], ['milestones', 'Checked into Milestones'] ] },
+  /* MARPE has its own steps (Amir, 2 Oct 2026): the STL scan and a CBCT of the upper and lower jaws on file first,
+     then the lab, a Zoom call on a set date, design approval, delivery. The Zoom call is the case's next date until
+     the design is approved; after that, the delivery date. */
+  marpe: { label: 'MARPE', labDone: 'approved', zoomUntil: 'approved', stages: [
+    ['records', 'Records: STL + CBCT'], ['submitted', 'Submitted to lab'], ['zoom', 'Zoom call scheduled'],
+    ['approved', 'Design approved'], ['delivered', 'Delivered'] ] },
   /* in fabrication = the NL Lab checklist each Asana case carried as subtasks (Exported STLs → Final Wash and Dry);
      the board shows the seven steps as one "In fabrication" column */
   inhouse: { label: 'In-house lab', labDone: 'pack', stages: [
@@ -54,6 +60,7 @@ const TYPES = [
   { k: 'inbrace', l: 'InBrace', flow: 'outside', cls: 't-aligner', legacy: true },
   { k: 'nla', l: 'In-house aligners', flow: 'inhouse', cls: 't-lab', aligner: true },
   { k: 'appliance', l: 'Appliance', flow: 'appliance', cls: 't-appl' },
+  { k: 'marpe', l: 'MARPE', flow: 'marpe', cls: 't-appl' },
   { k: 'retainer', l: 'Retainers & whitening', flow: 'retainer', cls: 't-ret' },
   { k: 'mouthguard', l: 'Mouthguard', flow: 'retainer', cls: 't-ret' },
   { k: 'models', l: 'Study models', flow: 'models', cls: 't-misc' },
@@ -75,7 +82,10 @@ function typesShown(cases, chosen) { return TYPES.filter(t => !t.legacy || t.k =
 const SCANNERS = ['Allied Star', 'iTero', 'Other'];
 /* Stages that need the doctor, and stages where the case is in fabrication. */
 const DR_STAGES = ['dra', 'txp', 'todo', 'review'];
-const FAB_STAGES = ['mfg', 'fab', 'send', 'print', 'thermo', 'trim', 'polish', 'wash', 'submitted'];
+const FAB_STAGES = ['mfg', 'fab', 'send', 'print', 'thermo', 'trim', 'polish', 'wash', 'submitted', 'approved'];
+/* MARPE: both records have to be on file before the case goes to the lab (Amir, 2 Oct 2026) */
+const MARPE_RECORDS = [['stl', 'STL scan', 'STL'], ['cbct', 'CBCT (upper & lower jaws)', 'CBCT']];
+function recordsMissing(c) { const r = c.records || []; return MARPE_RECORDS.filter(([k]) => !r.includes(k)); }
 
 function typeOf(c) { return TYPE[c.type] || TYPE.misc; }
 function flowOf(c) { return FLOWS[typeOf(c).flow]; }
@@ -84,11 +94,20 @@ function stageIndex(c) { return flowOf(c).stages.findIndex(x => x[0] === c.stage
 function firstStage(type) { return FLOWS[(TYPE[type] || TYPE.misc).flow].stages[0][0]; }
 /* the stage group a stage belongs to (e.g. the in-house "In fabrication" steps), or null */
 function stageGroup(flow, k) { return (flow.groups || []).find(g => g.stages.includes(k)) || null; }
+/* what a stage move still needs first: MARPE records before the case reaches the lab, and a date to be "Zoom call scheduled" */
+function stageNeeds(c, to) {
+  if (typeOf(c).flow !== 'marpe') return [];
+  const keys = flowOf(c).stages.map(s => s[0]), from = keys.indexOf(c.stage), ti = keys.indexOf(to), sub = keys.indexOf('submitted'), out = [];
+  if (ti >= sub && from < sub && recordsMissing(c).length) out.push('records');
+  if (to === 'zoom' && !c.zoomDate) out.push('zoom');
+  return out;
+}
 /* The date a case is working toward: its lab completion date until the lab work is done, then its delivery date.
    (No separate due date any more — Amir, 2 Oct 2026. Older cases that only have one still use it.) */
 function dueOf(c) {
-  const f = flowOf(c), done = f.labDone ? f.stages.findIndex(s => s[0] === f.labDone) : -1;
-  if (c.labDate && (done < 0 || stageIndex(c) < done)) return { d: c.labDate, k: 'lab' };
+  const f = flowOf(c), at = k => f.stages.findIndex(s => s[0] === k), si = stageIndex(c), done = f.labDone ? at(f.labDone) : -1;
+  if (c.zoomDate && f.zoomUntil && si < at(f.zoomUntil)) return { d: c.zoomDate, k: 'zoom' };
+  if (c.labDate && (done < 0 || si < done)) return { d: c.labDate, k: 'lab' };
   if (c.deliveryDate) return { d: c.deliveryDate, k: 'delivery' };
   if (c.dueDate) return { d: c.dueDate, k: 'due' };
   return null;
@@ -129,6 +148,19 @@ function addDays(iso, n) { const [y, m, d] = iso.split('-').map(Number); const d
 function dayDiff(iso) { if (!iso) return null; const [y, m, d] = iso.split('-').map(Number); const a = new Date(y, m - 1, d); const t = new Date(); t.setHours(0, 0, 0, 0); return Math.round((a - t) / 86400000); }
 function fmtDate(iso) { if (!iso) return ''; const [y, m, d] = iso.split('-').map(Number); const dt = new Date(y, m - 1, d); const opts = { month: 'short', day: 'numeric' }; if (y !== new Date().getFullYear()) opts.year = 'numeric'; return dt.toLocaleDateString(undefined, opts); }
 function fmtDay(iso) { if (!iso) return ''; const [y, m, d] = iso.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }); }
+function fmtTime(t) { const m = /^(\d{1,2}):(\d{2})/.exec(t || ''); if (!m) return ''; const h = +m[1]; return ((h + 11) % 12 + 1) + ':' + m[2] + ' ' + (h < 12 ? 'AM' : 'PM'); }
+/* one-click tracking: the carrier's own page, from the carrier named in a lab email or the number's shape
+   (UPS 1Z…, USPS 20–22 digits starting with 9, FedEx 12/15/20/22 digits) */
+const TRACK_URL = { ups: 'https://www.ups.com/track?tracknum=', fedex: 'https://www.fedex.com/fedextrack/?trknbr=', usps: 'https://tools.usps.com/go/TrackConfirmAction?tLabels=', dhl: 'https://www.dhl.com/us-en/home/tracking/tracking-express.html?submit=1&tracking-id=' };
+const CARRIER_NAME = { ups: 'UPS', fedex: 'FedEx', usps: 'USPS', dhl: 'DHL' };
+function trackInfo(num, carrier) {
+  const n = String(num || '').replace(/[\s-]+/g, '').toUpperCase(); if (!/^[A-Z0-9]{8,34}$/.test(n)) return null;
+  let k = String(carrier || '').toLowerCase().replace(/[^a-z]/g, '');
+  if (!TRACK_URL[k]) k = /^1Z[0-9A-Z]{16}$/.test(n) ? 'ups' : /^9\d{19,21}$/.test(n) ? 'usps' : /^(\d{12}|\d{15}|\d{20}|\d{22})$/.test(n) ? 'fedex' : '';
+  return { n, carrier: CARRIER_NAME[k] || '', url: k ? TRACK_URL[k] + encodeURIComponent(n) : '' };
+}
+/* a case can carry more than one number (spaces, commas or new lines between them) */
+function trackList(c) { return String((c && c.tracking) || '').split(/[\s,;]+/).map(x => trackInfo(x, c.carrier)).filter(Boolean); }
 function fmtWhen(ms) { if (!ms) return ''; const d = new Date(ms); return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ', ' + d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }); }
 function initials(name) { const p = String(name || '').trim().split(/\s+/).filter(Boolean); if (!p.length) return '?'; return (p[0][0] + (p.length > 1 ? p[p.length - 1][0] : '')).toUpperCase(); }
 function slug(s) { return String(s || '').toLowerCase().normalize('NFKD').replace(/[^\w.\-]+/g, '').replace(/_/g, '').slice(0, 30); }
@@ -265,6 +297,13 @@ function stageFromSection(type, section, subtasks) {
     if (/checked in/.test(s)) return pick('checkedin');
     return flow[0];
   }
+  if (type === 'marpe') { // from the Appliance project: on hold for the CBCT/Zoom (before it was submitted) = gathering records
+    if (/submitted/.test(s)) return 'submitted';
+    if (/zoom/.test(s) && !/hold/.test(s)) return 'zoom';
+    if (/approv|manufactur|shipped|arrived|milestone/.test(s)) return 'approved';
+    if (/deliver/.test(s)) return 'delivered';
+    return 'records';
+  }
   if (type === 'retreat') {
     if (/intake/.test(s)) return 'intake'; if (/review/.test(s)) return 'review'; if (/proposal/.test(s)) return 'proposal';
     if (/progress/.test(s)) return 'progress'; if (/complete/.test(s)) return 'completed'; return flow[0];
@@ -282,12 +321,14 @@ function stageFromSection(type, section, subtasks) {
 /* Turn one Asana task into case data. `roster` maps first names to staff ids. */
 function caseFromAsana(t, projectName, roster) {
   const sectionName = t.section || '';
+  const n = parseNotes(t.notes);
   let type = typeFromProject(projectName);
   if (type === 'nla' && /misc/i.test(sectionName)) type = 'misc';
   if (type === 'retainer' && /mouth\s*guard/i.test(t.name || '')) type = 'mouthguard';
   if (!type) type = 'misc';
   if (type === 'misc' && /\bmodels?\b/i.test(t.name || '')) type = 'models';
-  const n = parseNotes(t.notes);
+  // MARPE cases have their own steps now; in Asana they sat in the Appliance project
+  if (type === 'appliance' && /\bmarpe\b/i.test((t.name || '') + ' ' + (n.appliance || ''))) type = 'marpe';
   const [pt, detail] = splitName(t.name);
   const findStaff = name => {
     const first = String(name || '').trim().split(/\s+/)[0].toLowerCase(); if (!first) return '';
@@ -341,6 +382,7 @@ function csvCell(v) {
   return '"' + s.replace(/"/g, '""') + '"';
 }
 function caseToCSVRow(c) {
-  return [c.patient, typeOf(c).l, c.detail, stageLabel(c), c.status === 'done' ? 'Completed' : 'Open', c.scanDate, c.labDate, c.deliveryDate, c.assigneeLabel || '', c.instructions, c.cc, c.ipr, c.notes, c.chart, c.titanUrl, (c.extras || []).join('; '), typeof submissionLabel === 'function' ? submissionLabel(c.initial) : '', c.lab || '', (c.teethNote || '').replace(/\n/g, '; '), c.aligners || '']
+  return [c.patient, typeOf(c).l, c.detail, stageLabel(c), c.status === 'done' ? 'Completed' : 'Open', c.scanDate, c.labDate, c.deliveryDate, c.assigneeLabel || '', c.instructions, c.cc, c.ipr, c.notes, c.chart, c.titanUrl, (c.extras || []).join('; '), typeof submissionLabel === 'function' ? submissionLabel(c.initial) : '', c.lab || '', (c.teethNote || '').replace(/\n/g, '; '), c.aligners || '',
+    c.shipToPatient ? 'Yes' : '', MARPE_RECORDS.filter(([k]) => (c.records || []).includes(k)).map(x => x[1]).join('; '), c.zoomDate ? c.zoomDate + (c.zoomTime ? ' ' + c.zoomTime : '') : '']
     .map(csvCell).join(',');
 }
