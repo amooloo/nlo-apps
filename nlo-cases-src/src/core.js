@@ -113,6 +113,11 @@ function dueOf(c) {
   return null;
 }
 function dueDateOf(c) { const x = dueOf(c); return x ? x.d : ''; }
+/* the time that goes with a date, if one was set (Zoom call, delivery) */
+function timeOf(c, k) { return (k === 'zoom' ? c.zoomTime : k === 'delivery' ? c.deliveryTime : '') || ''; }
+/* for sorting: the date, then its time (a date with no time sorts after the timed ones that day) */
+function dateKey(d, t) { return d ? d + 'T' + (t || '24:00') : ''; }
+function dueKeyOf(c) { const x = dueOf(c); return x ? dateKey(x.d, timeOf(c, x.k)) : ''; }
 /* ---------- in-house aligner sets: how many aligners each case made, and the patient's total ---------- */
 const normChart = s => String(s || '').replace(/\s+/g, '').toLowerCase();
 const normName = s => String(s || '').trim().replace(/\s+/g, ' ').toLowerCase();
@@ -382,7 +387,7 @@ function csvCell(v) {
   return '"' + s.replace(/"/g, '""') + '"';
 }
 function caseToCSVRow(c) {
-  return [c.patient, typeOf(c).l, c.detail, stageLabel(c), c.status === 'done' ? 'Completed' : 'Open', c.scanDate, c.labDate, c.deliveryDate, c.assigneeLabel || '', c.instructions, c.cc, c.ipr, c.notes, c.chart, c.titanUrl, (c.extras || []).join('; '), typeof submissionLabel === 'function' ? submissionLabel(c.initial) : '', c.lab || '', (c.teethNote || '').replace(/\n/g, '; '), c.aligners || '',
+  return [c.patient, typeOf(c).l, c.detail, stageLabel(c), c.status === 'done' ? 'Completed' : 'Open', c.scanDate, c.labDate, c.deliveryDate ? c.deliveryDate + (c.deliveryTime ? ' ' + c.deliveryTime : '') : '', c.assigneeLabel || '', c.instructions, c.cc, c.ipr, c.notes, c.chart, c.titanUrl, (c.extras || []).join('; '), typeof submissionLabel === 'function' ? submissionLabel(c.initial) : '', c.lab || '', (c.teethNote || '').replace(/\n/g, '; '), c.aligners || '',
     c.shipToPatient ? 'Yes' : '', MARPE_RECORDS.filter(([k]) => (c.records || []).includes(k)).map(x => x[1]).join('; '), c.zoomDate ? c.zoomDate + (c.zoomTime ? ' ' + c.zoomTime : '') : '']
     .map(csvCell).join(',');
 }

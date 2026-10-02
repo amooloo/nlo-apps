@@ -86,13 +86,14 @@ function labelsCSV(list) {
 }
 
 /* print: one label per 2×4 in page; only the labels are shown while printing */
-function printLabelList(list) {
-  const box = $('#print-container'); if (!box || !list.length) return;
-  box.innerHTML = list.map(x => '<div class="print-page">' + labelHTML(x.lbl, x.idx) + '</div>').join('');
+function printLabelList(list, onDone) { printLabelPages(list.map(x => labelHTML(x.lbl, x.idx)), onDone); }
+function printLabelPages(pages, onDone) {
+  const box = $('#print-container'); if (!box || !pages.length) return;
+  box.innerHTML = pages.map(h => '<div class="print-page">' + h + '</div>').join('');
   document.body.classList.add('printLabels');
   // 2×4 in pages only while labels print (normal printing keeps the default page)
   const pg = document.createElement('style'); pg.id = 'lbPage'; pg.textContent = '@page{size:2in 4in;margin:0}'; document.head.appendChild(pg);
-  const done = () => { document.body.classList.remove('printLabels'); box.innerHTML = ''; pg.remove(); window.removeEventListener('afterprint', done); };
+  const done = () => { document.body.classList.remove('printLabels'); box.innerHTML = ''; pg.remove(); window.removeEventListener('afterprint', done); if (onDone) setTimeout(onDone, 60); };
   window.addEventListener('afterprint', done);
   const imgs = $$('img', box);
   Promise.all(imgs.map(i => i.complete ? Promise.resolve() : new Promise(r => { i.onload = i.onerror = r; }))).then(() => setTimeout(() => window.print(), 50));
@@ -150,6 +151,50 @@ function labelsModal(c) {
       const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = (st.patient || 'Patient').replace(/\s+/g, '_') + '_aligner_labels.csv';
       document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
     };
+    draw();
+  });
+}
+
+/* ---------- Retainer and whitening tray labels (Amir, 2 Oct 2026) ----------
+   One 2×4 in label per bag in the Label Maker's style: patient, upper/lower, what's inside, a bottom line and a
+   date. After printing, it offers to mark the case complete. TT's are the retainers, WT's the whitening trays. */
+const RET_LABELS = [
+  { k: 'TT’s', one: 'Retainer', many: 'Retainers', note: 'Wear retainers as directed' },
+  { k: 'WT’s', one: 'Whitening tray', many: 'Whitening trays', note: 'Use whitening trays as directed' }
+];
+function retLabelHTML(l) {
+  const both = l.u && l.l, arch = both ? 'Upper & Lower' : l.u ? 'Upper' : 'Lower';
+  return '<div class="print-label print-ret"><div class="p-top"><div><div class="p-patient">' + esc(l.patient || 'Patient') + '</div><div class="p-set-type">' + esc(arch) + '</div></div>' + LABEL_LOGO_IMG + '</div>' +
+    '<div class="p-at-center">' + esc(both ? l.kind.many : l.kind.one) + '</div>' +
+    '<div class="p-bot"><span class="p-wear">' + esc(l.note) + '</span>' + (l.date ? '<span class="p-switch">' + esc(fmtLabelDate(l.date)) + '</span>' : '') + '</div></div>';
+}
+function retLabelsModal(c) {
+  const kinds = (c.retKinds || []).length ? c.retKinds : [RET_LABELS[0].k], arches = (c.arches || []).length ? c.arches : ['Upper', 'Lower'];
+  openModal('<h3>Retainer labels</h3><div class="lsub">One 2×4 in label per bag on the Zebra, filled in from this case. Check each value before printing.</div>' +
+    '<div class="lbForm"><div class="grid2"><div class="field"><label for="rl-patient">Patient</label><input id="rl-patient" value="' + esc(c.patient || '') + '"></div>' +
+    '<div class="field"><label for="rl-date">Date on the label <span class="h5n">(optional)</span></label><input id="rl-date" type="date" value="' + esc(c.deliveryDate || todayISO()) + '"></div></div>' +
+    '<div class="rlArch"><span class="flabel">Arch</span>' + ['Upper', 'Lower'].map(a => '<label class="lbAt"><input type="checkbox" data-rl-arch="' + a + '"' + (arches.includes(a) ? ' checked' : '') + '> ' + a + '</label>').join('') + '</div>' +
+    RET_LABELS.map((k, i) => '<div class="rlKind"><label class="lbAt"><input type="checkbox" data-rl-kind="' + i + '"' + (kinds.includes(k.k) ? ' checked' : '') + '> ' + esc(k.many) + '</label>' +
+      '<div class="field"><label for="rl-note' + i + '">Bottom line</label><input id="rl-note' + i + '" value="' + esc(k.note) + '"></div></div>').join('') +
+    '<div class="lbPrev" id="rl-prev"></div></div>' +
+    '<div class="mFt"><button class="btn btn-sec" type="button" data-act="closeModal">Close</button><span style="flex:1"></span><button class="btn btn-teal" type="button" id="rl-print">Print label</button></div>', w => {
+    w.querySelector('.modal').classList.add('wide');
+    const $w = s => $(s, w);
+    let labels = [];
+    const draw = () => {
+      const u = $w('[data-rl-arch=Upper]').checked, l = $w('[data-rl-arch=Lower]').checked;
+      labels = (u || l) ? RET_LABELS.map((kind, i) => $w('[data-rl-kind="' + i + '"]').checked ? { patient: $w('#rl-patient').value.trim(), u, l, kind, note: $w('#rl-note' + i).value.trim(), date: $w('#rl-date').value } : null).filter(Boolean) : [];
+      $w('#rl-prev').innerHTML = labels.length ? labels.map(x => '<div class="lbPrevBox">' + retLabelHTML(x) + '</div>').join('') : '<div class="small muted">Pick an arch and at least one label.</div>';
+      const b = $w('#rl-print'); b.disabled = !labels.length; b.textContent = 'Print ' + (labels.length === 2 ? '2 labels' : 'label');
+    };
+    w.addEventListener('input', draw); w.addEventListener('change', draw);
+    $w('#rl-print').onclick = () => printLabelPages(labels.map(retLabelHTML), () => {
+      closeModal();
+      // printed: offer to finish the case (it can be reopened later)
+      const cur = findCase(c.id); if (!cur || cur.status === 'done') return;
+      confirmBox('Mark this case complete?', 'The label for ' + (cur.patient || 'this patient') + ' went to the printer. Move the case to Completed now? You can undo right after, or reopen it later.', 'Mark complete', false, 'Not yet')
+        .then(ok => { if (ok) completeCase(c.id); });
+    });
     draw();
   });
 }

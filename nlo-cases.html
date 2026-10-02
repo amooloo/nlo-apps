@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-FOdg0awVFW5ZNfU7W3Jqy/CXy/AXME4o7H47PL95q5w=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-2clliKXeldDDeioh21RPwVOw8L5huj58Bt1dnaAEpP4=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO Cases</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -71,6 +71,7 @@ svg.i{flex:none;display:inline-block;vertical-align:-3px}
 .field input:focus,.field select:focus,.field textarea:focus,.inp:focus{border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-100)}
 .field textarea{resize:vertical;min-height:70px;line-height:1.45}
 .field .hint{font-size:11.5px;color:var(--grey-500);margin-top:5px}
+.field .dTime{margin-top:6px}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}
 .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:0 14px}
 .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:0 14px}
@@ -569,6 +570,12 @@ a.btn{text-decoration:none}
 .lbRow:last-child{border-bottom:none}
 .lbRow input{accent-color:var(--navy)}
 .lbPrev{display:flex;gap:12px;flex-wrap:wrap;margin-top:12px}
+.print-label.print-ret .p-at-center{font-size:18pt}
+.rlArch{display:flex;align-items:center;gap:18px;margin:0 0 10px}
+.rlArch .flabel{margin:0;min-width:96px}
+.rlKind{display:grid;grid-template-columns:150px 1fr;gap:0 14px;align-items:end}
+.rlKind .lbAt{margin:0 0 24px}
+@media (max-width:860px){ .rlKind{grid-template-columns:1fr} .rlKind .lbAt{margin:4px 0 8px} }
 .lbPrevBox{width:calc(4in * .78);height:calc(2in * .78);overflow:hidden;border:1px solid var(--grey-300);border-radius:6px;background:#fff;box-shadow:var(--sh-xs)}
 .lbPrevBox .print-label{transform:scale(.78);transform-origin:top left}
 @media print{
@@ -826,6 +833,11 @@ function dueOf(c) {
   return null;
 }
 function dueDateOf(c) { const x = dueOf(c); return x ? x.d : ''; }
+/* the time that goes with a date, if one was set (Zoom call, delivery) */
+function timeOf(c, k) { return (k === 'zoom' ? c.zoomTime : k === 'delivery' ? c.deliveryTime : '') || ''; }
+/* for sorting: the date, then its time (a date with no time sorts after the timed ones that day) */
+function dateKey(d, t) { return d ? d + 'T' + (t || '24:00') : ''; }
+function dueKeyOf(c) { const x = dueOf(c); return x ? dateKey(x.d, timeOf(c, x.k)) : ''; }
 /* ---------- in-house aligner sets: how many aligners each case made, and the patient's total ---------- */
 const normChart = s => String(s || '').replace(/\s+/g, '').toLowerCase();
 const normName = s => String(s || '').trim().replace(/\s+/g, ' ').toLowerCase();
@@ -1095,7 +1107,7 @@ function csvCell(v) {
   return '"' + s.replace(/"/g, '""') + '"';
 }
 function caseToCSVRow(c) {
-  return [c.patient, typeOf(c).l, c.detail, stageLabel(c), c.status === 'done' ? 'Completed' : 'Open', c.scanDate, c.labDate, c.deliveryDate, c.assigneeLabel || '', c.instructions, c.cc, c.ipr, c.notes, c.chart, c.titanUrl, (c.extras || []).join('; '), typeof submissionLabel === 'function' ? submissionLabel(c.initial) : '', c.lab || '', (c.teethNote || '').replace(/\n/g, '; '), c.aligners || '',
+  return [c.patient, typeOf(c).l, c.detail, stageLabel(c), c.status === 'done' ? 'Completed' : 'Open', c.scanDate, c.labDate, c.deliveryDate ? c.deliveryDate + (c.deliveryTime ? ' ' + c.deliveryTime : '') : '', c.assigneeLabel || '', c.instructions, c.cc, c.ipr, c.notes, c.chart, c.titanUrl, (c.extras || []).join('; '), typeof submissionLabel === 'function' ? submissionLabel(c.initial) : '', c.lab || '', (c.teethNote || '').replace(/\n/g, '; '), c.aligners || '',
     c.shipToPatient ? 'Yes' : '', MARPE_RECORDS.filter(([k]) => (c.records || []).includes(k)).map(x => x[1]).join('; '), c.zoomDate ? c.zoomDate + (c.zoomTime ? ' ' + c.zoomTime : '') : '']
     .map(csvCell).join(',');
 }
@@ -1703,7 +1715,7 @@ const DEMO = {
       DEMO.cases.set(id, {
         id, rev: 1, v: 1, status: 'open', by: 'amir', updatedAt: Date.now() - i * 3600e3, closedAt: null,
         type, patient: first[i % first.length] + ' ' + last[i % last.length], detail: details[type], stage, assignee: who,
-        scanDate: TYPE[type].aligner ? scan : '', labDate: TYPE[type].aligner && due != null ? addDays(t, due) : '', deliveryDate: due == null ? '' : addDays(t, due + (TYPE[type].aligner ? 7 : 0)),
+        scanDate: TYPE[type].aligner ? scan : '', labDate: TYPE[type].aligner && due != null ? addDays(t, due) : '', deliveryDate: due == null ? '' : addDays(t, due + (TYPE[type].aligner ? 7 : 0)), deliveryTime: due == null || i % 4 === 3 ? '' : ['09:00', '10:30', '14:00'][i % 4],
         alU: type === 'nla' ? [18, 22, 14, 26, 20, 12][i % 6] : '', alL: type === 'nla' ? [16, 22, 14, 20, 20, 12][i % 6] : '', initial: type === 'nla' ? 'yes' : '',
         scanner: TYPE[type].aligner ? 'Allied Star' : '', assistant: ['angelika', 'gwen', 'kaylee'][i % 3],
         instructions: TYPE[type].aligner ? 'Close remaining spaces, improve bite.' : '', cc: '', ipr: i % 3 === 0 ? 'UR2–UR1 0.1mm, UR1–UL1 0.1mm' : '', notes: '',
@@ -1716,6 +1728,8 @@ const DEMO = {
     Object.assign(mp[0], { records: ['stl'], lab: 'Partner Dental Studios' });
     Object.assign(mp[1], { records: ['stl', 'cbct'], lab: 'Partner Dental Studios', zoomDate: addDays(t, 2), zoomTime: '12:30' });
     Object.assign(mp[2], { records: ['stl', 'cbct'], lab: 'Partner Dental Studios', zoomDate: addDays(t, -9), zoomTime: '13:00' });
+    // retainers: upper and lower, retainers and whitening trays (matches their detail line)
+    all.filter(c => c.type === 'retainer').forEach(c => Object.assign(c, { arches: ['Upper', 'Lower'], retKinds: ['TT’s', 'WT’s'] }));
     // aligners going straight to the patient, and shipments with one-click tracking (sample numbers)
     Object.assign(all.find(c => c.type === 'oliv' && c.stage === 'shipped'), { shipToPatient: true, tracking: '1Z999AA10123456784' });
     Object.assign(all.find(c => c.type === 'nla' && c.stage === 'pack'), { shipToPatient: true });
@@ -2313,7 +2327,7 @@ function dueBucket(c) {
   if (d < 0) return 'over'; if (d === 0) return 'today'; if (d <= 6) return 'week'; if (d <= 14) return '14'; return 'later';
 }
 function byDue(a, b) {
-  const x = dueDateOf(a) || '9999', y = dueDateOf(b) || '9999';
+  const x = dueKeyOf(a) || '9999', y = dueKeyOf(b) || '9999'; // the date, then its time (Zoom call, delivery)
   return x < y ? -1 : x > y ? 1 : String(a.patient).localeCompare(String(b.patient));
 }
 /* the list filters; del/delDay filter by the delivery date alone, not the lab date (Amir, 2 Oct 2026) */
@@ -2328,10 +2342,10 @@ function delMatch(c, f) {
   if (d === null) return false;
   return f.del === 'past' ? d < 0 : f.del === 'today' ? d === 0 : f.del === 'tomorrow' ? d === 1 : f.del === 'week' ? d >= 0 && d <= 6 : f.del === '14' ? d >= 0 && d <= 14 : true;
 }
-/* the date the lists show and sort by: the next date, or the delivery date while they're filtered by delivery */
-function listDate(c) { return (S.f.del ? c.deliveryDate : dueDateOf(c)) || ''; }
+/* the date (and time) the lists show and sort by: the next date, or the delivery date while they're filtered by delivery */
+function listKey(c) { return (S.f.del ? dateKey(c.deliveryDate, c.deliveryTime) : dueKeyOf(c)) || ''; }
 function byListDate(a, b) {
-  const x = listDate(a) || '9999', y = listDate(b) || '9999';
+  const x = listKey(a) || '9999', y = listKey(b) || '9999';
   return x < y ? -1 : x > y ? 1 : String(a.patient).localeCompare(String(b.patient));
 }
 function counts() {
@@ -2432,14 +2446,14 @@ function delChip(c) { return dateChip(c, c.deliveryDate ? { d: c.deliveryDate, k
 function dateChip(c, x, none) {
   if (!x) return '<span class="due none">' + none + '</span>';
   const d = dayDiff(x.d), z = x.k === 'zoom', w = x.k === 'lab' ? 'Lab' : x.k === 'delivery' ? 'Delivery' : z ? 'Zoom' : 'Due';
-  const at = z && c.zoomTime ? ' ' + fmtTime(c.zoomTime) : '', i = ic(z ? 'video' : 'clock', 13);
-  const tip = ' title="' + esc((x.k === 'lab' ? 'Lab completion' : z ? 'Zoom call' : w) + ': ' + fmtDay(x.d) + at) + '"';
+  const tm = fmtTime(timeOf(c, x.k)), at = tm ? ' ' + tm : '', on = tm ? ' · ' + tm : '', i = ic(z ? 'video' : 'clock', 13); // Zoom call and delivery times
+  const tip = ' title="' + esc((x.k === 'lab' ? 'Lab completion' : z ? 'Zoom call' : w) + ': ' + fmtDay(x.d) + (tm ? ', ' + tm : '')) + '"';
   // a Zoom call that has passed while the design isn't approved yet: someone should move the case on
   if (d < 0) return '<span class="due over"' + tip + '>' + i + w + ' ' + (z ? 'was ' + (d === -1 ? 'yesterday' : (-d) + ' days ago') : d === -1 ? '1 day late' : (-d) + ' days late') + '</span>';
   if (d === 0) return '<span class="due soon"' + tip + '>' + i + w + ' today' + esc(at) + '</span>';
   if (d === 1) return '<span class="due soon"' + tip + '>' + i + w + ' tomorrow' + esc(at) + '</span>';
-  if (d <= 3) return '<span class="due soon"' + tip + '>' + i + w + ' ' + esc(fmtDay(x.d)) + '</span>';
-  return '<span class="due"' + tip + '>' + (z ? i : '') + w + ' ' + esc(fmtDate(x.d)) + '</span>';
+  if (d <= 3) return '<span class="due soon"' + tip + '>' + i + w + ' ' + esc(fmtDay(x.d) + on) + '</span>';
+  return '<span class="due"' + tip + '>' + (z ? i : '') + w + ' ' + esc(fmtDate(x.d) + on) + '</span>';
 }
 /* ---------- flags: ship to patient (an alert wherever the case shows), one-click tracking, MARPE records ---------- */
 function shipFlag(c, short) { return c.shipToPatient ? '<span class="flag ship" title="Ship to patient">' + ic('truck', 13) + (short ? 'Ship' : 'Ship to patient') + '</span>' : ''; }
@@ -2633,7 +2647,7 @@ function applyFilters(list) {
 function sortList(list) {
   const { k, dir } = S.sort;
   const val = c => k === 'patient' ? String(c.patient || '').toLowerCase() : k === 'type' ? typeOf(c).l : k === 'stage' ? stageIndex(c) : k === 'who' ? staffName(c.assignee, c.assigneeName) : k === 'updated' ? -(c.updatedAt || 0)
-    : k === 'ship' ? (c.shipToPatient ? 0 : trackList(c).length ? 1 : 2) : (listDate(c) || '9999');
+    : k === 'ship' ? (c.shipToPatient ? 0 : trackList(c).length ? 1 : 2) : (listKey(c) || '9999');
   return list.slice().sort((a, b) => { const x = val(a), y = val(b); return (x < y ? -1 : x > y ? 1 : byListDate(a, b)) * dir; });
 }
 /* ---------- Today: clean up old cases in bulk (e.g. leftovers from the Asana import; Amir, 2 Oct 2026) ---------- */
@@ -2777,7 +2791,7 @@ function refreshDrawer(gone) {
 async function loadHistory(id) {
   try { const h = await B.caseLog(id); if (S.openId === id) { S.history = h; const el = $('#histBox'); if (el) el.innerHTML = historyHTML(findCase(id)); } } catch (e) { }
 }
-const FIELD_LABELS = { photo: 'photo', labRef: 'lab case #', labHold: 'lab hold', planUrl: 'plan link', shipToPatient: 'ship to patient', records: 'records on file', zoomDate: 'Zoom call', zoomTime: 'Zoom call', tracking: 'tracking #', carrier: 'carrier', teeth: 'tooth chart', teethNote: 'tooth chart', chart: 'chart #', titanUrl: 'Titan link', initial: 'initial/refinement', appliances: 'appliance', lab: 'lab', arches: 'arch', retKinds: 'retainer type', goals: 'Dr. A’s instructions', instrPicks: 'Dr. A’s instructions', instrOther: 'Dr. A’s instructions', extras: 'extras', variant: 'case type', type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery date', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes' };
+const FIELD_LABELS = { photo: 'photo', labRef: 'lab case #', labHold: 'lab hold', planUrl: 'plan link', shipToPatient: 'ship to patient', records: 'records on file', zoomDate: 'Zoom call', zoomTime: 'Zoom call', tracking: 'tracking #', carrier: 'carrier', teeth: 'tooth chart', teethNote: 'tooth chart', chart: 'chart #', titanUrl: 'Titan link', initial: 'initial/refinement', appliances: 'appliance', lab: 'lab', arches: 'arch', retKinds: 'retainer type', goals: 'Dr. A’s instructions', instrPicks: 'Dr. A’s instructions', instrOther: 'Dr. A’s instructions', extras: 'extras', variant: 'case type', type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery date', deliveryTime: 'delivery time', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes' };
 function historyHTML(c) {
   const h = S.history; if (!h) return '<div class="small muted">Loading…</div>'; if (!h.length) return '<div class="small muted">No history yet.</div>';
   const stageName = k => { const s = c && flowOf(c).stages.find(x => x[0] === k); return s ? s[1] : k; };
@@ -2842,7 +2856,7 @@ function renderDrawer() {
       '<div class="staffRow dAssign" role="radiogroup" aria-label="Assigned to">' + [null].concat(withSavedStaff(activeRoster(), c.assignee)).map(r => staffTile(r, (c.assignee || '') === (r ? r.sid : ''), 'aTile', ' role="radio" data-act="assignTo"' + (done ? ' disabled' : ''))).join('') + '</div></div>' +
     kv('Scan date', esc(fmtDay(c.scanDate))) +
     kv('Lab completion', c.labDate ? esc(fmtDay(c.labDate)) + (!done && (dueOf(c) || {}).k === 'lab' ? ' ' + dueChip(c) : '') : '') +
-    kv('Delivery', c.deliveryDate ? esc(fmtDay(c.deliveryDate)) + (!done && (dueOf(c) || {}).k === 'delivery' ? ' ' + dueChip(c) : '') : '') +
+    kv('Delivery', c.deliveryDate ? esc(fmtDay(c.deliveryDate) + (c.deliveryTime ? ', ' + fmtTime(c.deliveryTime) : '')) + (!done && (dueOf(c) || {}).k === 'delivery' ? ' ' + dueChip(c) : '') : '') +
     (c.dueDate && !c.deliveryDate ? kv('Due (older case)', esc(fmtDay(c.dueDate))) : '') +
     (String(c.tracking || '').trim() ? kv('Tracking', trackList(c).length ? trackList(c).map(t => '<span class="trkLine">' + esc(t.n) + (t.carrier ? ' <span class="muted small">' + esc(t.carrier) + '</span>' : '') +
       (t.url ? ' <a class="flag trk" href="' + esc(t.url) + '" target="_blank" rel="noopener noreferrer">' + ic('ext', 12) + 'Track</a>' : '') + '</span>').join('') : esc(c.tracking)) : '') +
@@ -2853,6 +2867,9 @@ function renderDrawer() {
     (safeUrl(c.titanUrl) ? '<div class="sec"><a class="btn btn-sec btn-sm" href="' + esc(safeUrl(c.titanUrl)) + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'Open in Titan</a></div>' : '') +
     ((c.appliances || []).length || c.lab || c.initial || (c.extras || []).length ? '<div class="sec"><h5>Case</h5><div class="pickRow">' + (c.appliances || []).map(x => '<span class="badge t-appl">' + esc(x) + '</span>').join('') + (c.lab ? '<span class="badge">' + esc(c.lab) + '</span>' : '') + (c.initial ? '<span class="badge">' + esc(submissionLabel(c.initial)) + '</span>' : '') + (c.extras || []).map(x => '<span class="badge t-retx">' + esc(x) + '</span>').join('') + '</div></div>' : '') +
     (c.type === 'nla' ? '<div class="sec" id="alBox"><h5>Aligners</h5>' + alignerTotalHTML(c, false) + '</div>' : '') +
+    // retainers & whitening trays: a label for the bag, then it offers to complete the case (Amir, 2 Oct 2026)
+    (c.type === 'retainer' ? '<div class="sec" id="retLblBox"><h5>Label</h5><div class="alLbl"><button class="btn btn-sec btn-sm" data-act="retLabels">' + ic('print', 15) + 'Print label</button>' +
+      '<span class="small muted">For the bag: patient, upper/lower, retainers or whitening trays' + (done ? '' : ' — then it asks to mark the case complete') + '</span></div></div>' : '') +
     txt('Dr. A’s instructions', c.instructions) +
     (c.teeth && Object.keys(c.teeth).length ? '<div class="sec"><h5>Tooth chart</h5><div class="tc ro">' + toothChartHTML(c.teeth, true) + '</div><div class="txt" style="margin-top:8px">' + esc(teethSummary(c.teeth)) + '</div></div>' : '') +
     txt('Patient’s CC from last visit', c.cc) + txt('IPR & spacing', c.ipr) +
@@ -2982,9 +2999,9 @@ function openModal(html, onReady) {
 }
 function closeModal() { const w = $('#modalWrap'); if (w) w.remove(); }
 /* text is plain text (escaped here), never HTML */
-function confirmBox(title, text, okLabel, danger) {
+function confirmBox(title, text, okLabel, danger, noLabel) {
   return new Promise(res => {
-    openModal('<h3>' + esc(title) + '</h3><p class="lsub" style="font-size:13.5px;color:var(--grey-600)">' + esc(text) + '</p><div class="mFt"><button class="btn btn-sec" id="cbNo">Cancel</button><button class="btn ' + (danger ? 'btn-danger' : 'btn-pri') + '" id="cbYes">' + esc(okLabel) + '</button></div>', w => {
+    openModal('<h3>' + esc(title) + '</h3><p class="lsub" style="font-size:13.5px;color:var(--grey-600)">' + esc(text) + '</p><div class="mFt"><button class="btn btn-sec" id="cbNo">' + esc(noLabel || 'Cancel') + '</button><button class="btn ' + (danger ? 'btn-danger' : 'btn-pri') + '" id="cbYes">' + esc(okLabel) + '</button></div>', w => {
       $('#cbNo', w).onclick = () => { closeModal(); res(false); }; $('#cbYes', w).onclick = () => { closeModal(); res(true); }; $('#cbYes', w).focus();
     });
   });
@@ -3076,6 +3093,7 @@ function onClick(e) {
     case 'complete': completeCase(id); break;
     case 'setStage': moveStage(S.openId, t.dataset.k); break;
     case 'labels': { const c = findCase(S.openId); if (c && alN(c)) labelsModal(c); break; }
+    case 'retLabels': { const c = findCase(S.openId); if (c && c.type === 'retainer') retLabelsModal(c); break; }
     case 'rec': toggleRecord(t); break;
     case 'copyNote': { const c = findCase(S.openId); if (c) copyText(chartNote(c)).then(ok => toast(ok ? 'Chart note copied — paste it into the patient’s chart' : 'Couldn’t copy — select the note and copy it', ok ? {} : { bad: true })); break; }
     case 'clearHold': { const cid = S.openId; act(() => B.mutateCase(cid, d => { if (!d.labHold) return 'skip'; d.labHoldSeen = (d.labHold.date || '') + '|' + (d.labHold.reason || ''); d.labHold = ''; }, { a: 'edit', fields: ['labHold'] }), 'Lab hold cleared'); break; }
@@ -3338,9 +3356,17 @@ function groupOfTile(v) { return ALIGNERISH.includes(v) ? 'aligner' : BRACES.inc
 /* how the submission is labelled on the case: refinement for aligners, digital enhancement for InSmile */
 function submissionLabel(v) { return v === 'yes' ? 'Initial submission' : v === 'no' ? 'Refinement' : v === 'mid' ? 'Mid-course correction' : /^de[123]$/.test(v || '') ? 'Digital enhancement ' + v.slice(2) + ' (DE' + v.slice(2) + ')' : ''; }
 /* fields added later save '' when empty (not [] or false), so older cases without them don't look edited */
-const FORM_KEYS = ['type', 'patient', 'chart', 'detail', 'stage', 'assignee', 'assistant', 'scanner', 'scanDate', 'labDate', 'deliveryDate', 'aligners',
+const FORM_KEYS = ['type', 'patient', 'chart', 'detail', 'stage', 'assignee', 'assistant', 'scanner', 'scanDate', 'labDate', 'deliveryDate', 'deliveryTime', 'aligners',
   'initial', 'appliances', 'lab', 'arches', 'retKinds', 'goals', 'instrPicks', 'instrOther', 'instructions', 'extras', 'teeth', 'cc', 'ipr', 'notes', 'titanUrl', 'alU', 'alL',
   'shipToPatient', 'records', 'zoomDate', 'zoomTime', 'tracking', 'labRef'];
+
+/* delivery time: every half hour, 7:00 AM to 7:00 PM (Amir, 2 Oct 2026: "30 mins increments are fine") */
+const HALF_HOURS = Array.from({ length: 25 }, (_, i) => { const m = 7 * 60 + i * 30; return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); });
+function timeSelectHTML(id, v, label) {
+  const opts = HALF_HOURS.includes(v || '') || !v ? HALF_HOURS : HALF_HOURS.concat([v]).sort(); // a time saved before keeps showing
+  return '<select id="' + id + '" class="dTime" aria-label="' + esc(label) + '"><option value="">Time (optional)</option>' +
+    opts.map(t => '<option value="' + t + '"' + (t === v ? ' selected' : '') + '>' + esc(fmtTime(t)) + '</option>').join('') + '</select>';
+}
 
 /* ---------- tooth chart (Palmer, 7s to 7s, same teeth as the IPR Tracker) ---------- */
 const TEETH_U = ['UR7', 'UR6', 'UR5', 'UR4', 'UR3', 'UR2', 'UR1', 'UL1', 'UL2', 'UL3', 'UL4', 'UL5', 'UL6', 'UL7'];
@@ -3563,7 +3589,7 @@ function caseFormHTML(c, isNew) {
     '<div class="cfSec"><h5>Assistant</h5>' + staffPickRow('assistant', withSavedStaff(roster, c.assistant), c.assistant || '') +
     '<div' + show('aligner braces appliance marpe retainer models') + '><h5>Scanner</h5>' + pickRow('scanner', PICK.scanners, c.scanner || '', false) + '</div></div>' +
     '<div class="cfSec"><h5>Dates</h5><div class="pickRow" style="margin-bottom:8px"><button type="button" class="pick sm" data-scan="0">Scanned today</button><button type="button" class="pick sm" data-scan="-1">Yesterday</button></div>' +
-    '<div class="grid3">' + date('cf-scanDate', 'Scan date', c.scanDate) + date('cf-labDate', 'Lab completion', c.labDate) + date('cf-deliveryDate', 'Delivery', c.deliveryDate) + '</div>' +
+    '<div class="grid3">' + date('cf-scanDate', 'Scan date', c.scanDate) + date('cf-labDate', 'Lab completion', c.labDate) + '<div class="field"><label for="cf-deliveryDate">Delivery</label><input type="date" id="cf-deliveryDate" value="' + esc(c.deliveryDate || '') + '">' + timeSelectHTML('cf-deliveryTime', c.deliveryTime || '', 'Delivery time') + '</div>' + '</div>' +
     '<div class="hint small muted" id="cf-autoHint" style="margin:-4px 0 0">Filled in from the scan date — change any of them.</div>' +
     // aligners going straight to the patient: an alert on the case everywhere it shows (Amir, 2 Oct 2026)
     '<div' + show('aligner') + '><button type="button" class="shipTgl" id="cf-ship" aria-pressed="' + !!c.shipToPatient + '">' + ic('truck', 22) +
@@ -3625,7 +3651,7 @@ function pressed(root, g) { return $$('.pickRow[data-g="' + g + '"] .pick[aria-p
 function readCaseForm(root) {
   const tile = $('#cf-tile', root).value;
   const o = { type: INHOUSE_TILES.includes(tile) ? 'nla' : tile, variant: tile === 'finishing' ? 'finishing' : '' };
-  ['patient', 'chart', 'detail', 'stage', 'assignee', 'scanDate', 'labDate', 'deliveryDate', 'instrOther', 'cc', 'ipr', 'notes', 'titanUrl', 'zoomDate', 'zoomTime', 'tracking', 'labRef'].forEach(k => { const el = $('#cf-' + k, root); o[k] = el ? String(el.value || '').trim() : ''; });
+  ['patient', 'chart', 'detail', 'stage', 'assignee', 'scanDate', 'labDate', 'deliveryDate', 'deliveryTime', 'instrOther', 'cc', 'ipr', 'notes', 'titanUrl', 'zoomDate', 'zoomTime', 'tracking', 'labRef'].forEach(k => { const el = $('#cf-' + k, root); o[k] = el ? String(el.value || '').trim() : ''; });
   o.assistant = pressed(root, 'assistant')[0] || '';
   o.scanner = pressed(root, 'scanner')[0] || '';
   const g0 = groupOfTile(tile);
@@ -3645,6 +3671,7 @@ function readCaseForm(root) {
   // MARPE: records on file and the Zoom call; aligners: ship to patient (empty is '', see FORM_KEYS)
   const recs = pressed(root, 'records'); o.records = g === 'marpe' && recs.length ? recs : '';
   if (g !== 'marpe') { o.zoomDate = ''; o.zoomTime = ''; } else if (!o.zoomDate) o.zoomTime = '';
+  if (!o.deliveryDate) o.deliveryTime = ''; // a time only goes with a delivery date
   const ship = $('#cf-ship', root); o.shipToPatient = g === 'aligner' && ship && ship.getAttribute('aria-pressed') === 'true' ? true : '';
   if (g !== 'retainer') { o.arches = []; o.retKinds = []; }
   if (tile === 'mouthguard') o.retKinds = [];
@@ -3949,13 +3976,14 @@ function labelsCSV(list) {
 }
 
 /* print: one label per 2×4 in page; only the labels are shown while printing */
-function printLabelList(list) {
-  const box = $('#print-container'); if (!box || !list.length) return;
-  box.innerHTML = list.map(x => '<div class="print-page">' + labelHTML(x.lbl, x.idx) + '</div>').join('');
+function printLabelList(list, onDone) { printLabelPages(list.map(x => labelHTML(x.lbl, x.idx)), onDone); }
+function printLabelPages(pages, onDone) {
+  const box = $('#print-container'); if (!box || !pages.length) return;
+  box.innerHTML = pages.map(h => '<div class="print-page">' + h + '</div>').join('');
   document.body.classList.add('printLabels');
   // 2×4 in pages only while labels print (normal printing keeps the default page)
   const pg = document.createElement('style'); pg.id = 'lbPage'; pg.textContent = '@page{size:2in 4in;margin:0}'; document.head.appendChild(pg);
-  const done = () => { document.body.classList.remove('printLabels'); box.innerHTML = ''; pg.remove(); window.removeEventListener('afterprint', done); };
+  const done = () => { document.body.classList.remove('printLabels'); box.innerHTML = ''; pg.remove(); window.removeEventListener('afterprint', done); if (onDone) setTimeout(onDone, 60); };
   window.addEventListener('afterprint', done);
   const imgs = $$('img', box);
   Promise.all(imgs.map(i => i.complete ? Promise.resolve() : new Promise(r => { i.onload = i.onerror = r; }))).then(() => setTimeout(() => window.print(), 50));
@@ -4013,6 +4041,50 @@ function labelsModal(c) {
       const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = (st.patient || 'Patient').replace(/\s+/g, '_') + '_aligner_labels.csv';
       document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
     };
+    draw();
+  });
+}
+
+/* ---------- Retainer and whitening tray labels (Amir, 2 Oct 2026) ----------
+   One 2×4 in label per bag in the Label Maker's style: patient, upper/lower, what's inside, a bottom line and a
+   date. After printing, it offers to mark the case complete. TT's are the retainers, WT's the whitening trays. */
+const RET_LABELS = [
+  { k: 'TT’s', one: 'Retainer', many: 'Retainers', note: 'Wear retainers as directed' },
+  { k: 'WT’s', one: 'Whitening tray', many: 'Whitening trays', note: 'Use whitening trays as directed' }
+];
+function retLabelHTML(l) {
+  const both = l.u && l.l, arch = both ? 'Upper & Lower' : l.u ? 'Upper' : 'Lower';
+  return '<div class="print-label print-ret"><div class="p-top"><div><div class="p-patient">' + esc(l.patient || 'Patient') + '</div><div class="p-set-type">' + esc(arch) + '</div></div>' + LABEL_LOGO_IMG + '</div>' +
+    '<div class="p-at-center">' + esc(both ? l.kind.many : l.kind.one) + '</div>' +
+    '<div class="p-bot"><span class="p-wear">' + esc(l.note) + '</span>' + (l.date ? '<span class="p-switch">' + esc(fmtLabelDate(l.date)) + '</span>' : '') + '</div></div>';
+}
+function retLabelsModal(c) {
+  const kinds = (c.retKinds || []).length ? c.retKinds : [RET_LABELS[0].k], arches = (c.arches || []).length ? c.arches : ['Upper', 'Lower'];
+  openModal('<h3>Retainer labels</h3><div class="lsub">One 2×4 in label per bag on the Zebra, filled in from this case. Check each value before printing.</div>' +
+    '<div class="lbForm"><div class="grid2"><div class="field"><label for="rl-patient">Patient</label><input id="rl-patient" value="' + esc(c.patient || '') + '"></div>' +
+    '<div class="field"><label for="rl-date">Date on the label <span class="h5n">(optional)</span></label><input id="rl-date" type="date" value="' + esc(c.deliveryDate || todayISO()) + '"></div></div>' +
+    '<div class="rlArch"><span class="flabel">Arch</span>' + ['Upper', 'Lower'].map(a => '<label class="lbAt"><input type="checkbox" data-rl-arch="' + a + '"' + (arches.includes(a) ? ' checked' : '') + '> ' + a + '</label>').join('') + '</div>' +
+    RET_LABELS.map((k, i) => '<div class="rlKind"><label class="lbAt"><input type="checkbox" data-rl-kind="' + i + '"' + (kinds.includes(k.k) ? ' checked' : '') + '> ' + esc(k.many) + '</label>' +
+      '<div class="field"><label for="rl-note' + i + '">Bottom line</label><input id="rl-note' + i + '" value="' + esc(k.note) + '"></div></div>').join('') +
+    '<div class="lbPrev" id="rl-prev"></div></div>' +
+    '<div class="mFt"><button class="btn btn-sec" type="button" data-act="closeModal">Close</button><span style="flex:1"></span><button class="btn btn-teal" type="button" id="rl-print">Print label</button></div>', w => {
+    w.querySelector('.modal').classList.add('wide');
+    const $w = s => $(s, w);
+    let labels = [];
+    const draw = () => {
+      const u = $w('[data-rl-arch=Upper]').checked, l = $w('[data-rl-arch=Lower]').checked;
+      labels = (u || l) ? RET_LABELS.map((kind, i) => $w('[data-rl-kind="' + i + '"]').checked ? { patient: $w('#rl-patient').value.trim(), u, l, kind, note: $w('#rl-note' + i).value.trim(), date: $w('#rl-date').value } : null).filter(Boolean) : [];
+      $w('#rl-prev').innerHTML = labels.length ? labels.map(x => '<div class="lbPrevBox">' + retLabelHTML(x) + '</div>').join('') : '<div class="small muted">Pick an arch and at least one label.</div>';
+      const b = $w('#rl-print'); b.disabled = !labels.length; b.textContent = 'Print ' + (labels.length === 2 ? '2 labels' : 'label');
+    };
+    w.addEventListener('input', draw); w.addEventListener('change', draw);
+    $w('#rl-print').onclick = () => printLabelPages(labels.map(retLabelHTML), () => {
+      closeModal();
+      // printed: offer to finish the case (it can be reopened later)
+      const cur = findCase(c.id); if (!cur || cur.status === 'done') return;
+      confirmBox('Mark this case complete?', 'The label for ' + (cur.patient || 'this patient') + ' went to the printer. Move the case to Completed now? You can undo right after, or reopen it later.', 'Mark complete', false, 'Not yet')
+        .then(ok => { if (ok) completeCase(c.id); });
+    });
     draw();
   });
 }

@@ -51,6 +51,7 @@ async function newCase(p, o) {
   await p.click('#ncForm .tt[data-tile=' + o.type + ']'); await p.fill('#cf-patient', o.patient);
   if (o.instructions) await p.fill('#cf-instrOther', o.instructions);
   if (o.delivery) await p.fill('#cf-deliveryDate', o.delivery);
+  if (o.time) await p.selectOption('#cf-deliveryTime', o.time);
   await p.click('#ncSave'); await p.waitForSelector('#modalWrap', { state: 'detached', timeout: 20000 });
 }
 async function openByName(p, name) {
@@ -980,6 +981,25 @@ async function openByName(p, name) {
   check(!/Pia Portrait|Portrait/.test(dump), 'the patient’s name isn’t readable anywhere in the database');
   await gwen.fill('#q', ''); await owner.click('#nav-today');
 
+  console.log('\n# Delivery time; retainer labels offer to complete the case');
+  const tmr = await owner.evaluate(() => { const d = new Date(); d.setDate(d.getDate() + 1); return isoOf(d); });
+  await owner.click('#nav-list'); await owner.fill('#q', '');
+  await newCase(owner, { type: 'retainer', patient: 'Rhea Labelworth', delivery: tmr, time: '13:30' });
+  await gwen.click('#nav-today'); await openByName(gwen, 'Rhea Labelworth');
+  check(/Delivery[A-Za-z]{3}, [A-Za-z]{3} \d+, 1:30 PM/.test((await gwen.textContent('#drawer .kv')).replace(/\s+/g, ' ')) && await gwen.isVisible('#drawer .kv .due:has-text("Delivery tomorrow 1:30 PM")'),
+    'the delivery time is saved (encrypted) and Gwen sees it: “Delivery tomorrow 1:30 PM”');
+  await gwen.click('#retLblBox [data-act=retLabels]'); await gwen.waitForSelector('#rl-prev .print-label');
+  await gwen.evaluate(() => { window.__printed = null; window.print = () => { window.__printed = { n: document.querySelectorAll('#print-container .print-page').length, txt: document.querySelector('#print-container').textContent }; window.dispatchEvent(new Event('afterprint')); }; });
+  await gwen.click('#rl-print'); await gwen.waitForFunction(() => window.__printed, null, { timeout: 10000 });
+  const rlp = await gwen.evaluate(() => window.__printed);
+  check(rlp.n === 1 && /Rhea Labelworth/.test(rlp.txt) && /Retainers/.test(rlp.txt), 'Print label sends the retainer label (one 2×4 page)');
+  await gwen.waitForSelector('#cbYes', { timeout: 10000 });
+  check(/Mark this case complete\?/.test(await gwen.textContent('#modalWrap')), 'after printing it asks whether to mark the case complete');
+  await gwen.click('#cbYes'); await gwen.waitForSelector('.toast:has-text("marked complete")', { timeout: 15000 });
+  await owner.waitForFunction(() => !openCases().some(c => c.patient === 'Rhea Labelworth'), null, { timeout: 15000 }).catch(() => {});
+  check(!(await owner.evaluate(() => openCases().some(c => c.patient === 'Rhea Labelworth'))), '“Mark complete” completes it for everyone');
+  await gwen.click('#nav-today');
+
   console.log('\n# Today: clean up old cases in bulk (complete with undo, delete)');
   await owner.evaluate(async () => {
     for (const n of ['One', 'Two', 'Three']) await B.createCase({ type: 'retainer', patient: 'Bulkcase ' + n, stage: 'pickup', deliveryDate: '2025-01-15', comments: [], createdAt: Date.now(), createdBy: meSid() });
@@ -1022,6 +1042,7 @@ async function openByName(p, name) {
   check(exp.includes('"\'=HYPERLINK(') && !/(^|,)"=HYPERLINK/m.test(exp), 'formula-looking text is exported as plain text');
   check(exp.includes('Digital enhancement 2 (DE2)') && exp.includes('Mouthguard (U)'), 'export carries DE and mouthguard details');
   check(/Aligners in set/.test(exp.split('\n')[0]) && !/,"?Due"?,/.test(exp.split('\n')[0]), 'export has aligners per set and no due-date column');
+  check((exp.split('\n').find(l => l.includes('Rhea Labelworth')) || '').includes('"' + tmr + ' 13:30"'), 'export: the Delivery column carries the delivery time');
   check(exp.split('\n')[0].includes('Ship to patient,Records on file,Zoom call') && exp.includes('STL scan; CBCT (upper & lower jaws)') && /"Yes"/.test(exp.split('\n').find(l => l.includes('Shelby Shipwell')) || ''), 'export carries Ship to patient, MARPE records and the Zoom call');
 
   console.log('\n# Activity');

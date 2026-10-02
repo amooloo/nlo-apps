@@ -41,7 +41,7 @@ const DEMO = {
       DEMO.cases.set(id, {
         id, rev: 1, v: 1, status: 'open', by: 'amir', updatedAt: Date.now() - i * 3600e3, closedAt: null,
         type, patient: first[i % first.length] + ' ' + last[i % last.length], detail: details[type], stage, assignee: who,
-        scanDate: TYPE[type].aligner ? scan : '', labDate: TYPE[type].aligner && due != null ? addDays(t, due) : '', deliveryDate: due == null ? '' : addDays(t, due + (TYPE[type].aligner ? 7 : 0)),
+        scanDate: TYPE[type].aligner ? scan : '', labDate: TYPE[type].aligner && due != null ? addDays(t, due) : '', deliveryDate: due == null ? '' : addDays(t, due + (TYPE[type].aligner ? 7 : 0)), deliveryTime: due == null || i % 4 === 3 ? '' : ['09:00', '10:30', '14:00'][i % 4],
         alU: type === 'nla' ? [18, 22, 14, 26, 20, 12][i % 6] : '', alL: type === 'nla' ? [16, 22, 14, 20, 20, 12][i % 6] : '', initial: type === 'nla' ? 'yes' : '',
         scanner: TYPE[type].aligner ? 'Allied Star' : '', assistant: ['angelika', 'gwen', 'kaylee'][i % 3],
         instructions: TYPE[type].aligner ? 'Close remaining spaces, improve bite.' : '', cc: '', ipr: i % 3 === 0 ? 'UR2–UR1 0.1mm, UR1–UL1 0.1mm' : '', notes: '',
@@ -54,6 +54,8 @@ const DEMO = {
     Object.assign(mp[0], { records: ['stl'], lab: 'Partner Dental Studios' });
     Object.assign(mp[1], { records: ['stl', 'cbct'], lab: 'Partner Dental Studios', zoomDate: addDays(t, 2), zoomTime: '12:30' });
     Object.assign(mp[2], { records: ['stl', 'cbct'], lab: 'Partner Dental Studios', zoomDate: addDays(t, -9), zoomTime: '13:00' });
+    // retainers: upper and lower, retainers and whitening trays (matches their detail line)
+    all.filter(c => c.type === 'retainer').forEach(c => Object.assign(c, { arches: ['Upper', 'Lower'], retKinds: ['TT’s', 'WT’s'] }));
     // aligners going straight to the patient, and shipments with one-click tracking (sample numbers)
     Object.assign(all.find(c => c.type === 'oliv' && c.stage === 'shipped'), { shipToPatient: true, tracking: '1Z999AA10123456784' });
     Object.assign(all.find(c => c.type === 'nla' && c.stage === 'pack'), { shipToPatient: true });

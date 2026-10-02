@@ -151,9 +151,17 @@ function groupOfTile(v) { return ALIGNERISH.includes(v) ? 'aligner' : BRACES.inc
 /* how the submission is labelled on the case: refinement for aligners, digital enhancement for InSmile */
 function submissionLabel(v) { return v === 'yes' ? 'Initial submission' : v === 'no' ? 'Refinement' : v === 'mid' ? 'Mid-course correction' : /^de[123]$/.test(v || '') ? 'Digital enhancement ' + v.slice(2) + ' (DE' + v.slice(2) + ')' : ''; }
 /* fields added later save '' when empty (not [] or false), so older cases without them don't look edited */
-const FORM_KEYS = ['type', 'patient', 'chart', 'detail', 'stage', 'assignee', 'assistant', 'scanner', 'scanDate', 'labDate', 'deliveryDate', 'aligners',
+const FORM_KEYS = ['type', 'patient', 'chart', 'detail', 'stage', 'assignee', 'assistant', 'scanner', 'scanDate', 'labDate', 'deliveryDate', 'deliveryTime', 'aligners',
   'initial', 'appliances', 'lab', 'arches', 'retKinds', 'goals', 'instrPicks', 'instrOther', 'instructions', 'extras', 'teeth', 'cc', 'ipr', 'notes', 'titanUrl', 'alU', 'alL',
   'shipToPatient', 'records', 'zoomDate', 'zoomTime', 'tracking', 'labRef'];
+
+/* delivery time: every half hour, 7:00 AM to 7:00 PM (Amir, 2 Oct 2026: "30 mins increments are fine") */
+const HALF_HOURS = Array.from({ length: 25 }, (_, i) => { const m = 7 * 60 + i * 30; return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); });
+function timeSelectHTML(id, v, label) {
+  const opts = HALF_HOURS.includes(v || '') || !v ? HALF_HOURS : HALF_HOURS.concat([v]).sort(); // a time saved before keeps showing
+  return '<select id="' + id + '" class="dTime" aria-label="' + esc(label) + '"><option value="">Time (optional)</option>' +
+    opts.map(t => '<option value="' + t + '"' + (t === v ? ' selected' : '') + '>' + esc(fmtTime(t)) + '</option>').join('') + '</select>';
+}
 
 /* ---------- tooth chart (Palmer, 7s to 7s, same teeth as the IPR Tracker) ---------- */
 const TEETH_U = ['UR7', 'UR6', 'UR5', 'UR4', 'UR3', 'UR2', 'UR1', 'UL1', 'UL2', 'UL3', 'UL4', 'UL5', 'UL6', 'UL7'];
@@ -376,7 +384,7 @@ function caseFormHTML(c, isNew) {
     '<div class="cfSec"><h5>Assistant</h5>' + staffPickRow('assistant', withSavedStaff(roster, c.assistant), c.assistant || '') +
     '<div' + show('aligner braces appliance marpe retainer models') + '><h5>Scanner</h5>' + pickRow('scanner', PICK.scanners, c.scanner || '', false) + '</div></div>' +
     '<div class="cfSec"><h5>Dates</h5><div class="pickRow" style="margin-bottom:8px"><button type="button" class="pick sm" data-scan="0">Scanned today</button><button type="button" class="pick sm" data-scan="-1">Yesterday</button></div>' +
-    '<div class="grid3">' + date('cf-scanDate', 'Scan date', c.scanDate) + date('cf-labDate', 'Lab completion', c.labDate) + date('cf-deliveryDate', 'Delivery', c.deliveryDate) + '</div>' +
+    '<div class="grid3">' + date('cf-scanDate', 'Scan date', c.scanDate) + date('cf-labDate', 'Lab completion', c.labDate) + '<div class="field"><label for="cf-deliveryDate">Delivery</label><input type="date" id="cf-deliveryDate" value="' + esc(c.deliveryDate || '') + '">' + timeSelectHTML('cf-deliveryTime', c.deliveryTime || '', 'Delivery time') + '</div>' + '</div>' +
     '<div class="hint small muted" id="cf-autoHint" style="margin:-4px 0 0">Filled in from the scan date — change any of them.</div>' +
     // aligners going straight to the patient: an alert on the case everywhere it shows (Amir, 2 Oct 2026)
     '<div' + show('aligner') + '><button type="button" class="shipTgl" id="cf-ship" aria-pressed="' + !!c.shipToPatient + '">' + ic('truck', 22) +
@@ -438,7 +446,7 @@ function pressed(root, g) { return $$('.pickRow[data-g="' + g + '"] .pick[aria-p
 function readCaseForm(root) {
   const tile = $('#cf-tile', root).value;
   const o = { type: INHOUSE_TILES.includes(tile) ? 'nla' : tile, variant: tile === 'finishing' ? 'finishing' : '' };
-  ['patient', 'chart', 'detail', 'stage', 'assignee', 'scanDate', 'labDate', 'deliveryDate', 'instrOther', 'cc', 'ipr', 'notes', 'titanUrl', 'zoomDate', 'zoomTime', 'tracking', 'labRef'].forEach(k => { const el = $('#cf-' + k, root); o[k] = el ? String(el.value || '').trim() : ''; });
+  ['patient', 'chart', 'detail', 'stage', 'assignee', 'scanDate', 'labDate', 'deliveryDate', 'deliveryTime', 'instrOther', 'cc', 'ipr', 'notes', 'titanUrl', 'zoomDate', 'zoomTime', 'tracking', 'labRef'].forEach(k => { const el = $('#cf-' + k, root); o[k] = el ? String(el.value || '').trim() : ''; });
   o.assistant = pressed(root, 'assistant')[0] || '';
   o.scanner = pressed(root, 'scanner')[0] || '';
   const g0 = groupOfTile(tile);
@@ -458,6 +466,7 @@ function readCaseForm(root) {
   // MARPE: records on file and the Zoom call; aligners: ship to patient (empty is '', see FORM_KEYS)
   const recs = pressed(root, 'records'); o.records = g === 'marpe' && recs.length ? recs : '';
   if (g !== 'marpe') { o.zoomDate = ''; o.zoomTime = ''; } else if (!o.zoomDate) o.zoomTime = '';
+  if (!o.deliveryDate) o.deliveryTime = ''; // a time only goes with a delivery date
   const ship = $('#cf-ship', root); o.shipToPatient = g === 'aligner' && ship && ship.getAttribute('aria-pressed') === 'true' ? true : '';
   if (g !== 'retainer') { o.arches = []; o.retKinds = []; }
   if (tile === 'mouthguard') o.retKinds = [];

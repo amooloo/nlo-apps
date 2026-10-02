@@ -57,6 +57,7 @@ svg.i{flex:none;display:inline-block;vertical-align:-3px}
 .field input:focus,.field select:focus,.field textarea:focus,.inp:focus{border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-100)}
 .field textarea{resize:vertical;min-height:70px;line-height:1.45}
 .field .hint{font-size:11.5px;color:var(--grey-500);margin-top:5px}
+.field .dTime{margin-top:6px}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}
 .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:0 14px}
 .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:0 14px}
@@ -555,6 +556,12 @@ a.btn{text-decoration:none}
 .lbRow:last-child{border-bottom:none}
 .lbRow input{accent-color:var(--navy)}
 .lbPrev{display:flex;gap:12px;flex-wrap:wrap;margin-top:12px}
+.print-label.print-ret .p-at-center{font-size:18pt}
+.rlArch{display:flex;align-items:center;gap:18px;margin:0 0 10px}
+.rlArch .flabel{margin:0;min-width:96px}
+.rlKind{display:grid;grid-template-columns:150px 1fr;gap:0 14px;align-items:end}
+.rlKind .lbAt{margin:0 0 24px}
+@media (max-width:860px){ .rlKind{grid-template-columns:1fr} .rlKind .lbAt{margin:4px 0 8px} }
 .lbPrevBox{width:calc(4in * .78);height:calc(2in * .78);overflow:hidden;border:1px solid var(--grey-300);border-radius:6px;background:#fff;box-shadow:var(--sh-xs)}
 .lbPrevBox .print-label{transform:scale(.78);transform-origin:top left}
 @media print{
