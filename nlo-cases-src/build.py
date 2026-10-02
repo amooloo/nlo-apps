@@ -4,6 +4,11 @@ src = root / 'src'
 t = (src / 'template.html').read_text()
 js = '\n'.join((src / f).read_text() for f in ['core.js', 'backend.js', 'demo.js', 'ipr.js', 'ui.js', 'logos.js', 'caseform.js', 'labels.js', 'admin.js', 'mail.js', 'photos.js'])
 js += "\nif (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();\n"
+# the security rules ship inside the page (owner's email left as a placeholder), so Team & security can hand out
+# exactly the rules this version needs when the live ones are older
+import json as _json
+assert js.count('"__NLO_RULES__"') == 1
+js = js.replace('"__NLO_RULES__"', _json.dumps((root / 'firestore.rules').read_text()), 1)
 cfg = root / 'fbconfig.js'
 if cfg.exists():
     # swap in the real Firebase web config (public by design; security is the rules + encryption)

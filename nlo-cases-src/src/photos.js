@@ -309,7 +309,7 @@ function phClipFile(dt) {
 }
 function phBindPaste() {
   document.addEventListener('paste', e => {
-    if (!S.inApp) return;
+    if (!S.inApp || S.rulesOld) return;
     const f = phClipFile(e.clipboardData); if (!f) return;
     // text being pasted into a field stays text (copying from a web page can carry a picture along)
     const t = e.target, editable = t && (t.isContentEditable || /^(INPUT|TEXTAREA)$/.test(t.tagName));

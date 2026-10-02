@@ -40,7 +40,20 @@ function viewAdmin() {
     '</div><div class="small muted">Per aligner: materials for one aligner (sheet, printed model, packaging). Per set: anything paid once per case, such as a setup fee. Estimate = per set + aligners × per aligner.</div></div></div>';
   const deleted = '<div class="card" style="margin-top:18px"><div class="cardHd"><h3>Deleted cases</h3><span class="sub">Last 90 days</span><span style="flex:1"></span><button class="btn btn-ghost" data-act="loadDeleted">' + ic('refresh', 15) + 'Load</button></div><div class="cardBd" id="delBox"><div class="small muted">Deleted cases can be brought back. Click Load.</div></div></div>';
   const actv = '<div class="card" style="margin-top:18px"><div class="cardHd"><h3>Recent activity</h3><span class="sub">Last 7 days</span><span style="flex:1"></span><button class="btn btn-ghost" data-act="loadActivity">' + ic('refresh', 15) + 'Load</button></div><div class="cardBd" id="actBox"><div class="small muted">Shows who changed what. Click Load.</div></div></div>';
-  return '<div class="adminGrid"><div>' + team + defaults + alCostCard + '</div><div>' + sec + mailAdminHTML() + actv + deleted + '</div></div>';
+  return rulesCardHTML() + '<div class="adminGrid"><div>' + team + defaults + alCostCard + '</div><div>' + sec + (S.rulesOld ? '' : mailAdminHTML()) + actv + deleted + '</div></div>';
+}
+/* the live security rules are older than this version of the app: the owner pastes the new ones into the Firebase console
+   (they ship inside the page, so they always match it; the owner's own sign-in email is filled in here) */
+const NLO_RULES = "__NLO_RULES__";
+function rulesCardHTML() {
+  if (!S.rulesOld || !isOwner()) return '';
+  const pid = (FB.cfg && FB.cfg.projectId) || '';
+  return '<div class="card rulesCard" id="rulesCard"><div class="cardHd"><h3>One-time update: security rules</h3><span class="sub">Patient photos and email updates need them. Until then they stay hidden.</span></div><div class="cardBd">' +
+    '<ol class="small mlSteps"><li>Click <b>Copy the new rules</b>.</li><li>Click <b>Open the Firebase console</b> (the Google account that owns the project), then <b>Firestore Database → Rules</b>.</li>' +
+    '<li>Select everything in the editor, paste, and click <b>Publish</b>.</li><li>Come back here and click <b>Check again</b>.</li></ol>' +
+    '<div class="pickRow" style="margin-top:10px"><button class="btn btn-pri btn-sm" data-act="rulesCopy">' + ic('download', 15) + 'Copy the new rules</button>' +
+    '<a class="btn btn-sec btn-sm" href="https://console.firebase.google.com/project/' + esc(pid) + '/firestore/databases/-default-/rules" target="_blank" rel="noopener noreferrer">' + ic('ext', 15) + 'Open the Firebase console</a>' +
+    '<button class="btn btn-ghost btn-sm" data-act="rulesCheck">' + ic('refresh', 15) + 'Check again</button></div></div></div>';
 }
 function viewImport() {
   return '<div class="adminGrid"><div><div class="card"><div class="cardHd"><h3>Import from Asana</h3></div><div class="cardBd">' +
@@ -288,3 +301,17 @@ async function rotateWithProgress(title) {
     queueRender();
   } catch (x) { closeModal(); toast('Key change stopped: ' + errText(x) + '. Run “Change office key now” again.', { bad: true, ms: 8000 }); }
 }
+Object.assign(ADMIN_ACTS, {
+  async rulesCopy() {
+    const email = String((FB.auth && FB.auth.currentUser && FB.auth.currentUser.email) || '').toLowerCase();
+    if (!email || NLO_RULES.indexOf('__OWNER_EMAIL__') < 0) { toast('Couldn’t prepare the rules — sign in again and retry.', { bad: true }); return; }
+    const ok = await copyText(NLO_RULES.replace('__OWNER_EMAIL__', email));
+    toast(ok ? 'Rules copied. Paste them in Firestore Database → Rules, then Publish.' : 'Couldn’t copy. Try again.', ok ? { ms: 8000 } : { bad: true });
+  },
+  async rulesCheck(t) {
+    busyBtn(t, true, 'Checking…');
+    const ok = await rulesCheck(); busyBtn(t, false);
+    toast(ok ? 'The security rules are up to date. Photos and email updates are on.' : 'Still the old rules. Publish them in the Firebase console, wait a minute, then check again.', ok ? {} : { bad: true });
+    queueRender('team');
+  }
+});

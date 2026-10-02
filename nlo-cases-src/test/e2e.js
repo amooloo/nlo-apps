@@ -940,7 +940,8 @@ async function openByName(p, name) {
   await owner.click('#drawer [data-act=delCase]'); await owner.click('#cbYes'); await owner.waitForSelector('.toast:has-text("Case deleted")', { timeout: 20000 });
   check(!(await photoDocs()).some(d => d.name.endsWith('/photos/' + idR)), 'a deleted case’s photo is deleted with it');
   dump = JSON.stringify(await fsDump());
-  check(!/Pia|Portrait/.test(dump), 'the patient’s name isn’t readable anywhere in the database');
+  // (whole words only: a 3-letter piece like “Pia” turns up by chance in hundreds of KB of random-looking ciphertext)
+  check(!/Pia Portrait|Portrait/.test(dump), 'the patient’s name isn’t readable anywhere in the database');
   await gwen.fill('#q', ''); await owner.click('#nav-today');
 
   console.log('\n# Today: clean up old cases in bulk (complete with undo, delete)');
@@ -992,13 +993,29 @@ async function openByName(p, name) {
   await owner.waitForSelector('#actBox .hist', { timeout: 20000 });
   check((await owner.locator('#actBox .hist').count()) >= 5, 'activity log lists recent changes');
 
+  console.log('\n# Older security rules still live: photos wait, and Team & security hands out the new rules');
+  const putRules = async content => { const r = await fetch(`http://127.0.0.1:8080/emulator/v1/projects/${PROJECT}:securityRules`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rules: { files: [{ name: 'firestore.rules', content }] } }) }); if (!r.ok) throw new Error('rules PUT ' + r.status + ' ' + await r.text()); };
+  await putRules(fs.readFileSync(path.join(__dirname, 'rules-prev.rules'), 'utf8')); // the set published on 2 Oct (before email updates and photos)
+  await owner.click('#nav-admin');
+  check(await owner.evaluate(() => rulesCheck()) === false, 'the app notices the live rules are older than it needs');
+  await owner.waitForSelector('#rulesCard', { timeout: 10000 });
+  check(await owner.evaluate(() => document.body.classList.contains('phOff')) && !(await owner.isVisible('#mailAdmin')), 'meanwhile photos and email updates stay out of sight');
+  await owner.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: 'http://127.0.0.1:8765' });
+  await owner.click('#rulesCard [data-act=rulesCopy]'); await owner.waitForSelector('.toast:has-text("Rules copied")', { timeout: 10000 });
+  const copied = await owner.evaluate(() => navigator.clipboard.readText());
+  check(copied === fs.readFileSync('dist/firestore.rules', 'utf8'), 'Copy the new rules gives exactly this version’s rules, with the owner’s sign-in email filled in');
+  await putRules(copied); // what Dr. A pastes into the Firebase console
+  await owner.click('#rulesCard [data-act=rulesCheck]'); await owner.waitForSelector('.toast:has-text("up to date")', { timeout: 15000 });
+  await owner.waitForFunction(() => !document.querySelector('#rulesCard') && !document.body.classList.contains('phOff'), null, { timeout: 10000 });
+  check(true, 'after publishing them, Check again turns photos and email updates on (the card goes away)');
+
   await owner.screenshot({ path: 'shots/e2e-admin.png', fullPage: true });
   // 403s are checked precisely (by section) in the forbidden list below
   const realErrs = errs.filter(e => !/Failed to load resource.*(404|fonts)|net::ERR|status of 400|status of 403|identitytoolkit|INVALID_LOGIN_CREDENTIALS|permission|insufficient permissions/i.test(e));
   check(realErrs.length === 0, 'no unexpected page errors' + (realErrs.length ? ':\n' + realErrs.join('\n') : ''));
   console.log('\nexpected-noise errors:', errs.length - realErrs.length);
   console.log('403s:\n' + forbidden.join('\n'));
-  const unexpected403 = forbidden.filter(f => !/Two people edit/.test(f));
+  const unexpected403 = forbidden.filter(f => !/Two people edit|Older security rules/.test(f));
   check(unexpected403.length === 0, 'no request was refused by the security rules during normal use (' + unexpected403.length + '; ' + (forbidden.length - unexpected403.length) + ' expected during the deliberate same-moment edit, retried automatically)');
   console.log('\nPASS ' + passes.length + '  FAIL ' + fails.length);
   await browser.close();

@@ -89,6 +89,7 @@ const DEMO = {
   },
   /* patient photos (in memory) */
   photos: new Map(),
+  async rulesCurrent() { return true; },
   async getPhoto(id) {
     const p = DEMO.photos.get(id); if (!p) return null;
     if (!p.bytes) p.bytes = await demoFace(p.face);

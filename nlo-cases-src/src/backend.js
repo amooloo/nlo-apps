@@ -416,6 +416,11 @@ const FB = {
     const v = FB.curV; const box = await Crypto.seal(FB.keys[v], bytes, 'photo:' + id);
     return { v, iv: box.iv, ct: box.ct, pv, at: FB.ts(), by: FB.uid };
   },
+  /* are the live security rules the ones this version of the app needs? (an older set refuses this read) */
+  async rulesCurrent() {
+    try { await FB.db.doc('photos/_rules_check').get(); return true; }
+    catch (e) { return !/permission/i.test(String((e && (e.code || e.message)) || '')); }
+  },
   /* { pv, bytes } or null */
   async getPhoto(id) {
     const s = await FB.db.doc('photos/' + id).get(); if (!s.exists) return null;

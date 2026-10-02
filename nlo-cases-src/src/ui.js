@@ -252,6 +252,16 @@ function enterApp() {
     if (S.inApp && Date.now() - S.lastAct > mins * 60000) lockOut('Locked after ' + mins + ' minutes without activity.');
   }, 15000);
   clearInterval(S.mailTimer); S.mailTimer = setInterval(mailSync, 180000); // also catches emails a case couldn't take yet
+  rulesCheck();
+}
+/* features that need newer security rules (patient photos, email updates) stay out of sight until the owner publishes them */
+async function rulesCheck() {
+  S.rulesOld = false; document.body.classList.remove('phOff');
+  if (!B.rulesCurrent) return true;
+  const ok = await B.rulesCurrent(); if (!S.inApp) return ok;
+  S.rulesOld = !ok; document.body.classList.toggle('phOff', !ok);
+  if (!ok) queueRender('team');
+  return ok;
 }
 async function lockOut(msg) {
   if (!S.inApp) return;

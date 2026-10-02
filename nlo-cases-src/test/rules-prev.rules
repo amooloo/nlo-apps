@@ -1,0 +1,126 @@
+rules_version = '2';
+// NLO Cases — Firestore security rules.
+// Case bodies are encrypted in the browser; these rules decide WHO may read or
+// write the ciphertext, keep the history log append-only, and stop anyone who
+// is not an active member (or a removed member) from touching anything.
+service cloud.firestore {
+  match /databases/{db}/documents {
+    function authed() { return request.auth != null; }
+    function hasSetup() { return exists(/databases/$(db)/documents/meta/setup); }
+    function isOwner() { return authed() && hasSetup() && get(/databases/$(db)/documents/meta/setup).data.owner == request.auth.uid; }
+    function myDoc() { return /databases/$(db)/documents/members/$(request.auth.uid); }
+    function isMember() { return authed() && exists(myDoc()) && get(myDoc()).data.active == true; }
+    function mySid() { return get(myDoc()).data.staffId; }
+    function curV() { return get(/databases/$(db)/documents/meta/keys).data.current; }
+    // true only inside the one-time office setup batch, and only for the practice owner's
+    // verified email address (stops anyone else claiming an empty office)
+    function bootstrapping() {
+      return authed() && !hasSetup()
+        && request.auth.token.email == 'dr.test@example.com' && request.auth.token.email_verified == true
+        && getAfter(/databases/$(db)/documents/meta/setup).data.owner == request.auth.uid;
+    }
+    // a public key must look like a P-256 JWK (the owner's client also tolerates bad ones)
+    function okPub(d) {
+      return !('pub' in d) || (d.pub is map && d.pub.keys().hasOnly(['kty', 'crv', 'x', 'y'])
+        && d.pub.kty == 'EC' && d.pub.crv == 'P-256' && d.pub.x is string && d.pub.y is string
+        && d.pub.x.size() == 43 && d.pub.y.size() == 43);
+    }
+
+    match /meta/setup {
+      allow get: if isMember();
+      allow create: if bootstrapping()
+        && request.resource.data.keys().hasOnly(['owner', 'at'])
+        && request.resource.data.owner == request.auth.uid
+        && request.resource.data.at == request.time
+        && getAfter(myDoc()).data.role == 'owner';
+      allow update, delete: if false;
+    }
+    match /meta/keys {
+      allow get: if isMember();
+      allow create: if bootstrapping() && request.resource.data.keys().hasOnly(['current']) && request.resource.data.current == 1;
+      allow update: if isOwner() && request.resource.data.keys().hasOnly(['current'])
+        && request.resource.data.current == resource.data.current + 1;
+      allow delete: if false;
+    }
+    match /meta/settings {
+      allow get: if isMember();
+      allow create: if bootstrapping() || isOwner();
+      allow update: if isOwner();
+      allow delete: if false;
+    }
+    match /meta/recovery {
+      allow get: if isOwner();
+      allow create: if bootstrapping() || isOwner();
+      allow update: if isOwner();
+      allow delete: if false;
+    }
+    // username -> sign-in address. Readable one at a time (needed before sign-in), never listable.
+    match /logins/{name} {
+      allow get: if true;
+      allow list: if false;
+      allow create, update: if isOwner() && request.resource.data.keys().hasOnly(['email']) && request.resource.data.email is string;
+      allow delete: if isOwner();
+    }
+    match /members/{uid} {
+      allow get: if authed() && (request.auth.uid == uid || isOwner());
+      allow list: if isOwner();
+      allow create: if (isOwner() && request.resource.data.role == 'staff')
+        || (bootstrapping() && uid == request.auth.uid && request.resource.data.role == 'owner' && request.resource.data.active == true);
+      // the owner manages everyone (and can never demote themself); a person may only
+      // update their own key material, and only while still active
+      allow update: if (isOwner() && (uid != request.auth.uid || (request.resource.data.role == 'owner' && request.resource.data.active == true)))
+        || (authed() && request.auth.uid == uid && resource.data.active == true
+            && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['pub']) || okPub(request.resource.data))
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pub', 'priv', 'privPrev', 'ring', 'ringV', 'boot', 'mustSetup', 'lastLogin']));
+      allow delete: if false;
+    }
+    match /roster/{sid} {
+      allow read: if isMember();
+      allow create, update: if isOwner() || bootstrapping();
+      allow delete: if false;
+    }
+    // Every write to a case must come with a history entry, at the fixed id "<case>_<rev>",
+    // holding the previous encrypted copy. History can't be edited or deleted, so any
+    // overwrite — buggy, careless or malicious — can be undone from it.
+    function histAfter(id, rev) { return existsAfter(/databases/$(db)/documents/log/$(id + '_' + string(rev))); }
+    match /cases/{id} {
+      function okCase() {
+        let d = request.resource.data;
+        return d.keys().hasOnly(['v', 'iv', 'ct', 'status', 'rev', 'by', 'sid', 'createdAt', 'updatedAt', 'closedAt'])
+          && d.v == curV() && d.iv is string && d.ct is string && d.ct.size() < 600000
+          && d.rev is int && d.by == request.auth.uid && d.sid == mySid()
+          && d.updatedAt == request.time
+          && ((d.status == 'open' && d.closedAt == null) || (d.status == 'done' && d.closedAt is timestamp));
+      }
+      allow read: if isMember();
+      allow create: if isMember() && okCase() && request.resource.data.rev == 1
+        && request.resource.data.createdAt == request.time && histAfter(id, 1);
+      allow update: if isMember() && okCase() && request.resource.data.rev == resource.data.rev + 1
+        && request.resource.data.createdAt == resource.data.createdAt && histAfter(id, request.resource.data.rev);
+      allow delete: if isOwner() && histAfter(id, resource.data.rev + 1);
+    }
+    match /log/{lid} {
+      function caseBefore() { return /databases/$(db)/documents/cases/$(request.resource.data.caseId); }
+      function okHist() {
+        let d = request.resource.data;
+        return (exists(caseBefore()) && d.rev == get(caseBefore()).data.rev + 1
+                 && d.prev == {'v': get(caseBefore()).data.v, 'iv': get(caseBefore()).data.iv, 'ct': get(caseBefore()).data.ct})
+          || (!exists(caseBefore()) && d.rev == 1 && d.prev == null);
+      }
+      function okAfter() {
+        let d = request.resource.data;
+        return (existsAfter(caseBefore()) && getAfter(caseBefore()).data.rev == d.rev)
+          || (!existsAfter(caseBefore()) && exists(caseBefore()) && isOwner());
+      }
+      allow read: if isMember();
+      allow create: if isMember()
+        && request.resource.data.keys().hasOnly(['caseId', 'rev', 'uid', 'sid', 'at', 'v', 'iv', 'ct', 'prev'])
+        && request.resource.data.uid == request.auth.uid && request.resource.data.sid == mySid()
+        && request.resource.data.at == request.time && request.resource.data.caseId is string
+        && request.resource.data.rev is int && lid == request.resource.data.caseId + '_' + string(request.resource.data.rev)
+        && request.resource.data.v is int && request.resource.data.ct is string && request.resource.data.ct.size() < 20000
+        && okHist() && okAfter();
+      allow update, delete: if false;
+    }
+  }
+}

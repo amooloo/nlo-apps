@@ -615,3 +615,6 @@ body.phHide .pav.on:hover img,body.phHide #phWrap .pav.on img{filter:none;transf
   .row .av{display:none}
 }
 #phWrap [hidden]{display:none !important}
+/* newer features wait for the newer security rules (Team & security explains) */
+body.phOff .pav,body.phOff .dPh,body.phOff .phSlot,body.phOff .phTgl,body.phOff .mlPh{display:none !important}
+.rulesCard{margin-bottom:18px;border:1.5px solid var(--amber-200)}
