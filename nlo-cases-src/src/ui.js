@@ -453,7 +453,7 @@ function viewList(base, showWho) {
   const stageOpts = f.type ? FLOWS[TYPE[f.type].flow].stages : [];
   const grpLabel = { dr: 'Needs Dr. A', fab: 'In fabrication', arrived: 'Arrived' }[f.grp];
   let h = '<div class="filters">' +
-    '<select data-f="type" aria-label="Type"><option value="">All types</option>' + TYPES.map(t => '<option value="' + t.k + '"' + (f.type === t.k ? ' selected' : '') + '>' + esc(t.l) + '</option>').join('') + '</select>' +
+    '<select data-f="type" aria-label="Type"><option value="">All types</option>' + typesShown(Array.from(S.cases.values()), f.type).map(t => '<option value="' + t.k + '"' + (f.type === t.k ? ' selected' : '') + '>' + esc(t.l) + '</option>').join('') + '</select>' +
     (stageOpts.length ? '<select data-f="stage" aria-label="Stage"><option value="">All stages</option>' + stageOpts.map(([k, l]) => '<option value="' + k + '"' + (f.stage === k ? ' selected' : '') + '>' + esc(l) + '</option>').join('') + '</select>' : '') +
     (showWho ? '<select data-f="who" aria-label="Assigned to"><option value="">Anyone</option><option value="_none"' + (f.who === '_none' ? ' selected' : '') + '>Unassigned</option>' + activeRoster().map(r => '<option value="' + esc(r.sid) + '"' + (f.who === r.sid ? ' selected' : '') + '>' + esc(r.name) + '</option>').join('') + '</select>' : '') +
     '<select data-f="due" aria-label="Due"><option value="">Any due date</option>' + [['over', 'Overdue'], ['today', 'Due today'], ['week', 'Next 7 days'], ['14', 'Next 14 days'], ['none', 'No due date']].map(([k, l]) => '<option value="' + k + '"' + (f.due === k ? ' selected' : '') + '>' + l + '</option>').join('') + '</select>' +

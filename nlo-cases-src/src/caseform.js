@@ -26,7 +26,7 @@ const TILES = [
   { v: 'oliv', l: 'Oliv', s: 'Aligners' }, { v: 'nla', l: 'In-house', s: 'Aligners · NL Lab' }, { v: 'finishing', l: 'Finishing aligners', s: 'In-house · NL Lab' },
   { v: 'retainer', l: 'Retainers', s: 'TT’s / WT’s' }, { v: 'mouthguard', l: 'Mouthguard', s: 'In-house · complimentary' }, { v: 'appliance', l: 'Appliance', s: 'Herbst, RPE, MARPE…' },
   { v: 'angel', l: 'Angel', s: 'Aligners' }, { v: 'ulab', l: 'uLab', s: 'Aligners' }, { v: 'invisalign', l: 'Invisalign', s: 'Aligners' },
-  { v: 'insmile', l: 'InSmile', s: 'Braces · Smartwire IDB' }, { v: 'inbrace', l: 'InBrace / Brava', s: 'Lingual' },
+  { v: 'insmile', l: 'InSmile', s: 'Braces · Smartwire IDB' }, { v: 'inbrace', l: 'InBrace / Brava', s: 'Lingual', legacy: true },
   { v: 'retreat', l: 'Retreatment', s: 'Review & proposal' }, { v: 'misc', l: 'Dr. A (misc.)', s: 'Study models, TxP…' }
 ];
 const ALIGNERISH = ['oliv', 'angel', 'invisalign', 'ulab', 'nla', 'finishing'];
@@ -131,7 +131,7 @@ function caseFormHTML(c, isNew) {
   const instrOther = c.instrOther != null ? c.instrOther : ((c.instrPicks || []).length ? '' : (c.instructions || ''));
   const ccs = learnedCCs();
   return '<div class="cf" data-new="' + (isNew ? 1 : 0) + '">' +
-    '<div class="cfSec"><h5>Case type</h5><div class="tileGrid" role="radiogroup" aria-label="Case type">' + TILES.map(t =>
+    '<div class="cfSec"><h5>Case type</h5><div class="tileGrid" role="radiogroup" aria-label="Case type">' + TILES.filter(t => !t.legacy || t.v === tile).map(t =>
       '<button type="button" class="tt" role="radio" data-tile="' + t.v + '" aria-checked="' + (tile === t.v) + '"><b>' + esc(t.l) + '</b><span>' + esc(t.s) + '</span></button>').join('') + '</div></div>' +
     '<div class="cfSec"><div class="grid2"><div class="field"><label for="cf-patient">Patient name *</label><input id="cf-patient" autocomplete="off" value="' + esc(c.patient || '') + '" required></div>' +
     '<div class="field"><label for="cf-chart">Chart #</label><input id="cf-chart" autocomplete="off" spellcheck="false" inputmode="text" placeholder="For the IPR Tracker link" value="' + esc(c.chart || '') + '"></div></div></div>' +

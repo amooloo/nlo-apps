@@ -45,7 +45,8 @@ const TYPES = [
   { k: 'invisalign', l: 'Invisalign', flow: 'outside', cls: 't-aligner', aligner: true },
   { k: 'ulab', l: 'uLab', flow: 'outside', cls: 't-aligner', aligner: true },
   { k: 'insmile', l: 'InSmile', flow: 'outside', cls: 't-aligner' },
-  { k: 'inbrace', l: 'InBrace', flow: 'outside', cls: 't-aligner' },
+  /* legacy: no longer offered for new cases (Amir, 1 Oct 2026); kept so imported or older InBrace cases still open and edit */
+  { k: 'inbrace', l: 'InBrace', flow: 'outside', cls: 't-aligner', legacy: true },
   { k: 'nla', l: 'In-house aligners', flow: 'inhouse', cls: 't-lab', aligner: true },
   { k: 'appliance', l: 'Appliance', flow: 'appliance', cls: 't-appl' },
   { k: 'retainer', l: 'Retainers & whitening', flow: 'retainer', cls: 't-ret' },
@@ -54,6 +55,8 @@ const TYPES = [
   { k: 'misc', l: 'Dr. A (misc.)', flow: 'misc', cls: 't-misc' }
 ];
 const TYPE = Object.fromEntries(TYPES.map(t => [t.k, t]));
+/* types to offer in pickers: retired types only while some case still uses them (or one is already chosen) */
+function typesShown(cases, chosen) { return TYPES.filter(t => !t.legacy || t.k === chosen || (cases || []).some(c => c.type === t.k)); }
 const SCANNERS = ['Allied Star', 'iTero', 'Other'];
 /* Stages that need the doctor, and stages where the case is in fabrication. */
 const DR_STAGES = ['dra', 'txp', 'todo', 'review'];
