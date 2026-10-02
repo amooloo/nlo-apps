@@ -403,8 +403,10 @@ function viewToday() {
 
 /* ---------- Board ---------- */
 function viewBoard() {
-  const all = openCases().filter(matchesQ);
-  const flowsUsed = Object.keys(FLOWS);
+  const open = openCases(), all = open.filter(matchesQ);
+  // retired types (Retreatment, older misc) get a tab only while one of their cases is still open
+  const flowsUsed = Object.keys(FLOWS).filter(k => TYPES.some(t => t.flow === k && !t.legacy) || open.some(c => typeOf(c).flow === k));
+  if (!flowsUsed.includes(S.boardFlow)) S.boardFlow = flowsUsed[0];
   let h = '<div class="boardTabs" role="tablist">' + flowsUsed.map(k => {
     const n = all.filter(c => typeOf(c).flow === k).length;
     return '<button class="chip' + (S.boardFlow === k ? ' on' : '') + '" role="tab" aria-selected="' + (S.boardFlow === k) + '" data-act="flow" data-k="' + k + '">' + esc(FLOWS[k].label) + '<span class="c">' + n + '</span></button>';

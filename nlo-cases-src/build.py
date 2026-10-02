@@ -2,7 +2,7 @@ import pathlib, shutil, sys
 root = pathlib.Path(__file__).parent
 src = root / 'src'
 t = (src / 'template.html').read_text()
-js = '\n'.join((src / f).read_text() for f in ['core.js', 'backend.js', 'demo.js', 'ipr.js', 'ui.js', 'caseform.js', 'admin.js'])
+js = '\n'.join((src / f).read_text() for f in ['core.js', 'backend.js', 'demo.js', 'ipr.js', 'ui.js', 'logos.js', 'caseform.js', 'admin.js'])
 js += "\nif (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();\n"
 cfg = root / 'fbconfig.js'
 if cfg.exists():

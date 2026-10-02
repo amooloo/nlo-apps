@@ -31,9 +31,9 @@ const DEMO = {
       ['nla', 'txp', 'amir', -2], ['nla', 'txp', 'amir', 3], ['nla', 'reset', 'angelika', 2], ['nla', 'fab', 'angelika', 6], ['nla', 'fab', 'kaylee', 8], ['nla', 'pack', 'gwen', 1],
       ['appliance', 'submit', 'sarah', 7], ['appliance', 'hold', 'amir', null], ['appliance', 'mfg', 'sarah', 15],
       ['retainer', 'print', 'angelika', 1], ['retainer', 'print', 'gwen', null], ['retainer', 'sarah', 'sarah', 0], ['retainer', 'pickup', 'sarah', -3],
-      ['retreat', 'review', 'amir', 10], ['misc', 'todo', 'amir', 4], ['mouthguard', 'print', 'kaylee', 2], ['insmile', 'mfg', 'sarah', 9]
+      ['ulab', 'mfg', 'gwen', 10], ['models', 'print', 'kaylee', 4], ['mouthguard', 'print', 'kaylee', 2], ['insmile', 'mfg', 'sarah', 9]
     ];
-    const details = { oliv: 'Aligners (Oliv)', angel: 'Aligners (Angel)', ulab: 'Aligners (uLab)', invisalign: 'Aligners (Invisalign)', nla: 'Aligners (In-House)', appliance: 'Herbst', retainer: "U/L TT's and WT's", retreat: 'Relapse — lower incisors', misc: 'Study models', mouthguard: 'Mouthguard (U)', insmile: 'InSmile braces' };
+    const details = { oliv: 'Aligners (Oliv)', angel: 'Aligners (Angel)', ulab: 'Aligners (uLab)', invisalign: 'Aligners (Invisalign)', nla: 'Aligners (In-House)', appliance: 'Herbst', retainer: "U/L TT's and WT's", models: 'Study models', mouthguard: 'Mouthguard (U)', insmile: 'InSmile braces' };
     plan.forEach((p, i) => {
       const [type, stage, who, due] = p; const id = 'demo' + i;
       const scan = addDays(t, -10 + (i % 7));

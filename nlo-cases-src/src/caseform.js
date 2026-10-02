@@ -33,8 +33,8 @@ const INSTR = [
 const ALIGNER_ONLY_INSTR = ['Aligners are not tracking well', 'Need to change attachment/hooks on one or more teeth'];
 function goalText(goals) { goals = goals || {}; return GOALS.filter(gl => goals[gl.k]).map(gl => (goals[gl.k] === 'improve' ? 'Improve ' : 'Maintain ') + gl.t); }
 
-/* ---------- instruction pictures (48×48, built from a few tooth shapes; colors come from CSS) ---------- */
-const INSTR_ICONS = (() => {
+/* ---------- pictures (48×48, built from a few tooth shapes; colors come from CSS): Dr. A's instructions and the case types ---------- */
+const [INSTR_ICONS, TYPE_ICONS] = (() => {
   const f = n => +n.toFixed(2);
   // upper incisor crown, front view: left x, width w, cervical y c, incisal y e
   const inc = (x, w, c, e) => { const h = e - c, r = Math.min(3.4, w / 3.4);
@@ -61,7 +61,7 @@ const INSTR_ICONS = (() => {
   const wS = W(10, 30), xS = f((48 - 2 * wS - 7) / 2), wM = W(9, 30), xM = f((48 - 2 * wM - 1) / 2);
   const wU = W(8, 29), xU = f((48 - 2 * wU - 1) / 2), wL = W(5, 24, .6), xL = f((48 - 2 * wL - 1) / 2);
   const wT = W(8, 28), wA = W(8.5, 32), wB = W(9, 33, .75);
-  return {
+  const instr = {
     spaces: t(xS, wS, 9, 30) + t(xS + wS + 7, wS, 9, 30) + gum([[xS, wS], [xS + wS + 7, wS]], 4.5, 10, 14)
       + '<path class="ta" d="M9 38.5h9.5m-3.2-3.2 3.2 3.2-3.2 3.2M39 38.5h-9.5m3.2-3.2-3.2 3.2 3.2 3.2"/>',
     bt: '<path class="tk" d="' + taper(24 - wB, wB, 10, 33, 1) + '"/><path class="tk" d="' + taper(24, wB, 10, 33, -1) + '"/>'
@@ -81,20 +81,63 @@ const INSTR_ICONS = (() => {
       + t(xU, wU, 7, 29) + t(xU + wU + 1, wU, 7, 29) + gum([[xU, wU], [xU + wU + 1, wU]], 2.5, 8, 12)
       + '<path class="ta" d="M44.8 22v8.5m-2.6-2.6 2.6 2.6 2.6-2.6m-5.2-5.9 2.6-2.6 2.6 2.6"/>'
   };
+  /* case types: our own drawings. The outside companies show the logos Amir pasted (logos.js) and fall back to the
+     tinted aligner drawing; Next Level's own tile uses the office's NL mark (traced from logo-white.png). */
+  const NL_MARK = 'M4.9 23.97L4.93 9.42L6.49 9.39L8.05 9.35L13.78 18.92C17.3 24.79 19.59 28.49 19.7 28.49C19.86 28.49 19.9 27.32 19.95 18.95L20.01 9.42L21.88 9.42L23.75 9.42L23.78 23.97L23.81 38.52L22.2 38.52L20.58 38.52L14.88 28.98C10.91 22.34 9.12 19.46 8.99 19.48C8.82 19.51 8.79 20.66 8.74 28.99L8.67 38.45L6.77 38.49L4.87 38.52L4.9 23.97ZM31.1 38.35C30.35 38.1 29.65 37.71 29.05 37.21C28.51 36.76 27.68 35.8 27.68 35.62C27.68 35.57 29.86 35.53 32.54 35.53C35.76 35.53 37.4 35.57 37.4 35.65C37.4 35.72 36.98 36.2 36.48 36.71C35.23 37.98 34.32 38.41 32.74 38.47C32.01 38.5 31.42 38.46 31.1 38.35ZM27.61 31.88C27.58 31.8 27.56 26.71 27.58 20.57L27.61 9.42L29.55 9.42L31.48 9.42L31.54 18.58L31.6 27.74L34.53 27.81C36.14 27.84 37.47 27.89 37.49 27.9C37.51 27.91 37.51 28.84 37.49 29.95L37.46 31.98L32.56 32.01C28.71 32.03 27.66 32.01 27.61 31.88ZM36.32 12.34C36.66 10.22 38.78 8.91 40.84 9.55C41.84 9.87 42.78 10.79 43.06 11.73C43.36 12.77 43.34 12.85 42.71 12.85C42.17 12.85 42.16 12.84 42 12.26C41.69 11.17 40.41 10.32 39.42 10.56C38.39 10.8 37.79 11.38 37.51 12.38C37.39 12.83 37.37 12.85 36.81 12.85L36.24 12.85L36.32 12.34Z';
+  // four upper front teeth (lateral, central, central, lateral) at the same 75–80% central width-to-height ratio
+  const front = (top, cerv, eC, eL, wC, wL, gap) => {
+    const x0 = f(24 - gap * 1.5 - wC - wL);
+    const T = [[x0, wL, eL], [f(x0 + wL + gap), wC, eC], [f(x0 + wL + gap * 2 + wC), wC, eC], [f(x0 + wL + gap * 3 + 2 * wC), wL, eL]];
+    return { T, d: T.map(([x, w, e]) => inc(x, w, cerv, e)).join(''), g: gum(T, top, cerv - 1, cerv + 3.4) };
+  };
+  const S = front(9, 17, 31.6, 29.6, 12, 9, 1);
+  const tray = '<path class="tshO" d="' + S.d + '"/><path class="tshI" d="' + S.d + '"/><path class="tk" d="' + S.d + '"/>' + S.g;
+  const HORSE = 'M7.5 41C6 21 13 8 24 8s18 13 16.5 33c-.1.9-.8 1.5-1.7 1.5h-4.1c-1 0-1.7-.8-1.6-1.8C34 25 30 16 24 16s-10 9-9.1 24.7c.1 1-.6 1.8-1.6 1.8H9.2c-.9 0-1.6-.6-1.7-1.5z';
+  const types = {
+    tray, // clear aligner over the front teeth; the rim takes the tile's tint
+    finish: tray + '<path class="tsp" d="M40 1.6c.6 3.4 1.7 4.5 5.1 5.1-3.4.6-4.5 1.7-5.1 5.1-.6-3.4-1.7-4.5-5.1-5.1 3.4-.6 4.5-1.7 5.1-5.1z"/>',
+    nl: '<rect class="nlb" width="48" height="48" rx="12"/><path class="nlf" d="' + NL_MARK + '"/>',
+    braces: '<path class="tk" d="' + S.d + '"/>' + S.g + '<path class="twr" d="M-1 22.6Q24 25 49 22.6"/>'
+      + S.T.map(([x, w]) => '<rect class="tbr" x="' + f(x + w / 2 - 2.8) + '" y="' + (Math.abs(x + w / 2 - 24) < 8 ? 21.3 : 20.7) + '" width="5.6" height="5" rx="1.2"/>').join(''),
+    retainer: '<path class="trt" d="' + HORSE + '"/>'
+      + '<path class="tl tt2" d="M11.2 33.5h3.3M10.6 25.5l3.4.9M13.4 17.6l2.9 1.9M19.3 11.5l1.6 3.1M28.7 11.5l-1.6 3.1M34.6 17.6l-2.9 1.9M37.4 25.5l-3.4.9M36.8 33.5h-3.3"/>'
+      + '<path class="tgl" d="M12 22.5q2.2-6.5 7-10"/>',
+    guard: '<path class="tmg" d="M5.5 40.6C4 19.5 11.8 5.5 24 5.5S44 19.5 42.5 40.6c-.1 1.2-1.1 2.1-2.3 2.1h-6.9c-1.3 0-2.3-1.1-2.2-2.4.7-13.5-2-21.3-7.1-21.3s-7.8 7.8-7.1 21.3c.1 1.3-.9 2.4-2.2 2.4H7.8c-1.2 0-2.2-.9-2.3-2.1z"/>'
+      + '<path class="tgl tmgl" d="M10 33q-.8-14 6.5-21"/>',
+    appl: '<path class="tl tt2 tdl2" d="M9.5 41C8.3 22 14.2 9.5 24 9.5S39.7 22 38.5 41"/>'
+      + '<path class="tl" d="M12.6 33.5Q12.5 21 18.2 16.6M35.4 33.5Q35.5 21 29.8 16.6M17 24.6h3M31 24.6h-3"/>'
+      + '<rect class="tbd" x="7.6" y="31.8" width="9.2" height="8.8" rx="2.2"/><rect class="tbd" x="31.2" y="31.8" width="9.2" height="8.8" rx="2.2"/>'
+      + '<rect class="tsc" x="19.4" y="18.6" width="9.2" height="12" rx="2.4"/><circle class="tbf2" cx="24" cy="24.6" r="1.7"/>'
+      + '<path class="ta" d="M6.2 13.8H1.8m1.9-1.9-1.9 1.9 1.9 1.9M41.8 13.8h4.4m-1.9-1.9 1.9 1.9-1.9 1.9"/>',
+    // lower front teeth standing in a printed model on its base
+    models: '<g transform="matrix(1 0 0 -1 0 47)"><path class="tk" d="' + [[5.9, 8.6, 35], [15.5, 8, 34.5], [24.5, 8, 34.5], [33.5, 8.6, 35]].map(([x, w, e]) => inc(x, w, 21, e)).join('') + '"/></g>'
+      + '<path class="tst" d="M4.5 25Q24 29.4 43.5 25V30H4.5z"/><path class="tbs" d="M4.5 28.6H43.5V36.8Q43.5 39.8 40.5 39.8H7.5Q4.5 39.8 4.5 36.8z"/><path class="tl tt2" d="M8 34.6h32"/>',
+    tooth: '<path class="tk" d="' + inc(14.5, 19, 14, 37.4) + '"/>' + gum([[14.5, 19]], 8, 13, 17.4)
+  };
+  return [instr, types];
 })();
 function instrSvg(k) { return '<svg class="isvg" viewBox="0 0 48 48" aria-hidden="true" focusable="false">' + (INSTR_ICONS[k] || '') + '</svg>'; }
+/* a tile's picture: the company's own logo when we have it (pasted by Amir), otherwise our drawing */
+function tileArt(t) {
+  const lg = typeof LOGOS !== 'undefined' && LOGOS[t.v];
+  return '<span class="tmed' + (lg ? ' lg' : '') + '">' + (lg ? '<img src="' + lg.src + '" width="' + lg.w + '" height="' + lg.h + '" alt="" draggable="false">' : typeSvg(t.ic)) + '</span>';
+}
+function typeSvg(k) { return '<svg class="isvg tsvg" viewBox="0 0 48 48" aria-hidden="true" focusable="false">' + (TYPE_ICONS[k] || TYPE_ICONS.tooth) + '</svg>'; }
+/* ic = drawing, c = tint; a company logo in LOGOS (logos.js) takes the drawing's place */
 const TILES = [
-  { v: 'oliv', l: 'Oliv', s: 'Aligners' }, { v: 'nla', l: 'In-house', s: 'Aligners · NL Lab' }, { v: 'finishing', l: 'Finishing aligners', s: 'In-house · NL Lab' },
-  { v: 'retainer', l: 'Retainers', s: 'TT’s / WT’s' }, { v: 'mouthguard', l: 'Mouthguard', s: 'In-house · complimentary' }, { v: 'appliance', l: 'Appliance', s: 'Herbst, RPE, MARPE…' },
-  { v: 'angel', l: 'Angel', s: 'Aligners' }, { v: 'ulab', l: 'uLab', s: 'Aligners' }, { v: 'invisalign', l: 'Invisalign', s: 'Aligners' },
-  { v: 'insmile', l: 'InSmile', s: 'Braces · Smartwire IDB' }, { v: 'inbrace', l: 'InBrace / Brava', s: 'Lingual', legacy: true },
-  { v: 'retreat', l: 'Retreatment', s: 'Review & proposal' }, { v: 'misc', l: 'Dr. A (misc.)', s: 'Study models, TxP…' }
+  { v: 'oliv', l: 'Oliv', s: 'Aligners', ic: 'tray', c: 'mint' }, { v: 'nla', l: 'In-house', s: 'Aligners · NL Lab', ic: 'nl', c: 'nl' }, { v: 'finishing', l: 'Finishing aligners', s: 'In-house · NL Lab', ic: 'finish' },
+  { v: 'retainer', l: 'Retainers', s: 'TT’s / WT’s', ic: 'retainer' }, { v: 'mouthguard', l: 'Mouthguard', s: 'In-house · complimentary', ic: 'guard' }, { v: 'appliance', l: 'Appliance', s: 'Herbst, RPE, MARPE…', ic: 'appl' },
+  { v: 'angel', l: 'Angel', s: 'Aligners', ic: 'tray', c: 'coral' }, { v: 'ulab', l: 'uLab', s: 'Aligners', ic: 'tray', c: 'amber' }, { v: 'invisalign', l: 'Invisalign', s: 'Aligners', ic: 'tray', c: 'blue' },
+  { v: 'insmile', l: 'InSmile', s: 'Braces · Smartwire IDB', ic: 'braces', c: 'navy' }, { v: 'models', l: 'Study models', s: '3D-printed in‑house', ic: 'models' },
+  /* retired: shown only when editing a case that already is one */
+  { v: 'inbrace', l: 'InBrace / Brava', s: 'Lingual', ic: 'tooth', legacy: true },
+  { v: 'retreat', l: 'Retreatment', s: 'Review & proposal', ic: 'tooth', legacy: true }, { v: 'misc', l: 'Other (misc.)', s: 'Older or imported case', ic: 'tooth', legacy: true }
 ];
 const ALIGNERISH = ['oliv', 'angel', 'invisalign', 'ulab', 'nla', 'finishing'];
 const BRACES = ['insmile', 'inbrace'];
 /* tiles that are in-house (NL Lab) aligner cases */
 const INHOUSE_TILES = ['nla', 'finishing'];
-function groupOfTile(v) { return ALIGNERISH.includes(v) ? 'aligner' : BRACES.includes(v) ? 'braces' : v === 'appliance' ? 'appliance' : (v === 'retainer' || v === 'mouthguard') ? 'retainer' : 'other'; }
+function groupOfTile(v) { return ALIGNERISH.includes(v) ? 'aligner' : BRACES.includes(v) ? 'braces' : v === 'appliance' ? 'appliance' : (v === 'retainer' || v === 'mouthguard') ? 'retainer' : v === 'models' ? 'models' : 'other'; }
 /* how the submission is labelled on the case: refinement for aligners, digital enhancement for InSmile */
 function submissionLabel(v) { return v === 'yes' ? 'Initial submission' : v === 'no' ? 'Refinement' : v === 'mid' ? 'Mid-course correction' : /^de[123]$/.test(v || '') ? 'Digital enhancement ' + v.slice(2) + ' (DE' + v.slice(2) + ')' : ''; }
 const FORM_KEYS = ['type', 'patient', 'chart', 'detail', 'stage', 'assignee', 'assistant', 'scanner', 'scanDate', 'dueDate', 'labDate', 'deliveryDate',
@@ -237,10 +280,20 @@ const RX_ICONS = {
 function rxSvg(k) { return '<svg class="isvg rxsvg" viewBox="0 0 48 48" aria-hidden="true" focusable="false">' + (RX_ICONS[k] || '') + '</svg>'; }
 function safeUrl(u) { return /^https:\/\/[^\s<>"']+$/i.test(String(u || '').trim()) ? String(u).trim() : ''; }
 function sameVal(a, b) { return JSON.stringify(a == null ? '' : a) === JSON.stringify(b == null ? '' : b); }
-/* the next n clinic days (the office is open Monday–Thursday) */
+/* office holidays from the handbook (same list as the NLO Calendar) */
+function officeHolidays(y) {
+  const nth = (m, wd, n) => { const d = new Date(y, m, 1); d.setDate(1 + (wd - d.getDay() + 7) % 7 + (n - 1) * 7); return d; };
+  const last = (m, wd) => { const d = new Date(y, m + 1, 0); d.setDate(d.getDate() - (d.getDay() - wd + 7) % 7); return d; };
+  const thx = nth(10, 4, 4), near = k => { const d = new Date(thx); d.setDate(thx.getDate() + k); return d; };
+  return [new Date(y, 0, 1), last(4, 1), new Date(y, 6, 4), nth(8, 1, 1), near(-1), thx, near(1), new Date(y, 11, 25)].map(isoOf);
+}
+/* the next n clinic days (the office sees patients Monday–Thursday; handbook holidays are skipped) */
 function addClinicDays(iso, n) {
   let d = iso; let left = n;
-  while (left > 0) { d = addDays(d, 1); const [y, m, dd] = d.split('-').map(Number); const wd = new Date(y, m - 1, dd).getDay(); if (wd >= 1 && wd <= 4) left--; }
+  while (left > 0) {
+    d = addDays(d, 1); const [y, m, dd] = d.split('-').map(Number); const wd = new Date(y, m - 1, dd).getDay();
+    if (wd >= 1 && wd <= 4 && !officeHolidays(y).includes(d)) left--;
+  }
   return d;
 }
 function defaultAssignee(type) {
@@ -248,7 +301,7 @@ function defaultAssignee(type) {
   const byFirst = n => (activeRoster().find(r => firstName(r.name).toLowerCase() === n) || {}).sid || '';
   const owner = (activeRoster().find(r => r.role === 'owner') || {}).sid || '';
   if (['oliv', 'angel', 'invisalign', 'appliance'].includes(type)) return byFirst('sarah') || '';
-  if (['ulab', 'insmile', 'inbrace', 'retainer', 'mouthguard'].includes(type)) return meSid();
+  if (['ulab', 'insmile', 'inbrace', 'retainer', 'mouthguard', 'models'].includes(type)) return meSid();
   return owner;
 }
 /* the patient's CC phrases this office uses most (learned from decrypted cases, in this browser only) */
@@ -290,7 +343,7 @@ function caseFormHTML(c, isNew) {
   const ccs = learnedCCs();
   return '<div class="cf" data-new="' + (isNew ? 1 : 0) + '">' +
     '<div class="cfSec"><h5>Case type</h5><div class="tileGrid" role="radiogroup" aria-label="Case type">' + TILES.filter(t => !t.legacy || t.v === tile).map(t =>
-      '<button type="button" class="tt" role="radio" data-tile="' + t.v + '" aria-checked="' + (tile === t.v) + '"><b>' + esc(t.l) + '</b><span>' + esc(t.s) + '</span></button>').join('') + '</div></div>' +
+      '<button type="button" class="tt' + (t.c ? ' c-' + t.c : '') + '" role="radio" data-tile="' + t.v + '" aria-checked="' + (tile === t.v) + '">' + tileArt(t) + '<b>' + esc(t.l) + '</b><span>' + esc(t.s) + '</span></button>').join('') + '</div></div>' +
     '<div class="cfSec"><div class="grid2"><div class="field"><label for="cf-patient">Patient name *</label><input id="cf-patient" autocomplete="off" value="' + esc(c.patient || '') + '" required></div>' +
     '<div class="field"><label for="cf-chart">Chart #</label><input id="cf-chart" autocomplete="off" spellcheck="false" inputmode="text" placeholder="For the IPR Tracker link" value="' + esc(c.chart || '') + '"></div></div></div>' +
     '<div class="cfSec"' + show('appliance') + '><h5>Appliance</h5>' + pickRow('appliances', withSaved(PICK.appliances, c.appliances), c.appliances || [], true) +
@@ -299,7 +352,7 @@ function caseFormHTML(c, isNew) {
     '<div class="cfSec"' + show('aligner') + '><h5>Initial submission?</h5>' + pickRow('initial', [{ v: 'yes', l: 'Yes — first set' }, { v: 'no', l: 'No — refinement' }, { v: 'mid', l: 'Mid-course correction' }], initialVal, false) + '</div>' +
     '<div class="cfSec"' + showTiles('insmile') + '><h5>Initial or digital enhancement?</h5>' + pickRow('initialDE', [{ v: 'yes', l: 'Initial' }, { v: 'de1', l: 'DE 1' }, { v: 'de2', l: 'DE 2' }, { v: 'de3', l: 'DE 3' }], c.initial || '', false) + '</div>' +
     '<div class="cfSec"><h5>Assistant</h5>' + pickRow('assistant', roster.map(r => ({ v: r.sid, l: firstName(r.name) })), c.assistant || '', false) +
-    '<div' + show('aligner braces appliance retainer') + '><h5>Scanner</h5>' + pickRow('scanner', PICK.scanners, c.scanner || '', false) + '</div></div>' +
+    '<div' + show('aligner braces appliance retainer models') + '><h5>Scanner</h5>' + pickRow('scanner', PICK.scanners, c.scanner || '', false) + '</div></div>' +
     '<div class="cfSec"><h5>Dates</h5><div class="pickRow" style="margin-bottom:8px"><button type="button" class="pick sm" data-scan="0">Scanned today</button><button type="button" class="pick sm" data-scan="-1">Yesterday</button></div>' +
     '<div class="grid4">' + date('cf-scanDate', 'Scan date', c.scanDate) + date('cf-dueDate', g === 'aligner' || g === 'braces' ? 'Due for Dr. A' : 'Due date', c.dueDate) + date('cf-labDate', 'Lab completion', c.labDate) + date('cf-deliveryDate', 'Delivery', c.deliveryDate) + '</div>' +
     '<div class="hint small muted" id="cf-autoHint" style="margin:-4px 0 0">Filled in from the scan date — change any of them.</div></div>' +
@@ -370,6 +423,7 @@ function autoDetail(o, tile) {
   if (tile === 'inbrace') return 'InBrace/Brava';
   if (tile === 'insmile') return 'InSmile braces' + (/^de[123]$/.test(o.initial) ? ' – DE' + o.initial.slice(2) : '');
   if (tile === 'appliance') return o.appliances.join(', ');
+  if (tile === 'models') return 'Study models';
   if (tile === 'retainer' || tile === 'mouthguard') {
     const arch = o.arches.length === 2 ? 'U/L' : o.arches[0] === 'Upper' ? 'U' : o.arches[0] === 'Lower' ? 'L' : '';
     if (tile === 'mouthguard') return 'Mouthguard' + (arch ? ' (' + arch + ')' : '');
@@ -395,13 +449,14 @@ function wireCaseForm(root, isNew) {
       const type = o.type, stage = $r('#cf-stage');
       stage.innerHTML = type ? FLOWS[TYPE[type].flow].stages.map(([k, l]) => '<option value="' + k + '">' + esc(l) + '</option>').join('') : '';
       if (isNew && type) { stage.dataset.manual = ''; $r('#cf-assignee').dataset.manual = ''; $r('#cf-assignee').value = defaultAssignee(type); }
-      if (isNew && ['aligner', 'braces', 'appliance', 'retainer'].includes(g) && !pressed(root, 'scanner').length) setPick(root, 'scanner', 'Allied Star', true);
+      if (isNew && ['aligner', 'braces', 'appliance', 'retainer', 'models'].includes(g) && !pressed(root, 'scanner').length) setPick(root, 'scanner', 'Allied Star', true);
       if (g === 'appliance') routeLab(root, isNew);
     }
     // dates from the scan date (only fields nobody has typed into)
     const scan = $r('#cf-scanDate').value;
     if (isNew && scan) {
-      const plan = (tile === 'retainer' || tile === 'mouthguard') ? { 'cf-dueDate': addClinicDays(scan, 2), 'cf-labDate': '', 'cf-deliveryDate': '' }
+      // retainers (and mouthguards): delivered 2 office days after the scan (SOP: standard turnaround 2 business days)
+      const plan = (tile === 'retainer' || tile === 'mouthguard') ? { 'cf-dueDate': addClinicDays(scan, 2), 'cf-labDate': '', 'cf-deliveryDate': addClinicDays(scan, 2) }
         : (g === 'aligner' || g === 'braces') ? { 'cf-dueDate': addDays(scan, 14), 'cf-labDate': addDays(scan, 21), 'cf-deliveryDate': addDays(scan, 28) }
           : { 'cf-dueDate': '', 'cf-labDate': '', 'cf-deliveryDate': '' };
       autoIds.forEach(id => { const el = $r('#' + id); if (el.dataset.auto === '1') el.value = plan[id]; });
@@ -410,7 +465,7 @@ function wireCaseForm(root, isNew) {
   };
   root.addEventListener('click', e => {
     const tt = e.target.closest('.tt[data-tile]');
-    if (tt && root.contains(tt)) { $$('.tt', root).forEach(b => b.setAttribute('aria-checked', String(b === tt))); $r('#cf-tile').value = tt.dataset.tile; refresh(true); return; }
+    if (tt && root.contains(tt)) { $$('.tt[data-tile]', root).forEach(b => b.setAttribute('aria-checked', String(b === tt))); $r('#cf-tile').value = tt.dataset.tile; refresh(true); return; }
     const pk = e.target.closest('.pickRow[data-g] .pick');
     if (pk && root.contains(pk)) {
       const row = pk.closest('.pickRow'); const multi = row.dataset.multi === '1'; const was = pk.getAttribute('aria-pressed') === 'true';

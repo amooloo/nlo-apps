@@ -34,10 +34,11 @@ const FLOWS = {
     ['pack', 'Made – needs packaging'], ['checkedin', 'Checked in'] ] },
   retainer: { label: 'Retainers & mouthguards', stages: [
     ['print', 'Printing'], ['milestones', 'Milestones'], ['sarah', 'On Sarah’s desk'], ['pickup', 'Front desk pickup'] ] },
+  models: { label: 'Study models', stages: [ ['print', 'To print'], ['ready', 'Ready'] ] },
   retreat: { label: 'Retreatment', stages: [
     ['intake', 'Intake & assessment'], ['review', 'Pending review'], ['proposal', 'Send proposal'],
     ['progress', 'In progress'], ['completed', 'Completed'] ] },
-  misc: { label: 'Dr. A (misc.)', stages: [ ['todo', 'To do'], ['waiting', 'Waiting'] ] }
+  misc: { label: 'Other (misc.)', stages: [ ['todo', 'To do'], ['waiting', 'Waiting'] ] }
 };
 const TYPES = [
   { k: 'oliv', l: 'Oliv', flow: 'outside', cls: 't-aligner', aligner: true },
@@ -51,8 +52,11 @@ const TYPES = [
   { k: 'appliance', l: 'Appliance', flow: 'appliance', cls: 't-appl' },
   { k: 'retainer', l: 'Retainers & whitening', flow: 'retainer', cls: 't-ret' },
   { k: 'mouthguard', l: 'Mouthguard', flow: 'retainer', cls: 't-ret' },
-  { k: 'retreat', l: 'Retreatment', flow: 'retreat', cls: 't-retx' },
-  { k: 'misc', l: 'Dr. A (misc.)', flow: 'misc', cls: 't-misc' }
+  { k: 'models', l: 'Study models', flow: 'models', cls: 't-misc' },
+  /* legacy (Amir, 2 Oct 2026): Retreatment is no longer a case type, and "Dr. A (misc.)" became Study models;
+     both stay so imported or older cases still open and edit (misc also catches Asana tasks that match no type) */
+  { k: 'retreat', l: 'Retreatment', flow: 'retreat', cls: 't-retx', legacy: true },
+  { k: 'misc', l: 'Other (misc.)', flow: 'misc', cls: 't-misc', legacy: true }
 ];
 const TYPE = Object.fromEntries(TYPES.map(t => [t.k, t]));
 /* types to offer in pickers: retired types only while some case still uses them (or one is already chosen) */
@@ -228,6 +232,7 @@ function caseFromAsana(t, projectName, roster) {
   if (type === 'nla' && /misc/i.test(sectionName)) type = 'misc';
   if (type === 'retainer' && /mouth\s*guard/i.test(t.name || '')) type = 'mouthguard';
   if (!type) type = 'misc';
+  if (type === 'misc' && /\bmodels?\b/i.test(t.name || '')) type = 'models';
   const n = parseNotes(t.notes);
   const [pt, detail] = splitName(t.name);
   const findStaff = name => {
