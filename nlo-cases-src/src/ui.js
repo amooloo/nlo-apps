@@ -269,7 +269,7 @@ async function lockOut(msg) {
   closeModal(); closeDrawer(true);
   S.cases = new Map(); S.closed = []; S.hist = null; S.histLoaded = false; S.members = []; S.roster = []; S.iprCache = {}; S.verList = null; S.delList = null; S.impList = null;
   Object.assign(MAILS, { list: [], unread: [], pick: {}, sig: '', state: null, stateAt: 0, script: '' });
-  phReset();
+  phReset(); SH.data = null; SH.err = '';
   try { await iprLink().disconnect(); } catch (e) { }
   $('#view').innerHTML = '';
   await B.signOut();
@@ -374,7 +374,7 @@ function renderView() {
   $('#topSlot').innerHTML = topBar();
   v.innerHTML = h;
   if (active) { const q = $('#q'); q.focus(); q.setSelectionRange(q.value.length, q.value.length); }
-  phPaint();
+  phPaint(); if (S.view === 'admin') shPaint();
 }
 
 /* ---------- small pieces ---------- */

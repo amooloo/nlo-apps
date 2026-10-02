@@ -993,6 +993,33 @@ async function openByName(p, name) {
   await owner.waitForSelector('#actBox .hist', { timeout: 20000 });
   check((await owner.locator('#actBox .hist').count()) >= 5, 'activity log lists recent changes');
 
+  console.log('\n# Team from Staff Hub’s office roster (made-up roster in the database emulator)');
+  const rput = (path, body) => fetch('http://127.0.0.1:9000/' + path + '.json?ns=demo-nlo-cases', { method: 'PUT', headers: { Authorization: 'Bearer owner' }, body: JSON.stringify(body) });
+  const rp = (id, first, last, title, extra) => Object.assign({ id, name: first + ' ' + last, first, last, nick: first, short: first + ' ' + last[0] + '.', title, chairside: true, active: true }, extra || {});
+  check((await rput('nlo/cadence/roster', { v: 1, source: 'staff-hub', updatedAt: Date.now(), people: {
+    s_amir: { id: 's_amir', name: 'Dr. Amir Akhavan', first: 'Amir', last: 'Akhavan', nick: 'Dr. A', short: 'Dr. A', title: 'Orthodontist / Owner', chairside: true, active: true },
+    s_gwen: rp('s_gwen', 'Gwen', 'Tester', 'Orthodontic assistant'), s_sarah: rp('s_sarah', 'Sarah', 'Tester', 'Treatment coordinator'),
+    s_kaylee: rp('s_kaylee', 'Kaylee', 'Tester', 'Orthodontic assistant', { active: false, end: '2026-09-30' }),
+    s_nina: rp('s_nina', 'Nina', 'Rostered', 'Orthodontic assistant'), s_leo: rp('s_leo', 'Leo', 'Departed', 'Front desk', { active: false, end: '2026-08-01' }) } })).ok, 'seeded a made-up office roster');
+  await owner.click('#nav-today'); await owner.click('#nav-admin'); await owner.waitForSelector('#shBox');
+  if (await owner.isVisible('#shBox [data-act=shConnect]')) await owner.click('#shBox [data-act=shConnect]');
+  else await owner.click('#shBox [data-act=shRefresh]'); // (it may have read the roster earlier, before this one was seeded)
+  await owner.waitForSelector('#shBox .shRow', { timeout: 20000 });
+  const shText = async () => (await owner.textContent('#shBox')).replace(/\s+/g, ' ');
+  let sh = await shText();
+  check(/No NLO Cases login yet.*Nina Rostered/.test(sh) && !/Gwen Tester|Sarah Tester|Leo Departed|Amir/.test(sh.replace(/linked.*/, '')), 'Team & security lists the roster people without a login (not the ones who have one, nor ones who left): ' + sh.slice(0, 90));
+  check(!/Left the practice/.test(sh), 'nobody who left still has a login (Kaylee was removed earlier)');
+  await owner.click('#shBox [data-act=shAdd][data-rid=s_nina]'); await owner.waitForSelector('#asForm');
+  check(await owner.inputValue('#asName') === 'Nina Rostered' && await owner.inputValue('#asUser') === 'nina', 'Add opens Add person with the name and username filled in');
+  await owner.click('#asForm button[type=submit]'); await owner.waitForSelector('.modal .kv', { timeout: 30000 }); await owner.click('.modal [data-act=closeModal]');
+  const nina = (await fsDump()).find(d => d.name.endsWith('/roster/nina'));
+  check(nina && nina.fields.rid && nina.fields.rid.stringValue === 's_nina', 'her NLO Cases login remembers which roster person she is');
+  await owner.waitForFunction(() => !/Nina Rostered/.test((document.querySelector('#shBox') || {}).textContent || 'Nina Rostered'), null, { timeout: 20000 });
+  check(/Everyone on Staff Hub’s roster has a login/.test(await shText()), 'then everyone on the roster has a login');
+  await rput('nlo/cadence/roster/people/s_sarah', rp('s_sarah', 'Sarah', 'Tester', 'Treatment coordinator', { active: false, end: '2026-10-01' }));
+  await owner.click('#shBox [data-act=shRefresh]'); await owner.waitForSelector('#shBox .shGrp.bad .shRow:has-text("Sarah Tester")', { timeout: 20000 });
+  check(await owner.isVisible('#shBox .shGrp.bad [data-act=removeStaff][data-sid=sarah]'), 'when Staff Hub ends someone’s employment, Team & security flags them with Remove login');
+
   console.log('\n# Older security rules still live: photos wait, and Team & security hands out the new rules');
   const putRules = async content => { const r = await fetch(`http://127.0.0.1:8080/emulator/v1/projects/${PROJECT}:securityRules`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rules: { files: [{ name: 'firestore.rules', content }] } }) }); if (!r.ok) throw new Error('rules PUT ' + r.status + ' ' + await r.text()); };
   await putRules(fs.readFileSync(path.join(__dirname, 'rules-prev.rules'), 'utf8')); // the set published on 2 Oct (before email updates and photos)

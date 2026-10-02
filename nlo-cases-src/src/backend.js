@@ -469,7 +469,7 @@ const FB = {
   async saveSettings(patch) { await FB.track(FB.db.doc('meta/settings').set(patch, { merge: true })); },
 
   /* ---------- team (owner) ---------- */
-  async issue(o, extra) {
+  async issue(o, extra) { // o.rid: the person's id in Staff Hub's office roster, when added from it
     const email = o.username + '.' + o.gen + '@' + STAFF_DOMAIN;
     const temp = tempPassword();
     const sec = firebase.initializeApp(FB.cfg, 'issue' + Date.now());
@@ -484,19 +484,19 @@ const FB = {
     const boot = await Crypto.pwSeal(temp, Crypto.ringBytes(FB.ring), 'boot:' + newUid);
     const b = FB.db.batch();
     b.set(FB.db.doc('members/' + newUid), { staffId: o.sid, username: o.username, name: o.name, role: 'staff', active: true, mustSetup: true, boot, ringV: FB.curV, gen: o.gen, createdAt: FB.ts() });
-    b.set(FB.db.doc('roster/' + o.sid), { name: o.name, initials: initials(o.name), role: 'staff', active: true, username: o.username, gen: o.gen });
+    b.set(FB.db.doc('roster/' + o.sid), Object.assign({ name: o.name, initials: initials(o.name), role: 'staff', active: true, username: o.username, gen: o.gen }, o.rid ? { rid: o.rid } : {}));
     b.set(FB.db.doc('logins/' + o.username), { email });
     if (extra) extra(b);
     await FB.track(b.commit());
     return { temp, username: o.username };
   },
-  async addStaff(name, username) {
+  async addStaff(name, username, rid) {
     username = slug(username);
     if (!/^[a-z0-9][a-z0-9.\-]{1,29}$/.test(username)) throw errCode('bad-username');
     const [lg, rs] = await Promise.all([FB.db.doc('logins/' + username).get(), FB.db.doc('roster/' + username).get()]);
     if (lg.exists || (rs.exists && rs.data().active)) throw errCode('taken');
     const gen = (rs.exists ? (rs.data().gen || 0) : 0) + 1;
-    return FB.issue({ sid: username, name: name.trim(), username, gen });
+    return FB.issue({ sid: username, name: name.trim(), username, gen, rid: rid || '' });
   },
   async reissue(sid) {
     const rs = (await FB.db.doc('roster/' + sid).get()).data();

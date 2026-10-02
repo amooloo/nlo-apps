@@ -149,9 +149,9 @@ const DEMO = {
   async caseLog(id) { return DEMO.logs.filter(l => l.caseId === id).slice().sort((a, b) => a.at - b.at); },
   async activity() { return DEMO.logs.slice().sort((a, b) => b.at - a.at).slice(0, 60); },
   async saveSettings(p) { Object.assign(DEMO.settings, p); if (DEMO.h) DEMO.h.settings(DEMO.settings); },
-  async addStaff(name, username) {
+  async addStaff(name, username, rid) {
     username = slug(username); if (DEMO.roster.some(r => r.sid === username && r.active)) throw errCode('taken');
-    DEMO.roster = DEMO.roster.filter(r => r.sid !== username).concat([{ sid: username, name, initials: initials(name), role: 'staff', active: true, username }]);
+    DEMO.roster = DEMO.roster.filter(r => r.sid !== username).concat([Object.assign({ sid: username, name, initials: initials(name), role: 'staff', active: true, username }, rid ? { rid } : {})]);
     DEMO.members.push({ uid: 'u-' + username + uid8(), staffId: username, name, username, role: 'staff', active: true, mustSetup: true });
     DEMO.h.roster(DEMO.roster.slice()); DEMO.h.members(DEMO.members.slice());
     return { temp: tempPassword(), username };

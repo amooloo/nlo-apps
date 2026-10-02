@@ -20,6 +20,7 @@ function viewAdmin() {
         (r.role === 'owner' ? '' : r.active ? '<button class="btn btn-ghost" data-act="reissue" data-sid="' + esc(r.sid) + '">Reissue login</button><button class="btn btn-ghost" style="color:var(--coral-700)" data-act="removeStaff" data-sid="' + esc(r.sid) + '">Remove</button>'
           : '<button class="btn btn-ghost" data-act="readd" data-sid="' + esc(r.sid) + '">Add back</button>') + '</td></tr>';
     }).join('') + '</tbody></table></div>' +
+    '<div class="cardBd" style="padding-top:2px;padding-bottom:4px">' + shBoxHTML() + '</div>' +
     '<div class="cardBd small muted" style="padding-top:10px">Forgot password? Use <b>Reissue login</b>: they get a new temporary password and choose their own at sign-in. Removing someone cuts their access immediately and changes the office key.</div></div>';
   const kv = (FB && FB.curV) || (DEMO && DEMO.curV) || 1;
   const sec = '<div class="card"><div class="cardHd"><h3>Security</h3></div><div class="cardBd">' +
@@ -49,10 +50,10 @@ function rulesCardHTML() {
   if (!S.rulesOld || !isOwner()) return '';
   const pid = (FB.cfg && FB.cfg.projectId) || '';
   return '<div class="card rulesCard" id="rulesCard"><div class="cardHd"><h3>One-time update: security rules</h3><span class="sub">Patient photos and email updates need them. Until then they stay hidden.</span></div><div class="cardBd">' +
-    '<ol class="small mlSteps"><li>Click <b>Copy the new rules</b>.</li><li>Click <b>Open the Firebase console</b> (the Google account that owns the project), then <b>Firestore Database → Rules</b>.</li>' +
+    '<ol class="small mlSteps"><li>Click <b>Copy the new rules</b>.</li><li>Click <b>Open the Firebase console</b> (the Google account that owns the project). Pick <b>Firestore Database</b> in the left menu (the stacked-lines icon under the gear), then the <b>Rules</b> tab.</li>' +
     '<li>Select everything in the editor, paste, and click <b>Publish</b>.</li><li>Come back here and click <b>Check again</b>.</li></ol>' +
     '<div class="pickRow" style="margin-top:10px"><button class="btn btn-pri btn-sm" data-act="rulesCopy">' + ic('download', 15) + 'Copy the new rules</button>' +
-    '<a class="btn btn-sec btn-sm" href="https://console.firebase.google.com/project/' + esc(pid) + '/firestore/databases/-default-/rules" target="_blank" rel="noopener noreferrer">' + ic('ext', 15) + 'Open the Firebase console</a>' +
+    '<a class="btn btn-sec btn-sm" href="https://console.firebase.google.com/project/' + esc(pid) + '/firestore" target="_blank" rel="noopener noreferrer">' + ic('ext', 15) + 'Open the Firebase console</a>' +
     '<button class="btn btn-ghost btn-sm" data-act="rulesCheck">' + ic('refresh', 15) + 'Check again</button></div></div></div>';
 }
 function viewImport() {
@@ -96,7 +97,7 @@ function issuedModal(name, res, reissue) {
     '<div class="mFt"><button class="btn btn-sec" data-act="copyCode" data-code="' + esc('Username: ' + res.username + '  Temporary password: ' + res.temp) + '">Copy</button><button class="btn btn-pri" data-act="closeModal">Done</button></div>');
 }
 const ADMIN_ACTS = {
-  addStaff() {
+  addStaff(t, e, pre) { // pre: { name, username, rid } when picked from Staff Hub's roster
     openModal('<h3>Add a person</h3><div class="lsub">They get a username and a temporary password. They choose their own password the first time they sign in.</div><div id="asErr"></div><form id="asForm">' +
       '<div class="field"><label for="asName">Full name</label><input id="asName" required autocomplete="off"></div>' +
       '<div class="field"><label for="asUser">Username</label><input id="asUser" required autocomplete="off" autocapitalize="none" spellcheck="false"><div class="hint">Lowercase, no spaces. Usually their first name.</div></div>' +
@@ -104,9 +105,10 @@ const ADMIN_ACTS = {
         const n = $('#asName', w), u = $('#asUser', w); let touched = false;
         u.addEventListener('input', () => { touched = true; });
         n.addEventListener('input', () => { if (!touched) u.value = slug(firstName(n.value)); });
+        if (pre) { n.value = pre.name; u.value = pre.username; touched = true; $('button[type=submit]', w).focus(); }
         $('#asForm', w).onsubmit = async e => {
           e.preventDefault(); const btn = $('button[type=submit]', w); busyBtn(btn, true, 'Creating…');
-          try { const r = await B.addStaff(n.value.trim(), u.value.trim()); issuedModal(n.value.trim(), r, false); }
+          try { const r = await B.addStaff(n.value.trim(), u.value.trim(), pre && n.value.trim() === pre.name ? pre.rid : ''); issuedModal(n.value.trim(), r, false); }
           catch (x) { busyBtn(btn, false); $('#asErr', w).innerHTML = '<div class="lockErr">' + esc(errText(x)) + '</div>'; }
         };
       });
@@ -314,4 +316,67 @@ Object.assign(ADMIN_ACTS, {
     toast(ok ? 'The security rules are up to date. Photos and email updates are on.' : 'Still the old rules. Publish them in the Firebase console, wait a minute, then check again.', ok ? {} : { bad: true });
     queueRender('team');
   }
+});
+
+/* ---------- Team from Staff Hub's office roster (Amir: "for the team, can I just add from staff hub?")
+   Staff Hub shares a basic roster (name they go by, title, active / last day, photo) in the nlo-inventory database,
+   which Cadence, the calendar and the IPR Tracker already follow. Here it's read with the IPR link's Google sign-in
+   (it ends when NLO Cases locks). Logins are still made here: each person's own password unlocks the office key. ---------- */
+const SH = { data: null, err: '', loading: false, at: 0 };
+function shPeople() { return Object.values((SH.data && SH.data.people) || {}).filter(p => p && p.id && p.name); }
+function shNorm(s) { return String(s || '').normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/^dr\.?\s+/, '').replace(/[^a-z\s'-]/g, ' ').replace(/\s+/g, ' ').trim(); }
+/* this NLO Cases person in the roster: by the id saved when they were added from it, else by name */
+function shMatch(r, people) {
+  if (r.rid) return people.find(p => p.id === r.rid) || null;
+  const n = shNorm(r.name), parts = n.split(' '), f = parts[0] || '', l = parts.length > 1 ? parts[parts.length - 1] : '';
+  let hit = people.filter(p => shNorm(p.name) === n); if (hit.length === 1) return hit[0];
+  hit = people.filter(p => [p.first, p.nick].some(x => x && shNorm(x) === f) && (!l || !p.last || shNorm(p.last) === l));
+  return hit.length === 1 ? hit[0] : null;
+}
+function shGone(p) { return p.active === false || (!!p.end && p.end < todayISO()); }
+function shState() {
+  const people = shPeople(), used = new Set(), link = new Map();
+  S.roster.forEach(r => { const p = shMatch(r, people); if (p) { used.add(p.id); link.set(r.sid, p); } });
+  const add = people.filter(p => !used.has(p.id) && !shGone(p) && p.id !== 's_amir').sort((a, b) => a.name.localeCompare(b.name));
+  const mine = S.roster.filter(r => r.active && r.role !== 'owner' && link.has(r.sid));
+  return { add, left: mine.filter(r => shGone(link.get(r.sid))).map(r => ({ r, p: link.get(r.sid) })),
+    leaving: mine.filter(r => !shGone(link.get(r.sid)) && link.get(r.sid).end).map(r => ({ r, p: link.get(r.sid) })), linked: link.size };
+}
+function shUsername(p) {
+  const taken = u => S.roster.some(r => r.sid === u || r.username === u);
+  const f = slug(p.first || firstName(p.name)), l = slug(p.last || '').slice(0, 1);
+  if (f && !taken(f)) return f; if (f && l && !taken(f + l)) return f + l;
+  for (let i = 2; i < 20; i++) if (!taken(f + i)) return f + i;
+  return f;
+}
+async function shLoad() {
+  if (SH.loading) return; SH.loading = true; SH.err = '';
+  try { SH.data = (await iprLink().roster()) || { people: {} }; SH.at = Date.now(); }
+  catch (e) { SH.data = null; SH.err = /permission|denied/i.test(String(e && (e.code || e.message))) ? 'This Google account can’t read the office roster. Connect with the account Staff Hub shares it with.' : 'Couldn’t reach the office roster. Check the connection and try again.'; }
+  SH.loading = false; if (S.view === 'admin') queueRender('team');
+}
+function shPhoto(p) { const el = '<span class="av shAv"' + (p.photo ? ' data-shph="' + esc(p.id) + '"' : '') + '>' + esc(initials(p.name)) + '</span>'; return el; }
+function shBoxHTML() {
+  const L = iprLink(), head = '<div class="shBox" id="shBox"><div class="shHd"><b>From Staff Hub</b><span class="small muted">the office roster Cadence and the IPR Tracker follow</span>';
+  if (!L.init()) return head + '</div><p class="small muted">Not available in this browser.</p></div>';
+  if (!L.user()) return head + '</div><p class="small" style="margin:4px 0 10px">Pick people from Staff Hub’s roster instead of typing them in, and see who has left.</p>' +
+    '<button class="btn btn-sec btn-sm" data-act="shConnect">' + ic('team', 15) + 'Connect to the office roster</button><p class="small muted" style="margin-top:6px">Uses the Google sign-in the IPR Tracker link uses. It ends when NLO Cases locks.</p></div>';
+  if (SH.err) return head + '</div><p class="small" style="color:var(--coral-700);margin:6px 0 8px">' + esc(SH.err) + '</p><button class="btn btn-ghost btn-sm" data-act="shRefresh">' + ic('refresh', 15) + 'Try again</button></div>';
+  if (!SH.data) { shLoad(); return head + '</div><p class="small muted">Loading the office roster…</p></div>'; }
+  if (Date.now() - SH.at > 30000 && !SH.loading) shLoad(); // read again when Team & security is opened later (shows the last copy meanwhile)
+  const st = shState(), when = SH.data.updatedAt ? fmtWhen(SH.data.updatedAt) : '';
+  const row = (p, right, note) => '<div class="shRow">' + shPhoto(p) + '<div class="shWho"><b>' + esc(p.name) + '</b><span class="small muted">' + esc([p.title, note].filter(Boolean).join(' · ')) + '</span></div>' + right + '</div>';
+  return head + '<span style="flex:1"></span><button class="btn btn-ghost btn-sm" data-act="shRefresh" title="Read the roster again">' + ic('refresh', 15) + 'Refresh</button></div>' +
+    (st.left.length ? '<div class="shGrp bad"><h6>Left the practice — remove their login</h6>' + st.left.map(x => row(x.p, '<button class="btn btn-sec btn-sm" style="color:var(--coral-700)" data-act="removeStaff" data-sid="' + esc(x.r.sid) + '">Remove login</button>', 'last day ' + (x.p.end ? fmtDate(x.p.end) : 'passed'))).join('') + '</div>' : '') +
+    (st.add.length ? '<div class="shGrp"><h6>No NLO Cases login yet</h6>' + st.add.map(p => row(p, '<button class="btn btn-act btn-sm" data-act="shAdd" data-rid="' + esc(p.id) + '">' + ic('plus', 14) + 'Add</button>', p.end ? 'leaving ' + fmtDate(p.end) : '')).join('') + '</div>' : '') +
+    (st.leaving.length ? '<div class="shGrp"><h6>Leaving soon</h6>' + st.leaving.map(x => row(x.p, '<span class="small muted">remove on ' + esc(fmtDate(x.p.end)) + '</span>', '')).join('') + '</div>' : '') +
+    (!st.add.length && !st.left.length ? '<p class="small" style="margin:6px 0 2px;color:var(--mint-700)">' + ic('done', 15) + ' Everyone on Staff Hub’s roster has a login, and nobody who left still does.</p>' : '') +
+    '<p class="small muted shFoot">' + st.linked + ' linked' + (when ? ' · roster shared ' + esc(when) : '') + '. Add a hire or end someone’s employment in Staff Hub; it shows up here.</p></div>';
+}
+/* staff photos from Staff Hub (data: URLs from the roster) are set after drawing, like the company logos */
+function shPaint() { $$('[data-shph]').forEach(el => { const p = shPeople().find(x => x.id === el.dataset.shph); if (p && /^data:image\/jpeg;base64,/.test(p.photo || '')) { el.textContent = ''; const im = document.createElement('img'); im.alt = ''; im.src = p.photo; el.appendChild(im); el.classList.add('ph'); } }); }
+Object.assign(ADMIN_ACTS, {
+  shConnect(t) { busyBtn(t, true, 'Connecting…'); iprLink().connect().then(() => { SH.data = null; SH.err = ''; queueRender('team'); }).catch(x => { busyBtn(t, false); if (!/popup-closed|cancelled-popup/.test(String(x && x.code))) toast(errText(x), { bad: true }); }); },
+  shRefresh() { SH.data = null; SH.err = ''; queueRender('team'); },
+  shAdd(t) { const p = shPeople().find(x => x.id === t.dataset.rid); if (p) ADMIN_ACTS.addStaff(t, null, { name: p.name, username: shUsername(p), rid: p.id }); }
 });

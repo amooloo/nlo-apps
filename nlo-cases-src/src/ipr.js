@@ -123,7 +123,10 @@ const IPR = {
     for (const p of pts) { const s = await IPR.db.ref('nlo/ipr/visits/' + p.id).once('value'); visits = visits.concat(Object.values(s.val() || {})); }
     if (!visits.length) return { status: 'no-visits', initials: pts[0].name || '' };
     return Object.assign({ status: 'ok', initials: pts[0].name || '' }, iprNoteFromVisits(visits));
-  }
+  },
+  /* Staff Hub's office roster (same database; Staff Hub writes it, Cadence, the IPR Tracker and this app read it):
+     { v, source, updatedAt, people: { id: { id, name, first, last, nick, short, title, chairside, active, end?, photo? } } } */
+  async roster() { const s = await IPR.db.ref('nlo/cadence/roster').once('value'); return s.val(); }
 };
 /* demo mode: a made-up visit so the link can be tried without the real database */
 const IPR_DEMO = {
@@ -134,6 +137,15 @@ const IPR_DEMO = {
       { date: addDays(todayISO(), -21), upper_ipr: { 'UR2|UR1': '0.2' }, lower_ipr: {}, upper_spaces: {}, lower_spaces: {}, upper_bt: {}, lower_bt: {} },
       { date: todayISO(), upper_ipr: {}, lower_ipr: { 'LR3|LR2': '0.2', 'LL1|LL2': '0.1' }, upper_spaces: { 'UR1|UL1': '0.3' }, lower_spaces: {}, upper_bt: { 'UR1|UL1': true }, lower_bt: {} }
     ]));
+  },
+  /* a made-up office roster: the demo's staff, one new hire without a login, one who has left */
+  async roster() {
+    const p = (id, first, last, title, extra) => Object.assign({ id, name: first + (last ? ' ' + last : ''), first, last, nick: first, short: first, title, chairside: true, active: true }, extra || {});
+    return { v: 1, source: 'staff-hub', updatedAt: Date.now() - 3600e3, people: {
+      s_amir: p('s_amir', 'Amir', 'Akhavan', 'Orthodontist / Owner', { name: 'Dr. Amir Akhavan', nick: 'Dr. A', short: 'Dr. A' }),
+      s_sarah: p('s_sarah', 'Sarah', '', 'Treatment coordinator', { chairside: false }), s_angelika: p('s_angelika', 'Angelika', '', 'Lab lead'),
+      s_gwen: p('s_gwen', 'Gwen', '', 'Orthodontic assistant'), s_kaylee: p('s_kaylee', 'Kaylee', '', 'Orthodontic assistant', { active: false, end: addDays(todayISO(), -2) }),
+      s_nora: p('s_nora', 'Nora', 'Newhire', 'Orthodontic assistant'), s_lena: p('s_lena', 'Lena', 'Leaveson', 'Front desk', { chairside: false, end: addDays(todayISO(), 9) }) } };
   }
 };
 function iprLink() { return S.demo ? IPR_DEMO : IPR; }
