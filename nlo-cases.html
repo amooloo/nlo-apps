@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-MUcLDctF2m6Cuv2+B7TpiVWdYkolQw2LfX9o97vd6cE=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-TJ0Ptuis7terbBKNvo0bM590TbLSZ+kgzrVLfvDdbu8=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO Cases</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -561,6 +561,22 @@ a.btn{text-decoration:none}
   body.printLabels .print-page:last-child{page-break-after:auto;break-after:auto}
   body.printLabels .print-label{transform:rotate(90deg) translateY(-2in);transform-origin:top left;-webkit-print-color-adjust:exact;print-color-adjust:exact;-webkit-font-smoothing:none;text-rendering:geometricPrecision}
 }
+/* lab-email updates: the Today card, Team & security, the script steps; chart note */
+.mailCard{margin-bottom:18px;border:1.5px solid var(--blue-200)}
+.mlRow{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:10px 0;border-bottom:1px solid var(--grey-100)}
+.mlRow:last-child{border-bottom:none}
+.mlWhat{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;flex:1 1 320px;min-width:0}
+.mlName{font-weight:700;color:var(--navy)}
+.mlDo{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.mlSel{min-height:34px;padding:5px 10px;max-width:320px;width:auto}
+.mlBeat{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding:8px 0;border-bottom:1px solid var(--grey-100)}
+.mlBeat b{color:var(--navy)}
+.mlBtns{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.mlSteps{margin:4px 0 12px 20px;font-size:13.5px;line-height:1.6;color:var(--navy)}
+.mlSteps li{margin-bottom:6px}
+.noteHd{display:flex;align-items:center;gap:8px}
+.noteHd .small{text-transform:none;letter-spacing:0;font-family:var(--fb)}
+#noteTxt{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;line-height:1.5}
 
 </style>
 </head>
@@ -740,14 +756,14 @@ function dayDiff(iso) { if (!iso) return null; const [y, m, d] = iso.split('-').
 function fmtDate(iso) { if (!iso) return ''; const [y, m, d] = iso.split('-').map(Number); const dt = new Date(y, m - 1, d); const opts = { month: 'short', day: 'numeric' }; if (y !== new Date().getFullYear()) opts.year = 'numeric'; return dt.toLocaleDateString(undefined, opts); }
 function fmtDay(iso) { if (!iso) return ''; const [y, m, d] = iso.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }); }
 function fmtTime(t) { const m = /^(\d{1,2}):(\d{2})/.exec(t || ''); if (!m) return ''; const h = +m[1]; return ((h + 11) % 12 + 1) + ':' + m[2] + ' ' + (h < 12 ? 'AM' : 'PM'); }
-/* one-click tracking: the carrier's own page, from the carrier named in a lab email or the number's shape
-   (UPS 1Z…, USPS 20–22 digits starting with 9, FedEx 12/15/20/22 digits) */
+/* one-click tracking: the carrier's own page, from the number's shape (UPS 1Z…, USPS 20–22 digits starting
+   with 9, FedEx 12/15/20/22 digits), else the carrier a lab email names */
 const TRACK_URL = { ups: 'https://www.ups.com/track?tracknum=', fedex: 'https://www.fedex.com/fedextrack/?trknbr=', usps: 'https://tools.usps.com/go/TrackConfirmAction?tLabels=', dhl: 'https://www.dhl.com/us-en/home/tracking/tracking-express.html?submit=1&tracking-id=' };
 const CARRIER_NAME = { ups: 'UPS', fedex: 'FedEx', usps: 'USPS', dhl: 'DHL' };
 function trackInfo(num, carrier) {
   const n = String(num || '').replace(/[\s-]+/g, '').toUpperCase(); if (!/^[A-Z0-9]{8,34}$/.test(n)) return null;
-  let k = String(carrier || '').toLowerCase().replace(/[^a-z]/g, '');
-  if (!TRACK_URL[k]) k = /^1Z[0-9A-Z]{16}$/.test(n) ? 'ups' : /^9\d{19,21}$/.test(n) ? 'usps' : /^(\d{12}|\d{15}|\d{20}|\d{22})$/.test(n) ? 'fedex' : '';
+  let k = /^1Z[0-9A-Z]{16}$/.test(n) ? 'ups' : /^9\d{19,21}$/.test(n) ? 'usps' : /^(\d{12}|\d{15}|\d{20}|\d{22})$/.test(n) ? 'fedex' : '';
+  if (!k) { k = String(carrier || '').toLowerCase().replace(/[^a-z]/g, ''); if (!TRACK_URL[k]) k = ''; }
   return { n, carrier: CARRIER_NAME[k] || '', url: k ? TRACK_URL[k] + encodeURIComponent(n) : '' };
 }
 /* a case can carry more than one number (spaces, commas or new lines between them) */
@@ -1159,7 +1175,7 @@ const FB = {
 
   async signOut() {
     FB.stop();
-    FB.priv = FB.ring = FB.keys = FB.me = FB.uid = null; FB.curV = FB.ringV = 0;
+    FB.priv = FB.ring = FB.keys = FB.me = FB.uid = FB.inboxPriv = null; FB.curV = FB.ringV = 0;
     try { await FB.auth.signOut(); } catch (e) { }
   },
   stop() { FB.unsubs.forEach(u => { try { u(); } catch (e) { } }); FB.unsubs = []; },
@@ -1194,7 +1210,93 @@ const FB = {
     if (FB.isOwner()) {
       FB.unsubs.push(FB.db.collection('members').onSnapshot(s => h.members(s.docs.map(d => Object.assign({ uid: d.id }, d.data()))), e => h.error(e)));
     }
+    // lab emails arriving from the email script (sealed); the app reads and applies them (mail.js)
+    if (h.inbox) FB.unsubs.push(FB.db.collection('inbox').onSnapshot(() => h.inbox(), () => { }));
+    // each mailbox's last check, live on Team & security (owner)
+    if (h.mailbeat && FB.isOwner()) FB.unsubs.push(FB.db.collection('mailbeat').onSnapshot(s => h.mailbeat(s.docs.map(d => Object.assign({ id: d.id }, d.data(), { at: FB.tsMs(d.data().at) }))), () => { }));
   },
+
+  /* ---------- lab-email updates (see mail.js and mail/script.js) ---------- */
+  async mailState() {
+    const [ib, beats, bots] = await Promise.all([FB.db.doc('meta/inbox').get(), FB.db.collection('mailbeat').get(), FB.isOwner() ? FB.db.collection('mailbots').get() : null]);
+    return { on: ib.exists && (!bots || bots.size > 0), pub: ib.exists ? ib.data() : null,
+      beats: beats.docs.map(d => Object.assign({ id: d.id }, d.data(), { at: FB.tsMs(d.data().at) })), bots: bots ? bots.docs.map(d => ({ uid: d.id, email: d.data().email })) : [] };
+  },
+  /* the inbox key pair: the script seals to its public half; the private half is sealed with the office key */
+  async inboxKeyPair() {
+    const pair = await Crypto.newPair(), pub = await Crypto.pubJwk(pair), kid = 'k' + uid8();
+    const box = await Crypto.seal(FB.keys[FB.curV], await Crypto.privBytes(pair), 'inboxkey:' + kid);
+    const cur = await FB.db.doc('meta/inboxKey').get();
+    const keys = Object.assign({}, cur.exists ? cur.data().keys : {}, { [kid]: { v: FB.curV, iv: box.iv, ct: box.ct } });
+    await FB.track(FB.db.doc('meta/inboxKey').set({ keys, cur: kid }));
+    await FB.track(FB.db.doc('meta/inbox').set({ pub, kid, senders: MAIL_SENDERS, at: FB.ts() }));
+    FB.inboxPriv = null;
+  },
+  /* owner: a login for the email robot (it can only add sealed items to the inbox) — one at a time */
+  async mailSetup() {
+    if (!(await FB.db.doc('meta/inbox').get()).exists) await FB.inboxKeyPair();
+    const email = 'mailbot.' + randChars(10).toLowerCase() + '@' + STAFF_DOMAIN, password = randChars(32);
+    const sec = firebase.initializeApp(FB.cfg, 'bot' + Date.now()); let uid;
+    try {
+      const sa = sec.auth();
+      if (FB.emu) sa.useEmulator('http://127.0.0.1:9099', { disableWarnings: true });
+      try { await sa.setPersistence(firebase.auth.Auth.Persistence.NONE); } catch (e) { }
+      uid = (await sa.createUserWithEmailAndPassword(email, password)).user.uid;
+      await sa.signOut();
+    } finally { try { await sec.delete(); } catch (e) { } }
+    const old = await FB.db.collection('mailbots').get();
+    const box = await Crypto.sealJSON(FB.keys[FB.curV], { email, password, uid }, 'mailbot');
+    const b = FB.db.batch();
+    old.docs.forEach(d => b.delete(d.ref));
+    b.set(FB.db.doc('mailbots/' + uid), { email, at: FB.ts() });
+    b.set(FB.db.doc('meta/mailbot'), { v: FB.curV, iv: box.iv, ct: box.ct });
+    await FB.track(b.commit());
+    return { email, password };
+  },
+  async mailCreds() { const s = await FB.db.doc('meta/mailbot').get(); if (!s.exists) return null; const d = s.data(); return Crypto.openJSON(FB.keys[d.v], d, 'mailbot'); },
+  async mailOff() {
+    const old = await FB.db.collection('mailbots').get(); const b = FB.db.batch();
+    old.docs.forEach(d => b.delete(d.ref)); b.delete(FB.db.doc('meta/mailbot'));
+    await FB.track(b.commit());
+  },
+  async mailSenders(list) { await FB.db.doc('meta/inbox').update({ senders: list }); },
+  /* every inbox item, opened: [{ id, at, done, mail }] (mail = null when it can't be opened) */
+  async inboxLoad() {
+    const snap = await FB.db.collection('inbox').get(), out = [];
+    // the private half of the inbox key, opened once (again if an email uses a key set up since)
+    if (!FB.inboxPriv || snap.docs.some(d => !FB.inboxPriv[d.data().kid])) {
+      const priv = {}; const s = await FB.db.doc('meta/inboxKey').get();
+      if (s.exists) for (const kid of Object.keys(s.data().keys || {})) {
+        const box = s.data().keys[kid];
+        try { priv[kid] = await Crypto.importPriv(await Crypto.open(FB.keys[box.v], box, 'inboxkey:' + kid)); } catch (e) { }
+      }
+      FB.inboxPriv = priv;
+    }
+    for (const d of snap.docs) {
+      const x = d.data(); let mail = null;
+      try { mail = JSON.parse(TD.decode(await Crypto.openFrom(FB.inboxPriv[x.kid], { epk: x.epk, iv: x.iv, ct: x.ct }, 'inbox:' + d.id))); } catch (e) { }
+      out.push({ id: d.id, at: FB.tsMs(x.at), done: x.done || [], mail });
+    }
+    return out;
+  },
+  /* only one open app handles an email at a time: a claim lasts a minute (a closed or stuck app's claim runs out) */
+  sess: uid8(),
+  async inboxClaim(id) {
+    const ref = FB.db.doc('inbox/' + id);
+    try {
+      return await FB.db.runTransaction(async tx => {
+        const s = await tx.get(ref); if (!s.exists) return false;
+        const c = s.data().claim, at = c && FB.tsMs(c.at);
+        if (c && c.by !== FB.sess && at && Date.now() - at < 60000) return false;
+        tx.update(ref, { claim: { by: FB.sess, at: FB.ts() } }); return true;
+      });
+    } catch (e) { return false; }
+  },
+  async inboxDone(id, idx) { // (gone already = someone else finished it)
+    const ref = FB.db.doc('inbox/' + id);
+    await FB.db.runTransaction(async tx => { const s = await tx.get(ref); if (s.exists) tx.update(ref, { done: firebase.firestore.FieldValue.arrayUnion.apply(null, idx) }); });
+  },
+  async inboxDelete(id) { await FB.db.doc('inbox/' + id).delete(); },
   async loadClosed(days) {
     const since = firebase.firestore.Timestamp.fromMillis(Date.now() - days * 86400000);
     const snap = await FB.db.collection('cases').where('closedAt', '>=', since).get();
@@ -1269,7 +1371,8 @@ const FB = {
       await FB.track(FB.db.runTransaction(async tx => {
         const s = await tx.get(ref); if (!s.exists) throw errCode('gone');
         const d = s.data(); const data = FB.clean(await FB.decryptDoc(id, d));
-        const st = fn(data); const status = st === 'done' || st === 'open' ? st : d.status;
+        const st = fn(data); if (st === 'skip') throw errCode('skip'); // nothing to change: write nothing
+        const status = st === 'done' || st === 'open' ? st : d.status;
         const v = FB.curV; const box = await Crypto.sealJSON(FB.keys[v], data, 'case:' + id);
         const closedAt = status === 'done' ? (d.status === 'done' && d.closedAt ? d.closedAt : FB.ts()) : null;
         tx.update(ref, { v, iv: box.iv, ct: box.ct, status, rev: d.rev + 1, by: FB.uid, sid: FB.me.staffId, updatedAt: FB.ts(), closedAt });
@@ -1461,7 +1564,22 @@ const DEMO = {
     // aligners going straight to the patient, and shipments with one-click tracking (sample numbers)
     Object.assign(all.find(c => c.type === 'oliv' && c.stage === 'shipped'), { shipToPatient: true, tracking: '1Z999AA10123456784' });
     Object.assign(all.find(c => c.type === 'nla' && c.stage === 'pack'), { shipToPatient: true });
-    Object.assign(all.find(c => c.type === 'ulab' && c.stage === 'mfg'), { tracking: '123456789012' });
+    // lab emails waiting in the inbox (made-up): uLab shipped and Oliv setup ready match cases; the Partners summary
+    // ships one appliance it can match and one it can't, so Today asks which case that one is
+    const ul = all.find(c => c.type === 'ulab' && c.stage === 'mfg'), ol = all.find(c => c.type === 'oliv' && c.stage === 'submit'), ap = all.find(c => c.type === 'appliance' && c.stage === 'mfg');
+    const fL = n => n.split(' ')[0] + ' ' + n.split(' ').slice(-1)[0][0] + '.', Fl = n => n[0] + '. ' + n.split(' ').slice(-1)[0];
+    const ago = m => Date.now() - m * 60e3;
+    DEMO.mail.beats = [{ id: 'b1', box: 'office@example.com', at: ago(4), seen: 2, sent: 2, err: '', ver: '1' }, { id: 'b2', box: 'records@example.com', at: ago(7), seen: 1, sent: 1, err: '', ver: '1' }];
+    DEMO.mail.inbox = [
+      { id: 'mdemo1', at: ago(50), done: [], mail: { box: 'office@example.com', from: 'uLab Systems <noreply@ulabsystems.com>', subject: 'Your uLab order DMO42 has shipped.', date: ago(50),
+        text: 'Your Order Has Shipped!\nGreat news! The following order is on the way to your office:\nOrder Number: DMO42\nPatient Name: ' + ul.patient + '\nClick here to track your order: 123456789012' } },
+      { id: 'mdemo2', at: ago(180), done: [], mail: { box: 'office@example.com', from: 'Oliv Doctors <doctor@olivortho.com>', subject: 'Oliv™: ' + Fl(ol.patient) + ' (590017) setup is ready', date: ago(180),
+        text: 'Please approve or request changes using the button below.', html: '<p>Please approve or request changes using the button below.</p><a href="https://portal.olivortho.com/">View Treatment Plan</a>' } },
+      { id: 'mdemo3', at: ago(900), done: [], mail: { box: 'records@example.com', from: 'general@partnersdentalstudio.com', subject: 'Daily Cases Received, Shipped, and Held', date: ago(900), text: '',
+        html: '<p>Here is your daily summary of all cases received, shipped, and placed on hold today.</p><p>No Cases Received Today</p><table><tr><th>Patient Name</th><th>Case Number</th></tr></table>' +
+          '<p>Cases Shipped Today</p><table><tr><th>Patient Name</th><th>Invoice Number</th><th>Tracking Number</th><th>Carrier</th></tr><tr><td>Robin T.</td><td>228700</td><td>1Z999AA10123456785</td><td>UPS</td></tr>' +
+          '<tr><td>' + fL(ap.patient) + '</td><td>228701</td><td>1Z999AA10123456786</td><td>UPS</td></tr></table><p>No Cases On Hold in the last 7 Days</p>' } }
+    ];
     // one in-house patient on a refinement, with the finished initial set behind it (shows the aligner total)
     const ref = Array.from(DEMO.cases.values()).find(c => c.type === 'nla' && c.stage === 'thermo');
     Object.assign(ref, { chart: '15-1001', initial: 'no', alU: 10, alL: 8, detail: 'Aligners (In-House) – refinement' });
@@ -1476,7 +1594,19 @@ const DEMO = {
     DEMO.h = h;
     h.settings(DEMO.settings); h.roster(DEMO.roster.slice()); h.members(DEMO.members.slice());
     h.cases(Array.from(DEMO.cases.values()).filter(c => c.status === 'open').map(c => JSON.parse(JSON.stringify(c))), [], false);
+    if (h.inbox) setTimeout(() => h.inbox(), 30);
   },
+  /* lab-email updates: the inbox as the app would see it after opening each sealed email */
+  mail: { on: true, beats: [], inbox: [] },
+  async mailState() { return { on: DEMO.mail.on, pub: { senders: MAIL_SENDERS }, beats: DEMO.mail.beats.slice(), bots: DEMO.mail.on ? [{ uid: 'bot', email: 'mailbot.demo@staff.example' }] : [] }; },
+  async mailSetup() { DEMO.mail.on = true; return DEMO.mailCreds(); },
+  async mailCreds() { return DEMO.mail.on ? { email: 'mailbot.demo@staff.example', password: 'demo-only-not-a-real-login' } : null; },
+  async mailOff() { DEMO.mail.on = false; },
+  async mailSenders() { },
+  async inboxLoad() { return JSON.parse(JSON.stringify(DEMO.mail.inbox)); },
+  async inboxClaim() { return true; },
+  async inboxDone(id, idx) { const x = DEMO.mail.inbox.find(i => i.id === id); if (x) x.done = Array.from(new Set((x.done || []).concat(idx))); },
+  async inboxDelete(id) { DEMO.mail.inbox = DEMO.mail.inbox.filter(i => i.id !== id); },
   emit(c) {
     if (!DEMO.h) return;
     if (c.status === 'open') DEMO.h.cases([JSON.parse(JSON.stringify(c))], [], false);
@@ -1492,8 +1622,9 @@ const DEMO = {
   async createCase(data) { return (await DEMO.createCases([{ data }]))[0]; },
   async mutateCase(id, fn, action) {
     const c = DEMO.cases.get(id); if (!c) throw errCode('gone');
-    (DEMO.versions[id] = DEMO.versions[id] || []).push({ rev: c.rev, replacedAt: Date.now(), replacedBy: DEMO.me.staffId, replacedHow: action && action.a, data: JSON.parse(JSON.stringify(c)) });
     const data = JSON.parse(JSON.stringify(c)); const st = fn(data);
+    if (st === 'skip') throw errCode('skip');
+    (DEMO.versions[id] = DEMO.versions[id] || []).push({ rev: c.rev, replacedAt: Date.now(), replacedBy: DEMO.me.staffId, replacedHow: action && action.a, data: JSON.parse(JSON.stringify(c)) });
     if (st === 'done' || st === 'open') { data.status = st; data.closedAt = st === 'done' ? Date.now() : null; }
     data.rev++; data.updatedAt = Date.now(); data.by = DEMO.me.staffId;
     DEMO.cases.set(id, data); if (action) DEMO.logs.push(Object.assign({ caseId: id, at: Date.now(), sid: DEMO.me.staffId }, action));
@@ -1899,9 +2030,12 @@ function enterApp() {
     cases(up, gone) {
       // a stage move still being saved wins over an older copy arriving from the server (quick → → → clicks)
       up.forEach(c => { const p = S.pend && S.pend[c.id]; if (p) { c.stage = p.to; if (p.extra) Object.assign(c, p.extra); } S.cases.set(c.id, c); }); gone.forEach(id => S.cases.delete(id));
-      S.firstLoad = false; queueRender();
+      const first = S.firstLoad; S.firstLoad = false; queueRender();
+      if (first) setTimeout(mailSync, 300); // lab emails that came in while nobody had the app open
       if (S.openId && (up.some(c => c.id === S.openId) || gone.includes(S.openId))) refreshDrawer(gone.includes(S.openId));
     },
+    inbox() { mailSync(); },
+    mailbeat(list) { if (MAILS.state) MAILS.state.beats = list; if (S.view === 'admin') queueRender('team'); },
     roster(list) { S.roster = list; queueRender('team'); },
     members(list) { S.members = list; if (S.view === 'admin') queueRender('team'); },
     settings(s) { S.settings = Object.assign({ idleMin: 10 }, s || {}); if (S.view === 'admin') queueRender('team'); },
@@ -1914,12 +2048,14 @@ function enterApp() {
     const mins = Number(S.settings.idleMin) || 10;
     if (S.inApp && Date.now() - S.lastAct > mins * 60000) lockOut('Locked after ' + mins + ' minutes without activity.');
   }, 15000);
+  clearInterval(S.mailTimer); S.mailTimer = setInterval(mailSync, 180000); // also catches emails a case couldn't take yet
 }
 async function lockOut(msg) {
   if (!S.inApp) return;
-  S.inApp = false; clearInterval(S.idleTimer);
+  S.inApp = false; clearInterval(S.idleTimer); clearInterval(S.mailTimer);
   closeModal(); closeDrawer(true);
   S.cases = new Map(); S.closed = []; S.hist = null; S.histLoaded = false; S.members = []; S.roster = []; S.iprCache = {}; S.verList = null; S.delList = null; S.impList = null;
+  Object.assign(MAILS, { list: [], unread: [], pick: {}, sig: '', state: null, stateAt: 0, script: '' });
   try { await iprLink().disconnect(); } catch (e) { }
   $('#view').innerHTML = '';
   await B.signOut();
@@ -1935,7 +2071,7 @@ function activeRoster() { return S.roster.filter(r => r.active).sort((a, b) => (
 function openCases() { return Array.from(S.cases.values()).filter(c => !c.locked); }
 function matchesQ(c) {
   if (!S.q) return true; const q = S.q.toLowerCase();
-  return [c.patient, c.chart, c.detail, typeOf(c).l, stageLabel(c), staffName(c.assignee, c.assigneeName)].some(x => String(x || '').toLowerCase().includes(q));
+  return [c.patient, c.chart, c.detail, typeOf(c).l, stageLabel(c), staffName(c.assignee, c.assigneeName), c.labRef, c.tracking].some(x => String(x || '').toLowerCase().includes(q));
 }
 function dueBucket(c) {
   const d = dayDiff(dueDateOf(c)); if (d === null) return 'none';
@@ -2055,6 +2191,38 @@ function recFlag(c) {
   return miss.length ? '<span class="flag rec" title="Needed before it goes to the lab">Needs ' + esc(miss.map(x => x[2]).join(' + ')) + '</span>'
     : '<span class="flag ready" title="STL scan and CBCT on file">' + ic('done', 13) + 'Records on file</span>';
 }
+/* the lab put the case on hold (Partners' daily email); cleared by a later shipment or by hand */
+function isHeld(c) { return !!(c.labHold && typeof c.labHold === 'object'); }
+function holdText(c) { return 'On hold at the lab' + (c.labHold.date ? ' since ' + c.labHold.date : '') + (c.labHold.reason ? ': ' + c.labHold.reason : ''); }
+function holdFlag(c) { return isHeld(c) ? '<span class="flag rec" title="' + esc(holdText(c)) + '">Lab hold</span>' : ''; }
+
+/* ---------- chart note: the case entry written as a note to paste into the patient's chart ----------
+   No assistant names (Dr. A doesn't record who saw the patient in chart notes). Plain ASCII punctuation so it
+   pastes cleanly into Edge. */
+function chartNote(c) {
+  const t = typeOf(c), L = [], sub = { yes: 'initial set', no: 'refinement', mid: 'mid-course correction' }[c.initial] || '';
+  let what;
+  if (c.type === 'nla') what = (c.variant === 'finishing' ? 'finishing aligners' : 'in-house aligners') + ' (NL Lab)' + (sub ? ' - ' + sub : '');
+  else if (t.aligner) what = ({ oliv: 'Oliv', angel: 'Angel', invisalign: 'Invisalign', ulab: 'uLab' }[c.type] || t.l) + ' aligners' + (sub ? ' - ' + sub : '');
+  else if (c.type === 'insmile') what = 'InSmile braces' + (/^de[123]$/.test(c.initial || '') ? ' - digital enhancement ' + c.initial.slice(2) : c.initial === 'yes' ? ' - initial' : '');
+  else if (c.type === 'marpe') what = 'MARPE' + (c.lab ? ' (' + c.lab + ')' : '');
+  else if (c.type === 'appliance') what = ((c.appliances || []).join(', ') || c.detail || 'appliance') + (c.lab ? ' (' + c.lab + ')' : '');
+  else if (c.type === 'retainer') what = 'retainers' + (c.detail ? ': ' + c.detail : '');
+  else if (c.type === 'mouthguard') what = 'a mouthguard' + ((c.arches || []).length ? ' (' + c.arches.join('/') + ')' : '');
+  else if (c.type === 'models') what = 'study models';
+  else what = c.detail || t.l;
+  L.push((c.scanner ? 'Scanned with ' + c.scanner : 'Scanned') + ' for ' + what + '.');
+  if (t.flow === 'marpe') { const r = MARPE_RECORDS.filter(x => (c.records || []).includes(x[0])).map(x => x[1]); if (r.length) L.push('Records on file: ' + r.join(', ') + '.'); }
+  const end = s => String(s).trim().replace(/[.\s;]+$/, '') + '.';
+  if (c.instructions) L.push("Dr. A's instructions: " + end(c.instructions));
+  const rx = (c.extras || []).filter(x => x !== 'Mid-course correction');
+  if (rx.length) L.push(rx.map(end).join(' '));
+  if (c.teethNote) L.push(c.teethNote.split('\n').map(end).join(' '));
+  if (c.ipr && c.ipr.trim()) L.push('IPR & spacing: ' + c.ipr.trim());
+  if (c.cc && !/^(none|n\/a|na|-)$/i.test(c.cc.trim())) L.push("Pt's CC: " + end(c.cc));
+  if (c.shipToPatient) L.push('Aligners to be shipped to the patient.');
+  return L.join('\n').replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[–—]/g, '-');
+}
 /* stage progress: one mark per stage (done, current, to come); a stage group (In fabrication) sits in its own band */
 function progHTML(c, only) {
   const f = flowOf(c), si = stageIndex(c), keys = only || f.stages.map(s => s[0]);
@@ -2140,7 +2308,7 @@ function viewToday() {
   const right = '<div class="card"><div class="cardHd"><h3>Needs Dr. A</h3><span class="sub">' + dr.length + ' waiting</span></div><div class="cardBd">' +
     (dr.length ? dr.map(x => row(x)).join('') : '<div class="empty">Nothing waiting on Dr. A.</div>') + '</div></div>' +
     (noDate ? '<div class="card" style="margin-top:14px"><div class="cardBd" style="padding:14px 20px"><button class="linkBtn" data-act="tile" data-f="none">' + noDate + ' open case' + (noDate > 1 ? 's have' : ' has') + ' no lab or delivery date</button></div></div>' : '');
-  return h + cleanupCardHTML(all) + '<div class="twoCol"><div>' + left + '</div><div>' + right + '</div></div>';
+  return h + mailCardHTML() + cleanupCardHTML(all) + '<div class="twoCol"><div>' + left + '</div><div>' + right + '</div></div>';
 }
 
 /* ---------- Board ---------- */
@@ -2169,7 +2337,7 @@ function viewBoard() {
 }
 function kcard(c, last, steps) {
   const mixed = S.boardFlow === 'outside' || S.boardFlow === 'inhouse' || S.boardFlow === 'retainer';
-  const flags = shipFlag(c) + recFlag(c);
+  const flags = shipFlag(c) + recFlag(c) + holdFlag(c);
   return '<div class="kc" data-act="open" data-id="' + esc(c.id) + '" role="button" tabindex="0">' +
     '<div class="pt">' + esc(c.patient || '(no name)') + '</div>' + (c.detail || alN(c) ? '<div class="dt">' + esc(c.detail || '') + alignerMini(c) + '</div>' : '') +
     (flags ? '<div class="flags">' + flags + '</div>' : '') +
@@ -2283,7 +2451,7 @@ function viewList(base, showWho) {
       return '<tr class="click" data-act="open" data-id="' + esc(c.id) + '" tabindex="0"><td><div class="pt">' + esc(c.patient || '(no name)') + '</div><div class="small muted">' + esc(c.detail || '') + alignerMini(c) + '</div>' +
       (ship ? '<div class="flags onlyM">' + ship + '</div>' : '') + '</td>' +
       '<td class="hideM">' + typeBadge(c) + '</td><td class="stg">' + progHTML(c) + '<div class="small">' + esc(stageLabel(c)) + (g ? ' <span class="muted">· ' + esc(g.l.toLowerCase()) + ' ' + (g.stages.indexOf(c.stage) + 1) + '/' + g.stages.length + '</span>' : '') + '</div>' +
-      (recFlag(c) ? '<div class="flags">' + recFlag(c) + '</div>' : '') + '</td><td>' + dueChip(c) + '</td>' +
+      (recFlag(c) || holdFlag(c) ? '<div class="flags">' + recFlag(c) + holdFlag(c) + '</div>' : '') + '</td><td>' + dueChip(c) + '</td>' +
       '<td class="hideM shipCol">' + (ship ? '<div class="flags">' + ship + '</div>' : '') + '</td>' +
       '<td class="hideM">' + avatar(c) + ' <span class="small">' + esc(staffName(c.assignee, c.assigneeName)) + '</span></td><td class="hideM small muted">' + esc(c.updatedAt ? fmtWhen(c.updatedAt) : '') + '</td></tr>'; }).join('') +
     '</tbody></table></div><div class="small muted" style="margin-top:8px">' + list.length + ' case' + (list.length === 1 ? '' : 's') + '</div>';
@@ -2334,7 +2502,7 @@ function refreshDrawer(gone) {
 async function loadHistory(id) {
   try { const h = await B.caseLog(id); if (S.openId === id) { S.history = h; const el = $('#histBox'); if (el) el.innerHTML = historyHTML(findCase(id)); } } catch (e) { }
 }
-const FIELD_LABELS = { shipToPatient: 'ship to patient', records: 'records on file', zoomDate: 'Zoom call', zoomTime: 'Zoom call', tracking: 'tracking #', carrier: 'carrier', teeth: 'tooth chart', teethNote: 'tooth chart', chart: 'chart #', titanUrl: 'Titan link', initial: 'initial/refinement', appliances: 'appliance', lab: 'lab', arches: 'arch', retKinds: 'retainer type', goals: 'Dr. A’s instructions', instrPicks: 'Dr. A’s instructions', instrOther: 'Dr. A’s instructions', extras: 'extras', variant: 'case type', type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery date', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes' };
+const FIELD_LABELS = { labRef: 'lab case #', labHold: 'lab hold', planUrl: 'plan link', shipToPatient: 'ship to patient', records: 'records on file', zoomDate: 'Zoom call', zoomTime: 'Zoom call', tracking: 'tracking #', carrier: 'carrier', teeth: 'tooth chart', teethNote: 'tooth chart', chart: 'chart #', titanUrl: 'Titan link', initial: 'initial/refinement', appliances: 'appliance', lab: 'lab', arches: 'arch', retKinds: 'retainer type', goals: 'Dr. A’s instructions', instrPicks: 'Dr. A’s instructions', instrOther: 'Dr. A’s instructions', extras: 'extras', variant: 'case type', type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery date', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes' };
 function historyHTML(c) {
   const h = S.history; if (!h) return '<div class="small muted">Loading…</div>'; if (!h.length) return '<div class="small muted">No history yet.</div>';
   const stageName = k => { const s = c && flowOf(c).stages.find(x => x[0] === k); return s ? s[1] : k; };
@@ -2347,8 +2515,13 @@ function historyHTML(c) {
     else if (x.a === 'assign') t = x.to ? 'assigned it to ' + staffName(x.to, x.to) : 'unassigned it';
     else if (x.a === 'edit') t = 'changed ' + Array.from(new Set((x.fields || []).filter(f => f !== 'instructions').map(f => FIELD_LABELS[f] || f))).join(', ');
     else if (x.a === 'restore') t = 'restored an earlier version';
+    else if (x.a === 'email') { // applied from a lab email (mail.js); shown as the email, not the person whose app applied it
+      const f = Array.from(new Set((x.fields || []).filter(k => k !== 'mailIds').map(k => FIELD_LABELS[k] || k)));
+      t = (x.to ? 'moved it to ' + stageName(x.to) + (f.length ? ' and saved the ' : '') : f.length ? 'saved the ' : 'updated it') + f.join(', ');
+    }
     else t = x.a;
-    return '<div class="hist"><time>' + esc(fmtWhen(x.at)) + '</time><span><b>' + esc(firstName(staffName(x.sid, x.sid)) || x.sid) + '</b> ' + esc(t) + '</span></div>';
+    const who = x.a === 'email' ? ((MAIL_CO[x.co] || {}).l || 'Lab') + ' email' : (firstName(staffName(x.sid, x.sid)) || x.sid);
+    return '<div class="hist"><time>' + esc(fmtWhen(x.at)) + '</time><span><b>' + esc(who) + '</b> ' + esc(t) + '</span></div>';
   }).join('');
 }
 function renderDrawer() {
@@ -2374,9 +2547,11 @@ function renderDrawer() {
     '<div class="dBd"><div id="drawerNotice"></div>' +
     (done ? '<div class="notice info">Completed ' + esc(fmtWhen(c.closedAt)) + '</div>' : '') +
     (c.shipToPatient ? '<div class="notice ship" role="note">' + ic('truck', 18) + '<span><b>Ship to patient</b></span></div>' : '') +
+    (isHeld(c) ? '<div class="notice bad mpOld" role="note"><span><b>' + esc(holdText(c)) + '</b></span>' + (done ? '' : '<button class="btn btn-sec btn-sm" data-act="clearHold">Hold is sorted out</button>') + '</div>' : '') +
     // a MARPE entered (or imported) as an appliance before MARPE had its own steps: one click moves it over
     (!done && isOldMarpe(c) ? '<div class="notice info mpOld"><span>MARPE has its own steps now: records, lab, Zoom call, design approval, delivery.</span><button class="btn btn-sec btn-sm" data-act="toMarpe">Switch to MARPE steps</button></div>' : '') +
-    ((PORTALS[c.type] || []).length ? '<div class="portals">' + PORTALS[c.type].map(p => '<a class="btn btn-sec btn-sm" data-act="portal" href="' + esc(p.u) + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'Open ' + esc(p.l) + '</a>').join('') +
+    // the lab's own link to this patient's plan (from its email), then the company portals
+    ((PORTALS[c.type] || []).length || safeUrl(c.planUrl) ? '<div class="portals">' + (safeUrl(c.planUrl) && okLabLink(c.type, c.planUrl) ? '<a class="btn btn-pri btn-sm" data-act="portal" href="' + esc(safeUrl(c.planUrl)) + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'View treatment plan</a>' : '') + (PORTALS[c.type] || []).map(p => '<a class="btn btn-sec btn-sm" data-act="portal" href="' + esc(p.u) + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'Open ' + esc(p.l) + '</a>').join('') +
       '<span class="small muted">Opening a portal copies the patient’s name — paste it in the portal’s search.</span></div>' : '') +
     '<div class="sec" style="margin-top:4px"><h5>Stage</h5><div class="stepper">' + flow.stages.map(([k, l], i) => { const g = stageGroup(flow, k);
       return (g && g.stages[0] === k ? '<div class="stepGrp">' + esc(g.l) + '</div>' : '') +
@@ -2390,6 +2565,7 @@ function renderDrawer() {
     (c.dueDate && !c.deliveryDate ? kv('Due (older case)', esc(fmtDay(c.dueDate))) : '') +
     (String(c.tracking || '').trim() ? kv('Tracking', trackList(c).length ? trackList(c).map(t => '<span class="trkLine">' + esc(t.n) + (t.carrier ? ' <span class="muted small">' + esc(t.carrier) + '</span>' : '') +
       (t.url ? ' <a class="flag trk" href="' + esc(t.url) + '" target="_blank" rel="noopener noreferrer">' + ic('ext', 12) + 'Track</a>' : '') + '</span>').join('') : esc(c.tracking)) : '') +
+    (c.labRef ? kv(esc(refLabel(c)), esc(c.labRef)) : '') +
     kv('Assistant', esc(staffName(c.assistant, c.assistantName))) + kv('Scanner', esc(c.scanner)) + kv('Chart #', esc(c.chart || '')) +
     kv('Created', esc((c.createdAt ? fmtWhen(c.createdAt) : '') + (c.createdBy ? ' · ' + firstName(staffName(c.createdBy, '')) : ''))) + kv('Last update', esc(c.updatedAt ? fmtWhen(c.updatedAt) + (c.by ? ' · ' + firstName(staffName(c.by, '')) : '') : '')) +
     '</div></div>' +
@@ -2399,6 +2575,7 @@ function renderDrawer() {
     txt('Dr. A’s instructions', c.instructions) +
     (c.teeth && Object.keys(c.teeth).length ? '<div class="sec"><h5>Tooth chart</h5><div class="tc ro">' + toothChartHTML(c.teeth, true) + '</div><div class="txt" style="margin-top:8px">' + esc(teethSummary(c.teeth)) + '</div></div>' : '') +
     txt('Patient’s CC from last visit', c.cc) + txt('IPR & spacing', c.ipr) +
+    '<div class="sec"><h5 class="noteHd">Chart note<span class="small muted">to paste into the patient’s chart</span><span style="flex:1"></span><button class="btn btn-sec btn-sm" data-act="copyNote">Copy</button></h5><div class="txt" id="noteTxt">' + esc(chartNote(c)) + '</div></div>' +
     (typeOf(c).aligner && !done ? '<div class="sec" id="iprBox">' + iprBoxHTML(c) + '</div>' : '') + txt('Notes', c.notes) +
     '<div class="sec"><h5>Comments</h5>' + ((c.comments || []).map(x => '<div class="cmt"><span class="av">' + esc(initials(staffName(x.by, x.by))) + '</span><div><div class="w"><b>' + esc(firstName(staffName(x.by, x.by))) + '</b> · ' + esc(fmtWhen(x.at)) + '</div><div style="white-space:pre-wrap;overflow-wrap:anywhere">' + esc(x.text) + '</div></div></div>').join('') || '<div class="small muted" style="margin-bottom:6px">No comments yet.</div>') +
     (done ? '' : '<div class="field" style="margin-top:8px;margin-bottom:6px"><label for="cmtText" class="hidden">Add a comment</label><textarea id="cmtText" rows="2" placeholder="Add a comment…"></textarea></div><button class="btn btn-sec btn-sm" data-act="addCmt">Add comment</button>') + '</div>' +
@@ -2618,6 +2795,8 @@ function onClick(e) {
     case 'setStage': moveStage(S.openId, t.dataset.k); break;
     case 'labels': { const c = findCase(S.openId); if (c && alN(c)) labelsModal(c); break; }
     case 'rec': toggleRecord(t); break;
+    case 'copyNote': { const c = findCase(S.openId); if (c) copyText(chartNote(c)).then(ok => toast(ok ? 'Chart note copied — paste it into the patient’s chart' : 'Couldn’t copy — select the note and copy it', ok ? {} : { bad: true })); break; }
+    case 'clearHold': { const cid = S.openId; act(() => B.mutateCase(cid, d => { if (!d.labHold) return 'skip'; d.labHoldSeen = (d.labHold.date || '') + '|' + (d.labHold.reason || ''); d.labHold = ''; }, { a: 'edit', fields: ['labHold'] }), 'Lab hold cleared'); break; }
     case 'toMarpe': { const c = findCase(S.openId); if (c && isOldMarpe(c)) toMarpe(c); break; }
     case 'zoomSet': { const c = findCase(S.openId); if (c) zoomModal(c); break; }
     case 'shipF': S.f.ship = S.f.ship ? '' : '1'; renderView(); break;
@@ -2661,6 +2840,7 @@ function onClick(e) {
 }
 function onChange(e) {
   const t = e.target;
+  if (t.classList && t.classList.contains('mlSel')) { const x = MAILS.list[Number(t.dataset.mail)]; if (x) { MAILS.pick[x.ev.key] = t.value; const b = $('[data-act=mailApply][data-n="' + t.dataset.mail + '"]'); if (b) b.disabled = !t.value; } return; }
   if (t.matches && t.matches('input[data-old]')) { if (t.checked) S.oldOff.delete(t.dataset.old); else S.oldOff.add(t.dataset.old); syncOld(); return; }
   if (t.id === 'oldMonths') { S.oldMonths = Number(t.value) || 3; S.oldOff.clear(); renderView(); return; }
   if (t.id === 'oldNoDate') { S.oldNoDate = t.checked; renderView(); return; }
@@ -2717,8 +2897,8 @@ const LOGOS = {"angel":{"src":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAASw
    aligner type, lab, initial submission, Dr. A's instructions, extras).
    ===================================================================== */
 const PICK = {
-  // MARPE has its own case type and steps now (older appliance cases with it keep the choice through withSaved)
-  appliances: ['Herbst with Rollo Band', 'Space Closing Herbst', 'MARA', 'MSE', 'Rapid Palatal Expander (RPE)', 'D2 distalizer', 'Finger spring with no labial bow', 'Hawley retainers', 'Schwartz'],
+  // MARPE has its own case type and steps; tapping it here switches the case to the MARPE tile (wireCaseForm)
+  appliances: ['Herbst with Rollo Band', 'Space Closing Herbst', 'MARA', 'MSE', 'MARPE', 'Rapid Palatal Expander (RPE)', 'D2 distalizer', 'Finger spring with no labial bow', 'Hawley retainers', 'Schwartz'],
   labs: ['Specialty Orthodontic Lab', 'Partner Dental Studios', 'In-house (NL Lab)'],
   scanners: ['Allied Star', 'iTero'],
   extras: ['No IPR', 'No elastics'],
@@ -2865,7 +3045,7 @@ function submissionLabel(v) { return v === 'yes' ? 'Initial submission' : v === 
 /* fields added later save '' when empty (not [] or false), so older cases without them don't look edited */
 const FORM_KEYS = ['type', 'patient', 'chart', 'detail', 'stage', 'assignee', 'assistant', 'scanner', 'scanDate', 'labDate', 'deliveryDate', 'aligners',
   'initial', 'appliances', 'lab', 'arches', 'retKinds', 'goals', 'instrPicks', 'instrOther', 'instructions', 'extras', 'teeth', 'cc', 'ipr', 'notes', 'titanUrl', 'alU', 'alL',
-  'shipToPatient', 'records', 'zoomDate', 'zoomTime', 'tracking'];
+  'shipToPatient', 'records', 'zoomDate', 'zoomTime', 'tracking', 'labRef'];
 
 /* ---------- tooth chart (Palmer, 7s to 7s, same teeth as the IPR Tracker) ---------- */
 const TEETH_U = ['UR7', 'UR6', 'UR5', 'UR4', 'UR3', 'UR2', 'UR1', 'UL1', 'UL2', 'UL3', 'UL4', 'UL5', 'UL6', 'UL7'];
@@ -3122,6 +3302,7 @@ function caseFormHTML(c, isNew) {
     '<div class="field"><label for="cf-stage">Stage</label><select id="cf-stage">' + stages.map(([k, l]) => opt(k, l, (c.stage || (stages[0] || [])[0]) === k)).join('') + '</select></div></div>' +
     '<div class="grid2"><div class="field"><label for="cf-assignee">Assigned to</label><select id="cf-assignee">' + people(c.assignee, 'Unassigned') + '</select></div>' +
     '<div class="field"><label for="cf-tracking">Tracking #</label><input id="cf-tracking" autocomplete="off" spellcheck="false" placeholder="UPS, FedEx or USPS — becomes a Track button" value="' + esc(c.tracking || '') + '"></div></div>' +
+    '<div class="grid2"><div class="field"><label for="cf-labRef">Lab case # / patient ID</label><input id="cf-labRef" autocomplete="off" spellcheck="false" placeholder="The lab’s own number (lab emails fill it in)" value="' + esc(c.labRef || '') + '"></div><div></div></div>' +
     '<div class="field"><label for="cf-notes">Notes</label><textarea id="cf-notes" rows="2">' + esc(c.notes || '') + '</textarea></div></details>' +
     '<input type="hidden" id="cf-tile" value="' + esc(tile) + '"></div>';
 }
@@ -3129,7 +3310,7 @@ function pressed(root, g) { return $$('.pickRow[data-g="' + g + '"] .pick[aria-p
 function readCaseForm(root) {
   const tile = $('#cf-tile', root).value;
   const o = { type: INHOUSE_TILES.includes(tile) ? 'nla' : tile, variant: tile === 'finishing' ? 'finishing' : '' };
-  ['patient', 'chart', 'detail', 'stage', 'assignee', 'scanDate', 'labDate', 'deliveryDate', 'instrOther', 'cc', 'ipr', 'notes', 'titanUrl', 'zoomDate', 'zoomTime', 'tracking'].forEach(k => { const el = $('#cf-' + k, root); o[k] = el ? String(el.value || '').trim() : ''; });
+  ['patient', 'chart', 'detail', 'stage', 'assignee', 'scanDate', 'labDate', 'deliveryDate', 'instrOther', 'cc', 'ipr', 'notes', 'titanUrl', 'zoomDate', 'zoomTime', 'tracking', 'labRef'].forEach(k => { const el = $('#cf-' + k, root); o[k] = el ? String(el.value || '').trim() : ''; });
   o.assistant = pressed(root, 'assistant')[0] || '';
   o.scanner = pressed(root, 'scanner')[0] || '';
   const g0 = groupOfTile(tile);
@@ -3226,6 +3407,10 @@ function wireCaseForm(root, isNew) {
     const pk = e.target.closest('.pickRow[data-g] .pick');
     if (pk && root.contains(pk)) {
       const row = pk.closest('.pickRow'); const multi = row.dataset.multi === '1'; const was = pk.getAttribute('aria-pressed') === 'true';
+      // MARPE runs on its own steps: tapping it under Appliance switches the case to the MARPE tile
+      if (row.dataset.g === 'appliances' && pk.dataset.v === 'MARPE' && !was && $r('#cf-tile').value === 'appliance') {
+        const mt = $r('.tt[data-tile=marpe]'); if (mt) { mt.click(); toast('MARPE has its own steps, so this is now a MARPE case'); return; }
+      }
       if (multi) pk.setAttribute('aria-pressed', String(!was));
       else { $$('.pick', row).forEach(b => b.setAttribute('aria-pressed', 'false')); if (!was) pk.setAttribute('aria-pressed', 'true'); }
       if (row.dataset.g === 'lab') row.dataset.manual = '1';
@@ -3233,7 +3418,22 @@ function wireCaseForm(root, isNew) {
       refresh(false); return;
     }
     const ship = e.target.closest('#cf-ship');
-    if (ship && root.contains(ship)) { ship.setAttribute('aria-pressed', String(ship.getAttribute('aria-pressed') !== 'true')); return; }
+    if (ship && root.contains(ship)) {
+      const on = ship.getAttribute('aria-pressed') !== 'true'; ship.setAttribute('aria-pressed', String(on));
+      // shipped straight to the patient means no visit for IPR or attachments (Amir, 2 Oct 2026): switch both on,
+      // and off again with the switch unless someone changed them in between
+      const ipr = $r('.pickRow[data-g=extras] .pick[data-v="No IPR"]'), na = $r('#cf-noatt');
+      if (on) {
+        if (ipr && ipr.getAttribute('aria-pressed') !== 'true') { ipr.setAttribute('aria-pressed', 'true'); ipr.dataset.byShip = '1'; }
+        const t = readTeeth();
+        if (na && noattScopeOf(t) !== 'all') { ALL_TEETH.forEach(k => setMark(t, k, 'noatt', !isMissing(t, k))); drawTeeth(t); syncNoatt('all'); na.dataset.byShip = '1'; }
+      } else {
+        if (ipr && ipr.dataset.byShip === '1' && ipr.getAttribute('aria-pressed') === 'true') ipr.setAttribute('aria-pressed', 'false');
+        if (na && na.dataset.byShip === '1') { const t = readTeeth(); if (noattScopeOf(t) === 'all') { ALL_TEETH.forEach(k => setMark(t, k, 'noatt', false)); drawTeeth(t); $r('#cf-noattScope').hidden = true; syncNoatt(); } }
+        if (ipr) delete ipr.dataset.byShip; if (na) delete na.dataset.byShip;
+      }
+      return;
+    }
     const tool = e.target.closest('.tcTools [data-tool]');
     if (tool && root.contains(tool)) { $$('.tcTools [data-tool]', root).forEach(b => b.setAttribute('aria-checked', String(b === tool))); return; }
     const nat = e.target.closest('#cf-noatt');
@@ -3332,7 +3532,10 @@ function newCaseModal() {
         if (needs.includes('zoom')) return err('Add the Zoom call date to start it at Zoom call scheduled.');
         Object.assign(data, { comments: [], createdAt: Date.now(), createdBy: meSid() });
         busyBtn($('#ncSave', w), true, 'Saving…');
-        try { await B.createCase(data); closeModal(); toast('Case created for ' + data.patient); }
+        try {
+          await B.createCase(data); closeModal();
+          toast('Case created for ' + data.patient, { action: 'Copy chart note', ms: 12000, onAction: () => copyText(chartNote(data)).then(ok => toast(ok ? 'Chart note copied — paste it into the patient’s chart' : 'Couldn’t copy — open the case to copy its chart note', ok ? {} : { bad: true })) });
+        }
         catch (x) { busyBtn($('#ncSave', w), false); err(errText(x)); }
       };
     });
@@ -3528,7 +3731,7 @@ function viewAdmin() {
     '</div></div>';
   const defaults = '<div class="card" style="margin-top:18px"><div class="cardHd"><h3>Who gets new cases</h3><span class="sub">Default “assigned to” on the New case form</span></div><div class="cardBd"><div class="grid2">' +
     TYPES.filter(t => !t.legacy).map(t => '<div class="field"><label for="def-' + t.k + '">' + esc(t.l) + '</label><select id="def-' + t.k + '" data-act-def="' + t.k + '"><option value="">Automatic</option>' + activeRoster().map(r => '<option value="' + esc(r.sid) + '"' + (((S.settings.defaults || {})[t.k]) === r.sid ? ' selected' : '') + '>' + esc(r.name) + '</option>').join('') + '</select></div>').join('') +
-    '</div><div class="small muted">Automatic: Oliv, Angel, Invisalign and appliances go to Sarah; uLab, InSmile, retainers, mouthguards and study models to whoever creates the case; in-house aligners to Dr. A.</div></div></div>';
+    '</div><div class="small muted">Automatic: Oliv, Angel, Invisalign, appliances and MARPE go to Sarah; uLab, InSmile, retainers, mouthguards and study models to whoever creates the case; in-house aligners to Dr. A.</div></div></div>';
   const cost = v => v == null || v === '' ? '' : esc(String(v));
   const alCostCard = '<div class="card" style="margin-top:18px"><div class="cardHd"><h3>In-house aligner cost</h3><span class="sub">For the estimate on in-house cases</span></div><div class="cardBd"><div class="grid2">' +
     '<div class="field"><label for="alPer">Per aligner ($)</label><input id="alPer" type="number" min="0" step="0.01" inputmode="decimal" placeholder="e.g. 4.50" data-setting="alPerAligner" value="' + cost(S.settings.alPerAligner) + '"></div>' +
@@ -3536,7 +3739,7 @@ function viewAdmin() {
     '</div><div class="small muted">Per aligner: materials for one aligner (sheet, printed model, packaging). Per set: anything paid once per case, such as a setup fee. Estimate = per set + aligners × per aligner.</div></div></div>';
   const deleted = '<div class="card" style="margin-top:18px"><div class="cardHd"><h3>Deleted cases</h3><span class="sub">Last 90 days</span><span style="flex:1"></span><button class="btn btn-ghost" data-act="loadDeleted">' + ic('refresh', 15) + 'Load</button></div><div class="cardBd" id="delBox"><div class="small muted">Deleted cases can be brought back. Click Load.</div></div></div>';
   const actv = '<div class="card" style="margin-top:18px"><div class="cardHd"><h3>Recent activity</h3><span class="sub">Last 7 days</span><span style="flex:1"></span><button class="btn btn-ghost" data-act="loadActivity">' + ic('refresh', 15) + 'Load</button></div><div class="cardBd" id="actBox"><div class="small muted">Shows who changed what. Click Load.</div></div></div>';
-  return '<div class="adminGrid"><div>' + team + defaults + alCostCard + '</div><div>' + sec + actv + deleted + '</div></div>';
+  return '<div class="adminGrid"><div>' + team + defaults + alCostCard + '</div><div>' + sec + mailAdminHTML() + actv + deleted + '</div></div>';
 }
 function viewImport() {
   return '<div class="adminGrid"><div><div class="card"><div class="cardHd"><h3>Import from Asana</h3></div><div class="cardBd">' +
@@ -3639,8 +3842,8 @@ const ADMIN_ACTS = {
       const list = await B.activity(7); const box = $('#actBox'); if (!box) return;
       if (!list.length) { box.innerHTML = '<div class="small muted">No activity in the last 7 days.</div>'; return; }
       box.innerHTML = list.filter(x => x.a !== 'rekey').slice(0, 80).map(x => {
-        const c = S.cases.get(x.caseId); const who = firstName(staffName(x.sid, x.sid));
-        const what = { create: 'created', import: 'imported', stage: 'moved', comment: 'commented on', close: 'completed', reopen: 'reopened', assign: 'reassigned', edit: 'edited', restore: 'restored', delete: 'deleted', save: 'saved', rekey: 're-sealed' }[x.a] || x.a;
+        const c = S.cases.get(x.caseId); const who = x.a === 'email' ? ((MAIL_CO[x.co] || {}).l || 'Lab') + ' email' : firstName(staffName(x.sid, x.sid));
+        const what = { create: 'created', import: 'imported', stage: 'moved', comment: 'commented on', close: 'completed', reopen: 'reopened', assign: 'reassigned', edit: 'edited', restore: 'restored', delete: 'deleted', save: 'saved', rekey: 're-sealed', email: 'updated' }[x.a] || x.a;
         return '<div class="hist"><time>' + esc(fmtWhen(x.at)) + '</time><span><b>' + esc(who) + '</b> ' + esc(what) + ' ' + (c ? '<button class="linkBtn" data-act="open" data-id="' + esc(c.id) + '">' + esc(c.patient) + '</button>' : 'a completed case') + '</span></div>';
       }).join('');
     } catch (x) { const box = $('#actBox'); if (box) box.innerHTML = '<div class="small" style="color:var(--coral-700)">' + esc(errText(x)) + '</div>'; }
@@ -3784,6 +3987,344 @@ async function rotateWithProgress(title) {
     queueRender();
   } catch (x) { closeModal(); toast('Key change stopped: ' + errText(x) + '. Run “Change office key now” again.', { bad: true, ms: 8000 }); }
 }
+
+/* =====================================================================
+   Lab emails → case updates (Amir, 2 Oct 2026: "just like how I had it set up on Asana")
+   A Google Apps Script in the office's Gmail accounts (nlo-cases-mail.gs, set up from Team & security)
+   forwards lab emails, each sealed to the office inbox key: the script can add to /inbox but read nothing.
+   Whenever someone has the app open, the app opens them here, reads each patient's update (one email can
+   name several), finds the case — the company's own case # saved on it, else the name among that company's
+   open cases — and applies it: moves the case forward (never back), saves the tracking #, the lab's case #
+   and the plan link, notes a lab hold. Updates it can't place wait on Today for someone to pick the case.
+   Reading the emails happens here, not in the script, so a new lab format only needs an app update.
+   ===================================================================== */
+const MAIL_SENDERS = ['ulabsystems.com', 'partnersdentalstudio.com', 'olivortho.com', 'angelaligner.com', 'angelalign.com'];
+const MAIL_CO = {
+  ulab: { l: 'uLab', types: ['ulab'], hosts: ['ulabsystems.com', 'udesign.cloud'] },
+  partners: { l: 'Partners Dental Studio', types: ['appliance', 'marpe'], lab: 'Partner Dental Studios', hosts: ['partnersdentalstudio.com'] },
+  oliv: { l: 'Oliv', types: ['oliv'], hosts: ['olivortho.com'] },
+  angel: { l: 'Angel', types: ['angel'], hosts: ['angelalign.com', 'angelaligner.com'] }
+};
+const MAIL_KIND = { received: 'Received by the lab', plan: 'Ready for Dr. A’s review', shipped: 'Shipped', delivered: 'Delivered', hold: 'On hold at the lab' };
+/* what the company calls its own number for the case */
+function refLabel(c) {
+  const t = c.type;
+  if (t === 'oliv') return 'Oliv case #'; if (t === 'angel') return 'Angel patient #'; if (t === 'ulab') return 'uLab order #';
+  if (t === 'invisalign') return 'Invisalign patient #'; if (t === 'insmile') return 'InSmile case #';
+  if (t === 'marpe' || c.lab === 'Partner Dental Studios') return 'Partners case #'; if (c.lab === 'Specialty Orthodontic Lab') return 'Specialty case #';
+  return 'Lab case #';
+}
+
+/* ---------- reading an email ---------- */
+function decodeEnt(s) {
+  const cp = n => { try { return String.fromCodePoint(n); } catch (e) { return ' '; } };
+  return String(s || '').replace(/&nbsp;/gi, ' ').replace(/&#(\d+);/g, (m, n) => cp(+n)).replace(/&#x([0-9a-f]+);/gi, (m, n) => cp(parseInt(n, 16)))
+    .replace(/&lt;/gi, '<').replace(/&gt;/gi, '>').replace(/&quot;/gi, '"').replace(/&#39;|&apos;/gi, "'").replace(/&amp;/gi, '&');
+}
+/* HTML → lines; a table row becomes one line with its cells kept apart */
+function htmlRows(html) {
+  const s = String(html || '').replace(/[\r\n]+/g, ' ').replace(/<(script|style)\b[\s\S]*?<\/\1\s*>/gi, ' ')
+    .replace(/<\/(td|th)\s*>/gi, '\u0001').replace(/<\/tr\s*>/gi, '\n').replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|h[1-6]|table|li|caption|thead|tbody)\s*>/gi, '\n').replace(/<[^>]*>/g, '');
+  return decodeEnt(s).split('\n').map(line => {
+    const cells = line.split('\u0001').map(c => c.replace(/\s+/g, ' ').trim());
+    while (cells.length > 1 && cells[cells.length - 1] === '') cells.pop();
+    return cells;
+  }).filter(cells => cells.some(Boolean));
+}
+function htmlLinks(html) {
+  const out = [], re = /<a\b[^>]*?href\s*=\s*"([^"]*)"[^>]*>([\s\S]*?)<\/a\s*>/gi; let x;
+  while ((x = re.exec(String(html || '')))) out.push({ href: decodeEnt(x[1]).trim(), text: decodeEnt(x[2].replace(/<[^>]*>/g, ' ')).replace(/\s+/g, ' ').trim() });
+  return out;
+}
+function linkFor(html, re) { const l = htmlLinks(html).find(x => re.test(x.text)); return l ? l.href : ''; }
+function mailText(m) { const t = String(m.text || '').replace(/\r/g, ''); return t.trim() ? t : htmlRows(m.html).map(r => r.join(' ')).join('\n'); }
+function cleanName(s) {
+  return String(s || '').replace(/[​ ]/g, ' ').replace(/\s+(click here|tracking|order number|patient name|case number)\b.*$/i, '')
+    .replace(/\s+/g, ' ').replace(/^[\s"'“”(:,.-]+|[\s"'“”):,-]+$/g, '').slice(0, 80);
+}
+/* uLab: "Your uLab order X has shipped." — Order Number / Patient Name / tracking #, maybe several orders */
+function parseUlab(m) {
+  const t = mailText(m), out = [];
+  if (!/shipped|on the way/i.test((m.subject || '') + ' ' + t)) return out;
+  t.split(/Order Number\s*:/i).slice(1).forEach(p => {
+    const name = (p.match(/Patient Name\s*:\s*([^\n]+)/i) || [])[1];
+    if (name) out.push({ kind: 'shipped', name, ref: (p.match(/^\s*([A-Za-z0-9-]{2,30})/) || [])[1] || '', tracking: (p.match(/track your order\s*:?\s*([A-Za-z0-9]{8,34})/i) || [])[1] || '' });
+  });
+  return out;
+}
+/* Partners Dental Studio: the daily summary — tables of cases received, shipped (tracking + carrier) and on hold */
+function parsePartners(m) {
+  const out = []; let sec = '', cols = null;
+  htmlRows(m.html).forEach(r => {
+    const line = r.join(' ');
+    const head = r.length === 1 && /^(no\s+)?cases\s+(received|shipped|(?:placed\s+)?on hold)/i.exec(line);
+    if (head) { sec = head[1] ? '' : /received/i.test(head[2]) ? 'received' : /shipped/i.test(head[2]) ? 'shipped' : 'hold'; cols = null; return; }
+    if (/^patient name$/i.test(r[0] || '')) { cols = r.map(c => c.toLowerCase()); return; }
+    if (!sec || !cols || r.length < 2) return;
+    const get = k => { const i = cols.findIndex(c => c.indexOf(k) >= 0); return i >= 0 ? String(r[i] || '').trim() : ''; };
+    const name = get('patient'); if (!name || /^patient name$/i.test(name)) return;
+    out.push({ kind: sec, name, ref: get('case'), invoice: get('invoice'), tracking: get('tracking').replace(/\s+/g, ''), carrier: get('carrier'), holdDate: get('hold date'), reason: get('reason') });
+  });
+  return out;
+}
+/* Oliv: "Oliv™: F. Last (123456) setup is ready"; "The aligners for F. Last, case #123456 (…) have been delivered/shipped" */
+function parseOliv(m) {
+  const s = m.subject || '', t = mailText(m), out = [];
+  const plan = /:\s*(.+?)\s*\((\d{3,})\)\s*setup is ready/i.exec(s);
+  if (plan) out.push({ kind: 'plan', name: plan[1], ref: plan[2], planUrl: linkFor(m.html, /treatment plan/i) });
+  const re = /aligners for\s+(.+?),\s*case\s*#\s*(\d{3,})[^.\n]*?have\s+(?:been\s+)?(delivered|shipped)/gi; let y;
+  while ((y = re.exec(t))) out.push({ kind: y[3].toLowerCase(), name: y[1], ref: y[2], trackUrl: linkFor(m.html, /track/i) });
+  return out;
+}
+/* Angel (iOrtho): "(patient:Full Name #ID ) is ready for review"; "Your case for patient Full Name #ID has shipped" */
+function parseAngel(m) {
+  const t = mailText(m), out = []; let y;
+  const plan = /patient\s*:\s*([^#()\n]+?)\s*#\s*([A-Za-z0-9]{3,})\s*\)?[^.\n]*?ready for review/gi;
+  while ((y = plan.exec(t))) out.push({ kind: 'plan', name: y[1], ref: y[2] });
+  const ship = /case for patient\s+([^#\n]+?)\s*#\s*([A-Za-z0-9]{3,})\s+has shipped/gi;
+  while ((y = ship.exec(t))) out.push({ kind: 'shipped', name: y[1], ref: y[2] });
+  return out;
+}
+const MAIL_PARSERS = [
+  { co: 'ulab', re: /ulabsystems\.com/i, fn: parseUlab }, { co: 'partners', re: /partnersdentalstudio\.com/i, fn: parsePartners },
+  { co: 'oliv', re: /olivortho\.com/i, fn: parseOliv }, { co: 'angel', re: /angelalign(er)?\.com/i, fn: parseAngel }
+];
+/* every patient update in one email: [{ co, kind, name, nameKind, ref, tracking, … }] */
+function mailParse(mail) {
+  const from = String((mail && mail.from) || ''), addr = (/<([^>]+)>/.exec(from) || [0, from])[1];
+  const p = MAIL_PARSERS.find(x => x.re.test(addr)); if (!p) return [];
+  let evs = []; try { evs = p.fn(mail) || []; } catch (e) { evs = []; }
+  return evs.map(e => Object.assign({}, e, { co: p.co, name: cleanName(e.name) })).filter(e => e.name).map(e => Object.assign(e, { nameKind: nameKindOf(e.name) }));
+}
+
+/* ---------- names ---------- */
+function nameTokens(s) {
+  s = String(s || '');
+  if (/,/.test(s)) { const i = s.indexOf(','); s = s.slice(i + 1) + ' ' + s.slice(0, i); } // "Last, First"
+  return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/['’-]/g, '').replace(/[^a-z\s]/g, ' ').split(/\s+/).filter(Boolean);
+}
+/* "O. Brightwater" (first initial), "Priya Q." (last initial) or a full name */
+function nameKindOf(n) { const t = nameTokens(n); return t.length >= 2 && t[0].length === 1 ? 'initialLast' : t.length >= 2 && t[t.length - 1].length === 1 ? 'firstInitial' : 'full'; }
+function nameMatches(name, kind, patient) {
+  const e = nameTokens(name), p = nameTokens(patient); if (e.length < 2 || p.length < 2) return false;
+  const pf = p[0], pl = p[p.length - 1], ef = e[0], el = e[e.length - 1];
+  if (kind === 'initialLast') return pf[0] === ef && (pl === el || p.slice(1).join('') === e.slice(1).join(''));
+  if (kind === 'firstInitial') return pf === ef && pl[0] === el;
+  return e.join(' ') === p.join(' ') || (pf === ef && pl === el); // middle names don't matter
+}
+const normRef = s => String(s || '').replace(/[\s#-]+/g, '').toUpperCase();
+
+/* ---------- links ---------- */
+function hostOk(url, hosts) { try { const u = new URL(url); const h = u.hostname.toLowerCase(); return u.protocol === 'https:' && hosts.some(d => h === d || h.endsWith('.' + d)); } catch (e) { return false; } }
+function okLabLink(co, url) { return !!(MAIL_CO[co] && hostOk(url, MAIL_CO[co].hosts)); }
+/* a carrier's tracking link (UPS, FedEx, USPS, DHL) → the tracking number in it */
+function trackFromUrl(url) {
+  if (!url || !hostOk(url, ['ups.com', 'fedex.com', 'usps.com', 'dhl.com'])) return '';
+  try { for (const [k, v] of new URL(url).searchParams) if (/^(tracknum|trknbr|tracknumbers?|tlabels|qtc_tlabels1|tracking-?id|awb|trackingnumber|inquirylabels?)$/i.test(k)) { const n = String(v).split(/[\s,]+/)[0]; if (trackInfo(n)) return n; } } catch (e) { }
+  return '';
+}
+
+/* ---------- finding the case ---------- */
+function mailMatch(ev, open, closed) {
+  const co = MAIL_CO[ev.co]; if (!co) return { none: true };
+  const mine = c => !c.locked && co.types.includes(c.type) && (!co.lab || !c.lab || c.lab === co.lab);
+  const ref = normRef(ev.ref);
+  // 1. the company's own case # saved on a case (from an earlier email, or typed in)
+  if (ref) { const byRef = open.filter(c => mine(c) && normRef(c.labRef) === ref); if (byRef.length === 1) return { c: byRef[0] }; }
+  // 2. the name among this company's open cases (a different saved case # rules a case out)
+  const cands = open.filter(c => mine(c) && nameMatches(ev.name, ev.nameKind, c.patient) && !(ref && c.labRef && normRef(c.labRef) !== ref));
+  if (cands.length === 1) return { c: cands[0] };
+  if (cands.length > 1) { const fwd = cands.filter(c => !!mailEffect(c, ev).to); return fwd.length === 1 ? { c: fwd[0] } : { many: cands }; }
+  // 3. about a case already completed: nothing to do (a shipment notice can trail the visit by days)
+  const recent = ev.kind === 'shipped' || ev.kind === 'delivered' || ev.kind === 'hold' ? 14 * 864e5 : 0;
+  if (closed.some(c => mine(c) && ((ref && normRef(c.labRef) === ref) || nameMatches(ev.name, ev.nameKind, c.patient)) && (c.closedAt || 0) >= (ev.at || 0) - recent)) return { done: true };
+  return { none: true };
+}
+/* what an update does to a case: the step it moves to (forward only) and the fields it fills in */
+function mailEffect(c, ev) {
+  const fl = typeOf(c).flow, keys = flowOf(c).stages.map(s => s[0]), si = keys.indexOf(c.stage), at = k => keys.indexOf(k);
+  const fwd = k => keys.includes(k) && at(k) > si ? k : null, set = {}; let to = null;
+  if (ev.kind === 'plan') to = fwd('dra');
+  else if (ev.kind === 'received') to = fl === 'appliance' ? fwd('mfg') : fl === 'marpe' ? fwd('submitted') : null;
+  else if (ev.kind === 'shipped') to = fl === 'marpe' ? fwd('approved') : fwd('shipped');
+  else if (ev.kind === 'delivered') to = fwd('arrived');
+  if (ev.kind === 'hold') {
+    const late = si >= (fl === 'marpe' ? at('delivered') : at('shipped')), h = { date: ev.holdDate || '', reason: ev.reason || '' };
+    if (si >= 0 && !late && c.labHoldSeen !== h.date + '|' + h.reason && !(c.labHold && c.labHold.date === h.date && c.labHold.reason === h.reason)) set.labHold = h;
+  } else if (c.labHold && (ev.kind === 'shipped' || ev.kind === 'delivered')) set.labHold = '';
+  if (ev.ref && !c.labRef) set.labRef = String(ev.ref).slice(0, 40);
+  const tk = trackInfo(ev.tracking) || trackInfo(trackFromUrl(ev.trackUrl));
+  if (tk && !trackList(c).some(t => t.n === tk.n)) { set.tracking = (String(c.tracking || '').trim() + ' ' + tk.n).trim(); if (!tk.carrier && ev.carrier && !c.carrier) set.carrier = String(ev.carrier).slice(0, 20); }
+  if (ev.planUrl && okLabLink(ev.co, ev.planUrl) && c.planUrl !== ev.planUrl) set.planUrl = ev.planUrl;
+  return { to, set };
+}
+/* apply one update to a case (in a transaction; an update already applied, or one that changes nothing, is skipped) */
+async function mailApply(ev, c) {
+  const eff = mailEffect(c, ev);
+  await B.mutateCase(c.id, d => {
+    if ((d.mailIds || []).includes(ev.key)) return 'skip';
+    const e2 = mailEffect(Object.assign({}, d, { id: c.id }), ev);
+    if (!e2.to && !Object.keys(e2.set).length) return 'skip';
+    if (e2.to) d.stage = e2.to;
+    Object.assign(d, e2.set);
+    d.mailIds = (d.mailIds || []).concat(ev.key).slice(-40);
+  }, { a: 'email', co: ev.co, kind: ev.kind, from: c.stage, to: eff.to || null, fields: Object.keys(eff.set) });
+  return 'ok';
+}
+
+/* ---------- keeping up with the inbox ---------- */
+const MAILS = { list: [], unread: [], pick: {}, sig: '', busy: false, again: false, state: null, stateAt: 0 };
+async function histReady() { ensureHist(); for (let i = 0; i < 100 && !S.histLoaded && S.inApp; i++) await new Promise(r => setTimeout(r, 100)); }
+async function mailSync() {
+  if (!S.inApp || !B.inboxLoad || S.firstLoad) return;
+  if (MAILS.busy) { MAILS.again = true; return; }
+  MAILS.busy = true;
+  try {
+    const docs = await B.inboxLoad(); if (!S.inApp) return;
+    if (docs.length) await histReady();
+    const open = openCases(), closed = (S.hist || []).concat(S.closed || []), list = [], unread = [];
+    for (const d of docs) {
+      if (!d.mail) { unread.push({ d, bad: true }); continue; }
+      const evs = mailParse(d.mail);
+      if (!evs.length) { // not a format the app reads yet: kept a month, so a newer app can still read it
+        if (Date.now() - (d.at || Date.now()) > 30 * 864e5) await B.inboxDelete(d.id).catch(() => { }); else unread.push({ d });
+        continue;
+      }
+      const done = new Set(d.done || []), add = [], todo = [];
+      for (let i = 0; i < evs.length; i++) {
+        if (done.has(i)) continue;
+        const ev = Object.assign(evs[i], { key: d.id + ':' + i, at: d.mail.date || d.at || Date.now() });
+        const m = mailMatch(ev, open, closed);
+        if (m.c || m.done) todo.push({ i, ev, m }); else list.push({ d, i, ev, cands: m.many || [] });
+      }
+      // what can be applied is applied by one open app (the one that claims the email); the rest wait on Today
+      if (todo.length && await B.inboxClaim(d.id)) {
+        for (const { i, ev, m } of todo) {
+          let ok = !!m.done; if (m.c) { try { await mailApply(ev, m.c); ok = true; } catch (e) { ok = e && e.code === 'skip'; } }
+          if (ok) { done.add(i); add.push(i); } else list.push({ d, i, ev, cands: [m.c] });
+        }
+        if (done.size >= evs.length) await B.inboxDelete(d.id).catch(() => { });
+        else if (add.length) await B.inboxDone(d.id, add).catch(() => { });
+      }
+    }
+    MAILS.list = list; MAILS.unread = unread;
+    const sig = list.map(x => x.ev.key).join() + '|' + unread.length;
+    if (sig !== MAILS.sig) { MAILS.sig = sig; if (S.view === 'today' || S.view === 'admin') queueRender('team'); }
+    if (isOwner()) mailOwnerChecks();
+  } catch (e) { if (window.console) console.warn('email updates:', e && e.message); }
+  finally { MAILS.busy = false; if (MAILS.again) { MAILS.again = false; setTimeout(mailSync, 400); } }
+}
+/* the owner's app keeps the script's sender list current (so a new lab doesn't need a new script) */
+async function mailOwnerChecks() {
+  try {
+    const st = MAILS.state || await B.mailState(); MAILS.state = st;
+    if (st && st.pub && JSON.stringify(st.pub.senders || []) !== JSON.stringify(MAIL_SENDERS)) { await B.mailSenders(MAIL_SENDERS); MAILS.state = null; }
+  } catch (e) { }
+}
+async function mailResolve(n, how) {
+  const x = MAILS.list[n]; if (!x) return;
+  if (how === 'apply') {
+    const c = findCase(MAILS.pick[x.ev.key] || (x.cands.length === 1 ? x.cands[0].id : '')); if (!c) return;
+    try { await mailApply(x.ev, c); toast('Applied to ' + (c.patient || 'the case')); }
+    catch (e) { if (!(e && e.code === 'skip')) { toast(errText(e), { bad: true }); return; } toast('Nothing to change on ' + (c.patient || 'that case')); }
+    if (!c.labRef && x.ev.ref) { /* saved by mailApply: later emails for this patient match on it */ }
+  }
+  MAILS.list = MAILS.list.filter(y => y !== x); MAILS.sig = ''; queueRender();
+  try { await B.inboxDone(x.d.id, [x.i]); } catch (e) { }
+  mailSync();
+}
+
+/* ---------- Today: updates waiting for a case ---------- */
+function mailCardHTML() {
+  const L = MAILS.list; if (!L.length) return '';
+  const open = openCases().filter(c => !c.locked).sort((a, b) => String(a.patient || '').localeCompare(String(b.patient || '')));
+  return '<div class="card mailCard" id="mailCard"><div class="cardHd"><h3>Email updates</h3><span class="sub">' + L.length + ' from lab emails need a case — pick the one each belongs to</span></div><div class="cardBd">' +
+    L.map((x, n) => {
+      const ev = x.ev, co = MAIL_CO[ev.co], pick = MAILS.pick[ev.key] || (x.cands.length === 1 ? x.cands[0].id : '');
+      const opt = c => '<option value="' + esc(c.id) + '"' + (pick === c.id ? ' selected' : '') + '>' + esc((c.patient || '(no name)') + ' · ' + typeOf(c).l + ' · ' + stageLabel(c)) + '</option>';
+      const mine = open.filter(c => co.types.includes(c.type)), rest = open.filter(c => !co.types.includes(c.type));
+      return '<div class="mlRow"><div class="mlWhat"><span class="badge ' + TYPE[co.types[0]].cls + '">' + esc(co.l) + '</span><b>' + esc(MAIL_KIND[ev.kind] || ev.kind) + '</b>' +
+        '<span class="mlName">' + esc(ev.name) + '</span>' + (ev.ref ? '<span class="small muted">#' + esc(ev.ref) + '</span>' : '') +
+        (ev.tracking ? '<span class="small muted">' + esc((trackInfo(ev.tracking) || {}).carrier || 'tracking') + ' ' + esc(ev.tracking) + '</span>' : '') +
+        (ev.reason ? '<span class="small" style="color:var(--coral-700)">' + esc(ev.reason) + '</span>' : '') +
+        '<span class="small muted">' + esc(fmtWhen(ev.at)) + '</span>' + (x.cands.length > 1 ? '<span class="small" style="color:var(--amber-700)">' + x.cands.length + ' possible cases</span>' : '') + '</div>' +
+        '<div class="mlDo"><select class="inp mlSel" data-mail="' + n + '" aria-label="Case for this update"><option value="">Pick the case…</option>' +
+        (x.cands.length > 1 ? '<optgroup label="Possible matches">' + x.cands.map(opt).join('') + '</optgroup>' : '') +
+        (mine.length ? '<optgroup label="' + esc(co.l) + ' cases">' + mine.map(opt).join('') + '</optgroup>' : '') +
+        (rest.length ? '<optgroup label="Other open cases">' + rest.map(opt).join('') + '</optgroup>' : '') + '</select>' +
+        '<button class="btn btn-mint btn-sm" data-act="mailApply" data-n="' + n + '"' + (pick ? '' : ' disabled') + '>Apply</button>' +
+        '<button class="btn btn-ghost btn-sm" data-act="mailSkip" data-n="' + n + '" title="Nothing to do for this one">Dismiss</button></div></div>';
+    }).join('') + '</div></div>';
+}
+
+/* ---------- Team & security: set up the script, see each mailbox's last check ---------- */
+function mailAdminHTML() {
+  const st = MAILS.state;
+  if (!st || Date.now() - MAILS.stateAt > 60000) loadMailState();
+  const head = '<div class="card" style="margin-top:18px" id="mailAdmin"><div class="cardHd"><h3>Email updates</h3><span class="sub">Lab emails update cases by themselves</span></div><div class="cardBd">';
+  if (!st) return head + '<div class="small muted">Loading…</div></div></div>';
+  const how = '<p class="small" style="margin-bottom:10px">A small script in each Gmail account that gets lab emails (yours and the records inbox) sends them — uLab, Partners Dental Studio, Oliv, Angel and anything labeled “Lab Update” — to this app, locked so only the app can read them. When anyone has NLO Cases open, cases move on by themselves: plan ready → Dr. A action, shipped → Shipped with the tracking #, delivered → Arrived. Anything it can’t place shows on Today.</p>';
+  if (!st.on) return head + how + '<button class="btn btn-act btn-sm" data-act="mailSetup">' + ic('plus', 15) + 'Set up email updates</button></div></div>';
+  const beats = (st.beats || []).slice().sort((a, b) => (b.at || 0) - (a.at || 0));
+  const box = b => { const late = !b.at || Date.now() - b.at > 40 * 60000;
+    return '<div class="mlBeat"><span class="dot ' + (b.err ? 'bad' : late ? 'busy' : 'ok') + '"></span><b>' + esc(b.box) + '</b><span class="small muted">checked ' + esc(b.at ? fmtWhen(b.at) : '—') + (b.sent ? ' · ' + b.sent + ' sent' : '') + (b.ver ? ' · script v' + esc(b.ver) : '') + '</span>' +
+      (b.err ? '<div class="small" style="color:var(--coral-700);flex-basis:100%">Last problem: ' + esc(b.err) + '</div>' : late ? '<div class="small" style="color:var(--amber-700);flex-basis:100%">No check in the last 40 minutes. Is the script still on?</div>' : '') + '</div>'; };
+  const unread = MAILS.unread.filter(x => !x.bad).length;
+  return head + how +
+    (beats.length ? beats.map(box).join('') : '<div class="notice">No mailbox has checked in yet. Get the script and run <b>setup</b> in each Gmail account.</div>') +
+    (unread ? '<div class="small muted" style="margin:8px 0">' + unread + ' lab email' + (unread > 1 ? 's' : '') + ' from a format the app doesn’t read yet (kept 30 days): ' + MAILS.unread.filter(x => !x.bad).slice(0, 5).map(x => esc(String(x.d.mail.from || '').replace(/<.*$/, '').trim() || 'unknown sender')).join(', ') + '</div>' : '') +
+    '<div class="mlBtns"><button class="btn btn-sec btn-sm" data-act="mailScript">' + ic('download', 15) + 'Get the script</button><button class="btn btn-ghost btn-sm" data-act="mailOff" style="color:var(--coral-700)">Turn off</button></div></div></div>';
+}
+async function loadMailState() {
+  if (MAILS.stateLoading || !B.mailState) return; MAILS.stateLoading = true;
+  try { MAILS.state = await B.mailState(); MAILS.stateAt = Date.now(); } catch (e) { MAILS.state = { on: false, beats: [], err: errText(e) }; MAILS.stateAt = Date.now(); }
+  MAILS.stateLoading = false; if (S.view === 'admin') queueRender('team');
+}
+/* the script with this office's robot login filled in */
+async function mailScriptText(creds) {
+  const r = await fetch('nlo-cases-mail.gs', { cache: 'no-store' }); if (!r.ok) throw new Error('Could not load the script (' + r.status + ')');
+  const src = await r.text(), cfg = B === DEMO ? { demo: true } : FB.cfg;
+  const conf = { apiKey: cfg.apiKey || 'demo', projectId: cfg.projectId || 'demo', botEmail: creds.email, botPassword: creds.password };
+  if (FB.emu) { conf.authBase = 'http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1'; conf.fsBase = 'http://127.0.0.1:8080/v1'; }
+  if (src.indexOf('/*NLO_CONFIG*/null') < 0) throw new Error('This copy of the script is missing its settings line');
+  return src.replace('/*NLO_CONFIG*/null', JSON.stringify(conf));
+}
+async function mailScriptModal(creds) {
+  let text = ''; try { text = await mailScriptText(creds); } catch (e) { toast(errText(e), { bad: true }); return; }
+  MAILS.script = text;
+  openModal('<h3>Email updates script</h3><div class="lsub">Do this once in each Gmail account that gets lab emails — yours and the records inbox. About 3 minutes each.</div>' +
+    '<ol class="mlSteps"><li>Signed in to that Gmail account, open <b>script.google.com</b> and click <b>New project</b>.</li>' +
+    '<li>Click <b>Copy the script</b> below. In the project, select all of the sample code, paste over it, and click <b>Save</b> (the disk icon).</li>' +
+    '<li>In the top bar, pick <b>setup</b> next to Run and click <b>Run</b>. Click <b>Review permissions</b>, choose the account, then <b>Allow</b>. If Google says it hasn’t verified the app: <b>Advanced → Go to the project</b>. It’s your own script.</li>' +
+    '<li>Back here, the account appears under Email updates with its first check. From then on it checks every 10 minutes.</li></ol>' +
+    '<p class="small muted">The script holds the email robot’s login, which can only add sealed emails to this app. Don’t share it. If it ever leaks, use <b>Turn off</b>, then set up again.</p>' +
+    '<textarea id="mlScript" class="inp" rows="4" readonly spellcheck="false" style="width:100%;font-family:ui-monospace,Menlo,monospace;font-size:11px;margin-top:6px">' + esc(text) + '</textarea>' +
+    '<div class="mFt"><button class="btn btn-sec" data-act="mailDownload">' + ic('download', 16) + 'Download .gs</button><button class="btn btn-pri" data-act="mailCopy">Copy the script</button><button class="btn btn-sec" data-act="closeModal">Done</button></div>', w => w.querySelector('.modal').classList.add('wide'));
+}
+Object.assign(ADMIN_ACTS, {
+  async mailSetup(t) {
+    if (!await confirmBox('Set up email updates?', 'This makes a login for the email robot. It can only add sealed lab emails to this app. Then you copy a short script into each Gmail account.', 'Set up')) return;
+    busyBtn(t, true, 'Setting up…');
+    try { const creds = await B.mailSetup(); MAILS.state = null; loadMailState(); await mailScriptModal(creds); }
+    catch (e) { busyBtn(t, false); toast(errText(e), { bad: true }); }
+  },
+  async mailScript() {
+    try { const creds = await B.mailCreds(); if (!creds) { toast('Set up email updates first', { bad: true }); return; } await mailScriptModal(creds); }
+    catch (e) { toast(errText(e), { bad: true }); }
+  },
+  async mailCopy() { const ok = await copyText(MAILS.script || ''); toast(ok ? 'Script copied — paste it into the new Apps Script project' : 'Couldn’t copy — use Download .gs instead', ok ? {} : { bad: true }); },
+  mailDownload() {
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([MAILS.script || ''], { type: 'text/plain' })); a.download = 'nlo-cases-email-updates.gs';
+    document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  },
+  async mailOff() {
+    if (!await confirmBox('Turn off email updates?', 'The email robot’s login stops working right away, so the scripts can’t send anything more. Also open each script and run “stop” so it stops trying. You can set it up again any time.', 'Turn off', true)) return;
+    try { await B.mailOff(); MAILS.state = null; loadMailState(); toast('Email updates turned off'); } catch (e) { toast(errText(e), { bad: true }); }
+  },
+  mailApply(t) { mailResolve(Number(t.dataset.n), 'apply'); },
+  mailSkip(t) { mailResolve(Number(t.dataset.n), 'skip'); }
+});
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 

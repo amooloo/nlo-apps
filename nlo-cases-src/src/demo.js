@@ -57,7 +57,22 @@ const DEMO = {
     // aligners going straight to the patient, and shipments with one-click tracking (sample numbers)
     Object.assign(all.find(c => c.type === 'oliv' && c.stage === 'shipped'), { shipToPatient: true, tracking: '1Z999AA10123456784' });
     Object.assign(all.find(c => c.type === 'nla' && c.stage === 'pack'), { shipToPatient: true });
-    Object.assign(all.find(c => c.type === 'ulab' && c.stage === 'mfg'), { tracking: '123456789012' });
+    // lab emails waiting in the inbox (made-up): uLab shipped and Oliv setup ready match cases; the Partners summary
+    // ships one appliance it can match and one it can't, so Today asks which case that one is
+    const ul = all.find(c => c.type === 'ulab' && c.stage === 'mfg'), ol = all.find(c => c.type === 'oliv' && c.stage === 'submit'), ap = all.find(c => c.type === 'appliance' && c.stage === 'mfg');
+    const fL = n => n.split(' ')[0] + ' ' + n.split(' ').slice(-1)[0][0] + '.', Fl = n => n[0] + '. ' + n.split(' ').slice(-1)[0];
+    const ago = m => Date.now() - m * 60e3;
+    DEMO.mail.beats = [{ id: 'b1', box: 'office@example.com', at: ago(4), seen: 2, sent: 2, err: '', ver: '1' }, { id: 'b2', box: 'records@example.com', at: ago(7), seen: 1, sent: 1, err: '', ver: '1' }];
+    DEMO.mail.inbox = [
+      { id: 'mdemo1', at: ago(50), done: [], mail: { box: 'office@example.com', from: 'uLab Systems <noreply@ulabsystems.com>', subject: 'Your uLab order DMO42 has shipped.', date: ago(50),
+        text: 'Your Order Has Shipped!\nGreat news! The following order is on the way to your office:\nOrder Number: DMO42\nPatient Name: ' + ul.patient + '\nClick here to track your order: 123456789012' } },
+      { id: 'mdemo2', at: ago(180), done: [], mail: { box: 'office@example.com', from: 'Oliv Doctors <doctor@olivortho.com>', subject: 'Oliv™: ' + Fl(ol.patient) + ' (590017) setup is ready', date: ago(180),
+        text: 'Please approve or request changes using the button below.', html: '<p>Please approve or request changes using the button below.</p><a href="https://portal.olivortho.com/">View Treatment Plan</a>' } },
+      { id: 'mdemo3', at: ago(900), done: [], mail: { box: 'records@example.com', from: 'general@partnersdentalstudio.com', subject: 'Daily Cases Received, Shipped, and Held', date: ago(900), text: '',
+        html: '<p>Here is your daily summary of all cases received, shipped, and placed on hold today.</p><p>No Cases Received Today</p><table><tr><th>Patient Name</th><th>Case Number</th></tr></table>' +
+          '<p>Cases Shipped Today</p><table><tr><th>Patient Name</th><th>Invoice Number</th><th>Tracking Number</th><th>Carrier</th></tr><tr><td>Robin T.</td><td>228700</td><td>1Z999AA10123456785</td><td>UPS</td></tr>' +
+          '<tr><td>' + fL(ap.patient) + '</td><td>228701</td><td>1Z999AA10123456786</td><td>UPS</td></tr></table><p>No Cases On Hold in the last 7 Days</p>' } }
+    ];
     // one in-house patient on a refinement, with the finished initial set behind it (shows the aligner total)
     const ref = Array.from(DEMO.cases.values()).find(c => c.type === 'nla' && c.stage === 'thermo');
     Object.assign(ref, { chart: '15-1001', initial: 'no', alU: 10, alL: 8, detail: 'Aligners (In-House) – refinement' });
@@ -72,7 +87,19 @@ const DEMO = {
     DEMO.h = h;
     h.settings(DEMO.settings); h.roster(DEMO.roster.slice()); h.members(DEMO.members.slice());
     h.cases(Array.from(DEMO.cases.values()).filter(c => c.status === 'open').map(c => JSON.parse(JSON.stringify(c))), [], false);
+    if (h.inbox) setTimeout(() => h.inbox(), 30);
   },
+  /* lab-email updates: the inbox as the app would see it after opening each sealed email */
+  mail: { on: true, beats: [], inbox: [] },
+  async mailState() { return { on: DEMO.mail.on, pub: { senders: MAIL_SENDERS }, beats: DEMO.mail.beats.slice(), bots: DEMO.mail.on ? [{ uid: 'bot', email: 'mailbot.demo@staff.example' }] : [] }; },
+  async mailSetup() { DEMO.mail.on = true; return DEMO.mailCreds(); },
+  async mailCreds() { return DEMO.mail.on ? { email: 'mailbot.demo@staff.example', password: 'demo-only-not-a-real-login' } : null; },
+  async mailOff() { DEMO.mail.on = false; },
+  async mailSenders() { },
+  async inboxLoad() { return JSON.parse(JSON.stringify(DEMO.mail.inbox)); },
+  async inboxClaim() { return true; },
+  async inboxDone(id, idx) { const x = DEMO.mail.inbox.find(i => i.id === id); if (x) x.done = Array.from(new Set((x.done || []).concat(idx))); },
+  async inboxDelete(id) { DEMO.mail.inbox = DEMO.mail.inbox.filter(i => i.id !== id); },
   emit(c) {
     if (!DEMO.h) return;
     if (c.status === 'open') DEMO.h.cases([JSON.parse(JSON.stringify(c))], [], false);
@@ -88,8 +115,9 @@ const DEMO = {
   async createCase(data) { return (await DEMO.createCases([{ data }]))[0]; },
   async mutateCase(id, fn, action) {
     const c = DEMO.cases.get(id); if (!c) throw errCode('gone');
-    (DEMO.versions[id] = DEMO.versions[id] || []).push({ rev: c.rev, replacedAt: Date.now(), replacedBy: DEMO.me.staffId, replacedHow: action && action.a, data: JSON.parse(JSON.stringify(c)) });
     const data = JSON.parse(JSON.stringify(c)); const st = fn(data);
+    if (st === 'skip') throw errCode('skip');
+    (DEMO.versions[id] = DEMO.versions[id] || []).push({ rev: c.rev, replacedAt: Date.now(), replacedBy: DEMO.me.staffId, replacedHow: action && action.a, data: JSON.parse(JSON.stringify(c)) });
     if (st === 'done' || st === 'open') { data.status = st; data.closedAt = st === 'done' ? Date.now() : null; }
     data.rev++; data.updatedAt = Date.now(); data.by = DEMO.me.staffId;
     DEMO.cases.set(id, data); if (action) DEMO.logs.push(Object.assign({ caseId: id, at: Date.now(), sid: DEMO.me.staffId }, action));

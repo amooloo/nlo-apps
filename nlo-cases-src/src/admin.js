@@ -32,7 +32,7 @@ function viewAdmin() {
     '</div></div>';
   const defaults = '<div class="card" style="margin-top:18px"><div class="cardHd"><h3>Who gets new cases</h3><span class="sub">Default “assigned to” on the New case form</span></div><div class="cardBd"><div class="grid2">' +
     TYPES.filter(t => !t.legacy).map(t => '<div class="field"><label for="def-' + t.k + '">' + esc(t.l) + '</label><select id="def-' + t.k + '" data-act-def="' + t.k + '"><option value="">Automatic</option>' + activeRoster().map(r => '<option value="' + esc(r.sid) + '"' + (((S.settings.defaults || {})[t.k]) === r.sid ? ' selected' : '') + '>' + esc(r.name) + '</option>').join('') + '</select></div>').join('') +
-    '</div><div class="small muted">Automatic: Oliv, Angel, Invisalign and appliances go to Sarah; uLab, InSmile, retainers, mouthguards and study models to whoever creates the case; in-house aligners to Dr. A.</div></div></div>';
+    '</div><div class="small muted">Automatic: Oliv, Angel, Invisalign, appliances and MARPE go to Sarah; uLab, InSmile, retainers, mouthguards and study models to whoever creates the case; in-house aligners to Dr. A.</div></div></div>';
   const cost = v => v == null || v === '' ? '' : esc(String(v));
   const alCostCard = '<div class="card" style="margin-top:18px"><div class="cardHd"><h3>In-house aligner cost</h3><span class="sub">For the estimate on in-house cases</span></div><div class="cardBd"><div class="grid2">' +
     '<div class="field"><label for="alPer">Per aligner ($)</label><input id="alPer" type="number" min="0" step="0.01" inputmode="decimal" placeholder="e.g. 4.50" data-setting="alPerAligner" value="' + cost(S.settings.alPerAligner) + '"></div>' +
@@ -40,7 +40,7 @@ function viewAdmin() {
     '</div><div class="small muted">Per aligner: materials for one aligner (sheet, printed model, packaging). Per set: anything paid once per case, such as a setup fee. Estimate = per set + aligners × per aligner.</div></div></div>';
   const deleted = '<div class="card" style="margin-top:18px"><div class="cardHd"><h3>Deleted cases</h3><span class="sub">Last 90 days</span><span style="flex:1"></span><button class="btn btn-ghost" data-act="loadDeleted">' + ic('refresh', 15) + 'Load</button></div><div class="cardBd" id="delBox"><div class="small muted">Deleted cases can be brought back. Click Load.</div></div></div>';
   const actv = '<div class="card" style="margin-top:18px"><div class="cardHd"><h3>Recent activity</h3><span class="sub">Last 7 days</span><span style="flex:1"></span><button class="btn btn-ghost" data-act="loadActivity">' + ic('refresh', 15) + 'Load</button></div><div class="cardBd" id="actBox"><div class="small muted">Shows who changed what. Click Load.</div></div></div>';
-  return '<div class="adminGrid"><div>' + team + defaults + alCostCard + '</div><div>' + sec + actv + deleted + '</div></div>';
+  return '<div class="adminGrid"><div>' + team + defaults + alCostCard + '</div><div>' + sec + mailAdminHTML() + actv + deleted + '</div></div>';
 }
 function viewImport() {
   return '<div class="adminGrid"><div><div class="card"><div class="cardHd"><h3>Import from Asana</h3></div><div class="cardBd">' +
@@ -143,8 +143,8 @@ const ADMIN_ACTS = {
       const list = await B.activity(7); const box = $('#actBox'); if (!box) return;
       if (!list.length) { box.innerHTML = '<div class="small muted">No activity in the last 7 days.</div>'; return; }
       box.innerHTML = list.filter(x => x.a !== 'rekey').slice(0, 80).map(x => {
-        const c = S.cases.get(x.caseId); const who = firstName(staffName(x.sid, x.sid));
-        const what = { create: 'created', import: 'imported', stage: 'moved', comment: 'commented on', close: 'completed', reopen: 'reopened', assign: 'reassigned', edit: 'edited', restore: 'restored', delete: 'deleted', save: 'saved', rekey: 're-sealed' }[x.a] || x.a;
+        const c = S.cases.get(x.caseId); const who = x.a === 'email' ? ((MAIL_CO[x.co] || {}).l || 'Lab') + ' email' : firstName(staffName(x.sid, x.sid));
+        const what = { create: 'created', import: 'imported', stage: 'moved', comment: 'commented on', close: 'completed', reopen: 'reopened', assign: 'reassigned', edit: 'edited', restore: 'restored', delete: 'deleted', save: 'saved', rekey: 're-sealed', email: 'updated' }[x.a] || x.a;
         return '<div class="hist"><time>' + esc(fmtWhen(x.at)) + '</time><span><b>' + esc(who) + '</b> ' + esc(what) + ' ' + (c ? '<button class="linkBtn" data-act="open" data-id="' + esc(c.id) + '">' + esc(c.patient) + '</button>' : 'a completed case') + '</span></div>';
       }).join('');
     } catch (x) { const box = $('#actBox'); if (box) box.innerHTML = '<div class="small" style="color:var(--coral-700)">' + esc(errText(x)) + '</div>'; }

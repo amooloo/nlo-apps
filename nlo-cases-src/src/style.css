@@ -547,3 +547,19 @@ a.btn{text-decoration:none}
   body.printLabels .print-page:last-child{page-break-after:auto;break-after:auto}
   body.printLabels .print-label{transform:rotate(90deg) translateY(-2in);transform-origin:top left;-webkit-print-color-adjust:exact;print-color-adjust:exact;-webkit-font-smoothing:none;text-rendering:geometricPrecision}
 }
+/* lab-email updates: the Today card, Team & security, the script steps; chart note */
+.mailCard{margin-bottom:18px;border:1.5px solid var(--blue-200)}
+.mlRow{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:10px 0;border-bottom:1px solid var(--grey-100)}
+.mlRow:last-child{border-bottom:none}
+.mlWhat{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;flex:1 1 320px;min-width:0}
+.mlName{font-weight:700;color:var(--navy)}
+.mlDo{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.mlSel{min-height:34px;padding:5px 10px;max-width:320px;width:auto}
+.mlBeat{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding:8px 0;border-bottom:1px solid var(--grey-100)}
+.mlBeat b{color:var(--navy)}
+.mlBtns{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.mlSteps{margin:4px 0 12px 20px;font-size:13.5px;line-height:1.6;color:var(--navy)}
+.mlSteps li{margin-bottom:6px}
+.noteHd{display:flex;align-items:center;gap:8px}
+.noteHd .small{text-transform:none;letter-spacing:0;font-family:var(--fb)}
+#noteTxt{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;line-height:1.5}

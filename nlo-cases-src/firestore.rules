@@ -122,5 +122,68 @@ service cloud.firestore {
         && okHist() && okAfter();
       allow update, delete: if false;
     }
+
+    // ---------- lab-email updates ----------
+    // A small Google Apps Script in the office's Gmail accounts forwards lab emails, sealed to the office
+    // inbox key so only the app can open them. Its own login (made by the owner) can add sealed items to the
+    // inbox and note when it last checked the mail. It can't read or change anything else.
+    function isBot() { return authed() && exists(/databases/$(db)/documents/mailbots/$(request.auth.uid)); }
+    match /mailbots/{uid} {
+      allow get: if authed() && (request.auth.uid == uid || isOwner());
+      allow list: if isOwner();
+      allow create: if isOwner() && request.resource.data.keys().hasOnly(['email', 'at'])
+        && request.resource.data.email is string && request.resource.data.at == request.time;
+      allow delete: if isOwner();
+      allow update: if false;
+    }
+    // the inbox public key the robot seals to (and which senders to forward)
+    match /meta/inbox {
+      allow get: if isMember() || isBot();
+      allow create, update: if isOwner() && request.resource.data.keys().hasOnly(['pub', 'kid', 'senders', 'at'])
+        && 'pub' in request.resource.data && okPub(request.resource.data)
+        && request.resource.data.kid is string && request.resource.data.kid.size() <= 40
+        && request.resource.data.senders is list && request.resource.data.senders.size() <= 40;
+      allow delete: if false;
+    }
+    // its private half, sealed with the office key
+    match /meta/inboxKey {
+      allow get: if isMember();
+      allow create, update: if isOwner();
+      allow delete: if false;
+    }
+    // the robot's login, sealed with the office key, so the owner can show the script again
+    match /meta/mailbot {
+      allow get, create, update, delete: if isOwner();
+    }
+    match /inbox/{id} {
+      allow create: if isBot() && id.matches('^m[0-9a-f]{40}$')
+        && request.resource.data.keys().hasOnly(['kid', 'epk', 'iv', 'ct', 'at'])
+        && request.resource.data.kid is string && request.resource.data.kid.size() <= 40
+        && request.resource.data.epk is map && request.resource.data.epk.keys().hasOnly(['kty', 'crv', 'x', 'y'])
+        && request.resource.data.iv is string && request.resource.data.iv.size() <= 24
+        && request.resource.data.ct is string && request.resource.data.ct.size() <= 400000
+        && request.resource.data.at == request.time;
+      allow get, list: if isMember();
+      // staff mark which updates in an email are dealt with (and which open app is handling it), and remove it once all are
+      // (a claim is checked only when it changes — marking updates done keeps the earlier claim as it was)
+      allow update: if isMember() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['done', 'claim'])
+        && (!('done' in request.resource.data) || (request.resource.data.done is list && request.resource.data.done.size() <= 200))
+        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['claim'])
+            || (request.resource.data.claim is map && request.resource.data.claim.keys().hasOnly(['by', 'at'])
+                && request.resource.data.claim.by is string && request.resource.data.claim.by.size() <= 20 && request.resource.data.claim.at == request.time));
+      allow delete: if isMember();
+    }
+    // when each mailbox's script last checked the mail (no patient data)
+    match /mailbeat/{id} {
+      allow get, list: if isMember();
+      allow create, update: if isBot() && id.matches('^b[0-9a-f]{32}$')
+        && request.resource.data.keys().hasOnly(['box', 'at', 'seen', 'sent', 'err', 'ver'])
+        && request.resource.data.box is string && request.resource.data.box.size() <= 120
+        && request.resource.data.at == request.time
+        && request.resource.data.seen is int && request.resource.data.sent is int
+        && request.resource.data.err is string && request.resource.data.err.size() <= 300
+        && request.resource.data.ver is string && request.resource.data.ver.size() <= 20;
+      allow delete: if isOwner();
+    }
   }
 }

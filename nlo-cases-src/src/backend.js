@@ -179,7 +179,7 @@ const FB = {
 
   async signOut() {
     FB.stop();
-    FB.priv = FB.ring = FB.keys = FB.me = FB.uid = null; FB.curV = FB.ringV = 0;
+    FB.priv = FB.ring = FB.keys = FB.me = FB.uid = FB.inboxPriv = null; FB.curV = FB.ringV = 0;
     try { await FB.auth.signOut(); } catch (e) { }
   },
   stop() { FB.unsubs.forEach(u => { try { u(); } catch (e) { } }); FB.unsubs = []; },
@@ -214,7 +214,93 @@ const FB = {
     if (FB.isOwner()) {
       FB.unsubs.push(FB.db.collection('members').onSnapshot(s => h.members(s.docs.map(d => Object.assign({ uid: d.id }, d.data()))), e => h.error(e)));
     }
+    // lab emails arriving from the email script (sealed); the app reads and applies them (mail.js)
+    if (h.inbox) FB.unsubs.push(FB.db.collection('inbox').onSnapshot(() => h.inbox(), () => { }));
+    // each mailbox's last check, live on Team & security (owner)
+    if (h.mailbeat && FB.isOwner()) FB.unsubs.push(FB.db.collection('mailbeat').onSnapshot(s => h.mailbeat(s.docs.map(d => Object.assign({ id: d.id }, d.data(), { at: FB.tsMs(d.data().at) }))), () => { }));
   },
+
+  /* ---------- lab-email updates (see mail.js and mail/script.js) ---------- */
+  async mailState() {
+    const [ib, beats, bots] = await Promise.all([FB.db.doc('meta/inbox').get(), FB.db.collection('mailbeat').get(), FB.isOwner() ? FB.db.collection('mailbots').get() : null]);
+    return { on: ib.exists && (!bots || bots.size > 0), pub: ib.exists ? ib.data() : null,
+      beats: beats.docs.map(d => Object.assign({ id: d.id }, d.data(), { at: FB.tsMs(d.data().at) })), bots: bots ? bots.docs.map(d => ({ uid: d.id, email: d.data().email })) : [] };
+  },
+  /* the inbox key pair: the script seals to its public half; the private half is sealed with the office key */
+  async inboxKeyPair() {
+    const pair = await Crypto.newPair(), pub = await Crypto.pubJwk(pair), kid = 'k' + uid8();
+    const box = await Crypto.seal(FB.keys[FB.curV], await Crypto.privBytes(pair), 'inboxkey:' + kid);
+    const cur = await FB.db.doc('meta/inboxKey').get();
+    const keys = Object.assign({}, cur.exists ? cur.data().keys : {}, { [kid]: { v: FB.curV, iv: box.iv, ct: box.ct } });
+    await FB.track(FB.db.doc('meta/inboxKey').set({ keys, cur: kid }));
+    await FB.track(FB.db.doc('meta/inbox').set({ pub, kid, senders: MAIL_SENDERS, at: FB.ts() }));
+    FB.inboxPriv = null;
+  },
+  /* owner: a login for the email robot (it can only add sealed items to the inbox) — one at a time */
+  async mailSetup() {
+    if (!(await FB.db.doc('meta/inbox').get()).exists) await FB.inboxKeyPair();
+    const email = 'mailbot.' + randChars(10).toLowerCase() + '@' + STAFF_DOMAIN, password = randChars(32);
+    const sec = firebase.initializeApp(FB.cfg, 'bot' + Date.now()); let uid;
+    try {
+      const sa = sec.auth();
+      if (FB.emu) sa.useEmulator('http://127.0.0.1:9099', { disableWarnings: true });
+      try { await sa.setPersistence(firebase.auth.Auth.Persistence.NONE); } catch (e) { }
+      uid = (await sa.createUserWithEmailAndPassword(email, password)).user.uid;
+      await sa.signOut();
+    } finally { try { await sec.delete(); } catch (e) { } }
+    const old = await FB.db.collection('mailbots').get();
+    const box = await Crypto.sealJSON(FB.keys[FB.curV], { email, password, uid }, 'mailbot');
+    const b = FB.db.batch();
+    old.docs.forEach(d => b.delete(d.ref));
+    b.set(FB.db.doc('mailbots/' + uid), { email, at: FB.ts() });
+    b.set(FB.db.doc('meta/mailbot'), { v: FB.curV, iv: box.iv, ct: box.ct });
+    await FB.track(b.commit());
+    return { email, password };
+  },
+  async mailCreds() { const s = await FB.db.doc('meta/mailbot').get(); if (!s.exists) return null; const d = s.data(); return Crypto.openJSON(FB.keys[d.v], d, 'mailbot'); },
+  async mailOff() {
+    const old = await FB.db.collection('mailbots').get(); const b = FB.db.batch();
+    old.docs.forEach(d => b.delete(d.ref)); b.delete(FB.db.doc('meta/mailbot'));
+    await FB.track(b.commit());
+  },
+  async mailSenders(list) { await FB.db.doc('meta/inbox').update({ senders: list }); },
+  /* every inbox item, opened: [{ id, at, done, mail }] (mail = null when it can't be opened) */
+  async inboxLoad() {
+    const snap = await FB.db.collection('inbox').get(), out = [];
+    // the private half of the inbox key, opened once (again if an email uses a key set up since)
+    if (!FB.inboxPriv || snap.docs.some(d => !FB.inboxPriv[d.data().kid])) {
+      const priv = {}; const s = await FB.db.doc('meta/inboxKey').get();
+      if (s.exists) for (const kid of Object.keys(s.data().keys || {})) {
+        const box = s.data().keys[kid];
+        try { priv[kid] = await Crypto.importPriv(await Crypto.open(FB.keys[box.v], box, 'inboxkey:' + kid)); } catch (e) { }
+      }
+      FB.inboxPriv = priv;
+    }
+    for (const d of snap.docs) {
+      const x = d.data(); let mail = null;
+      try { mail = JSON.parse(TD.decode(await Crypto.openFrom(FB.inboxPriv[x.kid], { epk: x.epk, iv: x.iv, ct: x.ct }, 'inbox:' + d.id))); } catch (e) { }
+      out.push({ id: d.id, at: FB.tsMs(x.at), done: x.done || [], mail });
+    }
+    return out;
+  },
+  /* only one open app handles an email at a time: a claim lasts a minute (a closed or stuck app's claim runs out) */
+  sess: uid8(),
+  async inboxClaim(id) {
+    const ref = FB.db.doc('inbox/' + id);
+    try {
+      return await FB.db.runTransaction(async tx => {
+        const s = await tx.get(ref); if (!s.exists) return false;
+        const c = s.data().claim, at = c && FB.tsMs(c.at);
+        if (c && c.by !== FB.sess && at && Date.now() - at < 60000) return false;
+        tx.update(ref, { claim: { by: FB.sess, at: FB.ts() } }); return true;
+      });
+    } catch (e) { return false; }
+  },
+  async inboxDone(id, idx) { // (gone already = someone else finished it)
+    const ref = FB.db.doc('inbox/' + id);
+    await FB.db.runTransaction(async tx => { const s = await tx.get(ref); if (s.exists) tx.update(ref, { done: firebase.firestore.FieldValue.arrayUnion.apply(null, idx) }); });
+  },
+  async inboxDelete(id) { await FB.db.doc('inbox/' + id).delete(); },
   async loadClosed(days) {
     const since = firebase.firestore.Timestamp.fromMillis(Date.now() - days * 86400000);
     const snap = await FB.db.collection('cases').where('closedAt', '>=', since).get();
@@ -289,7 +375,8 @@ const FB = {
       await FB.track(FB.db.runTransaction(async tx => {
         const s = await tx.get(ref); if (!s.exists) throw errCode('gone');
         const d = s.data(); const data = FB.clean(await FB.decryptDoc(id, d));
-        const st = fn(data); const status = st === 'done' || st === 'open' ? st : d.status;
+        const st = fn(data); if (st === 'skip') throw errCode('skip'); // nothing to change: write nothing
+        const status = st === 'done' || st === 'open' ? st : d.status;
         const v = FB.curV; const box = await Crypto.sealJSON(FB.keys[v], data, 'case:' + id);
         const closedAt = status === 'done' ? (d.status === 'done' && d.closedAt ? d.closedAt : FB.ts()) : null;
         tx.update(ref, { v, iv: box.iv, ct: box.ct, status, rev: d.rev + 1, by: FB.uid, sid: FB.me.staffId, updatedAt: FB.ts(), closedAt });

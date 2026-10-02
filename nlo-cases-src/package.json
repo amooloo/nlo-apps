@@ -1,0 +1,23 @@
+{
+  "name": "cases",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.2",
+    "aes-js": "^3.1.2",
+    "elliptic": "^6.6.1",
+    "esbuild": "^0.24.2",
+    "firebase": "^12.19.0",
+    "firebase-tools": "^15.32.1",
+    "firebase10": "npm:firebase@^10.12.2",
+    "hash.js": "^1.1.7",
+    "playwright": "^1.56.0"
+  }
+}

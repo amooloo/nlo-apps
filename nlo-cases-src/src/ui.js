@@ -232,9 +232,12 @@ function enterApp() {
     cases(up, gone) {
       // a stage move still being saved wins over an older copy arriving from the server (quick → → → clicks)
       up.forEach(c => { const p = S.pend && S.pend[c.id]; if (p) { c.stage = p.to; if (p.extra) Object.assign(c, p.extra); } S.cases.set(c.id, c); }); gone.forEach(id => S.cases.delete(id));
-      S.firstLoad = false; queueRender();
+      const first = S.firstLoad; S.firstLoad = false; queueRender();
+      if (first) setTimeout(mailSync, 300); // lab emails that came in while nobody had the app open
       if (S.openId && (up.some(c => c.id === S.openId) || gone.includes(S.openId))) refreshDrawer(gone.includes(S.openId));
     },
+    inbox() { mailSync(); },
+    mailbeat(list) { if (MAILS.state) MAILS.state.beats = list; if (S.view === 'admin') queueRender('team'); },
     roster(list) { S.roster = list; queueRender('team'); },
     members(list) { S.members = list; if (S.view === 'admin') queueRender('team'); },
     settings(s) { S.settings = Object.assign({ idleMin: 10 }, s || {}); if (S.view === 'admin') queueRender('team'); },
@@ -247,12 +250,14 @@ function enterApp() {
     const mins = Number(S.settings.idleMin) || 10;
     if (S.inApp && Date.now() - S.lastAct > mins * 60000) lockOut('Locked after ' + mins + ' minutes without activity.');
   }, 15000);
+  clearInterval(S.mailTimer); S.mailTimer = setInterval(mailSync, 180000); // also catches emails a case couldn't take yet
 }
 async function lockOut(msg) {
   if (!S.inApp) return;
-  S.inApp = false; clearInterval(S.idleTimer);
+  S.inApp = false; clearInterval(S.idleTimer); clearInterval(S.mailTimer);
   closeModal(); closeDrawer(true);
   S.cases = new Map(); S.closed = []; S.hist = null; S.histLoaded = false; S.members = []; S.roster = []; S.iprCache = {}; S.verList = null; S.delList = null; S.impList = null;
+  Object.assign(MAILS, { list: [], unread: [], pick: {}, sig: '', state: null, stateAt: 0, script: '' });
   try { await iprLink().disconnect(); } catch (e) { }
   $('#view').innerHTML = '';
   await B.signOut();
@@ -268,7 +273,7 @@ function activeRoster() { return S.roster.filter(r => r.active).sort((a, b) => (
 function openCases() { return Array.from(S.cases.values()).filter(c => !c.locked); }
 function matchesQ(c) {
   if (!S.q) return true; const q = S.q.toLowerCase();
-  return [c.patient, c.chart, c.detail, typeOf(c).l, stageLabel(c), staffName(c.assignee, c.assigneeName)].some(x => String(x || '').toLowerCase().includes(q));
+  return [c.patient, c.chart, c.detail, typeOf(c).l, stageLabel(c), staffName(c.assignee, c.assigneeName), c.labRef, c.tracking].some(x => String(x || '').toLowerCase().includes(q));
 }
 function dueBucket(c) {
   const d = dayDiff(dueDateOf(c)); if (d === null) return 'none';
@@ -388,6 +393,38 @@ function recFlag(c) {
   return miss.length ? '<span class="flag rec" title="Needed before it goes to the lab">Needs ' + esc(miss.map(x => x[2]).join(' + ')) + '</span>'
     : '<span class="flag ready" title="STL scan and CBCT on file">' + ic('done', 13) + 'Records on file</span>';
 }
+/* the lab put the case on hold (Partners' daily email); cleared by a later shipment or by hand */
+function isHeld(c) { return !!(c.labHold && typeof c.labHold === 'object'); }
+function holdText(c) { return 'On hold at the lab' + (c.labHold.date ? ' since ' + c.labHold.date : '') + (c.labHold.reason ? ': ' + c.labHold.reason : ''); }
+function holdFlag(c) { return isHeld(c) ? '<span class="flag rec" title="' + esc(holdText(c)) + '">Lab hold</span>' : ''; }
+
+/* ---------- chart note: the case entry written as a note to paste into the patient's chart ----------
+   No assistant names (Dr. A doesn't record who saw the patient in chart notes). Plain ASCII punctuation so it
+   pastes cleanly into Edge. */
+function chartNote(c) {
+  const t = typeOf(c), L = [], sub = { yes: 'initial set', no: 'refinement', mid: 'mid-course correction' }[c.initial] || '';
+  let what;
+  if (c.type === 'nla') what = (c.variant === 'finishing' ? 'finishing aligners' : 'in-house aligners') + ' (NL Lab)' + (sub ? ' - ' + sub : '');
+  else if (t.aligner) what = ({ oliv: 'Oliv', angel: 'Angel', invisalign: 'Invisalign', ulab: 'uLab' }[c.type] || t.l) + ' aligners' + (sub ? ' - ' + sub : '');
+  else if (c.type === 'insmile') what = 'InSmile braces' + (/^de[123]$/.test(c.initial || '') ? ' - digital enhancement ' + c.initial.slice(2) : c.initial === 'yes' ? ' - initial' : '');
+  else if (c.type === 'marpe') what = 'MARPE' + (c.lab ? ' (' + c.lab + ')' : '');
+  else if (c.type === 'appliance') what = ((c.appliances || []).join(', ') || c.detail || 'appliance') + (c.lab ? ' (' + c.lab + ')' : '');
+  else if (c.type === 'retainer') what = 'retainers' + (c.detail ? ': ' + c.detail : '');
+  else if (c.type === 'mouthguard') what = 'a mouthguard' + ((c.arches || []).length ? ' (' + c.arches.join('/') + ')' : '');
+  else if (c.type === 'models') what = 'study models';
+  else what = c.detail || t.l;
+  L.push((c.scanner ? 'Scanned with ' + c.scanner : 'Scanned') + ' for ' + what + '.');
+  if (t.flow === 'marpe') { const r = MARPE_RECORDS.filter(x => (c.records || []).includes(x[0])).map(x => x[1]); if (r.length) L.push('Records on file: ' + r.join(', ') + '.'); }
+  const end = s => String(s).trim().replace(/[.\s;]+$/, '') + '.';
+  if (c.instructions) L.push("Dr. A's instructions: " + end(c.instructions));
+  const rx = (c.extras || []).filter(x => x !== 'Mid-course correction');
+  if (rx.length) L.push(rx.map(end).join(' '));
+  if (c.teethNote) L.push(c.teethNote.split('\n').map(end).join(' '));
+  if (c.ipr && c.ipr.trim()) L.push('IPR & spacing: ' + c.ipr.trim());
+  if (c.cc && !/^(none|n\/a|na|-)$/i.test(c.cc.trim())) L.push("Pt's CC: " + end(c.cc));
+  if (c.shipToPatient) L.push('Aligners to be shipped to the patient.');
+  return L.join('\n').replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[–—]/g, '-');
+}
 /* stage progress: one mark per stage (done, current, to come); a stage group (In fabrication) sits in its own band */
 function progHTML(c, only) {
   const f = flowOf(c), si = stageIndex(c), keys = only || f.stages.map(s => s[0]);
@@ -473,7 +510,7 @@ function viewToday() {
   const right = '<div class="card"><div class="cardHd"><h3>Needs Dr. A</h3><span class="sub">' + dr.length + ' waiting</span></div><div class="cardBd">' +
     (dr.length ? dr.map(x => row(x)).join('') : '<div class="empty">Nothing waiting on Dr. A.</div>') + '</div></div>' +
     (noDate ? '<div class="card" style="margin-top:14px"><div class="cardBd" style="padding:14px 20px"><button class="linkBtn" data-act="tile" data-f="none">' + noDate + ' open case' + (noDate > 1 ? 's have' : ' has') + ' no lab or delivery date</button></div></div>' : '');
-  return h + cleanupCardHTML(all) + '<div class="twoCol"><div>' + left + '</div><div>' + right + '</div></div>';
+  return h + mailCardHTML() + cleanupCardHTML(all) + '<div class="twoCol"><div>' + left + '</div><div>' + right + '</div></div>';
 }
 
 /* ---------- Board ---------- */
@@ -502,7 +539,7 @@ function viewBoard() {
 }
 function kcard(c, last, steps) {
   const mixed = S.boardFlow === 'outside' || S.boardFlow === 'inhouse' || S.boardFlow === 'retainer';
-  const flags = shipFlag(c) + recFlag(c);
+  const flags = shipFlag(c) + recFlag(c) + holdFlag(c);
   return '<div class="kc" data-act="open" data-id="' + esc(c.id) + '" role="button" tabindex="0">' +
     '<div class="pt">' + esc(c.patient || '(no name)') + '</div>' + (c.detail || alN(c) ? '<div class="dt">' + esc(c.detail || '') + alignerMini(c) + '</div>' : '') +
     (flags ? '<div class="flags">' + flags + '</div>' : '') +
@@ -616,7 +653,7 @@ function viewList(base, showWho) {
       return '<tr class="click" data-act="open" data-id="' + esc(c.id) + '" tabindex="0"><td><div class="pt">' + esc(c.patient || '(no name)') + '</div><div class="small muted">' + esc(c.detail || '') + alignerMini(c) + '</div>' +
       (ship ? '<div class="flags onlyM">' + ship + '</div>' : '') + '</td>' +
       '<td class="hideM">' + typeBadge(c) + '</td><td class="stg">' + progHTML(c) + '<div class="small">' + esc(stageLabel(c)) + (g ? ' <span class="muted">· ' + esc(g.l.toLowerCase()) + ' ' + (g.stages.indexOf(c.stage) + 1) + '/' + g.stages.length + '</span>' : '') + '</div>' +
-      (recFlag(c) ? '<div class="flags">' + recFlag(c) + '</div>' : '') + '</td><td>' + dueChip(c) + '</td>' +
+      (recFlag(c) || holdFlag(c) ? '<div class="flags">' + recFlag(c) + holdFlag(c) + '</div>' : '') + '</td><td>' + dueChip(c) + '</td>' +
       '<td class="hideM shipCol">' + (ship ? '<div class="flags">' + ship + '</div>' : '') + '</td>' +
       '<td class="hideM">' + avatar(c) + ' <span class="small">' + esc(staffName(c.assignee, c.assigneeName)) + '</span></td><td class="hideM small muted">' + esc(c.updatedAt ? fmtWhen(c.updatedAt) : '') + '</td></tr>'; }).join('') +
     '</tbody></table></div><div class="small muted" style="margin-top:8px">' + list.length + ' case' + (list.length === 1 ? '' : 's') + '</div>';
@@ -667,7 +704,7 @@ function refreshDrawer(gone) {
 async function loadHistory(id) {
   try { const h = await B.caseLog(id); if (S.openId === id) { S.history = h; const el = $('#histBox'); if (el) el.innerHTML = historyHTML(findCase(id)); } } catch (e) { }
 }
-const FIELD_LABELS = { shipToPatient: 'ship to patient', records: 'records on file', zoomDate: 'Zoom call', zoomTime: 'Zoom call', tracking: 'tracking #', carrier: 'carrier', teeth: 'tooth chart', teethNote: 'tooth chart', chart: 'chart #', titanUrl: 'Titan link', initial: 'initial/refinement', appliances: 'appliance', lab: 'lab', arches: 'arch', retKinds: 'retainer type', goals: 'Dr. A’s instructions', instrPicks: 'Dr. A’s instructions', instrOther: 'Dr. A’s instructions', extras: 'extras', variant: 'case type', type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery date', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes' };
+const FIELD_LABELS = { labRef: 'lab case #', labHold: 'lab hold', planUrl: 'plan link', shipToPatient: 'ship to patient', records: 'records on file', zoomDate: 'Zoom call', zoomTime: 'Zoom call', tracking: 'tracking #', carrier: 'carrier', teeth: 'tooth chart', teethNote: 'tooth chart', chart: 'chart #', titanUrl: 'Titan link', initial: 'initial/refinement', appliances: 'appliance', lab: 'lab', arches: 'arch', retKinds: 'retainer type', goals: 'Dr. A’s instructions', instrPicks: 'Dr. A’s instructions', instrOther: 'Dr. A’s instructions', extras: 'extras', variant: 'case type', type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery date', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes' };
 function historyHTML(c) {
   const h = S.history; if (!h) return '<div class="small muted">Loading…</div>'; if (!h.length) return '<div class="small muted">No history yet.</div>';
   const stageName = k => { const s = c && flowOf(c).stages.find(x => x[0] === k); return s ? s[1] : k; };
@@ -680,8 +717,13 @@ function historyHTML(c) {
     else if (x.a === 'assign') t = x.to ? 'assigned it to ' + staffName(x.to, x.to) : 'unassigned it';
     else if (x.a === 'edit') t = 'changed ' + Array.from(new Set((x.fields || []).filter(f => f !== 'instructions').map(f => FIELD_LABELS[f] || f))).join(', ');
     else if (x.a === 'restore') t = 'restored an earlier version';
+    else if (x.a === 'email') { // applied from a lab email (mail.js); shown as the email, not the person whose app applied it
+      const f = Array.from(new Set((x.fields || []).filter(k => k !== 'mailIds').map(k => FIELD_LABELS[k] || k)));
+      t = (x.to ? 'moved it to ' + stageName(x.to) + (f.length ? ' and saved the ' : '') : f.length ? 'saved the ' : 'updated it') + f.join(', ');
+    }
     else t = x.a;
-    return '<div class="hist"><time>' + esc(fmtWhen(x.at)) + '</time><span><b>' + esc(firstName(staffName(x.sid, x.sid)) || x.sid) + '</b> ' + esc(t) + '</span></div>';
+    const who = x.a === 'email' ? ((MAIL_CO[x.co] || {}).l || 'Lab') + ' email' : (firstName(staffName(x.sid, x.sid)) || x.sid);
+    return '<div class="hist"><time>' + esc(fmtWhen(x.at)) + '</time><span><b>' + esc(who) + '</b> ' + esc(t) + '</span></div>';
   }).join('');
 }
 function renderDrawer() {
@@ -707,9 +749,11 @@ function renderDrawer() {
     '<div class="dBd"><div id="drawerNotice"></div>' +
     (done ? '<div class="notice info">Completed ' + esc(fmtWhen(c.closedAt)) + '</div>' : '') +
     (c.shipToPatient ? '<div class="notice ship" role="note">' + ic('truck', 18) + '<span><b>Ship to patient</b></span></div>' : '') +
+    (isHeld(c) ? '<div class="notice bad mpOld" role="note"><span><b>' + esc(holdText(c)) + '</b></span>' + (done ? '' : '<button class="btn btn-sec btn-sm" data-act="clearHold">Hold is sorted out</button>') + '</div>' : '') +
     // a MARPE entered (or imported) as an appliance before MARPE had its own steps: one click moves it over
     (!done && isOldMarpe(c) ? '<div class="notice info mpOld"><span>MARPE has its own steps now: records, lab, Zoom call, design approval, delivery.</span><button class="btn btn-sec btn-sm" data-act="toMarpe">Switch to MARPE steps</button></div>' : '') +
-    ((PORTALS[c.type] || []).length ? '<div class="portals">' + PORTALS[c.type].map(p => '<a class="btn btn-sec btn-sm" data-act="portal" href="' + esc(p.u) + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'Open ' + esc(p.l) + '</a>').join('') +
+    // the lab's own link to this patient's plan (from its email), then the company portals
+    ((PORTALS[c.type] || []).length || safeUrl(c.planUrl) ? '<div class="portals">' + (safeUrl(c.planUrl) && okLabLink(c.type, c.planUrl) ? '<a class="btn btn-pri btn-sm" data-act="portal" href="' + esc(safeUrl(c.planUrl)) + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'View treatment plan</a>' : '') + (PORTALS[c.type] || []).map(p => '<a class="btn btn-sec btn-sm" data-act="portal" href="' + esc(p.u) + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'Open ' + esc(p.l) + '</a>').join('') +
       '<span class="small muted">Opening a portal copies the patient’s name — paste it in the portal’s search.</span></div>' : '') +
     '<div class="sec" style="margin-top:4px"><h5>Stage</h5><div class="stepper">' + flow.stages.map(([k, l], i) => { const g = stageGroup(flow, k);
       return (g && g.stages[0] === k ? '<div class="stepGrp">' + esc(g.l) + '</div>' : '') +
@@ -723,6 +767,7 @@ function renderDrawer() {
     (c.dueDate && !c.deliveryDate ? kv('Due (older case)', esc(fmtDay(c.dueDate))) : '') +
     (String(c.tracking || '').trim() ? kv('Tracking', trackList(c).length ? trackList(c).map(t => '<span class="trkLine">' + esc(t.n) + (t.carrier ? ' <span class="muted small">' + esc(t.carrier) + '</span>' : '') +
       (t.url ? ' <a class="flag trk" href="' + esc(t.url) + '" target="_blank" rel="noopener noreferrer">' + ic('ext', 12) + 'Track</a>' : '') + '</span>').join('') : esc(c.tracking)) : '') +
+    (c.labRef ? kv(esc(refLabel(c)), esc(c.labRef)) : '') +
     kv('Assistant', esc(staffName(c.assistant, c.assistantName))) + kv('Scanner', esc(c.scanner)) + kv('Chart #', esc(c.chart || '')) +
     kv('Created', esc((c.createdAt ? fmtWhen(c.createdAt) : '') + (c.createdBy ? ' · ' + firstName(staffName(c.createdBy, '')) : ''))) + kv('Last update', esc(c.updatedAt ? fmtWhen(c.updatedAt) + (c.by ? ' · ' + firstName(staffName(c.by, '')) : '') : '')) +
     '</div></div>' +
@@ -732,6 +777,7 @@ function renderDrawer() {
     txt('Dr. A’s instructions', c.instructions) +
     (c.teeth && Object.keys(c.teeth).length ? '<div class="sec"><h5>Tooth chart</h5><div class="tc ro">' + toothChartHTML(c.teeth, true) + '</div><div class="txt" style="margin-top:8px">' + esc(teethSummary(c.teeth)) + '</div></div>' : '') +
     txt('Patient’s CC from last visit', c.cc) + txt('IPR & spacing', c.ipr) +
+    '<div class="sec"><h5 class="noteHd">Chart note<span class="small muted">to paste into the patient’s chart</span><span style="flex:1"></span><button class="btn btn-sec btn-sm" data-act="copyNote">Copy</button></h5><div class="txt" id="noteTxt">' + esc(chartNote(c)) + '</div></div>' +
     (typeOf(c).aligner && !done ? '<div class="sec" id="iprBox">' + iprBoxHTML(c) + '</div>' : '') + txt('Notes', c.notes) +
     '<div class="sec"><h5>Comments</h5>' + ((c.comments || []).map(x => '<div class="cmt"><span class="av">' + esc(initials(staffName(x.by, x.by))) + '</span><div><div class="w"><b>' + esc(firstName(staffName(x.by, x.by))) + '</b> · ' + esc(fmtWhen(x.at)) + '</div><div style="white-space:pre-wrap;overflow-wrap:anywhere">' + esc(x.text) + '</div></div></div>').join('') || '<div class="small muted" style="margin-bottom:6px">No comments yet.</div>') +
     (done ? '' : '<div class="field" style="margin-top:8px;margin-bottom:6px"><label for="cmtText" class="hidden">Add a comment</label><textarea id="cmtText" rows="2" placeholder="Add a comment…"></textarea></div><button class="btn btn-sec btn-sm" data-act="addCmt">Add comment</button>') + '</div>' +
@@ -951,6 +997,8 @@ function onClick(e) {
     case 'setStage': moveStage(S.openId, t.dataset.k); break;
     case 'labels': { const c = findCase(S.openId); if (c && alN(c)) labelsModal(c); break; }
     case 'rec': toggleRecord(t); break;
+    case 'copyNote': { const c = findCase(S.openId); if (c) copyText(chartNote(c)).then(ok => toast(ok ? 'Chart note copied — paste it into the patient’s chart' : 'Couldn’t copy — select the note and copy it', ok ? {} : { bad: true })); break; }
+    case 'clearHold': { const cid = S.openId; act(() => B.mutateCase(cid, d => { if (!d.labHold) return 'skip'; d.labHoldSeen = (d.labHold.date || '') + '|' + (d.labHold.reason || ''); d.labHold = ''; }, { a: 'edit', fields: ['labHold'] }), 'Lab hold cleared'); break; }
     case 'toMarpe': { const c = findCase(S.openId); if (c && isOldMarpe(c)) toMarpe(c); break; }
     case 'zoomSet': { const c = findCase(S.openId); if (c) zoomModal(c); break; }
     case 'shipF': S.f.ship = S.f.ship ? '' : '1'; renderView(); break;
@@ -994,6 +1042,7 @@ function onClick(e) {
 }
 function onChange(e) {
   const t = e.target;
+  if (t.classList && t.classList.contains('mlSel')) { const x = MAILS.list[Number(t.dataset.mail)]; if (x) { MAILS.pick[x.ev.key] = t.value; const b = $('[data-act=mailApply][data-n="' + t.dataset.mail + '"]'); if (b) b.disabled = !t.value; } return; }
   if (t.matches && t.matches('input[data-old]')) { if (t.checked) S.oldOff.delete(t.dataset.old); else S.oldOff.add(t.dataset.old); syncOld(); return; }
   if (t.id === 'oldMonths') { S.oldMonths = Number(t.value) || 3; S.oldOff.clear(); renderView(); return; }
   if (t.id === 'oldNoDate') { S.oldNoDate = t.checked; renderView(); return; }

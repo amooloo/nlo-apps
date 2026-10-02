@@ -3,6 +3,7 @@ const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
 const { routes, watch } = require('./helpers');
+const { makeGas } = require('./gas');
 const URL0 = 'http://127.0.0.1:8765/nlo-cases.html?emu';
 const PROJECT = 'demo-nlo-cases';
 const fails = [], passes = [];
@@ -14,7 +15,7 @@ const forbidden = [];
 async function fsDump() {
   // read every document as raw JSON with the emulator's admin bypass
   const out = [];
-  for (const col of ['cases', 'log', 'members', 'roster', 'meta', 'logins']) {
+  for (const col of ['cases', 'log', 'members', 'roster', 'meta', 'logins', 'inbox', 'mailbeat', 'mailbots']) {
     const r = await fetch(`http://127.0.0.1:8080/v1/projects/${PROJECT}/databases/(default)/documents/${col}?pageSize=1000`, { headers: { Authorization: 'Bearer owner' } });
     const j = await r.json(); (j.documents || []).forEach(d => out.push(d));
   }
@@ -183,7 +184,7 @@ async function openByName(p, name) {
   await owner.waitForSelector('.kc:has-text("' + P2 + '")', { state: 'detached', timeout: 15000 });
   check(true, 'completing removes it from the board');
   await owner.waitForSelector('.toast:has-text("Undo") button', { timeout: 5000 });
-  await owner.click('.toast button'); await owner.waitForSelector('.kc:has-text("' + P2 + '")', { timeout: 15000 });
+  await owner.click('.toast:has-text("Undo") button'); await owner.waitForSelector('.kc:has-text("' + P2 + '")', { timeout: 15000 });
   check(true, 'Undo brings it back');
   await owner.click('.kc:has-text("' + P2 + '") .adv'); await owner.waitForSelector('.kc:has-text("' + P2 + '")', { state: 'detached', timeout: 15000 });
   await owner.click('#nav-done'); await owner.fill('#q', ''); await owner.waitForSelector('tr.click:has-text("' + P2 + '")', { timeout: 15000 });
@@ -471,7 +472,9 @@ async function openByName(p, name) {
   check(!(await owner.isVisible('.pickRow[data-g=initial]')) && !(await owner.isVisible('.pickRow[data-g=initialDE]')), 'no refinement question for appliances');
   await tapAppl('MSE'); check(await labNow() === 'Specialty Orthodontic Lab', 'MSE → Specialty Orthodontic Lab');
   await tapAppl('MSE'); await tapAppl('Rapid Palatal Expander (RPE)'); check(await labNow() === 'Partner Dental Studios', 'RPE → Partner Dental Studios');
-  check((await owner.locator('.pickRow[data-g=appliances] .pick[data-v=MARPE]').count()) === 0, 'MARPE is no longer an appliance choice (it has its own case type)');
+  await tapAppl('MARPE');
+  check(await owner.inputValue('#cf-tile') === 'marpe' && (await owner.getAttribute('#ncForm .tt[data-tile=marpe]', 'aria-checked')) === 'true' && await owner.isVisible('.pickRow[data-g=records]'), 'tapping MARPE under Appliance switches the case to the MARPE tile (its own steps)');
+  await owner.click('#ncForm .tt[data-tile=appliance]');
   await tapAppl('Rapid Palatal Expander (RPE)'); await tapAppl('MARA'); check(await labNow() === 'Specialty Orthodontic Lab', 'MARA → Specialty Orthodontic Lab');
   await tapAppl('MARA'); await tapAppl('D2 distalizer'); check(await labNow() === 'In-house (NL Lab)', 'D2 distalizer → in-house (NL Lab)');
   check(await owner.inputValue('#cf-stage') === 'mfg' && await owner.inputValue('#cf-assignee') === await owner.evaluate(() => meSid()), 'in-house D2 starts in Manufacturing with Dr. A');
@@ -742,6 +745,101 @@ async function openByName(p, name) {
   await owner.fill('#q', '');
   dump = JSON.stringify(await fsDump());
   check(!dump.includes('Shipwell') && !dump.includes('Palatewide') && !dump.includes('1Z999AA1012'), 'MARPE and shipping details are encrypted too');
+
+  console.log('\n# Chart note, lab case #, Ship to patient turns on No IPR and No attachments');
+  await openByName(owner, 'Theo Toothchart');
+  const note = await owner.textContent('#noteTxt');
+  check(/^Scanned with /.test(note) && /No IPR\./.test(note) && /Crown: UR1\./.test(note) && !/Gwen|Kaylee|Sarah/.test(note) && !/[’“”–—]/.test(note), 'each case has a chart note from its entry (scan, instructions, IPR, teeth; no assistant; plain punctuation)');
+  await owner.click('#drawer [data-act=closeDrawer] >> nth=0'); await owner.fill('#q', '');
+  await owner.click('.topBar [data-act=newCase]'); await owner.waitForSelector('#ncForm');
+  await owner.click('#ncForm .tt[data-tile=invisalign]'); await owner.fill('#cf-patient', 'Sven Shipsworth');
+  await owner.click('#cf-ship');
+  check(await owner.getAttribute('.rxTile[data-v="No IPR"]', 'aria-pressed') === 'true' && /No attachment: all teeth/.test(await owner.textContent('#cf-teethSum')), 'Ship to patient switches on No IPR and No attachments on all teeth');
+  await owner.click('#cf-ship');
+  check(await owner.getAttribute('.rxTile[data-v="No IPR"]', 'aria-pressed') === 'false' && !/No attachment/.test(await owner.textContent('#cf-teethSum')), 'switching it off takes them off again');
+  await owner.click('#cf-ship');
+  await owner.click('#ncForm details.cfMore summary'); await owner.fill('#cf-labRef', 'INV-4455');
+  await owner.click('#ncSave'); await owner.waitForSelector('.toast:has-text("Copy chart note")', { timeout: 20000 });
+  check(true, 'after creating a case, the message offers to copy its chart note');
+  await owner.click('#nav-list'); await owner.fill('#q', 'INV-4455'); await owner.waitForSelector('tr.click:has-text("Sven Shipsworth")', { timeout: 20000 });
+  await owner.click('tr.click:has-text("Sven Shipsworth") td.stg'); await owner.waitForSelector('#drawer .stepper');
+  check(await owner.isVisible('#drawer .kv :text("Invisalign patient #")') && /No IPR\./.test(await owner.textContent('#noteTxt')) && /shipped to the patient/.test(await owner.textContent('#noteTxt')), 'the lab case # shows on the case (and search finds it); the note says No IPR and shipped to the patient');
+  await owner.click('#drawer [data-act=closeDrawer] >> nth=0'); await owner.fill('#q', '');
+
+  console.log('\n# Email updates: the script in a Gmail account → the app updates cases');
+  await owner.evaluate(async () => {
+    const mk = o => B.createCase(Object.assign({ comments: [], createdAt: Date.now(), createdBy: meSid() }, o));
+    await mk({ type: 'oliv', patient: 'Opal Brightwater', stage: 'submit' });
+    await mk({ type: 'ulab', patient: 'Ulysses Marchetti', stage: 'mfg' });
+    await mk({ type: 'angel', patient: 'Anya Velasquez', stage: 'submit' });
+    await mk({ type: 'appliance', patient: 'Priya Quillfeather', stage: 'submitted', lab: 'Partner Dental Studios', appliances: ['Schwartz'] });
+    await mk({ type: 'marpe', patient: 'Mira Holdsworth', stage: 'submitted', lab: 'Partner Dental Studios', records: ['stl', 'cbct'] });
+    await mk({ type: 'appliance', patient: 'Rory Tamsin', stage: 'mfg', lab: 'Specialty Orthodontic Lab', appliances: ['MARA'] });
+  });
+  await owner.click('#nav-admin'); await owner.waitForSelector('#mailAdmin [data-act=mailSetup]', { timeout: 20000 });
+  await owner.click('#mailAdmin [data-act=mailSetup]'); await owner.click('#cbYes');
+  await owner.waitForSelector('#mlScript', { timeout: 30000 });
+  const script = await owner.inputValue('#mlScript');
+  check(/"botEmail":"mailbot\.[a-z0-9]+@staff\.thenextlevelorthodontics\.com"/.test(script) && /"botPassword":"[A-Z0-9]{32}"/.test(script) && !script.includes('/*NLO_CONFIG*/null'), 'Set up email updates makes a robot login and hands out the script with it filled in');
+  await owner.click('.modal [data-act=closeModal]');
+  dump = JSON.stringify(await fsDump());
+  check(!dump.includes(script.match(/"botPassword":"([A-Z0-9]{32})"/)[1]), 'the robot’s password is stored only sealed');
+  const H = 3600e3, now = Date.now();
+  const emails = [
+    { id: 'e1', date: now - 3 * H, from: 'Oliv Doctors <doctor@olivortho.com>', subject: 'Oliv™: O. Brightwater (700111) setup is ready', text: 'Please approve or request changes using the button below.', html: '<p>Please approve or request changes using the button below.</p><a href="https://portal.olivortho.com/cases/700111" style="color:#fff">View Treatment Plan</a>' },
+    { id: 'e2', date: now - 2 * H, from: 'uLab Systems <noreply@ulabsystems.com>', subject: 'Your uLab order ZQ88 has shipped.', text: 'Your Order Has Shipped!\nDear Next Level Orthodontics,\nGreat news! The following order is on the way to your office:\nOrder Number: ZQ88\nPatient Name: Ulysses Marchetti\nClick here to track your order: 777766665555' },
+    { id: 'e3', date: now - H, from: 'general@partnersdentalstudio.com', subject: 'Daily Cases Received, Shipped, and Held', text: '', html:
+      '<p>Here is your daily summary of all cases received, shipped, and placed on hold today.</p><table><tr><td>Customer ID: next Level Ortho</td></tr></table><p>No Cases Received Today</p><table><tr><th>Patient Name</th><th>Case Number</th></tr></table>' +
+      '<p>Cases Shipped Today</p><table><tr><th>Patient Name</th><th>Invoice Number</th><th>Tracking Number</th><th>Carrier</th></tr><tr><td>Priya Q.</td><td>228635</td><td><a href="https://www.ups.com/track?tracknum=1Z7F167A0211300001">1Z7F167A0211300001</a></td><td>UPS</td></tr>' +
+      '<tr><td>Robin T.</td><td>228636</td><td>1Z7F167A0211300002</td><td>UPS</td></tr></table>' +
+      '<p>Cases On Hold in the last 7 Days</p><table><tr><th>Patient Name</th><th>Case Number</th><th>Hold Date</th><th>Hold Reason</th></tr><tr><td>Mira H.</td><td>55120</td><td>10-01-2026</td><td>Need lower jaw in the CBCT</td></tr></table>' },
+    { id: 'e4', date: now - H, from: 'iOrtho.America@angelaligner.com', subject: 'Angel Aligner: Treatment Plan to be Reviewed', text: 'Dear Dr. Amir Akhavan,\nYour treatment plan for patient (patient:Anya Velasquez #A12BC ) is ready for review. Please login to iOrtho to review.' },
+    { id: 'e5', date: now - H, from: 'A Friend <friend@example.com>', subject: 'Lunch', text: 'not for the app' }
+  ];
+  const gas = makeGas({ source: script, messages: emails, user: 'office@example.com' });
+  const run1 = gas.ctx.setup();
+  check(/4 emails sent/.test(run1) && gas.triggers.length === 1, 'the script (run in a stand-in for Google) passes its encryption self-test, sends the 4 lab emails and turns on its 10-minute check (' + run1 + ')');
+  const st = name => owner.evaluate(n => { const c = openCases().find(x => x.patient === n); return c ? { stage: c.stage, tracking: c.tracking || '', labRef: c.labRef || '', planUrl: c.planUrl || '', hold: c.labHold || null } : null; }, name);
+  await owner.waitForFunction(() => { const s = n => (openCases().find(x => x.patient === n) || {}).stage; return s('Opal Brightwater') === 'dra' && s('Ulysses Marchetti') === 'shipped' && s('Priya Quillfeather') === 'shipped' && s('Anya Velasquez') === 'dra'; }, null, { timeout: 30000 });
+  const o = await st('Opal Brightwater'), u = await st('Ulysses Marchetti'), pq = await st('Priya Quillfeather'), mh = await st('Mira Holdsworth'), an = await st('Anya Velasquez');
+  check(o.labRef === '700111' && o.planUrl === 'https://portal.olivortho.com/cases/700111', 'Oliv “setup is ready” → Dr. A action, with Oliv’s case # and the plan link');
+  check(u.tracking === '777766665555' && u.labRef === 'ZQ88', 'uLab shipped → Shipped, with the FedEx tracking # and the order #');
+  check(pq.tracking === '1Z7F167A0211300001', 'Partners’ daily summary → the right appliance shipped, with the UPS tracking # (matched on “Priya Q.”)');
+  check(mh && mh.hold && /lower jaw/.test(mh.hold.reason) && mh.stage === 'submitted', 'a case on hold at Partners gets the hold and its reason');
+  check(an.labRef === 'A12BC', 'Angel “Treatment Plan to be Reviewed” → Dr. A action, with Angel’s patient #');
+  await owner.click('#nav-today'); await owner.waitForSelector('#mailCard .mlRow:has-text("Robin T.")', { timeout: 20000 });
+  check((await owner.locator('#mailCard .mlRow').count()) === 1, 'Today: only the shipment it couldn’t place waits for someone to pick the case');
+  const rid = await owner.evaluate(() => openCases().find(c => c.patient === 'Rory Tamsin').id);
+  await owner.selectOption('#mailCard .mlSel', rid); await owner.click('#mailCard [data-act=mailApply]');
+  await owner.waitForFunction(() => { const c = openCases().find(x => x.patient === 'Rory Tamsin'); return c && c.stage === 'shipped' && /1Z7F167A0211300002/.test(c.tracking || ''); }, null, { timeout: 20000 });
+  await owner.waitForFunction(() => !document.querySelector('#mailCard'), null, { timeout: 20000 });
+  check(true, 'picking the case applies it (Shipped, tracking #) and the card clears');
+  await owner.waitForFunction(async () => (await B.inboxLoad()).length === 0, null, { timeout: 20000 });
+  check(true, 'every handled email leaves the inbox');
+  await openByName(owner, 'Opal Brightwater'); await owner.waitForSelector('#histBox .hist:has-text("Oliv email")', { timeout: 20000 });
+  check(/Oliv email\s*moved it to Dr\. A action and saved the lab case #, plan link/.test(await owner.textContent('#histBox')) && await owner.isVisible('#drawer .portals a:has-text("View treatment plan")'), 'history says the Oliv email did it; the case has a View treatment plan button');
+  await owner.click('#drawer [data-act=closeDrawer] >> nth=0');
+  await openByName(owner, 'Mira Holdsworth');
+  check(/On hold at the lab since 10-01-2026: Need lower jaw in the CBCT/.test(await owner.textContent('#drawer .notice.bad')), 'the case shows the hold and its reason');
+  await owner.click('#drawer [data-act=clearHold]'); await owner.waitForFunction(() => !document.querySelector('#drawer .notice.bad'), null, { timeout: 20000 });
+  await owner.click('#drawer [data-act=closeDrawer] >> nth=0'); await owner.fill('#q', '');
+  const run2 = gas.ctx.checkMail();
+  check(/0 emails sent/.test(run2), 'the next check sends nothing twice (' + run2 + ')');
+  // the next day's summary lists the same hold again (holds stay on it for 7 days)
+  gas.messages.push({ id: 'e3b', date: Date.now(), from: 'general@partnersdentalstudio.com', subject: 'Daily Cases Received, Shipped, and Held', text: '',
+    html: '<p>No Cases Received Today</p><p>No Cases Shipped Today</p><p>Cases On Hold in the last 7 Days</p><table><tr><th>Patient Name</th><th>Case Number</th><th>Hold Date</th><th>Hold Reason</th></tr><tr><td>Mira H.</td><td>55120</td><td>10-01-2026</td><td>Need lower jaw in the CBCT</td></tr></table>' });
+  check(/1 email sent/.test(gas.ctx.checkMail()), 'a new summary goes on the next check');
+  await owner.waitForFunction(async () => (await B.inboxLoad()).length === 0, null, { timeout: 20000 });
+  check(!(await st('Mira Holdsworth')).hold, 'a hold someone cleared isn’t brought back by the same hold in the next summary');
+  dump = JSON.stringify(await fsDump());
+  check(!/Brightwater|Marchetti|Quillfeather|Velasquez|Holdsworth|Robin T|700111|ZQ88|lower jaw/.test(dump), 'no patient name, case # or hold reason is readable anywhere in the database');
+  await owner.click('#nav-admin'); await owner.waitForSelector('#mailAdmin .mlBeat:has-text("office@example.com")', { timeout: 20000 });
+  check(true, 'Team & security shows each mailbox’s last check');
+  await owner.click('#mailAdmin [data-act=mailOff]'); await owner.click('#cbYes'); await owner.waitForSelector('.toast:has-text("turned off")', { timeout: 20000 });
+  gas.cache.clear(); gas.messages.push({ id: 'e9', date: Date.now(), from: 'noreply@ulabsystems.com', subject: 'Your uLab order ZQ99 has shipped.', text: 'Order Number: ZQ99\nPatient Name: Ulysses Marchetti' });
+  let offErr = ''; try { gas.ctx.checkMail(); } catch (e) { offErr = e.message; }
+  check(/inbox key|turned off/.test(offErr), 'after Turn off the script can’t send anything');
+  await owner.click('#nav-today');
 
   console.log('\n# Today: clean up old cases in bulk (complete with undo, delete)');
   await owner.evaluate(async () => {

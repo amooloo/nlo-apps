@@ -5,8 +5,8 @@
    aligner type, lab, initial submission, Dr. A's instructions, extras).
    ===================================================================== */
 const PICK = {
-  // MARPE has its own case type and steps now (older appliance cases with it keep the choice through withSaved)
-  appliances: ['Herbst with Rollo Band', 'Space Closing Herbst', 'MARA', 'MSE', 'Rapid Palatal Expander (RPE)', 'D2 distalizer', 'Finger spring with no labial bow', 'Hawley retainers', 'Schwartz'],
+  // MARPE has its own case type and steps; tapping it here switches the case to the MARPE tile (wireCaseForm)
+  appliances: ['Herbst with Rollo Band', 'Space Closing Herbst', 'MARA', 'MSE', 'MARPE', 'Rapid Palatal Expander (RPE)', 'D2 distalizer', 'Finger spring with no labial bow', 'Hawley retainers', 'Schwartz'],
   labs: ['Specialty Orthodontic Lab', 'Partner Dental Studios', 'In-house (NL Lab)'],
   scanners: ['Allied Star', 'iTero'],
   extras: ['No IPR', 'No elastics'],
@@ -153,7 +153,7 @@ function submissionLabel(v) { return v === 'yes' ? 'Initial submission' : v === 
 /* fields added later save '' when empty (not [] or false), so older cases without them don't look edited */
 const FORM_KEYS = ['type', 'patient', 'chart', 'detail', 'stage', 'assignee', 'assistant', 'scanner', 'scanDate', 'labDate', 'deliveryDate', 'aligners',
   'initial', 'appliances', 'lab', 'arches', 'retKinds', 'goals', 'instrPicks', 'instrOther', 'instructions', 'extras', 'teeth', 'cc', 'ipr', 'notes', 'titanUrl', 'alU', 'alL',
-  'shipToPatient', 'records', 'zoomDate', 'zoomTime', 'tracking'];
+  'shipToPatient', 'records', 'zoomDate', 'zoomTime', 'tracking', 'labRef'];
 
 /* ---------- tooth chart (Palmer, 7s to 7s, same teeth as the IPR Tracker) ---------- */
 const TEETH_U = ['UR7', 'UR6', 'UR5', 'UR4', 'UR3', 'UR2', 'UR1', 'UL1', 'UL2', 'UL3', 'UL4', 'UL5', 'UL6', 'UL7'];
@@ -410,6 +410,7 @@ function caseFormHTML(c, isNew) {
     '<div class="field"><label for="cf-stage">Stage</label><select id="cf-stage">' + stages.map(([k, l]) => opt(k, l, (c.stage || (stages[0] || [])[0]) === k)).join('') + '</select></div></div>' +
     '<div class="grid2"><div class="field"><label for="cf-assignee">Assigned to</label><select id="cf-assignee">' + people(c.assignee, 'Unassigned') + '</select></div>' +
     '<div class="field"><label for="cf-tracking">Tracking #</label><input id="cf-tracking" autocomplete="off" spellcheck="false" placeholder="UPS, FedEx or USPS — becomes a Track button" value="' + esc(c.tracking || '') + '"></div></div>' +
+    '<div class="grid2"><div class="field"><label for="cf-labRef">Lab case # / patient ID</label><input id="cf-labRef" autocomplete="off" spellcheck="false" placeholder="The lab’s own number (lab emails fill it in)" value="' + esc(c.labRef || '') + '"></div><div></div></div>' +
     '<div class="field"><label for="cf-notes">Notes</label><textarea id="cf-notes" rows="2">' + esc(c.notes || '') + '</textarea></div></details>' +
     '<input type="hidden" id="cf-tile" value="' + esc(tile) + '"></div>';
 }
@@ -417,7 +418,7 @@ function pressed(root, g) { return $$('.pickRow[data-g="' + g + '"] .pick[aria-p
 function readCaseForm(root) {
   const tile = $('#cf-tile', root).value;
   const o = { type: INHOUSE_TILES.includes(tile) ? 'nla' : tile, variant: tile === 'finishing' ? 'finishing' : '' };
-  ['patient', 'chart', 'detail', 'stage', 'assignee', 'scanDate', 'labDate', 'deliveryDate', 'instrOther', 'cc', 'ipr', 'notes', 'titanUrl', 'zoomDate', 'zoomTime', 'tracking'].forEach(k => { const el = $('#cf-' + k, root); o[k] = el ? String(el.value || '').trim() : ''; });
+  ['patient', 'chart', 'detail', 'stage', 'assignee', 'scanDate', 'labDate', 'deliveryDate', 'instrOther', 'cc', 'ipr', 'notes', 'titanUrl', 'zoomDate', 'zoomTime', 'tracking', 'labRef'].forEach(k => { const el = $('#cf-' + k, root); o[k] = el ? String(el.value || '').trim() : ''; });
   o.assistant = pressed(root, 'assistant')[0] || '';
   o.scanner = pressed(root, 'scanner')[0] || '';
   const g0 = groupOfTile(tile);
@@ -514,6 +515,10 @@ function wireCaseForm(root, isNew) {
     const pk = e.target.closest('.pickRow[data-g] .pick');
     if (pk && root.contains(pk)) {
       const row = pk.closest('.pickRow'); const multi = row.dataset.multi === '1'; const was = pk.getAttribute('aria-pressed') === 'true';
+      // MARPE runs on its own steps: tapping it under Appliance switches the case to the MARPE tile
+      if (row.dataset.g === 'appliances' && pk.dataset.v === 'MARPE' && !was && $r('#cf-tile').value === 'appliance') {
+        const mt = $r('.tt[data-tile=marpe]'); if (mt) { mt.click(); toast('MARPE has its own steps, so this is now a MARPE case'); return; }
+      }
       if (multi) pk.setAttribute('aria-pressed', String(!was));
       else { $$('.pick', row).forEach(b => b.setAttribute('aria-pressed', 'false')); if (!was) pk.setAttribute('aria-pressed', 'true'); }
       if (row.dataset.g === 'lab') row.dataset.manual = '1';
@@ -521,7 +526,22 @@ function wireCaseForm(root, isNew) {
       refresh(false); return;
     }
     const ship = e.target.closest('#cf-ship');
-    if (ship && root.contains(ship)) { ship.setAttribute('aria-pressed', String(ship.getAttribute('aria-pressed') !== 'true')); return; }
+    if (ship && root.contains(ship)) {
+      const on = ship.getAttribute('aria-pressed') !== 'true'; ship.setAttribute('aria-pressed', String(on));
+      // shipped straight to the patient means no visit for IPR or attachments (Amir, 2 Oct 2026): switch both on,
+      // and off again with the switch unless someone changed them in between
+      const ipr = $r('.pickRow[data-g=extras] .pick[data-v="No IPR"]'), na = $r('#cf-noatt');
+      if (on) {
+        if (ipr && ipr.getAttribute('aria-pressed') !== 'true') { ipr.setAttribute('aria-pressed', 'true'); ipr.dataset.byShip = '1'; }
+        const t = readTeeth();
+        if (na && noattScopeOf(t) !== 'all') { ALL_TEETH.forEach(k => setMark(t, k, 'noatt', !isMissing(t, k))); drawTeeth(t); syncNoatt('all'); na.dataset.byShip = '1'; }
+      } else {
+        if (ipr && ipr.dataset.byShip === '1' && ipr.getAttribute('aria-pressed') === 'true') ipr.setAttribute('aria-pressed', 'false');
+        if (na && na.dataset.byShip === '1') { const t = readTeeth(); if (noattScopeOf(t) === 'all') { ALL_TEETH.forEach(k => setMark(t, k, 'noatt', false)); drawTeeth(t); $r('#cf-noattScope').hidden = true; syncNoatt(); } }
+        if (ipr) delete ipr.dataset.byShip; if (na) delete na.dataset.byShip;
+      }
+      return;
+    }
     const tool = e.target.closest('.tcTools [data-tool]');
     if (tool && root.contains(tool)) { $$('.tcTools [data-tool]', root).forEach(b => b.setAttribute('aria-checked', String(b === tool))); return; }
     const nat = e.target.closest('#cf-noatt');
@@ -620,7 +640,10 @@ function newCaseModal() {
         if (needs.includes('zoom')) return err('Add the Zoom call date to start it at Zoom call scheduled.');
         Object.assign(data, { comments: [], createdAt: Date.now(), createdBy: meSid() });
         busyBtn($('#ncSave', w), true, 'Saving…');
-        try { await B.createCase(data); closeModal(); toast('Case created for ' + data.patient); }
+        try {
+          await B.createCase(data); closeModal();
+          toast('Case created for ' + data.patient, { action: 'Copy chart note', ms: 12000, onAction: () => copyText(chartNote(data)).then(ok => toast(ok ? 'Chart note copied — paste it into the patient’s chart' : 'Couldn’t copy — open the case to copy its chart note', ok ? {} : { bad: true })) });
+        }
         catch (x) { busyBtn($('#ncSave', w), false); err(errText(x)); }
       };
     });

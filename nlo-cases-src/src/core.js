@@ -149,14 +149,14 @@ function dayDiff(iso) { if (!iso) return null; const [y, m, d] = iso.split('-').
 function fmtDate(iso) { if (!iso) return ''; const [y, m, d] = iso.split('-').map(Number); const dt = new Date(y, m - 1, d); const opts = { month: 'short', day: 'numeric' }; if (y !== new Date().getFullYear()) opts.year = 'numeric'; return dt.toLocaleDateString(undefined, opts); }
 function fmtDay(iso) { if (!iso) return ''; const [y, m, d] = iso.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }); }
 function fmtTime(t) { const m = /^(\d{1,2}):(\d{2})/.exec(t || ''); if (!m) return ''; const h = +m[1]; return ((h + 11) % 12 + 1) + ':' + m[2] + ' ' + (h < 12 ? 'AM' : 'PM'); }
-/* one-click tracking: the carrier's own page, from the carrier named in a lab email or the number's shape
-   (UPS 1Z…, USPS 20–22 digits starting with 9, FedEx 12/15/20/22 digits) */
+/* one-click tracking: the carrier's own page, from the number's shape (UPS 1Z…, USPS 20–22 digits starting
+   with 9, FedEx 12/15/20/22 digits), else the carrier a lab email names */
 const TRACK_URL = { ups: 'https://www.ups.com/track?tracknum=', fedex: 'https://www.fedex.com/fedextrack/?trknbr=', usps: 'https://tools.usps.com/go/TrackConfirmAction?tLabels=', dhl: 'https://www.dhl.com/us-en/home/tracking/tracking-express.html?submit=1&tracking-id=' };
 const CARRIER_NAME = { ups: 'UPS', fedex: 'FedEx', usps: 'USPS', dhl: 'DHL' };
 function trackInfo(num, carrier) {
   const n = String(num || '').replace(/[\s-]+/g, '').toUpperCase(); if (!/^[A-Z0-9]{8,34}$/.test(n)) return null;
-  let k = String(carrier || '').toLowerCase().replace(/[^a-z]/g, '');
-  if (!TRACK_URL[k]) k = /^1Z[0-9A-Z]{16}$/.test(n) ? 'ups' : /^9\d{19,21}$/.test(n) ? 'usps' : /^(\d{12}|\d{15}|\d{20}|\d{22})$/.test(n) ? 'fedex' : '';
+  let k = /^1Z[0-9A-Z]{16}$/.test(n) ? 'ups' : /^9\d{19,21}$/.test(n) ? 'usps' : /^(\d{12}|\d{15}|\d{20}|\d{22})$/.test(n) ? 'fedex' : '';
+  if (!k) { k = String(carrier || '').toLowerCase().replace(/[^a-z]/g, ''); if (!TRACK_URL[k]) k = ''; }
   return { n, carrier: CARRIER_NAME[k] || '', url: k ? TRACK_URL[k] + encodeURIComponent(n) : '' };
 }
 /* a case can carry more than one number (spaces, commas or new lines between them) */
