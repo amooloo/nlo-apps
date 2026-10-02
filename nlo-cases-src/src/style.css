@@ -355,6 +355,36 @@ body.demo #drawer{bottom:31px} body.demo #side{padding-bottom:31px} body.demo #v
 .isvg .tbl{fill:none;stroke:var(--ink);stroke-width:1.7;stroke-linecap:round}
 .isvg .tbf{fill:var(--ink)}
 .isvg .tlk{fill:none;stroke:var(--acc);stroke-width:2.4;stroke-linecap:round}
+/* stage progress: a mark per stage (mint = done, navy = now, grey = to come); "In fabrication" steps share a band */
+.sprog{display:flex;align-items:center;gap:3px;width:100%;max-width:200px;margin:3px 0 5px}
+.sprog i{flex:1 1 0;min-width:4px;height:6px;border-radius:3px;background:var(--grey-200)}
+.sprog i.d{background:var(--mint-600)}
+.sprog i.c{background:var(--navy);height:9px;box-shadow:0 0 0 2px var(--mint-200)}
+.sprog .pg{display:flex;align-items:center;gap:2px;flex:4.2 1 0;padding:2px 3px;border-radius:6px;background:var(--mint-100);box-shadow:inset 0 0 0 1px var(--mint-200)}
+.sprog .pg i{height:5px}
+.sprog .pg i.c{height:8px}
+.sprog.sub{max-width:none;margin:0 0 4px}
+td.stg{min-width:150px}
+.kstep{margin-top:8px;padding:7px 8px 6px;border-radius:8px;background:var(--mint-100)}
+.kstep>div{display:flex;align-items:baseline;gap:6px;font-size:12px;color:var(--navy)}
+.kstep>div span{margin-left:auto;font-size:11px;color:var(--grey-500)}
+.col.grp{background:var(--grey-100)}
+.stepGrp{margin:6px 0 0;font-family:var(--fd);font-weight:500;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--mint-700)}
+.step.sub{margin-left:16px;min-height:34px;padding:6px 10px;font-size:12.5px}
+/* in-house aligners: this set and the patient's total */
+.alRow{display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap}
+.alRow .field{width:130px;margin:0}
+.alTot{flex:1;min-width:240px;padding-top:22px}
+.cf h5 .h5n{margin-left:8px;text-transform:none;letter-spacing:0;font-family:var(--fb);font-size:11.5px;color:var(--grey-400)}
+.alEst{display:inline-block;margin-left:6px;padding:1px 8px;border-radius:99px;background:var(--amber-100);color:var(--amber-700);font-weight:700;font-size:12px}
+.alThis{font-size:13.5px;color:var(--navy);margin-bottom:6px}
+.alSum{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.alT{font-size:13.5px;color:var(--navy);margin-right:4px}
+.alT b{font-size:16px}
+.alSet{display:inline-flex;gap:5px;align-items:baseline;padding:3px 9px;border-radius:99px;background:var(--grey-100);font-size:12px;color:var(--grey-600)}
+.alSet b{color:var(--navy)}
+.alSet.me{background:var(--mint-100);box-shadow:inset 0 0 0 1px var(--mint-600)}
+.alMini{display:inline-block;white-space:nowrap;margin-left:6px;padding:1px 7px;border-radius:99px;background:var(--mint-100);color:var(--mint-700);font-weight:600;font-size:11px}
 .cfMore{margin-top:10px;border-top:1px solid var(--grey-100);padding-top:10px}
 .cfMore summary{cursor:pointer;font-size:12.5px;font-weight:600;color:var(--grey-600);padding:6px 0}
 @media (max-width:860px){ #modalWrap{padding:0} .modal.wide{border-radius:0;min-height:100vh} .tileGrid{grid-template-columns:repeat(2,1fr)} }

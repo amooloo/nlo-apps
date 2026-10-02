@@ -23,18 +23,22 @@ const KDF_ITER = 600000;
 
 /* ---------- Case types and the stages each one moves through ---------- */
 const FLOWS = {
-  outside: { label: 'Outside aligners & braces', stages: [
+  outside: { label: 'Outside aligners & braces', labDone: 'shipped', stages: [
     ['submit', 'To submit'], ['dra', 'Dr. A action'], ['mfg', 'Manufacturing'],
     ['shipped', 'Shipped'], ['arrived', 'Arrived'], ['milestones', 'Checked into Milestones'] ] },
-  appliance: { label: 'Appliances', stages: [
+  appliance: { label: 'Appliances', labDone: 'shipped', stages: [
     ['submit', 'To submit'], ['hold', 'Hold (CBCT/Zoom)'], ['submitted', 'Submitted to lab'],
     ['mfg', 'Manufacturing'], ['shipped', 'Shipped'], ['milestones', 'Checked into Milestones'] ] },
-  inhouse: { label: 'In-house lab', stages: [
-    ['txp', 'TxP needed'], ['reset', 'Reset needed in 2 days'], ['fab', 'In fabrication'],
-    ['pack', 'Made – needs packaging'], ['checkedin', 'Checked in'] ] },
-  retainer: { label: 'Retainers & mouthguards', stages: [
+  /* in fabrication = the NL Lab checklist each Asana case carried as subtasks (Exported STLs → Final Wash and Dry);
+     the board shows the seven steps as one "In fabrication" column */
+  inhouse: { label: 'In-house lab', labDone: 'pack', stages: [
+    ['txp', 'TxP needed'], ['reset', 'Reset needed in 2 days'],
+    ['fab', 'Export STLs'], ['send', 'Send to printer'], ['print', 'Printing'], ['thermo', 'Thermoforming'], ['trim', 'Trimming'], ['polish', 'Polishing'], ['wash', 'Final wash & dry'],
+    ['pack', 'Made – needs packaging'], ['checkedin', 'Checked in'] ],
+    groups: [{ l: 'In fabrication', stages: ['fab', 'send', 'print', 'thermo', 'trim', 'polish', 'wash'] }] },
+  retainer: { label: 'Retainers & mouthguards', labDone: 'milestones', stages: [
     ['print', 'Printing'], ['milestones', 'Milestones'], ['sarah', 'On Sarah’s desk'], ['pickup', 'Front desk pickup'] ] },
-  models: { label: 'Study models', stages: [ ['print', 'To print'], ['ready', 'Ready'] ] },
+  models: { label: 'Study models', labDone: 'ready', stages: [ ['print', 'To print'], ['ready', 'Ready'] ] },
   retreat: { label: 'Retreatment', stages: [
     ['intake', 'Intake & assessment'], ['review', 'Pending review'], ['proposal', 'Send proposal'],
     ['progress', 'In progress'], ['completed', 'Completed'] ] },
@@ -64,13 +68,48 @@ function typesShown(cases, chosen) { return TYPES.filter(t => !t.legacy || t.k =
 const SCANNERS = ['Allied Star', 'iTero', 'Other'];
 /* Stages that need the doctor, and stages where the case is in fabrication. */
 const DR_STAGES = ['dra', 'txp', 'todo', 'review'];
-const FAB_STAGES = ['mfg', 'fab', 'print', 'submitted'];
+const FAB_STAGES = ['mfg', 'fab', 'send', 'print', 'thermo', 'trim', 'polish', 'wash', 'submitted'];
 
 function typeOf(c) { return TYPE[c.type] || TYPE.misc; }
 function flowOf(c) { return FLOWS[typeOf(c).flow]; }
 function stageLabel(c) { const s = flowOf(c).stages.find(x => x[0] === c.stage); return s ? s[1] : (c.stage || '—'); }
 function stageIndex(c) { return flowOf(c).stages.findIndex(x => x[0] === c.stage); }
 function firstStage(type) { return FLOWS[(TYPE[type] || TYPE.misc).flow].stages[0][0]; }
+/* the stage group a stage belongs to (e.g. the in-house "In fabrication" steps), or null */
+function stageGroup(flow, k) { return (flow.groups || []).find(g => g.stages.includes(k)) || null; }
+/* The date a case is working toward: its lab completion date until the lab work is done, then its delivery date.
+   (No separate due date any more — Amir, 2 Oct 2026. Older cases that only have one still use it.) */
+function dueOf(c) {
+  const f = flowOf(c), done = f.labDone ? f.stages.findIndex(s => s[0] === f.labDone) : -1;
+  if (c.labDate && (done < 0 || stageIndex(c) < done)) return { d: c.labDate, k: 'lab' };
+  if (c.deliveryDate) return { d: c.deliveryDate, k: 'delivery' };
+  if (c.dueDate) return { d: c.dueDate, k: 'due' };
+  return null;
+}
+function dueDateOf(c) { const x = dueOf(c); return x ? x.d : ''; }
+/* ---------- in-house aligner sets: how many aligners each case made, and the patient's total ---------- */
+const normChart = s => String(s || '').replace(/\s+/g, '').toLowerCase();
+const normName = s => String(s || '').trim().replace(/\s+/g, ' ').toLowerCase();
+/* same patient: by chart # when both have one, otherwise by name */
+function samePatient(a, b) {
+  const ca = normChart(a.chart), cb = normChart(b.chart);
+  if (ca && cb) return ca === cb;
+  return !!normName(a.patient) && normName(a.patient) === normName(b.patient);
+}
+/* aligners in one in-house set: upper + lower (aligners, not stages) */
+function alN(c) { return Number(c.aligners) || (Number(c.alU) || 0) + (Number(c.alL) || 0); }
+/* this patient's in-house aligner cases, oldest first: Initial, Refinement 1, 2…, Mid-course correction, Finishing.
+   `c` may be an unsaved form (no id); `pool` is every case we can see (open and completed). */
+function alignerSets(c, pool) {
+  const mine = (pool || []).filter(x => x && x.type === 'nla' && !x.locked && (!c.id || x.id !== c.id) && samePatient(x, c));
+  const seen = new Set(); const list = mine.filter(x => !seen.has(x.id) && seen.add(x.id));
+  if (c.type === 'nla') list.push(c);
+  const when = x => (x.scanDate || '') + '|' + String(x.createdAt || (x === c && !c.id ? 9e15 : 0)).padStart(16, '0');
+  list.sort((a, b) => when(a) < when(b) ? -1 : when(a) > when(b) ? 1 : 0);
+  let ref = 0;
+  return list.map(x => ({ id: x.id || '', me: x === c, n: alN(x), done: x.status === 'done',
+    l: x.variant === 'finishing' ? 'Finishing' : x.initial === 'yes' ? 'Initial' : x.initial === 'no' ? 'Refinement ' + (++ref) : x.initial === 'mid' ? 'Mid-course' : 'Set' }));
+}
 
 /* ---------- small utils ---------- */
 const $ = (s, r) => (r || document).querySelector(s);
@@ -191,7 +230,15 @@ const PROJECT_TYPES = [
   [/nl lab|next level lab|in-?house/i, 'nla'], [/appliance/i, 'appliance'], [/retainer|whitening/i, 'retainer'], [/retreat/i, 'retreat']
 ];
 function typeFromProject(p) { const hit = PROJECT_TYPES.find(([re]) => re.test(p || '')); return hit ? hit[1] : ''; }
-function stageFromSection(type, section) {
+/* NL Lab cases in Asana carry the fabrication checklist as subtasks; the first unticked one is where the case is */
+const FAB_SUBTASKS = [[/export/i, 'fab'], [/sent? to (the )?print/i, 'send'], [/print/i, 'print'], [/thermo/i, 'thermo'], [/trim/i, 'trim'], [/polish/i, 'polish'], [/wash|dry/i, 'wash']];
+function fabStepFromSubtasks(subtasks) {
+  const list = (subtasks || []).filter(x => x && FAB_SUBTASKS.some(([re]) => re.test(x.name || '')));
+  if (!list.length) return '';
+  const open = list.find(x => !x.completed); if (!open) return 'pack';
+  return FAB_SUBTASKS.find(([re]) => re.test(open.name || ''))[1];
+}
+function stageFromSection(type, section, subtasks) {
   const s = String(section || '').toLowerCase();
   const flow = FLOWS[(TYPE[type] || TYPE.misc).flow].stages.map(x => x[0]);
   const pick = k => flow.includes(k) ? k : flow[0];
@@ -206,7 +253,7 @@ function stageFromSection(type, section) {
     if (/misc/.test(s)) return 'todo';
     if (/txp/.test(s)) return pick('txp');
     if (/reset/.test(s)) return pick('reset');
-    if (/fabrication/.test(s)) return pick('fab');
+    if (/fabrication/.test(s)) return fabStepFromSubtasks(subtasks) || pick('fab');
     if (/package|made/.test(s)) return pick('pack');
     if (/checked in/.test(s)) return pick('checkedin');
     return flow[0];
@@ -246,9 +293,9 @@ function caseFromAsana(t, projectName, roster) {
   let detailText = detail;
   if (!detailText && n.appliance) detailText = n.appliance + (n.alignerType ? ' (' + n.alignerType + ')' : '');
   return {
-    type, patient: (n.patient || pt || '').trim(), detail: detailText, stage: stageFromSection(type, sectionName),
+    type, patient: (n.patient || pt || '').trim(), detail: detailText, stage: stageFromSection(type, sectionName, t.subtasks),
     assignee, assigneeName: assignee ? '' : (t.assignee || ''),
-    scanDate: iso(n.scanDate), dueDate: iso(t.due), labDate: iso(n.labDate), deliveryDate: iso(n.deliveryDate),
+    scanDate: iso(n.scanDate), labDate: iso(n.labDate), deliveryDate: iso(n.deliveryDate) || iso(t.due),
     scanner: n.scanner || '', assistant: findStaff(n.assistant) || '', assistantName: findStaff(n.assistant) ? '' : (n.assistant || ''),
     instructions: n.instructions || '', cc: n.cc || '', ipr: n.ipr || '', notes: n.rest || '',
     comments: [], src: { asana: String(t.gid || '') }, importedAt: Date.now(),
@@ -271,10 +318,13 @@ function parseCSV(text) {
   return rows.slice(1).filter(r => r.some(x => x.trim())).map(r => Object.fromEntries(head.map((h, i) => [h, r[i] == null ? '' : r[i]])));
 }
 function asanaRowsFromCSV(text) {
-  return parseCSV(text).filter(r => !r['Parent task']).map(r => ({
+  const rows = parseCSV(text), subs = {};
+  // subtasks come as their own rows naming the parent; NL Lab cases keep their fabrication checklist this way
+  rows.filter(r => r['Parent task']).forEach(r => { const k = r['Parent task']; (subs[k] = subs[k] || []).push({ name: r['Name'] || '', completed: !!(r['Completed At'] || '').trim() }); });
+  return rows.filter(r => !r['Parent task']).map(r => ({
     gid: r['Task ID'] || '', name: r['Name'] || '', notes: r['Notes'] || '', due: r['Due Date'] || '',
     assignee: r['Assignee'] || '', section: r['Section/Column'] || '', project: r['Projects'] || '',
-    completed: !!(r['Completed At'] || '').trim(), completedAt: r['Completed At'] || ''
+    completed: !!(r['Completed At'] || '').trim(), completedAt: r['Completed At'] || '', subtasks: subs[r['Name'] || ''] || null
   }));
 }
 /* spreadsheet-safe cell: a leading = + - @ (or tab/CR) would be run as a formula by Excel/Sheets */
@@ -284,6 +334,6 @@ function csvCell(v) {
   return '"' + s.replace(/"/g, '""') + '"';
 }
 function caseToCSVRow(c) {
-  return [c.patient, typeOf(c).l, c.detail, stageLabel(c), c.status === 'done' ? 'Completed' : 'Open', c.dueDate, c.scanDate, c.labDate, c.deliveryDate, c.assigneeLabel || '', c.instructions, c.cc, c.ipr, c.notes, c.chart, c.titanUrl, (c.extras || []).join('; '), typeof submissionLabel === 'function' ? submissionLabel(c.initial) : '', c.lab || '', (c.teethNote || '').replace(/\n/g, '; ')]
+  return [c.patient, typeOf(c).l, c.detail, stageLabel(c), c.status === 'done' ? 'Completed' : 'Open', c.scanDate, c.labDate, c.deliveryDate, c.assigneeLabel || '', c.instructions, c.cc, c.ipr, c.notes, c.chart, c.titanUrl, (c.extras || []).join('; '), typeof submissionLabel === 'function' ? submissionLabel(c.initial) : '', c.lab || '', (c.teethNote || '').replace(/\n/g, '; '), c.aligners || '']
     .map(csvCell).join(',');
 }

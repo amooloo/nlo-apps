@@ -3,7 +3,7 @@
    Opened with ?demo — lets the office try the app before Firebase exists.
    ===================================================================== */
 const DEMO = {
-  me: null, h: null, cases: new Map(), logs: [], roster: [], members: [], settings: { idleMin: 30 }, curV: 1,
+  me: null, h: null, cases: new Map(), logs: [], roster: [], members: [], settings: { idleMin: 30, alPerAligner: 4.5 }, curV: 1,
   isOwner() { return true; },
   async emailFor(l) { return l; },
   async signIn() {
@@ -28,7 +28,7 @@ const DEMO = {
     const plan = [
       ['oliv', 'submit', 'sarah', 9], ['oliv', 'dra', 'amir', 2], ['oliv', 'mfg', 'sarah', 12], ['oliv', 'shipped', 'sarah', 4], ['oliv', 'arrived', 'sarah', -1],
       ['angel', 'mfg', 'sarah', 6], ['ulab', 'submit', 'gwen', 1], ['insmile', 'dra', 'amir', 5], ['invisalign', 'milestones', 'sarah', 0],
-      ['nla', 'txp', 'amir', -2], ['nla', 'txp', 'amir', 3], ['nla', 'reset', 'angelika', 2], ['nla', 'fab', 'angelika', 6], ['nla', 'fab', 'kaylee', 8], ['nla', 'pack', 'gwen', 1],
+      ['nla', 'txp', 'amir', -2], ['nla', 'txp', 'amir', 3], ['nla', 'reset', 'angelika', 2], ['nla', 'thermo', 'angelika', 6], ['nla', 'send', 'kaylee', 8], ['nla', 'pack', 'gwen', 1],
       ['appliance', 'submit', 'sarah', 7], ['appliance', 'hold', 'amir', null], ['appliance', 'mfg', 'sarah', 15],
       ['retainer', 'print', 'angelika', 1], ['retainer', 'print', 'gwen', null], ['retainer', 'sarah', 'sarah', 0], ['retainer', 'pickup', 'sarah', -3],
       ['ulab', 'mfg', 'gwen', 10], ['models', 'print', 'kaylee', 4], ['mouthguard', 'print', 'kaylee', 2], ['insmile', 'mfg', 'sarah', 9]
@@ -40,16 +40,22 @@ const DEMO = {
       DEMO.cases.set(id, {
         id, rev: 1, v: 1, status: 'open', by: 'amir', updatedAt: Date.now() - i * 3600e3, closedAt: null,
         type, patient: first[i % first.length] + ' ' + last[i % last.length], detail: details[type], stage, assignee: who,
-        scanDate: TYPE[type].aligner ? scan : '', dueDate: due == null ? '' : addDays(t, due), labDate: TYPE[type].aligner ? addDays(scan, 21) : '', deliveryDate: TYPE[type].aligner ? addDays(scan, 28) : '',
+        scanDate: TYPE[type].aligner ? scan : '', labDate: TYPE[type].aligner && due != null ? addDays(t, due) : '', deliveryDate: due == null ? '' : addDays(t, due + (TYPE[type].aligner ? 7 : 0)),
+        alU: type === 'nla' ? [18, 22, 14, 26, 20, 12][i % 6] : '', alL: type === 'nla' ? [16, 22, 14, 20, 20, 12][i % 6] : '', initial: type === 'nla' ? 'yes' : '',
         scanner: TYPE[type].aligner ? 'Allied Star' : '', assistant: ['angelika', 'gwen', 'kaylee'][i % 3],
         instructions: TYPE[type].aligner ? 'Close remaining spaces, improve bite.' : '', cc: '', ipr: i % 3 === 0 ? 'UR2–UR1 0.1mm, UR1–UL1 0.1mm' : '', notes: '',
         comments: i % 4 === 0 ? [{ id: 'c' + i, at: Date.now() - 7200e3, by: 'sarah', text: 'Submitted in the portal.' }] : [], createdAt: Date.now() - 86400e3 * (i + 2), createdBy: 'amir'
       });
       DEMO.logs.push({ caseId: id, a: 'create', at: Date.now() - 86400e3 * (i + 2), sid: 'amir' });
     });
+    // one in-house patient on a refinement, with the finished initial set behind it (shows the aligner total)
+    const ref = Array.from(DEMO.cases.values()).find(c => c.type === 'nla' && c.stage === 'thermo');
+    Object.assign(ref, { chart: '15-1001', initial: 'no', alU: 10, alL: 8, detail: 'Aligners (In-House) – refinement' });
+    DEMO.cases.set('demoAl0', { id: 'demoAl0', rev: 6, v: 1, status: 'done', by: 'angelika', updatedAt: Date.now() - 90 * 86400e3, closedAt: Date.now() - 90 * 86400e3, type: 'nla', patient: ref.patient, chart: '15-1001',
+      detail: 'Aligners (In-House)', stage: 'checkedin', initial: 'yes', alU: 24, alL: 20, scanDate: addDays(t, -130), labDate: addDays(t, -109), deliveryDate: addDays(t, -102), assignee: 'angelika', comments: [], createdAt: Date.now() - 130 * 86400e3 });
     for (let j = 0; j < 6; j++) {
       const id = 'demoDone' + j;
-      DEMO.cases.set(id, { id, rev: 3, v: 1, status: 'done', by: 'sarah', updatedAt: Date.now() - j * 86400e3, closedAt: Date.now() - j * 86400e3, type: j % 2 ? 'retainer' : 'oliv', patient: first[(j + 9) % first.length] + ' ' + last[(j + 2) % last.length], detail: j % 2 ? "U/L TT's" : 'Aligners (Oliv)', stage: j % 2 ? 'pickup' : 'milestones', assignee: 'sarah', dueDate: addDays(t, -j - 1), comments: [], createdAt: Date.now() - 20 * 86400e3 });
+      DEMO.cases.set(id, { id, rev: 3, v: 1, status: 'done', by: 'sarah', updatedAt: Date.now() - j * 86400e3, closedAt: Date.now() - j * 86400e3, type: j % 2 ? 'retainer' : 'oliv', patient: first[(j + 9) % first.length] + ' ' + last[(j + 2) % last.length], detail: j % 2 ? "U/L TT's" : 'Aligners (Oliv)', stage: j % 2 ? 'pickup' : 'milestones', assignee: 'sarah', deliveryDate: addDays(t, -j - 1), comments: [], createdAt: Date.now() - 20 * 86400e3 });
     }
   },
   start(h) {
