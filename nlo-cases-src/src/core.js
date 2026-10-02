@@ -273,6 +273,6 @@ function csvCell(v) {
   return '"' + s.replace(/"/g, '""') + '"';
 }
 function caseToCSVRow(c) {
-  return [c.patient, typeOf(c).l, c.detail, stageLabel(c), c.status === 'done' ? 'Completed' : 'Open', c.dueDate, c.scanDate, c.labDate, c.deliveryDate, c.assigneeLabel || '', c.instructions, c.cc, c.ipr, c.notes, c.chart, c.titanUrl, (c.extras || []).join('; '), c.initial === 'yes' ? 'Initial' : c.initial === 'no' ? 'Refinement' : '', c.lab || '']
+  return [c.patient, typeOf(c).l, c.detail, stageLabel(c), c.status === 'done' ? 'Completed' : 'Open', c.dueDate, c.scanDate, c.labDate, c.deliveryDate, c.assigneeLabel || '', c.instructions, c.cc, c.ipr, c.notes, c.chart, c.titanUrl, (c.extras || []).join('; '), c.initial === 'yes' ? 'Initial' : c.initial === 'no' ? 'Refinement' : '', c.lab || '', (c.teethNote || '').replace(/\n/g, '; ')]
     .map(csvCell).join(',');
 }
