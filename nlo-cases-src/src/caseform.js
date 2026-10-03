@@ -7,15 +7,16 @@
 const PICK = {
   // MARPE has its own case type and steps; tapping it here switches the case to the MARPE tile (wireCaseForm)
   appliances: ['Herbst with Rollo Band', 'Space Closing Herbst', 'MARA', 'MSE', 'MARPE', 'Rapid Palatal Expander (RPE)', 'D2 distalizer', 'Finger spring with no labial bow', 'Hawley retainers', 'Schwartz'],
-  labs: ['Specialty Orthodontic Lab', 'Partner Dental Studios', 'In-house (NL Lab)'],
+  labs: ['Specialty Orthodontic Lab', 'Partners Dental Solutions', 'In-house (NL Lab)'],
   scanners: ['Allied Star', 'iTero'],
   extras: ['No IPR', 'No elastics'],
   arches: ['Upper', 'Lower'], retKinds: ['TT’s', 'WT’s']
 };
-/* lab routing from the AISA KB / SOP manual: MSE → Specialty Orthodontic Lab (SOP-CL-020); MARPE → Partner Dental Studios (SOP-CL-029);
+/* lab routing from the AISA KB / SOP manual: MSE → Specialty Orthodontic Lab (SOP-CL-020); MARPE → Partners Dental Solutions (SOP-CL-029,
+   as Partner Dental Studios — the lab rebranded; Amir, 3 Oct 2026);
    D2 distalizer → in-house, no outside prescription (lab workflow, Layer 3 exception); Herbst, MARA → Specialty; RPE, Schwartz,
    Hawley, finger spring → Partners (KB lab routing) */
-const LAB_SPEC = 'Specialty Orthodontic Lab', LAB_PART = 'Partner Dental Studios', LAB_IN = 'In-house (NL Lab)';
+const LAB_SPEC = 'Specialty Orthodontic Lab', LAB_PART = 'Partners Dental Solutions', LAB_IN = 'In-house (NL Lab)';
 /* each lab's logo (logos.js; Amir, 3 Oct 2026): on the Lab choices and, for appliance and MARPE cases, on the board and lists */
 const LAB_LOGO = { [LAB_SPEC]: 'lab-specialty', [LAB_PART]: 'lab-partners', [LAB_IN]: 'nlo' };
 const LAB_FOR = { 'Herbst with Rollo Band': LAB_SPEC, 'Space Closing Herbst': LAB_SPEC, 'MARA': LAB_SPEC, 'MSE': LAB_SPEC, 'MARPE': LAB_PART,
@@ -386,7 +387,7 @@ function caseFormHTML(c, isNew) {
     '<div class="cfSec"><div class="ptRowF">' + (isNew ? phSlotHTML() : '') + '<div class="grid2"><div class="field"><label for="cf-patient">Patient name *</label><input id="cf-patient" autocomplete="off" value="' + esc(c.patient || '') + '" required></div>' +
     '<div class="field"><label for="cf-chart">Chart #</label><input id="cf-chart" autocomplete="off" spellcheck="false" inputmode="text" placeholder="For the IPR Tracker link" value="' + esc(c.chart || '') + '"></div></div></div></div>' +
     '<div class="cfSec"' + show('appliance marpe') + '><div' + show('appliance') + '><h5>Appliance</h5>' + pickRow('appliances', withSaved(PICK.appliances, c.appliances), c.appliances || [], true) + '</div>' +
-    '<h5>Lab</h5>' + labRowHTML(withSaved(PICK.labs, c.lab), c.lab || '') + '<div class="hint small" id="cf-labHint" style="margin-top:6px"></div></div>' +
+    '<h5>Lab</h5>' + labRowHTML(withSaved(PICK.labs, labName(c.lab)), labName(c.lab)) + '<div class="hint small" id="cf-labHint" style="margin-top:6px"></div></div>' +
     // MARPE: the two records the lab needs, and the Zoom call once it's set up
     '<div class="cfSec"' + show('marpe') + '><h5>Records on file <span class="h5n">both have to be on file before it goes to the lab</span></h5>' +
       pickRow('records', MARPE_RECORDS.map(([v, l]) => ({ v, l })), c.records || [], true) +

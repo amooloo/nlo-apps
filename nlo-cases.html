@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-l1pwW7j97zNZzuMPOBnfucCbj45pvLaN/tV4p7dPCto=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-haU/D+fRqbRLva0Vnfhb19plt3AQFUXajsWPA8Atmc8=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO Cases</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -868,6 +868,10 @@ function stageNeeds(c, to) {
   if (to === 'zoom' && !c.zoomDate) out.push('zoom');
   return out;
 }
+/* lab names: Partner Dental Studios rebranded as Partners Dental Solutions (Amir, 3 Oct 2026). Cases saved before keep the old
+   name in their data, so everything that shows or compares a lab goes through labName() */
+const LAB_RENAMED = { 'Partner Dental Studios': 'Partners Dental Solutions' };
+function labName(v) { return LAB_RENAMED[v] || v || ''; }
 /* attachment templates on an in-house set: none, upper, lower or both ('' = not answered yet) */
 const AT_OPTS = [{ v: 'none', l: 'None' }, { v: 'U', l: 'Upper' }, { v: 'L', l: 'Lower' }, { v: 'UL', l: 'Upper & Lower' }];
 function atLabel(v) { const o = AT_OPTS.find(x => x.v === v); return o ? o.l : ''; }
@@ -1171,7 +1175,7 @@ function csvCell(v) {
   return '"' + s.replace(/"/g, '""') + '"';
 }
 function caseToCSVRow(c) {
-  return [c.patient, typeOf(c).l, c.detail, stageLabel(c), c.status === 'done' ? 'Completed' : 'Open', c.scanDate, c.labDate, c.deliveryDate ? c.deliveryDate + (c.deliveryTime ? ' ' + c.deliveryTime : '') : '', c.assigneeLabel || '', c.instructions, c.cc, c.ipr, c.notes, c.chart, c.titanUrl, (c.extras || []).join('; '), typeof submissionLabel === 'function' ? submissionLabel(c.initial) : '', c.lab || '', (c.teethNote || '').replace(/\n/g, '; '), c.aligners || '',
+  return [c.patient, typeOf(c).l, c.detail, stageLabel(c), c.status === 'done' ? 'Completed' : 'Open', c.scanDate, c.labDate, c.deliveryDate ? c.deliveryDate + (c.deliveryTime ? ' ' + c.deliveryTime : '') : '', c.assigneeLabel || '', c.instructions, c.cc, c.ipr, c.notes, c.chart, c.titanUrl, (c.extras || []).join('; '), typeof submissionLabel === 'function' ? submissionLabel(c.initial) : '', labName(c.lab), (c.teethNote || '').replace(/\n/g, '; '), c.aligners || '',
     c.shipToPatient ? 'Yes' : '', MARPE_RECORDS.filter(([k]) => (c.records || []).includes(k)).map(x => x[1]).join('; '), c.zoomDate ? c.zoomDate + (c.zoomTime ? ' ' + c.zoomTime : '') : '', atLabel(c.atTemplates),
     oneArch(c) === 'U' ? 'Upper only' : oneArch(c) === 'L' ? 'Lower only' : typeOf(c).aligner || ['insmile', 'inbrace'].includes(c.type) ? 'Upper & lower' : '']
     .map(csvCell).join(',');
@@ -1790,9 +1794,9 @@ const DEMO = {
     });
     // MARPE: one still waiting on its CBCT, one with the Zoom call in two days, one approved; Partners makes them
     const all = Array.from(DEMO.cases.values()), mp = all.filter(c => c.type === 'marpe');
-    Object.assign(mp[0], { records: ['stl'], lab: 'Partner Dental Studios' });
-    Object.assign(mp[1], { records: ['stl', 'cbct'], lab: 'Partner Dental Studios', zoomDate: addDays(t, 2), zoomTime: '12:30' });
-    Object.assign(mp[2], { records: ['stl', 'cbct'], lab: 'Partner Dental Studios', zoomDate: addDays(t, -9), zoomTime: '13:00' });
+    Object.assign(mp[0], { records: ['stl'], lab: 'Partners Dental Solutions' });
+    Object.assign(mp[1], { records: ['stl', 'cbct'], lab: 'Partners Dental Solutions', zoomDate: addDays(t, 2), zoomTime: '12:30' });
+    Object.assign(mp[2], { records: ['stl', 'cbct'], lab: 'Partners Dental Solutions', zoomDate: addDays(t, -9), zoomTime: '13:00' });
     // in-house sets past Export STLs: attachment templates answered (some with, some without)
     all.filter(c => c.type === 'nla' && stageIndex(c) >= FLOWS.inhouse.stages.findIndex(x => x[0] === 'fab')).forEach((c, i) => { c.atTemplates = ['UL', 'none', 'U'][i % 3]; });
     // one arch only: an in-house set for the upper arch, InSmile braces on the lower
@@ -2532,8 +2536,8 @@ function typeMark(c, small) {
     return nl ? '<span class="' + cls + ' lg-nlo" title="' + esc(l) + '"><img data-logo="nlo" width="' + nl.w + '" height="' + nl.h + '" alt="' + esc(l) + '" draggable="false"></span>'
       : '<span class="' + cls + ' nl" title="' + esc(l) + '" role="img" aria-label="' + esc(l) + '">' + typeSvg('nl') + '</span>'; }
   // appliances and MARPE: the lab's logo (Specialty, Partners, or ours for in-house; Amir, 3 Oct 2026); no lab yet = the name
-  const lk = (c.type === 'appliance' || c.type === 'marpe') && LAB_LOGO[c.lab], ll = lk && typeof LOGOS !== 'undefined' && LOGOS[lk];
-  if (ll) { const l = t.l + ' · ' + c.lab;
+  const lk = (c.type === 'appliance' || c.type === 'marpe') && LAB_LOGO[labName(c.lab)], ll = lk && typeof LOGOS !== 'undefined' && LOGOS[lk];
+  if (ll) { const l = t.l + ' · ' + labName(c.lab);
     return '<span class="' + cls + ' lg-' + esc(lk) + '" title="' + esc(l) + '"><img data-logo="' + esc(lk) + '" width="' + ll.w + '" height="' + ll.h + '" alt="' + esc(l) + '" draggable="false"></span>'; }
   return typeBadge(c);
 }
@@ -2581,8 +2585,8 @@ function chartNote(c) {
   if (c.type === 'nla') what = (c.variant === 'finishing' ? 'finishing aligners' : 'in-house aligners') + ' (NL Lab)' + (sub ? ' - ' + sub : '');
   else if (t.aligner) what = ({ oliv: 'Oliv', angel: 'Angel', invisalign: 'Invisalign', ulab: 'uLab' }[c.type] || t.l) + ' aligners' + (sub ? ' - ' + sub : '');
   else if (c.type === 'insmile') what = 'InSmile braces' + (/^de[123]$/.test(c.initial || '') ? ' - digital enhancement ' + c.initial.slice(2) : c.initial === 'yes' ? ' - initial' : '');
-  else if (c.type === 'marpe') what = 'MARPE' + (c.lab ? ' (' + c.lab + ')' : '');
-  else if (c.type === 'appliance') what = ((c.appliances || []).join(', ') || c.detail || 'appliance') + (c.lab ? ' (' + c.lab + ')' : '');
+  else if (c.type === 'marpe') what = 'MARPE' + (c.lab ? ' (' + labName(c.lab) + ')' : '');
+  else if (c.type === 'appliance') what = ((c.appliances || []).join(', ') || c.detail || 'appliance') + (c.lab ? ' (' + labName(c.lab) + ')' : '');
   else if (c.type === 'retainer') what = 'retainers' + (c.detail ? ': ' + c.detail : '');
   else if (c.type === 'mouthguard') what = 'a mouthguard' + ((c.arches || []).length ? ' (' + c.arches.join('/') + ')' : '');
   else if (c.type === 'models') what = 'study models';
@@ -2722,7 +2726,7 @@ function viewBoard() {
 function kcard(c, last, steps) {
   const mixed = S.boardFlow === 'outside' || S.boardFlow === 'inhouse' || S.boardFlow === 'retainer';
   // appliances and MARPE: the lab's logo on every card (the lab differs from card to card even on their own tabs)
-  const labbed = (c.type === 'appliance' || c.type === 'marpe') && !!LAB_LOGO[c.lab];
+  const labbed = (c.type === 'appliance' || c.type === 'marpe') && !!LAB_LOGO[labName(c.lab)];
   const flags = shipFlag(c) + recFlag(c) + holdFlag(c);
   return '<div class="kc" data-act="open" data-id="' + esc(c.id) + '" role="button" tabindex="0">' +
     '<div class="kHd">' + ptAv(c, 32) + '<div class="pt">' + esc(c.patient || '(no name)') + '</div></div>' + (c.detail || alN(c) ? '<div class="dt">' + esc(c.detail || '') + alignerMini(c) + '</div>' : '') +
@@ -3003,7 +3007,7 @@ function renderDrawer() {
     kv('Assistant', esc(staffName(c.assistant, c.assistantName))) + kv('Scanner', esc(c.scanner)) + kv('Chart #', esc(c.chart || '')) +
     kv('Created', esc((c.createdAt ? fmtWhen(c.createdAt) : '') + (c.createdBy ? ' · ' + firstName(staffName(c.createdBy, '')) : ''))) + kv('Last update', esc(c.updatedAt ? fmtWhen(c.updatedAt) + (c.by ? ' · ' + firstName(staffName(c.by, '')) : '') : '')) +
     '</div></div>' +
-    ((c.appliances || []).length || c.lab || c.initial || (c.extras || []).length || oneArch(c) ? '<div class="sec"><h5>Case</h5><div class="pickRow">' + (oneArch(c) ? '<span class="badge t-arch">' + esc(treatArchLabel(oneArch(c))) + '</span>' : '') + (c.appliances || []).map(x => '<span class="badge t-appl">' + esc(x) + '</span>').join('') + (c.lab ? '<span class="badge">' + esc(c.lab) + '</span>' : '') + (c.initial ? '<span class="badge">' + esc(submissionLabel(c.initial)) + '</span>' : '') + (c.extras || []).map(x => '<span class="badge t-retx">' + esc(x) + '</span>').join('') + '</div></div>' : '') +
+    ((c.appliances || []).length || c.lab || c.initial || (c.extras || []).length || oneArch(c) ? '<div class="sec"><h5>Case</h5><div class="pickRow">' + (oneArch(c) ? '<span class="badge t-arch">' + esc(treatArchLabel(oneArch(c))) + '</span>' : '') + (c.appliances || []).map(x => '<span class="badge t-appl">' + esc(x) + '</span>').join('') + (c.lab ? '<span class="badge">' + esc(labName(c.lab)) + '</span>' : '') + (c.initial ? '<span class="badge">' + esc(submissionLabel(c.initial)) + '</span>' : '') + (c.extras || []).map(x => '<span class="badge t-retx">' + esc(x) + '</span>').join('') + '</div></div>' : '') +
     (c.type === 'nla' ? '<div class="sec" id="alBox"><h5>Aligners</h5>' + alignerTotalHTML(c, false) + '</div>' : '') +
     // retainers & whitening trays: a label for the bag, then it offers to complete the case (Amir, 2 Oct 2026)
     (c.type === 'retainer' ? '<div class="sec" id="retLblBox"><h5>Label</h5><div class="alLbl"><button class="btn btn-sec btn-sm" data-act="retLabels">' + ic('print', 15) + 'Print label</button>' +
@@ -3261,7 +3265,8 @@ function onClick(e) {
       act(() => B.mutateCase(id, d => { d.assignee = to; if (to) d.assigneeName = ''; }, { a: 'assign', to }), to ? 'Assigned to ' + staffName(to) : 'Unassigned'); break; }
     case 'addCmt': { const txt = ($('#cmtText').value || '').trim(); if (!txt) return; const cid = S.openId;
       $('#cmtText').value = ''; act(() => B.mutateCase(cid, d => { d.comments = (d.comments || []).concat([{ id: uid8(), at: Date.now(), by: meSid(), text: txt }]); }, { a: 'comment' })); break; }
-    case 'edit': { const c = findCase(S.openId); S.editBase = JSON.parse(JSON.stringify(c)); S.editing = true; renderDrawer(); break; }
+    // (a lab saved under its old name counts as its new name, so opening Edit doesn't look like a change)
+    case 'edit': { const c = findCase(S.openId); S.editBase = JSON.parse(JSON.stringify(c)); if (S.editBase.lab) S.editBase.lab = labName(S.editBase.lab); S.editing = true; renderDrawer(); break; }
     case 'cancelEdit': S.editing = false; renderDrawer(); break;
     case 'saveEdit': saveEdit(); break;
     case 'delCase': (async () => { const c = findCase(S.openId); if (await confirmBox('Delete this case?', 'This removes ' + c.patient + ' from every list. Dr. A can bring it back from Team & security for 90 days. To finish a case normally, use “Mark complete” instead.', 'Delete', true)) { const cid = S.openId; closeDrawer(true); act(() => B.deleteCase(cid), 'Case deleted'); } })(); break;
@@ -3374,15 +3379,16 @@ const PICS = {"appliance":{"src":"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQA
 const PICK = {
   // MARPE has its own case type and steps; tapping it here switches the case to the MARPE tile (wireCaseForm)
   appliances: ['Herbst with Rollo Band', 'Space Closing Herbst', 'MARA', 'MSE', 'MARPE', 'Rapid Palatal Expander (RPE)', 'D2 distalizer', 'Finger spring with no labial bow', 'Hawley retainers', 'Schwartz'],
-  labs: ['Specialty Orthodontic Lab', 'Partner Dental Studios', 'In-house (NL Lab)'],
+  labs: ['Specialty Orthodontic Lab', 'Partners Dental Solutions', 'In-house (NL Lab)'],
   scanners: ['Allied Star', 'iTero'],
   extras: ['No IPR', 'No elastics'],
   arches: ['Upper', 'Lower'], retKinds: ['TT’s', 'WT’s']
 };
-/* lab routing from the AISA KB / SOP manual: MSE → Specialty Orthodontic Lab (SOP-CL-020); MARPE → Partner Dental Studios (SOP-CL-029);
+/* lab routing from the AISA KB / SOP manual: MSE → Specialty Orthodontic Lab (SOP-CL-020); MARPE → Partners Dental Solutions (SOP-CL-029,
+   as Partner Dental Studios — the lab rebranded; Amir, 3 Oct 2026);
    D2 distalizer → in-house, no outside prescription (lab workflow, Layer 3 exception); Herbst, MARA → Specialty; RPE, Schwartz,
    Hawley, finger spring → Partners (KB lab routing) */
-const LAB_SPEC = 'Specialty Orthodontic Lab', LAB_PART = 'Partner Dental Studios', LAB_IN = 'In-house (NL Lab)';
+const LAB_SPEC = 'Specialty Orthodontic Lab', LAB_PART = 'Partners Dental Solutions', LAB_IN = 'In-house (NL Lab)';
 /* each lab's logo (logos.js; Amir, 3 Oct 2026): on the Lab choices and, for appliance and MARPE cases, on the board and lists */
 const LAB_LOGO = { [LAB_SPEC]: 'lab-specialty', [LAB_PART]: 'lab-partners', [LAB_IN]: 'nlo' };
 const LAB_FOR = { 'Herbst with Rollo Band': LAB_SPEC, 'Space Closing Herbst': LAB_SPEC, 'MARA': LAB_SPEC, 'MSE': LAB_SPEC, 'MARPE': LAB_PART,
@@ -3753,7 +3759,7 @@ function caseFormHTML(c, isNew) {
     '<div class="cfSec"><div class="ptRowF">' + (isNew ? phSlotHTML() : '') + '<div class="grid2"><div class="field"><label for="cf-patient">Patient name *</label><input id="cf-patient" autocomplete="off" value="' + esc(c.patient || '') + '" required></div>' +
     '<div class="field"><label for="cf-chart">Chart #</label><input id="cf-chart" autocomplete="off" spellcheck="false" inputmode="text" placeholder="For the IPR Tracker link" value="' + esc(c.chart || '') + '"></div></div></div></div>' +
     '<div class="cfSec"' + show('appliance marpe') + '><div' + show('appliance') + '><h5>Appliance</h5>' + pickRow('appliances', withSaved(PICK.appliances, c.appliances), c.appliances || [], true) + '</div>' +
-    '<h5>Lab</h5>' + labRowHTML(withSaved(PICK.labs, c.lab), c.lab || '') + '<div class="hint small" id="cf-labHint" style="margin-top:6px"></div></div>' +
+    '<h5>Lab</h5>' + labRowHTML(withSaved(PICK.labs, labName(c.lab)), labName(c.lab)) + '<div class="hint small" id="cf-labHint" style="margin-top:6px"></div></div>' +
     // MARPE: the two records the lab needs, and the Zoom call once it's set up
     '<div class="cfSec"' + show('marpe') + '><h5>Records on file <span class="h5n">both have to be on file before it goes to the lab</span></h5>' +
       pickRow('records', MARPE_RECORDS.map(([v, l]) => ({ v, l })), c.records || [], true) +
@@ -4722,7 +4728,7 @@ const MAIL_SENDERS = ['ulabsystems.com', 'partnersdentalstudio.com', 'olivortho.
 function leadsMail(m) { return /thenextlevelorthodontics@orthohost\.com/i.test(String(m.from || '')) || /website appointment request/i.test(String(m.subject || '')); }
 const MAIL_CO = {
   ulab: { l: 'uLab', types: ['ulab'], hosts: ['ulabsystems.com', 'udesign.cloud'] },
-  partners: { l: 'Partners Dental Studio', types: ['appliance', 'marpe'], lab: 'Partner Dental Studios', hosts: ['partnersdentalstudio.com'] },
+  partners: { l: 'Partners Dental Solutions', types: ['appliance', 'marpe'], lab: 'Partners Dental Solutions', hosts: ['partnersdentalstudio.com'] },
   oliv: { l: 'Oliv', types: ['oliv'], hosts: ['olivortho.com'] },
   angel: { l: 'Angel', types: ['angel'], hosts: ['angelalign.com', 'angelaligner.com'] }
 };
@@ -4732,7 +4738,7 @@ function refLabel(c) {
   const t = c.type;
   if (t === 'oliv') return 'Oliv case #'; if (t === 'angel') return 'Angel patient #'; if (t === 'ulab') return 'uLab order #';
   if (t === 'invisalign') return 'Invisalign patient #'; if (t === 'insmile') return 'InSmile case #';
-  if (t === 'marpe' || c.lab === 'Partner Dental Studios') return 'Partners case #'; if (c.lab === 'Specialty Orthodontic Lab') return 'Specialty case #';
+  if (t === 'marpe' || labName(c.lab) === 'Partners Dental Solutions') return 'Partners case #'; if (c.lab === 'Specialty Orthodontic Lab') return 'Specialty case #';
   return 'Lab case #';
 }
 
@@ -4849,7 +4855,7 @@ function trackFromUrl(url) {
 /* ---------- finding the case ---------- */
 function mailMatch(ev, open, closed) {
   const co = MAIL_CO[ev.co]; if (!co) return { none: true };
-  const mine = c => !c.locked && co.types.includes(c.type) && (!co.lab || !c.lab || c.lab === co.lab);
+  const mine = c => !c.locked && co.types.includes(c.type) && (!co.lab || !c.lab || labName(c.lab) === co.lab);
   const ref = normRef(ev.ref);
   // 1. the company's own case # saved on a case (from an earlier email, or typed in)
   if (ref) { const byRef = open.filter(c => mine(c) && normRef(c.labRef) === ref); if (byRef.length === 1) return { c: byRef[0] }; }
@@ -5035,7 +5041,7 @@ function mailAdminHTML() {
   if (!st || Date.now() - MAILS.stateAt > 60000) loadMailState();
   const head = '<div class="card" style="margin-top:18px" id="mailAdmin"><div class="cardHd"><h3>Email updates</h3><span class="sub">Lab emails update cases by themselves</span></div><div class="cardBd">';
   if (!st) return head + '<div class="small muted">Loading…</div></div></div>';
-  const how = '<p class="small" style="margin-bottom:10px">A small script in each Gmail account that gets lab emails (yours and the records inbox) sends them — uLab, Partners Dental Studio, Oliv, Angel and anything labeled “Lab Update” — to this app, locked so only the app can read them. When anyone has NLO Cases open, cases move on by themselves: plan ready → Dr. A action, shipped → Shipped with the tracking #, delivered → Arrived. Anything it can’t place shows on Today.</p>';
+  const how = '<p class="small" style="margin-bottom:10px">A small script in each Gmail account that gets lab emails (yours and the records inbox) sends them — uLab, Partners Dental Solutions, Oliv, Angel and anything labeled “Lab Update” — to this app, locked so only the app can read them. When anyone has NLO Cases open, cases move on by themselves: plan ready → Dr. A action, shipped → Shipped with the tracking #, delivered → Arrived. Anything it can’t place shows on Today.</p>';
   if (!st.on) return head + how + '<button class="btn btn-act btn-sm" data-act="mailSetup">' + ic('plus', 15) + 'Set up email updates</button></div></div>';
   const beats = (st.beats || []).slice().sort((a, b) => (b.at || 0) - (a.at || 0));
   const box = b => { const late = !b.at || Date.now() - b.at > 40 * 60000;

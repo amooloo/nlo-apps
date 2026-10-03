@@ -19,10 +19,10 @@ const OUT = process.argv[2] || 'shots';
   check(L.find(x => x.on) && L.find(x => x.on).v === 'Specialty Orthodontic Lab' && L.find(x => x.on).bg === 'rgb(100, 244, 201)', 'MSE picks Specialty (shown picked, mint)');
   const row = await p.$('#ncForm .pickRow[data-g=lab]'); await row.scrollIntoViewIfNeeded(); const rb = await row.boundingBox();
   await p.screenshot({ path: OUT + '/v21-lab-choices.png', clip: { x: Math.max(0, rb.x - 24), y: Math.max(0, rb.y - 40), width: 700, height: 110 } });
-  await p.click('#ncForm .pickRow[data-g=lab] .pick[data-v="Partner Dental Studios"]'); await p.waitForTimeout(60);
-  check((await labs()).find(x => x.on).v === 'Partner Dental Studios', 'tapping the Partners logo picks Partners');
+  await p.click('#ncForm .pickRow[data-g=lab] .pick[data-v="Partners Dental Solutions"]'); await p.waitForTimeout(60);
+  check((await labs()).find(x => x.on).v === 'Partners Dental Solutions', 'tapping the Partners logo picks Partners');
   await p.click('#ncForm .tt[data-tile=marpe]'); await p.waitForTimeout(80);
-  check((await labs()).find(x => x.on).v === 'Partner Dental Studios', 'MARPE: Partners picked, as its logo');
+  check((await labs()).find(x => x.on).v === 'Partners Dental Solutions', 'MARPE: Partners picked, as its logo');
   await p.click('.modal [data-act=closeModal]');
 
   // lists and board: appliance cases show their lab's logo; no lab yet keeps the name

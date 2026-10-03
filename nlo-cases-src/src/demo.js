@@ -51,9 +51,9 @@ const DEMO = {
     });
     // MARPE: one still waiting on its CBCT, one with the Zoom call in two days, one approved; Partners makes them
     const all = Array.from(DEMO.cases.values()), mp = all.filter(c => c.type === 'marpe');
-    Object.assign(mp[0], { records: ['stl'], lab: 'Partner Dental Studios' });
-    Object.assign(mp[1], { records: ['stl', 'cbct'], lab: 'Partner Dental Studios', zoomDate: addDays(t, 2), zoomTime: '12:30' });
-    Object.assign(mp[2], { records: ['stl', 'cbct'], lab: 'Partner Dental Studios', zoomDate: addDays(t, -9), zoomTime: '13:00' });
+    Object.assign(mp[0], { records: ['stl'], lab: 'Partners Dental Solutions' });
+    Object.assign(mp[1], { records: ['stl', 'cbct'], lab: 'Partners Dental Solutions', zoomDate: addDays(t, 2), zoomTime: '12:30' });
+    Object.assign(mp[2], { records: ['stl', 'cbct'], lab: 'Partners Dental Solutions', zoomDate: addDays(t, -9), zoomTime: '13:00' });
     // in-house sets past Export STLs: attachment templates answered (some with, some without)
     all.filter(c => c.type === 'nla' && stageIndex(c) >= FLOWS.inhouse.stages.findIndex(x => x[0] === 'fab')).forEach((c, i) => { c.atTemplates = ['UL', 'none', 'U'][i % 3]; });
     // one arch only: an in-house set for the upper arch, InSmile braces on the lower

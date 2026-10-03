@@ -494,7 +494,7 @@ async function openByName(p, name) {
   await owner.click('#ncForm .tt[data-tile=appliance]'); await owner.fill('#cf-patient', 'Dmitri Distalson');
   check(!(await owner.isVisible('.pickRow[data-g=initial]')) && !(await owner.isVisible('.pickRow[data-g=initialDE]')), 'no refinement question for appliances');
   await tapAppl('MSE'); check(await labNow() === 'Specialty Orthodontic Lab', 'MSE → Specialty Orthodontic Lab');
-  await tapAppl('MSE'); await tapAppl('Rapid Palatal Expander (RPE)'); check(await labNow() === 'Partner Dental Studios', 'RPE → Partner Dental Studios');
+  await tapAppl('MSE'); await tapAppl('Rapid Palatal Expander (RPE)'); check(await labNow() === 'Partners Dental Solutions', 'RPE → Partners Dental Solutions');
   await tapAppl('MARPE');
   check(await owner.inputValue('#cf-tile') === 'marpe' && (await owner.getAttribute('#ncForm .tt[data-tile=marpe]', 'aria-checked')) === 'true' && await owner.isVisible('.pickRow[data-g=records]'), 'tapping MARPE under Appliance switches the case to the MARPE tile (its own steps)');
   await owner.click('#ncForm .tt[data-tile=appliance]');
@@ -512,8 +512,8 @@ async function openByName(p, name) {
   await owner.click('#drawer [data-act=closeDrawer] >> nth=0');
   await owner.click('.topBar [data-act=newCase]'); await owner.waitForSelector('#ncForm');
   await owner.click('#ncForm .tt[data-tile=appliance]');
-  await owner.click('.pickRow[data-g=lab] .pick[data-v="Partner Dental Studios"]'); await tapAppl('MSE');
-  check(await labNow() === 'Partner Dental Studios', 'a lab tapped by hand is kept');
+  await owner.click('.pickRow[data-g=lab] .pick[data-v="Partners Dental Solutions"]'); await tapAppl('MSE');
+  check(await labNow() === 'Partners Dental Solutions', 'a lab tapped by hand is kept');
   check(await owner.evaluate(() => Array.from(document.querySelectorAll('#ncForm .pickRow[data-g=lab] .pick')).every(b => { const i = b.querySelector('img[data-logo]'); return i && i.complete && i.naturalWidth > 0 && b.textContent.trim() === b.dataset.v; })), 'the Lab choices show the labs’ logos (names kept for screen readers)');
   await owner.mouse.click(5, 5);
   check(await owner.isVisible('#ncForm'), 'a stray click outside the form does not throw it away');
@@ -700,7 +700,7 @@ async function openByName(p, name) {
   console.log('\n# MARPE: its own steps (records → lab → Zoom call → design approved → delivered)');
   await owner.click('.topBar [data-act=newCase]'); await owner.waitForSelector('#ncForm');
   await owner.click('#ncForm .tt[data-tile=marpe]'); await owner.fill('#cf-patient', 'Marco Palatewide');
-  check(await owner.inputValue('#cf-detail') === 'MARPE' && await owner.inputValue('#cf-stage') === 'records' && (await owner.locator('.pickRow[data-g=lab] .pick[aria-pressed=true]').allTextContents()).join('|') === 'Partner Dental Studios', 'MARPE has its own tile: starts at Records, lab Partner Dental Studios');
+  check(await owner.inputValue('#cf-detail') === 'MARPE' && await owner.inputValue('#cf-stage') === 'records' && (await owner.locator('.pickRow[data-g=lab] .pick[aria-pressed=true]').allTextContents()).join('|') === 'Partners Dental Solutions', 'MARPE has its own tile: starts at Records, lab Partners Dental Solutions');
   check(await owner.isVisible('.pickRow[data-g=records] .pick[data-v=stl]') && await owner.isVisible('.pickRow[data-g=records] .pick[data-v=cbct]') && await owner.isVisible('#cf-zoomDate') && !(await owner.isVisible('.pickRow[data-g=appliances]')), 'asks for the records on file (STL, CBCT) and the Zoom call, not the appliance list');
   await owner.click('.pickRow[data-g=records] .pick[data-v=stl]');
   await owner.click('#ncSave'); await owner.waitForSelector('#modalWrap', { state: 'detached', timeout: 20000 });
@@ -745,6 +745,12 @@ async function openByName(p, name) {
     && caseFromAsana({ name: 'Test Person - MARPE', section: 'To Submit', notes: '' }, 'Appliance', []).type === 'marpe' && caseFromAsana({ name: 'Test Person - Herbst', section: 'To Submit', notes: '' }, 'Appliance', []).type === 'appliance'), 'Asana import: MARPE tasks in the Appliance project become MARPE cases at the matching step');
   // a MARPE that was entered or imported as an appliance before
   await owner.evaluate(() => B.createCase({ type: 'appliance', patient: 'Otto Oldmarpe', stage: 'mfg', appliances: ['MARPE'], lab: 'Partner Dental Studios', detail: 'MARPE', comments: [], createdAt: Date.now(), createdBy: meSid() }));
+  // (the lab rebranded: Partner Dental Studios is Partners Dental Solutions now — an older case reads with the new name; Amir, 3 Oct 2026)
+  await openByName(owner, 'Otto Oldmarpe');
+  check(await owner.isVisible('#drawer .sec .badge:has-text("Partners Dental Solutions")') && !(await owner.isVisible('#drawer .badge:has-text("Partner Dental Studios")')), 'an older case saved under Partner Dental Studios shows Partners Dental Solutions');
+  await owner.click('#drawer [data-act=edit]'); await owner.waitForSelector('#drawer .pickRow[data-g=lab]');
+  check(await owner.getAttribute('#drawer .pickRow[data-g=lab] .pick[data-v="Partners Dental Solutions"]', 'aria-pressed') === 'true' && (await owner.locator('#drawer .pickRow[data-g=lab] .pick').count()) === 3 && await owner.evaluate(() => sameVal(readCaseForm(document.querySelector('#drawer')).lab, S.editBase.lab)), 'Edit: its lab is the Partners logo (no extra old-name button), and opening Edit doesn’t count the lab as changed');
+  await owner.click('#drawer [data-act=cancelEdit]'); await owner.click('#drawer [data-act=closeDrawer] >> nth=0');
   await openByName(owner, 'Otto Oldmarpe');
   check(await owner.isVisible('#drawer .notice.mpOld [data-act=toMarpe]'), 'an older appliance MARPE offers “Switch to MARPE steps”');
   await owner.click('#drawer [data-act=toMarpe]');

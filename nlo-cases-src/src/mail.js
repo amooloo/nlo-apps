@@ -16,7 +16,7 @@ const MAIL_SENDERS = ['ulabsystems.com', 'partnersdentalstudio.com', 'olivortho.
 function leadsMail(m) { return /thenextlevelorthodontics@orthohost\.com/i.test(String(m.from || '')) || /website appointment request/i.test(String(m.subject || '')); }
 const MAIL_CO = {
   ulab: { l: 'uLab', types: ['ulab'], hosts: ['ulabsystems.com', 'udesign.cloud'] },
-  partners: { l: 'Partners Dental Studio', types: ['appliance', 'marpe'], lab: 'Partner Dental Studios', hosts: ['partnersdentalstudio.com'] },
+  partners: { l: 'Partners Dental Solutions', types: ['appliance', 'marpe'], lab: 'Partners Dental Solutions', hosts: ['partnersdentalstudio.com'] },
   oliv: { l: 'Oliv', types: ['oliv'], hosts: ['olivortho.com'] },
   angel: { l: 'Angel', types: ['angel'], hosts: ['angelalign.com', 'angelaligner.com'] }
 };
@@ -26,7 +26,7 @@ function refLabel(c) {
   const t = c.type;
   if (t === 'oliv') return 'Oliv case #'; if (t === 'angel') return 'Angel patient #'; if (t === 'ulab') return 'uLab order #';
   if (t === 'invisalign') return 'Invisalign patient #'; if (t === 'insmile') return 'InSmile case #';
-  if (t === 'marpe' || c.lab === 'Partner Dental Studios') return 'Partners case #'; if (c.lab === 'Specialty Orthodontic Lab') return 'Specialty case #';
+  if (t === 'marpe' || labName(c.lab) === 'Partners Dental Solutions') return 'Partners case #'; if (c.lab === 'Specialty Orthodontic Lab') return 'Specialty case #';
   return 'Lab case #';
 }
 
@@ -143,7 +143,7 @@ function trackFromUrl(url) {
 /* ---------- finding the case ---------- */
 function mailMatch(ev, open, closed) {
   const co = MAIL_CO[ev.co]; if (!co) return { none: true };
-  const mine = c => !c.locked && co.types.includes(c.type) && (!co.lab || !c.lab || c.lab === co.lab);
+  const mine = c => !c.locked && co.types.includes(c.type) && (!co.lab || !c.lab || labName(c.lab) === co.lab);
   const ref = normRef(ev.ref);
   // 1. the company's own case # saved on a case (from an earlier email, or typed in)
   if (ref) { const byRef = open.filter(c => mine(c) && normRef(c.labRef) === ref); if (byRef.length === 1) return { c: byRef[0] }; }
@@ -329,7 +329,7 @@ function mailAdminHTML() {
   if (!st || Date.now() - MAILS.stateAt > 60000) loadMailState();
   const head = '<div class="card" style="margin-top:18px" id="mailAdmin"><div class="cardHd"><h3>Email updates</h3><span class="sub">Lab emails update cases by themselves</span></div><div class="cardBd">';
   if (!st) return head + '<div class="small muted">Loading…</div></div></div>';
-  const how = '<p class="small" style="margin-bottom:10px">A small script in each Gmail account that gets lab emails (yours and the records inbox) sends them — uLab, Partners Dental Studio, Oliv, Angel and anything labeled “Lab Update” — to this app, locked so only the app can read them. When anyone has NLO Cases open, cases move on by themselves: plan ready → Dr. A action, shipped → Shipped with the tracking #, delivered → Arrived. Anything it can’t place shows on Today.</p>';
+  const how = '<p class="small" style="margin-bottom:10px">A small script in each Gmail account that gets lab emails (yours and the records inbox) sends them — uLab, Partners Dental Solutions, Oliv, Angel and anything labeled “Lab Update” — to this app, locked so only the app can read them. When anyone has NLO Cases open, cases move on by themselves: plan ready → Dr. A action, shipped → Shipped with the tracking #, delivered → Arrived. Anything it can’t place shows on Today.</p>';
   if (!st.on) return head + how + '<button class="btn btn-act btn-sm" data-act="mailSetup">' + ic('plus', 15) + 'Set up email updates</button></div></div>';
   const beats = (st.beats || []).slice().sort((a, b) => (b.at || 0) - (a.at || 0));
   const box = b => { const late = !b.at || Date.now() - b.at > 40 * 60000;

@@ -430,8 +430,8 @@ function typeMark(c, small) {
     return nl ? '<span class="' + cls + ' lg-nlo" title="' + esc(l) + '"><img data-logo="nlo" width="' + nl.w + '" height="' + nl.h + '" alt="' + esc(l) + '" draggable="false"></span>'
       : '<span class="' + cls + ' nl" title="' + esc(l) + '" role="img" aria-label="' + esc(l) + '">' + typeSvg('nl') + '</span>'; }
   // appliances and MARPE: the lab's logo (Specialty, Partners, or ours for in-house; Amir, 3 Oct 2026); no lab yet = the name
-  const lk = (c.type === 'appliance' || c.type === 'marpe') && LAB_LOGO[c.lab], ll = lk && typeof LOGOS !== 'undefined' && LOGOS[lk];
-  if (ll) { const l = t.l + ' · ' + c.lab;
+  const lk = (c.type === 'appliance' || c.type === 'marpe') && LAB_LOGO[labName(c.lab)], ll = lk && typeof LOGOS !== 'undefined' && LOGOS[lk];
+  if (ll) { const l = t.l + ' · ' + labName(c.lab);
     return '<span class="' + cls + ' lg-' + esc(lk) + '" title="' + esc(l) + '"><img data-logo="' + esc(lk) + '" width="' + ll.w + '" height="' + ll.h + '" alt="' + esc(l) + '" draggable="false"></span>'; }
   return typeBadge(c);
 }
@@ -479,8 +479,8 @@ function chartNote(c) {
   if (c.type === 'nla') what = (c.variant === 'finishing' ? 'finishing aligners' : 'in-house aligners') + ' (NL Lab)' + (sub ? ' - ' + sub : '');
   else if (t.aligner) what = ({ oliv: 'Oliv', angel: 'Angel', invisalign: 'Invisalign', ulab: 'uLab' }[c.type] || t.l) + ' aligners' + (sub ? ' - ' + sub : '');
   else if (c.type === 'insmile') what = 'InSmile braces' + (/^de[123]$/.test(c.initial || '') ? ' - digital enhancement ' + c.initial.slice(2) : c.initial === 'yes' ? ' - initial' : '');
-  else if (c.type === 'marpe') what = 'MARPE' + (c.lab ? ' (' + c.lab + ')' : '');
-  else if (c.type === 'appliance') what = ((c.appliances || []).join(', ') || c.detail || 'appliance') + (c.lab ? ' (' + c.lab + ')' : '');
+  else if (c.type === 'marpe') what = 'MARPE' + (c.lab ? ' (' + labName(c.lab) + ')' : '');
+  else if (c.type === 'appliance') what = ((c.appliances || []).join(', ') || c.detail || 'appliance') + (c.lab ? ' (' + labName(c.lab) + ')' : '');
   else if (c.type === 'retainer') what = 'retainers' + (c.detail ? ': ' + c.detail : '');
   else if (c.type === 'mouthguard') what = 'a mouthguard' + ((c.arches || []).length ? ' (' + c.arches.join('/') + ')' : '');
   else if (c.type === 'models') what = 'study models';
@@ -620,7 +620,7 @@ function viewBoard() {
 function kcard(c, last, steps) {
   const mixed = S.boardFlow === 'outside' || S.boardFlow === 'inhouse' || S.boardFlow === 'retainer';
   // appliances and MARPE: the lab's logo on every card (the lab differs from card to card even on their own tabs)
-  const labbed = (c.type === 'appliance' || c.type === 'marpe') && !!LAB_LOGO[c.lab];
+  const labbed = (c.type === 'appliance' || c.type === 'marpe') && !!LAB_LOGO[labName(c.lab)];
   const flags = shipFlag(c) + recFlag(c) + holdFlag(c);
   return '<div class="kc" data-act="open" data-id="' + esc(c.id) + '" role="button" tabindex="0">' +
     '<div class="kHd">' + ptAv(c, 32) + '<div class="pt">' + esc(c.patient || '(no name)') + '</div></div>' + (c.detail || alN(c) ? '<div class="dt">' + esc(c.detail || '') + alignerMini(c) + '</div>' : '') +
@@ -901,7 +901,7 @@ function renderDrawer() {
     kv('Assistant', esc(staffName(c.assistant, c.assistantName))) + kv('Scanner', esc(c.scanner)) + kv('Chart #', esc(c.chart || '')) +
     kv('Created', esc((c.createdAt ? fmtWhen(c.createdAt) : '') + (c.createdBy ? ' · ' + firstName(staffName(c.createdBy, '')) : ''))) + kv('Last update', esc(c.updatedAt ? fmtWhen(c.updatedAt) + (c.by ? ' · ' + firstName(staffName(c.by, '')) : '') : '')) +
     '</div></div>' +
-    ((c.appliances || []).length || c.lab || c.initial || (c.extras || []).length || oneArch(c) ? '<div class="sec"><h5>Case</h5><div class="pickRow">' + (oneArch(c) ? '<span class="badge t-arch">' + esc(treatArchLabel(oneArch(c))) + '</span>' : '') + (c.appliances || []).map(x => '<span class="badge t-appl">' + esc(x) + '</span>').join('') + (c.lab ? '<span class="badge">' + esc(c.lab) + '</span>' : '') + (c.initial ? '<span class="badge">' + esc(submissionLabel(c.initial)) + '</span>' : '') + (c.extras || []).map(x => '<span class="badge t-retx">' + esc(x) + '</span>').join('') + '</div></div>' : '') +
+    ((c.appliances || []).length || c.lab || c.initial || (c.extras || []).length || oneArch(c) ? '<div class="sec"><h5>Case</h5><div class="pickRow">' + (oneArch(c) ? '<span class="badge t-arch">' + esc(treatArchLabel(oneArch(c))) + '</span>' : '') + (c.appliances || []).map(x => '<span class="badge t-appl">' + esc(x) + '</span>').join('') + (c.lab ? '<span class="badge">' + esc(labName(c.lab)) + '</span>' : '') + (c.initial ? '<span class="badge">' + esc(submissionLabel(c.initial)) + '</span>' : '') + (c.extras || []).map(x => '<span class="badge t-retx">' + esc(x) + '</span>').join('') + '</div></div>' : '') +
     (c.type === 'nla' ? '<div class="sec" id="alBox"><h5>Aligners</h5>' + alignerTotalHTML(c, false) + '</div>' : '') +
     // retainers & whitening trays: a label for the bag, then it offers to complete the case (Amir, 2 Oct 2026)
     (c.type === 'retainer' ? '<div class="sec" id="retLblBox"><h5>Label</h5><div class="alLbl"><button class="btn btn-sec btn-sm" data-act="retLabels">' + ic('print', 15) + 'Print label</button>' +
@@ -1159,7 +1159,8 @@ function onClick(e) {
       act(() => B.mutateCase(id, d => { d.assignee = to; if (to) d.assigneeName = ''; }, { a: 'assign', to }), to ? 'Assigned to ' + staffName(to) : 'Unassigned'); break; }
     case 'addCmt': { const txt = ($('#cmtText').value || '').trim(); if (!txt) return; const cid = S.openId;
       $('#cmtText').value = ''; act(() => B.mutateCase(cid, d => { d.comments = (d.comments || []).concat([{ id: uid8(), at: Date.now(), by: meSid(), text: txt }]); }, { a: 'comment' })); break; }
-    case 'edit': { const c = findCase(S.openId); S.editBase = JSON.parse(JSON.stringify(c)); S.editing = true; renderDrawer(); break; }
+    // (a lab saved under its old name counts as its new name, so opening Edit doesn't look like a change)
+    case 'edit': { const c = findCase(S.openId); S.editBase = JSON.parse(JSON.stringify(c)); if (S.editBase.lab) S.editBase.lab = labName(S.editBase.lab); S.editing = true; renderDrawer(); break; }
     case 'cancelEdit': S.editing = false; renderDrawer(); break;
     case 'saveEdit': saveEdit(); break;
     case 'delCase': (async () => { const c = findCase(S.openId); if (await confirmBox('Delete this case?', 'This removes ' + c.patient + ' from every list. Dr. A can bring it back from Team & security for 90 days. To finish a case normally, use “Mark complete” instead.', 'Delete', true)) { const cid = S.openId; closeDrawer(true); act(() => B.deleteCase(cid), 'Case deleted'); } })(); break;

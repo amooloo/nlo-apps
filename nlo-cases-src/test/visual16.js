@@ -19,7 +19,7 @@ const OUT = process.argv[2] || 'shots';
   check(['oliv', 'angel', 'invisalign', 'ulab', 'insmile'].filter(k => by[k]).every(k => by[k].img && by[k].img.ok && !by[k].pill), 'list: Oliv, Angel, Invisalign, uLab and InSmile show their logos (loaded, no pill)');
   check(by.nla && by.nla.img && by.nla.img.ok && /In-house/.test(by.nla.img.alt) && !by.nla.pill, 'list: in-house sets show the Next Level Orthodontics logo');
   check(['retainer', 'models', 'mouthguard'].filter(k => by[k]).every(k => by[k].pill), 'list: types with no company keep their name');
-  check(by.marpe && by.marpe.img && by.marpe.img.ok && /Partner Dental Studios/.test(by.marpe.img.alt), 'list: MARPE cases show their lab’s logo (Partners)');
+  check(by.marpe && by.marpe.img && by.marpe.img.ok && /Partners Dental Solutions/.test(by.marpe.img.alt), 'list: MARPE cases show their lab’s logo (Partners)');
   check(rows.every(r => !r.img || r.img.alt), 'every logo has its company name for screen readers (alt)');
   await p.screenshot({ path: OUT + '/v16-list.png', clip: { x: 232, y: 0, width: 1128, height: 1000 } });
   // the board: outside aligners tab, in-house tab
