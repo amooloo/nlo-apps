@@ -647,10 +647,14 @@ async function openByName(p, name) {
   await owner.click('#ncSave'); await owner.waitForSelector('#modalWrap', { state: 'detached', timeout: 20000 });
   await openByName(owner, 'Nadia Setcount');
   check((await owner.locator('#drawer .stepGrp:has-text("In fabrication")').count()) === 1 && (await owner.locator('#drawer .step.sub').count()) === 7, 'the stepper shows the seven fabrication steps under In fabrication');
-  await owner.click('#drawer .step[data-k=fab]'); await owner.waitForSelector('#gAl', { timeout: 10000 });
-  check(await owner.inputValue('#gAlU') === '20' && await owner.inputValue('#gAlL') === '20' && await owner.isDisabled('#gGo'), 'Export STLs asks for the aligners (filled in: U 20 · L 20) and waits for the attachment-template answer');
+  // TxP approved (3 Oct 2026): the plan is done and the counts go in, even if the export waits
+  await owner.click('#drawer .step[data-k=txpok]'); await owner.waitForSelector('#gAl', { timeout: 10000 });
+  check(await owner.textContent('#modalWrap h3') === 'TxP approved' && await owner.inputValue('#gAlU') === '20' && await owner.inputValue('#gAlL') === '20' && await owner.isDisabled('#gGo'), 'TxP approved asks for the aligners (filled in: U 20 · L 20) and waits for the attachment-template answer');
   await owner.click('.pickRow[data-g=gAt] .pick[data-v=UL]'); await owner.click('#gGo');
-  await owner.waitForSelector('#drawer .step.cur[data-k=fab]', { timeout: 15000 });
+  await owner.waitForSelector('#drawer .step.cur[data-k=txpok]', { timeout: 15000 });
+  check(await owner.evaluate(() => { const c = findCase(S.openId); return c.stage === 'txpok' && c.atTemplates === 'UL' && c.aligners === 40; }), 'saved at TxP approved with the counts and the template answer (before any export)');
+  await owner.click('#drawer .step[data-k=fab]'); await owner.waitForSelector('#drawer .step.cur[data-k=fab]', { timeout: 15000 });
+  check(!(await owner.isVisible('#modalWrap')), 'TxP approved → Export STLs doesn’t ask again');
   check(/Attachment templates: Upper & Lower/.test(await owner.textContent('#alBox')), 'the answer is saved with the move (Attachment templates: Upper & Lower)');
   check(/40 aligners in this set \(U 20 · L 20\)/.test(await owner.textContent('#alBox')) && /Patient total: 40 aligners/.test(await owner.textContent('#alBox')), 'the case shows its 40 aligners (U 20 · L 20) and the patient total');
   await owner.click('#drawer [data-act=closeDrawer] >> nth=0');
@@ -662,8 +666,8 @@ async function openByName(p, name) {
   check(/2 of 7/.test(await owner.textContent(nCard + ' .kstep')) && (await owner.locator(nCard + ' .sprog i.d').count()) === 1, 'the arrow moves it one step (Send to printer, 2 of 7)');
   await owner.click('#nav-list'); await owner.fill('#q', 'Nadia Setcount');
   const nRow = 'tr.click:has-text("Nadia Setcount")'; await owner.waitForSelector(nRow + ' .sprog');
-  check((await owner.locator(nRow + ' .sprog i').count()) === 11 && (await owner.locator(nRow + ' .sprog .pg i').count()) === 7 && (await owner.locator(nRow + ' .sprog i.d').count()) === 3 && (await owner.locator(nRow + ' .sprog i.c').count()) === 1
-    && (await owner.locator(nRow + ' .sprog b').count()) === 10 && (await owner.locator(nRow + ' .sprog b.d').count()) === 3, 'list: a circle for every step joined by a line (3 done, now on step 4 of 11, the line filled up to it)');
+  check((await owner.locator(nRow + ' .sprog i').count()) === 12 && (await owner.locator(nRow + ' .sprog .pg i').count()) === 7 && (await owner.locator(nRow + ' .sprog i.d').count()) === 4 && (await owner.locator(nRow + ' .sprog i.c').count()) === 1
+    && (await owner.locator(nRow + ' .sprog b').count()) === 11 && (await owner.locator(nRow + ' .sprog b.d').count()) === 4, 'list: a circle for every step joined by a line (4 done, now on step 5 of 12, the line filled up to it)');
   check(/Send to printer · in fabrication 2\/7/.test(await owner.textContent(nRow + ' td.stg')), 'list: says Send to printer, in fabrication 2/7');
   await owner.click(nRow); await owner.waitForSelector('#drawer .stepper');
   await owner.click('#drawer .dFt [data-act=complete]'); await owner.waitForSelector('#drawer', { state: 'hidden', timeout: 15000 }).catch(() => {});

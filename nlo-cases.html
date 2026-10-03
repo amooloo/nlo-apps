@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-7yXI7GMonmgPl8aNAbkncO708fZP6IHGzXMFGTwd4Bs=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-3ufLfY1e0Q1fUjJgu6bLJhiOTniocAMwCIbvClrxcD4=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO Cases</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -901,6 +901,9 @@ const FLOWS = {
      the board shows the seven steps as one "In fabrication" column */
   inhouse: { label: 'In-house lab', labDone: 'pack', stages: [
     ['txp', 'TxP needed'], ['reset', 'Reset needed in 2 days'],
+    // Amir, 3 Oct 2026: "add a middle step that says TxP completed or approved and it would still let me enter the U/L stages
+    // because I may not be able to export them right away" — the plan is done and its counts are in, waiting to be exported
+    ['txpok', 'TxP approved'],
     ['fab', 'Export STLs'], ['send', 'Send to printer'], ['print', 'Printing'], ['thermo', 'Thermoforming'], ['trim', 'Trimming'], ['polish', 'Polishing'], ['wash', 'Final wash & dry'],
     ['pack', 'Made – needs packaging'], ['checkedin', 'Checked in'] ],
     groups: [{ l: 'In fabrication', stages: ['fab', 'send', 'print', 'thermo', 'trim', 'polish', 'wash'] }] },
@@ -972,11 +975,11 @@ function firstStage(type) { return FLOWS[(TYPE[type] || TYPE.misc).flow].stages[
 /* the stage group a stage belongs to (e.g. the in-house "In fabrication" steps), or null */
 function stageGroup(flow, k) { return (flow.groups || []).find(g => g.stages.includes(k)) || null; }
 /* what a stage move still needs first: MARPE records before the case reaches the lab, and a date to be "Zoom call scheduled";
-   in-house aligners: the upper/lower aligner counts and any attachment templates as the case reaches Export STLs
-   (Amir, 2 Oct 2026; the move always asks, filled in with what the case already has) */
+   in-house aligners: the upper/lower aligner counts and any attachment templates as the case reaches TxP approved — or
+   Export STLs or later when it skips that step (Amir, 2–3 Oct 2026; the move always asks, filled in with what the case has) */
 function stageNeeds(c, to) {
   const fl = typeOf(c).flow, keys = flowOf(c).stages.map(s => s[0]), from = keys.indexOf(c.stage), ti = keys.indexOf(to), out = [];
-  if (fl === 'inhouse') { const fab = keys.indexOf('fab'); if (fab >= 0 && ti >= fab && from < fab) out.push('aligners'); return out; }
+  if (fl === 'inhouse') { const g = keys.includes('txpok') ? keys.indexOf('txpok') : keys.indexOf('fab'); if (g >= 0 && ti >= g && from < g) out.push('aligners'); return out; }
   if (fl !== 'marpe') return out;
   const sub = keys.indexOf('submitted');
   if (ti >= sub && from < sub && recordsMissing(c).length) out.push('records');
@@ -991,7 +994,7 @@ function labName(v) { return LAB_RENAMED[v] || v || ''; }
 const AT_OPTS = [{ v: 'none', l: 'None' }, { v: 'U', l: 'Upper' }, { v: 'L', l: 'Lower' }, { v: 'UL', l: 'Upper & Lower' }];
 function atLabel(v) { const o = AT_OPTS.find(x => x.v === v); return o ? o.l : ''; }
 function hasAT(c) { return ['U', 'L', 'UL'].includes(c.atTemplates); }
-/* from Export STLs on, an in-house set needs its aligner counts and the attachment-template answer */
+/* from TxP approved on, an in-house set needs its aligner counts and the attachment-template answer */
 function alignersMissing(c) { return !((Number(c.alU) || 0) + (Number(c.alL) || 0) > 0) || !c.atTemplates; }
 /* arches to treat, for aligners and InSmile: '' = upper & lower (the default, and every older case), 'U' = upper only,
    'L' = lower only (Amir, 2 Oct 2026: not every case treats both arches) */
@@ -1954,6 +1957,8 @@ const DEMO = {
     // aligners going straight to the patient, and shipments with one-click tracking (sample numbers)
     Object.assign(all.find(c => c.type === 'oliv' && c.stage === 'shipped'), { shipToPatient: true, tracking: '1Z999AA10123456784' });
     Object.assign(all.find(c => c.type === 'nla' && c.stage === 'pack'), { shipToPatient: true });
+    // an in-house plan Dr. A has approved, its aligners counted, waiting to be exported
+    Object.assign(all.filter(c => c.type === 'nla' && c.stage === 'txp')[1], { stage: 'txpok', assignee: 'angelika', atTemplates: 'UL' });
     // lab emails waiting in the inbox (made-up): uLab shipped and Oliv setup ready match cases; the Partners summary
     // ships one appliance it can match and one it can't, so Today asks which case that one is
     const ul = all.find(c => c.type === 'ulab' && c.stage === 'mfg'), ol = all.find(c => c.type === 'oliv' && c.stage === 'submit'), ap = all.find(c => c.type === 'appliance' && c.stage === 'mfg');
@@ -2882,7 +2887,7 @@ function alignerTotalHTML(c, inForm) {
   const counts = one === 'U' ? 'the upper count' : one === 'L' ? 'the lower count' : 'the upper and lower counts';
   return '<div class="alThis">' + (me.n ? '<b>' + me.n + '</b> aligners in this set' + (inForm ? '' : arches + ' · ' + esc(me.l)) + (est != null ? ' <span class="alEst">est. ' + money(est) + '</span>' : '')
       : '<span class="muted">' + (inForm ? 'Enter ' + alAskText(c) + ' from Titan.' : 'Aligners in this set not entered yet — add ' + counts + ' from Titan with Edit.') + '</span>') + '</div>' +
-    (inForm ? '' : '<div class="alAt">Attachment templates: ' + (c.atTemplates ? '<b>' + esc(atLabel(c.atTemplates)) + '</b>' : '<span class="muted">not answered yet — asked when it moves to Export STLs</span>') + '</div>') +
+    (inForm ? '' : '<div class="alAt">Attachment templates: ' + (c.atTemplates ? '<b>' + esc(atLabel(c.atTemplates)) + '</b>' : '<span class="muted">not answered yet — asked when the TxP is approved</span>') + '</div>') +
     '<div class="alSum"><span class="alT">Patient total: <b>' + total + '</b> aligners' + (estAll != null && total ? ' <span class="alEst">est. ' + money(estAll) + '</span>' : '') + '</span>' + (sets.length > 1 || inForm ? parts : '') + '</div>' +
     (missing ? '<div class="small muted">' + missing + ' set' + (missing > 1 ? 's have' : ' has') + ' no count yet, so the total may be low.</div>' : '') +
     (est == null && isOwner() && me.n ? '<div class="small muted">Set the cost per aligner in Team &amp; security to see an estimated cost.</div>' : '') + wait +
@@ -2959,13 +2964,15 @@ function kcard(c, last, steps) {
   // appliances and MARPE: the lab's logo on every card (the lab differs from card to card even on their own tabs)
   const labbed = (c.type === 'appliance' || c.type === 'marpe') && !!LAB_LOGO[labName(c.lab)];
   const flags = shipFlag(c) + recFlag(c) + holdFlag(c);
-  const shipsNext = !last && !!shipEnd(c) && nextStage(c) === shipEnd(c), tip = last ? 'Mark complete' : shipsNext ? 'Shipped to the patient — completes the case' : 'Move to next stage';
+  // the arrow names where it goes (from TxP needed that's TxP approved, not the next column)
+  const nx = last ? null : nextStage(c), shipsNext = !!nx && !!shipEnd(c) && nx === shipEnd(c);
+  const tip = last ? 'Mark complete' : shipsNext ? 'Shipped to the patient — completes the case' : nx ? 'Move to ' + stageLabel(Object.assign({}, c, { stage: nx })) : 'Move to next stage';
   return '<div class="kc" data-act="open" data-id="' + esc(c.id) + '" role="button" tabindex="0">' +
     '<div class="kHd">' + ptAv(c, 32) + '<div class="pt">' + esc(c.patient || '(no name)') + '</div></div>' + (c.detail || alN(c) ? '<div class="dt">' + esc(c.detail || '') + alignerMini(c) + '</div>' : '') +
     (flags ? '<div class="flags">' + flags + '</div>' : '') +
     (steps ? '<div class="kstep">' + progHTML(c, steps) + '<div><b>' + esc(stageLabel(c)) + '</b><span>' + (steps.indexOf(c.stage) + 1) + ' of ' + steps.length + '</span></div></div>' : '') +
     '<div class="ft">' + (mixed || labbed ? typeMark(c, true) : '') + dueChip(c) + trackLinks(c) + avatar(c) +
-    '<button class="adv" data-act="' + (last ? 'complete' : 'advance') + '" data-id="' + esc(c.id) + '" title="' + tip + '" aria-label="' + tip + '">' + ic(last ? 'done' : 'next', 17) + '</button></div></div>';
+    '<button class="adv" data-act="' + (last ? 'complete' : 'advance') + '" data-id="' + esc(c.id) + '" title="' + esc(tip) + '" aria-label="' + esc(tip) + '">' + ic(last ? 'done' : 'next', 17) + '</button></div></div>';
 }
 
 /* ---------- List ---------- */
@@ -3408,7 +3415,7 @@ function stageGateModal(c, to, needs, extra) {
       '<label class="gateRow"><input type="checkbox" data-rec="' + k + '"' + (r.includes(k) ? ' checked' : '') + '>' + esc(l) + '</label>').join('') + '</div>' : '') +
     (needs.includes('zoom') ? '<div class="gate"><b>When is the Zoom call?</b><div class="zoomRow"><div class="field"><label for="gZoomDate">Date</label><input type="date" id="gZoomDate"></div>' +
       '<div class="field"><label for="gZoomTime">Time</label><input type="time" id="gZoomTime"></div></div></div>' : '') +
-    // in-house: the aligners in this set (from Titan) and any attachment templates, as it reaches Export STLs
+    // in-house: the aligners in this set (from Titan) and any attachment templates, as it reaches TxP approved (or Export STLs)
     // (one arch only: just that arch's count, and the template answers that fit it)
     (needs.includes('aligners') ? '<div class="gate" id="gAl"><b>How many aligners in this set? <span class="h5n">from Titan' + (one ? ' · ' + esc(treatArchLabel(one).toLowerCase()) : '') + '</span></b><div class="alRow">' +
       (one === 'L' ? '' : '<div class="field"><label for="gAlU">Upper aligners</label><input id="gAlU" type="number" inputmode="numeric" min="0" max="99" step="1" placeholder="0" value="' + esc(c.alU || '') + '"></div>') +
@@ -3607,7 +3614,12 @@ async function copyText(s) {
   } catch (e) { return false; }
 }
 async function act(fn, okMsg) { try { await fn(); if (okMsg) toast(okMsg); } catch (e) { toast(errText(e), { bad: true }); } }
-function nextStage(c) { const st = caseStages(c); const i = stageIndex(c); return i >= 0 && i < st.length - 1 ? st[i + 1][0] : null; }
+function nextStage(c) {
+  const st = caseStages(c), i = stageIndex(c);
+  // in-house: a finished treatment plan goes on to TxP approved ("Reset needed in 2 days" is a queue of its own, not the next step)
+  if (c.stage === 'txp' && st.some(s => s[0] === 'txpok')) return 'txpok';
+  return i >= 0 && i < st.length - 1 ? st[i + 1][0] : null;
+}
 /* `extra` = fields saved with the move (e.g. MARPE records, the Zoom call, aligner counts); a move that still needs something
    asks first; `asked` = what the asking window already collected */
 async function moveStage(id, to, extra, asked) {
@@ -4222,7 +4234,7 @@ function caseFormHTML(c, isNew) {
       '<div class="field"' + (oneArch(c) === 'L' ? ' style="display:none"' : '') + '><label for="cf-alU">Upper aligners</label><input id="cf-alU" type="number" inputmode="numeric" min="0" max="99" step="1" placeholder="0" value="' + esc(c.alU || '') + '"></div>' +
       '<div class="field"' + (oneArch(c) === 'U' ? ' style="display:none"' : '') + '><label for="cf-alL">Lower aligners</label><input id="cf-alL" type="number" inputmode="numeric" min="0" max="99" step="1" placeholder="0" value="' + esc(c.alL || '') + '"></div>' +
       '<div class="alTot" id="cf-alTotal" aria-live="polite"></div></div>' +
-      '<h5>Attachment templates <span class="h5n">asked again when it moves to Export STLs</span></h5>' + pickRow('atTemplates', AT_OPTS, atFor(c.atTemplates, oneArch(c)), false) + '</div>' +
+      '<h5>Attachment templates <span class="h5n">asked again when the TxP is approved</span></h5>' + pickRow('atTemplates', AT_OPTS, atFor(c.atTemplates, oneArch(c)), false) + '</div>' +
     // in-house: the patient's treatment Start and Expected removal (on the initial set, or while the patient has none; see txOf)
     '<div class="cfSec"' + showTiles(INHOUSE_TILES.join(' ')) + '><h5>Treatment <span class="h5n">the patient’s start and expected removal — for the treatment graph</span></h5>' +
       '<div class="txFromRow" id="cf-txFromRow" hidden><span class="small muted" id="cf-txFrom"></span><button type="button" class="btn btn-sec btn-sm" id="cf-txChange">Change</button></div>' +

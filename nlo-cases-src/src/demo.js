@@ -65,6 +65,8 @@ const DEMO = {
     // aligners going straight to the patient, and shipments with one-click tracking (sample numbers)
     Object.assign(all.find(c => c.type === 'oliv' && c.stage === 'shipped'), { shipToPatient: true, tracking: '1Z999AA10123456784' });
     Object.assign(all.find(c => c.type === 'nla' && c.stage === 'pack'), { shipToPatient: true });
+    // an in-house plan Dr. A has approved, its aligners counted, waiting to be exported
+    Object.assign(all.filter(c => c.type === 'nla' && c.stage === 'txp')[1], { stage: 'txpok', assignee: 'angelika', atTemplates: 'UL' });
     // lab emails waiting in the inbox (made-up): uLab shipped and Oliv setup ready match cases; the Partners summary
     // ships one appliance it can match and one it can't, so Today asks which case that one is
     const ul = all.find(c => c.type === 'ulab' && c.stage === 'mfg'), ol = all.find(c => c.type === 'oliv' && c.stage === 'submit'), ap = all.find(c => c.type === 'appliance' && c.stage === 'mfg');

@@ -41,6 +41,9 @@ const FLOWS = {
      the board shows the seven steps as one "In fabrication" column */
   inhouse: { label: 'In-house lab', labDone: 'pack', stages: [
     ['txp', 'TxP needed'], ['reset', 'Reset needed in 2 days'],
+    // Amir, 3 Oct 2026: "add a middle step that says TxP completed or approved and it would still let me enter the U/L stages
+    // because I may not be able to export them right away" — the plan is done and its counts are in, waiting to be exported
+    ['txpok', 'TxP approved'],
     ['fab', 'Export STLs'], ['send', 'Send to printer'], ['print', 'Printing'], ['thermo', 'Thermoforming'], ['trim', 'Trimming'], ['polish', 'Polishing'], ['wash', 'Final wash & dry'],
     ['pack', 'Made – needs packaging'], ['checkedin', 'Checked in'] ],
     groups: [{ l: 'In fabrication', stages: ['fab', 'send', 'print', 'thermo', 'trim', 'polish', 'wash'] }] },
@@ -112,11 +115,11 @@ function firstStage(type) { return FLOWS[(TYPE[type] || TYPE.misc).flow].stages[
 /* the stage group a stage belongs to (e.g. the in-house "In fabrication" steps), or null */
 function stageGroup(flow, k) { return (flow.groups || []).find(g => g.stages.includes(k)) || null; }
 /* what a stage move still needs first: MARPE records before the case reaches the lab, and a date to be "Zoom call scheduled";
-   in-house aligners: the upper/lower aligner counts and any attachment templates as the case reaches Export STLs
-   (Amir, 2 Oct 2026; the move always asks, filled in with what the case already has) */
+   in-house aligners: the upper/lower aligner counts and any attachment templates as the case reaches TxP approved — or
+   Export STLs or later when it skips that step (Amir, 2–3 Oct 2026; the move always asks, filled in with what the case has) */
 function stageNeeds(c, to) {
   const fl = typeOf(c).flow, keys = flowOf(c).stages.map(s => s[0]), from = keys.indexOf(c.stage), ti = keys.indexOf(to), out = [];
-  if (fl === 'inhouse') { const fab = keys.indexOf('fab'); if (fab >= 0 && ti >= fab && from < fab) out.push('aligners'); return out; }
+  if (fl === 'inhouse') { const g = keys.includes('txpok') ? keys.indexOf('txpok') : keys.indexOf('fab'); if (g >= 0 && ti >= g && from < g) out.push('aligners'); return out; }
   if (fl !== 'marpe') return out;
   const sub = keys.indexOf('submitted');
   if (ti >= sub && from < sub && recordsMissing(c).length) out.push('records');
@@ -131,7 +134,7 @@ function labName(v) { return LAB_RENAMED[v] || v || ''; }
 const AT_OPTS = [{ v: 'none', l: 'None' }, { v: 'U', l: 'Upper' }, { v: 'L', l: 'Lower' }, { v: 'UL', l: 'Upper & Lower' }];
 function atLabel(v) { const o = AT_OPTS.find(x => x.v === v); return o ? o.l : ''; }
 function hasAT(c) { return ['U', 'L', 'UL'].includes(c.atTemplates); }
-/* from Export STLs on, an in-house set needs its aligner counts and the attachment-template answer */
+/* from TxP approved on, an in-house set needs its aligner counts and the attachment-template answer */
 function alignersMissing(c) { return !((Number(c.alU) || 0) + (Number(c.alL) || 0) > 0) || !c.atTemplates; }
 /* arches to treat, for aligners and InSmile: '' = upper & lower (the default, and every older case), 'U' = upper only,
    'L' = lower only (Amir, 2 Oct 2026: not every case treats both arches) */

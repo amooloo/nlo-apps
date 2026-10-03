@@ -43,14 +43,14 @@ const OUT = process.argv[2] || 'shots';
   check((await st(rid)).stage === 'txp', 'Cancel leaves the stage alone');
   await p.evaluate(() => closeDrawer(true));
 
-  // board arrow: Reset needed → Export STLs asks; None is a valid answer
+  // board arrow: Reset needed → TxP approved asks (the step before Export STLs since 3 Oct 2026); None is a valid answer
   const bid = await p.evaluate(rid => { const c = openCases().find(x => x.type === 'nla' && x.stage === 'txp' && x.id !== rid); return c.id; }, rid);
   await p.click('#nav-board'); await p.click('.boardTabs [data-k=inhouse]'); await p.waitForSelector('.kc');
   await p.evaluate(id => { const c = findCase(id); c.stage = 'reset'; queueRender(); }, bid); await p.waitForTimeout(150);
   await p.click('.kc[data-id="' + bid + '"] .adv'); await p.waitForSelector('#gAl');
-  check(await p.inputValue('#gAlU') !== '' , 'board arrow from Reset needed asks too (counts filled in from the case)');
+  check(await p.inputValue('#gAlU') !== '' && await p.textContent('#modalWrap h3') === 'TxP approved', 'board arrow from Reset needed asks too, for TxP approved (counts filled in from the case)');
   await p.click('.pickRow[data-g=gAt] .pick[data-v=none]'); await p.click('#gGo'); await p.waitForTimeout(300);
-  s = await st(bid); check(s.stage === 'fab' && s.at === 'none', '“None” is an answer: moved to Export STLs');
+  s = await st(bid); check(s.stage === 'txpok' && s.at === 'none', '“None” is an answer: moved to TxP approved');
 
   // Edit form: moving the stage there needs the counts and the answer in the form
   const eid = await p.evaluate(rid => { const c = openCases().find(x => x.type === 'nla' && x.stage === 'txp' && x.id !== rid) || findCase(rid); c.atTemplates = ''; return c.id; }, rid);
