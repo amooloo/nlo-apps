@@ -78,9 +78,10 @@ const TYPE = Object.fromEntries(TYPES.map(t => [t.k, t]));
 /* where each aligner company's cases are worked on (Amir, 2 Oct 2026; not for appliances or InSmile); in-house sets open
    Titan's web version, the released one and the early-access (beta) one — opening any of them copies the patient's name */
 /* where each scanner's scans are (Amir, 3 Oct 2026: "link that back to the actual website for myitero.com or allied-star one in
-   case if you need to log in and look at the scans"): MyiTero, and AlliedStar's AS Connect web app; like the portals, opening
-   one copies the patient's name */
-const SCAN_SITE = { 'Allied Star': { l: 'AS Connect', u: 'https://asconnect.allied-star.com/' }, iTero: { l: 'MyiTero', u: 'https://myitero.com/' } };
+   case if you need to log in and look at the scans"): MyiTero, and AlliedStar's AS Connect web app — its US & Canada site
+   (Amir: "make sure the as connect link is for US and north america"; the address AlliedStar's own "Log in to AS Connect"
+   gives for US & Canada); like the portals, opening one copies the patient's name */
+const SCAN_SITE = { 'Allied Star': { l: 'AS Connect (US & Canada)', u: 'https://asconnect-us.allied-star.com/login' }, iTero: { l: 'MyiTero', u: 'https://myitero.com/' } };
 const PORTALS = {
   nla: [{ l: 'Titan (web)', u: 'https://client.titandentaldesign.com/Live/index.html' }, { l: 'Titan beta (web)', u: 'https://client.titandentaldesign.com/EA/index.html' }],
   oliv: [{ l: 'Oliv portal', u: 'https://portal.olivortho.com/' }, { l: 'Dental Monitoring', u: 'https://dental-monitoring.com/doctor/login' }],

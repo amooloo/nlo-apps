@@ -399,7 +399,7 @@ body.demo #drawer{bottom:31px} body.demo #side{padding-bottom:31px} body.demo #v
 .pick.itile:hover{background:#fff;border-color:var(--navy-500);color:var(--navy)}
 .pick.itile[aria-pressed="true"]{background:var(--navy);border-color:var(--navy);color:#fff;--line:var(--navy-900);--acc:var(--mint);--ink:var(--navy-900)}
 .pick.itile[aria-pressed="true"]::before{content:none}
-.pick.itile[aria-pressed="true"]::after{content:"";position:absolute;top:7px;right:7px;width:16px;height:16px;border-radius:50%;background:var(--mint) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4.5 8.3l2.3 2.3 4.7-4.9' fill='none' stroke='%2311203A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/16px no-repeat}
+.pick.itile[aria-pressed="true"]::after,.pick.scanPick[aria-pressed="true"]::after{content:"";position:absolute;top:7px;right:7px;width:16px;height:16px;border-radius:50%;background:var(--mint) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4.5 8.3l2.3 2.3 4.7-4.9' fill='none' stroke='%2311203A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/16px no-repeat}
 .isvg{flex:none;width:48px;height:48px;overflow:visible;--line:var(--navy);--acc:var(--mint-700);--ink:#fff}
 .pick.itile[aria-pressed="true"] .isvg{--line:var(--navy-900);--acc:var(--mint);--ink:var(--navy-900)}
 .isvg .tk{fill:#fff;stroke:var(--line);stroke-width:1.8;stroke-linejoin:round}
@@ -779,37 +779,32 @@ body.phOff .pav,body.phOff .dPh,body.phOff .phSlot,body.phOff .phTgl,body.phOff 
 .scanLink{display:inline-flex;align-items:center;gap:0;color:var(--blue);font-weight:600;text-decoration:none;border-radius:6px}
 .scanLink:hover span{text-decoration:underline}
 .scanLink svg.i{width:13px;height:13px;margin-left:5px;opacity:.75;flex:none}
-/* the Scanner choice: two drawers, each wand half out of its drawer; pointing at one (or the keyboard) lifts it out and the
-   picked one stays out (Amir, 3 Oct 2026). The photos are on white, so the well stays near-white and the wand multiplies in. */
-.scanRow{gap:14px;align-items:flex-end}
-.pick.scanPick{position:relative;display:block;width:118px;height:176px;padding:0;border:0;border-radius:14px;background:none;overflow:hidden;color:var(--navy);text-align:center}
+/* the Scanner choice: tiles like the others, each wand's head showing in its picture; pointing at one (or the keyboard)
+   slides the whole wand up into view, and the picked one stays up (Amir, 3 Oct 2026: "keep it simple … simple tiles with
+   heads halfwayish showing, when you hover, it displaces fully … no shading and keep the tiles similar to the other ones") */
+.scanRow{gap:8px}
+.pick.scanPick{position:relative;display:flex;flex-direction:column;align-items:stretch;gap:7px;width:124px;min-height:0;padding:8px 8px 9px;border-radius:14px;text-align:center;color:var(--navy);background:#fff}
 .pick.scanPick::before,.pick.scanPick[aria-pressed="true"]::before{content:none}
-.pick.scanPick:hover{background:none;border-color:transparent}
-.scanWell{position:absolute;left:10px;right:10px;top:10px;bottom:30px;border-radius:12px 12px 0 0;background:linear-gradient(#fff 40%,#f1f4f8)}
-/* (in the well: its bottom sits on the drawer front's top edge when it's out; half of it is behind the front when it's in) */
-.scanWand{position:absolute;left:50%;bottom:22px;height:114px;width:auto;mix-blend-mode:multiply;transform:translate(-50%,57px) rotate(-7deg);transform-origin:50% 100%;transition:transform .45s cubic-bezier(.28,1.55,.5,1)}
-.scanFront{position:absolute;left:0;right:0;bottom:0;height:52px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;border-radius:12px;
-  background:linear-gradient(#f6f8fb,#e6eaf0);border:1.5px solid var(--grey-200);box-shadow:inset 0 3px 0 rgba(17,32,58,.10),0 2px 4px -2px rgba(17,32,58,.18);transition:background .2s var(--ease),border-color .2s var(--ease)}
-.scanHandle{display:block;width:34px;height:5px;border-radius:3px;background:var(--grey-300);box-shadow:inset 0 1px 1px rgba(0,0,0,.18)}
-.scanNm{font-size:12.5px;font-weight:700;line-height:1}
-.pick.scanPick:hover .scanWand,.pick.scanPick:focus-visible .scanWand,.pick.scanPick[aria-pressed="true"] .scanWand{transform:translate(-50%,0) rotate(0)}
-.pick.scanPick:hover .scanFront{border-color:var(--mint-600)}
-.pick.scanPick[aria-pressed="true"] .scanFront{background:var(--mint);border-color:var(--mint-600)}
-.pick.scanPick[aria-pressed="true"] .scanHandle{background:var(--navy-900);opacity:.35}
-.pick.scanPick[aria-pressed="true"] .scanNm::before{content:"✓ "}
+.pick.scanPick:hover{background:#fff;border-color:var(--navy-500);color:var(--navy)}
+.scanMed{position:relative;display:block;height:122px;border-radius:10px;background:#fff;box-shadow:inset 0 0 0 1px var(--grey-200);overflow:hidden}
+.scanWand{position:absolute;left:50%;bottom:4px;height:114px;width:auto;transform:translate(-50%,58px);transition:transform .35s cubic-bezier(.3,1.3,.5,1)}
+.pick.scanPick:hover .scanWand,.pick.scanPick:focus-visible .scanWand,.pick.scanPick[aria-pressed="true"] .scanWand{transform:translate(-50%,0)}
+.scanNm{font-size:13px;font-weight:700;line-height:1.2}
+.pick.scanPick[aria-pressed="true"]{background:var(--navy);border-color:var(--navy);color:#fff}
+.pick.scanPick[aria-pressed="true"] .scanMed{box-shadow:0 0 0 2px var(--mint)}
 .pick.scanPick:focus-visible{outline:3px solid var(--blue-200);outline-offset:2px}
 /* tiles come alive when pointed at (Amir, 3 Oct 2026: "for fun … a bit of animation when each tile is hovered over"): the tile
    lifts and its picture pops with a little wiggle. Only with a mouse (not on touch screens) and not for "reduce motion". */
 @keyframes tilePop{0%{transform:scale(1) rotate(0)}30%{transform:scale(1.09) rotate(-4deg)}60%{transform:scale(1.05) rotate(3deg)}100%{transform:scale(1.06) rotate(0)}}
 @media (hover:hover) and (prefers-reduced-motion:no-preference){
-  .tt,.pick.itile,.sTile,.tile{transition:border-color .12s var(--ease),background .12s var(--ease),box-shadow .25s var(--ease),transform .3s cubic-bezier(.28,1.55,.5,1)}
-  .tt:hover,.pick.itile:hover,.sTile:hover{transform:translateY(-3px);box-shadow:0 10px 18px -10px rgba(17,32,58,.45)}
+  .tt,.pick.itile,.pick.scanPick,.sTile,.tile{transition:border-color .12s var(--ease),background .12s var(--ease),box-shadow .25s var(--ease),transform .3s cubic-bezier(.28,1.55,.5,1)}
+  .tt:hover,.pick.itile:hover,.pick.scanPick:hover,.sTile:hover{transform:translateY(-3px);box-shadow:0 10px 18px -10px rgba(17,32,58,.45)}
   .tile:hover{transform:translateY(-3px)}
-  .tt:active,.pick.itile:active,.sTile:active,.tile:active{transform:translateY(-1px) scale(.98);transition-duration:.08s}
+  .tt:active,.pick.itile:active,.pick.scanPick:active,.sTile:active,.tile:active{transform:translateY(-1px) scale(.98);transition-duration:.08s}
   .tt:hover .tmed>*,.pick.itile:hover .isvg,.sTile:hover .av{animation:tilePop .6s cubic-bezier(.3,1.3,.5,1) both}
   .tile:hover .n{animation:tilePop .6s cubic-bezier(.3,1.3,.5,1) both;transform-origin:0 70%}
 }
-@media (prefers-reduced-motion:reduce){ .scanWand,.scanFront{transition:none} .tile:hover{transform:none} }
+@media (prefers-reduced-motion:reduce){ .scanWand{transition:none} .tile:hover{transform:none} }
 .archIc2{display:inline-flex;flex-direction:column;align-items:center;gap:1px;flex:none}
 .archIc2 .archIc{height:13px}
 /* New case: the choice it still needs (the appliance, or what an in-house set is) */

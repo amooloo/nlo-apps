@@ -371,15 +371,16 @@ function pickRow(group, options, chosen, multi, extraCls, icon) {
    set once the form is on the page (data-pic, like the tile pictures) */
 const SCAN_PIC = { 'Allied Star': 'scan-allied', iTero: 'scan-itero' };
 function scanIc(v) { const k = SCAN_PIC[v]; return k ? '<img class="scanIc" data-pic="' + k + '" width="36" height="36" alt="" draggable="false">' : ''; }
-/* the Scanner choice as two drawers (Amir, 3 Oct 2026: "have them halfway hidden and when you hover over them they will fully
-   move up, almost like you are picking them from a drawer"): each wand stands half out of its drawer, pointing at it (or the
-   keyboard) lifts it out, and the picked one stays out. A scanner an older case has that isn't offered any more keeps a drawer. */
+/* the Scanner choice as tiles (Amir, 3 Oct 2026: wands "halfway hidden and when you hover over them they will fully move up",
+   then "keep it simple … simple tiles with heads halfwayish showing … no shading and keep the tiles similar to the other ones"):
+   each wand's head shows in its tile, pointing at it (or the keyboard) slides it fully up, and the picked one stays up.
+   A scanner an older case has that isn't offered any more keeps a tile. */
 function scanPickRow(chosen) {
   return '<div class="pickRow scanRow" role="group" aria-label="Scanner" data-g="scanner" data-multi="0">' + withSaved(PICK.scanners, chosen).map(v => {
     const k = (SCAN_PIC[v] || '').replace('scan-', 'scanv-'), pc = k && typeof PICS !== 'undefined' && PICS[k];
-    return '<button type="button" class="pick scanPick" data-v="' + esc(v) + '" aria-pressed="' + (chosen === v) + '"><span class="scanWell" aria-hidden="true">' +
+    return '<button type="button" class="pick scanPick" data-v="' + esc(v) + '" aria-pressed="' + (chosen === v) + '"><span class="scanMed" aria-hidden="true">' +
       (pc ? '<img class="scanWand" data-pic="' + k + '" width="' + pc.w + '" height="' + pc.h + '" alt="" draggable="false">' : '') + '</span>' +
-      '<span class="scanFront"><i class="scanHandle" aria-hidden="true"></i><span class="scanNm">' + esc(v) + '</span></span></button>'; }).join('') + '</div>';
+      '<span class="scanNm">' + esc(v) + '</span></button>'; }).join('') + '</div>';
 }
 /* the upper and lower arch as Amir's small aligner pictures (3 Oct 2026): ∩ with the wide front teeth = upper, U = lower;
    both arches = upper over lower. The pictures are set once the form is on the page (data-logo, like the logos). */
