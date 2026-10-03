@@ -788,7 +788,10 @@ body.phOff .pav,body.phOff .dPh,body.phOff .phSlot,body.phOff .phTgl,body.phOff 
 .txSvg.n{display:none;max-width:460px}
 .txSvg .bg{fill:var(--grey-200)}
 .txSvg .fill{fill:var(--mint-600)}
-.txSvg .over{fill:var(--coral-600)}
+/* near the end (txPhase): amber at 3 months left, coral in the last 4 weeks, dark red past the expected removal */
+.txSvg.s3 .fill{fill:var(--amber)}
+.txSvg.s1 .fill{fill:var(--coral)}
+.txSvg.sOver .fill,.txSvg .over{fill:var(--coral-700)}
 .txSvg .tick{stroke:var(--grey-300);stroke-width:1}
 .txSvg .mo{font-family:var(--fb);font-size:10.5px;fill:var(--grey-500);text-anchor:middle}
 .txSvg .today{stroke:var(--navy);stroke-width:1.5;stroke-dasharray:3 2}
@@ -805,7 +808,9 @@ body.phOff .pav,body.phOff .dPh,body.phOff .phSlot,body.phOff .phTgl,body.phOff 
 .txFrom{margin-top:4px}
 .txMini{display:inline-block;vertical-align:middle;width:64px;height:6px;border-radius:3px;background:var(--grey-200);margin-right:10px;overflow:hidden}
 .txMini i{display:block;height:100%;background:var(--mint-600)}
-.txMini.over i{background:var(--coral-600)}
+.txMini.s3 i{background:var(--amber)}
+.txMini.s1 i{background:var(--coral)}
+.txMini.sOver i{background:var(--coral-700)}
 .dsS b.txOver{color:var(--coral-700)}
 .txFromRow{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .txFromRow[hidden]{display:none}

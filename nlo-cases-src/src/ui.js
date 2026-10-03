@@ -953,11 +953,16 @@ function renderDrawer() {
 /* ---------- in-house treatment timeline (Amir, 3 Oct 2026: "show a graph for each patient on where they are in treatment") ----------
    From the patient's Start and Expected removal (txOf): the bar is the treatment, mint up to today (coral past the expected
    removal), with the month marks, today, and each of the patient's in-house sets at its delivery appt (or scan date). */
+/* the bar's colour as the end gets near (Amir, 3 Oct 2026: change colour near the end — "whatever makes more sense"): by the
+   time left, not the percent, so it means the same on a 6- and a 24-month treatment — amber once it's down to "3 months left",
+   coral at "4 weeks left", dark red past the expected removal. A short treatment stays mint until it's halfway. */
+function txPhase(p) { return p.over ? 'sOver' : p.before || p.pct < .5 ? '' : p.left <= 31 ? 's1' : p.left <= 106 ? 's3' : ''; }
 function txSumHTML(c) {
   const t = txOf(c, casePool()); if (!t) return '<span class="muted">No start and expected removal yet</span>';
   const p = txProgress(t), tx = txText(p, t), cut = !p.before && !p.over ? tx.lastIndexOf(' · ') : -1;
   // on a phone the folded line keeps "Month 4 of 18 · 19%" (the time left is in the open section)
-  return '<span class="txMini' + (p.over ? ' over' : '') + '" aria-hidden="true"><i style="width:' + Math.round((p.over ? 1 : p.pct) * 100) + '%"></i></span>' +
+  const ph = txPhase(p);
+  return '<span class="txMini' + (ph ? ' ' + ph : '') + '" aria-hidden="true"><i style="width:' + Math.round((p.over ? 1 : p.pct) * 100) + '%"></i></span>' +
     '<b' + (p.over ? ' class="txOver"' : '') + '>' + (cut > 0 ? esc(tx.slice(0, cut)) + '<span class="txLeft">' + esc(tx.slice(cut)) + '</span>' : esc(tx)) + '</b>';
 }
 function txBoxHTML(c) {
@@ -979,8 +984,9 @@ function txGraphSVG(t, marks, p, W, cls) {
   const ins = marks.map(m => isoDate(m.d).getTime()).filter(ms => ms >= s - 45 * dd && ms <= Math.max(e, n) + 365 * dd);
   const lo = Math.min(s, n, ...ins), hi = Math.max(e, n, ...ins), span = Math.max(dd, hi - lo), X = ms => L + (R - L) * (ms - lo) / span;
   const lab = marks.map(m => m.l + ' ' + fmtDate(m.d)).join(', ');
-  let g = '<svg class="txSvg ' + cls + '" viewBox="0 0 ' + W + ' 86" role="img" aria-label="' + esc(txText(p, t) + '. Start ' + fmtDate(t.start) + ', expected removal ' + fmtDate(t.end) + '.' + (lab ? ' Sets: ' + lab + '.' : '')) + '">';
-  // the treatment (grey), done so far (mint), past the expected removal (coral, with a mark where it was due)
+  const ph = txPhase(p);
+  let g = '<svg class="txSvg ' + cls + (ph ? ' ' + ph : '') + '" viewBox="0 0 ' + W + ' 86" role="img" aria-label="' + esc(txText(p, t) + '. Start ' + fmtDate(t.start) + ', expected removal ' + fmtDate(t.end) + '.' + (lab ? ' Sets: ' + lab + '.' : '')) + '">';
+  // the treatment (grey), done so far (mint; amber, coral, dark red near and past the end — txPhase), with a mark where it was due
   g += '<rect class="bg" x="' + r(X(s)) + '" y="' + Y + '" width="' + r(Math.max(2, X(e) - X(s))) + '" height="' + H + '" rx="5"/>';
   if (n > s) g += '<rect class="fill" x="' + r(X(s)) + '" y="' + Y + '" width="' + r(Math.max(2, X(Math.min(n, e)) - X(s))) + '" height="' + H + '" rx="5"/>';
   if (n > e) g += '<rect class="over" x="' + r(X(e)) + '" y="' + Y + '" width="' + r(Math.max(2, X(n) - X(e))) + '" height="' + H + '" rx="5"/><line class="due" x1="' + r(X(e)) + '" y1="' + (Y - 4) + '" x2="' + r(X(e)) + '" y2="' + (Y + H + 4) + '"/>';

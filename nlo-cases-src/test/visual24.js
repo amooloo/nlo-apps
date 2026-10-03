@@ -117,11 +117,26 @@ const today = iso(new Date());
   check(ns === 'Starts ' + await fmt(s1) + ' (in 7 days)', 'before it starts: “' + ns + '”');
   await unfold(); const g3 = await graph();
   check(g3.labels.join() === 'Initial' && /^Dates saved on this set/.test(g3.from) && g3.todayX < g3.bgX, 'its graph: Today before the bar, the set on it');
-  // past the expected removal: coral, with the due date marked
+  // the bar's colour near the end (by time left, so it means the same on short and long treatments): mint, then amber at
+  // "3 months left", coral at "4 weeks left", dark red past the expected removal; a short treatment stays mint until halfway
+  const MINT = 'rgb(52, 196, 158)', AMBER = 'rgb(246, 175, 36)', CORAL = 'rgb(250, 98, 77)', RED = 'rgb(216, 65, 46)';
+  const colours = () => p.evaluate(() => { const svg = Array.from(document.querySelectorAll('#drawer .ds[data-ds=tx] svg.txSvg')).find(x => x.getBoundingClientRect().width > 0);
+    return { fill: getComputedStyle(svg.querySelector('.fill')).fill, mini: getComputedStyle(document.querySelector('#dsS-tx .txMini i')).backgroundColor, head: document.querySelector('#drawer .txHead').textContent }; });
+  const phases = [['on track: 12 months, 7 months left', -150, 215, MINT, 'mint', 'v24-phase-1.png'], ['3 months left (12-month treatment)', -270, 95, AMBER, 'amber', 'v24-phase-2.png'],
+    ['4 weeks left', -337, 28, CORAL, 'coral', 'v24-phase-3.png'], ['a 4-month treatment, 1 month in (3 months left, not halfway)', -30, 90, MINT, 'mint', null],
+    ['the same at halfway', -60, 60, AMBER, 'amber', null]];
+  for (const [what, a, b, want, name, shot] of phases) {
+    await setCase(nid, { txStart: plus(today, a), txEnd: plus(today, b), txAt: Date.now() });
+    await open(nid); await unfold(); const c = await colours();
+    check(c.fill === want && c.mini === want, what + ': the bar is ' + name + ' (“' + c.head + '”)');
+    if (shot) await (await p.$('#drawer .ds[data-ds=tx]')).screenshot({ path: OUT + '/' + shot });
+  }
+  // past the expected removal: dark red, with the due date marked
   await setCase(nid, { txStart: plus(today, -400), txEnd: plus(today, -10), txAt: Date.now() });
-  await open(nid); await unfold(); const g4 = await graph();
-  const s4 = await p.evaluate(() => ({ t: document.querySelector('#dsS-tx').textContent, over: !!document.querySelector('#dsS-tx b.txOver'), bar: document.querySelector('#dsS-tx .txMini.over i').style.width }));
-  check(g4.head === '10 days past expected removal' && g4.headOver && g4.over && g4.due && s4.over && s4.bar === '100%', 'past the expected removal: “10 days past expected removal” in coral, the overdue part of the bar coral');
+  await open(nid); await unfold(); const g4 = await graph(), c4 = await colours();
+  const s4 = await p.evaluate(() => ({ t: document.querySelector('#dsS-tx').textContent, over: !!document.querySelector('#dsS-tx b.txOver'), bar: document.querySelector('#dsS-tx .txMini.sOver i').style.width,
+    past: getComputedStyle(Array.from(document.querySelectorAll('#drawer svg.txSvg')).find(x => x.getBoundingClientRect().width > 0).querySelector('.over')).fill }));
+  check(g4.head === '10 days past expected removal' && g4.headOver && g4.over && g4.due && s4.over && s4.bar === '100%' && c4.fill === RED && c4.mini === RED && s4.past === RED, 'past the expected removal: “10 days past expected removal” in red, the whole bar dark red with the due date marked');
   await (await p.$('#drawer .ds[data-ds=tx]')).screenshot({ path: OUT + '/v24-overdue.png' });
   // a set with no dates (and none from the patient): it asks for them
   const bare = await p.evaluate(() => (openCases().find(c => c.type === 'nla' && c.initial === 'yes' && !c.chart && !txOf(c, casePool())) || {}).id);
