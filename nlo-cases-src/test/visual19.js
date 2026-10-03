@@ -1,5 +1,5 @@
-// Appliance, MARPE, Retainers, Mouthguard and Study models tiles show Amir's pictures (on a white plate; his 3 Oct appliances
-// picture has a black background, so it fills a black plate) — demo
+// Appliance, MARPE, Retainers, Mouthguard and Study models tiles show Amir's pictures on a white plate — demo
+// (Appliance: his 3 Oct picture of an RPE, Herbst arms and a removable plate, white-background version)
 const { chromium } = require('playwright');
 const { routes, watch, panelsOpen } = require('./helpers');
 const OUT = process.argv[2] || 'shots';
@@ -16,10 +16,7 @@ const OUT = process.argv[2] || 'shots';
   await p.click('.topBar [data-act=newCase]'); await p.waitForSelector('#ncForm');
   const a = await pic('#ncForm', 'appliance'), m = await pic('#ncForm', 'marpe');
   console.log('   appliance', JSON.stringify(a), '\n   marpe', JSON.stringify(m));
-  check(a && a.ok && a.h === 50 && a.inside && !a.svg && a.bg === 'rgb(0, 0, 0)', 'New case: Appliance shows Amir’s 3 Oct picture (loaded, filling its black plate, no drawing)');
-  check(await p.evaluate(() => { const i = document.querySelector('#ncForm .tt[data-tile=appliance] img'); const c = document.createElement('canvas'); c.width = i.naturalWidth; c.height = i.naturalHeight; const g = c.getContext('2d'); g.drawImage(i, 0, 0);
-    const px = (x, y) => Array.from(g.getImageData(x, y, 1, 1).data.slice(0, 3)); const edge = [px(0, 0), px(0, c.height >> 1), px(c.width - 1, c.height >> 1), px(c.width >> 1, 0), px(c.width >> 1, c.height - 1)];
-    return edge.every(v => v.every(n => n < 12)) && px(c.width >> 1, c.height >> 1).some(n => n > 60); }), 'its edges fade into black (no seam on the black plate); the middle is the picture');
+  check(a && a.ok && a.h === 46 && a.inside && !a.svg && a.bg === 'rgb(255, 255, 255)' && a.w >= 70, 'New case: Appliance shows Amir’s 3 Oct picture (loaded, 46 px tall, inside its white plate, no drawing)');
   check(m && m.ok && m.h === 46 && m.inside && !m.svg && m.bg === 'rgb(255, 255, 255)', 'New case: MARPE shows the picture (white plate)');
   for (const [v, what] of [['retainer', 'Retainers shows the clear tray'], ['mouthguard', 'Mouthguard shows the mouthguard'], ['models', 'Study models shows the model']]) { const r = await pic('#ncForm', v); console.log('   ' + v, JSON.stringify(r));
     check(r && r.ok && r.h === 46 && r.inside && !r.svg, 'New case: ' + what); }
@@ -35,7 +32,7 @@ const OUT = process.argv[2] || 'shots';
   const id = await p.evaluate(() => openCases().find(c => c.type === 'appliance').id);
   await p.evaluate(id => openDrawer(id), id); await p.click('#drawer [data-act=edit]'); await p.waitForSelector('#drawer .tt[data-tile=appliance]');
   const e = await pic('#drawer', 'appliance');
-  check(e && e.ok && e.h === 50 && e.bg === 'rgb(0, 0, 0)', 'Edit: the Appliance tile shows the picture too');
+  check(e && e.ok && e.h === 46 && e.bg === 'rgb(255, 255, 255)', 'Edit: the Appliance tile shows the picture too');
   await p.click('#drawer [data-act=cancelEdit]');
   // phone: fits
   await p.setViewportSize({ width: 390, height: 844 });
