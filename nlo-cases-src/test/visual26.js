@@ -14,12 +14,12 @@ const OUT = process.argv[2] || 'shots';
   const st = id => p.evaluate(id => { const c = DEMO.cases.get(id); return { stage: c.stage, alU: c.alU, alL: c.alL, aligners: c.aligners, at: c.atTemplates || '' }; }, id);
   const setCase = (id, o) => p.evaluate(([id, o]) => { Object.assign(findCase(id), o); Object.assign(DEMO.cases.get(id), JSON.parse(JSON.stringify(o))); queueRender(); }, [id, o]);
 
-  // ---- the steps: TxP needed, Reset needed in 2 days, TxP approved, then In fabrication
-  check(await p.evaluate(() => FLOWS.inhouse.stages.map(s => s[0]).slice(0, 4).join(',')) === 'txp,reset,txpok,fab' && await p.evaluate(() => FLOWS.inhouse.stages.find(s => s[0] === 'txpok')[1]) === 'TxP approved', 'in-house steps: TxP needed → Reset needed in 2 days → TxP approved → Export STLs …');
+  // ---- the steps: TxP needed, TxP approved, then In fabrication ("Reset needed in 2 days" retired the same day: resets aren't done any more)
+  check(await p.evaluate(() => FLOWS.inhouse.stages.map(s => s[0]).join(',')) === 'txp,txpok,fab,send,print,thermo,trim,polish,wash,pack,checkedin' && await p.evaluate(() => FLOWS.inhouse.stages.find(s => s[0] === 'txpok')[1]) === 'TxP approved', 'in-house steps: TxP needed → TxP approved → Export STLs … → Made – needs packaging → Checked in (no Reset needed in 2 days)');
   // ---- the board: its own column, before In fabrication (the demo has one approved plan waiting to be exported)
   await p.click('#nav-board'); await p.click('.boardTabs [data-k=inhouse]'); await p.waitForSelector('.kc');
   const cols = await p.$$eval('section[aria-label]', ss => ss.map(s => s.getAttribute('aria-label')));
-  check(cols.indexOf('TxP approved') === cols.indexOf('Reset needed in 2 days') + 1 && cols.indexOf('In fabrication') === cols.indexOf('TxP approved') + 1, 'board: a “TxP approved” column between “Reset needed in 2 days” and “In fabrication” (' + cols.join(' | ') + ')');
+  check(cols.join(' | ') === 'TxP needed | TxP approved | In fabrication | Made – needs packaging | Checked in', 'board: TxP needed, TxP approved, In fabrication, … — no Reset column (' + cols.join(' | ') + ')');
   const okId = await p.evaluate(() => openCases().find(c => c.type === 'nla' && c.stage === 'txpok').id);
   check(await p.isVisible('section[aria-label="TxP approved"] .kc[data-id="' + okId + '"]'), 'the demo’s approved plan sits in it');
   await (await p.$('.board')).screenshot({ path: OUT + '/v26-board.png' }).catch(async () => { await p.screenshot({ path: OUT + '/v26-board.png' }); });
@@ -42,7 +42,7 @@ const OUT = process.argv[2] || 'shots';
   // the case: the step in its stepper, the counts in its Aligners box, labels ready to print
   await p.evaluate(id => openDrawer(id), tid); await p.waitForSelector('#drawer .stepper');
   const steps = await p.evaluate(() => Array.from(document.querySelectorAll('#drawer .stepper .step')).map(b => b.dataset.k + (b.classList.contains('cur') ? '*' : '')).join(','));
-  check(/^txp,reset,txpok\*,fab,/.test(steps), 'the case’s steps show TxP approved as where it is (' + steps.split(',').slice(0, 5).join(',') + '…)');
+  check(/^txp,txpok\*,fab,/.test(steps), 'the case’s steps show TxP approved as where it is (' + steps.split(',').slice(0, 4).join(',') + '…)');
   check(/41 aligners in this set \(U 22 · L 19\)/.test((await p.textContent('#alBox')).replace(/\s+/g, ' ')) && !(await p.isDisabled('#alBox [data-act=labels]')), 'its Aligners box has the counts, and Print labels is ready (before the export)');
   const stp = await p.$('#drawer .ds[data-ds=stage]'); if (stp) await stp.screenshot({ path: OUT + '/v26-stepper.png' });
   // on to Export STLs: no second question
@@ -55,13 +55,20 @@ const OUT = process.argv[2] || 'shots';
   await p.click('#modalWrap [data-act=closeModal]'); await p.waitForTimeout(150);
   await p.evaluate(() => closeDrawer(true));
 
-  // ---- Reset needed in 2 days: the arrow goes to TxP approved too
-  const rid = await p.evaluate(() => openCases().find(x => x.type === 'nla' && x.stage === 'reset').id);
+  // ---- a case still saved at the retired "Reset needed in 2 days" (e.g. from the Asana import) shows at TxP needed
+  const rid = await p.evaluate(() => openCases().find(x => x.type === 'nla' && x.stage === 'txp').id);
+  await p.evaluate(id => { const d = DEMO.cases.get(id); d.stage = 'reset'; DEMO.logs.push({ caseId: id, a: 'stage', from: 'txp', to: 'reset', at: Date.now() - 86400e3, sid: 'angelika' }); DEMO.emit(d); }, rid); await p.waitForTimeout(200);
+  const old = await p.evaluate(id => ({ stored: DEMO.cases.get(id).stage, shown: findCase(id).stage, label: stageLabel(findCase(id)), raw: stageLabel(DEMO.cases.get(id)), dr: openCases().filter(c => DR_STAGES.includes(c.stage)).some(c => c.id === id) }), rid);
+  check(old.stored === 'reset' && old.shown === 'txp' && old.label === 'TxP needed' && old.raw === 'TxP needed' && old.dr, 'a case saved at Reset needed shows as TxP needed (and counts as needing Dr. A); nothing is rewritten');
   await p.click('#nav-board'); await p.click('.boardTabs [data-k=inhouse]'); await p.waitForSelector('.kc[data-id="' + rid + '"]');
+  check(await p.isVisible('section[aria-label="TxP needed"] .kc[data-id="' + rid + '"]'), 'on the board it sits in TxP needed');
+  const hist = await p.evaluate(async id => { S.history = await B.caseLog(id); return historyHTML(findCase(id)).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' '); }, rid);
+  check(/moved it to Reset needed in 2 days/.test(hist), 'its history still names the old step (“moved it to Reset needed in 2 days”)');
   await p.click('.kc[data-id="' + rid + '"] .adv'); await p.waitForSelector('#gAl');
-  check(await p.textContent('#modalWrap h3') === 'TxP approved', 'Reset needed in 2 days → the arrow asks for TxP approved');
+  check(await p.textContent('#modalWrap h3') === 'TxP approved', 'its arrow asks for TxP approved');
   await p.click('.pickRow[data-g=gAt] .pick[data-v=none]'); await p.click('#gGo'); await p.waitForTimeout(300);
-  check((await st(rid)).stage === 'txpok', '… and moves it there');
+  check((await st(rid)).stage === 'txpok', '… and moves it there (saved as TxP approved)');
+  check(await p.evaluate(() => stageFromSection('nla', 'Reset needed in 2 days', null)) === 'txp', 'Asana import: a task still in “Reset needed in 2 days” lands at TxP needed');
   // the approved plan's arrow goes to Export STLs without asking
   await p.click('.kc[data-id="' + okId + '"] .adv'); await p.waitForTimeout(300);
   check(!(await p.isVisible('#modalWrap')) && (await st(okId)).stage === 'fab', 'TxP approved → the arrow moves it to In fabrication (Export STLs) with no question');

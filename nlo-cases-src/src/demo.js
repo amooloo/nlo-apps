@@ -28,7 +28,7 @@ const DEMO = {
     const plan = [
       ['oliv', 'submit', 'sarah', 9], ['oliv', 'dra', 'amir', 2], ['oliv', 'mfg', 'sarah', 12], ['oliv', 'shipped', 'sarah', 4], ['oliv', 'arrived', 'sarah', -1],
       ['angel', 'mfg', 'sarah', 6], ['ulab', 'submit', 'gwen', 1], ['insmile', 'dra', 'amir', 5], ['invisalign', 'milestones', 'sarah', 0],
-      ['nla', 'txp', 'amir', -2], ['nla', 'txp', 'amir', 3], ['nla', 'reset', 'angelika', 2], ['nla', 'thermo', 'angelika', 6], ['nla', 'send', 'kaylee', 8], ['nla', 'pack', 'gwen', 1],
+      ['nla', 'txp', 'amir', -2], ['nla', 'txp', 'amir', 3], ['nla', 'txp', 'angelika', 2], ['nla', 'thermo', 'angelika', 6], ['nla', 'send', 'kaylee', 8], ['nla', 'pack', 'gwen', 1],
       ['appliance', 'submit', 'sarah', 7], ['appliance', 'hold', 'amir', null], ['appliance', 'mfg', 'sarah', 15],
       ['retainer', 'print', 'angelika', 1], ['retainer', 'print', 'gwen', null], ['retainer', 'sarah', 'sarah', 0], ['retainer', 'pickup', 'sarah', -3],
       ['ulab', 'mfg', 'gwen', 10], ['models', 'print', 'kaylee', 4], ['mouthguard', 'print', 'kaylee', 2], ['insmile', 'mfg', 'sarah', 9],

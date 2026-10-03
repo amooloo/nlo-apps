@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-3ufLfY1e0Q1fUjJgu6bLJhiOTniocAMwCIbvClrxcD4=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-kok3FoF/KQJY/hDsbcdaHfHqgVWQ6msf2ya/RQjGknM=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO Cases</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -900,7 +900,7 @@ const FLOWS = {
   /* in fabrication = the NL Lab checklist each Asana case carried as subtasks (Exported STLs → Final Wash and Dry);
      the board shows the seven steps as one "In fabrication" column */
   inhouse: { label: 'In-house lab', labDone: 'pack', stages: [
-    ['txp', 'TxP needed'], ['reset', 'Reset needed in 2 days'],
+    ['txp', 'TxP needed'],
     // Amir, 3 Oct 2026: "add a middle step that says TxP completed or approved and it would still let me enter the U/L stages
     // because I may not be able to export them right away" — the plan is done and its counts are in, waiting to be exported
     ['txpok', 'TxP approved'],
@@ -956,7 +956,14 @@ function recordsMissing(c) { const r = c.records || []; return MARPE_RECORDS.fil
 
 function typeOf(c) { return TYPE[c.type] || TYPE.misc; }
 function flowOf(c) { return FLOWS[typeOf(c).flow]; }
-function stageLabel(c) { const s = caseStages(c).find(x => x[0] === c.stage) || flowOf(c).stages.find(x => x[0] === c.stage); return s ? s[1] : (c.stage || '—'); }
+function stageLabel(c) { const k = liveStage(c), s = caseStages(c).find(x => x[0] === k) || flowOf(c).stages.find(x => x[0] === k); return s ? s[1] : (k || '—'); }
+/* retired steps: a case saved at one shows (and moves on) from the step that replaced it; history keeps the old name.
+   In-house "Reset needed in 2 days" (Amir, 3 Oct 2026: it was never a step after TxP — resets were one or two aligners
+   needed in a couple of days, kept in a column of the NL Lab project — and "we are actually not doing resets any longer") */
+const RETIRED_STAGES = { inhouse: { reset: { to: 'txp', l: 'Reset needed in 2 days' } } };
+function liveStage(c) { const r = c && (RETIRED_STAGES[typeOf(c).flow] || {})[c.stage]; return r ? r.to : c && c.stage; }
+function retiredStageLabel(c, k) { const r = (RETIRED_STAGES[typeOf(c).flow] || {})[k]; return r ? r.l : ''; }
+function liveCases(list) { (list || []).forEach(c => { if (c) c.stage = liveStage(c); }); return list; }
 /* Ship to patient (aligners): the case ends when it ships (Amir, 3 Oct 2026: "if the case is being shipped, the last stage
    is shipped (we still need to know the EXPECTED DELIVERY). so shipped status = complete"). Outside labs: Shipped is the
    last step (Arrived and Checked into Milestones don't apply); in-house: the last step reads "Shipped to patient" (it is
@@ -1232,7 +1239,7 @@ function stageFromSection(type, section, subtasks) {
   if (type === 'nla' || type === 'misc') {
     if (/misc/.test(s)) return 'todo';
     if (/txp/.test(s)) return pick('txp');
-    if (/reset/.test(s)) return pick('reset');
+    if (/reset/.test(s)) return pick('txp'); // resets are retired (3 Oct 2026): one still in that column lands at TxP needed
     if (/fabrication/.test(s)) return fabStepFromSubtasks(subtasks) || pick('fab');
     if (/package|made/.test(s)) return pick('pack');
     if (/checked in/.test(s)) return pick('checkedin');
@@ -1920,7 +1927,7 @@ const DEMO = {
     const plan = [
       ['oliv', 'submit', 'sarah', 9], ['oliv', 'dra', 'amir', 2], ['oliv', 'mfg', 'sarah', 12], ['oliv', 'shipped', 'sarah', 4], ['oliv', 'arrived', 'sarah', -1],
       ['angel', 'mfg', 'sarah', 6], ['ulab', 'submit', 'gwen', 1], ['insmile', 'dra', 'amir', 5], ['invisalign', 'milestones', 'sarah', 0],
-      ['nla', 'txp', 'amir', -2], ['nla', 'txp', 'amir', 3], ['nla', 'reset', 'angelika', 2], ['nla', 'thermo', 'angelika', 6], ['nla', 'send', 'kaylee', 8], ['nla', 'pack', 'gwen', 1],
+      ['nla', 'txp', 'amir', -2], ['nla', 'txp', 'amir', 3], ['nla', 'txp', 'angelika', 2], ['nla', 'thermo', 'angelika', 6], ['nla', 'send', 'kaylee', 8], ['nla', 'pack', 'gwen', 1],
       ['appliance', 'submit', 'sarah', 7], ['appliance', 'hold', 'amir', null], ['appliance', 'mfg', 'sarah', 15],
       ['retainer', 'print', 'angelika', 1], ['retainer', 'print', 'gwen', null], ['retainer', 'sarah', 'sarah', 0], ['retainer', 'pickup', 'sarah', -3],
       ['ulab', 'mfg', 'gwen', 10], ['models', 'print', 'kaylee', 4], ['mouthguard', 'print', 'kaylee', 2], ['insmile', 'mfg', 'sarah', 9],
@@ -2574,7 +2581,8 @@ function enterApp() {
   S.h = {
     cases(up, gone) {
       // a stage move still being saved wins over an older copy arriving from the server (quick → → → clicks)
-      up.forEach(c => { const p = S.pend && S.pend[c.id]; if (p) { c.stage = p.to; if (p.extra) Object.assign(c, p.extra); } S.cases.set(c.id, c); }); gone.forEach(id => S.cases.delete(id));
+      // (a case saved at a retired step shows at the step that replaced it — see liveStage)
+      up.forEach(c => { c.stage = liveStage(c); const p = S.pend && S.pend[c.id]; if (p) { c.stage = p.to; if (p.extra) Object.assign(c, p.extra); } S.cases.set(c.id, c); }); gone.forEach(id => S.cases.delete(id));
       const first = S.firstLoad; S.firstLoad = false; queueRender();
       if (first) setTimeout(mailSync, 300); // lab emails that came in while nobody had the app open
       if (S.openId && (up.some(c => c.id === S.openId) || gone.includes(S.openId))) refreshDrawer(gone.includes(S.openId));
@@ -2864,7 +2872,7 @@ async function ensureHist() {
   if (S.histLoaded || S.histLoading || !S.inApp) return; S.histLoading = true;
   let h; try { h = await B.loadClosed(3650); } catch (e) { h = []; }
   S.histLoading = false; if (!S.inApp) return; // locked meanwhile: drop it
-  S.hist = h; S.histLoaded = true;
+  S.hist = liveCases(h); S.histLoaded = true;
   $$('.cf').forEach(cf => cf._alTot && cf._alTot());
   if (!S.editing && S.openId) renderDrawer();
   if (S.view === 'list' || S.view === 'mine') queueRender();
@@ -2964,7 +2972,7 @@ function kcard(c, last, steps) {
   // appliances and MARPE: the lab's logo on every card (the lab differs from card to card even on their own tabs)
   const labbed = (c.type === 'appliance' || c.type === 'marpe') && !!LAB_LOGO[labName(c.lab)];
   const flags = shipFlag(c) + recFlag(c) + holdFlag(c);
-  // the arrow names where it goes (from TxP needed that's TxP approved, not the next column)
+  // the arrow names where it goes ("Move to TxP approved")
   const nx = last ? null : nextStage(c), shipsNext = !!nx && !!shipEnd(c) && nx === shipEnd(c);
   const tip = last ? 'Mark complete' : shipsNext ? 'Shipped to the patient — completes the case' : nx ? 'Move to ' + stageLabel(Object.assign({}, c, { stage: nx })) : 'Move to next stage';
   return '<div class="kc" data-act="open" data-id="' + esc(c.id) + '" role="button" tabindex="0">' +
@@ -3139,7 +3147,7 @@ function viewDone() {
 }
 async function loadClosed() {
   if (S.closedLoading) return; S.closedLoading = true;
-  try { S.closed = await B.loadClosed(S.closedDays); S.closedLoaded = true; }
+  try { S.closed = liveCases(await B.loadClosed(S.closedDays)); S.closedLoaded = true; }
   catch (e) { toast(errText(e), { bad: true }); S.closedLoaded = true; S.closed = []; }
   S.closedLoading = false; if (S.view === 'done') renderView();
 }
@@ -3173,7 +3181,7 @@ async function loadHistory(id) {
 const FIELD_LABELS = { photo: 'photo', labRef: 'lab case #', labHold: 'lab hold', planUrl: 'plan link', shipToPatient: 'ship to patient', records: 'records on file', zoomDate: 'Zoom call', zoomTime: 'Zoom call', tracking: 'tracking #', carrier: 'carrier', teeth: 'tooth chart', teethNote: 'tooth chart', chart: 'chart #', titanUrl: 'Titan link', initial: 'initial/refinement', appliances: 'appliance', lab: 'lab', arches: 'arch', retKinds: 'retainer type', goals: 'Dr. A’s instructions', instrPicks: 'Dr. A’s instructions', instrOther: 'Dr. A’s instructions', extras: 'extras', variant: 'case type', type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery appt', deliveryTime: 'appt time', txStart: 'treatment start', txEnd: 'expected removal', alU: 'aligners', alL: 'aligners', aligners: 'aligners', atTemplates: 'attachment templates', treatArch: 'arches to treat', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes' };
 function historyHTML(c) {
   const h = S.history; if (!h) return '<div class="small muted">Loading…</div>'; if (!h.length) return '<div class="small muted">No history yet.</div>';
-  const stageName = k => { const s = c && (caseStages(c).find(x => x[0] === k) || flowOf(c).stages.find(x => x[0] === k)); return s ? s[1] : k; };
+  const stageName = k => { const s = c && (caseStages(c).find(x => x[0] === k) || flowOf(c).stages.find(x => x[0] === k)); return s ? s[1] : (c && retiredStageLabel(c, k)) || k; };
   const shipped = x => x.close ? ' and marked it complete (shipped to the patient)' : '';
   return h.filter(x => x.a !== 'rekey' && x.a !== 'save').reverse().map(x => {
     let t = '';
@@ -3614,12 +3622,7 @@ async function copyText(s) {
   } catch (e) { return false; }
 }
 async function act(fn, okMsg) { try { await fn(); if (okMsg) toast(okMsg); } catch (e) { toast(errText(e), { bad: true }); } }
-function nextStage(c) {
-  const st = caseStages(c), i = stageIndex(c);
-  // in-house: a finished treatment plan goes on to TxP approved ("Reset needed in 2 days" is a queue of its own, not the next step)
-  if (c.stage === 'txp' && st.some(s => s[0] === 'txpok')) return 'txpok';
-  return i >= 0 && i < st.length - 1 ? st[i + 1][0] : null;
-}
+function nextStage(c) { const st = caseStages(c); const i = stageIndex(c); return i >= 0 && i < st.length - 1 ? st[i + 1][0] : null; }
 /* `extra` = fields saved with the move (e.g. MARPE records, the Zoom call, aligner counts); a move that still needs something
    asks first; `asked` = what the asking window already collected */
 async function moveStage(id, to, extra, asked) {

@@ -237,7 +237,8 @@ function enterApp() {
   S.h = {
     cases(up, gone) {
       // a stage move still being saved wins over an older copy arriving from the server (quick → → → clicks)
-      up.forEach(c => { const p = S.pend && S.pend[c.id]; if (p) { c.stage = p.to; if (p.extra) Object.assign(c, p.extra); } S.cases.set(c.id, c); }); gone.forEach(id => S.cases.delete(id));
+      // (a case saved at a retired step shows at the step that replaced it — see liveStage)
+      up.forEach(c => { c.stage = liveStage(c); const p = S.pend && S.pend[c.id]; if (p) { c.stage = p.to; if (p.extra) Object.assign(c, p.extra); } S.cases.set(c.id, c); }); gone.forEach(id => S.cases.delete(id));
       const first = S.firstLoad; S.firstLoad = false; queueRender();
       if (first) setTimeout(mailSync, 300); // lab emails that came in while nobody had the app open
       if (S.openId && (up.some(c => c.id === S.openId) || gone.includes(S.openId))) refreshDrawer(gone.includes(S.openId));
@@ -527,7 +528,7 @@ async function ensureHist() {
   if (S.histLoaded || S.histLoading || !S.inApp) return; S.histLoading = true;
   let h; try { h = await B.loadClosed(3650); } catch (e) { h = []; }
   S.histLoading = false; if (!S.inApp) return; // locked meanwhile: drop it
-  S.hist = h; S.histLoaded = true;
+  S.hist = liveCases(h); S.histLoaded = true;
   $$('.cf').forEach(cf => cf._alTot && cf._alTot());
   if (!S.editing && S.openId) renderDrawer();
   if (S.view === 'list' || S.view === 'mine') queueRender();
@@ -627,7 +628,7 @@ function kcard(c, last, steps) {
   // appliances and MARPE: the lab's logo on every card (the lab differs from card to card even on their own tabs)
   const labbed = (c.type === 'appliance' || c.type === 'marpe') && !!LAB_LOGO[labName(c.lab)];
   const flags = shipFlag(c) + recFlag(c) + holdFlag(c);
-  // the arrow names where it goes (from TxP needed that's TxP approved, not the next column)
+  // the arrow names where it goes ("Move to TxP approved")
   const nx = last ? null : nextStage(c), shipsNext = !!nx && !!shipEnd(c) && nx === shipEnd(c);
   const tip = last ? 'Mark complete' : shipsNext ? 'Shipped to the patient — completes the case' : nx ? 'Move to ' + stageLabel(Object.assign({}, c, { stage: nx })) : 'Move to next stage';
   return '<div class="kc" data-act="open" data-id="' + esc(c.id) + '" role="button" tabindex="0">' +
@@ -802,7 +803,7 @@ function viewDone() {
 }
 async function loadClosed() {
   if (S.closedLoading) return; S.closedLoading = true;
-  try { S.closed = await B.loadClosed(S.closedDays); S.closedLoaded = true; }
+  try { S.closed = liveCases(await B.loadClosed(S.closedDays)); S.closedLoaded = true; }
   catch (e) { toast(errText(e), { bad: true }); S.closedLoaded = true; S.closed = []; }
   S.closedLoading = false; if (S.view === 'done') renderView();
 }
@@ -836,7 +837,7 @@ async function loadHistory(id) {
 const FIELD_LABELS = { photo: 'photo', labRef: 'lab case #', labHold: 'lab hold', planUrl: 'plan link', shipToPatient: 'ship to patient', records: 'records on file', zoomDate: 'Zoom call', zoomTime: 'Zoom call', tracking: 'tracking #', carrier: 'carrier', teeth: 'tooth chart', teethNote: 'tooth chart', chart: 'chart #', titanUrl: 'Titan link', initial: 'initial/refinement', appliances: 'appliance', lab: 'lab', arches: 'arch', retKinds: 'retainer type', goals: 'Dr. A’s instructions', instrPicks: 'Dr. A’s instructions', instrOther: 'Dr. A’s instructions', extras: 'extras', variant: 'case type', type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery appt', deliveryTime: 'appt time', txStart: 'treatment start', txEnd: 'expected removal', alU: 'aligners', alL: 'aligners', aligners: 'aligners', atTemplates: 'attachment templates', treatArch: 'arches to treat', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes' };
 function historyHTML(c) {
   const h = S.history; if (!h) return '<div class="small muted">Loading…</div>'; if (!h.length) return '<div class="small muted">No history yet.</div>';
-  const stageName = k => { const s = c && (caseStages(c).find(x => x[0] === k) || flowOf(c).stages.find(x => x[0] === k)); return s ? s[1] : k; };
+  const stageName = k => { const s = c && (caseStages(c).find(x => x[0] === k) || flowOf(c).stages.find(x => x[0] === k)); return s ? s[1] : (c && retiredStageLabel(c, k)) || k; };
   const shipped = x => x.close ? ' and marked it complete (shipped to the patient)' : '';
   return h.filter(x => x.a !== 'rekey' && x.a !== 'save').reverse().map(x => {
     let t = '';
@@ -1277,12 +1278,7 @@ async function copyText(s) {
   } catch (e) { return false; }
 }
 async function act(fn, okMsg) { try { await fn(); if (okMsg) toast(okMsg); } catch (e) { toast(errText(e), { bad: true }); } }
-function nextStage(c) {
-  const st = caseStages(c), i = stageIndex(c);
-  // in-house: a finished treatment plan goes on to TxP approved ("Reset needed in 2 days" is a queue of its own, not the next step)
-  if (c.stage === 'txp' && st.some(s => s[0] === 'txpok')) return 'txpok';
-  return i >= 0 && i < st.length - 1 ? st[i + 1][0] : null;
-}
+function nextStage(c) { const st = caseStages(c); const i = stageIndex(c); return i >= 0 && i < st.length - 1 ? st[i + 1][0] : null; }
 /* `extra` = fields saved with the move (e.g. MARPE records, the Zoom call, aligner counts); a move that still needs something
    asks first; `asked` = what the asking window already collected */
 async function moveStage(id, to, extra, asked) {

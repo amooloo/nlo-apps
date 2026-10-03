@@ -666,8 +666,8 @@ async function openByName(p, name) {
   check(/2 of 7/.test(await owner.textContent(nCard + ' .kstep')) && (await owner.locator(nCard + ' .sprog i.d').count()) === 1, 'the arrow moves it one step (Send to printer, 2 of 7)');
   await owner.click('#nav-list'); await owner.fill('#q', 'Nadia Setcount');
   const nRow = 'tr.click:has-text("Nadia Setcount")'; await owner.waitForSelector(nRow + ' .sprog');
-  check((await owner.locator(nRow + ' .sprog i').count()) === 12 && (await owner.locator(nRow + ' .sprog .pg i').count()) === 7 && (await owner.locator(nRow + ' .sprog i.d').count()) === 4 && (await owner.locator(nRow + ' .sprog i.c').count()) === 1
-    && (await owner.locator(nRow + ' .sprog b').count()) === 11 && (await owner.locator(nRow + ' .sprog b.d').count()) === 4, 'list: a circle for every step joined by a line (4 done, now on step 5 of 12, the line filled up to it)');
+  check((await owner.locator(nRow + ' .sprog i').count()) === 11 && (await owner.locator(nRow + ' .sprog .pg i').count()) === 7 && (await owner.locator(nRow + ' .sprog i.d').count()) === 3 && (await owner.locator(nRow + ' .sprog i.c').count()) === 1
+    && (await owner.locator(nRow + ' .sprog b').count()) === 10 && (await owner.locator(nRow + ' .sprog b.d').count()) === 3, 'list: a circle for every step joined by a line (3 done — TxP needed, TxP approved, Export STLs — now on step 4 of 11, the line filled up to it)');
   check(/Send to printer · in fabrication 2\/7/.test(await owner.textContent(nRow + ' td.stg')), 'list: says Send to printer, in fabrication 2/7');
   await owner.click(nRow); await owner.waitForSelector('#drawer .stepper');
   await owner.click('#drawer .dFt [data-act=complete]'); await owner.waitForSelector('#drawer', { state: 'hidden', timeout: 15000 }).catch(() => {});

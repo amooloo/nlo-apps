@@ -40,7 +40,7 @@ const FLOWS = {
   /* in fabrication = the NL Lab checklist each Asana case carried as subtasks (Exported STLs → Final Wash and Dry);
      the board shows the seven steps as one "In fabrication" column */
   inhouse: { label: 'In-house lab', labDone: 'pack', stages: [
-    ['txp', 'TxP needed'], ['reset', 'Reset needed in 2 days'],
+    ['txp', 'TxP needed'],
     // Amir, 3 Oct 2026: "add a middle step that says TxP completed or approved and it would still let me enter the U/L stages
     // because I may not be able to export them right away" — the plan is done and its counts are in, waiting to be exported
     ['txpok', 'TxP approved'],
@@ -96,7 +96,14 @@ function recordsMissing(c) { const r = c.records || []; return MARPE_RECORDS.fil
 
 function typeOf(c) { return TYPE[c.type] || TYPE.misc; }
 function flowOf(c) { return FLOWS[typeOf(c).flow]; }
-function stageLabel(c) { const s = caseStages(c).find(x => x[0] === c.stage) || flowOf(c).stages.find(x => x[0] === c.stage); return s ? s[1] : (c.stage || '—'); }
+function stageLabel(c) { const k = liveStage(c), s = caseStages(c).find(x => x[0] === k) || flowOf(c).stages.find(x => x[0] === k); return s ? s[1] : (k || '—'); }
+/* retired steps: a case saved at one shows (and moves on) from the step that replaced it; history keeps the old name.
+   In-house "Reset needed in 2 days" (Amir, 3 Oct 2026: it was never a step after TxP — resets were one or two aligners
+   needed in a couple of days, kept in a column of the NL Lab project — and "we are actually not doing resets any longer") */
+const RETIRED_STAGES = { inhouse: { reset: { to: 'txp', l: 'Reset needed in 2 days' } } };
+function liveStage(c) { const r = c && (RETIRED_STAGES[typeOf(c).flow] || {})[c.stage]; return r ? r.to : c && c.stage; }
+function retiredStageLabel(c, k) { const r = (RETIRED_STAGES[typeOf(c).flow] || {})[k]; return r ? r.l : ''; }
+function liveCases(list) { (list || []).forEach(c => { if (c) c.stage = liveStage(c); }); return list; }
 /* Ship to patient (aligners): the case ends when it ships (Amir, 3 Oct 2026: "if the case is being shipped, the last stage
    is shipped (we still need to know the EXPECTED DELIVERY). so shipped status = complete"). Outside labs: Shipped is the
    last step (Arrived and Checked into Milestones don't apply); in-house: the last step reads "Shipped to patient" (it is
@@ -372,7 +379,7 @@ function stageFromSection(type, section, subtasks) {
   if (type === 'nla' || type === 'misc') {
     if (/misc/.test(s)) return 'todo';
     if (/txp/.test(s)) return pick('txp');
-    if (/reset/.test(s)) return pick('reset');
+    if (/reset/.test(s)) return pick('txp'); // resets are retired (3 Oct 2026): one still in that column lands at TxP needed
     if (/fabrication/.test(s)) return fabStepFromSubtasks(subtasks) || pick('fab');
     if (/package|made/.test(s)) return pick('pack');
     if (/checked in/.test(s)) return pick('checkedin');

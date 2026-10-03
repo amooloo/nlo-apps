@@ -11,8 +11,8 @@ const OUT = process.argv[2] || 'shots';
   let fails = 0; const check = (ok, what) => { console.log((ok ? '  ok   ' : '  FAIL ') + what); if (!ok) fails++; };
   const st = id => p.evaluate(id => { const c = findCase(id); return { stage: c.stage, alU: c.alU, alL: c.alL, aligners: c.aligners, at: c.atTemplates || '' }; }, id);
 
-  // a case at "Reset needed in 2 days": the stepper's Export STLs asks first
-  const rid = await p.evaluate(() => { const c = openCases().find(x => x.type === 'nla' && x.stage === 'reset'); c.alU = ''; c.alL = ''; c.aligners = ''; c.atTemplates = ''; return c.id; });
+  // a case at TxP needed: jumping to Export STLs in the stepper (past TxP approved) asks first
+  const rid = await p.evaluate(() => { const c = openCases().find(x => x.type === 'nla' && x.stage === 'txp'); c.alU = ''; c.alL = ''; c.aligners = ''; c.atTemplates = ''; return c.id; });
   await p.evaluate(id => openDrawer(id), rid); await p.waitForSelector('#drawer .stepper');
   await p.click('#drawer .step[data-k=fab]'); await p.waitForSelector('#gAl');
   check(/Export STLs/.test(await p.textContent('#modalWrap h3')) && await p.isVisible('#gAlU') && await p.isVisible('#gAlL') && (await p.locator('.pickRow[data-g=gAt] .pick').count()) === 4, 'Export STLs asks: upper aligners, lower aligners, attachment templates (None / Upper / Lower / Upper & Lower)');
@@ -43,12 +43,11 @@ const OUT = process.argv[2] || 'shots';
   check((await st(rid)).stage === 'txp', 'Cancel leaves the stage alone');
   await p.evaluate(() => closeDrawer(true));
 
-  // board arrow: Reset needed → TxP approved asks (the step before Export STLs since 3 Oct 2026); None is a valid answer
+  // board arrow: TxP needed → TxP approved asks (the step before Export STLs since 3 Oct 2026); None is a valid answer
   const bid = await p.evaluate(rid => { const c = openCases().find(x => x.type === 'nla' && x.stage === 'txp' && x.id !== rid); return c.id; }, rid);
-  await p.click('#nav-board'); await p.click('.boardTabs [data-k=inhouse]'); await p.waitForSelector('.kc');
-  await p.evaluate(id => { const c = findCase(id); c.stage = 'reset'; queueRender(); }, bid); await p.waitForTimeout(150);
+  await p.click('#nav-board'); await p.click('.boardTabs [data-k=inhouse]'); await p.waitForSelector('.kc[data-id="' + bid + '"]');
   await p.click('.kc[data-id="' + bid + '"] .adv'); await p.waitForSelector('#gAl');
-  check(await p.inputValue('#gAlU') !== '' && await p.textContent('#modalWrap h3') === 'TxP approved', 'board arrow from Reset needed asks too, for TxP approved (counts filled in from the case)');
+  check(await p.inputValue('#gAlU') !== '' && await p.textContent('#modalWrap h3') === 'TxP approved', 'board arrow from TxP needed asks too, for TxP approved (counts filled in from the case)');
   await p.click('.pickRow[data-g=gAt] .pick[data-v=none]'); await p.click('#gGo'); await p.waitForTimeout(300);
   s = await st(bid); check(s.stage === 'txpok' && s.at === 'none', '“None” is an answer: moved to TxP approved');
 
