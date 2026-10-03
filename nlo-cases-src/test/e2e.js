@@ -193,6 +193,11 @@ async function openByName(p, name) {
   for (let i = 0; i < 3; i++) { await owner.click('.kc:has-text("' + P2 + '") .adv'); await sleep(900); }
   await owner.waitForSelector('section[aria-label="Front desk pickup"] .kc:has-text("' + P2 + '")', { timeout: 15000 });
   check(true, 'advance moved the case through to the last stage');
+  // reaching the last step asks whether it's done (3 Oct 2026); "Not yet" leaves it there
+  await owner.waitForSelector('#cbNo', { timeout: 10000 });
+  check(/Mark this case complete\?/.test(await owner.textContent('#modalWrap h3')) && /last step, Front desk pickup/.test(await owner.textContent('#modalWrap .lsub')), 'reaching the last step asks “Mark this case complete?”');
+  await owner.click('#cbNo'); await owner.waitForSelector('#modalWrap', { state: 'detached', timeout: 5000 }).catch(() => {});
+  check(await owner.isVisible('section[aria-label="Front desk pickup"] .kc:has-text("' + P2 + '")'), '“Not yet” keeps it open at its last step');
   await owner.click('.kc:has-text("' + P2 + '") .adv');
   await owner.waitForSelector('.kc:has-text("' + P2 + '")', { state: 'detached', timeout: 15000 });
   check(true, 'completing removes it from the board');
@@ -674,9 +679,17 @@ async function openByName(p, name) {
   await owner.click(nRow); await owner.waitForSelector('#drawer .stepper');
   await owner.click('#drawer .dFt [data-act=complete]'); await owner.waitForSelector('#drawer', { state: 'hidden', timeout: 15000 }).catch(() => {});
   await sleep(800);
-  await owner.click('#nav-admin'); await owner.fill('#alPer', '4.5'); await owner.press('#alPer', 'Tab');
-  await owner.waitForFunction(() => S.settings.alPerAligner === 4.5, null, { timeout: 15000 }); // (a "Saved" toast could be an older one)
-  check(true, 'Dr. A sets the cost per aligner in Team & security');
+  await owner.click('#nav-admin');
+  // (a rare flake here — the cost not saved within 15 s, seen twice on 3 Oct: watch whether the box was redrawn under the typing)
+  await owner.evaluate(() => { window.__alPerSwaps = 0; const v = document.querySelector('#view'); new MutationObserver(ms => { if (ms.some(m => Array.from(m.removedNodes).some(n => n.nodeType === 1 && (n.id === 'alPer' || n.querySelector('#alPer'))))) window.__alPerSwaps++; }).observe(v, { childList: true, subtree: true }); });
+  await owner.fill('#alPer', '4.5'); await owner.press('#alPer', 'Tab');
+  let costOk = await owner.waitForFunction(() => S.settings.alPerAligner === 4.5, null, { timeout: 15000 }).then(() => true, () => false); // (a "Saved" toast could be an older one)
+  if (!costOk) {
+    console.log('   (cost not saved after 15 s: ' + JSON.stringify(await owner.evaluate(() => ({ swaps: window.__alPerSwaps, val: (document.querySelector('#alPer') || {}).value, def: (document.querySelector('#alPer') || {}).defaultValue, ae: document.activeElement && (document.activeElement.id || document.activeElement.tagName), settings: S.settings, toasts: Array.from(document.querySelectorAll('.toast')).map(t => t.textContent) }))) + ' — typing it once more)');
+    await owner.fill('#alPer', '4.5'); await owner.press('#alPer', 'Tab');
+    costOk = await owner.waitForFunction(() => S.settings.alPerAligner === 4.5, null, { timeout: 15000 }).then(() => true, () => false);
+  }
+  check(costOk, 'Dr. A sets the cost per aligner in Team & security');
   await owner.click('.topBar [data-act=newCase]'); await owner.waitForSelector('#ncForm');
   await owner.click('#ncForm .tt[data-tile=nla]'); await owner.fill('#cf-patient', 'Nadia Setcount'); await owner.fill('#cf-chart', '77-1234');
   await owner.click('.pickRow[data-g=initial] .pick[data-v=no]'); await owner.fill('#cf-alU', '12'); await owner.fill('#cf-alL', '10');
@@ -799,6 +812,9 @@ async function openByName(p, name) {
   await owner.click(zCard + ' .adv'); await owner.waitForSelector('section[aria-label="Design approved"] .kc:has-text("Marco Palatewide")', { timeout: 20000 });
   await owner.click('section[aria-label="Design approved"] .kc:has-text("Marco Palatewide") .adv');
   await owner.waitForSelector('section[aria-label="Delivered"] .kc:has-text("Marco Palatewide") .adv[data-act=complete]', { timeout: 20000 });
+  await owner.waitForSelector('#cbNo', { timeout: 10000 });
+  check(/last step, Delivered/.test(await owner.textContent('#modalWrap .lsub')), 'Design approved → Delivered asks whether it’s complete');
+  await owner.click('#cbNo'); await owner.waitForSelector('#modalWrap', { state: 'detached', timeout: 5000 }).catch(() => {});
   check(true, 'Design approved → Delivered (then Mark complete)');
   await openByName(owner, 'Marco Palatewide'); await owner.waitForSelector('#histBox .hist:has-text("Zoom call scheduled")', { timeout: 20000 });
   const mHist = await owner.textContent('#histBox');

@@ -1231,9 +1231,10 @@ function openModal(html, onReady) {
 }
 function closeModal() { const w = $('#modalWrap'); if (w) w.remove(); }
 /* text is plain text (escaped here), never HTML */
+/* danger: true = a red button; 'mint' = the brand mint (Mark complete, like everywhere else) */
 function confirmBox(title, text, okLabel, danger, noLabel) {
   return new Promise(res => {
-    openModal('<h3>' + esc(title) + '</h3><p class="lsub" style="font-size:13.5px;color:var(--grey-600)">' + esc(text) + '</p><div class="mFt"><button class="btn btn-sec" id="cbNo">' + esc(noLabel || 'Cancel') + '</button><button class="btn ' + (danger ? 'btn-danger' : 'btn-pri') + '" id="cbYes">' + esc(okLabel) + '</button></div>', w => {
+    openModal('<h3>' + esc(title) + '</h3><p class="lsub" style="font-size:13.5px;color:var(--grey-600)">' + esc(text) + '</p><div class="mFt"><button class="btn btn-sec" id="cbNo">' + esc(noLabel || 'Cancel') + '</button><button class="btn ' + (danger === 'mint' ? 'btn-mint' : danger ? 'btn-danger' : 'btn-pri') + '" id="cbYes">' + esc(okLabel) + '</button></div>', w => {
       $('#cbNo', w).onclick = () => { closeModal(); res(false); }; $('#cbYes', w).onclick = () => { closeModal(); res(true); }; $('#cbYes', w).focus();
     });
   });
@@ -1297,8 +1298,19 @@ async function moveStage(id, to, extra, asked) {
   c.stage = to; Object.assign(c, extra); queueRender(); if (S.openId === id) renderDrawer();
   S.pend = S.pend || {}; const mine = S.pend[id] = { to, extra };
   try { await B.mutateCase(id, d => { d.stage = to; Object.assign(d, extra); }, Object.assign({ a: 'stage', from, to }, fields.length ? { fields } : {})); }
-  catch (e) { const cur = findCase(id); if (cur && S.pend[id] === mine) { cur.stage = from; Object.assign(cur, before); queueRender(); if (S.openId === id) renderDrawer(); } toast(errText(e), { bad: true }); }
+  catch (e) { const cur = findCase(id); if (cur && S.pend[id] === mine) { cur.stage = from; Object.assign(cur, before); queueRender(); if (S.openId === id) renderDrawer(); } toast(errText(e), { bad: true }); return; }
   finally { if (S.pend[id] === mine) delete S.pend[id]; }
+  if (isLastStage(c, to)) offerComplete(id);
+}
+/* a case that reaches its last step is asked about once, by whoever moved it there (Amir, 3 Oct 2026: "when a case reaches the
+   last checklist then user should get a prompt to move it to complete. like if you mark the case as checked in milestones …
+   this is true for all the appliances") — every kind of case; "Not yet" leaves it at that step (✓ on its card or Mark complete
+   later). A case shipped to the patient is already completed when it ships, so it isn't asked. */
+function isLastStage(c, k) { const st = caseStages(c); return !!st.length && st[st.length - 1][0] === k; }
+function offerComplete(id) {
+  const c = findCase(id); if (!c || c.status === 'done' || c.stage !== caseStages(c).slice(-1)[0][0]) return;
+  confirmBox('Mark this case complete?', (c.patient || 'This case') + ' is at its last step, ' + stageLabel(c) + '. Move it to Completed now? You can undo right after, or reopen it later.', 'Mark complete', 'mint', 'Not yet')
+    .then(ok => { if (ok) completeCase(id); });
 }
 /* shipped to the patient = complete (Amir, 3 Oct 2026): one save moves it to its last step and completes it; Undo puts
    the step back and reopens it */
@@ -1462,6 +1474,7 @@ async function saveEdit() {
       return;
     }
     S.editing = false; toast('Saved'); renderDrawer(); loadHistory(id);
+    if (changed.includes('stage') && cur && isLastStage(cur, now.stage)) offerComplete(id); // reached its last step: done?
   } catch (x) { busyBtn(btn, false); toast(errText(x), { bad: true }); }
 }
 function printCode() {

@@ -192,7 +192,7 @@ function retLabelsModal(c) {
       closeModal();
       // printed: offer to finish the case (it can be reopened later)
       const cur = findCase(c.id); if (!cur || cur.status === 'done') return;
-      confirmBox('Mark this case complete?', 'The label for ' + (cur.patient || 'this patient') + ' went to the printer. Move the case to Completed now? You can undo right after, or reopen it later.', 'Mark complete', false, 'Not yet')
+      confirmBox('Mark this case complete?', 'The label for ' + (cur.patient || 'this patient') + ' went to the printer. Move the case to Completed now? You can undo right after, or reopen it later.', 'Mark complete', 'mint', 'Not yet')
         .then(ok => { if (ok) completeCase(c.id); });
     });
     draw();
