@@ -412,12 +412,14 @@ async function openByName(p, name) {
   await owner.click('.pickRow[data-g=goal_ob] .pick[data-v=maintain]');
   await owner.click('.pickRow[data-g=extras] .pick:has-text("No elastics")');
   await owner.click('.pickRow[data-cc] .pick:has-text("None")');
+  await owner.click('.pickRow[data-g=scanner] .pick[data-v=iTero]'); // the iTero's drawer (3 Oct 2026)
   check(await owner.inputValue('#cf-detail') === 'Aligners (Oliv) – refinement', 'what’s-being-made fills itself from the taps');
   await owner.click('#ncSave'); await owner.waitForSelector('#modalWrap', { state: 'detached', timeout: 20000 });
   await openByName(owner, 'Petra Tapform');
   check(await owner.isVisible('#drawer .txt:has-text("Improve midline; Maintain overbite; Resolve black triangles")'), 'tapped instructions (Maintain/Improve and pictures) saved as text');
   check(await owner.isVisible('#drawer .badge:has-text("No elastics")') && await owner.isVisible('#drawer .badge:has-text("Refinement")'), 'extras and refinement shown on the case');
   check(/Gwen/.test(await owner.textContent('#drawer .kv')), 'assistant saved from a tap');
+  check(await owner.getAttribute('#drawer a.scanLink', 'href') === 'https://myitero.com/' && /iTero/.test(await owner.textContent('#drawer a.scanLink')), 'the iTero picked from its drawer: the case’s Scanner links to MyiTero');
   await owner.click('#drawer [data-act=edit]'); await owner.waitForSelector('#drawer .cf');
   check((await owner.locator('#drawer .pickRow[data-g=instrPicks] .pick[aria-pressed=true]').count()) === 1
     && (await owner.getAttribute('#drawer .pickRow[data-g=goal_midline] .pick[data-v=improve]', 'aria-pressed')) === 'true'

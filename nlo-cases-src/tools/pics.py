@@ -13,9 +13,20 @@ H = 138   # px of the stored image (shown 46 px tall, so it stays sharp on 3x sc
 SCAN_S = 114          # px of the stored square (shown at 36–38 px)
 SCAN_CUT = {'scan-itero': 1200}   # keep the source down to this row (the cable runs off the bottom of the picture)
 
-def scanner(im, key):
+# … and standing up for the Scanner drawers (3 Oct 2026: "have them halfway hidden and when you hover over them they will fully
+# move up, almost like you are picking them from a drawer"): the whole wand, SCAN_V px tall (shown 120 px), key scanv-<name>
+SCAN_V = 360
+
+def wand(im, key):
     box = Image.eval(im.convert('L'), lambda v: 255 if v < 245 else 0).getbbox()
-    im = im.crop((max(box[0] - 4, 0), max(box[1] - 4, 0), min(box[2] + 4, im.width), min(box[3] + 4, SCAN_CUT.get(key, im.height))))
+    return im.crop((max(box[0] - 4, 0), max(box[1] - 4, 0), min(box[2] + 4, im.width), min(box[3] + 4, SCAN_CUT.get(key, im.height))))
+
+def scanner_v(im, key):
+    im = wand(im, key)
+    return im.resize((round(im.width * SCAN_V / im.height), SCAN_V), Image.LANCZOS)
+
+def scanner(im, key):
+    im = wand(im, key)
     im = im.rotate(-40, resample=Image.BICUBIC, expand=True, fillcolor=(255, 255, 255))
     im = im.crop(Image.eval(im.convert('L'), lambda v: 255 if v < 245 else 0).getbbox())
     s = SCAN_S * .84 / max(im.size)   # as big as it goes with its ends still inside the circle
@@ -28,10 +39,10 @@ for src in sorted((root / 'pics').glob('*-source.*')):
     key = src.name.split('-source')[0]
     im = Image.open(src).convert('RGB')
     if key.startswith('scan-'):
-        im = scanner(im, key)
-        b = io.BytesIO(); im.save(b, 'JPEG', quality=90, optimize=True, progressive=True)
-        out[key] = {'src': 'data:image/jpeg;base64,' + base64.b64encode(b.getvalue()).decode(), 'w': round(SCAN_S / 3), 'h': round(SCAN_S / 3)}
-        print(key, '%dx%d' % im.size, len(b.getvalue()), 'bytes')
+        for k, pic in ((key, scanner(im, key)), (key.replace('scan-', 'scanv-'), scanner_v(im, key))):
+            b = io.BytesIO(); pic.save(b, 'JPEG', quality=90, optimize=True, progressive=True)
+            out[k] = {'src': 'data:image/jpeg;base64,' + base64.b64encode(b.getvalue()).decode(), 'w': round(pic.width / 3), 'h': round(pic.height / 3)}
+            print(k, '%dx%d' % pic.size, len(b.getvalue()), 'bytes')
         continue
     # trim the white (and the faint reflection under the trays); the study model and the MARPE model are white themselves, so anything not pure white counts
     th = 252 if key in ('models', 'marpe') else 236

@@ -371,6 +371,16 @@ function pickRow(group, options, chosen, multi, extraCls, icon) {
    set once the form is on the page (data-pic, like the tile pictures) */
 const SCAN_PIC = { 'Allied Star': 'scan-allied', iTero: 'scan-itero' };
 function scanIc(v) { const k = SCAN_PIC[v]; return k ? '<img class="scanIc" data-pic="' + k + '" width="36" height="36" alt="" draggable="false">' : ''; }
+/* the Scanner choice as two drawers (Amir, 3 Oct 2026: "have them halfway hidden and when you hover over them they will fully
+   move up, almost like you are picking them from a drawer"): each wand stands half out of its drawer, pointing at it (or the
+   keyboard) lifts it out, and the picked one stays out. A scanner an older case has that isn't offered any more keeps a drawer. */
+function scanPickRow(chosen) {
+  return '<div class="pickRow scanRow" role="group" aria-label="Scanner" data-g="scanner" data-multi="0">' + withSaved(PICK.scanners, chosen).map(v => {
+    const k = (SCAN_PIC[v] || '').replace('scan-', 'scanv-'), pc = k && typeof PICS !== 'undefined' && PICS[k];
+    return '<button type="button" class="pick scanPick" data-v="' + esc(v) + '" aria-pressed="' + (chosen === v) + '"><span class="scanWell" aria-hidden="true">' +
+      (pc ? '<img class="scanWand" data-pic="' + k + '" width="' + pc.w + '" height="' + pc.h + '" alt="" draggable="false">' : '') + '</span>' +
+      '<span class="scanFront"><i class="scanHandle" aria-hidden="true"></i><span class="scanNm">' + esc(v) + '</span></span></button>'; }).join('') + '</div>';
+}
 /* the upper and lower arch as Amir's small aligner pictures (3 Oct 2026): ∩ with the wide front teeth = upper, U = lower;
    both arches = upper over lower. The pictures are set once the form is on the page (data-logo, like the logos). */
 function archIc(v) {
@@ -426,7 +436,7 @@ function caseFormHTML(c, isNew) {
       '<div class="grid2" id="cf-txWrap">' + date('cf-txStart', 'Start', c.txStart) + date('cf-txEnd', 'Expected removal', c.txEnd) + '</div></div>' +
     '<div class="cfSec"' + showTiles('insmile') + '><h5>Initial or digital enhancement?</h5>' + pickRow('initialDE', [{ v: 'yes', l: 'Initial' }, { v: 'de1', l: 'DE 1' }, { v: 'de2', l: 'DE 2' }, { v: 'de3', l: 'DE 3' }], c.initial || '', false) + '</div>' +
     '<div class="cfSec"><h5>Assistant</h5>' + staffPickRow('assistant', withSavedStaff(roster, c.assistant), c.assistant || '') +
-    '<div' + show('aligner braces appliance marpe retainer models') + '><h5>Scanner</h5>' + pickRow('scanner', PICK.scanners, c.scanner || '', false, 'scanPick', scanIc) + '</div></div>' +
+    '<div' + show('aligner braces appliance marpe retainer models') + '><h5>Scanner</h5>' + scanPickRow(c.scanner || '') + '</div></div>' +
     '<div class="cfSec"><h5>Dates</h5><div class="pickRow" style="margin-bottom:8px"><button type="button" class="pick sm" data-scan="0">Scanned today</button><button type="button" class="pick sm" data-scan="-1">Yesterday</button></div>' +
     '<div class="grid3">' + date('cf-scanDate', 'Scan date', c.scanDate) + date('cf-labDate', 'Lab completion', c.labDate) + '<div class="field"><label for="cf-deliveryDate" id="cf-delLbl">' + (c.shipToPatient && groupOfTile(tile) === 'aligner' ? 'Expected delivery' : 'Delivery appt') + '</label><input type="date" id="cf-deliveryDate" value="' + esc(c.deliveryDate || '') + '">' + timeSelectHTML('cf-deliveryTime', c.deliveryTime || '', 'Appointment time') + '</div>' + '</div>' +
     '<div class="hint small muted" id="cf-autoHint" style="margin:-4px 0 0">Filled in from the scan date — change any of them.</div>' +

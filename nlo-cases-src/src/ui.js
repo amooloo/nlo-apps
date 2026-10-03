@@ -440,6 +440,11 @@ function typeMark(c, small) {
     return '<span class="' + cls + ' lg-' + esc(lk) + '" title="' + esc(l) + '"><img data-logo="' + esc(lk) + '" width="' + ll.w + '" height="' + ll.h + '" alt="' + esc(l) + '" draggable="false"></span>'; }
   return typeBadge(c);
 }
+/* the scanner in the case's Details: its picture and name, a link to where its scans are (SCAN_SITE) */
+function scanLinkHTML(v) {
+  const s = SCAN_SITE[v]; if (!s) return scanIc(v) + esc(v);
+  return '<a class="scanLink" data-act="portal" href="' + esc(s.u) + '" target="_blank" rel="noopener noreferrer" title="Open ' + esc(s.l) + ' to look at the scans (copies the patient’s name)">' + scanIc(v) + '<span>' + esc(v) + '</span>' + ic('ext', 13) + '</a>';
+}
 function picPaint(root) { if (typeof PICS === 'undefined') return; $$('img[data-pic]:not([src])', root || document).forEach(i => { const pc = PICS[i.dataset.pic]; if (pc) i.src = pc.src; }); }
 function logoPaint(root) { if (typeof LOGOS === 'undefined') return; $$('img[data-logo]:not([src])', root || document).forEach(i => { const lg = LOGOS[i.dataset.logo]; if (lg) i.src = lg.src; }); }
 /* the case's next date: lab completion until the lab work is done, then delivery (see dueOf) */
@@ -922,7 +927,7 @@ function renderDrawer() {
       (String(c.tracking || '').trim() ? kv('Tracking', trackList(c).length ? trackList(c).map(t => '<span class="trkLine">' + esc(t.n) + (t.carrier ? ' <span class="muted small">' + esc(t.carrier) + '</span>' : '') +
         (t.url ? ' <a class="flag trk" href="' + esc(t.url) + '" target="_blank" rel="noopener noreferrer">' + ic('ext', 12) + 'Track</a>' : '') + '</span>').join('') : esc(c.tracking)) : '') +
       (c.labRef ? kv(esc(refLabel(c)), esc(c.labRef)) : '') +
-      kv('Assistant', esc(staffName(c.assistant, c.assistantName))) + kv('Scanner', c.scanner ? scanIc(c.scanner) + esc(c.scanner) : '') + kv('Chart #', esc(c.chart || '')) +
+      kv('Assistant', esc(staffName(c.assistant, c.assistantName))) + kv('Scanner', c.scanner ? scanLinkHTML(c.scanner) : '') + kv('Chart #', esc(c.chart || '')) +
       kv('Created', esc((c.createdAt ? fmtWhen(c.createdAt) : '') + (c.createdBy ? ' · ' + firstName(staffName(c.createdBy, '')) : ''))) + kv('Last update', esc(c.updatedAt ? fmtWhen(c.updatedAt) + (c.by ? ' · ' + firstName(staffName(c.by, '')) : '') : '')) +
       '</div>') +
     (c.type === 'nla' ? dsec('tx', 'Treatment', txSumHTML(c), '<div id="txBox">' + txBoxHTML(c) + '</div>') : '') +
