@@ -34,10 +34,26 @@ def scanner(im, key):
     c = Image.new('RGB', (SCAN_S, SCAN_S), (255, 255, 255)); c.paste(im, ((SCAN_S - im.width) // 2, (SCAN_S - im.height) // 2))
     return c
 
+# Amir's pictures for Dr. A's instructions (3 Oct 2026: "replace all the icons for dr's instructions with new logos"):
+# instr-<name>, trimmed and fitted in INSTR_BOX (shown in a 76 × 56 white plate on the tiles, smaller on the Maintain/Improve rows).
+# Green arrows he asked to drop were painted out in the sources (open bite, IPR lower, deep bite); Active retention is the
+# Retainers picture with a green check added in his arrows' green.
+INSTR_BOX = (228, 168)
+
 out = {}
 for src in sorted((root / 'pics').glob('*-source.*')):
     key = src.name.split('-source')[0]
     im = Image.open(src).convert('RGB')
+    if key.startswith('instr-'):
+        box = Image.eval(im.convert('L'), lambda v: 255 if v < 245 else 0).getbbox()
+        pad = round(max(im.size) * .012)
+        im = im.crop((max(box[0] - pad, 0), max(box[1] - pad, 0), min(box[2] + pad, im.width), min(box[3] + pad, im.height)))
+        s = min(INSTR_BOX[0] / im.width, INSTR_BOX[1] / im.height)
+        im = im.resize((round(im.width * s), round(im.height * s)), Image.LANCZOS)
+        b = io.BytesIO(); im.save(b, 'JPEG', quality=88, optimize=True, progressive=True)
+        out[key] = {'src': 'data:image/jpeg;base64,' + base64.b64encode(b.getvalue()).decode(), 'w': round(im.width / 3), 'h': round(im.height / 3)}
+        print(key, '%dx%d' % im.size, len(b.getvalue()), 'bytes')
+        continue
     if key.startswith('scan-'):
         for k, pic in ((key, scanner(im, key)), (key.replace('scan-', 'scanv-'), scanner_v(im, key))):
             b = io.BytesIO(); pic.save(b, 'JPEG', quality=90, optimize=True, progressive=True)

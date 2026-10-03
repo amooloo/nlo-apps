@@ -21,16 +21,24 @@ const LAB_SPEC = 'Specialty Orthodontic Lab', LAB_PART = 'Partners Dental Soluti
 const LAB_LOGO = { [LAB_SPEC]: 'lab-specialty', [LAB_PART]: 'lab-partners', [LAB_IN]: 'nlo' };
 const LAB_FOR = { 'Herbst with Rollo Band': LAB_SPEC, 'Space Closing Herbst': LAB_SPEC, 'MARA': LAB_SPEC, 'MSE': LAB_SPEC, 'MARPE': LAB_PART,
   'Rapid Palatal Expander (RPE)': LAB_PART, 'D2 distalizer': LAB_IN, 'Finger spring with no labial bow': LAB_PART, 'Hawley retainers': LAB_PART, 'Schwartz': LAB_PART };
-/* Dr. A's instructions: midline, AP and overbite are Maintain / Improve; the rest are picture tiles.
-   v = the full instruction saved on the case (same wording as the Tally form), l = the tile's short label */
-const GOALS = [{ k: 'midline', l: 'Midline', t: 'midline', ic: 'midline' }, { k: 'ap', l: 'AP', s: 'Class II / III', t: 'AP', ic: 'ap' }, { k: 'ob', l: 'Overbite', t: 'overbite', ic: 'ob' }];
+/* Dr. A's instructions: midline and overbite are Maintain / Improve; the rest are picture tiles.
+   v = the full instruction saved on the case (same wording as the Tally form), l = the tile's short label.
+   AP (Class II / III) was taken off on 3 Oct 2026 (Amir): legacy — its row shows only on a case that already has it */
+const GOALS = [{ k: 'midline', l: 'Midline', t: 'midline', ic: 'midline' }, { k: 'ap', l: 'AP', s: 'Class II / III', t: 'AP', ic: 'ap', legacy: true }, { k: 'ob', l: 'Overbite', t: 'overbite', ic: 'ob' }];
+/* the instruction tiles; the v text is what's saved (and goes in the chart note). Amir added five on 3 Oct 2026 with their
+   pictures: deep curve of Spee, open bite, upper IPR, IPR lower, posterior crossbite — and took "Change attachments" off
+   (a case that already has it shows it under "Earlier choices on this case") */
 const INSTR = [
   { v: 'Close all remaining residual spaces/gaps', l: 'Close spaces', ic: 'spaces' },
   { v: 'Resolve black triangles', l: 'Black triangles', ic: 'bt' },
+  { v: 'Upper IPR', l: 'Upper IPR', ic: 'tsd' },
+  { v: 'IPR lower', l: 'IPR lower', ic: 'iprlower' },
+  { v: 'Level deep curve of Spee', l: 'Deep curve of Spee', ic: 'spee' },
+  { v: 'Correct open bite', l: 'Open bite', ic: 'openbite' },
+  { v: 'Correct posterior crossbite', l: 'Posterior crossbite', ic: 'xbite' },
   { v: 'Needs settling of posterior occlusion', l: 'Settle posteriors', ic: 'settle' },
-  { v: 'Aligners are not tracking well', l: 'Not tracking', ic: 'track' },
-  { v: 'Need to change attachment/hooks on one or more teeth', l: 'Change attachments', ic: 'attach' },
   { v: 'No posterior teeth movement', l: 'No posterior movement', ic: 'lock' },
+  { v: 'Aligners are not tracking well', l: 'Not tracking', ic: 'track' },
   { v: 'Active retention', l: 'Active retention', ic: 'retain' }
 ];
 /* instruction tiles that only make sense for aligners (hidden for braces; Active retention off for InSmile — Amir, 2 Oct 2026) */
@@ -129,6 +137,13 @@ const [INSTR_ICONS, TYPE_ICONS] = (() => {
   return [instr, types];
 })();
 function instrSvg(k) { return '<svg class="isvg" viewBox="0 0 48 48" aria-hidden="true" focusable="false">' + (INSTR_ICONS[k] || '') + '</svg>'; }
+/* Amir's pictures for Dr. A's instructions (3 Oct 2026, pics.js instr-…) on a white plate; the drawing where there's none
+   (the legacy AP row). The Maintain/Improve rows: Midline gets his midline picture, Overbite his deep bite one; Upper IPR
+   has the tooth size discrepancy picture (IPR to correct the overjet). */
+const INSTR_PIC = { midline: 'instr-midline', ob: 'instr-deepbite', spaces: 'instr-spaces', bt: 'instr-bt', settle: 'instr-postob', track: 'instr-track', lock: 'instr-lock', retain: 'instr-retain',
+  spee: 'instr-spee', openbite: 'instr-openbite', iprlower: 'instr-iprlower', tsd: 'instr-tsd', xbite: 'instr-xbite' };
+function instrArt(k) { const pk = INSTR_PIC[k], pc = pk && typeof PICS !== 'undefined' && PICS[pk];
+  return pc ? '<span class="iPic" aria-hidden="true"><img data-pic="' + pk + '" width="' + pc.w + '" height="' + pc.h + '" alt="" draggable="false"></span>' : instrSvg(k); }
 /* a tile's picture: the company's own logo when we have it (pasted by Amir), the picture Amir chose for Appliance and
    MARPE (pics.js: the whole upper arch with the appliance, on the same white plate), otherwise our drawing */
 function tileArt(t) {
@@ -436,10 +451,10 @@ function caseFormHTML(c, isNew) {
     '<div' + show('aligner') + '><button type="button" class="shipTgl" id="cf-ship" aria-pressed="' + !!c.shipToPatient + '">' + ic('truck', 22) +
       '<span><b>Ship to patient</b><small>An alert on the case · it’s complete once it ships</small></span></button></div></div>' +
     '<div class="cfSec"' + show('aligner braces') + '><h5>Dr. A’s instructions from last visit</h5>' +
-    '<div class="goalGrid">' + GOALS.map(gl => '<div class="goal">' + instrSvg(gl.ic) + '<div class="goalB"><b>' + esc(gl.l) + '</b>' + (gl.s ? '<span>' + esc(gl.s) + '</span>' : '') + '</div>' +
+    '<div class="goalGrid">' + GOALS.filter(gl => !gl.legacy || (c.goals || {})[gl.k]).map(gl => '<div class="goal">' + instrArt(gl.ic) + '<div class="goalB"><b>' + esc(gl.l) + '</b>' + (gl.s ? '<span>' + esc(gl.s) + '</span>' : '') + '</div>' +
       pickRow('goal_' + gl.k, [{ v: 'maintain', l: 'Maintain' }, { v: 'improve', l: 'Improve' }], (c.goals || {})[gl.k] || '', false, 'sm') + '</div>').join('') + '</div>' +
     '<div class="pickRow itGrid" role="group" aria-label="Instructions" data-g="instrPicks" data-multi="1">' + INSTR.map(it =>
-      '<button type="button" class="pick itile" data-v="' + esc(it.v) + '" aria-pressed="' + picks.includes(it.v) + '" title="' + esc(it.v) + '">' + instrSvg(it.ic) + '<span>' + esc(it.l) + '</span></button>').join('') + '</div>' +
+      '<button type="button" class="pick itile" data-v="' + esc(it.v) + '" aria-pressed="' + picks.includes(it.v) + '" title="' + esc(it.v) + '">' + instrArt(it.ic) + '<span>' + esc(it.l) + '</span></button>').join('') + '</div>' +
     (oldPicks.length ? '<div class="hint small muted" style="margin:10px 0 6px">Earlier choices on this case</div>' + pickRow('instrPicks', oldPicks, oldPicks, true) : '') +
     '<div class="field" style="margin-top:10px"><label for="cf-instrOther">Other instructions</label><textarea id="cf-instrOther" rows="2" placeholder="Only if it isn’t one of the pictures">' + esc(instrOther) + '</textarea></div></div>' +
     '<div class="cfSec"' + show('aligner') + '><h5>Teeth, IPR &amp; attachments</h5>' +

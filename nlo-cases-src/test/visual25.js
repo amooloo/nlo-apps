@@ -59,7 +59,7 @@ const OUT = process.argv[2] || 'shots';
   const pop = await p.$eval(tt, e => ({ anim: getComputedStyle(e.querySelector('.tmed > *')).animationName, scale: new DOMMatrix(getComputedStyle(e.querySelector('.tmed > *')).transform).a }));
   check(await lift(tt) === -3 && pop.anim === 'tilePop' && pop.scale > 1.04 && pop.scale < 1.08, 'pointing at a case-type tile lifts it 3 px and its picture pops (with a little wiggle)');
   await p.hover('#ncForm .pick.itile'); await settle();
-  check(await lift('#ncForm .pick.itile') === -3 && await p.$eval('#ncForm .pick.itile .isvg', e => getComputedStyle(e).animationName) === 'tilePop', 'Dr. A’s instruction tiles too');
+  check(await lift('#ncForm .pick.itile') === -3 && await p.$eval('#ncForm .pick.itile', t => getComputedStyle(t.querySelector('.iPic img, .isvg')).animationName) === 'tilePop', 'Dr. A’s instruction tiles too (their picture pops)');
   await p.click('.modal [data-act=closeModal]');
   await p.hover('.tiles .tile'); await settle();
   check(await lift('.tiles .tile') === -3, 'and the Today count tiles');
