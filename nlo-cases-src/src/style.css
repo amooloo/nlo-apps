@@ -768,3 +768,11 @@ body.phOff .pav,body.phOff .dPh,body.phOff .phSlot,body.phOff .phTgl,body.phOff 
 .iprOld{margin-top:10px;font-size:12.5px}
 .iprOld summary{cursor:pointer;color:var(--grey-600);font-weight:600}
 .iprOld .txt{margin-top:6px}
+
+/* the upper / lower arch pictures on the arch choices and the aligner counts (Amir, 3 Oct 2026) */
+.pick.archPick{display:inline-flex;align-items:center;gap:8px}
+.archIc{display:block;height:22px;width:auto;flex:none}
+.archIc2{display:inline-flex;flex-direction:column;align-items:center;gap:1px;flex:none}
+.archIc2 .archIc{height:13px}
+/* New case: the choice it still needs (the appliance, or what an in-house set is) */
+.pickRow.need{border-radius:14px;box-shadow:0 0 0 2px var(--coral-200),0 0 0 6px var(--coral-100);padding:2px}

@@ -33,6 +33,8 @@ for src in sorted((root / 'logos').glob('*-source.*')):
     raw = Image.open(src)
     if src.suffix.lower() in ('.jpg', '.jpeg'):   # JPEG noise in the white around a logo: snap near-white to white so it goes fully transparent
         arr = np.asarray(raw.convert('RGB')).copy(); arr[arr.min(axis=2) > 243] = 255; raw = Image.fromarray(arr)
+    if key.startswith('arch-'):  # Amir's clear-aligner arch pictures: deepen the tray's grey edges so they read at button size
+        raw = Image.eval(raw.convert('RGB'), lambda v: max(0, round(255 - (255 - v) * 2.2)))
     im = raw.convert('RGBA') if key in OPAQUE else trim(white_to_alpha(raw))
     s = min(MAX_H / im.height, MAX_W / im.width, 1.0)
     if s < 1: im = im.resize((max(1, round(im.width * s)), max(1, round(im.height * s))), Image.LANCZOS)

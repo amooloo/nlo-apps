@@ -26,7 +26,7 @@ const OUT = process.argv[2] || 'shots';
   check(nc.d === dd && nc.t === '14:30', 'saved: delivery ' + nc.d + ' at ' + nc.t);
   await p.evaluate(id => openDrawer(id), nc.id); await p.waitForSelector('#drawer .kv');
   const kvText = (await p.textContent('#drawer .kv')).replace(/\s+/g, ' ');
-  check(/Delivery[A-Za-z]{3}, [A-Za-z]{3} \d+, 2:30 PM/.test(kvText), 'the case shows the delivery day and time');
+  check(/Delivery appt[A-Za-z]{3}, [A-Za-z]{3} \d+, 2:30 PM/.test(kvText), 'the case shows the delivery appt day and time');
   // edit: change the time; clearing the date clears the time
   await p.click('#drawer [data-act=edit]'); await p.waitForSelector('#drawer #cf-deliveryTime');
   check(await p.inputValue('#drawer #cf-deliveryTime') === '14:30', 'Edit opens with the saved time');
@@ -45,7 +45,7 @@ const OUT = process.argv[2] || 'shots';
   console.log('   tomorrow:', rows.join(' | '));
   const times = rows.map(r => r.split(' ')[0]);
   check(times.indexOf('08:30') < times.indexOf('15:30') && times.indexOf('15:30') < times.indexOf('—'), 'sorted by time within the day (8:30 AM, 3:30 PM, then no time)');
-  check(rows.some(r => /Delivery tomorrow 8:30 AM/.test(r)) && rows.some(r => /Delivery tomorrow 3:30 PM/.test(r)), 'chips: “Delivery tomorrow 8:30 AM”');
+  check(rows.some(r => /Appt tomorrow 8:30 AM/.test(r)) && rows.some(r => /Appt tomorrow 3:30 PM/.test(r)), 'chips: “Appt tomorrow 8:30 AM”');
   await p.screenshot({ path: OUT + '/v14-list-times.png', clip: { x: 232, y: 0, width: 1128, height: 420 } });
   const later = await p.evaluate(() => { const c = openCases().find(x => x.deliveryTime && dayDiff(x.deliveryDate) > 3); return c ? delChip(c).replace(/<[^>]+>/g, '') : ''; });
   check(/· \d{1,2}:\d{2} [AP]M$/.test(later), 'later days show the time too: “' + later + '”');

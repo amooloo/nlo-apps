@@ -354,12 +354,19 @@ function labRowHTML(labs, chosen) {
       (lg ? '<img data-logo="' + esc(k) + '" width="' + lg.w + '" height="' + lg.h + '" alt="" draggable="false"><span class="vh">' + esc(l) + '</span>' : esc(l)) + '</button>';
   }).join('') + '</div>';
 }
-function pickRow(group, options, chosen, multi, extraCls) {
+function pickRow(group, options, chosen, multi, extraCls, icon) {
   const on = v => multi ? (chosen || []).includes(v) : chosen === v;
   return '<div class="pickRow" role="group" data-g="' + group + '" data-multi="' + (multi ? 1 : 0) + '">' + options.map(o => {
     const v = typeof o === 'string' ? o : o.v; const l = typeof o === 'string' ? o : o.l;
-    return '<button type="button" class="pick' + (extraCls ? ' ' + extraCls : '') + '" data-v="' + esc(v) + '" aria-pressed="' + on(v) + '">' + esc(l) + '</button>';
+    return '<button type="button" class="pick' + (extraCls ? ' ' + extraCls : '') + '" data-v="' + esc(v) + '" aria-pressed="' + on(v) + '">' + (icon ? icon(v) : '') + esc(l) + '</button>';
   }).join('') + '</div>';
+}
+/* the upper and lower arch as Amir's small aligner pictures (3 Oct 2026): ∩ with the wide front teeth = upper, U = lower;
+   both arches = upper over lower. The pictures are set once the form is on the page (data-logo, like the logos). */
+function archIc(v) {
+  const one = s => '<img class="archIc" data-logo="arch-' + s + '" width="' + (LOGOS['arch-' + s] || {}).w + '" height="' + (LOGOS['arch-' + s] || {}).h + '" alt="" draggable="false">';
+  if (typeof LOGOS === 'undefined' || !LOGOS['arch-U']) return '';
+  return v === 'U' || v === 'Upper' ? one('U') : v === 'L' || v === 'Lower' ? one('L') : v === 'UL' ? '<span class="archIc2">' + one('U') + one('L') + '</span>' : '';
 }
 function caseFormHTML(c, isNew) {
   c = c || {};
@@ -393,9 +400,9 @@ function caseFormHTML(c, isNew) {
       pickRow('records', MARPE_RECORDS.map(([v, l]) => ({ v, l })), c.records || [], true) +
       '<h5>Zoom call <span class="h5n">once the lab sets it up</span></h5><div class="zoomRow">' + date('cf-zoomDate', 'Date', c.zoomDate) +
       '<div class="field"><label for="cf-zoomTime">Time</label><input type="time" id="cf-zoomTime" value="' + esc(c.zoomTime || '') + '"></div></div></div>' +
-    '<div class="cfSec"' + show('retainer') + '><h5>Arch</h5>' + pickRow('arches', PICK.arches, c.arches || [], true) + '<div id="cf-retKindsWrap"' + (tile === 'mouthguard' ? ' style="display:none"' : '') + '><h5>Making</h5>' + pickRow('retKinds', PICK.retKinds, c.retKinds || [], true) + '</div></div>' +
+    '<div class="cfSec"' + show('retainer') + '><h5>Arch</h5>' + pickRow('arches', PICK.arches, c.arches || [], true, 'archPick', archIc) + '<div id="cf-retKindsWrap"' + (tile === 'mouthguard' ? ' style="display:none"' : '') + '><h5>Making</h5>' + pickRow('retKinds', PICK.retKinds, c.retKinds || [], true) + '</div></div>' +
     // aligners and InSmile: which arches are treated — both unless picked (Amir, 2 Oct 2026: not always both arches)
-    '<div class="cfSec"' + show('aligner braces') + '><h5>Arches to treat</h5>' + pickRow('treatArch', TREAT_OPTS, oneArch(c) || 'UL', false) + '</div>' +
+    '<div class="cfSec"' + show('aligner braces') + '><h5>Arches to treat</h5>' + pickRow('treatArch', TREAT_OPTS, oneArch(c) || 'UL', false, 'archPick', archIc) + '</div>' +
     '<div class="cfSec"' + show('aligner') + '><h5>Initial submission?</h5>' + pickRow('initial', [{ v: 'yes', l: 'Yes — first set' }, { v: 'no', l: 'No — refinement' }, { v: 'mid', l: 'Mid-course correction' }, { v: FIN, l: 'Finishing aligners' }], initialVal, false) + '</div>' +
     // in-house: one count per treated arch (the untreated arch's field is hidden, see wireCaseForm)
     '<div class="cfSec"' + showTiles(INHOUSE_TILES.join(' ')) + '><h5>Aligners in this set <span class="h5n">count each arch from Titan</span></h5><div class="alRow">' +
@@ -407,11 +414,11 @@ function caseFormHTML(c, isNew) {
     '<div class="cfSec"><h5>Assistant</h5>' + staffPickRow('assistant', withSavedStaff(roster, c.assistant), c.assistant || '') +
     '<div' + show('aligner braces appliance marpe retainer models') + '><h5>Scanner</h5>' + pickRow('scanner', PICK.scanners, c.scanner || '', false) + '</div></div>' +
     '<div class="cfSec"><h5>Dates</h5><div class="pickRow" style="margin-bottom:8px"><button type="button" class="pick sm" data-scan="0">Scanned today</button><button type="button" class="pick sm" data-scan="-1">Yesterday</button></div>' +
-    '<div class="grid3">' + date('cf-scanDate', 'Scan date', c.scanDate) + date('cf-labDate', 'Lab completion', c.labDate) + '<div class="field"><label for="cf-deliveryDate">Delivery</label><input type="date" id="cf-deliveryDate" value="' + esc(c.deliveryDate || '') + '">' + timeSelectHTML('cf-deliveryTime', c.deliveryTime || '', 'Delivery time') + '</div>' + '</div>' +
+    '<div class="grid3">' + date('cf-scanDate', 'Scan date', c.scanDate) + date('cf-labDate', 'Lab completion', c.labDate) + '<div class="field"><label for="cf-deliveryDate" id="cf-delLbl">' + (c.shipToPatient && groupOfTile(tile) === 'aligner' ? 'Expected delivery' : 'Delivery appt') + '</label><input type="date" id="cf-deliveryDate" value="' + esc(c.deliveryDate || '') + '">' + timeSelectHTML('cf-deliveryTime', c.deliveryTime || '', 'Appointment time') + '</div>' + '</div>' +
     '<div class="hint small muted" id="cf-autoHint" style="margin:-4px 0 0">Filled in from the scan date — change any of them.</div>' +
     // aligners going straight to the patient: an alert on the case everywhere it shows (Amir, 2 Oct 2026)
     '<div' + show('aligner') + '><button type="button" class="shipTgl" id="cf-ship" aria-pressed="' + !!c.shipToPatient + '">' + ic('truck', 22) +
-      '<span><b>Ship to patient</b><small>Shows as an alert on the case</small></span></button></div></div>' +
+      '<span><b>Ship to patient</b><small>An alert on the case · it’s complete once it ships</small></span></button></div></div>' +
     '<div class="cfSec"' + show('aligner braces') + '><h5>Dr. A’s instructions from last visit</h5>' +
     '<div class="goalGrid">' + GOALS.map(gl => '<div class="goal">' + instrSvg(gl.ic) + '<div class="goalB"><b>' + esc(gl.l) + '</b>' + (gl.s ? '<span>' + esc(gl.s) + '</span>' : '') + '</div>' +
       pickRow('goal_' + gl.k, [{ v: 'maintain', l: 'Maintain' }, { v: 'improve', l: 'Improve' }], (c.goals || {})[gl.k] || '', false, 'sm') + '</div>').join('') + '</div>' +
@@ -439,7 +446,7 @@ function caseFormHTML(c, isNew) {
     '<div class="cfSec" id="cf-titanWrap"' + show(INHOUSE_TILES.includes(tile) ? g : '__never') + '><div class="field"><label for="cf-titanUrl">Titan link</label><input id="cf-titanUrl" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://… (Titan’s shared web-viewer link)" value="' + esc(c.titanUrl || '') + '"></div></div>' +
     '<details class="cfMore"' + (isNew ? '' : ' open') + '><summary>More: what’s being made, stage, who it’s assigned to, notes</summary>' +
     '<div class="grid2" style="margin-top:12px"><div class="field"><label for="cf-detail">What’s being made</label><input id="cf-detail" value="' + esc(c.detail || '') + '" data-auto="' + (isNew || !c.detail ? 1 : 0) + '"></div>' +
-    '<div class="field"><label for="cf-stage">Stage</label><select id="cf-stage">' + stages.map(([k, l]) => opt(k, l, (c.stage || (stages[0] || [])[0]) === k)).join('') + '</select></div></div>' +
+    '<div class="field"><label for="cf-stage">Stage</label><select id="cf-stage">' + stages.map(([k, l]) => opt(k, k === 'checkedin' && shipEnd(c) ? 'Shipped to patient' : l, (c.stage || (stages[0] || [])[0]) === k)).join('') + '</select></div></div>' +
     '<div class="field"><label>Assigned to</label>' + assignTilesHTML('cf-assignee', c.assignee) + '</div>' +
     '<div class="grid2"><div class="field"><label for="cf-tracking">Tracking #</label><input id="cf-tracking" autocomplete="off" spellcheck="false" placeholder="UPS, FedEx or USPS — becomes a Track button" value="' + esc(c.tracking || '') + '"></div></div>' +
     '<div class="grid2"><div class="field"><label for="cf-labRef">Lab case # / patient ID</label><input id="cf-labRef" autocomplete="off" spellcheck="false" placeholder="The lab’s own number (lab emails fill it in)" value="' + esc(c.labRef || '') + '"></div><div></div></div>' +
@@ -493,6 +500,7 @@ function readCaseForm(root) {
   if (g !== 'marpe') { o.zoomDate = ''; o.zoomTime = ''; } else if (!o.zoomDate) o.zoomTime = '';
   if (!o.deliveryDate) o.deliveryTime = ''; // a time only goes with a delivery date
   const ship = $('#cf-ship', root); o.shipToPatient = g === 'aligner' && ship && ship.getAttribute('aria-pressed') === 'true' ? true : '';
+  if (o.shipToPatient) o.deliveryTime = ''; // an expected delivery has no appointment time
   if (g !== 'retainer') { o.arches = []; o.retKinds = []; }
   if (tile === 'mouthguard') o.retKinds = [];
   if (!(o.type === 'nla')) o.titanUrl = '';
@@ -535,6 +543,9 @@ function wireCaseForm(root, isNew) {
   const det = $r('#cf-detail'); det.addEventListener('input', () => { det.dataset.auto = '0'; });
   // editing: a "what's being made" line nobody typed (it matches the taps) keeps following the taps, e.g. Upper only
   if (!isNew && det.dataset.auto !== '1' && det.value && det.value === autoDetail(readCaseForm(root), $r('#cf-tile').value)) det.dataset.auto = '1';
+  // "Delivery appt" and its time, or "Expected delivery" when it's shipped to the patient (no appointment)
+  const syncDel = () => { const sh = $r('#cf-ship'), on = groupOfTile($r('#cf-tile').value) === 'aligner' && !!sh && sh.getAttribute('aria-pressed') === 'true';
+    const l = $r('#cf-delLbl'), tm = $r('#cf-deliveryTime'); if (l) l.textContent = on ? 'Expected delivery' : 'Delivery appt'; if (tm) tm.style.display = on ? 'none' : ''; };
   const refresh = (typeChanged) => {
     const tile = $r('#cf-tile').value; const g = groupOfTile(tile); const o = readCaseForm(root);
     $$('[data-show]', root).forEach(el => { el.style.display = el.dataset.show.split(' ').includes(g) ? '' : 'none'; });
@@ -543,6 +554,7 @@ function wireCaseForm(root, isNew) {
     const tw = $r('#cf-titanWrap'); if (tw) tw.style.display = INHOUSE_TILES.includes(tile) ? '' : 'none';
     $$('.pickRow[data-g="initial"] .pick[data-v="' + FIN + '"]', root).forEach(btn => { const on = INHOUSE_TILES.includes(tile); btn.style.display = on ? '' : 'none'; if (!on) btn.setAttribute('aria-pressed', 'false'); });
     const rk = $r('#cf-retKindsWrap'); if (rk) rk.style.display = tile === 'mouthguard' ? 'none' : '';
+    syncDel();
     // one arch only: just that arch's aligner count, and only the attachment-template answers that fit it
     const ta = o.treatArch, fU = $r('#cf-alU'), fL = $r('#cf-alL');
     if (fU) fU.closest('.field').style.display = ta === 'L' ? 'none' : '';
@@ -587,6 +599,7 @@ function wireCaseForm(root, isNew) {
     const pk = e.target.closest('.pickRow[data-g] .pick');
     if (pk && root.contains(pk)) {
       const row = pk.closest('.pickRow'); const multi = row.dataset.multi === '1'; const was = pk.getAttribute('aria-pressed') === 'true';
+      if (row.classList.contains('need')) { row.classList.remove('need'); const ne = $('#ncErr'); if (ne) ne.innerHTML = ''; } // the choice New case asked for
       // MARPE runs on its own steps: tapping it under Appliance switches the case to the MARPE tile
       if (row.dataset.g === 'appliances' && pk.dataset.v === 'MARPE' && !was && $r('#cf-tile').value === 'appliance') {
         const mt = $r('.tt[data-tile=marpe]'); if (mt) { mt.click(); toast('MARPE has its own steps, so this is now a MARPE case'); return; }
@@ -615,7 +628,7 @@ function wireCaseForm(root, isNew) {
         if (na && na.dataset.byShip === '1') { const t = readTeeth(); if (noattScopeOf(t) === 'all') { ALL_TEETH.forEach(k => setMark(t, k, 'noatt', false)); drawTeeth(t); $r('#cf-noattScope').hidden = true; syncNoatt(); } }
         if (ipr) delete ipr.dataset.byShip; if (na) delete na.dataset.byShip;
       }
-      return;
+      syncDel(); return;
     }
     const tool = e.target.closest('.tcTools [data-tool]');
     if (tool && root.contains(tool)) { $$('.tcTools [data-tool]', root).forEach(b => b.setAttribute('aria-checked', String(b === tool))); return; }
@@ -711,6 +724,11 @@ function newCaseModal() {
         const err = m => { $('#ncErr', w).innerHTML = '<div class="lockErr" role="alert">' + esc(m) + '</div>'; $('#ncErr', w).scrollIntoView({ block: 'nearest' }); };
         if (!data.type) return err('Tap a case type.');
         if (!data.patient) return err('Enter the patient’s name.');
+        // an appliance needs its appliance, and an in-house set what it is (Amir, 3 Oct 2026: "they have to pick an appliance
+        // type. Otherwise, it does not allow them to create the case. Same thing when they're creating … next level aligners")
+        const need = (g, m) => { const row = $('.pickRow[data-g=' + g + ']', w); if (row) { row.classList.add('need'); row.scrollIntoView({ block: 'center' }); } $('#ncErr', w).innerHTML = '<div class="lockErr" role="alert">' + esc(m) + '</div>'; };
+        if (data.type === 'appliance' && !data.appliances.length) return need('appliances', 'Pick the appliance (MSE, Herbst, D2…) to create the case.');
+        if (data.type === 'nla' && !data.initial && data.variant !== 'finishing') return need('initial', 'Pick what this set is — first set, refinement, mid-course correction or finishing aligners — to create the case.');
         if (data.titanUrl && !safeUrl(data.titanUrl)) return err('The Titan link must start with https://');
         data.stage = data.stage || firstStage(data.type);
         const needs = stageNeeds(Object.assign({}, data, { stage: firstStage(data.type) }), data.stage);

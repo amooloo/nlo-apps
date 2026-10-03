@@ -93,7 +93,20 @@ function recordsMissing(c) { const r = c.records || []; return MARPE_RECORDS.fil
 
 function typeOf(c) { return TYPE[c.type] || TYPE.misc; }
 function flowOf(c) { return FLOWS[typeOf(c).flow]; }
-function stageLabel(c) { const s = flowOf(c).stages.find(x => x[0] === c.stage); return s ? s[1] : (c.stage || '—'); }
+function stageLabel(c) { const s = caseStages(c).find(x => x[0] === c.stage) || flowOf(c).stages.find(x => x[0] === c.stage); return s ? s[1] : (c.stage || '—'); }
+/* Ship to patient (aligners): the case ends when it ships (Amir, 3 Oct 2026: "if the case is being shipped, the last stage
+   is shipped (we still need to know the EXPECTED DELIVERY). so shipped status = complete"). Outside labs: Shipped is the
+   last step (Arrived and Checked into Milestones don't apply); in-house: the last step reads "Shipped to patient" (it is
+   "Checked in" for everyone else). Reaching it marks the case complete (moveStage, saveEdit, lab emails). */
+function shipEnd(c) { if (!c || !c.shipToPatient || !(TYPE[c.type] || {}).aligner) return null; const fl = typeOf(c).flow; return fl === 'outside' ? 'shipped' : fl === 'inhouse' ? 'checkedin' : null; }
+/* the steps this case goes through: its flow's, ending at Shipped for a case shipped to the patient */
+function caseStages(c) {
+  const st = flowOf(c).stages, e = shipEnd(c); if (!e) return st;
+  return st.slice(0, st.findIndex(s => s[0] === e) + 1).map(s => s[0] === 'checkedin' ? ['checkedin', 'Shipped to patient'] : s);
+}
+/* the case's delivery date is the patient's delivery appointment (Amir, 3 Oct 2026: "change it to Delivery appt");
+   a case shipped to the patient has no appointment, just the expected delivery */
+function delWord(c) { return c && c.shipToPatient && (TYPE[c.type] || {}).aligner ? 'Expected delivery' : 'Delivery appt'; }
 function stageIndex(c) { return flowOf(c).stages.findIndex(x => x[0] === c.stage); }
 function firstStage(type) { return FLOWS[(TYPE[type] || TYPE.misc).flow].stages[0][0]; }
 /* the stage group a stage belongs to (e.g. the in-house "In fabrication" steps), or null */
@@ -143,7 +156,7 @@ function dueOf(c) {
   return null;
 }
 function dueDateOf(c) { const x = dueOf(c); return x ? x.d : ''; }
-/* the time that goes with a date, if one was set (Zoom call, delivery) */
+/* the time that goes with a date, if one was set (Zoom call, delivery appt) */
 function timeOf(c, k) { return (k === 'zoom' ? c.zoomTime : k === 'delivery' ? c.deliveryTime : '') || ''; }
 /* for sorting: the date, then its time (a date with no time sorts after the timed ones that day) */
 function dateKey(d, t) { return d ? d + 'T' + (t || '24:00') : ''; }

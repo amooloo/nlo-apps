@@ -164,6 +164,9 @@ function mailEffect(c, ev) {
   else if (ev.kind === 'received') to = fl === 'appliance' ? fwd('mfg') : fl === 'marpe' ? fwd('submitted') : null;
   else if (ev.kind === 'shipped') to = fl === 'marpe' ? fwd('approved') : fwd('shipped');
   else if (ev.kind === 'delivered') to = fwd('arrived');
+  // shipped to the patient: Shipped is its last step, and getting there completes the case (Amir, 3 Oct 2026)
+  const end = shipEnd(c); let close = false;
+  if (end && to && at(to) >= at(end)) { to = fwd(end); close = !!to; }
   if (ev.kind === 'hold') {
     const late = si >= (fl === 'marpe' ? at('delivered') : at('shipped')), h = { date: ev.holdDate || '', reason: ev.reason || '' };
     if (si >= 0 && !late && c.labHoldSeen !== h.date + '|' + h.reason && !(c.labHold && c.labHold.date === h.date && c.labHold.reason === h.reason)) set.labHold = h;
@@ -172,7 +175,7 @@ function mailEffect(c, ev) {
   const tk = trackInfo(ev.tracking) || trackInfo(trackFromUrl(ev.trackUrl));
   if (tk && !trackList(c).some(t => t.n === tk.n)) { set.tracking = (String(c.tracking || '').trim() + ' ' + tk.n).trim(); if (!tk.carrier && ev.carrier && !c.carrier) set.carrier = String(ev.carrier).slice(0, 20); }
   if (ev.planUrl && okLabLink(ev.co, ev.planUrl) && c.planUrl !== ev.planUrl) set.planUrl = ev.planUrl;
-  return { to, set };
+  return { to, set, close };
 }
 /* apply one update to a case (in a transaction; an update already applied, or one that changes nothing, is skipped) */
 async function mailApply(ev, c) {
@@ -184,7 +187,8 @@ async function mailApply(ev, c) {
     if (e2.to) d.stage = e2.to;
     Object.assign(d, e2.set);
     d.mailIds = (d.mailIds || []).concat(ev.key).slice(-40);
-  }, { a: 'email', co: ev.co, kind: ev.kind, from: c.stage, to: eff.to || null, fields: Object.keys(eff.set) });
+    if (e2.close) return 'done';
+  }, Object.assign({ a: 'email', co: ev.co, kind: ev.kind, from: c.stage, to: eff.to || null, fields: Object.keys(eff.set) }, eff.close ? { close: 1 } : {}));
   return 'ok';
 }
 

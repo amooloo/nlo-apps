@@ -67,6 +67,7 @@ const OUT = process.argv[2] || 'shots';
   await p.click('.topBar [data-act=newCase]'); await p.waitForSelector('#ncForm');
   await p.click('#ncForm .tt[data-tile=nla]'); await p.waitForTimeout(100);
   check(await p.isVisible('#ncForm .pickRow[data-g=atTemplates]'), 'New case (in-house): Attachment templates sits under the aligner counts');
+  await p.click('#ncForm .pickRow[data-g=initial] .pick[data-v=yes]'); // (New case asks what an in-house set is, 3 Oct 2026)
   await p.fill('#cf-patient', 'Atlas Templeton'); await p.click('#ncSave'); await p.waitForSelector('.toast:has-text("Case created")');
   check(await p.evaluate(() => openCases().find(c => c.patient === 'Atlas Templeton').atTemplates === ''), 'a new case can be saved without answering yet');
   // other types aren't asked

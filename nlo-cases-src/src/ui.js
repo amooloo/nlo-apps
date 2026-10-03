@@ -306,8 +306,8 @@ function byDue(a, b) {
 }
 /* the list filters; del/delDay filter by the delivery date alone, not the lab date (Amir, 2 Oct 2026) */
 function noFilters() { return { type: '', stage: '', who: '', due: '', del: '', delDay: '', grp: '', ship: '' }; }
-const DEL_OPTS = [['all', 'All, sorted by delivery date'], ['past', 'Delivery date passed'], ['today', 'Delivery today'], ['tomorrow', 'Delivery tomorrow'],
-  ['week', 'Delivery in the next 7 days'], ['14', 'Delivery in the next 14 days'], ['day', 'Delivery on a day…'], ['none', 'No delivery date']];
+const DEL_OPTS = [['all', 'All, sorted by delivery appt'], ['past', 'Delivery appt passed'], ['today', 'Delivery appt today'], ['tomorrow', 'Delivery appt tomorrow'],
+  ['week', 'Delivery appt in the next 7 days'], ['14', 'Delivery appt in the next 14 days'], ['day', 'Delivery appt on a day…'], ['none', 'No delivery appt']];
 function delMatch(c, f) {
   if (f.del === 'all') return true;
   if (f.del === 'day') return !f.delDay || c.deliveryDate === f.delDay;
@@ -443,12 +443,12 @@ function logoPaint(root) { if (typeof LOGOS === 'undefined') return; $$('img[dat
 /* the case's next date: lab completion until the lab work is done, then delivery (see dueOf) */
 function dueChip(c) { return dateChip(c, dueOf(c), 'No date'); }
 /* the delivery date alone: the lists show this while they're filtered by delivery date */
-function delChip(c) { return dateChip(c, c.deliveryDate ? { d: c.deliveryDate, k: 'delivery' } : null, 'No delivery date'); }
+function delChip(c) { return dateChip(c, c.deliveryDate ? { d: c.deliveryDate, k: 'delivery' } : null, 'No delivery appt'); }
 function dateChip(c, x, none) {
   if (!x) return '<span class="due none">' + none + '</span>';
-  const d = dayDiff(x.d), z = x.k === 'zoom', w = x.k === 'lab' ? 'Lab' : x.k === 'delivery' ? 'Delivery' : z ? 'Zoom' : 'Due';
+  const d = dayDiff(x.d), z = x.k === 'zoom', w = x.k === 'lab' ? 'Lab' : x.k === 'delivery' ? (delWord(c) === 'Delivery appt' ? 'Appt' : 'Expected delivery') : z ? 'Zoom' : 'Due';
   const tm = fmtTime(timeOf(c, x.k)), at = tm ? ' ' + tm : '', on = tm ? ' · ' + tm : '', i = ic(z ? 'video' : 'clock', 13); // Zoom call and delivery times
-  const tip = ' title="' + esc((x.k === 'lab' ? 'Lab completion' : z ? 'Zoom call' : w) + ': ' + fmtDay(x.d) + (tm ? ', ' + tm : '')) + '"';
+  const tip = ' title="' + esc((x.k === 'lab' ? 'Lab completion' : x.k === 'delivery' ? delWord(c) : z ? 'Zoom call' : w) + ': ' + fmtDay(x.d) + (tm ? ', ' + tm : '')) + '"';
   // a Zoom call that has passed while the design isn't approved yet: someone should move the case on
   if (d < 0) return '<span class="due over"' + tip + '>' + i + w + ' ' + (z ? 'was ' + (d === -1 ? 'yesterday' : (-d) + ' days ago') : d === -1 ? '1 day late' : (-d) + ' days late') + '</span>';
   if (d === 0) return '<span class="due soon"' + tip + '>' + i + w + ' today' + esc(at) + '</span>';
@@ -506,9 +506,9 @@ function chartNote(c) {
 /* stage progress: a circle per stage (done, current, to come) joined by a line that fills in up to the current stage
    (Amir, 2 Oct 2026: circles connected with a line, not a row of rectangles); a stage group (In fabrication) sits in its own band */
 function progHTML(c, only) {
-  const f = flowOf(c), si = stageIndex(c), keys = only || f.stages.map(s => s[0]);
+  const f = flowOf(c), si = stageIndex(c), keys = only || caseStages(c).map(s => s[0]);
   let h = '', first = true;
-  f.stages.forEach(([k, l], i) => {
+  caseStages(c).forEach(([k, l], i) => {
     if (!keys.includes(k)) return;
     const g = !only && stageGroup(f, k);
     if (!first) h += '<b' + (i <= si ? ' class="d"' : '') + '></b>'; // the line into this stage: filled once the case has got here
@@ -577,7 +577,7 @@ function viewToday() {
   const c = counts(); const all = openCases().filter(matchesQ);
   if (S.firstLoad && !S.demo) return '<div class="empty">Loading cases…</div>';
   const tile = (n, l, cls, act) => '<button class="tile ' + cls + '" data-act="tile" data-f="' + act + '"><span class="n">' + n + '</span><span class="l">' + l + '</span></button>';
-  let h = '<div class="tiles">' + tile(c.over, 'Late', 'red', 'over') + tile(c.week, 'Lab or delivery in the next 7 days', 'amber', 'week') + tile(c.dr, 'Needs Dr. A', 'blue', 'dr') +
+  let h = '<div class="tiles">' + tile(c.over, 'Late', 'red', 'over') + tile(c.week, 'Lab or delivery appt in the next 7 days', 'amber', 'week') + tile(c.dr, 'Needs Dr. A', 'blue', 'dr') +
     tile(c.fab, 'In fabrication', '', 'fab') + tile(c.arrived, 'Arrived — check in', 'mint', 'arrived') + tile(c.mine, 'Assigned to me', '', 'mine') + '</div>';
   const soon = all.filter(x => dueDateOf(x) && dayDiff(dueDateOf(x)) <= 14).sort(byDue);
   const groups = [];
@@ -586,14 +586,14 @@ function viewToday() {
     const key = d < 0 ? 'Late' : d === 0 ? 'Today' : d === 1 ? 'Tomorrow' : fmtDay(dueDateOf(x));
     let g = groups.find(g => g.k === key); if (!g) { g = { k: key, red: d < 0, items: [] }; groups.push(g); } g.items.push(x);
   });
-  const left = '<div class="card"><div class="cardHd"><h3>Coming up</h3><span class="sub">Lab, delivery and Zoom dates: late and the next 14 days</span></div><div class="cardBd">' +
+  const left = '<div class="card"><div class="cardHd"><h3>Coming up</h3><span class="sub">Lab, delivery appt and Zoom dates: late and the next 14 days</span></div><div class="cardBd">' +
     (groups.length ? groups.map(g => '<div class="dueGrp"><h4 class="' + (g.red ? 'red' : '') + '">' + esc(g.k) + ' · ' + g.items.length + '</h4>' + g.items.map(x => row(x)).join('') + '</div>').join('') :
-      '<div class="empty">No lab or delivery dates in the next two weeks.</div>') + '</div></div>';
+      '<div class="empty">No lab dates or delivery appts in the next two weeks.</div>') + '</div></div>';
   const dr = all.filter(x => DR_STAGES.includes(x.stage)).sort(byDue);
   const noDate = all.filter(x => !dueDateOf(x)).length;
   const right = '<div class="card"><div class="cardHd"><h3>Needs Dr. A</h3><span class="sub">' + dr.length + ' waiting</span></div><div class="cardBd">' +
     (dr.length ? dr.map(x => row(x)).join('') : '<div class="empty">Nothing waiting on Dr. A.</div>') + '</div></div>' +
-    (noDate ? '<div class="card" style="margin-top:14px"><div class="cardBd" style="padding:14px 20px"><button class="linkBtn" data-act="tile" data-f="none">' + noDate + ' open case' + (noDate > 1 ? 's have' : ' has') + ' no lab or delivery date</button></div></div>' : '');
+    (noDate ? '<div class="card" style="margin-top:14px"><div class="cardBd" style="padding:14px 20px"><button class="linkBtn" data-act="tile" data-f="none">' + noDate + ' open case' + (noDate > 1 ? 's have' : ' has') + ' no lab date or delivery appt</button></div></div>' : '');
   return h + mailCardHTML() + cleanupCardHTML(all) + '<div class="twoCol"><div>' + left + '</div><div>' + right + '</div></div>';
 }
 
@@ -617,7 +617,7 @@ function viewBoard() {
     const items = inFlow.filter(c => col.keys.includes(c.stage) || (i === 0 && !flow.stages.some(s => s[0] === c.stage)))
       .sort((a, b) => col.grp ? (stageIndex(b) - stageIndex(a)) || byDue(a, b) : byDue(a, b));
     return '<section class="col' + (col.grp ? ' grp' : '') + '" aria-label="' + esc(col.l) + '"><div class="colHd"><h4>' + esc(col.l) + '</h4><span class="c">' + items.length + '</span></div><div class="colBd">' +
-      (items.map(c => kcard(c, c.stage === lastKey, col.grp ? col.keys : null)).join('') || '<div class="empty" style="padding:14px 4px">—</div>') + '</div></section>';
+      (items.map(c => kcard(c, c.stage === lastKey || c.stage === shipEnd(c), col.grp ? col.keys : null)).join('') || '<div class="empty" style="padding:14px 4px">—</div>') + '</div></section>';
   }).join('') + '</div>';
   return h;
 }
@@ -626,12 +626,13 @@ function kcard(c, last, steps) {
   // appliances and MARPE: the lab's logo on every card (the lab differs from card to card even on their own tabs)
   const labbed = (c.type === 'appliance' || c.type === 'marpe') && !!LAB_LOGO[labName(c.lab)];
   const flags = shipFlag(c) + recFlag(c) + holdFlag(c);
+  const shipsNext = !last && !!shipEnd(c) && nextStage(c) === shipEnd(c), tip = last ? 'Mark complete' : shipsNext ? 'Shipped to the patient — completes the case' : 'Move to next stage';
   return '<div class="kc" data-act="open" data-id="' + esc(c.id) + '" role="button" tabindex="0">' +
     '<div class="kHd">' + ptAv(c, 32) + '<div class="pt">' + esc(c.patient || '(no name)') + '</div></div>' + (c.detail || alN(c) ? '<div class="dt">' + esc(c.detail || '') + alignerMini(c) + '</div>' : '') +
     (flags ? '<div class="flags">' + flags + '</div>' : '') +
     (steps ? '<div class="kstep">' + progHTML(c, steps) + '<div><b>' + esc(stageLabel(c)) + '</b><span>' + (steps.indexOf(c.stage) + 1) + ' of ' + steps.length + '</span></div></div>' : '') +
     '<div class="ft">' + (mixed || labbed ? typeMark(c, true) : '') + dueChip(c) + trackLinks(c) + avatar(c) +
-    '<button class="adv" data-act="' + (last ? 'complete' : 'advance') + '" data-id="' + esc(c.id) + '" title="' + (last ? 'Mark complete' : 'Move to next stage') + '" aria-label="' + (last ? 'Mark complete' : 'Move to next stage') + '">' + ic(last ? 'done' : 'next', 17) + '</button></div></div>';
+    '<button class="adv" data-act="' + (last ? 'complete' : 'advance') + '" data-id="' + esc(c.id) + '" title="' + tip + '" aria-label="' + tip + '">' + ic(last ? 'done' : 'next', 17) + '</button></div></div>';
 }
 
 /* ---------- List ---------- */
@@ -670,7 +671,7 @@ function oldCases(all) {
 function cleanupCardHTML(all) {
   const o = oldCases(all); if (!o.old.length && !o.undated.length) return '';
   const n = o.list.filter(c => !S.oldOff.has(c.id)).length, busy = S.bulkBusy, off = busy ? ' disabled' : '';
-  return '<div class="card cleanup" id="cleanCard"><div class="cardHd"><h3>Clean up old cases</h3><span class="sub">Open cases whose latest date (scan, lab or delivery) is before ' + esc(fmtDay(o.cut)) + '</span><span style="flex:1"></span>' +
+  return '<div class="card cleanup" id="cleanCard"><div class="cardHd"><h3>Clean up old cases</h3><span class="sub">Open cases whose latest date (scan, lab or delivery appt) is before ' + esc(fmtDay(o.cut)) + '</span><span style="flex:1"></span>' +
     '<label class="small oldPick">Older than <select id="oldMonths"' + off + '>' + [1, 2, 3, 6, 12].map(m => '<option value="' + m + '"' + (S.oldMonths === m ? ' selected' : '') + '>' + m + (m === 1 ? ' month' : ' months') + '</option>').join('') + '</select></label></div><div class="cardBd">' +
     (o.undated.length ? '<label class="small oldNo"><input type="checkbox" id="oldNoDate"' + (S.oldNoDate ? ' checked' : '') + off + '> Also include ' + o.undated.length + ' imported case' + (o.undated.length > 1 ? 's' : '') + ' with no dates</label>' : '') +
     (o.list.length ? '<div class="oldList">' + o.list.map(c => '<label class="oldRow"><input type="checkbox" data-old="' + esc(c.id) + '"' + (S.oldOff.has(c.id) ? '' : ' checked') + off + '>' +
@@ -726,9 +727,9 @@ function viewList(base, showWho) {
     '<select data-f="type" aria-label="Type"><option value="">All types</option>' + typesShown(Array.from(S.cases.values()), f.type).map(t => '<option value="' + t.k + '"' + (f.type === t.k ? ' selected' : '') + '>' + esc(t.l) + '</option>').join('') + '</select>' +
     (stageOpts.length ? '<select data-f="stage" aria-label="Stage"><option value="">All stages</option>' + stageOpts.map(([k, l]) => '<option value="' + k + '"' + (f.stage === k ? ' selected' : '') + '>' + esc(l) + '</option>').join('') + '</select>' : '') +
     (showWho ? '<select data-f="who" aria-label="Assigned to"><option value="">Anyone</option><option value="_none"' + (f.who === '_none' ? ' selected' : '') + '>Unassigned</option>' + activeRoster().map(r => '<option value="' + esc(r.sid) + '"' + (f.who === r.sid ? ' selected' : '') + '>' + esc(r.name) + '</option>').join('') + '</select>' : '') +
-    '<select data-f="due" aria-label="Next date (lab, then delivery)"><option value="">Any next date</option>' + [['over', 'Late'], ['today', 'Today'], ['week', 'Next 7 days'], ['14', 'Next 14 days'], ['none', 'No lab or delivery date']].map(([k, l]) => '<option value="' + k + '"' + (f.due === k ? ' selected' : '') + '>' + l + '</option>').join('') + '</select>' +
-    '<select data-f="del" aria-label="Delivery date"' + (f.del ? ' class="on"' : '') + '><option value="">Any delivery date</option>' + DEL_OPTS.map(([k, l]) => '<option value="' + k + '"' + (f.del === k ? ' selected' : '') + '>' + l + '</option>').join('') + '</select>' +
-    (f.del === 'day' ? '<input type="date" id="fDelDay" data-f="delDay" value="' + esc(f.delDay || '') + '" aria-label="Delivery day">' : '') +
+    '<select data-f="due" aria-label="Next date (lab, then delivery appt)"><option value="">Any next date</option>' + [['over', 'Late'], ['today', 'Today'], ['week', 'Next 7 days'], ['14', 'Next 14 days'], ['none', 'No lab date or delivery appt']].map(([k, l]) => '<option value="' + k + '"' + (f.due === k ? ' selected' : '') + '>' + l + '</option>').join('') + '</select>' +
+    '<select data-f="del" aria-label="Delivery appt"' + (f.del ? ' class="on"' : '') + '><option value="">Any delivery appt</option>' + DEL_OPTS.map(([k, l]) => '<option value="' + k + '"' + (f.del === k ? ' selected' : '') + '>' + l + '</option>').join('') + '</select>' +
+    (f.del === 'day' ? '<input type="date" id="fDelDay" data-f="delDay" value="' + esc(f.delDay || '') + '" aria-label="Delivery appt day">' : '') +
     (grpLabel ? '<button class="chip on" data-act="clearGrp">' + esc(grpLabel) + ' ✕</button>' : '') +
     (base.some(c => c.shipToPatient) || f.ship ? '<button class="chip flt' + (f.ship ? ' on' : '') + '" data-act="shipF" aria-pressed="' + !!f.ship + '">' + ic('truck', 15) + 'Ship to patient<span class="c">' + base.filter(c => c.shipToPatient && matchesQ(c)).length + '</span></button>' : '') +
     ((f.type || f.stage || f.who || f.due || f.del || f.grp || f.ship) ? '<button class="btn btn-ghost" data-act="clearF">Clear filters</button>' : '') +
@@ -748,7 +749,7 @@ function setColHidden(k, hide) {
   const h = hiddenCols(); if (hide) h.add(k); else h.delete(k);
   try { localStorage.setItem('nloCases.hiddenCols', JSON.stringify(Array.from(h))); } catch (e) { }
 }
-function colLabel(k) { return k === 'due' && S.f.del ? 'Delivery' : k === 'stage' && S.view === 'done' ? 'Last stage' : (LIST_COLS.find(x => x[0] === k) || [k, k])[1]; }
+function colLabel(k) { return k === 'due' && S.f.del ? 'Delivery appt' : k === 'stage' && S.view === 'done' ? 'Last stage' : (LIST_COLS.find(x => x[0] === k) || [k, k])[1]; }
 /* the Columns button and its menu (keys = the columns this table has) */
 function colsControlHTML(keys) {
   const hid = hiddenCols(), n = keys.filter(k => hid.has(k)).length;
@@ -829,23 +830,24 @@ function refreshDrawer(gone) {
 async function loadHistory(id) {
   try { const h = await B.caseLog(id); if (S.openId === id) { S.history = h; const el = $('#histBox'); if (el) el.innerHTML = historyHTML(findCase(id)); } } catch (e) { }
 }
-const FIELD_LABELS = { photo: 'photo', labRef: 'lab case #', labHold: 'lab hold', planUrl: 'plan link', shipToPatient: 'ship to patient', records: 'records on file', zoomDate: 'Zoom call', zoomTime: 'Zoom call', tracking: 'tracking #', carrier: 'carrier', teeth: 'tooth chart', teethNote: 'tooth chart', chart: 'chart #', titanUrl: 'Titan link', initial: 'initial/refinement', appliances: 'appliance', lab: 'lab', arches: 'arch', retKinds: 'retainer type', goals: 'Dr. A’s instructions', instrPicks: 'Dr. A’s instructions', instrOther: 'Dr. A’s instructions', extras: 'extras', variant: 'case type', type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery date', deliveryTime: 'delivery time', alU: 'aligners', alL: 'aligners', aligners: 'aligners', atTemplates: 'attachment templates', treatArch: 'arches to treat', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes' };
+const FIELD_LABELS = { photo: 'photo', labRef: 'lab case #', labHold: 'lab hold', planUrl: 'plan link', shipToPatient: 'ship to patient', records: 'records on file', zoomDate: 'Zoom call', zoomTime: 'Zoom call', tracking: 'tracking #', carrier: 'carrier', teeth: 'tooth chart', teethNote: 'tooth chart', chart: 'chart #', titanUrl: 'Titan link', initial: 'initial/refinement', appliances: 'appliance', lab: 'lab', arches: 'arch', retKinds: 'retainer type', goals: 'Dr. A’s instructions', instrPicks: 'Dr. A’s instructions', instrOther: 'Dr. A’s instructions', extras: 'extras', variant: 'case type', type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery appt', deliveryTime: 'appt time', alU: 'aligners', alL: 'aligners', aligners: 'aligners', atTemplates: 'attachment templates', treatArch: 'arches to treat', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes' };
 function historyHTML(c) {
   const h = S.history; if (!h) return '<div class="small muted">Loading…</div>'; if (!h.length) return '<div class="small muted">No history yet.</div>';
-  const stageName = k => { const s = c && flowOf(c).stages.find(x => x[0] === k); return s ? s[1] : k; };
+  const stageName = k => { const s = c && (caseStages(c).find(x => x[0] === k) || flowOf(c).stages.find(x => x[0] === k)); return s ? s[1] : k; };
+  const shipped = x => x.close ? ' and marked it complete (shipped to the patient)' : '';
   return h.filter(x => x.a !== 'rekey' && x.a !== 'save').reverse().map(x => {
     let t = '';
     if (x.a === 'create') t = 'created the case'; else if (x.a === 'import') t = 'imported it from Asana';
-    else if (x.a === 'stage') t = 'moved it to ' + stageName(x.to) + ((x.fields || []).length ? ' (and set ' + Array.from(new Set(x.fields.map(f => FIELD_LABELS[f] || f))).join(', ') + ')' : '');
+    else if (x.a === 'stage') t = 'moved it to ' + stageName(x.to) + ((x.fields || []).length ? ' (and set ' + Array.from(new Set(x.fields.map(f => FIELD_LABELS[f] || f))).join(', ') + ')' : '') + shipped(x);
     else if (x.a === 'comment') t = 'added a comment';
     else if (x.a === 'close') t = 'marked it complete'; else if (x.a === 'reopen') t = 'reopened it';
     else if (x.a === 'assign') t = x.to ? 'assigned it to ' + staffName(x.to, x.to) : 'unassigned it';
-    else if (x.a === 'edit') t = 'changed ' + Array.from(new Set((x.fields || []).filter(f => f !== 'instructions').map(f => FIELD_LABELS[f] || f))).join(', ');
+    else if (x.a === 'edit') t = 'changed ' + Array.from(new Set((x.fields || []).filter(f => f !== 'instructions').map(f => FIELD_LABELS[f] || f))).join(', ') + shipped(x);
     else if (x.a === 'restore') t = 'restored an earlier version';
     else if (x.a === 'photo') t = { add: 'added a photo', change: 'changed the photo', remove: 'removed the photo', copy: 'added the photo from another of the patient’s cases', undo: 'put the earlier photo back' }[x.how] || 'changed the photo';
     else if (x.a === 'email') { // applied from a lab email (mail.js); shown as the email, not the person whose app applied it
       const f = Array.from(new Set((x.fields || []).filter(k => k !== 'mailIds').map(k => FIELD_LABELS[k] || k)));
-      t = (x.to ? 'moved it to ' + stageName(x.to) + (f.length ? ' and saved the ' : '') : f.length ? 'saved the ' : 'updated it') + f.join(', ');
+      t = (x.to ? 'moved it to ' + stageName(x.to) + (f.length ? ' and saved the ' : '') : f.length ? 'saved the ' : 'updated it') + f.join(', ') + shipped(x);
     }
     else t = x.a;
     const who = x.a === 'email' ? ((MAIL_CO[x.co] || {}).l || 'Lab') + ' email' : (firstName(staffName(x.sid, x.sid)) || x.sid);
@@ -901,17 +903,17 @@ function renderDrawer() {
     // every section folds to one line until it's tapped; Expand all opens them all (Amir, 3 Oct 2026)
     '<div class="dsList">' +
     dsec('stage', 'Stage', (done ? 'Completed · ' : '') + '<b>' + esc(stageLabel(c)) + '</b>' + progHTML(c),
-      '<div class="stepper">' + flow.stages.map(([k, l], i) => { const g = stageGroup(flow, k);
+      '<div class="stepper">' + caseStages(c).map(([k, l], i) => { const g = stageGroup(flow, k);
         return (g && g.stages[0] === k ? '<div class="stepGrp' + (i <= si ? ' d' : '') + '">' + esc(g.l) + '</div>' : '') +
         '<button class="step ' + (i < si ? 'past' : i === si ? 'cur' : '') + (g ? ' sub' : '') + '" data-act="setStage" data-k="' + k + '"' + (done ? ' disabled' : '') + ' aria-pressed="' + (i === si) + '"><span class="n">' + (i < si ? '✓' : i + 1) + '</span>' + esc(l) + '</button>'; }).join('') + '</div>') +
     (flow === FLOWS.marpe ? dsec('marpe', 'MARPE', marpeSum(c), marpeBoxHTML(c, done)) : '') +
-    dsec('details', 'Details', (who ? 'Assigned to <b>' + esc(who) + '</b>' : 'Unassigned') + (!done && dueOf(c) ? ' · ' + dueChip(c) : c.deliveryDate ? ' · Delivery ' + esc(fmtDate(c.deliveryDate)) : ''),
+    dsec('details', 'Details', (who ? 'Assigned to <b>' + esc(who) + '</b>' : 'Unassigned') + (!done && dueOf(c) ? ' · ' + dueChip(c) : c.deliveryDate ? ' · ' + delWord(c) + ' ' + esc(fmtDate(c.deliveryDate)) : ''),
       '<div class="kv">' +
       '<div style="grid-column:1/-1"><div class="k">Assigned to' + (!c.assignee && c.assigneeName ? ' <span class="muted" style="text-transform:none;letter-spacing:0">(Asana: ' + esc(c.assigneeName) + ')</span>' : '') + '</div>' +
         '<div class="staffRow dAssign" role="radiogroup" aria-label="Assigned to">' + [null].concat(withSavedStaff(activeRoster(), c.assignee)).map(r => staffTile(r, (c.assignee || '') === (r ? r.sid : ''), 'aTile', ' role="radio" data-act="assignTo"' + (done ? ' disabled' : ''))).join('') + '</div></div>' +
       kv('Scan date', esc(fmtDay(c.scanDate))) +
       kv('Lab completion', c.labDate ? esc(fmtDay(c.labDate)) + (!done && (dueOf(c) || {}).k === 'lab' ? ' ' + dueChip(c) : '') : '') +
-      kv('Delivery', c.deliveryDate ? esc(fmtDay(c.deliveryDate) + (c.deliveryTime ? ', ' + fmtTime(c.deliveryTime) : '')) + (!done && (dueOf(c) || {}).k === 'delivery' ? ' ' + dueChip(c) : '') : '') +
+      kv(delWord(c), c.deliveryDate ? esc(fmtDay(c.deliveryDate) + (c.deliveryTime ? ', ' + fmtTime(c.deliveryTime) : '')) + (!done && (dueOf(c) || {}).k === 'delivery' ? ' ' + dueChip(c) : '') : '') +
       (c.dueDate && !c.deliveryDate ? kv('Due (older case)', esc(fmtDay(c.dueDate))) : '') +
       (String(c.tracking || '').trim() ? kv('Tracking', trackList(c).length ? trackList(c).map(t => '<span class="trkLine">' + esc(t.n) + (t.carrier ? ' <span class="muted small">' + esc(t.carrier) + '</span>' : '') +
         (t.url ? ' <a class="flag trk" href="' + esc(t.url) + '" target="_blank" rel="noopener noreferrer">' + ic('ext', 12) + 'Track</a>' : '') + '</span>').join('') : esc(c.tracking)) : '') +
@@ -1211,7 +1213,7 @@ async function copyText(s) {
   } catch (e) { return false; }
 }
 async function act(fn, okMsg) { try { await fn(); if (okMsg) toast(okMsg); } catch (e) { toast(errText(e), { bad: true }); } }
-function nextStage(c) { const st = flowOf(c).stages; const i = stageIndex(c); return i >= 0 && i < st.length - 1 ? st[i + 1][0] : null; }
+function nextStage(c) { const st = caseStages(c); const i = stageIndex(c); return i >= 0 && i < st.length - 1 ? st[i + 1][0] : null; }
 /* `extra` = fields saved with the move (e.g. MARPE records, the Zoom call, aligner counts); a move that still needs something
    asks first; `asked` = what the asking window already collected */
 async function moveStage(id, to, extra, asked) {
@@ -1219,12 +1221,26 @@ async function moveStage(id, to, extra, asked) {
   extra = extra || {};
   const needs = stageNeeds(Object.assign({}, c, extra), to).filter(x => !(asked || []).includes(x));
   if (needs.length) { stageGateModal(c, to, needs, extra); return; }
+  const end = shipEnd(c), keys = flowOf(c).stages.map(s => s[0]);
+  if (end && keys.indexOf(to) >= keys.indexOf(end)) return shipDone(c, end, extra);
   const from = c.stage, fields = Object.keys(extra), before = {}; fields.forEach(k => { before[k] = c[k]; });
   c.stage = to; Object.assign(c, extra); queueRender(); if (S.openId === id) renderDrawer();
   S.pend = S.pend || {}; const mine = S.pend[id] = { to, extra };
   try { await B.mutateCase(id, d => { d.stage = to; Object.assign(d, extra); }, Object.assign({ a: 'stage', from, to }, fields.length ? { fields } : {})); }
   catch (e) { const cur = findCase(id); if (cur && S.pend[id] === mine) { cur.stage = from; Object.assign(cur, before); queueRender(); if (S.openId === id) renderDrawer(); } toast(errText(e), { bad: true }); }
   finally { if (S.pend[id] === mine) delete S.pend[id]; }
+}
+/* shipped to the patient = complete (Amir, 3 Oct 2026): one save moves it to its last step and completes it; Undo puts
+   the step back and reopens it */
+async function shipDone(c, end, extra) {
+  const id = c.id, from = c.stage, fields = Object.keys(extra || {});
+  try {
+    await B.mutateCase(id, d => { d.stage = end; Object.assign(d, extra || {}); return 'done'; }, Object.assign({ a: 'stage', from, to: end, close: 1 }, fields.length ? { fields } : {}));
+    if (S.hist) S.hist.unshift(Object.assign({}, c, extra || {}, { stage: end, status: 'done', closedAt: Date.now() }));
+    if (S.openId === id) closeDrawer(true);
+    S.closedLoaded = false;
+    toast((c.patient || 'Case') + ' shipped to the patient — case complete', { action: 'Undo', onAction: () => act(() => B.mutateCase(id, d => { d.stage = from; return 'open'; }, { a: 'reopen' }), 'Reopened') });
+  } catch (e) { toast(errText(e), { bad: true }); }
 }
 async function completeCase(id) {
   const c = findCase(id); if (!c) return;
@@ -1350,6 +1366,9 @@ async function saveEdit() {
   const needs = (changed.includes('stage') && !changed.includes('type') ? stageNeeds(Object.assign({}, base, now, { stage: base.stage }), now.stage) : [])
     .filter(x => x !== 'aligners' || alignersMissing(now));
   if (needs.length) { $('#drawerNotice').innerHTML = '<div class="notice bad">' + (needs.includes('records') ? 'Tick both records (STL scan and CBCT) under Records on file before moving it to ' + esc(stageLabel(now)) + '.' : needs.includes('aligners') ? 'Enter ' + alAskText(now) + ' and pick Attachment templates before moving it to ' + esc(stageLabel(now)) + '.' : 'Add the Zoom call date before moving it to Zoom call scheduled.') + '</div>'; $('#drawerNotice').scrollIntoView({ block: 'nearest' }); return; }
+  const end = shipEnd(now), sk = FLOWS[TYPE[now.type].flow].stages.map(s => s[0]);
+  const ships = !!end && (changed.includes('stage') || changed.includes('shipToPatient')) && sk.indexOf(now.stage) >= sk.indexOf(end);
+  if (ships && now.stage !== end) { now.stage = end; if (!changed.includes('stage')) changed.push('stage'); }
   const btn = $('[data-act=saveEdit]', d); busyBtn(btn, true, 'Saving…');
   const id = S.openId;
   try {
@@ -1360,9 +1379,15 @@ async function saveEdit() {
       if (changed.includes('tracking')) x.carrier = ''; // a carrier named by a lab email belonged to the old number
       if (changed.includes('type') && !FLOWS[TYPE[x.type].flow].stages.some(s => s[0] === x.stage)) x.stage = firstStage(x.type);
     };
-    await B.mutateCase(id, apply, { a: 'edit', fields: changed });
+    await B.mutateCase(id, x => { apply(x); if (ships) return 'done'; }, Object.assign({ a: 'edit', fields: changed }, ships ? { close: 1 } : {}));
     // show the saved copy right away (the live update from the server follows a moment later)
     const cur = findCase(id); if (cur) apply(cur);
+    if (ships) { // shipped to the patient = complete
+      if (S.hist && cur) S.hist.unshift(Object.assign({}, cur, { status: 'done', closedAt: Date.now() }));
+      S.editing = false; closeDrawer(true); S.closedLoaded = false;
+      toast((now.patient || 'Case') + ' shipped to the patient — case complete', { action: 'Undo', onAction: () => act(() => B.mutateCase(id, x => { x.stage = base.stage; return 'open'; }, { a: 'reopen' }), 'Reopened') });
+      return;
+    }
     S.editing = false; toast('Saved'); renderDrawer(); loadHistory(id);
   } catch (x) { busyBtn(btn, false); toast(errText(x), { bad: true }); }
 }
