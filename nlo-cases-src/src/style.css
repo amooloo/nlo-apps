@@ -334,6 +334,9 @@ body.demo #drawer{bottom:31px} body.demo #side{padding-bottom:31px} body.demo #v
 /* Appliance and MARPE: Amir's pictures of the whole upper arch, on the same white plate as the logos */
 .tt .tmed.pic{background:#fff;box-shadow:inset 0 0 0 1px var(--grey-200)}
 .tt .tmed.pic img{display:block;width:auto;height:46px;max-width:100%;object-fit:contain}
+/* a picture on a black background (Amir's appliances, 3 Oct 2026) fills a black plate, its edges faded into it */
+.tt .tmed.pic.dark{background:#000;box-shadow:none}
+.tt .tmed.pic.dark img{height:50px}
 .tt[aria-checked="true"] .tmed.pic{box-shadow:0 0 0 2px var(--mint)}
 .tt[aria-checked="true"] .tmed{box-shadow:0 0 0 2px var(--mint)}
 .tt.c-mint{--tbg:var(--mint-100);--tacc:var(--mint-700);--tsh:var(--mint-200)}

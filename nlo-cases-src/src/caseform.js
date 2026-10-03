@@ -133,7 +133,7 @@ function instrSvg(k) { return '<svg class="isvg" viewBox="0 0 48 48" aria-hidden
    MARPE (pics.js: the whole upper arch with the appliance, on the same white plate), otherwise our drawing */
 function tileArt(t) {
   const pc = typeof PICS !== 'undefined' && PICS[t.v];
-  if (pc) return '<span class="tmed pic"><img data-pic="' + esc(t.v) + '" width="' + pc.w + '" height="' + pc.h + '" alt="" draggable="false"></span>';
+  if (pc) return '<span class="tmed pic' + (pc.dark ? ' dark' : '') + '"><img data-pic="' + esc(t.v) + '" width="' + pc.w + '" height="' + pc.h + '" alt="" draggable="false"></span>';
   const lg = typeof LOGOS !== 'undefined' && LOGOS[t.v];
   // the picture is set once the form is on the page (wireCaseForm), so no image address sits in this markup
   return '<span class="tmed' + (lg ? ' lg' : '') + '">' + (lg ? '<img data-logo="' + esc(t.v) + '" width="' + lg.w + '" height="' + lg.h + '" alt="" draggable="false">' : typeSvg(t.ic)) + '</span>';
