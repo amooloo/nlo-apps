@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-HQi5kLuptnDbwBog9dlTqRS+JwFWk2n/oaDCyLHHbbc=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LUZenEgFyiY44zjIKH275XKO1hZJ2P51RYYEcL9AgX4=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO Cases</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -983,6 +983,26 @@ const SCANNERS = ['Allied Star', 'iTero', 'Other'];
 /* Stages that need the doctor, and stages where the case is in fabrication. */
 const DR_STAGES = ['dra', 'txp', 'todo', 'review'];
 const FAB_STAGES = ['mfg', 'fab', 'send', 'print', 'thermo', 'trim', 'polish', 'wash', 'submitted', 'approved'];
+/* the patient's chief concern (Amir, 3 Oct 2026: the buttons, learned from what was typed most, "kinda doesn't make sense …
+   'this is initial' is one of them"; he picked a fixed list to tap — several at once, typing still works — the first set asking
+   for the chief concern and later sets for the CC from last visit, and older text like "This is initial" not shown) */
+const CC_PICKS = ['Spaces/gaps', 'Crowding', 'Front teeth', 'Rotated tooth', 'Deep bite', 'Overjet', 'Crossbite', 'Midline', 'Black triangles', 'Bite feels off', 'Aligners not fitting'];
+const CC_ALIGNER_ONLY = ['Aligners not fitting'];
+const CC_NOTE = /^(this is (an? )?|it'?s (an? )?|pt is )?(initial|first|new)( (set|case|submission|scan|start|tx|treatment|aligners?))?[.!]*$/i;
+/* what a case shows as its CC: '' for nothing (or a note that was never a concern, like "This is initial"), 'None', or the text */
+function ccShown(c) { const t = String((c && c.cc) || '').trim(); return !t || CC_NOTE.test(t) ? '' : /^(none|n\/a|na|-)$/i.test(t) ? 'None' : t; }
+/* a later set (refinement, mid-course, finishing, an InSmile DE) asks for the CC from last visit; a first set for the chief concern */
+function ccLater(c) { return !!c && (c.initial === 'no' || c.initial === 'mid' || c.variant === 'finishing' || /^de\d$/.test(c.initial || '')); }
+function ccTitle(c) { return ccLater(c) ? 'Patient’s CC from last visit' : 'Patient’s chief concern'; }
+/* the tapped/typed list: tapping a concern adds or removes it, None stands alone */
+function ccItems(t) { return String(t || '').split(/\s*[,;]\s*/).map(x => x.trim()).filter(Boolean); }
+function ccToggle(t, item) {
+  const items = ccItems(t), none = x => /^(none|n\/a|na|-)$/i.test(x);
+  if (item === 'None') return items.length === 1 && none(items[0]) ? '' : 'None';
+  const rest = items.filter(x => !none(x)), i = rest.findIndex(x => x.toLowerCase() === item.toLowerCase());
+  if (i >= 0) rest.splice(i, 1); else rest.push(item);
+  return rest.join(', ');
+}
 /* MARPE: both records have to be on file before the case goes to the lab (Amir, 2 Oct 2026) */
 const MARPE_RECORDS = [['stl', 'STL scan', 'STL'], ['cbct', 'CBCT (upper & lower jaws)', 'CBCT']];
 function recordsMissing(c) { const r = c.records || []; return MARPE_RECORDS.filter(([k]) => !r.includes(k)); }
@@ -2883,7 +2903,7 @@ function chartNote(c) {
   if (rx.length) L.push(rx.map(end).join(' '));
   if (c.teethNote) L.push(c.teethNote.split('\n').map(end).join(' '));
   if (c.ipr && c.ipr.trim()) L.push('IPR & spacing: ' + c.ipr.trim());
-  if (c.cc && !/^(none|n\/a|na|-)$/i.test(c.cc.trim())) L.push("Pt's CC: " + end(c.cc));
+  const ccv = ccShown(c); if (ccv && ccv !== 'None') L.push("Pt's CC: " + end(ccv));
   if (c.shipToPatient) L.push('Aligners to be shipped to the patient.');
   return L.join('\n').replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[–—]/g, '-');
 }
@@ -3263,7 +3283,7 @@ function renderDrawer() {
   const kv = (k, v) => '<div><div class="k">' + k + '</div><div class="v">' + (v || '<span class="muted">—</span>') + '</div></div>';
   const txt = v => '<div class="txt">' + esc(v) + '</div>';
   const oneLine = v => esc(String(v || '').trim().replace(/\s*\n+\s*/g, ' · ')); // a section's text on its folded heading
-  const cc = String(c.cc || '').trim(), ccNone = /^(none|n\/a|na|-)$/i.test(cc);
+  const cc = ccShown(c), ccNone = cc === 'None'; // (an older note like "This is initial" isn't a concern: not shown)
   const cmts = c.comments || [], lastC = cmts[cmts.length - 1];
   const who = c.assignee ? firstName(staffName(c.assignee, '')) || '—' : c.assigneeName ? c.assigneeName + ' (Asana)' : '';
   const nAl = alN(c), one = oneArch(c), hasTeeth = !!(c.teeth && Object.keys(c.teeth).length);
@@ -3279,7 +3299,7 @@ function renderDrawer() {
     // a MARPE entered (or imported) as an appliance before MARPE had its own steps: one click moves it over
     (!done && isOldMarpe(c) ? '<div class="notice info mpOld"><span>MARPE has its own steps now: records, lab, Zoom call, design approval, delivery.</span><button class="btn btn-sec btn-sm" data-act="toMarpe">Switch to MARPE steps</button></div>' : '') +
     // the patient's chief concern stands out at the top, never folded (Amir, 3 Oct 2026: "needs to be a little bit highlighted more")
-    (cc ? '<div class="ccBox' + (ccNone ? ' none' : '') + '" role="note" aria-label="Patient’s chief concern"><span class="ccIc">' + ic('chat', 20) + '</span><div class="ccB"><div class="ccK">Patient’s chief concern<span>from last visit</span></div><div class="ccV">' + esc(ccNone ? 'None' : cc) + '</div></div></div>' : '') +
+    (cc ? '<div class="ccBox' + (ccNone ? ' none' : '') + '" role="note" aria-label="Patient’s chief concern"><span class="ccIc">' + ic('chat', 20) + '</span><div class="ccB"><div class="ccK">Patient’s chief concern' + (ccLater(c) ? '<span>from last visit</span>' : '') + '</div><div class="ccV">' + esc(ccNone ? 'None' : cc) + '</div></div></div>' : '') +
     // the lab's own link to this patient's plan (from its email), then the company portals
     // in-house: the case's own Titan link first (when saved), then Titan's web version and its beta
     ((PORTALS[c.type] || []).length || safeUrl(c.planUrl) || safeUrl(c.titanUrl) ? '<div class="portals">' +
@@ -4211,14 +4231,6 @@ function defaultAssignee(type) {
   return owner;
 }
 /* the patient's CC phrases this office uses most (learned from decrypted cases, in this browser only) */
-function learnedCCs() {
-  const n = {};
-  Array.from(S.cases.values()).concat(S.closed || []).forEach(c => {
-    const t = String(c.cc || '').trim(); if (t.length < 3 || t.length > 90 || /^(-|na|n\/a|none)$/i.test(t)) return;
-    const k = t.toLowerCase(); n[k] = n[k] || { t, c: 0 }; n[k].c++;
-  });
-  return Object.values(n).filter(x => x.c >= 2).sort((a, b) => b.c - a.c).slice(0, 6).map(x => x.t);
-}
 /* the current buttons plus any retired choice already saved on this case, so editing an older case never drops it */
 function withSaved(list, saved) { saved = [].concat(saved || []).filter(Boolean); return list.concat(saved.filter(v => !list.includes(v))); }
 /* the Lab choices as the labs' logos; the name stays in the button for screen readers (and searches); a lab with no logo keeps its name */
@@ -4276,7 +4288,6 @@ function caseFormHTML(c, isNew) {
   const initialVal = c.type === 'nla' && c.variant === 'finishing' ? FIN : !c.initial && (c.extras || []).includes('Mid-course correction') ? 'mid' : (c.initial || '');
   const teeth0 = canonTeeth(c.teeth), scope0 = noattScopeOf(teeth0);
   const rxTile = (v, ic, l) => '<button type="button" class="pick rxTile" data-v="' + esc(v) + '" aria-pressed="' + extras.includes(v) + '">' + rxSvg(ic) + '<span><b>' + esc(l) + '</b></span></button>';
-  const ccs = learnedCCs();
   return '<div class="cf" data-new="' + (isNew ? 1 : 0) + '" data-id="' + esc(c.id || '') + '">' +
     '<div class="cfSec"><h5>Case type</h5><div class="tileGrid" role="radiogroup" aria-label="Case type">' + TILES.filter(t => !t.legacy || t.v === tile).map(t =>
       '<button type="button" class="tt' + (t.c ? ' c-' + t.c : '') + '" role="radio" data-tile="' + t.v + '" aria-checked="' + (tile === t.v) + '">' + tileArt(t) + '<b>' + esc(t.l) + '</b><span>' + esc(t.s) + '</span></button>').join('') + '</div></div>' +
@@ -4332,9 +4343,11 @@ function caseFormHTML(c, isNew) {
     '<div class="pickRow tcQuick"><span class="lbl">Mark a whole group</span><button type="button" class="pick sm" data-tq="uant">Upper 3–3</button><button type="button" class="pick sm" data-tq="ant">Anteriors 3–3</button><button type="button" class="pick sm" data-tq="post">Posteriors 4–7</button><button type="button" class="pick sm" data-tq="all">All teeth</button><span class="tcSep"></span><button type="button" class="pick sm" data-tq="clear">Clear chart</button></div>' +
     '<div id="cf-tcChart">' + toothChartHTML(teeth0, false) + '</div><div class="tcSum" id="cf-teethSum">' + esc(teethSummary(teeth0) || 'Pick a marker, then tap teeth.') + '</div>' +
     '<input type="hidden" id="cf-teeth" value="' + esc(JSON.stringify(teeth0)) + '"></div></div>' +
-    '<div class="cfSec"' + show('aligner braces appliance marpe') + '><h5>Patient’s CC from last visit</h5>' +
-    '<div class="pickRow" data-cc="1">' + ['None'].concat(ccs).map(t => '<button type="button" class="pick sm" data-cc="' + esc(t) + '">' + esc(t) + '</button>').join('') + '</div>' +
-    '<div class="field" style="margin-top:8px"><label for="cf-cc" class="hidden">Patient’s CC</label><input id="cf-cc" autocomplete="off" placeholder="Tap above or type" value="' + esc(c.cc || '') + '"></div></div>' +
+    // the chief concern (first sets) or the CC from last visit (later sets): tap several, None, or type (see CC_PICKS)
+    '<div class="cfSec"' + show('aligner braces appliance marpe') + '><h5 id="cf-ccTitle">' + esc(ccTitle(c)) + '</h5>' +
+    '<div class="pickRow" data-cc="1" role="group" aria-label="Patient’s chief concern">' + ['None'].concat(CC_PICKS).map(t => { const on = ccItems(c.cc).some(x => x.toLowerCase() === t.toLowerCase()) || (t === 'None' && ccShown(c) === 'None');
+      return '<button type="button" class="pick sm" data-cc="' + esc(t) + '"' + (CC_ALIGNER_ONLY.includes(t) ? ' data-cc-al="1"' : '') + ' aria-pressed="' + on + '">' + esc(t) + '</button>'; }).join('') + '</div>' +
+    '<div class="field" style="margin-top:8px"><label for="cf-cc" class="hidden">Patient’s CC</label><input id="cf-cc" autocomplete="off" placeholder="Tap above (several is fine) or type" value="' + esc(c.cc || '') + '"></div></div>' +
     '<div class="cfSec"' + show('aligner') + '><div class="field"><label for="cf-ipr" style="display:flex;align-items:center;gap:8px">IPR, spacing &amp; black triangles<span style="flex:1"></span><button type="button" class="btn btn-ghost" data-act="iprPull" style="min-height:30px;padding:2px 10px;font-size:12px">' + ic('download', 14) + 'Get from IPR Tracker</button></label>' +
     '<textarea id="cf-ipr" rows="3" placeholder="Tap “Get from IPR Tracker” (uses the chart #)">' + esc(c.ipr || '') + '</textarea><div class="hint" id="cf-iprMsg"></div></div></div>' +
     '<div class="cfSec" id="cf-titanWrap"' + show(INHOUSE_TILES.includes(tile) ? g : '__never') + '><div class="field"><label for="cf-titanUrl">Titan link</label><input id="cf-titanUrl" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://… (Titan’s shared web-viewer link)" value="' + esc(c.titanUrl || '') + '"></div></div>' +
@@ -4440,6 +4453,11 @@ function wireCaseForm(root, isNew) {
   // "Delivery appt" and its time, or "Expected delivery" when it's shipped to the patient (no appointment)
   const syncDel = () => { const sh = $r('#cf-ship'), on = groupOfTile($r('#cf-tile').value) === 'aligner' && !!sh && sh.getAttribute('aria-pressed') === 'true';
     const l = $r('#cf-delLbl'), tm = $r('#cf-deliveryTime'); if (l) l.textContent = on ? 'Expected delivery' : 'Delivery appt'; if (tm) tm.style.display = on ? 'none' : ''; };
+  // the CC buttons follow the box (tapped or typed); the heading says chief concern (first set) or CC from last visit (later sets)
+  const syncCC = () => {
+    const inp = $r('#cf-cc'); if (!inp) return; const items = ccItems(inp.value).map(x => x.toLowerCase()), none = items.length === 1 && /^(none|n\/a|na|-)$/.test(items[0]);
+    $$('.pickRow[data-cc] .pick[data-cc]', root).forEach(b => b.setAttribute('aria-pressed', String(b.dataset.cc === 'None' ? none : items.includes(b.dataset.cc.toLowerCase()))));
+  };
   // in-house: the treatment dates show on the initial set, or while the patient has none from another set; otherwise one line says where they come from
   const syncTx = () => {
     const wrap = $r('#cf-txWrap'), row = $r('#cf-txFromRow'), from = $r('#cf-txFrom'); if (!wrap) return;
@@ -4459,6 +4477,8 @@ function wireCaseForm(root, isNew) {
     $$('.pickRow[data-g="initial"] .pick[data-v="' + FIN + '"]', root).forEach(btn => { const on = INHOUSE_TILES.includes(tile); btn.style.display = on ? '' : 'none'; if (!on) btn.setAttribute('aria-pressed', 'false'); });
     const rk = $r('#cf-retKindsWrap'); if (rk) rk.style.display = tile === 'mouthguard' ? 'none' : '';
     syncDel(); syncTx();
+    const ct = $r('#cf-ccTitle'); if (ct) ct.textContent = ccTitle(o);
+    $$('.pickRow[data-cc] .pick[data-cc-al]', root).forEach(b => { b.style.display = g === 'aligner' ? '' : 'none'; });
     // one arch only: just that arch's aligner count, and only the attachment-template answers that fit it
     const ta = o.treatArch, fU = $r('#cf-alU'), fL = $r('#cf-alL');
     if (fU) fU.closest('.field').style.display = ta === 'L' ? 'none' : '';
@@ -4498,6 +4518,7 @@ function wireCaseForm(root, isNew) {
   cfEl._alTot = alTot;
   ['cf-patient', 'cf-chart', 'cf-alU', 'cf-alL'].forEach(id => { const el = $r('#' + id); if (el) el.addEventListener('input', alTot); });
   ['cf-patient', 'cf-chart'].forEach(id => { const el = $r('#' + id); if (el) el.addEventListener('input', () => syncTx()); });
+  const ccIn = $r('#cf-cc'); if (ccIn) ccIn.addEventListener('input', syncCC);
   root.addEventListener('click', e => {
     const tt = e.target.closest('.tt[data-tile]');
     if (tt && root.contains(tt)) { $$('.tt[data-tile]', root).forEach(b => b.setAttribute('aria-checked', String(b === tt))); $r('#cf-tile').value = tt.dataset.tile; refresh(true); return; }
@@ -4574,7 +4595,7 @@ function wireCaseForm(root, isNew) {
     const sc = e.target.closest('[data-scan]');
     if (sc && root.contains(sc)) { $r('#cf-scanDate').value = addDays(todayISO(), Number(sc.dataset.scan)); refresh(false); return; }
     const cc = e.target.closest('.pick[data-cc]');
-    if (cc && root.contains(cc)) { $r('#cf-cc').value = cc.dataset.cc === 'None' ? 'None' : cc.dataset.cc; return; }
+    if (cc && root.contains(cc)) { const inp = $r('#cf-cc'); inp.value = ccToggle(inp.value, cc.dataset.cc); syncCC(); return; }
   });
   // teeth: read, draw, and keep the "No attachments" tile in step with the chart
   const readTeeth = () => { try { return JSON.parse($r('#cf-teeth').value || '{}'); } catch (x) { return {}; } };

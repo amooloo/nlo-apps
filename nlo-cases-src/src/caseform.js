@@ -342,14 +342,6 @@ function defaultAssignee(type) {
   return owner;
 }
 /* the patient's CC phrases this office uses most (learned from decrypted cases, in this browser only) */
-function learnedCCs() {
-  const n = {};
-  Array.from(S.cases.values()).concat(S.closed || []).forEach(c => {
-    const t = String(c.cc || '').trim(); if (t.length < 3 || t.length > 90 || /^(-|na|n\/a|none)$/i.test(t)) return;
-    const k = t.toLowerCase(); n[k] = n[k] || { t, c: 0 }; n[k].c++;
-  });
-  return Object.values(n).filter(x => x.c >= 2).sort((a, b) => b.c - a.c).slice(0, 6).map(x => x.t);
-}
 /* the current buttons plus any retired choice already saved on this case, so editing an older case never drops it */
 function withSaved(list, saved) { saved = [].concat(saved || []).filter(Boolean); return list.concat(saved.filter(v => !list.includes(v))); }
 /* the Lab choices as the labs' logos; the name stays in the button for screen readers (and searches); a lab with no logo keeps its name */
@@ -407,7 +399,6 @@ function caseFormHTML(c, isNew) {
   const initialVal = c.type === 'nla' && c.variant === 'finishing' ? FIN : !c.initial && (c.extras || []).includes('Mid-course correction') ? 'mid' : (c.initial || '');
   const teeth0 = canonTeeth(c.teeth), scope0 = noattScopeOf(teeth0);
   const rxTile = (v, ic, l) => '<button type="button" class="pick rxTile" data-v="' + esc(v) + '" aria-pressed="' + extras.includes(v) + '">' + rxSvg(ic) + '<span><b>' + esc(l) + '</b></span></button>';
-  const ccs = learnedCCs();
   return '<div class="cf" data-new="' + (isNew ? 1 : 0) + '" data-id="' + esc(c.id || '') + '">' +
     '<div class="cfSec"><h5>Case type</h5><div class="tileGrid" role="radiogroup" aria-label="Case type">' + TILES.filter(t => !t.legacy || t.v === tile).map(t =>
       '<button type="button" class="tt' + (t.c ? ' c-' + t.c : '') + '" role="radio" data-tile="' + t.v + '" aria-checked="' + (tile === t.v) + '">' + tileArt(t) + '<b>' + esc(t.l) + '</b><span>' + esc(t.s) + '</span></button>').join('') + '</div></div>' +
@@ -463,9 +454,11 @@ function caseFormHTML(c, isNew) {
     '<div class="pickRow tcQuick"><span class="lbl">Mark a whole group</span><button type="button" class="pick sm" data-tq="uant">Upper 3–3</button><button type="button" class="pick sm" data-tq="ant">Anteriors 3–3</button><button type="button" class="pick sm" data-tq="post">Posteriors 4–7</button><button type="button" class="pick sm" data-tq="all">All teeth</button><span class="tcSep"></span><button type="button" class="pick sm" data-tq="clear">Clear chart</button></div>' +
     '<div id="cf-tcChart">' + toothChartHTML(teeth0, false) + '</div><div class="tcSum" id="cf-teethSum">' + esc(teethSummary(teeth0) || 'Pick a marker, then tap teeth.') + '</div>' +
     '<input type="hidden" id="cf-teeth" value="' + esc(JSON.stringify(teeth0)) + '"></div></div>' +
-    '<div class="cfSec"' + show('aligner braces appliance marpe') + '><h5>Patient’s CC from last visit</h5>' +
-    '<div class="pickRow" data-cc="1">' + ['None'].concat(ccs).map(t => '<button type="button" class="pick sm" data-cc="' + esc(t) + '">' + esc(t) + '</button>').join('') + '</div>' +
-    '<div class="field" style="margin-top:8px"><label for="cf-cc" class="hidden">Patient’s CC</label><input id="cf-cc" autocomplete="off" placeholder="Tap above or type" value="' + esc(c.cc || '') + '"></div></div>' +
+    // the chief concern (first sets) or the CC from last visit (later sets): tap several, None, or type (see CC_PICKS)
+    '<div class="cfSec"' + show('aligner braces appliance marpe') + '><h5 id="cf-ccTitle">' + esc(ccTitle(c)) + '</h5>' +
+    '<div class="pickRow" data-cc="1" role="group" aria-label="Patient’s chief concern">' + ['None'].concat(CC_PICKS).map(t => { const on = ccItems(c.cc).some(x => x.toLowerCase() === t.toLowerCase()) || (t === 'None' && ccShown(c) === 'None');
+      return '<button type="button" class="pick sm" data-cc="' + esc(t) + '"' + (CC_ALIGNER_ONLY.includes(t) ? ' data-cc-al="1"' : '') + ' aria-pressed="' + on + '">' + esc(t) + '</button>'; }).join('') + '</div>' +
+    '<div class="field" style="margin-top:8px"><label for="cf-cc" class="hidden">Patient’s CC</label><input id="cf-cc" autocomplete="off" placeholder="Tap above (several is fine) or type" value="' + esc(c.cc || '') + '"></div></div>' +
     '<div class="cfSec"' + show('aligner') + '><div class="field"><label for="cf-ipr" style="display:flex;align-items:center;gap:8px">IPR, spacing &amp; black triangles<span style="flex:1"></span><button type="button" class="btn btn-ghost" data-act="iprPull" style="min-height:30px;padding:2px 10px;font-size:12px">' + ic('download', 14) + 'Get from IPR Tracker</button></label>' +
     '<textarea id="cf-ipr" rows="3" placeholder="Tap “Get from IPR Tracker” (uses the chart #)">' + esc(c.ipr || '') + '</textarea><div class="hint" id="cf-iprMsg"></div></div></div>' +
     '<div class="cfSec" id="cf-titanWrap"' + show(INHOUSE_TILES.includes(tile) ? g : '__never') + '><div class="field"><label for="cf-titanUrl">Titan link</label><input id="cf-titanUrl" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://… (Titan’s shared web-viewer link)" value="' + esc(c.titanUrl || '') + '"></div></div>' +
@@ -571,6 +564,11 @@ function wireCaseForm(root, isNew) {
   // "Delivery appt" and its time, or "Expected delivery" when it's shipped to the patient (no appointment)
   const syncDel = () => { const sh = $r('#cf-ship'), on = groupOfTile($r('#cf-tile').value) === 'aligner' && !!sh && sh.getAttribute('aria-pressed') === 'true';
     const l = $r('#cf-delLbl'), tm = $r('#cf-deliveryTime'); if (l) l.textContent = on ? 'Expected delivery' : 'Delivery appt'; if (tm) tm.style.display = on ? 'none' : ''; };
+  // the CC buttons follow the box (tapped or typed); the heading says chief concern (first set) or CC from last visit (later sets)
+  const syncCC = () => {
+    const inp = $r('#cf-cc'); if (!inp) return; const items = ccItems(inp.value).map(x => x.toLowerCase()), none = items.length === 1 && /^(none|n\/a|na|-)$/.test(items[0]);
+    $$('.pickRow[data-cc] .pick[data-cc]', root).forEach(b => b.setAttribute('aria-pressed', String(b.dataset.cc === 'None' ? none : items.includes(b.dataset.cc.toLowerCase()))));
+  };
   // in-house: the treatment dates show on the initial set, or while the patient has none from another set; otherwise one line says where they come from
   const syncTx = () => {
     const wrap = $r('#cf-txWrap'), row = $r('#cf-txFromRow'), from = $r('#cf-txFrom'); if (!wrap) return;
@@ -590,6 +588,8 @@ function wireCaseForm(root, isNew) {
     $$('.pickRow[data-g="initial"] .pick[data-v="' + FIN + '"]', root).forEach(btn => { const on = INHOUSE_TILES.includes(tile); btn.style.display = on ? '' : 'none'; if (!on) btn.setAttribute('aria-pressed', 'false'); });
     const rk = $r('#cf-retKindsWrap'); if (rk) rk.style.display = tile === 'mouthguard' ? 'none' : '';
     syncDel(); syncTx();
+    const ct = $r('#cf-ccTitle'); if (ct) ct.textContent = ccTitle(o);
+    $$('.pickRow[data-cc] .pick[data-cc-al]', root).forEach(b => { b.style.display = g === 'aligner' ? '' : 'none'; });
     // one arch only: just that arch's aligner count, and only the attachment-template answers that fit it
     const ta = o.treatArch, fU = $r('#cf-alU'), fL = $r('#cf-alL');
     if (fU) fU.closest('.field').style.display = ta === 'L' ? 'none' : '';
@@ -629,6 +629,7 @@ function wireCaseForm(root, isNew) {
   cfEl._alTot = alTot;
   ['cf-patient', 'cf-chart', 'cf-alU', 'cf-alL'].forEach(id => { const el = $r('#' + id); if (el) el.addEventListener('input', alTot); });
   ['cf-patient', 'cf-chart'].forEach(id => { const el = $r('#' + id); if (el) el.addEventListener('input', () => syncTx()); });
+  const ccIn = $r('#cf-cc'); if (ccIn) ccIn.addEventListener('input', syncCC);
   root.addEventListener('click', e => {
     const tt = e.target.closest('.tt[data-tile]');
     if (tt && root.contains(tt)) { $$('.tt[data-tile]', root).forEach(b => b.setAttribute('aria-checked', String(b === tt))); $r('#cf-tile').value = tt.dataset.tile; refresh(true); return; }
@@ -705,7 +706,7 @@ function wireCaseForm(root, isNew) {
     const sc = e.target.closest('[data-scan]');
     if (sc && root.contains(sc)) { $r('#cf-scanDate').value = addDays(todayISO(), Number(sc.dataset.scan)); refresh(false); return; }
     const cc = e.target.closest('.pick[data-cc]');
-    if (cc && root.contains(cc)) { $r('#cf-cc').value = cc.dataset.cc === 'None' ? 'None' : cc.dataset.cc; return; }
+    if (cc && root.contains(cc)) { const inp = $r('#cf-cc'); inp.value = ccToggle(inp.value, cc.dataset.cc); syncCC(); return; }
   });
   // teeth: read, draw, and keep the "No attachments" tile in step with the chart
   const readTeeth = () => { try { return JSON.parse($r('#cf-teeth').value || '{}'); } catch (x) { return {}; } };

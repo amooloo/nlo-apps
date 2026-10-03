@@ -506,7 +506,7 @@ function chartNote(c) {
   if (rx.length) L.push(rx.map(end).join(' '));
   if (c.teethNote) L.push(c.teethNote.split('\n').map(end).join(' '));
   if (c.ipr && c.ipr.trim()) L.push('IPR & spacing: ' + c.ipr.trim());
-  if (c.cc && !/^(none|n\/a|na|-)$/i.test(c.cc.trim())) L.push("Pt's CC: " + end(c.cc));
+  const ccv = ccShown(c); if (ccv && ccv !== 'None') L.push("Pt's CC: " + end(ccv));
   if (c.shipToPatient) L.push('Aligners to be shipped to the patient.');
   return L.join('\n').replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[–—]/g, '-');
 }
@@ -886,7 +886,7 @@ function renderDrawer() {
   const kv = (k, v) => '<div><div class="k">' + k + '</div><div class="v">' + (v || '<span class="muted">—</span>') + '</div></div>';
   const txt = v => '<div class="txt">' + esc(v) + '</div>';
   const oneLine = v => esc(String(v || '').trim().replace(/\s*\n+\s*/g, ' · ')); // a section's text on its folded heading
-  const cc = String(c.cc || '').trim(), ccNone = /^(none|n\/a|na|-)$/i.test(cc);
+  const cc = ccShown(c), ccNone = cc === 'None'; // (an older note like "This is initial" isn't a concern: not shown)
   const cmts = c.comments || [], lastC = cmts[cmts.length - 1];
   const who = c.assignee ? firstName(staffName(c.assignee, '')) || '—' : c.assigneeName ? c.assigneeName + ' (Asana)' : '';
   const nAl = alN(c), one = oneArch(c), hasTeeth = !!(c.teeth && Object.keys(c.teeth).length);
@@ -902,7 +902,7 @@ function renderDrawer() {
     // a MARPE entered (or imported) as an appliance before MARPE had its own steps: one click moves it over
     (!done && isOldMarpe(c) ? '<div class="notice info mpOld"><span>MARPE has its own steps now: records, lab, Zoom call, design approval, delivery.</span><button class="btn btn-sec btn-sm" data-act="toMarpe">Switch to MARPE steps</button></div>' : '') +
     // the patient's chief concern stands out at the top, never folded (Amir, 3 Oct 2026: "needs to be a little bit highlighted more")
-    (cc ? '<div class="ccBox' + (ccNone ? ' none' : '') + '" role="note" aria-label="Patient’s chief concern"><span class="ccIc">' + ic('chat', 20) + '</span><div class="ccB"><div class="ccK">Patient’s chief concern<span>from last visit</span></div><div class="ccV">' + esc(ccNone ? 'None' : cc) + '</div></div></div>' : '') +
+    (cc ? '<div class="ccBox' + (ccNone ? ' none' : '') + '" role="note" aria-label="Patient’s chief concern"><span class="ccIc">' + ic('chat', 20) + '</span><div class="ccB"><div class="ccK">Patient’s chief concern' + (ccLater(c) ? '<span>from last visit</span>' : '') + '</div><div class="ccV">' + esc(ccNone ? 'None' : cc) + '</div></div></div>' : '') +
     // the lab's own link to this patient's plan (from its email), then the company portals
     // in-house: the case's own Titan link first (when saved), then Titan's web version and its beta
     ((PORTALS[c.type] || []).length || safeUrl(c.planUrl) || safeUrl(c.titanUrl) ? '<div class="portals">' +
