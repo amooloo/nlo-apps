@@ -398,6 +398,28 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
 .candClrCol{width:230px;font-size:13px;color:var(--grey-700)}
 .candClr{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}
 .candClr .tiny{margin:0}
+.candClrCol{display:flex;flex-direction:column;align-items:flex-start;gap:5px}
+.nhRowT .candNext,.nhRowT .candWhen{display:flex;align-items:center;gap:5px;flex-wrap:wrap;color:var(--navy)}
+.candNext .badge{padding:1px 8px;font-size:10.5px}
+.candPlan{border:1px solid var(--grey-200);border-radius:12px;padding:12px 14px 0;margin:0 0 14px;background:var(--grey-50)}
+.candPlanHd{display:flex;align-items:baseline;gap:10px;margin-bottom:8px}
+.candPlanHd b{font-family:var(--fd);font-weight:500;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--grey-500)}
+.candStages{display:flex;flex-wrap:wrap;gap:6px}
+.candStg{padding:7px 12px;border-radius:999px;border:1.5px solid var(--grey-200);background:#fff;font-size:12.5px;font-weight:600;color:var(--grey-600);cursor:pointer;transition:border-color var(--fast) var(--ease),background var(--fast) var(--ease)}
+.candStg:hover{border-color:var(--blue);color:var(--navy)}
+.candStg.on{background:var(--blue);border-color:var(--blue);color:#fff}
+.candPlan .frow{margin-top:12px}
+.candPlan .field input[type=datetime-local]{width:100%;padding:10px 14px;border:1.5px solid var(--grey-200);border-radius:10px;background:#fff;outline:none;font-size:14px}
+.candPlan .field input[type=datetime-local]:focus{border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-100)}
+.candPlan .field label .badge{margin-left:6px;font-family:var(--fb);letter-spacing:0;text-transform:none;padding:1px 8px;font-size:10.5px}
+.candSec{margin:0 0 12px}
+.nhBox.on{position:relative}
+.nhBox.on::after{content:"";position:absolute;left:.034in;top:.004in;width:.032in;height:.07in;border:solid #11203A;border-width:0 1.3pt 1.3pt 0;transform:rotate(45deg)}
+.nhSig{height:.52in;width:auto;max-width:100%;display:block}
+.nhEsig{font-size:7.6pt;color:#6B7685;margin-top:.07in !important}
+.nhDoc .nhF .v,.nhDoc .nhTbl td{overflow-wrap:anywhere}
+.nhTbl td.nhTdEmpty{height:auto;color:#6B7685}
+@media (max-width:560px){.candStg{padding:6px 10px;font-size:12px}}
 .nhDet{border:1px solid var(--grey-200);border-radius:12px;padding:0 14px;margin:12px 0 0;background:var(--grey-50)}
 .nhDet[open]{padding-bottom:4px;background:#fff}
 .nhDet summary{display:flex;align-items:center;gap:8px;cursor:pointer;padding:12px 0;font-weight:600;color:var(--navy);font-size:13px;list-style:none}
@@ -3881,6 +3903,7 @@ function fbStartSnapshot() {
       render(); renderSyncStatus();
       setSyncState('synced');
       if (typeof quizRescan === 'function') quizRescan();
+      if (typeof appRescan === 'function') appRescan();
     }).catch(function () {});
   }, function () { setSyncState('error'); });
 }
@@ -4021,6 +4044,7 @@ function fbForgot() {
 function fbSignOut() {
   if (fbUnsub) { fbUnsub(); fbUnsub = null; }
   if (typeof quizWatchStop === 'function') quizWatchStop();
+  if (typeof appWatchStop === 'function') appWatchStop();
   S = null; cryptoKey = null; keySalt = null; fbUser = null; fbDocRef = null; localRev = 0; lastAppliedRev = 0;
   if (idleTimer) clearInterval(idleTimer);
   var doShow = function () { authMode = 'signin'; showAuth(); };
@@ -4032,12 +4056,14 @@ function fbEnter() {
   setSyncState('synced');
   enterApp();
   if (typeof quizWatchStart === 'function') quizWatchStart();
+  if (typeof appWatchStart === 'function') appWatchStart();
 }
 
 /* re-lock (idle) without signing out: keep the Firebase session, drop the key */
 function fbLock(msg) {
   if (fbUnsub) { fbUnsub(); fbUnsub = null; }
   if (typeof quizWatchStop === 'function') quizWatchStop();
+  if (typeof appWatchStop === 'function') appWatchStop();
   S = null; cryptoKey = null; keySalt = null;
   $('#main').innerHTML = ''; $('#modalWrap').classList.remove('open'); $('#modalWrap').innerHTML = '';
   showAuth();
@@ -4204,7 +4230,7 @@ I accept this offer of employment as described above, and I understand that my e
 [[Printed name =name *1.6]] [[-]]` },
 
   { id:'application', group:'hiring', title:'Employment Application', packet:false,
-    desc:'Two-page application for candidates and working interviews. Asks the pay they’re looking for, but not their pay history.',
+    desc:'Two-page application for candidates and working interviews. Asks the pay they’re looking for, but not their pay history. Candidates can also fill it out on their phone: Send application on their candidate card.',
     body:`> {practice} is an equal opportunity employer. All applicants for positions within our organization are considered without regard to race, color, age, sex, religion, national origin, sexual orientation, status as a qualified individual with a disability, marital or veteran status, or any other classification protected by applicable federal, state or local law.
 # Personal information
 [[Full name =name *2]] [[Today’s date]]
@@ -4881,7 +4907,7 @@ function nhView() {
   const tab = route.nhTab || (active.length ? 'hires' : candsOpen.length ? 'cands' : 'forms');
   const nForms = nhVisibleForms().length + NH_OFFICIAL.length;
   const head = tab === 'cands'
-    ? pageHeadHTML('People', 'New Hire Paperwork', 'People you’re interviewing. Send them the color quiz before you hire; if you hire them, their details and color carry over to their paperwork and staff profile.',
+    ? pageHeadHTML('People', 'New Hire Paperwork', 'People you’re interviewing. Track each one’s stage and next step, and send them the application and the color quiz by link. If you hire them, their details carry over to their paperwork and staff profile.',
         `<button class="btn btn-sec" data-act="nhAddHire">${ic('plus', 15)} New hire</button><button class="btn btn-pri" data-act="candAdd">${ic('userPlus', 15)} Add candidate</button>`)
     : pageHeadHTML('People', 'New Hire Paperwork', 'All of our onboarding forms on NLO letterhead. Print one form, a blank packet, or a new hire’s whole packet with their name, position and start date filled in.',
         `<button class="btn btn-sec" data-act="nhPrintBlank">${ic('printer', 15)} Blank packet</button><button class="btn btn-pri" data-act="nhAddHire">${ic('plus', 15)} New hire</button>`);
@@ -5027,7 +5053,7 @@ function nhHireModal(id, candId) {
   if (id && !h) return;
   const cd = !h && candId ? candById(candId) : null;   /* hiring a candidate: start from their card */
   const v = h || Object.assign({ name:'', position:'', team:'clinical', employment:'Full-time', start:'', hours:'', schedule:'Monday–Thursday', wage:'', wage2:'', offerDate: todayYMD(), respondBy:'' },
-    cd ? { name: cd.name || '', position: cd.position || '', cell: cd.phone || '', email: cd.email || '', team: candTeamGuess(cd.position) } : {});
+    cd ? candHirePrefill(cd) : {});
   const staffOpts = !h && !cd ? activeStaff().map(p => `<option value="${p.id}">${esc(p.name)}${p.role ? ' — ' + esc(p.role) : ''}</option>`).join('') : '';
   const inp = (key, label, type, extra) => `<div class="field"><label>${label}</label><input type="${type || 'text'}" id="nhF_${key}" value="${esc(v[key] || '')}"${extra || ''}></div>`;
   const grid = (list, cls) => `<div class="${cls || 'frow'}">${list.map(([k, l, t]) => inp(k, l, t)).join('')}</div>`;
@@ -5035,7 +5061,7 @@ function nhHireModal(id, candId) {
   const P = Object.fromEntries(NH_PERSONAL.map(x => [x[0], x]));
   openModal(`<div class="mh"><h3>${h ? 'Edit ' + esc(h.name) : cd ? 'Hire ' + esc(cd.name) : 'New hire'}</h3><button class="x" data-act="closeModal">✕</button></div>
   <div class="mb">
-    <div class="infoBox">${cd ? `Filled in from ${esc(quizFirst(cd))}’s candidate card${cd.colorQuiz ? ', and their color quiz result comes along' : ''}. ` : ''}Enter details once — every form prints with them filled in. Anything left blank prints as a line to write on.</div>
+    <div class="infoBox">${cd ? `Filled in from ${esc(quizFirst(cd))}’s candidate card${cd.app ? ' and application' : ''}${cd.colorQuiz ? ', and their color quiz result comes along' : ''}. ` : ''}Enter details once — every form prints with them filled in. Anything left blank prints as a line to write on.</div>
     ${staffOpts ? `<div class="field"><label>Start from <span class="tiny">(optional — someone already on the staff roster)</span></label><select id="nhFrom"><option value="">— New person —</option>${staffOpts}</select></div>` : ''}
     <div class="frow">
       <div class="field"><label>Full name *</label><input type="text" id="nhF_name" value="${esc(v.name)}" placeholder="e.g. Jordan Rivera"></div>
@@ -5548,11 +5574,15 @@ function candTeamGuess(pos) {
 
 function candTabHTML() {
   const all = nhS().cands;
-  const open = all.filter(candIsOpen).sort((a, b) => (b.created || 0) - (a.created || 0));
+  const open = all.filter(candIsOpen);
   const closed = all.filter(c => !candIsOpen(c)).sort((a, b) => String(b.closedAt || '').localeCompare(String(a.closedAt || '')) || (b.created || 0) - (a.created || 0));
-  let html = `<div class="infoBox" style="margin-bottom:18px">Send each candidate the color quiz. It takes about 2 minutes on their phone with no login, and their answers land on their card here. Sending it to every candidate at the same stage keeps the results comparable.</div>`;
-  html += panelHTML('Candidates', open.length, open.length ? open.map(candRowHTML).join('') :
-    emptyHTML('userPlus', 'No candidates right now. Add someone you’re interviewing to send them the color quiz.'), '', 'users');
+  let html = `<div class="infoBox" style="margin-bottom:18px">Send each candidate the <b>application</b> and the <b>color quiz</b>. They’re separate links, each done on their phone with no login, and the answers land on their card here. Move people through the stages and give each one a next step with a due date, so no one is left waiting on us.</div>`;
+  html += candUpcomingHTML(open);
+  if (!open.length) html += panelHTML('Candidates', 0, emptyHTML('userPlus', 'No candidates right now. Add someone you’re interviewing to send them the application and the color quiz.'), '', 'users');
+  CAND_STAGES.forEach(st => {
+    const list = open.filter(c => candStage(c) === st.id).sort(candSort);
+    if (list.length) html += `<div style="margin-bottom:18px">${panelHTML(esc(st.label), list.length, list.map(candRowHTML).join(''), '', st.icon)}</div>`;
+  });
   if (closed.length) html += `<div style="margin-top:18px">${panelHTML('Hired or not moving forward', closed.length, closed.map(candRowHTML).join(''), '', 'archive')}</div>`;
   return html;
 }
@@ -5570,14 +5600,20 @@ function candRowHTML(c) {
   const status = c.status === 'hired' ? ` <span class="badge b-green">Hired${c.closedAt ? ' ' + esc(fmtDShort(c.closedAt)) : ''}</span>`
     : c.status === 'passed' ? ' <span class="badge b-gray">Not moving forward</span>' : '';
   const sub = [c.position, 'added ' + quizShortDay(c.created)].filter(Boolean).map(esc).join(' · ');
+  const next = open && (c.next || c.nextDate) ? `<span class="tiny candNext">${ic('flag', 12)} ${esc(c.next || 'Next step')}${c.nextDate ? ' ' + candDueBadge(c.nextDate) : ''}</span>` : '';
+  const when = open ? [['interview', 'Interview'], ['working', 'Working interview']].filter(([k]) => candWhenOk(c[k]) && daysUntil(c[k].slice(0, 10)) >= 0)
+    .map(([k, l]) => `<span class="tiny candWhen">${ic('calendar', 12)} ${l} ${esc(candWhenFmt(c[k]))}</span>`).join('') : '';
   let btn = '';
-  if (open && !c.colorQuiz) btn = (c.colorLink && !c.colorLink.lost)
+  if (open && !c.app) btn += (c.appLink && !c.appLink.lost)
+    ? `<button class="btn btn-sec btn-sm" data-act="appLinkShow" data-id="${c.id}" type="button">${ic('fileText', 13)} Application link</button>`
+    : `<button class="btn btn-sec btn-sm" data-act="appLinkMake" data-id="${c.id}" type="button">${ic('fileText', 13)} ${c.appLink ? 'New application link' : 'Send application'}</button>`;
+  if (open && !c.colorQuiz) btn += (c.colorLink && !c.colorLink.lost)
     ? `<button class="btn btn-sec btn-sm" data-act="quizLinkShow" data-id="${c.id}" type="button">${ic('link', 13)} See link</button>`
     : `<button class="btn btn-sec btn-sm" data-act="quizLinkMake" data-id="${c.id}" type="button">${ic('link', 13)} ${c.colorLink ? 'Send a new link' : 'Send quiz'}</button>`;
   return `<div class="nhRow nhHireRow" data-act="candOpen" data-id="${c.id}">
     ${avHTML(c, 'sm')}
-    <div class="nhRowT"><b>${esc(c.name)}</b>${status}<span class="tiny">${sub}</span></div>
-    <div class="candClrCol">${candColorCell(c)}</div>
+    <div class="nhRowT"><b>${esc(c.name)}</b>${status}<span class="tiny">${sub}</span>${next}${when}</div>
+    <div class="candClrCol">${candAppCell(c)}${candColorCell(c)}</div>
     <div class="nhRowA">${btn}</div>
   </div>`;
 }
@@ -5701,28 +5737,35 @@ function candColorBoxHTML(c) {
 }
 /* re-draw the quiz part of an open candidate card (after answers arrive, a link is turned off, …) */
 function candRefresh(id) {
-  const box = id ? document.querySelector('#modalWrap [data-candcolor="' + id + '"]') : null;
-  const c = box ? candById(id) : null;
-  if (box && c) box.innerHTML = candColorBoxHTML(c);
+  const c = id ? candById(id) : null;
+  const box = c ? document.querySelector('#modalWrap [data-candcolor="' + id + '"]') : null;
+  if (box) box.innerHTML = candColorBoxHTML(c);
+  const ab = c ? document.querySelector('#modalWrap [data-candapp="' + id + '"]') : null;
+  if (ab) ab.innerHTML = candAppBoxHTML(c);
 }
 function candModal(id) {
   const c = candById(id); if (!c) { closeModal(); render(); return; }
-  const hire = c.hireId ? nhHire(c.hireId) : null;
-  const contact = [c.phone ? `<span style="display:inline-flex;align-items:center;gap:5px">${ic('phone', 13)} ${esc(c.phone)}</span>` : '', c.email ? `<span style="display:inline-flex;align-items:center;gap:5px">${ic('mail', 13)} ${esc(c.email)}</span>` : ''].join('');
+  const hire = c.hireId ? nhHire(c.hireId) : null, open = candIsOpen(c);
+  const tel = String(c.phone || '').replace(/[^\d+]/g, ''), mail = APP_EMAIL_RE.test(c.email || '') ? c.email : '';
+  const link = 'display:inline-flex;align-items:center;gap:5px;color:inherit;text-decoration:none';
+  const contact = [c.phone ? (tel ? `<a href="tel:${esc(tel)}" style="${link}">${ic('phone', 13)} ${esc(c.phone)}</a>` : `<span style="${link}">${ic('phone', 13)} ${esc(c.phone)}</span>`) : '',
+    c.email ? (mail ? `<a href="mailto:${esc(mail)}" style="${link}">${ic('mail', 13)} ${esc(c.email)}</a>` : `<span style="${link}">${ic('mail', 13)} ${esc(c.email)}</span>`) : ''].join('');
   const statusLine = c.status === 'hired' ? `<div class="infoBox" style="background:var(--mint-100);color:var(--mint-700)">Hired${c.closedAt ? ' ' + esc(fmtD(c.closedAt)) : ''}.${hire ? ' Their new hire paperwork is started.' : ''}</div>`
     : c.status === 'passed' ? `<div class="infoBox" style="background:var(--grey-100);color:var(--grey-600)">Not moving forward${c.closedAt ? ' (' + esc(fmtD(c.closedAt)) + ')' : ''}.</div>` : '';
   const foot = [`<button class="btn-ghost btn-sm" data-act="candDel" data-id="${c.id}" type="button">${ic('trash', 13)} Delete</button>`, '<div class="sp"></div>',
     `<button class="btn btn-sec btn-sm" data-act="candEdit" data-id="${c.id}" type="button">${ic('edit', 13)} Edit</button>`];
   if (c.status === 'passed' || (c.status === 'hired' && !hire)) foot.push(`<button class="btn btn-sec btn-sm" data-act="candReopen" data-id="${c.id}" type="button">${ic('undo', 13)} Back to candidates</button>`);
-  if (candIsOpen(c)) foot.push(`<button class="btn btn-sec btn-sm" data-act="candPass" data-id="${c.id}" type="button">Not moving forward</button>`);
+  if (open) foot.push(`<button class="btn btn-sec btn-sm" data-act="candPass" data-id="${c.id}" type="button">Not moving forward</button>`);
   if (hire) foot.push(`<button class="btn btn-pri btn-sm" data-act="candOpenHire" data-id="${c.id}" type="button">${ic('fileText', 13)} Open their paperwork</button>`);
   else if (c.status !== 'passed') foot.push(`<button class="btn btn-pri btn-sm" data-act="candHire" data-id="${c.id}" type="button">${ic('userPlus', 13)} Hire — start paperwork</button>`);
   openModal(`<div class="mh" data-candmodal="${esc(c.id)}"><h3>${esc(c.name)}</h3><button class="x" data-act="closeModal">✕</button></div>
   <div class="mb">
     <div class="muted" style="font-size:13px;margin:-4px 0 14px;display:flex;gap:6px 16px;flex-wrap:wrap;align-items:center"><span>${esc(c.position || 'Position not set')}</span>${contact}</div>
     ${statusLine}
+    ${open ? candPlanHTML(c) : ''}
+    <div class="candSec" data-candapp="${esc(c.id)}">${candAppBoxHTML(c)}</div>
     <div data-candcolor="${esc(c.id)}">${candColorBoxHTML(c)}</div>
-    <div class="field" style="margin:16px 0 0"><label>Notes</label><textarea class="nhNotes" data-chg="candNote" data-id="${c.id}" placeholder="Interview notes, availability, next step…">${esc(c.notes || '')}</textarea></div>
+    <div class="field" style="margin:16px 0 0"><label>Notes</label><textarea class="nhNotes" data-chg="candNote" data-id="${c.id}" placeholder="Interview notes, availability, references…">${esc(c.notes || '')}</textarea></div>
   </div>
   <div class="mf" style="flex-wrap:wrap">${foot.join('')}</div>`, true);
 }
@@ -5737,12 +5780,12 @@ function candEditModal(id) {
       <div class="field"><label>Position</label><input type="text" id="cdPos" value="${esc(v.position || '')}" list="cdRoleList" placeholder="e.g. Orthodontic Assistant" autocomplete="off"><datalist id="cdRoleList">${ROLE_SUGGEST.map(r => `<option value="${esc(r)}">`).join('')}</datalist></div>
     </div>
     <div class="frow">
-      <div class="field"><label>Cell phone</label><input type="tel" id="cdPhone" value="${esc(v.phone || '')}" placeholder="To text the quiz link"></div>
-      <div class="field"><label>Email</label><input type="email" id="cdEmail" value="${esc(v.email || '')}" placeholder="To email the quiz link"></div>
+      <div class="field"><label>Cell phone</label><input type="tel" id="cdPhone" value="${esc(v.phone || '')}" placeholder="To text them links"></div>
+      <div class="field"><label>Email</label><input type="email" id="cdEmail" value="${esc(v.email || '')}" placeholder="To email them links"></div>
     </div>
-    <div class="tiny">Kept encrypted in Staff Hub like everything else. The quiz link itself carries only their first name.</div>
+    <div class="tiny">Kept encrypted in Staff Hub like everything else. A link carries only their first name (the application link also carries the position).</div>
   </div>
-  <div class="mf"><button class="btn btn-sec" data-act="closeModal" type="button">Cancel</button>${c ? '<button class="btn btn-pri" id="cdSave" type="button">Save</button>' : '<button class="btn btn-sec" id="cdSave" type="button">Add</button><button class="btn btn-pri" id="cdSaveSend" type="button">Add &amp; send the quiz</button>'}</div>`);
+  <div class="mf" style="flex-wrap:wrap"><button class="btn btn-sec" data-act="closeModal" type="button">Cancel</button>${c ? '<button class="btn btn-pri" id="cdSave" type="button">Save</button>' : '<button class="btn btn-sec" id="cdSave" type="button">Add</button><button class="btn btn-sec" id="cdSaveQuiz" type="button">Add &amp; send the quiz</button><button class="btn btn-pri" id="cdSaveApp" type="button">Add &amp; send the application</button>'}</div>`);
   const save = send => {
     const val = k => { const el = $('#' + k); return el ? String(el.value || '').trim() : ''; };
     const name = val('cdName');
@@ -5755,16 +5798,18 @@ function candEditModal(id) {
       persist(); render(); candModal(cur.id); toast('Saved');
       return;
     }
-    const nc = Object.assign({ id: uid(), status: 'active', created: Date.now(), notes: '' }, vals);
+    const nc = Object.assign({ id: uid(), status: 'active', stage: 'new', created: Date.now(), stageAt: Date.now(), notes: '' }, vals);
     nhS().cands.push(nc); act('Added candidate ' + name);
     persist(); closeModal();
     route.page = 'newhire'; route.nhHire = null; route.nhTab = 'cands';
     render(); window.scrollTo(0, 0);
-    if (send) quizMakeFor(nc.id, document.querySelector('#main [data-act="quizLinkMake"][data-id="' + nc.id + '"]'));
+    if (send === 'quiz') quizMakeFor(nc.id, document.querySelector('#main [data-act="quizLinkMake"][data-id="' + nc.id + '"]'));
+    else if (send === 'app') appMakeFor(nc.id, document.querySelector('#main [data-act="appLinkMake"][data-id="' + nc.id + '"]'));
     else toast(name + ' added');
   };
   $('#cdSave').onclick = () => save(false);
-  const ss = $('#cdSaveSend'); if (ss) ss.onclick = () => save(true);
+  const sq = $('#cdSaveQuiz'); if (sq) sq.onclick = () => save('quiz');
+  const sa = $('#cdSaveApp'); if (sa) sa.onclick = () => save('app');
   if (!c) { const el = $('#cdName'); if (el) el.focus(); }
 }
 /* on a new-hire page: their color from the candidate quiz, and a way back to the card */
@@ -5772,6 +5817,7 @@ function candHireMetaHTML(h) {
   const q = h && h.colorQuiz, cd = h && h.candId ? candById(h.candId) : null;
   let out = '';
   if (q && STAFF_COLORS[q.primary]) out += `<span title="From their color quiz as a candidate">${colorDot(q.primary, 10)} ${esc(quizColorName(q.primary))}${STAFF_COLORS[q.secondary] ? ', then ' + esc(quizColorName(q.secondary)) : ''}</span>`;
+  if (cd && cd.app) out += `<span class="nhLink" data-act="appView" data-id="${cd.id}">${ic('fileText', 14)} Application</span>`;
   if (cd) out += `<span class="nhLink" data-act="candOpen" data-id="${cd.id}">${ic('users', 14)} Candidate card</span>`;
   return out;
 }
@@ -5798,23 +5844,31 @@ H.candOpenHire = t => {
 };
 H.candDel = t => {
   const c = candById(t.dataset.id); if (!c) return;
-  const name = c.name, cid = c.id, live = !!(c.colorLink && c.colorLink.t && !c.colorLink.lost);
+  const name = c.name, cid = c.id;
+  const links = [c.colorLink && c.colorLink.t && !c.colorLink.lost ? 'quiz' : '', c.appLink && c.appLink.t && !c.appLink.lost ? 'application' : ''].filter(Boolean);
+  const held = [c.colorQuiz ? 'color quiz result' : '', c.app ? 'application' : ''].filter(Boolean);
   const paper = c.hireId && nhHire(c.hireId);
-  confirmModal('Delete ' + name + '?', 'This removes their candidate card' + (c.colorQuiz ? ' and color quiz result' : '') + (live ? ', and their quiz link stops working' : '') + '.' + (paper ? ' Their new hire paperwork is not touched.' : '') + ' This can’t be undone.', async () => {
+  confirmModal('Delete ' + name + '?', 'This removes their candidate card' + (held.length ? ', with their ' + held.join(' and ') : '') + '.' +
+    (links.length ? ' Their ' + links.join(' and ') + ' link' + (links.length > 1 ? 's stop' : ' stops') + ' working.' : '') +
+    (paper ? ' Their new hire paperwork is not touched.' : '') + ' This can’t be undone.', async () => {
     const dropLocal = () => { const n = nhS(); if (n.cands.some(x => x.id === cid)) { n.cands = n.cands.filter(x => x.id !== cid); quizLog(S, 'Deleted candidate ' + name); return true; } return false; };
     const cur = candById(cid);
     if (!cur) { render(); return; }
-    if (!cur.colorLink) { dropLocal(); persist(); render(); toast('Deleted'); return; }
-    /* they have a quiz link: remove the card and the invite (whatever link the saved record has) together */
+    if (!cur.colorLink && !cur.appLink && !cur.app) { dropLocal(); persist(); render(); toast('Deleted'); return; }
+    /* they have a link or a stored application: remove the card and those docs (whatever the saved record has) together */
     let res = { skip: true };
     for (let i = 0; i < 6; i++) {
       res = await quizAtomic(async (tx, copy) => {
         const cc = candList(copy).find(x => x && x.id === cid);
         if (!cc) return null;
-        const code = cc.colorLink && cc.colorLink.t;
+        const code = cc.colorLink && cc.colorLink.t, acode = cc.appLink && cc.appLink.t, adoc = cc.app && cc.app.code;
         copy.nh.cands = candList(copy).filter(x => !(x && x.id === cid));
         quizLog(copy, 'Deleted candidate ' + name);
-        return { write: w => { if (code) { w.delete(quizCol('colorQuiz').doc(code)); w.delete(quizCol('colorAnswers').doc(code)); } } };
+        return { write: w => {
+          if (code) { w.delete(quizCol('colorQuiz').doc(code)); w.delete(quizCol('colorAnswers').doc(code)); }
+          if (acode) { w.delete(quizCol('appInvite').doc(acode)); w.delete(quizCol('appAnswers').doc(acode)); w.delete(quizCol('appStuck').doc(acode)); }
+          if (adoc) w.delete(quizCol('candApps').doc(adoc));
+        } };
       }, () => dropLocal());
       if (!res.stale) break;
       await quizSleep(800);
@@ -5823,6 +5877,573 @@ H.candDel = t => {
     if (res.skip && S) { if (dropLocal()) persist(); render(); toast('Deleted'); return; }
     if (!res.tooBig) toast(quizErrText(res), true);
   });
+};
+
+/* =====================================================================
+   APPLICATION BY LINK
+   Send a candidate the Employment Application to fill out and sign on their
+   own phone (application.html), separately from the color quiz.
+   Firestore, under this account:
+     staffhub/{uid}/appInvite/{code}   the invite: first name, candidate id, position, the
+                                       practice's wording from the Employment Application form
+                                       (equal-opportunity note, section intros, the statements
+                                       they sign) and the public half of a key made for this link
+     staffhub/{uid}/appAnswers/{code}  their application, encrypted on their phone for that key
+                                       (ECDH P-256 + HKDF-SHA256 + AES-GCM, the code as context),
+                                       written once: { v, epk, iv, ct, at }
+     staffhub/{uid}/appStuck/{code}    an application that arrived but couldn't be opened (its key was
+                                       missing from the record), set aside still encrypted, never destroyed
+     staffhub/{uid}/candApps/{code}    the imported application, encrypted under its OWN random
+                                       AES key. That key lives on the candidate card (c.app.k),
+                                       inside the encrypted record, so a password change (which
+                                       re-encrypts only the record) can never lock it out.
+   The private half of the link's key stays on the card (c.appLink.sk), inside the encrypted
+   record, so only this account can read what comes back. Making a link, turning one off,
+   importing and deleting each go through quizAtomic: the record and the docs change together.
+     candidate fields:  appLink { t, at, sk, lost? }   while a link is out
+                        app { code, at, k, sum }       once it's in (sum = a few facts for the card)
+   Needs the Firestore rules that let a link read its invite and send its application once.
+   application.html asks the questions: keep its fields in step with appCleanForm().
+   ===================================================================== */
+const APP_URL = 'https://amooloo.github.io/nlo-apps/application.html';
+const APP_HKDF_INFO = 'nlo-application-v1';   /* KEEP IN SYNC with HKDF_INFO in application.html */
+const APP_EMAIL_RE = /^[^\s@?&#<>"]+@[^\s@?&#<>"]+\.[^\s@?&#<>"]+$/;
+let appUnsub = null, appWatchTimer = null, appBusy = false, appPending = [];
+const appClaiming = new Set(), appTries = {}, appCache = Object.create(null);
+
+function appUrl(code) { return APP_URL + '#u=' + encodeURIComponent(fbUser.uid) + '&t=' + code; }
+function appRich(s) { return esc(s).replace(/\*\*([^*]+?)\*\*/g, '<b>$1</b>'); }
+function appYMD(ms) { const d = new Date(ms || Date.now()); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+
+/* The wording the candidate reads and signs, taken from the Employment Application form in the
+   library (so an edit there reaches the next link): the shaded equal-opportunity note at the top,
+   the first paragraph under Employment history and under References, and every paragraph under
+   "Please read carefully before signing". Falls back to the built-in wording if the form was
+   edited down to nothing to sign. */
+function appFormText() {
+  const vals = nhVals(null);
+  const sub = x => String(x || '').replace(/\{\s*([a-z0-9_]+)\s*(?:\|([^{}]*))?\}/gi, (m, k, fb) => { k = k.toLowerCase(); return NH_KEYS.has(k) ? (vals[k] || fb || '') : m; });
+  const parse = body => {
+    const out = { eeo: [], emp: '', ref: '', terms: [] };
+    let sec = '';
+    String(body || '').replace(/\r\n?/g, '\n').split('\n').forEach(raw => {
+      let line = raw.trim();
+      if (!line) return;
+      const cond = line.match(/^\?([a-z0-9_]+)\s+([\s\S]*)$/i);
+      if (cond) { if (!vals[cond[1].toLowerCase()]) return; line = cond[2].trim(); }
+      if (/^#{1,2} /.test(line)) { sec = line.replace(/^#{1,2} /, '').toLowerCase(); return; }
+      if (/^(\||\[\[|\[ \]|===|---)/.test(line)) return;
+      const note = /^>( |$)/.test(line);
+      const text = sub(line.replace(/^>\s?/, '').replace(/^- /, '• ')).replace(/_{3,}/g, '').replace(/\s{2,}/g, ' ').trim();
+      if (!text) return;
+      if (!sec) { if (note) out.eeo.push(text); return; }
+      if (/employment history|work history/.test(sec)) { if (!out.emp) out.emp = text; }
+      else if (/reference/.test(sec)) { if (!out.ref) out.ref = text; }
+      else if (/read carefully|before signing|agreement|acknowledg|certif/.test(sec)) out.terms.push(text);
+    });
+    return out;
+  };
+  const f = nhFormById('application');
+  let t = parse(f && f.body);
+  if (!t.terms.length) t = parse((NH_FORMS.find(x => x.id === 'application') || {}).body);
+  /* the phone page can't take attachments, so leave out the paper form's "You may attach a résumé…" sentence */
+  const emp = t.emp.replace(/[^.]*\battach\b[^.]*\.\s*/i, ' ').replace(/\s{2,}/g, ' ').trim();
+  return { eeo: t.eeo.join(' ').slice(0, 2000), emp: emp.slice(0, 1000), ref: t.ref.slice(0, 1000), terms: t.terms.slice(0, 20).map(x => x.slice(0, 4000)) };
+}
+
+/* ---- keys ---- */
+async function appKeyPair() {
+  const kp = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']);
+  const pub = await crypto.subtle.exportKey('jwk', kp.publicKey), sk = await crypto.subtle.exportKey('jwk', kp.privateKey);
+  return { pk: { x: pub.x, y: pub.y }, sk: { kty: 'EC', crv: 'P-256', x: sk.x, y: sk.y, d: sk.d } };
+}
+async function appDecrypt(sk, code, ans) {
+  const te = new TextEncoder(), C = { name: 'ECDH', namedCurve: 'P-256' };
+  const e = String(ans.epk || '').split('.');
+  const priv = await crypto.subtle.importKey('jwk', { kty: 'EC', crv: 'P-256', x: sk.x, y: sk.y, d: sk.d, ext: true }, C, false, ['deriveBits']);
+  const pub = await crypto.subtle.importKey('jwk', { kty: 'EC', crv: 'P-256', x: e[0], y: e[1], ext: true }, C, false, []);
+  const bits = await crypto.subtle.deriveBits({ name: 'ECDH', public: pub }, priv, 256);
+  const hk = await crypto.subtle.importKey('raw', bits, 'HKDF', false, ['deriveKey']);
+  const key = await crypto.subtle.deriveKey({ name: 'HKDF', hash: 'SHA-256', salt: te.encode(code), info: te.encode(APP_HKDF_INFO) }, hk, { name: 'AES-GCM', length: 256 }, false, ['decrypt']);
+  const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(ans.iv), additionalData: te.encode(code) }, key, unb64(ans.ct));
+  return JSON.parse(new TextDecoder().decode(pt));
+}
+const appDocKey = raw => crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+
+/* ---- what came back: only known fields, as plain text (anything else is dropped) ---- */
+function appCleanForm(a) {
+  const s = (x, n) => String(x == null ? '' : x).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]+/g, ' ').trim().slice(0, n || 200);
+  const pick = (o, keys, lim) => { const r = {}; keys.forEach(k => { r[k] = s(o && o[k], lim && lim[k]); }); return r; };
+  const f = (a && a.f && typeof a.f === 'object') ? a.f : {};
+  const arr = x => Array.isArray(x) ? x.filter(o => o && typeof o === 'object') : [];
+  const out = pick(f, ['name', 'street', 'city', 'state', 'zip', 'phone', 'email', 'position', 'available', 'employment', 'pay', 'authorized', 'before', 'beforeWhen', 'heard', 'licenses'], { street: 150, licenses: 600 });
+  out.edu = arr(f.edu).slice(0, 5).map(e => pick(e, ['level', 'school', 'years', 'grad', 'study']));
+  out.noJobs = f.noJobs === true;
+  out.jobs = out.noJobs ? [] : arr(f.jobs).slice(0, 10).map(j => pick(j, ['company', 'position', 'from', 'to', 'supervisor', 'contact', 'reason'], { reason: 500 }));
+  out.refs = arr(f.refs).slice(0, 5).map(r => pick(r, ['name', 'phone', 'relation']));
+  const g = a && a.sig;
+  const sig = g && typeof g.d === 'string' && /^[MLml0-9 .\-]{1,60000}$/.test(g.d) && isFinite(g.w) && isFinite(g.h) && +g.w > 0 && +g.h > 0
+    ? { d: g.d, w: Math.min(2000, Math.round(+g.w)), h: Math.min(2000, Math.round(+g.h)) } : null;
+  const terms = (a && Array.isArray(a.terms) ? a.terms : []).filter(x => typeof x === 'string').slice(0, 20).map(x => s(x, 4000));
+  const intro = (a && a.intro && typeof a.intro === 'object') ? a.intro : {};
+  return { v: 1, f: out, agreed: !!(a && a.agreed === true), signName: s(a && a.signName, 100), sig,
+    signedAt: a && isFinite(a.signedAt) ? +a.signedAt : 0, tz: s(a && a.tz, 60), practice: s(a && a.practice, 100), pos: s(a && a.pos, 100),
+    eeo: s(a && a.eeo, 2000), intro: { emp: s(intro.emp, 1000), ref: s(intro.ref, 1000) }, terms, ua: s(a && a.ua, 200) };
+}
+/* a few facts for the card and the list (the full application stays in its own doc) */
+function appSummary(app) {
+  const f = app.f;
+  return { name: f.name, street: f.street, city: f.city, state: f.state, zip: f.zip, phone: f.phone, email: f.email, pay: f.pay,
+    avail: /^\d{4}-\d{2}-\d{2}$/.test(f.available) ? f.available : '', emp: f.employment, auth: f.authorized, lic: f.licenses.slice(0, 200),
+    jobs: f.noJobs ? 0 : f.jobs.filter(j => j.company || j.position).length, refs: f.refs.filter(r => r.name && r.phone).length };
+}
+function appCandIn(st, code, sid) {
+  const cs = candList(st);
+  return cs.find(c => c && c.appLink && c.appLink.t === code) || (sid ? cs.find(c => c && c.id === sid) : null) || null;
+}
+function appSetOnCard(st, c, rec) {
+  c.app = JSON.parse(JSON.stringify(rec));
+  if (c.appLink && c.appLink.t === rec.code) delete c.appLink;
+  const s = rec.sum || {};
+  if (!c.phone && String(s.phone || '').replace(/\D/g, '').length >= 10) c.phone = s.phone;
+  if (!c.email && APP_EMAIL_RE.test(s.email || '')) c.email = s.email;
+  quizLog(st, 'Candidate ' + c.name + ' sent their application');
+}
+/* Inside a quizAtomic transaction: if answers for `code` are waiting, open them with the card's key,
+   store them under their own key, put the summary on the card in `copy`, and delete the invite and the
+   answers (and the card's previous application, if this replaces one). null = nothing to import. */
+async function appImportPlan(tx, copy, code) {
+  const ansRef = quizCol('appAnswers').doc(code), invRef = quizCol('appInvite').doc(code);
+  const ans = await tx.get(ansRef);
+  if (!ans.exists) return null;   /* already imported by another open copy of Staff Hub */
+  const inv = await tx.get(invRef);
+  const sid = inv.exists ? ((inv.data() || {}).sid || null) : null;
+  const data = ans.data() || {};
+  const del = w => { w.delete(ansRef); if (inv.exists) w.delete(invRef); };
+  const c = appCandIn(copy, code, sid);
+  if (!c) { quizLog(copy, 'An application came in for a candidate who’s no longer in Staff Hub, so it was discarded'); return { kind: 'dropped', code, write: del }; }
+  const sk = c.appLink && c.appLink.t === code ? c.appLink.sk : null;
+  let app = null;
+  if (sk) { try { app = appCleanForm(await appDecrypt(sk, code, data)); } catch (e) { app = null; } }
+  if (app && inv.exists) {
+    /* what they read and signed is the office's own wording from the invite, never what the phone sent back */
+    const iv = inv.data() || {}, txt = (x, n) => (typeof x === 'string' ? x : '').slice(0, n);
+    const terms = Array.isArray(iv.terms) ? iv.terms.filter(x => typeof x === 'string' && x.trim()).slice(0, 20).map(x => x.slice(0, 4000)) : [];
+    if (terms.length) app.terms = terms;
+    app.eeo = txt(iv.eeo, 2000); app.intro = { emp: txt(iv.emp, 1000), ref: txt(iv.ref, 1000) };
+    app.practice = txt(iv.practice, 100) || app.practice; app.pos = txt(iv.pos, 100);
+  }
+  if (!app) {
+    if (c.appLink && c.appLink.t === code) c.appLink.lost = Date.now();
+    quizLog(copy, 'Candidate ' + c.name + '’s application arrived but couldn’t be opened');
+    const kept = { v: data.v, epk: data.epk, iv: data.iv, ct: data.ct };   /* set aside, still encrypted, in case its key turns up */
+    return { kind: 'lost', code, cid: c.id, write: w => { w.set(quizCol('appStuck').doc(code), { app: 'nlo-staff-hub', v: 1, kind: 'unopened-application', cid: c.id, ans: kept, at: Date.now() }); del(w); } };
+  }
+  const at = data.at && typeof data.at.toMillis === 'function' ? data.at.toMillis() : Date.now();
+  app.at = at; app.code = code;
+  const raw = crypto.getRandomValues(new Uint8Array(32));
+  const enc = await encryptJSON(app, await appDocKey(raw));
+  const old = c.app && c.app.code && c.app.code !== code ? c.app.code : null;
+  const rec = { code, at, k: b64(raw), sum: appSummary(app) };
+  appSetOnCard(copy, c, rec);
+  return { kind: 'ok', code, cid: c.id, rec, app, old,
+    write: w => { w.set(quizCol('candApps').doc(code), { app: 'nlo-staff-hub', v: 1, kind: 'application', data: enc, updatedAt: Date.now() }); del(w); if (old) w.delete(quizCol('candApps').doc(old)); } };
+}
+/* the same change on the live record, right after the transaction */
+function appApplyPlan(pl) {
+  if (!pl || !S) return pl;
+  const c = pl.cid ? candById(pl.cid) : null;
+  if (pl.kind === 'ok') { if (c && !(c.app && c.app.code === pl.code)) appSetOnCard(S, c, pl.rec); appCache[pl.code] = pl.app; if (pl.old) delete appCache[pl.old]; }
+  else if (pl.kind === 'lost') { if (c && c.appLink && c.appLink.t === pl.code && !c.appLink.lost) { c.appLink.lost = Date.now(); quizLog(S, 'Candidate ' + c.name + '’s application arrived but couldn’t be opened'); } }
+  else if (pl.kind === 'dropped') quizLog(S, 'An application came in for a candidate who’s no longer in Staff Hub, so it was discarded');
+  return pl;
+}
+
+/* ---- the link dialog: QR code, copy, text, email, turn off (copy buttons share quizCopy) ---- */
+function appLinkDialog(c) {
+  const L = c && c.appLink;
+  if (!L || !L.t || !fbUser) return;
+  const f = quizFirst(c), url = appUrl(L.t), practice = (S.settings && S.settings.officeName) || 'Next Level Orthodontics';
+  const msg = 'Hi ' + f + '! Thanks for your interest in ' + practice + '. Here’s our employment application. It takes about 10 minutes on your phone: ' + url;
+  quizCopyTexts = { link: url, msg: msg };
+  const phone = String(c.phone || '').replace(/[^\d+]/g, ''), email = APP_EMAIL_RE.test(String(c.email || '').trim()) ? String(c.email).trim() : '';
+  openModal(`<div class="mh" data-appcode="${esc(L.t)}"><h3>${ic('fileText', 18)} Application link for ${esc(f)}</h3><button class="x" data-act="closeModal">✕</button></div>
+  <div class="mb">
+    <p class="muted" style="font-size:13.5px;margin:-4px 0 16px">${esc(f)} fills out the Employment Application on their phone and signs it with a finger. No login needed. It’s encrypted on their phone and comes straight back to ${esc(f)}’s candidate card, where you can view and print it. The link works once, and anyone who has it could use it, so send it only to ${esc(f)}.</p>
+    <div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap">
+      <div data-quizqr="${esc(url)}" style="width:164px;height:164px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;background:#fff;border:1px solid var(--line);border-radius:12px;padding:6px"><span class="tiny">Loading QR code…</span></div>
+      <div style="flex:1;min-width:220px">
+        <div class="muted" style="font-size:12.5px;margin-bottom:8px">Have ${esc(f)} scan the code with their phone camera, or send the link:</div>
+        <div style="display:flex;gap:8px;align-items:center"><div class="field" style="margin:0;flex:1;min-width:0"><input type="text" id="appUrlBox" readonly value="${esc(url)}" style="font-size:12.5px;padding:8px 10px" onclick="this.select()"></div><button class="btn btn-sec btn-sm" data-act="quizCopy" data-what="link" type="button">${ic('copy', 13)} Copy</button></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+          ${phone ? `<a class="btn btn-sec btn-sm" style="text-decoration:none" href="sms:${esc(phone)}?&body=${encodeURIComponent(msg)}">${ic('message', 13)} Text it</a>` : ''}
+          ${email ? `<a class="btn btn-sec btn-sm" style="text-decoration:none" href="mailto:${esc(email)}?subject=${encodeURIComponent('Employment application — ' + practice)}&body=${encodeURIComponent(msg)}">${ic('mail', 13)} Email it</a>` : ''}
+          <button class="btn btn-sec btn-sm" data-act="quizCopy" data-what="msg" type="button">${ic('copy', 13)} Copy a message</button>
+        </div>
+      </div>
+    </div>
+    <p class="muted" style="font-size:12.5px;margin-top:16px">Made ${esc(quizDay(L.at))}. Waiting for ${esc(f)}’s application. It lands in Staff Hub even if Staff Hub is closed when ${esc(f)} sends it.</p>
+  </div>
+  <div class="mf" style="justify-content:space-between"><button class="btn btn-sec" data-act="appLinkOff" data-id="${c.id}" type="button">Turn off link</button><button class="btn btn-pri" data-act="closeModal" type="button">Done</button></div>`);
+  quizMountQr();
+}
+/* make a link for candidate `id`; btn (optional) shows "Making the link…" meanwhile */
+async function appMakeFor(id, btn) {
+  if (!S) return;
+  const c0 = candById(id);
+  if (!c0) return;
+  if (c0.appLink && c0.appLink.t && !c0.appLink.lost) { appLinkDialog(c0); return; }
+  if (!fbUser || !fbDB) { toast('Sign in to Staff Hub first.', true); return; }
+  if (appBusy) return;
+  appBusy = true;
+  const label = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'Making the link…'; }
+  const cid = c0.id;
+  let res = { skip: true };
+  try {
+    const code = quizCode(), at = Date.now(), kp = await appKeyPair(), txt = appFormText();
+    const inv = { v: 1, k: 'c', first: quizFirst(c0).slice(0, 40), sid: cid, at: at, pos: String(c0.position || '').slice(0, 80),
+      practice: String((S.settings && S.settings.officeName) || 'Next Level Orthodontics').slice(0, 80), eeo: txt.eeo, emp: txt.emp, ref: txt.ref, terms: txt.terms, pk: kp.pk };
+    const link = { t: code, at: at, sk: kp.sk };
+    for (let i = 0; i < 6; i++) {
+      res = await quizAtomic(async (tx, copy) => {
+        const cp = candList(copy).find(x => x && x.id === cid);
+        if (!cp) return null;
+        if (cp.appLink && cp.appLink.t && !cp.appLink.lost && cp.appLink.t !== code) return null;   /* another device just made one: use that */
+        cp.appLink = JSON.parse(JSON.stringify(link));
+        quizLog(copy, 'Made an application link for candidate ' + cp.name);
+        return { write: w => w.set(quizCol('appInvite').doc(code), inv) };
+      }, () => {
+        const lc = candById(cid);
+        if (lc && !(lc.appLink && lc.appLink.t === code)) { lc.appLink = JSON.parse(JSON.stringify(link)); quizLog(S, 'Made an application link for candidate ' + lc.name); }
+      });
+      if (!res.stale) break;
+      await quizSleep(800);
+    }
+  } catch (e) { res = { err: e }; }
+  appBusy = false;
+  const c = S && candById(cid);
+  if (res.ok && c) {
+    if (!appUnsub) appWatchStart();
+    quizRender(); candRefresh(cid);
+    appLinkDialog(c);
+    return;
+  }
+  if (res.skip && c && c.appLink && c.appLink.t && !c.appLink.lost) { if (btn && document.body.contains(btn)) { btn.disabled = false; btn.innerHTML = label; } appLinkDialog(c); return; }
+  if (btn && document.body.contains(btn)) { btn.disabled = false; btn.innerHTML = label; }
+  if (!res.skip && !res.tooBig) toast(quizErrText(res).replace('quiz links', 'application links'), true);
+}
+H.appLinkMake = t => { appMakeFor(t.dataset.id, t); };
+H.appLinkShow = t => {
+  const c = S && candById(t.dataset.id);
+  if (!c || !c.appLink) return;
+  if (c.appLink.lost) appMakeFor(c.id, t); else appLinkDialog(c);
+};
+H.appLinkOff = t => {
+  const c = S && candById(t.dataset.id);
+  if (!c || !c.appLink) { closeModal(); return; }
+  const f = quizFirst(c), code = c.appLink.t, cid = c.id;
+  confirmModal('Turn off ' + f + '’s application link?', 'The link stops working right away. You can make a new one any time.', async () => {
+    let res = { skip: true };
+    for (let i = 0; i < 6; i++) {
+      res = await quizAtomic(async (tx, copy) => {
+        const got = await appImportPlan(tx, copy, code);   /* their application just came in: keep it */
+        if (got) return got;
+        const cp = candList(copy).find(x => x && x.id === cid);
+        if (cp && cp.appLink && cp.appLink.t === code) { delete cp.appLink; quizLog(copy, 'Turned off ' + cp.name + '’s application link'); }
+        return { kind: 'off', code, cid, write: w => w.delete(quizCol('appInvite').doc(code)) };
+      }, pl => {
+        if (pl.kind !== 'off') return appApplyPlan(pl);
+        const cur = candById(cid);
+        if (cur && cur.appLink && cur.appLink.t === code) { delete cur.appLink; quizLog(S, 'Turned off ' + cur.name + '’s application link'); }
+        return pl;
+      });
+      if (!res.stale) break;
+      await quizSleep(800);
+    }
+    if (!res.ok) { if (!res.skip && !res.tooBig) toast(quizErrText(res), true); return; }
+    quizRender(); candRefresh(cid);
+    const pl = res.plan;
+    if (pl.kind === 'ok') toast(f + '’s application had just come in, so it was saved. The link is off.');
+    else if (pl.kind === 'lost') toast(f + '’s application had just come in but couldn’t be opened. The link is off.', true);
+    else toast('Link turned off');
+  });
+};
+
+/* ---- applications coming back: watched while Staff Hub is unlocked ---- */
+function appWatchStart() {
+  appWatchStop();
+  if (!fbUser || !fbDB) return;
+  try {
+    appUnsub = quizCol('appAnswers').onSnapshot(snap => {
+      appPending = snap.docs.map(d => d.id);
+      appPending.forEach(code => { appClaim(code); });
+    }, () => {
+      appUnsub = null; appPending = [];
+      appWatchTimer = setTimeout(() => { if (S && fbUser) appWatchStart(); }, 60000);
+    });
+  } catch (e) { appUnsub = null; }
+}
+function appWatchStop() {
+  clearTimeout(appWatchTimer); appWatchTimer = null;
+  if (appUnsub) { try { appUnsub(); } catch (e) {} appUnsub = null; }
+  appPending = [];
+  Object.keys(appCache).forEach(k => { delete appCache[k]; });   /* opened applications don't outlive the unlock */
+}
+function appRescan() { appPending.forEach(code => { appTries[code] = 0; appClaim(code); }); }
+function appRetry(code) {
+  appTries[code] = (appTries[code] || 0) + 1;
+  if (appTries[code] > 30) return;   /* the next sync or unlock tries again */
+  setTimeout(() => { if (S) appClaim(code); }, Math.min(30000, 1500 * appTries[code]));
+}
+async function appClaim(code) {
+  if (!S || !fbUser || !fbDB || appClaiming.has(code) || appPending.indexOf(code) < 0) return;
+  appClaiming.add(code);
+  let res;
+  try { res = await quizAtomic(async (tx, copy) => appImportPlan(tx, copy, code), pl => appApplyPlan(pl)); }
+  finally { appClaiming.delete(code); }
+  if (res.ok) {
+    appTries[code] = 0;
+    const pl = res.plan;
+    const open = document.querySelector('[data-appcode]');
+    if (open && open.getAttribute('data-appcode') === code) closeModal();
+    quizRender();
+    if (pl.cid) candRefresh(pl.cid);
+    const c = pl.cid ? candById(pl.cid) : null, f = c ? quizFirst(c) + ' (candidate)' : 'A candidate';
+    if (pl.kind === 'ok') toast(f + ' sent their application');
+    else if (pl.kind === 'lost') toast(f + ': their application arrived but couldn’t be opened. Send a new link.', true);
+  } else if (res.stale || res.err) appRetry(code);
+}
+
+/* ---- viewing and printing a received application ---- */
+async function appLoad(c) {
+  const A = c && c.app;
+  if (!A || !A.code || !A.k) return null;
+  if (appCache[A.code]) return appCache[A.code];
+  if (!fbUser || !fbDB) return null;
+  const snap = await quizCol('candApps').doc(A.code).get();
+  const d = snap && snap.exists ? snap.data() : null;
+  if (!d || !d.data) return null;
+  const app = appCleanForm(await decryptJSON(d.data, await appDocKey(unb64(A.k))));
+  app.at = A.at; app.code = A.code;
+  appCache[A.code] = app;
+  return app;
+}
+function appSigSVG(sig) {
+  if (!sig || !sig.d) return '';
+  const sw = Math.max(2.2, Math.min(9, sig.w / 150));
+  return `<svg class="nhSig" viewBox="0 0 ${sig.w} ${sig.h}" preserveAspectRatio="xMinYMax meet" role="img" aria-label="Applicant signature"><path d="${esc(sig.d)}" fill="none" stroke="#11203A" stroke-width="${sw.toFixed(2)}" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+}
+/* the application as a printable document on letterhead, laid out like the paper Employment Application */
+function appDocHTML(a, c) {
+  const ctx = nhCtx(null);
+  ctx.title = 'Employment Application';
+  const f = a.f, practice = a.practice || ctx.practice;
+  const fld = (label, v, w) => `<div class="nhF" style="flex-grow:${w || 1}"><div class="l">${esc(label)}</div><div class="v">${esc(v || '')}</div></div>`;
+  const row = cells => `<div class="nhFields">${cells.join('')}</div>`;
+  const box = on => `<span class="nhBox${on ? ' on' : ''}"></span>`;
+  const yn = v => `${box(v === 'Yes')}Yes<span class="nhGap"></span>${box(v === 'No')}No`;
+  const table = (cols, rows, empty) => {
+    const tot = cols.reduce((n, x) => n + x[1], 0) || 1;
+    return `<table class="nhTbl"><colgroup>${cols.map(x => `<col style="width:${(x[1] / tot * 100).toFixed(2)}%">`).join('')}</colgroup>` +
+      `<tr>${cols.map(x => `<th>${esc(x[0])}</th>`).join('')}</tr>` +
+      (rows.length ? rows.map(r => `<tr>${r.map(v => `<td>${esc(v || '')}</td>`).join('')}</tr>`).join('')
+                   : `<tr><td class="nhTdEmpty" colspan="${cols.length}">${esc(empty)}</td></tr>`) + '</table>';
+  };
+  let when = '';
+  try { when = new Date(a.at).toLocaleString('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' }); } catch (e) { when = quizDay(a.at); }
+  const day = nhNumDate(appYMD(a.at));
+  const edu = f.edu.filter(x => x.school || x.years || x.grad || x.study).map(x => [(x.level ? x.level + ': ' : '') + x.school, x.years, x.grad, x.study]);
+  const jobs = f.jobs.filter(j => j.company || j.position).map(j => [j.company, [j.from, j.to].filter(Boolean).join(' – '), j.position, j.supervisor, j.contact, j.reason]);
+  const refs = f.refs.filter(r => r.name || r.phone || r.relation).map(r => [r.name, r.phone, r.relation]);
+  let b = '';
+  if (a.eeo) b += `<div class="nhNote"><p>${appRich(a.eeo)}</p></div>`;
+  b += '<h3>Personal information</h3>';
+  b += row([fld('Full name', f.name, 2), fld('Date', day)]);
+  b += row([fld('Street address', f.street, 2.2), fld('City', f.city, 1.1), fld('State', f.state, 0.45), fld('ZIP', f.zip, 0.6)]);
+  b += row([fld('Phone', f.phone), fld('Email', f.email, 1.6)]);
+  b += row([fld('Position applied for', f.position, 1.3), fld('Date available', /^\d{4}-\d{2}-\d{2}$/.test(f.available) ? nhNumDate(f.available) : f.available, 0.9),
+    fld('Full / part time', f.employment, 0.9), fld('Desired pay (hourly or salary)', f.pay, 1.4)]);
+  b += `<p>Are you legally authorized to work in the United States?<span class="nhGap"></span>${yn(f.authorized)}</p>`;
+  b += `<p>Have you worked for ${esc(practice)} before?<span class="nhGap"></span>${yn(f.before)}${f.before === 'Yes' ? `<span class="nhGap"></span>If yes, when? <b>${esc(f.beforeWhen || '—')}</b>` : ''}</p>`;
+  b += row([fld('How did you hear about this position?', f.heard, 1.2), fld('Licenses & certifications (type, number, expiration)', f.licenses, 1.8)]);
+  b += '<h3>Education</h3>' + table([['School name & location', 2.4], ['Years completed', 1], ['Graduated?', 0.9], ['Degree / course of study', 1.8]], edu, 'None listed');
+  b += '<h3>Employment history</h3>' + (a.intro.emp ? `<p>${appRich(a.intro.emp)}</p>` : '') +
+    table([['Company name & location', 2], ['From – to', 1.05], ['Position held', 1.25], ['Supervisor & phone', 1.45], ['Contact?', 0.75], ['Reason for leaving', 1.5]], jobs,
+      f.noJobs ? 'The applicant has no jobs to list.' : 'None listed');
+  b += `<div class="nhPB"></div>${nhSlimHTML(ctx, ctx.title + ' — continued', true)}`;
+  b += '<h3>References</h3>' + (a.intro.ref ? `<p>${appRich(a.intro.ref)}</p>` : '') +
+    table([['Name / title / company', 2.6], ['Telephone', 1.3], ['Years known / relationship', 1.5]], refs, 'None listed');
+  b += '<h3>Please read carefully before signing</h3>' + a.terms.map(t => `<p>${appRich(t)}</p>`).join('');
+  b += `<div class="nhFields sigrow"><div class="nhF" style="flex-grow:2"><div class="l">Applicant signature</div><div class="v">${appSigSVG(a.sig)}</div></div><div class="nhF"><div class="l">Date</div><div class="v">${esc(day)}</div></div></div>`;
+  b += `<p class="nhEsig">Signed electronically by ${esc(a.signName || f.name)} and sent ${esc(when)} from the secure application link ${esc(practice)} sent them.${a.agreed ? ' They checked “I have read and agree to the statements above.”' : ''}</p>`;
+  return `<section class="nhDoc">${nhLetterheadHTML(ctx)}<div class="nhTitleRow"><h1 class="nhTitle">Employment Application</h1><span class="nhRev">Submitted online ${esc(quizDay(a.at))}</span></div><div class="nhBody">${b}</div></section>`;
+}
+async function appViewModal(cid) {
+  const c = candById(cid); if (!c || !c.app) return;
+  const head = `<div class="mh"><h3>Employment Application — ${esc(c.name)}</h3><button class="x" data-act="closeModal">✕</button></div>`;
+  openModal(head + '<div class="mb"><div class="muted" style="padding:28px 0;text-align:center">Opening their application…</div></div>', true);
+  const token = {};
+  appViewModal.token = token;
+  let app = null;
+  try { await nhLoadLogo(); app = await appLoad(c); } catch (e) { app = null; }
+  if (appViewModal.token !== token || !$('#modalWrap .modal')) return;   /* closed or replaced meanwhile */
+  if (!app) {
+    openModal(head + '<div class="mb"><div class="warnBox">Couldn’t open the application. Check your connection and try again.</div></div><div class="mf"><button class="btn btn-sec" data-act="closeModal">Close</button></div>', true);
+    return;
+  }
+  openModal(head + `<div class="mb nhPrevBox"><div class="nhPrev"><div class="nhPaper">${appDocHTML(app, c)}</div></div></div>
+    <div class="mf"><span class="tiny">Sent ${esc(quizDay(app.at))} from their link</span><div class="sp"></div><button class="btn btn-sec" data-act="closeModal">Close</button><button class="btn btn-pri" data-act="appPrint" data-id="${c.id}">${ic('printer', 14)} Print</button></div>`, true);
+  nhFitPapers();
+}
+H.appView = t => { appViewModal(t.dataset.id); };
+H.appPrint = async t => {
+  const c = candById(t.dataset.id); if (!c || !c.app) return;
+  let app = null;
+  try { await nhLoadLogo(); app = await appLoad(c); } catch (e) { app = null; }
+  if (!app) { toast('Couldn’t open the application to print. Check your connection and try again.', true); return; }
+  nhDoPrint(appDocHTML(app, c), 'Employment Application - ' + c.name);
+};
+
+/* ---- the application box on a candidate card, and its cell in the list ---- */
+function candAppCell(c) {
+  if (c.app) return `<span class="badge b-green">${ic('fileText', 11)} Application in ${esc(quizShortDay(c.app.at))}</span>`;
+  if (c.appLink && c.appLink.lost) return '<span class="badge b-amber">Application didn’t open</span>';
+  if (c.appLink) return `<span class="badge b-blue">${ic('fileText', 11)} Application sent ${esc(quizShortDay(c.appLink.at))}</span>`;
+  return '<span class="tiny">No application yet</span>';
+}
+function candAppBoxHTML(c) {
+  const f = esc(quizFirst(c)), open = candIsOpen(c), L = c.appLink, A = c.app;
+  const box = 'display:flex;align-items:center;gap:10px;flex-wrap:wrap;border-radius:10px;padding:10px 12px;font-size:13px;margin:0';
+  if (A && A.code) {
+    const s = A.sum || {};
+    const facts = [
+      s.pay ? ['Desired pay', s.pay] : null,
+      s.avail ? ['Can start', fmtD(s.avail)] : null,
+      s.emp ? ['Full / part time', s.emp] : null,
+      s.auth ? ['Authorized to work in the U.S.', s.auth] : null,
+      (s.city || s.state) ? ['Lives in', [s.city, s.state].filter(Boolean).join(', ')] : null,
+      s.lic ? ['Licenses & certifications', s.lic] : null,
+      ['Work history', s.jobs ? plural(s.jobs, 'job') + ' listed' : 'None listed'],
+      ['References', s.refs ? String(s.refs) + ' with phone numbers' : 'None listed']
+    ].filter(Boolean);
+    const again = !open ? '' : (L && !L.lost)
+      ? `<button class="btn-ghost btn-sm" data-act="appLinkShow" data-id="${c.id}" type="button">${ic('link', 13)} See their new link</button>`
+      : `<button class="btn-ghost btn-sm" data-act="appLinkMake" data-id="${c.id}" type="button">${ic('link', 13)} Send a new link</button>`;
+    return `<div style="border:1px solid var(--grey-200);border-radius:12px;padding:12px 14px">
+      <div style="display:flex;align-items:center;gap:8px 10px;flex-wrap:wrap"><span style="flex:1;min-width:190px;display:flex;align-items:center;gap:8px;flex-wrap:wrap"><b style="color:var(--navy);display:inline-flex;align-items:center;gap:6px">${ic('fileText', 15)} Employment application</b><span class="badge b-green">Received ${esc(quizShortDay(A.at))}</span></span>
+        <button class="btn btn-sec btn-sm" data-act="appView" data-id="${c.id}" type="button">${ic('eye', 13)} View</button><button class="btn btn-sec btn-sm" data-act="appPrint" data-id="${c.id}" type="button">${ic('printer', 13)} Print</button></div>
+      <div class="nhDetGrid" style="margin-top:10px">${facts.map(([k, v]) => `<span class="k">${esc(k)}</span><span class="v">${esc(v)}</span>`).join('')}</div>
+      ${again ? `<div style="text-align:right;margin-top:6px">${again}</div>` : ''}
+    </div>`;
+  }
+  if (L && L.lost) return !open ? '<div class="tiny">Their application didn’t arrive.</div>' : `<div class="warnBox" style="${box}"><span style="flex:1;min-width:200px">${f}’s application arrived but couldn’t be opened. Send ${f} a new link.</span><button class="btn btn-sec btn-sm" data-act="appLinkMake" data-id="${c.id}" type="button">${ic('link', 13)} Send a new link</button></div>`;
+  if (L) return `<div style="${box};background:var(--blue-100);color:var(--navy)"><span style="flex:1;min-width:200px">Application link sent ${esc(quizDay(L.at))}. ${f}’s application shows up here when they send it.</span><button class="btn btn-sec btn-sm" data-act="appLinkShow" data-id="${c.id}" type="button">${ic('link', 13)} See the link</button></div>`;
+  if (!open) return '<div class="tiny">No application.</div>';
+  return `<div style="${box};background:var(--blue-100);color:var(--navy)"><span style="flex:1;min-width:200px">Send ${f} the employment application. They fill it out and sign it on their phone in about 10 minutes, and it lands here.</span><button class="btn btn-pri btn-sm" data-act="appLinkMake" data-id="${c.id}" type="button">${ic('fileText', 13)} Send ${f} the application</button></div>`;
+}
+/* hiring a candidate: start the new-hire record from their card and, if it's in, their application */
+function candHirePrefill(cd) {
+  const s = (cd.app && cd.app.sum) || {};
+  const v = { name: cd.name || '', position: cd.position || '', cell: cd.phone || s.phone || '', email: cd.email || s.email || '', team: candTeamGuess(cd.position) };
+  ['street', 'city', 'state', 'zip'].forEach(k => { if (s[k]) v[k] = s[k]; });
+  if (/part/i.test(s.emp || '')) v.employment = 'Part-time';
+  return v;
+}
+
+/* =====================================================================
+   CANDIDATE STAGES & NEXT STEPS
+   Each open candidate sits at one stage, has a next step with a due date,
+   and can carry interview and working-interview times:
+     stage ('new' | 'screen' | 'interview' | 'working' | 'offer'), stageAt (ms),
+     next (text), nextDate (YMD), interview / working ('YYYY-MM-DDTHH:MM')
+   The Candidates tab groups people by stage and lists what's coming up,
+   with overdue next steps flagged.
+   ===================================================================== */
+const CAND_STAGES = [
+  { id: 'new',       label: 'New',               icon: 'userPlus' },
+  { id: 'screen',    label: 'Phone screen',      icon: 'phone' },
+  { id: 'interview', label: 'Interview',         icon: 'users' },
+  { id: 'working',   label: 'Working interview', icon: 'briefcase' },
+  { id: 'offer',     label: 'Offer',             icon: 'award' }
+];
+const candStage = c => (c && CAND_STAGES.some(s => s.id === c.stage)) ? c.stage : 'new';
+const candStageLabel = id => (CAND_STAGES.find(s => s.id === id) || CAND_STAGES[0]).label;
+const candWhenOk = v => /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(String(v || ''));
+function candWhenFmt(v) {
+  if (!candWhenOk(v)) return '';
+  const d = new Date(v);
+  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) + ', ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+}
+function candDueBadge(ymd) {
+  const d = daysUntil(ymd);
+  if (d == null) return '';
+  if (d < 0) return `<span class="badge b-red">Overdue ${plural(-d, 'day')}</span>`;
+  if (d === 0) return '<span class="badge b-amber">Due today</span>';
+  if (d === 1) return '<span class="badge b-blue">Due tomorrow</span>';
+  return `<span class="badge b-gray">Due ${esc(fmtDShort(ymd))}</span>`;
+}
+/* within a stage: soonest next step first (overdue on top), then newest */
+function candSort(a, b) { return String(a.nextDate || '9999-99-99').localeCompare(String(b.nextDate || '9999-99-99')) || (b.created || 0) - (a.created || 0); }
+/* next steps due within a week (or overdue), and interviews in the next two weeks */
+function candUpcomingHTML(open) {
+  const items = [];
+  open.forEach(c => {
+    if (c.nextDate) {
+      const d = daysUntil(c.nextDate);
+      if (d != null && d <= 7) items.push({ c, key: c.nextDate + 'T00:00', icon: 'flag', what: 'Next step' + (c.next ? ': ' + c.next : ''), badge: candDueBadge(c.nextDate) });
+    }
+    [['interview', 'Interview', 'users'], ['working', 'Working interview', 'briefcase']].forEach(([k, label, icn]) => {
+      const v = c[k];
+      if (!candWhenOk(v)) return;
+      const d = daysUntil(v.slice(0, 10));
+      if (d == null || d < 0 || d > 14) return;
+      items.push({ c, key: v, icon: icn, what: label + ' · ' + candWhenFmt(v),
+        badge: d === 0 ? '<span class="badge b-amber">Today</span>' : d === 1 ? '<span class="badge b-blue">Tomorrow</span>' : `<span class="badge b-gray">In ${plural(d, 'day')}</span>` });
+    });
+  });
+  if (!items.length) return '';
+  items.sort((a, b) => a.key.localeCompare(b.key));
+  const rows = items.map(it => `<div class="nhRow nhHireRow" data-act="candOpen" data-id="${it.c.id}">${avHTML(it.c, 'sm')}<div class="nhRowT"><b>${esc(it.c.name)}</b><span class="tiny candNext">${ic(it.icon, 12)} ${esc(it.what)}</span></div><div class="nhRowA">${it.badge}</div></div>`).join('');
+  return `<div style="margin-bottom:18px">${panelHTML('Coming up', items.length, rows, '', 'calendar')}</div>`;
+}
+/* the stage buttons, next step and dates at the top of an open candidate's card */
+function candPlanHTML(c) {
+  const st = candStage(c);
+  const btns = CAND_STAGES.map(s => `<button type="button" class="candStg${s.id === st ? ' on' : ''}" data-act="candStage" data-id="${c.id}" data-stage="${s.id}" aria-pressed="${s.id === st}">${esc(s.label)}</button>`).join('');
+  const since = c.stageAt ? `<span class="tiny">${esc(candStageLabel(st))} since ${esc(quizShortDay(c.stageAt))}</span>` : '';
+  const when = k => candWhenOk(c[k]) ? c[k] : '';
+  return `<div class="candPlan">
+    <div class="candPlanHd"><b>Stage</b>${since}</div>
+    <div class="candStages" role="group" aria-label="Hiring stage">${btns}</div>
+    <div class="frow">
+      <div class="field"><label>Next step</label><input type="text" value="${esc(c.next || '')}" data-chg="candPlan" data-key="next" data-id="${c.id}" placeholder="e.g. Eve calls Friday, check references" maxlength="160"></div>
+      <div class="field"><label>Due <span data-candduebadge="${esc(c.id)}">${candDueBadge(c.nextDate)}</span></label><input type="date" value="${esc(c.nextDate || '')}" data-chg="candPlan" data-key="nextDate" data-id="${c.id}"></div>
+    </div>
+    <div class="frow">
+      <div class="field"><label>Interview</label><input type="datetime-local" value="${esc(when('interview'))}" data-chg="candPlan" data-key="interview" data-id="${c.id}"></div>
+      <div class="field"><label>Working interview</label><input type="datetime-local" value="${esc(when('working'))}" data-chg="candPlan" data-key="working" data-id="${c.id}"></div>
+    </div>
+  </div>`;
+}
+H.candStage = t => {
+  const c = candById(t.dataset.id), s = t.dataset.stage;
+  if (!c || !CAND_STAGES.some(x => x.id === s) || candStage(c) === s) return;
+  c.stage = s; c.stageAt = Date.now();
+  act('Moved candidate ' + c.name + ' to ' + candStageLabel(s));
+  persist(); render(); candModal(c.id);
+};
+H.candPlan = t => {
+  const c = candById(t.dataset.id), k = t.dataset.key;
+  if (!c || ['next', 'nextDate', 'interview', 'working'].indexOf(k) < 0) return;
+  let v = String(t.value || '').trim();
+  if (k === 'next') v = v.slice(0, 160);
+  else if (k === 'nextDate') { if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) v = ''; }
+  else { v = v.slice(0, 16); if (!candWhenOk(v)) v = ''; }
+  if ((c[k] || '') === v) return;
+  if (v) c[k] = v; else delete c[k];
+  persist(); render();
+  if (k === 'nextDate') { const b = document.querySelector('#modalWrap [data-candduebadge="' + c.id + '"]'); if (b) b.innerHTML = candDueBadge(c.nextDate); }
 };
 
 /* =====================================================================

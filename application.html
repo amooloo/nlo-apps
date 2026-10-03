@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1B2F4C">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>Employment Application — Next Level Orthodontics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Oswald:wght@400;500&display=swap" rel="stylesheet">
+<!--
+  NLO employment application: the page a job candidate opens from the link Dr. Akhavan sends from Staff Hub
+  (New Hire Paperwork > Candidates > Send application). No login.
+  The link carries Staff Hub's account id (u) and a one-time invite code (t). The invite, appInvite/{t}, holds the
+  candidate's first name and position, the practice's own application wording (equal-opportunity note, section intros
+  and the statements they sign) and a public key made for this one link.
+  The finished application is encrypted on the phone with that key (ECDH P-256 + HKDF-SHA256 + AES-GCM, with the
+  invite code as context) and written once to appAnswers/{t}. Only Staff Hub, which kept the matching private key,
+  can read it. Staff Hub imports it onto the candidate's card, then deletes the invite and the answers.
+  A draft stays on the phone (localStorage) until it is sent; after that only a "sent" mark is kept.
+  The questions mirror the "Employment Application" form in Staff Hub's form library (NH_FORMS id 'application')
+  and appCleanForm() in nlo-staff-hub.html: keep the three in step.
+-->
+<style>
+:root{
+  --navy:#1B2F4C;--navy-900:#11203A;
+  --blue:#1D3EA9;--blue-700:#16318C;--blue-100:#E5EAF8;
+  --coral-700:#D8412E;--coral-100:#FDECEA;
+  --mint-100:#E2FBF4;
+  --g50:#F7F8F9;--g100:#ECEEF0;--g200:#DCE0E4;--g300:#C3C9D0;--g500:#6B7685;--g600:#4C5868;
+  --off:#F2F3F4;--card:#fff;
+  --fb:'Montserrat',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --fd:'Oswald','Montserrat',system-ui,sans-serif;
+  --r:14px;
+  --sh:0 1px 3px rgba(27,47,76,.07),0 4px 16px rgba(27,47,76,.05);
+  --safe-b:env(safe-area-inset-bottom,0px);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{font-family:var(--fb);background:var(--off);color:var(--navy);min-height:100vh;font-size:15px;line-height:1.5}
+button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
+.hide{display:none!important}
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+
+.top{position:sticky;top:0;z-index:20;background:var(--navy);color:#fff;box-shadow:0 2px 12px rgba(17,32,58,.25)}
+.top-in{max-width:680px;margin:0 auto;display:flex;align-items:center;gap:12px;padding:10px 16px;min-height:56px}
+.top img{height:28px;width:auto;display:block}
+.brand-t{font-family:var(--fd);font-size:18px;letter-spacing:.6px;text-transform:uppercase;font-weight:500;line-height:1.15}
+.brand-t small{display:block;font-family:var(--fb);font-size:10px;letter-spacing:1.6px;opacity:.65;font-weight:600}
+
+main{max-width:680px;margin:0 auto;padding:22px 16px calc(120px + var(--safe-b))}
+h1{font-family:var(--fd);font-weight:500;font-size:30px;letter-spacing:.3px;line-height:1.15;margin-bottom:6px}
+.lead{color:var(--g600);font-size:15px;margin-bottom:16px}
+.lead b{color:var(--navy)}
+.sub{color:var(--g500);font-size:13.5px;margin:-8px 0 14px}
+.card{background:var(--card);border-radius:var(--r);box-shadow:var(--sh);padding:18px 16px 4px}
+.card + .card{margin-top:12px}
+.card h2{font-size:16px;font-weight:700;margin-bottom:10px}
+.fine{color:var(--g500);font-size:12.5px;text-align:center;margin-top:16px;display:flex;align-items:center;justify-content:center;gap:6px}
+.eeo{background:#EEF1F5;border-left:3px solid var(--navy);border-radius:8px;padding:10px 12px;font-size:12.5px;line-height:1.5;color:var(--g600);margin:0 0 18px}
+
+.stepHd{margin:2px 0 14px}
+.kicker{font-size:11.5px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:var(--g500)}
+.prog{height:6px;background:var(--g200);border-radius:6px;overflow:hidden;margin:7px 0 12px}
+.prog i{display:block;height:100%;background:var(--blue);border-radius:6px;transition:width .25s}
+.stitle{font-family:var(--fd);font-weight:500;font-size:24px;letter-spacing:.3px;line-height:1.2}
+
+.f{margin:0 0 15px;min-width:0}
+.f label,.f .lab{display:block;font-size:13.5px;font-weight:700;color:var(--navy);margin-bottom:6px;line-height:1.35}
+.f .opt{font-weight:500;color:var(--g500)}
+.f input[type=text],.f input[type=tel],.f input[type=email],.f input[type=date],.f textarea{display:block;width:100%;min-height:48px;padding:11px 13px;border:1.5px solid var(--g200);border-radius:12px;font:inherit;font-size:16px;color:var(--navy);background:#fff;-webkit-appearance:none;appearance:none}
+.f input[type=date]{min-width:0}
+.f textarea{min-height:84px;resize:vertical;line-height:1.45}
+.f input:focus,.f textarea:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-100)}
+.f .hint{font-size:12.5px;color:var(--g500);margin-top:5px}
+.f.bad input,.f.bad textarea,.f.bad .seg label,.f.bad .sigwrap{border-color:var(--coral-700)}
+.f.bad > label,.f.bad > .lab{color:var(--coral-700)}
+.row2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 10px}
+.row3{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1.2fr);gap:0 10px}
+@media (max-width:440px){.row2.wrap{grid-template-columns:1fr}.row3{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.row3 .city{grid-column:1/-1}}
+
+.seg{display:flex;gap:8px;flex-wrap:wrap}
+.seg label{position:relative;flex:1 1 0;min-width:84px;display:flex;align-items:center;justify-content:center;text-align:center;min-height:46px;padding:6px 10px;border:1.5px solid var(--g200);border-radius:12px;font-weight:600;font-size:14.5px;margin:0;cursor:pointer;background:#fff;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;transition:border-color .14s,background .14s}
+.seg input{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none}
+.seg label.on{border-color:var(--blue);background:var(--blue-100);color:var(--blue-700)}
+.seg label:has(input:focus-visible){outline:2px solid var(--blue);outline-offset:2px}
+
+.item{background:var(--card);border-radius:var(--r);box-shadow:var(--sh);padding:14px 16px 2px;margin:0 0 12px}
+.item h3{font-size:15px;font-weight:700;margin:0 0 12px;display:flex;align-items:center;gap:8px}
+.item .rm{margin-left:auto;font-size:13px;font-weight:700;color:var(--coral-700);padding:4px 2px}
+.add{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:50px;border:1.5px dashed var(--g300);border-radius:12px;font-weight:700;color:var(--blue);background:#fff;margin:0 0 4px}
+.check{display:flex;gap:12px;align-items:flex-start;padding:13px 14px;border:1.5px solid var(--g200);border-radius:12px;cursor:pointer;font-weight:600;font-size:14.5px;line-height:1.4;background:#fff;margin:0 0 14px;-webkit-tap-highlight-color:transparent}
+.check input{width:22px;height:22px;accent-color:var(--blue);flex:none;margin-top:1px}
+.check.on{border-color:var(--blue);background:var(--blue-100)}
+.f.bad.check,.check.bad{border-color:var(--coral-700)}
+
+.errbox{background:var(--coral-100);color:#9B2C1F;border-radius:12px;padding:11px 13px;font-size:13.5px;font-weight:600;margin:0 0 14px}
+.errbox ul{margin:4px 0 0 18px;font-weight:500}
+
+.terms p{margin:0 0 10px;font-size:14px;line-height:1.55;color:var(--g600)}
+.terms b{color:var(--navy)}
+.sigwrap{position:relative;border:1.5px solid var(--g200);border-radius:12px;background:#fff;overflow:hidden}
+.sigwrap canvas{display:block;width:100%;height:170px;touch-action:none;cursor:crosshair}
+.sigwrap .base{position:absolute;left:18px;right:18px;bottom:42px;border-bottom:1.5px solid var(--g300);pointer-events:none}
+.sigwrap .x{position:absolute;left:18px;bottom:46px;font-size:18px;color:var(--g300);pointer-events:none;font-weight:600}
+.sigwrap .ph{position:absolute;left:0;right:0;bottom:14px;text-align:center;font-size:12.5px;color:var(--g500);pointer-events:none}
+.sigwrap .clr{position:absolute;top:8px;right:8px;font-size:13px;font-weight:700;color:var(--blue);background:#fff;border:1px solid var(--g200);border-radius:8px;padding:6px 11px}
+.dateline{font-size:13.5px;color:var(--g600);margin:-4px 0 14px}
+
+.rv h2{display:flex;align-items:center;gap:8px}
+.rvg{border-top:1px solid var(--g100);padding:10px 0}
+.rvg:first-of-type{border-top:0;padding-top:0}
+.rvh{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.rvh b{font-size:13px;letter-spacing:.8px;text-transform:uppercase;color:var(--g500)}
+.rvh button{margin-left:auto;font-size:13px;font-weight:700;color:var(--blue);padding:4px 2px}
+.rvl{font-size:14px;line-height:1.5;color:var(--navy);overflow-wrap:anywhere}
+.rvl span{color:var(--g500)}
+.rvl + .rvl{margin-top:3px}
+
+.bar{position:fixed;left:0;right:0;bottom:0;z-index:30;background:#fff;box-shadow:0 -4px 20px rgba(17,32,58,.10);padding:12px 16px calc(12px + var(--safe-b))}
+.bar-in{max-width:680px;margin:0 auto;display:flex;align-items:center;gap:10px}
+.count{flex:1;min-width:0;font-size:13px;color:var(--g600);font-weight:600;line-height:1.3}
+.count .hint{font-weight:500}
+.count .err{color:var(--coral-700)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 20px;border-radius:12px;font-weight:700;font-size:15px;background:var(--blue);color:#fff;box-shadow:0 2px 8px rgba(29,62,169,.25);transition:background .14s;white-space:nowrap}
+.btn:hover{background:var(--blue-700)}
+.btn:disabled{background:var(--g300);box-shadow:none;cursor:default}
+.btn.sec{background:#fff;color:var(--navy);border:1.5px solid var(--g200);box-shadow:none;padding:0 16px}
+.btn.sec:hover{background:var(--g50)}
+
+.msg{text-align:center;padding:30px 20px}
+.msg .ico{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;background:var(--blue-100);color:var(--blue)}
+.msg h2{font-family:var(--fd);font-weight:500;font-size:22px;margin-bottom:6px}
+.msg p{color:var(--g600);font-size:14.5px;max-width:420px;margin:0 auto}
+.msg .btn{margin-top:18px}
+.card.msg{padding:30px 20px}
+.spin{width:30px;height:30px;border:3px solid var(--g200);border-top-color:var(--blue);border-radius:50%;animation:sp .8s linear infinite;margin:6px auto 12px}
+@keyframes sp{to{transform:rotate(360deg)}}
+main.busy{pointer-events:none;opacity:.6}
+.sent{display:flex;align-items:center;gap:10px;background:var(--mint-100);color:#136B55;border-radius:12px;padding:11px 13px;font-weight:600;font-size:14px;margin-bottom:14px}
+.sent svg{flex:0 0 auto}
+</style>
+</head>
+<body>
+<header class="top"><div class="top-in"><img src="logo-white.png" alt="" onerror="this.style.display='none'"><div class="brand-t">Employment Application<small>Next Level Orthodontics</small></div></div></header>
+<main id="main" aria-live="polite"><div class="card msg"><div class="spin"></div><p>Loading…</p></div></main>
+<div class="bar hide" id="bar"><div class="bar-in"><button class="btn sec hide" id="back" type="button">Back</button><div class="count" id="count" role="status"></div><button class="btn" id="next" type="button">Next</button></div></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  /* Staff Hub's Firebase project (public web config, same as nlo-staff-hub.html and color-quiz.html) */
+  var FB = { apiKey: 'AIzaSyBhS4WoMSx78fNdObvPBmvft8zq5CiMw9M', authDomain: 'nlo-staff-hub.firebaseapp.com', projectId: 'nlo-staff-hub', storageBucket: 'nlo-staff-hub.firebasestorage.app', messagingSenderId: '29097520373', appId: '1:29097520373:web:8d585efe0a168a84a429bc' };
+  var STEPS = ['About you', 'Education', 'Work history', 'References', 'Review & sign'];
+  var MAX_JOBS = 6, MAX_SIG_POINTS = 4000;
+  var HKDF_INFO = 'nlo-application-v1';   /* KEEP IN SYNC with APP_HKDF_INFO in nlo-staff-hub.html */
+
+  var ICON = {
+    check: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="m8.5 12.3 2.4 2.4 4.6-5"/></svg>',
+    link:  '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1.2 1.2"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1.2-1.2"/></svg>',
+    alert: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4.3 21.2 20H2.8z"/><path d="M12 10.2v4"/><path d="M12 17.2h.01"/></svg>',
+    wifi:  '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 9a14 14 0 0 1 19 0"/><path d="M5.5 12.5a9.5 9.5 0 0 1 13 0"/><path d="M8.7 16a5 5 0 0 1 6.6 0"/><path d="M12 19.5h.01"/></svg>',
+    lock:  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8.5 10.5V7.5a3.5 3.5 0 0 1 7 0v3"/></svg>'
+  };
+
+  var $ = function (s) { return document.querySelector(s); };
+  var main = $('#main'), bar = $('#bar'), backBtn = $('#back'), nextBtn = $('#next'), count = $('#count');
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (ch) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]; }); }
+  function rich(s) { return esc(s).replace(/\*\*([^*]+?)\*\*/g, '<b>$1</b>'); }
+  function str(x, n) { return String(x == null ? '' : x).replace(/[\u0000-\u001f\u007f]+/g, ' ').trim().slice(0, n); }
+
+  /* #u=<Staff Hub account id>&t=<one-time invite code> */
+  var link = (function () {
+    var h = new URLSearchParams(String(location.hash || '').replace(/^#/, ''));
+    var u = h.get('u') || '', t = h.get('t') || '';
+    return (/^[A-Za-z0-9]{10,128}$/.test(u) && /^[A-Za-z0-9_-]{20,40}$/.test(t)) ? { u: u, t: t } : null;
+  })();
+
+  /* ---- the application, and the draft kept on this phone ---- */
+  function blankJob() { return { company: '', position: '', from: '', to: '', supervisor: '', contact: '', reason: '' }; }
+  function blankRef() { return { name: '', phone: '', relation: '' }; }
+  function blank() {
+    return {
+      name: '', street: '', city: '', state: 'FL', zip: '', phone: '', email: '',
+      position: '', available: '', employment: '', pay: '', authorized: '', before: '', beforeWhen: '', heard: '', licenses: '',
+      edu: [{ level: 'High school', school: '', years: '', grad: '', study: '' },
+            { level: 'College', school: '', years: '', grad: '', study: '' },
+            { level: 'Other training', school: '', years: '', grad: '', study: '' }],
+      noJobs: false, jobs: [blankJob()], refs: [blankRef(), blankRef(), blankRef()],
+      agree: false, signName: ''
+    };
+  }
+  /* take only the known fields, as strings, from a saved draft */
+  function fromDraft(d) {
+    var F = blank();
+    if (!d || typeof d !== 'object') return F;
+    var s = function (x) { return typeof x === 'string' ? x.slice(0, 2000) : ''; };
+    Object.keys(F).forEach(function (k) { if (typeof F[k] === 'string') F[k] = s(d[k]); });
+    if (typeof d.state !== 'string') F.state = 'FL';
+    F.noJobs = d.noJobs === true; F.agree = d.agree === true;
+    if (Array.isArray(d.edu)) F.edu.forEach(function (e, i) { var o = d.edu[i] || {}; ['school', 'years', 'grad', 'study'].forEach(function (k) { e[k] = s(o[k]); }); });
+    if (Array.isArray(d.jobs) && d.jobs.length) F.jobs = d.jobs.slice(0, MAX_JOBS).map(function (o) { var j = blankJob(); Object.keys(j).forEach(function (k) { j[k] = s(o && o[k]); }); return j; });
+    if (Array.isArray(d.refs)) F.refs.forEach(function (r, i) { var o = d.refs[i] || {}; Object.keys(r).forEach(function (k) { r[k] = s(o[k]); }); });
+    return F;
+  }
+  function cleanStrokes(a) {
+    if (!Array.isArray(a)) return [];
+    var n = 0;
+    return a.filter(Array.isArray).map(function (s) {
+      return s.filter(function (p) { return Array.isArray(p) && isFinite(p[0]) && isFinite(p[1]) && n++ < MAX_SIG_POINTS; }).map(function (p) { return [+p[0], +p[1]]; });
+    }).filter(function (s) { return s.length; });
+  }
+
+  var KEY = link ? 'nloApplication:' + link.t : '';
+  function load() { try { return JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { return null; } }
+  function save(o) { try { localStorage.setItem(KEY, JSON.stringify(o)); } catch (e) {} }
+
+  var F = blank(), step = 0, strokes = [], inv = null, sending = false, sentDone = false, invRef = null, ansRef = null, saveTimer = null;
+  function saveNow() { clearTimeout(saveTimer); if (KEY && inv && !sentDone) save({ f: F, step: step, sig: strokes, at: Date.now() }); }
+  function queueSave() { clearTimeout(saveTimer); saveTimer = setTimeout(saveNow, 300); }
+  window.addEventListener('pagehide', saveNow);
+  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') saveNow(); });
+
+  function getPath(o, k) { return k.split('.').reduce(function (a, p) { return a == null ? undefined : a[p]; }, o); }
+  function setPath(o, k, v) {
+    var ps = k.split('.'), last = ps.pop(), t = ps.reduce(function (a, p) { return a == null ? null : a[p]; }, o);
+    if (t && Object.prototype.hasOwnProperty.call(t, last)) t[last] = v;
+  }
+
+  /* ---- screens ---- */
+  function show(html, withBar) { main.classList.remove('busy'); main.innerHTML = html; bar.classList.toggle('hide', !withBar); }
+  function message(icon, title, text, retry) {
+    show('<div class="card msg"><div class="ico">' + icon + '</div><h2>' + esc(title) + '</h2><p>' + esc(text) + '</p>' +
+      (retry ? '<button class="btn" type="button" id="retry">Try again</button>' : '') + '</div>', false);
+    if (retry) $('#retry').onclick = function () { location.reload(); };
+    window.scrollTo(0, 0);
+  }
+  function usedUp() { message(ICON.link, 'This link has been used', 'This application link was already used or turned off. If you still need to apply, ask Dr. Akhavan for a new link.'); }
+  function alreadySent() { message(ICON.check, 'Already sent', 'Your application was already sent to Dr. Akhavan. Thank you!'); }
+  function sentView() {
+    show('<div class="sent">' + ICON.check + 'Sent to Dr. Akhavan. Thank you' + (inv && inv.first ? ', ' + esc(inv.first) : '') + '!</div>' +
+      '<div class="card msg"><div class="ico">' + ICON.check + '</div><h2>Application received</h2><p>' + esc((inv && inv.practice) || 'We') +
+      ' will be in touch about next steps. You can close this page now.</p></div>', false);
+    window.scrollTo(0, 0);
+  }
+  function setCount(html) { count.innerHTML = html || ''; }
+
+  /* ---- fields ---- */
+  function fid(k) { return 'f_' + k.replace(/\./g, '_'); }
+  /* a text field. o: req, quiet (no "optional" mark), type, ac (autocomplete), im (inputmode), ph, max, hint, area, cls */
+  function fld(k, label, o) {
+    o = o || {};
+    var v = getPath(F, k) || '', id = fid(k);
+    var attrs = ' id="' + id + '" data-k="' + k + '" maxlength="' + (o.max || 120) + '"' + (o.ac ? ' autocomplete="' + o.ac + '"' : '') +
+      (o.im ? ' inputmode="' + o.im + '"' : '') + (o.ph ? ' placeholder="' + esc(o.ph) + '"' : '') + (o.req ? ' aria-required="true"' : '');
+    return '<div class="f' + (o.cls ? ' ' + o.cls : '') + '" data-f="' + k + '"><label for="' + id + '">' + esc(label) +
+      (o.req || o.quiet ? '' : ' <span class="opt">(optional)</span>') + '</label>' +
+      (o.area ? '<textarea' + attrs + ' rows="3">' + esc(v) + '</textarea>' : '<input type="' + (o.type || 'text') + '"' + attrs + ' value="' + esc(v) + '">') +
+      (o.hint ? '<div class="hint">' + esc(o.hint) + '</div>' : '') + '</div>';
+  }
+  /* buttons for one choice */
+  function seg(k, label, choices, o) {
+    o = o || {};
+    var v = getPath(F, k) || '', lid = 'l_' + fid(k);
+    return '<div class="f' + (o.cls ? ' ' + o.cls : '') + '" data-f="' + k + '"><div class="lab" id="' + lid + '">' + esc(label) +
+      (o.req || o.quiet ? '' : ' <span class="opt">(optional)</span>') + '</div><div class="seg" role="radiogroup" aria-labelledby="' + lid + '">' +
+      choices.map(function (c) {
+        var on = v === c;
+        return '<label class="' + (on ? 'on' : '') + '"><input type="radio" name="' + fid(k) + '" data-k="' + k + '" value="' + esc(c) + '"' + (on ? ' checked' : '') + '><span>' + esc(c) + '</span></label>';
+      }).join('') + '</div></div>';
+  }
+
+  /* ---- the five steps ---- */
+  function stepYou() {
+    return '<div class="card">' +
+      fld('name', 'Full legal name', { req: true, ac: 'name', max: 80 }) +
+      fld('street', 'Street address', { req: true, ac: 'street-address', max: 120 }) +
+      '<div class="row3">' + fld('city', 'City', { req: true, ac: 'address-level2', max: 60, cls: 'city' }) +
+        fld('state', 'State', { req: true, ac: 'address-level1', max: 20 }) +
+        fld('zip', 'ZIP', { req: true, ac: 'postal-code', im: 'numeric', max: 10 }) + '</div>' +
+      '<div class="row2 wrap">' + fld('phone', 'Cell phone', { req: true, type: 'tel', ac: 'tel', max: 20 }) +
+        fld('email', 'Email', { req: true, type: 'email', ac: 'email', max: 120 }) + '</div>' +
+      '</div><div class="card">' +
+      fld('position', 'Position you’re applying for', { req: true, max: 80 }) +
+      '<div class="row2 wrap">' + fld('available', 'Date you could start', { type: 'date', max: 10 }) +
+        fld('pay', 'Desired pay', { req: true, ph: 'e.g. $20 an hour', max: 60 }) + '</div>' +
+      seg('employment', 'Full or part time?', ['Full time', 'Part time', 'Either']) +
+      seg('authorized', 'Are you legally authorized to work in the United States?', ['Yes', 'No'], { req: true }) +
+      seg('before', 'Have you worked for ' + inv.practice + ' before?', ['Yes', 'No']) +
+      fld('beforeWhen', 'If yes, when?', { max: 80, quiet: true, cls: F.before === 'Yes' ? '' : 'hide' }) +
+      fld('heard', 'How did you hear about this job?', { max: 120, ph: 'Indeed, a friend, our website…' }) +
+      fld('licenses', 'Licenses & certifications', { area: true, max: 600, hint: 'Type, number and expiration date, e.g. Florida dental radiography, CPR/BLS.' }) +
+      '</div>';
+  }
+  function stepEdu() {
+    return '<p class="lead">List the schools and training you’ve finished or attended. Leave any that don’t apply blank.</p>' +
+      F.edu.map(function (e, i) {
+        var p = 'edu.' + i + '.';
+        return '<div class="item"><h3>' + esc(e.level) + '</h3>' +
+          fld(p + 'school', 'School name & city', { max: 120, quiet: true }) +
+          '<div class="row2">' + fld(p + 'years', 'Years completed', { im: 'numeric', max: 10, quiet: true }) + seg(p + 'grad', 'Graduated?', ['Yes', 'No'], { quiet: true }) + '</div>' +
+          fld(p + 'study', 'Degree or course of study', { max: 120, quiet: true }) + '</div>';
+      }).join('');
+  }
+  function stepWork() {
+    var h = '<p class="lead">' + rich(inv.emp || 'Beginning with your most recent employer, list the jobs you have held in the last ten (10) years. (All information provided is subject to verification.)') + '</p>' +
+      '<p class="sub">Please fill this in even if you’ve sent a résumé.</p>' +
+      '<label class="check' + (F.noJobs ? ' on' : '') + '" data-f="noJobs"><input type="checkbox" data-k="noJobs"' + (F.noJobs ? ' checked' : '') + '><span>I don’t have any jobs to list</span></label>';
+    if (F.noJobs) return h;
+    return h + F.jobs.map(function (j, i) {
+      var p = 'jobs.' + i + '.';
+      return '<div class="item"><h3>' + (i === 0 ? 'Most recent job' : 'Job ' + (i + 1)) + (F.jobs.length > 1 ? '<button type="button" class="rm" data-rm="' + i + '">Remove</button>' : '') + '</h3>' +
+        fld(p + 'company', 'Company name & city', { req: true, max: 120 }) +
+        fld(p + 'position', 'Position held', { req: true, max: 80 }) +
+        '<div class="row2">' + fld(p + 'from', 'From', { req: true, ph: 'MM/YYYY', max: 20 }) + fld(p + 'to', 'To', { ph: 'MM/YYYY or Present', max: 20, quiet: true }) + '</div>' +
+        fld(p + 'supervisor', 'Supervisor’s name & phone', { max: 120 }) +
+        seg(p + 'contact', 'May we contact this employer?', ['Yes', 'No'], { quiet: true }) +
+        fld(p + 'reason', 'Reason for leaving', { area: true, max: 400, quiet: true }) + '</div>';
+    }).join('') + (F.jobs.length < MAX_JOBS ? '<button type="button" class="add" data-add="job">+ Add another job</button>' : '');
+  }
+  function stepRefs() {
+    return '<p class="lead">' + rich(inv.ref || 'Please list three (3) individual references from people who are familiar with your work, skills, ability and character. (Information provided is subject to verification.)') + '</p>' +
+      F.refs.map(function (r, i) {
+        var p = 'refs.' + i + '.';
+        return '<div class="item"><h3>Reference ' + (i + 1) + '</h3>' +
+          fld(p + 'name', 'Name, title & company', { max: 120, quiet: true }) +
+          fld(p + 'phone', 'Phone', { type: 'tel', max: 20, quiet: true }) +
+          fld(p + 'relation', 'Years known & relationship', { max: 120, quiet: true }) + '</div>';
+      }).join('');
+  }
+  function todayLong() { return new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }); }
+  function stepSign() {
+    return '<div class="card rv"><h2>Check your answers</h2>' + reviewHTML() + '</div>' +
+      '<div class="card"><h2>Please read carefully before signing</h2><div class="terms">' + inv.terms.map(function (t) { return '<p>' + rich(t) + '</p>'; }).join('') + '</div>' +
+      '<label class="check' + (F.agree ? ' on' : '') + '" data-f="agree"><input type="checkbox" data-k="agree"' + (F.agree ? ' checked' : '') + '><span>I have read and agree to the statements above.</span></label>' +
+      fld('signName', 'Your full name', { req: true, ac: 'name', max: 80 }) +
+      '<div class="f" data-f="sig"><div class="lab">Your signature</div><div class="sigwrap"><canvas id="sig" role="img" aria-label="Signature box. Sign with your finger."></canvas>' +
+        '<div class="base"></div><div class="x">×</div><div class="ph" id="sigPh">Sign above the line with your finger</div><button type="button" class="clr" id="sigClr">Clear</button></div></div>' +
+      '<p class="dateline">Date: ' + esc(todayLong()) + '</p></div>';
+  }
+
+  /* ---- review ---- */
+  function line(label, v) { v = String(v || '').trim(); return v ? '<div class="rvl"><span>' + esc(label) + ':</span> ' + esc(v) + '</div>' : ''; }
+  function group(title, go, body) {
+    return '<div class="rvg"><div class="rvh"><b>' + esc(title) + '</b><button type="button" data-go="' + go + '">Edit</button></div>' + (body || '<div class="rvl"><span>Nothing entered</span></div>') + '</div>';
+  }
+  function reviewHTML() {
+    var addr = [F.street, [F.city, [F.state, F.zip].filter(Boolean).join(' ')].filter(Boolean).join(', ')].filter(Boolean).join(', ');
+    var you = line('Name', F.name) + line('Address', addr) + line('Cell', F.phone) + line('Email', F.email) + line('Position', F.position) +
+      line('Could start', F.available ? new Date(F.available + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '') +
+      line('Full or part time', F.employment) + line('Desired pay', F.pay) + line('Authorized to work in the U.S.', F.authorized) +
+      line('Worked here before', F.before === 'Yes' ? 'Yes' + (F.beforeWhen ? ' (' + F.beforeWhen + ')' : '') : F.before) +
+      line('Heard about the job', F.heard) + line('Licenses & certifications', F.licenses);
+    var edu = F.edu.map(function (e) {
+      var bits = [e.school, e.years ? e.years + ' yrs' : '', e.grad ? (e.grad === 'Yes' ? 'graduated' : 'did not graduate') : '', e.study].filter(Boolean);
+      return bits.length ? line(e.level, bits.join(' · ')) : '';
+    }).join('');
+    var work = F.noJobs ? '<div class="rvl">No jobs to list</div>' : F.jobs.map(function (j) {
+      var dates = [j.from, j.to].filter(Boolean).join(' – ');
+      return (j.company || j.position) ? '<div class="rvl">' + esc([j.position, j.company].filter(Boolean).join(', ')) + (dates ? ' <span>(' + esc(dates) + ')</span>' : '') + '</div>' : '';
+    }).join('');
+    var refs = F.refs.map(function (r) { return (r.name || r.phone) ? '<div class="rvl">' + esc(r.name) + (r.phone ? ' <span>· ' + esc(r.phone) + '</span>' : '') + '</div>' : ''; }).join('');
+    return group('About you', 0, you) + group('Education', 1, edu) + group('Work history', 2, work) + group('References', 3, refs);
+  }
+
+  /* ---- checking a step ---- */
+  function digits(s) { return String(s || '').replace(/\D/g, '').length; }
+  function validate(s) {
+    var e = [];
+    var need = function (k, label) { if (!String(getPath(F, k) || '').trim()) e.push({ k: k, msg: label }); };
+    if (s === 0) {
+      need('name', 'Full legal name'); need('street', 'Street address'); need('city', 'City'); need('state', 'State');
+      if (!/^\d{5}(-?\d{4})?$/.test(F.zip.trim())) e.push({ k: 'zip', msg: F.zip.trim() ? 'ZIP code (5 digits)' : 'ZIP code' });
+      if (digits(F.phone) < 10) e.push({ k: 'phone', msg: F.phone.trim() ? 'Cell phone (10 digits)' : 'Cell phone' });
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(F.email.trim())) e.push({ k: 'email', msg: F.email.trim() ? 'Email (check the address)' : 'Email' });
+      need('position', 'Position'); need('pay', 'Desired pay'); need('authorized', 'Authorized to work in the U.S.');
+    } else if (s === 2 && !F.noJobs) {
+      F.jobs.forEach(function (j, i) {
+        var n = F.jobs.length > 1 ? ' (job ' + (i + 1) + ')' : '';
+        need('jobs.' + i + '.company', 'Company' + n); need('jobs.' + i + '.position', 'Position held' + n); need('jobs.' + i + '.from', 'From date' + n);
+      });
+    } else if (s === 3) {
+      var full = 0;
+      F.refs.forEach(function (r, i) {
+        var nm = r.name.trim(), ph = r.phone.trim();
+        if (nm && ph) full++;
+        else if (nm || ph || r.relation.trim()) { if (!nm) e.push({ k: 'refs.' + i + '.name', msg: 'Name (reference ' + (i + 1) + ')' }); if (!ph) e.push({ k: 'refs.' + i + '.phone', msg: 'Phone (reference ' + (i + 1) + ')' }); }
+      });
+      if (!full && !e.length) e.push({ k: 'refs.0.name', msg: 'At least one reference with a name and phone' }, { k: 'refs.0.phone', msg: '' });
+    } else if (s === 4) {
+      if (!F.agree) e.push({ k: 'agree', msg: 'Check the box to agree to the statements' });
+      need('signName', 'Your full name');
+      if (sigInk() < 40) e.push({ k: 'sig', msg: 'Your signature' });
+    }
+    return e;
+  }
+  function showErrors(errs) {
+    Array.prototype.forEach.call(main.querySelectorAll('[data-f].bad'), function (el) { el.classList.remove('bad'); });
+    var first = null;
+    errs.forEach(function (x) { var el = main.querySelector('[data-f="' + x.k + '"]'); if (el) { el.classList.add('bad'); if (!first) first = el; } });
+    var box = $('#errs'), msgs = errs.map(function (x) { return x.msg; }).filter(Boolean);
+    if (box) box.innerHTML = msgs.length ? '<div class="errbox" role="alert">Please fill in:<ul>' + msgs.map(function (m) { return '<li>' + esc(m) + '</li>'; }).join('') + '</ul></div>' : '';
+    setCount('<span class="err">Fix the highlighted ' + (errs.length === 1 ? 'field' : 'fields') + '</span>');
+    if (first) first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+  function clearBad(k) {
+    var el = main.querySelector('[data-f="' + k + '"].bad');
+    if (el) { el.classList.remove('bad'); if (!main.querySelector('[data-f].bad')) { var box = $('#errs'); if (box) box.innerHTML = ''; setCount(''); } }
+  }
+
+  /* ---- drawing the signature (kept in a 600-wide box, so it redraws at any size) ---- */
+  var sigCv = null, sigCtx = null, drawing = null, drawId = null;   /* one finger at a time */
+  function sigScale() { return sigCv ? sigCv.getBoundingClientRect().width / 600 : 1; }
+  function sigSize() {
+    if (!sigCv || !document.body.contains(sigCv)) return;
+    var r = sigCv.getBoundingClientRect(), dpr = Math.max(1, window.devicePixelRatio || 1);
+    sigCv.width = Math.max(1, Math.round(r.width * dpr)); sigCv.height = Math.max(1, Math.round(r.height * dpr));
+    sigCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    sigDraw();
+  }
+  function sigDraw() {
+    if (!sigCv) return;
+    var r = sigCv.getBoundingClientRect(), k = sigScale();
+    sigCtx.clearRect(0, 0, r.width, r.height);
+    sigCtx.lineWidth = 2.6; sigCtx.lineCap = 'round'; sigCtx.lineJoin = 'round'; sigCtx.strokeStyle = '#11203A';
+    strokes.forEach(function (s) {
+      sigCtx.beginPath(); sigCtx.moveTo(s[0][0] * k, s[0][1] * k);
+      if (s.length === 1) sigCtx.lineTo(s[0][0] * k + 0.4, s[0][1] * k + 0.4);
+      for (var i = 1; i < s.length; i++) sigCtx.lineTo(s[i][0] * k, s[i][1] * k);
+      sigCtx.stroke();
+    });
+    var ph = $('#sigPh'); if (ph) ph.classList.toggle('hide', strokes.length > 0);
+  }
+  function sigPoints() { return strokes.reduce(function (n, s) { return n + s.length; }, 0); }
+  function sigInk() {
+    var L = 0;
+    strokes.forEach(function (s) { for (var i = 1; i < s.length; i++) L += Math.sqrt(Math.pow(s[i][0] - s[i - 1][0], 2) + Math.pow(s[i][1] - s[i - 1][1], 2)); });
+    return L;
+  }
+  function sigMount() {
+    sigCv = $('#sig'); if (!sigCv) return;
+    sigCtx = sigCv.getContext('2d');
+    var pt = function (e) { var r = sigCv.getBoundingClientRect(), k = sigScale(); return [Math.round((e.clientX - r.left) / k * 10) / 10, Math.round((e.clientY - r.top) / k * 10) / 10]; };
+    sigCv.addEventListener('pointerdown', function (e) {
+      if (sending || drawing || e.isPrimary === false || e.button > 0 || sigPoints() >= MAX_SIG_POINTS) return;
+      e.preventDefault();
+      try { sigCv.setPointerCapture(e.pointerId); } catch (x) {}
+      drawId = e.pointerId; drawing = [pt(e)]; strokes.push(drawing); sigDraw(); clearBad('sig');
+    });
+    sigCv.addEventListener('pointermove', function (e) {
+      if (!drawing || e.pointerId !== drawId) return;
+      e.preventDefault();
+      var evs = (e.getCoalescedEvents && e.getCoalescedEvents()) || [];
+      (evs.length ? evs : [e]).forEach(function (ev) {
+        if (sigPoints() >= MAX_SIG_POINTS) return;
+        var p = pt(ev), l = drawing[drawing.length - 1];
+        if (Math.abs(p[0] - l[0]) + Math.abs(p[1] - l[1]) >= 1.5) drawing.push(p);
+      });
+      sigDraw();
+    });
+    var end = function (e) { if (!drawing || (e && e.pointerId !== drawId)) return; drawing = null; drawId = null; queueSave(); };
+    sigCv.addEventListener('pointerup', end); sigCv.addEventListener('pointercancel', end); sigCv.addEventListener('lostpointercapture', end);
+    $('#sigClr').addEventListener('click', function () { strokes = []; drawing = null; sigDraw(); queueSave(); });
+    sigSize();
+  }
+  window.addEventListener('resize', function () { if (sigCv && document.body.contains(sigCv)) sigSize(); });
+  /* the signature as an SVG path, cropped to the ink */
+  function sigExport() {
+    var pts = [].concat.apply([], strokes);
+    if (!pts.length) return null;
+    var xs = pts.map(function (p) { return p[0]; }), ys = pts.map(function (p) { return p[1]; });
+    var x0 = Math.min.apply(null, xs) - 6, y0 = Math.min.apply(null, ys) - 6, w = Math.max.apply(null, xs) - x0 + 6, h = Math.max.apply(null, ys) - y0 + 6;
+    var n = function (v) { return String(Math.round(v * 10) / 10); };
+    var d = strokes.map(function (s) {
+      return 'M' + n(s[0][0] - x0) + ' ' + n(s[0][1] - y0) + (s.length === 1 ? 'l0.5 0.5' : s.slice(1).map(function (p) { return 'L' + n(p[0] - x0) + ' ' + n(p[1] - y0); }).join(''));
+    }).join('');
+    return { d: d, w: Math.round(w), h: Math.round(h) };
+  }
+
+  /* ---- render a step ---- */
+  function render() {
+    var head = '';
+    if (step === 0) {
+      head = '<h1>' + (inv.first ? 'Hi ' + esc(inv.first) + '!' : 'Hi there!') + '</h1><p class="lead">Thanks for your interest in ' + esc(inv.practice) +
+        '. Please fill out our employment application' + (inv.pos ? ' for the <b>' + esc(inv.pos) + '</b> position' : '') +
+        '. It takes about 10 minutes. It’s saved on this phone as you go, so you can finish later from the same link.</p>' +
+        (inv.eeo ? '<div class="eeo">' + rich(inv.eeo) + '</div>' : '');
+    }
+    head += '<div class="stepHd"><div class="kicker">Step ' + (step + 1) + ' of ' + STEPS.length + '</div><div class="prog"><i style="width:' +
+      Math.round((step + 1) / STEPS.length * 100) + '%"></i></div><div class="stitle">' + esc(STEPS[step]) + '</div></div><div id="errs"></div>';
+    sigCv = null;
+    show(head + [stepYou, stepEdu, stepWork, stepRefs, stepSign][step]() +
+      '<p class="fine">' + ICON.lock + 'Sent securely. Only Dr. Akhavan can read your answers.</p>', true);
+    backBtn.classList.toggle('hide', step === 0);
+    nextBtn.textContent = step === STEPS.length - 1 ? 'Send application' : 'Next';
+    nextBtn.disabled = sending;
+    setCount('');
+    if (step === STEPS.length - 1) sigMount();
+  }
+  function goStep(s, push) {
+    step = Math.max(0, Math.min(STEPS.length - 1, s));
+    if (push) { try { history.pushState({ s: step }, ''); } catch (e) {} }
+    render(); saveNow(); window.scrollTo(0, 0);
+  }
+  window.addEventListener('popstate', function (e) {
+    if (!inv || sending || sentDone) return;
+    var s = e.state && typeof e.state.s === 'number' ? e.state.s : 0;
+    if (s !== step) goStep(s, false);
+  });
+
+  /* ---- typing, choosing, adding ---- */
+  main.addEventListener('input', function (e) {
+    var t = e.target, k = t && t.dataset && t.dataset.k;
+    if (!k || sending || t.type === 'radio' || t.type === 'checkbox') return;
+    setPath(F, k, t.value);
+    if (k === 'name' && step === 0) F.signName = '';   /* filled in again from the name at signing */
+    clearBad(k); queueSave();
+  });
+  main.addEventListener('change', function (e) {
+    var t = e.target, k = t && t.dataset && t.dataset.k;
+    if (!k) return;
+    if (t.type === 'radio') {
+      setPath(F, k, t.value);
+      var g = t.closest('.seg');
+      if (g) Array.prototype.forEach.call(g.querySelectorAll('label'), function (l) { var i = l.querySelector('input'); l.classList.toggle('on', !!(i && i.checked)); });
+      if (k === 'before') { var w = main.querySelector('[data-f="beforeWhen"]'); if (w) w.classList.toggle('hide', t.value !== 'Yes'); }
+      clearBad(k);
+    } else if (t.type === 'checkbox') {
+      if (k === 'noJobs') { F.noJobs = t.checked; saveNow(); render(); return; }
+      if (k === 'agree') { F.agree = t.checked; var c = t.closest('.check'); if (c) c.classList.toggle('on', t.checked); clearBad(k); }
+    } else setPath(F, k, t.value);
+    queueSave();
+  });
+  main.addEventListener('click', function (e) {
+    var b = e.target.closest('button');
+    if (!b || sending) return;
+    if (b.dataset.add === 'job' && F.jobs.length < MAX_JOBS) {
+      F.jobs.push(blankJob()); saveNow(); render();
+      var el = document.getElementById(fid('jobs.' + (F.jobs.length - 1) + '.company'));
+      if (el) { el.scrollIntoView({ block: 'center' }); el.focus(); }
+    } else if (b.dataset.rm != null) {
+      var i = +b.dataset.rm, j = F.jobs[i];
+      if (!j) return;
+      var filled = Object.keys(j).some(function (x) { return String(j[x]).trim(); });
+      if (filled && !window.confirm('Remove ' + (j.company ? j.company : 'this job') + ' from your work history?')) return;
+      F.jobs.splice(i, 1); if (!F.jobs.length) F.jobs.push(blankJob()); saveNow(); render();
+    } else if (b.dataset.go != null) goStep(+b.dataset.go, true);
+  });
+  backBtn.addEventListener('click', function () { if (step > 0 && !sending) goStep(step - 1, true); });
+  nextBtn.addEventListener('click', function () {
+    if (sending) return;
+    if (step < STEPS.length - 1) {
+      var errs = validate(step);
+      if (errs.length) { showErrors(errs); return; }
+      if (step === 0 && !F.signName.trim()) F.signName = F.name.trim();
+      goStep(step + 1, true);
+      return;
+    }
+    send();
+  });
+
+  /* ---- sending: encrypted on this phone for Staff Hub's key ---- */
+  function b64(buf) { var u = new Uint8Array(buf), s = ''; for (var i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); }
+  function b64url(buf) { return b64(buf).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
+  async function encryptFor(pk, token, obj) {
+    var te = new TextEncoder(), C = { name: 'ECDH', namedCurve: 'P-256' };
+    var pub = await crypto.subtle.importKey('jwk', { kty: 'EC', crv: 'P-256', x: pk.x, y: pk.y, ext: true }, C, false, []);
+    var eph = await crypto.subtle.generateKey(C, true, ['deriveBits']);
+    var bits = await crypto.subtle.deriveBits({ name: 'ECDH', public: pub }, eph.privateKey, 256);
+    var hk = await crypto.subtle.importKey('raw', bits, 'HKDF', false, ['deriveKey']);
+    var key = await crypto.subtle.deriveKey({ name: 'HKDF', hash: 'SHA-256', salt: te.encode(token), info: te.encode(HKDF_INFO) }, hk, { name: 'AES-GCM', length: 256 }, false, ['encrypt']);
+    var iv = crypto.getRandomValues(new Uint8Array(12));
+    var ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv, additionalData: te.encode(token) }, key, te.encode(JSON.stringify(obj)));
+    var ej = await crypto.subtle.exportKey('jwk', eph.publicKey);
+    return { epk: ej.x + '.' + ej.y, iv: b64(iv), ct: b64(ct) };
+  }
+  function build() {
+    var f = JSON.parse(JSON.stringify(F));
+    delete f.agree; delete f.signName;
+    if (f.before !== 'Yes') f.beforeWhen = '';
+    if (f.noJobs) f.jobs = [];
+    var tz = ''; try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) {}
+    return { v: 1, f: f, agreed: F.agree === true, signName: F.signName.trim(), sig: sigExport(), signedAt: Date.now(), tz: tz,
+      practice: inv.practice, pos: inv.pos, eeo: inv.eeo, intro: { emp: inv.emp, ref: inv.ref }, terms: inv.terms, ua: String(navigator.userAgent || '').slice(0, 200) };
+  }
+  function send() {
+    for (var s = 0; s < STEPS.length; s++) {
+      var errs = validate(s);
+      if (errs.length) { if (s !== step) goStep(s, true); showErrors(errs); return; }
+    }
+    sending = true; nextBtn.disabled = true; nextBtn.textContent = 'Sending…';
+    main.classList.add('busy');   /* nothing on the form changes while it's on its way */
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    setCount('<span class="hint">Sending securely…</span>');
+    var slow = setTimeout(function () { setCount('<span class="hint">Still sending… check that you’re connected to the internet.</span>'); }, 12000);
+    var payload = build();
+    encryptFor(inv.pk, link.t, payload).catch(function (e) { throw { cryptoFail: true, e: e }; }).then(function (enc) {
+      return ansRef.set({ v: 1, epk: enc.epk, iv: enc.iv, ct: enc.ct, at: firebase.firestore.FieldValue.serverTimestamp() });
+    }).then(function () {
+      clearTimeout(slow); sentDone = true; sending = false;
+      save({ sent: Date.now() });   /* the draft (their answers) is cleared from this phone */
+      sentView();
+    }).catch(function (e) {
+      clearTimeout(slow); sending = false; nextBtn.disabled = false; nextBtn.textContent = 'Send application';
+      if (!(e && e.code === 'permission-denied')) main.classList.remove('busy');
+      if (e && e.cryptoFail) { setCount('<span class="err">This browser couldn’t secure your application. Update it or open the link in Safari or Chrome.</span>'); return; }
+      if (e && e.code === 'permission-denied') {
+        /* already sent (maybe from another phone), the link was just turned off, or it was refused:
+           only a confirmed send clears the draft */
+        Promise.all([invRef.get(), ansRef.get().catch(function () { return null; })]).then(function (r) {
+          if (r[1] && r[1].exists) { sentDone = true; save({ sent: Date.now(), dup: true }); alreadySent(); }
+          else if (!r[0].exists) usedUp();
+          else { main.classList.remove('busy'); setCount('<span class="err">Couldn’t send your application. Please let Dr. Akhavan know. Your answers are still saved on this phone.</span>'); }
+        }).catch(function () { main.classList.remove('busy'); setCount('<span class="err">Couldn’t send. Check your connection and tap Send again.</span>'); });
+        return;
+      }
+      setCount('<span class="err">Couldn’t send. Check your connection and tap Send again.</span>');
+    });
+  }
+
+  /* ---- the invite: what the office sent with this link ---- */
+  function cleanInvite(d) {
+    var pk = d && d.pk, B = /^[A-Za-z0-9_-]{42,44}$/;
+    if (!pk || typeof pk.x !== 'string' || typeof pk.y !== 'string' || !B.test(pk.x) || !B.test(pk.y)) return null;
+    var terms = Array.isArray(d.terms) ? d.terms.filter(function (t) { return typeof t === 'string' && t.trim(); }).slice(0, 20).map(function (t) { return str(t, 4000); }) : [];
+    if (!terms.length) return null;
+    return {
+      first: String(d.first || '').replace(/[^\p{L}\p{M}' .-]/gu, '').replace(/\s+/g, ' ').trim().slice(0, 24),
+      practice: str(d.practice, 80) || 'Next Level Orthodontics', pos: str(d.pos, 80),
+      eeo: str(d.eeo, 2000), emp: str(d.emp, 1000), ref: str(d.ref, 1000), terms: terms, pk: { x: pk.x, y: pk.y }
+    };
+  }
+
+  function boot() {
+    if (!link) { message(ICON.link, 'This link is incomplete', 'It looks like part of the link got cut off. Open it again from the text or email, or ask Dr. Akhavan to send it again.'); return; }
+    if (!window.crypto || !crypto.subtle || !window.TextEncoder || !window.Promise) {
+      message(ICON.alert, 'Please use a newer browser', 'This page needs an up-to-date browser to send your application securely. Open the link in Safari or Chrome, or update your phone.'); return;
+    }
+    var st = load();
+    if (st && st.sent) { sentDone = true; alreadySent(); return; }
+    if (st && st.f) { F = fromDraft(st.f); step = Math.max(0, Math.min(STEPS.length - 1, +st.step || 0)); strokes = cleanStrokes(st.sig); }
+    if (typeof firebase === 'undefined' || !firebase.initializeApp || !firebase.firestore) {
+      message(ICON.wifi, 'Can’t connect', 'This page didn’t finish loading. Check your internet connection and try again.', true); return;
+    }
+    if (!firebase.apps.length) firebase.initializeApp(FB);
+    var base = firebase.firestore().collection('staffhub').doc(link.u);
+    invRef = base.collection('appInvite').doc(link.t);
+    ansRef = base.collection('appAnswers').doc(link.t);
+    invRef.get().then(function (s) {
+      if (!s.exists) { usedUp(); return; }
+      inv = cleanInvite(s.data() || {});
+      if (!inv) { message(ICON.alert, 'This link isn’t working', 'Please let Dr. Akhavan know so he can send you a new one.'); return; }
+      if (!F.position) F.position = inv.pos;
+      try { history.replaceState({ s: step }, ''); } catch (e) {}
+      render();
+    }).catch(function (e) {
+      if (e && e.code === 'permission-denied') message(ICON.alert, 'This link isn’t working yet', 'Please let Dr. Akhavan know so he can fix it.');
+      else message(ICON.wifi, 'Can’t connect', 'Check your internet connection and try again.', true);
+    });
+  }
+  boot();
+})();
+</script>
+</body>
+</html>
