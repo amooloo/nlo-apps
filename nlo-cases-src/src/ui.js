@@ -35,7 +35,11 @@ const IC = {
   download: '<path d="M12 4v11M7.5 10.5L12 15l4.5-4.5"/><path d="M4 19.5h16"/>',
   refresh: '<path d="M19.5 12a7.5 7.5 0 11-2.2-5.3"/><path d="M19.5 4v4.5H15"/>',
   menu: '<path d="M4 7h16M4 12h16M4 17h16"/>',
-  cols: '<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M9.5 4.5v15M14.5 4.5v15"/>'
+  cols: '<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M9.5 4.5v15M14.5 4.5v15"/>',
+  chat: '<path d="M5 5h14a1.5 1.5 0 011.5 1.5V15a1.5 1.5 0 01-1.5 1.5h-7.5L7 20v-3.5H5A1.5 1.5 0 013.5 15V6.5A1.5 1.5 0 015 5z"/><path d="M8 9.5h8M8 12.5h5"/>',
+  expand: '<path d="M7 9l5-5 5 5M7 15l5 5 5-5"/>',
+  collapse: '<path d="M7 4l5 5 5-5M7 20l5-5 5 5"/>',
+  copy: '<rect x="8.5" y="8.5" width="11" height="11" rx="2"/><path d="M15.5 8.5V6A1.5 1.5 0 0014 4.5H6A1.5 1.5 0 004.5 6v8A1.5 1.5 0 006 15.5h2.5"/>'
 };
 function ic(n, s) { s = s || 18; return '<svg class="i" width="' + s + '" height="' + s + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (IC[n] || '') + '</svg>'; }
 
@@ -802,7 +806,7 @@ async function loadClosed() {
 /* ---------- Drawer ---------- */
 function findCase(id) { return S.cases.get(id) || S.closed.find(c => c.id === id); }
 function openDrawer(id) {
-  S.openId = id; S.editing = false; S.history = null;
+  S.openId = id; S.editing = false; S.history = null; S.dsTog = new Map(); // each case opens folded (or all open, see dsAllMode)
   if (!$('#drawer')) {
     const scrim = document.createElement('div'); scrim.id = 'scrim'; scrim.dataset.act = 'closeDrawer'; document.body.appendChild(scrim);
     const d = document.createElement('aside'); d.id = 'drawer'; d.setAttribute('role', 'dialog'); d.setAttribute('aria-modal', 'true'); d.setAttribute('aria-label', 'Case'); document.body.appendChild(d);
@@ -855,7 +859,7 @@ function renderDrawer() {
       '<div class="sub">' + typeBadge(c) + (c.detail ? '<span class="small muted">' + esc(c.detail) + '</span>' : '') + '</div></div><button class="iconBtn" data-act="closeDrawer" aria-label="Close">' + ic('x') + '</button></div>' +
     '<div class="dBd"><div id="drawerNotice"></div>' + caseFormHTML(S.editBase, false) + '</div>' +
     '<div class="dFt"><button class="btn btn-pri" data-act="saveEdit">Save changes</button><button class="btn btn-sec" data-act="cancelEdit">Cancel</button></div>';
-    wireCaseForm(d, false); phPaint(); savPaint(d);
+    d.dataset.mode = 'edit'; wireCaseForm(d, false); phPaint(); savPaint(d);
     const nm = $('#cf-patient', d), hd = $('#dEditName', d); if (nm && hd) nm.addEventListener('input', () => { hd.textContent = nm.value.trim() || '(no name)'; });
     return; }
   if (c.locked) {
@@ -865,68 +869,135 @@ function renderDrawer() {
     return;
   }
   const keepCmt = $('#cmtText') ? $('#cmtText').value : ''; const hadFocus = document.activeElement && document.activeElement.id === 'cmtText';
+  // a live update redraws the panel: keep it where it was scrolled to (same case, not coming back from Edit)
+  const bd0 = $('.dBd', d), keepTop = bd0 && d.dataset.for === c.id && d.dataset.mode === 'view' ? bd0.scrollTop : 0;
   const done = c.status === 'done'; const flow = flowOf(c); const si = stageIndex(c);
   const kv = (k, v) => '<div><div class="k">' + k + '</div><div class="v">' + (v || '<span class="muted">—</span>') + '</div></div>';
-  const txt = (k, v) => v ? '<div class="sec"><h5>' + k + '</h5><div class="txt">' + esc(v) + '</div></div>' : '';
-  const assignSel = '<select class="inp" id="assignSel" data-act-change="assign" aria-label="Assigned to" style="min-height:36px;padding:6px 10px"' + (done ? ' disabled' : '') + '><option value="">Unassigned' + (c.assigneeName ? ' (Asana: ' + esc(c.assigneeName) + ')' : '') + '</option>' +
-    activeRoster().map(r => '<option value="' + esc(r.sid) + '"' + (c.assignee === r.sid ? ' selected' : '') + '>' + esc(r.name) + '</option>').join('') + '</select>';
-  d.innerHTML = '<div class="dHd"><button type="button" class="dPh" data-act="phEdit" title="' + (c.photo ? 'Change or remove the photo' : 'Add a photo of the patient') + '" aria-label="' + (c.photo ? 'Patient photo: change or remove' : 'Add a patient photo') + '">' + ptAv(c, 64) + '<span class="dPhCam">' + ic('camera', 13) + '</span></button><div style="flex:1;min-width:0"><h3>' + esc(c.patient || '(no name)') + '</h3><div class="sub">' + typeBadge(c) + (c.detail ? '<span class="small muted">' + esc(c.detail) + '</span>' : '') + '</div></div>' +
-    '<button class="iconBtn" data-act="closeDrawer" aria-label="Close">' + ic('x') + '</button></div>' +
+  const txt = v => '<div class="txt">' + esc(v) + '</div>';
+  const oneLine = v => esc(String(v || '').trim().replace(/\s*\n+\s*/g, ' · ')); // a section's text on its folded heading
+  const cc = String(c.cc || '').trim(), ccNone = /^(none|n\/a|na|-)$/i.test(cc);
+  const cmts = c.comments || [], lastC = cmts[cmts.length - 1];
+  const who = c.assignee ? firstName(staffName(c.assignee, '')) || '—' : c.assigneeName ? c.assigneeName + ' (Asana)' : '';
+  const nAl = alN(c), one = oneArch(c), hasTeeth = !!(c.teeth && Object.keys(c.teeth).length);
+  d.dataset.for = c.id; d.dataset.mode = 'view';
+  d.innerHTML = '<div class="dHd"><button type="button" class="dPh" data-act="phEdit" title="' + (c.photo ? 'Change or remove the photo' : 'Add a photo of the patient') + '" aria-label="' + (c.photo ? 'Patient photo: change or remove' : 'Add a patient photo') + '">' + ptAv(c, 64) + '<span class="dPhCam">' + ic('camera', 13) + '</span></button>' +
+    // what the case is (arch, appliances, lab, kind of submission, extras) sits under the name — it was its own "Case" section
+    '<div style="flex:1;min-width:0"><h3>' + esc(c.patient || '(no name)') + '</h3><div class="sub">' + typeBadge(c) + (c.detail ? '<span class="small muted">' + esc(c.detail) + '</span>' : '') + caseBadges(c) + '</div></div>' +
+    '<button type="button" class="btn btn-ghost dAll" data-act="dsAll"></button><button class="iconBtn" data-act="closeDrawer" aria-label="Close">' + ic('x') + '</button></div>' +
     '<div class="dBd"><div id="drawerNotice"></div>' +
     (done ? '<div class="notice info">Completed ' + esc(fmtWhen(c.closedAt)) + '</div>' : '') +
     (c.shipToPatient ? '<div class="notice ship" role="note">' + ic('truck', 18) + '<span><b>Ship to patient</b></span></div>' : '') +
     (isHeld(c) ? '<div class="notice bad mpOld" role="note"><span><b>' + esc(holdText(c)) + '</b></span>' + (done ? '' : '<button class="btn btn-sec btn-sm" data-act="clearHold">Hold is sorted out</button>') + '</div>' : '') +
     // a MARPE entered (or imported) as an appliance before MARPE had its own steps: one click moves it over
     (!done && isOldMarpe(c) ? '<div class="notice info mpOld"><span>MARPE has its own steps now: records, lab, Zoom call, design approval, delivery.</span><button class="btn btn-sec btn-sm" data-act="toMarpe">Switch to MARPE steps</button></div>' : '') +
+    // the patient's chief concern stands out at the top, never folded (Amir, 3 Oct 2026: "needs to be a little bit highlighted more")
+    (cc ? '<div class="ccBox' + (ccNone ? ' none' : '') + '" role="note" aria-label="Patient’s chief concern"><span class="ccIc">' + ic('chat', 20) + '</span><div class="ccB"><div class="ccK">Patient’s chief concern<span>from last visit</span></div><div class="ccV">' + esc(ccNone ? 'None' : cc) + '</div></div></div>' : '') +
     // the lab's own link to this patient's plan (from its email), then the company portals
     // in-house: the case's own Titan link first (when saved), then Titan's web version and its beta
     ((PORTALS[c.type] || []).length || safeUrl(c.planUrl) || safeUrl(c.titanUrl) ? '<div class="portals">' +
       (safeUrl(c.titanUrl) ? '<a class="btn btn-pri btn-sm" data-act="portal" href="' + esc(safeUrl(c.titanUrl)) + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'Open this case in Titan</a>' : '') +
       (safeUrl(c.planUrl) && okLabLink(c.type, c.planUrl) ? '<a class="btn btn-pri btn-sm" data-act="portal" href="' + esc(safeUrl(c.planUrl)) + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'View treatment plan</a>' : '') + (PORTALS[c.type] || []).map(p => '<a class="btn btn-sec btn-sm" data-act="portal" href="' + esc(p.u) + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'Open ' + esc(p.l) + '</a>').join('') +
       '<span class="small muted">Opening a portal copies the patient’s name — paste it in the portal’s search.</span></div>' : '') +
-    '<div class="sec" style="margin-top:4px"><h5>Stage</h5><div class="stepper">' + flow.stages.map(([k, l], i) => { const g = stageGroup(flow, k);
-      return (g && g.stages[0] === k ? '<div class="stepGrp' + (i <= si ? ' d' : '') + '">' + esc(g.l) + '</div>' : '') +
-      '<button class="step ' + (i < si ? 'past' : i === si ? 'cur' : '') + (g ? ' sub' : '') + '" data-act="setStage" data-k="' + k + '"' + (done ? ' disabled' : '') + ' aria-pressed="' + (i === si) + '"><span class="n">' + (i < si ? '✓' : i + 1) + '</span>' + esc(l) + '</button>'; }).join('') + '</div></div>' +
-    (flow === FLOWS.marpe ? marpeBoxHTML(c, done) : '') +
-    '<div class="sec"><h5>Details</h5><div class="kv">' +
-    '<div style="grid-column:1/-1"><div class="k">Assigned to' + (!c.assignee && c.assigneeName ? ' <span class="muted" style="text-transform:none;letter-spacing:0">(Asana: ' + esc(c.assigneeName) + ')</span>' : '') + '</div>' +
-      '<div class="staffRow dAssign" role="radiogroup" aria-label="Assigned to">' + [null].concat(withSavedStaff(activeRoster(), c.assignee)).map(r => staffTile(r, (c.assignee || '') === (r ? r.sid : ''), 'aTile', ' role="radio" data-act="assignTo"' + (done ? ' disabled' : ''))).join('') + '</div></div>' +
-    kv('Scan date', esc(fmtDay(c.scanDate))) +
-    kv('Lab completion', c.labDate ? esc(fmtDay(c.labDate)) + (!done && (dueOf(c) || {}).k === 'lab' ? ' ' + dueChip(c) : '') : '') +
-    kv('Delivery', c.deliveryDate ? esc(fmtDay(c.deliveryDate) + (c.deliveryTime ? ', ' + fmtTime(c.deliveryTime) : '')) + (!done && (dueOf(c) || {}).k === 'delivery' ? ' ' + dueChip(c) : '') : '') +
-    (c.dueDate && !c.deliveryDate ? kv('Due (older case)', esc(fmtDay(c.dueDate))) : '') +
-    (String(c.tracking || '').trim() ? kv('Tracking', trackList(c).length ? trackList(c).map(t => '<span class="trkLine">' + esc(t.n) + (t.carrier ? ' <span class="muted small">' + esc(t.carrier) + '</span>' : '') +
-      (t.url ? ' <a class="flag trk" href="' + esc(t.url) + '" target="_blank" rel="noopener noreferrer">' + ic('ext', 12) + 'Track</a>' : '') + '</span>').join('') : esc(c.tracking)) : '') +
-    (c.labRef ? kv(esc(refLabel(c)), esc(c.labRef)) : '') +
-    kv('Assistant', esc(staffName(c.assistant, c.assistantName))) + kv('Scanner', esc(c.scanner)) + kv('Chart #', esc(c.chart || '')) +
-    kv('Created', esc((c.createdAt ? fmtWhen(c.createdAt) : '') + (c.createdBy ? ' · ' + firstName(staffName(c.createdBy, '')) : ''))) + kv('Last update', esc(c.updatedAt ? fmtWhen(c.updatedAt) + (c.by ? ' · ' + firstName(staffName(c.by, '')) : '') : '')) +
+    // every section folds to one line until it's tapped; Expand all opens them all (Amir, 3 Oct 2026)
+    '<div class="dsList">' +
+    dsec('stage', 'Stage', (done ? 'Completed · ' : '') + '<b>' + esc(stageLabel(c)) + '</b>' + progHTML(c),
+      '<div class="stepper">' + flow.stages.map(([k, l], i) => { const g = stageGroup(flow, k);
+        return (g && g.stages[0] === k ? '<div class="stepGrp' + (i <= si ? ' d' : '') + '">' + esc(g.l) + '</div>' : '') +
+        '<button class="step ' + (i < si ? 'past' : i === si ? 'cur' : '') + (g ? ' sub' : '') + '" data-act="setStage" data-k="' + k + '"' + (done ? ' disabled' : '') + ' aria-pressed="' + (i === si) + '"><span class="n">' + (i < si ? '✓' : i + 1) + '</span>' + esc(l) + '</button>'; }).join('') + '</div>') +
+    (flow === FLOWS.marpe ? dsec('marpe', 'MARPE', marpeSum(c), marpeBoxHTML(c, done)) : '') +
+    dsec('details', 'Details', (who ? 'Assigned to <b>' + esc(who) + '</b>' : 'Unassigned') + (!done && dueOf(c) ? ' · ' + dueChip(c) : c.deliveryDate ? ' · Delivery ' + esc(fmtDate(c.deliveryDate)) : ''),
+      '<div class="kv">' +
+      '<div style="grid-column:1/-1"><div class="k">Assigned to' + (!c.assignee && c.assigneeName ? ' <span class="muted" style="text-transform:none;letter-spacing:0">(Asana: ' + esc(c.assigneeName) + ')</span>' : '') + '</div>' +
+        '<div class="staffRow dAssign" role="radiogroup" aria-label="Assigned to">' + [null].concat(withSavedStaff(activeRoster(), c.assignee)).map(r => staffTile(r, (c.assignee || '') === (r ? r.sid : ''), 'aTile', ' role="radio" data-act="assignTo"' + (done ? ' disabled' : ''))).join('') + '</div></div>' +
+      kv('Scan date', esc(fmtDay(c.scanDate))) +
+      kv('Lab completion', c.labDate ? esc(fmtDay(c.labDate)) + (!done && (dueOf(c) || {}).k === 'lab' ? ' ' + dueChip(c) : '') : '') +
+      kv('Delivery', c.deliveryDate ? esc(fmtDay(c.deliveryDate) + (c.deliveryTime ? ', ' + fmtTime(c.deliveryTime) : '')) + (!done && (dueOf(c) || {}).k === 'delivery' ? ' ' + dueChip(c) : '') : '') +
+      (c.dueDate && !c.deliveryDate ? kv('Due (older case)', esc(fmtDay(c.dueDate))) : '') +
+      (String(c.tracking || '').trim() ? kv('Tracking', trackList(c).length ? trackList(c).map(t => '<span class="trkLine">' + esc(t.n) + (t.carrier ? ' <span class="muted small">' + esc(t.carrier) + '</span>' : '') +
+        (t.url ? ' <a class="flag trk" href="' + esc(t.url) + '" target="_blank" rel="noopener noreferrer">' + ic('ext', 12) + 'Track</a>' : '') + '</span>').join('') : esc(c.tracking)) : '') +
+      (c.labRef ? kv(esc(refLabel(c)), esc(c.labRef)) : '') +
+      kv('Assistant', esc(staffName(c.assistant, c.assistantName))) + kv('Scanner', esc(c.scanner)) + kv('Chart #', esc(c.chart || '')) +
+      kv('Created', esc((c.createdAt ? fmtWhen(c.createdAt) : '') + (c.createdBy ? ' · ' + firstName(staffName(c.createdBy, '')) : ''))) + kv('Last update', esc(c.updatedAt ? fmtWhen(c.updatedAt) + (c.by ? ' · ' + firstName(staffName(c.by, '')) : '') : '')) +
+      '</div>') +
+    (c.type === 'nla' ? dsec('aligners', 'Aligners', nAl ? '<b>' + nAl + '</b> aligners in this set' + (c.alU || c.alL ? ' (' + (one === 'U' ? 'U ' + (c.alU || 0) + ' · upper only' : one === 'L' ? 'L ' + (c.alL || 0) + ' · lower only' : 'U ' + (c.alU || 0) + ' · L ' + (c.alL || 0)) + ')' : '') : 'Aligner counts not entered yet',
+      '<div id="alBox">' + alignerTotalHTML(c, false) + '</div>') : '') +
+    // retainers & whitening trays: a label for the bag, then it offers to complete the case (Amir, 2 Oct 2026) — one tap, no need to open
+    (c.type === 'retainer' ? dline('label', 'Label', 'For the bag: patient, upper/lower, retainers or whitening trays' + (done ? '' : ' — then it asks to mark the case complete'),
+      '<button type="button" class="btn btn-sec btn-sm dsAct" data-act="retLabels">' + ic('print', 15) + 'Print label</button>', 'retLblBox') : '') +
+    (c.instructions ? dsec('instr', 'Dr. A’s instructions', oneLine(c.instructions), txt(c.instructions)) : '') +
+    (hasTeeth ? dsec('teeth', 'Tooth chart', oneLine(teethSummary(c.teeth)), '<div class="tc ro">' + toothChartHTML(c.teeth, true) + '</div><div class="txt" style="margin-top:8px">' + esc(teethSummary(c.teeth)) + '</div>') : '') +
+    // one IPR section: the IPR Tracker's chart for this chart # (the typed "IPR & spacing" and "From the IPR Tracker" were the same thing twice)
+    (iprLive(c) || String(c.ipr || '').trim() ? dsec('ipr', 'IPR & spacing', iprSumHTML(c), '<div id="iprBox">' + iprBoxHTML(c) + '</div>') : '') +
+    (c.notes ? dsec('notes', 'Notes', oneLine(c.notes), txt(c.notes)) : '') +
+    dsec('comments', 'Comments', lastC ? (cmts.length > 1 ? cmts.length + ' · ' : '') + '<b>' + esc(firstName(staffName(lastC.by, lastC.by))) + ':</b> ' + esc(String(lastC.text || '').replace(/\s+/g, ' ')) : '<span class="muted">None yet</span>',
+      (cmts.map(x => '<div class="cmt"><span class="av" data-sav="' + esc(x.by || '') + '">' + esc(initials(staffName(x.by, x.by))) + '</span><div><div class="w"><b>' + esc(firstName(staffName(x.by, x.by))) + '</b> · ' + esc(fmtWhen(x.at)) + '</div><div style="white-space:pre-wrap;overflow-wrap:anywhere">' + esc(x.text) + '</div></div></div>').join('') || '<div class="small muted" style="margin-bottom:6px">No comments yet.</div>') +
+      (done ? '' : '<div class="field" style="margin-top:8px;margin-bottom:6px"><label for="cmtText" class="hidden">Add a comment</label><textarea id="cmtText" rows="2" placeholder="Add a comment…"></textarea></div><button class="btn btn-sec btn-sm" data-act="addCmt">Add comment</button>')) +
+    // the chart note: further down and folded (Amir, 3 Oct 2026); Copy works without opening it
+    dsec('note', 'Chart note', '<span class="muted">to paste into the patient’s chart</span>', '<div class="txt" id="noteTxt">' + esc(chartNote(c)) + '</div>',
+      '<button type="button" class="btn btn-sec btn-sm dsAct" data-act="copyNote">' + ic('copy', 14) + 'Copy</button>') +
+    dsec('history', 'History', c.updatedAt ? 'Last change ' + esc(fmtWhen(c.updatedAt)) + (c.by && firstName(staffName(c.by, '')) ? ' · ' + esc(firstName(staffName(c.by, ''))) : '') : '', '<div id="histBox">' + historyHTML(c) + '</div>') +
     '</div></div>' +
-    ((c.appliances || []).length || c.lab || c.initial || (c.extras || []).length || oneArch(c) ? '<div class="sec"><h5>Case</h5><div class="pickRow">' + (oneArch(c) ? '<span class="badge t-arch">' + esc(treatArchLabel(oneArch(c))) + '</span>' : '') + (c.appliances || []).map(x => '<span class="badge t-appl">' + esc(x) + '</span>').join('') + (c.lab ? '<span class="badge">' + esc(labName(c.lab)) + '</span>' : '') + (c.initial ? '<span class="badge">' + esc(submissionLabel(c.initial)) + '</span>' : '') + (c.extras || []).map(x => '<span class="badge t-retx">' + esc(x) + '</span>').join('') + '</div></div>' : '') +
-    (c.type === 'nla' ? '<div class="sec" id="alBox"><h5>Aligners</h5>' + alignerTotalHTML(c, false) + '</div>' : '') +
-    // retainers & whitening trays: a label for the bag, then it offers to complete the case (Amir, 2 Oct 2026)
-    (c.type === 'retainer' ? '<div class="sec" id="retLblBox"><h5>Label</h5><div class="alLbl"><button class="btn btn-sec btn-sm" data-act="retLabels">' + ic('print', 15) + 'Print label</button>' +
-      '<span class="small muted">For the bag: patient, upper/lower, retainers or whitening trays' + (done ? '' : ' — then it asks to mark the case complete') + '</span></div></div>' : '') +
-    txt('Dr. A’s instructions', c.instructions) +
-    (c.teeth && Object.keys(c.teeth).length ? '<div class="sec"><h5>Tooth chart</h5><div class="tc ro">' + toothChartHTML(c.teeth, true) + '</div><div class="txt" style="margin-top:8px">' + esc(teethSummary(c.teeth)) + '</div></div>' : '') +
-    txt('Patient’s CC from last visit', c.cc) + txt('IPR & spacing', c.ipr) +
-    '<div class="sec"><h5 class="noteHd">Chart note<span class="small muted">to paste into the patient’s chart</span><span style="flex:1"></span><button class="btn btn-sec btn-sm" data-act="copyNote">Copy</button></h5><div class="txt" id="noteTxt">' + esc(chartNote(c)) + '</div></div>' +
-    (typeOf(c).aligner && !done ? '<div class="sec" id="iprBox">' + iprBoxHTML(c) + '</div>' : '') + txt('Notes', c.notes) +
-    '<div class="sec"><h5>Comments</h5>' + ((c.comments || []).map(x => '<div class="cmt"><span class="av" data-sav="' + esc(x.by || '') + '">' + esc(initials(staffName(x.by, x.by))) + '</span><div><div class="w"><b>' + esc(firstName(staffName(x.by, x.by))) + '</b> · ' + esc(fmtWhen(x.at)) + '</div><div style="white-space:pre-wrap;overflow-wrap:anywhere">' + esc(x.text) + '</div></div></div>').join('') || '<div class="small muted" style="margin-bottom:6px">No comments yet.</div>') +
-    (done ? '' : '<div class="field" style="margin-top:8px;margin-bottom:6px"><label for="cmtText" class="hidden">Add a comment</label><textarea id="cmtText" rows="2" placeholder="Add a comment…"></textarea></div><button class="btn btn-sec btn-sm" data-act="addCmt">Add comment</button>') + '</div>' +
-    '<div class="sec"><h5>History</h5><div id="histBox">' + historyHTML(c) + '</div></div></div>' +
     '<div class="dFt">' + (done ? '<button class="btn btn-sec" data-act="reopen">Reopen</button>' :
       '<button class="btn btn-mint" data-act="complete" data-id="' + esc(c.id) + '">' + ic('done', 16) + 'Mark complete</button><button class="btn btn-sec" data-act="edit">' + ic('edit', 16) + 'Edit</button>') +
     (isOwner() ? '<span style="flex:1"></span><button class="btn btn-ghost" data-act="versions">' + ic('clock', 16) + 'Versions</button><button class="btn btn-ghost" data-act="delCase" style="color:var(--coral-700)">' + ic('trash', 16) + 'Delete</button>' : '') + '</div>';
   const t = $('#cmtText'); if (t) { t.value = keepCmt; if (hadFocus) t.focus(); }
-  phPaint(); savPaint(d); phWireDrawer(d);
+  if (keepTop) $('.dBd', d).scrollTop = keepTop;
+  dsAllSync(); phPaint(); savPaint(d); phWireDrawer(d);
   if (typeOf(c).aligner && c.chart && !done) iprAutoLoad(c);
   if (c.type === 'nla') ensureHist();
+}
+/* what the case is, as badges under the patient's name: arch treated, appliances, lab, kind of submission, extras */
+function caseBadges(c) {
+  return (oneArch(c) ? '<span class="badge t-arch">' + esc(treatArchLabel(oneArch(c))) + '</span>' : '') + (c.appliances || []).map(x => '<span class="badge t-appl">' + esc(x) + '</span>').join('') +
+    (c.lab ? '<span class="badge">' + esc(labName(c.lab)) + '</span>' : '') + (c.initial ? '<span class="badge">' + esc(submissionLabel(c.initial)) + '</span>' : '') + (c.extras || []).map(x => '<span class="badge t-retx">' + esc(x) + '</span>').join('');
+}
+/* ---------- the case panel's sections: each folds to one line until it's tapped ----------
+   Amir, 3 Oct 2026: "all of these headers would be just collapsed and you could be clicking on it to expand it or have an
+   option for expand all". Expand all / Collapse all is remembered on this computer (like the hidden columns and the photo
+   switch); a section opened or closed by hand stays that way while the case is open (live updates redraw the panel), and
+   the next case opens the remembered way again. Folded sections stay in the page, just hidden. */
+const DS_KEY = 'nloCases.panelOpen';
+function dsAllMode() { if (S.dsAll == null) { try { S.dsAll = localStorage.getItem(DS_KEY) === 'all'; } catch (e) { S.dsAll = false; } } return S.dsAll; }
+function dsSetAllMode(on) { S.dsAll = !!on; try { if (on) localStorage.setItem(DS_KEY, 'all'); else localStorage.removeItem(DS_KEY); } catch (e) { } }
+function dsIsOpen(k) { return S.dsTog && S.dsTog.has(k) ? S.dsTog.get(k) : dsAllMode(); }
+/* `title` is plain text; `sum` (the folded line) and `body` are markup; `act` = a button that works while folded (Copy) */
+function dsec(k, title, sum, body, act) {
+  const o = dsIsOpen(k);
+  return '<section class="ds' + (o ? ' open' : '') + '" data-ds="' + k + '"><div class="dsHd"><button type="button" class="dsTg" data-act="dsTg" aria-expanded="' + o + '" aria-controls="ds-' + k + '">' +
+    '<span class="dsCh">' + ic('next', 16) + '</span><span class="dsT">' + esc(title) + '</span><span class="dsS" id="dsS-' + k + '">' + (sum || '') + '</span></button>' + (act || '') + '</div>' +
+    '<div class="dsBd" id="ds-' + k + '"' + (o ? '' : ' hidden') + '>' + body + '</div></section>';
+}
+/* a one-line section with nothing to open, just its button (the retainer label) */
+function dline(k, title, sum, act, id) {
+  return '<section class="ds line" data-ds="' + k + '"' + (id ? ' id="' + id + '"' : '') + '><div class="dsHd"><div class="dsTg"><span class="dsCh"></span><span class="dsT">' + esc(title) + '</span><span class="dsS">' + sum + '</span></div>' + act + '</div></section>';
+}
+function dsShow(sec, on) {
+  sec.classList.toggle('open', on); const b = $('.dsTg', sec), bd = $('.dsBd', sec);
+  if (b) b.setAttribute('aria-expanded', String(on)); if (bd) bd.hidden = !on;
+}
+/* the header button says what it will do: Expand all unless every section is already open */
+function dsAllSync() {
+  const d = $('#drawer'), b = d && $('.dAll', d); if (!b) return;
+  const secs = $$('.ds:not(.line)', d), all = secs.length > 0 && secs.every(s => s.classList.contains('open'));
+  b.innerHTML = ic(all ? 'collapse' : 'expand', 16) + '<span class="t">' + (all ? 'Collapse all' : 'Expand all') + '</span>';
+  b.dataset.all = all ? '1' : '0'; b.setAttribute('aria-label', all ? 'Collapse all sections' : 'Expand all sections');
+}
+/* opening a section near the bottom scrolls just enough to show it (never past its heading) */
+function dsReveal(sec) {
+  const bd = sec.closest('.dBd'); if (!bd) return;
+  const r = sec.getBoundingClientRect(), b = bd.getBoundingClientRect();
+  if (r.bottom > b.bottom) bd.scrollTop += Math.min(r.bottom - b.bottom + 12, r.top - b.top - 8);
+}
+/* folded heading of the MARPE box: what's still missing, and the Zoom call */
+function marpeSum(c) {
+  const miss = recordsMissing(c);
+  return (miss.length ? 'Needs ' + esc(miss.map(x => x[2]).join(' + ')) : 'Records on file') + ' · Zoom ' + (c.zoomDate ? '<b>' + esc(fmtDay(c.zoomDate) + (c.zoomTime ? ', ' + fmtTime(c.zoomTime) : '')) + '</b>' : 'not set');
 }
 /* ---------- MARPE: records on file and the Zoom call (drawer box, the check before a stage move, the Zoom date) ---------- */
 function marpeBoxHTML(c, done) {
   const r = c.records || [], x = dueOf(c), dis = done ? ' disabled' : '';
   const when = c.zoomDate ? '<b>' + esc(fmtDay(c.zoomDate)) + (c.zoomTime ? ' · ' + esc(fmtTime(c.zoomTime)) : '') + '</b>' : '<span class="muted">Not set yet</span>';
-  return '<div class="sec" id="mpBox"><h5>MARPE</h5><div class="mpGrid">' +
+  return '<div id="mpBox"><div class="mpGrid">' +
     '<div class="mpK">Records on file</div><div class="mpV">' + MARPE_RECORDS.map(([k, l]) =>
       '<button type="button" class="pick sm" data-act="rec" data-k="' + k + '" aria-pressed="' + r.includes(k) + '"' + dis + '>' + esc(l) + '</button>').join('') + '</div>' +
     '<div class="mpK">Zoom call</div><div class="mpV"><span class="mpWhen">' + ic('video', 16) + when + '</span>' + (x && x.k === 'zoom' && !done ? dueChip(c) : '') +
@@ -1002,34 +1073,76 @@ function toggleRecord(btn) {
   B.mutateCase(cid, d => { d.records = next(d.records); }, { a: 'edit', fields: ['records'] })
     .catch(e => { const cur = findCase(cid); if (cur) { cur.records = prev; queueRender(); if (S.openId === cid) renderDrawer(); } toast(errText(e), { bad: true }); });
 }
-/* ---------- IPR Tracker box in the case drawer ---------- */
-function iprBoxHTML(c) {
-  const L = iprLink();
-  const head = '<h5 style="display:flex;align-items:center;gap:8px">From the IPR Tracker<span style="flex:1"></span><a class="btn btn-ghost" href="' + IPR_URL + '" target="_blank" rel="noopener" style="min-height:28px;padding:2px 10px;font-size:12px">Open IPR Tracker</a></h5>';
-  if (!c.chart) return head + '<div class="small muted">Add the chart # (Edit) to pull the latest IPR and spacing automatically.</div>';
-  if (!L.init()) return head + '<div class="small muted">IPR link unavailable in this browser.</div>';
-  if (!L.user()) return head + '<div class="small" style="margin-bottom:8px">Connect this computer to the IPR Tracker once (same Google sign-in as the IPR Tracker).</div><button class="btn btn-sec btn-sm" data-act="iprConnect">Connect IPR Tracker</button>';
+/* ---------- IPR & spacing: one section, the IPR Tracker's chart for the case's chart # ----------
+   Amir, 3 Oct 2026: the typed "IPR & spacing" and "From the IPR Tracker" were the same thing twice, and the IPR Tracker's
+   printed diagram says it better than words. Open aligner cases read the IPR Tracker live (its latest visit) and draw it
+   (iprPanelsHTML in ipr.js). The IPR note saved on the case (New case's "Get from IPR Tracker", "Add to the chart note"
+   here, or text from Tally/Asana) is what the chart note uses; it shows as text only when there's no live chart to show,
+   or folded away as "an earlier IPR note" when it differs from the latest visit. */
+function iprLive(c) { return !!(typeOf(c).aligner && c.status !== 'done'); }
+function iprRead(c) {
+  if (!iprLive(c)) return { k: 'off' };
+  if (!c.chart) return { k: 'chart' };
+  const L = iprLink(); if (!L.init()) return { k: 'unavail' };
+  if (!L.user()) return { k: 'connect' };
   const r = (S.iprCache || {})[IPR.norm(c.chart)];
-  if (!r) return head + '<div class="small muted">Loading…</div>';
-  if (r.error) return head + '<div class="small" style="color:var(--coral-700)">' + esc(r.error) + '</div> <button class="btn btn-ghost" data-act="iprRefresh">Try again</button>';
-  if (r.status === 'not-found') return head + '<div class="small muted">No IPR Tracker patient with chart # ' + esc(c.chart) + '.</div>';
-  if (r.status === 'no-visits') return head + '<div class="small muted">Patient found, but no visits recorded yet.</div>';
-  const same = String(c.ipr || '').trim() === r.note.trim();
-  return head + '<div class="small muted" style="margin-bottom:6px">Latest visit ' + esc(fmtDay(r.date)) + (r.assistant ? ' · ' + esc(r.assistant) : '') + ' · ' + r.visits + ' visit' + (r.visits === 1 ? '' : 's') + ' on file</div>' +
-    '<div class="txt">' + esc(r.note) + '</div><div style="margin-top:8px;display:flex;gap:8px">' +
-    (same ? '<span class="stat ok">Saved on this case</span>' : '<button class="btn btn-sec btn-sm" data-act="iprUse">Use this on the case</button>') +
-    '<button class="btn btn-ghost" data-act="iprRefresh">' + ic('refresh', 14) + 'Refresh</button></div>';
+  if (!r) return { k: 'loading' };
+  if (r.error) return { k: 'error', r };
+  if (r.status === 'not-found') return { k: 'none' };
+  if (r.status === 'no-visits') return { k: 'novisits' };
+  return { k: 'ok', r };
 }
+/* the section's folded line */
+function iprSumHTML(c) {
+  const x = iprRead(c), saved = String(c.ipr || '').trim(), m = s => '<span class="muted">' + s + '</span>';
+  const savedLine = saved ? esc(saved.replace(/\s*\n+\s*/g, ' · ')) : '';
+  switch (x.k) {
+    case 'ok': return esc(iprSumText(x.r));
+    case 'chart': return savedLine || m('Add the chart # to show the IPR Tracker’s chart');
+    case 'connect': return savedLine || m('Connect the IPR Tracker on this computer');
+    case 'loading': return m('Reading the IPR Tracker…');
+    case 'error': return m(esc(x.r.error));
+    case 'none': return m('No IPR Tracker patient with chart # ' + esc(c.chart));
+    case 'novisits': return m('No IPR Tracker visits yet');
+    default: return savedLine || m('—');
+  }
+}
+function iprBoxHTML(c) {
+  const x = iprRead(c), saved = String(c.ipr || '').trim();
+  const savedBox = saved ? '<div class="iprSaved"><div class="k">IPR note saved on the case <span>(used in the chart note)</span></div><div class="txt">' + esc(saved) + '</div></div>' : '';
+  const open = '<a class="btn btn-ghost" href="' + IPR_URL + '" target="_blank" rel="noopener">' + ic('ext', 14) + 'Open IPR Tracker</a>';
+  const msg = (t, plain) => '<div class="small' + (plain ? '' : ' muted') + ' iprMsg">' + t + '</div>';
+  switch (x.k) {
+    case 'off': return savedBox;
+    case 'chart': return msg('Add the chart # (Edit) to show the IPR Tracker’s chart here.') + savedBox;
+    case 'unavail': return msg('IPR link unavailable in this browser.') + savedBox;
+    case 'connect': return msg('Connect this computer to the IPR Tracker once (same Google sign-in as the IPR Tracker).', 1) + '<div class="iprFoot"><button class="btn btn-sec btn-sm" data-act="iprConnect">Connect IPR Tracker</button>' + open + '</div>' + savedBox;
+    case 'loading': return msg('Reading the IPR Tracker…') + savedBox;
+    case 'error': return '<div class="small iprMsg" style="color:var(--coral-700)">' + esc(x.r.error) + '</div><div class="iprFoot"><button class="btn btn-ghost" data-act="iprRefresh">' + ic('refresh', 14) + 'Try again</button>' + open + '</div>' + savedBox;
+    case 'none': return msg('No IPR Tracker patient with chart # ' + esc(c.chart) + '.') + '<div class="iprFoot">' + open + '</div>' + savedBox;
+    case 'novisits': return msg('Patient found, but no visits recorded yet.') + '<div class="iprFoot">' + open + '</div>' + savedBox;
+  }
+  const r = x.r, same = saved === r.note.trim();
+  return '<div class="iprMeta">Latest visit <b>' + esc(fmtDay(r.date)) + '</b>' + (r.assistant ? ' · ' + esc(r.assistant) : '') + ' · ' + r.visits + ' visit' + (r.visits === 1 ? '' : 's') + ' on file</div>' +
+    iprPanelsHTML(r.d) +
+    '<div class="iprFoot">' + (same ? '<span class="stat ok">' + ic('done', 14) + 'In the chart note</span>' : '<button class="btn btn-sec btn-sm" data-act="iprUse">' + (saved ? 'Use this visit in the chart note' : 'Add to the chart note') + '</button>') +
+    '<button class="btn btn-ghost" data-act="iprRefresh">' + ic('refresh', 14) + 'Refresh</button>' + open + '</div>' +
+    (saved && !same ? '<details class="iprOld"><summary>The chart note has an earlier IPR note</summary><div class="txt">' + esc(saved) + '</div></details>' : '');
+}
+/* redraw the IPR section (its folded line too) once the IPR Tracker answers */
+function iprPaint(c) { const b = $('#iprBox'), s = $('#dsS-ipr'); if (b) b.innerHTML = iprBoxHTML(c); if (s) s.innerHTML = iprSumHTML(c); }
 async function iprAutoLoad(c, force) {
   const L = iprLink(); if (!L.init()) return;
   if (!L.user()) { await L.waitUser(); if (!L.user()) return; }
   const k = IPR.norm(c.chart); S.iprCache = S.iprCache || {};
-  if (S.iprCache[k] && !force) { const b = $('#iprBox'); if (b) b.innerHTML = iprBoxHTML(c); return; }
+  const paint = () => { const cur = findCase(S.openId); if (cur && IPR.norm(cur.chart) === k) iprPaint(cur); };
+  if (S.iprCache[k] && !force) { paint(); return; }
   if (S.iprLoading === k) return; S.iprLoading = k;
+  paint(); // "Reading the IPR Tracker…" (it said Connect until the sign-in came back)
   try { S.iprCache[k] = await L.latest(c.chart); }
   catch (e) { S.iprCache[k] = { error: /permission|denied/i.test(String(e && (e.code || e.message))) ? 'This Google account can’t read the IPR Tracker.' : 'Couldn’t reach the IPR Tracker.' }; }
   S.iprLoading = null;
-  const cur = findCase(S.openId); const b = $('#iprBox'); if (b && cur && IPR.norm(cur.chart) === k) b.innerHTML = iprBoxHTML(cur);
+  paint();
 }
 
 /* ---------- modals ---------- */
@@ -1139,6 +1252,8 @@ function onClick(e) {
     case 'open': openDrawer(id); break;
     case 'openClosed': openDrawer(id); break;
     case 'closeDrawer': closeDrawer(); break;
+    case 'dsTg': { const sec = t.closest('.ds'); if (!sec) break; const on = !sec.classList.contains('open'); dsShow(sec, on); (S.dsTog = S.dsTog || new Map()).set(sec.dataset.ds, on); dsAllSync(); if (on) dsReveal(sec); break; }
+    case 'dsAll': { const on = t.dataset.all !== '1'; dsSetAllMode(on); S.dsTog = new Map(); $$('#drawer .ds:not(.line)').forEach(sec => dsShow(sec, on)); dsAllSync(); break; }
     case 'advance': { const c = findCase(id); const n = c && nextStage(c); if (n) moveStage(id, n); break; }
     case 'complete': completeCase(id); break;
     case 'setStage': moveStage(S.openId, t.dataset.k); break;
@@ -1186,11 +1301,11 @@ function onClick(e) {
     case 'codeDone': enterApp(); break;
     case 'resendVerify': B.resendVerify().then(() => toast('Sent again')).catch(x => toast(errText(x), { bad: true })); break;
     case 'versions': versionsModal(S.openId); break;
-    case 'iprConnect': iprLink().connect().then(() => { const c = findCase(S.openId); if (c) { const b = $('#iprBox'); if (b) b.innerHTML = iprBoxHTML(c); iprAutoLoad(c, true); } if (S.view === 'account') renderView(); }).catch(x => toast(errText(x), { bad: true })); break;
+    case 'iprConnect': iprLink().connect().then(() => { const c = findCase(S.openId); if (c) { iprPaint(c); if (c.chart) iprAutoLoad(c, true); } if (S.view === 'account') renderView(); }).catch(x => toast(errText(x), { bad: true })); break;
     case 'iprDisconnect': iprLink().disconnect().then(() => { S.iprCache = {}; renderView(); toast('IPR Tracker disconnected on this computer'); }); break;
-    case 'iprRefresh': { const c = findCase(S.openId); if (c) { (S.iprCache || {})[IPR.norm(c.chart)] = null; const b = $('#iprBox'); if (b) b.innerHTML = iprBoxHTML(c); iprAutoLoad(c, true); } break; }
+    case 'iprRefresh': { const c = findCase(S.openId); if (c) { (S.iprCache || {})[IPR.norm(c.chart)] = null; iprPaint(c); iprAutoLoad(c, true); } break; }
     case 'iprUse': { const c = findCase(S.openId); const r = c && (S.iprCache || {})[IPR.norm(c.chart)]; if (!r || !r.note) return;
-      act(() => B.mutateCase(c.id, d => { d.ipr = r.note; }, { a: 'edit', fields: ['ipr'] }), 'IPR note saved on the case'); break; }
+      act(() => B.mutateCase(c.id, d => { d.ipr = r.note; }, { a: 'edit', fields: ['ipr'] }), 'IPR note added to the chart note'); break; }
     case 'iprPull': iprPull(t); break;
     case 'restoreVer': restoreVer(Number(t.dataset.i)); break;
     default: if (ADMIN_ACTS[a]) ADMIN_ACTS[a](t, e);

@@ -15,7 +15,7 @@ const { routes, watch } = require('./helpers');
   await page.click('[data-act=flow][data-k=inhouse]'); await page.screenshot({ path: 'shots/board-inhouse.png' });
   await page.click('#nav-list'); await page.waitForSelector('table.tbl');
   await page.screenshot({ path: 'shots/list.png' });
-  await page.click('tr.click >> nth=0'); await page.waitForSelector('#drawer .stepper');
+  await page.click('tr.click >> nth=0'); await page.waitForSelector('#drawer .dsList .ds'); // opens folded (3 Oct 2026)
   await page.waitForTimeout(200);
   await page.screenshot({ path: 'shots/drawer.png' });
   await page.click('[data-act=closeDrawer] >> nth=0');

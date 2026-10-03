@@ -13,4 +13,7 @@ function watch(page, errs, label) {
   page.on('pageerror', e => errs.push(label + ' pageerror: ' + e.message));
   page.on('console', m => { if (m.type() === 'error') errs.push(label + ' console: ' + m.text()); });
 }
-module.exports = { routes, watch };
+/* the case panel folds every section by default (3 Oct 2026); tests written against the open panel start with
+   "Expand all" remembered, the way an office computer would after someone tapped it */
+async function panelsOpen(ctx) { await ctx.addInitScript(() => { try { localStorage.setItem('nloCases.panelOpen', 'all'); } catch (e) { } }); }
+module.exports = { routes, watch, panelsOpen };

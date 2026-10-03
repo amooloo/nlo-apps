@@ -74,20 +74,99 @@ function buildChartNote(o) {
 }
 /* --- end of copied code --- */
 
-/* Build the note for the newest visit of a patient's visit list (pure; used by tests too). */
+/* --- the IPR Tracker's tooth outlines and sizes, copied unchanged from IPR_Tracker.html (toothPath, TW, TH) --- */
+function iprToothPath(n) {
+  if (n === 1) return "M 4,43 C 1,42 1,36 1,22 C 1,8 5,1 14,1 C 23,1 27,8 27,22 C 27,36 27,42 24,43 C 21,44 7,44 4,43 Z";
+  if (n === 2) return "M 3,40 C 1,39 1,33 1,21 C 1,9 4,2 12,2 C 20,2 23,9 23,21 C 23,33 23,39 21,40 C 18,41 6,41 3,40 Z";
+  if (n === 3) return "M 4,45 C 1,43 1,37 1,24 C 1,12 5,4 10,1 L 14,0 L 18,1 C 23,4 27,12 27,24 C 27,37 27,43 24,45 C 21,46 7,46 4,45 Z";
+  if (n === 4 || n === 5) return "M 4,41 C 1,39 1,33 1,21 C 1,10 4,3 9,1 L 11.5,0 L 14,3 L 16.5,0 L 19,1 C 24,3 27,10 27,21 C 27,33 27,39 24,41 C 21,42 7,42 4,41 Z";
+  return "M 5,39 C 2,37 2,32 2,21 C 2,10 5,3 9,1 L 12.5,0 L 15.5,3.5 L 20,3.5 L 23,0 L 26.5,1 C 31,3 34,10 34,21 C 34,32 34,37 31,39 C 28,40 8,40 5,39 Z";
+}
+const IPR_TW = { 7: 36, 6: 36, 5: 28, 4: 28, 3: 28, 2: 24, 1: 28 };
+const IPR_TH = { 7: 48, 6: 48, 5: 42, 4: 42, 3: 46, 2: 41, 1: 44 };
+/* --- end of copied code --- */
+
+/* Build the note for the newest visit of a patient's visit list (pure; used by tests too).
+   `d` keeps the numbers behind it (this visit's IPR, spaces and black triangles, IPR over all visits) for the diagram. */
 function iprNoteFromVisits(visits) {
   const vs = visits.slice().sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')) || String(b.created_at || '').localeCompare(String(a.created_at || '')));
   const v = vs[0];
   const cum = (key, teeth) => vs.reduce((acc, x) => addContacts(acc, canonContacts(teeth, jp(x[key], null), "")), iprInit(teeth));
-  return {
-    date: v.date || '', assistant: v.assistant_initials || '', visits: vs.length,
-    note: buildChartNote({
-      upper: canonContacts(IPR_UPPER, jp(v.upper_ipr, null), ""), lower: canonContacts(IPR_LOWER, jp(v.lower_ipr, null), ""),
-      upperSpaces: canonContacts(IPR_UPPER, jp(v.upper_spaces, null), ""), lowerSpaces: canonContacts(IPR_LOWER, jp(v.lower_spaces, null), ""),
-      upperBT: canonContacts(IPR_UPPER, jp(v.upper_bt, null), false), lowerBT: canonContacts(IPR_LOWER, jp(v.lower_bt, null), false),
-      incIPR: true, incCum: true, cumUpper: cum('upper_ipr', IPR_UPPER), cumLower: cum('lower_ipr', IPR_LOWER), visitCount: vs.length
-    })
+  const d = {
+    upper: canonContacts(IPR_UPPER, jp(v.upper_ipr, null), ""), lower: canonContacts(IPR_LOWER, jp(v.lower_ipr, null), ""),
+    upperSpaces: canonContacts(IPR_UPPER, jp(v.upper_spaces, null), ""), lowerSpaces: canonContacts(IPR_LOWER, jp(v.lower_spaces, null), ""),
+    upperBT: canonContacts(IPR_UPPER, jp(v.upper_bt, null), false), lowerBT: canonContacts(IPR_LOWER, jp(v.lower_bt, null), false),
+    incIPR: true, incCum: true, cumUpper: cum('upper_ipr', IPR_UPPER), cumLower: cum('lower_ipr', IPR_LOWER), visitCount: vs.length
   };
+  return { date: v.date || '', assistant: v.assistant_initials || '', visits: vs.length, note: buildChartNote(d), d };
+}
+
+/* ---------- the IPR Tracker's printed chart, drawn in the case panel ----------
+   Amir, 3 Oct 2026: instead of the written IPR note, "a diagram … with lines and where the spacing is and black triangles",
+   like the IPR Tracker prints. Same layout as its PrintChart: the upper teeth in a row (UR7 … UL7, gums at the top), the
+   lower teeth mirrored under them; at each contact with an amount, a line and the mm; ▼ at a black triangle. A panel is
+   drawn only when it has something in it. Plain SVG markup (numbers and fixed labels only). */
+const IPR_COL = { visit: '#1d4ed8', cum: '#7e22ce', space: '#0369a1' }; // the printed chart's colours
+function iprArchSVG(up, lo, btU, btL, color, label) {
+  const NUMS = [7, 6, 5, 4, 3, 2, 1, 1, 2, 3, 4, 5, 6, 7], PAD = 6, CH = 48, GAP = 12;
+  const lw = n => IPR_TW[n === 1 ? 2 : n]; // lower centrals are drawn with the lateral's narrower outline
+  const xs = [], lx = []; let x = PAD; NUMS.forEach(n => { xs.push(x); x += IPR_TW[n]; }); const W = x + PAD;
+  let y = PAD; NUMS.forEach(n => { lx.push(y); y += lw(n); }); const off = (W - (y + PAD)) / 2; // the lower row is centred
+  // room for the amounts above the upper row / below the lower row only when that arch has any (keeps the panels short)
+  const any = o => Object.values(o).some(v => parseFloat(v) > 0), ANN = any(up) ? 30 : 8, ANNB = any(lo) ? 30 : 8;
+  const uBase = ANN + CH, lTop = uBase + GAP, lBot = lTop + CH, H = lBot + ANNB;
+  const r = v => Math.round(v * 100) / 100;
+  let s = '<svg class="iprSvg" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc(label) + '">' +
+    '<line class="mid" x1="' + xs[7] + '" y1="' + (ANN - 2) + '" x2="' + xs[7] + '" y2="' + (lBot + 2) + '"/>' +
+    '<line class="base" x1="' + PAD + '" y1="' + uBase + '" x2="' + (W - PAD) + '" y2="' + uBase + '"/><line class="base" x1="' + PAD + '" y1="' + lTop + '" x2="' + (W - PAD) + '" y2="' + lTop + '"/>';
+  NUMS.forEach((n, i) => {
+    s += '<path class="tooth" d="' + iprToothPath(n) + '" transform="translate(' + xs[i] + ',' + ANN + ')"/><text class="tn" x="' + r(xs[i] + IPR_TW[n] / 2) + '" y="' + r(ANN + IPR_TH[n] * .52) + '">' + n + '</text>';
+    const dn = n === 1 ? 2 : n, h = IPR_TH[dn], l = r(lx[i] + off);
+    s += '<path class="tooth" d="' + iprToothPath(dn) + '" transform="translate(' + l + ',' + (lTop + h) + ') scale(1,-1)"/><text class="tn" x="' + r(l + IPR_TW[dn] / 2) + '" y="' + r(lTop + h * .48) + '">' + n + '</text>';
+  });
+  // a contact: the amount on a short line outside the arch, and ▼ in the gum-side gap for a black triangle
+  const mark = (cx, v, bt, upper) => {
+    cx = r(cx); let m = '';
+    if (v > 0) m += upper
+      ? '<line x1="' + cx + '" y1="' + (ANN - 3) + '" x2="' + cx + '" y2="' + (ANN - 13) + '" stroke="' + color + '" stroke-width="1"/><text class="v" x="' + cx + '" y="' + (ANN - 16) + '" fill="' + color + '">' + mm1(v) + '</text>'
+      : '<line x1="' + cx + '" y1="' + (lBot + 3) + '" x2="' + cx + '" y2="' + (lBot + 13) + '" stroke="' + color + '" stroke-width="1"/><text class="v" x="' + cx + '" y="' + (lBot + 24) + '" fill="' + color + '">' + mm1(v) + '</text>';
+    if (bt) m += upper ? '<polygon class="bt" points="' + cx + ',' + (ANN + 10) + ' ' + (cx - 6) + ',' + (ANN + 1) + ' ' + (cx + 6) + ',' + (ANN + 1) + '"/>'
+      : '<polygon class="bt" points="' + cx + ',' + (lBot - 10) + ' ' + (cx - 6) + ',' + (lBot - 1) + ' ' + (cx + 6) + ',' + (lBot - 1) + '"/>';
+    return m;
+  };
+  Object.keys(up).forEach((k, i) => { s += mark(xs[i] + IPR_TW[NUMS[i]], parseFloat(up[k]) || 0, btU && btU[k], true); });
+  Object.keys(lo).forEach((k, i) => { s += mark(lx[i] + off + lw(NUMS[i]), parseFloat(lo[k]) || 0, btL && btL[k], false); });
+  return s + '</svg>';
+}
+/* the panels for one IPR Tracker reading (`d` from iprNoteFromVisits): IPR this visit, IPR over all visits (when there's
+   more than one and it isn't the same picture), spaces & black triangles */
+function iprPanelsHTML(d) {
+  if (!d) return '';
+  const t = sumContacts, mm = v => mm1(v) + ' mm', same = (a, b) => Object.keys(a).every(k => mm1(a[k]) === mm1(b[k]));
+  const list = o => { const r = noteRowsOf(o); return r.length ? listRows(r) : 'none'; };
+  const bts = (u, l) => noteBTsOf(u).concat(noteBTsOf(l)).map(k => ckLabel(k));
+  const panel = (k, col, title, totals, svg) => '<div class="iprP" data-p="' + k + '"><div class="iprPH"><b style="color:' + col + '">' + title + '</b><span>' + totals + '</span></div>' + svg + '</div>';
+  const uI = t(d.upper), lI = t(d.lower), uS = t(d.upperSpaces), lS = t(d.lowerSpaces), cU = t(d.cumUpper), cL = t(d.cumLower), bt = bts(d.upperBT, d.lowerBT);
+  let h = '';
+  if (uI + lI > 0) h += panel('visit', IPR_COL.visit, 'IPR this visit', 'Upper ' + mm(uI) + ' · Lower ' + mm(lI) + ' · Total ' + mm(uI + lI),
+    iprArchSVG(d.upper, d.lower, null, null, IPR_COL.visit, 'IPR this visit. Upper: ' + list(d.upper) + '. Lower: ' + list(d.lower) + '.'));
+  if (d.visitCount > 1 && cU + cL > 0 && !(same(d.cumUpper, d.upper) && same(d.cumLower, d.lower)))
+    h += panel('cum', IPR_COL.cum, 'IPR so far · ' + d.visitCount + ' visits', 'Upper ' + mm(cU) + ' · Lower ' + mm(cL) + ' · Total ' + mm(cU + cL),
+      iprArchSVG(d.cumUpper, d.cumLower, null, null, IPR_COL.cum, 'IPR over all ' + d.visitCount + ' visits. Upper: ' + list(d.cumUpper) + '. Lower: ' + list(d.cumLower) + '.'));
+  if (uS + lS > 0 || bt.length) h += panel('space', IPR_COL.space, 'Spaces &amp; black triangles',
+    (uS + lS > 0 ? 'Upper ' + mm(uS) + ' · Lower ' + mm(lS) : 'No spaces') + (bt.length ? ' · ' + bt.length + ' black triangle' + (bt.length > 1 ? 's' : '') + ' <i class="btKey" aria-hidden="true"></i>' : ''),
+    iprArchSVG(d.upperSpaces, d.lowerSpaces, d.upperBT, d.lowerBT, IPR_COL.space, 'Spaces. Upper: ' + list(d.upperSpaces) + '. Lower: ' + list(d.lowerSpaces) + '. Black triangles: ' + (bt.join(', ') || 'none') + '.'));
+  if (!h) return '<div class="small muted">No IPR, spaces or black triangles recorded at this visit.</div>';
+  return (uI + lI > 0 ? '' : '<div class="small muted iprNone">No IPR at this visit.</div>') + h;
+}
+/* one line for the folded IPR heading: "Oct 2 visit · IPR 0.3 mm · 0.5 mm so far · spaces 0.3 mm · 1 black triangle" */
+function iprSumText(r) {
+  const d = r.d, t = sumContacts; if (!d) return '';
+  const ipr = t(d.upper) + t(d.lower), cum = t(d.cumUpper) + t(d.cumLower), sp = t(d.upperSpaces) + t(d.lowerSpaces);
+  const bt = noteBTsOf(d.upperBT).length + noteBTsOf(d.lowerBT).length;
+  return [(r.date ? fmtDate(r.date) + ' visit' : 'Latest visit'), ipr > 0 ? 'IPR ' + mm1(ipr) + ' mm' : 'no IPR',
+    d.visitCount > 1 && cum > 0 && Math.abs(cum - ipr) > 1e-9 ? mm1(cum) + ' mm so far' : '', sp > 0 ? 'spaces ' + mm1(sp) + ' mm' : '',
+    bt ? bt + ' black triangle' + (bt > 1 ? 's' : '') : ''].filter(Boolean).join(' · ');
 }
 
 const IPR = {
@@ -134,8 +213,8 @@ const IPR_DEMO = {
   async latest(chart) {
     if (!IPR.norm(chart)) return { status: 'not-found' };
     return Object.assign({ status: 'ok', initials: 'DM' }, iprNoteFromVisits([
-      { date: addDays(todayISO(), -21), upper_ipr: { 'UR2|UR1': '0.2' }, lower_ipr: {}, upper_spaces: {}, lower_spaces: {}, upper_bt: {}, lower_bt: {} },
-      { date: todayISO(), upper_ipr: {}, lower_ipr: { 'LR3|LR2': '0.2', 'LL1|LL2': '0.1' }, upper_spaces: { 'UR1|UL1': '0.3' }, lower_spaces: {}, upper_bt: { 'UR1|UL1': true }, lower_bt: {} }
+      { date: addDays(todayISO(), -21), upper_ipr: { 'UR2|UR1': '0.2', 'UL1|UL2': '0.2' }, lower_ipr: { 'LR2|LR1': '0.1' }, upper_spaces: {}, lower_spaces: {}, upper_bt: {}, lower_bt: {} },
+      { date: todayISO(), upper_ipr: {}, lower_ipr: { 'LR3|LR2': '0.2', 'LL1|LL2': '0.1' }, upper_spaces: { 'UR1|UL1': '0.3' }, lower_spaces: { 'LL3|LL4': '0.2' }, upper_bt: { 'UR1|UL1': true }, lower_bt: { 'LR1|LL1': true } }
     ]));
   },
   /* a made-up office roster: the demo's staff, one new hire without a login, one who has left */

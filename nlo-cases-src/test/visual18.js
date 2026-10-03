@@ -1,11 +1,11 @@
 // Arches to treat (aligners, in-house, InSmile): Upper & lower / Upper only / Lower only — demo
 const { chromium } = require('playwright');
-const { routes, watch } = require('./helpers');
+const { routes, watch, panelsOpen } = require('./helpers');
 const OUT = process.argv[2] || 'shots';
 (async () => {
   const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
   const errs = [];
-  const ctx = await browser.newContext({ viewport: { width: 1360, height: 1000 } }); await routes(ctx);
+  const ctx = await browser.newContext({ viewport: { width: 1360, height: 1000 } }); await routes(ctx); await panelsOpen(ctx);
   const p = await ctx.newPage(); watch(p, errs, 'demo');
   await p.goto('http://127.0.0.1:8765/nlo-cases.html?demo'); await p.click('#lgBtn'); await p.waitForSelector('.tiles');
   let fails = 0; const check = (ok, what) => { console.log((ok ? '  ok   ' : '  FAIL ') + what); if (!ok) fails++; };
@@ -72,7 +72,7 @@ const OUT = process.argv[2] || 'shots';
   const note = await p.textContent('#noteTxt');
   check(/for in-house aligners \(NL Lab\) - initial set, upper arch only\.$/m.test(note), 'chart note: “…for in-house aligners (NL Lab) - initial set, upper arch only.”');
   console.log('   note: ' + note.split('\n')[0].replace(/Ursula Upperton/g, '…'));
-  await (await p.$('#drawer .dBd .sec:has(.t-arch)')).screenshot({ path: OUT + '/v18-badge.png' });
+  await (await p.$('#drawer .dHd')).screenshot({ path: OUT + '/v18-badge.png' }); // the case badges sit under the name (3 Oct 2026)
   // Export STLs: only the upper count, templates None / Upper
   await p.click('#drawer .step[data-k=fab]'); await p.waitForSelector('#gAl');
   check(await vis('#gAlU') && !(await p.$('#gAlL')) && (await p.locator('.pickRow[data-g=gAt] .pick').count()) === 2 && /upper arch only/.test(await p.textContent('#gAl')), 'Export STLs asks for the upper aligners only, templates None / Upper');

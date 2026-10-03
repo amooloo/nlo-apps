@@ -2,7 +2,7 @@
 const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
-const { routes, watch } = require('./helpers');
+const { routes, watch, panelsOpen } = require('./helpers');
 const { makeGas } = require('./gas');
 const URL0 = 'http://127.0.0.1:8765/nlo-cases.html?emu';
 const PROJECT = 'demo-nlo-cases';
@@ -27,9 +27,10 @@ async function verifyEmail(email) {
   if (!codes.length) throw new Error('no verify email for ' + email);
   await fetch(codes[codes.length - 1].oobLink);
 }
-async function newPage(browser, label, errs, vp) {
+async function newPage(browser, label, errs, vp, folded) {
   const ctx = await browser.newContext({ viewport: vp || { width: 1360, height: 900 }, acceptDownloads: true });
-  await routes(ctx); const p = await ctx.newPage(); watch(p, errs, label); global.__errs = errs; (global.__pages = global.__pages || []).push({ l: label, p });
+  await routes(ctx); if (!folded) await panelsOpen(ctx); // the case panel opens folded unless Expand all was tapped (3 Oct 2026)
+  const p = await ctx.newPage(); watch(p, errs, label); global.__errs = errs; (global.__pages = global.__pages || []).push({ l: label, p });
   p.on('response', r => { if (r.status() === 403) { let docs = ''; try { docs = Array.from(new Set((r.request().postData() || '').match(/documents\/[A-Za-z_]+\/[A-Za-z0-9_\-]+/g) || [])).map(x => x.replace('documents/', '')).join(' '); } catch (e) { }
     forbidden.push(label + ' @ ' + SECTION + ' :: ' + r.request().method() + ' ' + r.url().replace(/\?.*/, '') + (docs ? ' [' + docs + ']' : '') + ' ' + new Date().toISOString().slice(11, 23)); } });
   return p;
@@ -58,7 +59,7 @@ async function newCase(p, o) {
 async function openByName(p, name) {
   await p.click((await p.isVisible('#nav-list')) ? '#nav-list' : '#mnav-list'); await p.fill('#q', name);
   await p.waitForSelector('tr.click:has-text("' + name + '")', { timeout: 20000 });
-  await p.click('tr.click:has-text("' + name + '")'); await p.waitForSelector('#drawer .stepper');
+  await p.click('tr.click:has-text("' + name + '")'); await p.waitForSelector('#drawer .dsList');
 }
 
 (async () => {
@@ -166,7 +167,7 @@ async function openByName(p, name) {
   await sleep(2500);
   await kay.click('#nav-today'); await openByName(kay, P1);
   await kay.waitForSelector('#drawer .txt:has-text("owner-note-1")', { timeout: 15000 });
-  await kay.waitForSelector('#drawer .txt:has-text("gwen-cc-1")', { timeout: 15000 });
+  await kay.waitForSelector('#drawer .ccBox:has-text("gwen-cc-1")', { timeout: 15000 });
   check(true, 'both simultaneous edits survived');
   await kay.click('#drawer [data-act=closeDrawer] >> nth=0');
   await owner.click('#drawer [data-act=closeDrawer] >> nth=0'); await gwen.click('#drawer [data-act=closeDrawer] >> nth=0');
@@ -341,15 +342,33 @@ async function openByName(p, name) {
   check(/IPR THIS VISIT\nUpper: none|Lower: LR3–LR2 0\.2mm/.test(pulled) && /UR1–UL1 0\.3mm/.test(pulled) && /CUMULATIVE IPR \(2 visits\)/.test(pulled), 'chart # without the dash still finds the patient; newest visit + cumulative pulled');
   await owner.click('#ncSave'); await owner.waitForSelector('#modalWrap', { state: 'detached', timeout: 20000 });
   await openByName(owner, 'Ivy Pulltest');
-  await owner.waitForSelector('#iprBox .stat:has-text("Saved on this case")', { timeout: 20000 });
-  check(true, 'case drawer shows the IPR Tracker note matches the case');
+  await owner.waitForSelector('#iprBox .stat:has-text("In the chart note")', { timeout: 20000 });
+  check(true, 'the case panel shows the pulled IPR note is the one in the chart note');
+  // one IPR section drawing the IPR Tracker's chart (3 Oct 2026): newest visit + IPR so far + spaces & black triangles
+  const iprSvgs = () => owner.$$eval('#iprBox .iprP', ps => ps.map(x => ({ p: x.dataset.p, vals: Array.from(x.querySelectorAll('svg text.v')).map(t => t.textContent).join(' '), bt: x.querySelectorAll('svg .bt').length, label: x.querySelector('svg').getAttribute('aria-label') })));
+  let pan = await iprSvgs();
+  check(pan.map(x => x.p).join(',') === 'visit,cum,space' && pan[0].vals === '0.2' && /LR3–LR2 0\.2mm/.test(pan[0].label) && pan[1].vals === '0.2 0.2' && pan[2].vals === '0.3' && pan[2].bt === 1 && /Black triangles: UR1–UL1/.test(pan[2].label),
+    'the IPR section draws the IPR Tracker’s chart: this visit (LR3–LR2 0.2), so far, the 0.3 space and ▼ at UR1–UL1');
+  check(/^Sep 28 visit · IPR 0\.2 mm · 0\.4 mm so far · spaces 0\.3 mm · 1 black triangle$/.test(await owner.textContent('#dsS-ipr')), 'its heading sums up the visit (' + await owner.textContent('#dsS-ipr') + ')');
+  check(!(await owner.isVisible('#drawer :text("From the IPR Tracker")')), 'no second “From the IPR Tracker” box');
   await put('nlo/ipr/visits/p1/v3', { id: 'v3', patient_uuid: 'p1', date: '2026-10-01', created_at: '2026-10-01T10:00:00Z', upper_ipr: { 'UL2|UL3': '0.1' }, lower_ipr: {}, upper_spaces: {}, lower_spaces: {}, upper_bt: {}, lower_bt: {} });
   await owner.click('#iprBox [data-act=iprRefresh]');
   await owner.waitForSelector('#iprBox [data-act=iprUse]', { timeout: 20000 });
-  check(/3 visits on file/.test(await owner.textContent('#iprBox')), 'refresh picks up a newer IPR visit');
+  check(/3 visits on file/.test(await owner.textContent('#iprBox')) && /Use this visit in the chart note/.test(await owner.textContent('#iprBox [data-act=iprUse]')), 'refresh picks up a newer IPR visit (and offers it for the chart note)');
+  pan = await iprSvgs();
+  check(pan.map(x => x.p).join(',') === 'visit,cum' && pan[0].vals === '0.1' && pan[1].vals === '0.2 0.1 0.2', 'the chart redraws for the newer visit (no spaces that visit, so no spaces panel)');
   await owner.click('#iprBox [data-act=iprUse]');
-  await owner.waitForSelector('#drawer .txt:has-text("UL2–UL3 0.1mm")', { timeout: 20000 });
-  check(true, '"Use this on the case" saves the new note (encrypted like the rest)');
+  await owner.waitForSelector('#noteTxt:has-text("UL2-UL3 0.1mm")', { timeout: 20000 }); // (the chart note pastes as plain ASCII)
+  check(true, '"Use this visit in the chart note" saves the new note (encrypted like the rest)');
+  // folded, the way the panel opens on a computer where nobody tapped Expand all: the IPR heading still sums up the visit
+  await owner.click('#drawer [data-act=dsAll]');
+  check(await owner.evaluate(() => Array.from(document.querySelectorAll('#drawer .ds:not(.line)')).every(x => !x.classList.contains('open') && x.querySelector('.dsBd').hidden) && localStorage.getItem('nloCases.panelOpen') === null), 'Collapse all folds every section (and forgets Expand all)');
+  await owner.click('#drawer [data-act=closeDrawer] >> nth=0'); await openByName(owner, 'Ivy Pulltest');
+  await owner.waitForFunction(() => /^Oct 1 visit · IPR 0\.1 mm · 0\.5 mm so far$/.test((document.querySelector('#dsS-ipr') || {}).textContent || ''), null, { timeout: 20000 }).catch(() => {});
+  check(await owner.evaluate(() => Array.from(document.querySelectorAll('#drawer .ds:not(.line)')).every(x => !x.classList.contains('open'))) && /^Oct 1 visit · IPR 0\.1 mm · 0\.5 mm so far$/.test(await owner.textContent('#dsS-ipr')), 'reopened folded; the IPR heading reads the newer visit from the IPR Tracker (' + await owner.textContent('#dsS-ipr') + ')');
+  await owner.click('#drawer .ds[data-ds=ipr] .dsTg'); await owner.waitForSelector('#iprBox .iprP[data-p=visit] svg', { timeout: 10000 });
+  check(await owner.isVisible('#iprBox .stat:has-text("In the chart note")'), 'tapping the IPR heading shows the chart (now in the chart note)');
+  await owner.click('#drawer [data-act=dsAll]'); // Expand all again for the rest of these tests
   await owner.click('#drawer [data-act=closeDrawer] >> nth=0');
 
   console.log('\n# Titan link on in-house cases');
@@ -747,7 +766,7 @@ async function openByName(p, name) {
   await owner.evaluate(() => B.createCase({ type: 'appliance', patient: 'Otto Oldmarpe', stage: 'mfg', appliances: ['MARPE'], lab: 'Partner Dental Studios', detail: 'MARPE', comments: [], createdAt: Date.now(), createdBy: meSid() }));
   // (the lab rebranded: Partner Dental Studios is Partners Dental Solutions now — an older case reads with the new name; Amir, 3 Oct 2026)
   await openByName(owner, 'Otto Oldmarpe');
-  check(await owner.isVisible('#drawer .sec .badge:has-text("Partners Dental Solutions")') && !(await owner.isVisible('#drawer .badge:has-text("Partner Dental Studios")')), 'an older case saved under Partner Dental Studios shows Partners Dental Solutions');
+  check(await owner.isVisible('#drawer .dHd .badge:has-text("Partners Dental Solutions")') && !(await owner.isVisible('#drawer .badge:has-text("Partner Dental Studios")')), 'an older case saved under Partner Dental Studios shows Partners Dental Solutions');
   await owner.click('#drawer [data-act=edit]'); await owner.waitForSelector('#drawer .pickRow[data-g=lab]');
   check(await owner.getAttribute('#drawer .pickRow[data-g=lab] .pick[data-v="Partners Dental Solutions"]', 'aria-pressed') === 'true' && (await owner.locator('#drawer .pickRow[data-g=lab] .pick').count()) === 3 && await owner.evaluate(() => sameVal(readCaseForm(document.querySelector('#drawer')).lab, S.editBase.lab)), 'Edit: its lab is the Partners logo (no extra old-name button), and opening Edit doesn’t count the lab as changed');
   await owner.click('#drawer [data-act=cancelEdit]'); await owner.click('#drawer [data-act=closeDrawer] >> nth=0');
