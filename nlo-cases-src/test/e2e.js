@@ -572,7 +572,9 @@ async function openByName(p, name) {
   const shown = await owner.locator('#ncForm .tt[data-tile]').evaluateAll(els => els.map(e => e.dataset.tile));
   check(!shown.includes('retreat') && !shown.includes('misc') && shown.includes('models'), 'no Retreatment or Dr. A (misc.) button; Study models is there');
   check(!/Dr\. A \(misc|Retreatment/.test(await owner.textContent('#ncForm .tileGrid')), 'the old names are gone from New case');
-  check(await owner.evaluate(() => Array.from(document.querySelectorAll('#ncForm .tt[data-tile]')).every(b => b.querySelector('.tmed img[src^="data:image/png"], .tmed svg.tsvg'))), 'every case type has a logo or a picture');
+  check(await owner.evaluate(() => Array.from(document.querySelectorAll('#ncForm .tt[data-tile]')).every(b => b.querySelector('.tmed img[src^="data:image/"], .tmed svg.tsvg'))), 'every case type has a logo or a picture');
+  // Appliance and MARPE: the pictures Dr. A chose (the whole upper arch with the appliance; Amir, 2 Oct 2026)
+  check(await owner.evaluate(() => ['appliance', 'marpe'].every(v => { const i = document.querySelector('#ncForm .tt[data-tile=' + v + '] .tmed.pic img'); return i && i.complete && i.naturalWidth > 0; })), 'Appliance and MARPE show Dr. A’s pictures');
   // (LOGOS.nlo is the office's own logo, shown for in-house sets in the lists and on the board; the In-house tile keeps the NL mark)
   check(await owner.evaluate(() => Object.keys(LOGOS).filter(k => k !== 'nlo').every(k => document.querySelector('#ncForm .tt[data-tile=' + k + '] .tmed.lg img'))), 'companies show their own logos (' + (await owner.evaluate(() => Object.keys(LOGOS).filter(k => k !== 'nlo').join(', '))) + ')');
   check(await owner.evaluate(() => Array.from(document.querySelectorAll('#ncForm .tmed.lg img')).every(i => i.complete && i.naturalWidth > 0)), 'the logos load under the page’s security policy');

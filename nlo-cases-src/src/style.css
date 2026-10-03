@@ -331,6 +331,10 @@ body.demo #drawer{bottom:31px} body.demo #side{padding-bottom:31px} body.demo #v
 .tt .tmed.lg{background:#fff;box-shadow:inset 0 0 0 1px var(--grey-200);padding:7px 6px}
 .tt.c-nl .tmed .tsvg{width:52px;height:52px} /* letters read better a little larger than the pictures */
 .tt .tmed.lg img{display:block;width:auto;height:auto;max-width:100%;max-height:34px;object-fit:contain}
+/* Appliance and MARPE: Amir's pictures of the whole upper arch, on the same white plate as the logos */
+.tt .tmed.pic{background:#fff;box-shadow:inset 0 0 0 1px var(--grey-200)}
+.tt .tmed.pic img{display:block;width:auto;height:46px;max-width:100%;object-fit:contain}
+.tt[aria-checked="true"] .tmed.pic{box-shadow:0 0 0 2px var(--mint)}
 .tt[aria-checked="true"] .tmed{box-shadow:0 0 0 2px var(--mint)}
 .tt.c-mint{--tbg:var(--mint-100);--tacc:var(--mint-700);--tsh:var(--mint-200)}
 .tt.c-coral{--tbg:var(--coral-100);--tacc:var(--coral-600);--tsh:var(--coral-200)}
