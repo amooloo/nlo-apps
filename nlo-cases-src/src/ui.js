@@ -419,8 +419,9 @@ function savPaint(root) {
 /* ---------- small pieces ---------- */
 function typeBadge(c) { const t = typeOf(c); return '<span class="badge ' + t.cls + '">' + esc(t.l) + '</span>'; }
 /* the board and the case lists show the company's logo instead of the name (Amir, 2 Oct 2026): Oliv, Angel, Invisalign,
-   uLab, InSmile from logos.js; in-house sets the Next Level Orthodontics logo; types with no company (retainers, appliances, MARPE,
-   models) keep the name. The picture is set after render (logoPaint), so no image data sits in this markup. */
+   uLab, InSmile from logos.js; in-house sets the Next Level Orthodontics logo; appliances and MARPE their lab's logo (3 Oct);
+   types with no company (retainers, mouthguards, models) keep the name. The picture is set after render (logoPaint),
+   so no image data sits in this markup. */
 function typeMark(c, small) {
   const t = typeOf(c), lg = typeof LOGOS !== 'undefined' && LOGOS[c.type], cls = 'tlogo' + (small ? ' sm' : '');
   if (lg) return '<span class="' + cls + ' lg-' + esc(c.type) + '" title="' + esc(t.l) + '"><img data-logo="' + esc(c.type) + '" width="' + lg.w + '" height="' + lg.h + '" alt="' + esc(t.l) + '" draggable="false"></span>';
@@ -428,6 +429,10 @@ function typeMark(c, small) {
   if (c.type === 'nla') { const l = c.variant === 'finishing' ? 'Finishing aligners (in-house)' : t.l, nl = typeof LOGOS !== 'undefined' && LOGOS.nlo;
     return nl ? '<span class="' + cls + ' lg-nlo" title="' + esc(l) + '"><img data-logo="nlo" width="' + nl.w + '" height="' + nl.h + '" alt="' + esc(l) + '" draggable="false"></span>'
       : '<span class="' + cls + ' nl" title="' + esc(l) + '" role="img" aria-label="' + esc(l) + '">' + typeSvg('nl') + '</span>'; }
+  // appliances and MARPE: the lab's logo (Specialty, Partners, or ours for in-house; Amir, 3 Oct 2026); no lab yet = the name
+  const lk = (c.type === 'appliance' || c.type === 'marpe') && LAB_LOGO[c.lab], ll = lk && typeof LOGOS !== 'undefined' && LOGOS[lk];
+  if (ll) { const l = t.l + ' · ' + c.lab;
+    return '<span class="' + cls + ' lg-' + esc(lk) + '" title="' + esc(l) + '"><img data-logo="' + esc(lk) + '" width="' + ll.w + '" height="' + ll.h + '" alt="' + esc(l) + '" draggable="false"></span>'; }
   return typeBadge(c);
 }
 function logoPaint(root) { if (typeof LOGOS === 'undefined') return; $$('img[data-logo]:not([src])', root || document).forEach(i => { const lg = LOGOS[i.dataset.logo]; if (lg) i.src = lg.src; }); }
@@ -614,12 +619,14 @@ function viewBoard() {
 }
 function kcard(c, last, steps) {
   const mixed = S.boardFlow === 'outside' || S.boardFlow === 'inhouse' || S.boardFlow === 'retainer';
+  // appliances and MARPE: the lab's logo on every card (the lab differs from card to card even on their own tabs)
+  const labbed = (c.type === 'appliance' || c.type === 'marpe') && !!LAB_LOGO[c.lab];
   const flags = shipFlag(c) + recFlag(c) + holdFlag(c);
   return '<div class="kc" data-act="open" data-id="' + esc(c.id) + '" role="button" tabindex="0">' +
     '<div class="kHd">' + ptAv(c, 32) + '<div class="pt">' + esc(c.patient || '(no name)') + '</div></div>' + (c.detail || alN(c) ? '<div class="dt">' + esc(c.detail || '') + alignerMini(c) + '</div>' : '') +
     (flags ? '<div class="flags">' + flags + '</div>' : '') +
     (steps ? '<div class="kstep">' + progHTML(c, steps) + '<div><b>' + esc(stageLabel(c)) + '</b><span>' + (steps.indexOf(c.stage) + 1) + ' of ' + steps.length + '</span></div></div>' : '') +
-    '<div class="ft">' + (mixed ? typeMark(c, true) : '') + dueChip(c) + trackLinks(c) + avatar(c) +
+    '<div class="ft">' + (mixed || labbed ? typeMark(c, true) : '') + dueChip(c) + trackLinks(c) + avatar(c) +
     '<button class="adv" data-act="' + (last ? 'complete' : 'advance') + '" data-id="' + esc(c.id) + '" title="' + (last ? 'Mark complete' : 'Move to next stage') + '" aria-label="' + (last ? 'Mark complete' : 'Move to next stage') + '">' + ic(last ? 'done' : 'next', 17) + '</button></div></div>';
 }
 

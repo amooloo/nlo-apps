@@ -367,10 +367,18 @@ body.demo #drawer{bottom:31px} body.demo #side{padding-bottom:31px} body.demo #v
 .tlogo.sm.lg-ulab img{max-height:22px}
 .tlogo.sm.lg-oliv img{max-height:18px}
 .tlogo.nl .tsvg{width:26px;height:26px}
+/* labs on appliance and MARPE cases: Specialty is wide; Partners is a small black block, drawn a little taller so its words show */
+.tlogo.lg-lab-partners img{max-height:26px;border-radius:3px}
+.tlogo.sm.lg-lab-partners img{max-height:20px}
 .tlogo.sm.nl .tsvg{width:20px;height:20px}
 .pickRow{display:flex;flex-wrap:wrap;gap:7px}
 .pick{border:1.5px solid var(--grey-200);border-radius:99px;padding:7px 13px;font-size:13px;font-weight:600;color:var(--grey-700);background:#fff;min-height:38px;text-align:left;line-height:1.25}
 .pick.sm{min-height:34px;padding:5px 12px;font-size:12.5px}
+/* the Lab choices are the labs' logos (the name is in the button for screen readers) */
+.pick.labPick{display:inline-flex;align-items:center;gap:6px;min-height:46px;padding:6px 16px;background:#fff}
+.pick.labPick img{display:block;height:24px;width:auto;max-width:150px}
+.pick.labPick.lp-lab-partners img{height:30px;border-radius:3px}
+.vh{position:absolute !important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0;padding:0;margin:-1px}
 .pick:hover{border-color:var(--mint-600);background:var(--mint-100);color:var(--navy)}
 .pick[aria-pressed="true"]{background:var(--mint);border-color:var(--mint-600);color:var(--navy-900)}
 .pick[aria-pressed="true"]::before{content:"✓ ";font-weight:700}

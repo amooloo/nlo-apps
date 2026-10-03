@@ -514,6 +514,7 @@ async function openByName(p, name) {
   await owner.click('#ncForm .tt[data-tile=appliance]');
   await owner.click('.pickRow[data-g=lab] .pick[data-v="Partner Dental Studios"]'); await tapAppl('MSE');
   check(await labNow() === 'Partner Dental Studios', 'a lab tapped by hand is kept');
+  check(await owner.evaluate(() => Array.from(document.querySelectorAll('#ncForm .pickRow[data-g=lab] .pick')).every(b => { const i = b.querySelector('img[data-logo]'); return i && i.complete && i.naturalWidth > 0 && b.textContent.trim() === b.dataset.v; })), 'the Lab choices show the labs’ logos (names kept for screen readers)');
   await owner.mouse.click(5, 5);
   check(await owner.isVisible('#ncForm'), 'a stray click outside the form does not throw it away');
   await owner.click('.modal [data-act=closeModal]');
@@ -582,7 +583,7 @@ async function openByName(p, name) {
   // Appliance and MARPE: the pictures Dr. A chose (the whole upper arch with the appliance; Amir, 2 Oct 2026)
   check(await owner.evaluate(() => ['appliance', 'marpe'].every(v => { const i = document.querySelector('#ncForm .tt[data-tile=' + v + '] .tmed.pic img'); return i && i.complete && i.naturalWidth > 0; })), 'Appliance and MARPE show Dr. A’s pictures');
   // (LOGOS.nlo is the office's own logo, shown for in-house sets in the lists and on the board; the In-house tile keeps the NL mark)
-  check(await owner.evaluate(() => Object.keys(LOGOS).filter(k => k !== 'nlo').every(k => document.querySelector('#ncForm .tt[data-tile=' + k + '] .tmed.lg img'))), 'companies show their own logos (' + (await owner.evaluate(() => Object.keys(LOGOS).filter(k => k !== 'nlo').join(', '))) + ')');
+  check(await owner.evaluate(() => Object.keys(LOGOS).filter(k => k !== 'nlo' && !k.startsWith('lab-')).every(k => document.querySelector('#ncForm .tt[data-tile=' + k + '] .tmed.lg img'))), 'companies show their own logos (' + (await owner.evaluate(() => Object.keys(LOGOS).filter(k => k !== 'nlo' && !k.startsWith('lab-')).join(', '))) + ')');
   check(await owner.evaluate(() => Array.from(document.querySelectorAll('#ncForm .tmed.lg img')).every(i => i.complete && i.naturalWidth > 0)), 'the logos load under the page’s security policy');
   check(await owner.isVisible('#ncForm .tt[data-tile=nla] .nlf'), 'In-house shows the NL mark');
   await owner.click('#ncForm .tt[data-tile=retainer]');

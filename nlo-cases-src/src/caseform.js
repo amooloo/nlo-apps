@@ -16,6 +16,8 @@ const PICK = {
    D2 distalizer → in-house, no outside prescription (lab workflow, Layer 3 exception); Herbst, MARA → Specialty; RPE, Schwartz,
    Hawley, finger spring → Partners (KB lab routing) */
 const LAB_SPEC = 'Specialty Orthodontic Lab', LAB_PART = 'Partner Dental Studios', LAB_IN = 'In-house (NL Lab)';
+/* each lab's logo (logos.js; Amir, 3 Oct 2026): on the Lab choices and, for appliance and MARPE cases, on the board and lists */
+const LAB_LOGO = { [LAB_SPEC]: 'lab-specialty', [LAB_PART]: 'lab-partners', [LAB_IN]: 'nlo' };
 const LAB_FOR = { 'Herbst with Rollo Band': LAB_SPEC, 'Space Closing Herbst': LAB_SPEC, 'MARA': LAB_SPEC, 'MSE': LAB_SPEC, 'MARPE': LAB_PART,
   'Rapid Palatal Expander (RPE)': LAB_PART, 'D2 distalizer': LAB_IN, 'Finger spring with no labial bow': LAB_PART, 'Hawley retainers': LAB_PART, 'Schwartz': LAB_PART };
 /* Dr. A's instructions: midline, AP and overbite are Maintain / Improve; the rest are picture tiles.
@@ -343,6 +345,14 @@ function learnedCCs() {
 }
 /* the current buttons plus any retired choice already saved on this case, so editing an older case never drops it */
 function withSaved(list, saved) { saved = [].concat(saved || []).filter(Boolean); return list.concat(saved.filter(v => !list.includes(v))); }
+/* the Lab choices as the labs' logos; the name stays in the button for screen readers (and searches); a lab with no logo keeps its name */
+function labRowHTML(labs, chosen) {
+  return '<div class="pickRow labRow" role="group" data-g="lab" data-multi="0">' + labs.map(l => {
+    const k = LAB_LOGO[l], lg = k && typeof LOGOS !== 'undefined' && LOGOS[k];
+    return '<button type="button" class="pick' + (lg ? ' labPick lp-' + esc(k) : '') + '" data-v="' + esc(l) + '" aria-pressed="' + (chosen === l) + '" title="' + esc(l) + '">' +
+      (lg ? '<img data-logo="' + esc(k) + '" width="' + lg.w + '" height="' + lg.h + '" alt="" draggable="false"><span class="vh">' + esc(l) + '</span>' : esc(l)) + '</button>';
+  }).join('') + '</div>';
+}
 function pickRow(group, options, chosen, multi, extraCls) {
   const on = v => multi ? (chosen || []).includes(v) : chosen === v;
   return '<div class="pickRow" role="group" data-g="' + group + '" data-multi="' + (multi ? 1 : 0) + '">' + options.map(o => {
@@ -376,7 +386,7 @@ function caseFormHTML(c, isNew) {
     '<div class="cfSec"><div class="ptRowF">' + (isNew ? phSlotHTML() : '') + '<div class="grid2"><div class="field"><label for="cf-patient">Patient name *</label><input id="cf-patient" autocomplete="off" value="' + esc(c.patient || '') + '" required></div>' +
     '<div class="field"><label for="cf-chart">Chart #</label><input id="cf-chart" autocomplete="off" spellcheck="false" inputmode="text" placeholder="For the IPR Tracker link" value="' + esc(c.chart || '') + '"></div></div></div></div>' +
     '<div class="cfSec"' + show('appliance marpe') + '><div' + show('appliance') + '><h5>Appliance</h5>' + pickRow('appliances', withSaved(PICK.appliances, c.appliances), c.appliances || [], true) + '</div>' +
-    '<h5>Lab</h5>' + pickRow('lab', withSaved(PICK.labs, c.lab), c.lab || '', false) + '<div class="hint small" id="cf-labHint" style="margin-top:6px"></div></div>' +
+    '<h5>Lab</h5>' + labRowHTML(withSaved(PICK.labs, c.lab), c.lab || '') + '<div class="hint small" id="cf-labHint" style="margin-top:6px"></div></div>' +
     // MARPE: the two records the lab needs, and the Zoom call once it's set up
     '<div class="cfSec"' + show('marpe') + '><h5>Records on file <span class="h5n">both have to be on file before it goes to the lab</span></h5>' +
       pickRow('records', MARPE_RECORDS.map(([v, l]) => ({ v, l })), c.records || [], true) +
