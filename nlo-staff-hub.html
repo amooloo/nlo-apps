@@ -584,6 +584,36 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<style id="nlo-phone-fit">
+/* ---------- Phone fit (Oct 2026) ----------
+   On phones the menu used to fill the top third of the screen (8 tabs wrapping onto 4 rows, then Lock app and the office
+   name); it is now one compact bar plus a 4 × 2 grid of the same tabs. Typing boxes are 16px so iPhones don't zoom in,
+   and wide tables keep the staff name pinned while they scroll sideways. */
+@media (max-width:900px){@supports (overflow:clip){html,body{overflow-x:clip}}}
+@media (hover:none) and (pointer:coarse),(max-width:760px){
+  input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]):not([type=file]),select,textarea{font-size:16px !important}
+}
+@media (max-width:560px){
+  #side{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;column-gap:6px;padding:0}
+  #side .sideTop{grid-column:1;grid-row:1;padding:12px 0 10px 16px;gap:10px;min-width:0}
+  #side .sideTop img{width:76px}
+  #side .sideTop .appTag{font-size:10px;letter-spacing:.24em;white-space:nowrap}
+  #side .sideFoot{display:contents}
+  #side #syncStatus{grid-column:2;grid-row:1;display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:#A7B2C2;white-space:nowrap;padding:6px 4px}
+  #side .sideLock{grid-column:3;grid-row:1;margin-right:12px;padding:7px 12px;font-size:11.5px;gap:6px}
+  #side .sideOffice,#side .sideEnc{display:none}
+  #navTabs{grid-column:1/-1;grid-row:2;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;padding:0 8px 10px;overflow:visible}
+  #navTabs .nv{flex-direction:column;justify-content:flex-start;gap:4px;padding:8px 2px 7px;font-size:11px;line-height:1.2;text-align:center;width:auto;min-height:54px;border-radius:10px;overflow-wrap:anywhere}
+  #navTabs .nv svg{width:18px;height:18px;flex:none}
+  #navTabs .nv .pill{position:absolute;top:4px;right:calc(50% - 26px);margin:0;font-size:9.5px;padding:0 5px;min-width:16px;line-height:16px}
+  #navTabs .nv[data-act="openCapture"]{color:var(--mint) !important;background:rgba(100,244,201,.10)}
+  main{padding:18px 14px 70px}
+  main input:not([type=checkbox]):not([type=radio]),main select,main textarea{min-width:0}
+  /* wide tables (KPIs, certifications, reviews): the first column stays put while the rest scrolls */
+  .tscroll{-webkit-overflow-scrolling:touch}
+  .tscroll>table.tbl th:first-child,.tscroll>table.tbl td:first-child{position:sticky;left:0;z-index:1;background:var(--card,#fff);box-shadow:1px 0 0 var(--grey-100)}
+}
+</style>
 </head>
 <body>
 

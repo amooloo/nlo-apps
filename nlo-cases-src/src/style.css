@@ -850,3 +850,22 @@ body.phOff .pav,body.phOff .dPh,body.phOff .phSlot,body.phOff .phTgl,body.phOff 
 .txFromRow[hidden]{display:none}
 /* phones: the narrow graph; the folded line keeps "Month 4 of 18 · 19%" */
 @media (max-width:500px){.txSvg.w{display:none}.txSvg.n{display:block}.txEnds{padding:0 6.7%;max-width:460px}.txMini{width:36px;margin-right:8px}.txLeft{display:none}}
+
+/* ---------- Phone fit (Oct 2026) ----------
+   iPhones zoom the page in when a box under 16px gets the cursor (and it stays zoomed), and one long chip made
+   the whole page a few px wider than the screen. Long chips now wrap; on phones the date chips sit under the name. */
+@media (max-width:900px){@supports (overflow:clip){html,body{overflow-x:clip}}}
+@media (hover:none) and (pointer:coarse),(max-width:760px){
+  input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]):not([type=file]),select,textarea{font-size:16px !important}
+}
+@media (max-width:520px){
+  .row{flex-wrap:wrap;row-gap:6px}
+  .row>.grow{flex:1 1 calc(100% - 60px)}
+  .row>.grow~.due,.row>.grow~.flag{white-space:normal;max-width:100%}
+  .row>.pav+.grow+.due,.row>.pav+.grow+.flag{margin-left:48px}
+  .tbl td .due,.tbl td .flag{white-space:normal;max-width:100%}
+  .tbl td.stg{min-width:0}
+  .tbl .pt{overflow-wrap:anywhere}
+  .tbl .alMini{white-space:normal}
+  .card.tblWrap>.tbl tr.click>td:first-child{width:50%}
+}

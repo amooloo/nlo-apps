@@ -187,6 +187,29 @@
     #sendBtn, #imgBtn { width: 36px; height: 36px; min-width: 36px; }
   }
 </style>
+<style id="nlo-phone-fit">
+/* ---------- Phone fit (Oct 2026) ----------
+   The question box was 15px, so iPhones zoomed the page in when it got the cursor (and stayed zoomed);
+   on phones the two tabs stay on one line and the version tag steps aside. */
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+@media (max-width:900px){@supports (overflow:clip){html,body{overflow-x:clip}}}
+@media (hover:none) and (pointer:coarse),(max-width:760px){
+  #questionInput,.modal textarea,input:not([type=checkbox]):not([type=radio]):not([type=file]),select,textarea{font-size:16px !important}
+}
+@media (max-width:480px){
+  header{padding:10px 12px 10px 122px}
+  .mode-tabs{gap:14px}
+  .mode-tab{white-space:nowrap;font-size:13.5px;padding:6px 0}
+  #versionTag{display:none}
+  .input-area{padding-bottom:max(10px,env(safe-area-inset-bottom))}
+}
+/* answers with a table (e.g. vacation accrual) show a real table; on a phone it scrolls sideways inside the answer */
+.md-table{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:8px 0 10px;border:1px solid var(--nlo-grey-200);border-radius:8px;background:#fff}
+.md-table table{border-collapse:collapse;width:100%;font-size:0.84rem;line-height:1.45}
+.md-table th,.md-table td{padding:7px 10px;border-bottom:1px solid var(--nlo-grey-100);text-align:left;vertical-align:top}
+.md-table th{background:var(--nlo-grey-50);font-weight:600;color:var(--nlo-navy);white-space:nowrap}
+.md-table tr:last-child td{border-bottom:none}
+</style>
 </head>
 <body>
 <!-- NLO-BACK-TO-INDEX v1 -->
@@ -877,6 +900,22 @@ function renderMarkdown(text) {
   html = html.replace(/(?<!src="|href="|&quot;|">)(https?:\/\/[^\s<,)]+\.(?:png|jpg|jpeg|gif|webp)(?:\?[^\s<,)]*)?)/gi, '<img class="inline-img" src="$1" alt="Reference photo" onclick="openLightbox(\'$1\')" loading="lazy" />');
   // Plain URLs that aren't already inside an href or src
   html = html.replace(/(?<!src="|href="|&quot;|">)(https?:\/\/[^\s<,)]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
+  // --- TABLES: Markdown pipe tables become a real table that scrolls sideways on a phone ---
+  var tLines = html.split('\n'), tOut = [];
+  var tRow = function (l) { return /^\s*\|.*\|\s*$/.test(l); };
+  var tSep = function (l) { return l.indexOf('|') > -1 && /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/.test(l); };
+  var tCells = function (l) { return l.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(function (c) { return c.trim(); }); };
+  for (var ti = 0; ti < tLines.length; ti++) {
+    if (tRow(tLines[ti]) && ti + 1 < tLines.length && tSep(tLines[ti + 1])) {
+      var tHead = tCells(tLines[ti]), tBody = [];
+      ti += 2;
+      while (ti < tLines.length && tRow(tLines[ti])) { tBody.push(tCells(tLines[ti])); ti++; }
+      ti--;
+      tOut.push('<div class="md-table"><table><thead><tr>' + tHead.map(function (c) { return '<th>' + c + '</th>'; }).join('') + '</tr></thead><tbody>' +
+        tBody.map(function (r) { return '<tr>' + r.map(function (c) { return '<td>' + c + '</td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table></div>');
+    } else tOut.push(tLines[ti]);
+  }
+  html = tOut.join('\n');
   // --- LIST RENDERING (block-based approach) ---
   // Process line by line to build proper nested lists
   var lines = html.split('\n');
@@ -921,10 +960,11 @@ function renderMarkdown(text) {
   html = html.replace(/\n{2,}/g, '</p><p>');
   html = html.replace(/\n/g, '<br>');
   html = html.replace(/<p><\/p>/g, '');
+  html = html.replace(/<br>\s*(<div class="md-table">)/g, '$1').replace(/(<\/table><\/div>)\s*<br>/g, '$1');
   // Remove stray <br> before/after list and heading tags
   html = html.replace(/<br>\s*(<\/?[uo]l>|<\/?li|<h[34])/g, '$1');
   html = html.replace(/(<\/?[uo]l>|<\/li>|<\/h[34]>)\s*<br>/g, '$1');
-  if (!html.startsWith('<h') && !html.startsWith('<ul') && !html.startsWith('<ol')) {
+  if (!html.startsWith('<h') && !html.startsWith('<ul') && !html.startsWith('<ol') && !html.startsWith('<div class="md-table"')) {
     html = '<p>' + html + '</p>';
   }
   // DOM-based cleanup: remove Drive URLs and loading="lazy" from TEXT NODES only

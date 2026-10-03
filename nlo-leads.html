@@ -434,6 +434,21 @@ ol.steps li{margin-bottom:6px}
 .seg button[disabled]{opacity:.45;cursor:not-allowed}
 .dFt .btn-ghost{min-height:32px;padding:4px 10px}
 
+/* ---------- Phone fit (Oct 2026) ----------
+   iPhones zoom the page in when a box under 16px gets the cursor (and it stays zoomed); the lead list now fits the
+   screen instead of cutting off the "Next" column. */
+@media (max-width:900px){@supports (overflow:clip){html,body{overflow-x:clip}}}
+@media (hover:none) and (pointer:coarse),(max-width:760px){
+  input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]):not([type=file]),select,textarea{font-size:16px !important}
+}
+@media (max-width:520px){
+  .tbl td,.tbl th{padding-left:8px;padding-right:8px}
+  .tbl td .due,.tbl td .flag{white-space:normal;max-width:100%}
+  .tbl .pt,.tbl td .small{overflow-wrap:anywhere}
+  .tbl .sprog{min-width:44px}
+  .card.tblWrap>.tbl tr.click>td:first-child{width:50%}
+}
+
 </style>
 </head>
 <body>
