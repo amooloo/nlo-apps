@@ -85,7 +85,8 @@ const DEMO = {
     const ref = Array.from(DEMO.cases.values()).find(c => c.type === 'nla' && c.stage === 'thermo');
     Object.assign(ref, { chart: '15-1001', initial: 'no', alU: 10, alL: 8, detail: 'Aligners (In-House) – refinement' });
     DEMO.cases.set('demoAl0', { id: 'demoAl0', rev: 6, v: 1, status: 'done', by: 'angelika', updatedAt: Date.now() - 90 * 86400e3, closedAt: Date.now() - 90 * 86400e3, type: 'nla', patient: ref.patient, chart: '15-1001',
-      detail: 'Aligners (In-House)', stage: 'checkedin', initial: 'yes', alU: 24, alL: 20, scanDate: addDays(t, -130), labDate: addDays(t, -109), deliveryDate: addDays(t, -102), assignee: 'angelika', comments: [], createdAt: Date.now() - 130 * 86400e3 });
+      detail: 'Aligners (In-House)', stage: 'checkedin', initial: 'yes', alU: 24, alL: 20, scanDate: addDays(t, -130), labDate: addDays(t, -109), deliveryDate: addDays(t, -102), assignee: 'angelika', comments: [], createdAt: Date.now() - 130 * 86400e3,
+      txStart: addDays(t, -102), txEnd: addDays(t, -102 + 548), txAt: Date.now() - 130 * 86400e3 }); // the patient's treatment: about 18 months from the first set
     for (let j = 0; j < 6; j++) {
       const id = 'demoDone' + j;
       DEMO.cases.set(id, { id, rev: 3, v: 1, status: 'done', by: 'sarah', updatedAt: Date.now() - j * 86400e3, closedAt: Date.now() - j * 86400e3, type: j % 2 ? 'retainer' : 'oliv', patient: first[(j + 9) % first.length] + ' ' + last[(j + 2) % last.length], detail: j % 2 ? "U/L TT's" : 'Aligners (Oliv)', stage: j % 2 ? 'pickup' : 'milestones', assignee: 'sarah', deliveryDate: addDays(t, -j - 1), comments: [], createdAt: Date.now() - 20 * 86400e3 });

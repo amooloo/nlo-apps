@@ -85,7 +85,7 @@ const OUT = process.argv[2] || 'shots';
   await p.click('#alBox [data-act=labels]'); await p.waitForSelector('#lb-list .lbRow');
   check(await p.isChecked('#lb-uOn') && !(await p.isChecked('#lb-lOn')) && /^23 labels/.test(await p.textContent('#lb-count')), 'labels: upper only (box + template + 21 stages = ' + (await p.textContent('#lb-count')).trim() + ')');
   await p.click('[data-act=closeModal]');
-  check(await p.evaluate(id => caseToCSVRow(findCase(id)).endsWith('"Upper only"'), u.id), 'export: Arches treated column says Upper only');
+  check(await p.evaluate(id => caseToCSVRow(findCase(id)).endsWith('"Upper only","",""'), u.id), 'export: Arches treated column says Upper only');
   await p.evaluate(() => closeDrawer(true));
 
   // ---------- Edit: an older both-arches case switches to one arch ----------

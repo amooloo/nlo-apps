@@ -693,6 +693,35 @@ async function openByName(p, name) {
     return a === 'print' && b === 'wash' && c === 'fab' && rows.length === 1 && caseFromAsana(rows[0], 'NL Lab', []).stage === 'send';
   }), 'Asana import: the NL Lab checklist (subtasks) picks the fabrication step, from the API or a CSV');
 
+  console.log('\n# In-house treatment: Start and Expected removal, and the graph of where the patient is');
+  const txS = await owner.evaluate(() => addDays(todayISO(), -60)), txE = await owner.evaluate(() => addDays(todayISO(), 300));
+  await openByName(owner, 'Nadia Setcount'); // the refinement (the initial set is complete); the patient has no dates yet
+  check(await owner.textContent('#dsS-tx') === 'No start and expected removal yet', 'an in-house case without dates says so on its Treatment line');
+  await owner.click('#drawer [data-act=edit]'); await owner.waitForSelector('#drawer #cf-txStart');
+  check(await owner.isVisible('#drawer #cf-txStart') && await owner.isVisible('#drawer #cf-txEnd') && !(await owner.isVisible('#drawer #cf-txChange')), 'Edit asks for the Start and Expected removal (the patient has none yet)');
+  await owner.fill('#drawer #cf-txStart', txS); await owner.fill('#drawer #cf-txEnd', txE);
+  await owner.click('#drawer [data-act=saveEdit]'); await owner.waitForSelector('#drawer #dsS-tx:has-text("Month")', { state: 'attached', timeout: 15000 });
+  const txLine = await owner.textContent('#dsS-tx');
+  check(/^Month \d+ of 12 · 17% · /.test(txLine), 'saved: the Treatment line says where the patient is (' + txLine + ')');
+  if (await owner.getAttribute('#drawer .ds[data-ds=tx] .dsTg', 'aria-expanded') !== 'true') await owner.click('#drawer .ds[data-ds=tx] .dsTg');
+  const txEnds = await owner.$$eval('#drawer .txEnds span', ss => ss.map(x => x.textContent)), txFmt = await owner.evaluate(([a, b]) => [fmtDate(a), fmtDate(b)], [txS, txE]);
+  check(await owner.isVisible('#drawer .txSvg.w') && (await owner.getAttribute('#drawer .txSvg.w', 'aria-label')).startsWith(txLine) && (await owner.locator('#drawer .txSvg.w .today').count()) === 1
+    && txEnds.join(' | ') === 'Start ' + txFmt[0] + ' | Expected removal ' + txFmt[1] && /^Dates saved on this set/.test(await owner.textContent('#drawer .txFrom')), 'the graph: the treatment, today, Start and Expected removal (' + txEnds.join(' · ') + ')');
+  const txSaved = await owner.evaluate(() => { const c = findCase(S.openId); return { s: c.txStart, e: c.txEnd, at: c.txAt }; });
+  check(txSaved.s === txS && txSaved.e === txE && txSaved.at > 0, 'the dates are saved on the case (with when they were saved)');
+  check(!JSON.stringify(await fsDump()).includes(txS) && !JSON.stringify(await fsDump()).includes(txE), 'the treatment dates are stored encrypted (not readable in the database)');
+  await owner.click('#drawer [data-act=closeDrawer] >> nth=0'); await owner.fill('#q', '');
+  await openByName(gwen, 'Nadia Setcount'); await gwen.waitForSelector('#drawer #dsS-tx:has-text("Month")', { state: 'attached', timeout: 20000 });
+  check(await gwen.textContent('#dsS-tx') === txLine, 'Gwen sees the same Treatment line');
+  await gwen.click('#drawer [data-act=closeDrawer] >> nth=0'); await gwen.fill('#q', '');
+  // the next set for the patient: the dates are already there, so just a line with Change
+  await owner.click('.topBar [data-act=newCase]'); await owner.waitForSelector('#ncForm');
+  await owner.click('#ncForm .tt[data-tile=nla]'); await owner.fill('#cf-patient', 'Nadia Setcount'); await owner.fill('#cf-chart', '77-1234');
+  await owner.click('.pickRow[data-g=initial] .pick[data-v=no]');
+  await owner.waitForSelector('#ncForm #cf-txFromRow:not([hidden])', { timeout: 10000 });
+  check(!(await owner.isVisible('#ncForm #cf-txStart')) && /expected removal .*\(from the patient’s earlier set\)\./.test(await owner.textContent('#ncForm #cf-txFrom')), 'New case for the patient’s next set: “Treatment … → expected removal … (from the patient’s earlier set).” — no boxes');
+  await owner.click('.modal [data-act=closeModal]');
+
   console.log('\n# Aligner labels from the case (the Label Maker, filled in)');
   await openByName(owner, 'Tobias Titancase'); await owner.waitForSelector('#alBox');
   check(await owner.isDisabled('#alBox [data-act=labels]'), 'Print labels waits until the aligner counts are entered');
@@ -1146,6 +1175,7 @@ async function openByName(p, name) {
   check(exp.includes('Digital enhancement 2 (DE2)') && exp.includes('Mouthguard (U)'), 'export carries DE and mouthguard details');
   check(/Aligners in set/.test(exp.split('\n')[0]) && !/,"?Due"?,/.test(exp.split('\n')[0]), 'export has aligners per set and no due-date column');
   check((exp.split('\n').find(l => l.includes('Rhea Labelworth')) || '').includes('"' + tmr + ' 13:30"'), 'export: the Delivery column carries the delivery time');
+  check(exp.split('\n')[0].endsWith('Arches treated,Treatment start,Expected removal') && (exp.split('\n').find(l => l.includes('Nadia Setcount') && l.includes('"' + txS + '"')) || '').endsWith('"' + txS + '","' + txE + '"'), 'export: Treatment start and Expected removal columns (the in-house refinement carries its dates)');
   check(exp.split('\n')[0].includes('Ship to patient,Records on file,Zoom call') && exp.includes('STL scan; CBCT (upper & lower jaws)') && /"Yes"/.test(exp.split('\n').find(l => l.includes('Shelby Shipwell')) || ''), 'export carries Ship to patient, MARPE records and the Zoom call');
 
   console.log('\n# Activity');

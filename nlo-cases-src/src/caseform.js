@@ -164,7 +164,7 @@ function submissionLabel(v) { return v === 'yes' ? 'Initial submission' : v === 
 /* fields added later save '' when empty (not [] or false), so older cases without them don't look edited */
 const FORM_KEYS = ['type', 'patient', 'chart', 'detail', 'stage', 'assignee', 'assistant', 'scanner', 'scanDate', 'labDate', 'deliveryDate', 'deliveryTime', 'aligners',
   'initial', 'appliances', 'lab', 'arches', 'retKinds', 'goals', 'instrPicks', 'instrOther', 'instructions', 'extras', 'teeth', 'cc', 'ipr', 'notes', 'titanUrl', 'alU', 'alL',
-  'shipToPatient', 'records', 'zoomDate', 'zoomTime', 'tracking', 'labRef', 'atTemplates', 'treatArch'];
+  'shipToPatient', 'records', 'zoomDate', 'zoomTime', 'tracking', 'labRef', 'atTemplates', 'treatArch', 'txStart', 'txEnd'];
 
 /* delivery time: every half hour, 7:00 AM to 7:00 PM (Amir, 2 Oct 2026: "30 mins increments are fine") */
 const HALF_HOURS = Array.from({ length: 25 }, (_, i) => { const m = 7 * 60 + i * 30; return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); });
@@ -310,7 +310,13 @@ const RX_ICONS = {
 };
 function rxSvg(k) { return '<svg class="isvg rxsvg" viewBox="0 0 48 48" aria-hidden="true" focusable="false">' + (RX_ICONS[k] || '') + '</svg>'; }
 function safeUrl(u) { return /^https:\/\/[^\s<>"']+$/i.test(String(u || '').trim()) ? String(u).trim() : ''; }
-function sameVal(a, b) { return JSON.stringify(a == null ? '' : a) === JSON.stringify(b == null ? '' : b); }
+/* same value for Edit: nothing, '' , false, [] and {} are all "empty" (a case saved before a field existed has none of
+   it, the form says '' or []), and 10 is '10' — so saving one change doesn't also list every field the case never had */
+function sameVal(a, b) {
+  const empty = v => v == null || v === '' || v === false || (Array.isArray(v) ? !v.length : typeof v === 'object' && !Object.keys(v).some(k => !empty(v[k])));
+  const norm = v => empty(v) ? '' : typeof v === 'number' ? String(v) : v;
+  return JSON.stringify(norm(a)) === JSON.stringify(norm(b));
+}
 /* office holidays from the handbook (same list as the NLO Calendar) */
 function officeHolidays(y) {
   const nth = (m, wd, n) => { const d = new Date(y, m, 1); d.setDate(1 + (wd - d.getDay() + 7) % 7 + (n - 1) * 7); return d; };
@@ -361,6 +367,10 @@ function pickRow(group, options, chosen, multi, extraCls, icon) {
     return '<button type="button" class="pick' + (extraCls ? ' ' + extraCls : '') + '" data-v="' + esc(v) + '" aria-pressed="' + on(v) + '">' + (icon ? icon(v) : '') + esc(l) + '</button>';
   }).join('') + '</div>';
 }
+/* the scanners as Amir's pictures (3 Oct 2026: "use these icons for the scanner types"), in a small white circle;
+   set once the form is on the page (data-pic, like the tile pictures) */
+const SCAN_PIC = { 'Allied Star': 'scan-allied', iTero: 'scan-itero' };
+function scanIc(v) { const k = SCAN_PIC[v]; return k ? '<img class="scanIc" data-pic="' + k + '" width="36" height="36" alt="" draggable="false">' : ''; }
 /* the upper and lower arch as Amir's small aligner pictures (3 Oct 2026): ∩ with the wide front teeth = upper, U = lower;
    both arches = upper over lower. The pictures are set once the form is on the page (data-logo, like the logos). */
 function archIc(v) {
@@ -410,9 +420,13 @@ function caseFormHTML(c, isNew) {
       '<div class="field"' + (oneArch(c) === 'U' ? ' style="display:none"' : '') + '><label for="cf-alL">Lower aligners</label><input id="cf-alL" type="number" inputmode="numeric" min="0" max="99" step="1" placeholder="0" value="' + esc(c.alL || '') + '"></div>' +
       '<div class="alTot" id="cf-alTotal" aria-live="polite"></div></div>' +
       '<h5>Attachment templates <span class="h5n">asked again when it moves to Export STLs</span></h5>' + pickRow('atTemplates', AT_OPTS, atFor(c.atTemplates, oneArch(c)), false) + '</div>' +
+    // in-house: the patient's treatment Start and Expected removal (on the initial set, or while the patient has none; see txOf)
+    '<div class="cfSec"' + showTiles(INHOUSE_TILES.join(' ')) + '><h5>Treatment <span class="h5n">the patient’s start and expected removal — for the treatment graph</span></h5>' +
+      '<div class="txFromRow" id="cf-txFromRow" hidden><span class="small muted" id="cf-txFrom"></span><button type="button" class="btn btn-sec btn-sm" id="cf-txChange">Change</button></div>' +
+      '<div class="grid2" id="cf-txWrap">' + date('cf-txStart', 'Start', c.txStart) + date('cf-txEnd', 'Expected removal', c.txEnd) + '</div></div>' +
     '<div class="cfSec"' + showTiles('insmile') + '><h5>Initial or digital enhancement?</h5>' + pickRow('initialDE', [{ v: 'yes', l: 'Initial' }, { v: 'de1', l: 'DE 1' }, { v: 'de2', l: 'DE 2' }, { v: 'de3', l: 'DE 3' }], c.initial || '', false) + '</div>' +
     '<div class="cfSec"><h5>Assistant</h5>' + staffPickRow('assistant', withSavedStaff(roster, c.assistant), c.assistant || '') +
-    '<div' + show('aligner braces appliance marpe retainer models') + '><h5>Scanner</h5>' + pickRow('scanner', PICK.scanners, c.scanner || '', false) + '</div></div>' +
+    '<div' + show('aligner braces appliance marpe retainer models') + '><h5>Scanner</h5>' + pickRow('scanner', PICK.scanners, c.scanner || '', false, 'scanPick', scanIc) + '</div></div>' +
     '<div class="cfSec"><h5>Dates</h5><div class="pickRow" style="margin-bottom:8px"><button type="button" class="pick sm" data-scan="0">Scanned today</button><button type="button" class="pick sm" data-scan="-1">Yesterday</button></div>' +
     '<div class="grid3">' + date('cf-scanDate', 'Scan date', c.scanDate) + date('cf-labDate', 'Lab completion', c.labDate) + '<div class="field"><label for="cf-deliveryDate" id="cf-delLbl">' + (c.shipToPatient && groupOfTile(tile) === 'aligner' ? 'Expected delivery' : 'Delivery appt') + '</label><input type="date" id="cf-deliveryDate" value="' + esc(c.deliveryDate || '') + '">' + timeSelectHTML('cf-deliveryTime', c.deliveryTime || '', 'Appointment time') + '</div>' + '</div>' +
     '<div class="hint small muted" id="cf-autoHint" style="margin:-4px 0 0">Filled in from the scan date — change any of them.</div>' +
@@ -476,7 +490,7 @@ function pressed(root, g) { return $$('.pickRow[data-g="' + g + '"] .pick[aria-p
 function readCaseForm(root) {
   const tile = $('#cf-tile', root).value;
   const o = { type: INHOUSE_TILES.includes(tile) ? 'nla' : tile, variant: '' };
-  ['patient', 'chart', 'detail', 'stage', 'assignee', 'scanDate', 'labDate', 'deliveryDate', 'deliveryTime', 'instrOther', 'cc', 'ipr', 'notes', 'titanUrl', 'zoomDate', 'zoomTime', 'tracking', 'labRef'].forEach(k => { const el = $('#cf-' + k, root); o[k] = el ? String(el.value || '').trim() : ''; });
+  ['patient', 'chart', 'detail', 'stage', 'assignee', 'scanDate', 'labDate', 'deliveryDate', 'deliveryTime', 'instrOther', 'cc', 'ipr', 'notes', 'titanUrl', 'zoomDate', 'zoomTime', 'tracking', 'labRef', 'txStart', 'txEnd'].forEach(k => { const el = $('#cf-' + k, root); o[k] = el ? String(el.value || '').trim() : ''; });
   o.assistant = pressed(root, 'assistant')[0] || '';
   o.scanner = pressed(root, 'scanner')[0] || '';
   const g0 = groupOfTile(tile);
@@ -503,7 +517,7 @@ function readCaseForm(root) {
   if (o.shipToPatient) o.deliveryTime = ''; // an expected delivery has no appointment time
   if (g !== 'retainer') { o.arches = []; o.retKinds = []; }
   if (tile === 'mouthguard') o.retKinds = [];
-  if (!(o.type === 'nla')) o.titanUrl = '';
+  if (!(o.type === 'nla')) { o.titanUrl = ''; o.txStart = ''; o.txEnd = ''; }
   // arches to treat: aligners and InSmile only; both arches is the default and saves as '' (like every older case)
   const ta = pressed(root, 'treatArch')[0] || '';
   o.treatArch = (g === 'aligner' || g === 'braces') && (ta === 'U' || ta === 'L') ? ta : '';
@@ -546,6 +560,16 @@ function wireCaseForm(root, isNew) {
   // "Delivery appt" and its time, or "Expected delivery" when it's shipped to the patient (no appointment)
   const syncDel = () => { const sh = $r('#cf-ship'), on = groupOfTile($r('#cf-tile').value) === 'aligner' && !!sh && sh.getAttribute('aria-pressed') === 'true';
     const l = $r('#cf-delLbl'), tm = $r('#cf-deliveryTime'); if (l) l.textContent = on ? 'Expected delivery' : 'Delivery appt'; if (tm) tm.style.display = on ? 'none' : ''; };
+  // in-house: the treatment dates show on the initial set, or while the patient has none from another set; otherwise one line says where they come from
+  const syncTx = () => {
+    const wrap = $r('#cf-txWrap'), row = $r('#cf-txFromRow'), from = $r('#cf-txFrom'); if (!wrap) return;
+    const o = readCaseForm(root); o.id = ($('.cf', root) || root).dataset.id || '';
+    const t = o.type === 'nla' ? txOf(Object.assign({}, o, { txStart: '', txEnd: '' }), casePool()) : null;
+    const show = !t || o.initial === 'yes' || !!(o.txStart || o.txEnd) || wrap.dataset.change === '1';
+    wrap.style.display = show ? '' : 'none'; row.hidden = show;
+    from.textContent = show ? '' : 'Treatment ' + fmtDate(t.start) + ' → expected removal ' + fmtDate(t.end) + ' (from the patient’s ' + (t.from.initial === 'yes' ? 'initial set' : 'earlier set') + ').';
+    wrap._t = t;
+  };
   const refresh = (typeChanged) => {
     const tile = $r('#cf-tile').value; const g = groupOfTile(tile); const o = readCaseForm(root);
     $$('[data-show]', root).forEach(el => { el.style.display = el.dataset.show.split(' ').includes(g) ? '' : 'none'; });
@@ -554,7 +578,7 @@ function wireCaseForm(root, isNew) {
     const tw = $r('#cf-titanWrap'); if (tw) tw.style.display = INHOUSE_TILES.includes(tile) ? '' : 'none';
     $$('.pickRow[data-g="initial"] .pick[data-v="' + FIN + '"]', root).forEach(btn => { const on = INHOUSE_TILES.includes(tile); btn.style.display = on ? '' : 'none'; if (!on) btn.setAttribute('aria-pressed', 'false'); });
     const rk = $r('#cf-retKindsWrap'); if (rk) rk.style.display = tile === 'mouthguard' ? 'none' : '';
-    syncDel();
+    syncDel(); syncTx();
     // one arch only: just that arch's aligner count, and only the attachment-template answers that fit it
     const ta = o.treatArch, fU = $r('#cf-alU'), fL = $r('#cf-alL');
     if (fU) fU.closest('.field').style.display = ta === 'L' ? 'none' : '';
@@ -593,6 +617,7 @@ function wireCaseForm(root, isNew) {
   };
   cfEl._alTot = alTot;
   ['cf-patient', 'cf-chart', 'cf-alU', 'cf-alL'].forEach(id => { const el = $r('#' + id); if (el) el.addEventListener('input', alTot); });
+  ['cf-patient', 'cf-chart'].forEach(id => { const el = $r('#' + id); if (el) el.addEventListener('input', () => syncTx()); });
   root.addEventListener('click', e => {
     const tt = e.target.closest('.tt[data-tile]');
     if (tt && root.contains(tt)) { $$('.tt[data-tile]', root).forEach(b => b.setAttribute('aria-checked', String(b === tt))); $r('#cf-tile').value = tt.dataset.tile; refresh(true); return; }
@@ -613,6 +638,11 @@ function wireCaseForm(root, isNew) {
     }
     const at = e.target.closest('.aTiles .aTile');
     if (at && root.contains(at)) { const row = at.closest('.aTiles'), inp = $('#' + row.dataset.for, root); if (inp) { inp.value = at.dataset.v; inp.dataset.manual = '1'; assignTilesSync(root); } return; }
+    if (e.target.closest('#cf-txChange')) {
+      const wrap = $r('#cf-txWrap'), t = wrap._t; wrap.dataset.change = '1';
+      if (t) { if (!$r('#cf-txStart').value) $r('#cf-txStart').value = t.start; if (!$r('#cf-txEnd').value) $r('#cf-txEnd').value = t.end; }
+      syncTx(); $r('#cf-txEnd').focus(); return;
+    }
     const ship = e.target.closest('#cf-ship');
     if (ship && root.contains(ship)) {
       const on = ship.getAttribute('aria-pressed') !== 'true'; ship.setAttribute('aria-pressed', String(on));
@@ -730,12 +760,15 @@ function newCaseModal() {
         if (data.type === 'appliance' && !data.appliances.length) return need('appliances', 'Pick the appliance (MSE, Herbst, D2…) to create the case.');
         if (data.type === 'nla' && !data.initial && data.variant !== 'finishing') return need('initial', 'Pick what this set is — first set, refinement, mid-course correction or finishing aligners — to create the case.');
         if (data.titanUrl && !safeUrl(data.titanUrl)) return err('The Titan link must start with https://');
+        if (!!data.txStart !== !!data.txEnd) return err('Enter both the treatment start and the expected removal (or leave both empty).');
+        if (data.txStart && data.txEnd <= data.txStart) return err('The expected removal has to be after the treatment start.');
         data.stage = data.stage || firstStage(data.type);
         const needs = stageNeeds(Object.assign({}, data, { stage: firstStage(data.type) }), data.stage);
         if (needs.includes('records')) return err('Tick both records (STL scan and CBCT) before starting it at ' + stageLabel(data) + '.');
         if (needs.includes('zoom')) return err('Add the Zoom call date to start it at Zoom call scheduled.');
         if (needs.includes('aligners') && alignersMissing(data)) return err('Enter ' + alAskText(data) + ' and pick Attachment templates to start it at ' + stageLabel(data) + '.');
         Object.assign(data, { comments: [], createdAt: Date.now(), createdBy: meSid() });
+        if (data.txStart || data.txEnd) data.txAt = Date.now();
         busyBtn($('#ncSave', w), true, 'Saving…');
         try {
           await B.createCase(data, w._ph ? w._ph.bytes : null); closeModal();

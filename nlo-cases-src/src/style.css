@@ -772,7 +772,42 @@ body.phOff .pav,body.phOff .dPh,body.phOff .phSlot,body.phOff .phTgl,body.phOff 
 /* the upper / lower arch pictures on the arch choices and the aligner counts (Amir, 3 Oct 2026) */
 .pick.archPick{display:inline-flex;align-items:center;gap:8px}
 .archIc{display:block;height:22px;width:auto;flex:none}
+/* the scanner pictures: a small white circle on the choice (and before the name in Details) */
+.pick.scanPick{display:inline-flex;align-items:center;gap:9px;min-height:46px;padding:4px 16px 4px 5px}
+.pick.scanPick[aria-pressed="true"]{padding-left:12px}
+.scanIc{display:block;width:36px;height:36px;border-radius:50%;border:1px solid var(--grey-200);background:#fff;flex:none}
+.kv .scanIc{display:inline-block;width:22px;height:22px;vertical-align:middle;margin:-3px 6px 0 0}
 .archIc2{display:inline-flex;flex-direction:column;align-items:center;gap:1px;flex:none}
 .archIc2 .archIc{height:13px}
 /* New case: the choice it still needs (the appliance, or what an in-house set is) */
 .pickRow.need{border-radius:14px;box-shadow:0 0 0 2px var(--coral-200),0 0 0 6px var(--coral-100);padding:2px}
+/* in-house treatment timeline (3 Oct 2026) */
+.txHead{font-weight:700;color:var(--navy);font-size:14px;margin:2px 0 4px}
+.txHead.over{color:var(--coral-700)}
+.txSvg{display:block;width:100%;height:auto;max-width:620px}
+.txSvg.n{display:none;max-width:460px}
+.txSvg .bg{fill:var(--grey-200)}
+.txSvg .fill{fill:var(--mint-600)}
+.txSvg .over{fill:var(--coral-600)}
+.txSvg .tick{stroke:var(--grey-300);stroke-width:1}
+.txSvg .mo{font-family:var(--fb);font-size:10.5px;fill:var(--grey-500);text-anchor:middle}
+.txSvg .today{stroke:var(--navy);stroke-width:1.5;stroke-dasharray:3 2}
+.txSvg .tl{font-family:var(--fb);font-size:11px;font-weight:700;fill:var(--navy);text-anchor:middle}
+.txSvg .stem{stroke:var(--grey-300);stroke-width:1}
+.txSvg .mk{fill:#fff;stroke:var(--navy);stroke-width:2}
+.txSvg .mk.me{fill:var(--navy)}
+.txSvg .ml{font-family:var(--fb);font-size:10.5px;font-weight:600;fill:var(--grey-600);text-anchor:middle}
+.txSvg .due{stroke:var(--navy);stroke-width:2}
+/* a white halo so the Today line never runs through a label */
+.txSvg .ml,.txSvg .mo,.txSvg .tl{paint-order:stroke;stroke:#fff;stroke-width:4px;stroke-linejoin:round}
+.txEnds{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--grey-600);padding:0 4.3%;max-width:620px}
+.txEnds b{color:var(--navy);font-weight:600}
+.txFrom{margin-top:4px}
+.txMini{display:inline-block;vertical-align:middle;width:64px;height:6px;border-radius:3px;background:var(--grey-200);margin-right:10px;overflow:hidden}
+.txMini i{display:block;height:100%;background:var(--mint-600)}
+.txMini.over i{background:var(--coral-600)}
+.dsS b.txOver{color:var(--coral-700)}
+.txFromRow{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.txFromRow[hidden]{display:none}
+/* phones: the narrow graph; the folded line keeps "Month 4 of 18 · 19%" */
+@media (max-width:500px){.txSvg.w{display:none}.txSvg.n{display:block}.txEnds{padding:0 6.7%;max-width:460px}.txMini{width:36px;margin-right:8px}.txLeft{display:none}}

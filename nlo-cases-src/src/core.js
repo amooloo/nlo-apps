@@ -185,6 +185,36 @@ function alignerSets(c, pool) {
     l: x.variant === 'finishing' ? 'Finishing' : x.initial === 'yes' ? 'Initial' : x.initial === 'no' ? 'Refinement ' + (++ref) : x.initial === 'mid' ? 'Mid-course' : 'Set' }));
 }
 
+/* ---------- in-house aligner treatment: Start and Expected removal ----------
+   Amir, 3 Oct 2026: "for initial cases, or additional cases that have this missing. allow Start and expected removal date.
+   and based on that show a graph for each patient on where they are in treatment" — "this is only for IN HOUSE aligner cases".
+   The dates are the patient's: entered on the initial set, or on a later set while the patient has none (or with Change, to
+   update them). The patient's dates are the ones saved last (txAt; older entries by when the set was made). `c` is never
+   counted as "another set": it's added back only when it has dates of its own. */
+function txOf(c, pool) {
+  const mine = (pool || []).filter(x => x && x.type === 'nla' && !x.locked && x.txStart && x.txEnd && !(c.id && x.id === c.id) && samePatient(x, c));
+  if (c.type === 'nla' && c.txStart && c.txEnd) mine.push(c);
+  if (!mine.length) return null;
+  const when = m => m.txAt || m.createdAt || 0;
+  const x = mine.sort((a, b) => when(b) - when(a))[0];
+  return { start: x.txStart, end: x.txEnd, from: x };
+}
+function isoDate(iso) { const [y, m, d] = String(iso).split('-').map(Number); return new Date(y, m - 1, d); }
+/* where the patient is: day and month counts against the expected removal (`today` = an ISO date, for tests) */
+function txProgress(t, today) {
+  const s = isoDate(t.start), e = isoDate(t.end), n = today ? isoDate(today) : isoDate(todayISO());
+  const days = (a, b) => Math.round((b - a) / 864e5), total = Math.max(1, days(s, e)), el = days(s, n);
+  const months = (a, b) => (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth()) - (b.getDate() < a.getDate() ? 1 : 0);
+  return { total, el, pct: Math.max(0, Math.min(1, el / total)), month: months(s, n) + 1, ofMonths: Math.max(1, Math.round(total / 30.44)), left: days(n, e), before: el < 0, over: days(e, n) > 0 };
+}
+/* "Month 7 of 18 · 36% · 11 months left", "Starts Oct 9", "3 weeks past expected removal" */
+function txText(p, t) {
+  const span = d => d >= 60 ? Math.round(d / 30.44) + ' months' : d >= 14 ? Math.round(d / 7) + ' weeks' : d + (d === 1 ? ' day' : ' days');
+  if (p.before) return 'Starts ' + fmtDate(t.start) + ' (in ' + span(-p.el) + ')';
+  if (p.over) return span(-p.left) + ' past expected removal';
+  return 'Month ' + Math.min(p.month, p.ofMonths) + ' of ' + p.ofMonths + ' · ' + Math.round(p.pct * 100) + '% · ' + (p.left ? span(p.left) + ' left' : 'removal today');
+}
+
 /* ---------- small utils ---------- */
 const $ = (s, r) => (r || document).querySelector(s);
 const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
@@ -432,6 +462,7 @@ function csvCell(v) {
 function caseToCSVRow(c) {
   return [c.patient, typeOf(c).l, c.detail, stageLabel(c), c.status === 'done' ? 'Completed' : 'Open', c.scanDate, c.labDate, c.deliveryDate ? c.deliveryDate + (c.deliveryTime ? ' ' + c.deliveryTime : '') : '', c.assigneeLabel || '', c.instructions, c.cc, c.ipr, c.notes, c.chart, c.titanUrl, (c.extras || []).join('; '), typeof submissionLabel === 'function' ? submissionLabel(c.initial) : '', labName(c.lab), (c.teethNote || '').replace(/\n/g, '; '), c.aligners || '',
     c.shipToPatient ? 'Yes' : '', MARPE_RECORDS.filter(([k]) => (c.records || []).includes(k)).map(x => x[1]).join('; '), c.zoomDate ? c.zoomDate + (c.zoomTime ? ' ' + c.zoomTime : '') : '', atLabel(c.atTemplates),
-    oneArch(c) === 'U' ? 'Upper only' : oneArch(c) === 'L' ? 'Lower only' : typeOf(c).aligner || ['insmile', 'inbrace'].includes(c.type) ? 'Upper & lower' : '']
+    oneArch(c) === 'U' ? 'Upper only' : oneArch(c) === 'L' ? 'Lower only' : typeOf(c).aligner || ['insmile', 'inbrace'].includes(c.type) ? 'Upper & lower' : '',
+    c.txStart || '', c.txEnd || '']
     .map(csvCell).join(',');
 }

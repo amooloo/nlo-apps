@@ -439,6 +439,7 @@ function typeMark(c, small) {
     return '<span class="' + cls + ' lg-' + esc(lk) + '" title="' + esc(l) + '"><img data-logo="' + esc(lk) + '" width="' + ll.w + '" height="' + ll.h + '" alt="' + esc(l) + '" draggable="false"></span>'; }
   return typeBadge(c);
 }
+function picPaint(root) { if (typeof PICS === 'undefined') return; $$('img[data-pic]:not([src])', root || document).forEach(i => { const pc = PICS[i.dataset.pic]; if (pc) i.src = pc.src; }); }
 function logoPaint(root) { if (typeof LOGOS === 'undefined') return; $$('img[data-logo]:not([src])', root || document).forEach(i => { const lg = LOGOS[i.dataset.logo]; if (lg) i.src = lg.src; }); }
 /* the case's next date: lab completion until the lab work is done, then delivery (see dueOf) */
 function dueChip(c) { return dateChip(c, dueOf(c), 'No date'); }
@@ -830,7 +831,7 @@ function refreshDrawer(gone) {
 async function loadHistory(id) {
   try { const h = await B.caseLog(id); if (S.openId === id) { S.history = h; const el = $('#histBox'); if (el) el.innerHTML = historyHTML(findCase(id)); } } catch (e) { }
 }
-const FIELD_LABELS = { photo: 'photo', labRef: 'lab case #', labHold: 'lab hold', planUrl: 'plan link', shipToPatient: 'ship to patient', records: 'records on file', zoomDate: 'Zoom call', zoomTime: 'Zoom call', tracking: 'tracking #', carrier: 'carrier', teeth: 'tooth chart', teethNote: 'tooth chart', chart: 'chart #', titanUrl: 'Titan link', initial: 'initial/refinement', appliances: 'appliance', lab: 'lab', arches: 'arch', retKinds: 'retainer type', goals: 'Dr. A’s instructions', instrPicks: 'Dr. A’s instructions', instrOther: 'Dr. A’s instructions', extras: 'extras', variant: 'case type', type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery appt', deliveryTime: 'appt time', alU: 'aligners', alL: 'aligners', aligners: 'aligners', atTemplates: 'attachment templates', treatArch: 'arches to treat', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes' };
+const FIELD_LABELS = { photo: 'photo', labRef: 'lab case #', labHold: 'lab hold', planUrl: 'plan link', shipToPatient: 'ship to patient', records: 'records on file', zoomDate: 'Zoom call', zoomTime: 'Zoom call', tracking: 'tracking #', carrier: 'carrier', teeth: 'tooth chart', teethNote: 'tooth chart', chart: 'chart #', titanUrl: 'Titan link', initial: 'initial/refinement', appliances: 'appliance', lab: 'lab', arches: 'arch', retKinds: 'retainer type', goals: 'Dr. A’s instructions', instrPicks: 'Dr. A’s instructions', instrOther: 'Dr. A’s instructions', extras: 'extras', variant: 'case type', type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery appt', deliveryTime: 'appt time', txStart: 'treatment start', txEnd: 'expected removal', alU: 'aligners', alL: 'aligners', aligners: 'aligners', atTemplates: 'attachment templates', treatArch: 'arches to treat', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes' };
 function historyHTML(c) {
   const h = S.history; if (!h) return '<div class="small muted">Loading…</div>'; if (!h.length) return '<div class="small muted">No history yet.</div>';
   const stageName = k => { const s = c && (caseStages(c).find(x => x[0] === k) || flowOf(c).stages.find(x => x[0] === k)); return s ? s[1] : k; };
@@ -918,9 +919,10 @@ function renderDrawer() {
       (String(c.tracking || '').trim() ? kv('Tracking', trackList(c).length ? trackList(c).map(t => '<span class="trkLine">' + esc(t.n) + (t.carrier ? ' <span class="muted small">' + esc(t.carrier) + '</span>' : '') +
         (t.url ? ' <a class="flag trk" href="' + esc(t.url) + '" target="_blank" rel="noopener noreferrer">' + ic('ext', 12) + 'Track</a>' : '') + '</span>').join('') : esc(c.tracking)) : '') +
       (c.labRef ? kv(esc(refLabel(c)), esc(c.labRef)) : '') +
-      kv('Assistant', esc(staffName(c.assistant, c.assistantName))) + kv('Scanner', esc(c.scanner)) + kv('Chart #', esc(c.chart || '')) +
+      kv('Assistant', esc(staffName(c.assistant, c.assistantName))) + kv('Scanner', c.scanner ? scanIc(c.scanner) + esc(c.scanner) : '') + kv('Chart #', esc(c.chart || '')) +
       kv('Created', esc((c.createdAt ? fmtWhen(c.createdAt) : '') + (c.createdBy ? ' · ' + firstName(staffName(c.createdBy, '')) : ''))) + kv('Last update', esc(c.updatedAt ? fmtWhen(c.updatedAt) + (c.by ? ' · ' + firstName(staffName(c.by, '')) : '') : '')) +
       '</div>') +
+    (c.type === 'nla' ? dsec('tx', 'Treatment', txSumHTML(c), '<div id="txBox">' + txBoxHTML(c) + '</div>') : '') +
     (c.type === 'nla' ? dsec('aligners', 'Aligners', nAl ? '<b>' + nAl + '</b> aligners in this set' + (c.alU || c.alL ? ' (' + (one === 'U' ? 'U ' + (c.alU || 0) + ' · upper only' : one === 'L' ? 'L ' + (c.alL || 0) + ' · lower only' : 'U ' + (c.alU || 0) + ' · L ' + (c.alL || 0)) + ')' : '') : 'Aligner counts not entered yet',
       '<div id="alBox">' + alignerTotalHTML(c, false) + '</div>') : '') +
     // retainers & whitening trays: a label for the bag, then it offers to complete the case (Amir, 2 Oct 2026) — one tap, no need to open
@@ -944,9 +946,63 @@ function renderDrawer() {
     (isOwner() ? '<span style="flex:1"></span><button class="btn btn-ghost" data-act="versions">' + ic('clock', 16) + 'Versions</button><button class="btn btn-ghost" data-act="delCase" style="color:var(--coral-700)">' + ic('trash', 16) + 'Delete</button>' : '') + '</div>';
   const t = $('#cmtText'); if (t) { t.value = keepCmt; if (hadFocus) t.focus(); }
   if (keepTop) $('.dBd', d).scrollTop = keepTop;
-  dsAllSync(); phPaint(); savPaint(d); phWireDrawer(d);
+  dsAllSync(); phPaint(); savPaint(d); phWireDrawer(d); picPaint(d);
   if (typeOf(c).aligner && c.chart && !done) iprAutoLoad(c);
   if (c.type === 'nla') ensureHist();
+}
+/* ---------- in-house treatment timeline (Amir, 3 Oct 2026: "show a graph for each patient on where they are in treatment") ----------
+   From the patient's Start and Expected removal (txOf): the bar is the treatment, mint up to today (coral past the expected
+   removal), with the month marks, today, and each of the patient's in-house sets at its delivery appt (or scan date). */
+function txSumHTML(c) {
+  const t = txOf(c, casePool()); if (!t) return '<span class="muted">No start and expected removal yet</span>';
+  const p = txProgress(t), tx = txText(p, t), cut = !p.before && !p.over ? tx.lastIndexOf(' · ') : -1;
+  // on a phone the folded line keeps "Month 4 of 18 · 19%" (the time left is in the open section)
+  return '<span class="txMini' + (p.over ? ' over' : '') + '" aria-hidden="true"><i style="width:' + Math.round((p.over ? 1 : p.pct) * 100) + '%"></i></span>' +
+    '<b' + (p.over ? ' class="txOver"' : '') + '>' + (cut > 0 ? esc(tx.slice(0, cut)) + '<span class="txLeft">' + esc(tx.slice(cut)) + '</span>' : esc(tx)) + '</b>';
+}
+function txBoxHTML(c) {
+  const pool = casePool(), t = txOf(c, pool);
+  if (!t) return '<div class="small muted">Add the patient’s treatment Start and Expected removal with Edit (on the initial set, or on this set while the patient has none) to see where they are in treatment.</div>';
+  const p = txProgress(t);
+  const marks = alignerSets(c, pool).map(s => { const x = s.me ? c : pool.find(y => y.id === s.id); const d = x && (x.deliveryDate || x.scanDate);
+    return d ? { d, l: s.l.replace(/^Refinement /, 'Ref '), me: s.me, full: s.l + (s.me ? ' (this set)' : '') + ' · ' + (x.deliveryDate ? 'delivery ' : 'scanned ') + fmtDate(d) } : null; }).filter(Boolean);
+  const mine = t.from === c || (c.id && t.from.id === c.id);
+  // a wide graph for the computer, a narrow one for the phone (so the writing stays readable)
+  return '<div class="txHead' + (p.over ? ' over' : '') + '">' + esc(txText(p, t)) + '</div>' + txGraphSVG(t, marks, p, 560, 'w') + txGraphSVG(t, marks, p, 360, 'n') +
+    '<div class="txEnds"><span>Start <b>' + esc(fmtDate(t.start)) + '</b></span><span>Expected removal <b>' + esc(fmtDate(t.end)) + '</b></span></div>' +
+    '<div class="small muted txFrom">' + (mine ? 'Dates saved on this set' : 'Dates from the patient’s ' + (t.from.initial === 'yes' ? 'initial set' : 'earlier set')) + ' — Edit to change them.</div>';
+}
+function txGraphSVG(t, marks, p, W, cls) {
+  const L = 24, R = W - 24, Y = 50, H = 10, r = v => Math.round(v * 10) / 10;
+  const s = isoDate(t.start).getTime(), e = isoDate(t.end).getTime(), n = isoDate(todayISO()).getTime(), dd = 864e5;
+  // the sets that belong to this treatment (from a little before the start to a year past the end) stretch the scale to fit
+  const ins = marks.map(m => isoDate(m.d).getTime()).filter(ms => ms >= s - 45 * dd && ms <= Math.max(e, n) + 365 * dd);
+  const lo = Math.min(s, n, ...ins), hi = Math.max(e, n, ...ins), span = Math.max(dd, hi - lo), X = ms => L + (R - L) * (ms - lo) / span;
+  const lab = marks.map(m => m.l + ' ' + fmtDate(m.d)).join(', ');
+  let g = '<svg class="txSvg ' + cls + '" viewBox="0 0 ' + W + ' 86" role="img" aria-label="' + esc(txText(p, t) + '. Start ' + fmtDate(t.start) + ', expected removal ' + fmtDate(t.end) + '.' + (lab ? ' Sets: ' + lab + '.' : '')) + '">';
+  // the treatment (grey), done so far (mint), past the expected removal (coral, with a mark where it was due)
+  g += '<rect class="bg" x="' + r(X(s)) + '" y="' + Y + '" width="' + r(Math.max(2, X(e) - X(s))) + '" height="' + H + '" rx="5"/>';
+  if (n > s) g += '<rect class="fill" x="' + r(X(s)) + '" y="' + Y + '" width="' + r(Math.max(2, X(Math.min(n, e)) - X(s))) + '" height="' + H + '" rx="5"/>';
+  if (n > e) g += '<rect class="over" x="' + r(X(e)) + '" y="' + Y + '" width="' + r(Math.max(2, X(n) - X(e))) + '" height="' + H + '" rx="5"/><line class="due" x1="' + r(X(e)) + '" y1="' + (Y - 4) + '" x2="' + r(X(e)) + '" y2="' + (Y + H + 4) + '"/>';
+  // today (under the labels, so their halo keeps it from running through them)
+  const tx = X(n);
+  g += '<line class="today" x1="' + r(tx) + '" y1="18" x2="' + r(tx) + '" y2="' + (Y + H + 4) + '"/>';
+  // the first of each month, labelled every k months
+  const d0 = new Date(lo), months = []; let d = new Date(d0.getFullYear(), d0.getMonth() + 1, 1);
+  while (d.getTime() <= hi) { months.push(new Date(d)); d = new Date(d.getFullYear(), d.getMonth() + 1, 1); }
+  const k = Math.max(1, Math.ceil(months.length / Math.max(1, Math.floor((R - L) / 62))));
+  let yr = 0; // the year on the first label and on the first label of each new year
+  months.forEach((m, i) => { const x = r(X(m.getTime()));
+    g += '<line class="tick" x1="' + x + '" y1="' + (Y + H + 3) + '" x2="' + x + '" y2="' + (Y + H + 7) + '"/>';
+    if (i % k === 0) { const y = m.getFullYear(); g += '<text class="mo" x="' + x + '" y="' + (Y + H + 19) + '">' + esc(m.toLocaleDateString(undefined, { month: 'short' }) + (y !== yr ? ' ’' + String(y).slice(2) : '')) + '</text>'; yr = y; } });
+  // the patient's sets on the bar, labels in two rows so neighbours don't collide
+  let prev = -1e9, row = 0;
+  marks.slice().sort((a, b) => a.d < b.d ? -1 : 1).forEach(m => { const ms = isoDate(m.d).getTime(); if (ms < lo || ms > hi) return; const x = X(ms);
+    row = x - prev < 50 ? 1 - row : 0; prev = x; const ty = Y - 8 - row * 13, lx = r(Math.min(R - 22, Math.max(L + 22, x)));
+    g += '<g class="set"><title>' + esc(m.full || m.l) + '</title><line class="stem" x1="' + r(x) + '" y1="' + (ty + 3) + '" x2="' + r(x) + '" y2="' + (Y - 1) + '"/><circle class="mk' + (m.me ? ' me' : '') + '" cx="' + r(x) + '" cy="' + (Y + H / 2) + '" r="5.5"/>' +
+      '<text class="ml" x="' + lx + '" y="' + ty + '">' + esc(m.l) + '</text></g>'; });
+  g += '<text class="tl" x="' + r(Math.min(R - 24, Math.max(L + 24, tx))) + '" y="13">Today</text>';
+  return g + '</svg>';
 }
 /* what the case is, as badges under the patient's name: arch treated, appliances, lab, kind of submission, extras */
 function caseBadges(c) {
@@ -1359,6 +1415,8 @@ async function saveEdit() {
   const d = $('#drawer'); const now = readCaseForm(d);
   if (!now.type || !now.patient) { $('#drawerNotice').innerHTML = '<div class="notice bad">Type and patient name are required.</div>'; return; }
   if (now.titanUrl && !safeUrl(now.titanUrl)) { $('#drawerNotice').innerHTML = '<div class="notice bad">The Titan link must start with https://</div>'; return; }
+  const txBad = !!now.txStart !== !!now.txEnd ? 'Enter both the treatment start and the expected removal (or leave both empty).' : now.txStart && now.txEnd <= now.txStart ? 'The expected removal has to be after the treatment start.' : '';
+  if (txBad) { $('#drawerNotice').innerHTML = '<div class="notice bad">' + txBad + '</div>'; $('#drawerNotice').scrollIntoView({ block: 'nearest' }); return; }
   const base = S.editBase; const changed = FORM_KEYS.filter(k => !sameVal(now[k], base[k])).concat((now.variant || '') !== (base.variant || '') ? ['variant'] : []);
   if (!changed.length) { S.editing = false; renderDrawer(); return; }
   // the same checks as moving the stage from the case: MARPE records before the lab, a date for the Zoom call
@@ -1377,6 +1435,7 @@ async function saveEdit() {
       if (changed.includes('assignee') && now.assignee) x.assigneeName = '';
       if (changed.includes('assistant') && now.assistant) x.assistantName = '';
       if (changed.includes('tracking')) x.carrier = ''; // a carrier named by a lab email belonged to the old number
+      if (changed.includes('txStart') || changed.includes('txEnd')) x.txAt = Date.now(); // the patient's treatment dates are the ones saved last
       if (changed.includes('type') && !FLOWS[TYPE[x.type].flow].stages.some(s => s[0] === x.stage)) x.stage = firstStage(x.type);
     };
     await B.mutateCase(id, x => { apply(x); if (ships) return 'done'; }, Object.assign({ a: 'edit', fields: changed }, ships ? { close: 1 } : {}));
