@@ -1,4 +1,4 @@
-// Appliance, MARPE, Retainers and Mouthguard tiles show Amir's pictures on a white plate — demo
+// Appliance, MARPE, Retainers, Mouthguard and Study models tiles show Amir's pictures on a white plate — demo
 const { chromium } = require('playwright');
 const { routes, watch } = require('./helpers');
 const OUT = process.argv[2] || 'shots';
@@ -17,9 +17,9 @@ const OUT = process.argv[2] || 'shots';
   console.log('   appliance', JSON.stringify(a), '\n   marpe', JSON.stringify(m));
   check(a && a.ok && a.h === 46 && a.inside && !a.svg && a.bg === 'rgb(255, 255, 255)', 'New case: Appliance shows the picture (loaded, 46 px tall, inside its white plate, no drawing)');
   check(m && m.ok && m.h === 46 && m.inside && !m.svg, 'New case: MARPE shows the picture');
-  for (const v of ['retainer', 'mouthguard']) { const r = await pic('#ncForm', v); console.log('   ' + v, JSON.stringify(r));
-    check(r && r.ok && r.h === 46 && r.inside && !r.svg, 'New case: ' + (v === 'retainer' ? 'Retainers shows the clear tray' : 'Mouthguard shows the mouthguard')); }
-  check(await p.evaluate(() => ['nla', 'finishing', 'models'].every(v => document.querySelector('#ncForm .tt[data-tile=' + v + '] .tmed svg'))), 'In-house, Finishing aligners and Study models keep their drawings');
+  for (const [v, what] of [['retainer', 'Retainers shows the clear tray'], ['mouthguard', 'Mouthguard shows the mouthguard'], ['models', 'Study models shows the model']]) { const r = await pic('#ncForm', v); console.log('   ' + v, JSON.stringify(r));
+    check(r && r.ok && r.h === 46 && r.inside && !r.svg, 'New case: ' + what); }
+  check(await p.evaluate(() => !!document.querySelector('#ncForm .tt[data-tile=nla] .tmed svg') && !document.querySelector('#ncForm .tt[data-tile=finishing]')), 'In-house keeps the NL mark; Finishing aligners isn’t its own tile any more');
   await (await p.$('#ncForm .tileGrid')).screenshot({ path: OUT + '/v19-tiles.png' });
   await p.click('#ncForm .tt[data-tile=appliance]'); await p.waitForTimeout(120);
   check(await p.evaluate(() => getComputedStyle(document.querySelector('#ncForm .tt[data-tile=appliance] .tmed')).boxShadow.includes('100, 244, 201')), 'picked: the mint ring shows around the picture');

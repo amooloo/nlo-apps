@@ -138,7 +138,8 @@ function tileArt(t) {
 function typeSvg(k) { return '<svg class="isvg tsvg" viewBox="0 0 48 48" aria-hidden="true" focusable="false">' + (TYPE_ICONS[k] || TYPE_ICONS.tooth) + '</svg>'; }
 /* ic = drawing, c = tint; a company logo in LOGOS (logos.js) takes the drawing's place */
 const TILES = [
-  { v: 'oliv', l: 'Oliv', s: 'Aligners', ic: 'tray', c: 'mint' }, { v: 'nla', l: 'In-house', s: 'Aligners · NL Lab', ic: 'nl', c: 'nl' }, { v: 'finishing', l: 'Finishing aligners', s: 'In-house · NL Lab', ic: 'finish' },
+  // Finishing aligners is an option under In-house now, not its own tile (Amir, 3 Oct 2026): see FIN below
+  { v: 'oliv', l: 'Oliv', s: 'Aligners', ic: 'tray', c: 'mint' }, { v: 'nla', l: 'In-house', s: 'Aligners & finishing · NL Lab', ic: 'nl', c: 'nl' },
   { v: 'retainer', l: 'Retainers', s: 'TT’s / WT’s', ic: 'retainer' }, { v: 'mouthguard', l: 'Mouthguard', s: 'In-house · complimentary', ic: 'guard' }, { v: 'appliance', l: 'Appliance', s: 'Herbst, RPE, MSE…', ic: 'appl' },
   { v: 'angel', l: 'Angel', s: 'Aligners', ic: 'tray', c: 'coral' }, { v: 'ulab', l: 'uLab', s: 'Aligners', ic: 'tray', c: 'amber' }, { v: 'invisalign', l: 'Invisalign', s: 'Aligners', ic: 'tray', c: 'blue' },
   { v: 'insmile', l: 'InSmile', s: 'Braces · Smartwire IDB', ic: 'braces', c: 'navy' }, { v: 'models', l: 'Study models', s: '3D-printed in‑house', ic: 'models' },
@@ -147,10 +148,13 @@ const TILES = [
   { v: 'inbrace', l: 'InBrace / Brava', s: 'Lingual', ic: 'tooth', legacy: true },
   { v: 'retreat', l: 'Retreatment', s: 'Review & proposal', ic: 'tooth', legacy: true }, { v: 'misc', l: 'Other (misc.)', s: 'Older or imported case', ic: 'tooth', legacy: true }
 ];
-const ALIGNERISH = ['oliv', 'angel', 'invisalign', 'ulab', 'nla', 'finishing'];
+const ALIGNERISH = ['oliv', 'angel', 'invisalign', 'ulab', 'nla'];
 const BRACES = ['insmile', 'inbrace'];
 /* tiles that are in-house (NL Lab) aligner cases */
-const INHOUSE_TILES = ['nla', 'finishing'];
+const INHOUSE_TILES = ['nla'];
+/* in-house only: "Finishing aligners" is a fourth answer to "Initial submission?" — saved as variant 'finishing' (initial '')
+   on the in-house case, as before, so older finishing cases, the board, the set labels and the totals are unchanged */
+const FIN = 'fin';
 function groupOfTile(v) { return ALIGNERISH.includes(v) ? 'aligner' : BRACES.includes(v) ? 'braces' : v === 'appliance' ? 'appliance' : v === 'marpe' ? 'marpe' : (v === 'retainer' || v === 'mouthguard') ? 'retainer' : v === 'models' ? 'models' : 'other'; }
 /* how the submission is labelled on the case: refinement for aligners, digital enhancement for InSmile */
 function submissionLabel(v) { return v === 'yes' ? 'Initial submission' : v === 'no' ? 'Refinement' : v === 'mid' ? 'Mid-course correction' : /^de[123]$/.test(v || '') ? 'Digital enhancement ' + v.slice(2) + ' (DE' + v.slice(2) + ')' : ''; }
@@ -348,7 +352,7 @@ function pickRow(group, options, chosen, multi, extraCls) {
 }
 function caseFormHTML(c, isNew) {
   c = c || {};
-  const tile = c.type === 'nla' && c.variant === 'finishing' ? 'finishing' : (c.type || '');
+  const tile = c.type || '';
   const g = groupOfTile(tile);
   const show = (groups) => ' data-show="' + groups + '"' + (groups.split(' ').includes(g) ? '' : ' style="display:none"');
   const showTiles = (tiles) => ' data-tiles="' + tiles + '"' + (tiles.split(' ').includes(tile) ? '' : ' style="display:none"');
@@ -361,7 +365,7 @@ function caseFormHTML(c, isNew) {
   const picks = c.instrPicks || [], oldPicks = picks.filter(v => !INSTR.some(it => it.v === v));
   // Mid-course correction used to be an "Also" choice; it is now a kind of submission
   const extras = (c.extras || []).filter(x => x !== 'Mid-course correction'), oldExtras = extras.filter(x => !PICK.extras.includes(x));
-  const initialVal = !c.initial && (c.extras || []).includes('Mid-course correction') ? 'mid' : (c.initial || '');
+  const initialVal = c.type === 'nla' && c.variant === 'finishing' ? FIN : !c.initial && (c.extras || []).includes('Mid-course correction') ? 'mid' : (c.initial || '');
   const teeth0 = canonTeeth(c.teeth), scope0 = noattScopeOf(teeth0);
   const rxTile = (v, ic, l) => '<button type="button" class="pick rxTile" data-v="' + esc(v) + '" aria-pressed="' + extras.includes(v) + '">' + rxSvg(ic) + '<span><b>' + esc(l) + '</b></span></button>';
   const ccs = learnedCCs();
@@ -381,7 +385,7 @@ function caseFormHTML(c, isNew) {
     '<div class="cfSec"' + show('retainer') + '><h5>Arch</h5>' + pickRow('arches', PICK.arches, c.arches || [], true) + '<div id="cf-retKindsWrap"' + (tile === 'mouthguard' ? ' style="display:none"' : '') + '><h5>Making</h5>' + pickRow('retKinds', PICK.retKinds, c.retKinds || [], true) + '</div></div>' +
     // aligners and InSmile: which arches are treated — both unless picked (Amir, 2 Oct 2026: not always both arches)
     '<div class="cfSec"' + show('aligner braces') + '><h5>Arches to treat</h5>' + pickRow('treatArch', TREAT_OPTS, oneArch(c) || 'UL', false) + '</div>' +
-    '<div class="cfSec"' + show('aligner') + '><h5>Initial submission?</h5>' + pickRow('initial', [{ v: 'yes', l: 'Yes — first set' }, { v: 'no', l: 'No — refinement' }, { v: 'mid', l: 'Mid-course correction' }], initialVal, false) + '</div>' +
+    '<div class="cfSec"' + show('aligner') + '><h5>Initial submission?</h5>' + pickRow('initial', [{ v: 'yes', l: 'Yes — first set' }, { v: 'no', l: 'No — refinement' }, { v: 'mid', l: 'Mid-course correction' }, { v: FIN, l: 'Finishing aligners' }], initialVal, false) + '</div>' +
     // in-house: one count per treated arch (the untreated arch's field is hidden, see wireCaseForm)
     '<div class="cfSec"' + showTiles(INHOUSE_TILES.join(' ')) + '><h5>Aligners in this set <span class="h5n">count each arch from Titan</span></h5><div class="alRow">' +
       '<div class="field"' + (oneArch(c) === 'L' ? ' style="display:none"' : '') + '><label for="cf-alU">Upper aligners</label><input id="cf-alU" type="number" inputmode="numeric" min="0" max="99" step="1" placeholder="0" value="' + esc(c.alU || '') + '"></div>' +
@@ -453,12 +457,14 @@ function assignTilesSync(root) {
 function pressed(root, g) { return $$('.pickRow[data-g="' + g + '"] .pick[aria-pressed="true"]', root).map(b => b.dataset.v); }
 function readCaseForm(root) {
   const tile = $('#cf-tile', root).value;
-  const o = { type: INHOUSE_TILES.includes(tile) ? 'nla' : tile, variant: tile === 'finishing' ? 'finishing' : '' };
+  const o = { type: INHOUSE_TILES.includes(tile) ? 'nla' : tile, variant: '' };
   ['patient', 'chart', 'detail', 'stage', 'assignee', 'scanDate', 'labDate', 'deliveryDate', 'deliveryTime', 'instrOther', 'cc', 'ipr', 'notes', 'titanUrl', 'zoomDate', 'zoomTime', 'tracking', 'labRef'].forEach(k => { const el = $('#cf-' + k, root); o[k] = el ? String(el.value || '').trim() : ''; });
   o.assistant = pressed(root, 'assistant')[0] || '';
   o.scanner = pressed(root, 'scanner')[0] || '';
   const g0 = groupOfTile(tile);
-  o.initial = tile === 'insmile' ? (pressed(root, 'initialDE')[0] || '') : g0 === 'aligner' ? (pressed(root, 'initial')[0] || '') : '';
+  const ini = pressed(root, 'initial')[0] || '';
+  if (o.type === 'nla' && ini === FIN) o.variant = 'finishing'; // in-house finishing aligners (not a kind of submission on the case)
+  o.initial = tile === 'insmile' ? (pressed(root, 'initialDE')[0] || '') : g0 === 'aligner' && ini !== FIN ? ini : '';
   o.lab = pressed(root, 'lab')[0] || '';
   o.appliances = pressed(root, 'appliances'); o.arches = pressed(root, 'arches'); o.retKinds = pressed(root, 'retKinds');
   o.instrPicks = pressed(root, 'instrPicks'); o.extras = pressed(root, 'extras');
@@ -494,7 +500,7 @@ function autoDetail(o, tile) {
   const t = TILES.find(x => x.v === tile);
   const sub = o.initial === 'no' ? ' – refinement' : o.initial === 'mid' ? ' – mid-course correction' : '';
   const only = o.treatArch === 'U' ? 'upper only' : o.treatArch === 'L' ? 'lower only' : ''; // "Aligners (Oliv, upper only)"
-  if (tile === 'finishing') return 'Finishing aligners' + (only ? ' (' + only + ')' : '') + sub;
+  if (tile === 'nla' && o.variant === 'finishing') return 'Finishing aligners' + (only ? ' (' + only + ')' : '');
   if (['oliv', 'angel', 'invisalign', 'ulab', 'nla'].includes(tile)) return 'Aligners (' + (tile === 'nla' ? 'In-House' : t.l) + (only ? ', ' + only : '') + ')' + sub;
   if (tile === 'inbrace') return 'InBrace/Brava' + (only ? ' (' + only + ')' : '');
   if (tile === 'insmile') return 'InSmile braces' + (only ? ' (' + only + ')' : '') + (/^de[123]$/.test(o.initial) ? ' – DE' + o.initial.slice(2) : '');
@@ -524,6 +530,7 @@ function wireCaseForm(root, isNew) {
     $$('[data-tiles]', root).forEach(el => { el.style.display = el.dataset.tiles.split(' ').includes(tile) ? '' : 'none'; });
     $$('.pickRow[data-g="instrPicks"] .pick', root).forEach(b => { if (ALIGNER_ONLY_INSTR.includes(b.dataset.v)) b.style.display = g === 'braces' ? 'none' : ''; });
     const tw = $r('#cf-titanWrap'); if (tw) tw.style.display = INHOUSE_TILES.includes(tile) ? '' : 'none';
+    $$('.pickRow[data-g="initial"] .pick[data-v="' + FIN + '"]', root).forEach(btn => { const on = INHOUSE_TILES.includes(tile); btn.style.display = on ? '' : 'none'; if (!on) btn.setAttribute('aria-pressed', 'false'); });
     const rk = $r('#cf-retKindsWrap'); if (rk) rk.style.display = tile === 'mouthguard' ? 'none' : '';
     // one arch only: just that arch's aligner count, and only the attachment-template answers that fit it
     const ta = o.treatArch, fU = $r('#cf-alU'), fL = $r('#cf-alL');
@@ -679,7 +686,7 @@ function withSavedStaff(list, sid) { if (!sid || list.some(r => r.sid === sid)) 
 function setPick(root, g, v, on) { const b = $('.pickRow[data-g="' + g + '"] .pick[data-v="' + CSS.escape(v) + '"]', root); if (b) b.setAttribute('aria-pressed', String(!!on)); }
 function editDirty() {
   const d = $('#drawer'); if (!d || !S.editing || !S.editBase) return false;
-  const now = readCaseForm(d); return FORM_KEYS.some(k => !sameVal(now[k], S.editBase[k]));
+  const now = readCaseForm(d); return FORM_KEYS.some(k => !sameVal(now[k], S.editBase[k])) || (now.variant || '') !== (S.editBase.variant || '');
 }
 function newCaseModal() {
   const roster = activeRoster().filter(r => r.role !== 'owner');

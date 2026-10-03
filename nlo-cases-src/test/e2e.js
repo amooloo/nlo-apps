@@ -403,10 +403,15 @@ async function openByName(p, name) {
   dump = JSON.stringify(await fsDump());
   check(!dump.includes('Petra Tapform') && !dump.includes('Resolve black'), 'tapped details are encrypted too');
 
-  console.log('\n# Finishing aligners (in-house) replaces Reset');
+  console.log('\n# Finishing aligners: an answer under In-house (it replaced Reset; its own tile until 3 Oct 2026)');
   await owner.click('.topBar [data-act=newCase]'); await owner.waitForSelector('#ncForm');
   check(!(await owner.isVisible('.tt[data-tile=reset]')), 'no Reset button');
-  await owner.click('#ncForm .tt[data-tile=finishing]'); await owner.fill('#cf-patient', 'Fiona Finisher');
+  check((await owner.locator('#ncForm .tt[data-tile=finishing]').count()) === 0, 'Finishing aligners is no longer its own tile');
+  await owner.click('#ncForm .tt[data-tile=oliv]');
+  check(!(await owner.isVisible('#ncForm .pickRow[data-g=initial] .pick[data-v=fin]')), 'outside aligners don’t offer Finishing aligners');
+  await owner.click('#ncForm .tt[data-tile=nla]');
+  check(await owner.isVisible('#ncForm .pickRow[data-g=initial] .pick[data-v=fin]'), 'In-house offers Finishing aligners next to Yes / No / Mid-course');
+  await owner.click('#ncForm .pickRow[data-g=initial] .pick[data-v=fin]'); await owner.fill('#cf-patient', 'Fiona Finisher');
   check(await owner.inputValue('#cf-detail') === 'Finishing aligners', 'detail reads Finishing aligners');
   check(await owner.isVisible('#cf-titanUrl'), 'Titan link offered (in-house)');
   check(await owner.inputValue('#cf-labDate') === await owner.evaluate(() => addDays(todayISO(), 21)) && await owner.inputValue('#cf-deliveryDate') === await owner.evaluate(() => addDays(todayISO(), 28)), 'aligner dates fill in (lab completion +21, delivery +28)');
@@ -424,7 +429,8 @@ async function openByName(p, name) {
   await owner.click('.kc:has-text("Fiona Finisher")'); await owner.waitForSelector('#drawer .tc.ro');
   check(await owner.isVisible('#drawer .txt:has-text("Implant: UL6")') && (await owner.locator('#drawer .tc.ro .tooth.m-noatt').count()) === 11, 'case view shows the chart and its summary');
   await owner.click('#drawer [data-act=edit]'); await owner.waitForSelector('#drawer .cf');
-  check((await owner.getAttribute('#drawer .tt[data-tile=finishing]', 'aria-checked')) === 'true', 'editing keeps it as Finishing aligners');
+  check(await owner.evaluate(() => { const c = openCases().find(x => x.patient === 'Fiona Finisher'); return c.type === 'nla' && c.variant === 'finishing' && !c.initial; }), 'saved as an in-house case, finishing (as before)');
+  check((await owner.getAttribute('#drawer .tt[data-tile=nla]', 'aria-checked')) === 'true' && (await owner.getAttribute('#drawer .pickRow[data-g=initial] .pick[data-v=fin]', 'aria-pressed')) === 'true', 'editing keeps it as Finishing aligners (In-house, Finishing picked)');
   check(await owner.isVisible('#drawer .tooth.m-implant[data-t=UL6]'), 'editing restores the tooth chart');
   await owner.click('#drawer [data-act=cancelEdit]'); await owner.click('#drawer [data-act=closeDrawer] >> nth=0');
 

@@ -12,7 +12,9 @@ out = {}
 for src in sorted((root / 'pics').glob('*-source.*')):
     key = src.name.split('-source')[0]
     im = Image.open(src).convert('RGB')
-    box = Image.eval(im.convert('L'), lambda v: 255 if v < 236 else 0).getbbox()   # trim the white (and the faint reflection under the trays)
+    # trim the white (and the faint reflection under the trays); the study model is white itself, so anything not pure white counts
+    th = 252 if key == 'models' else 236
+    box = Image.eval(im.convert('L'), lambda v: 255 if v < th else 0).getbbox()
     pad = round(im.width * .01)
     im = im.crop((max(box[0] - pad, 0), max(box[1] - pad, 0), min(box[2] + pad, im.width), min(box[3] + pad, im.height)))
     if key == 'retainer':   # a clear tray on white: deepen its grey edges a little so it reads at tile size (white stays white)
