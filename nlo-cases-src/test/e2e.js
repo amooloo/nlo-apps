@@ -526,7 +526,15 @@ async function openByName(p, name) {
   check(await owner.isVisible('#drawer .badge:has-text("Digital enhancement 2 (DE2)")') && !(await owner.isVisible('#drawer .badge:has-text("Refinement")')), 'case shows Digital enhancement 2 (DE2)');
   await owner.click('#drawer [data-act=edit]'); await owner.waitForSelector('#drawer .cf');
   check((await owner.getAttribute('#drawer .pickRow[data-g=initialDE] .pick[data-v=de2]', 'aria-pressed')) === 'true', 'editing keeps DE 2');
-  await owner.click('#drawer [data-act=cancelEdit]'); await owner.click('#drawer [data-act=closeDrawer] >> nth=0');
+  // braces on one arch only (Amir, 2 Oct 2026: not always both arches)
+  check((await owner.getAttribute('#drawer .pickRow[data-g=treatArch] .pick[data-v=UL]', 'aria-pressed')) === 'true', 'Arches to treat: Upper & lower to start');
+  await owner.click('#drawer .pickRow[data-g=treatArch] .pick[data-v=L]');
+  check(await owner.inputValue('#drawer #cf-detail') === 'InSmile braces (lower only) – DE2', 'Lower only: the detail follows the taps (InSmile braces (lower only) – DE2)');
+  await owner.click('[data-act=saveEdit]'); await owner.waitForSelector('#drawer .badge.t-arch', { timeout: 20000 });
+  check(/Lower arch only/.test(await owner.textContent('#drawer .badge.t-arch')) && /for InSmile braces - digital enhancement 2, lower arch only\./.test(await owner.textContent('#noteTxt')), 'saved: Lower arch only on the case and in its chart note');
+  dump = JSON.stringify(await fsDump());
+  check(!dump.includes('lower only') && !dump.includes('Lower arch'), 'the arch choice is encrypted too');
+  await owner.click('#drawer [data-act=closeDrawer] >> nth=0');
 
   console.log('\n# InBrace/Brava retired; InSmile stays');
   await owner.click('.topBar [data-act=newCase]'); await owner.waitForSelector('#ncForm');

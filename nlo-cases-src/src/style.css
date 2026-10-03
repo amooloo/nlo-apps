@@ -148,6 +148,7 @@ svg.i{flex:none;display:inline-block;vertical-align:-3px}
 .badge.t-ret{background:var(--amber-100);color:var(--amber-700)}
 .badge.t-retx{background:var(--coral-100);color:var(--coral-700)}
 .badge.t-misc{background:var(--grey-100);color:var(--grey-600)}
+.badge.t-arch{background:var(--navy);color:#fff} /* one arch only: easy to spot on the case */
 .due{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:700;border-radius:99px;padding:2px 8px;white-space:nowrap;background:var(--grey-100);color:var(--grey-600)}
 .due.over{background:var(--coral-100);color:var(--coral-700)}
 .due.soon{background:var(--amber-100);color:var(--amber-700)}
@@ -324,14 +325,13 @@ body.demo #drawer{bottom:31px} body.demo #side{padding-bottom:31px} body.demo #v
 .tt[aria-checked="true"]{background:var(--navy);border-color:var(--navy);color:#fff}
 .tt[aria-checked="true"] span{color:var(--mint)}
 /* case-type pictures: a band on top of each tile; the outside companies show their own logo on white,
-   our tiles a drawing on a soft tint (Next Level: the NL mark on navy) */
+   our tiles a drawing on a soft tint (Next Level: its NL mark in black on grey, like the other tiles — Amir, 2 Oct 2026) */
 .tt .tmed{align-self:stretch;display:flex;align-items:center;justify-content:center;height:50px;margin-bottom:8px;border-radius:10px;background:var(--tbg);overflow:hidden}
 .tt .tmed .tsvg{width:46px;height:46px;overflow:visible}
 .tt .tmed.lg{background:#fff;box-shadow:inset 0 0 0 1px var(--grey-200);padding:7px 6px}
+.tt.c-nl .tmed .tsvg{width:52px;height:52px} /* letters read better a little larger than the pictures */
 .tt .tmed.lg img{display:block;width:auto;height:auto;max-width:100%;max-height:34px;object-fit:contain}
 .tt[aria-checked="true"] .tmed{box-shadow:0 0 0 2px var(--mint)}
-.tt.c-nl{--tbg:var(--navy)} .tt.c-nl[aria-checked="true"]{--tbg:var(--mint)}
-.tt.c-nl .tmed .tsvg{width:50px;height:50px}
 .tt.c-mint{--tbg:var(--mint-100);--tacc:var(--mint-700);--tsh:var(--mint-200)}
 .tt.c-coral{--tbg:var(--coral-100);--tacc:var(--coral-600);--tsh:var(--coral-200)}
 .tt.c-amber{--tbg:var(--amber-100);--tacc:var(--amber-700);--tsh:var(--amber-200)}
@@ -353,7 +353,7 @@ body.demo #drawer{bottom:31px} body.demo #side{padding-bottom:31px} body.demo #v
 .tsvg .tbf2{fill:var(--navy)}
 .tsvg .tst{fill:var(--amber-200)}
 .tsvg .tbs{fill:var(--amber-200);stroke:var(--navy);stroke-width:1.6;stroke-linejoin:round}
-.tsvg .nlb{fill:var(--navy)} .tsvg .nlf{fill:#fff}
+.tsvg .nlb{fill:none} .tsvg .nlf{fill:#000303} /* the NL mark in the logo’s black, no box */
 /* company logos in place of the type name (board cards, case lists) */
 .tlogo{display:inline-flex;align-items:center;vertical-align:middle;line-height:0}
 .tlogo img{display:block;width:auto;height:auto;max-height:22px;max-width:84px;object-fit:contain}
@@ -364,7 +364,6 @@ body.demo #drawer{bottom:31px} body.demo #side{padding-bottom:31px} body.demo #v
 .tlogo.sm.lg-oliv img{max-height:18px}
 .tlogo.nl .tsvg{width:26px;height:26px}
 .tlogo.sm.nl .tsvg{width:20px;height:20px}
-.tt[aria-checked="true"] .nlb{fill:var(--mint)} .tt[aria-checked="true"] .nlf{fill:var(--navy-900)}
 .pickRow{display:flex;flex-wrap:wrap;gap:7px}
 .pick{border:1.5px solid var(--grey-200);border-radius:99px;padding:7px 13px;font-size:13px;font-weight:600;color:var(--grey-700);background:#fff;min-height:38px;text-align:left;line-height:1.25}
 .pick.sm{min-height:34px;padding:5px 12px;font-size:12.5px}

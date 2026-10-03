@@ -56,6 +56,10 @@ const DEMO = {
     Object.assign(mp[2], { records: ['stl', 'cbct'], lab: 'Partner Dental Studios', zoomDate: addDays(t, -9), zoomTime: '13:00' });
     // in-house sets past Export STLs: attachment templates answered (some with, some without)
     all.filter(c => c.type === 'nla' && stageIndex(c) >= FLOWS.inhouse.stages.findIndex(x => x[0] === 'fab')).forEach((c, i) => { c.atTemplates = ['UL', 'none', 'U'][i % 3]; });
+    // one arch only: an in-house set for the upper arch, InSmile braces on the lower
+    const uo = all.find(c => c.type === 'nla' && c.stage === 'send'), lo = all.find(c => c.type === 'insmile' && c.stage === 'mfg');
+    if (uo) Object.assign(uo, { treatArch: 'U', alL: '', detail: 'Aligners (In-House, upper only)', atTemplates: atFor(uo.atTemplates, 'U') || 'U' });
+    if (lo) Object.assign(lo, { treatArch: 'L', detail: 'InSmile braces (lower only)' });
     // retainers: upper and lower, retainers and whitening trays (matches their detail line)
     all.filter(c => c.type === 'retainer').forEach(c => Object.assign(c, { arches: ['Upper', 'Lower'], retKinds: ['TT’s', 'WT’s'] }));
     // aligners going straight to the patient, and shipments with one-click tracking (sample numbers)

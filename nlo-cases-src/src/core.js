@@ -116,6 +116,17 @@ function atLabel(v) { const o = AT_OPTS.find(x => x.v === v); return o ? o.l : '
 function hasAT(c) { return ['U', 'L', 'UL'].includes(c.atTemplates); }
 /* from Export STLs on, an in-house set needs its aligner counts and the attachment-template answer */
 function alignersMissing(c) { return !((Number(c.alU) || 0) + (Number(c.alL) || 0) > 0) || !c.atTemplates; }
+/* arches to treat, for aligners and InSmile: '' = upper & lower (the default, and every older case), 'U' = upper only,
+   'L' = lower only (Amir, 2 Oct 2026: not every case treats both arches) */
+const TREAT_OPTS = [{ v: 'UL', l: 'Upper & lower' }, { v: 'U', l: 'Upper only' }, { v: 'L', l: 'Lower only' }];
+function oneArch(c) { return c && (c.treatArch === 'U' || c.treatArch === 'L') ? c.treatArch : ''; }
+function treatArchLabel(v) { return v === 'U' ? 'Upper arch only' : v === 'L' ? 'Lower arch only' : ''; }
+/* the attachment-template answers that fit the arches being treated, and an earlier answer moved onto them
+   (upper only: Upper & Lower becomes Upper, a Lower-only answer has to be asked again) */
+function atOptsFor(ta) { return ta === 'U' || ta === 'L' ? AT_OPTS.filter(o => o.v === 'none' || o.v === ta) : AT_OPTS; }
+function atFor(at, ta) { at = at || ''; if (ta !== 'U' && ta !== 'L') return at; return at === 'UL' ? ta : (at === 'U' || at === 'L') && at !== ta ? '' : at; }
+/* "the upper and lower aligners" / "the upper aligners", for the notes that ask for the counts */
+function alAskText(c) { const a = oneArch(c); return a === 'U' ? 'the upper aligners' : a === 'L' ? 'the lower aligners' : 'the upper and lower aligners'; }
 /* The date a case is working toward: its lab completion date until the lab work is done (outside labs and appliances:
    until the case is in Manufacturing), then its delivery date.
    (No separate due date any more — Amir, 2 Oct 2026. Older cases that only have one still use it.) */
@@ -403,6 +414,7 @@ function csvCell(v) {
 }
 function caseToCSVRow(c) {
   return [c.patient, typeOf(c).l, c.detail, stageLabel(c), c.status === 'done' ? 'Completed' : 'Open', c.scanDate, c.labDate, c.deliveryDate ? c.deliveryDate + (c.deliveryTime ? ' ' + c.deliveryTime : '') : '', c.assigneeLabel || '', c.instructions, c.cc, c.ipr, c.notes, c.chart, c.titanUrl, (c.extras || []).join('; '), typeof submissionLabel === 'function' ? submissionLabel(c.initial) : '', c.lab || '', (c.teethNote || '').replace(/\n/g, '; '), c.aligners || '',
-    c.shipToPatient ? 'Yes' : '', MARPE_RECORDS.filter(([k]) => (c.records || []).includes(k)).map(x => x[1]).join('; '), c.zoomDate ? c.zoomDate + (c.zoomTime ? ' ' + c.zoomTime : '') : '', atLabel(c.atTemplates)]
+    c.shipToPatient ? 'Yes' : '', MARPE_RECORDS.filter(([k]) => (c.records || []).includes(k)).map(x => x[1]).join('; '), c.zoomDate ? c.zoomDate + (c.zoomTime ? ' ' + c.zoomTime : '') : '', atLabel(c.atTemplates),
+    oneArch(c) === 'U' ? 'Upper only' : oneArch(c) === 'L' ? 'Lower only' : typeOf(c).aligner || ['insmile', 'inbrace'].includes(c.type) ? 'Upper & lower' : '']
     .map(csvCell).join(',');
 }

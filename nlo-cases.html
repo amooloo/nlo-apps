@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-/ocTdlUCjEd9vvXd1zNjd+TCrFGX7NNgUsyrfAuXyIA=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-vXHDvDiDyzMYxtlDyNHjju0qPreN5jrsbsf9rNY9mM0=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO Cases</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -162,6 +162,7 @@ svg.i{flex:none;display:inline-block;vertical-align:-3px}
 .badge.t-ret{background:var(--amber-100);color:var(--amber-700)}
 .badge.t-retx{background:var(--coral-100);color:var(--coral-700)}
 .badge.t-misc{background:var(--grey-100);color:var(--grey-600)}
+.badge.t-arch{background:var(--navy);color:#fff} /* one arch only: easy to spot on the case */
 .due{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:700;border-radius:99px;padding:2px 8px;white-space:nowrap;background:var(--grey-100);color:var(--grey-600)}
 .due.over{background:var(--coral-100);color:var(--coral-700)}
 .due.soon{background:var(--amber-100);color:var(--amber-700)}
@@ -338,14 +339,13 @@ body.demo #drawer{bottom:31px} body.demo #side{padding-bottom:31px} body.demo #v
 .tt[aria-checked="true"]{background:var(--navy);border-color:var(--navy);color:#fff}
 .tt[aria-checked="true"] span{color:var(--mint)}
 /* case-type pictures: a band on top of each tile; the outside companies show their own logo on white,
-   our tiles a drawing on a soft tint (Next Level: the NL mark on navy) */
+   our tiles a drawing on a soft tint (Next Level: its NL mark in black on grey, like the other tiles — Amir, 2 Oct 2026) */
 .tt .tmed{align-self:stretch;display:flex;align-items:center;justify-content:center;height:50px;margin-bottom:8px;border-radius:10px;background:var(--tbg);overflow:hidden}
 .tt .tmed .tsvg{width:46px;height:46px;overflow:visible}
 .tt .tmed.lg{background:#fff;box-shadow:inset 0 0 0 1px var(--grey-200);padding:7px 6px}
+.tt.c-nl .tmed .tsvg{width:52px;height:52px} /* letters read better a little larger than the pictures */
 .tt .tmed.lg img{display:block;width:auto;height:auto;max-width:100%;max-height:34px;object-fit:contain}
 .tt[aria-checked="true"] .tmed{box-shadow:0 0 0 2px var(--mint)}
-.tt.c-nl{--tbg:var(--navy)} .tt.c-nl[aria-checked="true"]{--tbg:var(--mint)}
-.tt.c-nl .tmed .tsvg{width:50px;height:50px}
 .tt.c-mint{--tbg:var(--mint-100);--tacc:var(--mint-700);--tsh:var(--mint-200)}
 .tt.c-coral{--tbg:var(--coral-100);--tacc:var(--coral-600);--tsh:var(--coral-200)}
 .tt.c-amber{--tbg:var(--amber-100);--tacc:var(--amber-700);--tsh:var(--amber-200)}
@@ -367,7 +367,7 @@ body.demo #drawer{bottom:31px} body.demo #side{padding-bottom:31px} body.demo #v
 .tsvg .tbf2{fill:var(--navy)}
 .tsvg .tst{fill:var(--amber-200)}
 .tsvg .tbs{fill:var(--amber-200);stroke:var(--navy);stroke-width:1.6;stroke-linejoin:round}
-.tsvg .nlb{fill:var(--navy)} .tsvg .nlf{fill:#fff}
+.tsvg .nlb{fill:none} .tsvg .nlf{fill:#000303} /* the NL mark in the logo’s black, no box */
 /* company logos in place of the type name (board cards, case lists) */
 .tlogo{display:inline-flex;align-items:center;vertical-align:middle;line-height:0}
 .tlogo img{display:block;width:auto;height:auto;max-height:22px;max-width:84px;object-fit:contain}
@@ -378,7 +378,6 @@ body.demo #drawer{bottom:31px} body.demo #side{padding-bottom:31px} body.demo #v
 .tlogo.sm.lg-oliv img{max-height:18px}
 .tlogo.nl .tsvg{width:26px;height:26px}
 .tlogo.sm.nl .tsvg{width:20px;height:20px}
-.tt[aria-checked="true"] .nlb{fill:var(--mint)} .tt[aria-checked="true"] .nlf{fill:var(--navy-900)}
 .pickRow{display:flex;flex-wrap:wrap;gap:7px}
 .pick{border:1.5px solid var(--grey-200);border-radius:99px;padding:7px 13px;font-size:13px;font-weight:600;color:var(--grey-700);background:#fff;min-height:38px;text-align:left;line-height:1.25}
 .pick.sm{min-height:34px;padding:5px 12px;font-size:12.5px}
@@ -863,6 +862,17 @@ function atLabel(v) { const o = AT_OPTS.find(x => x.v === v); return o ? o.l : '
 function hasAT(c) { return ['U', 'L', 'UL'].includes(c.atTemplates); }
 /* from Export STLs on, an in-house set needs its aligner counts and the attachment-template answer */
 function alignersMissing(c) { return !((Number(c.alU) || 0) + (Number(c.alL) || 0) > 0) || !c.atTemplates; }
+/* arches to treat, for aligners and InSmile: '' = upper & lower (the default, and every older case), 'U' = upper only,
+   'L' = lower only (Amir, 2 Oct 2026: not every case treats both arches) */
+const TREAT_OPTS = [{ v: 'UL', l: 'Upper & lower' }, { v: 'U', l: 'Upper only' }, { v: 'L', l: 'Lower only' }];
+function oneArch(c) { return c && (c.treatArch === 'U' || c.treatArch === 'L') ? c.treatArch : ''; }
+function treatArchLabel(v) { return v === 'U' ? 'Upper arch only' : v === 'L' ? 'Lower arch only' : ''; }
+/* the attachment-template answers that fit the arches being treated, and an earlier answer moved onto them
+   (upper only: Upper & Lower becomes Upper, a Lower-only answer has to be asked again) */
+function atOptsFor(ta) { return ta === 'U' || ta === 'L' ? AT_OPTS.filter(o => o.v === 'none' || o.v === ta) : AT_OPTS; }
+function atFor(at, ta) { at = at || ''; if (ta !== 'U' && ta !== 'L') return at; return at === 'UL' ? ta : (at === 'U' || at === 'L') && at !== ta ? '' : at; }
+/* "the upper and lower aligners" / "the upper aligners", for the notes that ask for the counts */
+function alAskText(c) { const a = oneArch(c); return a === 'U' ? 'the upper aligners' : a === 'L' ? 'the lower aligners' : 'the upper and lower aligners'; }
 /* The date a case is working toward: its lab completion date until the lab work is done (outside labs and appliances:
    until the case is in Manufacturing), then its delivery date.
    (No separate due date any more — Amir, 2 Oct 2026. Older cases that only have one still use it.) */
@@ -1150,7 +1160,8 @@ function csvCell(v) {
 }
 function caseToCSVRow(c) {
   return [c.patient, typeOf(c).l, c.detail, stageLabel(c), c.status === 'done' ? 'Completed' : 'Open', c.scanDate, c.labDate, c.deliveryDate ? c.deliveryDate + (c.deliveryTime ? ' ' + c.deliveryTime : '') : '', c.assigneeLabel || '', c.instructions, c.cc, c.ipr, c.notes, c.chart, c.titanUrl, (c.extras || []).join('; '), typeof submissionLabel === 'function' ? submissionLabel(c.initial) : '', c.lab || '', (c.teethNote || '').replace(/\n/g, '; '), c.aligners || '',
-    c.shipToPatient ? 'Yes' : '', MARPE_RECORDS.filter(([k]) => (c.records || []).includes(k)).map(x => x[1]).join('; '), c.zoomDate ? c.zoomDate + (c.zoomTime ? ' ' + c.zoomTime : '') : '', atLabel(c.atTemplates)]
+    c.shipToPatient ? 'Yes' : '', MARPE_RECORDS.filter(([k]) => (c.records || []).includes(k)).map(x => x[1]).join('; '), c.zoomDate ? c.zoomDate + (c.zoomTime ? ' ' + c.zoomTime : '') : '', atLabel(c.atTemplates),
+    oneArch(c) === 'U' ? 'Upper only' : oneArch(c) === 'L' ? 'Lower only' : typeOf(c).aligner || ['insmile', 'inbrace'].includes(c.type) ? 'Upper & lower' : '']
     .map(csvCell).join(',');
 }
 
@@ -1772,6 +1783,10 @@ const DEMO = {
     Object.assign(mp[2], { records: ['stl', 'cbct'], lab: 'Partner Dental Studios', zoomDate: addDays(t, -9), zoomTime: '13:00' });
     // in-house sets past Export STLs: attachment templates answered (some with, some without)
     all.filter(c => c.type === 'nla' && stageIndex(c) >= FLOWS.inhouse.stages.findIndex(x => x[0] === 'fab')).forEach((c, i) => { c.atTemplates = ['UL', 'none', 'U'][i % 3]; });
+    // one arch only: an in-house set for the upper arch, InSmile braces on the lower
+    const uo = all.find(c => c.type === 'nla' && c.stage === 'send'), lo = all.find(c => c.type === 'insmile' && c.stage === 'mfg');
+    if (uo) Object.assign(uo, { treatArch: 'U', alL: '', detail: 'Aligners (In-House, upper only)', atTemplates: atFor(uo.atTemplates, 'U') || 'U' });
+    if (lo) Object.assign(lo, { treatArch: 'L', detail: 'InSmile braces (lower only)' });
     // retainers: upper and lower, retainers and whitening trays (matches their detail line)
     all.filter(c => c.type === 'retainer').forEach(c => Object.assign(c, { arches: ['Upper', 'Lower'], retKinds: ['TT’s', 'WT’s'] }));
     // aligners going straight to the patient, and shipments with one-click tracking (sample numbers)
@@ -2555,6 +2570,8 @@ function chartNote(c) {
   else if (c.type === 'mouthguard') what = 'a mouthguard' + ((c.arches || []).length ? ' (' + c.arches.join('/') + ')' : '');
   else if (c.type === 'models') what = 'study models';
   else what = c.detail || t.l;
+  // aligners and InSmile treating one arch (Amir, 2 Oct 2026)
+  if (oneArch(c) && (t.aligner || c.type === 'insmile' || (c.type === 'inbrace' && !/ only\b/i.test(what)))) what += ', ' + (oneArch(c) === 'U' ? 'upper' : 'lower') + ' arch only';
   L.push((c.scanner ? 'Scanned with ' + c.scanner : 'Scanned') + ' for ' + what + '.');
   if (t.flow === 'marpe') { const r = MARPE_RECORDS.filter(x => (c.records || []).includes(x[0])).map(x => x[1]); if (r.length) L.push('Records on file: ' + r.join(', ') + '.'); }
   const end = s => String(s).trim().replace(/[.\s;]+$/, '') + '.';
@@ -2608,15 +2625,17 @@ function alignerTotalHTML(c, inForm) {
   const est = alCost(me.n), estAll = alCost(total, sets.length);
   const wait = !S.histLoaded ? '<div class="small muted">Adding up earlier sets…</div>' : '';
   const parts = sets.map(s => '<span class="alSet' + (s.me ? ' me' : '') + '">' + esc(s.l) + ' <b>' + (s.n || '?') + '</b></span>').join('');
-  const arches = c.alU || c.alL ? ' (U ' + (c.alU || 0) + ' · L ' + (c.alL || 0) + ')' : '';
+  // per arch: "(U 18 · L 16)", or just the one arch that's treated: "(U 18 · upper arch only)"
+  const one = oneArch(c), arches = c.alU || c.alL ? ' (' + (one === 'U' ? 'U ' + (c.alU || 0) + ' · upper arch only' : one === 'L' ? 'L ' + (c.alL || 0) + ' · lower arch only' : 'U ' + (c.alU || 0) + ' · L ' + (c.alL || 0)) + ')' : '';
+  const counts = one === 'U' ? 'the upper count' : one === 'L' ? 'the lower count' : 'the upper and lower counts';
   return '<div class="alThis">' + (me.n ? '<b>' + me.n + '</b> aligners in this set' + (inForm ? '' : arches + ' · ' + esc(me.l)) + (est != null ? ' <span class="alEst">est. ' + money(est) + '</span>' : '')
-      : '<span class="muted">' + (inForm ? 'Enter the upper and lower aligners from Titan.' : 'Aligners in this set not entered yet — add the upper and lower counts from Titan with Edit.') + '</span>') + '</div>' +
+      : '<span class="muted">' + (inForm ? 'Enter ' + alAskText(c) + ' from Titan.' : 'Aligners in this set not entered yet — add ' + counts + ' from Titan with Edit.') + '</span>') + '</div>' +
     (inForm ? '' : '<div class="alAt">Attachment templates: ' + (c.atTemplates ? '<b>' + esc(atLabel(c.atTemplates)) + '</b>' : '<span class="muted">not answered yet — asked when it moves to Export STLs</span>') + '</div>') +
     '<div class="alSum"><span class="alT">Patient total: <b>' + total + '</b> aligners' + (estAll != null && total ? ' <span class="alEst">est. ' + money(estAll) + '</span>' : '') + '</span>' + (sets.length > 1 || inForm ? parts : '') + '</div>' +
     (missing ? '<div class="small muted">' + missing + ' set' + (missing > 1 ? 's have' : ' has') + ' no count yet, so the total may be low.</div>' : '') +
     (est == null && isOwner() && me.n ? '<div class="small muted">Set the cost per aligner in Team &amp; security to see an estimated cost.</div>' : '') + wait +
     (inForm ? '' : '<div class="alLbl"><button class="btn btn-sec btn-sm" data-act="labels"' + (me.n ? '' : ' disabled') + '>' + ic('print', 15) + 'Print labels</button>' +
-      (me.n ? '<span class="small muted">The Label Maker’s labels, already filled in</span>' : '<span class="small muted">Available once the upper and lower aligners are entered (Edit)</span>') + '</div>');
+      (me.n ? '<span class="small muted">The Label Maker’s labels, already filled in</span>' : '<span class="small muted">Available once ' + alAskText(c) + ' are entered (Edit)</span>') + '</div>');
 }
 function alignerMini(c) {
   if (c.type !== 'nla') return '';
@@ -2889,7 +2908,7 @@ function refreshDrawer(gone) {
 async function loadHistory(id) {
   try { const h = await B.caseLog(id); if (S.openId === id) { S.history = h; const el = $('#histBox'); if (el) el.innerHTML = historyHTML(findCase(id)); } } catch (e) { }
 }
-const FIELD_LABELS = { photo: 'photo', labRef: 'lab case #', labHold: 'lab hold', planUrl: 'plan link', shipToPatient: 'ship to patient', records: 'records on file', zoomDate: 'Zoom call', zoomTime: 'Zoom call', tracking: 'tracking #', carrier: 'carrier', teeth: 'tooth chart', teethNote: 'tooth chart', chart: 'chart #', titanUrl: 'Titan link', initial: 'initial/refinement', appliances: 'appliance', lab: 'lab', arches: 'arch', retKinds: 'retainer type', goals: 'Dr. A’s instructions', instrPicks: 'Dr. A’s instructions', instrOther: 'Dr. A’s instructions', extras: 'extras', variant: 'case type', type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery date', deliveryTime: 'delivery time', alU: 'aligners', alL: 'aligners', aligners: 'aligners', atTemplates: 'attachment templates', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes' };
+const FIELD_LABELS = { photo: 'photo', labRef: 'lab case #', labHold: 'lab hold', planUrl: 'plan link', shipToPatient: 'ship to patient', records: 'records on file', zoomDate: 'Zoom call', zoomTime: 'Zoom call', tracking: 'tracking #', carrier: 'carrier', teeth: 'tooth chart', teethNote: 'tooth chart', chart: 'chart #', titanUrl: 'Titan link', initial: 'initial/refinement', appliances: 'appliance', lab: 'lab', arches: 'arch', retKinds: 'retainer type', goals: 'Dr. A’s instructions', instrPicks: 'Dr. A’s instructions', instrOther: 'Dr. A’s instructions', extras: 'extras', variant: 'case type', type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery date', deliveryTime: 'delivery time', alU: 'aligners', alL: 'aligners', aligners: 'aligners', atTemplates: 'attachment templates', treatArch: 'arches to treat', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes' };
 function historyHTML(c) {
   const h = S.history; if (!h) return '<div class="small muted">Loading…</div>'; if (!h.length) return '<div class="small muted">No history yet.</div>';
   const stageName = k => { const s = c && flowOf(c).stages.find(x => x[0] === k); return s ? s[1] : k; };
@@ -2965,7 +2984,7 @@ function renderDrawer() {
     kv('Assistant', esc(staffName(c.assistant, c.assistantName))) + kv('Scanner', esc(c.scanner)) + kv('Chart #', esc(c.chart || '')) +
     kv('Created', esc((c.createdAt ? fmtWhen(c.createdAt) : '') + (c.createdBy ? ' · ' + firstName(staffName(c.createdBy, '')) : ''))) + kv('Last update', esc(c.updatedAt ? fmtWhen(c.updatedAt) + (c.by ? ' · ' + firstName(staffName(c.by, '')) : '') : '')) +
     '</div></div>' +
-    ((c.appliances || []).length || c.lab || c.initial || (c.extras || []).length ? '<div class="sec"><h5>Case</h5><div class="pickRow">' + (c.appliances || []).map(x => '<span class="badge t-appl">' + esc(x) + '</span>').join('') + (c.lab ? '<span class="badge">' + esc(c.lab) + '</span>' : '') + (c.initial ? '<span class="badge">' + esc(submissionLabel(c.initial)) + '</span>' : '') + (c.extras || []).map(x => '<span class="badge t-retx">' + esc(x) + '</span>').join('') + '</div></div>' : '') +
+    ((c.appliances || []).length || c.lab || c.initial || (c.extras || []).length || oneArch(c) ? '<div class="sec"><h5>Case</h5><div class="pickRow">' + (oneArch(c) ? '<span class="badge t-arch">' + esc(treatArchLabel(oneArch(c))) + '</span>' : '') + (c.appliances || []).map(x => '<span class="badge t-appl">' + esc(x) + '</span>').join('') + (c.lab ? '<span class="badge">' + esc(c.lab) + '</span>' : '') + (c.initial ? '<span class="badge">' + esc(submissionLabel(c.initial)) + '</span>' : '') + (c.extras || []).map(x => '<span class="badge t-retx">' + esc(x) + '</span>').join('') + '</div></div>' : '') +
     (c.type === 'nla' ? '<div class="sec" id="alBox"><h5>Aligners</h5>' + alignerTotalHTML(c, false) + '</div>' : '') +
     // retainers & whitening trays: a label for the bag, then it offers to complete the case (Amir, 2 Oct 2026)
     (c.type === 'retainer' ? '<div class="sec" id="retLblBox"><h5>Label</h5><div class="alLbl"><button class="btn btn-sec btn-sm" data-act="retLabels">' + ic('print', 15) + 'Print label</button>' +
@@ -2999,20 +3018,21 @@ function marpeBoxHTML(c, done) {
 }
 /* before a stage move goes through, ask for what it needs (see stageNeeds); `extra` = fields already collected */
 function stageGateModal(c, to, needs, extra) {
-  const lbl = (flowOf(c).stages.find(s => s[0] === to) || [0, to])[1], r = extra.records || c.records || [];
+  const lbl = (flowOf(c).stages.find(s => s[0] === to) || [0, to])[1], r = extra.records || c.records || [], one = oneArch(c);
   openModal('<h3>' + esc(lbl) + '</h3><div class="lsub">' + esc((c.patient || '') + ' · ' + typeOf(c).l) + '</div>' +
     (needs.includes('records') ? '<div class="gate" id="gRecs"><b>Before it goes to the lab, both have to be on file:</b>' + MARPE_RECORDS.map(([k, l]) =>
       '<label class="gateRow"><input type="checkbox" data-rec="' + k + '"' + (r.includes(k) ? ' checked' : '') + '>' + esc(l) + '</label>').join('') + '</div>' : '') +
     (needs.includes('zoom') ? '<div class="gate"><b>When is the Zoom call?</b><div class="zoomRow"><div class="field"><label for="gZoomDate">Date</label><input type="date" id="gZoomDate"></div>' +
       '<div class="field"><label for="gZoomTime">Time</label><input type="time" id="gZoomTime"></div></div></div>' : '') +
     // in-house: the aligners in this set (from Titan) and any attachment templates, as it reaches Export STLs
-    (needs.includes('aligners') ? '<div class="gate" id="gAl"><b>How many aligners in this set? <span class="h5n">from Titan</span></b><div class="alRow">' +
-      '<div class="field"><label for="gAlU">Upper aligners</label><input id="gAlU" type="number" inputmode="numeric" min="0" max="99" step="1" placeholder="0" value="' + esc(c.alU || '') + '"></div>' +
-      '<div class="field"><label for="gAlL">Lower aligners</label><input id="gAlL" type="number" inputmode="numeric" min="0" max="99" step="1" placeholder="0" value="' + esc(c.alL || '') + '"></div></div>' +
-      '<b style="margin-top:6px">Any attachment templates?</b>' + pickRow('gAt', AT_OPTS, c.atTemplates || '', false) + '</div>' : '') +
+    // (one arch only: just that arch's count, and the template answers that fit it)
+    (needs.includes('aligners') ? '<div class="gate" id="gAl"><b>How many aligners in this set? <span class="h5n">from Titan' + (one ? ' · ' + esc(treatArchLabel(one).toLowerCase()) : '') + '</span></b><div class="alRow">' +
+      (one === 'L' ? '' : '<div class="field"><label for="gAlU">Upper aligners</label><input id="gAlU" type="number" inputmode="numeric" min="0" max="99" step="1" placeholder="0" value="' + esc(c.alU || '') + '"></div>') +
+      (one === 'U' ? '' : '<div class="field"><label for="gAlL">Lower aligners</label><input id="gAlL" type="number" inputmode="numeric" min="0" max="99" step="1" placeholder="0" value="' + esc(c.alL || '') + '"></div>') + '</div>' +
+      '<b style="margin-top:6px">Any attachment templates?</b>' + pickRow('gAt', atOptsFor(one), atFor(c.atTemplates, one), false) + '</div>' : '') +
     '<div class="mFt"><button class="btn btn-sec" type="button" data-act="closeModal">Cancel</button><button class="btn btn-pri" type="button" id="gGo">Move to “' + esc(lbl) + '”</button></div>', w => {
       const go = $('#gGo', w), zd = $('#gZoomDate', w), al = $('#gAl', w);
-      const n = id => Math.min(99, Math.max(0, parseInt($(id, w).value, 10) || 0));
+      const n = id => { const el = $(id, w); return el ? Math.min(99, Math.max(0, parseInt(el.value, 10) || 0)) : 0; }; // (an untreated arch has no field)
       const atV = () => (($('.pickRow[data-g=gAt] .pick[aria-pressed=true]', w) || {}).dataset || {}).v || '';
       const ok = () => $$('input[data-rec]', w).every(i => i.checked) && (!zd || !!zd.value) && (!al || (n('#gAlU') + n('#gAlL') > 0 && !!atV()));
       const sync = () => { go.disabled = !ok(); };
@@ -3296,7 +3316,7 @@ async function saveEdit() {
   // (in-house: the form has the aligner counts and attachment templates, so only missing ones stop the save)
   const needs = (changed.includes('stage') && !changed.includes('type') ? stageNeeds(Object.assign({}, base, now, { stage: base.stage }), now.stage) : [])
     .filter(x => x !== 'aligners' || alignersMissing(now));
-  if (needs.length) { $('#drawerNotice').innerHTML = '<div class="notice bad">' + (needs.includes('records') ? 'Tick both records (STL scan and CBCT) under Records on file before moving it to ' + esc(stageLabel(now)) + '.' : needs.includes('aligners') ? 'Enter the upper and lower aligners and pick Attachment templates before moving it to ' + esc(stageLabel(now)) + '.' : 'Add the Zoom call date before moving it to Zoom call scheduled.') + '</div>'; $('#drawerNotice').scrollIntoView({ block: 'nearest' }); return; }
+  if (needs.length) { $('#drawerNotice').innerHTML = '<div class="notice bad">' + (needs.includes('records') ? 'Tick both records (STL scan and CBCT) under Records on file before moving it to ' + esc(stageLabel(now)) + '.' : needs.includes('aligners') ? 'Enter ' + alAskText(now) + ' and pick Attachment templates before moving it to ' + esc(stageLabel(now)) + '.' : 'Add the Zoom call date before moving it to Zoom call scheduled.') + '</div>'; $('#drawerNotice').scrollIntoView({ block: 'nearest' }); return; }
   const btn = $('[data-act=saveEdit]', d); busyBtn(btn, true, 'Saving…');
   const id = S.openId;
   try {
@@ -3408,7 +3428,8 @@ const [INSTR_ICONS, TYPE_ICONS] = (() => {
       + '<path class="ta" d="M44.8 22v8.5m-2.6-2.6 2.6 2.6 2.6-2.6m-5.2-5.9 2.6-2.6 2.6 2.6"/>'
   };
   /* case types: our own drawings. The outside companies show the logos Amir pasted (logos.js) and fall back to the
-     tinted aligner drawing; Next Level's own tile uses the office's NL mark (traced from logo-white.png). */
+     tinted aligner drawing; Next Level's own tile uses the office's NL mark (traced from logo-white.png), drawn in black
+     on the same grey band as the other tiles (Amir, 2 Oct 2026: "gray and black"). */
   const NL_MARK = 'M4.9 23.97L4.93 9.42L6.49 9.39L8.05 9.35L13.78 18.92C17.3 24.79 19.59 28.49 19.7 28.49C19.86 28.49 19.9 27.32 19.95 18.95L20.01 9.42L21.88 9.42L23.75 9.42L23.78 23.97L23.81 38.52L22.2 38.52L20.58 38.52L14.88 28.98C10.91 22.34 9.12 19.46 8.99 19.48C8.82 19.51 8.79 20.66 8.74 28.99L8.67 38.45L6.77 38.49L4.87 38.52L4.9 23.97ZM31.1 38.35C30.35 38.1 29.65 37.71 29.05 37.21C28.51 36.76 27.68 35.8 27.68 35.62C27.68 35.57 29.86 35.53 32.54 35.53C35.76 35.53 37.4 35.57 37.4 35.65C37.4 35.72 36.98 36.2 36.48 36.71C35.23 37.98 34.32 38.41 32.74 38.47C32.01 38.5 31.42 38.46 31.1 38.35ZM27.61 31.88C27.58 31.8 27.56 26.71 27.58 20.57L27.61 9.42L29.55 9.42L31.48 9.42L31.54 18.58L31.6 27.74L34.53 27.81C36.14 27.84 37.47 27.89 37.49 27.9C37.51 27.91 37.51 28.84 37.49 29.95L37.46 31.98L32.56 32.01C28.71 32.03 27.66 32.01 27.61 31.88ZM36.32 12.34C36.66 10.22 38.78 8.91 40.84 9.55C41.84 9.87 42.78 10.79 43.06 11.73C43.36 12.77 43.34 12.85 42.71 12.85C42.17 12.85 42.16 12.84 42 12.26C41.69 11.17 40.41 10.32 39.42 10.56C38.39 10.8 37.79 11.38 37.51 12.38C37.39 12.83 37.37 12.85 36.81 12.85L36.24 12.85L36.32 12.34Z';
   // four upper front teeth (lateral, central, central, lateral) at the same 75–80% central width-to-height ratio
   const front = (top, cerv, eC, eL, wC, wL, gap) => {
@@ -3478,7 +3499,7 @@ function submissionLabel(v) { return v === 'yes' ? 'Initial submission' : v === 
 /* fields added later save '' when empty (not [] or false), so older cases without them don't look edited */
 const FORM_KEYS = ['type', 'patient', 'chart', 'detail', 'stage', 'assignee', 'assistant', 'scanner', 'scanDate', 'labDate', 'deliveryDate', 'deliveryTime', 'aligners',
   'initial', 'appliances', 'lab', 'arches', 'retKinds', 'goals', 'instrPicks', 'instrOther', 'instructions', 'extras', 'teeth', 'cc', 'ipr', 'notes', 'titanUrl', 'alU', 'alL',
-  'shipToPatient', 'records', 'zoomDate', 'zoomTime', 'tracking', 'labRef', 'atTemplates'];
+  'shipToPatient', 'records', 'zoomDate', 'zoomTime', 'tracking', 'labRef', 'atTemplates', 'treatArch'];
 
 /* delivery time: every half hour, 7:00 AM to 7:00 PM (Amir, 2 Oct 2026: "30 mins increments are fine") */
 const HALF_HOURS = Array.from({ length: 25 }, (_, i) => { const m = 7 * 60 + i * 30; return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); });
@@ -3700,12 +3721,15 @@ function caseFormHTML(c, isNew) {
       '<h5>Zoom call <span class="h5n">once the lab sets it up</span></h5><div class="zoomRow">' + date('cf-zoomDate', 'Date', c.zoomDate) +
       '<div class="field"><label for="cf-zoomTime">Time</label><input type="time" id="cf-zoomTime" value="' + esc(c.zoomTime || '') + '"></div></div></div>' +
     '<div class="cfSec"' + show('retainer') + '><h5>Arch</h5>' + pickRow('arches', PICK.arches, c.arches || [], true) + '<div id="cf-retKindsWrap"' + (tile === 'mouthguard' ? ' style="display:none"' : '') + '><h5>Making</h5>' + pickRow('retKinds', PICK.retKinds, c.retKinds || [], true) + '</div></div>' +
+    // aligners and InSmile: which arches are treated — both unless picked (Amir, 2 Oct 2026: not always both arches)
+    '<div class="cfSec"' + show('aligner braces') + '><h5>Arches to treat</h5>' + pickRow('treatArch', TREAT_OPTS, oneArch(c) || 'UL', false) + '</div>' +
     '<div class="cfSec"' + show('aligner') + '><h5>Initial submission?</h5>' + pickRow('initial', [{ v: 'yes', l: 'Yes — first set' }, { v: 'no', l: 'No — refinement' }, { v: 'mid', l: 'Mid-course correction' }], initialVal, false) + '</div>' +
+    // in-house: one count per treated arch (the untreated arch's field is hidden, see wireCaseForm)
     '<div class="cfSec"' + showTiles(INHOUSE_TILES.join(' ')) + '><h5>Aligners in this set <span class="h5n">count each arch from Titan</span></h5><div class="alRow">' +
-      '<div class="field"><label for="cf-alU">Upper aligners</label><input id="cf-alU" type="number" inputmode="numeric" min="0" max="99" step="1" placeholder="0" value="' + esc(c.alU || '') + '"></div>' +
-      '<div class="field"><label for="cf-alL">Lower aligners</label><input id="cf-alL" type="number" inputmode="numeric" min="0" max="99" step="1" placeholder="0" value="' + esc(c.alL || '') + '"></div>' +
+      '<div class="field"' + (oneArch(c) === 'L' ? ' style="display:none"' : '') + '><label for="cf-alU">Upper aligners</label><input id="cf-alU" type="number" inputmode="numeric" min="0" max="99" step="1" placeholder="0" value="' + esc(c.alU || '') + '"></div>' +
+      '<div class="field"' + (oneArch(c) === 'U' ? ' style="display:none"' : '') + '><label for="cf-alL">Lower aligners</label><input id="cf-alL" type="number" inputmode="numeric" min="0" max="99" step="1" placeholder="0" value="' + esc(c.alL || '') + '"></div>' +
       '<div class="alTot" id="cf-alTotal" aria-live="polite"></div></div>' +
-      '<h5>Attachment templates <span class="h5n">asked again when it moves to Export STLs</span></h5>' + pickRow('atTemplates', AT_OPTS, c.atTemplates || '', false) + '</div>' +
+      '<h5>Attachment templates <span class="h5n">asked again when it moves to Export STLs</span></h5>' + pickRow('atTemplates', AT_OPTS, atFor(c.atTemplates, oneArch(c)), false) + '</div>' +
     '<div class="cfSec"' + showTiles('insmile') + '><h5>Initial or digital enhancement?</h5>' + pickRow('initialDE', [{ v: 'yes', l: 'Initial' }, { v: 'de1', l: 'DE 1' }, { v: 'de2', l: 'DE 2' }, { v: 'de3', l: 'DE 3' }], c.initial || '', false) + '</div>' +
     '<div class="cfSec"><h5>Assistant</h5>' + staffPickRow('assistant', withSavedStaff(roster, c.assistant), c.assistant || '') +
     '<div' + show('aligner braces appliance marpe retainer models') + '><h5>Scanner</h5>' + pickRow('scanner', PICK.scanners, c.scanner || '', false) + '</div></div>' +
@@ -3797,10 +3821,13 @@ function readCaseForm(root) {
   if (g !== 'retainer') { o.arches = []; o.retKinds = []; }
   if (tile === 'mouthguard') o.retKinds = [];
   if (!(o.type === 'nla')) o.titanUrl = '';
-  // in-house: aligners per arch; the set's total is upper + lower (aligners, not stages)
+  // arches to treat: aligners and InSmile only; both arches is the default and saves as '' (like every older case)
+  const ta = pressed(root, 'treatArch')[0] || '';
+  o.treatArch = (g === 'aligner' || g === 'braces') && (ta === 'U' || ta === 'L') ? ta : '';
+  // in-house: aligners per treated arch; the set's total is upper + lower (aligners, not stages)
   const num = id => { const v = parseInt(($(id, root) || {}).value, 10); return o.type === 'nla' && v > 0 ? Math.min(v, 99) : ''; };
-  o.atTemplates = o.type === 'nla' ? (pressed(root, 'atTemplates')[0] || '') : '';
-  o.alU = num('#cf-alU'); o.alL = num('#cf-alL'); o.aligners = (o.alU || 0) + (o.alL || 0) || '';
+  o.atTemplates = o.type === 'nla' ? atFor(pressed(root, 'atTemplates')[0] || '', o.treatArch) : '';
+  o.alU = o.treatArch === 'L' ? '' : num('#cf-alU'); o.alL = o.treatArch === 'U' ? '' : num('#cf-alL'); o.aligners = (o.alU || 0) + (o.alL || 0) || '';
   o.instructions = goalText(o.goals).concat(o.instrPicks, o.instrOther ? [o.instrOther] : []).join('; ');
   return o;
 }
@@ -3808,10 +3835,11 @@ function readCaseForm(root) {
 function autoDetail(o, tile) {
   const t = TILES.find(x => x.v === tile);
   const sub = o.initial === 'no' ? ' – refinement' : o.initial === 'mid' ? ' – mid-course correction' : '';
-  if (tile === 'finishing') return 'Finishing aligners' + sub;
-  if (['oliv', 'angel', 'invisalign', 'ulab', 'nla'].includes(tile)) return 'Aligners (' + (tile === 'nla' ? 'In-House' : t.l) + ')' + sub;
-  if (tile === 'inbrace') return 'InBrace/Brava';
-  if (tile === 'insmile') return 'InSmile braces' + (/^de[123]$/.test(o.initial) ? ' – DE' + o.initial.slice(2) : '');
+  const only = o.treatArch === 'U' ? 'upper only' : o.treatArch === 'L' ? 'lower only' : ''; // "Aligners (Oliv, upper only)"
+  if (tile === 'finishing') return 'Finishing aligners' + (only ? ' (' + only + ')' : '') + sub;
+  if (['oliv', 'angel', 'invisalign', 'ulab', 'nla'].includes(tile)) return 'Aligners (' + (tile === 'nla' ? 'In-House' : t.l) + (only ? ', ' + only : '') + ')' + sub;
+  if (tile === 'inbrace') return 'InBrace/Brava' + (only ? ' (' + only + ')' : '');
+  if (tile === 'insmile') return 'InSmile braces' + (only ? ' (' + only + ')' : '') + (/^de[123]$/.test(o.initial) ? ' – DE' + o.initial.slice(2) : '');
   if (tile === 'appliance') return o.appliances.join(', ');
   if (tile === 'models') return 'Study models';
   if (tile === 'marpe') return 'MARPE';
@@ -3829,6 +3857,8 @@ function wireCaseForm(root, isNew) {
   const autoIds = ['cf-labDate', 'cf-deliveryDate'];
   autoIds.forEach(id => { const el = $r('#' + id); el.dataset.auto = (isNew && !el.value) ? '1' : '0'; el.addEventListener('input', () => { el.dataset.auto = '0'; }); });
   const det = $r('#cf-detail'); det.addEventListener('input', () => { det.dataset.auto = '0'; });
+  // editing: a "what's being made" line nobody typed (it matches the taps) keeps following the taps, e.g. Upper only
+  if (!isNew && det.dataset.auto !== '1' && det.value && det.value === autoDetail(readCaseForm(root), $r('#cf-tile').value)) det.dataset.auto = '1';
   const refresh = (typeChanged) => {
     const tile = $r('#cf-tile').value; const g = groupOfTile(tile); const o = readCaseForm(root);
     $$('[data-show]', root).forEach(el => { el.style.display = el.dataset.show.split(' ').includes(g) ? '' : 'none'; });
@@ -3836,6 +3866,15 @@ function wireCaseForm(root, isNew) {
     $$('.pickRow[data-g="instrPicks"] .pick', root).forEach(b => { if (ALIGNER_ONLY_INSTR.includes(b.dataset.v)) b.style.display = g === 'braces' ? 'none' : ''; });
     const tw = $r('#cf-titanWrap'); if (tw) tw.style.display = INHOUSE_TILES.includes(tile) ? '' : 'none';
     const rk = $r('#cf-retKindsWrap'); if (rk) rk.style.display = tile === 'mouthguard' ? 'none' : '';
+    // one arch only: just that arch's aligner count, and only the attachment-template answers that fit it
+    const ta = o.treatArch, fU = $r('#cf-alU'), fL = $r('#cf-alL');
+    if (fU) fU.closest('.field').style.display = ta === 'L' ? 'none' : '';
+    if (fL) fL.closest('.field').style.display = ta === 'U' ? 'none' : '';
+    const atRow = $r('.pickRow[data-g="atTemplates"]');
+    if (atRow) {
+      const fit = atOptsFor(ta).map(x => x.v), was = pressed(root, 'atTemplates')[0] || '', now = atFor(was, ta);
+      $$('.pick', atRow).forEach(b => { b.style.display = fit.includes(b.dataset.v) ? '' : 'none'; if (now !== was) b.setAttribute('aria-pressed', String(b.dataset.v === now)); });
+    }
     if (typeChanged) {
       const type = o.type, stage = $r('#cf-stage');
       stage.innerHTML = type ? FLOWS[TYPE[type].flow].stages.map(([k, l]) => '<option value="' + k + '">' + esc(l) + '</option>').join('') : '';
@@ -3876,7 +3915,8 @@ function wireCaseForm(root, isNew) {
         const mt = $r('.tt[data-tile=marpe]'); if (mt) { mt.click(); toast('MARPE has its own steps, so this is now a MARPE case'); return; }
       }
       if (multi) pk.setAttribute('aria-pressed', String(!was));
-      else { $$('.pick', row).forEach(b => b.setAttribute('aria-pressed', 'false')); if (!was) pk.setAttribute('aria-pressed', 'true'); }
+      // (arches to treat always has an answer: tapping the chosen one again keeps it)
+      else { $$('.pick', row).forEach(b => b.setAttribute('aria-pressed', 'false')); if (!was || row.dataset.g === 'treatArch') pk.setAttribute('aria-pressed', 'true'); }
       if (row.dataset.g === 'lab') row.dataset.manual = '1';
       if (row.dataset.g === 'appliances') routeLab(root, isNew);
       refresh(false); return;
@@ -3999,7 +4039,7 @@ function newCaseModal() {
         const needs = stageNeeds(Object.assign({}, data, { stage: firstStage(data.type) }), data.stage);
         if (needs.includes('records')) return err('Tick both records (STL scan and CBCT) before starting it at ' + stageLabel(data) + '.');
         if (needs.includes('zoom')) return err('Add the Zoom call date to start it at Zoom call scheduled.');
-        if (needs.includes('aligners') && alignersMissing(data)) return err('Enter the upper and lower aligners and pick Attachment templates to start it at ' + stageLabel(data) + '.');
+        if (needs.includes('aligners') && alignersMissing(data)) return err('Enter ' + alAskText(data) + ' and pick Attachment templates to start it at ' + stageLabel(data) + '.');
         Object.assign(data, { comments: [], createdAt: Date.now(), createdBy: meSid() });
         busyBtn($('#ncSave', w), true, 'Saving…');
         try {
@@ -4383,7 +4423,7 @@ const ADMIN_ACTS = {
     try {
       const all = await B.loadAll();
       all.forEach(c => { c.assigneeLabel = staffName(c.assignee, c.assigneeName); });
-      const head = ['Patient', 'Type', 'Detail', 'Stage', 'Status', 'Scan', 'Lab completion', 'Delivery', 'Assigned', 'Dr. A instructions', 'Patient CC', 'IPR & spacing', 'Notes', 'Chart #', 'Titan link', 'Also', 'Initial/refinement', 'Lab', 'Tooth chart', 'Aligners in set', 'Ship to patient', 'Records on file', 'Zoom call', 'Attachment templates'].join(',');
+      const head = ['Patient', 'Type', 'Detail', 'Stage', 'Status', 'Scan', 'Lab completion', 'Delivery', 'Assigned', 'Dr. A instructions', 'Patient CC', 'IPR & spacing', 'Notes', 'Chart #', 'Titan link', 'Also', 'Initial/refinement', 'Lab', 'Tooth chart', 'Aligners in set', 'Ship to patient', 'Records on file', 'Zoom call', 'Attachment templates', 'Arches treated'].join(',');
       const blob = new Blob(['﻿' + head + '\n' + all.map(caseToCSVRow).join('\n')], { type: 'text/csv' });
       const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'nlo-cases-' + todayISO() + '.csv'; document.body.appendChild(a); a.click();
       setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);

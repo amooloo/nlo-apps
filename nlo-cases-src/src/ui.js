@@ -480,6 +480,8 @@ function chartNote(c) {
   else if (c.type === 'mouthguard') what = 'a mouthguard' + ((c.arches || []).length ? ' (' + c.arches.join('/') + ')' : '');
   else if (c.type === 'models') what = 'study models';
   else what = c.detail || t.l;
+  // aligners and InSmile treating one arch (Amir, 2 Oct 2026)
+  if (oneArch(c) && (t.aligner || c.type === 'insmile' || (c.type === 'inbrace' && !/ only\b/i.test(what)))) what += ', ' + (oneArch(c) === 'U' ? 'upper' : 'lower') + ' arch only';
   L.push((c.scanner ? 'Scanned with ' + c.scanner : 'Scanned') + ' for ' + what + '.');
   if (t.flow === 'marpe') { const r = MARPE_RECORDS.filter(x => (c.records || []).includes(x[0])).map(x => x[1]); if (r.length) L.push('Records on file: ' + r.join(', ') + '.'); }
   const end = s => String(s).trim().replace(/[.\s;]+$/, '') + '.';
@@ -533,15 +535,17 @@ function alignerTotalHTML(c, inForm) {
   const est = alCost(me.n), estAll = alCost(total, sets.length);
   const wait = !S.histLoaded ? '<div class="small muted">Adding up earlier sets…</div>' : '';
   const parts = sets.map(s => '<span class="alSet' + (s.me ? ' me' : '') + '">' + esc(s.l) + ' <b>' + (s.n || '?') + '</b></span>').join('');
-  const arches = c.alU || c.alL ? ' (U ' + (c.alU || 0) + ' · L ' + (c.alL || 0) + ')' : '';
+  // per arch: "(U 18 · L 16)", or just the one arch that's treated: "(U 18 · upper arch only)"
+  const one = oneArch(c), arches = c.alU || c.alL ? ' (' + (one === 'U' ? 'U ' + (c.alU || 0) + ' · upper arch only' : one === 'L' ? 'L ' + (c.alL || 0) + ' · lower arch only' : 'U ' + (c.alU || 0) + ' · L ' + (c.alL || 0)) + ')' : '';
+  const counts = one === 'U' ? 'the upper count' : one === 'L' ? 'the lower count' : 'the upper and lower counts';
   return '<div class="alThis">' + (me.n ? '<b>' + me.n + '</b> aligners in this set' + (inForm ? '' : arches + ' · ' + esc(me.l)) + (est != null ? ' <span class="alEst">est. ' + money(est) + '</span>' : '')
-      : '<span class="muted">' + (inForm ? 'Enter the upper and lower aligners from Titan.' : 'Aligners in this set not entered yet — add the upper and lower counts from Titan with Edit.') + '</span>') + '</div>' +
+      : '<span class="muted">' + (inForm ? 'Enter ' + alAskText(c) + ' from Titan.' : 'Aligners in this set not entered yet — add ' + counts + ' from Titan with Edit.') + '</span>') + '</div>' +
     (inForm ? '' : '<div class="alAt">Attachment templates: ' + (c.atTemplates ? '<b>' + esc(atLabel(c.atTemplates)) + '</b>' : '<span class="muted">not answered yet — asked when it moves to Export STLs</span>') + '</div>') +
     '<div class="alSum"><span class="alT">Patient total: <b>' + total + '</b> aligners' + (estAll != null && total ? ' <span class="alEst">est. ' + money(estAll) + '</span>' : '') + '</span>' + (sets.length > 1 || inForm ? parts : '') + '</div>' +
     (missing ? '<div class="small muted">' + missing + ' set' + (missing > 1 ? 's have' : ' has') + ' no count yet, so the total may be low.</div>' : '') +
     (est == null && isOwner() && me.n ? '<div class="small muted">Set the cost per aligner in Team &amp; security to see an estimated cost.</div>' : '') + wait +
     (inForm ? '' : '<div class="alLbl"><button class="btn btn-sec btn-sm" data-act="labels"' + (me.n ? '' : ' disabled') + '>' + ic('print', 15) + 'Print labels</button>' +
-      (me.n ? '<span class="small muted">The Label Maker’s labels, already filled in</span>' : '<span class="small muted">Available once the upper and lower aligners are entered (Edit)</span>') + '</div>');
+      (me.n ? '<span class="small muted">The Label Maker’s labels, already filled in</span>' : '<span class="small muted">Available once ' + alAskText(c) + ' are entered (Edit)</span>') + '</div>');
 }
 function alignerMini(c) {
   if (c.type !== 'nla') return '';
@@ -814,7 +818,7 @@ function refreshDrawer(gone) {
 async function loadHistory(id) {
   try { const h = await B.caseLog(id); if (S.openId === id) { S.history = h; const el = $('#histBox'); if (el) el.innerHTML = historyHTML(findCase(id)); } } catch (e) { }
 }
-const FIELD_LABELS = { photo: 'photo', labRef: 'lab case #', labHold: 'lab hold', planUrl: 'plan link', shipToPatient: 'ship to patient', records: 'records on file', zoomDate: 'Zoom call', zoomTime: 'Zoom call', tracking: 'tracking #', carrier: 'carrier', teeth: 'tooth chart', teethNote: 'tooth chart', chart: 'chart #', titanUrl: 'Titan link', initial: 'initial/refinement', appliances: 'appliance', lab: 'lab', arches: 'arch', retKinds: 'retainer type', goals: 'Dr. A’s instructions', instrPicks: 'Dr. A’s instructions', instrOther: 'Dr. A’s instructions', extras: 'extras', variant: 'case type', type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery date', deliveryTime: 'delivery time', alU: 'aligners', alL: 'aligners', aligners: 'aligners', atTemplates: 'attachment templates', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes' };
+const FIELD_LABELS = { photo: 'photo', labRef: 'lab case #', labHold: 'lab hold', planUrl: 'plan link', shipToPatient: 'ship to patient', records: 'records on file', zoomDate: 'Zoom call', zoomTime: 'Zoom call', tracking: 'tracking #', carrier: 'carrier', teeth: 'tooth chart', teethNote: 'tooth chart', chart: 'chart #', titanUrl: 'Titan link', initial: 'initial/refinement', appliances: 'appliance', lab: 'lab', arches: 'arch', retKinds: 'retainer type', goals: 'Dr. A’s instructions', instrPicks: 'Dr. A’s instructions', instrOther: 'Dr. A’s instructions', extras: 'extras', variant: 'case type', type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery date', deliveryTime: 'delivery time', alU: 'aligners', alL: 'aligners', aligners: 'aligners', atTemplates: 'attachment templates', treatArch: 'arches to treat', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes' };
 function historyHTML(c) {
   const h = S.history; if (!h) return '<div class="small muted">Loading…</div>'; if (!h.length) return '<div class="small muted">No history yet.</div>';
   const stageName = k => { const s = c && flowOf(c).stages.find(x => x[0] === k); return s ? s[1] : k; };
@@ -890,7 +894,7 @@ function renderDrawer() {
     kv('Assistant', esc(staffName(c.assistant, c.assistantName))) + kv('Scanner', esc(c.scanner)) + kv('Chart #', esc(c.chart || '')) +
     kv('Created', esc((c.createdAt ? fmtWhen(c.createdAt) : '') + (c.createdBy ? ' · ' + firstName(staffName(c.createdBy, '')) : ''))) + kv('Last update', esc(c.updatedAt ? fmtWhen(c.updatedAt) + (c.by ? ' · ' + firstName(staffName(c.by, '')) : '') : '')) +
     '</div></div>' +
-    ((c.appliances || []).length || c.lab || c.initial || (c.extras || []).length ? '<div class="sec"><h5>Case</h5><div class="pickRow">' + (c.appliances || []).map(x => '<span class="badge t-appl">' + esc(x) + '</span>').join('') + (c.lab ? '<span class="badge">' + esc(c.lab) + '</span>' : '') + (c.initial ? '<span class="badge">' + esc(submissionLabel(c.initial)) + '</span>' : '') + (c.extras || []).map(x => '<span class="badge t-retx">' + esc(x) + '</span>').join('') + '</div></div>' : '') +
+    ((c.appliances || []).length || c.lab || c.initial || (c.extras || []).length || oneArch(c) ? '<div class="sec"><h5>Case</h5><div class="pickRow">' + (oneArch(c) ? '<span class="badge t-arch">' + esc(treatArchLabel(oneArch(c))) + '</span>' : '') + (c.appliances || []).map(x => '<span class="badge t-appl">' + esc(x) + '</span>').join('') + (c.lab ? '<span class="badge">' + esc(c.lab) + '</span>' : '') + (c.initial ? '<span class="badge">' + esc(submissionLabel(c.initial)) + '</span>' : '') + (c.extras || []).map(x => '<span class="badge t-retx">' + esc(x) + '</span>').join('') + '</div></div>' : '') +
     (c.type === 'nla' ? '<div class="sec" id="alBox"><h5>Aligners</h5>' + alignerTotalHTML(c, false) + '</div>' : '') +
     // retainers & whitening trays: a label for the bag, then it offers to complete the case (Amir, 2 Oct 2026)
     (c.type === 'retainer' ? '<div class="sec" id="retLblBox"><h5>Label</h5><div class="alLbl"><button class="btn btn-sec btn-sm" data-act="retLabels">' + ic('print', 15) + 'Print label</button>' +
@@ -924,20 +928,21 @@ function marpeBoxHTML(c, done) {
 }
 /* before a stage move goes through, ask for what it needs (see stageNeeds); `extra` = fields already collected */
 function stageGateModal(c, to, needs, extra) {
-  const lbl = (flowOf(c).stages.find(s => s[0] === to) || [0, to])[1], r = extra.records || c.records || [];
+  const lbl = (flowOf(c).stages.find(s => s[0] === to) || [0, to])[1], r = extra.records || c.records || [], one = oneArch(c);
   openModal('<h3>' + esc(lbl) + '</h3><div class="lsub">' + esc((c.patient || '') + ' · ' + typeOf(c).l) + '</div>' +
     (needs.includes('records') ? '<div class="gate" id="gRecs"><b>Before it goes to the lab, both have to be on file:</b>' + MARPE_RECORDS.map(([k, l]) =>
       '<label class="gateRow"><input type="checkbox" data-rec="' + k + '"' + (r.includes(k) ? ' checked' : '') + '>' + esc(l) + '</label>').join('') + '</div>' : '') +
     (needs.includes('zoom') ? '<div class="gate"><b>When is the Zoom call?</b><div class="zoomRow"><div class="field"><label for="gZoomDate">Date</label><input type="date" id="gZoomDate"></div>' +
       '<div class="field"><label for="gZoomTime">Time</label><input type="time" id="gZoomTime"></div></div></div>' : '') +
     // in-house: the aligners in this set (from Titan) and any attachment templates, as it reaches Export STLs
-    (needs.includes('aligners') ? '<div class="gate" id="gAl"><b>How many aligners in this set? <span class="h5n">from Titan</span></b><div class="alRow">' +
-      '<div class="field"><label for="gAlU">Upper aligners</label><input id="gAlU" type="number" inputmode="numeric" min="0" max="99" step="1" placeholder="0" value="' + esc(c.alU || '') + '"></div>' +
-      '<div class="field"><label for="gAlL">Lower aligners</label><input id="gAlL" type="number" inputmode="numeric" min="0" max="99" step="1" placeholder="0" value="' + esc(c.alL || '') + '"></div></div>' +
-      '<b style="margin-top:6px">Any attachment templates?</b>' + pickRow('gAt', AT_OPTS, c.atTemplates || '', false) + '</div>' : '') +
+    // (one arch only: just that arch's count, and the template answers that fit it)
+    (needs.includes('aligners') ? '<div class="gate" id="gAl"><b>How many aligners in this set? <span class="h5n">from Titan' + (one ? ' · ' + esc(treatArchLabel(one).toLowerCase()) : '') + '</span></b><div class="alRow">' +
+      (one === 'L' ? '' : '<div class="field"><label for="gAlU">Upper aligners</label><input id="gAlU" type="number" inputmode="numeric" min="0" max="99" step="1" placeholder="0" value="' + esc(c.alU || '') + '"></div>') +
+      (one === 'U' ? '' : '<div class="field"><label for="gAlL">Lower aligners</label><input id="gAlL" type="number" inputmode="numeric" min="0" max="99" step="1" placeholder="0" value="' + esc(c.alL || '') + '"></div>') + '</div>' +
+      '<b style="margin-top:6px">Any attachment templates?</b>' + pickRow('gAt', atOptsFor(one), atFor(c.atTemplates, one), false) + '</div>' : '') +
     '<div class="mFt"><button class="btn btn-sec" type="button" data-act="closeModal">Cancel</button><button class="btn btn-pri" type="button" id="gGo">Move to “' + esc(lbl) + '”</button></div>', w => {
       const go = $('#gGo', w), zd = $('#gZoomDate', w), al = $('#gAl', w);
-      const n = id => Math.min(99, Math.max(0, parseInt($(id, w).value, 10) || 0));
+      const n = id => { const el = $(id, w); return el ? Math.min(99, Math.max(0, parseInt(el.value, 10) || 0)) : 0; }; // (an untreated arch has no field)
       const atV = () => (($('.pickRow[data-g=gAt] .pick[aria-pressed=true]', w) || {}).dataset || {}).v || '';
       const ok = () => $$('input[data-rec]', w).every(i => i.checked) && (!zd || !!zd.value) && (!al || (n('#gAlU') + n('#gAlL') > 0 && !!atV()));
       const sync = () => { go.disabled = !ok(); };
@@ -1221,7 +1226,7 @@ async function saveEdit() {
   // (in-house: the form has the aligner counts and attachment templates, so only missing ones stop the save)
   const needs = (changed.includes('stage') && !changed.includes('type') ? stageNeeds(Object.assign({}, base, now, { stage: base.stage }), now.stage) : [])
     .filter(x => x !== 'aligners' || alignersMissing(now));
-  if (needs.length) { $('#drawerNotice').innerHTML = '<div class="notice bad">' + (needs.includes('records') ? 'Tick both records (STL scan and CBCT) under Records on file before moving it to ' + esc(stageLabel(now)) + '.' : needs.includes('aligners') ? 'Enter the upper and lower aligners and pick Attachment templates before moving it to ' + esc(stageLabel(now)) + '.' : 'Add the Zoom call date before moving it to Zoom call scheduled.') + '</div>'; $('#drawerNotice').scrollIntoView({ block: 'nearest' }); return; }
+  if (needs.length) { $('#drawerNotice').innerHTML = '<div class="notice bad">' + (needs.includes('records') ? 'Tick both records (STL scan and CBCT) under Records on file before moving it to ' + esc(stageLabel(now)) + '.' : needs.includes('aligners') ? 'Enter ' + alAskText(now) + ' and pick Attachment templates before moving it to ' + esc(stageLabel(now)) + '.' : 'Add the Zoom call date before moving it to Zoom call scheduled.') + '</div>'; $('#drawerNotice').scrollIntoView({ block: 'nearest' }); return; }
   const btn = $('[data-act=saveEdit]', d); busyBtn(btn, true, 'Saving…');
   const id = S.openId;
   try {

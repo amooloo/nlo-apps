@@ -74,7 +74,7 @@ const OUT = process.argv[2] || 'shots';
   await p.evaluate(id => openDrawer(id), oid); await p.waitForSelector('#drawer .stepper'); await p.click('#drawer .step[data-k=mfg]'); await p.waitForTimeout(250);
   check(!(await p.isVisible('#gAl')) && (await st(oid)).stage === 'mfg', 'outside aligner cases move without the question');
   // export column
-  check(await p.evaluate(id => caseToCSVRow(findCase(id)).endsWith('"Lower"'), eid), 'export: Attachment templates column');
+  check(await p.evaluate(id => caseToCSVRow(findCase(id)).endsWith('"Lower","Upper & lower"'), eid), 'export: Attachment templates column (then Arches treated)');
   // Titan: the web version and its beta, from every in-house case (opening one copies the name)
   const tid = await p.evaluate(() => { const c = openCases().find(x => x.type === 'nla'); c.titanUrl = 'https://client.titandentaldesign.com/Live/index.html#case-demo'; return c.id; });
   await p.evaluate(id => openDrawer(id), tid); await p.waitForSelector('#drawer .portals');
