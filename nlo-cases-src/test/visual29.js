@@ -2,7 +2,7 @@
 // tiles (deep curve of Spee, open bite, IPR lower, tooth size discrepancy — IPR to correct OJ, posterior crossbite), the Retainers
 // picture with a green check for Active retention; the Maintain/Improve rows kept (Midline and Overbite get his pictures). Then:
 // "remove AP correction and change attachment. Also … change tooth size discrepancy to Upper IPR" — a case that already has
-// AP or Change attachments keeps them (shown when it's edited) — demo
+// AP or Change attachments keeps them (shown when it's edited); then "IPR lower" became "Lower IPR" to match — demo
 const { chromium } = require('playwright');
 const { routes, watch, panelsOpen } = require('./helpers');
 const OUT = process.argv[2] || 'shots';
@@ -20,22 +20,22 @@ const OUT = process.argv[2] || 'shots';
     tiles: Array.from(document.querySelectorAll('#ncForm .pickRow[data-g=instrPicks] .pick.itile')).map(t => { const i = t.querySelector('.iPic img'); return t.querySelector('span:not(.iPic)').textContent + '=' + (i ? i.dataset.pic + (i.complete && i.naturalWidth > 0 ? '' : '!') : 'drawing'); }) }));
   console.log('   ' + JSON.stringify(st));
   check(st.goals.join('|') === 'Midline=instr-midline|Overbite=instr-deepbite', 'Maintain/Improve rows: Midline and Overbite with Amir’s pictures — no AP row');
-  check(st.tiles.map(t => t.split('=')[0]).join('|') === 'Close spaces|Black triangles|Upper IPR|IPR lower|Deep curve of Spee|Open bite|Posterior crossbite|Settle posteriors|No posterior movement|Not tracking|Active retention', 'the tiles: Upper IPR (was Tooth size discrepancy) beside IPR lower; no Change attachments');
-  check(st.tiles.join('|') === 'Close spaces=instr-spaces|Black triangles=instr-bt|Upper IPR=instr-tsd|IPR lower=instr-iprlower|Deep curve of Spee=instr-spee|Open bite=instr-openbite|Posterior crossbite=instr-xbite|Settle posteriors=instr-postob|No posterior movement=instr-lock|Not tracking=instr-track|Active retention=instr-retain', 'every tile has Amir’s picture (loaded); Upper IPR keeps the tooth size discrepancy one');
+  check(st.tiles.map(t => t.split('=')[0]).join('|') === 'Close spaces|Black triangles|Upper IPR|Lower IPR|Deep curve of Spee|Open bite|Posterior crossbite|Settle posteriors|No posterior movement|Not tracking|Active retention', 'the tiles: Upper IPR (was Tooth size discrepancy) beside Lower IPR; no Change attachments');
+  check(st.tiles.join('|') === 'Close spaces=instr-spaces|Black triangles=instr-bt|Upper IPR=instr-tsd|Lower IPR=instr-iprlower|Deep curve of Spee=instr-spee|Open bite=instr-openbite|Posterior crossbite=instr-xbite|Settle posteriors=instr-postob|No posterior movement=instr-lock|Not tracking=instr-track|Active retention=instr-retain', 'every tile has Amir’s picture (loaded); Upper IPR keeps the tooth size discrepancy one');
   const plate = await p.$eval('#ncForm .pick.itile .iPic', e => { const s = getComputedStyle(e); return { bg: s.backgroundColor, w: Math.round(e.getBoundingClientRect().width), h: Math.round(e.getBoundingClientRect().height) }; });
   check(plate.bg === 'rgb(255, 255, 255)' && plate.w === 76 && plate.h === 56, 'the pictures sit on a white plate (76 × 56) like the case-type pictures');
   // picking: new tiles save their wording; the picked plate gets the mint ring
-  for (const v of ['IPR lower', 'Upper IPR', 'Level deep curve of Spee', 'Correct open bite', 'Correct posterior crossbite']) await p.click('#ncForm .pickRow[data-g=instrPicks] .pick[data-v="' + v + '"]');
+  for (const v of ['Lower IPR', 'Upper IPR', 'Level deep curve of Spee', 'Correct open bite', 'Correct posterior crossbite']) await p.click('#ncForm .pickRow[data-g=instrPicks] .pick[data-v="' + v + '"]');
   check(await p.$eval('#ncForm .pick[data-v="Correct open bite"] .iPic', e => getComputedStyle(e).boxShadow.includes('100, 244, 201')), 'a picked tile: navy, its picture ringed in mint');
   await (await p.evaluateHandle(() => document.querySelector('#ncForm .goalGrid').closest('.cfSec'))).evaluate(e => e.scrollIntoView({ block: 'start' })); await p.mouse.move(5, 5); await p.waitForTimeout(400);
   await (await p.evaluateHandle(() => document.querySelector('#ncForm .goalGrid').closest('.cfSec'))).screenshot({ path: OUT + '/v29-instructions.png' });
   const ins = await p.evaluate(() => readCaseForm(document.querySelector('.modal')).instructions);
-  check(ins === 'Upper IPR; IPR lower; Level deep curve of Spee; Correct open bite; Correct posterior crossbite', 'what’s saved: “' + ins + '”');
+  check(ins === 'Upper IPR; Lower IPR; Level deep curve of Spee; Correct open bite; Correct posterior crossbite', 'what’s saved: “' + ins + '”');
   await p.fill('#ncForm #cf-patient', 'Ida Instructa'); await p.click('#ncForm .pickRow[data-g=initial] .pick[data-v=no]'); await p.click('#ncSave');
   await p.waitForSelector('#ncForm', { state: 'detached', timeout: 5000 }).catch(() => {});
   const nid = await p.evaluate(() => (openCases().find(c => c.patient === 'Ida Instructa') || {}).id);
   const note = await p.evaluate(id => chartNote(findCase(id)), nid);
-  check(/Correct posterior crossbite/.test(note) && /Level deep curve of Spee/.test(note) && /Upper IPR; IPR lower/.test(note), 'the chart note carries the new instructions');
+  check(/Correct posterior crossbite/.test(note) && /Level deep curve of Spee/.test(note) && /Upper IPR; Lower IPR/.test(note), 'the chart note carries the new instructions');
   // an older case saved with AP and Change attachments: the chart note keeps them; Edit shows them (to clear if you like); Save keeps them
   const OLD_ATT = 'Need to change attachment/hooks on one or more teeth';
   const oid = await p.evaluate(() => openCases().find(c => c.type === 'oliv').id);
@@ -52,10 +52,19 @@ const OUT = process.argv[2] || 'shots';
   const kept = await p.evaluate(id => { const d = DEMO.cases.get(id); return { ap: (d.goals || {}).ap, picks: (d.instrPicks || []).join(), ins: d.instructions }; }, oid);
   check(kept.ap === 'improve' && kept.picks === OLD_ATT && kept.ins === 'Maintain midline; Improve AP; ' + OLD_ATT, 'Save keeps them as they were');
   await p.evaluate(() => closeDrawer(true));
+  // a case saved in the hour the tile read "IPR lower": Edit shows the Lower IPR tile picked (not an earlier choice); saving uses the new words
+  await p.evaluate(id => { const o = { goals: {}, instrPicks: ['IPR lower'], instrOther: '', instructions: 'IPR lower' };
+    Object.assign(findCase(id), JSON.parse(JSON.stringify(o))); Object.assign(DEMO.cases.get(id), o); queueRender(); }, oid);
+  await p.evaluate(id => openDrawer(id), oid); await p.click('#drawer [data-act=edit]'); await p.waitForSelector('#drawer .itGrid', { state: 'attached' });
+  const rn = await p.evaluate(() => ({ tile: document.querySelector('#drawer .itGrid .pick[data-v="Lower IPR"]').getAttribute('aria-pressed'), old: document.querySelectorAll('#drawer .pickRow[data-g=instrPicks]:not(.itGrid)').length }));
+  check(rn.tile === 'true' && rn.old === 0, 'a case saved as “IPR lower”: Edit shows the Lower IPR tile picked, no “Earlier choices” (' + JSON.stringify(rn) + ')');
+  await p.click('#drawer [data-act=saveEdit]'); await p.waitForTimeout(400);
+  check(await p.evaluate(id => DEMO.cases.get(id).instructions, oid) === 'Lower IPR', '… and saving it reads “Lower IPR”');
+  await p.evaluate(() => closeDrawer(true));
   // InSmile (braces): the aligner-only tiles stay hidden; the new ones show
   await p.click('.topBar [data-act=newCase]'); await p.waitForSelector('#ncForm'); await p.click('#ncForm .tt[data-tile=insmile]'); await p.waitForTimeout(120);
   const br = await p.evaluate(() => Array.from(document.querySelectorAll('#ncForm .pickRow[data-g=instrPicks] .pick.itile')).filter(t => t.offsetParent).map(t => t.querySelector('span:not(.iPic)').textContent));
-  check(!br.includes('Not tracking') && !br.includes('Active retention') && br.includes('Posterior crossbite') && br.includes('Upper IPR') && br.includes('IPR lower'), 'InSmile: no aligner-only tiles; the new ones are there');
+  check(!br.includes('Not tracking') && !br.includes('Active retention') && br.includes('Posterior crossbite') && br.includes('Upper IPR') && br.includes('Lower IPR'), 'InSmile: no aligner-only tiles; the new ones are there');
   await p.click('.modal [data-act=closeModal]');
   // phone: fits
   await p.setViewportSize({ width: 390, height: 844 });

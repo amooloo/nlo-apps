@@ -26,13 +26,13 @@ const LAB_FOR = { 'Herbst with Rollo Band': LAB_SPEC, 'Space Closing Herbst': LA
    AP (Class II / III) was taken off on 3 Oct 2026 (Amir): legacy — its row shows only on a case that already has it */
 const GOALS = [{ k: 'midline', l: 'Midline', t: 'midline', ic: 'midline' }, { k: 'ap', l: 'AP', s: 'Class II / III', t: 'AP', ic: 'ap', legacy: true }, { k: 'ob', l: 'Overbite', t: 'overbite', ic: 'ob' }];
 /* the instruction tiles; the v text is what's saved (and goes in the chart note). Amir added five on 3 Oct 2026 with their
-   pictures: deep curve of Spee, open bite, upper IPR, IPR lower, posterior crossbite — and took "Change attachments" off
+   pictures: deep curve of Spee, open bite, upper IPR, lower IPR, posterior crossbite — and took "Change attachments" off
    (a case that already has it shows it under "Earlier choices on this case") */
 const INSTR = [
   { v: 'Close all remaining residual spaces/gaps', l: 'Close spaces', ic: 'spaces' },
   { v: 'Resolve black triangles', l: 'Black triangles', ic: 'bt' },
   { v: 'Upper IPR', l: 'Upper IPR', ic: 'tsd' },
-  { v: 'IPR lower', l: 'IPR lower', ic: 'iprlower' },
+  { v: 'Lower IPR', l: 'Lower IPR', ic: 'iprlower' },
   { v: 'Level deep curve of Spee', l: 'Deep curve of Spee', ic: 'spee' },
   { v: 'Correct open bite', l: 'Open bite', ic: 'openbite' },
   { v: 'Correct posterior crossbite', l: 'Posterior crossbite', ic: 'xbite' },
@@ -42,6 +42,9 @@ const INSTR = [
   { v: 'Active retention', l: 'Active retention', ic: 'retain' }
 ];
 /* instruction tiles that only make sense for aligners (hidden for braces; Active retention off for InSmile — Amir, 2 Oct 2026) */
+/* a tile whose wording changed: a case saved with the old words shows the new tile picked (Amir, 3 Oct 2026: "IPR lower"
+   became "Lower IPR" to match Upper IPR, an hour after it went live) */
+const INSTR_RENAMED = { 'IPR lower': 'Lower IPR' };
 const ALIGNER_ONLY_INSTR = ['Aligners are not tracking well', 'Need to change attachment/hooks on one or more teeth', 'Active retention'];
 function goalText(goals) { goals = goals || {}; return GOALS.filter(gl => goals[gl.k]).map(gl => (goals[gl.k] === 'improve' ? 'Improve ' : 'Maintain ') + gl.t); }
 
@@ -408,7 +411,7 @@ function caseFormHTML(c, isNew) {
   const people = (sel, none) => opt('', none) + activeRoster().map(r => opt(r.sid, r.name, sel === r.sid)).join('');
   const date = (id, l, v) => '<div class="field"><label for="' + id + '">' + l + '</label><input type="date" id="' + id + '" value="' + esc(v || '') + '"></div>';
   const instrOther = c.instrOther != null ? c.instrOther : (((c.instrPicks || []).length || Object.keys(c.goals || {}).length) ? '' : (c.instructions || ''));
-  const picks = c.instrPicks || [], oldPicks = picks.filter(v => !INSTR.some(it => it.v === v));
+  const picks = (c.instrPicks || []).map(v => INSTR_RENAMED[v] || v), oldPicks = picks.filter(v => !INSTR.some(it => it.v === v));
   // Mid-course correction used to be an "Also" choice; it is now a kind of submission
   const extras = (c.extras || []).filter(x => x !== 'Mid-course correction'), oldExtras = extras.filter(x => !PICK.extras.includes(x));
   const initialVal = c.type === 'nla' && c.variant === 'finishing' ? FIN : !c.initial && (c.extras || []).includes('Mid-course correction') ? 'mid' : (c.initial || '');
