@@ -68,10 +68,21 @@ const has = cmd => { try { execFileSync('which', [cmd], { stdio: 'ignore' }); re
   check(cm.name === 'HTH Telescope Mechanism' && /bulkiest/.test(cm.text), 'tabbing to a mechanism shows it too (HTH: Specialty calls it the bulkiest and recommends the M4)');
   await p.focus('#rxWrap [data-rxf=notes]'); cm = await card('mech');
   check(cm.name === 'M4 MiniScope (4-part)' && /64 mm/.test(cm.text), 'the M4 card: opens up to 64 mm …');
+  // Amir's pictures (4 Oct 2026: "use these images in the RX sheet for herbst"): the Standard and Cantilever Herbst, the HTH and Flip-Lock
+  const cardPic = g => p.evaluate(g => { const on = document.querySelector('#rxWrap .rxInfoCard[data-info=' + g + '] .rxIc.on'), i = on && on.querySelector('.rxIcPic img'); return i ? { pic: i.dataset.pic, ok: i.complete && i.naturalWidth > 0, w: Math.round(i.getBoundingClientRect().width) } : null; }, g);
+  await p.focus('#rxWrap .rxB[data-rxg=design][data-v=standard]'); let pc = await cardPic('design');
+  check(!!pc && pc.pic === 'herbst-standard' && pc.ok && pc.w === 240, 'the Standard Herbst card shows its picture, 240 px on the right');
+  await p.focus('#rxWrap .rxB[data-rxg=design][data-v=spaceclosing]'); pc = await cardPic('design');
+  check(pc === null, '… a design without a picture shows none');
+  await p.focus('#rxWrap .rxB[data-rxg=mech][data-v=fliplock]'); pc = await cardPic('mech');
+  check(!!pc && pc.pic === 'herbst-fliplock' && pc.ok, 'the Flip-Lock card shows its picture');
+  check(await p.evaluate(() => ['standard', 'cantilever'].every(k => PICS[RX_INFO.design[k].pic]) && ['hth', 'fliplock'].every(k => PICS[RX_INFO.mech[k].pic])), 'pictures for the Standard and Cantilever Herbst and the HTH and Flip-Lock mechanisms');
+  await p.focus('#rxWrap [data-rxf=notes]');
   check(await p.evaluate(() => RX_KEYS('design').every(k => RX_INFO.design[k].sum && RX_INFO.design[k].short && (RX_INFO.design[k].src || []).every(x => RX_SRC[x])) && RX_KEYS('mech').concat(['apple', 'shims', 'mio']).every(k => RX_INFO.mech[k] && RX_INFO.mech[k].sum && (RX_INFO.mech[k].src || []).every(x => RX_SRC[x]))), 'every design and mechanism (and AppleCore, shims, MIO) has its explanation and sources');
   await p.click('#rxWrap [data-rxa=cmp][data-g=design]');
   const cmpD = await p.evaluate(() => Array.from(document.querySelectorAll('#rxWrap .rxCmpBox[data-cmp=design] .rxCmpRow')).map(r => r.querySelector('b').textContent + '|' + r.querySelector('em').textContent));
   check(cmpD.length === 5 && cmpD[0] === 'Standard Herbst|$220.50' && cmpD[3] === 'Band or Crown Upper / Acrylic Lower|$293.50', 'Compare all: the five designs side by side with their prices');
+  check(await p.evaluate(() => Array.from(document.querySelectorAll('#rxWrap .rxCmpBox[data-cmp=design] .rxCmpRow')).map(r => { const i = r.querySelector('.rxCmpPic img'); return i ? i.dataset.pic + (i.complete && i.naturalWidth > 0 ? '' : '!') : ''; }).join(',')) === 'herbst-standard,herbst-cantilever,,,', '… with the Standard and Cantilever pictures under their names');
   await p.click('#rxWrap [data-rxa=cmp][data-g=design]');
   check(!(await p.isVisible('#rxWrap .rxCmpBox[data-cmp=design]')), '… and it folds away again');
   await p.click('#rxWrap [data-rxa=cmp][data-g=mech]');

@@ -59,13 +59,13 @@ const RX_SRC = {
 };
 const RX_INFO = {
   design: {
-    standard: { short: 'Upper first molars to lower first premolars, with a lower lingual arch. The everyday Herbst.',
+    standard: { pic: 'herbst-standard', short: 'Upper first molars to lower first premolars, with a lower lingual arch. The everyday Herbst.',
       sum: 'The classic layout: the Herbst runs from the upper first molars to the lower first premolars, with a lower lingual arch tying the lower anchorage together.',
       pts: ['The anchor teeth get bands, crowns or ROCs (tap them on the arches). Specialty includes the lower lingual arch (no loops).',
         'For Class II correction once the lower first premolars are in.',
         'Priced as the list’s Band/Crown/ROC Herbst.'],
       src: ['review', 'm4'] },
-    cantilever: { short: 'Lower anchorage on the first molars only; an arm runs forward to the Herbst. No lower premolar bands.',
+    cantilever: { pic: 'herbst-cantilever', short: 'Lower anchorage on the first molars only; an arm runs forward to the Herbst. No lower premolar bands.',
       sum: 'Crowns (or ROCs) on the lower first molars carry an arm forward along the cheek side to the premolar area, where the lower end of the Herbst attaches — no lower premolars are banded.',
       pts: ['Good when the lower premolars aren’t in, or aren’t good anchors (e.g. the mixed dentition).',
         'Specialty: when intrusion is wanted (a high-angle patient) the cantilever arm is set below the gum line to add a vertical force; otherwise the M4 runs parallel to the bite so it doesn’t intrude teeth.',
@@ -112,12 +112,12 @@ const RX_INFO = {
         'Bulkier and longer than the telescopes, with limited side-to-side movement that can restrict speech and chewing and irritate the cheeks.',
         'No separate charge on Specialty’s list.'],
       src: ['herbst', 'review'] },
-    hth: { short: 'Hanks Telescoping Herbst: ball and socket, screws built in, the bulkiest. Specialty recommends the M4 instead.',
+    hth: { pic: 'herbst-hth', short: 'Hanks Telescoping Herbst: ball and socket, screws built in, the bulkiest. Specialty recommends the M4 instead.',
       sum: 'The Hanks Telescoping Herbst (Dr. Steve Hanks, 2003): a telescoping mechanism with a ball-and-socket design and the screws built into it.',
       pts: ['Specialty calls it the bulkiest appliance on the market and recommends the M4 over it.',
         'Costs more than the M4 on Specialty’s list.'],
       src: ['hth', 'review'] },
-    fliplock: { short: 'TP Orthodontics’ tube and piston with ball-and-swivel ends; snaps together; crimpable spacers. The priciest.',
+    fliplock: { pic: 'herbst-fliplock', short: 'TP Orthodontics’ tube and piston with ball-and-swivel ends; snaps together; crimpable spacers. The priciest.',
       sum: 'TP Orthodontics’ Flip-Lock (Dr. Miller, 1996): a tube and piston with ball-and-swivel joints at both ends for more side-to-side movement.',
       pts: ['A patented lock snaps it together in seconds; no pins, screws or springs (TP Orthodontics).',
         'Advanced with crimpable spacers (1–5 mm).',
@@ -473,9 +473,15 @@ function rxInfoName(g, v) { const K = RXE.k, it = K.info[g][v] || {}; return it.
 function rxInfoTag(g, v) { return RXE.k.infoTag(g, v); }
 /* the option the card shows when nothing is pointed at: the one picked */
 function rxInfoSel(g) { return RXE.k.infoSel(g, RXE.rx || {}); }
+/* an option's picture (its `pic`, Amir's, 4 Oct 2026): on the right of its card and small under its name in Compare all; the
+   image itself is set once the card is on the page (picPaint, like the tile pictures) */
+function rxInfoPic(it, cls) {
+  const pc = it && it.pic && typeof PICS !== 'undefined' && PICS[it.pic];
+  return pc ? '<div class="' + cls + '"><img data-pic="' + esc(it.pic) + '" width="' + pc.w + '" height="' + pc.h + '" alt="" draggable="false"></div>' : '';
+}
 function rxInfoBody(g, v) {
   const K = RXE.k, it = K.info[g][v], tag = rxInfoTag(g, v);
-  return '<div class="rxIcHd"><b>' + esc(rxInfoName(g, v)) + '</b>' + (tag ? '<em>' + esc(tag) + '</em>' : '') + '</div><p>' + esc(it.sum) + '</p>' +
+  return rxInfoPic(it, 'rxIcPic') + '<div class="rxIcHd"><b>' + esc(rxInfoName(g, v)) + '</b>' + (tag ? '<em>' + esc(tag) + '</em>' : '') + '</div><p>' + esc(it.sum) + '</p>' +
     (it.pts ? '<ul>' + it.pts.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>' : '') + (it.note ? '<div class="rxIcNote">' + esc(it.note) + '</div>' : '') +
     (it.src ? '<div class="rxIcSrc">' + it.src.map(k => '<a href="' + esc(K.src[k][1]) + '" target="_blank" rel="noopener noreferrer">' + esc(K.src[k][0]) + '</a>').join(' · ') + '</div>' : '');
 }
@@ -503,7 +509,7 @@ function rxInfoHover(e) {
 }
 function rxCmpHTML(g) {
   return '<div class="rxCmp">' + RXE.k.cmpKeys(g).map(k =>
-    '<div class="rxCmpRow"><b>' + esc(rxInfoName(g, k)) + '</b><span>' + esc(RXE.k.info[g][k].short) + '</span><em>' + esc(rxInfoTag(g, k)) + '</em></div>').join('') + '</div>';
+    '<div class="rxCmpRow"><div class="rxCmpN"><b>' + esc(rxInfoName(g, k)) + '</b>' + rxInfoPic(RXE.k.info[g][k], 'rxCmpPic') + '</div><span>' + esc(RXE.k.info[g][k].short) + '</span><em>' + esc(rxInfoTag(g, k)) + '</em></div>').join('') + '</div>';
 }
 /* a section with Compare all on its heading (when the form has a comparison for it) and the card under its choices */
 function rxInfoSec(g, title, choices, after) {
@@ -545,6 +551,7 @@ function rxPressed(g, v, rx) {
 /* redraw everything that follows the choices (the left side's buttons stay put, so typing never loses its place) */
 function rxSync(first) {
   const w = $('#rxWrap'); if (!w) return; const K = RXE.k, rx = RXE.rx = rxCanon(RXE.rx), c = RXE.c;
+  if (first) picPaint(w); // the options' pictures in their cards
   $$('[data-rxf]', w).forEach(i => { if (!first && i === document.activeElement) return; const k = i.dataset.rxf; i.value = rx[k] || (rxIsAuto(k) ? rxAutoVal(k, c, rx) : ''); });
   if (first) $$('[data-rxtab]', w).forEach(b => b.setAttribute('aria-selected', String(b.dataset.rxtab === RXE.tab)));
   $$('.rxSub[data-show]', w).forEach(s => { s.hidden = !K.subShow(s.dataset.show, rx); });
@@ -639,7 +646,7 @@ function rxOnClick(e) {
   const a = e.target.closest('[data-rxa]'); if (!a) return;
   switch (a.dataset.rxa) {
     case 'done': rxClose(true); break;
-    case 'cmp': { const box = $('.rxCmpBox[data-cmp="' + a.dataset.g + '"]', w), open = box.hidden; box.hidden = !open; if (open) box.innerHTML = rxCmpHTML(a.dataset.g);
+    case 'cmp': { const box = $('.rxCmpBox[data-cmp="' + a.dataset.g + '"]', w), open = box.hidden; box.hidden = !open; if (open) { box.innerHTML = rxCmpHTML(a.dataset.g); picPaint(box); }
       a.setAttribute('aria-expanded', String(open)); a.textContent = open ? 'Hide the comparison' : 'Compare all'; break; }
     case 'close': if (JSON.stringify(rxCanon(RXE.rx)) === RXE.orig || a.dataset.sure === '1') rxClose(false); else { a.dataset.sure = '1'; toast('Close without saving the Rx? Click × again — or Done to keep it'); setTimeout(() => { a.dataset.sure = ''; }, 4000); } break;
     case 'open': rxOpenPdf(RXE.c, RXE.rx); break;

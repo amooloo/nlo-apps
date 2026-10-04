@@ -927,6 +927,12 @@ body.phOff .pav,body.phOff .dPh,body.phOff .phSlot,body.phOff .phTgl,body.phOff 
 .rxIcNote{font-size:11.5px;color:var(--amber-700);margin:2px 0}
 .rxIcSrc{font-size:11px;color:var(--grey-500);margin-top:3px}
 .rxIcSrc a{color:var(--blue)}
+/* an option's picture (Amir's, 4 Oct 2026): on the right of its card, the text running beside and under it; small under the name in Compare all */
+.rxIcPic{float:right;margin:2px 0 6px 14px;border-radius:10px;overflow:hidden;background:#fff;box-shadow:0 0 0 1px var(--grey-200);line-height:0}
+.rxIcPic img{display:block;max-width:240px;height:auto}
+.rxCmpPic{margin-top:6px;width:150px;border-radius:8px;overflow:hidden;background:#fff;box-shadow:0 0 0 1px var(--grey-200);line-height:0}
+.rxCmpPic img{display:block;width:100%;height:auto}
+@media (max-width:640px){.rxIcPic{float:none;width:max-content;max-width:100%;margin:0 0 8px}.rxIcPic img{max-width:100%}}
 .rxCmpBtn{margin-left:10px;font-family:var(--fb);font-size:11.5px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--blue);text-decoration:underline;text-underline-offset:2px}
 .rxCmpBox[hidden]{display:none}
 .rxCmpBox{margin-bottom:8px}
