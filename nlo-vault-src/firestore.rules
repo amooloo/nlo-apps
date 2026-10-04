@@ -1,0 +1,266 @@
+rules_version = '2';
+// NLO Vault — Firestore security rules.
+// Everything secret is encrypted in the browser before it gets here. These rules decide WHO may read or write
+// the ciphertext: only active members, only the folders Dr. A gave them, edit only where he allowed editing.
+// Every change to a login must save the previous version (which nobody but Dr. A can read, and nobody can
+// change), and the activity log can only be added to.
+service cloud.firestore {
+  match /databases/{db}/documents {
+    function authed() { return request.auth != null; }
+    function setupPath() { return /databases/$(db)/documents/meta/setup; }
+    function hasSetup() { return exists(setupPath()); }
+    function isOwner() { return authed() && hasSetup() && get(setupPath()).data.owner == request.auth.uid; }
+    function userPath(uid) { return /databases/$(db)/documents/users/$(uid); }
+    function isMember() { return authed() && exists(userPath(request.auth.uid)) && get(userPath(request.auth.uid)).data.active == true; }
+    function grantPath(fid) { return /databases/$(db)/documents/grants/$(request.auth.uid + '_' + fid); }
+    function folderPath(fid) { return /databases/$(db)/documents/folders/$(fid); }
+    function canRead(fid) { return isOwner() || (isMember() && exists(grantPath(fid))); }
+    function canEdit(fid) { return isOwner() || (isMember() && exists(grantPath(fid)) && get(grantPath(fid)).data.role == 'edit'); }
+    // only inside the one-time setup batch, and only for Dr. A's verified email address
+    function bootstrapping() {
+      return authed() && !hasSetup()
+        && request.auth.token.email == '__OWNER_EMAIL__' && request.auth.token.email_verified == true
+        && existsAfter(setupPath()) && getAfter(setupPath()).data.owner == request.auth.uid;
+    }
+    function okBox(b, max) {
+      return b is map && b.keys().hasOnly(['iv', 'ct']) && b.iv is string && b.iv.size() == 16
+        && b.ct is string && b.ct.size() > 0 && b.ct.size() <= max;
+    }
+    function okSecretBox(b) {
+      return b is map && b.keys().hasOnly(['salt', 'iter', 'iv', 'ct']) && b.salt is string && b.salt.size() <= 32
+        && b.iter is int && b.iter >= 100000 && b.iv is string && b.iv.size() == 16 && b.ct is string && b.ct.size() <= 1000;
+    }
+    function okJwk(p) {
+      return p is map && p.keys().hasOnly(['kty', 'crv', 'x', 'y']) && p.kty == 'EC' && p.crv == 'P-256'
+        && p.x is string && p.y is string && p.x.size() == 43 && p.y.size() == 43;
+    }
+    function changed() { return request.resource.data.diff(resource.data).affectedKeys(); }
+
+    // ---------- the vault itself ----------
+    match /meta/setup {
+      allow get: if isMember();
+      // spk = Dr. A's public signing key; every folder key must carry his signature, and this can never change
+      allow create: if bootstrapping() && request.resource.data.keys().hasOnly(['owner', 'at', 'spk'])
+        && okJwk(request.resource.data.spk)
+        && request.resource.data.owner == request.auth.uid && request.resource.data.at == request.time
+        && getAfter(userPath(request.auth.uid)).data.role == 'owner';
+      allow update, delete: if false;
+    }
+    match /meta/settings {
+      function okSettings(d) { return d.keys().hasOnly(['lockMax', 'at']) && d.lockMax is int && d.lockMax >= 1 && d.lockMax <= 60 && d.at == request.time; }
+      allow get: if isMember();
+      allow create: if (bootstrapping() || isOwner()) && okSettings(request.resource.data);
+      allow update: if isOwner() && okSettings(request.resource.data);
+      allow delete: if false;
+    }
+
+    // ---------- people ----------
+    // username (hashed) -> which login number is current. Read one at a time before signing in; never listable.
+    match /logins/{h} {
+      allow get: if true;
+      allow list: if false;
+      allow create, update: if isOwner() && h.matches('^[0-9a-f]{64}$')
+        && request.resource.data.keys().hasOnly(['n']) && request.resource.data.n is int
+        && request.resource.data.n >= 1 && request.resource.data.n <= 10000;
+      allow delete: if isOwner();
+    }
+    match /users/{uid} {
+      function okUser(d) {
+        return d.keys().hasOnly(['name', 'username', 'role', 'active', 'pub', 'ps', 'n', 'at', 'by', 'removedAt', 'replaces', 'replacedBy', 'seen'])
+          && d.name is string && d.name.size() >= 1 && d.name.size() <= 60
+          && (!('ps' in d) || (d.ps is string && d.ps.size() <= 200))
+          && d.role in ['owner', 'staff'] && d.active is bool && okJwk(d.pub) && d.n is int
+          && (!('username' in d) || (d.username is string && d.username.matches('^[a-z0-9]{2,24}$')));
+      }
+      allow get, list: if isMember();
+      allow create: if (isOwner() && okUser(request.resource.data) && request.resource.data.role == 'staff'
+                        && request.resource.data.active == true && 'username' in request.resource.data
+                        && request.resource.data.at == request.time && request.resource.data.by == request.auth.uid)
+        || (bootstrapping() && uid == request.auth.uid && okUser(request.resource.data)
+            && request.resource.data.role == 'owner' && request.resource.data.active == true);
+      // Dr. A can rename people and switch them off (never back on — a returning person gets a new login),
+      // and can never switch himself off. A person can only note when they last opened the vault.
+      allow update: if (isOwner() && okUser(request.resource.data)
+          && changed().hasOnly(['name', 'active', 'removedAt', 'replacedBy'])
+          && !(resource.data.active == false && request.resource.data.active == true)
+          && (uid != request.auth.uid || request.resource.data.active == true))
+        || (authed() && request.auth.uid == uid && isMember() && changed().hasOnly(['seen']) && request.resource.data.seen == request.time);
+      allow delete: if false;
+    }
+    // each person's private key, locked with a key only their password produces (Dr. A also keeps a copy locked
+    // with his recovery code). Only that person can read it. Dr. A creates it for a new person (locked with
+    // their temporary password); after that only the person can change it.
+    match /keys/{uid} {
+      function okKeys(d) {
+        return d.keys().hasOnly(['wrap', 'next', 'rec', 'temp', 'at', 'pl', 'pc', 'npl', 'nc', 'rl', 'rc', 'px']) && okBox(d.wrap, 1000)
+          && (!('next' in d) || okBox(d.next, 1000)) && (!('rec' in d) || okSecretBox(d.rec))
+          && d.temp is bool && d.at is timestamp;
+      }
+      function okHash(h) { return h is string && h.size() == 64; }
+      function okLocks(d) {
+        return okHash(d.pl) && okHash(d.rl) && d.pc is int && d.rc is int && (!('npl' in d) || okHash(d.npl)) && (!('nc' in d) || d.nc is int);
+      }
+      function H(s) { return hashing.sha256(s).toHexString().lower(); }
+      // Dr. A's own copy changes only by showing the current one-time token (worked out from his password or his
+      // recovery code; only its SHA-256 is stored), and the token shown can't open it again afterwards. So someone
+      // signed in as him without those — say through his email — can't change or wipe his key.
+      function unlocked() {
+        let o = resource.data;
+        let n = request.resource.data;
+        return 'px' in n && n.px is string && n.px.size() >= 40 && n.px.size() <= 64 && okLocks(n)
+          && (H(n.px) == o.pl || H(n.px) == o.rl || ('npl' in o && H(n.px) == o.npl))
+          && H(n.px) != n.pl && H(n.px) != n.rl && (!('npl' in n) || H(n.px) != n.npl)
+          // counters only go up, so a token is never asked for twice
+          && n.pc > o.pc && n.rc >= o.rc && (n.rl == o.rl || n.rc > o.rc);
+      }
+      allow get: if authed() && request.auth.uid == uid && isMember();
+      allow create: if (isOwner() && uid != request.auth.uid && okKeys(request.resource.data) && request.resource.data.temp == true
+                        && !('rec' in request.resource.data) && !('pl' in request.resource.data) && !('px' in request.resource.data)
+                        && existsAfter(userPath(uid)) && getAfter(userPath(uid)).data.role == 'staff')
+        || (bootstrapping() && uid == request.auth.uid && okKeys(request.resource.data) && request.resource.data.temp == false
+            && okLocks(request.resource.data) && !('npl' in request.resource.data) && !('px' in request.resource.data));
+      allow update: if authed() && request.auth.uid == uid && isMember() && okKeys(request.resource.data)
+        && (request.resource.data.temp == false || resource.data.temp == true)
+        && (!('rec' in request.resource.data) || isOwner())
+        && (!isOwner() || unlocked());
+      allow delete: if false;
+    }
+    match /prefs/{uid} {
+      allow get: if authed() && request.auth.uid == uid && isMember();
+      allow create, update: if authed() && request.auth.uid == uid && isMember()
+        && request.resource.data.keys().hasOnly(['favs', 'lock', 'bk'])
+        && request.resource.data.favs is list && request.resource.data.favs.size() <= 500
+        && (!('bk' in request.resource.data) || request.resource.data.bk is int)
+        && request.resource.data.lock is int && request.resource.data.lock >= 0 && request.resource.data.lock <= 60;
+      allow delete: if authed() && request.auth.uid == uid;
+    }
+
+    // ---------- folders and who may open them ----------
+    match /folders/{fid} {
+      function okFolder(d) {
+        return d.keys().hasOnly(['name', 'kv', 'ks', 'color', 'def', 'order', 'at', 'by', 'rot', 'gone'])
+          && (!('gone' in d) || d.gone is bool)
+          && d.ks is map && d.ks.size() >= 1 && d.ks.size() <= d.kv
+          && okBox(d.name, 600) && d.kv is int && d.kv >= 1 && d.color is string && d.color.size() <= 12
+          && (!('def' in d) || d.def in ['view', 'edit']) && d.order is int
+          && d.at == request.time && d.by == request.auth.uid
+          && (!('rot' in d) || (d.rot is map && d.rot.keys().hasOnly(['from', 'to', 'why'])
+              && d.rot.from is int && d.rot.to is int && d.rot.why is string && d.rot.why.size() <= 80));
+      }
+      allow get: if canRead(fid);
+      allow list: if isOwner();
+      allow create: if (isOwner() || bootstrapping()) && fid.matches('^[a-z0-9]{8,32}$')
+        && okFolder(request.resource.data) && request.resource.data.kv == 1;
+      // the key version goes up one at a time; its signature can only be added by the write that moves the folder to it,
+      // and signatures are never changed or removed — so nobody can fill in a future slot or block a key change
+      function ksOk() {
+        let o = resource.data;
+        let n = request.resource.data;
+        let d = n.ks.diff(o.ks);
+        return d.removedKeys().size() == 0 && d.changedKeys().size() == 0
+          && ((n.kv == o.kv && d.addedKeys().size() == 0)
+              || (n.kv == o.kv + 1 && d.addedKeys().hasOnly([string(n.kv)])
+                  && (!(string(n.kv) in n.ks) || (n.ks[string(n.kv)] is string && n.ks[string(n.kv)].size() <= 200))));
+      }
+      allow update: if isOwner() && okFolder(request.resource.data) && ksOk();
+      allow delete: if false;
+    }
+    // a grant = this person may open this folder (view or edit); it carries the folder key sealed to their public key
+    match /grants/{gid} {
+      function okGrant(d) {
+        return d.keys().hasOnly(['uid', 'fid', 'role', 'keys', 'gs', 'by', 'at'])
+          && d.uid is string && d.fid is string && gid == d.uid + '_' + d.fid
+          && d.role in ['view', 'edit'] && d['keys'] is map && d['keys'].size() >= 1
+          && (d.uid == get(setupPath()).data.owner || d['keys'].size() <= 10)
+          && (!('gs' in d) || (d.gs is string && d.gs.size() <= 200))
+          && d.by == request.auth.uid && d.at == request.time
+          && existsAfter(folderPath(d.fid));
+          // (no per-person lookup here: a place is useless to anyone who isn't an active member, because every read
+          // also checks that — and it keeps a key change for a folder the whole office shares within the rules' limits)
+      }
+      // Dr. A's own grants hold every key version of every folder: they can't be deleted and keys are only ever added,
+      // so even someone who took over his sign-in (e.g. through his email) couldn't destroy the keys
+      function ownerUid() { return get(setupPath()).data.owner; }
+      // …and a new version can only be added by the same write that moves the folder to it (one at a time, small),
+      // so nobody can fill in future slots or stuff his grant until it can't take another key
+      function okSealed(b) {
+        return b is map && b.keys().hasOnly(['epk', 'iv', 'ct']) && okJwk(b.epk) && b.iv is string && b.iv.size() == 16
+          && b.ct is string && b.ct.size() <= 100;
+      }
+      function keysOnlyGrow() {
+        let d = request.resource.data['keys'].diff(resource.data['keys']);
+        let fp = folderPath(resource.data.fid);
+        let nk = string(getAfter(fp).data.kv);
+        return d.removedKeys().size() == 0 && d.changedKeys().size() == 0
+          && (d.addedKeys().size() == 0
+              || (getAfter(fp).data.kv == get(fp).data.kv + 1 && d.addedKeys().hasOnly([nk]) && okSealed(request.resource.data['keys'][nk])));
+      }
+      allow get: if authed() && ((resource.data.uid == request.auth.uid && isMember()) || isOwner());
+      allow list: if isOwner() || (isMember() && resource.data.uid == request.auth.uid);
+      allow create: if (isOwner() || bootstrapping()) && okGrant(request.resource.data);
+      allow update: if isOwner() && okGrant(request.resource.data) && (resource.data.uid != ownerUid() || keysOnlyGrow());
+      allow delete: if isOwner() && resource.data.uid != ownerUid();
+    }
+
+    // ---------- logins (the items) ----------
+    match /items/{iid} {
+      function okItem(d) {
+        return d.keys().hasOnly(['f', 'kv', 'iv', 'ct', 'rev', 'at', 'cAt', 'by', 'del'])
+          && d.f is string && d.f.size() <= 32 && exists(folderPath(d.f)) && d.kv == get(folderPath(d.f)).data.kv
+          && d.iv is string && d.iv.size() == 16 && d.ct is string && d.ct.size() > 0 && d.ct.size() <= 300000
+          && d.rev is int && d.at == request.time && d.by == request.auth.uid && d.del is bool;
+      }
+      allow get, list: if canRead(resource.data.f);
+      function verPath(rev) { return /databases/$(db)/documents/versions/$(iid + '_' + string(rev)); }
+      // a new item can't reuse the id of one deleted for good (its history would get mixed up)
+      allow create: if iid.matches('^[a-z0-9]{12,32}$') && okItem(request.resource.data) && canEdit(request.resource.data.f)
+        && request.resource.data.rev == 1 && request.resource.data.cAt == request.time && !exists(verPath(1));
+      // a change needs edit rights in the folder it was in and the folder it goes to, and the previous version saved
+      allow update: if okItem(request.resource.data) && canEdit(resource.data.f) && canEdit(request.resource.data.f)
+        && request.resource.data.rev == resource.data.rev + 1 && request.resource.data.cAt == resource.data.cAt
+        && existsAfter(verPath(resource.data.rev)) && getAfter(verPath(resource.data.rev)).data.ct == resource.data.ct;
+      allow delete: if isOwner() && existsAfter(verPath(resource.data.rev)) && getAfter(verPath(resource.data.rev)).data.ct == resource.data.ct;
+    }
+    // the version an item had before each change — exactly the stored ciphertext, written in the same batch as the change
+    match /versions/{vid} {
+      function itemPath() { return /databases/$(db)/documents/items/$(request.resource.data.i); }
+      allow get, list: if isOwner();
+      allow create: if isMember()
+        && request.resource.data.keys().hasOnly(['i', 'f', 'kv', 'iv', 'ct', 'rev', 'del', 'at', 'by'])
+        && request.resource.data.i is string && request.resource.data.rev is int
+        && vid == request.resource.data.i + '_' + string(request.resource.data.rev)
+        && request.resource.data.at == request.time && request.resource.data.by == request.auth.uid
+        && exists(itemPath())
+        && get(itemPath()).data.rev == request.resource.data.rev
+        && get(itemPath()).data.f == request.resource.data.f
+        && get(itemPath()).data.kv == request.resource.data.kv
+        && get(itemPath()).data.iv == request.resource.data.iv
+        && get(itemPath()).data.ct == request.resource.data.ct
+        && get(itemPath()).data.del == request.resource.data.del
+        && canEdit(request.resource.data.f)
+        && ((existsAfter(itemPath()) && getAfter(itemPath()).data.rev == request.resource.data.rev + 1)
+            || (!existsAfter(itemPath()) && isOwner()));   // Dr. A deleting it for good keeps this last copy
+      allow update, delete: if false;
+    }
+
+    // ---------- activity (who opened or copied what) ----------
+    match /log/{lid} {
+      function itemOf(i) { return /databases/$(db)/documents/items/$(i); }
+      function okLog(d) {
+        return d.keys().hasOnly(['by', 'at', 'a', 'i', 'f', 'u', 'n'])
+          && d.by == request.auth.uid && d.at == request.time
+          && (d.a in ['create', 'edit', 'move', 'delete', 'restore', 'reveal', 'copy-pw', 'copy-user', 'copy-2fa', 'copy-field', 'open', 'pw-change']
+              || (isOwner() && d.a in ['setup', 'purge', 'undelete', 'restoreVer', 'share', 'unshare', 'person-add', 'person-remove', 'reissue', 'rekey',
+                                       'folder-new', 'folder-edit', 'folder-del', 'import', 'backup', 'recovered', 'rec-code', 'settings']))
+          && (!('f' in d) || (d.f is string && d.f.size() <= 32 && canRead(d.f)))
+          && (!('i' in d) || (d.i is string && d.i.size() <= 32
+              && (isOwner() || ('f' in d && exists(itemOf(d.i)) && get(itemOf(d.i)).data.f == d.f))))
+          && (!('u' in d) || (isOwner() && d.u is string && d.u.size() <= 128))
+          && (!('n' in d) || (d.n is int && d.n >= 0 && d.n <= 1000000));
+      }
+      allow create: if isMember() && okLog(request.resource.data);
+      allow get, list: if isOwner();
+      allow update, delete: if false;
+    }
+  }
+}

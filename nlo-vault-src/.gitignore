@@ -1,0 +1,8 @@
+node_modules/
+dist/
+dist-test/
+shots/
+firebase.json
+*-debug.log
+src/assets.js
+test/review-*/

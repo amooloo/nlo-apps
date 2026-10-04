@@ -1,0 +1,25 @@
+{
+  "name": "nlo-vault",
+  "version": "1.0.0",
+  "description": "",
+  "scripts": {
+    "build": "node build.mjs",
+    "test:unit": "node test/unit.test.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.2",
+    "@fontsource-variable/montserrat": "^5.3.0",
+    "@fontsource-variable/oswald": "^5.3.0",
+    "diceware-wordlist-en-eff": "^1.0.1",
+    "esbuild": "^0.24.2",
+    "firebase": "^12.19.0",
+    "firebase-tools": "^15.32.1",
+    "firebase11": "npm:firebase@^11.10.0",
+    "playwright": "^1.56.0"
+  },
+  "type": "module",
+  "private": true
+}

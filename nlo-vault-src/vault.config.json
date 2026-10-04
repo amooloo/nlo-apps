@@ -1,0 +1,11 @@
+{
+  "comment": "Firebase web config of the NLO Vault project (public by design: security is the encryption plus the rules). Fill in after creating the project. The owner's email is NOT kept here; it is passed as OWNER_EMAIL when building the rules.",
+  "firebase": {
+    "apiKey": "AIzaSyAKPBbUc5FbhSLVdK8BSrSZqjvxXWJpwMo",
+    "authDomain": "nlo-vault.firebaseapp.com",
+    "projectId": "nlo-vault",
+    "storageBucket": "nlo-vault.firebasestorage.app",
+    "messagingSenderId": "808493279565",
+    "appId": "1:808493279565:web:ac5b2a56df3c251747af04"
+  }
+}
