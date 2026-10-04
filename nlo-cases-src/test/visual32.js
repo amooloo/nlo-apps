@@ -55,6 +55,35 @@ const has = cmd => { try { execFileSync('which', [cmd], { stdio: 'ignore' }); re
   await tap('design', 'cantilever'); await tap('mech', 'm4');
   check(Math.abs(await est() - 287) < .001 && /\$287\.00/.test(await p.textContent('#rxTot')), 'Cantilever Herbst $220.50 + M4 MiniScope $66.50 = est. $287.00 in the header');
   check(/\$220\.50/.test(await p.textContent('#rxWrap .rxB[data-rxg=design][data-v=cantilever]')) && /\+\$66\.50/.test(await p.textContent('#rxWrap .rxB[data-rxg=mech][data-v=m4]')), 'each choice shows its price ($220.50, +$66.50)');
+  // what each design / mechanism is (Amir, 4 Oct 2026: "when they kind of hover over it or click on something, they can get more information")
+  const card = g => p.evaluate(g => { const c = document.querySelector('#rxWrap .rxInfoCard[data-info=' + g + ']'), on = c.querySelector('.rxIc.on') || c; return { name: (on.querySelector('.rxIcHd b') || {}).textContent || '', peek: c.classList.contains('peek'), text: on.textContent, links: on.querySelectorAll('.rxIcSrc a[target=_blank]').length, h: c.getBoundingClientRect().height }; }, g);
+  let cd = await card('design');
+  check(cd.name === 'Cantilever Herbst' && !cd.peek && /lower first molars/.test(cd.text) && cd.links >= 1, 'the picked design is explained under the choices (Cantilever Herbst: the lower first molars carry the arm), with its sources');
+  const h0 = cd.h; await p.hover('#rxWrap .rxB[data-rxg=design][data-v=acryliclower]'); cd = await card('design');
+  check(cd.h === h0, 'the card keeps its height, so nothing moves under the pointer');
+  check(cd.name === 'Band or Crown Upper / Acrylic Lower' && cd.peek && /acrylic splint/.test(cd.text), 'pointing at another design shows it instead (highlighted as a peek)');
+  await p.hover('#rxArchBox'); cd = await card('design');
+  check(cd.name === 'Cantilever Herbst' && !cd.peek, '… and moving away goes back to the picked one');
+  await p.focus('#rxWrap .rxB[data-rxg=mech][data-v=hth]'); let cm = await card('mech');
+  check(cm.name === 'HTH Telescope Mechanism' && /bulkiest/.test(cm.text), 'tabbing to a mechanism shows it too (HTH: Specialty calls it the bulkiest and recommends the M4)');
+  await p.focus('#rxWrap [data-rxf=notes]'); cm = await card('mech');
+  check(cm.name === 'M4 MiniScope (4-part)' && /64 mm/.test(cm.text), 'the M4 card: opens up to 64 mm …');
+  check(await p.evaluate(() => RX_KEYS('design').every(k => RX_INFO.design[k].sum && RX_INFO.design[k].short && (RX_INFO.design[k].src || []).every(x => RX_SRC[x])) && RX_KEYS('mech').concat(['apple', 'shims', 'mio']).every(k => RX_INFO.mech[k] && RX_INFO.mech[k].sum && (RX_INFO.mech[k].src || []).every(x => RX_SRC[x]))), 'every design and mechanism (and AppleCore, shims, MIO) has its explanation and sources');
+  await p.click('#rxWrap [data-rxa=cmp][data-g=design]');
+  const cmpD = await p.evaluate(() => Array.from(document.querySelectorAll('#rxWrap .rxCmpBox[data-cmp=design] .rxCmpRow')).map(r => r.querySelector('b').textContent + '|' + r.querySelector('em').textContent));
+  check(cmpD.length === 5 && cmpD[0] === 'Standard Herbst|$220.50' && cmpD[3] === 'Band or Crown Upper / Acrylic Lower|$293.50', 'Compare all: the five designs side by side with their prices');
+  await p.click('#rxWrap [data-rxa=cmp][data-g=design]');
+  check(!(await p.isVisible('#rxWrap .rxCmpBox[data-cmp=design]')), '… and it folds away again');
+  await p.click('#rxWrap [data-rxa=cmp][data-g=mech]');
+  check((await p.evaluate(() => document.querySelectorAll('#rxWrap .rxCmpBox[data-cmp=mech] .rxCmpRow').length)) === 6, 'Compare all for mechanisms: the five mechanisms and AppleCore screws');
+  await (await p.evaluateHandle(() => document.querySelector('#rxWrap .rxInfoCard[data-info=mech]').closest('.rxS'))).screenshot({ path: OUT + '/v32-rx-mech-info.png' });
+  await p.click('#rxWrap [data-rxa=cmp][data-g=mech]');
+  // AppleCore screws go with the mechanism (separate boxes on Specialty's form)
+  await tap('flag', 'apple');
+  const ap = await p.evaluate(() => { const rx = RXE.rx, f = rxFill(RXE.c, rx); return { mech: rx.mech, apple: rx.apple, boxes: f.box.filter(b => /^mech\./.test(b)).sort().join(), sum: rxSummary(rx), miss: rxEstimate(rx).missing }; });
+  check(ap.mech === 'm4' && ap.apple === true && ap.boxes === 'mech.applecore,mech.m4' && /M4 MiniScope \+ AppleCore screws/.test(ap.sum) && ap.miss.includes('AppleCore screws'), 'AppleCore screws go with the M4 (both circled on the form; summary “M4 MiniScope + AppleCore screws”; not priced)');
+  await tap('flag', 'apple');
+  check(JSON.stringify(await p.evaluate(() => rxCanon({ mech: 'applecore' }))) === '{"form":"specialty-herbst","apple":true}', 'an Rx saved with AppleCore as its mechanism reads as AppleCore screws');
   await tooth('UR6'); await tooth('UL6');
   check(JSON.stringify((await rxNow()).teeth) === '{"UR6":"band","UL6":"band"}' && /Bands:<\/b> UR6, UL6|Bands: UR6, UL6/.test(await p.innerHTML('#rxTeethSum')), 'tapping UR6 and UL6 bands them (“Bands: UR6, UL6”)');
   await tap('tool', 'crown'); await tooth('LR6'); await tooth('LL6');
@@ -178,7 +207,7 @@ const has = cmd => { try { execFileSync('which', [cmd], { stdio: 'ignore' }); re
   const e2 = await p.evaluate(() => rxEstimate({ design: 'standard', shims: true, teeth: { UR6: 'band', UL6: 'band' } }));
   check(Math.abs(e2.total - (220.5 + 25 + 2 * 18.25)) < .001 && e2.lines.some(l => /Advancement shims/.test(l.l) && /your price/.test(l.note)) && e2.lines.some(l => /Bands/.test(l.l) && /list \$17\.75/.test(l.note)), 'the estimate uses them: shims at “your price”, bands at $18.25 (list $17.75)');
   const e3 = await p.evaluate(() => rxEstimate({ design: 'standard', mech: 'applecore', teeth: { UR6: 'onbrace' }, crownOpt: ['lugs'] }));
-  check(Math.abs(e3.total - 220.5) < .001 && e3.missing.join('|') === 'AppleCore Screws|OnBRACE × 1|Lingual seating lugs', 'what has no price is named under the estimate and left out of the total');
+  check(Math.abs(e3.total - 220.5) < .001 && e3.missing.join('|') === 'AppleCore screws|OnBRACE × 1|Lingual seating lugs', 'what has no price is named under the estimate and left out of the total');
   await p.click('#rxAdmin [data-act=rxPricesReset]'); await p.waitForTimeout(200);
   check(await p.evaluate(() => rxPrices().band) === 17.75 && await p.evaluate(() => rxPrices().shims) === null, 'Back to the price list');
   // the usual Herbst: saved from an Rx, new Rx start from it

@@ -22,7 +22,7 @@ const RX_HERBST = ['Herbst with Rollo Band', 'Space Closing Herbst'];
 /* the form's choices, in its order and words (® and ™ left off on screen) */
 const RXO = {
   design: [['standard', 'Standard Herbst'], ['cantilever', 'Cantilever Herbst'], ['spaceclosing', 'Space Closing Herbst'], ['acryliclower', 'Band or Crown Upper / Acrylic Lower'], ['combination', 'Band / Crown Combination']],
-  mech: [['m4', 'M4 MiniScope (4-part)'], ['miniscope', 'Specialty MiniScope (3-part)'], ['applecore', 'AppleCore Screws'], ['standard', 'Standard Herbst Mechanism'], ['hth', 'HTH Telescope Mechanism'], ['fliplock', 'Flip-Lock Mechanism']],
+  mech: [['m4', 'M4 MiniScope (4-part)'], ['miniscope', 'Specialty MiniScope (3-part)'], ['standard', 'Standard Herbst Mechanism'], ['hth', 'HTH Telescope Mechanism'], ['fliplock', 'Flip-Lock Mechanism']],
   bite: [['wax', 'Use enclosed wax bite for AP'], ['lines', 'Use lines on models for AP'], ['class1', 'Position for Class I molars'], ['e2e', 'Position anteriors edge to edge'], ['advance', 'Advance __ mm']],
   anch: [['band', 'Band'], ['crown', 'Crown'], ['roc', 'ROC'], ['onbrace', 'OnBRACE']],
   exp: [['mcU', 'Mini-Click · upper'], ['mcL', 'Mini-Click · lower'], ['csU', 'Click Screw · upper'], ['csL', 'Click Screw · lower']],
@@ -32,6 +32,103 @@ const RXO = {
   crownOpt: [['roc', 'Remove Occlusal from Crowns (ROC)'], ['lugs', 'Lingual Seating Lugs'], ['vent', 'Vent Holes'], ['debond', 'Debonding Holes'], ['slits', 'Vertical Slits']]
 };
 const RX_KEYS = o => RXO[o].map(x => x[0]);
+/* what each Herbst design and mechanism is, for the card under the choices (point at one, tab to it or tap it) and Compare all.
+   Amir, 4 Oct 2026: "add details and information to each one of those options … refer to the specialty website … what the
+   difference is between those options". From Specialty Appliances' own pages unless a note says otherwise (`src`). */
+const RX_SRC = {
+  herbst: ['Specialty: Herbst variations', 'https://specialtyappliances.com/herbst-appliance/'],
+  mech: ['Specialty: Herbst mechanics', 'https://specialtyappliances.com/the-herbst-appliance/'],
+  review: ['Specialty’s Herbst design review', 'https://orthopracticeus.com/herbst-appliance-update/'],
+  m4: ['Specialty: M4 Herbst', 'https://specialtyappliances.com/product/specialty-m4-herbst/'],
+  m4mech: ['Specialty: M4 mechanism', 'https://specialtyappliances.com/product/m4-herbst-mechanism/'],
+  mini: ['Specialty: MiniScope Herbst', 'https://specialtyappliances.com/product/specialty-miniscope-herbst/'],
+  minimech: ['Specialty: MiniScope mechanism', 'https://specialtyappliances.com/product/miniscope-herbst-mechanism/'],
+  hth: ['Specialty (Ordont lab): HTH Herbst', 'https://ordont.specialtyappliances.com/product/hanks-telescoping-herbst'],
+  flip: ['Specialty: Flip-Lock mechanism', 'https://specialtyappliances.com/product/flip-lock-mechanism/'],
+  tpflip: ['TP Orthodontics: Flip-Lock Herbst', 'https://www.tportho.com/products/class-ii-correction/flip-lock-herbst-2/'],
+  cant: ['Specialty: cantilever arms', 'https://specialtyappliances.com/product/telescoping-cantilever-arms/'],
+  protr: ['Protraction Herbst study (Prog Orthod 2024)', 'https://link.springer.com/article/10.1186/s40510-024-00533-3']
+};
+const RX_INFO = {
+  design: {
+    standard: { short: 'Upper first molars to lower first premolars, with a lower lingual arch. The everyday Herbst.',
+      sum: 'The classic layout: the Herbst runs from the upper first molars to the lower first premolars, with a lower lingual arch tying the lower anchorage together.',
+      pts: ['The anchor teeth get bands, crowns or ROCs (tap them on the arches). Specialty includes the lower lingual arch (no loops).',
+        'For Class II correction once the lower first premolars are in.',
+        'Priced as the list’s Band/Crown/ROC Herbst.'],
+      src: ['review', 'm4'] },
+    cantilever: { short: 'Lower anchorage on the first molars only; an arm runs forward to the Herbst. No lower premolar bands.',
+      sum: 'Crowns (or ROCs) on the lower first molars carry an arm forward along the cheek side to the premolar area, where the lower end of the Herbst attaches — no lower premolars are banded.',
+      pts: ['Good when the lower premolars aren’t in, or aren’t good anchors (e.g. the mixed dentition).',
+        'Specialty: when intrusion is wanted (a high-angle patient) the cantilever arm is set below the gum line to add a vertical force; otherwise the M4 runs parallel to the bite so it doesn’t intrude teeth.',
+        'Specialty’s telescoping cantilever arms come right and left with .022 × .028 archwire tubes welded on.'],
+      src: ['review', 'cant'] },
+    spaceclosing: { short: 'The Herbst holds the lower front teeth while the lower molars come forward to close a space.',
+      sum: 'Uses the Herbst as anchorage to bring the lower molars forward and close a space — typically a missing lower second premolar — while it corrects the Class II, without TADs.',
+      pts: ['Usually the arms run from the upper first molars to the lower first premolars; the lower first molars slide forward along a lingual-arch extension, pulled by elastic chain from hooks on the premolar and molar bands.',
+        'The Herbst keeps the lower incisors from tipping back as the molars come forward.',
+        'Note the space to close in the special instructions.'],
+      note: 'Specialty’s site doesn’t describe this design; this is how a space-closing (protraction) Herbst is usually built.',
+      src: ['protr'] },
+    acryliclower: { short: 'Bands or crowns on top; an acrylic splint over the lower teeth instead of lower bands or crowns.',
+      sum: 'Bands or crowns on the upper molars; the lower is an acrylic splint over the lower teeth instead of lower bands or crowns.',
+      pts: ['The splint spreads the Herbst’s force over the whole lower arch and covers the biting surfaces.',
+        'An option when the lower teeth aren’t good to band or crown (e.g. the mixed dentition).',
+        'Specialty’s history of the Herbst: the acrylic splint design goes back to Dr. Raymond Howe (1982).',
+        'The pricier design on Specialty’s list.'],
+      src: ['review'] },
+    combination: { short: 'Bands on some anchor teeth, crowns on others — each tooth gets the anchorage that suits it.',
+      sum: 'Mixes bands and crowns on the anchor teeth (for example bands on the upper molars and crowns on the lower), so each tooth gets the anchorage that suits it.',
+      pts: ['Specialty: bands are easier to deliver chairside but harder to keep clean; crowns are more durable with better cement retention, and a little more work to deliver.',
+        'ROC (a crown with the occlusal removed) is Specialty’s most popular anchorage: the strength of a crown with band-like removal.',
+        'Tap Band, Crown or ROC tooth by tooth on the arches.'],
+      src: ['herbst', 'review'] }
+  },
+  mech: {
+    m4: { short: 'Specialty’s 4-part telescope: shortest (16/19 mm), opens to 64 mm, most side-to-side movement, least breakage. Their most popular.',
+      sum: 'Specialty’s own 4-part telescope (2011) and the most popular mechanism they make — over 65% of their Herbst customers use it.',
+      pts: ['Short (16 or 19 mm), so it sits in the masseter area away from the cheek muscles; the upper eyelet is angled forward to avoid tissue irritation.',
+        'Opens up to 64 mm — more vertical opening than any other telescope, so patients don’t break it or pull the lower crowns off when they open wide.',
+        'Runs parallel to the bite for the most side-to-side movement (up to 40° with AppleCore screws) without intruding teeth; the least breakage.',
+        'Doesn’t come apart and is advanced in the mouth. Specialty recommends it with AppleCore screws and pivots.'],
+      src: ['m4', 'm4mech', 'review'] },
+    miniscope: { short: 'Specialty’s original 3-part mini telescope: slimmer than the traditional Herbst, in longer sizes (18–31 mm).',
+      sum: 'Specialty’s original miniaturized telescope (2004): 3 parts, doesn’t come apart, and much slimmer than the traditional rod and tube.',
+      pts: ['Up to 40° of side-to-side movement with AppleCore screws; it also works with traditional screws and pivots.',
+        'Advanced without taking it out of the mouth.',
+        'Comes in longer lengths (18–31 mm); the M4 is the newer, shorter 4-part version with more opening. The same price on Specialty’s list.'],
+      src: ['mini', 'minimech', 'review'] },
+    standard: { short: 'The traditional rod and tube: bulkier, less side-to-side movement, advanced with round shims.',
+      sum: 'The traditional rod-and-tube Herbst — the classic Pancherz design, still used by some today.',
+      pts: ['A separate rod and tube, attached with hex screws and advanced by crimping round shims onto the rod.',
+        'Bulkier and longer than the telescopes, with limited side-to-side movement that can restrict speech and chewing and irritate the cheeks.',
+        'No separate charge on Specialty’s list.'],
+      src: ['herbst', 'review'] },
+    hth: { short: 'Hanks Telescoping Herbst: ball and socket, screws built in, the bulkiest. Specialty recommends the M4 instead.',
+      sum: 'The Hanks Telescoping Herbst (Dr. Steve Hanks, 2003): a telescoping mechanism with a ball-and-socket design and the screws built into it.',
+      pts: ['Specialty calls it the bulkiest appliance on the market and recommends the M4 over it.',
+        'Costs more than the M4 on Specialty’s list.'],
+      src: ['hth', 'review'] },
+    fliplock: { short: 'TP Orthodontics’ tube and piston with ball-and-swivel ends; snaps together; crimpable spacers. The priciest.',
+      sum: 'TP Orthodontics’ Flip-Lock (Dr. Miller, 1996): a tube and piston with ball-and-swivel joints at both ends for more side-to-side movement.',
+      pts: ['A patented lock snaps it together in seconds; no pins, screws or springs (TP Orthodontics).',
+        'Advanced with crimpable spacers (1–5 mm).',
+        'The upper arms are right/left specific; the lower rods are universal.',
+        'The priciest mechanism on Specialty’s list.'],
+      src: ['flip', 'tpflip', 'review'] },
+    apple: { name: 'AppleCore® screws & pivots', short: 'Specialty’s swivel screws: up to 40° side to side, less breakage. Goes with the M4 or MiniScope.',
+      sum: 'Specialty’s AppleCore® screw (2004) holds the telescope and lets it swivel up to 40° side to side.',
+      pts: ['More natural function and much less breakage, because the mechanism follows the jaw’s side-to-side movements.',
+        'Specialty recommends AppleCore screws and pivots with the M4; with the MiniScope their flexibility makes the whole appliance easier to insert.',
+        'Goes with the mechanism you pick, not instead of it.'],
+      src: ['review', 'm4', 'mini'] },
+    shims: { name: 'Advancement shims', sum: 'Shims placed on the front part of the telescope advance the bite in steps during treatment.',
+      pts: ['Give the size (mm) and how many to send.'], src: ['mech'] },
+    mio: { name: 'MIO measurement', sum: 'The patient’s maximum incisal opening, in mm. Specialty uses it to size the mechanism so the patient can open fully without straining it.',
+      pts: ['If the opening is limited, patients break the appliance or pull the lower crowns off (Specialty).'], src: ['mini', 'review'] }
+  }
+};
+const RX_INFO_FLAG = { apple: 'mech', shims: 'mech', mio: 'mech' }; // on/off choices that explain themselves in the mechanism card
 /* the teeth on Specialty's two tooth grids (anchorage, occlusal rests): 4s to 7s */
 const RX_GRID = ['UR7', 'UR6', 'UR5', 'UR4', 'UL4', 'UL5', 'UL6', 'UL7', 'LR7', 'LR6', 'LR5', 'LR4', 'LL4', 'LL5', 'LL6', 'LL7'];
 const RX_INK = '#14286E'; // what's filled in prints in a dark navy, like a pen
@@ -89,6 +186,7 @@ function rxCanon(rx) {
   const list = (k, ok) => { const a = Array.isArray(rx[k]) ? rx[k] : []; const u = ok.filter(v => a.includes(v)); if (u.length) o[k] = u; };
   const flag = k => { if (rx[k] === true) o[k] = true; };
   one('design', RX_KEYS('design')); one('mech', RX_KEYS('mech'));
+  if (rx.apple === true || rx.mech === 'applecore') o.apple = true; // AppleCore screws (a mechanism choice until 4 Oct 2026)
   flag('shims'); if (o.shims) { num('shimsMm'); num('shimsQty'); }
   flag('mio'); if (o.mio) num('mioMm');
   one('bite', RX_KEYS('bite')); if (o.bite === 'advance') num('advMm');
@@ -117,7 +215,8 @@ function rxSummary(rx) {
   rx = rxCanon(rx); const lab = (k, v) => ((RXO[k].find(x => x[0] === v) || [])[1] || '').replace(/ \(.*\)$/, '');
   const n = {}; Object.values(rx.teeth || {}).forEach(v => { n[v] = (n[v] || 0) + 1; });
   const anch = RXO.anch.filter(([k]) => n[k]).map(([k, l]) => n[k] + ' ' + (k === 'onbrace' ? 'OnBRACE' : k === 'roc' ? 'ROC' + (n[k] > 1 ? 's' : '') : l.toLowerCase() + (n[k] > 1 ? 's' : ''))).join(', ');
-  return [rx.design ? lab('design', rx.design) : '', rx.mech ? lab('mech', rx.mech) : '', anch].filter(Boolean).join(' · ') || 'Nothing picked yet';
+  const mech = [rx.mech ? lab('mech', rx.mech) : '', rx.apple ? 'AppleCore screws' : ''].filter(Boolean).join(' + ');
+  return [rx.design ? lab('design', rx.design) : '', mech, anch].filter(Boolean).join(' · ') || 'Nothing picked yet';
 }
 
 /* ---------- dates: needed by (Specialty: "at least 1 day before the appointment date") and sent ---------- */
@@ -145,6 +244,7 @@ function rxEstimate(rx) {
   if (rx.design) add(lab('design', rx.design), rx.design === 'acryliclower' ? 'herbstAcr' : 'herbst', 1, ['standard', 'spaceclosing', 'combination'].includes(rx.design) ? 'priced as the list’s Band/Crown/ROC Cantilever Herbst' : '');
   if (rx.mech === 'standard') inc(lab('mech', 'standard'), 'No separate charge listed');
   else if (rx.mech) add(lab('mech', rx.mech), rx.mech);
+  if (rx.apple) add('AppleCore screws', 'applecore');
   if (rx.shims) add('Advancement shims', 'shims');
   const n = { band: 0, crown: 0, roc: 0, onbrace: 0 }; Object.values(rx.teeth || {}).forEach(v => { n[v]++; });
   if (rx.enclosed && (n.band || n.crown || n.roc)) inc('Bands / crowns enclosed with the case', 'No charge');
@@ -329,7 +429,7 @@ function rxFill(c, rx) {
   const sc = String(c.scanner || '').trim(), onForm = [['itero', /itero/i], ['trios', /trios/i], ['medit', /medit/i], ['carestream', /carestream/i], ['cerec', /cerec/i]].find(x => x[1].test(sc));
   if (onForm) box.add('scan.' + onForm[0]); else if (sc) { box.add('scan.other'); if (!/^other$/i.test(sc)) put('scanOther', sc, 'H', 9); } // Allied Star → Other: Allied Star
   if (rx.rush) box.add('rush');
-  if (rx.design) box.add('design.' + rx.design); if (rx.mech) box.add('mech.' + rx.mech);
+  if (rx.design) box.add('design.' + rx.design); if (rx.mech) box.add('mech.' + rx.mech); if (rx.apple) box.add('mech.applecore');
   if (rx.shims) { box.add('shims'); put('shimsMm', rx.shimsMm, 'H', 9); put('shimsQty', rx.shimsQty, 'H', 9); }
   if (rx.mio) { box.add('mio'); put('mioMm', rx.mioMm, 'H', 9); }
   if (rx.bite) { box.add('bite.' + rx.bite); if (rx.bite === 'advance') put('advMm', rx.advMm, 'H', 9); }
@@ -465,6 +565,7 @@ function rxEditor(c, rx, onDone) {
   document.body.appendChild(w); logoPaint(w);
   RXE.inert = Array.from(document.body.children).filter(el => el !== w && el.id !== 'toasts' && !el.inert); RXE.inert.forEach(el => { el.inert = true; });
   w.addEventListener('click', rxOnClick); w.addEventListener('input', rxOnInput); w.addEventListener('change', rxOnInput);
+  w.addEventListener('mouseover', rxInfoHover); w.addEventListener('focusin', rxInfoHover);
   w.addEventListener('keydown', e => { const g = e.target.closest && e.target.closest('.rxArch.live .rxTooth.g'); if (g && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); rxTapTooth(g.dataset.rxt); } });
   rxSync(true);
   const f = $('.rxB', w); if (f) f.focus({ preventScroll: true }); // (on a phone the arches stay in view at the top)
@@ -486,6 +587,45 @@ function rxToolsHTML() {
     '<button type="button" class="rxTool sm" data-rxa="undo" title="Take back the last drawing">Undo</button><button type="button" class="rxTool sm" data-rxa="clearDraw">Clear drawing</button></div>' +
     '<label class="rxAuto"><input type="checkbox" data-rxa="auto"> Draw the appliance from the choices</label></div>';
 }
+function rxInfoName(g, v) { const it = RX_INFO[g][v] || {}; return it.name || ((RXO[g] || []).find(x => x[0] === v) || [])[1] || v; }
+function rxInfoTag(g, v) { return g === 'design' ? rxTag(v === 'acryliclower' ? 'herbstAcr' : 'herbst') : v === 'standard' ? 'no separate charge' : v === 'apple' ? rxTag('applecore', true) : v === 'shims' ? rxTag('shims', true) : v === 'mio' ? '' : rxTag(v, true); }
+/* the option the card shows when nothing is pointed at: the one picked */
+function rxInfoSel(g) { const rx = RXE.rx || {}; return g === 'design' ? rx.design || '' : rx.mech || (rx.apple ? 'apple' : ''); }
+function rxInfoBody(g, v) {
+  const it = RX_INFO[g][v], tag = rxInfoTag(g, v);
+  return '<div class="rxIcHd"><b>' + esc(rxInfoName(g, v)) + '</b>' + (tag ? '<em>' + esc(tag) + '</em>' : '') + '</div><p>' + esc(it.sum) + '</p>' +
+    (it.pts ? '<ul>' + it.pts.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>' : '') + (it.note ? '<div class="rxIcNote">' + esc(it.note) + '</div>' : '') +
+    (it.src ? '<div class="rxIcSrc">' + it.src.map(k => '<a href="' + esc(RX_SRC[k][1]) + '" target="_blank" rel="noopener noreferrer">' + esc(RX_SRC[k][0]) + '</a>').join(' · ') + '</div>' : '');
+}
+/* every option's text sits in the card at once, stacked in one grid cell with only one shown: the card is always as tall as the
+   longest, so pointing at another choice never moves the buttons under the pointer */
+function rxInfoKeys(g) { return g === 'design' ? RX_KEYS('design') : RX_KEYS('mech').concat(['apple', 'shims', 'mio']); }
+function rxInfoCardHTML(g) {
+  return '<div class="rxInfoCard" data-info="' + g + '" role="note">' + rxInfoKeys(g).map(k => '<div class="rxIc" data-k="' + k + '">' + rxInfoBody(g, k) + '</div>').join('') +
+    '<div class="rxIc" data-k=""><span class="muted">Point at ' + (g === 'design' ? 'a design' : 'a mechanism') + ' (or tap one) to see what it is and how it differs — or Compare all.</span></div></div>';
+}
+function rxInfoPaint(card, g, v, hover) {
+  v = v && RX_INFO[g][v] ? v : ''; card.dataset.hover = hover ? '1' : ''; card.dataset.show = v;
+  card.classList.toggle('peek', !!hover && v !== rxInfoSel(g));
+  $$('.rxIc', card).forEach(x => x.classList.toggle('on', x.dataset.k === v));
+}
+/* pointing at (or tabbing to) a choice shows it; leaving goes back to the one picked; reading the card keeps it */
+function rxInfoHover(e) {
+  if (!e.target.closest || e.target.closest('.rxInfoCard, .rxCmpBox')) return;
+  const b = e.target.closest('.rxB[data-rxg]'), hg = !b ? null : b.dataset.rxg === 'flag' ? RX_INFO_FLAG[b.dataset.v] || null : RX_INFO[b.dataset.rxg] ? b.dataset.rxg : null;
+  $$('#rxWrap .rxInfoCard').forEach(card => { const g = card.dataset.info;
+    if (g === hg) { if (card.dataset.show !== b.dataset.v || card.dataset.hover !== '1') rxInfoPaint(card, g, b.dataset.v, true); }
+    else if (card.dataset.hover === '1') rxInfoPaint(card, g, rxInfoSel(g), false); });
+}
+function rxCmpHTML(g) {
+  return '<div class="rxCmp">' + (g === 'design' ? RX_KEYS('design') : RX_KEYS('mech').concat(['apple'])).map(k =>
+    '<div class="rxCmpRow"><b>' + esc(rxInfoName(g, k)) + '</b><span>' + esc(RX_INFO[g][k].short) + '</span><em>' + esc(rxInfoTag(g, k)) + '</em></div>').join('') + '</div>';
+}
+/* a section with Compare all on its heading and the card under its choices */
+function rxInfoSec(g, title, choices, after) {
+  return '<section class="rxS"><h5>' + esc(title) + '<button type="button" class="rxCmpBtn" data-rxa="cmp" data-g="' + g + '" aria-expanded="false">Compare all</button></h5>' + choices +
+    rxInfoCardHTML(g) + '<div class="rxCmpBox" data-cmp="' + g + '" hidden></div>' + (after || '') + '</section>';
+}
 function rxSec(title, body, note) { return '<section class="rxS"><h5>' + esc(title) + (note ? ' <span class="h5n">' + esc(note) + '</span>' : '') + '</h5>' + body + '</section>'; }
 function rxLeftHTML() {
   const rx = RXE.rx, c = RXE.c, o = rxOffice(), miss = rxOfficeMissing();
@@ -496,8 +636,9 @@ function rxLeftHTML() {
       (miss.length ? '<div class="rxWarn small">' + (isOwner() ? 'Add the ' + esc(miss.join(', ')) + ' once in Team & security → Lab Rx; every Rx fills them in.' : 'Dr. A still needs to add the ' + esc(miss.join(', ')) + ' (Team & security → Lab Rx).') + '</div>' : '') + '</div>' +
     rxSec('Dates', '<div class="rxRow">' + field('needed', 'Date needed', 'date') + field('shipped', 'Date shipped', 'date') + '</div><div class="small muted" id="rxNeedHint">' + (need ? 'Filled in: ' + (c.labDate ? 'the case’s lab completion date' : 'the office day before the delivery appt') + ' (' + esc(fmtDay(need)) + ').' : 'Add the delivery appt to the case (or type the date) — Specialty needs it at least a day before the appointment.') + '</div><div class="rxWarn small" id="rxLead" hidden></div>' +
       '<div class="rxBs">' + rxBtn('flag', 'rush', 'Approval to charge expedited manufacturing and shipping', rx.rush, rxTag('rush', true)) + '</div>') +
-    rxSec('Herbst design', '<div class="rxBs">' + RXO.design.map(([k, l]) => rxBtn('design', k, l, rx.design === k, rxTag(k === 'acryliclower' ? 'herbstAcr' : 'herbst'))).join('') + '</div>') +
-    rxSec('Herbst mechanism', '<div class="rxBs">' + RXO.mech.map(([k, l]) => rxBtn('mech', k, l, rx.mech === k, k === 'standard' ? 'no extra' : rxTag(k, true))).join('') + '</div>' +
+    rxInfoSec('design', 'Herbst design', '<div class="rxBs">' + RXO.design.map(([k, l]) => rxBtn('design', k, l, rx.design === k, rxTag(k === 'acryliclower' ? 'herbstAcr' : 'herbst'))).join('') + '</div>') +
+    rxInfoSec('mech', 'Herbst mechanism', '<div class="rxBs">' + RXO.mech.map(([k, l]) => rxBtn('mech', k, l, rx.mech === k, k === 'standard' ? 'no extra' : rxTag(k, true))).join('') + '</div>' +
+      '<div class="rxBs"><span class="rxLbl">With</span>' + rxBtn('flag', 'apple', 'AppleCore® screws & pivots', rx.apple, rxTag('applecore', true)) + '</div>',
       '<div class="rxBs">' + rxBtn('flag', 'shims', 'Advancement shims', rx.shims, rxTag('shims', true)) + '<span class="rxSub" data-show="shims">' + field('shimsMm', 'mm', 'text', ' inputmode="decimal" maxlength="6"') + field('shimsQty', 'qty', 'text', ' inputmode="numeric" maxlength="4"') + '</span></div>' +
       '<div class="rxBs">' + rxBtn('flag', 'mio', 'MIO measurement', rx.mio) + '<span class="rxSub" data-show="mio">' + field('mioMm', 'mm', 'text', ' inputmode="decimal" maxlength="6"') + '</span></div>') +
     rxSec('Bite relationship', '<div class="rxBs">' + RXO.bite.map(([k, l]) => rxBtn('bite', k, k === 'advance' ? 'Advance' : l, rx.bite === k)).join('') + '<span class="rxSub" data-show="advance">' + field('advMm', 'mm', 'text', ' inputmode="decimal" maxlength="6"') + '</span></div>') +
@@ -549,6 +690,7 @@ function rxSync(first) {
   $('#rxHint', w).textContent = ['pen', 'line', 'arrow'].includes(RXE.tool) ? 'Drag on the arches to draw. It prints on the PDF.' : RXE.tool === 'rest' ? 'Tap the teeth that get an occlusal rest.' : 'Tap the teeth that get a ' + ((RXO.anch.find(x => x[0] === RXE.tool) || [])[1] || RXE.tool) + '.';
   $('#rxTeethSum', w).innerHTML = rxTeethSum(rx);
   $('#rxCost', w).innerHTML = rxCostHTML(rx);
+  $$('.rxInfoCard', w).forEach(card => { if (card.dataset.hover !== '1') rxInfoPaint(card, card.dataset.info, rxInfoSel(card.dataset.info), false); });
   const e = rxEstimate(rx); $('#rxTot', w).innerHTML = e.lines.length ? 'Est. <b>' + money(e.total) + '</b>' + (e.missing.length ? '<span>+ ' + e.missing.length + ' not listed</span>' : '') : '';
   // Specialty asks for 10 business days; sooner needs the expedite approval
   const need = rxNeeded(c, rx), lead = $('#rxLead', w), soon = need && need < addBusinessDays(todayISO(), 10);
@@ -630,6 +772,8 @@ function rxOnClick(e) {
   const a = e.target.closest('[data-rxa]'); if (!a) return;
   switch (a.dataset.rxa) {
     case 'done': rxClose(true); break;
+    case 'cmp': { const box = $('.rxCmpBox[data-cmp="' + a.dataset.g + '"]', w), open = box.hidden; box.hidden = !open; if (open) box.innerHTML = rxCmpHTML(a.dataset.g);
+      a.setAttribute('aria-expanded', String(open)); a.textContent = open ? 'Hide the comparison' : 'Compare all'; break; }
     case 'close': if (JSON.stringify(rxCanon(RXE.rx)) === RXE.orig || a.dataset.sure === '1') rxClose(false); else { a.dataset.sure = '1'; toast('Close without saving the Rx? Click × again — or Done to keep it'); setTimeout(() => { a.dataset.sure = ''; }, 4000); } break;
     case 'open': rxOpenPdf(RXE.c, RXE.rx); break;
     case 'dl': rxDownload(RXE.c, RXE.rx); break;

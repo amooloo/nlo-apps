@@ -912,6 +912,29 @@ body.phOff .pav,body.phOff .dPh,body.phOff .phSlot,body.phOff .phTgl,body.phOff 
 .rxTotRow td{font-weight:700;font-size:14px;color:var(--navy);border-bottom:none;border-top:2px solid var(--navy);padding-top:7px}
 .rxMiss{color:var(--amber-700);margin:6px 0 2px;font-weight:600}
 .rxFt{display:flex;flex-wrap:wrap;gap:8px;padding-top:2px}
+/* what each design / mechanism is: the card under the choices, and Compare all */
+.rxInfoCard{display:grid;margin-top:8px;padding:9px 12px;border-radius:12px;background:var(--grey-50);border:1px solid var(--grey-200);font-size:12.5px;line-height:1.45;color:var(--grey-700)}
+.rxIc{grid-area:1/1;visibility:hidden}
+.rxIc.on{visibility:visible}
+.rxInfoCard.peek{background:var(--blue-100);border-color:var(--blue-200)}
+.rxInfoCard p{margin:0 0 3px}
+.rxInfoCard ul{margin:3px 0 4px;padding-left:18px}
+.rxInfoCard li{margin:2px 0}
+.rxIcHd{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:3px}
+.rxIcHd b{color:var(--navy);font-size:13px}
+.rxIcHd em{font-style:normal;font-size:11px;font-weight:600;color:var(--grey-600);background:#fff;border:1px solid var(--grey-200);border-radius:99px;padding:0 8px}
+.rxIcNote{font-size:11.5px;color:var(--amber-700);margin:2px 0}
+.rxIcSrc{font-size:11px;color:var(--grey-500);margin-top:3px}
+.rxIcSrc a{color:var(--blue)}
+.rxCmpBtn{margin-left:10px;font-family:var(--fb);font-size:11.5px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--blue);text-decoration:underline;text-underline-offset:2px}
+.rxCmpBox[hidden]{display:none}
+.rxCmpBox{margin-bottom:8px}
+.rxCmp{margin-top:8px;border:1px solid var(--grey-200);border-radius:12px;overflow:hidden;background:#fff}
+.rxCmpRow{display:grid;grid-template-columns:170px 1fr auto;gap:10px;padding:7px 11px;font-size:12px;line-height:1.4;border-top:1px solid var(--grey-100);align-items:baseline}
+.rxCmpRow:first-child{border-top:0}
+.rxCmpRow b{color:var(--navy)}
+.rxCmpRow em{font-style:normal;font-weight:600;color:var(--grey-500);white-space:nowrap}
+@media (max-width:560px){.rxCmpRow{grid-template-columns:1fr auto}.rxCmpRow span{grid-column:1/-1;grid-row:2}}
 .rxTabs{display:flex;gap:4px;margin-bottom:10px;background:var(--grey-200);border-radius:99px;padding:3px;align-self:flex-start}
 .rxTabs button{padding:6px 18px;border-radius:99px;font-weight:600;font-size:12.5px;color:var(--grey-600)}
 .rxTabs button[aria-selected="true"]{background:#fff;color:var(--navy);box-shadow:var(--sh-xs)}
