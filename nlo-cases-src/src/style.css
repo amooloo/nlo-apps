@@ -160,6 +160,18 @@ svg.i{flex:none;display:inline-block;vertical-align:-3px}
 /* the lists' Lab date / Delivery appt columns: a little narrower padding, the time on its own line under the chip */
 .tbl th.dateCol,.tbl td.dateCol{padding-left:10px;padding-right:10px}
 .dueTm{font-size:11.5px;font-weight:600;color:var(--grey-500);margin:3px 0 0 8px;white-space:nowrap}
+/* the lists' Tx progress column (4 Oct 2026): the Treatment section's mini bar and colours, the percent, "Month 4 of 18" under it */
+.tbl th.txCol,.tbl td.txCol{padding-left:10px;padding-right:10px}
+.txCell{white-space:nowrap}
+.txCell .txMini{width:56px;margin-right:8px}
+.txCell b{font-size:12.5px;color:var(--navy);vertical-align:middle}
+.txCell .txSub,.costCell .txSub{font-size:11.5px;font-weight:600;color:var(--grey-500);margin-top:4px}
+.txCell.over b,.txCell.over .txSub{color:var(--coral-700)}
+/* the optional Tx cost column: the patient's estimate so far, with the aligner and set count under it */
+.costCell{white-space:nowrap}
+.costCell b{font-size:13px;color:var(--navy)}
+.costCell .txSub{margin-top:3px}
+.colMenu .colOptHd{margin-top:10px;padding-top:8px;border-top:1px solid var(--grey-100)}
 .av{width:28px;height:28px;border-radius:50%;background:var(--navy-600);color:#fff;font-size:11px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;flex:none;letter-spacing:.02em}
 .av.none{background:var(--grey-200);color:var(--grey-500)}
 .av.lg{width:36px;height:36px;font-size:13px}

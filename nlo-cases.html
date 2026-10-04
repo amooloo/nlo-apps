@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-pD7tonD99P+voGpPySmUtTuA8fk5PL99RIY1ju8iO+M=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-EWylCV5QZ8VPhAymVUz2BJtPqVxTXuSv6G3g4p14qok=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO Cases</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -174,6 +174,18 @@ svg.i{flex:none;display:inline-block;vertical-align:-3px}
 /* the lists' Lab date / Delivery appt columns: a little narrower padding, the time on its own line under the chip */
 .tbl th.dateCol,.tbl td.dateCol{padding-left:10px;padding-right:10px}
 .dueTm{font-size:11.5px;font-weight:600;color:var(--grey-500);margin:3px 0 0 8px;white-space:nowrap}
+/* the lists' Tx progress column (4 Oct 2026): the Treatment section's mini bar and colours, the percent, "Month 4 of 18" under it */
+.tbl th.txCol,.tbl td.txCol{padding-left:10px;padding-right:10px}
+.txCell{white-space:nowrap}
+.txCell .txMini{width:56px;margin-right:8px}
+.txCell b{font-size:12.5px;color:var(--navy);vertical-align:middle}
+.txCell .txSub,.costCell .txSub{font-size:11.5px;font-weight:600;color:var(--grey-500);margin-top:4px}
+.txCell.over b,.txCell.over .txSub{color:var(--coral-700)}
+/* the optional Tx cost column: the patient's estimate so far, with the aligner and set count under it */
+.costCell{white-space:nowrap}
+.costCell b{font-size:13px;color:var(--navy)}
+.costCell .txSub{margin-top:3px}
+.colMenu .colOptHd{margin-top:10px;padding-top:8px;border-top:1px solid var(--grey-100)}
 .av{width:28px;height:28px;border-radius:50%;background:var(--navy-600);color:#fff;font-size:11px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;flex:none;letter-spacing:.02em}
 .av.none{background:var(--grey-200);color:var(--grey-500)}
 .av.lg{width:36px;height:36px;font-size:13px}
@@ -3508,8 +3520,12 @@ function applyFilters(list) {
 function sortList(list) {
   const { k, dir } = S.sort;
   const val = c => k === 'patient' ? String(c.patient || '').toLowerCase() : k === 'type' ? typeOf(c).l : k === 'stage' ? stageIndex(c) : k === 'who' ? staffName(c.assignee, c.assigneeName) : k === 'updated' ? -(c.updatedAt || 0)
-    : k === 'ship' ? (c.shipToPatient ? 0 : trackList(c).length ? 1 : 2) : k === 'lab' ? (labKeyOf(c) || '9999') : k === 'appt' ? (apptKeyOf(c) || '9999') : (listKey(c) || '9999');
-  return list.slice().sort((a, b) => { const x = val(a), y = val(b); return (x < y ? -1 : x > y ? 1 : byListDate(a, b)) * dir; });
+    : k === 'ship' ? (c.shipToPatient ? 0 : trackList(c).length ? 1 : 2) : k === 'lab' ? (labKeyOf(c) || '9999') : k === 'appt' ? (apptKeyOf(c) || '9999') : k === 'tx' ? txRatio(c) : k === 'cost' ? costKey(c) : (listKey(c) || '9999');
+  const memo = new Map(), v = c => { if (!memo.has(c)) memo.set(c, val(c)); return memo.get(c); };
+  // a value of null (no treatment dates) sorts last whichever way the column is sorted
+  return list.slice().sort((a, b) => { const x = v(a), y = v(b);
+    if (x === null || y === null) return x === y ? byListDate(a, b) : x === null ? 1 : -1;
+    return (x < y ? -1 : x > y ? 1 : byListDate(a, b)) * dir; });
 }
 /* the column the list is sorted by: filtered by delivery appt, the default order is the delivery appt's (listKey) */
 function sortShown() { return S.sort.k === 'due' && S.f.del ? 'appt' : S.sort.k; }
@@ -3595,21 +3611,31 @@ function listBase() { return S.view === 'mine' ? openCases().filter(c => c.assig
 /* columns anyone can hide on their computer (Amir, 2 Oct 2026: "can I just click it and make it hidden?"): the eye on a
    column's heading hides it, the Columns menu brings it back; remembered on this computer only (not patient data) */
 /* (4 Oct 2026: the one "Next date" column became Lab date + Delivery appt; a hidden "Next date" ('due') isn't carried over) */
-const LIST_COLS = [['type', 'Type'], ['stage', 'Stage'], ['lab', 'Lab date'], ['appt', 'Delivery appt'], ['ship', 'Shipping'], ['who', 'Assigned'], ['updated', 'Updated']];
+const LIST_COLS = [['type', 'Type'], ['stage', 'Stage'], ['lab', 'Lab date'], ['appt', 'Delivery appt'], ['tx', 'Tx progress'], ['cost', 'Tx cost'], ['ship', 'Shipping'], ['who', 'Assigned'], ['updated', 'Updated']];
+/* optional columns stay off until someone ticks them in Columns (Amir, 4 Oct 2026: "add an optional column for total cost per tx
+   so far"); remembered on that computer as nloCases.shownCols. They don't count in "N hidden", and Show all leaves them be. */
+const OPTIONAL_COLS = ['cost'];
 function hiddenCols() {
-  if (!S.hidCols) { try { S.hidCols = new Set(JSON.parse(localStorage.getItem('nloCases.hiddenCols') || '[]').filter(k => LIST_COLS.some(x => x[0] === k))); } catch (e) { S.hidCols = new Set(); } }
+  if (!S.hidCols) {
+    const read = k => { try { const v = JSON.parse(localStorage.getItem(k) || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; } };
+    const shown = read('nloCases.shownCols');
+    S.hidCols = new Set(read('nloCases.hiddenCols').filter(k => LIST_COLS.some(x => x[0] === k) && !OPTIONAL_COLS.includes(k)).concat(OPTIONAL_COLS.filter(k => !shown.includes(k))));
+  }
   return S.hidCols;
 }
 function setColHidden(k, hide) {
-  const h = hiddenCols(); if (hide) h.add(k); else h.delete(k);
-  try { localStorage.setItem('nloCases.hiddenCols', JSON.stringify(Array.from(h))); } catch (e) { }
+  const h = hiddenCols(); if (k) { if (hide) h.add(k); else h.delete(k); }
+  try { localStorage.setItem('nloCases.hiddenCols', JSON.stringify(Array.from(h).filter(x => !OPTIONAL_COLS.includes(x))));
+    localStorage.setItem('nloCases.shownCols', JSON.stringify(OPTIONAL_COLS.filter(x => !h.has(x)))); } catch (e) { }
 }
 function colLabel(k) { return k === 'stage' && S.view === 'done' ? 'Last stage' : (LIST_COLS.find(x => x[0] === k) || [k, k])[1]; }
 /* the Columns button and its menu (keys = the columns this table has) */
 function colsControlHTML(keys) {
-  const hid = hiddenCols(), n = keys.filter(k => hid.has(k)).length;
+  const hid = hiddenCols(), n = keys.filter(k => hid.has(k) && !OPTIONAL_COLS.includes(k)).length, opt = keys.filter(k => OPTIONAL_COLS.includes(k));
+  const box = k => '<label class="colOpt"><input type="checkbox" data-col="' + k + '"' + (hid.has(k) ? '' : ' checked') + '> ' + esc(colLabel(k)) + '</label>';
   return '<div class="colWrap"><button type="button" class="btn btn-ghost colBtn" data-act="colMenu" aria-expanded="' + !!S.colMenu + '" aria-haspopup="true">' + ic('cols', 16) + 'Columns' + (n ? '<span class="c">' + n + ' hidden</span>' : '') + '</button>' +
-    (S.colMenu ? '<div class="colMenu" role="group" aria-label="Columns to show"><div class="colHd">Show these columns</div>' + keys.map(k => '<label class="colOpt"><input type="checkbox" data-col="' + k + '"' + (hid.has(k) ? '' : ' checked') + '> ' + esc(colLabel(k)) + '</label>').join('') +
+    (S.colMenu ? '<div class="colMenu" role="group" aria-label="Columns to show"><div class="colHd">Show these columns</div>' + keys.filter(k => !opt.includes(k)).map(box).join('') +
+      (opt.length ? '<div class="colHd colOptHd">Optional</div>' + opt.map(box).join('') : '') +
       (n ? '<button type="button" class="linkBtn" data-act="showCols">Show all</button>' : '') + '<div class="small muted colNote">Saved on this computer</div></div>' : '') + '</div>';
 }
 function listBodyHTML(base) {
@@ -3629,7 +3655,7 @@ function listBodyHTML(base) {
     return '<div class="flags onlyM">' + (m || '<span class="due none">No date</span>') + '</div>';
   };
   return '<div class="card tblWrap"><table class="tbl"><thead><tr>' + th('patient', 'Patient') + (on('type') ? th('type', 'Type', 'hideM') : '') + (on('stage') ? th('stage', 'Stage') : '') +
-      (on('lab') ? th('lab', 'Lab date', 'hideM dateCol') : '') + (on('appt') ? th('appt', 'Delivery appt', 'hideM dateCol') : '') +
+      (on('lab') ? th('lab', 'Lab date', 'hideM dateCol') : '') + (on('appt') ? th('appt', 'Delivery appt', 'hideM dateCol') : '') + (on('tx') ? th('tx', 'Tx progress', 'hideM txCol') : '') + (on('cost') ? th('cost', 'Tx cost', 'hideM txCol') : '') +
       (on('ship') ? th('ship', 'Shipping', 'hideM') : '') + (on('who') ? th('who', 'Assigned', 'hideM') : '') + (on('updated') ? th('updated', 'Updated', 'hideM') : '') + '</tr></thead><tbody>' +
     list.map(c => { const g = stageGroup(flowOf(c), c.stage), ship = on('ship') ? shipFlag(c) + trackLinks(c) : '';
       return '<tr class="click" data-act="open" data-id="' + esc(c.id) + '" tabindex="0"><td><div class="ptCell">' + ptAv(c, 36) + '<div class="ptTxt"><div class="pt">' + esc(c.patient || '(no name)') + '</div><div class="small muted">' + esc(c.detail || '') + alignerMini(c) + '</div>' +
@@ -3639,6 +3665,8 @@ function listBodyHTML(base) {
         (recFlag(c) || holdFlag(c) ? '<div class="flags">' + recFlag(c) + holdFlag(c) + '</div>' : '') + dateM(c) + '</td>' : '') +
       (on('lab') ? '<td class="hideM dateCol labCol">' + labChip(c, true) + '</td>' : '') +
       (on('appt') ? '<td class="hideM dateCol apptCol">' + apptChip(c, true) + '</td>' : '') +
+      (on('tx') ? '<td class="hideM txCol">' + txCellHTML(c) + '</td>' : '') +
+      (on('cost') ? '<td class="hideM txCol costCol">' + txCostHTML(c) + '</td>' : '') +
       (on('ship') ? '<td class="hideM shipCol">' + (ship ? '<div class="flags">' + ship + '</div>' : '') + '</td>' : '') +
       (on('who') ? '<td class="hideM">' + avatar(c) + ' <span class="small">' + esc(staffName(c.assignee, c.assigneeName)) + '</span></td>' : '') +
       (on('updated') ? '<td class="hideM small muted">' + esc(c.updatedAt ? fmtWhen(c.updatedAt) : '') + '</td>' : '') + '</tr>'; }).join('') +
@@ -3836,6 +3864,37 @@ function txSumHTML(c) {
   return '<span class="txMini' + (ph ? ' ' + ph : '') + '" aria-hidden="true"><i style="width:' + Math.round((p.over ? 1 : p.pct) * 100) + '%"></i></span>' +
     '<b' + (p.over ? ' class="txOver"' : '') + '>' + (cut > 0 ? esc(tx.slice(0, cut)) + '<span class="txLeft">' + esc(tx.slice(cut)) + '</span>' : esc(tx)) + '</b>';
 }
+/* the lists' Tx progress column (Amir, 4 Oct 2026: "I would like to see a column with tx progress as well"): in-house sets
+   with the patient's Start and Expected removal get the Treatment section's bar and colours, the percent beside it and
+   "Month 4 of 18" under it (the whole line, with the time left, as the tooltip); an in-house set without the dates says so;
+   other cases stay empty (treatment dates are only kept for in-house aligners) */
+function txCellHTML(c) {
+  if (c.type !== 'nla') return '';
+  const t = txOf(c, casePool()); if (!t) return '<span class="due none">No tx dates</span>';
+  const p = txProgress(t), ph = txPhase(p);
+  const sub = p.before ? 'Starts ' + fmtDate(t.start) : p.over ? txText(p, t).replace(' expected removal', ' removal') : 'Month ' + Math.min(p.month, p.ofMonths) + ' of ' + p.ofMonths;
+  return '<div class="txCell' + (p.over ? ' over' : '') + '" title="' + esc(txText(p, t)) + '"><span class="txMini' + (ph ? ' ' + ph : '') + '" aria-hidden="true"><i style="width:' + Math.round((p.over ? 1 : p.pct) * 100) + '%"></i></span>' +
+    '<b>' + Math.round(p.pct * 100) + '%</b><div class="txSub">' + esc(sub) + '</div></div>';
+}
+/* the optional Tx cost column (Amir, 4 Oct 2026: "add an optional column for total cost per tx so far"): the patient's total for
+   their in-house sets so far — the same estimate as "Patient total" in the case's Aligners box (Dr. A's per-aligner and per-set
+   costs from Team & security, over every set with its counts: open and completed) */
+function txCost(c) {
+  if (c.type !== 'nla') return null;
+  const sets = alignerSets(c, casePool()), total = sets.reduce((s, x) => s + x.n, 0), est = total ? alCost(total, sets.length) : null;
+  return { sets, total, est };
+}
+function txCostHTML(c) {
+  const x = txCost(c); if (!x) return '';
+  if (!S.histLoaded) return '<span class="due none">Adding up…</span>';
+  if (!x.total) return '<span class="due none">No aligner counts</span>';
+  if (x.est == null) return '<span class="due none" title="Dr. A enters the per-aligner cost in Team &amp; security">No cost set</span>';
+  const tip = 'Patient total so far: ' + x.sets.map(s => s.l + ' ' + (s.n || '?')).join(' · ') + ' — ' + x.total + ' aligners, est. ' + money(x.est);
+  return '<div class="costCell" title="' + esc(tip) + '"><b>' + esc(money(x.est)) + '</b><div class="txSub">' + x.total + ' aligners · ' + x.sets.length + (x.sets.length === 1 ? ' set' : ' sets') + '</div></div>';
+}
+function costKey(c) { const x = txCost(c); return x && x.est != null ? x.est : null; }
+/* for sorting by Tx progress: how far along (past 1 = past the expected removal); null = nothing to sort by */
+function txRatio(c) { if (c.type !== 'nla') return null; const t = txOf(c, casePool()); if (!t) return null; const p = txProgress(t); return p.el / p.total; }
 function txBoxHTML(c) {
   const pool = casePool(), t = txOf(c, pool);
   if (!t) return '<div class="small muted">Add the patient’s treatment Start and Expected removal with Edit (on the initial set, or on this set while the patient has none) to see where they are in treatment.</div>';
@@ -4248,7 +4307,7 @@ function onClick(e) {
     case 'colMenu': S.colMenu = !S.colMenu; renderView(); break;
     case 'hideCol': { const k = t.dataset.k, l = colLabel(k); e.stopPropagation(); setColHidden(k, true); renderView();
       toast('“' + l + '” column hidden — bring it back from Columns', { action: 'Undo', onAction: () => { setColHidden(k, false); renderView(); } }); break; }
-    case 'showCols': hiddenCols().clear(); setColHidden('', false); S.colMenu = false; renderView(); break;
+    case 'showCols': { const h = hiddenCols(); Array.from(h).filter(k => !OPTIONAL_COLS.includes(k)).forEach(k => h.delete(k)); setColHidden('', false); S.colMenu = false; renderView(); break; }
     case 'oldDone': bulkComplete(oldTicked()); break;
     case 'oldDel': bulkDelete(oldTicked()); break;
     case 'oldAll': case 'oldNone': { const on = a === 'oldAll'; $$('#cleanCard input[data-old]').forEach(i => { i.checked = on; if (on) S.oldOff.delete(i.dataset.old); else S.oldOff.add(i.dataset.old); }); syncOld(); break; }
