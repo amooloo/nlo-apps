@@ -191,7 +191,7 @@ const has = cmd => { try { execFileSync('which', [cmd], { stdio: 'ignore' }); re
   await p.evaluate(() => { const m = document.querySelector('#modalWrap'); if (m) m.remove(); });
   await p.click('#nav-admin'); await p.waitForSelector('#rxAdmin');
   check(/Our usual retainer/.test(await p.textContent('#rxAdmin')) && /Hawley \(U & L\)/.test(await p.textContent('#rxAdmin')), 'Team & security shows our usual retainer');
-  await p.click('#rxAdmin [data-act=rxDefClear][data-form=specialty-retainer]'); await p.waitForTimeout(200);
+  await p.click('#rxAdmin [data-act=rxDefClear][data-slot=specialty-retainer]'); await p.waitForTimeout(200);
   check(!(await p.evaluate(() => rxDefaults(RX_RET))), '… and Clear removes it');
   // the finger spring appliance: a flipper with a finger spring to start
   await newAppliance(); await pick('appliances', 'Finger spring with no labial bow'); await pick('lab', 'Specialty Orthodontic Lab'); await p.fill('#ncForm #cf-patient', 'Finn Fingerspring');

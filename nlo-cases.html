@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-kZotH56a3E2g7RCptkNLBfPlFN8qOUVlvASEsGyzshU=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-esRxSX/E72s0zyCsXyRQQrQVQKMeUPQwjilGIv9GJ8Y=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO Cases</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -906,6 +906,10 @@ body.phOff .pav,body.phOff .dPh,body.phOff .phSlot,body.phOff .phTgl,body.phOff 
 .rxB[aria-pressed="true"]{background:var(--mint);border-color:var(--mint-600);color:var(--navy-900)}
 .rxB[aria-pressed="true"]::before{content:"✓";font-weight:700;margin-right:-2px}
 .rxB[aria-pressed="true"] em{background:rgba(255,255,255,.6);color:var(--navy-900)}
+/* a choice that doesn't go with what's picked (the Herbst Rx: a TPA or quad helix with an expansion screw): greyed out, says why when tapped */
+.rxB[aria-disabled="true"]{opacity:.42;cursor:not-allowed;background:var(--grey-50)}
+.rxB[aria-disabled="true"]:hover{border-color:var(--grey-200);background:var(--grey-50);color:var(--grey-700)}
+.rxAutoN{margin-top:6px}
 .rxSub{display:inline-flex;flex-wrap:wrap;gap:6px;align-items:center}
 .rxBs.rxSub{display:flex}
 .rxLbl{font-size:11.5px;color:var(--grey-500);font-weight:600;min-width:60px}
@@ -4149,6 +4153,9 @@ const PICK = {
   extras: ['No IPR', 'No elastics'],
   arches: ['Upper', 'Lower'], retKinds: ['TT’s', 'WT’s']
 };
+/* one of these per case (Amir, 4 Oct 2026: "RPE, MSE, MARPE, MARA and HERBST cannot overlap. the other ones can"): tapping one takes
+   off the one already picked; D2, finger spring, Hawleys and Schwartz go with anything */
+const APPL_ONE = ['Herbst with Rollo Band', 'Space Closing Herbst', 'MARA', 'MSE', 'MARPE', 'Rapid Palatal Expander (RPE)'];
 /* lab routing from the AISA KB / SOP manual: MSE → Specialty Orthodontic Lab (SOP-CL-020); MARPE → Partners Dental Solutions (SOP-CL-029,
    as Partner Dental Studios — the lab rebranded; Amir, 3 Oct 2026);
    D2 distalizer → in-house, no outside prescription (lab workflow, Layer 3 exception); Herbst, MARA → Specialty; RPE, Schwartz,
@@ -4839,6 +4846,9 @@ function wireCaseForm(root, isNew) {
       if (multi) pk.setAttribute('aria-pressed', String(!was));
       // (arches to treat always has an answer: tapping the chosen one again keeps it)
       else { $$('.pick', row).forEach(b => b.setAttribute('aria-pressed', 'false')); if (!was || row.dataset.g === 'treatArch') pk.setAttribute('aria-pressed', 'true'); }
+      if (row.dataset.g === 'appliances' && !was && APPL_ONE.includes(pk.dataset.v)) { let off = 0;
+        $$('.pick', row).forEach(b => { if (b !== pk && APPL_ONE.includes(b.dataset.v) && b.getAttribute('aria-pressed') === 'true') { b.setAttribute('aria-pressed', 'false'); off++; } });
+        if (off) toast('Switched to ' + pk.dataset.v + ' (one of Herbst, MARA, MSE, MARPE or RPE per case)'); }
       if (row.dataset.g === 'lab') row.dataset.manual = '1';
       if (row.dataset.g === 'appliances') routeLab(root, isNew);
       if (row.dataset.g === 'instrPicks' && pk.dataset.v === NO_POST_MOVE) lockPosteriors(pk, !was);
@@ -6381,6 +6391,21 @@ function rxKind(key) { return Object.values(RXK).find(k => k.key === key) || RXK
 function rxKinds() { return Object.values(RXK); }
 /* the appliances that go on the Herbst form (with the lab set to Specialty) */
 const RX_HERBST = ['Herbst with Rollo Band', 'Space Closing Herbst'];
+/* Dr. A's usual Space Closing Herbst is kept apart from his usual Herbst (Amir, 4 Oct 2026: "I saved the template for herbst space
+   closing but it also saves it for the regular herbst. can you separate them?"): a case with Space Closing Herbst picked saves and
+   starts from its own */
+const RX_SC = RX_FORM + ':spaceclosing';
+function rxHerbstUsual(c) { return c && (c.appliances || []).includes('Space Closing Herbst') ? RX_SC : RX_FORM; }
+/* an expansion screw takes the place of a TPA or quad helix (Amir, 4 Oct 2026: "if you add any expansion, TPA and quadhelix need to be
+   grayed out"): with any expansion picked, upper or lower (or another type typed in), they're greyed out and off the Rx */
+const RX_NOEXP = ['tpa', 'qh'];
+const rxHasExp = rx => !!((rx.exp || []).length || rx.expOther);
+/* the lower incisors decide where the lower lingual arch sits (Amir, 4 Oct 2026: flared or spaced → about 1.5 mm off the cingulum;
+   retroclined or crowded → right against it); the answer writes its sentence into the special instructions */
+const RX_INC = {
+  flared: ['Flared or spaced', 'Lower incisors flared/spaced: keep the lower lingual arch about 1.5 mm off the cingulum of the lower anterior teeth.'],
+  retro: ['Retroclined or crowded', 'Lower incisors retroclined/crowded: lower lingual arch right against the cingulum of the lower anterior teeth.']
+};
 /* the form's choices, in its order and words (® and ™ left off on screen) */
 const RXO = {
   design: [['standard', 'Standard Herbst'], ['cantilever', 'Cantilever Herbst'], ['spaceclosing', 'Space Closing Herbst'], ['acryliclower', 'Band or Crown Upper / Acrylic Lower'], ['combination', 'Band / Crown Combination']],
@@ -6496,7 +6521,7 @@ const RX_GRID = ['UR7', 'UR6', 'UR5', 'UR4', 'UL4', 'UL5', 'UL6', 'UL7', 'LR7', 
 const RX_INK = '#14286E'; // what's filled in prints in a dark navy, like a pen
 const RX_DRAW_COL = { b: '#1D4ED8', r: '#DC2626', k: '#111827' };
 const RX_MAX_STROKES = 80, RX_MAX_PTS = 400; // drawings per Rx, points per pen stroke (a long stroke is simplified to fit)
-const RX_SINGLE = ['design', 'mech', 'bite', 'restKind', 'awtU', 'awtL', 'awtPos']; // one answer each (the rest are lists or on/off)
+const RX_SINGLE = ['design', 'mech', 'bite', 'restKind', 'awtU', 'awtL', 'awtPos', 'lowerInc']; // one answer each (the rest are lists or on/off)
 const RX_METAL = '#2F5D9A'; // the appliance in steel blue, so it reads apart from Specialty's black outlines (dark grey in black & white)
 const RX_DRAWS = ['pen', 'line', 'arrow'];
 
@@ -6666,6 +6691,8 @@ function rxFit(s, font, size, maxW) {
 }
 /* the filled-in form: the header both forms share, then the form's own circles and blanks (K.fill), then the special
    instructions; circ = grid labels to ring ([grid, tooth]) */
+/* the special instructions: the sentences the answers write (K.autoNotes), then what was typed */
+function rxNotesAll(rx, K) { K = K || rxK(rx); return [].concat(K.autoNotes ? K.autoNotes(rx) : [], rx.notes ? [rx.notes] : []).join('\n'); }
 function rxFill(c, rx) {
   rx = rxCanon(rx); const K = rxK(rx), F = RX_FORMS[K.form], o = rxOffice(), T = F.text, txt = [], box = new Set(), circ = [];
   const put = (k, v, font, size) => { v = String(v || '').trim(); if (!v || !T[k]) return; const f = rxFit(v, font || 'H', size || 10, T[k].x1 - T[k].x0); txt.push({ x: T[k].x0, y: T[k].y + 2.2, s: f.s, z: f.z, font: font || 'H' }); };
@@ -6679,11 +6706,11 @@ function rxFill(c, rx) {
   K.fill(c, rx, put, box, circ);
   // special instructions on the form's three lines (smaller and more lines if it's long)
   // (at most 7 lines: many short lines are joined with " · ", and what still doesn't fit ends in …)
-  const notes = [];
-  if (rx.notes) { const W = 556, L = F.notes;
+  const notes = [], allNotes = rxNotesAll(rx, K);
+  if (allNotes) { const W = 556, L = F.notes;
     const wrap = (pars, z) => { const lines = []; pars.forEach(par => { let cur = ''; par.split(' ').forEach(w => { const t = cur ? cur + ' ' + w : w; if (rxWidth(t, 'H', z) <= W) cur = t; else { if (cur) lines.push(cur); cur = w; } }); lines.push(cur); }); return lines; };
     const lay = pars => { let z = 10, lines = wrap(pars, z); while (lines.length > 3 && z > 6.5) { z -= .5; lines = wrap(pars, z); } return { z, lines }; };
-    const pars = rx.notes.split('\n').map(rxText); let { z, lines } = lay(pars);
+    const pars = allNotes.split('\n').map(rxText); let { z, lines } = lay(pars);
     if (lines.length > 7) ({ z, lines } = lay([pars.join(' · ')]));
     if (lines.length > 7) { lines = lines.slice(0, 7); let l = lines[6]; while (l.length > 1 && rxWidth(l + ' …', 'H', z) > W) l = l.slice(0, -1); lines[6] = l + ' …'; }
     const n = lines.length, step = n <= 3 ? L[0] - L[1] : (L[0] - L[2] + 17.5) / n;
@@ -6771,9 +6798,17 @@ function rxPaperPaint(box) { const im = box && $('img.rxPaperImg', box); if (im 
 
 /* ---------- the Rx editor: tap the choices, tap teeth, draw; the paper and the estimate follow along ---------- */
 const RXE = { rx: null, c: null, done: null, tool: 'band', col: 'r', tab: 'arch', stroke: null, clearArm: 0, k: null, F: null }; // hand drawings start in red
-function rxDefaultsAll() { try { const o = JSON.parse((S.settings || {}).rxDefaults || '{}'); return o && typeof o === 'object' && !Array.isArray(o) ? o : {}; } catch (e) { return {}; } }
-/* Dr. A's usual choices for a form (Herbst unless asked), when he's saved some */
-function rxDefaults(form) { form = form || RX_FORM; const o = rxDefaultsAll()[form]; return o && typeof o === 'object' ? rxCanon(Object.assign({}, o, { form })) : null; }
+function rxDefaultsAll() {
+  try { const o = JSON.parse((S.settings || {}).rxDefaults || '{}'); if (!o || typeof o !== 'object' || Array.isArray(o)) return {};
+    // saved before the two were kept apart: a usual Herbst on the Space Closing design is the usual Space Closing Herbst
+    const h = o[RX_FORM]; if (h && typeof h === 'object' && h.design === 'spaceclosing') { if (!o[RX_SC]) o[RX_SC] = h; delete o[RX_FORM]; }
+    return o; } catch (e) { return {}; }
+}
+/* Dr. A's usual choices for a form (Herbst unless asked), or for one kind of case on it (RX_SC), when he's saved some */
+function rxDefaults(slot) { slot = slot || RX_FORM; const form = slot.split(':')[0], o = rxDefaultsAll()[slot]; return o && typeof o === 'object' ? rxCanon(Object.assign({}, o, { form })) : null; }
+/* the usuals a kind keeps, each [key, name, the Rx it's for] (one, unless the kind keeps more), and the one a case uses */
+function rxUsuals(K) { return K.usuals || [[K.form, K.usual, K.title]]; }
+function rxUsualOf(K, c) { const all = rxUsuals(K), k = K.usualOf ? K.usualOf(c) : K.form; return all.find(u => u[0] === k) || all[0]; }
 /* a new Rx for the case on a form (Herbst unless asked) */
 function rxStart(c, form) { return rxK(form || RX_FORM).start(c); }
 const rxBtn = (g, v, l, on, price) => '<button type="button" class="rxB" data-rxg="' + g + '" data-v="' + esc(v) + '" aria-pressed="' + !!on + '"><span>' + esc(l) + '</span>' + (price ? '<em>' + esc(price) + '</em>' : '') + '</button>';
@@ -6872,7 +6907,7 @@ function rxInfoSec(g, title, choices, after) {
 }
 function rxSec(title, body, note) { return '<section class="rxS"><h5>' + esc(title) + (note ? ' <span class="h5n">' + esc(note) + '</span>' : '') + '</h5>' + body + '</section>'; }
 function rxLeftHTML() {
-  const K = RXE.k, rx = RXE.rx, c = RXE.c, o = rxOffice(), miss = rxOfficeMissing();
+  const K = RXE.k, rx = RXE.rx, c = RXE.c, o = rxOffice(), miss = rxOfficeMissing(), us = rxUsualOf(K, c);
   const need = rxNeedAuto(c);
   return '<div class="rxInfo"><div><b>' + esc(c.patient || 'Patient name') + '</b> · ' + esc(c.scanner ? 'Scanned with ' + c.scanner : 'No scanner picked') + (c.deliveryDate ? ' · Delivery appt ' + esc(fmtDay(c.deliveryDate)) : '') + '</div>' +
       '<div class="small">' + esc(o.doctor || 'Doctor') + ' · Acct # ' + esc(o.acct || '—') + ' · License # ' + esc(o.license || '—') + '</div>' +
@@ -6880,10 +6915,10 @@ function rxLeftHTML() {
     rxSec('Dates', '<div class="rxRow">' + rxField('needed', 'Date needed', 'date') + rxField('shipped', 'Date shipped', 'date') + '</div><div class="small muted" id="rxNeedHint">' + (need ? 'Filled in: ' + (c.labDate ? 'the case’s lab completion date' : 'the office day before the delivery appt') + ' (' + esc(fmtDay(need)) + ').' : 'Add the delivery appt to the case (or type the date) — Specialty needs it at least a day before the appointment.') + '</div><div class="rxWarn small" id="rxLead" hidden></div>' +
       '<div class="rxBs">' + rxBtn('flag', 'rush', 'Approval to charge expedited manufacturing and shipping', rx.rush, rxTag('rush', true)) + '</div>') +
     K.secHTML(rx, c) +
-    rxSec('Special instructions', '<textarea data-rxf="notes" rows="3" maxlength="600" placeholder="Anything else for Specialty (three lines on the form)"></textarea>') +
+    rxSec('Special instructions', '<textarea data-rxf="notes" rows="3" maxlength="600" placeholder="Anything else for Specialty (three lines on the form)"></textarea><div class="small muted rxAutoN" id="rxAutoNotes" hidden></div>') +
     '<section class="rxS rxCost"><h5>Lab cost estimate <span class="h5n">' + esc(RX_PRICE_SRC) + '</span></h5><div id="rxCost"></div></section>' +
-    '<div class="rxFt">' + (isOwner() ? '<button type="button" class="btn btn-sec btn-sm" data-rxa="saveDef" title="' + esc(K.saveDefTip) + '">Save as ' + esc(K.usual) + '</button>' : '') +
-      (rxDefaults(K.form) ? '<button type="button" class="btn btn-ghost btn-sm" data-rxa="useDef">Start from ' + esc(K.usual) + '</button>' : '') +
+    '<div class="rxFt">' + (isOwner() ? '<button type="button" class="btn btn-sec btn-sm" data-rxa="saveDef" title="' + esc(K.saveDefTip.replace(K.title, us[2])) + '">Save as ' + esc(us[1]) + '</button>' : '') +
+      (rxDefaults(us[0]) ? '<button type="button" class="btn btn-ghost btn-sm" data-rxa="useDef">Start from ' + esc(us[1]) + '</button>' : '') +
       '<button type="button" class="btn btn-ghost btn-sm" data-rxa="clearAll" style="color:var(--coral-700)">Clear the Rx</button></div>';
 }
 function rxCostHTML(rx, c) {
@@ -6903,14 +6938,21 @@ function rxPressed(g, v, rx) {
   return own != null ? own : g === 'flag' ? rx[v] === true : K.single.includes(g) ? rx[g] === v : (rx[g] || []).includes(v);
 }
 /* redraw everything that follows the choices (the left side's buttons stay put, so typing never loses its place) */
+/* a choice the form's rules are about to drop says so (the Herbst Rx: a TPA or quad helix once a screw is added) */
+function rxTellLost() { const K = RXE.k, m = K && K.lost && RXE.rx ? K.lost(RXE.rx) : ''; if (m) toast(m); }
 function rxSync(first) {
-  const w = $('#rxWrap'); if (!w) return; const K = RXE.k, rx = RXE.rx = rxCanon(RXE.rx), c = RXE.c;
+  const w = $('#rxWrap'); if (!w) return; rxTellLost(); const K = RXE.k, rx = RXE.rx = rxCanon(RXE.rx), c = RXE.c;
   if (first) picPaint(w); // the options' pictures in their cards
   $$('[data-rxf]', w).forEach(i => { if (!first && i === document.activeElement) return; const k = i.dataset.rxf; i.value = rx[k] || (rxIsAuto(k) ? rxAutoVal(k, c, rx) : ''); });
   if (first) $$('[data-rxtab]', w).forEach(b => b.setAttribute('aria-selected', String(b.dataset.rxtab === RXE.tab)));
   $$('.rxSub[data-show]', w).forEach(s => { s.hidden = !K.subShow(s.dataset.show, rx); });
   // the buttons and boxes always show what the Rx holds (turning a choice off drops what went with it); a box being typed in is left alone
   $$('.rxB[data-rxg]', w).forEach(b => { const g = b.dataset.rxg; if (g === 'tool') return; b.setAttribute('aria-pressed', String(!!rxPressed(g, b.dataset.v, rx))); });
+  // a choice that doesn't go with what's picked is greyed out, saying why (the Herbst Rx: no TPA or quad helix with an expansion screw)
+  $$('.rxB[data-rxg]', w).forEach(b => { const why = K.off ? K.off(b.dataset.rxg, b.dataset.v, rx) : '';
+    if (why) { b.setAttribute('aria-disabled', 'true'); b.title = why; } else if (b.getAttribute('aria-disabled')) { b.removeAttribute('aria-disabled'); b.removeAttribute('title'); } });
+  // the sentences the answers write into the special instructions (the Herbst Rx: where the lower lingual arch sits)
+  const an = $('#rxAutoNotes', w); if (an) { const a = K.autoNotes ? K.autoNotes(rx) : []; an.hidden = !a.length; an.textContent = a.length ? 'Added to the special instructions: ' + a.join(' ') : ''; }
   $$('.rxB[data-rxg="tool"]', w).forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === RXE.tool)));
   $$('[data-rxtool]', w).forEach(b => b.setAttribute('aria-pressed', String(b.dataset.rxtool === RXE.tool)));
   $$('[data-rxcol]', w).forEach(b => b.setAttribute('aria-pressed', String(b.dataset.rxcol === RXE.col)));
@@ -6976,13 +7018,14 @@ function rxOnInput(e) {
   if (rxIsAuto(k)) rx[k] = i.value && i.value !== rxAutoVal(k, RXE.c, rx) ? i.value : '';
   else rx[k] = i.value;
   if (e.type === 'change' && !i.value && rxIsAuto(k)) i.value = rxAutoVal(k, RXE.c, rx);
-  if (k === 'notes' || e.type === 'change' || k === 'needed' || k === 'shipped') rxSync(); else { RXE.rx = rxCanon(rx); if (rx[k]) RXE.rx[k] = rx[k]; rxSyncLight(); }
+  if (k === 'notes' || e.type === 'change' || k === 'needed' || k === 'shipped') rxSync(); else { rxTellLost(); RXE.rx = rxCanon(rx); if (rx[k]) RXE.rx[k] = rx[k]; rxSyncLight(); }
 }
 /* while typing: just the paper and the estimate (the inputs keep their cursor) */
 function rxSyncLight() { const w = $('#rxWrap'); if (!w) return; if (RXE.tab === 'paper') { $('#rxPaperBox', w).innerHTML = rxPaperHTML(RXE.c, RXE.rx); rxPaperPaint($('#rxPaperBox', w)); } $('#rxCost', w).innerHTML = rxCostHTML(RXE.rx, RXE.c); }
 function rxOnClick(e) {
   const w = $('#rxWrap'), rx = RXE.rx, K = RXE.k;
   const b = e.target.closest('.rxB[data-rxg]');
+  if (b && b.getAttribute('aria-disabled') === 'true') { toast(b.title || 'That doesn’t go with what’s picked'); return; }
   if (b) { const g = b.dataset.rxg, v = b.dataset.v, on = b.getAttribute('aria-pressed') !== 'true', prev = rx[g];
     if (g === 'tool') { RXE.tool = v; rxSync(); return; }
     if (K.click && K.click(g, v, on, rx)) { rxSync(); return; } // the form's own rule (e.g. clasps go on teeth)
@@ -7010,10 +7053,10 @@ function rxOnClick(e) {
     case 'auto': rx.noAuto = a.checked ? '' : true; rxSync(); break;
     case 'saveDef': { const d = rxCanon(rx); // (the usual is kept with its teeth: the same for most cases of the kind)
       K.defDrop.concat(['draw', 'needed', 'shipped', 'notes', 'rush', 'noAuto']).forEach(k => delete d[k]); if (K.defClean) K.defClean(d);
-      const all = rxDefaultsAll(); all[K.form] = rxCanon(d);
-      act(() => B.saveSettings({ rxDefaults: JSON.stringify(all) }), 'Saved as ' + K.usual + ' — new ' + K.title + ' start from it'); break; }
-    case 'useDef': { const d = rxDefaults(K.form); if (!d) break; const keep = {}; K.defDrop.concat(['needed', 'shipped', 'notes', 'draw']).forEach(k => { if (rx[k] != null && rx[k] !== '') keep[k] = rx[k]; });
-      const next = Object.assign({}, d, keep); if (K.defKeep) K.defKeep(rx, next); RXE.rx = rxCanon(next); $('#rxL', w).innerHTML = rxLeftHTML(); rxSync(true); toast('Started from ' + K.usual); break; }
+      const us = rxUsualOf(K, RXE.c), all = rxDefaultsAll(); all[us[0]] = rxCanon(d);
+      act(() => B.saveSettings({ rxDefaults: JSON.stringify(all) }), 'Saved as ' + us[1] + ' — new ' + us[2] + ' start from it'); break; }
+    case 'useDef': { const us = rxUsualOf(K, RXE.c), d = rxDefaults(us[0]); if (!d) break; const keep = {}; K.defDrop.concat(['needed', 'shipped', 'notes', 'draw']).forEach(k => { if (rx[k] != null && rx[k] !== '') keep[k] = rx[k]; });
+      const next = Object.assign({}, d, keep); if (K.defKeep) K.defKeep(rx, next); RXE.rx = rxCanon(next); $('#rxL', w).innerHTML = rxLeftHTML(); rxSync(true); toast('Started from ' + us[1]); break; }
     case 'clearAll': if (a.dataset.sure !== '1') { a.dataset.sure = '1'; a.textContent = 'Tap again to clear everything'; setTimeout(() => { a.dataset.sure = ''; a.textContent = 'Clear the Rx'; }, 3000); break; }
       RXE.rx = rxCanon({ form: K.form }); $('#rxL', w).innerHTML = rxLeftHTML(); rxSync(true); break;
   }
@@ -7069,7 +7112,7 @@ function rxCaseSecK(c, done, K) {
   const sum = rx ? esc(rxSummary(rx)) + (e.lines.length ? ' · est. <b>' + money(e.total) + '</b>' : '') : '<span class="muted">Not filled in yet</span>';
   const hdBtn = rx ? '<button type="button" class="btn btn-sec btn-sm dsAct" data-act="rxPdf"' + kd + ' title="Download the filled-in Rx">' + ic('download', 14) + 'PDF</button>' : '';
   const body = rx ? '<div class="rxCase"><div class="rxCaseArch">' + rxArchSVG(rx, { c }) + '</div><div class="rxCaseR"><div class="small">' + esc(rxSummary(rx)) + '</div>' +
-      '<div class="small muted">' + (rxNeeded(c, rx) ? 'Needed by <b>' + esc(fmtDay(rxNeeded(c, rx))) + '</b>' : '<b class="rxNoDate">No date needed yet</b> — add the delivery appt, or a date in the Rx') + (rx.rush ? ' · expedited' : '') + '</div>' + (rx.notes ? '<div class="small" style="white-space:pre-wrap">' + esc(rx.notes) + '</div>' : '') +
+      '<div class="small muted">' + (rxNeeded(c, rx) ? 'Needed by <b>' + esc(fmtDay(rxNeeded(c, rx))) + '</b>' : '<b class="rxNoDate">No date needed yet</b> — add the delivery appt, or a date in the Rx') + (rx.rush ? ' · expedited' : '') + '</div>' + (rxNotesAll(rx, K) ? '<div class="small" style="white-space:pre-wrap">' + esc(rxNotesAll(rx, K)) + '</div>' : '') +
       '<div class="rxCaseCost">' + rxCostHTML(rx, c) + '</div></div></div>' +
       '<div class="pickRow" style="margin-top:10px">' + (done ? '' : '<button type="button" class="btn btn-pri btn-sm" data-act="rxEdit"' + kd + '>' + ic('edit', 15) + 'Edit the Rx</button>') +
       '<button type="button" class="btn btn-sec btn-sm" data-act="rxOpen"' + kd + '>' + ic('ext', 15) + 'Open to print</button><button type="button" class="btn btn-sec btn-sm" data-act="rxPdf"' + kd + '>' + ic('download', 15) + 'Download PDF</button></div>'
@@ -7084,8 +7127,8 @@ Object.assign(ADMIN_ACTS, {
   rxPdf(t) { const K = rxKind(t && t.dataset && t.dataset.kind), c = findCase(S.openId), rx = c && rxOfK(c, K); if (rx) rxDownload(c, Object.assign({}, rx, { form: K.form })); },
   rxOpen(t) { const K = rxKind(t && t.dataset && t.dataset.kind), c = findCase(S.openId), rx = c && rxOfK(c, K); if (rx) rxOpenPdf(c, Object.assign({}, rx, { form: K.form })); },
   rxPricesReset() { act(() => B.saveSettings({ rxPrices: '' }), 'Prices back to Specialty’s price list'); },
-  rxDefClear(t) { const K = rxK((t && t.dataset && t.dataset.form) || RX_FORM), all = rxDefaultsAll(); delete all[K.form];
-    act(() => B.saveSettings({ rxDefaults: Object.keys(all).length ? JSON.stringify(all) : '' }), K.usual.charAt(0).toUpperCase() + K.usual.slice(1) + ' cleared'); }
+  rxDefClear(t) { const slot = (t && t.dataset && (t.dataset.slot || t.dataset.form)) || RX_FORM, K = rxK(slot.split(':')[0]), us = rxUsuals(K).find(u => u[0] === slot) || rxUsuals(K)[0], all = rxDefaultsAll(); delete all[slot];
+    act(() => B.saveSettings({ rxDefaults: Object.keys(all).length ? JSON.stringify(all) : '' }), us[1].charAt(0).toUpperCase() + us[1].slice(1) + ' cleared'); }
 });
 
 /* ---------- Team & security → Lab Rx: Dr. A's details on every Rx, the prices, the usual choices ---------- */
@@ -7109,8 +7152,8 @@ function rxAdminCardHTML() {
     '<h5 style="margin:6px 0 8px">Not on the price list <span class="h5n">blank = named under the estimate, not added; add a price (e.g. from an invoice) to count it</span></h5>' +
     rxKinds().map(K => { const r = rxPriceRows(P2, false, K.prices); return r ? sub(K.title) + r : ''; }).join('') +
     '<div class="pickRow" style="margin-top:10px"><button type="button" class="btn btn-ghost btn-sm" data-act="rxPricesReset">' + ic('refresh', 15) + 'Back to the price list</button></div>' +
-    rxKinds().map(K => { const def = rxDefaults(K.form), U = K.usual.charAt(0).toUpperCase() + K.usual.slice(1);
-      return '<h5 style="margin:16px 0 6px">' + esc(U) + '</h5><div class="small">' + (def ? esc(rxSummary(def)) + ' <button type="button" class="btn btn-ghost btn-sm" data-act="rxDefClear" data-form="' + K.form + '">Clear</button>' : '<span class="muted">Not set. In any ' + esc(K.title) + ', tap “Save as ' + esc(K.usual) + '” and new ones start from it.</span>') + '</div>'; }).join('') +
+    rxKinds().map(K => rxUsuals(K).map(([uk, un, ut]) => { const def = rxDefaults(uk), U = un.charAt(0).toUpperCase() + un.slice(1);
+      return '<h5 style="margin:16px 0 6px">' + esc(U) + '</h5><div class="small">' + (def ? esc(rxSummary(def)) + ' <button type="button" class="btn btn-ghost btn-sm" data-act="rxDefClear" data-slot="' + uk + '">Clear</button>' : '<span class="muted">Not set. In any ' + esc(ut) + ', tap “Save as ' + esc(un) + '” and new ones start from it.</span>') + '</div>'; }).join('')).join('') +
     '</div></div>';
 }
 document.addEventListener('change', e => {
@@ -7136,6 +7179,8 @@ function rxCanonH(rx) {
   one('bite', RX_KEYS('bite')); if (o.bite === 'advance') num('advMm');
   list('exp', RX_KEYS('exp')); one('expOther');
   list('wire', RX_KEYS('wire'));
+  if (rxHasExp(o) && o.wire) { const wi = o.wire.filter(x => !RX_NOEXP.includes(x)); if (wi.length) o.wire = wi; else delete o.wire; } // no TPA or quad helix with an expansion screw
+  one('lowerInc', Object.keys(RX_INC));
   list('rests', ['U', 'L']); if (o.rests) one('restKind', RX_KEYS('restKind')); // ball clasps / wire go with the rests
   list('awt', ['U', 'L']); if ((o.awt || []).includes('U')) one('awtU', ['018', '022']); if ((o.awt || []).includes('L')) one('awtL', ['018', '022']);
   if (o.awt) { flag('awtExt'); one('awtPos', RX_KEYS('awtPos')); } // the extension and position go with the tubes
@@ -7257,8 +7302,11 @@ function rxAutoH(rx) {
     stroke(RXP.line(q, p), .9); fill(RXP.circle(p[0], p[1], 1.5), RX_METAL);
     if (rx.restKind === 'ball') { const t6 = rxT(A + s + '6'), t7 = rxT(A + s + '7'); const mx = (t6.c[0] + t7.c[0]) / 2 + (t6.b[0] + t7.b[0]) / 2 * ((t6.r + t7.r) / 2 + .6), my = (t6.c[1] + t7.c[1]) / 2 + (t6.b[1] + t7.b[1]) / 2 * ((t6.r + t7.r) / 2 + .6); fill(RXP.circle(mx, my, 1.2), RX_METAL); }
   }));
-  // occlusal rests on the teeth tapped
-  (rx.occl || []).forEach(id => { const r = rxT(id).r, p = rxPt(id, r * .42, 0); stroke(RXP.line(p, rxPt(id, r * .42, -r * .95)), .8); fill(RXP.circle(p[0], p[1], 1.5), RX_METAL); });
+  // occlusal rests on the teeth tapped: the arm comes from the lingual, except on the 7s, where it runs straight back from the middle
+  // of the mesial (from the 6) to the middle of the tooth (Amir, 4 Oct 2026: "occlusal rest on upper and lower 7s go directly from middle
+  // of the tooth on the mesial back and not on the lingual")
+  (rx.occl || []).forEach(id => { const r = rxT(id).r, seven = id.slice(-1) === '7', p = rxPt(id, seven ? r * .1 : r * .42, 0);
+    stroke(RXP.line(p, seven ? rxPt(id, r * 1.05, 0) : rxPt(id, r * .42, -r * .95)), .8); fill(RXP.circle(p[0], p[1], 1.5), RX_METAL); });
   // the Herbst: the tube from the upper molar, the rod to the lower premolar (or the cantilever arm's end), each on its pivot
   if (rx.design || rx.mech) {
     const pivot = p => { fill(RXP.circle(p[0], p[1], 1.9), '#FFFFFF', RX_METAL, 1); fill(RXP.circle(p[0], p[1], .6), RX_METAL); };
@@ -7294,7 +7342,7 @@ function rxFillH(c, rx, put, box, circ) {
 }
 /* a new Herbst Rx starts from Dr. A's usual Herbst (when he's saved one), with the case's own Herbst picked */
 function rxStartH(c) {
-  const rx = rxDefaults(RX_FORM) || { form: RX_FORM };
+  const rx = rxDefaults(rxHerbstUsual(c)) || { form: RX_FORM };
   if ((c.appliances || []).includes('Space Closing Herbst')) rx.design = 'spaceclosing';
   return rxCanon(rx);
 }
@@ -7309,7 +7357,9 @@ function rxSecsH(rx) {
       RXO.anch.map(([k, l]) => rxBtn('tool', k, l, RXE.tool === k, rxTag(k === 'band' ? (rx.printed3d ? 'band3d' : 'band') : k === 'onbrace' ? 'onbrace' : (rx.printed3d ? 'crown3d' : 'crown'), false, ' ea'))).join('') + rxBtn('tool', 'rest', 'Occlusal rest', RXE.tool === 'rest', 'included') + '</div>' +
       '<div class="rxTeeth small" id="rxTeethSum"></div><div class="rxBs">' + rxBtn('flag', 'printed3d', '3D printed / sintered bands, ROCs and crowns', rx.printed3d) + rxBtn('flag', 'enclosed', 'Bands or crowns enclosed with case', rx.enclosed, 'no charge') + '</div>') +
     rxSec('Expansion', '<div class="rxBs">' + RXO.exp.map(([k, l]) => rxBtn('exp', k, l, (rx.exp || []).includes(k), rxTag('screw', true))).join('') + '</div><div class="rxRow">' + rxField('expOther', 'Other type', 'text', ' maxlength="40"') + '</div>') +
-    rxSec('Wire', '<div class="rxBs">' + rxBtn('wire', 'la', 'Lingual arch: lower', (rx.wire || []).includes('la'), 'included') + rxBtn('wire', 'tpa', 'Transpalatal arch', (rx.wire || []).includes('tpa'), rxTag('tpa', true)) + rxBtn('wire', 'qh', 'Quad helix: upper', (rx.wire || []).includes('qh'), rxTag('qh', true)) + '</div>') +
+    rxSec('Wire', '<div class="rxBs">' + rxBtn('wire', 'la', 'Lingual arch: lower', (rx.wire || []).includes('la'), 'included') + rxBtn('wire', 'tpa', 'Transpalatal arch', (rx.wire || []).includes('tpa'), rxTag('tpa', true)) + rxBtn('wire', 'qh', 'Quad helix: upper', (rx.wire || []).includes('qh'), rxTag('qh', true)) + '</div>' +
+      '<div class="rxBs"><span class="rxLbl">Lower incisors</span>' + Object.entries(RX_INC).map(([k, [l]]) => rxBtn('lowerInc', k, l, rx.lowerInc === k)).join('') + '</div>' +
+      '<div class="small muted">Where the lower lingual arch sits: about 1.5 mm off the cingulum, or right against it. It’s written into the special instructions.</div>') +
     rxSec('Rests', '<div class="rxBs"><span class="rxLbl">2nd molar rests</span>' + rxBtn('rests', 'U', 'Upper', (rx.rests || []).includes('U'), 'included') + rxBtn('rests', 'L', 'Lower', (rx.rests || []).includes('L'), 'included') + '</div>' +
       '<div class="rxBs rxSub" data-show="rests"><span class="rxLbl">Made with</span>' + RXO.restKind.map(([k, l]) => rxBtn('restKind', k, l, rx.restKind === k, k === 'ball' ? rxTag('ball', true, '/pr') : '')).join('') + '</div>') +
     rxSec('Archwire tubes', '<div class="rxBs"><span class="rxLbl">Upper</span>' + rxBtn('awt', 'U', 'Upper tubes', (rx.awt || []).includes('U'), 'included') + '<span class="rxSub" data-show="awtU">' + rxBtn('awtU', '018', '.018', rx.awtU === '018') + rxBtn('awtU', '022', '.022', rx.awtU === '022') + '</span></div>' +
@@ -7331,6 +7381,10 @@ function rxTapH(id, rx, k) {
 }
 RXK[RX_FORM] = {
   form: RX_FORM, key: 'herbst', field: 'rx', ds: 'rx', title: 'Herbst Rx', usual: 'our usual Herbst',
+  usuals: [[RX_FORM, 'our usual Herbst', 'Herbst Rx'], [RX_SC, 'our usual Space Closing Herbst', 'Space Closing Herbst Rx']], usualOf: rxHerbstUsual,
+  off: (g, v, rx) => g === 'wire' && RX_NOEXP.includes(v) && rxHasExp(rx) ? 'Not with an expansion screw. Take the screw off to add a ' + (v === 'tpa' ? 'TPA' : 'quad helix') + '.' : '',
+  lost: rx => { const x = rxHasExp(rx) ? (rx.wire || []).filter(v => RX_NOEXP.includes(v)) : []; return x.length ? 'Took off the ' + x.map(v => v === 'tpa' ? 'transpalatal arch' : 'quad helix').join(' and ') + ' — not with an expansion screw' : ''; },
+  autoNotes: rx => rx.lowerInc && RX_INC[rx.lowerInc] ? [RX_INC[rx.lowerInc][1]] : [],
   saveDefTip: 'New Herbst Rx start from these choices and teeth (not this patient’s dates, measurements, notes or drawings)',
   caseIntro: 'Specialty’s Herbst Rx, filled in from this case: tap the choices and the teeth, and it gives the PDF to upload with the scan, and the lab cost.',
   costEmpty: 'Pick the design, mechanism and anchorage — the prices add up here.',
@@ -7340,7 +7394,7 @@ RXK[RX_FORM] = {
   scanners: [['itero', /itero/i], ['trios', /trios/i], ['medit', /medit/i], ['carestream', /carestream/i], ['cerec', /cerec/i]],
   canon: rxCanonH, summary: rxSummaryH, estimate: rxEstimateH, auto: rxAutoH, fill: rxFillH, start: rxStartH,
   single: RX_SINGLE, tools: ['band', 'crown', 'roc', 'onbrace', 'rest'], tool0: 'band',
-  defDrop: ['mio', 'mioMm', 'advMm', 'shimsMm', 'shimsQty', 'expOther'], // (this patient's measurements)
+  defDrop: ['mio', 'mioMm', 'advMm', 'shimsMm', 'shimsQty', 'expOther', 'lowerInc'], // (this patient's measurements and lower incisors)
   secHTML: rxSecsH, teethSum: rxTeethSumH, tap: rxTapH, tappable: id => RX_GRID.includes(id),
   toolsHTML: () => rxToolBtn('band', 'Band', 'Tap a tooth (4s to 7s) to band it') + rxToolBtn('crown', 'Crown', 'Tap a tooth to crown it') + rxToolBtn('roc', 'ROC', 'Crown with the occlusal removed') + rxToolBtn('onbrace', 'OnBRACE', 'OnBRACE on the tooth') + rxToolBtn('rest', 'Rest', 'Occlusal rest on the tooth'),
   hint: tool => tool === 'rest' ? 'Tap the teeth that get an occlusal rest.' : 'Tap the teeth that get a ' + ((RXO.anch.find(x => x[0] === tool) || [])[1] || tool) + '.',

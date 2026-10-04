@@ -892,6 +892,10 @@ body.phOff .pav,body.phOff .dPh,body.phOff .phSlot,body.phOff .phTgl,body.phOff 
 .rxB[aria-pressed="true"]{background:var(--mint);border-color:var(--mint-600);color:var(--navy-900)}
 .rxB[aria-pressed="true"]::before{content:"✓";font-weight:700;margin-right:-2px}
 .rxB[aria-pressed="true"] em{background:rgba(255,255,255,.6);color:var(--navy-900)}
+/* a choice that doesn't go with what's picked (the Herbst Rx: a TPA or quad helix with an expansion screw): greyed out, says why when tapped */
+.rxB[aria-disabled="true"]{opacity:.42;cursor:not-allowed;background:var(--grey-50)}
+.rxB[aria-disabled="true"]:hover{border-color:var(--grey-200);background:var(--grey-50);color:var(--grey-700)}
+.rxAutoN{margin-top:6px}
 .rxSub{display:inline-flex;flex-wrap:wrap;gap:6px;align-items:center}
 .rxBs.rxSub{display:flex}
 .rxLbl{font-size:11.5px;color:var(--grey-500);font-weight:600;min-width:60px}

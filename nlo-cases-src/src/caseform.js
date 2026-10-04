@@ -12,6 +12,9 @@ const PICK = {
   extras: ['No IPR', 'No elastics'],
   arches: ['Upper', 'Lower'], retKinds: ['TT’s', 'WT’s']
 };
+/* one of these per case (Amir, 4 Oct 2026: "RPE, MSE, MARPE, MARA and HERBST cannot overlap. the other ones can"): tapping one takes
+   off the one already picked; D2, finger spring, Hawleys and Schwartz go with anything */
+const APPL_ONE = ['Herbst with Rollo Band', 'Space Closing Herbst', 'MARA', 'MSE', 'MARPE', 'Rapid Palatal Expander (RPE)'];
 /* lab routing from the AISA KB / SOP manual: MSE → Specialty Orthodontic Lab (SOP-CL-020); MARPE → Partners Dental Solutions (SOP-CL-029,
    as Partner Dental Studios — the lab rebranded; Amir, 3 Oct 2026);
    D2 distalizer → in-house, no outside prescription (lab workflow, Layer 3 exception); Herbst, MARA → Specialty; RPE, Schwartz,
@@ -702,6 +705,9 @@ function wireCaseForm(root, isNew) {
       if (multi) pk.setAttribute('aria-pressed', String(!was));
       // (arches to treat always has an answer: tapping the chosen one again keeps it)
       else { $$('.pick', row).forEach(b => b.setAttribute('aria-pressed', 'false')); if (!was || row.dataset.g === 'treatArch') pk.setAttribute('aria-pressed', 'true'); }
+      if (row.dataset.g === 'appliances' && !was && APPL_ONE.includes(pk.dataset.v)) { let off = 0;
+        $$('.pick', row).forEach(b => { if (b !== pk && APPL_ONE.includes(b.dataset.v) && b.getAttribute('aria-pressed') === 'true') { b.setAttribute('aria-pressed', 'false'); off++; } });
+        if (off) toast('Switched to ' + pk.dataset.v + ' (one of Herbst, MARA, MSE, MARPE or RPE per case)'); }
       if (row.dataset.g === 'lab') row.dataset.manual = '1';
       if (row.dataset.g === 'appliances') routeLab(root, isNew);
       if (row.dataset.g === 'instrPicks' && pk.dataset.v === NO_POST_MOVE) lockPosteriors(pk, !was);
