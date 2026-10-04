@@ -60,6 +60,9 @@ function rxmStd(rx) {
   if (oth.some(k => ['habit', 'fbp', 'xbow', 'tandem'].includes(k))) both('U', 6);
   if (oth.includes('xbow')) both('L', 6);
   (rx.sm || []).forEach(id => b.add(rxmBehind(id)));
+  // a space maintainer's space is a missing tooth: no band or rest goes on it, whatever else is picked (found 4 Oct 2026: a TPA picked
+  // after the space banded the gap; unticking Space Maintainer left the expander without its band)
+  (rx.sm || []).forEach(id => { b.delete(id); r.delete(id); });
   return { bands: b, rests: r };
 }
 /* an expander on the Rx (for Amir's 3D printed bands): anything under Expansion, the MSE, the distalizers built on an expansion screw
@@ -300,7 +303,8 @@ function rxmCanon(rx) {
   list('other', RXM_K('other')); if ((o.other || []).includes('habit')) list('habit', RXM_K('habit'));
   if ((o.other || []).includes('xbow')) flag('gurin');
   list('awt', ['U', 'L']);
-  const acc = new Set(Array.isArray(rx.acc) ? rx.acc : []); if (String(rx.colorTxt || '').trim()) acc.add('color'); if (String(rx.fmTxt || '').trim()) acc.add('fm');
+  // (the Acrylic Color circle follows the color typed: clearing it takes the circle off — it has no button of its own)
+  const acc = new Set(Array.isArray(rx.acc) ? rx.acc : []); acc.delete('color'); if (String(rx.colorTxt || '').trim()) acc.add('color'); if (String(rx.fmTxt || '').trim()) acc.add('fm');
   const au = RXM_K('acc').filter(v => acc.has(v)); if (au.length) o.acc = au;
   if (acc.has('fm')) one('fmTxt', null, 40); one('colorTxt', null, 40);
   const t = {}; RX_GRID.forEach(id => { const v = (rx.teeth || {})[id]; if (RX_KEYS('anch').includes(v)) t[id] = v; }); if (Object.keys(t).length) o.teeth = t;
@@ -373,8 +377,8 @@ function rxmEstimate(rx, c) {
   if (acc.includes('debondWires')) add('Debonding wires × 1 pr', 'debondWires');
   const cust = ['debondHoles', 'vent', 'roc'].filter(k => acc.includes(k));
   if (cust.length) inc(cust.map(k => rxmLbl(k, ['acc'])).join(', '), 'Free (crown customization)');
-  const col = String(rx.colorTxt || '').trim();
-  if (col || acc.includes('color')) { if (/glitter|glow|swirl/i.test(col)) add('Acrylic: ' + col, 'glitter'); else inc('Acrylic' + (col ? ': ' + col : ' color'), 'Free (Specialty colors)'); }
+  // the acrylic as on the Retainer Rx: Specialty colors free, glitter / glow / swirl extra, a custom design (tie dye …) not on the list
+  const col = String(rx.colorTxt || '').trim(); if (col) rxAcrCost(col, '', add, inc);
   if (rx.rush) add('Expedited manufacturing and shipping', 'rush', 1, 'Specialty’s fee for under 10 business days');
   return E.done();
 }
@@ -558,7 +562,7 @@ function rxmFill(c, rx, put, box, circ) {
   put('fmTxt', rx.fmTxt, 'H', 9); put('colorTxt', rx.colorTxt, 'H', 9);
   const kinds = new Set(Object.values(rx.teeth || {}));
   if (kinds.size) { if (rx.enclosed) box.add('enclosed'); else { box.add('provides'); kinds.forEach(k => box.add('anch.' + k)); } }
-  if (rx.printed3d && !rx.enclosed) box.add('printed3d');
+  if (rx.printed3d && !rx.enclosed && ['band', 'crown', 'roc'].some(k => kinds.has(k))) box.add('printed3d'); // (a bonded RPE has nothing to print)
   Object.keys(rx.teeth || {}).forEach(id => circ.push(['anch', id])); (rx.occl || []).forEach(id => circ.push(['occl', id]));
 }
 /* what the answers write into the special instructions: the MSE (no circle for it on the form), the Xbow's Gurin locks, two or more
@@ -592,6 +596,9 @@ function rxmFormFix(c, rx, was) {
 /* … and one that doesn't have what the case is (an RPE, the MSE, any appliance at all) says so, on the form and the case */
 function rxmMismatch(c, rx) {
   const ap = (c && c.appliances) || [], up = (rx.exp || []).filter(k => RXM_RPE_K.includes(k));
+  // what the office doesn't use, still on an Rx (or a usual) from before it was greyed out: it would be ticked and charged
+  const un = Object.keys(RXM_UNUSED).filter(k => (rx.other || []).includes(k) || rx.distR === k || rx.distL === k);
+  if (un.length) return 'This Metal Rx has ' + un.map(k => RXM_UNUSED[k]).join(' and ') + ', which the office doesn’t use — take it off.';
   if (ap.includes('MSE') && !rx.mse) return up.length ? 'This Metal Rx is for a ' + rxmLbl(up[0], ['exp']) + ', but the case is an MSE — edit the Rx.' : 'No MSE on this Metal Rx yet — tick MSE under Expansion.';
   if (ap.includes(RXM_RPE) && !up.length) return rx.mse ? 'This Metal Rx is for the MSE, but the case is an RPE — edit the Rx.' : 'No RPE on this Metal Rx yet — pick it under Expansion.';
   if (!rxmItems(rx).length) return 'No appliance picked on this Metal Rx yet.';

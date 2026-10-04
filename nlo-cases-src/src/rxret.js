@@ -317,7 +317,8 @@ function rxrDesignTag(d) {
 
 /* ---------- the acrylic color: picked on this Rx, else the case's (for an arch that has a plate) ---------- */
 function rxrCaseColor(c) { return typeof acrylicName === 'function' ? acrylicName(c) : c && c.acrylic ? c.acrylic + (c.glitter ? ' glitter' : '') : ''; }
-function rxrColor(c, rx, A) { return rx['color' + A] || (rx['design' + A] ? rxrCaseColor(c) : ''); }
+/* (an arch with no retainer design has no acrylic: a color tapped while only a bonded or clear retainer was picked isn't ticked or charged) */
+function rxrColor(c, rx, A) { return rx['design' + A] ? rx['color' + A] || rxrCaseColor(c) : ''; }
 /* the plate's tint on the drawing: the color's swatch (caseform.js ACRYLIC, Specialty's guide; or a color picked before) lightened, else acrylic pink */
 function rxrMix(a, b, t) { const p = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)), x = p(a), y = p(b); return '#' + x.map((v, i) => Math.round(v + (y[i] - v) * t).toString(16).padStart(2, '0')).join(''); }
 function rxrTint(col) {
@@ -613,26 +614,50 @@ function rxrFill(c, rx, put, box, circ) {
   // the teeth tapped go on the line (Universal numbers), then what was typed: "#7 tip labially"
   const nums = k => RXR_ARCH.map(A => on(k, A)).flat().map(rxrNum).join(', ');
   const line = (k, typed) => [nums(k), typed].filter(Boolean).join(' ');
-  put('fingerTxt', line('finger', rx.fingerTxt), 'H', 9); put('solderTxt', rx.solderTxt, 'H', 9); put('closingTxt', rx.closingTxt, 'H', 9);
-  put('spursTxt', [rxrSpurLine(rx), rx.spursTxt].filter(Boolean).join(' '), 'H', 9); put('screwTxt', rx.screwTxt, 'H', 9); put('saddleTxt', rx.saddleTxt, 'H', 9);
-  put('ponticTxt', [nums('pontic'), rx.ponticTxt ? 'shade ' + rx.ponticTxt : ''].filter(Boolean).join(' '), 'H', 9);
+  // a line's words print only while its choice is ticked (unticking a spring keeps what was typed, off the form)
+  const when = (g, v, s) => RXR_ARCH.some(A => (rx[g + A] || []).includes(v)) ? s : '';
+  put('fingerTxt', when('acc', 'finger', line('finger', rx.fingerTxt)), 'H', 9); put('solderTxt', when('acc', 'solder', rx.solderTxt), 'H', 9); put('closingTxt', when('acc', 'closing', rx.closingTxt), 'H', 9);
+  put('spursTxt', when('acc', 'spurs', [rxrSpurLine(rx), rx.spursTxt].filter(Boolean).join(' ')), 'H', 9); put('screwTxt', rx.screwTxt, 'H', 9); put('saddleTxt', when('acr', 'saddle', rx.saddleTxt), 'H', 9);
+  // the pontic line: the shade first, then the teeth, so the required shade is never the part a short line cuts off (found 4 Oct 2026:
+  // four pontics printed "#7, #8, #9, #10 shade …"); a line that still doesn't fit goes in full into the special instructions (rxFill)
+  const pn = nums('pontic');
+  put('ponticTxt', when('acr', 'pontic', rx.ponticTxt ? rx.ponticTxt + (pn ? ' (' + pn + ')' : '') : pn), 'H', 9);
   RXR_ARCH.forEach(A => { const col = rxrColor(c, rx, A); if (col) { box.add('acr.color.' + A); put('color' + A, col, 'H', 9); } });
   RXR_ARCH.forEach(A => { [['flr', 'flr'], ['flrPads', 'pads'], ['flrWire', 'wire'], ['ir', 'ir']].forEach(([k, b]) => { const v = rx[k + A]; if (v) box.add(b + '.' + v + '.' + A); }); });
 }
 
 /* ---------- a new Retainer Rx: Dr. A's usual retainer (when he's saved one), on the arches the case picked; the finger spring
    appliance starts as a flipper with a finger spring on the upper (change the arch if it's the lower) ---------- */
-function rxrStart(c) {
-  const d = rxDefaults(RX_RET), rx = d ? JSON.parse(JSON.stringify(d)) : { form: RX_RET }, apps = c.appliances || [], ar = c.arches || [];
-  if (apps.includes(HAWLEY) && ar.length) RXR_ARCH.forEach(A => {
+function rxrStart(c) { const d = rxDefaults(RX_RET); return rxCanon(rxrForCase(c, d ? JSON.parse(JSON.stringify(d)) : { form: RX_RET }, d)); }
+/* Dr. A's usual (d) fitted to the case, for a new Rx and for "Start from our usual retainer" (found 4 Oct 2026: starting from the usual
+   brought both arches back on an upper-only case, and a finger spring case started as two Hawleys with no finger spring) */
+function rxrForCase(c, rx, d) {
+  const apps = (c && c.appliances) || [], ar = (c && c.arches) || [], hawley = apps.includes(HAWLEY), finger = apps.includes('Finger spring with no labial bow');
+  if (hawley && ar.length) RXR_ARCH.forEach(A => {
     if (ar.includes(A === 'U' ? 'Upper' : 'Lower')) { if (!rx['design' + A]) rx['design' + A] = (d && (d['design' + A] || d['design' + (A === 'U' ? 'L' : 'U')])) || 'hawley'; return; }
-    // an arch the case doesn't make a Hawley for: none of the usual removable parts on it (a bonded or clear retainer stays)
-    ['design', 'acc', 'acr', 'color'].forEach(k => delete rx[k + A]);
-    rx.teeth = Object.fromEntries(Object.entries(rx.teeth || {}).filter(([id]) => id[0] !== A)); rx.reset = (rx.reset || []).filter(id => id[0] !== A);
+    rxrClearArch(rx, A); // an arch the case doesn't make a Hawley for
   });
-  if (apps.includes('Finger spring with no labial bow') && !rx.designU && !rx.designL) { rx.designU = 'flipper'; rx.accU = (rx.accU || []).concat(['finger']); }
+  // the finger spring on its own is a flipper, not the usual Hawleys
+  if (finger && !hawley) RXR_ARCH.forEach(A => { if (rx['design' + A] && rx['design' + A] !== 'flipper') rxrClearArch(rx, A); });
+  if (finger && !rx.designU && !rx.designL) { rx.designU = 'flipper'; rx.accU = (rx.accU || []).concat(['finger']); }
   RXR_ARCH.forEach(A => rxrStdClasps(rx, A, ''));
-  return rxCanon(rx);
+  return rx;
+}
+/* an arch with no Hawley (or spring design): none of the removable parts on it — a bonded or clear retainer there stays */
+function rxrClearArch(rx, A) {
+  ['design', 'acc', 'acr', 'color'].forEach(k => delete rx[k + A]);
+  rx.teeth = Object.fromEntries(Object.entries(rx.teeth || {}).filter(([id]) => id[0] !== A)); rx.reset = (rx.reset || []).filter(id => id[0] !== A);
+}
+/* the case's Hawley arches against the Rx, said on the form and the case (found 4 Oct 2026: a case changed to upper only still sent
+   both arches, with no warning — the Metal Rx already says when it no longer matches its case) */
+function rxrMismatch(c, rx) {
+  if (!((c && c.appliances) || []).includes(HAWLEY)) return '';
+  const want = ((c && c.arches) || []).map(x => x === 'Upper' ? 'U' : x === 'Lower' ? 'L' : '').filter(Boolean); if (!want.length) return '';
+  const w = list => list.map(rxrArchWord).join(' & ');
+  const extra = RXR_ARCH.filter(A => rx['design' + A] && rx['design' + A] !== 'flipper' && !want.includes(A)), miss = RXR_ARCH.filter(A => want.includes(A) && !rx['design' + A]);
+  if (extra.length) return 'This Retainer Rx has a ' + w(extra) + ' retainer, but the case’s Hawley is ' + w(want) + ' only — edit the Rx or the case.';
+  if (miss.length) return 'No ' + w(miss) + ' retainer on this Rx yet — the case’s Hawley is ' + w(want) + (want.length === 1 ? ' only' : '') + '.';
+  return '';
 }
 /* the clasps a design starts with, on the first molars: Dr. A's Adams on a Hawley (Amir, 4 Oct 2026 — Preferred, from his Lab Rx);
    none on a wraparound (its bow keeps wire out of the bite); Specialty's own C-clasps on the Specialty Wrap. A design picked on an
@@ -730,15 +755,22 @@ function rxrTap(id, rx, tool) {
     const s = new Set(rx.reset || []); if (s.has(id)) s.delete(id); else s.add(id); rx.reset = RXR_RESET.filter(x => s.has(x)); if (rx.reset.length && rx.resetHow === 'none') rx.resetHow = ''; return true;
   }
   if (!RXR_TOOTH.includes(tool)) return false;
-  const t = rx.teeth = Object.assign({}, rx.teeth);
+  const t = rx.teeth = Object.assign({}, rx.teeth), old = t[id];
   // a holding spur: facing distal, tapped again facing mesial, a third tap takes it off
-  if (tool === 'spur' && t[id] === 'spur') { t[id] = 'spurM'; return true; }
-  if (tool === 'spur' && t[id] === 'spurM') { delete t[id]; if (!Object.keys(t).some(x => x[0] === A && RXR_SPURS.includes(t[x]))) rx['acc' + A] = (rx['acc' + A] || []).filter(v => v !== 'spurs'); return true; }
-  if (t[id] === tool) { delete t[id];
-    // the last finger spring, spur or pontic on the arch taken off: its circle on the form goes too
-    const fl = RXR_TOOTH_FLAG[tool]; if (fl && !Object.keys(t).some(x => x[0] === A && t[x] === tool)) rx[fl[0] + A] = (rx[fl[0] + A] || []).filter(v => v !== fl[1]);
-  } else t[id] = tool;
+  if (tool === 'spur' && old === 'spur') { t[id] = 'spurM'; return true; }
+  if (tool === 'spur' && old === 'spurM') delete t[id];
+  else if (old === tool) delete t[id];
+  else t[id] = tool;
+  // the last finger spring, spur or pontic on the arch gone — taken off, or another tool put on its tooth (found 4 Oct 2026: a pontic
+  // swapped for an Adams stayed ticked and charged on the form, and the Rx still asked for its shade): its circle goes too
+  if (old && old !== t[id]) rxrDropFlag(rx, A, old);
   return true;
+}
+/* an arch's circle for a finger spring, holding spur or pontic, once no tooth on that arch has one */
+function rxrDropFlag(rx, A, k) {
+  const fl = RXR_TOOTH_FLAG[k]; if (!fl) return;
+  const same = RXR_SPURS.includes(k) ? RXR_SPURS : [k], t = rx.teeth || {};
+  if (!Object.keys(t).some(x => x[0] === A && same.includes(t[x]))) rx[fl[0] + A] = (rx[fl[0] + A] || []).filter(v => v !== fl[1]);
 }
 /* Upper / Lower on a clasp row puts the clasps on the first molars (ball clasps behind the 5s) or takes that arch's off; on a
    finger spring, holding spur or pontic row it ticks the circle (tap the teeth too) or takes them off */
@@ -750,7 +782,8 @@ function rxrClick(g, v, on, rx) {
   const A = m[2], t = rx.teeth = Object.assign({}, rx.teeth), here = k => Object.keys(t).filter(id => id[0] === A && t[id] === k);
   if (m[1] === 'clasp') {
     if (!on) here(v).forEach(id => delete t[id]);
-    else { (v === 'ball' || v === 'arrowhead' ? ['R5', 'L5'] : ['R6', 'L6']).forEach(s => { if (t[A + s] !== 'pontic') t[A + s] = v; }); RXE.tool = v; }
+    // (a tooth with a pontic, finger spring or spur on it keeps it: only an empty tooth or another clasp takes this one)
+    else { (v === 'ball' || v === 'arrowhead' ? ['R5', 'L5'] : ['R6', 'L6']).forEach(s => { if (!t[A + s] || RXR_CLASPS.includes(t[A + s])) t[A + s] = v; }); RXE.tool = v; }
     return true;
   }
   const kind = m[1] === 'acc' ? { finger: 'finger', spurs: 'spur' }[v] : v === 'pontic' ? 'pontic' : null; if (!kind) return false;
@@ -759,7 +792,9 @@ function rxrClick(g, v, on, rx) {
   rx[key] = Array.from(s); return true;
 }
 function rxrAfter(g, v, on, prev, rx) {
-  if (g === 'designU' || g === 'designL') rxrStdClasps(rx, g.slice(-1), prev);
+  // an arch's retainer taken off: its clasps, springs, spurs, pontics, resets, extras and color go with it, as on an arch the case
+  // doesn't make a Hawley for (found 4 Oct 2026: they stayed ticked on the form and in the cost)
+  if (g === 'designU' || g === 'designL') { if (rx[g]) rxrStdClasps(rx, g.slice(-1), prev); else rxrClearArch(rx, g.slice(-1)); }
   if (g === 'resetHow' && rx.resetHow === 'none') rx.reset = [];
   if (g === 'reset' && on && rx.resetHow === 'none') rx.resetHow = '';
 }
@@ -785,7 +820,7 @@ RXK[RX_RET] = {
   prices: RXR_PRICES, appl: RXR_APPL,
   applies: c => !!c && c.type === 'appliance' && labName(c.lab) === LAB_SPEC && (c.appliances || []).some(a => RXR_APPL.includes(a)),
   scanners: [['itero', /itero/i], ['trios', /trios/i], ['medit', /medit/i], ['carestream', /carestream/i], ['3m', /\b3\s*m\b/i], ['sirona', /sirona|cerec|primescan/i]],
-  canon: rxrCanon, summary: rxrSummary, estimate: rxrEstimate, auto: rxrAuto, fill: rxrFill, start: rxrStart,
+  canon: rxrCanon, summary: rxrSummary, estimate: rxrEstimate, auto: rxrAuto, fill: rxrFill, start: rxrStart, forCase: rxrForCase, mismatch: rxrMismatch,
   single: RXR_SINGLE, tools: ['adams', 'c', 'ball', 'solc', 'delta', 'arrowhead', 'pontic', 'finger', 'spur', 'reset'], tool0: 'adams', toolReset: true,
   defDrop: ['colorU', 'colorL', 'reset', 'resetHow', 'fingerTxt', 'solderTxt', 'closingTxt', 'spursTxt', 'screwTxt', 'saddleTxt', 'ponticTxt', 'claspOther'],
   // the usual retainer keeps its clasps, not this patient's pontics, finger springs or spurs (those stay on the Rx when starting from it)

@@ -164,7 +164,7 @@ const has = cmd => { try { execFileSync('which', [cmd], { stdio: 'ignore' }); re
     return { src: i.getAttribute('src'), w: i.naturalWidth, h: i.naturalHeight, txt: t, dots: document.querySelectorAll('#rxPaperBox svg circle').length, rings: document.querySelectorAll('#rxPaperBox svg ellipse').length }; });
   console.log('   ' + JSON.stringify({ src: paper.src, w: paper.w, dots: paper.dots, rings: paper.rings }));
   check(paper.src === 'nlo-cases-rx-retainer.png' && paper.w === 1224 && paper.h === 1584, 'The paper: Specialty’s blank Retainer Rx loads under it');
-  check(paper.txt.includes('Rhea Retainerson') && paper.txt.includes('Party mix glitter') && paper.txt.includes('#10 shade A2') && paper.txt.includes('#7 tip labially') && paper.txt.includes('Please make the pontic match the neighbours.'), '… the patient, the acrylic color, “#10 shade A2”, “#7 tip labially” and the special instructions on their lines');
+  check(paper.txt.includes('Rhea Retainerson') && paper.txt.includes('Party mix glitter') && paper.txt.includes('A2 (#10)') && paper.txt.includes('#7 tip labially') && paper.txt.includes('Please make the pontic match the neighbours.'), '… the patient, the acrylic color, “A2 (#10)” (the shade first), “#7 tip labially” and the special instructions on their lines');
   const boxes = await p.evaluate(() => rxFill(RXE.c, RXE.rx).box.sort().join());
   check(['d.hawley.U', 'd.hawley.L', 'cl.adams.U', 'cl.ball.U', 'acc.finger.U', 'acr.pontic.U', 'acr.color.U', 'acr.color.L', 'flr.c3.L', 'pads.meshEach.L', 'wire.solid.L', 'rh.ideal'].every(k => boxes.split(',').includes(k)) && paper.rings === 1, 'the form’s circles: Hawley U & L, Adams and Ball U, finger spring, pontic, both colors, the FLR’s placement, pads and wire, reset ideally — and UR1 ringed on the reset diagram');
   await p.screenshot({ path: OUT + '/v33-rxr-paper.png' });
@@ -192,7 +192,7 @@ const has = cmd => { try { execFileSync('which', [cmd], { stdio: 'ignore' }); re
   if (has('qpdf')) { let ok = true; try { execFileSync('qpdf', ['--check', pdf], { stdio: 'pipe' }); } catch (e) { ok = e.status === 3; } check(ok, 'qpdf --check: no errors'); }
   if (has('pdfinfo')) check(/Pages:\s+2/.test(execFileSync('pdfinfo', [pdf]).toString()), 'both of Specialty’s pages (page 2: their IR Express notes)');
   const txt = pdfText(pdf);
-  if (txt != null) check(/Rhea Retainerson/.test(txt) && /DEMO-0000/.test(txt) && /Party mix glitter/.test(txt) && /#10 shade A2/.test(txt) && /s\/ Amir Akhavan/.test(txt) && /IR EXPRESS/.test(txt), 'the PDF’s text: patient, account #, acrylic color, pontic shade, signature — and Specialty’s page 2');
+  if (txt != null) check(/Rhea Retainerson/.test(txt) && /DEMO-0000/.test(txt) && /Party mix glitter/.test(txt) && /A2 \(#10\)/.test(txt) && /s\/ Amir Akhavan/.test(txt) && /IR EXPRESS/.test(txt), 'the PDF’s text: patient, account #, acrylic color, pontic shade, signature — and Specialty’s page 2');
   if (has('pdftoppm')) { execFileSync('pdftoppm', ['-r', '110', '-png', '-f', '1', '-l', '1', '-singlefile', pdf, OUT + '/v33-rxr-pdf']); check(fs.existsSync(OUT + '/v33-rxr-pdf.png'), 'the PDF renders (v33-rxr-pdf.png)'); }
   const [pop] = await Promise.all([ctx.waitForEvent('page'), p.click('#drawer [data-ds=rxRet] [data-act=rxOpen]')]);
   check(/^blob:/.test(pop.url()), 'Open to print: a new tab with the PDF'); await pop.close();

@@ -366,7 +366,8 @@ function rxWidth(s, font, size) { const W = RX_FONT_W[font]; let w = 0; for (con
 /* WinAnsi (cp1252) byte for a character; '?' when the standard fonts don't have it */
 const RX_CP = { 0x20AC: 128, 0x201A: 130, 0x0192: 131, 0x201E: 132, 0x2026: 133, 0x2020: 134, 0x2021: 135, 0x02C6: 136, 0x2030: 137, 0x0160: 138, 0x2039: 139, 0x0152: 140, 0x017D: 142, 0x2018: 145, 0x2019: 146, 0x201C: 147, 0x201D: 148, 0x2022: 149, 0x2013: 150, 0x2014: 151, 0x02DC: 152, 0x2122: 153, 0x0161: 154, 0x203A: 155, 0x0153: 156, 0x017E: 158, 0x0178: 159 };
 function rxByte(ch) { const u = ch.codePointAt(0); if (u >= 32 && u < 127) return u; if (u >= 160 && u <= 255) return u; return RX_CP[u] || 63; }
-function rxText(s) { let o = ''; for (const ch of String(s == null ? '' : s)) { if (ch === '?' || rxByte(ch) !== 63) { o += ch; continue; } const b = ch.normalize('NFD').charAt(0); o += b && b !== ch && rxByte(b) !== 63 ? b : '?'; } return o; }
+/* (NFC first: a name pasted with its accents as separate marks prints as é, not "e?") */
+function rxText(s) { let o = ''; for (const ch of String(s == null ? '' : s).normalize('NFC')) { if (ch === '?' || rxByte(ch) !== 63) { o += ch; continue; } const b = ch.normalize('NFD').charAt(0); o += b && b !== ch && rxByte(b) !== 63 ? b : '?'; } return o; }
 /* shrink to fit the line (down to 6 pt), then cut with … */
 function rxFit(s, font, size, maxW) {
   s = rxText(String(s || '').replace(/\s+/g, ' ').trim()); let z = size;
@@ -378,9 +379,17 @@ function rxFit(s, font, size, maxW) {
    instructions; circ = grid labels to ring ([grid, tooth]) */
 /* the special instructions: the sentences the answers write (K.autoNotes), then what was typed */
 function rxNotesAll(rx, K) { K = K || rxK(rx); return [].concat(K.autoNotes ? K.autoNotes(rx) : [], rx.notes ? [rx.notes] : []).join('\n'); }
+/* the case's own lines on the forms, by name: one cut short on the paper goes in full into the special instructions */
+const RX_LINE_NAMES = { patient: 'Patient', scanOther: 'Scanner', expOther: 'Expansion screw', claspOther: 'Other clasping', fingerTxt: 'Finger spring', solderTxt: 'Soldered spring',
+  closingTxt: 'Closing spring', spursTxt: 'Holding spurs', screwTxt: 'Space closing screw', saddleTxt: 'Acrylic saddle', ponticTxt: 'Pontic shade', colorU: 'Acrylic color, upper',
+  colorL: 'Acrylic color, lower', screw: 'Screw', smTxt: 'Space maintainer', fmTxt: 'Facemask hooks', colorTxt: 'Acrylic color', screwOther: 'Other screw design' };
 function rxFill(c, rx) {
   rx = rxCanon(rx); const K = rxK(rx), F = RX_FORMS[K.form], o = rxOffice(), T = F.text, txt = [], box = new Set(), circ = [];
-  const put = (k, v, font, size) => { v = String(v || '').trim(); if (!v || !T[k]) return; const f = rxFit(v, font || 'H', size || 10, T[k].x1 - T[k].x0); txt.push({ x: T[k].x0, y: T[k].y + 2.2, s: f.s, z: f.z, font: font || 'H' }); };
+  // a line too long for its blank is shrunk, then cut with …; what was cut goes in full into the special instructions so the lab still
+  // gets all of it (found 4 Oct 2026: typed springs and screws, and four pontics' shade, ran off the Retainer Rx's short lines)
+  const cut = [];
+  const put = (k, v, font, size) => { v = String(v || '').replace(/\s+/g, ' ').trim(); if (!v || !T[k]) return; const f = rxFit(v, font || 'H', size || 10, T[k].x1 - T[k].x0); txt.push({ x: T[k].x0, y: T[k].y + 2.2, s: f.s, z: f.z, font: font || 'H' });
+    if (RX_LINE_NAMES[k] && f.s !== rxText(v)) cut.push(RX_LINE_NAMES[k] + ': ' + v); };
   put('doctor', o.doctor); put('acct', o.acct); put('address', o.address); put('city', o.city); put('state', o.state); put('zip', o.zip); put('phone', o.phone); put('email', o.email);
   put('patient', c.patient, 'B', 10.5);
   put('shipped', usDate(rx.shipped || todayISO())); put('needed', usDate(rxNeeded(c, rx)), 'B');
@@ -391,7 +400,7 @@ function rxFill(c, rx) {
   K.fill(c, rx, put, box, circ);
   // special instructions on the form's three lines (smaller and more lines if it's long)
   // (at most 7 lines: many short lines are joined with " · ", and what still doesn't fit ends in …)
-  const notes = [], allNotes = rxNotesAll(rx, K);
+  const notes = [], allNotes = [rxNotesAll(rx, K)].concat(cut).filter(Boolean).join('\n');
   if (allNotes) { const W = 556, L = F.notes;
     const wrap = (pars, z) => { const lines = []; pars.forEach(par => { let cur = ''; par.split(' ').forEach(w => { const t = cur ? cur + ' ' + w : w; if (rxWidth(t, 'H', z) <= W) cur = t; else { if (cur) lines.push(cur); cur = w; } }); lines.push(cur); }); return lines; };
     const lay = pars => { let z = 10, lines = wrap(pars, z); while (lines.length > L.length && z > 6.5) { z -= .5; lines = wrap(pars, z); } return { z, lines }; };
@@ -668,11 +677,11 @@ function rxAcrNowHTML(rx) {
   return u && u === l && !!rx.colorU === !!rx.colorL ? '<b>Upper & lower:</b> ' + one('U') : '<b>Upper:</b> ' + one('U') + ' · <b>Lower:</b> ' + one('L');
 }
 /* the color's cost on the estimate: Specialty colors free; glitter, glow and swirl extra; a custom design not on the list */
-function rxAcrCost(col, w, add, inc) {
-  const a = typeof acrylicOf === 'function' ? acrylicOf(col) : null, g = a && a.g ? a.g : /glitter|glow|swirl/i.test(col) ? 'glitter' : 'std';
-  if (g === 'glitter' || g === 'glow' || g === 'swirl') add('Acrylic: ' + col + ' · ' + w, 'glitter');
-  else if (g === 'design') add('Acrylic: ' + col + ' · ' + w, 'acrDesign', 1, 'a custom design');
-  else inc('Acrylic: ' + col + ' · ' + w, 'Free (Specialty colors)');
+function rxAcrCost(col, w, add, inc) { // (w: the arch, or '' — the Metal Rx's one color)
+  const a = typeof acrylicOf === 'function' ? acrylicOf(col) : null, g = a && a.g ? a.g : /glitter|glow|swirl/i.test(col) ? 'glitter' : 'std', at = w ? ' · ' + w : '';
+  if (g === 'glitter' || g === 'glow' || g === 'swirl') add('Acrylic: ' + col + at, 'glitter');
+  else if (g === 'design') add('Acrylic: ' + col + at, 'acrDesign', 1, 'a custom design');
+  else inc('Acrylic: ' + col + at, 'Free (Specialty colors)');
 }
 function rxLeftHTML() {
   const K = RXE.k, rx = RXE.rx, c = RXE.c, o = rxOffice(), miss = rxOfficeMissing(), us = rxUsualOf(K, c);
@@ -838,7 +847,8 @@ function rxOnClick(e) {
       const us = rxUsualOf(K, RXE.c), all = rxDefaultsAll(); all[us[0]] = rxCanon(d);
       act(() => B.saveSettings({ rxDefaults: JSON.stringify(all) }), 'Saved as ' + us[1] + ' — new ' + us[2] + ' start from it'); break; }
     case 'useDef': { const us = rxUsualOf(K, RXE.c), d = rxDefaults(us[0]); if (!d) break; const keep = {}; K.defDrop.concat(['needed', 'shipped', 'notes', 'draw']).forEach(k => { if (rx[k] != null && rx[k] !== '') keep[k] = rx[k]; });
-      const next = Object.assign({}, d, keep); if (K.defKeep) K.defKeep(rx, next); RXE.rx = rxCanon(next); $('#rxL', w).innerHTML = rxLeftHTML(); rxSync(true); toast('Started from ' + us[1]); break; }
+      // (fitted to the case first, as a new Rx is — the Retainer Rx: the case's arches, a finger spring's flipper — then this Rx's own pontics and springs back on)
+      let next = Object.assign({}, d, keep); if (K.forCase) next = K.forCase(RXE.c, next, d); if (K.defKeep) K.defKeep(rx, next); RXE.rx = rxCanon(next); $('#rxL', w).innerHTML = rxLeftHTML(); rxSync(true); toast('Started from ' + us[1]); break; }
     case 'clearAll': if (a.dataset.sure !== '1') { a.dataset.sure = '1'; a.textContent = 'Tap again to clear everything'; setTimeout(() => { a.dataset.sure = ''; a.textContent = 'Clear the Rx'; }, 3000); break; }
       RXE.rx = rxCanon({ form: K.form }); $('#rxL', w).innerHTML = rxLeftHTML(); rxSync(true); break;
   }

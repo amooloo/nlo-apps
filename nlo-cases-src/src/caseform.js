@@ -766,8 +766,14 @@ function wireCaseForm(root, isNew) {
       $$('.pick', atRow).forEach(b => { b.style.display = fit.includes(b.dataset.v) ? '' : 'none'; if (now !== was) b.setAttribute('aria-pressed', String(b.dataset.v === now)); });
     }
     if (typeChanged) {
-      const type = o.type, stage = $r('#cf-stage');
+      const type = o.type, stage = $r('#cf-stage'), was = stage.value, wasL = (stage.selectedOptions[0] || {}).textContent || '';
       stage.innerHTML = type ? FLOWS[TYPE[type].flow].stages.map(([k, l]) => '<option value="' + k + '">' + esc(l) + '</option>').join('') : '';
+      // editing: the case keeps its step when the new type has it (Oliv → Angel, or its own tile tapped again), else the step of the
+      // same name (Manufacturing → Design approved for a MARPE), else the first (found 4 Oct 2026: tapping a case's tile in Edit put it
+      // back at its first step, and saving moved an Oliv case in Manufacturing back to To submit)
+      // (and back to a type that has the step the case was saved at: that step again)
+      if (!isNew && type && was) { const ks = FLOWS[TYPE[type].flow].stages.map(s => s[0]), saved = (S.editBase || {}).stage;
+        stage.value = ks.includes(was) ? was : ks.includes(saved) ? saved : stageFromSection(type, wasL); if (!stage.value) stage.selectedIndex = 0; }
       if (isNew && type) { stage.dataset.manual = ''; $r('#cf-assignee').dataset.manual = ''; $r('#cf-assignee').value = defaultAssignee(type); }
       if (isNew && ['aligner', 'braces', 'appliance', 'marpe', 'retainer', 'models'].includes(g) && !pressed(root, 'scanner').length) setPick(root, 'scanner', 'Allied Star', true);
       if (g === 'appliance' || g === 'marpe') routeLab(root, isNew);
