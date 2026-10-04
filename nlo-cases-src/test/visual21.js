@@ -23,6 +23,10 @@ const OUT = process.argv[2] || 'shots';
   check((await labs()).find(x => x.on).v === 'Partners Dental Solutions', 'tapping the Partners logo picks Partners');
   await p.click('#ncForm .tt[data-tile=marpe]'); await p.waitForTimeout(80);
   check((await labs()).find(x => x.on).v === 'Partners Dental Solutions', 'MARPE: Partners picked, as its logo');
+  // Partners' new logo (Amir, 4 Oct 2026): its lettering with the white made see-through (the old one was a black block), 32 px tall on its button
+  const pl = await p.$eval('#ncForm .pickRow[data-g=lab] .pick[data-v="Partners Dental Solutions"] img', i => { const c = document.createElement('canvas'); c.width = i.naturalWidth; c.height = i.naturalHeight; const x = c.getContext('2d'); x.drawImage(i, 0, 0);
+    const a = (u, v) => x.getImageData(u, v, 1, 1).data[3]; return { nat: i.naturalWidth + 'x' + i.naturalHeight, h: Math.round(i.getBoundingClientRect().height), corners: [a(0, 0), a(i.naturalWidth - 1, 0), a(0, i.naturalHeight - 1), a(i.naturalWidth - 1, i.naturalHeight - 1)] }; });
+  check(pl.nat === '185x84' && pl.h === 32 && pl.corners.every(v => v === 0), 'Partners: the new logo (see-through corners, no black block), 32 px tall on its Lab button (' + pl.nat + ', corners ' + pl.corners.join('/') + ')');
   await p.click('.modal [data-act=closeModal]');
 
   // lists and board: appliance cases show their lab's logo; no lab yet keeps the name
@@ -35,12 +39,17 @@ const OUT = process.argv[2] || 'shots';
   check(marks.some(m => m.lab === 'In-house (NL Lab)' && m.logo === 'nlo' && m.ok), 'list: an in-house appliance shows the Next Level logo');
   check(marks.some(m => m.type === 'appliance' && !m.lab && m.pill), 'list: an appliance with no lab yet keeps its name');
   check(marks.filter(m => m.type === 'marpe').every(m => m.logo === 'lab-partners' && m.ok), 'list: MARPE cases show the Partners logo');
+  const lh = await p.$$eval('#listBody .tlogo.lg-lab-partners img', is => is.map(i => Math.round(i.getBoundingClientRect().height)));
+  check(lh.length && lh.every(h => h === 30), 'list: the Partners logo is 30 px tall (' + lh.join(', ') + ')');
   await p.screenshot({ path: OUT + '/v21-list.png', clip: { x: 232, y: 0, width: 1128, height: 700 } });
   await p.click('#nav-board'); await p.click('.boardTabs [data-k=appliance]'); await p.waitForSelector('.kc'); await p.waitForTimeout(150);
   const kc = await p.$$eval('.kc .ft', fs => fs.map(f => { const i = f.querySelector('.tlogo img'); return i ? i.dataset.logo + (i.complete && i.naturalWidth > 0 ? '' : ' NOT LOADED') : (f.querySelector('.badge') ? 'name' : 'none'); }));
   console.log('   board (appliances):', kc.join(' | '));
   check(kc.includes('lab-specialty') && kc.includes('nlo') && !kc.some(x => /NOT LOADED/.test(x)), 'board (Appliances): the lab logos on the cards');
   await p.screenshot({ path: OUT + '/v21-board.png', clip: { x: 232, y: 60, width: 1128, height: 520 } });
+  await p.click('.boardTabs [data-k=marpe]'); await p.waitForSelector('.kc .tlogo.lg-lab-partners img'); await p.waitForTimeout(150);
+  const bh = await p.$$eval('.kc .tlogo.lg-lab-partners img', is => is.map(i => i.complete && i.naturalWidth > 0 ? Math.round(i.getBoundingClientRect().height) : 0));
+  check(bh.length && bh.every(h => h === 22), 'board (MARPE): the Partners logo on every card, 22 px tall (' + bh.join(', ') + ')');
   // phone: no sideways scrolling in the form's Lab row
   await p.setViewportSize({ width: 390, height: 844 }); await p.evaluate(() => newCaseModal()); await p.waitForSelector('#ncForm'); await p.click('#ncForm .tt[data-tile=appliance]'); await p.waitForTimeout(100);
   check(await p.evaluate(() => document.documentElement.scrollWidth <= 390 && Array.from(document.querySelectorAll('#ncForm .pickRow[data-g=lab] .pick')).every(b => b.getBoundingClientRect().right <= window.innerWidth)), 'phone: the lab logos fit');

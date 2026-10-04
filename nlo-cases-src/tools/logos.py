@@ -25,13 +25,13 @@ def trim(im, pad=2):
     box = (max(xs.min() - pad, 0), max(ys.min() - pad, 0), min(xs.max() + 1 + pad, im.width), min(ys.max() + 1 + pad, im.height))
     return im.crop(box)
 
-OPAQUE = {'lab-partners'}
+OPAQUE = set()  # (Partners' old logo sat on a black block and was kept opaque; its new one, 4 Oct 2026, is lettering on white)
+SNAP_WHITE = {'lab-partners'}  # its white is a faint grey speckle (244–254), cleaned like a JPEG's so it goes fully see-through
 out = {}
 for src in sorted((root / 'logos').glob('*-source.*')):
     key = src.name.split('-source')[0]
-    # Partners' wordmark sits on its own black block: kept as is (white-to-transparent would let the button colour show through its letters)
     raw = Image.open(src)
-    if src.suffix.lower() in ('.jpg', '.jpeg'):   # JPEG noise in the white around a logo: snap near-white to white so it goes fully transparent
+    if src.suffix.lower() in ('.jpg', '.jpeg') or key in SNAP_WHITE:   # JPEG noise in the white around a logo: snap near-white to white so it goes fully transparent
         arr = np.asarray(raw.convert('RGB')).copy(); arr[arr.min(axis=2) > 243] = 255; raw = Image.fromarray(arr)
     if key.startswith('arch-'):  # Amir's clear-aligner arch pictures: deepen the tray's grey edges so they read at button size
         raw = Image.eval(raw.convert('RGB'), lambda v: max(0, round(255 - (255 - v) * 2.2)))

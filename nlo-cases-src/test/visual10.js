@@ -34,7 +34,9 @@ const OUT = process.argv[2] || 'shots';
   await p.waitForSelector('.toast:has-text("Applied")'); await p.waitForTimeout(500);
   console.log('card after apply:', await p.locator('#mailCard').count());
   // Team & security
-  await p.click('#nav-admin'); await p.waitForSelector('#mailAdmin .mlBeat'); await p.locator('#mailAdmin').scrollIntoViewIfNeeded();
+  await p.click('#nav-admin'); await p.waitForSelector('#mailAdmin .mlBeat');
+  // Team & security redraws once more as its data comes in, which can swap the card out mid-scroll: try again (4 Oct 2026)
+  for (let i = 0; ; i++) { try { await p.locator('#mailAdmin').scrollIntoViewIfNeeded({ timeout: 3000 }); break; } catch (e) { if (i >= 5) throw e; await p.waitForTimeout(250); } }
   await p.screenshot({ path: OUT + '/v10-admin-mail.png' });
   await p.click('#mailAdmin [data-act=mailScript]'); await p.waitForSelector('#mlScript');
   const sc = await p.inputValue('#mlScript');
