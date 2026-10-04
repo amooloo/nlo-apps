@@ -635,6 +635,8 @@ a.btn{text-decoration:none}
 .print-label .p-arch-night{font-size:8pt;font-style:italic}
 .print-label .p-divider{width:1.5pt;background:#000;align-self:stretch}
 .print-label .p-at-center{display:flex;align-items:center;justify-content:center;font-size:14pt;font-weight:700}
+.print-label .p-at-center>span{text-align:center}
+.print-label .p-at-center small{display:block;font-size:10pt;font-weight:600;margin-top:3pt}
 .print-label .p-box-body{display:flex;flex-direction:column;justify-content:center;gap:3pt}
 .print-label .p-box-row{display:flex;align-items:baseline;gap:5pt}
 .print-label .p-box-lbl{font-size:8pt;font-weight:700;text-transform:uppercase;width:36pt}

@@ -532,7 +532,7 @@ function recFlag(c) {
   return miss.length ? '<span class="flag rec" title="Needed before it goes to the lab">Needs ' + esc(miss.map(x => x[2]).join(' + ')) + '</span>'
     : '<span class="flag ready" title="STL scan and CBCT on file">' + ic('done', 13) + 'Records on file</span>';
 }
-/* the lab put the case on hold (Partners' daily email); cleared by a later shipment or by hand */
+/* the lab put the case on hold (the lab's daily email: Partners, Specialty); cleared by a later shipment or by hand */
 function isHeld(c) { return !!(c.labHold && typeof c.labHold === 'object'); }
 function holdText(c) { return 'On hold at the lab' + (c.labHold.date ? ' since ' + c.labHold.date : '') + (c.labHold.reason ? ': ' + c.labHold.reason : ''); }
 function holdFlag(c) { return isHeld(c) ? '<span class="flag rec" title="' + esc(holdText(c)) + '">Lab hold</span>' : ''; }

@@ -23,9 +23,14 @@ function genLabels(o) {
   const uOn = o.uOn && o.uTotal > 0, lOn = o.lOn && o.lTotal > 0;
   const uStart = Math.max(1, o.uStart || 1), lStart = Math.max(1, o.lStart || 1);
   const uCount = uOn ? Math.max(0, o.uTotal - uStart + 1) : 0, lCount = lOn ? Math.max(0, o.lTotal - lStart + 1) : 0;
+  // attachment templates: one per arch (Amir, 4 Oct 2026: upper & lower "is 2 templates") — the arches the case's answer names that
+  // this print has; with no answer on the case (the box ticked by hand), one template, its arch not named
+  const ans = /^(U|L|UL)$/.test(o.atArch || '') ? o.atArch : '';
+  const atA = !o.at ? [] : ans ? ['U', 'L'].filter(A => ans.includes(A) && (A === 'U' ? uOn : lOn)) : [''];
+  const at = { atN: atA.length, atArch: atA.join('') };
   const base = { patient: o.patient || 'Patient', setType: o.setType || 'Initial Set', upperEnabled: uOn, lowerEnabled: lOn, upperTotal: o.uTotal, lowerTotal: o.lTotal };
-  const out = [Object.assign({ type: 'Box', upperStart: uStart, lowerStart: lStart, upperCount: uCount, lowerCount: lCount, hasAT: !!o.at, totalAlgn: uCount + lCount + (o.at ? 1 : 0), switchDate: '' }, base)];
-  if (o.at) out.push(Object.assign({ type: 'AT', upperStage: null, lowerStage: null, switchDate: o.start ? fmtLabelDate(o.start) : '' }, base));
+  const out = [Object.assign({ type: 'Box', upperStart: uStart, lowerStart: lStart, upperCount: uCount, lowerCount: lCount, hasAT: atA.length > 0, totalAlgn: uCount + lCount + atA.length, switchDate: '' }, at, base)];
+  if (atA.length) out.push(Object.assign({ type: 'AT', upperStage: null, lowerStage: null, switchDate: o.start ? fmtLabelDate(o.start) : '' }, at, base));
   const n = Math.max(uCount, lCount);
   for (let i = 0; i < n; i++) {
     const u = uStart + i, l = lStart + i;
@@ -35,6 +40,8 @@ function genLabels(o) {
   return out;
 }
 
+/* "Upper & Lower", "Upper", "Lower" — the arches the attachment templates are for */
+function atArchWords(a) { return a === 'UL' ? 'Upper & Lower' : a === 'U' ? 'Upper' : a === 'L' ? 'Lower' : ''; }
 /* one label's markup (mirrors the Label Maker's buildPrintLabel; every value escaped) */
 function labelHTML(lbl, idx) {
   const top = '<div class="p-top"><div><div class="p-patient">' + esc(lbl.patient) + '</div><div class="p-set-type">' + esc(lbl.setType) + '</div></div>' + LABEL_LOGO_IMG + '</div>';
@@ -44,12 +51,13 @@ function labelHTML(lbl, idx) {
     return '<div class="print-label print-box">' + top + '<div class="p-box-body">' +
       (lbl.upperEnabled ? '<div class="p-box-row"><span class="p-box-lbl">Upper</span><span class="p-box-val">' + lbl.upperCount + ' aligner' + s(lbl.upperCount) + '</span><span class="p-box-sub">' + range(lbl.upperStart, lbl.upperTotal) + '</span></div>' : '') +
       (lbl.lowerEnabled ? '<div class="p-box-row"><span class="p-box-lbl">Lower</span><span class="p-box-val">' + lbl.lowerCount + ' aligner' + s(lbl.lowerCount) + '</span><span class="p-box-sub">' + range(lbl.lowerStart, lbl.lowerTotal) + '</span></div>' : '') +
-      (lbl.hasAT ? '<div class="p-box-row"><span class="p-box-lbl">AT</span><span class="p-box-val">1 template</span><span class="p-box-sub">Before Stage 1</span></div>' : '') +
+      (lbl.hasAT ? '<div class="p-box-row"><span class="p-box-lbl">AT</span><span class="p-box-val">' + (lbl.atN || 1) + ' template' + s(lbl.atN || 1) + '</span><span class="p-box-sub">Before Stage 1</span></div>' : '') +
       '<div class="p-box-div"></div><div class="p-box-row"><span class="p-box-lbl">Total</span><span class="p-box-val">' + lbl.totalAlgn + ' aligners</span></div></div>' +
       '<div class="p-bot"><span class="p-wear">' + WEAR_TEXT + '</span></div></div>';
   }
   if (lbl.type === 'AT') {
-    return '<div class="print-label print-at">' + top + '<div class="p-at-center">⬢ Attachment Template</div>' +
+    const aw = atArchWords(lbl.atArch);
+    return '<div class="print-label print-at">' + top + '<div class="p-at-center"><span>⬢ Attachment Template' + s(lbl.atN || 1) + (aw ? '<small>' + esc(aw) + '</small>' : '') + '</span></div>' +
       '<div class="p-bot"><span class="p-wear">' + WEAR_TEXT + '</span>' + (lbl.switchDate ? '<span class="p-switch">Start: ' + esc(lbl.switchDate) + '</span>' : '<span class="p-num">Label 1</span>') + '</div></div>';
   }
   const arch = (on, stage, total, title) => !on ? '' : '<div class="p-arch"><div class="p-arch-title">' + title + '</div>' +
@@ -61,8 +69,8 @@ function labelHTML(lbl, idx) {
     '<div class="p-bot"><span class="p-wear">' + WEAR_TEXT + '</span>' + (lbl.switchDate ? '<span class="p-switch">Switch: ' + esc(lbl.switchDate) + '</span>' : '<span class="p-num">Label ' + (idx + 1) + '</span>') + '</div></div>';
 }
 function labelLine(lbl) {
-  if (lbl.type === 'Box') return 'Box label · ' + (lbl.upperEnabled ? 'Upper ' + lbl.upperCount : '') + (lbl.upperEnabled && lbl.lowerEnabled ? ' · ' : '') + (lbl.lowerEnabled ? 'Lower ' + lbl.lowerCount : '') + ' · Total ' + lbl.totalAlgn;
-  if (lbl.type === 'AT') return 'Attachment template' + (lbl.switchDate ? ' · start ' + lbl.switchDate : '');
+  if (lbl.type === 'Box') return 'Box label · ' + (lbl.upperEnabled ? 'Upper ' + lbl.upperCount : '') + (lbl.upperEnabled && lbl.lowerEnabled ? ' · ' : '') + (lbl.lowerEnabled ? 'Lower ' + lbl.lowerCount : '') + (lbl.hasAT ? ' · AT ' + (lbl.atN || 1) : '') + ' · Total ' + lbl.totalAlgn;
+  if (lbl.type === 'AT') return 'Attachment template' + ((lbl.atN || 1) > 1 ? 's' : '') + (atArchWords(lbl.atArch) ? ' · ' + atArchWords(lbl.atArch).toLowerCase() : '') + (lbl.switchDate ? ' · start ' + lbl.switchDate : '');
   const a = (on, st, tot, l) => !on ? '' : l + ' ' + (st !== null ? st + '/' + tot : 'complete');
   return 'Stage ' + (lbl.stageIndex + 1) + ' · ' + [a(lbl.upperEnabled, lbl.upperStage, lbl.upperTotal, 'U'), a(lbl.lowerEnabled, lbl.lowerStage, lbl.lowerTotal, 'L')].filter(Boolean).join(' · ') + (lbl.switchDate ? ' · switch ' + lbl.switchDate : '');
 }
@@ -74,8 +82,8 @@ function labelsCSV(list) {
     if (lbl.type === 'Box') {
       const range = (a, b) => a === b ? 'Stage ' + b : 'Stages ' + a + '-' + b;
       l1 = 'UPPER: ' + lbl.upperCount + ' aligners (' + range(lbl.upperStart, lbl.upperTotal) + ')'; r1 = 'LOWER: ' + lbl.lowerCount + ' aligners (' + range(lbl.lowerStart, lbl.lowerTotal) + ')';
-      if (lbl.hasAT) l2 = 'AT: 1 template (Before Stage 1)'; r2 = 'TOTAL: ' + lbl.totalAlgn + ' aligners';
-    } else if (lbl.type === 'AT') l1 = 'Attachment Template';
+      if (lbl.hasAT) l2 = 'AT: ' + (lbl.atN || 1) + ' template' + ((lbl.atN || 1) > 1 ? 's' : '') + ' (Before Stage 1)'; r2 = 'TOTAL: ' + lbl.totalAlgn + ' aligners';
+    } else if (lbl.type === 'AT') l1 = 'Attachment Template' + ((lbl.atN || 1) > 1 ? 's' : '') + (atArchWords(lbl.atArch) ? ' (' + atArchWords(lbl.atArch) + ')' : '');
     else {
       if (lbl.upperEnabled) l1 = lbl.upperStage !== null ? 'UPPER: Stage ' + lbl.upperStage + ' of ' + lbl.upperTotal : 'UPPER: Complete';
       if (lbl.lowerEnabled) r1 = lbl.lowerStage !== null ? 'LOWER: Stage ' + lbl.lowerStage + ' of ' + lbl.lowerTotal : 'LOWER: Complete';
@@ -101,7 +109,7 @@ function printLabelPages(pages, onDone) {
 
 function labelsModal(c) {
   const uT = Number(c.alU) || 0, lT = Number(c.alL) || 0;
-  const st = { patient: c.patient || '', setType: labelSetType(c), uOn: uT > 0, lOn: lT > 0, uTotal: uT, lTotal: lT, uStart: 1, lStart: 1, at: hasAT(c), days: 7, start: c.deliveryDate || '' };
+  const st = { patient: c.patient || '', setType: labelSetType(c), uOn: uT > 0, lOn: lT > 0, uTotal: uT, lTotal: lT, uStart: 1, lStart: 1, at: hasAT(c), atArch: c.atTemplates || '', days: 7, start: c.deliveryDate || '' };
   let labels = [], off = new Set();
   const num = (id, v, lbl) => '<div class="field"><label for="' + id + '">' + lbl + '</label><input id="' + id + '" type="number" inputmode="numeric" min="1" max="99" value="' + v + '"></div>';
   openModal('<h3>Aligner labels</h3><div class="lsub">The Label Maker’s labels, filled in from this case. One 2×4 in label per page on the Zebra; check each value before printing.</div>' +

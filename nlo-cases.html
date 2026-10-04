@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-AeIQwXBINe0gxGyGSJXLiY8a3M5g4hglGhSWob2kkLY=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-y1NEECaoZoWmXiVruYeT+DS0Vcnhj0KiTloArV8x0gY=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO Cases</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -649,6 +649,8 @@ a.btn{text-decoration:none}
 .print-label .p-arch-night{font-size:8pt;font-style:italic}
 .print-label .p-divider{width:1.5pt;background:#000;align-self:stretch}
 .print-label .p-at-center{display:flex;align-items:center;justify-content:center;font-size:14pt;font-weight:700}
+.print-label .p-at-center>span{text-align:center}
+.print-label .p-at-center small{display:block;font-size:10pt;font-weight:600;margin-top:3pt}
 .print-label .p-box-body{display:flex;flex-direction:column;justify-content:center;gap:3pt}
 .print-label .p-box-row{display:flex;align-items:baseline;gap:5pt}
 .print-label .p-box-lbl{font-size:8pt;font-weight:700;text-transform:uppercase;width:36pt}
@@ -3399,7 +3401,7 @@ function recFlag(c) {
   return miss.length ? '<span class="flag rec" title="Needed before it goes to the lab">Needs ' + esc(miss.map(x => x[2]).join(' + ')) + '</span>'
     : '<span class="flag ready" title="STL scan and CBCT on file">' + ic('done', 13) + 'Records on file</span>';
 }
-/* the lab put the case on hold (Partners' daily email); cleared by a later shipment or by hand */
+/* the lab put the case on hold (the lab's daily email: Partners, Specialty); cleared by a later shipment or by hand */
 function isHeld(c) { return !!(c.labHold && typeof c.labHold === 'object'); }
 function holdText(c) { return 'On hold at the lab' + (c.labHold.date ? ' since ' + c.labHold.date : '') + (c.labHold.reason ? ': ' + c.labHold.reason : ''); }
 function holdFlag(c) { return isHeld(c) ? '<span class="flag rec" title="' + esc(holdText(c)) + '">Lab hold</span>' : ''; }
@@ -4515,7 +4517,8 @@ const APPL_ONE = ['Herbst', 'Space Closing Herbst', 'MARA', 'MSE', 'MARPE', 'Rap
 /* lab routing from the AISA KB / SOP manual: MSE → Specialty Orthodontic Lab (SOP-CL-020); MARPE → Partners Dental Solutions (SOP-CL-029,
    as Partner Dental Studios — the lab rebranded; Amir, 3 Oct 2026);
    D2 distalizer → in-house, no outside prescription (lab workflow, Layer 3 exception); Herbst, MARA → Specialty; finger spring →
-   Partners (KB lab routing); Hawley retainers → Specialty (Amir, 4 Oct 2026, with Specialty's Retainer Rx in rxret.js; the KB said
+   Specialty with the Hawleys (Amir, 4 Oct 2026: "finger springs and hawley should be defaulted to specialty"; Specialty's Retainer Rx
+   has the finger spring; the KB said Partners); Hawley retainers → Specialty (Amir, 4 Oct 2026, with Specialty's Retainer Rx in rxret.js; the KB said
    Partners); RPE → Specialty (Amir, 4 Oct 2026: "Switch to Specialty", with Specialty's Metal Rx in rxmetal.js; the KB said
    Partners), and "Other metal appliance" (anything else on the Metal Rx: a TPA, Nance, lingual arch, space maintainer, distalizer,
    habit appliance…) → Specialty; the Schwarz → Specialty on their Functional Rx (Amir, 4 Oct 2026, rxfun.js; the KB said Partners) */
@@ -4523,7 +4526,7 @@ const LAB_SPEC = 'Specialty Orthodontic Lab', LAB_PART = 'Partners Dental Soluti
 /* each lab's logo (logos.js; Amir, 3 Oct 2026): on the Lab choices and, for appliance and MARPE cases, on the board and lists */
 const LAB_LOGO = { [LAB_SPEC]: 'lab-specialty', [LAB_PART]: 'lab-partners', [LAB_IN]: 'nlo' };
 const LAB_FOR = { 'Herbst': LAB_SPEC, 'Herbst with Rollo Band': LAB_SPEC, 'Space Closing Herbst': LAB_SPEC, 'MARA': LAB_SPEC, 'MSE': LAB_SPEC, 'MARPE': LAB_PART,
-  'Rapid Palatal Expander (RPE)': LAB_SPEC, 'D2 distalizer': LAB_IN, 'Finger spring with no labial bow': LAB_PART, 'Hawley retainers': LAB_SPEC, 'Schwartz': LAB_SPEC,
+  'Rapid Palatal Expander (RPE)': LAB_SPEC, 'D2 distalizer': LAB_IN, 'Finger spring with no labial bow': LAB_SPEC, 'Hawley retainers': LAB_SPEC, 'Schwartz': LAB_SPEC,
   'Other metal appliance': LAB_SPEC };
 /* Dr. A's instructions: midline and overbite are Maintain / Improve; the rest are picture tiles.
    v = the full instruction saved on the case (same wording as the Tally form), l = the tile's short label.
@@ -5516,9 +5519,14 @@ function genLabels(o) {
   const uOn = o.uOn && o.uTotal > 0, lOn = o.lOn && o.lTotal > 0;
   const uStart = Math.max(1, o.uStart || 1), lStart = Math.max(1, o.lStart || 1);
   const uCount = uOn ? Math.max(0, o.uTotal - uStart + 1) : 0, lCount = lOn ? Math.max(0, o.lTotal - lStart + 1) : 0;
+  // attachment templates: one per arch (Amir, 4 Oct 2026: upper & lower "is 2 templates") — the arches the case's answer names that
+  // this print has; with no answer on the case (the box ticked by hand), one template, its arch not named
+  const ans = /^(U|L|UL)$/.test(o.atArch || '') ? o.atArch : '';
+  const atA = !o.at ? [] : ans ? ['U', 'L'].filter(A => ans.includes(A) && (A === 'U' ? uOn : lOn)) : [''];
+  const at = { atN: atA.length, atArch: atA.join('') };
   const base = { patient: o.patient || 'Patient', setType: o.setType || 'Initial Set', upperEnabled: uOn, lowerEnabled: lOn, upperTotal: o.uTotal, lowerTotal: o.lTotal };
-  const out = [Object.assign({ type: 'Box', upperStart: uStart, lowerStart: lStart, upperCount: uCount, lowerCount: lCount, hasAT: !!o.at, totalAlgn: uCount + lCount + (o.at ? 1 : 0), switchDate: '' }, base)];
-  if (o.at) out.push(Object.assign({ type: 'AT', upperStage: null, lowerStage: null, switchDate: o.start ? fmtLabelDate(o.start) : '' }, base));
+  const out = [Object.assign({ type: 'Box', upperStart: uStart, lowerStart: lStart, upperCount: uCount, lowerCount: lCount, hasAT: atA.length > 0, totalAlgn: uCount + lCount + atA.length, switchDate: '' }, at, base)];
+  if (atA.length) out.push(Object.assign({ type: 'AT', upperStage: null, lowerStage: null, switchDate: o.start ? fmtLabelDate(o.start) : '' }, at, base));
   const n = Math.max(uCount, lCount);
   for (let i = 0; i < n; i++) {
     const u = uStart + i, l = lStart + i;
@@ -5528,6 +5536,8 @@ function genLabels(o) {
   return out;
 }
 
+/* "Upper & Lower", "Upper", "Lower" — the arches the attachment templates are for */
+function atArchWords(a) { return a === 'UL' ? 'Upper & Lower' : a === 'U' ? 'Upper' : a === 'L' ? 'Lower' : ''; }
 /* one label's markup (mirrors the Label Maker's buildPrintLabel; every value escaped) */
 function labelHTML(lbl, idx) {
   const top = '<div class="p-top"><div><div class="p-patient">' + esc(lbl.patient) + '</div><div class="p-set-type">' + esc(lbl.setType) + '</div></div>' + LABEL_LOGO_IMG + '</div>';
@@ -5537,12 +5547,13 @@ function labelHTML(lbl, idx) {
     return '<div class="print-label print-box">' + top + '<div class="p-box-body">' +
       (lbl.upperEnabled ? '<div class="p-box-row"><span class="p-box-lbl">Upper</span><span class="p-box-val">' + lbl.upperCount + ' aligner' + s(lbl.upperCount) + '</span><span class="p-box-sub">' + range(lbl.upperStart, lbl.upperTotal) + '</span></div>' : '') +
       (lbl.lowerEnabled ? '<div class="p-box-row"><span class="p-box-lbl">Lower</span><span class="p-box-val">' + lbl.lowerCount + ' aligner' + s(lbl.lowerCount) + '</span><span class="p-box-sub">' + range(lbl.lowerStart, lbl.lowerTotal) + '</span></div>' : '') +
-      (lbl.hasAT ? '<div class="p-box-row"><span class="p-box-lbl">AT</span><span class="p-box-val">1 template</span><span class="p-box-sub">Before Stage 1</span></div>' : '') +
+      (lbl.hasAT ? '<div class="p-box-row"><span class="p-box-lbl">AT</span><span class="p-box-val">' + (lbl.atN || 1) + ' template' + s(lbl.atN || 1) + '</span><span class="p-box-sub">Before Stage 1</span></div>' : '') +
       '<div class="p-box-div"></div><div class="p-box-row"><span class="p-box-lbl">Total</span><span class="p-box-val">' + lbl.totalAlgn + ' aligners</span></div></div>' +
       '<div class="p-bot"><span class="p-wear">' + WEAR_TEXT + '</span></div></div>';
   }
   if (lbl.type === 'AT') {
-    return '<div class="print-label print-at">' + top + '<div class="p-at-center">⬢ Attachment Template</div>' +
+    const aw = atArchWords(lbl.atArch);
+    return '<div class="print-label print-at">' + top + '<div class="p-at-center"><span>⬢ Attachment Template' + s(lbl.atN || 1) + (aw ? '<small>' + esc(aw) + '</small>' : '') + '</span></div>' +
       '<div class="p-bot"><span class="p-wear">' + WEAR_TEXT + '</span>' + (lbl.switchDate ? '<span class="p-switch">Start: ' + esc(lbl.switchDate) + '</span>' : '<span class="p-num">Label 1</span>') + '</div></div>';
   }
   const arch = (on, stage, total, title) => !on ? '' : '<div class="p-arch"><div class="p-arch-title">' + title + '</div>' +
@@ -5554,8 +5565,8 @@ function labelHTML(lbl, idx) {
     '<div class="p-bot"><span class="p-wear">' + WEAR_TEXT + '</span>' + (lbl.switchDate ? '<span class="p-switch">Switch: ' + esc(lbl.switchDate) + '</span>' : '<span class="p-num">Label ' + (idx + 1) + '</span>') + '</div></div>';
 }
 function labelLine(lbl) {
-  if (lbl.type === 'Box') return 'Box label · ' + (lbl.upperEnabled ? 'Upper ' + lbl.upperCount : '') + (lbl.upperEnabled && lbl.lowerEnabled ? ' · ' : '') + (lbl.lowerEnabled ? 'Lower ' + lbl.lowerCount : '') + ' · Total ' + lbl.totalAlgn;
-  if (lbl.type === 'AT') return 'Attachment template' + (lbl.switchDate ? ' · start ' + lbl.switchDate : '');
+  if (lbl.type === 'Box') return 'Box label · ' + (lbl.upperEnabled ? 'Upper ' + lbl.upperCount : '') + (lbl.upperEnabled && lbl.lowerEnabled ? ' · ' : '') + (lbl.lowerEnabled ? 'Lower ' + lbl.lowerCount : '') + (lbl.hasAT ? ' · AT ' + (lbl.atN || 1) : '') + ' · Total ' + lbl.totalAlgn;
+  if (lbl.type === 'AT') return 'Attachment template' + ((lbl.atN || 1) > 1 ? 's' : '') + (atArchWords(lbl.atArch) ? ' · ' + atArchWords(lbl.atArch).toLowerCase() : '') + (lbl.switchDate ? ' · start ' + lbl.switchDate : '');
   const a = (on, st, tot, l) => !on ? '' : l + ' ' + (st !== null ? st + '/' + tot : 'complete');
   return 'Stage ' + (lbl.stageIndex + 1) + ' · ' + [a(lbl.upperEnabled, lbl.upperStage, lbl.upperTotal, 'U'), a(lbl.lowerEnabled, lbl.lowerStage, lbl.lowerTotal, 'L')].filter(Boolean).join(' · ') + (lbl.switchDate ? ' · switch ' + lbl.switchDate : '');
 }
@@ -5567,8 +5578,8 @@ function labelsCSV(list) {
     if (lbl.type === 'Box') {
       const range = (a, b) => a === b ? 'Stage ' + b : 'Stages ' + a + '-' + b;
       l1 = 'UPPER: ' + lbl.upperCount + ' aligners (' + range(lbl.upperStart, lbl.upperTotal) + ')'; r1 = 'LOWER: ' + lbl.lowerCount + ' aligners (' + range(lbl.lowerStart, lbl.lowerTotal) + ')';
-      if (lbl.hasAT) l2 = 'AT: 1 template (Before Stage 1)'; r2 = 'TOTAL: ' + lbl.totalAlgn + ' aligners';
-    } else if (lbl.type === 'AT') l1 = 'Attachment Template';
+      if (lbl.hasAT) l2 = 'AT: ' + (lbl.atN || 1) + ' template' + ((lbl.atN || 1) > 1 ? 's' : '') + ' (Before Stage 1)'; r2 = 'TOTAL: ' + lbl.totalAlgn + ' aligners';
+    } else if (lbl.type === 'AT') l1 = 'Attachment Template' + ((lbl.atN || 1) > 1 ? 's' : '') + (atArchWords(lbl.atArch) ? ' (' + atArchWords(lbl.atArch) + ')' : '');
     else {
       if (lbl.upperEnabled) l1 = lbl.upperStage !== null ? 'UPPER: Stage ' + lbl.upperStage + ' of ' + lbl.upperTotal : 'UPPER: Complete';
       if (lbl.lowerEnabled) r1 = lbl.lowerStage !== null ? 'LOWER: Stage ' + lbl.lowerStage + ' of ' + lbl.lowerTotal : 'LOWER: Complete';
@@ -5594,7 +5605,7 @@ function printLabelPages(pages, onDone) {
 
 function labelsModal(c) {
   const uT = Number(c.alU) || 0, lT = Number(c.alL) || 0;
-  const st = { patient: c.patient || '', setType: labelSetType(c), uOn: uT > 0, lOn: lT > 0, uTotal: uT, lTotal: lT, uStart: 1, lStart: 1, at: hasAT(c), days: 7, start: c.deliveryDate || '' };
+  const st = { patient: c.patient || '', setType: labelSetType(c), uOn: uT > 0, lOn: lT > 0, uTotal: uT, lTotal: lT, uStart: 1, lStart: 1, at: hasAT(c), atArch: c.atTemplates || '', days: 7, start: c.deliveryDate || '' };
   let labels = [], off = new Set();
   const num = (id, v, lbl) => '<div class="field"><label for="' + id + '">' + lbl + '</label><input id="' + id + '" type="number" inputmode="numeric" min="1" max="99" value="' + v + '"></div>';
   openModal('<h3>Aligner labels</h3><div class="lsub">The Label Maker’s labels, filled in from this case. One 2×4 in label per page on the Zebra; check each value before printing.</div>' +
@@ -6114,13 +6125,15 @@ Object.assign(ADMIN_ACTS, {
    The website's appointment requests come through the same script (the last sender below) but belong to
    NLO Leads, which files each one and takes it out of the inbox — see leadsMail().
    ===================================================================== */
-const MAIL_SENDERS = ['ulabsystems.com', 'partnersdentalstudio.com', 'olivortho.com', 'angelaligner.com', 'angelalign.com', 'thenextlevelorthodontics@orthohost.com'];
+/* (Specialty Appliances: their "Daily Case Summary" to the records inbox — Amir, 4 Oct 2026: "yes I want specialty added") */
+const MAIL_SENDERS = ['ulabsystems.com', 'partnersdentalstudio.com', 'specialtyappliances.com', 'olivortho.com', 'angelaligner.com', 'angelalign.com', 'thenextlevelorthodontics@orthohost.com'];
 /* a website appointment request, or something about one in the same thread (Asana's notice): NLO Leads' to handle, so
    this app leaves it alone (one left for a month — NLO Leads never opened — is cleared like any old email) */
 function leadsMail(m) { return /thenextlevelorthodontics@orthohost\.com/i.test(String(m.from || '')) || /website appointment request/i.test(String(m.subject || '')); }
 const MAIL_CO = {
   ulab: { l: 'uLab', types: ['ulab'], hosts: ['ulabsystems.com', 'udesign.cloud'] },
   partners: { l: 'Partners Dental Solutions', types: ['appliance', 'marpe'], lab: 'Partners Dental Solutions', hosts: ['partnersdentalstudio.com'] },
+  specialty: { l: 'Specialty Appliances', types: ['appliance', 'marpe'], lab: 'Specialty Orthodontic Lab', hosts: ['specialtyappliances.com'] },
   oliv: { l: 'Oliv', types: ['oliv'], hosts: ['olivortho.com'] },
   angel: { l: 'Angel', types: ['angel'], hosts: ['angelalign.com', 'angelaligner.com'] }
 };
@@ -6140,10 +6153,13 @@ function decodeEnt(s) {
   return String(s || '').replace(/&nbsp;/gi, ' ').replace(/&#(\d+);/g, (m, n) => cp(+n)).replace(/&#x([0-9a-f]+);/gi, (m, n) => cp(parseInt(n, 16)))
     .replace(/&lt;/gi, '<').replace(/&gt;/gi, '>').replace(/&quot;/gi, '"').replace(/&#39;|&apos;/gi, "'").replace(/&amp;/gi, '&');
 }
-/* HTML → lines; a table row becomes one line with its cells kept apart */
-function htmlRows(html) {
-  const s = String(html || '').replace(/[\r\n]+/g, ' ').replace(/<(script|style)\b[\s\S]*?<\/\1\s*>/gi, ' ')
-    .replace(/<\/(td|th)\s*>/gi, '\u0001').replace(/<\/tr\s*>/gi, '\n').replace(/<br\s*\/?>/gi, '\n')
+/* HTML → lines; a table row becomes one line with its cells kept apart. flat: what's inside a cell stays on the row — its own
+   blocks and line breaks are spaces (Specialty's daily summary puts each cell's words in a <div>, a <br> after them, which split the
+   row over several lines and lost the table). Only cells with no table inside: a layout cell around the whole email keeps its lines */
+function htmlRows(html, flat) {
+  let s = String(html || '').replace(/[\r\n]+/g, ' ').replace(/<(script|style)\b[\s\S]*?<\/\1\s*>/gi, ' ');
+  if (flat) s = s.replace(/(<(td|th)\b[^>]*>)((?:(?!<\/?(?:td|th|table)\b)[\s\S])*)(<\/\2\s*>)/gi, (m, a, t, inner, b) => a + inner.replace(/<br\s*\/?>/gi, ' ').replace(/<\/?(p|div|h[1-6]|li)\b[^>]*>/gi, ' ') + b);
+  s = s.replace(/<\/(td|th)\s*>/gi, '\u0001').replace(/<\/tr\s*>/gi, '\n').replace(/<br\s*\/?>/gi, '\n')
     .replace(/<\/(p|div|h[1-6]|table|li|caption|thead|tbody)\s*>/gi, '\n').replace(/<[^>]*>/g, '');
   return decodeEnt(s).split('\n').map(line => {
     const cells = line.split('\u0001').map(c => c.replace(/\s+/g, ' ').trim());
@@ -6172,10 +6188,11 @@ function parseUlab(m) {
   });
   return out;
 }
-/* Partners Dental Studio: the daily summary — tables of cases received, shipped (tracking + carrier) and on hold */
-function parsePartners(m) {
+/* the labs' daily summary — tables of cases received, shipped (tracking + carrier) and on hold, under headings like "Cases Shipped
+   Today" or "No Cases Received Today": Partners Dental Studio's, and Specialty Appliances' "Daily Case Summary" (the same tables) */
+function parseLabSummary(m) {
   const out = []; let sec = '', cols = null;
-  htmlRows(m.html).forEach(r => {
+  htmlRows(m.html, true).forEach(r => {
     const line = r.join(' ');
     const head = r.length === 1 && /^(no\s+)?cases\s+(received|shipped|(?:placed\s+)?on hold)/i.exec(line);
     if (head) { sec = head[1] ? '' : /received/i.test(head[2]) ? 'received' : /shipped/i.test(head[2]) ? 'shipped' : 'hold'; cols = null; return; }
@@ -6206,7 +6223,8 @@ function parseAngel(m) {
   return out;
 }
 const MAIL_PARSERS = [
-  { co: 'ulab', re: /ulabsystems\.com/i, fn: parseUlab }, { co: 'partners', re: /partnersdentalstudio\.com/i, fn: parsePartners },
+  { co: 'ulab', re: /ulabsystems\.com/i, fn: parseUlab }, { co: 'partners', re: /partnersdentalstudio\.com/i, fn: parseLabSummary },
+  { co: 'specialty', re: /specialtyappliances\.com/i, fn: parseLabSummary },
   { co: 'oliv', re: /olivortho\.com/i, fn: parseOliv }, { co: 'angel', re: /angelalign(er)?\.com/i, fn: parseAngel }
 ];
 /* every patient update in one email: [{ co, kind, name, nameKind, ref, tracking, … }] */
@@ -6437,7 +6455,7 @@ function mailAdminHTML() {
   if (!st || Date.now() - MAILS.stateAt > 60000) loadMailState();
   const head = '<div class="card" style="margin-top:18px" id="mailAdmin"><div class="cardHd"><h3>Email updates</h3><span class="sub">Lab emails update cases by themselves</span></div><div class="cardBd">';
   if (!st) return head + '<div class="small muted">Loading…</div></div></div>';
-  const how = '<p class="small" style="margin-bottom:10px">A small script in each Gmail account that gets lab emails (yours and the records inbox) sends them — uLab, Partners Dental Solutions, Oliv, Angel and anything labeled “Lab Update” — to this app, locked so only the app can read them. When anyone has NLO Cases open, cases move on by themselves: plan ready → Dr. A action, shipped → Shipped with the tracking #, delivered → Arrived. Anything it can’t place shows on Today.</p>';
+  const how = '<p class="small" style="margin-bottom:10px">A small script in each Gmail account that gets lab emails (yours and the records inbox) sends them — uLab, Partners Dental Solutions, Specialty Appliances, Oliv, Angel and anything labeled “Lab Update” — to this app, locked so only the app can read them. When anyone has NLO Cases open, cases move on by themselves: plan ready → Dr. A action, received by the lab → Manufacturing, shipped → Shipped with the tracking #, delivered → Arrived, on hold → a Lab hold flag. Anything it can’t place shows on Today.</p>';
   if (!st.on) return head + how + '<button class="btn btn-act btn-sm" data-act="mailSetup">' + ic('plus', 15) + 'Set up email updates</button></div></div>';
   const beats = (st.beats || []).slice().sort((a, b) => (b.at || 0) - (a.at || 0));
   const box = b => { const late = !b.at || Date.now() - b.at > 40 * 60000;

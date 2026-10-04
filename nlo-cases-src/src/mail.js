@@ -10,13 +10,15 @@
    The website's appointment requests come through the same script (the last sender below) but belong to
    NLO Leads, which files each one and takes it out of the inbox — see leadsMail().
    ===================================================================== */
-const MAIL_SENDERS = ['ulabsystems.com', 'partnersdentalstudio.com', 'olivortho.com', 'angelaligner.com', 'angelalign.com', 'thenextlevelorthodontics@orthohost.com'];
+/* (Specialty Appliances: their "Daily Case Summary" to the records inbox — Amir, 4 Oct 2026: "yes I want specialty added") */
+const MAIL_SENDERS = ['ulabsystems.com', 'partnersdentalstudio.com', 'specialtyappliances.com', 'olivortho.com', 'angelaligner.com', 'angelalign.com', 'thenextlevelorthodontics@orthohost.com'];
 /* a website appointment request, or something about one in the same thread (Asana's notice): NLO Leads' to handle, so
    this app leaves it alone (one left for a month — NLO Leads never opened — is cleared like any old email) */
 function leadsMail(m) { return /thenextlevelorthodontics@orthohost\.com/i.test(String(m.from || '')) || /website appointment request/i.test(String(m.subject || '')); }
 const MAIL_CO = {
   ulab: { l: 'uLab', types: ['ulab'], hosts: ['ulabsystems.com', 'udesign.cloud'] },
   partners: { l: 'Partners Dental Solutions', types: ['appliance', 'marpe'], lab: 'Partners Dental Solutions', hosts: ['partnersdentalstudio.com'] },
+  specialty: { l: 'Specialty Appliances', types: ['appliance', 'marpe'], lab: 'Specialty Orthodontic Lab', hosts: ['specialtyappliances.com'] },
   oliv: { l: 'Oliv', types: ['oliv'], hosts: ['olivortho.com'] },
   angel: { l: 'Angel', types: ['angel'], hosts: ['angelalign.com', 'angelaligner.com'] }
 };
@@ -36,10 +38,13 @@ function decodeEnt(s) {
   return String(s || '').replace(/&nbsp;/gi, ' ').replace(/&#(\d+);/g, (m, n) => cp(+n)).replace(/&#x([0-9a-f]+);/gi, (m, n) => cp(parseInt(n, 16)))
     .replace(/&lt;/gi, '<').replace(/&gt;/gi, '>').replace(/&quot;/gi, '"').replace(/&#39;|&apos;/gi, "'").replace(/&amp;/gi, '&');
 }
-/* HTML → lines; a table row becomes one line with its cells kept apart */
-function htmlRows(html) {
-  const s = String(html || '').replace(/[\r\n]+/g, ' ').replace(/<(script|style)\b[\s\S]*?<\/\1\s*>/gi, ' ')
-    .replace(/<\/(td|th)\s*>/gi, '\u0001').replace(/<\/tr\s*>/gi, '\n').replace(/<br\s*\/?>/gi, '\n')
+/* HTML → lines; a table row becomes one line with its cells kept apart. flat: what's inside a cell stays on the row — its own
+   blocks and line breaks are spaces (Specialty's daily summary puts each cell's words in a <div>, a <br> after them, which split the
+   row over several lines and lost the table). Only cells with no table inside: a layout cell around the whole email keeps its lines */
+function htmlRows(html, flat) {
+  let s = String(html || '').replace(/[\r\n]+/g, ' ').replace(/<(script|style)\b[\s\S]*?<\/\1\s*>/gi, ' ');
+  if (flat) s = s.replace(/(<(td|th)\b[^>]*>)((?:(?!<\/?(?:td|th|table)\b)[\s\S])*)(<\/\2\s*>)/gi, (m, a, t, inner, b) => a + inner.replace(/<br\s*\/?>/gi, ' ').replace(/<\/?(p|div|h[1-6]|li)\b[^>]*>/gi, ' ') + b);
+  s = s.replace(/<\/(td|th)\s*>/gi, '\u0001').replace(/<\/tr\s*>/gi, '\n').replace(/<br\s*\/?>/gi, '\n')
     .replace(/<\/(p|div|h[1-6]|table|li|caption|thead|tbody)\s*>/gi, '\n').replace(/<[^>]*>/g, '');
   return decodeEnt(s).split('\n').map(line => {
     const cells = line.split('\u0001').map(c => c.replace(/\s+/g, ' ').trim());
@@ -68,10 +73,11 @@ function parseUlab(m) {
   });
   return out;
 }
-/* Partners Dental Studio: the daily summary — tables of cases received, shipped (tracking + carrier) and on hold */
-function parsePartners(m) {
+/* the labs' daily summary — tables of cases received, shipped (tracking + carrier) and on hold, under headings like "Cases Shipped
+   Today" or "No Cases Received Today": Partners Dental Studio's, and Specialty Appliances' "Daily Case Summary" (the same tables) */
+function parseLabSummary(m) {
   const out = []; let sec = '', cols = null;
-  htmlRows(m.html).forEach(r => {
+  htmlRows(m.html, true).forEach(r => {
     const line = r.join(' ');
     const head = r.length === 1 && /^(no\s+)?cases\s+(received|shipped|(?:placed\s+)?on hold)/i.exec(line);
     if (head) { sec = head[1] ? '' : /received/i.test(head[2]) ? 'received' : /shipped/i.test(head[2]) ? 'shipped' : 'hold'; cols = null; return; }
@@ -102,7 +108,8 @@ function parseAngel(m) {
   return out;
 }
 const MAIL_PARSERS = [
-  { co: 'ulab', re: /ulabsystems\.com/i, fn: parseUlab }, { co: 'partners', re: /partnersdentalstudio\.com/i, fn: parsePartners },
+  { co: 'ulab', re: /ulabsystems\.com/i, fn: parseUlab }, { co: 'partners', re: /partnersdentalstudio\.com/i, fn: parseLabSummary },
+  { co: 'specialty', re: /specialtyappliances\.com/i, fn: parseLabSummary },
   { co: 'oliv', re: /olivortho\.com/i, fn: parseOliv }, { co: 'angel', re: /angelalign(er)?\.com/i, fn: parseAngel }
 ];
 /* every patient update in one email: [{ co, kind, name, nameKind, ref, tracking, … }] */
@@ -333,7 +340,7 @@ function mailAdminHTML() {
   if (!st || Date.now() - MAILS.stateAt > 60000) loadMailState();
   const head = '<div class="card" style="margin-top:18px" id="mailAdmin"><div class="cardHd"><h3>Email updates</h3><span class="sub">Lab emails update cases by themselves</span></div><div class="cardBd">';
   if (!st) return head + '<div class="small muted">Loading…</div></div></div>';
-  const how = '<p class="small" style="margin-bottom:10px">A small script in each Gmail account that gets lab emails (yours and the records inbox) sends them — uLab, Partners Dental Solutions, Oliv, Angel and anything labeled “Lab Update” — to this app, locked so only the app can read them. When anyone has NLO Cases open, cases move on by themselves: plan ready → Dr. A action, shipped → Shipped with the tracking #, delivered → Arrived. Anything it can’t place shows on Today.</p>';
+  const how = '<p class="small" style="margin-bottom:10px">A small script in each Gmail account that gets lab emails (yours and the records inbox) sends them — uLab, Partners Dental Solutions, Specialty Appliances, Oliv, Angel and anything labeled “Lab Update” — to this app, locked so only the app can read them. When anyone has NLO Cases open, cases move on by themselves: plan ready → Dr. A action, received by the lab → Manufacturing, shipped → Shipped with the tracking #, delivered → Arrived, on hold → a Lab hold flag. Anything it can’t place shows on Today.</p>';
   if (!st.on) return head + how + '<button class="btn btn-act btn-sm" data-act="mailSetup">' + ic('plus', 15) + 'Set up email updates</button></div></div>';
   const beats = (st.beats || []).slice().sort((a, b) => (b.at || 0) - (a.at || 0));
   const box = b => { const late = !b.at || Date.now() - b.at > 40 * 60000;

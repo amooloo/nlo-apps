@@ -208,7 +208,7 @@ const OUT = process.argv[2] || 'shots';
   await ev(id => openDrawer(id), hwid); await p.waitForSelector('#drawer [data-ds=rxRet]'); await p.waitForTimeout(150);
   check(!(await p.$('#drawer [data-ds=wty]')), 'the demo Hawleys at Manufacturing: no warranty yet');
   await ev(() => closeDrawer(true));
-  check(await ev(() => LAB_FOR[HAWLEY] === LAB_SPEC && LAB_FOR['Finger spring with no labial bow'] === LAB_PART), 'Hawley retainers route to Specialty now (a finger spring still to Partners)');
+  check(await ev(() => LAB_FOR[HAWLEY] === LAB_SPEC && LAB_FOR['Finger spring with no labial bow'] === LAB_SPEC), 'Hawley retainers and finger springs route to Specialty now');
 
   // ---- phone: it fits
   await p.setViewportSize({ width: 390, height: 844 });

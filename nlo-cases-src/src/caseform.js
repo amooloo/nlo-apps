@@ -27,7 +27,8 @@ const APPL_ONE = ['Herbst', 'Space Closing Herbst', 'MARA', 'MSE', 'MARPE', 'Rap
 /* lab routing from the AISA KB / SOP manual: MSE → Specialty Orthodontic Lab (SOP-CL-020); MARPE → Partners Dental Solutions (SOP-CL-029,
    as Partner Dental Studios — the lab rebranded; Amir, 3 Oct 2026);
    D2 distalizer → in-house, no outside prescription (lab workflow, Layer 3 exception); Herbst, MARA → Specialty; finger spring →
-   Partners (KB lab routing); Hawley retainers → Specialty (Amir, 4 Oct 2026, with Specialty's Retainer Rx in rxret.js; the KB said
+   Specialty with the Hawleys (Amir, 4 Oct 2026: "finger springs and hawley should be defaulted to specialty"; Specialty's Retainer Rx
+   has the finger spring; the KB said Partners); Hawley retainers → Specialty (Amir, 4 Oct 2026, with Specialty's Retainer Rx in rxret.js; the KB said
    Partners); RPE → Specialty (Amir, 4 Oct 2026: "Switch to Specialty", with Specialty's Metal Rx in rxmetal.js; the KB said
    Partners), and "Other metal appliance" (anything else on the Metal Rx: a TPA, Nance, lingual arch, space maintainer, distalizer,
    habit appliance…) → Specialty; the Schwarz → Specialty on their Functional Rx (Amir, 4 Oct 2026, rxfun.js; the KB said Partners) */
@@ -35,7 +36,7 @@ const LAB_SPEC = 'Specialty Orthodontic Lab', LAB_PART = 'Partners Dental Soluti
 /* each lab's logo (logos.js; Amir, 3 Oct 2026): on the Lab choices and, for appliance and MARPE cases, on the board and lists */
 const LAB_LOGO = { [LAB_SPEC]: 'lab-specialty', [LAB_PART]: 'lab-partners', [LAB_IN]: 'nlo' };
 const LAB_FOR = { 'Herbst': LAB_SPEC, 'Herbst with Rollo Band': LAB_SPEC, 'Space Closing Herbst': LAB_SPEC, 'MARA': LAB_SPEC, 'MSE': LAB_SPEC, 'MARPE': LAB_PART,
-  'Rapid Palatal Expander (RPE)': LAB_SPEC, 'D2 distalizer': LAB_IN, 'Finger spring with no labial bow': LAB_PART, 'Hawley retainers': LAB_SPEC, 'Schwartz': LAB_SPEC,
+  'Rapid Palatal Expander (RPE)': LAB_SPEC, 'D2 distalizer': LAB_IN, 'Finger spring with no labial bow': LAB_SPEC, 'Hawley retainers': LAB_SPEC, 'Schwartz': LAB_SPEC,
   'Other metal appliance': LAB_SPEC };
 /* Dr. A's instructions: midline and overbite are Maintain / Improve; the rest are picture tiles.
    v = the full instruction saved on the case (same wording as the Tally form), l = the tile's short label.

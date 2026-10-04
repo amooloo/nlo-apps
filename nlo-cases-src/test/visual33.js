@@ -234,7 +234,8 @@ const has = cmd => { try { execFileSync('which', [cmd], { stdio: 'ignore' }); re
   await p.click('#rxAdmin [data-act=rxDefClear][data-slot=specialty-retainer]'); await p.waitForTimeout(200);
   check(!(await p.evaluate(() => rxDefaults(RX_RET))), '… and Clear removes it');
   // the finger spring appliance: a flipper with a finger spring to start
-  await newAppliance(); await pick('appliances', 'Finger spring with no labial bow'); await pick('lab', 'Specialty Orthodontic Lab'); await p.fill('#ncForm #cf-patient', 'Finn Fingerspring');
+  await newAppliance(); await pick('appliances', 'Finger spring with no labial bow'); await p.fill('#ncForm #cf-patient', 'Finn Fingerspring');
+  check(await p.getAttribute('#ncForm .pickRow[data-g=lab] .pick[data-v="Specialty Orthodontic Lab"]', 'aria-pressed') === 'true', 'a finger spring goes to Specialty by default (Amir, 4 Oct 2026)');
   check(await retShown(), 'Finger spring with no labial bow → Specialty: the Retainer Rx is there too');
   await p.click('#ncForm [data-rxform=edit][data-kind=ret]'); await p.waitForSelector('#rxWrap');
   st = await rxNow(); check(st.designU === 'flipper' && (st.accU || []).includes('finger') && !st.designL, '… it starts as an upper Flipper (no bow) with a finger spring');
