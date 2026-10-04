@@ -173,20 +173,31 @@ function alAskText(c) { const a = oneArch(c); return a === 'U' ? 'the upper alig
 /* The date a case is working toward: its lab completion date until the lab work is done (outside labs and appliances:
    until the case is in Manufacturing), then its delivery date.
    (No separate due date any more — Amir, 2 Oct 2026. Older cases that only have one still use it.) */
-function dueOf(c) {
-  const f = flowOf(c), at = k => f.stages.findIndex(s => s[0] === k), si = stageIndex(c), done = f.labDone ? at(f.labDone) : -1;
-  if (c.zoomDate && f.zoomUntil && si < at(f.zoomUntil)) return { d: c.zoomDate, k: 'zoom' };
-  if (c.labDate && (done < 0 || si < done)) return { d: c.labDate, k: 'lab' };
-  if (c.deliveryDate) return { d: c.deliveryDate, k: 'delivery' };
-  if (c.dueDate) return { d: c.dueDate, k: 'due' };
+function dueOf(c) { return labDueOf(c) || apptOf(c); }
+/* The lists show the two sides of that in their own columns (Amir, 4 Oct 2026: "if the lab date is past due, I'm not seeing
+   what is the appointment date"). The lab side, while it's still ahead: MARPE's Zoom call until the design is approved,
+   else the lab completion date until the case is past the lab step. */
+function labDueOf(c) {
+  const f = flowOf(c), si = stageIndex(c), zu = f.zoomUntil ? f.stages.findIndex(s => s[0] === f.zoomUntil) : -1;
+  if (c.zoomDate && f.zoomUntil && si < zu) return { d: c.zoomDate, k: 'zoom' };
+  if (c.labDate && !labStepDone(c)) return { d: c.labDate, k: 'lab' };
   return null;
 }
+/* past the lab step: from the flow's labDone stage on (outside labs and appliances: Manufacturing; in-house: Made – needs packaging) */
+function labStepDone(c) {
+  const f = flowOf(c); if (!f.labDone) return false;
+  const done = f.stages.findIndex(s => s[0] === f.labDone); return done >= 0 && stageIndex(c) >= done;
+}
+/* the appointment side: the delivery appt (a case shipped to the patient: the expected delivery); older cases with only a due date use it */
+function apptOf(c) { return c.deliveryDate ? { d: c.deliveryDate, k: 'delivery' } : c.dueDate ? { d: c.dueDate, k: 'due' } : null; }
 function dueDateOf(c) { const x = dueOf(c); return x ? x.d : ''; }
 /* the time that goes with a date, if one was set (Zoom call, delivery appt) */
 function timeOf(c, k) { return (k === 'zoom' ? c.zoomTime : k === 'delivery' ? c.deliveryTime : '') || ''; }
 /* for sorting: the date, then its time (a date with no time sorts after the timed ones that day) */
 function dateKey(d, t) { return d ? d + 'T' + (t || '24:00') : ''; }
 function dueKeyOf(c) { const x = dueOf(c); return x ? dateKey(x.d, timeOf(c, x.k)) : ''; }
+function labKeyOf(c) { const x = labDueOf(c); return x ? dateKey(x.d, timeOf(c, x.k)) : ''; }
+function apptKeyOf(c) { const x = apptOf(c); return x ? dateKey(x.d, timeOf(c, x.k)) : ''; }
 /* ---------- in-house aligner sets: how many aligners each case made, and the patient's total ---------- */
 const normChart = s => String(s || '').replace(/\s+/g, '').toLowerCase();
 const normName = s => String(s || '').trim().replace(/\s+/g, ' ').toLowerCase();

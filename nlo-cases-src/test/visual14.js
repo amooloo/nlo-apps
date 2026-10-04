@@ -41,7 +41,7 @@ const OUT = process.argv[2] || 'shots';
   const t = await p.evaluate(() => { const d = new Date(); d.setDate(d.getDate() + 1); return isoOf(d); });
   await p.evaluate(day => { const cs = openCases().filter(c => c.type === 'retainer').slice(0, 3); const tm = ['15:30', '08:30', '']; cs.forEach((c, i) => { c.deliveryDate = day; c.deliveryTime = tm[i]; }); queueRender(); return cs.map(c => c.patient); }, t);
   await p.click('#nav-list'); await p.selectOption('select[data-f=del]', 'tomorrow'); await p.waitForTimeout(200);
-  const rows = await p.$$eval('#listBody tr.click', rs => rs.map(r => { const c = findCase(r.dataset.id); return (c.deliveryTime || '—') + ' ' + r.querySelector('td.hideM .due').textContent; }));
+  const rows = await p.$$eval('#listBody tr.click', rs => rs.map(r => { const c = findCase(r.dataset.id); return (c.deliveryTime || '—') + ' ' + r.querySelector('td.apptCol').innerText.replace(/\s+/g, ' ').trim(); })); // the time sits under the chip (4 Oct 2026)
   console.log('   tomorrow:', rows.join(' | '));
   const times = rows.map(r => r.split(' ')[0]);
   check(times.indexOf('08:30') < times.indexOf('15:30') && times.indexOf('15:30') < times.indexOf('—'), 'sorted by time within the day (8:30 AM, 3:30 PM, then no time)');

@@ -471,10 +471,25 @@ function logoPaint(root) { if (typeof LOGOS === 'undefined') return; $$('img[dat
 function dueChip(c) { return dateChip(c, dueOf(c), 'No date'); }
 /* the delivery date alone: the lists show this while they're filtered by delivery date */
 function delChip(c) { return dateChip(c, c.deliveryDate ? { d: c.deliveryDate, k: 'delivery' } : null, 'No delivery appt'); }
-function dateChip(c, x, none) {
+/* the lists' two date columns side by side (Amir, 4 Oct 2026: a late lab date hid the appointment). Lab date: the lab
+   completion date (MARPE: the Zoom call) while it's still ahead, a quiet ✓ once the case is past the lab step.
+   Delivery appt: always the appointment (or the expected delivery, shipped to the patient). */
+function labChip(c, cell) {
+  const x = labDueOf(c); if (x) return cell ? dateCell(c, x, '') : dateChip(c, x, '');
+  if (labStepDone(c)) return '<span class="due done" title="' + esc('Past the lab step' + (c.labDate ? ' — lab date was ' + fmtDay(c.labDate) : '')) + '">' + ic('done', 13) + 'Done</span>';
+  return '<span class="due none">No lab date</span>';
+}
+function apptChip(c, cell) { const x = apptOf(c), none = 'No ' + delWord(c).toLowerCase(); return cell ? dateCell(c, x, none) : dateChip(c, x, none); }
+/* in the date columns the time sits on its own small line under the chip, so both columns fit a laptop-width screen */
+function dateCell(c, x, none) {
+  const tm = x ? fmtTime(timeOf(c, x.k)) : '';
+  return dateChip(c, x, none, true) + (tm && dayDiff(x.d) >= 0 ? '<div class="dueTm">' + esc(tm) + '</div>' : '');
+}
+function dateChip(c, x, none, split) {
   if (!x) return '<span class="due none">' + none + '</span>';
   const d = dayDiff(x.d), z = x.k === 'zoom', w = x.k === 'lab' ? 'Lab' : x.k === 'delivery' ? (delWord(c) === 'Delivery appt' ? 'Appt' : 'Expected delivery') : z ? 'Zoom' : 'Due';
-  const tm = fmtTime(timeOf(c, x.k)), at = tm ? ' ' + tm : '', on = tm ? ' · ' + tm : '', i = ic(z ? 'video' : 'clock', 13); // Zoom call and delivery times
+  // split: the time stays out of the chip (the tooltip keeps it) — dateCell puts it on its own line
+  const tm = fmtTime(timeOf(c, x.k)), at = tm && !split ? ' ' + tm : '', on = tm && !split ? ' · ' + tm : '', i = ic(z ? 'video' : 'clock', 13); // Zoom call and delivery times
   const tip = ' title="' + esc((x.k === 'lab' ? 'Lab completion' : x.k === 'delivery' ? delWord(c) : z ? 'Zoom call' : w) + ': ' + fmtDay(x.d) + (tm ? ', ' + tm : '')) + '"';
   // a Zoom call that has passed while the design isn't approved yet: someone should move the case on
   if (d < 0) return '<span class="due over"' + tip + '>' + i + w + ' ' + (z ? 'was ' + (d === -1 ? 'yesterday' : (-d) + ' days ago') : d === -1 ? '1 day late' : (-d) + ' days late') + '</span>';
@@ -685,9 +700,11 @@ function applyFilters(list) {
 function sortList(list) {
   const { k, dir } = S.sort;
   const val = c => k === 'patient' ? String(c.patient || '').toLowerCase() : k === 'type' ? typeOf(c).l : k === 'stage' ? stageIndex(c) : k === 'who' ? staffName(c.assignee, c.assigneeName) : k === 'updated' ? -(c.updatedAt || 0)
-    : k === 'ship' ? (c.shipToPatient ? 0 : trackList(c).length ? 1 : 2) : (listKey(c) || '9999');
+    : k === 'ship' ? (c.shipToPatient ? 0 : trackList(c).length ? 1 : 2) : k === 'lab' ? (labKeyOf(c) || '9999') : k === 'appt' ? (apptKeyOf(c) || '9999') : (listKey(c) || '9999');
   return list.slice().sort((a, b) => { const x = val(a), y = val(b); return (x < y ? -1 : x > y ? 1 : byListDate(a, b)) * dir; });
 }
+/* the column the list is sorted by: filtered by delivery appt, the default order is the delivery appt's (listKey) */
+function sortShown() { return S.sort.k === 'due' && S.f.del ? 'appt' : S.sort.k; }
 /* ---------- Today: clean up old cases in bulk (e.g. leftovers from the Asana import; Amir, 2 Oct 2026) ---------- */
 function ageOf(c) { return [c.deliveryDate, c.labDate, c.scanDate, c.dueDate].filter(Boolean).sort().pop() || ''; }
 function addMonthsISO(iso, n) { const [y, m, d] = iso.split('-').map(Number); return isoOf(new Date(y, m - 1 + n, d)); }
@@ -756,7 +773,7 @@ function viewList(base, showWho) {
     '<select data-f="type" aria-label="Type"><option value="">All types</option>' + typesShown(Array.from(S.cases.values()), f.type).map(t => '<option value="' + t.k + '"' + (f.type === t.k ? ' selected' : '') + '>' + esc(t.l) + '</option>').join('') + '</select>' +
     (stageOpts.length ? '<select data-f="stage" aria-label="Stage"><option value="">All stages</option>' + stageOpts.map(([k, l]) => '<option value="' + k + '"' + (f.stage === k ? ' selected' : '') + '>' + esc(l) + '</option>').join('') + '</select>' : '') +
     (showWho ? '<select data-f="who" aria-label="Assigned to"><option value="">Anyone</option><option value="_none"' + (f.who === '_none' ? ' selected' : '') + '>Unassigned</option>' + activeRoster().map(r => '<option value="' + esc(r.sid) + '"' + (f.who === r.sid ? ' selected' : '') + '>' + esc(r.name) + '</option>').join('') + '</select>' : '') +
-    '<select data-f="due" aria-label="Next date (lab, then delivery appt)"><option value="">Any next date</option>' + [['over', 'Late'], ['today', 'Today'], ['week', 'Next 7 days'], ['14', 'Next 14 days'], ['none', 'No lab date or delivery appt']].map(([k, l]) => '<option value="' + k + '"' + (f.due === k ? ' selected' : '') + '>' + l + '</option>').join('') + '</select>' +
+    '<select data-f="due" aria-label="Lab date, or the delivery appt once the case is past the lab step"><option value="">Any lab or appt date</option>' + [['over', 'Late'], ['today', 'Today'], ['week', 'Next 7 days'], ['14', 'Next 14 days'], ['none', 'No lab date or delivery appt']].map(([k, l]) => '<option value="' + k + '"' + (f.due === k ? ' selected' : '') + '>' + l + '</option>').join('') + '</select>' +
     '<select data-f="del" aria-label="Delivery appt"' + (f.del ? ' class="on"' : '') + '><option value="">Any delivery appt</option>' + DEL_OPTS.map(([k, l]) => '<option value="' + k + '"' + (f.del === k ? ' selected' : '') + '>' + l + '</option>').join('') + '</select>' +
     (f.del === 'day' ? '<input type="date" id="fDelDay" data-f="delDay" value="' + esc(f.delDay || '') + '" aria-label="Delivery appt day">' : '') +
     (grpLabel ? '<button class="chip on" data-act="clearGrp">' + esc(grpLabel) + ' ✕</button>' : '') +
@@ -769,7 +786,8 @@ function viewList(base, showWho) {
 function listBase() { return S.view === 'mine' ? openCases().filter(c => c.assignee === meSid()) : openCases(); }
 /* columns anyone can hide on their computer (Amir, 2 Oct 2026: "can I just click it and make it hidden?"): the eye on a
    column's heading hides it, the Columns menu brings it back; remembered on this computer only (not patient data) */
-const LIST_COLS = [['type', 'Type'], ['stage', 'Stage'], ['due', 'Next date'], ['ship', 'Shipping'], ['who', 'Assigned'], ['updated', 'Updated']];
+/* (4 Oct 2026: the one "Next date" column became Lab date + Delivery appt; a hidden "Next date" ('due') isn't carried over) */
+const LIST_COLS = [['type', 'Type'], ['stage', 'Stage'], ['lab', 'Lab date'], ['appt', 'Delivery appt'], ['ship', 'Shipping'], ['who', 'Assigned'], ['updated', 'Updated']];
 function hiddenCols() {
   if (!S.hidCols) { try { S.hidCols = new Set(JSON.parse(localStorage.getItem('nloCases.hiddenCols') || '[]').filter(k => LIST_COLS.some(x => x[0] === k))); } catch (e) { S.hidCols = new Set(); } }
   return S.hidCols;
@@ -778,7 +796,7 @@ function setColHidden(k, hide) {
   const h = hiddenCols(); if (hide) h.add(k); else h.delete(k);
   try { localStorage.setItem('nloCases.hiddenCols', JSON.stringify(Array.from(h))); } catch (e) { }
 }
-function colLabel(k) { return k === 'due' && S.f.del ? 'Delivery appt' : k === 'stage' && S.view === 'done' ? 'Last stage' : (LIST_COLS.find(x => x[0] === k) || [k, k])[1]; }
+function colLabel(k) { return k === 'stage' && S.view === 'done' ? 'Last stage' : (LIST_COLS.find(x => x[0] === k) || [k, k])[1]; }
 /* the Columns button and its menu (keys = the columns this table has) */
 function colsControlHTML(keys) {
   const hid = hiddenCols(), n = keys.filter(k => hid.has(k)).length;
@@ -787,17 +805,23 @@ function colsControlHTML(keys) {
       (n ? '<button type="button" class="linkBtn" data-act="showCols">Show all</button>' : '') + '<div class="small muted colNote">Saved on this computer</div></div>' : '') + '</div>';
 }
 function listBodyHTML(base) {
-  const f = S.f, list = sortList(applyFilters(base));
+  const list = sortList(applyFilters(base));
   if (list.some(c => c.type === 'nla')) ensureHist();
   if (!list.length) return '<div class="card"><div class="empty">' + (base.length ? 'No cases match.' : 'No open cases yet.') + '</div></div>';
   const hid = hiddenCols(), on = k => !hid.has(k);
   // a heading sorts; its eye hides the column (the Columns menu above the table brings it back)
-  const th = (k, l, cls) => '<th class="' + (cls || '') + '"><span class="thIn"><button data-act="sort" data-k="' + k + '">' + l + (S.sort.k === k ? (S.sort.dir > 0 ? ' ↑' : ' ↓') : '') + '</button>' +
+  const th = (k, l, cls) => '<th class="' + (cls || '') + '"><span class="thIn"><button data-act="sort" data-k="' + k + '">' + l + (sortShown() === k ? (S.sort.dir > 0 ? ' ↑' : ' ↓') : '') + '</button>' +
     (k === 'patient' ? '' : '<button class="thHide" data-act="hideCol" data-k="' + k + '" title="Hide this column" aria-label="Hide the ' + esc(l) + ' column">' + ic('eyeOff', 14) + '</button>') + '</span></th>';
   // Shipping: the Ship to patient alert and one-click tracking get their own column (on phones they sit under the name)
-  // on phones the date sits under the stage (or the name, with Stage hidden) instead of in a column off to the side
-  const chip = c => f.del ? delChip(c) : dueChip(c), dateM = c => on('due') ? '<div class="flags onlyM">' + chip(c) + '</div>' : '';
-  return '<div class="card tblWrap"><table class="tbl"><thead><tr>' + th('patient', 'Patient') + (on('type') ? th('type', 'Type', 'hideM') : '') + (on('stage') ? th('stage', 'Stage') : '') + (on('due') ? th('due', colLabel('due'), 'hideM') : '') +
+  // the lab date and the delivery appt each have a column (Amir, 4 Oct 2026); on phones both sit under the stage (or the
+  // name, with Stage hidden) instead of in columns off to the side: the lab date while it's still ahead, the appt if there is one
+  const dateM = c => {
+    if (!on('lab') && !on('appt')) return '';
+    const m = (on('lab') && labDueOf(c) ? labChip(c) : '') + (on('appt') && apptOf(c) ? apptChip(c) : '');
+    return '<div class="flags onlyM">' + (m || '<span class="due none">No date</span>') + '</div>';
+  };
+  return '<div class="card tblWrap"><table class="tbl"><thead><tr>' + th('patient', 'Patient') + (on('type') ? th('type', 'Type', 'hideM') : '') + (on('stage') ? th('stage', 'Stage') : '') +
+      (on('lab') ? th('lab', 'Lab date', 'hideM dateCol') : '') + (on('appt') ? th('appt', 'Delivery appt', 'hideM dateCol') : '') +
       (on('ship') ? th('ship', 'Shipping', 'hideM') : '') + (on('who') ? th('who', 'Assigned', 'hideM') : '') + (on('updated') ? th('updated', 'Updated', 'hideM') : '') + '</tr></thead><tbody>' +
     list.map(c => { const g = stageGroup(flowOf(c), c.stage), ship = on('ship') ? shipFlag(c) + trackLinks(c) : '';
       return '<tr class="click" data-act="open" data-id="' + esc(c.id) + '" tabindex="0"><td><div class="ptCell">' + ptAv(c, 36) + '<div class="ptTxt"><div class="pt">' + esc(c.patient || '(no name)') + '</div><div class="small muted">' + esc(c.detail || '') + alignerMini(c) + '</div>' +
@@ -805,7 +829,8 @@ function listBodyHTML(base) {
       (on('type') ? '<td class="hideM">' + typeMark(c) + '</td>' : '') +
       (on('stage') ? '<td class="stg">' + progHTML(c) + '<div class="small">' + esc(stageLabel(c)) + (g ? ' <span class="muted">· ' + esc(g.l.toLowerCase()) + ' ' + (g.stages.indexOf(c.stage) + 1) + '/' + g.stages.length + '</span>' : '') + '</div>' +
         (recFlag(c) || holdFlag(c) ? '<div class="flags">' + recFlag(c) + holdFlag(c) + '</div>' : '') + dateM(c) + '</td>' : '') +
-      (on('due') ? '<td class="hideM">' + chip(c) + '</td>' : '') +
+      (on('lab') ? '<td class="hideM dateCol labCol">' + labChip(c, true) + '</td>' : '') +
+      (on('appt') ? '<td class="hideM dateCol apptCol">' + apptChip(c, true) + '</td>' : '') +
       (on('ship') ? '<td class="hideM shipCol">' + (ship ? '<div class="flags">' + ship + '</div>' : '') + '</td>' : '') +
       (on('who') ? '<td class="hideM">' + avatar(c) + ' <span class="small">' + esc(staffName(c.assignee, c.assigneeName)) + '</span></td>' : '') +
       (on('updated') ? '<td class="hideM small muted">' + esc(c.updatedAt ? fmtWhen(c.updatedAt) : '') + '</td>' : '') + '</tr>'; }).join('') +
@@ -1420,7 +1445,7 @@ function onClick(e) {
     case 'oldDel': bulkDelete(oldTicked()); break;
     case 'oldAll': case 'oldNone': { const on = a === 'oldAll'; $$('#cleanCard input[data-old]').forEach(i => { i.checked = on; if (on) S.oldOff.delete(i.dataset.old); else S.oldOff.add(i.dataset.old); }); syncOld(); break; }
     case 'clearGrp': S.f.grp = ''; renderView(); break;
-    case 'sort': { const k = t.dataset.k; S.sort = { k, dir: S.sort.k === k ? -S.sort.dir : 1 }; renderView(); break; }
+    case 'sort': { const k = t.dataset.k; S.sort = { k, dir: sortShown() === k ? -S.sort.dir : 1 }; renderView(); break; }
     case 'moreClosed': S.closedDays = S.closedDays < 365 ? 365 : 3650; S.closedLoaded = false; renderView(); break;
     case 'lock': lockOut('Locked. Sign in to continue.'); break;
     case 'lockSignOut': B.signOut().then(() => lockScreen('login')); break;

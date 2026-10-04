@@ -191,7 +191,7 @@ async function openByName(p, name) {
   // the lists filter by the delivery date alone, not the lab date (Amir, 2 Oct 2026)
   await owner.click('#nav-list'); await owner.selectOption('select[data-f=del]', 'past');
   await owner.waitForSelector('#listBody tr.click:has-text("' + P2 + '")', { timeout: 15000 });
-  check(/Delivery appt/.test(await owner.textContent('#listBody thead')) && await owner.isVisible('#listBody tr.click:has-text("' + P2 + '") td.hideM .due.over:has-text("Appt")'), 'All open cases: “Delivery appt passed” finds it, with a Delivery appt column');
+  check(/Delivery appt/.test(await owner.textContent('#listBody thead')) && await owner.isVisible('#listBody tr.click:has-text("' + P2 + '") td.apptCol .due.over:has-text("Appt")'), 'All open cases: “Delivery appt passed” finds it, red in its Delivery appt column');
   await owner.selectOption('select[data-f=del]', 'none'); await sleep(300);
   check(!(await owner.isVisible('#listBody tr.click:has-text("' + P2 + '")')), '“No delivery appt” leaves it out');
   await owner.click('[data-act=clearF]');

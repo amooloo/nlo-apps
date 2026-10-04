@@ -33,8 +33,9 @@ const TAG = process.argv[3] || 'v13';
   // sorted soonest delivery first, and the column shows delivery dates (not the lab date)
   await p.selectOption('select[data-f=del]', 'all'); await p.waitForTimeout(80);
   const order = await p.evaluate(() => Array.from(document.querySelectorAll('#listBody tr.click')).map(r => findCase(r.dataset.id).deliveryDate || '9999'));
-  console.log('sorted by delivery:', order.every((d, i) => !i || order[i - 1] <= d) ? 'OK' : 'NO', '| chips:', (await p.locator('#listBody td.hideM .due').allTextContents()).slice(0, 4).join(' / '));
-  console.log('lab chips while filtered by delivery:', await p.locator('#listBody td.hideM .due:has-text("Lab ")').count());
+  console.log('sorted by delivery:', order.every((d, i) => !i || order[i - 1] <= d) ? 'OK' : 'NO', '| appt chips:', (await p.locator('#listBody td.apptCol .due').allTextContents()).slice(0, 4).join(' / '));
+  // since 4 Oct 2026 the lab date keeps its own column while the list is filtered by delivery appt
+  console.log('lab chips (own column) while filtered by delivery:', await p.locator('#listBody td.labCol .due:has-text("Lab ")').count());
   await p.selectOption('select[data-f=del]', 'week'); await p.waitForTimeout(150);
   await p.screenshot({ path: OUT + '/' + TAG + '-delivery-week.png', clip: { x: 232, y: 0, width: 1128, height: 560 } });
   // a chosen day: the date box appears with today; picking a day redraws the list only
@@ -52,7 +53,7 @@ const TAG = process.argv[3] || 'v13';
   const both = await p.evaluate(() => { const iso = n => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + n); return isoOf(d); }; return openCases().filter(c => c.type === 'oliv' && c.deliveryDate >= iso(0) && c.deliveryDate <= iso(14)).length; });
   console.log('Oliv + next 14 days:', await rows(), '(want ' + both + ')');
   await p.click('[data-act=clearF]'); await p.waitForTimeout(80);
-  console.log('clear filters → delivery select back to any:', (await p.inputValue('select[data-f=del]')) === '', '| header:', (await p.textContent('#listBody thead th:nth-child(4)')).trim());
+  console.log('clear filters → delivery select back to any:', (await p.inputValue('select[data-f=del]')) === '', '| headers:', (await p.textContent('#listBody thead th:nth-child(4)')).trim(), '+', (await p.textContent('#listBody thead th:nth-child(5)')).trim());
   // My cases has it too
   await p.click('#nav-mine'); await p.waitForSelector('select[data-f=del]'); console.log('My cases has the delivery filter: yes');
   // stage progress on the board (in-house: the In fabrication steps) and in the case
@@ -68,7 +69,7 @@ const TAG = process.argv[3] || 'v13';
   await p.selectOption('select[data-f=del]', 'all'); await p.waitForTimeout(200);
   const tb = await p.$('#listBody'); await tb.scrollIntoViewIfNeeded();
   await p.screenshot({ path: OUT + '/' + TAG + '-phone-delivery.png' });
-  console.log('phone: date shown under the stage:', await p.locator('#listBody td.stg .onlyM .due').first().isVisible(), '| date column hidden:', !(await p.locator('#listBody td.hideM .due').first().isVisible()));
+  console.log('phone: date shown under the stage:', await p.locator('#listBody td.stg .onlyM .due').first().isVisible(), '| date columns hidden:', !(await p.locator('#listBody td.dateCol .due').first().isVisible()));
   console.log('ERRORS:', errs.length ? errs.join('\n') : 'none');
   await browser.close();
 })().catch(e => { console.error('FAILED', e); process.exit(1); });
