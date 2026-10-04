@@ -251,6 +251,22 @@ function txText(p, t) {
   if (p.over) return span(-p.left) + ' past expected removal';
   return 'Month ' + Math.min(p.month, p.ofMonths) + ' of ' + p.ofMonths + ' · ' + Math.round(p.pct * 100) + '% · ' + (p.left ? span(p.left) + ' left' : 'removal today');
 }
+/* treatment time in whole months (Amir, 4 Oct 2026: "enter the date, pick 6 months treatment time > it will put the date as
+   exactly 6 months from that day"): the same day that many months on — the month's last day when it's shorter (Aug 31 + 6
+   months = Feb 28). Only for whole dates (a year still being typed, like 0202, gives nothing). */
+const TX_MONTHS = [3, 6, 9, 12, 15, 18, 24], TX_MAX_MONTHS = 60;
+function txDateOk(iso) { return /^(19|20)\d\d-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(String(iso || '')); }
+function addMonthsTx(iso, n) {
+  const [y, m, d] = String(iso).split('-').map(Number);
+  const dt = new Date(y, m - 1 + n, 1), last = new Date(y, m + n, 0).getDate();
+  dt.setDate(Math.min(d, last)); return isoOf(dt);
+}
+/* the treatment time if the expected removal is a whole number of months after the start (as addMonthsTx counts), else 0 */
+function txMonths(start, end) {
+  if (!txDateOk(start) || !txDateOk(end) || end <= start) return 0;
+  const [y1, m1] = start.split('-').map(Number), [y2, m2] = end.split('-').map(Number), n = (y2 - y1) * 12 + (m2 - m1);
+  return n >= 1 && n <= TX_MAX_MONTHS && addMonthsTx(start, n) === end ? n : 0;
+}
 
 /* ---------- small utils ---------- */
 const $ = (s, r) => (r || document).querySelector(s);

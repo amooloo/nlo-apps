@@ -63,7 +63,7 @@ const today = iso(new Date());
   // ---- Edit on the refinement: the patient already has dates, so one line says so (with Change)
   await open(ref); await p.click('#drawer [data-act=edit]'); await p.waitForSelector('#drawer #cf-txWrap', { state: 'attached' });
   const fe = await p.evaluate(() => ({ wrap: getComputedStyle(document.querySelector('#cf-txWrap')).display, row: getComputedStyle(document.querySelector('#cf-txFromRow')).display, from: document.querySelector('#cf-txFrom').textContent }));
-  check(fe.wrap === 'none' && fe.row !== 'none' && fe.from === 'Treatment ' + await fmt(al0.s) + ' → expected removal ' + await fmt(al0.e) + ' (from the patient’s initial set).', 'Edit (refinement): no date boxes — “' + fe.from + '” with Change');
+  check(fe.wrap === 'none' && fe.row !== 'none' && fe.from === 'Treatment ' + await fmt(al0.s) + ' → expected removal ' + await fmt(al0.e) + await p.evaluate(([s, e]) => { const n = txMonths(s, e); return n ? ' · ' + n + ' months' : ''; }, [al0.s, al0.e]) + ' (from the patient’s initial set).', 'Edit (refinement): no date boxes — “' + fe.from + '” with Change');
   const sec = await p.evaluateHandle(() => document.querySelector('#drawer #cf-txWrap').closest('.cfSec')); await sec.scrollIntoViewIfNeeded();
   await sec.screenshot({ path: OUT + '/v24-edit-refinement.png' });
   await p.click('#drawer #cf-txChange'); await p.waitForTimeout(80);

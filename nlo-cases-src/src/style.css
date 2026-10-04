@@ -905,6 +905,16 @@ body.phOff .pav,body.phOff .dPh,body.phOff .phSlot,body.phOff .phTgl,body.phOff 
 .dsS b.txOver{color:var(--coral-700)}
 .txFromRow{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .txFromRow[hidden]{display:none}
+/* the treatment time picks under Start and Expected removal (Amir, 4 Oct 2026) */
+.txLen{grid-column:1/-1;margin:0 0 6px}
+.txLen .flabel{margin-bottom:7px}
+.txOther{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;color:var(--grey-500)}
+.txOther input{width:76px;min-height:34px;padding:4px 10px;border:1.5px solid var(--grey-200);border-radius:99px;font:inherit;font-size:12.5px;font-weight:600;color:var(--grey-700);text-align:center;background:#fff;outline:none;transition:border-color .14s var(--ease),box-shadow .14s var(--ease)}
+.txOther input:focus{border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-100)}
+.txOther input.on{background:var(--mint);border-color:var(--mint-600);color:var(--navy-900)}
+.txLenHint{margin-top:7px;color:var(--grey-500)}
+.txLenHint:empty{display:none}
+.txLenHint.bad{color:var(--coral-700)}
 /* phones: the narrow graph; the folded line keeps "Month 4 of 18 · 19%" */
 @media (max-width:500px){.txSvg.w{display:none}.txSvg.n{display:block}.txEnds{padding:0 6.7%;max-width:460px}.txMini{width:36px;margin-right:8px}.txLeft{display:none}}
 

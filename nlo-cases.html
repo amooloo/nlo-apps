@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-ebMTG4l1HBi19OTRz8oEC1iouOtIyjQmiHuFJXUdGlc=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-veEoXzY+RH7ufYUhLp0B5oj5uLqOa9JYiVbRrbBMqRQ=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO Cases</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -919,6 +919,16 @@ body.phOff .pav,body.phOff .dPh,body.phOff .phSlot,body.phOff .phTgl,body.phOff 
 .dsS b.txOver{color:var(--coral-700)}
 .txFromRow{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .txFromRow[hidden]{display:none}
+/* the treatment time picks under Start and Expected removal (Amir, 4 Oct 2026) */
+.txLen{grid-column:1/-1;margin:0 0 6px}
+.txLen .flabel{margin-bottom:7px}
+.txOther{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;color:var(--grey-500)}
+.txOther input{width:76px;min-height:34px;padding:4px 10px;border:1.5px solid var(--grey-200);border-radius:99px;font:inherit;font-size:12.5px;font-weight:600;color:var(--grey-700);text-align:center;background:#fff;outline:none;transition:border-color .14s var(--ease),box-shadow .14s var(--ease)}
+.txOther input:focus{border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-100)}
+.txOther input.on{background:var(--mint);border-color:var(--mint-600);color:var(--navy-900)}
+.txLenHint{margin-top:7px;color:var(--grey-500)}
+.txLenHint:empty{display:none}
+.txLenHint.bad{color:var(--coral-700)}
 /* phones: the narrow graph; the folded line keeps "Month 4 of 18 · 19%" */
 @media (max-width:500px){.txSvg.w{display:none}.txSvg.n{display:block}.txEnds{padding:0 6.7%;max-width:460px}.txMini{width:36px;margin-right:8px}.txLeft{display:none}}
 
@@ -1551,6 +1561,22 @@ function txText(p, t) {
   if (p.before) return 'Starts ' + fmtDate(t.start) + ' (in ' + span(-p.el) + ')';
   if (p.over) return span(-p.left) + ' past expected removal';
   return 'Month ' + Math.min(p.month, p.ofMonths) + ' of ' + p.ofMonths + ' · ' + Math.round(p.pct * 100) + '% · ' + (p.left ? span(p.left) + ' left' : 'removal today');
+}
+/* treatment time in whole months (Amir, 4 Oct 2026: "enter the date, pick 6 months treatment time > it will put the date as
+   exactly 6 months from that day"): the same day that many months on — the month's last day when it's shorter (Aug 31 + 6
+   months = Feb 28). Only for whole dates (a year still being typed, like 0202, gives nothing). */
+const TX_MONTHS = [3, 6, 9, 12, 15, 18, 24], TX_MAX_MONTHS = 60;
+function txDateOk(iso) { return /^(19|20)\d\d-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(String(iso || '')); }
+function addMonthsTx(iso, n) {
+  const [y, m, d] = String(iso).split('-').map(Number);
+  const dt = new Date(y, m - 1 + n, 1), last = new Date(y, m + n, 0).getDate();
+  dt.setDate(Math.min(d, last)); return isoOf(dt);
+}
+/* the treatment time if the expected removal is a whole number of months after the start (as addMonthsTx counts), else 0 */
+function txMonths(start, end) {
+  if (!txDateOk(start) || !txDateOk(end) || end <= start) return 0;
+  const [y1, m1] = start.split('-').map(Number), [y2, m2] = end.split('-').map(Number), n = (y2 - y1) * 12 + (m2 - m1);
+  return n >= 1 && n <= TX_MAX_MONTHS && addMonthsTx(start, n) === end ? n : 0;
 }
 
 /* ---------- small utils ---------- */
@@ -5011,7 +5037,13 @@ function caseFormHTML(c, isNew) {
     // in-house: the patient's treatment Start and Expected removal (on the initial set, or while the patient has none; see txOf)
     '<div class="cfSec"' + showTiles(INHOUSE_TILES.join(' ')) + '><h5>Treatment <span class="h5n">the patient’s start and expected removal — for the treatment graph</span></h5>' +
       '<div class="txFromRow" id="cf-txFromRow" hidden><span class="small muted" id="cf-txFrom"></span><button type="button" class="btn btn-sec btn-sm" id="cf-txChange">Change</button></div>' +
-      '<div class="grid2" id="cf-txWrap">' + date('cf-txStart', 'Start', c.txStart) + date('cf-txEnd', 'Expected removal', c.txEnd) + '</div></div>' +
+      '<div class="grid2" id="cf-txWrap">' + date('cf-txStart', 'Start', c.txStart) + date('cf-txEnd', 'Expected removal', c.txEnd) +
+      // the treatment time: tap the months and the expected removal fills in (Amir, 4 Oct 2026; see txLenSync in wireCaseForm)
+      '<div class="txLen"><span class="flabel" id="cf-txLenLbl">Treatment time</span><div class="pickRow" role="group" aria-labelledby="cf-txLenLbl">' +
+        TX_MONTHS.map(n => '<button type="button" class="pick sm" data-txm="' + n + '" aria-pressed="false" aria-label="' + n + ' months">' + n + ' mo</button>').join('') +
+        '<label class="txOther"><input id="cf-txMonths" type="number" min="1" max="' + TX_MAX_MONTHS + '" step="1" inputmode="numeric" placeholder="Other" aria-label="Other treatment time, in months">months</label></div>' +
+        '<div class="small txLenHint" id="cf-txLenHint" aria-live="polite"></div></div>' +
+      '</div></div>' +
     '<div class="cfSec"' + showTiles('insmile') + '><h5>Initial or digital enhancement?</h5>' + pickRow('initialDE', [{ v: 'yes', l: 'Initial' }, { v: 'de1', l: 'DE 1' }, { v: 'de2', l: 'DE 2' }, { v: 'de3', l: 'DE 3' }], c.initial || '', false) + '</div>' +
     '<div class="cfSec"><h5>Assistant</h5>' + staffPickRow('assistant', withSavedStaff(roster, c.assistant), c.assistant || '') +
     '<div' + show('aligner braces appliance marpe retainer models') + '><h5>Scanner</h5>' + scanPickRow(c.scanner || '') + '</div></div>' +
@@ -5173,8 +5205,31 @@ function wireCaseForm(root, isNew) {
     const t = o.type === 'nla' ? txOf(Object.assign({}, o, { txStart: '', txEnd: '' }), casePool()) : null;
     const show = !t || o.initial === 'yes' || !!(o.txStart || o.txEnd) || wrap.dataset.change === '1';
     wrap.style.display = show ? '' : 'none'; row.hidden = show;
-    from.textContent = show ? '' : 'Treatment ' + fmtDate(t.start) + ' → expected removal ' + fmtDate(t.end) + ' (from the patient’s ' + (t.from.initial === 'yes' ? 'initial set' : 'earlier set') + ').';
+    const n = t ? txMonths(t.start, t.end) : 0;
+    from.textContent = show ? '' : 'Treatment ' + fmtDate(t.start) + ' → expected removal ' + fmtDate(t.end) + (n ? ' · ' + n + (n === 1 ? ' month' : ' months') : '') + ' (from the patient’s ' + (t.from.initial === 'yes' ? 'initial set' : 'earlier set') + ').';
     wrap._t = t;
+  };
+  // the treatment time (Amir, 4 Oct 2026: "enter the date, pick 6 months treatment time > it will put the date as exactly 6 months
+  // from that day"): a length sets Expected removal to the same day that many months after Start, and moving Start keeps the
+  // length (like an event's end in a calendar). Picked before the start, it waits for it. An expected removal typed by hand that
+  // isn't a whole number of months away lets go of the length ("About 8.5 months").
+  let txHeld = 0;
+  const txFollow = () => { const s = $r('#cf-txStart'), e = $r('#cf-txEnd'); if (txHeld && s && e && txDateOk(s.value)) e.value = addMonthsTx(s.value, txHeld); };
+  const txFromDates = () => { const s = $r('#cf-txStart'), e = $r('#cf-txEnd'); txHeld = s && e && s.value && e.value ? txMonths(s.value, e.value) : 0; };
+  const txLenSync = typing => {
+    const s = $r('#cf-txStart'), e = $r('#cf-txEnd'), o = $r('#cf-txMonths'), hint = $r('#cf-txLenHint'); if (!s || !e || !o || !hint) return;
+    const sv = s.value, ev = e.value, chip = TX_MONTHS.includes(txHeld);
+    $$('[data-txm]', root).forEach(b => b.setAttribute('aria-pressed', String(Number(b.dataset.txm) === txHeld)));
+    if (!typing) o.value = txHeld && !chip ? String(txHeld) : '';
+    o.classList.toggle('on', !!txHeld && !chip && Number(o.value) === txHeld);
+    const om = o.value.trim(), oBad = typing && om !== '' && !(Number.isInteger(Number(om)) && Number(om) >= 1 && Number(om) <= TX_MAX_MONTHS);
+    let h = '', bad = false;
+    if (oBad) { h = 'Enter 1 to ' + TX_MAX_MONTHS + ' months.'; bad = true; }
+    else if (txHeld && !txDateOk(sv)) h = 'Now enter the start date — the expected removal will be ' + txHeld + (txHeld === 1 ? ' month' : ' months') + ' after it.';
+    else if (txDateOk(sv) && txDateOk(ev) && ev <= sv) { h = 'The expected removal has to be after the start.'; bad = true; }
+    else if (!txHeld && txDateOk(sv) && txDateOk(ev)) { const d = Math.round((isoDate(ev) - isoDate(sv)) / 864e5);
+      h = 'About ' + (d < 14 ? d + (d === 1 ? ' day' : ' days') : d < 61 ? Math.round(d / 7) + ' weeks' : Math.round(d / 30.44 * 2) / 2 + ' months') + '.'; }
+    hint.textContent = h; hint.classList.toggle('bad', bad);
   };
   const refresh = (typeChanged) => {
     const tile = $r('#cf-tile').value; const g = groupOfTile(tile); const o = readCaseForm(root);
@@ -5258,7 +5313,14 @@ function wireCaseForm(root, isNew) {
     if (e.target.closest('#cf-txChange')) {
       const wrap = $r('#cf-txWrap'), t = wrap._t; wrap.dataset.change = '1';
       if (t) { if (!$r('#cf-txStart').value) $r('#cf-txStart').value = t.start; if (!$r('#cf-txEnd').value) $r('#cf-txEnd').value = t.end; }
-      syncTx(); $r('#cf-txEnd').focus(); return;
+      syncTx(); txFromDates(); txLenSync(); $r('#cf-txEnd').focus(); return;
+    }
+    // a treatment time: the expected removal that many months after the start (or once the start is in)
+    const tm = e.target.closest('[data-txm]');
+    if (tm && root.contains(tm)) {
+      txHeld = Number(tm.dataset.txm); txFollow(); txLenSync();
+      const st = $r('#cf-txStart'); if (st && !txDateOk(st.value)) st.focus();
+      return;
     }
     const ship = e.target.closest('#cf-ship');
     if (ship && root.contains(ship)) {
@@ -5347,6 +5409,19 @@ function wireCaseForm(root, isNew) {
   const labRow = $('.pickRow[data-g="lab"]', root); if (!isNew && labRow && pressed(root, 'lab').length) labRow.dataset.manual = '1';
   $r('#cf-scanDate').addEventListener('change', () => refresh(false));
   $r('#cf-scanDate').addEventListener('input', () => refresh(false));
+  // the treatment time follows the dates: a new start keeps the length (moving the expected removal); an expected removal typed
+  // by hand sets it (a whole number of months) or lets go of it
+  const txS = $r('#cf-txStart'), txE = $r('#cf-txEnd'), txO = $r('#cf-txMonths');
+  if (txS && txE && txO) {
+    const onStart = () => { if (txHeld) txFollow(); else txFromDates(); txLenSync(); };
+    const onEnd = () => { txFromDates(); txLenSync(); };
+    ['input', 'change'].forEach(ev => { txS.addEventListener(ev, onStart); txE.addEventListener(ev, onEnd); });
+    // Other: a whole number of months like a button; while it's empty or not a number of months, the dates decide what's ticked
+    txO.addEventListener('input', () => { const v = Number(txO.value); if (txO.value !== '' && Number.isInteger(v) && v >= 1 && v <= TX_MAX_MONTHS) { txHeld = v; txFollow(); } else txFromDates(); txLenSync(true); });
+    txO.addEventListener('change', () => txLenSync());
+    txO.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); txO.blur(); } }); // (not Create case)
+    txFromDates(); txLenSync();
+  }
   refresh(false);
 }
 /* pre-select the lab for the tapped appliances (unless someone picked a lab by hand); in-house D2 starts in fabrication with Dr. A */
