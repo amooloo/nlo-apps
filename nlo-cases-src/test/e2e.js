@@ -577,8 +577,8 @@ async function openByName(p, name) {
   await owner.click('#nav-today'); await owner.click('.topBar [data-act=newCase]'); await owner.waitForSelector('#ncForm');
   await owner.click('#ncForm .tt[data-tile=appliance]'); await owner.fill('#cf-patient', 'Hollis Herbstwick');
   check(!(await owner.isVisible('#cf-rxSec')), 'no Herbst Rx before a Herbst is picked');
-  await tapAppl('Herbst with Rollo Band');
-  check(await owner.isVisible('#cf-rxSec') && await labNow() === 'Specialty Orthodontic Lab', 'Herbst with Rollo Band → Specialty: the Herbst Rx shows');
+  await tapAppl('Herbst');
+  check(await owner.isVisible('#cf-rxSec') && await labNow() === 'Specialty Orthodontic Lab', 'Herbst → Specialty: the Herbst Rx shows');
   await owner.fill('#cf-deliveryDate', await owner.evaluate(() => addDays(todayISO(), 30)));
   await owner.click('#ncForm [data-rxform=edit]'); await owner.waitForSelector('#rxWrap .rxArch.live');
   for (const [g, v] of [['design', 'cantilever'], ['mech', 'm4']]) await owner.click('#rxWrap .rxB[data-rxg=' + g + '][data-v="' + v + '"]');

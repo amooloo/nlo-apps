@@ -141,7 +141,7 @@ const OUT = process.argv[2] || 'shots';
   }
 
   // ---- the Herbst going to Specialty: none at Submit; moved to Shipped → 9 months for defects, half the Rx estimate for a refit
-  const hid = await ev(() => Array.from(S.cases.values()).find(c => (c.appliances || []).includes('Herbst with Rollo Band')).id);
+  const hid = await ev(() => Array.from(S.cases.values()).find(c => (c.appliances || []).includes('Herbst')).id);
   await ev(id => openDrawer(id), hid); await p.waitForSelector('#drawer [data-ds=rx]');
   check(!(await p.$('#drawer [data-ds=wty]')), 'the demo Herbst at Submit: no warranty yet');
   await p.click('#drawer [data-act=setStage][data-k=shipped]');
@@ -187,7 +187,7 @@ const OUT = process.argv[2] || 'shots';
   await ev(() => closeDrawer(true));
 
   // ---- a Herbst and something else on one case: both defect windows; the heading names the sooner one, then the Herbst's
-  const both = await ev(() => { const c = { id: 'x', type: 'appliance', lab: LAB_SPEC, stage: 'shipped', status: 'open', appliances: ['Herbst with Rollo Band', HAWLEY], invDate: todayISO() };
+  const both = await ev(() => { const c = { id: 'x', type: 'appliance', lab: LAB_SPEC, stage: 'shipped', status: 'open', appliances: ['Herbst', HAWLEY], invDate: todayISO() };
     const d = wtyDates(c, []), w = wtyWindows(c, d), div = document.createElement('div'); div.innerHTML = wtyTableHTML(c, d, w);
     const c7 = Object.assign({}, c, { invDate: wtyAddMonths(todayISO(), -7) }), d7 = wtyDates(c7, []);
     return { sum: wtySummary(c, d, w), rows: Array.from(div.querySelectorAll('th')).map(t => t.textContent).join('|'), six: wtyDay(wtyAddMonths(todayISO(), 6)), free: wtyDay(addDays(todayISO(), 30)),

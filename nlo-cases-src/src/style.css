@@ -895,6 +895,15 @@ body.phOff .pav,body.phOff .dPh,body.phOff .phSlot,body.phOff .phTgl,body.phOff 
 /* a choice that doesn't go with what's picked (the Herbst Rx: a TPA or quad helix with an expansion screw): greyed out, says why when tapped */
 .rxB[aria-disabled="true"]{opacity:.42;cursor:not-allowed;background:var(--grey-50)}
 .rxB[aria-disabled="true"]:hover{border-color:var(--grey-200);background:var(--grey-50);color:var(--grey-700)}
+/* Dr. A's recommended choice (Amir, 4 Oct 2026): a green Recommended badge on the button */
+.rxB .rxRec{font-size:10.5px;font-weight:700;letter-spacing:.01em;color:#0B6340;background:#DCF2E6;border:1px solid #9FD9BD;border-radius:99px;padding:0 7px;line-height:16px;white-space:nowrap}
+.rxB[aria-pressed="true"] .rxRec{background:#fff;border-color:#0B6340}
+/* a tool that doesn't go with this form (the Herbst Rx: crowns, ROCs, OnBRACE) is greyed out, saying why */
+.rxTool[aria-disabled="true"]{opacity:.42;cursor:not-allowed}
+.rxTool[aria-disabled="true"]:hover{border-color:var(--grey-200);color:var(--grey-700)}
+/* the lower lingual arch's clearance question, right under the arch */
+.rxLaQ .rxLbl{min-width:0;flex-basis:100%;color:var(--grey-700)}
+.rxAsk{display:block;color:#6E4B00;background:#FFF4D6;border-radius:8px;padding:5px 9px;margin-top:6px;font-weight:600}
 .rxAutoN{margin-top:6px}
 .rxSub{display:inline-flex;flex-wrap:wrap;gap:6px;align-items:center}
 .rxBs.rxSub{display:flex}
@@ -904,6 +913,8 @@ body.phOff .pav,body.phOff .dPh,body.phOff .phSlot,body.phOff .phTgl,body.phOff 
 .rxF input:focus,.rxS textarea:focus,.rxPl input:focus{border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-100)}
 .rxRow{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:6px}
 .rxRow .rxF{flex-direction:column;align-items:flex-start;gap:3px}
+/* the Other type line holds a written-out screw ("Variety Small Palate Click 12 mm, upper & lower") */
+.rxRow .rxF input[data-rxf="expOther"]{width:min(360px,78vw)}
 .rxRow .rxF span{font-family:var(--fd);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--grey-500)}
 .rxRow .rxF input{width:170px}
 .rxS textarea{width:100%;border:1.5px solid var(--grey-200);border-radius:10px;padding:8px 10px;font-size:13px;resize:vertical;min-height:66px;line-height:1.45;outline:none}

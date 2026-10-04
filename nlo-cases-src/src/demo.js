@@ -56,7 +56,7 @@ const DEMO = {
     Object.assign(mp[2], { records: ['stl', 'cbct'], lab: 'Partners Dental Solutions', zoomDate: addDays(t, -9), zoomTime: '13:00' });
     // a Herbst going to Specialty with its Herbst Rx filled out (rx.js; made-up choices), and Dr. A's Rx details (made up)
     const hb = all.find(c => c.type === 'appliance' && c.stage === 'submit');
-    if (hb) Object.assign(hb, { appliances: ['Herbst with Rollo Band'], detail: 'Herbst with Rollo Band', lab: LAB_SPEC, scanner: 'iTero',
+    if (hb) Object.assign(hb, { appliances: ['Herbst'], detail: 'Herbst', lab: LAB_SPEC, scanner: 'iTero',
       rx: { form: 'specialty-herbst', design: 'standard', mech: 'm4', bite: 'e2e', wire: ['la'], awt: ['U'], awtU: '022',
         teeth: { UR6: 'band', UL6: 'band', LR6: 'band', LR4: 'band', LL4: 'band', LL6: 'band' } } });
     DEMO.settings.rxOffice = { acct: 'DEMO-0000', license: 'DN 00000 (demo)', licExp: '02/28', email: 'office@example.com' };

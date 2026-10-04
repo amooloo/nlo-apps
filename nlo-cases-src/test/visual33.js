@@ -230,7 +230,7 @@ const has = cmd => { try { execFileSync('which', [cmd], { stdio: 'ignore' }); re
   st = await rxNow(); check(st.designU === 'flipper' && (st.accU || []).includes('finger') && !st.designL, '… it starts as an upper Flipper (no bow) with a finger spring');
   await p.click('#rxWrap [data-rxa=close]'); await p.waitForSelector('#rxWrap', { state: 'detached' });
   // a Herbst and Hawleys on one case: both forms
-  await pick('appliances', 'Finger spring with no labial bow'); await pick('appliances', 'Herbst with Rollo Band'); await pick('appliances', 'Hawley retainers'); await pick('hawleyArch', 'Upper');
+  await pick('appliances', 'Finger spring with no labial bow'); await pick('appliances', 'Herbst'); await pick('appliances', 'Hawley retainers'); await pick('hawleyArch', 'Upper');
   check(await p.isVisible('#ncForm #cf-rxSec') && await retShown(), 'a Herbst and Hawley retainers to Specialty on one case: the Herbst Rx and the Retainer Rx both show');
   await p.evaluate(() => { const m = document.querySelector('#modalWrap'); if (m) m.remove(); });
 

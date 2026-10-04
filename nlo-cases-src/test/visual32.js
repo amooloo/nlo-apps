@@ -35,8 +35,8 @@ const has = cmd => { try { execFileSync('which', [cmd], { stdio: 'ignore' }); re
   await newAppliance();
   check(!(await rxShown()), 'New case, Appliance: no Herbst Rx before an appliance is tapped');
   await appl('MARA'); check(!(await rxShown()), 'MARA (Specialty, not a Herbst): no Herbst Rx');
-  await appl('MARA'); await appl('Herbst with Rollo Band');
-  check(await p.evaluate(() => pressed(document.querySelector('.modal'), 'lab')[0]) === 'Specialty Orthodontic Lab' && await rxShown() && /Fill out the Rx/i.test(await p.textContent('#cf-rxSec')), 'Herbst with Rollo Band → Specialty: the Herbst Rx shows (“Fill out the Rx”)');
+  await appl('MARA'); await appl('Herbst');
+  check(await p.evaluate(() => pressed(document.querySelector('.modal'), 'lab')[0]) === 'Specialty Orthodontic Lab' && await rxShown() && /Fill out the Rx/i.test(await p.textContent('#cf-rxSec')), 'Herbst → Specialty: the Herbst Rx shows (“Fill out the Rx”)');
   await p.click('#ncForm .pickRow[data-g=lab] .pick[data-v="Partners Dental Solutions"]'); check(!(await rxShown()), 'lab switched to Partners by hand: the Rx hides');
   await p.click('#ncForm .pickRow[data-g=lab] .pick[data-v="Specialty Orthodontic Lab"]'); check(await rxShown(), '… and back to Specialty: it shows again');
   // one of Herbst, MARA, MSE, MARPE and RPE per case; the others go with them (Amir, 4 Oct 2026)
@@ -44,10 +44,14 @@ const has = cmd => { try { execFileSync('which', [cmd], { stdio: 'ignore' }); re
   await appl('MSE'); check(await applOn() === 'MSE', 'tapping MSE with the Herbst picked switches to MSE (one of Herbst, MARA, MSE, MARPE or RPE per case)');
   await appl('Schwartz'); check(await applOn() === 'MSE|Schwartz', '… while the others go with it');
   await appl('Schwartz'); await appl('Space Closing Herbst'); check(await applOn() === 'Space Closing Herbst', 'Space Closing Herbst replaces MSE too');
-  await appl('Herbst with Rollo Band'); check(await applOn() === 'Herbst with Rollo Band' && await rxShown(), '… and the two Herbsts don’t go together');
+  await appl('Herbst'); check(await applOn() === 'Herbst' && await rxShown(), '… and the two Herbsts don’t go together');
   const logoOk = await p.evaluate(() => { const i = document.querySelector('#cf-rxSec img[data-logo]'); return !!i && i.complete && i.naturalWidth > 0; });
   check(logoOk, 'the section carries Specialty’s logo');
 
+  // the Herbst's old name (Amir, 4 Oct 2026: "change Herbst with rollo band to Herbst"): a case saved under it reads as Herbst and keeps its Rx
+  check(await p.evaluate(() => { const c = applNorm({ appliances: ['Herbst with Rollo Band', 'D2 distalizer'], detail: 'Herbst with Rollo Band, D2 distalizer' });
+    return c.appliances.join('|') === 'Herbst|D2 distalizer' && c.detail === 'Herbst, D2 distalizer' && PICK.appliances[0] === 'Herbst' && !PICK.appliances.includes('Herbst with Rollo Band') &&
+      rxApplies({ type: 'appliance', lab: LAB_SPEC, appliances: ['Herbst with Rollo Band'] }); }), 'the Herbst is called “Herbst”; a case saved as “Herbst with Rollo Band” reads as Herbst (and still gets the Herbst Rx)');
   // ---- the Rx editor
   await p.fill('#ncForm #cf-patient', 'Harper Herbstman');
   const deliv = await p.evaluate(() => addDays(todayISO(), 6)); await p.fill('#ncForm #cf-deliveryDate', deliv);
@@ -56,13 +60,35 @@ const has = cmd => { try { execFileSync('which', [cmd], { stdio: 'ignore' }); re
   check(await p.evaluate(() => document.querySelector('#app').inert && document.querySelector('#modalWrap').inert && !document.querySelector('#toasts').inert), 'while it’s open the page behind it is inert (toasts still work)');
   let outside = 0; for (let i = 0; i < 110; i++) { await p.keyboard.press('Tab'); if (await p.evaluate(() => { const a = document.activeElement; return !!a && a !== document.body && !a.closest('#rxWrap'); })) outside++; }
   check(outside === 0, 'Tab never leaves the Rx (110 presses)');
+  // Dr. A's Herbst (Amir, 4 Oct 2026): a new Rx starts edge to edge, with the lower lingual arch and bands on the anchor teeth;
+  // the M4, edge to edge and Band carry Recommended; crowns, 3D printed bands, bands sent with the case and the Space Closing design
+  // (its own appliance on the case) are greyed out
+  const st0 = await rxNow();
+  check(st0.bite === 'e2e' && JSON.stringify(st0.wire) === '["la"]' && JSON.stringify(st0.teeth) === '{"UR6":"band","UL6":"band","LR6":"band","LR4":"band","LL4":"band","LL6":"band"}', 'a new Herbst Rx starts edge to edge, with the lower lingual arch and bands on the upper 6s and the lower 4s and 6s');
+  const rec = await p.evaluate(() => Array.from(document.querySelectorAll('#rxWrap .rxB .rxRec')).map(b => { const x = b.closest('.rxB'); return x.dataset.rxg + ':' + x.dataset.v + ':' + b.textContent; }).join());
+  check(rec === 'mech:m4:Recommended,bite:e2e:Recommended,tool:band:Recommended', 'Recommended badges on the M4, edge to edge and Band (' + rec + ')');
+  check(await p.getAttribute('#rxWrap .rxB[data-rxg=tool][data-v=band]', 'aria-pressed') === 'true' && await p.getAttribute('#rxWrap [data-rxtool=band]', 'aria-pressed') === 'true', 'Band is the tool picked when the Rx opens');
+  const offNow = () => p.evaluate(() => Array.from(document.querySelectorAll('#rxWrap .rxB[aria-disabled=true], #rxWrap .rxTool[aria-disabled=true]')).map(b => (b.dataset.rxg || 'rxtool') + ':' + (b.dataset.v || b.dataset.rxtool)).sort().join());
+  const off0 = await offNow();
+  check(off0 === ['crownOpt:debond', 'crownOpt:lugs', 'crownOpt:roc', 'crownOpt:slits', 'crownOpt:vent', 'design:combination', 'design:spaceclosing', 'flag:enclosed', 'flag:printed3d', 'rxtool:crown', 'rxtool:onbrace', 'rxtool:roc', 'tool:crown', 'tool:onbrace', 'tool:roc'].join(), 'greyed out: Crown, ROC, OnBRACE (both rows), the crown options, Band / Crown Combination, 3D printed bands, bands sent with the case and the Space Closing design (' + off0 + ')');
+  await clearToasts(); await p.click('#rxWrap [data-rxtool=crown]', { force: true }); await p.waitForTimeout(100);
+  check(await toastHas(/bands, so crowns are off/) && await p.getAttribute('#rxWrap [data-rxtool=band]', 'aria-pressed') === 'true', 'tapping Crown says why and Band stays picked');
+  await clearToasts(); await p.click('#rxWrap .rxB[data-rxg=design][data-v=spaceclosing]', { force: true }); await p.waitForTimeout(100);
+  check(await toastHas(/its own appliance on the case/) && !(await rxNow()).design, 'the Space Closing design says it’s its own appliance on the case, and isn’t picked');
+  await clearToasts(); await p.click('#rxWrap .rxB[data-rxg=flag][data-v=enclosed]', { force: true }); await p.waitForTimeout(100);
+  check(await toastHas(/never send bands/) && !(await rxNow()).enclosed, '“Bands or crowns enclosed with case”: we never send bands');
+  check(await p.isVisible('#rxWrap .rxSub[data-show=la] .rxB[data-rxg=lowerInc][data-v=flared]') && /Lower lingual arch clearance/.test(await p.textContent('#rxWrap .rxSub[data-show=la]')) && await p.isVisible('#rxWrap .rxSub[data-show=laAsk]'), 'the lower lingual arch’s clearance is asked right under it, with a prompt until it’s answered');
+  await (await p.evaluateHandle(() => document.querySelector('#rxWrap .rxB[data-rxg=bite]').closest('.rxS'))).screenshot({ path: OUT + '/v32-rx-bite.png' });
+  await (await p.evaluateHandle(() => document.querySelector('#rxWrap .rxB[data-rxg=wire]').closest('.rxS'))).screenshot({ path: OUT + '/v32-rx-wire.png' });
   const needAuto = await p.evaluate(d => prevClinicDay(d), deliv);
   check(await p.inputValue('#rxWrap [data-rxf=needed]') === needAuto && /office day before the delivery appt/.test(await p.textContent('#rxNeedHint')), 'Date needed filled in: the office day before the delivery appt (' + needAuto + ')');
   check(await p.inputValue('#rxWrap [data-rxf=shipped]') === today, 'Date shipped: today');
   check(await p.isVisible('#rxLead') && /10 business days/.test(await p.textContent('#rxLead')), 'needed in under 10 business days: a warning to tick the expedite approval');
   await tap('flag', 'rush'); check(!(await p.isVisible('#rxLead')), 'ticking the expedite approval clears the warning');
-  await tap('design', 'cantilever'); await tap('mech', 'm4');
-  check(Math.abs(await est() - 382) < .001 && /\$382\.00/.test(await p.textContent('#rxTot')), 'Cantilever Herbst $220.50 + M4 MiniScope $66.50 + the expedite fee $95 (Specialty’s case scheduling page) = est. $382.00 in the header');
+  await clearToasts(); await tap('design', 'cantilever');
+  check(JSON.stringify((await rxNow()).teeth) === '{"UR6":"band","UL6":"band","LR6":"band","LL6":"band"}' && await toastHas(/upper and lower 6s/), 'Cantilever Herbst: the anchor teeth become the upper and lower 6s (the lower 4s come off), and it says so');
+  await tap('mech', 'm4');
+  check(Math.abs(await est() - 453) < .001 && /\$453\.00/.test(await p.textContent('#rxTot')), 'Cantilever Herbst $220.50 + M4 MiniScope $66.50 + 4 bands × $17.75 + the expedite fee $95 (Specialty’s case scheduling page) = est. $453.00 in the header');
   check(/\$220\.50/.test(await p.textContent('#rxWrap .rxB[data-rxg=design][data-v=cantilever]')) && /\+\$66\.50/.test(await p.textContent('#rxWrap .rxB[data-rxg=mech][data-v=m4]')), 'each choice shows its price ($220.50, +$66.50)');
   // what each design / mechanism is (Amir, 4 Oct 2026: "when they kind of hover over it or click on something, they can get more information")
   const card = g => p.evaluate(g => { const c = document.querySelector('#rxWrap .rxInfoCard[data-info=' + g + ']'), on = c.querySelector('.rxIc.on') || c; return { name: (on.querySelector('.rxIcHd b') || {}).textContent || '', peek: c.classList.contains('peek'), text: on.textContent, links: on.querySelectorAll('.rxIcSrc a[target=_blank]').length, h: c.getBoundingClientRect().height }; }, g);
@@ -104,12 +130,11 @@ const has = cmd => { try { execFileSync('which', [cmd], { stdio: 'ignore' }); re
   check(ap.mech === 'm4' && ap.apple === true && ap.boxes === 'mech.applecore,mech.m4' && /M4 MiniScope \+ AppleCore screws/.test(ap.sum) && ap.miss.includes('AppleCore screws'), 'AppleCore screws go with the M4 (both circled on the form; summary “M4 MiniScope + AppleCore screws”; not priced)');
   await tap('flag', 'apple');
   check(JSON.stringify(await p.evaluate(() => rxCanon({ mech: 'applecore' }))) === '{"form":"specialty-herbst","apple":true}', 'an Rx saved with AppleCore as its mechanism reads as AppleCore screws');
-  await tooth('UR6'); await tooth('UL6');
-  check(JSON.stringify((await rxNow()).teeth) === '{"UR6":"band","UL6":"band"}' && /Bands:<\/b> UR6, UL6|Bands: UR6, UL6/.test(await p.innerHTML('#rxTeethSum')), 'tapping UR6 and UL6 bands them (“Bands: UR6, UL6”)');
-  await tap('tool', 'crown'); await tooth('LR6'); await tooth('LL6');
-  check(Math.abs(await est() - (382 + 2 * 17.75 + 2 * 21.5)) < .001, 'two bands ($17.75 ea) and two crowns ($21.50 ea) add up: est. $' + (382 + 35.5 + 43).toFixed(2));
-  await tooth('LL6'); check(!(await rxNow()).teeth.LL6, 'tapping a crowned tooth again takes the crown off');
-  await tooth('LL6');
+  await tooth('UR6'); check(!(await rxNow()).teeth.UR6, 'tapping a banded tooth takes its band off');
+  await tooth('UR6'); check((await rxNow()).teeth.UR6 === 'band' && /Bands:<\/b> UR6, UL6, LR6, LL6|Bands: UR6, UL6, LR6, LL6/.test(await p.innerHTML('#rxTeethSum')), '… and tapping it again bands it (“Bands: UR6, UL6, LR6, LL6”)');
+  await tooth('LR5'); check(Math.abs(await est() - (453 + 17.75)) < .001, 'another band adds $17.75: est. $470.75');
+  await tooth('LR5');
+  check(await p.evaluate(() => rxCanon({ form: RX_FORM, teeth: { UR6: 'crown' } }).teeth.UR6) === 'crown', 'an Rx saved with a crown keeps it (greyed out only stops new ones)');
   await clearToasts(); await tooth('UR1');
   check(await toastHas(/4s to 7s/) && !(await rxNow()).teeth.UR1, 'a front tooth isn’t on Specialty’s chart: it says so and changes nothing');
   await tap('tool', 'rest'); await tooth('UR5');
@@ -119,7 +144,7 @@ const has = cmd => { try { execFileSync('which', [cmd], { stdio: 'ignore' }); re
     return Math.abs(dx * t.m[0] + dy * t.m[1]) > 3 * Math.abs(dx * t.b[0] + dy * t.b[1]) ? 'back' : 'lingual'; }).join(',')) === 'back,back,back,back,lingual', 'an occlusal rest on a 7 runs straight back from the middle of its mesial (on a 5 it still comes from the lingual)');
   await tap('tool', 'band'); await p.focus('#rxArchBox .rxTooth[data-rxt=LR4]'); await p.keyboard.press('Enter');
   check((await rxNow()).teeth.LR4 === 'band', 'keyboard: Enter on a focused tooth bands it');
-  await tap('wire', 'la'); await tap('awt', 'U'); await tap('awtU', '022');
+  check(((await rxNow()).wire || []).includes('la'), 'the lower lingual arch is already picked'); await tap('awt', 'U'); await tap('awtU', '022');
   // an expansion screw greys out the TPA and quad helix (Amir, 4 Oct 2026: "if you add any expansion, TPA and quadhelix need to be grayed out")
   const wireOff = () => p.evaluate(() => ['la', 'tpa', 'qh'].map(v => document.querySelector('#rxWrap .rxB[data-rxg=wire][data-v=' + v + ']').getAttribute('aria-disabled') === 'true').join(','));
   await tap('wire', 'tpa'); check(((await rxNow()).wire || []).includes('tpa'), 'TPA picked');
@@ -139,10 +164,26 @@ const has = cmd => { try { execFileSync('which', [cmd], { stdio: 'ignore' }); re
   await p.fill('#rxWrap [data-rxf=expOther]', ''); await p.press('#rxWrap [data-rxf=expOther]', 'Tab');
   check(JSON.stringify((await rxNow()).wire) === '["la"]' && await wireOff() === 'false,false,false', '(screw cleared again)');
   check(await p.evaluate(() => JSON.stringify(rxCanon({ form: RX_FORM, exp: ['mcU'], wire: ['la', 'tpa', 'qh'] }).wire)) === '["la"]', 'an Rx saved with both keeps the screw, not the TPA or quad helix');
+  // the other screws Specialty carries, written out on the form's Other type line (Amir, 4 Oct 2026)
+  await tap('expScrew', 'palexClick');
+  let sc = await rxNow();
+  check(sc.expScrew === 'palexClick' && JSON.stringify(sc.expArch) === '["U"]' && await p.isVisible('#rxWrap .rxSub[data-show=expScrew]') && await wireOff() === 'false,true,true', 'Other screws: Palex Click starts on the upper, shows its size and arch, and greys out the TPA and quad helix');
+  check(await p.evaluate(() => ['7', '8', '10', '12'].map(mm => document.querySelector('#rxWrap .rxB[data-rxg=expMm][data-v="' + mm + '"]').getAttribute('aria-disabled') === 'true' ? 'off' : 'on').join()) === 'off,off,on,on', '… only its sizes can be picked (10 or 12 mm)');
+  await tap('expMm', '12'); await tap('expArch', 'L');
+  check(await p.inputValue('#rxWrap [data-rxf=expOther]') === 'Palex Click 12 mm, upper & lower' && await p.evaluate(() => rxFill({ patient: 'X' }, RXE.rx).txt.some(t => t.s === 'Palex Click 12 mm, upper & lower')), 'written out on the Other type line, on screen and on the paper: “Palex Click 12 mm, upper & lower”');
+  const scE = await p.evaluate(() => rxEstimate(RXE.rx).lines.find(l => /Palex Click/.test(l.l)));
+  check(!!scE && scE.qty === 2 && scE.each === 70.5, '… priced as the list’s RPE screw, one per arch (2 × $70.50)');
+  await (await p.evaluateHandle(() => document.querySelector('#rxWrap .rxB[data-rxg=expScrew]').closest('.rxS'))).screenshot({ path: OUT + '/v32-rx-screws.png' });
+  await tap('expScrew', 'rpe');
+  check((await rxNow()).expMm === '12' && await p.inputValue('#rxWrap [data-rxf=expOther]') === 'RPE screw (hyrax type) 12 mm, upper & lower', 'the RPE screw comes in 12 mm only, so it takes it');
+  await tap('expScrew', 'rpe');
+  sc = await rxNow();
+  check(!sc.expScrew && !sc.expMm && !sc.expArch && await wireOff() === 'false,false,false' && await p.inputValue('#rxWrap [data-rxf=expOther]') === '', 'tapping it again takes the screw off (its size, arch and Other type line go with it)');
   // the lower incisors write where the lower lingual arch sits into the special instructions (Amir, 4 Oct 2026)
   const autoN = () => p.evaluate(() => { const e = document.querySelector('#rxAutoNotes'); return e && !e.hidden ? e.textContent : ''; });
   const paperNotes = () => p.evaluate(() => rxFill({ patient: 'X' }, RXE.rx).txt.filter(t => t.x === 26).map(t => t.s).join(' '));
   await tap('lowerInc', 'flared');
+  check(!(await p.isVisible('#rxWrap .rxSub[data-show=laAsk]')), 'once the clearance is answered the prompt goes away');
   check(/about 1\.5 mm off the cingulum/.test(await autoN()) && /about 1\.5 mm off the cingulum/.test(await paperNotes()), 'Lower incisors flared or spaced: “keep the lower lingual arch about 1.5 mm off the cingulum …” under the box and on the paper');
   await tap('lowerInc', 'retro');
   check(/right against the cingulum/.test(await autoN()) && /right against the cingulum/.test(await paperNotes()) && !/1\.5 mm/.test(await paperNotes()), 'retroclined or crowded: “… right against the cingulum” instead');
@@ -199,7 +240,7 @@ const has = cmd => { try { execFileSync('which', [cmd], { stdio: 'ignore' }); re
   await p.click('#rxWrap [data-rxa=done]'); await p.waitForSelector('#rxWrap', { state: 'detached' });
   check(await p.evaluate(() => !document.querySelector('#app').inert && !document.querySelector('#modalWrap').inert), 'closed: the page behind works again');
   const sum = await p.textContent('#cf-rxSum');
-  check(/Cantilever Herbst · M4 MiniScope · 3 bands, 2 crowns/.test(sum) && /est\. \$/.test(sum) && /Edit the Rx/i.test(await p.textContent('#cf-rxSec')), 'Done: the form shows “Cantilever Herbst · M4 MiniScope · 3 bands, 2 crowns · est. $…” and Edit the Rx');
+  check(/Cantilever Herbst · M4 MiniScope · 5 bands/.test(sum) && /est\. \$/.test(sum) && /Edit the Rx/i.test(await p.textContent('#cf-rxSec')), 'Done: the form shows “Cantilever Herbst · M4 MiniScope · 5 bands · est. $…” and Edit the Rx');
   await (await p.evaluateHandle(() => document.querySelector('#cf-rxSec'))).screenshot({ path: OUT + '/v32-rx-form.png' });
   await clearToasts(); await p.click('#ncSave'); await p.waitForSelector('#ncForm', { state: 'detached', timeout: 5000 });
   await p.waitForTimeout(500);
@@ -271,22 +312,22 @@ const has = cmd => { try { execFileSync('which', [cmd], { stdio: 'ignore' }); re
   check(def && def.mech === 'hth' && def.design === 'cantilever' && !def.notes && !def.draw && !def.rush && !def.mio && !def.mioMm && !def.lowerInc && def.teeth.UR6 === 'band', '“Save as our usual Herbst”: the choices and teeth (not this patient’s MIO 45 mm, lower incisors, notes, drawing or rush)');
   await p.click('#rxWrap [data-rxa=close]'); await p.click('#rxWrap [data-rxa=close]'); await p.waitForSelector('#rxWrap', { state: 'detached' }); // (changed: × asks, then closes)
   check(await p.evaluate(id => !findCase(id).rx.mio, cid), '× twice: closed without saving the change');
-  await newAppliance(); await appl('Herbst with Rollo Band'); await p.fill('#ncForm #cf-patient', 'Rowan Rolloband');
+  await newAppliance(); await appl('Herbst'); await p.fill('#ncForm #cf-patient', 'Rowan Rolloband');
   await p.click('#ncForm [data-rxform=edit]'); await p.waitForSelector('#rxWrap');
   const st = await rxNow();
-  check(st.design === 'cantilever' && st.mech === 'hth' && st.teeth.LR6 === 'crown' && !st.notes, 'a new Herbst Rx starts from the usual Herbst');
+  check(st.design === 'cantilever' && st.mech === 'hth' && st.teeth.LR6 === 'band' && !st.teeth.LL4 && !st.notes, 'a new Herbst Rx starts from the usual Herbst');
   await p.click('#rxWrap [data-rxa=close]'); await p.waitForSelector('#rxWrap', { state: 'detached' });
   check(await p.inputValue('#ncForm #cf-rx') === '', '… closed without Done: nothing is put on the case');
-  await appl('Herbst with Rollo Band'); await appl('Space Closing Herbst');
+  await appl('Herbst'); await appl('Space Closing Herbst');
   await p.click('#ncForm [data-rxform=edit]'); await p.waitForSelector('#rxWrap');
   check((await rxNow()).design === 'spaceclosing', 'Space Closing Herbst: its Rx starts on Space Closing Herbst');
   // … from its own usual, kept apart from the usual Herbst (Amir, 4 Oct 2026: "I saved the template for herbst space closing but it also saves it for the regular herbst")
   const scSt = await rxNow();
-  check(scSt.mech !== 'hth' && !scSt.teeth && /Save as our usual Space Closing Herbst/.test(await p.textContent('#rxWrap [data-rxa=saveDef]')) && !(await p.$('#rxWrap [data-rxa=useDef]')), '… not from the usual Herbst: it has its own (“Save as our usual Space Closing Herbst”), not saved yet');
+  check(scSt.mech !== 'hth' && JSON.stringify(scSt.teeth) === '{"UR6":"band","UL6":"band","LR6":"band","LR4":"band","LL4":"band","LL6":"band"}' && scSt.bite === 'e2e' && await p.getAttribute('#rxWrap .rxB[data-rxg=design][data-v=spaceclosing]', 'aria-disabled') !== 'true' && /Save as our usual Space Closing Herbst/.test(await p.textContent('#rxWrap [data-rxa=saveDef]')) && !(await p.$('#rxWrap [data-rxa=useDef]')), '… not from the usual Herbst: it has its own (“Save as our usual Space Closing Herbst”), not saved yet');
   await tap('mech', 'm4'); await clearToasts(); await p.click('#rxWrap [data-rxa=saveDef]'); await p.waitForTimeout(200);
   const both = await p.evaluate(() => [rxDefaults(RX_SC), rxDefaults()]);
   check(both[0] && both[0].design === 'spaceclosing' && both[0].mech === 'm4' && both[1] && both[1].design === 'cantilever' && both[1].mech === 'hth', 'saving it keeps the two apart: the usual Herbst is still Cantilever + HTH');
-  check(await p.evaluate(() => rxStart({ appliances: ['Space Closing Herbst'] }).mech === 'm4' && rxStart({ appliances: ['Herbst with Rollo Band'] }).mech === 'hth'), 'a new Space Closing Herbst starts from its usual, a regular Herbst from the usual Herbst');
+  check(await p.evaluate(() => rxStart({ appliances: ['Space Closing Herbst'] }).mech === 'm4' && rxStart({ appliances: ['Herbst'] }).mech === 'hth'), 'a new Space Closing Herbst starts from its usual, a regular Herbst from the usual Herbst');
   check(await p.evaluate(() => { const was = S.settings.rxDefaults; S.settings.rxDefaults = JSON.stringify({ [RX_FORM]: { form: RX_FORM, design: 'spaceclosing', mech: 'm4' } }); const r = !rxDefaults() && (rxDefaults(RX_SC) || {}).mech === 'm4'; S.settings.rxDefaults = was; return r; }), 'a usual Herbst saved on the Space Closing design before the split counts as the usual Space Closing Herbst, not the regular one');
   await p.click('#rxWrap [data-rxa=close]'); await p.click('#rxWrap [data-rxa=close]'); await p.waitForSelector('#rxWrap', { state: 'detached' });
   await p.click('#ncForm [data-rxform=edit]'); await p.waitForSelector('#rxWrap');
@@ -309,7 +350,7 @@ const has = cmd => { try { execFileSync('which', [cmd], { stdio: 'ignore' }); re
 
   // ---- what goes on the paper: long text fits its line, accents print, a long note wraps
   const fit = await p.evaluate(() => {
-    const c = { patient: 'Zoë Ñúñez-O’Brien Wolfeschlegelsteinhausenbergerdorff the Third', scanner: 'Allied Star', deliveryDate: addDays(todayISO(), 30), type: 'appliance', lab: LAB_SPEC, appliances: ['Herbst with Rollo Band'] };
+    const c = { patient: 'Zoë Ñúñez-O’Brien Wolfeschlegelsteinhausenbergerdorff the Third', scanner: 'Allied Star', deliveryDate: addDays(todayISO(), 30), type: 'appliance', lab: LAB_SPEC, appliances: ['Herbst'] };
     const f = rxFill(c, { design: 'standard', notes: 'Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. '.repeat(5) });
     const T = RXF.text, pt = f.txt.find(t => t.y === T.patient.y + 2.2), notes = f.txt.filter(t => t.x === 26);
     return { pz: pt.z, pw: rxWidth(pt.s, pt.font, pt.z), room: T.patient.x1 - T.patient.x0, ell: /…$/.test(pt.s), n: notes.length, nz: notes[0] && notes[0].z, nw: Math.max(...notes.map(t => rxWidth(t.s, 'H', t.z))), other: f.box.includes('scan.other') && f.txt.some(t => t.s === 'Allied Star'),

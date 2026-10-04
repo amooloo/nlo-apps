@@ -25,8 +25,9 @@ const RXK = {};
 function rxK(x) { const f = typeof x === 'string' ? x : x && x.form; return RXK[f] || RXK[RX_FORM]; }
 function rxKind(key) { return Object.values(RXK).find(k => k.key === key) || RXK[RX_FORM]; }
 function rxKinds() { return Object.values(RXK); }
-/* the appliances that go on the Herbst form (with the lab set to Specialty) */
-const RX_HERBST = ['Herbst with Rollo Band', 'Space Closing Herbst'];
+/* the appliances that go on the Herbst form (with the lab set to Specialty); "Herbst with Rollo Band" is the Herbst's name until
+   4 Oct 2026 (caseform.js APPL_RENAMED), kept so a case still holding it gets its Rx */
+const RX_HERBST = ['Herbst', 'Space Closing Herbst', 'Herbst with Rollo Band'];
 /* Dr. A's usual Space Closing Herbst is kept apart from his usual Herbst (Amir, 4 Oct 2026: "I saved the template for herbst space
    closing but it also saves it for the regular herbst. can you separate them?"): a case with Space Closing Herbst picked saves and
    starts from its own */
@@ -35,13 +36,48 @@ function rxHerbstUsual(c) { return c && (c.appliances || []).includes('Space Clo
 /* an expansion screw takes the place of a TPA or quad helix (Amir, 4 Oct 2026: "if you add any expansion, TPA and quadhelix need to be
    grayed out"): with any expansion picked, upper or lower (or another type typed in), they're greyed out and off the Rx */
 const RX_NOEXP = ['tpa', 'qh'];
-const rxHasExp = rx => !!((rx.exp || []).length || rx.expOther);
+const rxHasExp = rx => !!((rx.exp || []).length || rx.expOther || rx.expScrew);
 /* the lower incisors decide where the lower lingual arch sits (Amir, 4 Oct 2026: flared or spaced → about 1.5 mm off the cingulum;
-   retroclined or crowded → right against it); the answer writes its sentence into the special instructions */
+   retroclined or crowded → right against it); the answer writes its sentence into the special instructions. It's asked right under
+   the lower lingual arch, as its clearance (Amir, 4 Oct 2026: "I also don't see the question about the clearance for the lower
+   lingual arch"), and goes with the arch */
 const RX_INC = {
-  flared: ['Flared or spaced', 'Lower incisors flared/spaced: keep the lower lingual arch about 1.5 mm off the cingulum of the lower anterior teeth.'],
-  retro: ['Retroclined or crowded', 'Lower incisors retroclined/crowded: lower lingual arch right against the cingulum of the lower anterior teeth.']
+  flared: ['1.5 mm off the cingulum (incisors flared or spaced)', 'Lower incisors flared/spaced: keep the lower lingual arch about 1.5 mm off the cingulum of the lower anterior teeth.'],
+  retro: ['Against the cingulum (incisors retroclined or crowded)', 'Lower incisors retroclined/crowded: lower lingual arch right against the cingulum of the lower anterior teeth.']
 };
+/* Dr. A's Herbst (Amir, 4 Oct 2026): the M4 is the recommended mechanism; the bite starts edge to edge (recommended); the anchorage
+   is bands (recommended, picked when the Rx opens) and crowns, ROCs, OnBRACE, the crown options, 3D printed / sintered bands and
+   bands sent with the case are greyed out ("we never submit bands"); the lower lingual arch starts picked; the anchor teeth follow
+   the design; and a regular Herbst can't be put on the Space Closing design, which is its own appliance on the case ("a different
+   route even though it's the same Rx") */
+const RX_REC = { mech: 'm4', bite: 'e2e', tool: 'band' };
+const RX_OFFTOOL = ['crown', 'roc', 'onbrace'];
+const RX_NOCROWN = 'Our Herbsts get bands, so crowns are off.';
+/* the anchor teeth for a design (all bands): a cantilever on the upper and lower 6s; an acrylic lower on the upper 6s; the others
+   on the upper 6s and the lower 4s and 6s (Amir, 4 Oct 2026: "automatically mark those anchorage teeth depending if it's
+   cantilever or not") */
+function rxDesignTeeth(design) {
+  const ids = design === 'cantilever' ? ['UR6', 'UL6', 'LR6', 'LL6'] : design === 'acryliclower' ? ['UR6', 'UL6'] : ['UR6', 'UL6', 'LR6', 'LR4', 'LL4', 'LL6'];
+  const t = {}; ids.forEach(id => { t[id] = 'band'; }); return t;
+}
+const rxDesignTeethSay = d => d === 'cantilever' ? 'Bands on the upper and lower 6s for a Cantilever Herbst' : d === 'acryliclower' ? 'Bands on the upper 6s (the lower is acrylic)' : 'Bands on the upper 6s and the lower 4s and 6s';
+/* the other screws Specialty carries (all Dentaurum), written out on the form's "Other type" line, which is all the form has for
+   them (Amir, 4 Oct 2026: "I don't see the other expansion screws option. remember the plan was to add them and then they could be
+   written out"). Names and sizes from Specialty's product pages (the Herbst Rx's own two, Mini-Click and Click Screw, stay as they
+   are). [key, name, sizes in mm] */
+const RX_SCREWS = [
+  ['palexClick', 'Palex Click', ['10', '12']], ['varClick', 'Variety Click', ['8', '12']], ['vspClick', 'Variety Small Palate Click', ['8', '12']],
+  ['rpe', 'RPE screw (hyrax type)', ['12']], ['palex', 'Palex', ['7', '10', '12']], ['var', 'Variety', ['8', '12']],
+  ['vsp', 'Variety Small Palate', ['8', '12']], ['mini', 'Mini screw, no click', []]
+];
+const RX_SCREW_MM = ['7', '8', '10', '12'];
+const rxScrew = k => RX_SCREWS.find(x => x[0] === k);
+/* the words for the "Other type" line: "Palex Click 12 mm, upper" */
+function rxScrewText(rx) {
+  const s = rxScrew(rx.expScrew); if (!s) return '';
+  const a = rx.expArch || [];
+  return s[1] + (rx.expMm && s[2].includes(rx.expMm) ? ' ' + rx.expMm + ' mm' : '') + (a.length === 2 ? ', upper & lower' : a.length ? (a[0] === 'U' ? ', upper' : ', lower') : '');
+}
 /* the form's choices, in its order and words (® and ™ left off on screen) */
 const RXO = {
   design: [['standard', 'Standard Herbst'], ['cantilever', 'Cantilever Herbst'], ['spaceclosing', 'Space Closing Herbst'], ['acryliclower', 'Band or Crown Upper / Acrylic Lower'], ['combination', 'Band / Crown Combination']],
@@ -157,7 +193,7 @@ const RX_GRID = ['UR7', 'UR6', 'UR5', 'UR4', 'UL4', 'UL5', 'UL6', 'UL7', 'LR7', 
 const RX_INK = '#14286E'; // what's filled in prints in a dark navy, like a pen
 const RX_DRAW_COL = { b: '#1D4ED8', r: '#DC2626', k: '#111827' };
 const RX_MAX_STROKES = 80, RX_MAX_PTS = 400; // drawings per Rx, points per pen stroke (a long stroke is simplified to fit)
-const RX_SINGLE = ['design', 'mech', 'bite', 'restKind', 'awtU', 'awtL', 'awtPos', 'lowerInc']; // one answer each (the rest are lists or on/off)
+const RX_SINGLE = ['design', 'mech', 'bite', 'restKind', 'awtU', 'awtL', 'awtPos', 'lowerInc', 'expScrew', 'expMm']; // one answer each (the rest are lists or on/off)
 const RX_METAL = '#2F5D9A'; // the appliance in steel blue, so it reads apart from Specialty's black outlines (dark grey in black & white)
 const RX_DRAWS = ['pen', 'line', 'arrow'];
 
@@ -447,12 +483,13 @@ function rxUsuals(K) { return K.usuals || [[K.form, K.usual, K.title]]; }
 function rxUsualOf(K, c) { const all = rxUsuals(K), k = K.usualOf ? K.usualOf(c) : K.form; return all.find(u => u[0] === k) || all[0]; }
 /* a new Rx for the case on a form (Herbst unless asked) */
 function rxStart(c, form) { return rxK(form || RX_FORM).start(c); }
-const rxBtn = (g, v, l, on, price) => '<button type="button" class="rxB" data-rxg="' + g + '" data-v="' + esc(v) + '" aria-pressed="' + !!on + '"><span>' + esc(l) + '</span>' + (price ? '<em>' + esc(price) + '</em>' : '') + '</button>';
+/* a choice (with `rec`, Dr. A's recommended one carries a Recommended badge; Amir, 4 Oct 2026) */
+const rxBtn = (g, v, l, on, price, rec) => '<button type="button" class="rxB" data-rxg="' + g + '" data-v="' + esc(v) + '" aria-pressed="' + !!on + '"><span>' + esc(l) + '</span>' + (rec ? '<b class="rxRec">Recommended</b>' : '') + (price ? '<em>' + esc(price) + '</em>' : '') + '</button>';
 const rxField = (k, l, type, extra) => '<label class="rxF"><span>' + l + '</span><input data-rxf="' + k + '" type="' + (type || 'text') + '"' + (extra || '') + '></label>';
 function rxEditor(c, rx, onDone, form) {
   const K = rxK(form || (rx && rx.form) || RX_FORM);
   RXE.k = K; RXE.F = RX_FORMS[K.form]; RXE.c = c; RXE.rx = rxCanon(rx && !rxEmpty(rx) ? Object.assign({}, rx, { form: K.form }) : K.start(c)); RXE.done = onDone; RXE.tab = 'arch'; RXE.stroke = null; RXE.orig = JSON.stringify(RXE.rx);
-  if (!K.tools.includes(RXE.tool) && !RX_DRAWS.includes(RXE.tool)) RXE.tool = K.tool0;
+  if (K.toolReset || (!K.tools.includes(RXE.tool) && !RX_DRAWS.includes(RXE.tool)) || (K.off && K.off('tool', RXE.tool, RXE.rx))) RXE.tool = K.tool0;
   RXE.ret = document.activeElement;
   const old = $('#rxWrap'); if (old) old.remove();
   const w = document.createElement('div'); w.id = 'rxWrap'; w.dataset.form = K.form;
@@ -484,7 +521,7 @@ function rxClose(save) {
   if (RXE.ret && RXE.ret.isConnected) try { RXE.ret.focus(); } catch (e) { }
   if (save && done) done(rx);
 }
-const rxToolBtn = (k, l, tip) => '<button type="button" class="rxTool" data-rxtool="' + k + '" title="' + esc(tip) + '"><i class="rxTi rxTi-' + k + '"></i>' + esc(l) + '</button>';
+const rxToolBtn = (k, l, tip) => '<button type="button" class="rxTool" data-rxtool="' + k + '" data-tip="' + esc(tip) + '" title="' + esc(tip) + '"><i class="rxTi rxTi-' + k + '"></i>' + esc(l) + '</button>';
 function rxToolsHTML() {
   const t = rxToolBtn;
   return '<div class="rxTools"><div class="rxTg"><span>Tap teeth</span>' + RXE.k.toolsHTML() + '</div>' +
@@ -606,6 +643,8 @@ function rxSync(first) {
   // a choice that doesn't go with what's picked is greyed out, saying why (the Herbst Rx: no TPA or quad helix with an expansion screw)
   $$('.rxB[data-rxg]', w).forEach(b => { const why = K.off ? K.off(b.dataset.rxg, b.dataset.v, rx) : '';
     if (why) { b.setAttribute('aria-disabled', 'true'); b.title = why; } else if (b.getAttribute('aria-disabled')) { b.removeAttribute('aria-disabled'); b.removeAttribute('title'); } });
+  $$('[data-rxtool]', w).forEach(b => { const why = K.off ? K.off('tool', b.dataset.rxtool, rx) : '';
+    if (why) { b.setAttribute('aria-disabled', 'true'); b.title = why; } else if (b.getAttribute('aria-disabled')) { b.removeAttribute('aria-disabled'); b.title = b.dataset.tip || ''; } });
   // the sentences the answers write into the special instructions (the Herbst Rx: where the lower lingual arch sits)
   $$('.rxFold', w).forEach(rxFoldSum);
   const an = $('#rxAutoNotes', w); if (an) { const a = K.autoNotes ? K.autoNotes(rx) : []; an.hidden = !a.length; an.textContent = a.length ? 'Added to the special instructions: ' + a.join(' ') : ''; }
@@ -691,7 +730,7 @@ function rxOnClick(e) {
     if (g === 'flag' || !K.single.includes(g)) b.setAttribute('aria-pressed', String(on));
     if (K.after) K.after(g, v, on, prev, rx, w);
     rxSync(); return; }
-  const tool = e.target.closest('[data-rxtool]'); if (tool) { RXE.tool = tool.dataset.rxtool; rxSync(); return; }
+  const tool = e.target.closest('[data-rxtool]'); if (tool) { if (tool.getAttribute('aria-disabled') === 'true') { toast(tool.title || 'That doesn’t go with what’s picked'); return; } RXE.tool = tool.dataset.rxtool; rxSync(); return; }
   const col = e.target.closest('[data-rxcol]'); if (col) { RXE.col = col.dataset.rxcol; if (!RX_DRAWS.includes(RXE.tool)) RXE.tool = 'pen'; rxSync(); return; }
   const tab = e.target.closest('[data-rxtab]'); if (tab) { RXE.tab = tab.dataset.rxtab; $$('[data-rxtab]', w).forEach(x => x.setAttribute('aria-selected', String(x === tab))); rxSync(); return; }
   if (e.target.closest('.rxPaper')) { rxOpenPdf(RXE.c, RXE.rx); return; }
@@ -834,10 +873,12 @@ function rxCanonH(rx) {
   flag('shims'); if (o.shims) { num('shimsMm'); num('shimsQty'); }
   flag('mio'); if (o.mio) num('mioMm');
   one('bite', RX_KEYS('bite')); if (o.bite === 'advance') num('advMm');
-  list('exp', RX_KEYS('exp')); one('expOther');
+  list('exp', RX_KEYS('exp'));
+  one('expScrew', RX_SCREWS.map(x => x[0])); if (o.expScrew) { const s = rxScrew(o.expScrew); if (s[2].length === 1) o.expMm = s[2][0]; else one('expMm', s[2]); list('expArch', ['U', 'L']); }
+  one('expOther');
   list('wire', RX_KEYS('wire'));
   if (rxHasExp(o) && o.wire) { const wi = o.wire.filter(x => !RX_NOEXP.includes(x)); if (wi.length) o.wire = wi; else delete o.wire; } // no TPA or quad helix with an expansion screw
-  one('lowerInc', Object.keys(RX_INC));
+  if ((o.wire || []).includes('la')) one('lowerInc', Object.keys(RX_INC)); // (the clearance goes with the lower lingual arch)
   list('rests', ['U', 'L']); if (o.rests) one('restKind', RX_KEYS('restKind')); // ball clasps / wire go with the rests
   list('awt', ['U', 'L']); if ((o.awt || []).includes('U')) one('awtU', ['018', '022']); if ((o.awt || []).includes('L')) one('awtL', ['018', '022']);
   if (o.awt) { flag('awtExt'); one('awtPos', RX_KEYS('awtPos')); } // the extension and position go with the tubes
@@ -872,7 +913,8 @@ function rxEstimateH(rx) {
   }
   if (n.onbrace) add('OnBRACE × ' + n.onbrace, 'onbrace', n.onbrace);
   (rx.exp || []).forEach(k => add(lab('exp', k), 'screw', 1, 'priced as the list’s RPE screw'));
-  if (rx.expOther) missing.push('Expansion: ' + rx.expOther);
+  if (rx.expScrew) { const n = (rx.expArch || []).length || 1; add(rxScrewText(rx), 'screw', n, 'priced as the list’s RPE screw'); }
+  else if (rx.expOther) missing.push('Expansion: ' + rx.expOther);
   if ((rx.wire || []).includes('la')) inc('Lingual arch: lower (lingual holding arch)');
   if ((rx.wire || []).includes('tpa')) add('Transpalatal arch', 'tpa', 1, 'its own appliance on the list');
   if ((rx.wire || []).includes('qh')) add('Quad helix: upper', 'qh', 1, 'its own appliance on the list');
@@ -938,8 +980,8 @@ function rxAutoH(rx) {
     fill(RXP.circle(...R.at, 1.2), RX_METAL); fill(RXP.circle(...L.at, 1.2), RX_METAL);
   }
   // expansion screws: the body in the middle, arms to the anchored teeth
-  const exp = rx.exp || [];
-  [['U', exp.includes('mcU') || exp.includes('csU')], ['L', exp.includes('mcL') || exp.includes('csL')]].forEach(([A, on]) => { if (!on) return;
+  const exp = rx.exp || [], ea = rx.expScrew ? rx.expArch || [] : [];
+  [['U', exp.includes('mcU') || exp.includes('csU') || ea.includes('U')], ['L', exp.includes('mcL') || exp.includes('csL') || ea.includes('L')]].forEach(([A, on]) => { if (!on) return;
     const mR = rxAnchorOn(rx, A, 'R', [6, 7]), mL = rxAnchorOn(rx, A, 'L', [6, 7]);
     const fR = rxAnchorOn(rx, A, 'R', [4, 5]), fL = rxAnchorOn(rx, A, 'L', [4, 5]);
     const cx = (rxT(mR).c[0] + rxT(mL).c[0]) / 2, cy = A === 'U' ? (rxT(A + 'R5').c[1] + rxT(A + 'R6').c[1]) / 2 : (rxT(A + 'R4').c[1] + rxT(A + 'R5').c[1]) / 2;
@@ -985,7 +1027,7 @@ function rxFillH(c, rx, put, box, circ) {
   if (rx.shims) { box.add('shims'); put('shimsMm', rx.shimsMm, 'H', 9); put('shimsQty', rx.shimsQty, 'H', 9); }
   if (rx.mio) { box.add('mio'); put('mioMm', rx.mioMm, 'H', 9); }
   if (rx.bite) { box.add('bite.' + rx.bite); if (rx.bite === 'advance') put('advMm', rx.advMm, 'H', 9); }
-  (rx.exp || []).forEach(k => box.add('exp.' + k)); put('expOther', rx.expOther, 'H', 9);
+  (rx.exp || []).forEach(k => box.add('exp.' + k)); put('expOther', rx.expOther || rxScrewText(rx), 'H', 9);
   (rx.wire || []).forEach(k => box.add(k));
   if ((rx.rests || []).length) { box.add('rests2'); rx.rests.forEach(a => box.add('rests' + a)); }
   if (rx.restKind) box.add(rx.restKind);
@@ -997,26 +1039,35 @@ function rxFillH(c, rx, put, box, circ) {
   if (rx.printed3d) box.add('printed3d');
   Object.keys(rx.teeth || {}).forEach(id => circ.push(['anch', id])); (rx.occl || []).forEach(id => circ.push(['occl', id]));
 }
-/* a new Herbst Rx starts from Dr. A's usual Herbst (when he's saved one), with the case's own Herbst picked */
+/* a new Herbst Rx starts from Dr. A's usual Herbst (when he's saved one), with the case's own Herbst picked; what the usual leaves
+   open starts as Dr. A's Herbst: edge to edge, the lower lingual arch, and bands on the design's anchor teeth */
 function rxStartH(c) {
   const rx = rxDefaults(rxHerbstUsual(c)) || { form: RX_FORM };
   if ((c.appliances || []).includes('Space Closing Herbst')) rx.design = 'spaceclosing';
+  else if (rx.design === 'spaceclosing') delete rx.design; // (a regular Herbst isn't put on the Space Closing design)
+  if (!rx.bite) rx.bite = RX_REC.bite;
+  if (!rx.wire) rx.wire = ['la'];
+  if (!rx.teeth || !Object.keys(rx.teeth).length) rx.teeth = rxDesignTeeth(rx.design);
   return rxCanon(rx);
 }
 function rxSecsH(rx) {
   return rxInfoSec('design', 'Herbst design', '<div class="rxBs">' + RXO.design.map(([k, l]) => rxBtn('design', k, l, rx.design === k, rxTag(k === 'acryliclower' ? 'herbstAcr' : 'herbst'))).join('') + '</div>') +
-    rxInfoSec('mech', 'Herbst mechanism', '<div class="rxBs">' + RXO.mech.map(([k, l]) => rxBtn('mech', k, l, rx.mech === k, k === 'standard' ? 'no extra' : rxTag(k, true))).join('') + '</div>' +
+    rxInfoSec('mech', 'Herbst mechanism', '<div class="rxBs">' + RXO.mech.map(([k, l]) => rxBtn('mech', k, l, rx.mech === k, k === 'standard' ? 'no extra' : rxTag(k, true), k === RX_REC.mech)).join('') + '</div>' +
       '<div class="rxBs"><span class="rxLbl">With</span>' + rxBtn('flag', 'apple', 'AppleCore® screws & pivots', rx.apple, rxTag('applecore', true)) + '</div>',
       '<div class="rxBs">' + rxBtn('flag', 'shims', 'Advancement shims', rx.shims, rxTag('shims', true)) + '<span class="rxSub" data-show="shims">' + rxField('shimsMm', 'mm', 'text', ' inputmode="decimal" maxlength="6"') + rxField('shimsQty', 'qty', 'text', ' inputmode="numeric" maxlength="4"') + '</span></div>' +
       '<div class="rxBs">' + rxBtn('flag', 'mio', 'MIO measurement', rx.mio) + '<span class="rxSub" data-show="mio">' + rxField('mioMm', 'mm', 'text', ' inputmode="decimal" maxlength="6"') + '</span></div>') +
-    rxSec('Bite relationship', '<div class="rxBs">' + RXO.bite.map(([k, l]) => rxBtn('bite', k, k === 'advance' ? 'Advance' : l, rx.bite === k)).join('') + '<span class="rxSub" data-show="advance">' + rxField('advMm', 'mm', 'text', ' inputmode="decimal" maxlength="6"') + '</span></div>') +
-    rxSec('Anchorage', '<div class="small muted" style="margin-bottom:6px">Pick one, then tap the teeth on the arches (4s to 7s, as on Specialty’s chart). Tap a tooth again to take it off.</div><div class="rxBs">' +
-      RXO.anch.map(([k, l]) => rxBtn('tool', k, l, RXE.tool === k, rxTag(k === 'band' ? (rx.printed3d ? 'band3d' : 'band') : k === 'onbrace' ? 'onbrace' : (rx.printed3d ? 'crown3d' : 'crown'), false, ' ea'))).join('') + rxBtn('tool', 'rest', 'Occlusal rest', RXE.tool === 'rest', 'included') + '</div>' +
+    rxSec('Bite relationship', '<div class="rxBs">' + RXO.bite.map(([k, l]) => rxBtn('bite', k, k === 'advance' ? 'Advance' : l, rx.bite === k, '', k === RX_REC.bite)).join('') + '<span class="rxSub" data-show="advance">' + rxField('advMm', 'mm', 'text', ' inputmode="decimal" maxlength="6"') + '</span></div>') +
+    rxSec('Anchorage', '<div class="small muted" style="margin-bottom:6px">Bands go on the design’s anchor teeth (a cantilever on the 6s only). Tap a tooth on the arches to add a band or take it off (4s to 7s, as on Specialty’s chart).</div><div class="rxBs">' +
+      RXO.anch.map(([k, l]) => rxBtn('tool', k, l, RXE.tool === k, rxTag(k === 'band' ? (rx.printed3d ? 'band3d' : 'band') : k === 'onbrace' ? 'onbrace' : (rx.printed3d ? 'crown3d' : 'crown'), false, ' ea'), k === RX_REC.tool)).join('') + rxBtn('tool', 'rest', 'Occlusal rest', RXE.tool === 'rest', 'included') + '</div>' +
       '<div class="rxTeeth small" id="rxTeethSum"></div><div class="rxBs">' + rxBtn('flag', 'printed3d', '3D printed / sintered bands, ROCs and crowns', rx.printed3d) + rxBtn('flag', 'enclosed', 'Bands or crowns enclosed with case', rx.enclosed, 'no charge') + '</div>') +
-    rxSec('Expansion', '<div class="rxBs">' + RXO.exp.map(([k, l]) => rxBtn('exp', k, l, (rx.exp || []).includes(k), rxTag('screw', true))).join('') + '</div><div class="rxRow">' + rxField('expOther', 'Other type', 'text', ' maxlength="40"') + '</div>') +
+    rxSec('Expansion', '<div class="rxBs">' + RXO.exp.map(([k, l]) => rxBtn('exp', k, l, (rx.exp || []).includes(k), rxTag('screw', true))).join('') + '</div>' +
+      '<div class="rxBs"><span class="rxLbl">Other screws</span>' + RX_SCREWS.map(([k, l]) => rxBtn('expScrew', k, l, rx.expScrew === k, rxTag('screw', true))).join('') + '</div>' +
+      '<div class="rxBs rxSub" data-show="expScrew"><span class="rxLbl">Size</span>' + RX_SCREW_MM.map(mm => rxBtn('expMm', mm, mm + ' mm', rx.expMm === mm)).join('') +
+        '<span class="rxLbl">Arch</span>' + rxBtn('expArch', 'U', 'Upper', (rx.expArch || []).includes('U')) + rxBtn('expArch', 'L', 'Lower', (rx.expArch || []).includes('L')) + '</div>' +
+      '<div class="rxRow">' + rxField('expOther', 'Other type', 'text', ' maxlength="60"') + '</div><div class="small muted">A screw picked under Other screws is written out on the form’s Other type line.</div>') +
     rxSec('Wire', '<div class="rxBs">' + rxBtn('wire', 'la', 'Lingual arch: lower', (rx.wire || []).includes('la'), 'included') + rxBtn('wire', 'tpa', 'Transpalatal arch', (rx.wire || []).includes('tpa'), rxTag('tpa', true)) + rxBtn('wire', 'qh', 'Quad helix: upper', (rx.wire || []).includes('qh'), rxTag('qh', true)) + '</div>' +
-      '<div class="rxBs"><span class="rxLbl">Lower incisors</span>' + Object.entries(RX_INC).map(([k, [l]]) => rxBtn('lowerInc', k, l, rx.lowerInc === k)).join('') + '</div>' +
-      '<div class="small muted">Where the lower lingual arch sits: about 1.5 mm off the cingulum, or right against it. It’s written into the special instructions.</div>') +
+      '<div class="rxBs rxSub rxLaQ" data-show="la"><span class="rxLbl">Lower lingual arch clearance</span>' + Object.entries(RX_INC).map(([k, [l]]) => rxBtn('lowerInc', k, l, rx.lowerInc === k)).join('') + '</div>' +
+      '<div class="small rxAsk rxSub" data-show="laAsk">Pick the clearance: it sets where the lower lingual arch sits and goes into the special instructions.</div>') +
     rxSec('Rests', '<div class="rxBs"><span class="rxLbl">2nd molar rests</span>' + rxBtn('rests', 'U', 'Upper', (rx.rests || []).includes('U'), 'included') + rxBtn('rests', 'L', 'Lower', (rx.rests || []).includes('L'), 'included') + '</div>' +
       '<div class="rxBs rxSub" data-show="rests"><span class="rxLbl">Made with</span>' + RXO.restKind.map(([k, l]) => rxBtn('restKind', k, l, rx.restKind === k, k === 'ball' ? rxTag('ball', true, '/pr') : '')).join('') + '</div>') +
     rxSec('Archwire tubes', '<div class="rxBs"><span class="rxLbl">Upper</span>' + rxBtn('awt', 'U', 'Upper tubes', (rx.awt || []).includes('U'), 'included') + '<span class="rxSub" data-show="awtU">' + rxBtn('awtU', '018', '.018', rx.awtU === '018') + rxBtn('awtU', '022', '.022', rx.awtU === '022') + '</span></div>' +
@@ -1039,7 +1090,20 @@ function rxTapH(id, rx, k) {
 RXK[RX_FORM] = {
   form: RX_FORM, key: 'herbst', field: 'rx', ds: 'rx', title: 'Herbst Rx', usual: 'our usual Herbst',
   usuals: [[RX_FORM, 'our usual Herbst', 'Herbst Rx'], [RX_SC, 'our usual Space Closing Herbst', 'Space Closing Herbst Rx']], usualOf: rxHerbstUsual,
-  off: (g, v, rx) => g === 'wire' && RX_NOEXP.includes(v) && rxHasExp(rx) ? 'Not with an expansion screw. Take the screw off to add a ' + (v === 'tpa' ? 'TPA' : 'quad helix') + '.' : '',
+  off: (g, v, rx) => {
+    if (g === 'wire' && RX_NOEXP.includes(v) && rxHasExp(rx)) return 'Not with an expansion screw. Take the screw off to add a ' + (v === 'tpa' ? 'TPA' : 'quad helix') + '.';
+    // (a choice already on stays tappable, so it can be taken off)
+    if (g === 'design' && v === 'spaceclosing' && rx.design !== v && rxHerbstUsual(RXE.c) !== RX_SC) return 'Space Closing Herbst is its own appliance on the case: pick it there (it uses this same Rx).';
+    if (g === 'design' && v === 'combination' && rx.design !== v) return RX_NOCROWN;
+    if (g === 'tool' && RX_OFFTOOL.includes(v)) return RX_NOCROWN;
+    if (g === 'crownOpt' && !(rx.crownOpt || []).includes(v)) return RX_NOCROWN;
+    if (g === 'flag' && v === 'printed3d' && !rx.printed3d) return '3D printed / sintered bands are off for our Herbsts.';
+    if (g === 'flag' && v === 'enclosed' && !rx.enclosed) return 'We never send bands with the case.';
+    if (g === 'expMm' && rx.expScrew) { const s = rxScrew(rx.expScrew); if (s && !s[2].includes(v)) return s[2].length ? 'The ' + s[1] + ' comes in ' + s[2].join(' or ') + ' mm.' : 'No size to pick for the ' + s[1] + '.'; }
+    return '';
+  },
+  autoVal: { expOther: (c, rx) => rxScrewText(rx) },
+  toolReset: true,
   lost: rx => { const x = rxHasExp(rx) ? (rx.wire || []).filter(v => RX_NOEXP.includes(v)) : []; return x.length ? 'Took off the ' + x.map(v => v === 'tpa' ? 'transpalatal arch' : 'quad helix').join(' and ') + ' — not with an expansion screw' : ''; },
   autoNotes: rx => rx.lowerInc && RX_INC[rx.lowerInc] ? [RX_INC[rx.lowerInc][1]] : [],
   saveDefTip: 'New Herbst Rx start from these choices and teeth (not this patient’s dates, measurements, notes or drawings)',
@@ -1056,9 +1120,15 @@ RXK[RX_FORM] = {
   toolsHTML: () => rxToolBtn('band', 'Band', 'Tap a tooth (4s to 7s) to band it') + rxToolBtn('crown', 'Crown', 'Tap a tooth to crown it') + rxToolBtn('roc', 'ROC', 'Crown with the occlusal removed') + rxToolBtn('onbrace', 'OnBRACE', 'OnBRACE on the tooth') + rxToolBtn('rest', 'Rest', 'Occlusal rest on the tooth'),
   hint: tool => tool === 'rest' ? 'Tap the teeth that get an occlusal rest.' : 'Tap the teeth that get a ' + ((RXO.anch.find(x => x[0] === tool) || [])[1] || tool) + '.',
   tip: (id, rx) => { const t = rx.teeth || {}, oc = rx.occl || []; return id + (t[id] ? ': ' + (RXO.anch.find(x => x[0] === t[id]) || [])[1] : '') + (oc.includes(id) ? (t[id] ? ', ' : ': ') + 'occlusal rest' : ''); },
-  subShow: (k, rx) => k === 'advance' ? rx.bite === 'advance' : k === 'awtU' ? (rx.awt || []).includes('U') : k === 'awtL' ? (rx.awt || []).includes('L') : k === 'rests' ? !!rx.rests : k === 'awtAny' ? !!rx.awt : !!rx[k],
+  subShow: (k, rx) => k === 'la' ? (rx.wire || []).includes('la') : k === 'laAsk' ? (rx.wire || []).includes('la') && !rx.lowerInc : k === 'advance' ? rx.bite === 'advance' : k === 'awtU' ? (rx.awt || []).includes('U') : k === 'awtL' ? (rx.awt || []).includes('L') : k === 'rests' ? !!rx.rests : k === 'awtAny' ? !!rx.awt : !!rx[k],
   // the anchorage prices follow the 3D-printed switch
-  after: (g, v, on, prev, rx, w) => { if (g === 'flag' && v === 'printed3d') $$('.rxB[data-rxg="tool"]', w).forEach(x => { const em = $('em', x); if (!em || x.dataset.v === 'onbrace' || x.dataset.v === 'rest') return; em.textContent = rxTag(x.dataset.v === 'band' ? (on ? 'band3d' : 'band') : (on ? 'crown3d' : 'crown'), false, ' ea'); }); },
+  after: (g, v, on, prev, rx, w) => {
+    if (g === 'flag' && v === 'printed3d') $$('.rxB[data-rxg="tool"]', w).forEach(x => { const em = $('em', x); if (!em || x.dataset.v === 'onbrace' || x.dataset.v === 'rest') return; em.textContent = rxTag(x.dataset.v === 'band' ? (on ? 'band3d' : 'band') : (on ? 'crown3d' : 'crown'), false, ' ea'); });
+    // the anchor teeth follow the design (a cantilever on the 6s only)
+    if (g === 'design' && on) { const t = rxDesignTeeth(v), key = o => Object.keys(o || {}).sort().map(k => k + o[k]).join(); if (key(t) !== key(rx.teeth)) { rx.teeth = t; toast(rxDesignTeethSay(v)); } }
+    // a screw with one size takes it, and starts on the upper
+    if (g === 'expScrew' && on) { const s = rxScrew(v); if (rx.expMm && !s[2].includes(rx.expMm)) rx.expMm = ''; if (!(rx.expArch || []).length) rx.expArch = ['U']; }
+  },
   leadDays: () => 10,
   info: RX_INFO, src: RX_SRC,
   infoKeys: g => g === 'design' ? RX_KEYS('design') : RX_KEYS('mech').concat(['apple', 'shims', 'mio']),

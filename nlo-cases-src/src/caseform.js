@@ -6,15 +6,24 @@
    ===================================================================== */
 const PICK = {
   // MARPE has its own case type and steps; tapping it here switches the case to the MARPE tile (wireCaseForm)
-  appliances: ['Herbst with Rollo Band', 'Space Closing Herbst', 'MARA', 'MSE', 'MARPE', 'Rapid Palatal Expander (RPE)', 'D2 distalizer', 'Finger spring with no labial bow', 'Hawley retainers', 'Schwartz'],
+  appliances: ['Herbst', 'Space Closing Herbst', 'MARA', 'MSE', 'MARPE', 'Rapid Palatal Expander (RPE)', 'D2 distalizer', 'Finger spring with no labial bow', 'Hawley retainers', 'Schwartz'],
   labs: ['Specialty Orthodontic Lab', 'Partners Dental Solutions', 'In-house (NL Lab)'],
   scanners: ['Allied Star', 'iTero'],
   extras: ['No IPR', 'No elastics'],
   arches: ['Upper', 'Lower'], retKinds: ['TT’s', 'WT’s']
 };
+/* appliances that were renamed: cases saved under the old name read as the new one (Amir, 4 Oct 2026: "change Herbst with rollo
+   band to Herbst"); the next save stores the new name */
+const APPL_RENAMED = { 'Herbst with Rollo Band': 'Herbst' };
+function applNorm(c) {
+  if (!c || !Array.isArray(c.appliances) || !c.appliances.some(a => APPL_RENAMED[a])) return c;
+  c.appliances = Array.from(new Set(c.appliances.map(a => APPL_RENAMED[a] || a)));
+  if (typeof c.detail === 'string') Object.keys(APPL_RENAMED).forEach(o => { c.detail = c.detail.split(o).join(APPL_RENAMED[o]); });
+  return c;
+}
 /* one of these per case (Amir, 4 Oct 2026: "RPE, MSE, MARPE, MARA and HERBST cannot overlap. the other ones can"): tapping one takes
    off the one already picked; D2, finger spring, Hawleys and Schwartz go with anything */
-const APPL_ONE = ['Herbst with Rollo Band', 'Space Closing Herbst', 'MARA', 'MSE', 'MARPE', 'Rapid Palatal Expander (RPE)'];
+const APPL_ONE = ['Herbst', 'Space Closing Herbst', 'MARA', 'MSE', 'MARPE', 'Rapid Palatal Expander (RPE)'];
 /* lab routing from the AISA KB / SOP manual: MSE → Specialty Orthodontic Lab (SOP-CL-020); MARPE → Partners Dental Solutions (SOP-CL-029,
    as Partner Dental Studios — the lab rebranded; Amir, 3 Oct 2026);
    D2 distalizer → in-house, no outside prescription (lab workflow, Layer 3 exception); Herbst, MARA → Specialty; RPE, Schwartz,
@@ -23,7 +32,7 @@ const APPL_ONE = ['Herbst with Rollo Band', 'Space Closing Herbst', 'MARA', 'MSE
 const LAB_SPEC = 'Specialty Orthodontic Lab', LAB_PART = 'Partners Dental Solutions', LAB_IN = 'In-house (NL Lab)';
 /* each lab's logo (logos.js; Amir, 3 Oct 2026): on the Lab choices and, for appliance and MARPE cases, on the board and lists */
 const LAB_LOGO = { [LAB_SPEC]: 'lab-specialty', [LAB_PART]: 'lab-partners', [LAB_IN]: 'nlo' };
-const LAB_FOR = { 'Herbst with Rollo Band': LAB_SPEC, 'Space Closing Herbst': LAB_SPEC, 'MARA': LAB_SPEC, 'MSE': LAB_SPEC, 'MARPE': LAB_PART,
+const LAB_FOR = { 'Herbst': LAB_SPEC, 'Herbst with Rollo Band': LAB_SPEC, 'Space Closing Herbst': LAB_SPEC, 'MARA': LAB_SPEC, 'MSE': LAB_SPEC, 'MARPE': LAB_PART,
   'Rapid Palatal Expander (RPE)': LAB_PART, 'D2 distalizer': LAB_IN, 'Finger spring with no labial bow': LAB_PART, 'Hawley retainers': LAB_SPEC, 'Schwartz': LAB_PART };
 /* Dr. A's instructions: midline and overbite are Maintain / Improve; the rest are picture tiles.
    v = the full instruction saved on the case (same wording as the Tally form), l = the tile's short label.
