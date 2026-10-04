@@ -557,6 +557,14 @@ a.btn{text-decoration:none}
 .pick.rxTile[aria-pressed="true"]::before{content:none}
 .rxTile[aria-pressed="true"]::after{content:"";position:absolute;top:7px;right:7px;width:16px;height:16px;border-radius:50%;background:var(--mint) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4.5 8.3l2.3 2.3 4.7-4.9' fill='none' stroke='%2311203A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/16px no-repeat}
 .rxsvg{width:44px;height:44px}
+/* Hawley retainers (3 Oct 2026): the arch in words, then the acrylic color as swatches (the swatch is the acrylic's own color) */
+.hawleyWrap[hidden]{display:none}
+.acrRow{gap:6px}
+.pick.acr{display:inline-flex;align-items:center;gap:7px}
+.sw{display:inline-block;flex:none;width:16px;height:16px;border-radius:50%;background:var(--sw);box-shadow:inset 0 0 0 1px rgba(17,32,58,.22)}
+.sw.clr{background:repeating-conic-gradient(#D5DAE1 0 25%,#fff 0 50%) 50%/8px 8px}
+.pick.acr[aria-pressed="true"] .sw{box-shadow:0 0 0 2px #fff}
+.badge .sw{width:10px;height:10px;margin-right:5px;vertical-align:-1px}
 /* Amir's pictures on the three tiles (3 Oct 2026), on the white plate; picked = navy tile, the plate ringed in mint */
 .rxTile .iPic{width:84px;height:56px}
 .rxTile[aria-pressed="true"] .iPic{box-shadow:0 0 0 2px var(--mint)}

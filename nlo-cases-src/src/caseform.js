@@ -45,6 +45,27 @@ const INSTR = [
 /* a tile whose wording changed: a case saved with the old words shows the new tile picked (Amir, 3 Oct 2026: "IPR lower"
    became "Lower IPR" to match Upper IPR, an hour after it went live) */
 const INSTR_RENAMED = { 'IPR lower': 'Lower IPR' };
+/* "No posterior teeth movement" also marks the back teeth Don't move on the tooth chart (Amir, 3 Oct 2026) */
+const NO_POST_MOVE = 'No posterior teeth movement';
+/* Hawley retainers (an appliance, made by Partners): which arch — Upper / Lower in words, no picture yet — and the acrylic color
+   (Amir, 3 Oct 2026: "hawley retainers need upper and lower arch … There should be a color selection tool. I don't know if partner
+   dental solution has it online" — Partners doesn't publish its color chart (orders go through EasyRx), so these are the usual
+   lab acrylic colors; swap in Partners' own list when we have it). c = the swatch */
+const HAWLEY = 'Hawley retainers';
+const ACRYLIC = [
+  { v: 'Clear', c: 'clear' }, { v: 'Pink', c: '#F4A3C4' }, { v: 'Red', c: '#DC2F3A' }, { v: 'Orange', c: '#F5862A' }, { v: 'Yellow', c: '#F6D03A' },
+  { v: 'Lime', c: '#9AD23A' }, { v: 'Green', c: '#2EA65A' }, { v: 'Teal', c: '#17B1A4' }, { v: 'Light blue', c: '#7AC2F0' }, { v: 'Blue', c: '#2462C8' },
+  { v: 'Purple', c: '#7A4AC2' }, { v: 'Black', c: '#222222' }
+];
+function acrylicSw(v) { const a = ACRYLIC.find(x => x.v === v); return a ? '<span class="sw' + (a.c === 'clear' ? ' clr' : '') + '"' + (a.c === 'clear' ? '' : ' style="--sw:' + a.c + '"') + ' aria-hidden="true"></span>' : ''; }
+/* "Hawley retainers (upper & lower, blue glitter)" — what's being made and the case's badge; for the chart note
+   (note = true) "Hawley retainers, upper & lower, blue glitter acrylic" */
+function hawleyText(c, note) {
+  const a = c.arches || [], arch = a.length === 2 ? 'upper & lower' : a[0] === 'Upper' ? 'upper' : a[0] === 'Lower' ? 'lower' : '';
+  const col = [c.acrylic ? c.acrylic.toLowerCase() : '', c.glitter ? 'glitter' : ''].filter(Boolean).join(' ');
+  if (note) return [HAWLEY, arch, col ? col + ' acrylic' : ''].filter(Boolean).join(', ');
+  const bits = [arch, col].filter(Boolean); return HAWLEY + (bits.length ? ' (' + bits.join(', ') + ')' : '');
+}
 const ALIGNER_ONLY_INSTR = ['Aligners are not tracking well', 'Need to change attachment/hooks on one or more teeth', 'Active retention'];
 function goalText(goals) { goals = goals || {}; return GOALS.filter(gl => goals[gl.k]).map(gl => (goals[gl.k] === 'improve' ? 'Improve ' : 'Maintain ') + gl.t); }
 
@@ -182,7 +203,7 @@ function submissionLabel(v) { return v === 'yes' ? 'Initial submission' : v === 
 /* fields added later save '' when empty (not [] or false), so older cases without them don't look edited */
 const FORM_KEYS = ['type', 'patient', 'chart', 'detail', 'stage', 'assignee', 'assistant', 'scanner', 'scanDate', 'labDate', 'deliveryDate', 'deliveryTime', 'aligners',
   'initial', 'appliances', 'lab', 'arches', 'retKinds', 'goals', 'instrPicks', 'instrOther', 'instructions', 'extras', 'teeth', 'cc', 'ipr', 'notes', 'titanUrl', 'alU', 'alL',
-  'shipToPatient', 'records', 'zoomDate', 'zoomTime', 'tracking', 'labRef', 'atTemplates', 'treatArch', 'txStart', 'txEnd'];
+  'shipToPatient', 'records', 'zoomDate', 'zoomTime', 'tracking', 'labRef', 'atTemplates', 'treatArch', 'txStart', 'txEnd', 'acrylic', 'glitter'];
 
 /* delivery time: every half hour, 7:00 AM to 7:00 PM (Amir, 2 Oct 2026: "30 mins increments are fine") */
 const HALF_HOURS = Array.from({ length: 25 }, (_, i) => { const m = 7 * 60 + i * 30; return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); });
@@ -428,7 +449,14 @@ function caseFormHTML(c, isNew) {
     // a new case can take the patient's photo right here (a case being edited changes it from the case itself)
     '<div class="cfSec"><div class="ptRowF">' + (isNew ? phSlotHTML() : '') + '<div class="grid2"><div class="field"><label for="cf-patient">Patient name *</label><input id="cf-patient" autocomplete="off" value="' + esc(c.patient || '') + '" required></div>' +
     '<div class="field"><label for="cf-chart">Chart #</label><input id="cf-chart" autocomplete="off" spellcheck="false" inputmode="text" placeholder="For the IPR Tracker link" value="' + esc(c.chart || '') + '"></div></div></div></div>' +
-    '<div class="cfSec"' + show('appliance marpe') + '><div' + show('appliance') + '><h5>Appliance</h5>' + pickRow('appliances', withSaved(PICK.appliances, c.appliances), c.appliances || [], true) + '</div>' +
+    '<div class="cfSec"' + show('appliance marpe') + '><div' + show('appliance') + '><h5>Appliance</h5>' + pickRow('appliances', withSaved(PICK.appliances, c.appliances), c.appliances || [], true) +
+      // Hawley retainers: the arch (words only for now) and the acrylic color, shown once Hawley is tapped
+      '<div id="cf-hawleyWrap" class="hawleyWrap"' + ((c.appliances || []).includes(HAWLEY) ? '' : ' hidden') + '><h5>Hawley arch</h5>' +
+        pickRow('hawleyArch', ['Upper', 'Lower'], (c.appliances || []).includes(HAWLEY) ? (c.arches || []) : [], true) +
+        '<h5>Acrylic color <span class="h5n">for the Hawley</span></h5><div class="pickRow acrRow" role="group" aria-label="Acrylic color" data-g="acrylic" data-multi="0">' +
+        ACRYLIC.map(x => '<button type="button" class="pick acr" data-v="' + esc(x.v) + '" aria-pressed="' + (c.acrylic === x.v) + '">' + acrylicSw(x.v) + esc(x.v) + '</button>').join('') + '</div>' +
+        '<div class="pickRow" role="group" aria-label="Glitter" data-g="glitter" data-multi="1" style="margin-top:8px"><button type="button" class="pick sm" data-v="yes" aria-pressed="' + !!c.glitter + '">✦ Glitter</button></div></div>' +
+      '</div>' +
     '<h5>Lab</h5>' + labRowHTML(withSaved(PICK.labs, labName(c.lab)), labName(c.lab)) + '<div class="hint small" id="cf-labHint" style="margin-top:6px"></div></div>' +
     // MARPE: the two records the lab needs, and the Zoom call once it's set up
     '<div class="cfSec"' + show('marpe') + '><h5>Records on file <span class="h5n">both have to be on file before it goes to the lab</span></h5>' +
@@ -482,7 +510,8 @@ function caseFormHTML(c, isNew) {
     '<div class="field"><textarea id="cf-cc" rows="2" autocomplete="off" aria-labelledby="cf-ccTitle cf-ccNote" placeholder="e.g. “My bite doesn’t feel right”">' + esc(c.cc || '') + '</textarea></div></div>' +
     '<div class="cfSec"' + show('aligner') + '><div class="field"><label for="cf-ipr" style="display:flex;align-items:center;gap:8px">IPR, spacing &amp; black triangles<span style="flex:1"></span><button type="button" class="btn btn-ghost" data-act="iprPull" style="min-height:30px;padding:2px 10px;font-size:12px">' + ic('download', 14) + 'Get from IPR Tracker</button></label>' +
     '<textarea id="cf-ipr" rows="3" placeholder="Tap “Get from IPR Tracker” (uses the chart #)">' + esc(c.ipr || '') + '</textarea><div class="hint" id="cf-iprMsg"></div></div></div>' +
-    '<div class="cfSec" id="cf-titanWrap"' + show(INHOUSE_TILES.includes(tile) ? g : '__never') + '><div class="field"><label for="cf-titanUrl">Titan link</label><input id="cf-titanUrl" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://… (Titan’s shared web-viewer link)" value="' + esc(c.titanUrl || '') + '"></div></div>' +
+    // the Titan link isn't asked any more (Amir, 3 Oct 2026: "we are not using it now"); a case that already has one still shows it, to keep or clear
+    (c.titanUrl ? '<div class="cfSec" id="cf-titanWrap"' + show(INHOUSE_TILES.includes(tile) ? g : '__never') + '><div class="field"><label for="cf-titanUrl">Titan link</label><input id="cf-titanUrl" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://… (Titan’s shared web-viewer link)" value="' + esc(c.titanUrl || '') + '"></div></div>' : '') +
     '<details class="cfMore"' + (isNew ? '' : ' open') + '><summary>More: what’s being made, stage, who it’s assigned to, notes</summary>' +
     '<div class="grid2" style="margin-top:12px"><div class="field"><label for="cf-detail">What’s being made</label><input id="cf-detail" value="' + esc(c.detail || '') + '" data-auto="' + (isNew || !c.detail ? 1 : 0) + '"></div>' +
     '<div class="field"><label for="cf-stage">Stage</label><select id="cf-stage">' + stages.map(([k, l]) => opt(k, k === 'checkedin' && shipEnd(c) ? 'Shipped to patient' : l, (c.stage || (stages[0] || [])[0]) === k)).join('') + '</select></div></div>' +
@@ -542,6 +571,11 @@ function readCaseForm(root) {
   const ship = $('#cf-ship', root); o.shipToPatient = g === 'aligner' && ship && ship.getAttribute('aria-pressed') === 'true' ? true : '';
   if (o.shipToPatient) o.deliveryTime = ''; // an expected delivery has no appointment time
   if (g !== 'retainer') { o.arches = []; o.retKinds = []; }
+  // Hawley retainers (an appliance): which arch, and the acrylic color (empty is '', see FORM_KEYS)
+  const hawley = g === 'appliance' && o.appliances.includes(HAWLEY);
+  if (hawley) o.arches = pressed(root, 'hawleyArch');
+  o.acrylic = hawley ? (pressed(root, 'acrylic')[0] || '') : '';
+  o.glitter = hawley && pressed(root, 'glitter').length ? true : '';
   if (tile === 'mouthguard') o.retKinds = [];
   if (!(o.type === 'nla')) { o.titanUrl = ''; o.txStart = ''; o.txEnd = ''; }
   // arches to treat: aligners and InSmile only; both arches is the default and saves as '' (like every older case)
@@ -563,7 +597,7 @@ function autoDetail(o, tile) {
   if (['oliv', 'angel', 'invisalign', 'ulab', 'nla'].includes(tile)) return 'Aligners (' + (tile === 'nla' ? 'In-House' : t.l) + (only ? ', ' + only : '') + ')' + sub;
   if (tile === 'inbrace') return 'InBrace/Brava' + (only ? ' (' + only + ')' : '');
   if (tile === 'insmile') return 'InSmile braces' + (only ? ' (' + only + ')' : '') + (/^de[123]$/.test(o.initial) ? ' – DE' + o.initial.slice(2) : '');
-  if (tile === 'appliance') return o.appliances.join(', ');
+  if (tile === 'appliance') return o.appliances.map(a => a === HAWLEY ? hawleyText(o) : a).join(', ');
   if (tile === 'models') return 'Study models';
   if (tile === 'marpe') return 'MARPE';
   if (tile === 'retainer' || tile === 'mouthguard') {
@@ -576,6 +610,9 @@ function autoDetail(o, tile) {
 }
 function wireCaseForm(root, isNew) {
   const $r = s => $(s, root);
+  // the case panel keeps its element while a case is open, so a second Edit (after Save or Cancel) wired its taps twice and every
+  // tap toggled straight back — nothing seemed to happen (found 3 Oct 2026): the previous form's listeners on it are dropped first
+  if (root._cfOff) root._cfOff.abort(); const off = new AbortController(); root._cfOff = off;
   $$('img[data-logo]', root).forEach(i => { const lg = LOGOS[i.dataset.logo]; if (lg) i.src = lg.src; });
   $$('img[data-pic]', root).forEach(i => { const pc = PICS[i.dataset.pic]; if (pc) i.src = pc.src; });
   const autoIds = ['cf-labDate', 'cf-deliveryDate'];
@@ -602,6 +639,7 @@ function wireCaseForm(root, isNew) {
     $$('[data-tiles]', root).forEach(el => { el.style.display = el.dataset.tiles.split(' ').includes(tile) ? '' : 'none'; });
     $$('.pickRow[data-g="instrPicks"] .pick', root).forEach(b => { if (ALIGNER_ONLY_INSTR.includes(b.dataset.v)) b.style.display = g === 'braces' ? 'none' : ''; });
     const tw = $r('#cf-titanWrap'); if (tw) tw.style.display = INHOUSE_TILES.includes(tile) ? '' : 'none';
+    const hw = $r('#cf-hawleyWrap'); if (hw) hw.hidden = !(g === 'appliance' && o.appliances.includes(HAWLEY));
     $$('.pickRow[data-g="initial"] .pick[data-v="' + FIN + '"]', root).forEach(btn => { const on = INHOUSE_TILES.includes(tile); btn.style.display = on ? '' : 'none'; if (!on) btn.setAttribute('aria-pressed', 'false'); });
     const rk = $r('#cf-retKindsWrap'); if (rk) rk.style.display = tile === 'mouthguard' ? 'none' : '';
     syncDel(); syncTx();
@@ -661,6 +699,7 @@ function wireCaseForm(root, isNew) {
       else { $$('.pick', row).forEach(b => b.setAttribute('aria-pressed', 'false')); if (!was || row.dataset.g === 'treatArch') pk.setAttribute('aria-pressed', 'true'); }
       if (row.dataset.g === 'lab') row.dataset.manual = '1';
       if (row.dataset.g === 'appliances') routeLab(root, isNew);
+      if (row.dataset.g === 'instrPicks' && pk.dataset.v === NO_POST_MOVE) lockPosteriors(pk, !was);
       refresh(false); return;
     }
     const at = e.target.closest('.aTiles .aTile');
@@ -720,7 +759,7 @@ function wireCaseForm(root, isNew) {
     }
     const sc = e.target.closest('[data-scan]');
     if (sc && root.contains(sc)) { $r('#cf-scanDate').value = addDays(todayISO(), Number(sc.dataset.scan)); refresh(false); return; }
-  });
+  }, { signal: off.signal });
   // teeth: read, draw, and keep the "No attachments" tile in step with the chart
   const readTeeth = () => { try { return JSON.parse($r('#cf-teeth').value || '{}'); } catch (x) { return {}; } };
   const drawTeeth = t => { t = canonTeeth(t); $r('#cf-teeth').value = JSON.stringify(t); $r('#cf-tcChart').innerHTML = toothChartHTML(t, false); $r('#cf-teethSum').textContent = teethSummary(t) || 'Pick a marker, then tap teeth.'; };
@@ -734,10 +773,24 @@ function wireCaseForm(root, isNew) {
     $$('#cf-noattScope [data-scope]', root).forEach(b => b.setAttribute('aria-pressed', String(b.dataset.scope === shown)));
     $r('#cf-noattSub').textContent = scope === 'pick' ? n + (n === 1 ? ' tooth' : ' teeth') : scope ? NOATT_SCOPES.find(x => x.v === scope).l : on ? 'Choose where' : '';
   };
+  // "No posterior teeth movement" marks the back teeth (4–7) of the treated arch(es) Don't move on the chart (Amir, 3 Oct 2026:
+  // "when selecting posterior movement locked, it should automatically lock it on the tooth chart"); untapping takes off the
+  // marks it added (or, on a case saved that way, all of them while every back tooth still has one)
+  function lockPosteriors(btn, on) {
+    if (!$r('#cf-tcChart')) return;
+    const ta = pressed(root, 'treatArch')[0] || '', t = readTeeth();
+    const list = POSTERIORS.filter(k => (ta === 'U' ? k[0] === 'U' : ta === 'L' ? k[0] === 'L' : true) && !isMissing(t, k)), has = k => (t[k] || []).includes('nomove');
+    if (on) { const added = list.filter(k => !has(k)); added.forEach(k => setMark(t, k, 'nomove', true)); btn.dataset.locked = added.join(','); }
+    else {
+      const mine = btn.dataset.locked != null ? btn.dataset.locked.split(',').filter(Boolean) : (list.length && list.every(has) ? list : []);
+      mine.forEach(k => setMark(t, k, 'nomove', false)); delete btn.dataset.locked;
+    }
+    drawTeeth(t); syncNoatt();
+  }
   root.addEventListener('keydown', e => {
     const tooth = e.target.closest && e.target.closest('#cf-tc .tooth');
     if (tooth && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); tooth.dispatchEvent(new MouseEvent('click', { bubbles: true })); }
-  });
+  }, { signal: off.signal });
   $r('#cf-stage').addEventListener('change', e => { e.target.dataset.manual = '1'; }); // (Assigned to: marked by its tiles)
   // editing: a lab already on the case stays unless someone taps another one
   const labRow = $('.pickRow[data-g="lab"]', root); if (!isNew && labRow && pressed(root, 'lab').length) labRow.dataset.manual = '1';
@@ -783,6 +836,7 @@ function newCaseModal() {
         // type. Otherwise, it does not allow them to create the case. Same thing when they're creating … next level aligners")
         const need = (g, m) => { const row = $('.pickRow[data-g=' + g + ']', w); if (row) { row.classList.add('need'); row.scrollIntoView({ block: 'center' }); } $('#ncErr', w).innerHTML = '<div class="lockErr" role="alert">' + esc(m) + '</div>'; };
         if (data.type === 'appliance' && !data.appliances.length) return need('appliances', 'Pick the appliance (MSE, Herbst, D2…) to create the case.');
+        if (data.type === 'appliance' && data.appliances.includes(HAWLEY) && !(data.arches || []).length) return need('hawleyArch', 'Pick the arch for the Hawley retainers (upper, lower or both) to create the case.');
         if (data.type === 'nla' && !data.initial && data.variant !== 'finishing') return need('initial', 'Pick what this set is — first set, refinement, mid-course correction or finishing aligners — to create the case.');
         if (data.titanUrl && !safeUrl(data.titanUrl)) return err('The Titan link must start with https://');
         if (!!data.txStart !== !!data.txEnd) return err('Enter both the treatment start and the expected removal (or leave both empty).');

@@ -1,6 +1,7 @@
 // Found 3 Oct 2026 while testing: a live update arriving between press and release redrew the screen, and the click did nothing
 // (a board tab, a board arrow, a case's step). A press now holds live redraws until its click has gone through; and the search box
-// keeps its cursor and selection through a redraw (a clear right after a live update used to do nothing) — demo
+// keeps its cursor and selection through a redraw (a clear right after a live update used to do nothing); and a second Edit of
+// the same open case no longer wires its taps twice — demo
 const { chromium } = require('playwright');
 const { routes, watch, panelsOpen } = require('./helpers');
 const OUT = process.argv[2] || 'shots';
@@ -52,6 +53,18 @@ const OUT = process.argv[2] || 'shots';
   await p.mouse.up();
   await p.evaluate(id => { const c = DEMO.cases.get(id); c.stage = 'arrived'; c.rev++; DEMO.emit(c); }, mv); await frames(); await p.waitForTimeout(100);
   check(await p.isVisible('section[aria-label="Arrived"] .kc[data-id="' + mv + '"]'), 'no press: an update shows at once');
+  // ---- Edit a second time on the same open case (after Cancel, then after Save): a tap toggles once (it used to toggle twice)
+  const eid = await p.evaluate(() => openCases().find(c => c.type === 'oliv' && !c.shipToPatient).id);
+  await p.evaluate(id => openDrawer(id), eid);
+  const bt = '#drawer .pickRow[data-g=instrPicks] .pick[data-v="Resolve black triangles"]';
+  const tapState = async () => { const was = await p.getAttribute(bt, 'aria-pressed'); await p.click(bt); return was + '→' + await p.getAttribute(bt, 'aria-pressed'); };
+  await p.click('#drawer [data-act=edit]'); await p.waitForSelector(bt); await p.click('#drawer [data-act=cancelEdit]');
+  await p.click('#drawer [data-act=edit]'); await p.waitForSelector(bt); const t1 = await tapState();
+  await p.click('#drawer [data-act=saveEdit]'); await p.waitForTimeout(400);
+  await p.click('#drawer [data-act=edit]'); await p.waitForSelector(bt); const t2 = await tapState();
+  check((t1 === 'false→true' || t1 === 'true→false') && (t2 === 'false→true' || t2 === 'true→false'), 'Edit again on the same open case (after Cancel, after Save): a tap toggles once (' + t1 + ', ' + t2 + ')');
+  await p.click('#drawer [data-act=cancelEdit]'); await p.evaluate(() => closeDrawer(true));
+
   // ---- the search box keeps its cursor and selection through a live redraw (Playwright's fill('') is select-all + Delete)
   await p.click('#nav-list'); await p.fill('#q', 'Shelby'); await p.waitForTimeout(100);
   await p.evaluate(() => { const q = document.querySelector('#q'); q.focus(); q.select(); }); await otherChange(); await frames();

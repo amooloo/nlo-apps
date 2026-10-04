@@ -385,21 +385,24 @@ async function openByName(p, name) {
   await owner.click('#drawer [data-act=dsAll]'); // Expand all again for the rest of these tests
   await owner.click('#drawer [data-act=closeDrawer] >> nth=0');
 
-  console.log('\n# Titan link on in-house cases');
+  console.log('\n# Titan: the link isn\'t asked any more (Amir, 3 Oct 2026: "not using it now"); a case that has one keeps it');
   await owner.click('.topBar [data-act=newCase]'); await owner.waitForSelector('#ncForm');
-  check(!(await owner.isVisible('#cf-titanUrl')), 'Titan field hidden until the case is in-house');
   await owner.click('#ncForm .tt[data-tile=nla]'); await owner.fill('#cf-patient', 'Tobias Titancase');
-  check(await owner.isVisible('#cf-titanUrl'), 'Titan field shown for in-house aligners');
+  check(!(await owner.isVisible('#cf-titanUrl')), 'New case, in-house: no Titan link section');
   // New case asks what an in-house set is before it creates it (Amir, 3 Oct 2026)
   await owner.click('#ncSave'); await owner.waitForSelector('#ncErr .lockErr:has-text("Pick what this set is")', { timeout: 10000 });
   check(await owner.evaluate(() => document.querySelector('#ncForm .pickRow[data-g=initial]').classList.contains('need')) && await owner.isVisible('#ncForm'), 'an in-house case needs first set / refinement / mid-course / finishing before it can be created (that row is outlined)');
   await owner.click('.pickRow[data-g=initial] .pick[data-v=yes]');
   check(await owner.evaluate(() => !document.querySelector('#ncForm .pickRow[data-g=initial]').classList.contains('need') && !document.querySelector('#ncErr .lockErr')), 'tapping one clears the outline and the message');
-  await owner.fill('#cf-titanUrl', 'javascript:alert(1)'); await owner.click('#ncSave');
-  await owner.waitForSelector('#ncErr .lockErr', { timeout: 10000 }); check(true, 'a non-https Titan link is refused');
-  await owner.fill('#cf-titanUrl', 'https://titan.example/cases/12345'); await owner.click('#ncSave');
-  await owner.waitForSelector('#modalWrap', { state: 'detached', timeout: 20000 });
+  await owner.click('#ncSave'); await owner.waitForSelector('#modalWrap', { state: 'detached', timeout: 20000 });
+  // a link saved on a case before (put there through the app's own save) still shows, and Edit still refuses a non-https one
+  await owner.evaluate(async () => { const c = openCases().find(x => x.patient === 'Tobias Titancase'); await B.mutateCase(c.id, d => { d.titanUrl = 'https://titan.example/cases/12345'; }, { a: 'edit', fields: ['titanUrl'] }); });
   await openByName(owner, 'Tobias Titancase');
+  await owner.waitForSelector('#drawer a:has-text("Open this case in Titan")', { timeout: 15000 });
+  await owner.click('#drawer [data-act=edit]'); await owner.waitForSelector('#drawer #cf-titanUrl');
+  await owner.fill('#drawer #cf-titanUrl', 'javascript:alert(1)'); await owner.click('#drawer [data-act=saveEdit]');
+  await owner.waitForSelector('#drawerNotice .notice.bad:has-text("https://")', { timeout: 10000 }); check(true, 'Edit: a case with a Titan link shows it, and a non-https one is refused');
+  await owner.click('#drawer [data-act=cancelEdit]'); await owner.waitForSelector('#drawer a:has-text("Open this case in Titan")', { timeout: 10000 });
   const href = await owner.getAttribute('#drawer a:has-text("Open this case in Titan")', 'href');
   check(href === 'https://titan.example/cases/12345', 'Open this case in Titan goes to the saved link');
   check((await owner.getAttribute('#drawer a:has-text("Open this case in Titan")', 'rel')).includes('noopener'), 'Titan link opens safely in a new tab');
@@ -454,7 +457,7 @@ async function openByName(p, name) {
   check(await owner.isVisible('#ncForm .pickRow[data-g=initial] .pick[data-v=fin]'), 'In-house offers Finishing aligners next to Yes / No / Mid-course');
   await owner.click('#ncForm .pickRow[data-g=initial] .pick[data-v=fin]'); await owner.fill('#cf-patient', 'Fiona Finisher');
   check(await owner.inputValue('#cf-detail') === 'Finishing aligners', 'detail reads Finishing aligners');
-  check(await owner.isVisible('#cf-titanUrl'), 'Titan link offered (in-house)');
+  check(!(await owner.isVisible('#cf-titanUrl')), 'no Titan link asked (in-house finishing)');
   check(await owner.inputValue('#cf-labDate') === await owner.evaluate(() => addDays(todayISO(), 21)) && await owner.inputValue('#cf-deliveryDate') === await owner.evaluate(() => addDays(todayISO(), 28)), 'aligner dates fill in (lab completion +21, delivery +28)');
   await owner.click('#cf-tc [data-tq=ant]');
   await owner.click('#cf-tc [data-tool=implant]'); await owner.click('#cf-tc .tooth[data-t=UL6]');
