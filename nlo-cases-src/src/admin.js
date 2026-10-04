@@ -79,7 +79,8 @@ function viewAccount() {
     '<div class="field"><label for="pwN1">New password</label><input type="password" id="pwN1" autocomplete="new-password" minlength="8" required></div>' +
     '<div class="field"><label for="pwN2">Type it again</label><input type="password" id="pwN2" autocomplete="new-password" minlength="8" required></div>' +
     '<button class="btn btn-pri" type="submit">Change password</button></form></div></div>' +
-    '<div class="card" style="max-width:520px;margin-top:18px"><div class="cardHd"><h3>IPR Tracker link</h3></div><div class="cardBd">' + iprAccountHTML() + '</div></div>';
+    '<div class="card" style="max-width:520px;margin-top:18px"><div class="cardHd"><h3>IPR Tracker link</h3></div><div class="cardBd">' + iprAccountHTML() + '</div></div>' +
+    tourAccountHTML();
 }
 
 function iprAccountHTML() {

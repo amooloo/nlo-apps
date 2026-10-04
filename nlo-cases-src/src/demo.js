@@ -4,10 +4,12 @@
    ===================================================================== */
 const DEMO = {
   me: null, h: null, cases: new Map(), logs: [], roster: [], members: [], settings: { idleMin: 30, alPerAligner: 4.5 }, curV: 1,
-  isOwner() { return true; },
+  isOwner() { return !DEMO.me || DEMO.me.role === 'owner'; },
   async emailFor(l) { return l; },
   async signIn() {
-    DEMO.me = { uid: 'u-amir', staffId: 'amir', name: 'Dr. Akhavan', role: 'owner', active: true };
+    // practice mode for the new-user tour (tour.js, ?demo&tour=staff): signed in as an ordinary staff member, so it looks like their screens
+    DEMO.me = DEMO.practice === 'staff' ? { uid: 'u-practice', staffId: 'practice', name: 'Practice User', role: 'staff', active: true }
+      : { uid: 'u-amir', staffId: 'amir', name: 'Dr. Akhavan', role: 'owner', active: true };
     if (!DEMO.cases.size) DEMO.seed();
     return { state: 'ok' };
   },
@@ -21,6 +23,7 @@ const DEMO = {
       { sid: 'gwen', name: 'Gwen (demo)', initials: 'G', role: 'staff', active: true, username: 'gwen' },
       { sid: 'kaylee', name: 'Kaylee (demo)', initials: 'K', role: 'staff', active: true, username: 'kaylee' }
     ];
+    if (DEMO.practice === 'staff') DEMO.roster.push({ sid: 'practice', name: 'Practice User', initials: 'PU', role: 'staff', active: true, username: 'practice' });
     DEMO.members = DEMO.roster.map((r, i) => ({ uid: 'u-' + r.sid, staffId: r.sid, name: r.name, username: r.username, role: r.role, active: true, mustSetup: i === 4, lastLogin: { toMillis: () => Date.now() - i * 3600e3 } }));
     const first = ['Avery', 'Jordan', 'Riley', 'Morgan', 'Casey', 'Taylor', 'Quinn', 'Rowan', 'Skyler', 'Harper', 'Emerson', 'Finley', 'Parker', 'Reese', 'Sawyer', 'Hayden', 'Dakota', 'Elliot', 'Blake', 'Jamie', 'Logan', 'Peyton', 'Drew', 'Kendall'];
     const last = ['Sample', 'Demo', 'Testcase', 'Example', 'Placeholder', 'Mockley'];

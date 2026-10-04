@@ -11,6 +11,7 @@ let B = null;
 
 /* ---------- icons ---------- */
 const IC = {
+  tour: '<circle cx="12" cy="12" r="8.5"/><path d="M10.3 8.7l5 3.3-5 3.3z"/>',
   truck: '<path d="M2.5 5.5h11v10h-11z"/><path d="M13.5 9h4.3l3.2 3.5v3h-7.5"/><circle cx="6.5" cy="17.5" r="2"/><circle cx="17.5" cy="17.5" r="2"/>',
   video: '<rect x="2.5" y="6.5" width="13" height="11" rx="2.5"/><path d="M15.5 10.4l6-3.4v10l-6-3.4z"/>',
   ext: '<path d="M13.5 4.5h6v6M19.5 4.5L11 13"/><path d="M17 13.5v5a1.5 1.5 0 01-1.5 1.5h-10A1.5 1.5 0 014 18.5v-10A1.5 1.5 0 015.5 7h5"/>',
@@ -78,6 +79,9 @@ function boot() {
   const qs = new URLSearchParams(location.search);
   const local = location.protocol === 'file:' || /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
   S.demo = qs.has('demo'); S.emu = local && qs.has('emu');
+  // practice mode for the new-user tour (tour.js): the demo, signed in as staff (or as Dr. A); the demo keeps its own settings
+  S.tour = S.demo && ['staff', 'owner'].includes(qs.get('tour')) ? qs.get('tour') : '';
+  if (S.demo) demoSandbox();
   phInit();
   try { S.lastLogin = localStorage.getItem('nloCases.lastLogin') || ''; } catch (e) { }
   document.addEventListener('click', onClick);
@@ -88,7 +92,13 @@ function boot() {
     if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('.kc[data-act], tr.click[data-act]')) { e.preventDefault(); e.target.click(); }
   });
   ['pointerdown', 'keydown', 'wheel', 'touchstart'].forEach(ev => document.addEventListener(ev, () => { S.lastAct = Date.now(); }, { passive: true }));
-  if (S.demo) { B = DEMO; $('#demoBar').classList.remove('hidden'); document.body.classList.add('demo'); lockScreen('login'); return; }
+  if (S.demo) {
+    B = DEMO; DEMO.practice = S.tour; $('#demoBar').classList.remove('hidden'); document.body.classList.add('demo');
+    if (S.tour) $('#demoBar').textContent = 'Practice — made-up patients, nothing is saved';
+    lockScreen('login');
+    if (S.tour) setTimeout(() => { const b = $('#lgBtn'); if (b) b.click(); }, 60); // practice opens signed in
+    return;
+  }
   B = FB;
   if (!FB.init(S.emu)) { lockScreen('unconfigured'); return; }
   FB.onSync = renderSync;
@@ -110,8 +120,11 @@ function lockScreen(mode, info) {
   } else if (mode === 'login') {
     h = '<h1>Sign in</h1><div class="lsub">Next Level Orthodontics · cases</div>' + err + ok +
       '<form id="loginForm" autocomplete="on" style="margin-top:16px">' +
+      // practice mode (the tour): look-alike boxes, not real ones, so the browser never offers to save a "practice" password for this site
+      (S.tour ? '<div class="field"><span class="flabel">Username</span><div class="inp" id="lgPracUser">practice</div></div>' +
+        '<div class="field"><span class="flabel">Password</span><div class="inp" id="lgPracPw" aria-label="Password (filled in for practice)">••••••••</div></div>' :
       '<div class="field"><label for="lgUser">Username</label><input id="lgUser" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" value="' + esc(S.demo ? 'demo' : S.lastLogin) + '" required></div>' +
-      '<div class="field"><label for="lgPw">Password</label><input id="lgPw" type="password" autocomplete="current-password" ' + (S.demo ? 'value="demo"' : '') + ' required></div>' +
+      '<div class="field"><label for="lgPw">Password</label><input id="lgPw" type="password" autocomplete="current-password" ' + (S.demo ? 'value="demo"' : '') + ' required></div>') +
       '<button class="btn btn-pri btn-block" id="lgBtn" type="submit">Sign in</button></form>' +
       '<div class="lockFoot">Forgot your password? Ask Dr. A to reissue your login.' + (S.demo ? '' : '<br><button class="linkBtn" data-act="forgot" type="button">Dr. A: reset by email</button>') + '</div>';
   } else if (mode === 'first') {
@@ -157,7 +170,7 @@ function lockScreen(mode, info) {
   }
   card.innerHTML = h;
   // focus right away (never later, so it can't pull the cursor away from someone already typing)
-  const f = mode === 'login' && $('#lgUser').value ? $('#lgPw') : $('input:not([type=checkbox])', card);
+  const f = mode === 'login' && S.tour ? $('#lgBtn') : mode === 'login' && $('#lgUser').value ? $('#lgPw') : $('input:not([type=checkbox])', card);
   if (f) f.focus();
   bindLockForms(mode);
 }
@@ -176,7 +189,7 @@ function busyBtn(btn, on, label) { if (!btn) return; if (on) { btn.dataset.l = b
 function bindLockForms(mode) {
   const lf = $('#loginForm');
   if (lf) lf.onsubmit = async e => {
-    e.preventDefault(); const btn = $('#lgBtn'); const user = $('#lgUser').value.trim(); const pw = $('#lgPw').value;
+    e.preventDefault(); const btn = $('#lgBtn'); const user = S.tour ? 'practice' : $('#lgUser').value.trim(); const pw = S.tour ? 'practice' : $('#lgPw').value;
     busyBtn(btn, true, 'Signing in…');
     try {
       const r = await B.signIn(user, pw);
@@ -256,10 +269,12 @@ function enterApp() {
   clearInterval(S.idleTimer);
   S.idleTimer = setInterval(() => {
     const mins = Number(S.settings.idleMin) || 10;
-    if (S.inApp && Date.now() - S.lastAct > mins * 60000) lockOut('Locked after ' + mins + ' minutes without activity.');
+    if (S.inApp && !S.tour && Date.now() - S.lastAct > mins * 60000) lockOut('Locked after ' + mins + ' minutes without activity.'); // practice mode has nothing to hide
   }, 15000);
   clearInterval(S.mailTimer); S.mailTimer = setInterval(mailSync, 180000); // also catches emails a case couldn't take yet
   S.rulesOld = false; rulesCheck();
+  // practice mode: the tour starts by itself once, and after Lock it picks up where it was
+  if (S.tour && (!S.tourBegun || TOUR.paused)) { S.tourBegun = true; const from = TOUR.paused; TOUR.paused = null; setTimeout(() => { if (S.inApp && !TOUR.on) tourStart(S.tour, from); }, 500); }
 }
 /* features that need newer security rules (patient photos, email updates) stay out of sight until the owner publishes them */
 async function rulesCheck() {
@@ -275,6 +290,7 @@ async function rulesCheck() {
 }
 async function lockOut(msg) {
   if (!S.inApp) return;
+  if (TOUR.on) msg = tourPause(msg); // practice mode: signing back in picks the tour up again
   S.inApp = false; clearInterval(S.idleTimer); clearInterval(S.mailTimer);
   closeModal(); closeDrawer(true);
   S.cases = new Map(); S.closed = []; S.hist = null; S.histLoaded = false; S.members = []; S.roster = []; S.iprCache = {}; S.verList = null; S.delList = null; S.impList = null;
@@ -403,7 +419,7 @@ function renderNav() {
 }
 function renderSync() {
   const el = $('#syncLine'); if (!el) return;
-  let cls = 'ok', t = S.demo ? 'Demo · nothing saved' : 'Live · encrypted';
+  let cls = 'ok', t = S.demo ? (S.tour ? 'Practice' : 'Demo') + ' · nothing saved' : 'Live · encrypted';
   if (!navigator.onLine) { cls = 'bad'; t = 'Offline'; }
   else if (B && B.pending) { cls = 'busy'; t = 'Saving…'; }
   el.innerHTML = '<span class="dot ' + cls + '"></span>' + t;
@@ -624,7 +640,7 @@ function viewToday() {
   const c = counts(); const all = openCases().filter(matchesQ);
   if (S.firstLoad && !S.demo) return '<div class="empty">Loading cases…</div>';
   const tile = (n, l, cls, act) => '<button class="tile ' + cls + '" data-act="tile" data-f="' + act + '"><span class="n">' + n + '</span><span class="l">' + l + '</span></button>';
-  let h = '<div class="tiles">' + tile(c.over, 'Late', 'red', 'over') + tile(c.week, 'Lab or delivery appt in the next 7 days', 'amber', 'week') + tile(c.dr, 'Needs Dr. A', 'blue', 'dr') +
+  let h = tourOfferHTML() + '<div class="tiles">' + tile(c.over, 'Late', 'red', 'over') + tile(c.week, 'Lab or delivery appt in the next 7 days', 'amber', 'week') + tile(c.dr, 'Needs Dr. A', 'blue', 'dr') +
     tile(c.fab, 'In fabrication', '', 'fab') + tile(c.arrived, 'Arrived — check in', 'mint', 'arrived') + tile(c.mine, 'Assigned to me', '', 'mine') + '</div>';
   const soon = all.filter(x => dueDateOf(x) && dayDiff(dueDateOf(x)) <= 14).sort(byDue);
   const groups = [];
@@ -1487,6 +1503,8 @@ function onClick(e) {
     case 'saveEdit': saveEdit(); break;
     case 'delCase': (async () => { const c = findCase(S.openId); if (await confirmBox('Delete this case?', 'This removes ' + c.patient + ' from every list. Dr. A can bring it back from Team & security for 90 days. To finish a case normally, use “Mark complete” instead.', 'Delete', true)) { const cid = S.openId; closeDrawer(true); act(() => B.deleteCase(cid), 'Case deleted'); } })(); break;
     case 'newCase': newCaseModal(); break;
+    case 'tourOpen': tourOpen(); break;
+    case 'tourLater': tourOffered(); renderView(); toast('You can take the tour any time from My account'); break;
     case 'closeModal': closeModal(); break;
     case 'clearF': S.f = noFilters(); renderView(); break;
     case 'colMenu': S.colMenu = !S.colMenu; renderView(); break;

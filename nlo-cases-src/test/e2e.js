@@ -123,6 +123,18 @@ async function openByName(p, name) {
   check(await gwen.isVisible('#firstForm'), 'short new password is blocked by the form');
   await gwen.fill('#fpw1', 'Gwen-Pass-2026'); await gwen.fill('#fpw2', 'Gwen-Pass-2026'); await gwen.click('#fBtn'); await waitApp(gwen);
   check(!(await gwen.isVisible('#nav-admin')), 'staff do not see Team & security');
+  // the new-user tour (4 Oct 2026): offered once on Today at first sign-in; it opens practice mode (made-up patients) in its own tab
+  await gwen.waitForSelector('#tourOffer', { timeout: 20000 });
+  check(/New to NLO Cases\?/.test(await gwen.textContent('#tourOffer')), 'first sign-in: Today offers the hands-on tour');
+  await gwen.screenshot({ path: 'shots/e2e-tour-offer.png' });
+  const [prac] = await Promise.all([gwen.context().waitForEvent('page'), gwen.click('#tourOffer [data-act=tourOpen]')]);
+  watch(prac, errs, 'gwen-practice');
+  check(/nlo-cases\.html\?demo&tour=staff$/.test(prac.url()), '“Start the tour” opens practice mode, as staff, in a new tab (' + prac.url().replace(/^.*\//, '') + ')');
+  await prac.waitForFunction(() => typeof TOUR !== 'undefined' && TOUR.on && TOUR.steps[TOUR.i].id === 'hi', null, { timeout: 15000 });
+  check(await prac.evaluate(() => B === DEMO && B.me.name === 'Practice User' && !document.getElementById('nav-admin')), '…signed in to the made-up patients (not the office database) as “Practice User”, the tour running');
+  await prac.close();
+  await gwen.waitForSelector('#tourOffer', { state: 'detached', timeout: 5000 });
+  check(await gwen.evaluate(() => S.inApp && B === FB), 'the offer goes once the tour is opened; Gwen’s real session carries on');
   await owner.click('#nav-today'); await owner.click('#nav-admin');
   await owner.waitForFunction(() => document.body.innerText.match(/Waiting for first sign-in/g)?.length === 2, null, { timeout: 15000 });
   check(true, 'owner sees Gwen move to Active');
@@ -132,10 +144,21 @@ async function openByName(p, name) {
   await signIn(kay, 'Kaylee', kayTemp); await kay.waitForSelector('#firstForm', { timeout: 30000 });
   await kay.fill('#fpw1', 'Kaylee-Pass-2026'); await kay.fill('#fpw2', 'Kaylee-Pass-2026'); await kay.click('#fBtn'); await waitApp(kay);
   check(true, 'username is case-insensitive at sign-in');
+  await kay.waitForSelector('#tourOffer', { timeout: 20000 });
+  await kay.click('#tourOffer [data-act=tourLater]');
+  await kay.waitForSelector('#tourOffer', { state: 'detached', timeout: 5000 });
+  check(/any time from My account/.test(await kay.textContent('#toasts')), 'tour offer: “Not now” hides it and says where the tour lives');
+  await kay.click('#nav-account'); await kay.waitForSelector('[data-act=tourOpen]');
+  check(/Take the tour/.test(await kay.textContent('[data-act=tourOpen]')), 'My account: “Take the tour”');
+  await kay.click('#nav-today'); await kay.waitForSelector('.tiles');
+  check(!(await kay.$('#tourOffer')), '…and Today doesn’t offer it again');
   const sarah = await newPage(browser, 'sarah', errs, { width: 390, height: 844 });
   await signIn(sarah, 'sarah', sarahTemp); await sarah.waitForSelector('#firstForm', { timeout: 30000 });
   await sarah.fill('#fpw1', 'Sarah-Pass-2026'); await sarah.fill('#fpw2', 'Sarah-Pass-2026'); await sarah.click('#fBtn');
   await sarah.waitForSelector('#app:not(.hidden) #view', { timeout: 30000 });
+  await sarah.waitForSelector('#tourOffer', { timeout: 20000 });
+  check(await sarah.evaluate(() => { const r = document.getElementById('tourOffer').getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth && document.documentElement.scrollWidth <= innerWidth; }), 'phone: the tour offer fits the screen');
+  await sarah.screenshot({ path: 'shots/e2e-tour-offer-phone.png' });
 
   console.log('\n# Owner creates a case; staff see it live');
   await owner.click('#nav-today');
