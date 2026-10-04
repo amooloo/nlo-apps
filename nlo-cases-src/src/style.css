@@ -1065,6 +1065,29 @@ svg.rxArch{display:block;width:100%;height:auto}
 .rxTi-finger,.rxTi-spur{width:auto;height:auto;border-radius:0;font-style:normal;font-size:13px;line-height:1}
 .rxTi-finger::before{content:"\21DD"}.rxTi-spur::before{content:"\2310"}
 
+/* Specialty's warranty on a case (warranty.js): the invoice date, the deadlines with today's standing, how to claim */
+.wtyInv{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;margin-bottom:10px}
+.wtyInv .rxF span{font-family:var(--fd);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--grey-500)}
+.wtyInv .rxF input{width:160px}
+.wtyInv>.small{flex:1;min-width:200px}
+.wtyTbl{width:100%;border-collapse:collapse;font-size:12.5px;margin-bottom:8px}
+.wtyTbl th,.wtyTbl td{padding:6px 0;border-bottom:1px dashed var(--grey-200);vertical-align:top;text-align:left}
+.wtyTbl th{width:150px;padding-right:10px;font-weight:700;color:var(--navy)}
+.wtyTbl td:last-child{text-align:right;white-space:nowrap;padding-left:8px}
+.wtyChip{display:inline-block;font-size:11px;font-weight:700;border-radius:99px;padding:2px 8px;background:var(--grey-100);color:var(--grey-600)}
+.wtyChip.free{background:var(--mint-100);color:var(--mint-700)}
+.wtyChip.half{background:var(--amber-100);color:var(--amber-700)}
+.wtyChip.claim{background:var(--blue-100);color:var(--blue-700)}
+.wtyChip.past{background:var(--grey-100);color:var(--grey-500)}
+.wty.ng .wtyTbl{opacity:.45}
+.wtyNg{margin:0 0 8px}
+.wtyNgTg{margin:2px 0 10px}
+.wtyH{font-family:var(--fd);font-weight:500;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--grey-500);margin:4px 0 6px}
+.wtySteps{margin:0 0 8px;padding-left:20px;font-size:12.5px;line-height:1.5;color:var(--grey-700)}
+.wtySteps li{margin:3px 0}
+.wtySteps a{color:var(--blue)}
+@media (max-width:520px){.wtyTbl th{width:auto;display:block;border-bottom:0;padding-bottom:0}.wtyTbl tr{display:grid;grid-template-columns:1fr auto}.wtyTbl th{grid-column:1/-1}.wtyTbl td{border-bottom:1px dashed var(--grey-200)}}
+
 /* ---------- Phone fit (Oct 2026) ----------
    iPhones zoom the page in when a box under 16px gets the cursor (and it stays zoomed), and one long chip made
    the whole page a few px wider than the screen. Long chips now wrap; on phones the date chips sit under the name. */

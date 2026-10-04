@@ -836,7 +836,7 @@ async function loadClosed() {
 /* ---------- Drawer ---------- */
 function findCase(id) { return S.cases.get(id) || S.closed.find(c => c.id === id); }
 function openDrawer(id) {
-  S.openId = id; S.editing = false; S.history = null; S.dsTog = new Map(); // each case opens folded (or all open, see dsAllMode)
+  S.openId = id; S.editing = false; S.history = null; S.dsTog = new Map(); S.wtyRedraw = false; // each case opens folded (or all open, see dsAllMode)
   if (!$('#drawer')) {
     const scrim = document.createElement('div'); scrim.id = 'scrim'; scrim.dataset.act = 'closeDrawer'; document.body.appendChild(scrim);
     const d = document.createElement('aside'); d.id = 'drawer'; d.setAttribute('role', 'dialog'); d.setAttribute('aria-modal', 'true'); d.setAttribute('aria-label', 'Case'); document.body.appendChild(d);
@@ -845,6 +845,7 @@ function openDrawer(id) {
 }
 function closeDrawer(force) {
   if (!force && S.editing && editDirty() && !confirm('Discard your changes?')) return;
+  wtyFlush(); S.wtyRedraw = false; // a Specialty invoice date typed and not yet saved (warranty.js)
   S.openId = null; S.editing = false; const d = $('#drawer'), s = $('#scrim'); if (d) d.remove(); if (s) s.remove();
 }
 function refreshDrawer(gone) {
@@ -854,12 +855,15 @@ function refreshDrawer(gone) {
     closeDrawer(true); return;
   }
   if (S.editing) { const n = $('#drawerNotice'); if (n) n.innerHTML = '<div class="notice">Someone else just updated this case. Saving will keep their changes and apply yours on top.</div>'; return; }
+  if (wtyHold()) return; // the Specialty invoice date is being typed: redraw once it's left (warranty.js)
   renderDrawer(); loadHistory(S.openId);
 }
 async function loadHistory(id) {
-  try { const h = await B.caseLog(id); if (S.openId === id) { S.history = h; const el = $('#histBox'); if (el) el.innerHTML = historyHTML(findCase(id)); } } catch (e) { }
+  // (two loads in flight: an answer older than the one on screen is dropped — a later load that fails leaves the earlier one)
+  const seq = S.histSeq = (S.histSeq || 0) + 1;
+  try { const h = await B.caseLog(id); if (S.openId === id && seq > (S.histShown || 0)) { S.histShown = seq; S.history = h; const el = $('#histBox'); if (el) el.innerHTML = historyHTML(findCase(id)); wtyRefresh(id); } } catch (e) { }
 }
-const FIELD_LABELS = { rx: 'Herbst Rx', rxRet: 'Retainer Rx', photo: 'photo', labRef: 'lab case #', labHold: 'lab hold', planUrl: 'plan link', shipToPatient: 'ship to patient', records: 'records on file', zoomDate: 'Zoom call', zoomTime: 'Zoom call', tracking: 'tracking #', carrier: 'carrier', teeth: 'tooth chart', teethNote: 'tooth chart', chart: 'chart #', titanUrl: 'Titan link', initial: 'initial/refinement', appliances: 'appliance', lab: 'lab', arches: 'arch', retKinds: 'retainer type', goals: 'Dr. A’s instructions', instrPicks: 'Dr. A’s instructions', instrOther: 'Dr. A’s instructions', extras: 'extras', variant: 'case type', type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery appt', deliveryTime: 'appt time', txStart: 'treatment start', txEnd: 'expected removal', acrylic: 'acrylic color', glitter: 'acrylic color', alU: 'aligners', alL: 'aligners', aligners: 'aligners', atTemplates: 'attachment templates', treatArch: 'arches to treat', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes' };
+const FIELD_LABELS = { rx: 'Herbst Rx', rxRet: 'Retainer Rx', invDate: 'invoice date', noGuarantee: 'No Guarantee', photo: 'photo', labRef: 'lab case #', labHold: 'lab hold', planUrl: 'plan link', shipToPatient: 'ship to patient', records: 'records on file', zoomDate: 'Zoom call', zoomTime: 'Zoom call', tracking: 'tracking #', carrier: 'carrier', teeth: 'tooth chart', teethNote: 'tooth chart', chart: 'chart #', titanUrl: 'Titan link', initial: 'initial/refinement', appliances: 'appliance', lab: 'lab', arches: 'arch', retKinds: 'retainer type', goals: 'Dr. A’s instructions', instrPicks: 'Dr. A’s instructions', instrOther: 'Dr. A’s instructions', extras: 'extras', variant: 'case type', type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery appt', deliveryTime: 'appt time', txStart: 'treatment start', txEnd: 'expected removal', acrylic: 'acrylic color', glitter: 'acrylic color', alU: 'aligners', alL: 'aligners', aligners: 'aligners', atTemplates: 'attachment templates', treatArch: 'arches to treat', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes' };
 function historyHTML(c) {
   const h = S.history; if (!h) return '<div class="small muted">Loading…</div>'; if (!h.length) return '<div class="small muted">No history yet.</div>';
   const stageName = k => { const s = c && (caseStages(c).find(x => x[0] === k) || flowOf(c).stages.find(x => x[0] === k)); return s ? s[1] : (c && retiredStageLabel(c, k)) || k; };
@@ -900,6 +904,7 @@ function renderDrawer() {
     return;
   }
   const keepCmt = $('#cmtText') ? $('#cmtText').value : ''; const hadFocus = document.activeElement && document.activeElement.id === 'cmtText';
+  const wKeep = wtyKeep(); // (the Specialty invoice date being typed: warranty.js)
   // a live update redraws the panel: keep it where it was scrolled to (same case, not coming back from Edit)
   const bd0 = $('.dBd', d), keepTop = bd0 && d.dataset.for === c.id && d.dataset.mode === 'view' ? bd0.scrollTop : 0;
   const done = c.status === 'done'; const flow = flowOf(c); const si = stageIndex(c);
@@ -952,6 +957,8 @@ function renderDrawer() {
       '</div>') +
     // a Herbst or Hawley retainers going to Specialty: their Herbst / Retainer Rx, filled in from the case (rx.js, rxret.js)
     rxCaseSecsHTML(c, done) +
+    // a Specialty case once it has shipped: Specialty's remake deadlines and how to claim one (warranty.js)
+    wtySecHTML(c) +
     (c.type === 'nla' ? dsec('tx', 'Treatment', txSumHTML(c), '<div id="txBox">' + txBoxHTML(c) + '</div>') : '') +
     (c.type === 'nla' ? dsec('aligners', 'Aligners', nAl ? '<b>' + nAl + '</b> aligners in this set' + (c.alU || c.alL ? ' (' + (one === 'U' ? 'U ' + (c.alU || 0) + ' · upper only' : one === 'L' ? 'L ' + (c.alL || 0) + ' · lower only' : 'U ' + (c.alU || 0) + ' · L ' + (c.alL || 0)) + ')' : '') : 'Aligner counts not entered yet',
       '<div id="alBox">' + alignerTotalHTML(c, false) + '</div>') : '') +
@@ -975,6 +982,7 @@ function renderDrawer() {
       '<button class="btn btn-mint" data-act="complete" data-id="' + esc(c.id) + '">' + ic('done', 16) + 'Mark complete</button><button class="btn btn-sec" data-act="edit">' + ic('edit', 16) + 'Edit</button>') +
     (isOwner() ? '<span style="flex:1"></span><button class="btn btn-ghost" data-act="versions">' + ic('clock', 16) + 'Versions</button><button class="btn btn-ghost" data-act="delCase" style="color:var(--coral-700)">' + ic('trash', 16) + 'Delete</button>' : '') + '</div>';
   const t = $('#cmtText'); if (t) { t.value = keepCmt; if (hadFocus) t.focus(); }
+  wtyRestore(wKeep);
   if (keepTop) $('.dBd', d).scrollTop = keepTop;
   dsAllSync(); phPaint(); savPaint(d); phWireDrawer(d); picPaint(d);
   if (typeOf(c).aligner && c.chart && !done) iprAutoLoad(c);
@@ -1322,6 +1330,8 @@ async function moveStage(id, to, extra, asked) {
   try { await B.mutateCase(id, d => { d.stage = to; Object.assign(d, extra); }, Object.assign({ a: 'stage', from, to }, fields.length ? { fields } : {})); }
   catch (e) { const cur = findCase(id); if (cur && S.pend[id] === mine) { cur.stage = from; Object.assign(cur, before); queueRender(); if (S.openId === id) renderDrawer(); } toast(errText(e), { bad: true }); return; }
   finally { if (S.pend[id] === mine) delete S.pend[id]; }
+  // the open case's history (and the Specialty warranty that counts from the day it shipped) shows the move
+  if (S.openId === id && !S.editing) loadHistory(id);
   if (isLastStage(c, to)) offerComplete(id);
 }
 /* a case that reaches its last step is asked about once, by whoever moved it there (Amir, 3 Oct 2026: "when a case reaches the
@@ -1486,7 +1496,8 @@ async function saveEdit() {
       if (changed.includes('txStart') || changed.includes('txEnd')) x.txAt = Date.now(); // the patient's treatment dates are the ones saved last
       if (changed.includes('type') && !FLOWS[TYPE[x.type].flow].stages.some(s => s[0] === x.stage)) x.stage = firstStage(x.type);
     };
-    await B.mutateCase(id, x => { apply(x); if (ships) return 'done'; }, Object.assign({ a: 'edit', fields: changed }, ships ? { close: 1 } : {}));
+    // (a step changed here is logged with where it went, like a move from the stepper: the Specialty warranty counts from Shipped)
+    await B.mutateCase(id, x => { apply(x); if (ships) return 'done'; }, Object.assign({ a: 'edit', fields: changed }, changed.includes('stage') ? { from: base.stage, to: now.stage } : {}, ships ? { close: 1 } : {}));
     // show the saved copy right away (the live update from the server follows a moment later)
     const cur = findCase(id); if (cur) apply(cur);
     if (ships) { // shipped to the patient = complete

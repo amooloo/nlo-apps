@@ -780,7 +780,7 @@ function rxCaseSecK(c, done, K) {
 Object.assign(ADMIN_ACTS, {
   rxEdit(t) { const K = rxKind(t && t.dataset && t.dataset.kind), c = findCase(S.openId); if (!c) return; const id = c.id;
     rxEditor(c, rxOfK(c, K), rx => { const cur = findCase(id); if (!cur) return; const was = rxOfK(cur, K); if (JSON.stringify(rx || '') === JSON.stringify(was ? rxCanon(Object.assign({}, was, { form: K.form })) : '')) return;
-      act(async () => { await B.mutateCase(id, d => { d[K.field] = rx || ''; }, { a: 'edit', fields: [K.field] }); const c2 = findCase(id); if (c2) c2[K.field] = rx || ''; if (S.openId === id && !S.editing) { renderDrawer(); loadHistory(id); } }, rx ? K.title + ' saved' : K.title + ' cleared'); }, K.form); },
+      act(async () => { await B.mutateCase(id, d => { d[K.field] = rx || ''; }, { a: 'edit', fields: [K.field] }); const c2 = findCase(id); if (c2) c2[K.field] = rx || ''; if (S.openId === id && !S.editing && !wtyHold()) { renderDrawer(); loadHistory(id); } }, rx ? K.title + ' saved' : K.title + ' cleared'); }, K.form); },
   rxPdf(t) { const K = rxKind(t && t.dataset && t.dataset.kind), c = findCase(S.openId), rx = c && rxOfK(c, K); if (rx) rxDownload(c, Object.assign({}, rx, { form: K.form })); },
   rxOpen(t) { const K = rxKind(t && t.dataset && t.dataset.kind), c = findCase(S.openId), rx = c && rxOfK(c, K); if (rx) rxOpenPdf(c, Object.assign({}, rx, { form: K.form })); },
   rxPricesReset() { act(() => B.saveSettings({ rxPrices: '' }), 'Prices back to Specialty’s price list'); },

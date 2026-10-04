@@ -18,12 +18,13 @@ const APPL_ONE = ['Herbst with Rollo Band', 'Space Closing Herbst', 'MARA', 'MSE
 /* lab routing from the AISA KB / SOP manual: MSE → Specialty Orthodontic Lab (SOP-CL-020); MARPE → Partners Dental Solutions (SOP-CL-029,
    as Partner Dental Studios — the lab rebranded; Amir, 3 Oct 2026);
    D2 distalizer → in-house, no outside prescription (lab workflow, Layer 3 exception); Herbst, MARA → Specialty; RPE, Schwartz,
-   Hawley, finger spring → Partners (KB lab routing) */
+   finger spring → Partners (KB lab routing); Hawley retainers → Specialty (Amir, 4 Oct 2026, with Specialty's Retainer Rx in rxret.js;
+   the KB said Partners) */
 const LAB_SPEC = 'Specialty Orthodontic Lab', LAB_PART = 'Partners Dental Solutions', LAB_IN = 'In-house (NL Lab)';
 /* each lab's logo (logos.js; Amir, 3 Oct 2026): on the Lab choices and, for appliance and MARPE cases, on the board and lists */
 const LAB_LOGO = { [LAB_SPEC]: 'lab-specialty', [LAB_PART]: 'lab-partners', [LAB_IN]: 'nlo' };
 const LAB_FOR = { 'Herbst with Rollo Band': LAB_SPEC, 'Space Closing Herbst': LAB_SPEC, 'MARA': LAB_SPEC, 'MSE': LAB_SPEC, 'MARPE': LAB_PART,
-  'Rapid Palatal Expander (RPE)': LAB_PART, 'D2 distalizer': LAB_IN, 'Finger spring with no labial bow': LAB_PART, 'Hawley retainers': LAB_PART, 'Schwartz': LAB_PART };
+  'Rapid Palatal Expander (RPE)': LAB_PART, 'D2 distalizer': LAB_IN, 'Finger spring with no labial bow': LAB_PART, 'Hawley retainers': LAB_SPEC, 'Schwartz': LAB_PART };
 /* Dr. A's instructions: midline and overbite are Maintain / Improve; the rest are picture tiles.
    v = the full instruction saved on the case (same wording as the Tally form), l = the tile's short label.
    AP (Class II / III) was taken off on 3 Oct 2026 (Amir): legacy — its row shows only on a case that already has it */
@@ -50,10 +51,10 @@ const INSTR = [
 const INSTR_RENAMED = { 'IPR lower': 'Lower IPR' };
 /* "No posterior teeth movement" also marks the back teeth Don't move on the tooth chart (Amir, 3 Oct 2026) */
 const NO_POST_MOVE = 'No posterior teeth movement';
-/* Hawley retainers (an appliance, made by Partners): which arch — Upper / Lower in words, no picture yet — and the acrylic color
-   (Amir, 3 Oct 2026: "hawley retainers need upper and lower arch … There should be a color selection tool. I don't know if partner
-   dental solution has it online" — Partners doesn't publish its color chart (orders go through EasyRx), so these are the usual
-   lab acrylic colors; swap in Partners' own list when we have it). c = the swatch */
+/* Hawley retainers (an appliance; made by Specialty since 4 Oct 2026, Partners before): which arch — Upper / Lower in words, no
+   picture yet — and the acrylic color (Amir, 3 Oct 2026: "hawley retainers need upper and lower arch … There should be a color
+   selection tool. I don't know if partner dental solution has it online" — Partners doesn't publish its color chart (orders go
+   through EasyRx), so these are the usual lab acrylic colors; Specialty's Retainer Rx takes the color as written). c = the swatch */
 const HAWLEY = 'Hawley retainers';
 const ACRYLIC = [
   { v: 'Clear', c: 'clear' }, { v: 'Pink', c: '#F4A3C4' }, { v: 'Red', c: '#DC2F3A' }, { v: 'Orange', c: '#F5862A' }, { v: 'Yellow', c: '#F6D03A' },

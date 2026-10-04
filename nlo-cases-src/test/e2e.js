@@ -612,9 +612,8 @@ async function openByName(p, name) {
   await owner.click('.topBar [data-act=newCase]'); await owner.waitForSelector('#ncForm');
   await owner.click('#ncForm .tt[data-tile=appliance]'); await owner.fill('#cf-patient', 'Hazel Hawleywick');
   await tapAppl('Hawley retainers'); await owner.click('#ncForm .pickRow[data-g=hawleyArch] .pick[data-v=Upper]'); await owner.click('#ncForm .pickRow[data-g=acrylic] .pick[data-v=Teal]');
-  check(!(await owner.isVisible('#cf-rxRetSec')) && await labNow() === 'Partners Dental Solutions' && await owner.isVisible('#cf-rxHint'), 'Hawley retainers → Partners: no Retainer Rx, a line that it’s there for Specialty');
-  await owner.click('#ncForm .pickRow[data-g=lab] .pick[data-v="Specialty Orthodontic Lab"]');
-  check(await owner.isVisible('#cf-rxRetSec') && !(await owner.isVisible('#cf-rxSec')), 'Specialty tapped: the Retainer Rx shows (not the Herbst Rx)');
+  check(await owner.isVisible('#cf-rxRetSec') && await labNow() === 'Specialty Orthodontic Lab' && !(await owner.isVisible('#cf-rxHint')) && !(await owner.isVisible('#cf-rxSec')),
+    'Hawley retainers → Specialty (the routing since 4 Oct 2026): the Retainer Rx shows right away (not the Herbst Rx)');
   await owner.fill('#cf-deliveryDate', await owner.evaluate(() => addDays(todayISO(), 30)));
   await owner.click('#ncForm [data-rxform=edit][data-kind=ret]'); await owner.waitForSelector('#rxWrap .rxArch.live');
   await owner.click('#rxWrap .rxB[data-rxg=claspU][data-v=adams]');
@@ -636,6 +635,23 @@ async function openByName(p, name) {
   await gwen.click('#rxWrap .rxB[data-rxg=flrL][data-v=c3]'); await gwen.click('#rxWrap [data-rxa=done]');
   await owner.waitForFunction(() => { const c = openCases().find(x => x.patient === 'Hazel Hawleywick'); return !!(c && c.rxRet && c.rxRet.flrL === 'c3'); }, null, { timeout: 20000 });
   check(true, 'Gwen’s lower bonded retainer reaches Dr. A live');
+  // Specialty's warranty (Amir, 4 Oct 2026): once the case ships, its remake deadlines; the invoice date and No Guarantee are
+  // saved with the case, encrypted
+  check(!(await gwen.isVisible('#drawer [data-ds=wty]')), 'no Specialty warranty before the case ships');
+  await gwen.click('#drawer [data-act=setStage][data-k=shipped]');
+  const fitBy = await gwen.evaluate(() => wtyDay(addDays(todayISO(), 30)));
+  await gwen.waitForFunction(t => ((document.querySelector('#dsS-wty') || {}).textContent || '').startsWith('Fit remake free until about ' + t + ' · defects until about'), fitBy, { timeout: 20000 });
+  check(/the dates are estimates, counted from the day it moved to Shipped/.test(await gwen.textContent('#wtyBox')), 'moved to Shipped: Specialty’s warranty shows (a free fit remake for 30 days, defects for 6 months), estimated from the day it shipped');
+  const invD = await gwen.evaluate(() => addDays(todayISO(), -45)), halfBy = await gwen.evaluate(d => wtyDay(addDays(d, 60)), invD);
+  await gwen.fill('#wtyBox [data-wty=inv]', invD); await gwen.press('#wtyBox [data-wty=inv]', 'Enter');
+  await gwen.waitForFunction(t => ((document.querySelector('#dsS-wty') || {}).textContent || '').startsWith('Fit remake half price until ' + t), halfBy, { timeout: 20000 });
+  await owner.waitForFunction(d => { const c = openCases().find(x => x.patient === 'Hazel Hawleywick'); return !!(c && c.invDate === d && c.stage === 'shipped'); }, invD, { timeout: 20000 });
+  check(true, 'Gwen enters Specialty’s invoice date (45 days ago): fit remakes are half price now, and it reaches Dr. A live');
+  await gwen.check('#wtyBox [data-wty=ng]');
+  await gwen.waitForFunction(() => /No Guarantee case: no warranty/.test((document.querySelector('#dsS-wty') || {}).textContent || ''), null, { timeout: 20000 });
+  await owner.waitForFunction(() => { const c = openCases().find(x => x.patient === 'Hazel Hawleywick'); return !!(c && c.noGuarantee === true); }, null, { timeout: 20000 });
+  dump = JSON.stringify(await fsDump());
+  check(!dump.includes('invDate') && !dump.includes(invD) && !dump.includes('noGuarantee'), 'marked No Guarantee (no warranty); the invoice date and the mark are stored encrypted with the case');
   await gwen.click('#drawer [data-act=closeDrawer] >> nth=0');
 
   console.log('\n# InSmile: digital enhancements instead of refinements');
@@ -1071,7 +1087,9 @@ async function openByName(p, name) {
   await owner.waitForFunction(async () => (await B.inboxLoad()).length === 0, null, { timeout: 20000 });
   check(!(await st('Mira Holdsworth')).hold, 'a hold someone cleared isn’t brought back by the same hold in the next summary');
   dump = JSON.stringify(await fsDump());
-  check(!/Brightwater|Marchetti|Shipdirect|Quillfeather|Velasquez|Holdsworth|Robin T|700111|ZQ88|ZQ77|lower jaw/.test(dump), 'no patient name, case # or hold reason is readable anywhere in the database');
+  // (long base64 runs — ciphertext, encrypted photos — are left out: a short order # like ZQ88 can turn up in them by chance)
+  { const plain = dump.replace(/"[A-Za-z0-9+/=_-]{40,}"/g, '""'), lk = /Brightwater|Marchetti|Shipdirect|Quillfeather|Velasquez|Holdsworth|Robin T|700111|ZQ88|ZQ77|lower jaw/.exec(plain);
+    check(!lk, 'no patient name, case # or hold reason is readable anywhere in the database' + (lk ? ' — found “' + lk[0] + '” in …' + plain.slice(Math.max(0, lk.index - 160), lk.index + 60) + '…' : '')); }
   // the same update in both mailboxes and in the next day's summary is one row; Dismiss clears every copy, and it stays dismissed
   const holdHtml = (d, nm) => '<p>No Cases Received Today</p><p>No Cases Shipped Today</p><p>Cases On Hold in the last 7 Days</p><table><tr><th>Patient Name</th><th>Case Number</th><th>Hold Date</th><th>Hold Reason</th></tr><tr><td>' + nm + '</td><td>55999</td><td>10-01-2026</td><td>Need a new scan</td></tr></table><p>' + d + '</p>';
   const mA = { id: 'h1', date: Date.now() - 2 * H, from: 'general@partnersdentalstudio.com', subject: 'Daily Cases Received, Shipped, and Held', text: '', html: holdHtml('day 1', 'Wren Z.') };

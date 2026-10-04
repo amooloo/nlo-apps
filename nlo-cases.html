@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-IlN0/rx9vwtN5p0E0b8+tiLhA2Qh1yiTlizKB6WlP5Q=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-V8BkHz68xXjYO5yd4y642Oo0FZyVGqeVD9dRs6JqGO4=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO Cases</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1078,6 +1078,29 @@ svg.rxArch{display:block;width:100%;height:auto}
 .rxTi-reset{border:1.5px dashed currentColor}
 .rxTi-finger,.rxTi-spur{width:auto;height:auto;border-radius:0;font-style:normal;font-size:13px;line-height:1}
 .rxTi-finger::before{content:"\21DD"}.rxTi-spur::before{content:"\2310"}
+
+/* Specialty's warranty on a case (warranty.js): the invoice date, the deadlines with today's standing, how to claim */
+.wtyInv{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;margin-bottom:10px}
+.wtyInv .rxF span{font-family:var(--fd);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--grey-500)}
+.wtyInv .rxF input{width:160px}
+.wtyInv>.small{flex:1;min-width:200px}
+.wtyTbl{width:100%;border-collapse:collapse;font-size:12.5px;margin-bottom:8px}
+.wtyTbl th,.wtyTbl td{padding:6px 0;border-bottom:1px dashed var(--grey-200);vertical-align:top;text-align:left}
+.wtyTbl th{width:150px;padding-right:10px;font-weight:700;color:var(--navy)}
+.wtyTbl td:last-child{text-align:right;white-space:nowrap;padding-left:8px}
+.wtyChip{display:inline-block;font-size:11px;font-weight:700;border-radius:99px;padding:2px 8px;background:var(--grey-100);color:var(--grey-600)}
+.wtyChip.free{background:var(--mint-100);color:var(--mint-700)}
+.wtyChip.half{background:var(--amber-100);color:var(--amber-700)}
+.wtyChip.claim{background:var(--blue-100);color:var(--blue-700)}
+.wtyChip.past{background:var(--grey-100);color:var(--grey-500)}
+.wty.ng .wtyTbl{opacity:.45}
+.wtyNg{margin:0 0 8px}
+.wtyNgTg{margin:2px 0 10px}
+.wtyH{font-family:var(--fd);font-weight:500;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--grey-500);margin:4px 0 6px}
+.wtySteps{margin:0 0 8px;padding-left:20px;font-size:12.5px;line-height:1.5;color:var(--grey-700)}
+.wtySteps li{margin:3px 0}
+.wtySteps a{color:var(--blue)}
+@media (max-width:520px){.wtyTbl th{width:auto;display:block;border-bottom:0;padding-bottom:0}.wtyTbl tr{display:grid;grid-template-columns:1fr auto}.wtyTbl th{grid-column:1/-1}.wtyTbl td{border-bottom:1px dashed var(--grey-200)}}
 
 /* ---------- Phone fit (Oct 2026) ----------
    iPhones zoom the page in when a box under 16px gets the cursor (and it stays zoomed), and one long chip made
@@ -2291,6 +2314,13 @@ const DEMO = {
     // (the same made-up name always gets the same face, like a patient whose photo came along from their other case)
     const faceOf = n => Array.from(String(n)).reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) % 9973, 7);
     Array.from(DEMO.cases.values()).forEach((c, i) => { if (i % 3 !== 2) { c.photo = 'dv' + i; DEMO.photos.set(c.id, { pv: c.photo, face: faceOf(c.patient) }); } });
+    // a MARA Specialty made, shipped 44 days ago and checked in 4 days later: its warranty is in the half-price fit window
+    // (warranty.js; added after the photos so the other demo cases keep theirs)
+    const day = 86400e3;
+    DEMO.cases.set('demoSpecW', { id: 'demoSpecW', rev: 4, v: 1, status: 'done', by: 'sarah', updatedAt: Date.now() - 40 * day, closedAt: Date.now() - 40 * day, type: 'appliance', patient: 'Marlowe Maraday',
+      appliances: ['MARA'], detail: 'MARA', lab: LAB_SPEC, stage: 'milestones', assignee: 'sarah', assistant: 'gwen', scanner: 'iTero', deliveryDate: addDays(t, -38), comments: [], createdAt: Date.now() - 60 * day, createdBy: 'amir' });
+    DEMO.logs.push({ caseId: 'demoSpecW', a: 'create', at: Date.now() - 60 * day, sid: 'amir' }, { caseId: 'demoSpecW', a: 'stage', from: 'mfg', to: 'shipped', at: Date.now() - 44 * day, sid: 'sarah' },
+      { caseId: 'demoSpecW', a: 'stage', from: 'shipped', to: 'milestones', at: Date.now() - 40 * day, sid: 'sarah' }, { caseId: 'demoSpecW', a: 'close', at: Date.now() - 40 * day + 60e3, sid: 'sarah' });
   },
   /* patient photos (in memory) */
   photos: new Map(),
@@ -3475,7 +3505,7 @@ async function loadClosed() {
 /* ---------- Drawer ---------- */
 function findCase(id) { return S.cases.get(id) || S.closed.find(c => c.id === id); }
 function openDrawer(id) {
-  S.openId = id; S.editing = false; S.history = null; S.dsTog = new Map(); // each case opens folded (or all open, see dsAllMode)
+  S.openId = id; S.editing = false; S.history = null; S.dsTog = new Map(); S.wtyRedraw = false; // each case opens folded (or all open, see dsAllMode)
   if (!$('#drawer')) {
     const scrim = document.createElement('div'); scrim.id = 'scrim'; scrim.dataset.act = 'closeDrawer'; document.body.appendChild(scrim);
     const d = document.createElement('aside'); d.id = 'drawer'; d.setAttribute('role', 'dialog'); d.setAttribute('aria-modal', 'true'); d.setAttribute('aria-label', 'Case'); document.body.appendChild(d);
@@ -3484,6 +3514,7 @@ function openDrawer(id) {
 }
 function closeDrawer(force) {
   if (!force && S.editing && editDirty() && !confirm('Discard your changes?')) return;
+  wtyFlush(); S.wtyRedraw = false; // a Specialty invoice date typed and not yet saved (warranty.js)
   S.openId = null; S.editing = false; const d = $('#drawer'), s = $('#scrim'); if (d) d.remove(); if (s) s.remove();
 }
 function refreshDrawer(gone) {
@@ -3493,12 +3524,15 @@ function refreshDrawer(gone) {
     closeDrawer(true); return;
   }
   if (S.editing) { const n = $('#drawerNotice'); if (n) n.innerHTML = '<div class="notice">Someone else just updated this case. Saving will keep their changes and apply yours on top.</div>'; return; }
+  if (wtyHold()) return; // the Specialty invoice date is being typed: redraw once it's left (warranty.js)
   renderDrawer(); loadHistory(S.openId);
 }
 async function loadHistory(id) {
-  try { const h = await B.caseLog(id); if (S.openId === id) { S.history = h; const el = $('#histBox'); if (el) el.innerHTML = historyHTML(findCase(id)); } } catch (e) { }
+  // (two loads in flight: an answer older than the one on screen is dropped — a later load that fails leaves the earlier one)
+  const seq = S.histSeq = (S.histSeq || 0) + 1;
+  try { const h = await B.caseLog(id); if (S.openId === id && seq > (S.histShown || 0)) { S.histShown = seq; S.history = h; const el = $('#histBox'); if (el) el.innerHTML = historyHTML(findCase(id)); wtyRefresh(id); } } catch (e) { }
 }
-const FIELD_LABELS = { rx: 'Herbst Rx', rxRet: 'Retainer Rx', photo: 'photo', labRef: 'lab case #', labHold: 'lab hold', planUrl: 'plan link', shipToPatient: 'ship to patient', records: 'records on file', zoomDate: 'Zoom call', zoomTime: 'Zoom call', tracking: 'tracking #', carrier: 'carrier', teeth: 'tooth chart', teethNote: 'tooth chart', chart: 'chart #', titanUrl: 'Titan link', initial: 'initial/refinement', appliances: 'appliance', lab: 'lab', arches: 'arch', retKinds: 'retainer type', goals: 'Dr. A’s instructions', instrPicks: 'Dr. A’s instructions', instrOther: 'Dr. A’s instructions', extras: 'extras', variant: 'case type', type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery appt', deliveryTime: 'appt time', txStart: 'treatment start', txEnd: 'expected removal', acrylic: 'acrylic color', glitter: 'acrylic color', alU: 'aligners', alL: 'aligners', aligners: 'aligners', atTemplates: 'attachment templates', treatArch: 'arches to treat', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes' };
+const FIELD_LABELS = { rx: 'Herbst Rx', rxRet: 'Retainer Rx', invDate: 'invoice date', noGuarantee: 'No Guarantee', photo: 'photo', labRef: 'lab case #', labHold: 'lab hold', planUrl: 'plan link', shipToPatient: 'ship to patient', records: 'records on file', zoomDate: 'Zoom call', zoomTime: 'Zoom call', tracking: 'tracking #', carrier: 'carrier', teeth: 'tooth chart', teethNote: 'tooth chart', chart: 'chart #', titanUrl: 'Titan link', initial: 'initial/refinement', appliances: 'appliance', lab: 'lab', arches: 'arch', retKinds: 'retainer type', goals: 'Dr. A’s instructions', instrPicks: 'Dr. A’s instructions', instrOther: 'Dr. A’s instructions', extras: 'extras', variant: 'case type', type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery appt', deliveryTime: 'appt time', txStart: 'treatment start', txEnd: 'expected removal', acrylic: 'acrylic color', glitter: 'acrylic color', alU: 'aligners', alL: 'aligners', aligners: 'aligners', atTemplates: 'attachment templates', treatArch: 'arches to treat', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes' };
 function historyHTML(c) {
   const h = S.history; if (!h) return '<div class="small muted">Loading…</div>'; if (!h.length) return '<div class="small muted">No history yet.</div>';
   const stageName = k => { const s = c && (caseStages(c).find(x => x[0] === k) || flowOf(c).stages.find(x => x[0] === k)); return s ? s[1] : (c && retiredStageLabel(c, k)) || k; };
@@ -3539,6 +3573,7 @@ function renderDrawer() {
     return;
   }
   const keepCmt = $('#cmtText') ? $('#cmtText').value : ''; const hadFocus = document.activeElement && document.activeElement.id === 'cmtText';
+  const wKeep = wtyKeep(); // (the Specialty invoice date being typed: warranty.js)
   // a live update redraws the panel: keep it where it was scrolled to (same case, not coming back from Edit)
   const bd0 = $('.dBd', d), keepTop = bd0 && d.dataset.for === c.id && d.dataset.mode === 'view' ? bd0.scrollTop : 0;
   const done = c.status === 'done'; const flow = flowOf(c); const si = stageIndex(c);
@@ -3591,6 +3626,8 @@ function renderDrawer() {
       '</div>') +
     // a Herbst or Hawley retainers going to Specialty: their Herbst / Retainer Rx, filled in from the case (rx.js, rxret.js)
     rxCaseSecsHTML(c, done) +
+    // a Specialty case once it has shipped: Specialty's remake deadlines and how to claim one (warranty.js)
+    wtySecHTML(c) +
     (c.type === 'nla' ? dsec('tx', 'Treatment', txSumHTML(c), '<div id="txBox">' + txBoxHTML(c) + '</div>') : '') +
     (c.type === 'nla' ? dsec('aligners', 'Aligners', nAl ? '<b>' + nAl + '</b> aligners in this set' + (c.alU || c.alL ? ' (' + (one === 'U' ? 'U ' + (c.alU || 0) + ' · upper only' : one === 'L' ? 'L ' + (c.alL || 0) + ' · lower only' : 'U ' + (c.alU || 0) + ' · L ' + (c.alL || 0)) + ')' : '') : 'Aligner counts not entered yet',
       '<div id="alBox">' + alignerTotalHTML(c, false) + '</div>') : '') +
@@ -3614,6 +3651,7 @@ function renderDrawer() {
       '<button class="btn btn-mint" data-act="complete" data-id="' + esc(c.id) + '">' + ic('done', 16) + 'Mark complete</button><button class="btn btn-sec" data-act="edit">' + ic('edit', 16) + 'Edit</button>') +
     (isOwner() ? '<span style="flex:1"></span><button class="btn btn-ghost" data-act="versions">' + ic('clock', 16) + 'Versions</button><button class="btn btn-ghost" data-act="delCase" style="color:var(--coral-700)">' + ic('trash', 16) + 'Delete</button>' : '') + '</div>';
   const t = $('#cmtText'); if (t) { t.value = keepCmt; if (hadFocus) t.focus(); }
+  wtyRestore(wKeep);
   if (keepTop) $('.dBd', d).scrollTop = keepTop;
   dsAllSync(); phPaint(); savPaint(d); phWireDrawer(d); picPaint(d);
   if (typeOf(c).aligner && c.chart && !done) iprAutoLoad(c);
@@ -3961,6 +3999,8 @@ async function moveStage(id, to, extra, asked) {
   try { await B.mutateCase(id, d => { d.stage = to; Object.assign(d, extra); }, Object.assign({ a: 'stage', from, to }, fields.length ? { fields } : {})); }
   catch (e) { const cur = findCase(id); if (cur && S.pend[id] === mine) { cur.stage = from; Object.assign(cur, before); queueRender(); if (S.openId === id) renderDrawer(); } toast(errText(e), { bad: true }); return; }
   finally { if (S.pend[id] === mine) delete S.pend[id]; }
+  // the open case's history (and the Specialty warranty that counts from the day it shipped) shows the move
+  if (S.openId === id && !S.editing) loadHistory(id);
   if (isLastStage(c, to)) offerComplete(id);
 }
 /* a case that reaches its last step is asked about once, by whoever moved it there (Amir, 3 Oct 2026: "when a case reaches the
@@ -4125,7 +4165,8 @@ async function saveEdit() {
       if (changed.includes('txStart') || changed.includes('txEnd')) x.txAt = Date.now(); // the patient's treatment dates are the ones saved last
       if (changed.includes('type') && !FLOWS[TYPE[x.type].flow].stages.some(s => s[0] === x.stage)) x.stage = firstStage(x.type);
     };
-    await B.mutateCase(id, x => { apply(x); if (ships) return 'done'; }, Object.assign({ a: 'edit', fields: changed }, ships ? { close: 1 } : {}));
+    // (a step changed here is logged with where it went, like a move from the stepper: the Specialty warranty counts from Shipped)
+    await B.mutateCase(id, x => { apply(x); if (ships) return 'done'; }, Object.assign({ a: 'edit', fields: changed }, changed.includes('stage') ? { from: base.stage, to: now.stage } : {}, ships ? { close: 1 } : {}));
     // show the saved copy right away (the live update from the server follows a moment later)
     const cur = findCase(id); if (cur) apply(cur);
     if (ships) { // shipped to the patient = complete
@@ -4171,12 +4212,13 @@ const APPL_ONE = ['Herbst with Rollo Band', 'Space Closing Herbst', 'MARA', 'MSE
 /* lab routing from the AISA KB / SOP manual: MSE → Specialty Orthodontic Lab (SOP-CL-020); MARPE → Partners Dental Solutions (SOP-CL-029,
    as Partner Dental Studios — the lab rebranded; Amir, 3 Oct 2026);
    D2 distalizer → in-house, no outside prescription (lab workflow, Layer 3 exception); Herbst, MARA → Specialty; RPE, Schwartz,
-   Hawley, finger spring → Partners (KB lab routing) */
+   finger spring → Partners (KB lab routing); Hawley retainers → Specialty (Amir, 4 Oct 2026, with Specialty's Retainer Rx in rxret.js;
+   the KB said Partners) */
 const LAB_SPEC = 'Specialty Orthodontic Lab', LAB_PART = 'Partners Dental Solutions', LAB_IN = 'In-house (NL Lab)';
 /* each lab's logo (logos.js; Amir, 3 Oct 2026): on the Lab choices and, for appliance and MARPE cases, on the board and lists */
 const LAB_LOGO = { [LAB_SPEC]: 'lab-specialty', [LAB_PART]: 'lab-partners', [LAB_IN]: 'nlo' };
 const LAB_FOR = { 'Herbst with Rollo Band': LAB_SPEC, 'Space Closing Herbst': LAB_SPEC, 'MARA': LAB_SPEC, 'MSE': LAB_SPEC, 'MARPE': LAB_PART,
-  'Rapid Palatal Expander (RPE)': LAB_PART, 'D2 distalizer': LAB_IN, 'Finger spring with no labial bow': LAB_PART, 'Hawley retainers': LAB_PART, 'Schwartz': LAB_PART };
+  'Rapid Palatal Expander (RPE)': LAB_PART, 'D2 distalizer': LAB_IN, 'Finger spring with no labial bow': LAB_PART, 'Hawley retainers': LAB_SPEC, 'Schwartz': LAB_PART };
 /* Dr. A's instructions: midline and overbite are Maintain / Improve; the rest are picture tiles.
    v = the full instruction saved on the case (same wording as the Tally form), l = the tile's short label.
    AP (Class II / III) was taken off on 3 Oct 2026 (Amir): legacy — its row shows only on a case that already has it */
@@ -4203,10 +4245,10 @@ const INSTR = [
 const INSTR_RENAMED = { 'IPR lower': 'Lower IPR' };
 /* "No posterior teeth movement" also marks the back teeth Don't move on the tooth chart (Amir, 3 Oct 2026) */
 const NO_POST_MOVE = 'No posterior teeth movement';
-/* Hawley retainers (an appliance, made by Partners): which arch — Upper / Lower in words, no picture yet — and the acrylic color
-   (Amir, 3 Oct 2026: "hawley retainers need upper and lower arch … There should be a color selection tool. I don't know if partner
-   dental solution has it online" — Partners doesn't publish its color chart (orders go through EasyRx), so these are the usual
-   lab acrylic colors; swap in Partners' own list when we have it). c = the swatch */
+/* Hawley retainers (an appliance; made by Specialty since 4 Oct 2026, Partners before): which arch — Upper / Lower in words, no
+   picture yet — and the acrylic color (Amir, 3 Oct 2026: "hawley retainers need upper and lower arch … There should be a color
+   selection tool. I don't know if partner dental solution has it online" — Partners doesn't publish its color chart (orders go
+   through EasyRx), so these are the usual lab acrylic colors; Specialty's Retainer Rx takes the color as written). c = the swatch */
 const HAWLEY = 'Hawley retainers';
 const ACRYLIC = [
   { v: 'Clear', c: 'clear' }, { v: 'Pink', c: '#F4A3C4' }, { v: 'Red', c: '#DC2F3A' }, { v: 'Orange', c: '#F5862A' }, { v: 'Yellow', c: '#F6D03A' },
@@ -7156,7 +7198,7 @@ function rxCaseSecK(c, done, K) {
 Object.assign(ADMIN_ACTS, {
   rxEdit(t) { const K = rxKind(t && t.dataset && t.dataset.kind), c = findCase(S.openId); if (!c) return; const id = c.id;
     rxEditor(c, rxOfK(c, K), rx => { const cur = findCase(id); if (!cur) return; const was = rxOfK(cur, K); if (JSON.stringify(rx || '') === JSON.stringify(was ? rxCanon(Object.assign({}, was, { form: K.form })) : '')) return;
-      act(async () => { await B.mutateCase(id, d => { d[K.field] = rx || ''; }, { a: 'edit', fields: [K.field] }); const c2 = findCase(id); if (c2) c2[K.field] = rx || ''; if (S.openId === id && !S.editing) { renderDrawer(); loadHistory(id); } }, rx ? K.title + ' saved' : K.title + ' cleared'); }, K.form); },
+      act(async () => { await B.mutateCase(id, d => { d[K.field] = rx || ''; }, { a: 'edit', fields: [K.field] }); const c2 = findCase(id); if (c2) c2[K.field] = rx || ''; if (S.openId === id && !S.editing && !wtyHold()) { renderDrawer(); loadHistory(id); } }, rx ? K.title + ' saved' : K.title + ' cleared'); }, K.form); },
   rxPdf(t) { const K = rxKind(t && t.dataset && t.dataset.kind), c = findCase(S.openId), rx = c && rxOfK(c, K); if (rx) rxDownload(c, Object.assign({}, rx, { form: K.form })); },
   rxOpen(t) { const K = rxKind(t && t.dataset && t.dataset.kind), c = findCase(S.openId), rx = c && rxOfK(c, K); if (rx) rxOpenPdf(c, Object.assign({}, rx, { form: K.form })); },
   rxPricesReset() { act(() => B.saveSettings({ rxPrices: '' }), 'Prices back to Specialty’s price list'); },
@@ -8185,6 +8227,226 @@ RXK[RX_RET] = {
   infoPrompt: g => ({ design: 'a design', clasp: 'a clasp', acc: 'an accessory', acr: 'an acrylic option', flr: 'an FLR option', ir: 'a clear retainer' })[g] || 'an option',
   cmpKeys: g => ({ design: RXR_DESIGNS, clasp: RXR_K('clasp'), flr: RXR_K('pads').concat(RXR_K('wire')), ir: RXR_K('ir') })[g] || null
 };
+
+/* =====================================================================
+   Lab warranty — Specialty Appliances' remake terms on each of their cases
+   Amir, 4 Oct 2026: sent Specialty's "Warranty, Replacement, Refinement and Returns Policy" (traditional orthodontic
+   appliances) and picked "each Specialty case shows its remake deadlines and how to file a claim".
+   - On a case going to Specialty (an appliance or MARPE) once it has reached Shipped (a MARPE: Delivered) — or, moved back
+     for a remake, when its history shows it shipped — the dates Specialty's terms give. They count from the invoice date:
+     the date entered from Specialty's invoice; until then, about the day the case moved to Shipped (else the day it came
+     in, or was completed) — those show as "about":
+       fit: a free remake within 30 days, half the price 31–60 days, full price after;
+       manufacturing defect: free within 9 months for a Herbst, 6 months for any other appliance or retainer;
+       anything wrong seen when it arrives: claim within 10 days of receiving it;
+       after 6 months, anything else is full price; a case Specialty made as "No Guarantee" has no warranty.
+   - Today's standing is on the folded heading ("Fit remake free until Nov 3 · defects until Apr 4, 2027").
+   - The invoice date (invDate) and a "No Guarantee" mark (noGuarantee) are saved on the case, encrypted like the rest of it.
+   - How to claim: send it back so it reaches Specialty inside the window (their prepaid USPS label, a label from
+     customer service, or FedEx/UPS to their address) with an updated scan; Specialty remakes or replaces, never repairs.
+   - Moves come from the case history (the stepper, a lab email, or Edit): the last move forward to Shipped, and the first
+     move forward to a received step after it (a step clicked back and forward again doesn't restart anything).
+   ===================================================================== */
+const WTY = {
+  src: 'Specialty Appliances’ Warranty, Replacement, Refinement and Returns Policy (traditional orthodontic appliances)',
+  fitFree: 30, fitHalf: 60, herbstMonths: 9, otherMonths: 6, arrivalDays: 10,
+  phone: '(800) 522-4636', label: 'https://specialtyappliances.com/shipping-information/', address: '4905 Hammond Industrial Dr., Suite J, Cumming, GA 30041'
+};
+const WTY_RECV = ['milestones', 'arrived', 'delivered']; // steps that mean it came in
+function wtyApplies(c) { return !!c && (c.type === 'appliance' || c.type === 'marpe') && labName(c.lab) === LAB_SPEC; }
+/* at Shipped or later (a MARPE: Delivered) — a case completed before it shipped (cancelled) isn't */
+function wtyReached(c) { const ks = flowOf(c).stages.map(s => s[0]), at = ks.indexOf(c.type === 'marpe' ? 'delivered' : 'shipped'); return at >= 0 && stageIndex(c) >= at; }
+function wtyShows(c) { return wtyApplies(c) && (!!c.invDate || wtyReached(c)); }
+/* … or its history shows it shipped or came in (moved back to be remade) */
+function wtyShowsH(c, hist) { return wtyShows(c) || (wtyApplies(c) && !!hist && !!(wtyMove(c, hist, ['shipped'], 'last') || wtyMove(c, hist, WTY_RECV, 'first'))); }
+/* the same day n months later (the month's last day when it hasn't that many days: Aug 31 + 6 months = Feb 28) */
+function wtyAddMonths(iso, n) { const [y, m, d] = iso.split('-').map(Number), last = new Date(y, m - 1 + n + 1, 0).getDate(); return isoOf(new Date(y, m - 1 + n, Math.min(d, last))); }
+const wtyDaysTo = iso => Math.round((new Date(iso + 'T12:00:00') - new Date(todayISO() + 'T12:00:00')) / 864e5);
+/* "Nov 3", or "Apr 4, 2027" when it isn't this year */
+function wtyDay(iso) { if (!iso) return ''; const [y, m, d] = iso.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString(undefined, Object.assign({ month: 'short', day: 'numeric' }, y !== new Date().getFullYear() ? { year: 'numeric' } : {})); }
+/* a move forward to one of these steps in the case's history (the stepper, a lab email, or Edit): the first or the last,
+   from `after` (ms) on; a move back (Checked in → Shipped, a misclick) doesn't count */
+function wtyMove(c, hist, keys, which, after) {
+  const ks = flowOf(c).stages.map(s => s[0]), fwd = h => { const a = ks.indexOf(h.from), b = ks.indexOf(h.to); return a < 0 || b < 0 || a < b; };
+  const xs = (hist || []).filter(h => (h.a === 'stage' || h.a === 'email' || h.a === 'edit') && keys.includes(h.to) && h.at && h.at >= (after || 0) && fwd(h));
+  return which === 'first' ? xs[0] : xs[xs.length - 1];
+}
+/* when the case last moved to a step before Shipped (a MARPE: before Delivered) — where a remake starts (0: never) */
+function wtyBackAt(c, hist) {
+  const ks = flowOf(c).stages.map(s => s[0]), at = ks.indexOf(c.type === 'marpe' ? 'delivered' : 'shipped');
+  const xs = (hist || []).filter(h => (h.a === 'stage' || h.a === 'email' || h.a === 'edit') && h.at && ks.indexOf(h.to) >= 0 && ks.indexOf(h.to) < at);
+  return xs.length ? xs[xs.length - 1].at : 0;
+}
+/* what the windows count from: the invoice date (entered, else about the day it shipped, else the day it came in or was
+   completed) and the day it came in (recvFrom: 'step' = moved to a received step, 'completed' = the day it was completed)
+   (loading: the history isn't in yet, so nothing is counted rather than a guess that changes a moment later) */
+function wtyDates(c, hist) {
+  if (!hist && !c.invDate) return { inv: '', from: '', shipped: '', recv: '', recvFrom: '', loading: true };
+  // (came in: the first time after it last shipped — or after it was last moved back before Shipped, for a remake)
+  const sh = wtyMove(c, hist, ['shipped'], 'last'), rv = wtyMove(c, hist, WTY_RECV, 'first', Math.max(sh ? sh.at : 0, wtyBackAt(c, hist))), day = ms => isoOf(new Date(ms));
+  const shipped = sh ? day(sh.at) : '';
+  let recv = rv ? day(rv.at) : '', recvFrom = recv ? 'step' : '';
+  if (!recv && c.status === 'done' && c.closedAt && wtyReached(c)) { recv = day(c.closedAt); recvFrom = 'completed'; }
+  const inv = c.invDate || shipped || recv;
+  return { inv, from: c.invDate ? 'invoice' : shipped ? 'shipped' : recv ? 'received' : '', shipped, recv, recvFrom };
+}
+/* the deadlines (a case with a Herbst and something else has both defect windows) */
+function wtyWindows(c, d) {
+  const ap = c.appliances || [], herb = ap.some(a => RX_HERBST.includes(a)), other = !herb || ap.some(a => !RX_HERBST.includes(a));
+  if (!d.inv) return { arrive: d.recv ? addDays(d.recv, WTY.arrivalDays) : '' };
+  return { fitFree: addDays(d.inv, WTY.fitFree), fitHalf: addDays(d.inv, WTY.fitHalf), defHerbst: herb ? wtyAddMonths(d.inv, WTY.herbstMonths) : '',
+    defOther: other ? wtyAddMonths(d.inv, WTY.otherMonths) : '', arrive: d.recv ? addDays(d.recv, WTY.arrivalDays) : '' };
+}
+/* half the price for a remake 31–60 days in: half of the case's Rx estimate (without the expedite fee), when it has one */
+function wtyHalf(c) {
+  let t = 0; rxKinds().forEach(K => { const rx = rxOfK(c, K); if (rx) t += rxEstimate(Object.assign({}, rx, { form: K.form, rush: '' }), c).total; });
+  return t > 0 ? t / 2 : null;
+}
+/* today's standing in one line: the folded heading ("about" until the invoice date is entered) */
+function wtySummary(c, d, w) {
+  if (c.noGuarantee) return 'No Guarantee case: no warranty';
+  if (d.loading) return 'Loading…';
+  if (!w.fitFree) return 'Counts from the invoice date — add it';
+  const t = todayISO(), ab = d.from === 'invoice' ? '' : 'about ';
+  const fit = t <= w.fitFree ? 'Fit remake free until ' + ab + wtyDay(w.fitFree) : t <= w.fitHalf ? 'Fit remake half price until ' + ab + wtyDay(w.fitHalf) : '';
+  // a Herbst and something else: the sooner defect deadline while both run, then the Herbst's (named)
+  const def = [w.defHerbst, w.defOther].filter(x => x && x >= t).sort()[0], herbOnly = !!(def && w.defHerbst && w.defOther && def === w.defHerbst && w.defOther < t);
+  const defTxt = def ? (fit ? '' : 'Free remake for ') + (herbOnly ? 'Herbst defects' : 'defects') + ' until ' + ab + wtyDay(def) : '';
+  const txt = [fit, defTxt].filter(Boolean).join(' · ');
+  return txt ? txt[0].toUpperCase() + txt.slice(1) : 'Past Specialty’s warranty: full price';
+}
+/* a deadline's chip: free / half price / claim by … with the days left, or past (est: "about", the date is an estimate) */
+function wtyChip(end, kind, est) {
+  if (!end) return '';
+  const n = wtyDaysTo(end), cls = n < 0 ? 'past' : kind, ab = est ? 'about ' : '';
+  return '<span class="wtyChip ' + cls + '">' + (n < 0 ? 'past' : { free: 'free', half: 'half price', claim: 'claim' }[kind] + ' · ' + (n === 0 ? ab + 'the last day' : ab + n + ' day' + (n > 1 ? 's' : '') + ' left')) + '</span>';
+}
+/* what the dates count from, in words (under the invoice date) */
+function wtyFromTxt(c, d) {
+  if (d.loading) return 'Specialty counts from its invoice date.';
+  if (!d.inv) return 'Specialty counts from its invoice date — enter the date on Specialty’s invoice to see the deadlines.';
+  if (c.invDate) return 'Specialty counts from its invoice date. Counting from the date entered.' +
+    // shipped weeks after the invoice date (a remake shipped again, or a date mistyped): its own invoice may have a new date
+    (d.shipped && d.shipped > addDays(c.invDate, 14) ? ' It moved to Shipped on ' + wtyDay(d.shipped) + ', weeks after this invoice date — if Specialty sent a new invoice, enter its date.' : '');
+  return 'Specialty counts from its invoice date. Until it’s entered, the dates are estimates, counted from ' +
+    (d.from === 'shipped' ? 'the day it moved to Shipped (' + wtyDay(d.shipped) + ')' : d.recvFrom === 'completed' ? 'the day the case was completed (' + wtyDay(d.recv) + ')' : 'the day it came in (' + wtyDay(d.recv) + ')') + '.';
+}
+/* the No Guarantee notice and the deadlines (a No Guarantee case: no "free" chips) */
+function wtyTableHTML(c, d, w) {
+  const t = todayISO(), half = wtyHalf(c), herb = (c.appliances || []).some(a => RX_HERBST.includes(a)), ab = d.from === 'invoice' ? '' : 'about ';
+  const row = (k, v, chip) => '<tr><th>' + k + '</th><td>' + v + '</td><td>' + (chip || '') + '</td></tr>';
+  const est = d.from !== 'invoice', chip = (end, kind, x) => c.noGuarantee ? '' : wtyChip(end, kind, x === undefined ? est : x), day = x => esc(wtyDay(x));
+  const arrive = !w.arrive ? 'Claim within 10 days of receiving it' : d.recvFrom === 'completed' ? 'Claim by about <b>' + day(w.arrive) + '</b> — 10 days after it came in (counted from ' + day(d.recv) + ', the day the case was completed)' : 'Claim by <b>' + day(w.arrive) + '</b> — 10 days after it came in (' + day(d.recv) + ')';
+  return (c.noGuarantee ? '<div class="notice bad wtyNg"><span><b>No Guarantee:</b> Specialty made this one as a “No Guarantee” case, so it has no warranty or remake terms.</span></div>' : '') +
+    '<table class="wtyTbl">' +
+    row('Something wrong when it arrives', arrive, w.arrive ? chip(w.arrive, 'claim', d.recvFrom === 'completed') : '') +
+    row('Doesn’t fit', w.fitFree ? 'Free remake until ' + ab + '<b>' + day(w.fitFree) + '</b>; half the price until ' + ab + '<b>' + day(w.fitHalf) + '</b>' + (half ? ' (about ' + money(half) + ' — half the Rx estimate)' : '') + '; full price after' : 'Free within 30 days of the invoice; half the price to 60 days; full price after',
+      w.fitFree ? (t <= w.fitFree ? chip(w.fitFree, 'free') : chip(w.fitHalf, 'half')) : '') +
+    (w.defHerbst ? row('Defect' + (w.defOther ? ' (the Herbst)' : ''), 'Free remake until ' + ab + '<b>' + day(w.defHerbst) + '</b> — 9 months for a Herbst; full price after', chip(w.defHerbst, 'free')) : '') +
+    (w.defOther ? row('Defect' + (w.defHerbst ? ' (the rest)' : ''), 'Free remake until ' + ab + '<b>' + day(w.defOther) + '</b> — 6 months' + (herb ? '' : ' for any appliance or retainer') + '; full price after', chip(w.defOther, 'free')) : '') +
+    (!w.fitFree ? row('Defect', 'Free within ' + (herb ? '9 months (a Herbst; 6 for anything else)' : '6 months') + ' of the invoice') : '') +
+    row('Anything else', 'After 6 months, full price' + (herb ? ' (except a Herbst’s defect, to 9 months)' : '')) +
+    '</table>';
+}
+function wtyBodyHTML(c, hist) {
+  const d = wtyDates(c, hist), w = wtyWindows(c, d);
+  return '<div class="wty' + (c.noGuarantee ? ' ng' : '') + '">' +
+    '<div class="wtyInv"><label class="rxF"><span>Invoice date</span><input type="date" data-wty="inv" data-id="' + esc(c.id) + '" value="' + esc(c.invDate || '') + '" max="' + addDays(todayISO(), 1) + '" aria-label="Specialty’s invoice date"></label>' +
+    '<span class="small muted" id="wtyFrom">' + esc(wtyFromTxt(c, d)) + '</span></div>' +
+    '<div id="wtyTbl">' + wtyTableHTML(c, d, w) + '</div>' +
+    '<label class="rxAuto wtyNgTg"><input type="checkbox" data-wty="ng" data-id="' + esc(c.id) + '"' + (c.noGuarantee ? ' checked' : '') + '> Specialty said this case is “No Guarantee” (e.g. an incomplete scan or unerupted molars): no warranty</label>' +
+    '<h5 class="wtyH">To claim a remake</h5><ol class="wtySteps">' +
+      '<li>Send the appliance (and any parts) back for Specialty to look at — <b>it has to reach them inside the window</b>, so send it a few days ahead: print their <a href="' + WTY.label + '" target="_blank" rel="noopener noreferrer">prepaid USPS label</a>, ask customer service for one at ' + WTY.phone + ', or send it FedEx or UPS to Specialty Appliances, ' + esc(WTY.address) + '.</li>' +
+      '<li>Send an updated scan of the patient’s teeth (Specialty’s portal or the scanner). Without one, Specialty remakes from the scan on file and isn’t responsible if it no longer fits.</li>' +
+      '<li>Specialty doesn’t repair broken appliances — it remakes or replaces them — and can turn a claim down.</li></ol>' +
+    '<div class="small muted">From ' + esc(WTY.src) + '.</div></div>';
+}
+function wtySecHTML(c) {
+  const hist = S.openId === c.id ? S.history : null;
+  if (!wtyShowsH(c, hist)) return '';
+  const d = wtyDates(c, hist), w = wtyWindows(c, d);
+  return dsec('wty', 'Specialty warranty', esc(wtySummary(c, d, w)), '<div id="wtyBox">' + wtyBodyHTML(c, hist) + '</div>');
+}
+/* the history loads after the panel: the dates that count from it follow (around the invoice date while it's being typed);
+   a case moved back from Shipped gets the section once its history shows it shipped */
+function wtyRefresh(id) {
+  const c = findCase(id); if (!c || S.editing || S.openId !== id) return;
+  const sec = $('#drawer [data-ds=wty]'), hist = S.history;
+  if (!sec) { if (wtyShowsH(c, hist) && !wtyKeep()) renderDrawer(); return; }
+  const d = wtyDates(c, hist), w = wtyWindows(c, d), box = $('#wtyBox', sec), sum = $('#dsS-wty', sec), inv = box && $('[data-wty=inv]', box);
+  if (inv && document.activeElement === inv) { $('#wtyFrom', box).textContent = wtyFromTxt(c, d); $('#wtyTbl', box).innerHTML = wtyTableHTML(c, d, w); $('.wty', box).classList.toggle('ng', !!c.noGuarantee); }
+  else if (box) box.innerHTML = wtyBodyHTML(c, hist);
+  if (sum) sum.textContent = wtySummary(c, d, w);
+}
+/* while the invoice date is being typed, a live update waits: the panel redraws once the box is left (ui.js refreshDrawer);
+   any other redraw keeps what was typed, and the focus (ui.js renderDrawer) */
+function wtyKeep() { const a = document.activeElement; return a && a.dataset && a.dataset.wty === 'inv' && a.closest('#drawer') ? { id: a.dataset.id, v: a.value } : null; }
+function wtyRestore(k) { if (!k) return; const i = $('#drawer [data-wty=inv][data-id="' + CSS.escape(k.id) + '"]'); if (i) { i.value = k.v; i.focus(); } }
+function wtyHold() { if (!wtyKeep()) return false; S.wtyRedraw = true; return true; }
+/* the panel closing with the box focused saves a whole date (ui.js closeDrawer; not while the app locks) */
+function wtyFlush() { const a = document.activeElement; if (S.inApp && a && a.dataset && a.dataset.wty === 'inv') wtyInvCommit(a, true); }
+/* the invoice date saves when the box is left or Enter is pressed — Chrome reports each keystroke as a change (0002-…, 0020-…,
+   0202-… while the year is typed, and each part as it's finished, for a moment with nothing focused) — or on a change while
+   the box isn't focused (a phone's date picker). It saves on the case right away, open or done. Not saved: a part still being
+   typed when the box is left (Chrome fills it in as it goes: "1" in the month → January; noted after each key as data-part),
+   a part rubbed out, a partial year, a date after today; Esc leaves it as saved. quiet: the panel closed with the box focused
+   (also when the case was just completed by someone else and isn't in the lists for a moment: saved by its id).
+   true = a save started */
+const WTY_SAVING = {};
+function wtyInvCommit(t, quiet) {
+  if (!S.inApp || t.dataset.cancel) return false;
+  const id = t.dataset.id, c = findCase(id), saved = c ? (c.invDate || '') : (t.defaultValue || '');
+  const raw = t.value || '', whole = /^\d{4}-\d{2}-\d{2}$/.test(raw);
+  const part = t.dataset.part === '1' || !!(t.validity && t.validity.badInput) || (!!raw && (!whole || raw < '2000-01-01'));
+  const future = !part && !!raw && raw > addDays(todayISO(), 1);
+  if (part || future) { if (!quiet) { toast(future ? 'The invoice date can’t be after today' : 'Enter the whole date from Specialty’s invoice', { bad: true }); t.value = saved; delete t.dataset.part; } return false; }
+  const v = raw; if (v === saved || WTY_SAVING[id] === v) return false;
+  WTY_SAVING[id] = v;
+  act(async () => {
+    try { await B.mutateCase(id, d => { d.invDate = v; }, { a: 'edit', fields: ['invDate'] }); } finally { delete WTY_SAVING[id]; }
+    const c2 = findCase(id); if (c2) c2.invDate = v;
+    // redraw once a click that left the box is through (see PRESS in ui.js) — or, back in the box, once it's left again
+    const rd = () => { if (S.openId !== id || S.editing || wtyHold()) return; S.wtyRedraw = false; renderDrawer(); loadHistory(id); };
+    if (!afterPress(rd)) rd();
+  }, v ? 'Invoice date saved — the warranty counts from it' : 'Invoice date cleared');
+  return true;
+}
+document.addEventListener('focusout', e => {
+  const t = e.target; if (!t || !t.dataset || t.dataset.wty !== 'inv') return;
+  // a redraw or the panel closing takes the box away while it's focused: a moment later, which it was shows
+  setTimeout(() => {
+    const id = t.dataset.id; let saving;
+    if (t.isConnected) saving = wtyInvCommit(t);
+    else if ($('#drawer [data-wty=inv][data-id="' + CSS.escape(id) + '"]')) return; // redrawn: the new box has what was typed
+    else saving = wtyInvCommit(t, true);
+    // a live update that waited while the box was focused (a save on its way redraws anyway)
+    if (S.wtyRedraw && !saving && WTY_SAVING[id] === undefined) { const rd = () => { if (S.openId === id && !S.editing) { S.wtyRedraw = false; refreshDrawer(); } }; if (!afterPress(rd)) rd(); }
+  }, 0);
+});
+/* Enter saves (leaves the box); Esc puts the saved date back before the panel closes — Chrome would otherwise turn a part
+   being typed into a date ("0" in the month → January) as the box goes */
+document.addEventListener('keydown', e => {
+  const t = e.target; if (!t || !t.dataset || t.dataset.wty !== 'inv') return;
+  if (e.key === 'Enter') { e.preventDefault(); t.blur(); }
+  if (e.key === 'Escape') { t.dataset.cancel = '1'; t.value = (findCase(t.dataset.id) || {}).invDate || ''; }
+}, true);
+/* after each key: is a part still being typed? (a click — the date picker — starts over) */
+document.addEventListener('keyup', e => { const t = e.target; if (t && t.dataset && t.dataset.wty === 'inv' && document.activeElement === t) t.dataset.part = t.validity && t.validity.badInput ? '1' : ''; }, true);
+document.addEventListener('pointerdown', e => { const t = e.target; if (t && t.dataset && t.dataset.wty === 'inv') delete t.dataset.part; }, true);
+document.addEventListener('focusin', e => { const t = e.target; if (t && t.dataset && t.dataset.wty === 'inv') { delete t.dataset.cancel; delete t.dataset.part; } });
+document.addEventListener('change', e => {
+  const t = e.target; if (!t || !t.dataset || !t.dataset.wty || !t.closest('#drawer')) return;
+  // (a change while the box is focused waits for it to be left; a part just finished reports nothing focused for a moment)
+  if (t.dataset.wty === 'inv') { setTimeout(() => { if (t.isConnected && document.activeElement !== t) wtyInvCommit(t); }, 0); return; }
+  // the No Guarantee box saves when it's ticked
+  if (t.dataset.wty !== 'ng') return;
+  const id = t.dataset.id, on = !!t.checked; if (!findCase(id)) return;
+  act(async () => {
+    await B.mutateCase(id, d => { d.noGuarantee = on ? true : ''; }, { a: 'edit', fields: ['noGuarantee'] });
+    const c2 = findCase(id); if (c2) c2.noGuarantee = on ? true : '';
+    if (S.openId === id && !S.editing && !wtyHold()) { renderDrawer(); loadHistory(id); }
+  }, on ? 'Marked No Guarantee' : 'No Guarantee taken off');
+});
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 

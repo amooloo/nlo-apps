@@ -108,6 +108,13 @@ const DEMO = {
     // (the same made-up name always gets the same face, like a patient whose photo came along from their other case)
     const faceOf = n => Array.from(String(n)).reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) % 9973, 7);
     Array.from(DEMO.cases.values()).forEach((c, i) => { if (i % 3 !== 2) { c.photo = 'dv' + i; DEMO.photos.set(c.id, { pv: c.photo, face: faceOf(c.patient) }); } });
+    // a MARA Specialty made, shipped 44 days ago and checked in 4 days later: its warranty is in the half-price fit window
+    // (warranty.js; added after the photos so the other demo cases keep theirs)
+    const day = 86400e3;
+    DEMO.cases.set('demoSpecW', { id: 'demoSpecW', rev: 4, v: 1, status: 'done', by: 'sarah', updatedAt: Date.now() - 40 * day, closedAt: Date.now() - 40 * day, type: 'appliance', patient: 'Marlowe Maraday',
+      appliances: ['MARA'], detail: 'MARA', lab: LAB_SPEC, stage: 'milestones', assignee: 'sarah', assistant: 'gwen', scanner: 'iTero', deliveryDate: addDays(t, -38), comments: [], createdAt: Date.now() - 60 * day, createdBy: 'amir' });
+    DEMO.logs.push({ caseId: 'demoSpecW', a: 'create', at: Date.now() - 60 * day, sid: 'amir' }, { caseId: 'demoSpecW', a: 'stage', from: 'mfg', to: 'shipped', at: Date.now() - 44 * day, sid: 'sarah' },
+      { caseId: 'demoSpecW', a: 'stage', from: 'shipped', to: 'milestones', at: Date.now() - 40 * day, sid: 'sarah' }, { caseId: 'demoSpecW', a: 'close', at: Date.now() - 40 * day + 60e3, sid: 'sarah' });
   },
   /* patient photos (in memory) */
   photos: new Map(),

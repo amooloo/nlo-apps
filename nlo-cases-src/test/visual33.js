@@ -38,11 +38,15 @@ const has = cmd => { try { execFileSync('which', [cmd], { stdio: 'ignore' }); re
   const settled = sel => p.evaluate(sel => new Promise(res => { let el = document.querySelector(sel), t = Date.now(); const t0 = t;
     const iv = setInterval(() => { const now = document.querySelector(sel); if (now !== el) { el = now; t = Date.now(); } else if (Date.now() - t > 400 || Date.now() - t0 > 5000) { clearInterval(iv); res(); } }, 40); }), sel);
 
-  // ---- New case: Hawley retainers to Partners (the office routing) → a line about Specialty; to Specialty → the Retainer Rx
+  // ---- New case: Hawley retainers go to Specialty (the office routing since 4 Oct 2026) → the Retainer Rx right away; tapped over
+  //      to Partners → a line about Specialty instead; back to Specialty → the Rx again
   await newAppliance();
   await pick('appliances', 'Hawley retainers'); await pick('hawleyArch', 'Upper'); await pick('hawleyArch', 'Lower'); await pick('acrylic', 'Purple'); await pick('glitter', 'yes');
-  check(await p.evaluate(() => pressed(document.querySelector('.modal'), 'lab')[0]) === 'Partners Dental Solutions' && !(await retShown()) && /Going to Specialty instead\? Tap Specialty Orthodontic Lab and its Retainer Rx fills in from this case/.test(await p.textContent('#cf-rxHint')),
-    'Hawley retainers → Partners (the routing): no Retainer Rx, one line that it’s there for Specialty');
+  check(await p.evaluate(() => pressed(document.querySelector('.modal'), 'lab')[0]) === 'Specialty Orthodontic Lab' && await retShown() && !(await p.isVisible('#cf-rxHint')),
+    'Hawley retainers → Specialty (the routing since 4 Oct 2026): the Retainer Rx shows right away');
+  await pick('lab', 'Partners Dental Solutions');
+  check(!(await retShown()) && await p.isVisible('#cf-rxHint') && /Going to Specialty instead\? Tap Specialty Orthodontic Lab and its Retainer Rx fills in from this case/.test(await p.textContent('#cf-rxHint')),
+    'tapped over to Partners: no Retainer Rx, one line that it’s there for Specialty');
   await pick('lab', 'Specialty Orthodontic Lab');
   check(await retShown() && !(await p.isVisible('#cf-rxHint')) && !(await p.isVisible('#ncForm #cf-rxSec')) && /Retainer Rx/.test(await p.textContent('#cf-rxRetSec')) && /Fill out the Rx/.test(await p.textContent('#cf-rxRetSec')), 'Specialty tapped: the Retainer Rx shows (“Fill out the Rx”); the line and the Herbst Rx don’t');
   check(await p.evaluate(() => { const i = document.querySelector('#cf-rxRetSec img[data-logo]'); return !!i && i.complete && i.naturalWidth > 0; }), 'with Specialty’s logo');
@@ -207,7 +211,7 @@ const has = cmd => { try { execFileSync('which', [cmd], { stdio: 'ignore' }); re
     '“Save as our usual retainer”: designs, clasps, FLR — not this patient’s pontic, finger spring, resets, notes or drawing (and the usual Herbst untouched)');
   await p.click('#rxWrap [data-rxa=close]'); await p.waitForSelector('#rxWrap', { state: 'detached' });
   // a lower-only Hawley starts from the usual retainer on the lower only (its bonded retainer stays)
-  await newAppliance(); await pick('appliances', 'Hawley retainers'); await pick('hawleyArch', 'Lower'); await pick('lab', 'Specialty Orthodontic Lab'); await p.fill('#ncForm #cf-patient', 'Lorna Loweronly');
+  await newAppliance(); await pick('appliances', 'Hawley retainers'); await pick('hawleyArch', 'Lower'); await p.fill('#ncForm #cf-patient', 'Lorna Loweronly'); // (Specialty: the routing)
   await p.click('#ncForm [data-rxform=edit][data-kind=ret]'); await p.waitForSelector('#rxWrap');
   st = await rxNow();
   check(!st.designU && st.designL === 'hawley' && !Object.keys(st.teeth || {}).some(id => id[0] === 'U') && st.flrL === 'c3' && !(await p.inputValue('#rxWrap [data-rxf=colorU]')), 'a lower-only Hawley: the usual retainer on the lower only (no upper design or clasps; the bonded retainer stays)');

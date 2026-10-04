@@ -46,7 +46,7 @@ const OUT = process.argv[2] || 'shots';
   console.log('   ' + JSON.stringify(hw));
   check(hw.shown && hw.arch === 'Upper|Lower', 'Hawley retainers tapped: “Hawley arch — Upper / Lower”, in words (no icon)');
   check(hw.colors === 'Clear|Pink|Red|Orange|Yellow|Lime|Green|Teal|Light blue|Blue|Purple|Black' && hw.swatches === 12 && /Glitter/.test(hw.glitter), 'Acrylic color: twelve swatches (Clear … Black) and Glitter');
-  check(await p.evaluate(() => routeLabName = (pressed(document.querySelector('.modal'), 'lab')[0] || '')) === 'Partners Dental Solutions', 'Hawley still goes to Partners');
+  check(await p.evaluate(() => routeLabName = (pressed(document.querySelector('.modal'), 'lab')[0] || '')) === 'Specialty Orthodontic Lab', 'Hawley goes to Specialty (Amir, 4 Oct 2026; Partners before)');
   await p.fill('#ncForm #cf-patient', 'Hattie Hawleyson');
   await p.click('#ncSave'); await p.waitForSelector('#ncErr .lockErr', { timeout: 5000 }).catch(() => {});
   check(/arch for the Hawley/.test(await p.textContent('#ncErr')) && await p.evaluate(() => document.querySelector('#ncForm .pickRow[data-g=hawleyArch]').classList.contains('need')), 'New case without the arch is stopped (“Pick the arch for the Hawley retainers…”, row outlined)');
@@ -64,7 +64,7 @@ const OUT = process.argv[2] || 'shots';
   await p.evaluate(id => openDrawer(id), hid); await p.waitForSelector('#drawer .dsList');
   const badge = await p.evaluate(() => { const b = Array.from(document.querySelectorAll('#drawer .badge.t-appl')).find(x => /Hawley/.test(x.textContent)); return b && { t: b.textContent, sw: !!b.querySelector('.sw') }; });
   check(badge && badge.t === 'Hawley retainers (upper & lower, purple glitter)' && badge.sw, 'the case’s badge: “Hawley retainers (upper & lower, purple glitter)” with a purple swatch');
-  check(/Scanned with [^.]+ for Hawley retainers, upper & lower, purple glitter acrylic \(Partners Dental Solutions\)\./.test(await p.evaluate(id => chartNote(findCase(id)), hid)), 'chart note: “… for Hawley retainers, upper & lower, purple glitter acrylic (Partners Dental Solutions).”');
+  check(/Scanned with [^.]+ for Hawley retainers, upper & lower, purple glitter acrylic \(Specialty Orthodontic Lab\)\./.test(await p.evaluate(id => chartNote(findCase(id)), hid)), 'chart note: “… for Hawley retainers, upper & lower, purple glitter acrylic (Specialty Orthodontic Lab).”');
   // Edit keeps them; one arch; untapping Hawley clears them
   await p.click('#drawer [data-act=edit]'); await p.waitForSelector('#drawer #cf-hawleyWrap', { state: 'attached' });
   const ed = await p.evaluate(() => ({ arch: Array.from(document.querySelectorAll('#drawer .pickRow[data-g=hawleyArch] .pick[aria-pressed=true]')).map(b => b.dataset.v).join(), col: (document.querySelector('#drawer .pickRow[data-g=acrylic] .pick[aria-pressed=true]') || {}).dataset?.v, gl: document.querySelector('#drawer .pickRow[data-g=glitter] .pick').getAttribute('aria-pressed') }));
