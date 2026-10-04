@@ -492,14 +492,24 @@ const num = v => typeof v === 'number' && isFinite(v) ? v : 0;
 export function normItem(d) {
   d = d && typeof d === 'object' && !Array.isArray(d) ? d : {};
   const out = {
-    t: str(d.t).slice(0, 300), u: str(d.u), p: str(d.p), url: str(d.url), n: str(d.n), totp: str(d.totp),
+    t: str(d.t).slice(0, 300), ds: str(d.ds).replace(/\s+/g, ' ').trim().slice(0, 140), lg: okLogo(d.lg) ? d.lg : '',
+    u: str(d.u), p: str(d.p), url: str(d.url), n: str(d.n), totp: str(d.totp),
     fx: Array.isArray(d.fx) ? d.fx.filter(x => x && typeof x === 'object').slice(0, 50).map(x => ({ l: str(x.l).slice(0, 40), v: str(x.v), h: !!x.h })) : [],
     ph: Array.isArray(d.ph) ? d.ph.filter(x => x && typeof x === 'object').slice(0, 10).map(x => ({ p: str(x.p), at: num(x.at) })) : [],
     pwAt: num(d.pwAt), cAt: num(d.cAt), mAt: num(d.mAt), cBy: str(d.cBy), mBy: str(d.mBy)
   };
   if (d.chg && typeof d.chg === 'object') out.chg = { why: str(d.chg.why).slice(0, 120), at: num(d.chg.at) };
+  // marked "not working" (with what's wrong / what to do), the vendor's rep, and Mari's List membership
+  if (d.bad && typeof d.bad === 'object') out.bad = { why: str(d.bad.why).slice(0, 300), at: num(d.bad.at), by: str(d.bad.by).slice(0, 128) };
+  const r = d.rep && typeof d.rep === 'object' && !Array.isArray(d.rep) ? d.rep : {};
+  out.rep = { n: str(r.n).slice(0, 80), ph: str(r.ph).slice(0, 40), em: str(r.em).slice(0, 120) };
+  out.ml = d.ml === true;
   return out;
 }
+
+/* a company logo is a small picture made in the browser and sealed inside the login (never a link to anywhere) */
+const LOGO_RE = /^data:image\/(png|webp|jpeg);base64,[A-Za-z0-9+/]+={0,2}$/;
+export function okLogo(s) { return typeof s === 'string' && s.length <= 60000 && LOGO_RE.test(s); }
 
 /* ---------- helpers for the UI ---------- */
 export function folderList() {
@@ -567,10 +577,13 @@ export async function saveItem(id, fid, data, opts) {
   if (old && old.d) {
     if ((old.d.p || '') !== (d.p || '')) {
       d.pwAt = now; d.chg = null;
+      // a new password also clears an earlier "not working" mark (one made in this same edit stays)
+      if (d.bad && old.d.bad && d.bad.at === old.d.bad.at) d.bad = null;
       if (old.d.p) d.ph = [{ p: old.d.p, at: old.d.pwAt || old.d.mAt || now }].concat(old.d.ph || []).slice(0, 10);
     }
   }
   if (!d.chg) delete d.chg;
+  if (!d.bad) delete d.bad;
   const box = await C.sealJSON(key, d, C.AAD.item(id, fid, f.kv));
   const batch = writeBatch(V.db);
   batch.update(D('items/' + id), { f: fid, kv: f.kv, iv: box.iv, ct: box.ct, rev: cur.rev + 1, at: ts(), by: V.uid, del: opts.del === undefined ? !!cur.del : !!opts.del });

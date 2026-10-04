@@ -11,7 +11,8 @@ import * as A from './admin.js';
 import * as I from './import.js';
 
 export const U = { view: 'all', q: '', sel: null, side: false, detail: false, revealed: new Set(), sort: 'name' };
-const LIST_VIEWS = v => v === 'all' || v === 'fav' || v === 'trash' || v.startsWith('folder:');
+const LIST_VIEWS = v => v === 'all' || v === 'fav' || v === 'ml' || v === 'trash' || v.startsWith('folder:');
+const ML = 'Mari’s List';
 const STATIC_VIEWS = ['import', 'backup', 'settings'];   // pages with typing in them: drawn once, not on every change
 let lockedOut = false;
 
@@ -25,11 +26,12 @@ export function pwStrength(p) {
 }
 export function healthOf() {
   const items = Array.from(V.items.values()).filter(i => i.d && !i.del);
-  const out = { chg: [], weak: [], reused: [], old: [], nopw: [] };
+  const out = { bad: [], chg: [], weak: [], reused: [], old: [], nopw: [] };
   const byPw = new Map();
   const yearAgo = Date.now() - 365 * 86400000;
   for (const it of items) {
     const p = it.d.p || '';
+    if (it.d.bad) out.bad.push(it);
     if (it.d.chg) out.chg.push(it);
     if (!p) { out.nopw.push(it); continue; }
     const st = pwStrength(p); if (st && st.score < 2) out.weak.push(it);
@@ -37,7 +39,7 @@ export function healthOf() {
     if (!byPw.has(p)) byPw.set(p, []); byPw.get(p).push(it);
   }
   for (const group of byPw.values()) if (group.length > 1) out.reused.push(group);
-  out.count = new Set([].concat(out.chg, out.weak, out.reused.flat(), out.old).map(i => i.id)).size;
+  out.count = new Set([].concat(out.bad, out.chg, out.weak, out.reused.flat(), out.old).map(i => i.id)).size;
   out.reusedIds = new Set(out.reused.flat().map(i => i.id));
   return out;
 }
@@ -47,7 +49,8 @@ function folderColor(fid) { const f = V.folders.get(fid); return f ? f.color : '
 function matches(it, q) {
   if (!it.d) return false;
   const d = it.d;
-  const hay = [d.t, d.u, d.url, d.n, folderName(it.f)].concat((d.fx || []).map(f => f.l + ' ' + (f.h ? '' : f.v))).join(' \n ').toLowerCase();
+  const r = d.rep || {};
+  const hay = [d.t, d.ds, d.u, d.url, d.n, folderName(it.f), r.n, r.ph, r.em, d.ml ? 'mari’s list mari\'s list maris list' : '', d.bad ? 'not working ' + d.bad.why : ''].concat((d.fx || []).map(f => f.l + ' ' + (f.h ? '' : f.v))).join(' \n ').toLowerCase();
   return q.toLowerCase().split(/\s+/).filter(Boolean).every(w => hay.includes(w));
 }
 function visibleItems() {
@@ -55,6 +58,7 @@ function visibleItems() {
   let list = Array.from(V.items.values());
   list = v === 'trash' ? list.filter(i => i.del) : list.filter(i => !i.del);
   if (v === 'fav') list = list.filter(i => fv.has(i.id));
+  if (v === 'ml') list = list.filter(i => i.d && i.d.ml);
   if (v.startsWith('folder:')) { const fid = v.slice(7); list = list.filter(i => i.f === fid); }
   if (U.q.trim()) list = list.filter(i => matches(i, U.q));
   const t = it => title(it).toLowerCase();
@@ -66,13 +70,102 @@ function viewTitle() {
   const v = U.view;
   if (v === 'all') return 'All logins';
   if (v === 'fav') return 'Favorites';
+  if (v === 'ml') return ML;
   if (v === 'trash') return 'Trash';
   if (v.startsWith('folder:')) return folderName(v.slice(7));
   return { health: 'Needs attention', team: 'People & access', activity: 'Activity', import: 'Import', backup: 'Backup', settings: 'Settings' }[v] || '';
 }
-function avatar(it, big) {
+export function avatar(it, big) {
+  const src = it.d ? logoSrc(logoOf(it)) : '';
+  if (src) return html`<span class="av logo ${big ? 'big' : ''}" aria-hidden="true"><img src="${src}" alt=""></span>`;
   const c = it.d ? title(it) : '?';
   return html`<span class="av ${FOLDER_CLS(folderColor(it.f))} ${big ? 'big' : ''}" aria-hidden="true">${initials(c)}</span>`;
+}
+
+/* the vendor's rep: tap to call or email, or copy */
+const telHref = s => { const t = String(s || '').replace(/[^0-9+]/g, ''); return t.replace(/\D/g, '').length >= 7 ? 'tel:' + t : ''; };
+const mailHref = s => /^[^\s@<>"']+@[^\s@<>"']+\.[a-z]{2,}$/i.test(String(s || '').trim()) ? 'mailto:' + String(s).trim() : '';
+function repRows(it) {
+  const r = it.d.rep || {};
+  if (!r.n && !r.ph && !r.em) return '';
+  const tel = telHref(r.ph), mail = mailHref(r.em);
+  return html`${r.n ? html`<div class="f"><dt>Rep</dt><dd><span class="val">${r.n}</span><span class="fa"><button type="button" class="iconBtn" data-act="copy" data-k="repN" data-id="${it.id}" title="Copy">${ic('copy')}</button></span></dd></div>` : ''}
+    ${r.ph ? html`<div class="f"><dt>Rep phone</dt><dd><span class="val">${tel ? html`<a href="${tel}">${r.ph}</a>` : r.ph}</span><span class="fa">${tel ? html`<a class="iconBtn" href="${tel}" title="Call">${ic('call')}</a>` : ''}<button type="button" class="iconBtn" data-act="copy" data-k="repPh" data-id="${it.id}" title="Copy">${ic('copy')}</button></span></dd></div>` : ''}
+    ${r.em ? html`<div class="f"><dt>Rep email</dt><dd><span class="val">${mail ? html`<a href="${mail}">${r.em}</a>` : r.em}</span><span class="fa">${mail ? html`<a class="iconBtn" href="${mail}" title="Email">${ic('mail')}</a>` : ''}<button type="button" class="iconBtn" data-act="copy" data-k="repEm" data-id="${it.id}" title="Copy">${ic('copy')}</button></span></dd></div>` : ''}`;
+}
+
+/* "not working": what's wrong / what to do (optional) */
+function notWorkingBox(name) {
+  return new Promise(resolve => {
+    let answered = false;
+    const m = openModal(html`<div class="mhead"><h2>${name}: not working</h2></div>
+      <div class="mbody"><p>It gets a red “Not working” mark and shows under Needs attention until someone clicks “It works again” (or saves a new password).</p>
+        <label class="fld"><span>What’s wrong, or what to do <span class="muted">(optional)</span></span><input id="nwWhy" maxlength="300" autocomplete="off" placeholder="e.g. Locked out — call the company to reset it"></label></div>
+      <div class="mfoot"><button type="button" class="btn" data-no>Cancel</button><button type="button" class="btn primary" data-yes>Mark as not working</button></div>`,
+      { label: 'Not working', onClose: () => { if (!answered) resolve(null); } });
+    m.el.querySelector('[data-no]').addEventListener('click', () => { answered = true; resolve(null); m.close(true); });
+    m.el.querySelector('[data-yes]').addEventListener('click', () => { answered = true; resolve($('#nwWhy', m.el).value.replace(/\s+/g, ' ').trim()); m.close(true); });
+  });
+}
+
+/* ---------- company logos ----------
+   A logo is a small picture made here from a file or a pasted image and sealed inside the login like everything else.
+   A login without one borrows the logo of another login for the same website (or with the same name). */
+let logoMap = null;
+const siteKey = u => { const h = hostOf(u || '').toLowerCase().replace(/^www\./, ''); return h ? h.split('.').slice(-2).join('.') : ''; };
+function sharedLogos() {
+  if (logoMap) return logoMap;
+  logoMap = new Map();
+  for (const x of V.items.values()) {
+    const d = x.d; if (!d || !d.lg || x.del) continue;
+    const h = siteKey(d.url), t = String(d.t || '').trim().toLowerCase();
+    if (h && !logoMap.has('h:' + h)) logoMap.set('h:' + h, d.lg);
+    if (t && !logoMap.has('t:' + t)) logoMap.set('t:' + t, d.lg);
+  }
+  return logoMap;
+}
+function logoOf(it) {
+  const d = it.d; if (!d) return '';
+  if (d.lg) return d.lg;
+  const m = sharedLogos(), h = siteKey(d.url), t = String(d.t || '').trim().toLowerCase();
+  return (h && m.get('h:' + h)) || (t && m.get('t:' + t)) || '';
+}
+/* shown through short blob: addresses instead of repeating the picture's text in every row */
+const logoUrls = new Map();
+function logoSrc(data) {
+  if (!data || !S.okLogo(data)) return '';
+  let u = logoUrls.get(data);
+  if (!u) {
+    const i = data.indexOf(','), bin = atob(data.slice(i + 1)), b = new Uint8Array(bin.length);
+    for (let k = 0; k < bin.length; k++) b[k] = bin.charCodeAt(k);
+    u = URL.createObjectURL(new Blob([b], { type: data.slice(5, data.indexOf(';')) }));
+    logoUrls.set(data, u);
+  }
+  return u;
+}
+/* a picture file -> a small logo (at most 128 px, transparent kept; WebP, or PNG where WebP can't be made) */
+async function makeLogo(file) {
+  if (!file || !/^image\//.test(file.type || '')) throw new Error('That isn’t a picture. Choose a PNG, JPG, WebP or SVG file.');
+  if (file.size > 10 * 1024 * 1024) throw new Error('That picture is too big (over 10 MB).');
+  let src, w, h, done = () => { };
+  try { const bmp = await createImageBitmap(file); src = bmp; w = bmp.width; h = bmp.height; done = () => bmp.close(); }
+  catch (e) {
+    const url = URL.createObjectURL(file), img = new Image();
+    img.src = url;
+    try { await img.decode(); } catch (e2) { URL.revokeObjectURL(url); throw new Error('That picture couldn’t be read. Try a PNG or JPG.'); }
+    src = img; w = img.naturalWidth || 256; h = img.naturalHeight || 256; done = () => URL.revokeObjectURL(url);
+  }
+  try {
+    for (const size of [128, 96, 64, 48]) {
+      const k = Math.min(1, size / Math.max(w, h)), cw = Math.max(1, Math.round(w * k)), ch = Math.max(1, Math.round(h * k));
+      const c = document.createElement('canvas'); c.width = cw; c.height = ch;
+      const x = c.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(src, 0, 0, cw, ch);
+      let out = c.toDataURL('image/webp', 0.9);
+      if (!out.startsWith('data:image/webp')) out = c.toDataURL('image/png');
+      if (S.okLogo(out) && out.length <= 48000) return out;
+    }
+    throw new Error('That picture has too much detail to use as a logo. Try a simpler one.');
+  } finally { done(); }
 }
 
 /* ---------- the frame ---------- */
@@ -116,6 +209,7 @@ function scheduleRender() {
 }
 export function renderAll(fromData) {
   if (lockedOut) return;
+  logoMap = null;
   if (V.revoked || (V.me && V.me.active === false)) { lockNow('removed'); return; }
   try { renderSide(); renderBanner(); } catch (e) { console.error(e); }
   if (fromData && STATIC_VIEWS.includes(U.view)) return;
@@ -151,12 +245,13 @@ function renderSide() {
     <nav class="sideNav">
       ${navBtn('all', ic('list'), 'All logins', live.length)}
       ${navBtn('fav', ic('star'), 'Favorites', live.filter(i => fv.has(i.id)).length || null)}
+      ${live.some(i => i.d && i.d.ml) || U.view === 'ml' ? navBtn('ml', ic('tag'), ML, live.filter(i => i.d && i.d.ml).length || null) : ''}
       <div class="sideLabel">Folders</div>
       ${S.folderList().map(f => html`<button type="button" class="nav ${U.view === 'folder:' + f.id ? 'on' : ''}" data-act="go" data-v="folder:${f.id}">
         <span class="dot ${FOLDER_CLS(f.color)}"></span><span class="nl">${f.name}</span>${S.keyTrouble(f.id) ? html`<span class="ro warnMark" title="Problem with this folder’s key">⚠</span>` : !S.canEdit(f.id) ? html`<span class="ro" title="View only">view</span>` : ''}<span class="cnt">${counts[f.id] || 0}</span></button>`)}
       ${V.owner ? html`<button type="button" class="nav add" data-act="newFolder">${ic('plus')}<span class="nl">New folder</span></button>` : ''}
       <div class="sideLabel">Check-up</div>
-      ${navBtn('health', ic('alert'), 'Needs attention', h.count || null, h.chg.length ? 'hot' : '')}
+      ${navBtn('health', ic('alert'), 'Needs attention', h.count || null, h.chg.length || h.bad.length ? 'hot' : '')}
       ${navBtn('trash', ic('trash'), 'Trash', trashN || null)}
       ${V.owner ? html`<div class="sideLabel">Dr. A</div>
         ${navBtn('team', ic('users'), 'People & access', S.untrustedCount() || null, S.untrustedCount() ? 'hot' : '')}
@@ -225,9 +320,11 @@ function renderListView(c) {
       const d = it.d || {}, st = pwStrength(d.p);
       return html`<li><button type="button" class="row ${U.sel === it.id ? 'on' : ''}" data-act="sel" data-id="${it.id}">
         ${avatar(it)}<span class="rmain"><span class="rt">${title(it)}${fv.has(it.id) ? html`<span class="favMark" aria-label="favorite">${ic('star')}</span>` : ''}</span>
-        <span class="rs">${d.u || (d.url ? hostOf(d.url) : '')}</span></span>
+        <span class="rs">${d.ds ? html`<span class="rds">${d.ds}</span>${d.u ? ' · ' + d.u : ''}` : (d.u || (d.url ? hostOf(d.url) : ''))}</span></span>
         <span class="rbadges">
+          ${d.bad ? html`<span class="badge hot" title="${d.bad.why || 'Not working'}">Not working</span>` : ''}
           ${d.chg ? html`<span class="badge hot" title="${d.chg.why}">Change</span>` : ''}
+          ${d.ml ? html`<span class="badge ml" title="${ML}: member discount">${ML}</span>` : ''}
           ${st && st.score < 2 ? html`<span class="badge warn">Weak</span>` : ''}
           ${h.reusedIds.has(it.id) ? html`<span class="badge warn">Reused</span>` : ''}
           ${d.totp ? html`<span class="badge">2-step</span>` : ''}
@@ -263,7 +360,7 @@ function renderDetail() {
     <div class="dHead">
       <button type="button" class="iconBtn mobOnly" data-act="back" aria-label="Back">${ic('back')}</button>
       ${avatar(it, true)}
-      <div class="dTitle"><h2>${title(it)}</h2>
+      <div class="dTitle"><h2>${title(it)}</h2>${d.ds ? html`<div class="dDesc">${d.ds}</div>` : ''}
         <div class="sub"><span class="fchip ${FOLDER_CLS(f ? f.color : 'gray')}">${f ? f.name : '—'}</span> · changed ${fmtWhen(d.mAt || it.at)} by ${S.userName(d.mBy || it.by)}</div></div>
       <div class="dActs">
         ${!it.del ? html`<button type="button" class="iconBtn ${fv ? 'starOn' : ''}" data-act="fav" data-id="${it.id}" title="${fv ? 'Remove from favorites' : 'Add to favorites'}" aria-pressed="${fv ? 'true' : 'false'}">${ic('star')}</button>` : ''}
@@ -271,6 +368,8 @@ function renderDetail() {
       </div>
     </div>
     ${it.del ? html`<div class="callout warn">${ic('trash')}<div>In the trash since ${fmtDate(it.at)}. ${canEdit ? 'Put it back to use it again.' : ''}</div></div>` : ''}
+    ${d.bad ? html`<div class="callout hot">${ic('broken')}<div><b>Not working.</b> ${d.bad.why || ''} <span class="muted">(${S.userName(d.bad.by)}, ${fmtDate(d.bad.at)})</span>${canEdit ? html` <button type="button" class="link" data-act="worksAgain" data-id="${it.id}">It works again</button>` : ''}</div></div>` : ''}
+    ${d.ml ? html`<div class="callout ml">${ic('tag')}<div><b>On ${ML}.</b> We get a member discount from this vendor — mention it when ordering.</div></div>` : ''}
     ${d.chg ? html`<div class="callout hot">${ic('alert')}<div><b>Change this password.</b> ${d.chg.why} (${fmtDate(d.chg.at)}). Change it on the website, then edit this login with the new one.${canEdit ? html` <button type="button" class="link" data-act="clearChg" data-id="${it.id}">Already done</button>` : ''}</div></div>` : ''}
     <dl class="fields">
       ${d.url ? html`<div class="f"><dt>Website</dt><dd><span class="val">${url ? html`<a href="${url}" target="_blank" rel="noopener noreferrer" data-act="openUrl" data-id="${it.id}">${hostOf(d.url)}</a>` : d.url}</span>
@@ -286,12 +385,14 @@ function renderDetail() {
       ${(d.fx || []).map((x, i) => html`<div class="f"><dt>${x.l}</dt><dd><span class="val ${x.h ? 'mono' : ''}" ${x.h ? raw('data-hidden="1"') : ''} id="fx${i}">${x.h && !rev ? '••••••' : x.v}</span>
         <span class="fa">${x.h ? html`<button type="button" class="iconBtn" data-act="reveal" data-id="${it.id}" title="Show">${ic(rev ? 'eyeOff' : 'eye')}</button>` : ''}
         <button type="button" class="iconBtn" data-act="copy" data-k="fx${i}" data-id="${it.id}" title="Copy">${ic('copy')}</button></span></dd></div>`)}
+      ${repRows(it)}
       ${d.n ? html`<div class="f notes"><dt>Notes</dt><dd><span class="val pre">${d.n}</span></dd></div>` : ''}
     </dl>
     <div class="dFoot">
       ${it.del ? html`${canEdit ? html`<button type="button" class="btn" data-act="restore" data-id="${it.id}">${ic('restore')}<span>Put back</span></button>` : ''}
         ${V.owner ? html`<button type="button" class="btn danger subtle" data-act="purge" data-id="${it.id}">${ic('trash')}<span>Delete for good</span></button>` : ''}`
-      : html`${canEdit ? html`<button type="button" class="btn subtle" data-act="del" data-id="${it.id}">${ic('trash')}<span>Delete</span></button>` : ''}`}
+      : html`${canEdit ? html`<button type="button" class="btn subtle" data-act="del" data-id="${it.id}">${ic('trash')}<span>Delete</span></button>` : ''}
+        ${canEdit && !d.bad ? html`<button type="button" class="btn subtle" data-act="markBad" data-id="${it.id}">${ic('broken')}<span>Not working?</span></button>` : ''}`}
       ${V.owner ? html`<button type="button" class="btn subtle" data-act="history" data-id="${it.id}">${ic('history')}<span>History</span></button>` : ''}
       <span class="muted small">Added ${fmtDate(d.cAt || it.cAt)}${d.cBy ? ' by ' + S.userName(d.cBy) : ''}</span>
     </div>`);
@@ -350,6 +451,7 @@ async function onClick(e) {
       if (k === 'p') await copyText(d.p, 'Password', { a: 'copy-pw', o: { i: id, f: it.f }, secret: true });
       else if (k === 'u') await copyText(d.u, 'Username', { a: 'copy-user', o: { i: id, f: it.f } });
       else if (k === 'url') await copyText(d.url, 'Website', null);
+      else if (k === 'repN' || k === 'repPh' || k === 'repEm') { const r = d.rep || {}; await copyText(k === 'repN' ? r.n : k === 'repPh' ? r.ph : r.em, k === 'repN' ? 'Rep' : k === 'repPh' ? 'Rep phone' : 'Rep email', null); }
       else if (k.startsWith('fx')) { const x = (d.fx || [])[+k.slice(2)]; if (x) await copyText(x.v, x.l, { a: 'copy-field', o: { i: id, f: it.f }, secret: !!x.h }); }
       break;
     }
@@ -361,6 +463,20 @@ async function onClick(e) {
       break;
     }
     case 'openUrl': if (it) S.log('open', { i: id, f: it.f }); break;
+    case 'worksAgain': {
+      if (!it || !it.d) break;
+      const d = Object.assign({}, it.d); delete d.bad;
+      try { await S.saveItem(id, it.f, d, { rev: it.rev }); toast('Marked as working'); } catch (er) { toast(errorText(er), { kind: 'bad' }); }
+      break;
+    }
+    case 'markBad': {
+      if (!it || !it.d) break;
+      const why = await notWorkingBox(title(it)); if (why === null) break;
+      const cur = V.items.get(id); if (!cur || !cur.d) break;
+      try { await S.saveItem(id, cur.f, Object.assign({}, cur.d, { bad: { why, at: Date.now(), by: V.uid } }), { rev: cur.rev }); toast('Marked as not working'); }
+      catch (er) { toast(errorText(er), { kind: 'bad' }); }
+      break;
+    }
     case 'clearChg': {
       if (!it || !it.d) break;
       const d = Object.assign({}, it.d); delete d.chg;
@@ -431,6 +547,14 @@ export function openEditor(it, presetFid) {
     <div class="mhead"><h2>${it ? 'Edit login' : 'New login'}</h2><button type="button" class="iconBtn" data-close aria-label="Close">${ic('x')}</button></div>
     <div class="mbody grid2">
       <label class="fld span2"><span>Name</span><input id="edT" value="${d.t || ''}" maxlength="120" placeholder="e.g. Delta Dental provider portal" autofocus></label>
+      <label class="fld span2"><span>Description <span class="muted">(optional — shown under the name)</span></span><input id="edDs" value="${d.ds || ''}" maxlength="140" placeholder="e.g. Claims, ERA and eligibility"></label>
+      <div class="fld span2"><span>Logo <span class="muted">(optional)</span></span>
+        <div class="logoRow"><span class="logoBox" id="lgBox" title="Drop a picture here"></span>
+          <span class="logoActs"><button type="button" class="btn small" id="lgPick">${ic('upload')}<span>Choose a picture…</span></button>
+          <button type="button" class="link small" id="lgDel">Remove</button>
+          <span class="muted small">or paste a copied picture (Ctrl+V / ⌘V). Other logins for the same website use it too.</span></span>
+          <input type="file" id="lgFile" accept="image/*" class="hidden"></div>
+        <span id="lgErr" class="err small hidden" role="alert"></span></div>
       <label class="fld"><span>Folder</span><select id="edF">${fid0 ? '' : html`<option value="" selected disabled>Choose a folder…</option>`}${editable.map(f => html`<option value="${f.id}" ${f.id === fid0 ? 'selected' : ''}>${f.name}</option>`)}</select></label>
       <label class="fld"><span>Website</span><input id="edUrl" value="${d.url || ''}" maxlength="500" placeholder="deltadentalins.com" spellcheck="false" autocapitalize="off"></label>
       <label class="fld"><span>Username or email</span><input id="edU" value="${d.u || ''}" maxlength="300" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
@@ -444,6 +568,13 @@ export function openEditor(it, presetFid) {
         <input id="edTotp" value="${d.totp || ''}" maxlength="500" spellcheck="false" autocapitalize="off" placeholder="Secret key or otpauth:// link" class="mono"><span id="edTotpOk" class="small"></span></label>
       <div class="span2 fxList" id="fxList"></div>
       <div class="span2"><button type="button" class="link" id="fxAdd">${ic('plus')}<span>Add a field (PIN, account #, security question…)</span></button></div>
+      <div class="span2 edSec">Vendor and rep <span class="muted">(optional)</span></div>
+      <label class="fld"><span>Rep</span><input id="edRepN" value="${(d.rep || {}).n || ''}" maxlength="80" placeholder="Name" autocomplete="off"></label>
+      <label class="fld"><span>Rep phone</span><input id="edRepPh" value="${(d.rep || {}).ph || ''}" maxlength="40" inputmode="tel" placeholder="(352) 555-1234" autocomplete="off"></label>
+      <label class="fld span2"><span>Rep email</span><input id="edRepEm" value="${(d.rep || {}).em || ''}" maxlength="120" inputmode="email" placeholder="name@company.com" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
+      <label class="chk span2"><input type="checkbox" id="edMl" ${d.ml ? 'checked' : ''}><span>On <b>Mari’s List</b> — we get a member discount from this vendor</span></label>
+      <label class="chk span2"><input type="checkbox" id="edBad" ${d.bad ? 'checked' : ''}><span><b>Not working</b> right now (for example the company has to reset it)</span></label>
+      <label class="fld span2 ${d.bad ? '' : 'hidden'}" id="edBadBox"><span>What’s wrong, or what to do</span><input id="edBadWhy" value="${d.bad ? d.bad.why : ''}" maxlength="300" placeholder="e.g. Locked out — call the company to reset it" autocomplete="off"></label>
       <label class="fld span2"><span>Notes</span><textarea id="edN" rows="3" maxlength="20000">${d.n || ''}</textarea></label>
       <p class="muted small span2">Never put patient information in the vault.</p>
       <p id="edErr" class="err hidden span2" role="alert"></p>
@@ -459,17 +590,50 @@ export function openEditor(it, presetFid) {
   };
   draw(); drawFx();
   const el = m.el;
+  let lg = d.lg || '';
+  const drawLogo = () => {
+    const src = logoSrc(lg);
+    setHTML($('#lgBox', el), src ? html`<img src="${src}" alt="Logo">` : html`<span class="muted small">No logo</span>`);
+    $('#lgDel', el).classList.toggle('hidden', !lg);
+  };
+  const useLogo = async file => {
+    const e1 = $('#lgErr', el); e1.classList.add('hidden');
+    try { lg = await makeLogo(file); dirty = true; drawLogo(); }
+    catch (er) { e1.textContent = er.message; e1.classList.remove('hidden'); }
+  };
+  drawLogo();
+  $('#lgPick', el).addEventListener('click', () => $('#lgFile', el).click());
+  $('#lgFile', el).addEventListener('change', e => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) useLogo(f); });
+  $('#lgDel', el).addEventListener('click', () => { lg = ''; dirty = true; drawLogo(); });
+  // a copied picture pasted anywhere in the form becomes the logo (pasting text still works as usual)
+  el.addEventListener('paste', e => {
+    const f = Array.from((e.clipboardData && e.clipboardData.files) || []).find(x => /^image\//.test(x.type));
+    if (f) { e.preventDefault(); useLogo(f); }
+  });
+  const box0 = $('#lgBox', el);
+  box0.addEventListener('dragover', e => { e.preventDefault(); box0.classList.add('drag'); });
+  box0.addEventListener('dragleave', () => box0.classList.remove('drag'));
+  box0.addEventListener('drop', e => { e.preventDefault(); box0.classList.remove('drag'); const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]; if (f) useLogo(f); });
   const meter = () => setHTML($('#edMeter', el), $('#edP', el).value ? meterHTML($('#edP', el).value, [$('#edT', el).value, $('#edU', el).value]) : '');
+  // a new password usually means the login works again: "Not working" unticks itself (once; tick it again to keep it)
+  let badAuto = false;
+  const pwTouched = () => {
+    if (badAuto || !it || !it.d.bad || $('#edP', el).value === (it.d.p || '')) return;
+    badAuto = true;
+    const b = $('#edBad', el); if (b.checked) { b.checked = false; $('#edBadBox', el).classList.add('hidden'); }
+  };
   const totpOk = () => { const v = $('#edTotp', el).value.trim(); const o = $('#edTotpOk', el); o.textContent = !v ? '' : parseTotp(v) ? '✓ Codes will show on the login' : 'That doesn’t look like an authenticator secret'; o.className = 'small ' + (!v ? '' : parseTotp(v) ? 'good' : 'err'); };
   meter(); totpOk();
   el.addEventListener('input', e => {
     dirty = true;
-    if (e.target.id === 'edP') meter();
+    if (e.target.id === 'edP') { meter(); pwTouched(); }
     if (e.target.id === 'edTotp') totpOk();
     const row = e.target.closest('.fxRow');
     if (row) { const x = fx[+row.dataset.i]; if (e.target.classList.contains('fxL')) x.l = e.target.value; if (e.target.classList.contains('fxV')) x.v = e.target.value; }
   });
   el.addEventListener('change', e => {
+    if (e.target.id === 'edBad') { $('#edBadBox', el).classList.toggle('hidden', !e.target.checked); dirty = true; if (e.target.checked) $('#edBadWhy', el).focus(); }
+    if (e.target.id === 'edMl') dirty = true;
     const row = e.target.closest('.fxRow');
     if (row && e.target.classList.contains('fxH')) { fx[+row.dataset.i].h = e.target.checked; const v = row.querySelector('.fxV'); v.type = e.target.checked ? 'password' : 'text'; v.classList.toggle('mono', e.target.checked); dirty = true; }
   });
@@ -501,17 +665,25 @@ export function openEditor(it, presetFid) {
     const sym = $('#gSym', box); if (sym) sym.addEventListener('change', () => { gen.symbols = sym.checked; drawGen(); });
     const w = $('#gWords', box); if (w) w.addEventListener('input', () => { gen.words = +w.value; drawGen(); });
     $('#gAgain', box).addEventListener('click', drawGen);
-    $('#gUse', box).addEventListener('click', () => { const p = $('#edP', el); p.value = $('#gVal', box).textContent; p.type = 'text'; dirty = true; meter(); box.classList.add('hidden'); });
+    $('#gUse', box).addEventListener('click', () => { const p = $('#edP', el); p.value = $('#gVal', box).textContent; p.type = 'text'; dirty = true; meter(); pwTouched(); box.classList.add('hidden'); });
   }
   $('#edForm', el).addEventListener('submit', async e => {
     e.preventDefault();
     const err = msg => { const x = $('#edErr', el); x.textContent = msg; x.classList.remove('hidden'); };
     const out = Object.assign({}, it ? it.d : {}, {
-      t: $('#edT', el).value.trim(), url: $('#edUrl', el).value.trim(), u: $('#edU', el).value.trim(), p: $('#edP', el).value,
+      t: $('#edT', el).value.trim(), ds: $('#edDs', el).value.replace(/\s+/g, ' ').trim(), lg, url: $('#edUrl', el).value.trim(), u: $('#edU', el).value.trim(), p: $('#edP', el).value,
       totp: $('#edTotp', el).value.trim(), n: $('#edN', el).value, fx: fx.filter(x => x.l.trim() || x.v).map(x => ({ l: x.l.trim().slice(0, 40) || 'Field', v: x.v, h: !!x.h }))
     });
+    out.rep = { n: $('#edRepN', el).value.trim(), ph: $('#edRepPh', el).value.trim(), em: $('#edRepEm', el).value.trim() };
+    out.ml = $('#edMl', el).checked;
+    const why = $('#edBadWhy', el).value.replace(/\s+/g, ' ').trim();
+    // the same mark stays as it was; ticked again with a new password, it's a new mark (so the new password doesn't clear it)
+    const pwNew = !!it && out.p !== (it.d.p || '');
+    out.bad = !$('#edBad', el).checked ? null : it && it.d.bad && it.d.bad.why === why && !pwNew ? it.d.bad : { why, at: Date.now(), by: V.uid };
+    if (!out.bad) delete out.bad;
     if (!out.t) out.t = hostOf(out.url) || out.u;
     if (!out.t) { err('Give it a name (for example the company or website).'); return; }
+    if (out.rep.em && !mailHref(out.rep.em)) { err('The rep’s email doesn’t look right.'); return; }
     if (out.totp && !parseTotp(out.totp)) { err('The 2-step secret isn’t valid. Paste the secret key from the website’s setup page, or leave it empty.'); return; }
     const fid = $('#edF', el).value;
     if (!fid) { err('Choose which folder it goes in.'); return; }

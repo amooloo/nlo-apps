@@ -2,8 +2,9 @@
    Everything here runs on the device; nothing is sent anywhere. */
 
 export const FIELDS = [
-  ['title', 'Name'], ['url', 'Website'], ['user', 'Username'], ['pass', 'Password'], ['notes', 'Notes'],
-  ['totp', '2-step secret'], ['folder', 'Folder'], ['extra', 'Extra field'], ['skip', 'Skip']
+  ['title', 'Name'], ['desc', 'Description'], ['url', 'Website'], ['user', 'Username'], ['pass', 'Password'], ['notes', 'Notes'],
+  ['totp', '2-step secret'], ['folder', 'Folder'], ['repN', 'Rep'], ['repPh', 'Rep phone'], ['repEm', 'Rep email'], ['ml', 'Mari’s List'],
+  ['extra', 'Extra field'], ['skip', 'Skip']
 ];
 
 /* ---------- spreadsheets: tab-, comma- or semicolon-separated text ---------- */
@@ -60,12 +61,17 @@ export function parseHtmlTables(doc) {
 
 /* ---------- headings -> what each column holds ---------- */
 const HEAD = [
+  ['ml', /mari'?s|marys list/],
+  ['repEm', /^(rep|contact|sales rep|representative|account rep)('?s)? ?e-?mail( address)?$/],
+  ['repPh', /^((rep|contact|sales rep|representative|account rep)('?s)? )?(phone|cell|mobile|tel|telephone|phone number)( ?(#|no\.?|number))?$/],
+  ['repN', /^(rep|rep name|sales rep|representative|account rep|account manager|contact|contact name|contact person)$/],
   ['folder', /^(folder|category|group|grouping|type|department|dept|section|collection|tags?)$/],
   ['totp', /(totp|2fa|two[- ]?factor|otp|authenticator|mfa|otpauth)/],
   ['url', /(^|\b|_)(url|uri|urls|website|web ?site|web ?address|link|login ?page|portal ?url|domain|address)(\b|$)/],
   ['pass', /(^|\b|_)(pass|password|passwd|passcode|pwd|pw)(\b|$|word)/],
   ['user', /(^|\b|_)(user|username|user ?name|login|log ?in|user ?id|userid|e-?mail|account ?(#|no|number|id)|member ?id)(\b|$)/],
-  ['title', /^(name|title|account|site|service|vendor|company|description|portal|system|app|application|program|login for|item)$/],
+  ['desc', /^(description|desc|purpose|used for|use|what it'?s for|what for)$/],
+  ['title', /^(name|title|account|site|service|vendor|company|portal|system|app|application|program|login for|item)$/],
   ['notes', /(^|\b)(notes?|comments?|memo|info|details|extra|other|remarks?)(\b|$)/]
 ];
 const looksUrl = v => /^(https?:\/\/|www\.)/i.test(v) || /^[a-z0-9-]+(\.[a-z0-9-]+)+(\/\S*)?$/i.test(v);
@@ -86,6 +92,8 @@ export function guessColumns(rows, hasHeader) {
   const map = new Array(width).fill(null);
   if (hasHeader && rows[0]) {
     rows[0].forEach((h, i) => { const k = headKind(h); if (k) map[i] = map.includes(k) ? 'extra' : k; });
+    // a "Description" column with no name column is the name
+    if (!map.includes('title') && map.includes('desc')) map[map.indexOf('desc')] = 'title';
   }
   const body = hasHeader ? rows.slice(1) : rows;
   const col = i => body.map(r => r[i] || '').filter(Boolean);
@@ -117,11 +125,16 @@ export function rowsToItems(rows, map, o) {
     if (!filled.length) return;
     // a row with just one thing in it is a heading ("FRONT OFFICE") when sections are on
     if (o.sections && filled.length === 1 && r.length > 1) { section = filled[0][0].replace(/[:\-–—]+$/, '').trim().slice(0, 60); return; }
-    const it = { t: '', url: '', u: '', p: '', n: '', totp: '', folder: '', fx: [], row: idx + (o.hasHeader ? 2 : 1) };
+    const it = { t: '', ds: '', url: '', u: '', p: '', n: '', totp: '', folder: '', fx: [], rep: { n: '', ph: '', em: '' }, ml: false, row: idx + (o.hasHeader ? 2 : 1) };
     r.forEach((c, i) => {
       const v = (c || '').trim(); if (!v) return;
       const k = map[i];
       if (k === 'title') it.t = it.t ? it.t + ' ' + v : v;
+      else if (k === 'desc') it.ds = it.ds ? it.ds + ' ' + v : v;
+      else if (k === 'repN') it.rep.n = it.rep.n || v.slice(0, 80);
+      else if (k === 'repPh') it.rep.ph = it.rep.ph || v.slice(0, 40);
+      else if (k === 'repEm') it.rep.em = it.rep.em || v.slice(0, 120);
+      else if (k === 'ml') it.ml = /^(y|yes|x|✓|✔|true|1|member|on|on list)$/i.test(v);
       else if (k === 'url') it.url = it.url || v;
       else if (k === 'user') it.u = it.u || v;
       else if (k === 'pass') it.p = it.p || v;
@@ -134,7 +147,7 @@ export function rowsToItems(rows, map, o) {
     if (!it.t) it.t = hostOf(it.url) || it.u || '';
     if (!it.t && !it.p && !it.u) return;
     if (!it.t) it.t = 'Untitled';
-    it.t = it.t.slice(0, 120);
+    it.t = it.t.slice(0, 120); it.ds = it.ds.slice(0, 140);
     out.push(it);
   });
   return out;
@@ -146,6 +159,10 @@ const KV_KEYS = [
   ['pass', /^(password|pass ?word|pass|passcode|pwd|pw|p\/w)$/i],
   ['url', /^(website|web ?site|url|link|site|address|web|portal|login page)$/i],
   ['notes', /^(notes?|comments?|memo)$/i],
+  ['desc', /^(description|desc|purpose|used for)$/i],
+  ['repN', /^(rep|sales rep|representative|account rep|rep name)$/i],
+  ['repPh', /^(rep|sales rep|representative) ?(phone|cell|tel)$/i],
+  ['repEm', /^(rep|sales rep|representative) ?e-?mail$/i],
   ['totp', /^(2fa|totp|authenticator|2-step|two[- ]factor)( secret| key)?$/i],
   ['folder', /^(folder|category|group|department)$/i]
 ];
@@ -157,7 +174,7 @@ export function parseBlocks(text) {
   blocks.forEach(b => {
     const lines = b.split('\n').map(l => l.trim()).filter(Boolean);
     if (!lines.length) return;
-    const it = { t: '', url: '', u: '', p: '', n: '', totp: '', folder: '', fx: [] };
+    const it = { t: '', ds: '', url: '', u: '', p: '', n: '', totp: '', folder: '', fx: [], rep: { n: '', ph: '', em: '' }, ml: false };
     const notes = [];
     lines.forEach((line, li) => {
       // several pairs on one line: "user: x  pass: y" or "user: x / pass: y"
@@ -176,6 +193,10 @@ export function parseBlocks(text) {
           else if (kind === 'pass') it.p = it.p || val;
           else if (kind === 'url') it.url = it.url || val;
           else if (kind === 'notes') notes.push(val);
+          else if (kind === 'desc') it.ds = (it.ds ? it.ds + ' ' : '') + val.slice(0, 140);
+          else if (kind === 'repN') it.rep.n = it.rep.n || val.slice(0, 80);
+          else if (kind === 'repPh') it.rep.ph = it.rep.ph || val.slice(0, 40);
+          else if (kind === 'repEm') it.rep.em = it.rep.em || val.slice(0, 120);
           else if (kind === 'totp') it.totp = val;
           else if (kind === 'folder') it.folder = val.slice(0, 60);
           else it.fx.push({ l: k.trim().slice(0, 40), v: val, h: /pin|code|secret|answer|ssn|tax/i.test(k) });

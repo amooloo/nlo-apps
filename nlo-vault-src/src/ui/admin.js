@@ -3,7 +3,7 @@ import { html, raw, setHTML, $, $$, ic, toast, errorText, openModal, confirmBox,
 import * as S from '../store.js';
 import { V, COLORS, LOCK_CHOICES } from '../store.js';
 import { vaultPasswordProblem } from '../gen.js';
-import { U, go, renderAll, healthOf, pwStrength } from './vault.js';
+import { U, go, renderAll, healthOf, pwStrength, avatar } from './vault.js';
 import { showRecoveryCode } from './lock.js';
 
 const fname = fid => { const f = V.folders.get(fid); return f ? f.name : 'a deleted folder'; };
@@ -14,13 +14,14 @@ function ititle(id) { const it = V.items.get(id); return it && it.d ? (it.d.t ||
 /* ---------- Needs attention ---------- */
 export function renderHealth(c) {
   const h = healthOf();
-  const row = it => html`<li><button type="button" class="row" data-act="openItem" data-id="${it.id}"><span class="av ${FOLDER_CLS((V.folders.get(it.f) || {}).color)}">${initials(it.d.t || hostOf(it.d.url))}</span>
-    <span class="rmain"><span class="rt">${it.d.t || hostOf(it.d.url)}</span><span class="rs">${fname(it.f)}${it.d.u ? ' · ' + it.d.u : ''}</span></span>${raw('')}</button></li>`;
+  const row = it => html`<li><button type="button" class="row" data-act="openItem" data-id="${it.id}">${avatar(it)}
+    <span class="rmain"><span class="rt">${it.d.t || hostOf(it.d.url)}</span><span class="rs">${it.d.bad ? (it.d.bad.why || 'Not working') + ' · ' + fname(it.f) : fname(it.f) + (it.d.ds ? ' · ' + it.d.ds : '') + (it.d.u ? ' · ' + it.d.u : '')}</span></span>${raw('')}</button></li>`;
   const byName = l => l.slice().sort((a, b) => String(a.d.t).localeCompare(String(b.d.t)));
   const sec = (title, why, list, cls) => (list = byName(list)).length ? html`<section class="hsec ${cls || ''}"><h2>${title} <span class="cnt">${list.length}</span></h2><p class="muted">${why}</p><ul class="items">${list.map(row)}</ul></section>` : '';
   setHTML(c, html`<div class="page">
     <div class="pageHead"><h1>Needs attention</h1><p class="sub">Only logins you can open are checked.</p></div>
     ${!h.count && !h.nopw.length ? html`<div class="empty">${ic('shield')}<p>Nothing needs attention. Nice.</p></div>` : ''}
+    ${sec('Not working', 'These logins don’t work right now. Get them fixed (often a call to the company), save the new details, then click “It works again”.', h.bad, 'hot')}
     ${sec('Change these passwords', 'Someone who could see them no longer can (they left or lost access). Change each one on its website, then save the new password here.', h.chg, 'hot')}
     ${sec('Weak passwords', 'Easy to guess. Make a new one with the wand button when you edit the login.', h.weak)}
     ${h.reused.length ? html`<section class="hsec"><h2>Same password on more than one login <span class="cnt">${h.reused.length}</span></h2><p class="muted">If one of these websites leaks it, the others are open too.</p>
@@ -107,7 +108,7 @@ function confirmAccessRemoval(u, fids, leaving) {
       <div class="mbody">
         ${leaving ? html`<p>${u.name} is locked out right away${fids.length ? html` and the ${fids.length === 1 ? 'folder' : fids.length + ' folders'} they could open (${fids.map(fname).join(', ')}) get new keys` : ''}. Their history stays in Activity.</p>`
           : html`<p>They lose access right away, and the folder gets a new key.</p>`}
-        ${n ? html`<label class="chk"><input type="checkbox" id="flagChg" ${leaving ? 'checked' : ''}> Flag the ${n} ${n === 1 ? 'password' : 'passwords'} they could see as <b>Change this password</b></label>
+        ${n ? html`<label class="chk"><input type="checkbox" id="flagChg" ${leaving ? 'checked' : ''}><span>Flag the ${n} ${n === 1 ? 'password' : 'passwords'} they could see as <b>Change this password</b></span></label>
         <p class="muted small">${u.name} could have copied or written them down, so the safe thing is to change them on each website. They’ll be listed under Needs attention.</p>` : ''}
       </div>
       <div class="mfoot"><button type="button" class="btn" data-no>Cancel</button><button type="button" class="btn danger" data-yes>${leaving ? 'Remove' : 'Take out'}</button></div>`, { onClose: () => { if (!answered) resolve(null); } });
@@ -367,7 +368,7 @@ export async function historyDialog(it) {
       <div class="mbody">${vs.length ? html`<p class="muted small">Each entry is how the login looked before a change. Passwords are blurred until you point at them.</p><ol class="hist">${vs.map(v => html`<li>
         <div class="hh"><b>Before the change on ${fmtWhen(v.at)}</b> by ${S.userName(v.by)}${v.del ? html` <span class="badge">in trash</span>` : ''}
           ${v.d ? html`<button type="button" class="btn small" data-act="restoreVer" data-rev="${v.rev}">${ic('restore')}<span>Restore this version</span></button>` : html`<span class="muted small">can’t be opened</span>`}</div>
-        ${v.d ? html`${field('Name', v.d.t)}${field('Folder', fname(v.f))}${field('Website', v.d.url)}${field('Username', v.d.u)}${field('Password', v.d.p, true)}${field('Notes', v.d.n)}` : ''}
+        ${v.d ? html`${field('Name', v.d.t)}${field('Description', v.d.ds)}${field('Rep', [(v.d.rep || {}).n, (v.d.rep || {}).ph, (v.d.rep || {}).em].filter(Boolean).join(' · '))}${field('Mari’s List', v.d.ml ? 'Yes' : '')}${field('Not working', v.d.bad ? (v.d.bad.why || 'Yes') : '')}${field('Folder', fname(v.f))}${field('Website', v.d.url)}${field('Username', v.d.u)}${field('Password', v.d.p, true)}${field('Notes', v.d.n)}` : ''}
       </li>`)}</ol>` : html`<p class="muted">No earlier versions — this login hasn’t been changed since it was added.</p>`}</div>
       <div class="mfoot"><button type="button" class="btn primary" data-close>Close</button></div>`);
     m.el.addEventListener('click', e => { const b = e.target.closest('[data-act=restoreVer]'); if (b) restoreVersion(b); });

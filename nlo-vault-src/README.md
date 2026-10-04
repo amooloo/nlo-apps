@@ -23,7 +23,9 @@ revision numbers, who/when). Google never sees a vault password.
 - **Per-folder key**: random 256-bit AES key, versioned (`kv`). Sealed to each member's public key in `grants/<uid>_<fid>`:
   ephemeral ECDH → HKDF(salt = ephemeral public point, info = AAD) → AES-GCM, AAD `nlo-vault/v1/grant/<uid>/<fid>/<kv>`.
 - **Items**: JSON padded to 256-byte blocks, AES-256-GCM under the folder key, AAD `nlo-vault/v1/item/<iid>/<fid>/<kv>`
-  (ciphertext can't be moved between items/folders/key versions). A folder's name, "new people get" default and
+  (ciphertext can't be moved between items/folders/key versions). Everything about a login is inside that JSON: name,
+  description, logo (a small picture made in the browser, never a link), website, username, password, 2-step secret,
+  extra fields, notes, the vendor's rep (name, phone, email), Mari's List membership and a "Not working" mark with its reason. A folder's name, "new people get" default and
   "private folder" flag are sealed together under its key (AAD `nlo-vault/v1/folder/<fid>/<kv>`).
 - **Dr. A's signatures decide who gets keys.** Every folder key is signed (`folders.ks[kv]`); every browser checks the
   signature before using a key (missing = wait, wrong = refuse, folder shows a warning and can't be saved into). Every

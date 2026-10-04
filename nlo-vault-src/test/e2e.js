@@ -58,6 +58,8 @@ async function waitFor(p, fn, arg, ms) {
 async function addItem(p, o) {
   await p.click('#newBtn'); await p.waitForSelector('#edForm');
   await p.fill('#edT', o.t);
+  if (o.ds) await p.fill('#edDs', o.ds);
+  if (o.logo) { await p.setInputFiles('#lgFile', o.logo); await p.waitForSelector('#lgBox img'); }
   if (o.folder) await p.selectOption('#edF', { label: o.folder });
   if (o.url) await p.fill('#edUrl', o.url);
   if (o.u) await p.fill('#edU', o.u);
@@ -65,7 +67,7 @@ async function addItem(p, o) {
   if (o.totp) await p.fill('#edTotp', o.totp);
   if (o.n) await p.fill('#edN', o.n);
   await p.click('#edSave'); await p.waitForSelector('.modalWrap', { state: 'detached', timeout: 15000 });
-  [o.t, o.u, o.p, o.n].filter(Boolean).forEach(s => SECRETS.push(s));
+  [o.t, o.u, o.p, o.n, o.ds].filter(Boolean).forEach(s => SECRETS.push(s));
 }
 async function openItem(p, title) {
   await p.fill('#q', title);
@@ -137,11 +139,22 @@ async function addPerson(owner, name, username, access) {
 
     console.log('\n# Adding logins by hand');
     await owner.click('[data-act=go][data-v^="folder:"]:has-text("Dr. A only")');
-    await addItem(owner, { t: 'Chase business banking', url: 'https://secure.chase.com', u: 'nlo-owner-77', p: 'Ch@seBank-Zx81-Qp', n: 'Account ending 4417' });
+    const LOGO_FILE = new URL('../assets/icon-512.png', import.meta.url).pathname;
+    await addItem(owner, { t: 'Chase business banking', ds: 'Operating account and wires', logo: LOGO_FILE, url: 'https://secure.chase.com', u: 'nlo-owner-77', p: 'Ch@seBank-Zx81-Qp', n: 'Account ending 4417' });
     await addItem(owner, { t: 'Office Wi-Fi', folder: 'Everyone', u: 'NLO-Staff', p: 'braces-glow-orbit-tide', totp: '' });
     await addItem(owner, { t: 'Shimmin portal', folder: 'Front office', url: 'portal.shimmin.example', u: 'nlo@practice.test', p: 'Shim-9QxV!pL2', totp: 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP' });
     const chase = await itemByTitle(owner, 'Chase business banking');
     check(chase && chase.d.p === 'Ch@seBank-Zx81-Qp' && chase.f === await folderId(owner, 'Dr. A only'), 'saved and read back (Dr. A only)');
+    check(chase.d.ds === 'Operating account and wires' && /^data:image\/(webp|png);base64,/.test(chase.d.lg) && chase.d.lg.length <= 48000, 'description and logo saved with it (logo shrunk to ' + Math.round(chase.d.lg.length / 1024) + ' KB)');
+    await owner.click('[data-act=go][data-v=all]');
+    await owner.fill('#q', 'Chase business'); await owner.waitForSelector('.row:has-text("Operating account and wires") .av.logo img');
+    check(true, 'the list shows the description under the name, with the logo');
+    await owner.fill('#q', '');
+    await addItem(owner, { t: 'Chase payroll card', url: 'payroll.chase.com', u: 'nlo-pay-2', p: 'Pay-Card-Zx55-Qa' });
+    await owner.fill('#q', 'Chase payroll'); await owner.waitForSelector('.row:has-text("Chase payroll card") .av.logo img');
+    check(!(await itemByTitle(owner, 'Chase payroll card')).d.lg, 'another login for the same website shows that logo without storing a copy');
+    await owner.screenshot({ path: SHOTS + '01a-logos.png' });
+    await owner.fill('#q', '');
     await openItem(owner, 'Shimmin portal');
     const totp1 = await owner.textContent('#totpVal');
     check(/^\d{3} \d{3}$/.test(totp1.trim()), '2-step code shown: ' + totp1.trim());
@@ -192,14 +205,14 @@ async function addPerson(owner, name, username, access) {
     await owner.click('#impGo');
     await owner.waitForSelector('.done h1', { timeout: 30000 });
     check(/Imported 5 logins/.test(await owner.textContent('.done h1')), 'imported 5');
-    await waitFor(owner, () => Array.from(window.__vault.V.items.values()).filter(i => i.d && !i.del).length === 8);
+    await waitFor(owner, () => Array.from(window.__vault.V.items.values()).filter(i => i.d && !i.del).length === 9);
     const delta = await itemByTitle(owner, 'Delta Dental provider');
     check(delta && delta.f === await folderId(owner, 'Front office') && delta.d.u === 'nlo_front' && delta.d.n === 'call 800 number for ERA' && delta.d.url === 'www.deltadentalins.com', 'Delta Dental landed in Front office with its fields');
     const hs = await itemByTitle(owner, 'Henry Schein');
     check(hs && hs.f === await folderId(owner, 'Supplies'), 'Henry Schein in the new Supplies folder');
     // document-style paste
     await owner.click('[data-act=go][data-v=import]'); await owner.waitForSelector('#pasteBox');
-    const docText = 'Paychex Flex\nUsername: nlo-payroll\nPassword: Pay-Flex-7781!\nWebsite: myapps.paychex.com\nPIN: 4455\n\nSome notes about the office that are not a login.\n';
+    const docText = 'Paychex Flex\nDescription: Payroll and tax filings\nUsername: nlo-payroll\nPassword: Pay-Flex-7781!\nWebsite: myapps.paychex.com\nPIN: 4455\n\nSome notes about the office that are not a login.\n';
     SECRETS.push('Pay-Flex-7781!', 'nlo-payroll');
     await owner.evaluate(t => { const dt = new DataTransfer(); dt.setData('text/plain', t); document.querySelector('#pasteBox').dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true })); }, docText);
     await owner.waitForSelector('#impGo');
@@ -208,7 +221,38 @@ async function addPerson(owner, name, username, access) {
     await owner.click('#impGo'); await owner.waitForSelector('.done h1', { timeout: 30000 });
     await waitFor(owner, () => Array.from(window.__vault.V.items.values()).some(i => i.d && i.d.t === 'Paychex Flex'));
     const px = await itemByTitle(owner, 'Paychex Flex');
-    check(px && px.d.p === 'Pay-Flex-7781!' && px.d.fx.some(f => f.l === 'PIN' && f.v === '4455' && f.h), 'Paychex read from the document, PIN kept as a hidden field');
+    check(px && px.d.p === 'Pay-Flex-7781!' && px.d.fx.some(f => f.l === 'PIN' && f.v === '4455' && f.h) && px.d.ds === 'Payroll and tax filings', 'Paychex read from the document (with its description), PIN kept as a hidden field');
+
+    console.log('\n# A vendor: its rep, and Mari’s List');
+    await owner.click('[data-act=go][data-v=all]');
+    await owner.click('#newBtn'); await owner.waitForSelector('#edForm');
+    await owner.fill('#edT', 'Darby Dental'); await owner.fill('#edDs', 'Supplies and small equipment');
+    await owner.selectOption('#edF', { label: 'Front office' });
+    await owner.fill('#edUrl', 'darbydental.com'); await owner.fill('#edU', 'nlo-orders'); await owner.fill('#edP', 'Darby-Supply-6620!');
+    await owner.fill('#edRepN', 'Jamie Ortiz'); await owner.fill('#edRepPh', '(352) 555-0147'); await owner.fill('#edRepEm', 'jamie at darby');
+    await owner.check('#edMl');
+    await owner.click('#edSave'); await owner.waitForSelector('#edErr:not(.hidden)');
+    check(/rep’s email doesn’t look right/.test(await owner.textContent('#edErr')), 'a rep email that isn’t an email address is caught');
+    await owner.fill('#edRepEm', 'jamie.ortiz@darby.example');
+    await owner.click('#edSave'); await owner.waitForSelector('.modalWrap', { state: 'detached', timeout: 15000 });
+    SECRETS.push('Darby-Supply-6620!', 'nlo-orders', 'Jamie Ortiz', 'jamie.ortiz@darby.example', '555-0147', 'Supplies and small equipment');
+    const darby = await itemByTitle(owner, 'Darby Dental');
+    check(darby && darby.d.rep.n === 'Jamie Ortiz' && darby.d.rep.ph === '(352) 555-0147' && darby.d.rep.em === 'jamie.ortiz@darby.example' && darby.d.ml === true && !darby.d.bad && darby.f === await folderId(owner, 'Front office'), 'rep name, phone, email and Mari’s List saved with it');
+    await owner.waitForSelector('[data-act=go][data-v=ml]');
+    check(/Mari’s List\s*1$/.test((await owner.textContent('[data-act=go][data-v=ml]')).trim()), 'Mari’s List shows in the sidebar, with its count');
+    await owner.click('[data-act=go][data-v=ml]');
+    await owner.waitForSelector('.listHead h1:has-text("Mari’s List")');
+    check((await owner.$$('.items .row')).length === 1 && /Darby Dental/.test(await owner.textContent('.items')) && await owner.$('.row .badge.ml') !== null, 'the Mari’s List view lists just Darby, with its badge');
+    await owner.click('.row:has-text("Darby Dental")'); await owner.waitForSelector('.dTitle h2:has-text("Darby Dental")');
+    check(await owner.getAttribute('.fields a[href^="tel:"]', 'href') === 'tel:3525550147' && await owner.getAttribute('.fields a[href^="mailto:"]', 'href') === 'mailto:jamie.ortiz@darby.example', 'the rep’s phone and email are tap-to-call and tap-to-email');
+    check(/On Mari’s List/.test(await owner.textContent('.callout.ml')), 'the login says it’s on Mari’s List');
+    await owner.click('[data-act=copy][data-k=repPh]');
+    check(await clip(owner) === '(352) 555-0147', 'the rep’s phone copies');
+    await owner.screenshot({ path: SHOTS + '01e-vendor.png' });
+    await owner.click('[data-act=go][data-v=all]');
+    await owner.fill('#q', 'jamie'); await owner.waitForSelector('.row:has-text("Darby Dental")');
+    check((await owner.$$('.items .row')).length === 1, 'searching the rep’s name finds the vendor');
+    await owner.fill('#q', '');
 
     console.log('\n# Nothing readable is stored');
     const dump1 = JSON.stringify(await dumpDb());
@@ -266,6 +310,51 @@ async function addPerson(owner, name, username, access) {
     const ob = await itemByTitle(owner, 'OrthoBanc');
     check(ob.d.p === 'Ob#Pay-2211-new' && ob.d.ph && ob.d.ph[0].p === 'Ob#Pay-2210', 'her change reaches Dr. A live, old password kept in its history');
     await sarah.fill('#q', '');
+
+    console.log('\n# A login that stopped working');
+    const DARBY_WHY = 'Locked out — call Darby to reset it';
+    await openItem(sarah, 'Darby Dental');
+    check(/Jamie Ortiz/.test(await sarah.textContent('.fields')) && await sarah.$('.callout.ml') !== null, 'Sarah sees the rep and the Mari’s List note');
+    await sarah.click('[data-act=markBad]'); await sarah.waitForSelector('#nwWhy');
+    await sarah.fill('#nwWhy', DARBY_WHY); await sarah.click('.modal [data-yes]');
+    await sarah.waitForSelector('.callout.hot:has-text("Not working")', { timeout: 15000 });
+    check((await sarah.textContent('.callout.hot')).includes(DARBY_WHY) && await sarah.$('[data-act=markBad]') === null, 'Sarah marks Darby “Not working”, with what to do');
+    await sarah.screenshot({ path: SHOTS + '05b-not-working-detail.png' });
+    await waitFor(owner, () => { const it = Array.from(window.__vault.V.items.values()).find(i => i.d && i.d.t === 'Darby Dental'); return it && it.d.bad; });
+    const dbad = (await itemByTitle(owner, 'Darby Dental')).d.bad;
+    check(dbad && dbad.why === DARBY_WHY && dbad.by === await state(sarah, () => window.__vault.V.uid), 'Dr. A sees it live, with who marked it');
+    await owner.click('[data-act=go][data-v=health]'); await owner.waitForSelector('.hsec.hot h2:has-text("Not working")');
+    const nw = await owner.textContent('.hsec.hot');
+    check(nw.includes('Darby Dental') && nw.includes(DARBY_WHY), 'Needs attention lists it under Not working, with the reason');
+    check(await owner.$('[data-act=go][data-v=health].hot') !== null, 'and Needs attention turns red in the sidebar');
+    await owner.screenshot({ path: SHOTS + '05a-not-working.png', fullPage: true });
+    // the company resets it: Dr. A saves the new password and the mark goes away with it
+    await owner.click('[data-act=go][data-v=all]');
+    await openItem(owner, 'Darby Dental');
+    check(await owner.$('.row:has-text("Darby Dental") .badge.hot:has-text("Not working")') !== null, 'the list shows a Not working badge');
+    await owner.click('[data-act=edit]'); await owner.waitForSelector('#edForm');
+    check(await owner.isChecked('#edBad') && (await owner.inputValue('#edBadWhy')) === DARBY_WHY, 'the editor shows the mark and the reason');
+    await sleep(100); await owner.focus('#edBadWhy'); await sleep(200);
+    await owner.screenshot({ path: SHOTS + '05c-editor-vendor.png' });
+    await owner.fill('#edP', 'Darby-Supply-7731!'); SECRETS.push('Darby-Supply-7731!');
+    check(!(await owner.isChecked('#edBad')), 'typing the new password unticks Not working');
+    await owner.click('#edSave'); await owner.waitForSelector('.modalWrap', { state: 'detached', timeout: 15000 });
+    await waitFor(owner, () => { const it = Array.from(window.__vault.V.items.values()).find(i => i.d && i.d.t === 'Darby Dental'); return it && it.d.p === 'Darby-Supply-7731!'; });
+    const d2 = await itemByTitle(owner, 'Darby Dental');
+    check(!d2.d.bad && d2.d.rep.n === 'Jamie Ortiz' && d2.d.ml === true && d2.d.ds === 'Supplies and small equipment', 'saved: no longer marked; rep, Mari’s List and description kept');
+    // still broken after all: ticked again in the editor, then "It works again"
+    await owner.click('[data-act=edit]'); await owner.waitForSelector('#edForm');
+    await owner.check('#edBad'); await owner.fill('#edBadWhy', 'Card on file expired');
+    await owner.click('#edSave'); await owner.waitForSelector('.modalWrap', { state: 'detached', timeout: 15000 });
+    await waitFor(owner, () => { const it = Array.from(window.__vault.V.items.values()).find(i => i.d && i.d.t === 'Darby Dental'); return it && it.d.bad && it.d.bad.why === 'Card on file expired'; });
+    check(true, 'the editor’s Not working box marks it too');
+    await owner.waitForSelector('[data-act=worksAgain]'); await owner.click('[data-act=worksAgain]');
+    await waitFor(owner, () => { const it = Array.from(window.__vault.V.items.values()).find(i => i.d && i.d.t === 'Darby Dental'); return it && !it.d.bad; });
+    const d3 = await itemByTitle(owner, 'Darby Dental');
+    check(!d3.d.bad && d3.d.p === 'Darby-Supply-7731!', '“It works again” clears it (the password stays)');
+    const dump0 = JSON.stringify(await dumpDb());
+    check(![DARBY_WHY, 'Card on file expired', 'Darby-Supply-7731!'].some(s => dump0.includes(s)), 'the reason is encrypted like everything else');
+    await owner.fill('#q', '');
 
     console.log('\n# Activity and history (Dr. A)');
     await owner.click('[data-act=go][data-v=activity]');

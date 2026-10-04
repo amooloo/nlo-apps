@@ -119,7 +119,7 @@ function drawPreview() {
         <label class="chk"><input type="checkbox" id="impHead" ${IMP.hasHeader ? 'checked' : ''}> The first row is headings (not a login)</label>
         <label class="chk"><input type="checkbox" id="impSec" ${IMP.sections ? 'checked' : ''}> A row with just one thing in it (like “FRONT OFFICE”) is a section heading</label>`
       : html`<p>Found <b>${IMP.blocks.length}</b> ${IMP.blocks.length === 1 ? 'login' : 'logins'} in the document (blocks with a username or password; other text is left out).</p>
-        <ul class="plain small">${IMP.blocks.slice(0, 12).map(b => html`<li><b>${b.t}</b>${b.u ? html` · ${b.u}` : ''}${b.p ? ' · ••••' : html` · <span class="muted">no password</span>`}${b.url ? html` · <span class="muted">${hostOf(b.url)}</span>` : ''}${b.fx.length ? html` · <span class="muted">+${b.fx.length} field${b.fx.length > 1 ? 's' : ''}</span>` : ''}</li>`)}</ul>
+        <ul class="plain small">${IMP.blocks.slice(0, 12).map(b => html`<li><b>${b.t}</b>${b.ds ? html` <span class="muted">— ${b.ds}</span>` : ''}${b.u ? html` · ${b.u}` : ''}${b.p ? ' · ••••' : html` · <span class="muted">no password</span>`}${b.url ? html` · <span class="muted">${hostOf(b.url)}</span>` : ''}${b.fx.length ? html` · <span class="muted">+${b.fx.length} field${b.fx.length > 1 ? 's' : ''}</span>` : ''}</li>`)}</ul>
         ${IMP.blocks.length > 12 ? html`<p class="muted small">…and ${IMP.blocks.length - 12} more.</p>` : ''}
         <p class="muted small">If a login is missing, check it has a line like “Username: …” or “Password: …”. You can always add or fix logins by hand afterwards.</p>`}
     </section>
@@ -171,7 +171,7 @@ async function runImport() {
       for (let i = 0; i < 50 && !(V.folders.get(fid) && V.folders.get(fid).keys.get(1)); i++) await new Promise(r => setTimeout(r, 100));
     }
     const list = rows.map(r => {
-      const it = r.it, d = { t: it.t, url: it.url || '', u: it.u || '', p: it.p || '', n: it.n || '', totp: it.totp || '', fx: it.fx || [] };
+      const it = r.it, d = { t: it.t, ds: it.ds || '', url: it.url || '', u: it.u || '', p: it.p || '', n: it.n || '', totp: it.totp || '', fx: it.fx || [], rep: it.rep || { n: '', ph: '', em: '' }, ml: !!it.ml };
       return { fid: made.get(r.fid) || r.fid, d };
     });
     const n = await S.addItems(list, (done, total) => prog('Encrypting and saving ' + done + ' of ' + total + '…'));
