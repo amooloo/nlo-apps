@@ -166,6 +166,17 @@ const has = cmd => { try { execFileSync('which', [cmd], { stdio: 'ignore' }); re
   await p.hover('#rxArchBox'); cd = await card('exp'); check(cd.name === 'Hyrax RPE' && !cd.peek, '… moving away goes back to the picked expander');
   check(await p.evaluate(() => ['exp', 'dist', 'hold', 'other', 'acc'].every(g => RXK[RX_MET].infoKeys(g).every(k => RXM_INFO[g][k] && RXM_INFO[g][k].sum && (RXM_INFO[g][k].src || []).every(x => RXM_SRC[x])) && (RXK[RX_MET].cmpKeys(g) || []).every(k => RXM_INFO[g][k].short))),
     'every option on the form has its explanation, its sources and (where compared) a one-line summary');
+  // each appliance links to its photo on Specialty's site (Amir: "can you link each appliance to it's photo on speciality lab")
+  const ph = await p.evaluate(() => { const a = document.querySelector('#rxWrap .rxInfoCard[data-info=exp] .rxIc.on .rxIcPh');
+    const appl = ['exp', 'dist', 'hold', 'other'].flatMap(g => RXK[RX_MET].infoKeys(g).map(k => [g, k]));
+    return { href: a && a.getAttribute('href'), tgt: a && a.target, rel: a && a.rel, txt: a && a.textContent,
+      without: appl.filter(([g, k]) => !RXM_INFO[g][k].photo).map(([, k]) => k).join(), all: appl.filter(([g, k]) => RXM_INFO[g][k].photo).every(([g, k]) => /^https:\/\/specialtyappliances\.com\/wp-content\/uploads\/2023\/12\/[\w.-]+\.(png|jpg)$/.test(RXM_INFO[g][k].photo)),
+      acc: RXK[RX_MET].infoKeys('acc').some(k => RXM_INFO.acc[k].photo) }; });
+  check(ph.href === 'https://specialtyappliances.com/wp-content/uploads/2023/12/Upper-RPE-1.png' && ph.tgt === '_blank' && /noopener/.test(ph.rel) && ph.txt === 'Photo', 'the Hyrax’s card links to its photo on Specialty’s site (new tab)');
+  check(ph.all && ph.without === 'halterman,ipc,fbp,tandem,spurs' && !ph.acc, 'every appliance Specialty shows has its photo link; the Halterman, IPC, spurs, fixed bite plane and Tandem (none on their site) and the accessories have none');
+  await p.click('#rxWrap [data-rxa=cmp][data-g=exp]');
+  check(await p.evaluate(() => document.querySelectorAll('#rxWrap .rxCmpBox[data-cmp=exp] .rxCmpRow .rxCmpPh[target=_blank]').length) === 10, 'Compare all: a photo link on each of the 10 expanders');
+  await p.click('#rxWrap [data-rxa=cmp][data-g=exp]');
   await p.click('#rxWrap [data-rxa=cmp][data-g=exp]');
   const cmp = await p.evaluate(() => Array.from(document.querySelectorAll('#rxWrap .rxCmpBox[data-cmp=exp] .rxCmpRow')).map(r => r.querySelector('b').textContent + '|' + r.querySelector('em').textContent));
   check(cmp.length === 10 && cmp[0] === 'Hyrax RPE|$109.00' && cmp[3] === 'DeLuke Contoured RPE|not on list' && cmp[9] === 'MSE (TAD-supported)|$489.50', 'Compare all: the 9 expanders and the MSE side by side with their prices');
@@ -303,13 +314,22 @@ const has = cmd => { try { execFileSync('which', [cmd], { stdio: 'ignore' }); re
   await unfold('hold'); await tap('hold', 'tpa'); await tap('hold', 'tpa'); await unfold('hold'); st = await rxNow();
   check(st.teeth.UR6 === 'band' && st.teeth.UL6 === 'band' && !st.hold, 'bands put on by hand stay when a TPA (which wants them) is picked and taken off again');
   await tooth('UR6'); await tooth('UL6'); check(!(await rxNow()).teeth, '(taken off again by hand)');
-  await unfold('dist'); await tap('distR', 'pendulum'); st = await rxNow();
+  await unfold('dist');
+  // the ones we don't use are greyed out, saying so (Amir: "we don't use pendex, t-rex, MDA or xbow, gray all of them out")
+  const dOff = await p.evaluate(() => {
+    const row = v => document.querySelector('#rxWrap .rxUL[data-rxinfo="dist:' + v + '"]'), btn = (g, v) => document.querySelector('#rxWrap .rxB[data-rxg=' + g + '][data-v=' + v + ']');
+    return { off: ['pendex', 'trex', 'mda'].every(v => ['distR', 'distL'].every(g => btn(g, v).getAttribute('aria-disabled') === 'true') && row(v).classList.contains('off') && row(v).querySelector('.rxULn em').textContent === 'not used'),
+      tip: btn('distL', 'trex').title, others: ['pendulum', 'phd', 'rmd', 'hsjet', 'djet', 'halterman', 'ipc'].every(v => !row(v).classList.contains('off') && !btn('distR', v).getAttribute('aria-disabled')) }; });
+  check(dOff.off && dOff.tip === 'We don’t use the T-Rex.' && dOff.others, 'Pendex, T-Rex and MDA are greyed out, row and all (“not used”; “We don’t use the T-Rex.”); the other distalizers aren’t');
+  await clearToasts(); await p.click('#rxWrap .rxB[data-rxg=distL][data-v=trex]', { force: true });
+  check(await toastHas(/We don’t use the T-Rex/) && !(await rxNow()).distL, '… tapping one says so and picks nothing');
+  await tap('distR', 'pendulum'); st = await rxNow();
   check(st.distR === 'pendulum' && JSON.stringify(st.teeth) === '{"UR6":"band"}' && JSON.stringify(st.occl) === '["UR5","UR4","UL4","UL5"]' && near(await est(), 186.75), 'Pendulum · right: a band on UR6, occlusal rests on the 4s and 5s (the Nance’s anchorage): $169 + $17.75');
   await tap('distL', 'pendulum'); e = await estOf();
   check(e.lines[0] === 'Pendulum Original · right & left = 169' && near(e.total, 204.5) && (await fold('dist')).open, '… and left: one appliance, “Pendulum Original · right & left”, $169 + 2 bands');
-  await tap('distL', 'trex'); e = await estOf();
-  check(e.lines.some(l => /^T-Rex · left = 217/.test(l)) && near(e.total, 462) && !(await on('distL', 'pendulum')) && await on('distL', 'trex') && (await rxNow()).printed3d === true,
-    'left changed to T-Rex: one choice per side, $217 — an expander too (its screw), so the bands go 3D printed: $169 + $217 + 2 × $38 = $462.00');
+  await tap('distL', 'phd'); e = await estOf();
+  check(e.missing.includes('PHD Appliance · left') && near(e.total, 245) && !(await on('distL', 'pendulum')) && await on('distL', 'phd') && (await rxNow()).printed3d === true,
+    'left changed to the PHD: one choice per side (not on the list) — an expander too (its screw), so the bands go 3D printed: $169 + 2 × $38 = $245.00');
   await tap('distL', 'halterman'); st = await rxNow(); e = await estOf();
   check(st.teeth.UL5 === 'band' && !st.teeth.UL6 && e.missing.includes('Halterman Appliance · left') && (st.occl || []).length === 4, 'left changed to a Halterman: its band on the second primary molar (UL5), the UL6 band off; not on the list');
   await tap('distR', 'pendulum'); st = await rxNow();
@@ -321,21 +341,28 @@ const has = cmd => { try { execFileSync('which', [cmd], { stdio: 'ignore' }); re
   check((await fold('dist')).sum === '', '(open: no summary on its heading)');
   await unfold('dist'); check((await fold('dist')).sum === 'Rapid Molar Distalizer, right · Halterman Appliance, left', 'folded: “Rapid Molar Distalizer, right · Halterman Appliance, left”');
   // other appliances
-  await unfold('other'); await tap('other', 'xbow');
-  check(await shown('#rxWrap .rxSub[data-show=xbow]') && (await rxNow()).teeth.LR6 === 'band', 'Xbow: its Gurin locks choice shows; the lower first molars banded too');
-  await tap('flag', 'gurin'); e = await estOf();
-  check(e.lines.some(l => /^Xbow with 2 Gurin locks = 386\.5/.test(l)) && /Xbow with 2 Gurin locks\./.test(await p.textContent('#rxAutoNotes')), '… with 2 Gurin locks: the list’s $386.50, and the special instructions say so');
+  await unfold('other');
+  check(await p.getAttribute('#rxWrap .rxB[data-rxg=other][data-v=xbow]', 'aria-disabled') === 'true' && await p.textContent('#rxWrap .rxB[data-rxg=other][data-v=xbow] em') === 'not used' && !(await p.getAttribute('#rxWrap .rxB[data-rxg=other][data-v=tandem]', 'aria-disabled')),
+    'the Xbow is greyed out too (“not used”); the Tandem isn’t');
+  await clearToasts(); await p.click('#rxWrap .rxB[data-rxg=other][data-v=xbow]', { force: true });
+  check(await toastHas(/We don’t use the Xbow/) && !((await rxNow()).other || []).includes('xbow'), '… tapping it says so');
+  // an Rx that already has one (saved before) keeps it tappable, so it can be taken off
+  await p.evaluate(() => { RXE.rx.other = ['xbow']; RXE.rx.gurin = true; rxSync(); });
+  check(!(await p.getAttribute('#rxWrap .rxB[data-rxg=other][data-v=xbow]', 'aria-disabled')) && await on('other', 'xbow') && await on('flag', 'gurin') && /Xbow with 2 Gurin locks\./.test(await p.textContent('#rxAutoNotes')),
+    'an Rx that already has the Xbow (with its Gurin locks): it stays tappable, picked');
+  await tap('other', 'xbow');
+  check(!((await rxNow()).other || []).includes('xbow') && await p.getAttribute('#rxWrap .rxB[data-rxg=other][data-v=xbow]', 'aria-disabled') === 'true', '… taken off: greyed out again');
   await tap('other', 'habit'); await tap('habit', 'bluegrass');
   check(await shown('#rxWrap .rxSub[data-show=habit]') && (await estOf()).lines.some(l => /^Bluegrass appliance = 140\.5/.test(l)), 'Habit · Bluegrass: the list’s Bluegrass Appliance ($140.50)');
   await tap('habit', 'bluegrass'); await tap('habit', 'crib');
   check((await estOf()).lines.some(l => /^Habit appliance \(crib\) = 103/.test(l)), 'Habit · Crib: the Habit Appliance ($103.00)');
   // spaces: next to an appliance's band, side by side, two at once
   await tool('sm'); await tooth('UR6'); st = await rxNow();
-  check((st.sm || []).includes('UR6') && st.teeth.UR7 === 'band' && !st.teeth.UR6, 'a space at UR6 (banded for the RMD and Xbow): the band goes behind it, on UR7');
+  check((st.sm || []).includes('UR6') && st.teeth.UR7 === 'band' && !st.teeth.UR6, 'a space at UR6 (banded for the RMD): the band goes behind it, on UR7');
   await clearToasts(); await tooth('UR5');
   check(await toastHas(/UR6 is a space too/) && !(await rxNow()).sm.includes('UR5'), 'UR5 as a space too: not taken — UR6 behind it is a space (two missing side by side go in the special instructions)');
   await tooth('UR6'); st = await rxNow();
-  check(!st.sm && st.teeth.UR6 === 'band' && !st.teeth.UR7, '… the UR6 space taken off: its band (the RMD’s and Xbow’s) is back, UR7’s goes');
+  check(!st.sm && st.teeth.UR6 === 'band' && !st.teeth.UR7, '… the UR6 space taken off: its band (the RMD’s) is back, UR7’s goes');
   await tooth('LL5'); await clearToasts(); await tooth('LL6');
   check(await toastHas(/LL6 has the band for the LL5 space/) && JSON.stringify((await rxNow()).sm) === '["LL5"]', 'LL6 as a space while it holds the LL5 space’s band: not taken');
   await tooth('LR5');

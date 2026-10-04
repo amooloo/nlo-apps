@@ -561,9 +561,12 @@ function rxInfoPic(it, cls) {
 }
 /* a clasp's drawing (buccal and occlusal views, rxdraw.js) under its card's text */
 const rxInfoDraw = it => it && it.draw && typeof RX_CLASP_DRAW !== 'undefined' && RX_CLASP_DRAW[it.draw] ? '<div class="rxIcDraw">' + RX_CLASP_DRAW[it.draw] + '</div>' : '';
+/* an option's photo on the lab's own site (its `photo`): a link that opens it in a new tab (Amir, 4 Oct 2026: "can you link each
+   appliance to it's photo on speciality lab") */
+function rxPhotoLink(it, cls) { return it && it.photo ? '<a class="' + cls + '" href="' + esc(it.photo) + '" target="_blank" rel="noopener noreferrer" title="Specialty’s photo of it (opens their site)">' + ic('ext', 12) + 'Photo</a>' : ''; }
 function rxInfoBody(g, v) {
   const K = RXE.k, it = K.info[g][v], tag = rxInfoTag(g, v);
-  return rxInfoPic(it, 'rxIcPic') + '<div class="rxIcHd"><b>' + esc(rxInfoName(g, v)) + '</b>' + (K.status ? rxStBadge(g, v) : '') + (tag ? '<em>' + esc(tag) + '</em>' : '') + '</div>' +
+  return rxInfoPic(it, 'rxIcPic') + '<div class="rxIcHd"><b>' + esc(rxInfoName(g, v)) + '</b>' + (K.status ? rxStBadge(g, v) : '') + (tag ? '<em>' + esc(tag) + '</em>' : '') + rxPhotoLink(it, 'rxIcPh') + '</div>' +
     (K.status ? '<div class="rxIcSt" data-stw="' + esc(g + ':' + v) + '" hidden></div>' : '') + '<p>' + esc(it.sum) + '</p>' +
     (it.pts ? '<ul>' + it.pts.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>' : '') + (it.note ? '<div class="rxIcNote">' + esc(it.note) + '</div>' : '') + rxInfoDraw(it) +
     (it.src ? '<div class="rxIcSrc">' + it.src.map(k => '<a href="' + esc(K.src[k][1]) + '" target="_blank" rel="noopener noreferrer">' + esc(K.src[k][0]) + '</a>').join(' · ') + '</div>' : '');
@@ -592,7 +595,7 @@ function rxInfoHover(e) {
 }
 function rxCmpHTML(g) {
   return '<div class="rxCmp">' + RXE.k.cmpKeys(g).map(k =>
-    '<div class="rxCmpRow"><div class="rxCmpN"><b>' + esc(rxInfoName(g, k)) + '</b>' + rxInfoPic(RXE.k.info[g][k], 'rxCmpPic') + '</div><span>' + esc(RXE.k.info[g][k].short) + '</span><em>' + esc(rxInfoTag(g, k)) + '</em></div>').join('') + '</div>';
+    '<div class="rxCmpRow"><div class="rxCmpN"><b>' + esc(rxInfoName(g, k)) + '</b>' + rxPhotoLink(RXE.k.info[g][k], 'rxCmpPh') + rxInfoPic(RXE.k.info[g][k], 'rxCmpPic') + '</div><span>' + esc(RXE.k.info[g][k].short) + '</span><em>' + esc(rxInfoTag(g, k)) + '</em></div>').join('') + '</div>';
 }
 /* a section with Compare all on its heading (when the form has a comparison for it) and the card under its choices. With `fold`
    (true: open, false: folded) it folds away under its heading, which opens it (the Retainer Rx's fixed and invisible retainers,

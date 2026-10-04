@@ -945,6 +945,10 @@ body.phOff .pav,body.phOff .dPh,body.phOff .phSlot,body.phOff .phTgl,body.phOff 
 .rxIcHd{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:3px}
 .rxIcHd b{color:var(--navy);font-size:13px}
 .rxIcHd em{font-style:normal;font-size:11px;font-weight:600;color:var(--grey-600);background:#fff;border:1px solid var(--grey-200);border-radius:99px;padding:0 8px}
+/* an option's photo on the lab's site (a link, new tab) */
+.rxIcPh,.rxCmpPh{display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:700;color:var(--blue);background:#fff;border:1px solid var(--blue-100);border-radius:99px;padding:0 8px;line-height:18px;text-decoration:none;white-space:nowrap}
+.rxIcPh:hover,.rxCmpPh:hover{background:var(--blue-100)}
+.rxCmpPh{margin-left:6px;vertical-align:1px}
 .rxIcNote{font-size:11.5px;color:var(--amber-700);margin:2px 0}
 .rxIcSrc{font-size:11px;color:var(--grey-500);margin-top:3px}
 .rxIcSrc a{color:var(--blue)}
@@ -1057,6 +1061,7 @@ svg.rxArch{display:block;width:100%;height:auto}
 .rxUL{padding:3px 0;border-bottom:1px dashed var(--grey-100)}
 .rxULn{font-size:12.5px;font-weight:600;color:var(--grey-700);display:flex;flex-wrap:wrap;align-items:center;gap:3px 8px;min-width:0;line-height:1.25}
 .rxULn em{font-style:normal;font-size:11px;font-weight:600;color:var(--grey-500);background:var(--grey-100);border-radius:99px;padding:1px 7px;white-space:nowrap}
+.rxUL.off .rxULn{opacity:.45} /* a row whose choices are all greyed out (the Metal Rx's distalizers we don't use) */
 .rxB.rxU{justify-content:center;padding:3px 0;min-height:30px;width:44px;border-radius:10px}
 .rxB.rxU[aria-pressed="true"]::before,.rxB.rxRs[aria-pressed="true"]::before{content:none}
 .rxULx,.rxULx.rxSub{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:1px 0 3px}

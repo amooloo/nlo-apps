@@ -66,6 +66,14 @@ function rxmStd(rx) {
    (Pendex, T-Rex, PHD, MDA) and the appliances that carry an upper expander (Xbow, Tandem) */
 const RXM_DIST_EXP = ['pendex', 'trex', 'phd', 'mda'];
 const rxmHasExp = rx => !!((rx.exp || []).length || rx.mse || RXM_DIST_EXP.includes(rx.distR) || RXM_DIST_EXP.includes(rx.distL) || (rx.other || []).some(k => k === 'xbow' || k === 'tandem'));
+/* what the office doesn't use (Amir, 4 Oct 2026: "we don't use pendex, t-rex, MDA or xbow, gray all of them out"): greyed out, saying
+   so; an Rx that already has one keeps it tappable, so it can be taken off */
+const RXM_UNUSED = { pendex: 'the Pendex', trex: 'the T-Rex', mda: 'the MDA', xbow: 'the Xbow' };
+function rxmOff(g, v, rx) {
+  if ((g === 'distR' || g === 'distL') && RXM_UNUSED[v] && rx[g] !== v) return 'We don’t use ' + RXM_UNUSED[v] + '.';
+  if (g === 'other' && v === 'xbow' && !(rx.other || []).includes(v)) return 'We don’t use ' + RXM_UNUSED[v] + '.';
+  return '';
+}
 
 /* ---------- what each option is (point at it, tab to it or tap it; Compare all) — from Specialty's own pages unless a note says
    otherwise (Specialty has no page for some: the card names its source) ---------- */
@@ -234,6 +242,19 @@ const RXM_INFO = {
       pts: ['Glitter, glow and swirl cost extra; the Haas takes standard colors only.'], src: ['color'] }
   }
 };
+/* each appliance's photo on Specialty's site (their product page's main picture; research 4 Oct 2026 — Amir: "can you link each
+   appliance to it's photo on speciality lab"). Specialty has none for the Halterman, IPC, habit spurs, fixed bite plane or Tandem
+   (the acrylic bonded RPE's is from their Ordont sister lab's page, on Specialty's own server) */
+const RXM_PHOTO_AT = 'https://specialtyappliances.com/wp-content/uploads/2023/12/';
+const RXM_PHOTO = {
+  hyrax: 'Upper-RPE-1.png', haas: 'Haas.png', acrylic: 'Bonded-RPE.png', deluke: 'DeLuke-4.png', exspider: 'Exspider-1.png', lowerFixed: 'Lower-Fixed.png',
+  qh: 'Quad-Helix-Blue-BG-Cropped-3.jpg', earch: 'E-Arch-1.png', warch: 'W-Arch-1.png', mse: 'MSE.png',
+  pendulum: 'Pendulum.png', pendex: 'Pendex.png', trex: 'T-Rex.png', phd: 'PHD-Blue-BG-Cropped-3-e1743780205810.jpg', mda: 'MDA-Blue-BG-Cropped-3-e1743771635918.jpg',
+  rmd: 'Rapid-Molar-Distalizer-Blue-BG-Cropped-3.jpg', hsjet: 'Horseshoe-Jet-1-2.png', djet: 'Distal-Jet-.png',
+  tpa: 'TPA.png', lla: 'Lower-Lingual-Arch-1.png', nance: 'Upper-Nance.png', sm: 'Space-Maintainer-1.png',
+  habit: 'Tongue-Guard.png', crib: 'Basic-Tongue-Guard_Vertical-Habit-Crib.jpg', bluegrass: 'Bluegrass.png', xbow: 'Xbow-Blue-BG-Cropped-4.jpg'
+};
+Object.keys(RXM_INFO).forEach(g => Object.keys(RXM_INFO[g]).forEach(k => { if (RXM_PHOTO[k]) RXM_INFO[g][k].photo = RXM_PHOTO_AT + RXM_PHOTO[k]; }));
 
 /* ---------- prices: Specialty's price list MKT-41 (Rev 01-26, updated 1-27-26): metals (expanders, distalizers, other designs,
    custom design options); the MSE and Horseshoe Jet from its TAD appliances. Bands, crowns, 3D printing, the TPA and the quad helix
@@ -608,10 +629,10 @@ function rxmSecs(rx) {
       '<div class="rxBs">' + rxBtn('flag', 'mse', 'MSE (TAD-supported)', rx.mse, tag('mse')) + '<span class="rxSub" data-show="mse"><span class="rxLbl">Screw</span>' + RXM_MM.map(m => rxBtn('mseMm', m, m + ' mm', rx.mseMm === m)).join('') + '</span></div>' +
       '<div class="rxRow">' + rxField('screw', 'Screw type', 'text', ' maxlength="40" placeholder="e.g. Click screw, 12 mm"') + '</div>' +
       '<div class="small muted">One upper expander at a time (the lower fixed expander goes with any). Our expanders get 3D printed bands.</div>') +
-    rxInfoSec('dist', 'Distalization', '<div class="rxULh"><span></span><span>Right</span><span>Left</span></div>' + RXM_O.dist.map(([k, l]) => rxmRow('dist', k, l, tag(P[k]))).join(''), '', !!rxmFoldSum('dist', rx)) +
+    rxInfoSec('dist', 'Distalization', '<div class="rxULh"><span></span><span>Right</span><span>Left</span></div>' + RXM_O.dist.map(([k, l]) => rxmRow('dist', k, l, RXM_UNUSED[k] ? 'not used' : tag(P[k]))).join(''), '', !!rxmFoldSum('dist', rx)) +
     rxInfoSec('hold', 'Holding', '<div class="rxBs">' + RXM_O.hold.map(([k, l]) => rxBtn('hold', k, l, (rx.hold || []).includes(k), tag(P[k]))).join('') + '</div>' +
       '<div class="rxSub" data-show="sm"><div class="small muted">Tap the space on the arches with Space maintainer (the band goes on the tooth behind it).</div><div class="rxRow">' + rxField('smTxt', 'More about it', 'text', ' maxlength="40"') + '</div></div>', '', !!rxmFoldSum('hold', rx)) +
-    rxInfoSec('other', 'Other appliances', '<div class="rxBs">' + RXM_O.other.map(([k, l]) => rxBtn('other', k, l, (rx.other || []).includes(k), tag(k === 'habit' ? 'habitApp' : P[k]))).join('') + '</div>' +
+    rxInfoSec('other', 'Other appliances', '<div class="rxBs">' + RXM_O.other.map(([k, l]) => rxBtn('other', k, l, (rx.other || []).includes(k), RXM_UNUSED[k] ? 'not used' : tag(k === 'habit' ? 'habitApp' : P[k]))).join('') + '</div>' +
       '<div class="rxBs rxSub" data-show="habit"><span class="rxLbl">Habit</span>' + RXM_O.habit.map(([k, l]) => rxBtn('habit', k, l, (rx.habit || []).includes(k), k === 'bluegrass' ? tag('bluegrass') : '')).join('') + '</div>' +
       '<div class="rxBs rxSub" data-show="xbow">' + rxBtn('flag', 'gurin', 'With 2 Gurin locks', rx.gurin, tag('xbowGurin')) + '</div>', '', !!rxmFoldSum('other', rx)) +
     rxSec('Anchorage', '<div class="small muted" style="margin-bottom:6px">Picking an appliance puts Specialty’s standard bands on; tap the teeth to change them (4s to 7s, as on Specialty’s chart).</div><div class="rxBs">' +
@@ -698,13 +719,17 @@ RXK[RX_MET] = {
   after: (g, v, on, prev, rx) => { if (g === 'acc' && v === 'fm' && !on) rx.fmTxt = '';
     if (g === 'flag' && on && v === 'enclosed') rx.printed3d = ''; if (g === 'flag' && on && v === 'printed3d') rx.enclosed = ''; },
   // the anchorage prices follow the 3D printed switch
-  syncMore: (w, rx) => $$('.rxB[data-rxg="tool"]', w).forEach(x => { const em = $('em', x); if (!em || ['onbrace', 'rest', 'sm'].includes(x.dataset.v)) return; em.textContent = rxTag(x.dataset.v === 'band' ? (rx.printed3d ? 'band3d' : 'band') : (rx.printed3d ? 'crown3d' : 'crown'), false, ' ea'); }),
+  syncMore: (w, rx) => { $$('.rxB[data-rxg="tool"]', w).forEach(x => { const em = $('em', x); if (!em || ['onbrace', 'rest', 'sm'].includes(x.dataset.v)) return; em.textContent = rxTag(x.dataset.v === 'band' ? (rx.printed3d ? 'band3d' : 'band') : (rx.printed3d ? 'crown3d' : 'crown'), false, ' ea'); });
+    // a distalizer we don't use: its whole row greys out, not just its Right / Left buttons
+    $$('.rxUL[data-rxinfo^="dist:"]', w).forEach(r => r.classList.toggle('off', $$('.rxB', r).every(b => b.getAttribute('aria-disabled') === 'true'))); },
+  off: rxmOff,
   leadDays: () => 10,
   info: RXM_INFO, src: RXM_SRC,
   infoKeys: g => ({ exp: RXM_K('exp').concat(['mse']), dist: RXM_K('dist'), hold: RXM_K('hold'), other: RXM_K('other').concat(['crib', 'spurs', 'bluegrass']), acc: ['awt'].concat(RXM_K('acc')) })[g] || [],
   infoName: (g, v) => rxmLbl(v),
   infoTag: (g, v) => { const P = RXM_PK;
     if (g === 'exp') return v === 'mse' ? rxTag('mse') : rxTag(P[v]);
+    if (RXM_UNUSED[v] && (g === 'dist' || g === 'other')) return 'not used';
     if (g === 'dist' || g === 'hold') return rxTag(P[v]);
     if (g === 'other') return v === 'habit' || v === 'crib' || v === 'spurs' ? rxTag('habitApp') : v === 'bluegrass' ? rxTag('bluegrass') : rxTag(P[v]);
     if (g === 'acc') return v === 'awt' ? rxTag('awtPr', false, '/pr') : ['debondHoles', 'vent', 'roc'].includes(v) ? 'free' : v === 'color' ? 'free · glitter ' + rxTag('glitter') : v === 'debondWires' ? rxTag('debondWires', false, '/pr') : v === 'sheath' ? rxTag('sheath', false, '/pr') : rxTag(P[v]);
