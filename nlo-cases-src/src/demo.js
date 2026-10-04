@@ -54,6 +54,12 @@ const DEMO = {
     Object.assign(mp[0], { records: ['stl'], lab: 'Partners Dental Solutions' });
     Object.assign(mp[1], { records: ['stl', 'cbct'], lab: 'Partners Dental Solutions', zoomDate: addDays(t, 2), zoomTime: '12:30' });
     Object.assign(mp[2], { records: ['stl', 'cbct'], lab: 'Partners Dental Solutions', zoomDate: addDays(t, -9), zoomTime: '13:00' });
+    // a Herbst going to Specialty with its Herbst Rx filled out (rx.js; made-up choices), and Dr. A's Rx details (made up)
+    const hb = all.find(c => c.type === 'appliance' && c.stage === 'submit');
+    if (hb) Object.assign(hb, { appliances: ['Herbst with Rollo Band'], detail: 'Herbst with Rollo Band', lab: LAB_SPEC, scanner: 'iTero',
+      rx: { form: 'specialty-herbst', design: 'standard', mech: 'm4', bite: 'e2e', wire: ['la'], awt: ['U'], awtU: '022',
+        teeth: { UR6: 'band', UL6: 'band', LR6: 'band', LR4: 'band', LL4: 'band', LL6: 'band' } } });
+    DEMO.settings.rxOffice = { acct: 'DEMO-0000', license: 'DN 00000 (demo)', licExp: '02/28', email: 'office@example.com' };
     // in-house sets past Export STLs: attachment templates answered (some with, some without)
     all.filter(c => c.type === 'nla' && stageIndex(c) >= FLOWS.inhouse.stages.findIndex(x => x[0] === 'fab')).forEach((c, i) => { c.atTemplates = ['UL', 'none', 'U'][i % 3]; });
     // one arch only: an in-house set for the upper arch, InSmile braces on the lower

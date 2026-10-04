@@ -41,7 +41,7 @@ function viewAdmin() {
     '</div><div class="small muted">Per aligner: materials for one aligner (sheet, printed model, packaging). Per set: anything paid once per case, such as a setup fee. Estimate = per set + aligners × per aligner.</div></div></div>';
   const deleted = '<div class="card" style="margin-top:18px"><div class="cardHd"><h3>Deleted cases</h3><span class="sub">Last 90 days</span><span style="flex:1"></span><button class="btn btn-ghost" data-act="loadDeleted">' + ic('refresh', 15) + 'Load</button></div><div class="cardBd" id="delBox"><div class="small muted">Deleted cases can be brought back. Click Load.</div></div></div>';
   const actv = '<div class="card" style="margin-top:18px"><div class="cardHd"><h3>Recent activity</h3><span class="sub">Last 7 days</span><span style="flex:1"></span><button class="btn btn-ghost" data-act="loadActivity">' + ic('refresh', 15) + 'Load</button></div><div class="cardBd" id="actBox"><div class="small muted">Shows who changed what. Click Load.</div></div></div>';
-  return rulesCardHTML() + '<div class="adminGrid"><div>' + team + defaults + alCostCard + '</div><div>' + sec + (S.rulesOld ? '' : mailAdminHTML()) + actv + deleted + '</div></div>';
+  return rulesCardHTML() + '<div class="adminGrid"><div>' + team + defaults + alCostCard + rxAdminCardHTML() + '</div><div>' + sec + (S.rulesOld ? '' : mailAdminHTML()) + actv + deleted + '</div></div>';
 }
 /* the live security rules are older than this version of the app: the owner pastes the new ones into the Firebase console
    (they ship inside the page, so they always match it; the owner's own sign-in email is filled in here) */

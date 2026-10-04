@@ -203,7 +203,7 @@ function submissionLabel(v) { return v === 'yes' ? 'Initial submission' : v === 
 /* fields added later save '' when empty (not [] or false), so older cases without them don't look edited */
 const FORM_KEYS = ['type', 'patient', 'chart', 'detail', 'stage', 'assignee', 'assistant', 'scanner', 'scanDate', 'labDate', 'deliveryDate', 'deliveryTime', 'aligners',
   'initial', 'appliances', 'lab', 'arches', 'retKinds', 'goals', 'instrPicks', 'instrOther', 'instructions', 'extras', 'teeth', 'cc', 'ipr', 'notes', 'titanUrl', 'alU', 'alL',
-  'shipToPatient', 'records', 'zoomDate', 'zoomTime', 'tracking', 'labRef', 'atTemplates', 'treatArch', 'txStart', 'txEnd', 'acrylic', 'glitter'];
+  'shipToPatient', 'records', 'zoomDate', 'zoomTime', 'tracking', 'labRef', 'atTemplates', 'treatArch', 'txStart', 'txEnd', 'acrylic', 'glitter', 'rx'];
 
 /* delivery time: every half hour, 7:00 AM to 7:00 PM (Amir, 2 Oct 2026: "30 mins increments are fine") */
 const HALF_HOURS = Array.from({ length: 25 }, (_, i) => { const m = 7 * 60 + i * 30; return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); });
@@ -457,7 +457,8 @@ function caseFormHTML(c, isNew) {
         ACRYLIC.map(x => '<button type="button" class="pick acr" data-v="' + esc(x.v) + '" aria-pressed="' + (c.acrylic === x.v) + '">' + acrylicSw(x.v) + esc(x.v) + '</button>').join('') + '</div>' +
         '<div class="pickRow" role="group" aria-label="Glitter" data-g="glitter" data-multi="1" style="margin-top:8px"><button type="button" class="pick sm" data-v="yes" aria-pressed="' + !!c.glitter + '">✦ Glitter</button></div></div>' +
       '</div>' +
-    '<h5>Lab</h5>' + labRowHTML(withSaved(PICK.labs, labName(c.lab)), labName(c.lab)) + '<div class="hint small" id="cf-labHint" style="margin-top:6px"></div></div>' +
+    '<h5>Lab</h5>' + labRowHTML(withSaved(PICK.labs, labName(c.lab)), labName(c.lab)) + '<div class="hint small" id="cf-labHint" style="margin-top:6px"></div>' +
+      rxFormSecHTML(c) + '</div>' + // Specialty's Herbst Rx (rx.js), filled out from here or later from the case
     // MARPE: the two records the lab needs, and the Zoom call once it's set up
     '<div class="cfSec"' + show('marpe') + '><h5>Records on file <span class="h5n">both have to be on file before it goes to the lab</span></h5>' +
       pickRow('records', MARPE_RECORDS.map(([v, l]) => ({ v, l })), c.records || [], true) +
@@ -586,6 +587,7 @@ function readCaseForm(root) {
   o.atTemplates = o.type === 'nla' ? atFor(pressed(root, 'atTemplates')[0] || '', o.treatArch) : '';
   o.alU = o.treatArch === 'L' ? '' : num('#cf-alU'); o.alL = o.treatArch === 'U' ? '' : num('#cf-alL'); o.aligners = (o.alU || 0) + (o.alL || 0) || '';
   o.instructions = goalText(o.goals).concat(o.instrPicks, o.instrOther ? [o.instrOther] : []).join('; ');
+  o.rx = rxFromForm(root, o); // Specialty's Herbst Rx: kept while a Herbst goes to Specialty ('' otherwise, see FORM_KEYS)
   return o;
 }
 /* what's being made, from the taps */
@@ -640,6 +642,7 @@ function wireCaseForm(root, isNew) {
     $$('.pickRow[data-g="instrPicks"] .pick', root).forEach(b => { if (ALIGNER_ONLY_INSTR.includes(b.dataset.v)) b.style.display = g === 'braces' ? 'none' : ''; });
     const tw = $r('#cf-titanWrap'); if (tw) tw.style.display = INHOUSE_TILES.includes(tile) ? '' : 'none';
     const hw = $r('#cf-hawleyWrap'); if (hw) hw.hidden = !(g === 'appliance' && o.appliances.includes(HAWLEY));
+    rxFormRefresh(root, o); // the Herbst Rx shows once a Herbst is going to Specialty
     $$('.pickRow[data-g="initial"] .pick[data-v="' + FIN + '"]', root).forEach(btn => { const on = INHOUSE_TILES.includes(tile); btn.style.display = on ? '' : 'none'; if (!on) btn.setAttribute('aria-pressed', 'false'); });
     const rk = $r('#cf-retKindsWrap'); if (rk) rk.style.display = tile === 'mouthguard' ? 'none' : '';
     syncDel(); syncTx();
@@ -684,6 +687,7 @@ function wireCaseForm(root, isNew) {
   ['cf-patient', 'cf-chart', 'cf-alU', 'cf-alL'].forEach(id => { const el = $r('#' + id); if (el) el.addEventListener('input', alTot); });
   ['cf-patient', 'cf-chart'].forEach(id => { const el = $r('#' + id); if (el) el.addEventListener('input', () => syncTx()); });
   root.addEventListener('click', e => {
+    if (rxFormClick(e, root)) return; // Fill out the Rx / PDF (rx.js)
     const tt = e.target.closest('.tt[data-tile]');
     if (tt && root.contains(tt)) { $$('.tt[data-tile]', root).forEach(b => b.setAttribute('aria-checked', String(b === tt))); $r('#cf-tile').value = tt.dataset.tile; refresh(true); return; }
     const pk = e.target.closest('.pickRow[data-g] .pick');
@@ -852,6 +856,7 @@ function newCaseModal() {
         try {
           await B.createCase(data, w._ph ? w._ph.bytes : null); closeModal();
           toast('Case created for ' + data.patient, { action: 'Copy chart note', ms: 12000, onAction: () => copyText(chartNote(data)).then(ok => toast(ok ? 'Chart note copied — paste it into the patient’s chart' : 'Couldn’t copy — open the case to copy its chart note', ok ? {} : { bad: true })) });
+          rxCreatedToast(data);
         }
         catch (x) { busyBtn($('#ncSave', w), false); err(errText(x)); }
       };

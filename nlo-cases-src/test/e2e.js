@@ -565,6 +565,49 @@ async function openByName(p, name) {
   check(await owner.isVisible('#ncForm'), 'a stray click outside the form does not throw it away');
   await owner.click('.modal [data-act=closeModal]');
 
+  console.log('\n# Herbst Rx for Specialty: Dr. A’s details once, filled out in New case, stored encrypted, the PDF for staff');
+  // Dr. A's details for every Rx (made up here) are office settings, not patient data; a live redraw can land on a box, so retry
+  const rxSet = async (sel, val, ok) => { for (let i = 0; i < 3; i++) { await owner.fill(sel, val); await owner.press(sel, 'Tab'); try { await owner.waitForFunction(ok, null, { timeout: 8000 }); return true; } catch (e) { console.log('   (retrying ' + sel + ')'); } } return false; };
+  await owner.click('#nav-today'); await owner.click('#nav-admin'); await owner.waitForSelector('#rxAdmin');
+  check(await rxSet('#rxo-acct', 'TEST-4471', () => ((S.settings || {}).rxOffice || {}).acct === 'TEST-4471')
+    && await rxSet('#rxo-license', 'DN 99999', () => ((S.settings || {}).rxOffice || {}).license === 'DN 99999'), 'Lab Rx: the Specialty account # and license # are saved');
+  check(await rxSet('[data-rxprice=band]', '18.25', () => JSON.parse((S.settings || {}).rxPrices || '{}').band === 18.25), 'Lab Rx: a price changed ($18.25 a band)');
+  const rxSt = (await fsDump()).find(d => d.name.endsWith('/meta/settings'));
+  check(rxSt && JSON.stringify(rxSt.fields.rxOffice || {}).includes('TEST-4471'), 'they live in the office settings (no patient data there)');
+  await owner.click('#nav-today'); await owner.click('.topBar [data-act=newCase]'); await owner.waitForSelector('#ncForm');
+  await owner.click('#ncForm .tt[data-tile=appliance]'); await owner.fill('#cf-patient', 'Hollis Herbstwick');
+  check(!(await owner.isVisible('#cf-rxSec')), 'no Herbst Rx before a Herbst is picked');
+  await tapAppl('Herbst with Rollo Band');
+  check(await owner.isVisible('#cf-rxSec') && await labNow() === 'Specialty Orthodontic Lab', 'Herbst with Rollo Band → Specialty: the Herbst Rx shows');
+  await owner.fill('#cf-deliveryDate', await owner.evaluate(() => addDays(todayISO(), 30)));
+  await owner.click('#ncForm [data-rxform=edit]'); await owner.waitForSelector('#rxWrap .rxArch.live');
+  for (const [g, v] of [['design', 'cantilever'], ['mech', 'm4']]) await owner.click('#rxWrap .rxB[data-rxg=' + g + '][data-v="' + v + '"]');
+  for (const id of ['UR6', 'UL6']) await owner.click('#rxArchBox .rxTooth[data-rxt=' + id + ']');
+  await owner.click('#rxWrap .rxB[data-rxg=tool][data-v=crown]');
+  for (const id of ['LR6', 'LL6']) await owner.click('#rxArchBox .rxTooth[data-rxt=' + id + ']');
+  await owner.fill('#rxWrap [data-rxf=notes]', 'secret-rx-note-5521');
+  check(/\$366\.50/.test(await owner.textContent('#rxTot')), 'estimate: $220.50 + $66.50 + 2 × $18.25 + 2 × $21.50 = $366.50 (with Dr. A’s band price)');
+  await owner.click('#rxWrap [data-rxa=done]'); await owner.waitForSelector('#rxWrap', { state: 'detached' });
+  check(/Cantilever Herbst · M4 MiniScope · 2 bands, 2 crowns/.test(await owner.textContent('#cf-rxSum')), 'the New case form shows the Rx’s summary');
+  await owner.click('#ncSave'); await owner.waitForSelector('#modalWrap', { state: 'detached', timeout: 20000 });
+  dump = JSON.stringify(await fsDump());
+  check(!dump.includes('secret-rx-note-5521') && !dump.includes('specialty-herbst') && !dump.includes('Herbstwick') && !dump.includes('cantilever'), 'the Rx is stored encrypted with the case (nothing about it readable in the database)');
+  await openByName(gwen, 'Hollis Herbstwick'); await gwen.waitForSelector('#drawer [data-ds=rx]', { timeout: 20000 });
+  check(/Cantilever Herbst/.test(await gwen.textContent('#drawer [data-ds=rx] .dsS')) && /\$366\.50/.test(await gwen.textContent('#drawer [data-ds=rx]')), 'Gwen sees the Herbst Rx and its estimate');
+  const [rxDl] = await Promise.all([gwen.waitForEvent('download'), gwen.click('#drawer [data-ds=rx] .pickRow [data-act=rxPdf]')]);
+  const rxPdf = fs.readFileSync(await rxDl.path()).toString('latin1');
+  check(rxDl.suggestedFilename().startsWith('Herbst Rx - Hollis Herbstwick - ') && rxPdf.startsWith('%PDF-') && rxPdf.includes('(TEST-4471)') && rxPdf.includes('(DN 99999)') && rxPdf.includes('(Hollis Herbstwick)'), 'Gwen downloads Specialty’s form filled in (account #, license #, patient)');
+  await gwen.click('#drawer [data-ds=rx] [data-act=rxEdit]'); await gwen.waitForSelector('#rxWrap');
+  check(!(await gwen.$('#rxWrap [data-rxa=saveDef]')), 'staff have no “Save as our usual Herbst”');
+  await gwen.click('#rxWrap .rxB[data-rxg=rests][data-v=U]'); await gwen.click('#rxWrap [data-rxa=done]');
+  await owner.waitForFunction(() => { const c = openCases().find(x => x.patient === 'Hollis Herbstwick'); return !!(c && c.rx && (c.rx.rests || []).includes('U')); }, null, { timeout: 20000 });
+  check(true, 'Gwen’s change to the Rx reaches Dr. A live');
+  await gwen.click('#drawer [data-act=closeDrawer] >> nth=0');
+  await owner.click('#nav-admin'); await owner.waitForSelector('#rxAdmin'); await owner.click('#rxAdmin [data-act=rxPricesReset]');
+  await owner.waitForFunction(() => rxPrices().band === 17.75, null, { timeout: 15000 });
+  check(true, 'prices back to Specialty’s list');
+  await owner.click('#nav-today');
+
   console.log('\n# InSmile: digital enhancements instead of refinements');
   await owner.click('.topBar [data-act=newCase]'); await owner.waitForSelector('#ncForm');
   await owner.click('#ncForm .tt[data-tile=insmile]'); await owner.fill('#cf-patient', 'Ines Smilewright');
