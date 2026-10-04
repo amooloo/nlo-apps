@@ -23,6 +23,9 @@ const has = cmd => { try { execFileSync('which', [cmd], { stdio: 'ignore' }); re
   const tooth = id => p.click('#rxArchBox .rxTooth[data-rxt=' + id + ']');
   const toastHas = re => p.evaluate(src => Array.from(document.querySelectorAll('.toast')).some(t => new RegExp(src).test(t.textContent)), re.source);
   const clearToasts = () => p.evaluate(() => document.querySelectorAll('.toast').forEach(t => t.remove()));
+  // Team & security draws itself again as the office roster and the mail state come in: wait until it has stayed put for 400 ms
+  const settled = sel => p.evaluate(sel => new Promise(res => { let el = document.querySelector(sel), t = Date.now(); const t0 = t;
+    const iv = setInterval(() => { const now = document.querySelector(sel); if (now !== el) { el = now; t = Date.now(); } else if (Date.now() - t > 400 || Date.now() - t0 > 5000) { clearInterval(iv); res(); } }, 40); }), sel);
   const newAppliance = async () => { await p.evaluate(() => { closeDrawer(true); const m = document.querySelector('#modalWrap'); if (m) m.remove(); }); await p.click('.topBar [data-act=newCase]'); await p.waitForSelector('#ncForm'); await p.click('#ncForm .tt[data-tile=appliance]'); await p.waitForTimeout(80); };
   const appl = v => p.click('#ncForm .pickRow[data-g=appliances] .pick[data-v="' + v + '"]');
   const rxShown = () => p.isVisible('#ncForm #cf-rxSec');
@@ -243,7 +246,7 @@ const has = cmd => { try { execFileSync('which', [cmd], { stdio: 'ignore' }); re
 
   // ---- Team & security → Lab Rx: Dr. A's details, prices, the usual Herbst
   await p.evaluate(() => closeDrawer(true));
-  await p.click('#nav-admin'); await p.waitForSelector('#rxAdmin');
+  await p.click('#nav-admin'); await p.waitForSelector('#rxAdmin'); await settled('#rxAdmin');
   check(await p.inputValue('#rxo-doctor') === 'Amir Akhavan, DMD, MS' && await p.inputValue('#rxo-address') === '320 NW 76th Drive', 'Lab Rx card: doctor and address filled in');
   await p.fill('#rxo-acct', 'DEMO-7777'); await p.press('#rxo-acct', 'Tab'); await p.waitForTimeout(200);
   check(await p.evaluate(() => S.settings.rxOffice.acct) === 'DEMO-7777', 'the account # saves (Team & security)');
@@ -251,7 +254,7 @@ const has = cmd => { try { execFileSync('which', [cmd], { stdio: 'ignore' }); re
   await p.fill('[data-rxprice=band]', '18.25'); await p.press('[data-rxprice=band]', 'Tab'); await p.waitForTimeout(200);
   check(JSON.parse(await p.evaluate(() => S.settings.rxPrices)).band === 18.25 && /\(list \$17\.75\)/.test(await p.textContent('#rxAdmin')), 'a price changed: $18.25, “(list $17.75)” next to it');
   await p.fill('[data-rxprice=shims]', '25'); await p.press('[data-rxprice=shims]', 'Tab'); await p.waitForTimeout(200);
-  await (await p.$('#rxAdmin')).screenshot({ path: OUT + '/v32-rx-admin.png' });
+  await settled('#rxAdmin'); await p.locator('#rxAdmin').screenshot({ path: OUT + '/v32-rx-admin.png' });
   const e2 = await p.evaluate(() => rxEstimate({ design: 'standard', shims: true, teeth: { UR6: 'band', UL6: 'band' } }));
   check(Math.abs(e2.total - (220.5 + 25 + 2 * 18.25)) < .001 && e2.lines.some(l => /Advancement shims/.test(l.l) && /your price/.test(l.note)) && e2.lines.some(l => /Bands/.test(l.l) && /list \$17\.75/.test(l.note)), 'the estimate uses them: shims at “your price”, bands at $18.25 (list $17.75)');
   const e3 = await p.evaluate(() => rxEstimate({ design: 'standard', mech: 'applecore', teeth: { UR6: 'onbrace' }, crownOpt: ['lugs'] }));
@@ -289,7 +292,7 @@ const has = cmd => { try { execFileSync('which', [cmd], { stdio: 'ignore' }); re
   await p.click('#ncForm [data-rxform=edit]'); await p.waitForSelector('#rxWrap');
   check((await rxNow()).mech === 'm4' && /Start from our usual Space Closing Herbst/.test(await p.textContent('#rxWrap .rxFt')), 'the Rx offers “Start from our usual Space Closing Herbst”');
   await p.click('#rxWrap [data-rxa=close]'); await p.evaluate(() => { const m = document.querySelector('#modalWrap'); if (m) m.remove(); });
-  await p.click('#nav-admin'); await p.waitForSelector('#rxAdmin');
+  await p.click('#nav-admin'); await p.waitForSelector('#rxAdmin'); await settled('#rxAdmin');
   const adm = await p.textContent('#rxAdmin');
   check(/Our usual Herbst\s*Cantilever Herbst · HTH Telescope/.test(adm) && /Our usual Space Closing Herbst\s*Space Closing Herbst · M4 MiniScope/.test(adm), 'Team & security shows the usual Herbst and the usual Space Closing Herbst, each on its own');
   await p.click('#rxAdmin [data-act=rxDefClear][data-slot="specialty-herbst:spaceclosing"]'); await p.waitForTimeout(200);

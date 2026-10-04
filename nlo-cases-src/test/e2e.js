@@ -632,6 +632,7 @@ async function openByName(p, name) {
   check(retDl.suggestedFilename().startsWith('Retainer Rx - Hazel Hawleywick - ') && retPdf.startsWith('%PDF-') && retPdf.includes('(TEST-4471)') && retPdf.includes('(Hazel Hawleywick)') && retPdf.includes('(Teal)'), 'Gwen downloads Specialty’s Retainer Rx filled in (account #, patient, acrylic color)');
   await gwen.click('#drawer [data-ds=rxRet] [data-act=rxEdit]'); await gwen.waitForSelector('#rxWrap');
   check(!(await gwen.$('#rxWrap [data-rxa=saveDef]')), 'staff have no “Save as our usual retainer”');
+  await gwen.click('#rxWrap .rxFold[data-fold=flr] .rxFoldB'); // (folded: the Rx has no bonded retainer yet)
   await gwen.click('#rxWrap .rxB[data-rxg=flrL][data-v=c3]'); await gwen.click('#rxWrap [data-rxa=done]');
   await owner.waitForFunction(() => { const c = openCases().find(x => x.patient === 'Hazel Hawleywick'); return !!(c && c.rxRet && c.rxRet.flrL === 'c3'); }, null, { timeout: 20000 });
   check(true, 'Gwen’s lower bonded retainer reaches Dr. A live');

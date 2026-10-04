@@ -580,6 +580,16 @@ function rxrStdClasps(rx, A, prev) {
 }
 
 /* ---------- the editor's left side ---------- */
+/* what the fixed or invisible retainers' section holds, for its heading when it's folded (they fold away until they're used,
+   Amir 4 Oct 2026); empty: nothing picked there, and the section starts folded */
+function rxrFoldSum(g, rx) {
+  const parts = [];
+  if (g === 'flr') RXR_ARCH.forEach(A => { const pl = rx['flr' + A], pads = rx['flrPads' + A], wi = rx['flrWire' + A]; if (!pl && !pads && !wi) return;
+    parts.push(rxrArchWord(A) + ' ' + (pl ? RXR_SPAN[pl] : '(placement not picked)') + (pads ? ', ' + RXR_PADS_S[pads] : '') + (wi ? ', ' + ({ r028: 'round .028', braided: 'braided .016 × .022', solid: 'solid SS .016 × .022' }[wi] || rxrLbl(wi, ['wire'])) : '')); });
+  if (g === 'ir') { const u = rx.irU, l = rx.irL, n = v => rxrLbl(v, ['ir']);
+    if (u && u === l) parts.push(n(u) + ', upper & lower'); else { if (u) parts.push(n(u) + ', upper'); if (l) parts.push(n(l) + ', lower'); } }
+  const s = parts.join(' · '); return s ? s[0].toUpperCase() + s.slice(1) : '';
+}
 const rxrInfoG = g => g === 'flrPads' || g === 'flrWire' ? 'flr' : g;
 /* a row of the form: the option, its price, then Upper / Lower (as the paper's U and L circles) */
 function rxrRow(g, v, label, tag, more, show) {
@@ -618,8 +628,8 @@ function rxrSecs(rx) {
       '<div class="rxUL" data-rxinfo="acr:color"><span class="rxULn">Acrylic Color <em>Specialty colors free · glitter ' + esc(tag('glitter')) + '</em></span><div class="rxULx rxCol2">' + rxField('colorU', 'Upper', 'text', ' maxlength="40" placeholder="—"') + rxField('colorL', 'Lower', 'text', ' maxlength="40" placeholder="—"') + '</div></div>') +
     rxInfoSec('flr', 'Fixed lingual retainers (FLR)', '<div class="rxULs">Placement of retainer</div>' + rxrHead() + RXR_O.flr.map(([k, l]) => rxrRow('flr', k, l, '')).join('') +
       '<div class="rxULs">Placement of pads <span class="h5n">composite on each tooth if none is picked (Specialty’s standard)</span></div>' + RXR_O.pads.map(([k, l]) => rxrRow('flrPads', k, l, padTag[k])).join('') +
-      '<div class="rxULs">Type of wire</div>' + RXR_O.wire.map(([k, l]) => rxrRow('flrWire', k, l, '')).join('') + '<div class="rxWarn small" id="rxFlrWarn" hidden></div>') +
-    rxInfoSec('ir', 'Invisible retainers', rxrHead() + RXR_O.ir.map(([k, l]) => rxrRow('ir', k, l, irTag(k))).join('') + '<div class="rxWarn small" id="rxIrWarn" hidden></div>');
+      '<div class="rxULs">Type of wire</div>' + RXR_O.wire.map(([k, l]) => rxrRow('flrWire', k, l, '')).join('') + '<div class="rxWarn small" id="rxFlrWarn" hidden></div>', '', !!rxrFoldSum('flr', rx)) +
+    rxInfoSec('ir', 'Invisible retainers', rxrHead() + RXR_O.ir.map(([k, l]) => rxrRow('ir', k, l, irTag(k))).join('') + '<div class="rxWarn small" id="rxIrWarn" hidden></div>', '', !!rxrFoldSum('ir', rx));
 }
 function rxrTeethSum(rx) {
   const t = rx.teeth || {}, by = {}; Object.keys(t).forEach(id => { (by[t[id]] = by[t[id]] || []).push(id); });
@@ -691,7 +701,7 @@ RXK[RX_RET] = {
     RXR_ARCH.forEach(A => { d['acc' + A] = (d['acc' + A] || []).filter(k => k !== 'finger' && k !== 'spurs'); d['acr' + A] = (d['acr' + A] || []).filter(k => k !== 'pontic'); }); },
   defKeep: (cur, next) => { const own = Object.entries(cur.teeth || {}).filter(([, k]) => !RXR_CLASPS.includes(k)); if (!own.length) return;
     next.teeth = Object.assign({}, next.teeth, Object.fromEntries(own)); },
-  secHTML: rxrSecs, teethSum: rxrTeethSum, tap: rxrTap, tappable: () => true, click: rxrClick, after: rxrAfter, syncMore: rxrWarn,
+  secHTML: rxrSecs, foldSum: rxrFoldSum, teethSum: rxrTeethSum, tap: rxrTap, tappable: () => true, click: rxrClick, after: rxrAfter, syncMore: rxrWarn,
   pressed: (g, v, rx) => /^clasp[UL]$/.test(g) ? Object.keys(rx.teeth || {}).some(id => id[0] === g.slice(-1) && rx.teeth[id] === v) : null,
   autoVal: { colorU: (c, rx) => rx.designU ? rxrCaseColor(c) : '', colorL: (c, rx) => rx.designL ? rxrCaseColor(c) : '' },
   toolsHTML: () => rxToolBtn('adams', 'Adams', 'Adams clasp on the tooth') + rxToolBtn('c', 'C-clasp', 'C-clasp on the tooth') + rxToolBtn('ball', 'Ball', 'Ball clasp behind the tooth') +

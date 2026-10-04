@@ -939,6 +939,18 @@ body.phOff .pav,body.phOff .dPh,body.phOff .phSlot,body.phOff .phTgl,body.phOff 
 @media (max-width:640px){.rxIcPic{float:none;width:max-content;max-width:100%;margin:0 0 8px}.rxIcPic img{max-width:100%}}
 .rxCmpBtn{margin-left:10px;font-family:var(--fb);font-size:11.5px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--blue);text-decoration:underline;text-underline-offset:2px}
 .rxCmpBox[hidden]{display:none}
+/* a section folded under its heading (the Retainer Rx's fixed and invisible retainers): the heading is the button */
+.rxFold h5{display:flex;align-items:center;margin:0}
+.rxFold.open h5{margin-bottom:8px}
+.rxFoldB{display:flex;align-items:center;flex:1;min-width:0;min-height:32px;margin:-4px -8px;padding:4px 8px;border-radius:8px;letter-spacing:inherit;text-transform:inherit;text-align:left}
+.rxFoldB:hover{background:var(--grey-50);color:var(--grey-700)}
+.rxFoldB:focus-visible{outline:2px solid var(--blue);outline-offset:1px}
+.rxFoldT{flex:none}
+.rxChev{flex:none;width:7px;height:7px;margin:0 10px 2px 1px;border-right:1.6px solid currentColor;border-bottom:1.6px solid currentColor;transform:rotate(-45deg);transition:transform .15s}
+.rxFold.open .rxChev{transform:rotate(45deg);margin-bottom:4px}
+.rxFoldSum{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rxFold .rxCmpBtn{flex:none;margin-left:14px}
+.rxFold .rxCmpBtn[hidden],.rxFoldBody[hidden]{display:none}
 .rxCmpBox{margin-bottom:8px}
 .rxCmp{margin-top:8px;border:1px solid var(--grey-200);border-radius:12px;overflow:hidden;background:#fff}
 .rxCmpRow{display:grid;grid-template-columns:170px 1fr auto;gap:10px;padding:7px 11px;font-size:12px;line-height:1.4;border-top:1px solid var(--grey-100);align-items:baseline}

@@ -29,6 +29,14 @@ const has = cmd => { try { execFileSync('which', [cmd], { stdio: 'ignore' }); re
   const retShown = () => p.isVisible('#ncForm #cf-rxRetSec');
   const pdfText = file => has('pdftotext') ? execFileSync('pdftotext', ['-layout', file, '-']).toString() : null;
   const near = (a, b) => Math.abs(a - b) < .001;
+  // the fixed lingual and invisible retainers fold under their headings (Amir, 4 Oct 2026: "for retainer, collaps invisible retainer and fixed lingual retainer")
+  const fold = g => p.evaluate(g => { const s = document.querySelector('#rxWrap .rxFold[data-fold=' + g + ']'), b = s.querySelector('.rxFoldB'), body = s.querySelector('.rxFoldBody'), cb = s.querySelector('.rxCmpBtn');
+    return { open: b.getAttribute('aria-expanded') === 'true' && s.classList.contains('open'), shown: !body.hidden && body.getBoundingClientRect().height > 0, cmp: !!cb && !cb.hidden && cb.getBoundingClientRect().width > 0,
+      sum: s.querySelector('.rxFoldSum').textContent, tip: b.title, h: Math.round(s.getBoundingClientRect().height) }; }, g);
+  const unfold = g => p.click('#rxWrap .rxFold[data-fold=' + g + '] .rxFoldB');
+  // Team & security draws itself again as the office roster and the mail state come in: wait until it has stayed put for 400 ms
+  const settled = sel => p.evaluate(sel => new Promise(res => { let el = document.querySelector(sel), t = Date.now(); const t0 = t;
+    const iv = setInterval(() => { const now = document.querySelector(sel); if (now !== el) { el = now; t = Date.now(); } else if (Date.now() - t > 400 || Date.now() - t0 > 5000) { clearInterval(iv); res(); } }, 40); }), sel);
 
   // ---- New case: Hawley retainers to Partners (the office routing) → a line about Specialty; to Specialty → the Retainer Rx
   await newAppliance();
@@ -50,6 +58,9 @@ const has = cmd => { try { execFileSync('which', [cmd], { stdio: 'ignore' }); re
   check(await p.inputValue('#rxWrap [data-rxf=needed]') === await p.evaluate(d => prevClinicDay(d), deliv) && !(await p.isVisible('#rxLead')), 'date needed: the office day before the delivery appt (30 days out: no rush warning)');
   check(near(await est(), 141) && /\$141\.00/.test(await p.textContent('#rxTot')), 'estimate: Hawley 2 × $61 + glitter 2 × $9.50 = $141.00 (the standard C-clasps come with the Hawley)');
   check(/C-clasps on the upper first molars/.test(await p.textContent('#rxCost')) && /With the Hawley/.test(await p.textContent('#rxCost')), '… the C-clasps listed as coming with the Hawley');
+  let fl = await fold('flr'), ir = await fold('ir');
+  check(!fl.open && !fl.shown && !fl.cmp && !fl.sum && !ir.open && !ir.shown && !ir.cmp && !ir.sum && fl.h < 60 && ir.h < 60, 'the Fixed lingual retainers and Invisible retainers start folded: just their headings (' + fl.h + ' and ' + ir.h + ' px), no Compare all');
+  check(await p.evaluate(() => ['flr', 'ir'].every(g => { const b = document.querySelector('#rxWrap .rxFold[data-fold=' + g + '] .rxFoldB'); return b.tagName === 'BUTTON' && b.getAttribute('aria-controls') === 'rxFold-' + g && !!document.getElementById('rxFold-' + g); })), '… each heading is a button that says it opens its section');
   check(/\$61\.00/.test(await p.textContent('#rxWrap .rxUL[data-rxinfo="design:hawley"]')) && /not on list/.test(await p.textContent('#rxWrap .rxUL[data-rxinfo="design:tremont"]')) && /\$76\.25/.test(await p.textContent('#rxWrap .rxUL[data-rxinfo="design:flatHawley"]')), 'each design shows its price (Hawley $61.00; Flat Bow Hawley $76.25 with the flat bow wire; Tremont not on the list)');
 
   // clasps: Upper / Lower puts them on the first molars; tools put them anywhere
@@ -77,17 +88,28 @@ const has = cmd => { try { execFileSync('which', [cmd], { stdio: 'ignore' }); re
   await tap('resetHow', 'none'); await tap('reset', 'UR1'); await tap('resetHow', 'ideal');
   check(near(await est(), 263.75) && await on('resetHow', 'ideal'), 'reset UR1 ideally again: $13.75 (→ $263.75)');
   // a fixed lingual retainer and clear retainers
+  await unfold('flr'); fl = await fold('flr');
+  check(fl.open && fl.shown && fl.cmp && !fl.sum && !(await fold('ir')).open, 'tapping Fixed lingual retainers opens it, with its Compare all (the invisible retainers stay folded)');
   await tap('flrL', 'c3');
   check(near(await est(), 347.75) && /Fixed lingual retainer · lower 3–3, composite pads on each tooth/.test(await p.textContent('#rxCost')) && /Specialty’s standard pads/.test(await p.textContent('#rxCost')), 'lower FLR cuspid to cuspid: Specialty’s standard composite pads on each tooth, the list’s 6 Pads $84 (→ $347.75)');
   await tap('flrPadsL', 'meshEach'); await tap('flrWireL', 'braided');
   check(await p.isVisible('#rxFlrWarn') && /braided/.test(await p.textContent('#rxFlrWarn')), 'mesh pads with braided wire: Specialty can’t — it says so');
   await tap('flrWireL', 'solid'); check(!(await p.isVisible('#rxFlrWarn')), '… solid stainless steel: the warning goes');
-  await tap('irU', 'express');
+  await unfold('ir'); await tap('irU', 'express');
   check(await p.isVisible('#rxIrWarn') && /pontics, a bonded retainer/.test(await p.textContent('#rxIrWarn')), 'IR Express with a pontic and a bonded retainer: Specialty’s exclusions are named');
   await tap('irU', 'g2'); await tap('irL', 'g2');
   const e1 = await p.evaluate(() => rxEstimate(RXE.rx, RXE.c));
   check(!(await p.isVisible('#rxIrWarn')) && e1.lines.some(l => l.l === 'Guardian 2 · upper & lower' && l.amt === 90 && /dual arch/.test(l.note)), 'Guardian 2 on both arches: the list’s dual-arch price ($90)');
+  await p.click('#rxWrap [data-rxa=cmp][data-g=ir]'); check(await p.isVisible('#rxWrap .rxCmpBox[data-cmp=ir] .rxCmpRow'), 'the invisible retainers’ Compare all opens');
+  await unfold('ir'); ir = await fold('ir');
+  check(!ir.open && !ir.shown && !ir.cmp && ir.sum === 'Guardian 2, upper & lower' && ir.tip === ir.sum, 'folded again while it holds Guardian 2 on both: the heading says “Guardian 2, upper & lower”');
+  await unfold('ir'); ir = await fold('ir');
+  check(ir.open && !ir.sum && await p.evaluate(() => document.querySelector('#rxWrap .rxCmpBox[data-cmp=ir]').hidden && document.querySelector('#rxWrap [data-rxa=cmp][data-g=ir]').textContent === 'Compare all'), '… opened again: the summary goes, and the comparison folded away with it');
   await tap('irU', 'g2'); await tap('irL', 'g2');
+  await p.focus('#rxWrap .rxFold[data-fold=flr] .rxFoldB'); await p.keyboard.press('Enter'); fl = await fold('flr');
+  check(!fl.open && fl.sum === 'Lower 3–3, mesh pads on each tooth, solid SS .016 × .022', 'keyboard: Enter on the heading folds the FLR, which then reads “Lower 3–3, mesh pads on each tooth, solid SS .016 × .022”');
+  await p.keyboard.press('Space'); fl = await fold('flr'); check(fl.open && fl.shown, '… and Space opens it again');
+  await unfold('flr'); await unfold('ir'); ir = await fold('ir'); check(!ir.open && !ir.sum, 'the invisible retainers, emptied and folded: no summary');
   // what each option is
   const card = g => p.evaluate(g => { const c = document.querySelector('#rxWrap .rxInfoCard[data-info=' + g + ']'), o = c.querySelector('.rxIc.on') || c; return { name: (o.querySelector('.rxIcHd b') || {}).textContent || '', peek: c.classList.contains('peek'), text: o.textContent, links: o.querySelectorAll('.rxIcSrc a[target=_blank]').length, h: c.getBoundingClientRect().height }; }, g);
   let cd = await card('design');
@@ -162,17 +184,20 @@ const has = cmd => { try { execFileSync('which', [cmd], { stdio: 'ignore' }); re
   check(/^blob:/.test(pop.url()), 'Open to print: a new tab with the PDF'); await pop.close();
   await p.click('#drawer [data-ds=rxRet] [data-act=rxEdit]'); await p.waitForSelector('#rxWrap');
   check(await on('designU', 'hawley') && await on('flrL', 'c3') && await p.inputValue('#rxWrap [data-rxf=ponticTxt]') === 'A2', 'Edit the Rx opens with the saved choices');
+  fl = await fold('flr'); ir = await fold('ir');
+  check(fl.open && fl.shown && !ir.open && !ir.shown, '… the fixed lingual retainer open by itself (it holds the lower 3–3), the empty invisible retainers folded');
   await tap('acrL', 'abp'); await clearToasts(); await p.click('#rxWrap [data-rxa=done]'); await p.waitForSelector('#rxWrap', { state: 'detached' }); await p.waitForTimeout(400);
   check(await p.evaluate(id => (findCase(id).rxRet.acrL || []).includes('abp'), cid) && await toastHas(/Retainer Rx saved/) && await p.evaluate(() => /changed Retainer Rx/.test((document.querySelector('#histBox') || {}).textContent || '')), 'a lower anterior bite plane added: saved, “changed Retainer Rx” in the history');
 
   // ---- Team & security: the retainer prices and the usual retainer
   await p.evaluate(() => closeDrawer(true));
-  await p.click('#nav-admin'); await p.waitForSelector('#rxAdmin');
+  await p.click('#nav-admin'); await p.waitForSelector('#rxAdmin'); await settled('#rxAdmin');
   check(await p.inputValue('[data-rxprice=hawley]') === '61.00' && await p.inputValue('[data-rxprice=g2d]') === '90.00' && await p.inputValue('[data-rxprice=tremont]') === '' && await p.inputValue('[data-rxprice=rush]') === '95.00' && /Retainer Rx/.test(await p.textContent('#rxAdmin')), 'Lab Rx card: the Retainer Rx prices (Hawley $61, Guardian 2 both arches $90, Tremont blank) and the $95 expedite fee for both forms');
-  await p.fill('[data-rxprice=hawley]', '64'); await p.press('[data-rxprice=hawley]', 'Tab'); await p.waitForTimeout(200);
+  await p.fill('[data-rxprice=hawley]', '64'); await p.press('[data-rxprice=hawley]', 'Tab');
+  await p.waitForFunction(() => rxPrices().hawley === 64, null, { timeout: 5000 }).catch(() => {}); await settled('#rxAdmin');
   const e2 = await p.evaluate(() => rxEstimate({ form: RX_RET, designU: 'hawley' }));
   check(near(e2.total, 64) && /list \$61\.00/.test(e2.lines[0].note), 'a retainer price changed ($64): the estimate uses it, “(list $61.00)”');
-  await (await p.$('#rxAdmin')).screenshot({ path: OUT + '/v33-rxr-admin.png' });
+  await p.locator('#rxAdmin').screenshot({ path: OUT + '/v33-rxr-admin.png' });
   await p.click('#rxAdmin [data-act=rxPricesReset]'); await p.waitForTimeout(200);
   await p.evaluate(id => openDrawer(id), cid); await p.waitForSelector('#drawer [data-ds=rxRet]');
   await p.click('#drawer [data-ds=rxRet] [data-act=rxEdit]'); await p.waitForSelector('#rxWrap');
@@ -186,10 +211,11 @@ const has = cmd => { try { execFileSync('which', [cmd], { stdio: 'ignore' }); re
   await p.click('#ncForm [data-rxform=edit][data-kind=ret]'); await p.waitForSelector('#rxWrap');
   st = await rxNow();
   check(!st.designU && st.designL === 'hawley' && !Object.keys(st.teeth || {}).some(id => id[0] === 'U') && st.flrL === 'c3' && !(await p.inputValue('#rxWrap [data-rxf=colorU]')), 'a lower-only Hawley: the usual retainer on the lower only (no upper design or clasps; the bonded retainer stays)');
+  check((await fold('flr')).open && !(await fold('ir')).open, '… its fixed lingual retainer (from the usual) shows open');
   await p.click('#rxWrap [data-rxa=close]'); await p.waitForSelector('#rxWrap', { state: 'detached' });
   check(await p.inputValue('#ncForm #cf-rxRet') === '', '… closed without Done: nothing put on the case');
   await p.evaluate(() => { const m = document.querySelector('#modalWrap'); if (m) m.remove(); });
-  await p.click('#nav-admin'); await p.waitForSelector('#rxAdmin');
+  await p.click('#nav-admin'); await p.waitForSelector('#rxAdmin'); await settled('#rxAdmin');
   check(/Our usual retainer/.test(await p.textContent('#rxAdmin')) && /Hawley \(U & L\)/.test(await p.textContent('#rxAdmin')), 'Team & security shows our usual retainer');
   await p.click('#rxAdmin [data-act=rxDefClear][data-slot=specialty-retainer]'); await p.waitForTimeout(200);
   check(!(await p.evaluate(() => rxDefaults(RX_RET))), '… and Clear removes it');

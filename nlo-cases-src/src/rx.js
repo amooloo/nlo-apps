@@ -536,10 +536,29 @@ function rxCmpHTML(g) {
   return '<div class="rxCmp">' + RXE.k.cmpKeys(g).map(k =>
     '<div class="rxCmpRow"><div class="rxCmpN"><b>' + esc(rxInfoName(g, k)) + '</b>' + rxInfoPic(RXE.k.info[g][k], 'rxCmpPic') + '</div><span>' + esc(RXE.k.info[g][k].short) + '</span><em>' + esc(rxInfoTag(g, k)) + '</em></div>').join('') + '</div>';
 }
-/* a section with Compare all on its heading (when the form has a comparison for it) and the card under its choices */
-function rxInfoSec(g, title, choices, after) {
-  return '<section class="rxS"><h5>' + esc(title) + (RXE.k.cmpKeys(g) ? '<button type="button" class="rxCmpBtn" data-rxa="cmp" data-g="' + g + '" aria-expanded="false">Compare all</button>' : '') + '</h5>' + choices +
-    rxInfoCardHTML(g) + '<div class="rxCmpBox" data-cmp="' + g + '" hidden></div>' + (after || '') + '</section>';
+/* a section with Compare all on its heading (when the form has a comparison for it) and the card under its choices. With `fold`
+   (true: open, false: folded) it folds away under its heading, which opens it (the Retainer Rx's fixed and invisible retainers,
+   Amir 4 Oct 2026: "for retainer, collaps invisible retainer and fixed lingual retainer") */
+function rxInfoSec(g, title, choices, after, fold) {
+  const f = fold != null, open = !f || !!fold;
+  const cmp = RXE.k.cmpKeys(g) ? '<button type="button" class="rxCmpBtn" data-rxa="cmp" data-g="' + g + '" aria-expanded="false"' + (open ? '' : ' hidden') + '>Compare all</button>' : '';
+  const body = choices + rxInfoCardHTML(g) + '<div class="rxCmpBox" data-cmp="' + g + '" hidden></div>' + (after || '');
+  if (!f) return '<section class="rxS"><h5>' + esc(title) + cmp + '</h5>' + body + '</section>';
+  return '<section class="rxS rxFold' + (open ? ' open' : '') + '" data-fold="' + g + '"><h5><button type="button" class="rxFoldB" data-rxa="fold" aria-expanded="' + open + '" aria-controls="rxFold-' + g + '">' +
+    '<i class="rxChev" aria-hidden="true"></i><span class="rxFoldT">' + esc(title) + '</span><span class="h5n rxFoldSum"></span></button>' + cmp + '</h5><div class="rxFoldBody" id="rxFold-' + g + '"' + (open ? '' : ' hidden') + '>' + body + '</div></section>';
+}
+/* open or fold a folding section (folding it closes its comparison) */
+function rxFoldSet(sec, open) {
+  sec.classList.toggle('open', open); $('.rxFoldB', sec).setAttribute('aria-expanded', String(open)); $('.rxFoldBody', sec).hidden = !open;
+  const cb = $('.rxCmpBtn', sec), box = $('.rxCmpBox', sec);
+  if (cb) { cb.hidden = !open; if (!open && box && !box.hidden) { box.hidden = true; cb.setAttribute('aria-expanded', 'false'); cb.textContent = 'Compare all'; } }
+  rxFoldSum(sec);
+}
+/* a folded section's heading says what it holds (nothing when it holds nothing) */
+function rxFoldSum(sec) {
+  const s = $('.rxFoldSum', sec), b = $('.rxFoldB', sec), K = RXE.k; if (!s) return;
+  const t = !sec.classList.contains('open') && K && K.foldSum ? K.foldSum(sec.dataset.fold, RXE.rx || {}) : ''; s.textContent = t;
+  if (t) b.title = t; else b.removeAttribute('title'); // (all of it, when it's too long for the line)
 }
 function rxSec(title, body, note) { return '<section class="rxS"><h5>' + esc(title) + (note ? ' <span class="h5n">' + esc(note) + '</span>' : '') + '</h5>' + body + '</section>'; }
 function rxLeftHTML() {
@@ -588,6 +607,7 @@ function rxSync(first) {
   $$('.rxB[data-rxg]', w).forEach(b => { const why = K.off ? K.off(b.dataset.rxg, b.dataset.v, rx) : '';
     if (why) { b.setAttribute('aria-disabled', 'true'); b.title = why; } else if (b.getAttribute('aria-disabled')) { b.removeAttribute('aria-disabled'); b.removeAttribute('title'); } });
   // the sentences the answers write into the special instructions (the Herbst Rx: where the lower lingual arch sits)
+  $$('.rxFold', w).forEach(rxFoldSum);
   const an = $('#rxAutoNotes', w); if (an) { const a = K.autoNotes ? K.autoNotes(rx) : []; an.hidden = !a.length; an.textContent = a.length ? 'Added to the special instructions: ' + a.join(' ') : ''; }
   $$('.rxB[data-rxg="tool"]', w).forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === RXE.tool)));
   $$('[data-rxtool]', w).forEach(b => b.setAttribute('aria-pressed', String(b.dataset.rxtool === RXE.tool)));
@@ -679,6 +699,7 @@ function rxOnClick(e) {
   const a = e.target.closest('[data-rxa]'); if (!a) return;
   switch (a.dataset.rxa) {
     case 'done': rxClose(true); break;
+    case 'fold': { const sec = a.closest('.rxFold'); if (sec) rxFoldSet(sec, a.getAttribute('aria-expanded') !== 'true'); break; }
     case 'cmp': { const box = $('.rxCmpBox[data-cmp="' + a.dataset.g + '"]', w), open = box.hidden; box.hidden = !open; if (open) { box.innerHTML = rxCmpHTML(a.dataset.g); picPaint(box); }
       a.setAttribute('aria-expanded', String(open)); a.textContent = open ? 'Hide the comparison' : 'Compare all'; break; }
     case 'close': if (JSON.stringify(rxCanon(RXE.rx)) === RXE.orig || a.dataset.sure === '1') rxClose(false); else { a.dataset.sure = '1'; toast('Close without saving the Rx? Click × again — or Done to keep it'); setTimeout(() => { a.dataset.sure = ''; }, 4000); } break;

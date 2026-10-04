@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-esRxSX/E72s0zyCsXyRQQrQVQKMeUPQwjilGIv9GJ8Y=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-IlN0/rx9vwtN5p0E0b8+tiLhA2Qh1yiTlizKB6WlP5Q=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO Cases</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -953,6 +953,18 @@ body.phOff .pav,body.phOff .dPh,body.phOff .phSlot,body.phOff .phTgl,body.phOff 
 @media (max-width:640px){.rxIcPic{float:none;width:max-content;max-width:100%;margin:0 0 8px}.rxIcPic img{max-width:100%}}
 .rxCmpBtn{margin-left:10px;font-family:var(--fb);font-size:11.5px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--blue);text-decoration:underline;text-underline-offset:2px}
 .rxCmpBox[hidden]{display:none}
+/* a section folded under its heading (the Retainer Rx's fixed and invisible retainers): the heading is the button */
+.rxFold h5{display:flex;align-items:center;margin:0}
+.rxFold.open h5{margin-bottom:8px}
+.rxFoldB{display:flex;align-items:center;flex:1;min-width:0;min-height:32px;margin:-4px -8px;padding:4px 8px;border-radius:8px;letter-spacing:inherit;text-transform:inherit;text-align:left}
+.rxFoldB:hover{background:var(--grey-50);color:var(--grey-700)}
+.rxFoldB:focus-visible{outline:2px solid var(--blue);outline-offset:1px}
+.rxFoldT{flex:none}
+.rxChev{flex:none;width:7px;height:7px;margin:0 10px 2px 1px;border-right:1.6px solid currentColor;border-bottom:1.6px solid currentColor;transform:rotate(-45deg);transition:transform .15s}
+.rxFold.open .rxChev{transform:rotate(45deg);margin-bottom:4px}
+.rxFoldSum{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rxFold .rxCmpBtn{flex:none;margin-left:14px}
+.rxFold .rxCmpBtn[hidden],.rxFoldBody[hidden]{display:none}
 .rxCmpBox{margin-bottom:8px}
 .rxCmp{margin-top:8px;border:1px solid var(--grey-200);border-radius:12px;overflow:hidden;background:#fff}
 .rxCmpRow{display:grid;grid-template-columns:170px 1fr auto;gap:10px;padding:7px 11px;font-size:12px;line-height:1.4;border-top:1px solid var(--grey-100);align-items:baseline}
@@ -6900,10 +6912,29 @@ function rxCmpHTML(g) {
   return '<div class="rxCmp">' + RXE.k.cmpKeys(g).map(k =>
     '<div class="rxCmpRow"><div class="rxCmpN"><b>' + esc(rxInfoName(g, k)) + '</b>' + rxInfoPic(RXE.k.info[g][k], 'rxCmpPic') + '</div><span>' + esc(RXE.k.info[g][k].short) + '</span><em>' + esc(rxInfoTag(g, k)) + '</em></div>').join('') + '</div>';
 }
-/* a section with Compare all on its heading (when the form has a comparison for it) and the card under its choices */
-function rxInfoSec(g, title, choices, after) {
-  return '<section class="rxS"><h5>' + esc(title) + (RXE.k.cmpKeys(g) ? '<button type="button" class="rxCmpBtn" data-rxa="cmp" data-g="' + g + '" aria-expanded="false">Compare all</button>' : '') + '</h5>' + choices +
-    rxInfoCardHTML(g) + '<div class="rxCmpBox" data-cmp="' + g + '" hidden></div>' + (after || '') + '</section>';
+/* a section with Compare all on its heading (when the form has a comparison for it) and the card under its choices. With `fold`
+   (true: open, false: folded) it folds away under its heading, which opens it (the Retainer Rx's fixed and invisible retainers,
+   Amir 4 Oct 2026: "for retainer, collaps invisible retainer and fixed lingual retainer") */
+function rxInfoSec(g, title, choices, after, fold) {
+  const f = fold != null, open = !f || !!fold;
+  const cmp = RXE.k.cmpKeys(g) ? '<button type="button" class="rxCmpBtn" data-rxa="cmp" data-g="' + g + '" aria-expanded="false"' + (open ? '' : ' hidden') + '>Compare all</button>' : '';
+  const body = choices + rxInfoCardHTML(g) + '<div class="rxCmpBox" data-cmp="' + g + '" hidden></div>' + (after || '');
+  if (!f) return '<section class="rxS"><h5>' + esc(title) + cmp + '</h5>' + body + '</section>';
+  return '<section class="rxS rxFold' + (open ? ' open' : '') + '" data-fold="' + g + '"><h5><button type="button" class="rxFoldB" data-rxa="fold" aria-expanded="' + open + '" aria-controls="rxFold-' + g + '">' +
+    '<i class="rxChev" aria-hidden="true"></i><span class="rxFoldT">' + esc(title) + '</span><span class="h5n rxFoldSum"></span></button>' + cmp + '</h5><div class="rxFoldBody" id="rxFold-' + g + '"' + (open ? '' : ' hidden') + '>' + body + '</div></section>';
+}
+/* open or fold a folding section (folding it closes its comparison) */
+function rxFoldSet(sec, open) {
+  sec.classList.toggle('open', open); $('.rxFoldB', sec).setAttribute('aria-expanded', String(open)); $('.rxFoldBody', sec).hidden = !open;
+  const cb = $('.rxCmpBtn', sec), box = $('.rxCmpBox', sec);
+  if (cb) { cb.hidden = !open; if (!open && box && !box.hidden) { box.hidden = true; cb.setAttribute('aria-expanded', 'false'); cb.textContent = 'Compare all'; } }
+  rxFoldSum(sec);
+}
+/* a folded section's heading says what it holds (nothing when it holds nothing) */
+function rxFoldSum(sec) {
+  const s = $('.rxFoldSum', sec), b = $('.rxFoldB', sec), K = RXE.k; if (!s) return;
+  const t = !sec.classList.contains('open') && K && K.foldSum ? K.foldSum(sec.dataset.fold, RXE.rx || {}) : ''; s.textContent = t;
+  if (t) b.title = t; else b.removeAttribute('title'); // (all of it, when it's too long for the line)
 }
 function rxSec(title, body, note) { return '<section class="rxS"><h5>' + esc(title) + (note ? ' <span class="h5n">' + esc(note) + '</span>' : '') + '</h5>' + body + '</section>'; }
 function rxLeftHTML() {
@@ -6952,6 +6983,7 @@ function rxSync(first) {
   $$('.rxB[data-rxg]', w).forEach(b => { const why = K.off ? K.off(b.dataset.rxg, b.dataset.v, rx) : '';
     if (why) { b.setAttribute('aria-disabled', 'true'); b.title = why; } else if (b.getAttribute('aria-disabled')) { b.removeAttribute('aria-disabled'); b.removeAttribute('title'); } });
   // the sentences the answers write into the special instructions (the Herbst Rx: where the lower lingual arch sits)
+  $$('.rxFold', w).forEach(rxFoldSum);
   const an = $('#rxAutoNotes', w); if (an) { const a = K.autoNotes ? K.autoNotes(rx) : []; an.hidden = !a.length; an.textContent = a.length ? 'Added to the special instructions: ' + a.join(' ') : ''; }
   $$('.rxB[data-rxg="tool"]', w).forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === RXE.tool)));
   $$('[data-rxtool]', w).forEach(b => b.setAttribute('aria-pressed', String(b.dataset.rxtool === RXE.tool)));
@@ -7043,6 +7075,7 @@ function rxOnClick(e) {
   const a = e.target.closest('[data-rxa]'); if (!a) return;
   switch (a.dataset.rxa) {
     case 'done': rxClose(true); break;
+    case 'fold': { const sec = a.closest('.rxFold'); if (sec) rxFoldSet(sec, a.getAttribute('aria-expanded') !== 'true'); break; }
     case 'cmp': { const box = $('.rxCmpBox[data-cmp="' + a.dataset.g + '"]', w), open = box.hidden; box.hidden = !open; if (open) { box.innerHTML = rxCmpHTML(a.dataset.g); picPaint(box); }
       a.setAttribute('aria-expanded', String(open)); a.textContent = open ? 'Hide the comparison' : 'Compare all'; break; }
     case 'close': if (JSON.stringify(rxCanon(RXE.rx)) === RXE.orig || a.dataset.sure === '1') rxClose(false); else { a.dataset.sure = '1'; toast('Close without saving the Rx? Click × again — or Done to keep it'); setTimeout(() => { a.dataset.sure = ''; }, 4000); } break;
@@ -7995,6 +8028,16 @@ function rxrStdClasps(rx, A, prev) {
 }
 
 /* ---------- the editor's left side ---------- */
+/* what the fixed or invisible retainers' section holds, for its heading when it's folded (they fold away until they're used,
+   Amir 4 Oct 2026); empty: nothing picked there, and the section starts folded */
+function rxrFoldSum(g, rx) {
+  const parts = [];
+  if (g === 'flr') RXR_ARCH.forEach(A => { const pl = rx['flr' + A], pads = rx['flrPads' + A], wi = rx['flrWire' + A]; if (!pl && !pads && !wi) return;
+    parts.push(rxrArchWord(A) + ' ' + (pl ? RXR_SPAN[pl] : '(placement not picked)') + (pads ? ', ' + RXR_PADS_S[pads] : '') + (wi ? ', ' + ({ r028: 'round .028', braided: 'braided .016 × .022', solid: 'solid SS .016 × .022' }[wi] || rxrLbl(wi, ['wire'])) : '')); });
+  if (g === 'ir') { const u = rx.irU, l = rx.irL, n = v => rxrLbl(v, ['ir']);
+    if (u && u === l) parts.push(n(u) + ', upper & lower'); else { if (u) parts.push(n(u) + ', upper'); if (l) parts.push(n(l) + ', lower'); } }
+  const s = parts.join(' · '); return s ? s[0].toUpperCase() + s.slice(1) : '';
+}
 const rxrInfoG = g => g === 'flrPads' || g === 'flrWire' ? 'flr' : g;
 /* a row of the form: the option, its price, then Upper / Lower (as the paper's U and L circles) */
 function rxrRow(g, v, label, tag, more, show) {
@@ -8033,8 +8076,8 @@ function rxrSecs(rx) {
       '<div class="rxUL" data-rxinfo="acr:color"><span class="rxULn">Acrylic Color <em>Specialty colors free · glitter ' + esc(tag('glitter')) + '</em></span><div class="rxULx rxCol2">' + rxField('colorU', 'Upper', 'text', ' maxlength="40" placeholder="—"') + rxField('colorL', 'Lower', 'text', ' maxlength="40" placeholder="—"') + '</div></div>') +
     rxInfoSec('flr', 'Fixed lingual retainers (FLR)', '<div class="rxULs">Placement of retainer</div>' + rxrHead() + RXR_O.flr.map(([k, l]) => rxrRow('flr', k, l, '')).join('') +
       '<div class="rxULs">Placement of pads <span class="h5n">composite on each tooth if none is picked (Specialty’s standard)</span></div>' + RXR_O.pads.map(([k, l]) => rxrRow('flrPads', k, l, padTag[k])).join('') +
-      '<div class="rxULs">Type of wire</div>' + RXR_O.wire.map(([k, l]) => rxrRow('flrWire', k, l, '')).join('') + '<div class="rxWarn small" id="rxFlrWarn" hidden></div>') +
-    rxInfoSec('ir', 'Invisible retainers', rxrHead() + RXR_O.ir.map(([k, l]) => rxrRow('ir', k, l, irTag(k))).join('') + '<div class="rxWarn small" id="rxIrWarn" hidden></div>');
+      '<div class="rxULs">Type of wire</div>' + RXR_O.wire.map(([k, l]) => rxrRow('flrWire', k, l, '')).join('') + '<div class="rxWarn small" id="rxFlrWarn" hidden></div>', '', !!rxrFoldSum('flr', rx)) +
+    rxInfoSec('ir', 'Invisible retainers', rxrHead() + RXR_O.ir.map(([k, l]) => rxrRow('ir', k, l, irTag(k))).join('') + '<div class="rxWarn small" id="rxIrWarn" hidden></div>', '', !!rxrFoldSum('ir', rx));
 }
 function rxrTeethSum(rx) {
   const t = rx.teeth || {}, by = {}; Object.keys(t).forEach(id => { (by[t[id]] = by[t[id]] || []).push(id); });
@@ -8106,7 +8149,7 @@ RXK[RX_RET] = {
     RXR_ARCH.forEach(A => { d['acc' + A] = (d['acc' + A] || []).filter(k => k !== 'finger' && k !== 'spurs'); d['acr' + A] = (d['acr' + A] || []).filter(k => k !== 'pontic'); }); },
   defKeep: (cur, next) => { const own = Object.entries(cur.teeth || {}).filter(([, k]) => !RXR_CLASPS.includes(k)); if (!own.length) return;
     next.teeth = Object.assign({}, next.teeth, Object.fromEntries(own)); },
-  secHTML: rxrSecs, teethSum: rxrTeethSum, tap: rxrTap, tappable: () => true, click: rxrClick, after: rxrAfter, syncMore: rxrWarn,
+  secHTML: rxrSecs, foldSum: rxrFoldSum, teethSum: rxrTeethSum, tap: rxrTap, tappable: () => true, click: rxrClick, after: rxrAfter, syncMore: rxrWarn,
   pressed: (g, v, rx) => /^clasp[UL]$/.test(g) ? Object.keys(rx.teeth || {}).some(id => id[0] === g.slice(-1) && rx.teeth[id] === v) : null,
   autoVal: { colorU: (c, rx) => rx.designU ? rxrCaseColor(c) : '', colorL: (c, rx) => rx.designL ? rxrCaseColor(c) : '' },
   toolsHTML: () => rxToolBtn('adams', 'Adams', 'Adams clasp on the tooth') + rxToolBtn('c', 'C-clasp', 'C-clasp on the tooth') + rxToolBtn('ball', 'Ball', 'Ball clasp behind the tooth') +
