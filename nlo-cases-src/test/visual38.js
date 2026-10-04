@@ -31,7 +31,7 @@ const OUT = process.argv[2] || 'shots';
     queueRender(); return ids;
   });
   const ids = await seed();
-  await p.click('#nav-list'); await p.waitForSelector('#listBody tr.click'); await p.waitForFunction(() => S.histLoaded); await p.waitForTimeout(250);
+  await p.click('#nav-list'); await p.waitForSelector('#listBody tr.click'); await p.waitForFunction(() => openCases().filter(c => c.type === 'nla').every(histReady)); await p.waitForTimeout(250); // (the patients' earlier sets: fetched by patient, 4 Oct 2026)
   const heads = () => p.$$eval('#listBody thead th', ths => ths.map(t => t.textContent.replace(/[↑↓]/g, '').trim()));
   let h = await heads();
   console.log('   columns:', h.join(' | '));

@@ -2,7 +2,8 @@
    Firebase backend. Nothing readable about a patient ever leaves the
    browser: case bodies and history are sealed with the office key ring.
    Plain fields on a case doc: v (key version), status, rev, by/sid,
-   createdAt/updatedAt/closedAt — none of them identify a patient.
+   createdAt/updatedAt/closedAt, and pn/pc (the patient index: keyed
+   hashes, meaningless without the office key) — none of them identify a patient.
    ===================================================================== */
 function errCode(code, msg) { const e = new Error(msg || code); e.code = code; return e; }
 
@@ -10,6 +11,7 @@ const FB = {
   emu: false, app: null, auth: null, db: null, cfg: null,
   uid: null, me: null, priv: null, ring: null, keys: null, curV: 0, ringV: 0,
   unsubs: [], pending: 0, onSync: null,
+  idxOn: false, idxKey: null, // the patient index (see idxFields): written once the live rules allow it
 
   ts() { return firebase.firestore.FieldValue.serverTimestamp(); },
   del() { return firebase.firestore.FieldValue.delete(); },
@@ -179,7 +181,7 @@ const FB = {
 
   async signOut() {
     FB.stop();
-    FB.priv = FB.ring = FB.keys = FB.me = FB.uid = FB.inboxPriv = null; FB.curV = FB.ringV = 0;
+    FB.priv = FB.ring = FB.keys = FB.me = FB.uid = FB.inboxPriv = FB.idxKey = null; FB.curV = FB.ringV = 0; FB.idxOn = false;
     try { await FB.auth.signOut(); } catch (e) { }
   },
   stop() { FB.unsubs.forEach(u => { try { u(); } catch (e) { } }); FB.unsubs = []; },
@@ -337,16 +339,16 @@ const FB = {
   /* ---------- writes ---------- */
   clean(data) { const o = Object.assign({}, data); ['id', 'rev', 'v', 'status', 'by', 'updatedAt', 'createdAtSrv', 'closedAt', 'locked', 'assigneeLabel'].forEach(k => delete o[k]); return o; },
   /* history entry at the fixed id "<case>_<rev>"; prev = the encrypted copy this write replaces */
-  async logOps(batchOrTx, caseId, rev, prev, action) {
+  async logOps(batchOrTx, caseId, rev, prev, action, extra) {
     const lid = caseId + '_' + rev; const ref = FB.db.doc('log/' + lid);
     const box = await Crypto.sealJSON(FB.keys[FB.curV], action, 'log:' + lid);
-    batchOrTx.set(ref, { caseId, rev, uid: FB.uid, sid: FB.me.staffId, at: FB.ts(), v: FB.curV, iv: box.iv, ct: box.ct, prev: prev || null });
+    batchOrTx.set(ref, Object.assign({ caseId, rev, uid: FB.uid, sid: FB.me.staffId, at: FB.ts(), v: FB.curV, iv: box.iv, ct: box.ct, prev: prev || null }, extra || {}));
   },
   async createCases(list, progress) {
     // list: [{data, status:'open'|'done', closedAt:ms, photo?:bytes}]; small batches keep each one well inside the rules' lookup limit
     const PER = 5; let n = 0;
     for (let i = 0; i < list.length; i += PER) {
-      const b = FB.db.batch();
+      const ops = [], rec = { set: (r, d) => ops.push([r, d]) }; // (kept, so the batch can be sent again without the patient index)
       for (const item of list.slice(i, i + PER)) {
         const ref = FB.db.collection('cases').doc();
         const v = FB.curV, body = FB.clean(item.data);
@@ -354,12 +356,20 @@ const FB = {
         let ph = null; if (item.photo) { body.photo = uid8(); ph = await FB.photoBox(ref.id, item.photo, body.photo); }
         const box = await Crypto.sealJSON(FB.keys[v], body, 'case:' + ref.id);
         const done = item.status === 'done';
-        b.set(ref, { v, iv: box.iv, ct: box.ct, status: done ? 'done' : 'open', rev: 1, by: FB.uid, sid: FB.me.staffId, createdAt: FB.ts(), updatedAt: FB.ts(), closedAt: done ? firebase.firestore.Timestamp.fromMillis(item.closedAt || Date.now()) : null });
-        await FB.logOps(b, ref.id, 1, null, item.action || { a: 'create' });
-        if (ph) b.set(FB.db.doc('photos/' + ref.id), ph);
+        const doc = { v, iv: box.iv, ct: box.ct, status: done ? 'done' : 'open', rev: 1, by: FB.uid, sid: FB.me.staffId, createdAt: FB.ts(), updatedAt: FB.ts(), closedAt: done ? firebase.firestore.Timestamp.fromMillis(item.closedAt || Date.now()) : null };
+        if (FB.idxOn) { const ix = await FB.idxFields(body); if (ix.pn) doc.pn = ix.pn; if (ix.pc) doc.pc = ix.pc; }
+        rec.set(ref, doc);
+        await FB.logOps(rec, ref.id, 1, null, item.action || { a: 'create' });
+        if (ph) rec.set(FB.db.doc('photos/' + ref.id), ph);
         item.id = ref.id; item.photoV = body.photo || '';
       }
-      await FB.track(b.commit()); n += Math.min(PER, list.length - i); if (progress) progress(n, list.length);
+      const send = () => { const b = FB.db.batch(); ops.forEach(([r, d]) => b.set(r, d)); return FB.track(b.commit()); };
+      try { await send(); }
+      catch (e) { // refused with the index: the live rules may be older than this app thinks — check, and send it without
+        if (!FB.idxOn || !/permission/i.test(String(e.code || e.message || '')) || await FB.idxRecheck()) throw e;
+        ops.forEach(([, d]) => { delete d.pn; delete d.pc; }); await send();
+      }
+      n += Math.min(PER, list.length - i); if (progress) progress(n, list.length);
     }
     return list.map(x => x.id);
   },
@@ -384,13 +394,16 @@ const FB = {
         const status = st === 'done' || st === 'open' ? st : d.status;
         const v = FB.curV; const box = await Crypto.sealJSON(FB.keys[v], data, 'case:' + id);
         const closedAt = status === 'done' ? (d.status === 'done' && d.closedAt ? d.closedAt : FB.ts()) : null;
-        tx.update(ref, { v, iv: box.iv, ct: box.ct, status, rev: d.rev + 1, by: FB.uid, sid: FB.me.staffId, updatedAt: FB.ts(), closedAt });
+        const upd = { v, iv: box.iv, ct: box.ct, status, rev: d.rev + 1, by: FB.uid, sid: FB.me.staffId, updatedAt: FB.ts(), closedAt };
+        if (FB.idxOn) { const ix = await FB.idxFields(data); upd.pn = ix.pn || FB.del(); upd.pc = ix.pc || FB.del(); }
+        tx.update(ref, upd);
         await FB.logOps(tx, id, d.rev + 1, { v: d.v, iv: d.iv, ct: d.ct }, action || { a: 'save' });
         if (ops) await ops(tx, data);
       }));
     } catch (e) {
       if (tries < 2 && /permission/i.test(e.code || e.message || '')) {
-        // the office key may have just been changed: refresh it and try again
+        // the office key may have just been changed, or the live rules are older than this app thinks: refresh and try again
+        if (FB.idxOn) await FB.idxRecheck();
         const m = (await FB.db.doc('members/' + FB.uid).get()).data();
         if (!m || !m.active) throw e;
         await FB.loadRing(m);
@@ -400,14 +413,20 @@ const FB = {
       throw e;
     }
   },
-  /* owner only; the last encrypted copy stays in history, so a delete can be undone (its photo goes with it) */
-  async deleteCase(id) {
+  /* owner only; the last encrypted copy stays in history, so a delete can be undone (its photo goes with it). The history
+     entry is marked (del), so Deleted cases can find it without reading every recent entry. */
+  async deleteCase(id, tries) {
     const ref = FB.db.doc('cases/' + id);
-    await FB.track(FB.db.runTransaction(async tx => {
-      const s = await tx.get(ref); if (!s.exists) throw errCode('gone'); const d = s.data();
-      await FB.logOps(tx, id, d.rev + 1, { v: d.v, iv: d.iv, ct: d.ct }, { a: 'delete' });
-      tx.delete(ref); tx.delete(FB.db.doc('photos/' + id));
-    }));
+    try {
+      await FB.track(FB.db.runTransaction(async tx => {
+        const s = await tx.get(ref); if (!s.exists) throw errCode('gone'); const d = s.data();
+        await FB.logOps(tx, id, d.rev + 1, { v: d.v, iv: d.iv, ct: d.ct }, { a: 'delete' }, FB.idxOn ? { del: true } : null);
+        tx.delete(ref); tx.delete(FB.db.doc('photos/' + id));
+      }));
+    } catch (e) {
+      if (!tries && FB.idxOn && /permission/i.test(String(e.code || e.message || '')) && !(await FB.idxRecheck())) return FB.deleteCase(id, 1);
+      throw e;
+    }
   },
   /* ---------- patient photos: one small picture per case (photos/{caseId}), sealed with the office key like the case.
      The case's own `photo` field holds the picture's version id, so the picture changes together with a case save
@@ -416,10 +435,69 @@ const FB = {
     const v = FB.curV; const box = await Crypto.seal(FB.keys[v], bytes, 'photo:' + id);
     return { v, iv: box.iv, ct: box.ct, pv, at: FB.ts(), by: FB.uid };
   },
-  /* are the live security rules the ones this version of the app needs? (an older set refuses this read) */
-  async rulesCurrent() {
-    try { await FB.db.doc('photos/_rules_check').get(); return true; }
-    catch (e) { return !/permission/i.test(String((e && (e.code || e.message)) || '')); }
+  /* which of the security rules this version needs are live: 0 = older than patient photos and email updates, 1 = those but
+     not the patient index and marked deletes (4 Oct 2026), 2 = all of them. An older set refuses the read that checks. */
+  async rulesLevel() {
+    const can = async p => { try { await FB.db.doc(p).get(); return true; } catch (e) { return !/permission/i.test(String((e && (e.code || e.message)) || '')); } };
+    const lv = !(await can('photos/_rules_check')) ? 0 : (await can('meta/rules_20261004')) ? 2 : 1;
+    FB.idxOn = lv >= 2; return lv;
+  },
+  /* a save was refused while writing the index: are the newer rules really live? (false = they aren't; saves go without it) */
+  async idxRecheck() { try { await FB.rulesLevel(); } catch (e) { FB.idxOn = false; } return FB.idxOn; },
+
+  /* ---------- the patient index (Amir, 4 Oct 2026: "data gets large enough that something bad will happen") ----------
+     Each case carries pn / pc: a keyed hash of its patient's name and chart # (HMAC with a key derived from the office
+     key's first version, so it stays the same through key changes). With them an app fetches the earlier cases of the
+     patients it shows, instead of every completed case at every sign-in. Without the office key they reveal nothing. */
+  async idxKeyGet() {
+    if (!FB.idxKey || FB.idxKeyRing !== FB.ring) {
+      const v = Math.min.apply(null, Object.keys(FB.ring).map(Number));
+      const base = await crypto.subtle.importKey('raw', unb64(FB.ring[v]), 'HKDF', false, ['deriveKey']);
+      FB.idxKey = await crypto.subtle.deriveKey({ name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(32), info: TE.encode('patient-index') }, base, { name: 'HMAC', hash: 'SHA-256', length: 256 }, false, ['sign']);
+      FB.idxKeyRing = FB.ring;
+    }
+    return FB.idxKey;
+  },
+  async idxHash(k) {
+    const sig = new Uint8Array(await crypto.subtle.sign('HMAC', await FB.idxKeyGet(), TE.encode(k)));
+    return b64(sig.subarray(0, 16)).replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_'); // 22 characters
+  },
+  /* { pn, pc } for a case body (null when it has no name / chart #) — the same keys as histKeys() in ui.js */
+  async idxFields(d) {
+    const n = normName(d && d.patient), c = normChart(d && d.chart);
+    return { pn: n ? await FB.idxHash('n:' + n) : null, pc: c ? await FB.idxHash('c:' + c) : null };
+  },
+  /* every case (open and completed) of these patients: keys 'n:<normalized name>' / 'c:<normalized chart #>' */
+  async loadPatients(keys) {
+    const want = { pn: [], pc: [] };
+    for (const k of keys) want[k[0] === 'c' ? 'pc' : 'pn'].push(await FB.idxHash(k));
+    const docs = new Map();
+    for (const f of ['pn', 'pc']) for (let i = 0; i < want[f].length; i += 30) {
+      const s = await FB.db.collection('cases').where(f, 'in', want[f].slice(i, i + 30)).get();
+      s.docs.forEach(d => docs.set(d.id, d));
+    }
+    const out = [];
+    for (const d of docs.values()) { try { out.push(await FB.decryptDoc(d.id, d.data())); } catch (e) { } }
+    return out;
+  },
+  /* owner: give cases their index — every case (since = 0), or the ones saved since a time (an app opened before the newer
+     rules were live saves without it). Index-only writes, no new version; each names the revision it was worked out from,
+     so one that raced a save is refused instead of putting back an old name. */
+  async indexCases(since, progress) {
+    let q = FB.db.collection('cases'); if (since) q = q.where('updatedAt', '>=', firebase.firestore.Timestamp.fromMillis(since));
+    const snap = await q.get(), todo = [];
+    for (const d of snap.docs) {
+      const x = d.data(); if (!FB.keys[x.v]) continue;
+      let body; try { body = await Crypto.openJSON(FB.keys[x.v], x, 'case:' + d.id); } catch (e) { continue; }
+      const ix = await FB.idxFields(body);
+      if ((x.pn || null) !== ix.pn || (x.pc || null) !== ix.pc) todo.push([d.ref, { pn: ix.pn || FB.del(), pc: ix.pc || FB.del(), rev: x.rev }]);
+    }
+    let done = 0, missed = 0;
+    for (let i = 0; i < todo.length; i += 20) {
+      await Promise.all(todo.slice(i, i + 20).map(([r, u]) => FB.track(r.update(u)).then(() => { done++; }, () => { missed++; })));
+      if (progress) progress(Math.min(i + 20, todo.length), todo.length);
+    }
+    return { seen: snap.size, fixed: done, missed };
   },
   /* { pv, bytes } or null */
   async getPhoto(id) {
@@ -450,23 +528,77 @@ const FB = {
     const keep = FB.clean(data);
     return FB.mutateCase(id, d => { Object.keys(d).forEach(k => delete d[k]); Object.assign(d, keep); }, { a: 'restore' });
   },
-  /* cases deleted in the last N days, recovered from their history entry */
-  async deletedCases(days) {
-    const since = firebase.firestore.Timestamp.fromMillis(Date.now() - days * 86400000);
-    const snap = await FB.db.collection('log').where('at', '>=', since).get();
+  /* cases deleted in the last N days, recovered from their history entry. Deletes are marked (del) since the rules of 4 Oct
+     2026: only those entries are read — plus, until that's N days ago, every entry from before the marks began (markedFrom:
+     when the office was indexed), as before */
+  async deletedCases(days, markedFrom) {
+    const from = Date.now() - days * 86400000, T = ms => firebase.firestore.Timestamp.fromMillis(ms);
+    const docs = new Map(), add = s => s.docs.forEach(d => docs.set(d.id, d));
+    if (FB.idxOn && markedFrom) {
+      add(await FB.db.collection('log').where('del', '==', true).get());
+      if (markedFrom > from) add(await FB.db.collection('log').where('at', '>=', T(from)).where('at', '<', T(markedFrom)).get());
+    } else add(await FB.db.collection('log').where('at', '>=', T(from)).get());
     const out = [];
-    for (const d of snap.docs) {
-      const x = d.data(); if (!x.prev) continue;
+    for (const d of docs.values()) {
+      const x = d.data(); if (!x.prev || (FB.tsMs(x.at) || 0) < from) continue;
       let act = null; try { act = await Crypto.openJSON(FB.keys[x.v], x, 'log:' + d.id); } catch (e) { continue; }
       if (!act || act.a !== 'delete') continue;
       const still = await FB.db.doc('cases/' + x.caseId).get(); if (still.exists) continue;
       try { out.push({ caseId: x.caseId, at: FB.tsMs(x.at), sid: x.sid, data: await Crypto.openJSON(FB.keys[x.prev.v], x.prev, 'case:' + x.caseId) }); } catch (e) { }
+    }
+    // one brought back already (it comes back under a new id) isn't offered again: same patient, type and creation time
+    if (FB.idxOn && out.length) {
+      try {
+        const keys = Array.from(new Set(out.map(x => normName(x.data.patient)).filter(Boolean).map(n => 'n:' + n)));
+        const here = new Set((await FB.loadPatients(keys)).map(caseSig).filter(Boolean));
+        return out.filter(x => !here.has(caseSig(x.data))).sort((a, b) => b.at - a.at);
+      } catch (e) { }
     }
     return out.sort((a, b) => b.at - a.at);
   },
   // (a restored case comes back as a new case; its photo was removed with it)
   async undelete(item) { const data = Object.assign({}, item.data); delete data.photo; return FB.createCases([{ data, status: 'open', action: { a: 'restore' } }]); },
   async saveSettings(patch) { await FB.track(FB.db.doc('meta/settings').set(patch, { merge: true })); },
+
+  /* ---------- backups (owner; Amir, 4 Oct 2026: "how can this app back it self up?") ----------
+     Every case as it is now (open and completed), its photo, the team list, the settings and the recovery box — all exactly
+     as stored, so the file is no more readable than the database: it opens with this office's key, or with the recovery
+     code that was current when it was made. Earlier versions stay in the database (and in Google's daily backups). */
+  async backupDump() {
+    const ms = t => FB.tsMs(t) || null;
+    const [cs, ps, rs, st, ks, rc] = await Promise.all([FB.db.collection('cases').get(), FB.db.collection('photos').get(), FB.db.collection('roster').get(),
+      FB.db.doc('meta/settings').get(), FB.db.doc('meta/keys').get(), FB.db.doc('meta/recovery').get()]);
+    return {
+      cases: cs.docs.map(d => { const x = d.data(); return { id: d.id, v: x.v, iv: x.iv, ct: x.ct, status: x.status, rev: x.rev, sid: x.sid || '', createdAt: ms(x.createdAt), updatedAt: ms(x.updatedAt), closedAt: ms(x.closedAt) }; }),
+      photos: ps.docs.map(d => { const x = d.data(); return { id: d.id, v: x.v, iv: x.iv, ct: x.ct, pv: x.pv }; }).filter(p => p.ct),
+      roster: rs.docs.map(d => Object.assign({ sid: d.id }, d.data())),
+      settings: st.exists ? st.data() : {}, keys: ks.exists ? ks.data() : {}, recovery: rc.exists ? rc.data() : null
+    };
+  },
+  /* a backup's cases and photos, opened: with this office's keys, or (one from another office — rebuilt after a loss) with the
+     recovery code that was current when it was made. code missing when it's needed: errCode('backup-needs-code') */
+  async backupOpen(file, code) {
+    const list = file.cases || [], first = list.find(x => x && x.ct);
+    const opens = async ks => { if (!first) return true; try { await Crypto.openJSON(ks[first.v], first, 'case:' + first.id); return true; } catch (e) { return false; } };
+    let keys = FB.keys, foreign = false;
+    if (first && !(FB.keys[first.v] && await opens(FB.keys))) {
+      if (!file.recovery || !file.recovery.priv) throw errCode('backup-no-key');
+      if (!code) throw errCode('backup-needs-code');
+      try {
+        const rpriv = await Crypto.importPriv(await Crypto.pwOpen(normCode(code), file.recovery.priv, 'recovery-priv'));
+        keys = await Crypto.ringKeys(Crypto.ringFrom(await Crypto.openFrom(rpriv, file.recovery.ring, 'ring:recovery')));
+      } catch (e) { throw errCode('bad-code'); }
+      if (!(await opens(keys))) throw errCode('bad-code');
+      foreign = true;
+    }
+    const cases = [], photos = new Map();
+    for (const x of list) {
+      try { cases.push({ id: x.id, status: x.status === 'done' ? 'done' : 'open', closedAt: x.closedAt || null, data: await Crypto.openJSON(keys[x.v], x, 'case:' + x.id) }); }
+      catch (e) { cases.push({ id: x.id, locked: true }); }
+    }
+    for (const p of file.photos || []) { try { photos.set(p.id, await Crypto.open(keys[p.v], p, 'photo:' + p.id)); } catch (e) { } }
+    return { cases, photos, foreign };
+  },
 
   /* ---------- team (owner) ---------- */
   async issue(o, extra) { // o.rid: the person's id in Staff Hub's office roster, when added from it

@@ -1,4 +1,5 @@
 rules_version = '2';
+// (test copy) the set live on 4 Oct 2026: photos, email updates and NLO Leads, before the patient index and the marked deletes
 // NLO Cases — Firestore security rules.
 // Case bodies are encrypted in the browser; these rules decide WHO may read or
 // write the ciphertext, keep the history log append-only, and stop anyone who
@@ -16,7 +17,7 @@ service cloud.firestore {
     // verified email address (stops anyone else claiming an empty office)
     function bootstrapping() {
       return authed() && !hasSetup()
-        && request.auth.token.email == '__OWNER_EMAIL__' && request.auth.token.email_verified == true
+        && request.auth.token.email == 'dr.test@example.com' && request.auth.token.email_verified == true
         && getAfter(/databases/$(db)/documents/meta/setup).data.owner == request.auth.uid;
     }
     // a public key must look like a P-256 JWK (the owner's client also tolerates bad ones)
@@ -83,19 +84,13 @@ service cloud.firestore {
     // holding the previous encrypted copy. History can't be edited or deleted, so any
     // overwrite — buggy, careless or malicious — can be undone from it.
     function histAfter(id, rev) { return existsAfter(/databases/$(db)/documents/log/$(id + '_' + string(rev))); }
-    // The patient index (4 Oct 2026): pn / pc are keyed hashes (HMAC with a key derived from the office key) of the
-    // patient's name and chart #, so an app can fetch one patient's earlier cases instead of every completed case.
-    // Without the office key they say nothing about who the patient is.
-    function okIdx(d) {
-      return (!('pn' in d) || (d.pn is string && d.pn.size() == 22)) && (!('pc' in d) || (d.pc is string && d.pc.size() == 22));
-    }
     match /cases/{id} {
       function okCase() {
         let d = request.resource.data;
-        return d.keys().hasOnly(['v', 'iv', 'ct', 'status', 'rev', 'by', 'sid', 'createdAt', 'updatedAt', 'closedAt', 'pn', 'pc'])
+        return d.keys().hasOnly(['v', 'iv', 'ct', 'status', 'rev', 'by', 'sid', 'createdAt', 'updatedAt', 'closedAt'])
           && d.v == curV() && d.iv is string && d.ct is string && d.ct.size() < 600000
           && d.rev is int && d.by == request.auth.uid && d.sid == mySid()
-          && d.updatedAt == request.time && okIdx(d)
+          && d.updatedAt == request.time
           && ((d.status == 'open' && d.closedAt == null) || (d.status == 'done' && d.closedAt is timestamp));
       }
       allow read: if isMember();
@@ -103,10 +98,6 @@ service cloud.firestore {
         && request.resource.data.createdAt == request.time && histAfter(id, 1);
       allow update: if isMember() && okCase() && request.resource.data.rev == resource.data.rev + 1
         && request.resource.data.createdAt == resource.data.createdAt && histAfter(id, request.resource.data.rev);
-      // the index alone (the owner's app indexing the office, or catching up on a case an older copy of the app saved):
-      // nothing about the case itself changes, so no new version
-      allow update: if isMember() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pn', 'pc'])
-        && okIdx(request.resource.data);
       allow delete: if isOwner() && histAfter(id, resource.data.rev + 1);
     }
     match /log/{lid} {
@@ -122,21 +113,15 @@ service cloud.firestore {
         return (existsAfter(caseBefore()) && getAfter(caseBefore()).data.rev == d.rev)
           || (!existsAfter(caseBefore()) && exists(caseBefore()) && isOwner());
       }
-      // del: marks the entry of a deleted case (so Deleted cases reads only those, not every recent entry)
       allow read: if isMember();
       allow create: if isMember()
-        && request.resource.data.keys().hasOnly(['caseId', 'rev', 'uid', 'sid', 'at', 'v', 'iv', 'ct', 'prev', 'del'])
+        && request.resource.data.keys().hasOnly(['caseId', 'rev', 'uid', 'sid', 'at', 'v', 'iv', 'ct', 'prev'])
         && request.resource.data.uid == request.auth.uid && request.resource.data.sid == mySid()
         && request.resource.data.at == request.time && request.resource.data.caseId is string
         && request.resource.data.rev is int && lid == request.resource.data.caseId + '_' + string(request.resource.data.rev)
         && request.resource.data.v is int && request.resource.data.ct is string && request.resource.data.ct.size() < 20000
-        && (!('del' in request.resource.data) || (request.resource.data.del == true && !existsAfter(caseBefore())))
         && okHist() && okAfter();
       allow update, delete: if false;
-    }
-    // which set of these rules is live: the app reads this (it needn't exist); older rules refuse it
-    match /meta/rules_20261004 {
-      allow get: if isMember();
     }
 
     // ---------- patient photos ----------

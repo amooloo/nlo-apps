@@ -3,7 +3,9 @@
    Opened with ?demo — lets the office try the app before Firebase exists.
    ===================================================================== */
 const DEMO = {
-  me: null, h: null, cases: new Map(), logs: [], roster: [], members: [], settings: { idleMin: 30, alPerAligner: 4.5 }, curV: 1,
+  me: null, h: null, cases: new Map(), logs: [], roster: [], members: [], curV: 1,
+  // (indexed — patient history loads by patient — and backed up three days ago, so Today doesn't ask for a backup)
+  settings: { idleMin: 30, alPerAligner: 4.5, pidx: 1, lastBackup: { at: Date.now() - 3 * 864e5, by: 'amir', cases: 37 } },
   isOwner() { return !DEMO.me || DEMO.me.role === 'owner'; },
   async emailFor(l) { return l; },
   async signIn() {
@@ -129,7 +131,21 @@ const DEMO = {
   },
   /* patient photos (in memory) */
   photos: new Map(),
-  async rulesCurrent() { return true; },
+  async rulesLevel() { return 2; },
+  /* the patient index: in memory every case is at hand, so a patient's cases are found by their keys (histKeys in ui.js) */
+  idxOn: true,
+  async loadPatients(keys) { const want = new Set(keys); return Array.from(DEMO.cases.values()).filter(c => histKeys(c).some(k => want.has(k))).map(c => JSON.parse(JSON.stringify(c))); },
+  async indexCases() { return { seen: DEMO.cases.size, fixed: 0, missed: 0 }; },
+  /* backups: the demo's file holds its made-up cases as they are (nothing is sealed in the demo) */
+  async backupDump() {
+    const meta = ['id', 'rev', 'v', 'status', 'by', 'updatedAt', 'closedAt'];
+    return { demo: true, cases: Array.from(DEMO.cases.values()).map(c => { const data = {}; Object.keys(c).filter(k => !meta.includes(k)).forEach(k => { data[k] = JSON.parse(JSON.stringify(c[k])); });
+      return { id: c.id, status: c.status, closedAt: c.closedAt || null, data }; }), photos: [], roster: DEMO.roster.slice(), settings: Object.assign({}, DEMO.settings), keys: { current: DEMO.curV }, recovery: null };
+  },
+  async backupOpen(file) {
+    if (!file.demo) throw errCode('backup-demo');
+    return { cases: file.cases.map(x => ({ id: x.id, status: x.status, closedAt: x.closedAt, data: JSON.parse(JSON.stringify(x.data || {})) })), photos: new Map(), foreign: false };
+  },
   async getPhoto(id) {
     const p = DEMO.photos.get(id); if (!p) return null;
     if (!p.bytes) p.bytes = await demoFace(p.face);
@@ -207,7 +223,8 @@ const DEMO = {
   async newRecoveryCode() { return recoveryCode(); },
   async caseVersions(id) { return (DEMO.versions[id] || []).slice().reverse(); },
   async restoreVersion(id, data) { return DEMO.mutateCase(id, d => { Object.keys(d).forEach(k => { if (!['id', 'rev', 'v', 'status', 'by', 'updatedAt', 'closedAt'].includes(k)) delete d[k]; }); Object.assign(d, JSON.parse(JSON.stringify(data))); }, { a: 'restore' }); },
-  async deletedCases() { return DEMO.deleted.slice().reverse(); },
+  // (one brought back already — from here or a backup — isn't offered again, as in FB.deletedCases)
+  async deletedCases() { const here = new Set(Array.from(DEMO.cases.values()).map(caseSig).filter(Boolean)); return DEMO.deleted.filter(x => !here.has(caseSig(x.data))).reverse(); },
   async undelete(item) { DEMO.deleted = DEMO.deleted.filter(x => x !== item); const data = Object.assign({}, item.data); delete data.photo; return DEMO.createCases([{ data, action: { a: 'restore' } }]); },
   versions: {}, deleted: [],
   async changePassword() { },

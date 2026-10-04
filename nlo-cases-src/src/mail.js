@@ -230,15 +230,23 @@ async function mailMemAdd(fp) {
   const m = mailMemLoad(); m.set(await mailHash(fp), Date.now());
   try { localStorage.setItem(MAILMEM, JSON.stringify(Array.from(m, ([h, t]) => ({ h, t })).slice(-3000))); } catch (e) { }
 }
-async function histReady() { ensureHist(); for (let i = 0; i < 100 && !S.histLoaded && S.inApp; i++) await new Promise(r => setTimeout(r, 100)); }
+/* the completed cases a lab email could be about (mailMatch: closed after the email's date, less two weeks) — those closed since
+   the oldest email waiting, not every completed case; read again after half an hour */
+async function mailClosedReady(docs) {
+  if (S.histLoaded) return;
+  const oldest = Math.min.apply(null, [Date.now()].concat(docs.map(d => Number((d.mail && d.mail.date) || d.at) || Date.now())));
+  const days = Math.min(3650, Math.ceil((Date.now() - oldest) / 864e5) + 15), m = S.mailClosed;
+  if (m && m.days >= days && Date.now() - m.at < 30 * 60e3) return;
+  try { const list = liveCases(await B.loadClosed(days)); if (S.inApp) S.mailClosed = { list, days, at: Date.now() }; } catch (e) { }
+}
 async function mailSync() {
   if (!S.inApp || !B.inboxLoad || S.firstLoad) return;
   if (MAILS.busy) { MAILS.again = true; return; }
   MAILS.busy = true;
   try {
     const docs = await B.inboxLoad(); if (!S.inApp) return;
-    if (docs.length) await histReady();
-    const open = openCases(), closed = (S.hist || []).concat(S.closed || []), groups = new Map(), unread = [], mem = mailMemLoad();
+    if (docs.length) await mailClosedReady(docs);
+    const open = openCases(), closed = (S.hist || []).concat(S.closed || [], (S.mailClosed && S.mailClosed.list) || []), groups = new Map(), unread = [], mem = mailMemLoad();
     // updates waiting for someone, one row per update however many emails carry it
     const wait = (d, i, ev, cands) => {
       const fp = mailFp(ev); let g = groups.get(fp);

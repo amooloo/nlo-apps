@@ -41,15 +41,18 @@ function viewAdmin() {
     '</div><div class="small muted">Per aligner: materials for one aligner (sheet, printed model, packaging). Per set: anything paid once per case, such as a setup fee. Estimate = per set + aligners × per aligner.</div></div></div>';
   const deleted = '<div class="card" style="margin-top:18px"><div class="cardHd"><h3>Deleted cases</h3><span class="sub">Last 90 days</span><span style="flex:1"></span><button class="btn btn-ghost" data-act="loadDeleted">' + ic('refresh', 15) + 'Load</button></div><div class="cardBd" id="delBox"><div class="small muted">Deleted cases can be brought back. Click Load.</div></div></div>';
   const actv = '<div class="card" style="margin-top:18px"><div class="cardHd"><h3>Recent activity</h3><span class="sub">Last 7 days</span><span style="flex:1"></span><button class="btn btn-ghost" data-act="loadActivity">' + ic('refresh', 15) + 'Load</button></div><div class="cardBd" id="actBox"><div class="small muted">Shows who changed what. Click Load.</div></div></div>';
-  return rulesCardHTML() + '<div class="adminGrid"><div>' + team + defaults + alCostCard + rxAdminCardHTML() + '</div><div>' + sec + (S.rulesOld ? '' : mailAdminHTML()) + actv + deleted + '</div></div>';
+  return rulesCardHTML() + '<div class="adminGrid"><div>' + team + defaults + alCostCard + rxAdminCardHTML() + '</div><div>' + sec + backupCardHTML() + (S.rulesOld ? '' : mailAdminHTML()) + actv + deleted + '</div></div>';
 }
+
 /* the live security rules are older than this version of the app: the owner pastes the new ones into the Firebase console
    (they ship inside the page, so they always match it; the owner's own sign-in email is filled in here) */
 const NLO_RULES = "__NLO_RULES__";
 function rulesCardHTML() {
-  if (!S.rulesOld || !isOwner()) return '';
+  if (!(S.rulesOld || S.rulesIdx) || !isOwner()) return '';
   const pid = (FB.cfg && FB.cfg.projectId) || '';
-  return '<div class="card rulesCard" id="rulesCard"><div class="cardHd"><h3>One-time update: security rules</h3><span class="sub">Patient photos and email updates need them. Until then they stay hidden.</span></div><div class="cardBd">' +
+  const why = S.rulesOld ? 'Patient photos and email updates need them. Until then they stay hidden.'
+    : 'They keep NLO Cases quick as completed cases pile up: each computer loads only the patients it shows. Everything works meanwhile.';
+  return '<div class="card rulesCard" id="rulesCard"><div class="cardHd"><h3>One-time update: security rules</h3><span class="sub">' + why + '</span></div><div class="cardBd">' +
     '<ol class="small mlSteps"><li>Click <b>Copy the new rules</b>.</li><li>Click <b>Open the Firebase console</b> (the Google account that owns the project). Pick <b>Firestore Database</b> in the left menu (the stacked-lines icon under the gear), then the <b>Rules</b> tab.</li>' +
     '<li>Select everything in the editor, paste, and click <b>Publish</b>.</li><li>Come back here and click <b>Check again</b>.</li></ol>' +
     '<div class="pickRow" style="margin-top:10px"><button class="btn btn-pri btn-sm" data-act="rulesCopy">' + ic('download', 15) + 'Copy the new rules</button>' +
@@ -143,7 +146,7 @@ const ADMIN_ACTS = {
   async loadDeleted() {
     if (!$('#delBox')) return; $('#delBox').innerHTML = '<div class="small muted">Loading…</div>';
     try {
-      const list = await B.deletedCases(90); S.delList = list;
+      const list = await B.deletedCases(90, Number(S.settings.pidx0) || 0); S.delList = list;
       const box = $('#delBox'); if (!box) return;
       box.innerHTML = list.length ? list.map((x, i) => '<div class="row" style="cursor:default"><span class="grow"><span class="pt">' + esc(x.data.patient || '(no name)') + '</span><span class="meta">' + esc(typeOf(x.data).l + ' · deleted ' + fmtWhen(x.at) + ' by ' + firstName(staffName(x.sid, x.sid))) + '</span></span><button class="btn btn-sec btn-sm" data-act="undelete" data-i="' + i + '">Restore</button></div>').join('')
         : '<div class="small muted">Nothing deleted in the last 90 days.</div>';
@@ -312,9 +315,9 @@ Object.assign(ADMIN_ACTS, {
     toast(ok ? 'Rules copied. Paste them in Firestore Database → Rules, then Publish.' : 'Couldn’t copy. Try again.', ok ? { ms: 8000 } : { bad: true });
   },
   async rulesCheck(t) {
-    busyBtn(t, true, 'Checking…');
+    busyBtn(t, true, 'Checking…'); const photosOff = !!S.rulesOld;
     const ok = await rulesCheck(); busyBtn(t, false);
-    toast(ok ? 'The security rules are up to date. Photos and email updates are on.' : 'Still the old rules. Publish them in the Firebase console, wait a minute, then check again.', ok ? {} : { bad: true });
+    toast(ok ? 'The security rules are up to date.' + (photosOff ? ' Photos and email updates are on.' : '') : 'Still the old rules. Publish them in the Firebase console, wait a minute, then check again.', ok ? {} : { bad: true });
     queueRender('team');
   }
 });
@@ -406,4 +409,166 @@ Object.assign(ADMIN_ACTS, {
   shConnect(t) { busyBtn(t, true, 'Connecting…'); iprLink().connect().then(() => { SH.data = null; SH.err = ''; queueRender('team'); }).catch(x => { busyBtn(t, false); if (!/popup-closed|cancelled-popup/.test(String(x && x.code))) toast(errText(x), { bad: true }); }); },
   shRefresh() { SH.data = null; SH.err = ''; queueRender('team'); },
   shAdd(t) { const p = shPeople().find(x => x.id === t.dataset.rid); if (p) ADMIN_ACTS.addStaff(t, null, { name: p.name, username: shUsername(p), rid: p.id }); }
+});
+
+/* ---------- backups (Amir, 4 Oct 2026: "how can this app back it self up? I'm afraid ... all the data will be lost") ----------
+   Google keeps the whole database: a backup every day for 14 weeks, and a rewind to any minute of the last 7 days (turned on in
+   the Firebase console, 4 Oct 2026). This is a copy outside Google, in the office: every case as it is now, open and completed,
+   with its photo, the team list and the settings, sealed as they're stored (FB.backupDump) — so it opens only in NLO Cases, with
+   this office's key or the recovery code. Restore brings back the cases that aren't here; nothing that's here is changed. */
+const BK_DAYS = 30; // Today asks for a new one after this many days
+function bkLast() { const lb = S.settings.lastBackup; return lb && lb.at ? lb : null; }
+function backupCardHTML() {
+  const lb = bkLast();
+  return '<div class="card" style="margin-top:18px" id="backupCard"><div class="cardHd"><h3>Backups</h3><span class="sub">Two copies, kept apart</span></div><div class="cardBd">' +
+    '<p class="small" style="margin-bottom:8px"><b>Google</b> keeps a backup of the whole database every day for 14 weeks, and can rewind it to any minute in the past 7 days.</p>' +
+    '<p class="small" style="margin-bottom:10px"><b>Yours:</b> about once a month, download a backup and save it on the office server. It’s sealed with the office key: it opens only in NLO Cases — here, or with your recovery code in an office set up again.</p>' +
+    '<div class="small" style="margin-bottom:12px" id="bkLast">Last backup: ' + (lb ? '<b>' + esc(fmtWhen(lb.at)) + '</b>' + (lb.cases != null ? ' · ' + lb.cases + ' case' + (lb.cases === 1 ? '' : 's') : '') : '<b>none yet</b>') + '</div>' +
+    '<div class="pickRow"><button class="btn btn-pri btn-sm" data-act="backupNow">' + ic('download', 15) + 'Download a backup</button>' +
+    '<button class="btn btn-sec btn-sm" data-act="backupRestore">' + ic('refresh', 15) + 'Restore from a backup</button></div></div></div>';
+}
+/* Today, for Dr. A: time for a new one (none yet, or the last one is over a month old) — "Later" waits a week on this computer */
+function backupDueHTML() {
+  if (!isOwner() || S.tour || !S.settingsLoaded || !S.cases.size) return '';
+  const lb = bkLast(), age = lb ? Math.floor((Date.now() - lb.at) / 864e5) : null;
+  if (lb && age < BK_DAYS) return '';
+  let later = 0; try { later = Number(localStorage.getItem('nloCases.backupLater')) || 0; } catch (e) { }
+  if (Date.now() < later) return '';
+  return '<div class="card bkDue" id="bkDue"><div class="cardBd">' + ic('shield', 20) + '<span class="grow"><b>Time to download a backup.</b> ' +
+    (lb ? 'The last one was ' + age + ' days ago.' : 'There isn’t one yet.') + ' Save it on the office server, away from Google’s copies.</span>' +
+    '<button class="btn btn-pri btn-sm" data-act="backupNow">' + ic('download', 15) + 'Download a backup</button><button class="btn btn-ghost btn-sm" data-act="backupLater">Later</button></div></div>';
+}
+/* the file: gzip-compressed JSON (plain JSON where the browser can't compress) */
+async function bkBlob(json) {
+  if (typeof CompressionStream === 'undefined') return { blob: new Blob([json], { type: 'application/json' }), ext: '.json' };
+  const gz = await new Response(new Blob([json]).stream().pipeThrough(new CompressionStream('gzip'))).blob();
+  return { blob: new Blob([gz], { type: 'application/gzip' }), ext: '.json.gz' };
+}
+async function bkRead(f) {
+  const buf = new Uint8Array(await f.arrayBuffer()); let text;
+  if (buf[0] === 0x1f && buf[1] === 0x8b) {
+    if (typeof DecompressionStream === 'undefined') throw errCode('backup-browser');
+    try { text = await new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'))).text(); } catch (e) { throw errCode('backup-bad'); }
+  } else text = TD.decode(buf);
+  let o; try { o = JSON.parse(text); } catch (e) { throw errCode('backup-bad'); }
+  if (!o || o.kind !== 'nlo-cases-backup' || !Array.isArray(o.cases)) throw errCode('backup-bad');
+  if (Number(o.ver) > 1) throw errCode('backup-newer');
+  return o;
+}
+/* a case body without the fields the database adds around it, written with its keys in order (to compare two copies) */
+const BK_META = ['id', 'rev', 'v', 'status', 'by', 'updatedAt', 'createdAtSrv', 'closedAt', 'locked', 'assigneeLabel'];
+function bkBody(c) { const o = {}; Object.keys(c || {}).filter(k => !BK_META.includes(k)).sort().forEach(k => { o[k] = c[k]; }); return o; }
+function bkCanon(v) { return JSON.stringify(v, (k, x) => x && typeof x === 'object' && !Array.isArray(x) ? Object.keys(x).sort().reduce((o, key) => { o[key] = x[key]; return o; }, {}) : x); }
+/* the backup set against what's in NLO Cases now: missing (not here — not even brought back before, under a new id), changed */
+async function bkCompare(opened) {
+  const live = await B.loadAll();
+  const byId = new Map(live.map(c => [c.id, c])), sigs = new Set(live.map(c => caseSig(c)).filter(Boolean));
+  const missing = [], changed = []; let here = 0, locked = 0;
+  for (const x of opened.cases) {
+    if (x.locked) { locked++; continue; }
+    const l = byId.get(x.id);
+    if (l) { here++; if (bkCanon(bkBody(l)) !== bkCanon(bkBody(x.data))) changed.push(x); continue; }
+    if (sigs.has(caseSig(x.data))) { here++; continue; }
+    missing.push(x);
+  }
+  missing.sort((a, b) => String(a.data.patient || '').localeCompare(String(b.data.patient || '')));
+  return { missing, changed, here, locked };
+}
+function bkHeadHTML(file) {
+  const n = file.cases.length, done = file.cases.filter(c => c.status === 'done').length;
+  return '<div class="bkHead"><b>Backup of ' + esc(fmtWhen(file.at)) + '</b><span class="small muted">' + esc((file.by ? 'by ' + file.by + ' · ' : '') + n + ' case' + (n === 1 ? '' : 's') + (done ? ' (' + done + ' completed)' : '') + ((file.photos || []).length ? ' · ' + file.photos.length + ' photo' + (file.photos.length === 1 ? '' : 's') : '')) + '</span></div>';
+}
+async function bkLoad(f, code) {
+  const box = $('#bkBox'); if (!box) return;
+  box.innerHTML = '<div class="small muted">' + (code ? 'Opening the backup…' : 'Reading the backup…') + '</div>';
+  let file;
+  try {
+    file = S.bk && S.bk.f === f ? S.bk.file : await bkRead(f);
+    S.bk = { f, file };
+    const opened = await B.backupOpen(file, code);
+    box.innerHTML = bkHeadHTML(file) + '<div class="small muted">Comparing it with NLO Cases…</div>';
+    const cmp = await bkCompare(opened); if (!$('#bkBox')) return;
+    S.bk = { f, file, opened, cmp };
+    bkShow();
+  } catch (e) {
+    const b = $('#bkBox'); if (!b) return;
+    if (file && e && (e.code === 'backup-needs-code' || (e.code === 'bad-code' && code))) {
+      b.innerHTML = bkHeadHTML(file) + '<div class="notice" style="margin:8px 0 10px">This backup is from before the office was set up again, so it opens with the recovery code you had when it was made.</div>' +
+        (e.code === 'bad-code' ? '<div class="lockErr">' + esc(errText(e)) + '</div>' : '') +
+        '<form id="bkCodeForm"><div class="field"><label for="bkCode">Recovery code</label><input id="bkCode" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="XXXX-XXXX-XXXX-XXXX-XXXX-XXXX" required></div>' +
+        '<button class="btn btn-pri btn-sm" type="submit">Open the backup</button></form>';
+      const fm = $('#bkCodeForm'); $('#bkCode').focus();
+      fm.onsubmit = ev => { ev.preventDefault(); bkLoad(f, $('#bkCode').value); };
+      return;
+    }
+    b.innerHTML = (file ? bkHeadHTML(file) : '') + '<div class="lockErr">' + esc(errText(e)) + '</div>';
+  }
+}
+function bkShow() {
+  const box = $('#bkBox'), bk = S.bk; if (!box || !bk || !bk.cmp) return;
+  const { file, opened, cmp } = bk, m = cmp.missing;
+  const who = sid => firstName(staffName(sid, '')) || '';
+  const row = x => '<label class="oldRow"><input type="checkbox" data-bk="' + esc(x.id) + '" checked><span class="pt">' + esc(x.data.patient || '(no name)') + '</span>' +
+    '<span class="small muted">' + esc(typeOf(x.data).l + ' · ' + (x.status === 'done' ? 'completed' : stageLabel(x.data)) + (who(x.data.assignee) ? ' · ' + who(x.data.assignee) : '')) + '</span>' +
+    '<span class="small oldD">' + esc(x.data.createdAt ? fmtDate(isoOf(new Date(x.data.createdAt))) : '') + '</span></label>';
+  const team = (file.roster || []).filter(r => r.active && r.role !== 'owner' && r.username).map(r => r.username);
+  box.innerHTML = bkHeadHTML(file) +
+    (opened.foreign ? '<div class="notice" style="margin:8px 0">Opened with the recovery code. Cases brought back are sealed with this office’s key.</div>' : '') +
+    (m.length ? '<div class="flabel" style="margin-top:10px">Not in NLO Cases now: ' + m.length + '</div><div class="oldList bkList">' + m.map(row).join('') + '</div>' +
+      (opened.foreign && file.settings && Object.keys(file.settings).length ? '<label class="small" style="display:flex;gap:8px;align-items:center;margin:8px 0 0"><input type="checkbox" id="bkSettings" checked> Also bring back the settings (Lab Rx details, who gets new cases, aligner cost)</label>' : '') +
+      '<div class="oldAct"><b id="bkStatus">' + m.length + ' ticked</b><span style="flex:1"></span><button class="btn btn-pri btn-sm" data-act="bkBring">' + ic('refresh', 15) + '<span id="bkBringL">Bring back ' + m.length + '</span></button></div>'
+      : '<div class="lockOk" style="margin-top:10px">Every case in this backup is in NLO Cases.</div>') +
+    (cmp.changed.length ? '<p class="small muted" style="margin-top:10px">' + cmp.changed.length + ' case' + (cmp.changed.length === 1 ? ' has' : 's have') + ' changed since this backup. Each one’s earlier versions are kept in NLO Cases — open it and use Versions.</p>' : '') +
+    (cmp.locked ? '<p class="small muted">' + cmp.locked + ' case' + (cmp.locked === 1 ? '' : 's') + ' in it couldn’t be opened.</p>' : '') +
+    (opened.foreign && team.length ? '<p class="small muted">Add the team again in Team &amp; security with the same usernames (' + esc(team.join(', ')) + '), so their cases stay assigned to them.</p>' : '');
+  box.querySelectorAll('input[data-bk]').forEach(i => i.addEventListener('change', () => {
+    const n = $$('#bkBox input[data-bk]').filter(x => x.checked).length;
+    const st = $('#bkStatus'), l = $('#bkBringL'), b = $('[data-act=bkBring]'); if (st) st.textContent = n + ' ticked'; if (l) l.textContent = 'Bring back ' + n; if (b) b.disabled = !n;
+  }));
+}
+Object.assign(ADMIN_ACTS, {
+  async backupNow(t) {
+    busyBtn(t, true, 'Preparing…');
+    try {
+      const dump = await B.backupDump();
+      const file = Object.assign({ kind: 'nlo-cases-backup', ver: 1, at: Date.now(), by: (B.me && B.me.name) || '', office: (B === FB && FB.cfg && FB.cfg.projectId) || 'demo' }, dump);
+      const { blob, ext } = await bkBlob(JSON.stringify(file));
+      const d = new Date(file.at), name = 'nlo-cases-backup-' + isoOf(d) + '-' + String(d.getHours()).padStart(2, '0') + String(d.getMinutes()).padStart(2, '0') + ext;
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click();
+      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+      await B.saveSettings({ lastBackup: { at: file.at, by: meSid(), cases: dump.cases.length } });
+      toast('Backup downloaded: ' + dump.cases.length + ' case' + (dump.cases.length === 1 ? '' : 's') + '. Save ' + name + ' on the office server.', { ms: 9000 });
+      queueRender();
+    } catch (x) { toast(errText(x), { bad: true }); }
+    busyBtn(t, false);
+  },
+  backupLater() { try { localStorage.setItem('nloCases.backupLater', String(Date.now() + 7 * 864e5)); } catch (e) { } const c = $('#bkDue'); if (c) c.remove(); toast('Asking again in a week.'); },
+  backupRestore() {
+    S.bk = null;
+    openModal('<h3>Restore from a backup</h3><div class="lsub">Brings back cases that aren’t in NLO Cases anymore, as they were in the backup. Nothing that’s here is changed.</div>' +
+      '<div class="field"><label for="bkFile">Backup file</label><input type="file" id="bkFile" accept=".gz,.json,application/gzip,application/json" class="inp"><div class="hint">nlo-cases-backup-….json.gz, from the office server</div></div>' +
+      '<div id="bkBox"></div><div class="mFt"><button class="btn btn-sec" type="button" data-act="closeModal">Close</button></div>', w => {
+        w.querySelector('.modal').classList.add('wide');
+        $('#bkFile', w).addEventListener('change', e => { const f = e.target.files && e.target.files[0]; if (f) { S.bk = null; bkLoad(f); } });
+      });
+  },
+  async bkBring(t) {
+    const bk = S.bk; if (!bk || !bk.cmp) return;
+    const ids = new Set($$('#bkBox input[data-bk]').filter(i => i.checked).map(i => i.dataset.bk));
+    const pick = bk.cmp.missing.filter(x => ids.has(x.id)); if (!pick.length) return;
+    const withSettings = !!($('#bkSettings') && $('#bkSettings').checked);
+    $$('#bkBox input, #bkBox button').forEach(x => { x.disabled = true; });
+    const st = $('#bkStatus'); if (st) st.innerHTML = 'Bringing back… <span class="prog" style="display:inline-block;width:120px;vertical-align:middle"><i id="bkBar"></i></span>';
+    try {
+      await B.createCases(pick.map(x => {
+        const data = JSON.parse(JSON.stringify(x.data)), photo = bk.opened.photos.get(x.id) || null; if (!photo) delete data.photo;
+        return { data, status: x.status, closedAt: x.closedAt || Date.now(), photo, action: { a: 'restore', from: 'backup', at: bk.file.at } };
+      }), (n, tot) => { const b = $('#bkBar'); if (b) b.style.width = Math.round(n / tot * 100) + '%'; });
+      if (withSettings) { const s = Object.assign({}, bk.file.settings); ['lastBackup', 'pidx', 'pidx0', 'idleMin'].forEach(k => delete s[k]); await B.saveSettings(s); }
+      histReset(); S.closedLoaded = false; queueRender();
+      toast(pick.length + ' case' + (pick.length === 1 ? '' : 's') + ' brought back from the backup', { ms: 6000 });
+    } catch (x) { toast(errText(x) + ' — run it again; the ones already back are skipped.', { bad: true, ms: 9000 }); }
+    // what's left to bring back (by now, normally nothing)
+    try { const cmp = await bkCompare(bk.opened); if (S.bk === bk) { bk.cmp = cmp; bkShow(); } } catch (e) { }
+  }
 });

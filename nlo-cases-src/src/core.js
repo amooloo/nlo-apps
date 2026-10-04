@@ -201,6 +201,9 @@ function apptKeyOf(c) { const x = apptOf(c); return x ? dateKey(x.d, timeOf(c, x
 /* ---------- in-house aligner sets: how many aligners each case made, and the patient's total ---------- */
 const normChart = s => String(s || '').replace(/\s+/g, '').toLowerCase();
 const normName = s => String(s || '').trim().replace(/\s+/g, ' ').toLowerCase();
+/* the same case under another id (one brought back from Deleted cases or a backup gets a new id): same patient, type and
+   the time it was first made ('' when it doesn't say) */
+function caseSig(d) { return d && d.createdAt ? normName(d.patient) + '|' + (d.type || '') + '|' + d.createdAt : ''; }
 /* same patient: by chart # when both have one, otherwise by name */
 function samePatient(a, b) {
   const ca = normChart(a.chart), cb = normChart(b.chart);

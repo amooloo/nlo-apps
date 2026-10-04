@@ -71,6 +71,11 @@ function errText(e) {
   if (/permission/.test(c)) return 'Not allowed. Your access may have changed.';
   if (/gone/.test(c)) return 'That case no longer exists.';
   if (/requires-recent-login/.test(c)) return 'Please sign in again, then retry.';
+  if (/backup-bad/.test(c)) return 'That isn’t an NLO Cases backup (pick the nlo-cases-backup file).';
+  if (/backup-newer/.test(c)) return 'That backup was made by a newer NLO Cases. Reload this page and try again.';
+  if (/backup-browser/.test(c)) return 'This browser can’t open the backup. Use Chrome or Edge.';
+  if (/backup-no-key/.test(c)) return 'That backup is from another office and can’t be opened here.';
+  if (/backup-demo/.test(c)) return 'The demo only opens its own backups. Open the real backup in NLO Cases.';
   return (e && e.message) ? String(e.message).replace(/^Firebase:\s*/, '') : 'Something went wrong.';
 }
 
@@ -244,7 +249,7 @@ function bindLockForms(mode) {
 
 /* ---------- enter / leave ---------- */
 function enterApp() {
-  S.inApp = true; S.cases = new Map(); S.closed = []; S.hist = null; S.histLoaded = false; S.firstLoad = true; S.lastAct = Date.now();
+  S.inApp = true; S.cases = new Map(); S.closed = []; histReset(); S.firstLoad = true; S.lastAct = Date.now(); S.settingsLoaded = false; S.rulesLv = null; S.idxRan = false;
   $('#lockWrap').classList.add('hidden'); $('#app').classList.remove('hidden');
   renderShell(); renderView();
   S.h = {
@@ -260,7 +265,11 @@ function enterApp() {
     mailbeat(list) { if (MAILS.state) MAILS.state.beats = list; if (S.view === 'admin') queueRender('team'); },
     roster(list) { S.roster = list; queueRender('team'); },
     members(list) { S.members = list; if (S.view === 'admin') queueRender('team'); },
-    settings(s) { S.settings = Object.assign({ idleMin: 10 }, s || {}); if (S.view === 'admin') queueRender('team'); },
+    settings(s) {
+      const first = !S.settingsLoaded; S.settings = Object.assign({ idleMin: 10 }, s || {}); S.settingsLoaded = true;
+      if (S.view === 'admin') queueRender('team'); else if (first && S.view === 'today') queueRender(); // (Today's backup reminder)
+      idxMaintain();
+    },
     revoked() { lockOut('Your access to NLO Cases was turned off.'); },
     rekeyed() { },
     error(e) { if (/permission/.test((e && e.code) || '')) lockOut('Your access changed. Sign in again.'); else toast(errText(e), { bad: true }); }
@@ -276,24 +285,42 @@ function enterApp() {
   // practice mode: the tour starts by itself once, and after Lock it picks up where it was
   if (S.tour && (!S.tourBegun || TOUR.paused)) { S.tourBegun = true; const from = TOUR.paused; TOUR.paused = null; setTimeout(() => { if (S.inApp && !TOUR.on) tourStart(S.tour, from); }, 500); }
 }
-/* features that need newer security rules (patient photos, email updates) stay out of sight until the owner publishes them */
+/* features that need newer security rules (patient photos, email updates) stay out of sight until the owner publishes them;
+   the patient index and marked deletes (4 Oct 2026) wait for them too, while everything else works as before
+   (S.rulesOld: photos / email updates wait; S.rulesIdx: only the index waits). true = all of them are live. */
 async function rulesCheck() {
   const was = !!S.rulesOld;
-  S.rulesOld = false; document.body.classList.remove('phOff');
-  if (!B.rulesCurrent) return true;
-  const ok = await B.rulesCurrent(); if (!S.inApp) return ok;
-  S.rulesOld = !ok; document.body.classList.toggle('phOff', !ok);
-  if (!ok) queueRender('team');
+  S.rulesOld = false; S.rulesIdx = false; document.body.classList.remove('phOff');
+  if (!B.rulesLevel) return true;
+  const lv = await B.rulesLevel(); if (!S.inApp) return lv >= 2;
+  S.rulesLv = lv; S.rulesOld = lv < 1; S.rulesIdx = lv === 1; document.body.classList.toggle('phOff', lv < 1);
+  if (lv < 2) queueRender('team');
   // just published: the live updates the older rules refused (lab inbox, mailbox check-ins) start again without signing in again
-  if (ok && was && S.h) { B.start(S.h); MAILS.state = null; queueRender('team'); }
-  return ok;
+  if (lv >= 1 && was && S.h) { B.start(S.h); MAILS.state = null; queueRender('team'); }
+  idxMaintain();
+  return lv >= 2;
+}
+/* the owner's app keeps the patient index (see FB.idxFields): once the newer rules are live it indexes every case (once),
+   then, at most every 6 hours, the cases saved since — an app opened before the update saves without the index */
+async function idxMaintain() {
+  if (!S.inApp || !isOwner() || S.rulesLv !== 2 || !S.settingsLoaded || S.idxRan || !B.indexCases) return;
+  const last = Number(S.settings.pidx) || 0, t0 = Date.now(); if (last && t0 - last < 6 * 3600e3) return;
+  S.idxRan = true;
+  try {
+    await B.indexCases(last ? last - 3600e3 : 0);
+    if (!S.inApp) return;
+    // (one refused because it raced a save was saved after this pass began, so the next pass looks at it again);
+    // pidx0: when the first pass began — deletes are marked from then on (Deleted cases)
+    await B.saveSettings(last ? { pidx: t0 } : { pidx: t0, pidx0: t0 });
+    if (!last) { histReset(); queueRender(); }
+  } catch (e) { S.idxRan = false; }
 }
 async function lockOut(msg) {
   if (!S.inApp) return;
   if (TOUR.on) msg = tourPause(msg); // practice mode: signing back in picks the tour up again
   S.inApp = false; clearInterval(S.idleTimer); clearInterval(S.mailTimer);
   closeModal(); closeDrawer(true);
-  S.cases = new Map(); S.closed = []; S.hist = null; S.histLoaded = false; S.members = []; S.roster = []; S.iprCache = {}; S.verList = null; S.delList = null; S.impList = null;
+  S.cases = new Map(); S.closed = []; histReset(); S.members = []; S.roster = []; S.iprCache = {}; S.verList = null; S.delList = null; S.impList = null; S.bk = null;
   Object.assign(MAILS, { list: [], unread: [], pick: {}, sig: '', state: null, stateAt: 0, script: '', gone: new Set(), goneFp: new Set(), hk: null, mem: null });
   phReset(); rxReset(); SH.data = null; SH.err = '';
   { const ts = $('#toasts'); if (ts) ts.innerHTML = ''; } // a toast's Copy chart note / Download PDF is for the case on screen
@@ -583,14 +610,57 @@ function progHTML(c, only) {
   const n = keys.indexOf(c.stage) + 1;
   return '<span class="sprog' + (only ? ' sub' : '') + '" role="img" aria-label="' + esc((n ? 'Step ' + n + ' of ' + keys.length + ': ' : '') + stageLabel(c)) + '">' + h + '</span>';
 }
-/* every case we can see, for patient totals: open ones first, then completed (loaded once, in the background) */
+/* every case we can see, for patient totals: open ones, then completed ones (loaded in the background) */
 function casePool() { return Array.from(S.cases.values()).concat(S.closed || [], S.hist || []); }
-async function ensureHist() {
-  if (S.histLoaded || S.histLoading || !S.inApp) return; S.histLoading = true;
-  let h; try { h = await B.loadClosed(3650); } catch (e) { h = []; }
-  S.histLoading = false; if (!S.inApp) return; // locked meanwhile: drop it
-  S.hist = liveCases(h); S.histLoaded = true;
-  $$('.cf').forEach(cf => cf._alTot && cf._alTot());
+/* patient history (Amir, 4 Oct 2026: "data gets large enough that something bad will happen"): the completed cases of the
+   patients on screen, fetched by patient once the office is indexed (FB.idxFields) — so a sign-in doesn't download every
+   completed case there has ever been. Until then (or in an office not indexed yet), every completed case once, as before. */
+function histReset() { S.hist = null; S.histLoaded = false; S.histP = null; S.histKeys = new Set(); S.histAsk = new Map(); S.mailClosed = null; S.histGen = (S.histGen || 0) + 1; }
+function histByPatient() { return !!(S.settings.pidx && B.idxOn && B.loadPatients); }
+/* the keys a patient's cases are found by (samePatient: chart # when both have one, else name) — as FB.idxFields hashes them */
+function histKeys(c) { const k = [], n = normName(c && c.patient), ch = normChart(c && c.chart); if (n) k.push('n:' + n); if (ch) k.push('c:' + ch); return k; }
+function histReady(c) { return S.histLoaded || (histByPatient() && histKeys(c).every(k => S.histKeys.has(k))); }
+/* list: the cases (or a New case form) whose patients' history is wanted; resolves true once all of it is in */
+async function ensureHist(list) {
+  // (right after sign-in the settings may not be in yet; they say whether the office is indexed)
+  for (let i = 0; i < 40 && S.inApp && !S.settingsLoaded; i++) await new Promise(r => setTimeout(r, 100));
+  if (!S.inApp) return false;
+  if (!histByPatient()) return ensureHistAll();
+  const keys = new Set(); (list || []).forEach(c => histKeys(c).forEach(k => keys.add(k)));
+  const want = Array.from(keys).filter(k => !S.histKeys.has(k) && !S.histAsk.has(k)), gen = S.histGen;
+  if (want.length) {
+    const p = (async () => {
+      let got; try { got = await B.loadPatients(want); } catch (e) { got = null; }
+      if (gen !== S.histGen) return false; // locked or reset meanwhile: drop it
+      want.forEach(k => S.histAsk.delete(k));
+      if (!got) return false; // (asked again the next time it's wanted)
+      const have = new Set((S.hist || []).map(c => c.id));
+      S.hist = (S.hist || []).concat(liveCases(got.filter(c => c.status === 'done' && !have.has(c.id))));
+      want.forEach(k => S.histKeys.add(k));
+      histArrived(); return true;
+    })();
+    want.forEach(k => S.histAsk.set(k, p));
+  }
+  const pend = Array.from(new Set(Array.from(keys).map(k => S.histAsk.get(k)).filter(Boolean)));
+  if (pend.length) await Promise.all(pend);
+  return Array.from(keys).every(k => S.histKeys.has(k));
+}
+function ensureHistAll() {
+  if (S.histLoaded) return Promise.resolve(true);
+  if (!S.inApp) return Promise.resolve(false);
+  if (!S.histP) {
+    const gen = S.histGen;
+    S.histP = (async () => {
+      let h; try { h = await B.loadClosed(3650); } catch (e) { h = []; }
+      if (gen !== S.histGen) return false; // locked or reset meanwhile: drop it
+      S.histP = null; S.hist = liveCases(h); S.histLoaded = true;
+      histArrived(); return true;
+    })();
+  }
+  return S.histP;
+}
+function histArrived() {
+  $$('.cf').forEach(cf => { if (cf._alTot) cf._alTot(); if (cf._syncTx) cf._syncTx(); });
   if (!S.editing && S.openId) renderDrawer();
   if (S.view === 'list' || S.view === 'mine') queueRender();
 }
@@ -605,7 +675,7 @@ function alignerTotalHTML(c, inForm) {
   const sets = alignerSets(c, casePool()); const me = sets.find(s => s.me) || { n: 0, l: 'This set' };
   const total = sets.reduce((s, x) => s + x.n, 0), missing = sets.filter(x => !x.n).length;
   const est = alCost(me.n), estAll = alCost(total, sets.length);
-  const wait = !S.histLoaded ? '<div class="small muted">Adding up earlier sets…</div>' : '';
+  const wait = !histReady(c) ? '<div class="small muted">Adding up earlier sets…</div>' : '';
   const parts = sets.map(s => '<span class="alSet' + (s.me ? ' me' : '') + '">' + esc(s.l) + ' <b>' + (s.n || '?') + '</b></span>').join('');
   // per arch: "(U 18 · L 16)", or just the one arch that's treated: "(U 18 · upper arch only)"
   const one = oneArch(c), arches = c.alU || c.alL ? ' (' + (one === 'U' ? 'U ' + (c.alU || 0) + ' · upper arch only' : one === 'L' ? 'L ' + (c.alL || 0) + ' · lower arch only' : 'U ' + (c.alU || 0) + ' · L ' + (c.alL || 0)) + ')' : '';
@@ -621,7 +691,7 @@ function alignerTotalHTML(c, inForm) {
 }
 function alignerMini(c) {
   if (c.type !== 'nla') return '';
-  const n = alN(c), sets = S.histLoaded ? alignerSets(c, casePool()) : null, total = sets ? sets.reduce((s, x) => s + x.n, 0) : 0;
+  const n = alN(c), sets = histReady(c) ? alignerSets(c, casePool()) : null, total = sets ? sets.reduce((s, x) => s + x.n, 0) : 0;
   return n || total ? '<span class="alMini">' + (n ? n + ' aligners' : '') + (sets && sets.length > 1 && total ? (n ? ' · ' : '') + total + ' total' : '') + '</span>' : '';
 }
 function avatar(c) {
@@ -657,7 +727,7 @@ function viewToday() {
   const right = '<div class="card"><div class="cardHd"><h3>Needs Dr. A</h3><span class="sub">' + dr.length + ' waiting</span></div><div class="cardBd">' +
     (dr.length ? dr.map(x => row(x)).join('') : '<div class="empty">Nothing waiting on Dr. A.</div>') + '</div></div>' +
     (noDate ? '<div class="card" style="margin-top:14px"><div class="cardBd" style="padding:14px 20px"><button class="linkBtn" data-act="tile" data-f="none">' + noDate + ' open case' + (noDate > 1 ? 's have' : ' has') + ' no lab date or delivery appt</button></div></div>' : '');
-  return h + mailCardHTML() + cleanupCardHTML(all) + '<div class="twoCol"><div>' + left + '</div><div>' + right + '</div></div>';
+  return h + backupDueHTML() + mailCardHTML() + cleanupCardHTML(all) + '<div class="twoCol"><div>' + left + '</div><div>' + right + '</div></div>';
 }
 
 /* ---------- Board ---------- */
@@ -841,7 +911,7 @@ function colsControlHTML(keys) {
 }
 function listBodyHTML(base) {
   const list = sortList(applyFilters(base));
-  if (list.some(c => c.type === 'nla')) ensureHist();
+  if (list.some(c => c.type === 'nla')) ensureHist(list.filter(c => c.type === 'nla'));
   if (!list.length) return '<div class="card"><div class="empty">' + (base.length ? 'No cases match.' : 'No open cases yet.') + '</div></div>';
   const hid = hiddenCols(), on = k => !hid.has(k);
   // a heading sorts; its eye hides the column (the Columns menu above the table brings it back)
@@ -1048,7 +1118,7 @@ function renderDrawer() {
   if (keepTop) $('.dBd', d).scrollTop = keepTop;
   dsAllSync(); phPaint(); savPaint(d); phWireDrawer(d); picPaint(d);
   if (typeOf(c).aligner && c.chart && !done) iprAutoLoad(c);
-  if (c.type === 'nla') ensureHist();
+  if (c.type === 'nla') ensureHist([c]);
 }
 /* ---------- in-house treatment timeline (Amir, 3 Oct 2026: "show a graph for each patient on where they are in treatment") ----------
    From the patient's Start and Expected removal (txOf): the bar is the treatment, mint up to today (coral past the expected
@@ -1087,7 +1157,7 @@ function txCost(c) {
 }
 function txCostHTML(c) {
   const x = txCost(c); if (!x) return '';
-  if (!S.histLoaded) return '<span class="due none">Adding up…</span>';
+  if (!histReady(c)) return '<span class="due none">Adding up…</span>';
   if (!x.total) return '<span class="due none">No aligner counts</span>';
   if (x.est == null) return '<span class="due none" title="Dr. A enters the per-aligner cost in Team &amp; security">No cost set</span>';
   const tip = 'Patient total so far: ' + x.sets.map(s => s.l + ' ' + (s.n || '?')).join(' · ') + ' — ' + x.total + ' aligners, est. ' + money(x.est);

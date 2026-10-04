@@ -269,7 +269,7 @@ function phSlotHTML() {
 function phWireForm(root) {
   const slot = $('#cf-photo', root); if (!slot) return;
   root._ph = null; root._phOff = '';
-  ensureHist(); // completed cases too, to find this patient's photo
+  if (!histByPatient()) ensureHist(); // completed cases too, to find this patient's photo (by patient: as the name is typed)
   slot.addEventListener('dragover', e => { e.preventDefault(); slot.classList.add('over'); });
   slot.addEventListener('dragleave', () => slot.classList.remove('over'));
   slot.addEventListener('drop', e => { e.preventDefault(); slot.classList.remove('over'); const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]; if (f) phFormEdit(root, f); });
@@ -292,6 +292,8 @@ function phFormShow(root) {
 function phFormReuse(root) {
   if (!root.isConnected || (root._ph && root._ph.from === 'new')) return; // a photo picked here wins
   const probe = { patient: (($('#cf-patient', root) || {}).value || '').trim(), chart: (($('#cf-chart', root) || {}).value || '').trim() };
+  // their completed cases too: once those are in, look again
+  if (probe.patient && !histReady(probe)) ensureHist([probe]).then(ok => { if (ok && root.isConnected) phFormReuse(root); });
   const src = probe.patient ? casePool().filter(x => x && x.id && x.photo && !x.locked && samePatient(x, probe)).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0] : null;
   if (!src) { if (root._ph) { root._ph = null; phFormShow(root); } return; }
   if ((root._phOff && root._phOff === normName(probe.patient)) || (root._ph && root._ph.srcId === src.id)) return;

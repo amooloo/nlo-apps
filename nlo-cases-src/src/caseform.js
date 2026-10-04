@@ -797,9 +797,9 @@ function wireCaseForm(root, isNew) {
     const box = $r('#cf-alTotal'); if (!box) return;
     const tile = $r('#cf-tile').value; if (!INHOUSE_TILES.includes(tile)) { box.innerHTML = ''; return; }
     const o = readCaseForm(root); o.id = cfEl.dataset.id || ''; if (!o.id) o._new = true;
-    box.innerHTML = alignerTotalHTML(o, true); ensureHist();
+    box.innerHTML = alignerTotalHTML(o, true); ensureHist([o]);
   };
-  cfEl._alTot = alTot;
+  cfEl._alTot = alTot; cfEl._syncTx = () => syncTx(); // (again once the patient's earlier sets are in)
   root._cfRefresh = refresh; // (the Rx editor's Done: the "what's being made" line follows what the Metal Rx says)
   ['cf-patient', 'cf-chart', 'cf-alU', 'cf-alL'].forEach(id => { const el = $r('#' + id); if (el) el.addEventListener('input', alTot); });
   ['cf-patient', 'cf-chart'].forEach(id => { const el = $r('#' + id); if (el) el.addEventListener('input', () => syncTx()); });

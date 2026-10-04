@@ -194,6 +194,14 @@ svg.i{flex:none;display:inline-block;vertical-align:-3px}
 .tourOffer .cardBd{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 18px}
 .tourOffer .toIc{color:var(--mint-700);display:inline-flex}
 .tourOffer .toTx{flex:1;min-width:220px;font-size:13.5px;color:var(--navy)}
+/* Today, for Dr. A: time to download a backup; Team & security: the backup in a restore */
+.bkDue{margin-bottom:18px;border:1.5px solid var(--blue-200)}
+.bkDue .cardBd{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 18px}
+.bkDue .cardBd>.i{color:var(--blue-700);flex:none}
+.bkDue .grow{flex:1;min-width:220px;font-size:13.5px;color:var(--navy)}
+.bkHead{display:flex;flex-direction:column;gap:2px;margin:4px 0 8px}
+.bkHead b{color:var(--navy);font-size:14px}
+.bkList .oldD{color:var(--grey-600);font-weight:500}
 @media (prefers-reduced-motion:reduce){#tourRing.glide{transition:none}}
 .av{width:28px;height:28px;border-radius:50%;background:var(--navy-600);color:#fff;font-size:11px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;flex:none;letter-spacing:.02em}
 .av.none{background:var(--grey-200);color:var(--grey-500)}

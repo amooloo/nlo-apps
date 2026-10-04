@@ -124,6 +124,27 @@ await no('history id must match case and revision', (async () => { const b = wri
 await no('cannot edit history', updateDoc(doc(db, 'log/c1_3'), { ct: 'eA==' }));
 await no('cannot delete history', deleteDoc(doc(db, 'log/c1_3')));
 
+console.log('\n# The patient index (4 Oct 2026): keyed hashes of name and chart # on each case');
+const PN = 'p'.repeat(22), PC = 'q'.repeat(22), SAVED = { v: 2, ...box };
+const save8 = (rev, extra, hextra) => { const d = caseUpd('gwen', 'gwen', Object.assign({ rev }, extra)); delete d.createdAt; return caseWrite(db, 'c8', d, histDoc('gwen', 'gwen', 'c8', rev, SAVED, hextra)); };
+await ok('reads which rules are live', getDoc(doc(db, 'meta/rules_20261004')));
+await ok('a new case carries its index', caseWrite(db, 'c8', caseUpd('gwen', 'gwen', { rev: 1, createdAt: serverTimestamp(), pn: PN, pc: PC }), histDoc('gwen', 'gwen', 'c8', 1, null), 'create'));
+await ok('a save updates it (a new name, the chart # taken off)', save8(2, { pn: 'r'.repeat(22), pc: deleteField() }));
+await no('the index can’t hold a name (wrong length)', caseWrite(db, 'c9', caseUpd('gwen', 'gwen', { rev: 1, createdAt: serverTimestamp(), pn: 'Leak Example' }), histDoc('gwen', 'gwen', 'c9', 1, null), 'create'));
+await no('…or anything but text', caseWrite(db, 'c9', caseUpd('gwen', 'gwen', { rev: 1, createdAt: serverTimestamp(), pc: 12345 }), histDoc('gwen', 'gwen', 'c9', 1, null), 'create'));
+await no('a history entry can’t be marked as a delete when the case stays', save8(3, {}, { del: true }));
+await ok('(the same save, unmarked, goes through)', save8(3, {}));
+await ok('the index alone is set without a new version (indexing the office)', updateDoc(doc(db, 'cases/c1'), { pn: PN, pc: PC }));
+await ok('…and taken off', updateDoc(doc(db, 'cases/c1'), { pc: deleteField() }));
+await ok('…naming the revision it was worked out from (unchanged)', updateDoc(doc(db, 'cases/c1'), { pn: PN, rev: 5 }));
+await no('…not when that revision is out of date (a save came in between)', updateDoc(doc(db, 'cases/c1'), { pn: PN, rev: 4 }));
+await no('an index-only write can’t change the case itself', updateDoc(doc(db, 'cases/c1'), { pn: PN, ct: 'eA==' }));
+await no('…or add plaintext', updateDoc(doc(db, 'cases/c1'), { pn: PN, patient: 'Leak Example' }));
+await no('…or a malformed index', updateDoc(doc(db, 'cases/c1'), { pn: 'short' }));
+await no('a removed person can’t set the index', updateDoc(doc(env.authenticatedContext('kay').firestore(), 'cases/c1'), { pn: 's'.repeat(22) }));
+await no('a stranger can’t set the index', updateDoc(doc(env.authenticatedContext('stranger').firestore(), 'cases/c1'), { pn: 's'.repeat(22) }));
+await no('a stranger can’t read which rules are live', getDoc(doc(env.authenticatedContext('stranger').firestore(), 'meta/rules_20261004')));
+
 console.log('\n# Owner');
 db = env.authenticatedContext('owner').firestore();
 await ok('lists member records', getDocs(collection(db, 'members')));
@@ -139,6 +160,9 @@ await no('cannot skip key versions', updateDoc(doc(db, 'meta/keys'), { current: 
 await no('cannot move the key version back', updateDoc(doc(db, 'meta/keys'), { current: 2 }));
 await no('cannot delete a case without keeping its last copy', deleteDoc(doc(db, 'cases/c2')));
 await ok('deletes a case, keeping its last copy in history', caseWrite(db, 'c2', null, histDoc('owner', 'amir', 'c2', 2, PREV), 'delete'));
+await no('a delete’s mark is only ever “true”', caseWrite(db, 'c8', null, histDoc('owner', 'amir', 'c8', 4, { v: 2, ...box }, { del: 'yes' }), 'delete'));
+await ok('deletes a case with its history entry marked as a delete (Deleted cases reads only those)', caseWrite(db, 'c8', null, histDoc('owner', 'amir', 'c8', 4, { v: 2, ...box }, { del: true }), 'delete'));
+await ok('lists the marked deletes', getDocs(query(collection(db, 'log'), where('del', '==', true))));
 await ok('sets a username', setDoc(doc(db, 'logins/newbie'), { email: 'newbie.1@staff.example' }));
 await no('cannot add extra fields to a username record', setDoc(doc(db, 'logins/newbie'), { email: 'a@b.c', note: 'x' }));
 await no('cannot overwrite the office setup', setDoc(doc(db, 'meta/setup'), { owner: 'owner', at: serverTimestamp() }));

@@ -2,6 +2,7 @@
 const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
+const zlib = require('zlib');
 const { routes, watch, panelsOpen } = require('./helpers');
 const { makeGas } = require('./gas');
 const URL0 = 'http://127.0.0.1:8765/nlo-cases.html?emu';
@@ -360,6 +361,11 @@ async function openByName(p, name) {
   await owner.click('#nav-list'); await owner.fill('#q', P3);
   await owner.waitForSelector('tr.click:has-text("' + P3 + '")', { timeout: 20000 });
   check(true, 'deleted case restored from Team & security');
+  check((await fsDump()).filter(d => /\/log\//.test(d.name) && d.fields.del && d.fields.del.booleanValue === true).length === 1, 'its history entry is marked as a delete (Deleted cases reads only those, not every recent entry)');
+  await owner.fill('#q', ''); await owner.click('#nav-admin'); await owner.click('[data-act=loadDeleted]');
+  await owner.waitForFunction(n => { const b = document.querySelector('#delBox'); return !!b && !/Loading/.test(b.textContent) && !b.textContent.includes(n); }, P3, { timeout: 20000 });
+  check(/Nothing deleted/.test(await owner.textContent('#delBox')), 'once it’s back, Deleted cases doesn’t offer it again (it came back under a new id)');
+  await owner.click('#nav-list');
 
   console.log('\n# IPR Tracker link (made-up IPR patient in the database emulator)');
   const seed = { patients: { p1: { id: 'p1', name: 'ZQ', patient_id: '15-6541' } }, visits: { p1: {
@@ -1439,8 +1445,77 @@ async function openByName(p, name) {
   await owner.fill('#cf-patient', 'Tobias Tilepick Jr'); check(await owner.textContent('#dEditName') === 'Tobias Tilepick Jr', 'and it follows the name as it’s typed');
   await owner.click('#drawer [data-act=cancelEdit]'); await owner.click('#drawer [data-act=closeDrawer] >> nth=0');
 
-  console.log('\n# Older security rules still live: photos wait, and Team & security hands out the new rules');
+  console.log('\n# Patient index: each case finds its patient’s other cases (Amir, 4 Oct 2026: "data gets large enough that something bad will happen")');
+  const st0 = await owner.evaluate(() => ({ pidx: S.settings.pidx, pidx0: S.settings.pidx0, lv: S.rulesLv, on: FB.idxOn }));
+  check(st0.pidx > 0 && st0.pidx0 > 0 && st0.lv === 2 && st0.on, 'the owner’s app indexed the office once the newer rules were live (here: at setup)');
+  let docs = await fsDump(); const caseDocs = docs.filter(d => /\/cases\//.test(d.name));
+  check(caseDocs.length > 20 && caseDocs.every(d => d.fields.pn && d.fields.pn.stringValue.length === 22), 'every case carries its keyed name (' + caseDocs.length + ' cases)');
+  const nadiaIx = await owner.evaluate(() => FB.idxFields({ patient: 'Nadia Setcount', chart: '77-1234' }));
+  const nadia = caseDocs.filter(d => d.fields.pn.stringValue === nadiaIx.pn);
+  check(nadia.length >= 2 && nadia.every(d => d.fields.pc && d.fields.pc.stringValue === nadiaIx.pc), 'Nadia Setcount’s sets share their keyed name and chart # (' + nadia.length + ' sets)');
+  check(!JSON.stringify(docs).includes('Nadia') && !JSON.stringify(docs).includes('77-1234'), 'the index stores no names or chart #s');
+  await gwen.evaluate(() => histReset()); await gwen.click('#nav-today'); await gwen.click('#nav-list'); await gwen.fill('#q', '');
+  await gwen.waitForFunction(() => S.histKeys.size > 0 && !S.histAsk.size, null, { timeout: 20000 });
+  const gh = await gwen.evaluate(() => ({ all: S.histLoaded, n: (S.hist || []).length, every: (S.hist || []).every(c => histKeys(c).some(k => S.histKeys.has(k))) }));
+  const doneN = caseDocs.filter(d => d.fields.status.stringValue === 'done').length;
+  check(!gh.all && gh.every && gh.n < doneN, 'Gwen’s list fetches the in-house patients’ own completed cases (' + gh.n + ' of ' + doneN + ' completed), not all of them');
+  // an app opened before the update saves without the index; the owner's app catches up on it (no new version)
+  await gwen.evaluate(() => { FB.idxOn = false; });
+  await gwen.evaluate(() => B.createCase({ type: 'retainer', patient: 'Ulla Unindexed', stage: 'print', comments: [], createdAt: Date.now(), createdBy: meSid() }));
+  await gwen.evaluate(() => { FB.idxOn = true; });
+  docs = await fsDump(); let ulla = docs.filter(d => /\/cases\//.test(d.name) && !d.fields.pn);
+  check(ulla.length === 1, 'a case saved by such an app has no index');
+  await owner.evaluate(() => { S.settings.pidx = Date.now() - 7 * 3600e3; S.idxRan = false; return idxMaintain(); });
+  docs = await fsDump(); const ulla2 = docs.find(d => d.name === ulla[0].name);
+  check(ulla2.fields.pn && ulla2.fields.pn.stringValue.length === 22 && ulla2.fields.rev.integerValue === ulla[0].fields.rev.integerValue, 'the owner’s app gives it its index at its next check, without a new version');
+
+  console.log('\n# Backups: a sealed copy of every case; a deleted case brought back from it');
+  await owner.click('#nav-today'); await owner.click('#nav-admin'); await owner.waitForSelector('#backupCard');
+  const [bdl] = await Promise.all([owner.waitForEvent('download'), owner.click('#backupCard [data-act=backupNow]')]);
+  const BK = 'shots/e2e-backup.json.gz'; await bdl.saveAs(BK);
+  const bkFile = JSON.parse(zlib.gunzipSync(fs.readFileSync(BK)).toString('utf8'));
+  docs = await fsDump();
+  const liveCaseDocs = docs.filter(d => /\/cases\//.test(d.name)), byIdDoc = new Map(liveCaseDocs.map(d => [d.name.split('/').pop(), d]));
+  check(bkFile.kind === 'nlo-cases-backup' && bkFile.cases.length === liveCaseDocs.length && bkFile.cases.every(c => byIdDoc.has(c.id) && byIdDoc.get(c.id).fields.ct.stringValue === c.ct), 'the file (' + bdl.suggestedFilename() + ') holds every case exactly as stored, sealed (' + bkFile.cases.length + ' cases)');
+  check(bkFile.photos.length > 0 && bkFile.recovery && bkFile.recovery.priv && bkFile.roster.length > 2 && bkFile.settings.alPerAligner === 4.5, 'with the photos (' + bkFile.photos.length + '), the recovery box, the team list and the settings');
+  const bkText = JSON.stringify(bkFile);
+  check(![P1, P2, P3, 'Nadia', 'Setcount', 'secret-instr-778', '77-1234', 'Ulla'].some(s => bkText.includes(s)), 'no patient name, note or chart # is readable in the file');
+  check(await owner.evaluate(n => !!S.settings.lastBackup && S.settings.lastBackup.cases === n, liveCaseDocs.length), 'Team & security notes it as the last backup');
+  const withPh = await owner.evaluate(() => { const c = openCases().find(x => x.photo && !x.locked); return c ? { id: c.id, patient: c.patient } : null; });
+  await owner.evaluate(id => B.deleteCase(id), withPh.id);
+  await owner.waitForFunction(id => !S.cases.has(id), withPh.id, { timeout: 15000 });
+  await owner.click('#backupCard [data-act=backupRestore]'); await owner.setInputFiles('#bkFile', BK);
+  await owner.waitForSelector('#bkBox [data-act=bkBring]', { timeout: 30000 });
+  const bkBoxT = (await owner.textContent('#bkBox')).replace(/\s+/g, ' ');
+  check(/Not in NLO Cases now: 1(?!\d)/.test(bkBoxT) && bkBoxT.includes(withPh.patient), 'restore: the deleted case is the one not in NLO Cases now (' + withPh.patient + ')');
+  await owner.click('#bkBox [data-act=bkBring]'); await owner.waitForSelector('#bkBox .lockOk', { timeout: 30000 });
+  const back = await owner.evaluate(n => { const c = openCases().find(x => x.patient === n); return c ? { id: c.id, photo: !!c.photo } : null; }, withPh.patient);
+  check(back && back.id !== withPh.id && back.photo && (await fsDump()).some(d => d.name.endsWith('/photos/' + back.id)), 'Bring back: an open case again, with its photo');
+  await owner.evaluate(() => closeModal());
+  await owner.click('#backupCard [data-act=backupRestore]'); await owner.setInputFiles('#bkFile', BK);
+  await owner.waitForSelector('#bkBox .lockOk', { timeout: 30000 });
+  check(/Every case in this backup is in NLO Cases/.test(await owner.textContent('#bkBox')), 'the same file again: nothing to bring back (not twice)');
+  await owner.evaluate(() => closeModal());
+
   const putRules = async content => { const r = await fetch(`http://127.0.0.1:8080/emulator/v1/projects/${PROJECT}:securityRules`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rules: { files: [{ name: 'firestore.rules', content }] } }) }); if (!r.ok) throw new Error('rules PUT ' + r.status + ' ' + await r.text()); };
+  console.log('\n# Older security rules: the set live on 4 Oct (no patient index yet) — everything works; the card hands out the newer ones');
+  await putRules(fs.readFileSync(path.join(__dirname, 'rules-1004.rules'), 'utf8'));
+  await owner.click('#nav-today'); await owner.click('#nav-admin');
+  check(await owner.evaluate(() => rulesCheck()) === false && await owner.evaluate(() => S.rulesIdx && !S.rulesOld && !FB.idxOn), 'the app notices the patient index isn’t allowed yet');
+  await owner.waitForSelector('#rulesCard', { timeout: 10000 });
+  check(/keep NLO Cases quick/.test(await owner.textContent('#rulesCard')) && !(await owner.evaluate(() => document.body.classList.contains('phOff'))) && await owner.isVisible('#mailAdmin'), 'the card says it’s for speed; photos and email updates stay on');
+  await owner.evaluate(() => B.createCase({ type: 'models', patient: 'Olga Oldrules', stage: 'print', comments: [], createdAt: Date.now(), createdBy: meSid() }));
+  await owner.waitForFunction(() => openCases().some(c => c.patient === 'Olga Oldrules'), null, { timeout: 15000 });
+  check((await fsDump()).filter(d => /\/cases\//.test(d.name) && !d.fields.pn).length === 1, 'meanwhile new cases save without the index — nothing is refused');
+  await owner.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: 'http://127.0.0.1:8765' });
+  await owner.click('#rulesCard [data-act=rulesCopy]'); await owner.waitForSelector('.toast:has-text("Rules copied")', { timeout: 10000 });
+  await putRules(await owner.evaluate(() => navigator.clipboard.readText()));
+  await owner.click('#rulesCard [data-act=rulesCheck]'); await owner.waitForSelector('.toast:has-text("up to date")', { timeout: 15000 });
+  await owner.waitForSelector('#rulesCard', { state: 'detached', timeout: 10000 });
+  await owner.evaluate(() => { S.settings.pidx = Date.now() - 7 * 3600e3; S.idxRan = false; return idxMaintain(); });
+  check((await fsDump()).filter(d => /\/cases\//.test(d.name) && !d.fields.pn).length === 0, 'published: the card goes, and the owner’s app gives that case its index');
+
+  console.log('\n# Older security rules still live: photos wait, and Team & security hands out the new rules');
   await putRules(fs.readFileSync(path.join(__dirname, 'rules-prev.rules'), 'utf8')); // the set published on 2 Oct (before email updates and photos)
   await owner.click('#nav-admin');
   check(await owner.evaluate(() => rulesCheck()) === false, 'the app notices the live rules are older than it needs');
@@ -1461,6 +1536,43 @@ async function openByName(p, name) {
   check(true, 'live updates the old rules refused (e.g. a mailbox’s check-in) come through right after Check again, without signing in again');
 
   await owner.screenshot({ path: 'shots/e2e-admin.png', fullPage: true });
+
+  console.log('\n# A new office after losing everything: the backup comes back with the old recovery code');
+  const wereOpen = bkFile.cases.filter(c => c.status === 'open').length, wereDone = bkFile.cases.length - wereOpen;
+  for (const pg of [gwen, kay, sarah, owner]) await pg.context().close().catch(() => {});
+  await fetch(`http://127.0.0.1:8080/emulator/v1/projects/${PROJECT}/databases/(default)/documents`, { method: 'DELETE' });
+  await fetch(`http://127.0.0.1:9099/emulator/v1/projects/${PROJECT}/accounts`, { method: 'DELETE' });
+  check((await fsDump()).length === 0, 'the database and the logins are gone');
+  const o2 = await newPage(browser, 'owner2', errs);
+  await o2.goto(URL0 + '#setup'); await o2.waitForSelector('#setupForm');
+  await o2.fill('#suEmail', OWNER_EMAIL); await o2.fill('#suPw1', OWNER_PW); await o2.fill('#suPw2', OWNER_PW);
+  await o2.click('#setupForm button[type=submit]'); await o2.waitForSelector('#verifyForm', { timeout: 30000 });
+  await verifyEmail(OWNER_EMAIL); await o2.click('#verifyForm button[type=submit]');
+  await o2.waitForSelector('#recShow', { timeout: 30000 });
+  const RECOVERY2 = (await o2.textContent('#recShow')).trim();
+  await o2.check('#codeAck'); await o2.click('#codeDone'); await waitApp(o2);
+  check(RECOVERY2 !== RECOVERY, 'the office is set up again: a new office key and a new recovery code');
+  await o2.click('#nav-admin'); await o2.click('#backupCard [data-act=backupRestore]'); await o2.setInputFiles('#bkFile', BK);
+  await o2.waitForSelector('#bkCodeForm', { timeout: 30000 });
+  check(/opens with the recovery code you had when it was made/.test(await o2.textContent('#bkBox')), 'the backup asks for the recovery code it was made with');
+  await o2.fill('#bkCode', RECOVERY2); await o2.click('#bkCodeForm button[type=submit]');
+  await o2.waitForSelector('#bkBox .lockErr', { timeout: 30000 });
+  check(/recovery code didn’t work/.test(await o2.textContent('#bkBox .lockErr')), 'the new office’s code doesn’t open it');
+  await o2.fill('#bkCode', RECOVERY.toLowerCase()); await o2.click('#bkCodeForm button[type=submit]');
+  await o2.waitForSelector('#bkBox [data-act=bkBring]', { timeout: 60000 });
+  const lost = (await o2.textContent('#bkBox')).replace(/\s+/g, ' ');
+  check(new RegExp('Not in NLO Cases now: ' + bkFile.cases.length + '(?!\\d)').test(lost) && await o2.isChecked('#bkSettings') && /same usernames \(.*gwen/.test(lost), 'the old code opens it: all ' + bkFile.cases.length + ' cases are missing here; the settings and the team’s usernames are offered too');
+  await o2.click('#bkBox [data-act=bkBring]'); await o2.waitForSelector('#bkBox .lockOk', { timeout: 120000 });
+  await o2.waitForFunction(n => openCases().length === n, wereOpen, { timeout: 30000 });
+  docs = await fsDump(); const nCases = docs.filter(d => /\/cases\//.test(d.name)), nDone = nCases.filter(d => d.fields.status.stringValue === 'done').length;
+  check(nCases.length === bkFile.cases.length && nDone === wereDone && nCases.every(d => d.fields.v.integerValue === '1' && d.fields.pn), 'every case is back (' + nCases.length + ', ' + nDone + ' completed), sealed with the new office key and indexed');
+  check(docs.filter(d => /\/photos\//.test(d.name)).length === bkFile.photos.filter(p => bkFile.cases.some(c => c.id === p.id)).length, 'with their photos');
+  check(await o2.evaluate(() => S.settings.alPerAligner === 4.5 && !!(S.settings.rxOffice || S.settings.defaults)), 'and the settings');
+  check(![P1, P2, 'Nadia', 'secret-instr-778'].some(s => JSON.stringify(docs).includes(s)), 'nothing readable in the new database either');
+  await o2.evaluate(() => closeModal());
+  await openByName(o2, 'Nadia Setcount'); await o2.waitForSelector('#alBox:has-text("Patient total")', { timeout: 20000 });
+  await o2.waitForSelector('#alBox:has-text("Patient total: 62 aligners")', { timeout: 20000 }).catch(() => {});
+  check(/Patient total: 62 aligners/.test(await o2.textContent('#alBox')), 'a restored patient reads as before: her sets found by patient in the new office (' + (await o2.textContent('#alBox')).match(/Patient total: \d+ aligners/) + ')');
   // 403s are checked precisely (by section) in the forbidden list below
   const realErrs = errs.filter(e => !/Failed to load resource.*(404|fonts)|net::ERR|status of 400|status of 403|identitytoolkit|INVALID_LOGIN_CREDENTIALS|permission|insufficient permissions/i.test(e));
   check(realErrs.length === 0, 'no unexpected page errors' + (realErrs.length ? ':\n' + realErrs.join('\n') : ''));
