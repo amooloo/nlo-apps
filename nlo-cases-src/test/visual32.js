@@ -53,7 +53,7 @@ const has = cmd => { try { execFileSync('which', [cmd], { stdio: 'ignore' }); re
   check(await p.isVisible('#rxLead') && /10 business days/.test(await p.textContent('#rxLead')), 'needed in under 10 business days: a warning to tick the expedite approval');
   await tap('flag', 'rush'); check(!(await p.isVisible('#rxLead')), 'ticking the expedite approval clears the warning');
   await tap('design', 'cantilever'); await tap('mech', 'm4');
-  check(Math.abs(await est() - 287) < .001 && /\$287\.00/.test(await p.textContent('#rxTot')), 'Cantilever Herbst $220.50 + M4 MiniScope $66.50 = est. $287.00 in the header');
+  check(Math.abs(await est() - 382) < .001 && /\$382\.00/.test(await p.textContent('#rxTot')), 'Cantilever Herbst $220.50 + M4 MiniScope $66.50 + the expedite fee $95 (Specialty’s case scheduling page) = est. $382.00 in the header');
   check(/\$220\.50/.test(await p.textContent('#rxWrap .rxB[data-rxg=design][data-v=cantilever]')) && /\+\$66\.50/.test(await p.textContent('#rxWrap .rxB[data-rxg=mech][data-v=m4]')), 'each choice shows its price ($220.50, +$66.50)');
   // what each design / mechanism is (Amir, 4 Oct 2026: "when they kind of hover over it or click on something, they can get more information")
   const card = g => p.evaluate(g => { const c = document.querySelector('#rxWrap .rxInfoCard[data-info=' + g + ']'), on = c.querySelector('.rxIc.on') || c; return { name: (on.querySelector('.rxIcHd b') || {}).textContent || '', peek: c.classList.contains('peek'), text: on.textContent, links: on.querySelectorAll('.rxIcSrc a[target=_blank]').length, h: c.getBoundingClientRect().height }; }, g);
@@ -87,7 +87,7 @@ const has = cmd => { try { execFileSync('which', [cmd], { stdio: 'ignore' }); re
   await tooth('UR6'); await tooth('UL6');
   check(JSON.stringify((await rxNow()).teeth) === '{"UR6":"band","UL6":"band"}' && /Bands:<\/b> UR6, UL6|Bands: UR6, UL6/.test(await p.innerHTML('#rxTeethSum')), 'tapping UR6 and UL6 bands them (“Bands: UR6, UL6”)');
   await tap('tool', 'crown'); await tooth('LR6'); await tooth('LL6');
-  check(Math.abs(await est() - (287 + 2 * 17.75 + 2 * 21.5)) < .001, 'two bands ($17.75 ea) and two crowns ($21.50 ea) add up: est. $' + (287 + 35.5 + 43).toFixed(2));
+  check(Math.abs(await est() - (382 + 2 * 17.75 + 2 * 21.5)) < .001, 'two bands ($17.75 ea) and two crowns ($21.50 ea) add up: est. $' + (382 + 35.5 + 43).toFixed(2));
   await tooth('LL6'); check(!(await rxNow()).teeth.LL6, 'tapping a crowned tooth again takes the crown off');
   await tooth('LL6');
   await clearToasts(); await tooth('UR1');

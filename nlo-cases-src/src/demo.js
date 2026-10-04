@@ -60,6 +60,11 @@ const DEMO = {
       rx: { form: 'specialty-herbst', design: 'standard', mech: 'm4', bite: 'e2e', wire: ['la'], awt: ['U'], awtU: '022',
         teeth: { UR6: 'band', UL6: 'band', LR6: 'band', LR4: 'band', LL4: 'band', LL6: 'band' } } });
     DEMO.settings.rxOffice = { acct: 'DEMO-0000', license: 'DN 00000 (demo)', licExp: '02/28', email: 'office@example.com' };
+    // Hawley retainers going to Specialty with their Retainer Rx filled out (rxret.js; made-up choices): Hawleys with Adams /
+    // C-clasps, a lower bonded retainer 3–3, blue glitter acrylic
+    const hw = all.find(c => c.type === 'appliance' && c.stage === 'mfg');
+    if (hw) Object.assign(hw, { appliances: [HAWLEY], arches: ['Upper', 'Lower'], acrylic: 'Blue', glitter: true, detail: hawleyText({ arches: ['Upper', 'Lower'], acrylic: 'Blue', glitter: true }), lab: LAB_SPEC, scanner: 'iTero',
+      rxRet: { form: 'specialty-retainer', palate: 'horseshoe', designU: 'hawley', designL: 'hawley', teeth: { UR6: 'adams', UL6: 'adams', LR6: 'c', LL6: 'c' }, flrL: 'c3', flrPadsL: 'compEach', flrWireL: 'solid' } });
     // in-house sets past Export STLs: attachment templates answered (some with, some without)
     all.filter(c => c.type === 'nla' && stageIndex(c) >= FLOWS.inhouse.stages.findIndex(x => x[0] === 'fab')).forEach((c, i) => { c.atTemplates = ['UL', 'none', 'U'][i % 3]; });
     // one arch only: an in-house set for the upper arch, InSmile braces on the lower

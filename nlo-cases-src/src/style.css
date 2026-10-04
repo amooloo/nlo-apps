@@ -916,6 +916,7 @@ body.phOff .pav,body.phOff .dPh,body.phOff .phSlot,body.phOff .phTgl,body.phOff 
 .rxInfoCard{display:grid;margin-top:8px;padding:9px 12px;border-radius:12px;background:var(--grey-50);border:1px solid var(--grey-200);font-size:12.5px;line-height:1.45;color:var(--grey-700)}
 .rxIc{grid-area:1/1;visibility:hidden}
 .rxIc.on{visibility:visible}
+.rxInfoCard:not(.grown) .rxIc:not([data-k=""]){display:none}
 .rxInfoCard.peek{background:var(--blue-100);border-color:var(--blue-200)}
 .rxInfoCard p{margin:0 0 3px}
 .rxInfoCard ul{margin:3px 0 4px;padding-left:18px}
@@ -977,8 +978,11 @@ svg.rxArch{display:block;width:100%;height:auto}
 .rxFormHd{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .rxFormHd img{display:block;height:26px;width:auto}
 .rxFormHd b{display:block;font-size:13.5px;color:var(--navy)}
-.rxFormHd #cf-rxSum{display:block;font-size:12px;color:var(--grey-500)}
-.rxFormHd #cf-rxSum b{display:inline;font-size:12px}
+.rxFormHd .rxFormSum{display:block;font-size:12px;color:var(--grey-500)}
+.rxFormHd .rxFormSum b{display:inline;font-size:12px}
+.rxFormSec+.rxFormSec{margin-top:10px}
+.rxFormHint{margin-top:8px;color:var(--grey-500)}
+.rxFormHint[hidden]{display:none}
 .rxFormBtns{display:flex;gap:8px;margin-left:auto}
 .rxNoDate{color:var(--amber-700)}
 /* the case's Herbst Rx section */
@@ -998,7 +1002,7 @@ svg.rxArch{display:block;width:100%;height:auto}
   .rxL,.rxR,.rxPane{flex:none;min-height:auto;overflow:visible}
   .rxL{border-right:0;border-top:1px solid var(--grey-200)}
   .rxR{order:-1}
-  .rxArchBox{flex:none;min-height:0;aspect-ratio:166/236;max-height:78vh}
+  .rxArchBox{flex:none;min-height:0;aspect-ratio:var(--ar,166/236);max-height:78vh}
   .rxHdT span{display:none}
   .rxLogo{height:24px}
 }
@@ -1006,6 +1010,38 @@ svg.rxArch{display:block;width:100%;height:auto}
   .rxCase{grid-template-columns:1fr}
   .rxCaseArch{max-width:220px;margin:0 auto}
 }
+
+/* the Retainer Rx (rxret.js): the paper's rows with their Upper / Lower circles, the reset diagram, the tooth tools */
+.rxULh,.rxUL{display:grid;grid-template-columns:minmax(0,1fr) 44px 44px;gap:3px 6px;align-items:center}
+.rxULh{font-family:var(--fd);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--grey-400);margin:2px 0}
+.rxULh span{text-align:center}
+.rxUL{padding:3px 0;border-bottom:1px dashed var(--grey-100)}
+.rxULn{font-size:12.5px;font-weight:600;color:var(--grey-700);display:flex;flex-wrap:wrap;align-items:center;gap:3px 8px;min-width:0;line-height:1.25}
+.rxULn em{font-style:normal;font-size:11px;font-weight:600;color:var(--grey-500);background:var(--grey-100);border-radius:99px;padding:1px 7px;white-space:nowrap}
+.rxB.rxU{justify-content:center;padding:3px 0;min-height:30px;width:44px;border-radius:10px}
+.rxB.rxU[aria-pressed="true"]::before,.rxB.rxRs[aria-pressed="true"]::before{content:none}
+.rxULx,.rxULx.rxSub{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:1px 0 3px}
+.rxULs{font-size:11.5px;font-weight:700;color:var(--navy);margin:10px 0 2px}
+.rxULs .h5n{font-weight:500;color:var(--grey-400);margin-left:6px}
+.rxF.rxFw{flex:1;min-width:0}
+.rxF.rxFw input{width:100%}
+.rxCol2 .rxF{flex:1;min-width:140px}
+.rxCol2 .rxF input{flex:1;width:auto;min-width:0}
+.rxReset{display:flex;flex-direction:column;gap:5px;margin-bottom:8px}
+.rxRsRow{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.rxRsRow .rxLbl{min-width:50px}
+.rxRsS{font-weight:700;color:var(--grey-500);font-size:12px;width:12px;text-align:center}
+.rxRsBar{width:1.5px;height:24px;background:var(--grey-300);margin:0 3px}
+.rxB.rxRs{width:32px;min-height:30px;padding:3px 0;justify-content:center;border-radius:50%}
+.rxPh{font-size:12px;font-weight:700;color:var(--navy);margin:10px 0 6px}
+.rxTi-adams{border:2px solid currentColor;border-top:0;border-radius:0 0 5px 5px;width:12px;height:10px}
+.rxTi-c{border:2px solid currentColor;border-right-color:transparent}
+.rxTi-ball{width:6px;height:6px;margin:0 3px;background:currentColor;box-shadow:0 5px 0 -2px currentColor}
+.rxTi-solc{border:2px solid currentColor;border-right-color:transparent;background:radial-gradient(circle at 50% 12%,currentColor 0 2px,transparent 2.6px)}
+.rxTi-pontic{background:#F1E8D6;border:1.5px solid currentColor;border-radius:45% 45% 50% 50%/40% 40% 60% 60%}
+.rxTi-reset{border:1.5px dashed currentColor}
+.rxTi-finger,.rxTi-spur{width:auto;height:auto;border-radius:0;font-style:normal;font-size:13px;line-height:1}
+.rxTi-finger::before{content:"\21DD"}.rxTi-spur::before{content:"\2310"}
 
 /* ---------- Phone fit (Oct 2026) ----------
    iPhones zoom the page in when a box under 16px gets the cursor (and it stays zoomed), and one long chip made
@@ -1024,4 +1060,5 @@ svg.rxArch{display:block;width:100%;height:auto}
   .tbl .pt{overflow-wrap:anywhere}
   .tbl .alMini{white-space:normal}
   .card.tblWrap>.tbl tr.click>td:first-child{width:50%}
+  #drawer .badge{white-space:normal;max-width:100%} /* a long Hawley badge (“Hawley retainers (upper & lower, purple glitter)”) wraps */
 }
