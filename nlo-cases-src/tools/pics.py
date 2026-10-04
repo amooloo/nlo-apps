@@ -48,6 +48,69 @@ RX_MAX_ASPECT = 1.6
 # Standard and Cantilever Herbst and the HTH and Flip-Lock mechanisms, fitted in HERBST_BOX and shown at half that size on the right
 # of the option's card (smaller under its name in Compare all)
 HERBST_BOX = (480, 260)
+# … the Hawley and clasp pictures for the Retainer and Functional Rx (4 Oct 2026: "I have the clasps that I like to use … add these
+# photos" and "I have these photos for different hawleys"): hawley-<design>, clasp-<clasp>, fitted in PHOTO_BOX (shown at half that
+# on the right of the option's card, and small in its row). They're files next to the page (nlo-cases-pics/, loaded when an Rx
+# opens), not data: URLs, so the page itself stays small.
+PHOTO_BOX = (480, 320)
+# … and Specialty's acrylic colors (their Acrylic Color Guide, MKT-64 8-24, as the chart Amir sent: 34 round swatches in five rows —
+# 4 Oct 2026: "the high resolution color palette"): acr-<name>, each cut out round (transparent around it) at SW px, shown at 40–48 px
+SW = 144
+ACR_ROWS = [
+    ('std', ['Black cherry', 'Red', 'Pink', 'Green', 'Blue', 'Black', 'Teal', 'White', 'Tangerine', 'Yellow']),
+    ('glitter', ['Silver glitter', 'Pearl glitter', 'Party mix glitter', 'Turquoise glitter', 'Gold glitter', 'Blue glitter']),
+    ('glow', ['Pink glow', 'Yellow glow', 'Green glow', 'Orange glow', 'Blue glow', 'Moon glow']),
+    ('swirl', ['Red swirl', 'Black swirl', 'Green swirl', 'Blue swirl', 'Pink swirl', 'Cotton candy swirl']),
+    ('design', ['Football', 'Baseball', 'Basketball', 'Strawberry', 'Rainbow', 'Tie dye']),
+]
+FILES = root.parent / 'nlo-cases-pics'
+acr_slug = lambda name: 'acr-' + name.lower().replace(' ', '-')
+
+
+def file_pic(key, im, fmt='WEBP', **kw):
+    """save into nlo-cases-pics/ and give the address the page uses"""
+    FILES.mkdir(exist_ok=True)
+    ext = 'webp' if fmt == 'WEBP' else 'jpg'
+    path = FILES / (key + '.' + ext)
+    im.save(path, fmt, **kw)
+    return 'nlo-cases-pics/' + path.name, path.stat().st_size
+
+
+def acrylic_chart(src):
+    """the 34 swatches: the rows are the tall bands of colour, each row's swatches the runs across it (touching ones split by width)"""
+    import numpy as np
+    from PIL import ImageDraw
+    img = Image.open(src).convert('RGB'); a = np.asarray(img).astype(int)
+    mask = ((a.max(axis=2) - a.min(axis=2)) > 18) | (a.mean(axis=2) < 228)
+    def runs(prof, floor):
+        o, st = [], None
+        for i, v in enumerate(prof):
+            if v > floor and st is None: st = i
+            elif v <= floor and st is not None: o.append((st, i)); st = None
+        if st is not None: o.append((st, len(prof)))
+        return o
+    bands = [r for r in runs(mask.sum(axis=1), 2) if r[1] - r[0] > 100]
+    assert len(bands) == len(ACR_ROWS), 'found %d swatch rows' % len(bands)
+    res = {}
+    for (g, names), (y0, y1) in zip(ACR_ROWS, bands):
+        d = y1 - y0; cy = (y0 + y1) / 2; cs = []
+        for x0, x1 in runs(mask[y0:y1].sum(axis=0), 2):
+            w = x1 - x0
+            if w < d * .5: continue
+            k = max(1, round(w / d)); cs += [(x0 + (i + .5) * w / k, cy, d) for i in range(k)]
+        assert len(cs) == len(names), '%s: %d swatches' % (g, len(cs))
+        for name, (cx, cy, d) in zip(names, cs):
+            r = d / 2 + 1
+            crop = img.crop((round(cx - r), round(cy - r), round(cx + r), round(cy + r))).resize((SW, SW), Image.LANCZOS)
+            big = Image.new('L', (SW * 4, SW * 4), 0); ImageDraw.Draw(big).ellipse((6, 6, SW * 4 - 6, SW * 4 - 6), fill=255)
+            out_im = crop.convert('RGBA'); out_im.putalpha(big.resize((SW, SW), Image.LANCZOS))
+            # its colour for the plate drawn on the arches: the middle of the swatch, without the shine
+            core = np.asarray(crop.crop((SW // 4, SW // 2 - SW // 8, SW * 3 // 4, SW * 3 // 4)).convert('RGB')).reshape(-1, 3)
+            core = core[core.mean(axis=1) < 235] if (core.mean(axis=1) < 235).sum() > 50 else core
+            med = np.median(core, axis=0).astype(int)
+            res[name] = (g, out_im, '#%02X%02X%02X' % tuple(med))
+    return res
+
 
 out = {}
 for src in sorted((root / 'pics').glob('*-source.*')):
@@ -78,6 +141,24 @@ for src in sorted((root / 'pics').glob('*-source.*')):
         out[key] = {'src': 'data:image/jpeg;base64,' + base64.b64encode(b.getvalue()).decode(), 'w': round(im.width / 2), 'h': round(im.height / 2)}
         print(key, '%dx%d' % im.size, len(b.getvalue()), 'bytes')
         continue
+    if key == 'acrylic-chart':
+        tints = {}
+        for name, (g, sw, tint) in acrylic_chart(src).items():
+            k = acr_slug(name); url, n = file_pic(k, sw, 'WEBP', quality=86, method=6)
+            out[k] = {'src': url, 'w': SW // 3, 'h': SW // 3}; tints[name] = tint
+            print(k, '%dx%d' % sw.size, n, 'bytes', tint)
+        print('tints:', tints)
+        continue
+    if key.startswith('clasp-') or key.startswith('hawley-'):
+        if key.startswith('hawley-'):   # the appliance on its model, on white: trim the white
+            box = Image.eval(im.convert('L'), lambda v: 255 if v < 244 else 0).getbbox(); pad = round(max(im.size) * .02)
+            if box: im = im.crop((max(box[0] - pad, 0), max(box[1] - pad, 0), min(box[2] + pad, im.width), min(box[3] + pad, im.height)))
+        s2 = min(PHOTO_BOX[0] / im.width, PHOTO_BOX[1] / im.height)
+        im = im.resize((round(im.width * s2), round(im.height * s2)), Image.LANCZOS)
+        url, n = file_pic(key, im, 'WEBP', quality=82, method=6)
+        out[key] = {'src': url, 'w': round(im.width / 2), 'h': round(im.height / 2)}
+        print(key, '%dx%d' % im.size, n, 'bytes')
+        continue
     if key.startswith('scan-'):
         for k, pic in ((key, scanner(im, key)), (key.replace('scan-', 'scanv-'), scanner_v(im, key))):
             b = io.BytesIO(); pic.save(b, 'JPEG', quality=90, optimize=True, progressive=True)
@@ -97,7 +178,8 @@ for src in sorted((root / 'pics').glob('*-source.*')):
     out[key] = {'src': 'data:image/jpeg;base64,' + base64.b64encode(b.getvalue()).decode(), 'w': round(w / 3), 'h': round(H / 3)}
     print(key, '%dx%d' % (w, H), len(b.getvalue()), 'bytes')
 
-js = ('/* case-type, scanner, Dr. A\'s instruction, No IPR/attachments/elastics and Herbst Rx pictures (chosen by Amir, 2–4 Oct 2026); generated by tools/pics.py, do not edit by hand */\n'
+js = ('/* case-type, scanner, Dr. A\'s instruction, No IPR/attachments/elastics, Herbst Rx, Hawley, clasp and acrylic color pictures (chosen by Amir, 2–4 Oct 2026); generated by tools/pics.py, do not edit by hand.\n'
+      '   The Hawley, clasp and acrylic pictures are files in nlo-cases-pics/ next to the page (src is their address); the rest are data: URLs. */\n'
       'const PICS = ' + json.dumps(out, separators=(',', ':')) + ';\n')
 (root / 'src' / 'pics.js').write_text(js)
 print('wrote src/pics.js', len(js), 'bytes')

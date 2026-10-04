@@ -541,7 +541,7 @@ async function openByName(p, name) {
   check(await owner.evaluate(() => document.querySelector('#ncForm .pickRow[data-g=appliances]').classList.contains('need')) && await owner.isVisible('#ncForm'), 'an appliance case needs its appliance before it can be created (that row is outlined)');
   await tapAppl('MSE'); check(await labNow() === 'Specialty Orthodontic Lab', 'MSE → Specialty Orthodontic Lab');
   await tapAppl('MSE'); await tapAppl('Rapid Palatal Expander (RPE)'); check(await labNow() === 'Specialty Orthodontic Lab', 'RPE → Specialty Orthodontic Lab (Amir, 4 Oct 2026: “Switch to Specialty”)');
-  await tapAppl('Rapid Palatal Expander (RPE)'); await tapAppl('Schwartz'); check(await labNow() === 'Partners Dental Solutions', 'Schwartz → Partners Dental Solutions');
+  await tapAppl('Rapid Palatal Expander (RPE)'); await tapAppl('Schwartz'); check(await labNow() === 'Specialty Orthodontic Lab', 'Schwartz → Specialty Orthodontic Lab (Amir, 4 Oct 2026: the lower Schwarz on Specialty’s Functional Rx)');
   await tapAppl('Schwartz'); await tapAppl('Other metal appliance'); check(await labNow() === 'Specialty Orthodontic Lab', 'Other metal appliance → Specialty Orthodontic Lab');
   await tapAppl('Other metal appliance'); await tapAppl('Rapid Palatal Expander (RPE)');
   await tapAppl('MARPE');
@@ -618,7 +618,7 @@ async function openByName(p, name) {
     'Hawley retainers → Specialty (the routing since 4 Oct 2026): the Retainer Rx shows right away (not the Herbst Rx)');
   await owner.fill('#cf-deliveryDate', await owner.evaluate(() => addDays(todayISO(), 30)));
   await owner.click('#ncForm [data-rxform=edit][data-kind=ret]'); await owner.waitForSelector('#rxWrap .rxArch.live');
-  await owner.click('#rxWrap .rxB[data-rxg=claspU][data-v=adams]');
+  check(await owner.getAttribute('#rxWrap .rxB[data-rxg=claspU][data-v=adams]', 'aria-pressed') === 'true', 'a Hawley starts with Adams clasps on the 6s (Dr. A’s usual, 4 Oct 2026)');
   await owner.fill('#rxWrap [data-rxf=notes]', 'secret-ret-note-7731');
   check(/\$88\.50/.test(await owner.textContent('#rxTot')), 'estimate: upper Hawley $61 + Adams clasps $27.50 = $88.50 (Teal is a free Specialty color)');
   await owner.click('#rxWrap [data-rxa=done]'); await owner.waitForSelector('#rxWrap', { state: 'detached' });
@@ -682,6 +682,28 @@ async function openByName(p, name) {
   await gwen.click('#rxWrap .rxB[data-rxg=awt][data-v=U]'); await gwen.click('#rxWrap [data-rxa=done]');
   await owner.waitForFunction(() => { const c = openCases().find(x => x.patient === 'Rory Rapidwick'); return !!(c && c.rxMet && (c.rxMet.awt || []).includes('U')); }, null, { timeout: 20000 });
   check(true, 'Gwen’s archwire tubes reach Dr. A live');
+  await gwen.click('#drawer [data-act=closeDrawer] >> nth=0');
+
+  console.log('\n# Functional Rx for Specialty (Amir, 4 Oct 2026: the lower Schwarz goes to Specialty): New case, stored encrypted, the PDF for staff');
+  await owner.click('.topBar [data-act=newCase]'); await owner.waitForSelector('#ncForm');
+  await owner.click('#ncForm .tt[data-tile=appliance]'); await owner.fill('#cf-patient', 'Sasha Schwarzberg');
+  await tapAppl('Schwartz'); await owner.click('#ncForm .pickRow[data-g=acrylic] .pick[data-v=Pink]');
+  check(await owner.isVisible('#cf-rxFunSec') && await labNow() === 'Specialty Orthodontic Lab' && !(await owner.isVisible('#cf-rxRetSec')) && !(await owner.isVisible('#cf-rxSec')) && !(await owner.isVisible('#cf-rxMetSec')),
+    'Schwarz → Specialty: the Functional Rx shows (not the Herbst, Retainer or Metal Rx)');
+  await owner.fill('#cf-deliveryDate', await owner.evaluate(() => addDays(todayISO(), 30)));
+  await owner.click('#ncForm [data-rxform=edit][data-kind=fun]'); await owner.waitForSelector('#rxWrap .rxArch.live');
+  check(await owner.evaluate(() => RXE.rx.actL === 'schwarz' && RXE.rx.exp === 'mid' && Object.entries(RXE.rx.teeth).sort().join() === 'LL4,ball,LL6,delta,LR4,ball,LR6,delta'), 'it starts as Dr. A’s lower Schwarz (midline screw, delta clasps on the 6s, ball clasps behind the Ds)');
+  await owner.fill('#rxWrap [data-rxf=notes]', 'secret-fun-note-3319');
+  await owner.click('#rxWrap [data-rxa=done]'); await owner.waitForSelector('#rxWrap', { state: 'detached' });
+  check(/Schwarz – Transverse \(lower\)/.test(await owner.textContent('#cf-rxFunSum')), 'the New case form shows the Functional Rx’s summary');
+  await owner.click('#ncSave'); await owner.waitForSelector('#modalWrap', { state: 'detached', timeout: 20000 });
+  dump = JSON.stringify(await fsDump());
+  check(!dump.includes('secret-fun-note-3319') && !dump.includes('specialty-functional') && !dump.includes('Schwarzberg'), 'the Functional Rx is stored encrypted with the case');
+  await openByName(gwen, 'Sasha Schwarzberg'); await gwen.waitForSelector('#drawer [data-ds=rxFun]', { timeout: 20000 });
+  check(/Schwarz – Transverse \(lower\)/.test(await gwen.textContent('#drawer [data-ds=rxFun] .dsS')), 'Gwen sees the Functional Rx');
+  const [funDl] = await Promise.all([gwen.waitForEvent('download'), gwen.click('#drawer [data-ds=rxFun] .pickRow [data-act=rxPdf]')]);
+  const funPdf = fs.readFileSync(await funDl.path()).toString('latin1');
+  check(funDl.suggestedFilename().startsWith('Functional Rx - Sasha Schwarzberg - ') && funPdf.startsWith('%PDF-') && funPdf.includes('(TEST-4471)') && funPdf.includes('(Sasha Schwarzberg)') && funPdf.includes('(Pink)'), 'Gwen downloads Specialty’s Functional Rx filled in (account #, patient, acrylic color)');
   await gwen.click('#drawer [data-act=closeDrawer] >> nth=0');
 
   console.log('\n# InSmile: digital enhancements instead of refinements');

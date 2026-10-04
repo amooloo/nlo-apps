@@ -26,16 +26,16 @@ function applNorm(c) {
 const APPL_ONE = ['Herbst', 'Space Closing Herbst', 'MARA', 'MSE', 'MARPE', 'Rapid Palatal Expander (RPE)'];
 /* lab routing from the AISA KB / SOP manual: MSE → Specialty Orthodontic Lab (SOP-CL-020); MARPE → Partners Dental Solutions (SOP-CL-029,
    as Partner Dental Studios — the lab rebranded; Amir, 3 Oct 2026);
-   D2 distalizer → in-house, no outside prescription (lab workflow, Layer 3 exception); Herbst, MARA → Specialty; Schwartz,
-   finger spring → Partners (KB lab routing); Hawley retainers → Specialty (Amir, 4 Oct 2026, with Specialty's Retainer Rx in rxret.js;
-   the KB said Partners); RPE → Specialty (Amir, 4 Oct 2026: "Switch to Specialty", with Specialty's Metal Rx in rxmetal.js; the KB said
+   D2 distalizer → in-house, no outside prescription (lab workflow, Layer 3 exception); Herbst, MARA → Specialty; finger spring →
+   Partners (KB lab routing); Hawley retainers → Specialty (Amir, 4 Oct 2026, with Specialty's Retainer Rx in rxret.js; the KB said
+   Partners); RPE → Specialty (Amir, 4 Oct 2026: "Switch to Specialty", with Specialty's Metal Rx in rxmetal.js; the KB said
    Partners), and "Other metal appliance" (anything else on the Metal Rx: a TPA, Nance, lingual arch, space maintainer, distalizer,
-   habit appliance…) → Specialty */
+   habit appliance…) → Specialty; the Schwarz → Specialty on their Functional Rx (Amir, 4 Oct 2026, rxfun.js; the KB said Partners) */
 const LAB_SPEC = 'Specialty Orthodontic Lab', LAB_PART = 'Partners Dental Solutions', LAB_IN = 'In-house (NL Lab)';
 /* each lab's logo (logos.js; Amir, 3 Oct 2026): on the Lab choices and, for appliance and MARPE cases, on the board and lists */
 const LAB_LOGO = { [LAB_SPEC]: 'lab-specialty', [LAB_PART]: 'lab-partners', [LAB_IN]: 'nlo' };
 const LAB_FOR = { 'Herbst': LAB_SPEC, 'Herbst with Rollo Band': LAB_SPEC, 'Space Closing Herbst': LAB_SPEC, 'MARA': LAB_SPEC, 'MSE': LAB_SPEC, 'MARPE': LAB_PART,
-  'Rapid Palatal Expander (RPE)': LAB_SPEC, 'D2 distalizer': LAB_IN, 'Finger spring with no labial bow': LAB_PART, 'Hawley retainers': LAB_SPEC, 'Schwartz': LAB_PART,
+  'Rapid Palatal Expander (RPE)': LAB_SPEC, 'D2 distalizer': LAB_IN, 'Finger spring with no labial bow': LAB_PART, 'Hawley retainers': LAB_SPEC, 'Schwartz': LAB_SPEC,
   'Other metal appliance': LAB_SPEC };
 /* Dr. A's instructions: midline and overbite are Maintain / Improve; the rest are picture tiles.
    v = the full instruction saved on the case (same wording as the Tally form), l = the tile's short label.
@@ -63,17 +63,70 @@ const INSTR = [
 const INSTR_RENAMED = { 'IPR lower': 'Lower IPR' };
 /* "No posterior teeth movement" also marks the back teeth Don't move on the tooth chart (Amir, 3 Oct 2026) */
 const NO_POST_MOVE = 'No posterior teeth movement';
-/* Hawley retainers (an appliance; made by Specialty since 4 Oct 2026, Partners before): which arch — Upper / Lower in words, no
-   picture yet — and the acrylic color (Amir, 3 Oct 2026: "hawley retainers need upper and lower arch … There should be a color
-   selection tool. I don't know if partner dental solution has it online" — Partners doesn't publish its color chart (orders go
-   through EasyRx), so these are the usual lab acrylic colors; Specialty's Retainer Rx takes the color as written). c = the swatch */
-const HAWLEY = 'Hawley retainers';
-const ACRYLIC = [
-  { v: 'Clear', c: 'clear' }, { v: 'Pink', c: '#F4A3C4' }, { v: 'Red', c: '#DC2F3A' }, { v: 'Orange', c: '#F5862A' }, { v: 'Yellow', c: '#F6D03A' },
-  { v: 'Lime', c: '#9AD23A' }, { v: 'Green', c: '#2EA65A' }, { v: 'Teal', c: '#17B1A4' }, { v: 'Light blue', c: '#7AC2F0' }, { v: 'Blue', c: '#2462C8' },
-  { v: 'Purple', c: '#7A4AC2' }, { v: 'Black', c: '#222222' }
-];
-function acrylicSw(v) { const a = ACRYLIC.find(x => x.v === v); return a ? '<span class="sw' + (a.c === 'clear' ? ' clr' : '') + '"' + (a.c === 'clear' ? '' : ' style="--sw:' + a.c + '"') + ' aria-hidden="true"></span>' : ''; }
+/* Hawley retainers and the Schwarz (appliances; Specialty makes both since 4 Oct 2026, Partners before): the Hawley's arch (Upper /
+   Lower) and the acrylic color for either (Amir, 3 Oct 2026: "hawley retainers need upper and lower arch … There should be a color
+   selection tool"). The colors are Specialty's own (their Acrylic Color Guide, MKT-64 8-24) as the chart Amir sent on 4 Oct 2026 —
+   "the high resolution color palette": each is its swatch picture (pics.js acr-<name>, files in nlo-cases-pics/) in the guide's five
+   groups. Specialty colors are free; glitter, glow and swirl cost extra; the Schwarz takes Specialty's standard colors only (their
+   Schwarz page: "only the Specialty Appliances standard colors may be selected. No custom designs").
+   v = the name saved on the case and written on the Rx, l = the swatch's label under its group, g = the group, c = its color for the
+   plate drawn on the arches (the middle of the swatch). Colors picked before (Orange, Lime, Light blue, Purple, or a color with the
+   old Glitter switch) still show on the cases that have them (ACRYLIC_OLD). */
+const HAWLEY = 'Hawley retainers', SCHWARZ = 'Schwartz';
+const ACR_GROUPS = [['std', 'Specialty colors'], ['glitter', 'Glitter'], ['glow', 'Glow'], ['swirl', 'Swirls'], ['design', 'Custom designs']];
+const ACRYLIC = [{ v: 'Clear', l: 'Clear', g: 'clear', c: 'clear' }].concat([
+  ['std', 'Black cherry', '#8C001A'], ['std', 'Red', '#D80100'], ['std', 'Pink', '#FC9181'], ['std', 'Green', '#015000'], ['std', 'Blue', '#001E91'],
+  ['std', 'Black', '#1E1E1E'], ['std', 'Teal', '#017E9D'], ['std', 'White', '#EDE7DD'], ['std', 'Tangerine', '#FD5501'], ['std', 'Yellow', '#FEE003'],
+  ['glitter', 'Silver glitter', '#A09D99'], ['glitter', 'Pearl glitter', '#E0BD86'], ['glitter', 'Party mix glitter', '#AF1883'],
+  ['glitter', 'Turquoise glitter', '#017BA8'], ['glitter', 'Gold glitter', '#BE6305'], ['glitter', 'Blue glitter', '#011FA3'],
+  ['glow', 'Pink glow', '#FC0364'], ['glow', 'Yellow glow', '#BCF802'], ['glow', 'Green glow', '#02A51A'], ['glow', 'Orange glow', '#FC2701'],
+  ['glow', 'Blue glow', '#0060E6'], ['glow', 'Moon glow', '#FDEC78'],
+  ['swirl', 'Red swirl', '#EB0205'], ['swirl', 'Black swirl', '#363535'], ['swirl', 'Green swirl', '#027002'], ['swirl', 'Blue swirl', '#013399'],
+  ['swirl', 'Pink swirl', '#D6015B'], ['swirl', 'Cotton candy swirl', '#C070E6'],
+  ['design', 'Football', '#631A01'], ['design', 'Baseball', '#EDE0DB'], ['design', 'Basketball', '#FC6C01'], ['design', 'Strawberry', '#9A0201'],
+  ['design', 'Rainbow', '#B67D03'], ['design', 'Tie dye', '#7A3FB0']
+].map(([g, v, c]) => ({ v, l: g === 'glitter' ? v.replace(/ glitter$/, '') : v, g, c, pic: 'acr-' + v.toLowerCase().replace(/ /g, '-') })));
+const ACRYLIC_OLD = [{ v: 'Orange', c: '#F5862A' }, { v: 'Lime', c: '#9AD23A' }, { v: 'Light blue', c: '#7AC2F0' }, { v: 'Purple', c: '#7A4AC2' }];
+const ACR_STD_ONLY = 'The Schwarz comes in Specialty’s standard colors only (no glitter, glow, swirls or designs).';
+/* a color by its name (any case; "Blue glitter" finds the glitter swatch, not plain Blue), or a color picked before */
+function acrylicOf(v) { const k = String(v || '').trim().toLowerCase(); return k ? ACRYLIC.find(x => x.v.toLowerCase() === k) || ACRYLIC_OLD.find(x => x.v.toLowerCase() === k) || null : null; }
+/* the case's color as one name: "Party mix glitter"; a case from before the guide keeps "Blue" + its Glitter switch → "Blue glitter" */
+function acrylicName(c) { return c && c.acrylic ? c.acrylic + (c.glitter && !/glitter/i.test(c.acrylic) ? ' glitter' : '') : ''; }
+/* is it one of Specialty's standard colors (or clear)? */
+const acrylicStd = v => { const a = acrylicOf(v); return !v || !!(a && (a.g === 'std' || a.g === 'clear')); };
+/* a small dot of the color (badges, lists); a color picked before with glitter shows its base color */
+function acrylicSw(v) { const a = acrylicOf(v) || acrylicOf(String(v || '').replace(/\s+glitter$/i, '')); return a ? '<span class="sw' + (a.c === 'clear' ? ' clr' : '') + '"' + (a.c === 'clear' ? '' : ' style="--sw:' + a.c + '"') + ' aria-hidden="true"></span>' : ''; }
+/* the palette: Clear, then the guide's groups with their prices; `chosen` is the case's color (one name), `was` the case's own
+   fields when they map onto a swatch (so an untouched case saves exactly as it was) */
+function acrylicPaletteHTML(chosen, was) {
+  const P = typeof rxPrices === 'function' ? rxPrices() : {}, extra = P.glitter != null ? money(P.glitter) : 'extra';
+  const a = acrylicOf(chosen), cur = a ? a.v : chosen;
+  const btn = x => '<button type="button" class="pick acrS' + (x.g === 'clear' ? ' clr' : '') + '" data-v="' + esc(x.v) + '" data-acrg="' + (x.g || 'old') + '"' + (cur === x.v && was ? ' data-was="' + esc(was) + '"' : '') +
+    ' aria-pressed="' + (cur === x.v) + '" title="' + esc(x.v) + '">' + (x.pic ? '<img data-acrpic="' + x.pic + '" width="44" height="44" alt="" draggable="false">' : '<span class="acrDot' + (x.c === 'clear' ? ' clr' : '') + '"' + (x.c && x.c !== 'clear' ? ' style="--sw:' + x.c + '"' : '') + '></span>') +
+    '<span>' + esc(x.l || x.v) + '</span></button>';
+  const old = chosen && !acrylicOf(chosen) ? { v: chosen, l: chosen, c: (acrylicOf(chosen.replace(/\s+glitter$/i, '')) || {}).c } : chosen && ACRYLIC_OLD.includes(acrylicOf(chosen)) ? acrylicOf(chosen) : null;
+  return '<div class="pickRow acrPal" role="group" aria-label="Acrylic color" data-g="acrylic" data-multi="0">' +
+    '<div class="acrG acrG0">' + btn(ACRYLIC[0]) + (old ? btn(old).replace('class="pick acrS', 'class="pick acrS old') : '') + '</div>' +
+    ACR_GROUPS.map(([g, l]) => '<div class="acrG" data-acrg="' + g + '"><div class="acrGh">' + esc(l) + ' <em>' + (g === 'std' ? 'free' : g === 'design' ? 'not on the price list' : extra) + '</em></div><div class="acrGs">' +
+      ACRYLIC.filter(x => x.g === g).map(btn).join('') + '</div></div>').join('') + '</div>';
+}
+/* who the color is for, under its heading */
+function acrylicFor(apps) { const h = (apps || []).includes(HAWLEY), sc = (apps || []).includes(SCHWARZ); return h && sc ? 'for the Hawley and the Schwarz' : sc ? 'for the Schwarz' : 'for the Hawley'; }
+/* the swatch pictures load once the palette shows (data-acrpic → src) */
+function acrylicPaint(box) { if (typeof PICS === 'undefined' || !box) return; $$('img[data-acrpic]:not([src])', box).forEach(i => { const pc = PICS[i.dataset.acrpic]; if (pc) i.src = pc.src; }); }
+/* the palette follows the appliances: it shows for a Hawley or a Schwarz; with a Schwarz, what isn't a standard color is greyed
+   out (one already picked comes off, saying so) */
+function acrylicSync(root, apps) {
+  const wrap = $('#cf-acrWrap', root); if (!wrap) return;
+  const on = apps.some(a => a === HAWLEY || a === SCHWARZ), sch = apps.includes(SCHWARZ);
+  wrap.hidden = !on; if (on) acrylicPaint(wrap);
+  const f = $('#cf-acrFor', root); if (f) f.textContent = acrylicFor(apps);
+  $$('.acrS', wrap).forEach(b => { const off = sch && !acrylicStd(b.dataset.v);
+    if (off) { b.setAttribute('aria-disabled', 'true'); b.title = ACR_STD_ONLY;
+      if (b.getAttribute('aria-pressed') === 'true') { b.setAttribute('aria-pressed', 'false'); toast('Took off ' + b.dataset.v + ': the Schwarz comes in Specialty’s standard colors only'); } }
+    else if (b.getAttribute('aria-disabled')) { b.removeAttribute('aria-disabled'); b.title = b.dataset.v; } });
+  const hint = $('#cf-acrHint', root); if (hint) { hint.hidden = !sch; hint.textContent = sch ? ACR_STD_ONLY + ' Specialty’s Schwarz page.' : ''; }
+}
 /* "Hawley retainers (upper & lower, blue glitter)" — what's being made and the case's badge; for the chart note
    (note = true) "Hawley retainers, upper & lower, blue glitter acrylic" */
 function hawleyText(c, note) {
@@ -222,7 +275,7 @@ function submissionLabel(v) { return v === 'yes' ? 'Initial submission' : v === 
 /* fields added later save '' when empty (not [] or false), so older cases without them don't look edited */
 const FORM_KEYS = ['type', 'patient', 'chart', 'detail', 'stage', 'assignee', 'assistant', 'scanner', 'scanDate', 'labDate', 'deliveryDate', 'deliveryTime', 'aligners',
   'initial', 'appliances', 'lab', 'arches', 'retKinds', 'goals', 'instrPicks', 'instrOther', 'instructions', 'extras', 'teeth', 'cc', 'ipr', 'notes', 'titanUrl', 'alU', 'alL',
-  'shipToPatient', 'records', 'zoomDate', 'zoomTime', 'tracking', 'labRef', 'atTemplates', 'treatArch', 'txStart', 'txEnd', 'acrylic', 'glitter', 'rx', 'rxRet', 'rxMet'];
+  'shipToPatient', 'records', 'zoomDate', 'zoomTime', 'tracking', 'labRef', 'atTemplates', 'treatArch', 'txStart', 'txEnd', 'acrylic', 'glitter', 'rx', 'rxRet', 'rxMet', 'rxFun'];
 
 /* delivery time: every half hour, 7:00 AM to 7:00 PM (Amir, 2 Oct 2026: "30 mins increments are fine") */
 const HALF_HOURS = Array.from({ length: 25 }, (_, i) => { const m = 7 * 60 + i * 30; return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); });
@@ -469,15 +522,15 @@ function caseFormHTML(c, isNew) {
     '<div class="cfSec"><div class="ptRowF">' + (isNew ? phSlotHTML() : '') + '<div class="grid2"><div class="field"><label for="cf-patient">Patient name *</label><input id="cf-patient" autocomplete="off" value="' + esc(c.patient || '') + '" required></div>' +
     '<div class="field"><label for="cf-chart">Chart #</label><input id="cf-chart" autocomplete="off" spellcheck="false" inputmode="text" placeholder="For the IPR Tracker link" value="' + esc(c.chart || '') + '"></div></div></div></div>' +
     '<div class="cfSec"' + show('appliance marpe') + '><div' + show('appliance') + '><h5>Appliance</h5>' + pickRow('appliances', withSaved(PICK.appliances, c.appliances), c.appliances || [], true) +
-      // Hawley retainers: the arch (words only for now) and the acrylic color, shown once Hawley is tapped
+      // Hawley retainers: the arch, shown once Hawley is tapped; the acrylic color (Specialty's guide) for the Hawley or the Schwarz
       '<div id="cf-hawleyWrap" class="hawleyWrap"' + ((c.appliances || []).includes(HAWLEY) ? '' : ' hidden') + '><h5>Hawley arch</h5>' +
-        pickRow('hawleyArch', ['Upper', 'Lower'], (c.appliances || []).includes(HAWLEY) ? (c.arches || []) : [], true) +
-        '<h5>Acrylic color <span class="h5n">for the Hawley</span></h5><div class="pickRow acrRow" role="group" aria-label="Acrylic color" data-g="acrylic" data-multi="0">' +
-        ACRYLIC.map(x => '<button type="button" class="pick acr" data-v="' + esc(x.v) + '" aria-pressed="' + (c.acrylic === x.v) + '">' + acrylicSw(x.v) + esc(x.v) + '</button>').join('') + '</div>' +
-        '<div class="pickRow" role="group" aria-label="Glitter" data-g="glitter" data-multi="1" style="margin-top:8px"><button type="button" class="pick sm" data-v="yes" aria-pressed="' + !!c.glitter + '">✦ Glitter</button></div></div>' +
+        pickRow('hawleyArch', ['Upper', 'Lower'], (c.appliances || []).includes(HAWLEY) ? (c.arches || []) : [], true) + '</div>' +
+      '<div id="cf-acrWrap" class="hawleyWrap"' + ((c.appliances || []).some(a => a === HAWLEY || a === SCHWARZ) ? '' : ' hidden') + '><h5>Acrylic color <span class="h5n" id="cf-acrFor">' +
+        esc(acrylicFor(c.appliances)) + '</span></h5>' + acrylicPaletteHTML(acrylicName(c), c.acrylic && acrylicName(c) !== c.acrylic ? c.acrylic + '|1' : '') +
+        '<div class="hint small" id="cf-acrHint" hidden></div></div>' +
       '</div>' +
     '<h5>Lab</h5>' + labRowHTML(withSaved(PICK.labs, labName(c.lab)), labName(c.lab)) + '<div class="hint small" id="cf-labHint" style="margin-top:6px"></div>' +
-      rxFormSecHTML(c) + '</div>' + // Specialty's Herbst Rx (rx.js), Retainer Rx (rxret.js) and Metal Rx (rxmetal.js), filled out from here or later from the case
+      rxFormSecHTML(c) + '</div>' + // Specialty's Herbst Rx (rx.js), Retainer Rx (rxret.js), Metal Rx (rxmetal.js) and Functional Rx (rxfun.js), filled out from here or later from the case
     // MARPE: the two records the lab needs, and the Zoom call once it's set up
     '<div class="cfSec"' + show('marpe') + '><h5>Records on file <span class="h5n">both have to be on file before it goes to the lab</span></h5>' +
       pickRow('records', MARPE_RECORDS.map(([v, l]) => ({ v, l })), c.records || [], true) +
@@ -591,11 +644,13 @@ function readCaseForm(root) {
   const ship = $('#cf-ship', root); o.shipToPatient = g === 'aligner' && ship && ship.getAttribute('aria-pressed') === 'true' ? true : '';
   if (o.shipToPatient) o.deliveryTime = ''; // an expected delivery has no appointment time
   if (g !== 'retainer') { o.arches = []; o.retKinds = []; }
-  // Hawley retainers (an appliance): which arch, and the acrylic color (empty is '', see FORM_KEYS)
-  const hawley = g === 'appliance' && o.appliances.includes(HAWLEY);
+  // Hawley retainers (an appliance): which arch; the acrylic color for the Hawley or the Schwarz (empty is '', see FORM_KEYS). A case
+  // from before the color guide whose color maps onto a swatch saves as it was while that swatch stays picked (data-was)
+  const hawley = g === 'appliance' && o.appliances.includes(HAWLEY), acrOn = g === 'appliance' && o.appliances.some(a => a === HAWLEY || a === SCHWARZ);
   if (hawley) o.arches = pressed(root, 'hawleyArch');
-  o.acrylic = hawley ? (pressed(root, 'acrylic')[0] || '') : '';
-  o.glitter = hawley && pressed(root, 'glitter').length ? true : '';
+  const ab = acrOn ? $('.pickRow[data-g="acrylic"] .pick[aria-pressed="true"]', root) : null, was = ab && ab.dataset.was ? ab.dataset.was.split('|') : null;
+  o.acrylic = ab ? (was ? was[0] : ab.dataset.v) : '';
+  o.glitter = ab && was && was[1] ? true : '';
   if (tile === 'mouthguard') o.retKinds = [];
   if (!(o.type === 'nla')) { o.titanUrl = ''; o.txStart = ''; o.txEnd = ''; }
   // arches to treat: aligners and InSmile only; both arches is the default and saves as '' (like every older case)
@@ -609,6 +664,7 @@ function readCaseForm(root) {
   o.rx = rxFromForm(root, o); // Specialty's Herbst Rx: kept while a Herbst goes to Specialty ('' otherwise, see FORM_KEYS)
   o.rxRet = rxFromForm(root, o, RX_RET); // Specialty's Retainer Rx: kept while Hawley retainers (or a finger spring) go to Specialty
   o.rxMet = rxFromForm(root, o, RX_MET); // Specialty's Metal Rx: kept while an RPE, MSE or other metal appliance goes to Specialty
+  o.rxFun = rxFromForm(root, o, RX_FUN); // Specialty's Functional Rx: kept while the Schwarz goes to Specialty
   return o;
 }
 /* what's being made, from the taps */
@@ -665,7 +721,8 @@ function wireCaseForm(root, isNew) {
     $$('.pickRow[data-g="instrPicks"] .pick', root).forEach(b => { if (ALIGNER_ONLY_INSTR.includes(b.dataset.v)) b.style.display = g === 'braces' ? 'none' : ''; });
     const tw = $r('#cf-titanWrap'); if (tw) tw.style.display = INHOUSE_TILES.includes(tile) ? '' : 'none';
     const hw = $r('#cf-hawleyWrap'); if (hw) hw.hidden = !(g === 'appliance' && o.appliances.includes(HAWLEY));
-    rxFormRefresh(root, o); // the Herbst / Retainer / Metal Rx shows once its appliance is going to Specialty
+    acrylicSync(root, g === 'appliance' ? o.appliances : []);
+    rxFormRefresh(root, o); // the Herbst / Retainer / Metal / Functional Rx shows once its appliance is going to Specialty
     $$('.pickRow[data-g="initial"] .pick[data-v="' + FIN + '"]', root).forEach(btn => { const on = INHOUSE_TILES.includes(tile); btn.style.display = on ? '' : 'none'; if (!on) btn.setAttribute('aria-pressed', 'false'); });
     const rk = $r('#cf-retKindsWrap'); if (rk) rk.style.display = tile === 'mouthguard' ? 'none' : '';
     syncDel(); syncTx();
@@ -715,6 +772,7 @@ function wireCaseForm(root, isNew) {
     const tt = e.target.closest('.tt[data-tile]');
     if (tt && root.contains(tt)) { $$('.tt[data-tile]', root).forEach(b => b.setAttribute('aria-checked', String(b === tt))); $r('#cf-tile').value = tt.dataset.tile; refresh(true); return; }
     const pk = e.target.closest('.pickRow[data-g] .pick');
+    if (pk && root.contains(pk) && pk.getAttribute('aria-disabled') === 'true') { toast(pk.title || 'That doesn’t go with what’s picked'); return; } // (a Schwarz's non-standard colors)
     if (pk && root.contains(pk)) {
       const row = pk.closest('.pickRow'); const multi = row.dataset.multi === '1'; const was = pk.getAttribute('aria-pressed') === 'true';
       if (row.classList.contains('need')) { row.classList.remove('need'); const ne = $('#ncErr'); if (ne) ne.innerHTML = ''; } // the choice New case asked for

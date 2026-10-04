@@ -13,6 +13,10 @@
    - Prices from Specialty's price list MKT-41 (retainers, custom design options, acrylic colors, Guardian); what the list
      doesn't have is named under the estimate, never guessed. Each option explains itself (point at it), from Specialty's
      own pages where they describe it.
+   Amir, 4 Oct 2026 (what we built on the NLO Lab Rx page, brought onto this form): his Hawley pictures on the designs and his clasp
+   pictures (with their drawings) on the clasps; Dr. A's take on each clasp for the design (Adams preferred on a Hawley; badges);
+   Adams on the first molars to start; Delta and Arrowhead clasps, written out with their teeth (the form has no circle for them);
+   Specialty's color guide as swatches; a pontic's shade required; holding spurs facing distal or mesial (tap again to turn one).
    ===================================================================== */
 const RXR = RX_FORMS[RX_RET];
 /* the appliances that go on this form (with the lab set to Specialty) */
@@ -24,7 +28,7 @@ const RXR_O = {
   spring: [['spring3', 'Spring Hawley 3x3'], ['spring4', 'Spring Hawley 4x4'], ['springSM', 'Super Modified Spring Hawley']],
   palate: [['horseshoe', 'Horseshoe'], ['full', 'Full Palate']],
   resetHow: [['none', 'Do Not Reset Teeth'], ['ideal', 'Reset Teeth Ideally'], ['compromise', 'Compromise Reset']],
-  clasp: [['c', 'C-Clasps'], ['adams', 'Adams Clasps'], ['ball', 'Ball Clasps'], ['solc', 'Soldered C-Clasps']],
+  clasp: [['c', 'C-Clasps'], ['adams', 'Adams Clasps'], ['ball', 'Ball Clasps'], ['solc', 'Soldered C-Clasps'], ['delta', 'Delta Clasps'], ['arrowhead', 'Arrowhead Clasps']],
   acc: [['finger', 'Finger Spring'], ['solder', 'Soldered Spring'], ['closing', 'Closing Spring'], ['spurs', 'Holding Spurs'], ['helical', 'Helical Bow'], ['cuspHook', 'Soldered Cuspid Hook'], ['habit', 'Habit']],
   habit: [['crib', 'Crib'], ['spurs', 'Spurs'], ['bluegrass', 'Bluegrass']],
   acr: [['bowAcr', 'Add Acrylic to Bow'], ['abp', 'Anterior Bite Plane'], ['pbp', 'Posterior Bite Plane'], ['scallop', 'Scallop Anteriors'], ['saddle', 'Acrylic Saddle'], ['pontic', 'Pontic']],
@@ -40,11 +44,16 @@ function rxrLbl(v, lists) { for (const o of lists || Object.keys(RXR_O)) { const
 const rxrDesignName = v => rxrLbl(v, ['design', 'spring']);
 const RXR_ARCH = ['U', 'L'];
 const rxrArchWord = A => A === 'U' ? 'upper' : 'lower';
-/* what goes on a tooth: the clasps, a pontic, a finger spring, a holding spur (and the flag it ticks on the form) */
-const RXR_CLASPS = ['c', 'adams', 'ball', 'solc'];
-const RXR_TOOTH = RXR_CLASPS.concat(['pontic', 'finger', 'spur']);
-const RXR_TOOTH_FLAG = { finger: ['acc', 'finger'], spur: ['acc', 'spurs'], pontic: ['acr', 'pontic'] };
-const RXR_TOOTH_L = { c: 'C-clasp', adams: 'Adams clasp', ball: 'Ball clasp (behind it)', solc: 'Soldered C-clasp', pontic: 'Pontic', finger: 'Finger spring', spur: 'Holding spur' };
+/* what goes on a tooth: the clasps, a pontic, a finger spring, a holding spur facing distal (spur) or mesial (spurM; Amir, 4 Oct 2026:
+   "spurs on the diagram are always facing distal. but it should also be able to switch to mesial … click once and click twice")
+   — and the flag it ticks on the form. Delta and arrowhead clasps have no circle on the form: they're written out (RXR_WRITTEN) */
+const RXR_CLASPS = ['c', 'adams', 'ball', 'solc', 'delta', 'arrowhead'];
+const RXR_WRITTEN = ['delta', 'arrowhead'];
+const RXR_TOOTH = RXR_CLASPS.concat(['pontic', 'finger', 'spur', 'spurM']);
+const RXR_TOOTH_FLAG = { finger: ['acc', 'finger'], spur: ['acc', 'spurs'], spurM: ['acc', 'spurs'], pontic: ['acr', 'pontic'] };
+const RXR_TOOTH_L = { c: 'C-clasp', adams: 'Adams clasp', ball: 'Ball clasp (behind it)', solc: 'Soldered C-clasp', delta: 'Delta clasp', arrowhead: 'Arrowhead clasp',
+  pontic: 'Pontic', finger: 'Finger spring', spur: 'Holding spur, facing distal', spurM: 'Holding spur, facing mesial' };
+const RXR_SPURS = ['spur', 'spurM'];
 const RXR_TEETH = Object.keys(RXR.teeth);
 /* the reset diagram's teeth (3 to 3, upper over lower) */
 const RXR_RESET = ['UR3', 'UR2', 'UR1', 'UL1', 'UL2', 'UL3', 'LR3', 'LR2', 'LR1', 'LL1', 'LL2', 'LL3'];
@@ -92,9 +101,23 @@ const RXR_SRC = {
   bdj: ['Bonded retainers (BDJ Team, 2015)', 'https://www.nature.com/articles/bdjteam201554']
 };
 const RXR_USUAL = 'Specialty’s site doesn’t describe it; this is the usual meaning.';
+/* the delta and arrowhead clasps (from the clasp guide on Dr. A's Lab Rx, 4 Oct 2026; his photos and the drawings), shared with the
+   Functional Rx */
+const RXC_INFO = {
+  delta: { name: 'Delta clasp', pic: 'clasp-delta', draw: 'delta', short: 'Clark’s Adams with closed triangular loops: it holds its shape through months of insertions.',
+    sum: 'Clark’s version of the Adams, designed for Twin Blocks: closed triangular loops replace the arrowheads, so the clasp holds its shape and fatigues less with repeated insertion.',
+    pts: ['Grips the MB and DB line-angle undercuts of one molar. 0.7 mm wire on molars; 0.6 mm on premolars and primary molars.',
+      'Goes on the first molars, the loops just gingival to the height of contour (or a composite bump).',
+      'Specialty’s form has no circle for it: it’s written out with its teeth (and spelled out in the special instructions). Not on the price list.'] },
+  arrowhead: { name: 'Arrowhead (Schwarz) clasp', pic: 'clasp-arrowhead', draw: 'arrowhead', short: 'Schwarz’s own clasp: arrow bends wedge into the cheek-side embrasures, joined by a running wire.',
+    sum: 'Schwarz’s clasp for his plates: arrow-shaped bends wedge into the buccal interdental embrasures and are joined by a running buccal wire.',
+    pts: ['Grips the interdental undercuts just gingival to the contacts, across two teeth (e.g. D–E and E–6 in the mixed dentition). 0.7 mm wire.',
+      'On the arches, tap a tooth: the arrows go in the embrasures on both sides of it; tap the next tooth to run the clasp on.',
+      'Priced with C and ball clasps (“arrows”), by the pair.'] }
+};
 const RXR_INFO = {
   design: {
-    hawley: { short: 'Specialty’s standard: a .032 labial bow crossing behind the canines; C-clasps on the upper first molars.',
+    hawley: { pic: 'hawley-standard', short: 'Specialty’s standard: a .032 labial bow crossing behind the canines; C-clasps on the upper first molars.',
       sum: 'The standard Hawley: an acrylic plate with a .032″ labial bow and a set of clasps for retention.',
       pts: ['The bow crosses the bite behind the canines; its loops make it adjustable.',
         'Upper: C-clasps on the first molars. Lower: first-molar occlusal rests instead of clasps, unless you pick clasping (Specialty).'],
@@ -104,7 +127,7 @@ const RXR_INFO = {
       pts: ['A flat bow has a flattened front section and round back sections: better surface contact, stability and control (JAW Products).',
         'Priced as the standard Hawley plus Specialty’s flat bow labial wire.'],
       note: 'Specialty’s site doesn’t describe this design.', src: ['flatbow'] },
-    wrap: { short: 'A .036 bow around all the teeth to the last molar — no wire crosses the bite in between; full palate standard.',
+    wrap: { pic: 'hawley-wrap', short: 'A .036 bow around all the teeth to the last molar — no wire crosses the bite in between; full palate standard.',
       sum: 'Circumferential retention: a .036 wire runs around the outside of the arch to the last teeth, so the teeth can settle after treatment.',
       pts: ['A support wire in the bicuspid area holds the bow up (Specialty).', 'Full palatal acrylic is standard; no clasps.'],
       src: ['wrap'] },
@@ -132,7 +155,7 @@ const RXR_INFO = {
       sum: 'A labial bow soldered to the molar clasps, as Labial Bow Soldered to Clasps, flat across the front teeth.',
       pts: ['Priced as the standard Hawley plus the flat bow labial wire; the clasps as soldered clasps.'],
       note: 'Specialty’s site doesn’t describe this design.', src: ['slb', 'flatbow'] },
-    clearbow: { short: 'A Hawley with a clear plastic strap for the front bow instead of wire.',
+    clearbow: { pic: 'hawley-clear', short: 'A Hawley with a clear plastic strap for the front bow instead of wire.',
       sum: 'A Hawley whose labial bow is a clear plastic strap, so no wire shows on the front teeth.',
       pts: ['The Clear Bow is a BPA-free polyethylene terephthalate strap (like bleaching-tray material), adjustable with three-prong pliers, in 2.75 mm and 1.4 mm strips (Bryn Mawr).',
         'Priced as the standard Hawley plus Specialty’s ClearBow labial wire.'],
@@ -162,19 +185,20 @@ const RXR_INFO = {
       pts: ['Standard on Specialty’s wraparound; the usual upper coverage (Flora Dental).'], src: ['wrap', 'guide'] }
   },
   clasp: {
-    c: { short: 'A wire hooked around the molar; Specialty’s standard on the upper first molars.',
+    c: { pic: 'clasp-c', draw: 'c', short: 'A wire hooked around the molar; Specialty’s standard on the upper first molars.',
       sum: 'A simple wire clasp around a molar.',
       pts: ['Specialty’s standard upper Hawley comes with C-clasps on the first molars (counted with the design here).', 'Tap Upper or Lower to put them on the first molars, or tap teeth with C-clasp.'], src: ['hawley'] },
-    adams: { short: 'An arrowhead clasp gripping both cheek-side corners of a molar: firm and adjustable.',
+    adams: { pic: 'clasp-adams', draw: 'adams', short: 'An arrowhead clasp gripping both cheek-side corners of a molar: firm and adjustable.',
       sum: 'The workhorse clasp: two arrowheads engage the molar’s buccal undercuts, joined by a span along the cheek side.',
       pts: ['Firm retention you can tighten as the retainer loosens with wear (Flora Dental).', 'Very retentive, but needs careful adjustment and can interfere with the bite (ScienceDirect).'],
       src: ['guide', 'removable'] },
-    ball: { short: 'A wire ending in a ball that sits in the gap between two teeth.',
+    ball: { pic: 'clasp-ball', draw: 'ball', short: 'A wire ending in a ball that sits in the gap between two teeth.',
       sum: 'A wire that crosses between two teeth and ends in a ball in the gap on the cheek side.',
       pts: ['For retention between teeth in tight contacts (Flora Dental).', 'On the arches, tap the tooth in front of the gap: the ball goes between it and the tooth behind it.'], src: ['guide'] },
     solc: { short: 'A C-clasp soldered to the labial bow instead of set in the acrylic.',
       sum: 'Specialty’s soldered design: a .032 C-clasp soldered off the labial bow’s adjustment loop.',
-      pts: ['The C-clasp can be adjusted for activation; the wire crosses the bite only at the cuspids (Specialty).', 'Also offered on the Specialty Wrap.'], src: ['scc', 'swrap'] }
+      pts: ['The C-clasp can be adjusted for activation; the wire crosses the bite only at the cuspids (Specialty).', 'Also offered on the Specialty Wrap.'], src: ['scc', 'swrap'] },
+    delta: RXC_INFO.delta, arrowhead: RXC_INFO.arrowhead
   },
   acc: {
     finger: { short: 'A small spring in the acrylic that moves one tooth.',
@@ -270,7 +294,8 @@ const RXR_PRICES = [
   // not on the price list
   ['tremont', 'Tremont Wraparound', null], ['spring4', 'Spring Hawley 4x4', null], ['pbp', 'Posterior bite plane', null], ['scallop', 'Scallop anteriors', null],
   ['saddle', 'Acrylic saddle', null], ['closing', 'Closing spring', null], ['spurs', 'Holding spurs', null], ['helical', 'Helical bow', null],
-  ['cuspHook', 'Soldered cuspid hook', null], ['habit', 'Habit crib / spurs / Bluegrass on a retainer (the list prices only the fixed appliances)', null], ['scScrew', 'Space closing screw', null]
+  ['cuspHook', 'Soldered cuspid hook', null], ['habit', 'Habit crib / spurs / Bluegrass on a retainer (the list prices only the fixed appliances)', null], ['scScrew', 'Space closing screw', null],
+  ['delta', 'Delta clasps, pair', null], ['acrDesign', 'Custom design acrylic (football, rainbow, tie dye …)', null]
 ];
 rxAddPrices(RXR_PRICES);
 /* each design: the list's price for it, and the labial wire it adds */
@@ -290,13 +315,13 @@ function rxrDesignTag(d) {
   return money(keys.reduce((s, k) => s + P[k], 0)) + (d === 'bowSold' || d === 'flatSold' ? ' + clasps' : '');
 }
 
-/* ---------- the acrylic color: typed on this Rx, else the case's (for an arch that has a plate) ---------- */
-function rxrCaseColor(c) { return c && c.acrylic ? c.acrylic + (c.glitter ? ' glitter' : '') : ''; }
+/* ---------- the acrylic color: picked on this Rx, else the case's (for an arch that has a plate) ---------- */
+function rxrCaseColor(c) { return typeof acrylicName === 'function' ? acrylicName(c) : c && c.acrylic ? c.acrylic + (c.glitter ? ' glitter' : '') : ''; }
 function rxrColor(c, rx, A) { return rx['color' + A] || (rx['design' + A] ? rxrCaseColor(c) : ''); }
-/* the plate's tint on the drawing: the color's swatch (caseform.js ACRYLIC) lightened, else acrylic pink */
+/* the plate's tint on the drawing: the color's swatch (caseform.js ACRYLIC, Specialty's guide; or a color picked before) lightened, else acrylic pink */
 function rxrMix(a, b, t) { const p = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)), x = p(a), y = p(b); return '#' + x.map((v, i) => Math.round(v + (y[i] - v) * t).toString(16).padStart(2, '0')).join(''); }
 function rxrTint(col) {
-  const list = (typeof ACRYLIC !== 'undefined' ? ACRYLIC : []).slice().sort((m, n) => n.v.length - m.v.length);
+  const list = (typeof ACRYLIC !== 'undefined' ? ACRYLIC.concat(ACRYLIC_OLD) : []).slice().sort((m, n) => n.v.length - m.v.length);
   const a = col && list.find(x => new RegExp('\\b' + x.v.replace(/\s+/g, '\\s+') + '\\b', 'i').test(col));
   if (a && a.c === 'clear') return { f: '#EEF3F7', s: '#8D9AA8' };
   if (a && /^#[0-9a-f]{6}$/i.test(a.c)) return { f: rxrMix(a.c, '#FFFFFF', .72), s: rxrMix(a.c, '#000000', .25) };
@@ -314,7 +339,7 @@ function rxrCanon(rx) {
   // a finger spring, holding spur or pontic on a tooth ticks its box for that arch
   const has = (k, A) => Object.keys(t).some(id => id[0] === A && t[id] === k);
   RXR_ARCH.forEach(A => {
-    const acc = new Set(Array.isArray(rx['acc' + A]) ? rx['acc' + A] : []); if (has('finger', A)) acc.add('finger'); if (has('spur', A)) acc.add('spurs');
+    const acc = new Set(Array.isArray(rx['acc' + A]) ? rx['acc' + A] : []); if (has('finger', A)) acc.add('finger'); if (has('spur', A) || has('spurM', A)) acc.add('spurs');
     const u = RXR_ACC.filter(v => acc.has(v)); if (u.length) o['acc' + A] = u;
   });
   if ((o.accU || []).includes('habit') || (o.accL || []).includes('habit')) list('habit', RXR_K('habit'));
@@ -345,12 +370,14 @@ function rxrEstimate(rx, c) {
     if (b.plus) add('+ ' + b.plus[1] + ' · ' + where, b.plus[0], n); });
   // clasps by the pair; a standard Hawley's (and the Specialty Wrap's) C-clasps on the first molars come with it
   RXR_ARCH.forEach(A => {
-    const d = rx['design' + A], sold = d === 'bowSold' || d === 'flatSold', n = { c: count('c', A), adams: count('adams', A), ball: count('ball', A), solc: count('solc', A) }, w = W(A), pr = x => Math.ceil(x / 2);
+    const d = rx['design' + A], sold = d === 'bowSold' || d === 'flatSold', n = { c: count('c', A), adams: count('adams', A), ball: count('ball', A), solc: count('solc', A), delta: count('delta', A), arrowhead: count('arrowhead', A) }, w = W(A), pr = x => Math.ceil(x / 2);
     if (RXR_STD_INCL.includes(d) && (RXR_STD[d] || {})[A] === 'c' && teeth[A + 'R6'] === 'c' && teeth[A + 'L6'] === 'c') { inc('C-clasps on the ' + w + ' first molars', 'With the ' + rxrDesignName(d)); n.c -= 2; }
     if (n.adams) add('Adams clasps · ' + w + ' × ' + pr(n.adams) + ' pr', sold ? 'solAdams' : 'adams', pr(n.adams), sold ? 'soldered to the bow' : '');
     if (n.c) add('C-clasps · ' + w + ' × ' + pr(n.c) + ' pr', sold ? 'solC' : 'clasp', pr(n.c), sold ? 'soldered to the bow' : '');
     if (n.ball) add('Ball clasps · ' + w + ' × ' + pr(n.ball) + ' pr', 'clasp', pr(n.ball));
     if (n.solc) add('Soldered C-clasps · ' + w + ' × ' + pr(n.solc) + ' pr', 'solC', pr(n.solc));
+    if (n.delta) add('Delta clasps · ' + w + ' × ' + pr(n.delta) + ' pr', 'delta', pr(n.delta));
+    if (n.arrowhead) add('Arrowhead clasps · ' + w + ' × ' + pr(n.arrowhead) + ' pr', 'clasp', pr(n.arrowhead), 'the list’s arrows');
   });
   if (rx.claspOther) miss.push('Other clasping: ' + rx.claspOther);
   // resets: part of a Spring Hawley (Specialty resets the front teeth on it), otherwise per tooth
@@ -368,9 +395,9 @@ function rxrEstimate(rx, c) {
     if (acr.includes('bowAcr')) add('Acrylic to labial bow · ' + w, 'acrBow');
     if (acr.includes('abp')) add('Anterior bite plane · ' + w, 'abp');
     [['pbp', 'Posterior bite plane'], ['scallop', 'Scallop anteriors'], ['saddle', 'Acrylic saddle']].forEach(([k, l]) => { if (acr.includes(k)) add(l + ' · ' + w, k); });
-    // the acrylic: Specialty colors are free; glitter, glow and swirl are extra
+    // the acrylic: Specialty colors are free; glitter, glow and swirl are extra; a custom design isn't on the list
     const col = rxrColor(c, rx, A);
-    if (col && (rx['design' + A] || rx['color' + A])) { if (/glitter|glow|swirl/i.test(col)) add('Acrylic: ' + col + ' · ' + w, 'glitter'); else inc('Acrylic: ' + col + ' · ' + w, 'Free (Specialty colors)'); }
+    if (col && (rx['design' + A] || rx['color' + A])) rxAcrCost(col, w, add, inc);
   });
   if (rx.screwTxt) add('Space closing screw', 'scScrew');
   // fixed lingual retainers: the list's composite / mesh retainer for the span and pads (Specialty's standard pads: composite on each tooth)
@@ -506,20 +533,17 @@ function rxrAuto(rx, c) {
       stroke(RXP.poly([p, q, [q[0] + t.m[0] * 1.5, q[1] + t.m[1] * 1.5]]), .9); dot(p, .9); });
   });
   // clasps, on the teeth
-  Object.keys(teeth).forEach(id => { const k = teeth[id]; if (!RXR_CLASPS.includes(k)) return; const r = rxT(id).r, mes = rxrNext(id, 1), dis = rxrNext(id, -1);
-    if (k === 'adams') { const am = rxrB(id, .7, .62 * r), ad = rxrB(id, .7, -.62 * r), bm = rxrB(id, 2.7, .42 * r), bd = rxrB(id, 2.7, -.42 * r);
-      const pm = [rxrGap(id, mes, -1, 1.5), rxrMid(id, mes)], pd = dis ? [rxrMid(id, dis), rxrGap(id, dis, -1, 1.5)] : [rxrDi(id, .9), rxrL(id, 1.5, -.5 * r)];
-      stroke(RXP.poly(pm.concat([am, bm, bd, ad], pd)), .9); ring(am, .85, .7); ring(ad, .85, .7); }
-    else if (k === 'c' || k === 'solc') { const arc = [rxrB(id, .8, .62 * r), rxrB(id, 1.0, .2 * r), rxrB(id, 1.0, -.25 * r), rxrB(id, .8, -.62 * r)];
-      wire((k === 'c' ? [rxrGap(id, mes, -1, 1.5), rxrMid(id, mes)] : []).concat(arc), .95); dot(arc[3], .75); if (k === 'solc') dot(arc[0], 1.35); }
-    else { const nb = dis || mes, out2 = rxrGap(id, nb, 1, 1.0); stroke(RXP.poly([rxrGap(id, nb, -1, 1.4), rxrMid(id, nb), out2]), .9); dot(out2, 1.45); } // ball
-  });
+  rxrClaspShapes(teeth).forEach(x => out.push(x));
   // the standard lower Hawley's occlusal rests on the first molars (while they have no clasp)
   if (RXR_LOWER_RESTS.includes(rx.designL)) S2.forEach(s => { const id = 'L' + s + '6'; if (teeth[id]) return; const r = rxT(id).r, p = rxPt(id, r * .42, 0); stroke(RXP.line(p, rxPt(id, r * .42, -r * .95)), .8); dot(p, 1.4); });
   // finger springs (a helix in the acrylic with its arm to the tooth) and holding spurs (over the contact in front of the tooth)
   Object.keys(teeth).forEach(id => { const k = teeth[id], r = rxT(id).r;
     if (k === 'finger') { const h = rxrL(id, 4.8, -.25 * r); stroke(RXP.poly([rxrL(id, 7.6, .3 * r), h, rxrL(id, .3, .1 * r)]), .85); ring(h, 1.45); }
+    // a spur facing distal comes over the contact in front of the tooth; facing mesial, over the one behind it (around the back of a 7)
     if (k === 'spur') { const mes = rxrNext(id, 1), tip = rxrGap(id, mes, 1, .6); stroke(RXP.poly([rxrGap(id, mes, -1, 1.4), rxrMid(id, mes), tip, rxrB(id, .4, .5 * r)]), .9); }
+    if (k === 'spurM') { const dis = rxrNext(id, -1);
+      if (dis) stroke(RXP.poly([rxrGap(id, dis, -1, 1.4), rxrMid(id, dis), rxrGap(id, dis, 1, .6), rxrB(id, .4, -.5 * r)]), .9);
+      else stroke(RXP.poly([rxrL(id, 1.4, -.55 * r), rxrDi(id, 1.0), rxrB(id, 1.0, -.75 * r), rxrB(id, .4, -.5 * r)]), .9); }
   });
   // habit breakers: a crib (zigzag cage) or spurs behind the front teeth; a Bluegrass bead in the palate (upper)
   RXR_ARCH.forEach(A => { if (!(rx['acc' + A] || []).includes('habit')) return; const h = rx.habit || [], inc = ['R2', 'R1', 'L1', 'L2'].map(x => A + x);
@@ -534,22 +558,63 @@ function rxrAuto(rx, c) {
   return out;
 }
 
+/* the clasps on the teeth, drawn (shared with the Functional Rx; RXG is the form being drawn): Adams (rings at its arrowheads), delta
+   (closed triangles), C and soldered C, ball (the ball in the gap behind the tooth), arrowhead (arrows in the cheek-side embrasures
+   on both sides of each tooth, joined by a running wire; neighbouring teeth share an arrow) */
+function rxrClaspShapes(teeth) {
+  const out = [], stroke = (d, w) => out.push({ d, s: RX_METAL, w }), fill = (d, col, sc, w) => out.push({ d, f: col, s: sc || '', w: w || 0 });
+  const dot = (p, r) => fill(RXP.circle(p[0], p[1], r), RX_METAL), ring = (p, r, w) => fill(RXP.circle(p[0], p[1], r), '#FFFFFF', RX_METAL, w || .8);
+  const wire = (pts, w) => stroke(RXP.smooth(pts), w || 1.1);
+  Object.keys(teeth).forEach(id => { const k = teeth[id]; if (!RXR_CLASPS.includes(k) || k === 'arrowhead') return; const t = rxT(id), r = t.r, mes = rxrNext(id, 1), dis = rxrNext(id, -1);
+    if (k === 'adams' || k === 'delta') { const am = rxrB(id, .7, .62 * r), ad = rxrB(id, .7, -.62 * r), bm = rxrB(id, 2.7, .42 * r), bd = rxrB(id, 2.7, -.42 * r);
+      const pm = [rxrGap(id, mes, -1, 1.5), rxrMid(id, mes)], pd = dis ? [rxrMid(id, dis), rxrGap(id, dis, -1, 1.5)] : [rxrDi(id, .9), rxrL(id, 1.5, -.5 * r)];
+      stroke(RXP.poly(pm.concat([am, bm, bd, ad], pd)), .9);
+      if (k === 'adams') { ring(am, .85, .7); ring(ad, .85, .7); }
+      else [[am, 1], [ad, -1]].forEach(([q, sg]) => { const tip = rxrB(id, -.2, sg * .62 * r), o1 = [q[0] + t.b[0] * 2.1 + t.m[0] * 1.7, q[1] + t.b[1] * 2.1 + t.m[1] * 1.7], o2 = [q[0] + t.b[0] * 2.1 - t.m[0] * 1.7, q[1] + t.b[1] * 2.1 - t.m[1] * 1.7];
+        fill(RXP.poly([tip, o1, o2], true), '#FFFFFF', RX_METAL, .8); }); }
+    else if (k === 'c' || k === 'solc') { const arc = [rxrB(id, .8, .62 * r), rxrB(id, 1.0, .2 * r), rxrB(id, 1.0, -.25 * r), rxrB(id, .8, -.62 * r)];
+      wire((k === 'c' ? [rxrGap(id, mes, -1, 1.5), rxrMid(id, mes)] : []).concat(arc), .95); dot(arc[3], .75); if (k === 'solc') dot(arc[0], 1.35); }
+    else { const nb = dis || mes, out2 = rxrGap(id, nb, 1, 1.0); stroke(RXP.poly([rxrGap(id, nb, -1, 1.4), rxrMid(id, nb), out2]), .9); dot(out2, 1.45); } // ball
+  });
+  // arrowheads: each run of neighbouring teeth along the arch is one clasp
+  RXR_ARCH.forEach(A => { const seq = rxrSeq(A); let i = 0;
+    while (i < seq.length) { if (teeth[seq[i]] !== 'arrowhead') { i++; continue; } let j = i; while (j + 1 < seq.length && teeth[seq[j + 1]] === 'arrowhead') j++;
+      const run = seq.slice(i, j + 1), before = i > 0 ? seq[i - 1] : null, after = j + 1 < seq.length ? seq[j + 1] : null, ar = [];
+      const arrow = (q, id) => { const tt = rxT(id); fill(RXP.poly([[q[0] + tt.b[0] * 2.6, q[1] + tt.b[1] * 2.6], [q[0] + tt.m[0] * 1.8, q[1] + tt.m[1] * 1.8], [q[0] - tt.b[0] * 1.6, q[1] - tt.b[1] * 1.6], [q[0] - tt.m[0] * 1.8, q[1] - tt.m[1] * 1.8]], true), '#FFFFFF', RX_METAL, .85); };
+      // the end over a contact (or around the back of the last tooth)
+      const end = (id, nb) => { const rr = rxT(id).r;
+        if (nb) { const q = rxrGap(id, nb, 1, 1.2); stroke(RXP.poly([rxrGap(id, nb, -1, 1.4), rxrMid(id, nb), q]), .9); return q; }
+        const q = rxrB(id, 1.2, -.78 * rr); stroke(RXP.poly([rxrL(id, 1.4, -.55 * rr), rxrDi(id, 1.0), q]), .9); return q; }; // (no neighbour: the back of a 7)
+      const e0 = end(run[0], before), pts = [e0]; ar.push([e0, run[0]]);
+      run.forEach((id, k) => { pts.push(rxrB(id, 1.5, 0)); if (k < run.length - 1) { const q = rxrGap(id, run[k + 1], 1, 1.2); pts.push(q); ar.push([q, id]); } });
+      const en = end(run[run.length - 1], after); pts.push(en); ar.push([en, run[run.length - 1]]);
+      wire(pts, .9); ar.forEach(([q, id]) => arrow(q, id)); i = j + 1; } });
+  return out;
+}
+
 /* ---------- the form's circles and blanks ---------- */
+/* teeth in Universal order (#1 → #32; the primary teeth's letters A → T after them) */
+const rxrUni = l => /^#\d+$/.test(l) ? +l.slice(1) : 100 + l.charCodeAt(0);
+const rxrByUni = f => (a, b) => rxrUni(f(a)) - rxrUni(f(b));
+/* the clasps the form has no circle for, written out with their teeth: "Delta #3, #14; Arrowhead #12" */
+function rxrWrittenLine(rx) { const t = rx.teeth || {}; return RXR_WRITTEN.map(k => { const ids = RXR_TEETH.filter(id => t[id] === k).sort(rxrByUni(rxrNum)); return ids.length ? (k === 'delta' ? 'Delta ' : 'Arrowhead ') + ids.map(rxrNum).join(', ') : ''; }).filter(Boolean).join('; '); }
+/* the holding spurs with the way each faces: "#7 distal, #10 mesial" */
+function rxrSpurLine(rx) { const t = rx.teeth || {}; return RXR_TEETH.filter(id => RXR_SPURS.includes(t[id])).sort(rxrByUni(rxrNum)).map(id => rxrNum(id) + (t[id] === 'spurM' ? ' mesial' : ' distal')).join(', '); }
 function rxrFill(c, rx, put, box, circ) {
   if (rx.palate) box.add('palate.' + rx.palate);
   RXR_ARCH.forEach(A => { const d = rx['design' + A]; if (d) box.add('d.' + d + '.' + A); });
   (rx.reset || []).forEach(id => circ.push(['reset', id]));
   if (rx.resetHow) box.add('rh.' + rx.resetHow); if (rx.noStrip) box.add('noStrip');
   const teeth = rx.teeth || {}, on = (k, A) => Object.keys(teeth).filter(id => id[0] === A && teeth[id] === k);
-  Object.keys(teeth).forEach(id => { if (RXR_CLASPS.includes(teeth[id])) box.add('cl.' + teeth[id] + '.' + id[0]); });
-  put('claspOther', rx.claspOther, 'H', 9);
+  Object.keys(teeth).forEach(id => { if (RXR_CLASPS.includes(teeth[id]) && !RXR_WRITTEN.includes(teeth[id])) box.add('cl.' + teeth[id] + '.' + id[0]); });
+  put('claspOther', [rxrWrittenLine(rx), rx.claspOther].filter(Boolean).join('; '), 'H', 9);
   RXR_ARCH.forEach(A => { (rx['acc' + A] || []).forEach(k => box.add('acc.' + k + '.' + A)); (rx['acr' + A] || []).forEach(k => box.add('acr.' + k + '.' + A)); });
   (rx.habit || []).forEach(k => box.add('habit.' + k));
   // the teeth tapped go on the line (Universal numbers), then what was typed: "#7 tip labially"
   const nums = k => RXR_ARCH.map(A => on(k, A)).flat().map(rxrNum).join(', ');
   const line = (k, typed) => [nums(k), typed].filter(Boolean).join(' ');
   put('fingerTxt', line('finger', rx.fingerTxt), 'H', 9); put('solderTxt', rx.solderTxt, 'H', 9); put('closingTxt', rx.closingTxt, 'H', 9);
-  put('spursTxt', line('spur', rx.spursTxt), 'H', 9); put('screwTxt', rx.screwTxt, 'H', 9); put('saddleTxt', rx.saddleTxt, 'H', 9);
+  put('spursTxt', [rxrSpurLine(rx), rx.spursTxt].filter(Boolean).join(' '), 'H', 9); put('screwTxt', rx.screwTxt, 'H', 9); put('saddleTxt', rx.saddleTxt, 'H', 9);
   put('ponticTxt', [nums('pontic'), rx.ponticTxt ? 'shade ' + rx.ponticTxt : ''].filter(Boolean).join(' '), 'H', 9);
   RXR_ARCH.forEach(A => { const col = rxrColor(c, rx, A); if (col) { box.add('acr.color.' + A); put('color' + A, col, 'H', 9); } });
   RXR_ARCH.forEach(A => { [['flr', 'flr'], ['flrPads', 'pads'], ['flrWire', 'wire'], ['ir', 'ir']].forEach(([k, b]) => { const v = rx[k + A]; if (v) box.add(b + '.' + v + '.' + A); }); });
@@ -569,15 +634,31 @@ function rxrStart(c) {
   RXR_ARCH.forEach(A => rxrStdClasps(rx, A, ''));
   return rxCanon(rx);
 }
-/* a design picked on an arch with no clasps yet brings Specialty's standard clasps; when the arch's clasps are just the old
-   design's standard ones, they go with it */
+/* the clasps a design starts with, on the first molars: Dr. A's Adams on a Hawley (Amir, 4 Oct 2026 — Preferred, from his Lab Rx);
+   none on a wraparound (its bow keeps wire out of the bite); Specialty's own C-clasps on the Specialty Wrap. A design picked on an
+   arch with no clasps yet brings them; when the arch's clasps are just the old design's, they go with it */
+const RXR_FAMILY = d => !d ? '' : ['wrap', 'flatWrap', 'tremont'].includes(d) ? 'wrap' : d === 'specWrap' ? 'spec' : 'hawley';
+const RXR_DEF = d => ({ hawley: 'adams', spec: 'c' })[RXR_FAMILY(d)] || '';
 function rxrStdClasps(rx, A, prev) {
   const t = rx.teeth = Object.assign({}, rx.teeth), inArch = id => id[0] === A && RXR_CLASPS.includes(t[id]);
-  const was = prev && (RXR_STD[prev] || {})[A], clasps = Object.keys(t).filter(inArch);
+  const was = prev && RXR_DEF(prev), clasps = Object.keys(t).filter(inArch);
   if (was && clasps.length === 2 && clasps.every(id => t[id] === was && id[2] === '6')) clasps.forEach(id => delete t[id]);
-  const std = (RXR_STD[rx['design' + A]] || {})[A];
+  const std = RXR_DEF(rx['design' + A]);
   if (std && !Object.keys(t).some(inArch)) ['R6', 'L6'].forEach(s => { if (!t[A + s]) t[A + s] = std; });
 }
+/* Dr. A's take on each clasp for the design (Amir, 4 Oct 2026, from his Lab Rx): [badge, why] */
+const RXR_WRAP_NO = 'The wraparound bow replaces molar clasps and keeps wire out of the occlusion.';
+const RXR_GUIDE = {
+  hawley: { adams: ['pref', 'Strongest grip on mature molars, and the bridge doubles as a removal handle.'], ball: ['opt', 'Extra retention between the premolars when you need it.'],
+    c: ['alt', 'Simpler terminal-molar option where the buccal undercut is good.'], delta: ['alt', 'Holds its shape longer if the retainer goes in and out often.'],
+    arrowhead: ['avoid', 'Wedges contacts open, the opposite of what a retainer should do.'] },
+  wrap: { ball: ['opt', 'Optional extra retention. It does cross the occlusion.'], adams: ['avoid', RXR_WRAP_NO], delta: ['avoid', RXR_WRAP_NO], c: ['avoid', RXR_WRAP_NO],
+    arrowhead: ['avoid', 'Wedges contacts open and crosses the occlusion.'] }
+};
+/* the design the clasps are judged for: the upper's, else the lower's */
+const rxrGuideDesign = rx => rx.designU || rx.designL || '';
+/* the arches the case makes a Hawley for (U / L), for a design tapped from the pictures with none picked yet */
+const rxrCaseArches = c => { const a = ((c && c.arches) || []).map(x => x === 'Upper' ? 'U' : x === 'Lower' ? 'L' : '').filter(Boolean); return a.length ? a : ['U']; };
 
 /* ---------- the editor's left side ---------- */
 /* what the fixed or invisible retainers' section holds, for its heading when it's folded (they fold away until they're used,
@@ -592,12 +673,15 @@ function rxrFoldSum(g, rx) {
 }
 const rxrInfoG = g => g === 'flrPads' || g === 'flrWire' ? 'flr' : g;
 /* a row of the form: the option, its price, then Upper / Lower (as the paper's U and L circles) */
-function rxrRow(g, v, label, tag, more, show) {
-  return '<div class="rxUL" data-rxinfo="' + rxrInfoG(g) + ':' + v + '"><span class="rxULn">' + esc(label) + (tag ? '<em>' + esc(tag) + '</em>' : '') + '</span>' +
+function rxrRow(g, v, label, tag, more, show, st) {
+  return '<div class="rxUL" data-rxinfo="' + rxrInfoG(g) + ':' + v + '"><span class="rxULn">' + esc(label) + (st ? rxStBadge(st, v) : '') + (tag ? '<em>' + esc(tag) + '</em>' : '') + '</span>' +
     RXR_ARCH.map(A => '<button type="button" class="rxB rxU" data-rxg="' + g + A + '" data-v="' + v + '" aria-pressed="false" aria-label="' + esc(label) + ', ' + rxrArchWord(A) + '"><span>' + A + '</span></button>').join('') +
     (more ? '<div class="rxULx' + (show ? ' rxSub" data-show="' + show : '') + '">' + more + '</div>' : '') + '</div>';
 }
 const rxrHead = () => '<div class="rxULh"><span></span><span>Upper</span><span>Lower</span></div>';
+/* Dr. A's Hawleys and clasps in pictures (Amir, 4 Oct 2026): [value, name, picture, badge group] */
+const RXR_PICS_D = [['hawley', 'Hawley', 'hawley-standard'], ['clearbow', 'ClearBow Hawley', 'hawley-clear'], ['wrap', 'Standard Wraparound', 'hawley-wrap']];
+const RXR_PICS_C = [['adams', 'Adams', 'clasp-adams', 'clasp'], ['ball', 'Ball', 'clasp-ball', 'clasp'], ['c', 'C-clasp', 'clasp-c', 'clasp'], ['delta', 'Delta', 'clasp-delta', 'clasp'], ['arrowhead', 'Arrowhead', 'clasp-arrowhead', 'clasp']];
 const rxrTxt = (k, ph, n) => '<label class="rxF rxFw"><input data-rxf="' + k + '" type="text" maxlength="' + (n || 40) + '" placeholder="' + esc(ph) + '" aria-label="' + esc(ph) + '"></label>';
 function rxrSecs(rx) {
   const tag = (k, unit) => rxTag(k, false, unit);
@@ -607,25 +691,27 @@ function rxrSecs(rx) {
   const grid = RXR_ARCH.map(A => '<div class="rxRsRow"><span class="rxLbl">' + (A === 'U' ? 'Upper' : 'Lower') + '</span><span class="rxRsS">R</span>' +
     ['R3', 'R2', 'R1', 'L1', 'L2', 'L3'].map((s, i) => (i === 3 ? '<span class="rxRsBar"></span>' : '') + '<button type="button" class="rxB rxRs" data-rxg="reset" data-v="' + A + s + '" aria-pressed="false" aria-label="Reset ' + A + s + ' (' + rxrNum(A + s) + ')"><span>' + s[1] + '</span></button>').join('') + '<span class="rxRsS">L</span></div>').join('');
   return rxInfoSec('design', 'Retainer',
+      rxPicCards('designPick', RXR_PICS_D, 'Dr. A’s Hawleys') +
       '<div class="rxBs"><span class="rxLbl">Design type</span>' + RXR_O.palate.map(([k, l]) => rxBtn('palate', k, l, rx.palate === k)).join('') + '<span class="small muted">the upper plate</span></div>' +
       rxrHead() + RXR_O.design.map(([k, l]) => rxrRow('design', k, l, rxrDesignTag(k))).join('') +
       '<div class="rxULs">Spring designs</div>' + RXR_O.spring.map(([k, l]) => rxrRow('design', k, l, rxrDesignTag(k))).join('')) +
     rxSec('Reset teeth per diagram', '<div class="rxReset">' + grid + '</div><div class="rxBs">' + RXR_O.resetHow.map(([k, l]) => rxBtn('resetHow', k, l, rx.resetHow === k)).join('') + rxBtn('flag', 'noStrip', 'Do Not Strip Teeth', rx.noStrip) + '</div>' +
       '<div class="small muted">Tap the numbers (or Reset over the arches, then the teeth). ' + esc(tag('reset')) + ' a tooth; part of a Spring Hawley.</div>') +
-    rxInfoSec('clasp', 'Clasping', '<div class="small muted" style="margin-bottom:4px">Upper / Lower puts them on the first molars (ball clasps behind the 5s); tap teeth over the arches for anywhere else.</div>' +
-      rxrHead() + RXR_O.clasp.map(([k, l]) => rxrRow('clasp', k, l, tag(k === 'adams' ? 'adams' : k === 'solc' ? 'solC' : 'clasp', '/pr'))).join('') +
+    rxInfoSec('clasp', 'Clasping', rxPicCards('claspPick', RXR_PICS_C, 'Dr. A’s clasps') +
+      '<div class="small muted" style="margin-bottom:4px">Tap a clasp’s picture, then the teeth over the arches — or Upper / Lower to put it on the first molars (ball clasps behind the 5s, arrowheads on the 5s). Delta and arrowhead clasps aren’t circles on Specialty’s form, so they’re written out with their teeth.</div>' +
+      rxrHead() + RXR_O.clasp.map(([k, l]) => rxrRow('clasp', k, l, tag(k === 'adams' ? 'adams' : k === 'solc' ? 'solC' : k === 'delta' ? 'delta' : 'clasp', '/pr'), '', '', 'clasp')).join('') +
       '<div class="rxRow">' + rxField('claspOther', 'Other clasping', 'text', ' maxlength="40"') + '</div><div class="rxTeeth small" id="rxTeethSum"></div>') +
     rxInfoSec('acc', 'Accessories', rxrHead() +
       rxrRow('acc', 'finger', 'Finger Spring', accTag.finger, rxrTxt('fingerTxt', 'which way (the tooth tapped goes on the line)'), 'acc:finger') +
       rxrRow('acc', 'solder', 'Soldered Spring', accTag.solder, rxrTxt('solderTxt', 'tooth and what it does'), 'acc:solder') +
       rxrRow('acc', 'closing', 'Closing Spring', tag('closing'), rxrTxt('closingTxt', 'which space'), 'acc:closing') +
-      rxrRow('acc', 'spurs', 'Holding Spurs', tag('spurs'), rxrTxt('spursTxt', 'more about the spurs (teeth tapped go on the line)'), 'acc:spurs') +
+      rxrRow('acc', 'spurs', 'Holding Spurs', tag('spurs'), rxrTxt('spursTxt', 'more about the spurs (teeth tapped go on the line)') + '<div class="small muted">Tap a tooth with Spur: facing distal; tap it again to face it mesial; a third tap takes it off.</div>', 'acc:spurs') +
       rxrRow('acc', 'helical', 'Helical Bow', tag('helical')) + rxrRow('acc', 'cuspHook', 'Soldered Cuspid Hook', tag('cuspHook')) +
       rxrRow('acc', 'habit', 'Habit', tag('habit'), RXR_O.habit.map(([k, l]) => rxBtn('habit', k, l, (rx.habit || []).includes(k))).join(''), 'acc:habit') +
       '<div class="rxUL" data-rxinfo="acc:screw"><span class="rxULn">Space Closing Screw <em>' + esc(tag('scScrew')) + '</em></span><div class="rxULx">' + rxrTxt('screwTxt', 'specify the screw') + '</div></div>') +
     rxInfoSec('acr', 'Acrylic', rxrHead() +
-      RXR_O.acr.map(([k, l]) => rxrRow('acr', k, k === 'pontic' ? 'Pontic Shade' : l, acrTag[k] || tag(k), k === 'saddle' ? rxrTxt('saddleTxt', 'where') : k === 'pontic' ? rxrTxt('ponticTxt', 'shade (e.g. A2) — tap the missing teeth with Pontic', 20) : '', 'acr:' + k)).join('') +
-      '<div class="rxUL" data-rxinfo="acr:color"><span class="rxULn">Acrylic Color <em>Specialty colors free · glitter ' + esc(tag('glitter')) + '</em></span><div class="rxULx rxCol2">' + rxField('colorU', 'Upper', 'text', ' maxlength="40" placeholder="—"') + rxField('colorL', 'Lower', 'text', ' maxlength="40" placeholder="—"') + '</div></div>') +
+      RXR_O.acr.map(([k, l]) => rxrRow('acr', k, k === 'pontic' ? 'Pontic Shade' : l, acrTag[k] || tag(k), k === 'saddle' ? rxrTxt('saddleTxt', 'where') : k === 'pontic' ? rxShadeHTML('Tap the missing teeth with Pontic.') : '', 'acr:' + k)).join('') +
+      '<div class="rxUL" data-rxinfo="acr:color"><span class="rxULn">Acrylic Color <em>Specialty’s color guide</em></span></div>' + rxAcrHTML()) +
     rxInfoSec('flr', 'Fixed lingual retainers (FLR)', '<div class="rxULs">Placement of retainer</div>' + rxrHead() + RXR_O.flr.map(([k, l]) => rxrRow('flr', k, l, '')).join('') +
       '<div class="rxULs">Placement of pads <span class="h5n">composite on each tooth if none is picked (Specialty’s standard)</span></div>' + RXR_O.pads.map(([k, l]) => rxrRow('flrPads', k, l, padTag[k])).join('') +
       '<div class="rxULs">Type of wire</div>' + RXR_O.wire.map(([k, l]) => rxrRow('flrWire', k, l, '')).join('') + '<div class="rxWarn small" id="rxFlrWarn" hidden></div>', '', !!rxrFoldSum('flr', rx)) +
@@ -645,6 +731,9 @@ function rxrTap(id, rx, tool) {
   }
   if (!RXR_TOOTH.includes(tool)) return false;
   const t = rx.teeth = Object.assign({}, rx.teeth);
+  // a holding spur: facing distal, tapped again facing mesial, a third tap takes it off
+  if (tool === 'spur' && t[id] === 'spur') { t[id] = 'spurM'; return true; }
+  if (tool === 'spur' && t[id] === 'spurM') { delete t[id]; if (!Object.keys(t).some(x => x[0] === A && RXR_SPURS.includes(t[x]))) rx['acc' + A] = (rx['acc' + A] || []).filter(v => v !== 'spurs'); return true; }
   if (t[id] === tool) { delete t[id];
     // the last finger spring, spur or pontic on the arch taken off: its circle on the form goes too
     const fl = RXR_TOOTH_FLAG[tool]; if (fl && !Object.keys(t).some(x => x[0] === A && t[x] === tool)) rx[fl[0] + A] = (rx[fl[0] + A] || []).filter(v => v !== fl[1]);
@@ -654,16 +743,19 @@ function rxrTap(id, rx, tool) {
 /* Upper / Lower on a clasp row puts the clasps on the first molars (ball clasps behind the 5s) or takes that arch's off; on a
    finger spring, holding spur or pontic row it ticks the circle (tap the teeth too) or takes them off */
 function rxrClick(g, v, on, rx) {
+  if (g === 'designPick') { const ar = RXR_ARCH.filter(A => rx['design' + A]); (ar.length ? ar : rxrCaseArches(RXE.c)).forEach(A => { const prev = rx['design' + A]; rx['design' + A] = v; rxrStdClasps(rx, A, prev); }); return true; }
+  if (g === 'claspPick') { RXE.tool = v; return true; }
+  if (rxAcrClick(g, v, rx) || rxShadeClick(g, v, rx)) return true;
   const m = /^(clasp|acc|acr)([UL])$/.exec(g); if (!m) return false;
   const A = m[2], t = rx.teeth = Object.assign({}, rx.teeth), here = k => Object.keys(t).filter(id => id[0] === A && t[id] === k);
   if (m[1] === 'clasp') {
     if (!on) here(v).forEach(id => delete t[id]);
-    else { (v === 'ball' ? ['R5', 'L5'] : ['R6', 'L6']).forEach(s => { if (t[A + s] !== 'pontic') t[A + s] = v; }); RXE.tool = v; }
+    else { (v === 'ball' || v === 'arrowhead' ? ['R5', 'L5'] : ['R6', 'L6']).forEach(s => { if (t[A + s] !== 'pontic') t[A + s] = v; }); RXE.tool = v; }
     return true;
   }
   const kind = m[1] === 'acc' ? { finger: 'finger', spurs: 'spur' }[v] : v === 'pontic' ? 'pontic' : null; if (!kind) return false;
   const key = m[1] + A, s = new Set(rx[key] || []);
-  if (on) { s.add(v); RXE.tool = kind; } else { s.delete(v); here(kind).forEach(id => delete t[id]); }
+  if (on) { s.add(v); RXE.tool = kind; } else { s.delete(v); (kind === 'spur' ? here('spur').concat(here('spurM')) : here(kind)).forEach(id => delete t[id]); }
   rx[key] = Array.from(s); return true;
 }
 function rxrAfter(g, v, on, prev, rx) {
@@ -694,7 +786,7 @@ RXK[RX_RET] = {
   applies: c => !!c && c.type === 'appliance' && labName(c.lab) === LAB_SPEC && (c.appliances || []).some(a => RXR_APPL.includes(a)),
   scanners: [['itero', /itero/i], ['trios', /trios/i], ['medit', /medit/i], ['carestream', /carestream/i], ['3m', /\b3\s*m\b/i], ['sirona', /sirona|cerec|primescan/i]],
   canon: rxrCanon, summary: rxrSummary, estimate: rxrEstimate, auto: rxrAuto, fill: rxrFill, start: rxrStart,
-  single: RXR_SINGLE, tools: ['adams', 'c', 'ball', 'solc', 'pontic', 'finger', 'spur', 'reset'], tool0: 'adams',
+  single: RXR_SINGLE, tools: ['adams', 'c', 'ball', 'solc', 'delta', 'arrowhead', 'pontic', 'finger', 'spur', 'reset'], tool0: 'adams', toolReset: true,
   defDrop: ['colorU', 'colorL', 'reset', 'resetHow', 'fingerTxt', 'solderTxt', 'closingTxt', 'spursTxt', 'screwTxt', 'saddleTxt', 'ponticTxt', 'claspOther'],
   // the usual retainer keeps its clasps, not this patient's pontics, finger springs or spurs (those stay on the Rx when starting from it)
   defClean: d => { d.teeth = Object.fromEntries(Object.entries(d.teeth || {}).filter(([, k]) => RXR_CLASPS.includes(k)));
@@ -702,14 +794,29 @@ RXK[RX_RET] = {
   defKeep: (cur, next) => { const own = Object.entries(cur.teeth || {}).filter(([, k]) => !RXR_CLASPS.includes(k)); if (!own.length) return;
     next.teeth = Object.assign({}, next.teeth, Object.fromEntries(own)); },
   secHTML: rxrSecs, foldSum: rxrFoldSum, teethSum: rxrTeethSum, tap: rxrTap, tappable: () => true, click: rxrClick, after: rxrAfter, syncMore: rxrWarn,
-  pressed: (g, v, rx) => /^clasp[UL]$/.test(g) ? Object.keys(rx.teeth || {}).some(id => id[0] === g.slice(-1) && rx.teeth[id] === v) : null,
+  pressed: (g, v, rx) => /^clasp[UL]$/.test(g) ? Object.keys(rx.teeth || {}).some(id => id[0] === g.slice(-1) && rx.teeth[id] === v)
+    : g === 'designPick' ? RXR_ARCH.some(A => rx['design' + A] === v) : g === 'claspPick' ? RXE.tool === v : rxAcrPressed(g, v, rx),
+  // Dr. A's take on each clasp for the design; the pontic's shade is required; delta and arrowhead clasps and the spurs spelled out
+  status: (g, v, rx) => g === 'clasp' ? (RXR_GUIDE[RXR_FAMILY(rxrGuideDesign(rx))] || {})[v] || null : null,
+  stFor: rx => rxrDesignName(rxrGuideDesign(rx)) || 'retainer',
+  needs: rx => RXR_ARCH.some(A => (rx['acr' + A] || []).includes('pontic')) && !rx.ponticTxt ? [['the pontic shade', 'ponticTxt']] : [],
+  autoNotes: rx => { const t = rx.teeth || {}, ids = k => RXR_TEETH.filter(id => t[id] === k).sort(rxrByUni(rxrNum)), nums = a => a.map(rxrNum).join(', '), out = [];
+    const d = ids('delta'); if (d.length) out.push('Delta clasps on ' + nums(d) + ' (no circle on the form): closed triangular loops in the MB and DB undercuts, bridge about 1 mm off the buccal.');
+    const ah = ids('arrowhead'); if (ah.length) out.push('Arrowhead (Schwarz) clasps on ' + nums(ah) + ': arrows in the buccal embrasures on both sides, joined by a running buccal wire.');
+    const sp = RXR_TEETH.filter(id => RXR_SPURS.includes(t[id])).sort(rxrByUni(rxrNum)); if (sp.length) out.push('Holding spurs: ' + sp.map(id => rxrNum(id) + ' facing ' + (t[id] === 'spurM' ? 'mesial' : 'distal')).join(', ') + ' (as drawn).');
+    return out; },
+  acrArches: rx => RXR_ARCH.filter(A => rx['design' + A]), colorOf: rxrColor,
   autoVal: { colorU: (c, rx) => rx.designU ? rxrCaseColor(c) : '', colorL: (c, rx) => rx.designL ? rxrCaseColor(c) : '' },
   toolsHTML: () => rxToolBtn('adams', 'Adams', 'Adams clasp on the tooth') + rxToolBtn('c', 'C-clasp', 'C-clasp on the tooth') + rxToolBtn('ball', 'Ball', 'Ball clasp behind the tooth') +
-    rxToolBtn('solc', 'Soldered C', 'Soldered C-clasp on the tooth') + rxToolBtn('pontic', 'Pontic', 'A pontic in the space') + rxToolBtn('finger', 'Finger spring', 'A finger spring on the tooth') +
-    rxToolBtn('spur', 'Spur', 'A holding spur on the tooth') + rxToolBtn('reset', 'Reset', 'Reset the tooth on the model (3 to 3)'),
+    rxToolBtn('solc', 'Soldered C', 'Soldered C-clasp on the tooth') + rxToolBtn('delta', 'Delta', 'Delta clasp on the tooth (written out on the form)') +
+    rxToolBtn('arrowhead', 'Arrowhead', 'Arrowhead clasp: arrows in the embrasures on both sides of the tooth (written out on the form)') +
+    rxToolBtn('pontic', 'Pontic', 'A pontic in the space') + rxToolBtn('finger', 'Finger spring', 'A finger spring on the tooth') +
+    rxToolBtn('spur', 'Spur', 'A holding spur: tap once facing distal, twice facing mesial') + rxToolBtn('reset', 'Reset', 'Reset the tooth on the model (3 to 3)'),
   hint: tool => ({ adams: 'Tap the teeth that get an Adams clasp.', c: 'Tap the teeth that get a C-clasp.', ball: 'Tap the tooth in front of the gap: the ball goes between it and the tooth behind it.',
-    solc: 'Tap the teeth that get a soldered C-clasp.', pontic: 'Tap the missing teeth: each gets a pontic.', finger: 'Tap the tooth the finger spring moves.',
-    spur: 'Tap the teeth that get a holding spur.', reset: 'Tap the front teeth (3 to 3) to reset on the model.' })[tool] || '',
+    solc: 'Tap the teeth that get a soldered C-clasp.', delta: 'Tap the teeth that get a delta clasp (written out with their numbers on the form).',
+    arrowhead: 'Tap a tooth: arrows go in the embrasures on both sides of it. Tap the next tooth to run the clasp on.',
+    pontic: 'Tap the missing teeth: each gets a pontic (and the shade is required).', finger: 'Tap the tooth the finger spring moves.',
+    spur: 'Tap a tooth for a holding spur facing distal; tap it again to face it mesial; a third tap takes it off.', reset: 'Tap the front teeth (3 to 3) to reset on the model.' })[tool] || '',
   tip: (id, rx) => { const k = (rx.teeth || {})[id], r = (rx.reset || []).includes(id); return id + ' (' + rxrNum(id) + ')' + (k ? ': ' + RXR_TOOTH_L[k] : '') + (r ? (k ? ', ' : ': ') + 'reset' : ''); },
   subShow: (k, rx) => { const [g, v] = k.split(':'), txt = { finger: 'fingerTxt', solder: 'solderTxt', closing: 'closingTxt', spurs: 'spursTxt', saddle: 'saddleTxt', pontic: 'ponticTxt' }[v];
     return RXR_ARCH.some(A => (rx[g + A] || []).includes(v)) || !!(txt && rx[txt]) || (v === 'habit' && !!(rx.habit || []).length); },
@@ -720,7 +827,7 @@ RXK[RX_RET] = {
   infoName: (g, v) => rxrLbl(v),
   infoTag: (g, v) => { const P = rxPrices();
     if (g === 'design') return RXR_BASE[v] ? rxrDesignTag(v) : '';
-    if (g === 'clasp') return rxTag(v === 'adams' ? 'adams' : v === 'solc' ? 'solC' : 'clasp', false, '/pr');
+    if (g === 'clasp') return rxTag(v === 'adams' ? 'adams' : v === 'solc' ? 'solC' : v === 'delta' ? 'delta' : 'clasp', false, '/pr');
     if (g === 'acc') return { finger: rxTag('finger', false, ' ea'), solder: rxTag('solSpring', false, ' ea'), screw: rxTag('scScrew') }[v] || rxTag(v);
     if (g === 'acr') return { bowAcr: rxTag('acrBow'), abp: rxTag('abp'), pontic: rxTag('pontic', false, ' ea'), color: 'free · glitter ' + rxTag('glitter') }[v] || rxTag(v);
     if (g === 'flr') return { compEach: P.comp4 != null && P.comp6 != null ? money(P.comp4) + '–' + money(P.comp6) : rxTag('comp6'), compDist: rxTag('compCusp'), meshEach: rxTag('mesh6'), meshDist: rxTag('meshCusp') }[v] || '';
@@ -732,7 +839,8 @@ RXK[RX_RET] = {
     if (g === 'acc') return first('acc'); if (g === 'acr') return first('acr');
     if (g === 'flr') return rx.flrPadsU || rx.flrPadsL || rx.flrU || rx.flrL || '';
     return rx.irU || rx.irL || ''; },
-  infoOf: b => { const g = b.dataset.rxg, v = b.dataset.v; if (g === 'palate') return ['design', v]; if (g === 'habit') return ['acc', 'habit'];
+  infoOf: b => { const g = b.dataset.rxg, v = b.dataset.v; if (g === 'palate' || g === 'designPick') return ['design', v]; if (g === 'habit') return ['acc', 'habit']; if (g === 'claspPick') return ['clasp', v];
+    if (g === 'acrPick' || g === 'acrFor') return ['acr', 'color']; if (g === 'ponticShade') return ['acr', 'pontic'];
     const m = /^(design|clasp|acc|acr|ir|flr|flrPads|flrWire)[UL]$/.exec(g); return m ? [rxrInfoG(m[1]), v] : null; },
   infoPrompt: g => ({ design: 'a design', clasp: 'a clasp', acc: 'an accessory', acr: 'an acrylic option', flr: 'an FLR option', ir: 'a clear retainer' })[g] || 'an option',
   cmpKeys: g => ({ design: RXR_DESIGNS, clasp: RXR_K('clasp'), flr: RXR_K('pads').concat(RXR_K('wire')), ir: RXR_K('ir') })[g] || null

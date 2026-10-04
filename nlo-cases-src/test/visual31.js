@@ -34,54 +34,76 @@ const OUT = process.argv[2] || 'shots';
   check(await p.isVisible('#drawer #cf-titanUrl') && /case-demo/.test(await p.inputValue('#drawer #cf-titanUrl')), '… and Edit shows its link (to keep or clear)');
   await p.click('#drawer [data-act=cancelEdit]'); await p.evaluate(() => closeDrawer(true));
 
-  // ---- Hawley retainers: Upper / Lower in words, the acrylic color, glitter
+  // ---- Hawley retainers: Upper / Lower in words, and the acrylic color as Specialty's guide in swatches (Amir, 4 Oct 2026: "the
+  //      high resolution color palette" — his chart of Specialty's Acrylic Color Guide)
   await newCase('appliance');
-  check(!(await p.isVisible('#ncForm #cf-hawleyWrap')), 'Appliance: no Hawley questions until Hawley retainers is tapped');
+  check(!(await p.isVisible('#ncForm #cf-hawleyWrap')) && !(await p.isVisible('#ncForm #cf-acrWrap')), 'Appliance: no Hawley questions (or colors) until Hawley retainers is tapped');
   await p.click('#ncForm .pickRow[data-g=appliances] .pick[data-v="Hawley retainers"]'); await p.waitForTimeout(100);
   const hw = await p.evaluate(() => ({ shown: !!document.querySelector('#ncForm #cf-hawleyWrap').offsetParent,
     arch: Array.from(document.querySelectorAll('#ncForm .pickRow[data-g=hawleyArch] .pick')).map(b => b.textContent.trim() + (b.querySelector('img,svg,.archIc') ? '+icon' : '')).join('|'),
-    colors: Array.from(document.querySelectorAll('#ncForm .pickRow[data-g=acrylic] .pick')).map(b => b.textContent.trim()).join('|'),
-    swatches: Array.from(document.querySelectorAll('#ncForm .pickRow[data-g=acrylic] .pick .sw')).length,
-    glitter: (document.querySelector('#ncForm .pickRow[data-g=glitter] .pick') || {}).textContent }));
-  console.log('   ' + JSON.stringify(hw));
+    colors: Array.from(document.querySelectorAll('#ncForm .pickRow[data-g=acrylic] .pick')).map(b => b.dataset.v),
+    groups: Array.from(document.querySelectorAll('#ncForm .acrPal .acrGh')).map(h => h.textContent.replace(/\s+/g, ' ').trim()).join('|'),
+    glitterRow: !!document.querySelector('#ncForm .pickRow[data-g=glitter]'), forWho: document.querySelector('#ncForm #cf-acrFor').textContent }));
+  console.log('   ' + JSON.stringify(Object.assign({}, hw, { colors: hw.colors.length })));
   check(hw.shown && hw.arch === 'Upper|Lower', 'Hawley retainers tapped: “Hawley arch — Upper / Lower”, in words (no icon)');
-  check(hw.colors === 'Clear|Pink|Red|Orange|Yellow|Lime|Green|Teal|Light blue|Blue|Purple|Black' && hw.swatches === 12 && /Glitter/.test(hw.glitter), 'Acrylic color: twelve swatches (Clear … Black) and Glitter');
+  check(hw.colors.length === 35 && hw.colors[0] === 'Clear' && ['Black cherry', 'Tangerine', 'Party mix glitter', 'Moon glow', 'Cotton candy swirl', 'Tie dye'].every(c => hw.colors.includes(c)) &&
+    hw.groups === 'Specialty colors free|Glitter $9.50|Glow $9.50|Swirls $9.50|Custom designs not on the price list' && !hw.glitterRow && hw.forWho === 'for the Hawley',
+    'Acrylic color “for the Hawley”: Clear and Specialty’s 34 colors in their five groups with the prices; no separate Glitter switch');
+  await p.waitForFunction(() => Array.from(document.querySelectorAll('#ncForm .acrPal img')).every(i => i.complete && i.naturalWidth > 0), null, { timeout: 8000 }).catch(() => {});
+  check(await p.evaluate(() => { const im = Array.from(document.querySelectorAll('#ncForm .acrPal img')); return im.length === 34 && im.every(i => i.complete && i.naturalWidth >= 144 && /^nlo-cases-pics\/acr-/.test(i.getAttribute('src'))); }),
+    'the 34 swatch pictures load from nlo-cases-pics/ at full size (144 px, shown at 44)');
   check(await p.evaluate(() => routeLabName = (pressed(document.querySelector('.modal'), 'lab')[0] || '')) === 'Specialty Orthodontic Lab', 'Hawley goes to Specialty (Amir, 4 Oct 2026; Partners before)');
   await p.fill('#ncForm #cf-patient', 'Hattie Hawleyson');
   await p.click('#ncSave'); await p.waitForSelector('#ncErr .lockErr', { timeout: 5000 }).catch(() => {});
   check(/arch for the Hawley/.test(await p.textContent('#ncErr')) && await p.evaluate(() => document.querySelector('#ncForm .pickRow[data-g=hawleyArch]').classList.contains('need')), 'New case without the arch is stopped (“Pick the arch for the Hawley retainers…”, row outlined)');
   await p.click('#ncForm .pickRow[data-g=hawleyArch] .pick[data-v=Upper]'); await p.click('#ncForm .pickRow[data-g=hawleyArch] .pick[data-v=Lower]');
-  await p.click('#ncForm .pickRow[data-g=acrylic] .pick[data-v=Blue]'); await p.click('#ncForm .pickRow[data-g=glitter] .pick');
+  await p.click('#ncForm .pickRow[data-g=acrylic] .pick[data-v="Blue glitter"]');
   check(await p.inputValue('#ncForm #cf-detail') === 'Hawley retainers (upper & lower, blue glitter)', 'what’s being made: “Hawley retainers (upper & lower, blue glitter)”');
-  await p.click('#ncForm .pickRow[data-g=acrylic] .pick[data-v=Purple]');
-  check(await p.evaluate(() => Array.from(document.querySelectorAll('#ncForm .pickRow[data-g=acrylic] .pick[aria-pressed=true]')).map(b => b.dataset.v).join()) === 'Purple', 'one color at a time (Purple replaces Blue)');
-  await (await p.$('#ncForm #cf-hawleyWrap')).evaluate(e => e.closest('.cfSec').scrollIntoView({ block: 'center' })); await p.mouse.move(5, 5); await p.waitForTimeout(300);
-  await (await p.evaluateHandle(() => document.querySelector('#ncForm #cf-hawleyWrap').closest('.cfSec'))).screenshot({ path: OUT + '/v31-hawley.png' });
+  await p.click('#ncForm .pickRow[data-g=acrylic] .pick[data-v="Party mix glitter"]');
+  check(await p.evaluate(() => Array.from(document.querySelectorAll('#ncForm .pickRow[data-g=acrylic] .pick[aria-pressed=true]')).map(b => b.dataset.v).join()) === 'Party mix glitter', 'one color at a time (Party mix glitter replaces Blue glitter)');
+  await (await p.$('#ncForm #cf-acrWrap')).evaluate(e => e.closest('.cfSec').scrollIntoView({ block: 'center' })); await p.mouse.move(5, 5); await p.waitForTimeout(300);
+  await (await p.$('#ncForm #cf-acrWrap')).screenshot({ path: OUT + '/v31-hawley.png' });
   await p.click('#ncSave'); await p.waitForSelector('#ncForm', { state: 'detached', timeout: 5000 }).catch(() => {});
   const hid = await p.evaluate(() => (openCases().find(c => c.patient === 'Hattie Hawleyson') || {}).id);
   const saved = hid && await p.evaluate(id => { const d = DEMO.cases.get(id); return { arches: (d.arches || []).join(), acrylic: d.acrylic, glitter: d.glitter, detail: d.detail }; }, hid);
-  check(saved && saved.arches === 'Upper,Lower' && saved.acrylic === 'Purple' && saved.glitter === true && saved.detail === 'Hawley retainers (upper & lower, purple glitter)', 'saved: Upper & Lower, Purple, glitter (' + JSON.stringify(saved) + ')');
+  check(saved && saved.arches === 'Upper,Lower' && saved.acrylic === 'Party mix glitter' && saved.glitter === '' && saved.detail === 'Hawley retainers (upper & lower, party mix glitter)', 'saved: Upper & Lower, Party mix glitter (' + JSON.stringify(saved) + ')');
   await p.evaluate(id => openDrawer(id), hid); await p.waitForSelector('#drawer .dsList');
   const badge = await p.evaluate(() => { const b = Array.from(document.querySelectorAll('#drawer .badge.t-appl')).find(x => /Hawley/.test(x.textContent)); return b && { t: b.textContent, sw: !!b.querySelector('.sw') }; });
-  check(badge && badge.t === 'Hawley retainers (upper & lower, purple glitter)' && badge.sw, 'the case’s badge: “Hawley retainers (upper & lower, purple glitter)” with a purple swatch');
-  check(/Scanned with [^.]+ for Hawley retainers, upper & lower, purple glitter acrylic \(Specialty Orthodontic Lab\)\./.test(await p.evaluate(id => chartNote(findCase(id)), hid)), 'chart note: “… for Hawley retainers, upper & lower, purple glitter acrylic (Specialty Orthodontic Lab).”');
-  // Edit keeps them; one arch; untapping Hawley clears them
+  check(badge && badge.t === 'Hawley retainers (upper & lower, party mix glitter)' && badge.sw, 'the case’s badge: “Hawley retainers (upper & lower, party mix glitter)” with its color dot');
+  check(/Scanned with [^.]+ for Hawley retainers, upper & lower, party mix glitter acrylic \(Specialty Orthodontic Lab\)\./.test(await p.evaluate(id => chartNote(findCase(id)), hid)), 'chart note: “… for Hawley retainers, upper & lower, party mix glitter acrylic (Specialty Orthodontic Lab).”');
+  // Edit keeps them; one arch; the Schwarz instead: standard colors only
   await p.click('#drawer [data-act=edit]'); await p.waitForSelector('#drawer #cf-hawleyWrap', { state: 'attached' });
-  const ed = await p.evaluate(() => ({ arch: Array.from(document.querySelectorAll('#drawer .pickRow[data-g=hawleyArch] .pick[aria-pressed=true]')).map(b => b.dataset.v).join(), col: (document.querySelector('#drawer .pickRow[data-g=acrylic] .pick[aria-pressed=true]') || {}).dataset?.v, gl: document.querySelector('#drawer .pickRow[data-g=glitter] .pick').getAttribute('aria-pressed') }));
-  check(ed.arch === 'Upper,Lower' && ed.col === 'Purple' && ed.gl === 'true', 'Edit shows the arch, color and glitter as saved');
-  await p.click('#drawer .pickRow[data-g=hawleyArch] .pick[data-v=Lower]'); await p.click('#drawer .pickRow[data-g=glitter] .pick');
-  check(await p.inputValue('#drawer #cf-detail') === 'Hawley retainers (upper, purple)', 'upper only, no glitter: “Hawley retainers (upper, purple)”');
+  const ed = await p.evaluate(() => ({ arch: Array.from(document.querySelectorAll('#drawer .pickRow[data-g=hawleyArch] .pick[aria-pressed=true]')).map(b => b.dataset.v).join(), col: (document.querySelector('#drawer .pickRow[data-g=acrylic] .pick[aria-pressed=true]') || {}).dataset?.v }));
+  check(ed.arch === 'Upper,Lower' && ed.col === 'Party mix glitter', 'Edit shows the arch and color as saved');
+  await p.click('#drawer .pickRow[data-g=hawleyArch] .pick[data-v=Lower]');
+  check(await p.inputValue('#drawer #cf-detail') === 'Hawley retainers (upper, party mix glitter)', 'upper only: “Hawley retainers (upper, party mix glitter)”');
   await p.click('#drawer [data-act=saveEdit]'); await p.waitForTimeout(400);
   const ed2 = await p.evaluate(id => { const d = DEMO.cases.get(id); return (d.arches || []).join() + '|' + d.acrylic + '|' + d.glitter; }, hid);
-  check(ed2 === 'Upper|Purple|', 'saved from Edit: Upper, Purple, no glitter (' + ed2 + ')');
+  check(ed2 === 'Upper|Party mix glitter|', 'saved from Edit: Upper, Party mix glitter (' + ed2 + ')');
   await p.click('#drawer [data-act=edit]'); await p.waitForSelector('#drawer #cf-hawleyWrap', { state: 'attached' });
-  await p.click('#drawer .pickRow[data-g=appliances] .pick[data-v="Hawley retainers"]'); await p.click('#drawer .pickRow[data-g=appliances] .pick[data-v="Schwartz"]');
-  const un = await p.evaluate(() => ({ appl: Array.from(document.querySelectorAll('#drawer .pickRow[data-g=appliances] .pick[aria-pressed=true]')).map(b => b.dataset.v).join(), hidden: document.querySelector('#drawer #cf-hawleyWrap').hidden, notice: (document.querySelector('#drawerNotice') || {}).textContent }));
-  check(!(await p.isVisible('#drawer #cf-hawleyWrap')), 'untapping Hawley hides its questions (' + JSON.stringify(un) + ')');
+  await p.click('#drawer .pickRow[data-g=appliances] .pick[data-v="Hawley retainers"]'); await p.click('#drawer .pickRow[data-g=appliances] .pick[data-v="Schwartz"]'); await p.waitForTimeout(150);
+  const un = await p.evaluate(() => ({ hawley: !document.querySelector('#drawer #cf-hawleyWrap').hidden, colors: !document.querySelector('#drawer #cf-acrWrap').hidden, forWho: document.querySelector('#drawer #cf-acrFor').textContent,
+    off: Array.from(document.querySelectorAll('#drawer .acrS[aria-disabled=true]')).length, on: Array.from(document.querySelectorAll('#drawer .acrS:not([aria-disabled])')).map(b => b.dataset.v).join(','),
+    picked: Array.from(document.querySelectorAll('#drawer .pickRow[data-g=acrylic] .pick[aria-pressed=true]')).length, hint: document.querySelector('#drawer #cf-acrHint').textContent }));
+  console.log('   ' + JSON.stringify(un));
+  check(!un.hawley && un.colors && un.forWho === 'for the Schwarz' && un.off === 24 && un.on.split(',').length === 11 && un.picked === 0 && /standard colors only/.test(un.hint),
+    'Hawley → Schwarz: the arch goes; the colors stay “for the Schwarz” with only Clear and Specialty’s 10 standard colors (glitter, glow, swirls and designs greyed out, Party mix glitter taken off)');
+  await p.click('#drawer .pickRow[data-g=acrylic] .pick[data-v="Tie dye"]', { force: true });
+  check(!(await p.evaluate(() => pressed(document.querySelector('#drawer'), 'acrylic').length)), '… a greyed-out one can’t be picked');
+  await p.click('#drawer .pickRow[data-g=acrylic] .pick[data-v="Teal"]');
   await p.click('#drawer [data-act=saveEdit]'); await p.waitForTimeout(400);
   const ed3 = await p.evaluate(id => { const d = DEMO.cases.get(id); return { arches: (d.arches || []).length, acrylic: d.acrylic, glitter: d.glitter, appl: (d.appliances || []).join() }; }, hid);
-  check(ed3.appl === 'Schwartz' && !ed3.arches && ed3.acrylic === '' && ed3.glitter === '', '… and saving drops the Hawley arch and color');
+  check(ed3.appl === 'Schwartz' && !ed3.arches && ed3.acrylic === 'Teal' && ed3.glitter === '', '… saved as a Schwarz in Teal, without the Hawley arch (' + JSON.stringify(ed3) + ')');
   await p.evaluate(() => closeDrawer(true));
+  // a case from before the guide: Blue with the old Glitter switch shows as Blue glitter, and saves untouched as it was; Purple shows as an earlier choice
+  const old = await p.evaluate(() => openCases().find(c => c.type === 'appliance' && c.stage === 'submit').id);
+  await setCase(old, { appliances: ['Hawley retainers'], arches: ['Upper'], acrylic: 'Blue', glitter: true, rx: '', rxRet: '', rxFun: '' }); // (the demo's Herbst case, made a Hawley without its Herbst Rx)
+  await p.evaluate(id => openDrawer(id), old); await p.click('#drawer [data-act=edit]'); await p.waitForSelector('#drawer #cf-acrWrap', { state: 'attached' });
+  check(await p.evaluate(() => pressed(document.querySelector('#drawer'), 'acrylic').join()) === 'Blue glitter' && !(await p.evaluate(() => editDirty())), 'an older case with Blue + Glitter: Blue glitter picked, and nothing counts as changed');
+  await p.click('#drawer [data-act=cancelEdit]'); await setCase(old, { acrylic: 'Purple', glitter: '' });
+  await p.evaluate(() => closeDrawer(true)); await p.evaluate(id => openDrawer(id), old); await p.click('#drawer [data-act=edit]'); await p.waitForSelector('#drawer #cf-acrWrap', { state: 'attached' });
+  check(await p.evaluate(() => { const b = document.querySelector('#drawer .acrS.old'); return !!b && b.dataset.v === 'Purple' && b.getAttribute('aria-pressed') === 'true'; }) && !(await p.evaluate(() => editDirty())), '… Purple (not on Specialty’s guide) shows as an earlier choice, still picked');
+  await p.click('#drawer [data-act=cancelEdit]'); await p.evaluate(() => closeDrawer(true));
   // retainers keep their own Arch question (with the tray icons)
   await newCase('retainer');
   check(await p.isVisible('#ncForm .pickRow[data-g=arches] .pick[data-v=Upper] .archIc') && !(await p.isVisible('#ncForm #cf-hawleyWrap')), 'Retainers keep their own Arch question with the icons; no Hawley questions');

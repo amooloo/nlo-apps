@@ -66,10 +66,13 @@ const DEMO = {
     if (hw) Object.assign(hw, { appliances: [HAWLEY], arches: ['Upper', 'Lower'], acrylic: 'Blue', glitter: true, detail: hawleyText({ arches: ['Upper', 'Lower'], acrylic: 'Blue', glitter: true }), lab: LAB_SPEC, scanner: 'iTero',
       rxRet: { form: 'specialty-retainer', palate: 'horseshoe', designU: 'hawley', designL: 'hawley', teeth: { UR6: 'adams', UL6: 'adams', LR6: 'c', LL6: 'c' }, flrL: 'c3', flrPadsL: 'compEach', flrWireL: 'solid' } });
     // an RPE going to Specialty with its Metal Rx filled out (rxmetal.js; made-up choices): a Hyrax on 3D printed first molar bands,
-    // with upper archwire tubes
+    // with upper archwire tubes — and, with it (Phase I), a lower Schwarz on Specialty's Functional Rx filled in with Dr. A's Schwarz
+    // (rxfun.js): delta clasps on the 6s, ball clasps at the D–E contacts, the midline screw, no occlusal acrylic, pink acrylic (a standard color)
     const rp = all.find(c => c.type === 'appliance' && c.stage === 'hold');
-    if (rp) Object.assign(rp, { appliances: ['Rapid Palatal Expander (RPE)'], detail: 'Rapid Palatal Expander (RPE)', lab: LAB_SPEC, scanner: 'iTero',
-      rxMet: { form: 'specialty-metal', exp: ['hyrax'], teeth: { UR6: 'band', UL6: 'band' }, printed3d: true, awt: ['U'] } });
+    if (rp) Object.assign(rp, { appliances: ['Rapid Palatal Expander (RPE)', 'Schwartz'], detail: 'Rapid Palatal Expander (RPE), Schwartz', lab: LAB_SPEC, scanner: 'iTero', acrylic: 'Pink',
+      rxMet: { form: 'specialty-metal', exp: ['hyrax'], teeth: { UR6: 'band', UL6: 'band' }, printed3d: true, awt: ['U'] },
+      rxFun: { form: 'specialty-functional', actL: 'schwarz', exp: 'mid', dent: 'mixed', teeth: { LR6: 'delta', LL6: 'delta', LR4: 'ball', LL4: 'ball' },
+        notes: 'Full-time wear for several months. Lingual horseshoe adapted into the lingual embrasures; block out only what insertion needs. No labial bow.' } });
     // in-house sets past Export STLs: attachment templates answered (some with, some without)
     all.filter(c => c.type === 'nla' && stageIndex(c) >= FLOWS.inhouse.stages.findIndex(x => x[0] === 'fab')).forEach((c, i) => { c.atTemplates = ['UL', 'none', 'U'][i % 3]; });
     // one arch only: an in-house set for the upper arch, InSmile braces on the lower

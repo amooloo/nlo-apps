@@ -5,10 +5,11 @@
    out" — then "I want diagrams to be drawn on the arches. kinda like how Easy Rx does it" and "add all the prices for all
    different pieces … so it would give me a total pricing at the end".
    Amir, 4 Oct 2026: "here is the Rx for hawley. do the same" — Specialty's Retainer Rx (MKT-7) works the same way (rxret.js);
-   then "Next lets use this" — Specialty's Metal Rx (MKT-6) for RPE, MSE and other metal appliances (rxmetal.js).
+   then "Next lets use this" — Specialty's Metal Rx (MKT-6) for RPE, MSE and other metal appliances (rxmetal.js); and the lower
+   Schwarz goes to Specialty on their Functional Rx (MKT-12, rxfun.js), filled in with Dr. A's design.
    - This file is what the forms share (the editor, the arches, the paper, the PDF, the estimate, the hooks into New case,
-     Edit, the case and Team & security) and the Herbst Rx itself; rxret.js adds the Retainer Rx, rxmetal.js the Metal Rx.
-     Each form is a "kind" (RXK below): its choices, prices, drawing and words.
+     Edit, the case and Team & security) and the Herbst Rx itself; rxret.js adds the Retainer Rx, rxmetal.js the Metal Rx and
+     rxfun.js the Functional Rx. Each form is a "kind" (RXK below): its choices, prices, drawing and words.
    - Choices are tapped in the app (New case, Edit, or the case's Rx section). The result is Specialty's own form
      (rxdata.js: their PDF with its fill-in fields taken out), filled in and drawn on, as a PDF made in the browser — no
      library, and nothing leaves this computer. The case keeps the choices (encrypted with the rest of the case), so the
@@ -19,9 +20,9 @@
    - Prices: Specialty's price list MKT-41 (Rev 01-26, updated 1-27-26), editable by Dr. A in Team & security. Each piece
      shows its price and the Rx ends with the estimate; anything the price list doesn't have is named, never guessed.
    ===================================================================== */
-const RX_FORM = 'specialty-herbst', RX_RET = 'specialty-retainer';
+const RX_FORM = 'specialty-herbst', RX_RET = 'specialty-retainer', RX_FUN = 'specialty-functional';
 const RXF = RX_FORMS[RX_FORM]; // the Herbst form
-/* the forms: RXK[form id] = what's particular to each (the Herbst at the end of this file, the Retainer in rxret.js, the Metal Rx in rxmetal.js) */
+/* the forms: RXK[form id] = what's particular to each (the Herbst at the end of this file, the Retainer in rxret.js, the Metal Rx in rxmetal.js, the Functional Rx in rxfun.js) */
 const RXK = {};
 function rxK(x) { const f = typeof x === 'string' ? x : x && x.form; return RXK[f] || RXK[RX_FORM]; }
 function rxKind(key) { return Object.values(RXK).find(k => k.key === key) || RXK[RX_FORM]; }
@@ -79,6 +80,11 @@ function rxScrewText(rx) {
   const a = rx.expArch || [];
   return s[1] + (rx.expMm && s[2].includes(rx.expMm) ? ' ' + rx.expMm + ' mm' : '') + (a.length === 2 ? ', upper & lower' : a.length ? (a[0] === 'U' ? ', upper' : ', lower') : '');
 }
+/* Dr. A's take on a choice for the appliance at hand (Amir, 4 Oct 2026: "label the ones we talked about as preferred or recommended …
+   I want the recommended and preferred to be on the RX"): a badge on the choice, and its reason at the top of the choice's card.
+   A form gives them with K.status(group, value, rx) → [key, why] (the clasps of a Hawley or a Schwarz) */
+const RX_ST = { pref: 'Preferred', rec: 'Recommended', opt: 'Optional', alt: 'Alternative', avoid: 'Not for this case' };
+const rxStBadge = (g, v) => '<b class="rxSt" data-st="' + esc(g + ':' + v) + '" hidden></b>';
 /* the form's choices, in its order and words (® and ™ left off on screen) */
 const RXO = {
   design: [['standard', 'Standard Herbst'], ['cantilever', 'Cantilever Herbst'], ['spaceclosing', 'Space Closing Herbst'], ['acryliclower', 'Band or Crown Upper / Acrylic Lower'], ['combination', 'Band / Crown Combination']],
@@ -252,7 +258,7 @@ const RX_OFFICE0 = { doctor: 'Amir Akhavan, DMD, MS', acct: '', address: '320 NW
 function rxOffice() { const o = (S.settings || {}).rxOffice; return Object.assign({}, RX_OFFICE0, o && typeof o === 'object' ? o : {}); }
 function rxOfficeMissing() { const o = rxOffice(); return [['acct', 'account #'], ['license', 'license #'], ['licExp', 'license expiration']].filter(([k]) => !String(o[k] || '').trim()).map(x => x[1]); }
 
-/* ---------- the Rx on a case (each form in its own field: rx = Herbst, rxRet = Retainer, rxMet = Metal) ---------- */
+/* ---------- the Rx on a case (each form in its own field: rx = Herbst, rxRet = Retainer, rxMet = Metal, rxFun = Functional) ---------- */
 function rxOfK(c, K) { const v = c && c[K.field]; return v && typeof v === 'object' ? v : null; }
 function rxShowsK(c, K) { return !!rxOfK(c, K) || K.applies(c); }
 function rxApplies(c) { return RXK[RX_FORM].applies(c); }
@@ -301,6 +307,12 @@ const usDate = iso => { if (!iso) return ''; const [y, m, d] = iso.split('-'); r
 
 /* ---------- the estimate ---------- */
 function rxEstimate(rx, c) { rx = rxCanon(rx); return rxK(rx).estimate(rx, c); } // (c: the case, for what the form fills from it)
+/* " · est. $196.00" after a summary — or, when nothing priced adds up yet (the Schwarz isn't on the price list), says so */
+function rxEstSay(e) { return !e || !e.lines.length ? '' : e.total > 0 || !e.missing.length ? ' · est. <b>' + money(e.total) + '</b>' : ' · <span class="muted">not on the price list yet</span>'; }
+/* what the Rx still needs before it can go: [[what, the box or choices to fill]] — a pontic's shade (Amir, 4 Oct 2026: "anytime
+   someone picks a pontic, make sure the pontic shade becomes mandatory"). Done, Open PDF and Download wait for it */
+function rxNeeds(rx, c) { if (!rx) return []; rx = rxCanon(rx); const K = rxK(rx); return K.needs ? K.needs(rx, c) : []; }
+const rxNeedsSay = n => 'Add ' + n.map(x => x[0]).join(' and ') + ' first';
 
 /* ---------- the arch diagram: geometry (rxdata.js — Specialty's own tooth outlines, top-down points) ---------- */
 let RXG = RXF; // the form whose arches are being drawn (rxAuto sets it; the forms' diagrams differ a little)
@@ -382,12 +394,15 @@ function rxFill(c, rx) {
   const notes = [], allNotes = rxNotesAll(rx, K);
   if (allNotes) { const W = 556, L = F.notes;
     const wrap = (pars, z) => { const lines = []; pars.forEach(par => { let cur = ''; par.split(' ').forEach(w => { const t = cur ? cur + ' ' + w : w; if (rxWidth(t, 'H', z) <= W) cur = t; else { if (cur) lines.push(cur); cur = w; } }); lines.push(cur); }); return lines; };
-    const lay = pars => { let z = 10, lines = wrap(pars, z); while (lines.length > 3 && z > 6.5) { z -= .5; lines = wrap(pars, z); } return { z, lines }; };
+    const lay = pars => { let z = 10, lines = wrap(pars, z); while (lines.length > L.length && z > 6.5) { z -= .5; lines = wrap(pars, z); } return { z, lines }; };
     const pars = allNotes.split('\n').map(rxText); let { z, lines } = lay(pars);
+    // (a four-line form keeps the text on its lines by joining the sentences when that's enough)
+    if (lines.length > L.length && L.length >= 4) { const j = lay([pars.join(' · ')]); if (j.lines.length <= L.length) ({ z, lines } = j); }
     if (lines.length > 7) ({ z, lines } = lay([pars.join(' · ')]));
     if (lines.length > 7) { lines = lines.slice(0, 7); let l = lines[6]; while (l.length > 1 && rxWidth(l + ' …', 'H', z) > W) l = l.slice(0, -1); lines[6] = l + ' …'; }
-    const n = lines.length, step = n <= 3 ? L[0] - L[1] : (L[0] - L[2] + 17.5) / n;
-    lines.forEach((l, i) => notes.push({ x: 26, y: (n <= 3 ? L[i] : L[0] + 3 - i * step) + 2, s: rxFit(l, 'H', z, W).s, z, font: 'H' }));
+    // (on the lines while they're enough; past that a three-line form spreads them down, a four-line form puts one between each pair)
+    const n = lines.length, half = (L[0] - L[1]) / 2, step = n <= L.length ? L[0] - L[1] : (L[0] - L[2] + 17.5) / n;
+    lines.forEach((l, i) => notes.push({ x: 26, y: (n <= L.length ? L[i] : L.length >= 4 ? L[0] - i * half : L[0] + 3 - i * step) + 2, s: rxFit(l, 'H', z, W).s, z, font: 'H' }));
   }
   return { form: K.form, txt: txt.concat(notes), box: Array.from(box).filter(k => F.boxes[k]), circ: circ.filter(([g, id]) => F.grid[g] && F.grid[g][id]), arch: rxArchList(rx, c) };
 }
@@ -436,12 +451,13 @@ const RX_URLS = new Set();
 function rxBlobUrl(c, rx) { const u = URL.createObjectURL(new Blob([rxPdfBytes(rxFill(c, rx))], { type: 'application/pdf' })); RX_URLS.add(u); return u; }
 function rxRevoke(u) { if (RX_URLS.delete(u)) URL.revokeObjectURL(u); }
 function rxDownload(c, rx) {
+  const need = rxNeeds(rx, c); if (need.length) { toast(rxNeedsSay(need) + ' — it’s required on the Rx', { bad: true }); return; }
   const url = rxBlobUrl(c, rx), a = document.createElement('a'), name = rxFileName(c, rx); a.href = url; a.download = name; a.rel = 'noopener';
   document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => rxRevoke(url), 60000);
   toast('Downloaded ' + name + ' — upload it to Specialty with the scan');
 }
 /* open it in a new tab to look at or print (if the browser blocks the tab, it downloads instead) */
-function rxOpenPdf(c, rx) { const url = rxBlobUrl(c, rx), w = window.open(url, '_blank'); if (!w) { rxRevoke(url); rxDownload(c, rx); } else setTimeout(() => rxRevoke(url), 120000); }
+function rxOpenPdf(c, rx) { const need = rxNeeds(rx, c); if (need.length) { toast(rxNeedsSay(need) + ' — it’s required on the Rx', { bad: true }); return; } const url = rxBlobUrl(c, rx), w = window.open(url, '_blank'); if (!w) { rxRevoke(url); rxDownload(c, rx); } else setTimeout(() => rxRevoke(url), 120000); }
 
 /* ---------- the arch picture in the app (Specialty's own outlines; the appliance and drawings on top) ---------- */
 function rxArchSVG(rx, opts) {
@@ -489,7 +505,7 @@ const rxBtn = (g, v, l, on, price, rec) => '<button type="button" class="rxB" da
 const rxField = (k, l, type, extra) => '<label class="rxF"><span>' + l + '</span><input data-rxf="' + k + '" type="' + (type || 'text') + '"' + (extra || '') + '></label>';
 function rxEditor(c, rx, onDone, form) {
   const K = rxK(form || (rx && rx.form) || RX_FORM);
-  RXE.k = K; RXE.F = RX_FORMS[K.form]; RXE.c = c; RXE.rx = rxCanon(rx && !rxEmpty(rx) ? Object.assign({}, rx, { form: K.form }) : K.start(c)); RXE.done = onDone; RXE.tab = 'arch'; RXE.stroke = null; RXE.orig = JSON.stringify(RXE.rx);
+  RXE.k = K; RXE.F = RX_FORMS[K.form]; RXE.c = c; RXE.acrFor = ''; RXE.rx = rxCanon(rx && !rxEmpty(rx) ? Object.assign({}, rx, { form: K.form }) : K.start(c)); RXE.done = onDone; RXE.tab = 'arch'; RXE.stroke = null; RXE.orig = JSON.stringify(RXE.rx);
   if (K.toolReset || (!K.tools.includes(RXE.tool) && !RX_DRAWS.includes(RXE.tool)) || (K.off && K.off('tool', RXE.tool, RXE.rx))) RXE.tool = K.tool0;
   RXE.ret = document.activeElement;
   const old = $('#rxWrap'); if (old) old.remove();
@@ -539,13 +555,17 @@ function rxInfoSel(g) { return RXE.k.infoSel(g, RXE.rx || {}); }
 /* an option's picture (its `pic`, Amir's, 4 Oct 2026): on the right of its card and small under its name in Compare all; the
    image itself is set once the card is on the page (picPaint, like the tile pictures) */
 function rxInfoPic(it, cls) {
+  if (it && it.svg) return '<div class="' + cls + ' svg">' + it.svg + '</div>'; // a drawing (the Schwarz's arch)
   const pc = it && it.pic && typeof PICS !== 'undefined' && PICS[it.pic];
   return pc ? '<div class="' + cls + '"><img data-pic="' + esc(it.pic) + '" width="' + pc.w + '" height="' + pc.h + '" alt="" draggable="false"></div>' : '';
 }
+/* a clasp's drawing (buccal and occlusal views, rxdraw.js) under its card's text */
+const rxInfoDraw = it => it && it.draw && typeof RX_CLASP_DRAW !== 'undefined' && RX_CLASP_DRAW[it.draw] ? '<div class="rxIcDraw">' + RX_CLASP_DRAW[it.draw] + '</div>' : '';
 function rxInfoBody(g, v) {
   const K = RXE.k, it = K.info[g][v], tag = rxInfoTag(g, v);
-  return rxInfoPic(it, 'rxIcPic') + '<div class="rxIcHd"><b>' + esc(rxInfoName(g, v)) + '</b>' + (tag ? '<em>' + esc(tag) + '</em>' : '') + '</div><p>' + esc(it.sum) + '</p>' +
-    (it.pts ? '<ul>' + it.pts.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>' : '') + (it.note ? '<div class="rxIcNote">' + esc(it.note) + '</div>' : '') +
+  return rxInfoPic(it, 'rxIcPic') + '<div class="rxIcHd"><b>' + esc(rxInfoName(g, v)) + '</b>' + (K.status ? rxStBadge(g, v) : '') + (tag ? '<em>' + esc(tag) + '</em>' : '') + '</div>' +
+    (K.status ? '<div class="rxIcSt" data-stw="' + esc(g + ':' + v) + '" hidden></div>' : '') + '<p>' + esc(it.sum) + '</p>' +
+    (it.pts ? '<ul>' + it.pts.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>' : '') + (it.note ? '<div class="rxIcNote">' + esc(it.note) + '</div>' : '') + rxInfoDraw(it) +
     (it.src ? '<div class="rxIcSrc">' + it.src.map(k => '<a href="' + esc(K.src[k][1]) + '" target="_blank" rel="noopener noreferrer">' + esc(K.src[k][0]) + '</a>').join(' · ') + '</div>' : '');
 }
 /* every option's text sits in the card at once, stacked in one grid cell with only one shown: the card is always as tall as the
@@ -599,6 +619,58 @@ function rxFoldSum(sec) {
   if (t) b.title = t; else b.removeAttribute('title'); // (all of it, when it's too long for the line)
 }
 function rxSec(title, body, note) { return '<section class="rxS"><h5>' + esc(title) + (note ? ' <span class="h5n">' + esc(note) + '</span>' : '') + '</h5>' + body + '</section>'; }
+/* ---------- picture cards over a section's choices (Dr. A's Hawleys, his clasps; Amir, 4 Oct 2026: "the pictures are not there"):
+   tap one to pick it; its badge says Dr. A's take. items: [value, name, picture, badge group] ---------- */
+function rxPicCards(g, items, label) {
+  return '<div class="rxPcs" role="group" aria-label="' + esc(label) + '">' + items.map(([v, name, pic, stg]) => { const pc = typeof PICS !== 'undefined' && PICS[pic];
+    return '<button type="button" class="rxB rxPc" data-rxg="' + g + '" data-v="' + esc(v) + '" aria-pressed="false">' + (pc ? '<img data-pic="' + esc(pic) + '" width="' + pc.w + '" height="' + pc.h + '" alt="" draggable="false">' : '') +
+      '<span class="rxPcN">' + esc(name) + '</span>' + (stg ? rxStBadge(stg, v) : '') + '</button>'; }).join('') + '</div>';
+}
+/* ---------- a pontic's shade (VITA classical), tapped; required once there's a pontic (rxNeeds) ---------- */
+const RX_VITA = ['A1', 'A2', 'A3', 'A3.5', 'A4', 'B1', 'B2', 'B3', 'B4', 'C1', 'C2', 'C3', 'C4', 'D2', 'D3', 'D4'];
+function rxShadeHTML(hint) {
+  return '<div class="rxShade" data-need="ponticTxt"><span class="rxLbl">Shade <b class="rxReq">required</b></span><span class="rxShadeB">' + RX_VITA.map(v => rxBtn('ponticShade', v, v, false)).join('') + '</span>' +
+    '<span class="rxShadeOld small" hidden></span>' + (hint ? '<span class="small muted rxShadeH">' + esc(hint) + '</span>' : '') + '</div>';
+}
+function rxShadeClick(g, v, rx) { if (g !== 'ponticShade') return false; rx.ponticTxt = rx.ponticTxt === v ? '' : v; return true; }
+/* ---------- the acrylic color on an Rx (Retainer, Functional): Specialty's guide as swatches (caseform.js ACRYLIC), for both arches
+   or one. An arch with an appliance takes the case's color until another is tapped (tapping it again goes back to the case's) ---------- */
+function rxAcrFor(rx) { const on = RXE.k.acrArches(rx); return RXE.acrFor || (on.length === 1 ? on[0] : 'UL'); }
+const rxAcrArches = f => f === 'UL' ? ['U', 'L'] : [f];
+function rxAcrIs(rx, v) { const K = RXE.k; return rxAcrArches(rxAcrFor(rx)).every(A => String(K.colorOf(RXE.c, rx, A) || '').toLowerCase() === String(v).toLowerCase()); }
+function rxAcrClick(g, v, rx) {
+  if (g === 'acrFor') { RXE.acrFor = v; return true; }
+  if (g !== 'acrPick') return false;
+  const own = (typeof acrylicName === 'function' && acrylicName(RXE.c)) || '', on = RXE.k.acrArches(rx), was = rxAcrIs(rx, v);
+  rxAcrArches(rxAcrFor(rx)).forEach(A => { const auto = on.includes(A) ? own : ''; rx['color' + A] = was || v.toLowerCase() === auto.toLowerCase() ? '' : v; });
+  return true;
+}
+function rxAcrPressed(g, v, rx) { return g === 'acrFor' ? rxAcrFor(rx) === v : g === 'acrPick' ? rxAcrIs(rx, v) : g === 'ponticShade' ? rx.ponticTxt === v : null; }
+function rxAcrHTML(note) {
+  if (typeof ACRYLIC === 'undefined') return '';
+  const P = rxPrices(), extra = P.glitter != null ? money(P.glitter) : 'extra';
+  const sw = x => '<button type="button" class="rxB rxSw' + (x.g === 'clear' ? ' clr' : '') + '" data-rxg="acrPick" data-v="' + esc(x.v) + '" aria-pressed="false" title="' + esc(x.v) + '">' +
+    (x.pic ? '<img data-acrpic="' + x.pic + '" width="36" height="36" alt="" draggable="false">' : '<span class="acrDot clr"></span>') + '<span>' + esc(x.l || x.v) + '</span></button>';
+  return '<div class="rxAcr" data-rxinfo="acr:color" data-need="acr"><div class="rxAcrNow small" id="rxAcrNow"></div>' +
+    '<div class="rxBs"><span class="rxLbl">Color for</span>' + rxBtn('acrFor', 'UL', 'Upper & lower', false) + rxBtn('acrFor', 'U', 'Upper', false) + rxBtn('acrFor', 'L', 'Lower', false) + '</div>' +
+    '<div class="rxAcrGs rxAcrG0">' + sw(ACRYLIC[0]) + '</div>' +
+    ACR_GROUPS.map(([g, l]) => '<div class="rxAcrG"><div class="acrGh">' + esc(l) + ' <em>' + (g === 'std' ? 'free' : g === 'design' ? rxTag('acrDesign') : extra) + '</em></div><div class="rxAcrGs">' +
+      ACRYLIC.filter(x => x.g === g).map(sw).join('') + '</div></div>').join('') + (note ? '<div class="small muted">' + esc(note) + '</div>' : '') + '</div>';
+}
+/* "Upper & lower: ● Blue glitter (the case's)" */
+function rxAcrNowHTML(rx) {
+  const K = RXE.k, c = RXE.c, own = (typeof acrylicName === 'function' && acrylicName(c)) || '';
+  const one = A => { const col = K.colorOf(c, rx, A); return col ? acrylicSw(col) + esc(col) + (!rx['color' + A] && col === own ? ' <span class="muted">(the case’s)</span>' : '') : '<span class="muted">none</span>'; };
+  const u = K.colorOf(c, rx, 'U'), l = K.colorOf(c, rx, 'L');
+  return u && u === l && !!rx.colorU === !!rx.colorL ? '<b>Upper & lower:</b> ' + one('U') : '<b>Upper:</b> ' + one('U') + ' · <b>Lower:</b> ' + one('L');
+}
+/* the color's cost on the estimate: Specialty colors free; glitter, glow and swirl extra; a custom design not on the list */
+function rxAcrCost(col, w, add, inc) {
+  const a = typeof acrylicOf === 'function' ? acrylicOf(col) : null, g = a && a.g ? a.g : /glitter|glow|swirl/i.test(col) ? 'glitter' : 'std';
+  if (g === 'glitter' || g === 'glow' || g === 'swirl') add('Acrylic: ' + col + ' · ' + w, 'glitter');
+  else if (g === 'design') add('Acrylic: ' + col + ' · ' + w, 'acrDesign', 1, 'a custom design');
+  else inc('Acrylic: ' + col + ' · ' + w, 'Free (Specialty colors)');
+}
 function rxLeftHTML() {
   const K = RXE.k, rx = RXE.rx, c = RXE.c, o = rxOffice(), miss = rxOfficeMissing(), us = rxUsualOf(K, c);
   const need = rxNeedAuto(c);
@@ -617,7 +689,7 @@ function rxLeftHTML() {
 function rxCostHTML(rx, c) {
   const e = rxEstimate(rx, c);
   if (!e.lines.length && !e.missing.length) return '<div class="small muted">' + esc(rxK(rx).costEmpty) + '</div>';
-  return '<table class="rxTbl">' + e.lines.map(x => '<tr><td>' + esc(x.l) + (x.note ? '<span class="rxNote">' + esc(x.note) + '</span>' : '') + '</td><td>' + (x.inc ? '<span class="muted">' + esc(x.inc) + '</span>' : (x.qty > 1 ? '<span class="muted">' + x.qty + ' × ' + money(x.each) + '</span> ' : '') + money(x.amt)) + '</td></tr>').join('') +
+  return '<table class="rxTbl">' + e.lines.map(x => '<tr><td>' + esc(x.l) + (x.note ? '<span class="rxNote">' + esc(x.note) + '</span>' : '') + '</td><td>' + (x.inc ? '<span class="muted rxInc">' + esc(x.inc) + '</span>' : (x.qty > 1 ? '<span class="muted">' + x.qty + ' × ' + money(x.each) + '</span> ' : '') + money(x.amt)) + '</td></tr>').join('') +
     '<tr class="rxTotRow"><td>Total</td><td>' + money(e.total) + '</td></tr></table>' +
     (e.missing.length ? '<div class="small rxMiss">Not priced, so not in the total: ' + esc(e.missing.join('; ')) + '.</div><div class="small muted">Not on Specialty’s price list (or no price entered). Dr. A can add a price in Team & security → Lab Rx.</div>' : '') +
     '<div class="small muted">Shipping is billed by Specialty by zone and weight, so it isn’t included.</div>';
@@ -635,7 +707,7 @@ function rxPressed(g, v, rx) {
 function rxTellLost() { const K = RXE.k, m = K && K.lost && RXE.rx ? K.lost(RXE.rx) : ''; if (m) toast(m); }
 function rxSync(first) {
   const w = $('#rxWrap'); if (!w) return; rxTellLost(); const K = RXE.k, rx = RXE.rx = rxCanon(RXE.rx), c = RXE.c;
-  if (first) picPaint(w); // the options' pictures in their cards
+  if (first) { picPaint(w); if (typeof acrylicPaint === 'function') acrylicPaint(w); } // the options' pictures in their cards; the color swatches
   $$('[data-rxf]', w).forEach(i => { if (!first && i === document.activeElement) return; const k = i.dataset.rxf; i.value = rx[k] || (rxIsAuto(k) ? rxAutoVal(k, c, rx) : ''); });
   if (first) $$('[data-rxtab]', w).forEach(b => b.setAttribute('aria-selected', String(b.dataset.rxtab === RXE.tab)));
   $$('.rxSub[data-show]', w).forEach(s => { s.hidden = !K.subShow(s.dataset.show, rx); });
@@ -646,6 +718,14 @@ function rxSync(first) {
     if (why) { b.setAttribute('aria-disabled', 'true'); b.title = why; } else if (b.getAttribute('aria-disabled')) { b.removeAttribute('aria-disabled'); b.removeAttribute('title'); } });
   $$('[data-rxtool]', w).forEach(b => { const why = K.off ? K.off('tool', b.dataset.rxtool, rx) : '';
     if (why) { b.setAttribute('aria-disabled', 'true'); b.title = why; } else if (b.getAttribute('aria-disabled')) { b.removeAttribute('aria-disabled'); b.title = b.dataset.tip || ''; } });
+  // Dr. A's take on each choice for this appliance (badges and the line in its card)
+  if (K.status) { $$('[data-st]', w).forEach(el => { const [g, v] = el.dataset.st.split(':'), st = K.status(g, v, rx); el.hidden = !st; if (st) { el.textContent = RX_ST[st[0]]; el.className = 'rxSt ' + st[0]; } });
+    $$('[data-stw]', w).forEach(el => { const [g, v] = el.dataset.stw.split(':'), st = K.status(g, v, rx); el.hidden = !st || !st[1]; if (st) { el.className = 'rxIcSt ' + st[0]; el.textContent = RX_ST[st[0]] + ' for this ' + (K.stFor ? K.stFor(rx) : 'appliance') + ': ' + (st[1] || ''); } }); }
+  // the acrylic color now, and a shade written before the shade buttons (not a VITA shade)
+  const acn = $('#rxAcrNow', w); if (acn && K.colorOf) acn.innerHTML = rxAcrNowHTML(rx);
+  $$('.rxShadeOld', w).forEach(so => { const v = rx.ponticTxt, old = !!v && !RX_VITA.includes(v); so.hidden = !old; so.textContent = old ? 'Written before: ' + v : ''; });
+  // what the Rx still needs (the pontic's shade): marked where it goes
+  const needs = rxNeeds(rx, c); $$('[data-need]', w).forEach(el => el.classList.toggle('rxNeedOn', needs.some(n => n[1] === el.dataset.need)));
   // the sentences the answers write into the special instructions (the Herbst Rx: where the lower lingual arch sits)
   $$('.rxFold', w).forEach(rxFoldSum);
   const an = $('#rxAutoNotes', w); if (an) { const a = K.autoNotes ? K.autoNotes(rx) : []; an.hidden = !a.length; an.textContent = a.length ? 'Added to the special instructions: ' + a.join(' ') : ''; }
@@ -659,7 +739,7 @@ function rxSync(first) {
   const ts = $('#rxTeethSum', w); if (ts) ts.innerHTML = K.teethSum(rx);
   $('#rxCost', w).innerHTML = rxCostHTML(rx, c);
   $$('.rxInfoCard', w).forEach(card => { if (card.dataset.hover !== '1') rxInfoPaint(card, card.dataset.info, rxInfoSel(card.dataset.info), false); });
-  const e = rxEstimate(rx, c); $('#rxTot', w).innerHTML = e.lines.length ? 'Est. <b>' + money(e.total) + '</b>' + (e.missing.length ? '<span>+ ' + e.missing.length + ' not listed</span>' : '') : '';
+  const e = rxEstimate(rx, c); $('#rxTot', w).innerHTML = !e.lines.length ? '' : !e.total && e.missing.length ? '<span>' + e.missing.length + ' not on the price list</span>' : 'Est. <b>' + money(e.total) + '</b>' + (e.missing.length ? '<span>+ ' + e.missing.length + ' not listed</span>' : '');
   // Specialty asks for 10 business days (some items less); sooner needs the expedite approval
   const days = K.leadDays(rx), need = rxNeeded(c, rx), lead = $('#rxLead', w), soon = need && need < addBusinessDays(todayISO(), days);
   lead.hidden = !soon || !!rx.rush; lead.textContent = soon ? 'Needed ' + fmtDay(need) + ' — sooner than the ' + days + ' business days Specialty asks for. Tick the expedite approval if it can’t wait.' : '';
@@ -738,7 +818,9 @@ function rxOnClick(e) {
   const th = e.target.closest('#rxArchBox .rxTooth'); if (th) { if (!RX_DRAWS.includes(RXE.tool)) rxTapTooth(th.dataset.rxt); return; }
   const a = e.target.closest('[data-rxa]'); if (!a) return;
   switch (a.dataset.rxa) {
-    case 'done': rxClose(true); break;
+    case 'done': { const need = rxNeeds(RXE.rx, RXE.c); if (need.length) { toast(rxNeedsSay(need) + ' — it’s required on the Rx', { bad: true }); const at = $('[data-need="' + need[0][1] + '"]', w);
+        if (at) { const sec = at.closest('.rxFold'); if (sec && !sec.classList.contains('open')) rxFoldSet(sec, true); at.scrollIntoView({ block: 'center', behavior: 'smooth' }); at.classList.add('rxNeedFlash'); setTimeout(() => at.classList.remove('rxNeedFlash'), 1600); } break; }
+      rxClose(true); break; }
     case 'fold': { const sec = a.closest('.rxFold'); if (sec) rxFoldSet(sec, a.getAttribute('aria-expanded') !== 'true'); break; }
     case 'cmp': { const box = $('.rxCmpBox[data-cmp="' + a.dataset.g + '"]', w), open = box.hidden; box.hidden = !open; if (open) { box.innerHTML = rxCmpHTML(a.dataset.g); picPaint(box); }
       a.setAttribute('aria-expanded', String(open)); a.textContent = open ? 'Hide the comparison' : 'Compare all'; break; }
@@ -789,8 +871,8 @@ function rxFormRefresh(root, o) {
     const now = K.usualOf ? K.usualOf(o) : '', nx = rx && K.formFix && sec.dataset.for !== now ? K.formFix(o, rx, sec.dataset.for) : null; sec.dataset.for = now;
     if (nx) { $('#' + id, root).value = JSON.stringify(nx); rx = nx; o[K.field] = nx; }
     const warn = rx && !rxEmpty(rx) && K.mismatch ? K.mismatch(o, rx) : '', wn = $('#' + id + 'Warn', root); if (wn) { wn.hidden = !warn; wn.textContent = warn; }
-    const e = rx ? rxEstimate(rx, o) : null;
-    $('#' + id + 'Sum', root).innerHTML = rx && !rxEmpty(rx) ? esc(rxSummary(rx)) + (e.lines.length ? ' · est. <b>' + money(e.total) + '</b>' : '') : 'Specialty’s form, filled in from this case — tap through it now or later from the case';
+    const e = rx ? rxEstimate(rx, o) : null, need = rx ? rxNeeds(rx, o) : [];
+    $('#' + id + 'Sum', root).innerHTML = rx && !rxEmpty(rx) ? esc(rxSummary(rx)) + rxEstSay(e) + (need.length ? ' · <b class="rxNeedTxt">needs ' + esc(need.map(x => x[0]).join(' and ')) + '</b>' : '') : 'Specialty’s form, filled in from this case — tap through it now or later from the case';
     $('#' + id + 'BtnL', root).textContent = rx && !rxEmpty(rx) ? 'Edit the Rx' : 'Fill out the Rx';
     logoPaint(sec);
   });
@@ -811,7 +893,9 @@ function rxAutoDetail(c) { return c && c.type === 'appliance' ? autoDetail(Objec
 /* after New case: the Rx is ready to go to Specialty */
 function rxCreatedToast(data) {
   if (!data) return;
-  rxKinds().filter(K => data[K.field]).forEach((K, i) => setTimeout(() => toast(K.title + ' ready for Specialty', { action: 'Download PDF', ms: 12000, onAction: () => rxDownload(data, data[K.field]) }), 400 + i * 150));
+  rxKinds().filter(K => data[K.field]).forEach((K, i) => setTimeout(() => { const need = rxNeeds(data[K.field], data);
+    if (need.length) toast(K.title + ' still needs ' + need.map(x => x[0]).join(' and ') + ' — open it from the case', { bad: true, ms: 9000 });
+    else toast(K.title + ' ready for Specialty', { action: 'Download PDF', ms: 12000, onAction: () => rxDownload(data, data[K.field]) }); }, 400 + i * 150));
 }
 
 /* ---------- the case's own Rx sections ---------- */
@@ -819,7 +903,8 @@ function rxCaseSecsHTML(c, done) { return rxKinds().filter(K => rxShowsK(c, K)).
 function rxCaseSecHTML(c, done) { return rxCaseSecK(c, done, RXK[RX_FORM]); }
 function rxCaseSecK(c, done, K) {
   const rx0 = rxOfK(c, K), rx = rx0 ? rxCanon(Object.assign({}, rx0, { form: K.form })) : null, e = rx ? rxEstimate(rx, c) : null, kd = K.key === 'herbst' ? '' : ' data-kind="' + K.key + '"';
-  const sum = rx ? esc(rxSummary(rx)) + (e.lines.length ? ' · est. <b>' + money(e.total) + '</b>' : '') : '<span class="muted">Not filled in yet</span>', warn = rx && K.mismatch ? K.mismatch(c, rx) : '';
+  const need = rx ? rxNeeds(rx, c) : [];
+  const sum = rx ? esc(rxSummary(rx)) + rxEstSay(e) + (need.length ? ' · <b class="rxNeedTxt">needs ' + esc(need.map(x => x[0]).join(' and ')) + '</b>' : '') : '<span class="muted">Not filled in yet</span>', warn = rx && K.mismatch ? K.mismatch(c, rx) : '';
   const hdBtn = rx ? '<button type="button" class="btn btn-sec btn-sm dsAct" data-act="rxPdf"' + kd + ' title="Download the filled-in Rx">' + ic('download', 14) + 'PDF</button>' : '';
   const body = rx ? (warn ? '<div class="rxWarn small" style="margin-bottom:8px">' + esc(warn) + '</div>' : '') + '<div class="rxCase"><div class="rxCaseArch">' + rxArchSVG(rx, { c }) + '</div><div class="rxCaseR"><div class="small">' + esc(rxSummary(rx)) + '</div>' +
       '<div class="small muted">' + (rxNeeded(c, rx) ? 'Needed by <b>' + esc(fmtDay(rxNeeded(c, rx))) + '</b>' : '<b class="rxNoDate">No date needed yet</b> — add the delivery appt, or a date in the Rx') + (rx.rush ? ' · expedited' : '') + '</div>' + (rxNotesAll(rx, K) ? '<div class="small" style="white-space:pre-wrap">' + esc(rxNotesAll(rx, K)) + '</div>' : '') +
@@ -854,7 +939,7 @@ function rxAdminCardHTML() {
   const o = rxOffice(), P2 = rxPrices();
   const f = (k, l, ph, wide) => '<div class="field"' + (wide ? ' style="grid-column:1/-1"' : '') + '><label for="rxo-' + k + '">' + l + '</label><input id="rxo-' + k + '" data-rxoff="' + k + '" value="' + esc(o[k] || '') + '"' + (ph ? ' placeholder="' + esc(ph) + '"' : '') + ' autocomplete="off"></div>';
   const sub = t => '<div class="rxPh">' + esc(t) + '</div>';
-  return '<div class="card" style="margin-top:18px" id="rxAdmin"><div class="cardHd"><h3>Lab Rx</h3><span class="sub">Filled in on every Rx for Specialty (Herbst, retainers, metal appliances)</span></div><div class="cardBd">' +
+  return '<div class="card" style="margin-top:18px" id="rxAdmin"><div class="cardHd"><h3>Lab Rx</h3><span class="sub">Filled in on every Rx for Specialty (Herbst, retainers, metal appliances, Schwarz)</span></div><div class="cardBd">' +
     '<div class="grid2">' + f('doctor', 'Doctor') + f('acct', 'Specialty account #', 'Your account number with Specialty') + f('address', 'Address', '', true) + f('city', 'City') +
       '<div class="grid2" style="gap:10px">' + f('state', 'State') + f('zip', 'ZIP') + '</div>' + f('phone', 'Phone') + f('email', 'Email', 'Where Specialty should write') +
       f('license', 'License #', 'Required on the Rx') + f('licExp', 'License expiration (mm/yy)', 'mm/yy') + f('sig', 'Signature line', 'Leave empty to sign by hand', true) + '</div>' +

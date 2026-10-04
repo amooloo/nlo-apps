@@ -1,12 +1,12 @@
 // Email updates, lab hold / lab case #, chart note and Ship to patient defaults in the demo (made-up patients)
 const { chromium } = require('playwright');
-const { routes, watch } = require('./helpers');
+const { routes, watch, panelsOpen } = require('./helpers');
 const OUT = process.argv[2] || 'shots';
 (async () => {
   const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
   const errs = [];
   const ctx = await browser.newContext({ viewport: { width: 1360, height: 900 } });
-  await routes(ctx); await ctx.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: 'http://127.0.0.1:8765' });
+  await routes(ctx); await panelsOpen(ctx); await ctx.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: 'http://127.0.0.1:8765' }); // panels open: the case panel folds by default (3 Oct 2026)
   const p = await ctx.newPage(); watch(p, errs, 'demo');
   await p.goto('http://127.0.0.1:8765/nlo-cases.html?demo'); await p.click('#lgBtn'); await p.waitForSelector('.tiles');
   await p.waitForSelector('#mailCard .mlRow', { timeout: 10000 });

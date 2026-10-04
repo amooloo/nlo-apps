@@ -1,12 +1,12 @@
 // Screenshots of MARPE steps, Ship to patient and tracking (demo data, made-up patients)
 const { chromium } = require('playwright');
-const { routes, watch } = require('./helpers');
+const { routes, watch, panelsOpen } = require('./helpers');
 const OUT = process.argv[2] || 'shots';
 (async () => {
   const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
   const errs = [];
   const ctx = await browser.newContext({ viewport: { width: 1360, height: 900 } });
-  await routes(ctx);
+  await routes(ctx); await panelsOpen(ctx); // the case panel folds by default (3 Oct 2026)
   const p = await ctx.newPage(); watch(p, errs, 'demo');
   await p.goto('http://127.0.0.1:8765/nlo-cases.html?demo'); await p.click('#lgBtn'); await p.waitForSelector('.tiles');
   await p.screenshot({ path: OUT + '/v9-today.png' });

@@ -41,7 +41,7 @@ const has = cmd => { try { execFileSync('which', [cmd], { stdio: 'ignore' }); re
   // ---- New case: Hawley retainers go to Specialty (the office routing since 4 Oct 2026) → the Retainer Rx right away; tapped over
   //      to Partners → a line about Specialty instead; back to Specialty → the Rx again
   await newAppliance();
-  await pick('appliances', 'Hawley retainers'); await pick('hawleyArch', 'Upper'); await pick('hawleyArch', 'Lower'); await pick('acrylic', 'Purple'); await pick('glitter', 'yes');
+  await pick('appliances', 'Hawley retainers'); await pick('hawleyArch', 'Upper'); await pick('hawleyArch', 'Lower'); await pick('acrylic', 'Party mix glitter');
   check(await p.evaluate(() => pressed(document.querySelector('.modal'), 'lab')[0]) === 'Specialty Orthodontic Lab' && await retShown() && !(await p.isVisible('#cf-rxHint')),
     'Hawley retainers → Specialty (the routing since 4 Oct 2026): the Retainer Rx shows right away');
   await pick('lab', 'Partners Dental Solutions');
@@ -57,45 +57,55 @@ const has = cmd => { try { execFileSync('which', [cmd], { stdio: 'ignore' }); re
   await p.click('#ncForm [data-rxform=edit][data-kind=ret]'); await p.waitForSelector('#rxWrap .rxArch.live');
   check(/Retainer Rx/i.test(await p.textContent('#rxWrap #rxTitle')) && /Rhea Retainerson/.test(await p.textContent('#rxWrap .rxHd')), 'the Retainer Rx opens with the patient’s name');
   let st = await rxNow();
-  check(st.designU === 'hawley' && st.designL === 'hawley' && JSON.stringify(st.teeth) === '{"UR6":"c","UL6":"c"}', 'a Hawley on each arch the case picked, with Specialty’s standard C-clasps on the upper first molars');
-  check(await p.inputValue('#rxWrap [data-rxf=colorU]') === 'Purple glitter' && await p.inputValue('#rxWrap [data-rxf=colorL]') === 'Purple glitter' && !st.colorU, 'the acrylic color comes from the case (Purple glitter on both), kept as the case’s');
+  check(st.designU === 'hawley' && st.designL === 'hawley' && JSON.stringify(st.teeth) === '{"UR6":"adams","UL6":"adams","LR6":"adams","LL6":"adams"}', 'a Hawley on each arch the case picked, with Dr. A’s Adams clasps on the first molars (his Preferred)');
+  check(/Upper & lower:\s*Party mix glitter\s*\(the case’s\)/.test(await p.textContent('#rxAcrNow')) && !st.colorU && !st.colorL && await on('acrPick', 'Party mix glitter'), 'the acrylic color comes from the case (Party mix glitter on both, its swatch picked), kept as the case’s');
   check(await p.inputValue('#rxWrap [data-rxf=needed]') === await p.evaluate(d => prevClinicDay(d), deliv) && !(await p.isVisible('#rxLead')), 'date needed: the office day before the delivery appt (30 days out: no rush warning)');
-  check(near(await est(), 141) && /\$141\.00/.test(await p.textContent('#rxTot')), 'estimate: Hawley 2 × $61 + glitter 2 × $9.50 = $141.00 (the standard C-clasps come with the Hawley)');
-  check(/C-clasps on the upper first molars/.test(await p.textContent('#rxCost')) && /With the Hawley/.test(await p.textContent('#rxCost')), '… the C-clasps listed as coming with the Hawley');
+  check(near(await est(), 196) && /\$196\.00/.test(await p.textContent('#rxTot')), 'estimate: Hawley 2 × $61 + Adams 2 pairs × $27.50 + glitter 2 × $9.50 = $196.00');
   let fl = await fold('flr'), ir = await fold('ir');
   check(!fl.open && !fl.shown && !fl.cmp && !fl.sum && !ir.open && !ir.shown && !ir.cmp && !ir.sum && fl.h < 60 && ir.h < 60, 'the Fixed lingual retainers and Invisible retainers start folded: just their headings (' + fl.h + ' and ' + ir.h + ' px), no Compare all');
   check(await p.evaluate(() => ['flr', 'ir'].every(g => { const b = document.querySelector('#rxWrap .rxFold[data-fold=' + g + '] .rxFoldB'); return b.tagName === 'BUTTON' && b.getAttribute('aria-controls') === 'rxFold-' + g && !!document.getElementById('rxFold-' + g); })), '… each heading is a button that says it opens its section');
   check(/\$61\.00/.test(await p.textContent('#rxWrap .rxUL[data-rxinfo="design:hawley"]')) && /not on list/.test(await p.textContent('#rxWrap .rxUL[data-rxinfo="design:tremont"]')) && /\$76\.25/.test(await p.textContent('#rxWrap .rxUL[data-rxinfo="design:flatHawley"]')), 'each design shows its price (Hawley $61.00; Flat Bow Hawley $76.25 with the flat bow wire; Tremont not on the list)');
 
   // clasps: Upper / Lower puts them on the first molars; tools put them anywhere
+  await tap('claspU', 'c');
+  st = await rxNow();
+  check(st.teeth.UR6 === 'c' && st.teeth.UL6 === 'c' && await on('claspU', 'c') && !(await on('claspU', 'adams')) && near(await est(), 168.5), 'C-Clasps · Upper: Specialty’s standard C-clasps on the upper first molars instead (they come with the Hawley → $168.50)');
+  check(/C-clasps on the upper first molars/.test(await p.textContent('#rxCost')) && /With the Hawley/.test(await p.textContent('#rxCost')), '… the C-clasps listed as coming with the Hawley');
   await tap('claspU', 'adams');
   st = await rxNow();
-  check(st.teeth.UR6 === 'adams' && st.teeth.UL6 === 'adams' && await on('claspU', 'adams') && !(await on('claspU', 'c')) && near(await est(), 168.5), 'Adams · Upper: Adams on the upper first molars instead of the C-clasps (+$27.50 a pair → $168.50)');
+  check(st.teeth.UR6 === 'adams' && st.teeth.UL6 === 'adams' && await on('claspU', 'adams') && !(await on('claspU', 'c')) && near(await est(), 196), 'Adams · Upper: back to Adams on the upper first molars (+$27.50 a pair → $196.00)');
   await tool('ball'); await tooth('UR4');
-  check((await rxNow()).teeth.UR4 === 'ball' && await on('claspU', 'ball') && near(await est(), 187.75), 'Ball tool on UR4: a ball clasp (between the 4 and 5), Ball · U ticked, +$19.25 (→ $187.75)');
+  check((await rxNow()).teeth.UR4 === 'ball' && await on('claspU', 'ball') && near(await est(), 215.25), 'Ball tool on UR4: a ball clasp (between the 4 and 5), Ball · U ticked, +$19.25 (→ $215.25)');
   await clearToasts(); await tool('reset'); await tooth('UR6');
   check(await toastHas(/3 to 3/) && !((await rxNow()).reset || []).length, 'Reset on a molar: it says the reset diagram is 3 to 3, and changes nothing');
   await tool('pontic'); await tooth('UL2');
   st = await rxNow();
-  check(st.teeth.UL2 === 'pontic' && (st.acrU || []).includes('pontic') && near(await est(), 234.75) && /Pontic:<\/b> UL2 #10/.test(await p.innerHTML('#rxTeethSum')), 'Pontic tool on UL2: a pontic (#10), Pontic · U ticked, +$47 (→ $234.75)');
-  check(await p.isVisible('#rxWrap [data-rxf=ponticTxt]') && !(await p.isVisible('#rxWrap [data-rxf=saddleTxt]')), 'the pontic’s shade blank shows once there’s a pontic (the saddle’s doesn’t until it’s picked)');
-  await p.fill('#rxWrap [data-rxf=ponticTxt]', 'A2'); await p.press('#rxWrap [data-rxf=ponticTxt]', 'Tab');
+  check(st.teeth.UL2 === 'pontic' && (st.acrU || []).includes('pontic') && near(await est(), 262.25) && /Pontic:<\/b> UL2 #10/.test(await p.innerHTML('#rxTeethSum')), 'Pontic tool on UL2: a pontic (#10), Pontic · U ticked, +$47 (→ $262.25)');
+  // the pontic's shade is required (Amir, 4 Oct 2026): VITA shades to tap, marked until one is, and Done waits for it
+  check(await p.isVisible('#rxWrap .rxShade[data-need=ponticTxt]') && await p.evaluate(() => document.querySelector('#rxWrap .rxShade[data-need=ponticTxt]').classList.contains('rxNeedOn')) && (await p.$$('#rxWrap .rxShade .rxB[data-rxg=ponticShade]')).length === 16 && !(await p.isVisible('#rxWrap [data-rxf=saddleTxt]')),
+    'a pontic: its shade shows (the 16 VITA shades), marked required (the saddle’s blank doesn’t show until it’s picked)');
+  await clearToasts(); await p.click('#rxWrap [data-rxa=done]'); await p.waitForTimeout(150);
+  check(await p.isVisible('#rxWrap') && await toastHas(/Add the pontic shade first/), 'Done without the shade: the Rx stays open — “Add the pontic shade first”');
+  await clearToasts(); await p.click('#rxWrap [data-rxa=dl]'); await p.waitForTimeout(150);
+  check(await toastHas(/Add the pontic shade first/), '… and Download waits for it too');
+  await tap('ponticShade', 'A2');
+  check((await rxNow()).ponticTxt === 'A2' && await on('ponticShade', 'A2') && !(await p.evaluate(() => document.querySelector('#rxWrap .rxShade').classList.contains('rxNeedOn'))), 'A2 tapped: the shade is on the Rx and the mark goes');
   await tap('accU', 'finger');
   check(await p.evaluate(() => RXE.tool) === 'finger' && /finger spring/i.test(await p.textContent('#rxHint')), 'Finger Spring · U: ticked, and the tool is ready to tap the tooth');
   await tooth('UR2'); await p.fill('#rxWrap [data-rxf=fingerTxt]', 'tip labially'); await p.press('#rxWrap [data-rxf=fingerTxt]', 'Tab');
-  check((await rxNow()).teeth.UR2 === 'finger' && near(await est(), 250), '… on UR2: +$15.25 (→ $250.00)');
+  check((await rxNow()).teeth.UR2 === 'finger' && near(await est(), 277.5), '… on UR2: +$15.25 (→ $277.50)');
   // resets: the diagram's numbers; Do Not Reset Teeth clears them
   await tap('reset', 'UR1'); await tap('reset', 'UL1'); await tap('resetHow', 'ideal');
-  check(JSON.stringify((await rxNow()).reset) === '["UR1","UL1"]' && near(await est(), 277.5), 'reset UR1 and UL1 ideally: 2 × $13.75 (→ $277.50)');
+  check(JSON.stringify((await rxNow()).reset) === '["UR1","UL1"]' && near(await est(), 305), 'reset UR1 and UL1 ideally: 2 × $13.75 (→ $305.00)');
   await tap('resetHow', 'none');
-  check(!(await rxNow()).reset && !(await on('reset', 'UR1')) && near(await est(), 250), 'Do Not Reset Teeth clears the teeth to reset');
+  check(!(await rxNow()).reset && !(await on('reset', 'UR1')) && near(await est(), 277.5), 'Do Not Reset Teeth clears the teeth to reset');
   await tap('resetHow', 'none'); await tap('reset', 'UR1'); await tap('resetHow', 'ideal');
-  check(near(await est(), 263.75) && await on('resetHow', 'ideal'), 'reset UR1 ideally again: $13.75 (→ $263.75)');
+  check(near(await est(), 291.25) && await on('resetHow', 'ideal'), 'reset UR1 ideally again: $13.75 (→ $291.25)');
   // a fixed lingual retainer and clear retainers
   await unfold('flr'); fl = await fold('flr');
   check(fl.open && fl.shown && fl.cmp && !fl.sum && !(await fold('ir')).open, 'tapping Fixed lingual retainers opens it, with its Compare all (the invisible retainers stay folded)');
   await tap('flrL', 'c3');
-  check(near(await est(), 347.75) && /Fixed lingual retainer · lower 3–3, composite pads on each tooth/.test(await p.textContent('#rxCost')) && /Specialty’s standard pads/.test(await p.textContent('#rxCost')), 'lower FLR cuspid to cuspid: Specialty’s standard composite pads on each tooth, the list’s 6 Pads $84 (→ $347.75)');
+  check(near(await est(), 375.25) && /Fixed lingual retainer · lower 3–3, composite pads on each tooth/.test(await p.textContent('#rxCost')) && /Specialty’s standard pads/.test(await p.textContent('#rxCost')), 'lower FLR cuspid to cuspid: Specialty’s standard composite pads on each tooth, the list’s 6 Pads $84 (→ $375.25)');
   await tap('flrPadsL', 'meshEach'); await tap('flrWireL', 'braided');
   check(await p.isVisible('#rxFlrWarn') && /braided/.test(await p.textContent('#rxFlrWarn')), 'mesh pads with braided wire: Specialty can’t — it says so');
   await tap('flrWireL', 'solid'); check(!(await p.isVisible('#rxFlrWarn')), '… solid stainless steel: the warning goes');
@@ -136,7 +146,7 @@ const has = cmd => { try { execFileSync('which', [cmd], { stdio: 'ignore' }); re
   // drawing: the retainer draws itself
   const shapes = await p.evaluate(() => document.querySelectorAll('#rxArchBox .rxDraw path').length);
   check(shapes > 30, 'the retainer draws itself on Specialty’s arches (' + shapes + ' shapes: plates, bows, clasps, pontic, spring, FLR)');
-  check(await p.evaluate(() => { const ps = Array.from(document.querySelectorAll('#rxArchBox .rxDraw path')); return ps.some(x => x.getAttribute('fill') === '#F1E8D6') && ps.some(x => x.getAttribute('fill') === rxrTint('Purple glitter').f); }), '… the pontic in tooth color, the plates in a light tint of the acrylic color');
+  check(await p.evaluate(() => { const ps = Array.from(document.querySelectorAll('#rxArchBox .rxDraw path')); return ps.some(x => x.getAttribute('fill') === '#F1E8D6') && ps.some(x => x.getAttribute('fill') === rxrTint('Party mix glitter').f); }), '… the pontic in tooth color, the plates in a light tint of the acrylic color');
   await p.click('#rxWrap [data-rxa=auto]');
   check(await p.evaluate(() => document.querySelectorAll('#rxArchBox .rxDraw path').length) === 0, '“Draw the appliance from the choices” off: the arches are bare for drawing by hand');
   await p.click('#rxWrap [data-rxa=auto]');
@@ -154,7 +164,7 @@ const has = cmd => { try { execFileSync('which', [cmd], { stdio: 'ignore' }); re
     return { src: i.getAttribute('src'), w: i.naturalWidth, h: i.naturalHeight, txt: t, dots: document.querySelectorAll('#rxPaperBox svg circle').length, rings: document.querySelectorAll('#rxPaperBox svg ellipse').length }; });
   console.log('   ' + JSON.stringify({ src: paper.src, w: paper.w, dots: paper.dots, rings: paper.rings }));
   check(paper.src === 'nlo-cases-rx-retainer.png' && paper.w === 1224 && paper.h === 1584, 'The paper: Specialty’s blank Retainer Rx loads under it');
-  check(paper.txt.includes('Rhea Retainerson') && paper.txt.includes('Purple glitter') && paper.txt.includes('#10 shade A2') && paper.txt.includes('#7 tip labially') && paper.txt.includes('Please make the pontic match the neighbours.'), '… the patient, the acrylic color, “#10 shade A2”, “#7 tip labially” and the special instructions on their lines');
+  check(paper.txt.includes('Rhea Retainerson') && paper.txt.includes('Party mix glitter') && paper.txt.includes('#10 shade A2') && paper.txt.includes('#7 tip labially') && paper.txt.includes('Please make the pontic match the neighbours.'), '… the patient, the acrylic color, “#10 shade A2”, “#7 tip labially” and the special instructions on their lines');
   const boxes = await p.evaluate(() => rxFill(RXE.c, RXE.rx).box.sort().join());
   check(['d.hawley.U', 'd.hawley.L', 'cl.adams.U', 'cl.ball.U', 'acc.finger.U', 'acr.pontic.U', 'acr.color.U', 'acr.color.L', 'flr.c3.L', 'pads.meshEach.L', 'wire.solid.L', 'rh.ideal'].every(k => boxes.split(',').includes(k)) && paper.rings === 1, 'the form’s circles: Hawley U & L, Adams and Ball U, finger spring, pontic, both colors, the FLR’s placement, pads and wire, reset ideally — and UR1 ringed on the reset diagram');
   await p.screenshot({ path: OUT + '/v33-rxr-paper.png' });
@@ -182,12 +192,12 @@ const has = cmd => { try { execFileSync('which', [cmd], { stdio: 'ignore' }); re
   if (has('qpdf')) { let ok = true; try { execFileSync('qpdf', ['--check', pdf], { stdio: 'pipe' }); } catch (e) { ok = e.status === 3; } check(ok, 'qpdf --check: no errors'); }
   if (has('pdfinfo')) check(/Pages:\s+2/.test(execFileSync('pdfinfo', [pdf]).toString()), 'both of Specialty’s pages (page 2: their IR Express notes)');
   const txt = pdfText(pdf);
-  if (txt != null) check(/Rhea Retainerson/.test(txt) && /DEMO-0000/.test(txt) && /Purple glitter/.test(txt) && /#10 shade A2/.test(txt) && /s\/ Amir Akhavan/.test(txt) && /IR EXPRESS/.test(txt), 'the PDF’s text: patient, account #, acrylic color, pontic shade, signature — and Specialty’s page 2');
+  if (txt != null) check(/Rhea Retainerson/.test(txt) && /DEMO-0000/.test(txt) && /Party mix glitter/.test(txt) && /#10 shade A2/.test(txt) && /s\/ Amir Akhavan/.test(txt) && /IR EXPRESS/.test(txt), 'the PDF’s text: patient, account #, acrylic color, pontic shade, signature — and Specialty’s page 2');
   if (has('pdftoppm')) { execFileSync('pdftoppm', ['-r', '110', '-png', '-f', '1', '-l', '1', '-singlefile', pdf, OUT + '/v33-rxr-pdf']); check(fs.existsSync(OUT + '/v33-rxr-pdf.png'), 'the PDF renders (v33-rxr-pdf.png)'); }
   const [pop] = await Promise.all([ctx.waitForEvent('page'), p.click('#drawer [data-ds=rxRet] [data-act=rxOpen]')]);
   check(/^blob:/.test(pop.url()), 'Open to print: a new tab with the PDF'); await pop.close();
   await p.click('#drawer [data-ds=rxRet] [data-act=rxEdit]'); await p.waitForSelector('#rxWrap');
-  check(await on('designU', 'hawley') && await on('flrL', 'c3') && await p.inputValue('#rxWrap [data-rxf=ponticTxt]') === 'A2', 'Edit the Rx opens with the saved choices');
+  check(await on('designU', 'hawley') && await on('flrL', 'c3') && await on('ponticShade', 'A2'), 'Edit the Rx opens with the saved choices');
   fl = await fold('flr'); ir = await fold('ir');
   check(fl.open && fl.shown && !ir.open && !ir.shown, '… the fixed lingual retainer open by itself (it holds the lower 3–3), the empty invisible retainers folded');
   await tap('acrL', 'abp'); await clearToasts(); await p.click('#rxWrap [data-rxa=done]'); await p.waitForSelector('#rxWrap', { state: 'detached' }); await p.waitForTimeout(400);
@@ -214,7 +224,7 @@ const has = cmd => { try { execFileSync('which', [cmd], { stdio: 'ignore' }); re
   await newAppliance(); await pick('appliances', 'Hawley retainers'); await pick('hawleyArch', 'Lower'); await p.fill('#ncForm #cf-patient', 'Lorna Loweronly'); // (Specialty: the routing)
   await p.click('#ncForm [data-rxform=edit][data-kind=ret]'); await p.waitForSelector('#rxWrap');
   st = await rxNow();
-  check(!st.designU && st.designL === 'hawley' && !Object.keys(st.teeth || {}).some(id => id[0] === 'U') && st.flrL === 'c3' && !(await p.inputValue('#rxWrap [data-rxf=colorU]')), 'a lower-only Hawley: the usual retainer on the lower only (no upper design or clasps; the bonded retainer stays)');
+  check(!st.designU && st.designL === 'hawley' && !Object.keys(st.teeth || {}).some(id => id[0] === 'U') && st.flrL === 'c3' && !st.colorU, 'a lower-only Hawley: the usual retainer on the lower only (no upper design or clasps; the bonded retainer stays)');
   check((await fold('flr')).open && !(await fold('ir')).open, '… its fixed lingual retainer (from the usual) shows open');
   await p.click('#rxWrap [data-rxa=close]'); await p.waitForSelector('#rxWrap', { state: 'detached' });
   check(await p.inputValue('#ncForm #cf-rxRet') === '', '… closed without Done: nothing put on the case');
@@ -234,12 +244,65 @@ const has = cmd => { try { execFileSync('which', [cmd], { stdio: 'ignore' }); re
   check(await p.isVisible('#ncForm #cf-rxSec') && await retShown(), 'a Herbst and Hawley retainers to Specialty on one case: the Herbst Rx and the Retainer Rx both show');
   await p.evaluate(() => { const m = document.querySelector('#modalWrap'); if (m) m.remove(); });
 
+  // ---- what we built on Dr. A's Lab Rx, on this form (Amir, 4 Oct 2026): his Hawley and clasp pictures, the badges, delta and
+  //      arrowhead clasps written out, spurs facing distal or mesial, Specialty's colors as swatches
+  await newAppliance(); await pick('appliances', 'Hawley retainers'); await pick('hawleyArch', 'Upper'); await pick('acrylic', 'Teal'); await p.fill('#ncForm #cf-patient', 'Penny Pictures');
+  await p.click('#ncForm [data-rxform=edit][data-kind=ret]'); await p.waitForSelector('#rxWrap .rxArch.live');
+  await p.waitForFunction(() => Array.from(document.querySelectorAll('#rxWrap .rxPc img')).every(i => i.complete && i.naturalWidth > 0), null, { timeout: 8000 }).catch(() => {});
+  const pcs = await p.evaluate(() => Array.from(document.querySelectorAll('#rxWrap .rxPc')).map(b => ({ g: b.dataset.rxg, v: b.dataset.v, img: !!b.querySelector('img') && b.querySelector('img').naturalWidth >= 300 && /^nlo-cases-pics\//.test(b.querySelector('img').getAttribute('src')),
+    st: (b.querySelector('.rxSt:not([hidden])') || {}).textContent || '', on: b.getAttribute('aria-pressed') === 'true' })));
+  console.log('   ' + JSON.stringify(pcs.map(x => x.v + ':' + x.st + (x.on ? '*' : '') + (x.img ? '' : '(no picture)'))));
+  check(pcs.filter(x => x.g === 'designPick').map(x => x.v).join() === 'hawley,clearbow,wrap' && pcs.every(x => x.img) && pcs.find(x => x.v === 'hawley').on,
+    'Dr. A’s three Hawleys in pictures over the designs (Hawley picked), every picture loaded from nlo-cases-pics/');
+  check(pcs.filter(x => x.g === 'claspPick').map(x => x.v + ':' + x.st).join() === 'adams:Preferred,ball:Optional,c:Alternative,delta:Alternative,arrowhead:Not for this case',
+    'his five clasps in pictures with his take for a Hawley: Adams Preferred, Ball Optional, C-clasp and Delta Alternative, Arrowhead Not for this case');
+  check(await p.evaluate(() => ['c', 'adams', 'ball', 'delta', 'arrowhead'].map(v => (document.querySelector('#rxWrap .rxUL[data-rxinfo="clasp:' + v + '"] .rxSt:not([hidden])') || {}).textContent).join()) === 'Alternative,Preferred,Optional,Alternative,Not for this case', '… the same badges on the clasp rows');
+  await p.hover('#rxWrap .rxPc[data-rxg=claspPick][data-v=delta]'); let cc = await card('clasp');
+  check(cc.name === 'Delta clasp' && /Alternative for this Hawley: Holds its shape longer/.test(cc.text) && await p.evaluate(() => { const o = document.querySelector('#rxWrap .rxInfoCard[data-info=clasp] .rxIc.on'); return !!o.querySelector('.rxIcPic img[data-pic=clasp-delta]') && !!o.querySelector('.rxIcDraw svg.clasp-drawing'); }),
+    'pointing at the Delta picture: its card says “Alternative for this Hawley: …”, with his photo and the buccal and occlusal drawings');
+  await p.click('#rxWrap .rxPc[data-rxg=designPick][data-v=wrap]'); st = await rxNow();
+  check(st.designU === 'wrap' && !Object.keys(st.teeth || {}).length && await p.evaluate(() => (document.querySelector('#rxWrap .rxPc[data-v=adams] .rxSt:not([hidden])') || {}).textContent) === 'Not for this case' && await p.evaluate(() => (document.querySelector('#rxWrap .rxPc[data-v=ball] .rxSt:not([hidden])') || {}).textContent) === 'Optional',
+    'the Standard Wraparound picture tapped: the upper is a wraparound, its Adams clasps go (the bow replaces them), and the badges follow (Adams Not for this case, Ball Optional)');
+  await p.click('#rxWrap .rxPc[data-rxg=designPick][data-v=hawley]'); st = await rxNow();
+  check(st.designU === 'hawley' && JSON.stringify(st.teeth) === '{"UR6":"adams","UL6":"adams"}', '… the Hawley picture: back to a Hawley with the Adams clasps');
+  // delta and arrowhead clasps: tools, drawn, written out with their teeth (the form has no circle for them), priced
+  await p.click('#rxWrap .rxPc[data-rxg=claspPick][data-v=delta]');
+  check(await p.evaluate(() => RXE.tool) === 'delta' && /delta clasp/.test(await p.textContent('#rxHint')), 'a clasp picture tapped picks it for tapping teeth');
+  await tooth('UR7'); await tool('arrowhead'); await tooth('UL5'); await tooth('UL4');
+  st = await rxNow(); let fill = await p.evaluate(() => rxFill(RXE.c, RXE.rx));
+  const other = fill.txt.map(t => t.s).find(x => /^Delta /.test(x)), notes = await p.evaluate(() => rxNotesAll(RXE.rx));
+  check(st.teeth.UR7 === 'delta' && st.teeth.UL5 === 'arrowhead' && st.teeth.UL4 === 'arrowhead' && other === 'Delta #2; Arrowhead #12, #13' && !fill.box.some(b => /delta|arrowhead/.test(b)),
+    'Delta on UR7 and arrowheads on UL4–UL5: written out on the Other clasping line (“' + other + '”), no circle for them');
+  check(/Delta clasps on #2 \(no circle on the form\): closed triangular loops/.test(notes) && /Arrowhead \(Schwarz\) clasps on #12, #13: arrows in the buccal embrasures/.test(notes), '… and spelled out in the special instructions');
+  const e3 = await p.evaluate(() => rxEstimate(RXE.rx, RXE.c));
+  check(e3.missing.some(m => /^Delta clasps · upper × 1 pr/.test(m)) && e3.lines.some(l => /^Arrowhead clasps · upper × 1 pr/.test(l.l) && l.amt === 19.25), 'priced: arrowheads as the list’s arrows ($19.25 a pair); delta clasps named as not on the list');
+  const sh = await p.evaluate(() => { const d = rxAuto(RXE.rx, RXE.c); return { tri: d.filter(x => x.f === '#FFFFFF' && x.d.length === 4).length, dia: d.filter(x => x.f === '#FFFFFF' && x.d.length === 5).length }; });
+  check(sh.tri === 2 && sh.dia === 3, 'drawn: the delta’s two closed loops (' + sh.tri + ') and the arrowheads’ three arrows, one shared between the two teeth (' + sh.dia + ')');
+  // holding spurs: tap once facing distal, again facing mesial, a third time off
+  await tool('spur'); await tooth('UR3'); st = await rxNow();
+  check(st.teeth.UR3 === 'spur' && (st.accU || []).includes('spurs'), 'Spur on UR3: a holding spur facing distal (Holding Spurs · U ticked)');
+  await tooth('UR3'); st = await rxNow(); fill = await p.evaluate(() => rxFill(RXE.c, RXE.rx));
+  check(st.teeth.UR3 === 'spurM' && fill.txt.some(t => t.s === '#6 mesial') && /Holding spurs: #6 facing mesial/.test(await p.evaluate(() => rxNotesAll(RXE.rx))) && /Holding spur, facing mesial/.test(await p.textContent('#rxTeethSum')),
+    '… tapped again: facing mesial — “#6 mesial” on the spurs line, spelled out in the special instructions');
+  const spurD = await p.evaluate(() => { const a = rxAuto(Object.assign({}, RXE.rx, { teeth: { UR3: 'spur' } }), RXE.c), b = rxAuto(Object.assign({}, RXE.rx, { teeth: { UR3: 'spurM' } }), RXE.c); return JSON.stringify(a) !== JSON.stringify(b); });
+  check(spurD, '… and it’s drawn the other way round on the arches');
+  await tooth('UR3'); st = await rxNow();
+  check(!st.teeth.UR3 && !(st.accU || []).includes('spurs'), '… a third tap takes it off (and the box with it)');
+  // Specialty's colors in the Rx: the case's Teal; Blue glitter tapped for the upper only
+  check(/Upper:\s*Teal\s*\(the case’s\)/.test(await p.textContent('#rxAcrNow')) && await on('acrFor', 'U') && await on('acrPick', 'Teal'), 'the color: the case’s Teal on the upper (the arch with a Hawley), its swatch picked');
+  await tap('acrPick', 'Blue glitter'); st = await rxNow();
+  check(st.colorU === 'Blue glitter' && /Acrylic: Blue glitter · upper/.test(await p.textContent('#rxCost')) && /Blue glitter/.test(await p.textContent('#rxAcrNow')), 'Blue glitter tapped: the upper is Blue glitter (+ the glitter price)');
+  await tap('acrPick', 'Blue glitter'); st = await rxNow();
+  check(!st.colorU && /Teal/.test(await p.textContent('#rxAcrNow')), '… tapped again: back to the case’s Teal');
+  await p.click('#rxWrap [data-rxa=close]'); await p.waitForTimeout(100); await p.click('#rxWrap [data-rxa=close]').catch(() => {}); await p.waitForSelector('#rxWrap', { state: 'detached' });
+  await p.evaluate(() => { const m = document.querySelector('#modalWrap'); if (m) m.remove(); });
+
   // ---- the form's own odds and ends
   const scans = await p.evaluate(() => ['iTero', '3M True Definition', 'Medit i700', 'TRIOS 5', 'Primescan (CEREC)', 'Allied Star'].map(s => rxFill({ patient: 'X', scanner: s }, { form: RX_RET }).box.filter(b => /^scan\./.test(b)).join()));
   check(scans.join('|') === 'scan.itero|scan.3m|scan.medit|scan.trios|scan.sirona|scan.other', 'scanners on the form get their circle (CEREC / Primescan → Sirona); Allied Star → Other');
   const junk = await p.evaluate(() => rxCanon({ form: RX_RET, designU: 'bogus', designL: 'hawley', teeth: { UR6: 'x', UL6: 'adams', ZZ9: 'c' }, reset: ['UR7', 'UL1'], flrU: 'c3', irL: 'g9', accU: ['habit', 'nope'], habit: ['crib', 'zzz'], colorU: 'x'.repeat(90) }));
   check(JSON.stringify(junk) === JSON.stringify({ form: 'specialty-retainer', designL: 'hawley', teeth: { UL6: 'adams' }, reset: ['UL1'], accU: ['habit'], habit: ['crib'], flrU: 'c3', colorU: 'x'.repeat(40) }), 'an Rx with anything that isn’t on the form keeps only what is (same order every time)');
-  const geo = await p.evaluate(() => { const rx = { form: RX_RET, designU: 'wrap', designL: 'tremont', palate: 'full', teeth: { UR6: 'adams', UL4: 'ball', LR6: 'solc', LL2: 'pontic', LR2: 'finger', UL3: 'spur' }, reset: ['UR1'], accU: ['helical', 'cuspHook', 'habit'], habit: ['crib', 'spurs', 'bluegrass'], acrU: ['bowAcr', 'abp', 'scallop'], acrL: ['pbp'], flrL: 'll', flrPadsL: 'meshDist', flrWireL: 'braided', irU: 'single' };
+  const geo = await p.evaluate(() => { const rx = { form: RX_RET, designU: 'wrap', designL: 'tremont', palate: 'full', teeth: { UR7: 'delta', UR6: 'adams', UL4: 'ball', UL6: 'arrowhead', UL7: 'arrowhead', LR6: 'solc', LR4: 'arrowhead', LL2: 'pontic', LR2: 'finger', UL3: 'spur', UR3: 'spurM', LR7: 'spurM' }, reset: ['UR1'], accU: ['helical', 'cuspHook', 'habit'], habit: ['crib', 'spurs', 'bluegrass'], acrU: ['bowAcr', 'abp', 'scallop'], acrL: ['pbp'], flrL: 'll', flrPadsL: 'meshDist', flrWireL: 'braided', irU: 'single' };
     const list = rxAuto(rx, { acrylic: 'Teal' }), [x, y, w, h] = RX_FORMS[RX_RET].clip; let out = 0;
     list.forEach(s => s.d.forEach(o => { for (let i = 1; i < o.length; i += 2) { if (o[i] < x - 3 || o[i] > x + w + 3 || o[i + 1] < y - 3 || o[i + 1] > y + h + 3 || !Number.isFinite(o[i]) || !Number.isFinite(o[i + 1])) out++; } }));
     return { n: list.length, out, content: /NaN|Infinity/.test(rxContent(rxFill({ patient: 'X' }, rx))) }; });

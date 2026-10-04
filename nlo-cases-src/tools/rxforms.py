@@ -5,11 +5,14 @@
     python3 tools/rxforms.py herbst path/to.pdf   take in a new original of a form (slimmed into rx/), then rebuild
     python3 tools/rxforms.py retainer path/to.pdf
     python3 tools/rxforms.py metal path/to.pdf
+    python3 tools/rxforms.py functional path/to.pdf
 
 The forms (Specialty Appliances):
-  herbst    Herbst Appliance Rx (MKT-005, Rev 3-25; Amir, 3 Oct 2026)
-  retainer  Retainer Rx (MKT-7, Rev 2-25; Amir, 4 Oct 2026: "here is the Rx for hawley. do the same")
-  metal     Metal Rx (MKT-6, Rev 10-25; Amir, 4 Oct 2026: "Next lets use this") — expanders, distalizers, holding arches …
+  herbst      Herbst Appliance Rx (MKT-005, Rev 3-25; Amir, 3 Oct 2026)
+  retainer    Retainer Rx (MKT-7, Rev 2-25; Amir, 4 Oct 2026: "here is the Rx for hawley. do the same")
+  metal       Metal Rx (MKT-6, Rev 10-25; Amir, 4 Oct 2026: "Next lets use this") — expanders, distalizers, holding arches …
+  functional  Functional Rx (MKT-12, 10-23; the lower Schwarz goes to Specialty on it — Amir, 4 Oct 2026; the fillable original
+              is specialtyappliances.com/wp-content/uploads/2024/02/rx-sheet-functionals-FILLABLE-10-16-23.pdf)
 
 For each form it writes:
   rx/specialty-<form>-source.pdf  the form without Illustrator's private data (3.5 MB -> ~250 KB), kept so this can be re-run
@@ -183,6 +186,36 @@ TEXT_M = {
     'sig': 'Signature', 'license': 'License Number', 'licExp': 'Expiration',
 }
 
+# ---------- Functional Rx (the Schwarz is "Schwarz – Transverse" under Active designs) ----------
+BOX_F = {
+    'rush': 'Approval to charge express',
+    'scan.itero': 'iTero', 'scan.carestream': 'Carestream', 'scan.cerec': 'cerec', 'scan.trios': 'trios', 'scan.medit': 'Medit', 'scan.other': 'Other',
+    'fn.bionator': 'Bionator', 'fn.corrector': 'Corrector', 'fn.tbClark': 'Twin Block- Clark', 'fn.tbMcN': 'Twin Block-McNamara',
+    'ad.open.U': 'Open the Bite U', 'ad.open.L': 'Open the Bite L', 'ad.close.U': 'Close the Bite U', 'ad.close.L': 'Close the Bite L',
+    'ad.maintain.U': 'Maintain the Bite U', 'ad.maintain.L': 'Maintain the Bite L',
+    'act.sag.U': 'Sagittal U', 'act.sag.L': 'Sagittal L', 'act.sag22.U': 'Sagittal to Advance Ant 2-2 U', 'act.sag22.L': 'Sagittal to Advance Ant 2-2 L',
+    'act.sag3.U': '3-Way Sagittal U', 'act.sag3.L': '3-Way Sagittal L', 'act.schwarz.U': 'Schwarz-Transverse U', 'act.schwarz.L': 'Schwarz-Transverse L',
+    'act.nord.U': 'Nord Expander U', 'act.phase2.U': 'Phase II Appliance U', 'act.fan.U': 'Fan Expander U', 'act.acco.U': 'Acco cetlin',
+    'exp.none': 'No Screws Required', 'exp.mid': 'Midline Screw Only', 'exp.mid2': '2 Midline Screws', 'exp.sag2': '2 Sagittal Screws',
+    'exp.fan': 'Fan Expansion Screw', 'exp.other': 'Other Screw Design',
+    'wc.bow.U': 'Hawley Labial Bow U', 'wc.bow.L': 'Hawley Labial Bow L', 'wc.adams.U': 'Adam Clasps U', 'wc.adams.L': 'Adam Clasps L',
+    'wc.ball.U': 'Ball Clasps U', 'wc.ball.L': 'Ball Clasps L', 'wc.arrow.U': 'Arrow Clasps U', 'wc.arrow.L': 'Arrow Clasps L',
+    'wc.c.U': 'C-Clasps U', 'wc.c.L': 'C-Clasps L',
+    'xs.carve.U': 'Carve Brackets off Models', 'xs.carve.L': 'Carve Brackets off Models L', 'xs.pads.U': 'Labial Pads U', 'xs.pads.L': 'Labial Pads L',
+    'xs.hg.U': 'HG Tubes .045 U',
+    'ac.trimPost.U': 'Trim Posterior U', 'ac.trimPost.L': 'Trim Posterior L', 'ac.trimDiag.U': 'Trim as Diagrammed', 'ac.trimDiag.L': 'Trim as Diagrammed L',
+    'ac.occl.U': 'Occlusal Coverage U', 'ac.occl.L': 'Occlusal Coverage L', 'ac.abp.U': 'Anterior Bite Plane U', 'ac.abp.L': 'Anterior Bite Plane L',
+    'ac.bowAcr.U': 'Acrylic to Bow U', 'ac.bowAcr.L': 'Acrylic to Bow L',
+    'color.U': 'Acrylic Color U', 'color.L': 'Acrylic Color L',
+}
+# (the acrylic color blanks are named like their circles but with two spaces; "undefined_2" is Other Screw Design's line)
+TEXT_F = {
+    'doctor': 'DOCTOR', 'acct': 'ACCT', 'address': 'ADDRESS', 'city': 'CITY', 'state': 'STATE', 'zip': 'ZIP',
+    'phone': 'PHONE', 'email': 'EMAIL', 'patient': 'PATIENT NAME', 'shipped': 'DATE SHIPPED', 'needed': 'Date Needed',
+    'scanOther': 'Other Text', 'screwOther': 'undefined_2', 'colorU': 'Acrylic Color  U', 'colorL': 'Acrylic Color  L',
+    'sig': 'Signature', 'license': 'License Number', 'licExp': 'Expiration',
+}
+
 
 def grid_metal(words, H):
     """the two tooth grids (anchorage, occlusal rests), 4s to 7s, as on the Herbst Rx but lower on the page"""
@@ -209,6 +242,19 @@ def check_metal(boxes):
             if abs(x - want) > 1.5: raise SystemExit('%s is at x=%s, not in its column (%s)' % (k, x, want))
 
 
+def grid_none(words, H):
+    # the Functional Rx has no tooth grids (its teeth are on the arch diagram)
+    return {}
+
+
+def check_functional(boxes):
+    # every U circle sits left of its L circle on the same row (the two columns of each section; the acrylic colors are a line each)
+    for k, (x, y) in boxes.items():
+        if not k.endswith('.U') or k.startswith('color.'): continue
+        l = boxes.get(k[:-1] + 'L')
+        if l and not (l[0] > x and abs(l[1] - y) < 1.5): raise SystemExit('%s and its L circle are not side by side: %r %r' % (k, (x, y), l))
+
+
 FORMS = {
     'herbst': {
         'id': 'specialty-herbst', 'title': 'Herbst Appliance Rx', 'lab': 'Specialty Appliances', 'rev': 'MKT-005, Rev 3-25',
@@ -228,6 +274,12 @@ FORMS = {
         'src': 'specialty-metal-source.pdf', 'png': 'nlo-cases-rx-metal.png', 'box': BOX_M, 'text': TEXT_M, 'grid': grid_metal,
         'check': check_metal, 'arch_y': (400, 640), 'split': (257, 279, 298), 'rl_y': (500, 512),
         'clip': [419, 152, 146, 240], 'vb': [410, 150, 162, 244],
+    },
+    'functional': {
+        'id': 'specialty-functional', 'title': 'Functional Rx', 'lab': 'Specialty Appliances', 'rev': 'MKT-12, 10-23',
+        'src': 'specialty-functional-source.pdf', 'png': 'nlo-cases-rx-functional.png', 'box': BOX_F, 'text': TEXT_F, 'grid': grid_none,
+        'check': check_functional, 'arch_y': (400, 650), 'split': (250, 275, 300), 'rl_y': (500, 515), 'notes_n': 4,
+        'clip': [419, 144, 150, 248], 'vb': [403, 144, 171, 248],
     },
 }
 
@@ -425,7 +477,7 @@ def build(cfg):
         'id': cfg['id'], 'title': cfg['title'], 'lab': cfg['lab'], 'rev': cfg['rev'],
         'pdf': {'b64': base64.b64encode(data).decode(), 'obj': ov_num, 'xref': sx, 'size': size, 'root': root,
                 'id': (pid.group(1) + pid.group(2)) if pid else ''},
-        'preview': png.name, 'boxes': boxes, 'text': text, 'notes': notes[:3], 'grid': grid,
+        'preview': png.name, 'boxes': boxes, 'text': text, 'notes': notes[:cfg.get('notes_n', 3)], 'grid': grid,
         'teeth': teeth, 'front': front, 'rl': rl, 'clip': cfg['clip'], 'vb': cfg['vb'],
     }
 
@@ -448,9 +500,9 @@ def main():
             out.append(int(round(stringWidth(ch, font, 1000))))
         return out
 
-    js = ('/* generated by tools/rxforms.py from Specialty Appliances\' Herbst Rx (MKT-005, Rev 3-25), Retainer Rx (MKT-7, Rev 2-25) and\n'
-          '   Metal Rx (MKT-6, Rev 10-25) — do not edit by hand. Each blank form (fields taken out), where everything on it is (PDF\n'
-          '   points; the arch outlines top-down), and the standard fonts\' widths for fitting text on the lines. */\n'
+    js = ('/* generated by tools/rxforms.py from Specialty Appliances\' Herbst Rx (MKT-005, Rev 3-25), Retainer Rx (MKT-7, Rev 2-25),\n'
+          '   Metal Rx (MKT-6, Rev 10-25) and Functional Rx (MKT-12, 10-23) — do not edit by hand. Each blank form (fields taken out),\n'
+          '   where everything on it is (PDF points; the arch outlines top-down), and the standard fonts\' widths for fitting text on the lines. */\n'
           'const RX_FORMS = {\n' + ',\n'.join('  \'' + f['id'] + '\': ' + json.dumps(f, separators=(',', ':')) for f in forms) + '\n};\n'
           'const RX_FONT_W = ' + json.dumps({'H': widths('Helvetica'), 'B': widths('Helvetica-Bold'), 'T': widths('Times-Italic')}, separators=(',', ':')) + ';\n')
     OUT_JS.write_text(js)

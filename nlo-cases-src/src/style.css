@@ -927,6 +927,8 @@ body.phOff .pav,body.phOff .dPh,body.phOff .phSlot,body.phOff .phTgl,body.phOff 
 .rxTbl td{padding:5px 0;border-bottom:1px dashed var(--grey-200);vertical-align:top}
 .rxTbl td:last-child{text-align:right;white-space:nowrap;padding-left:12px;font-weight:600;color:var(--navy)}
 .rxTbl td:last-child .muted{font-weight:500}
+/* what an included piece says ("With the Schwarz (Specialty’s standard clasps)") wraps, so a narrow table (the case panel, a phone) keeps its prices in view */
+.rxTbl td:last-child .rxInc{white-space:normal}
 .rxNote{display:block;font-size:11px;color:var(--grey-500)}
 .rxTotRow td{font-weight:700;font-size:14px;color:var(--navy);border-bottom:none;border-top:2px solid var(--navy);padding-top:7px}
 .rxMiss{color:var(--amber-700);margin:6px 0 2px;font-weight:600}
@@ -1081,6 +1083,87 @@ svg.rxArch{display:block;width:100%;height:auto}
 .rxTi-finger::before{content:"\21DD"}.rxTi-spur::before{content:"\2310"}
 /* the Metal Rx's space maintainer tool: a band with its loop */
 .rxTi-sm{width:15px;height:9px;border:2px solid currentColor;border-left-width:4px;border-radius:2px 8px 8px 2px}
+.rxTi-delta{width:0;height:0;border-radius:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:10px solid currentColor}
+.rxTi-arrowhead{width:8px;height:8px;border:2px solid currentColor;border-radius:1px;transform:rotate(45deg);margin:0 2px}
+
+/* Dr. A's take on a choice (Preferred, Recommended …; Amir, 4 Oct 2026): a badge on the choice and a line in its card */
+.rxSt{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.01em;border-radius:99px;padding:0 7px;line-height:16px;white-space:nowrap;border:1px solid}
+.rxSt[hidden]{display:none}
+.rxSt.pref{color:#0B6340;background:#DCF2E6;border-color:#9FD9BD}
+.rxSt.rec{color:#1B4C96;background:#E0EBFA;border-color:#B3CBF0}
+.rxSt.opt{color:#6E4B00;background:#FFF2D2;border-color:#EBCF85}
+.rxSt.alt{color:#47515C;background:#E9ECEF;border-color:#CDD3D9}
+.rxSt.avoid{color:#982320;background:#FBE4E3;border-color:#F0B4B0}
+.rxB[aria-pressed="true"] .rxSt{background:#fff}
+.rxIcSt{margin:2px 0 6px;padding:5px 9px;border-radius:8px;font-weight:600;font-size:12px;border-left:3px solid}
+.rxIcSt[hidden]{display:none}
+.rxIcSt.pref{color:#0B6340;background:#E9F7EF;border-color:#2E9E6A}.rxIcSt.rec{color:#1B4C96;background:#EDF3FC;border-color:#4C7FD0}
+.rxIcSt.opt{color:#6E4B00;background:#FFF7E3;border-color:#D9A520}.rxIcSt.alt{color:#47515C;background:#F1F3F5;border-color:#8C96A1}.rxIcSt.avoid{color:#982320;background:#FDF0EF;border-color:#D1453B}
+/* a clasp's drawing (buccal and occlusal views) in its card; the Schwarz's arch as its picture */
+.rxIcDraw{clear:both;margin:8px 0 2px;max-width:440px}
+.rxIcDraw svg{display:block;width:100%;height:auto}
+.clasp-drawing .dlabel{fill:var(--grey-500);font-family:var(--fb);font-size:12px}
+.rxIcPic.svg{padding:4px}
+.rxIcPic.svg svg{display:block;width:236px;height:auto}
+.rxCmpPic.svg svg{display:block;width:100%;height:auto}
+/* picture cards over the choices: Dr. A's Hawleys and clasps */
+.rxPcs{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:8px;margin:2px 0 12px}
+.rxB.rxPc{position:relative;flex-direction:column;align-items:stretch;justify-content:flex-start;gap:5px;padding:5px 5px 7px;border-radius:14px;min-height:0;text-align:center}
+.rxB.rxPc img{display:block;width:100%;height:auto;aspect-ratio:3/2;object-fit:contain;border-radius:9px;background:#fff}
+.rxPcN{font-size:12.5px;font-weight:700;color:var(--navy);line-height:1.2}
+.rxB.rxPc .rxSt{align-self:center}
+.rxB.rxPc[aria-pressed="true"]{background:var(--mint-100);border-color:var(--mint-600)}
+.rxB.rxPc[aria-pressed="true"]::before{content:"✓";position:absolute;top:9px;right:9px;width:20px;height:20px;border-radius:50%;background:var(--mint-600);color:#fff;font-size:12px;line-height:20px;text-align:center;margin:0}
+/* a pontic's shade: required once there's a pontic */
+.rxShade{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;padding:6px 8px;border-radius:10px;margin:2px 0}
+.rxShadeB{display:flex;flex-wrap:wrap;gap:4px}
+.rxShade .rxB{min-height:28px;padding:2px 9px;font-size:12px;border-radius:8px}
+.rxShade .rxB[aria-pressed="true"]::before{content:none}
+.rxShadeOld{color:var(--grey-600)}
+.rxShadeOld[hidden]{display:none}
+.rxShadeH{flex-basis:100%}
+.rxReq{display:inline-block;margin-left:6px;font-size:9.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--coral-700);background:var(--coral-100);border-radius:99px;padding:0 6px;line-height:15px}
+.rxNeedOn{background:var(--coral-100);box-shadow:inset 0 0 0 1.5px var(--coral-200)}
+.rxNeedFlash{animation:rxFlash 1.5s ease-in-out}
+@keyframes rxFlash{0%,100%{box-shadow:inset 0 0 0 1.5px var(--coral-200)}35%,70%{box-shadow:inset 0 0 0 3px var(--coral-600)}}
+.rxNeedTxt{color:var(--coral-700)}
+/* the acrylic color on an Rx: Specialty's guide as swatches */
+.rxAcr{margin-top:4px;padding:2px 0 4px;border-radius:10px}
+.rxAcrNow{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;margin:4px 0 8px;color:var(--navy)}
+.rxAcrNow .sw{width:14px;height:14px}
+.rxAcrG{margin-top:8px}
+.acrGh{font-family:var(--fd);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--grey-500);margin:0 0 5px}
+.acrGh em{font-family:var(--fb);font-style:normal;letter-spacing:0;text-transform:none;font-size:11px;font-weight:600;color:var(--grey-400);margin-left:4px}
+.rxAcrGs{display:flex;flex-wrap:wrap;gap:4px}
+.rxB.rxSw{flex-direction:column;align-items:center;justify-content:flex-start;gap:3px;width:68px;padding:5px 2px 6px;border-radius:12px;min-height:0;font-size:10.5px;line-height:1.15;text-align:center}
+.rxB.rxSw img,.rxB.rxSw .acrDot{width:36px;height:36px;border-radius:50%}
+.rxB.rxSw[aria-pressed="true"]{background:var(--mint-100);border-color:var(--mint-600)}
+.rxB.rxSw[aria-pressed="true"]::before{content:none}
+.rxB.rxSw[aria-pressed="true"] img,.rxB.rxSw[aria-pressed="true"] .acrDot{box-shadow:0 0 0 2px #fff,0 0 0 4px var(--mint-600)}
+.acrDot{display:block;width:44px;height:44px;border-radius:50%;background:var(--sw,#fff);box-shadow:inset 0 0 0 1px rgba(17,32,58,.22)}
+.acrDot.clr{background:repeating-conic-gradient(#D5DAE1 0 25%,#fff 0 50%) 50%/10px 10px}
+/* the Functional Rx: a row with no Lower (Upper only on the paper); the chairside steps */
+.rxUx{display:block}
+.rxChk{display:flex;flex-direction:column;gap:6px}
+.rxChk .rxB{border-radius:10px;align-items:flex-start;line-height:1.4;padding:7px 10px;font-weight:600}
+.rxChk .rxB::before{content:"";flex:none;width:16px;height:16px;margin:1px 2px 0 0;border:1.5px solid var(--grey-400);border-radius:4px;background:#fff}
+.rxChk .rxB[aria-pressed="true"]{background:var(--mint-100)}
+.rxChk .rxB[aria-pressed="true"]::before{content:"✓";border-color:var(--mint-600);background:var(--mint-600);color:#fff;font-size:11px;line-height:16px;text-align:center;margin:1px 2px 0 0}
+
+/* the case form's acrylic color: Specialty's guide as swatches (Amir's chart, 4 Oct 2026) */
+.acrPal{display:flex;flex-direction:column;gap:10px}
+.acrG0{display:flex;flex-wrap:wrap;gap:6px}
+.acrGs{display:flex;flex-wrap:wrap;gap:6px}
+.pick.acrS{display:inline-flex;flex-direction:column;align-items:center;gap:4px;width:76px;padding:6px 3px 7px;border-radius:14px;font-size:11.5px;line-height:1.15;text-align:center;min-height:0}
+.pick.acrS img,.pick.acrS .acrDot{width:44px;height:44px;border-radius:50%}
+.pick.acrS[aria-pressed="true"]{background:var(--mint-100);border-color:var(--mint-600);color:var(--navy)}
+.pick.acrS[aria-pressed="true"]::before{content:none}
+.pick.acrS[aria-pressed="true"] img,.pick.acrS[aria-pressed="true"] .acrDot{box-shadow:0 0 0 2px #fff,0 0 0 4px var(--mint-600)}
+.pick.acrS[aria-disabled="true"]{opacity:.32;cursor:not-allowed}
+.pick.acrS[aria-disabled="true"]:hover{border-color:var(--grey-200);background:#fff}
+.pick.acrS.old span::after{content:" (earlier)";color:var(--grey-500);font-weight:500}
+#cf-acrHint{color:var(--amber-700);font-weight:600;margin-top:6px}
+#cf-acrHint[hidden]{display:none}
 
 /* Specialty's warranty on a case (warranty.js): the invoice date, the deadlines with today's standing, how to claim */
 .wtyInv{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;margin-bottom:10px}

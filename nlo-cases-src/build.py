@@ -2,7 +2,7 @@ import pathlib, shutil, sys
 root = pathlib.Path(__file__).parent
 src = root / 'src'
 t = (src / 'template.html').read_text()
-js = '\n'.join((src / f).read_text() for f in ['core.js', 'backend.js', 'demo.js', 'ipr.js', 'ui.js', 'logos.js', 'pics.js', 'caseform.js', 'labels.js', 'admin.js', 'mail.js', 'photos.js', 'rxdata.js', 'rx.js', 'rxret.js', 'rxmetal.js', 'warranty.js'])
+js = '\n'.join((src / f).read_text() for f in ['core.js', 'backend.js', 'demo.js', 'ipr.js', 'ui.js', 'logos.js', 'pics.js', 'caseform.js', 'labels.js', 'admin.js', 'mail.js', 'photos.js', 'rxdata.js', 'rxdraw.js', 'rx.js', 'rxret.js', 'rxmetal.js', 'rxfun.js', 'warranty.js'])
 js += "\nif (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();\n"
 # the security rules ship inside the page (owner's email left as a placeholder), so Team & security can hand out
 # exactly the rules this version needs when the live ones are older
@@ -38,11 +38,16 @@ if logo: shutil.copy(logo, root / 'dist' / 'logo-white.png')
 # the black NLO logo printed on aligner labels (same image as the Label Maker's)
 lbl = next((p for p in [root.parent / 'nlo-label-logo.png', root / 'nlo-label-logo.png'] if p.exists()), None)
 if lbl: shutil.copy(lbl, root / 'dist' / 'nlo-label-logo.png')
-# the grey pictures of Specialty's blank Herbst, Retainer and Metal Rx the app shows under what's filled in (tools/rxforms.py makes them; they sit next to the page)
-for name in ['nlo-cases-rx-herbst.png', 'nlo-cases-rx-retainer.png', 'nlo-cases-rx-metal.png']:
+# the grey pictures of Specialty's blank Herbst, Retainer, Metal and Functional Rx the app shows under what's filled in (tools/rxforms.py makes them; they sit next to the page)
+for name in ['nlo-cases-rx-herbst.png', 'nlo-cases-rx-retainer.png', 'nlo-cases-rx-metal.png', 'nlo-cases-rx-functional.png']:
     rxp = root.parent / name
     assert rxp.exists(), 'run python3 tools/rxforms.py first'
     shutil.copy(rxp, root / 'dist' / name)
+# the Hawley, clasp and acrylic color pictures (tools/pics.py makes them; they sit next to the page in nlo-cases-pics/, loaded when needed)
+pics_dir = root.parent / 'nlo-cases-pics'
+assert pics_dir.is_dir() and any(pics_dir.glob('acr-*.webp')), 'run python3 tools/pics.py first'
+if (root / 'dist' / 'nlo-cases-pics').exists(): shutil.rmtree(root / 'dist' / 'nlo-cases-pics')
+shutil.copytree(pics_dir, root / 'dist' / 'nlo-cases-pics')
 # the lab-email script the owner copies into each Gmail account (built by tools/build-mail.js; no secrets in it)
 gs = root / 'mail' / 'nlo-cases-mail.gs'
 assert gs.exists() and '/*NLO_CONFIG*/null' in gs.read_text(), 'run node tools/build-mail.js first'
