@@ -528,8 +528,9 @@ async function openByName(p, name) {
   check(await owner.inputValue('#cf-assignee') === await owner.evaluate(() => meSid()), 'assigned to whoever creates it');
   await owner.click('#ncSave'); await owner.waitForSelector('#modalWrap', { state: 'detached', timeout: 20000 });
   await owner.click('#nav-board'); await owner.fill('#q', ''); await owner.click('[data-act=flow][data-k=retainer]');
-  await owner.waitForSelector('section[aria-label="Printing"] .kc:has-text("Milo Guardsman") .badge:has-text("Mouthguard")', { timeout: 20000 });
-  check(true, 'lands on the retainers & mouthguards board at Printing, marked Mouthguard');
+  // marked with the Mouthguard tile's picture since 4 Oct 2026 (was the name); its alt text still says Mouthguard
+  await owner.waitForSelector('section[aria-label="Printing"] .kc:has-text("Milo Guardsman") .tlogo.tpic img[data-pic=mouthguard][alt="Mouthguard"]', { timeout: 20000 });
+  check(true, 'lands on the retainers & mouthguards board at Printing, marked with the mouthguard picture');
 
   console.log('\n# Appliances: the lab is picked from the office routing');
   const labNow = async () => (await owner.locator('.pickRow[data-g=lab] .pick[aria-pressed=true]').allTextContents()).join('|');

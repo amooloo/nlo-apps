@@ -13,12 +13,15 @@ const OUT = process.argv[2] || 'shots';
   await p.click('#nav-list'); await p.waitForSelector('#listBody tr.click');
   await p.click('#listBody th button[data-k=type]'); await p.waitForTimeout(200);
   const rows = await p.$$eval('#listBody tr.click', rs => rs.map(r => { const c = findCase(r.dataset.id), td = r.querySelector('td.hideM'), im = td.querySelector('img');
-    return { type: c.type, img: im ? { ok: im.complete && im.naturalWidth > 0, alt: im.alt, w: Math.round(im.getBoundingClientRect().width), h: Math.round(im.getBoundingClientRect().height) } : null, nl: !!td.querySelector('.tlogo.nl svg'), pill: !!td.querySelector('.badge') }; }));
+    return { type: c.type, img: im ? { ok: im.complete && im.naturalWidth > 0, alt: im.alt, pic: im.dataset.pic || '', w: Math.round(im.getBoundingClientRect().width), h: Math.round(im.getBoundingClientRect().height) } : null, nl: !!td.querySelector('.tlogo.nl svg'), pill: !!td.querySelector('.badge') }; }));
   const by = {}; rows.forEach(r => { by[r.type] = by[r.type] || r; });
+  const TYPES_L = await p.evaluate(() => Object.fromEntries(TYPES.map(t => [t.k, t.l])));
   console.log('   ' + Object.values(by).map(r => r.type + ': ' + (r.img ? 'logo ' + r.img.w + '×' + r.img.h + (r.img.ok ? '' : ' NOT LOADED') : r.nl ? 'NL mark' : r.pill ? 'name pill' : '?')).join(' | '));
   check(['oliv', 'angel', 'invisalign', 'ulab', 'insmile'].filter(k => by[k]).every(k => by[k].img && by[k].img.ok && !by[k].pill), 'list: Oliv, Angel, Invisalign, uLab and InSmile show their logos (loaded, no pill)');
   check(by.nla && by.nla.img && by.nla.img.ok && /In-house/.test(by.nla.img.alt) && !by.nla.pill, 'list: in-house sets show the Next Level Orthodontics logo');
-  check(['retainer', 'models', 'mouthguard'].filter(k => by[k]).every(k => by[k].pill), 'list: types with no company keep their name');
+  // retainers and mouthguards show their New case tile's picture since 4 Oct 2026 (Amir); study models keep their name
+  check(['retainer', 'mouthguard'].every(k => by[k] && by[k].img && by[k].img.ok && by[k].img.pic === k && by[k].img.h === 34 && by[k].img.alt === TYPES_L[k] && !by[k].pill), 'list: Retainers & whitening and Mouthguard show their tile pictures, 34 px tall (' + ['retainer', 'mouthguard'].map(k => by[k] && by[k].img ? k + ' ' + by[k].img.w + '×' + by[k].img.h : k + ' none').join(', ') + ')');
+  check(by.models && by.models.pill && !by.models.img, 'list: study models keep their name');
   check(by.marpe && by.marpe.img && by.marpe.img.ok && /Partners Dental Solutions/.test(by.marpe.img.alt), 'list: MARPE cases show their lab’s logo (Partners)');
   check(rows.every(r => !r.img || r.img.alt), 'every logo has its company name for screen readers (alt)');
   await p.screenshot({ path: OUT + '/v16-list.png', clip: { x: 232, y: 0, width: 1128, height: 1000 } });
@@ -32,7 +35,13 @@ const OUT = process.argv[2] || 'shots';
   check((await p.locator('.kc .ft .tlogo.lg-nlo img').count()) > 0 && await p.evaluate(() => Array.from(document.querySelectorAll('.kc .ft .tlogo.lg-nlo img')).every(i => i.complete && i.naturalWidth > 0)), 'board (in-house): the Next Level Orthodontics logo on the cards');
   await p.screenshot({ path: OUT + '/v16-board-inhouse.png', clip: { x: 232, y: 60, width: 1128, height: 520 } });
   await p.click('.boardTabs [data-k=retainer]'); await p.waitForSelector('.kc'); await p.waitForTimeout(150);
-  check((await p.locator('.kc .ft .badge').count()) > 0, 'board (retainers & mouthguards): names stay (no company)');
+  const rk = await p.$$eval('.kc', ks => ks.map(k => { const c = findCase(k.dataset.id), i = k.querySelector('.ft .tlogo img'); return { type: c.type, pic: i ? i.dataset.pic || '' : '', ok: !!i && i.complete && i.naturalWidth > 0, h: i ? Math.round(i.getBoundingClientRect().height) : 0, pill: !!k.querySelector('.ft .badge') }; }));
+  check(['retainer', 'mouthguard'].every(t => rk.some(x => x.type === t)) && rk.every(x => x.pic === x.type && x.ok && x.h === 24 && !x.pill), 'board (retainers & mouthguards): every card shows its tile picture, 24 px tall, no names (' + rk.length + ' cards)');
+  await p.screenshot({ path: OUT + '/v16-board-retainer.png', clip: { x: 232, y: 60, width: 1128, height: 560 } });
+  // the New case Retainers tile keeps Amir's clear-tray picture (Amir, 4 Oct 2026: "I actually like the picture of the retainer on the tiles")
+  await p.click('.topBar [data-act=newCase]'); await p.waitForSelector('#ncForm');
+  check(await p.evaluate(() => { const t = document.querySelector('#ncForm .tt[data-tile=retainer]'), i = t && t.querySelector('img[data-pic=retainer]'); return !!i && i.complete && i.naturalWidth > 0 && !t.querySelector('img[data-logo]'); }), 'New case: the Retainers tile keeps its clear-tray picture (not the logo)');
+  await p.click('.modal [data-act=closeModal]');
   // Completed and My cases
   await p.click('#nav-done'); await p.waitForSelector('tr.click'); await p.waitForTimeout(200);
   check((await p.locator('tr.click .tlogo img').count()) > 0 || (await p.locator('tr.click .tlogo.nl').count()) > 0 || (await p.locator('tr.click .badge').count()) > 0, 'Completed uses the same marks');

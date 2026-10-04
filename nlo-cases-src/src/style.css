@@ -378,6 +378,9 @@ body.demo #drawer{bottom:31px} body.demo #side{padding-bottom:31px} body.demo #v
    drawn taller so its words show */
 .tlogo.lg-lab-partners img{max-height:30px}
 .tlogo.sm.lg-lab-partners img{max-height:22px}
+/* retainers and mouthguards: the New case tile's picture in place of the name (4 Oct 2026); white JPEGs, so softly rounded */
+.tlogo.tpic img{max-height:34px;border-radius:6px}
+.tlogo.sm.tpic img{max-height:24px;border-radius:4px}
 .tlogo.sm.nl .tsvg{width:20px;height:20px}
 .pickRow{display:flex;flex-wrap:wrap;gap:7px}
 .pick{border:1.5px solid var(--grey-200);border-radius:99px;padding:7px 13px;font-size:13px;font-weight:600;color:var(--grey-700);background:#fff;min-height:38px;text-align:left;line-height:1.25}

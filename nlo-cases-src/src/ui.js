@@ -431,7 +431,7 @@ function renderView() {
   $('#topSlot').innerHTML = topBar();
   v.innerHTML = h;
   if (qSel) { const q = $('#q'); if (q) { q.focus(); const n = q.value.length; try { q.setSelectionRange(Math.min(qSel[0], n), Math.min(qSel[1], n), qSel[2] || 'none'); } catch (e) { } } }
-  phPaint(); savPaint(); logoPaint(v); if (S.view === 'admin') shPaint();
+  phPaint(); savPaint(); logoPaint(v); picPaint(v); if (S.view === 'admin') shPaint();
 }
 /* staff photos (brought in from Staff Hub, kept on the person's roster entry) on every staff avatar */
 function savPaint(root) {
@@ -458,8 +458,13 @@ function typeMark(c, small) {
   const lk = (c.type === 'appliance' || c.type === 'marpe') && LAB_LOGO[labName(c.lab)], ll = lk && typeof LOGOS !== 'undefined' && LOGOS[lk];
   if (ll) { const l = t.l + ' · ' + labName(c.lab);
     return '<span class="' + cls + ' lg-' + esc(lk) + '" title="' + esc(l) + '"><img data-logo="' + esc(lk) + '" width="' + ll.w + '" height="' + ll.h + '" alt="' + esc(l) + '" draggable="false"></span>'; }
+  // retainers and mouthguards: the New case tile's own picture instead of the name (Amir, 4 Oct 2026: "just add the photos on the
+  // tile for retainers and also for mouthguard anywhere that it reads mouthguard or retainer on the open cases or board")
+  const pc = TYPE_PIC.includes(c.type) && typeof PICS !== 'undefined' && PICS[c.type];
+  if (pc) return '<span class="' + cls + ' tpic" title="' + esc(t.l) + '"><img data-pic="' + esc(c.type) + '" width="' + pc.w + '" height="' + pc.h + '" alt="' + esc(t.l) + '" draggable="false"></span>';
   return typeBadge(c);
 }
+const TYPE_PIC = ['retainer', 'mouthguard'];
 /* the scanner in the case's Details: its picture and name, a link to where its scans are (SCAN_SITE) */
 function scanLinkHTML(v) {
   const s = SCAN_SITE[v]; if (!s) return scanIc(v) + esc(v);
@@ -1474,7 +1479,7 @@ function onChange(e) {
   if (t.id === 'oldMonths') { S.oldMonths = Number(t.value) || 3; S.oldOff.clear(); renderView(); return; }
   if (t.id === 'oldNoDate') { S.oldNoDate = t.checked; renderView(); return; }
   if (t.dataset.col) { setColHidden(t.dataset.col, !t.checked); S.colMenu = true; renderView(); return; }
-  if (t.dataset.f === 'delDay') { S.f.delDay = t.value; const lb = $('#listBody'); if (lb) { lb.innerHTML = listBodyHTML(listBase()); phPaint(); savPaint(lb); logoPaint(lb); } return; }
+  if (t.dataset.f === 'delDay') { S.f.delDay = t.value; const lb = $('#listBody'); if (lb) { lb.innerHTML = listBodyHTML(listBase()); phPaint(); savPaint(lb); logoPaint(lb); picPaint(lb); } return; }
   if (t.dataset.f) { S.f[t.dataset.f] = t.value; if (t.dataset.f === 'type') S.f.stage = '';
     // "Delivery on a day…": start on today and open the date picker
     const pickDay = t.dataset.f === 'del' && t.value === 'day'; if (pickDay && !S.f.delDay) S.f.delDay = todayISO();

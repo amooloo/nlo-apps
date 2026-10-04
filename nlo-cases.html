@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-4SXqtcU5e8GQ9WbWcrMguj3FEhGZY3Yv5o9QCYMgASE=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-pD7tonD99P+voGpPySmUtTuA8fk5PL99RIY1ju8iO+M=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO Cases</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -392,6 +392,9 @@ body.demo #drawer{bottom:31px} body.demo #side{padding-bottom:31px} body.demo #v
    drawn taller so its words show */
 .tlogo.lg-lab-partners img{max-height:30px}
 .tlogo.sm.lg-lab-partners img{max-height:22px}
+/* retainers and mouthguards: the New case tile's picture in place of the name (4 Oct 2026); white JPEGs, so softly rounded */
+.tlogo.tpic img{max-height:34px;border-radius:6px}
+.tlogo.sm.tpic img{max-height:24px;border-radius:4px}
 .tlogo.sm.nl .tsvg{width:20px;height:20px}
 .pickRow{display:flex;flex-wrap:wrap;gap:7px}
 .pick{border:1.5px solid var(--grey-200);border-radius:99px;padding:7px 13px;font-size:13px;font-weight:600;color:var(--grey-700);background:#fff;min-height:38px;text-align:left;line-height:1.25}
@@ -3231,7 +3234,7 @@ function renderView() {
   $('#topSlot').innerHTML = topBar();
   v.innerHTML = h;
   if (qSel) { const q = $('#q'); if (q) { q.focus(); const n = q.value.length; try { q.setSelectionRange(Math.min(qSel[0], n), Math.min(qSel[1], n), qSel[2] || 'none'); } catch (e) { } } }
-  phPaint(); savPaint(); logoPaint(v); if (S.view === 'admin') shPaint();
+  phPaint(); savPaint(); logoPaint(v); picPaint(v); if (S.view === 'admin') shPaint();
 }
 /* staff photos (brought in from Staff Hub, kept on the person's roster entry) on every staff avatar */
 function savPaint(root) {
@@ -3258,8 +3261,13 @@ function typeMark(c, small) {
   const lk = (c.type === 'appliance' || c.type === 'marpe') && LAB_LOGO[labName(c.lab)], ll = lk && typeof LOGOS !== 'undefined' && LOGOS[lk];
   if (ll) { const l = t.l + ' · ' + labName(c.lab);
     return '<span class="' + cls + ' lg-' + esc(lk) + '" title="' + esc(l) + '"><img data-logo="' + esc(lk) + '" width="' + ll.w + '" height="' + ll.h + '" alt="' + esc(l) + '" draggable="false"></span>'; }
+  // retainers and mouthguards: the New case tile's own picture instead of the name (Amir, 4 Oct 2026: "just add the photos on the
+  // tile for retainers and also for mouthguard anywhere that it reads mouthguard or retainer on the open cases or board")
+  const pc = TYPE_PIC.includes(c.type) && typeof PICS !== 'undefined' && PICS[c.type];
+  if (pc) return '<span class="' + cls + ' tpic" title="' + esc(t.l) + '"><img data-pic="' + esc(c.type) + '" width="' + pc.w + '" height="' + pc.h + '" alt="' + esc(t.l) + '" draggable="false"></span>';
   return typeBadge(c);
 }
+const TYPE_PIC = ['retainer', 'mouthguard'];
 /* the scanner in the case's Details: its picture and name, a link to where its scans are (SCAN_SITE) */
 function scanLinkHTML(v) {
   const s = SCAN_SITE[v]; if (!s) return scanIc(v) + esc(v);
@@ -4274,7 +4282,7 @@ function onChange(e) {
   if (t.id === 'oldMonths') { S.oldMonths = Number(t.value) || 3; S.oldOff.clear(); renderView(); return; }
   if (t.id === 'oldNoDate') { S.oldNoDate = t.checked; renderView(); return; }
   if (t.dataset.col) { setColHidden(t.dataset.col, !t.checked); S.colMenu = true; renderView(); return; }
-  if (t.dataset.f === 'delDay') { S.f.delDay = t.value; const lb = $('#listBody'); if (lb) { lb.innerHTML = listBodyHTML(listBase()); phPaint(); savPaint(lb); logoPaint(lb); } return; }
+  if (t.dataset.f === 'delDay') { S.f.delDay = t.value; const lb = $('#listBody'); if (lb) { lb.innerHTML = listBodyHTML(listBase()); phPaint(); savPaint(lb); logoPaint(lb); picPaint(lb); } return; }
   if (t.dataset.f) { S.f[t.dataset.f] = t.value; if (t.dataset.f === 'type') S.f.stage = '';
     // "Delivery on a day…": start on today and open the date picker
     const pickDay = t.dataset.f === 'del' && t.value === 'day'; if (pickDay && !S.f.delDay) S.f.delDay = todayISO();
