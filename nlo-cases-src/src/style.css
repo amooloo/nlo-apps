@@ -881,9 +881,12 @@ body.phOff .pav,body.phOff .dPh,body.phOff .phSlot,body.phOff .phTgl,body.phOff 
 .rxInfo{background:var(--navy-100);border-radius:12px;padding:10px 12px;margin-bottom:14px;font-size:13px;color:var(--navy)}
 .rxInfo .small{color:var(--grey-600);margin-top:2px}
 .rxWarn{color:var(--coral-700);background:var(--coral-100);border-radius:8px;padding:6px 9px;margin-top:6px;font-weight:600}
-.rxS{margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--grey-100)}
-.rxS h5,#rxAdmin h5{font-family:var(--fd);font-weight:500;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--grey-500);margin:0 0 8px}
-.rxS h5 .h5n,#rxAdmin h5 .h5n{margin-left:8px;text-transform:none;letter-spacing:0;font-family:var(--fb);font-size:11.5px;color:var(--grey-400)}
+/* each Rx section's heading stands out from the small labels inside it (Amir, 4 Oct 2026: "the different headers for different
+   sections are not really clear, make them larger for all of the Rx") */
+.rxS{margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--grey-200)}
+.rxS h5{font-family:var(--fd);font-weight:600;font-size:15.5px;line-height:1.3;letter-spacing:.06em;text-transform:uppercase;color:var(--navy-900);margin:0 0 10px}
+#rxAdmin h5{font-family:var(--fd);font-weight:500;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--grey-500);margin:0 0 8px}
+.rxS h5 .h5n,#rxAdmin h5 .h5n{margin-left:8px;text-transform:none;letter-spacing:0;font-family:var(--fb);font-size:11.5px;font-weight:500;color:var(--grey-400)}
 .rxBs{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:6px}
 .rxBs:last-child{margin-bottom:0}
 .rxB{display:inline-flex;align-items:center;gap:7px;border:1.5px solid var(--grey-200);border-radius:99px;padding:5px 12px;font-size:12.5px;font-weight:600;color:var(--grey-700);background:#fff;min-height:34px;text-align:left;line-height:1.2}
@@ -952,7 +955,7 @@ body.phOff .pav,body.phOff .dPh,body.phOff .phSlot,body.phOff .phTgl,body.phOff 
 .rxCmpBox[hidden]{display:none}
 /* a section folded under its heading (the Retainer Rx's fixed and invisible retainers): the heading is the button */
 .rxFold h5{display:flex;align-items:center;margin:0}
-.rxFold.open h5{margin-bottom:8px}
+.rxFold.open h5{margin-bottom:10px}
 .rxFoldB{display:flex;align-items:center;flex:1;min-width:0;min-height:32px;margin:-4px -8px;padding:4px 8px;border-radius:8px;letter-spacing:inherit;text-transform:inherit;text-align:left}
 .rxFoldB:hover{background:var(--grey-50);color:var(--grey-700)}
 .rxFoldB:focus-visible{outline:2px solid var(--blue);outline-offset:1px}
@@ -1054,7 +1057,7 @@ svg.rxArch{display:block;width:100%;height:auto}
 .rxB.rxU{justify-content:center;padding:3px 0;min-height:30px;width:44px;border-radius:10px}
 .rxB.rxU[aria-pressed="true"]::before,.rxB.rxRs[aria-pressed="true"]::before{content:none}
 .rxULx,.rxULx.rxSub{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:1px 0 3px}
-.rxULs{font-size:11.5px;font-weight:700;color:var(--navy);margin:10px 0 2px}
+.rxULs{font-size:12.5px;font-weight:700;color:var(--navy);margin:12px 0 3px}
 .rxULs .h5n{font-weight:500;color:var(--grey-400);margin-left:6px}
 .rxF.rxFw{flex:1;min-width:0}
 .rxF.rxFw input{width:100%}
