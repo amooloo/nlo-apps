@@ -4,10 +4,11 @@
    would be on the paper that can be then exported. Also it could be customized more and basic information can be filled
    out" — then "I want diagrams to be drawn on the arches. kinda like how Easy Rx does it" and "add all the prices for all
    different pieces … so it would give me a total pricing at the end".
-   Amir, 4 Oct 2026: "here is the Rx for hawley. do the same" — Specialty's Retainer Rx (MKT-7) works the same way (rxret.js).
-   - This file is what both forms share (the editor, the arches, the paper, the PDF, the estimate, the hooks into New case,
-     Edit, the case and Team & security) and the Herbst Rx itself; rxret.js adds the Retainer Rx. Each form is a "kind"
-     (RXK below): its choices, prices, drawing and words.
+   Amir, 4 Oct 2026: "here is the Rx for hawley. do the same" — Specialty's Retainer Rx (MKT-7) works the same way (rxret.js);
+   then "Next lets use this" — Specialty's Metal Rx (MKT-6) for RPE, MSE and other metal appliances (rxmetal.js).
+   - This file is what the forms share (the editor, the arches, the paper, the PDF, the estimate, the hooks into New case,
+     Edit, the case and Team & security) and the Herbst Rx itself; rxret.js adds the Retainer Rx, rxmetal.js the Metal Rx.
+     Each form is a "kind" (RXK below): its choices, prices, drawing and words.
    - Choices are tapped in the app (New case, Edit, or the case's Rx section). The result is Specialty's own form
      (rxdata.js: their PDF with its fill-in fields taken out), filled in and drawn on, as a PDF made in the browser — no
      library, and nothing leaves this computer. The case keeps the choices (encrypted with the rest of the case), so the
@@ -20,7 +21,7 @@
    ===================================================================== */
 const RX_FORM = 'specialty-herbst', RX_RET = 'specialty-retainer';
 const RXF = RX_FORMS[RX_FORM]; // the Herbst form
-/* the forms: RXK[form id] = what's particular to each (the Herbst at the end of this file, the Retainer in rxret.js) */
+/* the forms: RXK[form id] = what's particular to each (the Herbst at the end of this file, the Retainer in rxret.js, the Metal Rx in rxmetal.js) */
 const RXK = {};
 function rxK(x) { const f = typeof x === 'string' ? x : x && x.form; return RXK[f] || RXK[RX_FORM]; }
 function rxKind(key) { return Object.values(RXK).find(k => k.key === key) || RXK[RX_FORM]; }
@@ -217,7 +218,7 @@ const RX_PRICES = [
   ['ball', 'Ball clasps on the rests, pair (the list prices ball clasps only for removables, $19.25/pr)', null],
   ['awtExt', 'Archwire tubes extended to the 2nd bicuspid', null], ['lugs', 'Lingual seating lugs', null]
 ];
-/* on both forms: Specialty's fee for a case needed in under 10 business days — from their case scheduling page
+/* on every form: Specialty's fee for a case needed in under 10 business days — from their case scheduling page
    (https://specialtyappliances.com/case-scheduling/: "a $95 expedited manufacturing and shipping fee will be applied"),
    not the price list (until 4 Oct 2026 it was unpriced here) */
 const RX_PRICES_BOTH = [['rush', 'Expedited manufacturing and shipping (needed in under 10 business days)', 95.00]];
@@ -251,7 +252,7 @@ const RX_OFFICE0 = { doctor: 'Amir Akhavan, DMD, MS', acct: '', address: '320 NW
 function rxOffice() { const o = (S.settings || {}).rxOffice; return Object.assign({}, RX_OFFICE0, o && typeof o === 'object' ? o : {}); }
 function rxOfficeMissing() { const o = rxOffice(); return [['acct', 'account #'], ['license', 'license #'], ['licExp', 'license expiration']].filter(([k]) => !String(o[k] || '').trim()).map(x => x[1]); }
 
-/* ---------- the Rx on a case (each form in its own field: rx = Herbst, rxRet = Retainer) ---------- */
+/* ---------- the Rx on a case (each form in its own field: rx = Herbst, rxRet = Retainer, rxMet = Metal) ---------- */
 function rxOfK(c, K) { const v = c && c[K.field]; return v && typeof v === 'object' ? v : null; }
 function rxShowsK(c, K) { return !!rxOfK(c, K) || K.applies(c); }
 function rxApplies(c) { return RXK[RX_FORM].applies(c); }
@@ -270,7 +271,7 @@ function rxCanonKit(rx, o) {
     flag: k => { if (rx[k] === true) o[k] = true; }
   };
 }
-/* what both forms keep the same way, last: the dates, the special instructions, the drawings (inside the form's arch area) */
+/* what every form keeps the same way, last: the dates, the special instructions, the drawings (inside the form's arch area) */
 function rxCanonTail(rx, o, F) {
   const str = (v, n) => String(v == null ? '' : v).replace(/\s+/g, ' ').trim().slice(0, n || 60);
   ['needed', 'shipped'].forEach(k => { const v = str(rx[k], 10); if (/^\d{4}-\d{2}-\d{2}$/.test(v)) o[k] = v; });
@@ -361,7 +362,7 @@ function rxFit(s, font, size, maxW) {
   if (rxWidth(s, font, z) > maxW) { while (s.length > 1 && rxWidth(s + '…', font, z) > maxW) s = s.slice(0, -1); s += '…'; }
   return { s, z };
 }
-/* the filled-in form: the header both forms share, then the form's own circles and blanks (K.fill), then the special
+/* the filled-in form: the header every form shares, then the form's own circles and blanks (K.fill), then the special
    instructions; circ = grid labels to ring ([grid, tooth]) */
 /* the special instructions: the sentences the answers write (K.autoNotes), then what was typed */
 function rxNotesAll(rx, K) { K = K || rxK(rx); return [].concat(K.autoNotes ? K.autoNotes(rx) : [], rx.notes ? [rx.notes] : []).join('\n'); }
@@ -748,7 +749,7 @@ function rxOnClick(e) {
     case 'clearDraw': if (!(rx.draw || []).length) break; if (RXE.clearArm > Date.now()) { rx.draw = []; RXE.clearArm = 0; a.textContent = 'Clear drawing'; rxSync(); } else { RXE.clearArm = Date.now() + 3000; a.textContent = 'Tap again to clear'; setTimeout(() => { a.textContent = 'Clear drawing'; }, 3000); } break;
     case 'auto': rx.noAuto = a.checked ? '' : true; rxSync(); break;
     case 'saveDef': { const d = rxCanon(rx); // (the usual is kept with its teeth: the same for most cases of the kind)
-      K.defDrop.concat(['draw', 'needed', 'shipped', 'notes', 'rush', 'noAuto']).forEach(k => delete d[k]); if (K.defClean) K.defClean(d);
+      if (K.defClean) K.defClean(d); K.defDrop.concat(['draw', 'needed', 'shipped', 'notes', 'rush', 'noAuto']).forEach(k => delete d[k]);
       const us = rxUsualOf(K, RXE.c), all = rxDefaultsAll(); all[us[0]] = rxCanon(d);
       act(() => B.saveSettings({ rxDefaults: JSON.stringify(all) }), 'Saved as ' + us[1] + ' — new ' + us[2] + ' start from it'); break; }
     case 'useDef': { const us = rxUsualOf(K, RXE.c), d = rxDefaults(us[0]); if (!d) break; const keep = {}; K.defDrop.concat(['needed', 'shipped', 'notes', 'draw']).forEach(k => { if (rx[k] != null && rx[k] !== '') keep[k] = rx[k]; });
@@ -764,11 +765,13 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('#rxWrap
 function rxFormSecHTML(c) { return rxKinds().map(K => rxFormSecK(c, K)).join('') + '<div class="hint small rxFormHint" id="cf-rxHint" hidden></div>'; }
 function rxFormSecK(c, K) {
   const rx = rxOfK(c, K), id = 'cf-' + K.field, lg = typeof LOGOS !== 'undefined' && LOGOS['lab-specialty'];
-  return '<div class="rxFormSec" id="' + id + 'Sec" data-rxkind="' + K.key + '" hidden><input type="hidden" id="' + id + '" value="' + esc(rx ? JSON.stringify(rxCanon(Object.assign({}, rx, { form: K.form }))) : '') + '">' +
+  // (data-for: the kind of case the Rx was written for — the Metal Rx's RPE / MSE — so a switch can be told apart from a choice)
+  return '<div class="rxFormSec" id="' + id + 'Sec" data-rxkind="' + K.key + '" data-for="' + esc(K.usualOf ? K.usualOf(c) : '') + '" hidden><input type="hidden" id="' + id + '" value="' + esc(rx ? JSON.stringify(rxCanon(Object.assign({}, rx, { form: K.form }))) : '') + '">' +
     '<div class="rxFormHd">' + (lg ? '<img data-logo="lab-specialty" width="' + lg.w + '" height="' + lg.h + '" alt="">' : '') +
     '<div style="flex:1;min-width:220px"><b>' + esc(K.title) + '</b><span class="rxFormSum" id="' + id + 'Sum"></span></div>' +
     '<span class="rxFormBtns"><button type="button" class="btn btn-pri btn-sm" data-rxform="edit" data-kind="' + K.key + '">' + ic('edit', 15) + '<span id="' + id + 'BtnL">Fill out the Rx</span></button>' +
-    '<button type="button" class="btn btn-sec btn-sm" data-rxform="pdf" data-kind="' + K.key + '" title="Open the filled-in form">' + ic('ext', 15) + 'PDF</button></span></div></div>';
+    '<button type="button" class="btn btn-sec btn-sm" data-rxform="pdf" data-kind="' + K.key + '" title="Open the filled-in form">' + ic('ext', 15) + 'PDF</button></span></div>' +
+    '<div class="rxWarn small" id="' + id + 'Warn" hidden></div></div>';
 }
 function rxReadForm(root, K) { K = K || RXK[RX_FORM]; const i = $('#cf-' + K.field, root); if (!i || !i.value) return null; try { return rxCanon(Object.assign(JSON.parse(i.value), { form: K.form })); } catch (e) { return null; } }
 /* the Rx to save with the case: kept while its appliance goes to Specialty ('' otherwise, see FORM_KEYS) */
@@ -776,10 +779,17 @@ function rxFromForm(root, o, form) { const K = rxK(form || RX_FORM), sec = $('#c
 function rxFormRefresh(root, o) {
   // an appliance one of the forms is for, going to another lab: one line saying the form is here for Specialty
   const hint = $('#cf-rxHint', root), off = o.type === 'appliance' && labName(o.lab) !== LAB_SPEC ? rxKinds().filter(K => (o.appliances || []).some(a => K.appl.includes(a))) : [];
-  if (hint) { hint.hidden = !off.length; hint.textContent = off.length ? 'Going to Specialty instead? Tap Specialty Orthodontic Lab and its ' + off.map(K => K.title).join(' and ') + ' fills in from this case.' : ''; }
+  const ts = off.map(K => K.title), names = ts.length > 1 ? ts.slice(0, -1).join(', ') + ' and ' + ts[ts.length - 1] : ts[0];
+  if (hint) { hint.hidden = !off.length; hint.textContent = off.length ? 'Going to Specialty instead? Tap Specialty Orthodontic Lab and its ' + names + (ts.length > 1 ? ' fill' : ' fills') + ' in from this case.' : ''; }
   rxKinds().forEach(K => {
     const id = 'cf-' + K.field, sec = $('#' + id + 'Sec', root); if (!sec) return; const on = K.applies(o); sec.hidden = !on; if (!on) return;
-    const rx = rxReadForm(root, K), e = rx ? rxEstimate(rx, o) : null;
+    let rx = rxReadForm(root, K);
+    // the appliance changed (the Metal Rx: RPE ↔ MSE): an Rx still as it started for the old one starts again for the new one (the
+    // form's reading `o` too, so what's being made follows); one that was changed says it no longer matches
+    const now = K.usualOf ? K.usualOf(o) : '', nx = rx && K.formFix && sec.dataset.for !== now ? K.formFix(o, rx, sec.dataset.for) : null; sec.dataset.for = now;
+    if (nx) { $('#' + id, root).value = JSON.stringify(nx); rx = nx; o[K.field] = nx; }
+    const warn = rx && !rxEmpty(rx) && K.mismatch ? K.mismatch(o, rx) : '', wn = $('#' + id + 'Warn', root); if (wn) { wn.hidden = !warn; wn.textContent = warn; }
+    const e = rx ? rxEstimate(rx, o) : null;
     $('#' + id + 'Sum', root).innerHTML = rx && !rxEmpty(rx) ? esc(rxSummary(rx)) + (e.lines.length ? ' · est. <b>' + money(e.total) + '</b>' : '') : 'Specialty’s form, filled in from this case — tap through it now or later from the case';
     $('#' + id + 'BtnL', root).textContent = rx && !rxEmpty(rx) ? 'Edit the Rx' : 'Fill out the Rx';
     logoPaint(sec);
@@ -791,9 +801,13 @@ function rxFormClick(e, root) {
   const b = e.target.closest('[data-rxform]'); if (!b || !root.contains(b)) return false;
   const K = rxKind(b.dataset.kind), c = rxFormCase(root), cur = rxReadForm(root, K);
   if (b.dataset.rxform === 'pdf') { rxOpenPdf(c, cur || K.start(c)); return true; }
-  rxEditor(c, cur, rx => { $('#cf-' + K.field, root).value = rx ? JSON.stringify(rx) : ''; rxFormRefresh(root, readCaseForm(root)); }, K.form);
+  // (Done: the form follows — its Rx line, and the "what's being made" line, which the Metal Rx can change)
+  rxEditor(c, cur, rx => { $('#cf-' + K.field, root).value = rx ? JSON.stringify(rx) : ''; const sec = $('#cf-' + K.field + 'Sec', root); if (sec && K.usualOf) sec.dataset.for = K.usualOf(readCaseForm(root));
+    if (root._cfRefresh) root._cfRefresh(false); else rxFormRefresh(root, readCaseForm(root)); }, K.form);
   return true;
 }
+/* the "what's being made" line the case's choices give (an appliance case; null for the rest) */
+function rxAutoDetail(c) { return c && c.type === 'appliance' ? autoDetail(Object.assign({ appliances: [] }, c), 'appliance') : null; }
 /* after New case: the Rx is ready to go to Specialty */
 function rxCreatedToast(data) {
   if (!data) return;
@@ -805,9 +819,9 @@ function rxCaseSecsHTML(c, done) { return rxKinds().filter(K => rxShowsK(c, K)).
 function rxCaseSecHTML(c, done) { return rxCaseSecK(c, done, RXK[RX_FORM]); }
 function rxCaseSecK(c, done, K) {
   const rx0 = rxOfK(c, K), rx = rx0 ? rxCanon(Object.assign({}, rx0, { form: K.form })) : null, e = rx ? rxEstimate(rx, c) : null, kd = K.key === 'herbst' ? '' : ' data-kind="' + K.key + '"';
-  const sum = rx ? esc(rxSummary(rx)) + (e.lines.length ? ' · est. <b>' + money(e.total) + '</b>' : '') : '<span class="muted">Not filled in yet</span>';
+  const sum = rx ? esc(rxSummary(rx)) + (e.lines.length ? ' · est. <b>' + money(e.total) + '</b>' : '') : '<span class="muted">Not filled in yet</span>', warn = rx && K.mismatch ? K.mismatch(c, rx) : '';
   const hdBtn = rx ? '<button type="button" class="btn btn-sec btn-sm dsAct" data-act="rxPdf"' + kd + ' title="Download the filled-in Rx">' + ic('download', 14) + 'PDF</button>' : '';
-  const body = rx ? '<div class="rxCase"><div class="rxCaseArch">' + rxArchSVG(rx, { c }) + '</div><div class="rxCaseR"><div class="small">' + esc(rxSummary(rx)) + '</div>' +
+  const body = rx ? (warn ? '<div class="rxWarn small" style="margin-bottom:8px">' + esc(warn) + '</div>' : '') + '<div class="rxCase"><div class="rxCaseArch">' + rxArchSVG(rx, { c }) + '</div><div class="rxCaseR"><div class="small">' + esc(rxSummary(rx)) + '</div>' +
       '<div class="small muted">' + (rxNeeded(c, rx) ? 'Needed by <b>' + esc(fmtDay(rxNeeded(c, rx))) + '</b>' : '<b class="rxNoDate">No date needed yet</b> — add the delivery appt, or a date in the Rx') + (rx.rush ? ' · expedited' : '') + '</div>' + (rxNotesAll(rx, K) ? '<div class="small" style="white-space:pre-wrap">' + esc(rxNotesAll(rx, K)) + '</div>' : '') +
       '<div class="rxCaseCost">' + rxCostHTML(rx, c) + '</div></div></div>' +
       '<div class="pickRow" style="margin-top:10px">' + (done ? '' : '<button type="button" class="btn btn-pri btn-sm" data-act="rxEdit"' + kd + '>' + ic('edit', 15) + 'Edit the Rx</button>') +
@@ -819,7 +833,10 @@ function rxCaseSecK(c, done, K) {
 Object.assign(ADMIN_ACTS, {
   rxEdit(t) { const K = rxKind(t && t.dataset && t.dataset.kind), c = findCase(S.openId); if (!c) return; const id = c.id;
     rxEditor(c, rxOfK(c, K), rx => { const cur = findCase(id); if (!cur) return; const was = rxOfK(cur, K); if (JSON.stringify(rx || '') === JSON.stringify(was ? rxCanon(Object.assign({}, was, { form: K.form })) : '')) return;
-      act(async () => { await B.mutateCase(id, d => { d[K.field] = rx || ''; }, { a: 'edit', fields: [K.field] }); const c2 = findCase(id); if (c2) c2[K.field] = rx || ''; if (S.openId === id && !S.editing && !wtyHold()) { renderDrawer(); loadHistory(id); } }, rx ? K.title + ' saved' : K.title + ' cleared'); }, K.form); },
+      // what's being made follows the Rx (the Metal Rx says what an "Other metal appliance" is) while nobody typed their own
+      const setRx = d => { const a0 = rxAutoDetail(d); d[K.field] = rx || ''; const a1 = rxAutoDetail(d); if (a0 != null && a1 !== a0 && (!d.detail || d.detail === a0)) { d.detail = a1; return true; } return false; };
+      const action = { a: 'edit', fields: [K.field] };
+      act(async () => { await B.mutateCase(id, d => { action.fields = [K.field].concat(setRx(d) ? ['detail'] : []); }, action); const c2 = findCase(id); if (c2) setRx(c2); if (S.openId === id && !S.editing && !wtyHold()) { renderDrawer(); loadHistory(id); } }, rx ? K.title + ' saved' : K.title + ' cleared'); }, K.form); },
   rxPdf(t) { const K = rxKind(t && t.dataset && t.dataset.kind), c = findCase(S.openId), rx = c && rxOfK(c, K); if (rx) rxDownload(c, Object.assign({}, rx, { form: K.form })); },
   rxOpen(t) { const K = rxKind(t && t.dataset && t.dataset.kind), c = findCase(S.openId), rx = c && rxOfK(c, K); if (rx) rxOpenPdf(c, Object.assign({}, rx, { form: K.form })); },
   rxPricesReset() { act(() => B.saveSettings({ rxPrices: '' }), 'Prices back to Specialty’s price list'); },
@@ -837,14 +854,14 @@ function rxAdminCardHTML() {
   const o = rxOffice(), P2 = rxPrices();
   const f = (k, l, ph, wide) => '<div class="field"' + (wide ? ' style="grid-column:1/-1"' : '') + '><label for="rxo-' + k + '">' + l + '</label><input id="rxo-' + k + '" data-rxoff="' + k + '" value="' + esc(o[k] || '') + '"' + (ph ? ' placeholder="' + esc(ph) + '"' : '') + ' autocomplete="off"></div>';
   const sub = t => '<div class="rxPh">' + esc(t) + '</div>';
-  return '<div class="card" style="margin-top:18px" id="rxAdmin"><div class="cardHd"><h3>Lab Rx</h3><span class="sub">Filled in on every Rx for Specialty (Herbst, retainers)</span></div><div class="cardBd">' +
+  return '<div class="card" style="margin-top:18px" id="rxAdmin"><div class="cardHd"><h3>Lab Rx</h3><span class="sub">Filled in on every Rx for Specialty (Herbst, retainers, metal appliances)</span></div><div class="cardBd">' +
     '<div class="grid2">' + f('doctor', 'Doctor') + f('acct', 'Specialty account #', 'Your account number with Specialty') + f('address', 'Address', '', true) + f('city', 'City') +
       '<div class="grid2" style="gap:10px">' + f('state', 'State') + f('zip', 'ZIP') + '</div>' + f('phone', 'Phone') + f('email', 'Email', 'Where Specialty should write') +
       f('license', 'License #', 'Required on the Rx') + f('licExp', 'License expiration (mm/yy)', 'mm/yy') + f('sig', 'Signature line', 'Leave empty to sign by hand', true) + '</div>' +
     '<div class="small muted" style="margin:-2px 0 14px">The signature line prints as typed (e.g. “s/ Amir Akhavan, DMD, MS”); empty leaves the line for a pen.</div>' +
     '<h5 style="margin:6px 0 8px">Prices <span class="h5n">' + esc(RX_PRICE_SRC) + '</span></h5>' +
     rxKinds().map(K => sub(K.title) + rxPriceRows(P2, true, K.prices) + (K.priceNote ? '<div class="small muted" style="margin:6px 0 4px">' + esc(K.priceNote) + '</div>' : '')).join('') +
-    sub('Both forms') + rxPriceRows(P2, true, RX_PRICES_BOTH) + '<div class="small muted" style="margin:6px 0 12px">The expedite fee is from Specialty’s case scheduling page (needed in under 10 business days), not the price list.</div>' +
+    sub('Every form') + rxPriceRows(P2, true, RX_PRICES_BOTH) + '<div class="small muted" style="margin:6px 0 12px">The expedite fee is from Specialty’s case scheduling page (needed in under 10 business days), not the price list.</div>' +
     '<h5 style="margin:6px 0 8px">Not on the price list <span class="h5n">blank = named under the estimate, not added; add a price (e.g. from an invoice) to count it</span></h5>' +
     rxKinds().map(K => { const r = rxPriceRows(P2, false, K.prices); return r ? sub(K.title) + r : ''; }).join('') +
     '<div class="pickRow" style="margin-top:10px"><button type="button" class="btn btn-ghost btn-sm" data-act="rxPricesReset">' + ic('refresh', 15) + 'Back to the price list</button></div>' +

@@ -2,7 +2,7 @@ import pathlib, shutil, sys
 root = pathlib.Path(__file__).parent
 src = root / 'src'
 t = (src / 'template.html').read_text()
-js = '\n'.join((src / f).read_text() for f in ['core.js', 'backend.js', 'demo.js', 'ipr.js', 'ui.js', 'logos.js', 'pics.js', 'caseform.js', 'labels.js', 'admin.js', 'mail.js', 'photos.js', 'rxdata.js', 'rx.js', 'rxret.js', 'warranty.js'])
+js = '\n'.join((src / f).read_text() for f in ['core.js', 'backend.js', 'demo.js', 'ipr.js', 'ui.js', 'logos.js', 'pics.js', 'caseform.js', 'labels.js', 'admin.js', 'mail.js', 'photos.js', 'rxdata.js', 'rx.js', 'rxret.js', 'rxmetal.js', 'warranty.js'])
 js += "\nif (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();\n"
 # the security rules ship inside the page (owner's email left as a placeholder), so Team & security can hand out
 # exactly the rules this version needs when the live ones are older
@@ -38,8 +38,8 @@ if logo: shutil.copy(logo, root / 'dist' / 'logo-white.png')
 # the black NLO logo printed on aligner labels (same image as the Label Maker's)
 lbl = next((p for p in [root.parent / 'nlo-label-logo.png', root / 'nlo-label-logo.png'] if p.exists()), None)
 if lbl: shutil.copy(lbl, root / 'dist' / 'nlo-label-logo.png')
-# the grey pictures of Specialty's blank Herbst and Retainer Rx the app shows under what's filled in (tools/rxforms.py makes them; they sit next to the page)
-for name in ['nlo-cases-rx-herbst.png', 'nlo-cases-rx-retainer.png']:
+# the grey pictures of Specialty's blank Herbst, Retainer and Metal Rx the app shows under what's filled in (tools/rxforms.py makes them; they sit next to the page)
+for name in ['nlo-cases-rx-herbst.png', 'nlo-cases-rx-retainer.png', 'nlo-cases-rx-metal.png']:
     rxp = root.parent / name
     assert rxp.exists(), 'run python3 tools/rxforms.py first'
     shutil.copy(rxp, root / 'dist' / name)

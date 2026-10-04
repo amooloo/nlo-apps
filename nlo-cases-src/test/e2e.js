@@ -540,7 +540,10 @@ async function openByName(p, name) {
   await owner.click('#ncSave'); await owner.waitForSelector('#ncErr .lockErr:has-text("Pick the appliance")', { timeout: 10000 });
   check(await owner.evaluate(() => document.querySelector('#ncForm .pickRow[data-g=appliances]').classList.contains('need')) && await owner.isVisible('#ncForm'), 'an appliance case needs its appliance before it can be created (that row is outlined)');
   await tapAppl('MSE'); check(await labNow() === 'Specialty Orthodontic Lab', 'MSE → Specialty Orthodontic Lab');
-  await tapAppl('MSE'); await tapAppl('Rapid Palatal Expander (RPE)'); check(await labNow() === 'Partners Dental Solutions', 'RPE → Partners Dental Solutions');
+  await tapAppl('MSE'); await tapAppl('Rapid Palatal Expander (RPE)'); check(await labNow() === 'Specialty Orthodontic Lab', 'RPE → Specialty Orthodontic Lab (Amir, 4 Oct 2026: “Switch to Specialty”)');
+  await tapAppl('Rapid Palatal Expander (RPE)'); await tapAppl('Schwartz'); check(await labNow() === 'Partners Dental Solutions', 'Schwartz → Partners Dental Solutions');
+  await tapAppl('Schwartz'); await tapAppl('Other metal appliance'); check(await labNow() === 'Specialty Orthodontic Lab', 'Other metal appliance → Specialty Orthodontic Lab');
+  await tapAppl('Other metal appliance'); await tapAppl('Rapid Palatal Expander (RPE)');
   await tapAppl('MARPE');
   check(await owner.inputValue('#cf-tile') === 'marpe' && (await owner.getAttribute('#ncForm .tt[data-tile=marpe]', 'aria-checked')) === 'true' && await owner.isVisible('.pickRow[data-g=records]'), 'tapping MARPE under Appliance switches the case to the MARPE tile (its own steps)');
   await owner.click('#ncForm .tt[data-tile=appliance]');
@@ -582,18 +585,17 @@ async function openByName(p, name) {
   await owner.fill('#cf-deliveryDate', await owner.evaluate(() => addDays(todayISO(), 30)));
   await owner.click('#ncForm [data-rxform=edit]'); await owner.waitForSelector('#rxWrap .rxArch.live');
   for (const [g, v] of [['design', 'cantilever'], ['mech', 'm4']]) await owner.click('#rxWrap .rxB[data-rxg=' + g + '][data-v="' + v + '"]');
-  for (const id of ['UR6', 'UL6']) await owner.click('#rxArchBox .rxTooth[data-rxt=' + id + ']');
-  await owner.click('#rxWrap .rxB[data-rxg=tool][data-v=crown]');
-  for (const id of ['LR6', 'LL6']) await owner.click('#rxArchBox .rxTooth[data-rxt=' + id + ']');
+  // (since 4 Oct 2026 the design puts bands on its anchor teeth — a cantilever on the upper and lower 6s — and crowns are off for our Herbsts)
+  check(await owner.evaluate(() => JSON.stringify(RXE.rx.teeth)) === '{"UR6":"band","UL6":"band","LR6":"band","LL6":"band"}' && await owner.getAttribute('#rxWrap [data-rxtool=crown]', 'aria-disabled') === 'true', 'the cantilever puts bands on the 6s; crowns are greyed out');
   await owner.fill('#rxWrap [data-rxf=notes]', 'secret-rx-note-5521');
-  check(/\$366\.50/.test(await owner.textContent('#rxTot')), 'estimate: $220.50 + $66.50 + 2 × $18.25 + 2 × $21.50 = $366.50 (with Dr. A’s band price)');
+  check(/\$360\.00/.test(await owner.textContent('#rxTot')), 'estimate: $220.50 + $66.50 + 4 × $18.25 = $360.00 (with Dr. A’s band price)');
   await owner.click('#rxWrap [data-rxa=done]'); await owner.waitForSelector('#rxWrap', { state: 'detached' });
-  check(/Cantilever Herbst · M4 MiniScope · 2 bands, 2 crowns/.test(await owner.textContent('#cf-rxSum')), 'the New case form shows the Rx’s summary');
+  check(/Cantilever Herbst · M4 MiniScope · 4 bands/.test(await owner.textContent('#cf-rxSum')), 'the New case form shows the Rx’s summary');
   await owner.click('#ncSave'); await owner.waitForSelector('#modalWrap', { state: 'detached', timeout: 20000 });
   dump = JSON.stringify(await fsDump());
   check(!dump.includes('secret-rx-note-5521') && !dump.includes('specialty-herbst') && !dump.includes('Herbstwick') && !dump.includes('cantilever'), 'the Rx is stored encrypted with the case (nothing about it readable in the database)');
   await openByName(gwen, 'Hollis Herbstwick'); await gwen.waitForSelector('#drawer [data-ds=rx]', { timeout: 20000 });
-  check(/Cantilever Herbst/.test(await gwen.textContent('#drawer [data-ds=rx] .dsS')) && /\$366\.50/.test(await gwen.textContent('#drawer [data-ds=rx]')), 'Gwen sees the Herbst Rx and its estimate');
+  check(/Cantilever Herbst/.test(await gwen.textContent('#drawer [data-ds=rx] .dsS')) && /\$360\.00/.test(await gwen.textContent('#drawer [data-ds=rx]')), 'Gwen sees the Herbst Rx and its estimate');
   const [rxDl] = await Promise.all([gwen.waitForEvent('download'), gwen.click('#drawer [data-ds=rx] .pickRow [data-act=rxPdf]')]);
   const rxPdf = fs.readFileSync(await rxDl.path()).toString('latin1');
   check(rxDl.suggestedFilename().startsWith('Herbst Rx - Hollis Herbstwick - ') && rxPdf.startsWith('%PDF-') && rxPdf.includes('(TEST-4471)') && rxPdf.includes('(DN 99999)') && rxPdf.includes('(Hollis Herbstwick)'), 'Gwen downloads Specialty’s form filled in (account #, license #, patient)');
@@ -652,6 +654,34 @@ async function openByName(p, name) {
   await owner.waitForFunction(() => { const c = openCases().find(x => x.patient === 'Hazel Hawleywick'); return !!(c && c.noGuarantee === true); }, null, { timeout: 20000 });
   dump = JSON.stringify(await fsDump());
   check(!dump.includes('invDate') && !dump.includes(invD) && !dump.includes('noGuarantee'), 'marked No Guarantee (no warranty); the invoice date and the mark are stored encrypted with the case');
+  await gwen.click('#drawer [data-act=closeDrawer] >> nth=0');
+
+  console.log('\n# Metal Rx for Specialty (Amir, 4 Oct 2026: "Next lets use this"): an RPE in New case, stored encrypted, the PDF for staff');
+  await owner.click('.topBar [data-act=newCase]'); await owner.waitForSelector('#ncForm');
+  await owner.click('#ncForm .tt[data-tile=appliance]'); await owner.fill('#cf-patient', 'Rory Rapidwick');
+  await tapAppl('Rapid Palatal Expander (RPE)');
+  check(await owner.isVisible('#cf-rxMetSec') && await labNow() === 'Specialty Orthodontic Lab' && !(await owner.isVisible('#cf-rxHint')) && !(await owner.isVisible('#cf-rxSec')) && !(await owner.isVisible('#cf-rxRetSec')),
+    'RPE → Specialty: the Metal Rx shows right away (not the Herbst or Retainer Rx)');
+  await owner.fill('#cf-deliveryDate', await owner.evaluate(() => addDays(todayISO(), 30)));
+  await owner.click('#ncForm [data-rxform=edit][data-kind=met]'); await owner.waitForSelector('#rxWrap .rxArch.live');
+  await owner.fill('#rxWrap [data-rxf=notes]', 'secret-met-note-6613');
+  check(/\$185\.00/.test(await owner.textContent('#rxTot')), 'estimate: Hyrax $109 + 2 × 3D printed bands $38 = $185.00 (our expanders start 3D printed)');
+  await owner.click('#rxWrap [data-rxa=done]'); await owner.waitForSelector('#rxWrap', { state: 'detached' });
+  check(/Hyrax RPE · 2 bands \(3D printed\)/.test(await owner.textContent('#cf-rxMetSum')), 'the New case form shows the Metal Rx’s summary');
+  await owner.click('#ncSave'); await owner.waitForSelector('#modalWrap', { state: 'detached', timeout: 20000 });
+  dump = JSON.stringify(await fsDump());
+  check(!dump.includes('secret-met-note-6613') && !dump.includes('specialty-metal') && !dump.includes('Rapidwick') && !dump.includes('hyrax') && !dump.includes('printed3d'), 'the Metal Rx is stored encrypted with the case');
+  await openByName(gwen, 'Rory Rapidwick'); await gwen.waitForSelector('#drawer [data-ds=rxMet]', { timeout: 20000 });
+  check(/Hyrax RPE/.test(await gwen.textContent('#drawer [data-ds=rxMet] .dsS')) && /\$185\.00/.test(await gwen.textContent('#drawer [data-ds=rxMet]')), 'Gwen sees the Metal Rx and its estimate');
+  const [metDl] = await Promise.all([gwen.waitForEvent('download'), gwen.click('#drawer [data-ds=rxMet] .pickRow [data-act=rxPdf]')]);
+  const metPdf = fs.readFileSync(await metDl.path()).toString('latin1');
+  check(metDl.suggestedFilename().startsWith('Metal Rx - Rory Rapidwick - ') && metPdf.startsWith('%PDF-') && metPdf.includes('(TEST-4471)') && metPdf.includes('(Rory Rapidwick)'), 'Gwen downloads Specialty’s Metal Rx filled in (account #, patient)');
+  await gwen.click('#drawer [data-ds=rxMet] [data-act=rxEdit]'); await gwen.waitForSelector('#rxWrap');
+  check(!(await gwen.$('#rxWrap [data-rxa=saveDef]')), 'staff have no “Save as our usual RPE”');
+  await gwen.click('#rxWrap .rxFold[data-fold=acc] .rxFoldB'); // (folded: no accessories yet)
+  await gwen.click('#rxWrap .rxB[data-rxg=awt][data-v=U]'); await gwen.click('#rxWrap [data-rxa=done]');
+  await owner.waitForFunction(() => { const c = openCases().find(x => x.patient === 'Rory Rapidwick'); return !!(c && c.rxMet && (c.rxMet.awt || []).includes('U')); }, null, { timeout: 20000 });
+  check(true, 'Gwen’s archwire tubes reach Dr. A live');
   await gwen.click('#drawer [data-act=closeDrawer] >> nth=0');
 
   console.log('\n# InSmile: digital enhancements instead of refinements');

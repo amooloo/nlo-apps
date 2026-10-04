@@ -511,7 +511,7 @@ function chartNote(c) {
   else if (t.aligner) what = ({ oliv: 'Oliv', angel: 'Angel', invisalign: 'Invisalign', ulab: 'uLab' }[c.type] || t.l) + ' aligners' + (sub ? ' - ' + sub : '');
   else if (c.type === 'insmile') what = 'InSmile braces' + (/^de[123]$/.test(c.initial || '') ? ' - digital enhancement ' + c.initial.slice(2) : c.initial === 'yes' ? ' - initial' : '');
   else if (c.type === 'marpe') what = 'MARPE' + (c.lab ? ' (' + labName(c.lab) + ')' : '');
-  else if (c.type === 'appliance') what = ((c.appliances || []).map(a => a === HAWLEY ? hawleyText(c, true) : a).join(', ') || c.detail || 'appliance') + (c.lab ? ' (' + labName(c.lab) + ')' : '');
+  else if (c.type === 'appliance') what = ((c.appliances || []).map(a => applText(c, a, true)).join(', ') || c.detail || 'appliance') + (c.lab ? ' (' + labName(c.lab) + ')' : '');
   else if (c.type === 'retainer') what = 'retainers' + (c.detail ? ': ' + c.detail : '');
   else if (c.type === 'mouthguard') what = 'a mouthguard' + ((c.arches || []).length ? ' (' + c.arches.join('/') + ')' : '');
   else if (c.type === 'models') what = 'study models';
@@ -863,7 +863,7 @@ async function loadHistory(id) {
   const seq = S.histSeq = (S.histSeq || 0) + 1;
   try { const h = await B.caseLog(id); if (S.openId === id && seq > (S.histShown || 0)) { S.histShown = seq; S.history = h; const el = $('#histBox'); if (el) el.innerHTML = historyHTML(findCase(id)); wtyRefresh(id); } } catch (e) { }
 }
-const FIELD_LABELS = { rx: 'Herbst Rx', rxRet: 'Retainer Rx', invDate: 'invoice date', noGuarantee: 'No Guarantee', photo: 'photo', labRef: 'lab case #', labHold: 'lab hold', planUrl: 'plan link', shipToPatient: 'ship to patient', records: 'records on file', zoomDate: 'Zoom call', zoomTime: 'Zoom call', tracking: 'tracking #', carrier: 'carrier', teeth: 'tooth chart', teethNote: 'tooth chart', chart: 'chart #', titanUrl: 'Titan link', initial: 'initial/refinement', appliances: 'appliance', lab: 'lab', arches: 'arch', retKinds: 'retainer type', goals: 'Dr. A’s instructions', instrPicks: 'Dr. A’s instructions', instrOther: 'Dr. A’s instructions', extras: 'extras', variant: 'case type', type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery appt', deliveryTime: 'appt time', txStart: 'treatment start', txEnd: 'expected removal', acrylic: 'acrylic color', glitter: 'acrylic color', alU: 'aligners', alL: 'aligners', aligners: 'aligners', atTemplates: 'attachment templates', treatArch: 'arches to treat', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes' };
+const FIELD_LABELS = { rx: 'Herbst Rx', rxRet: 'Retainer Rx', rxMet: 'Metal Rx', invDate: 'invoice date', noGuarantee: 'No Guarantee', photo: 'photo', labRef: 'lab case #', labHold: 'lab hold', planUrl: 'plan link', shipToPatient: 'ship to patient', records: 'records on file', zoomDate: 'Zoom call', zoomTime: 'Zoom call', tracking: 'tracking #', carrier: 'carrier', teeth: 'tooth chart', teethNote: 'tooth chart', chart: 'chart #', titanUrl: 'Titan link', initial: 'initial/refinement', appliances: 'appliance', lab: 'lab', arches: 'arch', retKinds: 'retainer type', goals: 'Dr. A’s instructions', instrPicks: 'Dr. A’s instructions', instrOther: 'Dr. A’s instructions', extras: 'extras', variant: 'case type', type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery appt', deliveryTime: 'appt time', txStart: 'treatment start', txEnd: 'expected removal', acrylic: 'acrylic color', glitter: 'acrylic color', alU: 'aligners', alL: 'aligners', aligners: 'aligners', atTemplates: 'attachment templates', treatArch: 'arches to treat', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes' };
 function historyHTML(c) {
   const h = S.history; if (!h) return '<div class="small muted">Loading…</div>'; if (!h.length) return '<div class="small muted">No history yet.</div>';
   const stageName = k => { const s = c && (caseStages(c).find(x => x[0] === k) || flowOf(c).stages.find(x => x[0] === k)); return s ? s[1] : (c && retiredStageLabel(c, k)) || k; };
@@ -955,7 +955,7 @@ function renderDrawer() {
       kv('Assistant', esc(staffName(c.assistant, c.assistantName))) + kv('Scanner', c.scanner ? scanLinkHTML(c.scanner) : '') + kv('Chart #', esc(c.chart || '')) +
       kv('Created', esc((c.createdAt ? fmtWhen(c.createdAt) : '') + (c.createdBy ? ' · ' + firstName(staffName(c.createdBy, '')) : ''))) + kv('Last update', esc(c.updatedAt ? fmtWhen(c.updatedAt) + (c.by ? ' · ' + firstName(staffName(c.by, '')) : '') : '')) +
       '</div>') +
-    // a Herbst or Hawley retainers going to Specialty: their Herbst / Retainer Rx, filled in from the case (rx.js, rxret.js)
+    // a Herbst, Hawley retainers or a metal appliance (RPE, MSE…) going to Specialty: its Herbst / Retainer / Metal Rx, filled in from the case (rx.js, rxret.js, rxmetal.js)
     rxCaseSecsHTML(c, done) +
     // a Specialty case once it has shipped: Specialty's remake deadlines and how to claim one (warranty.js)
     wtySecHTML(c) +
@@ -1050,7 +1050,7 @@ function txGraphSVG(t, marks, p, W, cls) {
 }
 /* what the case is, as badges under the patient's name: arch treated, appliances, lab, kind of submission, extras */
 function caseBadges(c) {
-  return (oneArch(c) ? '<span class="badge t-arch">' + esc(treatArchLabel(oneArch(c))) + '</span>' : '') + (c.appliances || []).map(x => '<span class="badge t-appl">' + (x === HAWLEY ? acrylicSw(c.acrylic) + esc(hawleyText(c)) : esc(x)) + '</span>').join('') +
+  return (oneArch(c) ? '<span class="badge t-arch">' + esc(treatArchLabel(oneArch(c))) + '</span>' : '') + (c.appliances || []).map(x => '<span class="badge t-appl">' + (x === HAWLEY ? acrylicSw(c.acrylic) : '') + esc(applText(c, x)) + '</span>').join('') +
     (c.lab ? '<span class="badge">' + esc(labName(c.lab)) + '</span>' : '') + (c.initial ? '<span class="badge">' + esc(submissionLabel(c.initial)) + '</span>' : '') + (c.extras || []).map(x => '<span class="badge t-retx">' + esc(x) + '</span>').join('');
 }
 /* ---------- the case panel's sections: each folds to one line until it's tapped ----------

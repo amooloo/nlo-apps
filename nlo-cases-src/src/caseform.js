@@ -6,7 +6,7 @@
    ===================================================================== */
 const PICK = {
   // MARPE has its own case type and steps; tapping it here switches the case to the MARPE tile (wireCaseForm)
-  appliances: ['Herbst', 'Space Closing Herbst', 'MARA', 'MSE', 'MARPE', 'Rapid Palatal Expander (RPE)', 'D2 distalizer', 'Finger spring with no labial bow', 'Hawley retainers', 'Schwartz'],
+  appliances: ['Herbst', 'Space Closing Herbst', 'MARA', 'MSE', 'MARPE', 'Rapid Palatal Expander (RPE)', 'D2 distalizer', 'Finger spring with no labial bow', 'Hawley retainers', 'Schwartz', 'Other metal appliance'],
   labs: ['Specialty Orthodontic Lab', 'Partners Dental Solutions', 'In-house (NL Lab)'],
   scanners: ['Allied Star', 'iTero'],
   extras: ['No IPR', 'No elastics'],
@@ -22,18 +22,21 @@ function applNorm(c) {
   return c;
 }
 /* one of these per case (Amir, 4 Oct 2026: "RPE, MSE, MARPE, MARA and HERBST cannot overlap. the other ones can"): tapping one takes
-   off the one already picked; D2, finger spring, Hawleys and Schwartz go with anything */
+   off the one already picked; D2, finger spring, Hawleys, Schwartz and Other metal appliance go with anything */
 const APPL_ONE = ['Herbst', 'Space Closing Herbst', 'MARA', 'MSE', 'MARPE', 'Rapid Palatal Expander (RPE)'];
 /* lab routing from the AISA KB / SOP manual: MSE → Specialty Orthodontic Lab (SOP-CL-020); MARPE → Partners Dental Solutions (SOP-CL-029,
    as Partner Dental Studios — the lab rebranded; Amir, 3 Oct 2026);
-   D2 distalizer → in-house, no outside prescription (lab workflow, Layer 3 exception); Herbst, MARA → Specialty; RPE, Schwartz,
+   D2 distalizer → in-house, no outside prescription (lab workflow, Layer 3 exception); Herbst, MARA → Specialty; Schwartz,
    finger spring → Partners (KB lab routing); Hawley retainers → Specialty (Amir, 4 Oct 2026, with Specialty's Retainer Rx in rxret.js;
-   the KB said Partners) */
+   the KB said Partners); RPE → Specialty (Amir, 4 Oct 2026: "Switch to Specialty", with Specialty's Metal Rx in rxmetal.js; the KB said
+   Partners), and "Other metal appliance" (anything else on the Metal Rx: a TPA, Nance, lingual arch, space maintainer, distalizer,
+   habit appliance…) → Specialty */
 const LAB_SPEC = 'Specialty Orthodontic Lab', LAB_PART = 'Partners Dental Solutions', LAB_IN = 'In-house (NL Lab)';
 /* each lab's logo (logos.js; Amir, 3 Oct 2026): on the Lab choices and, for appliance and MARPE cases, on the board and lists */
 const LAB_LOGO = { [LAB_SPEC]: 'lab-specialty', [LAB_PART]: 'lab-partners', [LAB_IN]: 'nlo' };
 const LAB_FOR = { 'Herbst': LAB_SPEC, 'Herbst with Rollo Band': LAB_SPEC, 'Space Closing Herbst': LAB_SPEC, 'MARA': LAB_SPEC, 'MSE': LAB_SPEC, 'MARPE': LAB_PART,
-  'Rapid Palatal Expander (RPE)': LAB_PART, 'D2 distalizer': LAB_IN, 'Finger spring with no labial bow': LAB_PART, 'Hawley retainers': LAB_SPEC, 'Schwartz': LAB_PART };
+  'Rapid Palatal Expander (RPE)': LAB_SPEC, 'D2 distalizer': LAB_IN, 'Finger spring with no labial bow': LAB_PART, 'Hawley retainers': LAB_SPEC, 'Schwartz': LAB_PART,
+  'Other metal appliance': LAB_SPEC };
 /* Dr. A's instructions: midline and overbite are Maintain / Improve; the rest are picture tiles.
    v = the full instruction saved on the case (same wording as the Tally form), l = the tile's short label.
    AP (Class II / III) was taken off on 3 Oct 2026 (Amir): legacy — its row shows only on a case that already has it */
@@ -79,6 +82,9 @@ function hawleyText(c, note) {
   if (note) return [HAWLEY, arch, col ? col + ' acrylic' : ''].filter(Boolean).join(', ');
   const bits = [arch, col].filter(Boolean); return HAWLEY + (bits.length ? ' (' + bits.join(', ') + ')' : '');
 }
+/* an appliance in words, as the case shows it: Hawley retainers with their arch and color; "Other metal appliance" as what its Metal Rx
+   says it is ("Nance Appliance, Lingual Arch: Lower" — rxmetal.js); note = the chart note's wording */
+function applText(c, a, note) { return a === HAWLEY ? hawleyText(c, note) : a === 'Other metal appliance' ? rxmOtherText(c) : a; }
 const ALIGNER_ONLY_INSTR = ['Aligners are not tracking well', 'Need to change attachment/hooks on one or more teeth', 'Active retention'];
 function goalText(goals) { goals = goals || {}; return GOALS.filter(gl => goals[gl.k]).map(gl => (goals[gl.k] === 'improve' ? 'Improve ' : 'Maintain ') + gl.t); }
 
@@ -216,7 +222,7 @@ function submissionLabel(v) { return v === 'yes' ? 'Initial submission' : v === 
 /* fields added later save '' when empty (not [] or false), so older cases without them don't look edited */
 const FORM_KEYS = ['type', 'patient', 'chart', 'detail', 'stage', 'assignee', 'assistant', 'scanner', 'scanDate', 'labDate', 'deliveryDate', 'deliveryTime', 'aligners',
   'initial', 'appliances', 'lab', 'arches', 'retKinds', 'goals', 'instrPicks', 'instrOther', 'instructions', 'extras', 'teeth', 'cc', 'ipr', 'notes', 'titanUrl', 'alU', 'alL',
-  'shipToPatient', 'records', 'zoomDate', 'zoomTime', 'tracking', 'labRef', 'atTemplates', 'treatArch', 'txStart', 'txEnd', 'acrylic', 'glitter', 'rx', 'rxRet'];
+  'shipToPatient', 'records', 'zoomDate', 'zoomTime', 'tracking', 'labRef', 'atTemplates', 'treatArch', 'txStart', 'txEnd', 'acrylic', 'glitter', 'rx', 'rxRet', 'rxMet'];
 
 /* delivery time: every half hour, 7:00 AM to 7:00 PM (Amir, 2 Oct 2026: "30 mins increments are fine") */
 const HALF_HOURS = Array.from({ length: 25 }, (_, i) => { const m = 7 * 60 + i * 30; return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); });
@@ -471,7 +477,7 @@ function caseFormHTML(c, isNew) {
         '<div class="pickRow" role="group" aria-label="Glitter" data-g="glitter" data-multi="1" style="margin-top:8px"><button type="button" class="pick sm" data-v="yes" aria-pressed="' + !!c.glitter + '">✦ Glitter</button></div></div>' +
       '</div>' +
     '<h5>Lab</h5>' + labRowHTML(withSaved(PICK.labs, labName(c.lab)), labName(c.lab)) + '<div class="hint small" id="cf-labHint" style="margin-top:6px"></div>' +
-      rxFormSecHTML(c) + '</div>' + // Specialty's Herbst Rx (rx.js) and Retainer Rx (rxret.js), filled out from here or later from the case
+      rxFormSecHTML(c) + '</div>' + // Specialty's Herbst Rx (rx.js), Retainer Rx (rxret.js) and Metal Rx (rxmetal.js), filled out from here or later from the case
     // MARPE: the two records the lab needs, and the Zoom call once it's set up
     '<div class="cfSec"' + show('marpe') + '><h5>Records on file <span class="h5n">both have to be on file before it goes to the lab</span></h5>' +
       pickRow('records', MARPE_RECORDS.map(([v, l]) => ({ v, l })), c.records || [], true) +
@@ -602,6 +608,7 @@ function readCaseForm(root) {
   o.instructions = goalText(o.goals).concat(o.instrPicks, o.instrOther ? [o.instrOther] : []).join('; ');
   o.rx = rxFromForm(root, o); // Specialty's Herbst Rx: kept while a Herbst goes to Specialty ('' otherwise, see FORM_KEYS)
   o.rxRet = rxFromForm(root, o, RX_RET); // Specialty's Retainer Rx: kept while Hawley retainers (or a finger spring) go to Specialty
+  o.rxMet = rxFromForm(root, o, RX_MET); // Specialty's Metal Rx: kept while an RPE, MSE or other metal appliance goes to Specialty
   return o;
 }
 /* what's being made, from the taps */
@@ -613,7 +620,7 @@ function autoDetail(o, tile) {
   if (['oliv', 'angel', 'invisalign', 'ulab', 'nla'].includes(tile)) return 'Aligners (' + (tile === 'nla' ? 'In-House' : t.l) + (only ? ', ' + only : '') + ')' + sub;
   if (tile === 'inbrace') return 'InBrace/Brava' + (only ? ' (' + only + ')' : '');
   if (tile === 'insmile') return 'InSmile braces' + (only ? ' (' + only + ')' : '') + (/^de[123]$/.test(o.initial) ? ' – DE' + o.initial.slice(2) : '');
-  if (tile === 'appliance') return o.appliances.map(a => a === HAWLEY ? hawleyText(o) : a).join(', ');
+  if (tile === 'appliance') return o.appliances.map(a => applText(o, a)).join(', ');
   if (tile === 'models') return 'Study models';
   if (tile === 'marpe') return 'MARPE';
   if (tile === 'retainer' || tile === 'mouthguard') {
@@ -634,8 +641,10 @@ function wireCaseForm(root, isNew) {
   const autoIds = ['cf-labDate', 'cf-deliveryDate'];
   autoIds.forEach(id => { const el = $r('#' + id); el.dataset.auto = (isNew && !el.value) ? '1' : '0'; el.addEventListener('input', () => { el.dataset.auto = '0'; }); });
   const det = $r('#cf-detail'); det.addEventListener('input', () => { det.dataset.auto = '0'; });
-  // editing: a "what's being made" line nobody typed (it matches the taps) keeps following the taps, e.g. Upper only
-  if (!isNew && det.dataset.auto !== '1' && det.value && det.value === autoDetail(readCaseForm(root), $r('#cf-tile').value)) det.dataset.auto = '1';
+  // editing: a "what's being made" line nobody typed (it matches the taps — or, for an "Other metal appliance", the taps before its
+  // Metal Rx was filled in) keeps following the taps, e.g. Upper only
+  if (!isNew && det.dataset.auto !== '1' && det.value) { const o0 = readCaseForm(root), tl = $r('#cf-tile').value;
+    if (det.value === autoDetail(o0, tl) || det.value === autoDetail(Object.assign({}, o0, { rxMet: '' }), tl)) det.dataset.auto = '1'; }
   // "Delivery appt" and its time, or "Expected delivery" when it's shipped to the patient (no appointment)
   const syncDel = () => { const sh = $r('#cf-ship'), on = groupOfTile($r('#cf-tile').value) === 'aligner' && !!sh && sh.getAttribute('aria-pressed') === 'true';
     const l = $r('#cf-delLbl'), tm = $r('#cf-deliveryTime'); if (l) l.textContent = on ? 'Expected delivery' : 'Delivery appt'; if (tm) tm.style.display = on ? 'none' : ''; };
@@ -656,7 +665,7 @@ function wireCaseForm(root, isNew) {
     $$('.pickRow[data-g="instrPicks"] .pick', root).forEach(b => { if (ALIGNER_ONLY_INSTR.includes(b.dataset.v)) b.style.display = g === 'braces' ? 'none' : ''; });
     const tw = $r('#cf-titanWrap'); if (tw) tw.style.display = INHOUSE_TILES.includes(tile) ? '' : 'none';
     const hw = $r('#cf-hawleyWrap'); if (hw) hw.hidden = !(g === 'appliance' && o.appliances.includes(HAWLEY));
-    rxFormRefresh(root, o); // the Herbst / Retainer Rx shows once its appliance is going to Specialty
+    rxFormRefresh(root, o); // the Herbst / Retainer / Metal Rx shows once its appliance is going to Specialty
     $$('.pickRow[data-g="initial"] .pick[data-v="' + FIN + '"]', root).forEach(btn => { const on = INHOUSE_TILES.includes(tile); btn.style.display = on ? '' : 'none'; if (!on) btn.setAttribute('aria-pressed', 'false'); });
     const rk = $r('#cf-retKindsWrap'); if (rk) rk.style.display = tile === 'mouthguard' ? 'none' : '';
     syncDel(); syncTx();
@@ -698,6 +707,7 @@ function wireCaseForm(root, isNew) {
     box.innerHTML = alignerTotalHTML(o, true); ensureHist();
   };
   cfEl._alTot = alTot;
+  root._cfRefresh = refresh; // (the Rx editor's Done: the "what's being made" line follows what the Metal Rx says)
   ['cf-patient', 'cf-chart', 'cf-alU', 'cf-alL'].forEach(id => { const el = $r('#' + id); if (el) el.addEventListener('input', alTot); });
   ['cf-patient', 'cf-chart'].forEach(id => { const el = $r('#' + id); if (el) el.addEventListener('input', () => syncTx()); });
   root.addEventListener('click', e => {

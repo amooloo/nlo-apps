@@ -65,6 +65,11 @@ const DEMO = {
     const hw = all.find(c => c.type === 'appliance' && c.stage === 'mfg');
     if (hw) Object.assign(hw, { appliances: [HAWLEY], arches: ['Upper', 'Lower'], acrylic: 'Blue', glitter: true, detail: hawleyText({ arches: ['Upper', 'Lower'], acrylic: 'Blue', glitter: true }), lab: LAB_SPEC, scanner: 'iTero',
       rxRet: { form: 'specialty-retainer', palate: 'horseshoe', designU: 'hawley', designL: 'hawley', teeth: { UR6: 'adams', UL6: 'adams', LR6: 'c', LL6: 'c' }, flrL: 'c3', flrPadsL: 'compEach', flrWireL: 'solid' } });
+    // an RPE going to Specialty with its Metal Rx filled out (rxmetal.js; made-up choices): a Hyrax on 3D printed first molar bands,
+    // with upper archwire tubes
+    const rp = all.find(c => c.type === 'appliance' && c.stage === 'hold');
+    if (rp) Object.assign(rp, { appliances: ['Rapid Palatal Expander (RPE)'], detail: 'Rapid Palatal Expander (RPE)', lab: LAB_SPEC, scanner: 'iTero',
+      rxMet: { form: 'specialty-metal', exp: ['hyrax'], teeth: { UR6: 'band', UL6: 'band' }, printed3d: true, awt: ['U'] } });
     // in-house sets past Export STLs: attachment templates answered (some with, some without)
     all.filter(c => c.type === 'nla' && stageIndex(c) >= FLOWS.inhouse.stages.findIndex(x => x[0] === 'fab')).forEach((c, i) => { c.atTemplates = ['UL', 'none', 'U'][i % 3]; });
     // one arch only: an in-house set for the upper arch, InSmile braces on the lower

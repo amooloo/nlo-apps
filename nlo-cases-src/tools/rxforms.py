@@ -4,10 +4,12 @@
     python3 tools/rxforms.py                      rebuild src/rxdata.js (and the previews) from rx/*-source.pdf
     python3 tools/rxforms.py herbst path/to.pdf   take in a new original of a form (slimmed into rx/), then rebuild
     python3 tools/rxforms.py retainer path/to.pdf
+    python3 tools/rxforms.py metal path/to.pdf
 
 The forms (Specialty Appliances):
   herbst    Herbst Appliance Rx (MKT-005, Rev 3-25; Amir, 3 Oct 2026)
   retainer  Retainer Rx (MKT-7, Rev 2-25; Amir, 4 Oct 2026: "here is the Rx for hawley. do the same")
+  metal     Metal Rx (MKT-6, Rev 10-25; Amir, 4 Oct 2026: "Next lets use this") — expanders, distalizers, holding arches …
 
 For each form it writes:
   rx/specialty-<form>-source.pdf  the form without Illustrator's private data (3.5 MB -> ~250 KB), kept so this can be re-run
@@ -153,6 +155,60 @@ def check_retainer(boxes):
         if abs(x - want) > 1.5: raise SystemExit('%s is at x=%s, not in its %s column (%s)' % (k, x, k[-1], want))
 
 
+# ---------- Metal Rx ----------
+# (several field names carry a trailing "." or an odd word — "Transpalatal Arch Lower." is the TPA, "Screw Tyoe" the screw blank;
+# find_field matches them loosely)
+BOX_M = {
+    'rush': 'Charge Expidited Shipping',
+    'scan.itero': 'iTero', 'scan.carestream': 'Carestream', 'scan.cerec': 'CEREC', 'scan.trios': 'TRIOS', 'scan.medit': 'Medit', 'scan.other': 'Other Scan Type',
+    'exp.hyrax': 'Hyrax RPE', 'exp.haas': 'Haas RPE', 'exp.acrylic': 'Acrylic Bonded', 'exp.deluke': 'DeLuke', 'exp.exspider': 'Exspider', 'exp.lowerFixed': 'Lower Fixed',
+    'exp.qh': 'Quad Helix', 'exp.earch': 'E-Arch', 'exp.warch': 'W-Arch',
+    'dist.pendulum.R': 'Pendulum Right', 'dist.pendulum.L': 'Pendulum Left', 'dist.pendex.R': 'Pendex Right', 'dist.pendex.L': 'Pendex Left',
+    'dist.trex.R': 'T Rex Right', 'dist.trex.L': 'T Rex Left', 'dist.phd.R': 'PHD Right', 'dist.phd.L': 'PHD Left', 'dist.mda.R': 'MDA Right', 'dist.mda.L': 'MDA Left',
+    'dist.rmd.R': 'RMD Right', 'dist.rmd.L': 'RMD Left', 'dist.hsjet.R': 'HorseShoe Jet Right', 'dist.hsjet.L': 'Horseshoe Jet Left',
+    'dist.djet.R': 'Distal Jet Right', 'dist.djet.L': 'Distal Jet Left', 'dist.halterman.R': 'Halterman Right', 'dist.halterman.L': 'Halterman Left',
+    'dist.ipc.R': 'IPC Right', 'dist.ipc.L': 'IPC Left',
+    'hold.tpa': 'Transpalatal Arch Lower', 'hold.lla': 'Lingual Arch Lower', 'hold.nance': 'Nance', 'hold.sm': 'Space Maintainer',
+    'other.habit': 'Habit', 'habit.crib': 'Crib', 'habit.spurs': 'Spurs', 'habit.bluegrass': 'Blue Grass',
+    'other.fbp': 'Fixed Bite Plane', 'other.xbow': 'Xbow', 'other.tandem': 'Tandem',
+    'acc.awt': 'Archwire Tubes', 'awt.U': 'AT Upper', 'awt.L': 'AT lower', 'acc.hg': 'Headgear Tubes', 'acc.lb': 'Lip Bumper', 'acc.sheath': 'Lingual Sheaths',
+    'acc.fm': 'Facemasks Hooks', 'acc.debondHoles': 'Debonding Holes', 'acc.vent': 'Vent Holes', 'acc.roc': 'ROC acc', 'acc.debondWires': 'Debonding Wires', 'acc.color': 'Acrylic Color',
+    'provides': 'SA provides and fits', 'anch.band': 'Bands', 'anch.roc': 'ROCs anch', 'anch.crown': 'Crowns anch', 'anch.onbrace': 'OnBrace Anch',
+    'enclosed': 'Bands or Crowns enclosed', 'printed3d': '3D Printed/Sintered option',
+}
+TEXT_M = {
+    'doctor': 'Doctor', 'acct': 'Acct Numb', 'address': 'Address', 'city': 'City', 'state': 'State', 'zip': 'Zip',
+    'phone': 'Phone', 'email': 'Email', 'patient': 'Patient Name', 'shipped': 'Date Shipped', 'needed': 'Date Needed',
+    'scanOther': 'Other Scan Type Text', 'screw': 'Screw Tyoe', 'smTxt': 'Space Maintainer Text', 'fmTxt': 'Facemask Hooks', 'colorTxt': 'Acrylic color Text',
+    'sig': 'Signature', 'license': 'License Number', 'licExp': 'Expiration',
+}
+
+
+def grid_metal(words, H):
+    """the two tooth grids (anchorage, occlusal rests), 4s to 7s, as on the Herbst Rx but lower on the page"""
+    lab = lambda s: {'7': '7', '6': '6', '5/e': '5', '4/d': '4', 'd/4': '4', 'e/5': '5'}.get(s)
+    grid = {'anch': {}, 'occl': {}}
+    for w in words:
+        if w['x0'] < 415 or w['x1'] > 566: continue
+        y = H - w['bottom']; n = lab(w['text'])
+        if not n or not (225 < y < 335): continue
+        which = 'anch' if y > 280 else 'occl'
+        upper = y > (312 if which == 'anch' else 240)
+        side = 'R' if w['x0'] < 490 else 'L'
+        grid[which][('U' if upper else 'L') + side + n] = [r1(w['x0']), r1(H - w['bottom']), r1(w['x1']), r1(H - w['top'])]
+    for which in grid:
+        if len(grid[which]) != 16: raise SystemExit('grid %s: %d boxes' % (which, len(grid[which])))
+    return grid
+
+
+def check_metal(boxes):
+    """each distalizer's Right circle is in the RIGHT column, its Left in the LEFT column"""
+    for k, (x, y) in boxes.items():
+        if k.startswith('dist.'):
+            want = 164.1 if k.endswith('.R') else 187.6
+            if abs(x - want) > 1.5: raise SystemExit('%s is at x=%s, not in its column (%s)' % (k, x, want))
+
+
 FORMS = {
     'herbst': {
         'id': 'specialty-herbst', 'title': 'Herbst Appliance Rx', 'lab': 'Specialty Appliances', 'rev': 'MKT-005, Rev 3-25',
@@ -166,6 +222,12 @@ FORMS = {
         'src': 'specialty-retainer-source.pdf', 'png': 'nlo-cases-rx-retainer.png', 'box': BOX_R, 'text': TEXT_R, 'grid': grid_retainer,
         'check': check_retainer, 'arch_y': (420, 660), 'split': (236, 258, 276),
         'clip': [414, 141, 164, 218], 'vb': [411, 141, 170, 218],
+    },
+    'metal': {
+        'id': 'specialty-metal', 'title': 'Metal Rx', 'lab': 'Specialty Appliances', 'rev': 'MKT-6, Rev 10-25',
+        'src': 'specialty-metal-source.pdf', 'png': 'nlo-cases-rx-metal.png', 'box': BOX_M, 'text': TEXT_M, 'grid': grid_metal,
+        'check': check_metal, 'arch_y': (400, 640), 'split': (257, 279, 298), 'rl_y': (500, 512),
+        'clip': [419, 152, 146, 240], 'vb': [410, 150, 162, 244],
     },
 }
 
@@ -311,7 +373,8 @@ def build(cfg):
     rl = {}
     for w in words:
         y = H - w['bottom']
-        if w['text'] in ('R', 'L') and 515 < y < 535 and w['x0'] > 400: rl[w['text']] = [r1(w['x0']), r1(w['top']), r1(w['x1']), r1(w['bottom'])]
+        ry0, ry1 = cfg.get('rl_y', (515, 535))
+        if w['text'] in ('R', 'L') and ry0 < y < ry1 and w['x0'] > 400: rl[w['text']] = [r1(w['x0']), r1(w['top']), r1(w['x1']), r1(w['bottom'])]
     if set(rl) != {'R', 'L'}: raise SystemExit('R / L labels: %r' % rl)
 
     # ---------- the template ----------
@@ -385,9 +448,9 @@ def main():
             out.append(int(round(stringWidth(ch, font, 1000))))
         return out
 
-    js = ('/* generated by tools/rxforms.py from Specialty Appliances\' Herbst Rx (MKT-005, Rev 3-25) and Retainer Rx (MKT-7, Rev 2-25)\n'
-          '   — do not edit by hand. Each blank form (fields taken out), where everything on it is (PDF points; the arch outlines\n'
-          '   top-down), and the standard fonts\' widths for fitting text on the lines. */\n'
+    js = ('/* generated by tools/rxforms.py from Specialty Appliances\' Herbst Rx (MKT-005, Rev 3-25), Retainer Rx (MKT-7, Rev 2-25) and\n'
+          '   Metal Rx (MKT-6, Rev 10-25) — do not edit by hand. Each blank form (fields taken out), where everything on it is (PDF\n'
+          '   points; the arch outlines top-down), and the standard fonts\' widths for fitting text on the lines. */\n'
           'const RX_FORMS = {\n' + ',\n'.join('  \'' + f['id'] + '\': ' + json.dumps(f, separators=(',', ':')) for f in forms) + '\n};\n'
           'const RX_FONT_W = ' + json.dumps({'H': widths('Helvetica'), 'B': widths('Helvetica-Bold'), 'T': widths('Times-Italic')}, separators=(',', ':')) + ';\n')
     OUT_JS.write_text(js)

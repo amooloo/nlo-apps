@@ -149,6 +149,7 @@ svg.i{flex:none;display:inline-block;vertical-align:-3px}
 .badge.t-retx{background:var(--coral-100);color:var(--coral-700)}
 .badge.t-misc{background:var(--grey-100);color:var(--grey-600)}
 .badge.t-arch{background:var(--navy);color:#fff} /* one arch only: easy to spot on the case */
+#drawer .badge.t-appl{white-space:normal;max-width:100%} /* an appliance badge can be long (what a Metal Rx says an “Other metal appliance” is): it wraps */
 .due{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:700;border-radius:99px;padding:2px 8px;white-space:nowrap;background:var(--grey-100);color:var(--grey-600)}
 .due.over{background:var(--coral-100);color:var(--coral-700)}
 .due.soon{background:var(--amber-100);color:var(--amber-700)}
@@ -1078,6 +1079,8 @@ svg.rxArch{display:block;width:100%;height:auto}
 .rxTi-reset{border:1.5px dashed currentColor}
 .rxTi-finger,.rxTi-spur{width:auto;height:auto;border-radius:0;font-style:normal;font-size:13px;line-height:1}
 .rxTi-finger::before{content:"\21DD"}.rxTi-spur::before{content:"\2310"}
+/* the Metal Rx's space maintainer tool: a band with its loop */
+.rxTi-sm{width:15px;height:9px;border:2px solid currentColor;border-left-width:4px;border-radius:2px 8px 8px 2px}
 
 /* Specialty's warranty on a case (warranty.js): the invoice date, the deadlines with today's standing, how to claim */
 .wtyInv{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;margin-bottom:10px}
