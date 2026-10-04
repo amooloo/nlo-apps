@@ -59,6 +59,12 @@ async function newCase(p, o) {
   if (o.time) await p.selectOption('#cf-deliveryTime', o.time);
   await p.click('#ncSave'); await p.waitForSelector('#modalWrap', { state: 'detached', timeout: 20000 });
 }
+// when a board card doesn't show up: what the page had (search, view, tab, whether the case is loaded) — for the log
+async function boardDiag(p, name, e) {
+  const d = await p.evaluate(n => ({ q: S.q, qBox: (document.querySelector('#q') || {}).value, view: S.view, tab: S.boardFlow, loaded: Array.from(S.cases.values()).some(c => c.patient === n),
+    toasts: Array.from(document.querySelectorAll('.toast')).map(t => t.textContent) }), name).catch(x => String(x));
+  console.log('BOARD-DIAG ' + name + ' ' + JSON.stringify(d)); throw e;
+}
 async function openByName(p, name) {
   await p.click((await p.isVisible('#nav-list')) ? '#nav-list' : '#mnav-list'); await p.fill('#q', name);
   await p.waitForSelector('tr.click:has-text("' + name + '")', { timeout: 20000 });
@@ -416,7 +422,7 @@ async function openByName(p, name) {
   await owner.click('.pickRow[data-g=goal_midline] .pick[data-v=improve]');
   await owner.click('.pickRow[data-g=goal_ob] .pick[data-v=maintain]');
   await owner.click('.pickRow[data-g=extras] .pick:has-text("No elastics")');
-  await owner.click('.pickRow[data-cc] .pick:has-text("None")');
+  await owner.fill('#cf-cc', 'My bite feels off'); // the patient's own words (Amir, 3 Oct 2026: no CC buttons)
   await owner.click('.pickRow[data-g=scanner] .pick[data-v=iTero]'); // the iTero's drawer (3 Oct 2026)
   check(await owner.inputValue('#cf-detail') === 'Aligners (Oliv) – refinement', 'what’s-being-made fills itself from the taps');
   await owner.click('#ncSave'); await owner.waitForSelector('#modalWrap', { state: 'detached', timeout: 20000 });
@@ -424,6 +430,7 @@ async function openByName(p, name) {
   check(await owner.isVisible('#drawer .txt:has-text("Improve midline; Maintain overbite; Resolve black triangles")'), 'tapped instructions (Maintain/Improve and pictures) saved as text');
   check(await owner.isVisible('#drawer .badge:has-text("No elastics")') && await owner.isVisible('#drawer .badge:has-text("Refinement")'), 'extras and refinement shown on the case');
   check(/Gwen/.test(await owner.textContent('#drawer .kv')), 'assistant saved from a tap');
+  check(await owner.isVisible('#drawer .ccBox:has-text("My bite feels off")') && /from last visit/.test(await owner.textContent('#drawer .ccBox')), 'the patient’s words saved as typed (a refinement: CC from last visit)');
   check(await owner.getAttribute('#drawer a.scanLink', 'href') === 'https://myitero.com/' && /iTero/.test(await owner.textContent('#drawer a.scanLink')), 'the iTero picked from its drawer: the case’s Scanner links to MyiTero');
   await owner.click('#drawer [data-act=edit]'); await owner.waitForSelector('#drawer .cf');
   check((await owner.locator('#drawer .pickRow[data-g=instrPicks] .pick[aria-pressed=true]').count()) === 1
@@ -435,7 +442,7 @@ async function openByName(p, name) {
   check(!(await owner.isVisible('#drawer .txt:has-text("Midline")')), 'un-tapping an instruction removes it');
   await owner.click('#drawer [data-act=closeDrawer] >> nth=0');
   dump = JSON.stringify(await fsDump());
-  check(!dump.includes('Petra Tapform') && !dump.includes('Resolve black'), 'tapped details are encrypted too');
+  check(!dump.includes('Petra Tapform') && !dump.includes('Resolve black') && !dump.includes('My bite feels off'), 'tapped details (and the patient’s words) are encrypted too');
 
   console.log('\n# Finishing aligners: an answer under In-house (it replaced Reset; its own tile until 3 Oct 2026)');
   await owner.click('.topBar [data-act=newCase]'); await owner.waitForSelector('#ncForm');
@@ -667,7 +674,7 @@ async function openByName(p, name) {
   await owner.click('#drawer [data-act=closeDrawer] >> nth=0');
   await owner.click('#nav-board'); await owner.fill('#q', ''); await owner.click('[data-act=flow][data-k=inhouse]');
   const nCard = 'section[aria-label="In fabrication"] .kc:has-text("Nadia Setcount")';
-  await owner.waitForSelector(nCard + ' .kstep:has-text("Export STLs")', { timeout: 15000 });
+  await owner.waitForSelector(nCard + ' .kstep:has-text("Export STLs")', { timeout: 15000 }).catch(e => boardDiag(owner, 'Nadia Setcount', e));
   check(/1 of 7/.test(await owner.textContent(nCard + ' .kstep')), 'board: one In fabrication column; the card shows Export STLs, 1 of 7');
   await owner.click(nCard + ' .adv'); await owner.waitForSelector(nCard + ' .kstep:has-text("Send to printer")', { timeout: 15000 });
   check(/2 of 7/.test(await owner.textContent(nCard + ' .kstep')) && (await owner.locator(nCard + ' .sprog i.d').count()) === 1, 'the arrow moves it one step (Send to printer, 2 of 7)');
@@ -887,7 +894,7 @@ async function openByName(p, name) {
   await owner.evaluate(() => B.createCase({ type: 'oliv', patient: 'Sid Shipboard', stage: 'mfg', shipToPatient: true, deliveryDate: '2026-10-20', comments: [], createdAt: Date.now(), createdBy: meSid() }));
   await owner.fill('#q', ''); await owner.click('#nav-board'); await owner.click('[data-act=flow][data-k=outside]');
   const sidCard = 'section[aria-label="Manufacturing"] .kc:has-text("Sid Shipboard")';
-  await owner.waitForSelector(sidCard, { timeout: 20000 });
+  await owner.waitForSelector(sidCard, { timeout: 20000 }).catch(e => boardDiag(owner, 'Sid Shipboard', e));
   check(await owner.getAttribute(sidCard + ' .adv', 'title') === 'Shipped to the patient — completes the case' && /Expected delivery/.test(await owner.textContent(sidCard + ' .due')), 'board: the arrow says the next step ships and completes it; the chip reads Expected delivery');
   await owner.click(sidCard + ' .adv');
   await owner.waitForSelector('.kc:has-text("Sid Shipboard")', { state: 'detached', timeout: 20000 });

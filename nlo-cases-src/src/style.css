@@ -557,6 +557,9 @@ a.btn{text-decoration:none}
 .pick.rxTile[aria-pressed="true"]::before{content:none}
 .rxTile[aria-pressed="true"]::after{content:"";position:absolute;top:7px;right:7px;width:16px;height:16px;border-radius:50%;background:var(--mint) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4.5 8.3l2.3 2.3 4.7-4.9' fill='none' stroke='%2311203A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/16px no-repeat}
 .rxsvg{width:44px;height:44px}
+/* Amir's pictures on the three tiles (3 Oct 2026), on the white plate; picked = navy tile, the plate ringed in mint */
+.rxTile .iPic{width:84px;height:56px}
+.rxTile[aria-pressed="true"] .iPic{box-shadow:0 0 0 2px var(--mint)}
 .rxTile[aria-pressed="true"] .rxsvg{--line:var(--navy-900);--acc:var(--mint)}
 .noattScope{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin:0 0 12px;padding:10px 12px;border-radius:12px;background:var(--grey-50);border:1px solid var(--grey-100)}
 .noattScope[hidden]{display:none}
@@ -803,11 +806,11 @@ body.phOff .pav,body.phOff .dPh,body.phOff .phSlot,body.phOff .phTgl,body.phOff 
    lifts and its picture pops with a little wiggle. Only with a mouse (not on touch screens) and not for "reduce motion". */
 @keyframes tilePop{0%{transform:scale(1) rotate(0)}30%{transform:scale(1.09) rotate(-4deg)}60%{transform:scale(1.05) rotate(3deg)}100%{transform:scale(1.06) rotate(0)}}
 @media (hover:hover) and (prefers-reduced-motion:no-preference){
-  .tt,.pick.itile,.pick.scanPick,.sTile,.tile{transition:border-color .12s var(--ease),background .12s var(--ease),box-shadow .25s var(--ease),transform .3s cubic-bezier(.28,1.55,.5,1)}
-  .tt:hover,.pick.itile:hover,.pick.scanPick:hover,.sTile:hover{transform:translateY(-3px);box-shadow:0 10px 18px -10px rgba(17,32,58,.45)}
+  .tt,.pick.itile,.pick.scanPick,.rxTile,.sTile,.tile{transition:border-color .12s var(--ease),background .12s var(--ease),box-shadow .25s var(--ease),transform .3s cubic-bezier(.28,1.55,.5,1)}
+  .tt:hover,.pick.itile:hover,.pick.scanPick:hover,.rxTile:hover,.sTile:hover{transform:translateY(-3px);box-shadow:0 10px 18px -10px rgba(17,32,58,.45)}
   .tile:hover{transform:translateY(-3px)}
-  .tt:active,.pick.itile:active,.pick.scanPick:active,.sTile:active,.tile:active{transform:translateY(-1px) scale(.98);transition-duration:.08s}
-  .tt:hover .tmed>*,.pick.itile:hover .isvg,.pick.itile:hover .iPic img,.sTile:hover .av{animation:tilePop .6s cubic-bezier(.3,1.3,.5,1) both}
+  .tt:active,.pick.itile:active,.pick.scanPick:active,.rxTile:active,.sTile:active,.tile:active{transform:translateY(-1px) scale(.98);transition-duration:.08s}
+  .tt:hover .tmed>*,.pick.itile:hover .isvg,.pick.itile:hover .iPic img,.rxTile:hover .iPic img,.sTile:hover .av{animation:tilePop .6s cubic-bezier(.3,1.3,.5,1) both}
   .tile:hover .n{animation:tilePop .6s cubic-bezier(.3,1.3,.5,1) both;transform-origin:0 70%}
 }
 @media (prefers-reduced-motion:reduce){ .scanWand{transition:none} .tile:hover{transform:none} }

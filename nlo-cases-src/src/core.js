@@ -95,26 +95,17 @@ const SCANNERS = ['Allied Star', 'iTero', 'Other'];
 /* Stages that need the doctor, and stages where the case is in fabrication. */
 const DR_STAGES = ['dra', 'txp', 'todo', 'review'];
 const FAB_STAGES = ['mfg', 'fab', 'send', 'print', 'thermo', 'trim', 'polish', 'wash', 'submitted', 'approved'];
-/* the patient's chief concern (Amir, 3 Oct 2026: the buttons, learned from what was typed most, "kinda doesn't make sense …
-   'this is initial' is one of them"; he picked a fixed list to tap — several at once, typing still works — the first set asking
-   for the chief concern and later sets for the CC from last visit, and older text like "This is initial" not shown) */
-const CC_PICKS = ['Spaces/gaps', 'Crowding', 'Front teeth', 'Rotated tooth', 'Deep bite', 'Overjet', 'Crossbite', 'Midline', 'Black triangles', 'Bite feels off', 'Aligners not fitting'];
-const CC_ALIGNER_ONLY = ['Aligners not fitting'];
+/* the patient's chief concern, written down in the patient's own words (Amir, 3 Oct 2026, evening: "take out all the options and
+   just write in exactly what they say, for example, my bite is not right"; that morning it had become a fixed list to tap,
+   replacing buttons learned from whatever was typed most, like "This is initial"). A first set asks for the chief concern,
+   later sets for the CC from last visit; older text that was never a concern ("This is initial") isn't shown */
 const CC_NOTE = /^(this is (an? )?|it'?s (an? )?|pt is )?(initial|first|new)( (set|case|submission|scan|start|tx|treatment|aligners?))?[.!]*$/i;
-/* what a case shows as its CC: '' for nothing (or a note that was never a concern, like "This is initial"), 'None', or the text */
-function ccShown(c) { const t = String((c && c.cc) || '').trim(); return !t || CC_NOTE.test(t) ? '' : /^(none|n\/a|na|-)$/i.test(t) ? 'None' : t; }
+const CC_NONE = /^(none|n\/a|na|-|no concerns?|nothing)\.?$/i;
+/* what a case shows as its CC: '' for nothing (or a note that was never a concern, like "This is initial"), 'None', or the words */
+function ccShown(c) { const t = String((c && c.cc) || '').trim(); return !t || CC_NOTE.test(t) ? '' : CC_NONE.test(t) ? 'None' : t; }
 /* a later set (refinement, mid-course, finishing, an InSmile DE) asks for the CC from last visit; a first set for the chief concern */
 function ccLater(c) { return !!c && (c.initial === 'no' || c.initial === 'mid' || c.variant === 'finishing' || /^de\d$/.test(c.initial || '')); }
 function ccTitle(c) { return ccLater(c) ? 'Patient’s CC from last visit' : 'Patient’s chief concern'; }
-/* the tapped/typed list: tapping a concern adds or removes it, None stands alone */
-function ccItems(t) { return String(t || '').split(/\s*[,;]\s*/).map(x => x.trim()).filter(Boolean); }
-function ccToggle(t, item) {
-  const items = ccItems(t), none = x => /^(none|n\/a|na|-)$/i.test(x);
-  if (item === 'None') return items.length === 1 && none(items[0]) ? '' : 'None';
-  const rest = items.filter(x => !none(x)), i = rest.findIndex(x => x.toLowerCase() === item.toLowerCase());
-  if (i >= 0) rest.splice(i, 1); else rest.push(item);
-  return rest.join(', ');
-}
 /* MARPE: both records have to be on file before the case goes to the lab (Amir, 2 Oct 2026) */
 const MARPE_RECORDS = [['stl', 'STL scan', 'STL'], ['cbct', 'CBCT (upper & lower jaws)', 'CBCT']];
 function recordsMissing(c) { const r = c.records || []; return MARPE_RECORDS.filter(([k]) => !r.includes(k)); }

@@ -2,7 +2,8 @@
 // tiles (deep curve of Spee, open bite, IPR lower, tooth size discrepancy — IPR to correct OJ, posterior crossbite), the Retainers
 // picture with a green check for Active retention; the Maintain/Improve rows kept (Midline and Overbite get his pictures). Then:
 // "remove AP correction and change attachment. Also … change tooth size discrepancy to Upper IPR" — a case that already has
-// AP or Change attachments keeps them (shown when it's edited); then "IPR lower" became "Lower IPR" to match — demo
+// AP or Change attachments keeps them (shown when it's edited); then "IPR lower" became "Lower IPR" to match; and his pictures
+// for No IPR, No attachments and No elastics — demo
 const { chromium } = require('playwright');
 const { routes, watch, panelsOpen } = require('./helpers');
 const OUT = process.argv[2] || 'shots';
@@ -24,6 +25,17 @@ const OUT = process.argv[2] || 'shots';
   check(st.tiles.join('|') === 'Close spaces=instr-spaces|Black triangles=instr-bt|Upper IPR=instr-tsd|Lower IPR=instr-iprlower|Deep curve of Spee=instr-spee|Open bite=instr-openbite|Posterior crossbite=instr-xbite|Settle posteriors=instr-postob|No posterior movement=instr-lock|Not tracking=instr-track|Active retention=instr-retain', 'every tile has Amir’s picture (loaded); Upper IPR keeps the tooth size discrepancy one');
   const plate = await p.$eval('#ncForm .pick.itile .iPic', e => { const s = getComputedStyle(e); return { bg: s.backgroundColor, w: Math.round(e.getBoundingClientRect().width), h: Math.round(e.getBoundingClientRect().height) }; });
   check(plate.bg === 'rgb(255, 255, 255)' && plate.w === 76 && plate.h === 56, 'the pictures sit on a white plate (76 × 56) like the case-type pictures');
+  // No IPR / No attachments / No elastics (Amir, 3 Oct 2026: "use these icons for no attachment, no IPR and no elastics")
+  const rx = await p.evaluate(() => Array.from(document.querySelectorAll('#ncForm .rxGrid .rxTile')).map(t => { const i = t.querySelector('.iPic img'); return t.querySelector('b').textContent + '=' + (i ? i.dataset.pic + (i.complete && i.naturalWidth > 0 ? '' : '!') : 'drawing'); }).join('|'));
+  check(rx === 'No IPR=rx-noipr|No attachments=rx-noatt|No elastics=rx-noelastic', 'No IPR, No attachments and No elastics show Amir’s pictures, loaded (' + rx + ')');
+  const rxPlate = await p.$eval('#ncForm .rxGrid .rxTile .iPic', e => { const r = e.getBoundingClientRect(); return { bg: getComputedStyle(e).backgroundColor, w: Math.round(r.width), h: Math.round(r.height) }; });
+  check(rxPlate.bg === 'rgb(255, 255, 255)' && rxPlate.w === 84 && rxPlate.h === 56, 'on a white plate (84 × 56)');
+  await p.click('#ncForm .rxGrid .pick[data-v="No IPR"]'); await p.click('#ncForm .rxGrid .pick[data-v="No elastics"]'); await p.mouse.move(5, 5); await p.waitForTimeout(400);
+  const rxOn = await p.$eval('#ncForm .rxGrid .pick[data-v="No IPR"]', t => ({ pressed: t.getAttribute('aria-pressed'), bg: getComputedStyle(t).backgroundColor, ring: getComputedStyle(t.querySelector('.iPic')).boxShadow }));
+  check(rxOn.pressed === 'true' && rxOn.bg === 'rgb(27, 47, 76)' && /100, 244, 201/.test(rxOn.ring), 'picked: the tile turns navy and its picture is ringed in mint (' + JSON.stringify(rxOn) + ')');
+  await (await p.$('#ncForm .rxGrid')).evaluate(e => e.scrollIntoView({ block: 'center' })); await p.mouse.move(5, 5); await p.waitForTimeout(400);
+  await (await p.$('#ncForm .rxGrid')).screenshot({ path: OUT + '/v29-rx.png' });
+  await p.click('#ncForm .rxGrid .pick[data-v="No IPR"]'); await p.click('#ncForm .rxGrid .pick[data-v="No elastics"]');
   // picking: new tiles save their wording; the picked plate gets the mint ring
   for (const v of ['Lower IPR', 'Upper IPR', 'Level deep curve of Spee', 'Correct open bite', 'Correct posterior crossbite']) await p.click('#ncForm .pickRow[data-g=instrPicks] .pick[data-v="' + v + '"]');
   check(await p.$eval('#ncForm .pick[data-v="Correct open bite"] .iPic', e => getComputedStyle(e).boxShadow.includes('100, 244, 201')), 'a picked tile: navy, its picture ringed in mint');

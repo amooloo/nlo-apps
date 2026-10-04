@@ -241,7 +241,7 @@ function enterApp() {
       up.forEach(c => { c.stage = liveStage(c); const p = S.pend && S.pend[c.id]; if (p) { c.stage = p.to; if (p.extra) Object.assign(c, p.extra); } S.cases.set(c.id, c); }); gone.forEach(id => S.cases.delete(id));
       const first = S.firstLoad; S.firstLoad = false; queueRender();
       if (first) setTimeout(mailSync, 300); // lab emails that came in while nobody had the app open
-      if (S.openId && (up.some(c => c.id === S.openId) || gone.includes(S.openId))) refreshDrawer(gone.includes(S.openId));
+      if (S.openId && (up.some(c => c.id === S.openId) || gone.includes(S.openId))) { const rd = () => { if (S.openId) refreshDrawer(gone.includes(S.openId)); }; if (!afterPress(rd)) rd(); }
     },
     inbox() { mailSync(); },
     mailbeat(list) { if (MAILS.state) MAILS.state.beats = list; if (S.view === 'admin') queueRender('team'); },
@@ -339,11 +339,27 @@ function counts() {
 /* ---------- rendering ---------- */
 /* live updates redraw data screens only; Team & security redraws for team/settings changes;
    screens holding typed input (import, account) keep their state */
+/* a press in progress (mouse button or finger down) holds live redraws until its click has gone through: a redraw between press
+   and release replaced the button under the pointer, and the click did nothing (found 3 Oct 2026 — now and then a board tab,
+   a board arrow or a case's step ignored a click because someone's change arrived that instant). A press longer than 2 s
+   (a drag, a scrollbar) doesn't hold anything. */
+const PRESS = { down: false, at: 0, waiting: [], timer: 0 };
+function afterPress(fn) {
+  if (!PRESS.down || Date.now() - PRESS.at > 2000) return false;
+  if (!PRESS.waiting.length) PRESS.timer = setTimeout(flushPress, 2100);
+  PRESS.waiting.push(fn); return true;
+}
+function flushPress() { clearTimeout(PRESS.timer); PRESS.waiting.splice(0).forEach(f => f()); }
+function pressEnd() { if (!PRESS.down) return; PRESS.down = false; if (PRESS.waiting.length) { clearTimeout(PRESS.timer); PRESS.timer = setTimeout(flushPress, 100); } }
+document.addEventListener('pointerdown', () => { PRESS.down = true; PRESS.at = Date.now(); }, true);
+['pointerup', 'pointercancel'].forEach(t => document.addEventListener(t, pressEnd, true));
+window.addEventListener('blur', pressEnd);
 function queueRender(kind) {
   S.renderKinds = (S.renderKinds || new Set()); S.renderKinds.add(kind || 'cases');
   if (S.renderQ) return; S.renderQ = true;
   requestAnimationFrame(() => {
     S.renderQ = false; if (!S.inApp) return;
+    if (afterPress(() => queueRender())) return; // a click is half done: redraw once it's through (see PRESS)
     // someone is typing in a box on this screen (e.g. the aligner cost in Team & security): wait until they leave it, so a
     // live update arriving that moment doesn't redraw the box and lose what they typed
     const ae = document.activeElement;
@@ -398,7 +414,10 @@ function topBar(extra) {
     (extra || '') + (['today', 'board', 'list', 'mine', 'done'].includes(S.view) && phAny() ? phHideBtn() : '') + '<button class="btn btn-teal" data-act="newCase">' + ic('plus', 16) + 'New case</button></div>';
 }
 function renderView() {
-  const v = $('#view'); const active = document.activeElement && document.activeElement.id === 'q';
+  // the search box keeps its cursor and selection through a redraw (it used to jump to the end, so a live update landing just
+  // after someone selected their search to replace it made the next key add to it instead; found 3 Oct 2026)
+  const v = $('#view'), qa = document.activeElement && document.activeElement.id === 'q' ? document.activeElement : null;
+  const qSel = qa ? [qa.selectionStart, qa.selectionEnd, qa.selectionDirection] : null;
   let h = '';
   if (S.view === 'today') h = viewToday();
   else if (S.view === 'board') h = viewBoard();
@@ -410,7 +429,7 @@ function renderView() {
   else if (S.view === 'account') h = viewAccount();
   $('#topSlot').innerHTML = topBar();
   v.innerHTML = h;
-  if (active) { const q = $('#q'); q.focus(); q.setSelectionRange(q.value.length, q.value.length); }
+  if (qSel) { const q = $('#q'); if (q) { q.focus(); const n = q.value.length; try { q.setSelectionRange(Math.min(qSel[0], n), Math.min(qSel[1], n), qSel[2] || 'none'); } catch (e) { } } }
   phPaint(); savPaint(); logoPaint(v); if (S.view === 'admin') shPaint();
 }
 /* staff photos (brought in from Staff Hub, kept on the person's roster entry) on every staff avatar */
@@ -506,7 +525,7 @@ function chartNote(c) {
   if (rx.length) L.push(rx.map(end).join(' '));
   if (c.teethNote) L.push(c.teethNote.split('\n').map(end).join(' '));
   if (c.ipr && c.ipr.trim()) L.push('IPR & spacing: ' + c.ipr.trim());
-  const ccv = ccShown(c); if (ccv && ccv !== 'None') L.push("Pt's CC: " + end(ccv));
+  const ccv = ccShown(c); if (ccv && ccv !== 'None') L.push("Pt's CC: " + (/[.!?]["”’']?$/.test(ccv) ? ccv : end(ccv))); // the patient's words, their own ending kept
   if (c.shipToPatient) L.push('Aligners to be shipped to the patient.');
   return L.join('\n').replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[–—]/g, '-');
 }
