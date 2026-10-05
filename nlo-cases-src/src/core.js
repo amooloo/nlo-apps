@@ -295,6 +295,9 @@ function trackInfo(num, carrier) {
 }
 /* a case can carry more than one number (spaces, commas or new lines between them) */
 function trackList(c) { return String((c && c.tracking) || '').split(/[\s,;]+/).map(x => trackInfo(x, c.carrier)).filter(Boolean); }
+/* a short fingerprint of a case's Notes text: who wrote the Notes (notesBy / notesAt) counts only while its notesH matches the
+   text, so a change made by an older copy of the app (which doesn't record who) doesn't keep the earlier writer's name */
+function noteHash(t) { t = String(t || '').trim(); let h = 2166136261; for (let i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); }
 function fmtWhen(ms) { if (!ms) return ''; const d = new Date(ms); return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ', ' + d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }); }
 function initials(name) { const p = String(name || '').trim().split(/\s+/).filter(Boolean); if (!p.length) return '?'; return (p[0][0] + (p.length > 1 ? p[p.length - 1][0] : '')).toUpperCase(); }
 function slug(s) { return String(s || '').toLowerCase().normalize('NFKD').replace(/[^\w.\-]+/g, '').replace(/_/g, '').slice(0, 30); }
@@ -480,6 +483,7 @@ function caseFromAsana(t, projectName, roster) {
     scanDate: iso(n.scanDate), labDate: iso(n.labDate), deliveryDate: iso(n.deliveryDate) || iso(t.due),
     scanner: n.scanner || '', assistant: findStaff(n.assistant) || '', assistantName: findStaff(n.assistant) ? '' : (n.assistant || ''),
     instructions: n.instructions || '', cc: n.cc || '', ipr: n.ipr || '', notes: n.rest || '',
+    notesBy: n.rest ? 'asana' : '', notesAt: n.rest ? Date.now() : 0, notesH: n.rest ? noteHash(n.rest) : '',
     comments: [], src: { asana: String(t.gid || '') }, importedAt: Date.now(),
     _done: !!t.completed, _closedAt: t.completedAt ? Date.parse(t.completedAt) || null : null
   };

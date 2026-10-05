@@ -992,6 +992,7 @@ function newCaseModal() {
         if (needs.includes('zoom')) return err('Add the Zoom call date to start it at Zoom call scheduled.');
         if (needs.includes('aligners') && alignersMissing(data)) return err('Enter ' + alAskText(data) + ' and pick Attachment templates to start it at ' + stageLabel(data) + '.');
         Object.assign(data, { comments: [], createdAt: Date.now(), createdBy: meSid() });
+        if (String(data.notes || '').trim()) notesStamp(data, data.createdAt); // who wrote the Notes (the list's Notes column)
         if (data.txStart || data.txEnd) data.txAt = Date.now();
         busyBtn($('#ncSave', w), true, 'Saving…');
         try {

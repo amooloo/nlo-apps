@@ -41,7 +41,7 @@ const OUT = process.argv[2] || 'shots';
   check(!(await p.$$eval('thead th', t => t.map(x => x.textContent.trim()))).includes('Type') && (await p.locator('tr.click .tlogo').count()) === 0, 'Completed: Type hidden too (it has its own Columns button)');
   // Show all
   await p.click('#nav-list'); await p.click('.colBtn'); await p.click('.colMenu [data-act=showCols]'); await p.waitForTimeout(150);
-  check((await heads()).length === 9, 'Show all brings every column back'); // Lab date + Delivery appt + Tx progress since 4 Oct 2026 (Tx cost is optional)
+  check((await heads()).length === 10, 'Show all brings every column back'); // Lab date + Delivery appt + Tx progress since 4 Oct 2026, Notes since 5 Oct (Tx cost is optional)
   // Undo on the toast
   await p.click('#listBody th [data-act=hideCol][data-k=who]'); await p.waitForTimeout(100);
   await p.click('.toast [data-act], .toast button'); await p.waitForTimeout(150);

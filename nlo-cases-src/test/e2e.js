@@ -1117,6 +1117,31 @@ async function openByName(p, name) {
   check(true, 'Back to the suggested wording: Gwen’s note follows');
   await gwen.click('#drawer [data-act=closeDrawer] >> nth=0'); await gwen.fill('#q', ''); await owner.click('#nav-today');
 
+  console.log('\n# Notes column: the latest note and who wrote it (Amir, 5 Oct 2026: "I wrote a note for a pt. Sent to printing, it should show there and who wrote it")');
+  const RR = 'tr.click:has-text("Rory Refinewell")';
+  await openByName(owner, 'Rory Refinewell');
+  await owner.fill('#cmtText', 'Sent to printing'); await owner.click('[data-act=addCmt]');
+  await owner.waitForSelector('#drawer .cmt:has-text("Sent to printing")', { timeout: 20000 });
+  await owner.click('#drawer [data-act=closeDrawer] >> nth=0');
+  await gwen.click('#nav-list'); await gwen.fill('#q', 'Rory Refinewell');
+  await gwen.waitForSelector(RR + ' td.noteCol:has-text("Sent to printing")', { timeout: 20000 });
+  check(/^Dr\. A · /.test(await gwen.textContent(RR + ' td.noteCol .nBy')), 'Gwen’s list shows Dr. A’s note “Sent to printing”, with his name');
+  await gwen.click(RR); await gwen.waitForSelector('#drawer .dsList'); await gwen.click('#drawer [data-act=edit]'); await gwen.waitForSelector('#cf-notes');
+  await gwen.fill('#cf-notes', 'Bag is on Sarah’s desk'); await gwen.click('[data-act=saveEdit]');
+  await gwen.waitForSelector('#drawer #dNoteBy:has-text("Gwen")', { timeout: 20000 });
+  check(true, 'Gwen writes the Notes (Edit): the case says she wrote it');
+  await gwen.click('#drawer [data-act=closeDrawer] >> nth=0');
+  await owner.click('#nav-list'); await owner.fill('#q', 'Rory Refinewell');
+  await owner.waitForSelector(RR + ' td.noteCol:has-text("Bag is on Sarah")', { timeout: 20000 });
+  check(/^Gwen · /.test(await owner.textContent(RR + ' td.noteCol .nBy')), 'Dr. A’s list follows: the newer note, Gwen’s');
+  // a Notes saved without a name (as an older copy of the app would): the name comes from the case's sealed history
+  await gwen.evaluate(async () => { const c = openCases().find(x => x.patient === 'Rory Refinewell');
+    await B.mutateCase(c.id, d => { d.notes = 'Lab called about the bite'; d.notesBy = ''; d.notesAt = 0; d.notesH = ''; }, { a: 'edit', fields: ['notes'] }); });
+  await owner.waitForSelector(RR + ' td.noteCol:has-text("Lab called about the bite")', { timeout: 20000 });
+  await owner.waitForSelector(RR + ' td.noteCol .nBy:has-text("Gwen")', { timeout: 20000 }).catch(() => {});
+  check(/^Gwen · /.test(await owner.textContent(RR + ' td.noteCol .nBy')), 'a Notes saved without a name: found in the case’s history (Gwen)');
+  await owner.fill('#q', ''); await gwen.fill('#q', ''); await owner.click('#nav-today');
+
   console.log('\n# Email updates: the script in a Gmail account → the app updates cases');
   await owner.evaluate(async () => {
     const mk = o => B.createCase(Object.assign({ comments: [], createdAt: Date.now(), createdBy: meSid() }, o));

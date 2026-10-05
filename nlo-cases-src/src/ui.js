@@ -906,7 +906,7 @@ function applyFilters(list) {
 function sortList(list) {
   const { k, dir } = S.sort;
   const val = c => k === 'patient' ? String(c.patient || '').toLowerCase() : k === 'type' ? typeOf(c).l : k === 'stage' ? stageIndex(c) : k === 'who' ? staffName(c.assignee, c.assigneeName) : k === 'updated' ? -(c.updatedAt || 0)
-    : k === 'ship' ? (c.shipToPatient ? 0 : trackList(c).length ? 1 : 2) : k === 'lab' ? (labKeyOf(c) || '9999') : k === 'appt' ? (apptKeyOf(c) || '9999') : k === 'tx' ? txRatio(c) : k === 'cost' ? costKey(c) : (listKey(c) || '9999');
+    : k === 'ship' ? (c.shipToPatient ? 0 : trackList(c).length ? 1 : 2) : k === 'lab' ? (labKeyOf(c) || '9999') : k === 'appt' ? (apptKeyOf(c) || '9999') : k === 'tx' ? txRatio(c) : k === 'cost' ? costKey(c) : k === 'notes' ? noteKey(c) : (listKey(c) || '9999');
   const memo = new Map(), v = c => { if (!memo.has(c)) memo.set(c, val(c)); return memo.get(c); };
   // a value of null (no treatment dates) sorts last whichever way the column is sorted
   return list.slice().sort((a, b) => { const x = v(a), y = v(b);
@@ -997,7 +997,92 @@ function listBase() { return S.view === 'mine' ? openCases().filter(c => c.assig
 /* columns anyone can hide on their computer (Amir, 2 Oct 2026: "can I just click it and make it hidden?"): the eye on a
    column's heading hides it, the Columns menu brings it back; remembered on this computer only (not patient data) */
 /* (4 Oct 2026: the one "Next date" column became Lab date + Delivery appt; a hidden "Next date" ('due') isn't carried over) */
-const LIST_COLS = [['type', 'Type'], ['stage', 'Stage'], ['lab', 'Lab date'], ['appt', 'Delivery appt'], ['tx', 'Tx progress'], ['cost', 'Tx cost'], ['ship', 'Shipping'], ['who', 'Assigned'], ['updated', 'Updated']];
+/* ---------- the case's latest note (Amir, 5 Oct 2026: "in the column view there should be one for notes. so the last note would
+   show there. for example I wrote a note for a pt. Sent to printing, it should show there and who wrote it") ----------
+   The newest comment, or the Notes field when it was written after it, with who wrote it. A Notes field saved from now on
+   carries who and when (notesBy / notesAt, with notesH, see noteHash); one written before is looked up once on each computer
+   in the case's history (the newest entry that set it) and remembered there by case — no patient details — as
+   nloCases.noteAuth. Notes brought in from Asana say so. */
+function notesStamp(x, at) {
+  if (String(x.notes || '').trim()) { x.notesBy = meSid(); x.notesAt = at; x.notesH = noteHash(x.notes); } else { x.notesBy = ''; x.notesAt = 0; x.notesH = ''; }
+}
+function noteAuthCache() {
+  if (!S.naCache) { try { const m = JSON.parse(localStorage.getItem('nloCases.noteAuth') || '{}'); S.naCache = m && typeof m === 'object' ? m : {}; } catch (e) { S.naCache = {}; } }
+  return S.naCache;
+}
+function notesAuthor(c) {
+  const t = String(c.notes || '').trim(); if (!t) return null;
+  const h = noteHash(t); if (c.notesH === h) return { by: c.notesBy || '', at: c.notesAt || 0 };
+  const k = noteAuthCache()[c.id]; return k && k.h === h ? { by: k.by || '', at: k.at || 0 } : null;
+}
+function lastNote(c) {
+  const lc = (c.comments || []).filter(x => x && String(x.text || '').trim()).reduce((a, b) => (!a || (b.at || 0) >= (a.at || 0) ? b : a), null);
+  const t = String(c.notes || '').trim(), au = t ? notesAuthor(c) : null;
+  const nf = t ? { text: t, by: au ? au.by : '', at: au ? au.at : 0, field: true, known: !!au } : null;
+  if (lc && (!nf || (lc.at || 0) >= nf.at)) return { text: String(lc.text).trim(), by: lc.by || '', at: lc.at || 0 };
+  return nf;
+}
+function noteWho(n) { const r = n.by && staff(n.by); return n.by === 'asana' ? 'from Asana' : r && r.role === 'owner' ? 'Dr. A' : n.by ? firstName(staffName(n.by, n.by)) : ''; }
+/* the Notes column: newest first (a note whose time isn't known after the dated ones), no note last */
+function noteKey(c) { const n = lastNote(c); return n ? -(n.at || 1) : null; }
+function noteCellHTML(c) {
+  noteAuthNeed(c); const n = lastNote(c); if (!n) return '<span class="due none">No notes</span>';
+  const w = noteWho(n), when = n.at ? fmtWhen(n.at) : '';
+  return '<div class="noteCell" title="' + esc(n.text + (w || when ? '\n— ' + [w, when].filter(Boolean).join(', ') : '')) + '"><div class="nTxt">' + esc(n.text.replace(/\s+/g, ' ')) + '</div>' +
+    (w || when ? '<div class="nBy">' + (w ? (n.by === 'asana' ? esc(w) : '<b>' + esc(w) + '</b>') : '') + (w && when ? ' · ' : '') + esc(when) + '</div>' : '') + '</div>';
+}
+/* phones: the latest note on one line under the name */
+function noteMobHTML(c) {
+  noteAuthNeed(c); const n = lastNote(c); if (!n) return '';
+  const w = noteWho(n);
+  return '<div class="nMob onlyM">' + ic('chat', 13) + '<span>' + (w && n.by !== 'asana' ? '<b>' + esc(w) + ':</b> ' : '') + esc(n.text.replace(/\s+/g, ' ')) + '</span></div>';
+}
+/* who wrote a Notes field from before: its case's history, once per computer, in the background — asked even while a comment
+   is the newer-looking note, since the Notes' time only comes with its writer */
+function noteAuthNeed(c) { if (String(c.notes || '').trim() && !notesAuthor(c)) noteAuthAsk(c); }
+function noteAuthAsk(c) {
+  const key = c.id + ':' + noteHash(c.notes); S.naAsk = S.naAsk || new Set(); if (S.naAsk.has(key)) return; S.naAsk.add(key);
+  (S.naQ = S.naQ || []).push(c.id); noteAuthPump();
+}
+async function noteAuthPump() {
+  if (S.naBusy) return; S.naBusy = true; let got = 0;
+  try {
+    while (S.naQ && S.naQ.length && S.inApp) {
+      const id = S.naQ.shift(), c = findCase(id); if (!c || !String(c.notes || '').trim() || notesAuthor(c)) continue;
+      let log; try { log = await B.caseLog(id); } catch (e) { continue; }
+      noteAuthKeep(c, log); got++;
+      if (got % 10 === 0) noteAuthDone();
+    }
+  } finally { S.naBusy = false; }
+  if (got) noteAuthDone();
+}
+function noteAuthKeep(c, log) {
+  const r = noteAuthFrom(log || []); noteAuthCache()[c.id] = { h: noteHash(c.notes), by: r.by, at: r.at, t: Date.now() };
+  try { const m = noteAuthCache(), ks = Object.keys(m); if (ks.length > 800) ks.sort((a, b) => (m[a].t || 0) - (m[b].t || 0)).slice(0, ks.length - 800).forEach(k => delete m[k]);
+    localStorage.setItem('nloCases.noteAuth', JSON.stringify(m)); } catch (e) { }
+}
+function noteAuthDone() { if (S.view === 'list' || S.view === 'mine') queueRender(); noteByPaint(); }
+/* the newest history entry that set the Notes field: an edit (or a step move / lab email) that lists it, the creation, the
+   Asana import; a restored version (or anything else) could have changed it without saying, so the writer isn't known */
+const NOTE_KEEP_ACTS = ['edit', 'stage', 'email', 'photo', 'reopen', 'close', 'assign', 'comment', 'rekey'];
+function noteAuthFrom(log) {
+  for (let i = log.length - 1; i >= 0; i--) {
+    const x = log[i] || {};
+    if (['edit', 'stage', 'email'].includes(x.a) && (x.fields || []).includes('notes')) return { by: x.sid || '', at: x.at || 0 };
+    if (x.a === 'create') return { by: x.sid || '', at: x.at || 0 };
+    if (x.a === 'import') return { by: 'asana', at: x.at || 0 };
+    if (!NOTE_KEEP_ACTS.includes(x.a)) break;
+  }
+  return { by: '', at: 0 };
+}
+/* the case panel's Notes: who wrote it and when, under the text */
+function noteByHTML(c) {
+  const au = notesAuthor(c); if (!au) return '<div class="small muted nAuth" id="dNoteBy"></div>';
+  const w = noteWho({ by: au.by }), when = au.at ? fmtWhen(au.at) : '';
+  return '<div class="small muted nAuth" id="dNoteBy">' + (w || when ? '— ' + (w ? (au.by === 'asana' ? esc(w) : '<b>' + esc(w) + '</b>') : '') + (w && when ? ', ' : '') + esc(when) : '') + '</div>';
+}
+function noteByPaint() { const el = $('#dNoteBy'), c = el && S.openId && findCase(S.openId); if (c) el.outerHTML = noteByHTML(c); }
+const LIST_COLS = [['type', 'Type'], ['stage', 'Stage'], ['notes', 'Notes'], ['lab', 'Lab date'], ['appt', 'Delivery appt'], ['tx', 'Tx progress'], ['cost', 'Tx cost'], ['ship', 'Shipping'], ['who', 'Assigned'], ['updated', 'Updated']];
 /* optional columns stay off until someone ticks them in Columns (Amir, 4 Oct 2026: "add an optional column for total cost per tx
    so far"); remembered on that computer as nloCases.shownCols. They don't count in "N hidden", and Show all leaves them be. */
 const OPTIONAL_COLS = ['cost'];
@@ -1041,14 +1126,15 @@ function listBodyHTML(base) {
     return '<div class="flags onlyM">' + (m || '<span class="due none">No date</span>') + '</div>';
   };
   return '<div class="card tblWrap"><table class="tbl"><thead><tr>' + th('patient', 'Patient') + (on('type') ? th('type', 'Type', 'hideM') : '') + (on('stage') ? th('stage', 'Stage') : '') +
-      (on('lab') ? th('lab', 'Lab date', 'hideM dateCol') : '') + (on('appt') ? th('appt', 'Delivery appt', 'hideM dateCol') : '') + (on('tx') ? th('tx', 'Tx progress', 'hideM txCol') : '') + (on('cost') ? th('cost', 'Tx cost', 'hideM txCol') : '') +
+      (on('notes') ? th('notes', 'Notes', 'hideM noteCol') : '') + (on('lab') ? th('lab', 'Lab date', 'hideM dateCol') : '') + (on('appt') ? th('appt', 'Delivery appt', 'hideM dateCol') : '') + (on('tx') ? th('tx', 'Tx progress', 'hideM txCol') : '') + (on('cost') ? th('cost', 'Tx cost', 'hideM txCol') : '') +
       (on('ship') ? th('ship', 'Shipping', 'hideM') : '') + (on('who') ? th('who', 'Assigned', 'hideM') : '') + (on('updated') ? th('updated', 'Updated', 'hideM') : '') + '</tr></thead><tbody>' +
     list.map(c => { const g = stageGroup(flowOf(c), c.stage), ship = on('ship') ? shipFlag(c) + trackLinks(c) : '';
       return '<tr class="click" data-act="open" data-id="' + esc(c.id) + '" tabindex="0"><td><div class="ptCell">' + ptAv(c, 36) + '<div class="ptTxt"><div class="pt">' + esc(c.patient || '(no name)') + '</div><div class="small muted">' + esc(c.detail || '') + alignerMini(c) + '</div>' +
-      (ship ? '<div class="flags onlyM">' + ship + '</div>' : '') + (on('stage') ? '' : dateM(c)) + '</div></div></td>' +
+      (ship ? '<div class="flags onlyM">' + ship + '</div>' : '') + (on('stage') ? '' : dateM(c)) + (on('notes') ? noteMobHTML(c) : '') + '</div></div></td>' +
       (on('type') ? '<td class="hideM">' + typeMark(c) + '</td>' : '') +
       (on('stage') ? '<td class="stg">' + progHTML(c) + '<div class="small">' + esc(stageLabel(c)) + (g ? ' <span class="muted">· ' + esc(g.l.toLowerCase()) + ' ' + (g.stages.indexOf(c.stage) + 1) + '/' + g.stages.length + '</span>' : '') + '</div>' +
         (recFlag(c) || holdFlag(c) ? '<div class="flags">' + recFlag(c) + holdFlag(c) + '</div>' : '') + dateM(c) + '</td>' : '') +
+      (on('notes') ? '<td class="hideM noteCol">' + noteCellHTML(c) + '</td>' : '') + // the latest note, next to the stage (5 Oct 2026)
       (on('lab') ? '<td class="hideM dateCol labCol">' + labChip(c, true) + '</td>' : '') +
       (on('appt') ? '<td class="hideM dateCol apptCol">' + apptChip(c, true) + '</td>' : '') +
       (on('tx') ? '<td class="hideM txCol">' + txCellHTML(c) + '</td>' : '') +
@@ -1108,7 +1194,8 @@ function refreshDrawer(gone) {
 async function loadHistory(id) {
   // (two loads in flight: an answer older than the one on screen is dropped — a later load that fails leaves the earlier one)
   const seq = S.histSeq = (S.histSeq || 0) + 1;
-  try { const h = await B.caseLog(id); if (S.openId === id && seq > (S.histShown || 0)) { S.histShown = seq; S.history = h; const el = $('#histBox'); if (el) el.innerHTML = historyHTML(findCase(id)); wtyRefresh(id); } } catch (e) { }
+  try { const h = await B.caseLog(id); if (S.openId === id && seq > (S.histShown || 0)) { S.histShown = seq; S.history = h; const el = $('#histBox'); if (el) el.innerHTML = historyHTML(findCase(id)); wtyRefresh(id);
+    const c = findCase(id); if (c && String(c.notes || '').trim() && !notesAuthor(c)) { noteAuthKeep(c, h); noteByPaint(); } } } catch (e) { }
 }
 const FIELD_LABELS = { rx: 'Herbst Rx', rxRet: 'Retainer Rx', rxMet: 'Metal Rx', rxFun: 'Functional Rx', invDate: 'invoice date', noGuarantee: 'No Guarantee', photo: 'photo', labRef: 'lab case #', labHold: 'lab hold', planUrl: 'plan link', shipToPatient: 'ship to patient', records: 'records on file', zoomDate: 'Zoom call', zoomTime: 'Zoom call', tracking: 'tracking #', carrier: 'carrier', teeth: 'tooth chart', teethNote: 'tooth chart', chart: 'chart #', titanUrl: 'Titan link', initial: 'initial/refinement', appliances: 'appliance', lab: 'lab', arches: 'arch', retKinds: 'retainer type', goals: 'Dr. A’s instructions', instrPicks: 'Dr. A’s instructions', instrOther: 'Dr. A’s instructions', extras: 'extras', variant: 'case type', type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery appt', deliveryTime: 'appt time', txStart: 'treatment start', txEnd: 'expected removal', acrylic: 'acrylic color', glitter: 'acrylic color', alU: 'aligners', alL: 'aligners', aligners: 'aligners', atTemplates: 'attachment templates', treatArch: 'arches to treat', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes' };
 function historyHTML(c) {
@@ -1221,7 +1308,7 @@ function renderDrawer() {
     (hasTeeth ? dsec('teeth', 'Tooth chart', oneLine(teethSummary(c.teeth)), '<div class="tc ro">' + toothChartHTML(c.teeth, true) + '</div><div class="txt" style="margin-top:8px">' + esc(teethSummary(c.teeth)) + '</div>') : '') +
     // one IPR section: the IPR Tracker's chart for this chart # (the typed "IPR & spacing" and "From the IPR Tracker" were the same thing twice)
     (iprLive(c) || String(c.ipr || '').trim() ? dsec('ipr', 'IPR & spacing', iprSumHTML(c), '<div id="iprBox">' + iprBoxHTML(c) + '</div>') : '') +
-    (c.notes ? dsec('notes', 'Notes', oneLine(c.notes), txt(c.notes)) : '') +
+    (c.notes ? dsec('notes', 'Notes', oneLine(c.notes), txt(c.notes) + noteByHTML(c)) : '') + // (and who wrote it, 5 Oct 2026)
     dsec('comments', 'Comments', lastC ? (cmts.length > 1 ? cmts.length + ' · ' : '') + '<b>' + esc(firstName(staffName(lastC.by, lastC.by))) + ':</b> ' + esc(String(lastC.text || '').replace(/\s+/g, ' ')) : '<span class="muted">None yet</span>',
       (cmts.map(x => '<div class="cmt"><span class="av" data-sav="' + esc(x.by || '') + '">' + esc(initials(staffName(x.by, x.by))) + '</span><div><div class="w"><b>' + esc(firstName(staffName(x.by, x.by))) + '</b> · ' + esc(fmtWhen(x.at)) + '</div><div style="white-space:pre-wrap;overflow-wrap:anywhere">' + esc(x.text) + '</div></div></div>').join('') || '<div class="small muted" style="margin-bottom:6px">No comments yet.</div>') +
       (done ? '' : '<div class="field" style="margin-top:8px;margin-bottom:6px"><label for="cmtText" class="hidden">Add a comment</label><textarea id="cmtText" rows="2" placeholder="Add a comment…"></textarea></div><button class="btn btn-sec btn-sm" data-act="addCmt">Add comment</button>')) +
@@ -1776,7 +1863,7 @@ async function saveEdit() {
   const ships = !!end && (changed.includes('stage') || changed.includes('shipToPatient')) && sk.indexOf(now.stage) >= sk.indexOf(end);
   if (ships && now.stage !== end) { now.stage = end; if (!changed.includes('stage')) changed.push('stage'); }
   const btn = $('[data-act=saveEdit]', d); busyBtn(btn, true, 'Saving…');
-  const id = S.openId;
+  const id = S.openId, nAt = Date.now();
   try {
     const apply = x => {
       changed.forEach(k => { x[k] = Array.isArray(now[k]) ? now[k].slice() : now[k]; });
@@ -1784,6 +1871,7 @@ async function saveEdit() {
       if (changed.includes('assistant') && now.assistant) x.assistantName = '';
       if (changed.includes('tracking')) x.carrier = ''; // a carrier named by a lab email belonged to the old number
       if (changed.includes('txStart') || changed.includes('txEnd')) x.txAt = Date.now(); // the patient's treatment dates are the ones saved last
+      if (changed.includes('notes')) notesStamp(x, nAt); // who wrote the Notes, and when (the Notes column)
       if (changed.includes('type') && !FLOWS[TYPE[x.type].flow].stages.some(s => s[0] === x.stage)) x.stage = firstStage(x.type);
     };
     // (a step changed here is logged with where it went, like a move from the stepper: the Specialty warranty counts from Shipped)

@@ -54,7 +54,7 @@ const OUT = process.argv[2] || 'shots';
   const heads = () => p.$$eval('#listBody thead th', ths => ths.map(t => t.textContent.replace(/[↑↓]/g, '').trim()));
   const h0 = await heads();
   console.log('   columns:', h0.join(' | '));
-  check(h0.join('|') === 'Patient|Type|Stage|Lab date|Delivery appt|Tx progress|Shipping|Assigned|Updated', 'All open cases: Lab date and Delivery appt are two columns, side by side');
+  check(h0.join('|') === 'Patient|Type|Stage|Notes|Lab date|Delivery appt|Tx progress|Shipping|Assigned|Updated', 'All open cases: Lab date and Delivery appt are two columns, side by side');
   const cell = (id, col) => p.evaluate(([id, col]) => { const td = document.querySelector('#listBody tr[data-id="' + id + '"] td.' + col); if (!td) return null; const d = td.querySelector('.due'), m = td.querySelector('.dueTm'); return { t: d ? d.textContent.trim() : '', tm: m ? m.textContent.trim() : '', cls: d ? d.className : '', tip: d ? d.getAttribute('title') || '' : '' }; }, [id, col]);
   let a = await cell(ids.late, 'labCol'), b = await cell(ids.late, 'apptCol');
   console.log('   lab late:', a.t, '|', b.t, '/', b.tm);
@@ -111,9 +111,9 @@ const OUT = process.argv[2] || 'shots';
   check(!h.includes('Lab date') && h.includes('Delivery appt') && (await cells()) === h.length && /“Lab date” column hidden/.test(await p.textContent('.toast')), 'the eye hides Lab date alone (Delivery appt stays)');
   await p.click('.colBtn'); await p.waitForSelector('.colMenu');
   const opts = await p.$$eval('.colMenu .colOpt', ls => ls.map(l => l.textContent.trim()));
-  check(opts.join('|') === 'Type|Stage|Lab date|Delivery appt|Tx progress|Shipping|Assigned|Updated|Tx cost', 'the Columns menu lists both (' + opts.join(', ') + ')'); // + Tx progress, optional Tx cost (4 Oct 2026)
+  check(opts.join('|') === 'Type|Stage|Notes|Lab date|Delivery appt|Tx progress|Shipping|Assigned|Updated|Tx cost', 'the Columns menu lists both (' + opts.join(', ') + ')'); // + Tx progress, optional Tx cost (4 Oct 2026)
   await p.click('.colMenu [data-act=showCols]'); await p.waitForTimeout(100);
-  check((await heads()).length === 9, 'Show all: all 9 columns (Tx cost stays optional)');
+  check((await heads()).length === 10, 'Show all: all 10 columns (Tx cost stays optional)');
   await p.evaluate(() => localStorage.setItem('nloCases.hiddenCols', JSON.stringify(['due', 'type'])));
   await p.reload(); await signIn(); await p.click('#nav-list'); await p.waitForSelector('#listBody tr.click');
   h = await heads();

@@ -49,7 +49,7 @@ function tourSteps(kind) {
     { id: 'list', at: () => tVis('#nav-list', '#mnav-list'), t: 'All open cases', b: 'Every open case in one table. My cases is the same list, just yours.', act: 'Tap All open cases.', done: () => S.view === 'list' },
     { id: 'search', need: onList, at: () => $('#q'), t: 'Search', b: 'Type part of a name, chart #, kind of case or step.', act: 'Search for your patient.',
       done: () => S.view === 'list' && String(S.q || '').trim().length >= 2 && !!TOUR.id && !!$('#listBody tr[data-id="' + TOUR.id + '"]') },
-    { id: 'cols', need: onList, at: () => $('#listBody thead'), t: 'Dates and progress', b: 'Lab date and Delivery appt side by side, and Tx progress for in-house patients. Tap a heading to sort; its eye hides the column, and Columns brings it back.' },
+    { id: 'cols', need: onList, at: () => $('#listBody thead'), t: 'Notes, dates and progress', b: 'Notes shows each case’s latest note and who wrote it; Lab date and Delivery appt sit side by side, and Tx progress is there for in-house patients. Tap a heading to sort; its eye hides the column, and Columns brings it back.' },
     { id: 'lock', at: () => tVis('.sideLock', '#mobTop [data-act=lock]'), t: 'Lock when you step away', b: 'Tap Lock whenever you leave the computer: the cases are wiped from the screen until you sign in again with your password. It also locks by itself after a few minutes without activity.',
       act: 'Try it: tap Lock, then Sign in.', done: () => TOUR.backAt === 'lock' }
   ];
