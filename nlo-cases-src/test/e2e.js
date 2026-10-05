@@ -1471,6 +1471,13 @@ async function openByName(p, name) {
   check(true, 'and Gwen sees it in her own app (no Staff Hub sign-in needed)');
   await owner.click('#shBox [data-act=shRefresh]'); await owner.waitForTimeout(1500);
   check(!(await owner.isVisible('.toast:has-text("2 staff photos")')) && (await fsDump()).find(d => d.name.endsWith('/roster/gwen')).fields.photoSrc.stringValue === gwenRow.fields.photoSrc.stringValue, 'an unchanged photo isn’t brought in again');
+  // Staff Hub's copy loses her photo (as on 4 Oct 2026, when an older copy of its record overwrote the newer one): NLO Cases keeps it
+  await rput('nlo/cadence/roster/people/s_gwen', rp('s_gwen', 'Gwen', 'Tester', 'Orthodontic assistant'));
+  await owner.click('#shBox [data-act=shRefresh]'); await owner.waitForTimeout(2000);
+  const gw2 = (await fsDump()).find(d => d.name.endsWith('/roster/gwen'));
+  check(gw2 && gw2.fields.photo && /^data:image\/jpeg;base64,/.test(gw2.fields.photo.stringValue) && gw2.fields.photoSrc && gw2.fields.photoSrc.stringValue === gwenRow.fields.photoSrc.stringValue, 'Staff Hub without her photo: NLO Cases keeps the one it has (a missing photo there never removes one here)');
+  await rput('nlo/cadence/roster/people/s_gwen', rp('s_gwen', 'Gwen', 'Tester', 'Orthodontic assistant', { photo: staffPic }));
+  await owner.click('#shBox [data-act=shRefresh]'); await owner.waitForTimeout(1500);
   // staff as photo tiles with names underneath: Assistant and Assigned to
   await owner.click('.topBar [data-act=newCase]'); await owner.waitForSelector('#ncForm .staffRow[data-g=assistant] .sTile[data-v=gwen] .av.ph img', { timeout: 10000 });
   check(/Gwen/.test(await owner.textContent('#ncForm .staffRow[data-g=assistant] .sTile[data-v=gwen] .sNm')), 'New case: the Assistant choices are staff photos with the name underneath');
@@ -1481,6 +1488,11 @@ async function openByName(p, name) {
   await owner.waitForFunction(() => openCases().some(c => c.patient === 'Tobias Tilepick'), null, { timeout: 20000 });
   const tt = await owner.evaluate(() => { const c = openCases().find(x => x.patient === 'Tobias Tilepick'); return { a: c.assistant, b: c.assignee, id: c.id }; });
   check(tt.a === 'gwen' && tt.b === 'nina', 'the tiles set the assistant and who it’s assigned to');
+  // Reissue login (and Add back) keep the person's staff photo and Staff Hub link (they used to be cleared, 5 Oct 2026)
+  await owner.evaluate(async p => { await B.setStaffPhoto('nina', p, 'test-photo-src'); }, staffPic);
+  await owner.evaluate(() => B.reissue('nina'));
+  const nr = (await fsDump()).find(d => d.name.endsWith('/roster/nina'));
+  check(nr && nr.fields.photo && nr.fields.photo.stringValue === staffPic && nr.fields.photoSrc.stringValue === 'test-photo-src' && nr.fields.rid && nr.fields.rid.stringValue === 's_nina', 'Reissue login keeps her photo and her Staff Hub link');
   await owner.evaluate(id => openDrawer(id), tt.id); await owner.waitForSelector('#drawer .dAssign .aTile[data-v=nina][aria-pressed=true]');
   await owner.click('#drawer .dAssign .aTile[data-v=gwen]'); await owner.waitForSelector('.toast:has-text("Assigned to Gwen")', { timeout: 20000 });
   await owner.waitForFunction(id => (openCases().find(c => c.id === id) || {}).assignee === 'gwen', tt.id, { timeout: 20000 });

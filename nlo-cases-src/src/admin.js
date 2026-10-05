@@ -378,7 +378,8 @@ function shBoxHTML() {
     '<p class="small muted shFoot">' + st.linked + ' linked' + (when ? ' · roster shared ' + esc(when) : '') + '. Add a hire or end someone’s employment in Staff Hub; it shows up here.</p></div>';
 }
 /* bring each linked person's Staff Hub photo onto their NLO Cases roster entry (Amir: "import staff photos"), so everyone sees it,
-   staff included (they don't sign in to Staff Hub). Shrunk to 96 px; only when the Staff Hub photo has changed. */
+   staff included (they don't sign in to Staff Hub). Shrunk to 96 px; only when the Staff Hub photo has changed — and only ever
+   adding or replacing one, never removing it. */
 async function shPhotos() {
   if (!isOwner() || !B.setStaffPhoto || SH.syncing) return; SH.syncing = true; let n = 0;
   try {
@@ -386,9 +387,12 @@ async function shPhotos() {
     for (const r of S.roster) {
       const p = shMatch(r, people); if (!p) continue;
       const src = /^data:image\/(jpeg|png|webp);base64,/.test(p.photo || '') ? p.photo : '';
-      const h = src ? Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', TE.encode(src))).subarray(0, 8), b => b.toString(16).padStart(2, '0')).join('') : '';
+      // no photo on Staff Hub's side never takes one away here (Amir, 5 Oct 2026: the staff photos were gone everywhere — Staff
+      // Hub's record had been overwritten by an older copy on 4 Oct, and this followed it); a new photo there still replaces it
+      if (!src) continue;
+      const h = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', TE.encode(src))).subarray(0, 8), b => b.toString(16).padStart(2, '0')).join('');
       if ((r.photoSrc || '') === h) continue;
-      const small = src ? await shrinkPhoto(src, 96) : ''; if (src && !small) continue;
+      const small = await shrinkPhoto(src, 96); if (!small) continue;
       await B.setStaffPhoto(r.sid, small, h); n++;
     }
   } catch (e) { } finally { SH.syncing = false; }

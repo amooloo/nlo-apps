@@ -93,10 +93,15 @@ function boot() {
   document.addEventListener('change', onChange);
   document.addEventListener('input', onInput);
   document.addEventListener('keydown', e => {
+    if (asgKey(e)) return; // the Assign to list (on the case list or the board)
     if (e.key === 'Escape') { if ($('#phWrap')) phClose(); else if ($('#modalWrap')) closeModal(); else if (S.openId) closeDrawer(); }
     if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('.kc[data-act], tr.click[data-act]')) { e.preventDefault(); e.target.click(); }
   });
   ['pointerdown', 'keydown', 'wheel', 'touchstart'].forEach(ev => document.addEventListener(ev, () => { S.lastAct = Date.now(); }, { passive: true }));
+  // the Assign to list follows its button when the page (or the board, or the table) scrolls, and closes once the button is
+  // out of sight; it closes when the window changes size
+  document.addEventListener('scroll', e => { if (S.asg && !(e.target && e.target.closest && e.target.closest('#asgMenu'))) asgFollow(); }, true);
+  window.addEventListener('resize', () => { if (S.asg) asgClose(); });
   if (S.demo) {
     B = DEMO; DEMO.practice = S.tour; $('#demoBar').classList.remove('hidden'); document.body.classList.add('demo');
     if (S.tour) $('#demoBar').textContent = 'Practice — made-up patients, nothing is saved';
@@ -481,6 +486,7 @@ function renderView() {
   if (fid) { const n = document.getElementById(fid); if (n && v.contains(n) && n !== document.activeElement) { n.focus({ preventScroll: true });
     if (fSel && typeof n.selectionStart === 'number') try { n.setSelectionRange(fSel[0], fSel[1]); } catch (e) { } } }
   phPaint(); savPaint(); logoPaint(v); picPaint(v); if (S.view === 'admin') shPaint();
+  asgReanchor();
 }
 /* staff photos (brought in from Staff Hub, kept on the person's roster entry) on every staff avatar */
 function savPaint(root) {
@@ -815,6 +821,75 @@ function avatar(c) {
   if (c.assigneeName) return '<span class="av none" title="' + esc(c.assigneeName) + '">' + esc(initials(c.assigneeName)) + '</span>';
   return '<span class="av none" title="Unassigned">–</span>';
 }
+/* ---------- who it's assigned to, changed right from the list or the board (Amir, 5 Oct 2026: "when you are looking the open
+   cases or tile view, can you just click on the assigned person and then pick another person from a drop down instead of click
+   on it opening the card, editing going to the section and changing it") ----------
+   The person is a button; it opens a short list of the team (with their photos) over the page, and picking one saves it the
+   way the case panel's Assigned to does. The list sits outside the page's content, so a live update redrawing the list or the
+   board doesn't close it. */
+function asgBtnHTML(c, card) {
+  const r = staff(c.assignee), who = r ? r.name : c.assigneeName || '';
+  const lab = (who ? 'Assigned to ' + who : 'Unassigned') + ' (change)';
+  return '<button type="button" class="asgBtn' + (card ? ' onCard' : '') + '" data-act="asgPick" data-id="' + esc(c.id) + '" aria-haspopup="menu" aria-expanded="' + !!(S.asg && S.asg.id === c.id) + '" title="' + esc(lab) + '" aria-label="' + esc(lab) + '">' +
+    avatar(c).replace(/ title="[^"]*"/, '') + (card ? '' : '<span class="small' + (who ? '' : ' muted') + '">' + esc(who || 'Unassigned') + '</span>') + '<span class="asgCh" aria-hidden="true">' + ic('next', 12) + '</span></button>';
+}
+function asgOpen(btn) {
+  const c = findCase(btn.dataset.id); if (!c) return;
+  if (S.asg && S.asg.id === c.id) { asgClose(true); return; } // (its button again: closes it)
+  asgClose();
+  const cur = c.assignee || '', people = [null].concat(withSavedStaff(activeRoster(), c.assignee));
+  const m = document.createElement('div'); m.className = 'asgMenu'; m.id = 'asgMenu'; m.setAttribute('role', 'menu'); m.setAttribute('aria-label', 'Assign ' + (c.patient || 'this case') + ' to');
+  m.innerHTML = '<div class="asgHd" aria-hidden="true">Assign to</div>' + people.map(r => { const v = r ? r.sid : '', on = v === cur;
+    return '<button type="button" role="menuitemradio" aria-checked="' + on + '" data-act="asgSet" data-v="' + esc(v) + '" tabindex="-1">' +
+      (r ? '<span class="av" data-sav="' + esc(r.sid) + '">' + esc(r.initials || initials(r.name)) + '</span>' : '<span class="av none">–</span>') +
+      '<span class="nm">' + esc(r ? r.name : 'Nobody (unassigned)') + '</span>' + (on ? ic('done', 15) : '') + '</button>'; }).join('');
+  document.body.appendChild(m); savPaint(m);
+  S.asg = { id: c.id, btn }; btn.setAttribute('aria-expanded', 'true');
+  asgPlace();
+  const f = $('[aria-checked="true"]', m) || $('button', m); if (f) f.focus({ preventScroll: true });
+}
+/* under its button (above it when there's no room below), kept on screen */
+function asgPlace() {
+  const m = $('#asgMenu'), b = S.asg && S.asg.btn; if (!m || !b || !b.isConnected) return;
+  const r = b.getBoundingClientRect(), mw = m.offsetWidth, mh = m.offsetHeight, vw = document.documentElement.clientWidth, vh = innerHeight;
+  let top = r.bottom + 6; if (top + mh > vh - 8 && r.top - mh - 6 >= 8) top = r.top - mh - 6;
+  m.style.left = Math.round(Math.max(8, Math.min(r.left, vw - mw - 8))) + 'px';
+  m.style.top = Math.round(Math.max(8, Math.min(top, vh - mh - 8))) + 'px';
+}
+function asgFollow() {
+  const b = S.asg && S.asg.btn; if (!b || !b.isConnected) return;
+  const r = b.getBoundingClientRect(); if (r.bottom < 0 || r.top > innerHeight || r.right < 0 || r.left > innerWidth) asgClose(); else asgPlace();
+}
+/* after a redraw: the new copy of its button */
+function asgReanchor() {
+  if (!S.asg) return; const b = $('[data-act=asgPick][data-id="' + CSS.escape(S.asg.id) + '"]');
+  if (b) { S.asg.btn = b; b.setAttribute('aria-expanded', 'true'); }
+}
+function asgClose(back) {
+  const m = $('#asgMenu'); if (m) m.remove();
+  const a = S.asg; S.asg = null; if (!a) return;
+  if (a.btn && a.btn.isConnected) { a.btn.setAttribute('aria-expanded', 'false'); if (back) a.btn.focus({ preventScroll: true }); }
+}
+function asgSet(v) {
+  const a = S.asg; asgClose(true); if (!a) return;
+  const c = findCase(a.id); if (!c || (c.assignee || '') === v) return;
+  const name = c.patient || 'Case', to = v ? staffName(v) : '';
+  act(() => B.mutateCase(a.id, d => { d.assignee = v; if (v) d.assigneeName = ''; }, { a: 'assign', to: v }), to ? name + ' assigned to ' + to : name + ' unassigned');
+}
+/* the menu's keys: arrows move, Home/End jump, Escape (or Tab) closes it */
+function asgKey(e) {
+  const m = $('#asgMenu'); if (!m || !S.asg) return false;
+  if (e.key === 'Escape') { e.preventDefault(); asgClose(true); return true; }
+  if (e.key === 'Tab') { asgClose(); return false; }
+  if (!m.contains(document.activeElement)) return false;
+  const items = $$('button', m), i = items.indexOf(document.activeElement);
+  const go = j => { e.preventDefault(); const t = items[(j + items.length) % items.length]; if (t) t.focus(); };
+  if (e.key === 'ArrowDown') { go(i + 1); return true; }
+  if (e.key === 'ArrowUp') { go(i - 1); return true; }
+  if (e.key === 'Home') { go(0); return true; }
+  if (e.key === 'End') { go(items.length - 1); return true; }
+  return false;
+}
 function row(c, meta) {
   return '<button class="row" data-act="open" data-id="' + esc(c.id) + '">' + ptAv(c, 36) +
     '<span class="grow"><span class="pt">' + esc(c.patient || '(no name)') + '</span><span class="meta">' + esc(meta != null ? meta : (typeOf(c).l + ' · ' + stageLabel(c) + (c.detail ? ' · ' + c.detail : ''))) + '</span></span>' + shipFlag(c, true) + dueChip(c) + avatar(c) + '</button>';
@@ -881,7 +956,7 @@ function kcard(c, last, steps) {
     '<div class="kHd">' + ptAv(c, 32) + '<div class="pt">' + esc(c.patient || '(no name)') + '</div></div>' + (c.detail || alN(c) ? '<div class="dt">' + esc(c.detail || '') + alignerMini(c) + '</div>' : '') +
     (flags ? '<div class="flags">' + flags + '</div>' : '') +
     (steps ? '<div class="kstep">' + progHTML(c, steps) + '<div><b>' + esc(stageLabel(c)) + '</b><span>' + (steps.indexOf(c.stage) + 1) + ' of ' + steps.length + '</span></div></div>' : '') +
-    '<div class="ft">' + (mixed || labbed ? typeMark(c, true) : '') + dueChip(c) + trackLinks(c) + avatar(c) +
+    '<div class="ft">' + (mixed || labbed ? typeMark(c, true) : '') + dueChip(c) + trackLinks(c) + asgBtnHTML(c, true) +
     '<button class="adv" data-act="' + (last ? 'complete' : 'advance') + '" data-id="' + esc(c.id) + '" title="' + esc(tip) + '" aria-label="' + esc(tip) + '">' + ic(last ? 'done' : 'next', 17) + '</button></div></div>';
 }
 
@@ -1140,7 +1215,7 @@ function listBodyHTML(base) {
       (on('tx') ? '<td class="hideM txCol">' + txCellHTML(c) + '</td>' : '') +
       (on('cost') ? '<td class="hideM txCol costCol">' + txCostHTML(c) + '</td>' : '') +
       (on('ship') ? '<td class="hideM shipCol">' + (ship ? '<div class="flags">' + ship + '</div>' : '') + '</td>' : '') +
-      (on('who') ? '<td class="hideM">' + avatar(c) + ' <span class="small">' + esc(staffName(c.assignee, c.assigneeName)) + '</span></td>' : '') +
+      (on('who') ? '<td class="hideM asgCol">' + asgBtnHTML(c) + '</td>' : '') +
       (on('updated') ? '<td class="hideM small muted">' + esc(c.updatedAt ? fmtWhen(c.updatedAt) : '') + '</td>' : '') + '</tr>'; }).join('') +
     '</tbody></table></div><div class="small muted" style="margin-top:8px">' + list.length + ' case' + (list.length === 1 ? '' : 's') + '</div>';
 }
@@ -1740,6 +1815,8 @@ async function completeCase(id) {
 function onClick(e) {
   // a click anywhere outside the Columns menu closes it
   if (S.colMenu && !e.target.closest('.colWrap')) { S.colMenu = false; const m = $('.colMenu'); if (m) { const w = m.closest('.colWrap'); m.remove(); const bt = $('.colBtn', w); if (bt) bt.setAttribute('aria-expanded', 'false'); } }
+  // … and outside the Assign to list closes that
+  if (S.asg && !e.target.closest('#asgMenu') && !e.target.closest('[data-act=asgPick]')) asgClose();
   const t = e.target.closest('[data-act]'); if (!t) return;
   const a = t.dataset.act; const id = t.dataset.id;
   if (t.tagName === 'SELECT') return;
@@ -1750,6 +1827,8 @@ function onClick(e) {
       if (f === 'mine') { S.view = 'mine'; } else { S.view = 'list'; if (['over', 'week', 'none'].includes(f)) S.f.due = f; else S.f.grp = f; }
       renderNav(); renderView(); break; }
     case 'flow': S.boardFlow = t.dataset.k; renderView(); break;
+    case 'asgPick': asgOpen(t); break;
+    case 'asgSet': asgSet(t.dataset.v || ''); break;
     case 'open': openDrawer(id); break;
     case 'openClosed': openDrawer(id); break;
     case 'closeDrawer': closeDrawer(); break;

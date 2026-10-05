@@ -616,7 +616,9 @@ const FB = {
     const boot = await Crypto.pwSeal(temp, Crypto.ringBytes(FB.ring), 'boot:' + newUid);
     const b = FB.db.batch();
     b.set(FB.db.doc('members/' + newUid), { staffId: o.sid, username: o.username, name: o.name, role: 'staff', active: true, mustSetup: true, boot, ringV: FB.curV, gen: o.gen, createdAt: FB.ts() });
-    b.set(FB.db.doc('roster/' + o.sid), Object.assign({ name: o.name, initials: initials(o.name), role: 'staff', active: true, username: o.username, gen: o.gen }, o.rid ? { rid: o.rid } : {}));
+    // (a reissued login keeps the person's staff photo and Staff Hub link — they used to be cleared here, 5 Oct 2026)
+    b.set(FB.db.doc('roster/' + o.sid), Object.assign({ name: o.name, initials: initials(o.name), role: 'staff', active: true, username: o.username, gen: o.gen }, o.rid ? { rid: o.rid } : {},
+      o.photo ? { photo: o.photo, photoSrc: o.photoSrc || '' } : {}));
     b.set(FB.db.doc('logins/' + o.username), { email });
     if (extra) extra(b);
     await FB.track(b.commit());
@@ -637,7 +639,7 @@ const FB = {
   async reissue(sid) {
     const rs = (await FB.db.doc('roster/' + sid).get()).data();
     const olds = (await FB.db.collection('members').where('staffId', '==', sid).get()).docs.filter(d => d.data().active);
-    return FB.issue({ sid, name: rs.name, username: rs.username || sid, gen: (rs.gen || 1) + 1 }, b => olds.forEach(d => b.update(d.ref, { active: false })));
+    return FB.issue({ sid, name: rs.name, username: rs.username || sid, gen: (rs.gen || 1) + 1, rid: rs.rid || '', photo: rs.photo || '', photoSrc: rs.photoSrc || '' }, b => olds.forEach(d => b.update(d.ref, { active: false })));
   },
   async removeStaff(sid) {
     const rs = (await FB.db.doc('roster/' + sid).get()).data();
