@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1B2F4C">
+<title>Month-End Numbers — Next Level Orthodontics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --navy:#1B2F4C;--navy-9:#11203A;--navy-7:#294169;--navy-5:#5471A0;
+  --blue:#1D3EA9;--blue-1:#E5EAF8;--coral:#FA624D;--coral-7:#D8412E;--coral-1:#FFE7E1;
+  --mint:#64F4C9;--mint-7:#1F9E7E;--mint-1:#E2FBF4;--amber:#F6AF24;--amber-7:#C2820A;--amber-1:#FEF2D7;
+  --bg:#F2F3F4;--card:#fff;--sunk:#ECEEF0;--line:#DCE0E4;--line-2:#C3C9D0;
+  --text:#33404F;--strong:#1B2F4C;--muted:#6B7685;--faint:#969FAB;
+  --display:'Oswald','Bebas Neue',system-ui,sans-serif;
+  --body:'Montserrat',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  --r:16px;--sh:0 1px 2px rgba(17,32,58,.06),0 8px 24px rgba(17,32,58,.06);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--body);background:var(--bg);color:var(--text);font-size:15px;line-height:1.45;min-height:100vh;-webkit-font-smoothing:antialiased}
+body.noscroll{overflow:hidden}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;border:none;background:none}
+a{color:var(--blue)}
+[hidden]{display:none!important}
+.muted{color:var(--muted)}.faint{color:var(--faint)}.small{font-size:12.5px}.bold{font-weight:700}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.row.end{justify-content:flex-end}.grow{flex:1;min-width:0}
+#gate{position:fixed;inset:0;background:radial-gradient(1200px 600px at 20% 0%,#294169,#1B2F4C 55%,#11203A);display:flex;align-items:center;justify-content:center;padding:20px;z-index:60}
+#gate .box{background:#fff;border-radius:22px;padding:38px 30px 30px;max-width:380px;width:100%;text-align:center;box-shadow:0 30px 70px rgba(0,0,0,.35)}
+#gate h1{font-family:var(--display);text-transform:uppercase;letter-spacing:.06em;color:var(--navy);font-size:26px;margin:14px 0 4px}
+#gate p{color:var(--muted);font-size:14px;margin-bottom:22px}
+.gbtn{display:inline-flex;align-items:center;gap:10px;border:1.5px solid var(--line);border-radius:12px;padding:12px 20px;font-weight:700;color:var(--navy);background:#fff}
+#gateErr{color:var(--coral-7);font-size:13px;font-weight:700;margin-top:14px;min-height:18px}
+.crest{width:58px;height:58px;border-radius:16px;background:var(--navy);display:inline-flex;align-items:center;justify-content:center;color:var(--mint)}
+.top{background:var(--navy);color:#fff;padding:14px 18px 12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.top .brand{display:flex;flex-direction:column;line-height:1.1;margin-right:auto}
+.top .brand b{font-family:var(--display);text-transform:uppercase;letter-spacing:.07em;font-size:19px;font-weight:600}
+.top .brand span{font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;opacity:.6;font-weight:600;margin-top:3px}
+.ibtn{width:36px;height:36px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;color:#fff;background:rgba(255,255,255,.08)}
+.ibtn:hover{background:rgba(255,255,255,.16)}
+.who-top{font-size:12px;opacity:.75;font-weight:600}
+.mbar{position:sticky;top:0;z-index:30;background:var(--bg);padding:10px 14px 6px}
+.mbar-in{max-width:1080px;margin:0 auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.mswitch{display:flex;align-items:center;gap:4px;background:#fff;border-radius:14px;box-shadow:var(--sh);padding:4px}
+.mswitch button{width:38px;height:38px;border-radius:10px;font-size:20px;font-weight:700;color:var(--navy)}
+.mswitch button:hover{background:var(--sunk)}
+.mswitch .m{font-family:var(--display);text-transform:uppercase;letter-spacing:.06em;font-size:18px;font-weight:600;color:var(--navy);min-width:170px;text-align:center;cursor:pointer}
+.tabs{display:flex;gap:6px;margin-left:auto}
+.tabbtn{padding:10px 14px;border-radius:12px;font-family:var(--display);text-transform:uppercase;letter-spacing:.07em;font-size:14px;font-weight:600;color:var(--navy-5)}
+.tabbtn:hover{background:rgba(27,47,76,.05)}.tabbtn.on{background:var(--navy);color:#fff}
+main{max-width:1080px;margin:0 auto;padding:10px 14px 80px}
+.panel>*+*{margin-top:14px}
+.card{background:var(--card);border-radius:var(--r);box-shadow:var(--sh);padding:18px}
+.card-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.card-h h2{font-family:var(--display);text-transform:uppercase;letter-spacing:.07em;font-size:16px;font-weight:600;color:var(--navy)}
+.card-h .r{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.eyebrow{font-family:var(--display);text-transform:uppercase;letter-spacing:.12em;font-size:12px;font-weight:600;color:var(--navy-5)}
+.hint{font-size:13px;color:var(--muted);line-height:1.5}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:10px 15px;border-radius:12px;font-weight:700;font-size:14px;background:var(--navy);color:#fff;white-space:nowrap}
+.btn:hover{filter:brightness(1.1)}.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn.blue{background:var(--blue)}.btn.coral{background:var(--coral)}.btn.mint{background:var(--mint);color:var(--navy)}
+.btn.ghost{background:var(--sunk);color:var(--navy)}.btn.sm{padding:7px 11px;font-size:12.5px;border-radius:10px}
+.tag{display:inline-flex;align-items:center;gap:4px;border-radius:999px;padding:3px 9px;font-size:11.5px;font-weight:800;background:var(--sunk);color:var(--navy-7)}
+.tag.red{background:var(--coral-1);color:var(--coral-7)}.tag.green{background:var(--mint-1);color:var(--mint-7)}.tag.amber{background:var(--amber-1);color:var(--amber-7)}.tag.blue{background:var(--blue-1);color:var(--blue)}
+.warnbar{background:var(--amber-1);color:#7a5200;border-radius:12px;padding:10px 12px;font-size:13px;font-weight:600}
+.okbar{background:var(--mint-1);color:var(--mint-7);border-radius:12px;padding:10px 12px;font-size:13px;font-weight:700}
+/* entry tables */
+.tbl{width:100%;border-collapse:collapse}
+.tbl th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:800;text-align:right;padding:6px 6px;white-space:nowrap}
+.tbl th:first-child{text-align:left}
+.tbl td{padding:4px 6px;border-top:1px solid var(--line);text-align:right;font-size:14px;vertical-align:middle}
+.tbl td:first-child{text-align:left;font-weight:600;color:var(--strong);font-size:13.5px}
+.tbl tr.total td{font-weight:800;color:var(--navy);background:#fafbfc}
+.tbl tr.sub td:first-child{padding-left:16px;font-weight:500}
+.tbl .x{font-size:11px;color:var(--faint);font-weight:600;margin-left:4px}
+input.num{width:92px;text-align:right;border:1.5px solid var(--line);border-radius:9px;padding:7px 8px;font-weight:700;font-size:14.5px;color:var(--navy);background:#fff}
+input.num.wide{width:130px}
+input.num:focus{outline:none;border-color:var(--blue);background:#fff}
+input.num:disabled{background:var(--sunk);color:var(--navy-7);border-color:transparent}
+.calc{font-weight:800;color:var(--navy);display:inline-block;min-width:70px}
+.calc.good{color:var(--mint-7)}.calc.bad{color:var(--coral-7)}
+.scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.fgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:2px 24px}
+.frow{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--line)}
+.frow .l{flex:1;min-width:0;font-weight:600;font-size:13.5px;color:var(--strong)}
+.frow.calcrow .l{color:var(--navy-5)}
+.q{width:20px;height:20px;border-radius:50%;background:var(--sunk);color:var(--navy-5);font-size:11px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;margin-left:4px;vertical-align:1px}
+.q:hover{background:var(--blue-1);color:var(--blue)}
+.by{font-size:11.5px;color:var(--faint);font-weight:600}
+.status{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.yr td,.yr th{white-space:nowrap}
+.yr tr.clickable{cursor:pointer}.yr tr.clickable:hover td{background:var(--blue-1)}
+.yr tr.empty td{color:var(--faint)}
+.yr td:first-child{position:sticky;left:0;background:#fff}
+.yr tr.total td:first-child{background:#fafbfc}
+input.field,select.field,textarea.field{width:100%;border:1.5px solid var(--line);border-radius:11px;padding:10px 12px;font-size:14.5px;background:#fff;color:var(--strong)}
+label.lbl{display:block;font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--navy-5);margin:14px 0 6px}
+.ptiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:10px;margin-top:10px}
+.ptile{display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 4px;border-radius:14px;font-size:12.5px;font-weight:700;color:var(--navy);text-align:center}
+.ptile:hover{background:var(--sunk)}.ptile.sel{background:var(--blue-1);outline:2px solid var(--blue)}
+.av{border-radius:50%;background:var(--navy-7);color:#fff;font-weight:800;display:inline-flex;align-items:center;justify-content:center;flex:none;overflow:hidden}
+.av img{width:100%;height:100%;object-fit:cover}
+.drop{display:flex;align-items:center;justify-content:center;text-align:center;border:2px dashed var(--line-2);border-radius:14px;padding:22px;margin-top:14px;font-weight:700;color:var(--navy-5);cursor:pointer;background:var(--sunk)}
+.drop.over,.drop:hover{border-color:var(--blue);color:var(--blue);background:var(--blue-1)}
+.steps{margin:10px 0 0 20px;line-height:1.7}
+#sheet{position:fixed;inset:0;z-index:80;display:none}#sheet.open{display:block}
+.sheet-back{position:absolute;inset:0;background:rgba(17,32,58,.55)}
+.sheet-card{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(560px,calc(100vw - 24px));max-height:calc(100vh - 40px);overflow:auto;background:#fff;border-radius:20px;padding:22px 20px 18px;box-shadow:0 30px 80px rgba(0,0,0,.35)}
+.sheet-card.wide{width:min(860px,calc(100vw - 24px))}
+.sheet-x{position:absolute;top:10px;right:10px;width:34px;height:34px;border-radius:10px;font-size:22px;color:var(--muted)}
+.sheet-t{font-family:var(--display);text-transform:uppercase;letter-spacing:.07em;font-size:19px;color:var(--navy);font-weight:600;margin-bottom:6px;padding-right:34px}
+@media (max-width:640px){.sheet-card{left:0;right:0;bottom:0;top:auto;transform:none;width:100%;max-height:92vh;border-radius:20px 20px 0 0}.tabs{margin-left:0;width:100%}.tabbtn{flex:1}.mswitch{width:100%;justify-content:space-between}.who-top{display:none}input.num{width:84px}}
+#toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,30px);background:var(--navy);color:#fff;padding:12px 18px;border-radius:14px;font-weight:700;font-size:14px;box-shadow:0 12px 30px rgba(0,0,0,.25);opacity:0;pointer-events:none;transition:all .25s;z-index:120;max-width:calc(100vw - 30px);text-align:center}
+#toast.show{opacity:1;transform:translate(-50%,0)}#toast.good{background:var(--mint-7)}#toast.bad{background:var(--coral-7)}
+#printArea{display:none}
+@media print{body{background:#fff}#app,#sheet,#toast,#gate{display:none!important}#printArea{display:block!important;color:#111}#printArea table{width:100%;border-collapse:collapse}#printArea td,#printArea th{border-bottom:1px solid #ccc;padding:3px 5px;font-size:11.5px;text-align:right}#printArea td:first-child,#printArea th:first-child{text-align:left}#printArea h1{font-size:20px}#printArea h2{font-size:14px;margin:12px 0 4px;text-transform:uppercase;letter-spacing:.06em}}
+</style>
+</head>
+<body>
+<div id="gate"><div class="box">
+  <span class="crest"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg></span>
+  <h1>Month-End Numbers</h1>
+  <p>Next Level Orthodontics. Sign in with the office Google account.</p>
+  <button class="gbtn" data-act="sign-in"><svg width="18" height="18" viewBox="0 0 48 48"><path fill="#4285F4" d="M45.12 24.5c0-1.56-.14-3.06-.4-4.5H24v8.51h11.84c-.51 2.75-2.06 5.08-4.39 6.64v5.52h7.11c4.16-3.83 6.56-9.47 6.56-16.17z"/><path fill="#34A853" d="M24 46c5.94 0 10.92-1.97 14.56-5.33l-7.11-5.52c-1.97 1.32-4.49 2.1-7.45 2.1-5.73 0-10.58-3.87-12.31-9.07H4.34v5.7C7.96 41.07 15.4 46 24 46z"/><path fill="#FBBC05" d="M11.69 28.18C11.25 26.86 11 25.45 11 24s.25-2.86.69-4.18v-5.7H4.34C2.85 17.09 2 20.45 2 24s.85 6.91 2.34 9.88l7.35-5.7z"/><path fill="#EA4335" d="M24 10.75c3.23 0 6.13 1.11 8.41 3.29l6.31-6.31C34.91 4.18 29.93 2 24 2 15.4 2 7.96 6.93 4.34 14.12l7.35 5.7c1.73-5.2 6.58-9.07 12.31-9.07z"/></svg>Sign in with Google</button>
+  <div id="gateErr"></div>
+</div></div>
+
+<div id="app" hidden>
+  <header class="top" id="top"></header>
+  <div class="mbar"><div class="mbar-in" id="mbar"></div></div>
+  <main>
+    <section class="panel" id="p-month"></section>
+    <section class="panel" id="p-year" hidden></section>
+    <section class="panel" id="p-goals" hidden></section>
+  </main>
+</div>
+<div id="sheet"></div>
+<div id="toast" role="status" aria-live="polite"></div>
+<div id="printArea"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script>
+'use strict';
+/* =====================================================================
+   NLO Month-End Numbers — v1.0 (Oct 2026)
+   NLO's own month-end portal (replaces the consultant's EOM / EOY pages).
+   - MONTH: new patients and their outcome, treatment starts (per TC),
+     production & collections, patients, accounts 30+ past due. Every %,
+     conversion rate and total calculates itself; outcomes must add to 100%.
+   - YEAR: Jan–Dec summary with totals, monthly averages, last year and
+     growth vs the year's goals.
+   - GOALS & SETUP: growth goals, goal conversion rate, last year's totals
+     (when the months aren't in the app), TC columns, due day.
+   Practice totals only — never patient names.
+   Data: Firebase RTDB (nlo-inventory) under nlo/staffMeeting/monthEnd
+   (that path already has the right access rules). Each month also stores
+   computed `totals`, which the Staff Meeting Hub reads for its KPIs.
+   ===================================================================== */
+const APP_VERSION = '1.0.0';
+const FB_CONFIG = { apiKey: "AIzaSyBFCmDgAKkdfZ4Cb81nK0KCKXtONiwMJy4", authDomain: "nlo-inventory.firebaseapp.com", databaseURL: "https://nlo-inventory-default-rtdb.firebaseio.com", projectId: "nlo-inventory", storageBucket: "nlo-inventory.firebasestorage.app", messagingSenderId: "471691286148", appId: "1:471691286148:web:b362a98186f648bd4914d1" };
+const ME = 'nlo/staffMeeting/monthEnd';
+const ROSTER_PATH = 'nlo/cadence/roster/people';
+const OWNER_EMAIL = 'akhavan.ak@gmail.com', OWNER_ID = 's_amir', ALLOWED_DOMAIN = 'thenextlevelorthodontics.com';
+const GEMINI_MODELS = ['gemini-3.8-flash', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'];
+const AUTHOR_TTL = 30 * 60 * 1000;
+firebase.initializeApp(FB_CONFIG);
+const db = firebase.database(), auth = firebase.auth();
+
+/* ---------------------------------------------------------------- fields */
+const NP_ROWS = [['np', 'New patients', 'Seen for the first time ever at NLO this month.'], ['obs', 'Went into observation'], ['pending', 'Went into pending (will think about it)'], ['sameday', 'Same-day start (contract signed)'], ['scheduled', 'Scheduled to start'], ['declined', 'Declined treatment'], ['notx', 'No treatment recommended'], ['medicaid', 'Medicaid']];
+const NP_OUT = ['obs', 'pending', 'sameday', 'scheduled', 'declined', 'notx', 'medicaid'];
+const ST_ROWS = [['ph1', 'Phase I'], ['ph1a', 'Phase I aligners'], ['ph2', 'Phase II', 1], ['ph2a', 'Phase II aligners', 1], ['ft', 'Full treatment'], ['fta', 'Full treatment aligners'], ['ftd', 'Full treatment digital'], ['lmt', 'Limited treatment'], ['retreat', 'Retreat', 1], ['st_medicaid', 'Medicaid']];
+const ST_EXCL = ['ph2', 'ph2a', 'retreat'];   // not counted in conversion
+const MONEY = [['net_coll', 'Net collections', '$', 'Payments (cash in) for the month, after patient/insurance refunds and write-offs.'], ['gross_prod', 'Gross production', '$', 'Production for the month before any adjustments.'], ['adj', 'Production adjustments', '$', 'Courtesies, promotions and transfer-out adjustments (use the Transfer-Out Calculator for transfers).'], ['cred_pt', 'Patient credits', '$', 'Credit balances owed to patients at month end.'], ['cred_ins', 'Insurance credits', '$', 'Credit balances owed to insurance at month end.'], ['fees', 'Treatment fees for this month’s starts', '$', 'Optional. Total contract fees for the patients who started this month — gives the average case fee.']];
+const PATIENTS = [['pending', 'Pending patients', 'Patients in pending (will think about it) at month end.'], ['active', 'Active patients (total)'], ['active_noappt', 'Active patients with no appointment'], ['obs', 'Observation patients (total)'], ['obs_noappt', 'Observation patients with no appointment'], ['past', 'Patients past their estimated completion']];
+const ACCTS = [['ins', 'Insurance'], ['pt', 'Patient']];
+const DEFAULT_TIPS = { ar_total: 'Total accounts receivable dollars at the end of the month.', ins_pd: 'Accounts with balances 30+ days past due at month end.', pt_pd: 'Accounts with balances 30+ days past due at month end.' };
+
+/* ---------------------------------------------------------------- utils */
+const $ = (s, r) => (r || document).querySelector(s), $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
+const esc = s => (s == null ? '' : String(s)).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const pad = n => String(n).padStart(2, '0');
+const ymOf = d => d.getFullYear() + '-' + pad(d.getMonth() + 1);
+function parseYm(s) { const m = /^(\d{4})-(\d{2})$/.exec(String(s || '')); return m ? new Date(+m[1], +m[2] - 1, 15) : null; }
+const addMonths = (ym, n) => { const d = parseYm(ym) || new Date(); d.setDate(15); d.setMonth(d.getMonth() + n); return ymOf(d); };
+const fmtYm = (ym, o) => { const d = parseYm(ym); return d ? d.toLocaleDateString('en-US', o || { month: 'long', year: 'numeric' }) : ''; };
+const fmtWhen = ts => { if (!ts) return ''; const d = new Date(ts); return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }); };
+function num(v) { if (v == null || v === '') return null; const n = Number(String(v).replace(/[$,%\s]/g, '')); return isFinite(n) ? n : null; }
+function fmtNum(v, unit) { if (v == null || !isFinite(Number(v))) return '—'; const n = Number(v); if (unit === '$') return (n < 0 ? '−$' : '$') + Math.round(Math.abs(n)).toLocaleString('en-US'); const s = Math.abs(n) >= 1000 ? Math.round(n).toLocaleString('en-US') : String(Math.round(n * 10) / 10); return unit === '%' ? s + '%' : s; }
+const ratio = (a, b) => (a != null && b) ? Math.round(Math.abs(a) / Math.abs(b) * 1000) / 10 : null;
+const sumOf = (...v) => { const d = v.filter(x => x != null && isFinite(x)); return d.length ? d.reduce((s, x) => s + x, 0) : null; };
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const valsOf = x => x && typeof x === 'object' ? Object.values(x).filter(v => v != null && typeof v === 'object') : [];
+const up = map => db.ref().update(map);
+const MP = (...p) => [ME].concat(p).join('/');
+const slug = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+let toastT = 0;
+function toast(msg, kind) { const el = $('#toast'); el.textContent = msg; el.className = 'show' + (kind ? ' ' + kind : ''); clearTimeout(toastT); toastT = setTimeout(() => { el.className = ''; }, 2800); }
+function arrOf(x) { if (Array.isArray(x)) return x.filter(v => v != null); if (x && typeof x === 'object') return Object.keys(x).sort((a, b) => (+a) - (+b)).map(k => x[k]).filter(v => v != null); return []; }
+
+/* ---------------------------------------------------------------- totals (shared with the Staff Meeting Hub) */
+function computeTotals(rec) {
+  rec = rec || {}; const t = {}; const tcs = rec.tcs || {};
+  const sumTc = k => { let s = null; Object.keys(tcs).forEach(id => { const v = num(tcs[id] && tcs[id][k]); if (v != null) s = (s || 0) + v; }); return s; };
+  const set = (k, v) => { if (v != null && isFinite(v)) t[k] = Math.round(v * 100) / 100; };
+  NP_ROWS.forEach(([k]) => set(k === 'np' ? 'np_total' : 'np_' + k, sumTc(k)));
+  ST_ROWS.forEach(([k]) => set(k === 'st_medicaid' ? 'st_medicaid' : 'st_' + k, sumTc(k)));
+  const stTotal = sumOf(...ST_ROWS.map(([k]) => sumTc(k)));
+  set('st_total', stTotal);
+  const less = stTotal == null ? null : stTotal - ST_EXCL.reduce((s, k) => s + (sumTc(k) || 0), 0);
+  set('st_less_ph2', less);
+  set('conv', ratio(less, t.np_total));
+  if (t.np_total != null) set('conv_nomed', ratio(less == null ? null : less - (t.st_medicaid || 0), t.np_total - (t.np_medicaid || 0)));
+  const outSum = sumOf(...NP_OUT.map(k => sumTc(k)));
+  set('np_accounted', outSum);
+  set('np_check', ratio(outSum, t.np_total));
+  const tcConv = {}; Object.keys(tcs).forEach(id => { const c = tcs[id] || {}; const st = sumOf(...ST_ROWS.map(([k]) => num(c[k]))); const l = st == null ? null : st - ST_EXCL.reduce((s, k) => s + (num(c[k]) || 0), 0); const r = ratio(l, num(c.np)); if (r != null) tcConv[id] = r; });
+  if (Object.keys(tcConv).length) t.tc_conv = tcConv;
+  ['net_coll', 'gross_prod', 'cred_pt', 'cred_ins', 'fees', 'pending', 'active', 'active_noappt', 'obs', 'obs_noappt', 'past', 'ar_total'].forEach(k => set(k, num(rec[k])));
+  const adj = num(rec.adj); if (adj != null) set('adj', Math.abs(adj));
+  if (t.gross_prod != null) set('net_prod', t.gross_prod - (t.adj || 0));
+  set('coll_rate', ratio(t.net_coll, t.net_prod));
+  set('adj_rate', ratio(t.adj, t.gross_prod));
+  set('cred_total', sumOf(t.cred_pt, t.cred_ins));
+  if (t.fees != null && t.st_total) set('avg_fee', t.fees / t.st_total);
+  set('active_noappt_pct', ratio(t.active_noappt, t.active));
+  if (t.obs) set('obs_appt_pct', ratio(t.obs - (t.obs_noappt || 0), t.obs));
+  set('past_pct', ratio(t.past, t.active));
+  ACCTS.forEach(([p]) => { ['ar', 'ar_n', 'pd', 'pd_n'].forEach(s => set(p + '_' + s, num(rec[p + '_' + s]))); set(p + '_pd_pct', ratio(t[p + '_pd'], t[p + '_ar'])); set(p + '_pd_pct_n', ratio(t[p + '_pd_n'], t[p + '_ar_n'])); });
+  return t;
+}
+function filledCount(rec) { const t = computeTotals(rec); return ['np_total', 'st_total', 'net_coll', 'gross_prod', 'active', 'ins_ar', 'pt_ar'].filter(k => t[k] != null).length; }
+
+/* ---------------------------------------------------------------- state */
+const S = { email: '', isOwner: false, userName: '', roster: [], rosterById: {}, months: {}, years: {}, config: {}, loaded: false, tab: 'month', month: null, booted: false };
+const isActive = p => !!p && p.active !== false && !(p.end && p.end <= new Date().toISOString().slice(0, 10));
+const person = id => (id && S.rosterById[id]) || null;
+const shortName = p => !p ? '' : p.id === OWNER_ID ? 'Dr. A' : (p.nick || p.first || String(p.name || '').split(/\s+/)[0]);
+function avatar(p, size) { size = size || 28; const st = 'width:' + size + 'px;height:' + size + 'px;font-size:' + Math.max(9, Math.round(size * .36)) + 'px'; if (!p) return '<span class="av" style="' + st + '">?</span>'; const nm = String(p.name || '?').replace(/^Dr\.?\s+/i, ''); const ini = p.id === OWNER_ID ? 'DA' : (nm.split(/\s+/).map(w => w[0] || '').filter((x, i, a) => i === 0 || i === a.length - 1).join('') || '?').toUpperCase(); const ph = typeof p.photo === 'string' && /^data:image\//.test(p.photo) && p.photo.length < 80000 ? p.photo : ''; return '<span class="av" title="' + esc(p.name) + '" style="' + st + '">' + (ph ? '<img src="' + ph + '" alt="">' : esc(ini)) + '</span>'; }
+function setRoster(v) {
+  const list = v && typeof v === 'object' ? Object.keys(v).map(k => { const p = v[k]; return p && p.name ? Object.assign({}, p, { id: String(p.id || k) }) : null; }).filter(Boolean) : [];
+  if (!list.some(p => p.id === OWNER_ID)) list.push({ id: OWNER_ID, name: 'Dr. Amir Akhavan', first: 'Amir', nick: 'Dr. A', active: true });
+  S.roster = list; S.rosterById = {}; list.forEach(p => { S.rosterById[p.id] = p; });
+}
+/* TC columns: the ones picked in Goals & setup, else everyone whose Staff Hub title says Treatment Coordinator */
+function tcList() {
+  const cfg = arrOf(S.config.tcs).filter(x => x && x.id);
+  return cfg.length ? cfg.map(x => ({ id: x.id, name: x.name || shortName(person(x.id)) || x.id })) : S.roster.filter(p => isActive(p) && /treatment coord/i.test(p.title || '')).map(p => ({ id: p.id, name: shortName(p) }));
+}
+function tcColumns(rec) {
+  let cols = tcList();
+  if (!cols.length) cols = [{ id: 'all', name: 'Team' }];
+  Object.keys((rec && rec.tcs) || {}).forEach(id => { if (!cols.some(c => c.id === id)) cols.push({ id, name: id === 'all' ? 'Team' : (shortName(person(id)) || id) }); });
+  return cols;
+}
+
+/* who is entering numbers on this computer */
+function author() {
+  try { const a = JSON.parse(localStorage.getItem('nloMeAuthor') || 'null'); if (a && Date.now() - a.at < AUTHOR_TTL && person(a.id)) return person(a.id); } catch (e) {}
+  return S.isOwner ? person(OWNER_ID) : null;
+}
+function pickAuthor(cb) {
+  const list = S.roster.filter(isActive).sort((a, b) => (a.id === OWNER_ID) - (b.id === OWNER_ID) || shortName(a).localeCompare(shortName(b)));
+  openSheet('<h3 class="sheet-t">Who’s entering numbers?</h3><p class="hint">So each section shows who filled it in. This computer remembers for 30 minutes.</p><div class="ptiles">' + list.map(p => '<button class="ptile" data-pid="' + esc(p.id) + '">' + avatar(p, 56) + '<span>' + esc(shortName(p)) + '</span></button>').join('') + '</div>', card => {
+    card.addEventListener('click', e => { const b = e.target.closest('[data-pid]'); if (!b) return; try { localStorage.setItem('nloMeAuthor', JSON.stringify({ id: b.dataset.pid, at: Date.now() })); } catch (er) {} closeSheet(); if (cb) cb(person(b.dataset.pid)); });
+  });
+}
+
+/* ---------------------------------------------------------------- sheets */
+function openSheet(html, mount, opts) {
+  opts = opts || {}; const w = $('#sheet');
+  w.innerHTML = '<div class="sheet-back" data-act="sheet-close"></div><div class="sheet-card' + (opts.wide ? ' wide' : '') + '"><button class="sheet-x" data-act="sheet-close" aria-label="Close">×</button>' + html + '</div>';
+  w.classList.add('open'); document.body.classList.add('noscroll');
+  const card = w.querySelector('.sheet-card'); if (mount) mount(card);
+  const f = card.querySelector('[autofocus]'); if (f) setTimeout(() => f.focus(), 60);
+}
+function closeSheet() { const w = $('#sheet'); w.classList.remove('open'); w.innerHTML = ''; document.body.classList.remove('noscroll'); flushPending(); }
+
+/* ---------------------------------------------------------------- render scheduler */
+const dirty = new Set(), pending = new Set(); let raf = 0; const RENDER = {};
+function render(...p) { p.forEach(x => dirty.add(x)); if (!raf) raf = requestAnimationFrame(flush); }
+function flush() {
+  raf = 0; let parts = [...dirty]; dirty.clear(); if (parts.includes('all')) parts = ['top', 'mbar', 'month', 'year', 'goals'];
+  parts.forEach(p => { const root = $('#p-' + p); if (root) { if (S.tab !== p) return; if (editingIn(root)) { pending.add(p); return; } } try { (RENDER[p] || (() => {}))(); } catch (e) { console.error('render ' + p, e); } });
+}
+function editingIn(root) { const a = document.activeElement; if (!root || !a || !root.contains(a)) return false; return a.tagName === 'TEXTAREA' || a.tagName === 'SELECT' || (a.tagName === 'INPUT' && !/^(checkbox|radio|button|file)$/.test(a.type)); }
+function flushPending() { if (!pending.size) return; const p = [...pending]; pending.clear(); render(...p); }
+document.addEventListener('focusout', () => setTimeout(() => { if (!editingIn(document.body)) flushPending(); }, 0));
+
+/* ---------------------------------------------------------------- auth + boot */
+auth.onAuthStateChanged(u => {
+  if (!u) { $('#gate').hidden = false; $('#app').hidden = true; return; }
+  const email = (u.email || '').toLowerCase();
+  if (!(email === OWNER_EMAIL || email.endsWith('@' + ALLOWED_DOMAIN))) { $('#gateErr').textContent = 'Access denied for ' + email + '.'; auth.signOut(); return; }
+  S.email = email; S.isOwner = email === OWNER_EMAIL; S.userName = u.displayName || email.split('@')[0];
+  $('#gate').hidden = true; $('#app').hidden = false;
+  if (!S.booted) { S.booted = true; boot(); }
+  render('all');
+});
+function defaultMonth() { const d = new Date(); const m = new Date(d.getFullYear(), d.getMonth() - (d.getDate() <= 20 ? 1 : 0), 15); return ymOf(m); }
+function boot() {
+  const h = (location.hash || '').replace('#', ''); S.month = parseYm(h) ? h : defaultMonth();
+  setRoster(null);
+  db.ref(ROSTER_PATH).on('value', s => { setRoster(s.val()); render('all'); }, () => {});
+  db.ref(MP('months')).on('value', s => { S.months = s.val() || {}; S.loaded = true; syncTotals(); render('all'); }, e => { toast('Can’t read the numbers: ' + e.message, 'bad'); });
+  db.ref(MP('years')).on('value', s => { S.years = s.val() || {}; render('year', 'goals', 'month'); });
+  db.ref(MP('config')).on('value', s => { S.config = s.val() || {}; render('all'); });
+  setTab('month');
+}
+/* keep each month's stored totals in step with its inputs (all screens compute the same answer) */
+let syncT = 0;
+function syncTotals() {
+  clearTimeout(syncT);
+  syncT = setTimeout(() => {
+    const map = {};
+    Object.keys(S.months).forEach(m => { const rec = S.months[m] || {}; const t = computeTotals(rec); if (Object.keys(t).length && JSON.stringify(t) !== JSON.stringify(rec.totals || {})) map[MP('months', m, 'totals')] = t; });
+    if (Object.keys(map).length) up(map).catch(() => {});
+  }, 400);
+}
+window.addEventListener('hashchange', () => { const h = location.hash.replace('#', ''); if (parseYm(h) && h !== S.month) { S.month = h; render('all'); } });
+
+/* ---------------------------------------------------------------- header + month bar */
+RENDER.top = () => {
+  $('#top').innerHTML = '<div class="brand"><b>Month-End Numbers</b><span>Next Level Orthodontics</span></div><a class="ibtn" href="staff-meeting.html" title="Staff Meeting Hub" aria-label="Staff Meeting Hub"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/></svg></a><span class="who-top">' + esc(S.userName) + '</span><button class="ibtn" data-act="sign-out" title="Sign out" aria-label="Sign out"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg></button>';
+};
+RENDER.mbar = () => {
+  const yr = S.month.slice(0, 4);
+  const label = S.tab === 'month' ? fmtYm(S.month) : yr;
+  $('#mbar').innerHTML = '<div class="mswitch"><button data-act="prev" aria-label="Previous">‹</button><span class="m" data-act="pick-month">' + esc(label) + '</span><button data-act="next" aria-label="Next">›</button></div>' +
+    '<div class="tabs">' + [['month', 'Month'], ['year', 'Year'], ['goals', 'Goals & setup']].map(([k, l]) => '<button class="tabbtn' + (S.tab === k ? ' on' : '') + '" data-act="tab" data-tab="' + k + '">' + l + '</button>').join('') + '</div>';
+};
+function setTab(t) { S.tab = t; ['month', 'year', 'goals'].forEach(k => { $('#p-' + k).hidden = k !== t; }); render('mbar', t); }
+function goMonth(m) { S.month = m; try { history.replaceState(null, '', '#' + m); } catch (e) {} render('all'); }
+
+/* ---------------------------------------------------------------- month view */
+const dueDay = () => Math.max(1, Math.min(28, num(S.config.dueDay) || 5));
+function dueInfo(m) { const d = parseYm(addMonths(m, 1)); const due = new Date(d.getFullYear(), d.getMonth(), dueDay(), 23, 59); return { due, late: Date.now() > due.getTime() }; }
+function cellInput(path, val, opts) {
+  opts = opts || {};
+  return '<input class="num' + (opts.wide ? ' wide' : '') + '" type="text" inputmode="decimal" data-f="' + esc(path) + '" data-sec="' + esc(opts.sec || '') + '" value="' + (val != null && val !== '' ? esc(opts.unit === '$' ? Number(val).toLocaleString('en-US') : val) : '') + '"' + (opts.disabled ? ' disabled' : '') + ' aria-label="' + esc(opts.label || path) + '">';
+}
+function tipOf(k, fallback) { return (S.config.tips || {})[k] || fallback || DEFAULT_TIPS[k] || ''; }
+const tipBtn = (k, label, tip) => (tipOf(k, tip) || S.isOwner) ? '<button class="q" data-act="tip" data-k="' + esc(k) + '" data-l="' + esc(label) + '" data-d="' + esc(tip || '') + '" title="What goes here?">?</button>' : '';
+function byLine(rec, sec) { const b = (rec.by || {})[sec]; return b ? '<span class="by">' + esc(b.name || '') + ' · ' + esc(fmtWhen(b.at)) + '</span>' : ''; }
+RENDER.month = () => {
+  const m = S.month, rec = S.months[m] || {}, t = computeTotals(rec), cols = tcColumns(rec), fin = rec.final, lock = !!fin;
+  const di = dueInfo(m), filled = filledCount(rec);
+  let head = '<div class="card"><div class="card-h"><h2>' + esc(fmtYm(m)) + '</h2>' +
+    (fin ? '<span class="tag green">✓ Complete · ' + esc(fin.name || '') + ' ' + esc(fmtWhen(fin.at)) + '</span>' : filled ? '<span class="tag amber">In progress</span>' : '<span class="tag">Not started</span>') +
+    '<div class="r"><button class="btn ghost sm" data-act="import">Read a Shimmin PDF</button><button class="btn ghost sm" data-act="print-month">Print</button>' +
+    (fin ? '<button class="btn ghost sm" data-act="reopen">Reopen</button>' : '<button class="btn mint sm" data-act="final">Mark complete</button>') + '</div></div>' +
+    (!fin ? (di.late ? '<div class="warnbar">These were due ' + esc(di.due.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })) + '.</div>' : '<p class="hint">Due by ' + esc(di.due.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })) + '. Every box saves as you go; percentages and totals calculate themselves.</p>') : '<p class="hint">Marked complete — reopen to change anything.</p>') +
+    '</div>';
+  // new patients
+  const npTotal = t.np_total;
+  const npRows = NP_ROWS.map(([k, l, tip], i) => '<tr class="' + (i === 0 ? 'total' : 'sub') + '"><td>' + esc(l) + tipBtn('np_' + k, l, tip) + '</td>' + cols.map(c => '<td>' + cellInput('tcs/' + c.id + '/' + k, ((rec.tcs || {})[c.id] || {})[k], { sec: 'np', disabled: lock, label: l + ' — ' + c.name }) + '</td>').join('') +
+    (cols.length > 1 ? '<td><span class="calc">' + fmtNum(t[k === 'np' ? 'np_total' : 'np_' + k]) + '</span></td>' : '') + '<td><span class="calc">' + (i === 0 ? '' : fmtNum(ratio(t['np_' + k], npTotal), '%')) + '</span></td></tr>').join('');
+  const acc = t.np_accounted, okCheck = npTotal != null && acc != null && acc === npTotal;
+  const check = npTotal ? '<div class="' + (okCheck ? 'okbar' : 'warnbar') + '" style="margin-top:10px">' + (okCheck ? '✓ Every new patient is accounted for (100%).' : 'Outcomes add up to ' + fmtNum(acc || 0) + ' of ' + fmtNum(npTotal) + ' new patients (' + fmtNum(ratio(acc || 0, npTotal), '%') + ') — they should total 100%.') + '</div>' : '';
+  const np = '<div class="card"><div class="card-h"><h2>New patients</h2>' + byLine(rec, 'np') + '<div class="r"><span class="tag blue">Total ' + fmtNum(npTotal) + '</span></div></div><div class="scroll"><table class="tbl"><thead><tr><th></th>' + cols.map(c => '<th>' + esc(c.name) + '</th>').join('') + (cols.length > 1 ? '<th>Total</th>' : '') + '<th>% of new</th></tr></thead><tbody>' + npRows + '</tbody></table></div>' + check + '</div>';
+  // starts
+  const stRows = ST_ROWS.map(([k, l, ex]) => '<tr class="sub"><td>' + esc(l) + (ex ? '<span class="x">not in conversion</span>' : '') + '</td>' + cols.map(c => '<td>' + cellInput('tcs/' + c.id + '/' + k, ((rec.tcs || {})[c.id] || {})[k], { sec: 'st', disabled: lock, label: l + ' — ' + c.name }) + '</td>').join('') + '<td><span class="calc">' + fmtNum(t[k === 'st_medicaid' ? 'st_medicaid' : 'st_' + k]) + '</span></td></tr>').join('');
+  const goalConv = num(((S.years[m.slice(0, 4)] || {}).goals || {}).conv);
+  const convCls = v => goalConv == null || v == null ? '' : v >= goalConv ? ' good' : ' bad';
+  const st = '<div class="card"><div class="card-h"><h2>Treatment starts</h2>' + byLine(rec, 'st') + '<div class="r"><span class="tag blue">Conversion ' + fmtNum(t.conv, '%') + (goalConv != null ? ' · goal ' + goalConv + '%' : '') + '</span></div></div><div class="scroll"><table class="tbl"><thead><tr><th></th>' + cols.map(c => '<th>' + esc(c.name) + '</th>').join('') + '<th>Total</th></tr></thead><tbody>' + stRows +
+    '<tr class="total"><td>Total started</td>' + cols.map(c => { const cc = (rec.tcs || {})[c.id] || {}; return '<td><span class="calc">' + fmtNum(sumOf(...ST_ROWS.map(([k]) => num(cc[k])))) + '</span></td>'; }).join('') + '<td><span class="calc">' + fmtNum(t.st_total) + '</span></td></tr>' +
+    '<tr class="total"><td>Conversion rate <span class="x">starts less Ph II & retreats ÷ new patients</span></td>' + cols.map(c => '<td><span class="calc' + convCls((t.tc_conv || {})[c.id]) + '">' + fmtNum((t.tc_conv || {})[c.id], '%') + '</span></td>').join('') + '<td><span class="calc' + convCls(t.conv) + '">' + fmtNum(t.conv, '%') + '</span></td></tr>' +
+    '<tr><td>Conversion less Medicaid</td>' + cols.map(() => '<td></td>').join('') + '<td><span class="calc">' + fmtNum(t.conv_nomed, '%') + '</span></td></tr></tbody></table></div></div>';
+  // money
+  const frow = (k, l, unit, tip, sec, v) => '<div class="frow"><span class="l">' + esc(l) + tipBtn(k, l, tip) + '</span>' + cellInput(k, v != null ? v : rec[k], { sec, disabled: lock, unit, wide: unit === '$', label: l }) + '</div>';
+  const crow = (l, v, unit, cls) => '<div class="frow calcrow"><span class="l">' + esc(l) + '</span><span class="calc ' + (cls || '') + '">' + fmtNum(v, unit) + '</span></div>';
+  const money = '<div class="card"><div class="card-h"><h2>Production &amp; collections</h2>' + byLine(rec, 'money') + '<div class="r"><a class="btn ghost sm" href="transfer-out-calculator.html" target="_blank" rel="noopener">Transfer-Out Calculator ↗</a></div></div><div class="fgrid"><div>' +
+    MONEY.slice(0, 3).map(([k, l, u, tip]) => frow(k, l, u, tip, 'money')).join('') + crow('Net production', t.net_prod, '$') + crow('Collection rate (net collections ÷ net production)', t.coll_rate, '%') + crow('Adjustment rate (adjustments ÷ gross)', t.adj_rate, '%') +
+    '</div><div>' + MONEY.slice(3).map(([k, l, u, tip]) => frow(k, l, u, tip, 'money')).join('') + crow('Total credits', t.cred_total, '$') + crow('Average case fee', t.avg_fee, '$') + '</div></div></div>';
+  // patients
+  const pats = '<div class="card"><div class="card-h"><h2>Patients at month end</h2>' + byLine(rec, 'pts') + '</div><div class="fgrid"><div>' +
+    frow('pending', PATIENTS[0][1], '', PATIENTS[0][2], 'pts') + frow('active', PATIENTS[1][1], '', '', 'pts') + frow('active_noappt', PATIENTS[2][1], '', '', 'pts') + crow('% of active patients without an appointment', t.active_noappt_pct, '%') +
+    '</div><div>' + frow('obs', PATIENTS[3][1], '', '', 'pts') + frow('obs_noappt', PATIENTS[4][1], '', '', 'pts') + crow('% of observation patients WITH an appointment', t.obs_appt_pct, '%') + frow('past', PATIENTS[5][1], '', '', 'pts') + crow('% of active patients past completion', t.past_pct, '%') + '</div></div></div>';
+  // accounts
+  const acRows = ACCTS.map(([p, l]) => '<tr class="total"><td>' + l + ' accounts</td><td>' + cellInput(p + '_ar', rec[p + '_ar'], { sec: 'acct', disabled: lock, unit: '$', wide: true, label: l + ' accounts $' }) + '</td><td>' + cellInput(p + '_ar_n', rec[p + '_ar_n'], { sec: 'acct', disabled: lock, label: l + ' accounts #' }) + '</td></tr>' +
+    '<tr class="sub"><td>' + l + ' 30+ days past due' + tipBtn(p + '_pd', l + ' 30+ days past due') + '</td><td>' + cellInput(p + '_pd', rec[p + '_pd'], { sec: 'acct', disabled: lock, unit: '$', wide: true, label: l + ' past due $' }) + '</td><td>' + cellInput(p + '_pd_n', rec[p + '_pd_n'], { sec: 'acct', disabled: lock, label: l + ' past due #' }) + '</td></tr>' +
+    '<tr class="sub"><td>% past due (delinquent)</td><td><span class="calc">' + fmtNum(t[p + '_pd_pct'], '%') + '</span></td><td><span class="calc">' + fmtNum(t[p + '_pd_pct_n'], '%') + '</span></td></tr>').join('');
+  const accts = '<div class="card"><div class="card-h"><h2>Accounts</h2>' + byLine(rec, 'acct') + '</div><div class="scroll"><table class="tbl"><thead><tr><th></th><th>Dollar amount</th><th># of accounts</th></tr></thead><tbody>' + acRows + '</tbody></table></div>' +
+    '<div class="frow" style="margin-top:8px"><span class="l">Total accounts receivable' + tipBtn('ar_total', 'Total accounts receivable') + '</span>' + cellInput('ar_total', rec.ar_total, { sec: 'acct', disabled: lock, unit: '$', wide: true, label: 'Total accounts receivable' }) + '</div></div>';
+  $('#p-month').innerHTML = head + np + st + money + pats + accts + ytdHTML(m);
+};
+/* year-to-date block (Shimmin's "monthly averages" and "yearly totals") */
+function yearData(yr) {
+  const ms = []; for (let i = 1; i <= 12; i++) { const k = yr + '-' + pad(i); const rec = S.months[k]; if (rec && filledCount(rec)) ms.push({ k, t: computeTotals(rec) }); }
+  const sum = f => sumOf(...ms.map(x => f(x.t)));
+  return { n: ms.length, ms, np: sum(t => t.np_total), startsInc: sum(t => t.st_total), startsLess: sum(t => t.st_less_ph2), ph2: sum(t => sumOf(t.st_ph2, t.st_ph2a)), coll: sum(t => t.net_coll), gross: sum(t => t.gross_prod), adj: sum(t => t.adj), net: sum(t => t.net_prod), fees: sum(t => t.fees), feeStarts: sum(t => t.fees != null ? t.st_total : null) };
+}
+function baseline(yr) {
+  const prev = yearData(String(+yr - 1)), b = (S.years[yr] || {}).prev || {};
+  const pick = (manual, full) => num(manual) != null ? num(manual) : (prev.n === 12 ? full : null);
+  return { np: pick(b.np, prev.np), startsInc: pick(b.startsInc, prev.startsInc), startsLess: pick(b.startsLess, prev.startsLess), coll: pick(b.coll, prev.coll), gross: pick(b.gross, prev.gross), months: prev.n, manual: !!Object.keys(b).length };
+}
+function ytdHTML(m) {
+  const yr = m.slice(0, 4), y = yearData(yr), b = baseline(yr), g = (S.years[yr] || {}).goals || {};
+  const growthGoal = { np: num(g.np), startsInc: num(g.starts), coll: num(g.coll), gross: num(g.prod) };
+  const avg = v => v == null || !y.n ? null : v / y.n;
+  const prevAvg = v => v == null ? null : v / 12;
+  const goalAvg = (v, gr) => v == null ? null : v / 12 * (1 + (gr || 0) / 100);
+  const growth = (cur, base) => cur == null || !base ? null : Math.round((cur - base) / base * 1000) / 10;
+  const r1 = (l, cur, base, gr, unit) => { const pa = prevAvg(base), ca = avg(cur), ga = goalAvg(base, gr); return '<tr><td>' + l + '</td><td>' + fmtNum(pa, unit) + '</td><td><b>' + fmtNum(ca, unit) + '</b></td><td>' + fmtNum(ga, unit) + '</td><td><span class="calc ' + (ga != null && ca != null ? (ca >= ga ? 'good' : 'bad') : '') + '">' + fmtNum(growth(ca, pa), '%') + '</span></td></tr>'; };
+  const goalYtd = (base, gr) => base == null || !y.n ? null : base * (1 + (gr || 0) / 100) * y.n / 12;
+  const r2 = (l, cur, base, gr, unit) => { const gy = goalYtd(base, gr); return '<tr><td>' + l + '</td><td>' + fmtNum(base, unit) + '</td><td><b>' + fmtNum(cur, unit) + '</b></td><td>' + fmtNum(gy, unit) + '</td><td><span class="calc ' + (gy != null && cur != null ? (cur >= gy ? 'good' : 'bad') : '') + '">' + fmtNum(base && cur != null ? Math.round((cur - base * y.n / 12) / (base * y.n / 12) * 1000) / 10 : null, '%') + '</span></td></tr>'; };
+  const ratioNow = ratio(y.startsLess, y.np), ratioPrev = ratio(b.startsLess, b.np), convGoal = num(g.conv);
+  return '<div class="card"><div class="card-h"><h2>' + esc(yr) + ' so far</h2><span class="muted small">' + y.n + ' month' + (y.n === 1 ? '' : 's') + ' in' + (b.np == null ? ' · add last year’s totals in Goals & setup to compare' : '') + '</span></div>' +
+    '<div class="eyebrow">Monthly averages</div><div class="scroll"><table class="tbl"><thead><tr><th></th><th>Last year</th><th>This year</th><th>Goal</th><th>Growth</th></tr></thead><tbody>' +
+    r1('New patients', y.np, b.np, growthGoal.np) + r1('Starts (incl. Phase II)', y.startsInc, b.startsInc, growthGoal.startsInc) + r1('Net collections', y.coll, b.coll, growthGoal.coll, '$') + r1('Production (gross)', y.gross, b.gross, growthGoal.gross, '$') + '</tbody></table></div>' +
+    '<div class="eyebrow" style="margin-top:14px">Year-to-date totals</div><div class="scroll"><table class="tbl"><thead><tr><th></th><th>Last year (full)</th><th>This year</th><th>Goal to date</th><th>Pace vs last year</th></tr></thead><tbody>' +
+    r2('New patients', y.np, b.np, growthGoal.np) + r2('Starts (less Phase II)', y.startsLess, b.startsLess, growthGoal.startsInc) +
+    '<tr><td>Starts ÷ new patients</td><td>' + fmtNum(ratioPrev, '%') + '</td><td><b>' + fmtNum(ratioNow, '%') + '</b></td><td>' + fmtNum(convGoal, '%') + '</td><td><span class="calc ' + (convGoal != null && ratioNow != null ? (ratioNow >= convGoal ? 'good' : 'bad') : '') + '"></span></td></tr></tbody></table></div></div>';
+}
+
+/* ---------------------------------------------------------------- year view */
+RENDER.year = () => {
+  const yr = S.month.slice(0, 4), y = yearData(yr), b = baseline(yr);
+  const rows = [];
+  for (let i = 1; i <= 12; i++) {
+    const k = yr + '-' + pad(i), rec = S.months[k], t = rec ? computeTotals(rec) : {}, has = rec && filledCount(rec);
+    rows.push('<tr class="clickable' + (has ? '' : ' empty') + '" data-act="open-month" data-m="' + k + '"><td>' + esc(fmtYm(k, { month: 'short' })) + (rec && rec.final ? ' <span class="tag green">✓</span>' : '') + '</td><td>' + fmtNum(t.np_total) + '</td><td>' + fmtNum(t.st_less_ph2) + '</td><td>' + fmtNum(sumOf(t.st_ph2, t.st_ph2a)) + '</td><td>' + fmtNum(t.conv, '%') + '</td><td>' + fmtNum(t.gross_prod, '$') + '</td><td>' + fmtNum(t.adj, '$') + '</td><td>' + fmtNum(t.adj_rate, '%') + '</td><td>' + fmtNum(t.net_prod, '$') + '</td><td>' + fmtNum(t.net_coll, '$') + '</td><td>' + fmtNum(t.coll_rate, '%') + '</td><td>' + fmtNum(t.ar_total, '$') + '</td><td>' + fmtNum(t.pt_pd_pct, '%') + '</td><td>' + fmtNum(t.ins_pd_pct, '%') + '</td><td>' + fmtNum(t.avg_fee, '$') + '</td></tr>');
+  }
+  const tot = '<tr class="total"><td>Total</td><td>' + fmtNum(y.np) + '</td><td>' + fmtNum(y.startsLess) + '</td><td>' + fmtNum(y.ph2) + '</td><td>' + fmtNum(ratio(y.startsLess, y.np), '%') + '</td><td>' + fmtNum(y.gross, '$') + '</td><td>' + fmtNum(y.adj, '$') + '</td><td>' + fmtNum(ratio(y.adj, y.gross), '%') + '</td><td>' + fmtNum(y.net, '$') + '</td><td>' + fmtNum(y.coll, '$') + '</td><td>' + fmtNum(ratio(y.coll, y.net), '%') + '</td><td></td><td></td><td></td><td>' + fmtNum(y.fees != null && y.feeStarts ? y.fees / y.feeStarts : null, '$') + '</td></tr>';
+  const avgRow = y.n ? '<tr><td>Monthly avg</td><td>' + fmtNum(y.np / y.n) + '</td><td>' + fmtNum(y.startsLess / y.n) + '</td><td>' + fmtNum(y.ph2 == null ? null : y.ph2 / y.n) + '</td><td></td><td>' + fmtNum(y.gross == null ? null : y.gross / y.n, '$') + '</td><td></td><td></td><td>' + fmtNum(y.net == null ? null : y.net / y.n, '$') + '</td><td>' + fmtNum(y.coll == null ? null : y.coll / y.n, '$') + '</td><td colspan="5"></td></tr>' : '';
+  const lastRow = '<tr><td>Last year</td><td>' + fmtNum(b.np) + '</td><td>' + fmtNum(b.startsLess) + '</td><td></td><td>' + fmtNum(ratio(b.startsLess, b.np), '%') + '</td><td>' + fmtNum(b.gross, '$') + '</td><td colspan="3"></td><td>' + fmtNum(b.coll, '$') + '</td><td colspan="5"></td></tr>';
+  $('#p-year').innerHTML = '<div class="card"><div class="card-h"><h2>' + esc(yr) + ' summary</h2><span class="muted small">Tap a month to open it</span><div class="r"><button class="btn ghost sm" data-act="csv">Download CSV</button><button class="btn ghost sm" data-act="print-year">Print</button></div></div>' +
+    '<div class="scroll"><table class="tbl yr"><thead><tr><th>Month</th><th>New pt exams</th><th>Starts (1st time)</th><th>Phase II starts</th><th>Case accept.</th><th>Gross prod.</th><th>Adjust.</th><th>Adj. rate</th><th>Net prod.</th><th>Net coll.</th><th>Coll. rate</th><th>A/R</th><th>Patient 30+</th><th>Insur. 30+</th><th>Avg case fee</th></tr></thead><tbody>' + rows.join('') + tot + avgRow + lastRow + '</tbody></table></div>' +
+    '<p class="hint" style="margin-top:10px">Case acceptance = first-time starts ÷ new patient exams. Phase II and retreats are left out of conversion, as before.</p></div>' + ytdHTML(yr + '-12');
+};
+function yearCsv(yr) {
+  const head = ['Month', 'New patients', 'Starts total', 'Starts less Ph II', 'Conversion %', 'Gross production', 'Adjustments', 'Net production', 'Net collections', 'Collection rate %', 'A/R', 'Patient 30+ %', 'Insurance 30+ %', 'Active patients', 'Obs with appt %', 'Past completion %'];
+  const lines = [head.join(',')];
+  for (let i = 1; i <= 12; i++) { const k = yr + '-' + pad(i), t = computeTotals(S.months[k] || {}); lines.push([fmtYm(k, { month: 'short', year: 'numeric' }), t.np_total, t.st_total, t.st_less_ph2, t.conv, t.gross_prod, t.adj, t.net_prod, t.net_coll, t.coll_rate, t.ar_total, t.pt_pd_pct, t.ins_pd_pct, t.active, t.obs_appt_pct, t.past_pct].map(v => v == null ? '' : '"' + String(v).replace(/"/g, '""') + '"').join(',')); }
+  return lines.join('\n');
+}
+
+/* ---------------------------------------------------------------- goals & setup */
+RENDER.goals = () => {
+  const yr = S.month.slice(0, 4), Y = S.years[yr] || {}, g = Y.goals || {}, b = Y.prev || {}, auto = yearData(String(+yr - 1));
+  const gi = (k, l, suf) => '<div class="frow"><span class="l">' + esc(l) + '</span><input class="num" type="text" inputmode="decimal" data-g="goals/' + k + '" value="' + (g[k] != null ? esc(g[k]) : '') + '"><b class="muted small" style="width:14px">' + (suf || '%') + '</b></div>';
+  const bi = (k, l, unit) => '<div class="frow"><span class="l">' + esc(l) + '</span><input class="num' + (unit === '$' ? ' wide' : '') + '" type="text" inputmode="decimal" data-g="prev/' + k + '" value="' + (b[k] != null ? esc(unit === '$' ? Number(b[k]).toLocaleString('en-US') : b[k]) : '') + '" placeholder="' + (auto.n === 12 && auto[k] != null ? esc(fmtNum(auto[k], unit)) : '') + '"></div>';
+  const cfgTcs = arrOf(S.config.tcs).map(x => x.id), effTcs = tcList().map(x => x.id);
+  const tcTiles = S.roster.filter(isActive).map(p => '<button class="ptile' + (effTcs.indexOf(p.id) >= 0 ? ' sel' : '') + '" data-act="tc" data-pid="' + esc(p.id) + '">' + avatar(p, 46) + '<span>' + esc(shortName(p)) + '</span></button>').join('');
+  $('#p-goals').innerHTML = '<div class="card"><div class="card-h"><h2>' + esc(yr) + ' goals</h2></div><p class="hint">Growth over last year. The year view and each month’s “so far” box compare against these.</p><div class="fgrid" style="margin-top:8px"><div>' +
+    gi('np', 'New patients growth') + gi('starts', 'Starts growth') + gi('coll', 'Net collections growth') + gi('prod', 'Production growth') + '</div><div>' + gi('conv', 'Goal conversion rate (starts ÷ new patients)') + '</div></div></div>' +
+    '<div class="card"><div class="card-h"><h2>' + (+yr - 1) + ' totals</h2><span class="muted small">' + (auto.n === 12 ? 'All 12 months of ' + (+yr - 1) + ' are in the app — these fill in by themselves; type only to override.' : auto.n + ' of 12 months of ' + (+yr - 1) + ' are in the app — type last year’s totals here so the comparisons work.') + '</span></div><div class="fgrid"><div>' +
+    bi('np', 'New patients', '') + bi('startsInc', 'Starts including Phase II', '') + bi('startsLess', 'Starts not counting Phase II', '') + '</div><div>' + bi('coll', 'Net collections', '$') + bi('gross', 'Production (gross)', '$') + '</div></div></div>' +
+    '<div class="card"><div class="card-h"><h2>Treatment coordinator columns</h2></div><p class="hint">New patients and starts get one column per TC — tap to add or remove. ' + (cfgTcs.length ? '' : 'Right now it follows the Staff Hub titles (Treatment Coordinator).') + '</p><div class="ptiles">' + tcTiles + '</div></div>' +
+    '<div class="card"><div class="card-h"><h2>Due date</h2></div><div class="frow"><span class="l">Month-end numbers are due by this day of the next month</span><input class="num" type="text" inputmode="numeric" data-cfg="dueDay" value="' + esc(dueDay()) + '"></div></div>' +
+    '<div class="card"><div class="card-h"><h2>Back-filling past months</h2></div><p class="hint">To bring over a month from Shimmin: open it on the Month tab and use <b>Read a Shimmin PDF</b> (Shimmin → EOM Executive Summary → Ctrl+P → Save as PDF). The AI reads the page and you check the numbers before saving.</p></div>' +
+    '<p class="hint">Month-End Numbers ' + APP_VERSION + ' · totals only — never patient names.</p>';
+};
+
+/* ---------------------------------------------------------------- saving */
+function saveField(path, raw, sec) {
+  const m = S.month, v = num(raw); const map = {};
+  map[MP('months', m, path)] = v;
+  const a = author();
+  if (sec) map[MP('months', m, 'by', sec)] = { id: a ? a.id : '', name: a ? shortName(a) : (S.userName || ''), at: Date.now() };
+  map[MP('months', m, 'updatedAt')] = Date.now();
+  const rec = JSON.parse(JSON.stringify(S.months[m] || {}));
+  const segs = path.split('/'); let o = rec; for (let i = 0; i < segs.length - 1; i++) { o[segs[i]] = o[segs[i]] || {}; o = o[segs[i]]; } if (v == null) delete o[segs[segs.length - 1]]; else o[segs[segs.length - 1]] = v;
+  const t = computeTotals(rec); map[MP('months', m, 'totals')] = Object.keys(t).length ? t : null;
+  return up(map).catch(e => toast('Not saved: ' + e.message, 'bad'));
+}
+document.addEventListener('focusin', e => { const t = e.target; if (t && t.dataset && t.dataset.f && !author() && !S.askedAuthor) { S.askedAuthor = true; pickAuthor(() => t.focus()); } });
+document.addEventListener('change', e => {
+  const t = e.target;
+  if (t.dataset.f) { saveField(t.dataset.f, t.value, t.dataset.sec); return; }
+  if (t.dataset.g) { const yr = S.month.slice(0, 4); db.ref(MP('years', yr, t.dataset.g)).set(num(t.value)); return; }
+  if (t.dataset.cfg) { db.ref(MP('config', t.dataset.cfg)).set(num(t.value)); return; }
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeSheet();
+  if (e.key === 'Enter' && e.target.classList && e.target.classList.contains('num')) { e.preventDefault(); const all = $$('input.num:not(:disabled)'); const i = all.indexOf(e.target); if (i >= 0 && all[i + 1]) all[i + 1].focus(); else e.target.blur(); }
+});
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-act]'); if (!el) return;
+  const act = el.dataset.act;
+  switch (act) {
+    case 'sign-in': { const p = new firebase.auth.GoogleAuthProvider(); p.setCustomParameters({ prompt: 'select_account' }); auth.signInWithPopup(p).catch(er => { $('#gateErr').textContent = er.message; }); break; }
+    case 'sign-out': if (confirm('Sign out?')) auth.signOut(); break;
+    case 'sheet-close': closeSheet(); break;
+    case 'tab': setTab(el.dataset.tab); break;
+    case 'prev': S.tab === 'month' ? goMonth(addMonths(S.month, -1)) : goMonth(addMonths(S.month, -12)); break;
+    case 'next': S.tab === 'month' ? goMonth(addMonths(S.month, 1)) : goMonth(addMonths(S.month, 12)); break;
+    case 'pick-month': openSheet('<h3 class="sheet-t">Go to a month</h3><input type="month" class="field" id="pm" value="' + esc(S.month) + '" autofocus style="max-width:240px;margin-top:10px"><div class="row end" style="margin-top:14px"><button class="btn mint" id="pmGo">Open</button></div>', c => { c.querySelector('#pmGo').onclick = () => { const v = c.querySelector('#pm').value; if (parseYm(v)) { closeSheet(); goMonth(v); setTab('month'); } }; }); break;
+    case 'open-month': goMonth(el.dataset.m); setTab('month'); window.scrollTo(0, 0); break;
+    case 'final': { const a = author(); const run = p => db.ref(MP('months', S.month, 'final')).set({ at: Date.now(), id: p ? p.id : '', name: p ? shortName(p) : S.userName }).then(() => toast(fmtYm(S.month) + ' marked complete ✓', 'good')); if (a) run(a); else pickAuthor(run); break; }
+    case 'reopen': if (confirm('Reopen ' + fmtYm(S.month) + ' for changes?')) db.ref(MP('months', S.month, 'final')).remove(); break;
+    case 'tc': { const id = el.dataset.pid; let cur = tcList().map(x => ({ id: x.id, name: x.name })); cur = cur.some(x => x.id === id) ? cur.filter(x => x.id !== id) : cur.concat([{ id, name: shortName(person(id)) }]); db.ref(MP('config', 'tcs')).set(cur.length ? cur : null); break; }
+    case 'tip': { const k = el.dataset.k, l = el.dataset.l; const text = tipOf(k, el.dataset.d || ''); openSheet('<h3 class="sheet-t">' + esc(l) + '</h3><p style="margin-top:8px">' + (text ? esc(text) : '<span class="muted">No tip yet.</span>') + '</p>' + (S.isOwner ? '<label class="lbl">Edit the tip (where to find this number in Edge, etc.)</label><textarea class="field" id="tipT" rows="3">' + esc(text) + '</textarea><div class="row end" style="margin-top:12px"><button class="btn mint" id="tipS">Save tip</button></div>' : ''), c => { const s = c.querySelector('#tipS'); if (s) s.onclick = () => { db.ref(MP('config', 'tips', k)).set(c.querySelector('#tipT').value.trim() || null); closeSheet(); }; }); break; }
+    case 'import': importSheet(); break;
+    case 'print-month': printMonth(); break;
+    case 'print-year': printYear(); break;
+    case 'csv': { const yr = S.month.slice(0, 4); const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([yearCsv(yr)], { type: 'text/csv' })); a.download = 'NLO month-end ' + yr + '.csv'; document.body.appendChild(a); a.click(); setTimeout(() => a.remove(), 300); break; }
+  }
+});
+
+/* ---------------------------------------------------------------- print */
+function printDoc(html) { $('#printArea').innerHTML = html; setTimeout(() => window.print(), 60); }
+window.addEventListener('afterprint', () => { $('#printArea').innerHTML = ''; });
+function printMonth() {
+  const m = S.month, rec = S.months[m] || {}, t = computeTotals(rec);
+  const row = (l, v, u) => '<tr><td>' + esc(l) + '</td><td>' + fmtNum(v, u) + '</td></tr>';
+  printDoc('<h1>Next Level Orthodontics — ' + esc(fmtYm(m)) + '</h1>' +
+    '<h2>New patients & starts</h2><table>' + row('New patients', t.np_total) + NP_OUT.map(k => row((NP_ROWS.find(x => x[0] === k) || [])[1], t['np_' + k])).join('') + row('Total started', t.st_total) + row('Starts less Phase II', t.st_less_ph2) + row('Conversion rate', t.conv, '%') + '</table>' +
+    '<h2>Production & collections</h2><table>' + row('Net collections', t.net_coll, '$') + row('Gross production', t.gross_prod, '$') + row('Adjustments', t.adj, '$') + row('Net production', t.net_prod, '$') + row('Collection rate', t.coll_rate, '%') + row('Total credits', t.cred_total, '$') + '</table>' +
+    '<h2>Patients</h2><table>' + row('Active', t.active) + row('% active without appointment', t.active_noappt_pct, '%') + row('Observation', t.obs) + row('% observation with appointment', t.obs_appt_pct, '%') + row('% past completion', t.past_pct, '%') + row('Pending', t.pending) + '</table>' +
+    '<h2>Accounts</h2><table>' + row('Insurance 30+ past due', t.ins_pd_pct, '%') + row('Patient 30+ past due', t.pt_pd_pct, '%') + row('Total A/R', t.ar_total, '$') + '</table>');
+}
+function printYear() { const tbl = $('#p-year table'); printDoc('<h1>Next Level Orthodontics — ' + esc(S.month.slice(0, 4)) + ' month-end summary</h1>' + (tbl ? tbl.outerHTML : '')); }
+
+/* ---------------------------------------------------------------- back-fill: read a Shimmin EOM PDF with AI */
+const IMPORT_KEYS = { np_total: 'np', np_obs: 'obs', np_pending: 'pending', np_sameday: 'sameday', np_scheduled: 'scheduled', np_declined: 'declined', np_notx: 'notx', np_medicaid: 'medicaid', st_ph1: 'ph1', st_ph1a: 'ph1a', st_ph2: 'ph2', st_ph2a: 'ph2a', st_ft: 'ft', st_fta: 'fta', st_ftd: 'ftd', st_lmt: 'lmt', st_retreat: 'retreat', st_medicaid: 'st_medicaid' };
+const IMPORT_TOP = ['net_coll', 'gross_prod', 'adj', 'cred_pt', 'cred_ins', 'pending', 'active', 'active_noappt', 'obs', 'obs_noappt', 'past', 'ins_ar', 'ins_ar_n', 'ins_pd', 'ins_pd_n', 'pt_ar', 'pt_ar_n', 'pt_pd', 'pt_pd_n'];
+const IMPORT_LABELS = { np_total: 'New patients', np_obs: 'Went into observation', np_pending: 'Went into pending', np_sameday: 'Same day start (contract signed)', np_scheduled: 'Patients scheduled start', np_declined: 'Declined Tx', np_notx: 'No Tx recommended', np_medicaid: 'MEDICAID (new patients section)', st_ph1: 'Ph.I starts', st_ph1a: 'Ph.I Aligners starts', st_ph2: 'Ph.II starts', st_ph2a: 'Ph.II Aligners starts', st_ft: 'FT starts', st_fta: 'FT Aligners starts', st_ftd: 'FT Digital starts', st_lmt: 'LMT starts', st_retreat: 'Retreat starts', st_medicaid: 'MEDICAID (starts section)', net_coll: 'Net collections', gross_prod: 'Gross production', adj: 'Less adjustments', cred_pt: 'Patient credits', cred_ins: 'Insurance credits', pending: '# of pending patients', active: '# of TOTAL active patients', active_noappt: '# of active pts w/out apts', obs: '# of TOTAL obs pts', obs_noappt: '# of obs pts w/out apts', past: '# of patients past completion', ins_ar: 'Insurance accounts — dollar amount', ins_ar_n: 'Insurance accounts — number of accounts', ins_pd: 'Insurance accounts past due — dollar amount', ins_pd_n: 'Insurance accounts past due — number of accounts', pt_ar: 'Patient accounts — dollar amount', pt_ar_n: 'Patient accounts — number of accounts', pt_pd: 'Patient accounts past due — dollar amount', pt_pd_n: 'Patient accounts past due — number of accounts' };
+async function geminiKey() { if (S.gemKey) return S.gemKey; let k = null; try { k = (await db.ref('nlo/settings/geminiKey').once('value')).val(); } catch (e) { throw new Error('This account can’t read the office AI key. Use the office or Dr. A’s sign-in.'); } if (!k || String(k).trim().length < 20) throw new Error('No office Gemini key is saved (Inventory app → AI settings).'); S.gemKey = String(k).trim(); return S.gemKey; }
+async function geminiJSON(system, parts) {
+  const key = await geminiKey(); let last = null;
+  for (const model of GEMINI_MODELS) {
+    for (let att = 0; att < 2; att++) {
+      const ctrl = new AbortController(), timer = setTimeout(() => ctrl.abort(), 150000);
+      try {
+        const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + encodeURIComponent(key), { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: ctrl.signal, body: JSON.stringify({ system_instruction: { parts: [{ text: system }] }, contents: [{ role: 'user', parts }], generationConfig: { responseMimeType: 'application/json', maxOutputTokens: 8192 } }) });
+        const j = await r.json().catch(() => ({}));
+        if (r.ok) { const ps = (j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts) || []; let txt = ps.filter(p => !p.thought).map(p => p.text || '').join('').trim().replace(/^```(?:json)?/i, '').replace(/```$/, '').trim(); if (!txt) { last = new Error('Empty answer'); continue; } try { return JSON.parse(txt); } catch (e) { const mm = txt.match(/\{[\s\S]*\}/); if (mm) return JSON.parse(mm[0]); throw new Error('The AI reply could not be read.'); } }
+        const msg = (j.error && j.error.message) || 'HTTP ' + r.status;
+        if (r.status === 404 || /not found|not supported/i.test(msg)) { last = new Error(msg); break; }
+        if (r.status === 429 || r.status >= 500) { last = new Error(r.status === 429 ? 'The AI is busy — try again in a minute.' : msg); await sleep(2500); continue; }
+        throw new Error(msg);
+      } catch (e) { if (e.name === 'AbortError') { last = new Error('The AI took too long.'); break; } if (e instanceof TypeError) { last = new Error('Network error reaching the AI.'); await sleep(1000); continue; } throw e; } finally { clearTimeout(timer); }
+    }
+  }
+  throw last || new Error('AI request failed');
+}
+function fileToPart(f) { return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => { const s = String(r.result); res({ inline_data: { mime_type: f.type || 'application/pdf', data: s.slice(s.indexOf(',') + 1) } }); }; r.onerror = () => rej(new Error('Could not read the file')); r.readAsDataURL(f); }); }
+function importSheet() {
+  const m = S.month;
+  openSheet('<h3 class="sheet-t">Read a Shimmin PDF into ' + esc(fmtYm(m)) + '</h3><ol class="steps small"><li>In Shimmin, open <b>EOM Executive Summary</b> for ' + esc(fmtYm(m)) + '.</li><li>Press <b>Ctrl+P</b> (⌘P on a Mac) → <b>Save as PDF</b>.</li><li>Drop the PDF here (or screenshots of the whole page).</li></ol>' +
+    '<label class="drop" id="dz"><input type="file" id="df" accept="application/pdf,image/*" multiple hidden><span id="dn">Choose or drop the PDF</span></label><div id="ds" class="small bold" style="margin-top:10px;min-height:18px"></div><div class="row end" style="margin-top:8px"><button class="btn blue" id="dg" disabled>Read it</button></div>', card => {
+    let files = [];
+    const setF = l => { files = Array.from(l || []).filter(f => /^(application\/pdf|image\/)/.test(f.type)).slice(0, 6); card.querySelector('#dn').textContent = files.length ? files.map(f => f.name || 'pasted image').join(', ') : 'Choose or drop the PDF'; card.querySelector('#dg').disabled = !files.length; };
+    const dz = card.querySelector('#dz');
+    card.querySelector('#df').onchange = e => setF(e.target.files);
+    dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('over'); }); dz.addEventListener('dragleave', () => dz.classList.remove('over'));
+    dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('over'); setF(e.dataTransfer.files); });
+    card.addEventListener('paste', e => { const f = Array.from(e.clipboardData.items || []).filter(i => i.kind === 'file').map(i => i.getAsFile()).filter(Boolean); if (f.length) setF(files.concat(f)); });
+    card.querySelector('#dg').onclick = async () => {
+      const st = card.querySelector('#ds'), b = card.querySelector('#dg'); b.disabled = true; st.textContent = 'Reading… about 20 seconds';
+      try {
+        if (files.reduce((s, f) => s + (f.size || 0), 0) > 15 * 1024 * 1024) throw new Error('Too big (15 MB max).');
+        const parts = await Promise.all(files.map(fileToPart));
+        const keys = Object.keys(IMPORT_LABELS);
+        const data = await geminiJSON('You copy numbers from the Shimmin Consulting "EOM Executive Summary" page of Next Level Orthodontics. Never guess; null when a box is blank or not visible. Numbers only (12,345.67 → 12345.67). Where a row has a column per staff member plus a Total, use the Total; with only one person column use it. In the accounts section keep the "Dollar Amount" and "Number Of Accounts" columns apart.',
+          [{ text: 'Return ONLY JSON: {"month": 1-12 or null, "year": 4 digits or null, "values": {key: number or null}}. Keys:\n' + keys.map(k => '- ' + k + ': ' + IMPORT_LABELS[k]).join('\n') }].concat(parts));
+        const vals = {}; keys.forEach(k => { const v = data && data.values ? num(data.values[k]) : null; if (v != null) vals[k] = v; });
+        if (!Object.keys(vals).length) throw new Error('No numbers found on that page.');
+        const found = data.year && data.month ? data.year + '-' + pad(data.month) : '';
+        closeSheet(); reviewImport(m, found, vals);
+      } catch (e) { st.textContent = e.message; st.style.color = 'var(--coral-7)'; b.disabled = false; }
+    };
+  });
+}
+function reviewImport(m, found, vals) {
+  const keys = Object.keys(IMPORT_LABELS);
+  openSheet('<h3 class="sheet-t">Check before saving</h3>' + (found && found !== m ? '<div class="warnbar">The PDF looks like <b>' + esc(fmtYm(found)) + '</b>, not ' + esc(fmtYm(m)) + '. Save it to <button class="btn sm ghost" id="useFound">' + esc(fmtYm(found)) + '</button> instead?</div>' : '') +
+    '<p class="hint" style="margin-top:6px">Fix anything that looks off. New patients and starts go into one “Team” column (Shimmin’s page has the totals).</p><div class="fgrid" style="margin-top:8px">' + keys.map(k => '<div class="frow"><span class="l">' + esc(IMPORT_LABELS[k]) + '</span><input class="num wide" type="text" inputmode="decimal" data-ik="' + k + '" value="' + (vals[k] != null ? esc(vals[k]) : '') + '"></div>').join('') + '</div>' +
+    '<div class="row end" style="margin-top:14px"><span class="hint grow" id="target">Saving to ' + esc(fmtYm(m)) + (S.months[m] && filledCount(S.months[m]) ? ' — this replaces what’s there' : '') + '</span><button class="btn mint" id="imSave">Save</button></div>', card => {
+    let target = m;
+    const u = card.querySelector('#useFound'); if (u) u.onclick = () => { target = found; card.querySelector('#target').textContent = 'Saving to ' + fmtYm(found) + (S.months[found] && filledCount(S.months[found]) ? ' — this replaces what’s there' : ''); };
+    card.querySelector('#imSave').onclick = async () => {
+      const v = {}; $$('[data-ik]', card).forEach(i => { const n = num(i.value); if (n != null) v[i.dataset.ik] = n; });
+      const team = {}; Object.keys(IMPORT_KEYS).forEach(k => { if (v[k] != null) team[IMPORT_KEYS[k]] = v[k]; });
+      const rec = { tcs: Object.keys(team).length ? { all: team } : null, source: 'shimmin-pdf', importedAt: Date.now(), updatedAt: Date.now() };
+      IMPORT_TOP.forEach(k => { if (v[k] != null) rec[k] = v[k]; });
+      const a = author(); rec.by = { import: { id: a ? a.id : '', name: a ? shortName(a) : S.userName, at: Date.now() } };
+      rec.totals = computeTotals(rec);
+      try { await db.ref(MP('months', target)).set(JSON.parse(JSON.stringify(rec))); closeSheet(); goMonth(target); toast(fmtYm(target) + ' saved ✓', 'good'); } catch (e) { toast('Not saved: ' + e.message, 'bad'); }
+    };
+  }, { wide: true });
+}
+window.MEH = { S, computeTotals, yearData, baseline, version: APP_VERSION };
+</script>
+</body>
+</html>
