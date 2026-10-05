@@ -416,7 +416,7 @@ label.lbl{display:block;font-size:12px;font-weight:800;letter-spacing:.04em;text
    Cadence shows each person's action items and has a "raise for the
    staff meeting" button (see the add-on block at the end of cadence.html).
    ===================================================================== */
-const APP_VERSION = '2.0.0';
+const APP_VERSION = '2.0.1';
 const FB_CONFIG = {
   apiKey: "AIzaSyBFCmDgAKkdfZ4Cb81nK0KCKXtONiwMJy4",
   authDomain: "nlo-inventory.firebaseapp.com",
@@ -818,6 +818,7 @@ function boot() {
   db.ref(P('monthEnd', 'months')).on('value', s => { S.me.months = s.val() || {}; render('inbox', 'run'); }, () => {});
   db.ref(P('currentMeetingId')).on('value', s => { const id = s.val(); if (!id) { createFirstMeeting(); return; } if (id !== S.meetingId) watchMeeting(id); });
   setTimeout(loadHistory, 1200);
+  loadSharedAisa();
   setInterval(tick, 1000);
 }
 function watchMeeting(id) {
@@ -1750,7 +1751,7 @@ function decisionsCardHTML() {
   const list = entriesOf(S.decisions).filter(([, d]) => d.text && (!q || (d.text + ' ' + (d.name || '')).toLowerCase().indexOf(q) >= 0)).sort((a, b) => (b[1].date || '').localeCompare(a[1].date || '') || (b[1].createdAt || 0) - (a[1].createdAt || 0));
   const groups = {}; list.forEach(([id, d]) => { (groups[d.date || ''] = groups[d.date || ''] || []).push([id, d]); });
   const ai = S.config.aisa || {};
-  const aisaLine = aisaKey() ? (ai.lastSentAt ? 'AISA last updated ' + fmtWhen(ai.lastSentAt) + ' · ' + plural(ai.count || 0, 'decision') : 'Not sent to AISA yet') : 'Sending to AISA needs the AISA admin key on this computer';
+  const aisaLine = aisaKey() ? (ai.lastSentAt ? 'AISA last updated ' + fmtWhen(ai.lastSentAt) + ' · ' + plural(ai.count || 0, 'decision') : 'Not sent to AISA yet') : 'Sending to AISA needs the AISA admin key (Settings → AISA)';
   return '<div class="card"><div class="card-h"><h2>Decisions log</h2><span class="muted small">' + esc(aisaLine) + '</span><div class="r"><button class="btn ghost sm" data-act="dec-download">Download .txt</button><button class="btn blue sm" data-act="dec-aisa">Send to AISA</button></div></div>' +
     '<input class="field" type="search" placeholder="Search decisions…" data-change="dec-search" value="' + esc(S.follow.q) + '" style="max-width:340px;margin-bottom:6px">' +
     (list.length ? Object.keys(groups).sort().reverse().map(k => '<div class="dgroup"><div class="eyebrow" style="margin:8px 0 2px">' + esc(k ? fmtLong(k) : 'Undated') + '</div>' + groups[k].map(([id, d]) => '<div class="dec"><span style="color:var(--mint-7);font-weight:800">✓</span><span class="txt">' + esc(d.text) + (d.name ? ' <span class="muted small">— raised by ' + esc(whoLabel(person(d.personId) || matchPerson(d.name), d.name)) + '</span>' : '') + '</span><button class="xbtn" data-act="dec-edit" data-id="' + esc(id) + '" aria-label="Edit">✎</button></div>').join('') + '</div>').join('')
@@ -1763,8 +1764,18 @@ function editDecisionSheet(id) {
     card.querySelector('#dDel').onclick = () => { if (!confirm('Delete this decision?')) return; closeSheet(); db.ref(P('decisions', id)).remove(); };
   });
 }
-/* AISA knowledge base: the decisions log as its own KB file (replaced on every send) */
-function aisaKey() { try { return (localStorage.getItem('nlo_admin_key') || '').trim(); } catch (e) { return ''; } }
+/* AISA knowledge base: the decisions log as its own KB file (replaced on every send).
+   The admin key comes from this computer (the AISA portal saves it) or, once Dr. A shares it, from
+   nlo/settings/aisaAdminKey — next to the Gemini key, readable only by his and the office sign-in. */
+const AISA_SHARED = 'nlo/settings/aisaAdminKey';
+function localAisaKey() { try { return (localStorage.getItem('nlo_admin_key') || '').trim(); } catch (e) { return ''; } }
+function aisaKey() { return localAisaKey() || S.sharedAisa || ''; }
+async function loadSharedAisa() {
+  try { const v = (await db.ref(AISA_SHARED).once('value')).val(); S.sharedAisa = typeof v === 'string' ? v.trim() : ''; } catch (e) { S.sharedAisa = ''; }
+  S.sharedAisaLoaded = true; render('follow'); return S.sharedAisa;
+}
+async function shareAisaKey(k) { await db.ref(AISA_SHARED).set(k); S.sharedAisa = k; S.sharedAisaLoaded = true; }
+const shareErr = e => /permission/i.test((e && e.message) || '') ? 'Only Dr. A’s or the office sign-in can set this up.' : ((e && e.message) || 'Could not save');
 function decisionsText() {
   const list = valsOf(S.decisions).filter(d => d.text).sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.createdAt || 0) - (a.createdAt || 0));
   const groups = {}; list.forEach(d => { (groups[d.date || ''] = groups[d.date || ''] || []).push(d); });
@@ -1778,20 +1789,26 @@ function decisionsText() {
   return L.join('\n');
 }
 async function sendDecisionsToAisa(silent) {
-  const key = aisaKey();
+  let key = aisaKey(); if (!key && !S.sharedAisaLoaded) key = await loadSharedAisa();
   if (!key) { if (!silent) aisaKeySheet(); return { ok: false, reason: 'nokey' }; }
   const n = valsOf(S.decisions).filter(d => d.text).length;
   if (!n) { if (!silent) toast('No decisions to send yet.'); return { ok: false, reason: 'empty' }; }
   const r = await fetch(AISA_BASE + '/train', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Admin-Key': key }, body: JSON.stringify({ text: decisionsText(), fileLabel: AISA_LABEL }) });
   const j = await r.json().catch(() => ({}));
-  if (r.status === 401) throw new Error('AISA didn’t accept the admin key saved on this computer.');
+  if (r.status === 401) throw new Error('AISA didn’t accept the saved admin key — update it in Settings → AISA.');
   if (!r.ok || !j.success) throw new Error(j.error || ('AISA error ' + r.status));
   await db.ref(P('config', 'aisa')).set({ lastSentAt: Date.now(), count: n, chunks: j.chunksSaved || null });
   return { ok: true, count: n };
 }
 function aisaKeySheet() {
-  openSheet('<h3 class="sheet-t">AISA admin key</h3><p class="hint">The decisions go into AISA’s knowledge base the same way the AISA portal uploads files, so this computer needs the AISA admin key. If you’ve used the AISA portal here before, it’s already saved. It stays on this computer only.</p><input class="field" type="password" id="akey" placeholder="AISA admin key" autocomplete="off" autofocus style="margin-top:12px"><div class="row end" style="margin-top:14px"><button class="btn mint" id="akSave">Save &amp; send</button></div>', card => {
-    card.querySelector('#akSave').onclick = async () => { const k = card.querySelector('#akey').value.trim(); if (!k) return; try { localStorage.setItem('nlo_admin_key', k); } catch (e) {} closeSheet(); doAisaSend(); };
+  openSheet('<h3 class="sheet-t">AISA admin key</h3><p class="hint">Decisions go into AISA’s knowledge base the same way the AISA portal uploads files, so the Hub needs the AISA admin key (the one the AISA portal asks for).</p><input class="field" type="password" id="akey" placeholder="AISA admin key" autocomplete="off" autofocus style="margin-top:12px">' +
+    '<label class="toggle" style="margin-top:8px"><input type="checkbox" id="akShare" checked>Use it on all office computers (kept with the office keys; only your and the office sign-in can read it)</label><div class="row end" style="margin-top:14px"><button class="btn mint" id="akSave">Save &amp; send</button></div>', card => {
+    card.querySelector('#akSave').onclick = async () => {
+      const k = card.querySelector('#akey').value.trim(); if (!k) return;
+      try { localStorage.setItem('nlo_admin_key', k); } catch (e) {}
+      if (card.querySelector('#akShare').checked) { try { await shareAisaKey(k); } catch (e) { toast(shareErr(e), 'bad'); } }
+      closeSheet(); doAisaSend();
+    };
   });
 }
 async function doAisaSend() { toast('Sending decisions to AISA…'); try { const r = await sendDecisionsToAisa(false); if (r.ok) toast('AISA updated — ' + plural(r.count, 'decision') + ' ✓', 'good'); } catch (e) { toast(e.message, 'bad'); } }
@@ -1931,7 +1948,8 @@ function settingsSheet() {
     '<label class="lbl">KPIs</label><p class="hint">Tick the KPIs the meeting reviews. <span class="src">Month-End</span> ones fill in from the Month-End app; the rest are typed in the Inbox.</p>' + (cat || '<p class="empty">No KPIs yet.</p>') +
     '<div class="row" style="margin-top:10px"><input class="field" id="kLabel" placeholder="New KPI name" style="flex:2;min-width:160px"><select class="field" id="kRole" style="flex:1;min-width:140px">' + ROLES.concat(['Other']).map(r => '<option>' + esc(r) + '</option>').join('') + '</select><input class="field" id="kGoal" placeholder="Goal (90%)" style="flex:0 0 120px"><select class="field" id="kDir" style="flex:0 0 150px"><option value="up">Higher is better</option><option value="down">Lower is better</option><option value="target">No pass/fail</option></select><button class="btn sm" id="kAdd">Add KPI</button></div>' +
     '<div class="row" style="margin-top:8px"><button class="btn ghost sm" id="kSeed">Restore the NLO catalog</button></div>' +
-    '<label class="lbl">AISA</label><p class="hint">' + (aisaKey() ? 'This computer has the AISA admin key — decisions go to AISA when a meeting ends.' : 'No AISA admin key on this computer, so decisions aren’t sent automatically. Open the AISA portal here once, or add the key.') + '</p><div class="row" style="margin-top:8px"><button class="btn ghost sm" id="aKey">' + (aisaKey() ? 'Change key' : 'Add key') + '</button><button class="btn ghost sm" id="aSend">Send decisions now</button></div>' +
+    '<label class="lbl">AISA</label><p class="hint" id="aStatus">' + (S.sharedAisa ? 'Set up for all office computers — each meeting’s decisions go to AISA when it ends.' : localAisaKey() ? 'This computer has the AISA admin key (from the AISA portal), so meetings run here send their decisions to AISA. Share it so every office computer can.' : 'No AISA admin key yet, so decisions aren’t sent to AISA automatically.') + '</p><div class="row" style="margin-top:8px">' +
+      (!S.sharedAisa && localAisaKey() ? '<button class="btn mint sm" id="aShare">Use it on all office computers</button>' : '') + '<button class="btn ghost sm" id="aKey">' + (aisaKey() ? 'Change key' : 'Add key') + '</button><button class="btn ghost sm" id="aSend">Send decisions now</button>' + (S.sharedAisa ? '<button class="btn ghost sm" id="aUnshare">Stop sharing</button>' : '') + '</div>' +
     '<label class="lbl">AI</label><p class="hint">Plaud transcripts are read with the office Gemini key saved in the Inventory app’s AI settings.</p><div class="row" style="margin-top:8px"><button class="btn ghost sm" id="gCheck">Check the key</button><span class="hint" id="gRes"></span></div>' +
     '<p class="hint" style="margin-top:18px">Staff Meeting Hub ' + APP_VERSION + ' · signed in as ' + esc(S.email) + '</p>', card => {
     card.addEventListener('change', e => {
@@ -1944,6 +1962,8 @@ function settingsSheet() {
     card.querySelector('#kAdd').onclick = () => { const l = card.querySelector('#kLabel').value.trim(); if (!l) return; const g = card.querySelector('#kGoal').value.trim(); const m = g.match(/-?\d[\d,.]*/); db.ref(P('kpiDefs')).push({ label: l, role: card.querySelector('#kRole').value, goal: g, goalNum: m ? Number(m[0].replace(/,/g, '')) : null, unit: g.indexOf('%') >= 0 ? '%' : g.indexOf('$') >= 0 ? '$' : 'count', dir: card.querySelector('#kDir').value, core: false, enabled: true, order: Object.keys(S.kpiDefs || {}).length }).then(() => { closeSheet(); settingsSheet(); }); };
     card.querySelector('#kSeed').onclick = () => seedCatalog(true);
     card.querySelector('#aKey').onclick = () => { closeSheet(); aisaKeySheet(); };
+    const sh = card.querySelector('#aShare'); if (sh) sh.onclick = async () => { sh.disabled = true; try { await shareAisaKey(localAisaKey()); toast('AISA is set up for all office computers ✓', 'good'); closeSheet(); settingsSheet(); } catch (e) { sh.disabled = false; toast(shareErr(e), 'bad'); } };
+    const us = card.querySelector('#aUnshare'); if (us) us.onclick = async () => { if (!confirm('Stop sharing the AISA key? Only computers that have it saved will send decisions.')) return; try { await db.ref(AISA_SHARED).remove(); S.sharedAisa = ''; closeSheet(); settingsSheet(); } catch (e) { toast(shareErr(e), 'bad'); } };
     card.querySelector('#aSend').onclick = () => { closeSheet(); doAisaSend(); };
     card.querySelector('#gCheck').onclick = async () => { const r = card.querySelector('#gRes'); r.textContent = 'Checking…'; try { await geminiKey(); r.textContent = 'Found the office key ✓'; } catch (e) { r.textContent = e.message; } };
   }, { wide: true });
