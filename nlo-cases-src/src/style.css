@@ -275,6 +275,9 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
 .dHd{padding:20px 22px 14px;border-bottom:1px solid var(--grey-100);display:flex;gap:12px;align-items:flex-start}
 .dHd h3{font-family:var(--fd);font-weight:600;font-size:21px;letter-spacing:.02em;color:var(--navy);line-height:1.2}
 .dHd .sub{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px}
+/* in-house aligners and retainers: Print labels right under the name */
+.dLbl{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px}
+.dLbl .small{line-height:1.35}
 .dBd{flex:1;overflow-y:auto;padding:16px 22px 26px}
 .dFt{padding:12px 22px;border-top:1px solid var(--grey-100);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .sec{margin-top:18px}

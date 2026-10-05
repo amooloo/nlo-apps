@@ -1325,7 +1325,7 @@ async function openByName(p, name) {
   await gwen.click('#nav-today'); await openByName(gwen, 'Rhea Labelworth');
   check(/Delivery appt[A-Za-z]{3}, [A-Za-z]{3} \d+, 1:30 PM/.test((await gwen.textContent('#drawer .kv')).replace(/\s+/g, ' ')) && await gwen.isVisible('#drawer .kv .due:has-text("Appt tomorrow 1:30 PM")'),
     'the appointment time is saved (encrypted) and Gwen sees it: “Appt tomorrow 1:30 PM”');
-  await gwen.click('#retLblBox [data-act=retLabels]'); await gwen.waitForSelector('#rl-prev .print-label');
+  await gwen.click('#dLbl [data-act=retLabels]'); await gwen.waitForSelector('#rl-prev .print-label');
   await gwen.evaluate(() => { window.__printed = null; window.print = () => { window.__printed = { n: document.querySelectorAll('#print-container .print-page').length, txt: document.querySelector('#print-container').textContent }; window.dispatchEvent(new Event('afterprint')); }; });
   await gwen.click('#rl-print'); await gwen.waitForFunction(() => window.__printed, null, { timeout: 10000 });
   const rlp = await gwen.evaluate(() => window.__printed);

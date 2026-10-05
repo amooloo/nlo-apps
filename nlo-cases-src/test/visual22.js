@@ -103,7 +103,7 @@ const URL0 = 'http://127.0.0.1:8765/nlo-cases.html?demo';
   const ret = await p.evaluate(() => openCases().find(c => c.type === 'retainer').id);
   await openCase(ret); st = await state();
   check(opened(st), 'the next case opens with everything open too');
-  check(st.find(x => x.k === 'label').line && await p.isVisible('#retLblBox [data-act=retLabels]'), 'retainers: Print label is one tap on its own line');
+  check(await p.isVisible('#drawer .dHd #dLbl [data-act=retLabels]'), 'retainers: Print labels is one tap, in the header (Amir, 5 Oct 2026)');
   await p.click('#drawer .ds[data-ds=stage] .dsTg'); await p.waitForTimeout(60);
   check(!(await state()).find(x => x.k === 'stage').open && (await allBtn()).t === 'Expand all', 'folding one section by hand turns the button back into Expand all');
   await p.reload(); await p.click('#lgBtn'); await p.waitForSelector('.tiles');
@@ -112,9 +112,9 @@ const URL0 = 'http://127.0.0.1:8765/nlo-cases.html?demo';
   await p.click('#drawer [data-act=dsAll]'); await p.waitForTimeout(100);
   check(folded(await state()) && await p.evaluate(() => localStorage.getItem('nloCases.panelOpen')) === null, 'Collapse all folds everything and forgets Expand all');
   await openCase(ret); st = await state();
-  check(folded(st) && await p.isVisible('#retLblBox [data-act=retLabels]'), 'the next case is folded again — Print label still one tap');
-  await p.click('#retLblBox [data-act=retLabels]'); await p.waitForSelector('#modalWrap .modal:has-text("Retainer labels")', { timeout: 3000 }).catch(() => {});
-  check(await p.isVisible('#modalWrap .modal:has-text("Retainer labels")'), 'Print label opens the label window from the folded panel');
+  check(folded(st) && await p.isVisible('#dLbl [data-act=retLabels]'), 'the next case is folded again — Print labels still one tap');
+  await p.click('#dLbl [data-act=retLabels]'); await p.waitForSelector('#modalWrap .modal:has-text("Retainer labels")', { timeout: 3000 }).catch(() => {});
+  check(await p.isVisible('#modalWrap .modal:has-text("Retainer labels")'), 'Print labels opens the label window from the folded panel');
   await p.click('#modalWrap [data-act=closeModal]');
 
   // a chief concern of "None" stays quiet; an older case's typed IPR note shows when there's no chart # to read

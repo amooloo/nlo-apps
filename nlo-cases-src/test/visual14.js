@@ -56,8 +56,8 @@ const OUT = process.argv[2] || 'shots';
 
   // ---- retainer labels → offer to complete
   const rid = await p.evaluate(() => openCases().find(c => c.type === 'retainer').id);
-  await p.evaluate(id => openDrawer(id), rid); await p.waitForSelector('#retLblBox [data-act=retLabels]');
-  await p.click('#retLblBox [data-act=retLabels]'); await p.waitForSelector('#rl-prev .print-label');
+  await p.evaluate(id => openDrawer(id), rid); await p.waitForSelector('#dLbl [data-act=retLabels]');
+  await p.click('#dLbl [data-act=retLabels]'); await p.waitForSelector('#rl-prev .print-label');
   check((await p.locator('#rl-prev .print-label').count()) === 2 && /Print 2 labels/.test(await p.textContent('#rl-print')), 'U/L retainers and whitening trays → 2 labels, with a preview');
   const prev = (await p.textContent('#rl-prev')).replace(/\s+/g, ' ');
   check(/Upper & Lower/.test(prev) && /Retainers/.test(prev) && /Whitening trays/.test(prev) && /Wear retainers as directed/.test(prev), 'labels: patient, Upper & Lower, Retainers / Whitening trays, bottom line, date');
@@ -74,19 +74,19 @@ const OUT = process.argv[2] || 'shots';
   await p.screenshot({ path: OUT + '/v14-ret-complete.png' });
   await p.click('#cbNo'); await p.waitForTimeout(200);
   check(await p.evaluate(id => findCase(id).status, rid) === 'open' && await p.isVisible('#drawer'), '“Not yet” leaves it open');
-  await p.click('#retLblBox [data-act=retLabels]'); await p.waitForSelector('#rl-print');
+  await p.click('#dLbl [data-act=retLabels]'); await p.waitForSelector('#rl-print');
   await p.click('#rl-print'); await p.waitForSelector('#cbYes'); await p.click('#cbYes');
   await p.waitForSelector('.toast:has-text("marked complete")');
   check(await p.evaluate(id => !S.cases.has(id) || findCase(id).status === 'done', rid) && !(await p.isVisible('#drawer')), '“Mark complete” completes it (with Undo)');
   // other types don't get the retainer label
   const oid = await p.evaluate(() => openCases().find(c => c.type === 'oliv').id);
   await p.evaluate(id => openDrawer(id), oid); await p.waitForSelector('#drawer .kv');
-  check(!(await p.isVisible('#retLblBox')), 'aligner cases don’t show the retainer label');
+  check(!(await p.isVisible('#dLbl [data-act=retLabels]')), 'aligner cases don’t show the retainer label');
   await p.screenshot({ path: OUT + '/v14-drawer-oliv.png' });
   // phone: the form's dates and the label modal fit
   await p.setViewportSize({ width: 390, height: 844 }); await p.evaluate(() => closeDrawer(true));
   const rid2 = await p.evaluate(() => openCases().find(c => c.type === 'retainer').id);
-  await p.evaluate(id => openDrawer(id), rid2); await p.click('#retLblBox [data-act=retLabels]'); await p.waitForSelector('#rl-prev .print-label');
+  await p.evaluate(id => openDrawer(id), rid2); await p.click('#dLbl [data-act=retLabels]'); await p.waitForSelector('#rl-prev .print-label');
   check(await p.evaluate(() => document.documentElement.scrollWidth <= 390), 'phone: no sideways scrolling with the label window open');
   await p.screenshot({ path: OUT + '/v14-ret-labels-phone.png' });
   console.log(fails ? 'FAILURES: ' + fails : 'ALL OK');

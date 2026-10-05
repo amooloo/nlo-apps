@@ -1047,10 +1047,17 @@ function renderDrawer() {
   const cmts = c.comments || [], lastC = cmts[cmts.length - 1];
   const who = c.assignee ? firstName(staffName(c.assignee, '')) || '—' : c.assigneeName ? c.assigneeName + ' (Asana)' : '';
   const nAl = alN(c), one = oneArch(c), hasTeeth = !!(c.teeth && Object.keys(c.teeth).length);
+  // in-house aligners and retainers: Print labels in the header, never folded away (Amir, 5 Oct 2026: "I could not find the print
+  // labels easily ... it should be clearly visible in the header") — the aligner labels once the set's counts are in; the
+  // retainer bag label, which then offers to complete the case
+  const lblBtn = c.type === 'nla' ? '<div class="dLbl" id="dLbl"><button type="button" class="btn btn-pri btn-sm" data-act="labels"' + (nAl ? '' : ' disabled') + '>' + ic('print', 15) + 'Print labels</button>' +
+      (nAl ? '' : '<span class="small muted">once the aligner counts are in (Edit)</span>') + '</div>'
+    : c.type === 'retainer' ? '<div class="dLbl" id="dLbl"><button type="button" class="btn btn-pri btn-sm" data-act="retLabels" title="The label for the bag: patient, upper/lower, retainers or whitening trays">' + ic('print', 15) + 'Print labels</button>' +
+      (done ? '' : '<span class="small muted">for the bag — then it asks to mark the case complete</span>') + '</div>' : '';
   d.dataset.for = c.id; d.dataset.mode = 'view';
   d.innerHTML = '<div class="dHd"><button type="button" class="dPh" data-act="phEdit" title="' + (c.photo ? 'Change or remove the photo' : 'Add a photo of the patient') + '" aria-label="' + (c.photo ? 'Patient photo: change or remove' : 'Add a patient photo') + '">' + ptAv(c, 64) + '<span class="dPhCam">' + ic('camera', 13) + '</span></button>' +
     // what the case is (arch, appliances, lab, kind of submission, extras) sits under the name — it was its own "Case" section
-    '<div style="flex:1;min-width:0"><h3>' + esc(c.patient || '(no name)') + '</h3><div class="sub">' + typeBadge(c) + (c.detail ? '<span class="small muted">' + esc(c.detail) + '</span>' : '') + caseBadges(c) + '</div></div>' +
+    '<div style="flex:1;min-width:0"><h3>' + esc(c.patient || '(no name)') + '</h3><div class="sub">' + typeBadge(c) + (c.detail ? '<span class="small muted">' + esc(c.detail) + '</span>' : '') + caseBadges(c) + '</div>' + lblBtn + '</div>' +
     '<button type="button" class="btn btn-ghost dAll" data-act="dsAll"></button><button class="iconBtn" data-act="closeDrawer" aria-label="Close">' + ic('x') + '</button></div>' +
     '<div class="dBd"><div id="drawerNotice"></div>' +
     (done ? '<div class="notice info">Completed ' + esc(fmtWhen(c.closedAt)) + '</div>' : '') +
@@ -1094,9 +1101,7 @@ function renderDrawer() {
     (c.type === 'nla' ? dsec('tx', 'Treatment', txSumHTML(c), '<div id="txBox">' + txBoxHTML(c) + '</div>') : '') +
     (c.type === 'nla' ? dsec('aligners', 'Aligners', nAl ? '<b>' + nAl + '</b> aligners in this set' + (c.alU || c.alL ? ' (' + (one === 'U' ? 'U ' + (c.alU || 0) + ' · upper only' : one === 'L' ? 'L ' + (c.alL || 0) + ' · lower only' : 'U ' + (c.alU || 0) + ' · L ' + (c.alL || 0)) + ')' : '') : 'Aligner counts not entered yet',
       '<div id="alBox">' + alignerTotalHTML(c, false) + '</div>') : '') +
-    // retainers & whitening trays: a label for the bag, then it offers to complete the case (Amir, 2 Oct 2026) — one tap, no need to open
-    (c.type === 'retainer' ? dline('label', 'Label', 'For the bag: patient, upper/lower, retainers or whitening trays' + (done ? '' : ' — then it asks to mark the case complete'),
-      '<button type="button" class="btn btn-sec btn-sm dsAct" data-act="retLabels">' + ic('print', 15) + 'Print label</button>', 'retLblBox') : '') +
+    // (retainers & whitening trays: the bag label, which then offers to complete the case (Amir, 2 Oct 2026), is Print labels in the header)
     (c.instructions ? dsec('instr', 'Dr. A’s instructions', oneLine(c.instructions), txt(c.instructions)) : '') +
     (hasTeeth ? dsec('teeth', 'Tooth chart', oneLine(teethSummary(c.teeth)), '<div class="tc ro">' + toothChartHTML(c.teeth, true) + '</div><div class="txt" style="margin-top:8px">' + esc(teethSummary(c.teeth)) + '</div>') : '') +
     // one IPR section: the IPR Tracker's chart for this chart # (the typed "IPR & spacing" and "From the IPR Tracker" were the same thing twice)
