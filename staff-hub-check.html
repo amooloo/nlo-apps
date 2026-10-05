@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Staff Hub check</title>
+<style>
+  :root { --navy:#1B2F4C; --mint:#0d8a68; --amber:#a35f00; --grey:#5b6573; --line:#e3e8ef; --bg:#f4f6fa; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:#1c2430; font:16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
+  header { background:var(--navy); color:#fff; padding:18px 16px 16px; }
+  header h1 { margin:0; font-size:20px; letter-spacing:.02em; }
+  header p { margin:6px 0 0; color:#c9d3e3; font-size:14px; }
+  main { max-width:640px; margin:0 auto; padding:16px; }
+  .card { background:#fff; border-radius:14px; padding:16px; margin:0 0 14px; box-shadow:0 1px 3px rgba(0,0,0,.08); border-left:6px solid var(--line); }
+  .card.good { border-left-color:var(--mint); }
+  .card.warn { border-left-color:var(--amber); }
+  .big { font-size:19px; font-weight:700; margin:0 0 6px; }
+  .good .big { color:var(--mint); }
+  .muted { color:var(--grey); font-size:14px; }
+  ol { margin:8px 0 0 20px; padding:0; }
+  li { margin:4px 0; }
+  .row { padding:10px 0; border-top:1px solid var(--line); }
+  .row:first-of-type { border-top:0; }
+  button { font:inherit; font-weight:600; border:0; border-radius:10px; padding:10px 14px; background:var(--navy); color:#fff; margin-top:8px; cursor:pointer; }
+  .tag { display:inline-block; font-size:12px; font-weight:700; border-radius:20px; padding:2px 8px; background:#e9eef6; color:var(--navy); margin-left:6px; }
+  .tag.new { background:#dff5ee; color:var(--mint); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Staff Hub check</h1>
+  <p>Shows the Staff Hub copy saved in this browser. Read-only: nothing is changed.</p>
+</header>
+<main id="m"><div class="card">Checking this browser…</div></main>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+(function () {
+  'use strict';
+  /* Reads the offline copy the old Staff Hub kept in this browser (Firestore's IndexedDB cache), without
+     changing it, and compares its date with the record on the server. Nothing here can write anything. */
+  var FB = { apiKey: "AIzaSyBhS4WoMSx78fNdObvPBmvft8zq5CiMw9M", authDomain: "nlo-staff-hub.firebaseapp.com", projectId: "nlo-staff-hub", storageBucket: "nlo-staff-hub.firebasestorage.app", messagingSenderId: "29097520373", appId: "1:29097520373:web:8d585efe0a168a84a429bc" };
+  var HUB = 'nlo-staff-hub.html';
+  var m = document.getElementById('m');
+  var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+  var when = function (ms) { return ms ? new Date(ms).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'an unknown time'; };
+  var device = (function () {
+    var ua = navigator.userAgent || '';
+    var os = /iPhone/.test(ua) ? 'iPhone' : /iPad/.test(ua) ? 'iPad' : /Android/.test(ua) ? 'Android' : /Macintosh/.test(ua) ? ((navigator.maxTouchPoints || 0) > 1 ? 'iPad' : 'Mac') : /Windows/.test(ua) ? 'Windows PC' : 'Computer';
+    var br = /Edg\//.test(ua) ? 'Edge' : /CriOS|Chrome\//.test(ua) ? 'Chrome' : /FxiOS|Firefox\//.test(ua) ? 'Firefox' : /Safari\//.test(ua) ? 'Safari' : 'browser';
+    var app = (window.navigator.standalone === true || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)) ? ' (home-screen app)' : '';
+    return os + ' · ' + br + app;
+  })();
+
+  function val(v) {
+    if (!v || typeof v !== 'object') return v;
+    if ('stringValue' in v) return v.stringValue;
+    if ('integerValue' in v) return Number(v.integerValue);
+    if ('doubleValue' in v) return Number(v.doubleValue);
+    if ('booleanValue' in v) return !!v.booleanValue;
+    if ('nullValue' in v) return null;
+    if ('timestampValue' in v) { var t = v.timestampValue; return typeof t === 'string' ? Date.parse(t) : (t && t.seconds != null ? Number(t.seconds) * 1000 : null); }
+    if ('mapValue' in v) { var o = {}, f = (v.mapValue && v.mapValue.fields) || {}; Object.keys(f).forEach(function (k) { o[k] = val(f[k]); }); return o; }
+    if ('arrayValue' in v) return (((v.arrayValue || {}).values) || []).map(val);
+    return undefined;
+  }
+  function fields(f) { var o = {}; Object.keys(f || {}).forEach(function (k) { o[k] = val(f[k]); }); return o; }
+
+  /* every copy of a Staff Hub record in this browser's cache: what it last had from the server, and saves that never went out */
+  function readCache() {
+    return new Promise(function (resolve) {
+      var done = false, finish = function (v) { if (!done) { done = true; resolve(v); } };
+      setTimeout(function () { finish({ err: 'timeout', list: [] }); }, 8000);
+      if (typeof indexedDB === 'undefined') { finish({ err: 'no-idb', list: [] }); return; }
+      var req;
+      try { req = indexedDB.open('firestore/[DEFAULT]/' + FB.projectId + '/main'); } catch (e) { finish({ err: String(e), list: [] }); return; }
+      req.onupgradeneeded = function () { try { req.transaction.abort(); } catch (e) {} };   /* there was none: don't create one */
+      req.onerror = function () { finish({ none: true, list: [] }); };
+      req.onblocked = function () { finish({ err: 'blocked', list: [] }); };
+      req.onsuccess = function () {
+        var db = req.result, out = [], names = Array.prototype.slice.call(db.objectStoreNames);
+        var stores = names.filter(function (n) { return /^remoteDocuments/.test(n) && !/Global|Changes/.test(n); });
+        if (names.indexOf('mutations') >= 0) stores.push('mutations');
+        if (!stores.length) { db.close(); finish({ list: [] }); return; }
+        var re = /\/documents\/staffhub\/([^/]+)$/, tx;
+        try { tx = db.transaction(stores, 'readonly'); } catch (e) { db.close(); finish({ err: String(e), list: [] }); return; }
+        stores.forEach(function (st) {
+          var r = tx.objectStore(st).getAll();
+          r.onsuccess = function () {
+            (r.result || []).forEach(function (row) {
+              try {
+                if (st === 'mutations') {
+                  (row.mutations || []).forEach(function (mu) { var u = mu && mu.update, k = u && typeof u.name === 'string' && u.name.match(re); if (k) out.push({ src: 'unsent', uid: k[1], p: fields(u.fields) }); });
+                } else {
+                  var d = row && row.document, k2 = d && typeof d.name === 'string' && d.name.match(re);
+                  if (k2) out.push({ src: 'saved', uid: k2[1], p: fields(d.fields) });
+                }
+              } catch (e) {}
+            });
+          };
+        });
+        var close = function () { try { db.close(); } catch (e) {} finish({ list: out.filter(function (x) { return x.p && x.p.data && x.p.data.ct && x.p.kdf; }) }); };
+        tx.oncomplete = close; tx.onerror = close; tx.onabort = close;
+      };
+    });
+  }
+
+  function serverInfo() {
+    return new Promise(function (resolve) {
+      var done = false, finish = function (v) { if (!done) { done = true; resolve(v); } };
+      setTimeout(function () { finish(null); }, 12000);
+      try {
+        if (!window.firebase || !firebase.initializeApp) { finish(null); return; }
+        var app = firebase.apps.length ? firebase.app() : firebase.initializeApp(FB);
+        var off = app.auth().onAuthStateChanged(function (u) {
+          off();
+          if (!u) { finish({ signedOut: true }); return; }
+          app.firestore().collection('staffhub').doc(u.uid).get({ source: 'server' }).then(function (s) {
+            var d = s.exists ? s.data() : null;
+            finish(d ? { uid: u.uid, email: u.email, rev: d.rev || 0, v: d.v || 1, updatedAt: d.updatedAt || 0, rf: typeof d.rf === 'number' ? d.rf : null } : { uid: u.uid, email: u.email, empty: true });
+          }).catch(function () { finish({ uid: u.uid, email: u.email, offline: true }); });
+        });
+      } catch (e) { finish(null); }
+    });
+  }
+
+  function download(c) {
+    var raw = JSON.stringify({ app: 'nlo-staff-hub', v: 1, kdf: c.p.kdf, data: c.p.data });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([raw], { type: 'application/json' }));
+    var d = new Date(c.p.updatedAt || Date.now());
+    a.download = 'nlo-staff-backup-device-copy-' + d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') + '.json';
+    document.body.appendChild(a); a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+  }
+
+  Promise.all([readCache(), serverInfo()]).then(function (r) {
+    var cache = r[0], srv = r[1];
+    var list = cache.list.filter(function (c) { return !srv || !srv.uid || c.uid === srv.uid; })
+      .sort(function (a, b) { return (b.p.updatedAt || 0) - (a.p.updatedAt || 0); });
+    var since = srv && !srv.empty && !srv.offline && !srv.signedOut ? (srv.v === 2 && srv.rf ? srv.rf : srv.updatedAt) : null;
+    var newer = list.filter(function (c) { return since != null && (c.p.updatedAt || 0) > since; });
+    var h = '';
+    if (newer.length) {
+      h += '<div class="card good"><div class="big">This browser has newer Staff Hub data ✓</div>' +
+        '<div>Saved here: <b>' + esc(when(newer[0].p.updatedAt)) + '</b>. The server only has <b>' + esc(when(since)) + '</b>.</div>' +
+        '<ol><li>In this same browser, open <a href="' + HUB + '">Staff Hub</a>.</li><li>Check the bottom of the sign-in box says <b>“Updated Oct 4, 2026 · safe saving”</b> (reload if not).</li><li>Unlock and tap <b>Bring it back</b>.</li></ol>' +
+        '<p class="muted" style="margin-top:10px">Or keep a copy first: download it below. It can be restored in Staff Hub under Settings → Restore, with your Staff Hub password.</p></div>';
+    } else if (list.length) {
+      h += '<div class="card"><div class="big">Nothing newer in this browser</div><div>Its saved copy is from <b>' + esc(when(list[0].p.updatedAt)) + '</b>' +
+        (since != null ? ', and the server already has <b>' + esc(when(since)) + '</b>.' : '.') + ' The missing data isn’t here. Try another browser or computer.</div></div>';
+    } else if (cache.err) {
+      h += '<div class="card warn"><div class="big">Couldn’t read this browser’s storage</div><div class="muted">' + esc(cache.err) + '</div></div>';
+    } else {
+      h += '<div class="card"><div class="big">No Staff Hub copy saved in this browser</div><div>Staff Hub hasn’t been used here in this browser (or its storage was cleared). Try another browser or computer.</div></div>';
+    }
+    if (list.length) {
+      h += '<div class="card"><div class="big" style="font-size:16px">Copies saved in this browser</div>' + list.map(function (c, i) {
+        var isNew = since != null && (c.p.updatedAt || 0) > since;
+        return '<div class="row"><b>' + esc(when(c.p.updatedAt)) + '</b>' + (isNew ? '<span class="tag new">newer than the server</span>' : '') +
+          (c.src === 'unsent' ? '<span class="tag">never reached the server</span>' : '') +
+          '<div class="muted">Version ' + esc(c.p.rev || '?') + '</div>' +
+          '<button type="button" data-dl="' + i + '">Download this copy</button></div>';
+      }).join('') + '</div>';
+    }
+    h += '<div class="card"><div class="muted">This browser: <b>' + esc(device) + '</b><br>' +
+      (srv && srv.email ? 'Signed in as ' + esc(srv.email) + '. ' : '') +
+      (since != null ? 'Server record: ' + esc(when(srv.updatedAt)) + ' (version ' + esc(srv.rev) + ').' : (srv && srv.signedOut ? 'Not signed in to Staff Hub in this browser, so the server wasn’t checked.' : 'Couldn’t check the server just now.')) +
+      '</div></div>';
+    m.innerHTML = h;
+    Array.prototype.forEach.call(m.querySelectorAll('[data-dl]'), function (b) { b.onclick = function () { download(list[+b.getAttribute('data-dl')]); }; });
+  });
+})();
+</script>
+</body>
+</html>
