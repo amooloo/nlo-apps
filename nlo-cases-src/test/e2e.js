@@ -413,6 +413,21 @@ async function openByName(p, name) {
   check(await owner.isVisible('#iprBox .stat:has-text("In the chart note")'), 'tapping the IPR heading shows the chart (now in the chart note)');
   await owner.click('#drawer [data-act=dsAll]'); // Expand all again for the rest of these tests
   await owner.click('#drawer [data-act=closeDrawer] >> nth=0');
+  // the IPR chart kept on the case (Amir, 5 Oct 2026: "the graph doesn't stay … can it be synced for all the pt. at once")
+  await owner.waitForFunction(() => { const c = openCases().find(x => x.patient === 'Ivy Pulltest'); return c && c.iprSnap && c.iprSnap.visits === 3; }, null, { timeout: 20000 }).catch(() => {});
+  check(await owner.evaluate(() => { const c = openCases().find(x => x.patient === 'Ivy Pulltest'); return !!(c && c.iprSnap && c.iprSnap.visits === 3 && c.iprSnap.chart === '156541'); }), 'each reading of the IPR Tracker is kept on the case (sealed): 3 visits');
+  await openByName(gwen, 'Ivy Pulltest'); await gwen.waitForSelector('#iprBox .iprP[data-p=visit] svg', { timeout: 20000 });
+  check(/3 visits on file · synced /.test(await gwen.textContent('#iprBox .iprMeta')) && await gwen.isVisible('#iprBox [data-act=iprConnect]'), 'Gwen (not connected to the IPR Tracker) sees the chart from the case, with Connect to refresh');
+  await gwen.click('#drawer [data-act=closeDrawer] >> nth=0'); await gwen.fill('#q', '');
+  await put('nlo/ipr/patients/p2', { id: 'p2', name: 'MQ', patient_id: '15-7777' });
+  await put('nlo/ipr/visits/p2', { v1: { id: 'v1', patient_uuid: 'p2', date: '2026-10-02', created_at: '2026-10-02T10:00:00Z', upper_ipr: { 'UR1|UL1': '0.2' }, lower_ipr: {}, upper_spaces: {}, lower_spaces: {}, upper_bt: {}, lower_bt: {} } });
+  await owner.evaluate(() => B.createCase({ type: 'oliv', patient: 'Mona Manysync', chart: '15-7777', stage: 'submit', comments: [], createdAt: Date.now(), createdBy: meSid() }));
+  await owner.waitForFunction(() => openCases().some(c => c.patient === 'Mona Manysync'), null, { timeout: 20000 });
+  await openByName(owner, 'Ivy Pulltest'); await owner.waitForSelector('#iprBox [data-act=iprSyncAll]', { timeout: 20000 });
+  await owner.click('#iprBox [data-act=iprSyncAll]');
+  await owner.waitForSelector('.toast:has-text("IPR Tracker synced: 2 patients · 1 chart updated")', { timeout: 30000 });
+  check(await owner.evaluate(() => { const c = openCases().find(x => x.patient === 'Mona Manysync'); return !!(c && c.iprSnap && c.iprSnap.visits === 1); }), 'Sync all patients: every open aligner case with a chart # at once — a case never opened gets its chart');
+  await owner.click('#drawer [data-act=closeDrawer] >> nth=0'); await owner.fill('#q', '');
 
   console.log('\n# Titan: the link isn\'t asked any more (Amir, 3 Oct 2026: "not using it now"); a case that has one keeps it');
   await owner.click('.topBar [data-act=newCase]'); await owner.waitForSelector('#ncForm');

@@ -264,6 +264,7 @@ function enterApp() {
       up.forEach(c => { applNorm(c); c.stage = liveStage(c); const p = S.pend && S.pend[c.id]; if (p) { c.stage = p.to; if (p.extra) Object.assign(c, p.extra); } S.cases.set(c.id, c); }); gone.forEach(id => S.cases.delete(id));
       const first = S.firstLoad; S.firstLoad = false; queueRender();
       if (first) setTimeout(mailSync, 300); // lab emails that came in while nobody had the app open
+      if (first) setTimeout(iprAutoSync, 1500); // the IPR Tracker, for every patient at once, when the link is still on in this tab
       if (S.openId && (up.some(c => c.id === S.openId) || gone.includes(S.openId))) { const rd = () => { if (S.openId) refreshDrawer(gone.includes(S.openId)); }; if (!afterPress(rd)) rd(); }
     },
     inbox() { mailSync(); },
@@ -1301,7 +1302,7 @@ async function loadHistory(id) {
   try { const h = await B.caseLog(id); if (S.openId === id && seq > (S.histShown || 0)) { S.histShown = seq; S.history = h; S.histRev = rev0; const el = $('#histBox'); if (el) el.innerHTML = historyHTML(findCase(id)); wtyRefresh(id); stageMarksPaint(findCase(id));
     const c = findCase(id); if (c && String(c.notes || '').trim() && !notesAuthor(c)) { noteAuthKeep(c, h); noteByPaint(); } } } catch (e) { }
 }
-const FIELD_LABELS = { rx: 'Herbst Rx', rxRet: 'Retainer Rx', rxMet: 'Metal Rx', rxFun: 'Functional Rx', invDate: 'invoice date', noGuarantee: 'No Guarantee', photo: 'photo', labRef: 'lab case #', labHold: 'lab hold', planUrl: 'plan link', shipToPatient: 'ship to patient', records: 'records on file', zoomDate: 'Zoom call', zoomTime: 'Zoom call', tracking: 'tracking #', carrier: 'carrier', teeth: 'tooth chart', teethNote: 'tooth chart', chart: 'chart #', titanUrl: 'Titan link', initial: 'initial/refinement', appliances: 'appliance', lab: 'lab', arches: 'arch', retKinds: 'retainer type', goals: 'Dr. A’s instructions', instrPicks: 'Dr. A’s instructions', instrOther: 'Dr. A’s instructions', extras: 'extras', variant: 'case type', type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery appt', deliveryTime: 'appt time', txStart: 'treatment start', txEnd: 'expected removal', acrylic: 'acrylic color', glitter: 'acrylic color', alU: 'aligners', alL: 'aligners', aligners: 'aligners', atTemplates: 'attachment templates', treatArch: 'arches to treat', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes' };
+const FIELD_LABELS = { rx: 'Herbst Rx', rxRet: 'Retainer Rx', rxMet: 'Metal Rx', rxFun: 'Functional Rx', invDate: 'invoice date', noGuarantee: 'No Guarantee', photo: 'photo', labRef: 'lab case #', labHold: 'lab hold', planUrl: 'plan link', shipToPatient: 'ship to patient', records: 'records on file', zoomDate: 'Zoom call', zoomTime: 'Zoom call', tracking: 'tracking #', carrier: 'carrier', teeth: 'tooth chart', teethNote: 'tooth chart', chart: 'chart #', titanUrl: 'Titan link', initial: 'initial/refinement', appliances: 'appliance', lab: 'lab', arches: 'arch', retKinds: 'retainer type', goals: 'Dr. A’s instructions', instrPicks: 'Dr. A’s instructions', instrOther: 'Dr. A’s instructions', extras: 'extras', variant: 'case type', type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery appt', deliveryTime: 'appt time', txStart: 'treatment start', txEnd: 'expected removal', acrylic: 'acrylic color', glitter: 'acrylic color', alU: 'aligners', alL: 'aligners', aligners: 'aligners', atTemplates: 'attachment templates', treatArch: 'arches to treat', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes', iprSnap: 'IPR chart (from the IPR Tracker)', refN: 'refinement #', remake: 'remake' };
 function historyHTML(c) {
   const h = S.history; if (!h) return '<div class="small muted">Loading…</div>'; if (!h.length) return '<div class="small muted">No history yet.</div>';
   const stageName = k => { const s = c && (caseStages(c).find(x => x[0] === k) || flowOf(c).stages.find(x => x[0] === k)); return s ? s[1] : (c && retiredStageLabel(c, k)) || k; };
@@ -1676,14 +1677,41 @@ function toggleRecord(btn) {
    here, or text from Tally/Asana) is what the chart note uses; it shows as text only when there's no live chart to show,
    or folded away as "an earlier IPR note" when it differs from the latest visit. */
 function iprLive(c) { return !!(typeOf(c).aligner && c.status !== 'done'); }
+/* the IPR Tracker's chart kept on the case (Amir, 5 Oct 2026: "when you sync the IPR tracker, the graph doesn't stay … can it be
+   synced for all the pt. at once instead of individual basis?"): each reading of the IPR Tracker (a case opened while connected, or
+   Sync all) saves its latest visit on the case, sealed like the rest — so the chart stays after the link ends (it ends when NLO
+   Cases locks), and shows on every computer, connected or not, until the next sync. Only for the chart # it was read for. */
+function iprSnapOf(c) {
+  const x = c && c.iprSnap; if (!x || !x.d || x.chart !== IPR.norm(c.chart)) return null;
+  const D = x.d, k = (t, o, b) => canonContacts(t, o || {}, b);
+  return { status: 'ok', snap: true, at: x.at, by: x.by, date: x.date, assistant: x.assistant || '', visits: x.visits || 1, note: x.note || '',
+    d: { upper: k(IPR_UPPER, D.upper, ''), lower: k(IPR_LOWER, D.lower, ''), upperSpaces: k(IPR_UPPER, D.upperSpaces, ''), lowerSpaces: k(IPR_LOWER, D.lowerSpaces, ''),
+      upperBT: k(IPR_UPPER, D.upperBT, false), lowerBT: k(IPR_LOWER, D.lowerBT, false), cumUpper: k(IPR_UPPER, D.cumUpper, ''), cumLower: k(IPR_LOWER, D.cumLower, ''),
+      incIPR: true, incCum: true, visitCount: x.visits || 1 } };
+}
+/* a reading as it's kept: only the contacts with something on them */
+function iprSnapFrom(c, r) {
+  const keep = o => { const m = {}; Object.keys(o || {}).forEach(k => { if (o[k]) m[k] = o[k]; }); return m; };
+  const d = r.d, D = { upper: keep(d.upper), lower: keep(d.lower), upperSpaces: keep(d.upperSpaces), lowerSpaces: keep(d.lowerSpaces), upperBT: keep(d.upperBT), lowerBT: keep(d.lowerBT), cumUpper: keep(d.cumUpper), cumLower: keep(d.cumLower) };
+  const body = { chart: IPR.norm(c.chart), date: r.date || '', assistant: r.assistant || '', visits: r.visits || 1, note: r.note || '', d: D };
+  return Object.assign({ h: noteHash(JSON.stringify(body)), at: Date.now(), by: meSid() }, body);
+}
+/* save a reading on the case when it's new; true when it was saved */
+async function iprKeep(c, r) {
+  if (!c || !c.id || !r || r.status !== 'ok' || !r.d || !c.chart) return false;
+  const snap = iprSnapFrom(c, r); if (c.iprSnap && c.iprSnap.h === snap.h) return false;
+  try { await B.mutateCase(c.id, d => { if (d.iprSnap && d.iprSnap.h === snap.h) return 'skip'; d.iprSnap = snap; }, { a: 'edit', fields: ['iprSnap'] }); return true; }
+  catch (e) { if (e && e.code === 'skip') return false; throw e; }
+}
 function iprRead(c) {
-  if (!iprLive(c)) return { k: 'off' };
+  const snap = iprSnapOf(c), kept = extra => snap ? Object.assign({ k: 'snap', r: snap }, extra || {}) : null;
+  if (!iprLive(c)) return kept() || { k: 'off' };
   if (!c.chart) return { k: 'chart' };
-  const L = iprLink(); if (!L.init()) return { k: 'unavail' };
-  if (!L.user()) return { k: 'connect' };
+  const L = iprLink(); if (!L.init()) return kept() || { k: 'unavail' };
+  if (!L.user()) return kept({ connect: true }) || { k: 'connect' };
   const r = (S.iprCache || {})[IPR.norm(c.chart)];
-  if (!r) return { k: 'loading' };
-  if (r.error) return { k: 'error', r };
+  if (!r) return kept({ loading: true }) || { k: 'loading' };
+  if (r.error) return kept({ err: r.error }) || { k: 'error', r };
   if (r.status === 'not-found') return { k: 'none' };
   if (r.status === 'no-visits') return { k: 'novisits' };
   return { k: 'ok', r };
@@ -1693,7 +1721,7 @@ function iprSumHTML(c) {
   const x = iprRead(c), saved = String(c.ipr || '').trim(), m = s => '<span class="muted">' + s + '</span>';
   const savedLine = saved ? esc(saved.replace(/\s*\n+\s*/g, ' · ')) : '';
   switch (x.k) {
-    case 'ok': return esc(iprSumText(x.r));
+    case 'ok': case 'snap': return esc(iprSumText(x.r));
     case 'chart': return savedLine || m('Add the chart # to show the IPR Tracker’s chart');
     case 'connect': return savedLine || m('Connect the IPR Tracker on this computer');
     case 'loading': return m('Reading the IPR Tracker…');
@@ -1718,11 +1746,14 @@ function iprBoxHTML(c) {
     case 'none': return msg('No IPR Tracker patient with chart # ' + esc(c.chart) + '.') + '<div class="iprFoot">' + open + '</div>' + savedBox;
     case 'novisits': return msg('Patient found, but no visits recorded yet.') + '<div class="iprFoot">' + open + '</div>' + savedBox;
   }
-  const r = x.r, same = saved === r.note.trim();
-  return '<div class="iprMeta">Latest visit <b>' + esc(fmtDay(r.date)) + '</b>' + (r.assistant ? ' · ' + esc(r.assistant) : '') + ' · ' + r.visits + ' visit' + (r.visits === 1 ? '' : 's') + ' on file</div>' +
+  const r = x.r, same = saved === r.note.trim(), live = iprLive(c), on = !!(iprLink().init() && iprLink().user());
+  const synced = x.k === 'snap' ? ' · <span class="iprSync" title="' + esc('Saved on the case ' + fmtWhen(r.at) + (r.by ? ' by ' + (noteWho({ by: r.by }) || '') : '')) + '">synced ' + esc(fmtWhen(r.at)) + '</span>' +
+    (x.loading ? ' · <span class="muted">checking for a newer visit…</span>' : x.err ? ' · <span style="color:var(--coral-700)">' + esc(x.err) + '</span>' : '') : '';
+  return '<div class="iprMeta">Latest visit <b>' + esc(fmtDay(r.date)) + '</b>' + (r.assistant ? ' · ' + esc(r.assistant) : '') + ' · ' + r.visits + ' visit' + (r.visits === 1 ? '' : 's') + ' on file' + synced + '</div>' +
     iprPanelsHTML(r.d) +
-    '<div class="iprFoot">' + (same ? '<span class="stat ok">' + ic('done', 14) + 'In the chart note</span>' : '<button class="btn btn-sec btn-sm" data-act="iprUse">' + (saved ? 'Use this visit in the chart note' : 'Add to the chart note') + '</button>') +
-    '<button class="btn btn-ghost" data-act="iprRefresh">' + ic('refresh', 14) + 'Refresh</button>' + open + '</div>' +
+    '<div class="iprFoot">' + (!live ? '' : same ? '<span class="stat ok">' + ic('done', 14) + 'In the chart note</span>' : '<button class="btn btn-sec btn-sm" data-act="iprUse">' + (saved ? 'Use this visit in the chart note' : 'Add to the chart note') + '</button>') +
+    (!live ? '' : on ? '<button class="btn btn-ghost" data-act="iprRefresh">' + ic('refresh', 14) + 'Refresh</button><button class="btn btn-ghost" data-act="iprSyncAll">' + ic('refresh', 14) + 'Sync all patients</button>'
+      : '<button class="btn btn-ghost" data-act="iprConnect">' + ic('refresh', 14) + 'Connect to refresh</button>') + open + '</div>' +
     (saved && !same ? '<details class="iprOld"><summary>The chart note has an earlier IPR note</summary><div class="txt">' + esc(saved) + '</div></details>' : '');
 }
 /* redraw the IPR section (its folded line too) once the IPR Tracker answers */
@@ -1739,6 +1770,36 @@ async function iprAutoLoad(c, force) {
   catch (e) { S.iprCache[k] = { error: /permission|denied/i.test(String(e && (e.code || e.message))) ? 'This Google account can’t read the IPR Tracker.' : 'Couldn’t reach the IPR Tracker.' }; }
   S.iprLoading = null;
   paint();
+  try { await iprKeep(findCase(c.id) || c, S.iprCache[k]); } catch (e) { } // (kept on the case, so the chart stays)
+}
+/* every open aligner case with a chart #, from the IPR Tracker at once; each new reading kept on its case. `quiet`: no message (the
+   sync that runs by itself once the link is on — the charts just update) */
+async function iprSyncAll(quiet, btn) {
+  const L = iprLink(); if (!L.init() || !L.user() || S.iprSyncing) return;
+  const list = openCases().filter(c => iprLive(c) && IPR.norm(c.chart)); if (!list.length) { if (!quiet) toast('No open aligner cases with a chart # to sync'); return; }
+  S.iprSyncing = true; if (btn) busyBtn(btn, true, 'Syncing…');
+  let got = 0, kept = 0, missing = 0, failed = 0;
+  try {
+    const res = await L.latestMany(list.map(c => c.chart)); S.iprCache = S.iprCache || {};
+    for (const c of list) {
+      const n = IPR.norm(c.chart), r = res.get(n); if (!r) continue; S.iprCache[n] = r;
+      if (r.status !== 'ok') { missing++; continue; } got++;
+      try { if (await iprKeep(findCase(c.id) || c, r)) kept++; } catch (e) { failed++; }
+    }
+    try { localStorage.setItem('nloCases.iprSyncAt', String(Date.now())); } catch (e) { }
+    if (!quiet) toast('IPR Tracker synced: ' + got + ' patient' + (got === 1 ? '' : 's') + (kept ? ' · ' + kept + ' chart' + (kept === 1 ? '' : 's') + ' updated' : ' · nothing new') +
+      (missing ? ' · ' + missing + ' chart #' + (missing === 1 ? '' : 's') + ' not in the IPR Tracker' : '') + (failed ? ' · ' + failed + ' couldn’t be saved' : ''), { ms: 7000 });
+  } catch (e) { if (!quiet) toast(/permission|denied/i.test(String(e && (e.code || e.message))) ? 'This Google account can’t read the IPR Tracker.' : 'Couldn’t reach the IPR Tracker.', { bad: true }); }
+  finally { S.iprSyncing = false; if (btn) busyBtn(btn, false); const c = S.openId && findCase(S.openId); if (c) iprPaint(c); if (S.view === 'account') renderView(); }
+}
+/* once the link is on (connected now, or still on in this tab after a reload): everything synced in the background, at most every
+   15 minutes on this computer */
+async function iprAutoSync() {
+  const L = iprLink(); if (!L.init()) return;
+  for (let i = 0; i < 100 && S.inApp && S.firstLoad; i++) await new Promise(r => setTimeout(r, 100));
+  const u = L.user() || await L.waitUser(); if (!u || !S.inApp) return;
+  let last = 0; try { last = Number(localStorage.getItem('nloCases.iprSyncAt')) || 0; } catch (e) { }
+  if (Date.now() - last > 15 * 60e3) iprSyncAll(true);
 }
 
 /* ---------- modals ---------- */
@@ -1935,10 +1996,11 @@ function onClick(e) {
     case 'codeDone': enterApp(); break;
     case 'resendVerify': B.resendVerify().then(() => toast('Sent again')).catch(x => toast(errText(x), { bad: true })); break;
     case 'versions': versionsModal(S.openId); break;
-    case 'iprConnect': iprLink().connect().then(() => { const c = findCase(S.openId); if (c) { iprPaint(c); if (c.chart) iprAutoLoad(c, true); } if (S.view === 'account') renderView(); }).catch(x => toast(errText(x), { bad: true })); break;
+    case 'iprConnect': iprLink().connect().then(() => { const c = findCase(S.openId); if (c) { iprPaint(c); if (c.chart) iprAutoLoad(c, true); } if (S.view === 'account') renderView(); iprSyncAll(true); }).catch(x => toast(errText(x), { bad: true })); break;
+    case 'iprSyncAll': iprSyncAll(false, t); break;
     case 'iprDisconnect': iprLink().disconnect().then(() => { S.iprCache = {}; renderView(); toast('IPR Tracker disconnected on this computer'); }); break;
     case 'iprRefresh': { const c = findCase(S.openId); if (c) { (S.iprCache || {})[IPR.norm(c.chart)] = null; iprPaint(c); iprAutoLoad(c, true); } break; }
-    case 'iprUse': { const c = findCase(S.openId); const r = c && (S.iprCache || {})[IPR.norm(c.chart)]; if (!r || !r.note) return;
+    case 'iprUse': { const c = findCase(S.openId); const lv = c && (S.iprCache || {})[IPR.norm(c.chart)], r = lv && lv.note ? lv : iprSnapOf(c); if (!r || !r.note) return;
       act(() => B.mutateCase(c.id, d => { d.ipr = r.note; }, { a: 'edit', fields: ['ipr'] }), 'IPR note added to the chart note'); break; }
     case 'iprPull': iprPull(t); break;
     case 'restoreVer': restoreVer(Number(t.dataset.i)); break;

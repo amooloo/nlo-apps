@@ -203,6 +203,20 @@ const IPR = {
     if (!visits.length) return { status: 'no-visits', initials: pts[0].name || '' };
     return Object.assign({ status: 'ok', initials: pts[0].name || '' }, iprNoteFromVisits(visits));
   },
+  /* every chart # at once (Amir, 5 Oct 2026: "can it be synced for all the pt. at once instead of individual basis?"): the patient
+     list read once, then each matching patient's visits, a few at a time — Map(normalized chart # → the same answer as latest) */
+  async latestMany(charts) {
+    const want = new Set((charts || []).map(IPR.norm).filter(Boolean)), out = new Map(); if (!want.size) return out;
+    const snap = await IPR.db.ref('nlo/ipr/patients').once('value'), byN = new Map();
+    Object.values(snap.val() || {}).forEach(p => { const n = IPR.norm(p && p.patient_id); if (want.has(n)) { if (!byN.has(n)) byN.set(n, []); byN.get(n).push(p); } });
+    const list = Array.from(want);
+    for (let i = 0; i < list.length; i += 6) await Promise.all(list.slice(i, i + 6).map(async n => {
+      const pts = byN.get(n) || []; if (!pts.length) { out.set(n, { status: 'not-found' }); return; }
+      let visits = []; for (const p of pts) { const s = await IPR.db.ref('nlo/ipr/visits/' + p.id).once('value'); visits = visits.concat(Object.values(s.val() || {})); }
+      out.set(n, visits.length ? Object.assign({ status: 'ok', initials: pts[0].name || '' }, iprNoteFromVisits(visits)) : { status: 'no-visits', initials: pts[0].name || '' });
+    }));
+    return out;
+  },
   /* Staff Hub's office roster (same database; Staff Hub writes it, Cadence, the IPR Tracker and this app read it):
      { v, source, updatedAt, people: { id: { id, name, first, last, nick, short, title, chairside, active, end?, photo? } } } */
   async roster() { const s = await IPR.db.ref('nlo/cadence/roster').once('value'); return s.val(); }
@@ -217,6 +231,7 @@ const IPR_DEMO = {
       { date: todayISO(), upper_ipr: {}, lower_ipr: { 'LR3|LR2': '0.2', 'LL1|LL2': '0.1' }, upper_spaces: { 'UR1|UL1': '0.3' }, lower_spaces: { 'LL3|LL4': '0.2' }, upper_bt: { 'UR1|UL1': true }, lower_bt: { 'LR1|LL1': true } }
     ]));
   },
+  async latestMany(charts) { const out = new Map(); for (const ch of charts || []) { const n = IPR.norm(ch); if (n && !out.has(n)) out.set(n, await IPR_DEMO.latest(ch)); } return out; },
   /* a made-up office roster: the demo's staff, one new hire without a login, one who has left */
   async roster() {
     const face = async n => 'data:image/jpeg;base64,' + b64(await demoFace(n)); // drawn faces, like the demo's patients

@@ -88,9 +88,11 @@ function viewAccount() {
 
 function iprAccountHTML() {
   const L = iprLink(); if (!L.init()) return '<div class="small muted">Not available in this browser.</div>';
-  const u = L.user();
-  return u ? '<p class="small" style="margin-bottom:10px">Reading the IPR Tracker as <b>' + esc(u.email || 'signed in') + '</b> until you lock or sign out. Cases with a chart # show the latest IPR note.</p><button class="btn btn-sec btn-sm" data-act="iprDisconnect">Disconnect now</button>'
-    : '<p class="small" style="margin-bottom:10px">Not connected. Connect with the Google account the IPR Tracker uses; it disconnects again when you lock or sign out.</p><button class="btn btn-sec btn-sm" data-act="iprConnect">Connect IPR Tracker</button>';
+  const u = L.user(); let last = 0; try { last = Number(localStorage.getItem('nloCases.iprSyncAt')) || 0; } catch (e) { }
+  // (5 Oct 2026: every open aligner case's IPR chart is synced at once, and kept on the case for everyone)
+  return u ? '<p class="small" style="margin-bottom:10px">Reading the IPR Tracker as <b>' + esc(u.email || 'signed in') + '</b> until you lock or sign out. Every open aligner case with a chart # gets its latest IPR chart, kept on the case for everyone' + (last ? ' — last synced from this computer ' + esc(fmtWhen(last)) : '') + '.</p>' +
+      '<div class="pickRow"><button class="btn btn-sec btn-sm" data-act="iprSyncAll">' + ic('refresh', 15) + 'Sync all patients now</button><button class="btn btn-ghost btn-sm" data-act="iprDisconnect">Disconnect now</button></div>'
+    : '<p class="small" style="margin-bottom:10px">Not connected. Connect with the Google account the IPR Tracker uses; it disconnects again when you lock or sign out. The IPR charts already synced stay on the cases.</p><button class="btn btn-sec btn-sm" data-act="iprConnect">Connect IPR Tracker</button>';
 }
 /* ---------- staff dialogs ---------- */
 function issuedModal(name, res, reissue) {
