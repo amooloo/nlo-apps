@@ -161,7 +161,7 @@ label.lbl{display:block;font-size:12px;font-weight:800;letter-spacing:.04em;text
    (that path already has the right access rules). Each month also stores
    computed `totals`, which the Staff Meeting Hub reads for its KPIs.
    ===================================================================== */
-const APP_VERSION = '1.1.0';
+const APP_VERSION = '1.1.1';
 const FB_CONFIG = { apiKey: "AIzaSyBFCmDgAKkdfZ4Cb81nK0KCKXtONiwMJy4", authDomain: "nlo-inventory.firebaseapp.com", databaseURL: "https://nlo-inventory-default-rtdb.firebaseio.com", projectId: "nlo-inventory", storageBucket: "nlo-inventory.firebasestorage.app", messagingSenderId: "471691286148", appId: "1:471691286148:web:b362a98186f648bd4914d1" };
 const ME = 'nlo/staffMeeting/monthEnd';
 const ROSTER_PATH = 'nlo/cadence/roster/people';
@@ -172,9 +172,9 @@ firebase.initializeApp(FB_CONFIG);
 const db = firebase.database(), auth = firebase.auth();
 
 /* ---------------------------------------------------------------- fields */
-const NP_ROWS = [['np', 'New patients', 'Seen for the first time ever at NLO this month.'], ['obs', 'Went into observation'], ['pending', 'Went into pending (will think about it)'], ['sameday', 'Same-day start (contract signed)'], ['scheduled', 'Scheduled to start'], ['declined', 'Declined treatment'], ['notx', 'No treatment recommended'], ['medicaid', 'Medicaid']];
-const NP_OUT = ['obs', 'pending', 'sameday', 'scheduled', 'declined', 'notx', 'medicaid'];
-const ST_ROWS = [['ph1', 'Phase I'], ['ph1a', 'Phase I aligners'], ['ph2', 'Phase II', 1], ['ph2a', 'Phase II aligners', 1], ['ft', 'Full treatment'], ['fta', 'Full treatment aligners'], ['lmt', 'Limited treatment'], ['retreat', 'Retreat'], ['st_medicaid', 'Medicaid']];
+const NP_ROWS = [['np', 'New patients', 'Seen for the first time ever at NLO this month.'], ['obs', 'Went into observation'], ['pending', 'Went into pending (will think about it)'], ['sameday', 'Same-day start (contract signed)'], ['scheduled', 'Scheduled to start'], ['declined', 'Declined treatment'], ['notx', 'No treatment recommended']];
+const NP_OUT = ['obs', 'pending', 'sameday', 'scheduled', 'declined', 'notx'];
+const ST_ROWS = [['ph1', 'Phase I'], ['ph1a', 'Phase I aligners'], ['ph2', 'Phase II', 1], ['ph2a', 'Phase II aligners', 1], ['ft', 'Full treatment'], ['fta', 'Full treatment aligners'], ['lmt', 'Limited treatment'], ['retreat', 'Retreat']];
 const ST_EXCL = ['ph2', 'ph2a'];   // not counted in conversion — Shimmin's own math (its form said retreats were left out too, but its numbers counted them)
 const MONEY = [['net_coll', 'Net collections', '$', 'Payments (cash in) for the month, after patient/insurance refunds and write-offs.'], ['gross_prod', 'Gross production', '$', 'Production for the month before any adjustments.'], ['adj', 'Production adjustments', '$', 'Courtesies, promotions and transfer-out adjustments (use the Transfer-Out Calculator for transfers).'], ['cred_pt', 'Patient credits', '$', 'Credit balances owed to patients at month end.'], ['cred_ins', 'Insurance credits', '$', 'Credit balances owed to insurance at month end.'], ['fees', 'Treatment fees for this month’s starts', '$', 'Optional. Total contract fees for the patients who started this month — gives the average case fee.']];
 const PATIENTS = [['pending', 'Pending patients', 'Patients in pending (will think about it) at month end.'], ['active', 'Active patients (total)'], ['active_noappt', 'Active patients with no appointment'], ['obs', 'Observation patients (total)'], ['obs_noappt', 'Observation patients with no appointment'], ['past', 'Patients past their estimated completion']];
@@ -209,13 +209,12 @@ function computeTotals(rec) {
   const sumTc = k => { let s = null; Object.keys(tcs).forEach(id => { const v = num(tcs[id] && tcs[id][k]); if (v != null) s = (s || 0) + v; }); return s; };
   const set = (k, v) => { if (v != null && isFinite(v)) t[k] = Math.round(v * 100) / 100; };
   NP_ROWS.forEach(([k]) => set(k === 'np' ? 'np_total' : 'np_' + k, sumTc(k)));
-  ST_ROWS.forEach(([k]) => set(k === 'st_medicaid' ? 'st_medicaid' : 'st_' + k, sumTc(k)));
+  ST_ROWS.forEach(([k]) => set('st_' + k, sumTc(k)));
   const stTotal = sumOf(...ST_ROWS.map(([k]) => sumTc(k)));
   set('st_total', stTotal);
   const less = stTotal == null ? null : stTotal - ST_EXCL.reduce((s, k) => s + (sumTc(k) || 0), 0);
   set('st_less_ph2', less);
   set('conv', ratio(less, t.np_total));
-  if (t.np_total != null) set('conv_nomed', ratio(less == null ? null : less - (t.st_medicaid || 0), t.np_total - (t.np_medicaid || 0)));
   const outSum = sumOf(...NP_OUT.map(k => sumTc(k)));
   set('np_accounted', outSum);
   set('np_check', ratio(outSum, t.np_total));
@@ -364,13 +363,13 @@ RENDER.month = () => {
   const check = npTotal ? '<div class="' + (okCheck ? 'okbar' : 'warnbar') + '" style="margin-top:10px">' + (okCheck ? '✓ Every new patient is accounted for (100%).' : 'Outcomes add up to ' + fmtNum(acc || 0) + ' of ' + fmtNum(npTotal) + ' new patients (' + fmtNum(ratio(acc || 0, npTotal), '%') + ') — they should total 100%.') + '</div>' : '';
   const np = '<div class="card"><div class="card-h"><h2>New patients</h2>' + byLine(rec, 'np') + '<div class="r"><span class="tag blue">Total ' + fmtNum(npTotal) + '</span></div></div><div class="scroll"><table class="tbl"><thead><tr><th></th>' + cols.map(c => '<th>' + esc(c.name) + '</th>').join('') + (cols.length > 1 ? '<th>Total</th>' : '') + '<th>% of new</th></tr></thead><tbody>' + npRows + '</tbody></table></div>' + check + '</div>';
   // starts
-  const stRows = ST_ROWS.map(([k, l, ex]) => '<tr class="sub"><td>' + esc(l) + (ex ? '<span class="x">not in conversion</span>' : '') + '</td>' + cols.map(c => '<td>' + cellInput('tcs/' + c.id + '/' + k, ((rec.tcs || {})[c.id] || {})[k], { sec: 'st', disabled: lock, label: l + ' — ' + c.name }) + '</td>').join('') + '<td><span class="calc">' + fmtNum(t[k === 'st_medicaid' ? 'st_medicaid' : 'st_' + k]) + '</span></td></tr>').join('');
+  const stRows = ST_ROWS.map(([k, l, ex]) => '<tr class="sub"><td>' + esc(l) + (ex ? '<span class="x">not in conversion</span>' : '') + '</td>' + cols.map(c => '<td>' + cellInput('tcs/' + c.id + '/' + k, ((rec.tcs || {})[c.id] || {})[k], { sec: 'st', disabled: lock, label: l + ' — ' + c.name }) + '</td>').join('') + '<td><span class="calc">' + fmtNum(t['st_' + k]) + '</span></td></tr>').join('');
   const goalConv = num(((S.years[m.slice(0, 4)] || {}).goals || {}).conv);
   const convCls = v => goalConv == null || v == null ? '' : v >= goalConv ? ' good' : ' bad';
   const st = '<div class="card"><div class="card-h"><h2>Treatment starts</h2>' + byLine(rec, 'st') + '<div class="r"><span class="tag blue">Conversion ' + fmtNum(t.conv, '%') + (goalConv != null ? ' · goal ' + goalConv + '%' : '') + '</span></div></div><div class="scroll"><table class="tbl"><thead><tr><th></th>' + cols.map(c => '<th>' + esc(c.name) + '</th>').join('') + '<th>Total</th></tr></thead><tbody>' + stRows +
     '<tr class="total"><td>Total started</td>' + cols.map(c => { const cc = (rec.tcs || {})[c.id] || {}; return '<td><span class="calc">' + fmtNum(sumOf(...ST_ROWS.map(([k]) => num(cc[k])))) + '</span></td>'; }).join('') + '<td><span class="calc">' + fmtNum(t.st_total) + '</span></td></tr>' +
     '<tr class="total"><td>Conversion rate <span class="x">starts less Phase II ÷ new patients</span></td>' + cols.map(c => '<td><span class="calc' + convCls((t.tc_conv || {})[c.id]) + '">' + fmtNum((t.tc_conv || {})[c.id], '%') + '</span></td>').join('') + '<td><span class="calc' + convCls(t.conv) + '">' + fmtNum(t.conv, '%') + '</span></td></tr>' +
-    '<tr><td>Conversion less Medicaid</td>' + cols.map(() => '<td></td>').join('') + '<td><span class="calc">' + fmtNum(t.conv_nomed, '%') + '</span></td></tr></tbody></table></div></div>';
+    '</tbody></table></div></div>';
   // money
   const frow = (k, l, unit, tip, sec, v) => '<div class="frow"><span class="l">' + esc(l) + tipBtn(k, l, tip) + '</span>' + cellInput(k, v != null ? v : rec[k], { sec, disabled: lock, unit, wide: unit === '$', label: l }) + '</div>';
   const crow = (l, v, unit, cls) => '<div class="frow calcrow"><span class="l">' + esc(l) + '</span><span class="calc ' + (cls || '') + '">' + fmtNum(v, unit) + '</span></div>';
@@ -469,6 +468,7 @@ function saveField(path, raw, sec) {
   const rec = JSON.parse(JSON.stringify(S.months[m] || {}));
   const segs = path.split('/'); let o = rec; for (let i = 0; i < segs.length - 1; i++) { o[segs[i]] = o[segs[i]] || {}; o = o[segs[i]]; } if (v == null) delete o[segs[segs.length - 1]]; else o[segs[segs.length - 1]] = v;
   const t = computeTotals(rec); map[MP('months', m, 'totals')] = Object.keys(t).length ? t : null;
+  rec.totals = t; S.months[m] = rec;   // keep the local copy current so quick back-to-back entries build on each other
   return up(map).catch(e => toast('Not saved: ' + e.message, 'bad'));
 }
 document.addEventListener('focusin', e => { const t = e.target; if (t && t.dataset && t.dataset.f && !author() && !S.askedAuthor) { S.askedAuthor = true; pickAuthor(() => t.focus()); } });
@@ -520,9 +520,9 @@ function printMonth() {
 function printYear() { const tbl = $('#p-year table'); printDoc('<h1>Next Level Orthodontics — ' + esc(S.month.slice(0, 4)) + ' month-end summary</h1>' + (tbl ? tbl.outerHTML : '')); }
 
 /* ---------------------------------------------------------------- back-fill: read a Shimmin EOM PDF with AI */
-const IMPORT_KEYS = { np_total: 'np', np_obs: 'obs', np_pending: 'pending', np_sameday: 'sameday', np_scheduled: 'scheduled', np_declined: 'declined', np_notx: 'notx', np_medicaid: 'medicaid', st_ph1: 'ph1', st_ph1a: 'ph1a', st_ph2: 'ph2', st_ph2a: 'ph2a', st_ft: 'ft', st_fta: 'fta', st_lmt: 'lmt', st_retreat: 'retreat', st_medicaid: 'st_medicaid' };
+const IMPORT_KEYS = { np_total: 'np', np_obs: 'obs', np_pending: 'pending', np_sameday: 'sameday', np_scheduled: 'scheduled', np_declined: 'declined', np_notx: 'notx', st_ph1: 'ph1', st_ph1a: 'ph1a', st_ph2: 'ph2', st_ph2a: 'ph2a', st_ft: 'ft', st_fta: 'fta', st_lmt: 'lmt', st_retreat: 'retreat' };
 const IMPORT_TOP = ['net_coll', 'gross_prod', 'adj', 'cred_pt', 'cred_ins', 'pending', 'active', 'active_noappt', 'obs', 'obs_noappt', 'past', 'ins_ar', 'ins_ar_n', 'ins_pd', 'ins_pd_n', 'pt_ar', 'pt_ar_n', 'pt_pd', 'pt_pd_n'];
-const IMPORT_LABELS = { np_total: 'New patients', np_obs: 'Went into observation', np_pending: 'Went into pending', np_sameday: 'Same day start (contract signed)', np_scheduled: 'Patients scheduled start', np_declined: 'Declined Tx', np_notx: 'No Tx recommended', np_medicaid: 'MEDICAID (new patients section)', st_ph1: 'Ph.I starts', st_ph1a: 'Ph.I Aligners starts', st_ph2: 'Ph.II starts', st_ph2a: 'Ph.II Aligners starts', st_ft: 'FT starts', st_fta: 'FT Aligners starts', st_lmt: 'LMT starts', st_retreat: 'Retreat starts', st_medicaid: 'MEDICAID (starts section)', net_coll: 'Net collections', gross_prod: 'Gross production', adj: 'Less adjustments', cred_pt: 'Patient credits', cred_ins: 'Insurance credits', pending: '# of pending patients', active: '# of TOTAL active patients', active_noappt: '# of active pts w/out apts', obs: '# of TOTAL obs pts', obs_noappt: '# of obs pts w/out apts', past: '# of patients past completion', ins_ar: 'Insurance accounts — dollar amount', ins_ar_n: 'Insurance accounts — number of accounts', ins_pd: 'Insurance accounts past due — dollar amount', ins_pd_n: 'Insurance accounts past due — number of accounts', pt_ar: 'Patient accounts — dollar amount', pt_ar_n: 'Patient accounts — number of accounts', pt_pd: 'Patient accounts past due — dollar amount', pt_pd_n: 'Patient accounts past due — number of accounts' };
+const IMPORT_LABELS = { np_total: 'New patients', np_obs: 'Went into observation', np_pending: 'Went into pending', np_sameday: 'Same day start (contract signed)', np_scheduled: 'Patients scheduled start', np_declined: 'Declined Tx', np_notx: 'No Tx recommended', st_ph1: 'Ph.I starts', st_ph1a: 'Ph.I Aligners starts', st_ph2: 'Ph.II starts', st_ph2a: 'Ph.II Aligners starts', st_ft: 'FT starts', st_fta: 'FT Aligners starts', st_lmt: 'LMT starts', st_retreat: 'Retreat starts', net_coll: 'Net collections', gross_prod: 'Gross production', adj: 'Less adjustments', cred_pt: 'Patient credits', cred_ins: 'Insurance credits', pending: '# of pending patients', active: '# of TOTAL active patients', active_noappt: '# of active pts w/out apts', obs: '# of TOTAL obs pts', obs_noappt: '# of obs pts w/out apts', past: '# of patients past completion', ins_ar: 'Insurance accounts — dollar amount', ins_ar_n: 'Insurance accounts — number of accounts', ins_pd: 'Insurance accounts past due — dollar amount', ins_pd_n: 'Insurance accounts past due — number of accounts', pt_ar: 'Patient accounts — dollar amount', pt_ar_n: 'Patient accounts — number of accounts', pt_pd: 'Patient accounts past due — dollar amount', pt_pd_n: 'Patient accounts past due — number of accounts' };
 async function geminiKey() { if (S.gemKey) return S.gemKey; let k = null; try { k = (await db.ref('nlo/settings/geminiKey').once('value')).val(); } catch (e) { throw new Error('This account can’t read the office AI key. Use the office or Dr. A’s sign-in.'); } if (!k || String(k).trim().length < 20) throw new Error('No office Gemini key is saved (Inventory app → AI settings).'); S.gemKey = String(k).trim(); return S.gemKey; }
 async function geminiJSON(system, parts) {
   const key = await geminiKey(); let last = null;
