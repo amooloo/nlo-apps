@@ -42,7 +42,7 @@ const URL0 = 'http://127.0.0.1:8765/nlo-cases.html?demo';
     return b && { t: b.querySelector('.ccV').textContent, k: b.querySelector('.ccK').textContent, before: !!(b.compareDocumentPosition(l) & Node.DOCUMENT_POSITION_FOLLOWING), bg: getComputedStyle(b).backgroundColor, fs: parseFloat(getComputedStyle(b.querySelector('.ccV')).fontSize), h: b.offsetHeight, role: b.getAttribute('role') }; });
   check(cc && cc.h > 0 && cc.t === 'Wants the gap between the front teeth closed' && cc.before && cc.fs >= 16 && cc.bg === 'rgb(254, 242, 215)' && cc.role === 'note' && /chief concern/i.test(cc.k), 'the chief concern is highlighted at the top (pale yellow, larger type), above the sections, never folded');
   check(await p.evaluate(() => !/From the IPR Tracker|CC from last visit/.test(document.querySelector('#drawer').textContent) && !document.querySelector('#drawer .sec h5')), 'no separate “From the IPR Tracker” or old CC section any more');
-  check(await p.isVisible('#drawer .dHd .sub .badge:has-text("Refinement")'), 'what the case is (Refinement) sits under the name, not in its own section');
+  check(/^Refinement /.test(await p.textContent('#drawer .dHd #dKind')), 'what the case is (Refinement …) is at the top of the panel, not in its own section');
   let ab = await allBtn(); check(ab.t === 'Expand all' && ab.al === 'Expand all sections' && ab.all === '0', 'header button: Expand all');
   // Copy works on the folded Chart note heading
   await p.evaluate(() => { window.__copied = null; navigator.clipboard.writeText = t => { window.__copied = t; return Promise.resolve(); }; });

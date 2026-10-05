@@ -271,11 +271,22 @@ const INHOUSE_TILES = ['nla'];
    on the in-house case, as before, so older finishing cases, the board, the set labels and the totals are unchanged */
 const FIN = 'fin';
 function groupOfTile(v) { return ALIGNERISH.includes(v) ? 'aligner' : BRACES.includes(v) ? 'braces' : v === 'appliance' ? 'appliance' : v === 'marpe' ? 'marpe' : (v === 'retainer' || v === 'mouthguard') ? 'retainer' : v === 'models' ? 'models' : 'other'; }
+/* which refinement: 1–5 to tap, any other number (up to REF_MAX) typed */
+const REF_NS = [1, 2, 3, 4, 5], REF_MAX = 30;
+/* the patient's refinements with this aligner company before this one, and the next number: one after the highest on file (a
+   case's own number, else its place among the patient's refinements) */
+function refOnFile(o) {
+  const seen = new Set(), list = casePool().filter(x => x && x.type === o.type && x.initial === 'no' && !x.locked && (!o.id || x.id !== o.id) && samePatient(x, o) && !seen.has(x.id) && seen.add(x.id));
+  const when = x => (x.scanDate || '') + '|' + String(x.createdAt || 0).padStart(16, '0');
+  list.sort((a, b) => when(a) < when(b) ? -1 : when(a) > when(b) ? 1 : 0);
+  let n = 0; list.forEach(x => { n = Number(x.refN) || n + 1; });
+  return { last: n, next: Math.min(n + 1, REF_MAX), count: list.length };
+}
 /* how the submission is labelled on the case: refinement for aligners, digital enhancement for InSmile */
-function submissionLabel(v) { return v === 'yes' ? 'Initial submission' : v === 'no' ? 'Refinement' : v === 'mid' ? 'Mid-course correction' : /^de[123]$/.test(v || '') ? 'Digital enhancement ' + v.slice(2) + ' (DE' + v.slice(2) + ')' : ''; }
+function submissionLabel(v, n) { return v === 'yes' ? 'Initial submission' : v === 'no' ? 'Refinement' + (Number(n) > 0 ? ' ' + Number(n) : '') : v === 'mid' ? 'Mid-course correction' : /^de[123]$/.test(v || '') ? 'Digital enhancement ' + v.slice(2) + ' (DE' + v.slice(2) + ')' : ''; }
 /* fields added later save '' when empty (not [] or false), so older cases without them don't look edited */
 const FORM_KEYS = ['type', 'patient', 'chart', 'detail', 'stage', 'assignee', 'assistant', 'scanner', 'scanDate', 'labDate', 'deliveryDate', 'deliveryTime', 'aligners',
-  'initial', 'appliances', 'lab', 'arches', 'retKinds', 'goals', 'instrPicks', 'instrOther', 'instructions', 'extras', 'teeth', 'cc', 'ipr', 'notes', 'titanUrl', 'alU', 'alL',
+  'initial', 'refN', 'appliances', 'lab', 'arches', 'retKinds', 'goals', 'instrPicks', 'instrOther', 'instructions', 'extras', 'teeth', 'cc', 'ipr', 'notes', 'titanUrl', 'alU', 'alL',
   'shipToPatient', 'records', 'zoomDate', 'zoomTime', 'tracking', 'labRef', 'atTemplates', 'treatArch', 'txStart', 'txEnd', 'acrylic', 'glitter', 'rx', 'rxRet', 'rxMet', 'rxFun'];
 
 /* delivery time: every half hour, 7:00 AM to 7:00 PM (Amir, 2 Oct 2026: "30 mins increments are fine") */
@@ -540,7 +551,13 @@ function caseFormHTML(c, isNew) {
     '<div class="cfSec"' + show('retainer') + '><h5>Arch</h5>' + pickRow('arches', PICK.arches, c.arches || [], true, 'archPick', archIc) + '<div id="cf-retKindsWrap"' + (tile === 'mouthguard' ? ' style="display:none"' : '') + '><h5>Making</h5>' + pickRow('retKinds', PICK.retKinds, c.retKinds || [], true) + '</div></div>' +
     // aligners and InSmile: which arches are treated — both unless picked (Amir, 2 Oct 2026: not always both arches)
     '<div class="cfSec"' + show('aligner braces') + '><h5>Arches to treat</h5>' + pickRow('treatArch', TREAT_OPTS, oneArch(c) || 'UL', false, 'archPick', archIc) + '</div>' +
-    '<div class="cfSec"' + show('aligner') + '><h5>Initial submission?</h5>' + pickRow('initial', [{ v: 'yes', l: 'Yes — first set' }, { v: 'no', l: 'No — refinement' }, { v: 'mid', l: 'Mid-course correction' }, { v: FIN, l: 'Finishing aligners' }], initialVal, false) + '</div>' +
+    '<div class="cfSec"' + show('aligner') + '><h5>Initial submission?</h5>' + pickRow('initial', [{ v: 'yes', l: 'Yes — first set' }, { v: 'no', l: 'No — refinement' }, { v: 'mid', l: 'Mid-course correction' }, { v: FIN, l: 'Finishing aligners' }], initialVal, false) +
+      // which refinement (Amir, 5 Oct 2026: "when you pick refinement, it should allow you to pick which number refinement. 1, 2, etc.")
+      '<div class="refNWrap" id="cf-refNWrap"' + (initialVal === 'no' ? '' : ' hidden') + '><span class="flabel" id="cf-refNLbl">Which refinement?</span>' +
+        '<div class="pickRow" role="group" aria-labelledby="cf-refNLbl" data-g="refN" data-multi="0">' + REF_NS.map(n => '<button type="button" class="pick sm" data-v="' + n + '" aria-pressed="' + (Number(c.refN) === n) + '" aria-label="Refinement ' + n + '">' + n + '</button>').join('') +
+        '<label class="txOther"><input id="cf-refNOther" type="number" min="1" max="' + REF_MAX + '" step="1" inputmode="numeric" placeholder="Other" aria-label="Another refinement number" value="' + (Number(c.refN) > REF_NS.length ? Number(c.refN) : '') + '"></label></div>' +
+        '<div class="small refNHint" id="cf-refNHint" aria-live="polite"></div></div>' +
+      '</div>' +
     // in-house: one count per treated arch (the untreated arch's field is hidden, see wireCaseForm)
     '<div class="cfSec"' + showTiles(INHOUSE_TILES.join(' ')) + '><h5>Aligners in this set <span class="h5n">count each arch from Titan</span></h5><div class="alRow">' +
       '<div class="field"' + (oneArch(c) === 'L' ? ' style="display:none"' : '') + '><label for="cf-alU">Upper aligners</label><input id="cf-alU" type="number" inputmode="numeric" min="0" max="99" step="1" placeholder="0" value="' + esc(c.alU || '') + '"></div>' +
@@ -632,6 +649,9 @@ function readCaseForm(root) {
   const ini = pressed(root, 'initial')[0] || '';
   if (o.type === 'nla' && ini === FIN) o.variant = 'finishing'; // in-house finishing aligners (not a kind of submission on the case)
   o.initial = tile === 'insmile' ? (pressed(root, 'initialDE')[0] || '') : g0 === 'aligner' && ini !== FIN ? ini : '';
+  // which refinement: a number tapped, or typed under Other ('' unless it's a refinement)
+  const rOther = parseInt(($('#cf-refNOther', root) || {}).value, 10);
+  o.refN = o.initial === 'no' ? (Number(pressed(root, 'refN')[0]) || (rOther >= 1 && rOther <= REF_MAX ? rOther : '')) : '';
   o.lab = pressed(root, 'lab')[0] || '';
   o.appliances = pressed(root, 'appliances'); o.arches = pressed(root, 'arches'); o.retKinds = pressed(root, 'retKinds');
   o.instrPicks = pressed(root, 'instrPicks'); o.extras = pressed(root, 'extras');
@@ -677,7 +697,7 @@ function readCaseForm(root) {
 /* what's being made, from the taps */
 function autoDetail(o, tile) {
   const t = TILES.find(x => x.v === tile);
-  const sub = o.initial === 'no' ? ' – refinement' : o.initial === 'mid' ? ' – mid-course correction' : '';
+  const sub = o.initial === 'no' ? ' – refinement' + (o.refN ? ' ' + o.refN : '') : o.initial === 'mid' ? ' – mid-course correction' : '';
   const only = o.treatArch === 'U' ? 'upper only' : o.treatArch === 'L' ? 'lower only' : ''; // "Aligners (Oliv, upper only)"
   if (tile === 'nla' && o.variant === 'finishing') return 'Finishing aligners' + (only ? ' (' + only + ')' : '');
   if (['oliv', 'angel', 'invisalign', 'ulab', 'nla'].includes(tile)) return 'Aligners (' + (tile === 'nla' ? 'In-House' : t.l) + (only ? ', ' + only : '') + ')' + sub;
@@ -744,7 +764,22 @@ function wireCaseForm(root, isNew) {
       h = 'About ' + (d < 14 ? d + (d === 1 ? ' day' : ' days') : d < 61 ? Math.round(d / 7) + ' weeks' : Math.round(d / 30.44 * 2) / 2 + ' months') + '.'; }
     hint.textContent = h; hint.classList.toggle('bad', bad);
   };
+  // which refinement (Amir, 5 Oct 2026): shown once "No — refinement" is picked. A new case starts on the number after the patient's
+  // refinements on file with this company (one tap to change), and what's on file is said under it; editing keeps the case's own
+  const refRow = $r('.pickRow[data-g="refN"]'), refOther = $r('#cf-refNOther');
+  const refNSync = () => {
+    const wrap = $r('#cf-refNWrap'), hint = $r('#cf-refNHint'); if (!wrap || !refRow) return;
+    const tile = $r('#cf-tile').value, on = groupOfTile(tile) === 'aligner' && pressed(root, 'initial')[0] === 'no';
+    wrap.hidden = !on; if (!on) return;
+    const o = readCaseForm(root); o.id = (($('.cf', root) || root).dataset.id) || '';
+    const f = o.patient || o.chart ? refOnFile(o) : null, co = o.type !== 'nla' && TYPE[o.type] ? ' with ' + TYPE[o.type].l : '';
+    if (f) ensureHist([o]); // (the patient's completed cases too; they count once they're in)
+    if (isNew && refRow.dataset.manual !== '1' && f) { const v = String(f.next);
+      $$('.pick', refRow).forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === v))); if (refOther) refOther.value = f.next > REF_NS.length ? v : ''; }
+    if (hint) hint.textContent = !f ? '' : f.last ? 'Refinement ' + f.last + ' is the latest on file for this patient' + co + '.' : 'No earlier refinement on file for this patient' + co + '.';
+  };
   const refresh = (typeChanged) => {
+    refNSync();
     const tile = $r('#cf-tile').value; const g = groupOfTile(tile); const o = readCaseForm(root);
     $$('[data-show]', root).forEach(el => { el.style.display = el.dataset.show.split(' ').includes(g) ? '' : 'none'; });
     $$('[data-tiles]', root).forEach(el => { el.style.display = el.dataset.tiles.split(' ').includes(tile) ? '' : 'none'; });
@@ -799,10 +834,12 @@ function wireCaseForm(root, isNew) {
     const o = readCaseForm(root); o.id = cfEl.dataset.id || ''; if (!o.id) o._new = true;
     box.innerHTML = alignerTotalHTML(o, true); ensureHist([o]);
   };
-  cfEl._alTot = alTot; cfEl._syncTx = () => syncTx(); // (again once the patient's earlier sets are in)
+  const refFollow = () => { if (pressed(root, 'initial')[0] !== 'no') return; refNSync(); if (det.dataset.auto === '1') det.value = autoDetail(readCaseForm(root), $r('#cf-tile').value); };
+  cfEl._alTot = alTot; cfEl._syncTx = () => { syncTx(); refFollow(); }; // (again once the patient's earlier sets are in)
   root._cfRefresh = refresh; // (the Rx editor's Done: the "what's being made" line follows what the Metal Rx says)
   ['cf-patient', 'cf-chart', 'cf-alU', 'cf-alL'].forEach(id => { const el = $r('#' + id); if (el) el.addEventListener('input', alTot); });
-  ['cf-patient', 'cf-chart'].forEach(id => { const el = $r('#' + id); if (el) el.addEventListener('input', () => syncTx()); });
+  ['cf-patient', 'cf-chart'].forEach(id => { const el = $r('#' + id); if (el) el.addEventListener('input', () => { syncTx(); refFollow(); }); });
+  if (refOther) refOther.addEventListener('input', () => { refRow.dataset.manual = '1'; if (refOther.value) $$('.pick', refRow).forEach(b => b.setAttribute('aria-pressed', 'false')); refresh(false); });
   root.addEventListener('click', e => {
     if (rxFormClick(e, root)) return; // Fill out the Rx / PDF (rx.js)
     const tt = e.target.closest('.tt[data-tile]');
@@ -823,6 +860,7 @@ function wireCaseForm(root, isNew) {
         $$('.pick', row).forEach(b => { if (b !== pk && APPL_ONE.includes(b.dataset.v) && b.getAttribute('aria-pressed') === 'true') { b.setAttribute('aria-pressed', 'false'); off++; } });
         if (off) toast('Switched to ' + pk.dataset.v + ' (one of Herbst, MARA, MSE, MARPE or RPE per case)'); }
       if (row.dataset.g === 'lab') row.dataset.manual = '1';
+      if (row.dataset.g === 'refN') { row.dataset.manual = '1'; if (refOther) refOther.value = ''; }
       if (row.dataset.g === 'appliances') routeLab(root, isNew);
       if (row.dataset.g === 'instrPicks' && pk.dataset.v === NO_POST_MOVE) lockPosteriors(pk, !was);
       refresh(false); return;

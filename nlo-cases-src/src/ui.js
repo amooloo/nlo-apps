@@ -583,7 +583,7 @@ function holdFlag(c) { return isHeld(c) ? '<span class="flag rec" title="' + esc
    be different if it's initial delivery, refinement, appliance delivery so on so forth"): the scan visit's note, as
    before, and the delivery visit's — each with what the patient was told for that kind of case (NOTE_KINDS). */
 function noteWhat(c) {
-  const t = typeOf(c), sub = { yes: 'initial set', no: 'refinement', mid: 'mid-course correction' }[c.initial] || '';
+  const t = typeOf(c), sub = { yes: 'initial set', no: 'refinement' + (Number(c.refN) > 0 ? ' ' + Number(c.refN) : ''), mid: 'mid-course correction' }[c.initial] || '';
   let what;
   if (c.type === 'nla') what = (c.variant === 'finishing' ? 'finishing aligners' : 'in-house aligners') + ' (NL Lab)' + (sub ? ' - ' + sub : '');
   else if (t.aligner) what = ({ oliv: 'Oliv', angel: 'Angel', invisalign: 'Invisalign', ulab: 'uLab' }[c.type] || t.l) + ' aligners' + (sub ? ' - ' + sub : '');
@@ -1334,7 +1334,7 @@ function renderDrawer() {
   d.dataset.for = c.id; d.dataset.mode = 'view';
   d.innerHTML = '<div class="dHd"><button type="button" class="dPh" data-act="phEdit" title="' + (c.photo ? 'Change or remove the photo' : 'Add a photo of the patient') + '" aria-label="' + (c.photo ? 'Patient photo: change or remove' : 'Add a patient photo') + '">' + ptAv(c, 64) + '<span class="dPhCam">' + ic('camera', 13) + '</span></button>' +
     // what the case is (arch, appliances, lab, kind of submission, extras) sits under the name — it was its own "Case" section
-    '<div style="flex:1;min-width:0"><h3>' + esc(c.patient || '(no name)') + '</h3><div class="sub">' + typeBadge(c) + (c.detail ? '<span class="small muted">' + esc(c.detail) + '</span>' : '') + caseBadges(c) + '</div>' + lblBtn + '</div>' +
+    '<div style="flex:1;min-width:0"><div class="dKind" id="dKind">' + esc(caseTitle(c)) + '</div><h3>' + esc(c.patient || '(no name)') + '</h3><div class="sub">' + typeBadge(c) + (detailShown(c) ? '<span class="small muted">' + esc(detailShown(c)) + '</span>' : '') + caseBadges(c, true) + '</div>' + lblBtn + '</div>' +
     '<button type="button" class="btn btn-ghost dAll" data-act="dsAll"></button><button class="iconBtn" data-act="closeDrawer" aria-label="Close">' + ic('x') + '</button></div>' +
     '<div class="dBd"><div id="drawerNotice"></div>' +
     (done ? '<div class="notice info">Completed ' + esc(fmtWhen(c.closedAt)) + '</div>' : '') +
@@ -1495,9 +1495,26 @@ function txGraphSVG(t, marks, p, W, cls) {
   return g + '</svg>';
 }
 /* what the case is, as badges under the patient's name: arch treated, appliances, lab, kind of submission, extras */
-function caseBadges(c) {
+function caseBadges(c, titled) {
   return (oneArch(c) ? '<span class="badge t-arch">' + esc(treatArchLabel(oneArch(c))) + '</span>' : '') + (c.appliances || []).map(x => '<span class="badge t-appl">' + (x === HAWLEY ? acrylicSw(c.acrylic) : '') + esc(applText(c, x)) + '</span>').join('') +
-    (c.lab ? '<span class="badge">' + esc(labName(c.lab)) + '</span>' : '') + (c.initial ? '<span class="badge">' + esc(submissionLabel(c.initial)) + '</span>' : '') + (c.extras || []).map(x => '<span class="badge t-retx">' + esc(x) + '</span>').join('');
+    (c.lab ? '<span class="badge">' + esc(labName(c.lab)) + '</span>' : '') + (c.initial && !titled ? '<span class="badge">' + esc(submissionLabel(c.initial, c.refN)) + '</span>' : '') + (c.extras || []).map(x => '<span class="badge t-retx">' + esc(x) + '</span>').join('');
+}
+/* what the case is, in words, at the top of the case panel (Amir, 5 Oct 2026: "what case it is should be on the top of the card.
+   'Initial Next Level Aligners' etc.") — the kind of submission (with the refinement's number), then what it is */
+const TITLE_AL = { nla: 'Next Level Aligners', oliv: 'Oliv Aligners', angel: 'Angel Aligners', invisalign: 'Invisalign', ulab: 'uLab Aligners' };
+function caseTitle(c) {
+  const al = TITLE_AL[c.type];
+  if (al) { const sub = c.type === 'nla' && c.variant === 'finishing' ? 'Finishing' : { yes: 'Initial', no: 'Refinement' + (Number(c.refN) > 0 ? ' ' + Number(c.refN) : ''), mid: 'Mid-course Correction' }[c.initial] || '';
+    return (sub ? sub + ' ' : '') + al; }
+  if (c.type === 'insmile') return (/^de[123]$/.test(c.initial || '') ? 'DE ' + c.initial.slice(2) + ' ' : c.initial === 'yes' ? 'Initial ' : '') + 'InSmile Braces';
+  if (c.type === 'appliance') return (c.appliances || []).join(' + ') || c.detail || 'Appliance';
+  if (c.type === 'retainer') { const r = (c.retKinds || []).join(' '), tt = /\bTT/i.test(r), wt = /\bWT/i.test(r); return tt && wt ? 'Retainers & Whitening Trays' : wt ? 'Whitening Trays' : 'Retainers'; }
+  return { marpe: 'MARPE', mouthguard: 'Mouthguard', models: 'Study Models' }[c.type] || typeOf(c).l;
+}
+/* the "what's being made" line under the name, unless it only says what the title already does (the line the form filled in) */
+function detailShown(c) {
+  const d = String(c.detail || '').trim(); if (!d || typeof autoDetail !== 'function') return d;
+  try { return d === autoDetail(c, c.type === 'nla' ? 'nla' : c.type) ? '' : d; } catch (e) { return d; }
 }
 /* ---------- the case panel's sections: each folds to one line until it's tapped ----------
    Amir, 3 Oct 2026: "all of these headers would be just collapsed and you could be clicking on it to expand it or have an

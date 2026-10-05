@@ -220,9 +220,10 @@ function alignerSets(c, pool) {
   if (c.type === 'nla') list.push(c);
   const when = x => (x.scanDate || '') + '|' + String(x.createdAt || (x === c && !c.id ? 9e15 : 0)).padStart(16, '0');
   list.sort((a, b) => when(a) < when(b) ? -1 : when(a) > when(b) ? 1 : 0);
+  // a refinement's own number when it has one (picked on the case, 5 Oct 2026), else the next after the one before
   let ref = 0;
   return list.map(x => ({ id: x.id || '', me: x === c, n: alN(x), done: x.status === 'done',
-    l: x.variant === 'finishing' ? 'Finishing' : x.initial === 'yes' ? 'Initial' : x.initial === 'no' ? 'Refinement ' + (++ref) : x.initial === 'mid' ? 'Mid-course' : 'Set' }));
+    l: x.variant === 'finishing' ? 'Finishing' : x.initial === 'yes' ? 'Initial' : x.initial === 'no' ? 'Refinement ' + (ref = Number(x.refN) || ref + 1) : x.initial === 'mid' ? 'Mid-course' : 'Set' }));
 }
 
 /* ---------- in-house aligner treatment: Start and Expected removal ----------
@@ -520,7 +521,7 @@ function csvCell(v) {
   return '"' + s.replace(/"/g, '""') + '"';
 }
 function caseToCSVRow(c) {
-  return [c.patient, typeOf(c).l, c.detail, stageLabel(c), c.status === 'done' ? 'Completed' : 'Open', c.scanDate, c.labDate, c.deliveryDate ? c.deliveryDate + (c.deliveryTime ? ' ' + c.deliveryTime : '') : '', c.assigneeLabel || '', c.instructions, c.cc, c.ipr, c.notes, c.chart, c.titanUrl, (c.extras || []).join('; '), typeof submissionLabel === 'function' ? submissionLabel(c.initial) : '', labName(c.lab), (c.teethNote || '').replace(/\n/g, '; '), c.aligners || '',
+  return [c.patient, typeOf(c).l, c.detail, stageLabel(c), c.status === 'done' ? 'Completed' : 'Open', c.scanDate, c.labDate, c.deliveryDate ? c.deliveryDate + (c.deliveryTime ? ' ' + c.deliveryTime : '') : '', c.assigneeLabel || '', c.instructions, c.cc, c.ipr, c.notes, c.chart, c.titanUrl, (c.extras || []).join('; '), typeof submissionLabel === 'function' ? submissionLabel(c.initial, c.refN) : '', labName(c.lab), (c.teethNote || '').replace(/\n/g, '; '), c.aligners || '',
     c.shipToPatient ? 'Yes' : '', MARPE_RECORDS.filter(([k]) => (c.records || []).includes(k)).map(x => x[1]).join('; '), c.zoomDate ? c.zoomDate + (c.zoomTime ? ' ' + c.zoomTime : '') : '', atLabel(c.atTemplates),
     oneArch(c) === 'U' ? 'Upper only' : oneArch(c) === 'L' ? 'Lower only' : typeOf(c).aligner || ['insmile', 'inbrace'].includes(c.type) ? 'Upper & lower' : '',
     c.txStart || '', c.txEnd || '']

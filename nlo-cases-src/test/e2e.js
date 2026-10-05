@@ -456,11 +456,11 @@ async function openByName(p, name) {
   await owner.click('.pickRow[data-g=extras] .pick:has-text("No elastics")');
   await owner.fill('#cf-cc', 'My bite feels off'); // the patient's own words (Amir, 3 Oct 2026: no CC buttons)
   await owner.click('.pickRow[data-g=scanner] .pick[data-v=iTero]'); // the iTero's drawer (3 Oct 2026)
-  check(await owner.inputValue('#cf-detail') === 'Aligners (Oliv) – refinement', 'what’s-being-made fills itself from the taps');
+  check(await owner.inputValue('#cf-detail') === 'Aligners (Oliv) – refinement 1', 'what’s-being-made fills itself from the taps (a first refinement on file: refinement 1)');
   await owner.click('#ncSave'); await owner.waitForSelector('#modalWrap', { state: 'detached', timeout: 20000 });
   await openByName(owner, 'Petra Tapform');
   check(await owner.isVisible('#drawer .txt:has-text("Improve midline; Maintain overbite; Resolve black triangles")'), 'tapped instructions (Maintain/Improve and pictures) saved as text');
-  check(await owner.isVisible('#drawer .badge:has-text("No elastics")') && await owner.isVisible('#drawer .badge:has-text("Refinement")'), 'extras and refinement shown on the case');
+  check(await owner.isVisible('#drawer .badge:has-text("No elastics")') && /^Refinement /.test(await owner.textContent('#drawer #dKind')), 'extras shown on the case, and Refinement in its title at the top');
   check(/Gwen/.test(await owner.textContent('#drawer .kv')), 'assistant saved from a tap');
   check(await owner.isVisible('#drawer .ccBox:has-text("My bite feels off")') && /from last visit/.test(await owner.textContent('#drawer .ccBox')), 'the patient’s words saved as typed (a refinement: CC from last visit)');
   check(await owner.getAttribute('#drawer a.scanLink', 'href') === 'https://myitero.com/' && /iTero/.test(await owner.textContent('#drawer a.scanLink')), 'the iTero picked from its drawer: the case’s Scanner links to MyiTero');
@@ -536,7 +536,7 @@ async function openByName(p, name) {
   await owner.keyboard.press('Enter');
   await owner.click('#ncSave'); await owner.waitForSelector('#modalWrap', { state: 'detached', timeout: 20000 });
   await openByName(owner, 'Theo Toothchart');
-  check(await owner.isVisible('#drawer .badge:has-text("No IPR")') && await owner.isVisible('#drawer .badge:has-text("Mid-course correction")'), 'case shows No IPR and Mid-course correction');
+  check(await owner.isVisible('#drawer .badge:has-text("No IPR")') && /^Mid-course Correction /.test(await owner.textContent('#drawer #dKind')), 'case shows No IPR, and Mid-course Correction in its title');
   check(await owner.isVisible('#drawer .txt:has-text("Crown: UR1")') && await owner.isVisible('#drawer .txt:has-text("Implant: UL2, LL6")') && await owner.isVisible('#drawer .tc.ro .tooth[data-t=LL6] .tcImp'), 'chart and summary saved on the case');
   await owner.click('#drawer [data-act=edit]'); await owner.waitForSelector('#drawer .cf');
   check((await owner.getAttribute('#drawer #cf-noattScope [data-scope=ant]', 'aria-pressed')) === 'true' && (await owner.getAttribute('#drawer .rxTile[data-v="No IPR"]', 'aria-pressed')) === 'true', 'editing restores No IPR and the No attachments choice');
@@ -747,7 +747,7 @@ async function openByName(p, name) {
   check(await owner.inputValue('#cf-assignee') === await owner.evaluate(() => meSid()), 'InSmile assigned to whoever creates it');
   await owner.click('#ncSave'); await owner.waitForSelector('#modalWrap', { state: 'detached', timeout: 20000 });
   await openByName(owner, 'Ines Smilewright');
-  check(await owner.isVisible('#drawer .badge:has-text("Digital enhancement 2 (DE2)")') && !(await owner.isVisible('#drawer .badge:has-text("Refinement")')), 'case shows Digital enhancement 2 (DE2)');
+  check(await owner.textContent('#drawer #dKind') === 'DE 2 InSmile Braces' && !(await owner.isVisible('#drawer .badge:has-text("Refinement")')), 'case shows DE 2 InSmile Braces at the top');
   await owner.click('#drawer [data-act=edit]'); await owner.waitForSelector('#drawer .cf');
   check((await owner.getAttribute('#drawer .pickRow[data-g=initialDE] .pick[data-v=de2]', 'aria-pressed')) === 'true', 'editing keeps DE 2');
   // braces on one arch only (Amir, 2 Oct 2026: not always both arches)
@@ -1104,7 +1104,7 @@ async function openByName(p, name) {
   check(/^Scanned/.test(rn) && /\nInstructed pt to stay in the last set, night time only\. No elastics with aligners\.$/.test(rn), 'a refinement’s scan note ends with what the patient was told (on Gwen’s screen)');
   check(!(await gwen.$('#drawer .noteFrom')) && /Scan visit/.test(await gwen.textContent('#dsS-note')), 'staff see which visit it is, and no link to Team & security');
   await gwen.click('#drawer .noteTabs [data-v=del]');
-  check(/^Delivered in-house aligners \(NL Lab\) - refinement\.\nPt back to full-time wear with the new aligners\. Reviewed aligner wear and care\.$/.test(await gwen.textContent('#noteTxt')), 'Delivery visit: what went out and what the patient was told');
+  check(/^Delivered in-house aligners \(NL Lab\) - refinement 1\.\nPt back to full-time wear with the new aligners\. Reviewed aligner wear and care\.$/.test(await gwen.textContent('#noteTxt')), 'Delivery visit: what went out and what the patient was told');
   const mine = 'Pt back to full-time wear with the new aligners, a new one every 7 days.';
   await owner.click('#nav-admin'); await owner.waitForSelector('#niRow-alR'); await owner.click('#niRow-alR summary');
   await owner.fill('#ni-alR-del', mine); await owner.press('#ni-alR-del', 'Tab');
@@ -1141,6 +1141,20 @@ async function openByName(p, name) {
   await owner.waitForSelector(RR + ' td.noteCol .nBy:has-text("Gwen")', { timeout: 20000 }).catch(() => {});
   check(/^Gwen · /.test(await owner.textContent(RR + ' td.noteCol .nBy')), 'a Notes saved without a name: found in the case’s history (Gwen)');
   await owner.fill('#q', ''); await gwen.fill('#q', ''); await owner.click('#nav-today');
+
+  console.log('\n# Which refinement, and what the case is at the top of its panel (Amir, 5 Oct 2026)');
+  await owner.click('.topBar [data-act=newCase]'); await owner.waitForSelector('#ncForm');
+  await owner.click('#ncForm .tt[data-tile=nla]'); await owner.fill('#cf-patient', 'Rory Refinewell');
+  await owner.click('#ncForm .pickRow[data-g=initial] .pick[data-v=no]');
+  await owner.waitForSelector('#ncForm .pickRow[data-g=refN] .pick[data-v="2"][aria-pressed=true]', { timeout: 10000 });
+  check(/^Refinement 1 is the latest on file/.test(await owner.textContent('#cf-refNHint')), 'New case: a patient with one refinement on file starts on refinement 2');
+  await owner.click('#ncSave'); await owner.waitForSelector('#modalWrap', { state: 'detached', timeout: 20000 });
+  await gwen.waitForFunction(() => openCases().some(c => c.patient === 'Rory Refinewell' && c.refN === 2), null, { timeout: 20000 });
+  check(true, 'saved, and on Gwen’s screen as refinement 2');
+  const r2 = await gwen.evaluate(() => openCases().find(c => c.patient === 'Rory Refinewell' && c.refN === 2).id);
+  await gwen.evaluate(id => openDrawer(id), r2); await gwen.waitForSelector('#drawer #dKind');
+  check(await gwen.textContent('#drawer #dKind') === 'Refinement 2 Next Level Aligners' && /refinement 2\./.test(await gwen.textContent('#noteTxt')), 'its panel: “Refinement 2 Next Level Aligners” at the top; the chart note says refinement 2');
+  await gwen.click('#drawer [data-act=closeDrawer] >> nth=0');
 
   console.log('\n# Email updates: the script in a Gmail account → the app updates cases');
   await owner.evaluate(async () => {

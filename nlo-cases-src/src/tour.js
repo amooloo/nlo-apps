@@ -25,7 +25,7 @@ function tourSteps(kind) {
       done: () => { const t = $('#ncForm .tt[data-tile=oliv]'); return !!t && t.getAttribute('aria-checked') === 'true'; } },
     { id: 'name', need: inForm, at: () => $('#cf-patient'), t: 'The patient', b: 'The only thing you type. Use a made-up name here, like Practice Patient.', act: 'Type a name.',
       track: () => { const i = $('#cf-patient'); if (i) TOUR.name = i.value.trim(); }, done: () => { const i = $('#cf-patient'); return !!i && i.value.trim().length >= 3; } },
-    { id: 'initial', need: inForm, at: () => $('#ncForm .pickRow[data-g=initial]'), t: 'What is this submission?', b: 'First set, refinement, mid-course correction — so the lab knows.', act: 'Tap Yes — first set.',
+    { id: 'initial', need: inForm, at: () => $('#ncForm .pickRow[data-g=initial]'), t: 'What is this submission?', b: 'First set, refinement, mid-course correction — so the lab knows. A refinement gets its number (the next one is picked for you).', act: 'Tap Yes — first set.',
       done: () => !!$('#ncForm .pickRow[data-g=initial] [aria-pressed=true]') },
     { id: 'scanner', need: inForm, at: () => $('#ncForm .scanRow'), t: 'Scanner', b: 'Allied Star is picked to start — tap iTero if that’s the one that took the scans.' + (owner ? '' : ' The assistant above it is already you.') },
     { id: 'instr', need: inForm, at: () => { const g = $('#ncForm .goalGrid'); return g && g.closest('.cfSec'); }, t: 'Dr. A’s instructions', b: 'Tap what Dr. A asked for instead of typing it: Maintain or Improve for midline and overbite, and a picture tile for each instruction. They all go into the case and its chart note.' },

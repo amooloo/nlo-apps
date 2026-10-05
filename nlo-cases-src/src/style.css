@@ -1338,3 +1338,11 @@ svg.rxArch{display:block;width:100%;height:auto}
 .asgMenu button[aria-checked="true"]{background:var(--mint-100);font-weight:600}
 .asgMenu button .nm{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .asgMenu button>svg{color:var(--mint-700);flex:none}
+/* which refinement (5 Oct 2026): the numbers under "No — refinement" */
+.refNWrap{margin-top:12px;padding:10px 12px;border-radius:12px;background:var(--grey-50)}
+.refNWrap .flabel{display:block;margin-bottom:7px}
+.refNWrap .pick.sm{min-width:40px;text-align:center}
+.refNHint{margin-top:7px;color:var(--grey-600)}
+.refNHint:empty{display:none}
+/* what the case is, at the top of the case panel (5 Oct 2026): "Initial Next Level Aligners", "Refinement 2 Oliv Aligners" */
+.dKind{font-family:var(--fd);font-weight:600;font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:var(--mint-700);line-height:1.3;margin:2px 0 3px;overflow-wrap:anywhere}
