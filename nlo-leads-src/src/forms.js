@@ -2,7 +2,8 @@
    The lead drawer: contact buttons, logging attempts, flags, closing,
    comments and history. Plus the New lead form and saved versions.
    ===================================================================== */
-const RES_BTN = { sched: '✓ Appointment scheduled', vm: 'Left voicemail', none: 'No answer', sent: 'Sent', follow: 'Follow up on a day…', no: 'Not interested' };
+const RES_BTN = { sched: '✓ Appointment scheduled', vm: 'Left voicemail', none: 'No answer', sent: 'Sent', pending: 'Pending (see notes)', follow: 'Follow up on a day…', no: 'Not interested' };
+const RES_TIP = { pending: 'You reached them, but nothing’s booked yet — it’s waiting on something (say what in the note). No day to pick: the follow-up plan carries on, starting the next office day.' };
 const HOW = ['Phone call', 'Walk-in', 'Referral', 'Facebook', 'Instagram', 'Google', 'Other'];
 const FIELD_LABELS = { name: 'name', parent: 'parent', phone: 'phone', email: 'email', message: 'message', how: 'source' };
 
@@ -134,16 +135,19 @@ function nowBoxHTML(l, i) {
       '<div class="btnRow">' + (link ? '<a class="btn btn-act btn-sm" href="' + esc(link) + '">' + ic(kind, 15) + (kind === 'text' ? 'Open in Messages' : 'Open in email') + '</a>' : '<span class="small" style="color:var(--coral-700)">' + (kind === 'text' ? 'No mobile number on file.' : 'No email on file.') + '</span>') +
       '<button class="btn btn-sec btn-sm" data-act="copyVal" data-v="' + esc(kind === 'email' ? 'Subject: ' + m.subject + '\n\n' + m.body : m.body) + '">' + ic('copy', 15) + 'Copy message</button></div>';
   }
-  const R = kind === 'call' ? ['sched', 'vm', 'none', 'follow', 'no'] : ['sched', 'sent', 'follow', 'no'];
-  const form = S.ui.form && S.ui.step === i ? inlineFormHTML(l, i) : '';
+  const R = kind === 'call' ? ['sched', 'vm', 'none', 'pending', 'follow', 'no'] : ['sched', 'sent', 'pending', 'follow', 'no'];
+  const form = S.ui.form && S.ui.step === i ? inlineFormHTML(l, i) : '', pendForm = S.ui.form === 'pending' && S.ui.step === i;
   return '<div class="nowBox"><div class="nowHd"><span class="nowN">' + (i < STEP_DEFS.length ? 'Attempt ' + (i + 1) + ' of ' + STEP_DEFS.length : 'Follow-up') + '</span><b>' + esc(stepLabel(l, i)) + '</b><span style="flex:1"></span>' + dueChip(l) + '</div>' +
     '<div class="nowHow">' + how + '</div>' +
-    '<div class="flabel" style="margin-top:14px">What happened?</div><div class="rbRow">' + R.map(r => '<button class="rb r-' + r + '" data-act="logRes" data-res="' + r + '" data-i="' + i + '"' + (S.ui.form === r ? ' aria-pressed="true"' : '') + '>' + esc(RES_BTN[r]) + '</button>').join('') + '</div>' + form +
-    '<div class="field" style="margin:10px 0 0"><label for="nowNote" class="hidden">Note</label><input id="nowNote" data-keep placeholder="Note (optional) — e.g. call back after 3 PM" autocomplete="off"></div>' +
+    '<div class="flabel" style="margin-top:14px">What happened?</div><div class="rbRow">' + R.map(r => '<button class="rb r-' + r + '" data-act="logRes" data-res="' + r + '" data-i="' + i + '"' + (RES_TIP[r] ? ' title="' + esc(RES_TIP[r]) + '"' : '') + (S.ui.form === r ? ' aria-pressed="true"' : '') + '>' + esc(RES_BTN[r]) + '</button>').join('') + '</div>' + form +
+    (pendForm ? '' : '<div class="field" style="margin:10px 0 0"><label for="nowNote" class="hidden">Note</label><input id="nowNote" data-keep placeholder="Note (optional) — e.g. call back after 3 PM" autocomplete="off"></div>') +
     '<div class="small" style="margin-top:8px"><button class="linkBtn" data-act="moveStep" data-i="' + i + '">Do this on another day</button></div></div>';
 }
 function inlineFormHTML(l, i) {
   const t = todayISO(), next = nextOfficeDay(addDays(t, 1), S.cfg);
+  if (S.ui.form === 'pending') return '<div class="inForm"><div class="field" style="margin-bottom:8px"><label for="nowNote">What is it pending on?</label><input id="nowNote" data-keep placeholder="e.g. checking their work schedule, will call back" autocomplete="off"></div>' +
+    '<div class="btnRow"><button class="btn btn-pri btn-sm" data-act="savePending" data-i="' + i + '">Save — pending</button><button class="btn btn-ghost" data-act="cancelForm">Cancel</button></div>' +
+    '<div class="small muted" style="margin-top:6px">No day to pick — the follow-up plan carries on, starting the next office day.</div></div>';
   if (S.ui.form === 'sched') return '<div class="inForm"><div class="grid2"><div class="field"><label for="apDate">Appointment day (optional)</label><input type="date" id="apDate" data-keep min="' + t + '"></div>' +
     '<div class="field"><label for="apTime">Time (optional)</label><input type="time" id="apTime" data-keep step="300"></div></div>' +
     '<div class="btnRow"><button class="btn btn-mint btn-sm" data-act="saveSched" data-i="' + i + '">' + ic('done', 15) + 'Save — scheduled</button><button class="btn btn-ghost" data-act="cancelForm">Cancel</button></div>' +
@@ -154,7 +158,7 @@ function inlineFormHTML(l, i) {
     quick.map(([lbl, d]) => '<button class="pick sm" data-act="pickDay" data-d="' + d + '">' + esc(lbl) + ' · ' + esc(fmtDay(d).split(',')[0]) + '</button>').join('') + '</div>' +
     '<div class="field" style="max-width:220px"><label for="fuDate" class="hidden">Day</label><input type="date" id="fuDate" data-keep min="' + t + '" value="' + next + '"></div>' +
     '<div class="btnRow"><button class="btn btn-pri btn-sm" data-act="' + (isMove ? 'saveMove' : 'saveFollow') + '" data-i="' + i + '">' + (isMove ? 'Move' : 'Save follow-up') + '</button><button class="btn btn-ghost" data-act="cancelForm">Cancel</button></div>' +
-    (isMove ? '' : '<div class="small muted" style="margin-top:6px">Use this when they answered and asked to be contacted later. The rest of the plan moves with it.</div>') + '</div>';
+    (isMove ? '' : '<div class="small muted" style="margin-top:6px">Use this when they answered and asked to be contacted later. The rest of the plan moves with it. No particular day? Use “Pending (see notes)” instead.</div>') + '</div>';
 }
 function planHTML(l) {
   const cur = curStep(l), last = lastDone(l), canU = canUndo(l);
@@ -210,7 +214,7 @@ function logResult(id, i, res, extra) {
   const fn = l => { const r = applyResult(l, i, res, o, cfg, now); return res === 'sched' ? closeLead(l, 'sched') : r === 'done' ? 'done' : undefined; };
   const before = findLead(id); if (!before) return;
   // check first, so a missing date is caught here and not after the change is shown
-  try { fn(JSON.parse(JSON.stringify(before))); } catch (e) { toast(errText(e), { bad: true }); return; }
+  try { fn(JSON.parse(JSON.stringify(before))); } catch (e) { toast(errText(e), { bad: true }); if (e && e.code === 'need-note') { const n = $('#nowNote'); if (n) n.focus(); } return; }
   S.ui = {}; const ni = $('#nowNote'); if (ni) ni.value = '';
   change(id, fn, { a: 'log', i, res });
   const l = findLead(id), nx = l && l.status !== 'done' ? curStep(l) : -1;
@@ -225,11 +229,14 @@ function undoLast(id) {
 Object.assign(ACT, {
   logRes(t) {
     const i = Number(t.dataset.i), res = t.dataset.res;
-    if (res === 'sched' || res === 'follow') { S.ui = S.ui.form === res ? {} : { form: res, step: i }; renderDrawer(); const f = $(res === 'sched' ? '#apDate' : '#fuDate'); if (f) f.focus(); return; }
+    // Pending with the note already written logs at once; otherwise it asks what it's pending on
+    if (res === 'pending' && S.ui.form !== 'pending' && (($('#nowNote') || {}).value || '').trim()) { logResult(S.openId, i, res); return; }
+    if (res === 'sched' || res === 'follow' || res === 'pending') { S.ui = S.ui.form === res ? {} : { form: res, step: i }; renderDrawer(); const f = $(res === 'sched' ? '#apDate' : res === 'pending' ? '#nowNote' : '#fuDate'); if (f) f.focus(); return; }
     logResult(S.openId, i, res);
   },
   saveSched(t) { logResult(S.openId, Number(t.dataset.i), 'sched', { appt: ($('#apDate') || {}).value || '', apptTime: ($('#apTime') || {}).value || '' }); },
   saveFollow(t) { logResult(S.openId, Number(t.dataset.i), 'follow', { follow: ($('#fuDate') || {}).value || '' }); },
+  savePending(t) { logResult(S.openId, Number(t.dataset.i), 'pending'); },
   pickDay(t) { const f = $('#fuDate'); if (f) f.value = t.dataset.d; },
   cancelForm() { S.ui = {}; renderDrawer(); },
   moveStep(t) { S.ui = S.ui.form === 'move' ? {} : { form: 'move', step: Number(t.dataset.i) }; renderDrawer(); },

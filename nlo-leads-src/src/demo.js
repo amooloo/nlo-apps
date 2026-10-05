@@ -83,6 +83,9 @@ const DEMO = {
       const res = outcome === 'sched' ? [['vm'], ['sched']] : outcome === 'no' ? [['vm'], ['no']] : [['none'], ['sent'], ['vm'], ['sent'], ['none']];
       mk([n + ' Sample', i % 2 ? '' : 'Pat Sample', '352-555-01' + String(20 + i), n.toLowerCase() + '@example.com', 'Requesting a consultation.', ago, 9 + (i % 7), res]);
     });
+    // reached, nothing booked yet — "Pending (see notes)" (added last, so the leads above stay as they were)
+    mk(['Jules Example', 'Sam Example', '352-555-0111', 'sam.example@example.com', 'Interested in braces for my son.', 1, 11,
+      [['pending', { note: 'Checking her work schedule, will call back' }]]]);
   },
   start(h) {
     DEMO.h = h;

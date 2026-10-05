@@ -182,6 +182,27 @@ const leadOf = (p, n) => p.evaluate(n => { const l = Array.from(S.leads.values()
   check(msgs.some(m => /already logged/.test(m)), 'the second person is told it was already logged');
   SECTION = '# after race';
 
+  console.log('\n# Pending (see notes): reached, nothing booked yet — no day to pick');
+  await gwen.evaluate(() => closeDrawer(true));
+  await sav.evaluate(id => openDrawer(id), av.id); await sav.waitForSelector('#drawer [data-act=logRes][data-res=pending]', { timeout: 20000 });
+  check(/No day to pick/.test(await sav.getAttribute('#drawer [data-act=logRes][data-res=pending]', 'title')), 'the button explains itself on hover');
+  const pAt = await sav.evaluate(id => curStep(findLead(id)), av.id);
+  await sav.click('#drawer [data-act=logRes][data-res=pending]'); await sav.waitForSelector('#drawer .inForm #nowNote', { timeout: 10000 });
+  check(!(await sav.isVisible('#fuDate')) && !(await sav.isVisible('#apDate')), 'it asks what it’s pending on — no day or time');
+  await sav.fill('#drawer #nowNote', 'Checking her work schedule — note-p9');
+  await sav.click('#drawer [data-act=savePending]');
+  await sav.waitForFunction(([id, i]) => !S.pend[id] && findLead(id).steps[i].res === 'pending', [av.id, pAt], { timeout: 20000 });
+  const pToast = (await sav.$$eval('.toast', t => t.map(x => x.textContent))).join(' | ');
+  check(/Logged: Pending · next: /.test(pToast), 'toast: ' + (pToast.match(/Logged: Pending[^|]*/) || [''])[0]);
+  await gwen.waitForFunction(([id, i]) => { const l = findLead(id); return l && l.steps[i].res === 'pending'; }, [av.id, pAt], { timeout: 20000 });
+  const pl = await leadOf(gwen, 'Avery Sample');
+  check(pl.status === 'open' && pl.stage === 'contacted' && !pl.closeWhy && /note-p9/.test(pl.steps[pAt].note), 'Gwen sees it live: still open, contacted, with the note');
+  check(await gwen.evaluate(id => leadDue(findLead(id)) > todayISO(), av.id), 'the next attempt isn’t due the same day');
+  await sav.evaluate(id => loadHistory(id), av.id); await sleep(800);
+  check(new RegExp('logged attempt ' + (pAt + 1) + ': pending \\(see notes\\)').test(await sav.textContent('#histBox')), 'history: “logged attempt ' + (pAt + 1) + ': pending (see notes)”');
+  check(/Pending \(see notes\)/.test(await sav.textContent('#drawer .plan')) && /note-p9/.test(await sav.textContent('#drawer .plan')), 'the plan shows it on that attempt, with the note');
+  check(!/note-p9|"pending"|work schedule/.test(JSON.stringify(await fsDump(['leads', 'leadLog']))), 'the result and the note are sealed too');
+
   console.log('\n# Repeat requests and spam wait for a look');
   check(await post(HOOK, elementor({ name: 'Avery Sample', parent: 'Jordan Sample', email: 'other.address@example.com', phone: '352.555.0101', message: 'Sent it again' })) === 200, 'second request from the same family');
   check(await post(HOOK, elementor({ name: 'Cheap Followers www.example.com', email: 'promo@example.com', message: 'buy now' })) === 200, 'a spam post');

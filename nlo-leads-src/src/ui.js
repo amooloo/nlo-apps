@@ -69,7 +69,7 @@ function errText(e) {
   if (/boot-stale/.test(c)) return 'This invite expired after a security update. Ask Dr. A to reissue your login.';
   if (/bad-code/.test(c)) return 'That recovery code didn’t work. Check it and try again.';
   if (/not-pending/.test(c)) return 'That attempt was already logged — maybe by someone else. The lead is up to date now.';
-  if (/need-date|bad-date/.test(c)) return (e && e.message) || 'Pick a day.';
+  if (/need-date|bad-date|need-note/.test(c)) return (e && e.message) || 'Pick a day.';
   if (/nothing-to-undo/.test(c)) return 'Nothing to undo.';
   if (/permission/.test(c)) return 'Not allowed. Your access may have changed.';
   if (/gone/.test(c)) return 'That lead no longer exists.';

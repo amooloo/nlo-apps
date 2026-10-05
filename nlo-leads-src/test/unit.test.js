@@ -120,12 +120,70 @@ t('adding a phone number later turns the email-only plan back into calls', () =>
   const l = fresh({ phone: '' }); eq(l.steps[0].kind, 'email'); l.phone = '352-555-0142'; L.setKinds(l); eq(l.steps.map(s => s.kind), ['call', 'text', 'call', 'email', 'call']);
 });
 
+console.log('\n# Pending (see notes) — reached, nothing booked yet, no day to pick');
+const PN = { note: 'Checking her work schedule, will call back' };
+t('pending on the first call: logged as contacted with its note, nothing more today — the rest of the plan slides one office day later', () => {
+  const l = fresh(); const r = L.applyResult(l, 0, 'pending', { by: 'sav', note: '  Checking her work schedule, will call back ' }, CFG, at(2026, 10, 5, 11));
+  eq(r, null); eq(l.stage, 'contacted'); eq(l.steps[0].res, 'pending'); eq(l.steps[0].by, 'sav'); eq(l.steps[0].note, 'Checking her work schedule, will call back'); eq(l.closeWhy, '');
+  eq(dues(l), ['done', '2026-10-06', '2026-10-07', '2026-10-13', '2026-10-20']); eq(L.leadDue(Object.assign(l, { status: 'open' })), '2026-10-06'); eq(L.curStep(l), 1);
+});
+t('pending needs a note (it says “see notes”); without one nothing is logged', () => {
+  const l = fresh(), before = strip(l);
+  assert.throws(() => L.applyResult(l, 0, 'pending', {}, CFG, at(2026, 10, 5, 11)), e => e.code === 'need-note' && /pending on/.test(e.message));
+  assert.throws(() => L.applyResult(l, 0, 'pending', { note: '   ' }, CFG, at(2026, 10, 5, 11)), e => e.code === 'need-note');
+  eq(strip(l), before);
+});
+t('pending on a Thursday: the next attempt rolls past the weekend, the gaps stay office-day sized', () => {
+  const l = fresh({}, at(2026, 10, 8, 9)); eq(dues(l), ['2026-10-08', '2026-10-08', '2026-10-12', '2026-10-15', '2026-10-22']);
+  L.applyResult(l, 0, 'pending', PN, CFG, at(2026, 10, 8, 11)); eq(dues(l), ['done', '2026-10-12', '2026-10-13', '2026-10-19', '2026-10-26']);
+});
+t('pending when the next attempt is already on a later day: the plan stays as it is', () => {
+  const l = fresh(); L.applyResult(l, 0, 'vm', {}, CFG, at(2026, 10, 5, 10)); L.applyResult(l, 1, 'sent', {}, CFG, at(2026, 10, 5, 11));
+  L.applyResult(l, 2, 'pending', PN, CFG, at(2026, 10, 6, 10)); eq(dues(l), ['done', 'done', 'done', '2026-10-12', '2026-10-19']);
+});
+t('pending on a text or email (they replied): same rule', () => {
+  const l = fresh(); L.applyResult(l, 0, 'none', {}, CFG, at(2026, 10, 5, 10)); L.applyResult(l, 1, 'pending', PN, CFG, at(2026, 10, 5, 15));
+  eq(dues(l), ['done', 'done', '2026-10-06', '2026-10-12', '2026-10-19']); eq(l.steps[1].res, 'pending');
+});
+t('pending logged two days late: the gaps count from that day, then nothing more that day', () => {
+  const l = fresh(); L.applyResult(l, 0, 'pending', PN, CFG, at(2026, 10, 7, 10)); // Wednesday
+  eq(dues(l), ['done', '2026-10-08', '2026-10-12', '2026-10-15', '2026-10-22']);
+});
+t('pending the day before a holiday weekend skips the closed days (Thanksgiving)', () => {
+  const l = fresh({}, at(2026, 11, 24, 9)); L.applyResult(l, 0, 'pending', PN, CFG, at(2026, 11, 24, 11)); // Tue 24 Nov; Wed–Fri closed
+  eq(l.steps[1].due, '2026-11-30');
+});
+t('the next attempt after pending is never due the same day, whichever attempt it was logged on', () => {
+  [0, 1, 2, 3].forEach(k => {
+    const l = fresh(); for (let j = 0; j < k; j++) L.applyResult(l, j, j % 2 ? 'sent' : 'vm', {}, CFG, at(2026, 10, 5, 9));
+    L.applyResult(l, k, 'pending', PN, CFG, at(2026, 10, 5, 12));
+    assert.ok(L.leadDue(Object.assign(l, { status: 'open' })) > '2026-10-05', 'attempt ' + (k + 1) + ': next due ' + L.leadDue(l));
+  });
+});
+t('pending on the last attempt keeps the lead open with one more call a week later', () => {
+  const l = fresh(); [0, 1, 2, 3].forEach(i => L.applyResult(l, i, i % 2 ? 'sent' : 'vm', {}, CFG, at(2026, 10, 19, 10)));
+  const r = L.applyResult(l, 4, 'pending', PN, CFG, at(2026, 10, 19, 11));
+  eq(r, null); eq(l.closeWhy, ''); eq(l.steps.length, 6); eq(l.steps[5].extra, true); eq(l.steps[5].kind, 'call'); eq(l.steps[5].due, '2026-10-26');
+  eq(L.stepLabel(l, 5), 'Follow-up call'); eq(L.curStep(l), 5);
+  const r2 = L.applyResult(l, 5, 'none', {}, CFG, at(2026, 10, 26, 10)); eq(r2, 'done'); eq(l.closeWhy, 'noresp');
+});
+t('…for an email-only lead that extra attempt is an email', () => {
+  const l = fresh({ phone: '' }); [0, 1, 2, 3].forEach(i => L.applyResult(l, i, 'sent', {}, CFG, at(2026, 10, 19, 10)));
+  L.applyResult(l, 4, 'pending', PN, CFG, at(2026, 10, 19, 11)); eq(l.steps[5].kind, 'email'); eq(L.stepLabel(l, 5), 'Follow-up message');
+});
+t('pending never asks for a day and never closes the lead', () => {
+  const l = fresh(); assert.doesNotThrow(() => L.applyResult(l, 0, 'pending', PN, CFG, at(2026, 10, 5, 10))); eq(l.closeWhy, ''); eq(L.stepsLeft(l), 4);
+});
+t('labels: “Pending (see notes)” in the plan and history, “Pending” in the toast', () => { eq(L.RES.pending.l, 'Pending (see notes)'); eq(L.RES.pending.s, 'Pending'); });
+
 console.log('\n# Undo');
 const undoCases = {
   'voicemail': (l, c) => L.applyResult(l, 0, 'vm', {}, c, at(2026, 10, 7, 10)),
   'scheduled': (l, c) => L.applyResult(l, 0, 'sched', { appt: '2026-10-14' }, c, at(2026, 10, 5, 10)),
   'not interested': (l, c) => L.applyResult(l, 0, 'no', {}, c, at(2026, 10, 5, 10)),
-  'follow up': (l, c) => L.applyResult(l, 0, 'follow', { follow: '2026-10-13' }, c, at(2026, 10, 5, 10))
+  'follow up': (l, c) => L.applyResult(l, 0, 'follow', { follow: '2026-10-13' }, c, at(2026, 10, 5, 10)),
+  'pending (see notes)': (l, c) => L.applyResult(l, 0, 'pending', { note: 'Will call back' }, c, at(2026, 10, 5, 11)),
+  'pending, logged late on a Thursday': (l, c) => L.applyResult(l, 0, 'pending', { note: 'Will call back' }, c, at(2026, 10, 8, 16))
 };
 Object.keys(undoCases).forEach(k => t('undo after “' + k + '” restores the lead exactly', () => {
   const l = fresh(), before = strip(l); undoCases[k](l, CFG); assert.ok(L.canUndo(l)); const st = L.undoStep(l); eq(st, 'open'); eq(strip(l), before);
@@ -137,6 +195,13 @@ t('undo after the final no-answer reopens the lead and drops nothing else', () =
 t('undo after a follow-up on the last attempt removes the added call', () => {
   const l = fresh(); [0, 1, 2, 3].forEach(i => L.applyResult(l, i, 'vm', {}, CFG, at(2026, 10, 19, 10)));
   const before = strip(l); L.applyResult(l, 4, 'follow', { follow: '2026-10-22' }, CFG, at(2026, 10, 19, 11)); eq(l.steps.length, 6); L.undoStep(l); eq(strip(l), before);
+});
+t('undo after “pending” on the last attempt removes the added call', () => {
+  const l = fresh(); [0, 1, 2, 3].forEach(i => L.applyResult(l, i, 'vm', {}, CFG, at(2026, 10, 19, 10)));
+  const before = strip(l); L.applyResult(l, 4, 'pending', { note: 'Will call back' }, CFG, at(2026, 10, 19, 11)); eq(l.steps.length, 6); assert.ok(L.canUndo(l)); L.undoStep(l); eq(strip(l), before);
+});
+t('a lead closed by hand after “pending” cannot be silently undone', () => {
+  const l = fresh(); L.applyResult(l, 0, 'pending', { note: 'Will call back' }, CFG, at(2026, 10, 5, 10)); L.closeLead(l, 'other'); assert.strictEqual(L.canUndo(l), false);
 });
 t('only the latest attempt can be undone, one after another', () => {
   const l = fresh(), s0 = strip(l); L.applyResult(l, 0, 'vm', {}, CFG, at(2026, 10, 5, 10)); const s1 = strip(l); L.applyResult(l, 1, 'sent', {}, CFG, at(2026, 10, 5, 11));
@@ -184,6 +249,16 @@ t('links for tapping: tel, sms and mail are encoded; bad numbers give no link', 
   eq(L.telLink('(352) 555-0142'), 'tel:+13525550142'); eq(L.telLink('12'), '');
   assert.ok(L.smsLink('352-555-0142', 'Hi & bye').startsWith('sms:+13525550142?&body=Hi%20%26%20bye')); eq(L.smsLink('x', 'y'), '');
   assert.ok(L.mailLink('pam@example.com', 'A b', 'c\nd').includes('subject=A%20b&body=c%0Ad')); eq(L.mailLink('nope', 'a', 'b'), '');
+});
+t('once they have been reached (pending, or asked for a day), the first message stops saying “tried to call”', () => {
+  const v = fresh(); L.applyResult(v, 0, 'vm', {}, CFG, at(2026, 10, 5, 11));
+  assert.ok(/tried to call/.test(L.messageFor(v, 1, CFG, 'Savannah').body), 'after a voicemail the first wording stays');
+  const l = fresh(); L.applyResult(l, 0, 'pending', { note: 'Will call back' }, CFG, at(2026, 10, 5, 11));
+  const m = L.messageFor(l, 1, CFG, 'Savannah'); eq(m.kind, 'text');
+  assert.ok(m.body.startsWith('Hi Pam, it is Savannah at Next Level Orthodontics again.'), m.body); assert.ok(!/tried to call/.test(m.body)); assert.ok(m.body.includes('352-332-7466'));
+  L.setStepKind(l, 1, 'email'); const e = L.messageFor(l, 1, CFG, 'Savannah'); assert.ok(/^Still want to schedule\?/.test(e.subject), e.subject); assert.ok(!/tried to call/.test(e.body));
+  const f = fresh(); L.applyResult(f, 0, 'follow', { follow: '2026-10-08' }, CFG, at(2026, 10, 5, 11));
+  assert.ok(!/tried to call/.test(L.messageFor(f, 1, CFG, 'Savannah').body), 'after a follow-up they asked for');
 });
 t('custom message templates replace the defaults', () => {
   const c = L.leadCfg({ leads: { tpl: { text1: 'Hello {first} from {me}' } } }); eq(L.messageFor(fresh(), 1, c, 'Gwen').body, 'Hello Pam from Gwen');

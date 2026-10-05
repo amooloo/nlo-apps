@@ -63,6 +63,50 @@ const ok = (c, m) => { if (c) { pass++; console.log('  ok  ' + m); } else { fail
   ok(fol.res === 'follow' && fol.next > fol.today, 'follow up on a day: next attempt moves to ' + fol.next);
   await page.click('#drawer [data-act=closeDrawer] >> nth=0');
 
+  // Pending (see notes): reached, nothing booked; asks what it's pending on, no day to pick; the plan carries on (not the same day); Undo puts it back
+  const spId = await page.evaluate(() => { const t = todayISO(); const l = openLeads().filter(l => !l.flag && l.stage !== 'scheduled' && curStep(l) >= 0 && l.steps[curStep(l)].kind === 'call' && ['late', 'today'].includes(bucketOf(leadDue(l), t))).sort(byDue)[0]; return l && l.id; });
+  ok(!!spId, 'there is a call to make now');
+  await page.evaluate(id => openDrawer(id), spId); await page.waitForSelector('#drawer .nowBox');
+  const labels = await page.$$eval('#drawer .rbRow .rb', b => b.map(x => x.textContent));
+  ok(labels.join('|') === '✓ Appointment scheduled|Left voicemail|No answer|Pending (see notes)|Follow up on a day…|Not interested', 'call buttons: ' + labels.join(' · '));
+  await page.screenshot({ path: 'shots/drawer-pending-buttons.png' });
+  const spBefore = await page.evaluate(id => JSON.stringify(findLead(id).steps), spId);
+  await page.click('#drawer [data-act=logRes][data-res=pending]'); await page.waitForSelector('#drawer .inForm #nowNote');
+  ok(await page.$$eval('#drawer #nowNote', n => n.length) === 1 && /What is it pending on\?/.test(await page.textContent('#drawer .inForm')) && await page.evaluate(() => document.activeElement && document.activeElement.id === 'nowNote'),
+    'tapping it asks “What is it pending on?” (the note box moves up, focused)');
+  await page.click('#drawer [data-act=savePending]'); await page.waitForTimeout(250);
+  ok(await page.evaluate(id => JSON.stringify(findLead(id).steps), spId) === spBefore && await page.$$eval('.toast', t => t.some(x => /pending on/.test(x.textContent))), 'saving without a note is stopped with a nudge');
+  await page.fill('#drawer #nowNote', 'Checking her work schedule, will call back');
+  await page.screenshot({ path: 'shots/drawer-pending-form.png' });
+  await page.click('#drawer [data-act=savePending]'); await page.waitForTimeout(250);
+  const sp = await page.evaluate(id => { const l = findLead(id), d = l.steps[lastDone(l)]; return { res: d.res, note: d.note, stage: l.stage, status: l.status, due: leadDue(l), today: todayISO(), form: !!document.querySelector('#drawer .inForm') }; }, spId);
+  ok(sp.res === 'pending' && sp.note === 'Checking her work schedule, will call back' && sp.stage === 'contacted' && sp.status === 'open' && !sp.form, 'Pending (see notes) is logged with the note, lead stays open: ' + JSON.stringify(sp));
+  ok(sp.due > sp.today, 'no day to pick, and the next attempt isn’t today (' + sp.due + ')');
+  ok(await page.$$eval('.toast', t => t.some(x => /Logged: Pending · next: /.test(x.textContent))), 'toast: Logged: Pending · next: …');
+  const planTxt = await page.textContent('#drawer .plan');
+  ok(/Pending \(see notes\)/.test(planTxt) && /Checking her work schedule/.test(planTxt), 'the plan shows “Pending (see notes)” with the note under it');
+  await page.screenshot({ path: 'shots/drawer-pending-logged.png' });
+  await page.click('#drawer [data-act=undoLog]'); await page.waitForTimeout(300);
+  ok(await page.evaluate(id => JSON.stringify(findLead(id).steps), spId) === spBefore, 'Undo puts the plan back exactly');
+  // with the note already typed, one tap logs it; Cancel on the question keeps what was typed
+  await page.click('#drawer [data-act=logRes][data-res=pending]'); await page.waitForSelector('#drawer .inForm #nowNote');
+  await page.fill('#drawer #nowNote', 'Asking her husband'); await page.click('#drawer [data-act=cancelForm]'); await page.waitForTimeout(150);
+  ok(!(await page.$('#drawer .inForm')) && await page.inputValue('#drawer #nowNote') === 'Asking her husband', 'Cancel closes the question and keeps the typed note');
+  await page.click('#drawer [data-act=logRes][data-res=pending]'); await page.waitForTimeout(250);
+  ok(await page.evaluate(id => { const l = findLead(id), d = l.steps[lastDone(l)]; return d && d.res === 'pending' && d.note === 'Asking her husband'; }, spId), 'note typed first: one tap logs Pending');
+  await page.click('#drawer [data-act=undoLog]'); await page.waitForTimeout(300);
+  ok(await page.evaluate(id => JSON.stringify(findLead(id).steps), spId) === spBefore, 'and Undo again');
+  await page.click('#drawer [data-act=closeDrawer] >> nth=0');
+  // the demo's pending lead: reached yesterday; the next text uses the "still want to schedule?" wording
+  const jules = await page.evaluate(() => { const l = openLeads().find(l => l.name === 'Jules Example'); return l && { res: l.steps[0].res, note: l.steps[0].note, i: curStep(l), kind: l.steps[curStep(l)].kind }; });
+  ok(jules && jules.res === 'pending' && /work schedule/.test(jules.note) && jules.i === 1, 'demo lead after “Pending”: ' + JSON.stringify(jules));
+  await page.evaluate(() => openDrawer(openLeads().find(l => l.name === 'Jules Example').id)); await page.waitForSelector('#drawer .msgPrev');
+  const jt = await page.$eval('#drawer .msgPrev', e => e.textContent);
+  ok(/again/.test(jt) && !/tried to call/.test(jt), 'its text doesn’t say “tried to call”: “' + jt.slice(0, 70) + '…”');
+  ok((await page.$$eval('#drawer .rbRow .rb', b => b.map(x => x.textContent))).includes('Pending (see notes)'), 'text/email attempts offer it too');
+  await page.screenshot({ path: 'shots/drawer-pending-demo.png' });
+  await page.click('#drawer [data-act=closeDrawer] >> nth=0');
+
   // a message step shows the filled-in text
   const msgId = await page.evaluate(() => { const l = openLeads().find(l => !l.flag && curStep(l) >= 0 && l.steps[curStep(l)].kind === 'text' && validEmail(l.email) && l.stage !== 'scheduled'); return l && l.id; });
   if (msgId) {

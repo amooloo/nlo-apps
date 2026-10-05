@@ -25,6 +25,7 @@ const RES = {
   vm: { l: 'Left voicemail', s: 'Voicemail' },
   none: { l: 'No answer', s: 'No answer' },
   sent: { l: 'Sent, no reply yet', s: 'Sent' },
+  pending: { l: 'Pending (see notes)', s: 'Pending' },
   no: { l: 'Not interested', s: 'Not interested' },
   done: { l: 'Done', s: 'Done' }
 };
@@ -167,8 +168,18 @@ function rebase(l, dateISO, cfg) {
     s.due = d; s.plan = d;
   });
 }
+/* "Pending (see notes)": they were reached but nothing is booked yet — it's waiting on something, written in the
+   note. There is no day to pick: the plan carries on, just not the same day — if the next attempt is due today, it
+   and the ones after slide one office day later. After the last attempt, one more call a week later keeps the lead
+   open. (Savannah, 5 Oct 2026) */
+function giveTime(l, todayISO, cfg) {
+  const pend = l.steps.filter(isPending);
+  if (!pend.length) { rebase(l, addDays(todayISO, 7), cfg); return; }
+  if (pend[0].due > todayISO) return;
+  pend.forEach(s => { s.due = nextOfficeDay(addDays(s.due < todayISO ? todayISO : s.due, 1), cfg); });
+}
 function closeIn(l, why) { l.closeWhy = why; l.steps.forEach(s => { if (isPending(s)) s.skip = 'closed'; }); }
-/* log the result of attempt i. Returns 'done' when that closed the lead. Throws 'not-pending' / 'need-date' / 'bad-date'. */
+/* log the result of attempt i. Returns 'done' when that closed the lead. Throws 'not-pending' / 'need-date' / 'bad-date' / 'need-note'. */
 function applyResult(l, i, res, o, cfg, nowMs) {
   o = o || {}; const st = l.steps[i];
   if (!st || !isPending(st)) throw errCode('not-pending');
@@ -178,6 +189,7 @@ function applyResult(l, i, res, o, cfg, nowMs) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(o.follow || '')) throw errCode('need-date', 'Pick the day to follow up.');
     if (o.follow < today) throw errCode('bad-date', 'Pick today or a day ahead.');
   }
+  if (res === 'pending' && !String(o.note || '').trim()) throw errCode('need-note', 'Add a short note — what is it pending on?');
   st.undo = { stage: l.stage, appt: l.appt || '', apptTime: l.apptTime || '', closeWhy: l.closeWhy || '', len: l.steps.length, later: l.steps.slice(i + 1).map(s => [s.due, s.plan, s.skip || '']) };
   st.doneAt = nowMs; st.res = res; st.by = o.by || ''; st.note = String(o.note || '').trim();
   if (res === 'sched') {
@@ -189,6 +201,7 @@ function applyResult(l, i, res, o, cfg, nowMs) {
   l.stage = 'contacted';
   if (res === 'follow') { rebase(l, o.follow, cfg); return null; }
   reflow(l, i, today, cfg);
+  if (res === 'pending') { giveTime(l, today, cfg); return null; }
   if (!stepsLeft(l)) { closeIn(l, 'noresp'); return 'done'; }
   return null;
 }
@@ -236,7 +249,9 @@ function setStepKind(l, i, kind) {
 function fillTpl(t, v) { return String(t || '').replace(/\{(first|me|office|phone)\}/g, (m, k) => v[k] == null ? '' : v[k]); }
 /* the text or email for message attempt i, ready to copy or open */
 function messageFor(l, i, cfg, me) {
-  const s = l.steps[i]; const which = i >= 3 ? 2 : 1;
+  // the first wording says we tried to call; once they have been reached (pending, or asked for a day), the second fits
+  const s = l.steps[i], reached = (l.steps || []).slice(0, i).some(x => x.doneAt && (x.res === 'pending' || x.res === 'follow'));
+  const which = i >= 3 || reached ? 2 : 1;
   const v = { first: leadFirst(l), me: me || '', office: OFFICE_NAME, phone: cfg.phone || '' };
   const isText = s && s.kind === 'text';
   return { kind: isText ? 'text' : 'email', subject: fillTpl(cfg.tpl['subj' + which], v), body: fillTpl(cfg.tpl[(isText ? 'text' : 'email') + which], v) };
