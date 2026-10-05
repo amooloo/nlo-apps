@@ -161,7 +161,7 @@ label.lbl{display:block;font-size:12px;font-weight:800;letter-spacing:.04em;text
    (that path already has the right access rules). Each month also stores
    computed `totals`, which the Staff Meeting Hub reads for its KPIs.
    ===================================================================== */
-const APP_VERSION = '1.1.1';
+const APP_VERSION = '1.2.0';
 const FB_CONFIG = { apiKey: "AIzaSyBFCmDgAKkdfZ4Cb81nK0KCKXtONiwMJy4", authDomain: "nlo-inventory.firebaseapp.com", databaseURL: "https://nlo-inventory-default-rtdb.firebaseio.com", projectId: "nlo-inventory", storageBucket: "nlo-inventory.firebasestorage.app", messagingSenderId: "471691286148", appId: "1:471691286148:web:b362a98186f648bd4914d1" };
 const ME = 'nlo/staffMeeting/monthEnd';
 const ROSTER_PATH = 'nlo/cadence/roster/people';
@@ -176,10 +176,10 @@ const NP_ROWS = [['np', 'New patients', 'Seen for the first time ever at NLO thi
 const NP_OUT = ['obs', 'pending', 'sameday', 'scheduled', 'declined', 'notx'];
 const ST_ROWS = [['ph1', 'Phase I'], ['ph1a', 'Phase I aligners'], ['ph2', 'Phase II', 1], ['ph2a', 'Phase II aligners', 1], ['ft', 'Full treatment'], ['fta', 'Full treatment aligners'], ['lmt', 'Limited treatment'], ['retreat', 'Retreat']];
 const ST_EXCL = ['ph2', 'ph2a'];   // not counted in conversion — Shimmin's own math (its form said retreats were left out too, but its numbers counted them)
-const MONEY = [['net_coll', 'Net collections', '$', 'Payments (cash in) for the month, after patient/insurance refunds and write-offs.'], ['gross_prod', 'Gross production', '$', 'Production for the month before any adjustments.'], ['adj', 'Production adjustments', '$', 'Courtesies, promotions and transfer-out adjustments (use the Transfer-Out Calculator for transfers).'], ['cred_pt', 'Patient credits', '$', 'Credit balances owed to patients at month end.'], ['cred_ins', 'Insurance credits', '$', 'Credit balances owed to insurance at month end.'], ['fees', 'Treatment fees for this month’s starts', '$', 'Optional. Total contract fees for the patients who started this month — gives the average case fee.']];
+const MONEY = [['net_coll', 'Net collections', '$', 'Payments (cash in) for the month, after patient/insurance refunds and write-offs. In Edge: Practice Statistics for the month → page 3, Receipts by Account total (same as Practice Monitor → Collections).'], ['gross_prod', 'Gross production', '$', 'Production for the month before any adjustments. In Edge: Practice Statistics → page 3, Gross Charge (Practice Monitor → Production).'], ['adj', 'Production adjustments', '$', 'Courtesies, promotions and transfer-out adjustments (use the Transfer-Out Calculator for transfers). In Edge: Practice Statistics → page 3, Total Adj (Practice Monitor → Adjust).'], ['cred_pt', 'Patient credits', '$', 'Credit balances owed to patients at month end.'], ['cred_ins', 'Insurance credits', '$', 'Credit balances owed to insurance at month end.'], ['fees', 'Treatment fees for this month’s starts', '$', 'Total contract fees for the patients who started this month — gives the average case fee. In Edge: Practice Statistics → New Treatment Fees, total Gross Tx Fee.']];
 const PATIENTS = [['pending', 'Pending patients', 'Patients in pending (will think about it) at month end.'], ['active', 'Active patients (total)'], ['active_noappt', 'Active patients with no appointment'], ['obs', 'Observation patients (total)'], ['obs_noappt', 'Observation patients with no appointment'], ['past', 'Patients past their estimated completion']];
 const ACCTS = [['ins', 'Insurance'], ['pt', 'Patient']];
-const DEFAULT_TIPS = { ar_total: 'Total accounts receivable dollars at the end of the month.', ins_pd: 'Accounts with balances 30+ days past due at month end.', pt_pd: 'Accounts with balances 30+ days past due at month end.' };
+const DEFAULT_TIPS = { ar_total: 'Total accounts receivable dollars at the end of the month. In Edge: Practice Monitor (date = last day of the month) → Balance for that month.', ins_pd: 'Accounts with balances 30+ days past due at month end.', pt_pd: 'Accounts with balances 30+ days past due at month end.' };
 
 /* ---------------------------------------------------------------- utils */
 const $ = (s, r) => (r || document).querySelector(s), $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
@@ -351,7 +351,7 @@ RENDER.month = () => {
   const di = dueInfo(m), filled = filledCount(rec);
   let head = '<div class="card"><div class="card-h"><h2>' + esc(fmtYm(m)) + '</h2>' +
     (fin ? '<span class="tag green">✓ Complete · ' + esc(fin.name || '') + ' ' + esc(fmtWhen(fin.at)) + '</span>' : filled ? '<span class="tag amber">In progress</span>' : '<span class="tag">Not started</span>') +
-    '<div class="r"><button class="btn ghost sm" data-act="import">Read a Shimmin PDF</button><button class="btn ghost sm" data-act="print-month">Print</button>' +
+    '<div class="r"><button class="btn blue sm" data-act="edge"' + (fin ? ' disabled title="Reopen the month to change it"' : '') + '>Read Edge reports</button><button class="btn ghost sm" data-act="print-month">Print</button>' +
     (fin ? '<button class="btn ghost sm" data-act="reopen">Reopen</button>' : '<button class="btn mint sm" data-act="final">Mark complete</button>') + '</div></div>' +
     (!fin ? (di.late ? '<div class="warnbar">These were due ' + esc(di.due.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })) + '.</div>' : '<p class="hint">Due by ' + esc(di.due.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })) + '. Every box saves as you go; percentages and totals calculate themselves.</p>') : '<p class="hint">Marked complete — reopen to change anything.</p>') +
     '</div>';
@@ -454,7 +454,7 @@ RENDER.goals = () => {
     bi('np', 'New patients', '') + bi('startsInc', 'Starts including Phase II', '') + bi('startsLess', 'Starts not counting Phase II', '') + '</div><div>' + bi('coll', 'Net collections', '$') + bi('net', 'Production (net)', '$') + '</div></div></div>' +
     '<div class="card"><div class="card-h"><h2>Treatment coordinator columns</h2></div><p class="hint">New patients and starts get one column per TC — tap to add or remove. ' + (cfgTcs.length ? '' : 'Right now it follows the Staff Hub titles (Treatment Coordinator).') + '</p><div class="ptiles">' + tcTiles + '</div></div>' +
     '<div class="card"><div class="card-h"><h2>Due date</h2></div><div class="frow"><span class="l">Month-end numbers are due by this day of the next month</span><input class="num" type="text" inputmode="numeric" data-cfg="dueDay" value="' + esc(dueDay()) + '"></div></div>' +
-    '<div class="card"><div class="card-h"><h2>Back-filling past months</h2></div><p class="hint">' + (nShim ? nShim + ' months were copied from Shimmin (' + esc(fmtYm(shimKeys[0], { month: 'short', year: 'numeric' })) + ' – ' + esc(fmtYm(shimKeys[shimKeys.length - 1], { month: 'short', year: 'numeric' })) + '). ' : '') + 'To bring over another month from Shimmin: open it on the Month tab and use <b>Read a Shimmin PDF</b> (Shimmin → EOM Executive Summary → Ctrl+P → Save as PDF). The AI reads the page and you check the numbers before saving.</p></div>' +
+    '<div class="card"><div class="card-h"><h2>Back-filling past months</h2></div><p class="hint">' + (nShim ? nShim + ' months were copied from Shimmin (' + esc(fmtYm(shimKeys[0], { month: 'short', year: 'numeric' })) + ' – ' + esc(fmtYm(shimKeys[shimKeys.length - 1], { month: 'short', year: 'numeric' })) + '). ' : '') + 'To bring over another month from Shimmin: pick the month at the top, then use the button below (Shimmin → EOM Executive Summary → Ctrl+P → Save as PDF). The AI reads the page and you check the numbers before saving.</p><div class="row" style="margin-top:10px"><button class="btn ghost sm" data-act="import">Read a Shimmin PDF into ' + esc(fmtYm(S.month)) + '</button></div></div>' +
     '<p class="hint">Month-End Numbers ' + APP_VERSION + ' · totals only — never patient names.</p>';
 };
 
@@ -499,6 +499,7 @@ document.addEventListener('click', e => {
     case 'tc': { const id = el.dataset.pid; let cur = tcList().map(x => ({ id: x.id, name: x.name })); cur = cur.some(x => x.id === id) ? cur.filter(x => x.id !== id) : cur.concat([{ id, name: shortName(person(id)) }]); db.ref(MP('config', 'tcs')).set(cur.length ? cur : null); break; }
     case 'tip': { const k = el.dataset.k, l = el.dataset.l; const text = tipOf(k, el.dataset.d || ''); openSheet('<h3 class="sheet-t">' + esc(l) + '</h3><p style="margin-top:8px">' + (text ? esc(text) : '<span class="muted">No tip yet.</span>') + '</p>' + (S.isOwner ? '<label class="lbl">Edit the tip (where to find this number in Edge, etc.)</label><textarea class="field" id="tipT" rows="3">' + esc(text) + '</textarea><div class="row end" style="margin-top:12px"><button class="btn mint" id="tipS">Save tip</button></div>' : ''), c => { const s = c.querySelector('#tipS'); if (s) s.onclick = () => { db.ref(MP('config', 'tips', k)).set(c.querySelector('#tipT').value.trim() || null); closeSheet(); }; }); break; }
     case 'import': importSheet(); break;
+    case 'edge': edgeSheet(); break;
     case 'print-month': printMonth(); break;
     case 'print-year': printYear(); break;
     case 'csv': { const yr = S.month.slice(0, 4); const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([yearCsv(yr)], { type: 'text/csv' })); a.download = 'NLO month-end ' + yr + '.csv'; document.body.appendChild(a); a.click(); setTimeout(() => a.remove(), 300); break; }
@@ -588,7 +589,124 @@ function reviewImport(m, found, vals) {
     };
   }, { wide: true });
 }
-window.MEH = { S, computeTotals, yearData, baseline, version: APP_VERSION };
+/* ---------------------------------------------------------------- read Ortho2 Edge reports (Practice Statistics + Practice Monitor) */
+const EDGE_SYSTEM = 'You read Ortho2 Edge report printouts (PDF or screenshots) for Next Level Orthodontics: the "Practice Statistics" report and/or the "Practice Monitor" report. Copy numbers exactly as printed; never guess — use null when something is not on the pages. Numbers only: $12,345.67 → 12345.67 and (1,234.00) → -1234.';
+const EDGE_ASK = 'Return ONLY JSON: {"statistics": null or {"start": "YYYY-MM-DD", "end": "YYYY-MM-DD", "receipts_total": n, "gross_charge": n, "total_adj": n, "net_charge": n, "patient_starts_total": n, "new_fees": [{"phase": "text", "count": n, "gross": n}], "new_fees_count": n, "new_fees_gross": n, "np_exams_total": n}, "monitor": null or {"report_date": "YYYY-MM-DD", "months": [{"month": 1-12, "collections": n, "production": n, "adjust": n, "balance": n, "pd30": n, "pd60": n, "pd90": n, "pd120": n}]}}\n' +
+  'Practice Statistics: start/end = the date range printed under the title; receipts_total = the total of "RECEIPTS BY ACCOUNT"; gross_charge, total_adj, net_charge = the "Gross Charge", "Total Adj" and "Net Charge" line; patient_starts_total = the total row of "PATIENT STARTS"; new_fees = every row of "NEW TREATMENT FEES" (Phase, Count, Gross Tx Fee); new_fees_count and new_fees_gross = that table\'s total row; np_exams_total = the total of "CURRENT STATUS - NEW PATIENT EXAMS".\n' +
+  'Practice Monitor: report_date = the date under the title; months = one entry per month row of the top table (Jan = 1 …) with Collections, Production, Adjust, the four "Accounts Receivable Past Due" columns (30, 60, 90, 120+) and Balance. Skip the Total and AVG rows.';
+const START_KEYS = ST_ROWS.map(r => r[0]);
+function edgePhaseKey(phase) {
+  const t = String(phase || '').toLowerCase(), al = /aligner|nla|invisalign/.test(t);
+  if (/phase\s*(ii|2)\b/.test(t)) return al ? 'ph2a' : 'ph2';
+  if (/phase\s*(i|1)\b/.test(t)) return al ? 'ph1a' : 'ph1';
+  if (/limited/.test(t)) return 'lmt';
+  if (/re-?\s*treat/.test(t)) return 'retreat';
+  return 'ft';
+}
+function edgeValues(data, m) {
+  const st = data && data.statistics, mo = data && data.monitor, out = { notes: [], warn: [], vals: {}, starts: null, found: '' };
+  const n = v => num(v);
+  if (st) {
+    const sm = String(st.start || '').slice(0, 7), em = String(st.end || '').slice(0, 7);
+    out.found = sm && sm === em ? sm : '';
+    if (sm && em && sm !== em) out.warn.push('The Practice Statistics dates cover more than one month (' + st.start + ' to ' + st.end + '). Run it for one month: the 1st through the last day.');
+    else if (st.start && !/-01$/.test(st.start)) out.warn.push('The Practice Statistics report starts on ' + st.start + ', not the 1st.');
+    out.vals.net_coll = n(st.receipts_total); out.vals.gross_prod = n(st.gross_charge); out.vals.adj = n(st.total_adj) == null ? null : Math.abs(n(st.total_adj)); out.vals.fees = n(st.new_fees_gross);
+    const net = n(st.net_charge);
+    if (net != null && out.vals.gross_prod != null && out.vals.adj != null && Math.abs(out.vals.gross_prod - out.vals.adj - net) > 1) out.warn.push('Gross charge minus adjustments doesn’t equal Edge’s net charge (' + fmtNum(net, '$') + ') — check those three.');
+    const fees = Array.isArray(st.new_fees) ? st.new_fees : [];
+    if (fees.length) {
+      const starts = {}; START_KEYS.forEach(k => { starts[k] = 0; });
+      fees.forEach(f => { const c = n(f.count); if (c) starts[edgePhaseKey(f.phase)] += c; });
+      out.starts = starts;
+      const sum = START_KEYS.reduce((s2, k) => s2 + starts[k], 0), pst = n(st.patient_starts_total);
+      out.notes.push('From New Treatment Fees: ' + fees.filter(f => n(f.count)).map(f => esc(f.phase) + ' ' + n(f.count)).join(' · ') + '.');
+      if (pst != null && pst !== sum) out.warn.push('Edge’s Patient Starts total is ' + pst + ', but the New Treatment Fees table counts ' + sum + '. The difference is usually a start without a new contract (a transfer, for example) — add it to the right row.');
+    }
+    if (n(st.np_exams_total) != null) out.notes.push('Edge counted ' + n(st.np_exams_total) + ' new-patient exams; the new-patient section stays as Wila logs it.');
+  }
+  if (mo && Array.isArray(mo.months)) {
+    const yr = String(mo.report_date || '').slice(0, 4), want = +m.slice(5), row = mo.months.find(x => +x.month === want);
+    if (!out.found && !st) out.found = '';
+    if (yr && yr !== m.slice(0, 4)) out.warn.push('The Practice Monitor is for ' + yr + ', not ' + m.slice(0, 4) + ' — its A/R wasn’t used.');
+    else if (row) {
+      out.vals.ar_total = n(row.balance);
+      if (out.vals.net_coll == null) out.vals.net_coll = n(row.collections);
+      if (out.vals.gross_prod == null) out.vals.gross_prod = n(row.production);
+      if (out.vals.adj == null && n(row.adjust) != null) out.vals.adj = Math.abs(n(row.adjust));
+      const pd = sumOf(n(row.pd30), n(row.pd60), n(row.pd90), n(row.pd120));
+      if (pd != null) out.notes.push('Practice Monitor: ' + fmtNum(pd, '$') + ' of the ' + fmtNum(out.vals.ar_total, '$') + ' A/R is 30+ days past due (patient and insurance together — the split is on the A/R Aging report).');
+    } else out.warn.push('The Practice Monitor has no row for ' + fmtYm(m) + '.');
+  }
+  Object.keys(out.vals).forEach(k => { if (out.vals[k] == null) delete out.vals[k]; });
+  return out;
+}
+function edgeSheet() {
+  const m = S.month, rec = S.months[m] || {};
+  if (rec.final) { toast('This month is marked complete — reopen it first.', 'bad'); return; }
+  openSheet('<h3 class="sheet-t">Read Edge reports into ' + esc(fmtYm(m)) + '</h3><ol class="steps small">' +
+    '<li>In Ortho2 Edge: <b>Home → Reporting</b>.</li>' +
+    '<li><b>Patient → Practice Statistics</b>: Start Date = the 1st of ' + esc(fmtYm(m, { month: 'long' })) + ', End Date = the last day → <b>View</b> (1–2 minutes) → <b>Export ▾ → PDF</b>.</li>' +
+    '<li>Optional, for total A/R: <b>Patient → Practice Monitor</b> → <b>View</b> → <b>Export ▾ → PDF</b>.</li>' +
+    '<li>Drop the PDF(s) here.</li></ol>' +
+    '<label class="drop" id="dz"><input type="file" id="df" accept="application/pdf,image/*" multiple hidden><span id="dn">Choose or drop the PDFs</span></label><div id="ds" class="small bold" style="margin-top:10px;min-height:18px"></div><div class="row end" style="margin-top:8px"><button class="btn blue" id="dg" disabled>Read them</button></div>', card => {
+    let files = [];
+    const setF = l => { files = Array.from(l || []).filter(f => /^(application\/pdf|image\/)/.test(f.type)).slice(0, 8); card.querySelector('#dn').textContent = files.length ? files.map(f => f.name || 'pasted image').join(', ') : 'Choose or drop the PDFs'; card.querySelector('#dg').disabled = !files.length; };
+    const dz = card.querySelector('#dz');
+    card.querySelector('#df').onchange = e => setF(Array.from(files).concat(Array.from(e.target.files || [])));
+    dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('over'); }); dz.addEventListener('dragleave', () => dz.classList.remove('over'));
+    dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('over'); setF(Array.from(files).concat(Array.from(e.dataTransfer.files || []))); });
+    card.querySelector('#dg').onclick = async () => {
+      const st = card.querySelector('#ds'), b = card.querySelector('#dg'); b.disabled = true; st.style.color = ''; st.textContent = 'Reading… about 30 seconds';
+      try {
+        if (files.reduce((s2, f) => s2 + (f.size || 0), 0) > 18 * 1024 * 1024) throw new Error('Too big (18 MB max).');
+        const parts = await Promise.all(files.map(fileToPart));
+        const data = await geminiJSON(EDGE_SYSTEM, [{ text: EDGE_ASK }].concat(parts));
+        const out = edgeValues(data, m);
+        if (!Object.keys(out.vals).length && !out.starts) throw new Error('No Practice Statistics or Practice Monitor numbers found on those pages.');
+        closeSheet(); reviewEdge(m, out);
+      } catch (e) { st.textContent = e.message; st.style.color = 'var(--coral-7)'; b.disabled = false; }
+    };
+  });
+}
+function reviewEdge(m, out) {
+  const target0 = out.found && parseYm(out.found) && out.found !== m ? out.found : m;
+  const draw = target => {
+    const rec = S.months[target] || {}, cols = tcColumns(rec), was = (k, cur) => cur != null && cur !== '' ? '<span class="by">was ' + esc(fmtNum(cur, k === 'starts' ? '' : '$')) + '</span>' : '';
+    const mrow = (k, l) => out.vals[k] == null ? '' : '<div class="frow"><span class="l">' + esc(l) + ' ' + was(k, rec[k]) + '</span><input class="num wide" type="text" inputmode="decimal" data-ek="' + k + '" value="' + esc(out.vals[k]) + '"></div>';
+    const money = mrow('net_coll', 'Net collections') + mrow('gross_prod', 'Gross production') + mrow('adj', 'Production adjustments') + mrow('fees', 'Treatment fees for this month’s starts') + mrow('ar_total', 'Total accounts receivable');
+    const tcSel = '<select class="field" id="eTc" style="width:auto;padding:6px 10px;font-size:13px">' + cols.map(c => '<option value="' + esc(c.id) + '">' + esc(c.name) + '</option>').join('') + '</select>';
+    const starts = out.starts ? '<div class="card-h" style="margin:14px 0 4px"><h2 style="font-size:14px">Treatment starts</h2><span class="muted small">into the column</span>' + tcSel + '</div><div class="fgrid">' +
+      ST_ROWS.map(([k, l]) => '<div class="frow"><span class="l">' + esc(l) + '</span><input class="num" type="text" inputmode="numeric" data-es="' + k + '" value="' + esc(out.starts[k]) + '"></div>').join('') + '</div>' : '';
+    return (target !== m ? '' : '') +
+      (out.found && out.found !== m ? '<div class="warnbar">These reports are for <b>' + esc(fmtYm(out.found)) + '</b>, not ' + esc(fmtYm(m)) + '. Saving to ' + esc(fmtYm(target)) + '. <button class="btn sm ghost" id="eSwap">Save to ' + esc(fmtYm(target === m ? out.found : m)) + ' instead</button></div>' : '') +
+      out.warn.map(w => '<div class="warnbar" style="margin-top:8px">' + w + '</div>').join('') +
+      (money ? '<div class="fgrid" style="margin-top:10px"><div>' + money + '</div></div>' : '') + starts +
+      (out.notes.length ? '<div class="hint" style="margin-top:10px">' + out.notes.join('<br>') + '</div>' : '') +
+      '<p class="hint" style="margin-top:8px">Not touched: the new-patient section, patient counts, credits and the patient/insurance A/R split.</p>' +
+      ((S.months[target] || {}).final ? '<div class="warnbar" style="margin-top:8px">' + esc(fmtYm(target)) + ' is marked complete — reopen it before saving.</div>' : '') +
+      '<div class="row end" style="margin-top:14px"><button class="btn mint" id="eSave"' + ((S.months[target] || {}).final ? ' disabled' : '') + '>Save to ' + esc(fmtYm(target)) + '</button></div>';
+  };
+  let target = target0;
+  const mount = card => {
+    const sw = card.querySelector('#eSwap'); if (sw) sw.onclick = () => { target = target === m ? out.found : m; card.querySelector('#eBody').innerHTML = draw(target); mount(card); };
+    card.querySelector('#eSave').onclick = async () => {
+      const rec = JSON.parse(JSON.stringify(S.months[target] || {}));
+      if (rec.final) { toast('Reopen ' + fmtYm(target) + ' first.', 'bad'); return; }
+      const now = Date.now(), base = MP('months', target), map = {}, a = author();
+      $$('[data-ek]', card).forEach(i => { const v = num(i.value); map[base + '/' + i.dataset.ek] = v; if (v == null) delete rec[i.dataset.ek]; else rec[i.dataset.ek] = v; });
+      const sel = card.querySelector('#eTc');
+      if (sel) { const tc = sel.value; rec.tcs = rec.tcs || {}; rec.tcs[tc] = rec.tcs[tc] || {}; $$('[data-es]', card).forEach(i => { const v = num(i.value); map[base + '/tcs/' + tc + '/' + i.dataset.es] = v; if (v == null) delete rec.tcs[tc][i.dataset.es]; else rec.tcs[tc][i.dataset.es] = v; }); }
+      const by = { id: a ? a.id : '', name: a ? shortName(a) : S.userName, at: now };
+      map[base + '/by/edge'] = by; map[base + '/edgeAt'] = now; map[base + '/updatedAt'] = now;
+      rec.by = Object.assign({}, rec.by, { edge: by }); rec.edgeAt = now;
+      const t = computeTotals(rec); map[base + '/totals'] = Object.keys(t).length ? t : null; rec.totals = t; S.months[target] = rec;
+      try { await up(map); closeSheet(); goMonth(target); toast(fmtYm(target) + ': Edge numbers saved ✓', 'good'); } catch (e) { toast('Not saved: ' + e.message, 'bad'); }
+    };
+  };
+  openSheet('<h3 class="sheet-t">Check the Edge numbers</h3><div id="eBody">' + draw(target) + '</div>', card => mount(card), { wide: true });
+}
+window.MEH = { S, computeTotals, yearData, baseline, edgeValues, edgePhaseKey, version: APP_VERSION };
 </script>
 </body>
 </html>
