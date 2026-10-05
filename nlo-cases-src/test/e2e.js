@@ -1097,6 +1097,26 @@ async function openByName(p, name) {
   check(await owner.isVisible('#drawer .kv :text("Invisalign patient #")') && /No IPR\./.test(await owner.textContent('#noteTxt')) && /shipped to the patient/.test(await owner.textContent('#noteTxt')), 'the lab case # shows on the case (and search finds it); the note says No IPR and shipped to the patient');
   await owner.click('#drawer [data-act=closeDrawer] >> nth=0'); await owner.fill('#q', '');
 
+  console.log('\n# Chart note: what the patient was told, at the scan and at delivery (Amir, 5 Oct 2026: "instructed pt to stay in the last set night time only. no elastics with aligners")');
+  await newCase(owner, { type: 'nla', patient: 'Rory Refinewell', initial: 'no' });
+  await openByName(gwen, 'Rory Refinewell');
+  const rn = await gwen.textContent('#noteTxt');
+  check(/^Scanned/.test(rn) && /\nInstructed pt to stay in the last set, night time only\. No elastics with aligners\.$/.test(rn), 'a refinement’s scan note ends with what the patient was told (on Gwen’s screen)');
+  check(!(await gwen.$('#drawer .noteFrom')) && /Scan visit/.test(await gwen.textContent('#dsS-note')), 'staff see which visit it is, and no link to Team & security');
+  await gwen.click('#drawer .noteTabs [data-v=del]');
+  check(/^Delivered in-house aligners \(NL Lab\) - refinement\.\nPt back to full-time wear with the new aligners\. Reviewed aligner wear and care\.$/.test(await gwen.textContent('#noteTxt')), 'Delivery visit: what went out and what the patient was told');
+  const mine = 'Pt back to full-time wear with the new aligners, a new one every 7 days.';
+  await owner.click('#nav-admin'); await owner.waitForSelector('#niRow-alR'); await owner.click('#niRow-alR summary');
+  await owner.fill('#ni-alR-del', mine); await owner.press('#ni-alR-del', 'Tab');
+  await owner.waitForSelector('#niRow-alR .niOwn', { timeout: 20000 });
+  await gwen.waitForFunction(m => document.querySelector('#noteTxt').textContent.endsWith('\n' + m), mine, { timeout: 20000 });
+  check(true, 'Dr. A words it his way in Team & security; Gwen’s open note follows at once');
+  check(await owner.evaluate(async () => { const d = (await FB.db.doc('meta/settings').get()).data(); return d.noteInstr && d.noteInstr['alR.del']; }) === mine, 'kept in the office settings');
+  await owner.click('#niRow-alR [data-act=niReset]');
+  await gwen.waitForFunction(() => /\nPt back to full-time wear with the new aligners\. Reviewed aligner wear and care\.$/.test(document.querySelector('#noteTxt').textContent), null, { timeout: 20000 });
+  check(true, 'Back to the suggested wording: Gwen’s note follows');
+  await gwen.click('#drawer [data-act=closeDrawer] >> nth=0'); await gwen.fill('#q', ''); await owner.click('#nav-today');
+
   console.log('\n# Email updates: the script in a Gmail account → the app updates cases');
   await owner.evaluate(async () => {
     const mk = o => B.createCase(Object.assign({ comments: [], createdAt: Date.now(), createdBy: meSid() }, o));

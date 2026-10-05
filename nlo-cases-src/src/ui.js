@@ -249,7 +249,7 @@ function bindLockForms(mode) {
 
 /* ---------- enter / leave ---------- */
 function enterApp() {
-  S.inApp = true; S.cases = new Map(); S.closed = []; histReset(); S.firstLoad = true; S.lastAct = Date.now(); S.settingsLoaded = false; S.rulesLv = null; S.idxRan = false;
+  S.inApp = true; S.cases = new Map(); S.closed = []; histReset(); S.firstLoad = true; S.lastAct = Date.now(); S.settingsLoaded = false; S.rulesLv = null; S.idxRan = false; S.noteVisit = new Map();
   $('#lockWrap').classList.add('hidden'); $('#app').classList.remove('hidden');
   renderShell(); renderView();
   S.h = {
@@ -268,6 +268,7 @@ function enterApp() {
     settings(s) {
       const first = !S.settingsLoaded; S.settings = Object.assign({ idleMin: 10 }, s || {}); S.settingsLoaded = true;
       if (S.view === 'admin') queueRender('team'); else if (first && S.view === 'today') queueRender(); // (Today's backup reminder)
+      noteRefresh(); // (Dr. A reworded what patients are told: an open case's chart note follows)
       idxMaintain();
     },
     revoked() { lockOut('Your access to NLO Cases was turned off.'); },
@@ -462,6 +463,9 @@ function renderView() {
   // after someone selected their search to replace it made the next key add to it instead; found 3 Oct 2026)
   const v = $('#view'), qa = document.activeElement && document.activeElement.id === 'q' ? document.activeElement : null;
   const qSel = qa ? [qa.selectionStart, qa.selectionEnd, qa.selectionDirection] : null;
+  // Team & security: a box just tapped into (after leaving another, whose save redraws the page) keeps the cursor
+  const fa = S.view === 'admin' && document.activeElement, fid = fa && fa.id && v.contains(fa) ? fa.id : '';
+  const fSel = fid && typeof fa.selectionStart === 'number' ? [fa.selectionStart, fa.selectionEnd] : null;
   let h = '';
   if (S.view === 'today') h = viewToday();
   else if (S.view === 'board') h = viewBoard();
@@ -474,6 +478,8 @@ function renderView() {
   $('#topSlot').innerHTML = topBar();
   v.innerHTML = h;
   if (qSel) { const q = $('#q'); if (q) { q.focus(); const n = q.value.length; try { q.setSelectionRange(Math.min(qSel[0], n), Math.min(qSel[1], n), qSel[2] || 'none'); } catch (e) { } } }
+  if (fid) { const n = document.getElementById(fid); if (n && v.contains(n) && n !== document.activeElement) { n.focus({ preventScroll: true });
+    if (fSel && typeof n.selectionStart === 'number') try { n.setSelectionRange(fSel[0], fSel[1]); } catch (e) { } } }
   phPaint(); savPaint(); logoPaint(v); picPaint(v); if (S.view === 'admin') shPaint();
 }
 /* staff photos (brought in from Staff Hub, kept on the person's roster entry) on every staff avatar */
@@ -566,9 +572,12 @@ function holdFlag(c) { return isHeld(c) ? '<span class="flag rec" title="' + esc
 
 /* ---------- chart note: the case entry written as a note to paste into the patient's chart ----------
    No assistant names (Dr. A doesn't record who saw the patient in chart notes). Plain ASCII punctuation so it
-   pastes cleanly into Edge. */
-function chartNote(c) {
-  const t = typeOf(c), L = [], sub = { yes: 'initial set', no: 'refinement', mid: 'mid-course correction' }[c.initial] || '';
+   pastes cleanly into Edge. Two visits (Amir, 5 Oct 2026: "it's missing some information for refinement aligners, it
+   should say instructed pt to stay in the last set night time only. no elastics with aligners etc. that instruction will
+   be different if it's initial delivery, refinement, appliance delivery so on so forth"): the scan visit's note, as
+   before, and the delivery visit's — each with what the patient was told for that kind of case (NOTE_KINDS). */
+function noteWhat(c) {
+  const t = typeOf(c), sub = { yes: 'initial set', no: 'refinement', mid: 'mid-course correction' }[c.initial] || '';
   let what;
   if (c.type === 'nla') what = (c.variant === 'finishing' ? 'finishing aligners' : 'in-house aligners') + ' (NL Lab)' + (sub ? ' - ' + sub : '');
   else if (t.aligner) what = ({ oliv: 'Oliv', angel: 'Angel', invisalign: 'Invisalign', ulab: 'uLab' }[c.type] || t.l) + ' aligners' + (sub ? ' - ' + sub : '');
@@ -581,6 +590,22 @@ function chartNote(c) {
   else what = c.detail || t.l;
   // aligners and InSmile treating one arch (Amir, 2 Oct 2026)
   if (oneArch(c) && (t.aligner || c.type === 'insmile' || (c.type === 'inbrace' && !/ only\b/i.test(what)))) what += ', ' + (oneArch(c) === 'U' ? 'upper' : 'lower') + ' arch only';
+  return what;
+}
+function chartNote(c, visit) {
+  const t = typeOf(c), L = [], what = noteWhat(c);
+  const told = v => noteKindsOf(c).map(k => noteInstr(k, v)).filter(Boolean).filter((x, i, a) => a.indexOf(x) === i); // what the patient was told
+  if (visit === 'del' && hasDelNote(c)) {
+    if (shipEnd(c)) { const tr = trackList(c).map(x => (x.carrier ? x.carrier + ' ' : '') + x.n).join(', ');
+      L.push('Shipped ' + what + ' to the patient' + (tr ? ' (' + tr + ')' : '') + '.'); }
+    else {
+      // in-house sets: how many aligners went out
+      const u = Number(c.alU) || 0, l = Number(c.alL) || 0, n = c.type === 'nla' ? (u || l ? [u ? u + ' upper' : '', l ? l + ' lower' : ''].filter(Boolean).join(' and ') + ' aligners' : alN(c) ? alN(c) + ' aligners' : '') : '';
+      L.push('Delivered ' + what + (n ? ': ' + n : '') + '.');
+    }
+    L.push.apply(L, told('del'));
+    return noteAscii(L);
+  }
   L.push((c.scanner ? 'Scanned with ' + c.scanner : 'Scanned') + ' for ' + what + '.');
   if (t.flow === 'marpe') { const r = MARPE_RECORDS.filter(x => (c.records || []).includes(x[0])).map(x => x[1]); if (r.length) L.push('Records on file: ' + r.join(', ') + '.'); }
   const end = s => String(s).trim().replace(/[.\s;]+$/, '') + '.';
@@ -590,8 +615,98 @@ function chartNote(c) {
   if (c.teethNote) L.push(c.teethNote.split('\n').map(end).join(' '));
   if (c.ipr && c.ipr.trim()) L.push('IPR & spacing: ' + c.ipr.trim());
   const ccv = ccShown(c); if (ccv && ccv !== 'None') L.push("Pt's CC: " + (/[.!?]["”’']?$/.test(ccv) ? ccv : end(ccv))); // the patient's words, their own ending kept
+  L.push.apply(L, told('scan'));
   if (c.shipToPatient) L.push('Aligners to be shipped to the patient.');
-  return L.join('\n').replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[–—]/g, '-');
+  return noteAscii(L);
+}
+function noteAscii(L) { return L.join('\n').replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[–—]/g, '-'); }
+/* study models aren't delivered to a patient: their note is the scan's only */
+function hasDelNote(c) { return !!c && c.type !== 'models'; }
+/* which visit's note the case panel shows (and Copy copies) unless it's switched: the delivery's once the case is complete, at
+   its last step, or its delivery appointment has come; the scan's before that */
+function noteVisitDef(c) {
+  if (!hasDelNote(c)) return 'scan';
+  if (c.status === 'done' || (c.deliveryDate && dayDiff(c.deliveryDate) <= 0)) return 'del';
+  const st = caseStages(c); return st.length && c.stage === st[st.length - 1][0] ? 'del' : 'scan';
+}
+function noteVisitOf(c) { const v = c && S.noteVisit && S.noteVisit.get(c.id); return v && (v === 'scan' || hasDelNote(c)) ? v : noteVisitDef(c); }
+function noteVisitName(c, v) { return v === 'del' ? (shipEnd(c) ? 'Shipped to patient' : 'Delivery visit') : 'Scan visit'; }
+/* the Chart note section: its folded heading names the visit Copy copies; inside, the two visits to switch between, the note,
+   and for Dr. A where its wording comes from */
+function noteSumHTML(c) { return '<b>' + esc(noteVisitName(c, noteVisitOf(c))) + '</b> <span class="muted">· to paste into the patient’s chart</span>'; }
+function noteBodyHTML(c) {
+  const v = noteVisitOf(c), ks = noteKindsOf(c);
+  return (hasDelNote(c) ? '<div class="noteTabs" role="group" aria-label="Which visit">' + ['scan', 'del'].map(x => '<button type="button" data-act="noteVisit" data-v="' + x + '" aria-pressed="' + (x === v) + '">' + esc(noteVisitName(c, x)) + '</button>').join('') + '</div>' : '') +
+    '<div class="txt" id="noteTxt">' + esc(chartNote(c, v)) + '</div>' +
+    (isOwner() && ks.length ? '<div class="noteFrom small muted">What the patient was told comes from <button type="button" class="linkBtn" data-act="niGo" data-nk="' + esc(ks[0]) + '">Team &amp; security → Chart note: ' + esc(noteKindLabel(NOTE_KIND[ks[0]])) + '</button></div>' : '');
+}
+/* after switching visits, or when the office's wording changes: the open case's note, in place */
+function noteRefresh() {
+  const c = S.openId && findCase(S.openId), sec = $('#drawer .ds[data-ds=note]'); if (!c || !sec) return;
+  const s = $('#dsS-note', sec), bd = $('.dsBd', sec); if (s) s.innerHTML = noteSumHTML(c);
+  if (bd) { const f = document.activeElement && bd.contains(document.activeElement) ? document.activeElement.dataset.v : null; bd.innerHTML = noteBodyHTML(c);
+    if (f) { const b = $('[data-act=noteVisit][data-v="' + f + '"]', bd); if (b) b.focus(); } }
+}
+
+/* ---------- what the patient was told, by kind of case and visit ----------
+   Suggested wording; Dr. A rewords any of it in Team & security → Chart note (noteInstr in the office settings; blank there =
+   nothing added). The refinement's scan line is Amir's own; the rest is a starting point for him to word his way. */
+const NI_FIXED = 'Reviewed appliance care with pt: brush around it carefully, avoid hard and sticky foods. Pt to call the office if anything comes loose or breaks.';
+const NI_EXPAND = 'Showed pt/parent how to turn the expander with the key. Reviewed care: brush around it carefully, avoid hard and sticky foods. Pt to call the office if anything comes loose or breaks.';
+const NI_REMOVABLE = 'Reviewed wear and care with pt: out only to eat and brush, clean it daily, keep it in its case when out.';
+const NI_FUNC = n => 'Reviewed ' + n + ' care with pt: soft foods for the first few days, avoid hard and sticky foods, wax for any cheek irritation, brush around it carefully. Pt to call the office if anything comes loose or breaks.';
+const NI_REFINED = 'Pt back to full-time wear with the new aligners. Reviewed aligner wear and care.';
+const NI_RETAINER = 'Reviewed retainer care with pt: clean daily, keep in the case when out, away from heat and pets.';
+const NOTE_GROUPS = [
+  { g: 'al', l: 'Aligners', s: 'Oliv, Angel, Invisalign, uLab and in-house' }, { g: 'br', l: 'Braces' }, { g: 'ap', l: 'Appliances' },
+  { g: 'mp', l: 'MARPE' }, { g: 'rt', l: 'Retainers & mouthguards' }
+];
+const NOTE_KINDS = [
+  { k: 'al1', g: 'al', l: 'First set', scan: '', del: 'Reviewed aligner wear and care with pt: wear full time, out only to eat, drink anything but water, and brush. Brush before putting them back in. Use chewies to seat them. Keep them in the case when out.' },
+  { k: 'alR', g: 'al', l: 'Refinement', scan: 'Instructed pt to stay in the last set, night time only. No elastics with aligners.', del: NI_REFINED },
+  { k: 'alM', g: 'al', l: 'Mid-course correction', scan: 'Instructed pt to stay in the current aligner until the new set is delivered.', del: NI_REFINED },
+  { k: 'alF', g: 'al', l: 'Finishing aligners (in-house)', scan: '', del: 'Reviewed wear and care of the finishing aligners with pt.' },
+  { k: 'ins', g: 'br', l: 'InSmile (initial and DEs)', scan: '', del: 'Reviewed braces care with pt: brush and floss around the brackets, avoid hard and sticky foods, wax for any irritation. Pt to call the office if a bracket comes loose.' },
+  { k: 'herbst', g: 'ap', a: 'Herbst', scan: '', del: NI_FUNC('Herbst') },
+  { k: 'scherbst', g: 'ap', a: 'Space Closing Herbst', scan: '', del: NI_FUNC('Herbst') },
+  { k: 'mara', g: 'ap', a: 'MARA', scan: '', del: NI_FUNC('MARA') },
+  { k: 'mse', g: 'ap', a: 'MSE', scan: '', del: NI_EXPAND },
+  { k: 'rpe', g: 'ap', a: 'Rapid Palatal Expander (RPE)', scan: '', del: NI_EXPAND },
+  { k: 'd2', g: 'ap', a: 'D2 distalizer', scan: '', del: NI_FIXED },
+  { k: 'finger', g: 'ap', a: 'Finger spring with no labial bow', scan: '', del: NI_REMOVABLE },
+  { k: 'hawley', g: 'ap', a: 'Hawley retainers', scan: '', del: NI_RETAINER },
+  { k: 'schwartz', g: 'ap', a: 'Schwartz', scan: '', del: 'Showed pt/parent how to turn the expansion screw with the key. ' + NI_REMOVABLE },
+  { k: 'metal', g: 'ap', a: 'Other metal appliance', scan: '', del: NI_FIXED },
+  { k: 'appl', g: 'ap', l: 'Any other appliance', s: 'older cases with an appliance not listed here', scan: '', del: NI_FIXED },
+  { k: 'marpe', g: 'mp', l: 'MARPE', scan: '', del: 'Showed pt how to turn the MARPE with the key. Reviewed care: brush around it carefully, avoid hard and sticky foods. Pt to call the office if anything comes loose or breaks.' },
+  { k: 'tt', g: 'rt', l: 'Retainers (TT’s)', scan: '', del: NI_RETAINER },
+  { k: 'wt', g: 'rt', l: 'Whitening trays (WT’s)', scan: '', del: 'Reviewed whitening tray use with pt: a small drop of gel per tooth, wipe off any extra. Pt to stop and call if teeth get sensitive.' },
+  { k: 'mg', g: 'rt', l: 'Mouthguard', scan: '', del: 'Reviewed mouthguard use and care with pt: wear it for sports, rinse after use, keep it in its case.' }
+];
+const NOTE_KIND = Object.fromEntries(NOTE_KINDS.map(x => [x.k, x]));
+const APPL_NOTE = Object.fromEntries(NOTE_KINDS.filter(x => x.a).map(x => [x.a, x.k]).concat([['MARPE', 'marpe']]));
+function noteKindLabel(x) { return x.a || x.l; }
+/* the office's own wording (Team & security): a map of "kind.visit" → text ('' = nothing added; null or missing = the
+   suggested wording), saved a box at a time (the settings save merges, so two boxes saved together don't undo each other) */
+function noteInstrSaved() { const m = S.settings && S.settings.noteInstr; return m && typeof m === 'object' && !Array.isArray(m) ? m : {}; }
+function noteInstrClean(t) { return String(t || '').replace(/\r/g, '').split('\n').map(x => x.trim()).filter(Boolean).join('\n'); }
+function noteInstrDef(k, v) { const x = NOTE_KIND[k]; return x ? x[v] || '' : ''; }
+function noteInstrOwn(k, v) { const s = noteInstrSaved()[k + '.' + v]; return typeof s === 'string'; }
+function noteInstr(k, v) { const s = noteInstrSaved()[k + '.' + v]; return noteInstrClean(typeof s === 'string' ? s : noteInstrDef(k, v)); }
+/* the kinds of case this one is, for its instructions (an appliance case: each appliance on it) */
+function noteKindsOf(c) {
+  if (!c) return [];
+  if ((TYPE[c.type] || {}).aligner) {
+    if (c.type === 'nla' && c.variant === 'finishing') return ['alF'];
+    const ini = c.initial || ((c.extras || []).includes('Mid-course correction') ? 'mid' : '');
+    return ini === 'yes' ? ['al1'] : ini === 'no' ? ['alR'] : ini === 'mid' ? ['alM'] : [];
+  }
+  if (c.type === 'insmile') return ['ins'];
+  if (c.type === 'marpe') return ['marpe'];
+  if (c.type === 'appliance') { const ks = (c.appliances || []).map(a => APPL_NOTE[a] || 'appl'); return ks.length ? ks.filter((x, i, a) => a.indexOf(x) === i) : ['appl']; }
+  if (c.type === 'retainer') { const r = (c.retKinds || []).join(' '), ks = []; if (/\bTT/i.test(r) || !/\bWT/i.test(r)) ks.push('tt'); if (/\bWT/i.test(r)) ks.push('wt'); return ks; }
+  if (c.type === 'mouthguard') return ['mg'];
+  return [];
 }
 /* stage progress: a circle per stage (done, current, to come) joined by a line that fills in up to the current stage
    (Amir, 2 Oct 2026: circles connected with a line, not a row of rectangles); a stage group (In fabrication) sits in its own band */
@@ -1110,8 +1225,9 @@ function renderDrawer() {
     dsec('comments', 'Comments', lastC ? (cmts.length > 1 ? cmts.length + ' · ' : '') + '<b>' + esc(firstName(staffName(lastC.by, lastC.by))) + ':</b> ' + esc(String(lastC.text || '').replace(/\s+/g, ' ')) : '<span class="muted">None yet</span>',
       (cmts.map(x => '<div class="cmt"><span class="av" data-sav="' + esc(x.by || '') + '">' + esc(initials(staffName(x.by, x.by))) + '</span><div><div class="w"><b>' + esc(firstName(staffName(x.by, x.by))) + '</b> · ' + esc(fmtWhen(x.at)) + '</div><div style="white-space:pre-wrap;overflow-wrap:anywhere">' + esc(x.text) + '</div></div></div>').join('') || '<div class="small muted" style="margin-bottom:6px">No comments yet.</div>') +
       (done ? '' : '<div class="field" style="margin-top:8px;margin-bottom:6px"><label for="cmtText" class="hidden">Add a comment</label><textarea id="cmtText" rows="2" placeholder="Add a comment…"></textarea></div><button class="btn btn-sec btn-sm" data-act="addCmt">Add comment</button>')) +
-    // the chart note: further down and folded (Amir, 3 Oct 2026); Copy works without opening it
-    dsec('note', 'Chart note', '<span class="muted">to paste into the patient’s chart</span>', '<div class="txt" id="noteTxt">' + esc(chartNote(c)) + '</div>',
+    // the chart note: further down and folded (Amir, 3 Oct 2026); Copy works without opening it. The scan visit's note or the
+    // delivery visit's (5 Oct 2026), the heading says which one Copy copies
+    dsec('note', 'Chart note', noteSumHTML(c), noteBodyHTML(c),
       '<button type="button" class="btn btn-sec btn-sm dsAct" data-act="copyNote">' + ic('copy', 14) + 'Copy</button>') +
     dsec('history', 'History', c.updatedAt ? 'Last change ' + esc(fmtWhen(c.updatedAt)) + (c.by && firstName(staffName(c.by, '')) ? ' · ' + esc(firstName(staffName(c.by, ''))) : '') : '', '<div id="histBox">' + historyHTML(c) + '</div>') +
     '</div></div>' +
@@ -1558,7 +1674,11 @@ function onClick(e) {
     case 'labels': { const c = findCase(S.openId); if (c && alN(c)) labelsModal(c); break; }
     case 'retLabels': { const c = findCase(S.openId); if (c && c.type === 'retainer') retLabelsModal(c); break; }
     case 'rec': toggleRecord(t); break;
-    case 'copyNote': { const c = findCase(S.openId); if (c) copyText(chartNote(c)).then(ok => toast(ok ? 'Chart note copied — paste it into the patient’s chart' : 'Couldn’t copy — select the note and copy it', ok ? {} : { bad: true })); break; }
+    case 'copyNote': { const c = findCase(S.openId); if (!c) break; const v = noteVisitOf(c);
+      copyText(chartNote(c, v)).then(ok => toast(ok ? 'Chart note copied (' + noteVisitName(c, v).toLowerCase() + ') — paste it into the patient’s chart' : 'Couldn’t copy — select the note and copy it', ok ? {} : { bad: true })); break; }
+    case 'noteVisit': { const c = findCase(S.openId); if (!c) break; (S.noteVisit = S.noteVisit || new Map()).set(c.id, t.dataset.v === 'del' ? 'del' : 'scan'); noteRefresh(); break; }
+    case 'niGo': { const k = t.dataset.nk; closeDrawer(); if (S.openId) break; S.view = 'admin'; (S.niOpen = S.niOpen || new Set()).add(k); renderNav(); renderView();
+      const r = $('#niRow-' + k); if (r) { r.scrollIntoView({ block: 'center' }); const box = $('textarea', r); if (box) box.focus({ preventScroll: true }); } break; }
     case 'clearHold': { const cid = S.openId; act(() => B.mutateCase(cid, d => { if (!d.labHold) return 'skip'; d.labHoldSeen = (d.labHold.date || '') + '|' + (d.labHold.reason || ''); d.labHold = ''; }, { a: 'edit', fields: ['labHold'] }), 'Lab hold cleared'); break; }
     case 'toMarpe': { const c = findCase(S.openId); if (c && isOldMarpe(c)) toMarpe(c); break; }
     case 'zoomSet': { const c = findCase(S.openId); if (c) zoomModal(c); break; }

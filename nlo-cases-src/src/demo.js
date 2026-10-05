@@ -204,7 +204,12 @@ const DEMO = {
   async loadAll() { return Array.from(DEMO.cases.values()).map(c => JSON.parse(JSON.stringify(c))); },
   async caseLog(id) { return DEMO.logs.filter(l => l.caseId === id).slice().sort((a, b) => a.at - b.at); },
   async activity() { return DEMO.logs.slice().sort((a, b) => b.at - a.at).slice(0, 60); },
-  async saveSettings(p) { Object.assign(DEMO.settings, p); if (DEMO.h) DEMO.h.settings(DEMO.settings); },
+  // (like the real save, set with merge: a map — the chart note wording — is merged key by key, not replaced)
+  async saveSettings(p) {
+    Object.keys(p).forEach(k => { const v = p[k], o = DEMO.settings[k], map = x => x && typeof x === 'object' && !Array.isArray(x);
+      DEMO.settings[k] = map(v) && map(o) ? Object.assign({}, o, v) : v; });
+    if (DEMO.h) DEMO.h.settings(Object.assign({}, DEMO.settings));
+  },
   async addStaff(name, username, rid) {
     username = slug(username); if (DEMO.roster.some(r => r.sid === username && r.active)) throw errCode('taken');
     DEMO.roster = DEMO.roster.filter(r => r.sid !== username).concat([Object.assign({ sid: username, name, initials: initials(name), role: 'staff', active: true, username }, rid ? { rid } : {})]);

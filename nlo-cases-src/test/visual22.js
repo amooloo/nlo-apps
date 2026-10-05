@@ -48,7 +48,7 @@ const URL0 = 'http://127.0.0.1:8765/nlo-cases.html?demo';
   await p.evaluate(() => { window.__copied = null; navigator.clipboard.writeText = t => { window.__copied = t; return Promise.resolve(); }; });
   await p.click('#drawer .ds[data-ds=note] [data-act=copyNote]');
   await p.waitForFunction(() => window.__copied, null, { timeout: 3000 }).catch(() => {});
-  check(await p.evaluate(id => window.__copied === chartNote(findCase(id)) && !document.querySelector('#drawer .ds[data-ds=note]').classList.contains('open'), ref), 'Copy on the folded Chart note heading copies the note without opening it');
+  check(await p.evaluate(id => { const c = findCase(id); return window.__copied === chartNote(c, noteVisitOf(c)) && !document.querySelector('#drawer .ds[data-ds=note]').classList.contains('open'); }, ref), 'Copy on the folded Chart note heading copies the note (the visit its heading names) without opening it');
   await p.screenshot({ path: OUT + '/v22-folded.png', clip: { x: 800, y: 0, width: 560, height: 1000 } });
 
   // IPR: one section, the IPR Tracker's chart

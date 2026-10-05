@@ -41,7 +41,7 @@ function viewAdmin() {
     '</div><div class="small muted">Per aligner: materials for one aligner (sheet, printed model, packaging). Per set: anything paid once per case, such as a setup fee. Estimate = per set + aligners × per aligner.</div></div></div>';
   const deleted = '<div class="card" style="margin-top:18px"><div class="cardHd"><h3>Deleted cases</h3><span class="sub">Last 90 days</span><span style="flex:1"></span><button class="btn btn-ghost" data-act="loadDeleted">' + ic('refresh', 15) + 'Load</button></div><div class="cardBd" id="delBox"><div class="small muted">Deleted cases can be brought back. Click Load.</div></div></div>';
   const actv = '<div class="card" style="margin-top:18px"><div class="cardHd"><h3>Recent activity</h3><span class="sub">Last 7 days</span><span style="flex:1"></span><button class="btn btn-ghost" data-act="loadActivity">' + ic('refresh', 15) + 'Load</button></div><div class="cardBd" id="actBox"><div class="small muted">Shows who changed what. Click Load.</div></div></div>';
-  return rulesCardHTML() + '<div class="adminGrid"><div>' + team + defaults + alCostCard + rxAdminCardHTML() + '</div><div>' + sec + backupCardHTML() + (S.rulesOld ? '' : mailAdminHTML()) + actv + deleted + '</div></div>';
+  return rulesCardHTML() + '<div class="adminGrid"><div>' + team + defaults + alCostCard + noteInstrCardHTML() + rxAdminCardHTML() + '</div><div>' + sec + backupCardHTML() + (S.rulesOld ? '' : mailAdminHTML()) + actv + deleted + '</div></div>';
 }
 
 /* the live security rules are older than this version of the app: the owner pastes the new ones into the Firebase console
@@ -571,4 +571,48 @@ Object.assign(ADMIN_ACTS, {
     // what's left to bring back (by now, normally nothing)
     try { const cmp = await bkCompare(bk.opened); if (S.bk === bk) { bk.cmp = cmp; bkShow(); } } catch (e) { }
   }
+});
+
+/* =====================================================================
+   Chart note: what the patient was told (Amir, 5 Oct 2026: "it should say instructed pt to stay in the last set night time
+   only. no elastics with aligners etc. that instruction will be different if it's initial delivery, refinement, appliance
+   delivery so on so forth"). One row per kind of case (NOTE_KINDS, ui.js), folded to its two lines; open it to word the
+   scan visit's and the delivery visit's. Each box saves when it's left; empty = nothing added; the suggested wording
+   comes back with one button.
+   ===================================================================== */
+function noteInstrCardHTML() {
+  const short = t => { t = String(t || '').replace(/\s+/g, ' ').trim(); return t ? (t.length > 64 ? t.slice(0, 62).trim() + '…' : t) : 'nothing added'; };
+  const row = x => {
+    const own = noteInstrOwn(x.k, 'scan') || noteInstrOwn(x.k, 'del');
+    const box = (v, l) => { const id = 'ni-' + x.k + '-' + v;
+      return '<div class="field"><label for="' + id + '">' + l + '</label><textarea id="' + id + '" rows="3" maxlength="800" data-ni="' + x.k + '.' + v + '" placeholder="Nothing added">' + esc(noteInstr(x.k, v)) + '</textarea></div>'; };
+    return '<details class="niRow" id="niRow-' + x.k + '" data-nk="' + x.k + '"' + (S.niOpen && S.niOpen.has(x.k) ? ' open' : '') + '><summary>' +
+      '<span class="niName"><b>' + esc(noteKindLabel(x)) + '</b>' + (own ? '<span class="niOwn">your wording</span>' : '') + '</span>' +
+      '<span class="niSum"><span><i>Scan</i> ' + esc(short(noteInstr(x.k, 'scan'))) + '</span><span><i>Delivery</i> ' + esc(short(noteInstr(x.k, 'del'))) + '</span></span></summary>' +
+      '<div class="niBd">' + (x.s ? '<div class="small muted" style="margin-bottom:8px">' + esc(x.s.charAt(0).toUpperCase() + x.s.slice(1)) + '.</div>' : '') +
+      box('scan', 'At the scan visit') + box('del', 'At the delivery visit') +
+      (own ? '<button type="button" class="btn btn-ghost btn-sm" data-act="niReset" data-nk="' + x.k + '">' + ic('refresh', 15) + 'Back to the suggested wording</button>' : '') + '</div></details>';
+  };
+  return '<div class="card" style="margin-top:18px" id="niCard"><div class="cardHd"><h3>Chart note</h3><span class="sub">What the patient was told, for each kind of case</span></div><div class="cardBd">' +
+    '<p class="small" style="margin:0 0 4px">Each case’s chart note has a <b>Scan visit</b> and a <b>Delivery visit</b> version, and adds what’s here for that kind of case. ' +
+    'Tap a row to change its wording; an empty box adds nothing.</p>' +
+    NOTE_GROUPS.map(g => '<h5 class="niGrp">' + esc(g.l) + (g.s ? ' <span class="h5n">' + esc(g.s) + '</span>' : '') + '</h5>' + NOTE_KINDS.filter(x => x.g === g.g).map(row).join('')).join('') +
+    '</div></div>';
+}
+/* a box left: its wording saved (the suggested wording again = nothing of our own saved, so it follows later suggestions) */
+document.addEventListener('change', e => {
+  const t = e.target; if (!t || !t.dataset || !t.dataset.ni || !isOwner()) return;
+  const [k, v] = t.dataset.ni.split('.'); if (!NOTE_KIND[k] || (v !== 'scan' && v !== 'del')) return;
+  const val = noteInstrClean(t.value).slice(0, 800), mine = val === noteInstrClean(noteInstrDef(k, v)) ? null : val;
+  if (mine === (noteInstrOwn(k, v) ? noteInstrClean(noteInstrSaved()[k + '.' + v]) : null)) return; // (nothing changed)
+  act(() => B.saveSettings({ noteInstr: { [k + '.' + v]: mine } }), mine === '' ? 'Saved — nothing added at that visit' : 'Saved');
+});
+/* which rows are open, so a redraw (a save, a live update) keeps them open */
+document.addEventListener('toggle', e => {
+  const d = e.target; if (!d || !d.classList || !d.classList.contains('niRow')) return;
+  S.niOpen = S.niOpen || new Set(); if (d.open) S.niOpen.add(d.dataset.nk); else S.niOpen.delete(d.dataset.nk);
+}, true);
+Object.assign(ADMIN_ACTS, {
+  niReset(t) { const k = t.dataset.nk; if (!NOTE_KIND[k]) return; (S.niOpen = S.niOpen || new Set()).add(k);
+    act(() => B.saveSettings({ noteInstr: { [k + '.scan']: null, [k + '.del']: null } }), 'Back to the suggested wording'); }
 });
