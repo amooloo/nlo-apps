@@ -323,7 +323,7 @@ async function openByName(p, name) {
   check((await owner.getAttribute('#drawer .dAssign .aTile[aria-pressed=true]', 'data-v')) === 'sarah', 'Asana assignee matched to the staff login');
   await owner.click('#drawer [data-act=closeDrawer] >> nth=0');
   await openByName(owner, 'Bartholomew Notreal');
-  check(await owner.isVisible('#drawer .step.cur:has-text("Printing")'), 'retainer section mapped to Printing');
+  check(await owner.isVisible('#drawer .step.cur:has-text("To make")'), 'retainer section mapped to the first step (To make)');
   check((await owner.getAttribute('#drawer .dAssign .aTile[aria-pressed=true]', 'data-v')) === 'gwen', 'retainer assigned to the assistant named in the section');
   await owner.click('#drawer [data-act=closeDrawer] >> nth=0');
   await owner.click('#nav-import'); await owner.setInputFiles('#csvFiles', csvPath);
@@ -558,8 +558,8 @@ async function openByName(p, name) {
   await owner.click('#ncSave'); await owner.waitForSelector('#modalWrap', { state: 'detached', timeout: 20000 });
   await owner.click('#nav-board'); await owner.fill('#q', ''); await owner.click('[data-act=flow][data-k=retainer]');
   // marked with the Mouthguard tile's picture since 4 Oct 2026 (was the name); its alt text still says Mouthguard
-  await owner.waitForSelector('section[aria-label="Printing"] .kc:has-text("Milo Guardsman") .tlogo.tpic img[data-pic=mouthguard][alt="Mouthguard"]', { timeout: 20000 });
-  check(true, 'lands on the retainers & mouthguards board at Printing, marked with the mouthguard picture');
+  await owner.waitForSelector('section[aria-label="To make"] .kc:has-text("Milo Guardsman") .tlogo.tpic img[data-pic=mouthguard][alt="Mouthguard"]', { timeout: 20000 });
+  check(true, 'lands on the retainers & mouthguards board at To make, marked with the mouthguard picture');
 
   console.log('\n# Appliances: the lab is picked from the office routing');
   const labNow = async () => (await owner.locator('.pickRow[data-g=lab] .pick[aria-pressed=true]').allTextContents()).join('|');
@@ -1155,6 +1155,18 @@ async function openByName(p, name) {
   await gwen.evaluate(id => openDrawer(id), r2); await gwen.waitForSelector('#drawer #dKind');
   check(await gwen.textContent('#drawer #dKind') === 'Refinement 2 Next Level Aligners' && /refinement 2\./.test(await gwen.textContent('#noteTxt')), 'its panel: “Refinement 2 Next Level Aligners” at the top; the chart note says refinement 2');
   await gwen.click('#drawer [data-act=closeDrawer] >> nth=0');
+  // each step: when it was reached and by whom, from the sealed history (Amir, 5 Oct 2026)
+  await owner.evaluate(() => B.createCase({ type: 'oliv', patient: 'Stella Stepmark', stage: 'submit', comments: [], createdAt: Date.now(), createdBy: meSid() }));
+  await gwen.waitForFunction(() => openCases().some(c => c.patient === 'Stella Stepmark'), null, { timeout: 20000 });
+  const smId = await gwen.evaluate(() => openCases().find(c => c.patient === 'Stella Stepmark').id);
+  await gwen.evaluate(id => openDrawer(id), smId); await gwen.waitForSelector('#drawer .step[data-k=dra]');
+  await gwen.click('#drawer .step[data-k=dra]');
+  await owner.waitForFunction(id => (openCases().find(c => c.id === id) || {}).stage === 'dra', smId, { timeout: 20000 });
+  await owner.evaluate(id => openDrawer(id), smId);
+  await owner.waitForSelector('#drawer .step[data-k=dra] .stWhen:has-text("Gwen")', { timeout: 20000 }).catch(() => {});
+  const smk = await owner.$$eval('#drawer .step[data-k]', bs => bs.map(b => b.dataset.k + '=' + ((b.querySelector('.stWhen') || {}).textContent || '')));
+  check(/^dra=\w{3} \d+ · Gwen$/.test(smk.find(x => x.startsWith('dra=')) || '') && /^submit=\w{3} \d+ · Dr\. A$/.test(smk.find(x => x.startsWith('submit=')) || ''), 'the Stage steps say when each was reached and by whom (' + smk.join(', ') + ')');
+  await owner.click('#drawer [data-act=closeDrawer] >> nth=0'); await gwen.click('#drawer [data-act=closeDrawer] >> nth=0');
 
   console.log('\n# Email updates: the script in a Gmail account → the app updates cases');
   await owner.evaluate(async () => {

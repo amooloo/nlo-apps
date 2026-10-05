@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-DwVlgPONJ0YZcdgPmEuT7TwrLpRTvliV9HxSkf3AB9o=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-yR8udcaNDjgUjg+xwh71Hp+dGsOQEnQ1AAbLGHWuG58=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO Cases</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1360,6 +1360,10 @@ svg.rxArch{display:block;width:100%;height:auto}
 .refNHint:empty{display:none}
 /* what the case is, at the top of the case panel (5 Oct 2026): "Initial Next Level Aligners", "Refinement 2 Oliv Aligners" */
 .dKind{font-family:var(--fd);font-weight:600;font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:var(--mint-700);line-height:1.3;margin:2px 0 3px;overflow-wrap:anywhere}
+/* when each step was reached, and by whom (5 Oct 2026): quiet, at the end of the step's row */
+.step .stWhen{margin-left:auto;padding-left:10px;font-size:11.5px;font-weight:500;color:var(--grey-400);white-space:nowrap;letter-spacing:0}
+.step .stWhen:empty{display:none}
+.step.cur .stWhen{color:var(--blue-700);opacity:.75}
 
 </style>
 </head>
@@ -1437,8 +1441,10 @@ const FLOWS = {
     ['fab', 'Export STLs'], ['send', 'Send to printer'], ['print', 'Printing'], ['thermo', 'Thermoforming'], ['trim', 'Trimming'], ['polish', 'Polishing'], ['wash', 'Final wash & dry'],
     ['pack', 'Made – needs packaging'], ['checkedin', 'Checked in'] ],
     groups: [{ l: 'In fabrication', stages: ['fab', 'send', 'print', 'thermo', 'trim', 'polish', 'wash'] }] },
+  /* the first step says what's waiting (Amir, 5 Oct 2026: "the first step right now says printing which does not make sense"): to be
+     made — printed and formed, or only formed for a remake from the model on file */
   retainer: { label: 'Retainers & mouthguards', labDone: 'milestones', stages: [
-    ['print', 'Printing'], ['milestones', 'Milestones'], ['sarah', 'On Sarah’s desk'], ['pickup', 'Front desk pickup'] ] },
+    ['print', 'To make'], ['milestones', 'Milestones'], ['sarah', 'On Sarah’s desk'], ['pickup', 'Front desk pickup'] ] },
   models: { label: 'Study models', labDone: 'ready', stages: [ ['print', 'To print'], ['ready', 'Ready'] ] },
   retreat: { label: 'Retreatment', stages: [
     ['intake', 'Intake & assessment'], ['review', 'Pending review'], ['proposal', 'Send proposal'],
@@ -3700,7 +3706,7 @@ function noteWhat(c) {
   else if (c.type === 'insmile') what = 'InSmile braces' + (/^de[123]$/.test(c.initial || '') ? ' - digital enhancement ' + c.initial.slice(2) : c.initial === 'yes' ? ' - initial' : '');
   else if (c.type === 'marpe') what = 'MARPE' + (c.lab ? ' (' + labName(c.lab) + ')' : '');
   else if (c.type === 'appliance') what = ((c.appliances || []).map(a => applText(c, a, true)).join(', ') || c.detail || 'appliance') + (c.lab ? ' (' + labName(c.lab) + ')' : '');
-  else if (c.type === 'retainer') what = 'retainers' + (c.detail ? ': ' + c.detail : '');
+  else if (c.type === 'retainer') { const d = retDetail(c); what = 'retainers' + (c.remake ? ' (remake)' : '') + (d ? ': ' + d : ''); }
   else if (c.type === 'mouthguard') what = 'a mouthguard' + ((c.arches || []).length ? ' (' + c.arches.join('/') + ')' : '');
   else if (c.type === 'models') what = 'study models';
   else what = c.detail || t.l;
@@ -3722,7 +3728,9 @@ function chartNote(c, visit) {
     L.push.apply(L, told('del'));
     return noteAscii(L);
   }
-  L.push((c.scanner ? 'Scanned with ' + c.scanner : 'Scanned') + ' for ' + what + '.');
+  // (a retainer remake from the model on file: there was no scan for it)
+  if (c.type === 'retainer' && c.remake === 'model') { const d = retDetail(c); L.push('Retainer remake from the model on file' + (d ? ': ' + d : '') + '.'); }
+  else L.push((c.scanner ? 'Scanned with ' + c.scanner : 'Scanned') + ' for ' + what + '.');
   if (t.flow === 'marpe') { const r = MARPE_RECORDS.filter(x => (c.records || []).includes(x[0])).map(x => x[1]); if (r.length) L.push('Records on file: ' + r.join(', ') + '.'); }
   const end = s => String(s).trim().replace(/[.\s;]+$/, '') + '.';
   if (c.instructions) L.push("Dr. A's instructions: " + end(c.instructions));
@@ -3735,6 +3743,8 @@ function chartNote(c, visit) {
   if (c.shipToPatient) L.push('Aligners to be shipped to the patient.');
   return noteAscii(L);
 }
+/* a retainer case's "what's being made" without the remake (the note says it its own way) */
+function retDetail(c) { return String(c.detail || '').replace(/\s*[–-]\s*remake w\/o? model$/i, '').trim(); }
 function noteAscii(L) { return L.join('\n').replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[–—]/g, '-'); }
 /* study models aren't delivered to a patient: their note is the scan's only */
 function hasDelNote(c) { return !!c && c.type !== 'models'; }
@@ -3823,6 +3833,31 @@ function noteKindsOf(c) {
   if (c.type === 'retainer') { const r = (c.retKinds || []).join(' '), ks = []; if (/\bTT/i.test(r) || !/\bWT/i.test(r)) ks.push('tt'); if (/\bWT/i.test(r)) ks.push('wt'); return ks; }
   if (c.type === 'mouthguard') return ['mg'];
   return [];
+}
+/* when each step was reached and by whom (Amir, 5 Oct 2026: "when you look at the stage, can you put a mark for the date each step was
+   moved and by who? keep it light and simple. so it doesn't look busy"): from the case's history — the latest move into each step
+   (a tap, an edit, a lab email); the step the case started at, when it was made (or brought in from Asana) */
+function stageMarks(c) {
+  const h = c && S.history && S.openId === c.id ? S.history : null; if (!h || !h.length) return {};
+  const L = h.slice().sort((a, b) => (a.at || 0) - (b.at || 0)), out = {};
+  // the case changed after this copy of its history was read (it's being read again): no marks until then, rather than wrong ones
+  if (S.histRev !== c.rev) return {};
+  const moved = x => x && x.to && (x.a === 'stage' || x.a === 'email' || (x.a === 'edit' && (x.fields || []).includes('stage')));
+  const first = L.find(moved), born = L.find(x => x.a === 'create' || x.a === 'import' || x.a === 'restore'), start = first ? first.from : c.stage;
+  if (born && start) out[start] = { at: born.at, by: born.a === 'import' ? 'asana' : born.sid || '' };
+  L.forEach(x => { if (moved(x)) out[x.to] = { at: x.at, by: x.a === 'email' ? 'email' : x.sid || '' }; });
+  return out;
+}
+function stageMarkHTML(m) {
+  if (!m || !m.at) return '<span class="stWhen"></span>';
+  const who = m.by === 'email' ? 'lab email' : m.by === 'asana' ? 'Asana' : m.by ? noteWho({ by: m.by }) : '';
+  const day = new Date(m.at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  return '<span class="stWhen" title="' + esc(fmtWhen(m.at) + (who ? ' · ' + who : '')) + '">' + esc(day + (who ? ' · ' + who : '')) + '</span>';
+}
+/* the history came in after the panel was drawn: the steps get their marks */
+function stageMarksPaint(c) {
+  const st = $('#drawer .stepper'); if (!st || !c) return; const m = stageMarks(c);
+  $$('.step[data-k]', st).forEach(b => { const w = $('.stWhen', b); if (w) w.outerHTML = stageMarkHTML(m[b.dataset.k]); });
 }
 /* stage progress: a circle per stage (done, current, to come) joined by a line that fills in up to the current stage
    (Amir, 2 Oct 2026: circles connected with a line, not a row of rectangles); a stage group (In fabrication) sits in its own band */
@@ -4378,8 +4413,8 @@ function refreshDrawer(gone) {
 }
 async function loadHistory(id) {
   // (two loads in flight: an answer older than the one on screen is dropped — a later load that fails leaves the earlier one)
-  const seq = S.histSeq = (S.histSeq || 0) + 1;
-  try { const h = await B.caseLog(id); if (S.openId === id && seq > (S.histShown || 0)) { S.histShown = seq; S.history = h; const el = $('#histBox'); if (el) el.innerHTML = historyHTML(findCase(id)); wtyRefresh(id);
+  const seq = S.histSeq = (S.histSeq || 0) + 1, rev0 = (findCase(id) || {}).rev; // (the version of the case this history goes with)
+  try { const h = await B.caseLog(id); if (S.openId === id && seq > (S.histShown || 0)) { S.histShown = seq; S.history = h; S.histRev = rev0; const el = $('#histBox'); if (el) el.innerHTML = historyHTML(findCase(id)); wtyRefresh(id); stageMarksPaint(findCase(id));
     const c = findCase(id); if (c && String(c.notes || '').trim() && !notesAuthor(c)) { noteAuthKeep(c, h); noteByPaint(); } } } catch (e) { }
 }
 const FIELD_LABELS = { rx: 'Herbst Rx', rxRet: 'Retainer Rx', rxMet: 'Metal Rx', rxFun: 'Functional Rx', invDate: 'invoice date', noGuarantee: 'No Guarantee', photo: 'photo', labRef: 'lab case #', labHold: 'lab hold', planUrl: 'plan link', shipToPatient: 'ship to patient', records: 'records on file', zoomDate: 'Zoom call', zoomTime: 'Zoom call', tracking: 'tracking #', carrier: 'carrier', teeth: 'tooth chart', teethNote: 'tooth chart', chart: 'chart #', titanUrl: 'Titan link', initial: 'initial/refinement', appliances: 'appliance', lab: 'lab', arches: 'arch', retKinds: 'retainer type', goals: 'Dr. A’s instructions', instrPicks: 'Dr. A’s instructions', instrOther: 'Dr. A’s instructions', extras: 'extras', variant: 'case type', type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery appt', deliveryTime: 'appt time', txStart: 'treatment start', txEnd: 'expected removal', acrylic: 'acrylic color', glitter: 'acrylic color', alU: 'aligners', alL: 'aligners', aligners: 'aligners', atTemplates: 'attachment templates', treatArch: 'arches to treat', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes' };
@@ -4434,6 +4469,7 @@ function renderDrawer() {
   const cmts = c.comments || [], lastC = cmts[cmts.length - 1];
   const who = c.assignee ? firstName(staffName(c.assignee, '')) || '—' : c.assigneeName ? c.assigneeName + ' (Asana)' : '';
   const nAl = alN(c), one = oneArch(c), hasTeeth = !!(c.teeth && Object.keys(c.teeth).length);
+  const marks = stageMarks(c); // when each step was reached, and by whom (from the case's history, once it's loaded)
   // in-house aligners and retainers: Print labels in the header, never folded away (Amir, 5 Oct 2026: "I could not find the print
   // labels easily ... it should be clearly visible in the header") — the aligner labels once the set's counts are in; the
   // retainer bag label, which then offers to complete the case
@@ -4465,7 +4501,7 @@ function renderDrawer() {
     dsec('stage', 'Stage', (done ? 'Completed · ' : '') + '<b>' + esc(stageLabel(c)) + '</b>' + progHTML(c),
       '<div class="stepper">' + caseStages(c).map(([k, l], i) => { const g = stageGroup(flow, k);
         return (g && g.stages[0] === k ? '<div class="stepGrp' + (i <= si ? ' d' : '') + '">' + esc(g.l) + '</div>' : '') +
-        '<button class="step ' + (i < si ? 'past' : i === si ? 'cur' : '') + (g ? ' sub' : '') + '" data-act="setStage" data-k="' + k + '"' + (done ? ' disabled' : '') + ' aria-pressed="' + (i === si) + '"><span class="n">' + (i < si ? '✓' : i + 1) + '</span>' + esc(l) + '</button>'; }).join('') + '</div>') +
+        '<button class="step ' + (i < si ? 'past' : i === si ? 'cur' : '') + (g ? ' sub' : '') + '" data-act="setStage" data-k="' + k + '"' + (done ? ' disabled' : '') + ' aria-pressed="' + (i === si) + '"><span class="n">' + (i < si ? '✓' : i + 1) + '</span>' + esc(l) + stageMarkHTML(marks[k]) + '</button>'; }).join('') + '</div>') +
     (flow === FLOWS.marpe ? dsec('marpe', 'MARPE', marpeSum(c), marpeBoxHTML(c, done)) : '') +
     dsec('details', 'Details', (who ? 'Assigned to <b>' + esc(who) + '</b>' : 'Unassigned') + (!done && dueOf(c) ? ' · ' + dueChip(c) : c.deliveryDate ? ' · ' + delWord(c) + ' ' + esc(fmtDate(c.deliveryDate)) : ''),
       '<div class="kv">' +
@@ -4618,7 +4654,8 @@ function caseTitle(c) {
     return (sub ? sub + ' ' : '') + al; }
   if (c.type === 'insmile') return (/^de[123]$/.test(c.initial || '') ? 'DE ' + c.initial.slice(2) + ' ' : c.initial === 'yes' ? 'Initial ' : '') + 'InSmile Braces';
   if (c.type === 'appliance') return (c.appliances || []).join(' + ') || c.detail || 'Appliance';
-  if (c.type === 'retainer') { const r = (c.retKinds || []).join(' '), tt = /\bTT/i.test(r), wt = /\bWT/i.test(r); return tt && wt ? 'Retainers & Whitening Trays' : wt ? 'Whitening Trays' : 'Retainers'; }
+  if (c.type === 'retainer') { const r = (c.retKinds || []).join(' '), tt = /\bTT/i.test(r), wt = /\bWT/i.test(r), what = tt && wt ? 'Retainers & Whitening Trays' : wt ? 'Whitening Trays' : 'Retainers';
+    return c.remake === 'model' ? 'Remake ' + what + ' w/ Model' : c.remake === 'nomodel' ? 'Remake ' + what + ' w/o Model' : what; }
   return { marpe: 'MARPE', mouthguard: 'Mouthguard', models: 'Study Models' }[c.type] || typeOf(c).l;
 }
 /* the "what's being made" line under the name, unless it only says what the title already does (the line the form filled in) */
@@ -5381,6 +5418,9 @@ const INHOUSE_TILES = ['nla'];
    on the in-house case, as before, so older finishing cases, the board, the set labels and the totals are unchanged */
 const FIN = 'fin';
 function groupOfTile(v) { return ALIGNERISH.includes(v) ? 'aligner' : BRACES.includes(v) ? 'braces' : v === 'appliance' ? 'appliance' : v === 'marpe' ? 'marpe' : (v === 'retainer' || v === 'mouthguard') ? 'retainer' : v === 'models' ? 'models' : 'other'; }
+/* retainers & whitening trays made again: from the model on file, or without it (a new model printed) */
+const REMAKES = [{ v: 'model', l: 'Remake w/ model' }, { v: 'nomodel', l: 'Remake w/o model' }];
+function remakeText(v) { return v === 'model' ? 'remake w/ model' : v === 'nomodel' ? 'remake w/o model' : ''; }
 /* which refinement: 1–5 to tap, any other number (up to REF_MAX) typed */
 const REF_NS = [1, 2, 3, 4, 5], REF_MAX = 30;
 /* the patient's refinements with this aligner company before this one, and the next number: one after the highest on file (a
@@ -5396,7 +5436,7 @@ function refOnFile(o) {
 function submissionLabel(v, n) { return v === 'yes' ? 'Initial submission' : v === 'no' ? 'Refinement' + (Number(n) > 0 ? ' ' + Number(n) : '') : v === 'mid' ? 'Mid-course correction' : /^de[123]$/.test(v || '') ? 'Digital enhancement ' + v.slice(2) + ' (DE' + v.slice(2) + ')' : ''; }
 /* fields added later save '' when empty (not [] or false), so older cases without them don't look edited */
 const FORM_KEYS = ['type', 'patient', 'chart', 'detail', 'stage', 'assignee', 'assistant', 'scanner', 'scanDate', 'labDate', 'deliveryDate', 'deliveryTime', 'aligners',
-  'initial', 'refN', 'appliances', 'lab', 'arches', 'retKinds', 'goals', 'instrPicks', 'instrOther', 'instructions', 'extras', 'teeth', 'cc', 'ipr', 'notes', 'titanUrl', 'alU', 'alL',
+  'initial', 'refN', 'appliances', 'lab', 'arches', 'retKinds', 'remake', 'goals', 'instrPicks', 'instrOther', 'instructions', 'extras', 'teeth', 'cc', 'ipr', 'notes', 'titanUrl', 'alU', 'alL',
   'shipToPatient', 'records', 'zoomDate', 'zoomTime', 'tracking', 'labRef', 'atTemplates', 'treatArch', 'txStart', 'txEnd', 'acrylic', 'glitter', 'rx', 'rxRet', 'rxMet', 'rxFun'];
 
 /* delivery time: every half hour, 7:00 AM to 7:00 PM (Amir, 2 Oct 2026: "30 mins increments are fine") */
@@ -5658,7 +5698,9 @@ function caseFormHTML(c, isNew) {
       pickRow('records', MARPE_RECORDS.map(([v, l]) => ({ v, l })), c.records || [], true) +
       '<h5>Zoom call <span class="h5n">once the lab sets it up</span></h5><div class="zoomRow">' + date('cf-zoomDate', 'Date', c.zoomDate) +
       '<div class="field"><label for="cf-zoomTime">Time</label><input type="time" id="cf-zoomTime" value="' + esc(c.zoomTime || '') + '"></div></div></div>' +
-    '<div class="cfSec"' + show('retainer') + '><h5>Arch</h5>' + pickRow('arches', PICK.arches, c.arches || [], true, 'archPick', archIc) + '<div id="cf-retKindsWrap"' + (tile === 'mouthguard' ? ' style="display:none"' : '') + '><h5>Making</h5>' + pickRow('retKinds', PICK.retKinds, c.retKinds || [], true) + '</div></div>' +
+    '<div class="cfSec"' + show('retainer') + '><h5>Arch</h5>' + pickRow('arches', PICK.arches, c.arches || [], true, 'archPick', archIc) + '<div id="cf-retKindsWrap"' + (tile === 'mouthguard' ? ' style="display:none"' : '') + '><h5>Making</h5>' + pickRow('retKinds', PICK.retKinds, c.retKinds || [], true) +
+      // a remake (Amir, 5 Oct 2026: "the option also should be remake w/ or w/o model"): from the model on file, or a new one
+      '<h5>Remake? <span class="h5n">only if it is one — tap again to clear</span></h5>' + pickRow('remake', REMAKES, c.remake || '', false) + '</div></div>' +
     // aligners and InSmile: which arches are treated — both unless picked (Amir, 2 Oct 2026: not always both arches)
     '<div class="cfSec"' + show('aligner braces') + '><h5>Arches to treat</h5>' + pickRow('treatArch', TREAT_OPTS, oneArch(c) || 'UL', false, 'archPick', archIc) + '</div>' +
     '<div class="cfSec"' + show('aligner') + '><h5>Initial submission?</h5>' + pickRow('initial', [{ v: 'yes', l: 'Yes — first set' }, { v: 'no', l: 'No — refinement' }, { v: 'mid', l: 'Mid-course correction' }, { v: FIN, l: 'Finishing aligners' }], initialVal, false) +
@@ -5789,6 +5831,7 @@ function readCaseForm(root) {
   o.acrylic = ab ? (was ? was[0] : ab.dataset.v) : '';
   o.glitter = ab && was && was[1] ? true : '';
   if (tile === 'mouthguard') o.retKinds = [];
+  o.remake = tile === 'retainer' ? (pressed(root, 'remake')[0] || '') : ''; // a remake: 'model' (from the model on file) or 'nomodel'
   if (!(o.type === 'nla')) { o.titanUrl = ''; o.txStart = ''; o.txEnd = ''; }
   // arches to treat: aligners and InSmile only; both arches is the default and saves as '' (like every older case)
   const ta = pressed(root, 'treatArch')[0] || '';
@@ -5820,7 +5863,7 @@ function autoDetail(o, tile) {
     const arch = o.arches.length === 2 ? 'U/L' : o.arches[0] === 'Upper' ? 'U' : o.arches[0] === 'Lower' ? 'L' : '';
     if (tile === 'mouthguard') return 'Mouthguard' + (arch ? ' (' + arch + ')' : '');
     const kinds = o.retKinds.join(' and ');
-    return [arch, kinds].filter(Boolean).join(' ');
+    return [arch, kinds].filter(Boolean).join(' ') + (o.remake ? ' – ' + remakeText(o.remake) : '');
   }
   return '';
 }

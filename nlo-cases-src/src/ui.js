@@ -590,7 +590,7 @@ function noteWhat(c) {
   else if (c.type === 'insmile') what = 'InSmile braces' + (/^de[123]$/.test(c.initial || '') ? ' - digital enhancement ' + c.initial.slice(2) : c.initial === 'yes' ? ' - initial' : '');
   else if (c.type === 'marpe') what = 'MARPE' + (c.lab ? ' (' + labName(c.lab) + ')' : '');
   else if (c.type === 'appliance') what = ((c.appliances || []).map(a => applText(c, a, true)).join(', ') || c.detail || 'appliance') + (c.lab ? ' (' + labName(c.lab) + ')' : '');
-  else if (c.type === 'retainer') what = 'retainers' + (c.detail ? ': ' + c.detail : '');
+  else if (c.type === 'retainer') { const d = retDetail(c); what = 'retainers' + (c.remake ? ' (remake)' : '') + (d ? ': ' + d : ''); }
   else if (c.type === 'mouthguard') what = 'a mouthguard' + ((c.arches || []).length ? ' (' + c.arches.join('/') + ')' : '');
   else if (c.type === 'models') what = 'study models';
   else what = c.detail || t.l;
@@ -612,7 +612,9 @@ function chartNote(c, visit) {
     L.push.apply(L, told('del'));
     return noteAscii(L);
   }
-  L.push((c.scanner ? 'Scanned with ' + c.scanner : 'Scanned') + ' for ' + what + '.');
+  // (a retainer remake from the model on file: there was no scan for it)
+  if (c.type === 'retainer' && c.remake === 'model') { const d = retDetail(c); L.push('Retainer remake from the model on file' + (d ? ': ' + d : '') + '.'); }
+  else L.push((c.scanner ? 'Scanned with ' + c.scanner : 'Scanned') + ' for ' + what + '.');
   if (t.flow === 'marpe') { const r = MARPE_RECORDS.filter(x => (c.records || []).includes(x[0])).map(x => x[1]); if (r.length) L.push('Records on file: ' + r.join(', ') + '.'); }
   const end = s => String(s).trim().replace(/[.\s;]+$/, '') + '.';
   if (c.instructions) L.push("Dr. A's instructions: " + end(c.instructions));
@@ -625,6 +627,8 @@ function chartNote(c, visit) {
   if (c.shipToPatient) L.push('Aligners to be shipped to the patient.');
   return noteAscii(L);
 }
+/* a retainer case's "what's being made" without the remake (the note says it its own way) */
+function retDetail(c) { return String(c.detail || '').replace(/\s*[–-]\s*remake w\/o? model$/i, '').trim(); }
 function noteAscii(L) { return L.join('\n').replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[–—]/g, '-'); }
 /* study models aren't delivered to a patient: their note is the scan's only */
 function hasDelNote(c) { return !!c && c.type !== 'models'; }
@@ -713,6 +717,31 @@ function noteKindsOf(c) {
   if (c.type === 'retainer') { const r = (c.retKinds || []).join(' '), ks = []; if (/\bTT/i.test(r) || !/\bWT/i.test(r)) ks.push('tt'); if (/\bWT/i.test(r)) ks.push('wt'); return ks; }
   if (c.type === 'mouthguard') return ['mg'];
   return [];
+}
+/* when each step was reached and by whom (Amir, 5 Oct 2026: "when you look at the stage, can you put a mark for the date each step was
+   moved and by who? keep it light and simple. so it doesn't look busy"): from the case's history — the latest move into each step
+   (a tap, an edit, a lab email); the step the case started at, when it was made (or brought in from Asana) */
+function stageMarks(c) {
+  const h = c && S.history && S.openId === c.id ? S.history : null; if (!h || !h.length) return {};
+  const L = h.slice().sort((a, b) => (a.at || 0) - (b.at || 0)), out = {};
+  // the case changed after this copy of its history was read (it's being read again): no marks until then, rather than wrong ones
+  if (S.histRev !== c.rev) return {};
+  const moved = x => x && x.to && (x.a === 'stage' || x.a === 'email' || (x.a === 'edit' && (x.fields || []).includes('stage')));
+  const first = L.find(moved), born = L.find(x => x.a === 'create' || x.a === 'import' || x.a === 'restore'), start = first ? first.from : c.stage;
+  if (born && start) out[start] = { at: born.at, by: born.a === 'import' ? 'asana' : born.sid || '' };
+  L.forEach(x => { if (moved(x)) out[x.to] = { at: x.at, by: x.a === 'email' ? 'email' : x.sid || '' }; });
+  return out;
+}
+function stageMarkHTML(m) {
+  if (!m || !m.at) return '<span class="stWhen"></span>';
+  const who = m.by === 'email' ? 'lab email' : m.by === 'asana' ? 'Asana' : m.by ? noteWho({ by: m.by }) : '';
+  const day = new Date(m.at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  return '<span class="stWhen" title="' + esc(fmtWhen(m.at) + (who ? ' · ' + who : '')) + '">' + esc(day + (who ? ' · ' + who : '')) + '</span>';
+}
+/* the history came in after the panel was drawn: the steps get their marks */
+function stageMarksPaint(c) {
+  const st = $('#drawer .stepper'); if (!st || !c) return; const m = stageMarks(c);
+  $$('.step[data-k]', st).forEach(b => { const w = $('.stWhen', b); if (w) w.outerHTML = stageMarkHTML(m[b.dataset.k]); });
 }
 /* stage progress: a circle per stage (done, current, to come) joined by a line that fills in up to the current stage
    (Amir, 2 Oct 2026: circles connected with a line, not a row of rectangles); a stage group (In fabrication) sits in its own band */
@@ -1268,8 +1297,8 @@ function refreshDrawer(gone) {
 }
 async function loadHistory(id) {
   // (two loads in flight: an answer older than the one on screen is dropped — a later load that fails leaves the earlier one)
-  const seq = S.histSeq = (S.histSeq || 0) + 1;
-  try { const h = await B.caseLog(id); if (S.openId === id && seq > (S.histShown || 0)) { S.histShown = seq; S.history = h; const el = $('#histBox'); if (el) el.innerHTML = historyHTML(findCase(id)); wtyRefresh(id);
+  const seq = S.histSeq = (S.histSeq || 0) + 1, rev0 = (findCase(id) || {}).rev; // (the version of the case this history goes with)
+  try { const h = await B.caseLog(id); if (S.openId === id && seq > (S.histShown || 0)) { S.histShown = seq; S.history = h; S.histRev = rev0; const el = $('#histBox'); if (el) el.innerHTML = historyHTML(findCase(id)); wtyRefresh(id); stageMarksPaint(findCase(id));
     const c = findCase(id); if (c && String(c.notes || '').trim() && !notesAuthor(c)) { noteAuthKeep(c, h); noteByPaint(); } } } catch (e) { }
 }
 const FIELD_LABELS = { rx: 'Herbst Rx', rxRet: 'Retainer Rx', rxMet: 'Metal Rx', rxFun: 'Functional Rx', invDate: 'invoice date', noGuarantee: 'No Guarantee', photo: 'photo', labRef: 'lab case #', labHold: 'lab hold', planUrl: 'plan link', shipToPatient: 'ship to patient', records: 'records on file', zoomDate: 'Zoom call', zoomTime: 'Zoom call', tracking: 'tracking #', carrier: 'carrier', teeth: 'tooth chart', teethNote: 'tooth chart', chart: 'chart #', titanUrl: 'Titan link', initial: 'initial/refinement', appliances: 'appliance', lab: 'lab', arches: 'arch', retKinds: 'retainer type', goals: 'Dr. A’s instructions', instrPicks: 'Dr. A’s instructions', instrOther: 'Dr. A’s instructions', extras: 'extras', variant: 'case type', type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery appt', deliveryTime: 'appt time', txStart: 'treatment start', txEnd: 'expected removal', acrylic: 'acrylic color', glitter: 'acrylic color', alU: 'aligners', alL: 'aligners', aligners: 'aligners', atTemplates: 'attachment templates', treatArch: 'arches to treat', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes' };
@@ -1324,6 +1353,7 @@ function renderDrawer() {
   const cmts = c.comments || [], lastC = cmts[cmts.length - 1];
   const who = c.assignee ? firstName(staffName(c.assignee, '')) || '—' : c.assigneeName ? c.assigneeName + ' (Asana)' : '';
   const nAl = alN(c), one = oneArch(c), hasTeeth = !!(c.teeth && Object.keys(c.teeth).length);
+  const marks = stageMarks(c); // when each step was reached, and by whom (from the case's history, once it's loaded)
   // in-house aligners and retainers: Print labels in the header, never folded away (Amir, 5 Oct 2026: "I could not find the print
   // labels easily ... it should be clearly visible in the header") — the aligner labels once the set's counts are in; the
   // retainer bag label, which then offers to complete the case
@@ -1355,7 +1385,7 @@ function renderDrawer() {
     dsec('stage', 'Stage', (done ? 'Completed · ' : '') + '<b>' + esc(stageLabel(c)) + '</b>' + progHTML(c),
       '<div class="stepper">' + caseStages(c).map(([k, l], i) => { const g = stageGroup(flow, k);
         return (g && g.stages[0] === k ? '<div class="stepGrp' + (i <= si ? ' d' : '') + '">' + esc(g.l) + '</div>' : '') +
-        '<button class="step ' + (i < si ? 'past' : i === si ? 'cur' : '') + (g ? ' sub' : '') + '" data-act="setStage" data-k="' + k + '"' + (done ? ' disabled' : '') + ' aria-pressed="' + (i === si) + '"><span class="n">' + (i < si ? '✓' : i + 1) + '</span>' + esc(l) + '</button>'; }).join('') + '</div>') +
+        '<button class="step ' + (i < si ? 'past' : i === si ? 'cur' : '') + (g ? ' sub' : '') + '" data-act="setStage" data-k="' + k + '"' + (done ? ' disabled' : '') + ' aria-pressed="' + (i === si) + '"><span class="n">' + (i < si ? '✓' : i + 1) + '</span>' + esc(l) + stageMarkHTML(marks[k]) + '</button>'; }).join('') + '</div>') +
     (flow === FLOWS.marpe ? dsec('marpe', 'MARPE', marpeSum(c), marpeBoxHTML(c, done)) : '') +
     dsec('details', 'Details', (who ? 'Assigned to <b>' + esc(who) + '</b>' : 'Unassigned') + (!done && dueOf(c) ? ' · ' + dueChip(c) : c.deliveryDate ? ' · ' + delWord(c) + ' ' + esc(fmtDate(c.deliveryDate)) : ''),
       '<div class="kv">' +
@@ -1508,7 +1538,8 @@ function caseTitle(c) {
     return (sub ? sub + ' ' : '') + al; }
   if (c.type === 'insmile') return (/^de[123]$/.test(c.initial || '') ? 'DE ' + c.initial.slice(2) + ' ' : c.initial === 'yes' ? 'Initial ' : '') + 'InSmile Braces';
   if (c.type === 'appliance') return (c.appliances || []).join(' + ') || c.detail || 'Appliance';
-  if (c.type === 'retainer') { const r = (c.retKinds || []).join(' '), tt = /\bTT/i.test(r), wt = /\bWT/i.test(r); return tt && wt ? 'Retainers & Whitening Trays' : wt ? 'Whitening Trays' : 'Retainers'; }
+  if (c.type === 'retainer') { const r = (c.retKinds || []).join(' '), tt = /\bTT/i.test(r), wt = /\bWT/i.test(r), what = tt && wt ? 'Retainers & Whitening Trays' : wt ? 'Whitening Trays' : 'Retainers';
+    return c.remake === 'model' ? 'Remake ' + what + ' w/ Model' : c.remake === 'nomodel' ? 'Remake ' + what + ' w/o Model' : what; }
   return { marpe: 'MARPE', mouthguard: 'Mouthguard', models: 'Study Models' }[c.type] || typeOf(c).l;
 }
 /* the "what's being made" line under the name, unless it only says what the title already does (the line the form filled in) */

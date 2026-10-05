@@ -47,8 +47,10 @@ const FLOWS = {
     ['fab', 'Export STLs'], ['send', 'Send to printer'], ['print', 'Printing'], ['thermo', 'Thermoforming'], ['trim', 'Trimming'], ['polish', 'Polishing'], ['wash', 'Final wash & dry'],
     ['pack', 'Made – needs packaging'], ['checkedin', 'Checked in'] ],
     groups: [{ l: 'In fabrication', stages: ['fab', 'send', 'print', 'thermo', 'trim', 'polish', 'wash'] }] },
+  /* the first step says what's waiting (Amir, 5 Oct 2026: "the first step right now says printing which does not make sense"): to be
+     made — printed and formed, or only formed for a remake from the model on file */
   retainer: { label: 'Retainers & mouthguards', labDone: 'milestones', stages: [
-    ['print', 'Printing'], ['milestones', 'Milestones'], ['sarah', 'On Sarah’s desk'], ['pickup', 'Front desk pickup'] ] },
+    ['print', 'To make'], ['milestones', 'Milestones'], ['sarah', 'On Sarah’s desk'], ['pickup', 'Front desk pickup'] ] },
   models: { label: 'Study models', labDone: 'ready', stages: [ ['print', 'To print'], ['ready', 'Ready'] ] },
   retreat: { label: 'Retreatment', stages: [
     ['intake', 'Intake & assessment'], ['review', 'Pending review'], ['proposal', 'Send proposal'],

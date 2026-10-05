@@ -271,6 +271,9 @@ const INHOUSE_TILES = ['nla'];
    on the in-house case, as before, so older finishing cases, the board, the set labels and the totals are unchanged */
 const FIN = 'fin';
 function groupOfTile(v) { return ALIGNERISH.includes(v) ? 'aligner' : BRACES.includes(v) ? 'braces' : v === 'appliance' ? 'appliance' : v === 'marpe' ? 'marpe' : (v === 'retainer' || v === 'mouthguard') ? 'retainer' : v === 'models' ? 'models' : 'other'; }
+/* retainers & whitening trays made again: from the model on file, or without it (a new model printed) */
+const REMAKES = [{ v: 'model', l: 'Remake w/ model' }, { v: 'nomodel', l: 'Remake w/o model' }];
+function remakeText(v) { return v === 'model' ? 'remake w/ model' : v === 'nomodel' ? 'remake w/o model' : ''; }
 /* which refinement: 1–5 to tap, any other number (up to REF_MAX) typed */
 const REF_NS = [1, 2, 3, 4, 5], REF_MAX = 30;
 /* the patient's refinements with this aligner company before this one, and the next number: one after the highest on file (a
@@ -286,7 +289,7 @@ function refOnFile(o) {
 function submissionLabel(v, n) { return v === 'yes' ? 'Initial submission' : v === 'no' ? 'Refinement' + (Number(n) > 0 ? ' ' + Number(n) : '') : v === 'mid' ? 'Mid-course correction' : /^de[123]$/.test(v || '') ? 'Digital enhancement ' + v.slice(2) + ' (DE' + v.slice(2) + ')' : ''; }
 /* fields added later save '' when empty (not [] or false), so older cases without them don't look edited */
 const FORM_KEYS = ['type', 'patient', 'chart', 'detail', 'stage', 'assignee', 'assistant', 'scanner', 'scanDate', 'labDate', 'deliveryDate', 'deliveryTime', 'aligners',
-  'initial', 'refN', 'appliances', 'lab', 'arches', 'retKinds', 'goals', 'instrPicks', 'instrOther', 'instructions', 'extras', 'teeth', 'cc', 'ipr', 'notes', 'titanUrl', 'alU', 'alL',
+  'initial', 'refN', 'appliances', 'lab', 'arches', 'retKinds', 'remake', 'goals', 'instrPicks', 'instrOther', 'instructions', 'extras', 'teeth', 'cc', 'ipr', 'notes', 'titanUrl', 'alU', 'alL',
   'shipToPatient', 'records', 'zoomDate', 'zoomTime', 'tracking', 'labRef', 'atTemplates', 'treatArch', 'txStart', 'txEnd', 'acrylic', 'glitter', 'rx', 'rxRet', 'rxMet', 'rxFun'];
 
 /* delivery time: every half hour, 7:00 AM to 7:00 PM (Amir, 2 Oct 2026: "30 mins increments are fine") */
@@ -548,7 +551,9 @@ function caseFormHTML(c, isNew) {
       pickRow('records', MARPE_RECORDS.map(([v, l]) => ({ v, l })), c.records || [], true) +
       '<h5>Zoom call <span class="h5n">once the lab sets it up</span></h5><div class="zoomRow">' + date('cf-zoomDate', 'Date', c.zoomDate) +
       '<div class="field"><label for="cf-zoomTime">Time</label><input type="time" id="cf-zoomTime" value="' + esc(c.zoomTime || '') + '"></div></div></div>' +
-    '<div class="cfSec"' + show('retainer') + '><h5>Arch</h5>' + pickRow('arches', PICK.arches, c.arches || [], true, 'archPick', archIc) + '<div id="cf-retKindsWrap"' + (tile === 'mouthguard' ? ' style="display:none"' : '') + '><h5>Making</h5>' + pickRow('retKinds', PICK.retKinds, c.retKinds || [], true) + '</div></div>' +
+    '<div class="cfSec"' + show('retainer') + '><h5>Arch</h5>' + pickRow('arches', PICK.arches, c.arches || [], true, 'archPick', archIc) + '<div id="cf-retKindsWrap"' + (tile === 'mouthguard' ? ' style="display:none"' : '') + '><h5>Making</h5>' + pickRow('retKinds', PICK.retKinds, c.retKinds || [], true) +
+      // a remake (Amir, 5 Oct 2026: "the option also should be remake w/ or w/o model"): from the model on file, or a new one
+      '<h5>Remake? <span class="h5n">only if it is one — tap again to clear</span></h5>' + pickRow('remake', REMAKES, c.remake || '', false) + '</div></div>' +
     // aligners and InSmile: which arches are treated — both unless picked (Amir, 2 Oct 2026: not always both arches)
     '<div class="cfSec"' + show('aligner braces') + '><h5>Arches to treat</h5>' + pickRow('treatArch', TREAT_OPTS, oneArch(c) || 'UL', false, 'archPick', archIc) + '</div>' +
     '<div class="cfSec"' + show('aligner') + '><h5>Initial submission?</h5>' + pickRow('initial', [{ v: 'yes', l: 'Yes — first set' }, { v: 'no', l: 'No — refinement' }, { v: 'mid', l: 'Mid-course correction' }, { v: FIN, l: 'Finishing aligners' }], initialVal, false) +
@@ -679,6 +684,7 @@ function readCaseForm(root) {
   o.acrylic = ab ? (was ? was[0] : ab.dataset.v) : '';
   o.glitter = ab && was && was[1] ? true : '';
   if (tile === 'mouthguard') o.retKinds = [];
+  o.remake = tile === 'retainer' ? (pressed(root, 'remake')[0] || '') : ''; // a remake: 'model' (from the model on file) or 'nomodel'
   if (!(o.type === 'nla')) { o.titanUrl = ''; o.txStart = ''; o.txEnd = ''; }
   // arches to treat: aligners and InSmile only; both arches is the default and saves as '' (like every older case)
   const ta = pressed(root, 'treatArch')[0] || '';
@@ -710,7 +716,7 @@ function autoDetail(o, tile) {
     const arch = o.arches.length === 2 ? 'U/L' : o.arches[0] === 'Upper' ? 'U' : o.arches[0] === 'Lower' ? 'L' : '';
     if (tile === 'mouthguard') return 'Mouthguard' + (arch ? ' (' + arch + ')' : '');
     const kinds = o.retKinds.join(' and ');
-    return [arch, kinds].filter(Boolean).join(' ');
+    return [arch, kinds].filter(Boolean).join(' ') + (o.remake ? ' – ' + remakeText(o.remake) : '');
   }
   return '';
 }
