@@ -1,0 +1,62 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // NLO Staff Hub: your encrypted record and everything stored under it
+    // (certificate files, new-hire form pages, earlier versions, color quiz and application links). Only you, signed in.
+    match /staffhub/{uid} {
+      allow read, create, delete: if request.auth != null && request.auth.uid == uid;
+
+      // A save may only replace the record with the very next version, written by the current Staff Hub
+      // (format 2). A save that was made from an older copy -- or one that sat unsent in a browser for
+      // days -- is refused instead of overwriting newer work.
+      allow update: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.v == 2
+        && request.resource.data.rev is int
+        && request.resource.data.rev == resource.data.rev + 1;
+
+      // Everything stored under the record (at least one level down, so this never covers the record itself).
+      match /{sub}/{rest=**} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
+
+      // Color quiz link: whoever has the link can open that one invite (first name + staff id only)...
+      match /colorQuiz/{token} {
+        allow get: if token.matches('[A-Za-z0-9_-]{20,40}');
+      }
+
+      // ...and send their answers once. The link can't read answers back, change them, or send twice.
+      match /colorAnswers/{token} {
+        allow create: if token.matches('[A-Za-z0-9_-]{20,40}')
+          && exists(/databases/$(database)/documents/staffhub/$(uid)/colorQuiz/$(token))
+          && request.resource.data.keys().hasAll(['v', 'picks', 'at'])
+          && request.resource.data.keys().hasOnly(['v', 'picks', 'at'])
+          && request.resource.data.v == 1
+          && request.resource.data.picks is string
+          && request.resource.data.picks.matches('[01]{48}')
+          && request.resource.data.at == request.time;
+      }
+
+      // Application link: whoever has the link can open that one invite
+      // (first name, position, the application's wording and a public key)...
+      match /appInvite/{token} {
+        allow get: if token.matches('[A-Za-z0-9_-]{20,40}');
+      }
+
+      // ...and send their application once, encrypted so only Staff Hub can read it.
+      // The link can check it arrived (it only sees the encrypted copy) but can't change it or send twice.
+      match /appAnswers/{token} {
+        allow get: if token.matches('[A-Za-z0-9_-]{20,40}');
+        allow create: if token.matches('[A-Za-z0-9_-]{20,40}')
+          && exists(/databases/$(database)/documents/staffhub/$(uid)/appInvite/$(token))
+          && request.resource.data.keys().hasAll(['v', 'epk', 'iv', 'ct', 'at'])
+          && request.resource.data.keys().hasOnly(['v', 'epk', 'iv', 'ct', 'at'])
+          && request.resource.data.v == 1
+          && request.resource.data.epk is string && request.resource.data.epk.size() <= 120
+          && request.resource.data.iv is string && request.resource.data.iv.size() <= 40
+          && request.resource.data.ct is string && request.resource.data.ct.size() <= 400000
+          && request.resource.data.at == request.time;
+      }
+    }
+  }
+}

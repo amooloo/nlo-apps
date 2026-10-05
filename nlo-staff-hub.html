@@ -2299,6 +2299,7 @@ function viewSettings() {
       <div style="display:flex;gap:9px;flex-wrap:wrap">
         <button class="btn btn-pri btn-sm" data-act="expEnc">${ic('download',13)} Encrypted backup</button>
         <button class="btn btn-sec btn-sm" data-act="restore">${ic('upload',13)} Restore…</button>
+        <button class="btn btn-sec btn-sm" data-act="shVersions">${ic('clock',13)} Earlier versions…</button>
         <button class="btn btn-sec btn-sm" data-act="expPlain">Readable JSON</button>
       </div>
       <p class="tiny" style="margin-top:12px">The encrypted backup (.json) is unreadable without your passphrase — safe to keep on a USB drive or private cloud folder. The readable export is <b>not</b> encrypted; avoid saving it anywhere shared, and never in a public GitHub repo.</p>
@@ -2499,7 +2500,6 @@ function init() {
     return;
   }
   fbInit();
-  window.addEventListener('beforeunload', () => { if (S && typeof fbWriteNow === 'function') { try { fbWriteNow(); } catch (e) {} } });
   let firstAuth = true;
   fbAuth.onAuthStateChanged(() => {
     if (firstAuth) { firstAuth = false; showAuth(); return; }
@@ -3418,40 +3418,46 @@ function quizRender() {
 }
 
 /* Save S (with a change) and the quiz docs in ONE transaction, only when this copy of Staff Hub has
-   the latest record. prepare(tx, copy) does its reads, edits the copy of S and returns { write(tx) },
-   or null to do nothing. apply(plan), if given, makes the same change to the live S and runs right
-   after the commit, before anything else can save or copy S: a save that was queued meanwhile must
-   not write out an S that doesn't have the change yet (it would overwrite the transaction's save).
-   Returns { ok, rev, plan, live } | { stale } | { tooBig } | { err } | { skip }. */
+   the latest record (same save id as the server's). prepare(tx, copy) does its reads, edits the copy of S
+   and returns { write(tx) }, or null to do nothing. apply(plan), if given, makes the same change to the
+   live S right after the commit. Returns { ok, rev, plan, live } | { stale } | { tooBig } | { err } | { skip }. */
 async function quizAtomic(prepare, apply) {
   if (!S || !cryptoKey || !keySalt || !fbDocRef || !fbDB) return { skip: true };
-  if (fbWriteInFlight) return { stale: true };
-  const key = cryptoKey, salt = keySalt, base = lastAppliedRev, docRef = fbDocRef, snap = JSON.stringify(S);
+  if (fbWriteInFlight || fbBaseWid === null) return { stale: true };
+  const key = cryptoKey, salt = keySalt, baseWid = fbBaseWid, docRef = fbDocRef, snap = JSON.stringify(S);
   fbWriteInFlight = true;   /* normal saves wait until this lands */
+  const gen = shTxGen;
   let res;
   try {
-    res = await fbDB.runTransaction(async tx => {
+    res = await shTimeout(fbDB.runTransaction(async tx => {
+      if (gen !== shTxGen) return { stale: true };
       const cur = await tx.get(docRef);
       const d = cur.exists ? cur.data() : null;
-      if (!d || (d.rev || 0) !== base) return { stale: true };
+      if (!d || shWidOf(d) !== baseWid) return { stale: true };
       const copy = JSON.parse(snap);
       const plan = await prepare(tx, copy);
       if (!plan) return { skip: true };
-      const data = await encryptJSON(copy, key);
-      const payload = { app: 'nlo-staff-hub', v: 1, kdf: { alg: 'PBKDF2-SHA256', iter: KDF_ITER, salt: b64(salt) }, data: data, rev: base + 1, updatedAt: Date.now() };
-      if (JSON.stringify(payload).length > 1000000) return { tooBig: true };
+      const meta = shUpgradeIn(tx, d, shMetaOf(d));
+      const rev = (d.rev || 0) + 1, wid = shNewWid();
+      const payload = await shPayload(copy, key, salt, rev, wid, meta);
+      if (shTooBig(payload)) return { tooBig: true };
+      if (gen !== shTxGen) return { stale: true };
       if (plan.write) plan.write(tx);
       tx.set(docRef, payload);
-      return { ok: true, rev: base + 1, plan: plan };
-    });
+      tx.set(shVerCol().doc(shVerId('slot')), shVer(payload, 'save'));
+      return { ok: true, rev: rev, wid: wid, plan: plan, next: shJ(copy), meta: meta };
+    }), 25000);
   } catch (e) { res = { err: e }; }
-  if (res && res.ok) {
-    if (res.rev > lastAppliedRev) { lastAppliedRev = res.rev; localRev = Math.max(localRev || 0, res.rev); setSyncState('synced'); }
-    if (apply && S) { try { res.live = apply(res.plan); } catch (e) { try { console.error(e); } catch (x) {} } }
+  if (res && res.ok && S && cryptoKey === key) {
+    lastAppliedRev = localRev = res.rev; fbBaseWid = res.wid; fbBaseJSON = res.next; fbMeta = res.meta || {};
+    setSyncState('synced');
+    if (apply) { try { res.live = apply(res.plan); } catch (e) { try { console.error(e); } catch (x) {} } }
   }
   fbWriteInFlight = false;
   if (res && res.tooBig) toast('Your data has reached Firestore’s 1 MB per-record limit, so this couldn’t be saved. Remove some certificate photos or old notes.', true);
-  if (fbWriteAgain) { fbWriteAgain = false; fbWriteNow(); }   /* S already has the change (apply) */
+  fbWriteAgain = false;
+  if (shDirty()) fbQueueWrite(300);   /* edits made meanwhile, or the live copy of the change */
+  if (fbRemotePending) { fbRemotePending = false; fbCheckRemote(); }
   return res || { skip: true };
 }
 
@@ -3734,7 +3740,8 @@ async function quizClaim(code) {
       if (!ans.exists) return null;   /* already imported by another open copy of Staff Hub */
       const inv = await tx.get(invRef);
       const data = ans.data(), sid = inv.exists ? ((inv.data() || {}).sid || null) : null;
-      const got = quizApplyTo(copy, code, sid, data);   /* null: that person is gone, so the answers are just dropped */
+      const got = quizApplyTo(copy, code, sid, data);
+      if (!got) return null;   /* no one in this record to put them on: leave them waiting (a lost card can come back) */
       return { data: data, sid: sid, got: got, write: w => { w.delete(ansRef); if (inv.exists) w.delete(invRef); } };
     }, pl => quizApplyTo(S, code, pl.sid, pl.data));
   } finally { quizClaiming.delete(code); }
@@ -3831,7 +3838,9 @@ function fbInit() {
   if (!firebase.apps || !firebase.apps.length) firebase.initializeApp(FB_CONFIG);
   fbAuth = firebase.auth();
   fbDB = firebase.firestore();
-  try { fbDB.enablePersistence({ synchronizeTabs: true }).catch(function () {}); } catch (e) {}
+  /* No offline persistence (Oct 2026): it queued saves that could go out days later and overwrite newer work.
+     Saves are transactions now, and the old offline cache is left untouched so a newer copy in it can be
+     recovered at unlock (see SAFE SYNC). */
   try { if (firebase.auth.Auth) fbAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL); } catch (e) {}
   return true;
 }
@@ -3866,77 +3875,682 @@ function renderSyncStatus() {
 }
 H.syncClick = function () { go('settings'); setTimeout(function () { var c = $('#acctCard'); if (c) c.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 60); };
 
-/* ---------- load state from a Firestore doc payload ---------- */
+/* =====================================================
+   SAFE SYNC (Oct 2026)
+   What went wrong on Oct 4: a save made on Oct 1 sat unsent in an office browser (Firestore's offline
+   queue) and, when Staff Hub was opened there again, replaced three days of newer work. Saves used to be
+   blind "set the whole record" writes, so any late or out-of-date save simply won.
+   Now:
+   - Every save of the record is a Firestore transaction, so nothing is ever queued to go out later. It
+     writes the very next version number (the security rules refuse anything else) and, when another
+     device saved in the meantime, merges both sets of changes (shMerge) instead of overwriting either.
+   - Nothing saves blindly when a page closes. Unsaved changes wait, encrypted, in this browser (the
+     "draft") and are merged in on the next unlock.
+   - A copy of the record is kept for every 15 minutes of work under staffhub/{uid}/versions, plus one
+     before any restore or recovery; Settings > Earlier versions brings any of them back.
+   - On unlock, a newer copy left in this browser by an older Staff Hub (its offline cache) is found and
+     offered back, merged with whatever the server has.
+   ===================================================== */
+const SH_V = 2;
+const SH_BUILD = 'Updated Oct 4, 2026 · safe saving';
+let fbBaseJSON = null;      /* the record as last confirmed on the server (JSON), what local edits are measured against */
+let fbBaseWid = null;       /* id of that save */
+let fbMeta = {};            /* rf: newest pre-fix copy merged in; lb: version id of the pre-fix record */
+let fbLastDoc = null;       /* the record's metadata as loaded at unlock */
+let fbRemotePending = false, fbRetryTimer = null, fbSnapErrTimer = null, fbApplying = 0;
+let shDraftTimer = null, shOffer = null, shDraftMerged = null;
+
+/* ---- comparing and merging records ---- */
+function shStab(x) {   /* JSON with sorted keys, so equal data compares equal however it was built */
+  if (x === undefined || typeof x === 'function') return undefined;
+  if (x === null || typeof x !== 'object') return JSON.stringify(x);
+  if (Array.isArray(x)) return '[' + x.map(v => { const s = shStab(v); return s === undefined ? 'null' : s; }).join(',') + ']';
+  return '{' + Object.keys(x).sort().filter(k => x[k] !== undefined && typeof x[k] !== 'function').map(k => JSON.stringify(k) + ':' + shStab(x[k])).join(',') + '}';
+}
+const shEq = (a, b) => shStab(a) === shStab(b);
+const shClone = x => x === undefined ? undefined : JSON.parse(JSON.stringify(x));
+const shIsObj = x => !!x && typeof x === 'object' && !Array.isArray(x);
+const shIdArr = a => Array.isArray(a) && a.every(x => shIsObj(x) && typeof x.id === 'string' && x.id !== '');
+const shUniqStrs = a => Array.isArray(a) && a.every(x => typeof x === 'string') && new Set(a).size === a.length;
+
+/* Three-way merge: what changed from base to local, plus what changed from base to remote.
+   Records in lists are matched by id; a record changed on one side and removed on the other is kept;
+   a value changed differently on both sides takes `preferLocal`'s side.
+   keep (used when bringing back a device copy): nothing the remote side has is ever removed, because the
+   base may not be the device copy's true ancestor, so "missing from the copy" can't be read as "deleted". */
+function shMerge(base, local, remote, preferLocal, path, keep) {
+  if (shEq(local, remote)) return shClone(local);
+  if (base !== undefined && shEq(base, local)) return shClone(remote);
+  if (base !== undefined && shEq(base, remote) && !(keep && (shIsObj(local) || Array.isArray(local)))) return shClone(local);
+  if (path === 'activity' && Array.isArray(local) && Array.isArray(remote)) return shMergeLog(local, remote);
+  if (shIsObj(local) && shIsObj(remote)) {
+    const b = shIsObj(base) ? base : {}, out = {};
+    Object.keys(remote).concat(Object.keys(local).filter(k => !(k in remote))).forEach(k => {
+      const inL = local[k] !== undefined, inR = remote[k] !== undefined, inB = b[k] !== undefined, sub = path ? path + '.' + k : k;
+      let v;
+      if (inL && inR) v = shMerge(inB ? b[k] : undefined, local[k], remote[k], preferLocal, sub, keep);
+      else if (inL) v = (inB && shEq(b[k], local[k])) ? undefined : shClone(local[k]);    /* removed there, untouched here: stays removed */
+      else if (inR) v = (inB && shEq(b[k], remote[k]) && !keep) ? undefined : shClone(remote[k]);
+      if (v !== undefined) out[k] = v;
+    });
+    return out;
+  }
+  if (Array.isArray(local) && Array.isArray(remote)) {
+    const b = Array.isArray(base) ? base : [];
+    if (shIdArr(local) && shIdArr(remote) && shIdArr(b)) return shMergeIds(b, local, remote, preferLocal, path, keep);
+    if (shUniqStrs(local) && shUniqStrs(remote) && shUniqStrs(b)) return shMergeSet(b, local, remote, keep);
+  }
+  return shClone(preferLocal ? local : remote);
+}
+function shMergeIds(b, local, remote, preferLocal, path, keep) {
+  const bm = new Map(b.map(x => [x.id, x])), lm = new Map(local.map(x => [x.id, x])), out = [], seen = new Set();
+  remote.forEach(r => {
+    if (seen.has(r.id)) return; seen.add(r.id);
+    const l = lm.get(r.id), o = bm.get(r.id);
+    if (l) out.push(shMerge(o, l, r, preferLocal, path + '[]', keep));
+    else if (keep || !o || !shEq(o, r)) out.push(shClone(r));   /* new there, or changed there after we removed it: keep */
+  });
+  local.forEach(l => {
+    if (seen.has(l.id)) return; seen.add(l.id);
+    const o = bm.get(l.id);
+    if (!o || !shEq(o, l)) out.push(shClone(l));         /* new here, or changed here after they removed it: keep */
+  });
+  return out;
+}
+function shMergeSet(b, local, remote, keep) {
+  const bs = new Set(b), ls = new Set(local), out = [], seen = new Set();
+  remote.forEach(x => { if (seen.has(x) || (!keep && bs.has(x) && !ls.has(x))) return; seen.add(x); out.push(x); });
+  local.forEach(x => { if (seen.has(x) || bs.has(x)) return; seen.add(x); out.push(x); });
+  return out;
+}
+function shMergeLog(local, remote) {
+  const seen = new Set(), out = [];
+  remote.concat(local).forEach(x => { if (!shIsObj(x)) return; const k = x.ts + '|' + x.text; if (seen.has(k)) return; seen.add(k); out.push(shClone(x)); });
+  out.sort((a, b) => (b.ts || 0) - (a.ts || 0));
+  return out.slice(0, 200);
+}
+/* Make record t equal to s, reusing t's objects where the same records (ids) or keys are still there, so an
+   open dialog that holds a record keeps editing the live one after a merge. */
+function shPatchInto(t, s) {
+  if (Array.isArray(t) && Array.isArray(s)) {
+    if (shIdArr(t) && shIdArr(s)) {
+      const byId = new Map(t.map(x => [x.id, x]));
+      const out = s.map(x => { const o = byId.get(x.id); return o ? shPatchInto(o, x) : shClone(x); });
+      t.length = 0; out.forEach(x => t.push(x)); return t;
+    }
+    t.length = 0; s.forEach(x => t.push(shClone(x))); return t;
+  }
+  if (shIsObj(t) && shIsObj(s)) {
+    Object.keys(t).forEach(k => { if (s[k] === undefined) delete t[k]; });
+    Object.keys(s).forEach(k => {
+      const a = t[k], b = s[k];
+      if (b === undefined) return;
+      if ((shIsObj(a) && shIsObj(b)) || (Array.isArray(a) && Array.isArray(b))) shPatchInto(a, b); else t[k] = shClone(b);
+    });
+    return t;
+  }
+  return shClone(s);
+}
+function shAdopt(next) { if (shIsObj(S) && shIsObj(next)) shPatchInto(S, next); else S = next; }
+const shJ = x => shStab(x);   /* snapshots are compared in this canonical form (key order doesn't matter) */
+function shNorm(data) {
+  const st = Object.assign(defaultState(), shIsObj(data) ? data : {});
+  st.settings = Object.assign(defaultState().settings, (shIsObj(data) && shIsObj(data.settings)) ? data.settings : {});
+  return st;
+}
+
+/* ---- saves: ids, payloads, versions ---- */
+function shNewWid() { return Date.now().toString(36) + '-' + Array.from(crypto.getRandomValues(new Uint8Array(6)), b => b.toString(16).padStart(2, '0')).join(''); }
+const shWidOf = d => !d ? null : (d.wid || ('r' + (d.rev || 0) + '-' + (d.updatedAt || 0)));
+const SH_DEV = (() => {
+  let id = '';
+  try { id = localStorage.getItem('nlo-sh-dev') || ''; if (!id) { id = shNewWid(); localStorage.setItem('nlo-sh-dev', id); } } catch (e) { id = 'x' + shNewWid(); }
+  const ua = (typeof navigator !== 'undefined' && navigator.userAgent) || '';
+  const os = /iPhone/.test(ua) ? 'iPhone' : /iPad/.test(ua) ? 'iPad' : /Android/.test(ua) ? 'Android' : /Macintosh/.test(ua) ? (((navigator.maxTouchPoints || 0) > 1) ? 'iPad' : 'Mac') : /Windows/.test(ua) ? 'Windows PC' : 'Computer';
+  const br = /Edg\//.test(ua) ? 'Edge' : /CriOS|Chrome\//.test(ua) ? 'Chrome' : /FxiOS|Firefox\//.test(ua) ? 'Firefox' : /Safari\//.test(ua) ? 'Safari' : 'browser';
+  return { id: id.slice(0, 40), label: os + ' · ' + br };
+})();
+function shMetaOf(d) {
+  if (!d) return {};
+  if (d.v === SH_V) { const m = {}; if (typeof d.rf === 'number') m.rf = d.rf; if (typeof d.lb === 'string') m.lb = d.lb; return m; }
+  return { rf: d.updatedAt || 0 };   /* a record from before this fix: everything in it dates from its own save */
+}
+async function shPayload(stateObj, key, salt, rev, wid, meta) {
+  const p = { app: 'nlo-staff-hub', v: SH_V, kdf: { alg: 'PBKDF2-SHA256', iter: KDF_ITER, salt: b64(salt) }, data: await encryptJSON(stateObj, key), rev: rev, updatedAt: Date.now(), wid: wid, dev: SH_DEV.label, devId: SH_DEV.id };
+  if (meta && typeof meta.rf === 'number') p.rf = meta.rf;
+  if (meta && typeof meta.lb === 'string') p.lb = meta.lb;
+  return p;
+}
+const shTooBig = p => JSON.stringify(p).length > 1000000;   /* Firestore caps a document at 1,048,576 bytes */
+function shVerFields(d) {
+  const o = { app: d.app || 'nlo-staff-hub', v: d.v || 1, kdf: d.kdf, data: d.data, rev: d.rev || 0, updatedAt: d.updatedAt || 0, wid: shWidOf(d), dev: d.dev || '' };
+  if (typeof d.rf === 'number') o.rf = d.rf;
+  if (typeof d.lb === 'string') o.lb = d.lb;
+  return o;
+}
+function shVerId(kind) {   /* ids sort by time: 2026-10-04T20-15-00Z (a 15-minute slot) or 2026-10-04T20-17-33Z-before-recovery */
+  const d = new Date();
+  if (kind === 'slot') { d.setUTCMinutes(Math.floor(d.getUTCMinutes() / 15) * 15, 0, 0); return d.toISOString().slice(0, 19).replace(/:/g, '-') + 'Z'; }
+  return d.toISOString().slice(0, 19).replace(/:/g, '-') + 'Z-' + kind;
+}
+const shVerCol = () => fbDB.collection(FB_COLLECTION).doc(fbUser.uid).collection('versions');
+const shVer = (fields, why) => Object.assign({}, fields, { why: why, at: Date.now() });   /* at: when the copy was taken (the list is sorted by it) */
+/* a record from before this fix: keep it as a version (the base later recoveries merge against) and note it */
+function shUpgradeIn(tx, d, meta) {
+  if (!d || d.v === SH_V) return meta;
+  const lid = shVerId('legacy');
+  tx.set(shVerCol().doc(lid), shVer(shVerFields(d), 'legacy'));
+  return Object.assign({}, meta, { rf: Math.max((meta && meta.rf) || 0, d.updatedAt || 0), lb: lid });
+}
+async function shDecryptDoc(d, key, salt) {
+  if (!d || !d.data || !d.kdf || d.kdf.salt !== b64(salt)) throw { shKey: true };
+  try { return await decryptJSON(d.data, key); } catch (e) { throw { shKey: true }; }
+}
+const shDirty = () => !!S && fbBaseJSON !== null && shJ(S) !== fbBaseJSON;
+
+/* ---- load state from a Firestore doc payload ---- */
 async function fbLoadFromDoc(d, pw) {
   var salt = unb64(d.kdf.salt);
   var key = await deriveKey(pw, salt, d.kdf.iter || KDF_ITER);
   var data = await decryptJSON(d.data, key);   // throws if password wrong
-  S = Object.assign(defaultState(), data);
-  S.settings = Object.assign(defaultState().settings, data.settings || {});
+  S = shNorm(data);
   cryptoKey = key; keySalt = salt;
+  fbBaseJSON = shJ(S); fbBaseWid = shWidOf(d); fbMeta = shMetaOf(d);
+  fbLastDoc = { v: d.v, rev: d.rev || 0, updatedAt: d.updatedAt || 0, kdf: d.kdf, lb: d.lb, rf: d.rf, wid: shWidOf(d), iv: d.data && d.data.iv };
   localRev = d.rev || 0; lastAppliedRev = d.rev || 0;
 }
+/* a record that doesn't exist yet: start fresh (saved as version 1) */
+function shFresh() { S = defaultState(); fbBaseJSON = null; fbBaseWid = null; fbMeta = {}; fbLastDoc = null; localRev = 0; lastAppliedRev = 0; }
+function shReset() {
+  clearTimeout(fbWriteTimer); fbWriteTimer = null; clearTimeout(fbRetryTimer); fbRetryTimer = null; clearTimeout(fbSnapErrTimer); fbSnapErrTimer = null;
+  clearTimeout(shDraftTimer); shDraftTimer = null; shRekeyOpen = false;
+  fbBaseJSON = null; fbBaseWid = null; fbMeta = {}; fbLastDoc = null; fbRemotePending = false; fbWriteAgain = false; fbApplying++; shOffer = null; shDraftMerged = null;
+}
 
-/* ---------- write (debounced) ---------- */
-function fbQueueWrite() {
+/* ---- write (debounced) ---- */
+function fbQueueWrite(ms) {
   if (!fbUser || !cryptoKey || !S) return;
+  if (!shDirty() && fbBaseJSON !== null) { if (!fbWriteInFlight) setSyncState('synced'); return; }
   setSyncState('saving');
+  shDraftSoon();
   clearTimeout(fbWriteTimer);
-  fbWriteTimer = setTimeout(fbWriteNow, 1200);
+  fbWriteTimer = setTimeout(fbWriteNow, ms == null ? 900 : ms);
 }
-async function fbWriteNow() {
-  if (!fbUser || !cryptoKey || !keySalt || !S || !fbDocRef) return;
-  if (fbWriteInFlight) { fbWriteAgain = true; return; }
-  fbWriteInFlight = true;
+function fbRetrySoon(ms) { clearTimeout(fbRetryTimer); fbRetryTimer = setTimeout(() => { if (S && shDirty()) fbWriteNow(); }, ms); }
+function fbWriteNow() { return shSave(); }
+/* a request that never answers must not leave saving stuck; if it lands later, the next save merges it in */
+let shTxGen = 0;   /* bumped when a transaction is given up on: if Firestore retries it later, the retry writes nothing */
+function shTimeout(p, ms) { let t; return Promise.race([p, new Promise((_, rej) => { t = setTimeout(() => { shTxGen++; rej({ code: 'deadline-exceeded', message: 'timed out' }); }, ms); })]).finally(() => clearTimeout(t)); }
+/* restores and the password change must not be turned into a plain save by one already in flight */
+async function shSaveWhenFree(opts) { for (let i = 0; i < 200 && fbWriteInFlight; i++) await new Promise(r => setTimeout(r, 150)); return shSave(opts); }
+/* Save S as the next version, in one transaction. If another device saved since our base, their changes
+   and ours are merged. opts: force (write S as it is, no merge: restores), always (write even with no
+   changes: password change), before (also keep the record being replaced as a version, with this label),
+   why (label for the 15-minute version), readKey/readSalt (decrypt the server copy with these). */
+async function shSave(opts) {
+  opts = opts || {};
+  if (!fbUser || !cryptoKey || !keySalt || !S || !fbDocRef || !fbDB) return { skip: true };
+  if (fbWriteInFlight) { fbWriteAgain = true; return { busy: true }; }
+  clearTimeout(fbWriteTimer); fbWriteTimer = null;
+  const key = cryptoKey, salt = keySalt, docRef = fbDocRef, rKey = opts.readKey || key, rSalt = opts.readSalt || salt;
+  const localJSON = shJ(S), baseJSON = fbBaseJSON, baseWid = fbBaseWid;
+  if (!opts.force && !opts.always && baseJSON !== null && localJSON === baseJSON) { setSyncState('synced'); shDraftClear(); return { noop: true }; }
+  fbWriteInFlight = true; setSyncState('saving');
+  const gen = shTxGen;
+  let res;
   try {
-    var saltNow = keySalt;   /* taken before the await: an idle lock during encryption clears keySalt */
-    var data = await encryptJSON(S, cryptoKey);
-    localRev = (localRev || 0) + 1; lastAppliedRev = localRev;
-    var payload = { app: 'nlo-staff-hub', v: 1, kdf: { alg: 'PBKDF2-SHA256', iter: KDF_ITER, salt: b64(saltNow) }, data: data, rev: localRev, updatedAt: Date.now() };
-    var payloadBytes = JSON.stringify(payload).length;
-    if (payloadBytes > 1000000) {   // Firestore hard-caps a document at 1,048,576 bytes
-      setSyncState('error');
-      if (typeof toast === 'function') toast('Your data has reached Firestore\u2019s 1 MB per-record limit (' + Math.round(payloadBytes / 1024) + ' KB) and did NOT save. Remove some certificate photos or old notes.', true);
-      fbWriteInFlight = false;
-      return;
-    }
-    await fbDocRef.set(payload);
-    setSyncState('synced');
-  } catch (e) {
-    setSyncState((typeof navigator !== 'undefined' && navigator.onLine === false) ? 'offline' : 'error');
-  }
+    res = await shTimeout(fbDB.runTransaction(async tx => {
+      if (gen !== shTxGen) return { stale: true };
+      const cur = await tx.get(docRef);
+      const d = cur.exists ? cur.data() : null;
+      let next = localJSON, merged = false;
+      if (d && d.data && !opts.force && shWidOf(d) !== baseWid) {
+        if (baseJSON === null) return { stale: true };   /* a record appeared that we never loaded: don't guess */
+        const theirs = shNorm(await shDecryptDoc(d, rKey, rSalt));
+        next = shJ(shNorm(shMerge(JSON.parse(baseJSON), JSON.parse(localJSON), theirs, true, '')));
+        merged = true;
+        if (!opts.always && next === shJ(theirs)) return { adopt: true, rev: d.rev || 0, wid: shWidOf(d), next: next, meta: shMetaOf(d) };
+      }
+      const meta = shUpgradeIn(tx, d, shMetaOf(d));
+      const rev = (d ? (d.rev || 0) : 0) + 1, wid = shNewWid();
+      const payload = await shPayload(JSON.parse(next), key, salt, rev, wid, meta);
+      if (shTooBig(payload)) return { tooBig: true };
+      if (gen !== shTxGen) return { stale: true };
+      if (opts.before && d && d.data) tx.set(shVerCol().doc(shVerId(opts.before)), shVer(shVerFields(d), opts.before));
+      tx.set(docRef, payload);
+      tx.set(shVerCol().doc(shVerId('slot')), shVer(payload, opts.why || 'save'));
+      return { ok: true, rev, wid, next, merged, meta };
+    }), 25000);
+  } catch (e) { res = { err: e }; }
   fbWriteInFlight = false;
-  if (fbWriteAgain) { fbWriteAgain = false; fbQueueWrite(); }
+  if (!S || cryptoKey !== key) {   /* locked or re-keyed while saving */
+    if (res && (res.ok || res.adopt)) shDraftRebase(key, salt, res.next, res.wid);   /* what just landed is no longer "unsaved" */
+    if (S) { fbWriteAgain = false; if (shDirty()) fbQueueWrite(300); if (fbRemotePending) { fbRemotePending = false; fbCheckRemote(); } }
+    return res;
+  }
+  if (res.ok || res.adopt) {
+    lastAppliedRev = localRev = res.rev; fbBaseWid = res.wid; fbBaseJSON = res.next; fbMeta = res.meta || {};
+    if (res.merged || res.adopt) {
+      const nowJSON = shJ(S);
+      shAdopt(shNorm(nowJSON === localJSON ? JSON.parse(res.next) : shMerge(JSON.parse(localJSON), JSON.parse(nowJSON), JSON.parse(res.next), true, '')));
+      shAfterReplace();
+    }
+    if (shDirty()) fbQueueWrite(300); else { setSyncState('synced'); shDraftClear(); }
+    if (res.ok && opts.force) {   /* a restore can bring back a card that answers are waiting for */
+      if (typeof appRescan === 'function') appRescan();
+      if (typeof quizRescan === 'function') quizRescan();
+    }
+  } else if (res.noop) setSyncState('synced');
+  else if (res.stale) { setSyncState('error'); fbCheckRemote(); }
+  else if (res.tooBig) { setSyncState('error'); toast('Your data has reached Firestore’s 1 MB per-record limit, so this couldn’t be saved. Remove some certificate photos or old notes.', true); }
+  else if (res.err) {
+    const e = res.err;
+    if (e && e.shKey) { shRekeyPrompt(); return res; }
+    const msg = String((e && (e.code || e.message)) || '');
+    const offline = (typeof navigator !== 'undefined' && navigator.onLine === false) || /unavailable|offline|network/i.test(msg);
+    setSyncState(offline ? 'offline' : 'error');
+    if (/permission/i.test(msg)) toast('This change couldn’t be saved: the server refused it. Reload Staff Hub to get the latest version, then try again.', true);
+    fbRetrySoon(offline ? 15000 : 8000);
+  }
+  if (fbWriteAgain) { fbWriteAgain = false; if (shDirty()) fbQueueWrite(300); }
+  if (fbRemotePending) { fbRemotePending = false; fbCheckRemote(); }
+  return res;
 }
 
-/* ---------- real-time listener ---------- */
+/* ---- real-time listener ---- */
 function fbStartSnapshot() {
   if (!fbDocRef) return;
   if (fbUnsub) { fbUnsub(); fbUnsub = null; }
-  fbUnsub = fbDocRef.onSnapshot({ includeMetadataChanges: true }, function (snap) {
-    if (snap.metadata && snap.metadata.hasPendingWrites) return;   // our own write echoing back
-    var d = snap.data(); if (!d || !d.data) return;
-    if ((d.rev || 0) <= lastAppliedRev) {
-      // A cached snapshot fires first on every load; only call it "offline" if the
-      // browser is genuinely offline. Otherwise we're connected/synced.
-      var fromCache = snap.metadata && snap.metadata.fromCache;
-      setSyncState((fromCache && typeof navigator !== 'undefined' && navigator.onLine === false) ? 'offline' : 'synced');
-      return;
-    }
-    // remote change from another device → decrypt and apply
-    decryptJSON(d.data, cryptoKey).then(function (data) {
-      var openId = route.staffId;
-      S = Object.assign(defaultState(), data);
-      S.settings = Object.assign(defaultState().settings, data.settings || {});
-      localRev = d.rev || 0; lastAppliedRev = d.rev || 0;
-      if (route.page === 'staffDetail' && openId && !staffById(openId)) route.page = 'staff';
-      render(); renderSyncStatus();
-      setSyncState('synced');
-      if (typeof quizRescan === 'function') quizRescan();
-      if (typeof appRescan === 'function') appRescan();
-    }).catch(function () {});
-  }, function () { setSyncState('error'); });
+  clearTimeout(fbSnapErrTimer);
+  const ref = fbDocRef;
+  fbUnsub = ref.onSnapshot(function (snap) {
+    if (snap.metadata && snap.metadata.hasPendingWrites) return;
+    fbOnDoc(snap.data());
+  }, function () {
+    /* a listener that errors stops for good: start a new one shortly (an old version kept going without it) */
+    setSyncState('error'); fbUnsub = null;
+    fbSnapErrTimer = setTimeout(function () { if (S && fbDocRef === ref) { fbStartSnapshot(); fbCheckRemote(); } }, 10000);
+  });
 }
+async function fbCheckRemote() {
+  if (!fbDocRef || !S) return;
+  try { const s = await fbDocRef.get(); fbOnDoc(s.data()); } catch (e) {}
+}
+/* another device saved: take their record, merged with any edits made here that aren't saved yet */
+function fbOnDoc(d) {
+  if (!d || !d.data || !S || !cryptoKey) return;
+  const wid = shWidOf(d);
+  if (wid === fbBaseWid) { if (!fbWriteInFlight && !shDirty()) setSyncState('synced'); return; }
+  if ((d.rev || 0) < lastAppliedRev) return;   /* an older copy arriving late */
+  if (fbWriteInFlight) { fbRemotePending = true; return; }
+  const key = cryptoKey, salt = keySalt, token = ++fbApplying;
+  shDecryptDoc(d, key, salt).then(raw => {
+    if (token !== fbApplying || !S || cryptoKey !== key) return;
+    if (shWidOf(d) === fbBaseWid || (d.rev || 0) < lastAppliedRev) return;
+    if (fbWriteInFlight) { fbRemotePending = true; return; }
+    const theirs = shNorm(raw), dirty = shDirty();
+    shAdopt(dirty ? shNorm(shMerge(JSON.parse(fbBaseJSON), JSON.parse(JSON.stringify(S)), theirs, true, '')) : theirs);
+    fbBaseJSON = shJ(theirs); fbBaseWid = wid; lastAppliedRev = localRev = d.rev || 0; fbMeta = shMetaOf(d);
+    shAfterReplace();
+    if (shDirty()) fbQueueWrite(300); else setSyncState('synced');
+  }).catch(e => { if (e && e.shKey && S && cryptoKey === key) shRekeyPrompt(); });
+}
+/* the password was changed on another device: ask for the new one and keep this device's unsaved edits */
+let shRekeyOpen = false;
+function shRekeyPrompt() {
+  if (shRekeyOpen && !document.querySelector('[data-shrekey]')) shRekeyOpen = false;   /* its dialog was replaced by another */
+  if (shRekeyOpen || !S || !fbDocRef) return;
+  shRekeyOpen = true;
+  openModal(`<div class="mh" data-shrekey="1"><h3>Your password was changed on another device</h3></div>
+  <div class="mb"><p class="muted" style="font-size:13.5px;margin-bottom:12px">Enter your new Staff Hub password to keep going. Anything you changed here is kept.</p>
+    <div class="lockErr" id="rkErr"></div>
+    <div class="field"><label>New password</label><div class="pwRow"><input type="password" id="rkPw" autocomplete="current-password"><button class="peek" data-peek="rkPw" type="button">show</button></div></div></div>
+  <div class="mf"><button class="btn btn-sec" id="rkLock" type="button">${shDirty() ? 'Lock and drop the changes made here' : 'Lock'}</button><button class="btn btn-pri" id="rkGo" type="button">Continue</button></div>`);
+  const err = m => { const e = $('#rkErr'); if (e) { e.textContent = m; e.style.display = 'block'; } };
+  $('#rkLock').onclick = () => { shRekeyOpen = false; closeModal(); lockNow('Locked. Unlock with your new password.'); };
+  $('#rkGo').onclick = async () => {
+    const pw = ($('#rkPw') || {}).value || ''; if (!pw || !S || !fbDocRef) return;
+    const btn = $('#rkGo'); btn.disabled = true; btn.textContent = 'Checking…';
+    try {
+      const d = (await fbDocRef.get()).data();
+      const salt = unb64(d.kdf.salt), key = await deriveKey(pw, salt, d.kdf.iter || KDF_ITER);
+      let theirs;
+      try { theirs = shNorm(await decryptJSON(d.data, key)); } catch (e) { err('That password didn’t work. Try again.'); btn.disabled = false; btn.textContent = 'Continue'; return; }
+      if (!S) return;
+      const dirty = shDirty();
+      shAdopt(dirty ? shNorm(shMerge(JSON.parse(fbBaseJSON), JSON.parse(JSON.stringify(S)), theirs, true, '')) : theirs);
+      cryptoKey = key; keySalt = salt;
+      fbBaseJSON = shJ(theirs); fbBaseWid = shWidOf(d); lastAppliedRev = localRev = d.rev || 0; fbMeta = shMetaOf(d);
+      shRekeyOpen = false; closeModal();
+      shAfterReplace();
+      if (shDirty()) fbQueueWrite(200); else setSyncState('synced');
+      toast('Unlocked with your new password');
+    } catch (e) { err('Couldn’t reach the server. Check your connection and try again.'); btn.disabled = false; btn.textContent = 'Continue'; }
+  };
+  setTimeout(() => { const i = $('#rkPw'); if (i) i.focus(); }, 60);
+}
+let shRenderLater = false;
+function shAfterReplace() {
+  const openId = route.staffId;
+  if (route.page === 'staffDetail' && openId && !staffById(openId)) route.page = 'staff';
+  const a = document.activeElement;
+  if (a && a.closest && a.closest('#main') && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) {
+    /* someone is typing on the page: redraw once they leave the field */
+    if (!shRenderLater) { shRenderLater = true; a.addEventListener('blur', () => setTimeout(() => { shRenderLater = false; if (S) { try { render(); } catch (e) {} } }, 250), { once: true }); }
+  } else { try { render(); } catch (e) { try { console.error(e); } catch (x) {} } }
+  renderSyncStatus();
+  if (typeof quizRescan === 'function') quizRescan();
+  if (typeof appRescan === 'function') appRescan();
+}
+
+/* ---- the draft: edits not yet on the server wait here, encrypted, and are merged in on the next unlock ---- */
+const shDraftKey = () => fbUser ? 'nlo-sh-draft-' + fbUser.uid : null;
+function shDraftSoon() { clearTimeout(shDraftTimer); shDraftTimer = setTimeout(shDraftWrite, 400); }
+async function shDraftWrite() {
+  const k = shDraftKey(), key = cryptoKey, salt = keySalt, baseJSON = fbBaseJSON, wid = fbBaseWid;
+  if (!k || !S || !key || !salt || baseJSON === null) return;
+  const localJSON = shJ(S);
+  if (localJSON === baseJSON) { shDraftClear(); return; }
+  try {
+    const base = await encryptJSON(JSON.parse(baseJSON), key), local = await encryptJSON(JSON.parse(localJSON), key);
+    localStorage.setItem(k, JSON.stringify({ v: 1, at: Date.now(), salt: b64(salt), baseWid: wid, base, local }));
+  } catch (e) {}
+}
+/* a save that started before a lock landed after it: rebase the draft on what landed (or drop it if that was everything) */
+async function shDraftRebase(key, salt, nextJSON, wid) {
+  const k = shDraftKey(); if (!k || !key || !salt || !nextJSON) return;
+  let rec = null; try { rec = JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { rec = null; }
+  if (!rec || rec.v !== 1 || rec.salt !== b64(salt)) return;
+  try {
+    const local = shNorm(await decryptJSON(rec.local, key));
+    if (shJ(local) === nextJSON) { localStorage.removeItem(k); return; }
+    rec.base = await encryptJSON(JSON.parse(nextJSON), key); rec.baseWid = wid;
+    localStorage.setItem(k, JSON.stringify(rec));
+  } catch (e) {}
+}
+function shDraftClear() { clearTimeout(shDraftTimer); const k = shDraftKey(); if (k) { try { localStorage.removeItem(k); } catch (e) {} } }
+async function shDraftTake() {
+  const k = shDraftKey(); if (!k || !cryptoKey || !keySalt) return null;
+  let rec = null; try { rec = JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { rec = null; }
+  if (!rec || rec.v !== 1 || rec.salt !== b64(keySalt)) return null;   /* made under another password: leave it be */
+  try { return { at: rec.at || 0, base: shNorm(await decryptJSON(rec.base, cryptoKey)), local: shNorm(await decryptJSON(rec.local, cryptoKey)) }; } catch (e) { return null; }
+}
+
+/* ---- a newer copy left in this browser by Staff Hub from before the fix (its Firestore offline cache) ---- */
+function shIdbVal(v) {
+  if (!v || typeof v !== 'object') return v;
+  if ('stringValue' in v) return v.stringValue;
+  if ('integerValue' in v) return Number(v.integerValue);
+  if ('doubleValue' in v) return Number(v.doubleValue);
+  if ('booleanValue' in v) return !!v.booleanValue;
+  if ('nullValue' in v) return null;
+  if ('timestampValue' in v) { const t = v.timestampValue; return typeof t === 'string' ? Date.parse(t) : (t && t.seconds != null ? Number(t.seconds) * 1000 : null); }
+  if ('mapValue' in v) { const o = {}, f = (v.mapValue && v.mapValue.fields) || {}; Object.keys(f).forEach(k => { o[k] = shIdbVal(f[k]); }); return o; }
+  if ('arrayValue' in v) return (((v.arrayValue || {}).values) || []).map(shIdbVal);
+  return undefined;
+}
+function shIdbFields(f) { const o = {}; Object.keys(f || {}).forEach(k => { o[k] = shIdbVal(f[k]); }); return o; }
+/* Read-only look into the old cache: the copy it last had from the server ("saved"), and any save that
+   never went out ("unsent"). Never creates or changes the database. */
+function shFindLocalCopies(uid) {
+  return new Promise(resolve => {
+    let done = false;
+    const finish = v => { if (!done) { done = true; resolve(v); } };
+    setTimeout(() => finish([]), 5000);
+    if (typeof indexedDB === 'undefined' || !uid) { finish([]); return; }
+    let req;
+    try { req = indexedDB.open('firestore/[DEFAULT]/' + FB_CONFIG.projectId + '/main'); } catch (e) { finish([]); return; }
+    req.onupgradeneeded = () => { try { req.transaction.abort(); } catch (e) {} };   /* it didn't exist: don't create it */
+    req.onerror = () => finish([]);
+    req.onblocked = () => finish([]);
+    req.onsuccess = () => {
+      const db = req.result, out = [], tail = '/documents/' + FB_COLLECTION + '/' + uid;
+      const names = Array.from(db.objectStoreNames);
+      const stores = names.filter(n => /^remoteDocuments/.test(n) && !/Global|Changes/.test(n)).concat(names.indexOf('mutations') >= 0 ? ['mutations'] : []);
+      if (!stores.length) { db.close(); finish([]); return; }
+      let tx;
+      try { tx = db.transaction(stores, 'readonly'); } catch (e) { db.close(); finish([]); return; }
+      stores.forEach(st => {
+        const r = tx.objectStore(st).getAll();
+        r.onsuccess = () => (r.result || []).forEach(row => {
+          try {
+            if (st === 'mutations') {
+              if (!row || (row.userId && row.userId !== uid)) return;
+              (row.mutations || []).forEach(m => { const u = m && m.update; if (u && typeof u.name === 'string' && u.name.endsWith(tail)) out.push({ src: 'unsent', p: shIdbFields(u.fields) }); });
+            } else {
+              const docu = row && row.document;
+              if (docu && typeof docu.name === 'string' && docu.name.endsWith(tail)) out.push({ src: 'saved', p: shIdbFields(docu.fields) });
+            }
+          } catch (e) {}
+        });
+      });
+      const close = () => { try { db.close(); } catch (e) {} finish(out.filter(x => x.p && x.p.data && x.p.data.ct && x.p.data.iv && x.p.kdf && x.p.kdf.salt)); };
+      tx.oncomplete = close; tx.onerror = close; tx.onabort = close;
+    };
+  });
+}
+const shCopyTag = p => (p.updatedAt || 0) + ':' + (p.rev || 0) + ':' + ((p.data && p.data.iv) || p.iv || '');
+function shHandled() { try { return JSON.parse(localStorage.getItem('nlo-sh-recov-' + fbUser.uid) || '[]'); } catch (e) { return []; } }
+function shHandledAdd(tag) { try { const l = shHandled(); if (l.indexOf(tag) < 0) l.push(tag); localStorage.setItem('nlo-sh-recov-' + fbUser.uid, JSON.stringify(l.slice(-50))); } catch (e) {} }
+async function shKeyFor(kdf, pw) {
+  if (kdf && kdf.salt === b64(keySalt)) return cryptoKey;
+  if (!pw || !kdf || !kdf.salt) return null;
+  return deriveKey(pw, unb64(kdf.salt), kdf.iter || KDF_ITER);
+}
+async function shLoadVersion(id, pw) {
+  try {
+    const s = await shVerCol().doc(id).get();
+    const v = s.exists ? s.data() : null;
+    if (!v || !v.data) return null;
+    const key = await shKeyFor(v.kdf, pw);
+    return key ? shNorm(await decryptJSON(v.data, key)) : null;
+  } catch (e) { return null; }
+}
+/* What bringing back a copy would change, in plain words */
+function shDiffSummary(R, M) {
+  const out = [], list = (st, k) => Array.isArray(st && st[k]) ? st[k] : [];
+  const names = a => a.slice(0, 6).join(', ') + (a.length > 6 ? ' and ' + (a.length - 6) + ' more' : '');
+  const people = (rl, ml, label, name) => {
+    const r = new Map(rl.map(x => [x.id, x])), m = new Map(ml.map(x => [x.id, x]));
+    const added = ml.filter(x => !r.has(x.id)).map(name), changed = ml.filter(x => r.has(x.id) && !shEq(r.get(x.id), x)).map(name), gone = rl.filter(x => !m.has(x.id)).map(name);
+    if (added.length) out.push(plural(added.length, label) + ' back: ' + names(added));
+    if (changed.length) out.push('Newer details for ' + plural(changed.length, label) + ': ' + names(changed));
+    if (gone.length) out.push(plural(gone.length, label) + ' removed there: ' + names(gone));
+  };
+  people(list(R.nh, 'cands'), list(M.nh, 'cands'), 'candidate', c => c.name || 'Unnamed');
+  people(list(R.nh, 'hires'), list(M.nh, 'hires'), 'new hire', h => h.name || h.first || 'Unnamed');
+  people(list(R, 'staff'), list(M, 'staff'), 'staff member', p => p.name || 'Unnamed');
+  [['notes', 'note'], ['incidents', 'incident'], ['reviews', 'review'], ['topics', '1-on-1 topic'], ['certs', 'certification'], ['timeoff', 'time-off entry'], ['kpi', 'KPI entry']].forEach(([k, label]) => {
+    const r = new Map(list(R, k).map(x => [x.id, x])), ml = list(M, k);
+    const a = ml.filter(x => !r.has(x.id)).length, c = ml.filter(x => r.has(x.id) && !shEq(r.get(x.id), x)).length, g = list(R, k).filter(x => !ml.some(y => y.id === x.id)).length;
+    const bits = [a ? a + ' added' : '', c ? c + ' changed' : '', g ? g + ' removed' : ''].filter(Boolean);
+    if (bits.length) out.push(label.charAt(0).toUpperCase() + label.slice(1) + 's: ' + bits.join(', '));
+  });
+  const ra = new Set(list(R, 'activity').map(x => x.ts + '|' + x.text)), na = list(M, 'activity').filter(x => !ra.has(x.ts + '|' + x.text)).length;
+  if (na) out.push(plural(na, 'activity line') + ' from that time');
+  if (!out.length) out.push('A few smaller changes');
+  return out;
+}
+/* At unlock: find the newest copy in this browser that the server doesn't have yet, and work out the merge */
+async function shRecoveryPrep(pw) {
+  shOffer = null;
+  if (!fbUser || !fbLastDoc || fbBaseJSON === null) return;
+  const copies = await shFindLocalCopies(fbUser.uid);
+  if (!copies.length) return;
+  const handled = shHandled(), serverTag = shCopyTag({ updatedAt: fbLastDoc.updatedAt, rev: fbLastDoc.rev, iv: fbLastDoc.iv });
+  const since = (fbMeta && typeof fbMeta.rf === 'number') ? fbMeta.rf : (fbLastDoc.updatedAt || 0);
+  const fresh = copies.filter(c => (c.p.updatedAt || 0) > since && shCopyTag(c.p) !== serverTag && handled.indexOf(shCopyTag(c.p)) < 0)
+    .sort((a, b) => (b.p.updatedAt || 0) - (a.p.updatedAt || 0));
+  for (const c of fresh) {
+    let L;
+    try { const key = await shKeyFor(c.p.kdf, pw); if (!key) continue; L = shNorm(await decryptJSON(c.p.data, key)); } catch (e) { continue; }   /* made under another password */
+    const R = JSON.parse(fbBaseJSON);
+    let base = R;
+    if (fbMeta && fbMeta.lb) { const b = await shLoadVersion(fbMeta.lb, pw); if (!b) return; base = b; }   /* can't load the base right now: offer it next time */
+    const merged = shNorm(shMerge(base, L, R, false, '', true));   /* changed in both since: the server's newer value wins */
+    if (shEq(merged, R)) { shHandledAdd(shCopyTag(c.p)); continue; }
+    shOffer = { tag: shCopyTag(c.p), src: c.src, p: c.p, L: L, base: base, at: c.p.updatedAt || 0, serverAt: fbLastDoc.updatedAt || 0, summary: shDiffSummary(R, merged) };
+    return;
+  }
+}
+/* after the record is loaded at unlock, before the app opens */
+async function shAfterLoad(pw) {
+  shDraftMerged = null;
+  try {
+    const dr = await shDraftTake();
+    if (dr && !shEq(dr.base, dr.local)) {
+      /* where the same thing was changed both here and elsewhere, the more recent change wins */
+      const preferDraft = (dr.at || 0) > ((fbLastDoc && fbLastDoc.updatedAt) || 0);
+      const merged = shNorm(shMerge(dr.base, dr.local, S, preferDraft, ''));
+      if (!shEq(merged, S)) { shAdopt(merged); shDraftMerged = true; }
+    }
+    if (dr && !shDraftMerged) shDraftClear();
+  } catch (e) {}
+  try { await shRecoveryPrep(pw); } catch (e) { shOffer = null; }
+}
+/* right after the app opens */
+function shAfterEnter() {
+  if (shDraftMerged) { shDraftMerged = null; fbQueueWrite(200); toast('Saved changes made on this device that hadn’t reached the server yet'); }
+  if (shOffer) setTimeout(() => { if (shOffer && S) shOfferModal(); }, 400);
+  setTimeout(() => { if (S) shPrune(); }, 20000);
+}
+const shWhen = ms => ms ? new Date(ms).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'an unknown time';
+function shOfferModal() {
+  const o = shOffer; if (!o) return;
+  openModal(`<div class="mh" data-shoffer="1"><h3>Newer Staff Hub data on this device</h3><button class="x" data-act="closeModal">✕</button></div>
+  <div class="mb">
+    <p class="muted" style="font-size:13.5px;margin-bottom:12px">This browser still has a copy of your record from <b>${esc(shWhen(o.at))}</b>${o.src === 'unsent' ? ' that never reached the server' : ''}. The record on the server ${o.serverAt && o.serverAt < o.at ? 'dates from <b>' + esc(shWhen(o.serverAt)) + '</b>, so it' : ''} doesn’t have these changes:</p>
+    <ul style="margin:0 0 12px 18px;font-size:13.5px;line-height:1.55">${o.summary.map(s => '<li>' + esc(s) + '</li>').join('')}</ul>
+    <div class="infoBox">Bringing it back keeps everything already on the server and adds these changes. The server’s current copy is saved first under Settings → Earlier versions, so this can be undone.</div>
+  </div>
+  <div class="mf" style="flex-wrap:wrap"><button class="btn-ghost btn-sm" id="shOfIgnore" type="button">Don’t ask again</button><div class="sp"></div><button class="btn btn-sec btn-sm" id="shOfDl" type="button">${ic('download', 13)} Download it</button><button class="btn btn-sec" id="shOfLater" type="button">Not now</button><button class="btn btn-pri" id="shOfGo" type="button">Bring it back</button></div>`, true);
+  $('#shOfLater').onclick = () => { shOffer = null; closeModal(); };
+  $('#shOfIgnore').onclick = () => { shHandledAdd(o.tag); shOffer = null; closeModal(); toast('Okay — that copy stays in this browser, untouched'); };
+  $('#shOfDl').onclick = () => { download('nlo-staff-backup-device-copy-' + appYMD(o.at) + '.json', JSON.stringify({ app: 'nlo-staff-hub', v: 1, kdf: o.p.kdf, data: o.p.data })); toast('Downloaded — restore it any time from Settings → Restore'); };
+  $('#shOfGo').onclick = async () => {
+    const btn = $('#shOfGo'); btn.disabled = true; btn.textContent = 'Bringing it back…';
+    const ok = await shRecoverApply(o);
+    if (ok) { closeModal(); toast('Brought back: ' + o.summary[0]); }
+    else { btn.disabled = false; btn.textContent = 'Bring it back'; }
+  };
+}
+async function shRecoverApply(o) {
+  if (!S || !cryptoKey || !fbDocRef) return false;
+  if (fbWriteInFlight) { toast('Still saving — try again in a moment', true); return false; }
+  clearTimeout(fbWriteTimer); fbWriteTimer = null;
+  const key = cryptoKey, salt = keySalt, docRef = fbDocRef;
+  fbWriteInFlight = true; setSyncState('saving');
+  const gen = shTxGen;
+  let res;
+  try {
+    res = await shTimeout(fbDB.runTransaction(async tx => {
+      if (gen !== shTxGen) return { stale: true };
+      const cur = await tx.get(docRef);
+      const d = cur.exists ? cur.data() : null;
+      if (!d || !d.data) return { gone: true };
+      const R = shNorm(await shDecryptDoc(d, key, salt));
+      const merged = shNorm(shMerge(o.base, o.L, R, false, '', true));
+      let meta = shUpgradeIn(tx, d, shMetaOf(d));
+      meta = Object.assign({}, meta, { rf: Math.max(meta.rf || 0, o.at || 0) });
+      const rev = (d.rev || 0) + 1, wid = shNewWid();
+      const payload = await shPayload(merged, key, salt, rev, wid, meta);
+      if (shTooBig(payload)) return { tooBig: true };
+      if (gen !== shTxGen) return { stale: true };
+      tx.set(shVerCol().doc(shVerId('before-recovery')), shVer(shVerFields(d), 'before-recovery'));
+      tx.set(docRef, payload);
+      tx.set(shVerCol().doc(shVerId('slot')), shVer(payload, 'recovery'));
+      return { ok: true, rev, wid, next: shJ(merged), meta };
+    }), 25000);
+  } catch (e) { res = { err: e }; }
+  fbWriteInFlight = false;
+  if (!S || cryptoKey !== key) return false;
+  if (res.ok) {
+    const prevBase = fbBaseJSON, nowJSON = shJ(S);
+    lastAppliedRev = localRev = res.rev; fbBaseWid = res.wid; fbBaseJSON = res.next; fbMeta = res.meta || {};
+    shAdopt(shNorm(prevBase === null || nowJSON === prevBase ? JSON.parse(res.next) : shMerge(JSON.parse(prevBase), JSON.parse(nowJSON), JSON.parse(res.next), true, '')));
+    shHandledAdd(o.tag); shOffer = null;
+    shAfterReplace();
+    if (shDirty()) fbQueueWrite(300); else setSyncState('synced');
+    return true;
+  }
+  if (res.err && res.err.shKey) { shRekeyPrompt(); return false; }
+  setSyncState('error');
+  toast(res.tooBig ? 'That copy is too big to save (Firestore’s 1 MB limit).' : 'Couldn’t bring it back just now — check your connection and try again. Nothing was changed.', true);
+  if (fbRemotePending) { fbRemotePending = false; fbCheckRemote(); }
+  return false;
+}
+
+/* ---- Settings > Earlier versions ---- */
+const SH_WHY = { save: 'Saved', legacy: 'Before the Oct 2026 sync fix', 'before-recovery': 'Before a device copy was brought back', recovery: 'Device copy brought back', 'before-restore': 'Before restoring an earlier version', restore: 'Restored an earlier version', 'before-backup-restore': 'Before restoring a backup file', 'restore-backup': 'Restored a backup file', password: 'Password changed' };
+H.shVersions = async function () {
+  if (!fbUser || !fbDB) return;
+  openModal('<div class="mh"><h3>Earlier versions</h3><button class="x" data-act="closeModal">✕</button></div><div class="mb" id="shVerBody"><p class="muted">Loading…</p></div>', true);
+  let docs = [];
+  try { docs = (await shVerCol().orderBy('at', 'desc').limit(60).get()).docs; }
+  catch (e) { const b = $('#shVerBody'); if (b) b.innerHTML = '<p class="muted">Couldn’t load earlier versions — check your connection.</p>'; return; }
+  const rows = [];
+  for (const s of docs) {
+    const v = s.data() || {};
+    let info = '';
+    if (v.kdf && v.kdf.salt === b64(keySalt)) {
+      try { const st = await decryptJSON(v.data, cryptoKey); info = plural(((st.staff || []).filter(p => p && p.status !== 'former')).length, 'staff') + ' · ' + plural(((st.nh && st.nh.cands) || []).length, 'candidate'); } catch (e) { info = 'Can’t be opened'; }
+    } else info = 'Saved under an earlier password';
+    const from = /^(legacy|before-)/.test(v.why || '') && v.updatedAt ? ' (the record as saved ' + shWhen(v.updatedAt) + ')' : (v.dev ? ' · ' + v.dev : '');
+    rows.push(`<div class="setRow"><div class="st"><b>${esc(shWhen(v.at || v.updatedAt))}</b><span>${esc((SH_WHY[v.why] || 'Saved') + from)} · ${esc(info)}</span></div><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-sec btn-sm" data-act="shVerDl" data-id="${esc(s.id)}" type="button">${ic('download', 13)}</button><button class="btn btn-sec btn-sm" data-act="shVerUse" data-id="${esc(s.id)}" type="button">Restore</button></div></div>`);
+  }
+  const b = $('#shVerBody');
+  if (b) b.innerHTML = `<p class="muted" style="margin-bottom:10px">Staff Hub keeps a copy of your record for every 15 minutes of work, plus one before anything is restored. Restoring one makes it the current record; what you have now is kept here first, so it can be undone.</p>` + (rows.length ? rows.join('') : '<p class="muted">No earlier versions yet — they start with your next change.</p>');
+};
+H.shVerDl = async function (t) {
+  try {
+    const s = await shVerCol().doc(t.dataset.id).get(), v = s.data();
+    if (!v) return;
+    download('nlo-staff-backup-' + t.dataset.id.slice(0, 10) + '.json', JSON.stringify({ app: 'nlo-staff-hub', v: 1, kdf: v.kdf, data: v.data }));
+    toast('Encrypted copy downloaded');
+  } catch (e) { toast('Couldn’t download it — check your connection', true); }
+};
+H.shVerUse = async function (t) {
+  const id = t.dataset.id;
+  let v;
+  try { v = (await shVerCol().doc(id).get()).data(); } catch (e) { toast('Couldn’t load that version — check your connection', true); return; }
+  if (!v || !v.kdf || v.kdf.salt !== b64(keySalt)) { toast('That version was saved under an earlier password. Download it and restore it from Settings → Restore with that password.', true); return; }
+  let st;
+  try { st = shNorm(await decryptJSON(v.data, cryptoKey)); } catch (e) { toast('That version can’t be opened', true); return; }
+  confirmModal('Restore the version from ' + shWhen(v.updatedAt) + '?', 'Your record goes back to how it was then. What it holds now is saved under Earlier versions first, so this can be undone.', async () => {
+    S = st;
+    act('Restored the version from ' + shWhen(v.updatedAt));
+    const r = await shSaveWhenFree({ force: true, before: 'before-restore', why: 'restore' });
+    render(); renderSyncStatus();
+    toast(r && r.ok ? 'Restored' : 'Couldn’t restore just now — check your connection', !(r && r.ok));
+  });
+};
+/* once a day per device: past 30 days keep one version a day, past 400 days none (except the special ones) */
+async function shPrune() {
+  if (!fbUser || !fbDB) return;
+  try { const last = +localStorage.getItem('nlo-sh-prune') || 0; if (Date.now() - last < 864e5) return; localStorage.setItem('nlo-sh-prune', String(Date.now())); } catch (e) { return; }
+  try {
+    const cutoff = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10), gone = new Date(Date.now() - 400 * 864e5).toISOString().slice(0, 10);
+    const snap = await shVerCol().orderBy(firebase.firestore.FieldPath.documentId()).endBefore(cutoff).limit(400).get();
+    const byDay = {};
+    snap.docs.forEach(s => { const day = s.id.slice(0, 10); (byDay[day] = byDay[day] || []).push(s); });
+    const batch = fbDB.batch(); let n = 0;
+    Object.keys(byDay).forEach(day => {
+      const list = byDay[day], keep = day >= gone ? list[list.length - 1].id : null;
+      list.forEach(s => { if (s.id !== keep && !/Z-(legacy|before-[a-z-]+)$/.test(s.id)) { batch.delete(s.ref); n++; } });
+    });
+    if (n) await batch.commit();
+  } catch (e) {}
+}
+
+/* ---- leaving the page: never a blind save; keep the draft, and warn if something isn't saved yet ---- */
+window.addEventListener('beforeunload', function (e) {
+  if (shDirty()) { shDraftWrite(); e.preventDefault(); e.returnValue = ''; }
+});
+document.addEventListener('visibilitychange', function () {
+  if (document.visibilityState === 'hidden' && shDirty()) { shDraftWrite(); fbWriteNow(); }
+  else if (document.visibilityState === 'visible' && S && fbDocRef) fbCheckRemote();
+});
+window.addEventListener('online', function () { if (S && fbDocRef) { if (shDirty()) fbQueueWrite(200); fbCheckRemote(); } });
 
 /* ---------- auth screen rendering ---------- */
 function showAuth() {
@@ -3960,6 +4574,7 @@ function renderAuthForm() {
         '<div class="ackBox"><input type="checkbox" id="authAck"><span><b>Important:</b> your password also encrypts your data. If you ever fully reset it and have no backup, the data can’t be recovered — so keep it somewhere safe and grab a backup now and then.</span></div>' : '') +
     '<button class="btn btn-pri btn-block" id="authGo">' + (isSignup ? 'Create account & open' : 'Sign in') + '</button>' +
     (isSignup ? '' : '<div class="lockFoot" style="margin-top:12px"><a href="#" id="authForgot">Forgot password?</a></div>') +
+    '<div class="lockFoot" style="margin-top:14px;opacity:.65;font-size:11px">' + SH_BUILD + '</div>' +
     '<div class="lockFoot" style="margin-top:10px">' + (isSignup ? 'Already have an account? <a href="#" id="authToggle">Sign in</a>' : 'First time here? <a href="#" id="authToggle">Create an account</a>') + '</div>';
   var t = $('#authToggle'); if (t) t.onclick = function (e) { e.preventDefault(); authMode = isSignup ? 'signin' : 'signup'; renderAuthForm(); setTimeout(function(){ var em=$('#authEmail'); if(em) em.focus(); }, 40); };
   var f = $('#authForgot'); if (f) f.onclick = function (e) { e.preventDefault(); fbForgot(); };
@@ -3974,7 +4589,8 @@ function renderReauth() {
     '<div class="lockErr" id="authErr"></div>' +
     '<div class="field"><label>Password</label><div class="pwRow"><input type="password" id="authPw" autocomplete="current-password" placeholder="Your password"><button class="peek" data-peek="authPw" type="button">show</button></div></div>' +
     '<button class="btn btn-pri btn-block" id="authGo">Unlock</button>' +
-    '<div class="lockFoot" style="margin-top:12px"><a href="#" id="authSignout">Not you? Sign out</a></div>';
+    '<div class="lockFoot" style="margin-top:12px"><a href="#" id="authSignout">Not you? Sign out</a></div>' +
+    '<div class="lockFoot" style="margin-top:14px;opacity:.65;font-size:11px">' + SH_BUILD + '</div>';
   $('#authGo').onclick = fbReauth;
   var so = $('#authSignout'); if (so) so.onclick = function (e) { e.preventDefault(); fbSignOut(); };
   setTimeout(function () { var p = $('#authPw'); if (p) p.focus(); }, 50);
@@ -3999,14 +4615,16 @@ async function fbSignIn() {
     catch (readErr) { throw { __loadFail: true }; }
     if (snap.exists && snap.data() && snap.data().data) {
       await fbLoadFromDoc(snap.data(), pw);
+      await shAfterLoad(pw);
     } else {
       // Server explicitly confirms there is no data doc → genuine brand-new workspace.
       keySalt = crypto.getRandomValues(new Uint8Array(16));
       cryptoKey = await deriveKey(pw, keySalt, KDF_ITER);
-      S = defaultState(); localRev = 0; lastAppliedRev = 0;
-      await fbWriteNow();
+      shFresh();
+      await shSave({ always: true });
     }
     fbEnter();
+    shAfterEnter();
   } catch (e) {
     if (e && e.__loadFail) authError('Signed in, but couldn’t reach your data on the server just now. Your data is safe — check your connection and click Sign in again.');
     else if (e && (e.name === 'OperationError' || (e.message || '').indexOf('decrypt') > -1)) authError('That password can’t unlock this account’s data. If you recently reset your password, restore from a backup.');
@@ -4028,9 +4646,9 @@ async function fbSignUp() {
     fbDocRef = fbDB.collection(FB_COLLECTION).doc(fbUser.uid);
     keySalt = crypto.getRandomValues(new Uint8Array(16));
     cryptoKey = await deriveKey(pw, keySalt, KDF_ITER);
-    S = defaultState(); localRev = 0; lastAppliedRev = 0;
+    shFresh();
     act('Created NLO Staff Hub');
-    await fbWriteNow();
+    await shSave({ always: true });
     fbEnter();
   } catch (e) {
     authError(fbErr(e));
@@ -4048,12 +4666,14 @@ async function fbReauth() {
     var snap = await fbDocRef.get({ source: 'server' });
     if (snap.exists && snap.data() && snap.data().data) {
       await fbLoadFromDoc(snap.data(), pw);
+      await shAfterLoad(pw);
     } else {
       keySalt = crypto.getRandomValues(new Uint8Array(16));
       cryptoKey = await deriveKey(pw, keySalt, KDF_ITER);
-      S = defaultState(); localRev = 0; lastAppliedRev = 0; await fbWriteNow();
+      shFresh(); await shSave({ always: true });
     }
     fbEnter();
+    shAfterEnter();
   } catch (e) {
     fbAuthing = false; authError('Couldn’t unlock — wrong password, or the server was unreachable. Your data is safe; try again.');
     btn.disabled = false; btn.textContent = 'Unlock';
@@ -4075,6 +4695,8 @@ function fbSignOut() {
   if (fbUnsub) { fbUnsub(); fbUnsub = null; }
   if (typeof quizWatchStop === 'function') quizWatchStop();
   if (typeof appWatchStop === 'function') appWatchStop();
+  if (shDirty()) shDraftWrite();   /* unsaved edits wait in this browser for the next unlock */
+  shReset();
   S = null; cryptoKey = null; keySalt = null; fbUser = null; fbDocRef = null; localRev = 0; lastAppliedRev = 0;
   if (idleTimer) clearInterval(idleTimer);
   var doShow = function () { authMode = 'signin'; showAuth(); };
@@ -4094,6 +4716,8 @@ function fbLock(msg) {
   if (fbUnsub) { fbUnsub(); fbUnsub = null; }
   if (typeof quizWatchStop === 'function') quizWatchStop();
   if (typeof appWatchStop === 'function') appWatchStop();
+  if (shDirty()) shDraftWrite();   /* unsaved edits wait in this browser for the next unlock */
+  shReset();
   S = null; cryptoKey = null; keySalt = null;
   $('#main').innerHTML = ''; $('#modalWrap').classList.remove('open'); $('#modalWrap').innerHTML = '';
   showAuth();
@@ -4128,11 +4752,21 @@ H.fbChangePw = function () {
       var cred = firebase.auth.EmailAuthProvider.credential(fbUser.email, oldP);
       await fbUser.reauthenticateWithCredential(cred);
       await fbUser.updatePassword(n1);
-      keySalt = crypto.getRandomValues(new Uint8Array(16));
-      cryptoKey = await deriveKey(n1, keySalt, KDF_ITER);
+      await shSaveWhenFree();   /* anything not saved yet goes out under the old password first */
+      var oldKey = cryptoKey, oldSalt = keySalt;
+      var newSalt = crypto.getRandomValues(new Uint8Array(16)), newKey = await deriveKey(n1, newSalt, KDF_ITER);
+      while (fbWriteInFlight) await new Promise(function (r) { setTimeout(r, 150); });   /* never switch keys under a save */
+      keySalt = newSalt; cryptoKey = newKey;   /* both at once: nothing can save with one and not the other */
       act('Changed password');
-      await fbWriteNow();
-      closeModal(); toast('Password changed — everything kept');
+      var pr = null;
+      for (var i = 0; i < 6 && !(pr && pr.ok); i++) {
+        if (i) await new Promise(function (r) { setTimeout(r, 2500); });
+        pr = await shSaveWhenFree({ always: true, why: 'password', readKey: oldKey, readSalt: oldSalt });
+        if (!S || (pr && pr.err && pr.err.shKey)) break;
+      }
+      closeModal();
+      if (pr && pr.ok) toast('Password changed — everything kept');
+      else toast('Your sign-in password changed, but your record couldn’t be re-saved yet. Stay on this page with an internet connection and change the password again to finish.', true);
     } catch (e) {
       toast(fbErr(e), true); btn.disabled = false; btn.textContent = 'Change password';
     }
@@ -4181,12 +4815,12 @@ H.restore = function () {
         try {
           var key = await deriveKey(pw, unb64(blob.kdf.salt), blob.kdf.iter || KDF_ITER);
           var data = await decryptJSON(blob.data, key);
-          S = Object.assign(defaultState(), data);
-          S.settings = Object.assign(defaultState().settings, data.settings || {});
-          // re-encrypt under the CURRENT account password so it syncs going forward
-          localRev = localRev + 1;
-          await fbWriteNow();
-          closeModal(); render(); renderSyncStatus(); toast('Backup restored');
+          S = shNorm(data);
+          act('Restored a backup file');
+          // re-encrypt under the CURRENT account password; the record it replaces is kept under Earlier versions
+          var rr = await shSaveWhenFree({ force: true, before: 'before-backup-restore', why: 'restore-backup' });
+          closeModal(); render(); renderSyncStatus();
+          if (rr && rr.ok) toast('Backup restored'); else toast('Restored on this device, but it hasn’t reached the server yet — keep this page open with an internet connection.', true);
         } catch (e) {
           toast('Wrong password for that backup, or the file is damaged', true);
           btn.disabled = false; btn.textContent = 'Restore';
@@ -4205,6 +4839,7 @@ H.eraseAll = function () {
   $('#erGo').onclick = async function () {
     if (($('#erConfirm').value || '').trim() !== 'ERASE') { toast('Type ERASE to confirm', true); return; }
     try { if (fbDocRef) await fbDocRef.delete(); } catch (e) {}
+    shDraftClear();
     closeModal(); toast('All data erased'); fbSignOut();
   };
 };
@@ -6051,7 +6686,7 @@ async function appImportPlan(tx, copy, code) {
   const data = ans.data() || {};
   const del = w => { w.delete(ansRef); if (inv.exists) w.delete(invRef); };
   const c = appCandIn(copy, code, sid);
-  if (!c) { quizLog(copy, 'An application came in for a candidate who’s no longer in Staff Hub, so it was discarded'); return { kind: 'dropped', code, write: del }; }
+  if (!c) return null;   /* no card for it in this record: leave it waiting (a lost card can come back), never discard it */
   const sk = c.appLink && c.appLink.t === code ? c.appLink.sk : null;
   let app = null;
   if (sk) { try { app = appCleanForm(await appDecrypt(sk, code, data)); } catch (e) { app = null; } }
