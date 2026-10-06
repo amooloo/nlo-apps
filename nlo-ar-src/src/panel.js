@@ -65,7 +65,7 @@ function renderDrawer() {
     '<button class="iconBtn" data-act="closeDrawer" aria-label="Close">' + ic('x') + '</button></div><div class="dBd">';
   if (!a) h += '<div class="notice info">Not past due or in credit in the ' + esc(S.rep ? fmtDateLong(S.rep.asOf) : 'latest') + ' report — paid or fixed in Edge.' + (it && it.state === 'open' ? ' <button class="linkBtn" data-act="resolveCleared">Close it as cleared</button>' : '') + '</div>';
   if (back) h += '<div class="notice info">Resolved ' + esc(fmtDate(isoOf(new Date(it.resolvedAt || it.updatedAt || 0)))) + ' (' + esc(String(OUTCOMES[it.outcome] || 'resolved').toLowerCase()) + '), but it’s ' + (a.pd > 0 ? 'past due' : 'in credit') + ' again in the ' + esc(fmtDate(S.rep.asOf)) + ' report. Logging anything reopens it.</div>';
-  if (a) h += contactHTML(a) + numbersHTML(a) + whyHTML(a);
+  if (a) h += contactHTML(a) + (a.ins ? carrierBoxHTML(a) : '') + numbersHTML(a) + whyHTML(a);
   if (it && it.drA && !done) h += drABoxHTML(it);
   const L = a && !done ? ladFor(a) : null;
   if (L) h += ladderHTML(a, it, L);
@@ -234,6 +234,8 @@ function histText(x) {
     case 'mhold': return x.on ? 'put it on Maintenance Hold' : 'lifted the Maintenance Hold';
     case 'aa': return 'marked the arrangement broken';
     case 'restore': return 'restored an earlier version';
+    case 'obcheck': return 'checked OrthoBanc’s failed-payment report (' + fmtDate(x.for) + (x.n != null ? ', ' + plural(x.n, 'failed payment') : '') + ')';
+    case 'carrier': return x.op === 'add' ? 'added the carrier ' + (x.name || '') : x.op === 'edit' ? 'updated the carrier ' + (x.name || '') : x.op === 'remove' ? 'removed the carrier ' + (x.name || '') : x.op === 'tag' ? 'set the carrier on ' + plural(x.n || 1, 'insurance account') : 'changed the insurance carriers';
     default: return x.a || '';
   }
 }

@@ -170,7 +170,7 @@ const DEMO = {
       const act = l => l.filter(r => !isInactive(r)).length;
       const book = { n: rows.length + 560 + w, bal: round2(sum(rows, 'bal') + 1201250 - w * 1830), due: sum(rows, 'due'), pt: { n: pt.length + 380, bal: round2(sum(pt, 'bal') + 919400 - w * 1400), act: act(pt) + 380 }, ins: { n: ins.length + 180 + w, bal: round2(sum(ins, 'bal') + 281850 - w * 430), act: act(ins) + 180 + w } };
       const rep = { asOf, cover: { full: true, pastDue: true, credit: true, ins: true }, book, rows, files: [{ name: 'AR Aging ' + asOf + '.xls', kind: 'xls', subgroup: '', options: 'Exclude Zero Dollar Balances', edge: 'Edge', n: rows.length + 560, ok: true }], made: atDay(asOf, 8, 40) };
-      DEMO.reports.push({ meta: { id: 'demo-r' + w, asOf, n: rows.length, at: Math.min(Date.now() - 40 * 60000, atDay(asOf, 8, 52 + w)), by: 'u-jamie', sid: 'jamie', v: 1, sum: reportTotals(rep, cfg), locked: false }, data: rep });
+      DEMO.reports.push({ meta: { id: 'demo-r' + w, asOf, n: rows.length, at: Math.min(Date.now() - 40 * 60000, atDay(asOf, 8, 52 + w)), by: 'u-jamie', sid: 'jamie', v: 1, sum: reportTotals(rep, cfg, w ? DEMO.reports[w - 1].data : null), locked: false }, data: rep });
     }
 
     /* accounts being worked — logged the way the app logs them */
@@ -254,5 +254,22 @@ const DEMO = {
     await seed(pt(160) || pt(151) || pt(188), a => [['sign', on(a, a.days - 38, 9), 'amir', { step: 'l7' }], L(a, a.days - 38, 'l7', { note: 'Certified #9407 1000 0000 0000 0000 03' })]);
     // day 15: texted on day 1 — Letter #1 is due
     await seed(pt(15), a => [L(a, 1, 'd0')]);
+
+    /* insurance carriers (made-up names, 555 numbers): most insurance accounts have theirs; a few are left for the FC to set */
+    const book = emptyBook();
+    [['Bayside Dental Plan', '(800) 555-0142', 'BDP01', 365, 'Claims: PO Box 1000. Ask for the orthodontic unit.', 'https://provider.example.com/bayside'],
+      ['Coastal Benefits', '(800) 555-0177', 'CB651', 365, '', ''],
+      ['Gulf Dental Group', '(800) 555-0123', 'GDG24', 180, 'Needs the treatment start date on every claim.', 'https://provider.example.com/gulf'],
+      ['Orange Grove Insurance', '(800) 555-0109', 'OGI47', 365, '', ''],
+      ['Summit Dental PPO', '(888) 555-0156', 'SDP90', 150, 'The portal is fastest; phone holds run long.', 'https://provider.example.com/summit']]
+      .forEach(([name, phone, payer, tf, notes, portal], i) => carrierSave(book, { name, phone, payer, tf, notes, portal }, { by: 'taylor' }, ago(20 - i, 9, i)));
+    const insA = accts.filter(a => a.ins), cid = n => book.carriers.find(c => c.name === n).id;
+    const leave = new Set(insA.filter(a => a.pd > 0 && [47, 104, 395].includes(a.days)).map(a => a.key));
+    insA.forEach((a, i) => { if (!leave.has(a.key)) book.tags[a.key] = a.days === 141 ? cid('Summit Dental PPO') : book.carriers[i % 4].id; });
+    // OrthoBanc's failed-payment reports: the one before was checked; today's isn't yet
+    const obC = obCycle(todayISO()); if (obC.prev) book.ob.push({ id: uid8(), at: Math.min(now - 3600000, atDay(obC.prev.due, 9, 40)), by: 'jamie', for: obC.prev.date, n: 3, note: 'Texted all three families' });
+    const bid = await DEMO.itemId(BOOK_KEY);
+    DEMO.items.set(bid, Object.assign(book, { id: bid, rev: 2, v: 1, status: 'open', by: 'taylor', updatedAt: ago(3, 9, 10) }));
+    DEMO.logs.push({ itemId: bid, rev: 1, at: ago(20, 9, 0), sid: 'taylor', a: 'carrier', op: 'add', name: 'Bayside Dental Plan' }, { itemId: bid, rev: 2, at: ago(3, 9, 10), sid: 'taylor', a: 'carrier', op: 'tag', n: Object.keys(book.tags).length });
   }
 };

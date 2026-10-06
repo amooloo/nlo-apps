@@ -295,6 +295,115 @@ const cfg = A.arCfg({});
     ok(A.ladState(pa({ days: 40, rp: 'INS: X' }), null, asOf, T) === null && A.ladState(pa({ days: 40, sts: 'Inactive' }), null, asOf, T) === null, 'insurance and inactive accounts have no ladder');
   }
 
+  section('Insurance carriers (the carrier book)');
+  {
+    const bk = A.emptyBook(), t0 = Date.UTC(2026, 9, 6, 14);
+    const id1 = A.carrierSave(bk, { name: 'Bayside Dental Plan', phone: '(800) 555-0142', portal: 'https://provider.example.com/bayside', payer: 'BDP01', tf: 365 }, { by: 'jamie' }, t0);
+    ok(/^c[0-9a-f]{12}$/.test(id1), 'a carrier gets an id of its own');
+    const bad = f => { try { A.carrierSave(bk, f, {}, t0); return ''; } catch (e) { return e.message; } };
+    ok(/already in the list/.test(bad({ name: '  bayside dental plan ' })), 'the same name twice is refused');
+    ok(/web address/.test(bad({ name: 'Odd Plan', portal: 'javascript:alert(1)' })) && /web address/.test(bad({ name: 'Odd Plan', portal: 'provider.example.com' })), 'a portal that isn’t an http(s) web address is refused');
+    ok(/name/.test(bad({ name: '   ' })), 'a carrier needs a name');
+    const id2 = A.carrierSave(bk, { name: 'Coastal Benefits', tf: 150 }, {}, t0);
+    A.carrierTag(bk, ['k1|I', 'k2|I'], id1); A.carrierTag(bk, ['k3|I'], id2);
+    let b = A.normBook(Object.assign({}, bk, { id: 'x', rev: 3 }));
+    eq([b.carriers.map(c => c.name), A.carrierOf(b, 'k1|I').name, A.carrierOf(b, 'k3|I').tf, A.carrierOf(b, 'k9|I')], [['Bayside Dental Plan', 'Coastal Benefits'], 'Bayside Dental Plan', 150, null], 'accounts point at their carrier; the list is by name');
+    A.carrierSave(bk, { id: id1, name: 'Bayside Dental Plan', phone: '(800) 555-0199', tf: 365 }, {}, t0 + 1);
+    A.carrierTag(bk, ['k2|I'], '');
+    b = A.normBook(bk);
+    eq([b.carriers.length, A.carrierOf(b, 'k1|I').phone, A.carrierOf(b, 'k2|I')], [2, '(800) 555-0199', null], 'editing keeps the carrier (and its accounts); taking it off an account works');
+    A.carrierRemove(bk, id2); b = A.normBook(bk);
+    eq([b.carriers.map(c => c.name), A.carrierOf(b, 'k3|I')], [['Bayside Dental Plan'], null], 'removing a carrier takes it off its accounts');
+    ok(/removed/.test((() => { try { A.carrierTag(bk, ['k4|I'], id2); return ''; } catch (e) { return e.message; } })()), 'a removed carrier can’t be set on an account');
+    const raw = { book: 1, carriers: [{ id: 'c000000000001', name: 'Fine', tf: 5000, portal: 'ftp://x' }, { id: 'nope', name: 'Bad id' }, { id: 'c000000000002', name: '' }], tags: { a: 'c000000000001', b: 'c999999999999', c: 7 } };
+    const nb = A.normBook(raw);
+    eq([nb.carriers.length, nb.carriers[0].tf, nb.carriers[0].portal, Object.keys(nb.tags)], [1, 0, '', ['a']], 'what’s read back is checked: bad ids, names, limits, links and tags are dropped');
+    ok(A.normBook({ book: 1, locked: true }) === null && A.normBook({ key: 'x' }) === null, 'a record that isn’t the book (or can’t be opened) isn’t taken for it');
+    const fam = [{ key: 'a', ins: true, rp: 'INS: Mrs. Jordan Sample' }, { key: 'b', ins: true, rp: 'INS: Jordan Sample' }, { key: 'c', ins: false, rp: 'Jordan Sample' }, { key: 'd', ins: true, rp: 'INS: Alex Sample' }];
+    eq(A.sameHolder(fam, fam[0]).map(x => x.key), ['b'], 'brothers and sisters on the same policy are found (insurance accounts, same policyholder)');
+  }
+
+  section('Focus: what to do first');
+  {
+    const T = '2026-10-06', asOfF = '2026-10-05', at = (iso, h) => { const [y, m, d] = iso.split('-').map(Number); return new Date(y, m - 1, d, h || 10).getTime(); };
+    const fa = o => A.acctOf(row(o), cfg, asOfF);
+    const P1 = fa({ patient: 'Pat One', rp: 'Lee One', due: 300, b0: 150, b30: 150, days: 40, bal: 3000 });           // Letter #2 due, nothing recorded
+    const P2 = fa({ patient: 'Pat Two', rp: 'Lee Two', due: 450, b0: 150, b30: 150, b60: 150, days: 85, bal: 3000 }); // reaches day 90 this week
+    const I3 = fa({ patient: 'Pat Three', rp: 'INS: Lee Three', due: 44.44, b0: 11.11, b30: 11.11, b60: 11.11, b90: 11.11, days: 140, bal: 2000 }); // nothing paid, near the 150-day limit
+    const C4 = fa({ patient: 'Pat Four', rp: 'Lee Four', due: -250, bal: -250, recv: '2022-01-10' });                // credit over 3 years old
+    const P5 = fa({ patient: 'Pat Five', rp: 'Lee Five', due: 600, b0: 600, days: 10, bal: 4000 });                   // new this week, $600
+    const P6 = fa({ patient: 'Pat Six', rp: 'Lee Six', due: 300, b0: 150, b30: 150, days: 40, bal: 3000 });           // Letter #2 due — #1 went out on day 14
+    const P7 = fa({ patient: 'Pat Seven', rp: 'Lee Seven', due: 900, b0: 150, b30: 150, b60: 150, b90: 450, days: 94, bal: 3000 }); // Letter #5 (Dr. A signs), asked 4 office days ago
+    const accts = [P1, P2, I3, C4, P5, P6, P7], byKey = new Map(accts.map(a => [a.key, a]));
+    const it = (a, o) => Object.assign({ key: a.key, name: a.patient, rp: a.rp, src: a.src, kind: 'pd', state: 'open', stage: '', follow: '', drA: false, log: [] }, o);
+    const items = new Map([
+      [P1.key, it(P1, { stage: 'promise', follow: '2026-10-02', log: [{ id: 'e1', at: at('2026-09-28'), by: 'jamie', k: 'pt_promise', date: '2026-10-02' }] })],
+      [P6.key, it(P6, { log: [{ id: 'e2', at: at('2026-09-04'), by: 'jamie', k: 'ladder', step: 'l1' }] })],
+      [P7.key, it(P7, { drA: true, log: [{ id: 'e3', at: at('2026-09-29'), by: 'jamie', k: 'drA_ask', step: 'l5' }] })]
+    ]);
+    const late = it({ key: 'pat eight|lee eight|P', patient: 'Pat Eight', rp: 'Lee Eight', src: 'pt' }, { follow: '2026-09-29', log: [{ id: 'e4', at: at('2026-09-22'), by: 'jamie', k: 'pt_vm' }] });
+    items.set(C4.key, it(C4, { kind: 'cr', drA: true, log: [{ id: 'e5', at: at('2026-10-05'), by: 'jamie', k: 'cr_refreq', note: 'OK to refund $250?' }] }));
+    const book = A.emptyBook(), cid = A.carrierSave(book, { name: 'Summit Dental PPO', tf: 150 }, {}, 1); A.carrierTag(book, [I3.key], cid);
+    const ctx = (o) => Object.assign({ accts, asOf: asOfF, byKey, item: k => items.get(k) || null, lad: a => A.ladState(a, items.get(a.key) || null, asOfF, T), open: Array.from(items.values()).concat([late]),
+      cleared: () => false, today: T, owner: false, prevPd: new Set([P1.key, P2.key, I3.key, P6.key, P7.key]), book: A.normBook(book), auditStart: '' }, o || {});
+    const F = A.focusEntries(ctx()), kinds = F.map(e => e.key.split('|')[0] + ':' + e.kind);
+    eq(kinds, ['pat one:promise', 'pat seven:signlate', 'pat three:tf', 'pat six:ladlate', 'pat two:cross', 'pat five:new', 'pat eight:followlate'],
+      'staff: a promise that passed, a letter waiting 4 office days for Dr. A, the filing limit, a step late once the account is moving, day 90 this week, a big new balance, a follow-up 4 office days late — urgent, in that order');
+    ok(F.every(e => e.cls === 'urgent') && !F.some(e => e.key === C4.key), 'all urgent; the credit (worked: a refund asked) isn’t on the staff list');
+    eq([F[0].why, F[1].act, F[2].why, F[3].why, F[6].why], ['Promised to pay by Oct 2 — check whether it came in', 'Remind Dr. A', 'Summit Dental PPO’s filing limit (150 days) is in 9 days', 'Letter #2 due — 11 days late · mail or email', 'Follow-up 4 office days late — last: left a voicemail'], 'each says why');
+    ok(F[0].also.some(x => /^Letter #2 due/.test(x)) && F[2].also.some(x => /investigate the claim with Summit Dental PPO/.test(x)), 'the other reasons stay with the account (“also”)');
+    const Fo = A.focusEntries(ctx({ owner: true })), ko = Fo.map(e => e.key.split('|')[0] + ':' + e.kind + ':' + e.cls);
+    ok(ko.includes('pat seven:signlate:urgent') && ko.includes('pat four:drA:today') && /needs your signature — asked 4 office days ago/.test(Fo.find(e => e.kind === 'signlate').why), 'Dr. A: the letter waiting for his signature, and the refund to OK');
+    const P1n = A.focusEntries(ctx({ item: k => (k === P1.key ? null : items.get(k) || null), lad: a => A.ladState(a, a.key === P1.key ? null : items.get(a.key) || null, asOfF, T), open: [] })).find(e => e.key === P1.key);
+    ok(P1n.kind === 'lad' && P1n.cls === 'today' && P1n.why === 'Letter #2 due · mail or email', 'an account nobody has started on isn’t “late” — its step is simply due today');
+    const noC = A.focusEntries(ctx({ item: () => null, lad: a => A.ladState(a, null, asOfF, T), open: [] }));
+    ok(noC.find(e => e.key === C4.key).kind === 'credit' && noC.find(e => e.key === C4.key).cls === 'later', 'a 3+ year credit nobody has touched: later');
+    const aud = A.focusEntries(ctx({ today: '2026-12-10', auditStart: '2026-12-01', item: () => null, lad: a => A.ladState(a, null, asOfF, '2026-12-10'), open: [] })).find(e => e.key === C4.key);
+    ok(aud.kind === 'creditaudit' && aud.cls === 'today' && /^December audit/.test(aud.why), 'in the December audit, a credit not reviewed yet is for today');
+    eq([A.officeDaysLate('2026-10-01', '2026-10-06'), A.officeDaysLate('2026-11-24', '2026-11-30'), A.officeDaysLate('2026-10-06', '2026-10-06')], [2, 1, 0], 'office days late: weekends and the Thanksgiving days skipped');
+  }
+
+  section('Week over week, the pace to the goals, the December audit');
+  {
+    const mk = (asOf, rows, cover) => ({ asOf, cover: Object.assign({ full: true, pastDue: true, credit: true, ins: true }, cover || {}), book: null, rows: rows.map(o => Object.assign(row(o), { key: A.acctKey(row(o)) })) });
+    const prev = mk('2026-09-28', [{ patient: 'A Sample', due: 150, b0: 150 }, { patient: 'B Sample', due: 300, b30: 300 }, { patient: 'C Sample', due: 200, b0: 200 }, { patient: 'D Sample', due: -40, bal: -40 }]);
+    const cur = mk('2026-10-05', [{ patient: 'B Sample', due: 450, b30: 150, b90: 300 }, { patient: 'C Sample', due: 100, b0: 100 }, { patient: 'E Sample', due: 175, b0: 175 }, { patient: 'D Sample', due: -40, bal: -40 }]);
+    const f = A.flowOf(cur, prev, cfg);
+    eq([f.cured, f.curedAmt, f.newN, f.newAmt, f.rolled, f.into91, f.better, f.cleared], [1, 150, 1, 175, 1, 1, 0, 250], 'got current 1 ($150), new 1 ($175), slid 1 (into 91+), past due gone $250 (A’s $150 + $100 off C)');
+    ok(A.flowOf(prev, cur, cfg) === null && A.flowOf(cur, mk('2026-09-28', [], { pastDue: false }), cfg) === null, 'only from an earlier report that has past due in it');
+    const tot = A.reportTotals(cur, cfg, prev);
+    eq([tot.fl.cured, A.normSum(tot).fl.into91, A.reportTotals(cur, cfg).fl, A.normSum({}).fl], [1, 1, null, null], 'kept with the report’s sealed totals; older totals have none');
+    const pts = (r) => r.map((x, i) => ({ asOf: A.addDays('2026-09-07', 7 * i), rate: x }));
+    const down = A.paceTo(pts([0.10, 0.09, 0.08, 0.07]), 0.04);
+    eq([down.dir, Math.round(down.weeks * 10) / 10, down.date], ['down', 3, '2026-10-19'], 'down 1 point a week from 7%: under 4% in 3 weeks');
+    eq([A.paceTo(pts([0.05, 0.06, 0.07]), 0.04).dir, A.paceTo(pts([0.06, 0.06, 0.06]), 0.04).dir, A.paceTo(pts([0.06, 0.05, 0.03]), 0.04).met, A.paceTo(pts([0.06, 0.05]), 0.04)], ['up', 'flat', true, null], 'going up, flat, already there, and too few reports');
+    eq([A.auditWindow('2026-10-06'), A.auditWindow('2026-12-15'), A.auditWindow('2027-02-01').start, A.auditWindow('2027-04-01').on],
+      [{ on: false, start: '2026-12-01', end: '2027-03-31' }, { on: true, start: '2026-12-01', end: '2027-03-31' }, '2026-12-01', false], 'the audit runs December 1 to March 31');
+    const at = (iso) => { const [y, m, d] = iso.split('-').map(Number); return new Date(y, m - 1, d, 10).getTime(); }, ci = o => Object.assign({ state: 'open', log: [] }, o);
+    eq([A.auditOf(null, '2026-12-01').reviewed, A.auditOf(ci({ log: [{ k: 'cr_review', at: at('2026-11-20') }] }), '2026-12-01').reviewed, A.auditOf(ci({ log: [{ k: 'cr_review', at: at('2026-12-03') }] }), '2026-12-01').st,
+      A.auditOf(ci({ log: [{ k: 'cr_refreq', at: at('2026-12-03') }, { k: 'drA_ok', at: at('2026-12-04') }] }), '2026-12-01').st, A.auditOf(ci({ state: 'done', outcome: 'refund', resolvedAt: at('2026-12-09') }), '2026-12-01').done,
+      A.auditOf(ci({ state: 'done', outcome: 'refund', resolvedAt: at('2026-11-09') }), '2026-12-01').reviewed],
+      [false, false, 'Ledger reviewed', 'Refund OK’d — cut the check', true, false], 'a credit counts as reviewed once something is logged or it’s resolved after December 1');
+  }
+
+  section('OrthoBanc’s failed-payment report (handbook §14, day 0)');
+  {
+    const c = d => { const x = A.obCycle(d); return [x.cur && x.cur.date, x.cur && x.cur.due, x.next && x.next.due]; };
+    eq([c('2026-10-06'), c('2026-10-04'), c('2026-09-28'), c('2026-12-28')], [['2026-10-05', '2026-10-05', '2026-10-12'], ['2026-09-26', '2026-09-28', '2026-10-05'], ['2026-09-26', '2026-09-28', '2026-10-05'], ['2026-12-26', '2026-12-28', '2027-01-05']],
+      'the 5th, 12th, 19th and 26th — on a weekend (Sep 26, Dec 26) it’s the next office day');
+    const b = A.emptyBook();
+    let st = A.obState(A.normBook(b), '2026-10-06');
+    eq([st.due && st.due.date, st.missed], ['2026-10-05', null], 'not checked yet: due (and no “missed” nag before the first check ever)');
+    A.obCheck(b, { for: '2026-09-26', n: '3', note: 'Texted all three', by: 'jamie' }, Date.UTC(2026, 8, 28, 14));
+    st = A.obState(A.normBook(b), '2026-10-06');
+    eq([st.due && st.due.date, st.missed, st.last.n], ['2026-10-05', null, 3], 'the one before was checked: only today’s is due');
+    A.obCheck(b, { for: '2026-10-05', n: '', by: 'jamie' }, Date.UTC(2026, 9, 6, 14));
+    st = A.obState(A.normBook(b), '2026-10-06');
+    eq([st.due, A.normBook(b).ob.map(x => x.n)], [null, [3, null]], 'checked: no reminder until the next one (the count is optional)');
+    eq(A.obState(A.normBook(b), '2026-10-20').missed.date, '2026-10-12', 'a report skipped is pointed out with the next one');
+    ok(/whole number/.test((() => { try { A.obCheck(b, { for: '2026-10-12', n: '2.5' }, 1); return ''; } catch (e) { return e.message; } })()), 'the count has to be a whole number');
+  }
+
   section('Office days and settings');
   eq(['2026-10-09', '2026-10-10', '2026-11-25', '2026-12-24', '2026-12-25', '2026-09-07'].map(A.nextOfficeDay), ['2026-10-12', '2026-10-12', '2026-11-30', '2026-12-24', '2026-12-28', '2026-09-08'],
     'office days: Mon–Thu, skipping Thanksgiving week, Christmas, Labor Day');

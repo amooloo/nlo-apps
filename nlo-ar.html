@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-RVOXfeNKqvCWLQgCr1f0amchwVSkhWFJiRD8oJKYlgs=' https://www.gstatic.com/firebasejs/10.12.2/; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com http://127.0.0.1:8080 http://127.0.0.1:9099; frame-src https://nlo-cases.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-5MucYD0fPaC4yHv8FA5lUiwEOXjAbkwvvn2k1zg0A5E=' https://www.gstatic.com/firebasejs/10.12.2/; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://aisa-worker.akhavan-ak.workers.dev http://127.0.0.1:8080 http://127.0.0.1:9099; frame-src https://nlo-cases.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO A/R</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -707,6 +707,69 @@ ol.steps b{color:var(--navy)}
   .card{box-shadow:none;border:1px solid var(--grey-200);break-inside:avoid}
   .sumGrid{grid-template-columns:1fr 1fr}
 }
+/* ---------- focus mode (6 Oct 2026): what to do first today ---------- */
+.focusBar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;border-radius:var(--r);padding:12px 16px;margin-bottom:16px;background:var(--navy);color:#fff;font-size:13.5px;box-shadow:var(--sh-sm)}
+.focusBar>.i{color:var(--mint);flex:none}
+.focusBar>span{flex:1 1 260px;min-width:0}
+.focusBar .fU{color:var(--coral)}
+.focusBar .btn{margin-left:auto}
+.focusHd{display:flex;align-items:flex-start;gap:12px;justify-content:space-between;flex-wrap:wrap;margin-bottom:12px}
+.focusHd h3{display:flex;align-items:center;gap:8px;font-family:var(--fd);font-weight:600;font-size:22px;letter-spacing:.04em;text-transform:uppercase;color:var(--navy)}
+.focusHd h3 .i{color:var(--coral-600)}
+.fProg{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px;font-size:13px;color:var(--grey-600)}
+.fBar{position:relative;flex:1 1 200px;max-width:420px;height:10px;border-radius:5px;background:var(--grey-100);overflow:hidden}
+.fBar i{position:absolute;left:0;top:0;bottom:0;background:var(--mint-600);border-radius:5px}
+.fList{padding:6px 10px}
+.frow{display:flex;align-items:center;gap:12px;padding:11px 8px;border-bottom:1px solid var(--grey-100);width:100%;text-align:left;border-radius:8px;cursor:pointer}
+.frow:last-child{border-bottom:none}
+.frow:hover{background:var(--grey-50)}
+.frow .grow{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.frow .pt{font-weight:700;color:var(--navy);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.frow .par{font-weight:500;color:var(--grey-500)}
+.fTag{flex:none;width:60px;text-align:center;border-radius:99px;padding:2px 0;font-size:11px;font-weight:700;background:var(--grey-100);color:var(--grey-600)}
+.frow.urgent .fTag{background:var(--coral-100);color:var(--coral-700)}
+.frow.today .fTag{background:var(--amber-100);color:var(--amber-700)}
+.fWhy{font-size:12.5px;color:var(--grey-700)}
+.frow.urgent .fWhy{color:var(--coral-700);font-weight:600}
+.fAlso{font-size:11.5px;color:var(--grey-500)}
+.fAmt{font-weight:700;color:var(--navy);font-variant-numeric:tabular-nums;white-space:nowrap}
+.fAct{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:700;color:var(--blue);white-space:nowrap}
+.fLater{margin-top:14px}
+@media (max-width:640px){ .frow{flex-wrap:wrap;row-gap:4px} .frow .grow{flex-basis:calc(100% - 76px)} .fAmt{margin-left:72px} .fAct{margin-left:auto} }
+/* ---------- insurance carriers (6 Oct 2026) ---------- */
+.carGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}
+.carCard .cardHd{flex-wrap:wrap}
+.carFacts{color:var(--grey-700);margin-bottom:4px}
+.carNotes{margin-top:8px;white-space:pre-wrap}
+.tagRow{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:9px 0;border-bottom:1px solid var(--grey-100)}
+.tagRow:last-child{border-bottom:none}
+.tagRow .linkBtn{flex:1 1 220px;text-align:left;min-width:0}
+.carSel{max-width:240px}
+.carBox{border:1px solid var(--grey-100);background:var(--grey-50);border-radius:var(--r-sm);padding:10px 12px;margin:12px 0}
+.carHd{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.carHd .i{color:var(--blue)}
+.carHd .carSel{flex:1 1 180px}
+.carInfo{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px}
+@media (max-width:520px){ .carGrid{grid-template-columns:minmax(0,1fr)} .carSel{max-width:100%} }
+/* ---------- trends and the weekly brief (6 Oct 2026) ---------- */
+.tStats{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:12px}
+.tStat{background:var(--grey-50);border-radius:var(--r-sm);padding:10px 12px;display:flex;flex-direction:column;gap:1px}
+.tStat b{font-family:var(--fd);font-weight:600;font-size:24px;line-height:1.1;color:var(--navy);font-variant-numeric:tabular-nums}
+.tStat.ok b{color:var(--mint-700)} .tStat.bad b{color:var(--coral-700)}
+.tStat span{font-size:12.5px;font-weight:600;color:var(--grey-600)}
+.tStat i{font-style:normal;font-size:11.5px;color:var(--grey-500)}
+.tH{font-family:var(--fd);font-weight:600;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--grey-600);margin:18px 0 8px}
+.actTbl td,.actTbl th{padding:6px 10px}
+.briefBox{background:var(--grey-50);border-radius:var(--r-sm);padding:12px 14px;font-size:13.5px}
+.briefTxt p{margin:0 0 8px} .briefTxt ol,.briefTxt ul{margin:0 0 8px;padding-left:22px} .briefTxt li{margin-bottom:4px}
+/* ---------- the December credit audit (6 Oct 2026) ---------- */
+.staleBox.audit{background:var(--blue-100);color:var(--blue-700)}
+.aChk{flex:none;width:22px;height:22px;border-radius:50%;border:2px solid var(--grey-300);display:inline-flex;align-items:center;justify-content:center;color:#fff}
+.aChk.on{background:var(--mint-600);border-color:var(--mint-600)}
+@media print{ .focusBar,.briefBox .btnRow{display:none} }
+.staleBox.ob{background:var(--navy-100);color:var(--navy-700)}
+.staleBox.ob.late{background:var(--coral-100);color:var(--coral-700)}
+.staleBox .btnRow{margin-left:auto} .staleBox .btnRow .btn{margin-left:0}
 
 </style>
 </head>
@@ -1567,10 +1630,12 @@ function kpis(rep, cfg) {
   };
 }
 /* a small summary kept with each saved report, for the trend charts (totals and counts only) */
-function reportTotals(rep, cfg) {
+/* prev: the report before it, when there is one (for what moved week over week) */
+function reportTotals(rep, cfg, prev) {
   const s = summarize(rep, cfg), k1 = kpis(rep, Object.assign({}, cfg, { kpiFrom: 1 })), k30 = kpis(rep, Object.assign({}, cfg, { kpiFrom: 31 }));
   return { asOf: s.asOf, cover: s.cover, pd: s.pd.total, b90: s.pd.b90, b31: round2(s.pd.b30 + s.pd.b60), n91: s.conc.n, never: s.never.n, neverPd: s.never.pd, cr: s.cr.total, crWork: s.cr.work.total, crN: s.cr.work.n, bal: s.book ? s.book.bal : null,
-    kp: k1 ? { ptOf: k1.pt.of, ptPd: k1.pt.n, ptPd30: k30.pt.n, insOf: k1.ins ? k1.ins.of : null, insLate: k1.ins ? k1.ins.n : null, win: k1.win } : null };
+    kp: k1 ? { ptOf: k1.pt.of, ptPd: k1.pt.n, ptPd30: k30.pt.n, insOf: k1.ins ? k1.ins.of : null, insLate: k1.ins ? k1.ins.n : null, win: k1.win } : null,
+    fl: prev ? flowOf(rep, prev, cfg) : null };
 }
 
 /* ---------- what changed since the report before ---------- */
@@ -1880,7 +1945,7 @@ function normSum(s) {
   if (!s || typeof s !== 'object') return null;
   const i = v => Math.max(0, Math.round(numOr0(v)));
   const kp = s.kp && typeof s.kp === 'object' ? { ptOf: i(s.kp.ptOf), ptPd: i(s.kp.ptPd), ptPd30: i(s.kp.ptPd30), insOf: numOrNull(s.kp.insOf) == null ? null : i(s.kp.insOf), insLate: numOrNull(s.kp.insLate) == null ? null : i(s.kp.insLate), win: i(s.kp.win) } : null;
-  return { asOf: isoOrBlank(s.asOf), cover: normCover(s.cover), pd: numOr0(s.pd), b90: numOr0(s.b90), b31: numOr0(s.b31), n91: i(s.n91), never: i(s.never), neverPd: numOr0(s.neverPd), cr: numOr0(s.cr), crWork: numOr0(s.crWork), crN: i(s.crN), bal: numOrNull(s.bal), kp };
+  return { asOf: isoOrBlank(s.asOf), cover: normCover(s.cover), pd: numOr0(s.pd), b90: numOr0(s.b90), b31: numOr0(s.b31), n91: i(s.n91), never: i(s.never), neverPd: numOr0(s.neverPd), cr: numOr0(s.cr), crWork: numOr0(s.crWork), crN: i(s.crN), bal: numOrNull(s.bal), kp, fl: normFlow(s.fl) };
 }
 const LOG_KINDS = new Set(Object.keys(LOGS).concat(['done', 'reopen', 'drA_ask', 'drA_ok', 'drA_no', 'ladder', 'aa_broken', 'mhold_on', 'mhold_off']));
 function normLog(e) {
@@ -1905,6 +1970,232 @@ function normItem(it) {
     log: Array.isArray(it.log) ? it.log.slice(-500).map(normLog) : [],
     createdAt: numOr0(it.createdAt), createdBy: strOf(it.createdBy, 60), resolvedAt: numOrNull(it.resolvedAt), resolvedBy: strOf(it.resolvedBy, 60)
   };
+}
+
+/* =====================================================================
+   Insurance carriers (6 Oct 2026). Edge's A/R Aging names the
+   policyholder on an insurance row, not the carrier, so the office tags
+   each insurance account with its carrier once. The carriers (phone,
+   portal, payer ID, timely-filing limit, notes) and the tags live in
+   one sealed record, "the carrier book", saved like an account's record
+   (arItems, with its history) — so no new database rules were needed.
+   ===================================================================== */
+const BOOK_KEY = '\u0001carriers';
+const CARRIER_ID = /^c[0-9a-f]{12}$/;
+function emptyBook() { return { book: 1, key: '', name: '', rp: '', src: 'ins', kind: 'pd', state: 'open', stage: '', log: [], carriers: [], tags: {}, ob: [] }; }
+function cleanUrl(u) { u = String(u || '').trim(); return u.length <= 300 && /^https?:\/\/[^\s<>"'`]+$/i.test(u) ? u : ''; }
+function normCarrier(c) {
+  c = c && typeof c === 'object' ? c : {};
+  const tf = Number(c.tf);
+  return { id: CARRIER_ID.test(c.id) ? c.id : '', name: strOf(c.name, 60).trim(), phone: strOf(c.phone, 40).trim(), portal: cleanUrl(c.portal), payer: strOf(c.payer, 40).trim(),
+    fax: strOf(c.fax, 40).trim(), tf: Number.isInteger(tf) && tf > 0 && tf <= 1095 ? tf : 0, notes: strOf(c.notes, 1000) };
+}
+function normBook(b) {
+  if (!b || typeof b !== 'object' || !b.book || b.locked) return null;
+  const carriers = (Array.isArray(b.carriers) ? b.carriers.slice(0, 200) : []).map(normCarrier).filter(c => c.id && c.name);
+  const ids = new Set(carriers.map(c => c.id)), tags = {};
+  if (b.tags && typeof b.tags === 'object') Object.keys(b.tags).slice(0, 5000).forEach(k => { const v = b.tags[k]; if (k.length <= 400 && typeof v === 'string' && ids.has(v)) tags[k] = v; });
+  const ob = (Array.isArray(b.ob) ? b.ob.slice(-60) : []).map(x => x && typeof x === 'object' ? { id: strOf(x.id, 20), at: numOr0(x.at), by: strOf(x.by, 60), for: isoOrBlank(x.for), n: Number.isInteger(x.n) && x.n >= 0 && x.n <= 500 ? x.n : null, note: strOf(x.note, 300) } : null).filter(x => x && x.for && x.at);
+  return { id: strOf(b.id, 40), rev: numOr0(b.rev), v: numOr0(b.v), updatedAt: numOrNull(b.updatedAt), carriers: carriers.sort((x, y) => x.name.localeCompare(y.name)), tags, ob };
+}
+function carrierOf(book, key) { const id = book && book.tags[key]; return id ? book.carriers.find(c => c.id === id) || null : null; }
+/* changes to the carrier book, made on its decrypted copy */
+function bookFix(d) { if (!Array.isArray(d.carriers)) d.carriers = []; if (!d.tags || typeof d.tags !== 'object') d.tags = {}; if (!Array.isArray(d.ob)) d.ob = []; Object.assign(d, { book: 1, key: '', state: 'open' }); return d; }
+function carrierSave(d, f, o, now) {
+  bookFix(d); f = f || {};
+  const c = normCarrier(Object.assign({}, f, { id: f.id || 'c' + uid8() }));
+  if (!c.name) throw errCode('need-name', 'Give the carrier a name.');
+  if (String(f.portal || '').trim() && !c.portal) throw errCode('bad-url', 'The portal needs to be a web address starting with https://');
+  if (d.carriers.some(x => x.id !== c.id && String(x.name || '').trim().toLowerCase() === c.name.toLowerCase())) throw errCode('dup', c.name + ' is already in the list.');
+  const rec = Object.assign(c, { at: now, by: (o && o.by) || '' }), i = d.carriers.findIndex(x => x.id === c.id);
+  if (i >= 0) d.carriers[i] = rec; else d.carriers.push(rec);
+  return c.id;
+}
+function carrierRemove(d, id) { bookFix(d); d.carriers = d.carriers.filter(x => x.id !== id); Object.keys(d.tags).forEach(k => { if (d.tags[k] === id) delete d.tags[k]; }); }
+function carrierTag(d, keys, id) {
+  bookFix(d);
+  if (id && !d.carriers.some(x => x.id === id)) throw errCode('gone', 'That carrier was just removed.');
+  keys.forEach(k => { if (id) d.tags[k] = id; else delete d.tags[k]; });
+}
+/* the other insurance accounts under the same policyholder (brothers and sisters on a parent's plan) */
+function sameHolder(accts, a) { const h = normName(rpName(a)); return h ? accts.filter(x => x.ins && x.key !== a.key && normName(rpName(x)) === h) : []; }
+
+/* =====================================================================
+   Focus (6 Oct 2026): what to do first today, as one list across the
+   collections ladder, follow-ups, insurance, credits and Dr. A's OKs.
+   Urgent: a promise to pay whose day passed; a letter waiting a week or
+   more for Dr. A, or a step a week late; insurance near its carrier's
+   filing limit or with nothing paid well past the chase window; an
+   account about to reach day 90 or 120; a big balance new this week; a
+   follow-up 3+ office days late. One line per account (its most urgent
+   reason first, the rest listed with it).
+   ===================================================================== */
+const FOCUS_SEV = { promise: 1, signlate: 2, tf: 3, ladlate: 4, cross: 5, new: 6, insinv: 7, followlate: 8,
+  sign: 10, lad: 11, drA: 12, follow: 13, chase: 14, claim: 15, end: 16, creditaudit: 17, credit: 20, nofile: 21, wait: 22 };
+/* office days after `from`, up to and including `today` */
+function officeDaysLate(from, today) { let n = 0, d = from; for (let i = 0; i < 400 && d < today; i++) { d = addDays(d, 1); if (nextOfficeDay(d) === d) n++; } return n; }
+/* about how long a step takes, in minutes */
+function stepMin(s) { return s.id === 'end' || s.id === 'endaa' ? 5 : (s.n ? (s.cert ? 7 : 4) : 2) + (s.call ? 5 : 0); }
+/* ctx: { accts, asOf: the report's date, byKey, item(key) → its record (null if none, or back on the list), lad(a) → its ladder state, open: open records,
+   cleared(it), today, owner, prevPd: keys past due in the report before (or null), book, auditStart: the December credit audit's first day, while it runs } */
+function focusEntries(ctx) {
+  const t = ctx.today, best = new Map();
+  const put = e => { const cur = best.get(e.key); if (!cur) best.set(e.key, e); else if (e.sev < cur.sev) { e.also = [cur.why].concat(cur.also); best.set(e.key, e); } else cur.also.push(e.why); };
+  const mk = (a, it, kind, why, act, min, amt) => { const sev = FOCUS_SEV[kind]; return { key: a ? a.key : it.key, a: a || null, it: it || null, kind, sev, cls: sev < 10 ? 'urgent' : sev < 20 ? 'today' : 'later', why, act, min, amt: amt != null ? amt : a ? (a.pd > 0 ? a.pd : a.credit) : 0, also: [] }; };
+  const recent = (it, days) => !!it && (it.log || []).some(e => e.at && daysBetween(isoOf(new Date(e.at)), t) <= days);
+  const filed = it => !!it && ladEntries(it).some(e => e.k === 'ins_filed' || e.k === 'ins_resub' || e.k === 'ins_appeal');
+  (ctx.accts || []).forEach(a => {
+    const it = ctx.item(a.key);
+    if (it && it.state === 'done') return; // resolved (and not past due or in credit again)
+    if (onLadder(a)) {
+      const L = ctx.lad(a);
+      if (L && L.due) {
+        // "late" only once an account is moving up the ladder (a step recorded this round): an account nobody had started on isn't late, it's next
+        const s = L.due, over = s.day != null ? L.day - s.day : L.endOn ? Math.max(0, daysBetween(L.endOn, t)) : 0, late = L.last >= 0 && over >= 7 ? ' — ' + over + ' days late' : '';
+        const q = it && it.drA ? drAQuestion(it) : null, askedOn = q && q.k === 'drA_ask' && q.step === s.id ? isoOf(new Date(q.at)) : '', waited = askedOn ? officeDaysLate(askedOn, t) : 0;
+        if (s.dra && !L.signed[s.id]) {
+          if (ctx.owner) put(mk(a, it, waited >= 3 ? 'signlate' : 'sign', s.s + ' needs your signature' + (waited >= 3 ? ' — asked ' + plural(waited, 'office day') + ' ago' : ''), 'Sign', 1));
+          else if (L.asked === s.id) put(mk(a, it, waited >= 3 ? 'signlate' : 'wait', 'Waiting for Dr. A to sign ' + s.s + (waited >= 3 ? ' — asked ' + plural(waited, 'office day') + ' ago' : ''), waited >= 3 ? 'Remind Dr. A' : 'Waiting', 0));
+          else put(mk(a, it, late ? 'signlate' : 'sign', 'Ask Dr. A to sign ' + s.s + late, 'Ask Dr. A', 1));
+        } else if (s.id === 'end' || s.id === 'endaa') put(mk(a, it, 'end', s.l, 'Resolve', stepMin(s)));
+        else put(mk(a, it, late ? 'ladlate' : 'lad', s.s + ' due' + late + (s.send ? ' · ' + s.send.split(' · ')[0].toLowerCase() : ''), s.btn, stepMin(s)));
+      }
+      if (L && !L.paused && !L.fin && !L.broke) {
+        const goal = L.day >= 83 && L.day < 90 ? 90 : L.day >= 113 && L.day < 120 ? 120 : 0;
+        if (goal && !recent(it, 7)) put(mk(a, it, 'cross', 'Reaches day ' + goal + ' on ' + fmtDay(nextOfficeDay(addDays(t, goal - L.day))) + ' — ' + (goal === 90 ? 'Dr. A’s certified letter is next' : 'the final letter is next'), 'Call', 5));
+      }
+      if (ctx.prevPd && !ctx.prevPd.has(a.key) && a.pd >= 500 && !(it && (it.log || []).length)) put(mk(a, it, 'new', 'New this week: ' + money(a.pd) + ' past due', 'Call', 5));
+    }
+    if (a.ins && a.pd > 0) {
+      // days past due today: the report's, carried on to today
+      const c = carrierOf(ctx.book, a.key), dn = a.days != null ? a.days + (ctx.asOf ? Math.max(0, daysBetween(ctx.asOf, t)) : 0) : null;
+      if (c && c.tf && dn != null && dn >= c.tf - 30 && dn <= c.tf && !filed(it)) put(mk(a, it, 'tf', c.name + '’s filing limit (' + c.tf + ' days) is ' + (c.tf > dn ? 'in ' + plural(c.tf - dn, 'day') : 'today'), 'Call the carrier', 10));
+      if (!it) {
+        const who = c ? c.name : 'the carrier';
+        if (a.tier === 'investigate') put(mk(a, it, 'insinv', 'Nothing paid in ' + dn + ' days — investigate the claim with ' + who, 'Call the carrier', 10));
+        else if (a.tier === 'chase') put(mk(a, it, 'chase', 'Nothing paid in ' + dn + ' days — chase ' + who, 'Call the carrier', 10));
+        else if (a.tier === 'nofile') put(mk(a, it, 'nofile', 'Nothing paid in ' + dn + ' days — probably never filed', 'Verify', 10));
+        else if (!a.months && a.bucket === '91') put(mk(a, it, 'claim', 'Claim follow-up with ' + who + ' — ' + money(a.b90) + ' at 91+ days', 'Call the carrier', 10));
+      }
+    }
+    if (a.credit > 0 && !(a.pd > 0) && !a.prepay) {
+      const k = crAction(a).k, why = k === 'prio' ? 'over 3 years old: refund it or escalate' : k === 'inact' ? 'the patient is inactive: refund or write it off' : k === 'old' ? 'over a year old: find out why' : 'check whether it’s timing';
+      if (ctx.auditStart) { if (!auditOf(it, ctx.auditStart).reviewed) put(mk(a, it, 'creditaudit', 'December audit: credit of ' + money(a.credit) + ' — ' + why, 'Review', 8, a.credit)); }
+      else if (!it && (k === 'prio' || k === 'inact')) put(mk(a, it, 'credit', 'Credit of ' + money(a.credit) + ' — ' + why, 'Review', 8, a.credit));
+    }
+  });
+  (ctx.open || []).forEach(it => {
+    if (!it.key || ctx.cleared(it)) return;
+    const a = ctx.byKey.get(it.key) || null;
+    if (it.follow && it.follow <= t) {
+      if (it.stage === 'promise') put(mk(a, it, it.follow < t ? 'promise' : 'follow', (it.follow < t ? 'Promised to pay by ' + fmtDate(it.follow) : 'Promised to pay today') + ' — check whether it came in', 'Check', 3));
+      else { const late = officeDaysLate(it.follow, t), e = lastLog(it); put(mk(a, it, late >= 3 ? 'followlate' : 'follow', 'Follow-up ' + (late ? plural(late, 'office day') + ' late' : 'due today') + (e ? ' — last: ' + logLabel(e).toLowerCase() : ''), 'Follow up', 5)); }
+    }
+    if (ctx.owner && it.drA) { const q = drAQuestion(it); if (!(q && q.k === 'drA_ask' && q.step)) put(mk(a, it, 'drA', q ? logLabel(q) + (q.note ? ': ' + q.note : '') : 'Waiting for your OK', 'Answer', 2)); }
+  });
+  return Array.from(best.values()).sort((x, y) => x.sev - y.sev || y.amt - x.amt);
+}
+
+/* =====================================================================
+   Week over week (6 Oct 2026): what moved between two reports —
+   accounts that got current, ones newly past due, ones that slid to an
+   older bucket (or into 91+) or got better, and the past due that went
+   away (paid, or adjusted in Edge). Kept with each report's sealed
+   totals (sum.fl) from now on.
+   ===================================================================== */
+function flowOf(cur, prev, cfg) {
+  if (!cur || !prev || !cur.cover || !prev.cover || !cur.cover.pastDue || !prev.cover.pastDue || !(prev.asOf < cur.asOf)) return null;
+  const both = cur.cover.ins && prev.cover.ins, keep = a => a.pd > 0 && (both || !a.ins);
+  const P = new Map(reportAccts(prev, cfg).filter(keep).map(a => [a.key, a])), C = new Map(reportAccts(cur, cfg).filter(keep).map(a => [a.key, a]));
+  const ord = { '0': 0, '31': 1, '91': 2 }, o = { from: prev.asOf, to: cur.asOf, cured: 0, curedAmt: 0, ptCured: 0, insCured: 0, newN: 0, newAmt: 0, rolled: 0, into91: 0, better: 0, cleared: 0 };
+  P.forEach((p, k) => {
+    const c = C.get(k);
+    if (!c) { o.cured++; o.curedAmt += p.pd; o.cleared += p.pd; if (p.ins) o.insCured++; else o.ptCured++; return; }
+    if (ord[c.bucket] > ord[p.bucket]) { o.rolled++; if (c.bucket === '91') o.into91++; } else if (ord[c.bucket] < ord[p.bucket]) o.better++;
+    o.cleared += Math.max(0, p.pd - c.pd);
+  });
+  C.forEach((c, k) => { if (!P.has(k)) { o.newN++; o.newAmt += c.pd; } });
+  ['curedAmt', 'newAmt', 'cleared'].forEach(k => { o[k] = round2(o[k]); });
+  return o;
+}
+function normFlow(f) {
+  if (!f || typeof f !== 'object') return null;
+  const i = v => Math.max(0, Math.round(numOr0(v)));
+  return { from: isoOrBlank(f.from), to: isoOrBlank(f.to), cured: i(f.cured), curedAmt: numOr0(f.curedAmt), ptCured: i(f.ptCured), insCured: i(f.insCured), newN: i(f.newN), newAmt: numOr0(f.newAmt), rolled: i(f.rolled), into91: i(f.into91), better: i(f.better), cleared: numOr0(f.cleared) };
+}
+/* the straight line through the last (up to) 8 weekly rates: when it reaches the goal at this pace.
+   pts: [{ asOf, rate }] oldest first → null (under 3 reports) | { met } | { dir: 'up' | 'flat' } | { dir: 'down', weeks, date } */
+function paceTo(pts, goal) {
+  const P = (pts || []).filter(p => p && ISO_RE.test(p.asOf || '') && typeof p.rate === 'number' && isFinite(p.rate)).slice(-8);
+  if (P.length < 3) return null;
+  const X = P.map(p => daysBetween(P[0].asOf, p.asOf) / 7), Y = P.map(p => p.rate), n = P.length;
+  const mx = X.reduce((s, v) => s + v, 0) / n, my = Y.reduce((s, v) => s + v, 0) / n, sxx = X.reduce((s, v) => s + (v - mx) * (v - mx), 0);
+  if (!sxx) return null;
+  const slope = X.reduce((s, v, i) => s + (v - mx) * (Y[i] - my), 0) / sxx, cur = Y[n - 1];
+  if (cur <= goal + 1e-9) return { met: true, slope, cur };
+  if (slope > -0.0005) return { met: false, slope, cur, dir: slope > 0.0005 ? 'up' : 'flat' };
+  const weeks = (cur - goal) / -slope;
+  return { met: false, slope, cur, dir: 'down', weeks, date: addDays(P[n - 1].asOf, Math.ceil(weeks * 7 - 1e-6)) };
+}
+
+/* =====================================================================
+   The December credit audit (handbook §15): "Pull a full credit balance
+   audit in December each year … By March, all refund checks are cut and
+   sent, or money is moved/applied to other accounts." Refunds can go out
+   a few at a time. The audit runs December 1 – March 31.
+   ===================================================================== */
+function auditWindow(today) {
+  const [y, m] = today.split('-').map(Number);
+  if (m === 12) return { on: true, start: y + '-12-01', end: (y + 1) + '-03-31' };
+  if (m <= 3) return { on: true, start: (y - 1) + '-12-01', end: y + '-03-31' };
+  return { on: false, start: y + '-12-01', end: (y + 1) + '-03-31' };
+}
+/* where one credit stands in the audit that started on `start` (anything logged or resolved since then counts as reviewed) */
+function auditOf(it, start) {
+  const [y, m, d] = start.split('-').map(Number), t0 = new Date(y, m - 1, d).getTime();
+  if (!it) return { reviewed: false, done: false, refund: false, st: '' };
+  if (it.state === 'done') return (it.resolvedAt || 0) >= t0 ? { reviewed: true, done: true, refund: it.outcome === 'refund', st: OUTCOMES[it.outcome] || 'Resolved' } : { reviewed: false, done: false, refund: false, st: '' };
+  const E = (it.log || []).filter(e => (e.at || 0) >= t0 && e.k !== 'reopen');
+  if (!E.length) return { reviewed: false, done: false, refund: false, st: '' };
+  const has = k => E.some(e => e.k === k), refund = has('cr_refreq');
+  const st = refund ? (E.some(e => e.k === 'drA_ok') ? 'Refund OK’d — cut the check' : E.some(e => e.k === 'drA_no') ? 'Refund: Dr. A said not yet' : 'Refund requested — with Dr. A') :
+    has('cr_hold') ? 'Holding for insurance (60 days at most)' : has('cr_review') ? 'Ledger reviewed' : logLabel(E[E.length - 1]);
+  return { reviewed: true, done: false, refund, st };
+}
+
+/* =====================================================================
+   OrthoBanc's failed-payment report (6 Oct 2026). Handbook §14, day 0:
+   "OrthoBanc emails of failed payments arrive approximately on the 5th,
+   12th, 19th, and 26th of each month. Send a text to the RP immediately
+   when the failed payment notification arrives." The email only says the
+   report is ready (no names), so the app reminds on those days — on the
+   office day it lands on — until someone marks that report checked.
+   The checks are kept in the office's sealed record with the carriers.
+   ===================================================================== */
+const OB_DAYS = [5, 12, 19, 26];
+const OB_URL = 'https://www.orthobanc.com/providers/reports.aspx';
+/* the reports around today: { date (the 5th, 12th…), due (the office day it's handled) } — the latest one due, and the next */
+function obCycle(today) {
+  const [y, m] = today.split('-').map(Number), all = [];
+  for (let k = -1; k <= 1; k++) {
+    let yy = y, mm = m + k; if (mm < 1) { mm = 12; yy--; } if (mm > 12) { mm = 1; yy++; }
+    OB_DAYS.forEach(d => { const date = yy + '-' + String(mm).padStart(2, '0') + '-' + String(d).padStart(2, '0'); all.push({ date, due: nextOfficeDay(date) }); });
+  }
+  const past = all.filter(c => c.due <= today);
+  return { cur: past[past.length - 1] || null, prev: past[past.length - 2] || null, next: all.find(c => c.due > today) || null };
+}
+/* where the reminder stands: due (the report whose day has come, not checked yet), missed (the one before it, not checked either) */
+function obState(book, today) {
+  const C = obCycle(today), checks = (book && book.ob) || [], done = c => !!c && checks.some(x => x.for === c.date);
+  return { cur: C.cur, next: C.next, due: C.cur && !done(C.cur) ? C.cur : null, missed: C.prev && !done(C.prev) && checks.length ? C.prev : null, last: checks.length ? checks[checks.length - 1] : null };
+}
+function obCheck(d, o, now) {
+  bookFix(d); o = o || {};
+  if (!ISO_RE.test(o.for || '')) throw errCode('bad-date');
+  const n = o.n === '' || o.n == null ? null : Number(o.n);
+  if (n != null && !(Number.isInteger(n) && n >= 0 && n <= 500)) throw errCode('bad-n', 'How many failed payments: a whole number.');
+  d.ob.push({ id: uid8(), at: now, by: o.by || '', for: o.for, n, note: String(o.note || '').trim().slice(0, 300) });
+  if (d.ob.length > 60) d.ob = d.ob.slice(-60);
 }
 
 /* =====================================================================
@@ -2555,7 +2846,7 @@ const DEMO = {
       const act = l => l.filter(r => !isInactive(r)).length;
       const book = { n: rows.length + 560 + w, bal: round2(sum(rows, 'bal') + 1201250 - w * 1830), due: sum(rows, 'due'), pt: { n: pt.length + 380, bal: round2(sum(pt, 'bal') + 919400 - w * 1400), act: act(pt) + 380 }, ins: { n: ins.length + 180 + w, bal: round2(sum(ins, 'bal') + 281850 - w * 430), act: act(ins) + 180 + w } };
       const rep = { asOf, cover: { full: true, pastDue: true, credit: true, ins: true }, book, rows, files: [{ name: 'AR Aging ' + asOf + '.xls', kind: 'xls', subgroup: '', options: 'Exclude Zero Dollar Balances', edge: 'Edge', n: rows.length + 560, ok: true }], made: atDay(asOf, 8, 40) };
-      DEMO.reports.push({ meta: { id: 'demo-r' + w, asOf, n: rows.length, at: Math.min(Date.now() - 40 * 60000, atDay(asOf, 8, 52 + w)), by: 'u-jamie', sid: 'jamie', v: 1, sum: reportTotals(rep, cfg), locked: false }, data: rep });
+      DEMO.reports.push({ meta: { id: 'demo-r' + w, asOf, n: rows.length, at: Math.min(Date.now() - 40 * 60000, atDay(asOf, 8, 52 + w)), by: 'u-jamie', sid: 'jamie', v: 1, sum: reportTotals(rep, cfg, w ? DEMO.reports[w - 1].data : null), locked: false }, data: rep });
     }
 
     /* accounts being worked — logged the way the app logs them */
@@ -2639,6 +2930,23 @@ const DEMO = {
     await seed(pt(160) || pt(151) || pt(188), a => [['sign', on(a, a.days - 38, 9), 'amir', { step: 'l7' }], L(a, a.days - 38, 'l7', { note: 'Certified #9407 1000 0000 0000 0000 03' })]);
     // day 15: texted on day 1 — Letter #1 is due
     await seed(pt(15), a => [L(a, 1, 'd0')]);
+
+    /* insurance carriers (made-up names, 555 numbers): most insurance accounts have theirs; a few are left for the FC to set */
+    const book = emptyBook();
+    [['Bayside Dental Plan', '(800) 555-0142', 'BDP01', 365, 'Claims: PO Box 1000. Ask for the orthodontic unit.', 'https://provider.example.com/bayside'],
+      ['Coastal Benefits', '(800) 555-0177', 'CB651', 365, '', ''],
+      ['Gulf Dental Group', '(800) 555-0123', 'GDG24', 180, 'Needs the treatment start date on every claim.', 'https://provider.example.com/gulf'],
+      ['Orange Grove Insurance', '(800) 555-0109', 'OGI47', 365, '', ''],
+      ['Summit Dental PPO', '(888) 555-0156', 'SDP90', 150, 'The portal is fastest; phone holds run long.', 'https://provider.example.com/summit']]
+      .forEach(([name, phone, payer, tf, notes, portal], i) => carrierSave(book, { name, phone, payer, tf, notes, portal }, { by: 'taylor' }, ago(20 - i, 9, i)));
+    const insA = accts.filter(a => a.ins), cid = n => book.carriers.find(c => c.name === n).id;
+    const leave = new Set(insA.filter(a => a.pd > 0 && [47, 104, 395].includes(a.days)).map(a => a.key));
+    insA.forEach((a, i) => { if (!leave.has(a.key)) book.tags[a.key] = a.days === 141 ? cid('Summit Dental PPO') : book.carriers[i % 4].id; });
+    // OrthoBanc's failed-payment reports: the one before was checked; today's isn't yet
+    const obC = obCycle(todayISO()); if (obC.prev) book.ob.push({ id: uid8(), at: Math.min(now - 3600000, atDay(obC.prev.due, 9, 40)), by: 'jamie', for: obC.prev.date, n: 3, note: 'Texted all three families' });
+    const bid = await DEMO.itemId(BOOK_KEY);
+    DEMO.items.set(bid, Object.assign(book, { id: bid, rev: 2, v: 1, status: 'open', by: 'taylor', updatedAt: ago(3, 9, 10) }));
+    DEMO.logs.push({ itemId: bid, rev: 1, at: ago(20, 9, 0), sid: 'taylor', a: 'carrier', op: 'add', name: 'Bayside Dental Plan' }, { itemId: bid, rev: 2, at: ago(3, 9, 10), sid: 'taylor', a: 'carrier', op: 'tag', n: Object.keys(book.tags).length });
   }
 };
 
@@ -2649,10 +2957,11 @@ const DEMO = {
    ===================================================================== */
 const S = {
   demo: false, emu: false, tour: '', inApp: false, arState: '', view: 'today', q: '',
-  tab: { pd: 'lad', ins: 'chase', cr: 'work' }, f: { src: '', work: '', who: '' }, sort: { k: '', dir: 1 }, ladStep: '', ladVer: 0,
+  tab: { pd: 'lad', ins: 'chase', cr: 'work' }, f: { src: '', work: '', who: '', car: '' }, sort: { k: '', dir: 1 }, ladStep: '', ladVer: 0,
   settings: { idleMin: 10 }, cfg: arCfg({}), roster: [], team: [],
   reports: [], rep: null, repId: '', prev: null, prevId: '', accts: [], byKey: new Map(), diff: null,
   items: new Map(), itemByKey: new Map(), keyIds: new Map(), pend: {}, srv: {},
+  book: null, bookRaw: null, bookId: '', bookPend: 0, bookSrv: null, focus: false, brief: null,
   openKey: '', ui: {}, imp: null, doneLoaded: false, people: null, accessBusy: '', rotating: null,
   lastLogin: '', loginPw: '', lastAct: Date.now(), idleTimer: null, renderQ: false, firstLoad: true, loadErr: ''
 };
@@ -2849,7 +3158,8 @@ function bindLockForms() {
 /* ---------- enter / leave ---------- */
 async function enterApp() {
   Object.assign(S, {
-    inApp: true, arState: 'opening', view: 'today', q: '', f: { src: '', work: '', who: '' }, sort: { k: '', dir: 1 }, ladStep: '', ladMemo: null,
+    inApp: true, arState: 'opening', view: 'today', q: '', f: { src: '', work: '', who: '', car: '' }, sort: { k: '', dir: 1 }, ladStep: '', ladMemo: null,
+    book: null, bookRaw: null, bookId: '', bookPend: 0, bookSrv: null, brief: null, focus: focusPref(),
     reports: [], rep: null, repId: '', prev: null, prevId: '', accts: [], byKey: new Map(), diff: null,
     items: new Map(), itemByKey: new Map(), keyIds: new Map(), pend: {}, srv: {}, openKey: '', ui: {}, imp: null, doneLoaded: false, people: null, accessBusy: '', rotating: null,
     firstLoad: true, loadErr: '', lastAct: Date.now(), team: [], roster: [], day: todayISO()
@@ -2879,8 +3189,9 @@ function startLive() {
     reports(list) { if (!S.inApp) return; list.forEach(r => { r.sum = normSum(r.sum); r.locked = r.locked || !r.sum; }); S.reports = list; loadLatest(); },
     items(up, gone) {
       if (!S.inApp) return;
-      up.forEach(it => { it = normItem(it); if (S.pend[it.id]) { S.srv[it.id] = it; return; } S.items.set(it.id, it); });
-      gone.forEach(id => { if (S.pend[id]) { S.srv[id] = 'gone'; return; } S.items.delete(id); });
+      // the carrier book is kept like an account's record, but it isn't one
+      up.forEach(it => { if (it && it.book) { gotBook(it); return; } it = normItem(it); if (S.pend[it.id]) { S.srv[it.id] = it; return; } S.items.set(it.id, it); });
+      gone.forEach(id => { if (id && id === S.bookId) { gotBook(null); return; } if (S.pend[id]) { S.srv[id] = 'gone'; return; } S.items.delete(id); });
       indexItems(); S.firstLoad = false; S.loadErr = ''; queueRender();
       if (S.openKey) refreshDrawer();
     },
@@ -2892,6 +3203,7 @@ function startLive() {
     loadError(e) { S.firstLoad = false; S.loadErr = B.isPerm && B.isPerm(e) ? 'A/R can’t be read with this login (the rules may have changed — sign in again).' : errText(e); queueRender(); },
     error(e) { if (/permission/.test((e && e.code) || '')) lockOut('Your access changed. Sign in again.'); else toast(errText(e), { bad: true }); }
   });
+  B.itemId(BOOK_KEY).then(id => { if (S.inApp) S.bookId = id; }).catch(() => { });
   // accounts resolved in the last six months, so the lists show them as resolved (the live updates only carry open ones)
   B.loadDone(180).then(list => {
     if (!S.inApp) return;
@@ -2943,6 +3255,29 @@ function derive() {
 function indexItems() { S.itemByKey = new Map(); S.items.forEach(it => { if (it.key && !it.locked) S.itemByKey.set(it.key, it); }); S.ladVer++; }
 function itemFor(key) { return S.itemByKey.get(key) || null; }
 
+/* ---------- the carrier book (insurance carriers and which account is with which) ---------- */
+function gotBook(raw) {
+  if (S.bookPend) { S.bookSrv = raw || 'gone'; return; }
+  S.bookRaw = raw ? JSON.parse(JSON.stringify(raw)) : null; S.book = normBook(raw); S.ladVer++; queueRender();
+  if (S.openKey) refreshDrawer();
+}
+/* change the book: shown at once, then saved (sealed, with its history) */
+async function bookChange(fn, action, okMsg) {
+  const now = Date.now(), raw = JSON.parse(JSON.stringify(S.bookRaw || emptyBook()));
+  let ret; try { ret = fn(bookFix(raw), now); } catch (e) { toast(errText(e), { bad: true }); return false; }
+  const before = S.bookRaw;
+  S.bookRaw = raw; S.book = normBook(Object.assign(raw, { book: 1 })); S.ladVer++; queueRender(); if (S.openKey) refreshDrawer();
+  S.bookPend++;
+  let ok = true;
+  try { if (!S.bookId) S.bookId = await B.itemId(BOOK_KEY); await B.mutateItem(S.bookId, d => { fn(bookFix(d), now); }, action, emptyBook()); if (okMsg) toast(okMsg); }
+  catch (e) { ok = false; toast(errText(e), { bad: true }); if (!S.bookSrv) S.bookSrv = before || 'gone'; }
+  if (!--S.bookPend && S.bookSrv) { const srv = S.bookSrv; S.bookSrv = null; gotBook(srv === 'gone' ? null : srv); }
+  return ok ? (ret === undefined ? true : ret) : false;
+}
+function carrierFor(key) { return carrierOf(S.book, key); }
+/* focus mode is remembered on this computer */
+function focusPref() { try { return localStorage.getItem('nloAR.focus') === '1'; } catch (e) { return false; } }
+
 /* ---------- the collections ladder (handbook §14), worked out once per change for every patient account past due ---------- */
 function ladAll() {
   const t = todayISO();
@@ -2973,7 +3308,7 @@ async function ownerUpkeep() {
 }
 async function resealIfNeeded() {
   if (!S.inApp || S.demo || !isOwner() || S.resealing || B.rotating || B.resealing || !B.ar) return;
-  const old = S.reports.some(r => r.v < B.ar.curV) || Array.from(S.items.values()).some(it => it.v < B.ar.curV);
+  const old = S.reports.some(r => r.v < B.ar.curV) || Array.from(S.items.values()).some(it => it.v < B.ar.curV) || !!(S.book && S.book.v && S.book.v < B.ar.curV);
   if (!old) return;
   S.resealing = true;
   try { await B.arReseal(); } catch (e) { } finally { S.resealing = false; }
@@ -3183,11 +3518,11 @@ Object.assign(ACT, {
     if (S.view === 'reports' && v !== 'reports' && S.imp && S.imp.files && S.imp.files.length && !confirm('Leave without saving this report?')) return;
     if (v !== 'reports') S.imp = null;
     S.view = v; if (t.dataset.tab) S.tab[v] = t.dataset.tab;
-    S.f = { src: '', work: '', who: '' }; S.sort = { k: '', dir: 1 }; S.ladStep = t.dataset.step || '';
+    S.f = { src: '', work: '', who: '', car: '' }; S.sort = { k: '', dir: 1 }; S.ladStep = t.dataset.step || '';
     closeDrawer(true); renderNav(); renderView(); window.scrollTo(0, 0);
   },
   tab(t) { S.tab[S.view] = t.dataset.t; S.sort = { k: '', dir: 1 }; S.ladStep = ''; renderView(); },
-  clearF() { S.f = { src: '', work: '', who: '' }; renderView(); },
+  clearF() { S.f = { src: '', work: '', who: '', car: '' }; renderView(); },
   sort(t) { const k = t.dataset.k; S.sort = { k, dir: S.sort.k === k ? -S.sort.dir : (t.dataset.d === 'asc' ? 1 : -1) }; renderView(); },
   open(t) { openDrawer(t.dataset.key); },
   closeDrawer() { closeDrawer(); },
@@ -3234,6 +3569,7 @@ function applyFilters(list) {
     if (f.src && a.src !== f.src) return false;
     if (f.work) { const w = workState(a.key); if (f.work === 'open' ? w === 'done' : w !== f.work) return false; }
     if (f.who) { const it = itemFor(a.key); const who = it && it.state === 'open' ? it.assignee : ''; if (f.who === '_me' ? who !== me : f.who === '_none' ? !!who : who !== f.who) return false; }
+    if (f.car && S.view === 'ins') { const c = carrierFor(a.key); if (f.car === '_none' ? !!c : !c || c.id !== f.car) return false; }
     return true;
   });
 }
@@ -3248,8 +3584,9 @@ function filtersHTML(opt) {
   return '<div class="filters">' +
     (opt.src === false ? '' : '<select data-f="src" aria-label="Who pays"><option value="">Patients &amp; insurance</option><option value="pt"' + sel('pt', f.src) + '>Patient accounts</option><option value="ins"' + sel('ins', f.src) + '>Insurance accounts</option></select>') +
     '<select data-f="work" aria-label="Work"><option value="">Any work status</option>' + [['new', 'Not started'], ['open', 'Not resolved'], ['working', 'Being worked'], ['due', 'Follow-up due'], ['done', 'Resolved']].map(([k, l]) => '<option value="' + k + '"' + sel(k, f.work) + '>' + l + '</option>').join('') + '</select>' +
+    (S.view === 'ins' && S.book && S.book.carriers.length ? '<select data-f="car" aria-label="Carrier"><option value="">Every carrier</option>' + S.book.carriers.map(c => '<option value="' + esc(c.id) + '"' + sel(c.id, f.car) + '>' + esc(c.name) + '</option>').join('') + '<option value="_none"' + sel('_none', f.car) + '>No carrier set</option></select>' : '') +
     (ppl.length > 1 ? '<select data-f="who" aria-label="Assigned to"><option value="">Anyone</option><option value="_me"' + sel('_me', f.who) + '>Assigned to me</option><option value="_none"' + sel('_none', f.who) + '>Unassigned</option>' + ppl.map(r => '<option value="' + esc(r.sid) + '"' + sel(r.sid, f.who) + '>' + esc(staffName(r.sid)) + '</option>').join('') + '</select>' : '') +
-    ((f.src || f.work || f.who) ? '<button class="btn btn-ghost" data-act="clearF">Clear filters</button>' : '') +
+    ((f.src || f.work || f.who || f.car) ? '<button class="btn btn-ghost" data-act="clearF">Clear filters</button>' : '') +
     '<span style="flex:1"></span><button class="btn btn-ghost" data-act="csv">' + ic('download', 15) + 'Download list</button></div>';
 }
 /* cols: [{ k (sort key), l (label), num, cls, td(a, i) }] */
@@ -3276,6 +3613,7 @@ const C = {
   sug: { l: 'Suggested', cls: 'hideM', td: a => a.months ? tierChip(a) : ladSug(a) || sugChip(pdAction(a, S.cfg), true) },
   days: { k: 'days', l: 'Days', num: true, cls: 'hideM', td: a => a.days == null ? '—' : esc(String(a.days)) },
   work: { k: 'follow', l: 'Work', td: a => workCell(a.key) },
+  car: { l: 'Carrier', cls: 'hideM', td: a => { const c = carrierFor(a.key); return c ? '<span class="small">' + esc(c.name) + '</span>' : '<span class="small muted">—</span>'; } },
   // the ladder's list
   lday: { k: 'ladDay', l: '<span title="Days past due today (Edge’s Days, plus the days since the report)">Day</span>', num: true, td: a => '<span class="big">' + a.ladDay + '</span>' },
   lstep: { k: 'ladN', l: 'Step due', td: a => ladStepCell(a) }
@@ -3396,7 +3734,7 @@ function staleHTML(noBtn) {
   const age = d.newest ? daysBetween(d.newest, todayISO()) : 0;
   const msg = (d.state === 'today' ? 'This week’s A/R report is due today.' : 'This week’s A/R report is late — it was due ' + dayLong(d.due) + (d.days ? ' (' + plural(d.days, 'day') + ' ago)' : '') + '.') +
     (d.newest ? ' The newest is from ' + fmtDate(d.newest) + (age >= 14 ? ', ' + Math.floor(age / 7) + ' weeks ago' : '') + '.' : '');
-  return '<div class="staleBox ' + d.state + '" role="status">' + ic('clock', 18) + '<span>' + esc(msg) + '</span>' + (noBtn ? '' : '<button class="btn btn-sec btn-sm" data-act="nav" data-v="reports">' + ic('import', 15) + 'Import report</button>') + '</div>';
+  return '<div class="staleBox wk ' + d.state + '" role="status">' + ic('clock', 18) + '<span>' + esc(msg) + '</span>' + (noBtn ? '' : '<button class="btn btn-sec btn-sm" data-act="nav" data-v="reports">' + ic('import', 15) + 'Import report</button>') + '</div>';
 }
 /* Reports: when this week's is due, or that it's in and when the next one is */
 function dueLineHTML() {
@@ -3412,7 +3750,8 @@ function viewToday() {
   const s91 = round2(S.accts.filter(a => a.bucket === '91').reduce((s, a) => s + a.b90, 0)), crw = S.accts.filter(a => a.credit > 0 && !a.prepay);
   const tile = (n, l, cls, act, sub) => '<button class="tile ' + cls + '" ' + act + '><span class="n' + (String(n).length > 6 ? ' sm' : '') + '">' + n + '</span><span class="l">' + l + '</span>' + (sub ? '<span class="s">' + sub + '</span>' : '') + '</button>';
   const toSign = ladDueAccts().filter(a => { const l = ladFor(a); return l.due.dra && !l.signed[l.due.id]; }).length;
-  let h = tourOfferHTML() + staleHTML() + goalsHTML() + '<div class="tiles">' +
+  if (S.focus && S.rep) return tourOfferHTML() + staleHTML() + auditBannerHTML() + focusViewHTML();
+  let h = tourOfferHTML() + staleHTML() + obBannerHTML() + auditBannerHTML() + (S.rep ? focusStripHTML(focusData()) : '') + goalsHTML() + '<div class="tiles">' +
     tile(c.due, 'Follow-ups due', c.late ? 'red' : 'amber', 'data-act="tileDue"', c.late ? c.late + ' late' : 'today') +
     tile(c.lad, 'Collection steps due', 'coral', 'data-act="nav" data-v="pd" data-tab="lad"', toSign ? toSign + ' for Dr. A to sign' : 'letters, texts & calls') +
     tile(money(s91), '91+ days past due', 'red', 'data-act="nav" data-v="pd" data-tab="91"', plural(c.n91, 'account')) +
@@ -3600,15 +3939,17 @@ function viewIns() {
   const A = S.accts, nev = listNever(A), partly = A.filter(a => a.ins && a.pd > 0 && !a.months).sort((x, y) => y.pd - x.pd);
   const sm = summarize(S.rep, S.cfg).never, by = t => nev.filter(a => a.tier === t);
   const tiers = S.cfg.tiers;
+  const tabs = tabsHTML([['chase', '2 · Chase now', by('chase').length], ['investigate', '3 · Investigate', by('investigate').length], ['nofile', '4 · Never filed?', by('nofile').length], ['monitor', '1 · Monitor', by('monitor').length], ['all', 'All nothing paid', nev.length], ['partly', 'Partly paid, past due', partly.length], ['carriers', 'Carriers', S.book ? S.book.carriers.length : 0]]);
+  if (S.tab.ins === 'carriers') return staleHTML() + tabs + carriersTabHTML();
   let h = staleHTML() + '<div class="ruleBox"><b>Insurance accounts where nothing has been paid.</b> When an insurance account’s past due is an exact multiple of ' + money(S.cfg.inst, true) + ' (the monthly instalment), the carrier has paid nothing at all: N × ' + money(S.cfg.inst, true) + ' = N untouched months. The aging report hides this, because it only ages the instalment.' +
     '<div class="rb2"><div><div class="n">' + sm.n + '</div><div class="l">accounts</div></div><div><div class="n">' + money(sm.pd) + '</div><div class="l">past due</div></div><div><div class="n">' + money(sm.contract) + '</div><div class="l">contract balance behind them' + (sm.pctBook != null ? ' (' + Math.round(sm.pctBook * 100) + '% of the insurance book)' : '') + '</div></div></div></div>';
-  h += tabsHTML([['chase', '2 · Chase now', by('chase').length], ['investigate', '3 · Investigate', by('investigate').length], ['nofile', '4 · Never filed?', by('nofile').length], ['monitor', '1 · Monitor', by('monitor').length], ['all', 'All nothing paid', nev.length], ['partly', 'Partly paid, past due', partly.length]]);
+  h += tabs;
   const tab = S.tab.ins;
   const why = { chase: 'Past due ' + (tiers[0] + 1) + '–' + tiers[1] + ' days with nothing paid: call the carrier now.', investigate: tiers[1] + 1 + '–' + tiers[2] + ' days with nothing paid: the claim is likely stuck or denied — investigate it.', nofile: 'Over ' + tiers[2] + ' days with nothing paid: the claim was probably never filed. Verify, then file it or write it off.', monitor: 'Up to ' + tiers[0] + ' days: the claim is likely still in flight.', all: 'Every insurance account where nothing has been paid, most urgent first.', partly: 'Insurance accounts past due where the carrier has paid something.' };
   h += '<div class="listHd">' + ic('info', 16) + '<span>' + esc(why[tab]) + '</span></div>';
-  if (tab === 'partly') return h + filtersHTML({ src: false }) + tableHTML([C.name, M(C.b30), M(C.b60), M(C.b90), C.pd, C.bal, C.days, C.sug, C.work], sortBy(applyFilters(partly), { k: 'pd', dir: -1 }), { k: 'pd', dir: -1 }, { empty: 'None.' });
+  if (tab === 'partly') return h + filtersHTML({ src: false }) + tableHTML([C.name, C.car, M(C.b30), M(C.b60), M(C.b90), C.pd, C.bal, C.days, C.sug, C.work], sortBy(applyFilters(partly), { k: 'pd', dir: -1 }), { k: 'pd', dir: -1 }, { empty: 'None.' });
   const list = tab === 'all' ? nev : by(tab);
-  return h + filtersHTML({ src: false }) + tableHTML([C.name, { k: 'months', l: 'Months unpaid', num: true, td: a => '<span class="big">' + a.months + '</span>' }, C.pd, { k: 'bal', l: 'Contract balance', num: true, cls: 'hideM', td: a => a.bal == null ? '—' : money(a.bal, true) }, C.days, { l: 'Triage', cls: 'hideM', td: a => tierChip(a) }, C.work],
+  return h + filtersHTML({ src: false }) + tableHTML([C.name, C.car, { k: 'months', l: 'Months unpaid', num: true, td: a => '<span class="big">' + a.months + '</span>' }, C.pd, { k: 'bal', l: 'Contract balance', num: true, cls: 'hideM', td: a => a.bal == null ? '—' : money(a.bal, true) }, C.days, { l: 'Triage', cls: 'hideM', td: a => tierChip(a) }, C.work],
     sortBy(applyFilters(list), tab === 'all' ? { k: 'days', dir: -1 } : { k: 'bal', dir: -1 }), tab === 'all' ? { k: 'days', dir: -1 } : { k: 'bal', dir: -1 }, { empty: 'None at this step.' });
 }
 
@@ -3619,7 +3960,9 @@ function viewCredits() {
   if (notOpenHTML()) return notOpenHTML();
   if (S.rep && !S.rep.cover.credit) return staleHTML() + '<div class="card"><div class="empty">The latest report doesn’t have credit balances in it (it was run for past due only).</div></div>';
   const all = listCredits(S.accts), work = all.filter(a => !a.prepay), pre = all.filter(a => a.prepay), amt = l => l.reduce((s, a) => s + a.credit, 0), tab = S.tab.cr;
-  let h = staleHTML() + tabsHTML([['work', 'To resolve', work.length, amt(work)], ['pre', 'Prepayments', pre.length, amt(pre)], ['all', 'All credits', all.length, amt(all)]]);
+  const aw = auditWindow(todayISO()), AD = aw.on ? auditData() : null;
+  let h = staleHTML() + tabsHTML([['work', 'To resolve', work.length, amt(work)], ['pre', 'Prepayments', pre.length, amt(pre)], ['all', 'All credits', all.length, amt(all)], ['audit', aw.on ? 'December audit' : 'December audit (Dec 1)', AD ? AD.rev + ' of ' + AD.rows.length : work.length]]);
+  if (tab === 'audit') return h + auditTabHTML();
   h += '<div class="listHd">' + ic('info', 16) + '<span>' + (tab === 'pre' ? '<b>Paid before starting treatment.</b> Unearned, correctly parked — no action; listed for completeness.' : '<b>Oldest and most urgent first:</b> 3+ years, then inactive patients, then over a year. Before a refund, go through the checklist on the account (FC instructions): it’s often owed to the family’s own balance or a sibling instead.') + '</span></div>';
   const list = tab === 'pre' ? pre : tab === 'all' ? all : work;
   return h + filtersHTML() + tableHTML([C.name, { k: 'credit', l: 'Credit', num: true, td: a => '<span class="big">' + money(a.credit, true) + '</span>' },
@@ -3650,7 +3993,7 @@ function viewSummary() {
   const s = summarize(S.rep, S.cfg), b = s.book;
   const tile = (n, l, cls, sub) => '<div class="tile static ' + (cls || '') + '"><span class="n sm">' + n + '</span><span class="l">' + l + '</span>' + (sub ? '<span class="s">' + sub + '</span>' : '') + '</div>';
   let h = '<div class="filters noPrint"><span class="small muted">Edge A/R Aging as of <b>' + esc(fmtDateLong(s.asOf)) + '</b></span> ' + coverHTML(s.cover) + '<span style="flex:1"></span><button class="btn btn-ghost" data-act="print">' + ic('print', 15) + 'Print</button></div>';
-  h += goalsCardHTML();
+  h += goalsCardHTML() + trendsCardHTML();
   h += '<div class="tiles">' + (b ? tile(money(b.bal), 'Total contract balance', '', plural(b.n, 'account')) : '') +
     tile(money(s.pd.total), 'Past due', 'red', b ? pct(s.pd.total, b.bal) + '% of the balance' : plural(s.pd.n, 'account')) +
     tile(money(s.netDue), 'Net due now', 'amber', 'past due less credits') +
@@ -3831,7 +4174,7 @@ Object.assign(ACT, {
     imp.busy = true; const btn = $('#impSave'); busyBtn(btn, true, 'Sealing and saving…');
     try {
       const rep = Object.assign({}, imp.rep, { made: Date.now() }); delete rep.warn;
-      await B.saveReport(rep, reportTotals(rep, S.cfg));
+      await B.saveReport(rep, reportTotals(rep, S.cfg, S.rep && S.rep.asOf < rep.asOf ? S.rep : null));
       S.imp = null; toast('Report saved — the lists now show ' + fmtDateLong(rep.asOf)); S.view = 'today'; renderNav(); renderView();
     } catch (x) { imp.busy = false; busyBtn(btn, false); toast(errText(x), { bad: true }); }
   },
@@ -3839,6 +4182,353 @@ Object.assign(ACT, {
     const r = S.reports.find(x => x.id === t.dataset.id); if (!r) return;
     if (!(await confirmBox('Delete the ' + fmtDateLong(r.asOf) + ' report?', 'The lists go back to the report before it. Notes and follow-ups on accounts are kept.', 'Delete', true))) return;
     act(() => B.deleteReport(r.id), 'Report deleted');
+  }
+});
+
+/* =====================================================================
+   Focus mode (6 Oct 2026): what to do first today, most urgent first
+   (focusEntries in ar.js). Today shows a one-line summary; Focus mode
+   shows only the list, with what's been done today.
+   ===================================================================== */
+function focusCtx() {
+  const t = todayISO(), aw = auditWindow(t), pk = S.prevId + '|' + S.repId;
+  if (!S.prevPdMemo || S.prevPdMemo.k !== pk) S.prevPdMemo = { k: pk, set: S.prev && S.rep && S.prev.cover.pastDue && S.rep.cover.pastDue ? new Set(reportAccts(S.prev, S.cfg).filter(a => a.pd > 0).map(a => a.key)) : null };
+  return { accts: S.rep ? S.accts : [], asOf: S.rep ? S.rep.asOf : t, byKey: S.byKey, item: k => { const it = itemFor(k); return it && !isBack(it) ? it : null; }, lad: a => ladFor(a), open: openItems(), cleared: isCleared,
+    today: t, owner: isOwner(), prevPd: S.prevPdMemo.set, book: S.book, auditStart: aw.on && S.rep && S.rep.cover.credit ? aw.start : '' };
+}
+/* accounts somebody logged something on today */
+function focusDoneToday() {
+  const d = new Date(); d.setHours(0, 0, 0, 0); const t0 = d.getTime(), keys = new Set();
+  S.items.forEach(it => { if (!it.locked && it.key && (it.log || []).some(e => (e.at || 0) >= t0 && e.k !== 'reopen')) keys.add(it.key); });
+  return keys;
+}
+function focusData() {
+  const E = focusEntries(focusCtx()), U = E.filter(e => e.cls === 'urgent'), T = E.filter(e => e.cls === 'today'), L = E.filter(e => e.cls === 'later');
+  // OrthoBanc's failed-payment report, on its days, until someone marks it checked
+  const O = obState(S.book, todayISO());
+  if (O.due) U.unshift({ key: '_ob', special: 'obCheck', label: 'OrthoBanc failed-payment report', kind: 'ob', cls: 'urgent', sev: 0, why: 'The ' + fmtDate(O.due.date) + ' report: open it, text each family on it today (day 0), then mark it checked', act: 'Check it', min: 10, amt: 0, also: [] });
+  return { E, U, T, L, cl: openItems().filter(isCleared), done: focusDoneToday(), min: U.concat(T).reduce((s, e) => s + e.min, 0) };
+}
+function fmtMin(m) { if (m < 1) return 'a minute or two'; if (m < 60) return 'about ' + m + ' min'; const mm = Math.round(m / 5) * 5, h = Math.floor(mm / 60), r = mm % 60; return 'about ' + h + ' h' + (r ? ' ' + r + ' min' : ''); }
+function focusStripHTML(F) {
+  const n = F.U.length + F.T.length;
+  return '<div class="focusBar">' + ic('flag', 18) + '<span><b>Do these first:</b> ' + (F.U.length ? '<b class="fU">' + F.U.length + ' urgent</b> · ' : '') + (F.T.length ? plural(F.T.length, 'thing') + ' for today' : 'nothing else due today') +
+    (n ? ' · ' + fmtMin(F.min) : '') + (F.done.size ? ' · ' + F.done.size + ' done today' : '') + '</span><button class="btn btn-pri btn-sm" data-act="focusOn">' + ic('next', 15) + 'Focus mode</button></div>';
+}
+function focusRowHTML(e) {
+  if (e.special) return '<button class="frow ' + e.cls + '" data-act="' + esc(e.special) + '" data-kind="' + esc(e.kind) + '"><span class="fTag">Urgent</span><span class="grow"><span class="pt">' + esc(e.label) + '</span><span class="fWhy">' + esc(e.why) + '</span></span><span class="fAct">' + esc(e.act) + ic('next', 14) + '</span></button>';
+  const a = e.a, it = e.it, name = a ? a.patient : (it && it.name) || '', rp = a ? (a.ins ? 'Ins: ' : '') + rpName(a) : String((it && it.rp) || '').replace(/^\s*ins\s*:\s*/i, 'Ins: ');
+  return '<button class="frow ' + e.cls + '" data-act="open" data-key="' + esc(e.key) + '" data-kind="' + esc(e.kind) + '"><span class="fTag">' + (e.cls === 'urgent' ? 'Urgent' : e.cls === 'today' ? 'Today' : 'Later') + '</span>' +
+    '<span class="grow"><span class="pt">' + esc(name) + '<span class="par"> · ' + esc(rp) + '</span></span><span class="fWhy">' + esc(e.why) + '</span>' + (e.also.length ? '<span class="fAlso">Also: ' + esc(e.also.join(' · ')) + '</span>' : '') + '</span>' +
+    (e.amt ? '<span class="fAmt">' + money(e.amt) + '</span>' : '') + '<span class="fAct">' + esc(e.act) + ic('next', 14) + '</span></button>';
+}
+function focusViewHTML() {
+  const F = focusData(), left = F.U.length + F.T.length, total = F.done.size + left, pctDone = total ? Math.round(F.done.size / total * 100) : 100;
+  let h = '<div class="focusHd"><div><h3>' + ic('flag', 20) + 'Do these first</h3><div class="small muted">Most urgent first. Tap one to open it; once it’s logged it drops off the list.</div></div><button class="btn btn-ghost" data-act="focusOff">Show everything</button></div>' +
+    '<div class="fProg"><div class="fBar"><i style="width:' + pctDone + '%"></i></div><span><b>' + F.done.size + '</b> done today · <b>' + left + '</b> to go' + (left ? ' · ' + fmtMin(F.min) : '') + '</span></div>';
+  h += left ? '<div class="card"><div class="cardBd fList">' + F.U.concat(F.T).map(focusRowHTML).join('') + '</div></div>'
+    : '<div class="card"><div class="empty">Nothing urgent and nothing else due today. ✓' + (F.L.length || F.cl.length ? ' When you have time, see below.' : '') + '</div></div>';
+  if (F.L.length || F.cl.length) h += '<details class="help fLater"' + (left ? '' : ' open') + '><summary>When you have time · ' + (F.L.length + (F.cl.length ? 1 : 0)) + '</summary><div class="card"><div class="cardBd fList">' +
+    (F.cl.length ? '<button class="frow later" data-act="closeCleared"><span class="fTag">Later</span><span class="grow"><span class="pt">' + plural(F.cl.length, 'account') + ' cleared in Edge</span><span class="fWhy">Paid or fixed in Edge since they were worked — close them in one go</span></span><span class="fAct">Close all' + ic('next', 14) + '</span></button>' : '') +
+    F.L.map(focusRowHTML).join('') + '</div></div></details>';
+  return h;
+}
+Object.assign(ACT, {
+  focusOn() { S.focus = true; try { localStorage.setItem('nloAR.focus', '1'); } catch (e) { } renderView(); window.scrollTo(0, 0); },
+  focusOff() { S.focus = false; try { localStorage.setItem('nloAR.focus', '0'); } catch (e) { } renderView(); window.scrollTo(0, 0); }
+});
+
+/* =====================================================================
+   Insurance carriers (6 Oct 2026): the Carriers tab, the carrier on
+   each insurance account, calling a carrier once about all its accounts
+   ===================================================================== */
+function carrierStats(c) {
+  const tags = S.book ? S.book.tags : {}, mine = S.accts.filter(a => a.ins && tags[a.key] === c.id), pd = mine.filter(a => a.pd > 0);
+  let last = null; mine.forEach(a => { const it = itemFor(a.key); ((it && it.log) || []).forEach(e => { if (/^ins_/.test(e.k) && (!last || e.at > last.at)) last = e; }); });
+  const days = pd.map(a => a.days).filter(d => d != null);
+  return { all: mine, pd, pdAmt: round2(pd.reduce((s, a) => s + a.pd, 0)), never: pd.filter(a => a.months > 0).length, oldest: days.length ? Math.max(...days) : null,
+    avg: days.length ? Math.round(days.reduce((s, d) => s + d, 0) / days.length) : null, credit: round2(mine.filter(a => a.credit > 0).reduce((s, a) => s + a.credit, 0)),
+    paid: S.diff && S.prev ? S.diff.cleared.filter(k => tags[k] === c.id).length : null, last, near: c.tf ? pd.filter(a => a.days != null && a.days >= c.tf - 30 && a.days <= c.tf).length : 0 };
+}
+function carrierSelect(key, c, chg) {
+  const list = S.book ? S.book.carriers : [];
+  return '<select class="inp carSel" data-chg="' + chg + '" data-key="' + esc(key) + '" aria-label="Insurance carrier"><option value="">' + (c ? 'No carrier' : 'Pick the carrier…') + '</option>' +
+    list.map(x => '<option value="' + esc(x.id) + '"' + (c && c.id === x.id ? ' selected' : '') + '>' + esc(x.name) + '</option>').join('') + '<option value="_new">New carrier…</option></select>';
+}
+function carriersTabHTML() {
+  const list = S.book ? S.book.carriers : [], untagged = S.accts.filter(a => a.ins && a.pd > 0 && !carrierFor(a.key));
+  let h = '<div class="listHd">' + ic('shield', 16) + '<span><b>Insurance carriers.</b> Edge’s report shows the policyholder, not the carrier, so set each insurance account’s carrier once — the app remembers it, and brothers and sisters on the same policy get it too. Then the carrier’s phone, portal and payer ID are on the account, slow payers stand out, and one call can cover all of a carrier’s accounts.</span></div>';
+  h += '<div class="btnRow" style="margin-bottom:14px"><button class="btn btn-pri btn-sm" data-act="carrierNew">' + ic('plus', 15) + 'Add a carrier</button>' + (untagged.length ? '<button class="btn btn-ghost" data-act="scrollUntagged">' + plural(untagged.length, 'account') + ' without a carrier</button>' : '') + '</div>';
+  if (!list.length) h += '<div class="card"><div class="empty">No carriers yet. Add the ones you bill most — their provider phone line, portal and payer ID — then set them on the accounts below.</div></div>';
+  else h += '<div class="carGrid">' + list.map(c => Object.assign({ c }, carrierStats(c))).sort((x, y) => y.pdAmt - x.pdAmt || x.c.name.localeCompare(y.c.name)).map(carrierCardHTML).join('') + '</div>';
+  h += '<div class="card" id="untagged" style="margin-top:18px"><div class="cardHd"><h3>Insurance accounts without a carrier</h3><span class="sub">' + plural(untagged.length, 'account') + ' past due</span></div><div class="cardBd">' +
+    (untagged.length ? untagged.sort((x, y) => (y.days || 0) - (x.days || 0)).map(a => '<div class="tagRow"><button class="linkBtn" data-act="open" data-key="' + esc(a.key) + '"><b>' + esc(a.patient) + '</b> <span class="muted">· ' + esc(rpName(a)) + '</span></button>' +
+      '<span class="small muted">' + money(a.pd) + (a.days != null ? ' · ' + a.days + ' days' : '') + (a.months ? ' · nothing paid' : '') + '</span>' + carrierSelect(a.key, null, 'tagRow') + '</div>').join('')
+      : '<div class="empty">Every insurance account past due has its carrier. ✓</div>') + '</div></div>';
+  return h;
+}
+function carrierCardHTML(r) {
+  const c = r.c, tel = telHref(c.phone);
+  const facts = [plural(r.pd.length, 'account') + ' past due' + (r.pd.length ? ' · ' + money(r.pdAmt) : ''), r.never ? r.never + ' with nothing paid' : '', r.oldest != null ? 'oldest ' + r.oldest + ' days' : '',
+    r.avg != null ? 'average ' + r.avg + ' days' : '', r.paid ? r.paid + ' paid since ' + fmtDate(S.prev.asOf) : '', r.credit ? money(r.credit) + ' in credits' : ''].filter(Boolean);
+  const meta = ['Last call: ' + (r.last ? fmtDate(isoOf(new Date(r.last.at))) + ' (' + shortName(r.last.by) + ')' : 'none logged'), c.tf ? 'filing limit ' + c.tf + ' days' : '', c.payer ? 'payer ID ' + c.payer : ''].filter(Boolean);
+  return '<div class="card carCard" data-car="' + esc(c.id) + '"><div class="cardHd"><h3>' + esc(c.name) + '</h3>' + (r.near ? '<span class="sug red">' + r.near + ' near the filing limit</span>' : '') + '<span style="flex:1"></span><button class="btn btn-ghost" data-act="carrierEdit" data-id="' + esc(c.id) + '">Edit</button></div><div class="cardBd">' +
+    '<div class="small carFacts">' + esc(facts.join(' · ')) + '</div><div class="small muted">' + esc(meta.join(' · ')) + '</div>' +
+    '<div class="btnRow" style="margin-top:10px">' + (tel ? '<a class="btn btn-act btn-sm" href="' + esc(tel) + '">' + ic('call', 15) + esc(phoneTxt(c.phone)) + '</a>' : '') + (c.portal ? '<a class="btn btn-sec btn-sm" href="' + esc(c.portal) + '" target="_blank" rel="noopener noreferrer">Portal</a>' : '') +
+    (r.pd.length ? '<button class="btn btn-sec btn-sm" data-act="carrierCallAll" data-id="' + esc(c.id) + '">' + ic('done', 15) + 'Called about ' + (r.pd.length > 1 ? 'all ' + r.pd.length : 'it') + '</button>' : '') + '</div>' +
+    (r.pd.length ? '<details class="help"><summary>The ' + plural(r.pd.length, 'account') + '</summary>' + r.pd.slice().sort((x, y) => (y.days || 0) - (x.days || 0)).map(a => acctRow(a, (a.months ? 'Nothing paid · ' : '') + (a.days != null ? a.days + ' days' : '') + (workState(a.key) === 'new' ? ' · not started' : ''), '<span class="small big">' + money(a.pd) + '</span>')).join('') + '</details>' : '') +
+    (c.notes ? '<div class="small muted carNotes">' + esc(c.notes) + '</div>' : '') + '</div></div>';
+}
+function carrierFormHTML(c, tagKey) {
+  c = c || {};
+  const f = (id, l, v, ph, type) => '<div class="field"><label for="' + id + '">' + l + '</label><input id="' + id + '" class="inp"' + (type ? ' type="' + type + '"' : '') + ' autocomplete="off" value="' + esc(v == null ? '' : String(v)) + '"' + (ph ? ' placeholder="' + esc(ph) + '"' : '') + '></div>';
+  return '<h3>' + (c.id ? esc(c.name) : 'Add a carrier') + '</h3><div class="lsub">Shared with everyone who has A/R, and sealed like the accounts.' + (tagKey ? ' It’s set on this account when you save.' : '') + '</div>' +
+    f('carName', 'Name', c.name, 'e.g. the plan on the EOB') + '<div class="grid2">' + f('carPhone', 'Provider phone line', c.phone, '(800) 555-…', 'tel') + f('carFax', 'Fax', c.fax) + '</div>' +
+    f('carPortal', 'Provider portal (web address)', c.portal, 'https://…', 'url') + '<div class="grid2">' + f('carPayer', 'Payer ID', c.payer) + f('carTf', 'Timely filing limit (days)', c.tf || '', 'e.g. 365', 'number') + '</div>' +
+    '<div class="field"><label for="carNotes">Notes — claims address, who to ask for, what they need</label><textarea id="carNotes" class="inp" rows="3">' + esc(c.notes || '') + '</textarea></div>' +
+    '<div class="mFt">' + (c.id ? '<button class="btn btn-ghost" data-act="carrierDel" data-id="' + esc(c.id) + '" style="margin-right:auto;color:var(--coral-700)">Remove</button>' : '') +
+    '<button class="btn btn-ghost" data-act="closeModal">Cancel</button><button class="btn btn-pri" data-act="carrierSave" data-id="' + esc(c.id || '') + '" data-tag="' + esc(tagKey || '') + '">Save</button></div>';
+}
+/* the account and the other untagged insurance accounts under the same policyholder */
+function tagKeysFor(key) { const a = S.byKey.get(key); return a ? [key].concat(sameHolder(S.accts, a).filter(x => !carrierFor(x.key)).map(x => x.key)) : [key]; }
+async function setCarrier(key, val) {
+  if (!key) return;
+  if (val === '_new') { openModal(carrierFormHTML(null, key)); queueRender(); if (S.openKey) refreshDrawer(); return; }
+  const keys = val ? tagKeysFor(key) : [key], c = val && S.book ? S.book.carriers.find(x => x.id === val) : null;
+  await bookChange(d => carrierTag(d, keys, val), { a: 'carrier', op: 'tag', n: keys.length }, val ? (c ? c.name : 'Carrier') + ' set' + (keys.length > 1 ? ' on ' + plural(keys.length, 'account') + ' (same policyholder)' : '') : 'Carrier taken off');
+}
+Object.assign(CHG, { carrierPick(t) { setCarrier(t.dataset.key || S.openKey, t.value); }, tagRow(t) { setCarrier(t.dataset.key, t.value); } });
+Object.assign(ACT, {
+  carrierNew() { openModal(carrierFormHTML(null, '')); },
+  carrierEdit(t) { const c = S.book && S.book.carriers.find(x => x.id === t.dataset.id); if (c) openModal(carrierFormHTML(c, '')); },
+  async carrierSave(t) {
+    const v = id => (($('#' + id) || {}).value || '').trim(), edit = t.dataset.id || '', id = edit || 'c' + uid8(), tagKey = t.dataset.tag || '';
+    const f = { id, name: v('carName'), phone: v('carPhone'), fax: v('carFax'), portal: v('carPortal'), payer: v('carPayer'), tf: v('carTf') ? Number(v('carTf')) : 0, notes: v('carNotes') };
+    if (f.tf && !(Number.isInteger(f.tf) && f.tf > 0 && f.tf <= 1095)) { toast('Use whole days for the filing limit (up to 1095).', { bad: true }); return; }
+    // check it first (a name, a real web address), so the form stays open with what was typed
+    try { carrierSave(bookFix(JSON.parse(JSON.stringify(S.bookRaw || emptyBook()))), f, { by: meSid() }, Date.now()); } catch (e) { toast(errText(e), { bad: true }); return; }
+    closeModal();
+    const keys = tagKey ? tagKeysFor(tagKey) : [];
+    await bookChange((d, now) => { carrierSave(d, f, { by: meSid() }, now); if (keys.length) carrierTag(d, keys, id); }, { a: 'carrier', op: edit ? 'edit' : 'add', name: f.name },
+      (edit ? 'Saved ' : 'Added ') + f.name + (keys.length ? ' — set on ' + plural(keys.length, 'account') : ''));
+  },
+  async carrierDel(t) {
+    const c = S.book && S.book.carriers.find(x => x.id === t.dataset.id); if (!c) return;
+    const n = Object.keys(S.book.tags).filter(k => S.book.tags[k] === c.id).length;
+    closeModal();
+    if (!(await confirmBox('Remove ' + c.name + '?', n ? 'It’s set on ' + plural(n, 'account') + '; they’ll have no carrier.' : 'No accounts have it.', 'Remove', true))) return;
+    await bookChange(d => carrierRemove(d, c.id), { a: 'carrier', op: 'remove', name: c.name }, 'Removed ' + c.name);
+  },
+  carrierCallAll(t) {
+    const c = S.book && S.book.carriers.find(x => x.id === t.dataset.id); if (!c) return;
+    const list = carrierStats(c).pd; if (!list.length) return;
+    openModal('<h3>Called ' + esc(c.name) + '</h3><div class="lsub">Logs “Called the carrier” on ' + plural(list.length, 'account') + ' — ' + esc(list.slice(0, 8).map(a => a.patient).join(', ') + (list.length > 8 ? ' and ' + (list.length - 8) + ' more' : '')) + ' — each with a follow-up in two weeks.</div>' +
+      '<div class="field"><label for="callNote">What did they say? (saved on each account)</label><input id="callNote" class="inp" autocomplete="off"></div>' +
+      '<div class="mFt"><button class="btn btn-ghost" data-act="closeModal">Cancel</button><button class="btn btn-pri" data-act="carrierCallSave" data-id="' + esc(c.id) + '">Log it on ' + plural(list.length, 'account') + '</button></div>');
+  },
+  async carrierCallSave(t) {
+    const c = S.book && S.book.carriers.find(x => x.id === t.dataset.id); if (!c) return;
+    const note = (($('#callNote') || {}).value || '').trim(), list = carrierStats(c).pd, now = Date.now(), by = meSid(); closeModal();
+    let n = 0; for (const a of list) if (await change(a.key, d => { applyLog(d, 'ins_call', { by, note: 'Called ' + c.name + (note ? ': ' + note : '') }, now); }, { a: 'log', k: 'ins_call' })) n++;
+    toast('Logged the call on ' + plural(n, 'account'));
+  },
+  scrollUntagged() { const el = $('#untagged'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+});
+/* the carrier on an insurance account's panel: pick it, call it, open its portal */
+function carrierBoxHTML(a) {
+  const c = carrierFor(a.key);
+  let h = '<div class="carBox"><div class="carHd">' + ic('shield', 16) + '<b>Carrier</b>' + carrierSelect(a.key, c, 'carrierPick') + '</div>';
+  if (c) {
+    const left = c.tf && a.days != null && a.pd > 0 ? c.tf - a.days : null;
+    h += '<div class="carInfo">' + (telHref(c.phone) ? '<a class="btn btn-act btn-sm" href="' + esc(telHref(c.phone)) + '">' + ic('call', 15) + 'Call ' + esc(phoneTxt(c.phone)) + '</a>' : '') +
+      (c.portal ? '<a class="btn btn-sec btn-sm" href="' + esc(c.portal) + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'Portal</a>' : '') +
+      (c.payer ? '<span class="small">Payer ID <b>' + esc(c.payer) + '</b> <button class="linkBtn" data-act="copyVal" data-v="' + esc(c.payer) + '">Copy</button></span>' : '') + (c.fax ? '<span class="small">Fax ' + esc(c.fax) + '</span>' : '') + '</div>' +
+      (left != null && left <= 30 ? '<div class="notice ' + (left < 0 ? 'bad' : '') + '" style="margin:10px 0 0">' + esc(left >= 0 ? c.name + '’s timely-filing limit (' + c.tf + ' days) is ' + (left ? 'in ' + plural(left, 'day') : 'today') + '.' : 'Past ' + c.name + '’s timely-filing limit (' + c.tf + ' days) by ' + plural(-left, 'day') + '.') + '</div>' : '') +
+      (c.notes ? '<div class="small muted carNotes">' + esc(c.notes) + '</div>' : '');
+  } else if (S.book && S.book.carriers.length) h += '<div class="small muted">Set it once — brothers and sisters on the same policy get it too.</div>';
+  return h + '</div>';
+}
+
+/* =====================================================================
+   Trends (6 Oct 2026): week over week, the pace to the goals, who did
+   what — and a weekly brief from AISA, written from the totals only
+   ===================================================================== */
+function sumOf(id) { const r = S.reports.find(x => x.id === id); return r && r.sum; }
+function kpiSeries(which) {
+  const from30 = S.cfg.kpiFrom > 1, byDay = new Map();
+  S.reports.filter(r => r.sum && r.sum.kp && r.sum.kp.ptOf).slice().sort((a, b) => (a.asOf < b.asOf ? -1 : a.asOf > b.asOf ? 1 : (a.at || 0) - (b.at || 0))).forEach(r => byDay.set(r.asOf, r));
+  return Array.from(byDay.values()).map(r => ({ asOf: r.asOf, rate: which === 'pt' ? (from30 ? r.sum.kp.ptPd30 : r.sum.kp.ptPd) / r.sum.kp.ptOf : r.sum.kp.insOf ? r.sum.kp.insLate / r.sum.kp.insOf : null })).filter(p => p.rate != null);
+}
+function paceText(p, goal) {
+  const pc = x => (x * 100).toFixed(1).replace(/\.0$/, '') + '%', pts = x => Math.abs(x * 100).toFixed(1) + ' points';
+  if (!p) return 'needs 3 weekly reports';
+  if (p.met) return 'at or under ' + pc(goal) + ' — keep it there';
+  if (p.dir === 'up') return 'moving away from ' + pc(goal) + ' (up ' + pts(p.slope) + ' a week)';
+  if (p.dir === 'flat') return 'flat — not getting closer to ' + pc(goal);
+  return p.weeks > 104 ? 'down ' + pts(p.slope) + ' a week — more than two years to ' + pc(goal) + ' at this pace' : 'under ' + pc(goal) + ' around ' + fmtDate(p.date) + ' at this pace (down ' + pts(p.slope) + ' a week)';
+}
+/* what each person logged in the last 7 days */
+const ACT_KIND = { pt_vm: 'calls', pt_noans: 'calls', pt_spoke: 'calls', pt_text: 'texts', pt_email: 'letters', pt_letter: 'letters', done: 'done' };
+function weekActivity() {
+  const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - 6); const t0 = d.getTime(), by = new Map();
+  const one = sid => { if (!by.has(sid)) by.set(sid, { sid, calls: 0, texts: 0, letters: 0, ins: 0, done: 0, all: 0 }); return by.get(sid); };
+  S.items.forEach(it => {
+    if (it.locked) return;
+    (it.log || []).forEach(e => {
+      if ((e.at || 0) < t0 || !e.by || e.k === 'reopen') return;
+      const r = one(e.by); r.all++;
+      if (e.k === 'ladder' && own(LAD_BY, e.step)) { const s = LAD_BY[e.step]; if (s.n) r.letters++; else r.texts++; if (s.call) r.calls++; if (s.id === 'c75') r.texts++; }
+      else if (/^ins_/.test(e.k)) r.ins++;
+      else if (ACT_KIND[e.k]) r[ACT_KIND[e.k]]++;
+    });
+  });
+  return Array.from(by.values()).sort((x, y) => y.all - x.all);
+}
+function trendsCardHTML() {
+  const F = S.rep && S.prev ? flowOf(S.rep, S.prev, S.cfg) : null, k = S.rep ? kpis(S.rep, S.cfg) : null;
+  let h = '<div class="card trendsCard" style="margin-bottom:18px"><div class="cardHd"><h3>Trends</h3><span class="sub">' + (F ? 'Week over week · ' + esc(fmtDate(F.from)) + ' → ' + esc(fmtDate(F.to)) : 'Week over week') + '</span></div><div class="cardBd">';
+  if (!F) h += '<div class="small muted">Shows up with the second report: what got current, what’s newly past due, what slid into an older bucket.</div>';
+  else {
+    const cs = sumOf(S.repId), ps = sumOf(S.prevId), net = cs && ps ? round2(cs.pd - ps.pd) : null;
+    const st = (n, l, s, cls) => '<div class="tStat ' + (cls || '') + '"><b>' + n + '</b><span>' + l + '</span>' + (s ? '<i>' + s + '</i>' : '') + '</div>';
+    h += '<div class="tStats">' + st(F.cured, 'got current', money(F.curedAmt), 'ok') + st(F.newN, 'newly past due', money(F.newAmt), F.newN > F.cured ? 'bad' : '') +
+      st(F.rolled, 'slid to an older bucket', F.into91 ? F.into91 + ' into 91+' : '', F.rolled ? 'bad' : '') + st(F.better, 'got better', 'a younger bucket') +
+      st(money(F.cleared), 'of past due went away', 'paid or adjusted', 'ok') + (net != null ? st((net > 0 ? '+' : net < 0 ? '−' : '') + money(Math.abs(net)), 'change in past due', 'every account', net > 0 ? 'bad' : 'ok') : '') + '</div>';
+  }
+  if (k) h += '<div class="kvRow"><span>Patient goal (' + (k.pt.goal * 100).toFixed(1).replace(/\.0$/, '') + '%) · now ' + (k.pt.rate * 100).toFixed(1) + '%</span><b>' + esc(paceText(paceTo(kpiSeries('pt'), k.pt.goal), k.pt.goal)) + '</b></div>' +
+    (k.ins ? '<div class="kvRow"><span>Insurance goal (' + (k.ins.goal * 100).toFixed(1).replace(/\.0$/, '') + '%) · now ' + (k.ins.rate * 100).toFixed(1) + '%</span><b>' + esc(paceText(paceTo(kpiSeries('ins'), k.ins.goal), k.ins.goal)) + '</b></div>' : '');
+  const W = weekActivity();
+  h += '<h4 class="tH">Who did what · last 7 days</h4>' + (W.length ? '<div class="tblWrap"><table class="tbl actTbl"><thead><tr><th>Person</th><th class="num">Calls</th><th class="num">Texts</th><th class="num">Letters &amp; emails</th><th class="num">Insurance</th><th class="num">Resolved</th><th class="num">Everything</th></tr></thead><tbody>' +
+    W.map(r => '<tr><td>' + esc(staffName(r.sid, r.sid)) + '</td><td class="num">' + r.calls + '</td><td class="num">' + r.texts + '</td><td class="num">' + r.letters + '</td><td class="num">' + r.ins + '</td><td class="num">' + r.done + '</td><td class="num"><b>' + r.all + '</b></td></tr>').join('') + '</tbody></table></div>'
+    : '<div class="small muted">Nothing logged in the last 7 days.</div>');
+  h += '<h4 class="tH">This week’s brief</h4><div class="briefBox" id="briefBox">' + briefHTML() + '</div>';
+  return h + '</div></div>';
+}
+function briefHTML() {
+  const b = S.brief && S.brief.rep === S.repId ? S.brief : null;
+  if (b && b.loading) return '<div class="small muted">AISA is reading this week’s numbers…</div>';
+  if (b && b.text) return '<div class="briefTxt">' + mdLite(b.text) + '</div><div class="small muted" style="margin-top:8px">Written by AISA from the totals on this page — no names or accounts were sent · ' + esc(fmtWhen(b.at)) + '. Check it before acting on it.</div>' +
+    '<div class="btnRow" style="margin-top:8px"><button class="btn btn-ghost" data-act="briefCopy">' + ic('copy', 15) + 'Copy</button><button class="btn btn-ghost" data-act="brief">' + ic('refresh', 15) + 'Write it again</button></div>';
+  return '<button class="btn btn-sec btn-sm" data-act="brief">' + ic('note', 15) + 'Write this week’s brief (AI)</button>' + (b && b.err ? '<div class="small" style="color:var(--coral-700);margin-top:6px">' + esc(b.err) + '</div>' : '') +
+    '<div class="small muted" style="margin-top:6px">AISA reads only the totals on this page — no names, no accounts — and says what to focus on, from the handbook.</div>';
+}
+/* **bold**, numbered and bulleted lines, short headings — everything else is plain text */
+function mdLite(t) {
+  const lines = String(t || '').replace(/\r/g, '').split('\n'); let h = '', list = '';
+  const inl = s => esc(s).replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
+  const close = () => { if (list) { h += '</' + list + '>'; list = ''; } };
+  lines.forEach(l => {
+    const ol = /^\s*\d+[.)]\s+(.*)$/.exec(l), ul = /^\s*[-*•]\s+(.*)$/.exec(l), hd = /^\s*#{1,4}\s+(.*)$/.exec(l);
+    if (ol || ul) { const want = ol ? 'ol' : 'ul'; if (list !== want) { close(); h += '<' + want + '>'; list = want; } h += '<li>' + inl((ol || ul)[1]) + '</li>'; return; }
+    close();
+    if (hd) h += '<p><b>' + inl(hd[1]) + '</b></p>'; else if (l.trim()) h += '<p>' + inl(l.trim()) + '</p>';
+  });
+  close(); return h;
+}
+/* the numbers AISA gets: totals and counts only — never a patient's name or account */
+function briefFacts() {
+  const s = summarize(S.rep, S.cfg), k = kpis(S.rep, S.cfg), F = S.prev ? flowOf(S.rep, S.prev, S.cfg) : null, c = counts(), pc = x => (x * 100).toFixed(1) + '%', L = [];
+  L.push('A/R aging report of ' + fmtDateLong(S.rep.asOf) + (S.prev ? ' (the one before it: ' + fmtDateLong(S.prev.asOf) + ')' : '') + '.');
+  L.push('Past due: ' + money(s.pd.total) + ' across ' + s.pd.n + ' accounts (patients ' + money(s.pd.pt.total) + ', insurance ' + money(s.pd.ins.total) + '); 91+ days: ' + money(s.pd.b90) + ' (' + s.conc.n + ' accounts).');
+  if (k) {
+    const pp = paceTo(kpiSeries('pt'), k.pt.goal), pi = k.ins ? paceTo(kpiSeries('ins'), k.ins.goal) : null;
+    L.push('Goals (handbook §19, no more than ' + pc(k.pt.goal) + ' each): patient accounts past due ' + pc(k.pt.rate) + ' (' + k.pt.n + ' of ' + k.pt.of + (k.pt.need ? '; ' + k.pt.need + ' to bring current to reach the goal' : '') + '; ' + paceText(pp, k.pt.goal) + ')' +
+      (k.ins ? '; insurance past its ' + k.win + '-day window ' + pc(k.ins.rate) + ' (' + k.ins.n + ' of ' + k.ins.of + '; ' + paceText(pi, k.ins.goal) + ')' : '') + '.');
+  }
+  if (F) L.push('Since the report before: ' + F.cured + ' accounts got current (' + money(F.curedAmt) + '), ' + F.newN + ' newly past due (' + money(F.newAmt) + '), ' + F.rolled + ' slid to an older bucket (' + F.into91 + ' into 91+), ' + F.better + ' got better; ' + money(F.cleared) + ' of past due was paid or adjusted.');
+  const LD = ladDueAccts(), by = new Map(); LD.forEach(a => { const st = ladFor(a).due; by.set(st.s, (by.get(st.s) || 0) + 1); });
+  const held = S.accts.filter(a => { const l = ladFor(a); return l && l.hold; }).length;
+  L.push('Collections ladder (handbook §14): ' + LD.length + ' steps due' + (by.size ? ' — ' + Array.from(by.entries()).map(([n, x]) => x + ' × ' + n).join(', ') : '') + '; ' + held + ' on Maintenance Hold.');
+  const T = s.never.tiers;
+  L.push('Insurance with nothing paid: ' + s.never.n + ' accounts, ' + money(s.never.pd) + ' (chase now ' + T.chase.n + ', investigate ' + T.investigate.n + ', probably never filed ' + T.nofile.n + ', monitor ' + T.monitor.n + ').');
+  if (S.book && S.book.carriers.length) {
+    const top = S.book.carriers.map(x => Object.assign({ c: x }, carrierStats(x))).filter(r => r.pd.length).sort((x, y) => y.pdAmt - x.pdAmt).slice(0, 5);
+    if (top.length) L.push('Insurance carriers with the most past due: ' + top.map(r => r.c.name + ' ' + plural(r.pd.length, 'account') + ' ' + money(r.pdAmt) + (r.avg != null ? ', average ' + r.avg + ' days' : '') + (r.paid ? ', ' + r.paid + ' paid since last week' : '')).join('; ') + '.');
+    const un = S.accts.filter(a => a.ins && a.pd > 0 && !carrierFor(a.key)).length; if (un) L.push(un + ' insurance accounts past due have no carrier set yet.');
+  }
+  L.push('Credit balances: ' + money(s.cr.total) + ' (' + s.cr.n + ' accounts); to resolve ' + money(s.cr.work.total) + ' (' + s.cr.work.n + '), ' + S.accts.filter(a => a.credit > 0 && !a.prepay && a.age != null && a.age > 1095).length + ' over 3 years old.');
+  const Fd = focusData();
+  L.push('Today: ' + Fd.U.length + ' urgent items and ' + Fd.T.length + ' others due; follow-ups due ' + c.due + ' (' + c.late + ' late); ' + c.drA + ' waiting for Dr. A.');
+  const W = weekActivity(), tot = k2 => W.reduce((x, r) => x + r[k2], 0);
+  L.push('Work logged in the last 7 days: ' + plural(tot('calls'), 'call') + ', ' + plural(tot('texts'), 'text') + ', ' + plural(tot('letters'), 'letter or email', 'letters and emails') + ', ' + plural(tot('ins'), 'insurance action') + ', ' + plural(tot('done'), 'account') + ' resolved.');
+  return L.join('\n');
+}
+const AISA_URL = 'https://aisa-worker.akhavan-ak.workers.dev/ask';
+Object.assign(ACT, {
+  async brief() {
+    if (!S.rep) return;
+    const rep = S.repId, q = 'Write a short weekly A/R brief for Dr. Akhavan and the financial coordinator at Next Level Orthodontics. Use only the numbers below (there are no patient names). Start with 2–3 sentences: what changed since last week and whether we are on track for the delinquency goals. Then the 3 most important things to do this week, each tied to our collections, insurance or credit procedures. Under 180 words, plain language.\n\nNumbers:\n' + briefFacts();
+    S.brief = { rep, loading: true }; const bx = $('#briefBox'); if (bx) bx.innerHTML = briefHTML();
+    try {
+      const r = await fetch(AISA_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: q, history: [] }) });
+      if (!r.ok) throw errCode('aisa', 'AISA didn’t answer (' + r.status + '). Try again in a minute.');
+      const j = await r.json(), text = j && typeof j.answer === 'string' ? j.answer.slice(0, 6000) : '';
+      if (!text) throw errCode('aisa', 'AISA sent back nothing. Try again in a minute.');
+      S.brief = { rep, text, at: Date.now() };
+    } catch (e) { S.brief = { rep, err: e && e.code === 'aisa' ? e.message : 'Couldn’t reach AISA — check the internet connection and try again.' }; }
+    const b2 = $('#briefBox'); if (b2) b2.innerHTML = briefHTML();
+  },
+  briefCopy() { const b = S.brief; if (!b || !b.text) return; copyText(b.text).then(ok => toast(ok ? 'Copied' : 'Couldn’t copy', ok ? {} : { bad: true })); }
+});
+
+/* =====================================================================
+   The December credit audit (handbook §15) — Credits → December audit,
+   and a line on Today from December 1 to March 31
+   ===================================================================== */
+function ageText(d) { return d < 60 ? plural(d, 'day') : d < 365 ? plural(Math.round(d / 30.4), 'month') : (Math.round(d / 36.5) / 10).toString().replace(/\.0$/, '') + ' years'; }
+function auditData() {
+  const t = todayISO(), w = auditWindow(t), cr = listCredits(S.accts), work = cr.filter(a => !a.prepay);
+  const rows = work.map(a => { const it = itemFor(a.key); return Object.assign({ a }, auditOf(it && !isBack(it) ? it : null, w.start)); });
+  return { w, rows, pre: cr.filter(a => a.prepay), rev: rows.filter(r => r.reviewed).length, refunds: rows.filter(r => r.refund && !r.done).length, days: daysBetween(t, w.end) };
+}
+function auditBannerHTML() {
+  if (!S.rep || !S.rep.cover.credit) return '';
+  const D = auditData(); if (!D.w.on || !D.rows.length) return '';
+  return '<div class="staleBox audit" role="status">' + ic('wallet', 18) + '<span>December credit audit: ' + D.rev + ' of ' + D.rows.length + ' credits reviewed' + (D.refunds ? ' · ' + plural(D.refunds, 'refund') + ' to cut' : '') +
+    ' · every refund out by ' + esc(dayLong(D.w.end)) + ' (' + plural(Math.max(0, D.days), 'day') + ').</span><button class="btn btn-sec btn-sm" data-act="nav" data-v="cr" data-tab="audit">Open the audit</button></div>';
+}
+function auditTabHTML() {
+  const D = auditData(), pct = D.rows.length ? Math.round(D.rev / D.rows.length * 100) : 100, todo = D.rows.filter(r => !r.reviewed), done = D.rows.filter(r => r.reviewed);
+  let h = '<div class="listHd">' + ic('wallet', 16) + '<span><b>December credit audit</b> (handbook §15): pull every credit balance in December; by March 31 every refund check is cut and sent, or the money is moved to the family’s balance or applied to another account. Refunds can go out a few at a time. Holding a credit for insurance or upcoming treatment is fine with a reason.</span></div>';
+  h += D.w.on ? '<div class="fProg"><div class="fBar"><i style="width:' + pct + '%"></i></div><span><b>' + D.rev + '</b> of <b>' + D.rows.length + '</b> reviewed since ' + esc(fmtDate(D.w.start)) + (D.refunds ? ' · <b>' + D.refunds + '</b> ' + (D.refunds === 1 ? 'refund' : 'refunds') + ' to cut' : '') + ' · ' + plural(Math.max(0, D.days), 'day') + ' to ' + esc(fmtDate(D.w.end)) + '</span></div>'
+    : '<div class="fProg"><span>The next audit starts <b>' + esc(fmtDateLong(D.w.start)) + '</b> and runs to ' + esc(fmtDate(D.w.end)) + '. Until then, this lists every credit to plan it.</span></div>';
+  const row = r => { const a = r.a; return '<button class="row" data-act="open" data-key="' + esc(a.key) + '"><span class="aChk' + (r.reviewed ? ' on' : '') + '" aria-label="' + (r.reviewed ? 'Reviewed' : 'Not reviewed yet') + '">' + (r.reviewed ? ic('done', 14) : '') + '</span>' +
+    '<span class="grow"><span class="pt">' + esc(a.patient) + '<span class="par"> · ' + (a.ins ? 'Ins: ' : '') + esc(rpName(a)) + '</span></span><span class="meta">' + esc((r.reviewed ? r.st : crAction(a).l) + (a.age != null ? ' · last paid ' + ageText(a.age) + ' before the report' : '')) + '</span></span><span class="small big">' + money(a.credit, true) + '</span></button>'; };
+  const main = D.w.on ? todo : D.rows;
+  h += '<div class="card"><div class="cardHd"><h3>' + (D.w.on ? 'Still to review' : 'Every credit') + '</h3><span class="sub">' + plural(main.length, 'account') + ' · ' + money(main.reduce((s, r) => s + r.a.credit, 0)) + '</span></div><div class="cardBd">' + (main.map(row).join('') || '<div class="empty">Every credit has been reviewed. ✓</div>') + '</div></div>';
+  if (D.w.on && done.length) h += '<div class="card" style="margin-top:18px"><div class="cardHd"><h3>Reviewed</h3><span class="sub">' + plural(done.length, 'account') + '</span></div><div class="cardBd">' + done.map(row).join('') + '</div></div>';
+  if (D.pre.length) h += '<p class="small muted" style="margin-top:10px">' + plural(D.pre.length, 'prepayment') + ' (Start Scheduled, ' + money(D.pre.reduce((s, a) => s + a.credit, 0)) + ') aren’t part of the audit — they’re for treatment that hasn’t started.</p>';
+  return h;
+}
+
+/* =====================================================================
+   OrthoBanc's failed-payment report (handbook §14, day 0): a reminder
+   on the 5th, 12th, 19th and 26th until someone marks it checked
+   ===================================================================== */
+function obBannerHTML() {
+  if (S.arState !== 'ok' || !S.reports.length) return '';
+  const O = obState(S.book, todayISO()); if (!O.due) return '';
+  const late = O.due.due < todayISO();
+  return '<div class="staleBox ob' + (late ? ' late' : '') + '" role="status">' + ic('mail', 18) + '<span>OrthoBanc’s failed-payment report for ' + esc(fmtDate(O.due.date)) + (late ? ' hasn’t been marked checked' : ' comes today') +
+    ': open it, text each family on it right away (day 0 of the ladder), then mark it checked.' + (O.missed ? ' The ' + esc(fmtDate(O.missed.date)) + ' one wasn’t marked checked either.' : '') + '</span>' +
+    '<span class="btnRow"><a class="btn btn-sec btn-sm" href="' + OB_URL + '" target="_blank" rel="noopener noreferrer">Open OrthoBanc</a><button class="btn btn-pri btn-sm" data-act="obCheck">Checked it</button></span></div>';
+}
+Object.assign(ACT, {
+  obCheck() {
+    const O = obState(S.book, todayISO()), c = O.due || O.cur; if (!c) return;
+    const hist = ((S.book && S.book.ob) || []).slice(-6).reverse();
+    openModal('<h3>OrthoBanc report · ' + esc(fmtDate(c.date)) + '</h3><div class="lsub">Handbook §14, day 0: text the responsible party on each failed payment right away, note it in the patient’s chart in Edge, and set a 2-week task. The next weekly report puts them on the ladder.</div>' +
+      '<div class="btnRow" style="margin-bottom:12px"><a class="btn btn-sec btn-sm" href="' + OB_URL + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'Open the report in OrthoBanc</a></div>' +
+      '<div class="grid2"><div class="field"><label for="obN">Failed payments on it</label><input id="obN" class="inp" type="number" min="0" max="500" step="1" inputmode="numeric" placeholder="e.g. 3"></div></div>' +
+      '<div class="field"><label for="obNote">Note (optional)</label><input id="obNote" class="inp" autocomplete="off" placeholder="e.g. texted all three families"></div>' +
+      (hist.length ? '<div class="small muted" style="margin:4px 0 8px"><b>Checked before:</b> ' + hist.map(x => esc(fmtDate(x.for)) + ' (' + esc(shortName(x.by)) + (x.n != null ? ', ' + plural(x.n, 'failed payment') : '') + ')').join(' · ') + '</div>' : '') +
+      '<div class="mFt"><button class="btn btn-ghost" data-act="closeModal">Cancel</button><button class="btn btn-pri" data-act="obSave" data-for="' + esc(c.date) + '">Mark it checked</button></div>');
+  },
+  async obSave(t) {
+    const n = (($('#obN') || {}).value || '').trim(), note = (($('#obNote') || {}).value || '').trim(), f = t.dataset.for;
+    try { obCheck(bookFix(JSON.parse(JSON.stringify(S.bookRaw || emptyBook()))), { for: f, n, note }, Date.now()); } catch (e) { toast(errText(e), { bad: true }); return; }
+    closeModal();
+    await bookChange((d, now) => obCheck(d, { for: f, n, note, by: meSid() }, now), { a: 'obcheck', for: f, n: n === '' ? null : Number(n) }, 'OrthoBanc report for ' + fmtDate(f) + ' marked checked');
   }
 });
 
@@ -3909,7 +4599,7 @@ function renderDrawer() {
     '<button class="iconBtn" data-act="closeDrawer" aria-label="Close">' + ic('x') + '</button></div><div class="dBd">';
   if (!a) h += '<div class="notice info">Not past due or in credit in the ' + esc(S.rep ? fmtDateLong(S.rep.asOf) : 'latest') + ' report — paid or fixed in Edge.' + (it && it.state === 'open' ? ' <button class="linkBtn" data-act="resolveCleared">Close it as cleared</button>' : '') + '</div>';
   if (back) h += '<div class="notice info">Resolved ' + esc(fmtDate(isoOf(new Date(it.resolvedAt || it.updatedAt || 0)))) + ' (' + esc(String(OUTCOMES[it.outcome] || 'resolved').toLowerCase()) + '), but it’s ' + (a.pd > 0 ? 'past due' : 'in credit') + ' again in the ' + esc(fmtDate(S.rep.asOf)) + ' report. Logging anything reopens it.</div>';
-  if (a) h += contactHTML(a) + numbersHTML(a) + whyHTML(a);
+  if (a) h += contactHTML(a) + (a.ins ? carrierBoxHTML(a) : '') + numbersHTML(a) + whyHTML(a);
   if (it && it.drA && !done) h += drABoxHTML(it);
   const L = a && !done ? ladFor(a) : null;
   if (L) h += ladderHTML(a, it, L);
@@ -4078,6 +4768,8 @@ function histText(x) {
     case 'mhold': return x.on ? 'put it on Maintenance Hold' : 'lifted the Maintenance Hold';
     case 'aa': return 'marked the arrangement broken';
     case 'restore': return 'restored an earlier version';
+    case 'obcheck': return 'checked OrthoBanc’s failed-payment report (' + fmtDate(x.for) + (x.n != null ? ', ' + plural(x.n, 'failed payment') : '') + ')';
+    case 'carrier': return x.op === 'add' ? 'added the carrier ' + (x.name || '') : x.op === 'edit' ? 'updated the carrier ' + (x.name || '') : x.op === 'remove' ? 'removed the carrier ' + (x.name || '') : x.op === 'tag' ? 'set the carrier on ' + plural(x.n || 1, 'insurance account') : 'changed the insurance carriers';
     default: return x.a || '';
   }
 }
@@ -4435,9 +5127,9 @@ Object.assign(ACT, {
       const list = (await B.activity(7)).filter(x => x.a !== 'rekey' && x.a !== 'save'), b2 = $('#actBox'); if (!b2) return;
       if (!list.length) { b2.innerHTML = '<div class="small muted">Nothing in the last 7 days.</div>'; return; }
       b2.innerHTML = list.slice(0, 80).map(x => {
-        const it = S.items.get(x.itemId), name = it && !it.locked ? it.name : '';
-        return '<div class="hist"><time>' + esc(fmtWhen(x.at)) + '</time><span><b>' + esc(shortName(x.sid) || '') + '</b> ' + esc(histText(x)) + ' — ' +
-          (name ? '<button class="linkBtn" data-act="open" data-key="' + esc(it.key) + '">' + esc(name) + '</button>' : 'an account resolved a while ago') + '</span></div>';
+        const it = S.items.get(x.itemId), name = it && !it.locked ? it.name : '', book = x.a === 'carrier' || x.a === 'obcheck' || (S.bookId && x.itemId === S.bookId);
+        return '<div class="hist"><time>' + esc(fmtWhen(x.at)) + '</time><span><b>' + esc(shortName(x.sid) || '') + '</b> ' + esc(histText(x)) + (book ? '' : ' — ' +
+          (name ? '<button class="linkBtn" data-act="open" data-key="' + esc(it.key) + '">' + esc(name) + '</button>' : 'an account resolved a while ago')) + '</span></div>';
       }).join('');
     } catch (x) { const b2 = $('#actBox'); if (b2) b2.innerHTML = '<div class="small" style="color:var(--coral-700)">' + esc(errText(x)) + '</div>'; }
   }
@@ -4487,7 +5179,7 @@ document.addEventListener('submit', async e => {
 const TOUR = { on: false, kind: '', i: 0, steps: [], timer: null, key: '', name: '', step: '', signKey: '', signName: '', okAt: 0, hold: false, shown: -1, paused: null, backAt: '', ringEl: null };
 /* the visible one of several (the side nav on a computer, the bottom nav on a phone) */
 function tVis(...sels) { for (const s of sels) { const el = $$(s).find(e => e.getClientRects().length); if (el) return el; } return null; }
-function tourGoView(v) { if (S.view === v) return; const b = tVis('#nav-' + v, '#mnav-' + v); if (b) b.click(); }
+function tourGoView(v) { if (v === 'today' && S.focus) { S.focus = false; if (S.view === 'today') renderView(); } if (S.view === v) return; const b = tVis('#nav-' + v, '#mnav-' + v); if (b) b.click(); }
 const tVal = x => (typeof x === 'function' ? x() : x);
 /* the practice account: a patient account at a letter or text the trainee can record (not one waiting for Dr. A's signature),
    nobody's worked on yet — Letter #1 if there is one */
@@ -4519,6 +5211,8 @@ function tourSteps(kind) {
     { id: 'today', enter: () => tourGoView('today'), at: () => tVis('.tiles'), t: 'Today', b: 'Your starting page: follow-ups due, the collection letters, texts and calls due, the 91+ money, insurance to chase and credits to resolve. Each tile opens its list.' },
     { id: 'goals', enter: () => tourGoView('today'), at: () => $('#view .goals'), t: 'The goals',
       b: () => 'The office’s goals (handbook §19): no more than ' + S.cfg.goalPt + '% of patient accounts past due, and no more than ' + S.cfg.goalIns + '% of insurance accounts past their payment window. Each week’s report updates them; “to go” is how many accounts to bring current.' },
+    { id: 'focus', enter: () => tourGoView('today'), at: () => $('#view .focusBar'), t: 'Do these first',
+      b: 'Everything that needs doing today in one list, most urgent first: OrthoBanc’s failed-payment report on its days, a promise to pay whose day passed, an account about to reach day 90, insurance near its carrier’s filing limit, a letter waiting on Dr. A. Focus mode shows just that list, and how much is done today.' },
     { id: 'ladrow', enter: () => { tourGoView('today'); tourPick(); }, at: () => $('#view .ladRow[data-step="' + step().id + '"]'), t: 'Collection steps due',
       b: () => 'The office’s collections ladder (handbook §14): the letters, texts and calls due today, step by step. Your practice account' + (TOUR.name ? ', ' + TOUR.name + ',' : '') + ' is at ' + step().s + '.',
       act: () => 'Tap ' + step().s + '.', done: () => S.view === 'pd' && S.tab.pd === 'lad' && S.ladStep === step().id },
@@ -4538,13 +5232,13 @@ function tourSteps(kind) {
     { id: 'batch', enter: () => tourGoView('pd'), at: () => $('#view .batchBar') || $('#view .subChips'), t: 'Many at once', b: 'With one step picked, the bar above the list marks them all at once — e.g. this week’s Letter #2s, printed together from Edge. Letters Dr. A signs go to him together too.' },
     { id: 'p91', need: { ok: () => S.view === 'pd', go: 'batch' }, at: () => $('#view [data-act=tab][data-t="91"]'), t: 'Biggest first', b: '91+ days is ranked by the money at 91+ days; a dashed line marks where 70% of it is reached. 31–90 and 0–30 catch accounts before they age.',
       act: 'Tap 91+ days.', done: () => S.view === 'pd' && S.tab.pd === '91' },
-    { id: 'ins', at: () => tVis('#nav-ins', '#mnav-ins'), t: 'Insurance', b: 'Insurance accounts where nothing has been paid: a past due that’s an exact multiple of the $11.11 instalment means that many untouched months. Triaged: monitor, chase now, investigate, never filed?',
+    { id: 'ins', at: () => tVis('#nav-ins', '#mnav-ins'), t: 'Insurance', b: 'Insurance accounts where nothing has been paid: a past due that’s an exact multiple of the $11.11 instalment means that many untouched months. Triaged: monitor, chase now, investigate, never filed? The Carriers tab has each carrier’s phone, portal and payer ID, and who’s slow to pay.',
       act: 'Tap Insurance.', done: () => S.view === 'ins' },
-    { id: 'cr', at: () => tVis('#nav-cr', '#mnav-cr'), t: 'Credit balances', b: 'Oldest first. Before a refund, each account has the checklist from the FC instructions — the credit often belongs on the family’s balance or a sibling instead.',
+    { id: 'cr', at: () => tVis('#nav-cr', '#mnav-cr'), t: 'Credit balances', b: 'Oldest first. Before a refund, each account has the checklist from the FC instructions — the credit often belongs on the family’s balance or a sibling instead. In December, the credit audit tab tracks every credit until the refunds are out (by March 31).',
       act: 'Tap Credits.', done: () => S.view === 'cr' },
     { id: 'rep', at: () => tVis('#nav-reports', '#mnav-reports'), t: 'This week’s report', b: 'Once a week, by ' + DUE_DAYS[S.cfg.dueDay - 1] + ': Edge → Reporting → Financial → Accounts Receivable Aging → Export → Excel, then drop the file here (the steps are on the page). It’s read on this computer and saved sealed. If it’s late, Today shows a red banner until it’s in.',
       act: 'Tap Reports.', done: () => S.view === 'reports' },
-    { id: 'sum', at: () => tVis('#nav-sum', '#mnav-sum'), t: 'Summary', b: 'The whole picture: totals, aging, the ladder today, insurance with nothing paid, credits, the trend — and the Month-End numbers, ready to copy.',
+    { id: 'sum', at: () => tVis('#nav-sum', '#mnav-sum'), t: 'Summary', b: 'The whole picture: the goals, what moved since last week and who did what, a weekly brief from AISA, totals, aging, the ladder today, insurance with nothing paid, credits — and the Month-End numbers, ready to copy.',
       act: 'Tap Summary.', done: () => S.view === 'sum' },
     { id: 'lock', at: () => tVis('.sideLock', '#mobTop [data-act=lock]'), t: 'Lock when you step away', b: 'Tap Lock whenever you leave the computer: everything is wiped from the screen until you sign in again with your password. It also locks by itself after a few minutes without activity.',
       act: 'Try it: tap Lock, then Sign in.', done: () => TOUR.backAt === 'lock' }

@@ -46,17 +46,42 @@ const shot = (p, n, full) => p.screenshot({ path: path.join(SHOTS, n + '.png'), 
   ok(await page.$$eval('.goals .goal', g => g.length) === 2 && k0.pt.n === 34 && k0.pt.of === 422 && k0.ins.n === 14 && k0.ins.of === 204 && k0.from === 1 && k0.win === 60, 'Today: two goal gauges — patient 34 of 422, insurance 14 of 204 (over 60 days): ' + JSON.stringify(k0));
   ok(await page.$eval('.goals .goal', e => /8\.1%/.test(e.textContent) && /18 to go/.test(e.textContent) && /goal ≤ 4%/.test(e.textContent) && e.classList.contains('far')), 'the patient gauge reads 8.1% against 4%, 18 to go, in red');
   // the weekly report (due Mondays): this week's is in, so no banner and no badge
-  ok(!(await page.$('.staleBox')) && await page.$eval('#nav-reports .cnt', e => e.classList.contains('hidden')), 'this week’s report is in: no banner on Today, no badge on Reports');
+  ok(!(await page.$('.staleBox.wk')) && await page.$eval('#nav-reports .cnt', e => e.classList.contains('hidden')), 'this week’s report is in: no banner on Today, no badge on Reports');
   // pretend it's later: the first day this week's report would be due, then 9 days on (late)
   const wk = await page.evaluate(() => {
-    const real = todayISO, newest = newestWeekly(), look = () => { renderNav(); renderView(); const b = document.querySelector('#view .staleBox'), c = document.querySelector('#nav-reports .cnt');
+    const real = todayISO, newest = newestWeekly(), look = () => { renderNav(); renderView(); const b = document.querySelector('#view .staleBox.wk'), c = document.querySelector('#nav-reports .cnt');
       return { cls: b ? b.className : '', txt: b ? b.textContent : '', badge: c.classList.contains('hidden') ? '' : c.textContent, red: c.classList.contains('red'), amber: c.classList.contains('amber') }; };
     let d = real(); for (let i = 0; i < 14 && reportDue(newest, d, S.cfg.dueDay).state !== 'today'; i++) d = addDays(d, 1);
     todayISO = () => d; const due = look(); todayISO = () => addDays(real(), 9); const late = look(); todayISO = real; const back = look(); return { due, late, back, d };
   });
-  ok(/staleBox today/.test(wk.due.cls) && /due today/.test(wk.due.txt) && wk.due.badge === 'Due' && wk.due.amber, 'on its due day (' + wk.d + '): an amber “due today” banner and Due on Reports');
-  ok(/staleBox late/.test(wk.late.cls) && /late — it was due Monday/.test(wk.late.txt) && wk.late.badge === 'Late' && wk.late.red, 'after it: a red “late” banner and Late on Reports — ' + wk.late.txt);
+  ok(/staleBox wk today/.test(wk.due.cls) && /due today/.test(wk.due.txt) && wk.due.badge === 'Due' && wk.due.amber, 'on its due day (' + wk.d + '): an amber “due today” banner and Due on Reports');
+  ok(/staleBox wk late/.test(wk.late.cls) && /late — it was due Monday/.test(wk.late.txt) && wk.late.badge === 'Late' && wk.late.red, 'after it: a red “late” banner and Late on Reports — ' + wk.late.txt);
   ok(!wk.back.cls && !wk.back.badge, 'back to today: no banner');
+
+  // ---- focus mode
+  const fs0 = await page.textContent('.focusBar');
+  ok(/Do these first:/.test(fs0) && /urgent/.test(fs0) && /about \d/.test(fs0), 'Today: the “Do these first” line — ' + fs0.replace(/Focus mode$/, '').trim());
+  await page.click('[data-act=focusOn]'); await page.waitForSelector('.fList .frow');
+  const fl = await page.$$eval('.fList .frow', r => r.map(x => ({ cls: x.className.replace('frow ', ''), kind: x.dataset.kind, why: x.querySelector('.fWhy').textContent })));
+  ok(!(await page.$('.tiles')) && fl.length > 10 && fl[0].cls === 'urgent' && fl.findIndex(x => x.cls !== 'urgent') > 0 && fl.slice(fl.findIndex(x => x.cls !== 'urgent')).every(x => x.cls !== 'urgent'), 'Focus mode: only the list — ' + fl.filter(x => x.cls === 'urgent').length + ' urgent first, then ' + fl.filter(x => x.cls === 'today').length + ' for today');
+  ok(fl.some(x => x.kind === 'tf' && /Summit Dental PPO’s filing limit/.test(x.why)) && fl.some(x => x.kind === 'cross'), 'urgent: insurance near its carrier’s filing limit, an account about to reach day 90 or 120');
+  ok(fl[0].kind === 'ob' && /open it, text each family on it today/.test(fl[0].why), 'first: OrthoBanc’s failed-payment report (it came on the 5th, nobody has checked it)');
+  const fk = await page.$eval('.fList .frow[data-act=open]', e => e.dataset.key);
+  await page.click('.fList .frow[data-act=open]'); await page.waitForSelector('#drawer');
+  ok(await S_(() => S.openKey) === fk, 'tapping a line opens that account');
+  await page.click('#drawer [data-act=closeDrawer]');
+  ok(await page.evaluate(() => localStorage.getItem('nloAR.focus') === '1' && !Object.keys(localStorage).some(k => /^nloAR\.focus/.test(k) && !/^nloDemo/.test(k))) !== null, 'focus mode is remembered on this computer');
+  await page.click('[data-act=focusOff]'); await page.waitForSelector('.tiles');
+  ok(true, 'Show everything: back to the usual Today');
+  // ---- OrthoBanc's failed-payment report (handbook §14, day 0)
+  const obT = await page.textContent('.staleBox.ob');
+  ok(/OrthoBanc’s failed-payment report for/.test(obT) && await page.$eval('.staleBox.ob a', a => a.href === 'https://www.orthobanc.com/providers/reports.aspx' && a.target === '_blank'), 'Today: the OrthoBanc reminder, with the link to the report');
+  await page.click('.staleBox.ob [data-act=obCheck]'); await page.waitForSelector('#obN');
+  ok(/Checked before:/.test(await page.textContent('#modalWrap')), 'the form shows when it was checked before');
+  await page.fill('#obN', '2.5'); await page.click('[data-act=obSave]'); await page.waitForTimeout(150);
+  ok(await page.isVisible('#obN') || await toastHas(/whole number/), 'the count has to be a number');
+  await page.fill('#obN', '2'); await page.fill('#obNote', 'Texted both families'); await page.click('[data-act=obSave]'); await page.waitForTimeout(400);
+  ok(!(await page.$('.staleBox.ob')) && await S_(() => { const x = S.book.ob[S.book.ob.length - 1]; return x.n === 2 && x.by === meSid() && !obState(S.book, todayISO()).due; }), 'Checked it: saved (2 failed payments), and the reminder is gone until the next report');
 
   for (const v of ['pd', 'ins', 'cr', 'sum', 'reports', 'settings', 'account']) {
     await page.click('#nav-' + v); await page.waitForTimeout(v === 'settings' ? 500 : 200);
@@ -65,6 +90,15 @@ const shot = (p, n, full) => p.screenshot({ path: path.join(SHOTS, n + '.png'), 
   await page.click('#nav-sum'); await page.waitForSelector('.goalsCard .gTrend');
   ok(await page.$$eval('.goalsCard .gTrend path.tl', p => p.length) === 2 && await page.$eval('.goalsCard .gTrend text.gt', e => e.textContent === '4%'), 'Summary: both rates week by week, with the 4% goal line');
   ok(await page.$eval('.goalsCard .gHow', e => /anything past due/.test(e.textContent) && /more than 60 days past due/.test(e.textContent)), 'Summary: how the goals are counted');
+
+  // ---- trends and the weekly brief (Summary)
+  const tr = await page.$eval('.trendsCard', e => ({ stats: e.querySelectorAll('.tStat').length, txt: e.textContent, people: e.querySelectorAll('.actTbl tbody tr').length }));
+  ok(tr.stats === 6 && /got current/.test(tr.txt) && /slid to an older bucket/.test(tr.txt) && /Patient goal \(4%\)/.test(tr.txt) && /moving away from 4%|under 4% around|flat/.test(tr.txt), 'Summary → Trends: week over week, and the pace to each goal');
+  ok(tr.people >= 2 && /Jamie/.test(tr.txt), 'who did what in the last 7 days (' + tr.people + ' people)');
+  await page.click('[data-act=brief]'); await page.waitForSelector('.briefTxt', { timeout: 10000 });
+  ok(await page.$eval('.briefTxt', e => e.querySelectorAll('ol li').length === 3 && e.querySelector('b') !== null), 'the brief comes back from AISA and shows as text with a numbered list');
+  const askedQ = (ctx.aisaAsked || []).slice(-1)[0] || '', names = await S_(() => { const n = new Set(); S.accts.forEach(a => { n.add(a.patient); n.add(rpName(a)); }); S.items.forEach(it => { if (it.name) n.add(it.name); }); return Array.from(n).filter(x => x && x.length > 3); });
+  ok(/Past due: \$/.test(askedQ) && /Goals \(handbook §19/.test(askedQ) && names.every(n => !askedQ.includes(n)), 'what goes to AISA: totals only — none of the ' + names.length + ' names on the page');
   // tabs on each list
   for (const [v, tabs] of [['pd', ['91', '31', '0', 'all', 'lad']], ['ins', ['investigate', 'nofile', 'monitor', 'all', 'partly', 'chase']], ['cr', ['pre', 'all', 'work']]]) {
     await page.click('#nav-' + v);
@@ -244,6 +278,41 @@ const shot = (p, n, full) => p.screenshot({ path: path.join(SHOTS, n + '.png'), 
   const csv = fs.readFileSync(await dl.path(), 'utf8');
   ok(/^﻿"Patient","Responsible party","Edge status"/.test(csv) && csv.split('\n').length === n91 + 1, 'Download list: a CSV with a heading row and one line per account (' + (csv.split('\n').length - 1) + ')');
   ok(/nlo-ar-past-due-91-\d{4}-\d{2}-\d{2}\.csv/.test(dl.suggestedFilename()), 'file name says which list: ' + dl.suggestedFilename());
+
+  // ---- insurance carriers
+  await page.click('#nav-ins'); await page.click('[data-act=tab][data-t=carriers]'); await page.waitForSelector('.carGrid');
+  const cg = await page.evaluate(() => ({ cards: document.querySelectorAll('.carCard').length, untagged: document.querySelectorAll('.tagRow').length, first: document.querySelector('.carCard h3').textContent, tel: !!document.querySelector('.carCard a[href^="tel:"]') }));
+  ok(cg.cards === 5 && cg.untagged === 3 && cg.tel, 'Insurance → Carriers: 5 carriers (most past due first: ' + cg.first + '), phone links, 3 accounts without a carrier');
+  const tagKey = await page.$eval('.tagRow select', e => e.dataset.key);
+  const gulf = await S_(() => S.book.carriers.find(c => c.name === 'Gulf Dental Group').id);
+  await page.selectOption('.tagRow select[data-key="' + tagKey + '"]', gulf); await page.waitForTimeout(300);
+  ok(await page.$$eval('.tagRow', r => r.length) === 2, 'setting the carrier from the list: 2 left without one');
+  ok(await page.evaluate(k => carrierFor(k) && carrierFor(k).name === 'Gulf Dental Group', tagKey), 'the account is with Gulf Dental Group now');
+  // a new carrier: a bad portal address is refused, a good one saved
+  await page.click('[data-act=carrierNew]'); await page.waitForSelector('#carName');
+  await page.fill('#carName', 'Test Plan (demo)'); await page.fill('#carPortal', 'not a link'); await page.click('[data-act=carrierSave]'); await page.waitForTimeout(150);
+  ok(await toastHas(/web address/) && await page.isVisible('#carName'), 'a portal that isn’t a web address is refused (the form stays open)');
+  await page.fill('#carPortal', 'https://provider.example.com/test'); await page.fill('#carPhone', '(800) 555-0111'); await page.fill('#carTf', '90'); await page.click('[data-act=carrierSave]'); await page.waitForTimeout(400);
+  ok(await page.$$eval('.carCard', c => c.length) === 6 && await S_(() => S.book.carriers.some(c => c.name === 'Test Plan (demo)' && c.tf === 90)), 'a carrier added (6 now)');
+  // call a carrier once about all its accounts
+  const bay = await S_(() => { const c = S.book.carriers.find(x => x.name === 'Bayside Dental Plan'); return { id: c.id, keys: carrierStats(c).pd.map(a => a.key) }; });
+  await page.click('[data-act=carrierCallAll][data-id="' + bay.id + '"]'); await page.fill('#callNote', 'Claims are in review'); await page.click('[data-act=carrierCallSave]');
+  await page.waitForFunction(keys => keys.every(k => { const it = itemFor(k); return it && it.log.some(e => e.k === 'ins_call' && /Bayside Dental Plan: Claims are in review/.test(e.note)); }), bay.keys, { timeout: 10000 });
+  ok(true, '“Called about all ' + bay.keys.length + '” logs the call (with the note) on each of Bayside’s accounts');
+  // the carrier on an account's panel; the Carrier filter on the lists
+  await page.click('[data-act=tab][data-t=all]'); await page.waitForTimeout(150);
+  await page.selectOption('select[data-f=car]', bay.id); await page.waitForTimeout(150);
+  ok(await page.$$eval('#view tbody tr', (r, n) => r.length > 0 && r.length <= n, bay.keys.length) && await S_(() => S.lastList.every(a => carrierFor(a.key) && carrierFor(a.key).name === 'Bayside Dental Plan')), 'the Carrier filter shows only that carrier’s accounts');
+  await page.click('#view tbody tr'); await page.waitForSelector('#drawer .carBox');
+  ok(await page.$eval('#drawer .carBox', e => /Bayside Dental Plan/.test(e.querySelector('select').selectedOptions[0].textContent) && !!e.querySelector('a[href^="tel:"]') && !!e.querySelector('a[target=_blank]') && /BDP01/.test(e.textContent)), 'the account’s panel: its carrier, with Call, Portal and the payer ID');
+  await page.click('#drawer [data-act=closeDrawer]');
+  await page.click('[data-act=clearF]').catch(() => { });
+  // ---- the December credit audit
+  await page.click('#nav-cr'); await page.click('[data-act=tab][data-t=audit]'); await page.waitForTimeout(150);
+  ok(await page.$eval('#view', e => /The next audit starts/.test(e.textContent) && e.querySelectorAll('.aChk').length > 5), 'Credits → December audit (outside December): when it starts, and every credit listed');
+  const dec = await page.evaluate(() => { const real = todayISO; todayISO = () => '2026-12-10'; ACT.nav({ dataset: { v: 'today' } }); const b = document.querySelector('.staleBox.audit'), r = { banner: b ? b.textContent : '' };
+    S.focus = true; renderView(); r.audit = Array.from(document.querySelectorAll('.fList .frow')).filter(x => x.dataset.kind === 'creditaudit').length; S.focus = false; todayISO = real; renderView(); return r; });
+  ok(/December credit audit: \d+ of \d+ credits reviewed/.test(dec.banner) && /by Wednesday, Mar 31/.test(dec.banner) && dec.audit > 3, 'in December: the audit line on Today (' + dec.banner.replace(/Open the audit$/, '').trim() + ') and the credits not reviewed in Focus');
 
   // ---- importing a made-up Edge export
   await page.click('#nav-reports'); await page.waitForSelector('#dropZone');

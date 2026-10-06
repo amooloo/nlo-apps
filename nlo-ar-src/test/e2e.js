@@ -223,6 +223,27 @@ async function openAcct(p, name) { await p.evaluate(n => { const a = S.accts.fin
   await jamie.click('#nav-today'); await jamie.waitForSelector('.goals .goal');
   check(await jamie.$eval('.goals .goal .gG', e => e.textContent === 'goal ≤ 5%'), 'Jamie’s patient gauge now measures against 5%');
 
+  console.log('\n# Insurance carriers and the OrthoBanc reminder: shared, live, sealed');
+  const insKey = await owner.evaluate(() => (S.accts.find(a => a.ins && a.pd > 0) || {}).key);
+  check(!!insKey, 'there is an insurance account past due to put a carrier on');
+  await owner.click('#nav-ins'); await owner.click('[data-act=tab][data-t=carriers]'); await owner.waitForSelector('[data-act=carrierNew]');
+  await owner.click('[data-act=carrierNew]'); await owner.waitForSelector('#carName');
+  await owner.fill('#carName', 'Zephyr Test Dental'); await owner.fill('#carPhone', '(800) 555-0188'); await owner.fill('#carPayer', 'ZTD77'); await owner.fill('#carTf', '180'); await owner.click('[data-act=carrierSave]');
+  await jamie.waitForFunction(() => S.book && S.book.carriers.some(c => c.name === 'Zephyr Test Dental' && c.tf === 180), null, { timeout: 30000 });
+  check(true, 'a carrier Dr. A adds shows on Jamie’s screen');
+  const zid = await owner.evaluate(() => S.book.carriers.find(c => c.name === 'Zephyr Test Dental').id);
+  await owner.selectOption('.tagRow select[data-key="' + insKey.replace(/"/g, '\\"') + '"]', zid).catch(async () => { await owner.evaluate(([k, id]) => setCarrier(k, id), [insKey, zid]); });
+  await jamie.waitForFunction(k => carrierFor(k) && carrierFor(k).name === 'Zephyr Test Dental', insKey, { timeout: 30000 });
+  check(true, 'the carrier set on an account reaches Jamie’s screen');
+  // the OrthoBanc reminder: due on Jamie's Today until someone marks that report checked
+  await jamie.click('#nav-today'); await jamie.waitForSelector('.staleBox.ob', { timeout: 15000 });
+  await owner.click('#nav-today'); await owner.waitForSelector('.staleBox.ob [data-act=obCheck]'); await owner.click('.staleBox.ob [data-act=obCheck]');
+  await owner.fill('#obN', '1'); await owner.click('[data-act=obSave]');
+  await jamie.waitForFunction(() => !document.querySelector('.staleBox.ob'), null, { timeout: 30000 });
+  check(true, 'OrthoBanc reminder: Dr. A marks the report checked and it leaves Jamie’s Today');
+  const bookBlob = JSON.stringify(await fsDocs('arItems'));
+  check(!/Zephyr|ZTD77|555-0188/.test(bookBlob), 'the carriers and the OrthoBanc checks are sealed in the database');
+
   console.log('\n# Dr. A turns Jamie off: she’s locked out at once; a new A/R key; everything sealed again');
   await owner.click('#nav-settings'); await owner.waitForSelector('#accessBox .sw[data-uid="' + jamieUid + '"]');
   await owner.click('#accessBox .sw[data-uid="' + jamieUid + '"]'); await owner.click('#cbYes');

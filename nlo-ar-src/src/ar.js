@@ -204,10 +204,12 @@ function kpis(rep, cfg) {
   };
 }
 /* a small summary kept with each saved report, for the trend charts (totals and counts only) */
-function reportTotals(rep, cfg) {
+/* prev: the report before it, when there is one (for what moved week over week) */
+function reportTotals(rep, cfg, prev) {
   const s = summarize(rep, cfg), k1 = kpis(rep, Object.assign({}, cfg, { kpiFrom: 1 })), k30 = kpis(rep, Object.assign({}, cfg, { kpiFrom: 31 }));
   return { asOf: s.asOf, cover: s.cover, pd: s.pd.total, b90: s.pd.b90, b31: round2(s.pd.b30 + s.pd.b60), n91: s.conc.n, never: s.never.n, neverPd: s.never.pd, cr: s.cr.total, crWork: s.cr.work.total, crN: s.cr.work.n, bal: s.book ? s.book.bal : null,
-    kp: k1 ? { ptOf: k1.pt.of, ptPd: k1.pt.n, ptPd30: k30.pt.n, insOf: k1.ins ? k1.ins.of : null, insLate: k1.ins ? k1.ins.n : null, win: k1.win } : null };
+    kp: k1 ? { ptOf: k1.pt.of, ptPd: k1.pt.n, ptPd30: k30.pt.n, insOf: k1.ins ? k1.ins.of : null, insLate: k1.ins ? k1.ins.n : null, win: k1.win } : null,
+    fl: prev ? flowOf(rep, prev, cfg) : null };
 }
 
 /* ---------- what changed since the report before ---------- */
@@ -517,7 +519,7 @@ function normSum(s) {
   if (!s || typeof s !== 'object') return null;
   const i = v => Math.max(0, Math.round(numOr0(v)));
   const kp = s.kp && typeof s.kp === 'object' ? { ptOf: i(s.kp.ptOf), ptPd: i(s.kp.ptPd), ptPd30: i(s.kp.ptPd30), insOf: numOrNull(s.kp.insOf) == null ? null : i(s.kp.insOf), insLate: numOrNull(s.kp.insLate) == null ? null : i(s.kp.insLate), win: i(s.kp.win) } : null;
-  return { asOf: isoOrBlank(s.asOf), cover: normCover(s.cover), pd: numOr0(s.pd), b90: numOr0(s.b90), b31: numOr0(s.b31), n91: i(s.n91), never: i(s.never), neverPd: numOr0(s.neverPd), cr: numOr0(s.cr), crWork: numOr0(s.crWork), crN: i(s.crN), bal: numOrNull(s.bal), kp };
+  return { asOf: isoOrBlank(s.asOf), cover: normCover(s.cover), pd: numOr0(s.pd), b90: numOr0(s.b90), b31: numOr0(s.b31), n91: i(s.n91), never: i(s.never), neverPd: numOr0(s.neverPd), cr: numOr0(s.cr), crWork: numOr0(s.crWork), crN: i(s.crN), bal: numOrNull(s.bal), kp, fl: normFlow(s.fl) };
 }
 const LOG_KINDS = new Set(Object.keys(LOGS).concat(['done', 'reopen', 'drA_ask', 'drA_ok', 'drA_no', 'ladder', 'aa_broken', 'mhold_on', 'mhold_off']));
 function normLog(e) {
@@ -542,4 +544,230 @@ function normItem(it) {
     log: Array.isArray(it.log) ? it.log.slice(-500).map(normLog) : [],
     createdAt: numOr0(it.createdAt), createdBy: strOf(it.createdBy, 60), resolvedAt: numOrNull(it.resolvedAt), resolvedBy: strOf(it.resolvedBy, 60)
   };
+}
+
+/* =====================================================================
+   Insurance carriers (6 Oct 2026). Edge's A/R Aging names the
+   policyholder on an insurance row, not the carrier, so the office tags
+   each insurance account with its carrier once. The carriers (phone,
+   portal, payer ID, timely-filing limit, notes) and the tags live in
+   one sealed record, "the carrier book", saved like an account's record
+   (arItems, with its history) — so no new database rules were needed.
+   ===================================================================== */
+const BOOK_KEY = '\u0001carriers';
+const CARRIER_ID = /^c[0-9a-f]{12}$/;
+function emptyBook() { return { book: 1, key: '', name: '', rp: '', src: 'ins', kind: 'pd', state: 'open', stage: '', log: [], carriers: [], tags: {}, ob: [] }; }
+function cleanUrl(u) { u = String(u || '').trim(); return u.length <= 300 && /^https?:\/\/[^\s<>"'`]+$/i.test(u) ? u : ''; }
+function normCarrier(c) {
+  c = c && typeof c === 'object' ? c : {};
+  const tf = Number(c.tf);
+  return { id: CARRIER_ID.test(c.id) ? c.id : '', name: strOf(c.name, 60).trim(), phone: strOf(c.phone, 40).trim(), portal: cleanUrl(c.portal), payer: strOf(c.payer, 40).trim(),
+    fax: strOf(c.fax, 40).trim(), tf: Number.isInteger(tf) && tf > 0 && tf <= 1095 ? tf : 0, notes: strOf(c.notes, 1000) };
+}
+function normBook(b) {
+  if (!b || typeof b !== 'object' || !b.book || b.locked) return null;
+  const carriers = (Array.isArray(b.carriers) ? b.carriers.slice(0, 200) : []).map(normCarrier).filter(c => c.id && c.name);
+  const ids = new Set(carriers.map(c => c.id)), tags = {};
+  if (b.tags && typeof b.tags === 'object') Object.keys(b.tags).slice(0, 5000).forEach(k => { const v = b.tags[k]; if (k.length <= 400 && typeof v === 'string' && ids.has(v)) tags[k] = v; });
+  const ob = (Array.isArray(b.ob) ? b.ob.slice(-60) : []).map(x => x && typeof x === 'object' ? { id: strOf(x.id, 20), at: numOr0(x.at), by: strOf(x.by, 60), for: isoOrBlank(x.for), n: Number.isInteger(x.n) && x.n >= 0 && x.n <= 500 ? x.n : null, note: strOf(x.note, 300) } : null).filter(x => x && x.for && x.at);
+  return { id: strOf(b.id, 40), rev: numOr0(b.rev), v: numOr0(b.v), updatedAt: numOrNull(b.updatedAt), carriers: carriers.sort((x, y) => x.name.localeCompare(y.name)), tags, ob };
+}
+function carrierOf(book, key) { const id = book && book.tags[key]; return id ? book.carriers.find(c => c.id === id) || null : null; }
+/* changes to the carrier book, made on its decrypted copy */
+function bookFix(d) { if (!Array.isArray(d.carriers)) d.carriers = []; if (!d.tags || typeof d.tags !== 'object') d.tags = {}; if (!Array.isArray(d.ob)) d.ob = []; Object.assign(d, { book: 1, key: '', state: 'open' }); return d; }
+function carrierSave(d, f, o, now) {
+  bookFix(d); f = f || {};
+  const c = normCarrier(Object.assign({}, f, { id: f.id || 'c' + uid8() }));
+  if (!c.name) throw errCode('need-name', 'Give the carrier a name.');
+  if (String(f.portal || '').trim() && !c.portal) throw errCode('bad-url', 'The portal needs to be a web address starting with https://');
+  if (d.carriers.some(x => x.id !== c.id && String(x.name || '').trim().toLowerCase() === c.name.toLowerCase())) throw errCode('dup', c.name + ' is already in the list.');
+  const rec = Object.assign(c, { at: now, by: (o && o.by) || '' }), i = d.carriers.findIndex(x => x.id === c.id);
+  if (i >= 0) d.carriers[i] = rec; else d.carriers.push(rec);
+  return c.id;
+}
+function carrierRemove(d, id) { bookFix(d); d.carriers = d.carriers.filter(x => x.id !== id); Object.keys(d.tags).forEach(k => { if (d.tags[k] === id) delete d.tags[k]; }); }
+function carrierTag(d, keys, id) {
+  bookFix(d);
+  if (id && !d.carriers.some(x => x.id === id)) throw errCode('gone', 'That carrier was just removed.');
+  keys.forEach(k => { if (id) d.tags[k] = id; else delete d.tags[k]; });
+}
+/* the other insurance accounts under the same policyholder (brothers and sisters on a parent's plan) */
+function sameHolder(accts, a) { const h = normName(rpName(a)); return h ? accts.filter(x => x.ins && x.key !== a.key && normName(rpName(x)) === h) : []; }
+
+/* =====================================================================
+   Focus (6 Oct 2026): what to do first today, as one list across the
+   collections ladder, follow-ups, insurance, credits and Dr. A's OKs.
+   Urgent: a promise to pay whose day passed; a letter waiting a week or
+   more for Dr. A, or a step a week late; insurance near its carrier's
+   filing limit or with nothing paid well past the chase window; an
+   account about to reach day 90 or 120; a big balance new this week; a
+   follow-up 3+ office days late. One line per account (its most urgent
+   reason first, the rest listed with it).
+   ===================================================================== */
+const FOCUS_SEV = { promise: 1, signlate: 2, tf: 3, ladlate: 4, cross: 5, new: 6, insinv: 7, followlate: 8,
+  sign: 10, lad: 11, drA: 12, follow: 13, chase: 14, claim: 15, end: 16, creditaudit: 17, credit: 20, nofile: 21, wait: 22 };
+/* office days after `from`, up to and including `today` */
+function officeDaysLate(from, today) { let n = 0, d = from; for (let i = 0; i < 400 && d < today; i++) { d = addDays(d, 1); if (nextOfficeDay(d) === d) n++; } return n; }
+/* about how long a step takes, in minutes */
+function stepMin(s) { return s.id === 'end' || s.id === 'endaa' ? 5 : (s.n ? (s.cert ? 7 : 4) : 2) + (s.call ? 5 : 0); }
+/* ctx: { accts, asOf: the report's date, byKey, item(key) → its record (null if none, or back on the list), lad(a) → its ladder state, open: open records,
+   cleared(it), today, owner, prevPd: keys past due in the report before (or null), book, auditStart: the December credit audit's first day, while it runs } */
+function focusEntries(ctx) {
+  const t = ctx.today, best = new Map();
+  const put = e => { const cur = best.get(e.key); if (!cur) best.set(e.key, e); else if (e.sev < cur.sev) { e.also = [cur.why].concat(cur.also); best.set(e.key, e); } else cur.also.push(e.why); };
+  const mk = (a, it, kind, why, act, min, amt) => { const sev = FOCUS_SEV[kind]; return { key: a ? a.key : it.key, a: a || null, it: it || null, kind, sev, cls: sev < 10 ? 'urgent' : sev < 20 ? 'today' : 'later', why, act, min, amt: amt != null ? amt : a ? (a.pd > 0 ? a.pd : a.credit) : 0, also: [] }; };
+  const recent = (it, days) => !!it && (it.log || []).some(e => e.at && daysBetween(isoOf(new Date(e.at)), t) <= days);
+  const filed = it => !!it && ladEntries(it).some(e => e.k === 'ins_filed' || e.k === 'ins_resub' || e.k === 'ins_appeal');
+  (ctx.accts || []).forEach(a => {
+    const it = ctx.item(a.key);
+    if (it && it.state === 'done') return; // resolved (and not past due or in credit again)
+    if (onLadder(a)) {
+      const L = ctx.lad(a);
+      if (L && L.due) {
+        // "late" only once an account is moving up the ladder (a step recorded this round): an account nobody had started on isn't late, it's next
+        const s = L.due, over = s.day != null ? L.day - s.day : L.endOn ? Math.max(0, daysBetween(L.endOn, t)) : 0, late = L.last >= 0 && over >= 7 ? ' — ' + over + ' days late' : '';
+        const q = it && it.drA ? drAQuestion(it) : null, askedOn = q && q.k === 'drA_ask' && q.step === s.id ? isoOf(new Date(q.at)) : '', waited = askedOn ? officeDaysLate(askedOn, t) : 0;
+        if (s.dra && !L.signed[s.id]) {
+          if (ctx.owner) put(mk(a, it, waited >= 3 ? 'signlate' : 'sign', s.s + ' needs your signature' + (waited >= 3 ? ' — asked ' + plural(waited, 'office day') + ' ago' : ''), 'Sign', 1));
+          else if (L.asked === s.id) put(mk(a, it, waited >= 3 ? 'signlate' : 'wait', 'Waiting for Dr. A to sign ' + s.s + (waited >= 3 ? ' — asked ' + plural(waited, 'office day') + ' ago' : ''), waited >= 3 ? 'Remind Dr. A' : 'Waiting', 0));
+          else put(mk(a, it, late ? 'signlate' : 'sign', 'Ask Dr. A to sign ' + s.s + late, 'Ask Dr. A', 1));
+        } else if (s.id === 'end' || s.id === 'endaa') put(mk(a, it, 'end', s.l, 'Resolve', stepMin(s)));
+        else put(mk(a, it, late ? 'ladlate' : 'lad', s.s + ' due' + late + (s.send ? ' · ' + s.send.split(' · ')[0].toLowerCase() : ''), s.btn, stepMin(s)));
+      }
+      if (L && !L.paused && !L.fin && !L.broke) {
+        const goal = L.day >= 83 && L.day < 90 ? 90 : L.day >= 113 && L.day < 120 ? 120 : 0;
+        if (goal && !recent(it, 7)) put(mk(a, it, 'cross', 'Reaches day ' + goal + ' on ' + fmtDay(nextOfficeDay(addDays(t, goal - L.day))) + ' — ' + (goal === 90 ? 'Dr. A’s certified letter is next' : 'the final letter is next'), 'Call', 5));
+      }
+      if (ctx.prevPd && !ctx.prevPd.has(a.key) && a.pd >= 500 && !(it && (it.log || []).length)) put(mk(a, it, 'new', 'New this week: ' + money(a.pd) + ' past due', 'Call', 5));
+    }
+    if (a.ins && a.pd > 0) {
+      // days past due today: the report's, carried on to today
+      const c = carrierOf(ctx.book, a.key), dn = a.days != null ? a.days + (ctx.asOf ? Math.max(0, daysBetween(ctx.asOf, t)) : 0) : null;
+      if (c && c.tf && dn != null && dn >= c.tf - 30 && dn <= c.tf && !filed(it)) put(mk(a, it, 'tf', c.name + '’s filing limit (' + c.tf + ' days) is ' + (c.tf > dn ? 'in ' + plural(c.tf - dn, 'day') : 'today'), 'Call the carrier', 10));
+      if (!it) {
+        const who = c ? c.name : 'the carrier';
+        if (a.tier === 'investigate') put(mk(a, it, 'insinv', 'Nothing paid in ' + dn + ' days — investigate the claim with ' + who, 'Call the carrier', 10));
+        else if (a.tier === 'chase') put(mk(a, it, 'chase', 'Nothing paid in ' + dn + ' days — chase ' + who, 'Call the carrier', 10));
+        else if (a.tier === 'nofile') put(mk(a, it, 'nofile', 'Nothing paid in ' + dn + ' days — probably never filed', 'Verify', 10));
+        else if (!a.months && a.bucket === '91') put(mk(a, it, 'claim', 'Claim follow-up with ' + who + ' — ' + money(a.b90) + ' at 91+ days', 'Call the carrier', 10));
+      }
+    }
+    if (a.credit > 0 && !(a.pd > 0) && !a.prepay) {
+      const k = crAction(a).k, why = k === 'prio' ? 'over 3 years old: refund it or escalate' : k === 'inact' ? 'the patient is inactive: refund or write it off' : k === 'old' ? 'over a year old: find out why' : 'check whether it’s timing';
+      if (ctx.auditStart) { if (!auditOf(it, ctx.auditStart).reviewed) put(mk(a, it, 'creditaudit', 'December audit: credit of ' + money(a.credit) + ' — ' + why, 'Review', 8, a.credit)); }
+      else if (!it && (k === 'prio' || k === 'inact')) put(mk(a, it, 'credit', 'Credit of ' + money(a.credit) + ' — ' + why, 'Review', 8, a.credit));
+    }
+  });
+  (ctx.open || []).forEach(it => {
+    if (!it.key || ctx.cleared(it)) return;
+    const a = ctx.byKey.get(it.key) || null;
+    if (it.follow && it.follow <= t) {
+      if (it.stage === 'promise') put(mk(a, it, it.follow < t ? 'promise' : 'follow', (it.follow < t ? 'Promised to pay by ' + fmtDate(it.follow) : 'Promised to pay today') + ' — check whether it came in', 'Check', 3));
+      else { const late = officeDaysLate(it.follow, t), e = lastLog(it); put(mk(a, it, late >= 3 ? 'followlate' : 'follow', 'Follow-up ' + (late ? plural(late, 'office day') + ' late' : 'due today') + (e ? ' — last: ' + logLabel(e).toLowerCase() : ''), 'Follow up', 5)); }
+    }
+    if (ctx.owner && it.drA) { const q = drAQuestion(it); if (!(q && q.k === 'drA_ask' && q.step)) put(mk(a, it, 'drA', q ? logLabel(q) + (q.note ? ': ' + q.note : '') : 'Waiting for your OK', 'Answer', 2)); }
+  });
+  return Array.from(best.values()).sort((x, y) => x.sev - y.sev || y.amt - x.amt);
+}
+
+/* =====================================================================
+   Week over week (6 Oct 2026): what moved between two reports —
+   accounts that got current, ones newly past due, ones that slid to an
+   older bucket (or into 91+) or got better, and the past due that went
+   away (paid, or adjusted in Edge). Kept with each report's sealed
+   totals (sum.fl) from now on.
+   ===================================================================== */
+function flowOf(cur, prev, cfg) {
+  if (!cur || !prev || !cur.cover || !prev.cover || !cur.cover.pastDue || !prev.cover.pastDue || !(prev.asOf < cur.asOf)) return null;
+  const both = cur.cover.ins && prev.cover.ins, keep = a => a.pd > 0 && (both || !a.ins);
+  const P = new Map(reportAccts(prev, cfg).filter(keep).map(a => [a.key, a])), C = new Map(reportAccts(cur, cfg).filter(keep).map(a => [a.key, a]));
+  const ord = { '0': 0, '31': 1, '91': 2 }, o = { from: prev.asOf, to: cur.asOf, cured: 0, curedAmt: 0, ptCured: 0, insCured: 0, newN: 0, newAmt: 0, rolled: 0, into91: 0, better: 0, cleared: 0 };
+  P.forEach((p, k) => {
+    const c = C.get(k);
+    if (!c) { o.cured++; o.curedAmt += p.pd; o.cleared += p.pd; if (p.ins) o.insCured++; else o.ptCured++; return; }
+    if (ord[c.bucket] > ord[p.bucket]) { o.rolled++; if (c.bucket === '91') o.into91++; } else if (ord[c.bucket] < ord[p.bucket]) o.better++;
+    o.cleared += Math.max(0, p.pd - c.pd);
+  });
+  C.forEach((c, k) => { if (!P.has(k)) { o.newN++; o.newAmt += c.pd; } });
+  ['curedAmt', 'newAmt', 'cleared'].forEach(k => { o[k] = round2(o[k]); });
+  return o;
+}
+function normFlow(f) {
+  if (!f || typeof f !== 'object') return null;
+  const i = v => Math.max(0, Math.round(numOr0(v)));
+  return { from: isoOrBlank(f.from), to: isoOrBlank(f.to), cured: i(f.cured), curedAmt: numOr0(f.curedAmt), ptCured: i(f.ptCured), insCured: i(f.insCured), newN: i(f.newN), newAmt: numOr0(f.newAmt), rolled: i(f.rolled), into91: i(f.into91), better: i(f.better), cleared: numOr0(f.cleared) };
+}
+/* the straight line through the last (up to) 8 weekly rates: when it reaches the goal at this pace.
+   pts: [{ asOf, rate }] oldest first → null (under 3 reports) | { met } | { dir: 'up' | 'flat' } | { dir: 'down', weeks, date } */
+function paceTo(pts, goal) {
+  const P = (pts || []).filter(p => p && ISO_RE.test(p.asOf || '') && typeof p.rate === 'number' && isFinite(p.rate)).slice(-8);
+  if (P.length < 3) return null;
+  const X = P.map(p => daysBetween(P[0].asOf, p.asOf) / 7), Y = P.map(p => p.rate), n = P.length;
+  const mx = X.reduce((s, v) => s + v, 0) / n, my = Y.reduce((s, v) => s + v, 0) / n, sxx = X.reduce((s, v) => s + (v - mx) * (v - mx), 0);
+  if (!sxx) return null;
+  const slope = X.reduce((s, v, i) => s + (v - mx) * (Y[i] - my), 0) / sxx, cur = Y[n - 1];
+  if (cur <= goal + 1e-9) return { met: true, slope, cur };
+  if (slope > -0.0005) return { met: false, slope, cur, dir: slope > 0.0005 ? 'up' : 'flat' };
+  const weeks = (cur - goal) / -slope;
+  return { met: false, slope, cur, dir: 'down', weeks, date: addDays(P[n - 1].asOf, Math.ceil(weeks * 7 - 1e-6)) };
+}
+
+/* =====================================================================
+   The December credit audit (handbook §15): "Pull a full credit balance
+   audit in December each year … By March, all refund checks are cut and
+   sent, or money is moved/applied to other accounts." Refunds can go out
+   a few at a time. The audit runs December 1 – March 31.
+   ===================================================================== */
+function auditWindow(today) {
+  const [y, m] = today.split('-').map(Number);
+  if (m === 12) return { on: true, start: y + '-12-01', end: (y + 1) + '-03-31' };
+  if (m <= 3) return { on: true, start: (y - 1) + '-12-01', end: y + '-03-31' };
+  return { on: false, start: y + '-12-01', end: (y + 1) + '-03-31' };
+}
+/* where one credit stands in the audit that started on `start` (anything logged or resolved since then counts as reviewed) */
+function auditOf(it, start) {
+  const [y, m, d] = start.split('-').map(Number), t0 = new Date(y, m - 1, d).getTime();
+  if (!it) return { reviewed: false, done: false, refund: false, st: '' };
+  if (it.state === 'done') return (it.resolvedAt || 0) >= t0 ? { reviewed: true, done: true, refund: it.outcome === 'refund', st: OUTCOMES[it.outcome] || 'Resolved' } : { reviewed: false, done: false, refund: false, st: '' };
+  const E = (it.log || []).filter(e => (e.at || 0) >= t0 && e.k !== 'reopen');
+  if (!E.length) return { reviewed: false, done: false, refund: false, st: '' };
+  const has = k => E.some(e => e.k === k), refund = has('cr_refreq');
+  const st = refund ? (E.some(e => e.k === 'drA_ok') ? 'Refund OK’d — cut the check' : E.some(e => e.k === 'drA_no') ? 'Refund: Dr. A said not yet' : 'Refund requested — with Dr. A') :
+    has('cr_hold') ? 'Holding for insurance (60 days at most)' : has('cr_review') ? 'Ledger reviewed' : logLabel(E[E.length - 1]);
+  return { reviewed: true, done: false, refund, st };
+}
+
+/* =====================================================================
+   OrthoBanc's failed-payment report (6 Oct 2026). Handbook §14, day 0:
+   "OrthoBanc emails of failed payments arrive approximately on the 5th,
+   12th, 19th, and 26th of each month. Send a text to the RP immediately
+   when the failed payment notification arrives." The email only says the
+   report is ready (no names), so the app reminds on those days — on the
+   office day it lands on — until someone marks that report checked.
+   The checks are kept in the office's sealed record with the carriers.
+   ===================================================================== */
+const OB_DAYS = [5, 12, 19, 26];
+const OB_URL = 'https://www.orthobanc.com/providers/reports.aspx';
+/* the reports around today: { date (the 5th, 12th…), due (the office day it's handled) } — the latest one due, and the next */
+function obCycle(today) {
+  const [y, m] = today.split('-').map(Number), all = [];
+  for (let k = -1; k <= 1; k++) {
+    let yy = y, mm = m + k; if (mm < 1) { mm = 12; yy--; } if (mm > 12) { mm = 1; yy++; }
+    OB_DAYS.forEach(d => { const date = yy + '-' + String(mm).padStart(2, '0') + '-' + String(d).padStart(2, '0'); all.push({ date, due: nextOfficeDay(date) }); });
+  }
+  const past = all.filter(c => c.due <= today);
+  return { cur: past[past.length - 1] || null, prev: past[past.length - 2] || null, next: all.find(c => c.due > today) || null };
+}
+/* where the reminder stands: due (the report whose day has come, not checked yet), missed (the one before it, not checked either) */
+function obState(book, today) {
+  const C = obCycle(today), checks = (book && book.ob) || [], done = c => !!c && checks.some(x => x.for === c.date);
+  return { cur: C.cur, next: C.next, due: C.cur && !done(C.cur) ? C.cur : null, missed: C.prev && !done(C.prev) && checks.length ? C.prev : null, last: checks.length ? checks[checks.length - 1] : null };
+}
+function obCheck(d, o, now) {
+  bookFix(d); o = o || {};
+  if (!ISO_RE.test(o.for || '')) throw errCode('bad-date');
+  const n = o.n === '' || o.n == null ? null : Number(o.n);
+  if (n != null && !(Number.isInteger(n) && n >= 0 && n <= 500)) throw errCode('bad-n', 'How many failed payments: a whole number.');
+  d.ob.push({ id: uid8(), at: now, by: o.by || '', for: o.for, n, note: String(o.note || '').trim().slice(0, 300) });
+  if (d.ob.length > 60) d.ob = d.ob.slice(-60);
 }

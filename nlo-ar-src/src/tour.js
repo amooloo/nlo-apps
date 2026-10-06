@@ -9,7 +9,7 @@
 const TOUR = { on: false, kind: '', i: 0, steps: [], timer: null, key: '', name: '', step: '', signKey: '', signName: '', okAt: 0, hold: false, shown: -1, paused: null, backAt: '', ringEl: null };
 /* the visible one of several (the side nav on a computer, the bottom nav on a phone) */
 function tVis(...sels) { for (const s of sels) { const el = $$(s).find(e => e.getClientRects().length); if (el) return el; } return null; }
-function tourGoView(v) { if (S.view === v) return; const b = tVis('#nav-' + v, '#mnav-' + v); if (b) b.click(); }
+function tourGoView(v) { if (v === 'today' && S.focus) { S.focus = false; if (S.view === 'today') renderView(); } if (S.view === v) return; const b = tVis('#nav-' + v, '#mnav-' + v); if (b) b.click(); }
 const tVal = x => (typeof x === 'function' ? x() : x);
 /* the practice account: a patient account at a letter or text the trainee can record (not one waiting for Dr. A's signature),
    nobody's worked on yet — Letter #1 if there is one */
@@ -41,6 +41,8 @@ function tourSteps(kind) {
     { id: 'today', enter: () => tourGoView('today'), at: () => tVis('.tiles'), t: 'Today', b: 'Your starting page: follow-ups due, the collection letters, texts and calls due, the 91+ money, insurance to chase and credits to resolve. Each tile opens its list.' },
     { id: 'goals', enter: () => tourGoView('today'), at: () => $('#view .goals'), t: 'The goals',
       b: () => 'The office’s goals (handbook §19): no more than ' + S.cfg.goalPt + '% of patient accounts past due, and no more than ' + S.cfg.goalIns + '% of insurance accounts past their payment window. Each week’s report updates them; “to go” is how many accounts to bring current.' },
+    { id: 'focus', enter: () => tourGoView('today'), at: () => $('#view .focusBar'), t: 'Do these first',
+      b: 'Everything that needs doing today in one list, most urgent first: OrthoBanc’s failed-payment report on its days, a promise to pay whose day passed, an account about to reach day 90, insurance near its carrier’s filing limit, a letter waiting on Dr. A. Focus mode shows just that list, and how much is done today.' },
     { id: 'ladrow', enter: () => { tourGoView('today'); tourPick(); }, at: () => $('#view .ladRow[data-step="' + step().id + '"]'), t: 'Collection steps due',
       b: () => 'The office’s collections ladder (handbook §14): the letters, texts and calls due today, step by step. Your practice account' + (TOUR.name ? ', ' + TOUR.name + ',' : '') + ' is at ' + step().s + '.',
       act: () => 'Tap ' + step().s + '.', done: () => S.view === 'pd' && S.tab.pd === 'lad' && S.ladStep === step().id },
@@ -60,13 +62,13 @@ function tourSteps(kind) {
     { id: 'batch', enter: () => tourGoView('pd'), at: () => $('#view .batchBar') || $('#view .subChips'), t: 'Many at once', b: 'With one step picked, the bar above the list marks them all at once — e.g. this week’s Letter #2s, printed together from Edge. Letters Dr. A signs go to him together too.' },
     { id: 'p91', need: { ok: () => S.view === 'pd', go: 'batch' }, at: () => $('#view [data-act=tab][data-t="91"]'), t: 'Biggest first', b: '91+ days is ranked by the money at 91+ days; a dashed line marks where 70% of it is reached. 31–90 and 0–30 catch accounts before they age.',
       act: 'Tap 91+ days.', done: () => S.view === 'pd' && S.tab.pd === '91' },
-    { id: 'ins', at: () => tVis('#nav-ins', '#mnav-ins'), t: 'Insurance', b: 'Insurance accounts where nothing has been paid: a past due that’s an exact multiple of the $11.11 instalment means that many untouched months. Triaged: monitor, chase now, investigate, never filed?',
+    { id: 'ins', at: () => tVis('#nav-ins', '#mnav-ins'), t: 'Insurance', b: 'Insurance accounts where nothing has been paid: a past due that’s an exact multiple of the $11.11 instalment means that many untouched months. Triaged: monitor, chase now, investigate, never filed? The Carriers tab has each carrier’s phone, portal and payer ID, and who’s slow to pay.',
       act: 'Tap Insurance.', done: () => S.view === 'ins' },
-    { id: 'cr', at: () => tVis('#nav-cr', '#mnav-cr'), t: 'Credit balances', b: 'Oldest first. Before a refund, each account has the checklist from the FC instructions — the credit often belongs on the family’s balance or a sibling instead.',
+    { id: 'cr', at: () => tVis('#nav-cr', '#mnav-cr'), t: 'Credit balances', b: 'Oldest first. Before a refund, each account has the checklist from the FC instructions — the credit often belongs on the family’s balance or a sibling instead. In December, the credit audit tab tracks every credit until the refunds are out (by March 31).',
       act: 'Tap Credits.', done: () => S.view === 'cr' },
     { id: 'rep', at: () => tVis('#nav-reports', '#mnav-reports'), t: 'This week’s report', b: 'Once a week, by ' + DUE_DAYS[S.cfg.dueDay - 1] + ': Edge → Reporting → Financial → Accounts Receivable Aging → Export → Excel, then drop the file here (the steps are on the page). It’s read on this computer and saved sealed. If it’s late, Today shows a red banner until it’s in.',
       act: 'Tap Reports.', done: () => S.view === 'reports' },
-    { id: 'sum', at: () => tVis('#nav-sum', '#mnav-sum'), t: 'Summary', b: 'The whole picture: totals, aging, the ladder today, insurance with nothing paid, credits, the trend — and the Month-End numbers, ready to copy.',
+    { id: 'sum', at: () => tVis('#nav-sum', '#mnav-sum'), t: 'Summary', b: 'The whole picture: the goals, what moved since last week and who did what, a weekly brief from AISA, totals, aging, the ladder today, insurance with nothing paid, credits — and the Month-End numbers, ready to copy.',
       act: 'Tap Summary.', done: () => S.view === 'sum' },
     { id: 'lock', at: () => tVis('.sideLock', '#mobTop [data-act=lock]'), t: 'Lock when you step away', b: 'Tap Lock whenever you leave the computer: everything is wiped from the screen until you sign in again with your password. It also locks by itself after a few minutes without activity.',
       act: 'Try it: tap Lock, then Sign in.', done: () => TOUR.backAt === 'lock' }

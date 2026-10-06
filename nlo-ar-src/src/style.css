@@ -693,3 +693,66 @@ ol.steps b{color:var(--navy)}
   .card{box-shadow:none;border:1px solid var(--grey-200);break-inside:avoid}
   .sumGrid{grid-template-columns:1fr 1fr}
 }
+/* ---------- focus mode (6 Oct 2026): what to do first today ---------- */
+.focusBar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;border-radius:var(--r);padding:12px 16px;margin-bottom:16px;background:var(--navy);color:#fff;font-size:13.5px;box-shadow:var(--sh-sm)}
+.focusBar>.i{color:var(--mint);flex:none}
+.focusBar>span{flex:1 1 260px;min-width:0}
+.focusBar .fU{color:var(--coral)}
+.focusBar .btn{margin-left:auto}
+.focusHd{display:flex;align-items:flex-start;gap:12px;justify-content:space-between;flex-wrap:wrap;margin-bottom:12px}
+.focusHd h3{display:flex;align-items:center;gap:8px;font-family:var(--fd);font-weight:600;font-size:22px;letter-spacing:.04em;text-transform:uppercase;color:var(--navy)}
+.focusHd h3 .i{color:var(--coral-600)}
+.fProg{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px;font-size:13px;color:var(--grey-600)}
+.fBar{position:relative;flex:1 1 200px;max-width:420px;height:10px;border-radius:5px;background:var(--grey-100);overflow:hidden}
+.fBar i{position:absolute;left:0;top:0;bottom:0;background:var(--mint-600);border-radius:5px}
+.fList{padding:6px 10px}
+.frow{display:flex;align-items:center;gap:12px;padding:11px 8px;border-bottom:1px solid var(--grey-100);width:100%;text-align:left;border-radius:8px;cursor:pointer}
+.frow:last-child{border-bottom:none}
+.frow:hover{background:var(--grey-50)}
+.frow .grow{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.frow .pt{font-weight:700;color:var(--navy);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.frow .par{font-weight:500;color:var(--grey-500)}
+.fTag{flex:none;width:60px;text-align:center;border-radius:99px;padding:2px 0;font-size:11px;font-weight:700;background:var(--grey-100);color:var(--grey-600)}
+.frow.urgent .fTag{background:var(--coral-100);color:var(--coral-700)}
+.frow.today .fTag{background:var(--amber-100);color:var(--amber-700)}
+.fWhy{font-size:12.5px;color:var(--grey-700)}
+.frow.urgent .fWhy{color:var(--coral-700);font-weight:600}
+.fAlso{font-size:11.5px;color:var(--grey-500)}
+.fAmt{font-weight:700;color:var(--navy);font-variant-numeric:tabular-nums;white-space:nowrap}
+.fAct{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:700;color:var(--blue);white-space:nowrap}
+.fLater{margin-top:14px}
+@media (max-width:640px){ .frow{flex-wrap:wrap;row-gap:4px} .frow .grow{flex-basis:calc(100% - 76px)} .fAmt{margin-left:72px} .fAct{margin-left:auto} }
+/* ---------- insurance carriers (6 Oct 2026) ---------- */
+.carGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}
+.carCard .cardHd{flex-wrap:wrap}
+.carFacts{color:var(--grey-700);margin-bottom:4px}
+.carNotes{margin-top:8px;white-space:pre-wrap}
+.tagRow{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:9px 0;border-bottom:1px solid var(--grey-100)}
+.tagRow:last-child{border-bottom:none}
+.tagRow .linkBtn{flex:1 1 220px;text-align:left;min-width:0}
+.carSel{max-width:240px}
+.carBox{border:1px solid var(--grey-100);background:var(--grey-50);border-radius:var(--r-sm);padding:10px 12px;margin:12px 0}
+.carHd{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.carHd .i{color:var(--blue)}
+.carHd .carSel{flex:1 1 180px}
+.carInfo{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px}
+@media (max-width:520px){ .carGrid{grid-template-columns:minmax(0,1fr)} .carSel{max-width:100%} }
+/* ---------- trends and the weekly brief (6 Oct 2026) ---------- */
+.tStats{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:12px}
+.tStat{background:var(--grey-50);border-radius:var(--r-sm);padding:10px 12px;display:flex;flex-direction:column;gap:1px}
+.tStat b{font-family:var(--fd);font-weight:600;font-size:24px;line-height:1.1;color:var(--navy);font-variant-numeric:tabular-nums}
+.tStat.ok b{color:var(--mint-700)} .tStat.bad b{color:var(--coral-700)}
+.tStat span{font-size:12.5px;font-weight:600;color:var(--grey-600)}
+.tStat i{font-style:normal;font-size:11.5px;color:var(--grey-500)}
+.tH{font-family:var(--fd);font-weight:600;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--grey-600);margin:18px 0 8px}
+.actTbl td,.actTbl th{padding:6px 10px}
+.briefBox{background:var(--grey-50);border-radius:var(--r-sm);padding:12px 14px;font-size:13.5px}
+.briefTxt p{margin:0 0 8px} .briefTxt ol,.briefTxt ul{margin:0 0 8px;padding-left:22px} .briefTxt li{margin-bottom:4px}
+/* ---------- the December credit audit (6 Oct 2026) ---------- */
+.staleBox.audit{background:var(--blue-100);color:var(--blue-700)}
+.aChk{flex:none;width:22px;height:22px;border-radius:50%;border:2px solid var(--grey-300);display:inline-flex;align-items:center;justify-content:center;color:#fff}
+.aChk.on{background:var(--mint-600);border-color:var(--mint-600)}
+@media print{ .focusBar,.briefBox .btnRow{display:none} }
+.staleBox.ob{background:var(--navy-100);color:var(--navy-700)}
+.staleBox.ob.late{background:var(--coral-100);color:var(--coral-700)}
+.staleBox .btnRow{margin-left:auto} .staleBox .btnRow .btn{margin-left:0}

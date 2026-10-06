@@ -49,6 +49,9 @@ const check = (c, m) => { if (c) { pass++; console.log('  ok  ' + m); } else { f
   a = await aimed(); check(a.ring && a.on && !a.overlap && a.inView, 'the ring is on the two goal gauges');
   check(/no more than 4% of patient accounts past due/.test((await card()).p), 'it states the goals (4% and 4%)');
   await next();
+  check(await waitStep('focus'), 'Next → Do these first');
+  a = await aimed(); check(a.ring && a.on && !a.overlap && a.inView, 'the ring is on the “Do these first” line');
+  await next();
   check(await waitStep('ladrow'), 'Next → Collection steps due');
   const pr = await p.evaluate(() => ({ key: TOUR.key, name: TOUR.name, step: TOUR.step, worked: !!itemFor(TOUR.key) }));
   check(!!pr.key && pr.step === 'l1' && !pr.worked, 'a practice account is picked: ' + pr.name + ', at Letter #1, not worked yet');
@@ -128,7 +131,7 @@ const check = (c, m) => { if (c) { pass++; console.log('  ok  ' + m); } else { f
   await p.click('[data-act=tourOpen]');
   check(await waitStep('hi'), 'Start over begins again at Welcome');
   // Skip and End
-  await next(); await waitStep('today'); await next(); await waitStep('goals'); await next(); await waitStep('ladrow');
+  await next(); await waitStep('today'); await next(); await waitStep('goals'); await next(); await waitStep('focus'); await next(); await waitStep('ladrow');
   const pr2 = await p.evaluate(() => ({ key: TOUR.key, step: TOUR.step }));
   check(!!pr2.key && pr2.key !== pr.key && pr2.step !== '', 'starting over picks a fresh practice account (' + pr2.step + ')');
   await p.click('#tourCard [data-tour=next]'); // Skip “Tap Letter #…”: past the steps that need the list and the account
@@ -197,6 +200,7 @@ const check = (c, m) => { if (c) { pass++; console.log('  ok  ' + m); } else { f
   await m.waitForFunction(() => TOUR.on && TOUR.steps[TOUR.i].id === 'hi', null, { timeout: 10000 });
   await m.click('#tourCard [data-tour=next]'); await m.waitForFunction(() => TOUR.steps[TOUR.i].id === 'today'); await m.click('#tourCard [data-tour=next]');
   await m.waitForFunction(() => TOUR.steps[TOUR.i].id === 'goals'); await m.click('#tourCard [data-tour=next]');
+  await m.waitForFunction(() => TOUR.steps[TOUR.i].id === 'focus'); await m.click('#tourCard [data-tour=next]');
   await m.waitForFunction(() => TOUR.steps[TOUR.i].id === 'ladrow' && !TOUR.okAt); await m.waitForTimeout(700);
   const mc = await m.evaluate(() => { const c = document.getElementById('tourCard').getBoundingClientRect(), ring = document.getElementById('tourRing'), st = TOUR.steps[TOUR.i], el = st.at && st.at();
     const r = el && el.getBoundingClientRect(); return { sheet: document.getElementById('tourCard').classList.contains('sheet'), inView: c.left >= 0 && c.right <= innerWidth && c.bottom <= innerHeight && c.top >= 0,

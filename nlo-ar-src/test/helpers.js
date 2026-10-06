@@ -15,6 +15,13 @@ async function routes(ctx) {
   });
   await ctx.route('https://fonts.googleapis.com/**', r => r.fulfill({ status: 200, contentType: 'text/css', body: '' }));
   await ctx.route('https://fonts.gstatic.com/**', r => r.fulfill({ status: 404, body: '' }));
+  // AISA (the weekly brief): a made-up answer, and what was asked kept for the test to look at
+  await ctx.route('https://aisa-worker.akhavan-ak.workers.dev/**', r => {
+    const req = r.request(); if (req.method() === 'OPTIONS') return r.fulfill({ status: 204, headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type', 'Access-Control-Allow-Methods': 'POST, OPTIONS' } });
+    let q = ''; try { q = JSON.parse(req.postData() || '{}').question || ''; } catch (e) { }
+    (ctx.aisaAsked = ctx.aisaAsked || []).push(q);
+    r.fulfill({ status: 200, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify({ answer: 'Past due is up a little this week.\n\n**Top 3 this week:**\n1. **Collections (§14):** send the letters due.\n2. Call the slowest carrier.\n3. Review the oldest credits.', sources: [] }) });
+  });
 }
 function watch(page, errs, label) {
   page.on('pageerror', e => errs.push(label + ' pageerror: ' + e.message));

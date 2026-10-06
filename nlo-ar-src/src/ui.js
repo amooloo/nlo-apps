@@ -5,10 +5,11 @@
    ===================================================================== */
 const S = {
   demo: false, emu: false, tour: '', inApp: false, arState: '', view: 'today', q: '',
-  tab: { pd: 'lad', ins: 'chase', cr: 'work' }, f: { src: '', work: '', who: '' }, sort: { k: '', dir: 1 }, ladStep: '', ladVer: 0,
+  tab: { pd: 'lad', ins: 'chase', cr: 'work' }, f: { src: '', work: '', who: '', car: '' }, sort: { k: '', dir: 1 }, ladStep: '', ladVer: 0,
   settings: { idleMin: 10 }, cfg: arCfg({}), roster: [], team: [],
   reports: [], rep: null, repId: '', prev: null, prevId: '', accts: [], byKey: new Map(), diff: null,
   items: new Map(), itemByKey: new Map(), keyIds: new Map(), pend: {}, srv: {},
+  book: null, bookRaw: null, bookId: '', bookPend: 0, bookSrv: null, focus: false, brief: null,
   openKey: '', ui: {}, imp: null, doneLoaded: false, people: null, accessBusy: '', rotating: null,
   lastLogin: '', loginPw: '', lastAct: Date.now(), idleTimer: null, renderQ: false, firstLoad: true, loadErr: ''
 };
@@ -205,7 +206,8 @@ function bindLockForms() {
 /* ---------- enter / leave ---------- */
 async function enterApp() {
   Object.assign(S, {
-    inApp: true, arState: 'opening', view: 'today', q: '', f: { src: '', work: '', who: '' }, sort: { k: '', dir: 1 }, ladStep: '', ladMemo: null,
+    inApp: true, arState: 'opening', view: 'today', q: '', f: { src: '', work: '', who: '', car: '' }, sort: { k: '', dir: 1 }, ladStep: '', ladMemo: null,
+    book: null, bookRaw: null, bookId: '', bookPend: 0, bookSrv: null, brief: null, focus: focusPref(),
     reports: [], rep: null, repId: '', prev: null, prevId: '', accts: [], byKey: new Map(), diff: null,
     items: new Map(), itemByKey: new Map(), keyIds: new Map(), pend: {}, srv: {}, openKey: '', ui: {}, imp: null, doneLoaded: false, people: null, accessBusy: '', rotating: null,
     firstLoad: true, loadErr: '', lastAct: Date.now(), team: [], roster: [], day: todayISO()
@@ -235,8 +237,9 @@ function startLive() {
     reports(list) { if (!S.inApp) return; list.forEach(r => { r.sum = normSum(r.sum); r.locked = r.locked || !r.sum; }); S.reports = list; loadLatest(); },
     items(up, gone) {
       if (!S.inApp) return;
-      up.forEach(it => { it = normItem(it); if (S.pend[it.id]) { S.srv[it.id] = it; return; } S.items.set(it.id, it); });
-      gone.forEach(id => { if (S.pend[id]) { S.srv[id] = 'gone'; return; } S.items.delete(id); });
+      // the carrier book is kept like an account's record, but it isn't one
+      up.forEach(it => { if (it && it.book) { gotBook(it); return; } it = normItem(it); if (S.pend[it.id]) { S.srv[it.id] = it; return; } S.items.set(it.id, it); });
+      gone.forEach(id => { if (id && id === S.bookId) { gotBook(null); return; } if (S.pend[id]) { S.srv[id] = 'gone'; return; } S.items.delete(id); });
       indexItems(); S.firstLoad = false; S.loadErr = ''; queueRender();
       if (S.openKey) refreshDrawer();
     },
@@ -248,6 +251,7 @@ function startLive() {
     loadError(e) { S.firstLoad = false; S.loadErr = B.isPerm && B.isPerm(e) ? 'A/R can’t be read with this login (the rules may have changed — sign in again).' : errText(e); queueRender(); },
     error(e) { if (/permission/.test((e && e.code) || '')) lockOut('Your access changed. Sign in again.'); else toast(errText(e), { bad: true }); }
   });
+  B.itemId(BOOK_KEY).then(id => { if (S.inApp) S.bookId = id; }).catch(() => { });
   // accounts resolved in the last six months, so the lists show them as resolved (the live updates only carry open ones)
   B.loadDone(180).then(list => {
     if (!S.inApp) return;
@@ -299,6 +303,29 @@ function derive() {
 function indexItems() { S.itemByKey = new Map(); S.items.forEach(it => { if (it.key && !it.locked) S.itemByKey.set(it.key, it); }); S.ladVer++; }
 function itemFor(key) { return S.itemByKey.get(key) || null; }
 
+/* ---------- the carrier book (insurance carriers and which account is with which) ---------- */
+function gotBook(raw) {
+  if (S.bookPend) { S.bookSrv = raw || 'gone'; return; }
+  S.bookRaw = raw ? JSON.parse(JSON.stringify(raw)) : null; S.book = normBook(raw); S.ladVer++; queueRender();
+  if (S.openKey) refreshDrawer();
+}
+/* change the book: shown at once, then saved (sealed, with its history) */
+async function bookChange(fn, action, okMsg) {
+  const now = Date.now(), raw = JSON.parse(JSON.stringify(S.bookRaw || emptyBook()));
+  let ret; try { ret = fn(bookFix(raw), now); } catch (e) { toast(errText(e), { bad: true }); return false; }
+  const before = S.bookRaw;
+  S.bookRaw = raw; S.book = normBook(Object.assign(raw, { book: 1 })); S.ladVer++; queueRender(); if (S.openKey) refreshDrawer();
+  S.bookPend++;
+  let ok = true;
+  try { if (!S.bookId) S.bookId = await B.itemId(BOOK_KEY); await B.mutateItem(S.bookId, d => { fn(bookFix(d), now); }, action, emptyBook()); if (okMsg) toast(okMsg); }
+  catch (e) { ok = false; toast(errText(e), { bad: true }); if (!S.bookSrv) S.bookSrv = before || 'gone'; }
+  if (!--S.bookPend && S.bookSrv) { const srv = S.bookSrv; S.bookSrv = null; gotBook(srv === 'gone' ? null : srv); }
+  return ok ? (ret === undefined ? true : ret) : false;
+}
+function carrierFor(key) { return carrierOf(S.book, key); }
+/* focus mode is remembered on this computer */
+function focusPref() { try { return localStorage.getItem('nloAR.focus') === '1'; } catch (e) { return false; } }
+
 /* ---------- the collections ladder (handbook §14), worked out once per change for every patient account past due ---------- */
 function ladAll() {
   const t = todayISO();
@@ -329,7 +356,7 @@ async function ownerUpkeep() {
 }
 async function resealIfNeeded() {
   if (!S.inApp || S.demo || !isOwner() || S.resealing || B.rotating || B.resealing || !B.ar) return;
-  const old = S.reports.some(r => r.v < B.ar.curV) || Array.from(S.items.values()).some(it => it.v < B.ar.curV);
+  const old = S.reports.some(r => r.v < B.ar.curV) || Array.from(S.items.values()).some(it => it.v < B.ar.curV) || !!(S.book && S.book.v && S.book.v < B.ar.curV);
   if (!old) return;
   S.resealing = true;
   try { await B.arReseal(); } catch (e) { } finally { S.resealing = false; }
@@ -539,11 +566,11 @@ Object.assign(ACT, {
     if (S.view === 'reports' && v !== 'reports' && S.imp && S.imp.files && S.imp.files.length && !confirm('Leave without saving this report?')) return;
     if (v !== 'reports') S.imp = null;
     S.view = v; if (t.dataset.tab) S.tab[v] = t.dataset.tab;
-    S.f = { src: '', work: '', who: '' }; S.sort = { k: '', dir: 1 }; S.ladStep = t.dataset.step || '';
+    S.f = { src: '', work: '', who: '', car: '' }; S.sort = { k: '', dir: 1 }; S.ladStep = t.dataset.step || '';
     closeDrawer(true); renderNav(); renderView(); window.scrollTo(0, 0);
   },
   tab(t) { S.tab[S.view] = t.dataset.t; S.sort = { k: '', dir: 1 }; S.ladStep = ''; renderView(); },
-  clearF() { S.f = { src: '', work: '', who: '' }; renderView(); },
+  clearF() { S.f = { src: '', work: '', who: '', car: '' }; renderView(); },
   sort(t) { const k = t.dataset.k; S.sort = { k, dir: S.sort.k === k ? -S.sort.dir : (t.dataset.d === 'asc' ? 1 : -1) }; renderView(); },
   open(t) { openDrawer(t.dataset.key); },
   closeDrawer() { closeDrawer(); },
