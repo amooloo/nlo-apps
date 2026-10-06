@@ -39,9 +39,14 @@ function viewAdmin() {
     '<div class="field"><label for="alPer">Per aligner ($)</label><input id="alPer" type="number" min="0" step="0.01" inputmode="decimal" placeholder="e.g. 4.50" data-setting="alPerAligner" value="' + cost(S.settings.alPerAligner) + '"></div>' +
     '<div class="field"><label for="alSetCost">Per set ($, optional)</label><input id="alSetCost" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0" data-setting="alPerSet" value="' + cost(S.settings.alPerSet) + '"></div>' +
     '</div><div class="small muted">Per aligner: materials for one aligner (sheet, printed model, packaging). Per set: anything paid once per case, such as a setup fee. Estimate = per set + aligners × per aligner.</div></div></div>';
-  const deleted = '<div class="card" style="margin-top:18px"><div class="cardHd"><h3>Deleted cases</h3><span class="sub">Last 90 days</span><span style="flex:1"></span><button class="btn btn-ghost" data-act="loadDeleted">' + ic('refresh', 15) + 'Load</button></div><div class="cardBd" id="delBox"><div class="small muted">Deleted cases can be brought back. Click Load.</div></div></div>';
+  const deleted = '<div class="card" style="margin-top:18px"><div class="cardHd"><h3>Deleted cases</h3><span class="sub">Last 90 days</span><span style="flex:1"></span><button class="btn btn-ghost" data-act="loadDeleted">' + ic('refresh', 15) + 'Load</button></div><div class="cardBd" id="delBox">' + (S.delList ? delListHTML(S.delList) : '<div class="small muted">Deleted cases can be brought back. Click Load.</div>') + '</div></div>';
   const actv = '<div class="card" style="margin-top:18px"><div class="cardHd"><h3>Recent activity</h3><span class="sub">Last 7 days</span><span style="flex:1"></span><button class="btn btn-ghost" data-act="loadActivity">' + ic('refresh', 15) + 'Load</button></div><div class="cardBd" id="actBox"><div class="small muted">Shows who changed what. Click Load.</div></div></div>';
-  return rulesCardHTML() + '<div class="adminGrid"><div>' + team + defaults + shipWarnCardHTML() + alCostCard + noteInstrCardHTML() + rxAdminCardHTML() + '</div><div>' + sec + backupCardHTML() + (S.rulesOld ? '' : mailAdminHTML()) + actv + deleted + '</div></div>';
+  return rulesCardHTML() + '<div class="adminGrid"><div>' + team + defaults + shipWarnCardHTML() + alCostCard + noteInstrCardHTML() + rxAdminCardHTML() + '</div><div>' + sec + backupCardHTML() + (S.rulesOld ? '' : mailAdminHTML()) + actv + deleted + dupAdminCardHTML() + '</div></div>';
+}
+/* Deleted cases, once loaded (it stays through the page's own redraws — the Staff Hub roster or the lab-email status arriving) */
+function delListHTML(list) {
+  return list.length ? list.map((x, i) => '<div class="row" style="cursor:default"><span class="grow"><span class="pt">' + ptName(x.data.patient) + '</span><span class="meta">' + esc(typeOf(x.data).l + ' · deleted ' + fmtWhen(x.at) + ' by ' + firstName(staffName(x.sid, x.sid))) + '</span></span><button class="btn btn-sec btn-sm" data-act="undelete" data-i="' + i + '">Restore</button></div>').join('')
+    : '<div class="small muted">Nothing deleted in the last 90 days.</div>';
 }
 /* when the Not shipped labels show (Amir, 6 Oct 2026: "not sure if the 2 days is the best option"): orange and red, in business days
    before the delivery appt (see shipWarn in ui.js) */
@@ -158,14 +163,12 @@ const ADMIN_ACTS = {
     if (!$('#delBox')) return; $('#delBox').innerHTML = '<div class="small muted">Loading…</div>';
     try {
       const list = await B.deletedCases(90, Number(S.settings.pidx0) || 0); S.delList = list;
-      const box = $('#delBox'); if (!box) return;
-      box.innerHTML = list.length ? list.map((x, i) => '<div class="row" style="cursor:default"><span class="grow"><span class="pt">' + esc(x.data.patient || '(no name)') + '</span><span class="meta">' + esc(typeOf(x.data).l + ' · deleted ' + fmtWhen(x.at) + ' by ' + firstName(staffName(x.sid, x.sid))) + '</span></span><button class="btn btn-sec btn-sm" data-act="undelete" data-i="' + i + '">Restore</button></div>').join('')
-        : '<div class="small muted">Nothing deleted in the last 90 days.</div>';
+      const box = $('#delBox'); if (box) box.innerHTML = delListHTML(list);
     } catch (x) { const box = $('#delBox'); if (box) box.innerHTML = '<div class="small" style="color:var(--coral-700)">' + esc(errText(x)) + '</div>'; }
   },
   async undelete(t) {
     const x = S.delList && S.delList[Number(t.dataset.i)]; if (!x) return;
-    try { await B.undelete(x); toast((x.data.patient || 'Case') + ' restored'); ADMIN_ACTS.loadDeleted(); } catch (e) { toast(errText(e), { bad: true }); }
+    try { await B.undelete(x); toast((ptNameText(x.data.patient) || 'Case') + ' restored'); ADMIN_ACTS.loadDeleted(); } catch (e) { toast(errText(e), { bad: true }); }
   },
   async loadActivity() {
     if (!$('#actBox')) return; $('#actBox').innerHTML = '<div class="small muted">Loading…</div>';
@@ -174,8 +177,8 @@ const ADMIN_ACTS = {
       if (!list.length) { box.innerHTML = '<div class="small muted">No activity in the last 7 days.</div>'; return; }
       box.innerHTML = list.filter(x => x.a !== 'rekey').slice(0, 80).map(x => {
         const c = S.cases.get(x.caseId); const who = x.a === 'email' ? ((MAIL_CO[x.co] || {}).l || 'Lab') + ' email' : firstName(staffName(x.sid, x.sid));
-        const what = { create: 'created', import: 'imported', stage: 'moved', comment: 'commented on', close: 'completed', reopen: 'reopened', assign: 'reassigned', edit: 'edited', restore: 'restored', delete: 'deleted', save: 'saved', rekey: 're-sealed', email: 'updated', photo: 'changed the photo of' }[x.a] || x.a;
-        return '<div class="hist"><time>' + esc(fmtWhen(x.at)) + '</time><span><b>' + esc(who) + '</b> ' + esc(what) + ' ' + (c ? '<button class="linkBtn" data-act="open" data-id="' + esc(c.id) + '">' + esc(c.patient) + '</button>' : 'a completed case') + '</span></div>';
+        const what = { create: 'created', import: 'imported', stage: 'moved', comment: 'commented on', close: 'completed', reopen: 'reopened', assign: 'reassigned', edit: 'edited', restore: 'restored', delete: 'deleted', save: 'saved', rekey: 're-sealed', email: 'updated', photo: 'changed the photo of', dup: 'removed a duplicate:', undup: 'brought back', notdup: 'marked as not a duplicate', dupcopy: 'copied a duplicate’s comments to' }[x.a] || x.a;
+        return '<div class="hist"><time>' + esc(fmtWhen(x.at)) + '</time><span><b>' + esc(who) + '</b> ' + esc(what) + ' ' + (c ? '<button class="linkBtn" data-act="open" data-id="' + esc(c.id) + '">' + ptName(c.patient) + '</button>' : 'a completed case') + '</span></div>';
       }).join('');
     } catch (x) { const box = $('#actBox'); if (box) box.innerHTML = '<div class="small" style="color:var(--coral-700)">' + esc(errText(x)) + '</div>'; }
   },
@@ -523,7 +526,7 @@ function bkShow() {
   const box = $('#bkBox'), bk = S.bk; if (!box || !bk || !bk.cmp) return;
   const { file, opened, cmp } = bk, m = cmp.missing;
   const who = sid => firstName(staffName(sid, '')) || '';
-  const row = x => '<label class="oldRow"><input type="checkbox" data-bk="' + esc(x.id) + '" checked><span class="pt">' + esc(x.data.patient || '(no name)') + '</span>' +
+  const row = x => '<label class="oldRow"><input type="checkbox" data-bk="' + esc(x.id) + '" checked><span class="pt">' + ptName(x.data.patient) + '</span>' +
     '<span class="small muted">' + esc(typeOf(x.data).l + ' · ' + (x.status === 'done' ? 'completed' : stageLabel(x.data)) + (who(x.data.assignee) ? ' · ' + who(x.data.assignee) : '')) + '</span>' +
     '<span class="small oldD">' + esc(x.data.createdAt ? fmtDate(isoOf(new Date(x.data.createdAt))) : '') + '</span></label>';
   const team = (file.roster || []).filter(r => r.active && r.role !== 'owner' && r.username).map(r => r.username);

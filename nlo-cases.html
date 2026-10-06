@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-Jz32t4FigMv+w6kikd/cDz8PmPpcdJApNuteJA7cwCs=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-oVHIBcARusysfCR67ORFEsAhdZPZuW4boKJeXqj61LY=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO Cases</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -776,7 +776,7 @@ body.phHide .pav.on:hover img,body.phHide #phWrap .pav.on img{filter:none;transf
 }
 #phWrap [hidden]{display:none !important}
 /* newer features wait for the newer security rules (Team & security explains) */
-body.phOff .pav,body.phOff .dPh,body.phOff .phSlot,body.phOff .phTgl,body.phOff .mlPh{display:none !important}
+body.phOff .pav,body.phOff .dPh,body.phOff .phSlot,body.phOff .mlPh{display:none !important}
 .rulesCard{margin-bottom:18px;border:1.5px solid var(--amber-200)}
 /* Team: from Staff Hub's roster */
 .shBox{border:1px solid var(--grey-100);border-radius:12px;padding:12px 14px;margin:6px 0 4px;background:var(--grey-50)}
@@ -1450,9 +1450,73 @@ svg.rxArch{display:block;width:100%;height:auto}
 .chip.noshipF.on .i{color:#fff}
 .swDot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:-1px;background:#C9341F}
 .swDot.soon{background:#F97316}
-.row .rFlag{display:flex;margin:2px 0 2px}
+.row .rFlag{display:flex;flex-wrap:wrap;gap:5px;margin:2px 0 2px}
 /* the sign-in screen's way into practice mode (training, 6 Oct 2026) */
 .lockFoot.lockPrac{margin-top:12px;padding-top:12px;border-top:1px solid var(--grey-100)}
+/* the eye also shortens names: "Jane D." in place of the full name, which shows again on hover (6 Oct 2026; photos.js ptName) */
+body.phHide .pnm:not(:hover) .pnF{display:none}
+body.phHide .pnm:not(:hover)::after{content:attr(data-s)}
+/* ---------- duplicates (dupes.js, 6 Oct 2026) ---------- */
+/* New case: the patients already in the app, as the name is typed */
+.ptFind{margin:2px 0 12px;border:1.5px solid var(--blue-200);border-radius:12px;background:#fff;overflow:hidden;box-shadow:var(--sh-sm)}
+.ptFind[hidden]{display:none}
+.ptfHd{font-family:var(--fd);font-weight:500;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--blue-700);background:var(--blue-100);padding:7px 12px}
+.ptOpt{display:flex;align-items:center;gap:11px;padding:8px 12px;cursor:pointer;border-top:1px solid var(--grey-100)}
+.ptOpt:first-of-type{border-top:0}
+.ptOpt:hover,.ptOpt.on{background:var(--blue-100)}
+.ptOpt.on{box-shadow:inset 3px 0 0 var(--blue)}
+.ptoTx{flex:1;min-width:0;display:flex;flex-direction:column}
+.ptoNm{font-weight:700;color:var(--navy);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ptoNm b{color:var(--blue-700);font-weight:800}
+.ptoCh{margin-left:8px;font-weight:600;font-size:11.5px;color:var(--grey-500)}
+.ptoSub{font-size:12px;color:var(--grey-600);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ptoUse{flex:none;font-family:var(--fd);font-weight:600;font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--blue);padding:4px 10px;border-radius:99px;border:1.5px solid var(--blue-200)}
+.ptOpt:hover .ptoUse,.ptOpt.on .ptoUse{background:var(--blue);border-color:var(--blue);color:#fff}
+/* … and under the name, the patient's cases */
+.ptInfo{border-radius:12px;padding:10px 12px;margin:2px 0 12px;background:var(--blue-100);color:var(--blue-700);font-size:12.5px}
+.ptInfo.warn{background:var(--amber-100);color:#7A5205;box-shadow:inset 0 0 0 1.5px var(--amber-200)}
+.ptInfo.quiet{display:flex;gap:8px;align-items:center;background:var(--grey-50);color:var(--grey-600)}
+.ptInfo .i{flex:none}
+.piHd{display:flex;gap:8px;align-items:flex-start;line-height:1.45}
+.ptInfo.warn .piHd .i{color:var(--amber-700);margin-top:1px}
+.piRow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px;padding:7px 10px;border-radius:9px;background:#fff;color:var(--grey-700)}
+.piTx{flex:1;min-width:200px}
+.piTx b{color:var(--navy)}
+.piMore{margin-top:7px;font-size:12px;opacity:.9}
+/* Create case: a second case for the same thing? */
+.dupAsk{border-radius:12px;padding:12px 14px;margin:12px 0 4px;background:var(--amber-100);color:#7A5205;box-shadow:inset 0 0 0 1.5px var(--amber-600)}
+.daHd{display:flex;gap:8px;align-items:center;font-size:13.5px;color:var(--navy-900)}
+.daHd .i{color:var(--amber-700);flex:none}
+.daTx{font-size:12.5px;margin:4px 0 10px 26px}
+.daBtns{display:flex;gap:8px;flex-wrap:wrap;margin-left:26px}
+/* a case that looks entered twice */
+.flag.dupF{background:#EEEAFB;color:#4A3AA7;box-shadow:inset 0 0 0 1px #D5CEF5}
+.chip.dupsF .i{color:#4A3AA7;margin-right:2px}
+.chip.dupsF.on .i{color:#fff}
+.notice.dupN{display:flex;gap:10px;align-items:flex-start;background:#EEEAFB;color:#3B2E8C;font-weight:500}
+.notice.dupN>.i{flex:none;margin-top:1px}
+.dupNB{flex:1;min-width:0}
+.dupNB b{font-weight:700}
+.dupNR{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;margin-top:4px}
+.dupNR span{font-weight:600}
+.dupNBtns{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+/* Remove a duplicate: which case to keep */
+.dkH{font-family:var(--fd);font-weight:500;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--grey-500);margin:4px 0 8px}
+.dkList{display:flex;flex-direction:column;gap:6px;max-height:300px;overflow:auto;margin-bottom:14px}
+.dkRow{display:flex;align-items:center;gap:10px;padding:9px 12px;border:1.5px solid var(--grey-200);border-radius:11px;cursor:pointer}
+.dkRow:hover{border-color:var(--grey-300);background:var(--grey-50)}
+.dkRow:has(input:checked){border-color:var(--blue);background:var(--blue-100)}
+.dkRow input{accent-color:var(--blue);flex:none;width:16px;height:16px}
+.dkTx{flex:1;min-width:0;display:flex;flex-direction:column}
+.dkTx b{color:var(--navy)}
+.dkSame{align-self:flex-start;margin:2px 0;font-size:11px;font-weight:700;border-radius:99px;padding:1px 8px;background:#EEEAFB;color:#4A3AA7}
+.dkNone{padding:10px 2px}
+.dkFind{margin-bottom:10px}
+.dkCopy{display:flex;gap:8px;align-items:center;font-size:13px;font-weight:600;color:var(--grey-700);margin:2px 0 8px;cursor:pointer}
+.dkCopy input{accent-color:var(--blue);width:16px;height:16px}
+.dkWhat{margin:4px 0 6px}
+/* the case panel's footer: the quieter actions (Remove duplicate; Dr. A's Versions and Delete) stay together on the right */
+.dFtR{display:flex;flex-wrap:wrap;gap:2px;margin-left:auto;justify-content:flex-end}
 
 </style>
 </head>
@@ -1609,7 +1673,9 @@ const RETIRED_STAGES = { inhouse: { reset: { to: 'txp', l: 'Reset needed in 2 da
   retainer: { sarah: { to: 'pickup', l: 'On Sarah’s desk' }, pickedup: { to: 'pickup', l: 'Picked up' } } };
 function liveStage(c) { const r = c && (RETIRED_STAGES[typeOf(c).flow] || {})[c.stage]; return r ? r.to : c && c.stage; }
 function retiredStageLabel(c, k) { const r = (RETIRED_STAGES[typeOf(c).flow] || {})[k]; return r ? r.l : ''; }
-function liveCases(list) { (list || []).forEach(c => { if (c) c.stage = liveStage(c); }); return list; }
+/* completed cases as read: at the step that replaced a retired one — and without the ones removed as a duplicate (dupes.js: they
+   aren't in Completed, the patient's history or the Workload page) */
+function liveCases(list) { return (list || []).filter(c => c && !c.dup).map(c => { c.stage = liveStage(c); return c; }); }
 /* Ship to patient (aligners): the case ends when it ships (Amir, 3 Oct 2026: "if the case is being shipped, the last stage
    is shipped (we still need to know the EXPECTED DELIVERY). so shipped status = complete"). Outside labs: Shipped is the
    last step (Arrived and Checked into Milestones don't apply); in-house: the last step reads "Shipped to patient" (it is
@@ -2011,7 +2077,7 @@ function csvCell(v) {
   return '"' + s.replace(/"/g, '""') + '"';
 }
 function caseToCSVRow(c) {
-  return [c.patient, typeOf(c).l, c.detail, stageLabel(c), c.status === 'done' ? 'Completed' : 'Open', c.scanDate, c.labDate, c.deliveryDate ? c.deliveryDate + (c.deliveryTime ? ' ' + c.deliveryTime : '') : '', c.assigneeLabel || '', c.instructions, c.cc, c.ipr, c.notes, c.chart, c.titanUrl, (c.extras || []).join('; '), typeof submissionLabel === 'function' ? submissionLabel(c.initial, c.refN) : '', labName(c.lab), (c.teethNote || '').replace(/\n/g, '; '), c.aligners || '',
+  return [c.patient, typeOf(c).l, c.detail, stageLabel(c), c.dup ? 'Removed (duplicate)' : c.status === 'done' ? 'Completed' : 'Open', c.scanDate, c.labDate, c.deliveryDate ? c.deliveryDate + (c.deliveryTime ? ' ' + c.deliveryTime : '') : '', c.assigneeLabel || '', c.instructions, c.cc, c.ipr, c.notes, c.chart, c.titanUrl, (c.extras || []).join('; '), typeof submissionLabel === 'function' ? submissionLabel(c.initial, c.refN) : '', labName(c.lab), (c.teethNote || '').replace(/\n/g, '; '), c.aligners || '',
     c.shipToPatient ? 'Yes' : '', MARPE_RECORDS.filter(([k]) => (c.records || []).includes(k)).map(x => x[1]).join('; '), c.zoomDate ? c.zoomDate + (c.zoomTime ? ' ' + c.zoomTime : '') : '', atLabel(c.atTemplates),
     oneArch(c) === 'U' ? 'Upper only' : oneArch(c) === 'L' ? 'Lower only' : typeOf(c).aligner || ['insmile', 'inbrace'].includes(c.type) ? 'Upper & lower' : '',
     c.txStart || '', c.txEnd || '']
@@ -2330,6 +2396,15 @@ const FB = {
     for (const d of snap.docs) { try { out.push(await FB.decryptDoc(d.id, d.data())); } catch (e) { } }
     return out;
   },
+  /* every case saved in the last `days` days, open or completed (Removed duplicates: one removed from a completed case keeps its
+     old completion date) */
+  async loadChanged(days) {
+    const since = firebase.firestore.Timestamp.fromMillis(Date.now() - days * 86400000);
+    const snap = await FB.db.collection('cases').where('updatedAt', '>=', since).get();
+    const out = [];
+    for (const d of snap.docs) { try { out.push(await FB.decryptDoc(d.id, d.data())); } catch (e) { } }
+    return out;
+  },
   async loadAll() {
     const snap = await FB.db.collection('cases').get();
     const out = [];
@@ -2518,6 +2593,7 @@ const FB = {
   },
   /* { pn, pc } for a case body (null when it has no name / chart #) — the same keys as histKeys() in ui.js */
   async idxFields(d) {
+    if (d && d.dup) return { pn: null, pc: null }; // a case removed as a duplicate isn't part of the patient's history (dupes.js)
     const n = normName(d && d.patient), c = normChart(d && d.chart);
     return { pn: n ? await FB.idxHash('n:' + n) : null, pc: c ? await FB.idxHash('c:' + c) : null };
   },
@@ -2949,6 +3025,7 @@ const DEMO = {
   },
   async deleteCase(id) { const c = DEMO.cases.get(id); if (c) DEMO.deleted.push({ caseId: id, at: Date.now(), sid: DEMO.me.staffId, data: JSON.parse(JSON.stringify(c)) }); DEMO.cases.delete(id); DEMO.photos.delete(id); if (c && DEMO.h) DEMO.h.cases([], [id], false); },
   async loadClosed() { return Array.from(DEMO.cases.values()).filter(c => c.status === 'done').map(c => JSON.parse(JSON.stringify(c))); },
+  async loadChanged(days) { const since = Date.now() - days * 864e5; return Array.from(DEMO.cases.values()).filter(c => (c.updatedAt || 0) >= since).map(c => JSON.parse(JSON.stringify(c))); },
   async loadAll() { return Array.from(DEMO.cases.values()).map(c => JSON.parse(JSON.stringify(c))); },
   async caseLog(id) { return DEMO.logs.filter(l => l.caseId === id).slice().sort((a, b) => a.at - b.at); },
   async activity() { return DEMO.logs.slice().sort((a, b) => b.at - a.at).slice(0, 60); },
@@ -3583,6 +3660,7 @@ function enterApp() {
       // a stage move still being saved wins over an older copy arriving from the server (quick → → → clicks)
       // (a case saved at a retired step shows at the step that replaced it — see liveStage)
       up.forEach(c => { applNorm(c); c.stage = liveStage(c); const p = S.pend && S.pend[c.id]; if (p) { c.stage = p.to; if (p.extra) Object.assign(c, p.extra); } S.cases.set(c.id, c); }); gone.forEach(id => S.cases.delete(id));
+      S.casesV = (S.casesV || 0) + 1; // (the open cases changed: possible duplicates are worked out again — dupes.js)
       const first = S.firstLoad; S.firstLoad = false; queueRender();
       if (first) setTimeout(mailSync, 300); // lab emails that came in while nobody had the app open
       if (first) setTimeout(iprAutoSync, 1500); // the IPR Tracker, for every patient at once, when the link is still on in this tab
@@ -3648,7 +3726,7 @@ async function lockOut(msg) {
   if (TOUR.on) msg = tourPause(msg); // practice mode: signing back in picks the tour up again
   S.inApp = false; clearInterval(S.idleTimer); clearInterval(S.mailTimer);
   closeModal(); closeDrawer(true);
-  S.cases = new Map(); S.closed = []; histReset(); wkReset(); S.members = []; S.roster = []; S.iprCache = {}; S.verList = null; S.delList = null; S.impList = null; S.bk = null;
+  S.cases = new Map(); S.closed = []; histReset(); wkReset(); dupReset(); S.members = []; S.roster = []; S.iprCache = {}; S.verList = null; S.delList = null; S.impList = null; S.bk = null;
   Object.assign(MAILS, { list: [], unread: [], pick: {}, sig: '', state: null, stateAt: 0, script: '', gone: new Set(), goneFp: new Set(), hk: null, mem: null });
   phReset(); rxReset(); SH.data = null; SH.err = '';
   { const ts = $('#toasts'); if (ts) ts.innerHTML = ''; } // a toast's Copy chart note / Download PDF is for the case on screen
@@ -3678,7 +3756,7 @@ function byDue(a, b) {
   return x < y ? -1 : x > y ? 1 : String(a.patient).localeCompare(String(b.patient));
 }
 /* the list filters; del/delDay filter by the delivery date alone, not the lab date (Amir, 2 Oct 2026) */
-function noFilters() { return { type: '', stage: '', who: '', due: '', del: '', delDay: '', grp: '', ship: '', noship: '' }; }
+function noFilters() { return { type: '', stage: '', who: '', due: '', del: '', delDay: '', grp: '', ship: '', noship: '', dups: '' }; }
 const DEL_OPTS = [['all', 'All, sorted by delivery appt'], ['past', 'Delivery appt passed'], ['today', 'Delivery appt today'], ['tomorrow', 'Delivery appt tomorrow'],
   ['week', 'Delivery appt in the next 7 days'], ['14', 'Delivery appt in the next 14 days'], ['day', 'Delivery appt on a day…'], ['none', 'No delivery appt']];
 function delMatch(c, f) {
@@ -3784,7 +3862,7 @@ const TITLES = { today: 'Today', board: 'Board', list: 'All open cases', mine: '
 function topBar(extra) {
   return '<div class="topBar"><h2>' + esc(TITLES[S.view]) + '</h2>' +
     (['today', 'board', 'list', 'mine', 'done'].includes(S.view) ? '<label class="searchBox">' + ic('search', 17) + '<span class="hidden">Search</span><input id="q" type="search" placeholder="Search patient, type, stage…" value="' + esc(S.q) + '" aria-label="Search cases"></label>' : '<span style="flex:1"></span>') +
-    (extra || '') + (['today', 'board', 'list', 'mine', 'done'].includes(S.view) && phAny() ? phHideBtn() : '') + '<button class="btn btn-teal" data-act="newCase">' + ic('plus', 16) + 'New case</button></div>';
+    (extra || '') + (['today', 'board', 'list', 'mine', 'done'].includes(S.view) ? phHideBtn() : '') + '<button class="btn btn-teal" data-act="newCase">' + ic('plus', 16) + 'New case</button></div>';
 }
 function renderView() {
   // the search box keeps its cursor and selection through a redraw (it used to jump to the end, so a live update landing just
@@ -4173,6 +4251,7 @@ function ensureHistAll() {
 }
 function histArrived() {
   $$('.cf').forEach(cf => { if (cf._alTot) cf._alTot(); if (cf._syncTx) cf._syncTx(); });
+  const nc = $('#modalWrap'); if (nc && nc._ptRefresh) nc._ptRefresh(); // New case: the patient search and their cases (dupes.js)
   if (!S.editing && S.openId) renderDrawer();
   if (S.view === 'list' || S.view === 'mine') queueRender();
 }
@@ -4282,9 +4361,9 @@ function asgKey(e) {
   return false;
 }
 function row(c, meta) {
-  const sw = shipWarnFlag(c); // (Not shipped: on its own line under the name, so a narrow column doesn't cut the name short)
+  const sw = shipWarnFlag(c) + dupFlag(c); // (Not shipped, Possible duplicate: on their own line under the name, so a narrow column doesn't cut the name short)
   return '<button class="row" data-act="open" data-id="' + esc(c.id) + '">' + ptAv(c, 36) +
-    '<span class="grow"><span class="pt">' + esc(c.patient || '(no name)') + '</span>' + (sw ? '<span class="rFlag">' + sw + '</span>' : '') + '<span class="meta">' + esc(meta != null ? meta : (typeOf(c).l + ' · ' + stageLabel(c) + (c.detail ? ' · ' + c.detail : ''))) + '</span></span>' + shipFlag(c, true) + dueChip(c) + avatar(c) + '</button>';
+    '<span class="grow"><span class="pt">' + ptName(c.patient) + '</span>' + (sw ? '<span class="rFlag">' + sw + '</span>' : '') + '<span class="meta">' + esc(meta != null ? meta : (typeOf(c).l + ' · ' + stageLabel(c) + (c.detail ? ' · ' + c.detail : ''))) + '</span></span>' + shipFlag(c, true) + dueChip(c) + avatar(c) + '</button>';
 }
 
 /* ---------- Today ---------- */
@@ -4340,12 +4419,12 @@ function kcard(c, last, steps) {
   const mixed = S.boardFlow === 'outside' || S.boardFlow === 'inhouse' || S.boardFlow === 'retainer';
   // appliances and MARPE: the lab's logo on every card (the lab differs from card to card even on their own tabs)
   const labbed = (c.type === 'appliance' || c.type === 'marpe') && !!LAB_LOGO[labName(c.lab)];
-  const flags = shipWarnFlag(c) + shipFlag(c) + recFlag(c) + holdFlag(c);
+  const flags = shipWarnFlag(c) + dupFlag(c) + shipFlag(c) + recFlag(c) + holdFlag(c);
   // the arrow names where it goes ("Move to TxP approved")
   const nx = last ? null : nextStage(c), shipsNext = !!nx && !!shipEnd(c) && nx === shipEnd(c);
   const tip = last ? 'Mark complete' : shipsNext ? 'Shipped to the patient — completes the case' : nx ? 'Move to ' + stageLabel(Object.assign({}, c, { stage: nx })) : 'Move to next stage';
   return '<div class="kc" data-act="open" data-id="' + esc(c.id) + '" role="button" tabindex="0">' +
-    '<div class="kHd">' + ptAv(c, 32) + '<div class="pt">' + esc(c.patient || '(no name)') + '</div></div>' + (c.detail || alN(c) ? '<div class="dt">' + esc(c.detail || '') + alignerMini(c) + '</div>' : '') +
+    '<div class="kHd">' + ptAv(c, 32) + '<div class="pt">' + ptName(c.patient) + '</div></div>' + (c.detail || alN(c) ? '<div class="dt">' + esc(c.detail || '') + alignerMini(c) + '</div>' : '') +
     (flags ? '<div class="flags">' + flags + '</div>' : '') +
     (steps ? '<div class="kstep">' + progHTML(c, steps) + '<div><b>' + esc(stageLabel(c)) + '</b><span>' + (steps.indexOf(c.stage) + 1) + ' of ' + steps.length + '</span></div></div>' : '') +
     '<div class="ft">' + (mixed || labbed ? typeMark(c, true) : '') + dueChip(c) + trackLinks(c) + asgBtnHTML(c, true) +
@@ -4368,6 +4447,7 @@ function applyFilters(list) {
     if (f.grp === 'arrived' && c.stage !== 'arrived') return false;
     if (f.ship && !c.shipToPatient) return false;
     if (f.noship && !shipWarn(c)) return false;
+    if (f.dups && !dupsOf(c).length) return false;
     return true;
   });
 }
@@ -4399,7 +4479,7 @@ function cleanupCardHTML(all) {
     '<label class="small oldPick">Older than <select id="oldMonths"' + off + '>' + [1, 2, 3, 6, 12].map(m => '<option value="' + m + '"' + (S.oldMonths === m ? ' selected' : '') + '>' + m + (m === 1 ? ' month' : ' months') + '</option>').join('') + '</select></label></div><div class="cardBd">' +
     (o.undated.length ? '<label class="small oldNo"><input type="checkbox" id="oldNoDate"' + (S.oldNoDate ? ' checked' : '') + off + '> Also include ' + o.undated.length + ' imported case' + (o.undated.length > 1 ? 's' : '') + ' with no dates</label>' : '') +
     (o.list.length ? '<div class="oldList">' + o.list.map(c => '<label class="oldRow"><input type="checkbox" data-old="' + esc(c.id) + '"' + (S.oldOff.has(c.id) ? '' : ' checked') + off + '>' +
-      '<span class="pt">' + esc(c.patient || '(no name)') + '</span><span class="small muted">' + esc(typeOf(c).l + ' · ' + stageLabel(c)) + '</span><span class="small oldD">' + esc(ageOf(c) ? fmtDate(ageOf(c)) : 'no date') + '</span></label>').join('') + '</div>'
+      '<span class="pt">' + ptName(c.patient) + '</span><span class="small muted">' + esc(typeOf(c).l + ' · ' + stageLabel(c)) + '</span><span class="small oldD">' + esc(ageOf(c) ? fmtDate(ageOf(c)) : 'no date') + '</span></label>').join('') + '</div>'
       : '<div class="small muted" style="margin:6px 0 10px">No open cases older than that' + (o.undated.length ? ' with a date' : '') + '.</div>') +
     '<div class="oldAct"><b id="oldStatus">' + esc(busy || (n + ' of ' + o.list.length + ' ticked')) + '</b>' +
     (o.list.length ? '<button class="btn btn-ghost btn-sm" data-act="oldAll"' + off + '>Tick all</button><button class="btn btn-ghost btn-sm" data-act="oldNone"' + off + '>Untick all</button>' : '') + '<span style="flex:1"></span>' +
@@ -4457,7 +4537,9 @@ function viewList(base, showWho) {
     (grpLabel ? '<button class="chip on" data-act="clearGrp">' + esc(grpLabel) + ' ✕</button>' : '') +
     (base.some(c => c.shipToPatient) || f.ship ? '<button class="chip flt' + (f.ship ? ' on' : '') + '" data-act="shipF" aria-pressed="' + !!f.ship + '">' + ic('truck', 15) + 'Ship to patient<span class="c">' + base.filter(c => c.shipToPatient && matchesQ(c)).length + '</span></button>' : '') +
     (base.some(c => shipWarn(c)) || f.noship ? '<button class="chip flt noshipF' + (f.noship ? ' on' : '') + '" data-act="noshipF" aria-pressed="' + !!f.noship + '">' + ic('alert', 15) + 'Not shipped<span class="c">' + base.filter(c => shipWarn(c) && matchesQ(c)).length + '</span></button>' : '') +
-    ((f.type || f.stage || f.who || f.due || f.del || f.grp || f.ship || f.noship) ? '<button class="btn btn-ghost" data-act="clearF">Clear filters</button>' : '') +
+    // cases that look entered twice (dupes.js)
+    (base.some(c => dupsOf(c).length) || f.dups ? '<button class="chip flt dupsF' + (f.dups ? ' on' : '') + '" data-act="dupsF" aria-pressed="' + !!f.dups + '">' + ic('copy', 15) + 'Possible duplicates<span class="c">' + base.filter(c => dupsOf(c).length && matchesQ(c)).length + '</span></button>' : '') +
+    ((f.type || f.stage || f.who || f.due || f.del || f.grp || f.ship || f.noship || f.dups) ? '<button class="btn btn-ghost" data-act="clearF">Clear filters</button>' : '') +
     colsControlHTML(LIST_COLS.map(x => x[0])) + '</div>';
   return h + '<div id="listBody">' + listBodyHTML(base) + '</div>';
 }
@@ -4598,11 +4680,12 @@ function listBodyHTML(base) {
       (on('notes') ? th('notes', 'Notes', 'hideM noteCol') : '') + (on('lab') ? th('lab', 'Lab date', 'hideM dateCol') : '') + (on('appt') ? th('appt', 'Delivery appt', 'hideM dateCol') : '') + (on('tx') ? th('tx', 'Tx progress', 'hideM txCol') : '') + (on('cost') ? th('cost', 'Tx cost', 'hideM txCol') : '') +
       (on('ship') ? th('ship', 'Shipping', 'hideM') : '') + (on('who') ? th('who', 'Assigned', 'hideM') : '') + (on('updated') ? th('updated', 'Updated', 'hideM') : '') + '</tr></thead><tbody>' +
     list.map(c => { const g = stageGroup(flowOf(c), c.stage), ship = on('ship') ? shipFlag(c) + trackLinks(c) : '';
-      return '<tr class="click" data-act="open" data-id="' + esc(c.id) + '" tabindex="0"><td><div class="ptCell">' + ptAv(c, 36) + '<div class="ptTxt"><div class="pt">' + esc(c.patient || '(no name)') + '</div><div class="small muted">' + esc(c.detail || '') + alignerMini(c) + '</div>' +
-      (ship ? '<div class="flags onlyM">' + ship + '</div>' : '') + (on('stage') ? '' : (shipWarn(c) ? '<div class="flags">' + shipWarnFlag(c) + '</div>' : '') + dateM(c)) + (on('notes') ? noteMobHTML(c) : '') + '</div></div></td>' +
+      const df = dupFlag(c);
+      return '<tr class="click" data-act="open" data-id="' + esc(c.id) + '" tabindex="0"><td><div class="ptCell">' + ptAv(c, 36) + '<div class="ptTxt"><div class="pt">' + ptName(c.patient) + '</div><div class="small muted">' + esc(c.detail || '') + alignerMini(c) + '</div>' +
+      (ship ? '<div class="flags onlyM">' + ship + '</div>' : '') + (on('stage') ? '' : (shipWarn(c) || df ? '<div class="flags">' + shipWarnFlag(c) + df + '</div>' : '') + dateM(c)) + (on('notes') ? noteMobHTML(c) : '') + '</div></div></td>' +
       (on('type') ? '<td class="hideM">' + typeMark(c) + '</td>' : '') +
       (on('stage') ? '<td class="stg">' + progHTML(c) + '<div class="small">' + esc(stageLabel(c)) + (g ? ' <span class="muted">· ' + esc(g.l.toLowerCase()) + ' ' + (g.stages.indexOf(c.stage) + 1) + '/' + g.stages.length + '</span>' : '') + '</div>' +
-        (recFlag(c) || holdFlag(c) || shipWarn(c) ? '<div class="flags">' + shipWarnFlag(c) + recFlag(c) + holdFlag(c) + '</div>' : '') + dateM(c) + '</td>' : '') +
+        (recFlag(c) || holdFlag(c) || shipWarn(c) || df ? '<div class="flags">' + shipWarnFlag(c) + df + recFlag(c) + holdFlag(c) + '</div>' : '') + dateM(c) + '</td>' : '') +
       (on('notes') ? '<td class="hideM noteCol">' + noteCellHTML(c) + '</td>' : '') + // the latest note, next to the stage (5 Oct 2026)
       (on('lab') ? '<td class="hideM dateCol labCol">' + labChip(c, true) + '</td>' : '') +
       (on('appt') ? '<td class="hideM dateCol apptCol">' + apptChip(c, true) + '</td>' : '') +
@@ -4624,7 +4707,7 @@ function viewDone() {
   const hid = hiddenCols(), on = k => !hid.has(k);
   const th = (k, l, cls) => '<th class="' + (cls || '') + '"><span class="thIn">' + l + '<button class="thHide" data-act="hideCol" data-k="' + k + '" title="Hide this column" aria-label="Hide the ' + esc(l) + ' column">' + ic('eyeOff', 14) + '</button></span></th>';
   return h + '<div class="card tblWrap"><table class="tbl"><thead><tr><th>Patient</th>' + (on('type') ? th('type', 'Type', 'hideM') : '') + '<th>Completed</th>' + (on('stage') ? th('stage', 'Last stage', 'hideM') : '') + '</tr></thead><tbody>' +
-    list.map(c => '<tr class="click" data-act="openClosed" data-id="' + esc(c.id) + '" tabindex="0"><td><div class="ptCell">' + ptAv(c, 36) + '<div class="ptTxt"><div class="pt">' + esc(c.patient) + '</div><div class="small muted">' + esc(c.detail || '') + '</div></div></div></td>' +
+    list.map(c => '<tr class="click" data-act="openClosed" data-id="' + esc(c.id) + '" tabindex="0"><td><div class="ptCell">' + ptAv(c, 36) + '<div class="ptTxt"><div class="pt">' + ptName(c.patient) + '</div><div class="small muted">' + esc(c.detail || '') + '</div></div></div></td>' +
       (on('type') ? '<td class="hideM">' + typeMark(c) + '</td>' : '') + '<td class="small">' + esc(fmtWhen(c.closedAt)) + '</td>' + (on('stage') ? '<td class="hideM small">' + esc(stageLabel(c)) + '</td>' : '') + '</tr>').join('') +
     '</tbody></table></div>';
 }
@@ -4680,6 +4763,7 @@ function historyHTML(c) {
     else if (x.a === 'assign') t = x.to ? 'assigned it to ' + staffName(x.to, x.to) : 'unassigned it';
     else if (x.a === 'edit') t = 'changed ' + Array.from(new Set((x.fields || []).filter(f => f !== 'instructions').map(f => FIELD_LABELS[f] || f))).join(', ') + shipped(x);
     else if (x.a === 'restore') t = 'restored an earlier version';
+    else if (x.a === 'dup' || x.a === 'undup' || x.a === 'notdup' || x.a === 'dupcopy') t = dupHistText(x); // (dupes.js)
     else if (x.a === 'photo') t = { add: 'added a photo', change: 'changed the photo', remove: 'removed the photo', copy: 'added the photo from another of the patient’s cases', undo: 'put the earlier photo back' }[x.how] || 'changed the photo';
     else if (x.a === 'email') { // applied from a lab email (mail.js); shown as the email, not the person whose app applied it
       const f = Array.from(new Set((x.fields || []).filter(k => k !== 'mailIds').map(k => FIELD_LABELS[k] || k)));
@@ -4729,12 +4813,13 @@ function renderDrawer() {
   d.dataset.for = c.id; d.dataset.mode = 'view';
   d.innerHTML = '<div class="dHd"><button type="button" class="dPh" data-act="phEdit" title="' + (c.photo ? 'Change or remove the photo' : 'Add a photo of the patient') + '" aria-label="' + (c.photo ? 'Patient photo: change or remove' : 'Add a patient photo') + '">' + ptAv(c, 64) + '<span class="dPhCam">' + ic('camera', 13) + '</span></button>' +
     // what the case is (arch, appliances, lab, kind of submission, extras) sits under the name — it was its own "Case" section
-    '<div style="flex:1;min-width:0"><div class="dKind" id="dKind">' + esc(caseTitle(c)) + '</div><h3>' + esc(c.patient || '(no name)') + '</h3><div class="sub">' + typeBadge(c) + (detailShown(c) ? '<span class="small muted">' + esc(detailShown(c)) + '</span>' : '') + caseBadges(c, true) + '</div>' + lblBtn + '</div>' +
+    '<div style="flex:1;min-width:0"><div class="dKind" id="dKind">' + esc(caseTitle(c)) + '</div><h3>' + ptName(c.patient) + '</h3><div class="sub">' + typeBadge(c) + (detailShown(c) ? '<span class="small muted">' + esc(detailShown(c)) + '</span>' : '') + caseBadges(c, true) + '</div>' + lblBtn + '</div>' +
     '<button type="button" class="btn btn-ghost dAll" data-act="dsAll"></button><button class="iconBtn" data-act="closeDrawer" aria-label="Close">' + ic('x') + '</button></div>' +
     '<div class="dBd"><div id="drawerNotice"></div>' +
     (done ? '<div class="notice info">Completed ' + esc(fmtWhen(c.closedAt)) + '</div>' : '') +
     (c.shipToPatient ? '<div class="notice ship" role="note">' + ic('truck', 18) + '<span><b>Ship to patient</b></span></div>' : '') +
     (!done && shipWarn(c) ? (x => '<div class="notice noship ' + x.lv + '" role="note">' + ic(x.lv === 'late' ? 'alert' : 'truck', 18) + '<span><b>' + shipWarnLabel(x) + '</b> — ' + esc(shipWarnWhy(c, x)) + '</span></div>')(shipWarn(c)) : '') +
+    dupNoticeHTML(c) + // another open case that looks like this one (dupes.js)
     (isHeld(c) ? '<div class="notice bad mpOld" role="note"><span><b>' + esc(holdText(c)) + '</b></span>' + (done ? '' : '<button class="btn btn-sec btn-sm" data-act="clearHold">Hold is sorted out</button>') + '</div>' : '') +
     // a MARPE entered (or imported) as an appliance before MARPE had its own steps: one click moves it over
     (!done && isOldMarpe(c) ? '<div class="notice info mpOld"><span>MARPE has its own steps now: records, lab, Zoom call, design approval, delivery.</span><button class="btn btn-sec btn-sm" data-act="toMarpe">Switch to MARPE steps</button></div>' : '') +
@@ -4791,7 +4876,9 @@ function renderDrawer() {
     '</div></div>' +
     '<div class="dFt">' + (done ? '<button class="btn btn-sec" data-act="reopen">Reopen</button>' :
       '<button class="btn btn-mint" data-act="complete" data-id="' + esc(c.id) + '">' + ic('done', 16) + 'Mark complete</button><button class="btn btn-sec" data-act="edit">' + ic('edit', 16) + 'Edit</button>') +
-    (isOwner() ? '<span style="flex:1"></span><button class="btn btn-ghost" data-act="versions">' + ic('clock', 16) + 'Versions</button><button class="btn btn-ghost" data-act="delCase" style="color:var(--coral-700)">' + ic('trash', 16) + 'Delete</button>' : '') + '</div>';
+    // a case entered twice: anyone can take the extra one out (dupes.js)
+    '<span class="dFtR"><button class="btn btn-ghost" data-act="dupRemove" title="This case was entered twice: take this one out and keep the other">' + ic('copy', 16) + 'Remove duplicate</button>' +
+    (isOwner() ? '<button class="btn btn-ghost" data-act="versions">' + ic('clock', 16) + 'Versions</button><button class="btn btn-ghost" data-act="delCase" style="color:var(--coral-700)">' + ic('trash', 16) + 'Delete</button>' : '') + '</span></div>';
   const t = $('#cmtText'); if (t) { t.value = keepCmt; if (hadFocus) t.focus(); }
   wtyRestore(wKeep);
   if (keepTop) $('.dBd', d).scrollTop = keepTop;
@@ -5273,7 +5360,7 @@ async function shipDone(c, end, extra) {
     if (S.hist) S.hist.unshift(Object.assign({}, c, extra || {}, { stage: end, status: 'done', closedAt: Date.now() }));
     if (S.openId === id) closeDrawer(true);
     S.closedLoaded = false;
-    toast((c.patient || 'Case') + ' shipped to the patient — case complete', { action: 'Undo', onAction: () => act(() => B.mutateCase(id, d => { d.stage = from; return 'open'; }, { a: 'reopen' }), 'Reopened') });
+    toast((ptNameText(c.patient) || 'Case') + ' shipped to the patient — case complete', { action: 'Undo', onAction: () => act(() => B.mutateCase(id, d => { d.stage = from; return 'open'; }, { a: 'reopen' }), 'Reopened') });
   } catch (e) { toast(errText(e), { bad: true }); }
 }
 async function completeCase(id) {
@@ -5283,7 +5370,7 @@ async function completeCase(id) {
     if (S.hist) S.hist.unshift(Object.assign({}, c, { status: 'done', closedAt: Date.now() }));
     if (S.openId === id) closeDrawer(true);
     S.closedLoaded = false;
-    toast((c.patient || 'Case') + ' marked complete', { action: 'Undo', onAction: () => act(() => B.mutateCase(id, () => 'open', { a: 'reopen' }), 'Reopened') });
+    toast((ptNameText(c.patient) || 'Case') + ' marked complete', { action: 'Undo', onAction: () => act(() => B.mutateCase(id, () => 'open', { a: 'reopen' }), 'Reopened') });
   } catch (e) { toast(errText(e), { bad: true }); }
 }
 function onClick(e) {
@@ -5326,7 +5413,7 @@ function onClick(e) {
     case 'noshipF': S.f.noship = S.f.noship ? '' : '1'; renderView(); break;
     case 'track': break; // the link itself opens the carrier's page in a new tab (and doesn't open the case)
     case 'portal': { const c = findCase(S.openId); // the link itself opens the portal in a new tab
-      if (c && c.patient) copyText(c.patient).then(ok => toast(ok ? 'Copied “' + c.patient + '” — paste it in the portal’s search' : 'Couldn’t copy the name — type it in the portal', ok ? {} : { bad: true })); break; }
+      if (c && c.patient) copyText(c.patient).then(ok => toast(ok ? (PH.hide ? 'Copied the patient’s name' : 'Copied “' + c.patient + '”') + ' — paste it in the portal’s search' : 'Couldn’t copy the name — type it in the portal', ok ? {} : { bad: true })); break; }
     case 'reopen': act(async () => { await B.mutateCase(S.openId, () => 'open', { a: 'reopen' }); S.closed = S.closed.filter(c => c.id !== S.openId); closeDrawer(true); }, 'Reopened'); break;
     case 'assignTo': { const to = t.dataset.v || '', id = S.openId, c = findCase(id); if (!c || (c.assignee || '') === to) break;
       $$('#drawer .dAssign .aTile').forEach(b => b.setAttribute('aria-pressed', String(b === t)));
@@ -5436,7 +5523,7 @@ async function saveEdit() {
     if (ships) { // shipped to the patient = complete
       if (S.hist && cur) S.hist.unshift(Object.assign({}, cur, { status: 'done', closedAt: Date.now() }));
       S.editing = false; closeDrawer(true); S.closedLoaded = false;
-      toast((now.patient || 'Case') + ' shipped to the patient — case complete', { action: 'Undo', onAction: () => act(() => B.mutateCase(id, x => { x.stage = base.stage; return 'open'; }, { a: 'reopen' }), 'Reopened') });
+      toast((ptNameText(now.patient) || 'Case') + ' shipped to the patient — case complete', { action: 'Undo', onAction: () => act(() => B.mutateCase(id, x => { x.stage = base.stage; return 'open'; }, { a: 'reopen' }), 'Reopened') });
       return;
     }
     S.editing = false; toast('Saved'); renderDrawer(); loadHistory(id);
@@ -6295,6 +6382,7 @@ function wireCaseForm(root, isNew) {
     }
     if (det.dataset.auto === '1') det.value = autoDetail(o, tile);
     assignTilesSync(root); alTot();
+    if (isNew && root._dupSync) root._dupSync(); // the patient's open cases under the name: a case like this one already? (dupes.js)
   };
   // in-house aligners: this set plus the patient's earlier sets (matched by chart #, else name)
   const cfEl = $('.cf', root) || root;
@@ -6477,9 +6565,9 @@ function newCaseModal() {
   const roster = activeRoster().filter(r => r.role !== 'owner');
   const base = { scanDate: todayISO(), assistant: roster.some(r => r.sid === meSid()) ? meSid() : '' };
   openModal('<h3>New case</h3><div class="lsub">Tap through it after the scan. Only the patient’s name needs typing. Encrypted before it leaves this computer.</div><div id="ncErr"></div><form id="ncForm" novalidate>' + caseFormHTML(base, true) +
-    '<div class="mFt"><button class="btn btn-sec" type="button" data-act="closeModal">Cancel</button><button class="btn btn-teal" type="submit" id="ncSave">' + ic('plus', 16) + 'Create case</button></div></form>', w => {
+    '<div id="ncDup"></div><div class="mFt"><button class="btn btn-sec" type="button" data-act="closeModal">Cancel</button><button class="btn btn-teal" type="submit" id="ncSave">' + ic('plus', 16) + 'Create case</button></div></form>', w => {
       w.querySelector('.modal').classList.add('wide');
-      wireCaseForm(w, true); phWireForm(w); savPaint(w);
+      wireCaseForm(w, true); phWireForm(w); ptWire(w); savPaint(w); // (ptWire: the name looks up the patients already in — dupes.js)
       $('#ncForm', w).onsubmit = async e => {
         e.preventDefault(); const data = readCaseForm(w);
         const err = m => { $('#ncErr', w).innerHTML = '<div class="lockErr" role="alert">' + esc(m) + '</div>'; $('#ncErr', w).scrollIntoView({ block: 'nearest' }); };
@@ -6499,13 +6587,15 @@ function newCaseModal() {
         if (needs.includes('records')) return err('Tick both records (STL scan and CBCT) before starting it at ' + stageLabel(data) + '.');
         if (needs.includes('zoom')) return err('Add the Zoom call date to start it at Zoom call scheduled.');
         if (needs.includes('aligners') && alignersMissing(data)) return err('Enter ' + alAskText(data) + ' and pick Attachment templates to start it at ' + stageLabel(data) + '.');
+        // the patient already has an open case like this one: asked first (Open that case / Create a second case anyway) — dupes.js
+        if (!dupGate(w, data)) return;
         Object.assign(data, { comments: [], createdAt: Date.now(), createdBy: meSid() });
         if (String(data.notes || '').trim()) notesStamp(data, data.createdAt); // who wrote the Notes (the list's Notes column)
         if (data.txStart || data.txEnd) data.txAt = Date.now();
         busyBtn($('#ncSave', w), true, 'Saving…');
         try {
           await B.createCase(data, w._ph ? w._ph.bytes : null); closeModal();
-          toast('Case created for ' + data.patient, { action: 'Copy chart note', ms: 12000, onAction: () => copyText(chartNote(data)).then(ok => toast(ok ? 'Chart note copied — paste it into the patient’s chart' : 'Couldn’t copy — open the case to copy its chart note', ok ? {} : { bad: true })) });
+          toast('Case created for ' + ptNameText(data.patient), { action: 'Copy chart note', ms: 12000, onAction: () => copyText(chartNote(data)).then(ok => toast(ok ? 'Chart note copied — paste it into the patient’s chart' : 'Couldn’t copy — open the case to copy its chart note', ok ? {} : { bad: true })) });
           rxCreatedToast(data);
         }
         catch (x) { busyBtn($('#ncSave', w), false); err(errText(x)); }
@@ -6763,9 +6853,14 @@ function viewAdmin() {
     '<div class="field"><label for="alPer">Per aligner ($)</label><input id="alPer" type="number" min="0" step="0.01" inputmode="decimal" placeholder="e.g. 4.50" data-setting="alPerAligner" value="' + cost(S.settings.alPerAligner) + '"></div>' +
     '<div class="field"><label for="alSetCost">Per set ($, optional)</label><input id="alSetCost" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0" data-setting="alPerSet" value="' + cost(S.settings.alPerSet) + '"></div>' +
     '</div><div class="small muted">Per aligner: materials for one aligner (sheet, printed model, packaging). Per set: anything paid once per case, such as a setup fee. Estimate = per set + aligners × per aligner.</div></div></div>';
-  const deleted = '<div class="card" style="margin-top:18px"><div class="cardHd"><h3>Deleted cases</h3><span class="sub">Last 90 days</span><span style="flex:1"></span><button class="btn btn-ghost" data-act="loadDeleted">' + ic('refresh', 15) + 'Load</button></div><div class="cardBd" id="delBox"><div class="small muted">Deleted cases can be brought back. Click Load.</div></div></div>';
+  const deleted = '<div class="card" style="margin-top:18px"><div class="cardHd"><h3>Deleted cases</h3><span class="sub">Last 90 days</span><span style="flex:1"></span><button class="btn btn-ghost" data-act="loadDeleted">' + ic('refresh', 15) + 'Load</button></div><div class="cardBd" id="delBox">' + (S.delList ? delListHTML(S.delList) : '<div class="small muted">Deleted cases can be brought back. Click Load.</div>') + '</div></div>';
   const actv = '<div class="card" style="margin-top:18px"><div class="cardHd"><h3>Recent activity</h3><span class="sub">Last 7 days</span><span style="flex:1"></span><button class="btn btn-ghost" data-act="loadActivity">' + ic('refresh', 15) + 'Load</button></div><div class="cardBd" id="actBox"><div class="small muted">Shows who changed what. Click Load.</div></div></div>';
-  return rulesCardHTML() + '<div class="adminGrid"><div>' + team + defaults + shipWarnCardHTML() + alCostCard + noteInstrCardHTML() + rxAdminCardHTML() + '</div><div>' + sec + backupCardHTML() + (S.rulesOld ? '' : mailAdminHTML()) + actv + deleted + '</div></div>';
+  return rulesCardHTML() + '<div class="adminGrid"><div>' + team + defaults + shipWarnCardHTML() + alCostCard + noteInstrCardHTML() + rxAdminCardHTML() + '</div><div>' + sec + backupCardHTML() + (S.rulesOld ? '' : mailAdminHTML()) + actv + deleted + dupAdminCardHTML() + '</div></div>';
+}
+/* Deleted cases, once loaded (it stays through the page's own redraws — the Staff Hub roster or the lab-email status arriving) */
+function delListHTML(list) {
+  return list.length ? list.map((x, i) => '<div class="row" style="cursor:default"><span class="grow"><span class="pt">' + ptName(x.data.patient) + '</span><span class="meta">' + esc(typeOf(x.data).l + ' · deleted ' + fmtWhen(x.at) + ' by ' + firstName(staffName(x.sid, x.sid))) + '</span></span><button class="btn btn-sec btn-sm" data-act="undelete" data-i="' + i + '">Restore</button></div>').join('')
+    : '<div class="small muted">Nothing deleted in the last 90 days.</div>';
 }
 /* when the Not shipped labels show (Amir, 6 Oct 2026: "not sure if the 2 days is the best option"): orange and red, in business days
    before the delivery appt (see shipWarn in ui.js) */
@@ -6882,14 +6977,12 @@ const ADMIN_ACTS = {
     if (!$('#delBox')) return; $('#delBox').innerHTML = '<div class="small muted">Loading…</div>';
     try {
       const list = await B.deletedCases(90, Number(S.settings.pidx0) || 0); S.delList = list;
-      const box = $('#delBox'); if (!box) return;
-      box.innerHTML = list.length ? list.map((x, i) => '<div class="row" style="cursor:default"><span class="grow"><span class="pt">' + esc(x.data.patient || '(no name)') + '</span><span class="meta">' + esc(typeOf(x.data).l + ' · deleted ' + fmtWhen(x.at) + ' by ' + firstName(staffName(x.sid, x.sid))) + '</span></span><button class="btn btn-sec btn-sm" data-act="undelete" data-i="' + i + '">Restore</button></div>').join('')
-        : '<div class="small muted">Nothing deleted in the last 90 days.</div>';
+      const box = $('#delBox'); if (box) box.innerHTML = delListHTML(list);
     } catch (x) { const box = $('#delBox'); if (box) box.innerHTML = '<div class="small" style="color:var(--coral-700)">' + esc(errText(x)) + '</div>'; }
   },
   async undelete(t) {
     const x = S.delList && S.delList[Number(t.dataset.i)]; if (!x) return;
-    try { await B.undelete(x); toast((x.data.patient || 'Case') + ' restored'); ADMIN_ACTS.loadDeleted(); } catch (e) { toast(errText(e), { bad: true }); }
+    try { await B.undelete(x); toast((ptNameText(x.data.patient) || 'Case') + ' restored'); ADMIN_ACTS.loadDeleted(); } catch (e) { toast(errText(e), { bad: true }); }
   },
   async loadActivity() {
     if (!$('#actBox')) return; $('#actBox').innerHTML = '<div class="small muted">Loading…</div>';
@@ -6898,8 +6991,8 @@ const ADMIN_ACTS = {
       if (!list.length) { box.innerHTML = '<div class="small muted">No activity in the last 7 days.</div>'; return; }
       box.innerHTML = list.filter(x => x.a !== 'rekey').slice(0, 80).map(x => {
         const c = S.cases.get(x.caseId); const who = x.a === 'email' ? ((MAIL_CO[x.co] || {}).l || 'Lab') + ' email' : firstName(staffName(x.sid, x.sid));
-        const what = { create: 'created', import: 'imported', stage: 'moved', comment: 'commented on', close: 'completed', reopen: 'reopened', assign: 'reassigned', edit: 'edited', restore: 'restored', delete: 'deleted', save: 'saved', rekey: 're-sealed', email: 'updated', photo: 'changed the photo of' }[x.a] || x.a;
-        return '<div class="hist"><time>' + esc(fmtWhen(x.at)) + '</time><span><b>' + esc(who) + '</b> ' + esc(what) + ' ' + (c ? '<button class="linkBtn" data-act="open" data-id="' + esc(c.id) + '">' + esc(c.patient) + '</button>' : 'a completed case') + '</span></div>';
+        const what = { create: 'created', import: 'imported', stage: 'moved', comment: 'commented on', close: 'completed', reopen: 'reopened', assign: 'reassigned', edit: 'edited', restore: 'restored', delete: 'deleted', save: 'saved', rekey: 're-sealed', email: 'updated', photo: 'changed the photo of', dup: 'removed a duplicate:', undup: 'brought back', notdup: 'marked as not a duplicate', dupcopy: 'copied a duplicate’s comments to' }[x.a] || x.a;
+        return '<div class="hist"><time>' + esc(fmtWhen(x.at)) + '</time><span><b>' + esc(who) + '</b> ' + esc(what) + ' ' + (c ? '<button class="linkBtn" data-act="open" data-id="' + esc(c.id) + '">' + ptName(c.patient) + '</button>' : 'a completed case') + '</span></div>';
       }).join('');
     } catch (x) { const box = $('#actBox'); if (box) box.innerHTML = '<div class="small" style="color:var(--coral-700)">' + esc(errText(x)) + '</div>'; }
   },
@@ -7247,7 +7340,7 @@ function bkShow() {
   const box = $('#bkBox'), bk = S.bk; if (!box || !bk || !bk.cmp) return;
   const { file, opened, cmp } = bk, m = cmp.missing;
   const who = sid => firstName(staffName(sid, '')) || '';
-  const row = x => '<label class="oldRow"><input type="checkbox" data-bk="' + esc(x.id) + '" checked><span class="pt">' + esc(x.data.patient || '(no name)') + '</span>' +
+  const row = x => '<label class="oldRow"><input type="checkbox" data-bk="' + esc(x.id) + '" checked><span class="pt">' + ptName(x.data.patient) + '</span>' +
     '<span class="small muted">' + esc(typeOf(x.data).l + ' · ' + (x.status === 'done' ? 'completed' : stageLabel(x.data)) + (who(x.data.assignee) ? ' · ' + who(x.data.assignee) : '')) + '</span>' +
     '<span class="small oldD">' + esc(x.data.createdAt ? fmtDate(isoOf(new Date(x.data.createdAt))) : '') + '</span></label>';
   const team = (file.roster || []).filter(r => r.active && r.role !== 'owner' && r.username).map(r => r.username);
@@ -7666,8 +7759,8 @@ async function mailResolve(gid, how) {
   const x = MAILS.list.find(g => g.id === gid); if (!x) return;
   if (how === 'apply') {
     const c = findCase(MAILS.pick[x.id] || (x.cands.length === 1 ? x.cands[0].id : '')); if (!c) return;
-    try { await mailApply(x.ev, c); toast('Applied to ' + (c.patient || 'the case')); } // (it saves the lab's case #: later emails for this patient match on it)
-    catch (e) { if (!(e && e.code === 'skip')) { toast(errText(e), { bad: true }); return; } toast('Nothing to change on ' + (c.patient || 'that case')); }
+    try { await mailApply(x.ev, c); toast('Applied to ' + (ptNameText(c.patient) || 'the case')); } // (it saves the lab's case #: later emails for this patient match on it)
+    catch (e) { if (!(e && e.code === 'skip')) { toast(errText(e), { bad: true }); return; } toast('Nothing to change on ' + (ptNameText(c.patient) || 'that case')); }
   }
   await mailForget(x);
   mailSync();
@@ -7688,10 +7781,10 @@ function mailCardHTML() {
     (L.length > 1 ? '<button class="btn btn-ghost btn-sm" data-act="mailSkipAll" title="Nothing to do for any of these">Dismiss all</button>' : '') + '</div><div class="cardBd">' +
     L.map(x => {
       const ev = x.ev, co = MAIL_CO[ev.co], pick = MAILS.pick[x.id] || (x.cands.length === 1 ? x.cands[0].id : ''), gid = esc(x.id);
-      const opt = c => '<option value="' + esc(c.id) + '"' + (pick === c.id ? ' selected' : '') + '>' + esc((c.patient || '(no name)') + ' · ' + typeOf(c).l + ' · ' + stageLabel(c)) + '</option>';
+      const opt = c => '<option value="' + esc(c.id) + '"' + (pick === c.id ? ' selected' : '') + '>' + esc((ptNameText(c.patient) || '(no name)') + ' · ' + typeOf(c).l + ' · ' + stageLabel(c)) + '</option>';
       const mine = open.filter(c => co.types.includes(c.type)), rest = open.filter(c => !co.types.includes(c.type));
       return '<div class="mlRow"><div class="mlWhat"><span class="badge ' + TYPE[co.types[0]].cls + '">' + esc(co.l) + '</span><b>' + esc(MAIL_KIND[ev.kind] || ev.kind) + '</b>' +
-        '<span class="mlName">' + esc(ev.name) + '</span>' + (ev.ref ? '<span class="small muted">#' + esc(ev.ref) + '</span>' : '') +
+        '<span class="mlName">' + ptName(ev.name) + '</span>' + (ev.ref ? '<span class="small muted">#' + esc(ev.ref) + '</span>' : '') +
         (ev.tracking ? '<span class="small muted">' + esc((trackInfo(ev.tracking) || {}).carrier || 'tracking') + ' ' + esc(ev.tracking) + '</span>' : '') +
         (ev.reason ? '<span class="small" style="color:var(--coral-700)">' + esc(ev.reason) + '</span>' : '') +
         '<span class="small muted">' + esc(fmtWhen(ev.at)) + '</span>' + (x.items.length > 1 ? '<span class="small muted">in ' + x.items.length + ' emails</span>' : '') +
@@ -7865,16 +7958,34 @@ function phInit() {
   document.body.classList.toggle('phHide', PH.hide);
   phBindPaste();
 }
-function phAny() { return PH.hide || openCases().some(c => c.photo); }
 function phHideBtn() {
-  return '<button class="iconBtn phTgl" data-act="phHide" aria-pressed="' + PH.hide + '" title="' + (PH.hide ? 'Patient photos are blurred on this computer — click to show them' : 'Blur patient photos on this computer (for screens patients can see)') + '" aria-label="' + (PH.hide ? 'Show patient photos' : 'Hide patient photos') + '">' + ic(PH.hide ? 'eyeOff' : 'eye', 19) + '</button>';
+  return '<button class="iconBtn phTgl" data-act="phHide" aria-pressed="' + PH.hide + '" title="' + (PH.hide ? 'Patient photos are blurred and names shortened on this computer — click to show them' : 'Blur patient photos and shorten names on this computer (for screens patients can see)') + '" aria-label="' + (PH.hide ? 'Show patient photos and names' : 'Hide patient photos and names') + '">' + ic(PH.hide ? 'eyeOff' : 'eye', 19) + '</button>';
 }
 function phToggleHide() {
   PH.hide = !PH.hide;
   try { localStorage.setItem('nloCases.hidePhotos', PH.hide ? '1' : '0'); } catch (e) { }
   document.body.classList.toggle('phHide', PH.hide);
   $$('[data-act=phHide]').forEach(b => { b.outerHTML = phHideBtn(); });
-  toast(PH.hide ? 'Patient photos are blurred on this computer. Hover over one to see it.' : 'Patient photos are shown again.');
+  queueRender(); if (S.openId && !S.editing) renderDrawer(); // (names in plain text — a lab email's pick list, a tooltip — follow)
+  toast(PH.hide ? 'Patient photos are blurred and names shortened (Jane D.) on this computer. Hover over one to see it.' : 'Patient photos and full names are shown again.');
+}
+/* … and names (Amir, 6 Oct 2026: "when you click on the eye icon to … hide the faces, can you make the names just to show them just
+   the initials, not the full name? Or maybe first name and last name initial?"): the first name and the last name's initial,
+   "Jane D.", so the team still knows who's who. Hovering over one shows the full name, like a photo. Drawn with CSS from the
+   page's own text (ptName), so turning it on or off doesn't redraw anything; plain text (a pick list) uses shortName itself. */
+function shortName(n) {
+  let s = String(n || '').replace(/\([^)]*\)/g, ' ').trim().replace(/\s+/g, ' '); if (!s) return '';
+  const cm = s.split(','); if (cm.length === 2 && cm[0].trim() && cm[1].trim()) s = cm[1].trim() + ' ' + cm[0].trim(); // "Doe, Jane"
+  const w = s.split(' ').filter(x => x && !/^(jr|sr|ii|iii|iv)\.?$/i.test(x));
+  if (w.length < 2) return w[0] || s;
+  const last = w[w.length - 1].replace(/^[^\p{L}\p{N}]+/u, '');
+  return w[0] + (last ? ' ' + last[0].toUpperCase() + '.' : '');
+}
+function ptNameText(n) { const full = String(n || '').trim(); return PH.hide ? shortName(full) || full : full; }
+/* a patient's name on screen; q = letters to show in bold (the New case search) */
+function ptName(n, q) {
+  const full = String(n || '').trim() || '(no name)', sh = shortName(full), inner = q ? ptHl(full, q) : esc(full);
+  return sh && sh !== full ? '<span class="pnm" data-s="' + esc(sh) + '"><span class="pnF">' + inner + '</span></span>' : inner;
 }
 
 /* ---------- the photo editor: take / choose / paste / drop a picture, then fit the face in the circle ---------- */
@@ -8108,6 +8219,365 @@ Object.assign(ADMIN_ACTS, {
   phHide() { phToggleHide(); },
   phEdit() { const c = findCase(S.openId); if (c) phCaseEdit(c); },
   cfPhoto(t) { const root = t.closest('#modalWrap'); if (root) phFormEdit(root); }
+});
+
+/* =====================================================================
+   Duplicates (Amir, 6 Oct 2026: "how do we prevent double entries for the same case? Also can the names fill up as you type the
+   name. you know like a search during the entry with photos so if the pt is already in there you can just select them? Also if
+   there is a double created accidently. How can it be removed or archived?")
+   - New case: the patient's name looks itself up as it's typed — the patients already in the app whose name (or chart #) starts
+     that way, with their photo and their cases. Picking one fills in the name and chart # exactly as on file (the photo follows,
+     photos.js), and under the name the patient's open cases are listed, each with Open.
+   - The same patient with an open case of the same kind (dupLike: same type, and for appliances, retainers and aligner sets the same
+     thing being made) is said under the name in amber, and Create case asks first: Open that case, or Create a second case anyway
+     (which then isn't flagged).
+   - Doubles already in: "Possible duplicate" on the lists, the board and in the case panel (Open the other / Remove this one / Not a
+     duplicate), and a Possible duplicates filter on All open cases.
+   - Remove duplicate (anyone, from the case panel): pick the case to keep; this one's comments and Notes are copied onto it. The
+     duplicate is closed with `dup` on it — nothing is deleted. It drops out of every list, Completed, the patient's history (so it
+     doesn't count as a refinement), the Workload page and the patient index. Undo right after; Dr. A can bring it back from
+     Team & security → Removed duplicates.
+   Who/when is in the case's history like every other change.
+   ===================================================================== */
+
+/* ---------- the same case twice? ---------- */
+/* a and b look like the same case entered twice: the same patient (chart # when both have one, else the name) and the same type —
+   and, where both say, the same lab, an appliance in common, retainer kinds and arches in common, the same kind of aligner
+   submission (first set / refinement / mid-course / finishing — not the refinement's number: a set entered twice gets the next
+   number the second time, and a set is normally completed before the next one is made), and both a remake or neither. A pair marked
+   "Not a duplicate" (notDup, on either case) never is. `a` may be the New case form (no id). */
+function dupLike(a, b) {
+  if (!a || !b || a === b || (a.id && a.id === b.id) || a.locked || b.locked || a.dup || b.dup) return false;
+  if (!a.type || a.type !== b.type || !samePatient(a, b)) return false;
+  const la = labName(a.lab), lb = labName(b.lab); if (la && lb && la !== lb) return false;
+  for (const k of ['appliances', 'retKinds', 'arches']) {
+    const x = Array.isArray(a[k]) ? a[k] : [], y = Array.isArray(b[k]) ? b[k] : [];
+    if (x.length && y.length && !x.some(v => y.includes(v))) return false;
+  }
+  const differ = k => !!a[k] && !!b[k] && String(a[k]) !== String(b[k]);
+  if (differ('initial') || (a.variant || '') !== (b.variant || '') || (a.remake || '') !== (b.remake || '')) return false;
+  if (a.id && b.id && ((a.notDup || []).includes(b.id) || (b.notDup || []).includes(a.id))) return false;
+  return true;
+}
+/* the open cases a New case form would duplicate, oldest first */
+function dupCands(o) { return openCases().filter(c => dupLike(o, c)).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)); }
+/* open case id → the other open cases that look like the same case (worked out once per change to the open cases) */
+const DUPS = { cases: null, v: -1, map: new Map() };
+function dupReset() { DUPS.cases = null; DUPS.v = -1; DUPS.map = new Map(); S.dupList = null; } // (on Lock)
+function dupMap() {
+  if (DUPS.cases === S.cases && DUPS.v === S.casesV) return DUPS.map;
+  const m = new Map(), groups = new Map();
+  const put = (k, c) => { if (!groups.has(k)) groups.set(k, []); groups.get(k).push(c); };
+  // only cases sharing a name or a chart # can be the same patient, so only those are compared
+  openCases().forEach(c => { const n = normName(c.patient), ch = normChart(c.chart); if (n) put('n:' + n, c); if (ch) put('c:' + ch, c); });
+  groups.forEach(g => {
+    for (let i = 0; i < g.length; i++) for (let j = i + 1; j < g.length; j++) {
+      const a = g[i], b = g[j]; if (!dupLike(a, b)) continue;
+      [[a, b], [b, a]].forEach(([x, y]) => { const l = m.get(x.id) || []; if (!l.includes(y)) l.push(y); m.set(x.id, l); });
+    }
+  });
+  m.forEach(l => l.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)));
+  DUPS.cases = S.cases; DUPS.v = S.casesV; DUPS.map = m; return m;
+}
+function dupsOf(c) { return c && c.id && c.status !== 'done' && !c.locked ? dupMap().get(c.id) || [] : []; }
+/* "entered Oct 3, 2:10 PM by Gwen" */
+function enteredText(c) { const by = c.createdBy ? firstName(staffName(c.createdBy, '')) : ''; return c.createdAt ? 'entered ' + fmtWhen(c.createdAt) + (by ? ' by ' + by : '') : by ? 'entered by ' + by : ''; }
+/* "U/L TT's · Printing · entered Oct 3, 2:10 PM by Gwen" — or "… · completed Sep 12" */
+function caseLine(c) {
+  return [c.detail || '', c.status === 'done' ? 'completed' + (c.closedAt ? ' ' + fmtDate(isoOf(new Date(c.closedAt))) : '') : stageLabel(c), enteredText(c)].filter(Boolean).join(' · ');
+}
+function dupFlag(c) {
+  const d = dupsOf(c); if (!d.length) return '';
+  return '<span class="flag dupF" title="' + esc('Looks like the same case as ' + d.map(o => ptNameText(o.patient) + '’s ' + typeOf(o).l + ' case, ' + caseLine(o)).join('; ') + ' — open it to sort it out') + '">' + ic('copy', 13) + 'Possible duplicate</span>';
+}
+/* the case panel: which other case(s) it looks like, and what to do about it */
+function dupNoticeHTML(c) {
+  const d = dupsOf(c); if (!d.length) return '';
+  return '<div class="notice dupN" role="note">' + ic('copy', 18) + '<div class="dupNB"><div><b>Possible duplicate</b> — ' + ptName(c.patient) + ' has ' + (d.length > 1 ? d.length + ' other open ' : 'another open ') + esc(typeOf(c).l) + ' case' + (d.length > 1 ? 's' : '') + ':</div>' +
+    d.map(o => '<div class="dupNR"><span>' + esc(caseLine(o)) + '</span><button type="button" class="linkBtn" data-act="open" data-id="' + esc(o.id) + '">Open it</button></div>').join('') +
+    '<div class="dupNBtns"><button type="button" class="btn btn-sec btn-sm" data-act="dupRemove">Remove this one</button><button type="button" class="btn btn-ghost btn-sm" data-act="notDup">Not a duplicate</button></div></div></div>';
+}
+
+/* ---------- the patients already in the app (New case: as the name is typed) ---------- */
+function ptWords(s) { return normName(s).split(/[\s\-–—'’.,()]+/).filter(Boolean); }
+/* every patient the app can see — open cases, and the completed ones it has read (the patient's whole history comes in once their
+   name or chart # is typed in full: photos.js asks for it) — one entry per name, spelled as on their latest case */
+function ptDirectory() {
+  const by = new Map(), seen = new Set();
+  const pool = casePool().concat((S.mailClosed && S.mailClosed.list) || [], (typeof WK !== 'undefined' && WK.closed) || []);
+  pool.forEach(c => {
+    if (!c || !c.id || seen.has(c.id) || c.locked || c.dup) return; seen.add(c.id);
+    const nm = String(c.patient || '').trim().replace(/\s+/g, ' '), k = normName(nm); if (!k) return;
+    let p = by.get(k); if (!p) by.set(k, p = { k, name: nm, chart: '', cases: [], at: -1 });
+    p.cases.push(c);
+    const t = c.updatedAt || c.createdAt || 0, ch = String(c.chart || '').trim();
+    if (t >= p.at) { p.at = t; p.name = nm; if (ch) p.chart = ch; } else if (!p.chart && ch) p.chart = ch;
+  });
+  return Array.from(by.values());
+}
+/* how well a patient matches what's typed: every word typed starts a word of their name (exact name 4, name starts so 3, else 2),
+   or it starts their chart # (1); 0 = no */
+function ptScore(p, q) {
+  const toks = ptWords(q); if (!toks.length) return 0;
+  const words = ptWords(p.name), nq = normName(q), np = normName(p.name);
+  if (toks.every(t => words.some(w => w.startsWith(t)))) return np === nq ? 4 : np.startsWith(nq) ? 3 : 2;
+  const qc = normChart(q); if (qc.length >= 3 && /\d/.test(qc) && p.cases.some(c => normChart(c.chart).startsWith(qc))) return 1;
+  return 0;
+}
+function ptSearch(q, max) {
+  if (normName(q).length < 2) return [];
+  return ptDirectory().map(p => ({ p, s: ptScore(p, q), open: p.cases.some(c => c.status !== 'done') ? 1 : 0 })).filter(x => x.s)
+    .sort((a, b) => b.s - a.s || b.open - a.open || b.p.at - a.p.at).slice(0, max || 5).map(x => x.p);
+}
+/* the typed letters in bold */
+function ptHl(name, q) {
+  const toks = ptWords(q);
+  return String(name).split(/(\s+)/).map(part => {
+    if (!part || /^\s+$/.test(part)) return esc(part);
+    const lw = part.toLowerCase(), t = toks.filter(x => lw.startsWith(x)).sort((a, b) => b.length - a.length)[0];
+    return t ? '<b>' + esc(part.slice(0, t.length)) + '</b>' + esc(part.slice(t.length)) : esc(part);
+  }).join('');
+}
+const byMade = (a, b) => (a.createdAt || 0) - (b.createdAt || 0), byClosed = (a, b) => (b.closedAt || 0) - (a.closedAt || 0);
+function ptDoneText(done) {
+  if (!done.length) return '';
+  const d = done[0];
+  return 'last case ' + typeOf(d).l + (d.closedAt ? ', completed ' + fmtDate(isoOf(new Date(d.closedAt))) : '') + (done.length > 1 ? ' (' + done.length + ' completed)' : '');
+}
+/* one line about a patient in the list: their open cases (kind and step), else their last completed case */
+function ptSumText(p) {
+  const open = p.cases.filter(c => c.status !== 'done').sort(byMade), done = p.cases.filter(c => c.status === 'done').sort(byClosed);
+  const parts = [];
+  if (open.length) parts.push((open.length === 1 ? 'Open: ' : open.length + ' open: ') + open.slice(0, 2).map(c => typeOf(c).l + ' (' + stageLabel(c) + ')').join(', ') + (open.length > 2 ? ', …' : ''));
+  if (done.length) parts.push(open.length ? done.length + ' completed' : ptDoneText(done).replace(/^last case /, 'Completed: '));
+  return parts.join(' · ');
+}
+function ptPhotoCase(p) { return p.cases.filter(c => c.photo).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0] || p.cases[0]; }
+function ptListHTML(items, q, active) {
+  return '<div class="ptfHd">Already in the app — pick the patient' + (items.length > 1 ? '' : ' if it’s them') + '</div>' +
+    items.map((p, i) => '<div class="ptOpt' + (i === active ? ' on' : '') + '" role="option" id="cf-pto' + i + '" aria-selected="' + (i === active) + '" data-i="' + i + '">' + ptAv(ptPhotoCase(p), 36) +
+      '<span class="ptoTx"><span class="ptoNm">' + ptName(p.name, q) + (p.chart ? '<span class="ptoCh">#' + esc(p.chart) + '</span>' : '') + '</span><span class="ptoSub">' + esc(ptSumText(p)) + '</span></span>' +
+      '<span class="ptoUse" aria-hidden="true">Use</span></div>').join('');
+}
+/* under the name: the patient's cases (the form's patient: typed, or picked from the list) — amber when one looks like the same case */
+function ptInfoHTML(o) {
+  if (!normName(o.patient) && !normChart(o.chart)) return '';
+  const seen = new Set(), mine = [];
+  casePool().forEach(c => { if (c && c.id && !seen.has(c.id) && !c.locked && !c.dup && samePatient(c, o)) { seen.add(c.id); mine.push(c); } });
+  if (!mine.length) return '';
+  const open = mine.filter(c => c.status !== 'done' && S.cases.has(c.id)).sort(byMade), done = mine.filter(c => c.status === 'done').sort(byClosed);
+  const dups = o.type ? open.filter(c => dupLike(o, c)) : [], others = open.filter(c => !dups.includes(c));
+  const nm = ptName(String(o.patient || mine[0].patient || '').trim() || 'This patient');
+  const row = (c, main) => '<div class="piRow"><span class="piTx"><b>' + esc(typeOf(c).l) + '</b> · ' + esc(caseLine(c)) + '</span><button type="button" class="btn ' + (main ? 'btn-pri' : 'btn-sec') + ' btn-sm" data-act="ptOpen" data-id="' + esc(c.id) + '">' + (main ? 'Open that case' : 'Open') + '</button></div>';
+  if (dups.length) return '<div class="ptInfo warn" role="alert"><div class="piHd">' + ic('alert', 17) + '<span><b>' + nm + ' already has ' + (dups.length > 1 ? dups.length + ' open ' : 'an open ') + esc(typeOf(o).l) + ' case' + (dups.length > 1 ? 's' : '') + '.</b> If it’s the same one, open it instead of making a second case.</span></div>' +
+    dups.map(c => row(c, true)).join('') + (others.length ? '<div class="piMore">Also open: ' + esc(others.map(c => typeOf(c).l + ' (' + stageLabel(c) + ')').join(', ')) + '</div>' : '') + '</div>';
+  if (open.length) return '<div class="ptInfo"><div class="piHd">' + ic('user', 16) + '<span><b>' + nm + '</b> is already in the app with ' + (open.length === 1 ? 'an open case' : open.length + ' open cases') + ':</span></div>' +
+    open.map(c => row(c, false)).join('') + (done.length ? '<div class="piMore">' + esc(ptDoneText(done).replace(/^l/, 'L')) + '</div>' : '') + '</div>';
+  return '<div class="ptInfo quiet">' + ic('user', 15) + '<span><b>' + nm + '</b> is already in the app — ' + esc(ptDoneText(done)) + '. No open cases.</span></div>';
+}
+/* the New case form: the name looks itself up; the patient's cases show under it */
+function ptWire(root) {
+  const inp = $('#cf-patient', root), chart = $('#cf-chart', root), row = inp && inp.closest('.cfSec'); if (!inp || !row) return;
+  row.insertAdjacentHTML('beforeend', '<div class="ptFind" id="cf-ptFind" hidden><div class="ptList" id="cf-ptList" role="listbox" aria-label="Patients already in the app"></div></div><div id="cf-ptInfo" aria-live="polite"></div>');
+  const box = $('#cf-ptFind', root), list = $('#cf-ptList', root), info = $('#cf-ptInfo', root);
+  inp.setAttribute('role', 'combobox'); inp.setAttribute('aria-autocomplete', 'list'); inp.setAttribute('aria-controls', 'cf-ptList'); inp.setAttribute('aria-expanded', 'false');
+  const st = { items: [], active: -1, picked: '', off: '' };
+  const close = () => { box.hidden = true; st.items = []; st.active = -1; inp.setAttribute('aria-expanded', 'false'); inp.removeAttribute('aria-activedescendant'); };
+  const draw = () => {
+    const q = inp.value, n = normName(q);
+    // nothing to look up, a patient just picked (until the name changes), or the list put away with Esc (until it changes)
+    if (n.length < 2 || n === st.picked || n === st.off) { close(); return; }
+    st.items = ptSearch(q, 5);
+    if (!st.items.length) { close(); return; }
+    if (st.active >= st.items.length) st.active = -1;
+    list.innerHTML = ptListHTML(st.items, q, st.active); box.hidden = false; inp.setAttribute('aria-expanded', 'true');
+    if (st.active >= 0) inp.setAttribute('aria-activedescendant', 'cf-pto' + st.active); else inp.removeAttribute('aria-activedescendant');
+    phPaint();
+  };
+  const sync = () => {
+    const o = readCaseForm(root), h = ptInfoHTML(o);
+    if (info._h !== h) { info._h = h; info.innerHTML = h; phPaint(); }
+    // a Create case question about another patient or kind of case is put away (it asks again if it still applies)
+    const ask = $('#ncDup', root); if (ask && ask.dataset.sig && ask.dataset.sig !== dupSig(dupCands(o), o)) { ask.innerHTML = ''; ask.dataset.sig = ''; }
+  };
+  const pick = i => {
+    const p = st.items[i]; if (!p) return;
+    inp.value = p.name; st.picked = normName(p.name); close();
+    const ch0 = chart ? chart.value.trim() : '';
+    if (chart && p.chart && !ch0) { chart.value = p.chart; chart.dispatchEvent(new Event('input', { bubbles: true })); }
+    inp.dispatchEvent(new Event('input', { bubbles: true })); // (the photo, the patient's earlier sets, the "what's being made" line…)
+    sync(); inp.focus();
+  };
+  let t = null;
+  inp.addEventListener('input', () => { st.active = -1; if (normName(inp.value) !== st.picked) st.picked = ''; if (normName(inp.value) !== st.off) st.off = ''; draw(); clearTimeout(t); t = setTimeout(sync, 120); });
+  if (chart) chart.addEventListener('input', () => { clearTimeout(t); t = setTimeout(sync, 120); });
+  inp.addEventListener('focus', draw);
+  inp.addEventListener('keydown', e => {
+    if (box.hidden) { if (e.key === 'ArrowDown' && normName(inp.value).length >= 2) { st.off = ''; st.picked = ''; draw(); if (!box.hidden) { e.preventDefault(); st.active = 0; draw(); } } return; }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); const n = st.items.length; st.active = e.key === 'ArrowDown' ? (st.active + 1) % n : (st.active <= 0 ? n - 1 : st.active - 1); draw(); return; }
+    if (e.key === 'Enter' && st.active >= 0) { e.preventDefault(); pick(st.active); return; }
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); st.off = normName(inp.value); close(); }
+  });
+  // (a press on a patient keeps the cursor in the name box)
+  list.addEventListener('mousedown', e => { if (e.target.closest('.ptOpt')) e.preventDefault(); });
+  list.addEventListener('click', e => { const o = e.target.closest('.ptOpt'); if (o) pick(Number(o.dataset.i)); });
+  root._ptRefresh = () => { if (!root.isConnected) return; if (!box.hidden || document.activeElement === inp) draw(); sync(); };
+  root._dupSync = sync;
+  sync();
+}
+/* Create case with an open case of the same kind for the patient: asked once, right above the buttons */
+function dupSig(list, o) { return list.length ? list.map(c => c.id).join(',') + '|' + o.type + '|' + normName(o.patient) + '|' + normChart(o.chart) : ''; }
+function dupAsk(w, o, list) {
+  const box = $('#ncDup', w); if (!box) return;
+  const c = list[0], more = list.length - 1;
+  box.dataset.sig = dupSig(list, o);
+  box.innerHTML = '<div class="dupAsk" role="alert"><div class="daHd">' + ic('alert', 18) + '<b>' + ptName(o.patient) + ' already has an open ' + esc(typeOf(o).l) + ' case' + (more ? ' (and ' + more + ' more)' : '') + '</b></div>' +
+    '<div class="daTx">' + esc(caseLine(c)) + '. If it’s the same case, open it instead of making a second one.</div>' +
+    '<div class="daBtns"><button type="button" class="btn btn-pri btn-sm" data-act="ptOpen" data-id="' + esc(c.id) + '">Open that case</button><button type="button" class="btn btn-sec btn-sm" id="ncDupOk">Create a second case anyway</button></div></div>';
+  $('#ncDupOk', box).onclick = () => { w._dupOk = box.dataset.sig; const f = $('#ncForm', w); if (f.requestSubmit) f.requestSubmit(); else $('#ncSave', w).click(); };
+  box.scrollIntoView({ block: 'center' });
+}
+/* New case's submit: true = go ahead (`o` gets notDup when a second case was asked for on purpose) */
+function dupGate(w, o) {
+  const list = dupCands(o); if (!list.length) return true;
+  if (w._dupOk && w._dupOk === dupSig(list, o)) { o.notDup = list.map(c => c.id); return true; }
+  dupAsk(w, o, list); return false;
+}
+
+/* ---------- Remove duplicate ---------- */
+/* the cases this one could be a duplicate of: the patient's other cases — the ones that look the same first, then their other open
+   cases, then completed ones */
+function dupKeepCands(c) {
+  const seen = new Set([c.id]), mine = [];
+  casePool().forEach(x => { if (x && x.id && !seen.has(x.id) && !x.locked && !x.dup && samePatient(x, c)) { seen.add(x.id); mine.push(x); } });
+  const rank = x => dupLike(c, x) ? 0 : x.status !== 'done' ? 1 : 2;
+  return mine.sort((a, b) => rank(a) - rank(b) || (rank(a) < 2 ? byMade(a, b) : byClosed(a, b)));
+}
+/* what of the duplicate's is carried onto the case kept: its comments (who wrote them and when stay) and its Notes as a comment —
+   not ones the kept case already has */
+function dupCarry(c, keep) {
+  const has = new Set(((keep && keep.comments) || []).map(x => x.id + '|' + x.text)), texts = new Set(((keep && keep.comments) || []).map(x => x.text));
+  const out = (c.comments || []).filter(x => x && String(x.text || '').trim() && !has.has(x.id + '|' + x.text)).map(x => Object.assign({}, x, { dupFrom: c.id }));
+  const nt = String(c.notes || '').trim(), text = 'Notes from the duplicate case: ' + nt;
+  if (nt && nt !== String((keep && keep.notes) || '').trim() && !texts.has(text)) { const a = notesAuthor(c) || {}; out.push({ id: uid8(), at: a.at || c.notesAt || c.createdAt || Date.now(), by: a.by || c.notesBy || c.createdBy || meSid(), text, dupFrom: c.id }); }
+  return out;
+}
+function dupKeepRowHTML(x, c, on) {
+  const other = !samePatient(x, c) || normName(x.patient) !== normName(c.patient);
+  return '<label class="dkRow' + (dupLike(c, x) ? ' same' : '') + '"><input type="radio" name="dupKeep" value="' + esc(x.id) + '"' + (on ? ' checked' : '') + '>' + ptAv(x, 32) +
+    '<span class="dkTx"><b>' + (other ? ptName(x.patient) + ' · ' : '') + esc(typeOf(x).l) + '</b>' + (dupLike(c, x) ? '<span class="dkSame">looks the same</span>' : '') + '<span class="small muted">' + esc(caseLine(x)) + '</span></span></label>';
+}
+function dupRemoveModal(id) {
+  const c = findCase(id); if (!c || c.locked) return;
+  if (c.dup) { toast('This case was already removed as a duplicate'); return; }
+  const cands = dupKeepCands(c), first = cands.find(x => dupLike(c, x)) || null;
+  let copyOn = true;
+  // what would be copied onto the case picked to keep (not what it already has)
+  const copyHTML = k => { const cr = k ? dupCarry(c, k) : []; if (!cr.length) return '';
+    const nts = cr.filter(x => x.text.startsWith('Notes from the duplicate case: ')).length, nCm = cr.length - nts;
+    return '<label class="dkCopy"><input type="checkbox" id="dkCopy"' + (copyOn ? ' checked' : '') + '> Copy ' + (nCm ? 'its ' + (nCm === 1 ? 'comment' : nCm + ' comments') + (nts ? ' and Notes' : '') : 'its Notes') + ' to the case you keep</label>'; };
+  const listHTML = items => items.length ? items.map(x => dupKeepRowHTML(x, c, first && x.id === first.id)).join('') : '<div class="small muted dkNone">No other case for ' + esc(c.patient || 'this patient') + ' — search for it below (a different spelling or chart #?).</div>';
+  openModal('<h3>Remove a duplicate</h3><div class="lsub">' + ptName(c.patient) + esc(' · ' + typeOf(c).l + ' · ' + caseLine(c)) + '</div>' +
+    '<h5 class="dkH">Which case is the one to keep?</h5><div class="dkList" id="dkList" role="radiogroup" aria-label="The case to keep">' + listHTML(cands) + '</div>' +
+    '<div class="field dkFind"><label for="dkQ">Not there? Find it by name or chart #</label><input id="dkQ" type="search" autocomplete="off" spellcheck="false" placeholder="e.g. ' + esc(String(c.patient || '').trim().split(/\s+/).slice(-1)[0] || 'Smith') + '"></div>' +
+    '<div id="dkCopyWrap">' + copyHTML(first) + '</div>' +
+    '<p class="small muted dkWhat">This one leaves every list and the patient’s history. Nothing is deleted: you can undo right after, and Dr. A can bring it back from Team &amp; security.</p>' +
+    '<div class="mFt"><button class="btn btn-sec" type="button" data-act="closeModal">Cancel</button><button class="btn btn-danger" type="button" id="dkGo"' + (first ? '' : ' disabled') + '>' + ic('copy', 16) + 'Remove duplicate</button></div>', w => {
+      w.querySelector('.modal').classList.add('dkModal');
+      const go = $('#dkGo', w), q = $('#dkQ', w), box = $('#dkList', w);
+      const sel = () => { const r = $('input[name=dupKeep]:checked', w); go.disabled = !r; return r ? r.value : ''; };
+      const copySync = () => { const id = sel(), k = id ? casePool().find(x => x.id === id) : null, h = copyHTML(k), wr = $('#dkCopyWrap', w); if (wr._h !== h) { wr._h = h; wr.innerHTML = h; } };
+      w.addEventListener('change', e => { if (e.target.name === 'dupKeep') copySync(); if (e.target.id === 'dkCopy') copyOn = e.target.checked; });
+      q.addEventListener('input', () => {
+        const v = q.value.trim(), keep = sel();
+        if (!v) { box.innerHTML = listHTML(cands); } else {
+          const found = [], seen = new Set([c.id]);
+          ptSearch(v, 8).forEach(p => p.cases.slice().sort((a, b) => (a.status === 'done') - (b.status === 'done') || byMade(a, b)).forEach(x => { if (!seen.has(x.id)) { seen.add(x.id); found.push(x); } }));
+          box.innerHTML = found.length ? found.slice(0, 10).map(x => dupKeepRowHTML(x, c, false)).join('') : '<div class="small muted dkNone">No case found for “' + esc(v) + '”.</div>';
+        }
+        const r = keep && $('input[name=dupKeep][value="' + CSS.escape(keep) + '"]', w); if (r) r.checked = true;
+        copySync(); phPaint();
+      });
+      go.onclick = async () => {
+        const keepId = sel(); if (!keepId) return;
+        const cp = $('#dkCopy', w); busyBtn(go, true, 'Removing…');
+        try { await dupRemoveRun(c, keepId, !!(cp && cp.checked)); closeModal(); }
+        catch (x) { busyBtn(go, false); toast(errText(x), { bad: true }); }
+      };
+      phPaint(); if (!first) q.focus(); else go.focus();
+    });
+}
+async function dupRemoveRun(c, keepId, copy) {
+  const keep = S.cases.get(keepId) || casePool().find(x => x.id === keepId) || null;
+  const carry = copy ? dupCarry(c, keep) : [], was = c.status === 'done' ? 'done' : 'open';
+  let copied = 0;
+  if (carry.length) {
+    await B.mutateCase(keepId, d => {
+      const ids = new Set((d.comments || []).map(x => x.id)), texts = new Set((d.comments || []).map(x => x.text));
+      const add = carry.filter(x => !ids.has(x.id) && !(x.text.startsWith('Notes from the duplicate case: ') && texts.has(x.text))); if (!add.length) return 'skip';
+      d.comments = (d.comments || []).concat(add).sort((a, b) => (a.at || 0) - (b.at || 0)); copied = add.length;
+    }, { a: 'dupcopy', from: c.id, n: carry.length }).catch(skipOk);
+  }
+  await B.mutateCase(c.id, d => { d.dup = { of: keepId, by: meSid(), at: Date.now(), was }; return 'done'; }, { a: 'dup', of: keepId });
+  // the patient's photo, when the case kept has none
+  if (c.photo && keep && !keep.photo && S.cases.has(keepId)) {
+    try { const x = phCached(c.id, c.photo) || await phLoad(c.id, c.photo); if (x && x.bytes) { const pv = await B.setPhoto(keepId, x.bytes, { a: 'photo', how: 'copy' }); phPut(keepId, pv, x.bytes); } } catch (e) { }
+  }
+  const drop = x => x.id !== c.id; if (S.hist) S.hist = S.hist.filter(drop); S.closed = S.closed.filter(drop);
+  if (S.openId === c.id) closeDrawer(true);
+  queueRender();
+  if (S.cases.has(keepId) && !S.openId) openDrawer(keepId); // the case kept, with what was copied onto it
+  toast('Duplicate removed' + (keep ? ' — kept ' + ptNameText(keep.patient) + '’s ' + typeOf(keep).l + ' case' : '') + (copied ? ' (' + copied + ' comment' + (copied > 1 ? 's' : '') + ' copied to it)' : ''), { action: 'Undo', ms: 12000, onAction: () => act(async () => {
+    await B.mutateCase(c.id, d => { if (!d.dup) return 'skip'; delete d.dup; return was; }, { a: 'undup' }).catch(skipOk);
+    if (copied) await B.mutateCase(keepId, d => { const n = (d.comments || []).length; d.comments = (d.comments || []).filter(x => x.dupFrom !== c.id); if (d.comments.length === n) return 'skip'; }, { a: 'dupcopy', from: c.id, undo: 1 }).catch(skipOk);
+    if (was === 'done') S.closedLoaded = false;
+  }, 'Brought back') });
+}
+/* "Not a duplicate": this case and the one(s) it was flagged with are left alone from now on */
+async function notDupRun(c) {
+  const ids = dupsOf(c).map(o => o.id); if (!ids.length) return;
+  await B.mutateCase(c.id, d => { const was = d.notDup || []; const now = Array.from(new Set(was.concat(ids))); if (now.length === was.length) return 'skip'; d.notDup = now; }, { a: 'notdup', of: ids }).catch(skipOk);
+  const cur = findCase(c.id); if (cur) cur.notDup = Array.from(new Set((cur.notDup || []).concat(ids)));
+  S.casesV = (S.casesV || 0) + 1; queueRender(); if (S.openId === c.id && !S.editing) renderDrawer();
+  toast('Marked as not a duplicate');
+}
+
+/* ---------- Team & security: the duplicates removed lately, each can be brought back ---------- */
+function dupListHTML(list) {
+  return list.length ? list.map((c, i) => { const x = c.dup || {}, k = x.of && casePool().find(o => o.id === x.of);
+    return '<div class="row" style="cursor:default">' + ptAv(c, 32) + '<span class="grow"><span class="pt">' + ptName(c.patient) + '</span><span class="meta">' + esc(typeOf(c).l + (c.detail ? ' · ' + c.detail : '') + ' · removed ' + fmtWhen(x.at) + ' by ' + (firstName(staffName(x.by, x.by)) || '—') + (k ? ' · kept the one ' + enteredText(k) : '')) + '</span></span>' +
+      '<button class="btn btn-sec btn-sm" data-act="undup" data-i="' + i + '">Bring back</button></div>'; }).join('')
+    : '<div class="small muted">No duplicates removed in the last 90 days.</div>';
+}
+/* (once loaded, the list stays through the page's own redraws — the Staff Hub roster or the lab-email status arriving) */
+function dupAdminCardHTML() {
+  return '<div class="card" style="margin-top:18px"><div class="cardHd"><h3>Removed duplicates</h3><span class="sub">Last 90 days</span><span style="flex:1"></span><button class="btn btn-ghost" data-act="loadDups">' + ic('refresh', 15) + 'Load</button></div>' +
+    '<div class="cardBd" id="dupBox">' + (S.dupList ? dupListHTML(S.dupList) : '<div class="small muted">Cases anyone removed as a duplicate. Each can be brought back. Click Load.</div>') + '</div></div>';
+}
+function dupHistText(x) {
+  if (x.a === 'dup') { const k = x.of && casePool().find(o => o.id === x.of); return 'removed it as a duplicate' + (k ? ' (kept the ' + typeOf(k).l + ' case ' + enteredText(k) + ')' : ''); }
+  if (x.a === 'undup') return 'brought it back (it had been removed as a duplicate)';
+  if (x.a === 'notdup') return 'marked it as not a duplicate';
+  if (x.a === 'dupcopy') return x.undo ? 'took back what was copied from a duplicate' : 'copied ' + (x.n === 1 ? 'a comment' : (x.n || 'the') + ' comments') + ' from a duplicate case';
+  return '';
+}
+Object.assign(ADMIN_ACTS, {
+  ptOpen(t) { const id = t.dataset.id; if (!S.cases.has(id)) return; closeModal(); openDrawer(id); },
+  dupRemove() { if (S.openId) dupRemoveModal(S.openId); },
+  notDup() { const c = findCase(S.openId); if (c) notDupRun(c); },
+  dupsF() { S.f.dups = S.f.dups ? '' : '1'; if (S.f.dups) S.sort = { k: 'patient', dir: 1 }; renderView(); },
+  async loadDups() {
+    const box0 = $('#dupBox'); if (!box0) return; box0.innerHTML = '<div class="small muted">Loading…</div>';
+    try {
+      S.dupList = (await B.loadChanged(90)).filter(c => c.dup).map(c => { c.stage = liveStage(c); return c; }).sort((a, b) => ((b.dup || {}).at || 0) - ((a.dup || {}).at || 0));
+      const box = $('#dupBox'); if (box) { box.innerHTML = dupListHTML(S.dupList); phPaint(); }
+    } catch (x) { const box = $('#dupBox'); if (box) box.innerHTML = '<div class="small" style="color:var(--coral-700)">' + esc(errText(x)) + '</div>'; }
+  },
+  async undup(t) {
+    const c = S.dupList && S.dupList[Number(t.dataset.i)]; if (!c) return; busyBtn(t, true, 'Bringing back…');
+    try { await B.mutateCase(c.id, d => { if (!d.dup) return 'skip'; const was = d.dup.was; delete d.dup; return was === 'done' ? 'done' : 'open'; }, { a: 'undup' }).catch(skipOk); S.closedLoaded = false; toast((ptNameText(c.patient) || 'Case') + ' is back'); ADMIN_ACTS.loadDups(); }
+    catch (e) { busyBtn(t, false); toast(errText(e), { bad: true }); }
+  }
 });
 
 /* generated by tools/rxforms.py from Specialty Appliances' Herbst Rx (MKT-005, Rev 3-25), Retainer Rx (MKT-7, Rev 2-25),

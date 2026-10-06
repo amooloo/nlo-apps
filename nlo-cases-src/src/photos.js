@@ -83,16 +83,34 @@ function phInit() {
   document.body.classList.toggle('phHide', PH.hide);
   phBindPaste();
 }
-function phAny() { return PH.hide || openCases().some(c => c.photo); }
 function phHideBtn() {
-  return '<button class="iconBtn phTgl" data-act="phHide" aria-pressed="' + PH.hide + '" title="' + (PH.hide ? 'Patient photos are blurred on this computer — click to show them' : 'Blur patient photos on this computer (for screens patients can see)') + '" aria-label="' + (PH.hide ? 'Show patient photos' : 'Hide patient photos') + '">' + ic(PH.hide ? 'eyeOff' : 'eye', 19) + '</button>';
+  return '<button class="iconBtn phTgl" data-act="phHide" aria-pressed="' + PH.hide + '" title="' + (PH.hide ? 'Patient photos are blurred and names shortened on this computer — click to show them' : 'Blur patient photos and shorten names on this computer (for screens patients can see)') + '" aria-label="' + (PH.hide ? 'Show patient photos and names' : 'Hide patient photos and names') + '">' + ic(PH.hide ? 'eyeOff' : 'eye', 19) + '</button>';
 }
 function phToggleHide() {
   PH.hide = !PH.hide;
   try { localStorage.setItem('nloCases.hidePhotos', PH.hide ? '1' : '0'); } catch (e) { }
   document.body.classList.toggle('phHide', PH.hide);
   $$('[data-act=phHide]').forEach(b => { b.outerHTML = phHideBtn(); });
-  toast(PH.hide ? 'Patient photos are blurred on this computer. Hover over one to see it.' : 'Patient photos are shown again.');
+  queueRender(); if (S.openId && !S.editing) renderDrawer(); // (names in plain text — a lab email's pick list, a tooltip — follow)
+  toast(PH.hide ? 'Patient photos are blurred and names shortened (Jane D.) on this computer. Hover over one to see it.' : 'Patient photos and full names are shown again.');
+}
+/* … and names (Amir, 6 Oct 2026: "when you click on the eye icon to … hide the faces, can you make the names just to show them just
+   the initials, not the full name? Or maybe first name and last name initial?"): the first name and the last name's initial,
+   "Jane D.", so the team still knows who's who. Hovering over one shows the full name, like a photo. Drawn with CSS from the
+   page's own text (ptName), so turning it on or off doesn't redraw anything; plain text (a pick list) uses shortName itself. */
+function shortName(n) {
+  let s = String(n || '').replace(/\([^)]*\)/g, ' ').trim().replace(/\s+/g, ' '); if (!s) return '';
+  const cm = s.split(','); if (cm.length === 2 && cm[0].trim() && cm[1].trim()) s = cm[1].trim() + ' ' + cm[0].trim(); // "Doe, Jane"
+  const w = s.split(' ').filter(x => x && !/^(jr|sr|ii|iii|iv)\.?$/i.test(x));
+  if (w.length < 2) return w[0] || s;
+  const last = w[w.length - 1].replace(/^[^\p{L}\p{N}]+/u, '');
+  return w[0] + (last ? ' ' + last[0].toUpperCase() + '.' : '');
+}
+function ptNameText(n) { const full = String(n || '').trim(); return PH.hide ? shortName(full) || full : full; }
+/* a patient's name on screen; q = letters to show in bold (the New case search) */
+function ptName(n, q) {
+  const full = String(n || '').trim() || '(no name)', sh = shortName(full), inner = q ? ptHl(full, q) : esc(full);
+  return sh && sh !== full ? '<span class="pnm" data-s="' + esc(sh) + '"><span class="pnF">' + inner + '</span></span>' : inner;
 }
 
 /* ---------- the photo editor: take / choose / paste / drop a picture, then fit the face in the circle ---------- */

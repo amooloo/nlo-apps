@@ -310,6 +310,15 @@ const FB = {
     for (const d of snap.docs) { try { out.push(await FB.decryptDoc(d.id, d.data())); } catch (e) { } }
     return out;
   },
+  /* every case saved in the last `days` days, open or completed (Removed duplicates: one removed from a completed case keeps its
+     old completion date) */
+  async loadChanged(days) {
+    const since = firebase.firestore.Timestamp.fromMillis(Date.now() - days * 86400000);
+    const snap = await FB.db.collection('cases').where('updatedAt', '>=', since).get();
+    const out = [];
+    for (const d of snap.docs) { try { out.push(await FB.decryptDoc(d.id, d.data())); } catch (e) { } }
+    return out;
+  },
   async loadAll() {
     const snap = await FB.db.collection('cases').get();
     const out = [];
@@ -498,6 +507,7 @@ const FB = {
   },
   /* { pn, pc } for a case body (null when it has no name / chart #) — the same keys as histKeys() in ui.js */
   async idxFields(d) {
+    if (d && d.dup) return { pn: null, pc: null }; // a case removed as a duplicate isn't part of the patient's history (dupes.js)
     const n = normName(d && d.patient), c = normChart(d && d.chart);
     return { pn: n ? await FB.idxHash('n:' + n) : null, pc: c ? await FB.idxHash('c:' + c) : null };
   },

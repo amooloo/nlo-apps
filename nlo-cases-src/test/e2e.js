@@ -1163,7 +1163,10 @@ async function openByName(p, name) {
   await owner.click('#ncForm .pickRow[data-g=initial] .pick[data-v=no]');
   await owner.waitForSelector('#ncForm .pickRow[data-g=refN] .pick[data-v="2"][aria-pressed=true]', { timeout: 10000 });
   check(/^Refinement 1 is the latest on file/.test(await owner.textContent('#cf-refNHint')), 'New case: a patient with one refinement on file starts on refinement 2');
-  await owner.click('#ncSave'); await owner.waitForSelector('#modalWrap', { state: 'detached', timeout: 20000 });
+  // (refinement 1 is still open, so Create case asks first — dupes.js, 6 Oct 2026)
+  await owner.click('#ncSave'); await owner.waitForSelector('#ncDup #ncDupOk', { timeout: 10000 });
+  check(/Rory Refinewell already has an open In-house aligners case/.test(await owner.textContent('#ncDup')), 'refinement 1 still open: Create case asks first');
+  await owner.click('#ncDupOk'); await owner.waitForSelector('#modalWrap', { state: 'detached', timeout: 20000 });
   await gwen.waitForFunction(() => openCases().some(c => c.patient === 'Rory Refinewell' && c.refN === 2), null, { timeout: 20000 });
   check(true, 'saved, and on Gwen’s screen as refinement 2');
   const r2 = await gwen.evaluate(() => openCases().find(c => c.patient === 'Rory Refinewell' && c.refN === 2).id);
@@ -1614,6 +1617,42 @@ async function openByName(p, name) {
   await owner.evaluate(() => { S.settings.pidx = Date.now() - 7 * 3600e3; S.idxRan = false; return idxMaintain(); });
   docs = await fsDump(); const ulla2 = docs.find(d => d.name === ulla[0].name);
   check(ulla2.fields.pn && ulla2.fields.pn.stringValue.length === 22 && ulla2.fields.rev.integerValue === ulla[0].fields.rev.integerValue, 'the owner’s app gives it its index at its next check, without a new version');
+
+  console.log('\n# Duplicates (Amir, 6 Oct 2026: "how do we prevent double entries for the same case? … if there is a double created accidently. How can it be removed or archived?")');
+  await gwen.evaluate(() => { closeDrawer(true); closeModal(); }); await gwen.click('#nav-list'); await gwen.fill('#q', '');
+  await newCase(gwen, { type: 'retainer', patient: 'Dora Doubleby' });
+  const doraId = await gwen.evaluate(() => openCases().find(c => c.patient === 'Dora Doubleby').id);
+  await gwen.click('.topBar [data-act=newCase]'); await gwen.waitForSelector('#ncForm'); await gwen.click('#ncForm .tt[data-tile=retainer]');
+  await gwen.click('#cf-patient'); await gwen.keyboard.type('Dora D', { delay: 25 });
+  await gwen.waitForSelector('#cf-ptList .ptOpt', { timeout: 5000 }).catch(() => {});
+  check(/Dora Doubleby/.test(await gwen.textContent('#cf-ptList').catch(() => '')), 'New case: typing “Dora D” lists Dora Doubleby, already in');
+  await gwen.click('#cf-ptList .ptOpt'); await gwen.waitForSelector('#cf-ptInfo .ptInfo.warn', { timeout: 5000 }).catch(() => {});
+  check(/Dora Doubleby already has an open Retainers & whitening case/.test(await gwen.textContent('#cf-ptInfo')), 'picked: “already has an open Retainers & whitening case”');
+  await gwen.click('#ncSave'); await gwen.waitForSelector('#ncDup #ncDupOk', { timeout: 5000 });
+  check(await gwen.evaluate(() => openCases().filter(c => c.patient === 'Dora Doubleby').length) === 1, 'Create case asks first (nothing saved yet)');
+  await gwen.click('#ncDupOk'); await gwen.waitForSelector('#modalWrap', { state: 'detached', timeout: 20000 });
+  await gwen.waitForFunction(() => openCases().filter(c => c.patient === 'Dora Doubleby').length === 2, null, { timeout: 15000 });
+  check(await gwen.evaluate(id => { const n = openCases().find(c => c.patient === 'Dora Doubleby' && c.id !== id); return !!n && (n.notDup || []).includes(id) && !dupsOf(n).length; }, doraId), 'Create a second case anyway: saved, noted as not a duplicate, so not flagged');
+  // a real double (Sarah's app entered it again)
+  const dora2 = await sarah.evaluate(() => B.createCase({ type: 'retainer', patient: 'Dora Doubleby', stage: 'print', arches: ['Upper'], retKinds: ['TT’s'], notes: 'Lower is fine.', comments: [{ id: 'k1', at: Date.now(), by: meSid(), text: 'Bring her in Friday.' }], createdAt: Date.now(), createdBy: meSid() })).catch(e => 'ERR ' + e.message);
+  await gwen.waitForFunction(id => !!findCase(id) && dupsOf(findCase(id)).length > 0, dora2, { timeout: 15000 }).catch(() => {});
+  check(await gwen.evaluate(id => dupsOf(findCase(id)).length === 2 && !dupsOf(findCase(id)).some(o => o.id === id), dora2), 'the double shows on Gwen’s screen as a possible duplicate of the two already in');
+  await gwen.evaluate(id => openDrawer(id), dora2); await gwen.waitForSelector('#drawer .notice.dupN [data-act=dupRemove]');
+  await gwen.click('#drawer .notice.dupN [data-act=dupRemove]'); await gwen.waitForSelector('#dkGo:not([disabled])');
+  const keepDora = await gwen.evaluate(() => document.querySelector('input[name=dupKeep]:checked').value);
+  await gwen.click('#dkGo'); await gwen.waitForFunction(id => !S.cases.has(id), dora2, { timeout: 15000 }).catch(() => {});
+  await gwen.waitForFunction(k => ((findCase(k) || {}).comments || []).some(x => x.text === 'Bring her in Friday.'), keepDora, { timeout: 15000 }).catch(() => {});
+  docs = await fsDump(); let d2 = docs.find(d => d.name.endsWith('/cases/' + dora2));
+  check(!!d2 && d2.fields.status.stringValue === 'done' && !d2.fields.pn && !d2.fields.pc, 'Gwen (staff) removes it: kept in the database, closed, out of the patient index');
+  check(await gwen.evaluate(([id, k]) => { const kc = findCase(k); return !S.cases.has(id) && !!kc && kc.comments.some(x => x.text === 'Bring her in Friday.') && kc.comments.some(x => /^Notes from the duplicate case: Lower is fine\./.test(x.text)); }, [dora2, keepDora]), 'its comment and Notes are on the case kept');
+  await gwen.evaluate(() => closeDrawer(true));
+  await owner.click('#nav-today'); await owner.click('#nav-admin'); await owner.waitForSelector('[data-act=loadDups]');
+  await owner.click('[data-act=loadDups]'); await owner.waitForSelector('#dupBox [data-act=undup]', { timeout: 20000 });
+  check(/Dora Doubleby/.test(await owner.textContent('#dupBox')) && /by Gwen/.test(await owner.textContent('#dupBox')), 'Dr. A: Team & security → Removed duplicates lists it (removed by Gwen)');
+  await owner.click('#dupBox [data-act=undup]'); await owner.waitForFunction(id => S.cases.has(id), dora2, { timeout: 15000 });
+  docs = await fsDump(); d2 = docs.find(d => d.name.endsWith('/cases/' + dora2));
+  check(d2.fields.status.stringValue === 'open' && d2.fields.pn && d2.fields.pn.stringValue.length === 22, 'Bring back: open again, back in the patient index');
+  check(!JSON.stringify(docs).includes('Doubleby'), 'no name readable in the database');
 
   console.log('\n# Backups: a sealed copy of every case; a deleted case brought back from it');
   await owner.click('#nav-today'); await owner.click('#nav-admin'); await owner.waitForSelector('#backupCard');

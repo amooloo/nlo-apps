@@ -271,6 +271,7 @@ function enterApp() {
       // a stage move still being saved wins over an older copy arriving from the server (quick → → → clicks)
       // (a case saved at a retired step shows at the step that replaced it — see liveStage)
       up.forEach(c => { applNorm(c); c.stage = liveStage(c); const p = S.pend && S.pend[c.id]; if (p) { c.stage = p.to; if (p.extra) Object.assign(c, p.extra); } S.cases.set(c.id, c); }); gone.forEach(id => S.cases.delete(id));
+      S.casesV = (S.casesV || 0) + 1; // (the open cases changed: possible duplicates are worked out again — dupes.js)
       const first = S.firstLoad; S.firstLoad = false; queueRender();
       if (first) setTimeout(mailSync, 300); // lab emails that came in while nobody had the app open
       if (first) setTimeout(iprAutoSync, 1500); // the IPR Tracker, for every patient at once, when the link is still on in this tab
@@ -336,7 +337,7 @@ async function lockOut(msg) {
   if (TOUR.on) msg = tourPause(msg); // practice mode: signing back in picks the tour up again
   S.inApp = false; clearInterval(S.idleTimer); clearInterval(S.mailTimer);
   closeModal(); closeDrawer(true);
-  S.cases = new Map(); S.closed = []; histReset(); wkReset(); S.members = []; S.roster = []; S.iprCache = {}; S.verList = null; S.delList = null; S.impList = null; S.bk = null;
+  S.cases = new Map(); S.closed = []; histReset(); wkReset(); dupReset(); S.members = []; S.roster = []; S.iprCache = {}; S.verList = null; S.delList = null; S.impList = null; S.bk = null;
   Object.assign(MAILS, { list: [], unread: [], pick: {}, sig: '', state: null, stateAt: 0, script: '', gone: new Set(), goneFp: new Set(), hk: null, mem: null });
   phReset(); rxReset(); SH.data = null; SH.err = '';
   { const ts = $('#toasts'); if (ts) ts.innerHTML = ''; } // a toast's Copy chart note / Download PDF is for the case on screen
@@ -366,7 +367,7 @@ function byDue(a, b) {
   return x < y ? -1 : x > y ? 1 : String(a.patient).localeCompare(String(b.patient));
 }
 /* the list filters; del/delDay filter by the delivery date alone, not the lab date (Amir, 2 Oct 2026) */
-function noFilters() { return { type: '', stage: '', who: '', due: '', del: '', delDay: '', grp: '', ship: '', noship: '' }; }
+function noFilters() { return { type: '', stage: '', who: '', due: '', del: '', delDay: '', grp: '', ship: '', noship: '', dups: '' }; }
 const DEL_OPTS = [['all', 'All, sorted by delivery appt'], ['past', 'Delivery appt passed'], ['today', 'Delivery appt today'], ['tomorrow', 'Delivery appt tomorrow'],
   ['week', 'Delivery appt in the next 7 days'], ['14', 'Delivery appt in the next 14 days'], ['day', 'Delivery appt on a day…'], ['none', 'No delivery appt']];
 function delMatch(c, f) {
@@ -472,7 +473,7 @@ const TITLES = { today: 'Today', board: 'Board', list: 'All open cases', mine: '
 function topBar(extra) {
   return '<div class="topBar"><h2>' + esc(TITLES[S.view]) + '</h2>' +
     (['today', 'board', 'list', 'mine', 'done'].includes(S.view) ? '<label class="searchBox">' + ic('search', 17) + '<span class="hidden">Search</span><input id="q" type="search" placeholder="Search patient, type, stage…" value="' + esc(S.q) + '" aria-label="Search cases"></label>' : '<span style="flex:1"></span>') +
-    (extra || '') + (['today', 'board', 'list', 'mine', 'done'].includes(S.view) && phAny() ? phHideBtn() : '') + '<button class="btn btn-teal" data-act="newCase">' + ic('plus', 16) + 'New case</button></div>';
+    (extra || '') + (['today', 'board', 'list', 'mine', 'done'].includes(S.view) ? phHideBtn() : '') + '<button class="btn btn-teal" data-act="newCase">' + ic('plus', 16) + 'New case</button></div>';
 }
 function renderView() {
   // the search box keeps its cursor and selection through a redraw (it used to jump to the end, so a live update landing just
@@ -861,6 +862,7 @@ function ensureHistAll() {
 }
 function histArrived() {
   $$('.cf').forEach(cf => { if (cf._alTot) cf._alTot(); if (cf._syncTx) cf._syncTx(); });
+  const nc = $('#modalWrap'); if (nc && nc._ptRefresh) nc._ptRefresh(); // New case: the patient search and their cases (dupes.js)
   if (!S.editing && S.openId) renderDrawer();
   if (S.view === 'list' || S.view === 'mine') queueRender();
 }
@@ -970,9 +972,9 @@ function asgKey(e) {
   return false;
 }
 function row(c, meta) {
-  const sw = shipWarnFlag(c); // (Not shipped: on its own line under the name, so a narrow column doesn't cut the name short)
+  const sw = shipWarnFlag(c) + dupFlag(c); // (Not shipped, Possible duplicate: on their own line under the name, so a narrow column doesn't cut the name short)
   return '<button class="row" data-act="open" data-id="' + esc(c.id) + '">' + ptAv(c, 36) +
-    '<span class="grow"><span class="pt">' + esc(c.patient || '(no name)') + '</span>' + (sw ? '<span class="rFlag">' + sw + '</span>' : '') + '<span class="meta">' + esc(meta != null ? meta : (typeOf(c).l + ' · ' + stageLabel(c) + (c.detail ? ' · ' + c.detail : ''))) + '</span></span>' + shipFlag(c, true) + dueChip(c) + avatar(c) + '</button>';
+    '<span class="grow"><span class="pt">' + ptName(c.patient) + '</span>' + (sw ? '<span class="rFlag">' + sw + '</span>' : '') + '<span class="meta">' + esc(meta != null ? meta : (typeOf(c).l + ' · ' + stageLabel(c) + (c.detail ? ' · ' + c.detail : ''))) + '</span></span>' + shipFlag(c, true) + dueChip(c) + avatar(c) + '</button>';
 }
 
 /* ---------- Today ---------- */
@@ -1028,12 +1030,12 @@ function kcard(c, last, steps) {
   const mixed = S.boardFlow === 'outside' || S.boardFlow === 'inhouse' || S.boardFlow === 'retainer';
   // appliances and MARPE: the lab's logo on every card (the lab differs from card to card even on their own tabs)
   const labbed = (c.type === 'appliance' || c.type === 'marpe') && !!LAB_LOGO[labName(c.lab)];
-  const flags = shipWarnFlag(c) + shipFlag(c) + recFlag(c) + holdFlag(c);
+  const flags = shipWarnFlag(c) + dupFlag(c) + shipFlag(c) + recFlag(c) + holdFlag(c);
   // the arrow names where it goes ("Move to TxP approved")
   const nx = last ? null : nextStage(c), shipsNext = !!nx && !!shipEnd(c) && nx === shipEnd(c);
   const tip = last ? 'Mark complete' : shipsNext ? 'Shipped to the patient — completes the case' : nx ? 'Move to ' + stageLabel(Object.assign({}, c, { stage: nx })) : 'Move to next stage';
   return '<div class="kc" data-act="open" data-id="' + esc(c.id) + '" role="button" tabindex="0">' +
-    '<div class="kHd">' + ptAv(c, 32) + '<div class="pt">' + esc(c.patient || '(no name)') + '</div></div>' + (c.detail || alN(c) ? '<div class="dt">' + esc(c.detail || '') + alignerMini(c) + '</div>' : '') +
+    '<div class="kHd">' + ptAv(c, 32) + '<div class="pt">' + ptName(c.patient) + '</div></div>' + (c.detail || alN(c) ? '<div class="dt">' + esc(c.detail || '') + alignerMini(c) + '</div>' : '') +
     (flags ? '<div class="flags">' + flags + '</div>' : '') +
     (steps ? '<div class="kstep">' + progHTML(c, steps) + '<div><b>' + esc(stageLabel(c)) + '</b><span>' + (steps.indexOf(c.stage) + 1) + ' of ' + steps.length + '</span></div></div>' : '') +
     '<div class="ft">' + (mixed || labbed ? typeMark(c, true) : '') + dueChip(c) + trackLinks(c) + asgBtnHTML(c, true) +
@@ -1056,6 +1058,7 @@ function applyFilters(list) {
     if (f.grp === 'arrived' && c.stage !== 'arrived') return false;
     if (f.ship && !c.shipToPatient) return false;
     if (f.noship && !shipWarn(c)) return false;
+    if (f.dups && !dupsOf(c).length) return false;
     return true;
   });
 }
@@ -1087,7 +1090,7 @@ function cleanupCardHTML(all) {
     '<label class="small oldPick">Older than <select id="oldMonths"' + off + '>' + [1, 2, 3, 6, 12].map(m => '<option value="' + m + '"' + (S.oldMonths === m ? ' selected' : '') + '>' + m + (m === 1 ? ' month' : ' months') + '</option>').join('') + '</select></label></div><div class="cardBd">' +
     (o.undated.length ? '<label class="small oldNo"><input type="checkbox" id="oldNoDate"' + (S.oldNoDate ? ' checked' : '') + off + '> Also include ' + o.undated.length + ' imported case' + (o.undated.length > 1 ? 's' : '') + ' with no dates</label>' : '') +
     (o.list.length ? '<div class="oldList">' + o.list.map(c => '<label class="oldRow"><input type="checkbox" data-old="' + esc(c.id) + '"' + (S.oldOff.has(c.id) ? '' : ' checked') + off + '>' +
-      '<span class="pt">' + esc(c.patient || '(no name)') + '</span><span class="small muted">' + esc(typeOf(c).l + ' · ' + stageLabel(c)) + '</span><span class="small oldD">' + esc(ageOf(c) ? fmtDate(ageOf(c)) : 'no date') + '</span></label>').join('') + '</div>'
+      '<span class="pt">' + ptName(c.patient) + '</span><span class="small muted">' + esc(typeOf(c).l + ' · ' + stageLabel(c)) + '</span><span class="small oldD">' + esc(ageOf(c) ? fmtDate(ageOf(c)) : 'no date') + '</span></label>').join('') + '</div>'
       : '<div class="small muted" style="margin:6px 0 10px">No open cases older than that' + (o.undated.length ? ' with a date' : '') + '.</div>') +
     '<div class="oldAct"><b id="oldStatus">' + esc(busy || (n + ' of ' + o.list.length + ' ticked')) + '</b>' +
     (o.list.length ? '<button class="btn btn-ghost btn-sm" data-act="oldAll"' + off + '>Tick all</button><button class="btn btn-ghost btn-sm" data-act="oldNone"' + off + '>Untick all</button>' : '') + '<span style="flex:1"></span>' +
@@ -1145,7 +1148,9 @@ function viewList(base, showWho) {
     (grpLabel ? '<button class="chip on" data-act="clearGrp">' + esc(grpLabel) + ' ✕</button>' : '') +
     (base.some(c => c.shipToPatient) || f.ship ? '<button class="chip flt' + (f.ship ? ' on' : '') + '" data-act="shipF" aria-pressed="' + !!f.ship + '">' + ic('truck', 15) + 'Ship to patient<span class="c">' + base.filter(c => c.shipToPatient && matchesQ(c)).length + '</span></button>' : '') +
     (base.some(c => shipWarn(c)) || f.noship ? '<button class="chip flt noshipF' + (f.noship ? ' on' : '') + '" data-act="noshipF" aria-pressed="' + !!f.noship + '">' + ic('alert', 15) + 'Not shipped<span class="c">' + base.filter(c => shipWarn(c) && matchesQ(c)).length + '</span></button>' : '') +
-    ((f.type || f.stage || f.who || f.due || f.del || f.grp || f.ship || f.noship) ? '<button class="btn btn-ghost" data-act="clearF">Clear filters</button>' : '') +
+    // cases that look entered twice (dupes.js)
+    (base.some(c => dupsOf(c).length) || f.dups ? '<button class="chip flt dupsF' + (f.dups ? ' on' : '') + '" data-act="dupsF" aria-pressed="' + !!f.dups + '">' + ic('copy', 15) + 'Possible duplicates<span class="c">' + base.filter(c => dupsOf(c).length && matchesQ(c)).length + '</span></button>' : '') +
+    ((f.type || f.stage || f.who || f.due || f.del || f.grp || f.ship || f.noship || f.dups) ? '<button class="btn btn-ghost" data-act="clearF">Clear filters</button>' : '') +
     colsControlHTML(LIST_COLS.map(x => x[0])) + '</div>';
   return h + '<div id="listBody">' + listBodyHTML(base) + '</div>';
 }
@@ -1286,11 +1291,12 @@ function listBodyHTML(base) {
       (on('notes') ? th('notes', 'Notes', 'hideM noteCol') : '') + (on('lab') ? th('lab', 'Lab date', 'hideM dateCol') : '') + (on('appt') ? th('appt', 'Delivery appt', 'hideM dateCol') : '') + (on('tx') ? th('tx', 'Tx progress', 'hideM txCol') : '') + (on('cost') ? th('cost', 'Tx cost', 'hideM txCol') : '') +
       (on('ship') ? th('ship', 'Shipping', 'hideM') : '') + (on('who') ? th('who', 'Assigned', 'hideM') : '') + (on('updated') ? th('updated', 'Updated', 'hideM') : '') + '</tr></thead><tbody>' +
     list.map(c => { const g = stageGroup(flowOf(c), c.stage), ship = on('ship') ? shipFlag(c) + trackLinks(c) : '';
-      return '<tr class="click" data-act="open" data-id="' + esc(c.id) + '" tabindex="0"><td><div class="ptCell">' + ptAv(c, 36) + '<div class="ptTxt"><div class="pt">' + esc(c.patient || '(no name)') + '</div><div class="small muted">' + esc(c.detail || '') + alignerMini(c) + '</div>' +
-      (ship ? '<div class="flags onlyM">' + ship + '</div>' : '') + (on('stage') ? '' : (shipWarn(c) ? '<div class="flags">' + shipWarnFlag(c) + '</div>' : '') + dateM(c)) + (on('notes') ? noteMobHTML(c) : '') + '</div></div></td>' +
+      const df = dupFlag(c);
+      return '<tr class="click" data-act="open" data-id="' + esc(c.id) + '" tabindex="0"><td><div class="ptCell">' + ptAv(c, 36) + '<div class="ptTxt"><div class="pt">' + ptName(c.patient) + '</div><div class="small muted">' + esc(c.detail || '') + alignerMini(c) + '</div>' +
+      (ship ? '<div class="flags onlyM">' + ship + '</div>' : '') + (on('stage') ? '' : (shipWarn(c) || df ? '<div class="flags">' + shipWarnFlag(c) + df + '</div>' : '') + dateM(c)) + (on('notes') ? noteMobHTML(c) : '') + '</div></div></td>' +
       (on('type') ? '<td class="hideM">' + typeMark(c) + '</td>' : '') +
       (on('stage') ? '<td class="stg">' + progHTML(c) + '<div class="small">' + esc(stageLabel(c)) + (g ? ' <span class="muted">· ' + esc(g.l.toLowerCase()) + ' ' + (g.stages.indexOf(c.stage) + 1) + '/' + g.stages.length + '</span>' : '') + '</div>' +
-        (recFlag(c) || holdFlag(c) || shipWarn(c) ? '<div class="flags">' + shipWarnFlag(c) + recFlag(c) + holdFlag(c) + '</div>' : '') + dateM(c) + '</td>' : '') +
+        (recFlag(c) || holdFlag(c) || shipWarn(c) || df ? '<div class="flags">' + shipWarnFlag(c) + df + recFlag(c) + holdFlag(c) + '</div>' : '') + dateM(c) + '</td>' : '') +
       (on('notes') ? '<td class="hideM noteCol">' + noteCellHTML(c) + '</td>' : '') + // the latest note, next to the stage (5 Oct 2026)
       (on('lab') ? '<td class="hideM dateCol labCol">' + labChip(c, true) + '</td>' : '') +
       (on('appt') ? '<td class="hideM dateCol apptCol">' + apptChip(c, true) + '</td>' : '') +
@@ -1312,7 +1318,7 @@ function viewDone() {
   const hid = hiddenCols(), on = k => !hid.has(k);
   const th = (k, l, cls) => '<th class="' + (cls || '') + '"><span class="thIn">' + l + '<button class="thHide" data-act="hideCol" data-k="' + k + '" title="Hide this column" aria-label="Hide the ' + esc(l) + ' column">' + ic('eyeOff', 14) + '</button></span></th>';
   return h + '<div class="card tblWrap"><table class="tbl"><thead><tr><th>Patient</th>' + (on('type') ? th('type', 'Type', 'hideM') : '') + '<th>Completed</th>' + (on('stage') ? th('stage', 'Last stage', 'hideM') : '') + '</tr></thead><tbody>' +
-    list.map(c => '<tr class="click" data-act="openClosed" data-id="' + esc(c.id) + '" tabindex="0"><td><div class="ptCell">' + ptAv(c, 36) + '<div class="ptTxt"><div class="pt">' + esc(c.patient) + '</div><div class="small muted">' + esc(c.detail || '') + '</div></div></div></td>' +
+    list.map(c => '<tr class="click" data-act="openClosed" data-id="' + esc(c.id) + '" tabindex="0"><td><div class="ptCell">' + ptAv(c, 36) + '<div class="ptTxt"><div class="pt">' + ptName(c.patient) + '</div><div class="small muted">' + esc(c.detail || '') + '</div></div></div></td>' +
       (on('type') ? '<td class="hideM">' + typeMark(c) + '</td>' : '') + '<td class="small">' + esc(fmtWhen(c.closedAt)) + '</td>' + (on('stage') ? '<td class="hideM small">' + esc(stageLabel(c)) + '</td>' : '') + '</tr>').join('') +
     '</tbody></table></div>';
 }
@@ -1368,6 +1374,7 @@ function historyHTML(c) {
     else if (x.a === 'assign') t = x.to ? 'assigned it to ' + staffName(x.to, x.to) : 'unassigned it';
     else if (x.a === 'edit') t = 'changed ' + Array.from(new Set((x.fields || []).filter(f => f !== 'instructions').map(f => FIELD_LABELS[f] || f))).join(', ') + shipped(x);
     else if (x.a === 'restore') t = 'restored an earlier version';
+    else if (x.a === 'dup' || x.a === 'undup' || x.a === 'notdup' || x.a === 'dupcopy') t = dupHistText(x); // (dupes.js)
     else if (x.a === 'photo') t = { add: 'added a photo', change: 'changed the photo', remove: 'removed the photo', copy: 'added the photo from another of the patient’s cases', undo: 'put the earlier photo back' }[x.how] || 'changed the photo';
     else if (x.a === 'email') { // applied from a lab email (mail.js); shown as the email, not the person whose app applied it
       const f = Array.from(new Set((x.fields || []).filter(k => k !== 'mailIds').map(k => FIELD_LABELS[k] || k)));
@@ -1417,12 +1424,13 @@ function renderDrawer() {
   d.dataset.for = c.id; d.dataset.mode = 'view';
   d.innerHTML = '<div class="dHd"><button type="button" class="dPh" data-act="phEdit" title="' + (c.photo ? 'Change or remove the photo' : 'Add a photo of the patient') + '" aria-label="' + (c.photo ? 'Patient photo: change or remove' : 'Add a patient photo') + '">' + ptAv(c, 64) + '<span class="dPhCam">' + ic('camera', 13) + '</span></button>' +
     // what the case is (arch, appliances, lab, kind of submission, extras) sits under the name — it was its own "Case" section
-    '<div style="flex:1;min-width:0"><div class="dKind" id="dKind">' + esc(caseTitle(c)) + '</div><h3>' + esc(c.patient || '(no name)') + '</h3><div class="sub">' + typeBadge(c) + (detailShown(c) ? '<span class="small muted">' + esc(detailShown(c)) + '</span>' : '') + caseBadges(c, true) + '</div>' + lblBtn + '</div>' +
+    '<div style="flex:1;min-width:0"><div class="dKind" id="dKind">' + esc(caseTitle(c)) + '</div><h3>' + ptName(c.patient) + '</h3><div class="sub">' + typeBadge(c) + (detailShown(c) ? '<span class="small muted">' + esc(detailShown(c)) + '</span>' : '') + caseBadges(c, true) + '</div>' + lblBtn + '</div>' +
     '<button type="button" class="btn btn-ghost dAll" data-act="dsAll"></button><button class="iconBtn" data-act="closeDrawer" aria-label="Close">' + ic('x') + '</button></div>' +
     '<div class="dBd"><div id="drawerNotice"></div>' +
     (done ? '<div class="notice info">Completed ' + esc(fmtWhen(c.closedAt)) + '</div>' : '') +
     (c.shipToPatient ? '<div class="notice ship" role="note">' + ic('truck', 18) + '<span><b>Ship to patient</b></span></div>' : '') +
     (!done && shipWarn(c) ? (x => '<div class="notice noship ' + x.lv + '" role="note">' + ic(x.lv === 'late' ? 'alert' : 'truck', 18) + '<span><b>' + shipWarnLabel(x) + '</b> — ' + esc(shipWarnWhy(c, x)) + '</span></div>')(shipWarn(c)) : '') +
+    dupNoticeHTML(c) + // another open case that looks like this one (dupes.js)
     (isHeld(c) ? '<div class="notice bad mpOld" role="note"><span><b>' + esc(holdText(c)) + '</b></span>' + (done ? '' : '<button class="btn btn-sec btn-sm" data-act="clearHold">Hold is sorted out</button>') + '</div>' : '') +
     // a MARPE entered (or imported) as an appliance before MARPE had its own steps: one click moves it over
     (!done && isOldMarpe(c) ? '<div class="notice info mpOld"><span>MARPE has its own steps now: records, lab, Zoom call, design approval, delivery.</span><button class="btn btn-sec btn-sm" data-act="toMarpe">Switch to MARPE steps</button></div>' : '') +
@@ -1479,7 +1487,9 @@ function renderDrawer() {
     '</div></div>' +
     '<div class="dFt">' + (done ? '<button class="btn btn-sec" data-act="reopen">Reopen</button>' :
       '<button class="btn btn-mint" data-act="complete" data-id="' + esc(c.id) + '">' + ic('done', 16) + 'Mark complete</button><button class="btn btn-sec" data-act="edit">' + ic('edit', 16) + 'Edit</button>') +
-    (isOwner() ? '<span style="flex:1"></span><button class="btn btn-ghost" data-act="versions">' + ic('clock', 16) + 'Versions</button><button class="btn btn-ghost" data-act="delCase" style="color:var(--coral-700)">' + ic('trash', 16) + 'Delete</button>' : '') + '</div>';
+    // a case entered twice: anyone can take the extra one out (dupes.js)
+    '<span class="dFtR"><button class="btn btn-ghost" data-act="dupRemove" title="This case was entered twice: take this one out and keep the other">' + ic('copy', 16) + 'Remove duplicate</button>' +
+    (isOwner() ? '<button class="btn btn-ghost" data-act="versions">' + ic('clock', 16) + 'Versions</button><button class="btn btn-ghost" data-act="delCase" style="color:var(--coral-700)">' + ic('trash', 16) + 'Delete</button>' : '') + '</span></div>';
   const t = $('#cmtText'); if (t) { t.value = keepCmt; if (hadFocus) t.focus(); }
   wtyRestore(wKeep);
   if (keepTop) $('.dBd', d).scrollTop = keepTop;
@@ -1961,7 +1971,7 @@ async function shipDone(c, end, extra) {
     if (S.hist) S.hist.unshift(Object.assign({}, c, extra || {}, { stage: end, status: 'done', closedAt: Date.now() }));
     if (S.openId === id) closeDrawer(true);
     S.closedLoaded = false;
-    toast((c.patient || 'Case') + ' shipped to the patient — case complete', { action: 'Undo', onAction: () => act(() => B.mutateCase(id, d => { d.stage = from; return 'open'; }, { a: 'reopen' }), 'Reopened') });
+    toast((ptNameText(c.patient) || 'Case') + ' shipped to the patient — case complete', { action: 'Undo', onAction: () => act(() => B.mutateCase(id, d => { d.stage = from; return 'open'; }, { a: 'reopen' }), 'Reopened') });
   } catch (e) { toast(errText(e), { bad: true }); }
 }
 async function completeCase(id) {
@@ -1971,7 +1981,7 @@ async function completeCase(id) {
     if (S.hist) S.hist.unshift(Object.assign({}, c, { status: 'done', closedAt: Date.now() }));
     if (S.openId === id) closeDrawer(true);
     S.closedLoaded = false;
-    toast((c.patient || 'Case') + ' marked complete', { action: 'Undo', onAction: () => act(() => B.mutateCase(id, () => 'open', { a: 'reopen' }), 'Reopened') });
+    toast((ptNameText(c.patient) || 'Case') + ' marked complete', { action: 'Undo', onAction: () => act(() => B.mutateCase(id, () => 'open', { a: 'reopen' }), 'Reopened') });
   } catch (e) { toast(errText(e), { bad: true }); }
 }
 function onClick(e) {
@@ -2014,7 +2024,7 @@ function onClick(e) {
     case 'noshipF': S.f.noship = S.f.noship ? '' : '1'; renderView(); break;
     case 'track': break; // the link itself opens the carrier's page in a new tab (and doesn't open the case)
     case 'portal': { const c = findCase(S.openId); // the link itself opens the portal in a new tab
-      if (c && c.patient) copyText(c.patient).then(ok => toast(ok ? 'Copied “' + c.patient + '” — paste it in the portal’s search' : 'Couldn’t copy the name — type it in the portal', ok ? {} : { bad: true })); break; }
+      if (c && c.patient) copyText(c.patient).then(ok => toast(ok ? (PH.hide ? 'Copied the patient’s name' : 'Copied “' + c.patient + '”') + ' — paste it in the portal’s search' : 'Couldn’t copy the name — type it in the portal', ok ? {} : { bad: true })); break; }
     case 'reopen': act(async () => { await B.mutateCase(S.openId, () => 'open', { a: 'reopen' }); S.closed = S.closed.filter(c => c.id !== S.openId); closeDrawer(true); }, 'Reopened'); break;
     case 'assignTo': { const to = t.dataset.v || '', id = S.openId, c = findCase(id); if (!c || (c.assignee || '') === to) break;
       $$('#drawer .dAssign .aTile').forEach(b => b.setAttribute('aria-pressed', String(b === t)));
@@ -2124,7 +2134,7 @@ async function saveEdit() {
     if (ships) { // shipped to the patient = complete
       if (S.hist && cur) S.hist.unshift(Object.assign({}, cur, { status: 'done', closedAt: Date.now() }));
       S.editing = false; closeDrawer(true); S.closedLoaded = false;
-      toast((now.patient || 'Case') + ' shipped to the patient — case complete', { action: 'Undo', onAction: () => act(() => B.mutateCase(id, x => { x.stage = base.stage; return 'open'; }, { a: 'reopen' }), 'Reopened') });
+      toast((ptNameText(now.patient) || 'Case') + ' shipped to the patient — case complete', { action: 'Undo', onAction: () => act(() => B.mutateCase(id, x => { x.stage = base.stage; return 'open'; }, { a: 'reopen' }), 'Reopened') });
       return;
     }
     S.editing = false; toast('Saved'); renderDrawer(); loadHistory(id);

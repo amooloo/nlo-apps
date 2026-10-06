@@ -836,6 +836,7 @@ function wireCaseForm(root, isNew) {
     }
     if (det.dataset.auto === '1') det.value = autoDetail(o, tile);
     assignTilesSync(root); alTot();
+    if (isNew && root._dupSync) root._dupSync(); // the patient's open cases under the name: a case like this one already? (dupes.js)
   };
   // in-house aligners: this set plus the patient's earlier sets (matched by chart #, else name)
   const cfEl = $('.cf', root) || root;
@@ -1018,9 +1019,9 @@ function newCaseModal() {
   const roster = activeRoster().filter(r => r.role !== 'owner');
   const base = { scanDate: todayISO(), assistant: roster.some(r => r.sid === meSid()) ? meSid() : '' };
   openModal('<h3>New case</h3><div class="lsub">Tap through it after the scan. Only the patient’s name needs typing. Encrypted before it leaves this computer.</div><div id="ncErr"></div><form id="ncForm" novalidate>' + caseFormHTML(base, true) +
-    '<div class="mFt"><button class="btn btn-sec" type="button" data-act="closeModal">Cancel</button><button class="btn btn-teal" type="submit" id="ncSave">' + ic('plus', 16) + 'Create case</button></div></form>', w => {
+    '<div id="ncDup"></div><div class="mFt"><button class="btn btn-sec" type="button" data-act="closeModal">Cancel</button><button class="btn btn-teal" type="submit" id="ncSave">' + ic('plus', 16) + 'Create case</button></div></form>', w => {
       w.querySelector('.modal').classList.add('wide');
-      wireCaseForm(w, true); phWireForm(w); savPaint(w);
+      wireCaseForm(w, true); phWireForm(w); ptWire(w); savPaint(w); // (ptWire: the name looks up the patients already in — dupes.js)
       $('#ncForm', w).onsubmit = async e => {
         e.preventDefault(); const data = readCaseForm(w);
         const err = m => { $('#ncErr', w).innerHTML = '<div class="lockErr" role="alert">' + esc(m) + '</div>'; $('#ncErr', w).scrollIntoView({ block: 'nearest' }); };
@@ -1040,13 +1041,15 @@ function newCaseModal() {
         if (needs.includes('records')) return err('Tick both records (STL scan and CBCT) before starting it at ' + stageLabel(data) + '.');
         if (needs.includes('zoom')) return err('Add the Zoom call date to start it at Zoom call scheduled.');
         if (needs.includes('aligners') && alignersMissing(data)) return err('Enter ' + alAskText(data) + ' and pick Attachment templates to start it at ' + stageLabel(data) + '.');
+        // the patient already has an open case like this one: asked first (Open that case / Create a second case anyway) — dupes.js
+        if (!dupGate(w, data)) return;
         Object.assign(data, { comments: [], createdAt: Date.now(), createdBy: meSid() });
         if (String(data.notes || '').trim()) notesStamp(data, data.createdAt); // who wrote the Notes (the list's Notes column)
         if (data.txStart || data.txEnd) data.txAt = Date.now();
         busyBtn($('#ncSave', w), true, 'Saving…');
         try {
           await B.createCase(data, w._ph ? w._ph.bytes : null); closeModal();
-          toast('Case created for ' + data.patient, { action: 'Copy chart note', ms: 12000, onAction: () => copyText(chartNote(data)).then(ok => toast(ok ? 'Chart note copied — paste it into the patient’s chart' : 'Couldn’t copy — open the case to copy its chart note', ok ? {} : { bad: true })) });
+          toast('Case created for ' + ptNameText(data.patient), { action: 'Copy chart note', ms: 12000, onAction: () => copyText(chartNote(data)).then(ok => toast(ok ? 'Chart note copied — paste it into the patient’s chart' : 'Couldn’t copy — open the case to copy its chart note', ok ? {} : { bad: true })) });
           rxCreatedToast(data);
         }
         catch (x) { busyBtn($('#ncSave', w), false); err(errText(x)); }

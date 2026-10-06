@@ -201,6 +201,7 @@ const DEMO = {
   },
   async deleteCase(id) { const c = DEMO.cases.get(id); if (c) DEMO.deleted.push({ caseId: id, at: Date.now(), sid: DEMO.me.staffId, data: JSON.parse(JSON.stringify(c)) }); DEMO.cases.delete(id); DEMO.photos.delete(id); if (c && DEMO.h) DEMO.h.cases([], [id], false); },
   async loadClosed() { return Array.from(DEMO.cases.values()).filter(c => c.status === 'done').map(c => JSON.parse(JSON.stringify(c))); },
+  async loadChanged(days) { const since = Date.now() - days * 864e5; return Array.from(DEMO.cases.values()).filter(c => (c.updatedAt || 0) >= since).map(c => JSON.parse(JSON.stringify(c))); },
   async loadAll() { return Array.from(DEMO.cases.values()).map(c => JSON.parse(JSON.stringify(c))); },
   async caseLog(id) { return DEMO.logs.filter(l => l.caseId === id).slice().sort((a, b) => a.at - b.at); },
   async activity() { return DEMO.logs.slice().sort((a, b) => b.at - a.at).slice(0, 60); },

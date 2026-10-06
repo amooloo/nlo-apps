@@ -40,7 +40,10 @@ const OUT = process.argv[2] || 'shots';
   check(!f.shown && f.refN === '' && f.detail === 'Aligners (In-House)', 'first set: the numbers hide and nothing is saved for them');
   await p.click('#ncForm .pickRow[data-g=initial] .pick[data-v=no]'); await p.waitForTimeout(80);
   check(await refPressed() === '2', 'back to refinement: still 2 (picked by hand)');
-  await p.click('#ncSave'); await p.waitForSelector('#modalWrap', { state: 'detached', timeout: 5000 }).catch(() => {});
+  // (this patient's refinement 1 is still open, so Create case asks first — dupes.js, 6 Oct 2026)
+  await p.click('#ncSave'); await p.waitForSelector('#ncDup #ncDupOk', { timeout: 5000 }).catch(() => {});
+  check(/already has an open In-house aligners case/.test(await p.textContent('#ncDup').catch(() => '')), 'refinement 1 is still open: Create case asks first');
+  await p.click('#ncDupOk'); await p.waitForSelector('#modalWrap', { state: 'detached', timeout: 5000 }).catch(() => {});
   const nid = await p.evaluate(n => { const cs = openCases().filter(c => c.patient === n && c.type === 'nla' && c.refN === 2); return cs.length ? cs[0].id : null; }, pt);
   check(!!nid, 'saved as refinement 2');
 

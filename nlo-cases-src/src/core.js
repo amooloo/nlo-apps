@@ -126,7 +126,9 @@ const RETIRED_STAGES = { inhouse: { reset: { to: 'txp', l: 'Reset needed in 2 da
   retainer: { sarah: { to: 'pickup', l: 'On Sarah’s desk' }, pickedup: { to: 'pickup', l: 'Picked up' } } };
 function liveStage(c) { const r = c && (RETIRED_STAGES[typeOf(c).flow] || {})[c.stage]; return r ? r.to : c && c.stage; }
 function retiredStageLabel(c, k) { const r = (RETIRED_STAGES[typeOf(c).flow] || {})[k]; return r ? r.l : ''; }
-function liveCases(list) { (list || []).forEach(c => { if (c) c.stage = liveStage(c); }); return list; }
+/* completed cases as read: at the step that replaced a retired one — and without the ones removed as a duplicate (dupes.js: they
+   aren't in Completed, the patient's history or the Workload page) */
+function liveCases(list) { return (list || []).filter(c => c && !c.dup).map(c => { c.stage = liveStage(c); return c; }); }
 /* Ship to patient (aligners): the case ends when it ships (Amir, 3 Oct 2026: "if the case is being shipped, the last stage
    is shipped (we still need to know the EXPECTED DELIVERY). so shipped status = complete"). Outside labs: Shipped is the
    last step (Arrived and Checked into Milestones don't apply); in-house: the last step reads "Shipped to patient" (it is
@@ -528,7 +530,7 @@ function csvCell(v) {
   return '"' + s.replace(/"/g, '""') + '"';
 }
 function caseToCSVRow(c) {
-  return [c.patient, typeOf(c).l, c.detail, stageLabel(c), c.status === 'done' ? 'Completed' : 'Open', c.scanDate, c.labDate, c.deliveryDate ? c.deliveryDate + (c.deliveryTime ? ' ' + c.deliveryTime : '') : '', c.assigneeLabel || '', c.instructions, c.cc, c.ipr, c.notes, c.chart, c.titanUrl, (c.extras || []).join('; '), typeof submissionLabel === 'function' ? submissionLabel(c.initial, c.refN) : '', labName(c.lab), (c.teethNote || '').replace(/\n/g, '; '), c.aligners || '',
+  return [c.patient, typeOf(c).l, c.detail, stageLabel(c), c.dup ? 'Removed (duplicate)' : c.status === 'done' ? 'Completed' : 'Open', c.scanDate, c.labDate, c.deliveryDate ? c.deliveryDate + (c.deliveryTime ? ' ' + c.deliveryTime : '') : '', c.assigneeLabel || '', c.instructions, c.cc, c.ipr, c.notes, c.chart, c.titanUrl, (c.extras || []).join('; '), typeof submissionLabel === 'function' ? submissionLabel(c.initial, c.refN) : '', labName(c.lab), (c.teethNote || '').replace(/\n/g, '; '), c.aligners || '',
     c.shipToPatient ? 'Yes' : '', MARPE_RECORDS.filter(([k]) => (c.records || []).includes(k)).map(x => x[1]).join('; '), c.zoomDate ? c.zoomDate + (c.zoomTime ? ' ' + c.zoomTime : '') : '', atLabel(c.atTemplates),
     oneArch(c) === 'U' ? 'Upper only' : oneArch(c) === 'L' ? 'Lower only' : typeOf(c).aligner || ['insmile', 'inbrace'].includes(c.type) ? 'Upper & lower' : '',
     c.txStart || '', c.txEnd || '']

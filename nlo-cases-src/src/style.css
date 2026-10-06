@@ -762,7 +762,7 @@ body.phHide .pav.on:hover img,body.phHide #phWrap .pav.on img{filter:none;transf
 }
 #phWrap [hidden]{display:none !important}
 /* newer features wait for the newer security rules (Team & security explains) */
-body.phOff .pav,body.phOff .dPh,body.phOff .phSlot,body.phOff .phTgl,body.phOff .mlPh{display:none !important}
+body.phOff .pav,body.phOff .dPh,body.phOff .phSlot,body.phOff .mlPh{display:none !important}
 .rulesCard{margin-bottom:18px;border:1.5px solid var(--amber-200)}
 /* Team: from Staff Hub's roster */
 .shBox{border:1px solid var(--grey-100);border-radius:12px;padding:12px 14px;margin:6px 0 4px;background:var(--grey-50)}
@@ -1436,6 +1436,70 @@ svg.rxArch{display:block;width:100%;height:auto}
 .chip.noshipF.on .i{color:#fff}
 .swDot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:-1px;background:#C9341F}
 .swDot.soon{background:#F97316}
-.row .rFlag{display:flex;margin:2px 0 2px}
+.row .rFlag{display:flex;flex-wrap:wrap;gap:5px;margin:2px 0 2px}
 /* the sign-in screen's way into practice mode (training, 6 Oct 2026) */
 .lockFoot.lockPrac{margin-top:12px;padding-top:12px;border-top:1px solid var(--grey-100)}
+/* the eye also shortens names: "Jane D." in place of the full name, which shows again on hover (6 Oct 2026; photos.js ptName) */
+body.phHide .pnm:not(:hover) .pnF{display:none}
+body.phHide .pnm:not(:hover)::after{content:attr(data-s)}
+/* ---------- duplicates (dupes.js, 6 Oct 2026) ---------- */
+/* New case: the patients already in the app, as the name is typed */
+.ptFind{margin:2px 0 12px;border:1.5px solid var(--blue-200);border-radius:12px;background:#fff;overflow:hidden;box-shadow:var(--sh-sm)}
+.ptFind[hidden]{display:none}
+.ptfHd{font-family:var(--fd);font-weight:500;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--blue-700);background:var(--blue-100);padding:7px 12px}
+.ptOpt{display:flex;align-items:center;gap:11px;padding:8px 12px;cursor:pointer;border-top:1px solid var(--grey-100)}
+.ptOpt:first-of-type{border-top:0}
+.ptOpt:hover,.ptOpt.on{background:var(--blue-100)}
+.ptOpt.on{box-shadow:inset 3px 0 0 var(--blue)}
+.ptoTx{flex:1;min-width:0;display:flex;flex-direction:column}
+.ptoNm{font-weight:700;color:var(--navy);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ptoNm b{color:var(--blue-700);font-weight:800}
+.ptoCh{margin-left:8px;font-weight:600;font-size:11.5px;color:var(--grey-500)}
+.ptoSub{font-size:12px;color:var(--grey-600);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ptoUse{flex:none;font-family:var(--fd);font-weight:600;font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--blue);padding:4px 10px;border-radius:99px;border:1.5px solid var(--blue-200)}
+.ptOpt:hover .ptoUse,.ptOpt.on .ptoUse{background:var(--blue);border-color:var(--blue);color:#fff}
+/* … and under the name, the patient's cases */
+.ptInfo{border-radius:12px;padding:10px 12px;margin:2px 0 12px;background:var(--blue-100);color:var(--blue-700);font-size:12.5px}
+.ptInfo.warn{background:var(--amber-100);color:#7A5205;box-shadow:inset 0 0 0 1.5px var(--amber-200)}
+.ptInfo.quiet{display:flex;gap:8px;align-items:center;background:var(--grey-50);color:var(--grey-600)}
+.ptInfo .i{flex:none}
+.piHd{display:flex;gap:8px;align-items:flex-start;line-height:1.45}
+.ptInfo.warn .piHd .i{color:var(--amber-700);margin-top:1px}
+.piRow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px;padding:7px 10px;border-radius:9px;background:#fff;color:var(--grey-700)}
+.piTx{flex:1;min-width:200px}
+.piTx b{color:var(--navy)}
+.piMore{margin-top:7px;font-size:12px;opacity:.9}
+/* Create case: a second case for the same thing? */
+.dupAsk{border-radius:12px;padding:12px 14px;margin:12px 0 4px;background:var(--amber-100);color:#7A5205;box-shadow:inset 0 0 0 1.5px var(--amber-600)}
+.daHd{display:flex;gap:8px;align-items:center;font-size:13.5px;color:var(--navy-900)}
+.daHd .i{color:var(--amber-700);flex:none}
+.daTx{font-size:12.5px;margin:4px 0 10px 26px}
+.daBtns{display:flex;gap:8px;flex-wrap:wrap;margin-left:26px}
+/* a case that looks entered twice */
+.flag.dupF{background:#EEEAFB;color:#4A3AA7;box-shadow:inset 0 0 0 1px #D5CEF5}
+.chip.dupsF .i{color:#4A3AA7;margin-right:2px}
+.chip.dupsF.on .i{color:#fff}
+.notice.dupN{display:flex;gap:10px;align-items:flex-start;background:#EEEAFB;color:#3B2E8C;font-weight:500}
+.notice.dupN>.i{flex:none;margin-top:1px}
+.dupNB{flex:1;min-width:0}
+.dupNB b{font-weight:700}
+.dupNR{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;margin-top:4px}
+.dupNR span{font-weight:600}
+.dupNBtns{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+/* Remove a duplicate: which case to keep */
+.dkH{font-family:var(--fd);font-weight:500;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--grey-500);margin:4px 0 8px}
+.dkList{display:flex;flex-direction:column;gap:6px;max-height:300px;overflow:auto;margin-bottom:14px}
+.dkRow{display:flex;align-items:center;gap:10px;padding:9px 12px;border:1.5px solid var(--grey-200);border-radius:11px;cursor:pointer}
+.dkRow:hover{border-color:var(--grey-300);background:var(--grey-50)}
+.dkRow:has(input:checked){border-color:var(--blue);background:var(--blue-100)}
+.dkRow input{accent-color:var(--blue);flex:none;width:16px;height:16px}
+.dkTx{flex:1;min-width:0;display:flex;flex-direction:column}
+.dkTx b{color:var(--navy)}
+.dkSame{align-self:flex-start;margin:2px 0;font-size:11px;font-weight:700;border-radius:99px;padding:1px 8px;background:#EEEAFB;color:#4A3AA7}
+.dkNone{padding:10px 2px}
+.dkFind{margin-bottom:10px}
+.dkCopy{display:flex;gap:8px;align-items:center;font-size:13px;font-weight:600;color:var(--grey-700);margin:2px 0 8px;cursor:pointer}
+.dkCopy input{accent-color:var(--blue);width:16px;height:16px}
+.dkWhat{margin:4px 0 6px}
+/* the case panel's footer: the quieter actions (Remove duplicate; Dr. A's Versions and Delete) stay together on the right */
+.dFtR{display:flex;flex-wrap:wrap;gap:2px;margin-left:auto;justify-content:flex-end}
