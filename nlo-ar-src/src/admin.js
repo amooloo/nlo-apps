@@ -116,12 +116,19 @@ function numbersCardHTML() {
     '<div class="small muted" style="margin:-8px 0 14px">Older than that: probably never filed.</div>' +
     '<div class="field"><label for="cfgWo">Write-off candidate: 91+ under ($)</label>' + n('cfgWo', c.writeOff, '1', '1', '100000') + '</div>' +
     '<div class="field"><label for="cfgStale">Say the report is old after (days)</label>' + n('cfgStale', c.staleDays, '1', '1', '90') + '</div>' +
+    '<div class="flabel" style="margin-top:4px">Goals — Practice KPIs (handbook §19)</div><div class="grid2">' +
+    '<div class="field"><label for="cfgGoalPt">Patient accounts past due, at most (%)</label>' + n('cfgGoalPt', c.goalPt, '0.1', '0.1', '100') + '</div>' +
+    '<div class="field"><label for="cfgGoalIns">Insurance past its window, at most (%)</label>' + n('cfgGoalIns', c.goalIns, '0.1', '0.1', '100') + '</div></div>' +
+    '<div class="field"><label for="cfgKpiFrom">A patient account counts as past due</label><select class="inp" id="cfgKpiFrom" data-cfg style="max-width:100%">' +
+    [[1, 'From day 1 — anything past due (handbook)'], [31, 'From day 31 — the 30+ column (Month-End)']].map(([v, l]) => '<option value="' + v + '"' + (c.kpiFrom === v ? ' selected' : '') + '>' + l + '</option>').join('') + '</select>' +
+    '<div class="hint">Counts of accounts, not dollars. Insurance’s payment window is the “monitor up to” days above.</div></div>' +
     '<div class="small planPrev" id="cfgPrev">' + cfgPreview() + '</div>' +
     '<div class="btnRow" style="margin-top:12px"><button class="btn btn-pri btn-sm" data-act="saveCfg">Save</button><button class="btn btn-ghost" data-act="resetCfg">Back to the usual numbers</button></div></div></div>';
 }
 function readCfg() {
   const num = id => Number((($('#' + id) || {}).value || '').trim());
-  return { inst: round2(num('cfgInst')), writeOff: num('cfgWo'), tiers: [num('cfgT0'), num('cfgT1'), num('cfgT2')], staleDays: num('cfgStale') };
+  return { inst: round2(num('cfgInst')), writeOff: num('cfgWo'), tiers: [num('cfgT0'), num('cfgT1'), num('cfgT2')], staleDays: num('cfgStale'),
+    goalPt: Math.round(num('cfgGoalPt') * 10) / 10, goalIns: Math.round(num('cfgGoalIns') * 10) / 10, kpiFrom: num('cfgKpiFrom') === 31 ? 31 : 1 };
 }
 function cfgProblem(c) {
   if (!(c.inst > 0 && c.inst <= 5000)) return 'The instalment needs to be more than $0.';
@@ -129,6 +136,7 @@ function cfgProblem(c) {
   if (!(c.tiers[0] < c.tiers[1] && c.tiers[1] < c.tiers[2])) return 'Each day cutoff needs to be more than the one before it.';
   if (!(c.writeOff >= 1 && c.writeOff <= 100000)) return 'The write-off amount needs to be at least $1.';
   if (!(Number.isInteger(c.staleDays) && c.staleDays >= 1 && c.staleDays <= 90)) return 'Use 1 to 90 days for an old report.';
+  if (!(c.goalPt > 0 && c.goalPt <= 100 && c.goalIns > 0 && c.goalIns <= 100)) return 'The goals need to be between 0.1% and 100%.';
   return '';
 }
 /* what the numbers typed would give with the report on screen */
@@ -137,7 +145,9 @@ function cfgPreview() {
   const c = $('#cfgInst') ? readCfg() : S.cfg; if (cfgProblem(c)) return '<span class="muted">—</span>';
   const A = reportAccts(S.rep, arCfg({ ar: c })), nev = A.filter(a => a.months), by = t => nev.filter(a => a.tier === t).length;
   const wo = A.filter(a => a.bucket === '91' && a.b90 < c.writeOff).length;
-  return 'With the ' + esc(fmtDate(S.rep.asOf)) + ' report: <b>' + plural(nev.length, 'insurance account') + '</b> with nothing paid (chase now ' + by('chase') + ' · investigate ' + by('investigate') + ' · never filed? ' + by('nofile') + ' · monitor ' + by('monitor') + '), <b>' + wo + '</b> write-off candidate' + (wo === 1 ? '' : 's') + '.';
+  const k = kpis(S.rep, arCfg({ ar: c })), pc = x => (x * 100).toFixed(1).replace(/\.0$/, '') + '%';
+  return 'With the ' + esc(fmtDate(S.rep.asOf)) + ' report: <b>' + plural(nev.length, 'insurance account') + '</b> with nothing paid (chase now ' + by('chase') + ' · investigate ' + by('investigate') + ' · never filed? ' + by('nofile') + ' · monitor ' + by('monitor') + '), <b>' + wo + '</b> write-off candidate' + (wo === 1 ? '' : 's') + '.' +
+    (k ? ' Goals: patient accounts past due <b>' + pc(k.pt.rate || 0) + '</b> (goal ' + pc(k.pt.goal) + ')' + (k.ins ? ', insurance past its window <b>' + pc(k.ins.rate || 0) + '</b> (goal ' + pc(k.ins.goal) + ')' : '') + '.' : '');
 }
 document.addEventListener('input', e => { if (e.target.matches && e.target.matches('[data-cfg]')) { const p = $('#cfgPrev'); if (p) p.innerHTML = cfgPreview(); } });
 Object.assign(ACT, {
@@ -146,8 +156,8 @@ Object.assign(ACT, {
     act(() => B.saveSettings({ ar: c }), 'Saved — the lists use the new numbers');
   },
   async resetCfg() {
-    if (!(await confirmBox('Go back to the usual numbers?', '$' + AR_DEFAULTS.inst.toFixed(2) + ' instalment; monitor up to ' + AR_DEFAULTS.tiers[0] + ' days, chase up to ' + AR_DEFAULTS.tiers[1] + ', investigate up to ' + AR_DEFAULTS.tiers[2] + '; write-off under ' + money(AR_DEFAULTS.writeOff) + '; a report is old after ' + AR_DEFAULTS.staleDays + ' days.', 'Use the usual numbers'))) return;
-    const d = { inst: AR_DEFAULTS.inst, writeOff: AR_DEFAULTS.writeOff, tiers: AR_DEFAULTS.tiers.slice(), staleDays: AR_DEFAULTS.staleDays };
+    if (!(await confirmBox('Go back to the usual numbers?', '$' + AR_DEFAULTS.inst.toFixed(2) + ' instalment; monitor up to ' + AR_DEFAULTS.tiers[0] + ' days, chase up to ' + AR_DEFAULTS.tiers[1] + ', investigate up to ' + AR_DEFAULTS.tiers[2] + '; write-off under ' + money(AR_DEFAULTS.writeOff) + '; a report is old after ' + AR_DEFAULTS.staleDays + ' days; goals ' + AR_DEFAULTS.goalPt + '% (patient) and ' + AR_DEFAULTS.goalIns + '% (insurance), counting from the first day past due.', 'Use the usual numbers'))) return;
+    const d = { inst: AR_DEFAULTS.inst, writeOff: AR_DEFAULTS.writeOff, tiers: AR_DEFAULTS.tiers.slice(), staleDays: AR_DEFAULTS.staleDays, goalPt: AR_DEFAULTS.goalPt, goalIns: AR_DEFAULTS.goalIns, kpiFrom: AR_DEFAULTS.kpiFrom };
     if (await act(() => B.saveSettings({ ar: d }), 'Back to the usual numbers')) { S.cfg = arCfg({ ar: d }); renderView(); }
   }
 });

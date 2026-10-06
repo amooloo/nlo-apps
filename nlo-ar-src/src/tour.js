@@ -39,6 +39,8 @@ function tourSteps(kind) {
   const st = [
     { id: 'hi', t: 'Welcome to NLO A/R', b: 'This is practice mode: made-up accounts, and nothing you do here is saved. Most steps wait for you to do them, then move on by themselves. Click around anytime, go Back, or End the tour.' },
     { id: 'today', enter: () => tourGoView('today'), at: () => tVis('.tiles'), t: 'Today', b: 'Your starting page: follow-ups due, the collection letters, texts and calls due, the 91+ money, insurance to chase and credits to resolve. Each tile opens its list.' },
+    { id: 'goals', enter: () => tourGoView('today'), at: () => $('#view .goals'), t: 'The goals',
+      b: () => 'The office’s goals (handbook §19): no more than ' + S.cfg.goalPt + '% of patient accounts past due, and no more than ' + S.cfg.goalIns + '% of insurance accounts past their payment window. Each week’s report updates them; “to go” is how many accounts to bring current.' },
     { id: 'ladrow', enter: () => { tourGoView('today'); tourPick(); }, at: () => $('#view .ladRow[data-step="' + step().id + '"]'), t: 'Collection steps due',
       b: () => 'The office’s collections ladder (handbook §14): the letters, texts and calls due today, step by step. Your practice account' + (TOUR.name ? ', ' + TOUR.name + ',' : '') + ' is at ' + step().s + '.',
       act: () => 'Tap ' + step().s + '.', done: () => S.view === 'pd' && S.tab.pd === 'lad' && S.ladStep === step().id },

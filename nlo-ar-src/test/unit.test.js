@@ -62,7 +62,9 @@ const cfg = A.arCfg({});
   ok(rep.rows.length === keep.length, 'only accounts past due or in credit are kept: ' + rep.rows.length + ' of ' + full.rows.length);
   eq(rep.cover, { full: true, pastDue: true, credit: true, ins: true }, 'a full report covers everything');
   const sum = (l, k) => A.round2(l.reduce((s, r) => s + (r[k] || 0), 0)), ins = EXP.full.rows.filter(r => /^\s*ins\s*:/i.test(r.rp));
-  eq(rep.book, { n: 320, bal: sum(EXP.full.rows, 'bal'), due: sum(EXP.full.rows, 'due'), pt: { n: 320 - ins.length, bal: A.round2(sum(EXP.full.rows, 'bal') - sum(ins, 'bal')) }, ins: { n: ins.length, bal: sum(ins, 'bal') } }, 'the whole book’s totals are kept (all 320 accounts)');
+  const actN = l => l.filter(r => !/^inact/i.test(String(r.sts || '').trim())).length, ptRows = EXP.full.rows.filter(r => !/^\s*ins\s*:/i.test(r.rp));
+  eq(rep.book, { n: 320, bal: sum(EXP.full.rows, 'bal'), due: sum(EXP.full.rows, 'due'), pt: { n: 320 - ins.length, bal: A.round2(sum(EXP.full.rows, 'bal') - sum(ins, 'bal')), act: actN(ptRows) }, ins: { n: ins.length, bal: sum(ins, 'bal'), act: actN(ins) } },
+    'the whole book’s totals are kept (all 320 accounts, and how many aren’t Inactive)');
   ok(new Set(rep.rows.map(r => r.key)).size === rep.rows.length, 'every account has its own key');
   ok(rep.warn.length === 0, 'no warnings for a full report');
   {
@@ -117,6 +119,22 @@ const cfg = A.arCfg({});
     const t = A.reportTotals(R, cfg);
     eq([t.pd, t.b90, t.n91, t.never, t.cr, t.crWork, t.crN, t.bal], [955, 311.11, 2, 1, 550, 50, 2, 10000], 'the small sealed totals kept with each report (for the trend)');
     ok(A.summarize(Object.assign({}, R, { cover: { full: false, pastDue: true, credit: false, ins: true }, book: null }), cfg).monthEnd === null, 'no Month-End numbers from a partial report');
+
+    section('The goals (handbook §19)');
+    // 50 active patient accounts (P1–P3 past due: 2 of them 30+), 25 insurance accounts (I1 100 days past due, I2 10 days)
+    const RG = Object.assign({}, R, { book: { n: 80, bal: 10000, due: 905, pt: { n: 55, bal: 8000, act: 50 }, ins: { n: 25, bal: 2000, act: 25 } } });
+    const k = A.kpis(RG, cfg);
+    eq([k.pt.n, k.pt.of, k.pt.rate, k.pt.ok, k.pt.need], [3, 50, 0.06, false, 1], 'patient: 3 of 50 active accounts past due = 6% (goal 4%: 1 to bring current — 2 of 50 is 4%)');
+    eq([k.ins.n, k.ins.of, k.ins.rate, k.ins.ok, k.ins.need], [1, 25, 0.04, true, 0], 'insurance: 1 of 25 accounts past the 60-day window = 4% — goal met (I2 at 10 days isn’t late yet)');
+    const k30 = A.kpis(RG, A.arCfg({ ar: { kpiFrom: 31 } }));
+    eq([k30.pt.n, k30.pt.rate, k30.pt.ok], [2, 0.04, true], 'counting from 31 days: P3 (0–30 only) isn’t counted — 2 of 50 = 4%, met');
+    eq(A.kpis(RG, A.arCfg({ ar: { goalPt: 8, tiers: [120, 200, 365] } })).ins.n + '/' + A.kpis(RG, A.arCfg({ ar: { goalPt: 8 } })).pt.ok, '0/true', 'the insurance window follows “monitor up to”; the goal follows Settings');
+    const RI = Object.assign({}, RG, { rows: RG.rows.concat([row({ patient: 'P4', sts: 'Inactive', due: 80, b90: 80, bal: 80 })].map(r => Object.assign(r, { key: A.acctKey(r) }))) });
+    eq(A.kpis(RI, cfg).pt.n, 3, 'an Inactive account past due isn’t one of the active accounts (collections, not the goal)');
+    ok(A.kpis(Object.assign({}, RG, { cover: { full: false, pastDue: true, credit: true, ins: true } }), cfg) === null && A.kpis(Object.assign({}, RG, { cover: Object.assign({}, RG.cover, { ins: false }) }), cfg).ins === null, 'no goals from a partial report; no insurance goal without insurance contracts');
+    eq(A.kpis(R, cfg).pt.of, 7, 'an older report without the active count uses the patient account count');
+    eq(A.reportTotals(RG, cfg).kp, { ptOf: 50, ptPd: 3, ptPd30: 2, insOf: 25, insLate: 1, win: 60 }, 'each saved report keeps the goal counts (both ways of counting) for the trend');
+    eq(A.normSum(A.reportTotals(RG, cfg)).kp, { ptOf: 50, ptPd: 3, ptPd30: 2, insOf: 25, insLate: 1, win: 60 }, '…and they’re read back checked');
 
     section('What changed since the report before');
     const prev = { asOf: '2026-09-28', cover: R.cover, rows: [row({ patient: 'P2', due: 100, b0: 100, bal: 1100 }), row({ patient: 'P9', due: 75, b0: 75 }), row({ patient: 'I1', rp: 'INS: A', due: 33.33, b0: 11.11, b30: 11.11, b60: 11.11, days: 60 }),
@@ -280,8 +298,8 @@ const cfg = A.arCfg({});
   section('Office days and settings');
   eq(['2026-10-09', '2026-10-10', '2026-11-25', '2026-12-24', '2026-12-25', '2026-09-07'].map(A.nextOfficeDay), ['2026-10-12', '2026-10-12', '2026-11-30', '2026-12-24', '2026-12-28', '2026-09-08'],
     'office days: Mon–Thu, skipping Thanksgiving week, Christmas, Labor Day');
-  eq(A.arCfg({ ar: { inst: 0, writeOff: -1, tiers: [90, 60, 365], staleDays: 'x' } }), { inst: 11.11, writeOff: 100, tiers: [60, 120, 365], staleDays: 14 }, 'bad settings fall back to the usual numbers');
-  eq(A.arCfg({ ar: { inst: 12.5, writeOff: 50, tiers: [30, 90, 200], staleDays: 7 } }), { inst: 12.5, writeOff: 50, tiers: [30, 90, 200], staleDays: 7 }, 'good settings are used');
+  eq(A.arCfg({ ar: { inst: 0, writeOff: -1, tiers: [90, 60, 365], staleDays: 'x', goalPt: 0, goalIns: 140, kpiFrom: 7 } }), { inst: 11.11, writeOff: 100, tiers: [60, 120, 365], staleDays: 14, goalPt: 4, goalIns: 4, kpiFrom: 1 }, 'bad settings fall back to the usual numbers (goals 4% and 4%)');
+  eq(A.arCfg({ ar: { inst: 12.5, writeOff: 50, tiers: [30, 90, 200], staleDays: 7, goalPt: 3.5, goalIns: 5, kpiFrom: 31 } }), { inst: 12.5, writeOff: 50, tiers: [30, 90, 200], staleDays: 7, goalPt: 3.5, goalIns: 5, kpiFrom: 31 }, 'good settings are used');
   eq(['=1+1', '+A', '-5', '@x', 'Avery', 'say "hi"'].map(A.csvCell), ['"\'=1+1"', '"\'+A"', '"\'-5"', '"\'@x"', '"Avery"', '"say ""hi"""'], 'downloaded lists can’t carry spreadsheet formulas');
 
   section('Sealing');

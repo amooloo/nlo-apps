@@ -59,6 +59,64 @@ const C = {
 /* the same column, left out on a phone (the account panel has it) */
 const M = c => Object.assign({}, c, { cls: ((c.cls || '') + ' hideM').trim() });
 
+/* ---------- the goals (AISA handbook §19): patient and insurance delinquency, no more than 4% each ---------- */
+function goalBox(k, label, what) {
+  if (!k) return '';
+  const r = k.rate || 0, g = k.goal, max = Math.max(g * 2.5, r * 1.15, 0.01), tone = k.ok ? 'ok' : r <= g * 1.5 ? 'near' : 'far';
+  const pc = x => (x * 100).toFixed(x * 100 < 10 ? 1 : 0).replace(/\.0$/, '') + '%';
+  return '<div class="goal ' + tone + '"><div class="gTop"><span class="gL">' + esc(label) + '</span><span class="gG">goal ≤ ' + pc(g) + '</span></div>' +
+    '<div class="gMid"><span class="gV">' + (k.of ? pc(r) : '—') + '</span><span class="gBar" aria-hidden="true"><i style="width:' + Math.min(100, r / max * 100).toFixed(1) + '%"></i><b style="left:' + (g / max * 100).toFixed(1) + '%"></b></span>' +
+    '<span class="gS">' + esc(k.ok ? 'Goal met' : k.of ? k.need + ' to go' : '') + '</span></div>' +
+    '<div class="gD">' + esc(k.n + ' of ' + k.of + ' ' + what + (k.ok || !k.of ? '' : ' — ' + plural(k.need, 'account') + ' to bring current to reach ' + pc(g))) + '</div></div>';
+}
+/* both goals, from the newest full report */
+function goalsHTML(inCard) {
+  if (!S.rep) return '';
+  const k = kpis(S.rep, S.cfg);
+  if (!k) return inCard ? '<div class="small muted">The goals are measured from a full report: Subgroup None, insurance contracts included.</div>' : '';
+  return '<div class="goals' + (inCard ? ' inCard' : '') + '">' +
+    goalBox(k.pt, 'Patient accounts past due', 'active patient accounts ' + (k.from > 1 ? '30+ days past due' : 'past due')) +
+    (k.ins ? goalBox(k.ins, 'Insurance past its payment window', 'insurance accounts more than ' + k.win + ' days past due') : '') + '</div>';
+}
+/* Summary: the goals, report by report, and how they're counted */
+function goalsCardHTML() {
+  const k = S.rep ? kpis(S.rep, S.cfg) : null;
+  const how = k ? '<div class="gHow small"><div class="gHowT">How they’re counted</div><ul>' +
+    '<li>Accounts, not dollars — from each week’s full report.</li>' +
+    '<li><b>Patient:</b> accounts ' + (k.from > 1 ? '30 or more days past due' : 'with anything past due') + ' ÷ patient accounts on the report that aren’t Inactive in Edge.</li>' +
+    '<li><b>Insurance:</b> accounts more than ' + k.win + ' days past due (the “monitor up to” days) ÷ insurance accounts with a balance.</li>' +
+    '<li>Dr. A sets the goals in Settings.</li></ul></div>' : '';
+  return '<div class="card goalsCard" style="margin-bottom:18px"><div class="cardHd"><h3>Goals</h3><span class="sub">Practice KPIs · handbook §19 · as of ' + esc(fmtDate(S.rep.asOf)) + '</span></div><div class="cardBd">' + goalsHTML(true) +
+    (k ? '<div class="gLow">' + goalTrendHTML() + how + '</div>' : '<div style="margin-top:12px">' + goalTrendHTML() + '</div>') + '</div></div>';
+}
+/* the two rates, report by report, with the goals as dashed lines */
+function goalTrendHTML() {
+  const from30 = S.cfg.kpiFrom > 1;
+  const pts = S.reports.filter(r => r.sum && r.sum.kp && r.sum.kp.ptOf).slice().sort((a, b) => (a.asOf < b.asOf ? -1 : a.asOf > b.asOf ? 1 : (a.at || 0) - (b.at || 0)));
+  const byDay = new Map(); pts.forEach(r => byDay.set(r.asOf, r)); const P = Array.from(byDay.values()).slice(-26);
+  if (P.length < 2) return '<div class="small muted">The week-by-week line shows up once there are two full reports.</div>';
+  const pr = r => (from30 ? r.sum.kp.ptPd30 : r.sum.kp.ptPd) / r.sum.kp.ptOf, ir = r => (r.sum.kp.insOf ? r.sum.kp.insLate / r.sum.kp.insOf : null);
+  const gp = S.cfg.goalPt / 100, gi = S.cfg.goalIns / 100;
+  /* the top of the chart: a round number, with room for the goal line in the middle */
+  const top = Math.max(gp * 2, gi * 2, ...P.map(r => Math.max(pr(r), ir(r) || 0))) * 1.08 || 0.1;
+  const step = top <= 0.1 ? 0.02 : top <= 0.2 ? 0.05 : top <= 0.5 ? 0.1 : 0.25, max = Math.min(1, Math.ceil(top / step - 1e-9) * step);
+  const narrow = innerWidth < 640, W = narrow ? 360 : 560, H = narrow ? 170 : 190, L = 40, R = 10, T = 10, Bm = 24;
+  const x = i => L + (W - L - R) * (i / (P.length - 1)), y = v => T + (H - T - Bm) * (1 - v / max);
+  const pc = v => (v * 100).toFixed(1).replace(/\.0$/, '') + '%';
+  const line = (f, color) => { const d = P.map((r, i) => [i, f(r)]).filter(([, v]) => v != null).map(([i, v], j) => (j ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(v).toFixed(1)).join(' '); return d ? '<path class="tl" stroke="' + color + '" d="' + d + '"/>' : ''; };
+  const goals = gi === gp ? [gp] : [gp, gi];
+  const goal = g => '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + y(g).toFixed(1) + '" y2="' + y(g).toFixed(1) + '" stroke="var(--mint-700)" stroke-width="1.5" stroke-dasharray="5 4"/>' +
+    '<text class="gt" x="' + (L - 6) + '" y="' + (y(g) + 4).toFixed(1) + '" text-anchor="end">' + pc(g) + '</text>';
+  /* 0 and the top as grid lines; a label only where a goal's label isn't sitting */
+  const clear = v => goals.every(g => Math.abs(y(g) - y(v)) > 13);
+  const ticks = [0, max].map(v => '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + y(v).toFixed(1) + '" y2="' + y(v).toFixed(1) + '" stroke="var(--grey-100)"/>' +
+    (clear(v) ? '<text x="' + (L - 6) + '" y="' + (y(v) + 4).toFixed(1) + '" text-anchor="end">' + pc(v) + '</text>' : '')).join('');
+  const lbl = P.map((r, i) => (i === 0 || i === P.length - 1 || P.length <= (narrow ? 5 : 8)) ? '<text x="' + x(i) + '" y="' + (H - 6) + '" text-anchor="' + (i === 0 ? 'start' : i === P.length - 1 ? 'end' : 'middle') + '">' + esc(fmtDate(r.asOf)) + '</text>' : '').join('');
+  return '<div class="trend gTrend"><div class="small" style="margin-bottom:4px"><span class="lg" style="background:var(--navy)"></span>Patient <span class="lg" style="background:var(--blue-500)"></span>Insurance <span class="lg dash"></span>Goal' + (goals.length > 1 ? 's' : '') + '</div>' +
+    '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Patient and insurance accounts past due, as a percent, over the last ' + P.length + ' reports, with the goals">' + ticks + goals.map(goal).join('') +
+    line(pr, 'var(--navy)') + line(ir, 'var(--blue-500)') + lbl + '</svg></div>';
+}
+
 /* ---------- the collections ladder: shared bits ---------- */
 const LAD_PAUSE = { plan: 'A payment plan (Alternative Arrangement) is in place', promise: 'They promised to pay by a day that hasn’t come yet', hold: 'The account is set to Paused', done: 'Resolved' };
 /* the ladder's step as the suggestion; nothing due: what's next, or why it's paused */
@@ -120,7 +178,7 @@ function viewToday() {
   const s91 = round2(S.accts.filter(a => a.bucket === '91').reduce((s, a) => s + a.b90, 0)), crw = S.accts.filter(a => a.credit > 0 && !a.prepay);
   const tile = (n, l, cls, act, sub) => '<button class="tile ' + cls + '" ' + act + '><span class="n' + (String(n).length > 6 ? ' sm' : '') + '">' + n + '</span><span class="l">' + l + '</span>' + (sub ? '<span class="s">' + sub + '</span>' : '') + '</button>';
   const toSign = ladDueAccts().filter(a => { const l = ladFor(a); return l.due.dra && !l.signed[l.due.id]; }).length;
-  let h = tourOfferHTML() + staleHTML() + '<div class="tiles">' +
+  let h = tourOfferHTML() + staleHTML() + goalsHTML() + '<div class="tiles">' +
     tile(c.due, 'Follow-ups due', c.late ? 'red' : 'amber', 'data-act="tileDue"', c.late ? c.late + ' late' : 'today') +
     tile(c.lad, 'Collection steps due', 'coral', 'data-act="nav" data-v="pd" data-tab="lad"', toSign ? toSign + ' for Dr. A to sign' : 'letters, texts & calls') +
     tile(money(s91), '91+ days past due', 'red', 'data-act="nav" data-v="pd" data-tab="91"', plural(c.n91, 'account')) +
@@ -358,6 +416,7 @@ function viewSummary() {
   const s = summarize(S.rep, S.cfg), b = s.book;
   const tile = (n, l, cls, sub) => '<div class="tile static ' + (cls || '') + '"><span class="n sm">' + n + '</span><span class="l">' + l + '</span>' + (sub ? '<span class="s">' + sub + '</span>' : '') + '</div>';
   let h = '<div class="filters noPrint"><span class="small muted">Edge A/R Aging as of <b>' + esc(fmtDateLong(s.asOf)) + '</b></span> ' + coverHTML(s.cover) + '<span style="flex:1"></span><button class="btn btn-ghost" data-act="print">' + ic('print', 15) + 'Print</button></div>';
+  h += goalsCardHTML();
   h += '<div class="tiles">' + (b ? tile(money(b.bal), 'Total contract balance', '', plural(b.n, 'account')) : '') +
     tile(money(s.pd.total), 'Past due', 'red', b ? pct(s.pd.total, b.bal) + '% of the balance' : plural(s.pd.n, 'account')) +
     tile(money(s.netDue), 'Net due now', 'amber', 'past due less credits') +
@@ -411,11 +470,11 @@ function trendHTML() {
   const byDay = new Map(); pts.forEach(r => byDay.set(r.asOf, r)); const P = Array.from(byDay.values()).slice(-26);
   const head = '<div class="card trend"><div class="cardHd"><h3>Over time</h3><span class="sub"><span class="lg" style="background:var(--navy-500)"></span>Past due <span class="lg b90"></span>91+ <span class="lg" style="background:var(--blue-500)"></span>Credits to resolve</span></div><div class="cardBd">';
   if (P.length < 2) return head + '<div class="small muted">Shows up once there are two reports (import one each week).</div></div></div>';
-  const W = 560, H = 190, L = 54, R = 10, T = 10, Bm = 24, max = Math.max(...P.map(r => Math.max(r.sum.pd || 0, r.sum.crWork || 0))) || 1;
+  const narrow = innerWidth < 640, W = narrow ? 360 : 560, H = narrow ? 170 : 190, L = 54, R = 10, T = 10, Bm = 24, max = Math.max(...P.map(r => Math.max(r.sum.pd || 0, r.sum.crWork || 0))) || 1;
   const x = i => L + (W - L - R) * (P.length === 1 ? 0 : i / (P.length - 1)), y = v => T + (H - T - Bm) * (1 - v / max);
   const line = (f, color) => '<path class="tl" stroke="' + color + '" d="' + P.map((r, i) => (i ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(f(r) || 0).toFixed(1)).join(' ') + '"/>';
   const ticks = [0, 0.5, 1].map(f => '<text x="' + (L - 6) + '" y="' + (y(max * f) + 4) + '" text-anchor="end">' + money(max * f) + '</text><line x1="' + L + '" x2="' + (W - R) + '" y1="' + y(max * f) + '" y2="' + y(max * f) + '" stroke="var(--grey-100)"/>').join('');
-  const lbl = P.map((r, i) => (i === 0 || i === P.length - 1 || P.length <= 8) ? '<text x="' + x(i) + '" y="' + (H - 6) + '" text-anchor="' + (i === 0 ? 'start' : i === P.length - 1 ? 'end' : 'middle') + '">' + esc(fmtDate(r.asOf)) + '</text>' : '').join('');
+  const lbl = P.map((r, i) => (i === 0 || i === P.length - 1 || P.length <= (narrow ? 5 : 8)) ? '<text x="' + x(i) + '" y="' + (H - 6) + '" text-anchor="' + (i === 0 ? 'start' : i === P.length - 1 ? 'end' : 'middle') + '">' + esc(fmtDate(r.asOf)) + '</text>' : '').join('');
   return head + '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Past due, 91+ and credits over the last ' + P.length + ' reports">' + ticks + line(r => r.sum.pd, 'var(--navy-500)') + line(r => r.sum.b90, 'var(--coral-700)') + line(r => r.sum.crWork, 'var(--blue-500)') + lbl + '</svg></div></div>';
 }
 /* the numbers Month-End asks for in its "Accounts" section (totals only) */

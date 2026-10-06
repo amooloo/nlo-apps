@@ -166,8 +166,10 @@ const DEMO = {
     for (let w = 0; w < W; w++) {
       const asOf = asOfW(w), rows = A.map(a => rowAt(a, w)).filter(Boolean).map(r => Object.assign(r, { key: acctKey(r) }));
       const pt = rows.filter(r => !isIns(r)), ins = rows.filter(isIns), sum = (l, k) => round2(l.reduce((t, r) => t + (Number(r[k]) || 0), 0));
-      const book = { n: rows.length + 212 + w, bal: round2(sum(rows, 'bal') + 401250 - w * 1830), due: sum(rows, 'due'), pt: { n: pt.length + 151, bal: round2(sum(pt, 'bal') + 309400 - w * 1400) }, ins: { n: ins.length + 61 + w, bal: round2(sum(ins, 'bal') + 91850 - w * 430) } };
-      const rep = { asOf, cover: { full: true, pastDue: true, credit: true, ins: true }, book, rows, files: [{ name: 'AR Aging ' + asOf + '.xls', kind: 'xls', subgroup: '', options: 'Exclude Zero Dollar Balances', edge: 'Edge', n: rows.length + 212, ok: true }], made: atDay(asOf, 8, 40) };
+      // the accounts that are paid up (not in the saved rows) add to the book's totals; act = not Inactive (the goals' "active accounts")
+      const act = l => l.filter(r => !isInactive(r)).length;
+      const book = { n: rows.length + 560 + w, bal: round2(sum(rows, 'bal') + 1201250 - w * 1830), due: sum(rows, 'due'), pt: { n: pt.length + 380, bal: round2(sum(pt, 'bal') + 919400 - w * 1400), act: act(pt) + 380 }, ins: { n: ins.length + 180 + w, bal: round2(sum(ins, 'bal') + 281850 - w * 430), act: act(ins) + 180 + w } };
+      const rep = { asOf, cover: { full: true, pastDue: true, credit: true, ins: true }, book, rows, files: [{ name: 'AR Aging ' + asOf + '.xls', kind: 'xls', subgroup: '', options: 'Exclude Zero Dollar Balances', edge: 'Edge', n: rows.length + 560, ok: true }], made: atDay(asOf, 8, 40) };
       DEMO.reports.push({ meta: { id: 'demo-r' + w, asOf, n: rows.length, at: Math.min(Date.now() - 40 * 60000, atDay(asOf, 8, 52 + w)), by: 'u-jamie', sid: 'jamie', v: 1, sum: reportTotals(rep, cfg), locked: false }, data: rep });
     }
 

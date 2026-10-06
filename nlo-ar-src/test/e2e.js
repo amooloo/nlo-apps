@@ -182,6 +182,9 @@ async function openAcct(p, name) { await p.evaluate(n => { const a = S.accts.fin
   await jamie.waitForFunction(() => S.rep && S.rep.asOf === '2026-10-05' && S.prev && S.prev.asOf === '2026-09-28', null, { timeout: 30000 });
   await owner.waitForFunction(() => S.rep && S.rep.asOf === '2026-10-05' && counts().cleared === 1, null, { timeout: 30000 });
   check(true, 'both screens move to October 5; the account Jamie worked shows as cleared');
+  const kj = await jamie.evaluate(() => { const k = kpis(S.rep, S.cfg); return k && { pt: [k.pt.n, k.pt.of], ins: k.ins && [k.ins.n, k.ins.of] }; });
+  const ko = await owner.evaluate(() => { const k = kpis(S.rep, S.cfg); return k && { pt: [k.pt.n, k.pt.of], ins: k.ins && [k.ins.n, k.ins.of] }; });
+  check(kj && kj.pt[1] > 0 && kj.ins && kj.ins[1] > 0 && JSON.stringify(kj) === JSON.stringify(ko), 'the goals are measured from the full report, the same on both screens: ' + JSON.stringify(kj));
   await owner.click('#nav-today'); await owner.click('[data-act=closeCleared]'); await owner.click('#cbYes');
   await waitItem(jamie, 'Extra Paidoff', 'cleared');
   check(true, '“Close all” resolves it as cleared in Edge');
@@ -210,9 +213,11 @@ async function openAcct(p, name) { await p.evaluate(n => { const a = S.accts.fin
 
   console.log('\n# Settings: the numbers are shared');
   await owner.click('#nav-settings'); await owner.waitForSelector('#cfgInst');
-  await owner.fill('#cfgStale', '21'); await owner.click('[data-act=saveCfg]');
-  await jamie.waitForFunction(() => S.cfg.staleDays === 21, null, { timeout: 30000 });
-  check(true, 'a change to “report is old after” reaches Jamie’s screen');
+  await owner.fill('#cfgStale', '21'); await owner.fill('#cfgGoalPt', '5'); await owner.click('[data-act=saveCfg]');
+  await jamie.waitForFunction(() => S.cfg.staleDays === 21 && S.cfg.goalPt === 5, null, { timeout: 30000 });
+  check(true, 'a change to “report is old after” and to the patient goal reaches Jamie’s screen');
+  await jamie.click('#nav-today'); await jamie.waitForSelector('.goals .goal');
+  check(await jamie.$eval('.goals .goal .gG', e => e.textContent === 'goal ≤ 5%'), 'Jamie’s patient gauge now measures against 5%');
 
   console.log('\n# Dr. A turns Jamie off: she’s locked out at once; a new A/R key; everything sealed again');
   await owner.click('#nav-settings'); await owner.waitForSelector('#accessBox .sw[data-uid="' + jamieUid + '"]');

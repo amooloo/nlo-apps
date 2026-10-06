@@ -9,12 +9,15 @@
    - Credit balances: oldest first, 3+ years is a priority; Start
      Scheduled prepayments are parked (no action).
    ===================================================================== */
-const AR_DEFAULTS = { inst: 11.11, writeOff: 100, tiers: [60, 120, 365], staleDays: 14 };
+/* goalPt / goalIns: the delinquency goals (AISA handbook §19, both "no more than 4%"); kpiFrom: a patient account counts as
+   past due from its first day past due (1, the handbook's wording) or from 31 days (the 30+ the Month-End numbers use) */
+const AR_DEFAULTS = { inst: 11.11, writeOff: 100, tiers: [60, 120, 365], staleDays: 14, goalPt: 4, goalIns: 4, kpiFrom: 1 };
 function arCfg(settings) {
   const a = (settings && settings.ar) || {};
-  const num = (v, d) => (typeof v === 'number' && isFinite(v) && v > 0 ? v : d);
+  const num = (v, d) => (typeof v === 'number' && isFinite(v) && v > 0 ? v : d), pctOf = (v, d) => (typeof v === 'number' && isFinite(v) && v > 0 && v <= 100 ? v : d);
   const tiers = Array.isArray(a.tiers) && a.tiers.length === 3 && a.tiers.every((n, i) => Number.isInteger(n) && n > 0 && (!i || n > a.tiers[i - 1])) ? a.tiers.slice() : AR_DEFAULTS.tiers.slice();
-  return { inst: num(a.inst, AR_DEFAULTS.inst), writeOff: num(a.writeOff, AR_DEFAULTS.writeOff), tiers, staleDays: num(a.staleDays, AR_DEFAULTS.staleDays) };
+  return { inst: num(a.inst, AR_DEFAULTS.inst), writeOff: num(a.writeOff, AR_DEFAULTS.writeOff), tiers, staleDays: num(a.staleDays, AR_DEFAULTS.staleDays),
+    goalPt: pctOf(a.goalPt, AR_DEFAULTS.goalPt), goalIns: pctOf(a.goalIns, AR_DEFAULTS.goalIns), kpiFrom: a.kpiFrom === 31 ? 31 : 1 };
 }
 
 /* ---------- one account ---------- */
@@ -103,7 +106,9 @@ function buildReport(files, opts) {
     if (!c.ins) cover.ins = false;
     if (c.full && !book) {
       const pt = f.rows.filter(r => !isIns(r)), ins = f.rows.filter(isIns), sum = (l, k) => round2(l.reduce((s, r) => s + (Number(r[k]) || 0), 0));
-      book = { n: f.rows.length, bal: sum(f.rows, 'bal'), due: sum(f.rows, 'due'), pt: { n: pt.length, bal: sum(pt, 'bal') }, ins: { n: ins.length, bal: sum(ins, 'bal') } };
+      // act: accounts not Inactive in Edge — the goals' "active accounts" (the saved report keeps only the accounts past due or in credit)
+      const act = l => l.filter(r => !isInactive(r)).length;
+      book = { n: f.rows.length, bal: sum(f.rows, 'bal'), due: sum(f.rows, 'due'), pt: { n: pt.length, bal: sum(pt, 'bal'), act: act(pt) }, ins: { n: ins.length, bal: sum(ins, 'bal'), act: act(ins) } };
     }
     const fileKeys = new Map();
     f.rows.forEach(r => {
@@ -160,10 +165,29 @@ function summarize(rep, cfg) {
   return { asOf: rep.asOf, cover: rep.cover, book: rep.book || null, pd, conc, byStatus: Array.from(bs.values()).sort((a, b) => b.pd - a.pd), never, cr,
     netDue: rep.book ? rep.book.due : round2(pd.total - cr.total), monthEnd };
 }
-/* a small summary kept with each saved report, for the trend chart (totals only) */
+/* ---------- the goals (AISA handbook §19, Practice KPIs) ----------
+   Patient delinquency: patient accounts past due ÷ active patient accounts, no more than 4%.
+   Insurance delinquency: insurance accounts past their expected payment window ÷ open insurance accounts, no more than 4%.
+   Counts of accounts (not dollars), both from one full A/R Aging report (Subgroup None, insurance included). The handbook
+   gives no window for insurance: the app uses the "monitor up to" days of the insurance triage (60 to start with).
+   ---------------------------------------------------------------------------------------------------------------- */
+function insLate(a, cfg) { const d = a.days != null ? a.days : a.b90 > 0.004 ? 91 : a.b60 > 0.004 ? 61 : a.b30 > 0.004 ? 31 : 1; return a.pd > 0 && d > cfg.tiers[0]; }
+function kpis(rep, cfg) {
+  if (!rep || !rep.book || !rep.cover || !rep.cover.full) return null;
+  const A = reportAccts(rep, cfg), bk = rep.book;
+  const ptOf = bk.pt.act != null ? bk.pt.act : bk.pt.n, ptN = A.filter(a => !a.ins && !a.inactive && (cfg.kpiFrom > 1 ? a.o30 > 0.004 : a.pd > 0)).length;
+  const one = (n, of, goalPct) => { const goal = goalPct / 100; return { n, of, rate: of ? n / of : null, goal, ok: of ? n / of <= goal + 1e-9 : null, need: of ? Math.max(0, n - Math.floor(goal * of + 1e-9)) : null }; };
+  return {
+    pt: one(ptN, ptOf, cfg.goalPt),
+    ins: rep.cover.ins ? one(A.filter(a => a.ins && insLate(a, cfg)).length, bk.ins.n, cfg.goalIns) : null,
+    from: cfg.kpiFrom, win: cfg.tiers[0]
+  };
+}
+/* a small summary kept with each saved report, for the trend charts (totals and counts only) */
 function reportTotals(rep, cfg) {
-  const s = summarize(rep, cfg);
-  return { asOf: s.asOf, cover: s.cover, pd: s.pd.total, b90: s.pd.b90, b31: round2(s.pd.b30 + s.pd.b60), n91: s.conc.n, never: s.never.n, neverPd: s.never.pd, cr: s.cr.total, crWork: s.cr.work.total, crN: s.cr.work.n, bal: s.book ? s.book.bal : null };
+  const s = summarize(rep, cfg), k1 = kpis(rep, Object.assign({}, cfg, { kpiFrom: 1 })), k30 = kpis(rep, Object.assign({}, cfg, { kpiFrom: 31 }));
+  return { asOf: s.asOf, cover: s.cover, pd: s.pd.total, b90: s.pd.b90, b31: round2(s.pd.b30 + s.pd.b60), n91: s.conc.n, never: s.never.n, neverPd: s.never.pd, cr: s.cr.total, crWork: s.cr.work.total, crN: s.cr.work.n, bal: s.book ? s.book.bal : null,
+    kp: k1 ? { ptOf: k1.pt.of, ptPd: k1.pt.n, ptPd30: k30.pt.n, insOf: k1.ins ? k1.ins.of : null, insLate: k1.ins ? k1.ins.n : null, win: k1.win } : null };
 }
 
 /* ---------- what changed since the report before ---------- */
@@ -460,7 +484,7 @@ function normRow(r) {
 }
 function normReport(rep) {
   rep = rep && typeof rep === 'object' ? rep : {};
-  const bk = x => ({ n: Math.max(0, Math.round(numOr0(x && x.n))), bal: numOr0(x && x.bal) }), b = rep.book && typeof rep.book === 'object' ? rep.book : null;
+  const bk = x => { const o = { n: Math.max(0, Math.round(numOr0(x && x.n))), bal: numOr0(x && x.bal) }; if (x && numOrNull(x.act) != null) o.act = Math.max(0, Math.round(x.act)); return o; }, b = rep.book && typeof rep.book === 'object' ? rep.book : null;
   return {
     asOf: isoOrBlank(rep.asOf), cover: normCover(rep.cover),
     book: b ? Object.assign(bk(b), { due: numOr0(b.due), pt: bk(b.pt), ins: bk(b.ins) }) : null,
@@ -472,7 +496,8 @@ function normReport(rep) {
 function normSum(s) {
   if (!s || typeof s !== 'object') return null;
   const i = v => Math.max(0, Math.round(numOr0(v)));
-  return { asOf: isoOrBlank(s.asOf), cover: normCover(s.cover), pd: numOr0(s.pd), b90: numOr0(s.b90), b31: numOr0(s.b31), n91: i(s.n91), never: i(s.never), neverPd: numOr0(s.neverPd), cr: numOr0(s.cr), crWork: numOr0(s.crWork), crN: i(s.crN), bal: numOrNull(s.bal) };
+  const kp = s.kp && typeof s.kp === 'object' ? { ptOf: i(s.kp.ptOf), ptPd: i(s.kp.ptPd), ptPd30: i(s.kp.ptPd30), insOf: numOrNull(s.kp.insOf) == null ? null : i(s.kp.insOf), insLate: numOrNull(s.kp.insLate) == null ? null : i(s.kp.insLate), win: i(s.kp.win) } : null;
+  return { asOf: isoOrBlank(s.asOf), cover: normCover(s.cover), pd: numOr0(s.pd), b90: numOr0(s.b90), b31: numOr0(s.b31), n91: i(s.n91), never: i(s.never), neverPd: numOr0(s.neverPd), cr: numOr0(s.cr), crWork: numOr0(s.crWork), crN: i(s.crN), bal: numOrNull(s.bal), kp };
 }
 const LOG_KINDS = new Set(Object.keys(LOGS).concat(['done', 'reopen', 'drA_ask', 'drA_ok', 'drA_no', 'ladder', 'aa_broken', 'mhold_on', 'mhold_off']));
 function normLog(e) {

@@ -41,11 +41,18 @@ const shot = (p, n, full) => p.screenshot({ path: path.join(SHOTS, n + '.png'), 
   ok((await page.evaluate(() => window.__maxCleared)) === 1, 'while opening, “Cleared in Edge” never counts more than the 1 really cleared');
   ok(await page.$$eval('#view details.help summary', s => s.some(x => /newly 91\+/.test(x.textContent))), '“Since the last report” lists newly 91+ accounts');
   ok(await page.isVisible('[data-act=closeCleared]'), '“Cleared in Edge” offers to close them');
+  // the goals (handbook §19): counts of accounts from the newest full report
+  const k0 = await S_(() => kpis(S.rep, S.cfg));
+  ok(await page.$$eval('.goals .goal', g => g.length) === 2 && k0.pt.n === 34 && k0.pt.of === 422 && k0.ins.n === 14 && k0.ins.of === 204 && k0.from === 1 && k0.win === 60, 'Today: two goal gauges — patient 34 of 422, insurance 14 of 204 (over 60 days): ' + JSON.stringify(k0));
+  ok(await page.$eval('.goals .goal', e => /8\.1%/.test(e.textContent) && /18 to go/.test(e.textContent) && /goal ≤ 4%/.test(e.textContent) && e.classList.contains('far')), 'the patient gauge reads 8.1% against 4%, 18 to go, in red');
 
   for (const v of ['pd', 'ins', 'cr', 'sum', 'reports', 'settings', 'account']) {
     await page.click('#nav-' + v); await page.waitForTimeout(v === 'settings' ? 500 : 200);
     await collect(); await shot(page, v, true);
   }
+  await page.click('#nav-sum'); await page.waitForSelector('.goalsCard .gTrend');
+  ok(await page.$$eval('.goalsCard .gTrend path.tl', p => p.length) === 2 && await page.$eval('.goalsCard .gTrend text.gt', e => e.textContent === '4%'), 'Summary: both rates week by week, with the 4% goal line');
+  ok(await page.$eval('.goalsCard .gHow', e => /anything past due/.test(e.textContent) && /more than 60 days past due/.test(e.textContent)), 'Summary: how the goals are counted');
   // tabs on each list
   for (const [v, tabs] of [['pd', ['91', '31', '0', 'all', 'lad']], ['ins', ['investigate', 'nofile', 'monitor', 'all', 'partly', 'chase']], ['cr', ['pre', 'all', 'work']]]) {
     await page.click('#nav-' + v);
@@ -265,6 +272,19 @@ const shot = (p, n, full) => p.screenshot({ path: path.join(SHOTS, n + '.png'), 
   ok((await S_(() => S.cfg.inst)) === 11.11, 'back to the usual numbers');
   await page.fill('#cfgT1', '50'); await page.click('[data-act=saveCfg]'); await page.waitForTimeout(150);
   ok(await toastHas(/more than the one before/), 'cutoffs out of order are refused');
+  // the goals in Settings
+  await page.fill('#cfgT1', '120'); await page.fill('#cfgGoalPt', '9'); await page.waitForTimeout(100);
+  ok(/patient accounts past due <b>8\.1%<\/b> \(goal 9%\)/.test(await page.innerHTML('#cfgPrev')), 'the preview shows the patient rate against a 9% goal');
+  await page.selectOption('#cfgKpiFrom', '31'); await page.click('[data-act=saveCfg]'); await page.waitForTimeout(300);
+  const k9 = await S_(() => ({ cfg: [S.cfg.goalPt, S.cfg.kpiFrom], k: kpis(S.rep, S.cfg) }));
+  ok(k9.cfg[0] === 9 && k9.cfg[1] === 31 && k9.k.pt.n < 34 && k9.k.pt.ok, 'saved: a 9% goal, counting from 31 days — ' + k9.k.pt.n + ' patient accounts, goal met');
+  await page.click('#nav-today'); await page.waitForSelector('.goals .goal');
+  ok(await page.$eval('.goals .goal', e => e.classList.contains('ok') && /Goal met/.test(e.textContent) && /30\+ days past due/.test(e.textContent)), 'Today: the patient gauge turns green, “Goal met”');
+  await page.click('#nav-settings'); await page.waitForSelector('#cfgGoalPt'); await page.waitForTimeout(300);
+  await page.click('[data-act=resetCfg]'); await page.click('#cbYes'); await page.waitForTimeout(300);
+  ok(await S_(() => S.cfg.goalPt === 4 && S.cfg.goalIns === 4 && S.cfg.kpiFrom === 1), 'back to the usual numbers: 4%, 4%, from day 1');
+  await page.fill('#cfgGoalIns', '0'); await page.click('[data-act=saveCfg]'); await page.waitForTimeout(150);
+  ok(await toastHas(/between 0\.1% and 100%/) && await S_(() => S.cfg.goalIns === 4), 'a 0% goal is refused');
   await page.click('[data-act=loadActivity]'); await page.waitForTimeout(400);
   ok(await page.$$eval('#actBox .hist', h => h.length) > 5, 'recent activity lists who did what');
   await collect(); await shot(page, 'settings-after', true);
