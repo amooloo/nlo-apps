@@ -1,0 +1,227 @@
+/* Clicks through the demo (?demo, made-up accounts) on a desktop and a phone screen: every screen, the account panel
+   (log, undo, promise, ask Dr. A, resolve, reopen, an account that's on the list again, the refund checklist), closing
+   accounts cleared in Edge, importing a made-up Edge export, Settings (who can use A/R, the numbers), downloading a list,
+   and that every button on every screen has a handler. Needs a static server on :8766 serving dist/.
+   Run: node test/demo_smoke.js  (screenshots go to shots/) */
+const { chromium } = require('playwright');
+const fs = require('fs'), path = require('path');
+const { routes, watch, CHROME } = require('./helpers');
+const URL = 'http://127.0.0.1:' + (process.env.PORT || 8766) + '/nlo-ar.html?demo';
+const SHOTS = path.join(__dirname, '..', 'shots');
+let pass = 0, fail = 0;
+const ok = (c, m) => { if (c) { pass++; console.log('  ok  ' + m); } else { fail++; console.log('  FAIL ' + m); } };
+const shot = (p, n, full) => p.screenshot({ path: path.join(SHOTS, n + '.png'), fullPage: !!full });
+(async () => {
+  fs.mkdirSync(SHOTS, { recursive: true });
+  const browser = await chromium.launch({ executablePath: CHROME });
+  const errs = [];
+  const ctx = await browser.newContext({ viewport: { width: 1360, height: 900 }, acceptDownloads: true });
+  await routes(ctx);
+  const page = await ctx.newPage(); watch(page, errs, 'desktop');
+  const acts = new Set();
+  const collect = async () => (await page.$$eval('[data-act]', els => els.map(e => e.dataset.act))).forEach(a => acts.add(a));
+  const S_ = f => page.evaluate(f);
+  const itemOf = key => page.evaluate(k => { const it = itemFor(k); return it && JSON.parse(JSON.stringify(it)); }, key);
+  const toastHas = re => page.$$eval('.toast', (t, src) => t.some(x => new RegExp(src).test(x.textContent)), re.source);
+  const closeDrawer = () => page.keyboard.press('Escape');
+
+  await page.goto(URL);
+  await page.click('#lgBtn');
+  await page.waitForSelector('.tiles .tile');
+  await page.waitForTimeout(300);
+  await collect(); await shot(page, 'today', true);
+  const c0 = await S_(() => counts());
+  ok(await page.$$eval('.tiles .tile', t => t.length) === 6, 'Today: six tiles (follow-ups, 91+, chase now, credits, waiting for Dr. A, cleared)');
+  ok(c0.due === 2 && c0.late === 1 && c0.drA === 1 && c0.cleared === 1, 'counts: 2 follow-ups (1 late), 1 for Dr. A, 1 cleared: ' + JSON.stringify(c0));
+  ok(/^\(2\) NLO A\/R$/.test(await page.title()), 'tab title counts follow-ups due: ' + await page.title());
+  ok(await page.$$eval('#view details.help summary', s => s.some(x => /newly 91\+/.test(x.textContent))), '“Since the last report” lists newly 91+ accounts');
+  ok(await page.isVisible('[data-act=closeCleared]'), '“Cleared in Edge” offers to close them');
+
+  for (const v of ['pd', 'ins', 'cr', 'sum', 'reports', 'settings', 'account']) {
+    await page.click('#nav-' + v); await page.waitForTimeout(v === 'settings' ? 500 : 200);
+    await collect(); await shot(page, v, true);
+  }
+  // tabs on each list
+  for (const [v, tabs] of [['pd', ['31', '0', 'all', '91']], ['ins', ['investigate', 'nofile', 'monitor', 'all', 'partly', 'chase']], ['cr', ['pre', 'all', 'work']]]) {
+    await page.click('#nav-' + v);
+    for (const t of tabs) { await page.click('[data-act=tab][data-t="' + t + '"]'); await page.waitForTimeout(80); await collect(); }
+  }
+  await page.click('#nav-pd'); await page.click('[data-act=tab][data-t="91"]');
+  ok(await page.$$eval('tr.cut70', r => r.length) === 1, '91+: the dashed line marks 70% of the money');
+  const n91 = await page.$$eval('#view tbody tr', r => r.length);
+  await page.fill('#q', 'Samplesen'); await page.waitForTimeout(150);
+  const nq = await page.$$eval('#view tbody tr', r => r.length);
+  ok(nq > 0 && nq < n91, 'search narrows the list (' + n91 + ' → ' + nq + ')');
+  await page.fill('#q', ''); await page.waitForTimeout(100);
+  await page.selectOption('select[data-f=work]', 'new'); await page.waitForTimeout(100);
+  ok(await S_(() => S.lastList.every(a => workState(a.key) === 'new')), 'filter “Not started” shows only accounts nobody has worked');
+  await page.click('[data-act=clearF]');
+  await page.click('[data-act=sort][data-k=days]'); await page.waitForTimeout(80);
+  ok(await S_(() => { const d = S.lastList.map(a => a.days); return d.every((x, i) => !i || d[i - 1] >= x); }), 'sorting by Days works');
+  await page.click('[data-act=tab][data-t="91"]');
+
+  // ---- the account panel
+  const k1 = await S_(() => list91(S.accts)[0].key); // being worked: voicemail, follow up today
+  await page.click('tr[data-key="' + k1 + '"]'); await page.waitForSelector('#drawer .nowBox');
+  await collect(); await shot(page, 'drawer');
+  const before = await itemOf(k1);
+  await page.click('#drawer [data-act=log][data-k=pt_noans]'); await page.waitForTimeout(250);
+  const afterLog = await itemOf(k1);
+  ok(afterLog.log.length === before.log.length + 1 && afterLog.stage === 'working' && afterLog.follow > before.follow, 'logging “no answer” adds it and moves the follow-up (' + before.follow + ' → ' + afterLog.follow + ')');
+  ok(await toastHas(/Logged: No answer/), 'toast confirms the log, with Undo');
+  await page.click('#drawer [data-act=undoLog]'); await page.waitForTimeout(250);
+  const afterUndo = await itemOf(k1);
+  ok(afterUndo.log.length === before.log.length && afterUndo.stage === before.stage && afterUndo.follow === before.follow, 'Undo puts it back exactly');
+  // a promise needs a day
+  await page.click('#drawer [data-act=log][data-k=pt_promise]'); await page.waitForSelector('#prDate');
+  await page.click('#drawer [data-act=savePromise]'); await page.waitForTimeout(150);
+  ok(await toastHas(/Pick the day/), 'a promise without a day is stopped');
+  const payBy = await S_(() => nextOfficeDay(addDays(todayISO(), 3)));
+  await page.fill('#prDate', payBy); await page.fill('#prAmt', '$150'); await page.click('#drawer [data-act=savePromise]'); await page.waitForTimeout(250);
+  const pr = await itemOf(k1);
+  ok(pr.stage === 'promise' && pr.follow === payBy && pr.log[pr.log.length - 1].amt === 150, 'promise saved: follow up on ' + payBy + ', $150 kept');
+  await shot(page, 'drawer-promise');
+  // assign, follow-up quick pick
+  await page.selectOption('#drawer select[data-chg=assign]', 'taylor'); await page.waitForTimeout(200);
+  ok((await itemOf(k1)).assignee === 'taylor', 'assigned to Taylor');
+  await page.click('#drawer [data-act=setFollow] >> nth=1'); await page.waitForTimeout(200);
+  ok((await itemOf(k1)).follow !== payBy, 'quick follow-up pick changes the day');
+  await closeDrawer(); await page.waitForTimeout(100);
+  ok(!(await page.$('#drawer')), 'Escape closes the panel');
+
+  // a new account: ask Dr. A, he OKs it
+  const k2 = await S_(() => list91(S.accts).find(a => !itemFor(a.key)).key);
+  await page.evaluate(k => openDrawer(k), k2); await page.waitForSelector('#drawer .nowBox');
+  ok(await page.$eval('#drawer #logBox', e => /Nothing logged yet/.test(e.textContent)), 'a fresh account has nothing logged');
+  await page.click('#drawer [data-act=askDrA]'); await page.waitForSelector('#drQ');
+  await page.fill('#drQ', 'OK to write off $40? Family moved away.'); await page.click('#drQok'); await page.waitForTimeout(300);
+  const asked = await itemOf(k2);
+  ok(asked && asked.drA === true && asked.log[0].k === 'drA_ask', 'asking Dr. A starts the account’s record and puts it on his Today');
+  ok(await page.isVisible('#drawer .drABox [data-act=drAok]'), 'Dr. A sees OK / Not yet on it');
+  await page.click('#drawer [data-act=drAok]'); await page.waitForTimeout(250);
+  const oked = await itemOf(k2);
+  ok(oked.drA === false && oked.log[oked.log.length - 1].k === 'drA_ok', 'his OK is logged and it leaves his queue');
+  // resolve it, then reopen
+  await page.click('#drawer [data-act=resolve]'); await page.waitForSelector('#rsPick');
+  await collect();
+  await page.click('#rsPick .pick[data-o=writeoff]'); await page.fill('#rsNote', 'Adjusted in Edge'); await page.click('#rsOk'); await page.waitForTimeout(300);
+  const res = await itemOf(k2);
+  ok(res.state === 'done' && res.outcome === 'writeoff', 'resolved as written off');
+  ok(await page.isVisible('#drawer [data-act=reopen]'), 'a resolved account offers Reopen');
+  await shot(page, 'drawer-resolved');
+  await page.click('#drawer [data-act=reopen]'); await page.waitForTimeout(250);
+  ok((await itemOf(k2)).state === 'open', 'reopened');
+  await closeDrawer();
+
+  // resolved before this report, but on the list again: logging reopens it
+  const kb = await S_(() => { const it = Array.from(S.items.values()).find(x => isBack(x)); return it && it.key; });
+  ok(!!kb, 'the demo has an account that’s on the list again');
+  await page.evaluate(k => openDrawer(k), kb); await page.waitForSelector('#drawer .nowBox');
+  ok(await page.$eval('#drawer .dBd', e => /Logging anything reopens it/.test(e.textContent)), 'its panel says so');
+  await shot(page, 'drawer-back');
+  await page.click('#drawer [data-act=log][data-k=pt_vm]'); await page.waitForTimeout(300);
+  const back = await itemOf(kb);
+  ok(back.state === 'open' && back.log.slice(-2).map(e => e.k).join(',') === 'reopen,pt_vm', 'logging a voicemail reopened it first: ' + back.log.slice(-2).map(e => e.k).join(','));
+  await closeDrawer();
+
+  // credits: the refund checklist
+  await page.click('#nav-cr'); await page.waitForSelector('#view tbody tr');
+  const kc = await S_(() => listCredits(S.accts).find(a => !a.prepay && !itemFor(a.key)).key);
+  await page.click('tr[data-key="' + kc + '"]'); await page.waitForSelector('#drawer .chkList');
+  await collect(); await shot(page, 'drawer-credit');
+  await page.check('#drawer .chkList input[data-k=fee]'); await page.waitForTimeout(250);
+  const cr = await itemOf(kc);
+  ok(cr && cr.kind === 'cr' && cr.checks.fee === true, 'ticking a refund check starts the record with it ticked');
+  ok(await page.$eval('#drawer .sec h5', () => /1 of 8/.test(document.querySelector('#drawer').textContent)), 'checklist shows 1 of 8');
+  await closeDrawer();
+
+  // Today: close the accounts cleared in Edge
+  await page.click('#nav-today'); await page.waitForSelector('[data-act=closeCleared]');
+  await page.click('[data-act=closeCleared]'); await page.click('#cbYes'); await page.waitForTimeout(400);
+  ok((await S_(() => counts())).cleared === 0 && await toastHas(/Closed 1 account/), 'closing “Cleared in Edge” resolves them');
+
+  // download a list
+  await page.click('#nav-pd');
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.click('[data-act=csv]').then(() => page.click('#cbYes'))]);
+  const csv = fs.readFileSync(await dl.path(), 'utf8');
+  ok(/^﻿"Patient","Responsible party","Edge status"/.test(csv) && csv.split('\n').length === n91 + 1, 'Download list: a CSV with a heading row and one line per account (' + (csv.split('\n').length - 1) + ')');
+  ok(/nlo-ar-past-due-91-\d{4}-\d{2}-\d{2}\.csv/.test(dl.suggestedFilename()), 'file name says which list: ' + dl.suggestedFilename());
+
+  // ---- importing a made-up Edge export
+  await page.click('#nav-reports'); await page.waitForSelector('#dropZone');
+  const nRep = await S_(() => S.reports.length);
+  await page.setInputFiles('#arFile', path.join(__dirname, 'fixtures', 'edge-full.xls'));
+  await page.waitForSelector('#impSave');
+  await collect(); await shot(page, 'import-preview', true);
+  ok(await page.$eval('#view .chk.ok', e => /Matches Edge’s totals: 320 accounts/.test(e.textContent)), 'preview: the file matches Edge’s own totals');
+  await page.click('#impSave'); await page.waitForFunction(n => S.reports.length === n + 1, nRep, { timeout: 10000 });
+  await page.waitForTimeout(300);
+  ok(await toastHas(/Report saved/), 'saved (sealed) — ' + (await S_(() => S.reports.length)) + ' reports');
+  await page.click('#nav-reports'); await page.waitForSelector('[data-act=delReport]');
+  const rid = await S_(() => S.reports.find(r => r.n > 100).id);
+  await page.click('[data-act=delReport][data-id="' + rid + '"]'); await page.click('#cbYes'); await page.waitForFunction(n => S.reports.length === n, nRep, { timeout: 5000 });
+  ok(true, 'the owner can delete a report');
+  // a paste of a random table is refused with a reason
+  await page.evaluate(() => { const pb = document.querySelector('#pasteBox'); const dt = new DataTransfer(); dt.setData('text/plain', 'Name\tPhone\nA\t1\n'); pb.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true })); });
+  await page.waitForTimeout(150);
+  ok(await page.$eval('#view .lockErr', e => /doesn’t look like/.test(e.textContent)).catch(() => false), 'pasting something that isn’t the report says so');
+  await page.click('[data-act=nav][data-v=today] >> nth=0').catch(() => page.click('#nav-today'));
+
+  // ---- Settings
+  await page.click('#nav-settings'); await page.waitForSelector('#accessBox .accessRow');
+  await page.waitForTimeout(300);
+  ok(await page.$$eval('#accessBox .sw[aria-checked=true]', s => s.length) === 3, 'three people have A/R (Dr. A, Jamie, Taylor)');
+  ok(await page.$eval('#accessBox', e => /Needs to sign in once/.test(e.textContent)), 'someone who hasn’t chosen a password yet can’t be given A/R yet');
+  await page.click('#accessBox .sw[data-uid=u-morgan]'); await page.waitForTimeout(800);
+  ok(await page.$eval('#accessBox .sw[data-uid=u-morgan]', e => e.getAttribute('aria-checked')) === 'true' && (await S_(() => S.team)).includes('morgan'), 'turning Morgan on gives her A/R (and she can be assigned accounts)');
+  await page.click('#accessBox .sw[data-uid=u-jamie]'); await page.waitForSelector('#cbYes'); await page.click('#cbYes');
+  await page.waitForSelector('#rotBar'); await shot(page, 'settings-rotating');
+  await page.waitForFunction(() => !S.rotating && S.people && !S.people.grants.some(g => g.uid === 'u-jamie'), null, { timeout: 15000 });
+  ok(await toastHas(/A\/R turned off for Jamie/) && await page.$eval('#keyBox', e => /#2/.test(e.textContent)), 'turning Jamie off makes a new A/R key (#2) and seals everything again');
+  await page.fill('#cfgInst', '12.50'); await page.waitForTimeout(100);
+  ok(/0 insurance accounts/.test(await page.textContent('#cfgPrev')), 'the preview shows what $12.50 would give with this report');
+  await page.click('[data-act=saveCfg]'); await page.waitForTimeout(300);
+  ok((await S_(() => S.cfg.inst)) === 12.5 && (await S_(() => counts().chase)) === 0, 'saved: the lists use $12.50 (no account is a multiple of it)');
+  await page.click('[data-act=resetCfg]'); await page.click('#cbYes'); await page.waitForTimeout(300);
+  ok((await S_(() => S.cfg.inst)) === 11.11, 'back to the usual numbers');
+  await page.fill('#cfgT1', '50'); await page.click('[data-act=saveCfg]'); await page.waitForTimeout(150);
+  ok(await toastHas(/more than the one before/), 'cutoffs out of order are refused');
+  await page.click('[data-act=loadActivity]'); await page.waitForTimeout(400);
+  ok(await page.$$eval('#actBox .hist', h => h.length) > 5, 'recent activity lists who did what');
+  await collect(); await shot(page, 'settings-after', true);
+
+  // ---- My account
+  await page.click('#nav-account'); await page.fill('#pwCur', 'demo'); await page.fill('#pwN1', 'abcdefgh1'); await page.fill('#pwN2', 'abcdefgh2');
+  await page.click('#pwForm button[type=submit]'); await page.waitForTimeout(150);
+  ok(await toastHas(/don’t match/), 'password change: the two new passwords must match');
+
+  // ---- every button has a handler
+  const missing = await page.evaluate(list => list.filter(a => typeof ACT[a] !== 'function'), Array.from(acts));
+  ok(missing.length === 0, 'every data-act has a handler (' + acts.size + ' seen)' + (missing.length ? ': missing ' + missing.join(', ') : ''));
+
+  // ---- lock
+  await page.click('[data-act=lock] >> nth=0'); await page.waitForSelector('#loginForm');
+  ok(await S_(() => S.items.size === 0 && !S.rep), 'Lock clears everything from the page');
+
+  // ---- phone
+  const ph = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  await routes(ph);
+  const p2 = await ph.newPage(); watch(p2, errs, 'phone');
+  await p2.goto(URL); await p2.click('#lgBtn'); await p2.waitForSelector('.tiles .tile'); await p2.waitForTimeout(300);
+  await p2.screenshot({ path: path.join(SHOTS, 'phone-today.png'), fullPage: true });
+  const wide = async () => p2.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  ok(await wide() <= 0, 'phone: Today fits the screen (no sideways scrolling)');
+  for (const v of ['pd', 'ins', 'cr', 'sum', 'reports']) {
+    await p2.click('#mnav-' + v); await p2.waitForTimeout(200);
+    await p2.screenshot({ path: path.join(SHOTS, 'phone-' + v + '.png'), fullPage: true });
+    ok(await wide() <= 0, 'phone: ' + v + ' fits the screen');
+  }
+  await p2.click('#mnav-pd'); await p2.click('#view tbody tr >> nth=0'); await p2.waitForSelector('#drawer .nowBox');
+  await p2.screenshot({ path: path.join(SHOTS, 'phone-drawer.png'), fullPage: false });
+  ok(await p2.$eval('#drawer', e => e.getBoundingClientRect().width <= window.innerWidth), 'phone: the account panel fits');
+
+  ok(errs.length === 0, 'no page errors' + (errs.length ? ':\n    ' + errs.join('\n    ') : ''));
+  await browser.close();
+  console.log('\n' + pass + ' passed, ' + fail + ' failed');
+  process.exit(fail ? 1 : 0);
+})().catch(e => { console.error(e); process.exit(1); });

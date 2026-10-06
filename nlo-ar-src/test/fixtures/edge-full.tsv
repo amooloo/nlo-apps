@@ -1,0 +1,332 @@
+Accounts Receivable Aging													10/5/2026 2:08 PM
+Accounts Receivable Aging
+Monday, October 5, 2026  Office: All,  Doctor: All
+Exclude Zero Dollar Balances
+Subgroup: None
+
+
+Patient	Sts	Responsible Party		Home  Ph	Work  Ph	Amt Due	0-30	31-60	61-90	91+		Days		Balance		Last Amt	Received
+Emerson Samplesen	A-Comp NLA	Mr. Chris Samplesen		(352) 555-0100	(352) 555-0100	(25.00)	0.00	0.00	0.00	0.00				(25.00)		175.00	9/23/2026
+Kendall Placeholder	A-Comp Bra	Mrs. Lee Placeholder		(352) 555-0101		825.00	275.00	275.00	275.00	0.00		66		1,650.00		275.00	7/28/2026
+Dana Fakeworth	A-Comp Inv	Mr. Pat Fakeworth		(352) 555-0102		450.00	225.00	225.00	0.00	0.00		33		1,350.00		225.00	8/30/2026
+Łucja O'Sample	A-Comp Inv	INS: Pat O'Sample		(352) 555-0103		188.87	11.11	11.11	11.11	155.54		488		388.85
+Avery O'Sample	A-Comp Inv	Robin O'Sample		(352) 555-0104		1,400.00	175.00	175.00	175.00	875.00		233		3,675.00		175.00	2/11/2026		Sent letter 9/14
+Emerson Demo	A- Ph II B	Lee Demo		(352) 555-0105		(62.50)	0.00	0.00	0.00	0.00				(62.50)		212.50	3/25/2023
+José Demo	RET ONLY	Robin Demo		(352) 555-0106		300.00	150.00	150.00	0.00	0.00		47		750.00		150.00	8/16/2026
+Sawyer Mockley	A-Comp NLA	Mr. Pat Mockley		(352) 555-0107		175.00	175.00	0.00	0.00	0.00		4		700.00		175.00	9/28/2026
+Kendall Mockley	Retention	INS: Pat Mockley		(352) 555-0108		(310.00)	0.00	0.00	0.00	0.00				(310.00)		460.00	8/26/2026
+Parker Testcase	Start Sche	Mr. Pat Testcase		(352) 555-0109		250.00	250.00	0.00	0.00	0.00		9		1,750.00		250.00	9/23/2026
+Remy Fakeworth	RET ONLY	Pat Fakeworth		(352) 555-0110		398.00	199.00	199.00	0.00	0.00		33		4,378.00		199.00	8/30/2026
+Arden Demoray	A-Comp Bra	Mrs. Lee Demoray		(352) 555-0111		495.00	45.00	45.00	45.00	360.00		301		1,035.00		45.00	12/5/2025
+Shay Demo	A- Ph I Br	Mr. Alex Demo		(352) 555-0112		3,500.00	250.00	250.00	250.00	2,750.00		395		6,250.00		250.00	9/2/2025
+Quinn Testcase	A- Ph I Br	INS: Mr. Lee Testcase		(352) 555-0113		(25.25)	0.00	0.00	0.00	0.00				(25.25)		25.25	3/25/2023
+Arden Exampleton	Retention	Mr. Jordan Exampleton		(352) 555-0114		1,375.00	275.00	275.00	275.00	550.00		141		6,875.00		275.00	5/14/2026
+Avery Samplesen	Retention	Jordan Samplesen		(352) 555-0115		600.00	150.00	150.00	150.00	150.00		112		3,300.00		150.00	6/12/2026		Payment in process
+Quinn O'Sample	Retention	Pat O'Sample		(352) 555-0116		900.00	225.00	225.00	225.00	225.00		112		2,025.00		225.00	6/12/2026
+Elliot Demo-Ray	Retention	Lee Demo-Ray		(352) 555-0117		3,300.00	300.00	300.00	300.00	2,400.00		301		9,300.00		300.00	12/5/2025
+Łucja Samplesen	RET ONLY	INS: Robin Samplesen		(352) 555-0118		247.21	11.11	11.11	11.11	213.88		301		424.97		11.11	12/5/2025
+Jordan Demo-Ray	RET ONLY	Jordan Demo-Ray		(352) 555-0119		225.00	225.00	0.00	0.00	0.00		15		2,475.00		225.00	9/17/2026
+Peyton Placeholder	A-Comp NLA	Mrs. Lee Placeholder		(352) 555-0120		300.00	300.00	0.00	0.00	0.00		4		3,600.00		300.00	9/28/2026
+Dana Demoray	A- Ph II B	Alex Demoray		(352) 555-0121		199.00	199.00	0.00	0.00	0.00		24		3,781.00		199.00	9/8/2026
+Hayden Demo-Ray	A-Comp Bra	Lee Demo-Ray		(352) 555-0122		597.00	199.00	199.00	199.00	0.00		79		2,587.00		199.00	7/15/2026
+Peyton Samplesen	A-Comp Inv	INS: Mrs. Jordan Samplesen		(352) 555-0123	(352) 555-0161	44.44	11.11	11.11	11.11	11.11		93		77.77		11.11	7/1/2026
+Ellis Samplesen	Retention	Mrs. Jordan Samplesen		(352) 555-0124		199.00	199.00	0.00	0.00	0.00		4		796.00		199.00	9/28/2026
+Blake Sample	A-Comp Inv	Pat Sample		(352) 555-0125		550.00	275.00	275.00	0.00	0.00		58		4,950.00		275.00	8/5/2026
+Elliot Exämple	A-Comp Bra	Robin Exämple		(352) 555-0126		300.00	150.00	150.00	0.00	0.00		33		2,250.00		150.00	8/30/2026		Autopay card expired
+Jordan Mockley	RET ONLY	Mrs. Chris Mockley		(352) 555-0127		(63.00)	0.00	0.00	0.00	0.00				(63.00)		63.00	7/27/2024
+Harper Mockley	A- Ph I Br	INS: Mrs. Pat Mockley		(352) 555-0128		(450.00)	0.00	0.00	0.00	0.00				(450.00)		550.00	3/25/2023
+Shay O'Sample	A-Comp NLA	Mr. Chris O'Sample		(352) 555-0129		796.00	199.00	199.00	199.00	199.00		93		3,582.00		199.00	7/1/2026
+Marlow Example	Retention	Alex Example		(352) 555-0130		(128.25)	0.00	0.00	0.00	0.00				(128.25)		228.25	7/27/2024
+Blake Exampleton	A-Comp Inv	Mrs. Lee Exampleton		(352) 555-0131		550.00	275.00	275.00	0.00	0.00		47		5,225.00		275.00	8/16/2026
+Blake Notreal	A-Comp Bra	Pat Notreal		(352) 555-0132		2,400.00	300.00	300.00	300.00	1,500.00		233		3,300.00		300.00	2/11/2026
+Blake Example	Inactive	INS: Mrs. Lee Example		(352) 555-0133		22.22	11.11	11.11	0.00	0.00		33		99.99
+Rowan Demo-Ray	A-Comp NLA	Alex Demo-Ray		(352) 555-0134		(240.00)	0.00	0.00	0.00	0.00				(240.00)		340.00	8/26/2026
+Cameron Placeholder	A-Comp Inv	Robin Placeholder		(352) 555-0135		(1,150.25)	0.00	0.00	0.00	0.00				(1,150.25)		1,300.25	9/23/2026
+Harper Demo	Start Sche	Lee Demo		(352) 555-0136		900.00	225.00	225.00	225.00	225.00		93		1,575.00		225.00	7/1/2026
+Jordan Sample	A- Ph II B	Mr. Robin Sample		(352) 555-0137		(128.50)	0.00	0.00	0.00	0.00				(128.50)		278.50	3/25/2023		Payment in process
+Cameron Sample	RET ONLY	INS: Chris Sample		(352) 555-0138		(85.25)	0.00	0.00	0.00	0.00				(85.25)		235.25	2/27/2026
+Elliot Demo	A- Ph I Br	Mrs. Robin Demo		(352) 555-0139		350.00	175.00	175.00	0.00	0.00		58		1,575.00		175.00	8/5/2026
+Logan O'Sample	A- Ph II B	Mr. Alex O'Sample		(352) 555-0140		2,750.00	250.00	250.00	250.00	2,000.00		301		4,750.00		250.00	12/5/2025
+Remy Sample	A- Ph I Br	Alex Sample		(352) 555-0141		495.00	45.00	45.00	45.00	360.00		301		1,395.00		45.00	12/5/2025
+Finley Testcase	A-Comp NLA	Robin Testcase		(352) 555-0142		175.00	175.00	0.00	0.00	0.00		4		3,500.00		175.00	9/28/2026
+Shay Testcase	RET ONLY	INS: Mrs. Chris Testcase		(352) 555-0143		44.44	11.11	11.11	11.11	11.11		112		144.43		11.11	6/12/2026
+Ellis Example	Inactive	Mr. Lee Example		(352) 555-0144		398.00	199.00	199.00	0.00	0.00		58		3,781.00		199.00	8/5/2026
+Parker Sample	A-Comp NLA	Alex Sample		(352) 555-0145		(1,150.00)	0.00	0.00	0.00	0.00				(1,150.00)		1,150.00	3/25/2023
+José Demo-Ray	Inactive	Pat Demo-Ray		(352) 555-0146	(352) 555-0122	350.00	175.00	175.00	0.00	0.00		33		2,625.00		175.00	8/30/2026
+Sage Demo-Ray	A- Ph I Br	Mr. Alex Demo-Ray		(352) 555-0147		597.00	199.00	199.00	199.00	0.00		66		3,184.00		199.00	7/28/2026
+Sawyer Sample	Start Sche	INS: Mrs. Alex Sample		(352) 555-0148		313.87	11.11	11.11	11.11	280.54		488		513.85		11.11	6/1/2025		Autopay card expired
+Marlow Demoray	A- Ph I Br	Mrs. Jordan Demoray		(352) 555-0149		450.00	150.00	150.00	150.00	0.00		79		2,850.00		150.00	7/15/2026
+Peyton O'Sample	A-Comp NLA	Mrs. Jordan O'Sample		(352) 555-0150		2,000.00	250.00	250.00	250.00	1,250.00		233		3,750.00		250.00	2/11/2026
+Riley Sample	A-Comp NLA	Mrs. Pat Sample		(352) 555-0151		5,100.00	300.00	300.00	300.00	4,200.00		488		8,400.00		300.00	6/1/2025
+Arden Mockley	A-Comp Inv	Lee Mockley		(352) 555-0152		(1,150.50)	0.00	0.00	0.00	0.00				(1,150.50)		1,250.50	8/21/2025
+Skyler Demo-Ray	A- Ph II B	INS: Mr. Alex Demo-Ray		(352) 555-0153		122.21	11.11	11.11	11.11	88.88		301		322.19		11.11	12/5/2025
+Drew Testcase	Retention	Lee Testcase		(352) 555-0154		350.00	175.00	175.00	0.00	0.00		58		3,150.00		175.00	8/5/2026
+Harper Testcase	A-Comp Bra	Chris Testcase		(352) 555-0155		45.00	45.00	0.00	0.00	0.00		15		495.00		45.00	9/17/2026
+Shay Exämple	Start Sche	Mrs. Robin Exämple		(352) 555-0156		(450.00)	0.00	0.00	0.00	0.00				(450.00)		600.00	7/2/2026
+Ellis Placeholder	A-Comp Bra	Mrs. Pat Placeholder		(352) 555-0157		300.00	150.00	150.00	0.00	0.00		47		1,050.00		150.00	8/16/2026
+Parker Exampleton	A- Ph II B	INS: Alex Exampleton		(352) 555-0158		169.44	11.11	11.11	11.11	136.11		112		213.88		11.11	6/12/2026
+Dakota Samplesen	A-Comp Inv	Mrs. Alex Samplesen		(352) 555-0159		597.00	199.00	199.00	199.00	0.00		79		2,388.00		199.00	7/15/2026		Plan — $50/mo
+Zoë Example	Start Sche	Mrs. Chris Example		(352) 555-0160		(450.50)	0.00	0.00	0.00	0.00				(450.50)		600.50	2/27/2026
+Harper Exampleton	Inactive	Chris Exampleton		(352) 555-0161		(240.00)	0.00	0.00	0.00	0.00				(240.00)		340.00	2/27/2026
+Dakota Demo-Ray	RET ONLY	Alex Demo-Ray		(352) 555-0162		(85.50)	0.00	0.00	0.00	0.00				(85.50)		185.50	7/2/2026
+Emerson Notreal	A-Comp Bra	INS: Mr. Alex Notreal		(352) 555-0163		(310.00)	0.00	0.00	0.00	0.00				(310.00)		460.00	2/27/2026
+Skyler Sample	Retention	Mrs. Alex Sample		(352) 555-0164		(310.25)	0.00	0.00	0.00	0.00				(310.25)		410.25	8/26/2026
+Quinn Demoray	A- Ph II B	Lee Demoray		(352) 555-0165		(85.25)	0.00	0.00	0.00	0.00				(85.25)		235.25	2/27/2026
+Logan Exämple	A- Ph I Br	Pat Exämple		(352) 555-0166		175.00	175.00	0.00	0.00	0.00		9		1,925.00		175.00	9/23/2026
+Skyler Example	A-Comp Inv	Jordan Example		(352) 555-0167		300.00	150.00	150.00	0.00	0.00		33		2,850.00		150.00	8/30/2026
+Emerson Sample	Inactive	INS: Alex Sample		(352) 555-0168		(25.50)	0.00	0.00	0.00	0.00				(25.50)		25.50	9/23/2026
+Parker Example	A- Ph II B	Alex Example		(352) 555-0169	(352) 555-0183	350.00	175.00	175.00	0.00	0.00		47		3,500.00		175.00	8/16/2026
+Drew Demo	A-Comp Inv	Mr. Jordan Demo		(352) 555-0170		225.00	45.00	45.00	45.00	90.00		141		675.00		45.00	5/14/2026		Plan — $50/mo
+Blake Placeholder	A-Comp Bra	Robin Placeholder		(352) 555-0171		2,000.00	250.00	250.00	250.00	1,250.00		233		6,000.00		250.00	2/11/2026
+Logan Placeholder	A- Ph II B	Mrs. Chris Placeholder		(352) 555-0172		175.00	175.00	0.00	0.00	0.00		9		1,575.00		175.00	9/23/2026
+José Fakeworth	A-Comp Inv	INS: Alex Fakeworth		(352) 555-0173		11.11	11.11	0.00	0.00	0.00		15		111.10		11.11	9/17/2026
+Dana Placeholder	A-Comp Bra	Robin Placeholder		(352) 555-0174		150.00	150.00	0.00	0.00	0.00		4		2,100.00		150.00	9/28/2026
+Łucja Testcase	A-Comp Bra	Mr. Lee Testcase		(352) 555-0175		199.00	199.00	0.00	0.00	0.00		9		2,985.00		199.00	9/23/2026
+Sage Demo	RET ONLY	Mrs. Lee Demo		(352) 555-0176		600.00	300.00	300.00	0.00	0.00		58		3,600.00		300.00	8/5/2026
+Jordan Fakeworth	A-Comp Bra	Mrs. Chris Fakeworth		(352) 555-0177		180.00	45.00	45.00	45.00	45.00		112		855.00		45.00	6/12/2026
+Kendall Testcase	RET ONLY	INS: Chris Testcase		(352) 555-0178		136.11	136.11	0.00	0.00	0.00		15		358.31		11.11	9/17/2026
+Riley Mockley	Inactive	Mrs. Robin Mockley		(352) 555-0179		2,750.00	250.00	250.00	250.00	2,000.00		301		6,750.00		250.00	12/5/2025
+Peyton Demoray	A- Ph I Br	Mrs. Chris Demoray		(352) 555-0180		225.00	45.00	45.00	45.00	90.00		141		405.00		45.00	5/14/2026
+Skyler Testcase	A- Ph I Br	Lee Testcase		(352) 555-0181		350.00	175.00	175.00	0.00	0.00		58		1,925.00		175.00	8/5/2026		Plan — $50/mo
+Kendall Demo-Ray	A- Ph I Br	Lee Demo-Ray		(352) 555-0182		825.00	275.00	275.00	275.00	0.00		79		6,050.00		275.00	7/15/2026
+Riley Example	Start Sche	INS: Mrs. Robin Example		(352) 555-0183		11.11	11.11	0.00	0.00	0.00		15		211.09		11.11	9/17/2026
+Marlow Mockley	RET ONLY	Mr. Alex Mockley		(352) 555-0184		2,550.00	150.00	150.00	150.00	2,100.00		488		3,000.00		150.00	6/1/2025
+Parker O'Sample	A-Comp Inv	Chris O'Sample		(352) 555-0185		(25.00)	0.00	0.00	0.00	0.00				(25.00)		25.00	2/27/2026
+Sage Testcase	A-Comp NLA	Mr. Alex Testcase		(352) 555-0186		1,225.00	175.00	175.00	175.00	700.00		186		3,500.00		175.00	3/30/2026
+José Notreal	Start Sche	Alex Notreal		(352) 555-0187		275.00	275.00	0.00	0.00	0.00		4		2,750.00		275.00	9/28/2026
+Remy Demo-Ray	Retention	INS: Robin Demo-Ray		(352) 555-0188		147.22	136.11	11.11	0.00	0.00		47		236.10		11.11	8/16/2026
+Sage Sample	A-Comp Bra	Mr. Jordan Sample		(352) 555-0189		(450.50)	0.00	0.00	0.00	0.00				(450.50)		600.50	2/27/2026
+Rowan Mockley	A-Comp Inv	Lee Mockley		(352) 555-0190		525.00	175.00	175.00	175.00	0.00		79		1,050.00		175.00	7/15/2026
+Blake Testcase	A-Comp Bra	Mrs. Alex Testcase		(352) 555-0191		900.00	300.00	300.00	300.00	0.00		66		1,800.00		300.00	7/28/2026
+Kendall Exämple	Start Sche	Jordan Exämple		(352) 555-0192	(352) 555-0144	(62.75)	0.00	0.00	0.00	0.00				(62.75)		212.75	7/2/2026		Autopay card expired
+Jordan Testcase	Inactive	INS: Mrs. Pat Testcase		(352) 555-0193		22.22	11.11	11.11	0.00	0.00		33		77.77
+Reese Testcase	Retention	Mrs. Chris Testcase		(352) 555-0194		225.00	225.00	0.00	0.00	0.00		24		2,025.00		225.00	9/8/2026
+Logan Samplesen	RET ONLY	Pat Samplesen		(352) 555-0195		398.00	199.00	199.00	0.00	0.00		33		2,587.00		199.00	8/30/2026
+Jordan Placeholder	A-Comp Inv	Pat Placeholder		(352) 555-0196		1,200.00	300.00	300.00	300.00	300.00		93		3,900.00		300.00	7/1/2026
+Rowan Placeholder	A-Comp Bra	Jordan Placeholder		(352) 555-0197		180.00	45.00	45.00	45.00	45.00		112		945.00		45.00	6/12/2026
+Hayden Sample	A-Comp Bra	INS: Alex Sample		(352) 555-0198		(85.00)	0.00	0.00	0.00	0.00				(85.00)		235.00	7/2/2026
+Sage Demoray	A-Comp Bra	Mr. Alex Demoray		(352) 555-0199		1,650.00	150.00	150.00	150.00	1,200.00		301		2,250.00		150.00	12/5/2025
+Hayden Testcase	A-Comp Bra	Alex Testcase		(352) 555-0100		1,200.00	300.00	300.00	300.00	300.00		93		6,000.00		300.00	7/1/2026
+Zoë Demoray	A-Comp Bra	Pat Demoray		(352) 555-0101		(62.50)	0.00	0.00	0.00	0.00				(62.50)		162.50	8/21/2025
+Shay Notreal	A-Comp Inv	Mr. Lee Notreal		(352) 555-0102		(128.50)	0.00	0.00	0.00	0.00				(128.50)		128.50	7/2/2026
+Harper Example	RET ONLY	INS: Mrs. Jordan Example		(352) 555-0103		155.54	11.11	11.11	11.11	122.21		395		255.53		11.11	9/2/2025		Plan — $50/mo
+Drew Exämple	Inactive	Robin Exämple		(352) 555-0104		(1,150.50)	0.00	0.00	0.00	0.00				(1,150.50)		1,250.50	3/25/2023
+Shay Demoray	A-Comp Bra	Robin Demoray		(352) 555-0105		2,189.00	199.00	199.00	199.00	1,592.00		301		4,577.00		199.00	12/5/2025
+Sage Example	RET ONLY	Jordan Example		(352) 555-0106		300.00	300.00	0.00	0.00	0.00		24		1,200.00		300.00	9/8/2026
+Drew Mockley	A-Comp Inv	Pat Mockley		(352) 555-0107		3,150.00	225.00	225.00	225.00	2,475.00		395		7,650.00		225.00	9/2/2025
+Rowan Demoray	Retention	INS: Jordan Demoray		(352) 555-0108		(450.25)	0.00	0.00	0.00	0.00				(450.25)		450.25	7/2/2026
+Riley Exampleton	A-Comp Bra	Mr. Robin Exampleton		(352) 555-0109		2,475.00	225.00	225.00	225.00	1,800.00		301		5,175.00		225.00	12/5/2025
+Avery Exampleton	A-Comp Bra	Jordan Exampleton		(352) 555-0110		275.00	275.00	0.00	0.00	0.00		24		5,500.00		275.00	9/8/2026
+Hayden Example	A-Comp NLA	Mrs. Chris Example		(352) 555-0111		550.00	275.00	275.00	0.00	0.00		33		3,850.00		275.00	8/30/2026
+Remy Notreal	Inactive	Alex Notreal		(352) 555-0112		(310.00)	0.00	0.00	0.00	0.00				(310.00)		310.00	7/2/2026
+José Placeholder	A-Comp NLA	INS: Pat Placeholder		(352) 555-0113		188.87	11.11	11.11	11.11	155.54		488		244.42		11.11	6/1/2025
+Ellis Notreal	A-Comp Bra	Pat Notreal		(352) 555-0114		45.00	45.00	0.00	0.00	0.00		15		900.00		45.00	9/17/2026		Plan — $50/mo
+Finley Exämple	Inactive	Pat Exämple		(352) 555-0115	(352) 555-0105	(63.00)	0.00	0.00	0.00	0.00				(63.00)		213.00	2/27/2026
+Reese Exämple	Start Sche	Mrs. Jordan Exämple		(352) 555-0116		300.00	150.00	150.00	0.00	0.00		47		1,050.00		150.00	8/16/2026
+Łucja Example	Start Sche	Alex Example		(352) 555-0117		1,250.00	250.00	250.00	250.00	500.00		141		2,500.00		250.00	5/14/2026
+Skyler Notreal	Inactive	INS: Mrs. Alex Notreal		(352) 555-0118		(62.50)	0.00	0.00	0.00	0.00				(62.50)		212.50	8/26/2026
+Ellis Demoray	RET ONLY	Mr. Chris Demoray		(352) 555-0119		180.00	45.00	45.00	45.00	45.00		93		900.00		45.00	7/1/2026
+Shay Samplesen	Start Sche	Mrs. Jordan Samplesen		(352) 555-0120		2,189.00	199.00	199.00	199.00	1,592.00		301		4,378.00		199.00	12/5/2025
+Cameron Demo	A- Ph II B	Alex Demo		(352) 555-0121		300.00	300.00	0.00	0.00	0.00		4		2,700.00		300.00	9/28/2026
+Łucja Demoray	A- Ph I Br	Mr. Jordan Demoray		(352) 555-0122		1,650.00	150.00	150.00	150.00	1,200.00		301		4,650.00		150.00	12/5/2025
+Sawyer Notreal	Start Sche	INS: Pat Notreal		(352) 555-0123		(128.00)	0.00	0.00	0.00	0.00				(128.00)		228.00	3/25/2023
+Marlow Exämple	A-Comp NLA	Mr. Robin Exämple		(352) 555-0124		1,050.00	150.00	150.00	150.00	600.00		186		1,650.00		150.00	3/30/2026
+Drew Placeholder	Retention	Jordan Placeholder		(352) 555-0125		150.00	150.00	0.00	0.00	0.00		24		3,000.00		150.00	9/8/2026		Plan — $50/mo
+Elliot Mockley	A-Comp Inv	Robin Mockley		(352) 555-0126		1,250.00	250.00	250.00	250.00	500.00		141		5,250.00		250.00	5/14/2026
+Sawyer O'Sample	A-Comp Bra	Mrs. Alex O'Sample		(352) 555-0127		796.00	199.00	199.00	199.00	199.00		93		1,592.00		199.00	7/1/2026
+Łucja Exämple	A-Comp NLA	INS: Pat Exämple		(352) 555-0128		202.77	11.11	11.11	11.11	169.44		186		313.87		11.11	3/30/2026
+Ellis Exämple	A-Comp NLA	Alex Exämple		(352) 555-0129		796.00	199.00	199.00	199.00	199.00		93		2,985.00		199.00	7/1/2026
+Shay Mockley	Inactive	Mr. Alex Mockley		(352) 555-0130		450.00	150.00	150.00	150.00	0.00		79		1,950.00		150.00	7/15/2026
+José Mockley	A- Ph I Br	Mrs. Robin Mockley		(352) 555-0131		2,400.00	300.00	300.00	300.00	1,500.00		233		8,400.00		300.00	2/11/2026
+Sawyer Example	Inactive	Mrs. Alex Example		(352) 555-0132		900.00	300.00	300.00	300.00	0.00		79		4,500.00		300.00	7/15/2026
+Zoë Sample	A-Comp Inv	INS: Mr. Alex Sample		(352) 555-0133		22.22	11.11	11.11	0.00	0.00		33		211.09		11.11	8/30/2026
+Zoë Mockley	RET ONLY	Mrs. Jordan Mockley		(352) 555-0134		900.00	225.00	225.00	225.00	225.00		93		3,375.00		225.00	7/1/2026
+Blake O'Sample	RET ONLY	Pat O'Sample		(352) 555-0135		398.00	199.00	199.00	0.00	0.00		47		3,383.00		199.00	8/16/2026
+Sage Placeholder	A-Comp Bra	Mrs. Alex Placeholder		(352) 555-0136		597.00	199.00	199.00	199.00	0.00		66		4,577.00		199.00	7/28/2026		Payment in process
+Hayden Exämple	RET ONLY	Mrs. Jordan Exämple		(352) 555-0137		796.00	199.00	199.00	199.00	199.00		112		2,189.00		199.00	6/12/2026
+Dakota Example	RET ONLY	INS: Mrs. Alex Example		(352) 555-0138	(352) 555-0166	147.22	136.11	11.11	0.00	0.00		58		247.21		11.11	8/5/2026
+Quinn Placeholder	Inactive	Mrs. Lee Placeholder		(352) 555-0139		(63.00)	0.00	0.00	0.00	0.00				(63.00)		163.00	2/27/2026
+Finley Sample	A- Ph I Br	Alex Sample		(352) 555-0140		1,750.00	250.00	250.00	250.00	1,000.00		186		5,000.00		250.00	3/30/2026
+Logan Mockley	A-Comp Inv	Mrs. Chris Mockley		(352) 555-0141		2,786.00	199.00	199.00	199.00	2,189.00		395		4,975.00		199.00	9/2/2025
+Rowan Notreal	A- Ph II B	Mr. Robin Notreal		(352) 555-0142		199.00	199.00	0.00	0.00	0.00		4		3,781.00		199.00	9/28/2026
+Elliot Exampleton	A-Comp Bra	INS: Alex Exampleton		(352) 555-0143		11.11	11.11	0.00	0.00	0.00		4		166.65		11.11	9/28/2026
+Ellis Demo-Ray	A- Ph II B	Mr. Robin Demo-Ray		(352) 555-0144		45.00	45.00	0.00	0.00	0.00		15		720.00		45.00	9/17/2026
+Rowan Example	Inactive	Chris Example		(352) 555-0145		2,100.00	150.00	150.00	150.00	1,650.00		395		3,600.00		150.00	9/2/2025
+Łucja Notreal	A-Comp Bra	Jordan Notreal		(352) 555-0146		(450.00)	0.00	0.00	0.00	0.00				(450.00)		550.00	8/21/2025
+Dana Notreal	A-Comp Inv	Mr. Robin Notreal		(352) 555-0147		(240.00)	0.00	0.00	0.00	0.00				(240.00)		240.00	8/26/2026		Autopay card expired
+Drew Sample	A- Ph II B	INS: Mr. Robin Sample		(352) 555-0148		158.33	136.11	11.11	11.11	0.00		79		280.54		11.11	7/15/2026
+Blake Samplesen	Inactive	Jordan Samplesen		(352) 555-0149		275.00	275.00	0.00	0.00	0.00		4		1,650.00		275.00	9/28/2026
+Finley Demo	A-Comp Bra	Alex Demo		(352) 555-0150		(240.00)	0.00	0.00	0.00	0.00				(240.00)		390.00	7/2/2026
+Finley Exampleton	RET ONLY	Pat Exampleton		(352) 555-0151		2,475.00	225.00	225.00	225.00	1,800.00		301		4,500.00		225.00	12/5/2025
+Skyler Fakeworth	Start Sche	Pat Fakeworth		(352) 555-0152		900.00	225.00	225.00	225.00	225.00		112		4,950.00		225.00	6/12/2026
+Skyler Demoray	A-Comp Bra	INS: Mrs. Jordan Demoray		(352) 555-0153		22.22	11.11	11.11	0.00	0.00		33		166.65
+Harper Demo-Ray	A-Comp Bra	Mr. Lee Demo-Ray		(352) 555-0154		450.00	225.00	225.00	0.00	0.00		33		4,725.00		225.00	8/30/2026
+Elliot Sample	A-Comp Inv	Mr. Alex Sample		(352) 555-0155		597.00	199.00	199.00	199.00	0.00		79		1,990.00		199.00	7/15/2026
+Shay Placeholder	A- Ph I Br	Mrs. Robin Placeholder		(352) 555-0156		275.00	275.00	0.00	0.00	0.00		24		3,025.00		275.00	9/8/2026
+Drew Demoray	A-Comp NLA	Mrs. Chris Demoray		(352) 555-0157		3,850.00	275.00	275.00	275.00	3,025.00		395		5,500.00		275.00	9/2/2025
+Quinn Samplesen	RET ONLY	INS: Pat Samplesen		(352) 555-0158		136.11	136.11	0.00	0.00	0.00		4		269.43		11.11	9/28/2026		Autopay card expired
+Harper Exämple	Retention	Mrs. Alex Exämple		(352) 555-0159		180.00	45.00	45.00	45.00	45.00		112		360.00		45.00	6/12/2026
+Dakota O'Sample	A-Comp Bra	Mrs. Lee O'Sample		(352) 555-0160		2,450.00	175.00	175.00	175.00	1,925.00		395		4,900.00		175.00	9/2/2025
+Riley Samplesen	A- Ph I Br	Mr. Pat Samplesen		(352) 555-0161	(352) 555-0127	900.00	225.00	225.00	225.00	225.00		93		2,925.00		225.00	7/1/2026
+Kendall Demoray	A-Comp Bra	Lee Demoray		(352) 555-0162		(1,150.50)	0.00	0.00	0.00	0.00				(1,150.50)		1,300.50	7/27/2024
+José Example	Retention	INS: Pat Example		(352) 555-0163		(450.25)	0.00	0.00	0.00	0.00				(450.25)		600.25	8/26/2026
+Rowan Exämple	RET ONLY	Mrs. Lee Exämple		(352) 555-0164		2,100.00	150.00	150.00	150.00	1,650.00		395		2,850.00		150.00	9/2/2025
+Shay Example	Retention	Lee Example		(352) 555-0165		135.00	45.00	45.00	45.00	0.00		79		900.00		45.00	7/15/2026
+Jordan Exämple	A- Ph II B	Chris Exämple		(352) 555-0166		1,650.00	150.00	150.00	150.00	1,200.00		301		3,750.00		150.00	12/5/2025
+Logan Example	Start Sche	Robin Example		(352) 555-0167		450.00	225.00	225.00	0.00	0.00		47		2,700.00		225.00	8/16/2026
+Remy Exampleton	Inactive	INS: Mr. Jordan Exampleton		(352) 555-0168		247.21	11.11	11.11	11.11	213.88		301		291.65		11.11	12/5/2025
+Ellis Testcase	A-Comp Inv	Mrs. Chris Testcase		(352) 555-0169		275.00	275.00	0.00	0.00	0.00		9		1,375.00		275.00	9/23/2026		Payment in process
+Accounts Receivable Aging
+Patient	Sts	Responsible Party		Home  Ph	Work  Ph	Amt Due	0-30	31-60	61-90	91+		Days		Balance		Last Amt	Received
+Finley Samplesen	Inactive	Mr. Robin Samplesen		(352) 555-0170		350.00	175.00	175.00	0.00	0.00		33		1,050.00		175.00	8/30/2026
+Quinn Fakeworth	A-Comp Bra	Mrs. Alex Fakeworth		(352) 555-0171		45.00	45.00	0.00	0.00	0.00		15		360.00		45.00	9/17/2026
+José Exämple	RET ONLY	Alex Exämple		(352) 555-0172		175.00	175.00	0.00	0.00	0.00		9		1,225.00		175.00	9/23/2026
+Reese Sample	A- Ph II B	INS: Mr. Chris Sample		(352) 555-0173		155.54	11.11	11.11	11.11	122.21		395		211.09		11.11	9/2/2025
+Logan Demo	Inactive	Mrs. Jordan Demo		(352) 555-0174		1,200.00	300.00	300.00	300.00	300.00		112		6,000.00		300.00	6/12/2026
+Cameron Demoray	Inactive	Mrs. Alex Demoray		(352) 555-0175		550.00	275.00	275.00	0.00	0.00		58		3,575.00		275.00	8/5/2026
+Avery Demoray	A- Ph I Br	Jordan Demoray		(352) 555-0176		180.00	45.00	45.00	45.00	45.00		93		810.00		45.00	7/1/2026
+Avery Testcase	A-Comp Bra	Mr. Lee Testcase		(352) 555-0177		175.00	175.00	0.00	0.00	0.00		24		2,450.00		175.00	9/8/2026
+Hayden Placeholder	A- Ph I Br	INS: Mrs. Robin Placeholder		(352) 555-0178		180.55	11.11	11.11	11.11	147.22		141		358.31		11.11	5/14/2026
+Zoë Testcase	A-Comp Bra	Mrs. Alex Testcase		(352) 555-0179		550.00	275.00	275.00	0.00	0.00		33		5,225.00		275.00	8/30/2026
+Dakota Placeholder	Start Sche	Mr. Alex Placeholder		(352) 555-0180		2,400.00	300.00	300.00	300.00	1,500.00		233		5,400.00		300.00	2/11/2026		Sent letter 9/14
+Skyler Placeholder	A- Ph II B	Jordan Placeholder		(352) 555-0181		1,400.00	175.00	175.00	175.00	875.00		233		1,925.00		175.00	2/11/2026
+Drew O'Sample	A- Ph I Br	Jordan O'Sample		(352) 555-0182		4,675.00	275.00	275.00	275.00	3,850.00		488		5,775.00		275.00	6/1/2025
+Peyton Testcase	A-Comp NLA	INS: Mr. Pat Testcase		(352) 555-0183		188.87	11.11	11.11	11.11	155.54		488		266.64
+Sage Mockley	A- Ph I Br	Mr. Robin Mockley		(352) 555-0184	(352) 555-0188	275.00	275.00	0.00	0.00	0.00		24		1,100.00		275.00	9/8/2026
+Emerson Demoray	RET ONLY	Jordan Demoray		(352) 555-0185		(25.00)	0.00	0.00	0.00	0.00				(25.00)		175.00	2/27/2026
+Parker Mockley	Inactive	Mr. Alex Mockley		(352) 555-0186		600.00	300.00	300.00	0.00	0.00		58		2,400.00		300.00	8/5/2026
+Peyton Sample	A-Comp Bra	Mrs. Jordan Sample		(352) 555-0187		1,925.00	175.00	175.00	175.00	1,400.00		301		4,200.00		175.00	12/5/2025
+Zoë Notreal	Retention	INS: Chris Notreal		(352) 555-0188		(128.25)	0.00	0.00	0.00	0.00				(128.25)		278.25	8/26/2026
+Ellis Sample	Retention	Lee Sample		(352) 555-0189		495.00	45.00	45.00	45.00	360.00		301		1,215.00		45.00	12/5/2025
+Logan Demoray	A-Comp Bra	Alex Demoray		(352) 555-0190		900.00	300.00	300.00	300.00	0.00		79		1,800.00		300.00	7/15/2026
+Arden Demo-Ray	Inactive	Mrs. Robin Demo-Ray		(352) 555-0191		675.00	225.00	225.00	225.00	0.00		66		4,275.00		225.00	7/28/2026		Autopay card expired
+Sage Exampleton	A-Comp Bra	Mrs. Jordan Exampleton		(352) 555-0192		199.00	199.00	0.00	0.00	0.00		24		995.00		199.00	9/8/2026
+Drew Exampleton	A- Ph II B	INS: Mr. Robin Exampleton		(352) 555-0193		155.54	11.11	11.11	11.11	122.21		395		199.98		11.11	9/2/2025
+Skyler Mockley	Start Sche	Lee Mockley		(352) 555-0194		3,850.00	275.00	275.00	275.00	3,025.00		395		7,150.00		275.00	9/2/2025
+Finley Mockley	A-Comp Bra	Mr. Jordan Mockley		(352) 555-0195		1,575.00	225.00	225.00	225.00	900.00		186		5,175.00		225.00	3/30/2026
+Reese Fakeworth	A- Ph II B	Chris Fakeworth		(352) 555-0196		1,800.00	225.00	225.00	225.00	1,125.00		233		4,950.00		225.00	2/11/2026
+Sage O'Sample	RET ONLY	Robin O'Sample		(352) 555-0197		(1,150.00)	0.00	0.00	0.00	0.00				(1,150.00)		1,150.00	8/21/2025
+Parker Fakeworth	RET ONLY	INS: Chris Fakeworth		(352) 555-0198		(128.50)	0.00	0.00	0.00	0.00				(128.50)		128.50	8/26/2026
+Avery Fakeworth	A-Comp Bra	Mrs. Alex Fakeworth		(352) 555-0199		600.00	300.00	300.00	0.00	0.00		47		1,800.00		300.00	8/16/2026
+Logan Notreal	A- Ph I Br	Alex Notreal		(352) 555-0100		900.00	300.00	300.00	300.00	0.00		66		4,200.00		300.00	7/28/2026
+Cameron Example	Start Sche	Mrs. Jordan Example		(352) 555-0101		135.00	45.00	45.00	45.00	0.00		79		990.00		45.00	7/15/2026
+Rowan Demo	Inactive	Mr. Alex Demo		(352) 555-0102		450.00	225.00	225.00	0.00	0.00		47		2,700.00		225.00	8/16/2026		Autopay card expired
+Hayden Notreal	A-Comp Bra	INS: Mrs. Pat Notreal		(352) 555-0103		33.33	11.11	11.11	11.11	0.00		79		233.31		11.11	7/15/2026
+Parker Exämple	Retention	Mr. Lee Exämple		(352) 555-0104		1,925.00	175.00	175.00	175.00	1,400.00		301		4,725.00		175.00	12/5/2025
+Avery Sample	A- Ph I Br	Mrs. Lee Sample		(352) 555-0105		150.00	150.00	0.00	0.00	0.00		9		1,800.00		150.00	9/23/2026
+Parker Demoray	RET ONLY	Mrs. Pat Demoray		(352) 555-0106		450.00	225.00	225.00	0.00	0.00		47		2,475.00		225.00	8/16/2026
+Rowan Exampleton	Inactive	Mr. Lee Exampleton		(352) 555-0107	(352) 555-0149	45.00	45.00	0.00	0.00	0.00		9		855.00		45.00	9/23/2026
+Finley Fakeworth	A- Ph I Br	INS: Chris Fakeworth		(352) 555-0108		136.11	136.11	0.00	0.00	0.00		4		247.21		11.11	9/28/2026
+Harper Notreal	A-Comp Bra	Chris Notreal		(352) 555-0109		(310.25)	0.00	0.00	0.00	0.00				(310.25)		460.25	7/27/2024
+Peyton Fakeworth	Start Sche	Mr. Jordan Fakeworth		(352) 555-0110		525.00	175.00	175.00	175.00	0.00		79		1,400.00		175.00	7/15/2026
+Dakota Mockley	A-Comp NLA	Mr. Chris Mockley		(352) 555-0111		796.00	199.00	199.00	199.00	199.00		112		1,990.00		199.00	6/12/2026
+Logan Sample	A- Ph II B	Lee Sample		(352) 555-0112		300.00	150.00	150.00	0.00	0.00		47		2,850.00		150.00	8/16/2026
+Marlow Fakeworth	Inactive	INS: Mr. Lee Fakeworth		(352) 555-0113		(85.00)	0.00	0.00	0.00	0.00				(85.00)		85.00	2/27/2026		Sent letter 9/14
+José Samplesen	A- Ph I Br	Pat Samplesen		(352) 555-0114		2,200.00	275.00	275.00	275.00	1,375.00		233		6,325.00		275.00	2/11/2026
+Avery Example	RET ONLY	Mrs. Alex Example		(352) 555-0115		675.00	225.00	225.00	225.00	0.00		66		1,350.00		225.00	7/28/2026
+Łucja Fakeworth	Start Sche	Mrs. Lee Fakeworth		(352) 555-0116		350.00	175.00	175.00	0.00	0.00		47		875.00		175.00	8/16/2026
+Kendall Exampleton	A-Comp Bra	Mr. Alex Exampleton		(352) 555-0117		1,200.00	300.00	300.00	300.00	300.00		112		4,200.00		300.00	6/12/2026
+Shay Sample	A-Comp NLA	INS: Chris Sample		(352) 555-0118		169.44	11.11	11.11	11.11	136.11		93		258.32		11.11	7/1/2026
+Riley Demoray	A-Comp Bra	Jordan Demoray		(352) 555-0119		500.00	250.00	250.00	0.00	0.00		58		3,750.00		250.00	8/5/2026
+Riley Demo-Ray	A-Comp NLA	Mrs. Alex Demo-Ray		(352) 555-0120		600.00	300.00	300.00	0.00	0.00		33		3,600.00		300.00	8/30/2026
+Sawyer Fakeworth	Start Sche	Mrs. Lee Fakeworth		(352) 555-0121		675.00	225.00	225.00	225.00	0.00		79		1,350.00		225.00	7/15/2026
+Remy Example	A-Comp Bra	Lee Example		(352) 555-0122		5,100.00	300.00	300.00	300.00	4,200.00		488		6,600.00		300.00	6/1/2025
+Drew Demo-Ray	Retention	INS: Mr. Robin Demo-Ray		(352) 555-0123		77.77	11.11	11.11	11.11	44.44		186		133.32		11.11	3/30/2026
+Shay Exampleton	A-Comp Inv	Mr. Jordan Exampleton		(352) 555-0124		(85.25)	0.00	0.00	0.00	0.00				(85.25)		85.25	3/25/2023		Payment in process
+Łucja Mockley	A- Ph II B	Pat Mockley		(352) 555-0125		(240.00)	0.00	0.00	0.00	0.00				(240.00)		340.00	3/25/2023
+Jordan Samplesen	Inactive	Mr. Chris Samplesen		(352) 555-0126		(25.25)	0.00	0.00	0.00	0.00				(25.25)		25.25	7/2/2026
+Ellis Exampleton	A-Comp Bra	Jordan Exampleton		(352) 555-0127		350.00	175.00	175.00	0.00	0.00		58		2,800.00		175.00	8/5/2026
+Cameron Demo-Ray	Inactive	INS: Pat Demo-Ray		(352) 555-0128		169.44	11.11	11.11	11.11	136.11		112		347.20		11.11	6/12/2026
+Sage Fakeworth	A-Comp Inv	Mr. Robin Fakeworth		(352) 555-0129		(240.00)	0.00	0.00	0.00	0.00				(240.00)		240.00	2/27/2026
+Blake Demo-Ray	Inactive	Mrs. Chris Demo-Ray		(352) 555-0130	(352) 555-0110	180.00	45.00	45.00	45.00	45.00		112		450.00		45.00	6/12/2026
+Rowan Sample	A-Comp Bra	Pat Sample		(352) 555-0131		600.00	300.00	300.00	0.00	0.00		47		1,800.00		300.00	8/16/2026
+Dana O'Sample	A-Comp Bra	Alex O'Sample		(352) 555-0132		175.00	175.00	0.00	0.00	0.00		15		1,575.00		175.00	9/17/2026
+Kendall Fakeworth	A- Ph II B	INS: Mr. Lee Fakeworth		(352) 555-0133		122.21	11.11	11.11	11.11	88.88		301		177.76		11.11	12/5/2025
+Skyler O'Sample	A-Comp Bra	Jordan O'Sample		(352) 555-0134		4,250.00	250.00	250.00	250.00	3,500.00		488		6,250.00		250.00	6/1/2025
+Cameron Testcase	RET ONLY	Pat Testcase		(352) 555-0135		275.00	275.00	0.00	0.00	0.00		24		4,400.00		275.00	9/8/2026		Sent letter 9/14
+Rowan Testcase	Retention	Mrs. Lee Testcase		(352) 555-0136		(25.25)	0.00	0.00	0.00	0.00				(25.25)		175.25	9/23/2026
+Drew Fakeworth	A-Comp NLA	Lee Fakeworth		(352) 555-0137		90.00	45.00	45.00	0.00	0.00		47		855.00		45.00	8/16/2026
+Dakota Sample	A- Ph I Br	INS: Mrs. Lee Sample		(352) 555-0138		280.54	11.11	11.11	11.11	247.21		395		424.97		11.11	9/2/2025
+Jordan Example	A-Comp Bra	Chris Example		(352) 555-0139		398.00	199.00	199.00	0.00	0.00		47		3,781.00		199.00	8/16/2026
+Arden Notreal	A-Comp Inv	Lee Notreal		(352) 555-0140		2,786.00	199.00	199.00	199.00	2,189.00		395		6,766.00		199.00	9/2/2025
+Avery Demo-Ray	A- Ph I Br	Mrs. Robin Demo-Ray		(352) 555-0141		1,592.00	199.00	199.00	199.00	995.00		233		3,184.00		199.00	2/11/2026
+Finley Example	A- Ph I Br	Mr. Chris Example		(352) 555-0142		(62.50)	0.00	0.00	0.00	0.00				(62.50)		212.50	8/21/2025
+Avery Demo	A- Ph I Br	INS: Lee Demo		(352) 555-0143		88.88	11.11	11.11	11.11	55.55		233		133.32
+Kendall O'Sample	Retention	Mrs. Pat O'Sample		(352) 555-0144		(85.25)	0.00	0.00	0.00	0.00				(85.25)		85.25	3/25/2023
+Sawyer Exämple	A-Comp NLA	Mrs. Lee Exämple		(352) 555-0145		225.00	225.00	0.00	0.00	0.00		4		4,725.00		225.00	9/28/2026
+Arden Testcase	A- Ph I Br	Chris Testcase		(352) 555-0146		1,925.00	175.00	175.00	175.00	1,400.00		301		5,250.00		175.00	12/5/2025		Plan — $50/mo
+Łucja Exampleton	Start Sche	Alex Exampleton		(352) 555-0147		(62.50)	0.00	0.00	0.00	0.00				(62.50)		62.50	2/27/2026
+Emerson Example	A- Ph I Br	INS: Mrs. Lee Example		(352) 555-0148		147.22	136.11	11.11	0.00	0.00		47		358.31		11.11	8/16/2026
+Drew Samplesen	Start Sche	Mrs. Robin Samplesen		(352) 555-0149		5,100.00	300.00	300.00	300.00	4,200.00		488		6,300.00		300.00	6/1/2025
+Peyton Demo	A-Comp Inv	Mrs. Robin Demo		(352) 555-0150		300.00	150.00	150.00	0.00	0.00		47		1,500.00		150.00	8/16/2026
+Cameron O'Sample	A-Comp Bra	Mr. Jordan O'Sample		(352) 555-0151		600.00	150.00	150.00	150.00	150.00		93		1,050.00		150.00	7/1/2026
+Shay Demo-Ray	A-Comp Bra	Jordan Demo-Ray		(352) 555-0152		(85.00)	0.00	0.00	0.00	0.00				(85.00)		235.00	7/27/2024
+Remy Samplesen	A-Comp Bra	INS: Mrs. Chris Samplesen		(352) 555-0153	(352) 555-0171	44.44	11.11	11.11	11.11	11.11		93		99.99		11.11	7/1/2026
+Cameron Notreal	A- Ph II B	Mrs. Jordan Notreal		(352) 555-0154		398.00	199.00	199.00	0.00	0.00		33		2,985.00		199.00	8/30/2026
+Dana Demo-Ray	A- Ph II B	Mrs. Alex Demo-Ray		(352) 555-0155		398.00	199.00	199.00	0.00	0.00		58		995.00		199.00	8/5/2026
+Avery Notreal	A-Comp Bra	Mrs. Chris Notreal		(352) 555-0156		700.00	175.00	175.00	175.00	175.00		112		2,975.00		175.00	6/12/2026
+Dakota Exämple	A-Comp Bra	Mrs. Lee Exämple		(352) 555-0157		180.00	45.00	45.00	45.00	45.00		93		315.00		45.00	7/1/2026		Plan — $50/mo
+Dana Exampleton	A-Comp Bra	INS: Mr. Chris Exampleton		(352) 555-0158		136.11	136.11	0.00	0.00	0.00		24		191.66		11.11	9/8/2026
+Skyler Exampleton	RET ONLY	Mr. Chris Exampleton		(352) 555-0159		796.00	199.00	199.00	199.00	199.00		93		4,776.00		199.00	7/1/2026
+Dakota Fakeworth	A- Ph II B	Lee Fakeworth		(352) 555-0160		(128.00)	0.00	0.00	0.00	0.00				(128.00)		278.00	7/2/2026
+Reese Placeholder	RET ONLY	Lee Placeholder		(352) 555-0161		825.00	275.00	275.00	275.00	0.00		79		4,125.00		275.00	7/15/2026
+Reese Notreal	A- Ph I Br	Lee Notreal		(352) 555-0162		350.00	175.00	175.00	0.00	0.00		33		3,150.00		175.00	8/30/2026
+Emerson Exampleton	A-Comp Bra	INS: Mr. Alex Exampleton		(352) 555-0163		22.22	11.11	11.11	0.00	0.00		58		177.76		11.11	8/5/2026
+Arden Demo	A-Comp Bra	Mr. Chris Demo		(352) 555-0164		150.00	150.00	0.00	0.00	0.00		4		2,250.00		150.00	9/28/2026
+Blake Mockley	A- Ph I Br	Mr. Alex Mockley		(352) 555-0165		550.00	275.00	275.00	0.00	0.00		33		5,775.00		275.00	8/30/2026
+Arden Example	Inactive	Mr. Pat Example		(352) 555-0166		630.00	45.00	45.00	45.00	495.00		395		1,305.00		45.00	9/2/2025
+Rowan Fakeworth	A-Comp Inv	Alex Fakeworth		(352) 555-0167		550.00	275.00	275.00	0.00	0.00		33		3,300.00		275.00	8/30/2026
+Avery Mockley	Retention	INS: Robin Mockley		(352) 555-0168		202.77	11.11	11.11	11.11	169.44		186		424.97		11.11	3/30/2026		Plan — $50/mo
+Logan Testcase	Start Sche	Lee Testcase		(352) 555-0169		550.00	275.00	275.00	0.00	0.00		47		4,125.00		275.00	8/16/2026
+Elliot Testcase	RET ONLY	Mrs. Pat Testcase		(352) 555-0170		1,400.00	175.00	175.00	175.00	875.00		233		4,025.00		175.00	2/11/2026
+Łucja Demo	RET ONLY	Robin Demo		(352) 555-0171		1,250.00	250.00	250.00	250.00	500.00		141		2,500.00		250.00	5/14/2026
+Blake Demoray	Retention	Mrs. Jordan Demoray		(352) 555-0172		225.00	45.00	45.00	45.00	90.00		141		945.00		45.00	5/14/2026
+Blake Exämple	A- Ph II B	INS: Jordan Exämple		(352) 555-0173		33.33	11.11	11.11	11.11	0.00		79		66.66
+Elliot Placeholder	A-Comp Bra	Mrs. Pat Placeholder		(352) 555-0174		597.00	199.00	199.00	199.00	0.00		66		2,189.00		199.00	7/28/2026
+Hayden Fakeworth	A-Comp Bra	Jordan Fakeworth		(352) 555-0175		275.00	275.00	0.00	0.00	0.00		15		3,300.00		275.00	9/17/2026
+Hayden Exampleton	A-Comp NLA	Mr. Jordan Exampleton		(352) 555-0176	(352) 555-0132	225.00	45.00	45.00	45.00	90.00		141		810.00		45.00	5/14/2026
+Skyler Demo	A-Comp Bra	Alex Demo		(352) 555-0177		3,150.00	225.00	225.00	225.00	2,475.00		395		4,950.00		225.00	9/2/2025
+José Testcase	A- Ph I Br	INS: Mr. Chris Testcase		(352) 555-0178		(240.00)	0.00	0.00	0.00	0.00				(240.00)		340.00	8/21/2025
+Rowan O'Sample	Start Sche	Jordan O'Sample		(352) 555-0179		150.00	150.00	0.00	0.00	0.00		15		3,150.00		150.00	9/17/2026		Plan — $50/mo
+Harper Fakeworth	A-Comp Bra	Robin Fakeworth		(352) 555-0180		1,500.00	300.00	300.00	300.00	600.00		141		5,100.00		300.00	5/14/2026
+Dana Mockley	A-Comp Bra	Mrs. Chris Mockley		(352) 555-0181		825.00	275.00	275.00	275.00	0.00		79		5,225.00		275.00	7/15/2026
+Dana Exämple	A- Ph II B	Mr. Chris Exämple		(352) 555-0182		300.00	300.00	0.00	0.00	0.00		15		6,000.00		300.00	9/17/2026
+Emerson Testcase	A-Comp Bra	INS: Mrs. Lee Testcase		(352) 555-0183		11.11	11.11	0.00	0.00	0.00		15		199.98		11.11	9/17/2026
+Sawyer Demo	Inactive	Mr. Chris Demo		(352) 555-0184		(85.25)	0.00	0.00	0.00	0.00				(85.25)		185.25	8/26/2026
+Reese Example	Start Sche	Pat Example		(352) 555-0185		1,125.00	225.00	225.00	225.00	450.00		141		4,725.00		225.00	5/14/2026
+Riley Exämple	A- Ph I Br	Mrs. Robin Exämple		(352) 555-0186		2,450.00	175.00	175.00	175.00	1,925.00		395		5,950.00		175.00	9/2/2025
+Cameron Samplesen	Retention	Mr. Pat Samplesen		(352) 555-0187		600.00	300.00	300.00	0.00	0.00		33		2,400.00		300.00	8/30/2026
+Finley O'Sample	Inactive	INS: Mr. Pat O'Sample		(352) 555-0188		180.55	11.11	11.11	11.11	147.22		141		224.99		11.11	5/14/2026
+Jordan Demo	RET ONLY	Robin Demo		(352) 555-0189		(85.25)	0.00	0.00	0.00	0.00				(85.25)		85.25	8/26/2026
+Kendall Demo	Start Sche	Mr. Robin Demo		(352) 555-0190		(25.25)	0.00	0.00	0.00	0.00				(25.25)		25.25	8/21/2025		Payment in process
+Dakota Demo	RET ONLY	Alex Demo		(352) 555-0191		675.00	225.00	225.00	225.00	0.00		79		4,050.00		225.00	7/15/2026
+Marlow Testcase	A- Ph II B	Alex Testcase		(352) 555-0192		450.00	225.00	225.00	0.00	0.00		33		3,150.00		225.00	8/30/2026
+Arden Exämple	A- Ph I Br	INS: Lee Exämple		(352) 555-0193		22.22	11.11	11.11	0.00	0.00		33		199.98		11.11	8/30/2026
+Riley Testcase	A-Comp Inv	Mrs. Alex Testcase		(352) 555-0194		(450.50)	0.00	0.00	0.00	0.00				(450.50)		600.50	8/21/2025
+Riley Placeholder	Retention	Mr. Pat Placeholder		(352) 555-0195		2,786.00	199.00	199.00	199.00	2,189.00		395		6,766.00		199.00	9/2/2025
+Jordan Notreal	RET ONLY	Mr. Lee Notreal		(352) 555-0196		450.00	225.00	225.00	0.00	0.00		33		3,375.00		225.00	8/30/2026
+Avery Exämple	Start Sche	Mr. Lee Exämple		(352) 555-0197		900.00	225.00	225.00	225.00	225.00		112		2,925.00		225.00	6/12/2026
+Dana Testcase	Start Sche	INS: Lee Testcase		(352) 555-0198		147.22	136.11	11.11	0.00	0.00		33		347.20		11.11	8/30/2026
+Łucja Demo-Ray	A-Comp NLA	Mr. Pat Demo-Ray		(352) 555-0199	(352) 555-0193	750.00	250.00	250.00	250.00	0.00		79		5,750.00		250.00	7/15/2026
+Kendall Samplesen	Retention	Jordan Samplesen		(352) 555-0100		199.00	199.00	0.00	0.00	0.00		4		3,980.00		199.00	9/28/2026
+Harper O'Sample	A- Ph I Br	Mr. Robin O'Sample		(352) 555-0101		250.00	250.00	0.00	0.00	0.00		24		4,750.00		250.00	9/8/2026		Autopay card expired
+Elliot Fakeworth	A-Comp Bra	Jordan Fakeworth		(352) 555-0102		90.00	45.00	45.00	0.00	0.00		58		540.00		45.00	8/5/2026
+Riley Demo	Inactive	INS: Jordan Demo		(352) 555-0103		11.11	11.11	0.00	0.00	0.00		15		88.88
+Marlow O'Sample	Inactive	Alex O'Sample		(352) 555-0104		1,575.00	225.00	225.00	225.00	900.00		186		5,175.00		225.00	3/30/2026
+Skyler Samplesen	RET ONLY	Mrs. Chris Samplesen		(352) 555-0105		3,500.00	250.00	250.00	250.00	2,750.00		395		6,500.00		250.00	9/2/2025
+Dakota Exampleton	Start Sche	Mr. Robin Exampleton		(352) 555-0106		750.00	150.00	150.00	150.00	300.00		141		3,750.00		150.00	5/14/2026
+Quinn Exämple	Inactive	Mr. Pat Exämple		(352) 555-0107		550.00	275.00	275.00	0.00	0.00		58		3,025.00		275.00	8/5/2026
+Kendall Sample	A- Ph I Br	INS: Pat Sample		(352) 555-0108		213.88	11.11	11.11	11.11	180.55		233		247.21		11.11	2/11/2026
+Reese Exampleton	A- Ph II B	Chris Exampleton		(352) 555-0109		1,000.00	250.00	250.00	250.00	250.00		93		2,500.00		250.00	7/1/2026
+Remy Demoray	A- Ph I Br	Robin Demoray		(352) 555-0110		199.00	199.00	0.00	0.00	0.00		4		1,990.00		199.00	9/28/2026
+Sage Samplesen	A-Comp Bra	Chris Samplesen		(352) 555-0111		180.00	45.00	45.00	45.00	45.00		93		630.00		45.00	7/1/2026
+Harper Placeholder	A-Comp NLA	Robin Placeholder		(352) 555-0112		630.00	45.00	45.00	45.00	495.00		395		1,170.00		45.00	9/2/2025		Autopay card expired
+Marlow Demo	Retention	INS: Lee Demo		(352) 555-0113		11.11	11.11	0.00	0.00	0.00		4		177.76		11.11	9/28/2026
+Jordan Exampleton	A-Comp NLA	Chris Exampleton		(352) 555-0114		250.00	250.00	0.00	0.00	0.00		24		1,000.00		250.00	9/8/2026
+Remy Testcase	A- Ph I Br	Mr. Alex Testcase		(352) 555-0115		500.00	250.00	250.00	0.00	0.00		33		3,250.00		250.00	8/30/2026
+Sawyer Exampleton	A- Ph II B	Jordan Exampleton		(352) 555-0116		1,250.00	250.00	250.00	250.00	500.00		141		3,250.00		250.00	5/14/2026
+Dakota Notreal	A-Comp Bra	Chris Notreal		(352) 555-0117		350.00	175.00	175.00	0.00	0.00		47		1,225.00		175.00	8/16/2026
+Remy Placeholder	Inactive	INS: Lee Placeholder		(352) 555-0118		169.44	11.11	11.11	11.11	136.11		93		391.64		11.11	7/1/2026
+Hayden Samplesen	Retention	Lee Samplesen		(352) 555-0119		1,575.00	225.00	225.00	225.00	900.00		186		4,500.00		225.00	3/30/2026
+(320 Patients)						192,008.02	44,107.39	34,453.29	23,709.19	105,988.15				670,848.76
+Edge v7.2.3.20006

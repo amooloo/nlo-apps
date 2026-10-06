@@ -1,0 +1,352 @@
+/* =====================================================================
+   The A/R rules — pure functions (no screen, no database), so they can
+   be tested on their own. They are the rules of the two worklists made
+   from Edge's A/R Aging report on 20 Sep 2026:
+   - Past due: 91+ ranked by size (the top 25 carry ~70%), a 31–90 watch
+     list, and insurance accounts where NOTHING has been paid — Dr. A's
+     rule: insurance past due that's an exact multiple of the monthly
+     instalment ($11.11) means N untouched months.
+   - Credit balances: oldest first, 3+ years is a priority; Start
+     Scheduled prepayments are parked (no action).
+   ===================================================================== */
+const AR_DEFAULTS = { inst: 11.11, writeOff: 100, tiers: [60, 120, 365], staleDays: 14 };
+function arCfg(settings) {
+  const a = (settings && settings.ar) || {};
+  const num = (v, d) => (typeof v === 'number' && isFinite(v) && v > 0 ? v : d);
+  const tiers = Array.isArray(a.tiers) && a.tiers.length === 3 && a.tiers.every((n, i) => Number.isInteger(n) && n > 0 && (!i || n > a.tiers[i - 1])) ? a.tiers.slice() : AR_DEFAULTS.tiers.slice();
+  return { inst: num(a.inst, AR_DEFAULTS.inst), writeOff: num(a.writeOff, AR_DEFAULTS.writeOff), tiers, staleDays: num(a.staleDays, AR_DEFAULTS.staleDays) };
+}
+
+/* ---------- one account ---------- */
+function normName(s) { return String(s || '').toLowerCase().replace(/^\s*ins\s*:\s*/, '').replace(/\b(mr|mrs|ms|miss|dr)\.?\s+/g, '').replace(/[^a-z0-9]+/g, ' ').trim(); }
+function isIns(r) { return /^\s*ins\s*:/i.test(r.rp || ''); }
+function isInactive(r) { return /^inact/i.test(String(r.sts || '').trim()); }
+function isPrepay(r) { return /^start\s*sch/i.test(String(r.sts || '').trim()); }
+function rpName(r) { return String(r.rp || '').replace(/^\s*ins\s*:\s*/i, '').trim(); }
+function creditOf(r) { return r.bal != null && r.bal < -0.004 ? round2(-r.bal) : r.due < -0.004 ? round2(-r.due) : 0; }
+function pastDueOf(r) { return r.due > 0.004 ? round2(r.due) : 0; }
+function over30(r) { return round2((r.b30 || 0) + (r.b60 || 0) + (r.b90 || 0)); }
+/* Dr. A's rule: insurance past due that is an exact multiple of the monthly instalment = the carrier has paid nothing */
+function neverPaidMonths(r, cfg) {
+  if (!isIns(r)) return 0; const pd = pastDueOf(r); if (pd <= 0) return 0;
+  const n = Math.round(pd / cfg.inst); return n >= 1 && Math.abs(round2(n * cfg.inst) - pd) < 0.005 ? n : 0;
+}
+/* account key: who the patient is + who pays (insurance and the family's own contract are separate accounts) */
+function acctKey(r) { return normName(r.patient) + '|' + normName(rpName(r)) + '|' + (isIns(r) ? 'I' : 'P'); }
+const TIERS = {
+  monitor: { n: 1, l: 'Claim likely still in flight — monitor', s: 'Monitor', tone: 'grey' },
+  chase: { n: 2, l: 'Chase now — call the carrier', s: 'Chase now', tone: 'red' },
+  investigate: { n: 3, l: 'Likely stuck or denied — investigate the claim', s: 'Investigate', tone: 'amber' },
+  nofile: { n: 4, l: 'Probably never filed — verify, then write off', s: 'Never filed?', tone: 'navy' }
+};
+function tierOf(days, cfg) { const d = Number(days) || 0; return d <= cfg.tiers[0] ? 'monitor' : d <= cfg.tiers[1] ? 'chase' : d <= cfg.tiers[2] ? 'investigate' : 'nofile'; }
+/* credit age, from the last payment to the report's date */
+const CR_AGES = [['0-90 d', 90], ['91-365 d', 365], ['1-2 yr', 730], ['2-3 yr', 1095], ['3+ yr', Infinity]];
+function crAgeBucket(age) { if (age == null) return ''; return CR_AGES.find(([, max]) => age <= max)[0]; }
+/* everything the lists need about one row of the report */
+function acctOf(r, cfg, asOf) {
+  const ins = isIns(r), pd = pastDueOf(r), credit = creditOf(r), months = neverPaidMonths(r, cfg);
+  const b = r.b90 > 0.004 ? '91' : (r.b30 > 0.004 || r.b60 > 0.004) ? '31' : pd > 0 ? '0' : '';
+  const age = r.recv && asOf ? daysBetween(r.recv, asOf) : null;
+  return Object.assign({}, r, {
+    key: r.key || acctKey(r), ins, src: ins ? 'ins' : 'pt', inactive: isInactive(r), prepay: isPrepay(r), pd, credit, o30: over30(r),
+    bucket: b, months, tier: months ? tierOf(r.days, cfg) : '', age, ageBucket: credit ? crAgeBucket(age) : ''
+  });
+}
+/* what to do about it (past due) */
+function pdAction(a, cfg) {
+  if (a.bucket === '91') {
+    if (a.b90 < cfg.writeOff) return { k: 'wo', l: 'Write-off candidate (under ' + money(cfg.writeOff) + ')', s: 'Write-off?', tone: 'grey' };
+    if (a.ins) return { k: 'claim', l: 'Claim follow-up — call the carrier', s: 'Call the carrier', tone: 'red' };
+    if (a.inactive) return { k: 'coll', l: 'Collections or write-off (inactive)', s: 'Collections', tone: 'amber' };
+    return { k: 'call', l: 'Patient collection call', s: 'Collection call', tone: 'red' };
+  }
+  if (a.bucket === '31') {
+    if (a.ins) return { k: 'claim', l: 'Call the carrier — check the claim', s: 'Check the claim', tone: 'amber' };
+    if (a.inactive) return { k: 'coll', l: 'Collections call (inactive)', s: 'Collections call', tone: 'amber' };
+    return { k: 'remind', l: 'Reminder call or text', s: 'Reminder', tone: 'amber' };
+  }
+  if (a.bucket === '0') return a.ins ? { k: 'mon', l: 'Monitor — insurance timing', s: 'Monitor', tone: 'grey' } : { k: 'remind', l: 'Courtesy reminder', s: 'Courtesy reminder', tone: 'grey' };
+  return { k: '', l: '', s: '', tone: 'grey' };
+}
+/* what to do about it (credit balance) */
+function crAction(a) {
+  if (a.prepay) return { k: 'prepay', l: 'No action — prepayment', s: 'No action', tone: 'grey' };
+  if (a.age != null && a.age > 1095) return { k: 'prio', l: 'Priority — 3+ years, refund or escalate', s: 'Priority', tone: 'red' };
+  if (a.inactive) return { k: 'inact', l: 'Refund or write off — patient inactive', s: 'Refund or write off', tone: 'amber' };
+  if (a.age != null && a.age > 365) return { k: 'old', l: 'Investigate — aged over 1 year', s: 'Investigate', tone: 'amber' };
+  return { k: 'timing', l: 'Review — likely timing', s: 'Review', tone: 'grey' };
+}
+const CR_RANK = { prio: 0, inact: 1, old: 2, timing: 3, prepay: 4 };
+
+/* ---------- building a report from the file(s) dropped in ---------- */
+/* what a file covers, from Edge's own lines above the columns */
+function coverOf(meta) {
+  const sg = String(meta.subgroup || '').trim().toLowerCase(), opt = String(meta.options || '').toLowerCase();
+  const all = !sg || sg === 'none';
+  return { full: all, pastDue: all || /past\s*due/.test(sg), credit: all || /credit/.test(sg), ins: !/exclude\s+insurance/.test(opt), zero: /exclude\s+zero/.test(opt) };
+}
+/* one report from one or more files of the same day (e.g. "Past Due" and "Credit Balance" run separately):
+   the accounts that matter (past due or in credit), plus the whole book's totals when a file has every account */
+function buildReport(files, opts) {
+  opts = opts || {};
+  const warn = [], dates = Array.from(new Set(files.map(f => f.meta.asOf).filter(Boolean)));
+  if (dates.length > 1) warn.push('These files are from different days (' + dates.map(fmtDate).join(', ') + '). Import one day at a time.');
+  const asOf = dates[0] || opts.asOf || todayISO();
+  const cover = { full: false, pastDue: false, credit: false, ins: true };
+  let book = null;
+  const seen = new Map(), rows = [];
+  // the file with every account first, so its rows win when an account is in two files
+  files.slice().sort((a, b) => Number(coverOf(b.meta).full) - Number(coverOf(a.meta).full)).forEach(f => {
+    const c = coverOf(f.meta);
+    cover.full = cover.full || c.full; cover.pastDue = cover.pastDue || c.pastDue; cover.credit = cover.credit || c.credit;
+    if (!c.ins) cover.ins = false;
+    if (c.full && !book) {
+      const pt = f.rows.filter(r => !isIns(r)), ins = f.rows.filter(isIns), sum = (l, k) => round2(l.reduce((s, r) => s + (Number(r[k]) || 0), 0));
+      book = { n: f.rows.length, bal: sum(f.rows, 'bal'), due: sum(f.rows, 'due'), pt: { n: pt.length, bal: sum(pt, 'bal') }, ins: { n: ins.length, bal: sum(ins, 'bal') } };
+    }
+    const fileKeys = new Map();
+    f.rows.forEach(r => {
+      if (pastDueOf(r) <= 0 && creditOf(r) <= 0) return;
+      let k = acctKey(r);
+      // the same patient and payer twice in one file (two contracts): keep both
+      const n = (fileKeys.get(k) || 0) + 1; fileKeys.set(k, n); if (n > 1) k += '#' + n;
+      if (seen.has(k)) return; seen.set(k, true);
+      rows.push(Object.assign({}, r, { key: k }));
+    });
+  });
+  if (!cover.ins) warn.push('Insurance contracts were left out of this report (“Exclude Insurance Contracts” was ticked), so the Insurance lists can’t be updated from it.');
+  if (!cover.full && !(cover.pastDue && cover.credit)) warn.push(cover.pastDue ? 'Only past-due accounts are in this report — credit balances won’t be updated.' : cover.credit ? 'Only credit balances are in this report — past due won’t be updated.' : 'This report is a partial subgroup, so the lists may be incomplete.');
+  return { asOf, cover, book, rows, warn, files: files.map(f => ({ name: f.name || '', kind: f.kind || '', subgroup: f.meta.subgroup || '', options: f.meta.options || '', edge: f.meta.edge || '', n: f.rows.length, ok: f.check ? f.check.ok : null })) };
+}
+/* the accounts of a saved report, worked out */
+function reportAccts(rep, cfg) { return (rep && rep.rows || []).map(r => acctOf(r, cfg, rep.asOf)); }
+
+/* ---------- the lists ---------- */
+function list91(accts) { return accts.filter(a => a.bucket === '91').sort((x, y) => y.b90 - x.b90 || y.pd - x.pd); }
+function list31(accts) { return accts.filter(a => a.bucket === '31').sort((x, y) => y.pd - x.pd); }
+function list0(accts) { return accts.filter(a => a.bucket === '0').sort((x, y) => y.pd - x.pd); }
+function listNever(accts) { return accts.filter(a => a.months > 0).sort((x, y) => TIERS[y.tier].n - TIERS[x.tier].n || y.months - x.months || (y.days || 0) - (x.days || 0)); }
+function listCredits(accts) { return accts.filter(a => a.credit > 0).sort((x, y) => CR_RANK[crAction(x).k] - CR_RANK[crAction(y).k] || (y.age || 0) - (x.age || 0) || y.credit - x.credit); }
+/* running share of the 91+ money, down the ranked list */
+function withCum(list91s) { const tot = list91s.reduce((s, a) => s + a.b90, 0); let run = 0; return list91s.map(a => { run += a.b90; return Object.assign({}, a, { cum: tot ? run / tot : 0 }); }); }
+
+/* ---------- the summary page (and the month-end numbers) ---------- */
+function summarize(rep, cfg) {
+  const A = reportAccts(rep, cfg), sum = (l, f) => round2(l.reduce((s, a) => s + f(a), 0));
+  const pdl = A.filter(a => a.pd > 0), pt = pdl.filter(a => !a.ins), ins = pdl.filter(a => a.ins);
+  const pd = { n: pdl.length, total: sum(pdl, a => a.pd), b0: sum(pdl, a => a.b0), b30: sum(pdl, a => a.b30), b60: sum(pdl, a => a.b60), b90: sum(pdl, a => a.b90),
+    pt: { n: pt.length, total: sum(pt, a => a.pd), b90: sum(pt, a => a.b90) }, ins: { n: ins.length, total: sum(ins, a => a.pd), b90: sum(ins, a => a.b90) } };
+  const l91 = list91(A), tot91 = sum(l91, a => a.b90), topN = n => sum(l91.slice(0, n), a => a.b90);
+  let reach70 = 0, run = 0; for (const a of l91) { run += a.b90; reach70++; if (tot91 && run / tot91 >= 0.7) break; }
+  const conc = { n: l91.length, total: tot91, top10: topN(10), top25: topN(25), top50: topN(50), reach70: l91.length ? reach70 : 0 };
+  const bs = new Map(); pdl.forEach(a => { const k = a.sts || '—', x = bs.get(k) || { sts: k, n: 0, pd: 0 }; x.n++; x.pd = round2(x.pd + a.pd); bs.set(k, x); });
+  const nev = listNever(A), tiers = {}; Object.keys(TIERS).forEach(t => { const l = nev.filter(a => a.tier === t); tiers[t] = { n: l.length, pd: sum(l, a => a.pd), contract: sum(l, a => a.bal || 0) }; });
+  const never = { n: nev.length, pd: sum(nev, a => a.pd), contract: sum(nev, a => a.bal || 0), tiers };
+  if (rep.book && rep.book.ins.bal > 0) never.pctBook = never.contract / rep.book.ins.bal;
+  const crl = A.filter(a => a.credit > 0), pre = crl.filter(a => a.prepay), work = crl.filter(a => !a.prepay);
+  const cbs = new Map(); crl.forEach(a => { const k = a.sts || '—', x = cbs.get(k) || { sts: k, n: 0, amt: 0 }; x.n++; x.amt = round2(x.amt + a.credit); cbs.set(k, x); });
+  const cage = CR_AGES.map(([k]) => { const l = crl.filter(a => a.ageBucket === k); return { k, n: l.length, amt: sum(l, a => a.credit) }; });
+  const cpt = crl.filter(a => !a.ins), cins = crl.filter(a => a.ins);
+  const cr = { n: crl.length, total: sum(crl, a => a.credit), pt: { n: cpt.length, total: sum(cpt, a => a.credit) }, ins: { n: cins.length, total: sum(cins, a => a.credit) },
+    prepay: { n: pre.length, total: sum(pre, a => a.credit) }, work: { n: work.length, total: sum(work, a => a.credit) },
+    byStatus: Array.from(cbs.values()).sort((a, b) => b.amt - a.amt), byAge: cage };
+  // Month-End Numbers (the "Accounts" section): totals only, as of this report's date
+  const p30 = pdl.filter(a => !a.ins && a.o30 > 0), i30 = pdl.filter(a => a.ins && a.o30 > 0);
+  const monthEnd = rep.cover && rep.cover.full && rep.cover.ins && rep.book ? {
+    pt_ar: rep.book.pt.bal, pt_ar_n: rep.book.pt.n, ins_ar: rep.book.ins.bal, ins_ar_n: rep.book.ins.n, ar_total: rep.book.bal,
+    pt_pd: sum(p30, a => a.o30), pt_pd_n: p30.length, ins_pd: sum(i30, a => a.o30), ins_pd_n: i30.length, cred_pt: cr.pt.total, cred_ins: cr.ins.total
+  } : null;
+  return { asOf: rep.asOf, cover: rep.cover, book: rep.book || null, pd, conc, byStatus: Array.from(bs.values()).sort((a, b) => b.pd - a.pd), never, cr,
+    netDue: rep.book ? rep.book.due : round2(pd.total - cr.total), monthEnd };
+}
+/* a small summary kept with each saved report, for the trend chart (totals only) */
+function reportTotals(rep, cfg) {
+  const s = summarize(rep, cfg);
+  return { asOf: s.asOf, cover: s.cover, pd: s.pd.total, b90: s.pd.b90, b31: round2(s.pd.b30 + s.pd.b60), n91: s.conc.n, never: s.never.n, neverPd: s.never.pd, cr: s.cr.total, crWork: s.cr.work.total, crN: s.cr.work.n, bal: s.book ? s.book.bal : null };
+}
+
+/* ---------- what changed since the report before ---------- */
+function diffReports(cur, prev, cfg) {
+  const out = { new91: [], cleared: [], newCredit: [], goneCredit: [], worse: [], newNever: [] };
+  if (!cur || !prev) return out;
+  const P = new Map(reportAccts(prev, cfg).map(a => [a.key, a])), C = reportAccts(cur, cfg), Ck = new Set(C.map(a => a.key));
+  const samePd = cur.cover.pastDue && prev.cover.pastDue, sameCr = cur.cover.credit && prev.cover.credit;
+  C.forEach(a => {
+    const p = P.get(a.key);
+    if (samePd && a.bucket === '91' && (!p || p.bucket !== '91')) out.new91.push(a.key);
+    if (samePd && a.months && (!p || !p.months)) out.newNever.push(a.key);
+    else if (samePd && a.months && p && p.months && TIERS[a.tier].n > TIERS[p.tier].n) out.worse.push(a.key);
+    if (sameCr && a.credit > 0 && !a.prepay && (!p || !(p.credit > 0))) out.newCredit.push(a.key);
+  });
+  P.forEach((p, k) => {
+    const c = Ck.has(k) ? C.find(a => a.key === k) : null;
+    if (samePd && p.pd > 0 && (!c || !(c.pd > 0)) && (cur.cover.ins || !p.ins)) out.cleared.push(k);
+    if (sameCr && p.credit > 0 && !p.prepay && (!c || !(c.credit > 0)) && (cur.cover.ins || !p.ins)) out.goneCredit.push(k);
+  });
+  return out;
+}
+
+/* =====================================================================
+   Working an account: what was done, who has it, when to look again.
+   Saved (sealed) only once someone does something with an account.
+   ===================================================================== */
+const STAGES = {
+  '': 'Not started', working: 'Working on it', waiting: 'Waiting to hear back', promise: 'Promised to pay', plan: 'Payment plan', hold: 'On hold'
+};
+const OUTCOMES = { paid: 'Paid', writeoff: 'Written off', refund: 'Refunded', transfer: 'Credit transferred', applied: 'Credit applied', cleared: 'Cleared in Edge', other: 'Resolved' };
+/* one tap logs it; most set what happens next */
+const LOGS = {
+  // patient past due
+  pt_vm: { g: 'pt', l: 'Called — left a voicemail', s: 'Left a voicemail', stage: 'waiting', next: 3 },
+  pt_noans: { g: 'pt', l: 'Called — no answer', s: 'No answer', stage: 'working', next: 2 },
+  pt_spoke: { g: 'pt', l: 'Called — spoke with them', s: 'Spoke with them', stage: 'working', next: 7 },
+  pt_text: { g: 'pt', l: 'Texted', s: 'Texted', stage: 'waiting', next: 3 },
+  pt_email: { g: 'pt', l: 'Emailed', s: 'Emailed', stage: 'waiting', next: 5 },
+  pt_letter: { g: 'pt', l: 'Sent a letter', s: 'Sent a letter', stage: 'waiting', next: 14 },
+  pt_promise: { g: 'pt', l: 'Promised to pay…', s: 'Promised to pay', stage: 'promise', ask: 'date' },
+  pt_plan: { g: 'pt', l: 'Payment plan set up', s: 'Payment plan set up', stage: 'plan', next: 30 },
+  // insurance
+  ins_call: { g: 'ins', l: 'Called the carrier', s: 'Called the carrier', stage: 'waiting', next: 14 },
+  ins_portal: { g: 'ins', l: 'Checked the portal', s: 'Checked the portal', stage: 'working', next: 14 },
+  ins_filed: { g: 'ins', l: 'Claim filed / sent', s: 'Claim filed', stage: 'waiting', next: 30 },
+  ins_resub: { g: 'ins', l: 'Claim resubmitted', s: 'Claim resubmitted', stage: 'waiting', next: 30 },
+  ins_denied: { g: 'ins', l: 'Claim denied…', s: 'Claim denied', stage: 'working', next: 7, ask: 'note' },
+  ins_appeal: { g: 'ins', l: 'Appeal sent', s: 'Appeal sent', stage: 'waiting', next: 30 },
+  ins_pt: { g: 'ins', l: 'Billed to the family', s: 'Billed to the family', stage: 'waiting', next: 14 },
+  // credit balances
+  cr_review: { g: 'cr', l: 'Reviewed the ledger', s: 'Reviewed the ledger', stage: 'working', next: 7 },
+  cr_hold: { g: 'cr', l: 'Holding — insurance not paid out yet', s: 'Holding for insurance', stage: 'hold', next: 60 },
+  cr_refreq: { g: 'cr', l: 'Refund requested (needs Dr. A)', s: 'Refund requested', stage: 'waiting', next: 7, drA: true },
+  // any account
+  note: { g: 'any', l: 'Save note', s: 'Note' }
+};
+/* ways an account is finished */
+const DONE = {
+  pt: [['paid', 'Paid'], ['writeoff', 'Written off'], ['other', 'Resolved another way']],
+  ins: [['paid', 'Carrier paid'], ['writeoff', 'Written off'], ['other', 'Resolved another way']],
+  cr: [['refund', 'Refund issued'], ['transfer', 'Transferred to the family’s balance'], ['applied', 'Applied to a sibling / next phase'], ['writeoff', 'Written off'], ['other', 'Resolved another way']]
+};
+/* Before refunding a credit (FC report instructions, Credits & Refunds) */
+const REFUND_CHECKS = [
+  ['fee', 'We received the total treatment fee'],
+  ['ins', 'We received all expected insurance benefits'],
+  ['ltm', 'Checked whether the lifetime max increased since treatment started'],
+  ['chg', 'Charged out every charge (late, breakage, no-show, retainers…)'],
+  ['rpbal', 'The responsible party has no balance (if they do, transfer the credit to it)'],
+  ['phase', 'No other phase of treatment to apply it to'],
+  ['family', 'No family member in treatment with a balance'],
+  ['moved', 'An insurance credit owed to the family was moved to their account first']
+];
+function blankItem(a) {
+  return { key: a.key, name: a.patient, rp: a.rp, src: a.src, kind: a.credit > 0 && !(a.pd > 0) ? 'cr' : 'pd', state: 'open', stage: '', outcome: '', assignee: '', follow: '', drA: false, log: [], checks: {} };
+}
+/* log something on an account (mutates it). o: { by, note, date, amt, next } */
+function applyLog(item, k, o, now) {
+  const L = LOGS[k]; if (!L) throw errCode('bad-log');
+  o = o || {}; const note = String(o.note || '').trim();
+  if (L.ask === 'note' && !note) throw errCode('need-note', 'Add a note (the reason) first.');
+  if (L.ask === 'date' && !/^\d{4}-\d{2}-\d{2}$/.test(o.date || '')) throw errCode('need-date', 'Pick the day they promised to pay.');
+  if (k === 'note' && !note) throw errCode('need-note', 'Write the note first.');
+  const e = { id: uid8(), at: now, by: o.by || '', k, note, prev: { stage: item.stage, follow: item.follow, drA: !!item.drA } };
+  if (o.amt != null && isFinite(o.amt)) e.amt = round2(o.amt);
+  if (o.date) e.date = o.date;
+  item.log = (item.log || []).concat([e]);
+  if (L.stage) item.stage = L.stage;
+  if (L.ask === 'date') item.follow = o.date;
+  else if (o.next !== undefined) item.follow = o.next || '';
+  else if (L.next) item.follow = nextOfficeDay(addDays(isoOf(new Date(now)), L.next));
+  if (L.drA) item.drA = true;
+  return e;
+}
+/* take back the last thing logged (only right after, and only if nothing else changed since) */
+function canUndoLog(item) { const e = (item.log || [])[item.log.length - 1]; return !!(e && e.prev && item.state === 'open'); }
+function undoLog(item) {
+  const e = (item.log || [])[item.log.length - 1]; if (!e || !e.prev) throw errCode('nothing-to-undo');
+  item.log = item.log.slice(0, -1); item.stage = e.prev.stage || ''; item.follow = e.prev.follow || ''; item.drA = !!e.prev.drA;
+}
+function resolveItem(item, outcome, o, now) {
+  item.state = 'done'; item.outcome = outcome; item.resolvedAt = now; item.resolvedBy = (o && o.by) || ''; item.follow = ''; item.drA = false;
+  const note = String((o && o.note) || '').trim();
+  item.log = (item.log || []).concat([{ id: uid8(), at: now, by: (o && o.by) || '', k: 'done', outcome, note }]);
+}
+function reopenItem(item, o, now) {
+  item.state = 'open'; item.outcome = ''; delete item.resolvedAt; delete item.resolvedBy;
+  item.log = (item.log || []).concat([{ id: uid8(), at: now, by: (o && o.by) || '', k: 'reopen', note: String((o && o.note) || '').trim() }]);
+}
+/* Dr. A's answer to a refund or write-off request */
+function answerDrA(item, ok, o, now) {
+  item.drA = false;
+  item.log = (item.log || []).concat([{ id: uid8(), at: now, by: (o && o.by) || '', k: ok ? 'drA_ok' : 'drA_no', note: String((o && o.note) || '').trim() }]);
+  if (!ok && item.stage === 'waiting') item.stage = 'working';
+}
+function lastLog(item) { const l = (item && item.log || []).filter(e => e.k !== 'reopen'); return l[l.length - 1] || null; }
+function logLabel(e) {
+  if (!e) return '';
+  if (e.k === 'done') return 'Resolved — ' + (OUTCOMES[e.outcome] || e.outcome || '').toLowerCase();
+  if (e.k === 'reopen') return 'Reopened';
+  if (e.k === 'drA_ask') return 'Asked Dr. A';
+  if (e.k === 'drA_ok') return 'Dr. A OK’d it';
+  if (e.k === 'drA_no') return 'Dr. A said not yet';
+  if (e.k === 'assign') return 'Assigned';
+  if (e.k === 'follow') return 'Follow-up moved';
+  const L = LOGS[e.k]; return L ? L.s : e.k;
+}
+
+/* =====================================================================
+   What's read back from the database is checked before it's used:
+   reports, their totals and account records are sealed by an office
+   browser, but nothing in them is trusted to be the right type.
+   ===================================================================== */
+const ISO_RE = /^\d{4}-\d{2}-\d{2}$/;
+const own = (o, k) => typeof k === 'string' && Object.prototype.hasOwnProperty.call(o, k);
+const numOr0 = v => (typeof v === 'number' && isFinite(v) ? v : 0);
+const numOrNull = v => (typeof v === 'number' && isFinite(v) ? v : null);
+const strOf = (v, max) => (typeof v === 'string' ? v : typeof v === 'number' && isFinite(v) ? String(v) : '').slice(0, max || 200);
+const isoOrBlank = v => (typeof v === 'string' && ISO_RE.test(v) ? v : '');
+function normCover(c) { c = c && typeof c === 'object' ? c : {}; return { full: c.full === true, pastDue: c.pastDue === true, credit: c.credit === true, ins: c.ins !== false }; }
+function normRow(r) {
+  r = r && typeof r === 'object' ? r : {};
+  const days = numOrNull(r.days);
+  return { patient: strOf(r.patient), sts: strOf(r.sts, 60), rp: strOf(r.rp), home: strOf(r.home, 60), work: strOf(r.work, 60),
+    due: numOr0(r.due), b0: numOr0(r.b0), b30: numOr0(r.b30), b60: numOr0(r.b60), b90: numOr0(r.b90), days: days == null ? null : Math.round(days),
+    bal: numOrNull(r.bal), lastAmt: numOrNull(r.lastAmt), recv: isoOrBlank(r.recv), note: strOf(r.note, 300), key: strOf(r.key, 400) };
+}
+function normReport(rep) {
+  rep = rep && typeof rep === 'object' ? rep : {};
+  const bk = x => ({ n: Math.max(0, Math.round(numOr0(x && x.n))), bal: numOr0(x && x.bal) }), b = rep.book && typeof rep.book === 'object' ? rep.book : null;
+  return {
+    asOf: isoOrBlank(rep.asOf), cover: normCover(rep.cover),
+    book: b ? Object.assign(bk(b), { due: numOr0(b.due), pt: bk(b.pt), ins: bk(b.ins) }) : null,
+    rows: Array.isArray(rep.rows) ? rep.rows.map(normRow).filter(r => r.patient && r.key) : [],
+    files: Array.isArray(rep.files) ? rep.files.slice(0, 10).map(f => ({ name: strOf(f && f.name), kind: strOf(f && f.kind, 10), subgroup: strOf(f && f.subgroup, 80), options: strOf(f && f.options), edge: strOf(f && f.edge, 40), n: Math.round(numOr0(f && f.n)), ok: f && typeof f.ok === 'boolean' ? f.ok : null })) : [],
+    made: numOrNull(rep.made)
+  };
+}
+function normSum(s) {
+  if (!s || typeof s !== 'object') return null;
+  const i = v => Math.max(0, Math.round(numOr0(v)));
+  return { asOf: isoOrBlank(s.asOf), cover: normCover(s.cover), pd: numOr0(s.pd), b90: numOr0(s.b90), b31: numOr0(s.b31), n91: i(s.n91), never: i(s.never), neverPd: numOr0(s.neverPd), cr: numOr0(s.cr), crWork: numOr0(s.crWork), crN: i(s.crN), bal: numOrNull(s.bal) };
+}
+const LOG_KINDS = new Set(Object.keys(LOGS).concat(['done', 'reopen', 'drA_ask', 'drA_ok', 'drA_no']));
+function normLog(e) {
+  e = e && typeof e === 'object' ? e : {};
+  const o = { id: strOf(e.id, 40), at: numOr0(e.at), by: strOf(e.by, 60), k: LOG_KINDS.has(e.k) ? e.k : 'note', note: strOf(e.note, 2000) };
+  if (o.k === 'done') o.outcome = own(OUTCOMES, e.outcome) ? e.outcome : 'other';
+  if (isoOrBlank(e.date)) o.date = e.date;
+  if (numOrNull(e.amt) != null) o.amt = e.amt;
+  if (e.prev && typeof e.prev === 'object') o.prev = { stage: own(STAGES, e.prev.stage) ? e.prev.stage : '', follow: isoOrBlank(e.prev.follow), drA: e.prev.drA === true };
+  return o;
+}
+function normItem(it) {
+  if (!it || typeof it !== 'object' || it.locked) return it;
+  const checks = {}; REFUND_CHECKS.forEach(([k]) => { if (it.checks && it.checks[k] === true) checks[k] = true; });
+  return {
+    id: strOf(it.id, 40), rev: numOr0(it.rev), v: numOr0(it.v), status: it.status === 'done' ? 'done' : 'open', by: strOf(it.by, 60), updatedAt: numOrNull(it.updatedAt), createdAtSrv: numOrNull(it.createdAtSrv),
+    key: strOf(it.key, 400), name: strOf(it.name), rp: strOf(it.rp), src: it.src === 'ins' ? 'ins' : 'pt', kind: it.kind === 'cr' ? 'cr' : 'pd',
+    state: it.state === 'done' ? 'done' : 'open', stage: own(STAGES, it.stage) ? it.stage : '', outcome: own(OUTCOMES, it.outcome) ? it.outcome : '',
+    assignee: strOf(it.assignee, 60), follow: isoOrBlank(it.follow), drA: it.drA === true, checks,
+    log: Array.isArray(it.log) ? it.log.slice(-500).map(normLog) : [],
+    createdAt: numOr0(it.createdAt), createdBy: strOf(it.createdBy, 60), resolvedAt: numOrNull(it.resolvedAt), resolvedBy: strOf(it.resolvedBy, 60)
+  };
+}

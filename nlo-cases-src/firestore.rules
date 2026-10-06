@@ -308,5 +308,128 @@ service cloud.firestore {
       allow get: if isOwner();
       allow write: if false;
     }
+
+    // ---------- NLO A/R (same office, same logins; its own key, only for the people Dr. A gives A/R to) ----------
+    // Each person's copy of the A/R key ring is sealed to their own key pair (arAccess/<their uid>): these rules
+    // decide who may read A/R at all, and only those people can open what they read. Reports from Edge and the
+    // notes on each account are sealed in the browser; every save of an account keeps the copy it replaced.
+    function arGrant() { return /databases/$(db)/documents/arAccess/$(request.auth.uid); }
+    function isAR() { return isMember() && (isOwner() || exists(arGrant())); }
+    function arCurV() { return get(/databases/$(db)/documents/meta/arKeys).data.current; }
+    function okSealed(b, max) {
+      return b is map && b.keys().hasOnly(['epk', 'iv', 'ct']) && b.epk is map && b.epk.keys().hasOnly(['kty', 'crv', 'x', 'y'])
+        && b.iv is string && b.iv.size() <= 24 && b.ct is string && b.ct.size() <= max;
+    }
+    match /arAccess/{uid} {
+      function okGrant() {
+        let d = request.resource.data;
+        let m = get(/databases/$(db)/documents/members/$(uid)).data;
+        return d.keys().hasOnly(['ring', 'ringV', 'pubX', 'sid', 'by', 'at']) && okSealed(d.ring, 2000)
+          && d.ringV is int && d.pubX is string && d.pubX.size() == 43 && d.sid is string && d.sid == m.staffId
+          && m.active == true && d.by == request.auth.uid && d.at == request.time;
+      }
+      allow get: if (request.auth != null && request.auth.uid == uid && isMember()) || isOwner();
+      allow list: if isOwner();
+      allow create, update: if isOwner() && exists(/databases/$(db)/documents/members/$(uid)) && okGrant();
+      allow delete: if isOwner();
+    }
+    match /meta/arKeys {
+      allow get: if isAR();
+      allow create: if isOwner() && request.resource.data.keys().hasOnly(['current']) && request.resource.data.current == 1;
+      allow update: if isOwner() && request.resource.data.keys().hasOnly(['current']) && request.resource.data.current == resource.data.current + 1;
+      allow delete: if false;
+    }
+    // a copy of the A/R key ring sealed to the office recovery key, so Dr. A's recovery code can always get it back
+    match /meta/arEscrow {
+      allow get: if isOwner();
+      allow create, update: if isOwner() && request.resource.data.keys().hasOnly(['ring', 'ringV', 'recX', 'by', 'at'])
+        && okSealed(request.resource.data.ring, 2000) && request.resource.data.ringV is int && request.resource.data.by == request.auth.uid;
+      allow delete: if false;
+    }
+    // who has A/R (staff ids only), so accounts can be assigned to them
+    match /meta/arTeam {
+      allow get: if isAR();
+      allow create, update: if isOwner() && request.resource.data.keys().hasOnly(['sids', 'at'])
+        && request.resource.data.sids is list && request.resource.data.sids.size() <= 40;
+      allow delete: if false;
+    }
+    // one change of the A/R key at a time, across Dr. A's screens (held for a moment while the key changes)
+    match /meta/arKeyLock {
+      allow get, delete: if isOwner();
+      allow create, update: if isOwner() && request.resource.data.keys().hasOnly(['by', 'at'])
+        && request.resource.data.by is string && request.resource.data.by.size() <= 80 && request.resource.data.at == request.time;
+    }
+    // which set of these rules is live (the app reads this; older rules refuse it)
+    match /meta/rules_ar_1 {
+      allow get: if isMember();
+    }
+    // An imported report: a small index doc (date, count, sealed totals) and the sealed report itself, saved together.
+    // The person who imported it may take it back for a day; the owner any time.
+    function arRep(id) { return get(/databases/$(db)/documents/arReports/$(id)).data; }
+    function myFreshReport(id) { return arRep(id).uid == request.auth.uid && request.time < arRep(id).at + duration.value(1, 'd'); }
+    match /arReports/{id} {
+      function okRep() {
+        let d = request.resource.data;
+        return d.keys().hasOnly(['v', 'sum', 'asOf', 'n', 'uid', 'sid', 'at'])
+          && d.v == arCurV() && d.sum is map && d.sum.keys().hasOnly(['iv', 'ct']) && d.sum.iv is string && d.sum.iv.size() <= 24
+          && d.sum.ct is string && d.sum.ct.size() < 20000
+          && d.asOf is string && d.asOf.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') && d.n is int && d.n >= 0;
+      }
+      allow read: if isAR();
+      allow create: if isAR() && okRep() && request.resource.data.uid == request.auth.uid && request.resource.data.sid == mySid()
+        && request.resource.data.at == request.time && existsAfter(/databases/$(db)/documents/arReportData/$(id));
+      // the owner re-seals it under a newer A/R key: same report, nothing else changes
+      allow update: if isOwner() && okRep() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['v', 'sum']);
+      allow delete: if (isOwner() || (isAR() && myFreshReport(id))) && !existsAfter(/databases/$(db)/documents/arReportData/$(id));
+    }
+    match /arReportData/{id} {
+      function okData() {
+        let d = request.resource.data;
+        return d.keys().hasOnly(['v', 'iv', 'ct']) && d.v == arCurV() && d.iv is string && d.iv.size() <= 24 && d.ct is string && d.ct.size() < 1000000;
+      }
+      allow read: if isAR();
+      allow create: if isAR() && okData() && !exists(/databases/$(db)/documents/arReports/$(id)) && existsAfter(/databases/$(db)/documents/arReports/$(id));
+      allow update: if isOwner() && okData() && exists(/databases/$(db)/documents/arReports/$(id));
+      allow delete: if (isOwner() || (isAR() && myFreshReport(id))) && !existsAfter(/databases/$(db)/documents/arReports/$(id));
+    }
+    // An account someone has worked (calls, notes, follow-up, resolved): saved like a case — sealed, and every write
+    // comes with an append-only history entry ("arLog/<item>_<rev>") holding the copy it replaced.
+    function arHistAfter(id, rev) { return existsAfter(/databases/$(db)/documents/arLog/$(id + '_' + string(rev))); }
+    match /arItems/{id} {
+      function okItem() {
+        let d = request.resource.data;
+        return d.keys().hasOnly(['v', 'iv', 'ct', 'status', 'rev', 'by', 'sid', 'createdAt', 'updatedAt'])
+          && d.v == arCurV() && d.iv is string && d.iv.size() <= 24 && d.ct is string && d.ct.size() < 300000
+          && d.rev is int && d.by == request.auth.uid && d.sid == mySid() && d.updatedAt == request.time
+          && (d.status == 'open' || d.status == 'done');
+      }
+      allow read: if isAR();
+      allow create: if isAR() && id.matches('^a[0-9A-Za-z_-]{22}$') && okItem() && request.resource.data.rev == 1
+        && request.resource.data.createdAt == request.time && arHistAfter(id, 1);
+      allow update: if isAR() && okItem() && request.resource.data.rev == resource.data.rev + 1
+        && request.resource.data.createdAt == resource.data.createdAt && arHistAfter(id, request.resource.data.rev);
+      // never deleted, so a record's history can't be restarted or skipped
+      allow delete: if false;
+    }
+    match /arLog/{lid} {
+      function itemBefore() { return /databases/$(db)/documents/arItems/$(request.resource.data.itemId); }
+      function okArHist() {
+        let d = request.resource.data;
+        return (exists(itemBefore()) && d.rev == get(itemBefore()).data.rev + 1
+                 && d.prev == {'v': get(itemBefore()).data.v, 'iv': get(itemBefore()).data.iv, 'ct': get(itemBefore()).data.ct})
+          || (!exists(itemBefore()) && d.rev == 1 && d.prev == null);
+      }
+      function okArAfter() { return existsAfter(itemBefore()) && getAfter(itemBefore()).data.rev == request.resource.data.rev; }
+      allow read: if isAR();
+      allow create: if isAR()
+        && request.resource.data.keys().hasOnly(['itemId', 'rev', 'uid', 'sid', 'at', 'v', 'iv', 'ct', 'prev'])
+        && request.resource.data.uid == request.auth.uid && request.resource.data.sid == mySid()
+        && request.resource.data.at == request.time && request.resource.data.itemId is string
+        && request.resource.data.rev is int && lid == request.resource.data.itemId + '_' + string(request.resource.data.rev)
+        && request.resource.data.v == arCurV() && request.resource.data.iv is string && request.resource.data.iv.size() <= 24
+        && request.resource.data.ct is string && request.resource.data.ct.size() < 20000
+        && okArHist() && okArAfter();
+      allow update, delete: if false;
+    }
   }
 }
