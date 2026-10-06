@@ -163,11 +163,21 @@ function noReportHTML() {
     '<p class="small" style="margin-bottom:10px">A/R works from Edge’s <b>Accounts Receivable Aging</b> report. Run it, export it to Excel and drop the file in — it’s read on this computer and saved sealed. Every list here (91+, insurance that hasn’t paid, credit balances) comes from it.</p>' +
     edgeStepsHTML(true) + '<div class="btnRow"><button class="btn btn-teal" data-act="nav" data-v="reports">' + ic('import', 16) + 'Import a report</button></div></div></div>';
 }
-function staleHTML() {
-  const m = curRepMeta(); if (!S.rep || !m) return '';
-  const age = daysBetween(S.rep.asOf, todayISO());
-  if (age < S.cfg.staleDays) return '';
-  return '<div class="staleBox">' + ic('clock', 18) + '<span>The newest report is from ' + esc(fmtDateLong(S.rep.asOf)) + ' — ' + age + ' days ago. Balances have moved since; import this week’s.</span><button class="btn btn-sec btn-sm" data-act="nav" data-v="reports">' + ic('import', 15) + 'Import report</button></div>';
+/* the weekly report: a banner from its due day until it's imported — amber on the day, red once it's late */
+function newestWeekly() { let m = ''; S.reports.forEach(r => { if ((!r.sum || !r.sum.cover || r.sum.cover.pastDue) && r.asOf > m) m = r.asOf; }); return m || null; }
+function dueNow() { return S.reports.length ? reportDue(newestWeekly(), todayISO(), S.cfg.dueDay) : null; }
+function dayLong(iso) { const [y, m, d] = iso.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }); }
+function staleHTML(noBtn) {
+  const d = dueNow(); if (!d || d.state === 'ok') return '';
+  const age = d.newest ? daysBetween(d.newest, todayISO()) : 0;
+  const msg = (d.state === 'today' ? 'This week’s A/R report is due today.' : 'This week’s A/R report is late — it was due ' + dayLong(d.due) + (d.days ? ' (' + plural(d.days, 'day') + ' ago)' : '') + '.') +
+    (d.newest ? ' The newest is from ' + fmtDate(d.newest) + (age >= 14 ? ', ' + Math.floor(age / 7) + ' weeks ago' : '') + '.' : '');
+  return '<div class="staleBox ' + d.state + '" role="status">' + ic('clock', 18) + '<span>' + esc(msg) + '</span>' + (noBtn ? '' : '<button class="btn btn-sec btn-sm" data-act="nav" data-v="reports">' + ic('import', 15) + 'Import report</button>') + '</div>';
+}
+/* Reports: when this week's is due, or that it's in and when the next one is */
+function dueLineHTML() {
+  const d = dueNow(); if (!d) return '';
+  return d.state === 'ok' ? '<div class="dueOk">' + ic('done', 15) + '<span>This week’s report is in (' + esc(fmtDate(d.newest)) + '). The next one is due ' + esc(dayLong(d.due)) + '.</span></div>' : staleHTML(true);
 }
 function viewToday() {
   if (S.loadErr) return '<div class="card"><div class="empty">' + esc(S.loadErr) + '</div></div>';
@@ -503,7 +513,7 @@ function edgeStepsHTML(open) {
 }
 function viewReports() {
   const imp = S.imp;
-  let h = '<div class="adminGrid"><div><div class="card"><div class="cardHd"><h3>Import a report</h3><span class="sub">Edge → Accounts Receivable Aging → Export → Excel</span></div><div class="cardBd">';
+  let h = dueLineHTML() + '<div class="adminGrid"><div><div class="card"><div class="cardHd"><h3>Import a report</h3><span class="sub">Edge → Accounts Receivable Aging → Export → Excel</span></div><div class="cardBd">';
   if (imp && imp.files && imp.files.length) h += importPreviewHTML(imp);
   else h += '<div class="dropZone" id="dropZone" tabindex="0" role="button" aria-label="Choose the Edge report file">' + ic('import', 26) + '<b>Drop the Excel file here</b><span class="small">or click to choose it · .xls, .xlsx or .csv · one or more files</span></div>' +
     '<input type="file" id="arFile" accept=".xls,.xlsx,.csv,.txt,.htm,.html,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" multiple class="hidden">' +

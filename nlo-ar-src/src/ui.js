@@ -208,7 +208,7 @@ async function enterApp() {
     inApp: true, arState: 'opening', view: 'today', q: '', f: { src: '', work: '', who: '' }, sort: { k: '', dir: 1 }, ladStep: '', ladMemo: null,
     reports: [], rep: null, repId: '', prev: null, prevId: '', accts: [], byKey: new Map(), diff: null,
     items: new Map(), itemByKey: new Map(), keyIds: new Map(), pend: {}, srv: {}, openKey: '', ui: {}, imp: null, doneLoaded: false, people: null, accessBusy: '', rotating: null,
-    firstLoad: true, loadErr: '', lastAct: Date.now(), team: [], roster: []
+    firstLoad: true, loadErr: '', lastAct: Date.now(), team: [], roster: [], day: todayISO()
   });
   $('#lockWrap').classList.add('hidden'); $('#app').classList.remove('hidden');
   renderShell(); renderView();
@@ -216,7 +216,7 @@ async function enterApp() {
   S.idleTimer = setInterval(() => {
     const mins = Number(S.settings.idleMin) || 10;
     if (S.inApp && !S.tour && Date.now() - S.lastAct > mins * 60000) lockOut('Locked after ' + mins + ' minutes without activity.'); // practice mode has nothing to hide
-    else if (S.inApp) updateTitle();
+    else if (S.inApp) { updateTitle(); if (S.day !== todayISO()) { S.day = todayISO(); queueRender('day'); } } // a new day: day counts and the weekly report's banner move on
   }, 15000);
   let st;
   try { st = await B.arOpen(); } catch (e) { st = 'error'; S.loadErr = errText(e); }
@@ -412,6 +412,9 @@ function renderNav() {
   const c = counts();
   const set = (k, n, red) => ['nav-', 'mnav-'].forEach(p => { const el = $('#' + p + k + ' .cnt'); if (!el) return; el.textContent = n; el.classList.toggle('hidden', !n); el.classList.toggle('red', !!red); });
   set('today', c.due + (isOwner() ? c.drA : 0), c.late > 0 || (isOwner() && c.drA > 0)); set('pd', c.lad, c.lad > 0); set('ins', c.chase, c.chase > 0); set('cr', c.cr);
+  // the weekly report: Due on its day, Late after it, until it's imported
+  const d = dueNow(), dt = d && d.state === 'late' ? 'Late' : d && d.state === 'today' ? 'Due' : '';
+  set('reports', dt, dt === 'Late'); ['nav-', 'mnav-'].forEach(p => { const el = $('#' + p + 'reports .cnt'); if (el) el.classList.toggle('amber', dt === 'Due'); });
   $$('.navBtn[data-v]').forEach(b => b.classList.toggle('on', b.dataset.v === S.view));
 }
 /* the tab title shows how many follow-ups and collection steps are due, so a pinned tab says when to look */

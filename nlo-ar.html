@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-VcHjxoHgnm7KX92fOk3/3k2Yvmw+eGmrxAK3elWkMok=' https://www.gstatic.com/firebasejs/10.12.2/; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com http://127.0.0.1:8080 http://127.0.0.1:9099; frame-src https://nlo-cases.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-RVOXfeNKqvCWLQgCr1f0amchwVSkhWFJiRD8oJKYlgs=' https://www.gstatic.com/firebasejs/10.12.2/; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com http://127.0.0.1:8080 http://127.0.0.1:9099; frame-src https://nlo-cases.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO A/R</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -108,7 +108,7 @@ svg.i{flex:none;display:inline-block;vertical-align:-3px}
 .navBtn:hover{background:rgba(255,255,255,.06);color:#fff}
 .navBtn.on{background:rgba(100,244,201,.12);color:var(--mint)}
 .navBtn .cnt{margin-left:auto;font-size:11px;font-weight:700;background:rgba(255,255,255,.12);color:#fff;border-radius:99px;padding:1px 8px}
-.navBtn .cnt.red{background:var(--coral-600)}
+.navBtn .cnt.red{background:var(--coral-600)} .navBtn .cnt.amber{background:var(--amber);color:var(--navy-900)}
 .sideFoot{margin-top:auto;padding:16px 20px 22px;border-top:1px solid rgba(255,255,255,.07);display:flex;flex-direction:column;gap:10px}
 .whoBox{display:flex;align-items:center;gap:10px;font-size:12.5px;color:#DCE4EE}
 .whoBox b{display:block;color:#fff;font-size:13px}
@@ -504,6 +504,9 @@ tr.cut70 td{border-bottom:2px dashed var(--navy-500)}
 .tile .s b{color:var(--navy)}
 .staleBox{display:flex;align-items:center;gap:12px;flex-wrap:wrap;border-radius:var(--r);padding:12px 16px;margin-bottom:16px;background:var(--amber-100);color:var(--amber-700);font-weight:600;font-size:13.5px}
 .staleBox .btn{margin-left:auto}
+.staleBox>span{flex:1 1 240px;min-width:0}
+.staleBox.late{background:var(--coral-100);color:var(--coral-700)}
+.dueOk{display:flex;align-items:center;gap:8px;margin:-4px 0 14px;font-size:13.5px;font-weight:600;color:var(--mint-700)}
 /* importing */
 .dropZone{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;border:2px dashed var(--grey-300);border-radius:var(--r);padding:30px 18px;text-align:center;background:var(--grey-50);cursor:pointer;color:var(--grey-600);transition:border-color .14s var(--ease),background .14s var(--ease)}
 .dropZone:hover,.dropZone:focus-visible{border-color:var(--navy-500);background:#fff}
@@ -1370,14 +1373,34 @@ function checkTotals(p) {
      Scheduled prepayments are parked (no action).
    ===================================================================== */
 /* goalPt / goalIns: the delinquency goals (AISA handbook §19, both "no more than 4%"); kpiFrom: a patient account counts as
-   past due from its first day past due (1, the handbook's wording) or from 31 days (the 30+ the Month-End numbers use) */
-const AR_DEFAULTS = { inst: 11.11, writeOff: 100, tiers: [60, 120, 365], staleDays: 14, goalPt: 4, goalIns: 4, kpiFrom: 1 };
+   past due from its first day past due (1, the handbook's wording) or from 31 days (the 30+ the Month-End numbers use);
+   dueDay: the weekly report is due every Monday (1) … Thursday (4) — the handbook says weekly and names no day */
+const AR_DEFAULTS = { inst: 11.11, writeOff: 100, tiers: [60, 120, 365], dueDay: 1, goalPt: 4, goalIns: 4, kpiFrom: 1 };
+const DUE_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday'];
 function arCfg(settings) {
   const a = (settings && settings.ar) || {};
   const num = (v, d) => (typeof v === 'number' && isFinite(v) && v > 0 ? v : d), pctOf = (v, d) => (typeof v === 'number' && isFinite(v) && v > 0 && v <= 100 ? v : d);
   const tiers = Array.isArray(a.tiers) && a.tiers.length === 3 && a.tiers.every((n, i) => Number.isInteger(n) && n > 0 && (!i || n > a.tiers[i - 1])) ? a.tiers.slice() : AR_DEFAULTS.tiers.slice();
-  return { inst: num(a.inst, AR_DEFAULTS.inst), writeOff: num(a.writeOff, AR_DEFAULTS.writeOff), tiers, staleDays: num(a.staleDays, AR_DEFAULTS.staleDays),
+  return { inst: num(a.inst, AR_DEFAULTS.inst), writeOff: num(a.writeOff, AR_DEFAULTS.writeOff), tiers, dueDay: [1, 2, 3, 4].includes(a.dueDay) ? a.dueDay : AR_DEFAULTS.dueDay,
     goalPt: pctOf(a.goalPt, AR_DEFAULTS.goalPt), goalIns: pctOf(a.goalIns, AR_DEFAULTS.goalIns), kpiFrom: a.kpiFrom === 31 ? 31 : 1 };
+}
+
+/* ---------- the weekly report (AISA handbook §19: "Weekly: FC runs AR Aging") ----------
+   Due every dueDay (Mon–Thu); a holiday moves it to the next office day. A week's report is in when the newest report is
+   dated that week (Monday on), even before its due day. Until the due day comes, last week's report is the one that counts.
+   → { state: 'ok' | 'today' | 'late', due (the day it's due, or for 'ok' the next one), days (late by), newest } */
+function weekMon(iso) { const [y, m, d] = iso.split('-').map(Number); return addDays(iso, -((new Date(y, m - 1, d).getDay() + 6) % 7)); }
+function reportDue(newest, today, dueDay) {
+  const dd = [1, 2, 3, 4].includes(dueDay) ? dueDay : AR_DEFAULTS.dueDay, dueOf = w => nextOfficeDay(addDays(w, dd - 1));
+  let w = weekMon(today);
+  for (let i = 0; i < 3 && dueOf(w) > today; i++) w = addDays(w, -7);
+  if (newest && newest >= w) {
+    let n = addDays(newest > w ? weekMon(newest) : w, 7);
+    while (dueOf(n) <= today) n = addDays(n, 7);
+    return { state: 'ok', due: dueOf(n), days: 0, newest };
+  }
+  const due = dueOf(w);
+  return { state: due === today ? 'today' : 'late', due, days: Math.max(0, daysBetween(due, today)), newest: newest || null };
 }
 
 /* ---------- one account ---------- */
@@ -2829,7 +2852,7 @@ async function enterApp() {
     inApp: true, arState: 'opening', view: 'today', q: '', f: { src: '', work: '', who: '' }, sort: { k: '', dir: 1 }, ladStep: '', ladMemo: null,
     reports: [], rep: null, repId: '', prev: null, prevId: '', accts: [], byKey: new Map(), diff: null,
     items: new Map(), itemByKey: new Map(), keyIds: new Map(), pend: {}, srv: {}, openKey: '', ui: {}, imp: null, doneLoaded: false, people: null, accessBusy: '', rotating: null,
-    firstLoad: true, loadErr: '', lastAct: Date.now(), team: [], roster: []
+    firstLoad: true, loadErr: '', lastAct: Date.now(), team: [], roster: [], day: todayISO()
   });
   $('#lockWrap').classList.add('hidden'); $('#app').classList.remove('hidden');
   renderShell(); renderView();
@@ -2837,7 +2860,7 @@ async function enterApp() {
   S.idleTimer = setInterval(() => {
     const mins = Number(S.settings.idleMin) || 10;
     if (S.inApp && !S.tour && Date.now() - S.lastAct > mins * 60000) lockOut('Locked after ' + mins + ' minutes without activity.'); // practice mode has nothing to hide
-    else if (S.inApp) updateTitle();
+    else if (S.inApp) { updateTitle(); if (S.day !== todayISO()) { S.day = todayISO(); queueRender('day'); } } // a new day: day counts and the weekly report's banner move on
   }, 15000);
   let st;
   try { st = await B.arOpen(); } catch (e) { st = 'error'; S.loadErr = errText(e); }
@@ -3033,6 +3056,9 @@ function renderNav() {
   const c = counts();
   const set = (k, n, red) => ['nav-', 'mnav-'].forEach(p => { const el = $('#' + p + k + ' .cnt'); if (!el) return; el.textContent = n; el.classList.toggle('hidden', !n); el.classList.toggle('red', !!red); });
   set('today', c.due + (isOwner() ? c.drA : 0), c.late > 0 || (isOwner() && c.drA > 0)); set('pd', c.lad, c.lad > 0); set('ins', c.chase, c.chase > 0); set('cr', c.cr);
+  // the weekly report: Due on its day, Late after it, until it's imported
+  const d = dueNow(), dt = d && d.state === 'late' ? 'Late' : d && d.state === 'today' ? 'Due' : '';
+  set('reports', dt, dt === 'Late'); ['nav-', 'mnav-'].forEach(p => { const el = $('#' + p + 'reports .cnt'); if (el) el.classList.toggle('amber', dt === 'Due'); });
   $$('.navBtn[data-v]').forEach(b => b.classList.toggle('on', b.dataset.v === S.view));
 }
 /* the tab title shows how many follow-ups and collection steps are due, so a pinned tab says when to look */
@@ -3361,11 +3387,21 @@ function noReportHTML() {
     '<p class="small" style="margin-bottom:10px">A/R works from Edge’s <b>Accounts Receivable Aging</b> report. Run it, export it to Excel and drop the file in — it’s read on this computer and saved sealed. Every list here (91+, insurance that hasn’t paid, credit balances) comes from it.</p>' +
     edgeStepsHTML(true) + '<div class="btnRow"><button class="btn btn-teal" data-act="nav" data-v="reports">' + ic('import', 16) + 'Import a report</button></div></div></div>';
 }
-function staleHTML() {
-  const m = curRepMeta(); if (!S.rep || !m) return '';
-  const age = daysBetween(S.rep.asOf, todayISO());
-  if (age < S.cfg.staleDays) return '';
-  return '<div class="staleBox">' + ic('clock', 18) + '<span>The newest report is from ' + esc(fmtDateLong(S.rep.asOf)) + ' — ' + age + ' days ago. Balances have moved since; import this week’s.</span><button class="btn btn-sec btn-sm" data-act="nav" data-v="reports">' + ic('import', 15) + 'Import report</button></div>';
+/* the weekly report: a banner from its due day until it's imported — amber on the day, red once it's late */
+function newestWeekly() { let m = ''; S.reports.forEach(r => { if ((!r.sum || !r.sum.cover || r.sum.cover.pastDue) && r.asOf > m) m = r.asOf; }); return m || null; }
+function dueNow() { return S.reports.length ? reportDue(newestWeekly(), todayISO(), S.cfg.dueDay) : null; }
+function dayLong(iso) { const [y, m, d] = iso.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }); }
+function staleHTML(noBtn) {
+  const d = dueNow(); if (!d || d.state === 'ok') return '';
+  const age = d.newest ? daysBetween(d.newest, todayISO()) : 0;
+  const msg = (d.state === 'today' ? 'This week’s A/R report is due today.' : 'This week’s A/R report is late — it was due ' + dayLong(d.due) + (d.days ? ' (' + plural(d.days, 'day') + ' ago)' : '') + '.') +
+    (d.newest ? ' The newest is from ' + fmtDate(d.newest) + (age >= 14 ? ', ' + Math.floor(age / 7) + ' weeks ago' : '') + '.' : '');
+  return '<div class="staleBox ' + d.state + '" role="status">' + ic('clock', 18) + '<span>' + esc(msg) + '</span>' + (noBtn ? '' : '<button class="btn btn-sec btn-sm" data-act="nav" data-v="reports">' + ic('import', 15) + 'Import report</button>') + '</div>';
+}
+/* Reports: when this week's is due, or that it's in and when the next one is */
+function dueLineHTML() {
+  const d = dueNow(); if (!d) return '';
+  return d.state === 'ok' ? '<div class="dueOk">' + ic('done', 15) + '<span>This week’s report is in (' + esc(fmtDate(d.newest)) + '). The next one is due ' + esc(dayLong(d.due)) + '.</span></div>' : staleHTML(true);
 }
 function viewToday() {
   if (S.loadErr) return '<div class="card"><div class="empty">' + esc(S.loadErr) + '</div></div>';
@@ -3701,7 +3737,7 @@ function edgeStepsHTML(open) {
 }
 function viewReports() {
   const imp = S.imp;
-  let h = '<div class="adminGrid"><div><div class="card"><div class="cardHd"><h3>Import a report</h3><span class="sub">Edge → Accounts Receivable Aging → Export → Excel</span></div><div class="cardBd">';
+  let h = dueLineHTML() + '<div class="adminGrid"><div><div class="card"><div class="cardHd"><h3>Import a report</h3><span class="sub">Edge → Accounts Receivable Aging → Export → Excel</span></div><div class="cardBd">';
   if (imp && imp.files && imp.files.length) h += importPreviewHTML(imp);
   else h += '<div class="dropZone" id="dropZone" tabindex="0" role="button" aria-label="Choose the Edge report file">' + ic('import', 26) + '<b>Drop the Excel file here</b><span class="small">or click to choose it · .xls, .xlsx or .csv · one or more files</span></div>' +
     '<input type="file" id="arFile" accept=".xls,.xlsx,.csv,.txt,.htm,.html,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" multiple class="hidden">' +
@@ -4342,7 +4378,9 @@ function numbersCardHTML() {
     '<div class="field"><label for="cfgT2">Investigate up to</label>' + n('cfgT2', c.tiers[2], '1', '3', '3650') + '</div></div>' +
     '<div class="small muted" style="margin:-8px 0 14px">Older than that: probably never filed.</div>' +
     '<div class="field"><label for="cfgWo">Write-off candidate: 91+ under ($)</label>' + n('cfgWo', c.writeOff, '1', '1', '100000') + '</div>' +
-    '<div class="field"><label for="cfgStale">Say the report is old after (days)</label>' + n('cfgStale', c.staleDays, '1', '1', '90') + '</div>' +
+    '<div class="field"><label for="cfgDue">A new report is due every</label><select class="inp" id="cfgDue" data-cfg style="max-width:200px">' +
+    DUE_DAYS.map((l, i) => '<option value="' + (i + 1) + '"' + (c.dueDay === i + 1 ? ' selected' : '') + '>' + l + '</option>').join('') + '</select>' +
+    '<div class="hint">From that day until this week’s report is imported, Today shows a banner (red once it’s late) and Reports shows Due or Late. A holiday moves it to the next office day.</div></div>' +
     '<div class="flabel" style="margin-top:4px">Goals — Practice KPIs (handbook §19)</div><div class="grid2">' +
     '<div class="field"><label for="cfgGoalPt">Patient accounts past due, at most (%)</label>' + n('cfgGoalPt', c.goalPt, '0.1', '0.1', '100') + '</div>' +
     '<div class="field"><label for="cfgGoalIns">Insurance past its window, at most (%)</label>' + n('cfgGoalIns', c.goalIns, '0.1', '0.1', '100') + '</div></div>' +
@@ -4354,7 +4392,7 @@ function numbersCardHTML() {
 }
 function readCfg() {
   const num = id => Number((($('#' + id) || {}).value || '').trim());
-  return { inst: round2(num('cfgInst')), writeOff: num('cfgWo'), tiers: [num('cfgT0'), num('cfgT1'), num('cfgT2')], staleDays: num('cfgStale'),
+  return { inst: round2(num('cfgInst')), writeOff: num('cfgWo'), tiers: [num('cfgT0'), num('cfgT1'), num('cfgT2')], dueDay: num('cfgDue'),
     goalPt: Math.round(num('cfgGoalPt') * 10) / 10, goalIns: Math.round(num('cfgGoalIns') * 10) / 10, kpiFrom: num('cfgKpiFrom') === 31 ? 31 : 1 };
 }
 function cfgProblem(c) {
@@ -4362,7 +4400,7 @@ function cfgProblem(c) {
   if (!c.tiers.every(t => Number.isInteger(t) && t > 0 && t <= 3650)) return 'The day cutoffs need to be whole numbers of days.';
   if (!(c.tiers[0] < c.tiers[1] && c.tiers[1] < c.tiers[2])) return 'Each day cutoff needs to be more than the one before it.';
   if (!(c.writeOff >= 1 && c.writeOff <= 100000)) return 'The write-off amount needs to be at least $1.';
-  if (!(Number.isInteger(c.staleDays) && c.staleDays >= 1 && c.staleDays <= 90)) return 'Use 1 to 90 days for an old report.';
+  if (![1, 2, 3, 4].includes(c.dueDay)) return 'Pick the day the report is due (Monday to Thursday).';
   if (!(c.goalPt > 0 && c.goalPt <= 100 && c.goalIns > 0 && c.goalIns <= 100)) return 'The goals need to be between 0.1% and 100%.';
   return '';
 }
@@ -4383,8 +4421,8 @@ Object.assign(ACT, {
     act(() => B.saveSettings({ ar: c }), 'Saved — the lists use the new numbers');
   },
   async resetCfg() {
-    if (!(await confirmBox('Go back to the usual numbers?', '$' + AR_DEFAULTS.inst.toFixed(2) + ' instalment; monitor up to ' + AR_DEFAULTS.tiers[0] + ' days, chase up to ' + AR_DEFAULTS.tiers[1] + ', investigate up to ' + AR_DEFAULTS.tiers[2] + '; write-off under ' + money(AR_DEFAULTS.writeOff) + '; a report is old after ' + AR_DEFAULTS.staleDays + ' days; goals ' + AR_DEFAULTS.goalPt + '% (patient) and ' + AR_DEFAULTS.goalIns + '% (insurance), counting from the first day past due.', 'Use the usual numbers'))) return;
-    const d = { inst: AR_DEFAULTS.inst, writeOff: AR_DEFAULTS.writeOff, tiers: AR_DEFAULTS.tiers.slice(), staleDays: AR_DEFAULTS.staleDays, goalPt: AR_DEFAULTS.goalPt, goalIns: AR_DEFAULTS.goalIns, kpiFrom: AR_DEFAULTS.kpiFrom };
+    if (!(await confirmBox('Go back to the usual numbers?', '$' + AR_DEFAULTS.inst.toFixed(2) + ' instalment; monitor up to ' + AR_DEFAULTS.tiers[0] + ' days, chase up to ' + AR_DEFAULTS.tiers[1] + ', investigate up to ' + AR_DEFAULTS.tiers[2] + '; write-off under ' + money(AR_DEFAULTS.writeOff) + '; a new report due every ' + DUE_DAYS[AR_DEFAULTS.dueDay - 1] + '; goals ' + AR_DEFAULTS.goalPt + '% (patient) and ' + AR_DEFAULTS.goalIns + '% (insurance), counting from the first day past due.', 'Use the usual numbers'))) return;
+    const d = { inst: AR_DEFAULTS.inst, writeOff: AR_DEFAULTS.writeOff, tiers: AR_DEFAULTS.tiers.slice(), dueDay: AR_DEFAULTS.dueDay, goalPt: AR_DEFAULTS.goalPt, goalIns: AR_DEFAULTS.goalIns, kpiFrom: AR_DEFAULTS.kpiFrom };
     if (await act(() => B.saveSettings({ ar: d }), 'Back to the usual numbers')) { S.cfg = arCfg({ ar: d }); renderView(); }
   }
 });
@@ -4504,7 +4542,7 @@ function tourSteps(kind) {
       act: 'Tap Insurance.', done: () => S.view === 'ins' },
     { id: 'cr', at: () => tVis('#nav-cr', '#mnav-cr'), t: 'Credit balances', b: 'Oldest first. Before a refund, each account has the checklist from the FC instructions — the credit often belongs on the family’s balance or a sibling instead.',
       act: 'Tap Credits.', done: () => S.view === 'cr' },
-    { id: 'rep', at: () => tVis('#nav-reports', '#mnav-reports'), t: 'This week’s report', b: 'Once a week: Edge → Reporting → Financial → Accounts Receivable Aging → Export → Excel, then drop the file here (the steps are on the page). It’s read on this computer and saved sealed.',
+    { id: 'rep', at: () => tVis('#nav-reports', '#mnav-reports'), t: 'This week’s report', b: 'Once a week, by ' + DUE_DAYS[S.cfg.dueDay - 1] + ': Edge → Reporting → Financial → Accounts Receivable Aging → Export → Excel, then drop the file here (the steps are on the page). It’s read on this computer and saved sealed. If it’s late, Today shows a red banner until it’s in.',
       act: 'Tap Reports.', done: () => S.view === 'reports' },
     { id: 'sum', at: () => tVis('#nav-sum', '#mnav-sum'), t: 'Summary', b: 'The whole picture: totals, aging, the ladder today, insurance with nothing paid, credits, the trend — and the Month-End numbers, ready to copy.',
       act: 'Tap Summary.', done: () => S.view === 'sum' },
@@ -4522,7 +4560,7 @@ function tourSteps(kind) {
     { id: 'access', need: { ok: () => S.view === 'settings', go: 'settings' }, at: () => { const b = $('#accessBox'); return b && b.closest('.card'); }, t: 'Who can use A/R',
       b: 'A/R holds patients’ balances, so you choose who opens it: switch the financial coordinator on here (she signs in to NLO Cases once first). Switching someone off makes a new A/R key at once.' },
     { id: 'numbers', need: { ok: () => S.view === 'settings', go: 'settings' }, at: () => { const i = $('#cfgInst'); return i && i.closest('.card'); }, t: 'The numbers',
-      b: 'The $11.11 instalment, the insurance cutoffs, the write-off threshold and when a report counts as old — with a preview of what a change would do.' }
+      b: 'The $11.11 instalment, the insurance cutoffs, the write-off threshold, the day the weekly report is due and the goals — with a preview of what a change would do.' }
   );
   st.push({ id: 'end', t: 'You’re all set', b: 'That’s the basics. Close this tab to go back to NLO A/R — the real accounts were never touched. You can practice again any time from My account.' });
   return st;

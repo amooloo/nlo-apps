@@ -122,6 +122,10 @@ async function openAcct(p, name) { await p.evaluate(n => { const a = S.accts.fin
   await owner.waitForFunction(() => S.reports.length === 1 && S.rep && S.rep.asOf === '2026-09-28', null, { timeout: 30000 });
   await jamie.waitForFunction(() => S.rep && S.rep.asOf === '2026-09-28', null, { timeout: 30000 });
   check(true, 'saved sealed; both screens show it without reloading');
+  // a September 28 report is older than this week's: the weekly report is due (on a Monday) or late, on both screens
+  await owner.waitForFunction(() => /^(Late|Due)$/.test(document.querySelector('#nav-reports .cnt').textContent), null, { timeout: 10000 }).catch(() => { });
+  const lateO = await owner.evaluate(() => [dueNow().state, document.querySelector('#nav-reports .cnt').textContent]), lateJ = await jamie.evaluate(() => dueNow().state);
+  check(lateO[0] !== 'ok' && lateO[1] === (lateO[0] === 'late' ? 'Late' : 'Due') && lateJ === lateO[0], 'this week’s report isn’t in yet: ' + lateO[0] + ' on both screens, and Reports says ' + lateO[1]);
   const nRows = await owner.evaluate(() => S.rep.rows.length);
   check(nRows === EXP.full.rows.filter(r => r.due > 0.004 || r.bal < -0.004).length + 1, 'only the accounts past due or in credit were kept (' + nRows + ')');
 
@@ -213,9 +217,9 @@ async function openAcct(p, name) { await p.evaluate(n => { const a = S.accts.fin
 
   console.log('\n# Settings: the numbers are shared');
   await owner.click('#nav-settings'); await owner.waitForSelector('#cfgInst');
-  await owner.fill('#cfgStale', '21'); await owner.fill('#cfgGoalPt', '5'); await owner.click('[data-act=saveCfg]');
-  await jamie.waitForFunction(() => S.cfg.staleDays === 21 && S.cfg.goalPt === 5, null, { timeout: 30000 });
-  check(true, 'a change to “report is old after” and to the patient goal reaches Jamie’s screen');
+  await owner.selectOption('#cfgDue', '4'); await owner.fill('#cfgGoalPt', '5'); await owner.click('[data-act=saveCfg]');
+  await jamie.waitForFunction(() => S.cfg.dueDay === 4 && S.cfg.goalPt === 5, null, { timeout: 30000 });
+  check(true, 'a change to the weekly report’s due day and to the patient goal reaches Jamie’s screen');
   await jamie.click('#nav-today'); await jamie.waitForSelector('.goals .goal');
   check(await jamie.$eval('.goals .goal .gG', e => e.textContent === 'goal ≤ 5%'), 'Jamie’s patient gauge now measures against 5%');
 

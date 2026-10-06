@@ -115,7 +115,9 @@ function numbersCardHTML() {
     '<div class="field"><label for="cfgT2">Investigate up to</label>' + n('cfgT2', c.tiers[2], '1', '3', '3650') + '</div></div>' +
     '<div class="small muted" style="margin:-8px 0 14px">Older than that: probably never filed.</div>' +
     '<div class="field"><label for="cfgWo">Write-off candidate: 91+ under ($)</label>' + n('cfgWo', c.writeOff, '1', '1', '100000') + '</div>' +
-    '<div class="field"><label for="cfgStale">Say the report is old after (days)</label>' + n('cfgStale', c.staleDays, '1', '1', '90') + '</div>' +
+    '<div class="field"><label for="cfgDue">A new report is due every</label><select class="inp" id="cfgDue" data-cfg style="max-width:200px">' +
+    DUE_DAYS.map((l, i) => '<option value="' + (i + 1) + '"' + (c.dueDay === i + 1 ? ' selected' : '') + '>' + l + '</option>').join('') + '</select>' +
+    '<div class="hint">From that day until this week’s report is imported, Today shows a banner (red once it’s late) and Reports shows Due or Late. A holiday moves it to the next office day.</div></div>' +
     '<div class="flabel" style="margin-top:4px">Goals — Practice KPIs (handbook §19)</div><div class="grid2">' +
     '<div class="field"><label for="cfgGoalPt">Patient accounts past due, at most (%)</label>' + n('cfgGoalPt', c.goalPt, '0.1', '0.1', '100') + '</div>' +
     '<div class="field"><label for="cfgGoalIns">Insurance past its window, at most (%)</label>' + n('cfgGoalIns', c.goalIns, '0.1', '0.1', '100') + '</div></div>' +
@@ -127,7 +129,7 @@ function numbersCardHTML() {
 }
 function readCfg() {
   const num = id => Number((($('#' + id) || {}).value || '').trim());
-  return { inst: round2(num('cfgInst')), writeOff: num('cfgWo'), tiers: [num('cfgT0'), num('cfgT1'), num('cfgT2')], staleDays: num('cfgStale'),
+  return { inst: round2(num('cfgInst')), writeOff: num('cfgWo'), tiers: [num('cfgT0'), num('cfgT1'), num('cfgT2')], dueDay: num('cfgDue'),
     goalPt: Math.round(num('cfgGoalPt') * 10) / 10, goalIns: Math.round(num('cfgGoalIns') * 10) / 10, kpiFrom: num('cfgKpiFrom') === 31 ? 31 : 1 };
 }
 function cfgProblem(c) {
@@ -135,7 +137,7 @@ function cfgProblem(c) {
   if (!c.tiers.every(t => Number.isInteger(t) && t > 0 && t <= 3650)) return 'The day cutoffs need to be whole numbers of days.';
   if (!(c.tiers[0] < c.tiers[1] && c.tiers[1] < c.tiers[2])) return 'Each day cutoff needs to be more than the one before it.';
   if (!(c.writeOff >= 1 && c.writeOff <= 100000)) return 'The write-off amount needs to be at least $1.';
-  if (!(Number.isInteger(c.staleDays) && c.staleDays >= 1 && c.staleDays <= 90)) return 'Use 1 to 90 days for an old report.';
+  if (![1, 2, 3, 4].includes(c.dueDay)) return 'Pick the day the report is due (Monday to Thursday).';
   if (!(c.goalPt > 0 && c.goalPt <= 100 && c.goalIns > 0 && c.goalIns <= 100)) return 'The goals need to be between 0.1% and 100%.';
   return '';
 }
@@ -156,8 +158,8 @@ Object.assign(ACT, {
     act(() => B.saveSettings({ ar: c }), 'Saved — the lists use the new numbers');
   },
   async resetCfg() {
-    if (!(await confirmBox('Go back to the usual numbers?', '$' + AR_DEFAULTS.inst.toFixed(2) + ' instalment; monitor up to ' + AR_DEFAULTS.tiers[0] + ' days, chase up to ' + AR_DEFAULTS.tiers[1] + ', investigate up to ' + AR_DEFAULTS.tiers[2] + '; write-off under ' + money(AR_DEFAULTS.writeOff) + '; a report is old after ' + AR_DEFAULTS.staleDays + ' days; goals ' + AR_DEFAULTS.goalPt + '% (patient) and ' + AR_DEFAULTS.goalIns + '% (insurance), counting from the first day past due.', 'Use the usual numbers'))) return;
-    const d = { inst: AR_DEFAULTS.inst, writeOff: AR_DEFAULTS.writeOff, tiers: AR_DEFAULTS.tiers.slice(), staleDays: AR_DEFAULTS.staleDays, goalPt: AR_DEFAULTS.goalPt, goalIns: AR_DEFAULTS.goalIns, kpiFrom: AR_DEFAULTS.kpiFrom };
+    if (!(await confirmBox('Go back to the usual numbers?', '$' + AR_DEFAULTS.inst.toFixed(2) + ' instalment; monitor up to ' + AR_DEFAULTS.tiers[0] + ' days, chase up to ' + AR_DEFAULTS.tiers[1] + ', investigate up to ' + AR_DEFAULTS.tiers[2] + '; write-off under ' + money(AR_DEFAULTS.writeOff) + '; a new report due every ' + DUE_DAYS[AR_DEFAULTS.dueDay - 1] + '; goals ' + AR_DEFAULTS.goalPt + '% (patient) and ' + AR_DEFAULTS.goalIns + '% (insurance), counting from the first day past due.', 'Use the usual numbers'))) return;
+    const d = { inst: AR_DEFAULTS.inst, writeOff: AR_DEFAULTS.writeOff, tiers: AR_DEFAULTS.tiers.slice(), dueDay: AR_DEFAULTS.dueDay, goalPt: AR_DEFAULTS.goalPt, goalIns: AR_DEFAULTS.goalIns, kpiFrom: AR_DEFAULTS.kpiFrom };
     if (await act(() => B.saveSettings({ ar: d }), 'Back to the usual numbers')) { S.cfg = arCfg({ ar: d }); renderView(); }
   }
 });

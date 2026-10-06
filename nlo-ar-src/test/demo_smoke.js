@@ -45,6 +45,18 @@ const shot = (p, n, full) => p.screenshot({ path: path.join(SHOTS, n + '.png'), 
   const k0 = await S_(() => kpis(S.rep, S.cfg));
   ok(await page.$$eval('.goals .goal', g => g.length) === 2 && k0.pt.n === 34 && k0.pt.of === 422 && k0.ins.n === 14 && k0.ins.of === 204 && k0.from === 1 && k0.win === 60, 'Today: two goal gauges — patient 34 of 422, insurance 14 of 204 (over 60 days): ' + JSON.stringify(k0));
   ok(await page.$eval('.goals .goal', e => /8\.1%/.test(e.textContent) && /18 to go/.test(e.textContent) && /goal ≤ 4%/.test(e.textContent) && e.classList.contains('far')), 'the patient gauge reads 8.1% against 4%, 18 to go, in red');
+  // the weekly report (due Mondays): this week's is in, so no banner and no badge
+  ok(!(await page.$('.staleBox')) && await page.$eval('#nav-reports .cnt', e => e.classList.contains('hidden')), 'this week’s report is in: no banner on Today, no badge on Reports');
+  // pretend it's later: the first day this week's report would be due, then 9 days on (late)
+  const wk = await page.evaluate(() => {
+    const real = todayISO, newest = newestWeekly(), look = () => { renderNav(); renderView(); const b = document.querySelector('#view .staleBox'), c = document.querySelector('#nav-reports .cnt');
+      return { cls: b ? b.className : '', txt: b ? b.textContent : '', badge: c.classList.contains('hidden') ? '' : c.textContent, red: c.classList.contains('red'), amber: c.classList.contains('amber') }; };
+    let d = real(); for (let i = 0; i < 14 && reportDue(newest, d, S.cfg.dueDay).state !== 'today'; i++) d = addDays(d, 1);
+    todayISO = () => d; const due = look(); todayISO = () => addDays(real(), 9); const late = look(); todayISO = real; const back = look(); return { due, late, back, d };
+  });
+  ok(/staleBox today/.test(wk.due.cls) && /due today/.test(wk.due.txt) && wk.due.badge === 'Due' && wk.due.amber, 'on its due day (' + wk.d + '): an amber “due today” banner and Due on Reports');
+  ok(/staleBox late/.test(wk.late.cls) && /late — it was due Monday/.test(wk.late.txt) && wk.late.badge === 'Late' && wk.late.red, 'after it: a red “late” banner and Late on Reports — ' + wk.late.txt);
+  ok(!wk.back.cls && !wk.back.badge, 'back to today: no banner');
 
   for (const v of ['pd', 'ins', 'cr', 'sum', 'reports', 'settings', 'account']) {
     await page.click('#nav-' + v); await page.waitForTimeout(v === 'settings' ? 500 : 200);
@@ -285,6 +297,13 @@ const shot = (p, n, full) => p.screenshot({ path: path.join(SHOTS, n + '.png'), 
   ok(await S_(() => S.cfg.goalPt === 4 && S.cfg.goalIns === 4 && S.cfg.kpiFrom === 1), 'back to the usual numbers: 4%, 4%, from day 1');
   await page.fill('#cfgGoalIns', '0'); await page.click('[data-act=saveCfg]'); await page.waitForTimeout(150);
   ok(await toastHas(/between 0\.1% and 100%/) && await S_(() => S.cfg.goalIns === 4), 'a 0% goal is refused');
+  await page.fill('#cfgGoalIns', '4'); await page.selectOption('#cfgDue', '4'); await page.click('[data-act=saveCfg]'); await page.waitForTimeout(300);
+  ok(await S_(() => S.cfg.dueDay === 4), 'the weekly report can be due Thursdays instead');
+  await page.click('#nav-reports'); await page.waitForSelector('#dropZone');
+  ok(await page.$eval('.dueOk', e => /This week’s report is in/.test(e.textContent) && /due Thursday/.test(e.textContent)), 'Reports: this week’s is in, and the next one is due Thursday');
+  await page.click('#nav-settings'); await page.waitForSelector('#cfgDue'); await page.waitForTimeout(300);
+  await page.click('[data-act=resetCfg]'); await page.click('#cbYes'); await page.waitForTimeout(300);
+  ok(await S_(() => S.cfg.dueDay === 1), 'back to Mondays');
   await page.click('[data-act=loadActivity]'); await page.waitForTimeout(400);
   ok(await page.$$eval('#actBox .hist', h => h.length) > 5, 'recent activity lists who did what');
   await collect(); await shot(page, 'settings-after', true);

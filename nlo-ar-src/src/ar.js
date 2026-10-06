@@ -10,14 +10,34 @@
      Scheduled prepayments are parked (no action).
    ===================================================================== */
 /* goalPt / goalIns: the delinquency goals (AISA handbook §19, both "no more than 4%"); kpiFrom: a patient account counts as
-   past due from its first day past due (1, the handbook's wording) or from 31 days (the 30+ the Month-End numbers use) */
-const AR_DEFAULTS = { inst: 11.11, writeOff: 100, tiers: [60, 120, 365], staleDays: 14, goalPt: 4, goalIns: 4, kpiFrom: 1 };
+   past due from its first day past due (1, the handbook's wording) or from 31 days (the 30+ the Month-End numbers use);
+   dueDay: the weekly report is due every Monday (1) … Thursday (4) — the handbook says weekly and names no day */
+const AR_DEFAULTS = { inst: 11.11, writeOff: 100, tiers: [60, 120, 365], dueDay: 1, goalPt: 4, goalIns: 4, kpiFrom: 1 };
+const DUE_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday'];
 function arCfg(settings) {
   const a = (settings && settings.ar) || {};
   const num = (v, d) => (typeof v === 'number' && isFinite(v) && v > 0 ? v : d), pctOf = (v, d) => (typeof v === 'number' && isFinite(v) && v > 0 && v <= 100 ? v : d);
   const tiers = Array.isArray(a.tiers) && a.tiers.length === 3 && a.tiers.every((n, i) => Number.isInteger(n) && n > 0 && (!i || n > a.tiers[i - 1])) ? a.tiers.slice() : AR_DEFAULTS.tiers.slice();
-  return { inst: num(a.inst, AR_DEFAULTS.inst), writeOff: num(a.writeOff, AR_DEFAULTS.writeOff), tiers, staleDays: num(a.staleDays, AR_DEFAULTS.staleDays),
+  return { inst: num(a.inst, AR_DEFAULTS.inst), writeOff: num(a.writeOff, AR_DEFAULTS.writeOff), tiers, dueDay: [1, 2, 3, 4].includes(a.dueDay) ? a.dueDay : AR_DEFAULTS.dueDay,
     goalPt: pctOf(a.goalPt, AR_DEFAULTS.goalPt), goalIns: pctOf(a.goalIns, AR_DEFAULTS.goalIns), kpiFrom: a.kpiFrom === 31 ? 31 : 1 };
+}
+
+/* ---------- the weekly report (AISA handbook §19: "Weekly: FC runs AR Aging") ----------
+   Due every dueDay (Mon–Thu); a holiday moves it to the next office day. A week's report is in when the newest report is
+   dated that week (Monday on), even before its due day. Until the due day comes, last week's report is the one that counts.
+   → { state: 'ok' | 'today' | 'late', due (the day it's due, or for 'ok' the next one), days (late by), newest } */
+function weekMon(iso) { const [y, m, d] = iso.split('-').map(Number); return addDays(iso, -((new Date(y, m - 1, d).getDay() + 6) % 7)); }
+function reportDue(newest, today, dueDay) {
+  const dd = [1, 2, 3, 4].includes(dueDay) ? dueDay : AR_DEFAULTS.dueDay, dueOf = w => nextOfficeDay(addDays(w, dd - 1));
+  let w = weekMon(today);
+  for (let i = 0; i < 3 && dueOf(w) > today; i++) w = addDays(w, -7);
+  if (newest && newest >= w) {
+    let n = addDays(newest > w ? weekMon(newest) : w, 7);
+    while (dueOf(n) <= today) n = addDays(n, 7);
+    return { state: 'ok', due: dueOf(n), days: 0, newest };
+  }
+  const due = dueOf(w);
+  return { state: due === today ? 'today' : 'late', due, days: Math.max(0, daysBetween(due, today)), newest: newest || null };
 }
 
 /* ---------- one account ---------- */

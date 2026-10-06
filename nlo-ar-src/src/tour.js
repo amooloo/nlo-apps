@@ -64,7 +64,7 @@ function tourSteps(kind) {
       act: 'Tap Insurance.', done: () => S.view === 'ins' },
     { id: 'cr', at: () => tVis('#nav-cr', '#mnav-cr'), t: 'Credit balances', b: 'Oldest first. Before a refund, each account has the checklist from the FC instructions — the credit often belongs on the family’s balance or a sibling instead.',
       act: 'Tap Credits.', done: () => S.view === 'cr' },
-    { id: 'rep', at: () => tVis('#nav-reports', '#mnav-reports'), t: 'This week’s report', b: 'Once a week: Edge → Reporting → Financial → Accounts Receivable Aging → Export → Excel, then drop the file here (the steps are on the page). It’s read on this computer and saved sealed.',
+    { id: 'rep', at: () => tVis('#nav-reports', '#mnav-reports'), t: 'This week’s report', b: 'Once a week, by ' + DUE_DAYS[S.cfg.dueDay - 1] + ': Edge → Reporting → Financial → Accounts Receivable Aging → Export → Excel, then drop the file here (the steps are on the page). It’s read on this computer and saved sealed. If it’s late, Today shows a red banner until it’s in.',
       act: 'Tap Reports.', done: () => S.view === 'reports' },
     { id: 'sum', at: () => tVis('#nav-sum', '#mnav-sum'), t: 'Summary', b: 'The whole picture: totals, aging, the ladder today, insurance with nothing paid, credits, the trend — and the Month-End numbers, ready to copy.',
       act: 'Tap Summary.', done: () => S.view === 'sum' },
@@ -82,7 +82,7 @@ function tourSteps(kind) {
     { id: 'access', need: { ok: () => S.view === 'settings', go: 'settings' }, at: () => { const b = $('#accessBox'); return b && b.closest('.card'); }, t: 'Who can use A/R',
       b: 'A/R holds patients’ balances, so you choose who opens it: switch the financial coordinator on here (she signs in to NLO Cases once first). Switching someone off makes a new A/R key at once.' },
     { id: 'numbers', need: { ok: () => S.view === 'settings', go: 'settings' }, at: () => { const i = $('#cfgInst'); return i && i.closest('.card'); }, t: 'The numbers',
-      b: 'The $11.11 instalment, the insurance cutoffs, the write-off threshold and when a report counts as old — with a preview of what a change would do.' }
+      b: 'The $11.11 instalment, the insurance cutoffs, the write-off threshold, the day the weekly report is due and the goals — with a preview of what a change would do.' }
   );
   st.push({ id: 'end', t: 'You’re all set', b: 'That’s the basics. Close this tab to go back to NLO A/R — the real accounts were never touched. You can practice again any time from My account.' });
   return st;

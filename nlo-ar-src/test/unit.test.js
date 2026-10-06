@@ -298,8 +298,24 @@ const cfg = A.arCfg({});
   section('Office days and settings');
   eq(['2026-10-09', '2026-10-10', '2026-11-25', '2026-12-24', '2026-12-25', '2026-09-07'].map(A.nextOfficeDay), ['2026-10-12', '2026-10-12', '2026-11-30', '2026-12-24', '2026-12-28', '2026-09-08'],
     'office days: Mon–Thu, skipping Thanksgiving week, Christmas, Labor Day');
-  eq(A.arCfg({ ar: { inst: 0, writeOff: -1, tiers: [90, 60, 365], staleDays: 'x', goalPt: 0, goalIns: 140, kpiFrom: 7 } }), { inst: 11.11, writeOff: 100, tiers: [60, 120, 365], staleDays: 14, goalPt: 4, goalIns: 4, kpiFrom: 1 }, 'bad settings fall back to the usual numbers (goals 4% and 4%)');
-  eq(A.arCfg({ ar: { inst: 12.5, writeOff: 50, tiers: [30, 90, 200], staleDays: 7, goalPt: 3.5, goalIns: 5, kpiFrom: 31 } }), { inst: 12.5, writeOff: 50, tiers: [30, 90, 200], staleDays: 7, goalPt: 3.5, goalIns: 5, kpiFrom: 31 }, 'good settings are used');
+  eq(A.arCfg({ ar: { inst: 0, writeOff: -1, tiers: [90, 60, 365], dueDay: 6, goalPt: 0, goalIns: 140, kpiFrom: 7 } }), { inst: 11.11, writeOff: 100, tiers: [60, 120, 365], dueDay: 1, goalPt: 4, goalIns: 4, kpiFrom: 1 }, 'bad settings fall back to the usual numbers (report due Monday, goals 4% and 4%)');
+  eq(A.arCfg({ ar: { inst: 12.5, writeOff: 50, tiers: [30, 90, 200], dueDay: 3, goalPt: 3.5, goalIns: 5, kpiFrom: 31 } }), { inst: 12.5, writeOff: 50, tiers: [30, 90, 200], dueDay: 3, goalPt: 3.5, goalIns: 5, kpiFrom: 31 }, 'good settings are used');
+  eq(A.arCfg({ ar: { staleDays: 21 } }).dueDay, 1, 'an older settings record (report "old after N days") gets the Monday due day');
+
+  section('The weekly report (handbook §19: weekly)');
+  const RD = (n, t, d) => { const r = A.reportDue(n, t, d); return [r.state, r.due, r.days]; };
+  eq(RD('2026-10-05', '2026-10-06', 1), ['ok', '2026-10-12', 0], 'due Monday, in on Monday: fine on Tuesday, the next one due Monday Oct 12');
+  eq(RD('2026-09-28', '2026-10-06', 1), ['late', '2026-10-05', 1], 'due Monday, still last week’s on Tuesday: late by a day');
+  eq(RD('2026-09-28', '2026-10-05', 1), ['today', '2026-10-05', 0], 'on the Monday itself: due today');
+  eq(RD('2026-09-29', '2026-10-05', 2), ['ok', '2026-10-06', 0], 'due Tuesday: on Monday last week’s still counts; due tomorrow');
+  eq(RD('2026-10-05', '2026-10-05', 2), ['ok', '2026-10-13', 0], 'due Tuesday, imported a day early: this week’s is in');
+  eq(RD('2026-10-05', '2026-10-10', 1), ['ok', '2026-10-12', 0], 'the weekend: in, next one Monday');
+  eq(RD('2026-09-14', '2026-10-06', 1), ['late', '2026-10-05', 1], 'weeks behind: late since this week’s due day');
+  eq(RD(null, '2026-10-06', 1), ['late', '2026-10-05', 1], 'no report at all: late');
+  eq(RD('2026-09-28', '2026-10-06', 9), ['late', '2026-10-05', 1], 'a bad due day means Monday');
+  eq([RD('2026-09-01', '2026-09-08', 1), RD('2026-09-01', '2026-09-09', 1)], [['today', '2026-09-08', 0], ['late', '2026-09-08', 1]], 'Labor Day moves Monday’s report to Tuesday');
+  eq([RD('2026-11-19', '2026-11-27', 4), RD('2026-11-19', '2026-11-30', 4), RD('2026-11-24', '2026-11-30', 4)], [['ok', '2026-11-30', 0], ['today', '2026-11-30', 0], ['ok', '2026-12-03', 0]],
+    'Thanksgiving week: Thursday’s report is due the Monday after (or in early, and the next one is Thursday)');
   eq(['=1+1', '+A', '-5', '@x', 'Avery', 'say "hi"'].map(A.csvCell), ['"\'=1+1"', '"\'+A"', '"\'-5"', '"\'@x"', '"Avery"', '"say ""hi"""'], 'downloaded lists can’t carry spreadsheet formulas');
 
   section('Sealing');
