@@ -26,6 +26,8 @@ const shot = (p, n, full) => p.screenshot({ path: path.join(SHOTS, n + '.png'), 
   const closeDrawer = () => page.keyboard.press('Escape');
 
   await page.goto(URL);
+  // while the reports open, the lists never show the new report with no accounts (that would call every worked account "cleared")
+  await page.evaluate(() => { window.__maxCleared = 0; const t = setInterval(() => { try { if (S.inApp && S.rep) window.__maxCleared = Math.max(window.__maxCleared, counts().cleared); } catch (e) { } }, 5); setTimeout(() => clearInterval(t), 8000); });
   await page.click('#lgBtn');
   await page.waitForSelector('.tiles .tile');
   await page.waitForTimeout(300);
@@ -34,6 +36,7 @@ const shot = (p, n, full) => p.screenshot({ path: path.join(SHOTS, n + '.png'), 
   ok(await page.$$eval('.tiles .tile', t => t.length) === 6, 'Today: six tiles (follow-ups, 91+, chase now, credits, waiting for Dr. A, cleared)');
   ok(c0.due === 2 && c0.late === 1 && c0.drA === 1 && c0.cleared === 1, 'counts: 2 follow-ups (1 late), 1 for Dr. A, 1 cleared: ' + JSON.stringify(c0));
   ok(/^\(2\) NLO A\/R$/.test(await page.title()), 'tab title counts follow-ups due: ' + await page.title());
+  ok((await page.evaluate(() => window.__maxCleared)) === 1, 'while opening, “Cleared in Edge” never counts more than the 1 really cleared');
   ok(await page.$$eval('#view details.help summary', s => s.some(x => /newly 91\+/.test(x.textContent))), '“Since the last report” lists newly 91+ accounts');
   ok(await page.isVisible('[data-act=closeCleared]'), '“Cleared in Edge” offers to close them');
 

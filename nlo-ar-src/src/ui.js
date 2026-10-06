@@ -251,14 +251,18 @@ async function lockOut(msg) {
 
 /* ---------- the reports: the latest one is what the lists show; the one before it says what changed ---------- */
 async function loadLatest() {
-  const L = S.reports.filter(r => !r.locked), cur = L[0] || null;
+  const L = S.reports.filter(r => !r.locked), cur = L[0] || null, seq = (S.loadSeq = (S.loadSeq || 0) + 1);
   const prev = cur ? L.find(r => r.id !== cur.id && r.asOf < cur.asOf) || null : null;
+  // both reports are opened first, then shown together (the lists never mix a new report with the old one's accounts)
+  let rep = S.rep, repId = S.repId, pv = S.prev, pvId = S.prevId;
   try {
-    if (!cur) { S.rep = null; S.repId = ''; }
-    else if (S.repId !== cur.id) { const rep = normReport(await B.loadReport(cur.id)); if (!S.inApp) return; S.rep = rep; S.repId = cur.id; }
-    if (!prev) { S.prev = null; S.prevId = ''; }
-    else if (S.prevId !== prev.id) { const p = normReport(await B.loadReport(prev.id)); if (!S.inApp) return; S.prev = p; S.prevId = prev.id; }
-  } catch (e) { S.loadErr = 'The latest report couldn’t be opened: ' + errText(e); }
+    if (!cur) { rep = null; repId = ''; }
+    else if (repId !== cur.id) { rep = normReport(await B.loadReport(cur.id)); repId = cur.id; }
+    if (!prev) { pv = null; pvId = ''; }
+    else if (pvId !== prev.id) { pv = normReport(await B.loadReport(prev.id)); pvId = prev.id; }
+    if (!S.inApp || seq !== S.loadSeq) return; // signed out, or a newer list of reports came in meanwhile
+    Object.assign(S, { rep, repId, prev: pv, prevId: pvId, loadErr: '' });
+  } catch (e) { if (!S.inApp || seq !== S.loadSeq) return; S.loadErr = 'The latest report couldn’t be opened: ' + errText(e); }
   S.firstLoad = false; derive(); queueRender();
   if (S.openKey) refreshDrawer();
 }

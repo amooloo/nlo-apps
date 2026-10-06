@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-HRiYrH82RuQ/9XBvvKYG2MsJwvce/Xvs40OeUqw0pIA=' https://www.gstatic.com/firebasejs/10.12.2/; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com http://127.0.0.1:8080 http://127.0.0.1:9099; frame-src https://nlo-cases.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-jAOLxANyea2KTjzJ+1btyScxaHZGADdRBAiN/xx8/v8=' https://www.gstatic.com/firebasejs/10.12.2/; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com http://127.0.0.1:8080 http://127.0.0.1:9099; frame-src https://nlo-cases.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO A/R</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -2550,14 +2550,18 @@ async function lockOut(msg) {
 
 /* ---------- the reports: the latest one is what the lists show; the one before it says what changed ---------- */
 async function loadLatest() {
-  const L = S.reports.filter(r => !r.locked), cur = L[0] || null;
+  const L = S.reports.filter(r => !r.locked), cur = L[0] || null, seq = (S.loadSeq = (S.loadSeq || 0) + 1);
   const prev = cur ? L.find(r => r.id !== cur.id && r.asOf < cur.asOf) || null : null;
+  // both reports are opened first, then shown together (the lists never mix a new report with the old one's accounts)
+  let rep = S.rep, repId = S.repId, pv = S.prev, pvId = S.prevId;
   try {
-    if (!cur) { S.rep = null; S.repId = ''; }
-    else if (S.repId !== cur.id) { const rep = normReport(await B.loadReport(cur.id)); if (!S.inApp) return; S.rep = rep; S.repId = cur.id; }
-    if (!prev) { S.prev = null; S.prevId = ''; }
-    else if (S.prevId !== prev.id) { const p = normReport(await B.loadReport(prev.id)); if (!S.inApp) return; S.prev = p; S.prevId = prev.id; }
-  } catch (e) { S.loadErr = 'The latest report couldn’t be opened: ' + errText(e); }
+    if (!cur) { rep = null; repId = ''; }
+    else if (repId !== cur.id) { rep = normReport(await B.loadReport(cur.id)); repId = cur.id; }
+    if (!prev) { pv = null; pvId = ''; }
+    else if (pvId !== prev.id) { pv = normReport(await B.loadReport(prev.id)); pvId = prev.id; }
+    if (!S.inApp || seq !== S.loadSeq) return; // signed out, or a newer list of reports came in meanwhile
+    Object.assign(S, { rep, repId, prev: pv, prevId: pvId, loadErr: '' });
+  } catch (e) { if (!S.inApp || seq !== S.loadSeq) return; S.loadErr = 'The latest report couldn’t be opened: ' + errText(e); }
   S.firstLoad = false; derive(); queueRender();
   if (S.openKey) refreshDrawer();
 }
@@ -2882,6 +2886,12 @@ const C = {
 const M = c => Object.assign({}, c, { cls: ((c.cls || '') + ' hideM').trim() });
 
 /* ---------- Today ---------- */
+/* reports are saved but the newest isn't open yet (or can't be opened with this key) */
+function notOpenHTML() {
+  if (!S.reports.length || S.rep) return '';
+  if (S.reports.some(r => !r.locked)) return '<div class="empty">Opening the latest report…</div>';
+  return '<div class="card"><div class="empty">The saved reports can’t be opened with this A/R key yet. ' + (isOwner() ? 'Sign in again; if it stays, make a new A/R key in Settings.' : 'Ask Dr. A to open A/R once, then sign in again.') + '</div></div>';
+}
 function noReportHTML() {
   return '<div class="card" style="max-width:760px"><div class="cardHd"><h3>Import the first report</h3></div><div class="cardBd">' +
     '<p class="small" style="margin-bottom:10px">A/R works from Edge’s <b>Accounts Receivable Aging</b> report. Run it, export it to Excel and drop the file in — it’s read on this computer and saved sealed. Every list here (91+, insurance that hasn’t paid, credit balances) comes from it.</p>' +
@@ -2897,6 +2907,7 @@ function viewToday() {
   if (S.loadErr) return '<div class="card"><div class="empty">' + esc(S.loadErr) + '</div></div>';
   if (S.firstLoad && !S.demo) return '<div class="empty">Opening the latest report…</div>';
   if (!S.reports.length) return noReportHTML();
+  if (notOpenHTML()) return notOpenHTML();
   const c = counts(), A = S.accts.filter(matchesQ), t = todayISO();
   const s91 = round2(S.accts.filter(a => a.bucket === '91').reduce((s, a) => s + a.b90, 0)), crw = S.accts.filter(a => a.credit > 0 && !a.prepay);
   const tile = (n, l, cls, act, sub) => '<button class="tile ' + cls + '" ' + act + '><span class="n' + (String(n).length > 6 ? ' sm' : '') + '">' + n + '</span><span class="l">' + l + '</span>' + (sub ? '<span class="s">' + sub + '</span>' : '') + '</button>';
@@ -2983,6 +2994,7 @@ function tabsHTML(list) { return '<div class="chips" role="tablist">' + list.map
 function viewPastDue() {
   if (S.loadErr) return '<div class="card"><div class="empty">' + esc(S.loadErr) + '</div></div>';
   if (!S.reports.length) return noReportHTML();
+  if (notOpenHTML()) return notOpenHTML();
   if (S.rep && !S.rep.cover.pastDue) return staleHTML() + '<div class="card"><div class="empty">The latest report doesn’t have past-due accounts in it (it was run for credit balances only).</div></div>';
   const A = S.accts, l91 = withCum(list91(A)), l31 = list31(A), l0 = list0(A), all = A.filter(a => a.pd > 0);
   const amt = (l, f) => l.reduce((s, a) => s + f(a), 0), tab = S.tab.pd;
@@ -3010,6 +3022,7 @@ function viewPastDue() {
 function viewIns() {
   if (S.loadErr) return '<div class="card"><div class="empty">' + esc(S.loadErr) + '</div></div>';
   if (!S.reports.length) return noReportHTML();
+  if (notOpenHTML()) return notOpenHTML();
   if (S.rep && !S.rep.cover.ins) return staleHTML() + '<div class="card"><div class="empty">The latest report was run with “Exclude Insurance Contracts” ticked, so it has no insurance accounts. Run it again with that box unticked.</div></div>';
   const A = S.accts, nev = listNever(A), partly = A.filter(a => a.ins && a.pd > 0 && !a.months).sort((x, y) => y.pd - x.pd);
   const sm = summarize(S.rep, S.cfg).never, by = t => nev.filter(a => a.tier === t);
@@ -3030,6 +3043,7 @@ function viewIns() {
 function viewCredits() {
   if (S.loadErr) return '<div class="card"><div class="empty">' + esc(S.loadErr) + '</div></div>';
   if (!S.reports.length) return noReportHTML();
+  if (notOpenHTML()) return notOpenHTML();
   if (S.rep && !S.rep.cover.credit) return staleHTML() + '<div class="card"><div class="empty">The latest report doesn’t have credit balances in it (it was run for past due only).</div></div>';
   const all = listCredits(S.accts), work = all.filter(a => !a.prepay), pre = all.filter(a => a.prepay), amt = l => l.reduce((s, a) => s + a.credit, 0), tab = S.tab.cr;
   let h = staleHTML() + tabsHTML([['work', 'To resolve', work.length, amt(work)], ['pre', 'Prepayments', pre.length, amt(pre)], ['all', 'All credits', all.length, amt(all)]]);
@@ -3058,7 +3072,7 @@ ACT.csv = async () => {
 function viewSummary() {
   if (S.loadErr) return '<div class="card"><div class="empty">' + esc(S.loadErr) + '</div></div>';
   if (!S.reports.length) return noReportHTML();
-  if (!S.rep) return '<div class="empty">Opening the latest report…</div>';
+  if (notOpenHTML()) return notOpenHTML();
   const s = summarize(S.rep, S.cfg), b = s.book;
   const tile = (n, l, cls, sub) => '<div class="tile static ' + (cls || '') + '"><span class="n sm">' + n + '</span><span class="l">' + l + '</span>' + (sub ? '<span class="s">' + sub + '</span>' : '') + '</div>';
   let h = '<div class="filters noPrint"><span class="small muted">Edge A/R Aging as of <b>' + esc(fmtDateLong(s.asOf)) + '</b></span> ' + coverHTML(s.cover) + '<span style="flex:1"></span><button class="btn btn-ghost" data-act="print">' + ic('print', 15) + 'Print</button></div>';
