@@ -54,7 +54,7 @@ const OUT = process.argv[2] || 'shots';
   // ---- export: delivery column carries the time
   check(await p.evaluate(() => { const c = openCases().find(x => x.deliveryTime); return caseToCSVRow(c).includes('"' + c.deliveryDate + ' ' + c.deliveryTime + '"'); }), 'export: the Delivery column has the date and time');
 
-  // ---- retainer labels → offer the next step (6 Oct 2026: a retainer case ends when it's picked up, not when its label prints)
+  // ---- retainer labels → offer to complete
   const rid = await p.evaluate(() => openCases().find(c => c.type === 'retainer').id);
   await p.evaluate(id => openDrawer(id), rid); await p.waitForSelector('#dLbl [data-act=retLabels]');
   await p.click('#dLbl [data-act=retLabels]'); await p.waitForSelector('#rl-prev .print-label');
@@ -70,14 +70,14 @@ const OUT = process.argv[2] || 'shots';
   const pr = await p.evaluate(() => window.__printed);
   check(pr.n === 2 && /Whitening trays/.test(pr.txt), 'Print sends 2 labels, one 2×4 page each');
   await p.waitForSelector('#cbYes'); const q = (await p.textContent('#modalWrap')).replace(/\s+/g, ' ');
-  check(/Move it to Milestones\?/.test(q) && (await p.textContent('#cbYes')) === 'Move to Milestones' && /Not yet/.test(q), 'after printing it offers the next step: Move it to Milestones? (Move to Milestones / Not yet)');
+  check(/Mark this case complete\?/.test(q) && /Not yet/.test(q), 'after printing it asks: Mark this case complete? (Mark complete / Not yet)');
   await p.screenshot({ path: OUT + '/v14-ret-complete.png' });
   await p.click('#cbNo'); await p.waitForTimeout(200);
-  check(await p.evaluate(id => findCase(id).status + ' ' + findCase(id).stage, rid) === 'open print' && await p.isVisible('#drawer'), '“Not yet” leaves it where it was');
+  check(await p.evaluate(id => findCase(id).status, rid) === 'open' && await p.isVisible('#drawer'), '“Not yet” leaves it open');
   await p.click('#dLbl [data-act=retLabels]'); await p.waitForSelector('#rl-print');
   await p.click('#rl-print'); await p.waitForSelector('#cbYes'); await p.click('#cbYes');
-  await p.waitForFunction(id => findCase(id).stage === 'milestones', rid, { timeout: 5000 }).catch(() => {});
-  check(await p.evaluate(id => findCase(id).status + ' ' + findCase(id).stage, rid) === 'open milestones', '“Move to Milestones” moves it on (it stays open: it ends when the patient picks it up)');
+  await p.waitForSelector('.toast:has-text("marked complete")');
+  check(await p.evaluate(id => !S.cases.has(id) || findCase(id).status === 'done', rid) && !(await p.isVisible('#drawer')), '“Mark complete” completes it (with Undo)');
   // other types don't get the retainer label
   const oid = await p.evaluate(() => openCases().find(c => c.type === 'oliv').id);
   await p.evaluate(id => openDrawer(id), oid); await p.waitForSelector('#drawer .kv');

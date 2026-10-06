@@ -220,21 +220,21 @@ async function openByName(p, name) {
   check(!(await owner.isVisible('#listBody tr.click:has-text("' + P2 + '")')), '“No delivery appt” leaves it out');
   await owner.click('[data-act=clearF]');
   await owner.click('#nav-board');
-  for (let i = 0; i < 2; i++) { await owner.click('.kc:has-text("' + P2 + '") .adv'); await sleep(900); }
+  for (let i = 0; i < 3; i++) { await owner.click('.kc:has-text("' + P2 + '") .adv'); await sleep(900); }
   await owner.waitForSelector('section[aria-label="Front desk pickup"] .kc:has-text("' + P2 + '")', { timeout: 15000 });
-  check(!(await owner.isVisible('#modalWrap')), 'advance moved the case on to Front desk pickup (not its last step: nothing asked)');
-  // Picked up, the last step (Amir, 6 Oct 2026): completes the case and pops up the note for the chart — Copy note or Close
+  check(true, 'advance moved the case through to the last stage');
+  // reaching the last step asks whether it's done (3 Oct 2026); "Not yet" leaves it there
+  await owner.waitForSelector('#cbNo', { timeout: 10000 });
+  check(/Mark this case complete\?/.test(await owner.textContent('#modalWrap h3')) && /last step, Front desk pickup/.test(await owner.textContent('#modalWrap .lsub')), 'reaching the last step asks “Mark this case complete?”');
+  await owner.click('#cbNo'); await owner.waitForSelector('#modalWrap', { state: 'detached', timeout: 5000 }).catch(() => {});
+  check(await owner.isVisible('section[aria-label="Front desk pickup"] .kc:has-text("' + P2 + '")'), '“Not yet” keeps it open at its last step');
   await owner.click('.kc:has-text("' + P2 + '") .adv');
-  await owner.waitForSelector('#puNote', { timeout: 15000 });
-  check(/^Pt picked up retainers/.test(await owner.textContent('#puNote')), 'Picked up: the chart note pops up (' + (await owner.textContent('#puNote')).split('\n')[0] + ')');
   await owner.waitForSelector('.kc:has-text("' + P2 + '")', { state: 'detached', timeout: 15000 });
-  check(true, 'picked up = complete: it leaves the board');
-  await owner.click('#modalWrap [data-act=closeModal]');
-  await owner.waitForSelector('.toast:has-text("picked up") button', { timeout: 5000 });
-  await owner.click('.toast:has-text("picked up") button'); await owner.waitForSelector('section[aria-label="Front desk pickup"] .kc:has-text("' + P2 + '")', { timeout: 15000 });
-  check(true, 'Undo brings it back to Front desk pickup');
-  await owner.click('.kc:has-text("' + P2 + '") .adv'); await owner.waitForSelector('#puNote', { timeout: 15000 }); await owner.click('#modalWrap [data-act=closeModal]');
-  await owner.waitForSelector('.kc:has-text("' + P2 + '")', { state: 'detached', timeout: 15000 });
+  check(true, 'completing removes it from the board');
+  await owner.waitForSelector('.toast:has-text("Undo") button', { timeout: 5000 });
+  await owner.click('.toast:has-text("Undo") button'); await owner.waitForSelector('.kc:has-text("' + P2 + '")', { timeout: 15000 });
+  check(true, 'Undo brings it back');
+  await owner.click('.kc:has-text("' + P2 + '") .adv'); await owner.waitForSelector('.kc:has-text("' + P2 + '")', { state: 'detached', timeout: 15000 });
   await owner.click('#nav-done'); await owner.fill('#q', ''); await owner.waitForSelector('tr.click:has-text("' + P2 + '")', { timeout: 15000 });
   check(true, 'completed case listed under Completed');
 
@@ -1413,7 +1413,7 @@ async function openByName(p, name) {
   check(!/Pia Portrait|Portrait/.test(dump), 'the patient’s name isn’t readable anywhere in the database');
   await gwen.fill('#q', ''); await owner.click('#nav-today');
 
-  console.log('\n# Delivery time; retainer labels offer the next step');
+  console.log('\n# Delivery time; retainer labels offer to complete the case');
   const tmr = await owner.evaluate(() => { const d = new Date(); d.setDate(d.getDate() + 1); return isoOf(d); });
   await owner.click('#nav-list'); await owner.fill('#q', '');
   await newCase(owner, { type: 'retainer', patient: 'Rhea Labelworth', delivery: tmr, time: '13:30' });
@@ -1426,11 +1426,10 @@ async function openByName(p, name) {
   const rlp = await gwen.evaluate(() => window.__printed);
   check(rlp.n === 1 && /Rhea Labelworth/.test(rlp.txt) && /Retainers/.test(rlp.txt), 'Print label sends the retainer label (one 2×4 page)');
   await gwen.waitForSelector('#cbYes', { timeout: 10000 });
-  check(/Move it to Milestones\?/.test(await gwen.textContent('#modalWrap')), 'after printing it offers the next step, Milestones (a retainer case ends when it’s picked up, 6 Oct 2026)');
-  await gwen.click('#cbYes');
-  await owner.waitForFunction(() => (openCases().find(c => c.patient === 'Rhea Labelworth') || {}).stage === 'milestones', null, { timeout: 15000 }).catch(() => {});
-  check(await owner.evaluate(() => (openCases().find(c => c.patient === 'Rhea Labelworth') || {}).stage) === 'milestones', '“Move to Milestones” moves it on, for everyone');
-  await gwen.evaluate(() => closeDrawer(true)); // (it stays open now, its panel too)
+  check(/Mark this case complete\?/.test(await gwen.textContent('#modalWrap')), 'after printing it asks whether to mark the case complete');
+  await gwen.click('#cbYes'); await gwen.waitForSelector('.toast:has-text("marked complete")', { timeout: 15000 });
+  await owner.waitForFunction(() => !openCases().some(c => c.patient === 'Rhea Labelworth'), null, { timeout: 15000 }).catch(() => {});
+  check(!(await owner.evaluate(() => openCases().some(c => c.patient === 'Rhea Labelworth'))), '“Mark complete” completes it for everyone');
   await gwen.click('#nav-today');
 
   console.log('\n# Today: clean up old cases in bulk (complete with undo, delete)');

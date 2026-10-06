@@ -1437,7 +1437,5 @@ svg.rxArch{display:block;width:100%;height:auto}
 .swDot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:-1px;background:#C9341F}
 .swDot.soon{background:#F97316}
 .row .rFlag{display:flex;margin:2px 0 2px}
-/* picked up (6 Oct 2026): the chart note that pops up */
-.txt.puNote{margin:12px 0 4px;font-size:13.5px;line-height:1.5}
 /* the sign-in screen's way into practice mode (training, 6 Oct 2026) */
 .lockFoot.lockPrac{margin-top:12px;padding-top:12px;border-top:1px solid var(--grey-100)}

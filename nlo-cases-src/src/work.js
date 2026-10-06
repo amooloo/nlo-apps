@@ -8,7 +8,8 @@
    - Aligners made: in-house sets moved to "Made – needs packaging" (or past it), for whoever moved them there: the set's upper +
      lower aligners.
    - Retainers (retainers, whitening trays and mouthguards): entered, and how long after the scan date on the case (same day = 0);
-     made = moved on from "To make", for whoever moved it, and how long after the case was entered.
+     made = reached Milestones (past To make and Printing), for whoever moved it there, and how long after the case was entered.
+     A retainer from a scan on file, or a remake from the model on file, has no new scan: it isn't in the scan → entered average.
    - Now: the open cases assigned to each person, by kind, and how many of them are late (lab or delivery date passed).
    The history is read once and kept while the app is open: a longer period reads only the older part, Refresh only what's new.
    It holds no patient names (who, when, which step) and is dropped on Lock.
@@ -70,16 +71,18 @@ function wkStats() {
     if (!((c.createdAt || 0) >= since) || c.importedAt || (c.src && c.src.asana) || c.locked) return;
     const by = c.createdBy || madeBy.get(c.id); if (!by) return;
     const p = per(by); p.entered++;
-    if (typeOf(c).flow === 'retainer') { p.retIn++; if (txDateOk(c.scanDate)) p.retLag.push(Math.max(0, wkDay(isoOf(new Date(c.createdAt))) - wkDay(c.scanDate))); }
+    if (typeOf(c).flow === 'retainer') { p.retIn++; if (txDateOk(c.scanDate) && !c.scanOnFile && c.remake !== 'model') p.retLag.push(Math.max(0, wkDay(isoOf(new Date(c.createdAt))) - wkDay(c.scanDate))); }
   });
-  const IH = FLOWS.inhouse.stages.map(s => s[0]), PACK = IH.indexOf('pack'), RT = FLOWS.retainer.stages.map(s => s[0]), alDone = new Set(), retDone = new Set();
+  const IH = FLOWS.inhouse.stages.map(s => s[0]), PACK = IH.indexOf('pack'), RT = FLOWS.retainer.stages.map(s => s[0]), MADE = RT.indexOf('milestones'), alDone = new Set(), retDone = new Set();
   log.forEach(x => {
     if (!wkMoved(x)) return;
     const p = per(x.sid || '?'), c = pool.get(x.caseId); p.moved++;
     if (!c) return;
     const fl = typeOf(c).flow;
     if (fl === 'inhouse' && IH.indexOf(x.to) >= PACK && IH.indexOf(x.from) < PACK && !alDone.has(c.id)) { alDone.add(c.id); p.sets++; p.al += alN(c); }
-    if (fl === 'retainer' && x.from === RT[0] && RT.indexOf(x.to) > 0 && !retDone.has(c.id)) { retDone.add(c.id); p.ret++; if (c.createdAt && x.at > c.createdAt) p.retMake.push(x.at - c.createdAt); }
+    // (a step it was at that isn't one any more — Sarah's desk, Picked up — was after Milestones)
+    const ri = k => RT.includes(k) ? RT.indexOf(k) : k ? MADE + 1 : -1;
+    if (fl === 'retainer' && ri(x.to) >= MADE && ri(x.from) < MADE && !retDone.has(c.id)) { retDone.add(c.id); p.ret++; if (c.createdAt && x.at > c.createdAt) p.retMake.push(x.at - c.createdAt); }
   });
   openCases().forEach(c => {
     const p = per(c.assignee || (c.assigneeName ? 'n:' + c.assigneeName : '')), kd = wkKind(c);
@@ -87,7 +90,7 @@ function wkStats() {
     if (dueBucket(c) === 'over') { p.late++; p.lateK[kd] = (p.lateK[kd] || 0) + 1; }
     const fl = typeOf(c).flow;
     if (fl === 'inhouse' && IH.indexOf(liveStage(c)) < PACK) { p.toMake.sets++; p.toMake.al += alN(c); }
-    if (fl === 'retainer' && c.stage === RT[0]) p.toMake.ret++;
+    if (fl === 'retainer' && RT.indexOf(liveStage(c)) < MADE) p.toMake.ret++; // (To make or Printing)
   });
   return P;
 }
@@ -196,7 +199,7 @@ function wkHowHTML() {
     li('Cases entered:', 'new cases each person entered in the app, counted on the day they entered them. Cases brought in from Asana don’t count.') +
     li('Steps moved:', 'each time they moved a case to another step. Moves made by lab emails don’t count.') +
     li('Aligners made:', 'in-house sets moved to “Made – needs packaging” (or past it), for whoever moved them there — the set’s upper and lower aligners.') +
-    li('Retainers:', 'retainers, whitening trays and mouthguards. <i>Scan → entered</i> counts days from the scan date on the case to the day it was entered (the same day is 0). <i>Made</i> is when it moved on from “To make”, for whoever moved it; <i>Entered → made</i> is the time from entering it to then.') +
+    li('Retainers:', 'retainers, whitening trays and mouthguards. <i>Scan → entered</i> counts days from the scan date on the case to the day it was entered (the same day is 0). <i>Made</i> is when it reached Milestones (past To make and Printing), for whoever moved it there; <i>Entered → made</i> is the time from entering it to then. A retainer from a scan on file, or a remake from the model, isn’t in the scan → entered average (no new scan).') +
     li('Now:', 'open cases assigned to each person. Late = its lab or delivery date has passed. Tap a number to see those cases.') +
     '</ul></details>';
 }

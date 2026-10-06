@@ -28,7 +28,9 @@ const OUT = process.argv[2] || 'shots';
       const step = l.from && l.to && l.from !== l.to && (l.a === 'stage' || (l.a === 'edit' && (l.fields || []).includes('stage'))); if (!step) return;
       P(l.sid).moved++; const c = cs.get(l.caseId); if (!c || made.has(c.id)) return;
       if (c.type === 'nla' && ih.indexOf(l.to) >= 9 && ih.indexOf(l.from) < 9) { made.add(c.id); P(l.sid).sets++; P(l.sid).al += (Number(c.alU) || 0) + (Number(c.alL) || 0); }
-      if (['retainer', 'mouthguard'].includes(c.type) && l.from === 'print' && l.to !== 'print') { made.add(c.id); P(l.sid).ret++; }
+      // (a retainer is made when it reaches Milestones, past To make and Printing — 6 Oct 2026)
+      const rt = k => ['print', 'printing', 'milestones', 'pickup'].indexOf(k);
+      if (['retainer', 'mouthguard'].includes(c.type) && rt(l.to) >= 2 && rt(l.from) < 2) { made.add(c.id); P(l.sid).ret++; }
     });
     openCases().forEach(c => { const x = P(c.assignee || ''); x.open++; if (dueBucket(c) === 'over') x.late++; });
     return out;
@@ -54,7 +56,8 @@ const OUT = process.argv[2] || 'shots';
     const d0 = new Date(); d0.setHours(0, 0, 0, 0); d0.setDate(d0.getDate() - 29); const since = d0.getTime(), day = iso => Math.round(isoDate(iso) / 864e5);
     const rc = Array.from(DEMO.cases.values()).filter(c => ['retainer', 'mouthguard'].includes(c.type));
     const lag = rc.filter(c => c.createdBy === 'gwen' && c.createdAt >= since && c.scanDate).map(c => Math.max(0, day(isoOf(new Date(c.createdAt))) - day(c.scanDate)));
-    const mk = DEMO.logs.filter(l => l.at >= since && l.a === 'stage' && l.from === 'print' && l.sid === 'gwen' && rc.some(c => c.id === l.caseId)).map(l => l.at - rc.find(c => c.id === l.caseId).createdAt);
+    const rt = k => ['print', 'printing', 'milestones', 'pickup'].indexOf(k);
+    const mk = DEMO.logs.filter(l => l.at >= since && l.a === 'stage' && rt(l.to) >= 2 && rt(l.from) < 2 && l.sid === 'gwen' && rc.some(c => c.id === l.caseId)).map(l => l.at - rc.find(c => c.id === l.caseId).createdAt);
     const avg = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
     return { lag: wkLagTxt(avg(lag)), make: wkSpanTxt(avg(mk)), nLag: lag.length, nMk: mk.length };
   });

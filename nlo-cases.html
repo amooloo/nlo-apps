@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-EygvVji6b1Xkx7GhggzV6fYaobBYIfJj9hlOIHpX8bc=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-Jz32t4FigMv+w6kikd/cDz8PmPpcdJApNuteJA7cwCs=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO Cases</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1451,8 +1451,6 @@ svg.rxArch{display:block;width:100%;height:auto}
 .swDot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:-1px;background:#C9341F}
 .swDot.soon{background:#F97316}
 .row .rFlag{display:flex;margin:2px 0 2px}
-/* picked up (6 Oct 2026): the chart note that pops up */
-.txt.puNote{margin:12px 0 4px;font-size:13.5px;line-height:1.5}
 /* the sign-in screen's way into practice mode (training, 6 Oct 2026) */
 .lockFoot.lockPrac{margin-top:12px;padding-top:12px;border-top:1px solid var(--grey-100)}
 
@@ -1533,11 +1531,11 @@ const FLOWS = {
     ['pack', 'Made – needs packaging'], ['checkedin', 'Checked in'] ],
     groups: [{ l: 'In fabrication', stages: ['fab', 'send', 'print', 'thermo', 'trim', 'polish', 'wash'] }] },
   /* the first step says what's waiting (Amir, 5 Oct 2026: "the first step right now says printing which does not make sense"): to be
-     made — printed and formed, or only formed for a remake from the model on file. They don't go to Sarah's desk: made, they go to
-     the front desk, and the last step is the patient picking them up (Amir, 6 Oct 2026) — reaching it completes the case and pops up
-     the note for the chart (pickedUp in ui.js) */
+     made; then Printing, Milestones and the front desk (Amir, 6 Oct 2026: "the steps for retainers and whitening is To make >
+     printing > milestones > Front desk pick up" — no Sarah's desk, and no Picked up step after it). The key 'print' is the old
+     Printing step's, kept so cases saved at it stay at To make. */
   retainer: { label: 'Retainers & mouthguards', labDone: 'milestones', stages: [
-    ['print', 'To make'], ['milestones', 'Milestones'], ['pickup', 'Front desk pickup'], ['pickedup', 'Picked up'] ] },
+    ['print', 'To make'], ['printing', 'Printing'], ['milestones', 'Milestones'], ['pickup', 'Front desk pickup'] ] },
   models: { label: 'Study models', labDone: 'ready', stages: [ ['print', 'To print'], ['ready', 'Ready'] ] },
   retreat: { label: 'Retreatment', stages: [
     ['intake', 'Intake & assessment'], ['review', 'Pending review'], ['proposal', 'Send proposal'],
@@ -1606,8 +1604,9 @@ function stageLabel(c) { const k = liveStage(c), s = caseStages(c).find(x => x[0
    In-house "Reset needed in 2 days" (Amir, 3 Oct 2026: it was never a step after TxP — resets were one or two aligners
    needed in a couple of days, kept in a column of the NL Lab project — and "we are actually not doing resets any longer") */
 const RETIRED_STAGES = { inhouse: { reset: { to: 'txp', l: 'Reset needed in 2 days' } },
-  // retainers "On Sarah's desk" (Amir, 6 Oct 2026: "retainers are NOT placed on Sarah's desk. They are made and put on the front desk")
-  retainer: { sarah: { to: 'pickup', l: 'On Sarah’s desk' } } };
+  // retainers "On Sarah's desk" (Amir, 6 Oct 2026: "retainers are NOT placed on Sarah's desk. They are made and put on the front desk"),
+  // and "Picked up", a last step for a few hours that day (completed cases there show at Front desk pickup)
+  retainer: { sarah: { to: 'pickup', l: 'On Sarah’s desk' }, pickedup: { to: 'pickup', l: 'Picked up' } } };
 function liveStage(c) { const r = c && (RETIRED_STAGES[typeOf(c).flow] || {})[c.stage]; return r ? r.to : c && c.stage; }
 function retiredStageLabel(c, k) { const r = (RETIRED_STAGES[typeOf(c).flow] || {})[k]; return r ? r.l : ''; }
 function liveCases(list) { (list || []).forEach(c => { if (c) c.stage = liveStage(c); }); return list; }
@@ -2981,7 +2980,8 @@ const DEMO = {
         if (type === 'retainer' || type === 'mouthguard') {
           Object.assign(c, type === 'retainer' ? { detail: "U/L TT's", arches: ['Upper', 'Lower'], retKinds: ['TT’s'] } : { detail: 'Mouthguard (U)' });
           const maker = R() < .75 ? who : pick(team);
-          mv('print', 'milestones', (1.5 + R() * 30 * pace[maker].make) * H, maker); mv('milestones', 'pickup', (1 + R() * 20) * H, pick(team)); mv('pickup', 'pickedup', (2 + R() * 60) * H, 'sarah'); c.stage = 'pickedup';
+          mv('print', 'printing', (0.5 + R() * 12 * pace[maker].make) * H, maker); mv('printing', 'milestones', (1 + R() * 18 * pace[maker].make) * H, maker);
+          mv('milestones', 'pickup', (1 + R() * 20) * H, pick(team)); c.stage = 'pickup';
         } else if (type === 'nla') {
           const al = [8, 10, 12, 14, 16, 18, 20, 22, 24], maker = R() < .7 ? who : pick(team);
           Object.assign(c, { detail: 'Aligners (In-House)', initial: 'yes', alU: pick(al), alL: pick(al), atTemplates: 'none', stage: 'txp' });
@@ -2998,7 +2998,7 @@ const DEMO = {
           mv('shipped', 'arrived', (2 + R() * 3) * D, pick(team)); mv('arrived', 'milestones', (1 + R() * 20) * H, pick(team)); c.stage = 'milestones';
         }
         if (t > Date.now() - H) continue; // not finished yet: left out (the open demo cases stand for those)
-        if (c.stage === 'pickedup') L[L.length - 1].close = 1; else L.push({ caseId: id, a: 'close', at: t + 60e3, sid: L[L.length - 1].sid }); // (picked up completes it in the same save)
+        L.push({ caseId: id, a: 'close', at: t + 60e3, sid: L[L.length - 1].sid });
         Object.assign(c, { closedAt: t + 60e3, updatedAt: t + 60e3, rev: L.length });
         DEMO.cases.set(id, c); DEMO.logs.push.apply(DEMO.logs, L);
       }
@@ -3965,7 +3965,6 @@ function chartNote(c, visit) {
   if (visit === 'del' && hasDelNote(c)) {
     if (shipEnd(c)) { const tr = trackList(c).map(x => (x.carrier ? x.carrier + ' ' : '') + x.n).join(', ');
       L.push('Shipped ' + what + ' to the patient' + (tr ? ' (' + tr + ')' : '') + '.'); }
-    else if (pickupCase(c)) L.push('Pt picked up ' + pickupWhat(c) + '.'); // (from the front desk: Amir, 6 Oct 2026)
     else {
       // in-house sets: how many aligners went out
       const u = Number(c.alU) || 0, l = Number(c.alL) || 0, n = c.type === 'nla' ? (u || l ? [u ? u + ' upper' : '', l ? l + ' lower' : ''].filter(Boolean).join(' and ') + ' aligners' : alN(c) ? alN(c) + ' aligners' : '') : '';
@@ -3974,8 +3973,9 @@ function chartNote(c, visit) {
     L.push.apply(L, told('del'));
     return noteAscii(L);
   }
-  // (a retainer remake from the model on file: there was no scan for it)
+  // (a retainer remake from the model on file: there was no scan for it; retainers from a scan already on file: no new scan either)
   if (c.type === 'retainer' && c.remake === 'model') { const d = retDetail(c); L.push('Retainer remake from the model on file' + (d ? ': ' + d : '') + '.'); }
+  else if (c.type === 'retainer' && c.scanOnFile) { const d = retDetail(c); L.push('Retainers from the scan on file' + (c.scanner ? ' (' + c.scanner + ')' : '') + (d ? ': ' + d : '') + '.'); }
   else L.push((c.scanner ? 'Scanned with ' + c.scanner : 'Scanned') + ' for ' + what + '.');
   if (t.flow === 'marpe') { const r = MARPE_RECORDS.filter(x => (c.records || []).includes(x[0])).map(x => x[1]); if (r.length) L.push('Records on file: ' + r.join(', ') + '.'); }
   const end = s => String(s).trim().replace(/[.\s;]+$/, '') + '.';
@@ -3989,18 +3989,8 @@ function chartNote(c, visit) {
   if (c.shipToPatient) L.push('Aligners to be shipped to the patient.');
   return noteAscii(L);
 }
-/* retainers, whitening trays and mouthguards are picked up at the front desk: their "delivery" is the pickup (Amir, 6 Oct 2026: "a note
-   should pop up autogenerated for pt's chart saying patient picked up retainers and/ or whitening") */
-function pickupCase(c) { return !!c && typeOf(c).flow === 'retainer' && c.type !== 'models'; }
-/* "retainers and whitening trays (U/L)", "whitening trays (U)", "retainers (U/L) - remake", "mouthguard (U)" */
-function pickupWhat(c) {
-  const ar = c.arches || [], a = ar.includes('Upper') && ar.includes('Lower') ? 'U/L' : ar.includes('Upper') ? 'U' : ar.includes('Lower') ? 'L' : '';
-  if (c.type === 'mouthguard') return 'mouthguard' + (a ? ' (' + a + ')' : '');
-  const r = (c.retKinds || []).join(' '), wt = /\bWT/i.test(r), tt = /\bTT/i.test(r) || !wt;
-  return (tt && wt ? 'retainers and whitening trays' : wt ? 'whitening trays' : 'retainers') + (a ? ' (' + a + ')' : '') + (c.remake ? ' - remake' : '');
-}
-/* a retainer case's "what's being made" without the remake (the note says it its own way) */
-function retDetail(c) { return String(c.detail || '').replace(/\s*[–-]\s*remake w\/o? model$/i, '').trim(); }
+/* a retainer case's "what's being made" without the remake or "scan on file" (the note says them its own way) */
+function retDetail(c) { return String(c.detail || '').replace(/\s*[–-]\s*(remake w\/o? model|scan on file)$/i, '').trim(); }
 function noteAscii(L) { return L.join('\n').replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[–—]/g, '-'); }
 /* study models aren't delivered to a patient: their note is the scan's only */
 function hasDelNote(c) { return !!c && c.type !== 'models'; }
@@ -4009,11 +3999,10 @@ function hasDelNote(c) { return !!c && c.type !== 'models'; }
 function noteVisitDef(c) {
   if (!hasDelNote(c)) return 'scan';
   if (c.status === 'done' || (c.deliveryDate && dayDiff(c.deliveryDate) <= 0)) return 'del';
-  if (pickupCase(c) && ['pickup', 'pickedup'].includes(c.stage)) return 'del'; // waiting at the front desk: the pickup's note next
   const st = caseStages(c); return st.length && c.stage === st[st.length - 1][0] ? 'del' : 'scan';
 }
 function noteVisitOf(c) { const v = c && S.noteVisit && S.noteVisit.get(c.id); return v && (v === 'scan' || hasDelNote(c)) ? v : noteVisitDef(c); }
-function noteVisitName(c, v) { return v === 'del' ? (shipEnd(c) ? 'Shipped to patient' : pickupCase(c) ? 'Picked up' : 'Delivery visit') : 'Scan visit'; }
+function noteVisitName(c, v) { return v === 'del' ? (shipEnd(c) ? 'Shipped to patient' : 'Delivery visit') : 'Scan visit'; }
 /* the Chart note section: its folded heading names the visit Copy copies; inside, the two visits to switch between, the note,
    and for Dr. A where its wording comes from */
 function noteSumHTML(c) { return '<b>' + esc(noteVisitName(c, noteVisitOf(c))) + '</b> <span class="muted">· to paste into the patient’s chart</span>'; }
@@ -4337,8 +4326,7 @@ function viewBoard() {
   const inFlow = all.filter(c => typeOf(c).flow === S.boardFlow);
   // one column per stage, except a stage group (e.g. the seven "In fabrication" steps) shares one column
   const cols = [];
-  flow.stages.forEach(([sk, sl]) => { if (sk === 'pickedup' && !inFlow.some(c => c.stage === sk)) return; // (picked up = complete: off the board, so no empty column)
-    const g = stageGroup(flow, sk); if (!g) cols.push({ l: sl, keys: [sk] }); else if (g.stages[0] === sk) cols.push({ l: g.l, keys: g.stages, grp: true }); });
+  flow.stages.forEach(([sk, sl]) => { const g = stageGroup(flow, sk); if (!g) cols.push({ l: sl, keys: [sk] }); else if (g.stages[0] === sk) cols.push({ l: g.l, keys: g.stages, grp: true }); });
   const lastKey = flow.stages[flow.stages.length - 1][0];
   h += '<div class="board">' + cols.map((col, i) => {
     const items = inFlow.filter(c => col.keys.includes(c.stage) || (i === 0 && !flow.stages.some(s => s[0] === c.stage)))
@@ -4678,7 +4666,7 @@ async function loadHistory(id) {
   try { const h = await B.caseLog(id); if (S.openId === id && seq > (S.histShown || 0)) { S.histShown = seq; S.history = h; S.histRev = rev0; const el = $('#histBox'); if (el) el.innerHTML = historyHTML(findCase(id)); wtyRefresh(id); stageMarksPaint(findCase(id));
     const c = findCase(id); if (c && String(c.notes || '').trim() && !notesAuthor(c)) { noteAuthKeep(c, h); noteByPaint(); } } } catch (e) { }
 }
-const FIELD_LABELS = { rx: 'Herbst Rx', rxRet: 'Retainer Rx', rxMet: 'Metal Rx', rxFun: 'Functional Rx', invDate: 'invoice date', noGuarantee: 'No Guarantee', photo: 'photo', labRef: 'lab case #', labHold: 'lab hold', planUrl: 'plan link', shipToPatient: 'ship to patient', records: 'records on file', zoomDate: 'Zoom call', zoomTime: 'Zoom call', tracking: 'tracking #', carrier: 'carrier', teeth: 'tooth chart', teethNote: 'tooth chart', chart: 'chart #', titanUrl: 'Titan link', initial: 'initial/refinement', appliances: 'appliance', lab: 'lab', arches: 'arch', retKinds: 'retainer type', goals: 'Dr. A’s instructions', instrPicks: 'Dr. A’s instructions', instrOther: 'Dr. A’s instructions', extras: 'extras', variant: 'case type', type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery appt', deliveryTime: 'appt time', txStart: 'treatment start', txEnd: 'expected removal', acrylic: 'acrylic color', glitter: 'acrylic color', alU: 'aligners', alL: 'aligners', aligners: 'aligners', atTemplates: 'attachment templates', treatArch: 'arches to treat', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes', iprSnap: 'IPR chart (from the IPR Tracker)', refN: 'refinement #', remake: 'remake' };
+const FIELD_LABELS = { rx: 'Herbst Rx', rxRet: 'Retainer Rx', rxMet: 'Metal Rx', rxFun: 'Functional Rx', invDate: 'invoice date', noGuarantee: 'No Guarantee', photo: 'photo', labRef: 'lab case #', labHold: 'lab hold', planUrl: 'plan link', shipToPatient: 'ship to patient', records: 'records on file', zoomDate: 'Zoom call', zoomTime: 'Zoom call', tracking: 'tracking #', carrier: 'carrier', teeth: 'tooth chart', teethNote: 'tooth chart', chart: 'chart #', titanUrl: 'Titan link', initial: 'initial/refinement', appliances: 'appliance', lab: 'lab', arches: 'arch', retKinds: 'retainer type', goals: 'Dr. A’s instructions', instrPicks: 'Dr. A’s instructions', instrOther: 'Dr. A’s instructions', extras: 'extras', variant: 'case type', type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery appt', deliveryTime: 'appt time', txStart: 'treatment start', txEnd: 'expected removal', acrylic: 'acrylic color', glitter: 'acrylic color', alU: 'aligners', alL: 'aligners', aligners: 'aligners', atTemplates: 'attachment templates', treatArch: 'arches to treat', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes', iprSnap: 'IPR chart (from the IPR Tracker)', refN: 'refinement #', remake: 'remake', scanOnFile: 'scan on file' };
 function historyHTML(c) {
   const h = S.history; if (!h) return '<div class="small muted">Loading…</div>'; if (!h.length) return '<div class="small muted">No history yet.</div>';
   const stageName = k => { const s = c && (caseStages(c).find(x => x[0] === k) || flowOf(c).stages.find(x => x[0] === k)); return s ? s[1] : (c && retiredStageLabel(c, k)) || k; };
@@ -4737,7 +4725,7 @@ function renderDrawer() {
   const lblBtn = c.type === 'nla' ? '<div class="dLbl" id="dLbl"><button type="button" class="btn btn-pri btn-sm" data-act="labels"' + (nAl ? '' : ' disabled') + '>' + ic('print', 15) + 'Print labels</button>' +
       (nAl ? '' : '<span class="small muted">once the aligner counts are in (Edit)</span>') + '</div>'
     : c.type === 'retainer' ? '<div class="dLbl" id="dLbl"><button type="button" class="btn btn-pri btn-sm" data-act="retLabels" title="The label for the bag: patient, upper/lower, retainers or whitening trays">' + ic('print', 15) + 'Print labels</button>' +
-      (done ? '' : '<span class="small muted">for the bag — then it offers the next step</span>') + '</div>' : '';
+      (done ? '' : '<span class="small muted">for the bag — then it asks to mark the case complete</span>') + '</div>' : '';
   d.dataset.for = c.id; d.dataset.mode = 'view';
   d.innerHTML = '<div class="dHd"><button type="button" class="dPh" data-act="phEdit" title="' + (c.photo ? 'Change or remove the photo' : 'Add a photo of the patient') + '" aria-label="' + (c.photo ? 'Patient photo: change or remove' : 'Add a patient photo') + '">' + ptAv(c, 64) + '<span class="dPhCam">' + ic('camera', 13) + '</span></button>' +
     // what the case is (arch, appliances, lab, kind of submission, extras) sits under the name — it was its own "Case" section
@@ -4917,7 +4905,7 @@ function caseTitle(c) {
   if (c.type === 'insmile') return (/^de[123]$/.test(c.initial || '') ? 'DE ' + c.initial.slice(2) + ' ' : c.initial === 'yes' ? 'Initial ' : '') + 'InSmile Braces';
   if (c.type === 'appliance') return (c.appliances || []).join(' + ') || c.detail || 'Appliance';
   if (c.type === 'retainer') { const r = (c.retKinds || []).join(' '), tt = /\bTT/i.test(r), wt = /\bWT/i.test(r), what = tt && wt ? 'Retainers & Whitening Trays' : wt ? 'Whitening Trays' : 'Retainers';
-    return c.remake === 'model' ? 'Remake ' + what + ' w/ Model' : c.remake === 'nomodel' ? 'Remake ' + what + ' w/o Model' : what; }
+    return c.remake === 'model' ? 'Remake ' + what + ' w/ Model' : c.remake === 'nomodel' ? 'Remake ' + what + ' w/o Model' : c.scanOnFile ? what + ' from Scan on File' : what; }
   return { marpe: 'MARPE', mouthguard: 'Mouthguard', models: 'Study Models' }[c.type] || typeOf(c).l;
 }
 /* the "what's being made" line under the name, unless it only says what the title already does (the line the form filled in) */
@@ -5256,7 +5244,6 @@ async function moveStage(id, to, extra, asked) {
   if (needs.length) { stageGateModal(c, to, needs, extra); return; }
   const end = shipEnd(c), keys = flowOf(c).stages.map(s => s[0]);
   if (end && keys.indexOf(to) >= keys.indexOf(end)) return shipDone(c, end, extra);
-  if (to === 'pickedup' && pickupCase(c)) return pickedUp(c, extra);
   const from = c.stage, fields = Object.keys(extra), before = {}; fields.forEach(k => { before[k] = c[k]; });
   c.stage = to; Object.assign(c, extra); queueRender(); if (S.openId === id) renderDrawer();
   S.pend = S.pend || {}; const mine = S.pend[id] = { to, extra };
@@ -5288,32 +5275,6 @@ async function shipDone(c, end, extra) {
     S.closedLoaded = false;
     toast((c.patient || 'Case') + ' shipped to the patient — case complete', { action: 'Undo', onAction: () => act(() => B.mutateCase(id, d => { d.stage = from; return 'open'; }, { a: 'reopen' }), 'Reopened') });
   } catch (e) { toast(errText(e), { bad: true }); }
-}
-/* picked up at the front desk (Amir, 6 Oct 2026: "the last step should be 'picked up' and a note should pop up autogenerated for pt's chart
-   saying patient picked up retainers and/ or whitening.. they can close it or copy it note for the chart"): one save moves it to
-   Picked up and completes it; the note pops up (Copy note / Close); Undo puts it back where it was */
-async function pickedUp(c, extra) {
-  const id = c.id, from = c.stage, fields = Object.keys(extra || {});
-  try {
-    await B.mutateCase(id, d => { d.stage = 'pickedup'; Object.assign(d, extra || {}); return 'done'; }, Object.assign({ a: 'stage', from, to: 'pickedup', close: 1 }, fields.length ? { fields } : {}));
-    pickedUpAfter(Object.assign({}, c, extra || {}), from);
-  } catch (e) { toast(errText(e), { bad: true }); }
-}
-function pickedUpAfter(c, from) {
-  const id = c.id, done = Object.assign({}, c, { stage: 'pickedup', status: 'done', closedAt: Date.now() });
-  if (S.hist) S.hist.unshift(done);
-  if (S.openId === id) closeDrawer(true);
-  S.closedLoaded = false;
-  toast((c.patient || 'Case') + ' picked up — case complete', { action: 'Undo', onAction: () => { closeModal(); act(() => B.mutateCase(id, d => { d.stage = from; return 'open'; }, { a: 'reopen' }), 'Reopened'); } });
-  pickupNoteModal(done);
-}
-function pickupNoteModal(c) {
-  const note = chartNote(c, 'del');
-  openModal('<h3>' + esc(c.patient || 'Patient') + ' picked up</h3><div class="lsub">The case is complete. The note for the patient’s chart:</div>' +
-    '<div class="txt puNote" id="puNote">' + esc(note) + '</div>' +
-    '<div class="mFt"><button class="btn btn-sec" type="button" data-act="closeModal">Close</button><span style="flex:1"></span><button class="btn btn-teal" type="button" id="puCopy">' + ic('copy', 16) + 'Copy note</button></div>', w => {
-    $('#puCopy', w).onclick = async () => { const ok = await copyText(note); if (ok) { closeModal(); toast('Chart note copied — paste it into the patient’s chart'); } else toast('Couldn’t copy — select the note and copy it', { bad: true }); };
-  });
 }
 async function completeCase(id) {
   const c = findCase(id); if (!c) return;
@@ -5456,7 +5417,6 @@ async function saveEdit() {
   const end = shipEnd(now), sk = FLOWS[TYPE[now.type].flow].stages.map(s => s[0]);
   const ships = !!end && (changed.includes('stage') || changed.includes('shipToPatient')) && sk.indexOf(now.stage) >= sk.indexOf(end);
   if (ships && now.stage !== end) { now.stage = end; if (!changed.includes('stage')) changed.push('stage'); }
-  const picks = !ships && changed.includes('stage') && now.stage === 'pickedup' && pickupCase(now); // picked up = complete, and its note
   const btn = $('[data-act=saveEdit]', d); busyBtn(btn, true, 'Saving…');
   const id = S.openId, nAt = Date.now();
   try {
@@ -5470,7 +5430,7 @@ async function saveEdit() {
       if (changed.includes('type') && !FLOWS[TYPE[x.type].flow].stages.some(s => s[0] === x.stage)) x.stage = firstStage(x.type);
     };
     // (a step changed here is logged with where it went, like a move from the stepper: the Specialty warranty counts from Shipped)
-    await B.mutateCase(id, x => { apply(x); if (ships || picks) return 'done'; }, Object.assign({ a: 'edit', fields: changed }, changed.includes('stage') ? { from: base.stage, to: now.stage } : {}, ships || picks ? { close: 1 } : {}));
+    await B.mutateCase(id, x => { apply(x); if (ships) return 'done'; }, Object.assign({ a: 'edit', fields: changed }, changed.includes('stage') ? { from: base.stage, to: now.stage } : {}, ships ? { close: 1 } : {}));
     // show the saved copy right away (the live update from the server follows a moment later)
     const cur = findCase(id); if (cur) apply(cur);
     if (ships) { // shipped to the patient = complete
@@ -5479,7 +5439,6 @@ async function saveEdit() {
       toast((now.patient || 'Case') + ' shipped to the patient — case complete', { action: 'Undo', onAction: () => act(() => B.mutateCase(id, x => { x.stage = base.stage; return 'open'; }, { a: 'reopen' }), 'Reopened') });
       return;
     }
-    if (picks) { S.editing = false; pickedUpAfter(Object.assign({ id }, cur || now), base.stage); return; }
     S.editing = false; toast('Saved'); renderDrawer(); loadHistory(id);
     if (changed.includes('stage') && cur && isLastStage(cur, now.stage)) offerComplete(id); // reached its last step: done?
   } catch (x) { busyBtn(btn, false); toast(errText(x), { bad: true }); }
@@ -5771,8 +5730,11 @@ const INHOUSE_TILES = ['nla'];
    on the in-house case, as before, so older finishing cases, the board, the set labels and the totals are unchanged */
 const FIN = 'fin';
 function groupOfTile(v) { return ALIGNERISH.includes(v) ? 'aligner' : BRACES.includes(v) ? 'braces' : v === 'appliance' ? 'appliance' : v === 'marpe' ? 'marpe' : (v === 'retainer' || v === 'mouthguard') ? 'retainer' : v === 'models' ? 'models' : 'other'; }
-/* retainers & whitening trays made again: from the model on file, or without it (a new model printed) */
+/* retainers & whitening trays made again: from the model on file, or without it (a new model printed); and new ones made from a scan
+   already on file, no new scan (Amir, 6 Oct 2026: "please add the option 'scan on file' for retainers when you are submitting a case") —
+   one choice in the same row, saved as scanOnFile (remake stays 'model' / 'nomodel') */
 const REMAKES = [{ v: 'model', l: 'Remake w/ model' }, { v: 'nomodel', l: 'Remake w/o model' }];
+const RET_FROM = [{ v: 'file', l: 'Scan on file' }].concat(REMAKES);
 function remakeText(v) { return v === 'model' ? 'remake w/ model' : v === 'nomodel' ? 'remake w/o model' : ''; }
 /* which refinement: 1–5 to tap, any other number (up to REF_MAX) typed */
 const REF_NS = [1, 2, 3, 4, 5], REF_MAX = 30;
@@ -5789,7 +5751,7 @@ function refOnFile(o) {
 function submissionLabel(v, n) { return v === 'yes' ? 'Initial submission' : v === 'no' ? 'Refinement' + (Number(n) > 0 ? ' ' + Number(n) : '') : v === 'mid' ? 'Mid-course correction' : /^de[123]$/.test(v || '') ? 'Digital enhancement ' + v.slice(2) + ' (DE' + v.slice(2) + ')' : ''; }
 /* fields added later save '' when empty (not [] or false), so older cases without them don't look edited */
 const FORM_KEYS = ['type', 'patient', 'chart', 'detail', 'stage', 'assignee', 'assistant', 'scanner', 'scanDate', 'labDate', 'deliveryDate', 'deliveryTime', 'aligners',
-  'initial', 'refN', 'appliances', 'lab', 'arches', 'retKinds', 'remake', 'goals', 'instrPicks', 'instrOther', 'instructions', 'extras', 'teeth', 'cc', 'ipr', 'notes', 'titanUrl', 'alU', 'alL',
+  'initial', 'refN', 'appliances', 'lab', 'arches', 'retKinds', 'remake', 'scanOnFile', 'goals', 'instrPicks', 'instrOther', 'instructions', 'extras', 'teeth', 'cc', 'ipr', 'notes', 'titanUrl', 'alU', 'alL',
   'shipToPatient', 'records', 'zoomDate', 'zoomTime', 'tracking', 'labRef', 'atTemplates', 'treatArch', 'txStart', 'txEnd', 'acrylic', 'glitter', 'rx', 'rxRet', 'rxMet', 'rxFun'];
 
 /* delivery time: every half hour, 7:00 AM to 7:00 PM (Amir, 2 Oct 2026: "30 mins increments are fine") */
@@ -6052,8 +6014,8 @@ function caseFormHTML(c, isNew) {
       '<h5>Zoom call <span class="h5n">once the lab sets it up</span></h5><div class="zoomRow">' + date('cf-zoomDate', 'Date', c.zoomDate) +
       '<div class="field"><label for="cf-zoomTime">Time</label><input type="time" id="cf-zoomTime" value="' + esc(c.zoomTime || '') + '"></div></div></div>' +
     '<div class="cfSec"' + show('retainer') + '><h5>Arch</h5>' + pickRow('arches', PICK.arches, c.arches || [], true, 'archPick', archIc) + '<div id="cf-retKindsWrap"' + (tile === 'mouthguard' ? ' style="display:none"' : '') + '><h5>Making</h5>' + pickRow('retKinds', PICK.retKinds, c.retKinds || [], true) +
-      // a remake (Amir, 5 Oct 2026: "the option also should be remake w/ or w/o model"): from the model on file, or a new one
-      '<h5>Remake? <span class="h5n">only if it is one — tap again to clear</span></h5>' + pickRow('remake', REMAKES, c.remake || '', false) + '</div></div>' +
+      // a scan on file or a remake (Amir, 5–6 Oct 2026: "the option also should be remake w/ or w/o model", "add the option 'scan on file'")
+      '<h5>Scan on file or a remake? <span class="h5n">only if it is one — tap again to clear</span></h5>' + pickRow('remake', RET_FROM, c.scanOnFile ? 'file' : c.remake || '', false) + '</div></div>' +
     // aligners and InSmile: which arches are treated — both unless picked (Amir, 2 Oct 2026: not always both arches)
     '<div class="cfSec"' + show('aligner braces') + '><h5>Arches to treat</h5>' + pickRow('treatArch', TREAT_OPTS, oneArch(c) || 'UL', false, 'archPick', archIc) + '</div>' +
     '<div class="cfSec"' + show('aligner') + '><h5>Initial submission?</h5>' + pickRow('initial', [{ v: 'yes', l: 'Yes — first set' }, { v: 'no', l: 'No — refinement' }, { v: 'mid', l: 'Mid-course correction' }, { v: FIN, l: 'Finishing aligners' }], initialVal, false) +
@@ -6184,7 +6146,9 @@ function readCaseForm(root) {
   o.acrylic = ab ? (was ? was[0] : ab.dataset.v) : '';
   o.glitter = ab && was && was[1] ? true : '';
   if (tile === 'mouthguard') o.retKinds = [];
-  o.remake = tile === 'retainer' ? (pressed(root, 'remake')[0] || '') : ''; // a remake: 'model' (from the model on file) or 'nomodel'
+  const from = tile === 'retainer' ? (pressed(root, 'remake')[0] || '') : '';
+  o.remake = from === 'model' || from === 'nomodel' ? from : ''; // a remake: 'model' (from the model on file) or 'nomodel'
+  o.scanOnFile = from === 'file' ? true : ''; // made from a scan already on file
   if (!(o.type === 'nla')) { o.titanUrl = ''; o.txStart = ''; o.txEnd = ''; }
   // arches to treat: aligners and InSmile only; both arches is the default and saves as '' (like every older case)
   const ta = pressed(root, 'treatArch')[0] || '';
@@ -6216,7 +6180,7 @@ function autoDetail(o, tile) {
     const arch = o.arches.length === 2 ? 'U/L' : o.arches[0] === 'Upper' ? 'U' : o.arches[0] === 'Lower' ? 'L' : '';
     if (tile === 'mouthguard') return 'Mouthguard' + (arch ? ' (' + arch + ')' : '');
     const kinds = o.retKinds.join(' and ');
-    return [arch, kinds].filter(Boolean).join(' ') + (o.remake ? ' – ' + remakeText(o.remake) : '');
+    return [arch, kinds].filter(Boolean).join(' ') + (o.remake ? ' – ' + remakeText(o.remake) : o.scanOnFile ? ' – scan on file' : '');
   }
   return '';
 }
@@ -6716,8 +6680,7 @@ function labelsModal(c) {
 
 /* ---------- Retainer and whitening tray labels (Amir, 2 Oct 2026) ----------
    One 2×4 in label per bag in the Label Maker's style: patient, upper/lower, what's inside, a bottom line and a
-   date. After printing, it offers the case's next step (it used to offer to complete the case; since 6 Oct 2026 a retainer case ends
-   when the patient picks it up — Picked up, with its chart note). TT's are the retainers, WT's the whitening trays. */
+   date. After printing, it offers to mark the case complete. TT's are the retainers, WT's the whitening trays. */
 const RET_LABELS = [
   { k: 'TT’s', one: 'Retainer', many: 'Retainers', note: 'Wear retainers as directed' },
   { k: 'WT’s', one: 'Whitening tray', many: 'Whitening trays', note: 'Use whitening trays as directed' }
@@ -6750,12 +6713,10 @@ function retLabelsModal(c) {
     w.addEventListener('input', draw); w.addEventListener('change', draw);
     $w('#rl-print').onclick = () => printLabelPages(labels.map(retLabelHTML), () => {
       closeModal();
-      // printed: offer the next step (to Milestones, or to the front desk) — not Picked up, which is the patient's
+      // printed: offer to finish the case (it can be reopened later)
       const cur = findCase(c.id); if (!cur || cur.status === 'done') return;
-      const nx = nextStage(cur); if (!nx || nx === 'pickedup') return;
-      const l = stageLabel(Object.assign({}, cur, { stage: nx }));
-      confirmBox('Move it to ' + l + '?', 'The label for ' + (cur.patient || 'this patient') + ' went to the printer.', 'Move to ' + l, 'mint', 'Not yet')
-        .then(ok => { if (ok) moveStage(c.id, nx); });
+      confirmBox('Mark this case complete?', 'The label for ' + (cur.patient || 'this patient') + ' went to the printer. Move the case to Completed now? You can undo right after, or reopen it later.', 'Mark complete', 'mint', 'Not yet')
+        .then(ok => { if (ok) completeCase(c.id); });
     });
     draw();
   });
@@ -7029,8 +6990,7 @@ async function previewImport(rows) {
     const c = caseFromAsana(t, t.project, roster); if (!c.patient) return;
     // still open in Asana but already at the end (picked up / checked in) and not recent: delivered, so leave it out
     if (skipDelivered && !t.completed && typeOf(c).flow !== 'misc') {
-      // (Asana's last column for retainers was Front desk pick up: Picked up, added 6 Oct 2026, has no column there)
-      const st = flowOf(c).stages.filter(x => x[0] !== 'pickedup'), when = c.deliveryDate || '';
+      const st = flowOf(c).stages, when = c.deliveryDate || '';
       if (c.stage === st[st.length - 1][0] && (!when || when < weekAgo)) { delivered++; return; }
     }
     list.push(c);
@@ -11670,7 +11630,8 @@ document.addEventListener('change', e => {
    - Aligners made: in-house sets moved to "Made – needs packaging" (or past it), for whoever moved them there: the set's upper +
      lower aligners.
    - Retainers (retainers, whitening trays and mouthguards): entered, and how long after the scan date on the case (same day = 0);
-     made = moved on from "To make", for whoever moved it, and how long after the case was entered.
+     made = reached Milestones (past To make and Printing), for whoever moved it there, and how long after the case was entered.
+     A retainer from a scan on file, or a remake from the model on file, has no new scan: it isn't in the scan → entered average.
    - Now: the open cases assigned to each person, by kind, and how many of them are late (lab or delivery date passed).
    The history is read once and kept while the app is open: a longer period reads only the older part, Refresh only what's new.
    It holds no patient names (who, when, which step) and is dropped on Lock.
@@ -11732,16 +11693,18 @@ function wkStats() {
     if (!((c.createdAt || 0) >= since) || c.importedAt || (c.src && c.src.asana) || c.locked) return;
     const by = c.createdBy || madeBy.get(c.id); if (!by) return;
     const p = per(by); p.entered++;
-    if (typeOf(c).flow === 'retainer') { p.retIn++; if (txDateOk(c.scanDate)) p.retLag.push(Math.max(0, wkDay(isoOf(new Date(c.createdAt))) - wkDay(c.scanDate))); }
+    if (typeOf(c).flow === 'retainer') { p.retIn++; if (txDateOk(c.scanDate) && !c.scanOnFile && c.remake !== 'model') p.retLag.push(Math.max(0, wkDay(isoOf(new Date(c.createdAt))) - wkDay(c.scanDate))); }
   });
-  const IH = FLOWS.inhouse.stages.map(s => s[0]), PACK = IH.indexOf('pack'), RT = FLOWS.retainer.stages.map(s => s[0]), alDone = new Set(), retDone = new Set();
+  const IH = FLOWS.inhouse.stages.map(s => s[0]), PACK = IH.indexOf('pack'), RT = FLOWS.retainer.stages.map(s => s[0]), MADE = RT.indexOf('milestones'), alDone = new Set(), retDone = new Set();
   log.forEach(x => {
     if (!wkMoved(x)) return;
     const p = per(x.sid || '?'), c = pool.get(x.caseId); p.moved++;
     if (!c) return;
     const fl = typeOf(c).flow;
     if (fl === 'inhouse' && IH.indexOf(x.to) >= PACK && IH.indexOf(x.from) < PACK && !alDone.has(c.id)) { alDone.add(c.id); p.sets++; p.al += alN(c); }
-    if (fl === 'retainer' && x.from === RT[0] && RT.indexOf(x.to) > 0 && !retDone.has(c.id)) { retDone.add(c.id); p.ret++; if (c.createdAt && x.at > c.createdAt) p.retMake.push(x.at - c.createdAt); }
+    // (a step it was at that isn't one any more — Sarah's desk, Picked up — was after Milestones)
+    const ri = k => RT.includes(k) ? RT.indexOf(k) : k ? MADE + 1 : -1;
+    if (fl === 'retainer' && ri(x.to) >= MADE && ri(x.from) < MADE && !retDone.has(c.id)) { retDone.add(c.id); p.ret++; if (c.createdAt && x.at > c.createdAt) p.retMake.push(x.at - c.createdAt); }
   });
   openCases().forEach(c => {
     const p = per(c.assignee || (c.assigneeName ? 'n:' + c.assigneeName : '')), kd = wkKind(c);
@@ -11749,7 +11712,7 @@ function wkStats() {
     if (dueBucket(c) === 'over') { p.late++; p.lateK[kd] = (p.lateK[kd] || 0) + 1; }
     const fl = typeOf(c).flow;
     if (fl === 'inhouse' && IH.indexOf(liveStage(c)) < PACK) { p.toMake.sets++; p.toMake.al += alN(c); }
-    if (fl === 'retainer' && c.stage === RT[0]) p.toMake.ret++;
+    if (fl === 'retainer' && RT.indexOf(liveStage(c)) < MADE) p.toMake.ret++; // (To make or Printing)
   });
   return P;
 }
@@ -11858,7 +11821,7 @@ function wkHowHTML() {
     li('Cases entered:', 'new cases each person entered in the app, counted on the day they entered them. Cases brought in from Asana don’t count.') +
     li('Steps moved:', 'each time they moved a case to another step. Moves made by lab emails don’t count.') +
     li('Aligners made:', 'in-house sets moved to “Made – needs packaging” (or past it), for whoever moved them there — the set’s upper and lower aligners.') +
-    li('Retainers:', 'retainers, whitening trays and mouthguards. <i>Scan → entered</i> counts days from the scan date on the case to the day it was entered (the same day is 0). <i>Made</i> is when it moved on from “To make”, for whoever moved it; <i>Entered → made</i> is the time from entering it to then.') +
+    li('Retainers:', 'retainers, whitening trays and mouthguards. <i>Scan → entered</i> counts days from the scan date on the case to the day it was entered (the same day is 0). <i>Made</i> is when it reached Milestones (past To make and Printing), for whoever moved it there; <i>Entered → made</i> is the time from entering it to then. A retainer from a scan on file, or a remake from the model, isn’t in the scan → entered average (no new scan).') +
     li('Now:', 'open cases assigned to each person. Late = its lab or delivery date has passed. Tap a number to see those cases.') +
     '</ul></details>';
 }

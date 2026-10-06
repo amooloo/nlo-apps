@@ -266,8 +266,7 @@ async function previewImport(rows) {
     const c = caseFromAsana(t, t.project, roster); if (!c.patient) return;
     // still open in Asana but already at the end (picked up / checked in) and not recent: delivered, so leave it out
     if (skipDelivered && !t.completed && typeOf(c).flow !== 'misc') {
-      // (Asana's last column for retainers was Front desk pick up: Picked up, added 6 Oct 2026, has no column there)
-      const st = flowOf(c).stages.filter(x => x[0] !== 'pickedup'), when = c.deliveryDate || '';
+      const st = flowOf(c).stages, when = c.deliveryDate || '';
       if (c.stage === st[st.length - 1][0] && (!when || when < weekAgo)) { delivered++; return; }
     }
     list.push(c);
