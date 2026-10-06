@@ -404,6 +404,71 @@ const cfg = A.arCfg({});
     ok(/whole number/.test((() => { try { A.obCheck(b, { for: '2026-10-12', n: '2.5' }, 1); return ''; } catch (e) { return e.message; } })()), 'the count has to be a whole number');
   }
 
+  section('OrthoBanc’s failed-payment report, imported (optional; it never changes an account)');
+  {
+    const OBX = JSON.parse(fs.readFileSync(path.join(FX, 'ob-expected.json'), 'utf8')), OK = ['ref', 'status', 'acct', 'patient', 'rp', 'amt', 'hold', 'reason', 'date', 'how', 'bal'];
+    const ob = await A.readReportFile('FailedTransactions.xls', fs.readFileSync(path.join(FX, 'ob-failed.xls')));
+    ok(ob.ob === true && ob.kind === 'xls' && ob.asOf === OBX.asOf && ob.check.ok === true, 'OrthoBanc’s Failed Transaction Report is recognized (.xls), with its date (' + ob.asOf + ') — ' + ob.check.why);
+    eq(ob.rows.map(r => { const o = {}; OK.forEach(k => { o[k] = r[k]; }); return o; }), OBX.rows, 'every failed payment: OB reference, Edge account #, patient and responsible (Last, First → First Last), amount, HOLD or not, reason, draft date, balance');
+    ok(ob.rows.filter(r => r.hold).length === 2 && ob.rows[0].hold && ob.rows[1].hold && !ob.rows[2].hold, '“Action On Your Part Is Needed” is the accounts on HOLD; “No Action Required” the rest');
+    const e = await A.readReportFile('edge-full.xls', fs.readFileSync(path.join(FX, 'edge-full.xls')));
+    ok(!e.ob && e.rows.length === EXP.full.rows.length, 'Edge’s A/R report dropped in the same place is still read as the A/R report');
+    ok(/isn’t OrthoBanc’s/.test(await A.readOBFailed('edge-full.xls', fs.readFileSync(path.join(FX, 'edge-full.xls'))).then(() => '', x => x.message)), 'an Edge file isn’t taken for OrthoBanc’s report');
+    const g = { sheets: [[['OrthoBanc'], [], ['Failed Transaction Report'], [], [], ['Monday, October 5, 2026'], [], [], [null, '** No Action Required On Your Part **'], [], [null, 'Status *', null, null, null, 'OB Reference #'], [],
+      [null, 'FAIL', null, null, null, 'ob04100011', null, null, null, null, '1', null, null, null, 'Sample, Avery', null, null, null, null, 'Sample, Jo', null, null, null, 12]]] };
+    const dm = A.obFromGrid(g);
+    ok(dm.rows.length === 1 && dm.check.ok === false && /without its reason line/.test(dm.check.why), 'a failed payment without its reason line is pointed out');
+    eq(['2026-10-05', '2026-10-06', '2026-10-11', '2026-10-12', '2026-10-04', '2026-01-03', ''].map(A.obDayOf), ['2026-10-05', '2026-10-05', '2026-10-05', '2026-10-12', '2026-09-26', '2025-12-26', ''],
+      'a report belongs to the latest 5th / 12th / 19th / 26th on or before its date');
+
+    // names, however each system writes them
+    eq([A.nameToks('Mrs. Lucía Peña'), A.nameToks("Avery O'Sample"), A.nameToks('Sam Demo-Ray Jr.'), A.nameToks('INS: Pat Łucja')], [['lucia', 'pena'], ['avery', 'osample'], ['sam', 'demo', 'ray'], ['pat', 'lucja']],
+      'names: accents, titles, apostrophes, hyphens, suffixes and “INS:” don’t count');
+    const acc = (patient, rp, o) => A.acctOf(row(Object.assign({ patient, rp, due: 175, b0: 175, bal: 1400 }, o || {})), cfg, '2026-10-05');
+    const accts = [acc('Avery Sample', 'Mr. Jordan Sample'), acc('Ana De La Cruz', 'Maria De La Cruz'), acc("Avery O'Sample", "Robin O'Sample"), acc('José Peña', 'Mrs. Lucía Peña'), acc('Riley Demo', 'Lee Demo'),
+      acc('Sam Demo-Ray', 'Pat Demo-Ray'), acc('Quinn Notreal', 'INS: Casey Notreal'), acc('Dana Mockley', 'Pat Mockley')];
+    eq(ob.rows.map(r => { const a = A.obMatch(accts, r); return a ? a.patient : null; }), ['Avery Sample', 'Ana De La Cruz', "Avery O'Sample", 'José Peña', 'Riley Demo', 'Sam Demo-Ray', null, 'Dana Mockley'],
+      'each failed payment finds its patient account: Last, First; accents; apostrophes; two-word and hyphenated last names; a middle name on one side — never an insurance account');
+    const one = (pt, rp, list) => { const a = A.obMatch(list || accts, { patient: pt, rp }); return a ? a.patient + '|' + a.rp : null; };
+    eq([one('Avery Sample', 'Kim Other'), one('Avery Sample', 'Kim Sample')], [null, 'Avery Sample|Mr. Jordan Sample'], 'the responsible party has to agree (at least the last name) — no phone number from someone else’s account');
+    eq(one('Demo Riley', 'Lee Demo'), 'Riley Demo|Lee Demo', 'a name written last name first without its comma is still found');
+    const twins = [acc('Taylor Twin', 'Chris Twin'), acc('Taylor Twin', 'Morgan Other')];
+    eq([one('Taylor Twin', 'Chris Twin', twins), one('Taylor Twin', 'Morgan Other', twins), one('Taylor Twin', 'Nobody Else', twins)], ['Taylor Twin|Chris Twin', 'Taylor Twin|Morgan Other', null], 'two patients with the same name: the responsible party tells them apart, or it’s no match');
+    const two = [acc('Kai Sample', 'Lee Sample', { due: 0, b0: 0, bal: -50 }), acc('Kai Sample', 'Lee Sample', { sts: 'Retention' })];
+    ok(one('Kai Sample', 'Lee Sample', two) === 'Kai Sample|Lee Sample' && A.obMatch(two, { patient: 'Kai Sample', rp: 'Lee Sample' }).pd > 0, 'two accounts for the same family: the one past due');
+    eq(A.obMatch(accts, { patient: '', rp: 'Lee Demo' }), null, 'no name, no match');
+
+    // the import record: one per report day, sealed like an account's; ticking
+    const day = A.obDayOf(ob.asOf), rec = A.emptyOBRep(day), t0 = Date.UTC(2026, 9, 6, 13);
+    A.obImport(rec, ob, { day, by: 'jamie' }, t0);
+    let R = A.normOBRep(Object.assign({ id: 'x' }, rec));
+    const amt = A.round2(OBX.rows.reduce((s2, r) => s2 + r.amt, 0));
+    eq([R.day, R.rows.length, Object.keys(R.done).length, R.imports.length, R.by, A.obProgress(R)], ['2026-10-05', 8, 0, 1, 'jamie', { n: 8, left: 8, holdLeft: 2, hold: 2, amt }], 'imported: the 8 failed payments, none ticked; 2 on HOLD; the total not drafted');
+    const ids = R.rows.map(A.obRowId);
+    ok(new Set(ids).size === 8, 'each failed payment has an id of its own');
+    A.obTick(rec, [ids[0], ids[2]], true, { by: 'jamie' }, t0 + 60000);
+    R = A.normOBRep(rec);
+    eq([A.obProgress(R).left, A.obProgress(R).holdLeft, R.done[ids[0]].by], [6, 1, 'jamie'], 'two ticked as texted (one on HOLD): 6 left, 1 of them on HOLD');
+    A.obTick(rec, [ids[2]], false, {}, t0 + 120000); A.obTick(rec, ['nope|x|1'], true, {}, t0);
+    eq([A.obProgress(A.normOBRep(rec)).left, 'nope|x|1' in rec.done], [7, false], 'unticking one; a tick for a payment that isn’t on the report is ignored');
+    const again = Object.assign({}, ob, { rows: ob.rows.slice(0, 5).concat([{ ref: 'ob04100012', acct: '12350', patient: 'New Person', rp: 'Pat Person', amt: 80, bal: 160, reason: 'Credit Card - Declined', date: '2026-10-02', how: 'Pmt', hold: false, status: 'FAIL' }]) });
+    A.obImport(rec, again, { day, by: 'taylor' }, t0 + 3600000);
+    R = A.normOBRep(rec);
+    eq([R.rows.length, Object.keys(R.done), R.imports.map(x => x.by), R.by], [6, [ids[0]], ['jamie', 'taylor'], 'taylor'], 'imported again: the new list; the tick on the one still there stays; both imports remembered');
+    ok(A.normOBRep({ obrep: 1, day: 'bad' }) === null && A.normOBRep({ book: 1 }) === null && A.normOBRep(null) === null && A.normOBRep({ obrep: 1, day: '2026-10-05', locked: true }) === null, 'only a real import record is read');
+    const junk = A.normOBRep({ obrep: 1, day: '2026-10-05', rows: [{ ref: 5, patient: '<b>x</b>'.repeat(50), amt: 'lots', hold: 'yes', date: '10/02/2026' }], done: { zz: { at: 1 } } });
+    ok(junk.rows[0].patient.length <= 80 && junk.rows[0].amt === null && junk.rows[0].hold === false && junk.rows[0].date === '' && !Object.keys(junk.done).length, 'odd values are cleaned up');
+
+    // earlier failures; the reminder counts an imported report as checked
+    const old = A.normOBRep(Object.assign(A.emptyOBRep('2026-09-26'), { rows: [ob.rows[0], Object.assign({}, ob.rows[3], { ref: 'ob99999999' }), Object.assign({}, ob.rows[5], { ref: 'ob99999998', acct: '' })] }));
+    const older = A.normOBRep(Object.assign(A.emptyOBRep('2026-09-12'), { rows: [ob.rows[0]] }));
+    eq(ob.rows.map(r => A.obEarlier([old, older, R], '2026-10-05', r).join(',')), ['2026-09-26,2026-09-12', '', '', '2026-09-26', '', '', '', ''], 'failed before: the same OB reference or the same Edge account #, newest first');
+    const b = A.emptyBook();
+    eq([A.obState(A.normBook(b), '2026-10-06', ['2026-10-05']).due, A.obState(A.normBook(b), '2026-10-06', []).due.date], [null, '2026-10-05'], 'an imported report counts as checked; without it the reminder stays');
+    eq(A.obState(A.normBook(b), '2026-10-20', ['2026-10-05']).missed.date, '2026-10-12', 'a report day with neither a check nor an import is pointed out with the next one');
+    ok(JSON.stringify(accts.map(a => a.key)) === JSON.stringify(accts.map(a => A.acctOf(a, cfg, '2026-10-05').key)), 'matching and importing leave the accounts as they were');
+  }
+
   section('Office days and settings');
   eq(['2026-10-09', '2026-10-10', '2026-11-25', '2026-12-24', '2026-12-25', '2026-09-07'].map(A.nextOfficeDay), ['2026-10-12', '2026-10-12', '2026-11-30', '2026-12-24', '2026-12-28', '2026-09-08'],
     'office days: Mon–Thu, skipping Thanksgiving week, Christmas, Labor Day');

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-3f96lY2jyFMKguc4sAdGmz6mPIWIkRrkjuLg6HxVajw=' https://www.gstatic.com/firebasejs/10.12.2/; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://aisa-worker.akhavan-ak.workers.dev http://127.0.0.1:8080 http://127.0.0.1:9099; frame-src https://nlo-cases.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-YPF53X8Sx5C50BN3ZW0r2UYOuM+fjExHd3Q40eSIezI=' https://www.gstatic.com/firebasejs/10.12.2/; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://aisa-worker.akhavan-ak.workers.dev http://127.0.0.1:8080 http://127.0.0.1:9099; frame-src https://nlo-cases.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO A/R</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -770,6 +770,25 @@ ol.steps b{color:var(--navy)}
 .staleBox.ob{background:var(--navy-100);color:var(--navy-700)}
 .staleBox.ob.late{background:var(--coral-100);color:var(--coral-700)}
 .staleBox .btnRow{margin-left:auto} .staleBox .btnRow .btn{margin-left:0}
+/* ---------- OrthoBanc's failed-payment report, imported (6 Oct 2026) ---------- */
+.obTop{display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:space-between;background:var(--grey-50);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:6px;font-size:13.5px}
+.obGrp{font-family:var(--fd);font-weight:600;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--grey-600);margin:16px 0 4px}
+.obRow{display:flex;align-items:flex-start;gap:12px;padding:10px 0;border-bottom:1px solid var(--grey-100)}
+.obRow .grow{flex:1;min-width:0}
+.obRow.done .obWho b{color:var(--grey-500)}
+.obWho{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:14px}
+.obAcct{font-size:11.5px;font-weight:600;color:var(--grey-500)}
+.obHold{font-size:10.5px;font-weight:700;letter-spacing:.06em;color:#fff;background:var(--coral-700);border-radius:999px;padding:1px 8px}
+.obRep{color:var(--coral-700);font-weight:600}
+.obTick{flex:none;width:30px;height:30px;margin-top:1px;border-radius:50%;border:2px solid var(--grey-300);background:#fff;display:inline-flex;align-items:center;justify-content:center;color:#fff;cursor:pointer;padding:0}
+.obTick:hover{border-color:var(--mint-600)}
+.obTick[aria-pressed=true]{background:var(--mint-600);border-color:var(--mint-600)}
+.obTick .i{width:18px;height:18px}
+.obBox{border:1px solid var(--grey-100);background:var(--grey-50);border-radius:var(--r-sm);padding:10px 12px;margin:12px 0}
+.obBoxHd{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.obBoxHd .i{color:var(--navy-600)}
+.obRow a[href^="tel:"]{white-space:nowrap}
+@media (max-width:560px){ .obRow{flex-wrap:wrap} .obRow .grow{flex:1 1 calc(100% - 46px)} .obRow > .btn{margin:-4px 0 0 42px} }
 
 </style>
 </head>
@@ -1422,6 +1441,74 @@ function checkTotals(p) {
     if (t[k] != null && Math.abs(sum(k) - t[k]) > 0.05) bad.push(l + ' adds up to ' + money(sum(k), true) + ', Edge says ' + money(t[k], true));
   });
   return bad.length ? { ok: false, why: bad.join('; ') } : { ok: true, why: 'Matches Edge’s totals: ' + plural(p.rows.length, 'account') + (t.due != null ? ', ' + money(t.due, true) + ' due' : '') + (t.bal != null ? ', ' + money(t.bal, true) + ' balance' : '') + '.' };
+}
+
+/* =====================================================================
+   OrthoBanc's "Failed Transaction Report" (FailedTransactions.xls, from
+   OrthoBanc's Reports page). Each failed draft takes two lines:
+     status · OB Reference # · Your Acct # (Edge's) · patient "Last, First"
+       · responsible "Last, First" · the amount
+     "Return Reason:" · the reason · "10/02/2026 Pmt" · the balance
+   in two sections: "** Action On Your Part Is Needed **" (two drafts or
+   more failed: OrthoBanc put the account on HOLD and asks the office to
+   help) and "** No Action Required On Your Part **" (OrthoBanc contacts
+   them itself). Read on this computer, like the A/R report.
+   ===================================================================== */
+const OB_REF = /^ob\d{4,}$/i;
+/* "Last, First Middle" → "First Middle Last"; a name without a comma stays as it is */
+function obName(s) {
+  s = String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
+  const m = /^([^,]+),\s*(.+)$/.exec(s); return m ? (m[2] + ' ' + m[1]).trim() : s;
+}
+function obCells(row) { const out = []; (row || []).forEach((v, c) => { if (v != null && String(v).trim() !== '') out.push({ c, v: typeof v === 'string' ? v.replace(/\s+/g, ' ').trim() : v }); }); return out; }
+function isOBSheet(grid) {
+  const t = grid.slice(0, 16).map(r => rowText(r).join(' ')).join(' ');
+  return /orthobanc/i.test(t) && /failed\s+transaction/i.test(t);
+}
+/* the report, or null when the file is something else */
+function obFromGrid(g) {
+  let grid = null;
+  for (const sh of (g && g.sheets) || []) { const gr = Array.from(sh || [], r => r || []); if (isOBSheet(gr)) { grid = gr; break; } }
+  if (!grid) return null;
+  const rows = []; let asOf = '', hold = null, head = false, cur = null;
+  for (const row of grid) {
+    const cells = obCells(row); if (!cells.length) continue;
+    const txt = cells.map(x => String(x.v)).join(' ');
+    if (/action on your part is needed/i.test(txt)) { hold = true; continue; }
+    if (/no action required/i.test(txt)) { hold = false; continue; }
+    if (/^status\b/i.test(String(cells[0].v)) && /reference/i.test(txt)) { head = true; continue; }
+    if (!head && hold === null) { if (!asOf) asOf = reportDate(txt); continue; } // the title lines: the report's date
+    const ri = cells.findIndex(x => OB_REF.test(String(x.v)));
+    if (ri >= 0) { // first line: who, and how much
+      const after = cells.slice(ri + 1);
+      const amt = after.length && toNum(after[after.length - 1].v) != null && !/[a-z]/i.test(String(after[after.length - 1].v)) ? toNum(after.pop().v) : null;
+      const names = after.filter(x => /[a-z]/i.test(String(x.v))), acct = after.filter(x => !/[a-z]/i.test(String(x.v))).map(x => String(x.v)).join(' ');
+      cur = { ref: String(cells[ri].v).toLowerCase(), status: cells.slice(0, ri).map(x => String(x.v)).join(' ').slice(0, 20), acct: acct.slice(0, 20),
+        patient: obName(names[0] ? names[0].v : '').slice(0, 80), rp: obName(names[1] ? names[1].v : '').slice(0, 80), amt: amt == null ? null : round2(amt),
+        hold: hold === true, reason: '', date: '', how: '', bal: null };
+      rows.push(cur); continue;
+    }
+    if (cur && /return reason/i.test(txt)) { // second line: why it failed, when it was drafted, the balance
+      const rest = cells.map(x => typeof x.v === 'string' ? Object.assign({}, x, { v: x.v.replace(/return reason\s*:?\s*/i, '').trim() }) : x).filter(x => String(x.v) !== '');
+      const bal = rest.length && toNum(rest[rest.length - 1].v) != null && !/[a-z]/i.test(String(rest[rest.length - 1].v)) ? toNum(rest.pop().v) : null;
+      const dc = rest.find(x => /^\d{1,2}\/\d{1,2}\/\d{2,4}\b/.test(String(x.v)));
+      Object.assign(cur, { reason: rest.filter(x => x !== dc).map(x => String(x.v)).join(' ').replace(/\s+/g, ' ').trim().slice(0, 120),
+        date: dc ? toISODate(dc.v) : '', how: dc ? String(dc.v).replace(/^\S+\s*/, '').slice(0, 30) : '', bal: bal == null ? null : round2(bal) });
+      cur = null;
+    }
+  }
+  const noWhy = rows.filter(r => !r.reason).length;
+  return { ob: true, asOf, rows, check: noWhy ? { ok: false, why: plural(noWhy, 'failed payment') + ' without its reason line — check the whole report was exported.' } : { ok: true, why: plural(rows.length, 'failed payment') + ' read, each with its reason.' } };
+}
+async function readOBFailed(name, bytes) {
+  const g = await readGridFile(name, bytes), p = obFromGrid(g);
+  if (!p) throw errCode('not-ob', 'This isn’t OrthoBanc’s Failed Transaction Report.');
+  return Object.assign(p, { name: name || '', kind: g.kind || 'text' });
+}
+/* a file dropped on Reports: OrthoBanc's failed-payment report, or Edge's A/R report */
+async function readReportFile(name, bytes) {
+  const g = await readGridFile(name, bytes), ob = obFromGrid(g);
+  return ob ? Object.assign(ob, { name: name || '', kind: g.kind || 'text' }) : edgeFromGrid(g, name);
 }
 
 /* =====================================================================
@@ -2186,10 +2273,11 @@ function obCycle(today) {
   const past = all.filter(c => c.due <= today);
   return { cur: past[past.length - 1] || null, prev: past[past.length - 2] || null, next: all.find(c => c.due > today) || null };
 }
-/* where the reminder stands: due (the report whose day has come, not checked yet), missed (the one before it, not checked either) */
-function obState(book, today) {
-  const C = obCycle(today), checks = (book && book.ob) || [], done = c => !!c && checks.some(x => x.for === c.date);
-  return { cur: C.cur, next: C.next, due: C.cur && !done(C.cur) ? C.cur : null, missed: C.prev && !done(C.prev) && checks.length ? C.prev : null, last: checks.length ? checks[checks.length - 1] : null };
+/* where the reminder stands: due (the report whose day has come, not checked yet), missed (the one before it, not checked either);
+   imported: the report days whose file was imported — that counts as checked too */
+function obState(book, today, imported) {
+  const C = obCycle(today), checks = (book && book.ob) || [], imp = imported || [], done = c => !!c && (checks.some(x => x.for === c.date) || imp.includes(c.date));
+  return { cur: C.cur, next: C.next, due: C.cur && !done(C.cur) ? C.cur : null, missed: C.prev && !done(C.prev) && (checks.length || imp.length) ? C.prev : null, last: checks.length ? checks[checks.length - 1] : null };
 }
 function obCheck(d, o, now) {
   bookFix(d); o = o || {};
@@ -2198,6 +2286,101 @@ function obCheck(d, o, now) {
   if (n != null && !(Number.isInteger(n) && n >= 0 && n <= 500)) throw errCode('bad-n', 'How many failed payments: a whole number.');
   d.ob.push({ id: uid8(), at: now, by: o.by || '', for: o.for, n, note: String(o.note || '').trim().slice(0, 300) });
   if (d.ob.length > 60) d.ob = d.ob.slice(-60);
+}
+
+/* =====================================================================
+   OrthoBanc's failed-payment report, imported (6 Oct 2026). Optional:
+   the reminder and "Checked it" work as before. One sealed record per
+   report day (the 5th, 12th, 19th, 26th), kept like an account's
+   (arItems, key OB_KEY + the day) but not in the carrier book, so a tick
+   doesn't copy the whole book into the history. Importing never changes
+   an account — no note, follow-up or ladder step: the list is matched to
+   accounts by name only to show the phone number and open the account.
+   ===================================================================== */
+const OB_KEY = '\u0001ob|';
+/* the report day a file belongs to: the latest 5th, 12th, 19th or 26th on or before its date */
+function obDayOf(iso) {
+  if (!ISO_RE.test(iso || '')) return '';
+  const [y, m, d] = iso.split('-').map(Number), on = OB_DAYS.filter(x => x <= d);
+  if (on.length) return y + '-' + String(m).padStart(2, '0') + '-' + String(on[on.length - 1]).padStart(2, '0');
+  return m === 1 ? (y - 1) + '-12-26' : y + '-' + String(m - 1).padStart(2, '0') + '-26';
+}
+function normOBRow(r) {
+  r = r && typeof r === 'object' ? r : {};
+  const n = v => (typeof v === 'number' && isFinite(v) ? round2(v) : null);
+  return { ref: strOf(r.ref, 20).trim().toLowerCase(), acct: strOf(r.acct, 20).trim(), patient: strOf(r.patient, 80).trim(), rp: strOf(r.rp, 80).trim(), status: strOf(r.status, 20).trim(),
+    amt: n(r.amt), bal: n(r.bal), reason: strOf(r.reason, 120).trim(), date: isoOrBlank(r.date), how: strOf(r.how, 30).trim(), hold: r.hold === true };
+}
+/* one failed draft: the plan, the day it was drafted and the amount (a re-import of the same report keeps its ticks) */
+function obRowId(r) { return [r.ref || r.acct || normName(r.patient), r.date || '', r.amt == null ? '' : Number(r.amt).toFixed(2)].join('|'); }
+function emptyOBRep(day) { return { obrep: 1, day, key: '', name: '', rp: '', src: 'pt', kind: 'pd', state: 'open', stage: '', log: [], asOf: '', rows: [], done: {}, file: '', at: 0, by: '', imports: [] }; }
+function obFix(d, day) {
+  if (!Array.isArray(d.rows)) d.rows = []; if (!d.done || typeof d.done !== 'object') d.done = {}; if (!Array.isArray(d.imports)) d.imports = [];
+  Object.assign(d, { obrep: 1, key: '', state: 'open' }); if (day) d.day = day; return d;
+}
+/* save a read report into its day's record: its failed payments replace the ones there; ticks on the ones still on it stay */
+function obImport(d, p, o, now) {
+  o = o || {}; obFix(d, o.day);
+  if (!ISO_RE.test(d.day || '')) throw errCode('bad-date');
+  const rows = ((p && p.rows) || []).slice(0, 500).map(normOBRow).filter(r => r.patient || r.ref), ids = new Set(rows.map(obRowId)), done = {};
+  Object.keys(d.done).forEach(k => { if (ids.has(k)) done[k] = d.done[k]; });
+  Object.assign(d, { asOf: isoOrBlank(p && p.asOf), rows, done, file: strOf(p && p.name, 120), at: now, by: o.by || '' });
+  d.imports = d.imports.concat([{ at: now, by: o.by || '', n: rows.length }]).slice(-10);
+}
+/* tick (or untick) families as texted — day 0, handbook §14 */
+function obTick(d, ids, on, o, now) {
+  obFix(d); const have = new Set(d.rows.map(obRowId));
+  (ids || []).forEach(id => { if (!have.has(id)) return; if (on) d.done[id] = { at: now, by: (o && o.by) || '' }; else delete d.done[id]; });
+}
+function normOBRep(b) {
+  if (!b || typeof b !== 'object' || !b.obrep || b.locked || !ISO_RE.test(b.day || '')) return null;
+  const rows = (Array.isArray(b.rows) ? b.rows.slice(0, 500) : []).map(normOBRow), ids = new Set(rows.map(obRowId)), done = {};
+  if (b.done && typeof b.done === 'object') Object.keys(b.done).forEach(k => { const v = b.done[k]; if (ids.has(k) && v && typeof v === 'object') done[k] = { at: numOr0(v.at), by: strOf(v.by, 60) }; });
+  return { id: strOf(b.id, 40), rev: numOr0(b.rev), v: numOr0(b.v), day: b.day, asOf: isoOrBlank(b.asOf), rows, done, file: strOf(b.file, 120), at: numOr0(b.at), by: strOf(b.by, 60),
+    imports: (Array.isArray(b.imports) ? b.imports.slice(-10) : []).map(x => ({ at: numOr0(x && x.at), by: strOf(x && x.by, 60), n: numOr0(x && x.n) })) };
+}
+/* how far along a report day's list is */
+function obProgress(rep) {
+  const rows = (rep && rep.rows) || [], left = rows.filter(r => !rep.done[obRowId(r)]);
+  return { n: rows.length, left: left.length, holdLeft: left.filter(r => r.hold).length, hold: rows.filter(r => r.hold).length, amt: round2(rows.reduce((s, r) => s + (r.amt || 0), 0)) };
+}
+/* a person's name as words, however either system writes it: accents, titles (Mr., Mrs.), suffixes (Jr., III),
+   apostrophes and hyphens don't count — "Mrs. Lucía Peña" and "Lucia Pena" are the same person */
+const NAME_FOLD = { 'ł': 'l', 'ø': 'o', 'æ': 'ae', 'œ': 'oe', 'ß': 'ss', 'đ': 'd', 'ı': 'i', 'þ': 'th' };
+function nameToks(s) {
+  const t = String(s || '').replace(/^\s*ins\s*:\s*/i, '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+    .replace(/[łøæœßđıþ]/g, c => NAME_FOLD[c]).replace(/['’`.]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+  const w = t ? t.split(' ') : [];
+  while (w.length > 1 && /^(mr|mrs|ms|miss|dr|mx)$/.test(w[0])) w.shift();
+  while (w.length > 1 && /^(jr|sr|ii|iii|iv)$/.test(w[w.length - 1])) w.pop();
+  return w;
+}
+/* 2: the same name; 1: the same first and last name (a middle name on one side only); 0: someone else */
+function nameScore(a, b) {
+  if (!a.length || !b.length) return 0;
+  if (a.join('') === b.join('')) return 2;
+  return a.length > 1 && b.length > 1 && a[0] === b[0] && a[a.length - 1] === b[b.length - 1] ? 1 : 0;
+}
+/* the patient account on the A/R report a failed payment belongs to: the patient's name, and the responsible party's
+   has to agree too (the same name, or at least the same last name) — a wrong phone number is worse than none,
+   so it's no match rather than a guess */
+function obMatch(accts, row) {
+  const pts = (accts || []).filter(a => !a.ins), p = nameToks(row && row.patient), r = nameToks(row && row.rp), last = r[r.length - 1];
+  if (!p.length) return null;
+  const find = toks => {
+    let best = 0, c = [];
+    pts.forEach(a => { const s = nameScore(nameToks(a.patient), toks); if (!s) return; if (s > best) { best = s; c = [a]; } else if (s === best) c.push(a); });
+    return c;
+  };
+  let c = find(p); if (!c.length && p.length === 2) c = find(p.slice().reverse()); // a name written without its comma, last name first
+  if (r.length) c = c.filter(a => { const t = nameToks(rpName(a)); return nameScore(t, r) > 0 || t[t.length - 1] === last; });
+  if (c.length > 1) { const pd = c.filter(a => a.pd > 0); if (pd.length === 1) c = pd; }
+  return c.length === 1 ? c[0] : null;
+}
+/* earlier report days the same plan failed on (its OB reference #, or Edge's account #), newest first */
+function obEarlier(reps, day, row) {
+  const ref = row.ref, acct = String(row.acct || '').replace(/\s+/g, '');
+  return (reps || []).filter(r => r.day < day && r.rows.some(x => (ref && x.ref === ref) || (acct && String(x.acct || '').replace(/\s+/g, '') === acct))).map(r => r.day).sort().reverse();
 }
 
 /* =====================================================================
@@ -2948,6 +3131,20 @@ const DEMO = {
     const obC = obCycle(todayISO()); if (obC.prev) book.ob.push({ id: uid8(), at: Math.min(now - 3600000, atDay(obC.prev.due, 9, 40)), by: 'jamie', for: obC.prev.date, n: 3, note: 'Texted all three families' });
     const bid = await DEMO.itemId(BOOK_KEY);
     DEMO.items.set(bid, Object.assign(book, { id: bid, rev: 2, v: 1, status: 'open', by: 'taylor', updatedAt: ago(3, 9, 10) }));
+    // that report's file was imported too, and every family on it ticked as texted (made-up references and account numbers)
+    if (obC.prev) {
+      const day = obC.prev.date, t1 = Math.min(now - 3700000, atDay(obC.prev.due, 9, 30)), t2 = Math.min(now - 3650000, atDay(obC.prev.due, 9, 38));
+      const pts = accts.filter(a => !a.ins && a.pd > 0 && !a.inactive), plain = a => rpName(a).replace(/^(mr|mrs|ms|dr)\.?\s+/i, '');
+      const rows = [pts[2], pts[9]].filter(Boolean).map((a, i) => ({ ref: 'ob9000000' + (i + 1), acct: String(10401 + i), patient: a.patient, rp: plain(a), status: 'FAIL', amt: i ? 199 : 175, bal: i ? 1990 : 1400,
+        reason: i ? 'Credit Card - Declined' : 'Credit Card - Declined Insufficient Funds', date: addDays(day, -3), how: 'Pmt', hold: i === 1 }))
+        .concat([{ ref: 'ob90000009', acct: '10499', patient: 'Imaginary Zzyzx', rp: 'Pat Zzyzx', status: 'FAIL', amt: 150, bal: 900, reason: 'Credit Card - Card Number Error', date: addDays(day, -3), how: 'OnLine Pmt', hold: false }]);
+      const rec = emptyOBRep(day);
+      obImport(rec, { asOf: day, rows, name: 'FailedTransactions.xls' }, { day, by: 'jamie' }, t1);
+      obTick(rec, rec.rows.map(obRowId), true, { by: 'jamie' }, t2);
+      const oid = await DEMO.itemId(OB_KEY + day);
+      DEMO.items.set(oid, Object.assign(rec, { id: oid, rev: 2, v: 1, status: 'open', by: 'jamie', updatedAt: t2 }));
+      DEMO.logs.push({ itemId: oid, rev: 1, at: t1, sid: 'jamie', a: 'obimport', day, n: rows.length }, { itemId: oid, rev: 2, at: t2, sid: 'jamie', a: 'obtick', day, n: rows.length, on: true });
+    }
     DEMO.logs.push({ itemId: bid, rev: 1, at: ago(20, 9, 0), sid: 'taylor', a: 'carrier', op: 'add', name: 'Bayside Dental Plan' }, { itemId: bid, rev: 2, at: ago(3, 9, 10), sid: 'taylor', a: 'carrier', op: 'tag', n: Object.keys(book.tags).length });
   }
 };
@@ -2990,6 +3187,7 @@ const IC = {
   x: '<path d="M6 6l12 12M18 6L6 18"/>',
   trash: '<path d="M4.5 7h15M9.5 7V4.8h5V7M6.5 7l1 12.5h9l1-12.5"/>',
   done: '<circle cx="12" cy="12" r="8.5"/><path d="M8.2 12.3l2.5 2.4 5.2-5.2"/>',
+  tick: '<path d="M5.5 12.5l4.2 4.2 8.8-9"/>',
   call: '<path d="M6.2 3.8l2.6-.3 1.6 4.2-2 1.4a10.6 10.6 0 006.5 6.5l1.4-2 4.2 1.6-.3 2.6a2 2 0 01-2.1 1.7A16.5 16.5 0 014.5 5.9a2 2 0 011.7-2.1z"/>',
   copy: '<rect x="8.5" y="8.5" width="11" height="11" rx="2"/><path d="M15.5 8.5V6A1.5 1.5 0 0014 4.5H6A1.5 1.5 0 004.5 6v8A1.5 1.5 0 006 15.5h2.5"/>',
   undo: '<path d="M8.5 6.5L4 11l4.5 4.5"/><path d="M4.5 11h10a5 5 0 010 10h-3"/>',
@@ -3170,6 +3368,7 @@ async function enterApp() {
   Object.assign(S, {
     inApp: true, arState: 'opening', view: sv && sv !== 'focus' ? sv : 'today', q: '', f: { src: '', work: '', who: '', car: '' }, sort: { k: '', dir: 1 }, ladStep: '', ladMemo: null,
     book: null, bookRaw: null, bookId: '', bookPend: 0, bookSrv: null, brief: null, focus: sv === 'focus' || focusPref(),
+    obReps: new Map(), obVer: 0, obPend: {}, obSrv: {}, obImp: null, obIdx: null,
     reports: [], rep: null, repId: '', prev: null, prevId: '', accts: [], byKey: new Map(), diff: null,
     items: new Map(), itemByKey: new Map(), keyIds: new Map(), pend: {}, srv: {}, openKey: '', ui: {}, imp: null, doneLoaded: false, people: null, accessBusy: '', rotating: null,
     firstLoad: true, loadErr: '', lastAct: Date.now(), team: [], roster: [], day: todayISO()
@@ -3199,9 +3398,9 @@ function startLive() {
     reports(list) { if (!S.inApp) return; list.forEach(r => { r.sum = normSum(r.sum); r.locked = r.locked || !r.sum; }); S.reports = list; loadLatest(); },
     items(up, gone) {
       if (!S.inApp) return;
-      // the carrier book is kept like an account's record, but it isn't one
-      up.forEach(it => { if (it && it.book) { gotBook(it); return; } it = normItem(it); if (S.pend[it.id]) { S.srv[it.id] = it; return; } S.items.set(it.id, it); });
-      gone.forEach(id => { if (id && id === S.bookId) { gotBook(null); return; } if (S.pend[id]) { S.srv[id] = 'gone'; return; } S.items.delete(id); });
+      // the carrier book and OrthoBanc's imported reports are kept like an account's record, but they aren't accounts
+      up.forEach(it => { if (it && it.book) { gotBook(it); return; } if (it && it.obrep) { gotOB(it.id, it); return; } it = normItem(it); if (S.pend[it.id]) { S.srv[it.id] = it; return; } S.items.set(it.id, it); });
+      gone.forEach(id => { if (id && id === S.bookId) { gotBook(null); return; } if (S.obReps.has(id) || S.obPend[id]) { gotOB(id, null); return; } if (S.pend[id]) { S.srv[id] = 'gone'; return; } S.items.delete(id); });
       indexItems(); S.firstLoad = false; S.loadErr = ''; queueRender();
       if (S.openKey) refreshDrawer();
     },
@@ -3217,7 +3416,7 @@ function startLive() {
   // accounts resolved in the last six months, so the lists show them as resolved (the live updates only carry open ones)
   B.loadDone(180).then(list => {
     if (!S.inApp) return;
-    list.forEach(it => { if (!S.items.has(it.id) && !S.pend[it.id]) S.items.set(it.id, normItem(it)); });
+    list.forEach(it => { if (it.book || it.obrep) return; if (!S.items.has(it.id) && !S.pend[it.id]) S.items.set(it.id, normItem(it)); });
     S.doneLoaded = true; indexItems(); queueRender(); if (S.openKey) refreshDrawer();
   }).catch(() => { });
   if (isOwner() && !S.demo) setTimeout(ownerUpkeep, 4000);
@@ -3285,6 +3484,29 @@ async function bookChange(fn, action, okMsg) {
   return ok ? (ret === undefined ? true : ret) : false;
 }
 function carrierFor(key) { return carrierOf(S.book, key); }
+/* OrthoBanc's imported reports (one record per report day): kept apart from the accounts */
+function gotOB(id, raw) {
+  if (S.obPend[id]) { S.obSrv[id] = raw || 'gone'; return; } // my own change is on its way: wait for it
+  const r = raw ? normOBRep(Object.assign({}, raw, { id })) : null;
+  if (r) S.obReps.set(id, r); else S.obReps.delete(id);
+  S.obVer++; S.obIdx = null; queueRender(); if (S.openKey) refreshDrawer(); refreshOBList();
+}
+function obRepFor(day) { for (const r of S.obReps.values()) if (r.day === day) return r; return null; }
+function obDays() { return Array.from(S.obReps.values(), r => r.day); }
+/* change one report day's record: shown at once, then saved sealed (with its history), like an account's */
+async function obChange(day, fn, action, okMsg) {
+  const id = await B.itemId(OB_KEY + day), now = Date.now(), cur = S.obReps.get(id);
+  const raw = cur ? JSON.parse(JSON.stringify(Object.assign(emptyOBRep(day), cur))) : emptyOBRep(day);
+  try { fn(obFix(raw, day), now); } catch (e) { toast(errText(e), { bad: true }); return false; }
+  const before = cur || null;
+  S.obReps.set(id, normOBRep(Object.assign(raw, { id }))); S.obVer++; S.obIdx = null; queueRender(); if (S.openKey) refreshDrawer(); refreshOBList();
+  S.obPend[id] = (S.obPend[id] || 0) + 1;
+  let ok = true;
+  try { await B.mutateItem(id, d => { fn(obFix(d, day), now); }, action, emptyOBRep(day)); if (okMsg) toast(okMsg); }
+  catch (e) { ok = false; toast(errText(e), { bad: true }); if (!(id in S.obSrv)) S.obSrv[id] = before ? Object.assign({ obrep: 1 }, before) : 'gone'; }
+  if (!--S.obPend[id]) { delete S.obPend[id]; if (id in S.obSrv) { const srv = S.obSrv[id]; delete S.obSrv[id]; gotOB(id, srv === 'gone' ? null : srv); } }
+  return ok;
+}
 /* focus mode is remembered on this computer */
 function focusPref() { try { return localStorage.getItem('nloAR.focus') === '1'; } catch (e) { return false; } }
 
@@ -3318,7 +3540,7 @@ async function ownerUpkeep() {
 }
 async function resealIfNeeded() {
   if (!S.inApp || S.demo || !isOwner() || S.resealing || B.rotating || B.resealing || !B.ar) return;
-  const old = S.reports.some(r => r.v < B.ar.curV) || Array.from(S.items.values()).some(it => it.v < B.ar.curV) || !!(S.book && S.book.v && S.book.v < B.ar.curV);
+  const old = S.reports.some(r => r.v < B.ar.curV) || Array.from(S.items.values()).some(it => it.v < B.ar.curV) || !!(S.book && S.book.v && S.book.v < B.ar.curV) || Array.from(S.obReps.values()).some(r => r.v && r.v < B.ar.curV);
   if (!old) return;
   S.resealing = true;
   try { await B.arReseal(); } catch (e) { } finally { S.resealing = false; }
@@ -4095,7 +4317,8 @@ function viewReports() {
   else h += '<div class="dropZone" id="dropZone" tabindex="0" role="button" aria-label="Choose the Edge report file">' + ic('import', 26) + '<b>Drop the Excel file here</b><span class="small">or click to choose it · .xls, .xlsx or .csv · one or more files</span></div>' +
     '<input type="file" id="arFile" accept=".xls,.xlsx,.csv,.txt,.htm,.html,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" multiple class="hidden">' +
     '<div class="pasteBox" id="pasteBox" tabindex="0" role="textbox" aria-label="Paste the report here">Or open the export in Excel, select everything (Ctrl+A), copy (Ctrl+C), click here and paste (Ctrl+V).</div>' +
-    (imp && imp.err ? '<div class="lockErr" style="margin-top:12px">' + esc(imp.err) + '</div>' : '') + edgeStepsHTML(!S.reports.length);
+    (imp && imp.err ? '<div class="lockErr" style="margin-top:12px">' + esc(imp.err) + '</div>' : '') + edgeStepsHTML(!S.reports.length) +
+    '<p class="small muted" style="margin-top:10px">OrthoBanc’s Failed Transaction Report (FailedTransactions.xls) can be dropped here too — it opens its own list.</p>';
   h += '</div></div></div><div>' + reportListHTML() + '</div></div>';
   return h;
 }
@@ -4155,19 +4378,24 @@ function afterReports() {
   if (pb) pb.addEventListener('paste', e => {
     e.preventDefault(); const cd = e.clipboardData; if (!cd) return;
     const html = cd.getData('text/html'), text = cd.getData('text/plain');
-    try { const p = edgeFromGrid(html && /<table/i.test(html) ? readHTMLTables(html) : readGridText(text || ''), 'Pasted from Excel'); addParsed([{ name: 'Pasted from Excel', p }]); }
+    try {
+      const g = html && /<table/i.test(html) ? readHTMLTables(html) : readGridText(text || ''), ob = obFromGrid(g);
+      if (ob) { obPreview(Object.assign(ob, { name: 'Pasted from Excel', kind: 'text' })); return; } // OrthoBanc's failed-payment report
+      addParsed([{ name: 'Pasted from Excel', p: edgeFromGrid(g, 'Pasted from Excel') }]);
+    }
     catch (x) { S.imp = { files: [], err: errText(x) }; renderView(); }
   });
   paintPhotos();
 }
 async function addFiles(files) {
-  const out = [];
+  const out = []; let ob = null;
   for (const f of files) {
     if (f.size > 40 * 1024 * 1024) { out.push({ name: f.name, err: 'That file is too big to be an A/R report.' }); continue; }
-    try { out.push({ name: f.name, p: await readEdgeAR(f.name, await f.arrayBuffer()) }); }
+    try { const p = await readReportFile(f.name, await f.arrayBuffer()); if (p.ob) { ob = ob || p; continue; } out.push({ name: f.name, p }); } // OrthoBanc's report goes its own way
     catch (x) { out.push({ name: f.name, err: errText(x) }); }
   }
-  addParsed(out);
+  if (out.length) addParsed(out);
+  if (ob) obPreview(ob);
 }
 function addParsed(list) {
   const files = ((S.imp && S.imp.files) || []).concat(list);
@@ -4215,8 +4443,13 @@ function focusDoneToday() {
 function focusData() {
   const E = focusEntries(focusCtx()), U = E.filter(e => e.cls === 'urgent'), T = E.filter(e => e.cls === 'today'), L = E.filter(e => e.cls === 'later');
   // OrthoBanc's failed-payment report, on its days, until someone marks it checked
-  const O = obState(S.book, todayISO());
+  const O = obState(S.book, todayISO(), obDays());
   if (O.due) U.unshift({ key: '_ob', special: 'obCheck', label: 'OrthoBanc failed-payment report', kind: 'ob', cls: 'urgent', sev: 0, why: 'The ' + fmtDate(O.due.date) + ' report: open it, text each family on it today (day 0), then mark it checked', act: 'Check it', min: 10, amt: 0, also: [] });
+  else { // its file was imported: one line for the whole list (not one per family), until every family on it is ticked
+    const rep = O.cur ? obRepFor(O.cur.date) : null, P = rep ? obProgress(rep) : null;
+    if (P && P.left) (P.holdLeft ? U : T).unshift({ key: '_obl', special: 'obList', day: rep.day, label: 'OrthoBanc: ' + plural(P.left, 'family', 'families') + ' to text', kind: 'ob', cls: P.holdLeft ? 'urgent' : 'today', sev: 0,
+      why: 'The ' + fmtDate(rep.day) + ' report' + (P.holdLeft ? ' · ' + P.holdLeft + ' on HOLD' : '') + ' — text each one (day 0), note the chart, set a 2-week Edge task, tick them off', act: 'Open the list', min: Math.min(60, 2 * P.left), amt: 0, also: [] });
+  }
   return { E, U, T, L, cl: openItems().filter(isCleared), done: focusDoneToday(), min: U.concat(T).reduce((s, e) => s + e.min, 0) };
 }
 function fmtMin(m) { if (m < 1) return 'a minute or two'; if (m < 60) return 'about ' + m + ' min'; const mm = Math.round(m / 5) * 5, h = Math.floor(mm / 60), r = mm % 60; return 'about ' + h + ' h' + (r ? ' ' + r + ' min' : ''); }
@@ -4226,7 +4459,7 @@ function focusStripHTML(F) {
     (n ? ' · ' + fmtMin(F.min) : '') + (F.done.size ? ' · ' + F.done.size + ' done today' : '') + '</span><button class="btn btn-pri btn-sm" data-act="focusOn">' + ic('next', 15) + 'Focus mode</button></div>';
 }
 function focusRowHTML(e) {
-  if (e.special) return '<button class="frow ' + e.cls + '" data-act="' + esc(e.special) + '" data-kind="' + esc(e.kind) + '"><span class="fTag">Urgent</span><span class="grow"><span class="pt">' + esc(e.label) + '</span><span class="fWhy">' + esc(e.why) + '</span></span><span class="fAct">' + esc(e.act) + ic('next', 14) + '</span></button>';
+  if (e.special) return '<button class="frow ' + e.cls + '" data-act="' + esc(e.special) + '" data-kind="' + esc(e.kind) + '"' + (e.day ? ' data-day="' + esc(e.day) + '"' : '') + '><span class="fTag">' + (e.cls === 'urgent' ? 'Urgent' : e.cls === 'today' ? 'Today' : 'Later') + '</span><span class="grow"><span class="pt">' + esc(e.label) + '</span><span class="fWhy">' + esc(e.why) + '</span></span><span class="fAct">' + esc(e.act) + ic('next', 14) + '</span></button>';
   const a = e.a, it = e.it, name = a ? a.patient : (it && it.name) || '', rp = a ? (a.ins ? 'Ins: ' : '') + rpName(a) : String((it && it.rp) || '').replace(/^\s*ins\s*:\s*/i, 'Ins: ');
   return '<button class="frow ' + e.cls + '" data-act="open" data-key="' + esc(e.key) + '" data-kind="' + esc(e.kind) + '"><span class="fTag">' + (e.cls === 'urgent' ? 'Urgent' : e.cls === 'today' ? 'Today' : 'Later') + '</span>' +
     '<span class="grow"><span class="pt">' + esc(name) + '<span class="par"> · ' + esc(rp) + '</span></span><span class="fWhy">' + esc(e.why) + '</span>' + (e.also.length ? '<span class="fAlso">Also: ' + esc(e.also.join(' · ')) + '</span>' : '') + '</span>' +
@@ -4517,18 +4750,25 @@ function auditTabHTML() {
    ===================================================================== */
 function obBannerHTML() {
   if (S.arState !== 'ok' || !S.reports.length) return '';
-  const O = obState(S.book, todayISO()); if (!O.due) return '';
-  const late = O.due.due < todayISO();
-  return '<div class="staleBox ob' + (late ? ' late' : '') + '" role="status">' + ic('mail', 18) + '<span>OrthoBanc’s failed-payment report for ' + esc(fmtDate(O.due.date)) + (late ? ' hasn’t been marked checked' : ' comes today') +
-    ': open it, text each family on it right away (day 0 of the ladder), then mark it checked.' + (O.missed ? ' The ' + esc(fmtDate(O.missed.date)) + ' one wasn’t marked checked either.' : '') + '</span>' +
-    '<span class="btnRow"><a class="btn btn-sec btn-sm" href="' + OB_URL + '" target="_blank" rel="noopener noreferrer">Open OrthoBanc</a><button class="btn btn-pri btn-sm" data-act="obCheck">Checked it</button></span></div>';
+  const O = obState(S.book, todayISO(), obDays());
+  if (O.due) {
+    const late = O.due.due < todayISO();
+    return '<div class="staleBox ob' + (late ? ' late' : '') + '" role="status">' + ic('mail', 18) + '<span>OrthoBanc’s failed-payment report for ' + esc(fmtDate(O.due.date)) + (late ? ' hasn’t been marked checked' : ' comes today') +
+      ': open it, text each family on it right away (day 0 of the ladder), then mark it checked — or import its file here.' + (O.missed ? ' The ' + esc(fmtDate(O.missed.date)) + ' one wasn’t marked checked either.' : '') + '</span>' +
+      '<span class="btnRow"><a class="btn btn-sec btn-sm" href="' + OB_URL + '" target="_blank" rel="noopener noreferrer">Open OrthoBanc</a><button class="btn btn-sec btn-sm" data-act="obPick">' + ic('import', 15) + 'Import its file</button><button class="btn btn-pri btn-sm" data-act="obCheck">Checked it</button></span></div>';
+  }
+  // the latest report's imported list, until every family on it is ticked
+  const rep = O.cur ? obRepFor(O.cur.date) : null, P = rep ? obProgress(rep) : null;
+  if (!P || !P.left) return '';
+  return '<div class="staleBox ob" role="status">' + ic('mail', 18) + '<span>OrthoBanc, ' + esc(fmtDate(rep.day)) + ': ' + plural(P.n, 'failed payment') + (P.hold ? ' (' + P.hold + ' on HOLD)' : '') + ' — ' + (P.n - P.left) + ' of ' + P.n + ' texted.</span>' +
+    '<span class="btnRow"><button class="btn btn-pri btn-sm" data-act="obList" data-day="' + esc(rep.day) + '">Open the list</button></span></div>';
 }
 Object.assign(ACT, {
   obCheck() {
-    const O = obState(S.book, todayISO()), c = O.due || O.cur; if (!c) return;
+    const O = obState(S.book, todayISO(), obDays()), c = O.due || O.cur; if (!c) return;
     const hist = ((S.book && S.book.ob) || []).slice(-6).reverse();
     openModal('<h3>OrthoBanc report · ' + esc(fmtDate(c.date)) + '</h3><div class="lsub">Handbook §14, day 0: text the responsible party on each failed payment right away, note it in the patient’s chart in Edge, and set a 2-week task. The next weekly report puts them on the ladder.</div>' +
-      '<div class="btnRow" style="margin-bottom:12px"><a class="btn btn-sec btn-sm" href="' + OB_URL + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'Open the report in OrthoBanc</a></div>' +
+      '<div class="btnRow" style="margin-bottom:12px"><a class="btn btn-sec btn-sm" href="' + OB_URL + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'Open the report in OrthoBanc</a><button class="btn btn-sec btn-sm" data-act="obPick">' + ic('import', 15) + 'Or import its file</button></div>' +
       '<div class="grid2"><div class="field"><label for="obN">Failed payments on it</label><input id="obN" class="inp" type="number" min="0" max="500" step="1" inputmode="numeric" placeholder="e.g. 3"></div></div>' +
       '<div class="field"><label for="obNote">Note (optional)</label><input id="obNote" class="inp" autocomplete="off" placeholder="e.g. texted all three families"></div>' +
       (hist.length ? '<div class="small muted" style="margin:4px 0 8px"><b>Checked before:</b> ' + hist.map(x => esc(fmtDate(x.for)) + ' (' + esc(shortName(x.by)) + (x.n != null ? ', ' + plural(x.n, 'failed payment') : '') + ')').join(' · ') + '</div>' : '') +
@@ -4540,6 +4780,109 @@ Object.assign(ACT, {
     closeModal();
     await bookChange((d, now) => obCheck(d, { for: f, n, note, by: meSid() }, now), { a: 'obcheck', for: f, n: n === '' ? null : Number(n) }, 'OrthoBanc report for ' + fmtDate(f) + ' marked checked');
   }
+});
+
+/* ---------- OrthoBanc's report file, imported (optional) ----------
+   Read on this computer, saved sealed (one record per report day), shown as a list to text and tick off.
+   It never changes an account: no note, follow-up or ladder step — the FC's own records stay as she left them. */
+async function obReadFiles(files) {
+  for (const f of files) {
+    if (f.size > 20 * 1024 * 1024) { toast('That file is too big to be OrthoBanc’s report.', { bad: true }); continue; }
+    try { obPreview(await readOBFailed(f.name, await f.arrayBuffer())); return; }
+    catch (x) { toast(errText(x), { bad: true }); }
+  }
+}
+function obStat(n, l) { return '<div><div class="n">' + n + '</div><div class="l">' + l + '</div></div>'; }
+function obPreview(p) {
+  const t = todayISO(), day = obDayOf(p.asOf || t), had = obRepFor(day), O = obState(S.book, t, obDays());
+  const rows = p.rows.map(normOBRow), P = obProgress({ rows, done: {} }), matched = rows.filter(r => obMatch(S.accts, r)).length;
+  const reps = Array.from(S.obReps.values()), before = rows.filter(r => obEarlier(reps, day, r).length).length, notes = [];
+  if (!p.asOf) notes.push(['bad', 'There’s no date in the file, so it’s saved as the ' + fmtDate(day) + ' report.']);
+  if (p.check.ok === false) notes.push(['bad', p.check.why]);
+  if (O.cur && day < O.cur.date) notes.push(['info', 'This is the ' + fmtDate(day) + ' report — the latest one is ' + fmtDate(O.cur.date) + '. It’s kept for the history.']);
+  if (had) notes.push(['info', 'The ' + fmtDate(day) + ' report was imported before (' + shortName(had.by) + ', ' + fmtWhen(had.at) + '). This replaces its list; the families already ticked stay ticked.']);
+  if (before) notes.push(['info', plural(before, 'family', 'families') + ' failed on an earlier report too.']);
+  S.obImp = { p, day };
+  openModal('<h3>OrthoBanc failed payments · ' + esc(fmtDateLong(day)) + '</h3>' +
+    '<div class="lsub">Read on this computer; saved sealed, like the A/R report. It doesn’t change any account — it’s a list to text each family from (day 0) and tick off.</div>' +
+    '<div class="prevGrid">' + obStat(P.n, 'failed payments') + obStat(money(P.amt), 'not drafted') + obStat(P.hold, 'on HOLD — action needed') + obStat(matched + ' of ' + P.n, 'on the A/R report') + '</div>' +
+    notes.map(([k, n]) => '<div class="notice ' + k + '" style="margin-top:8px">' + esc(n) + '</div>').join('') +
+    '<div class="mFt" style="margin-top:14px"><button class="btn btn-ghost" data-act="closeModal">Cancel</button><button class="btn btn-teal" data-act="obSaveImp" id="obSaveImp">' + ic('lock', 15) + 'Save (sealed)</button></div>');
+}
+/* the list: on HOLD first (OrthoBanc stopped drafting), then the rest; the phone number when the account is on the A/R report */
+function obListHTML(day) {
+  const rep = obRepFor(day); if (!rep) return '<div class="empty">That report isn’t here any more.</div>';
+  const P = obProgress(rep), reps = Array.from(S.obReps.values());
+  const row = r => {
+    const id = obRowId(r), d = rep.done[id], a = obMatch(S.accts, r), early = obEarlier(reps, rep.day, r), ph = a ? String(a.home || a.work || '').trim() : '';
+    return '<div class="obRow' + (d ? ' done' : '') + '"><button class="obTick" data-act="obTick" data-day="' + esc(day) + '" data-id="' + esc(id) + '" aria-pressed="' + (d ? 'true' : 'false') + '" title="' + (d ? 'Texted — tap to untick' : 'Tick when texted') + '">' + (d ? ic('tick', 18) : '') + '</button>' +
+      '<div class="grow"><div class="obWho"><b>' + esc(r.patient) + '</b>' + (r.acct ? '<span class="obAcct">Edge #' + esc(r.acct) + '</span>' : '') + (r.hold ? '<span class="obHold">HOLD</span>' : '') + '</div>' +
+      '<div class="small">' + esc(r.rp) + (ph ? ' · <a href="tel:' + esc(ph.replace(/[^\d+]/g, '')) + '">' + esc(ph) + '</a>' : '') + '</div>' +
+      '<div class="small muted">' + (r.amt != null ? money(r.amt, true) + ' · ' : '') + esc(r.reason || 'No reason given') + (r.date ? ' · drafted ' + esc(fmtDate(r.date)) : '') + (/online/i.test(r.how) ? ' (online payment)' : '') + '</div>' +
+      (early.length ? '<div class="small obRep">Failed before: ' + early.slice(0, 4).map(x => esc(fmtDate(x))).join(', ') + '</div>' : '') +
+      (d ? '<div class="small muted">Texted · ' + esc(shortName(d.by)) + ', ' + esc(fmtWhen(d.at)) + '</div>' : '') +
+      (!a ? '<div class="small muted">Not on the ' + (S.rep ? esc(fmtDate(S.rep.asOf)) + ' ' : '') + 'A/R report — find them in Edge' + (r.acct ? ' by the account #' : '') + '</div>' : '') + '</div>' +
+      (a ? '<button class="btn btn-ghost btn-sm" data-act="obOpen" data-key="' + esc(a.key) + '">Account ' + ic('next', 13) + '</button>' : '') + '</div>';
+  };
+  const hold = rep.rows.filter(r => r.hold), other = rep.rows.filter(r => !r.hold);
+  return '<div class="obTop"><span><b>' + (P.n - P.left) + ' of ' + P.n + '</b> texted' + (P.amt ? ' · ' + money(P.amt) + ' not drafted' : '') + '</span>' + (P.left ? '<button class="btn btn-sec btn-sm" data-act="obTickAll" data-day="' + esc(day) + '">Mark all texted</button>' : '') + '</div>' +
+    (hold.length ? '<div class="obGrp">On HOLD · OrthoBanc stopped drafting and asks the office to help · ' + hold.length + '</div>' + hold.map(row).join('') : '') +
+    (other.length ? '<div class="obGrp">OrthoBanc is contacting them too · ' + other.length + '</div>' + other.map(row).join('') : '') +
+    (rep.rows.length ? '' : '<div class="empty">No failed payments on this report. ✓</div>');
+}
+function refreshOBList() {
+  const box = $('#obListBox'); if (!box) return;
+  const w = $('#modalWrap'), top = w ? w.scrollTop : 0;
+  box.innerHTML = obListHTML(box.dataset.day); if (w) w.scrollTop = top;
+}
+/* on the account panel: the latest failed draft (read-only; the account's own notes and steps stay hers) */
+function obBoxHTML(a) {
+  const hits = obIndex().get(a.key); if (!hits || !hits.length) return '';
+  const h = hits[0], r = h.row;
+  return '<div class="obBox"><div class="obBoxHd">' + ic('mail', 15) + '<b>OrthoBanc</b><span class="small muted">' + esc(fmtDate(h.day)) + ' report</span></div>' +
+    '<div class="small">' + (r.amt != null ? money(r.amt, true) + ' ' : '') + 'draft failed' + (r.date ? ' ' + esc(fmtDate(r.date)) : '') + (r.reason ? ' — ' + esc(r.reason) : '') + (r.hold ? ' · <b>on HOLD</b> (OrthoBanc stopped drafting)' : '') + '</div>' +
+    '<div class="small muted">' + (h.done ? 'Texted · ' + esc(shortName(h.done.by)) + ', ' + esc(fmtWhen(h.done.at)) : 'Not ticked as texted yet') + (hits.length > 1 ? ' · failed before: ' + hits.slice(1, 4).map(x => esc(fmtDate(x.day))).join(', ') : '') +
+    ' · <button class="linkBtn" data-act="obList" data-day="' + esc(h.day) + '">The list</button></div></div>';
+}
+/* account key → its failed drafts on the reports of the last 120 days, newest first */
+function obIndex() {
+  if (S.obIdx && S.obIdx.v === S.obVer && S.obIdx.r === S.repId) return S.obIdx.m;
+  const m = new Map(), since = addDays(todayISO(), -120);
+  Array.from(S.obReps.values()).filter(r => r.day >= since).sort((x, y) => y.day.localeCompare(x.day)).forEach(rep => rep.rows.forEach(row => {
+    const a = obMatch(S.accts, row); if (!a) return;
+    if (!m.has(a.key)) m.set(a.key, []);
+    m.get(a.key).push({ day: rep.day, row, done: rep.done[obRowId(row)] || null });
+  }));
+  S.obIdx = { v: S.obVer, r: S.repId, m }; return m;
+}
+Object.assign(ACT, {
+  obPick() {
+    const i = document.createElement('input'); i.type = 'file'; i.accept = '.xls,.xlsx,.csv,.txt,.htm,.html'; i.className = 'hidden';
+    i.onchange = () => { const fs = Array.from(i.files || []); i.remove(); if (fs.length) obReadFiles(fs); };
+    document.body.appendChild(i); i.click();
+  },
+  async obSaveImp() {
+    const I = S.obImp; if (!I) return; const btn = $('#obSaveImp'); busyBtn(btn, true, 'Sealing and saving…');
+    const ok = await obChange(I.day, (d, now) => obImport(d, I.p, { day: I.day, by: meSid() }, now), { a: 'obimport', day: I.day, n: I.p.rows.length }, 'OrthoBanc’s ' + fmtDate(I.day) + ' report saved');
+    if (!ok) { busyBtn(btn, false); return; }
+    S.obImp = null; ACT.obList({ dataset: { day: I.day } });
+  },
+  obList(t) {
+    const day = (t && t.dataset && t.dataset.day) || ''; if (!day || !obRepFor(day)) return;
+    openModal('<h3>OrthoBanc failed payments · ' + esc(fmtDate(day)) + '</h3><div class="lsub">Day 0 (handbook §14): text the responsible party (Weave FC-Delinquent — never ask for $ in a text), note it in the patient’s chart in Edge, and set a 2-week Edge task. Tick each family here once it’s done — ticking changes nothing in the account.</div>' +
+      '<div id="obListBox" data-day="' + esc(day) + '">' + obListHTML(day) + '</div><div class="mFt" style="margin-top:14px"><button class="btn btn-pri" data-act="closeModal">Done</button></div>');
+  },
+  async obTick(t) {
+    const day = t.dataset.day, id = t.dataset.id, rep = obRepFor(day); if (!rep) return;
+    const on = !rep.done[id];
+    await obChange(day, (d, now) => obTick(d, [id], on, { by: meSid() }, now), { a: 'obtick', day, n: 1, on });
+  },
+  async obTickAll(t) {
+    const day = t.dataset.day, rep = obRepFor(day); if (!rep) return;
+    const ids = rep.rows.map(obRowId).filter(id => !rep.done[id]); if (!ids.length) return;
+    await obChange(day, (d, now) => obTick(d, ids, true, { by: meSid() }, now), { a: 'obtick', day, n: ids.length, on: true }, plural(ids.length, 'family', 'families') + ' marked texted');
+  },
+  obOpen(t) { closeModal(); openDrawer(t.dataset.key); }
 });
 
 /* =====================================================================
@@ -4609,7 +4952,7 @@ function renderDrawer() {
     '<button class="iconBtn" data-act="closeDrawer" aria-label="Close">' + ic('x') + '</button></div><div class="dBd">';
   if (!a) h += '<div class="notice info">Not past due or in credit in the ' + esc(S.rep ? fmtDateLong(S.rep.asOf) : 'latest') + ' report — paid or fixed in Edge.' + (it && it.state === 'open' ? ' <button class="linkBtn" data-act="resolveCleared">Close it as cleared</button>' : '') + '</div>';
   if (back) h += '<div class="notice info">Resolved ' + esc(fmtDate(isoOf(new Date(it.resolvedAt || it.updatedAt || 0)))) + ' (' + esc(String(OUTCOMES[it.outcome] || 'resolved').toLowerCase()) + '), but it’s ' + (a.pd > 0 ? 'past due' : 'in credit') + ' again in the ' + esc(fmtDate(S.rep.asOf)) + ' report. Logging anything reopens it.</div>';
-  if (a) h += contactHTML(a) + (a.ins ? carrierBoxHTML(a) : '') + numbersHTML(a) + whyHTML(a);
+  if (a) h += contactHTML(a) + (a.ins ? carrierBoxHTML(a) : obBoxHTML(a)) + numbersHTML(a) + whyHTML(a);
   if (it && it.drA && !done) h += drABoxHTML(it);
   const L = a && !done ? ladFor(a) : null;
   if (L) h += ladderHTML(a, it, L);
@@ -4779,6 +5122,8 @@ function histText(x) {
     case 'aa': return 'marked the arrangement broken';
     case 'restore': return 'restored an earlier version';
     case 'obcheck': return 'checked OrthoBanc’s failed-payment report (' + fmtDate(x.for) + (x.n != null ? ', ' + plural(x.n, 'failed payment') : '') + ')';
+    case 'obimport': return 'imported OrthoBanc’s failed-payment report (' + fmtDate(x.day) + (x.n != null ? ', ' + plural(x.n, 'failed payment') : '') + ')';
+    case 'obtick': return (x.on === false ? 'unticked ' : 'ticked ') + plural(x.n || 1, 'family', 'families') + (x.on === false ? '' : ' as texted') + ' (OrthoBanc, ' + fmtDate(x.day) + ')';
     case 'carrier': return x.op === 'add' ? 'added the carrier ' + (x.name || '') : x.op === 'edit' ? 'updated the carrier ' + (x.name || '') : x.op === 'remove' ? 'removed the carrier ' + (x.name || '') : x.op === 'tag' ? 'set the carrier on ' + plural(x.n || 1, 'insurance account') : 'changed the insurance carriers';
     default: return x.a || '';
   }
@@ -5137,7 +5482,7 @@ Object.assign(ACT, {
       const list = (await B.activity(7)).filter(x => x.a !== 'rekey' && x.a !== 'save'), b2 = $('#actBox'); if (!b2) return;
       if (!list.length) { b2.innerHTML = '<div class="small muted">Nothing in the last 7 days.</div>'; return; }
       b2.innerHTML = list.slice(0, 80).map(x => {
-        const it = S.items.get(x.itemId), name = it && !it.locked ? it.name : '', book = x.a === 'carrier' || x.a === 'obcheck' || (S.bookId && x.itemId === S.bookId);
+        const it = S.items.get(x.itemId), name = it && !it.locked ? it.name : '', book = x.a === 'carrier' || x.a === 'obcheck' || x.a === 'obimport' || x.a === 'obtick' || (S.bookId && x.itemId === S.bookId) || S.obReps.has(x.itemId);
         return '<div class="hist"><time>' + esc(fmtWhen(x.at)) + '</time><span><b>' + esc(shortName(x.sid) || '') + '</b> ' + esc(histText(x)) + (book ? '' : ' — ' +
           (name ? '<button class="linkBtn" data-act="open" data-key="' + esc(it.key) + '">' + esc(name) + '</button>' : 'an account resolved a while ago')) + '</span></div>';
       }).join('');

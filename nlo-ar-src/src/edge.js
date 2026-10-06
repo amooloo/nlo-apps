@@ -457,3 +457,71 @@ function checkTotals(p) {
   });
   return bad.length ? { ok: false, why: bad.join('; ') } : { ok: true, why: 'Matches Edge’s totals: ' + plural(p.rows.length, 'account') + (t.due != null ? ', ' + money(t.due, true) + ' due' : '') + (t.bal != null ? ', ' + money(t.bal, true) + ' balance' : '') + '.' };
 }
+
+/* =====================================================================
+   OrthoBanc's "Failed Transaction Report" (FailedTransactions.xls, from
+   OrthoBanc's Reports page). Each failed draft takes two lines:
+     status · OB Reference # · Your Acct # (Edge's) · patient "Last, First"
+       · responsible "Last, First" · the amount
+     "Return Reason:" · the reason · "10/02/2026 Pmt" · the balance
+   in two sections: "** Action On Your Part Is Needed **" (two drafts or
+   more failed: OrthoBanc put the account on HOLD and asks the office to
+   help) and "** No Action Required On Your Part **" (OrthoBanc contacts
+   them itself). Read on this computer, like the A/R report.
+   ===================================================================== */
+const OB_REF = /^ob\d{4,}$/i;
+/* "Last, First Middle" → "First Middle Last"; a name without a comma stays as it is */
+function obName(s) {
+  s = String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
+  const m = /^([^,]+),\s*(.+)$/.exec(s); return m ? (m[2] + ' ' + m[1]).trim() : s;
+}
+function obCells(row) { const out = []; (row || []).forEach((v, c) => { if (v != null && String(v).trim() !== '') out.push({ c, v: typeof v === 'string' ? v.replace(/\s+/g, ' ').trim() : v }); }); return out; }
+function isOBSheet(grid) {
+  const t = grid.slice(0, 16).map(r => rowText(r).join(' ')).join(' ');
+  return /orthobanc/i.test(t) && /failed\s+transaction/i.test(t);
+}
+/* the report, or null when the file is something else */
+function obFromGrid(g) {
+  let grid = null;
+  for (const sh of (g && g.sheets) || []) { const gr = Array.from(sh || [], r => r || []); if (isOBSheet(gr)) { grid = gr; break; } }
+  if (!grid) return null;
+  const rows = []; let asOf = '', hold = null, head = false, cur = null;
+  for (const row of grid) {
+    const cells = obCells(row); if (!cells.length) continue;
+    const txt = cells.map(x => String(x.v)).join(' ');
+    if (/action on your part is needed/i.test(txt)) { hold = true; continue; }
+    if (/no action required/i.test(txt)) { hold = false; continue; }
+    if (/^status\b/i.test(String(cells[0].v)) && /reference/i.test(txt)) { head = true; continue; }
+    if (!head && hold === null) { if (!asOf) asOf = reportDate(txt); continue; } // the title lines: the report's date
+    const ri = cells.findIndex(x => OB_REF.test(String(x.v)));
+    if (ri >= 0) { // first line: who, and how much
+      const after = cells.slice(ri + 1);
+      const amt = after.length && toNum(after[after.length - 1].v) != null && !/[a-z]/i.test(String(after[after.length - 1].v)) ? toNum(after.pop().v) : null;
+      const names = after.filter(x => /[a-z]/i.test(String(x.v))), acct = after.filter(x => !/[a-z]/i.test(String(x.v))).map(x => String(x.v)).join(' ');
+      cur = { ref: String(cells[ri].v).toLowerCase(), status: cells.slice(0, ri).map(x => String(x.v)).join(' ').slice(0, 20), acct: acct.slice(0, 20),
+        patient: obName(names[0] ? names[0].v : '').slice(0, 80), rp: obName(names[1] ? names[1].v : '').slice(0, 80), amt: amt == null ? null : round2(amt),
+        hold: hold === true, reason: '', date: '', how: '', bal: null };
+      rows.push(cur); continue;
+    }
+    if (cur && /return reason/i.test(txt)) { // second line: why it failed, when it was drafted, the balance
+      const rest = cells.map(x => typeof x.v === 'string' ? Object.assign({}, x, { v: x.v.replace(/return reason\s*:?\s*/i, '').trim() }) : x).filter(x => String(x.v) !== '');
+      const bal = rest.length && toNum(rest[rest.length - 1].v) != null && !/[a-z]/i.test(String(rest[rest.length - 1].v)) ? toNum(rest.pop().v) : null;
+      const dc = rest.find(x => /^\d{1,2}\/\d{1,2}\/\d{2,4}\b/.test(String(x.v)));
+      Object.assign(cur, { reason: rest.filter(x => x !== dc).map(x => String(x.v)).join(' ').replace(/\s+/g, ' ').trim().slice(0, 120),
+        date: dc ? toISODate(dc.v) : '', how: dc ? String(dc.v).replace(/^\S+\s*/, '').slice(0, 30) : '', bal: bal == null ? null : round2(bal) });
+      cur = null;
+    }
+  }
+  const noWhy = rows.filter(r => !r.reason).length;
+  return { ob: true, asOf, rows, check: noWhy ? { ok: false, why: plural(noWhy, 'failed payment') + ' without its reason line — check the whole report was exported.' } : { ok: true, why: plural(rows.length, 'failed payment') + ' read, each with its reason.' } };
+}
+async function readOBFailed(name, bytes) {
+  const g = await readGridFile(name, bytes), p = obFromGrid(g);
+  if (!p) throw errCode('not-ob', 'This isn’t OrthoBanc’s Failed Transaction Report.');
+  return Object.assign(p, { name: name || '', kind: g.kind || 'text' });
+}
+/* a file dropped on Reports: OrthoBanc's failed-payment report, or Edge's A/R report */
+async function readReportFile(name, bytes) {
+  const g = await readGridFile(name, bytes), ob = obFromGrid(g);
+  return ob ? Object.assign(ob, { name: name || '', kind: g.kind || 'text' }) : edgeFromGrid(g, name);
+}

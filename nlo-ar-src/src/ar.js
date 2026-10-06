@@ -760,10 +760,11 @@ function obCycle(today) {
   const past = all.filter(c => c.due <= today);
   return { cur: past[past.length - 1] || null, prev: past[past.length - 2] || null, next: all.find(c => c.due > today) || null };
 }
-/* where the reminder stands: due (the report whose day has come, not checked yet), missed (the one before it, not checked either) */
-function obState(book, today) {
-  const C = obCycle(today), checks = (book && book.ob) || [], done = c => !!c && checks.some(x => x.for === c.date);
-  return { cur: C.cur, next: C.next, due: C.cur && !done(C.cur) ? C.cur : null, missed: C.prev && !done(C.prev) && checks.length ? C.prev : null, last: checks.length ? checks[checks.length - 1] : null };
+/* where the reminder stands: due (the report whose day has come, not checked yet), missed (the one before it, not checked either);
+   imported: the report days whose file was imported — that counts as checked too */
+function obState(book, today, imported) {
+  const C = obCycle(today), checks = (book && book.ob) || [], imp = imported || [], done = c => !!c && (checks.some(x => x.for === c.date) || imp.includes(c.date));
+  return { cur: C.cur, next: C.next, due: C.cur && !done(C.cur) ? C.cur : null, missed: C.prev && !done(C.prev) && (checks.length || imp.length) ? C.prev : null, last: checks.length ? checks[checks.length - 1] : null };
 }
 function obCheck(d, o, now) {
   bookFix(d); o = o || {};
@@ -772,4 +773,99 @@ function obCheck(d, o, now) {
   if (n != null && !(Number.isInteger(n) && n >= 0 && n <= 500)) throw errCode('bad-n', 'How many failed payments: a whole number.');
   d.ob.push({ id: uid8(), at: now, by: o.by || '', for: o.for, n, note: String(o.note || '').trim().slice(0, 300) });
   if (d.ob.length > 60) d.ob = d.ob.slice(-60);
+}
+
+/* =====================================================================
+   OrthoBanc's failed-payment report, imported (6 Oct 2026). Optional:
+   the reminder and "Checked it" work as before. One sealed record per
+   report day (the 5th, 12th, 19th, 26th), kept like an account's
+   (arItems, key OB_KEY + the day) but not in the carrier book, so a tick
+   doesn't copy the whole book into the history. Importing never changes
+   an account — no note, follow-up or ladder step: the list is matched to
+   accounts by name only to show the phone number and open the account.
+   ===================================================================== */
+const OB_KEY = '\u0001ob|';
+/* the report day a file belongs to: the latest 5th, 12th, 19th or 26th on or before its date */
+function obDayOf(iso) {
+  if (!ISO_RE.test(iso || '')) return '';
+  const [y, m, d] = iso.split('-').map(Number), on = OB_DAYS.filter(x => x <= d);
+  if (on.length) return y + '-' + String(m).padStart(2, '0') + '-' + String(on[on.length - 1]).padStart(2, '0');
+  return m === 1 ? (y - 1) + '-12-26' : y + '-' + String(m - 1).padStart(2, '0') + '-26';
+}
+function normOBRow(r) {
+  r = r && typeof r === 'object' ? r : {};
+  const n = v => (typeof v === 'number' && isFinite(v) ? round2(v) : null);
+  return { ref: strOf(r.ref, 20).trim().toLowerCase(), acct: strOf(r.acct, 20).trim(), patient: strOf(r.patient, 80).trim(), rp: strOf(r.rp, 80).trim(), status: strOf(r.status, 20).trim(),
+    amt: n(r.amt), bal: n(r.bal), reason: strOf(r.reason, 120).trim(), date: isoOrBlank(r.date), how: strOf(r.how, 30).trim(), hold: r.hold === true };
+}
+/* one failed draft: the plan, the day it was drafted and the amount (a re-import of the same report keeps its ticks) */
+function obRowId(r) { return [r.ref || r.acct || normName(r.patient), r.date || '', r.amt == null ? '' : Number(r.amt).toFixed(2)].join('|'); }
+function emptyOBRep(day) { return { obrep: 1, day, key: '', name: '', rp: '', src: 'pt', kind: 'pd', state: 'open', stage: '', log: [], asOf: '', rows: [], done: {}, file: '', at: 0, by: '', imports: [] }; }
+function obFix(d, day) {
+  if (!Array.isArray(d.rows)) d.rows = []; if (!d.done || typeof d.done !== 'object') d.done = {}; if (!Array.isArray(d.imports)) d.imports = [];
+  Object.assign(d, { obrep: 1, key: '', state: 'open' }); if (day) d.day = day; return d;
+}
+/* save a read report into its day's record: its failed payments replace the ones there; ticks on the ones still on it stay */
+function obImport(d, p, o, now) {
+  o = o || {}; obFix(d, o.day);
+  if (!ISO_RE.test(d.day || '')) throw errCode('bad-date');
+  const rows = ((p && p.rows) || []).slice(0, 500).map(normOBRow).filter(r => r.patient || r.ref), ids = new Set(rows.map(obRowId)), done = {};
+  Object.keys(d.done).forEach(k => { if (ids.has(k)) done[k] = d.done[k]; });
+  Object.assign(d, { asOf: isoOrBlank(p && p.asOf), rows, done, file: strOf(p && p.name, 120), at: now, by: o.by || '' });
+  d.imports = d.imports.concat([{ at: now, by: o.by || '', n: rows.length }]).slice(-10);
+}
+/* tick (or untick) families as texted — day 0, handbook §14 */
+function obTick(d, ids, on, o, now) {
+  obFix(d); const have = new Set(d.rows.map(obRowId));
+  (ids || []).forEach(id => { if (!have.has(id)) return; if (on) d.done[id] = { at: now, by: (o && o.by) || '' }; else delete d.done[id]; });
+}
+function normOBRep(b) {
+  if (!b || typeof b !== 'object' || !b.obrep || b.locked || !ISO_RE.test(b.day || '')) return null;
+  const rows = (Array.isArray(b.rows) ? b.rows.slice(0, 500) : []).map(normOBRow), ids = new Set(rows.map(obRowId)), done = {};
+  if (b.done && typeof b.done === 'object') Object.keys(b.done).forEach(k => { const v = b.done[k]; if (ids.has(k) && v && typeof v === 'object') done[k] = { at: numOr0(v.at), by: strOf(v.by, 60) }; });
+  return { id: strOf(b.id, 40), rev: numOr0(b.rev), v: numOr0(b.v), day: b.day, asOf: isoOrBlank(b.asOf), rows, done, file: strOf(b.file, 120), at: numOr0(b.at), by: strOf(b.by, 60),
+    imports: (Array.isArray(b.imports) ? b.imports.slice(-10) : []).map(x => ({ at: numOr0(x && x.at), by: strOf(x && x.by, 60), n: numOr0(x && x.n) })) };
+}
+/* how far along a report day's list is */
+function obProgress(rep) {
+  const rows = (rep && rep.rows) || [], left = rows.filter(r => !rep.done[obRowId(r)]);
+  return { n: rows.length, left: left.length, holdLeft: left.filter(r => r.hold).length, hold: rows.filter(r => r.hold).length, amt: round2(rows.reduce((s, r) => s + (r.amt || 0), 0)) };
+}
+/* a person's name as words, however either system writes it: accents, titles (Mr., Mrs.), suffixes (Jr., III),
+   apostrophes and hyphens don't count — "Mrs. Lucía Peña" and "Lucia Pena" are the same person */
+const NAME_FOLD = { 'ł': 'l', 'ø': 'o', 'æ': 'ae', 'œ': 'oe', 'ß': 'ss', 'đ': 'd', 'ı': 'i', 'þ': 'th' };
+function nameToks(s) {
+  const t = String(s || '').replace(/^\s*ins\s*:\s*/i, '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+    .replace(/[łøæœßđıþ]/g, c => NAME_FOLD[c]).replace(/['’`.]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+  const w = t ? t.split(' ') : [];
+  while (w.length > 1 && /^(mr|mrs|ms|miss|dr|mx)$/.test(w[0])) w.shift();
+  while (w.length > 1 && /^(jr|sr|ii|iii|iv)$/.test(w[w.length - 1])) w.pop();
+  return w;
+}
+/* 2: the same name; 1: the same first and last name (a middle name on one side only); 0: someone else */
+function nameScore(a, b) {
+  if (!a.length || !b.length) return 0;
+  if (a.join('') === b.join('')) return 2;
+  return a.length > 1 && b.length > 1 && a[0] === b[0] && a[a.length - 1] === b[b.length - 1] ? 1 : 0;
+}
+/* the patient account on the A/R report a failed payment belongs to: the patient's name, and the responsible party's
+   has to agree too (the same name, or at least the same last name) — a wrong phone number is worse than none,
+   so it's no match rather than a guess */
+function obMatch(accts, row) {
+  const pts = (accts || []).filter(a => !a.ins), p = nameToks(row && row.patient), r = nameToks(row && row.rp), last = r[r.length - 1];
+  if (!p.length) return null;
+  const find = toks => {
+    let best = 0, c = [];
+    pts.forEach(a => { const s = nameScore(nameToks(a.patient), toks); if (!s) return; if (s > best) { best = s; c = [a]; } else if (s === best) c.push(a); });
+    return c;
+  };
+  let c = find(p); if (!c.length && p.length === 2) c = find(p.slice().reverse()); // a name written without its comma, last name first
+  if (r.length) c = c.filter(a => { const t = nameToks(rpName(a)); return nameScore(t, r) > 0 || t[t.length - 1] === last; });
+  if (c.length > 1) { const pd = c.filter(a => a.pd > 0); if (pd.length === 1) c = pd; }
+  return c.length === 1 ? c[0] : null;
+}
+/* earlier report days the same plan failed on (its OB reference #, or Edge's account #), newest first */
+function obEarlier(reps, day, row) {
+  const ref = row.ref, acct = String(row.acct || '').replace(/\s+/g, '');
+  return (reps || []).filter(r => r.day < day && r.rows.some(x => (ref && x.ref === ref) || (acct && String(x.acct || '').replace(/\s+/g, '') === acct))).map(r => r.day).sort().reverse();
 }

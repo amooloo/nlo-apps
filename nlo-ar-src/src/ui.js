@@ -36,6 +36,7 @@ const IC = {
   x: '<path d="M6 6l12 12M18 6L6 18"/>',
   trash: '<path d="M4.5 7h15M9.5 7V4.8h5V7M6.5 7l1 12.5h9l1-12.5"/>',
   done: '<circle cx="12" cy="12" r="8.5"/><path d="M8.2 12.3l2.5 2.4 5.2-5.2"/>',
+  tick: '<path d="M5.5 12.5l4.2 4.2 8.8-9"/>',
   call: '<path d="M6.2 3.8l2.6-.3 1.6 4.2-2 1.4a10.6 10.6 0 006.5 6.5l1.4-2 4.2 1.6-.3 2.6a2 2 0 01-2.1 1.7A16.5 16.5 0 014.5 5.9a2 2 0 011.7-2.1z"/>',
   copy: '<rect x="8.5" y="8.5" width="11" height="11" rx="2"/><path d="M15.5 8.5V6A1.5 1.5 0 0014 4.5H6A1.5 1.5 0 004.5 6v8A1.5 1.5 0 006 15.5h2.5"/>',
   undo: '<path d="M8.5 6.5L4 11l4.5 4.5"/><path d="M4.5 11h10a5 5 0 010 10h-3"/>',
@@ -216,6 +217,7 @@ async function enterApp() {
   Object.assign(S, {
     inApp: true, arState: 'opening', view: sv && sv !== 'focus' ? sv : 'today', q: '', f: { src: '', work: '', who: '', car: '' }, sort: { k: '', dir: 1 }, ladStep: '', ladMemo: null,
     book: null, bookRaw: null, bookId: '', bookPend: 0, bookSrv: null, brief: null, focus: sv === 'focus' || focusPref(),
+    obReps: new Map(), obVer: 0, obPend: {}, obSrv: {}, obImp: null, obIdx: null,
     reports: [], rep: null, repId: '', prev: null, prevId: '', accts: [], byKey: new Map(), diff: null,
     items: new Map(), itemByKey: new Map(), keyIds: new Map(), pend: {}, srv: {}, openKey: '', ui: {}, imp: null, doneLoaded: false, people: null, accessBusy: '', rotating: null,
     firstLoad: true, loadErr: '', lastAct: Date.now(), team: [], roster: [], day: todayISO()
@@ -245,9 +247,9 @@ function startLive() {
     reports(list) { if (!S.inApp) return; list.forEach(r => { r.sum = normSum(r.sum); r.locked = r.locked || !r.sum; }); S.reports = list; loadLatest(); },
     items(up, gone) {
       if (!S.inApp) return;
-      // the carrier book is kept like an account's record, but it isn't one
-      up.forEach(it => { if (it && it.book) { gotBook(it); return; } it = normItem(it); if (S.pend[it.id]) { S.srv[it.id] = it; return; } S.items.set(it.id, it); });
-      gone.forEach(id => { if (id && id === S.bookId) { gotBook(null); return; } if (S.pend[id]) { S.srv[id] = 'gone'; return; } S.items.delete(id); });
+      // the carrier book and OrthoBanc's imported reports are kept like an account's record, but they aren't accounts
+      up.forEach(it => { if (it && it.book) { gotBook(it); return; } if (it && it.obrep) { gotOB(it.id, it); return; } it = normItem(it); if (S.pend[it.id]) { S.srv[it.id] = it; return; } S.items.set(it.id, it); });
+      gone.forEach(id => { if (id && id === S.bookId) { gotBook(null); return; } if (S.obReps.has(id) || S.obPend[id]) { gotOB(id, null); return; } if (S.pend[id]) { S.srv[id] = 'gone'; return; } S.items.delete(id); });
       indexItems(); S.firstLoad = false; S.loadErr = ''; queueRender();
       if (S.openKey) refreshDrawer();
     },
@@ -263,7 +265,7 @@ function startLive() {
   // accounts resolved in the last six months, so the lists show them as resolved (the live updates only carry open ones)
   B.loadDone(180).then(list => {
     if (!S.inApp) return;
-    list.forEach(it => { if (!S.items.has(it.id) && !S.pend[it.id]) S.items.set(it.id, normItem(it)); });
+    list.forEach(it => { if (it.book || it.obrep) return; if (!S.items.has(it.id) && !S.pend[it.id]) S.items.set(it.id, normItem(it)); });
     S.doneLoaded = true; indexItems(); queueRender(); if (S.openKey) refreshDrawer();
   }).catch(() => { });
   if (isOwner() && !S.demo) setTimeout(ownerUpkeep, 4000);
@@ -331,6 +333,29 @@ async function bookChange(fn, action, okMsg) {
   return ok ? (ret === undefined ? true : ret) : false;
 }
 function carrierFor(key) { return carrierOf(S.book, key); }
+/* OrthoBanc's imported reports (one record per report day): kept apart from the accounts */
+function gotOB(id, raw) {
+  if (S.obPend[id]) { S.obSrv[id] = raw || 'gone'; return; } // my own change is on its way: wait for it
+  const r = raw ? normOBRep(Object.assign({}, raw, { id })) : null;
+  if (r) S.obReps.set(id, r); else S.obReps.delete(id);
+  S.obVer++; S.obIdx = null; queueRender(); if (S.openKey) refreshDrawer(); refreshOBList();
+}
+function obRepFor(day) { for (const r of S.obReps.values()) if (r.day === day) return r; return null; }
+function obDays() { return Array.from(S.obReps.values(), r => r.day); }
+/* change one report day's record: shown at once, then saved sealed (with its history), like an account's */
+async function obChange(day, fn, action, okMsg) {
+  const id = await B.itemId(OB_KEY + day), now = Date.now(), cur = S.obReps.get(id);
+  const raw = cur ? JSON.parse(JSON.stringify(Object.assign(emptyOBRep(day), cur))) : emptyOBRep(day);
+  try { fn(obFix(raw, day), now); } catch (e) { toast(errText(e), { bad: true }); return false; }
+  const before = cur || null;
+  S.obReps.set(id, normOBRep(Object.assign(raw, { id }))); S.obVer++; S.obIdx = null; queueRender(); if (S.openKey) refreshDrawer(); refreshOBList();
+  S.obPend[id] = (S.obPend[id] || 0) + 1;
+  let ok = true;
+  try { await B.mutateItem(id, d => { fn(obFix(d, day), now); }, action, emptyOBRep(day)); if (okMsg) toast(okMsg); }
+  catch (e) { ok = false; toast(errText(e), { bad: true }); if (!(id in S.obSrv)) S.obSrv[id] = before ? Object.assign({ obrep: 1 }, before) : 'gone'; }
+  if (!--S.obPend[id]) { delete S.obPend[id]; if (id in S.obSrv) { const srv = S.obSrv[id]; delete S.obSrv[id]; gotOB(id, srv === 'gone' ? null : srv); } }
+  return ok;
+}
 /* focus mode is remembered on this computer */
 function focusPref() { try { return localStorage.getItem('nloAR.focus') === '1'; } catch (e) { return false; } }
 
@@ -364,7 +389,7 @@ async function ownerUpkeep() {
 }
 async function resealIfNeeded() {
   if (!S.inApp || S.demo || !isOwner() || S.resealing || B.rotating || B.resealing || !B.ar) return;
-  const old = S.reports.some(r => r.v < B.ar.curV) || Array.from(S.items.values()).some(it => it.v < B.ar.curV) || !!(S.book && S.book.v && S.book.v < B.ar.curV);
+  const old = S.reports.some(r => r.v < B.ar.curV) || Array.from(S.items.values()).some(it => it.v < B.ar.curV) || !!(S.book && S.book.v && S.book.v < B.ar.curV) || Array.from(S.obReps.values()).some(r => r.v && r.v < B.ar.curV);
   if (!old) return;
   S.resealing = true;
   try { await B.arReseal(); } catch (e) { } finally { S.resealing = false; }

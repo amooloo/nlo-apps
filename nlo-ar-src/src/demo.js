@@ -270,6 +270,20 @@ const DEMO = {
     const obC = obCycle(todayISO()); if (obC.prev) book.ob.push({ id: uid8(), at: Math.min(now - 3600000, atDay(obC.prev.due, 9, 40)), by: 'jamie', for: obC.prev.date, n: 3, note: 'Texted all three families' });
     const bid = await DEMO.itemId(BOOK_KEY);
     DEMO.items.set(bid, Object.assign(book, { id: bid, rev: 2, v: 1, status: 'open', by: 'taylor', updatedAt: ago(3, 9, 10) }));
+    // that report's file was imported too, and every family on it ticked as texted (made-up references and account numbers)
+    if (obC.prev) {
+      const day = obC.prev.date, t1 = Math.min(now - 3700000, atDay(obC.prev.due, 9, 30)), t2 = Math.min(now - 3650000, atDay(obC.prev.due, 9, 38));
+      const pts = accts.filter(a => !a.ins && a.pd > 0 && !a.inactive), plain = a => rpName(a).replace(/^(mr|mrs|ms|dr)\.?\s+/i, '');
+      const rows = [pts[2], pts[9]].filter(Boolean).map((a, i) => ({ ref: 'ob9000000' + (i + 1), acct: String(10401 + i), patient: a.patient, rp: plain(a), status: 'FAIL', amt: i ? 199 : 175, bal: i ? 1990 : 1400,
+        reason: i ? 'Credit Card - Declined' : 'Credit Card - Declined Insufficient Funds', date: addDays(day, -3), how: 'Pmt', hold: i === 1 }))
+        .concat([{ ref: 'ob90000009', acct: '10499', patient: 'Imaginary Zzyzx', rp: 'Pat Zzyzx', status: 'FAIL', amt: 150, bal: 900, reason: 'Credit Card - Card Number Error', date: addDays(day, -3), how: 'OnLine Pmt', hold: false }]);
+      const rec = emptyOBRep(day);
+      obImport(rec, { asOf: day, rows, name: 'FailedTransactions.xls' }, { day, by: 'jamie' }, t1);
+      obTick(rec, rec.rows.map(obRowId), true, { by: 'jamie' }, t2);
+      const oid = await DEMO.itemId(OB_KEY + day);
+      DEMO.items.set(oid, Object.assign(rec, { id: oid, rev: 2, v: 1, status: 'open', by: 'jamie', updatedAt: t2 }));
+      DEMO.logs.push({ itemId: oid, rev: 1, at: t1, sid: 'jamie', a: 'obimport', day, n: rows.length }, { itemId: oid, rev: 2, at: t2, sid: 'jamie', a: 'obtick', day, n: rows.length, on: true });
+    }
     DEMO.logs.push({ itemId: bid, rev: 1, at: ago(20, 9, 0), sid: 'taylor', a: 'carrier', op: 'add', name: 'Bayside Dental Plan' }, { itemId: bid, rev: 2, at: ago(3, 9, 10), sid: 'taylor', a: 'carrier', op: 'tag', n: Object.keys(book.tags).length });
   }
 };

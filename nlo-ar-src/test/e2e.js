@@ -6,7 +6,7 @@
 const { chromium } = require('playwright');
 const path = require('path');
 const fs = require('fs');
-const { routes, watch, CHROME } = require('./helpers');
+const { routes, watch, CHROME, obReportTSV } = require('./helpers');
 const BASE = 'http://127.0.0.1:' + (process.env.PORT || 8767) + '/';
 const CASES = BASE + 'nlo-cases.html?emu', AR = BASE + 'nlo-ar.html?emu';
 const PROJECT = 'demo-nlo-cases';
@@ -241,8 +241,28 @@ async function openAcct(p, name) { await p.evaluate(n => { const a = S.accts.fin
   await owner.fill('#obN', '1'); await owner.click('[data-act=obSave]');
   await jamie.waitForFunction(() => !document.querySelector('.staleBox.ob'), null, { timeout: 30000 });
   check(true, 'OrthoBanc reminder: Dr. A marks the report checked and it leaves Jamie’s Today');
-  const bookBlob = JSON.stringify(await fsDocs('arItems'));
-  check(!/Zephyr|ZTD77|555-0188/.test(bookBlob), 'the carriers and the OrthoBanc checks are sealed in the database');
+  // OrthoBanc's report file (made-up), pasted by Jamie on Reports: its own sealed record, live on Dr. A's screen; no account touched
+  const obD = await jamie.evaluate(() => {
+    const day = obCycle(todayISO()).cur.date, lf = n => { const w = n.split(' '); return w.slice(-1)[0] + ', ' + w.slice(0, -1).join(' '); };
+    const pts = S.accts.filter(a => !a.ins && a.pd > 0 && !itemFor(a.key)).slice(0, 2);
+    return { day, keys: pts.map(a => a.key), long: new Date(day + 'T12:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }),
+      rows: pts.map((a, i) => ({ ref: 'ob9300000' + (i + 1), acct: '3050' + (i + 1), patient: lf(a.patient), rp: lf(rpName(a).replace(/^(mr|mrs|ms|dr)\.?\s+/i, '')), amt: 175, why: 'Credit Card - Declined Insufficient Funds', when: '10/02/2026', bal: 1400 })) };
+  });
+  const obTsv = obReportTSV(obD.long, [{ ref: 'ob93000009', acct: '30509', patient: 'Zzyzx, Imaginary', rp: 'Zzyzx, Pat', amt: 125, why: 'Credit Card - Declined', when: '10/02/2026', bal: 500 }], obD.rows);
+  await jamie.click('#nav-reports'); await jamie.waitForSelector('#pasteBox');
+  await jamie.evaluate(t => { const dt = new DataTransfer(); dt.setData('text/plain', t); document.querySelector('#pasteBox').dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true })); }, obTsv);
+  await jamie.waitForSelector('#obSaveImp');
+  check(/3 of 3|2 of 3/.test(await jamie.innerText('#modalWrap')) && /1\s+on HOLD/.test(await jamie.innerText('#modalWrap')), 'OrthoBanc’s report pasted on Reports opens its own preview (3 failed payments, 1 on HOLD)');
+  await jamie.click('#obSaveImp'); await jamie.waitForSelector('#obListBox .obRow');
+  await owner.waitForFunction(d => { const r = obRepFor(d); return r && r.rows.length === 3; }, obD.day, { timeout: 30000 });
+  check(true, 'saved sealed; Dr. A’s screen has the list at once');
+  await jamie.click('#obListBox .obTick >> nth=0');
+  await owner.waitForFunction(d => { const r = obRepFor(d); return r && Object.keys(r.done).length === 1 && obProgress(r).holdLeft === 0; }, obD.day, { timeout: 30000 });
+  check(true, 'Jamie ticks the family on HOLD as texted; Dr. A sees it');
+  await jamie.click('#modalWrap [data-act=closeModal]');
+  check(await jamie.evaluate(keys => keys.every(k => !itemFor(k)), obD.keys), 'importing and ticking added nothing to the accounts on the list');
+  const bookBlob = JSON.stringify(await fsDocs('arItems')) + JSON.stringify(await fsDocs('arLog'));
+  check(!/Zephyr|ZTD77|555-0188|Zzyzx|ob9300000|3050[19]|Insufficient/.test(bookBlob), 'the carriers, the OrthoBanc checks and the imported OrthoBanc list are sealed in the database');
 
   console.log('\n# Dr. A turns Jamie off: she’s locked out at once; a new A/R key; everything sealed again');
   await owner.click('#nav-settings'); await owner.waitForSelector('#accessBox .sw[data-uid="' + jamieUid + '"]');
@@ -274,6 +294,8 @@ async function openAcct(p, name) { await p.evaluate(n => { const a = S.accts.fin
   await taylor.waitForFunction(() => S.rep && S.rep.asOf === '2026-10-05' && S.prev, null, { timeout: 30000 });
   await taylor.waitForFunction(() => S.doneLoaded && Array.from(S.items.values()).some(it => it.name === 'Extra Paidoff' && it.state === 'done'), null, { timeout: 30000 });
   check((await itemByName(taylor, top)).log.length === 3, 'Taylor reads the reports and the notes (including resolved accounts)');
+  await taylor.waitForFunction(d => { const r = obRepFor(d); return r && r.rows.length === 3 && Object.keys(r.done).length === 1; }, obD.day, { timeout: 30000 });
+  check(true, 'and the imported OrthoBanc list, with its tick (it was re-sealed under the new key too)');
   const versions = await owner.evaluate(async n => { const it = Array.from(S.items.values()).find(x => x.name === n); return (await B.itemVersions(it.id)).map(v => !!v.data); }, top);
   check(versions.length >= 3 && versions.every(Boolean), 'every earlier version of an account still opens after the key change (' + versions.length + ')');
 

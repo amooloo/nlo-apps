@@ -1,0 +1,109 @@
+{
+ "asOf": "2026-10-05",
+ "rows": [
+  {
+   "ref": "ob04100001",
+   "status": "FAIL",
+   "acct": "12345",
+   "patient": "Avery Sample",
+   "rp": "Jordan Sample",
+   "amt": 165.0,
+   "hold": true,
+   "reason": "Credit Card - Declined Insufficient Funds",
+   "date": "2026-09-28",
+   "how": "Pmt",
+   "bal": 1485.0
+  },
+  {
+   "ref": "ob04100002",
+   "status": "FAIL",
+   "acct": "21-0456",
+   "patient": "Ana De La Cruz",
+   "rp": "Maria De La Cruz",
+   "amt": 210.5,
+   "hold": true,
+   "reason": "Credit Card - Declined",
+   "date": "2026-10-02",
+   "how": "Pmt",
+   "bal": 2316.0
+  },
+  {
+   "ref": "ob04100003",
+   "status": "FAIL",
+   "acct": "12346",
+   "patient": "Avery O'Sample",
+   "rp": "Robin O'Sample",
+   "amt": 175.0,
+   "hold": false,
+   "reason": "Credit Card - Blocked by issuer",
+   "date": "2026-10-02",
+   "how": "Pmt",
+   "bal": 875.0
+  },
+  {
+   "ref": "ob04100004",
+   "status": "FAIL",
+   "acct": "12-3457",
+   "patient": "José Peña",
+   "rp": "Lucía Peña",
+   "amt": 150.0,
+   "hold": false,
+   "reason": "Credit Card - Card Number Error",
+   "date": "2026-10-02",
+   "how": "OnLine Pmt",
+   "bal": 600.0
+  },
+  {
+   "ref": "ob04100005",
+   "status": "FAIL",
+   "acct": "12347",
+   "patient": "Riley Demo",
+   "rp": "Lee Demo",
+   "amt": 199.0,
+   "hold": false,
+   "reason": "Credit Card - Declined Insufficient Funds",
+   "date": "2026-10-02",
+   "how": "Pmt",
+   "bal": 1990.0
+  },
+  {
+   "ref": "ob04100006",
+   "status": "FAIL",
+   "acct": "12348",
+   "patient": "Sam Demo-Ray",
+   "rp": "Pat Demo-Ray",
+   "amt": 250.0,
+   "hold": false,
+   "reason": "ACH - R01 Insufficient Funds",
+   "date": "2026-10-02",
+   "how": "Pmt",
+   "bal": 3000.0
+  },
+  {
+   "ref": "ob04100007",
+   "status": "FAIL",
+   "acct": "",
+   "patient": "Quinn Notreal",
+   "rp": "Casey Notreal",
+   "amt": 125.0,
+   "hold": false,
+   "reason": "Credit Card - Declined",
+   "date": "2026-10-02",
+   "how": "Pmt",
+   "bal": 500.0
+  },
+  {
+   "ref": "ob04100008",
+   "status": "FAIL",
+   "acct": "12349",
+   "patient": "Dana Lee Mockley",
+   "rp": "Pat Mockley",
+   "amt": 99.99,
+   "hold": false,
+   "reason": "Credit Card - Declined Insufficient Funds",
+   "date": "2026-10-02",
+   "how": "Pmt",
+   "bal": 199.98
+  }
+ ]
+}

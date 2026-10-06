@@ -28,4 +28,18 @@ function watch(page, errs, label) {
   page.on('console', m => { if (m.type() === 'error') errs.push(label + ' console: ' + m.text()); });
 }
 const CHROME = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
-module.exports = { routes, watch, CHROME };
+/* a made-up OrthoBanc "Failed Transaction Report" as Excel's tab-separated text, laid out like the real export (see
+   make_ob_fixture.py): rows are { ref, acct, patient: 'Last, First', rp, amt, why, when: 'MM/DD/YYYY', how, bal } */
+function obReportTSV(longDate, hold, other) {
+  const lines = [], put = (cells) => { const a = []; Object.keys(cells).forEach(c => { a[c] = cells[c]; }); lines.push(Array.from(a, v => v == null ? '' : String(v)).join('\t')); };
+  const blank = () => lines.push('');
+  put({ 0: 'OrthoBanc' }); blank(); put({ 0: 'Failed Transaction Report' }); put({ 0: 'For Next Level Orthodontics ' }); blank(); put({ 0: longDate }); blank(); blank();
+  const section = (title, rows) => {
+    put({ 1: title }); blank(); put({ 1: 'The following patient(s)/responsible(s) have payment transactions that failed. (Made-up wording.)' }); blank(); blank();
+    put({ 1: 'Status *', 5: 'OB Reference #', 11: 'Your Acct #', 14: 'Patient Name', 19: 'Responsible Name', 24: 'Amt/Balance' }); blank(); blank(); blank(); blank();
+    rows.forEach(r => { put({ 1: 'FAIL', 5: r.ref, 10: r.acct, 14: r.patient, 19: r.rp, 23: r.amt.toFixed(2) }); blank(); put({ 2: 'Return Reason: ', 7: r.why, 17: r.when + ' ' + (r.how || 'Pmt'), 23: r.bal.toFixed(2) }); blank(); blank(); blank(); });
+  };
+  section('** Action On Your Part Is Needed **', hold); blank(); section('** No Action Required On Your Part **', other);
+  return lines.join('\r\n');
+}
+module.exports = { routes, watch, CHROME, obReportTSV };

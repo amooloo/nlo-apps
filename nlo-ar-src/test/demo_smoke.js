@@ -7,7 +7,7 @@
    Run: node test/demo_smoke.js  (screenshots go to shots/) */
 const { chromium } = require('playwright');
 const fs = require('fs'), path = require('path');
-const { routes, watch, CHROME } = require('./helpers');
+const { routes, watch, CHROME, obReportTSV } = require('./helpers');
 const URL = 'http://127.0.0.1:' + (process.env.PORT || 8766) + '/nlo-ar.html?demo';
 const SHOTS = path.join(__dirname, '..', 'shots');
 let pass = 0, fail = 0;
@@ -82,6 +82,63 @@ const shot = (p, n, full) => p.screenshot({ path: path.join(SHOTS, n + '.png'), 
   ok(await page.isVisible('#obN') || await toastHas(/whole number/), 'the count has to be a number');
   await page.fill('#obN', '2'); await page.fill('#obNote', 'Texted both families'); await page.click('[data-act=obSave]'); await page.waitForTimeout(400);
   ok(!(await page.$('.staleBox.ob')) && await S_(() => { const x = S.book.ob[S.book.ob.length - 1]; return x.n === 2 && x.by === meSid() && !obState(S.book, todayISO()).due; }), 'Checked it: saved (2 failed payments), and the reminder is gone until the next report');
+
+  // ---- OrthoBanc's report file, imported (optional — it never changes an account)
+  const OBD = await S_(() => {
+    const O = obState(S.book, todayISO(), obDays()), prev = Array.from(S.obReps.values()).find(r => r.day < O.cur.date), r0 = prev.rows[0], used = new Set(prev.rows.map(r => r.patient));
+    const more = S.accts.filter(a => !a.ins && a.pd > 0 && !a.inactive && !used.has(a.patient)).slice(4, 6);
+    const lf = n => { const w = n.split(' '); return w.slice(-1)[0] + ', ' + w.slice(0, -1).join(' '); }, plain = a => rpName(a).replace(/^(mr|mrs|ms|dr)\.?\s+/i, '');
+    return { day: O.cur.date, prev: prev.day, long: new Date(O.cur.date + 'T12:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }), keys: more.map(a => a.key),
+      before: JSON.stringify(more.map(a => itemFor(a.key) || null)), check: JSON.stringify(S.book.ob),
+      hold: [{ ref: r0.ref, acct: r0.acct, patient: lf(r0.patient), rp: lf(r0.rp), amt: 175, why: 'Credit Card - Declined Insufficient Funds', when: '10/02/2026', bal: 1225 }],
+      other: more.map((a, i) => ({ ref: 'ob9100000' + i, acct: String(20500 + i), patient: i ? a.patient : lf(a.patient), rp: lf(plain(a)), amt: 150 + i * 50, why: i ? 'Credit Card  - Blocked by issuer' : 'Credit Card - Card Number Error', when: '10/02/2026', how: i ? 'OnLine Pmt' : 'Pmt', bal: 900 }))
+        .concat([{ ref: 'ob91000099', acct: '20599', patient: 'Zzyzx, Imaginary', rp: 'Zzyzx, Pat', amt: 125, why: 'Credit Card - Declined', when: '10/02/2026', bal: 500 }]) };
+  });
+  const obFile = { name: 'FailedTransactions.xls', mimeType: 'application/vnd.ms-excel', buffer: Buffer.from(obReportTSV(OBD.long, OBD.hold, OBD.other)) };
+  await page.evaluate(() => ACT.obCheck()); await page.waitForSelector('#obN');
+  const [obFc] = await Promise.all([page.waitForEvent('filechooser'), page.click('#modalWrap [data-act=obPick]')]);
+  await obFc.setFiles(obFile); await page.waitForSelector('#obSaveImp');
+  const obPv = (await page.innerText('#modalWrap')).replace(/\s+/g, ' ');
+  ok(/OrthoBanc failed payments/i.test(obPv) && /4 failed payments/.test(obPv) && /\$650 not drafted/.test(obPv) && /1 on HOLD/.test(obPv) && /3 of 4 on the A\/R report/.test(obPv) && /1 family failed on an earlier report too/.test(obPv) && /doesn’t change any account/.test(obPv),
+    '“Checked it” → Or import its file: the preview — 4 failed payments, $650, 1 on HOLD, 3 on the A/R report, 1 failed before; nothing changes any account' );
+  await shot(page, 'ob-preview');
+  await page.click('#obSaveImp'); await page.waitForSelector('#obListBox .obRow');
+  const obL = await page.$$eval('#obListBox .obRow', r => r.map(x => ({ who: x.querySelector('.obWho b').textContent, hold: !!x.querySelector('.obHold'), tel: !!x.querySelector('a[href^="tel:"]'), open: !!x.querySelector('[data-act=obOpen]'), before: (x.querySelector('.obRep') || {}).textContent || '', not: /Not on the/.test(x.textContent) })));
+  ok(obL.length === 4 && obL[0].hold && !obL.slice(1).some(x => x.hold) && /Failed before: /.test(obL[0].before) && obL.filter(x => x.tel && x.open).length === 3 && obL[3].not && !obL[3].open,
+    'saved: the list — on HOLD first (failed before ' + obL[0].before.replace('Failed before: ', '') + '), the phone number and the account for the 3 on the A/R report, the 4th to find in Edge');
+  ok(await S_(() => { const r = obRepFor(obCycle(todayISO()).cur.date); return r && r.rows.length === 4 && r.by === meSid() && Object.keys(r.done).length === 0 && !obState(S.book, todayISO(), obDays()).due; }), 'saved sealed in its own record (none ticked yet); the report counts as checked');
+  await shot(page, 'ob-list', true);
+  await page.click('#obListBox .obTick >> nth=1'); await page.waitForTimeout(300);
+  ok(/1 of 4/.test(await page.textContent('#obListBox .obTop')) && await page.$eval('#obListBox .obTick >> nth=1', b => b.getAttribute('aria-pressed') === 'true') && await page.$eval('#obListBox .obTick[aria-pressed=true]', b => /Texted · /.test(b.closest('.obRow').textContent)), 'tick a family: 1 of 4 texted, who and when');
+  await page.click('#modalWrap [data-act=closeModal]'); await page.waitForTimeout(250);
+  const obB = (await page.innerText('.staleBox.ob')).replace(/\s+/g, ' ');
+  ok(/4 failed payments \(1 on HOLD\) — 1 of 4 texted/.test(obB) && await page.isVisible('.staleBox.ob [data-act=obList]'), 'Today: “4 failed payments (1 on HOLD) — 1 of 4 texted”, with the list a tap away');
+  ok(await S_(() => JSON.stringify(S.book.ob)) === OBD.check, 'her “Checked it” (count and note) is left exactly as it was');
+  ok(await page.evaluate(keys => JSON.stringify(keys.map(k => itemFor(k) || null)), OBD.keys) === OBD.before, 'the accounts on the list are untouched: no note, follow-up or step was added');
+  await page.click('[data-act=focusOn]'); await page.waitForSelector('.fList .frow');
+  const obF = await page.$$eval('.fList .frow[data-kind=ob]', r => r.map(x => ({ cls: x.className, txt: x.textContent })));
+  ok(obF.length === 1 && /urgent/.test(obF[0].cls) && /OrthoBanc: 3 families to text/.test(obF[0].txt) && /1 on HOLD/.test(obF[0].txt), 'Focus: one line for the whole list (not one per family) — urgent while someone on HOLD is left');
+  await page.click('.fList .frow[data-kind=ob]'); await page.waitForSelector('#obListBox');
+  await page.click('#obListBox [data-act=obOpen] >> nth=1'); await page.waitForSelector('#drawer .obBox');
+  const obPn = (await page.innerText('#drawer .obBox')).replace(/\s+/g, ' ');
+  ok(/draft failed/.test(obPn) && /report/.test(obPn) && !(await page.isVisible('#modalWrap')), 'Account → its panel: the failed draft, the reason, whether it was ticked — ' + obPn.slice(0, 90));
+  await page.click('#drawer [data-act=closeDrawer]');
+  await page.click('.fList .frow[data-kind=ob]'); await page.waitForSelector('#obListBox');
+  await page.click('#obListBox [data-act=obTickAll]'); await page.waitForTimeout(300);
+  ok(/4 of 4/.test(await page.textContent('#obListBox .obTop')) && !(await page.$('#obListBox [data-act=obTickAll]')), 'Mark all texted: 4 of 4');
+  await page.click('#modalWrap [data-act=closeModal]'); await page.waitForTimeout(250);
+  ok(!(await page.$('.fList .frow[data-kind=ob]')), 'Focus: the line is gone once everyone is ticked');
+  await page.click('[data-act=focusOff]'); await page.waitForSelector('.tiles');
+  ok(!(await page.$('.staleBox.ob')), 'Today: the banner is gone too');
+  // the same file again, dropped on Reports: the list is replaced, the ticks stay
+  await page.click('#nav-reports'); await page.waitForSelector('#dropZone');
+  await page.setInputFiles('#arFile', obFile); await page.waitForSelector('#obSaveImp');
+  ok(/was imported before/.test(await page.textContent('#modalWrap')) && /stay ticked/.test(await page.textContent('#modalWrap')) && !(await S_(() => !!(S.imp && S.imp.files && S.imp.files.length))), 'Reports takes OrthoBanc’s file too (not as an A/R report): it says it was imported before and the ticks stay');
+  await page.click('#obSaveImp'); await page.waitForSelector('#obListBox');
+  ok(/4 of 4/.test(await page.textContent('#obListBox .obTop')), 'imported again: still 4 of 4 ticked');
+  await page.click('#obListBox .obTick >> nth=0'); await page.waitForTimeout(300);
+  ok(/3 of 4/.test(await page.textContent('#obListBox .obTop')) && await S_(() => obProgress(obRepFor(obCycle(todayISO()).cur.date)).holdLeft === 1), 'untick one: 3 of 4, the one on HOLD left');
+  await page.click('#modalWrap [data-act=closeModal]'); await page.click('#nav-today'); await page.waitForSelector('.tiles');
 
   for (const v of ['pd', 'ins', 'cr', 'sum', 'reports', 'settings', 'account']) {
     await page.click('#nav-' + v); await page.waitForTimeout(v === 'settings' ? 500 : 200);
@@ -428,6 +485,10 @@ const shot = (p, n, full) => p.screenshot({ path: path.join(SHOTS, n + '.png'), 
     await p2.screenshot({ path: path.join(SHOTS, 'phone-' + v + '.png'), fullPage: true });
     ok(await wide() <= 0, 'phone: ' + v + ' fits the screen');
   }
+  await p2.evaluate(() => ACT.obList({ dataset: { day: Array.from(S.obReps.values())[0].day } })); await p2.waitForSelector('#obListBox .obRow');
+  await p2.screenshot({ path: path.join(SHOTS, 'phone-ob-list.png'), fullPage: false });
+  ok(await p2.$eval('#modalWrap .modal', m => m.getBoundingClientRect().right <= window.innerWidth + 1) && await p2.$$eval('#obListBox .obRow', r => r.every(x => x.scrollWidth <= x.clientWidth + 1)), 'phone: the OrthoBanc list fits');
+  await p2.click('#modalWrap [data-act=closeModal]');
   await p2.click('#mnav-pd'); await p2.click('#view tbody tr >> nth=0'); await p2.waitForSelector('#drawer .ladNow');
   await p2.screenshot({ path: path.join(SHOTS, 'phone-drawer.png'), fullPage: false });
   ok(await p2.$eval('#drawer', e => e.getBoundingClientRect().width <= window.innerWidth), 'phone: the account panel fits');

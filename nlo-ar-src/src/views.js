@@ -526,7 +526,8 @@ function viewReports() {
   else h += '<div class="dropZone" id="dropZone" tabindex="0" role="button" aria-label="Choose the Edge report file">' + ic('import', 26) + '<b>Drop the Excel file here</b><span class="small">or click to choose it · .xls, .xlsx or .csv · one or more files</span></div>' +
     '<input type="file" id="arFile" accept=".xls,.xlsx,.csv,.txt,.htm,.html,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" multiple class="hidden">' +
     '<div class="pasteBox" id="pasteBox" tabindex="0" role="textbox" aria-label="Paste the report here">Or open the export in Excel, select everything (Ctrl+A), copy (Ctrl+C), click here and paste (Ctrl+V).</div>' +
-    (imp && imp.err ? '<div class="lockErr" style="margin-top:12px">' + esc(imp.err) + '</div>' : '') + edgeStepsHTML(!S.reports.length);
+    (imp && imp.err ? '<div class="lockErr" style="margin-top:12px">' + esc(imp.err) + '</div>' : '') + edgeStepsHTML(!S.reports.length) +
+    '<p class="small muted" style="margin-top:10px">OrthoBanc’s Failed Transaction Report (FailedTransactions.xls) can be dropped here too — it opens its own list.</p>';
   h += '</div></div></div><div>' + reportListHTML() + '</div></div>';
   return h;
 }
@@ -586,19 +587,24 @@ function afterReports() {
   if (pb) pb.addEventListener('paste', e => {
     e.preventDefault(); const cd = e.clipboardData; if (!cd) return;
     const html = cd.getData('text/html'), text = cd.getData('text/plain');
-    try { const p = edgeFromGrid(html && /<table/i.test(html) ? readHTMLTables(html) : readGridText(text || ''), 'Pasted from Excel'); addParsed([{ name: 'Pasted from Excel', p }]); }
+    try {
+      const g = html && /<table/i.test(html) ? readHTMLTables(html) : readGridText(text || ''), ob = obFromGrid(g);
+      if (ob) { obPreview(Object.assign(ob, { name: 'Pasted from Excel', kind: 'text' })); return; } // OrthoBanc's failed-payment report
+      addParsed([{ name: 'Pasted from Excel', p: edgeFromGrid(g, 'Pasted from Excel') }]);
+    }
     catch (x) { S.imp = { files: [], err: errText(x) }; renderView(); }
   });
   paintPhotos();
 }
 async function addFiles(files) {
-  const out = [];
+  const out = []; let ob = null;
   for (const f of files) {
     if (f.size > 40 * 1024 * 1024) { out.push({ name: f.name, err: 'That file is too big to be an A/R report.' }); continue; }
-    try { out.push({ name: f.name, p: await readEdgeAR(f.name, await f.arrayBuffer()) }); }
+    try { const p = await readReportFile(f.name, await f.arrayBuffer()); if (p.ob) { ob = ob || p; continue; } out.push({ name: f.name, p }); } // OrthoBanc's report goes its own way
     catch (x) { out.push({ name: f.name, err: errText(x) }); }
   }
-  addParsed(out);
+  if (out.length) addParsed(out);
+  if (ob) obPreview(ob);
 }
 function addParsed(list) {
   const files = ((S.imp && S.imp.files) || []).concat(list);
@@ -646,8 +652,13 @@ function focusDoneToday() {
 function focusData() {
   const E = focusEntries(focusCtx()), U = E.filter(e => e.cls === 'urgent'), T = E.filter(e => e.cls === 'today'), L = E.filter(e => e.cls === 'later');
   // OrthoBanc's failed-payment report, on its days, until someone marks it checked
-  const O = obState(S.book, todayISO());
+  const O = obState(S.book, todayISO(), obDays());
   if (O.due) U.unshift({ key: '_ob', special: 'obCheck', label: 'OrthoBanc failed-payment report', kind: 'ob', cls: 'urgent', sev: 0, why: 'The ' + fmtDate(O.due.date) + ' report: open it, text each family on it today (day 0), then mark it checked', act: 'Check it', min: 10, amt: 0, also: [] });
+  else { // its file was imported: one line for the whole list (not one per family), until every family on it is ticked
+    const rep = O.cur ? obRepFor(O.cur.date) : null, P = rep ? obProgress(rep) : null;
+    if (P && P.left) (P.holdLeft ? U : T).unshift({ key: '_obl', special: 'obList', day: rep.day, label: 'OrthoBanc: ' + plural(P.left, 'family', 'families') + ' to text', kind: 'ob', cls: P.holdLeft ? 'urgent' : 'today', sev: 0,
+      why: 'The ' + fmtDate(rep.day) + ' report' + (P.holdLeft ? ' · ' + P.holdLeft + ' on HOLD' : '') + ' — text each one (day 0), note the chart, set a 2-week Edge task, tick them off', act: 'Open the list', min: Math.min(60, 2 * P.left), amt: 0, also: [] });
+  }
   return { E, U, T, L, cl: openItems().filter(isCleared), done: focusDoneToday(), min: U.concat(T).reduce((s, e) => s + e.min, 0) };
 }
 function fmtMin(m) { if (m < 1) return 'a minute or two'; if (m < 60) return 'about ' + m + ' min'; const mm = Math.round(m / 5) * 5, h = Math.floor(mm / 60), r = mm % 60; return 'about ' + h + ' h' + (r ? ' ' + r + ' min' : ''); }
@@ -657,7 +668,7 @@ function focusStripHTML(F) {
     (n ? ' · ' + fmtMin(F.min) : '') + (F.done.size ? ' · ' + F.done.size + ' done today' : '') + '</span><button class="btn btn-pri btn-sm" data-act="focusOn">' + ic('next', 15) + 'Focus mode</button></div>';
 }
 function focusRowHTML(e) {
-  if (e.special) return '<button class="frow ' + e.cls + '" data-act="' + esc(e.special) + '" data-kind="' + esc(e.kind) + '"><span class="fTag">Urgent</span><span class="grow"><span class="pt">' + esc(e.label) + '</span><span class="fWhy">' + esc(e.why) + '</span></span><span class="fAct">' + esc(e.act) + ic('next', 14) + '</span></button>';
+  if (e.special) return '<button class="frow ' + e.cls + '" data-act="' + esc(e.special) + '" data-kind="' + esc(e.kind) + '"' + (e.day ? ' data-day="' + esc(e.day) + '"' : '') + '><span class="fTag">' + (e.cls === 'urgent' ? 'Urgent' : e.cls === 'today' ? 'Today' : 'Later') + '</span><span class="grow"><span class="pt">' + esc(e.label) + '</span><span class="fWhy">' + esc(e.why) + '</span></span><span class="fAct">' + esc(e.act) + ic('next', 14) + '</span></button>';
   const a = e.a, it = e.it, name = a ? a.patient : (it && it.name) || '', rp = a ? (a.ins ? 'Ins: ' : '') + rpName(a) : String((it && it.rp) || '').replace(/^\s*ins\s*:\s*/i, 'Ins: ');
   return '<button class="frow ' + e.cls + '" data-act="open" data-key="' + esc(e.key) + '" data-kind="' + esc(e.kind) + '"><span class="fTag">' + (e.cls === 'urgent' ? 'Urgent' : e.cls === 'today' ? 'Today' : 'Later') + '</span>' +
     '<span class="grow"><span class="pt">' + esc(name) + '<span class="par"> · ' + esc(rp) + '</span></span><span class="fWhy">' + esc(e.why) + '</span>' + (e.also.length ? '<span class="fAlso">Also: ' + esc(e.also.join(' · ')) + '</span>' : '') + '</span>' +
@@ -948,18 +959,25 @@ function auditTabHTML() {
    ===================================================================== */
 function obBannerHTML() {
   if (S.arState !== 'ok' || !S.reports.length) return '';
-  const O = obState(S.book, todayISO()); if (!O.due) return '';
-  const late = O.due.due < todayISO();
-  return '<div class="staleBox ob' + (late ? ' late' : '') + '" role="status">' + ic('mail', 18) + '<span>OrthoBanc’s failed-payment report for ' + esc(fmtDate(O.due.date)) + (late ? ' hasn’t been marked checked' : ' comes today') +
-    ': open it, text each family on it right away (day 0 of the ladder), then mark it checked.' + (O.missed ? ' The ' + esc(fmtDate(O.missed.date)) + ' one wasn’t marked checked either.' : '') + '</span>' +
-    '<span class="btnRow"><a class="btn btn-sec btn-sm" href="' + OB_URL + '" target="_blank" rel="noopener noreferrer">Open OrthoBanc</a><button class="btn btn-pri btn-sm" data-act="obCheck">Checked it</button></span></div>';
+  const O = obState(S.book, todayISO(), obDays());
+  if (O.due) {
+    const late = O.due.due < todayISO();
+    return '<div class="staleBox ob' + (late ? ' late' : '') + '" role="status">' + ic('mail', 18) + '<span>OrthoBanc’s failed-payment report for ' + esc(fmtDate(O.due.date)) + (late ? ' hasn’t been marked checked' : ' comes today') +
+      ': open it, text each family on it right away (day 0 of the ladder), then mark it checked — or import its file here.' + (O.missed ? ' The ' + esc(fmtDate(O.missed.date)) + ' one wasn’t marked checked either.' : '') + '</span>' +
+      '<span class="btnRow"><a class="btn btn-sec btn-sm" href="' + OB_URL + '" target="_blank" rel="noopener noreferrer">Open OrthoBanc</a><button class="btn btn-sec btn-sm" data-act="obPick">' + ic('import', 15) + 'Import its file</button><button class="btn btn-pri btn-sm" data-act="obCheck">Checked it</button></span></div>';
+  }
+  // the latest report's imported list, until every family on it is ticked
+  const rep = O.cur ? obRepFor(O.cur.date) : null, P = rep ? obProgress(rep) : null;
+  if (!P || !P.left) return '';
+  return '<div class="staleBox ob" role="status">' + ic('mail', 18) + '<span>OrthoBanc, ' + esc(fmtDate(rep.day)) + ': ' + plural(P.n, 'failed payment') + (P.hold ? ' (' + P.hold + ' on HOLD)' : '') + ' — ' + (P.n - P.left) + ' of ' + P.n + ' texted.</span>' +
+    '<span class="btnRow"><button class="btn btn-pri btn-sm" data-act="obList" data-day="' + esc(rep.day) + '">Open the list</button></span></div>';
 }
 Object.assign(ACT, {
   obCheck() {
-    const O = obState(S.book, todayISO()), c = O.due || O.cur; if (!c) return;
+    const O = obState(S.book, todayISO(), obDays()), c = O.due || O.cur; if (!c) return;
     const hist = ((S.book && S.book.ob) || []).slice(-6).reverse();
     openModal('<h3>OrthoBanc report · ' + esc(fmtDate(c.date)) + '</h3><div class="lsub">Handbook §14, day 0: text the responsible party on each failed payment right away, note it in the patient’s chart in Edge, and set a 2-week task. The next weekly report puts them on the ladder.</div>' +
-      '<div class="btnRow" style="margin-bottom:12px"><a class="btn btn-sec btn-sm" href="' + OB_URL + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'Open the report in OrthoBanc</a></div>' +
+      '<div class="btnRow" style="margin-bottom:12px"><a class="btn btn-sec btn-sm" href="' + OB_URL + '" target="_blank" rel="noopener noreferrer">' + ic('next', 15) + 'Open the report in OrthoBanc</a><button class="btn btn-sec btn-sm" data-act="obPick">' + ic('import', 15) + 'Or import its file</button></div>' +
       '<div class="grid2"><div class="field"><label for="obN">Failed payments on it</label><input id="obN" class="inp" type="number" min="0" max="500" step="1" inputmode="numeric" placeholder="e.g. 3"></div></div>' +
       '<div class="field"><label for="obNote">Note (optional)</label><input id="obNote" class="inp" autocomplete="off" placeholder="e.g. texted all three families"></div>' +
       (hist.length ? '<div class="small muted" style="margin:4px 0 8px"><b>Checked before:</b> ' + hist.map(x => esc(fmtDate(x.for)) + ' (' + esc(shortName(x.by)) + (x.n != null ? ', ' + plural(x.n, 'failed payment') : '') + ')').join(' · ') + '</div>' : '') +
@@ -971,4 +989,107 @@ Object.assign(ACT, {
     closeModal();
     await bookChange((d, now) => obCheck(d, { for: f, n, note, by: meSid() }, now), { a: 'obcheck', for: f, n: n === '' ? null : Number(n) }, 'OrthoBanc report for ' + fmtDate(f) + ' marked checked');
   }
+});
+
+/* ---------- OrthoBanc's report file, imported (optional) ----------
+   Read on this computer, saved sealed (one record per report day), shown as a list to text and tick off.
+   It never changes an account: no note, follow-up or ladder step — the FC's own records stay as she left them. */
+async function obReadFiles(files) {
+  for (const f of files) {
+    if (f.size > 20 * 1024 * 1024) { toast('That file is too big to be OrthoBanc’s report.', { bad: true }); continue; }
+    try { obPreview(await readOBFailed(f.name, await f.arrayBuffer())); return; }
+    catch (x) { toast(errText(x), { bad: true }); }
+  }
+}
+function obStat(n, l) { return '<div><div class="n">' + n + '</div><div class="l">' + l + '</div></div>'; }
+function obPreview(p) {
+  const t = todayISO(), day = obDayOf(p.asOf || t), had = obRepFor(day), O = obState(S.book, t, obDays());
+  const rows = p.rows.map(normOBRow), P = obProgress({ rows, done: {} }), matched = rows.filter(r => obMatch(S.accts, r)).length;
+  const reps = Array.from(S.obReps.values()), before = rows.filter(r => obEarlier(reps, day, r).length).length, notes = [];
+  if (!p.asOf) notes.push(['bad', 'There’s no date in the file, so it’s saved as the ' + fmtDate(day) + ' report.']);
+  if (p.check.ok === false) notes.push(['bad', p.check.why]);
+  if (O.cur && day < O.cur.date) notes.push(['info', 'This is the ' + fmtDate(day) + ' report — the latest one is ' + fmtDate(O.cur.date) + '. It’s kept for the history.']);
+  if (had) notes.push(['info', 'The ' + fmtDate(day) + ' report was imported before (' + shortName(had.by) + ', ' + fmtWhen(had.at) + '). This replaces its list; the families already ticked stay ticked.']);
+  if (before) notes.push(['info', plural(before, 'family', 'families') + ' failed on an earlier report too.']);
+  S.obImp = { p, day };
+  openModal('<h3>OrthoBanc failed payments · ' + esc(fmtDateLong(day)) + '</h3>' +
+    '<div class="lsub">Read on this computer; saved sealed, like the A/R report. It doesn’t change any account — it’s a list to text each family from (day 0) and tick off.</div>' +
+    '<div class="prevGrid">' + obStat(P.n, 'failed payments') + obStat(money(P.amt), 'not drafted') + obStat(P.hold, 'on HOLD — action needed') + obStat(matched + ' of ' + P.n, 'on the A/R report') + '</div>' +
+    notes.map(([k, n]) => '<div class="notice ' + k + '" style="margin-top:8px">' + esc(n) + '</div>').join('') +
+    '<div class="mFt" style="margin-top:14px"><button class="btn btn-ghost" data-act="closeModal">Cancel</button><button class="btn btn-teal" data-act="obSaveImp" id="obSaveImp">' + ic('lock', 15) + 'Save (sealed)</button></div>');
+}
+/* the list: on HOLD first (OrthoBanc stopped drafting), then the rest; the phone number when the account is on the A/R report */
+function obListHTML(day) {
+  const rep = obRepFor(day); if (!rep) return '<div class="empty">That report isn’t here any more.</div>';
+  const P = obProgress(rep), reps = Array.from(S.obReps.values());
+  const row = r => {
+    const id = obRowId(r), d = rep.done[id], a = obMatch(S.accts, r), early = obEarlier(reps, rep.day, r), ph = a ? String(a.home || a.work || '').trim() : '';
+    return '<div class="obRow' + (d ? ' done' : '') + '"><button class="obTick" data-act="obTick" data-day="' + esc(day) + '" data-id="' + esc(id) + '" aria-pressed="' + (d ? 'true' : 'false') + '" title="' + (d ? 'Texted — tap to untick' : 'Tick when texted') + '">' + (d ? ic('tick', 18) : '') + '</button>' +
+      '<div class="grow"><div class="obWho"><b>' + esc(r.patient) + '</b>' + (r.acct ? '<span class="obAcct">Edge #' + esc(r.acct) + '</span>' : '') + (r.hold ? '<span class="obHold">HOLD</span>' : '') + '</div>' +
+      '<div class="small">' + esc(r.rp) + (ph ? ' · <a href="tel:' + esc(ph.replace(/[^\d+]/g, '')) + '">' + esc(ph) + '</a>' : '') + '</div>' +
+      '<div class="small muted">' + (r.amt != null ? money(r.amt, true) + ' · ' : '') + esc(r.reason || 'No reason given') + (r.date ? ' · drafted ' + esc(fmtDate(r.date)) : '') + (/online/i.test(r.how) ? ' (online payment)' : '') + '</div>' +
+      (early.length ? '<div class="small obRep">Failed before: ' + early.slice(0, 4).map(x => esc(fmtDate(x))).join(', ') + '</div>' : '') +
+      (d ? '<div class="small muted">Texted · ' + esc(shortName(d.by)) + ', ' + esc(fmtWhen(d.at)) + '</div>' : '') +
+      (!a ? '<div class="small muted">Not on the ' + (S.rep ? esc(fmtDate(S.rep.asOf)) + ' ' : '') + 'A/R report — find them in Edge' + (r.acct ? ' by the account #' : '') + '</div>' : '') + '</div>' +
+      (a ? '<button class="btn btn-ghost btn-sm" data-act="obOpen" data-key="' + esc(a.key) + '">Account ' + ic('next', 13) + '</button>' : '') + '</div>';
+  };
+  const hold = rep.rows.filter(r => r.hold), other = rep.rows.filter(r => !r.hold);
+  return '<div class="obTop"><span><b>' + (P.n - P.left) + ' of ' + P.n + '</b> texted' + (P.amt ? ' · ' + money(P.amt) + ' not drafted' : '') + '</span>' + (P.left ? '<button class="btn btn-sec btn-sm" data-act="obTickAll" data-day="' + esc(day) + '">Mark all texted</button>' : '') + '</div>' +
+    (hold.length ? '<div class="obGrp">On HOLD · OrthoBanc stopped drafting and asks the office to help · ' + hold.length + '</div>' + hold.map(row).join('') : '') +
+    (other.length ? '<div class="obGrp">OrthoBanc is contacting them too · ' + other.length + '</div>' + other.map(row).join('') : '') +
+    (rep.rows.length ? '' : '<div class="empty">No failed payments on this report. ✓</div>');
+}
+function refreshOBList() {
+  const box = $('#obListBox'); if (!box) return;
+  const w = $('#modalWrap'), top = w ? w.scrollTop : 0;
+  box.innerHTML = obListHTML(box.dataset.day); if (w) w.scrollTop = top;
+}
+/* on the account panel: the latest failed draft (read-only; the account's own notes and steps stay hers) */
+function obBoxHTML(a) {
+  const hits = obIndex().get(a.key); if (!hits || !hits.length) return '';
+  const h = hits[0], r = h.row;
+  return '<div class="obBox"><div class="obBoxHd">' + ic('mail', 15) + '<b>OrthoBanc</b><span class="small muted">' + esc(fmtDate(h.day)) + ' report</span></div>' +
+    '<div class="small">' + (r.amt != null ? money(r.amt, true) + ' ' : '') + 'draft failed' + (r.date ? ' ' + esc(fmtDate(r.date)) : '') + (r.reason ? ' — ' + esc(r.reason) : '') + (r.hold ? ' · <b>on HOLD</b> (OrthoBanc stopped drafting)' : '') + '</div>' +
+    '<div class="small muted">' + (h.done ? 'Texted · ' + esc(shortName(h.done.by)) + ', ' + esc(fmtWhen(h.done.at)) : 'Not ticked as texted yet') + (hits.length > 1 ? ' · failed before: ' + hits.slice(1, 4).map(x => esc(fmtDate(x.day))).join(', ') : '') +
+    ' · <button class="linkBtn" data-act="obList" data-day="' + esc(h.day) + '">The list</button></div></div>';
+}
+/* account key → its failed drafts on the reports of the last 120 days, newest first */
+function obIndex() {
+  if (S.obIdx && S.obIdx.v === S.obVer && S.obIdx.r === S.repId) return S.obIdx.m;
+  const m = new Map(), since = addDays(todayISO(), -120);
+  Array.from(S.obReps.values()).filter(r => r.day >= since).sort((x, y) => y.day.localeCompare(x.day)).forEach(rep => rep.rows.forEach(row => {
+    const a = obMatch(S.accts, row); if (!a) return;
+    if (!m.has(a.key)) m.set(a.key, []);
+    m.get(a.key).push({ day: rep.day, row, done: rep.done[obRowId(row)] || null });
+  }));
+  S.obIdx = { v: S.obVer, r: S.repId, m }; return m;
+}
+Object.assign(ACT, {
+  obPick() {
+    const i = document.createElement('input'); i.type = 'file'; i.accept = '.xls,.xlsx,.csv,.txt,.htm,.html'; i.className = 'hidden';
+    i.onchange = () => { const fs = Array.from(i.files || []); i.remove(); if (fs.length) obReadFiles(fs); };
+    document.body.appendChild(i); i.click();
+  },
+  async obSaveImp() {
+    const I = S.obImp; if (!I) return; const btn = $('#obSaveImp'); busyBtn(btn, true, 'Sealing and saving…');
+    const ok = await obChange(I.day, (d, now) => obImport(d, I.p, { day: I.day, by: meSid() }, now), { a: 'obimport', day: I.day, n: I.p.rows.length }, 'OrthoBanc’s ' + fmtDate(I.day) + ' report saved');
+    if (!ok) { busyBtn(btn, false); return; }
+    S.obImp = null; ACT.obList({ dataset: { day: I.day } });
+  },
+  obList(t) {
+    const day = (t && t.dataset && t.dataset.day) || ''; if (!day || !obRepFor(day)) return;
+    openModal('<h3>OrthoBanc failed payments · ' + esc(fmtDate(day)) + '</h3><div class="lsub">Day 0 (handbook §14): text the responsible party (Weave FC-Delinquent — never ask for $ in a text), note it in the patient’s chart in Edge, and set a 2-week Edge task. Tick each family here once it’s done — ticking changes nothing in the account.</div>' +
+      '<div id="obListBox" data-day="' + esc(day) + '">' + obListHTML(day) + '</div><div class="mFt" style="margin-top:14px"><button class="btn btn-pri" data-act="closeModal">Done</button></div>');
+  },
+  async obTick(t) {
+    const day = t.dataset.day, id = t.dataset.id, rep = obRepFor(day); if (!rep) return;
+    const on = !rep.done[id];
+    await obChange(day, (d, now) => obTick(d, [id], on, { by: meSid() }, now), { a: 'obtick', day, n: 1, on });
+  },
+  async obTickAll(t) {
+    const day = t.dataset.day, rep = obRepFor(day); if (!rep) return;
+    const ids = rep.rows.map(obRowId).filter(id => !rep.done[id]); if (!ids.length) return;
+    await obChange(day, (d, now) => obTick(d, ids, true, { by: meSid() }, now), { a: 'obtick', day, n: ids.length, on: true }, plural(ids.length, 'family', 'families') + ' marked texted');
+  },
+  obOpen(t) { closeModal(); openDrawer(t.dataset.key); }
 });
