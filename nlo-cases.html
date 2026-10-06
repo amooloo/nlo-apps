@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-5M/Jimmpkwny2haVYpIyRHusAm6u/2M4F78erOwBuWo=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-byZ921FXRr5Mi3d2zaBGxE/bwlpbXC8XNdegkuFmXls=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO Cases</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1366,6 +1366,78 @@ svg.rxArch{display:block;width:100%;height:auto}
 .step.cur .stWhen{color:var(--blue-700);opacity:.75}
 /* the IPR chart kept on the case (5 Oct 2026): when it was synced */
 .iprSync{color:var(--mint-700);font-weight:600}
+/* Workload (5 Oct 2026, Dr. A only): the period's numbers, by person, and what's on each person's plate now */
+.wk{transition:opacity .2s var(--ease)}
+.wk.busy{opacity:.55}
+.wkFilters .wkDays{display:flex;gap:8px;flex-wrap:wrap}
+.wkFilters .wkAt{margin-left:auto}
+.wkErr{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.wkTiles{grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}
+.tile.wkT{cursor:default;min-height:104px}
+.tile.wkT:hover{box-shadow:var(--sh-xs);transform:none}
+.tile.wkT .s{font-size:11.5px;color:var(--grey-500);font-weight:500;margin-top:auto}
+.tile.wkT.wkTxt .n{font-size:24px;line-height:1.3}
+.wkWait{color:var(--grey-300)}
+.wkLateTx{color:var(--coral-700);font-weight:600;display:inline-flex;align-items:center;gap:3px;white-space:nowrap}
+.wkLateTx .i{flex:none}
+.wkCard{margin-bottom:18px}
+.wkTbl{font-size:13px}
+.wkTbl th.num,.wkTbl td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.wkTbl thead th{padding-top:9px;padding-bottom:9px}
+.wkTbl tr.wkGrp th{text-align:center;color:var(--navy-500);border-bottom:1px solid var(--grey-200);padding-bottom:6px}
+.wkTbl tr.wkGrp th+th{border-left:1px solid var(--grey-100)}
+.wkTbl tr.wkGrp th.wkWho{text-align:left;vertical-align:bottom;color:var(--grey-500);border-bottom:1px solid var(--grey-100);border-left:none}
+.wkTbl td.zero{color:var(--grey-300)}
+.wkTbl td.wkTx{color:var(--grey-700)}
+.wkTbl td.late .linkBtn,.wkTbl td.late{color:var(--coral-700);font-weight:600}
+.wkTbl td .linkBtn{font-weight:700}
+.wkTbl .wkSub{display:block;font-size:11px;color:var(--grey-500);font-weight:500}
+.wkTbl td.wkWho{white-space:nowrap}
+.wkTbl .wkWho .av,.wkName .av{width:26px;height:26px;font-size:10.5px;margin-right:9px;vertical-align:middle}
+.wkTbl td.wkWho b{color:var(--navy);font-weight:700}
+.wkTbl tfoot td{border-top:1.5px solid var(--grey-200);background:var(--grey-50);font-weight:700;color:var(--navy)}
+.wkTbl tfoot td.zero{color:var(--grey-400)}
+.wkPlateTbl th{white-space:normal !important;min-width:64px;max-width:120px;line-height:1.35;vertical-align:bottom}
+.wkPlateTbl .wkNm{font-weight:700;color:var(--navy)}
+.wkLegend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:var(--grey-600);margin:2px 0 12px}
+.wkLegend span{display:inline-flex;align-items:center;gap:6px}
+.wkLegend i{width:12px;height:10px;border-radius:2px;flex:none}
+.wkBars{display:flex;flex-direction:column}
+.wkRow{display:grid;grid-template-columns:170px minmax(0,1fr);align-items:center;gap:12px;min-height:38px;border-bottom:1px solid var(--grey-50)}
+.wkRow:last-child{border-bottom:none}
+.wkName{display:flex;align-items:center;min-width:0;font-size:13px;font-weight:700;color:var(--navy)}
+.wkName .wkNm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wkTrack{display:flex;align-items:center;gap:10px;min-width:0}
+.wkBar{display:flex;gap:2px;height:30px;flex:none;min-width:4px;width:calc(var(--w) * .8)} /* (the longest bar leaves room for its label) */
+.wkSeg{position:relative;min-width:4px;cursor:default;outline:none}
+.wkSeg::before{content:"";position:absolute;left:0;right:0;top:7px;bottom:7px;background:var(--k)}
+.wkSeg:last-child::before{border-radius:0 4px 4px 0}
+.wkSeg:hover::before,.wkSeg.on::before{filter:brightness(1.15) saturate(1.05)}
+.wkSeg:focus-visible::before{box-shadow:0 0 0 2px #fff,0 0 0 4px var(--navy)}
+.wkTot{font-size:12.5px;color:var(--grey-600);white-space:nowrap}
+.wkTot b{color:var(--navy);font-size:13.5px}
+#wkTip{position:fixed;z-index:900;display:none;pointer-events:none;background:#fff;border:1px solid var(--grey-200);border-radius:10px;box-shadow:var(--sh-md);padding:8px 11px;font-size:12px;color:var(--grey-600);max-width:260px}
+#wkTip .wkTipV{display:flex;align-items:center;gap:6px;color:var(--grey-700)}
+#wkTip .wkTipV b{font-size:16px;color:var(--navy-900);font-variant-numeric:tabular-nums}
+#wkTip .wkTipV i{width:12px;height:3px;border-radius:2px;flex:none}
+#wkTip .wkTipLate{color:var(--coral-700);font-weight:600;margin-top:2px}
+#wkTip .wkTipX{margin-top:2px}
+#wkTip .wkTipW{margin-top:4px;color:var(--grey-500);font-weight:600}
+.wkHow{font-size:12.5px;color:var(--grey-600);margin:-4px 2px 24px}
+.wkHow summary{cursor:pointer;font-weight:600;color:var(--grey-600);padding:4px 0;width:max-content;max-width:100%}
+.wkHow ul{margin:6px 0 0 18px;display:grid;gap:4px;max-width:760px}
+@media (max-width:860px){
+  .wkFilters .wkAt{margin-left:0}
+  .wkTiles{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .wkRow{grid-template-columns:96px minmax(0,1fr);gap:8px}
+  .wkName .av{display:none}
+  .wkBar{width:calc(var(--w) * .5)}
+  .wkTot{white-space:normal;line-height:1.25}
+  .wkTot .wkLateTx{display:flex}
+  .wkTot .wkDot{display:none}
+  .wkTblWrap .wkTbl td.wkWho,.wkTblWrap .wkTbl th.wkWho{position:sticky;left:0;background:#fff;z-index:1;box-shadow:1px 0 0 var(--grey-100)}
+  .wkTblWrap .wkTbl tfoot td.wkWho{background:var(--grey-50)}
+}
 
 </style>
 </head>
@@ -2263,6 +2335,40 @@ const FB = {
     }
     return out.sort((a, b) => (b.at || 0) - (a.at || 0));
   },
+  /* the history the Workload page counts (work.js), from `since` (and before `until`): who, when and what was done — not the copy of
+     the case each entry also keeps (`prev`, most of an entry's size). Firestore's REST query can leave fields out and the SDK can't,
+     so it asks that way first (same login, same rules) and falls back to the SDK's query, whole entries, if that fails.
+     [{ id, caseId, at, sid, a, from, to, … }]; FB.wlVia says which way the last one went. */
+  async workLog(since, until) {
+    try { const out = await FB.workLogRest(since, until); FB.wlVia = 'rest'; return out; } catch (e) { }
+    let q = FB.db.collection('log').where('at', '>=', firebase.firestore.Timestamp.fromMillis(since));
+    if (until) q = q.where('at', '<', firebase.firestore.Timestamp.fromMillis(until));
+    const snap = await q.get(), out = [];
+    for (const d of snap.docs) {
+      const x = d.data(), key = FB.keys[x.v]; if (!key) continue;
+      try { out.push(Object.assign(await Crypto.openJSON(key, x, 'log:' + d.id), { id: d.id, at: FB.tsMs(x.at), sid: x.sid || '', caseId: x.caseId || '' })); } catch (e) { }
+    }
+    FB.wlVia = 'sdk'; return out;
+  },
+  async workLogRest(since, until) {
+    const u = FB.auth.currentUser; if (!u) throw errCode('signed-out');
+    const tok = await u.getIdToken();
+    const url = (FB.emu ? 'http://127.0.0.1:8080' : 'https://firestore.googleapis.com') + '/v1/projects/' + encodeURIComponent(FB.cfg.projectId) + '/databases/(default)/documents:runQuery';
+    const at = (op, ms) => ({ fieldFilter: { field: { fieldPath: 'at' }, op, value: { timestampValue: new Date(ms).toISOString() } } });
+    const where = until ? { compositeFilter: { op: 'AND', filters: [at('GREATER_THAN_OR_EQUAL', since), at('LESS_THAN', until)] } } : at('GREATER_THAN_OR_EQUAL', since);
+    const body = { structuredQuery: { from: [{ collectionId: 'log' }], where, select: { fields: ['caseId', 'sid', 'at', 'v', 'iv', 'ct'].map(fieldPath => ({ fieldPath })) } } };
+    const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok }, body: JSON.stringify(body) });
+    if (!r.ok) throw errCode('rest', 'Firestore said ' + r.status);
+    const rows = await r.json(); if (!Array.isArray(rows)) throw errCode('rest');
+    const val = f => !f ? null : f.stringValue != null ? f.stringValue : f.integerValue != null ? f.integerValue : f.timestampValue != null ? f.timestampValue : null;
+    const out = [];
+    for (const row of rows) {
+      const d = row && row.document; if (!d) continue;
+      const F = d.fields || {}, id = String(d.name || '').split('/').pop(), key = FB.keys[Number(val(F.v))]; if (!key) continue;
+      try { out.push(Object.assign(await Crypto.openJSON(key, { iv: val(F.iv), ct: val(F.ct) }, 'log:' + id), { id, at: Date.parse(val(F.at)) || 0, sid: val(F.sid) || '', caseId: val(F.caseId) || '' })); } catch (e) { }
+    }
+    return out;
+  },
 
   /* ---------- writes ---------- */
   clean(data) { const o = Object.assign({}, data); ['id', 'rev', 'v', 'status', 'by', 'updatedAt', 'createdAtSrv', 'closedAt', 'locked', 'assigneeLabel'].forEach(k => delete o[k]); return o; },
@@ -2826,6 +2932,58 @@ const DEMO = {
   async loadAll() { return Array.from(DEMO.cases.values()).map(c => JSON.parse(JSON.stringify(c))); },
   async caseLog(id) { return DEMO.logs.filter(l => l.caseId === id).slice().sort((a, b) => a.at - b.at); },
   async activity() { return DEMO.logs.slice().sort((a, b) => b.at - a.at).slice(0, 60); },
+  // (the Workload page's history: made up the first time it's asked for — see workSeed)
+  async workLog(since, until) { DEMO.workSeed(); return DEMO.logs.map((l, i) => Object.assign({ id: 'dl' + i }, l)).filter(l => l.at >= since && (!until || l.at < until)); },
+  /* about 90 days of made-up history for the Workload page: the assistants entering cases, making retainers and in-house sets, moving
+     cases along — each at their own pace, so there's something to compare. All completed, with names no other demo patient has; made the
+     first time the page opens, so everything else in the demo stays as it was. The open demo cases count as entered by their assistant. */
+  workSeed() {
+    if (DEMO.worked) return; DEMO.worked = true;
+    let sd = 20261005; const R = () => { sd = sd + 0x6D2B79F5 | 0; let t = Math.imul(sd ^ sd >>> 15, 1 | sd); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+    const pick = a => a[Math.floor(R() * a.length)], H = 3600e3, D = 864e5;
+    const first = ['Ari', 'Bea', 'Cal', 'Dov', 'Eli', 'Fay', 'Gus', 'Hal', 'Ida', 'Joss', 'Kit', 'Lev', 'Mae', 'Ned', 'Oz', 'Pia', 'Rae', 'Sol', 'Tess', 'Uma', 'Vic', 'Wes', 'Xan', 'Zoe'];
+    const last = ['Pastly', 'Oldfield', 'Formerton', 'Yesterly', 'Backwell', 'Priorson'];
+    const team = ['sarah', 'angelika', 'gwen', 'kaylee'];
+    // w: how many of the cases they enter; late: how often a case is entered a day or more after the scan; make: how long they take to make one
+    const pace = { sarah: { w: 3, late: .1, make: .8 }, angelika: { w: 3, late: .3, make: 1.4 }, gwen: { w: 2, late: .55, make: 2.6 }, kaylee: { w: 2, late: .2, make: 1 } };
+    const enterer = () => { let x = R() * 10; for (const k of team) { x -= pace[k].w; if (x < 0) return k; } return team[0]; };
+    const day0 = new Date(); day0.setHours(0, 0, 0, 0); let n = 0;
+    for (let d = 92; d >= 1; d--) {
+      const day = new Date(day0); day.setDate(day.getDate() - d); if (day.getDay() === 0 || day.getDay() === 6) continue; // office days
+      for (let j = 1 + Math.floor(R() * 3); j > 0; j--) {
+        const who = enterer(), id = 'demoHist' + (n++), type = pick(['retainer', 'retainer', 'retainer', 'nla', 'nla', 'oliv', 'angel', 'appliance', 'mouthguard']);
+        const created = day.getTime() + (8.5 + R() * 8) * H, lag = R() < pace[who].late ? 1 + Math.floor(R() * 3) : 0;
+        const c = { id, rev: 1, v: 1, status: 'done', by: who, type, patient: pick(first) + ' ' + pick(last), detail: '', stage: '', assignee: who, assistant: who, createdBy: who, createdAt: created,
+          scanDate: isoOf(new Date(created - lag * D)), comments: [] };
+        const L = [{ caseId: id, a: 'create', at: created, sid: who }]; let t = created;
+        const mv = (from, to, after, by) => { t += after; L.push({ caseId: id, a: 'stage', from, to, at: t, sid: by }); };
+        if (type === 'retainer' || type === 'mouthguard') {
+          Object.assign(c, type === 'retainer' ? { detail: "U/L TT's", arches: ['Upper', 'Lower'], retKinds: ['TT’s'] } : { detail: 'Mouthguard (U)' });
+          const maker = R() < .75 ? who : pick(team);
+          mv('print', 'milestones', (1.5 + R() * 30 * pace[maker].make) * H, maker); mv('milestones', 'sarah', (1 + R() * 20) * H, pick(team)); mv('sarah', 'pickup', (2 + R() * 30) * H, 'sarah'); c.stage = 'pickup';
+        } else if (type === 'nla') {
+          const al = [8, 10, 12, 14, 16, 18, 20, 22, 24], maker = R() < .7 ? who : pick(team);
+          Object.assign(c, { detail: 'Aligners (In-House)', initial: 'yes', alU: pick(al), alL: pick(al), atTemplates: 'none', stage: 'txp' });
+          mv('txp', 'txpok', (6 + R() * 40) * H, 'amir');
+          ['fab', 'send', 'print', 'thermo', 'trim', 'polish', 'wash', 'pack'].reduce((from, to) => { mv(from, to, (1 + R() * 9 * pace[maker].make) * H, maker); return to; }, 'txpok');
+          mv('pack', 'checkedin', (4 + R() * 40) * H, pick(team)); c.stage = 'checkedin';
+        } else if (type === 'appliance') {
+          Object.assign(c, { detail: 'Herbst', appliances: ['Herbst'], lab: LAB_SPEC });
+          mv('submit', 'submitted', (2 + R() * 30) * H, who); mv('submitted', 'mfg', (20 + R() * 30) * H, 'amir'); mv('mfg', 'shipped', (3 + R() * 6) * D, who); mv('shipped', 'milestones', (1 + R() * 3) * D, pick(team)); c.stage = 'milestones';
+        } else {
+          c.detail = type === 'oliv' ? 'Aligners (Oliv)' : 'Aligners (Angel)';
+          mv('submit', 'dra', (2 + R() * 30) * H, who); mv('dra', 'mfg', (10 + R() * 40) * H, 'amir');
+          t += (4 + R() * 5) * D; L.push({ caseId: id, a: 'email', co: type, kind: 'shipped', from: 'mfg', to: 'shipped', at: t, sid: pick(team) });
+          mv('shipped', 'arrived', (2 + R() * 3) * D, pick(team)); mv('arrived', 'milestones', (1 + R() * 20) * H, pick(team)); c.stage = 'milestones';
+        }
+        if (t > Date.now() - H) continue; // not finished yet: left out (the open demo cases stand for those)
+        L.push({ caseId: id, a: 'close', at: t + 60e3, sid: L[L.length - 1].sid });
+        Object.assign(c, { closedAt: t + 60e3, updatedAt: t + 60e3, rev: L.length });
+        DEMO.cases.set(id, c); DEMO.logs.push.apply(DEMO.logs, L);
+      }
+    }
+    Array.from(DEMO.cases.values()).filter(c => c.status === 'open' && /^demo\d+$/.test(c.id) && c.assistant).forEach(c => { c.createdBy = c.assistant; DEMO.emit(c); });
+  },
   // (like the real save, set with merge: a map — the chart note wording — is merged key by key, not replaced)
   async saveSettings(p) {
     Object.keys(p).forEach(k => { const v = p[k], o = DEMO.settings[k], map = x => x && typeof x === 'object' && !Array.isArray(x);
@@ -3173,6 +3331,7 @@ const IC = {
   chat: '<path d="M5 5h14a1.5 1.5 0 011.5 1.5V15a1.5 1.5 0 01-1.5 1.5h-7.5L7 20v-3.5H5A1.5 1.5 0 013.5 15V6.5A1.5 1.5 0 015 5z"/><path d="M8 9.5h8M8 12.5h5"/>',
   expand: '<path d="M7 9l5-5 5 5M7 15l5 5 5-5"/>',
   collapse: '<path d="M7 4l5 5 5-5M7 20l5-5 5 5"/>',
+  chart: '<path d="M4 20.5h16"/><path d="M7 16.5v-5M12 16.5V5.5M17 16.5v-8"/>',
   copy: '<rect x="8.5" y="8.5" width="11" height="11" rx="2"/><path d="M15.5 8.5V6A1.5 1.5 0 0014 4.5H6A1.5 1.5 0 004.5 6v8A1.5 1.5 0 006 15.5h2.5"/>'
 };
 function ic(n, s) { s = s || 18; return '<svg class="i" width="' + s + '" height="' + s + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (IC[n] || '') + '</svg>'; }
@@ -3387,6 +3546,7 @@ function bindLockForms(mode) {
 
 /* ---------- enter / leave ---------- */
 function enterApp() {
+  if (['work', 'admin', 'import'].includes(S.view) && !isOwner()) S.view = 'today'; // (Dr. A's pages, left open when someone else signs in after him)
   S.inApp = true; S.cases = new Map(); S.closed = []; histReset(); S.firstLoad = true; S.lastAct = Date.now(); S.settingsLoaded = false; S.rulesLv = null; S.idxRan = false; S.noteVisit = new Map();
   $('#lockWrap').classList.add('hidden'); $('#app').classList.remove('hidden');
   renderShell(); renderView();
@@ -3460,7 +3620,7 @@ async function lockOut(msg) {
   if (TOUR.on) msg = tourPause(msg); // practice mode: signing back in picks the tour up again
   S.inApp = false; clearInterval(S.idleTimer); clearInterval(S.mailTimer);
   closeModal(); closeDrawer(true);
-  S.cases = new Map(); S.closed = []; histReset(); S.members = []; S.roster = []; S.iprCache = {}; S.verList = null; S.delList = null; S.impList = null; S.bk = null;
+  S.cases = new Map(); S.closed = []; histReset(); wkReset(); S.members = []; S.roster = []; S.iprCache = {}; S.verList = null; S.delList = null; S.impList = null; S.bk = null;
   Object.assign(MAILS, { list: [], unread: [], pick: {}, sig: '', state: null, stateAt: 0, script: '', gone: new Set(), goneFp: new Set(), hk: null, mem: null });
   phReset(); rxReset(); SH.data = null; SH.err = '';
   { const ts = $('#toasts'); if (ts) ts.innerHTML = ''; } // a toast's Copy chart note / Download PDF is for the case on screen
@@ -3566,7 +3726,8 @@ function renderShell() {
   const owner = isOwner();
   const navBtns = mob => NAV.map(([k, l, i]) => '<button class="navBtn" data-act="nav" data-v="' + k + '" id="' + (mob ? 'm' : '') + 'nav-' + k + '">' + ic(i) + '<span>' + l + '</span><span class="cnt hidden"></span></button>').join('') +
     (mob ? '' : '<div class="navLbl">Office</div>') +
-    (owner ? '<button class="navBtn" data-act="nav" data-v="admin" id="' + (mob ? 'm' : '') + 'nav-admin">' + ic('team') + '<span>Team &amp; security</span></button>' +
+    (owner ? '<button class="navBtn" data-act="nav" data-v="work" id="' + (mob ? 'm' : '') + 'nav-work">' + ic('chart') + '<span>Workload</span></button>' +
+      '<button class="navBtn" data-act="nav" data-v="admin" id="' + (mob ? 'm' : '') + 'nav-admin">' + ic('team') + '<span>Team &amp; security</span></button>' +
       '<button class="navBtn" data-act="nav" data-v="import" id="' + (mob ? 'm' : '') + 'nav-import">' + ic('import') + '<span>Import &amp; export</span></button>' : '') +
     '<button class="navBtn" data-act="nav" data-v="account" id="' + (mob ? 'm' : '') + 'nav-account">' + ic('key') + '<span>My account</span></button>';
   $('#side').innerHTML = '<div class="sideTop"><img src="logo-white.png" alt="Next Level Orthodontics"><div class="appTag">Cases</div></div>' +
@@ -3591,7 +3752,7 @@ function renderSync() {
   else if (B && B.pending) { cls = 'busy'; t = 'Saving…'; }
   el.innerHTML = '<span class="dot ' + cls + '"></span>' + t;
 }
-const TITLES = { today: 'Today', board: 'Board', list: 'All open cases', mine: 'My cases', done: 'Completed', admin: 'Team & security', import: 'Import & export', account: 'My account' };
+const TITLES = { today: 'Today', board: 'Board', list: 'All open cases', mine: 'My cases', done: 'Completed', work: 'Workload', admin: 'Team & security', import: 'Import & export', account: 'My account' };
 function topBar(extra) {
   return '<div class="topBar"><h2>' + esc(TITLES[S.view]) + '</h2>' +
     (['today', 'board', 'list', 'mine', 'done'].includes(S.view) ? '<label class="searchBox">' + ic('search', 17) + '<span class="hidden">Search</span><input id="q" type="search" placeholder="Search patient, type, stage…" value="' + esc(S.q) + '" aria-label="Search cases"></label>' : '<span style="flex:1"></span>') +
@@ -3611,11 +3772,12 @@ function renderView() {
   else if (S.view === 'list') h = viewList(listBase(), true);
   else if (S.view === 'mine') h = viewList(listBase(), false);
   else if (S.view === 'done') h = viewDone();
+  else if (S.view === 'work') h = isOwner() ? viewWork() : '';
   else if (S.view === 'admin') h = isOwner() ? viewAdmin() : '';
   else if (S.view === 'import') h = isOwner() ? viewImport() : '';
   else if (S.view === 'account') h = viewAccount();
   $('#topSlot').innerHTML = topBar();
-  v.innerHTML = h;
+  wkTipHide(); v.innerHTML = h;
   if (qSel) { const q = $('#q'); if (q) { q.focus(); const n = q.value.length; try { q.setSelectionRange(Math.min(qSel[0], n), Math.min(qSel[1], n), qSel[2] || 'none'); } catch (e) { } } }
   if (fid) { const n = document.getElementById(fid); if (n && v.contains(n) && n !== document.activeElement) { n.focus({ preventScroll: true });
     if (fSel && typeof n.selectionStart === 'number') try { n.setSelectionRange(fSel[0], fSel[1]); } catch (e) { } } }
@@ -7172,7 +7334,7 @@ function linkFor(html, re) { const l = htmlLinks(html).find(x => re.test(x.text)
 function mailText(m) { const t = String(m.text || '').replace(/\r/g, ''); return t.trim() ? t : htmlRows(m.html).map(r => r.join(' ')).join('\n'); }
 function cleanName(s) {
   return String(s || '').replace(/[​ ]/g, ' ').replace(/\s+(click here|tracking|order number|patient name|case number)\b.*$/i, '')
-    .replace(/\s+/g, ' ').replace(/^[\s"'“”(:,.-]+|[\s"'“”):,-]+$/g, '').slice(0, 80);
+    .replace(/\s+/g, ' ').replace(/^[\s"'“”(:,.*_-]+|[\s"'“”):,*_-]+$/g, '').slice(0, 80); // (*bold* in a plain-text copy)
 }
 /* uLab: "Your uLab order X has shipped." — Order Number / Patient Name / tracking #, maybe several orders */
 function parseUlab(m) {
@@ -7200,14 +7362,19 @@ function parseLabSummary(m) {
   });
   return out;
 }
-/* Oliv: "Oliv™: F. Last (123456) setup is ready"; "The aligners for F. Last, case #123456 (…) have been delivered/shipped" */
+/* Oliv: "Oliv™: F. Last (123456) setup is ready"; "The aligners for F. Last, case #123456 (…) have been delivered/shipped".
+   Each paragraph is read with its line breaks taken out, and the email's HTML when its plain text doesn't have the sentence: a
+   plain-text copy can wrap mid-sentence ("(Oliv\nComprehensive)") or be only image labels (Amir's "Your patient's aligners have
+   been delivered", 5 Oct 2026) */
 function parseOliv(m) {
-  const s = m.subject || '', t = mailText(m), out = [];
+  const s = m.subject || '', out = [];
   const plan = /:\s*(.+?)\s*\((\d{3,})\)\s*setup is ready/i.exec(s);
   if (plan) out.push({ kind: 'plan', name: plan[1], ref: plan[2], planUrl: linkFor(m.html, /treatment plan/i) });
-  const re = /aligners for\s+(.+?),\s*case\s*#\s*(\d{3,})[^.\n]*?have\s+(?:been\s+)?(delivered|shipped)/gi; let y;
-  while ((y = re.exec(t))) out.push({ kind: y[3].toLowerCase(), name: y[1], ref: y[2], trackUrl: linkFor(m.html, /track/i) });
-  return out;
+  const sent = blocks => { const r = []; blocks.forEach(b => {
+    const t = String(b || '').replace(/\s+/g, ' '), re = /aligners for\s+((?:(?!aligners for).)+?),\s*case\s*#\s*(\d{3,}).{0,80}?have\s+(?:been\s+)?(delivered|shipped)/gi; let y;
+    while ((y = re.exec(t))) r.push({ kind: y[3].toLowerCase(), name: y[1], ref: y[2], trackUrl: linkFor(m.html, /track/i) }); }); return r; };
+  let got = sent(String(m.text || '').split(/\n\s*\n/)); if (!got.length) got = sent(htmlRows(m.html).map(r => r.join(' ')));
+  return out.concat(got);
 }
 /* Angel (iOrtho): "(patient:Full Name #ID ) is ready for review"; "Your case for patient Full Name #ID has shipped" */
 function parseAngel(m) {
@@ -11369,6 +11536,238 @@ document.addEventListener('change', e => {
 });
 
 /* =====================================================================
+   Workload — Dr. A only (Amir, 5 Oct 2026: "can you give me a dashboard (maybe a separate tab) where I can monitor how much work
+   each assistant is doing, how many cases, how many aligners, how long it takes for them on avg to enter a case for retainer and to
+   make it....) what is their workload").
+   Counted from the case history (who did what, when: B.workLog) and the cases themselves, for the last 7, 30 or 90 days:
+   - Cases entered: the new cases each person entered (createdBy), on the day they entered them. Asana imports don't count.
+   - Steps moved: each time they moved a case to another step. Lab emails don't count (the app moves those cases by itself).
+   - Aligners made: in-house sets moved to "Made – needs packaging" (or past it), for whoever moved them there: the set's upper +
+     lower aligners.
+   - Retainers (retainers, whitening trays and mouthguards): entered, and how long after the scan date on the case (same day = 0);
+     made = moved on from "To make", for whoever moved it, and how long after the case was entered.
+   - Now: the open cases assigned to each person, by kind, and how many of them are late (lab or delivery date passed).
+   The history is read once and kept while the app is open: a longer period reads only the older part, Refresh only what's new.
+   It holds no patient names (who, when, which step) and is dropped on Lock.
+   ===================================================================== */
+const WK_DAYS = [7, 30, 90];
+/* the kinds of case on each person's plate, in a fixed order with fixed colors (checked for color-blind separation and contrast,
+   neighbours in this order): the app's blue, mint and amber, a violet for appliances, grey for the few that are none of these */
+const WK_KINDS = [
+  { k: 'outside', l: 'Outside aligners & braces', c: '#2E52C9' },
+  { k: 'inhouse', l: 'In-house aligners', c: '#1F9E7E' },
+  { k: 'appl', l: 'Appliances & MARPE', c: '#4A3AA7' },
+  { k: 'ret', l: 'Retainers & mouthguards', c: '#E29A14' },
+  { k: 'other', l: 'Study models & other', c: '#969FAB' }
+];
+const WK = { days: 30, log: null, from: 0, to: 0, closed: null, closedDays: 0, at: 0, busy: false, err: '', tbl: false };
+function wkReset() { Object.assign(WK, { log: null, from: 0, to: 0, closed: null, closedDays: 0, at: 0, busy: false, err: '' }); wkTipHide(); }
+/* the period starts at midnight: the last 7 days = today and the 6 before it */
+function wkSince(days) { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - (days - 1)); return d.getTime(); }
+function wkKind(c) { const f = typeOf(c).flow; return f === 'outside' ? 'outside' : f === 'inhouse' ? 'inhouse' : f === 'appliance' || f === 'marpe' ? 'appl' : f === 'retainer' ? 'ret' : 'other'; }
+/* a history entry that moved a case to another step (by hand: a lab email's move is the app's, not a person's) */
+function wkMoved(x) { return !!x && x.a !== 'email' && !!x.to && !!x.from && x.from !== x.to && (x.a === 'stage' || (x.a === 'edit' && (x.fields || []).includes('stage'))); }
+const wkDay = iso => Math.round(isoDate(iso) / 864e5);
+
+/* read what the period needs: the history (older part / what's new) and the cases completed in it */
+async function wkLoad(force) {
+  if (WK.busy || !S.inApp) return;
+  const since = wkSince(WK.days), stale = Date.now() - WK.at > 5 * 60e3;
+  const older = !WK.log || since < WK.from, newer = !!WK.log && (force || stale), closed = !WK.closed || WK.closedDays < WK.days || force || stale;
+  if (!older && !newer && !closed) return;
+  WK.busy = true; WK.err = ''; const t0 = Date.now(), b0 = B;
+  if (S.view === 'work') { const w = $('#view .wk'); if (w) w.classList.add('busy'); }
+  try {
+    const parts = [];
+    if (!WK.log) parts.push(B.workLog(since));
+    else { if (since < WK.from) parts.push(B.workLog(since, WK.from)); if (newer) parts.push(B.workLog(WK.to)); }
+    const days = Math.max(WK.days, WK.closedDays);
+    const res = await Promise.all(parts.concat(closed ? [B.loadClosed(days)] : []));
+    if (B !== b0 || !S.inApp) return; // locked meanwhile
+    const cl = closed ? res.pop() : null, have = new Set((WK.log || []).map(x => x.id));
+    const add = [].concat.apply([], res).filter(x => x && x.id && !have.has(x.id) && have.add(x.id));
+    WK.log = (WK.log || []).concat(add);
+    WK.from = WK.from ? Math.min(WK.from, since) : since;
+    WK.to = WK.log.reduce((m, x) => Math.max(m, x.at || 0), WK.to || since);
+    if (cl) { WK.closed = liveCases(cl); WK.closedDays = days; }
+    WK.at = t0;
+  } catch (e) { WK.err = errText(e); }
+  finally { WK.busy = false; }
+  if (S.view === 'work' && S.inApp) renderView();
+}
+
+/* everything the page shows, per person: { k (staff id, '' = nobody, 'n:Name' = a name from Asana), entered, moved, al, sets, retIn,
+   retLag [days], ret, retMake [ms], open, late, kinds {kind: n}, lateK, toMake {al, sets, ret} } */
+function wkStats() {
+  const since = wkSince(WK.days), log = (WK.log || []).filter(x => (x.at || 0) >= since).sort((a, b) => a.at - b.at);
+  const pool = new Map(); (WK.closed || []).concat(S.closed || []).forEach(c => { if (c && c.id) pool.set(c.id, c); }); openCases().forEach(c => pool.set(c.id, c));
+  const P = new Map(), per = k => { if (!P.has(k)) P.set(k, { k, entered: 0, moved: 0, al: 0, sets: 0, retIn: 0, retLag: [], ret: 0, retMake: [], open: 0, late: 0, kinds: {}, lateK: {}, toMake: { al: 0, sets: 0, ret: 0 } }); return P.get(k); };
+  const madeBy = new Map(); log.forEach(x => { if (x.a === 'create' && x.caseId) madeBy.set(x.caseId, x.sid); });
+  pool.forEach(c => {
+    if (!((c.createdAt || 0) >= since) || c.importedAt || (c.src && c.src.asana) || c.locked) return;
+    const by = c.createdBy || madeBy.get(c.id); if (!by) return;
+    const p = per(by); p.entered++;
+    if (typeOf(c).flow === 'retainer') { p.retIn++; if (txDateOk(c.scanDate)) p.retLag.push(Math.max(0, wkDay(isoOf(new Date(c.createdAt))) - wkDay(c.scanDate))); }
+  });
+  const IH = FLOWS.inhouse.stages.map(s => s[0]), PACK = IH.indexOf('pack'), RT = FLOWS.retainer.stages.map(s => s[0]), alDone = new Set(), retDone = new Set();
+  log.forEach(x => {
+    if (!wkMoved(x)) return;
+    const p = per(x.sid || '?'), c = pool.get(x.caseId); p.moved++;
+    if (!c) return;
+    const fl = typeOf(c).flow;
+    if (fl === 'inhouse' && IH.indexOf(x.to) >= PACK && IH.indexOf(x.from) < PACK && !alDone.has(c.id)) { alDone.add(c.id); p.sets++; p.al += alN(c); }
+    if (fl === 'retainer' && x.from === RT[0] && RT.indexOf(x.to) > 0 && !retDone.has(c.id)) { retDone.add(c.id); p.ret++; if (c.createdAt && x.at > c.createdAt) p.retMake.push(x.at - c.createdAt); }
+  });
+  openCases().forEach(c => {
+    const p = per(c.assignee || (c.assigneeName ? 'n:' + c.assigneeName : '')), kd = wkKind(c);
+    p.open++; p.kinds[kd] = (p.kinds[kd] || 0) + 1;
+    if (dueBucket(c) === 'over') { p.late++; p.lateK[kd] = (p.lateK[kd] || 0) + 1; }
+    const fl = typeOf(c).flow;
+    if (fl === 'inhouse' && IH.indexOf(liveStage(c)) < PACK) { p.toMake.sets++; p.toMake.al += alN(c); }
+    if (fl === 'retainer' && c.stage === RT[0]) p.toMake.ret++;
+  });
+  return P;
+}
+function wkAny(d) { return !!d && (d.entered || d.moved || d.sets || d.retIn || d.ret || d.open); }
+/* the rows: the assistants by name, then Dr. A, then anyone else with something to show (someone who has left, a name from Asana),
+   and the open cases nobody is assigned to */
+function wkRows(P) {
+  const empty = k => ({ k, entered: 0, moved: 0, al: 0, sets: 0, retIn: 0, retLag: [], ret: 0, retMake: [], open: 0, late: 0, kinds: {}, lateK: {}, toMake: { al: 0, sets: 0, ret: 0 } });
+  const on = S.roster.filter(r => r.active), rows = [], seen = new Set();
+  on.filter(r => r.role !== 'owner').sort((a, b) => a.name.localeCompare(b.name)).concat(on.filter(r => r.role === 'owner'))
+    .forEach(r => { seen.add(r.sid); rows.push({ k: r.sid, r, name: staffLabel(r), full: r.name, d: P.get(r.sid) || empty(r.sid) }); });
+  P.forEach((d, k) => {
+    if (seen.has(k) || !k || !wkAny(d)) return;
+    if (k.startsWith('n:')) { rows.push({ k, name: k.slice(2), full: k.slice(2) + ' (not on the team list)', d }); return; }
+    const r = staff(k); rows.push({ k, r, name: (r ? staffLabel(r) : k) + (r ? ' (left)' : ''), full: r ? r.name + ' (no longer on the team)' : k, d, gone: true });
+  });
+  if (P.has('') && wkAny(P.get(''))) rows.push({ k: '', name: 'Not assigned', full: 'Not assigned to anyone', d: P.get(''), none: true });
+  return rows;
+}
+function wkSum(rows) {
+  const t = { entered: 0, moved: 0, al: 0, sets: 0, retIn: 0, retLag: [], ret: 0, retMake: [], open: 0, late: 0 };
+  rows.forEach(({ d }) => { ['entered', 'moved', 'al', 'sets', 'retIn', 'ret', 'open', 'late'].forEach(k => { t[k] += d[k]; }); t.retLag = t.retLag.concat(d.retLag); t.retMake = t.retMake.concat(d.retMake); });
+  return t;
+}
+const wkAvg = a => a && a.length ? a.reduce((s, x) => s + x, 0) / a.length : null;
+const wkNum = n => (Math.round(n * 10) / 10).toFixed(n < 10 ? 1 : 0).replace(/\.0$/, '');
+/* days between the scan and entering it: "Same day", "0.4 days", "2 days" */
+function wkLagTxt(d) { if (d == null) return '—'; if (d < 0.05) return 'Same day'; const s = wkNum(d); return s + (s === '1' ? ' day' : ' days'); }
+/* entered → made: "Under 1 hour", "5 hours", "1.5 days" */
+function wkSpanTxt(ms) {
+  if (ms == null) return '—'; const h = ms / 3600e3; if (h < 1) return 'Under 1 hour';
+  if (h < 36) { const n = Math.round(h); return n + (n === 1 ? ' hour' : ' hours'); }
+  const s = wkNum(h / 24); return s + (s === '1' ? ' day' : ' days');
+}
+
+/* ---------- the page ---------- */
+function viewWork() {
+  wkLoad();
+  const P = wkStats(), rows = wkRows(P), all = wkSum(Array.from(P.values()).map(d => ({ d }))), n = WK.days, ready = !!WK.log;
+  const per = 'in the last ' + n + ' days';
+  const fl = '<div class="filters wkFilters"><div class="wkDays" role="radiogroup" aria-label="Period">' + WK_DAYS.map(d =>
+    '<button class="chip' + (d === n ? ' on' : '') + '" role="radio" aria-checked="' + (d === n) + '" data-act="wkDays" data-d="' + d + '">Last ' + d + ' days</button>').join('') + '</div>' +
+    '<span class="small muted wkAt">' + (WK.busy && !ready ? 'Reading the history…' : WK.at ? 'Updated ' + esc(new Date(WK.at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })) : '') + '</span>' +
+    '<button class="btn btn-ghost" data-act="wkRefresh"' + (WK.busy ? ' disabled' : '') + '>' + ic('refresh', 15) + 'Refresh</button></div>';
+  const err = WK.err ? '<div class="notice bad wkErr">' + esc('Couldn’t read the history: ' + WK.err) + ' <button class="linkBtn" data-act="wkRefresh">Try again</button></div>' : '';
+  const tile = (v, l, s, k, cls) => '<div class="tile wkT' + (cls ? ' ' + cls : '') + '" data-t="' + k + '"><span class="n">' + v + '</span><span class="l">' + l + '</span>' + (s ? '<span class="s">' + s + '</span>' : '') + '</div>';
+  const wait = '<span class="wkWait">…</span>', retLag = wkAvg(all.retLag), retMake = wkAvg(all.retMake);
+  const tiles = '<div class="tiles wkTiles">' +
+    tile(ready ? all.entered : wait, 'Cases entered', per, 'entered') +
+    tile(ready ? all.al : wait, 'Aligners made', ready ? 'in-house · ' + all.sets + ' set' + (all.sets === 1 ? '' : 's') : 'in-house', 'al') +
+    tile(ready ? all.ret : wait, 'Retainers made', 'retainers, whitening trays & mouthguards', 'ret') +
+    tile(ready ? esc(wkLagTxt(retLag)) : wait, 'Retainers: scan → entered', ready ? (all.retLag.length ? 'average of ' + all.retLag.length : 'none entered') : '', 'lag', 'wkTxt') +
+    tile(ready ? esc(wkSpanTxt(retMake)) : wait, 'Retainers: entered → made', ready ? (all.retMake.length ? 'average of ' + all.retMake.length : 'none made') : '', 'make', 'wkTxt') +
+    tile(all.open, 'Open now', all.late ? '<span class="wkLateTx">' + ic('clock', 13) + all.late + ' late</span>' : 'none late', 'open') + '</div>';
+  return '<div class="wk' + (WK.busy && ready ? ' busy' : '') + '">' + fl + err + tiles + wkTableHTML(rows, all, ready) + wkPlateHTML(rows) + wkHowHTML() + '</div>';
+}
+/* by person: the period's numbers, and what's open now */
+function wkTableHTML(rows, all, ready) {
+  const c = (v, k, cls) => '<td class="num' + (cls ? ' ' + cls : '') + '" data-c="' + k + '">' + v + '</td>';
+  const cnt = (n, k) => c(ready ? String(n) : '…', k, ready && !n ? 'zero' : '');
+  const cells = (d, k) => cnt(d.entered, 'entered') + cnt(d.moved, 'moved') +
+    c(ready ? d.al + (d.sets ? '<span class="wkSub">' + d.sets + ' set' + (d.sets === 1 ? '' : 's') + '</span>' : '') : '…', 'al', ready && !d.al ? 'zero' : '') +
+    cnt(d.retIn, 'retIn') + c(ready ? esc(wkLagTxt(wkAvg(d.retLag))) : '…', 'retLag', 'wkTx') + cnt(d.ret, 'ret') + c(ready ? esc(wkSpanTxt(wkAvg(d.retMake))) : '…', 'retMake', 'wkTx') +
+    c(k == null ? String(d.open) : d.open ? '<button class="linkBtn" data-act="wkList" data-who="' + esc(k) + '" title="See them in All open cases">' + d.open + '</button>' : '0', 'open', d.open ? '' : 'zero') +
+    c(d.late ? (k == null ? '' : '<button class="linkBtn wkLateTx" data-act="wkList" data-who="' + esc(k) + '" data-due="over" title="See them in All open cases">') + ic('clock', 13) + d.late + (k == null ? '' : '</button>') : '0', 'late', d.late ? 'late' : 'zero');
+  const who = x => '<td class="wkWho" title="' + esc(x.full) + '">' + (x.r ? '<span class="av" data-sav="' + esc(x.r.sid) + '">' + esc(x.r.initials || initials(x.r.name)) + '</span>' : '<span class="av none">' + (x.none ? '–' : esc(initials(x.name))) + '</span>') + '<b>' + esc(x.name) + '</b></td>';
+  // (Open and Late open All open cases filtered to the person: the list's "Assigned to" filter has Unassigned, not names from Asana)
+  const linkKey = x => x.none ? '_none' : x.k.startsWith('n:') ? null : x.k;
+  return '<div class="card wkCard"><div class="cardHd"><h3>By person</h3><span class="sub">Last ' + WK.days + ' days, and their open cases now</span></div>' +
+    '<div class="tblWrap wkTblWrap"><table class="tbl wkTbl"><thead><tr class="wkGrp"><th rowspan="2" class="wkWho">Person</th><th colspan="2">All cases</th><th>In-house</th><th colspan="4">Retainers</th><th colspan="2">Now</th></tr>' +
+    '<tr><th class="num">Entered</th><th class="num">Steps moved</th><th class="num">Aligners made</th><th class="num">Entered</th><th class="num">Scan → entered</th><th class="num">Made</th><th class="num">Entered → made</th><th class="num">Open</th><th class="num">Late</th></tr></thead><tbody>' +
+    rows.map(x => '<tr data-k="' + esc(x.k) + '">' + who(x) + cells(x.d, linkKey(x)) + '</tr>').join('') + '</tbody>' +
+    '<tfoot><tr data-k="_all"><td class="wkWho"><b>Office</b></td>' + cells(all, null) + '</tr></tfoot></table></div></div>';
+}
+/* on each person's plate now: their open cases as one bar, split by kind (a table instead, with Table) */
+function wkPlateHTML(rows) {
+  const list = rows.filter(x => x.d.open || !x.none).slice().sort((a, b) => (b.d.open - a.d.open) || ((a.none ? 1 : 0) - (b.none ? 1 : 0)));
+  const max = Math.max(1, ...list.map(x => x.d.open));
+  const hd = '<div class="cardHd"><h3>On each person’s plate</h3><span class="sub">Open cases assigned to them now, by kind</span><span style="flex:1"></span>' +
+    '<button class="btn btn-ghost wkTblBtn" data-act="wkTbl" aria-pressed="' + WK.tbl + '">' + ic(WK.tbl ? 'board' : 'list', 15) + (WK.tbl ? 'Chart' : 'Table') + '</button></div>';
+  const legend = '<div class="wkLegend" aria-hidden="true">' + WK_KINDS.map(k => '<span><i style="background:' + k.c + '"></i>' + esc(k.l) + '</span>').join('') + '</div>';
+  const nm = x => (x.r ? '<span class="av" data-sav="' + esc(x.r.sid) + '">' + esc(x.r.initials || initials(x.r.name)) + '</span>' : '<span class="av none">' + (x.none ? '–' : esc(initials(x.name))) + '</span>') + '<span class="wkNm">' + esc(x.name) + '</span>';
+  if (WK.tbl) {
+    return '<div class="card wkCard" id="wkPlate">' + hd + '<div class="tblWrap"><table class="tbl wkTbl wkPlateTbl"><thead><tr><th class="wkWho">Person</th>' + WK_KINDS.map(k => '<th class="num">' + esc(k.l) + '</th>').join('') +
+      '<th class="num">Open</th><th class="num">Late</th><th class="num">Aligners to make</th><th class="num">Retainers to make</th></tr></thead><tbody>' +
+      list.map(x => '<tr data-k="' + esc(x.k) + '"><td class="wkWho">' + nm(x) + '</td>' + WK_KINDS.map(k => '<td class="num' + (x.d.kinds[k.k] ? '' : ' zero') + '" data-c="' + k.k + '">' + (x.d.kinds[k.k] || 0) + '</td>').join('') +
+        '<td class="num" data-c="open"><b>' + x.d.open + '</b></td><td class="num' + (x.d.late ? ' late' : ' zero') + '" data-c="late">' + x.d.late + '</td>' +
+        '<td class="num' + (x.d.toMake.al ? '' : ' zero') + '" data-c="alToMake">' + x.d.toMake.al + (x.d.toMake.sets ? '<span class="wkSub">' + x.d.toMake.sets + ' set' + (x.d.toMake.sets === 1 ? '' : 's') + '</span>' : '') + '</td>' +
+        '<td class="num' + (x.d.toMake.ret ? '' : ' zero') + '" data-c="retToMake">' + x.d.toMake.ret + '</td></tr>').join('') + '</tbody></table></div></div>';
+  }
+  const bar = x => {
+    if (!x.d.open) return '<span class="wkTot muted">Nothing open</span>';
+    const segs = WK_KINDS.filter(k => x.d.kinds[k.k]).map(k => {
+      const v = x.d.kinds[k.k], late = x.d.lateK[k.k] || 0;
+      const extra = k.k === 'inhouse' && x.d.toMake.sets ? x.d.toMake.al + ' aligners to make (' + x.d.toMake.sets + ' set' + (x.d.toMake.sets === 1 ? '' : 's') + ')' : k.k === 'ret' && x.d.toMake.ret ? x.d.toMake.ret + ' to make' : '';
+      return '<span class="wkSeg" style="flex:' + v + ';--k:' + k.c + '" tabindex="0" role="img" aria-label="' + esc(x.name + ': ' + v + ' ' + k.l + (late ? ', ' + late + ' late' : '')) + '" data-n="' + v + '" data-l="' + esc(k.l) + '" data-w="' + esc(x.name) + '" data-late="' + late + '" data-x="' + esc(extra) + '"></span>';
+    }).join('');
+    return '<span class="wkBar" style="--w:' + (x.d.open / max * 100).toFixed(2) + '%">' + segs + '</span><span class="wkTot"><b>' + x.d.open + '</b> open' + (x.d.late ? '<span class="wkDot"> · </span><span class="wkLateTx">' + ic('clock', 13) + x.d.late + ' late</span>' : '') + '</span>';
+  };
+  return '<div class="card wkCard" id="wkPlate">' + hd + '<div class="cardBd">' + legend + '<div class="wkBars">' +
+    list.map(x => '<div class="wkRow" data-k="' + esc(x.k) + '"><span class="wkName" title="' + esc(x.full) + '">' + nm(x) + '</span><span class="wkTrack">' + bar(x) + '</span></div>').join('') + '</div></div></div>';
+}
+function wkHowHTML() {
+  const li = (b, t) => '<li><b>' + b + '</b> ' + t + '</li>';
+  return '<details class="wkHow"><summary>How these are counted</summary><ul>' +
+    li('Cases entered:', 'new cases each person entered in the app, counted on the day they entered them. Cases brought in from Asana don’t count.') +
+    li('Steps moved:', 'each time they moved a case to another step. Moves made by lab emails don’t count.') +
+    li('Aligners made:', 'in-house sets moved to “Made – needs packaging” (or past it), for whoever moved them there — the set’s upper and lower aligners.') +
+    li('Retainers:', 'retainers, whitening trays and mouthguards. <i>Scan → entered</i> counts days from the scan date on the case to the day it was entered (the same day is 0). <i>Made</i> is when it moved on from “To make”, for whoever moved it; <i>Entered → made</i> is the time from entering it to then.') +
+    li('Now:', 'open cases assigned to each person. Late = its lab or delivery date has passed. Tap a number to see those cases.') +
+    '</ul></details>';
+}
+
+/* ---------- the hover / focus readout on the bars (values from the bar, written as text, never as markup) ---------- */
+function wkTipShow(seg) {
+  let tip = $('#wkTip'); if (!tip) { tip = document.createElement('div'); tip.id = 'wkTip'; tip.setAttribute('role', 'tooltip'); document.body.appendChild(tip); }
+  tip.textContent = '';
+  const line = (cls, txt) => { const d = document.createElement('div'); d.className = cls; d.textContent = txt; tip.appendChild(d); };
+  const top = document.createElement('div'); top.className = 'wkTipV'; const b = document.createElement('b'); b.textContent = seg.dataset.n; top.appendChild(b);
+  const key = document.createElement('i'); key.style.background = seg.style.getPropertyValue('--k'); top.prepend(key); top.appendChild(document.createTextNode(' ' + seg.dataset.l)); tip.appendChild(top);
+  if (Number(seg.dataset.late)) line('wkTipLate', seg.dataset.late + ' late');
+  if (seg.dataset.x) line('wkTipX', seg.dataset.x);
+  line('wkTipW', seg.dataset.w);
+  const r = seg.getBoundingClientRect(); tip.style.display = 'block';
+  const w = tip.offsetWidth, h = tip.offsetHeight;
+  tip.style.left = Math.max(8, Math.min(innerWidth - w - 8, r.left + r.width / 2 - w / 2)) + 'px';
+  tip.style.top = (r.top - h - 8 >= 8 ? r.top - h - 8 : r.bottom + 8) + 'px';
+  seg.classList.add('on');
+}
+function wkTipHide() { const t = $('#wkTip'); if (t) t.style.display = 'none'; $$('.wkSeg.on').forEach(s => s.classList.remove('on')); }
+document.addEventListener('pointerover', e => { const s = e.target.closest && e.target.closest('.wkSeg'); if (s) wkTipShow(s); else if ($('.wkSeg.on') && !(e.target.closest && e.target.closest('#wkTip'))) wkTipHide(); });
+document.addEventListener('focusin', e => { const s = e.target.closest && e.target.closest('.wkSeg'); if (s) wkTipShow(s); else wkTipHide(); });
+document.addEventListener('scroll', () => wkTipHide(), true);
+
+Object.assign(ADMIN_ACTS, {
+  wkDays(t) { const d = Number(t.dataset.d); if (!WK_DAYS.includes(d) || d === WK.days) return; WK.days = d; renderView(); },
+  wkRefresh() { wkLoad(true); renderView(); },
+  wkTbl() { WK.tbl = !WK.tbl; wkTipHide(); renderView(); const b = $('#wkPlate .wkTblBtn'); if (b) b.focus(); },
+  // a person's open (or late) cases: All open cases with the Assigned to filter set
+  wkList(t) { wkTipHide(); S.view = 'list'; S.q = ''; S.f = noFilters(); S.f.who = t.dataset.who || ''; if (t.dataset.due) S.f.due = t.dataset.due; renderNav(); renderView(); window.scrollTo(0, 0); }
+});
+
+/* =====================================================================
    New-user tour — hands-on practice (Amir, 4 Oct 2026: "create a tutorial for new users … show different parts of the app
    and how the basic functions work"; he chose hands-on practice with made-up patients).
    It runs in practice mode: the demo (made-up patients, nothing saved; its settings kept apart from the real app's, see
@@ -11424,6 +11823,8 @@ function tourSteps(kind) {
       act: 'Try it: tap Lock, then Sign in.', done: () => TOUR.backAt === 'lock' }
   ];
   if (owner) st.push(
+    { id: 'work', at: () => tVis('#nav-work', '#mnav-work'), t: 'Workload (Dr. A)', b: 'What each person entered, made and moved in the last 7, 30 or 90 days, how long retainers take from the scan to made, and what’s on everyone’s plate now.',
+      act: 'Tap Workload.', done: () => S.view === 'work' },
     { id: 'admin', at: () => tVis('#nav-admin', '#mnav-admin'), t: 'Team & security (Dr. A)', b: 'Only you see this page.', act: 'Tap Team & security.', done: () => S.view === 'admin' },
     { id: 'team', need: { ok: () => S.view === 'admin', go: 'admin' }, at: () => $$('#view .card').find(c => /^Team$/.test(((c.querySelector('h3') || {}).textContent || '').trim())),
       t: 'Team', b: 'Add people from Staff Hub (each gets a temporary password from you), reissue a login when someone forgets theirs, and remove someone who has left.' },

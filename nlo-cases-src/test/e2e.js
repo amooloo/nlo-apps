@@ -1254,9 +1254,18 @@ async function openByName(p, name) {
   check(/1 email sent/.test(gas.ctx.checkMail()), 'a new summary goes on the next check');
   await owner.waitForFunction(async () => (await B.inboxLoad()).length === 0, null, { timeout: 20000 });
   check(!(await st('Mira Holdsworth')).hold, 'a hold someone cleared isn’t brought back by the same hold in the next summary');
+  // Oliv's "Your patient's aligners have been delivered" (the email Amir forwarded, 5 Oct 2026), its plain-text copy wrapped mid-sentence
+  await owner.evaluate(() => B.createCase({ comments: [], createdAt: Date.now(), createdBy: meSid(), type: 'oliv', patient: 'Cora Ackerman', stage: 'shipped' }));
+  gas.messages.push({ id: 'e7', date: Date.now(), from: 'Oliv Doctors <doctor@olivortho.com>', subject: 'Oliv™ - Your patient\'s aligners have been delivered',
+    text: 'Good news! Your patient\'s aligners have been delivered.\n\nThe aligners for *C. Ackerman*, case #589527 (Oliv\nComprehensive) have been delivered.\n\nTrack package',
+    html: '<h1>Good news! Your patient\'s aligners have been delivered.</h1><p>The aligners for <b>C. Ackerman</b>, case #589527 (Oliv Comprehensive) have been delivered.</p><a href="https://click.olivortho.com/t/1">Track package</a>' });
+  check(/1 email sent/.test(gas.ctx.checkMail()), 'Oliv “aligners have been delivered” goes to the app');
+  await owner.waitForFunction(() => { const c = openCases().find(x => x.patient === 'Cora Ackerman'); return c && c.stage === 'arrived'; }, null, { timeout: 30000 }).catch(() => {});
+  { const ca = await st('Cora Ackerman'); check(ca && ca.stage === 'arrived' && ca.labRef === '589527', 'Oliv delivered → Arrived, with Oliv’s case # (the plain text wraps mid-sentence and bolds the name) (' + JSON.stringify(ca) + ')'); }
+  await owner.waitForFunction(async () => (await B.inboxLoad()).length === 0, null, { timeout: 20000 });
   dump = JSON.stringify(await fsDump());
   // (long base64 runs — ciphertext, encrypted photos — are left out: a short order # like ZQ88 can turn up in them by chance)
-  { const plain = dump.replace(/"[A-Za-z0-9+/=_-]{40,}"/g, '""'), lk = /Brightwater|Marchetti|Shipdirect|Quillfeather|Velasquez|Holdsworth|Robin T|700111|ZQ88|ZQ77|lower jaw/.exec(plain);
+  { const plain = dump.replace(/"[A-Za-z0-9+/=_-]{40,}"/g, '""'), lk = /Brightwater|Marchetti|Shipdirect|Quillfeather|Velasquez|Holdsworth|Ackerman|Robin T|700111|589527|ZQ88|ZQ77|lower jaw/.exec(plain);
     check(!lk, 'no patient name, case # or hold reason is readable anywhere in the database' + (lk ? ' — found “' + lk[0] + '” in …' + plain.slice(Math.max(0, lk.index - 160), lk.index + 60) + '…' : '')); }
   // the same update in both mailboxes and in the next day's summary is one row; Dismiss clears every copy, and it stays dismissed
   const holdHtml = (d, nm) => '<p>No Cases Received Today</p><p>No Cases Shipped Today</p><p>Cases On Hold in the last 7 Days</p><table><tr><th>Patient Name</th><th>Case Number</th><th>Hold Date</th><th>Hold Reason</th></tr><tr><td>' + nm + '</td><td>55999</td><td>10-01-2026</td><td>Need a new scan</td></tr></table><p>' + d + '</p>';
@@ -1473,6 +1482,45 @@ async function openByName(p, name) {
   await owner.click('#nav-admin'); await owner.click('[data-act=loadActivity]');
   await owner.waitForSelector('#actBox .hist', { timeout: 20000 });
   check((await owner.locator('#actBox .hist').count()) >= 5, 'activity log lists recent changes');
+
+  console.log('\n# Workload (Amir, 5 Oct 2026: "a dashboard … how much work each assistant is doing … how long it takes … to enter a case for retainer and to make it")');
+  // Sarah (signed out by the idle lock earlier) comes back and does a little of everything
+  await signIn(sarah, 'sarah', 'Sarah-Pass-2026'); await waitApp(sarah);
+  check(!(await sarah.$('#mnav-work')) && !(await sarah.$('#nav-work')), 'staff have no Workload tab');
+  // a row of the By person table (data-k: the person's id; _all: the Office row), as numbers (the two averages as shown)
+  const wkRow = k => owner.evaluate(k => { const tr = document.querySelector('.wkTbl:not(.wkPlateTbl) tr[data-k="' + k + '"]'); if (!tr) return null;
+    return Object.fromEntries(Array.from(tr.querySelectorAll('td[data-c]')).map(td => [td.dataset.c, td.dataset.c === 'al' ? Number(td.firstChild.textContent) : /^(retLag|retMake)$/.test(td.dataset.c) ? td.textContent : Number(td.textContent.replace(/\D/g, '') || 0)])); }, k);
+  const wkReady = () => owner.waitForFunction(() => WK.log && !WK.busy && !document.querySelector('.wk.busy'), null, { timeout: 30000 });
+  const runQ = owner.waitForResponse(r => r.url().includes(':runQuery'), { timeout: 30000 }).catch(() => null);
+  await owner.click('#nav-work'); await owner.waitForSelector('.wkTbl'); await wkReady();
+  const rq = await runQ, rqBody = rq ? await rq.json().catch(() => null) : null;
+  check(await owner.evaluate(() => FB.wlVia) === 'rest' && !!rq && /"select"/.test(rq.request().postData() || '') && Array.isArray(rqBody) && rqBody.some(x => x.document) && rqBody.every(x => !x.document || !x.document.fields.prev),
+    'the history is read with only what the page needs: who, when, what (not the copy of the case each entry keeps)');
+  const sa0 = await wkRow('sarah');
+  check(sa0 && sa0.entered === 0 && sa0.moved === 0 && sa0.al === 0 && sa0.ret === 0, 'Sarah: nothing entered or moved yet (' + JSON.stringify(sa0) + ')');
+  await sarah.evaluate(async () => {
+    const here = async id => { for (let i = 0; i < 150 && !S.cases.get(id); i++) await new Promise(r => setTimeout(r, 100)); };
+    const rid = await B.createCase({ type: 'retainer', patient: 'Wynn Workload', stage: 'print', scanDate: addDays(todayISO(), -1), arches: ['Upper'], retKinds: ['TT’s'], comments: [], createdAt: Date.now(), createdBy: meSid() });
+    await here(rid); await moveStage(rid, 'milestones');
+    const nid = await B.createCase({ type: 'nla', patient: 'Nell Workload', stage: 'wash', initial: 'yes', alU: 12, alL: 10, atTemplates: 'none', comments: [], createdAt: Date.now(), createdBy: meSid() });
+    await here(nid); await moveStage(nid, 'pack');
+  });
+  await owner.click('.wkFilters [data-act=wkRefresh]'); await sleep(300); await wkReady();
+  const sa1 = await wkRow('sarah');
+  check(sa1.entered === 2 && sa1.moved === 2 && sa1.al === 22 && sa1.retIn === 1 && sa1.ret === 1, 'Refresh: Sarah entered 2 cases, moved 2 steps, made 22 aligners and a retainer (' + JSON.stringify(sa1) + ')');
+  check(sa1.retLag === '1 day' && sa1.retMake === 'Under 1 hour', 'her retainer: entered the day after its scan, made within the hour (' + sa1.retLag + ', ' + sa1.retMake + ')');
+  const tiles = await owner.evaluate(() => Object.fromEntries(Array.from(document.querySelectorAll('.wkT')).map(t => [t.dataset.t, t.querySelector('.n').textContent])));
+  const all = await wkRow('_all');
+  check(Number(tiles.entered) === all.entered && Number(tiles.al) === all.al && all.entered >= 2 && all.al >= 22, 'the office tiles add everyone up (' + JSON.stringify(tiles) + ')');
+  check(await owner.evaluate(() => { const r = document.querySelector('#wkPlate .wkRow[data-k=sarah]'); return !!r && Number(r.querySelector('.wkTot b').textContent) === openCases().filter(c => c.assignee === 'sarah').length; }), 'her bar: every open case assigned to her');
+  // if the REST read fails (a proxy, an outage), the SDK reads the same history, whole entries
+  await owner.evaluate(() => { window.__fetch = window.fetch; window.fetch = (u, o) => /:runQuery/.test(String(u)) ? Promise.reject(new TypeError('Failed to fetch')) : window.__fetch(u, o); wkReset(); renderView(); });
+  await wkReady();
+  const sa2 = await wkRow('sarah');
+  check(await owner.evaluate(() => FB.wlVia) === 'sdk' && JSON.stringify(sa2) === JSON.stringify(sa1), 'when that read fails, the regular read gives the same numbers');
+  await owner.evaluate(() => { window.fetch = window.__fetch; });
+  await owner.screenshot({ path: 'shots/e2e-workload.png', fullPage: true });
+  await owner.click('#nav-today');
 
   console.log('\n# Team from Staff Hub’s office roster (made-up roster in the database emulator)');
   const rput = (path, body) => fetch('http://127.0.0.1:9000/' + path + '.json?ns=demo-nlo-cases', { method: 'PUT', headers: { Authorization: 'Bearer owner' }, body: JSON.stringify(body) });

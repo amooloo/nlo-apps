@@ -40,6 +40,7 @@ const IC = {
   chat: '<path d="M5 5h14a1.5 1.5 0 011.5 1.5V15a1.5 1.5 0 01-1.5 1.5h-7.5L7 20v-3.5H5A1.5 1.5 0 013.5 15V6.5A1.5 1.5 0 015 5z"/><path d="M8 9.5h8M8 12.5h5"/>',
   expand: '<path d="M7 9l5-5 5 5M7 15l5 5 5-5"/>',
   collapse: '<path d="M7 4l5 5 5-5M7 20l5-5 5 5"/>',
+  chart: '<path d="M4 20.5h16"/><path d="M7 16.5v-5M12 16.5V5.5M17 16.5v-8"/>',
   copy: '<rect x="8.5" y="8.5" width="11" height="11" rx="2"/><path d="M15.5 8.5V6A1.5 1.5 0 0014 4.5H6A1.5 1.5 0 004.5 6v8A1.5 1.5 0 006 15.5h2.5"/>'
 };
 function ic(n, s) { s = s || 18; return '<svg class="i" width="' + s + '" height="' + s + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (IC[n] || '') + '</svg>'; }
@@ -254,6 +255,7 @@ function bindLockForms(mode) {
 
 /* ---------- enter / leave ---------- */
 function enterApp() {
+  if (['work', 'admin', 'import'].includes(S.view) && !isOwner()) S.view = 'today'; // (Dr. A's pages, left open when someone else signs in after him)
   S.inApp = true; S.cases = new Map(); S.closed = []; histReset(); S.firstLoad = true; S.lastAct = Date.now(); S.settingsLoaded = false; S.rulesLv = null; S.idxRan = false; S.noteVisit = new Map();
   $('#lockWrap').classList.add('hidden'); $('#app').classList.remove('hidden');
   renderShell(); renderView();
@@ -327,7 +329,7 @@ async function lockOut(msg) {
   if (TOUR.on) msg = tourPause(msg); // practice mode: signing back in picks the tour up again
   S.inApp = false; clearInterval(S.idleTimer); clearInterval(S.mailTimer);
   closeModal(); closeDrawer(true);
-  S.cases = new Map(); S.closed = []; histReset(); S.members = []; S.roster = []; S.iprCache = {}; S.verList = null; S.delList = null; S.impList = null; S.bk = null;
+  S.cases = new Map(); S.closed = []; histReset(); wkReset(); S.members = []; S.roster = []; S.iprCache = {}; S.verList = null; S.delList = null; S.impList = null; S.bk = null;
   Object.assign(MAILS, { list: [], unread: [], pick: {}, sig: '', state: null, stateAt: 0, script: '', gone: new Set(), goneFp: new Set(), hk: null, mem: null });
   phReset(); rxReset(); SH.data = null; SH.err = '';
   { const ts = $('#toasts'); if (ts) ts.innerHTML = ''; } // a toast's Copy chart note / Download PDF is for the case on screen
@@ -433,7 +435,8 @@ function renderShell() {
   const owner = isOwner();
   const navBtns = mob => NAV.map(([k, l, i]) => '<button class="navBtn" data-act="nav" data-v="' + k + '" id="' + (mob ? 'm' : '') + 'nav-' + k + '">' + ic(i) + '<span>' + l + '</span><span class="cnt hidden"></span></button>').join('') +
     (mob ? '' : '<div class="navLbl">Office</div>') +
-    (owner ? '<button class="navBtn" data-act="nav" data-v="admin" id="' + (mob ? 'm' : '') + 'nav-admin">' + ic('team') + '<span>Team &amp; security</span></button>' +
+    (owner ? '<button class="navBtn" data-act="nav" data-v="work" id="' + (mob ? 'm' : '') + 'nav-work">' + ic('chart') + '<span>Workload</span></button>' +
+      '<button class="navBtn" data-act="nav" data-v="admin" id="' + (mob ? 'm' : '') + 'nav-admin">' + ic('team') + '<span>Team &amp; security</span></button>' +
       '<button class="navBtn" data-act="nav" data-v="import" id="' + (mob ? 'm' : '') + 'nav-import">' + ic('import') + '<span>Import &amp; export</span></button>' : '') +
     '<button class="navBtn" data-act="nav" data-v="account" id="' + (mob ? 'm' : '') + 'nav-account">' + ic('key') + '<span>My account</span></button>';
   $('#side').innerHTML = '<div class="sideTop"><img src="logo-white.png" alt="Next Level Orthodontics"><div class="appTag">Cases</div></div>' +
@@ -458,7 +461,7 @@ function renderSync() {
   else if (B && B.pending) { cls = 'busy'; t = 'Saving…'; }
   el.innerHTML = '<span class="dot ' + cls + '"></span>' + t;
 }
-const TITLES = { today: 'Today', board: 'Board', list: 'All open cases', mine: 'My cases', done: 'Completed', admin: 'Team & security', import: 'Import & export', account: 'My account' };
+const TITLES = { today: 'Today', board: 'Board', list: 'All open cases', mine: 'My cases', done: 'Completed', work: 'Workload', admin: 'Team & security', import: 'Import & export', account: 'My account' };
 function topBar(extra) {
   return '<div class="topBar"><h2>' + esc(TITLES[S.view]) + '</h2>' +
     (['today', 'board', 'list', 'mine', 'done'].includes(S.view) ? '<label class="searchBox">' + ic('search', 17) + '<span class="hidden">Search</span><input id="q" type="search" placeholder="Search patient, type, stage…" value="' + esc(S.q) + '" aria-label="Search cases"></label>' : '<span style="flex:1"></span>') +
@@ -478,11 +481,12 @@ function renderView() {
   else if (S.view === 'list') h = viewList(listBase(), true);
   else if (S.view === 'mine') h = viewList(listBase(), false);
   else if (S.view === 'done') h = viewDone();
+  else if (S.view === 'work') h = isOwner() ? viewWork() : '';
   else if (S.view === 'admin') h = isOwner() ? viewAdmin() : '';
   else if (S.view === 'import') h = isOwner() ? viewImport() : '';
   else if (S.view === 'account') h = viewAccount();
   $('#topSlot').innerHTML = topBar();
-  v.innerHTML = h;
+  wkTipHide(); v.innerHTML = h;
   if (qSel) { const q = $('#q'); if (q) { q.focus(); const n = q.value.length; try { q.setSelectionRange(Math.min(qSel[0], n), Math.min(qSel[1], n), qSel[2] || 'none'); } catch (e) { } } }
   if (fid) { const n = document.getElementById(fid); if (n && v.contains(n) && n !== document.activeElement) { n.focus({ preventScroll: true });
     if (fSel && typeof n.selectionStart === 'number') try { n.setSelectionRange(fSel[0], fSel[1]); } catch (e) { } } }

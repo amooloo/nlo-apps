@@ -1352,3 +1352,75 @@ svg.rxArch{display:block;width:100%;height:auto}
 .step.cur .stWhen{color:var(--blue-700);opacity:.75}
 /* the IPR chart kept on the case (5 Oct 2026): when it was synced */
 .iprSync{color:var(--mint-700);font-weight:600}
+/* Workload (5 Oct 2026, Dr. A only): the period's numbers, by person, and what's on each person's plate now */
+.wk{transition:opacity .2s var(--ease)}
+.wk.busy{opacity:.55}
+.wkFilters .wkDays{display:flex;gap:8px;flex-wrap:wrap}
+.wkFilters .wkAt{margin-left:auto}
+.wkErr{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.wkTiles{grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}
+.tile.wkT{cursor:default;min-height:104px}
+.tile.wkT:hover{box-shadow:var(--sh-xs);transform:none}
+.tile.wkT .s{font-size:11.5px;color:var(--grey-500);font-weight:500;margin-top:auto}
+.tile.wkT.wkTxt .n{font-size:24px;line-height:1.3}
+.wkWait{color:var(--grey-300)}
+.wkLateTx{color:var(--coral-700);font-weight:600;display:inline-flex;align-items:center;gap:3px;white-space:nowrap}
+.wkLateTx .i{flex:none}
+.wkCard{margin-bottom:18px}
+.wkTbl{font-size:13px}
+.wkTbl th.num,.wkTbl td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.wkTbl thead th{padding-top:9px;padding-bottom:9px}
+.wkTbl tr.wkGrp th{text-align:center;color:var(--navy-500);border-bottom:1px solid var(--grey-200);padding-bottom:6px}
+.wkTbl tr.wkGrp th+th{border-left:1px solid var(--grey-100)}
+.wkTbl tr.wkGrp th.wkWho{text-align:left;vertical-align:bottom;color:var(--grey-500);border-bottom:1px solid var(--grey-100);border-left:none}
+.wkTbl td.zero{color:var(--grey-300)}
+.wkTbl td.wkTx{color:var(--grey-700)}
+.wkTbl td.late .linkBtn,.wkTbl td.late{color:var(--coral-700);font-weight:600}
+.wkTbl td .linkBtn{font-weight:700}
+.wkTbl .wkSub{display:block;font-size:11px;color:var(--grey-500);font-weight:500}
+.wkTbl td.wkWho{white-space:nowrap}
+.wkTbl .wkWho .av,.wkName .av{width:26px;height:26px;font-size:10.5px;margin-right:9px;vertical-align:middle}
+.wkTbl td.wkWho b{color:var(--navy);font-weight:700}
+.wkTbl tfoot td{border-top:1.5px solid var(--grey-200);background:var(--grey-50);font-weight:700;color:var(--navy)}
+.wkTbl tfoot td.zero{color:var(--grey-400)}
+.wkPlateTbl th{white-space:normal !important;min-width:64px;max-width:120px;line-height:1.35;vertical-align:bottom}
+.wkPlateTbl .wkNm{font-weight:700;color:var(--navy)}
+.wkLegend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:var(--grey-600);margin:2px 0 12px}
+.wkLegend span{display:inline-flex;align-items:center;gap:6px}
+.wkLegend i{width:12px;height:10px;border-radius:2px;flex:none}
+.wkBars{display:flex;flex-direction:column}
+.wkRow{display:grid;grid-template-columns:170px minmax(0,1fr);align-items:center;gap:12px;min-height:38px;border-bottom:1px solid var(--grey-50)}
+.wkRow:last-child{border-bottom:none}
+.wkName{display:flex;align-items:center;min-width:0;font-size:13px;font-weight:700;color:var(--navy)}
+.wkName .wkNm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wkTrack{display:flex;align-items:center;gap:10px;min-width:0}
+.wkBar{display:flex;gap:2px;height:30px;flex:none;min-width:4px;width:calc(var(--w) * .8)} /* (the longest bar leaves room for its label) */
+.wkSeg{position:relative;min-width:4px;cursor:default;outline:none}
+.wkSeg::before{content:"";position:absolute;left:0;right:0;top:7px;bottom:7px;background:var(--k)}
+.wkSeg:last-child::before{border-radius:0 4px 4px 0}
+.wkSeg:hover::before,.wkSeg.on::before{filter:brightness(1.15) saturate(1.05)}
+.wkSeg:focus-visible::before{box-shadow:0 0 0 2px #fff,0 0 0 4px var(--navy)}
+.wkTot{font-size:12.5px;color:var(--grey-600);white-space:nowrap}
+.wkTot b{color:var(--navy);font-size:13.5px}
+#wkTip{position:fixed;z-index:900;display:none;pointer-events:none;background:#fff;border:1px solid var(--grey-200);border-radius:10px;box-shadow:var(--sh-md);padding:8px 11px;font-size:12px;color:var(--grey-600);max-width:260px}
+#wkTip .wkTipV{display:flex;align-items:center;gap:6px;color:var(--grey-700)}
+#wkTip .wkTipV b{font-size:16px;color:var(--navy-900);font-variant-numeric:tabular-nums}
+#wkTip .wkTipV i{width:12px;height:3px;border-radius:2px;flex:none}
+#wkTip .wkTipLate{color:var(--coral-700);font-weight:600;margin-top:2px}
+#wkTip .wkTipX{margin-top:2px}
+#wkTip .wkTipW{margin-top:4px;color:var(--grey-500);font-weight:600}
+.wkHow{font-size:12.5px;color:var(--grey-600);margin:-4px 2px 24px}
+.wkHow summary{cursor:pointer;font-weight:600;color:var(--grey-600);padding:4px 0;width:max-content;max-width:100%}
+.wkHow ul{margin:6px 0 0 18px;display:grid;gap:4px;max-width:760px}
+@media (max-width:860px){
+  .wkFilters .wkAt{margin-left:0}
+  .wkTiles{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .wkRow{grid-template-columns:96px minmax(0,1fr);gap:8px}
+  .wkName .av{display:none}
+  .wkBar{width:calc(var(--w) * .5)}
+  .wkTot{white-space:normal;line-height:1.25}
+  .wkTot .wkLateTx{display:flex}
+  .wkTot .wkDot{display:none}
+  .wkTblWrap .wkTbl td.wkWho,.wkTblWrap .wkTbl th.wkWho{position:sticky;left:0;background:#fff;z-index:1;box-shadow:1px 0 0 var(--grey-100)}
+  .wkTblWrap .wkTbl tfoot td.wkWho{background:var(--grey-50)}
+}

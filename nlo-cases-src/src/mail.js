@@ -61,7 +61,7 @@ function linkFor(html, re) { const l = htmlLinks(html).find(x => re.test(x.text)
 function mailText(m) { const t = String(m.text || '').replace(/\r/g, ''); return t.trim() ? t : htmlRows(m.html).map(r => r.join(' ')).join('\n'); }
 function cleanName(s) {
   return String(s || '').replace(/[​ ]/g, ' ').replace(/\s+(click here|tracking|order number|patient name|case number)\b.*$/i, '')
-    .replace(/\s+/g, ' ').replace(/^[\s"'“”(:,.-]+|[\s"'“”):,-]+$/g, '').slice(0, 80);
+    .replace(/\s+/g, ' ').replace(/^[\s"'“”(:,.*_-]+|[\s"'“”):,*_-]+$/g, '').slice(0, 80); // (*bold* in a plain-text copy)
 }
 /* uLab: "Your uLab order X has shipped." — Order Number / Patient Name / tracking #, maybe several orders */
 function parseUlab(m) {
@@ -89,14 +89,19 @@ function parseLabSummary(m) {
   });
   return out;
 }
-/* Oliv: "Oliv™: F. Last (123456) setup is ready"; "The aligners for F. Last, case #123456 (…) have been delivered/shipped" */
+/* Oliv: "Oliv™: F. Last (123456) setup is ready"; "The aligners for F. Last, case #123456 (…) have been delivered/shipped".
+   Each paragraph is read with its line breaks taken out, and the email's HTML when its plain text doesn't have the sentence: a
+   plain-text copy can wrap mid-sentence ("(Oliv\nComprehensive)") or be only image labels (Amir's "Your patient's aligners have
+   been delivered", 5 Oct 2026) */
 function parseOliv(m) {
-  const s = m.subject || '', t = mailText(m), out = [];
+  const s = m.subject || '', out = [];
   const plan = /:\s*(.+?)\s*\((\d{3,})\)\s*setup is ready/i.exec(s);
   if (plan) out.push({ kind: 'plan', name: plan[1], ref: plan[2], planUrl: linkFor(m.html, /treatment plan/i) });
-  const re = /aligners for\s+(.+?),\s*case\s*#\s*(\d{3,})[^.\n]*?have\s+(?:been\s+)?(delivered|shipped)/gi; let y;
-  while ((y = re.exec(t))) out.push({ kind: y[3].toLowerCase(), name: y[1], ref: y[2], trackUrl: linkFor(m.html, /track/i) });
-  return out;
+  const sent = blocks => { const r = []; blocks.forEach(b => {
+    const t = String(b || '').replace(/\s+/g, ' '), re = /aligners for\s+((?:(?!aligners for).)+?),\s*case\s*#\s*(\d{3,}).{0,80}?have\s+(?:been\s+)?(delivered|shipped)/gi; let y;
+    while ((y = re.exec(t))) r.push({ kind: y[3].toLowerCase(), name: y[1], ref: y[2], trackUrl: linkFor(m.html, /track/i) }); }); return r; };
+  let got = sent(String(m.text || '').split(/\n\s*\n/)); if (!got.length) got = sent(htmlRows(m.html).map(r => r.join(' ')));
+  return out.concat(got);
 }
 /* Angel (iOrtho): "(patient:Full Name #ID ) is ready for review"; "Your case for patient Full Name #ID has shipped" */
 function parseAngel(m) {

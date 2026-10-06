@@ -335,6 +335,40 @@ const FB = {
     }
     return out.sort((a, b) => (b.at || 0) - (a.at || 0));
   },
+  /* the history the Workload page counts (work.js), from `since` (and before `until`): who, when and what was done — not the copy of
+     the case each entry also keeps (`prev`, most of an entry's size). Firestore's REST query can leave fields out and the SDK can't,
+     so it asks that way first (same login, same rules) and falls back to the SDK's query, whole entries, if that fails.
+     [{ id, caseId, at, sid, a, from, to, … }]; FB.wlVia says which way the last one went. */
+  async workLog(since, until) {
+    try { const out = await FB.workLogRest(since, until); FB.wlVia = 'rest'; return out; } catch (e) { }
+    let q = FB.db.collection('log').where('at', '>=', firebase.firestore.Timestamp.fromMillis(since));
+    if (until) q = q.where('at', '<', firebase.firestore.Timestamp.fromMillis(until));
+    const snap = await q.get(), out = [];
+    for (const d of snap.docs) {
+      const x = d.data(), key = FB.keys[x.v]; if (!key) continue;
+      try { out.push(Object.assign(await Crypto.openJSON(key, x, 'log:' + d.id), { id: d.id, at: FB.tsMs(x.at), sid: x.sid || '', caseId: x.caseId || '' })); } catch (e) { }
+    }
+    FB.wlVia = 'sdk'; return out;
+  },
+  async workLogRest(since, until) {
+    const u = FB.auth.currentUser; if (!u) throw errCode('signed-out');
+    const tok = await u.getIdToken();
+    const url = (FB.emu ? 'http://127.0.0.1:8080' : 'https://firestore.googleapis.com') + '/v1/projects/' + encodeURIComponent(FB.cfg.projectId) + '/databases/(default)/documents:runQuery';
+    const at = (op, ms) => ({ fieldFilter: { field: { fieldPath: 'at' }, op, value: { timestampValue: new Date(ms).toISOString() } } });
+    const where = until ? { compositeFilter: { op: 'AND', filters: [at('GREATER_THAN_OR_EQUAL', since), at('LESS_THAN', until)] } } : at('GREATER_THAN_OR_EQUAL', since);
+    const body = { structuredQuery: { from: [{ collectionId: 'log' }], where, select: { fields: ['caseId', 'sid', 'at', 'v', 'iv', 'ct'].map(fieldPath => ({ fieldPath })) } } };
+    const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok }, body: JSON.stringify(body) });
+    if (!r.ok) throw errCode('rest', 'Firestore said ' + r.status);
+    const rows = await r.json(); if (!Array.isArray(rows)) throw errCode('rest');
+    const val = f => !f ? null : f.stringValue != null ? f.stringValue : f.integerValue != null ? f.integerValue : f.timestampValue != null ? f.timestampValue : null;
+    const out = [];
+    for (const row of rows) {
+      const d = row && row.document; if (!d) continue;
+      const F = d.fields || {}, id = String(d.name || '').split('/').pop(), key = FB.keys[Number(val(F.v))]; if (!key) continue;
+      try { out.push(Object.assign(await Crypto.openJSON(key, { iv: val(F.iv), ct: val(F.ct) }, 'log:' + id), { id, at: Date.parse(val(F.at)) || 0, sid: val(F.sid) || '', caseId: val(F.caseId) || '' })); } catch (e) { }
+    }
+    return out;
+  },
 
   /* ---------- writes ---------- */
   clean(data) { const o = Object.assign({}, data); ['id', 'rev', 'v', 'status', 'by', 'updatedAt', 'createdAtSrv', 'closedAt', 'locked', 'assigneeLabel'].forEach(k => delete o[k]); return o; },

@@ -54,6 +54,8 @@ function tourSteps(kind) {
       act: 'Try it: tap Lock, then Sign in.', done: () => TOUR.backAt === 'lock' }
   ];
   if (owner) st.push(
+    { id: 'work', at: () => tVis('#nav-work', '#mnav-work'), t: 'Workload (Dr. A)', b: 'What each person entered, made and moved in the last 7, 30 or 90 days, how long retainers take from the scan to made, and what’s on everyone’s plate now.',
+      act: 'Tap Workload.', done: () => S.view === 'work' },
     { id: 'admin', at: () => tVis('#nav-admin', '#mnav-admin'), t: 'Team & security (Dr. A)', b: 'Only you see this page.', act: 'Tap Team & security.', done: () => S.view === 'admin' },
     { id: 'team', need: { ok: () => S.view === 'admin', go: 'admin' }, at: () => $$('#view .card').find(c => /^Team$/.test(((c.querySelector('h3') || {}).textContent || '').trim())),
       t: 'Team', b: 'Add people from Staff Hub (each gets a temporary password from you), reissue a login when someone forgets theirs, and remove someone who has left.' },

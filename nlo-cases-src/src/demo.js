@@ -204,6 +204,58 @@ const DEMO = {
   async loadAll() { return Array.from(DEMO.cases.values()).map(c => JSON.parse(JSON.stringify(c))); },
   async caseLog(id) { return DEMO.logs.filter(l => l.caseId === id).slice().sort((a, b) => a.at - b.at); },
   async activity() { return DEMO.logs.slice().sort((a, b) => b.at - a.at).slice(0, 60); },
+  // (the Workload page's history: made up the first time it's asked for — see workSeed)
+  async workLog(since, until) { DEMO.workSeed(); return DEMO.logs.map((l, i) => Object.assign({ id: 'dl' + i }, l)).filter(l => l.at >= since && (!until || l.at < until)); },
+  /* about 90 days of made-up history for the Workload page: the assistants entering cases, making retainers and in-house sets, moving
+     cases along — each at their own pace, so there's something to compare. All completed, with names no other demo patient has; made the
+     first time the page opens, so everything else in the demo stays as it was. The open demo cases count as entered by their assistant. */
+  workSeed() {
+    if (DEMO.worked) return; DEMO.worked = true;
+    let sd = 20261005; const R = () => { sd = sd + 0x6D2B79F5 | 0; let t = Math.imul(sd ^ sd >>> 15, 1 | sd); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+    const pick = a => a[Math.floor(R() * a.length)], H = 3600e3, D = 864e5;
+    const first = ['Ari', 'Bea', 'Cal', 'Dov', 'Eli', 'Fay', 'Gus', 'Hal', 'Ida', 'Joss', 'Kit', 'Lev', 'Mae', 'Ned', 'Oz', 'Pia', 'Rae', 'Sol', 'Tess', 'Uma', 'Vic', 'Wes', 'Xan', 'Zoe'];
+    const last = ['Pastly', 'Oldfield', 'Formerton', 'Yesterly', 'Backwell', 'Priorson'];
+    const team = ['sarah', 'angelika', 'gwen', 'kaylee'];
+    // w: how many of the cases they enter; late: how often a case is entered a day or more after the scan; make: how long they take to make one
+    const pace = { sarah: { w: 3, late: .1, make: .8 }, angelika: { w: 3, late: .3, make: 1.4 }, gwen: { w: 2, late: .55, make: 2.6 }, kaylee: { w: 2, late: .2, make: 1 } };
+    const enterer = () => { let x = R() * 10; for (const k of team) { x -= pace[k].w; if (x < 0) return k; } return team[0]; };
+    const day0 = new Date(); day0.setHours(0, 0, 0, 0); let n = 0;
+    for (let d = 92; d >= 1; d--) {
+      const day = new Date(day0); day.setDate(day.getDate() - d); if (day.getDay() === 0 || day.getDay() === 6) continue; // office days
+      for (let j = 1 + Math.floor(R() * 3); j > 0; j--) {
+        const who = enterer(), id = 'demoHist' + (n++), type = pick(['retainer', 'retainer', 'retainer', 'nla', 'nla', 'oliv', 'angel', 'appliance', 'mouthguard']);
+        const created = day.getTime() + (8.5 + R() * 8) * H, lag = R() < pace[who].late ? 1 + Math.floor(R() * 3) : 0;
+        const c = { id, rev: 1, v: 1, status: 'done', by: who, type, patient: pick(first) + ' ' + pick(last), detail: '', stage: '', assignee: who, assistant: who, createdBy: who, createdAt: created,
+          scanDate: isoOf(new Date(created - lag * D)), comments: [] };
+        const L = [{ caseId: id, a: 'create', at: created, sid: who }]; let t = created;
+        const mv = (from, to, after, by) => { t += after; L.push({ caseId: id, a: 'stage', from, to, at: t, sid: by }); };
+        if (type === 'retainer' || type === 'mouthguard') {
+          Object.assign(c, type === 'retainer' ? { detail: "U/L TT's", arches: ['Upper', 'Lower'], retKinds: ['TT’s'] } : { detail: 'Mouthguard (U)' });
+          const maker = R() < .75 ? who : pick(team);
+          mv('print', 'milestones', (1.5 + R() * 30 * pace[maker].make) * H, maker); mv('milestones', 'sarah', (1 + R() * 20) * H, pick(team)); mv('sarah', 'pickup', (2 + R() * 30) * H, 'sarah'); c.stage = 'pickup';
+        } else if (type === 'nla') {
+          const al = [8, 10, 12, 14, 16, 18, 20, 22, 24], maker = R() < .7 ? who : pick(team);
+          Object.assign(c, { detail: 'Aligners (In-House)', initial: 'yes', alU: pick(al), alL: pick(al), atTemplates: 'none', stage: 'txp' });
+          mv('txp', 'txpok', (6 + R() * 40) * H, 'amir');
+          ['fab', 'send', 'print', 'thermo', 'trim', 'polish', 'wash', 'pack'].reduce((from, to) => { mv(from, to, (1 + R() * 9 * pace[maker].make) * H, maker); return to; }, 'txpok');
+          mv('pack', 'checkedin', (4 + R() * 40) * H, pick(team)); c.stage = 'checkedin';
+        } else if (type === 'appliance') {
+          Object.assign(c, { detail: 'Herbst', appliances: ['Herbst'], lab: LAB_SPEC });
+          mv('submit', 'submitted', (2 + R() * 30) * H, who); mv('submitted', 'mfg', (20 + R() * 30) * H, 'amir'); mv('mfg', 'shipped', (3 + R() * 6) * D, who); mv('shipped', 'milestones', (1 + R() * 3) * D, pick(team)); c.stage = 'milestones';
+        } else {
+          c.detail = type === 'oliv' ? 'Aligners (Oliv)' : 'Aligners (Angel)';
+          mv('submit', 'dra', (2 + R() * 30) * H, who); mv('dra', 'mfg', (10 + R() * 40) * H, 'amir');
+          t += (4 + R() * 5) * D; L.push({ caseId: id, a: 'email', co: type, kind: 'shipped', from: 'mfg', to: 'shipped', at: t, sid: pick(team) });
+          mv('shipped', 'arrived', (2 + R() * 3) * D, pick(team)); mv('arrived', 'milestones', (1 + R() * 20) * H, pick(team)); c.stage = 'milestones';
+        }
+        if (t > Date.now() - H) continue; // not finished yet: left out (the open demo cases stand for those)
+        L.push({ caseId: id, a: 'close', at: t + 60e3, sid: L[L.length - 1].sid });
+        Object.assign(c, { closedAt: t + 60e3, updatedAt: t + 60e3, rev: L.length });
+        DEMO.cases.set(id, c); DEMO.logs.push.apply(DEMO.logs, L);
+      }
+    }
+    Array.from(DEMO.cases.values()).filter(c => c.status === 'open' && /^demo\d+$/.test(c.id) && c.assistant).forEach(c => { c.createdBy = c.assistant; DEMO.emit(c); });
+  },
   // (like the real save, set with merge: a map — the chart note wording — is merged key by key, not replaced)
   async saveSettings(p) {
     Object.keys(p).forEach(k => { const v = p[k], o = DEMO.settings[k], map = x => x && typeof x === 'object' && !Array.isArray(x);
