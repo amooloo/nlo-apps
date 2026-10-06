@@ -1,5 +1,7 @@
 /* Clicks through the demo (?demo, made-up accounts) on a desktop and a phone screen: every screen, the account panel
-   (log, undo, promise, ask Dr. A, resolve, reopen, an account that's on the list again, the refund checklist), closing
+   (log, undo, promise, ask Dr. A, resolve, reopen, an account that's on the list again, the refund checklist), the collections
+   ladder (steps due, a step for many accounts at once, Dr. A signing, a certified letter, Maintenance Hold, a broken arrangement,
+   the write-off at the end, a new round for an account past due again), closing
    accounts cleared in Edge, importing a made-up Edge export, Settings (who can use A/R, the numbers), downloading a list,
    and that every button on every screen has a handler. Needs a static server on :8766 serving dist/.
    Run: node test/demo_smoke.js  (screenshots go to shots/) */
@@ -33,9 +35,9 @@ const shot = (p, n, full) => p.screenshot({ path: path.join(SHOTS, n + '.png'), 
   await page.waitForTimeout(300);
   await collect(); await shot(page, 'today', true);
   const c0 = await S_(() => counts());
-  ok(await page.$$eval('.tiles .tile', t => t.length) === 6, 'Today: six tiles (follow-ups, 91+, chase now, credits, waiting for Dr. A, cleared)');
-  ok(c0.due === 2 && c0.late === 1 && c0.drA === 1 && c0.cleared === 1, 'counts: 2 follow-ups (1 late), 1 for Dr. A, 1 cleared: ' + JSON.stringify(c0));
-  ok(/^\(2\) NLO A\/R$/.test(await page.title()), 'tab title counts follow-ups due: ' + await page.title());
+  ok(await page.$$eval('.tiles .tile', t => t.length) === 7, 'Today: seven tiles (follow-ups, collection steps, 91+, chase now, credits, waiting for Dr. A, cleared)');
+  ok(c0.due === 2 && c0.late === 1 && c0.drA === 2 && c0.cleared === 1 && c0.lad > 20, 'counts: 2 follow-ups (1 late), 2 for Dr. A (a refund, a letter to sign), 1 cleared, ' + c0.lad + ' collection steps: ' + JSON.stringify(c0));
+  ok((await page.title()) === '(' + (c0.due + c0.lad) + ') NLO A/R', 'tab title counts follow-ups and collection steps due: ' + await page.title());
   ok((await page.evaluate(() => window.__maxCleared)) === 1, 'while opening, “Cleared in Edge” never counts more than the 1 really cleared');
   ok(await page.$$eval('#view details.help summary', s => s.some(x => /newly 91\+/.test(x.textContent))), '“Since the last report” lists newly 91+ accounts');
   ok(await page.isVisible('[data-act=closeCleared]'), '“Cleared in Edge” offers to close them');
@@ -45,7 +47,7 @@ const shot = (p, n, full) => p.screenshot({ path: path.join(SHOTS, n + '.png'), 
     await collect(); await shot(page, v, true);
   }
   // tabs on each list
-  for (const [v, tabs] of [['pd', ['31', '0', 'all', '91']], ['ins', ['investigate', 'nofile', 'monitor', 'all', 'partly', 'chase']], ['cr', ['pre', 'all', 'work']]]) {
+  for (const [v, tabs] of [['pd', ['91', '31', '0', 'all', 'lad']], ['ins', ['investigate', 'nofile', 'monitor', 'all', 'partly', 'chase']], ['cr', ['pre', 'all', 'work']]]) {
     await page.click('#nav-' + v);
     for (const t of tabs) { await page.click('[data-act=tab][data-t="' + t + '"]'); await page.waitForTimeout(80); await collect(); }
   }
@@ -125,7 +127,81 @@ const shot = (p, n, full) => p.screenshot({ path: path.join(SHOTS, n + '.png'), 
   await page.click('#drawer [data-act=log][data-k=pt_vm]'); await page.waitForTimeout(300);
   const back = await itemOf(kb);
   ok(back.state === 'open' && back.log.slice(-2).map(e => e.k).join(',') === 'reopen,pt_vm', 'logging a voicemail reopened it first: ' + back.log.slice(-2).map(e => e.k).join(','));
+  ok(back.log[back.log.length - 2].fresh === true, 'as a new round (a collections ladder starts over)');
   await closeDrawer();
+
+  // ---- the collections ladder (handbook §14)
+  const lad = k => page.evaluate(k => { const l = ladFor(S.byKey.get(k)); return l && JSON.parse(JSON.stringify({ due: l.due && l.due.id, done: Object.keys(l.done), signed: Object.keys(l.signed), asked: l.asked, hold: !!l.hold, paused: l.paused, fin: !!l.fin })); }, k);
+  const dueKey = (step, extra) => page.evaluate(([st, x]) => { const a = ladDueAccts().find(a => { const l = ladFor(a); return l.due.id === st && (x !== 'asked' || l.asked === st) && (x !== 'free' || (!l.asked && !l.signed[st])); }); return a && a.key; }, [step, extra || '']);
+  await page.click('#nav-today'); await page.waitForSelector('.ladRow');
+  ok(await page.$$eval('.ladRow', r => r.length) >= 8, 'Today lists the collection steps due, step by step');
+  await page.click('.ladRow[data-step=l1]'); await page.waitForTimeout(150);
+  ok(await S_(() => S.view === 'pd' && S.tab.pd === 'lad' && S.ladStep === 'l1' && S.lastList.length > 1 && S.lastList.every(a => ladFor(a).due.id === 'l1')), 'a step on Today opens the ladder at that step');
+  await collect(); await shot(page, 'ladder-l1', true);
+  const nL1 = await S_(() => S.lastList.length);
+  await page.click('[data-act=ladBatch][data-m=done]'); await page.click('#cbYes'); await page.waitForTimeout(700);
+  ok(await S_(() => !ladDueAccts().some(a => ladFor(a).due.id === 'l1')) && await toastHas(/Letter #1: \d+ accounts marked sent/), 'all ' + nL1 + ' Letter #1s marked sent at once (sent together from Edge)');
+  ok(await S_(() => S.ladStep === '' && S.lastList.length === ladDueAccts().length), 'with none left at that step, the list shows every step again');
+  // Letter #3 and the call, in one tap; undo
+  const k3 = await dueKey('l3');
+  await page.evaluate(k => openDrawer(k), k3); await page.waitForSelector('#drawer .ladNow');
+  await collect(); await shot(page, 'drawer-ladder');
+  await page.click('#drawer [data-act=ladDone][data-s=l3]'); await page.waitForTimeout(250);
+  let L3 = await lad(k3);
+  ok(L3.done.includes('l3') && !L3.due && await toastHas(/Recorded: Letter #3 sent \+ called/), 'Letter #3 + the call recorded in one tap; nothing due until day 60');
+  await page.click('#drawer [data-act=undoLog]'); await page.waitForTimeout(250);
+  ok((await lad(k3)).due === 'l3', 'Undo puts it back');
+  await closeDrawer();
+  // Letter #4: Dr. A signs it himself; Maintenance Hold on and off; sent
+  const k4 = await dueKey('l4', 'free');
+  await page.evaluate(k => openDrawer(k), k4); await page.waitForSelector('#drawer [data-act=ladSigned]');
+  await page.click('#drawer [data-act=ladSigned][data-s=l4]'); await page.waitForTimeout(250);
+  ok((await lad(k4)).signed.includes('l4') && await page.isVisible('#drawer .ladNow .badge.t-ok'), 'Dr. A: “I signed it” — the letter shows signed, ready to send');
+  await page.click('#drawer [data-act=ladHold][data-on="1"]'); await page.waitForTimeout(250);
+  ok((await lad(k4)).hold && await page.isVisible('#drawer .holdBox') && await toastHas(/yellow box/), 'put on Maintenance Hold (the reminder says: the yellow box in Edge, tell the clinical team)');
+  await page.click('#drawer [data-act=ladDone][data-s=l4]'); await page.waitForTimeout(250);
+  ok((await lad(k4)).done.includes('l4') && !(await lad(k4)).due, 'Letter #4 sent (not certified: no tracking number asked)');
+  await page.click('#drawer [data-act=ladHold][data-on="0"]'); await page.waitForTimeout(250);
+  ok(!(await lad(k4)).hold, 'hold lifted');
+  await closeDrawer();
+  // Letter #5 waiting for his signature: he signs it in the box; it goes certified with its tracking number
+  const k5 = await dueKey('l5', 'asked');
+  ok(!!k5, 'the demo has a certified letter waiting for Dr. A');
+  await page.evaluate(k => openDrawer(k), k5); await page.waitForSelector('#drawer .drABox');
+  ok(await page.$eval('#drawer .drABox', e => /Letter #5 — for you to sign/.test(e.textContent)) && await page.isVisible('#drawer .ladNow .waitTag') && !(await page.$('#drawer [data-act=ladSigned]')), 'he sees it as a letter to sign (one place to sign it)');
+  await shot(page, 'drawer-sign');
+  await page.click('#drawer .drABox [data-act=drAok]'); await page.waitForTimeout(250);
+  ok((await lad(k5)).signed.includes('l5') && !(await itemOf(k5)).drA && await toastHas(/Signed — ready to send/), 'signed: it leaves his list');
+  await page.click('#drawer [data-act=ladDone][data-s=l5]'); await page.waitForSelector('#ctNo');
+  await page.fill('#ctNo', '9407 1112 0000 0000 0000 42'); await page.click('#ctOk'); await page.waitForTimeout(250);
+  const it5 = await itemOf(k5), e5 = it5.log[it5.log.length - 1];
+  ok(e5.k === 'ladder' && e5.step === 'l5' && /^Certified #9407/.test(e5.note), 'sent certified: the tracking number is kept with it');
+  await closeDrawer();
+  // staff: “Ask Dr. A to sign” (Letter #7)
+  await page.evaluate(() => { B.me.role = 'staff'; });
+  const k7 = await dueKey('l7', 'free');
+  await page.evaluate(k => openDrawer(k), k7); await page.waitForSelector('#drawer [data-act=ladAsk]');
+  await page.click('#drawer [data-act=ladAsk][data-s=l7]'); await page.waitForTimeout(250);
+  ok((await lad(k7)).asked === 'l7' && (await itemOf(k7)).drA && await page.isVisible('#drawer .ladNow .waitTag'), 'staff: “Ask Dr. A to sign” puts Letter #7 on his list; the panel says it’s waiting');
+  await page.evaluate(() => { B.me.role = 'owner'; }); await closeDrawer();
+  // a broken arrangement: Letter #8 comes due
+  const kp = await S_(() => { const a = S.accts.find(a => { const l = ladFor(a); return l && l.paused === 'plan'; }); return a && a.key; });
+  await page.evaluate(k => openDrawer(k), kp); await page.waitForSelector('#drawer .ladSec .notice.info [data-act=ladAA]');
+  await page.click('#drawer .ladSec [data-act=ladAA]'); await page.click('#cbYes'); await page.waitForTimeout(250);
+  ok((await lad(kp)).due === 'aa' && (await itemOf(kp)).stage === 'working', 'a payment plan broken: Letter #8 (off the ladder) is due');
+  await closeDrawer();
+  // the last step: 30 days after Letter #7 — write it off
+  const ke = await dueKey('end');
+  await page.evaluate(k => openDrawer(k), ke); await page.waitForSelector('#drawer .ladNow [data-act=resolve]');
+  await page.click('#drawer .ladNow [data-act=resolve]'); await page.click('#rsPick .pick[data-o=writeoff]'); await page.click('#rsOk'); await page.waitForTimeout(300);
+  ok((await itemOf(ke)).outcome === 'writeoff' && !(await S_(() => ladDueAccts().some(a => ladFor(a).due.id === 'end'))), 'the 30 days are up: resolved as written off, it leaves the steps due');
+  await closeDrawer();
+  await page.click('#nav-pd'); await page.click('[data-act=tab][data-t=lad]');
+  const [dl2] = await Promise.all([page.waitForEvent('download'), page.click('[data-act=csv]').then(() => page.click('#cbYes'))]);
+  const csv2 = fs.readFileSync(await dl2.path(), 'utf8');
+  ok(/"Collections step"/.test(csv2) && /Day \d+: Letter #/.test(csv2), 'the downloaded steps list says each account’s step');
+  await page.click('#nav-sum'); await page.waitForTimeout(200);
+  ok(/Collections ladder/.test(await page.textContent('#view')) && /On Maintenance Hold/.test(await page.textContent('#view')), 'Summary: where the accounts are on the ladder');
 
   // credits: the refund checklist
   await page.click('#nav-cr'); await page.waitForSelector('#view tbody tr');
@@ -144,7 +220,7 @@ const shot = (p, n, full) => p.screenshot({ path: path.join(SHOTS, n + '.png'), 
   ok((await S_(() => counts())).cleared === 0 && await toastHas(/Closed 1 account/), 'closing “Cleared in Edge” resolves them');
 
   // download a list
-  await page.click('#nav-pd');
+  await page.click('#nav-pd'); await page.click('[data-act=tab][data-t="91"]');
   const [dl] = await Promise.all([page.waitForEvent('download'), page.click('[data-act=csv]').then(() => page.click('#cbYes'))]);
   const csv = fs.readFileSync(await dl.path(), 'utf8');
   ok(/^﻿"Patient","Responsible party","Edge status"/.test(csv) && csv.split('\n').length === n91 + 1, 'Download list: a CSV with a heading row and one line per account (' + (csv.split('\n').length - 1) + ')');
@@ -219,7 +295,7 @@ const shot = (p, n, full) => p.screenshot({ path: path.join(SHOTS, n + '.png'), 
     await p2.screenshot({ path: path.join(SHOTS, 'phone-' + v + '.png'), fullPage: true });
     ok(await wide() <= 0, 'phone: ' + v + ' fits the screen');
   }
-  await p2.click('#mnav-pd'); await p2.click('#view tbody tr >> nth=0'); await p2.waitForSelector('#drawer .nowBox');
+  await p2.click('#mnav-pd'); await p2.click('#view tbody tr >> nth=0'); await p2.waitForSelector('#drawer .ladNow');
   await p2.screenshot({ path: path.join(SHOTS, 'phone-drawer.png'), fullPage: false });
   ok(await p2.$eval('#drawer', e => e.getBoundingClientRect().width <= window.innerWidth), 'phone: the account panel fits');
 

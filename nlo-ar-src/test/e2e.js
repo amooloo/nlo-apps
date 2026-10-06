@@ -52,7 +52,8 @@ const waitItem = (p, name, test, ms) => p.waitForFunction(([n, t]) => {
   return ({
     working1: it.log.length === 1 && it.stage === 'working', log1: it.log.length === 1, log3: it.log.length === 3,
     drAok: !it.drA && it.log.some(e => e.k === 'drA_ok'), paid: it.state === 'done' && it.outcome === 'paid',
-    open: it.state === 'open', cleared: it.state === 'done' && it.outcome === 'cleared'
+    open: it.state === 'open', cleared: it.state === 'done' && it.outcome === 'cleared',
+    askSign: it.drA && it.log.some(e => e.k === 'drA_ask' && e.step), signed: !it.drA && it.log.some(e => e.k === 'drA_ok' && e.step), ladSent: it.log.some(e => e.k === 'ladder' && e.step)
   })[t];
 }, [name, test], { timeout: ms || 30000 });
 async function openAcct(p, name) { await p.evaluate(n => { const a = S.accts.find(x => x.patient === n); openDrawer(a.key); }, name); await p.waitForSelector('#drawer .dHd'); }
@@ -184,6 +185,28 @@ async function openAcct(p, name) { await p.evaluate(n => { const a = S.accts.fin
   await owner.click('#nav-today'); await owner.click('[data-act=closeCleared]'); await owner.click('#cbYes');
   await waitItem(jamie, 'Extra Paidoff', 'cleared');
   check(true, '“Close all” resolves it as cleared in Edge');
+
+  console.log('\n# The collections ladder: Jamie asks Dr. A to sign a letter, he signs it, she sends it certified');
+  const lad = await jamie.evaluate(() => { const a = S.accts.find(x => { const l = ladFor(x); return l && l.due && l.due.dra && l.due.cert && !itemFor(x.key); }); return a && { name: a.patient, step: ladFor(a).due.id, day: ladFor(a).day }; });
+  check(!!lad, 'a patient account is at a certified letter Dr. A signs: ' + (lad && lad.step + ', day ' + lad.day));
+  await jamie.click('#nav-pd'); await jamie.waitForSelector('[data-act=tab][data-t=lad]');
+  check(await jamie.evaluate(() => S.tab.pd === 'lad' && S.lastList.length === ladDueAccts().length && S.lastList.length > 0), 'Past due opens on the steps due');
+  await openAcct(jamie, lad.name); await jamie.click('#drawer [data-act=ladAsk]');
+  await waitItem(owner, lad.name, 'askSign');
+  check((await owner.evaluate(() => counts().drA)) === 1 && /to sign/.test(await owner.evaluate(n => drAText(Array.from(S.items.values()).find(x => x.name === n)), lad.name)), 'it’s on Dr. A’s Today as a letter to sign');
+  await openAcct(owner, lad.name); await owner.click('#drawer .drABox [data-act=drAok]');
+  await waitItem(jamie, lad.name, 'signed');
+  check(await jamie.evaluate(s => { const a = S.accts.find(x => x.patient === s.name); return !!ladFor(a).signed[s.step]; }, lad), 'Jamie sees it signed');
+  await owner.keyboard.press('Escape');
+  await jamie.click('#drawer [data-act=ladDone]'); await jamie.waitForSelector('#ctNo');
+  await jamie.fill('#ctNo', '9407 1112 0000 0000 0000 99'); await jamie.click('#ctOk');
+  await waitItem(owner, lad.name, 'ladSent');
+  const sent = await owner.evaluate(s => { const a = S.accts.find(x => x.patient === s.name), l = ladFor(a); return { done: !!l.done[s.step], due: l.due && l.due.id, note: l.done[s.step] && l.done[s.step].note }; }, lad);
+  check(sent.done && sent.due !== lad.step && /Certified #9407/.test(sent.note || ''), 'sent: Dr. A’s screen shows the step done with its tracking number');
+  await settled(jamie);
+  const ladBlob = JSON.stringify((await fsDocs('arItems')).concat(await fsDocs('arLog')));
+  check(!/FC- #|Certified|9407|drA_ask|ladder/.test(ladBlob), 'the letters, the tracking number and the steps are sealed in the database');
+  await jamie.keyboard.press('Escape');
 
   console.log('\n# Settings: the numbers are shared');
   await owner.click('#nav-settings'); await owner.waitForSelector('#cfgInst');

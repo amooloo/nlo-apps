@@ -248,5 +248,6 @@ await seed({ fresh: true });
 }
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
+await env.clearFirestore(); // leave the emulator empty for the end-to-end test that runs next
 await env.cleanup();
 process.exit(fail ? 1 : 0);

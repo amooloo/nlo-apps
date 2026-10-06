@@ -13,8 +13,8 @@ async function change(key, fn0, action, okMsg) {
   const a = S.byKey.get(key), cur = itemFor(key), now = Date.now();
   const base = cur ? null : a ? Object.assign(blankItem(a), { createdAt: now, createdBy: meSid() }) : null;
   if (!cur && !base) return false;
-  // an account resolved before (on the list again, or resolved long ago and not loaded): working it reopens it
-  const fn = !cur || isBack(cur) ? d => { if (d.state === 'done') reopenItem(d, { by: meSid(), note: 'On the list again' }, now); fn0(d); } : fn0;
+  // an account resolved before (on the list again, or resolved long ago and not loaded): working it reopens it, and its collections ladder starts over
+  const fn = !cur || isBack(cur) ? d => { if (d.state === 'done') reopenItem(d, { by: meSid(), note: 'On the list again', fresh: true }, now); fn0(d); } : fn0;
   const id = cur ? cur.id : await idFor(key);
   const copy = JSON.parse(JSON.stringify(cur || base));
   try { fn(copy); } catch (e) { toast(errText(e), { bad: true }); return false; }
@@ -67,6 +67,8 @@ function renderDrawer() {
   if (back) h += '<div class="notice info">Resolved ' + esc(fmtDate(isoOf(new Date(it.resolvedAt || it.updatedAt || 0)))) + ' (' + esc(String(OUTCOMES[it.outcome] || 'resolved').toLowerCase()) + '), but it’s ' + (a.pd > 0 ? 'past due' : 'in credit') + ' again in the ' + esc(fmtDate(S.rep.asOf)) + ' report. Logging anything reopens it.</div>';
   if (a) h += contactHTML(a) + numbersHTML(a) + whyHTML(a);
   if (it && it.drA && !done) h += drABoxHTML(it);
+  const L = a && !done ? ladFor(a) : null;
+  if (L) h += ladderHTML(a, it, L);
   if (!done) h += nowHTML(a, it, g);
   h += workHTML(it, done);
   if (g === 'cr') h += checksHTML(it, done);
@@ -101,7 +103,9 @@ function whyHTML(a) {
   if (a.months) lines.push('<div class="wl">' + tierChip(a) + '</div><div class="wd">Past due ' + money(a.pd, true) + ' = ' + a.months + ' × ' + money(S.cfg.inst, true) + ': the carrier hasn’t paid anything in ' + plural(a.months, 'month') + '. ' + esc(TIERS[a.tier].l) + '.</div>');
   if (a.bucket) {
     const s = pdAction(a, S.cfg), l91 = a.bucket === '91' ? list91(S.accts) : null, rank = l91 ? l91.findIndex(x => x.key === a.key) + 1 : 0;
-    if (!(a.months && s.k === 'claim')) lines.push('<div class="wl">' + sugChip(s) + '</div><div class="wd">' + (rank ? '#' + rank + ' of ' + l91.length + ' on the 91+ list (' + money(a.b90, true) + ' at 91+ days).' : a.bucket === '31' ? '31–90 days past due — catch it before it reaches 91.' : 'Up to 30 days past due.') + '</div>');
+    // on the collections ladder, the ladder below says what to do (a write-off candidate still says so)
+    const L = ladFor(a), chip = L && s.k !== 'wo' ? '<span class="sug navy" title="Days past due today: Edge’s Days on ' + esc(fmtDate(S.rep.asOf)) + ', plus the days since">Day ' + L.day + ' past due</span>' : sugChip(s);
+    if (!(a.months && s.k === 'claim')) lines.push('<div class="wl">' + chip + '</div><div class="wd">' + (rank ? '#' + rank + ' of ' + l91.length + ' on the 91+ list (' + money(a.b90, true) + ' at 91+ days).' : a.bucket === '31' ? '31–90 days past due — catch it before it reaches 91.' : 'Up to 30 days past due.') + '</div>');
   }
   if (a.credit > 0) {
     const s = crAction(a);
@@ -110,10 +114,65 @@ function whyHTML(a) {
   return lines.length ? '<div class="whyBox">' + lines.join('') + '</div>' : '';
 }
 function drABoxHTML(it) {
-  const e = (it.log || []).slice().reverse().find(x => x.k === 'drA_ask' || (LOGS[x.k] && LOGS[x.k].drA)) || lastLog(it);
-  return '<div class="drABox"><div style="display:flex;gap:8px;align-items:center;font-weight:700">' + ic('flag', 16) + (isOwner() ? 'Waiting for your OK' : 'Waiting for Dr. A') + '</div>' +
-    '<div class="small" style="margin-top:4px;color:var(--grey-700)">' + esc(e ? logLabel(e) + (e.note ? ': ' + e.note : '') + ' · ' + firstName(staffName(e.by, e.by)) + ', ' + fmtWhen(e.at) : '') + '</div>' +
-    (isOwner() ? '<div class="btnRow"><button class="btn btn-mint btn-sm" data-act="drAok">' + ic('done', 15) + 'OK</button><button class="btn btn-sec btn-sm" data-act="drAno">Not yet</button></div>' : '') + '</div>';
+  const e = drAQuestion(it) || lastLog(it), st = e && e.k === 'drA_ask' && own(LAD_BY, e.step) ? LAD_BY[e.step] : null;
+  const what = !e ? '' : st ? st.l + (st.send ? ' · ' + st.send : '') + (e.note ? ' — ' + e.note : '') : logLabel(e) + (e.note ? ': ' + e.note : '');
+  return '<div class="drABox"><div style="display:flex;gap:8px;align-items:center;font-weight:700">' + ic(st ? 'sign' : 'flag', 16) + esc(st ? (isOwner() ? st.s + ' — for you to sign' : 'Waiting for Dr. A to sign ' + st.s) : isOwner() ? 'Waiting for your OK' : 'Waiting for Dr. A') + '</div>' +
+    '<div class="small" style="margin-top:4px;color:var(--grey-700)">' + esc(e ? what + ' · ' + shortName(e.by) + ', ' + fmtWhen(e.at) : '') + '</div>' +
+    (isOwner() ? '<div class="btnRow"><button class="btn btn-mint btn-sm" data-act="drAok">' + ic(st ? 'sign' : 'done', 15) + (st ? 'Signed' : 'OK') + '</button><button class="btn btn-sec btn-sm" data-act="drAno">Not yet</button></div>' : '') + '</div>';
+}
+
+/* ---------- the collections ladder (handbook §14) ---------- */
+function ladderHTML(a, it, L) {
+  let h = '<div class="sec ladSec"><h5>Collections ladder · day ' + L.day + ' past due</h5>';
+  if (L.hold) h += '<div class="holdBox"><div class="hbT">' + ic('pause', 16) + '<b>On Maintenance Hold</b><span class="small">since ' + esc(fmtDate(isoOf(new Date(L.hold.at)))) + '</span></div>' +
+    '<div class="small">Comfort visits only — no active tooth movement. Lift it once the past due is paid in full, or an arrangement is signed and its first payment is in: take the yellow box off in Edge and tell the clinical team.</div>' +
+    '<div class="btnRow"><button class="btn btn-sec btn-sm" data-act="ladHold" data-on="0">Lift the hold</button></div></div>';
+  if (L.paused && L.paused !== 'done') h += '<div class="notice info">Paused — ' + esc(L.paused === 'plan' ? 'a payment plan (Alternative Arrangement) is in place.' : L.paused === 'promise' ? 'they promised to pay by ' + fmtDay(it.follow) + '; it picks up again after that.' : 'the account is set to Paused.') +
+    (L.paused === 'plan' ? ' <button class="linkBtn" data-act="ladAA">It was broken…</button>' : '') + '</div>';
+  if (L.pip && !L.due && L.reached === 0) h += '<div class="notice info">Edge’s note says a payment is in process — no text needed yet.</div>';
+  if (L.due) h += ladNowHTML(L, L.due);
+  else if (L.fin) h += '<div class="notice">' + esc((L.done.aa ? 'Letter #8' : 'Letter #7') + ' went out ' + fmtDate(isoOf(new Date(L.fin.at))) + '. The 30 days for appliance removal and emergencies end ' + fmtDay(L.endOn) + '.') + '</div>';
+  else if (L.next && !L.paused) h += '<div class="small ladNext">Nothing due now. Next: <b>' + esc(L.next.s) + '</b> — ' + esc(L.next.l) + ', on day ' + L.next.day + ' (' + esc(fmtDay(L.nextOn)) + ').</div>';
+  h += ladStepsHTML(a, L);
+  h += '<div class="ladFoot">' + (!L.broke && !L.fin && L.paused !== 'plan' ? '<button class="linkBtn small" data-act="ladAA">An arrangement was broken…</button>' : '') + '<button class="linkBtn small" data-act="ladHelp">How the ladder works</button></div>';
+  return h + '</div>';
+}
+/* the step that's due: how it goes out, the text, the call, what else to do in Edge — and one tap when it's done */
+function ladNowHTML(L, s) {
+  const signed = !!L.signed[s.id], asked = L.asked === s.id, end = s.id === 'end' || s.id === 'endaa', owner = isOwner();
+  const li = (icon, html) => '<li>' + ic(icon, 14) + '<span>' + html + '</span></li>';
+  let lines = '';
+  if (s.send) lines += li('mail', esc(s.send) + (s.dra ? ' · <b>signed by Dr. A</b>' : ''));
+  if (s.text) lines += li('text', 'Text <b>' + esc(s.text) + '</b> <span class="muted">(Weave — as written)</span>');
+  if (s.call) lines += li('call', esc(s.call));
+  (s.do || []).forEach(x => { lines += li('next', esc(x)); });
+  if (s.hold && !L.hold) lines += li('pause', '<b>Maintenance Hold</b> — the FC’s call from 60 days: comfort visits only, no active tooth movement (Edge: the yellow box and a treatment note; tell the clinical team).');
+  let btns = '';
+  if (end) btns = '<button class="btn btn-pri btn-sm" data-act="resolve">' + ic('done', 15) + 'Resolve…</button>';
+  else if (s.dra && !signed) {
+    // asked already: Dr. A answers in the box above (Signed / Not yet)
+    if (asked) btns = '<span class="waitTag">' + ic('clock', 14) + (owner ? 'Waiting for your signature (above)' : 'Waiting for Dr. A to sign') + '</span>';
+    else if (owner) btns = '<button class="btn btn-mint btn-sm" data-act="ladSigned" data-s="' + s.id + '">' + ic('sign', 15) + 'I signed it</button>';
+    else btns = '<button class="btn btn-pri btn-sm" data-act="ladAsk" data-s="' + s.id + '">' + ic('flag', 15) + 'Ask Dr. A to sign</button>';
+    if (!(owner && asked)) btns += '<button class="btn btn-sec btn-sm" data-act="ladDone" data-s="' + s.id + '" title="Dr. A signed it outside the app, and it went out">Signed &amp; sent</button>';
+  } else btns = '<button class="btn btn-pri btn-sm" data-act="ladDone" data-s="' + s.id + '">' + ic('done', 15) + esc(s.btn) + '</button>';
+  if (s.hold && !L.hold) btns += '<button class="btn btn-sec btn-sm" data-act="ladHold" data-on="1">' + ic('pause', 15) + 'Put on Maintenance Hold</button>';
+  const tag = end ? 'Last step' : s.id === 'aa' ? 'Off the ladder' : 'Due now', sub = s.id === 'aa' ? 'Letter #8 · arrangement broken' : end ? '' : (s.n ? 'Letter #' + s.n + ' · ' : '') + 'day ' + s.day;
+  return '<div class="ladNow ' + esc(s.tone) + '"><div class="ladHd"><span class="ladTag">' + tag + '</span><b>' + esc(s.l) + '</b>' + (sub ? '<span class="small muted">' + esc(sub) + '</span>' : '') +
+    (signed ? '<span class="badge t-ok">' + ic('sign', 12) + 'Signed by Dr. A</span>' : '') + '</div><ul class="ladDo">' + lines + '</ul><div class="btnRow">' + btns + '</div></div>';
+}
+/* every step of this round: done (by whom, when), due, passed without being recorded, or the day it comes */
+function ladStepsHTML(a, L) {
+  const t = todayISO(), steps = LADDER.concat(L.broke ? [LAD_AA] : []);
+  const rows = steps.map((s, i) => {
+    const d = L.done[s.id], due = L.due && L.due.id === s.id, past = s.id === 'aa' ? false : i <= L.reached;
+    const cls = d ? 'ok' : due ? 'due' : past ? 'skip' : '';
+    const w = d ? '✓ ' + shortName(d.by) + ' · ' + fmtDate(isoOf(new Date(d.at))) : due ? 'Due now' : past ? 'Not recorded' : L.fin || L.broke ? '—' : fmtDate(ladDate(a, S.rep.asOf, t, s.day));
+    return '<li class="' + cls + '"><span class="ld">' + (s.id === 'aa' ? 'Off' : 'Day ' + s.day) + '</span><span class="ls"><b>' + esc(s.s) + '</b>' + (s.n ? ' · ' + esc(s.l) : '') + (L.signed[s.id] && !d ? ' <span class="small" style="color:var(--mint-700)">signed</span>' : '') + '</span><span class="lw">' + esc(w) + '</span></li>';
+  }).join('');
+  const nDone = steps.filter(s => L.done[s.id]).length;
+  return '<details class="ladAll"><summary><span class="ladBar" aria-hidden="true">' + steps.map((s, i) => '<i class="' + (L.done[s.id] ? 'ok' : L.due && L.due.id === s.id ? 'due' : s.id !== 'aa' && i <= L.reached ? 'skip' : '') + '"></i>').join('') + '</span>' +
+    '<span class="small">' + nDone + ' of ' + steps.length + ' recorded · every step</span></summary><ol class="ladList">' + rows + '</ol></details>';
 }
 /* what was just done — one tap */
 function nowHTML(a, it, g) {
@@ -153,7 +212,7 @@ function logHTML(it) {
   const L = ((it && it.log) || []).slice().reverse();
   if (!L.length) return '<div class="small muted">Nothing logged yet.</div>';
   const undoId = it && canUndoLog(it) && Date.now() - (L[0].at || 0) < 30 * 60000 && L[0].by === meSid() ? L[0].id : '';
-  return L.map(e => '<div class="logRow">' + avatarHTML(e.by) + '<div style="flex:1;min-width:0"><div class="w"><b>' + esc(firstName(staffName(e.by, e.by)) || '—') + '</b> · ' + esc(fmtWhen(e.at)) + '</div>' +
+  return L.map(e => '<div class="logRow">' + avatarHTML(e.by) + '<div style="flex:1;min-width:0"><div class="w"><b>' + esc(shortName(e.by) || '—') + '</b> · ' + esc(fmtWhen(e.at)) + '</div>' +
     '<div class="lt">' + esc(logLabel(e)) + (e.date && e.k === 'pt_promise' ? ' — by ' + esc(fmtDay(e.date)) : '') + (e.amt != null ? ' · ' + money(e.amt, true) : '') + '</div>' + (e.note ? '<div class="ln">' + esc(e.note) + '</div>' : '') + '</div>' +
     (e.id === undoId ? '<button class="btn btn-ghost" data-act="undoLog" title="Take this back">' + ic('undo', 14) + 'Undo</button>' : '') + '</div>').join('');
 }
@@ -168,9 +227,12 @@ function histText(x) {
     case 'follow': return x.to ? 'set the follow-up to ' + fmtDay(x.to) : 'cleared the follow-up';
     case 'stage': return 'set the status to “' + (STAGES[x.to] || 'Not started') + '”';
     case 'check': return (x.on ? 'ticked' : 'unticked') + ' a refund check';
-    case 'drA': return 'asked Dr. A';
-    case 'drAok': return 'OK’d it';
+    case 'drA': return own(LAD_BY, x.step) ? 'asked Dr. A to sign ' + LAD_BY[x.step].s : 'asked Dr. A';
+    case 'drAok': return own(LAD_BY, x.step) ? 'signed ' + LAD_BY[x.step].s : 'OK’d it';
     case 'drAno': return 'said not yet';
+    case 'ladder': return 'recorded: ' + (own(LAD_BY, x.step) ? LAD_BY[x.step].did.replace(/^./, c => c.toLowerCase()) : 'a collections step');
+    case 'mhold': return x.on ? 'put it on Maintenance Hold' : 'lifted the Maintenance Hold';
+    case 'aa': return 'marked the arrangement broken';
     case 'restore': return 'restored an earlier version';
     default: return x.a || '';
   }
@@ -178,7 +240,7 @@ function histText(x) {
 function historyHTML() {
   const h = S.history; if (!h) return '<div class="small muted">' + (itemFor(S.openKey) ? 'Loading…' : 'Nothing yet — the account’s record starts with the first thing logged.') + '</div>';
   const list = h.filter(x => x.a !== 'rekey' && x.a !== 'save'); if (!list.length) return '<div class="small muted">No history yet.</div>';
-  return list.slice().reverse().map(x => '<div class="hist"><time>' + esc(fmtWhen(x.at)) + '</time><span><b>' + esc(firstName(staffName(x.sid, x.sid)) || '') + '</b> ' + esc(histText(x)) + '</span></div>').join('');
+  return list.slice().reverse().map(x => '<div class="hist"><time>' + esc(fmtWhen(x.at)) + '</time><span><b>' + esc(shortName(x.sid) || '') + '</b> ' + esc(histText(x)) + '</span></div>').join('');
 }
 function earlierHTML() {
   const e = S.earlier; if (!e) return '';
@@ -202,6 +264,30 @@ function doLog(k, extra) {
 function undoLast(key) {
   const it = itemFor(key); if (!it || !canUndoLog(it)) { toast('Can’t undo that any more — it has changed since.', { bad: true }); return; }
   change(key, d => undoLog(d), { a: 'undo' }, 'Undone').then(() => loadHistory(key));
+}
+/* try a ladder change on a copy first, so a refusal (already recorded…) is said before anything is shown */
+function ladTest(key, fn) {
+  const it = itemFor(key), a = S.byKey.get(key);
+  const t = JSON.parse(JSON.stringify(it && !isBack(it) ? it : blankItem(a || { key, patient: '', rp: '', src: 'pt', credit: 0, pd: 0 })));
+  try { fn(t); return true; } catch (e) { toast(errText(e), { bad: true }); return false; }
+}
+function ladRecord(key, s, note) {
+  const now = Date.now(), ni = $('#nowNote'); if (ni) ni.value = '';
+  change(key, d => { ladderLog(d, s.id, { by: meSid(), note }, now); }, { a: 'ladder', step: s.id }).then(ok => { if (ok) loadHistory(key); });
+  toast('Recorded: ' + s.did, { action: 'Undo', onAction: () => undoLast(key) });
+}
+/* a certified letter: keep its tracking number with it */
+function certModal(key, s) {
+  const pre = noteVal();
+  openModal('<h3>' + esc(s.s) + ' sent</h3><div class="lsub">' + esc(s.l) + ' — ' + esc(s.send) + '</div>' +
+    '<div class="field"><label for="ctNo">Certified tracking number</label><input id="ctNo" autocomplete="off" spellcheck="false" placeholder="From the certified mail receipt (optional)"></div>' +
+    '<div class="field"><label for="ctNote">Note (optional)</label><input id="ctNote" autocomplete="off" value="' + esc(pre) + '"></div>' +
+    '<div class="mFt"><button class="btn btn-sec" data-act="closeModal">Cancel</button><button class="btn btn-pri" id="ctOk">' + ic('done', 15) + 'Save</button></div>', w => {
+      $('#ctOk', w).onclick = () => {
+        const no = $('#ctNo', w).value.trim().slice(0, 60), nt = $('#ctNote', w).value.trim();
+        closeModal(); ladRecord(key, s, [no ? 'Certified #' + no : '', nt].filter(Boolean).join(' · '));
+      };
+    });
 }
 Object.assign(ACT, {
   log(t) {
@@ -228,21 +314,52 @@ Object.assign(ACT, {
         };
       });
   },
-  drAok() { const key = curKey(), note = noteVal(); change(key, d => answerDrA(d, true, { by: meSid(), note }, Date.now()), { a: 'drAok' }, 'OK’d').then(() => loadHistory(key)); },
+  drAok() {
+    const key = curKey(), note = noteVal(), it = itemFor(key), q = it && drAQuestion(it), step = q && q.k === 'drA_ask' && own(LAD_BY, q.step) ? q.step : '';
+    change(key, d => answerDrA(d, true, { by: meSid(), note }, Date.now()), step ? { a: 'drAok', step } : { a: 'drAok' }, step ? 'Signed — ready to send' : 'OK’d').then(() => loadHistory(key));
+  },
   drAno() { const key = curKey(), note = noteVal(); change(key, d => answerDrA(d, false, { by: meSid(), note }, Date.now()), { a: 'drAno' }, 'Sent back').then(() => loadHistory(key)); },
   resolve() {
-    const key = curKey(), a = S.byKey.get(key), it = itemFor(key), g = groupOf(a, it);
+    const key = curKey(), a = S.byKey.get(key), it = itemFor(key), g = groupOf(a, it), hold = it && !isBack(it) && holdOf(it);
     openModal('<h3>Resolve this account</h3><div class="lsub">' + esc(a ? a.patient : it.name) + (a ? ' · ' + (a.pd > 0 ? money(a.pd, true) + ' past due' : money(a.credit, true) + ' credit') : '') + '</div>' +
+      (hold ? '<div class="notice">On Maintenance Hold: once it’s paid or settled, take the yellow box off in Edge and tell the clinical team.</div>' : '') +
       '<div class="flabel">How was it resolved?</div><div class="pickRow" id="rsPick">' + DONE[g].map(([k, l]) => '<button class="pick" data-o="' + k + '" aria-pressed="false">' + esc(l) + '</button>').join('') + '</div>' +
       '<div class="field" style="margin-top:14px"><label for="rsNote">Note (optional)</label><textarea id="rsNote" rows="2" placeholder="e.g. refund check #1012 mailed 10/6"></textarea></div>' +
       '<p class="small muted">It stays on the list as resolved until the next report from Edge no longer shows it.</p>' +
       '<div class="mFt"><button class="btn btn-sec" data-act="closeModal">Cancel</button><button class="btn btn-pri" id="rsOk" disabled>Resolve</button></div>', w => {
         let o = '';
         $$('#rsPick .pick', w).forEach(b => b.onclick = () => { o = b.dataset.o; $$('#rsPick .pick', w).forEach(x => x.setAttribute('aria-pressed', String(x === b))); $('#rsOk', w).disabled = false; });
-        $('#rsOk', w).onclick = () => { const note = $('#rsNote', w).value.trim(); closeModal(); change(key, d => resolveItem(d, o, { by: meSid(), note }, Date.now()), { a: 'resolve', outcome: o }, 'Resolved — ' + String(OUTCOMES[o]).toLowerCase()).then(() => loadHistory(key)); };
+        $('#rsOk', w).onclick = () => { const note = $('#rsNote', w).value.trim(); closeModal(); change(key, d => resolveItem(d, o, { by: meSid(), note }, Date.now()), { a: 'resolve', outcome: o }, 'Resolved — ' + String(OUTCOMES[o]).toLowerCase() + (hold ? '. Lift the Maintenance Hold in Edge' : '')).then(() => loadHistory(key)); };
       });
   },
-  resolveCleared() { const key = curKey(); change(key, d => resolveItem(d, 'cleared', { by: meSid(), note: S.rep ? 'Not in the ' + fmtDate(S.rep.asOf) + ' report' : '' }, Date.now()), { a: 'resolve', outcome: 'cleared' }, 'Closed — cleared in Edge').then(() => loadHistory(key)); },
+  resolveCleared() { const key = curKey(), it = itemFor(key), hold = it && holdOf(it); change(key, d => resolveItem(d, 'cleared', { by: meSid(), note: S.rep ? 'Not in the ' + fmtDate(S.rep.asOf) + ' report' : '' }, Date.now()), { a: 'resolve', outcome: 'cleared' }, 'Closed — cleared in Edge' + (hold ? '. Lift the Maintenance Hold in Edge and tell the clinical team' : '')).then(() => loadHistory(key)); },
+  /* the collections ladder */
+  ladDone(t) {
+    const key = curKey(), id = t.dataset.s, s = own(LAD_BY, id) ? LAD_BY[id] : null; if (!s) return;
+    if (!ladTest(key, d => ladderLog(d, id, { by: meSid() }, Date.now()))) return;
+    if (s.cert) return certModal(key, s);
+    ladRecord(key, s, noteVal());
+  },
+  ladAsk(t) {
+    const key = curKey(), id = t.dataset.s, note = noteVal(), now = Date.now(); if (!own(LAD_BY, id)) return;
+    const ni = $('#nowNote'); if (ni) ni.value = '';
+    change(key, d => askSign(d, id, { by: meSid(), note }, now), { a: 'drA', step: id }, 'Asked — it’s on Dr. A’s Today').then(ok => { if (ok) loadHistory(key); });
+  },
+  ladSigned(t) {
+    const key = curKey(), id = t.dataset.s, now = Date.now(); if (!own(LAD_BY, id)) return;
+    change(key, d => signStep(d, id, { by: meSid() }, now), { a: 'drAok', step: id }, 'Signed — ready to send').then(ok => { if (ok) loadHistory(key); });
+  },
+  ladHold(t) {
+    const key = curKey(), on = t.dataset.on === '1', note = noteVal(), now = Date.now();
+    const ni = $('#nowNote'); if (ni) ni.value = '';
+    change(key, d => holdLog(d, on, { by: meSid(), note }, now), { a: 'mhold', on }).then(ok => { if (ok) loadHistory(key); });
+    toast(on ? 'On Maintenance Hold — in Edge: the yellow box and a treatment note; tell the clinical team' : 'Hold lifted — take the yellow box off in Edge and tell the clinical team', { ms: 9000, action: 'Undo', onAction: () => undoLast(key) });
+  },
+  async ladAA() {
+    const key = curKey(), note = noteVal();
+    if (!(await confirmBox('The arrangement was broken?', 'Letter #8 (Broken Arrangement) comes next: Dr. A signs it, and it goes certified + regular mail + email. If they have an appointment, change it to Debond/Finish. They get 30 days for appliance removal and emergencies only; to restart treatment they pay the full remaining balance (Mastercard, Visa or Discover only).', 'It was broken'))) return;
+    change(key, d => breakArrangement(d, { by: meSid(), note }, Date.now()), { a: 'aa' }, 'Marked broken — Letter #8 is next').then(ok => { if (ok) loadHistory(key); });
+  },
   reopen() { const key = curKey(); change(key, d => reopenItem(d, { by: meSid() }, Date.now()), { a: 'reopen' }, 'Reopened').then(() => loadHistory(key)); },
   async loadEarlier() {
     const key = curKey(); S.earlier = { key, loading: true, rows: [] }; const box = $('#earlierBox'); if (box) box.innerHTML = earlierHTML();
@@ -288,7 +405,7 @@ async function versionsModal(key) {
   try {
     const list = await B.itemVersions(it.id); S.verList = list; S.verId = it.id; S.verKey = key;
     $('#verList').innerHTML = list.length ? '<div class="tblWrap"><table class="tbl"><thead><tr><th>Version</th><th>Contents</th><th></th></tr></thead><tbody>' + list.map((v, i) =>
-      '<tr><td class="small"><b>#' + v.rev + '</b><div class="muted">replaced ' + esc(fmtWhen(v.replacedAt)) + '<br>by ' + esc(firstName(staffName(v.replacedBy, v.replacedBy))) + (v.replacedHow ? ' (' + esc(v.replacedHow) + ')' : '') + '</div></td>' +
+      '<tr><td class="small"><b>#' + v.rev + '</b><div class="muted">replaced ' + esc(fmtWhen(v.replacedAt)) + '<br>by ' + esc(shortName(v.replacedBy)) + (v.replacedHow ? ' (' + esc(v.replacedHow) + ')' : '') + '</div></td>' +
       '<td class="small">' + (v.data ? esc((v.data.state === 'done' ? 'Resolved: ' + (OUTCOMES[v.data.outcome] || '') : STAGES[v.data.stage || '']) + ' · ' + plural((v.data.log || []).length, 'entry', 'entries')) : '<span style="color:var(--coral-700)">Can’t be read</span>') + '</td>' +
       '<td style="text-align:right">' + (v.data ? '<button class="btn btn-sec btn-sm" data-act="restoreVer" data-i="' + i + '">Restore</button>' : '') + '</td></tr>').join('') + '</tbody></table></div>'
       : '<div class="small muted">No earlier versions yet.</div>';

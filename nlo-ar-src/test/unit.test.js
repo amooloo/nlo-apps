@@ -159,6 +159,124 @@ const cfg = A.arCfg({});
     ok(A.blankItem(A.acctOf(row({ due: -50, bal: -50 }), cfg, '2026-10-05')).kind === 'cr', 'a credit account is a credit item');
   }
 
+  section('The collections ladder (handbook §14)');
+  {
+    const asOf = '2026-10-05', T = '2026-10-05', at = (y, m, d) => new Date(y, m - 1, d, 10).getTime();
+    const pa = o => A.acctOf(row(Object.assign({ due: 300, b0: 100, b30: 100, b90: 100, bal: 2000 }, o)), cfg, asOf);
+    const st = (a, it, today) => A.ladState(a, it || null, asOf, today || T);
+    eq([A.onLadder(pa({ days: 40 })), A.onLadder(pa({ days: 40, rp: 'INS: X' })), A.onLadder(pa({ days: 40, sts: 'Inactive' })), A.onLadder(A.acctOf(row({ due: -40, bal: -40 }), cfg, asOf))],
+      [true, false, false, false], 'on the ladder: patient accounts past due (not insurance, not inactive, not credits)');
+    eq([A.ladDays(pa({ days: 50 }), '2026-10-01', T), A.ladDays(pa({ days: null }), '2026-10-01', T), A.ladDays(pa({ days: null, b90: 0 }), asOf, T), A.ladDays(pa({ days: null, b90: 0, b30: 0, b60: 20 }), asOf, T), A.ladDays(pa({ days: null, b90: 0, b30: 0 }), asOf, T)],
+      [54, 95, 31, 61, 0], 'days past due today = Edge’s Days + the days since the report (no Days: the oldest bucket’s first day)');
+    const dueAt = d => { const s = st(pa({ days: d })); return s.due ? s.due.id : ''; };
+    eq([0, 13, 14, 29, 30, 44, 45, 60, 74, 75, 90, 100, 103, 104, 120, 400].map(dueAt), ['d0', 'd0', 'l1', 'l1', 'l2', 'l2', 'l3', 'l4', 'l4', 'c75', 'l5', 'l6', 'l6', 't8', 'l7', 'l7'],
+      'the step due follows days past due: text day 0, letters at 14/30/45/60, call 75, letters 90/100, text 104, letter 120');
+    eq([A.LAD_BY.l4.dra, A.LAD_BY.l5.dra && A.LAD_BY.l5.cert, A.LAD_BY.l7.dra && A.LAD_BY.l7.cert, A.LAD_AA.dra && A.LAD_AA.cert, !!A.LAD_BY.l1.dra, !!A.LAD_BY.l4.cert, A.LAD_BY.l4.hold],
+      [true, true, true, true, false, false, true], 'Dr. A signs #4, #5, #7, #8; #5, #7, #8 go certified; Maintenance Hold comes up at #4');
+    eq(['l1', 'l2', 'l3', 'l4', 'c75', 'l5', 'l6', 't8', 'l7'].map(k => A.LAD_BY[k].text), ['FC- Delinquent #1', 'FC- Delinquent #2', 'FC- Delinquent #3', 'FC- Delinquent #4', 'FC- Delinquent #7', 'FC- Delinquent #5 &6', 'FC- Delinquent #5 &6', 'FC- Delinquent #8', 'FC- Delinquent #9 (FINAL)'], 'each step names its Weave text');
+    {
+      const s = st(pa({ days: 5, note: 'Payment in process' }));
+      ok(s.due === null && s.pip === true, 'Edge says a payment is in process: no day-0 text');
+      ok(st(pa({ days: 20, note: 'Payment in process' })).due.id === 'l1', '…but from day 14 the letter is due all the same');
+    }
+    // record steps: the next one comes due by itself
+    {
+      const a = pa({ days: 20 }), it = A.blankItem(a);
+      A.ladderLog(it, 'l1', { by: 'sarah' }, at(2026, 10, 5));
+      let s = st(a, it);
+      eq([s.due, s.next && s.next.id, s.nextOn, it.stage, it.follow], [null, 'l2', '2026-10-15', 'waiting', ''], 'Letter #1 sent: nothing due; Letter #2 next on day 30 (Thu Oct 15); the follow-up isn’t touched');
+      eq(st(a, it, '2026-10-15').due.id, 'l2', 'on day 30 Letter #2 comes due');
+      let e = null; try { A.ladderLog(it, 'l1', { by: 'sarah' }, at(2026, 10, 5)); } catch (x) { e = x.code; }
+      eq(e, 'step-done', 'a step can’t be recorded twice in one round');
+      ok(A.canUndoLog(it), 'a ladder step can be undone');
+      A.undoLog(it); s = st(a, it);
+      eq([s.due.id, it.stage, it.log.length], ['l1', '', 0], 'undo: Letter #1 is due again, the stage is back');
+      eq(A.logLabel({ k: 'ladder', step: 'l3' }), 'Letter #3 sent + called', 'the log says what went out');
+    }
+    // far along with nothing recorded: the step for today's day count, the earlier ones are passed
+    {
+      const a = pa({ days: 95 }), it = A.blankItem(a), s0 = st(a, it);
+      eq([s0.due.id, s0.reached], ['l5', 6], 'day 95, nothing recorded: Letter #5 is due (not #1)');
+      A.ladderLog(it, 'l5', { by: 'sarah', note: 'Certified #9407 1112' }, at(2026, 10, 5));
+      const s1 = st(a, it);
+      eq([s1.due, s1.next.id, s1.nextOn], [null, 'l6', '2026-10-12'], 'after #5, #6 comes on day 100 (Sat → Mon Oct 12)');
+    }
+    // Dr. A signs: asked, signed, sent
+    {
+      const a = pa({ days: 62 }), it = A.blankItem(a);
+      A.askSign(it, 'l4', { by: 'sarah' }, at(2026, 10, 5));
+      let s = st(a, it);
+      eq([it.drA, s.asked, !!s.signed.l4, A.logLabel(it.log[0])], [true, 'l4', false, 'Asked Dr. A to sign Letter #4'], 'asking Dr. A to sign puts it on his list');
+      A.answerDrA(it, true, { by: 'amir' }, at(2026, 10, 5));
+      s = st(a, it);
+      eq([it.drA, !!s.signed.l4, it.log[1].step, A.logLabel(it.log[1])], [false, true, 'l4', 'Dr. A signed Letter #4'], 'he signs: it leaves his list, marked signed');
+      A.ladderLog(it, 'l4', { by: 'sarah' }, at(2026, 10, 5));
+      eq(st(a, it).due, null, 'then the FC sends it');
+      const b = A.blankItem(a); A.askSign(b, 'l4', { by: 'sarah' }, at(2026, 10, 5)); A.ladderLog(b, 'l4', { by: 'sarah' }, at(2026, 10, 5));
+      ok(b.drA === false, 'signed outside the app and sent: the request leaves his list');
+      const c = A.blankItem(a); A.signStep(c, 'l4', { by: 'amir' }, at(2026, 10, 5));
+      ok(c.log.length === 1 && c.log[0].k === 'drA_ok' && st(a, c).signed.l4, 'Dr. A can sign without being asked');
+      let e = null; try { A.askSign(c, 'l1', { by: 'sarah' }, 1); } catch (x) { e = x.code; } eq(e, 'bad-step', 'only his letters can be sent to him to sign');
+      // a refund request after an old letter request: his OK isn't taken as a signature
+      const d = A.blankItem(a); A.askSign(d, 'l4', { by: 'sarah' }, 1); A.answerDrA(d, true, { by: 'amir' }, 2); A.applyLog(d, 'cr_refreq', { by: 'sarah' }, 3); A.answerDrA(d, true, { by: 'amir' }, 4);
+      ok(d.log[3].k === 'drA_ok' && d.log[3].step === undefined, 'an OK to a refund request isn’t taken as signing a letter');
+    }
+    // paused: a payment plan, a promise to pay; a broken arrangement brings Letter #8
+    {
+      const a = pa({ days: 70 }), it = A.blankItem(a);
+      A.applyLog(it, 'pt_plan', { by: 'sarah' }, at(2026, 10, 5));
+      let s = st(a, it);
+      eq([s.paused, s.due, s.plan], ['plan', null, true], 'a payment plan pauses the ladder');
+      A.breakArrangement(it, { by: 'sarah' }, at(2026, 10, 6)); s = st(a, it);
+      eq([s.due.id, it.stage, s.next], ['aa', 'working', null], 'the arrangement broken: Letter #8 is due, off the ladder');
+      A.askSign(it, 'aa', { by: 'sarah' }, at(2026, 10, 6)); A.answerDrA(it, true, { by: 'amir' }, at(2026, 10, 6)); A.ladderLog(it, 'aa', { by: 'sarah' }, at(2026, 10, 6));
+      s = st(a, it, '2026-10-07');
+      eq([s.due, !!s.fin, s.endOn], [null, true, '2026-11-05'], 'Letter #8 sent: 30 days for appliance removal and emergencies (to Nov 5)');
+      eq(st(a, it, '2026-11-05').due.id, 'endaa', 'after the 30 days: Debond/Finish');
+      const p = A.blankItem(a); A.applyLog(p, 'pt_promise', { by: 'sarah', date: '2026-10-08' }, at(2026, 10, 5));
+      eq([st(a, p).paused, st(a, p, '2026-10-09').due.id], ['promise', 'l4'], 'a promise pauses it until the day passes (then Letter #4, day 74)');
+      const h = A.blankItem(a); A.applyLog(h, 'pt_vm', { by: 'sarah' }, 1); h.stage = 'hold';
+      eq(st(a, h).paused, 'hold', 'the status “Paused” pauses it');
+    }
+    // the last letter, then 30 days, then the write-off
+    {
+      const a = pa({ days: 125 }), it = A.blankItem(a);
+      A.signStep(it, 'l7', { by: 'amir' }, at(2026, 10, 5)); A.ladderLog(it, 'l7', { by: 'sarah' }, at(2026, 10, 5));
+      eq([st(a, it).due, st(a, it, '2026-11-04').due && st(a, it, '2026-11-04').due.id, st(a, it, '2026-11-05').due.id], [null, 'end', 'end'], 'Letter #7: nothing due for 30 days, then the write-off (Nov 4 is the first office day after)');
+    }
+    // Maintenance Hold
+    {
+      const a = pa({ days: 64 }), it = A.blankItem(a);
+      A.holdLog(it, true, { by: 'sarah' }, at(2026, 10, 5));
+      ok(!!st(a, it).hold && !!A.holdOf(it), 'put on Maintenance Hold');
+      A.undoLog(it); ok(!A.holdOf(it), 'undo takes it back');
+      A.holdLog(it, true, { by: 'sarah' }, 1); A.holdLog(it, false, { by: 'sarah' }, 2);
+      ok(!A.holdOf(it), 'lifted');
+      A.holdLog(it, true, { by: 'sarah' }, 3); A.resolveItem(it, 'paid', { by: 'sarah' }, 4);
+      ok(!A.holdOf(it) && st(a, it).paused === 'done' && st(a, it).due === null, 'paid (resolved): the hold ends and nothing is due');
+      eq([A.logLabel({ k: 'mhold_on' }), A.logLabel({ k: 'mhold_off' }), A.logLabel({ k: 'aa_broken' })], ['Put on Maintenance Hold', 'Maintenance Hold lifted', 'Arrangement broken'], 'their log labels');
+    }
+    // a new round when it's past due again after being resolved; a plain reopen carries on
+    {
+      const a = pa({ days: 40 }), it = A.blankItem(a);
+      A.ladderLog(it, 'l1', { by: 'sarah' }, 1); A.ladderLog(it, 'l2', { by: 'sarah' }, 2); A.holdLog(it, true, { by: 'sarah' }, 3);
+      A.resolveItem(it, 'other', { by: 'sarah' }, 4); A.reopenItem(it, { by: 'sarah' }, 5);
+      ok(!!st(a, it).done.l2 && st(a, it).due === null, 'reopened by hand: the steps already sent still count');
+      A.resolveItem(it, 'paid', { by: 'sarah' }, 6); A.reopenItem(it, { by: 'sarah', note: 'On the list again', fresh: true }, 7);
+      const s = st(a, it);
+      eq([Object.keys(s.done).length, s.due.id, !!s.hold, it.log[it.log.length - 1].fresh], [0, 'l2', false, true], 'past due again after being paid: a new round (nothing sent yet, no hold)');
+    }
+    // what's read back from the database
+    {
+      const n = A.normItem({ id: 'x', state: 'open', log: [{ k: 'ladder', step: 'l5', at: 1, by: 's', note: 'Certified #1', prev: { stage: '', follow: '', drA: false } }, { k: 'reopen', fresh: true, at: 2 }, { k: 'reopen', fresh: 'yes', at: 3 }, { k: 'ladder', step: '__proto__', at: 4 }, { k: 'drA_ok', step: 'toString', at: 5 }, { k: 'mhold_on', at: 6 }, { k: 'aa_broken', at: 7 }] });
+      eq(n.log.map(e => [e.k, e.step || '', e.fresh || false]), [['ladder', 'l5', false], ['reopen', '', true], ['reopen', '', false], ['ladder', '', false], ['drA_ok', '', false], ['mhold_on', '', false], ['aa_broken', '', false]],
+        'read back: known steps and kinds are kept, anything else is dropped (no prototype names)');
+      const ls = A.ladState(pa({ days: 40 }), n, asOf, T);
+      eq([Object.keys(ls.done), Object.keys(ls.signed), !!ls.hold, ls.due.id], [[], [], true, 'aa'], 'and on the ladder: the round starts after the new-round reopen; the dropped steps count for nothing');
+    }
+    ok(A.ladState(pa({ days: 40, rp: 'INS: X' }), null, asOf, T) === null && A.ladState(pa({ days: 40, sts: 'Inactive' }), null, asOf, T) === null, 'insurance and inactive accounts have no ladder');
+  }
+
   section('Office days and settings');
   eq(['2026-10-09', '2026-10-10', '2026-11-25', '2026-12-24', '2026-12-25', '2026-09-07'].map(A.nextOfficeDay), ['2026-10-12', '2026-10-12', '2026-11-30', '2026-12-24', '2026-12-28', '2026-09-08'],
     'office days: Mon–Thu, skipping Thanksgiving week, Christmas, Labor Day');

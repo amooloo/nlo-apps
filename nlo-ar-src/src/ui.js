@@ -5,7 +5,7 @@
    ===================================================================== */
 const S = {
   demo: false, emu: false, inApp: false, arState: '', view: 'today', q: '',
-  tab: { pd: '91', ins: 'chase', cr: 'work' }, f: { src: '', work: '', who: '' }, sort: { k: '', dir: 1 },
+  tab: { pd: 'lad', ins: 'chase', cr: 'work' }, f: { src: '', work: '', who: '' }, sort: { k: '', dir: 1 }, ladStep: '', ladVer: 0,
   settings: { idleMin: 10 }, cfg: arCfg({}), roster: [], team: [],
   reports: [], rep: null, repId: '', prev: null, prevId: '', accts: [], byKey: new Map(), diff: null,
   items: new Map(), itemByKey: new Map(), keyIds: new Map(), pend: {}, srv: {},
@@ -44,7 +44,12 @@ const IC = {
   flag: '<path d="M6 21V4.5"/><path d="M6 4.5h11.5l-2.2 4 2.2 4H6"/>',
   user: '<circle cx="12" cy="8" r="4"/><path d="M4.5 20c1.3-3.6 4.2-5.5 7.5-5.5s6.2 1.9 7.5 5.5"/>',
   note: '<path d="M5 4.5h14v15H5z"/><path d="M8.5 9h7M8.5 12.5h7M8.5 16h4"/>',
-  info: '<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 7.8v.2"/>'
+  info: '<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 7.8v.2"/>',
+  mail: '<rect x="3.5" y="5.5" width="17" height="13" rx="2.2"/><path d="M4 7l8 6 8-6"/>',
+  text: '<path d="M5 5.5h14a1.5 1.5 0 011.5 1.5v8.5A1.5 1.5 0 0119 17H10l-4.5 3.5V17H5a1.5 1.5 0 01-1.5-1.5V7A1.5 1.5 0 015 5.5z"/><path d="M8 10h8M8 13h5"/>',
+  sign: '<path d="M4 19.5h16"/><path d="M14.5 4.5l3 3-8.5 8.5H6v-3z"/>',
+  ladder: '<path d="M7 3.5v17M17 3.5v17M7 7.5h10M7 12h10M7 16.5h10"/>',
+  pause: '<circle cx="12" cy="12" r="8.5"/><path d="M10 9v6M14 9v6"/>'
 };
 function ic(n, s) { s = s || 18; return '<svg class="i" width="' + s + '" height="' + s + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (IC[n] || '') + '</svg>'; }
 
@@ -68,7 +73,7 @@ function errText(e) {
   if (/boot-stale/.test(c)) return 'This invite expired after a security update. Ask Dr. A to reissue your login.';
   if (/bad-code/.test(c)) return 'That recovery code didn’t work. Check it and try again.';
   if (/no-escrow/.test(c)) return 'There’s no recovery copy of the A/R key to restore from.';
-  if (/need-date|need-note|bad-date|no-pub|too-big|not-ar|bad-file|pdf/.test(c)) return (e && e.message) || 'Check that and try again.';
+  if (/need-date|need-note|bad-date|no-pub|too-big|not-ar|bad-file|pdf|step-done/.test(c)) return (e && e.message) || 'Check that and try again.';
   if (/nothing-to-undo/.test(c)) return 'Nothing to undo.';
   if (/permission/.test(c)) return 'Not allowed. Your access may have changed.';
   if (/gone/.test(c)) return 'That no longer exists.';
@@ -187,7 +192,7 @@ function bindLockForms() {
 /* ---------- enter / leave ---------- */
 async function enterApp() {
   Object.assign(S, {
-    inApp: true, arState: 'opening', view: 'today', q: '', f: { src: '', work: '', who: '' }, sort: { k: '', dir: 1 },
+    inApp: true, arState: 'opening', view: 'today', q: '', f: { src: '', work: '', who: '' }, sort: { k: '', dir: 1 }, ladStep: '', ladMemo: null,
     reports: [], rep: null, repId: '', prev: null, prevId: '', accts: [], byKey: new Map(), diff: null,
     items: new Map(), itemByKey: new Map(), keyIds: new Map(), pend: {}, srv: {}, openKey: '', ui: {}, imp: null, doneLoaded: false, people: null, accessBusy: '', rotating: null,
     firstLoad: true, loadErr: '', lastAct: Date.now(), team: [], roster: []
@@ -268,10 +273,27 @@ async function loadLatest() {
 }
 function derive() {
   S.accts = reportAccts(S.rep, S.cfg); S.byKey = new Map(S.accts.map(a => [a.key, a]));
-  S.diff = S.rep && S.prev ? diffReports(S.rep, S.prev, S.cfg) : null; S.summ = null;
+  S.diff = S.rep && S.prev ? diffReports(S.rep, S.prev, S.cfg) : null; S.summ = null; S.ladVer++;
 }
-function indexItems() { S.itemByKey = new Map(); S.items.forEach(it => { if (it.key && !it.locked) S.itemByKey.set(it.key, it); }); }
+function indexItems() { S.itemByKey = new Map(); S.items.forEach(it => { if (it.key && !it.locked) S.itemByKey.set(it.key, it); }); S.ladVer++; }
 function itemFor(key) { return S.itemByKey.get(key) || null; }
+
+/* ---------- the collections ladder (handbook §14), worked out once per change for every patient account past due ---------- */
+function ladAll() {
+  const t = todayISO();
+  if (S.ladMemo && S.ladMemo.v === S.ladVer && S.ladMemo.t === t) return S.ladMemo.m;
+  const m = new Map();
+  if (S.rep && S.rep.cover.pastDue) S.accts.forEach(a => {
+    if (!onLadder(a)) return;
+    const it = itemFor(a.key);
+    if (it && it.state === 'done' && !isBack(it)) return; // resolved (it leaves the next report)
+    m.set(a.key, ladState(a, isBack(it) ? null : it, S.rep.asOf, t));
+  });
+  S.ladMemo = { v: S.ladVer, t, m };
+  return m;
+}
+function ladFor(a) { return a ? ladAll().get(a.key) || null : null; }
+function ladDueAccts() { return S.accts.filter(a => { const l = ladFor(a); return l && l.due; }); }
 function curRepMeta() { return S.reports.find(r => r.id === S.repId) || null; }
 
 /* ---------- owner upkeep: logins reissued since, the recovery copy, anything under an older A/R key ---------- */
@@ -297,6 +319,8 @@ function meSid() { return B.me ? B.me.staffId : ''; }
 function isOwner() { return B.isOwner(); }
 function staff(sid) { return S.roster.find(r => r.sid === sid); }
 function staffName(sid, fallback) { const r = staff(sid); return r ? (r.role === 'owner' ? 'Dr. A' : r.name) : (fallback || ''); }
+/* a first name for lists (“Dr. A” stays whole) */
+function shortName(sid) { const n = staffName(sid, sid); return n === 'Dr. A' ? n : firstName(n); }
 /* the people accounts can be given to: everyone with A/R */
 function arPeople() {
   const team = new Set(S.team.concat([meSid()]));
@@ -327,7 +351,7 @@ function counts() {
     due: due.length, late: due.filter(it => it.follow < t).length,
     n91: A.filter(a => a.bucket === '91').length, chase: A.filter(a => a.tier === 'chase').length,
     cr: A.filter(a => a.credit > 0 && !a.prepay).length, drA: openItems().filter(it => it.drA).length,
-    cleared: openItems().filter(isCleared).length
+    cleared: openItems().filter(isCleared).length, lad: ladDueAccts().length
   };
 }
 
@@ -366,12 +390,12 @@ function renderNav() {
   if (S.arState !== 'ok') { $$('.navBtn[data-v]').forEach(b => b.classList.toggle('on', b.dataset.v === S.view)); return; }
   const c = counts();
   const set = (k, n, red) => ['nav-', 'mnav-'].forEach(p => { const el = $('#' + p + k + ' .cnt'); if (!el) return; el.textContent = n; el.classList.toggle('hidden', !n); el.classList.toggle('red', !!red); });
-  set('today', c.due + (isOwner() ? c.drA : 0), c.late > 0 || (isOwner() && c.drA > 0)); set('pd', c.n91); set('ins', c.chase, c.chase > 0); set('cr', c.cr);
+  set('today', c.due + (isOwner() ? c.drA : 0), c.late > 0 || (isOwner() && c.drA > 0)); set('pd', c.lad, c.lad > 0); set('ins', c.chase, c.chase > 0); set('cr', c.cr);
   $$('.navBtn[data-v]').forEach(b => b.classList.toggle('on', b.dataset.v === S.view));
 }
-/* the tab title shows how many follow-ups are due, so a pinned tab says when to look */
+/* the tab title shows how many follow-ups and collection steps are due, so a pinned tab says when to look */
 function updateTitle() {
-  if (!S.inApp) return; const n = S.arState === 'ok' ? counts().due : 0;
+  if (!S.inApp) return; const c = S.arState === 'ok' ? counts() : null, n = c ? c.due + c.lad : 0;
   document.title = (n ? '(' + n + ') ' : '') + 'NLO A/R';
 }
 function renderSync() {
@@ -450,6 +474,8 @@ function srcBadge(a) { return '<span class="badge ' + (a.ins ? 's-ins' : 's-pt')
 function stsBadge(a) { return a.sts ? '<span class="badge' + (a.inactive ? ' s-inact' : a.prepay ? ' s-pre' : '') + '" title="Edge status">' + esc(a.sts) + '</span>' : ''; }
 function sugChip(s, short) { return s && s.l ? '<span class="sug ' + esc(s.tone || 'grey') + '"' + (short && s.s ? ' title="' + esc(s.l) + '">' + esc(s.s) : '>' + esc(s.l)) + '</span>' : ''; }
 function tierChip(a) { const T = TIERS[a.tier]; return T ? '<span class="sug ' + T.tone + '" title="' + esc(T.l) + '">' + T.n + ' · ' + esc(T.s) + '</span>' : ''; }
+/* a step of the collections ladder */
+function ladChip(s) { return s ? '<span class="sug lad ' + esc(s.tone || 'grey') + '" title="' + esc(s.l) + '">' + esc(s.s) + '</span>' : ''; }
 function followChip(d) {
   if (!d) return '';
   const n = dayDiff(d), tip = ' title="' + esc('Follow up ' + fmtDay(d)) + '"';
@@ -489,10 +515,10 @@ Object.assign(ACT, {
     if (S.view === 'reports' && v !== 'reports' && S.imp && S.imp.files && S.imp.files.length && !confirm('Leave without saving this report?')) return;
     if (v !== 'reports') S.imp = null;
     S.view = v; if (t.dataset.tab) S.tab[v] = t.dataset.tab;
-    S.f = { src: '', work: '', who: '' }; S.sort = { k: '', dir: 1 };
+    S.f = { src: '', work: '', who: '' }; S.sort = { k: '', dir: 1 }; S.ladStep = t.dataset.step || '';
     closeDrawer(true); renderNav(); renderView(); window.scrollTo(0, 0);
   },
-  tab(t) { S.tab[S.view] = t.dataset.t; S.sort = { k: '', dir: 1 }; renderView(); },
+  tab(t) { S.tab[S.view] = t.dataset.t; S.sort = { k: '', dir: 1 }; S.ladStep = ''; renderView(); },
   clearF() { S.f = { src: '', work: '', who: '' }; renderView(); },
   sort(t) { const k = t.dataset.k; S.sort = { k, dir: S.sort.k === k ? -S.sort.dir : (t.dataset.d === 'asc' ? 1 : -1) }; renderView(); },
   open(t) { openDrawer(t.dataset.key); },

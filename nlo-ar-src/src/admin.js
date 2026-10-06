@@ -161,7 +161,7 @@ Object.assign(ACT, {
       if (!list.length) { b2.innerHTML = '<div class="small muted">Nothing in the last 7 days.</div>'; return; }
       b2.innerHTML = list.slice(0, 80).map(x => {
         const it = S.items.get(x.itemId), name = it && !it.locked ? it.name : '';
-        return '<div class="hist"><time>' + esc(fmtWhen(x.at)) + '</time><span><b>' + esc(firstName(staffName(x.sid, x.sid)) || '') + '</b> ' + esc(histText(x)) + ' — ' +
+        return '<div class="hist"><time>' + esc(fmtWhen(x.at)) + '</time><span><b>' + esc(shortName(x.sid) || '') + '</b> ' + esc(histText(x)) + ' — ' +
           (name ? '<button class="linkBtn" data-act="open" data-key="' + esc(it.key) + '">' + esc(name) + '</button>' : 'an account resolved a while ago') + '</span></div>';
       }).join('');
     } catch (x) { const b2 = $('#actBox'); if (b2) b2.innerHTML = '<div class="small" style="color:var(--coral-700)">' + esc(errText(x)) + '</div>'; }

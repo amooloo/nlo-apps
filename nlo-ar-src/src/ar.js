@@ -192,7 +192,7 @@ function diffReports(cur, prev, cfg) {
    Saved (sealed) only once someone does something with an account.
    ===================================================================== */
 const STAGES = {
-  '': 'Not started', working: 'Working on it', waiting: 'Waiting to hear back', promise: 'Promised to pay', plan: 'Payment plan', hold: 'On hold'
+  '': 'Not started', working: 'Working on it', waiting: 'Waiting to hear back', promise: 'Promised to pay', plan: 'Payment plan', hold: 'Paused'
 };
 const OUTCOMES = { paid: 'Paid', writeoff: 'Written off', refund: 'Refunded', transfer: 'Credit transferred', applied: 'Credit applied', cleared: 'Cleared in Edge', other: 'Resolved' };
 /* one tap logs it; most set what happens next */
@@ -270,27 +270,173 @@ function resolveItem(item, outcome, o, now) {
   const note = String((o && o.note) || '').trim();
   item.log = (item.log || []).concat([{ id: uid8(), at: now, by: (o && o.by) || '', k: 'done', outcome, note }]);
 }
+/* o.fresh: it's past due again after being resolved, so the collections ladder starts over */
 function reopenItem(item, o, now) {
   item.state = 'open'; item.outcome = ''; delete item.resolvedAt; delete item.resolvedBy;
-  item.log = (item.log || []).concat([{ id: uid8(), at: now, by: (o && o.by) || '', k: 'reopen', note: String((o && o.note) || '').trim() }]);
+  const e = { id: uid8(), at: now, by: (o && o.by) || '', k: 'reopen', note: String((o && o.note) || '').trim() };
+  if (o && o.fresh) e.fresh = true;
+  item.log = (item.log || []).concat([e]);
 }
-/* Dr. A's answer to a refund or write-off request */
+/* the entry that put the account on Dr. A's list (a question, a refund request, a letter to sign) */
+function drAQuestion(item) { return (item.log || []).slice().reverse().find(e => e.k === 'drA_ask' || (LOGS[e.k] && LOGS[e.k].drA)) || null; }
+/* Dr. A's answer to a refund or write-off request, or to a letter waiting for his signature */
 function answerDrA(item, ok, o, now) {
+  const q = drAQuestion(item);
   item.drA = false;
-  item.log = (item.log || []).concat([{ id: uid8(), at: now, by: (o && o.by) || '', k: ok ? 'drA_ok' : 'drA_no', note: String((o && o.note) || '').trim() }]);
+  const e = { id: uid8(), at: now, by: (o && o.by) || '', k: ok ? 'drA_ok' : 'drA_no', note: String((o && o.note) || '').trim() };
+  if (q && q.k === 'drA_ask' && own(LAD_BY, q.step)) e.step = q.step;
+  item.log = (item.log || []).concat([e]);
   if (!ok && item.stage === 'waiting') item.stage = 'working';
 }
 function lastLog(item) { const l = (item && item.log || []).filter(e => e.k !== 'reopen'); return l[l.length - 1] || null; }
 function logLabel(e) {
   if (!e) return '';
+  const st = own(LAD_BY, e.step) ? LAD_BY[e.step] : null;
   if (e.k === 'done') return 'Resolved — ' + (OUTCOMES[e.outcome] || e.outcome || '').toLowerCase();
   if (e.k === 'reopen') return 'Reopened';
-  if (e.k === 'drA_ask') return 'Asked Dr. A';
-  if (e.k === 'drA_ok') return 'Dr. A OK’d it';
-  if (e.k === 'drA_no') return 'Dr. A said not yet';
+  if (e.k === 'drA_ask') return st ? 'Asked Dr. A to sign ' + st.s : 'Asked Dr. A';
+  if (e.k === 'drA_ok') return st ? 'Dr. A signed ' + st.s : 'Dr. A OK’d it';
+  if (e.k === 'drA_no') return st ? 'Dr. A: not yet (' + st.s + ')' : 'Dr. A said not yet';
+  if (e.k === 'ladder') return st ? st.did : 'Collections step';
+  if (e.k === 'aa_broken') return 'Arrangement broken';
+  if (e.k === 'mhold_on') return 'Put on Maintenance Hold';
+  if (e.k === 'mhold_off') return 'Maintenance Hold lifted';
   if (e.k === 'assign') return 'Assigned';
   if (e.k === 'follow') return 'Follow-up moved';
   const L = LOGS[e.k]; return L ? L.s : e.k;
+}
+
+/* =====================================================================
+   The collections ladder — AISA handbook §14 (Collections Protocol:
+   "Escalation timeline — 7-letter sequence"), §16 (FC duties) and §45
+   (Maintenance Hold). A patient account past due goes up it by days past
+   due: a text on day 0, letters #1–#7 at 14, 30, 45, 60, 90, 100 and 120
+   days, calls at 45 and 75, a follow-up text after Dr. A's 90-day letter,
+   Maintenance Hold from 60 days (the FC's call), and Letter #8 — off the
+   sequence — when an Alternative Arrangement is broken. Dr. A signs #4,
+   #5, #7 and #8; #5, #7 and #8 also go certified. The FC starts at once,
+   alongside OrthoBanc's own ~90-day process. The day count is Edge's
+   "Days" column (the most days past due of any unpaid charge on the
+   contract, as of the report's date), carried on to today. The wording
+   lives in Edge's letters and Weave's "FC- Delinquent" texts; the app
+   says which one is due and keeps track of what went out.
+   The handbook names no text for day 75 and no day for "FC- Delinquent
+   #8": day 75 uses #7 (the between-letters text) and #8 goes on day 104,
+   two weeks after Dr. A's day-90 letter, which it mentions.
+   ===================================================================== */
+const LADDER = [
+  { id: 'd0', day: 0, s: 'First text', l: 'Text the family — the payment didn’t go through', btn: 'Texted', did: 'Texted the family (day 0)', tone: 'grey',
+    do: ['Text the responsible party now (OrthoBanc’s failed-payment emails come about the 5th, 12th, 19th and 26th)', 'Note it in the patient’s chart in Edge', 'Set a 2-week task in Edge'] },
+  { id: 'l1', day: 14, n: 1, s: 'Letter #1', l: 'FC- #1, Friendly Reminder', send: 'Mail or email · not certified', text: 'FC- Delinquent #1', btn: 'Sent', did: 'Letter #1 sent', tone: 'blue' },
+  { id: 'l2', day: 30, n: 2, s: 'Letter #2', l: 'FC- #2 - FIRST Escalation', send: 'Mail or email · not certified', text: 'FC- Delinquent #2', btn: 'Sent', did: 'Letter #2 sent', tone: 'blue',
+    do: ['Run the 30-day delinquency report in Edge'] },
+  { id: 'l3', day: 45, n: 3, s: 'Letter #3 + call', l: 'FC- #3 - Stronger FC Notice', send: 'Mail or email · not certified', text: 'FC- Delinquent #3', btn: 'Sent + called', did: 'Letter #3 sent + called', tone: 'amber',
+    call: 'Call the family — “Delinquent Account #2” script (document 26, Shimmin FC folder)' },
+  { id: 'l4', day: 60, n: 4, s: 'Letter #4', l: 'FC- #4, Doctors First Letter', send: 'Mail and email · not certified', text: 'FC- Delinquent #4', btn: 'Sent', did: 'Letter #4 sent', tone: 'amber', dra: true, hold: true,
+    do: ['It explains what’s needed to resume active treatment'] },
+  { id: 'c75', day: 75, s: 'Day-75 call', l: 'Call + text — the hold, and what happens if it stays unpaid', text: 'FC- Delinquent #7', btn: 'Called + texted', did: 'Day-75 call + text', tone: 'amber',
+    call: 'Call the family — reinforce the Maintenance Hold and what continued non-payment means' },
+  { id: 'l5', day: 90, n: 5, s: 'Letter #5', l: 'FC- #5, Maint. Hold + Discont. Warning', send: 'Certified + regular mail + email', text: 'FC- Delinquent #5 &6', btn: 'Sent', did: 'Letter #5 sent (certified)', tone: 'red', dra: true, cert: true,
+    do: ['Add a 30-day delinquency alert to the patient’s chart in Edge', 'Comfort visits only for the next 30 days', 'Keep the certified tracking number'] },
+  { id: 'l6', day: 100, n: 6, s: 'Letter #6', l: 'FC- #6, FC Bridge Letter', send: 'Mail or email', text: 'FC- Delinquent #5 &6', btn: 'Sent', did: 'Letter #6 sent', tone: 'red',
+    do: ['One more chance: treatment is on hold and the discontinuation deadline is near'] },
+  { id: 't8', day: 104, s: 'Text #8', l: 'Follow-up text — Dr. A’s letter two weeks ago', text: 'FC- Delinquent #8', btn: 'Texted', did: 'Follow-up text sent (#8)', tone: 'red' },
+  { id: 'l7', day: 120, n: 7, s: 'Letter #7', l: 'FC- #7, Discont. of TxP', send: 'Certified + regular mail + email', text: 'FC- Delinquent #9 (FINAL)', btn: 'Sent', did: 'Letter #7 sent (certified)', tone: 'navy', dra: true, cert: true, end: true,
+    do: ['Treatment is discontinued: 30 days for appliance removal and emergencies only', 'Hardship (job loss, a medical emergency)? Talk it over with Dr. A before discontinuing', 'Keep the certified tracking number'] }
+];
+/* off the sequence: an Alternative Arrangement (a new payment contract) was broken */
+const LAD_AA = { id: 'aa', n: 8, s: 'Letter #8', l: 'FC- #8, Broken Arrangement', send: 'Certified + regular mail + email', btn: 'Sent', did: 'Letter #8 sent (certified)', tone: 'navy', dra: true, cert: true, end: true,
+  do: ['If they have an appointment, change it to Debond/Finish', '30 days for appliance removal and emergencies only — treatment doesn’t progress', 'To restart treatment: the full remaining balance, by Mastercard, Visa or Discover only', 'Keep the certified tracking number'] };
+/* after the last letter's 30 days (not logged — resolving the account ends it) */
+const LAD_END = { id: 'end', s: 'Write off', l: 'The 30 days are up — write it off', tone: 'navy',
+  do: ['Write off the balance and send it to the collection agency', 'Edge: Inactive Financial (only the FC changes it); archive the patient and family'] };
+const LAD_ENDAA = { id: 'endaa', s: 'Debond/Finish', l: 'The 30 days are up — Debond/Finish', tone: 'navy',
+  do: ['No full payment: schedule the Debond/Finish appointment', 'Retainers at the non-patient retainer fee — cash or money order only, no insurance billing', 'Edge: Inactive Financial (only the FC changes it)'] };
+const LAD_BY = Object.create(null); LADDER.concat([LAD_AA]).forEach(s => { LAD_BY[s.id] = s; });
+const LAD_ALL = LADDER.concat([LAD_AA, LAD_END, LAD_ENDAA]);
+const LAD_RANK = Object.create(null); LAD_ALL.forEach((s, i) => { LAD_RANK[s.id] = i; });
+
+/* who it's for: patient accounts past due (insurance has its own steps; an inactive account is collections or a write-off) */
+function onLadder(a) { return !!a && !a.ins && !a.inactive && a.pd > 0; }
+/* days past due today: Edge's "Days" on the report's date plus the days since (without it, the first day of the oldest bucket) */
+function ladDays(a, asOf, today) {
+  const base = typeof a.days === 'number' && isFinite(a.days) && a.days >= 0 ? a.days : a.b90 > 0.004 ? 91 : a.b60 > 0.004 ? 61 : a.b30 > 0.004 ? 31 : 0;
+  return base + (asOf && today ? Math.max(0, daysBetween(asOf, today)) : 0);
+}
+/* the office day the account reaches `day` days past due (today if it already has) */
+function ladDate(a, asOf, today, day) { return nextOfficeDay(addDays(today, Math.max(0, day - ladDays(a, asOf, today)))); }
+/* this round's entries: a round starts over when an account resolved before is past due again */
+function ladEntries(it) {
+  const L = (it && it.log) || []; let i = L.length;
+  while (i-- > 0) if (L[i].k === 'reopen' && L[i].fresh) break;
+  return L.slice(i + 1);
+}
+/* on Maintenance Hold: put on in this round, not lifted since, and not resolved since (paid or fixed in Edge ends it) */
+function holdOf(it) { let h = null; ladEntries(it).forEach(e => { if (e.k === 'mhold_on') h = e; else if (e.k === 'mhold_off' || e.k === 'done') h = null; }); return h; }
+/* where an account is on the ladder today. it: its record (null if none yet, or if it's back on the list after being resolved) */
+function ladState(a, it, asOf, today) {
+  if (!onLadder(a)) return null;
+  const E = ladEntries(it), done = {}, signed = {}, hold = holdOf(it);
+  let broke = null, plan = false;
+  E.forEach(e => {
+    if (e.k === 'ladder' && own(LAD_BY, e.step)) done[e.step] = e;
+    else if (e.k === 'drA_ok' && own(LAD_BY, e.step)) signed[e.step] = e;
+    else if (e.k === 'aa_broken') broke = e;
+    else if (e.k === 'pt_plan') plan = true;
+  });
+  const q = it && it.drA ? drAQuestion(it) : null, asked = q && q.k === 'drA_ask' && own(LAD_BY, q.step) ? q.step : '';
+  const day = ladDays(a, asOf, today);
+  let reached = 0, last = -1;
+  LADDER.forEach((s, i) => { if (day >= s.day) reached = i; if (done[s.id]) last = i; });
+  const fin = done.aa || done.l7 || null, endOn = fin ? nextOfficeDay(addDays(isoOf(new Date(fin.at)), 30)) : '';
+  const st = it && it.state === 'open' ? it.stage : '';
+  const why = it && it.state === 'done' ? 'done' : st === 'plan' ? 'plan' : st === 'hold' ? 'hold' : st === 'promise' && it.follow && it.follow >= today ? 'promise' : '';
+  const pip = /in\s*process/i.test(a.note || '');
+  let due = null, paused = '';
+  if (why === 'done') paused = 'done';
+  else if (broke && !done.aa) due = LAD_AA;
+  else if (fin) due = endOn <= today ? (done.aa ? LAD_ENDAA : LAD_END) : null;
+  else if (why) paused = why;
+  else if (reached > last && !(reached === 0 && pip)) due = LADDER[reached];
+  const next = fin || (broke && !done.aa) ? null : LADDER[Math.max(reached, last) + 1] || null;
+  return { day, done, signed, asked, hold, broke, plan, fin, endOn, pip, paused, due, next, nextOn: next ? ladDate(a, asOf, today, next.day) : '', reached, last };
+}
+/* a step done. o: { by, note } — the account's follow-up isn't moved: the next step comes due by itself */
+function ladderLog(item, id, o, now) {
+  const s = own(LAD_BY, id) ? LAD_BY[id] : null; if (!s) throw errCode('bad-step');
+  if (ladEntries(item).some(e => e.k === 'ladder' && e.step === id)) throw errCode('step-done', s.s + ' is already recorded on this account.');
+  o = o || {};
+  const e = { id: uid8(), at: now, by: o.by || '', k: 'ladder', step: id, note: String(o.note || '').trim(), prev: { stage: item.stage, follow: item.follow, drA: !!item.drA } };
+  const q = item.drA ? drAQuestion(item) : null;
+  if (q && q.k === 'drA_ask' && q.step === id) item.drA = false; // signed outside the app and sent: it leaves Dr. A's list
+  item.log = (item.log || []).concat([e]);
+  item.stage = 'waiting';
+  return e;
+}
+/* ask Dr. A to sign a letter (it shows on his Today until he answers) */
+function askSign(item, id, o, now) {
+  const s = own(LAD_BY, id) ? LAD_BY[id] : null; if (!s || !s.dra) throw errCode('bad-step');
+  o = o || {};
+  item.log = (item.log || []).concat([{ id: uid8(), at: now, by: o.by || '', k: 'drA_ask', step: id, note: String(o.note || '').trim(), prev: { stage: item.stage, follow: item.follow, drA: !!item.drA } }]);
+  item.drA = true;
+}
+/* Dr. A signed it (answering the request, or on his own) */
+function signStep(item, id, o, now) {
+  const s = own(LAD_BY, id) ? LAD_BY[id] : null; if (!s || !s.dra) throw errCode('bad-step');
+  const q = item.drA ? drAQuestion(item) : null;
+  if (q && q.k === 'drA_ask' && q.step === id) return answerDrA(item, true, o, now);
+  item.log = (item.log || []).concat([{ id: uid8(), at: now, by: (o && o.by) || '', k: 'drA_ok', step: id, note: String((o && o.note) || '').trim() }]);
+}
+/* Maintenance Hold on or off (in Edge: the yellow box and a treatment note; the FC tells the clinical team) */
+function holdLog(item, on, o, now) {
+  o = o || {};
+  item.log = (item.log || []).concat([{ id: uid8(), at: now, by: o.by || '', k: on ? 'mhold_on' : 'mhold_off', note: String(o.note || '').trim(), prev: { stage: item.stage, follow: item.follow, drA: !!item.drA } }]);
+}
+/* the Alternative Arrangement was broken: Letter #8 comes next */
+function breakArrangement(item, o, now) {
+  o = o || {};
+  item.log = (item.log || []).concat([{ id: uid8(), at: now, by: o.by || '', k: 'aa_broken', note: String(o.note || '').trim(), prev: { stage: item.stage, follow: item.follow, drA: !!item.drA } }]);
+  item.stage = 'working';
 }
 
 /* =====================================================================
@@ -328,11 +474,13 @@ function normSum(s) {
   const i = v => Math.max(0, Math.round(numOr0(v)));
   return { asOf: isoOrBlank(s.asOf), cover: normCover(s.cover), pd: numOr0(s.pd), b90: numOr0(s.b90), b31: numOr0(s.b31), n91: i(s.n91), never: i(s.never), neverPd: numOr0(s.neverPd), cr: numOr0(s.cr), crWork: numOr0(s.crWork), crN: i(s.crN), bal: numOrNull(s.bal) };
 }
-const LOG_KINDS = new Set(Object.keys(LOGS).concat(['done', 'reopen', 'drA_ask', 'drA_ok', 'drA_no']));
+const LOG_KINDS = new Set(Object.keys(LOGS).concat(['done', 'reopen', 'drA_ask', 'drA_ok', 'drA_no', 'ladder', 'aa_broken', 'mhold_on', 'mhold_off']));
 function normLog(e) {
   e = e && typeof e === 'object' ? e : {};
   const o = { id: strOf(e.id, 40), at: numOr0(e.at), by: strOf(e.by, 60), k: LOG_KINDS.has(e.k) ? e.k : 'note', note: strOf(e.note, 2000) };
   if (o.k === 'done') o.outcome = own(OUTCOMES, e.outcome) ? e.outcome : 'other';
+  if (own(LAD_BY, e.step)) o.step = e.step;
+  if (o.k === 'reopen' && e.fresh === true) o.fresh = true;
   if (isoOrBlank(e.date)) o.date = e.date;
   if (numOrNull(e.amt) != null) o.amt = e.amt;
   if (e.prev && typeof e.prev === 'object') o.prev = { stage: own(STAGES, e.prev.stage) ? e.prev.stage : '', follow: isoOrBlank(e.prev.follow), drA: e.prev.drA === true };

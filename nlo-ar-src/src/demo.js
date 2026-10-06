@@ -173,15 +173,24 @@ const DEMO = {
     const accts = reportAccts(latestRep, cfg), byKey = new Map(accts.map(a => [a.key, a]));
     const l91 = list91(accts), never = listNever(accts), credits = listCredits(accts);
     const now = Date.now(), ago = (days, h, mi) => Math.min(now - 25 * 60000, atDay(addDays(todayISO(), -days), h, mi || 0));
+    const worked = new Set();
     const make = async (a, by, steps, after) => {
       if (!a) return;
+      worked.add(a.key);
       const it = Object.assign(blankItem(a), { createdAt: steps.length ? steps[0][1] : now, createdBy: by, assignee: by });
       const id = await DEMO.itemId(a.key); let rev = 0;
       for (const [k, at, who, o] of steps) {
-        if (k === 'done') resolveItem(it, o.outcome, { by: who, note: o.note || '' }, at);
-        else if (k === 'drA') { it.log.push({ id: uid8(), at, by: who, k: 'drA_ask', note: o.q, prev: { stage: it.stage, follow: it.follow, drA: !!it.drA } }); it.drA = true; }
+        let act = { a: 'log', k };
+        if (k === 'done') { resolveItem(it, o.outcome, { by: who, note: o.note || '' }, at); act = { a: 'resolve', outcome: o.outcome }; }
+        else if (k === 'drA') { it.log.push({ id: uid8(), at, by: who, k: 'drA_ask', note: o.q, prev: { stage: it.stage, follow: it.follow, drA: !!it.drA } }); it.drA = true; act = { a: 'drA' }; }
+        // the collections ladder: a step sent, a letter for Dr. A to sign / signed, Maintenance Hold, a broken arrangement
+        else if (k === 'lad') { ladderLog(it, o.step, { by: who, note: o.note || '' }, at); act = { a: 'ladder', step: o.step }; }
+        else if (k === 'ask') { askSign(it, o.step, { by: who }, at); act = { a: 'drA', step: o.step }; }
+        else if (k === 'sign') { signStep(it, o.step, { by: who }, at); act = { a: 'drAok', step: o.step }; }
+        else if (k === 'hold') { holdLog(it, o.on !== false, { by: who }, at); act = { a: 'mhold', on: o.on !== false }; }
+        else if (k === 'aa') { breakArrangement(it, { by: who, note: o && o.note || '' }, at); act = { a: 'aa' }; }
         else applyLog(it, k, Object.assign({ by: who }, o || {}), at);
-        rev++; DEMO.logs.push({ itemId: id, rev, at, sid: who, a: k === 'done' ? 'resolve' : k === 'drA' ? 'drA' : 'log', k, outcome: o && o.outcome });
+        rev++; DEMO.logs.push(Object.assign({ itemId: id, rev, at, sid: who }, act));
       }
       if (after) after(it);
       const last = steps.length ? steps[steps.length - 1][1] : now;
@@ -212,5 +221,33 @@ const DEMO = {
     await make(goneKey, 'jamie', [['pt_text', ago(8, 12, 0), 'jamie', { note: 'Texted the balance and the payment link' }]]);
     // a 31–90 account with a text sent today
     await make(list31(accts)[2], 'jamie', [['pt_text', ago(0, 9, 5), 'jamie']]);
+
+    /* the collections ladder (handbook §14) — patient accounts at different steps */
+    const pt = d => accts.find(a => onLadder(a) && a.days === d && !worked.has(a.key));
+    const dNow = a => ladDays(a, latestRep.asOf, t);
+    const on = (a, x, h, mi) => ago(Math.max(0, dNow(a) - x), h || 10, mi || 0); // the day the account was x days past due
+    const L = (a, x, step, o) => ['lad', on(a, x, 10, 20), 'jamie', Object.assign({ step }, o || {})];
+    const seed = async (a, steps) => { if (a) await make(a, 'jamie', steps(a)); };
+    // day 47: the first text, letters #1 and #2 went out — #3 and the call are due
+    await seed(pt(47), a => [L(a, 1, 'd0'), L(a, 15, 'l1'), L(a, 31, 'l2')]);
+    // day 64: up to #3 — Letter #4 (Dr. A signs) and Maintenance Hold are due
+    await seed(pt(64), a => [L(a, 15, 'l1'), L(a, 30, 'l2'), L(a, 46, 'l3', { note: 'Spoke with dad — said he’d call back Friday' })]);
+    // day 96: on Maintenance Hold since day 61; Letter #5 waiting for Dr. A's signature
+    await seed(pt(96), a => [L(a, 14, 'l1'), L(a, 30, 'l2'), L(a, 45, 'l3'), ['ask', on(a, 60, 9), 'jamie', { step: 'l4' }], ['sign', on(a, 60, 16), 'amir', { step: 'l4' }], L(a, 61, 'l4'), ['hold', on(a, 61, 10, 30), 'jamie', {}],
+      L(a, 76, 'c75', { note: 'Voicemail; texted' }), ['ask', on(a, 92, 11), 'jamie', { step: 'l5' }]]);
+    // day 101: on hold, Letter #5 went certified — #6 (the bridge letter) is due
+    await seed(pt(101), a => [L(a, 15, 'l1'), L(a, 31, 'l2'), L(a, 46, 'l3'), ['sign', on(a, 60, 15), 'amir', { step: 'l4' }], L(a, 61, 'l4'), ['hold', on(a, 61, 11), 'jamie', {}],
+      L(a, 75, 'c75'), ['sign', on(a, 90, 15), 'amir', { step: 'l5' }], L(a, 91, 'l5', { note: 'Certified #9407 1000 0000 0000 0000 01' })]);
+    // day 82: a payment plan (an Alternative Arrangement) at day 78 — paused, still on hold until its first payment
+    await seed(pt(82), a => [L(a, 15, 'l1'), L(a, 30, 'l2'), L(a, 45, 'l3'), ['sign', on(a, 60, 15), 'amir', { step: 'l4' }], L(a, 61, 'l4'), ['hold', on(a, 61, 11), 'jamie', {}],
+      L(a, 75, 'c75'), ['pt_plan', on(a, 78, 14), 'jamie', { note: 'New contract: $175 on the 15th' }]]);
+    // day 69: the arrangement made at day 40 was broken — Letter #8 is due
+    await seed(pt(69), a => [L(a, 15, 'l1'), L(a, 31, 'l2'), ['pt_plan', on(a, 40, 11), 'jamie', { note: 'Alternative Arrangement signed' }], ['aa', on(a, 67, 10), 'jamie', { note: 'Second payment bounced' }]]);
+    // day 139: Letter #7 went out 18 days ago — in the 30 days for appliance removal and emergencies
+    await seed(pt(139), a => [['sign', on(a, 121, 9), 'amir', { step: 'l7' }], L(a, 121, 'l7', { note: 'Certified #9407 1000 0000 0000 0000 02' })]);
+    // Letter #7 went out over 30 days ago — time to write it off
+    await seed(pt(160) || pt(151) || pt(188), a => [['sign', on(a, a.days - 38, 9), 'amir', { step: 'l7' }], L(a, a.days - 38, 'l7', { note: 'Certified #9407 1000 0000 0000 0000 03' })]);
+    // day 15: texted on day 1 — Letter #1 is due
+    await seed(pt(15), a => [L(a, 1, 'd0')]);
   }
 };
