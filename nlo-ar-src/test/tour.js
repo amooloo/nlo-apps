@@ -47,7 +47,7 @@ const check = (c, m) => { if (c) { pass++; console.log('  ok  ' + m); } else { f
   await next();
   check(await waitStep('goals'), 'Next → The goals');
   a = await aimed(); check(a.ring && a.on && !a.overlap && a.inView, 'the ring is on the two goal gauges');
-  check(/no more than 4% of patient accounts past due/.test((await card()).p), 'it states the goals (4% and 4%)');
+  check(/no more than 4% of patient accounts 30\+ days past due/.test((await card()).p), 'it states the goals (4% of patient accounts 30+ days past due, and 4%)');
   await next();
   check(await waitStep('focus'), 'Next → Do these first');
   a = await aimed(); check(a.ring && a.on && !a.overlap && a.inView, 'the ring is on the “Do these first” line');

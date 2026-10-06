@@ -11,7 +11,7 @@ const S = {
   items: new Map(), itemByKey: new Map(), keyIds: new Map(), pend: {}, srv: {},
   book: null, bookRaw: null, bookId: '', bookPend: 0, bookSrv: null, focus: false, brief: null,
   openKey: '', ui: {}, imp: null, doneLoaded: false, people: null, accessBusy: '', rotating: null,
-  lastLogin: '', loginPw: '', lastAct: Date.now(), idleTimer: null, renderQ: false, firstLoad: true, loadErr: ''
+  lastLogin: '', loginPw: '', lastAct: Date.now(), idleTimer: null, renderQ: false, firstLoad: true, loadErr: '', startView: ''
 };
 let B = null;
 const ACT = Object.create(null); // click actions: data-act="name" → ACT.name(target, event)
@@ -84,6 +84,10 @@ function errText(e) {
 }
 
 /* ---------- boot ---------- */
+/* a link can open A/R on one screen — the FC's checklist in CADANCe links here: nlo-ar.html#today, #focus (Today in Focus
+   mode), #pd, #ins, #cr, #sum or #reports. Used once, after signing in; anything else opens Today. */
+const START_VIEWS = ['today', 'focus', 'pd', 'ins', 'cr', 'sum', 'reports'];
+function startView(hash) { const v = String(hash || '').replace(/^#/, '').toLowerCase(); return START_VIEWS.includes(v) ? v : ''; }
 /* leaving the page: nothing from A/R stays in the page the browser may keep for Back; coming back to it starts over */
 window.addEventListener('pagehide', () => { if (S.inApp) { ['#view', '#topSlot', '#side', '#mobTop', '#mobNav'].forEach(sel => { const el = $(sel); if (el) el.innerHTML = ''; }); closeModal(); closeDrawer(); S.leftPage = true; } });
 window.addEventListener('pageshow', e => { if (e.persisted && S.leftPage) location.reload(); });
@@ -95,6 +99,8 @@ function boot() {
   S.demo = qs.has('demo'); S.emu = local && qs.has('emu');
   // practice mode for the new-user tour (tour.js): the demo, signed in as staff (or as Dr. A); the demo keeps its own settings
   S.tour = S.demo && ['staff', 'owner'].includes(qs.get('tour')) ? qs.get('tour') : '';
+  S.startView = S.tour ? '' : startView(location.hash);
+  if (location.hash) { try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { } } // a reload opens Today
   if (S.demo) demoSandbox();
   let lockMsg = ''; try { lockMsg = sessionStorage.getItem('nloAR.lockMsg') || ''; sessionStorage.removeItem('nloAR.lockMsg'); } catch (e) { }
   try { S.lastLogin = localStorage.getItem('nloAR.lastLogin') || localStorage.getItem('nloCases.lastLogin') || ''; } catch (e) { }
@@ -205,9 +211,11 @@ function bindLockForms() {
 
 /* ---------- enter / leave ---------- */
 async function enterApp() {
+  const sv = S.startView; S.startView = ''; // a link's screen (see startView), this once — after Lock it's Today again
+  if (sv === 'focus') { try { localStorage.setItem('nloAR.focus', '1'); } catch (e) { } } // same as tapping Focus mode
   Object.assign(S, {
-    inApp: true, arState: 'opening', view: 'today', q: '', f: { src: '', work: '', who: '', car: '' }, sort: { k: '', dir: 1 }, ladStep: '', ladMemo: null,
-    book: null, bookRaw: null, bookId: '', bookPend: 0, bookSrv: null, brief: null, focus: focusPref(),
+    inApp: true, arState: 'opening', view: sv && sv !== 'focus' ? sv : 'today', q: '', f: { src: '', work: '', who: '', car: '' }, sort: { k: '', dir: 1 }, ladStep: '', ladMemo: null,
+    book: null, bookRaw: null, bookId: '', bookPend: 0, bookSrv: null, brief: null, focus: sv === 'focus' || focusPref(),
     reports: [], rep: null, repId: '', prev: null, prevId: '', accts: [], byKey: new Map(), diff: null,
     items: new Map(), itemByKey: new Map(), keyIds: new Map(), pend: {}, srv: {}, openKey: '', ui: {}, imp: null, doneLoaded: false, people: null, accessBusy: '', rotating: null,
     firstLoad: true, loadErr: '', lastAct: Date.now(), team: [], roster: [], day: todayISO()

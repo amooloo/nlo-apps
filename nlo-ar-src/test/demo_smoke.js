@@ -43,9 +43,9 @@ const shot = (p, n, full) => p.screenshot({ path: path.join(SHOTS, n + '.png'), 
   ok(await page.isVisible('[data-act=closeCleared]'), '“Cleared in Edge” offers to close them');
   // the goals (handbook §19): counts of accounts from the newest full report
   const k0 = await S_(() => kpis(S.rep, S.cfg));
-  ok(await page.$$eval('.goals .goal', g => g.length) === 2 && k0.pt.n === 34 && k0.pt.of === 422 && k0.ins.n === 14 && k0.ins.of === 204 && k0.from === 1 && k0.win === 60, 'Today: two goal gauges — patient 34 of 422, insurance 14 of 204 (over 60 days): ' + JSON.stringify(k0));
-  ok(await page.$eval('.goals .goal', e => /8\.1%/.test(e.textContent) && /18 to go/.test(e.textContent) && /goal ≤ 4%/.test(e.textContent) && e.classList.contains('far')), 'the patient gauge reads 8.1% against 4%, 18 to go, in red');
-  // the weekly report (due Mondays): this week's is in, so no banner and no badge
+  ok(await page.$$eval('.goals .goal', g => g.length) === 2 && k0.pt.n === 25 && k0.pt.of === 422 && k0.ins.n === 14 && k0.ins.of === 204 && k0.from === 31 && k0.win === 60, 'Today: two goal gauges — patient 25 of 422 (30+ days past due, the usual), insurance 14 of 204 (over 60 days): ' + JSON.stringify(k0));
+  ok(await page.$eval('.goals .goal', e => /5\.9%/.test(e.textContent) && /9 to go/.test(e.textContent) && /goal ≤ 4%/.test(e.textContent) && /30\+ days past due/.test(e.textContent) && e.classList.contains('near')), 'the patient gauge reads 5.9% (30+ days) against 4%, 9 to go, in amber');
+  // the weekly report (due Tuesdays): this week's is in, so no banner and no badge
   ok(!(await page.$('.staleBox.wk')) && await page.$eval('#nav-reports .cnt', e => e.classList.contains('hidden')), 'this week’s report is in: no banner on Today, no badge on Reports');
   // pretend it's later: the first day this week's report would be due, then 9 days on (late)
   const wk = await page.evaluate(() => {
@@ -55,7 +55,7 @@ const shot = (p, n, full) => p.screenshot({ path: path.join(SHOTS, n + '.png'), 
     todayISO = () => d; const due = look(); todayISO = () => addDays(real(), 9); const late = look(); todayISO = real; const back = look(); return { due, late, back, d };
   });
   ok(/staleBox wk today/.test(wk.due.cls) && /due today/.test(wk.due.txt) && wk.due.badge === 'Due' && wk.due.amber, 'on its due day (' + wk.d + '): an amber “due today” banner and Due on Reports');
-  ok(/staleBox wk late/.test(wk.late.cls) && /late — it was due Monday/.test(wk.late.txt) && wk.late.badge === 'Late' && wk.late.red, 'after it: a red “late” banner and Late on Reports — ' + wk.late.txt);
+  ok(/staleBox wk late/.test(wk.late.cls) && /late — it was due Tuesday/.test(wk.late.txt) && wk.late.badge === 'Late' && wk.late.red, 'after it: a red “late” banner and Late on Reports — ' + wk.late.txt);
   ok(!wk.back.cls && !wk.back.badge, 'back to today: no banner');
 
   // ---- focus mode
@@ -89,7 +89,7 @@ const shot = (p, n, full) => p.screenshot({ path: path.join(SHOTS, n + '.png'), 
   }
   await page.click('#nav-sum'); await page.waitForSelector('.goalsCard .gTrend');
   ok(await page.$$eval('.goalsCard .gTrend path.tl', p => p.length) === 2 && await page.$eval('.goalsCard .gTrend text.gt', e => e.textContent === '4%'), 'Summary: both rates week by week, with the 4% goal line');
-  ok(await page.$eval('.goalsCard .gHow', e => /anything past due/.test(e.textContent) && /more than 60 days past due/.test(e.textContent)), 'Summary: how the goals are counted');
+  ok(await page.$eval('.goalsCard .gHow', e => /30 or more days past due/.test(e.textContent) && /more than 60 days past due/.test(e.textContent)), 'Summary: how the goals are counted (patient: 30 or more days past due)');
 
   // ---- trends and the weekly brief (Summary)
   const tr = await page.$eval('.trendsCard', e => ({ stats: e.querySelectorAll('.tStat').length, txt: e.textContent, people: e.querySelectorAll('.actTbl tbody tr').length }));
@@ -355,15 +355,17 @@ const shot = (p, n, full) => p.screenshot({ path: path.join(SHOTS, n + '.png'), 
   ok(await toastHas(/more than the one before/), 'cutoffs out of order are refused');
   // the goals in Settings
   await page.fill('#cfgT1', '120'); await page.fill('#cfgGoalPt', '9'); await page.waitForTimeout(100);
-  ok(/patient accounts past due <b>8\.1%<\/b> \(goal 9%\)/.test(await page.innerHTML('#cfgPrev')), 'the preview shows the patient rate against a 9% goal');
-  await page.selectOption('#cfgKpiFrom', '31'); await page.click('[data-act=saveCfg]'); await page.waitForTimeout(300);
+  ok(/patient accounts past due <b>5\.9%<\/b> \(goal 9%\)/.test(await page.innerHTML('#cfgPrev')), 'the preview shows the patient rate (30+ days) against a 9% goal');
+  await page.selectOption('#cfgKpiFrom', '1'); await page.waitForTimeout(100);
+  ok(/patient accounts past due <b>8\.1%<\/b> \(goal 9%\)/.test(await page.innerHTML('#cfgPrev')), 'counting from day 1 instead, the preview shows 8.1%');
+  await page.click('[data-act=saveCfg]'); await page.waitForTimeout(300);
   const k9 = await S_(() => ({ cfg: [S.cfg.goalPt, S.cfg.kpiFrom], k: kpis(S.rep, S.cfg) }));
-  ok(k9.cfg[0] === 9 && k9.cfg[1] === 31 && k9.k.pt.n < 34 && k9.k.pt.ok, 'saved: a 9% goal, counting from 31 days — ' + k9.k.pt.n + ' patient accounts, goal met');
+  ok(k9.cfg[0] === 9 && k9.cfg[1] === 1 && k9.k.pt.n === 34 && k9.k.pt.ok, 'saved: a 9% goal, counting from day 1 — ' + k9.k.pt.n + ' patient accounts, goal met');
   await page.click('#nav-today'); await page.waitForSelector('.goals .goal');
-  ok(await page.$eval('.goals .goal', e => e.classList.contains('ok') && /Goal met/.test(e.textContent) && /30\+ days past due/.test(e.textContent)), 'Today: the patient gauge turns green, “Goal met”');
+  ok(await page.$eval('.goals .goal', e => e.classList.contains('ok') && /Goal met/.test(e.textContent) && /34 of 422 active patient accounts past due/.test(e.textContent)), 'Today: the patient gauge turns green, “Goal met” (34 of 422 past due)');
   await page.click('#nav-settings'); await page.waitForSelector('#cfgGoalPt'); await page.waitForTimeout(300);
   await page.click('[data-act=resetCfg]'); await page.click('#cbYes'); await page.waitForTimeout(300);
-  ok(await S_(() => S.cfg.goalPt === 4 && S.cfg.goalIns === 4 && S.cfg.kpiFrom === 1), 'back to the usual numbers: 4%, 4%, from day 1');
+  ok(await S_(() => S.cfg.goalPt === 4 && S.cfg.goalIns === 4 && S.cfg.kpiFrom === 31), 'back to the usual numbers: 4%, 4%, counted from 31 days');
   await page.fill('#cfgGoalIns', '0'); await page.click('[data-act=saveCfg]'); await page.waitForTimeout(150);
   ok(await toastHas(/between 0\.1% and 100%/) && await S_(() => S.cfg.goalIns === 4), 'a 0% goal is refused');
   await page.fill('#cfgGoalIns', '4'); await page.selectOption('#cfgDue', '4'); await page.click('[data-act=saveCfg]'); await page.waitForTimeout(300);
@@ -372,7 +374,7 @@ const shot = (p, n, full) => p.screenshot({ path: path.join(SHOTS, n + '.png'), 
   ok(await page.$eval('.dueOk', e => /This week’s report is in/.test(e.textContent) && /due Thursday/.test(e.textContent)), 'Reports: this week’s is in, and the next one is due Thursday');
   await page.click('#nav-settings'); await page.waitForSelector('#cfgDue'); await page.waitForTimeout(300);
   await page.click('[data-act=resetCfg]'); await page.click('#cbYes'); await page.waitForTimeout(300);
-  ok(await S_(() => S.cfg.dueDay === 1), 'back to Mondays');
+  ok(await S_(() => S.cfg.dueDay === 2), 'back to the usual: due Tuesdays');
   await page.click('[data-act=loadActivity]'); await page.waitForTimeout(400);
   ok(await page.$$eval('#actBox .hist', h => h.length) > 5, 'recent activity lists who did what');
   await collect(); await shot(page, 'settings-after', true);
@@ -385,6 +387,29 @@ const shot = (p, n, full) => p.screenshot({ path: path.join(SHOTS, n + '.png'), 
   // ---- every button has a handler
   const missing = await page.evaluate(list => list.filter(a => typeof ACT[a] !== 'function'), Array.from(acts));
   ok(missing.length === 0, 'every data-act has a handler (' + acts.size + ' seen)' + (missing.length ? ': missing ' + missing.join(', ') : ''));
+
+  // ---- a link opens A/R on one screen (the FC's checklist in CADANCe): once, after signing in; the address loses the #
+  {
+    const lc = await browser.newContext({ viewport: { width: 1360, height: 900 } }); await routes(lc); // its own storage: a fresh browser, as from CADANCe
+    const pl = await lc.newPage(); watch(pl, errs, 'link');
+    const open = async h => {
+      // a fresh page each time, as a link from CADANCe opens one
+      await pl.goto('about:blank'); await pl.goto(URL + h); await pl.click('#lgBtn'); await pl.waitForFunction(() => S.arState === 'ok' && S.rep && !S.renderQ, null, { timeout: 15000 }); await pl.waitForTimeout(150);
+      return pl.evaluate(() => ({ view: S.view, focus: S.focus, hash: location.hash, href: location.href, bar: !!document.querySelector('#view .focusHd'), drop: !!document.querySelector('#dropZone'), on: (document.querySelector('.navBtn.on') || {}).id }));
+    };
+    let r = await open('#reports');
+    ok(r.view === 'reports' && r.drop && r.on === 'nav-reports' && r.hash === '' && /nlo-ar\.html\?demo$/.test(r.href), 'nlo-ar.html#reports opens on Reports, and the address loses the # (' + r.href.replace(/^.*\//, '') + ')');
+    r = await open('#cr'); ok(r.view === 'cr' && r.on === 'nav-cr', '#cr opens Credits');
+    await pl.evaluate(() => localStorage.setItem('nloAR.focus', '0'));
+    r = await open('#FOCUS'); ok(r.view === 'today' && r.focus && r.bar, '#focus opens Today in Focus mode' + (r.bar ? '' : ' ' + JSON.stringify(r)));
+    ok(await pl.evaluate(() => localStorage.getItem('nloAR.focus')) === '1', '…and stays on, as if Focus mode was tapped');
+    await pl.evaluate(() => localStorage.setItem('nloAR.focus', '0'));
+    r = await open('#settings'); ok(r.view === 'today' && !r.focus, 'anything else (#settings) opens Today');
+    r = await open('#pd'); ok(r.view === 'pd', '#pd opens Past due');
+    await pl.click('[data-act=lock] >> nth=0'); await pl.waitForSelector('#loginForm'); await pl.click('#lgBtn'); await pl.waitForFunction(() => S.arState === 'ok' && S.rep, null, { timeout: 15000 });
+    ok(await pl.evaluate(() => S.view) === 'today', 'after Lock and signing in again: Today, as usual');
+    await lc.close();
+  }
 
   // ---- lock
   await page.click('[data-act=lock] >> nth=0'); await page.waitForSelector('#loginForm');

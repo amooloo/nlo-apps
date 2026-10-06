@@ -122,7 +122,7 @@ function numbersCardHTML() {
     '<div class="field"><label for="cfgGoalPt">Patient accounts past due, at most (%)</label>' + n('cfgGoalPt', c.goalPt, '0.1', '0.1', '100') + '</div>' +
     '<div class="field"><label for="cfgGoalIns">Insurance past its window, at most (%)</label>' + n('cfgGoalIns', c.goalIns, '0.1', '0.1', '100') + '</div></div>' +
     '<div class="field"><label for="cfgKpiFrom">A patient account counts as past due</label><select class="inp" id="cfgKpiFrom" data-cfg style="max-width:100%">' +
-    [[1, 'From day 1 — anything past due (handbook)'], [31, 'From day 31 — the 30+ column (Month-End)']].map(([v, l]) => '<option value="' + v + '"' + (c.kpiFrom === v ? ' selected' : '') + '>' + l + '</option>').join('') + '</select>' +
+    [[31, 'From day 31 — 30+ days past due (usual)'], [1, 'From day 1 — anything past due']].map(([v, l]) => '<option value="' + v + '"' + (c.kpiFrom === v ? ' selected' : '') + '>' + l + '</option>').join('') + '</select>' +
     '<div class="hint">Counts of accounts, not dollars. Insurance’s payment window is the “monitor up to” days above.</div></div>' +
     '<div class="small planPrev" id="cfgPrev">' + cfgPreview() + '</div>' +
     '<div class="btnRow" style="margin-top:12px"><button class="btn btn-pri btn-sm" data-act="saveCfg">Save</button><button class="btn btn-ghost" data-act="resetCfg">Back to the usual numbers</button></div></div></div>';
@@ -158,7 +158,7 @@ Object.assign(ACT, {
     act(() => B.saveSettings({ ar: c }), 'Saved — the lists use the new numbers');
   },
   async resetCfg() {
-    if (!(await confirmBox('Go back to the usual numbers?', '$' + AR_DEFAULTS.inst.toFixed(2) + ' instalment; monitor up to ' + AR_DEFAULTS.tiers[0] + ' days, chase up to ' + AR_DEFAULTS.tiers[1] + ', investigate up to ' + AR_DEFAULTS.tiers[2] + '; write-off under ' + money(AR_DEFAULTS.writeOff) + '; a new report due every ' + DUE_DAYS[AR_DEFAULTS.dueDay - 1] + '; goals ' + AR_DEFAULTS.goalPt + '% (patient) and ' + AR_DEFAULTS.goalIns + '% (insurance), counting from the first day past due.', 'Use the usual numbers'))) return;
+    if (!(await confirmBox('Go back to the usual numbers?', '$' + AR_DEFAULTS.inst.toFixed(2) + ' instalment; monitor up to ' + AR_DEFAULTS.tiers[0] + ' days, chase up to ' + AR_DEFAULTS.tiers[1] + ', investigate up to ' + AR_DEFAULTS.tiers[2] + '; write-off under ' + money(AR_DEFAULTS.writeOff) + '; a new report due every ' + DUE_DAYS[AR_DEFAULTS.dueDay - 1] + '; goals ' + AR_DEFAULTS.goalPt + '% (patient) and ' + AR_DEFAULTS.goalIns + '% (insurance), patient accounts counted ' + (AR_DEFAULTS.kpiFrom > 1 ? 'from 31 days past due.' : 'from the first day past due.'), 'Use the usual numbers'))) return;
     const d = { inst: AR_DEFAULTS.inst, writeOff: AR_DEFAULTS.writeOff, tiers: AR_DEFAULTS.tiers.slice(), dueDay: AR_DEFAULTS.dueDay, goalPt: AR_DEFAULTS.goalPt, goalIns: AR_DEFAULTS.goalIns, kpiFrom: AR_DEFAULTS.kpiFrom };
     if (await act(() => B.saveSettings({ ar: d }), 'Back to the usual numbers')) { S.cfg = arCfg({ ar: d }); renderView(); }
   }

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-5MucYD0fPaC4yHv8FA5lUiwEOXjAbkwvvn2k1zg0A5E=' https://www.gstatic.com/firebasejs/10.12.2/; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://aisa-worker.akhavan-ak.workers.dev http://127.0.0.1:8080 http://127.0.0.1:9099; frame-src https://nlo-cases.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-3f96lY2jyFMKguc4sAdGmz6mPIWIkRrkjuLg6HxVajw=' https://www.gstatic.com/firebasejs/10.12.2/; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://aisa-worker.akhavan-ak.workers.dev http://127.0.0.1:8080 http://127.0.0.1:9099; frame-src https://nlo-cases.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO A/R</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1436,16 +1436,18 @@ function checkTotals(p) {
      Scheduled prepayments are parked (no action).
    ===================================================================== */
 /* goalPt / goalIns: the delinquency goals (AISA handbook §19, both "no more than 4%"); kpiFrom: a patient account counts as
-   past due from its first day past due (1, the handbook's wording) or from 31 days (the 30+ the Month-End numbers use);
-   dueDay: the weekly report is due every Monday (1) … Thursday (4) — the handbook says weekly and names no day */
-const AR_DEFAULTS = { inst: 11.11, writeOff: 100, tiers: [60, 120, 365], dueDay: 1, goalPt: 4, goalIns: 4, kpiFrom: 1 };
+   past due from 31 days (the 30+ the Month-End numbers use; the usual — Dr. A, 6 Oct 2026: counting 0–30 days, under 4%
+   is too hard to hold) or from its first day past due (1, the handbook's wording);
+   dueDay: the weekly report is due every Monday (1) … Thursday (4); Tuesday by default, the day of the FC's weekly
+   checklist in CADANCe (the handbook says weekly and names no day; Dr. A, 6 Oct 2026) */
+const AR_DEFAULTS = { inst: 11.11, writeOff: 100, tiers: [60, 120, 365], dueDay: 2, goalPt: 4, goalIns: 4, kpiFrom: 31 };
 const DUE_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday'];
 function arCfg(settings) {
   const a = (settings && settings.ar) || {};
   const num = (v, d) => (typeof v === 'number' && isFinite(v) && v > 0 ? v : d), pctOf = (v, d) => (typeof v === 'number' && isFinite(v) && v > 0 && v <= 100 ? v : d);
   const tiers = Array.isArray(a.tiers) && a.tiers.length === 3 && a.tiers.every((n, i) => Number.isInteger(n) && n > 0 && (!i || n > a.tiers[i - 1])) ? a.tiers.slice() : AR_DEFAULTS.tiers.slice();
   return { inst: num(a.inst, AR_DEFAULTS.inst), writeOff: num(a.writeOff, AR_DEFAULTS.writeOff), tiers, dueDay: [1, 2, 3, 4].includes(a.dueDay) ? a.dueDay : AR_DEFAULTS.dueDay,
-    goalPt: pctOf(a.goalPt, AR_DEFAULTS.goalPt), goalIns: pctOf(a.goalIns, AR_DEFAULTS.goalIns), kpiFrom: a.kpiFrom === 31 ? 31 : 1 };
+    goalPt: pctOf(a.goalPt, AR_DEFAULTS.goalPt), goalIns: pctOf(a.goalIns, AR_DEFAULTS.goalIns), kpiFrom: [1, 31].includes(a.kpiFrom) ? a.kpiFrom : AR_DEFAULTS.kpiFrom };
 }
 
 /* ---------- the weekly report (AISA handbook §19: "Weekly: FC runs AR Aging") ----------
@@ -2963,7 +2965,7 @@ const S = {
   items: new Map(), itemByKey: new Map(), keyIds: new Map(), pend: {}, srv: {},
   book: null, bookRaw: null, bookId: '', bookPend: 0, bookSrv: null, focus: false, brief: null,
   openKey: '', ui: {}, imp: null, doneLoaded: false, people: null, accessBusy: '', rotating: null,
-  lastLogin: '', loginPw: '', lastAct: Date.now(), idleTimer: null, renderQ: false, firstLoad: true, loadErr: ''
+  lastLogin: '', loginPw: '', lastAct: Date.now(), idleTimer: null, renderQ: false, firstLoad: true, loadErr: '', startView: ''
 };
 let B = null;
 const ACT = Object.create(null); // click actions: data-act="name" → ACT.name(target, event)
@@ -3036,6 +3038,10 @@ function errText(e) {
 }
 
 /* ---------- boot ---------- */
+/* a link can open A/R on one screen — the FC's checklist in CADANCe links here: nlo-ar.html#today, #focus (Today in Focus
+   mode), #pd, #ins, #cr, #sum or #reports. Used once, after signing in; anything else opens Today. */
+const START_VIEWS = ['today', 'focus', 'pd', 'ins', 'cr', 'sum', 'reports'];
+function startView(hash) { const v = String(hash || '').replace(/^#/, '').toLowerCase(); return START_VIEWS.includes(v) ? v : ''; }
 /* leaving the page: nothing from A/R stays in the page the browser may keep for Back; coming back to it starts over */
 window.addEventListener('pagehide', () => { if (S.inApp) { ['#view', '#topSlot', '#side', '#mobTop', '#mobNav'].forEach(sel => { const el = $(sel); if (el) el.innerHTML = ''; }); closeModal(); closeDrawer(); S.leftPage = true; } });
 window.addEventListener('pageshow', e => { if (e.persisted && S.leftPage) location.reload(); });
@@ -3047,6 +3053,8 @@ function boot() {
   S.demo = qs.has('demo'); S.emu = local && qs.has('emu');
   // practice mode for the new-user tour (tour.js): the demo, signed in as staff (or as Dr. A); the demo keeps its own settings
   S.tour = S.demo && ['staff', 'owner'].includes(qs.get('tour')) ? qs.get('tour') : '';
+  S.startView = S.tour ? '' : startView(location.hash);
+  if (location.hash) { try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { } } // a reload opens Today
   if (S.demo) demoSandbox();
   let lockMsg = ''; try { lockMsg = sessionStorage.getItem('nloAR.lockMsg') || ''; sessionStorage.removeItem('nloAR.lockMsg'); } catch (e) { }
   try { S.lastLogin = localStorage.getItem('nloAR.lastLogin') || localStorage.getItem('nloCases.lastLogin') || ''; } catch (e) { }
@@ -3157,9 +3165,11 @@ function bindLockForms() {
 
 /* ---------- enter / leave ---------- */
 async function enterApp() {
+  const sv = S.startView; S.startView = ''; // a link's screen (see startView), this once — after Lock it's Today again
+  if (sv === 'focus') { try { localStorage.setItem('nloAR.focus', '1'); } catch (e) { } } // same as tapping Focus mode
   Object.assign(S, {
-    inApp: true, arState: 'opening', view: 'today', q: '', f: { src: '', work: '', who: '', car: '' }, sort: { k: '', dir: 1 }, ladStep: '', ladMemo: null,
-    book: null, bookRaw: null, bookId: '', bookPend: 0, bookSrv: null, brief: null, focus: focusPref(),
+    inApp: true, arState: 'opening', view: sv && sv !== 'focus' ? sv : 'today', q: '', f: { src: '', work: '', who: '', car: '' }, sort: { k: '', dir: 1 }, ladStep: '', ladMemo: null,
+    book: null, bookRaw: null, bookId: '', bookPend: 0, bookSrv: null, brief: null, focus: sv === 'focus' || focusPref(),
     reports: [], rep: null, repId: '', prev: null, prevId: '', accts: [], byKey: new Map(), diff: null,
     items: new Map(), itemByKey: new Map(), keyIds: new Map(), pend: {}, srv: {}, openKey: '', ui: {}, imp: null, doneLoaded: false, people: null, accessBusy: '', rotating: null,
     firstLoad: true, loadErr: '', lastAct: Date.now(), team: [], roster: [], day: todayISO()
@@ -5077,7 +5087,7 @@ function numbersCardHTML() {
     '<div class="field"><label for="cfgGoalPt">Patient accounts past due, at most (%)</label>' + n('cfgGoalPt', c.goalPt, '0.1', '0.1', '100') + '</div>' +
     '<div class="field"><label for="cfgGoalIns">Insurance past its window, at most (%)</label>' + n('cfgGoalIns', c.goalIns, '0.1', '0.1', '100') + '</div></div>' +
     '<div class="field"><label for="cfgKpiFrom">A patient account counts as past due</label><select class="inp" id="cfgKpiFrom" data-cfg style="max-width:100%">' +
-    [[1, 'From day 1 — anything past due (handbook)'], [31, 'From day 31 — the 30+ column (Month-End)']].map(([v, l]) => '<option value="' + v + '"' + (c.kpiFrom === v ? ' selected' : '') + '>' + l + '</option>').join('') + '</select>' +
+    [[31, 'From day 31 — 30+ days past due (usual)'], [1, 'From day 1 — anything past due']].map(([v, l]) => '<option value="' + v + '"' + (c.kpiFrom === v ? ' selected' : '') + '>' + l + '</option>').join('') + '</select>' +
     '<div class="hint">Counts of accounts, not dollars. Insurance’s payment window is the “monitor up to” days above.</div></div>' +
     '<div class="small planPrev" id="cfgPrev">' + cfgPreview() + '</div>' +
     '<div class="btnRow" style="margin-top:12px"><button class="btn btn-pri btn-sm" data-act="saveCfg">Save</button><button class="btn btn-ghost" data-act="resetCfg">Back to the usual numbers</button></div></div></div>';
@@ -5113,7 +5123,7 @@ Object.assign(ACT, {
     act(() => B.saveSettings({ ar: c }), 'Saved — the lists use the new numbers');
   },
   async resetCfg() {
-    if (!(await confirmBox('Go back to the usual numbers?', '$' + AR_DEFAULTS.inst.toFixed(2) + ' instalment; monitor up to ' + AR_DEFAULTS.tiers[0] + ' days, chase up to ' + AR_DEFAULTS.tiers[1] + ', investigate up to ' + AR_DEFAULTS.tiers[2] + '; write-off under ' + money(AR_DEFAULTS.writeOff) + '; a new report due every ' + DUE_DAYS[AR_DEFAULTS.dueDay - 1] + '; goals ' + AR_DEFAULTS.goalPt + '% (patient) and ' + AR_DEFAULTS.goalIns + '% (insurance), counting from the first day past due.', 'Use the usual numbers'))) return;
+    if (!(await confirmBox('Go back to the usual numbers?', '$' + AR_DEFAULTS.inst.toFixed(2) + ' instalment; monitor up to ' + AR_DEFAULTS.tiers[0] + ' days, chase up to ' + AR_DEFAULTS.tiers[1] + ', investigate up to ' + AR_DEFAULTS.tiers[2] + '; write-off under ' + money(AR_DEFAULTS.writeOff) + '; a new report due every ' + DUE_DAYS[AR_DEFAULTS.dueDay - 1] + '; goals ' + AR_DEFAULTS.goalPt + '% (patient) and ' + AR_DEFAULTS.goalIns + '% (insurance), patient accounts counted ' + (AR_DEFAULTS.kpiFrom > 1 ? 'from 31 days past due.' : 'from the first day past due.'), 'Use the usual numbers'))) return;
     const d = { inst: AR_DEFAULTS.inst, writeOff: AR_DEFAULTS.writeOff, tiers: AR_DEFAULTS.tiers.slice(), dueDay: AR_DEFAULTS.dueDay, goalPt: AR_DEFAULTS.goalPt, goalIns: AR_DEFAULTS.goalIns, kpiFrom: AR_DEFAULTS.kpiFrom };
     if (await act(() => B.saveSettings({ ar: d }), 'Back to the usual numbers')) { S.cfg = arCfg({ ar: d }); renderView(); }
   }
@@ -5210,7 +5220,7 @@ function tourSteps(kind) {
     { id: 'hi', t: 'Welcome to NLO A/R', b: 'This is practice mode: made-up accounts, and nothing you do here is saved. Most steps wait for you to do them, then move on by themselves. Click around anytime, go Back, or End the tour.' },
     { id: 'today', enter: () => tourGoView('today'), at: () => tVis('.tiles'), t: 'Today', b: 'Your starting page: follow-ups due, the collection letters, texts and calls due, the 91+ money, insurance to chase and credits to resolve. Each tile opens its list.' },
     { id: 'goals', enter: () => tourGoView('today'), at: () => $('#view .goals'), t: 'The goals',
-      b: () => 'The office’s goals (handbook §19): no more than ' + S.cfg.goalPt + '% of patient accounts past due, and no more than ' + S.cfg.goalIns + '% of insurance accounts past their payment window. Each week’s report updates them; “to go” is how many accounts to bring current.' },
+      b: () => 'The office’s goals (handbook §19): no more than ' + S.cfg.goalPt + '% of patient accounts ' + (S.cfg.kpiFrom > 1 ? '30+ days past due' : 'past due') + ', and no more than ' + S.cfg.goalIns + '% of insurance accounts past their payment window. Each week’s report updates them; “to go” is how many accounts to bring current.' },
     { id: 'focus', enter: () => tourGoView('today'), at: () => $('#view .focusBar'), t: 'Do these first',
       b: 'Everything that needs doing today in one list, most urgent first: OrthoBanc’s failed-payment report on its days, a promise to pay whose day passed, an account about to reach day 90, insurance near its carrier’s filing limit, a letter waiting on Dr. A. Focus mode shows just that list, and how much is done today.' },
     { id: 'ladrow', enter: () => { tourGoView('today'); tourPick(); }, at: () => $('#view .ladRow[data-step="' + step().id + '"]'), t: 'Collection steps due',

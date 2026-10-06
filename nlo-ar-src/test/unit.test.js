@@ -123,14 +123,14 @@ const cfg = A.arCfg({});
     section('The goals (handbook §19)');
     // 50 active patient accounts (P1–P3 past due: 2 of them 30+), 25 insurance accounts (I1 100 days past due, I2 10 days)
     const RG = Object.assign({}, R, { book: { n: 80, bal: 10000, due: 905, pt: { n: 55, bal: 8000, act: 50 }, ins: { n: 25, bal: 2000, act: 25 } } });
-    const k = A.kpis(RG, cfg);
-    eq([k.pt.n, k.pt.of, k.pt.rate, k.pt.ok, k.pt.need], [3, 50, 0.06, false, 1], 'patient: 3 of 50 active accounts past due = 6% (goal 4%: 1 to bring current — 2 of 50 is 4%)');
+    const cfg1 = A.arCfg({ ar: { kpiFrom: 1 } }), k = A.kpis(RG, cfg1);
+    eq([k.pt.n, k.pt.of, k.pt.rate, k.pt.ok, k.pt.need], [3, 50, 0.06, false, 1], 'patient, counting from day 1: 3 of 50 active accounts past due = 6% (goal 4%: 1 to bring current — 2 of 50 is 4%)');
     eq([k.ins.n, k.ins.of, k.ins.rate, k.ins.ok, k.ins.need], [1, 25, 0.04, true, 0], 'insurance: 1 of 25 accounts past the 60-day window = 4% — goal met (I2 at 10 days isn’t late yet)');
-    const k30 = A.kpis(RG, A.arCfg({ ar: { kpiFrom: 31 } }));
-    eq([k30.pt.n, k30.pt.rate, k30.pt.ok], [2, 0.04, true], 'counting from 31 days: P3 (0–30 only) isn’t counted — 2 of 50 = 4%, met');
+    const k30 = A.kpis(RG, cfg);
+    eq([cfg.kpiFrom, k30.pt.n, k30.pt.rate, k30.pt.ok], [31, 2, 0.04, true], 'the usual count is from 31 days: P3 (0–30 only) isn’t counted — 2 of 50 = 4%, met');
     eq(A.kpis(RG, A.arCfg({ ar: { goalPt: 8, tiers: [120, 200, 365] } })).ins.n + '/' + A.kpis(RG, A.arCfg({ ar: { goalPt: 8 } })).pt.ok, '0/true', 'the insurance window follows “monitor up to”; the goal follows Settings');
     const RI = Object.assign({}, RG, { rows: RG.rows.concat([row({ patient: 'P4', sts: 'Inactive', due: 80, b90: 80, bal: 80 })].map(r => Object.assign(r, { key: A.acctKey(r) }))) });
-    eq(A.kpis(RI, cfg).pt.n, 3, 'an Inactive account past due isn’t one of the active accounts (collections, not the goal)');
+    eq(A.kpis(RI, cfg1).pt.n, 3, 'an Inactive account past due isn’t one of the active accounts (collections, not the goal)');
     ok(A.kpis(Object.assign({}, RG, { cover: { full: false, pastDue: true, credit: true, ins: true } }), cfg) === null && A.kpis(Object.assign({}, RG, { cover: Object.assign({}, RG.cover, { ins: false }) }), cfg).ins === null, 'no goals from a partial report; no insurance goal without insurance contracts');
     eq(A.kpis(R, cfg).pt.of, 7, 'an older report without the active count uses the patient account count');
     eq(A.reportTotals(RG, cfg).kp, { ptOf: 50, ptPd: 3, ptPd30: 2, insOf: 25, insLate: 1, win: 60 }, 'each saved report keeps the goal counts (both ways of counting) for the trend');
@@ -407,9 +407,10 @@ const cfg = A.arCfg({});
   section('Office days and settings');
   eq(['2026-10-09', '2026-10-10', '2026-11-25', '2026-12-24', '2026-12-25', '2026-09-07'].map(A.nextOfficeDay), ['2026-10-12', '2026-10-12', '2026-11-30', '2026-12-24', '2026-12-28', '2026-09-08'],
     'office days: Mon–Thu, skipping Thanksgiving week, Christmas, Labor Day');
-  eq(A.arCfg({ ar: { inst: 0, writeOff: -1, tiers: [90, 60, 365], dueDay: 6, goalPt: 0, goalIns: 140, kpiFrom: 7 } }), { inst: 11.11, writeOff: 100, tiers: [60, 120, 365], dueDay: 1, goalPt: 4, goalIns: 4, kpiFrom: 1 }, 'bad settings fall back to the usual numbers (report due Monday, goals 4% and 4%)');
+  eq(A.arCfg({ ar: { inst: 0, writeOff: -1, tiers: [90, 60, 365], dueDay: 6, goalPt: 0, goalIns: 140, kpiFrom: 7 } }), { inst: 11.11, writeOff: 100, tiers: [60, 120, 365], dueDay: 2, goalPt: 4, goalIns: 4, kpiFrom: 31 }, 'bad settings fall back to the usual numbers (report due Tuesday, goals 4% and 4%, counted from 31 days)');
+  eq([A.arCfg({}).kpiFrom, A.arCfg({ ar: { kpiFrom: 1 } }).kpiFrom], [31, 1], 'the patient goal counts from 31 days unless Settings say from day 1');
   eq(A.arCfg({ ar: { inst: 12.5, writeOff: 50, tiers: [30, 90, 200], dueDay: 3, goalPt: 3.5, goalIns: 5, kpiFrom: 31 } }), { inst: 12.5, writeOff: 50, tiers: [30, 90, 200], dueDay: 3, goalPt: 3.5, goalIns: 5, kpiFrom: 31 }, 'good settings are used');
-  eq(A.arCfg({ ar: { staleDays: 21 } }).dueDay, 1, 'an older settings record (report "old after N days") gets the Monday due day');
+  eq(A.arCfg({ ar: { staleDays: 21 } }).dueDay, 2, 'an older settings record (report "old after N days") gets the usual Tuesday due day');
 
   section('The weekly report (handbook §19: weekly)');
   const RD = (n, t, d) => { const r = A.reportDue(n, t, d); return [r.state, r.due, r.days]; };
@@ -421,7 +422,8 @@ const cfg = A.arCfg({});
   eq(RD('2026-10-05', '2026-10-10', 1), ['ok', '2026-10-12', 0], 'the weekend: in, next one Monday');
   eq(RD('2026-09-14', '2026-10-06', 1), ['late', '2026-10-05', 1], 'weeks behind: late since this week’s due day');
   eq(RD(null, '2026-10-06', 1), ['late', '2026-10-05', 1], 'no report at all: late');
-  eq(RD('2026-09-28', '2026-10-06', 9), ['late', '2026-10-05', 1], 'a bad due day means Monday');
+  eq(RD('2026-09-28', '2026-10-06', 9), ['today', '2026-10-06', 0], 'a bad due day means Tuesday, the usual');
+  eq(RD('2026-09-28', '2026-10-07', undefined), ['late', '2026-10-06', 1], 'no due day: Tuesday — late on Wednesday');
   eq([RD('2026-09-01', '2026-09-08', 1), RD('2026-09-01', '2026-09-09', 1)], [['today', '2026-09-08', 0], ['late', '2026-09-08', 1]], 'Labor Day moves Monday’s report to Tuesday');
   eq([RD('2026-11-19', '2026-11-27', 4), RD('2026-11-19', '2026-11-30', 4), RD('2026-11-24', '2026-11-30', 4)], [['ok', '2026-11-30', 0], ['today', '2026-11-30', 0], ['ok', '2026-12-03', 0]],
     'Thanksgiving week: Thursday’s report is due the Monday after (or in early, and the next one is Thursday)');

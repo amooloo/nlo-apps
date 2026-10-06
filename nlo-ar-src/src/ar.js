@@ -10,16 +10,18 @@
      Scheduled prepayments are parked (no action).
    ===================================================================== */
 /* goalPt / goalIns: the delinquency goals (AISA handbook §19, both "no more than 4%"); kpiFrom: a patient account counts as
-   past due from its first day past due (1, the handbook's wording) or from 31 days (the 30+ the Month-End numbers use);
-   dueDay: the weekly report is due every Monday (1) … Thursday (4) — the handbook says weekly and names no day */
-const AR_DEFAULTS = { inst: 11.11, writeOff: 100, tiers: [60, 120, 365], dueDay: 1, goalPt: 4, goalIns: 4, kpiFrom: 1 };
+   past due from 31 days (the 30+ the Month-End numbers use; the usual — Dr. A, 6 Oct 2026: counting 0–30 days, under 4%
+   is too hard to hold) or from its first day past due (1, the handbook's wording);
+   dueDay: the weekly report is due every Monday (1) … Thursday (4); Tuesday by default, the day of the FC's weekly
+   checklist in CADANCe (the handbook says weekly and names no day; Dr. A, 6 Oct 2026) */
+const AR_DEFAULTS = { inst: 11.11, writeOff: 100, tiers: [60, 120, 365], dueDay: 2, goalPt: 4, goalIns: 4, kpiFrom: 31 };
 const DUE_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday'];
 function arCfg(settings) {
   const a = (settings && settings.ar) || {};
   const num = (v, d) => (typeof v === 'number' && isFinite(v) && v > 0 ? v : d), pctOf = (v, d) => (typeof v === 'number' && isFinite(v) && v > 0 && v <= 100 ? v : d);
   const tiers = Array.isArray(a.tiers) && a.tiers.length === 3 && a.tiers.every((n, i) => Number.isInteger(n) && n > 0 && (!i || n > a.tiers[i - 1])) ? a.tiers.slice() : AR_DEFAULTS.tiers.slice();
   return { inst: num(a.inst, AR_DEFAULTS.inst), writeOff: num(a.writeOff, AR_DEFAULTS.writeOff), tiers, dueDay: [1, 2, 3, 4].includes(a.dueDay) ? a.dueDay : AR_DEFAULTS.dueDay,
-    goalPt: pctOf(a.goalPt, AR_DEFAULTS.goalPt), goalIns: pctOf(a.goalIns, AR_DEFAULTS.goalIns), kpiFrom: a.kpiFrom === 31 ? 31 : 1 };
+    goalPt: pctOf(a.goalPt, AR_DEFAULTS.goalPt), goalIns: pctOf(a.goalIns, AR_DEFAULTS.goalIns), kpiFrom: [1, 31].includes(a.kpiFrom) ? a.kpiFrom : AR_DEFAULTS.kpiFrom };
 }
 
 /* ---------- the weekly report (AISA handbook §19: "Weekly: FC runs AR Aging") ----------

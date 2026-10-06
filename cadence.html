@@ -377,5 +377,52 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
   if (document.body) init(); else document.addEventListener('DOMContentLoaded', init);
 })();
     </script>
+    <style id="nlo-arlink-css">
+.nlo-arlink{display:inline-flex;align-items:center;margin-left:8px;padding:1px 9px;border:1.5px solid var(--action,#1D3EA9);border-radius:999px;background:var(--surface-card,#fff);color:var(--action,#1D3EA9);font-family:var(--font-body,Montserrat,system-ui,sans-serif);font-size:12px;font-weight:700;line-height:1.6;text-decoration:none;white-space:nowrap;vertical-align:1px;cursor:pointer}
+.nlo-arlink:hover,.nlo-arlink:focus-visible{background:var(--action,#1D3EA9);color:#fff;outline:none}
+    </style>
+    <script id="nlo-arlink-addon">
+/* ---------- NLO A/R links (Oct 2026) ----------
+   A checklist item that mentions NLO A/R (in its title or one of its subtasks) gets an "NLO A/R ›" link
+   in its title. It opens NLO A/R in a new tab on the screen the text names:
+   "NLO A/R → Focus mode" → nlo-ar.html#focus, "→ Reports" → #reports, "→ Credits" → #cr,
+   "→ Insurance" → #ins, "→ Past due" → #pd, "→ Summary" → #sum; anything else → #today.
+   Tapping the link doesn't tick the item (the row's own click never sees it). Nothing here is saved. */
+(function () {
+  var VIEWS = [[/^focus/i, 'focus'], [/^reports?\b/i, 'reports'], [/^credits?\b/i, 'cr'], [/^insurance/i, 'ins'], [/^past due/i, 'pd'], [/^summary/i, 'sum'], [/^today/i, 'today']];
+  var MENTION = /NLO A\/R/;
+  function viewFor(texts) {
+    for (var i = 0; i < texts.length; i++) {
+      var m = /NLO A\/R\s*→\s*([A-Za-z][A-Za-z ]*)/.exec(texts[i]);
+      if (m) for (var j = 0; j < VIEWS.length; j++) if (VIEWS[j][0].test(m[1])) return VIEWS[j][1];
+    }
+    return 'today';
+  }
+  function ownText(el) { var t = ''; for (var n = el.firstChild; n; n = n.nextSibling) if (n.nodeType === 3) t += n.nodeValue; return t; }
+  function stop(e) { e.stopPropagation(); }
+  function decorate() {
+    var rows = document.querySelectorAll('.item-row');
+    for (var i = 0; i < rows.length; i++) {
+      var title = rows[i].querySelector('.item-title'); if (!title) continue;
+      var texts = [ownText(title)], subs = rows[i].querySelectorAll('.item-row__sub .subtask');
+      for (var k = 0; k < subs.length; k++) texts.push(subs[k].textContent || '');
+      var hit = false; for (var h = 0; h < texts.length; h++) if (MENTION.test(texts[h])) hit = true;
+      var a = title.querySelector('a.nlo-arlink');
+      if (!hit) { if (a) title.removeChild(a); continue; }
+      var href = 'nlo-ar.html#' + viewFor(texts);
+      if (a) { if (a.getAttribute('href') !== href) a.setAttribute('href', href); continue; }
+      a = document.createElement('a');
+      a.className = 'nlo-arlink'; a.href = href; a.target = '_blank'; a.rel = 'noopener';
+      a.textContent = 'NLO A/R ›'; a.setAttribute('aria-label', 'Open NLO A/R (new tab)');
+      a.addEventListener('click', stop); a.addEventListener('keydown', stop);
+      title.appendChild(a);
+    }
+  }
+  var queued = false;
+  function soon() { if (queued) return; queued = true; setTimeout(function () { queued = false; decorate(); }, 40); }
+  function init() { decorate(); new MutationObserver(soon).observe(document.body, { childList: true, subtree: true, characterData: true }); }
+  if (document.body) init(); else document.addEventListener('DOMContentLoaded', init);
+})();
+    </script>
   </body>
 </html>
