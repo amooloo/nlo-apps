@@ -15,7 +15,7 @@ const OUT = process.argv[2] || 'shots';
   const asked = async () => { await p.waitForSelector('#modalWrap h3', { timeout: 3000 }).catch(() => {}); return p.evaluate(() => { const h = document.querySelector('#modalWrap h3'); return h ? { title: h.textContent, text: (document.querySelector('#modalWrap .lsub') || {}).textContent || '', yes: (document.querySelector('#cbYes') || {}).textContent, no: (document.querySelector('#cbNo') || {}).textContent } : null; }); };
   const ids = await p.evaluate(() => { const o = openCases(); const f = fn => (o.find(fn) || {}).id;
     return { oliv: f(c => c.type === 'oliv' && c.stage === 'arrived'), appl: f(c => c.type === 'appliance' && c.stage === 'mfg'), marpe: f(c => c.type === 'marpe' && c.stage === 'approved'),
-      ret: f(c => c.type === 'retainer' && c.stage === 'sarah'), models: f(c => c.type === 'models'), nla: f(c => c.type === 'nla' && c.stage === 'pack' && !c.shipToPatient) || f(c => c.type === 'nla' && c.stage === 'thermo'),
+      models: f(c => c.type === 'models'), nla: f(c => c.type === 'nla' && c.stage === 'pack' && !c.shipToPatient) || f(c => c.type === 'nla' && c.stage === 'thermo'),
       ship: f(c => c.type === 'nla' && c.shipToPatient), mid: f(c => c.type === 'oliv' && c.stage === 'mfg' && !c.shipToPatient) }; });
   console.log('   ' + JSON.stringify(Object.keys(ids).filter(k => !ids[k])));
 
@@ -43,8 +43,9 @@ const OUT = process.argv[2] || 'shots';
   await p.click('.toast:has-text("marked complete") button'); await p.waitForTimeout(300);
   check((await st(ids.appl)).status === 'open', 'Undo reopens it');
 
-  // ---- MARPE (Delivered), retainers (Front desk pickup), study models (Ready), in-house (Checked in): all ask
-  for (const [k, from, last, label, flow] of [['marpe', 'approved', 'delivered', 'Delivered', 'marpe'], ['ret', 'sarah', 'pickup', 'Front desk pickup', 'retainer'], ['models', 'print', 'ready', 'Ready', 'models'], ['nla', 'pack', 'checkedin', 'Checked in', 'inhouse']]) {
+  // ---- MARPE (Delivered), study models (Ready), in-house (Checked in): all ask (retainers end at Picked up, which completes the case
+  // and pops up its chart note — visual52)
+  for (const [k, from, last, label, flow] of [['marpe', 'approved', 'delivered', 'Delivered', 'marpe'], ['models', 'print', 'ready', 'Ready', 'models'], ['nla', 'pack', 'checkedin', 'Checked in', 'inhouse']]) {
     const id = ids[k]; if (!id) { check(false, k + ': a demo case'); continue; }
     await setCase(id, { stage: from });
     await p.click('#nav-board'); await p.click('[data-act=flow][data-k=' + flow + ']'); await p.waitForSelector('.kc[data-id="' + id + '"]');

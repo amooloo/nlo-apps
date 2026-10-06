@@ -165,7 +165,8 @@ function labelsModal(c) {
 
 /* ---------- Retainer and whitening tray labels (Amir, 2 Oct 2026) ----------
    One 2×4 in label per bag in the Label Maker's style: patient, upper/lower, what's inside, a bottom line and a
-   date. After printing, it offers to mark the case complete. TT's are the retainers, WT's the whitening trays. */
+   date. After printing, it offers the case's next step (it used to offer to complete the case; since 6 Oct 2026 a retainer case ends
+   when the patient picks it up — Picked up, with its chart note). TT's are the retainers, WT's the whitening trays. */
 const RET_LABELS = [
   { k: 'TT’s', one: 'Retainer', many: 'Retainers', note: 'Wear retainers as directed' },
   { k: 'WT’s', one: 'Whitening tray', many: 'Whitening trays', note: 'Use whitening trays as directed' }
@@ -198,10 +199,12 @@ function retLabelsModal(c) {
     w.addEventListener('input', draw); w.addEventListener('change', draw);
     $w('#rl-print').onclick = () => printLabelPages(labels.map(retLabelHTML), () => {
       closeModal();
-      // printed: offer to finish the case (it can be reopened later)
+      // printed: offer the next step (to Milestones, or to the front desk) — not Picked up, which is the patient's
       const cur = findCase(c.id); if (!cur || cur.status === 'done') return;
-      confirmBox('Mark this case complete?', 'The label for ' + (cur.patient || 'this patient') + ' went to the printer. Move the case to Completed now? You can undo right after, or reopen it later.', 'Mark complete', 'mint', 'Not yet')
-        .then(ok => { if (ok) completeCase(c.id); });
+      const nx = nextStage(cur); if (!nx || nx === 'pickedup') return;
+      const l = stageLabel(Object.assign({}, cur, { stage: nx }));
+      confirmBox('Move it to ' + l + '?', 'The label for ' + (cur.patient || 'this patient') + ' went to the printer.', 'Move to ' + l, 'mint', 'Not yet')
+        .then(ok => { if (ok) moveStage(c.id, nx); });
     });
     draw();
   });

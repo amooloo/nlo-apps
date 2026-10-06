@@ -48,9 +48,11 @@ const FLOWS = {
     ['pack', 'Made – needs packaging'], ['checkedin', 'Checked in'] ],
     groups: [{ l: 'In fabrication', stages: ['fab', 'send', 'print', 'thermo', 'trim', 'polish', 'wash'] }] },
   /* the first step says what's waiting (Amir, 5 Oct 2026: "the first step right now says printing which does not make sense"): to be
-     made — printed and formed, or only formed for a remake from the model on file */
+     made — printed and formed, or only formed for a remake from the model on file. They don't go to Sarah's desk: made, they go to
+     the front desk, and the last step is the patient picking them up (Amir, 6 Oct 2026) — reaching it completes the case and pops up
+     the note for the chart (pickedUp in ui.js) */
   retainer: { label: 'Retainers & mouthguards', labDone: 'milestones', stages: [
-    ['print', 'To make'], ['milestones', 'Milestones'], ['sarah', 'On Sarah’s desk'], ['pickup', 'Front desk pickup'] ] },
+    ['print', 'To make'], ['milestones', 'Milestones'], ['pickup', 'Front desk pickup'], ['pickedup', 'Picked up'] ] },
   models: { label: 'Study models', labDone: 'ready', stages: [ ['print', 'To print'], ['ready', 'Ready'] ] },
   retreat: { label: 'Retreatment', stages: [
     ['intake', 'Intake & assessment'], ['review', 'Pending review'], ['proposal', 'Send proposal'],
@@ -118,7 +120,9 @@ function stageLabel(c) { const k = liveStage(c), s = caseStages(c).find(x => x[0
 /* retired steps: a case saved at one shows (and moves on) from the step that replaced it; history keeps the old name.
    In-house "Reset needed in 2 days" (Amir, 3 Oct 2026: it was never a step after TxP — resets were one or two aligners
    needed in a couple of days, kept in a column of the NL Lab project — and "we are actually not doing resets any longer") */
-const RETIRED_STAGES = { inhouse: { reset: { to: 'txp', l: 'Reset needed in 2 days' } } };
+const RETIRED_STAGES = { inhouse: { reset: { to: 'txp', l: 'Reset needed in 2 days' } },
+  // retainers "On Sarah's desk" (Amir, 6 Oct 2026: "retainers are NOT placed on Sarah's desk. They are made and put on the front desk")
+  retainer: { sarah: { to: 'pickup', l: 'On Sarah’s desk' } } };
 function liveStage(c) { const r = c && (RETIRED_STAGES[typeOf(c).flow] || {})[c.stage]; return r ? r.to : c && c.stage; }
 function retiredStageLabel(c, k) { const r = (RETIRED_STAGES[typeOf(c).flow] || {})[k]; return r ? r.l : ''; }
 function liveCases(list) { (list || []).forEach(c => { if (c) c.stage = liveStage(c); }); return list; }
@@ -424,7 +428,7 @@ function stageFromSection(type, section, subtasks) {
   if (type === 'retainer' || type === 'mouthguard') {
     if (/tt|wt/.test(s) && /-/.test(s)) return pick('print');
     if (/milestone/.test(s)) return pick('milestones');
-    if (/sarah/.test(s)) return pick('sarah');
+    if (/sarah/.test(s)) return pick('pickup'); // (no Sarah's desk any more: made retainers wait at the front desk)
     if (/pick ?up|front desk/.test(s)) return pick('pickup');
     return flow[0];
   }

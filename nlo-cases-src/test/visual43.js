@@ -28,7 +28,7 @@ const { routes, watch } = require('./helpers');
   console.log('\n# Retainers');
   const ret = await p.evaluate(() => openCases().find(c => c.type === 'retainer').id);
   await open(ret);
-  check(await p.isVisible(hdBtn + '[data-act=retLabels]') && /then it asks to mark the case complete/.test(await p.textContent('#drawer #dLbl')), 'Print labels (the bag label) is in the header too');
+  check(await p.isVisible(hdBtn + '[data-act=retLabels]') && /then it offers the next step/.test(await p.textContent('#drawer #dLbl')), 'Print labels (the bag label) is in the header too');
   check(!(await p.$('#drawer .ds[data-ds=label]')), 'no second Print label further down');
   await p.screenshot({ path: 'shots/v43-retainer.png' });
   await p.click(hdBtn + '[data-act=retLabels]'); await p.waitForSelector('#modalWrap .modal:has-text("Retainer labels")');

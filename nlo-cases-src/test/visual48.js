@@ -62,7 +62,7 @@ const OUT = process.argv[2] || 'shots';
   check(await p.textContent('#dKind') === 'Remake Retainers w/ Model', 'its panel: “Remake Retainers w/ Model” at the top');
   const n1 = await p.evaluate(id => chartNote(findCase(id), 'scan').split('\n')[0], rid);
   check(n1 === "Retainer remake from the model on file: U/L TT's.", 'chart note: “' + n1 + '”');
-  check(/^Delivered retainers \(remake\): U\/L TT's\./.test(await p.evaluate(id => chartNote(findCase(id), 'del'), rid)), 'the delivery note: “Delivered retainers (remake): U/L TT\'s.”');
+  check(/^Pt picked up retainers \(U\/L\) - remake\./.test(await p.evaluate(id => chartNote(findCase(id), 'del'), rid)), 'the pickup’s note: “Pt picked up retainers (U/L) - remake.”');
   await p.click('#drawer [data-act=edit]'); await p.waitForSelector('#drawer .pickRow[data-g=remake]');
   await p.click('#drawer .pickRow[data-g=remake] .pick[data-v=nomodel]'); await p.click('[data-act=saveEdit]');
   await p.waitForFunction(id => findCase(id).remake === 'nomodel', rid, { timeout: 4000 }).catch(() => {});

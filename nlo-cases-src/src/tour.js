@@ -179,12 +179,23 @@ function tourOfferHTML() {
     'It opens a practice copy with made-up patients in its own tab, so nothing real changes.</div>' +
     '<button type="button" class="btn btn-teal btn-sm" data-act="tourOpen">Start the tour</button><button type="button" class="btn btn-ghost btn-sm" data-act="tourLater">Not now</button></div></div>';
 }
-/* My account: the tour any time */
+/* My account: the tour any time, or practice on your own (Amir, 6 Oct 2026: "for training purposes, can you make a demo mode where
+   nothing gets recorded and you can just play around?") — the same practice copy, without the tour */
 function tourAccountHTML() {
+  const inTour = S.tour && (TOUR.on || !!TOUR.steps.length);
   return '<div class="card" style="max-width:520px;margin-top:18px"><div class="cardHd"><h3>Tour &amp; practice</h3></div><div class="cardBd"><p class="small" style="margin-bottom:10px">' +
-    (S.tour ? 'You’re in practice mode. Start the tour over from the beginning here.' : 'A 5-minute hands-on tour of NLO Cases, in a practice copy with made-up patients (its own tab) — nothing real changes.') +
-    '</p><button type="button" class="btn btn-sec btn-sm" data-act="tourOpen">' + ic('tour', 15) + (S.tour ? 'Start over' : 'Take the tour') + '</button></div></div>';
+    (S.tour ? 'You’re in practice mode: made-up patients, and nothing you do here is saved. Close this tab to go back to NLO Cases.'
+      : 'Learn NLO Cases in a practice copy with made-up patients, in its own tab — nothing you do there is saved. Take the 5-minute hands-on tour, or just play around.') +
+    '</p><div class="pickRow"><button type="button" class="btn btn-sec btn-sm" data-act="tourOpen">' + ic('tour', 15) + (inTour ? 'Start over' : 'Take the tour') + '</button>' +
+    (S.tour ? '<button type="button" class="btn btn-ghost btn-sm" data-act="practiceFresh" title="Back to the made-up patients as they were">' + ic('refresh', 15) + 'Fresh start</button>'
+      : '<button type="button" class="btn btn-sec btn-sm" data-act="practiceOpen">' + ic('next', 15) + 'Practice on my own</button>') + '</div></div></div>';
 }
+/* the practice copy without the tour, in its own tab: as staff, or as Dr. A */
+function practiceUrl() { return location.pathname + '?demo&practice=' + (isOwner() ? 'owner' : 'staff'); }
+Object.assign(ADMIN_ACTS, {
+  practiceOpen() { tourOffered(); window.open(practiceUrl(), '_blank', 'noopener'); },
+  practiceFresh() { location.reload(); } // (the practice copy lives in memory: a reload starts it over)
+});
 /* practice mode keeps its own settings (hidden columns, Expand all, Hide photos, the remembered username…): this page shares
    its web address — and so its browser storage — with the real app. It reads the real ones as a starting point, but what
    changes in practice stays in practice (stored under "nloDemo."). Installed before anything reads storage. */

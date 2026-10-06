@@ -1424,3 +1424,20 @@ svg.rxArch{display:block;width:100%;height:auto}
   .wkTblWrap .wkTbl td.wkWho,.wkTblWrap .wkTbl th.wkWho{position:sticky;left:0;background:#fff;z-index:1;box-shadow:1px 0 0 var(--grey-100)}
   .wkTblWrap .wkTbl tfoot td.wkWho{background:var(--grey-50)}
 }
+/* Not shipped (6 Oct 2026): outside-lab cases close to the delivery appt and not marked Shipped — orange heads-up, red at risk; solid, so
+   they stand apart from the pale date chips (white on #C9341F 5.3:1, navy on #F97316 5.8:1) */
+.flag.noship{color:#fff;background:#C9341F}
+.flag.noship.soon{color:var(--navy-900);background:#F97316}
+.flag.noship .i{flex:none}
+.notice.noship{display:flex;align-items:center;gap:8px;color:#fff;background:#C9341F;font-size:13px}
+.notice.noship.soon{color:var(--navy-900);background:#F97316}
+.notice.noship .i{flex:none}
+.chip.noshipF .i{color:#C9341F;margin-right:2px}
+.chip.noshipF.on .i{color:#fff}
+.swDot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:-1px;background:#C9341F}
+.swDot.soon{background:#F97316}
+.row .rFlag{display:flex;margin:2px 0 2px}
+/* picked up (6 Oct 2026): the chart note that pops up */
+.txt.puNote{margin:12px 0 4px;font-size:13.5px;line-height:1.5}
+/* the sign-in screen's way into practice mode (training, 6 Oct 2026) */
+.lockFoot.lockPrac{margin-top:12px;padding-top:12px;border-top:1px solid var(--grey-100)}

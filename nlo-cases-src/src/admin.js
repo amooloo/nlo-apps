@@ -41,7 +41,16 @@ function viewAdmin() {
     '</div><div class="small muted">Per aligner: materials for one aligner (sheet, printed model, packaging). Per set: anything paid once per case, such as a setup fee. Estimate = per set + aligners × per aligner.</div></div></div>';
   const deleted = '<div class="card" style="margin-top:18px"><div class="cardHd"><h3>Deleted cases</h3><span class="sub">Last 90 days</span><span style="flex:1"></span><button class="btn btn-ghost" data-act="loadDeleted">' + ic('refresh', 15) + 'Load</button></div><div class="cardBd" id="delBox"><div class="small muted">Deleted cases can be brought back. Click Load.</div></div></div>';
   const actv = '<div class="card" style="margin-top:18px"><div class="cardHd"><h3>Recent activity</h3><span class="sub">Last 7 days</span><span style="flex:1"></span><button class="btn btn-ghost" data-act="loadActivity">' + ic('refresh', 15) + 'Load</button></div><div class="cardBd" id="actBox"><div class="small muted">Shows who changed what. Click Load.</div></div></div>';
-  return rulesCardHTML() + '<div class="adminGrid"><div>' + team + defaults + alCostCard + noteInstrCardHTML() + rxAdminCardHTML() + '</div><div>' + sec + backupCardHTML() + (S.rulesOld ? '' : mailAdminHTML()) + actv + deleted + '</div></div>';
+  return rulesCardHTML() + '<div class="adminGrid"><div>' + team + defaults + shipWarnCardHTML() + alCostCard + noteInstrCardHTML() + rxAdminCardHTML() + '</div><div>' + sec + backupCardHTML() + (S.rulesOld ? '' : mailAdminHTML()) + actv + deleted + '</div></div>';
+}
+/* when the Not shipped labels show (Amir, 6 Oct 2026: "not sure if the 2 days is the best option"): orange and red, in business days
+   before the delivery appt (see shipWarn in ui.js) */
+function shipWarnCardHTML() {
+  const w = shipWarnDays(), opt = (v, l, on) => '<option value="' + v + '"' + (on ? ' selected' : '') + '>' + l + '</option>', days = n => n + ' business day' + (n === 1 ? '' : 's') + ' before';
+  return '<div class="card" style="margin-top:18px" id="shipWarnCard"><div class="cardHd"><h3>Not shipped warning</h3><span class="sub">Outside labs: a case not marked Shipped as its delivery appt gets close</span></div><div class="cardBd"><div class="grid2">' +
+    '<div class="field"><label for="shipSoonSel"><span class="swDot soon"></span>Orange from</label><select id="shipSoonSel" data-setting="shipSoon">' + opt(0, 'Off', !w.soon) + [3, 4, 5, 6, 7, 10].map(n => opt(n, days(n), w.soon === n)).join('') + '</select></div>' +
+    '<div class="field"><label for="shipLateSel"><span class="swDot late"></span>Red from</label><select id="shipLateSel" data-setting="shipLate">' + [1, 2, 3, 4, 5].map(n => opt(n, days(n), w.late === n)).join('') + '</select></div>' +
+    '</div><div class="small muted">Orange “Not shipped yet” is the heads-up — time to call the lab; red “Not shipped” — it may not make it in time. For Oliv, Angel, Invisalign, uLab, InSmile and appliances, counted back from the delivery appt (or the expected delivery, shipped to the patient). Business days are Monday–Friday, without the office holidays. Orange shows only when it starts before red. The label goes away once the case is marked Shipped — the lab’s shipping email does that for uLab, Oliv, Angel, Partners and Specialty; Invisalign and InSmile are marked by hand.</div></div></div>';
 }
 
 /* the live security rules are older than this version of the app: the owner pastes the new ones into the Firebase console
@@ -257,7 +266,8 @@ async function previewImport(rows) {
     const c = caseFromAsana(t, t.project, roster); if (!c.patient) return;
     // still open in Asana but already at the end (picked up / checked in) and not recent: delivered, so leave it out
     if (skipDelivered && !t.completed && typeOf(c).flow !== 'misc') {
-      const st = flowOf(c).stages, when = c.deliveryDate || '';
+      // (Asana's last column for retainers was Front desk pick up: Picked up, added 6 Oct 2026, has no column there)
+      const st = flowOf(c).stages.filter(x => x[0] !== 'pickedup'), when = c.deliveryDate || '';
       if (c.stage === st[st.length - 1][0] && (!when || when < weekAgo)) { delivered++; return; }
     }
     list.push(c);

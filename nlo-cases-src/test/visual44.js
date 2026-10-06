@@ -62,7 +62,8 @@ const REF_SCAN = 'Instructed pt to stay in the last set, night time only. No ela
   const ret = await find(() => openCases().find(c => c.type === 'retainer' && c.stage === 'pickup').id);
   await open(ret);
   L = await lines();
-  check(/^Delivery visit/.test((await sum()).trim()) && L[0] === "Delivered retainers: U/L TT's and WT's." && /^Reviewed retainer care/.test(L[1]) && /^Reviewed whitening tray use/.test(L[2]), 'retainers at Front desk pickup open on the delivery visit: retainer care, then whitening trays');
+  // (retainers are picked up at the front desk: their delivery is the pickup — 6 Oct 2026)
+  check(/^Picked up/.test((await sum()).trim()) && L[0] === 'Pt picked up retainers and whitening trays (U/L).' && /^Reviewed retainer care/.test(L[1]) && /^Reviewed whitening tray use/.test(L[2]), 'retainers at Front desk pickup open on the pickup’s note: retainer care, then whitening trays (' + L[0] + ')');
   const mg = await find(() => openCases().find(c => c.type === 'mouthguard').id);
   check(/\nReviewed mouthguard use and care with pt/.test(await find(id => chartNote(findCase(id), 'del'), mg)), 'mouthguard delivery: use and care');
   const ship = await find(() => openCases().find(c => c.type === 'oliv' && c.shipToPatient).id);

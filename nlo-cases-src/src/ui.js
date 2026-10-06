@@ -40,6 +40,7 @@ const IC = {
   chat: '<path d="M5 5h14a1.5 1.5 0 011.5 1.5V15a1.5 1.5 0 01-1.5 1.5h-7.5L7 20v-3.5H5A1.5 1.5 0 013.5 15V6.5A1.5 1.5 0 015 5z"/><path d="M8 9.5h8M8 12.5h5"/>',
   expand: '<path d="M7 9l5-5 5 5M7 15l5 5 5-5"/>',
   collapse: '<path d="M7 4l5 5 5-5M7 20l5-5 5 5"/>',
+  alert: '<path d="M12 4.2l8.6 15.3H3.4z"/><path d="M12 10v4.3M12 16.9v.1"/>',
   chart: '<path d="M4 20.5h16"/><path d="M7 16.5v-5M12 16.5V5.5M17 16.5v-8"/>',
   copy: '<rect x="8.5" y="8.5" width="11" height="11" rx="2"/><path d="M15.5 8.5V6A1.5 1.5 0 0014 4.5H6A1.5 1.5 0 004.5 6v8A1.5 1.5 0 006 15.5h2.5"/>'
 };
@@ -85,8 +86,12 @@ function boot() {
   const qs = new URLSearchParams(location.search);
   const local = location.protocol === 'file:' || /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
   S.demo = qs.has('demo'); S.emu = local && qs.has('emu');
-  // practice mode for the new-user tour (tour.js): the demo, signed in as staff (or as Dr. A); the demo keeps its own settings
-  S.tour = S.demo && ['staff', 'owner'].includes(qs.get('tour')) ? qs.get('tour') : '';
+  // practice mode for the new-user tour (tour.js): the demo, signed in as staff (or as Dr. A); the demo keeps its own settings.
+  // practice=staff|owner: the same practice copy without the tour, to play around in (Amir, 6 Oct 2026: "for training purposes, can you
+  // make a demo mode where nothing gets recorded and you can just play around?")
+  const pk = qs.get('tour') || qs.get('practice');
+  S.tour = S.demo && ['staff', 'owner'].includes(pk) ? pk : '';
+  if (S.tour && !qs.get('tour')) S.tourBegun = true; // (on your own: the tour doesn't start by itself — My account has it)
   if (S.demo) demoSandbox();
   phInit();
   try { S.lastLogin = localStorage.getItem('nloCases.lastLogin') || ''; } catch (e) { }
@@ -137,7 +142,9 @@ function lockScreen(mode, info) {
       '<div class="field"><label for="lgUser">Username</label><input id="lgUser" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" value="' + esc(S.demo ? 'demo' : S.lastLogin) + '" required></div>' +
       '<div class="field"><label for="lgPw">Password</label><input id="lgPw" type="password" autocomplete="current-password" ' + (S.demo ? 'value="demo"' : '') + ' required></div>') +
       '<button class="btn btn-pri btn-block" id="lgBtn" type="submit">Sign in</button></form>' +
-      '<div class="lockFoot">Forgot your password? Ask Dr. A to reissue your login.' + (S.demo ? '' : '<br><button class="linkBtn" data-act="forgot" type="button">Dr. A: reset by email</button>') + '</div>';
+      '<div class="lockFoot">Forgot your password? Ask Dr. A to reissue your login.' + (S.demo ? '' : '<br><button class="linkBtn" data-act="forgot" type="button">Dr. A: reset by email</button>') + '</div>' +
+      // training (6 Oct 2026): the practice copy, no login needed — made-up patients, nothing saved, in its own tab
+      (S.demo ? '' : '<div class="lockFoot lockPrac"><a href="' + esc(location.pathname) + '?demo&amp;practice=staff" target="_blank" rel="noopener" id="lgPractice">Practice with made-up patients</a><br>for training — nothing is saved</div>');
   } else if (mode === 'first') {
     h = '<h1>Welcome, ' + esc(firstName(B.me && B.me.name)) + '</h1><div class="lsub">Choose your own password</div>' + err +
       '<p class="desc">Only you will know it. Use at least 8 characters. If you forget it, Dr. A can reissue your login.</p>' +
@@ -275,7 +282,7 @@ function enterApp() {
     members(list) { S.members = list; if (S.view === 'admin') queueRender('team'); },
     settings(s) {
       const first = !S.settingsLoaded; S.settings = Object.assign({ idleMin: 10 }, s || {}); S.settingsLoaded = true;
-      if (S.view === 'admin') queueRender('team'); else if (first && S.view === 'today') queueRender(); // (Today's backup reminder)
+      if (S.view === 'admin') queueRender('team'); else queueRender(); // (Today's backup reminder; the Not shipped labels follow Team & security)
       noteRefresh(); // (Dr. A reworded what patients are told: an open case's chart note follows)
       idxMaintain();
     },
@@ -359,7 +366,7 @@ function byDue(a, b) {
   return x < y ? -1 : x > y ? 1 : String(a.patient).localeCompare(String(b.patient));
 }
 /* the list filters; del/delDay filter by the delivery date alone, not the lab date (Amir, 2 Oct 2026) */
-function noFilters() { return { type: '', stage: '', who: '', due: '', del: '', delDay: '', grp: '', ship: '' }; }
+function noFilters() { return { type: '', stage: '', who: '', due: '', del: '', delDay: '', grp: '', ship: '', noship: '' }; }
 const DEL_OPTS = [['all', 'All, sorted by delivery appt'], ['past', 'Delivery appt passed'], ['today', 'Delivery appt today'], ['tomorrow', 'Delivery appt tomorrow'],
   ['week', 'Delivery appt in the next 7 days'], ['14', 'Delivery appt in the next 14 days'], ['day', 'Delivery appt on a day…'], ['none', 'No delivery appt']];
 function delMatch(c, f) {
@@ -580,6 +587,43 @@ function recFlag(c) {
 function isHeld(c) { return !!(c.labHold && typeof c.labHold === 'object'); }
 function holdText(c) { return 'On hold at the lab' + (c.labHold.date ? ' since ' + c.labHold.date : '') + (c.labHold.reason ? ': ' + c.labHold.reason : ''); }
 function holdFlag(c) { return isHeld(c) ? '<span class="flag rec" title="' + esc(holdText(c)) + '">Lab hold</span>' : ''; }
+/* ---------- not shipped, with the delivery appt close (Amir, 6 Oct 2026: "there should be separate label (possibly orange or red) that
+   would appear if the case is from outside lab and the is not marked shipped 2 business days before appointment date") ----------
+   Cases an outside lab makes — the kinds with a Shipped step: outside aligners & braces, appliances — that aren't marked Shipped yet:
+   orange "Not shipped yet" from 4 business days before the delivery appt (or the expected delivery, shipped to the patient), time to
+   call the lab; red "Not shipped" from 2, when the case can't make it by regular shipping. Both are set in Team & security (Not shipped
+   warning). Business days: Monday–Friday, the office's holidays left out. Gone once the case is marked Shipped — by hand, or by the
+   lab's shipping email. */
+const SHIP_WARN = { late: 2, soon: 4 };
+function shipWarnDays() {
+  const st = S.settings || {}, late = Math.min(10, Math.max(1, Math.round(Number(st.shipLate)) || SHIP_WARN.late));
+  const soon = st.shipSoon === 0 || st.shipSoon === '0' ? 0 : Math.min(20, Math.round(Number(st.shipSoon)) || SHIP_WARN.soon);
+  return { late, soon: soon > late ? soon : 0 };
+}
+function isBizDay(iso) { const [y, m, d] = iso.split('-').map(Number), wd = new Date(y, m - 1, d).getDay(); return wd >= 1 && wd <= 5 && !officeHolidays(y).includes(iso); }
+/* n business days before a date (the date itself not counted): 2 before a Thursday is the Tuesday, 2 before a Monday the Thursday */
+function bizBefore(iso, n) { let d = iso; for (let i = 0; n > 0 && i < 60; i++) { d = addDays(d, -1); if (isBizDay(d)) n--; } return d; }
+/* { lv: 'late' | 'soon', appt, by (the day it has to ship by) } or null; `today` (an ISO date) is for tests */
+function shipWarn(c, today) {
+  if (!c || c.locked || c.status === 'done') return null;
+  const keys = flowOf(c).stages.map(x => x[0]), si = keys.indexOf('shipped'); if (si < 0 || keys.indexOf(liveStage(c)) >= si) return null;
+  const a = apptOf(c); if (!a || !txDateOk(a.d)) return null;
+  const w = shipWarnDays(), t = today || todayISO(), by = bizBefore(a.d, w.late);
+  if (t >= by) return { lv: 'late', appt: a.d, by };
+  if (w.soon && t >= bizBefore(a.d, w.soon)) return { lv: 'soon', appt: a.d, by };
+  return null;
+}
+/* "the delivery appt is tomorrow. Check with the lab, or reschedule." / "… was Thu, Oct 8." / "… is Thu, Oct 8; it should ship by Tue, Oct 6." */
+function shipWarnWhy(c, x) {
+  const what = 'the ' + delWord(c).toLowerCase(), dd = dayDiff(x.appt), when = dd === 0 ? 'today' : dd === 1 ? 'tomorrow' : fmtDay(x.appt);
+  if (dd < 0) return what + ' was ' + fmtDay(x.appt) + '.';
+  return x.lv === 'soon' ? what + ' is ' + when + '; it should ship by ' + fmtDay(x.by) + '.' : what + ' is ' + when + '. Check with the lab, or reschedule.';
+}
+const shipWarnLabel = x => x.lv === 'late' ? 'Not shipped' : 'Not shipped yet';
+function shipWarnFlag(c) {
+  const x = shipWarn(c); if (!x) return '';
+  return '<span class="flag noship ' + x.lv + '" title="' + esc((x.lv === 'late' ? 'Not marked shipped' : 'Not marked shipped yet') + ' — ' + shipWarnWhy(c, x)) + '">' + ic(x.lv === 'late' ? 'alert' : 'truck', 13) + shipWarnLabel(x) + '</span>';
+}
 
 /* ---------- chart note: the case entry written as a note to paste into the patient's chart ----------
    No assistant names (Dr. A doesn't record who saw the patient in chart notes). Plain ASCII punctuation so it
@@ -609,6 +653,7 @@ function chartNote(c, visit) {
   if (visit === 'del' && hasDelNote(c)) {
     if (shipEnd(c)) { const tr = trackList(c).map(x => (x.carrier ? x.carrier + ' ' : '') + x.n).join(', ');
       L.push('Shipped ' + what + ' to the patient' + (tr ? ' (' + tr + ')' : '') + '.'); }
+    else if (pickupCase(c)) L.push('Pt picked up ' + pickupWhat(c) + '.'); // (from the front desk: Amir, 6 Oct 2026)
     else {
       // in-house sets: how many aligners went out
       const u = Number(c.alU) || 0, l = Number(c.alL) || 0, n = c.type === 'nla' ? (u || l ? [u ? u + ' upper' : '', l ? l + ' lower' : ''].filter(Boolean).join(' and ') + ' aligners' : alN(c) ? alN(c) + ' aligners' : '') : '';
@@ -632,6 +677,16 @@ function chartNote(c, visit) {
   if (c.shipToPatient) L.push('Aligners to be shipped to the patient.');
   return noteAscii(L);
 }
+/* retainers, whitening trays and mouthguards are picked up at the front desk: their "delivery" is the pickup (Amir, 6 Oct 2026: "a note
+   should pop up autogenerated for pt's chart saying patient picked up retainers and/ or whitening") */
+function pickupCase(c) { return !!c && typeOf(c).flow === 'retainer' && c.type !== 'models'; }
+/* "retainers and whitening trays (U/L)", "whitening trays (U)", "retainers (U/L) - remake", "mouthguard (U)" */
+function pickupWhat(c) {
+  const ar = c.arches || [], a = ar.includes('Upper') && ar.includes('Lower') ? 'U/L' : ar.includes('Upper') ? 'U' : ar.includes('Lower') ? 'L' : '';
+  if (c.type === 'mouthguard') return 'mouthguard' + (a ? ' (' + a + ')' : '');
+  const r = (c.retKinds || []).join(' '), wt = /\bWT/i.test(r), tt = /\bTT/i.test(r) || !wt;
+  return (tt && wt ? 'retainers and whitening trays' : wt ? 'whitening trays' : 'retainers') + (a ? ' (' + a + ')' : '') + (c.remake ? ' - remake' : '');
+}
 /* a retainer case's "what's being made" without the remake (the note says it its own way) */
 function retDetail(c) { return String(c.detail || '').replace(/\s*[–-]\s*remake w\/o? model$/i, '').trim(); }
 function noteAscii(L) { return L.join('\n').replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[–—]/g, '-'); }
@@ -642,10 +697,11 @@ function hasDelNote(c) { return !!c && c.type !== 'models'; }
 function noteVisitDef(c) {
   if (!hasDelNote(c)) return 'scan';
   if (c.status === 'done' || (c.deliveryDate && dayDiff(c.deliveryDate) <= 0)) return 'del';
+  if (pickupCase(c) && ['pickup', 'pickedup'].includes(c.stage)) return 'del'; // waiting at the front desk: the pickup's note next
   const st = caseStages(c); return st.length && c.stage === st[st.length - 1][0] ? 'del' : 'scan';
 }
 function noteVisitOf(c) { const v = c && S.noteVisit && S.noteVisit.get(c.id); return v && (v === 'scan' || hasDelNote(c)) ? v : noteVisitDef(c); }
-function noteVisitName(c, v) { return v === 'del' ? (shipEnd(c) ? 'Shipped to patient' : 'Delivery visit') : 'Scan visit'; }
+function noteVisitName(c, v) { return v === 'del' ? (shipEnd(c) ? 'Shipped to patient' : pickupCase(c) ? 'Picked up' : 'Delivery visit') : 'Scan visit'; }
 /* the Chart note section: its folded heading names the visit Copy copies; inside, the two visits to switch between, the note,
    and for Dr. A where its wording comes from */
 function noteSumHTML(c) { return '<b>' + esc(noteVisitName(c, noteVisitOf(c))) + '</b> <span class="muted">· to paste into the patient’s chart</span>'; }
@@ -925,8 +981,9 @@ function asgKey(e) {
   return false;
 }
 function row(c, meta) {
+  const sw = shipWarnFlag(c); // (Not shipped: on its own line under the name, so a narrow column doesn't cut the name short)
   return '<button class="row" data-act="open" data-id="' + esc(c.id) + '">' + ptAv(c, 36) +
-    '<span class="grow"><span class="pt">' + esc(c.patient || '(no name)') + '</span><span class="meta">' + esc(meta != null ? meta : (typeOf(c).l + ' · ' + stageLabel(c) + (c.detail ? ' · ' + c.detail : ''))) + '</span></span>' + shipFlag(c, true) + dueChip(c) + avatar(c) + '</button>';
+    '<span class="grow"><span class="pt">' + esc(c.patient || '(no name)') + '</span>' + (sw ? '<span class="rFlag">' + sw + '</span>' : '') + '<span class="meta">' + esc(meta != null ? meta : (typeOf(c).l + ' · ' + stageLabel(c) + (c.detail ? ' · ' + c.detail : ''))) + '</span></span>' + shipFlag(c, true) + dueChip(c) + avatar(c) + '</button>';
 }
 
 /* ---------- Today ---------- */
@@ -968,7 +1025,8 @@ function viewBoard() {
   const inFlow = all.filter(c => typeOf(c).flow === S.boardFlow);
   // one column per stage, except a stage group (e.g. the seven "In fabrication" steps) shares one column
   const cols = [];
-  flow.stages.forEach(([sk, sl]) => { const g = stageGroup(flow, sk); if (!g) cols.push({ l: sl, keys: [sk] }); else if (g.stages[0] === sk) cols.push({ l: g.l, keys: g.stages, grp: true }); });
+  flow.stages.forEach(([sk, sl]) => { if (sk === 'pickedup' && !inFlow.some(c => c.stage === sk)) return; // (picked up = complete: off the board, so no empty column)
+    const g = stageGroup(flow, sk); if (!g) cols.push({ l: sl, keys: [sk] }); else if (g.stages[0] === sk) cols.push({ l: g.l, keys: g.stages, grp: true }); });
   const lastKey = flow.stages[flow.stages.length - 1][0];
   h += '<div class="board">' + cols.map((col, i) => {
     const items = inFlow.filter(c => col.keys.includes(c.stage) || (i === 0 && !flow.stages.some(s => s[0] === c.stage)))
@@ -982,7 +1040,7 @@ function kcard(c, last, steps) {
   const mixed = S.boardFlow === 'outside' || S.boardFlow === 'inhouse' || S.boardFlow === 'retainer';
   // appliances and MARPE: the lab's logo on every card (the lab differs from card to card even on their own tabs)
   const labbed = (c.type === 'appliance' || c.type === 'marpe') && !!LAB_LOGO[labName(c.lab)];
-  const flags = shipFlag(c) + recFlag(c) + holdFlag(c);
+  const flags = shipWarnFlag(c) + shipFlag(c) + recFlag(c) + holdFlag(c);
   // the arrow names where it goes ("Move to TxP approved")
   const nx = last ? null : nextStage(c), shipsNext = !!nx && !!shipEnd(c) && nx === shipEnd(c);
   const tip = last ? 'Mark complete' : shipsNext ? 'Shipped to the patient — completes the case' : nx ? 'Move to ' + stageLabel(Object.assign({}, c, { stage: nx })) : 'Move to next stage';
@@ -1009,6 +1067,7 @@ function applyFilters(list) {
     if (f.grp === 'fab' && !FAB_STAGES.includes(c.stage)) return false;
     if (f.grp === 'arrived' && c.stage !== 'arrived') return false;
     if (f.ship && !c.shipToPatient) return false;
+    if (f.noship && !shipWarn(c)) return false;
     return true;
   });
 }
@@ -1097,7 +1156,8 @@ function viewList(base, showWho) {
     (f.del === 'day' ? '<input type="date" id="fDelDay" data-f="delDay" value="' + esc(f.delDay || '') + '" aria-label="Delivery appt day">' : '') +
     (grpLabel ? '<button class="chip on" data-act="clearGrp">' + esc(grpLabel) + ' ✕</button>' : '') +
     (base.some(c => c.shipToPatient) || f.ship ? '<button class="chip flt' + (f.ship ? ' on' : '') + '" data-act="shipF" aria-pressed="' + !!f.ship + '">' + ic('truck', 15) + 'Ship to patient<span class="c">' + base.filter(c => c.shipToPatient && matchesQ(c)).length + '</span></button>' : '') +
-    ((f.type || f.stage || f.who || f.due || f.del || f.grp || f.ship) ? '<button class="btn btn-ghost" data-act="clearF">Clear filters</button>' : '') +
+    (base.some(c => shipWarn(c)) || f.noship ? '<button class="chip flt noshipF' + (f.noship ? ' on' : '') + '" data-act="noshipF" aria-pressed="' + !!f.noship + '">' + ic('alert', 15) + 'Not shipped<span class="c">' + base.filter(c => shipWarn(c) && matchesQ(c)).length + '</span></button>' : '') +
+    ((f.type || f.stage || f.who || f.due || f.del || f.grp || f.ship || f.noship) ? '<button class="btn btn-ghost" data-act="clearF">Clear filters</button>' : '') +
     colsControlHTML(LIST_COLS.map(x => x[0])) + '</div>';
   return h + '<div id="listBody">' + listBodyHTML(base) + '</div>';
 }
@@ -1239,10 +1299,10 @@ function listBodyHTML(base) {
       (on('ship') ? th('ship', 'Shipping', 'hideM') : '') + (on('who') ? th('who', 'Assigned', 'hideM') : '') + (on('updated') ? th('updated', 'Updated', 'hideM') : '') + '</tr></thead><tbody>' +
     list.map(c => { const g = stageGroup(flowOf(c), c.stage), ship = on('ship') ? shipFlag(c) + trackLinks(c) : '';
       return '<tr class="click" data-act="open" data-id="' + esc(c.id) + '" tabindex="0"><td><div class="ptCell">' + ptAv(c, 36) + '<div class="ptTxt"><div class="pt">' + esc(c.patient || '(no name)') + '</div><div class="small muted">' + esc(c.detail || '') + alignerMini(c) + '</div>' +
-      (ship ? '<div class="flags onlyM">' + ship + '</div>' : '') + (on('stage') ? '' : dateM(c)) + (on('notes') ? noteMobHTML(c) : '') + '</div></div></td>' +
+      (ship ? '<div class="flags onlyM">' + ship + '</div>' : '') + (on('stage') ? '' : (shipWarn(c) ? '<div class="flags">' + shipWarnFlag(c) + '</div>' : '') + dateM(c)) + (on('notes') ? noteMobHTML(c) : '') + '</div></div></td>' +
       (on('type') ? '<td class="hideM">' + typeMark(c) + '</td>' : '') +
       (on('stage') ? '<td class="stg">' + progHTML(c) + '<div class="small">' + esc(stageLabel(c)) + (g ? ' <span class="muted">· ' + esc(g.l.toLowerCase()) + ' ' + (g.stages.indexOf(c.stage) + 1) + '/' + g.stages.length + '</span>' : '') + '</div>' +
-        (recFlag(c) || holdFlag(c) ? '<div class="flags">' + recFlag(c) + holdFlag(c) + '</div>' : '') + dateM(c) + '</td>' : '') +
+        (recFlag(c) || holdFlag(c) || shipWarn(c) ? '<div class="flags">' + shipWarnFlag(c) + recFlag(c) + holdFlag(c) + '</div>' : '') + dateM(c) + '</td>' : '') +
       (on('notes') ? '<td class="hideM noteCol">' + noteCellHTML(c) + '</td>' : '') + // the latest note, next to the stage (5 Oct 2026)
       (on('lab') ? '<td class="hideM dateCol labCol">' + labChip(c, true) + '</td>' : '') +
       (on('appt') ? '<td class="hideM dateCol apptCol">' + apptChip(c, true) + '</td>' : '') +
@@ -1365,7 +1425,7 @@ function renderDrawer() {
   const lblBtn = c.type === 'nla' ? '<div class="dLbl" id="dLbl"><button type="button" class="btn btn-pri btn-sm" data-act="labels"' + (nAl ? '' : ' disabled') + '>' + ic('print', 15) + 'Print labels</button>' +
       (nAl ? '' : '<span class="small muted">once the aligner counts are in (Edit)</span>') + '</div>'
     : c.type === 'retainer' ? '<div class="dLbl" id="dLbl"><button type="button" class="btn btn-pri btn-sm" data-act="retLabels" title="The label for the bag: patient, upper/lower, retainers or whitening trays">' + ic('print', 15) + 'Print labels</button>' +
-      (done ? '' : '<span class="small muted">for the bag — then it asks to mark the case complete</span>') + '</div>' : '';
+      (done ? '' : '<span class="small muted">for the bag — then it offers the next step</span>') + '</div>' : '';
   d.dataset.for = c.id; d.dataset.mode = 'view';
   d.innerHTML = '<div class="dHd"><button type="button" class="dPh" data-act="phEdit" title="' + (c.photo ? 'Change or remove the photo' : 'Add a photo of the patient') + '" aria-label="' + (c.photo ? 'Patient photo: change or remove' : 'Add a patient photo') + '">' + ptAv(c, 64) + '<span class="dPhCam">' + ic('camera', 13) + '</span></button>' +
     // what the case is (arch, appliances, lab, kind of submission, extras) sits under the name — it was its own "Case" section
@@ -1374,6 +1434,7 @@ function renderDrawer() {
     '<div class="dBd"><div id="drawerNotice"></div>' +
     (done ? '<div class="notice info">Completed ' + esc(fmtWhen(c.closedAt)) + '</div>' : '') +
     (c.shipToPatient ? '<div class="notice ship" role="note">' + ic('truck', 18) + '<span><b>Ship to patient</b></span></div>' : '') +
+    (!done && shipWarn(c) ? (x => '<div class="notice noship ' + x.lv + '" role="note">' + ic(x.lv === 'late' ? 'alert' : 'truck', 18) + '<span><b>' + shipWarnLabel(x) + '</b> — ' + esc(shipWarnWhy(c, x)) + '</span></div>')(shipWarn(c)) : '') +
     (isHeld(c) ? '<div class="notice bad mpOld" role="note"><span><b>' + esc(holdText(c)) + '</b></span>' + (done ? '' : '<button class="btn btn-sec btn-sm" data-act="clearHold">Hold is sorted out</button>') + '</div>' : '') +
     // a MARPE entered (or imported) as an appliance before MARPE had its own steps: one click moves it over
     (!done && isOldMarpe(c) ? '<div class="notice info mpOld"><span>MARPE has its own steps now: records, lab, Zoom call, design approval, delivery.</span><button class="btn btn-sec btn-sm" data-act="toMarpe">Switch to MARPE steps</button></div>' : '') +
@@ -1883,6 +1944,7 @@ async function moveStage(id, to, extra, asked) {
   if (needs.length) { stageGateModal(c, to, needs, extra); return; }
   const end = shipEnd(c), keys = flowOf(c).stages.map(s => s[0]);
   if (end && keys.indexOf(to) >= keys.indexOf(end)) return shipDone(c, end, extra);
+  if (to === 'pickedup' && pickupCase(c)) return pickedUp(c, extra);
   const from = c.stage, fields = Object.keys(extra), before = {}; fields.forEach(k => { before[k] = c[k]; });
   c.stage = to; Object.assign(c, extra); queueRender(); if (S.openId === id) renderDrawer();
   S.pend = S.pend || {}; const mine = S.pend[id] = { to, extra };
@@ -1914,6 +1976,32 @@ async function shipDone(c, end, extra) {
     S.closedLoaded = false;
     toast((c.patient || 'Case') + ' shipped to the patient — case complete', { action: 'Undo', onAction: () => act(() => B.mutateCase(id, d => { d.stage = from; return 'open'; }, { a: 'reopen' }), 'Reopened') });
   } catch (e) { toast(errText(e), { bad: true }); }
+}
+/* picked up at the front desk (Amir, 6 Oct 2026: "the last step should be 'picked up' and a note should pop up autogenerated for pt's chart
+   saying patient picked up retainers and/ or whitening.. they can close it or copy it note for the chart"): one save moves it to
+   Picked up and completes it; the note pops up (Copy note / Close); Undo puts it back where it was */
+async function pickedUp(c, extra) {
+  const id = c.id, from = c.stage, fields = Object.keys(extra || {});
+  try {
+    await B.mutateCase(id, d => { d.stage = 'pickedup'; Object.assign(d, extra || {}); return 'done'; }, Object.assign({ a: 'stage', from, to: 'pickedup', close: 1 }, fields.length ? { fields } : {}));
+    pickedUpAfter(Object.assign({}, c, extra || {}), from);
+  } catch (e) { toast(errText(e), { bad: true }); }
+}
+function pickedUpAfter(c, from) {
+  const id = c.id, done = Object.assign({}, c, { stage: 'pickedup', status: 'done', closedAt: Date.now() });
+  if (S.hist) S.hist.unshift(done);
+  if (S.openId === id) closeDrawer(true);
+  S.closedLoaded = false;
+  toast((c.patient || 'Case') + ' picked up — case complete', { action: 'Undo', onAction: () => { closeModal(); act(() => B.mutateCase(id, d => { d.stage = from; return 'open'; }, { a: 'reopen' }), 'Reopened'); } });
+  pickupNoteModal(done);
+}
+function pickupNoteModal(c) {
+  const note = chartNote(c, 'del');
+  openModal('<h3>' + esc(c.patient || 'Patient') + ' picked up</h3><div class="lsub">The case is complete. The note for the patient’s chart:</div>' +
+    '<div class="txt puNote" id="puNote">' + esc(note) + '</div>' +
+    '<div class="mFt"><button class="btn btn-sec" type="button" data-act="closeModal">Close</button><span style="flex:1"></span><button class="btn btn-teal" type="button" id="puCopy">' + ic('copy', 16) + 'Copy note</button></div>', w => {
+    $('#puCopy', w).onclick = async () => { const ok = await copyText(note); if (ok) { closeModal(); toast('Chart note copied — paste it into the patient’s chart'); } else toast('Couldn’t copy — select the note and copy it', { bad: true }); };
+  });
 }
 async function completeCase(id) {
   const c = findCase(id); if (!c) return;
@@ -1962,6 +2050,7 @@ function onClick(e) {
     case 'toMarpe': { const c = findCase(S.openId); if (c && isOldMarpe(c)) toMarpe(c); break; }
     case 'zoomSet': { const c = findCase(S.openId); if (c) zoomModal(c); break; }
     case 'shipF': S.f.ship = S.f.ship ? '' : '1'; renderView(); break;
+    case 'noshipF': S.f.noship = S.f.noship ? '' : '1'; renderView(); break;
     case 'track': break; // the link itself opens the carrier's page in a new tab (and doesn't open the case)
     case 'portal': { const c = findCase(S.openId); // the link itself opens the portal in a new tab
       if (c && c.patient) copyText(c.patient).then(ok => toast(ok ? 'Copied “' + c.patient + '” — paste it in the portal’s search' : 'Couldn’t copy the name — type it in the portal', ok ? {} : { bad: true })); break; }
@@ -2034,7 +2123,7 @@ function onChange(e) {
   if (t.dataset.setting) {
     const k = t.dataset.setting, isMoney = k === 'alPerAligner' || k === 'alPerSet';
     if (isMoney && t.value !== '' && !(Number(t.value) >= 0)) { toast('Enter a dollar amount, like 4.50', { bad: true }); return; }
-    const v = k === 'idleMin' ? Number(t.value) : isMoney ? (t.value === '' ? null : Math.round(Number(t.value) * 100) / 100) : t.value;
+    const v = k === 'idleMin' || k === 'shipSoon' || k === 'shipLate' ? Number(t.value) : isMoney ? (t.value === '' ? null : Math.round(Number(t.value) * 100) / 100) : t.value;
     act(() => B.saveSettings({ [k]: v }), 'Saved');
   }
 }
@@ -2055,6 +2144,7 @@ async function saveEdit() {
   const end = shipEnd(now), sk = FLOWS[TYPE[now.type].flow].stages.map(s => s[0]);
   const ships = !!end && (changed.includes('stage') || changed.includes('shipToPatient')) && sk.indexOf(now.stage) >= sk.indexOf(end);
   if (ships && now.stage !== end) { now.stage = end; if (!changed.includes('stage')) changed.push('stage'); }
+  const picks = !ships && changed.includes('stage') && now.stage === 'pickedup' && pickupCase(now); // picked up = complete, and its note
   const btn = $('[data-act=saveEdit]', d); busyBtn(btn, true, 'Saving…');
   const id = S.openId, nAt = Date.now();
   try {
@@ -2068,7 +2158,7 @@ async function saveEdit() {
       if (changed.includes('type') && !FLOWS[TYPE[x.type].flow].stages.some(s => s[0] === x.stage)) x.stage = firstStage(x.type);
     };
     // (a step changed here is logged with where it went, like a move from the stepper: the Specialty warranty counts from Shipped)
-    await B.mutateCase(id, x => { apply(x); if (ships) return 'done'; }, Object.assign({ a: 'edit', fields: changed }, changed.includes('stage') ? { from: base.stage, to: now.stage } : {}, ships ? { close: 1 } : {}));
+    await B.mutateCase(id, x => { apply(x); if (ships || picks) return 'done'; }, Object.assign({ a: 'edit', fields: changed }, changed.includes('stage') ? { from: base.stage, to: now.stage } : {}, ships || picks ? { close: 1 } : {}));
     // show the saved copy right away (the live update from the server follows a moment later)
     const cur = findCase(id); if (cur) apply(cur);
     if (ships) { // shipped to the patient = complete
@@ -2077,6 +2167,7 @@ async function saveEdit() {
       toast((now.patient || 'Case') + ' shipped to the patient — case complete', { action: 'Undo', onAction: () => act(() => B.mutateCase(id, x => { x.stage = base.stage; return 'open'; }, { a: 'reopen' }), 'Reopened') });
       return;
     }
+    if (picks) { S.editing = false; pickedUpAfter(Object.assign({ id }, cur || now), base.stage); return; }
     S.editing = false; toast('Saved'); renderDrawer(); loadHistory(id);
     if (changed.includes('stage') && cur && isLastStage(cur, now.stage)) offerComplete(id); // reached its last step: done?
   } catch (x) { busyBtn(btn, false); toast(errText(x), { bad: true }); }
