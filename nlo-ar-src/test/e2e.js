@@ -310,6 +310,19 @@ async function openAcct(p, name) { await p.evaluate(n => { const a = S.accts.fin
   const readable = await owner2.evaluate(async () => { let n = 0; for (const r of S.reports) { try { await B.loadReport(r.id); n++; } catch (e) { } } return n + '/' + S.reports.length; });
   check(/^(\d+)\/\1$/.test(readable), 'every report still opens (' + readable + ')');
 
+  console.log('\n# The tour: offered once on Today; it opens a practice copy in its own tab');
+  await owner.click('#nav-today'); await owner.waitForSelector('#tourOffer', { timeout: 15000 });
+  check(/New to NLO A\/R\?/.test(await owner.textContent('#tourOffer')), 'Dr. A’s Today offers the hands-on tour');
+  const [prac] = await Promise.all([owner.context().waitForEvent('page'), owner.click('#tourOffer [data-act=tourOpen]')]);
+  await prac.waitForFunction(() => typeof TOUR !== 'undefined' && TOUR.on, null, { timeout: 20000 });
+  check(/nlo-ar\.html\?demo&tour=owner$/.test(prac.url()) && await prac.evaluate(() => S.demo && B === DEMO && B.me.name === 'Dr. Akhavan' && S.accts.length > 0), 'Start the tour opens the practice copy (made-up accounts) in its own tab, as Dr. A');
+  await owner.waitForTimeout(300);
+  check(!(await owner.$('#tourOffer')) && await owner.evaluate(() => S.inApp && !S.demo && S.arState === 'ok'), 'his real A/R stays open, and the offer is put away');
+  await prac.close();
+  await owner.click('#nav-account'); await owner.waitForSelector('[data-act=tourOpen]');
+  check(/Take the tour/.test(await owner.textContent('[data-act=tourOpen]')), 'My account: Take the tour, any time');
+  await owner.click('#nav-today');
+
   console.log('\n# Another page can’t hold A/R in a frame');
   const framer = await newPage(browser, 'framer', errs);
   await framer.goto(BASE + 'logo-white.png');

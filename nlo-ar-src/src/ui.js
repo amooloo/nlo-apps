@@ -4,7 +4,7 @@
    account panel in panel.js, Settings / My account in admin.js.
    ===================================================================== */
 const S = {
-  demo: false, emu: false, inApp: false, arState: '', view: 'today', q: '',
+  demo: false, emu: false, tour: '', inApp: false, arState: '', view: 'today', q: '',
   tab: { pd: 'lad', ins: 'chase', cr: 'work' }, f: { src: '', work: '', who: '' }, sort: { k: '', dir: 1 }, ladStep: '', ladVer: 0,
   settings: { idleMin: 10 }, cfg: arCfg({}), roster: [], team: [],
   reports: [], rep: null, repId: '', prev: null, prevId: '', accts: [], byKey: new Map(), diff: null,
@@ -49,7 +49,8 @@ const IC = {
   text: '<path d="M5 5.5h14a1.5 1.5 0 011.5 1.5v8.5A1.5 1.5 0 0119 17H10l-4.5 3.5V17H5a1.5 1.5 0 01-1.5-1.5V7A1.5 1.5 0 015 5.5z"/><path d="M8 10h8M8 13h5"/>',
   sign: '<path d="M4 19.5h16"/><path d="M14.5 4.5l3 3-8.5 8.5H6v-3z"/>',
   ladder: '<path d="M7 3.5v17M17 3.5v17M7 7.5h10M7 12h10M7 16.5h10"/>',
-  pause: '<circle cx="12" cy="12" r="8.5"/><path d="M10 9v6M14 9v6"/>'
+  pause: '<circle cx="12" cy="12" r="8.5"/><path d="M10 9v6M14 9v6"/>',
+  tour: '<circle cx="12" cy="12" r="8.5"/><path d="M10.3 8.7l5 3.3-5 3.3z"/>'
 };
 function ic(n, s) { s = s || 18; return '<svg class="i" width="' + s + '" height="' + s + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (IC[n] || '') + '</svg>'; }
 
@@ -88,10 +89,13 @@ window.addEventListener('pageshow', e => { if (e.persisted && S.leftPage) locati
 function boot() {
   // A/R only runs as its own page: another page (even one of the office's) can't hold it in a frame and watch it
   if (window.top !== window.self) { document.body.innerHTML = '<p style="font:15px sans-serif;padding:24px">NLO A/R opens in its own tab. <a href="nlo-ar.html" target="_blank" rel="noopener">Open it</a>.</p>'; return; }
-  let lockMsg = ''; try { lockMsg = sessionStorage.getItem('nloAR.lockMsg') || ''; sessionStorage.removeItem('nloAR.lockMsg'); } catch (e) { }
   const qs = new URLSearchParams(location.search);
   const local = location.protocol === 'file:' || /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
   S.demo = qs.has('demo'); S.emu = local && qs.has('emu');
+  // practice mode for the new-user tour (tour.js): the demo, signed in as staff (or as Dr. A); the demo keeps its own settings
+  S.tour = S.demo && ['staff', 'owner'].includes(qs.get('tour')) ? qs.get('tour') : '';
+  if (S.demo) demoSandbox();
+  let lockMsg = ''; try { lockMsg = sessionStorage.getItem('nloAR.lockMsg') || ''; sessionStorage.removeItem('nloAR.lockMsg'); } catch (e) { }
   try { S.lastLogin = localStorage.getItem('nloAR.lastLogin') || localStorage.getItem('nloCases.lastLogin') || ''; } catch (e) { }
   document.addEventListener('click', onClick);
   document.addEventListener('change', onChange);
@@ -102,7 +106,13 @@ function boot() {
   });
   ['pointerdown', 'keydown', 'wheel', 'touchstart'].forEach(ev => document.addEventListener(ev, () => { S.lastAct = Date.now(); }, { passive: true }));
   const first = lockMsg ? { ok: lockMsg } : {};
-  if (S.demo) { B = DEMO; $('#demoBar').classList.remove('hidden'); document.body.classList.add('demo'); lockScreen('login', first); return; }
+  if (S.demo) {
+    B = DEMO; DEMO.practice = S.tour; $('#demoBar').classList.remove('hidden'); document.body.classList.add('demo');
+    if (S.tour) $('#demoBar').textContent = 'Practice — made-up accounts, nothing is saved';
+    lockScreen('login', first);
+    if (S.tour) setTimeout(() => { const b = $('#lgBtn'); if (b) b.click(); }, 60); // practice opens signed in
+    return;
+  }
   B = FB;
   if (!FB.init(S.emu)) { lockScreen('unconfigured'); return; }
   FB.onSync = renderSync;
@@ -123,8 +133,11 @@ function lockScreen(mode, info) {
   } else if (mode === 'login') {
     h = '<h1>Sign in</h1><div class="lsub">Next Level Orthodontics · accounts receivable</div>' + err + ok +
       '<form id="loginForm" autocomplete="on" style="margin-top:16px">' +
+      // practice mode (the tour): look-alike boxes, not real ones, so the browser never offers to save a "practice" password for this site
+      (S.tour ? '<div class="field"><span class="flabel">Username</span><div class="inp" id="lgPracUser">practice</div></div>' +
+        '<div class="field"><span class="flabel">Password</span><div class="inp" id="lgPracPw" aria-label="Password (filled in for practice)">••••••••</div></div>' :
       '<div class="field"><label for="lgUser">Username</label><input id="lgUser" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" value="' + esc(S.demo ? 'demo' : S.lastLogin) + '" required></div>' +
-      '<div class="field"><label for="lgPw">Password</label><input id="lgPw" type="password" autocomplete="current-password" ' + (S.demo ? 'value="demo"' : '') + ' required></div>' +
+      '<div class="field"><label for="lgPw">Password</label><input id="lgPw" type="password" autocomplete="current-password" ' + (S.demo ? 'value="demo"' : '') + ' required></div>') +
       '<button class="btn btn-pri btn-block" id="lgBtn" type="submit">Sign in</button></form>' +
       '<div class="lockFoot">Same login as NLO Cases. Forgot your password? Ask Dr. A to reissue your login.' + (S.demo ? '' : '<br><button class="linkBtn" data-act="forgot" type="button">Dr. A: reset by email</button>') + '</div>';
   } else if (mode === 'first') {
@@ -149,7 +162,7 @@ function lockScreen(mode, info) {
       '<div class="lockFoot"><button class="linkBtn" data-act="toLogin" type="button">Back to sign in</button></div>';
   }
   card.innerHTML = h;
-  const f = mode === 'login' && $('#lgUser').value ? $('#lgPw') : $('input:not([type=checkbox])', card);
+  const f = mode === 'login' && S.tour ? $('#lgBtn') : mode === 'login' && $('#lgUser').value ? $('#lgPw') : $('input:not([type=checkbox])', card);
   if (f) f.focus();
   bindLockForms();
 }
@@ -157,7 +170,7 @@ function busyBtn(btn, on, label) { if (!btn) return; if (on) { btn.dataset.l = b
 function bindLockForms() {
   const lf = $('#loginForm');
   if (lf) lf.onsubmit = async e => {
-    e.preventDefault(); const btn = $('#lgBtn'); const user = $('#lgUser').value.trim(); const pw = $('#lgPw').value;
+    e.preventDefault(); const btn = $('#lgBtn'); const user = S.tour ? 'practice' : $('#lgUser').value.trim(); const pw = S.tour ? 'practice' : $('#lgPw').value;
     busyBtn(btn, true, 'Signing in…');
     try {
       const r = await B.signIn(user, pw);
@@ -202,7 +215,7 @@ async function enterApp() {
   clearInterval(S.idleTimer);
   S.idleTimer = setInterval(() => {
     const mins = Number(S.settings.idleMin) || 10;
-    if (S.inApp && Date.now() - S.lastAct > mins * 60000) lockOut('Locked after ' + mins + ' minutes without activity.');
+    if (S.inApp && !S.tour && Date.now() - S.lastAct > mins * 60000) lockOut('Locked after ' + mins + ' minutes without activity.'); // practice mode has nothing to hide
     else if (S.inApp) updateTitle();
   }, 15000);
   let st;
@@ -213,6 +226,8 @@ async function enterApp() {
   if (!S.inApp) return;
   S.arState = st; renderShell();
   if (st === 'ok') startLive(); else renderView();
+  // practice mode: the tour starts by itself once, and after Lock it picks up where it was
+  if (S.tour && st === 'ok' && (!S.tourBegun || TOUR.paused)) { S.tourBegun = true; const from = TOUR.paused; TOUR.paused = null; setTimeout(() => { if (S.inApp && !TOUR.on) tourStart(S.tour, from); }, 600); }
 }
 function startLive() {
   S.arState = 'ok'; renderShell(); renderView();
@@ -243,6 +258,12 @@ function startLive() {
 }
 async function lockOut(msg) {
   if (!S.inApp) return;
+  if (S.tour) { // practice mode: made-up accounts, so it locks in place — and signing back in picks the tour up again
+    if (TOUR.on) msg = tourPause(msg);
+    S.inApp = false; clearInterval(S.idleTimer); closeModal(); closeDrawer(true);
+    ['#view', '#topSlot', '#side', '#mobTop', '#mobNav'].forEach(sel => { const el = $(sel); if (el) el.innerHTML = ''; });
+    document.title = 'NLO A/R'; await B.signOut(); lockScreen('login', { ok: msg }); return;
+  }
   S.inApp = false; clearInterval(S.idleTimer);
   closeModal(); closeDrawer(true);
   ['#view', '#topSlot', '#side', '#mobTop', '#mobNav'].forEach(sel => { const el = $(sel); if (el) el.innerHTML = ''; });
@@ -400,7 +421,7 @@ function updateTitle() {
 }
 function renderSync() {
   const el = $('#syncLine'); if (!el) return;
-  let cls = 'ok', t = S.demo ? 'Demo · nothing saved' : 'Live · encrypted';
+  let cls = 'ok', t = S.demo ? (S.tour ? 'Practice' : 'Demo') + ' · nothing saved' : 'Live · encrypted';
   if (!navigator.onLine) { cls = 'bad'; t = 'Offline'; }
   else if (B && B.pending) { cls = 'busy'; t = 'Saving…'; }
   el.innerHTML = '<span class="dot ' + cls + '"></span>' + t;

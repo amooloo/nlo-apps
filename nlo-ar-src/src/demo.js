@@ -5,7 +5,7 @@
    as an Edge A/R Aging report so every list has something in it.
    ===================================================================== */
 const DEMO = {
-  uid: null, me: null, h: null, pending: 0, ar: { curV: 1 },
+  uid: null, me: null, h: null, pending: 0, ar: { curV: 1 }, practice: '',
   reports: [], items: new Map(), logs: [], versions: {}, roster: [], members: [], grants: [], settings: { idleMin: 30 },
   isOwner() { return !!(DEMO.me && DEMO.me.role === 'owner'); },
   isPerm() { return false; },
@@ -15,7 +15,9 @@ const DEMO = {
 
   /* ---------- sign in (always the owner, so every screen can be seen) ---------- */
   async signIn() {
-    DEMO.me = { uid: 'u-amir', staffId: 'amir', name: 'Dr. Akhavan', role: 'owner', active: true, email: 'owner@example.com' };
+    // practice mode for the new-user tour (tour.js, ?demo&tour=staff): signed in as an ordinary staff member, so it looks like their screens
+    DEMO.me = DEMO.practice === 'staff' ? { uid: 'u-practice', staffId: 'practice', name: 'Practice User', role: 'staff', active: true, username: 'practice' }
+      : { uid: 'u-amir', staffId: 'amir', name: 'Dr. Akhavan', role: 'owner', active: true, email: 'owner@example.com' };
     DEMO.uid = DEMO.me.uid;
     if (!DEMO.reports.length) await DEMO.seed();
     return { state: 'ok' };
@@ -107,10 +109,11 @@ const DEMO = {
       { sid: 'morgan', name: 'Morgan (demo)', initials: 'M', role: 'staff', active: true, username: 'morgan' },
       { sid: 'casey', name: 'Casey (demo)', initials: 'C', role: 'staff', active: true, username: 'casey' }
     ];
+    if (DEMO.practice === 'staff') DEMO.roster.push({ sid: 'practice', name: 'Practice User', initials: 'PU', role: 'staff', active: true, username: 'practice' });
     const fakeX = sid => (sid + 'demokeydemokeydemokeydemokeydemokeydemokey').slice(0, 43);
     DEMO.members = DEMO.roster.map(r => Object.assign({ uid: 'u-' + r.sid, staffId: r.sid, name: r.name, role: r.role, active: true, username: r.username || '' },
       r.sid === 'casey' ? { mustSetup: true } : { pub: { kty: 'EC', crv: 'P-256', x: fakeX(r.sid), y: fakeX('y' + r.sid) } }));
-    DEMO.grants = ['amir', 'jamie', 'taylor'].map(sid => ({ uid: 'u-' + sid, sid, pubX: fakeX(sid), ringV: 1 }));
+    DEMO.grants = ['amir', 'jamie', 'taylor'].concat(DEMO.practice === 'staff' ? ['practice'] : []).map(sid => ({ uid: 'u-' + sid, sid, pubX: fakeX(sid), ringV: 1 }));
     DEMO.settings = { idleMin: 30 };
     const cfg = arCfg(DEMO.settings);
 

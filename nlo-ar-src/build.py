@@ -5,7 +5,7 @@ import base64, hashlib, json, os, pathlib, shutil
 root = pathlib.Path(__file__).parent
 src = root / 'src'
 t = (src / 'template.html').read_text()
-js = '\n'.join((src / f).read_text() for f in ['core.js', 'edge.js', 'ar.js', 'backend.js', 'demo.js', 'ui.js', 'views.js', 'panel.js', 'admin.js'])
+js = '\n'.join((src / f).read_text() for f in ['core.js', 'edge.js', 'ar.js', 'backend.js', 'demo.js', 'ui.js', 'views.js', 'panel.js', 'admin.js', 'tour.js'])
 rules = (root.parent / 'nlo-cases-src' / 'firestore.rules').read_text()
 assert rules.count('__OWNER_EMAIL__') == 1 and 'match /arItems/{id}' in rules
 js = js.replace('const AR_RULES = "";', 'const AR_RULES = ' + json.dumps(rules) + ';', 1)

@@ -187,7 +187,7 @@ function viewAccount() {
     '<div class="field"><label for="pwCur">Current password</label><input type="password" id="pwCur" autocomplete="current-password" required></div>' +
     '<div class="field"><label for="pwN1">New password</label><input type="password" id="pwN1" autocomplete="new-password" minlength="8" required></div>' +
     '<div class="field"><label for="pwN2">Type it again</label><input type="password" id="pwN2" autocomplete="new-password" minlength="8" required></div>' +
-    '<button class="btn btn-pri" type="submit">Change password</button></form></div></div>';
+    '<button class="btn btn-pri" type="submit">Change password</button></form></div></div>' + tourAccountHTML();
 }
 document.addEventListener('submit', async e => {
   if (e.target.id !== 'pwForm') return; e.preventDefault();
