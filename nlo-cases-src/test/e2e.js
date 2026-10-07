@@ -1346,7 +1346,7 @@ async function openByName(p, name) {
     // an export nobody counted yet, a set part-trimmed, and one for a patient NLO Cases doesn't have, filed in the Finished folder
     const labDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nlolab-')), labData = path.join(labDir, 'data'), labApp = path.join(labDir, 'app'); fs.mkdirSync(labData);
     const finBase = path.join(labDir, 'Finished', '2026', '10', '07'); // Ortho Factory moves finished folders here (beside InputFolder)
-    const ST = ['New', 'New,SentToTrimmer,Barcode', 'New,SentToTrimmer,Barcode,Trimmed']; // level 0 not at the trimmer, 1 at the trimmer, 2 trimmed
+    const ST = ['New', 'New,SentToTrimmer,Barcode', 'New,SentToTrimmer,Barcode,Trimmed']; // level 0 no sticker yet, 1 sticker printed, 2 trimmed
     const folderAt = (ms, who) => { const d = new Date(ms), p2 = n => String(n).padStart(2, '0'); return d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate()) + ' ' + p2(d.getHours()) + ' ' + p2(d.getMinutes()) + ' ' + p2(d.getSeconds()) + ' - A - Dr. Test - ' + who + ' - ' + Math.random().toString(16).slice(2, 6); };
     const writeOrder = (base, folder, id, first, last, rev, up, lo, tmpl) => {
       const el = (k, a, n, lv) => '  <Aligner Name="' + k + a + n + rev + '" Serialnumber="' + id + k + a + n + rev + '" State="' + ST[lv] + '">\n    <Archmodel>x.stl</Archmodel>\n  </Aligner>';
@@ -1377,18 +1377,23 @@ async function openByName(p, name) {
     await owner.click('#nav-board'); await owner.fill('#q', ''); await owner.click('[data-act=flow][data-k=inhouse]');
     const lCard = '.kc:has-text("Lumen Printwell")', tCard = '.kc:has-text("Tess Trimbright")';
     await owner.waitForSelector(lCard + ' .labGo:has-text("Ready to print")', { timeout: 20000 });
-    check(await owner.isVisible(tCard + ' .labM .lic-trim.live') && /3\/12/.test(await owner.textContent(tCard + ' .labLn')) && !(await owner.isVisible(tCard + ' .lic-print')),
-      'board: Tess’s card has the Trim bar (3/12, the scissors moving — 3 more at the trimmer) and no 3D-printing bar from Ortho Factory');
+    check(await owner.isVisible(tCard + ' .labM .lic-trim') && !(await owner.isVisible(tCard + ' .labM .lic-trim.live')) && /3\/12/.test(await owner.textContent(tCard + ' .labLn')) && !(await owner.isVisible(tCard + ' .labM .lic-print')),
+      'board: Tess’s card has the Trim bar (3/12; its scissors still — she’s at Printing, they move at Trimming) and no 3D-printing bar from Ortho Factory');
+    // Amir, 7 Oct 2026: "at the trimmer" said as "sticker printed"; the icon by the step moves while the case is at that step
+    check(/^Trimmed 3 of 12 · 6 of 12 stickers printed/.test(await owner.getAttribute(tCard + ' .labM', 'aria-label') || '') && await owner.isVisible(tCard + ' .kstep .lic-print.live'),
+      'board: Tess’s Trim bar says “Trimmed 3 of 12 · 6 of 12 stickers printed”, and her step (Printing) has the printer moving (' + await owner.getAttribute(tCard + ' .labM', 'aria-label') + ')');
     await owner.click(lCard + ' .labGo');
     await owner.waitForFunction(() => { const c = openCases().find(x => x.patient === 'Lumen Printwell'); return c && c.stage === 'send'; }, null, { timeout: 20000 });
     check(!(await owner.isVisible('#modalWrap')), 'one tap moves Lumen to Ready to print — no counts window (the counts came from the export)');
+    await owner.waitForSelector(lCard + ' .kstep', { timeout: 20000 });
+    check(!(await owner.isVisible(lCard + ' .kstep .lic')), 'Ready to print has no station icon (nothing’s being made yet)');
     await openByName(owner, 'Lumen Printwell'); await owner.waitForSelector('#histBox .hist:has-text("Lab PC")', { timeout: 20000 });
     const lh = await owner.textContent('#histBox');
     check(/Lab PC found Ortho Factory order 91001A, filled in the aligner counts from the export \(U 10 · L 8\), answered attachment templates from the export/.test(lh) && /moved it to Ready to print, as the lab PC suggested/.test(lh),
       'history: the Lab PC found the order and filled in the counts; the move says it was the lab PC’s suggestion');
     await owner.click('#drawer [data-act=closeDrawer] >> nth=0'); await owner.fill('#q', '');
     await owner.click('#nav-today'); await owner.waitForSelector('#labCard .mlRow:has-text("Otto Unplaced")', { timeout: 20000 });
-    check(/6 at the trimmer/.test(await owner.textContent('#labCard')) && (await owner.locator('#labCard .mlRow').count()) === 1, 'Today: only the order it couldn’t place asks which case it is (Otto Unplaced, read from the Finished folder — 6 at the trimmer)');
+    check(/6 of 12 stickers printed/.test(await owner.textContent('#labCard')) && (await owner.locator('#labCard .mlRow').count()) === 1, 'Today: only the order it couldn’t place asks which case it is (Otto Unplaced, read from the Finished folder — 6 of 12 stickers printed)');
     dump = JSON.stringify(await fsDump());
     { const plain = dump.replace(/"[A-Za-z0-9+/=_-]{40,}"/g, '""'), lk = /Printwell|Trimbright|Unplaced|91001A|91002C|-211000/.exec(plain);
       check(!lk, 'no patient name, order # or progress is readable anywhere in the database' + (lk ? ' — found “' + lk[0] + '”' : '')); }
@@ -1406,6 +1411,19 @@ async function openByName(p, name) {
     check((await owner.locator('#drawer .labGrid .labGr .lac.l2').count()) === 12 && (await owner.locator('#drawer .labGrid .labGr .lac').count()) === 12
       && /Upper aligners: trimmed 1–6/.test(await owner.getAttribute('#drawer .labGrid .labGr >> nth=0', 'aria-label')),
       'the case’s Lab section shows each aligner by number, all trimmed (' + await owner.getAttribute('#drawer .labGrid .labGr >> nth=0', 'aria-label') + ')');
+    check(await owner.isVisible('#drawer .ds[data-ds=stage] .dsS .lic-print.live') || await owner.isVisible('#drawer .ds[data-ds=stage] .step.cur .lic-print.live'),
+      'the case panel’s Stage line has the printer moving (Tess is at Printing)');
+    // when an icon moves (page logic, made-up orders): the case's step, and Trimming's scissors until every aligner is trimmed
+    const mv = await owner.evaluate(() => { const old = Date.now() - 10 * 3600e3, fresh = Date.now() - 600e3, cs = st => ({ type: 'nla', status: 'open', stage: st });
+      const o = (at, tr, act) => ({ key: 'X1A', a: { n: 6, atTrimmer: at, trimmed: tr }, act });
+      return [labLive(o(6, 1, old), cs('trim')).trim, labLive(o(6, 1, old), cs('print')).trim, labLive(o(6, 1, fresh), cs('send')).trim, labLive(o(6, 6, fresh), cs('trim')).trim,
+        /lic-print live/.test(labStepIcon(cs('print'), 15)), /lic-thermo live/.test(labStepIcon(cs('thermo'), 15)), labStepIcon(cs('send'), 15) === '', labStepIcon(Object.assign(cs('print'), { status: 'done' }), 15) === '',
+        labStepIcon(Object.assign(cs('trim'), { labOrd: o(6, 2, old) }), 15, true) === '', /lic-trim live/.test(labStepIcon(Object.assign(cs('trim'), { labOrd: o(6, 2, old) }), 15)),
+        /lic-trim(?! live)/.test(labStepIcon(Object.assign(cs('trim'), { labOrd: o(6, 6, old) }), 15)) && !/live/.test(labStepIcon(Object.assign(cs('trim'), { labOrd: o(6, 6, old) }), 15)),
+        labNowText(o(1, 0)), labNowText(o(6, 2)), labNowText(o(4, 2)), labNowText(o(6, 6)), labNowText(o(0, 0))]; });
+    check(JSON.stringify(mv) === JSON.stringify([true, false, false, false, true, true, true, true, true, true, true,
+      '1 of 6 stickers printed', 'trimmed 2 of 6 · all stickers printed', 'trimmed 2 of 6 · 4 of 6 stickers printed', 'all 6 trimmed', 'in Ortho Factory, 6 aligners']),
+      'icons move only at the case’s own step (scissors at Trimming until all are trimmed, not for stickers printed at Ready to print; a Trim bar keeps the card to one pair), and the lab line says stickers (' + JSON.stringify(mv) + ')');
     await owner.click('#drawer [data-act=closeDrawer] >> nth=0'); await owner.fill('#q', '');
     // what the lab PC's login can do: add sealed messages and its check-in — not read a case
     const lt = (await (await fetch('http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=demo-key', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: labCfg.e, password: labCfg.w, returnSecureToken: true }) })).json()).idToken;

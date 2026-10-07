@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-giiiXsiQ7f7sJm5Gdt/MCPPxfQyj/3FeSEsKgPl8FWs=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-EcN69R07jolGRZoz++DlEw4dArRUtJXlqWWjEoogiFQ=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO Cases</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1658,6 +1658,10 @@ body.phHide .pnm:not(:hover)::after{content:attr(data-s)}
 @keyframes licSag{0%{opacity:1;transform:translateY(0)}35%{opacity:1;transform:translateY(.8px)}50%{opacity:0;transform:translateY(2.8px)}90%{opacity:0;transform:translateY(0)}100%{opacity:1}}
 @keyframes licDrape{0%,44%{opacity:0}54%,88%{opacity:1}97%,100%{opacity:0}}
 @media (prefers-reduced-motion:reduce){ .lic.live *{animation:none !important} }
+/* the step's station icon (lab.js labStepIcon): by the step on board cards, on the case panel's Stage line and its current step */
+.kstep>div>.lic{align-self:center}
+.dsS>.lic{display:inline-block;vertical-align:-4px;margin-right:6px}
+.step.cur>.lic.live{color:var(--blue-700)}
 .labT,.labMeta{line-height:1.5}
 .labMeta b{color:var(--navy)}
 .labBtns{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:4px}
@@ -4728,7 +4732,7 @@ function kcard(c, last, steps) {
     '<div class="kHd">' + ptAv(c, 32) + '<div class="pt">' + ptName(c.patient) + '</div></div>' + (c.detail || alN(c) ? '<div class="dt">' + esc(c.detail || '') + alignerMini(c) + '</div>' : '') +
     (flags ? '<div class="flags">' + flags + '</div>' : '') +
     labCardHTML(c) + // in-house: where the set is in the lab (Ortho Factory, from the lab PC), and its next step with one tap (lab.js)
-    (steps ? '<div class="kstep">' + progHTML(c, steps) + '<div><b>' + esc(stageLabel(c)) + '</b><span>' + (steps.indexOf(c.stage) + 1) + ' of ' + steps.length + '</span></div></div>' : '') +
+    (steps ? '<div class="kstep">' + progHTML(c, steps) + '<div>' + labStepIcon(c, 15, true) + '<b>' + esc(stageLabel(c)) + '</b><span>' + (steps.indexOf(c.stage) + 1) + ' of ' + steps.length + '</span></div></div>' : '') +
     '<div class="ft">' + (mixed || labbed ? typeMark(c, true) : '') + dueChip(c) + trackLinks(c) + asgBtnHTML(c, true) +
     '<button class="adv" data-act="' + (last ? 'complete' : 'advance') + '" data-id="' + esc(c.id) + '" title="' + esc(tip) + '" aria-label="' + esc(tip) + '">' + ic(last ? 'done' : 'next', 17) + '</button></div></div>';
 }
@@ -5147,10 +5151,11 @@ function renderDrawer() {
       '<span class="small muted">Opening a portal copies the patient’s name — paste it in the portal’s search.</span></div>' : '') +
     // every section folds to one line until it's tapped; Expand all opens them all (Amir, 3 Oct 2026)
     '<div class="dsList">' +
-    dsec('stage', 'Stage', (done ? 'Completed · ' : '') + '<b>' + esc(stageLabel(c)) + '</b>' + progHTML(c),
+    // the step's station icon moves while the case is at Printing, Thermoforming or Trimming (lab.js labStepIcon; Amir, 7 Oct 2026)
+    dsec('stage', 'Stage', (done ? 'Completed · ' : '') + labStepIcon(c, 17) + '<b>' + esc(stageLabel(c)) + '</b>' + progHTML(c),
       '<div class="stepper">' + caseStages(c).map(([k, l], i) => { const g = stageGroup(flow, k);
         return (g && g.stages[0] === k ? '<div class="stepGrp' + (i <= si ? ' d' : '') + '">' + esc(g.l) + '</div>' : '') +
-        '<button class="step ' + (i < si ? 'past' : i === si ? 'cur' : '') + (g ? ' sub' : '') + '" data-act="setStage" data-k="' + k + '"' + (done ? ' disabled' : '') + ' aria-pressed="' + (i === si) + '"><span class="n">' + (i < si ? '✓' : i + 1) + '</span>' + esc(l) + stageMarkHTML(marks[k]) + '</button>'; }).join('') + '</div>') +
+        '<button class="step ' + (i < si ? 'past' : i === si ? 'cur' : '') + (g ? ' sub' : '') + '" data-act="setStage" data-k="' + k + '"' + (done ? ' disabled' : '') + ' aria-pressed="' + (i === si) + '"><span class="n">' + (i < si ? '✓' : i + 1) + '</span>' + esc(l) + (i === si ? labStepIcon(c, 18) : '') + stageMarkHTML(marks[k]) + '</button>'; }).join('') + '</div>') +
     // in-house: the set in Ortho Factory, from the lab PC — the step it's ready for is on the heading, one tap (lab.js)
     (c.type === 'nla' && c.labOrd && c.labOrd.key ? dsec('lab', 'Lab', labSumHTML(c), labBoxHTML(c), done ? '' : labGoHTML(c, true)) : '') +
     (flow === FLOWS.marpe ? dsec('marpe', 'MARPE', marpeSum(c), marpeBoxHTML(c, done)) : '') +
@@ -8379,7 +8384,7 @@ Object.assign(ADMIN_ACTS, {
    The lab PC → NLO Cases (Amir, 6 Oct 2026): where each in-house set is in the lab
    A small script on the lab PC (lab/nlo-lab-bridge.ps1, set up from Team & security → Lab PC) reads the trimmer software's
    order files (Ortho Factory, C:\ProgramData\TrimLignAI\InputFolder, and its Finished folder) and sends each order's trimming
-   progress — which aligners are at the trimmer and trimmed — sealed to the office inbox key with its own robot login (like the
+   progress — which aligners have their sticker printed and which are trimmed — sealed to the office inbox key with its own robot login (like the
    lab-email script: it can add sealed items to the inbox and note its check-ins, nothing else). Names travel only inside the seal.
    (Ortho Factory records trimming only; 3D printing comes from the Formlabs feed, thermoforming is a manual tap.)
    Whenever someone has NLO Cases open, the app opens them here (mailSync hands them over), finds the patient's in-house case —
@@ -8390,12 +8395,14 @@ Object.assign(ADMIN_ACTS, {
 const LAB_BOT = 'labbot.'; // the lab PC's robot login (its email starts with this; the email robot's with "mailbot.")
 const LAB_V = 2; // the lab PC's message format this app reads (trim-centric; a newer script's messages wait, a month, for a newer app)
 const LAB_SHOW_DAYS = 45; // an order nobody can place is asked about on Today while it's this recent and not all trimmed
-/* what Ortho Factory can see, and the in-house step it leads to. Ortho Factory records TRIMMING only — sent to the trimmer, then
-   trimmed — not 3D printing or thermoforming (those don't run through it here; printing comes from the Formlabs feed, thermoforming
-   is a manual tap). Each aligner is at the trimmer (SentToTrimmer/Barcode) or trimmed. The step follows the work: the first aligners
-   at the trimmer → Trimming; the set leaves fabrication (→ Polish, wash & dry) once every aligner is trimmed. */
+/* what Ortho Factory can see, and the in-house step it leads to. Ortho Factory records TRIMMING only — the sticker, then trimmed —
+   not 3D printing or thermoforming (those don't run through it here; printing comes from the Formlabs feed, thermoforming is a
+   manual tap). Amir's lab, 7 Oct 2026: print → thermoform → print the stickers from Ortho Factory → trim (in batch or one by one),
+   the trim marked done in Ortho Factory. Printing a sticker is what Ortho Factory's files call SentToTrimmer/Barcode (the key
+   stays `atTrimmer`), so the app says "sticker printed", in the words of the lab's own steps. The step follows the work:
+   the first stickers printed → Trimming; the set leaves fabrication (→ Polish, wash & dry) once every aligner is trimmed. */
 const LAB_STEPS = [
-  { k: 'atTrimmer', l: 'At the trimmer', to: 'trim', first: true, why: 'the first aligners are at the trimmer' },
+  { k: 'atTrimmer', l: 'Sticker printed', to: 'trim', first: true, why: 'the first stickers are printed' },
   { k: 'trimmed', l: 'Trimmed', to: 'polish', why: 'every aligner is trimmed' }
 ];
 const LAB_ORDER_STEP = { to: 'send', why: 'the order is in Ortho Factory' }; // the export arrived: Ready to print
@@ -8606,19 +8613,23 @@ function labHistText(x) {
   if (x.hand) out.push('linked Ortho Factory order' + k); else if (x.first) out.push('found Ortho Factory order' + k);
   if (f.some(n => n === 'alU' || n === 'alL' || n === 'aligners')) out.push('filled in the aligner counts from the export' + (x.au || x.al ? ' (U ' + (x.au || 0) + ' · L ' + (x.al || 0) + ')' : ''));
   if (f.includes('atTemplates')) out.push('answered attachment templates from the export');
-  const st = { atTrimmer: 'every aligner sent to the trimmer', trimmed: 'every aligner trimmed' }[x.step];
+  const st = { atTrimmer: 'stickers printed for every aligner', trimmed: 'every aligner trimmed' }[x.step];
   if (st) out.push('reported ' + st);
   return out.length ? out.join(', ') : 'updated the lab progress' + (x.now ? ': ' + x.now : '');
 }
 
 /* ---------- what the case shows ---------- */
-/* "trimmed 5 of 18 · 13 at the trimmer", "all 18 trimmed", "in Ortho Factory, 18 aligners" — where the set is in the lab */
+/* "1 of 6 stickers printed", "all stickers printed" — how many aligners have their sticker (trimmed ones included) */
+function labStickText(at, n) { return at >= n ? 'all stickers printed' : at + ' of ' + n + ' sticker' + (n === 1 ? '' : 's') + ' printed'; }
+/* "1 of 6 stickers printed", "trimmed 5 of 18 · all stickers printed", "all 18 trimmed", "in Ortho Factory, 18 aligners" —
+   where the set is in the lab */
 function labNowText(o) {
   const a = (o && o.a) || {}, n = a.n || 0; if (!n) return 'in Ortho Factory';
-  const tr = a.trimmed || 0, at = a.atTrimmer || 0;
+  const tr = a.trimmed || 0, at = Math.max(a.atTrimmer || 0, tr);
   if (tr >= n) return 'all ' + n + ' trimmed';
   if (!at) return 'in Ortho Factory, ' + n + ' aligner' + (n === 1 ? '' : 's');
-  return 'trimmed ' + tr + ' of ' + n + (at > tr ? ' · ' + (at - tr) + ' at the trimmer' : '');
+  if (!tr) return labStickText(at, n);
+  return 'trimmed ' + tr + ' of ' + n + (at > tr ? ' · ' + labStickText(at, n) : '');
 }
 function labWhen(o) { return o && (o.act || o.at) ? fmtWhen(o.act || o.at) : ''; } // (when Ortho Factory last changed the order)
 /* the step the lab says the case is ready for, when the case is behind it (the furthest one the work has reached): { to, why } */
@@ -8640,7 +8651,9 @@ function labGoHTML(c, small) {
    could be a scissor cutting"). Redrawn 7 Oct with solid parts; Amir's picks of the options: printing "B, Printer", thermoforming
    "A, Sheet drapes", trimming "A, Sharp". A printer whose head slides while solid layers stack into a tooth crown, a heater that
    softens the sheet until it sags and drapes over a tooth, scissors that snip. They move only while that step is going on for the
-   set (and never for someone who turned motion down) ---------- */
+   set (and never for someone who turned motion down). Amir, 7 Oct 2026, "I'm still not seeing the icon animations anywhere": the
+   step going on is the case's own step in NLO Cases — at Printing the printer moves, at Thermoforming the sheet drapes, at Trimming
+   the scissors snip (until Ortho Factory has every aligner trimmed) ---------- */
 function labIcon(k, live, s) {
   s = s || 16;
   const F = ' fill="currentColor" stroke="none"',
@@ -8663,25 +8676,39 @@ function labIcon(k, live, s) {
   }[k] || '';
   return '<svg class="lic lic-' + k + (live ? ' live' : '') + '" width="' + s + '" height="' + s + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + body + '</svg>';
 }
-/* what's going on right now: trimming under way — aligners at the trimmer not yet cut, in the last 3 hours (Ortho Factory's last
-   change to the order). Printing's "live" will come from the Formlabs feed, not from here. */
-function labLive(o) {
-  const a = (o && o.a) || {}, n = a.n || 0, age = Date.now() - ((o && (o.act || o.at)) || 0);
-  return { trim: n > 0 && (a.atTrimmer || 0) > (a.trimmed || 0) && age < 3 * 3600e3 };
+/* what's going on right now — trimming: the case is at Trimming, until Ortho Factory has every aligner trimmed. (Not stickers
+   printed lately: a set at Ready to print with a stray sticker shouldn't look like it's being cut — Amir, 7 Oct 2026.) */
+function labLive(o, c) {
+  const a = (o && o.a) || {}, n = a.n || 0;
+  return { trim: labStation(c) === 'trim' && !(n > 0 && (a.trimmed || 0) >= n) };
 }
-/* the station's bar: done (trimmed), then (lighter) the ones on their way — at the trimmer, waiting to be cut */
+/* the in-house steps with a station icon — Printing, Thermoforming, Trimming — and the one this case is at ('' for any other) */
+const LAB_STATIONS = { print: 'print', thermo: 'thermo', trim: 'trim' };
+function labStation(c) { return c && c.type === 'nla' && c.status !== 'done' && !c.dup ? LAB_STATIONS[liveStage(c)] || '' : ''; }
+/* the board card shows the set's Trim bar (some stickers printed or aligners trimmed) */
+function labHasBar(c) { const o = c && c.labOrd, a = (o && o.a) || {}; return !!(o && o.key && a.n && ((a.atTrimmer || 0) > 0 || (a.trimmed || 0) > 0)); }
+/* the icon by the case's step (board card, the case panel's Stage line), moving while the case is at that step — the scissors
+   stop once Ortho Factory has every aligner trimmed. A board card at Trimming with a Trim bar has the bar's scissors move instead
+   (one pair per card) */
+function labStepIcon(c, s, card) {
+  const k = labStation(c); if (!k) return '';
+  if (card && k === 'trim' && labHasBar(c)) return '';
+  const a = (c.labOrd && c.labOrd.key && c.labOrd.a) || {}, allCut = k === 'trim' && a.n > 0 && (a.trimmed || 0) >= a.n;
+  return labIcon(k, !allCut, s);
+}
+/* the station's bar: done (trimmed), then (lighter) the ones on their way — sticker printed, waiting to be trimmed */
 function labBar(v, q, n) {
   const pct = x => n ? Math.max(0, Math.min(100, Math.round(x / n * 100))) : 0, w = Math.max(0, q - v);
   return '<span class="bar" aria-hidden="true"><i style="width:' + pct(v) + '%"></i>' + (w ? '<i class="q" style="width:' + pct(w) + '%"></i>' : '') + '</span>';
 }
 const LAB_SAY = {
-  trim: (a, n) => 'Trimmed ' + (a.trimmed || 0) + ' of ' + n + ((a.atTrimmer || 0) > (a.trimmed || 0) ? ' · ' + ((a.atTrimmer || 0) - (a.trimmed || 0)) + ' at the trimmer' : '')
+  trim: (a, n) => { const tr = a.trimmed || 0, at = Math.max(a.atTrimmer || 0, tr); return 'Trimmed ' + tr + ' of ' + n + (at > tr ? ' · ' + labStickText(at, n) : ''); }
 };
 const LAB_ROWS = [{ k: 'trim', l: 'Trimmed', v: 'trimmed', q: 'atTrimmer' }];
 /* ---------- each aligner: Ortho Factory follows them one by one (Amir, 6 Oct 2026: "so it can tell you which aligners have been
-   trimmed and which ones haven't"). The lab PC sends a character per aligner number: 0 not at the trimmer yet, 1 at the trimmer,
-   2 trimmed, '-' a number the set doesn't have ---------- */
-const LAB_LV = ['Not at the trimmer', 'At the trimmer', 'Trimmed'];
+   trimmed and which ones haven't"). The lab PC sends a character per aligner number: 0 no sticker yet, 1 sticker printed
+   (Ortho Factory's "sent to the trimmer"), 2 trimmed, '-' a number the set doesn't have ---------- */
+const LAB_LV = ['No sticker yet', 'Sticker printed', 'Trimmed'];
 /* "1–8, 10, 12–14": the aligner numbers whose step passes the test */
 function labRanges(str, test) {
   const out = []; let a = -1;
@@ -8717,31 +8744,31 @@ function labMeter(r, o, live) {
   const say = LAB_SAY[r.k](a, n) + (which ? ' (' + which + ')' : '');
   return '<span class="labM' + (done ? ' done' : v ? ' on' : '') + '" role="img" aria-label="' + esc(say) + '" title="' + esc(say) + '">' + labIcon(r.k, live && !done, 16) + labBar(v, a[r.q] || 0, n) + '<span class="v">' + v + '/' + n + '</span></span>';
 }
-function labMetersHTML(o) { return labMeter(LAB_ROWS[0], o, labLive(o).trim); }
+function labMetersHTML(o, c) { return labMeter(LAB_ROWS[0], o, labLive(o, c).trim); }
 /* the board card's lines: the set's trimming, and the step it's ready for when the case is behind */
 function labCardHTML(c) {
   const o = c.labOrd; if (!o || !o.key || c.type !== 'nla' || c.status === 'done') return '';
   const a = o.a || {}, n = a.n || 0, any = n && ((a.atTrimmer || 0) > 0 || (a.trimmed || 0) > 0);
   return '<div class="labLn" title="' + esc('Ortho Factory order ' + o.key + ' · ' + labNowText(o) + (labWhen(o) ? ' · ' + labWhen(o) : '')) + '">' +
-    (any ? '' : ic('lab', 13)) + '<div class="labB">' + (any ? labMetersHTML(o) : '<span class="t">In Ortho Factory</span>') + labGoHTML(c, true) + '</div></div>';
+    (any ? '' : ic('lab', 13)) + '<div class="labB">' + (any ? labMetersHTML(o, c) : '<span class="t">In Ortho Factory</span>') + labGoHTML(c, true) + '</div></div>';
 }
 /* "upper trimmed · lower thermoformed" (each arch's templates as far as the furthest behind of them), else from the counts */
 function labTemplText(o) {
   const t = o.t || {}, lv = o.lv || {}, low = str => { const v = Array.from(str || '').filter(c => c !== '-').map(c => Math.min(2, +c)); return v.length ? Math.min.apply(null, v) : -1; };
   const nm = x => { const v = low(x); return v < 0 ? '' : LAB_LV[v].toLowerCase(); };
   if (nm(lv.tu) || nm(lv.tl)) return [nm(lv.tu) ? 'upper ' + nm(lv.tu) : '', nm(lv.tl) ? 'lower ' + nm(lv.tl) : ''].filter(Boolean).join(' · ');
-  return (t.trimmed || 0) >= t.n ? (t.n === 1 ? 'trimmed' : t.n === 2 ? 'both trimmed' : 'all ' + t.n + ' trimmed') : !t.atTrimmer ? 'not at the trimmer yet' : 'trimmed ' + (t.trimmed || 0) + ' of ' + t.n;
+  return (t.trimmed || 0) >= t.n ? (t.n === 1 ? 'trimmed' : t.n === 2 ? 'both trimmed' : 'all ' + t.n + ' trimmed') : !t.atTrimmer ? 'no stickers yet' : 'trimmed ' + (t.trimmed || 0) + ' of ' + t.n;
 }
 /* the case panel's Lab section: its folded line, and the counts */
 function labSumHTML(c) { const o = c.labOrd; return o && o.key ? '<b>' + esc(labNowText(o)) + '</b>' + (labWhen(o) ? ' · <span class="muted">' + esc(labWhen(o)) + '</span>' : '') : ''; }
 function labBoxHTML(c) {
   const o = c.labOrd; if (!o || !o.key) return '';
-  const a = o.a || {}, n = a.n || 0, any = n && ((a.atTrimmer || 0) > 0 || (a.trimmed || 0) > 0), lv = labLive(o);
+  const a = o.a || {}, n = a.n || 0, any = n && ((a.atTrimmer || 0) > 0 || (a.trimmed || 0) > 0), lv = labLive(o, c);
   const row = r => { const v = a[r.v] || 0, done = n && v >= n, more = LAB_SAY[r.k](a, n).split(' · ')[1] || '';
     return '<div class="labRow' + (done ? ' done' : v ? ' on' : '') + '">' + labIcon(r.k, !done && lv[r.k], 18) + '<span class="l">' + esc(r.l) + (more ? '<small>' + esc(more) + '</small>' : '') + '</span>' +
       labBar(v, a[r.q] || 0, n) + '<span class="v"><b>' + v + '</b> of ' + n + '</span></div>'; };
   const t = o.t || {}, ord = labOrderedMs(o), done = c.status === 'done';
-  return '<div class="labBox">' + (any ? LAB_ROWS.map(row).join('') + labGridHTML(o) : '<div class="small">In Ortho Factory, not at the trimmer yet' + (n ? ' (' + n + ' aligner' + (n === 1 ? '' : 's') + ')' : '') + '.</div>') +
+  return '<div class="labBox">' + (any ? LAB_ROWS.map(row).join('') + labGridHTML(o) : '<div class="small">In Ortho Factory, no stickers printed yet' + (n ? ' (' + n + ' aligner' + (n === 1 ? '' : 's') + ')' : '') + '.</div>') +
     '<div class="small muted labT">Printing shows here once the Formlabs print feed is connected.</div>' +
     (t.n ? '<div class="small muted labT">Attachment templates: ' + esc(labTemplText(o)) + '</div>' : '') +
     '<div class="small muted labMeta">Ortho Factory order <b>' + esc(o.key) + '</b>' + (ord ? ' · exported ' + esc(fmtWhen(ord)) : '') + (o.au ? ' · U ' + o.au : '') + (o.al ? ' · L ' + o.al : '') +
@@ -8786,7 +8813,7 @@ function labAdminHTML() {
   if (!st || Date.now() - MAILS.stateAt > 60000) loadMailState();
   const head = '<div class="card" style="margin-top:18px" id="labAdmin"><div class="cardHd"><h3>Lab PC</h3><span class="sub">Ortho Factory’s progress on each in-house set</span></div><div class="cardBd">';
   if (!st) return head + '<div class="small muted">Loading…</div></div></div>';
-  const how = '<p class="small" style="margin-bottom:10px">A small script on the lab PC reads Ortho Factory’s orders — which aligners are at the trimmer and trimmed — and sends them here, locked so only this app can read them. Each in-house case shows its trimming, fills in its aligner counts from the export, and offers the next step with one tap. Nothing moves by itself. (3D printing comes from the Formlabs feed, not Ortho Factory.) Orders it can’t place show on Today.</p>';
+  const how = '<p class="small" style="margin-bottom:10px">A small script on the lab PC reads Ortho Factory’s orders — which aligners have their sticker printed and which are trimmed — and sends them here, locked so only this app can read them. Each in-house case shows its trimming, fills in its aligner counts from the export, and offers the next step with one tap. Nothing moves by itself. (3D printing comes from the Formlabs feed, not Ortho Factory.) Orders it can’t place show on Today.</p>';
   const bots = (st.bots || []).filter(labBot), beats = (st.beats || []).filter(labBeat).sort((a, b) => (b.at || 0) - (a.at || 0));
   if (!bots.length) return head + how + '<button class="btn btn-act btn-sm" data-act="labSetup">' + ic('plus', 15) + 'Set up the lab PC</button></div></div>';
   const box = b => { const late = !b.at || Date.now() - b.at > 20 * 60000;

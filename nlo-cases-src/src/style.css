@@ -1644,6 +1644,10 @@ body.phHide .pnm:not(:hover)::after{content:attr(data-s)}
 @keyframes licSag{0%{opacity:1;transform:translateY(0)}35%{opacity:1;transform:translateY(.8px)}50%{opacity:0;transform:translateY(2.8px)}90%{opacity:0;transform:translateY(0)}100%{opacity:1}}
 @keyframes licDrape{0%,44%{opacity:0}54%,88%{opacity:1}97%,100%{opacity:0}}
 @media (prefers-reduced-motion:reduce){ .lic.live *{animation:none !important} }
+/* the step's station icon (lab.js labStepIcon): by the step on board cards, on the case panel's Stage line and its current step */
+.kstep>div>.lic{align-self:center}
+.dsS>.lic{display:inline-block;vertical-align:-4px;margin-right:6px}
+.step.cur>.lic.live{color:var(--blue-700)}
 .labT,.labMeta{line-height:1.5}
 .labMeta b{color:var(--navy)}
 .labBtns{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:4px}
