@@ -143,8 +143,8 @@ const DEMO = {
     if (tp) ords.push(Object.assign({ key: 'D4415A', pid: 'D4415', rev: 'A', ordered: iso(ago(1440)), au: tp.alU || 12, al: (tp.alL || 12) + 2, tu: 0, tl: 0, a: cnt((tp.alU || 12) + (tp.alL || 12) + 2, 0, 0), t: cnt(0, 0, 0), act: ago(1440) }, nm(tp)));
     ords.push({ key: 'D5120A', pid: 'D5120', rev: 'A', first: 'Robin', last: 'Tailor', ordered: iso(ago(1440)), au: 16, al: 16, tu: 1, tl: 0, a: cnt(32, 12, 0), t: cnt(1, 1, 0), lv: { au: '-' + '1'.repeat(12) + '0'.repeat(4), al: '-' + '0'.repeat(16), tu: '1' }, act: ago(15) });
     const now = Date.now();
-    DEMO.mail.inbox.push({ id: 'mlab1', at: ago(2), done: [], mail: { lab: 1, v: 2, src: 'Lab PC', pc: 'LAB-PC', ver: '2.0', at: now, orders: ords.map(o => Object.assign(o, { at: now })) } });
-    DEMO.mail.beats.push({ id: 'b3', box: 'Lab PC · LAB-PC', at: ago(2), seen: ords.length, sent: ords.length, err: '', ver: 'lab 2.0' });
+    DEMO.mail.inbox.push({ id: 'mlab1', at: ago(2), done: [], mail: { lab: 1, v: 2, src: 'Lab PC', pc: 'LAB-PC', ver: '2.1', at: now, orders: ords.map(o => Object.assign(o, { at: now })) } });
+    DEMO.mail.beats.push({ id: 'b3', box: 'Lab PC · LAB-PC', at: ago(2), seen: ords.length, sent: ords.length, err: '', ver: 'lab 2.1' });
   },
   /* patient photos (in memory) */
   photos: new Map(),

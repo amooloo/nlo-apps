@@ -1349,7 +1349,7 @@ async function openByName(p, name) {
     const ST = ['New', 'New,SentToTrimmer,Barcode', 'New,SentToTrimmer,Barcode,Trimmed']; // level 0 not at the trimmer, 1 at the trimmer, 2 trimmed
     const folderAt = (ms, who) => { const d = new Date(ms), p2 = n => String(n).padStart(2, '0'); return d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate()) + ' ' + p2(d.getHours()) + ' ' + p2(d.getMinutes()) + ' ' + p2(d.getSeconds()) + ' - A - Dr. Test - ' + who + ' - ' + Math.random().toString(16).slice(2, 6); };
     const writeOrder = (base, folder, id, first, last, rev, up, lo, tmpl) => {
-      const el = (k, a, n, lv) => '  <' + k + a + n + rev + ' Name="' + first + ' ' + last + ' - ' + n + '" Serialnumber="' + id + k + a + n + rev + '" State="' + ST[lv] + '">\n    <Archmodel>x.stl</Archmodel>\n  </' + k + a + n + rev + '>';
+      const el = (k, a, n, lv) => '  <Aligner Name="' + k + a + n + rev + '" Serialnumber="' + id + k + a + n + rev + '" State="' + ST[lv] + '">\n    <Archmodel>x.stl</Archmodel>\n  </Aligner>';
       const body = up.map((lv, i) => el('A', 'U', i + 1, lv)).concat(lo.map((lv, i) => el('A', 'L', i + 1, lv)), (tmpl || []).map(([a, lv]) => el('T', a, 0, lv))).join('\n');
       const dir = path.join(base, folder); fs.mkdirSync(dir, { recursive: true });
       fs.writeFileSync(path.join(dir, id + '_1_Order.xml'), '<?xml version="1.0" encoding="utf-8"?>\n<OrderData Type="Titan_Angled">\n  <Patient Firstname="' + first + '" Lastname="' + last + '" ID="' + id + '" DueDate="20261020" />\n' + body + '\n</OrderData>\n');

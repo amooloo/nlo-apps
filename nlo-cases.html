@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-Fky3pADqI8mRTffKR93H/fpZrF/9HBAKybATlnKAIpA=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-PekVsJaigkTYNzQTqVBctuqATOYm4R7fUz/+NIQOSBg=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO Cases</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -3143,8 +3143,8 @@ const DEMO = {
     if (tp) ords.push(Object.assign({ key: 'D4415A', pid: 'D4415', rev: 'A', ordered: iso(ago(1440)), au: tp.alU || 12, al: (tp.alL || 12) + 2, tu: 0, tl: 0, a: cnt((tp.alU || 12) + (tp.alL || 12) + 2, 0, 0), t: cnt(0, 0, 0), act: ago(1440) }, nm(tp)));
     ords.push({ key: 'D5120A', pid: 'D5120', rev: 'A', first: 'Robin', last: 'Tailor', ordered: iso(ago(1440)), au: 16, al: 16, tu: 1, tl: 0, a: cnt(32, 12, 0), t: cnt(1, 1, 0), lv: { au: '-' + '1'.repeat(12) + '0'.repeat(4), al: '-' + '0'.repeat(16), tu: '1' }, act: ago(15) });
     const now = Date.now();
-    DEMO.mail.inbox.push({ id: 'mlab1', at: ago(2), done: [], mail: { lab: 1, v: 2, src: 'Lab PC', pc: 'LAB-PC', ver: '2.0', at: now, orders: ords.map(o => Object.assign(o, { at: now })) } });
-    DEMO.mail.beats.push({ id: 'b3', box: 'Lab PC · LAB-PC', at: ago(2), seen: ords.length, sent: ords.length, err: '', ver: 'lab 2.0' });
+    DEMO.mail.inbox.push({ id: 'mlab1', at: ago(2), done: [], mail: { lab: 1, v: 2, src: 'Lab PC', pc: 'LAB-PC', ver: '2.1', at: now, orders: ords.map(o => Object.assign(o, { at: now })) } });
+    DEMO.mail.beats.push({ id: 'b3', box: 'Lab PC · LAB-PC', at: ago(2), seen: ords.length, sent: ords.length, err: '', ver: 'lab 2.1' });
   },
   /* patient photos (in memory) */
   photos: new Map(),

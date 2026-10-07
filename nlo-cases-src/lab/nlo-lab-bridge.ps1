@@ -29,7 +29,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version 2
-$VER = '2.0'
+$VER = '2.1'
 $POLL_S = 20           # how often the order files are looked at (only files that changed are read again)
 $GAP_S = 300           # an order's next update waits this long, unless a step is finished for every aligner
 $BEAT_S = 300          # check-in with NLO Cases (Team & security shows it)
@@ -291,8 +291,15 @@ function Get-Order([System.IO.DirectoryInfo]$dir) {
   $items = @{}; $revs = @{}
   foreach ($el in $root.ChildNodes) {
     if ($el.NodeType -ne [System.Xml.XmlNodeType]::Element) { continue }
-    if ($el.LocalName -notmatch '^([TA])([UL])(\d+)([A-Za-z])$') { continue }
-    $kind = $matches[1]; $arch = $matches[2]; $n0 = [int]$matches[3]; $rev = $matches[4]; $revs[$rev] = 1 + [int]$revs[$rev]
+    if ($el.LocalName -eq 'Patient') { continue }
+    # each aligner/template is an <Aligner> element with its code (e.g. AU1D, TU0D) in the Name attribute; an older layout named
+    # the element itself by the code. Take the code from the element name, else the Name attribute, else the end of Serialnumber.
+    $kind = ''; $arch = ''; $n0 = 0; $rev = ''
+    foreach ($cand in @([string]$el.LocalName, ([string]$el.GetAttribute('Name')).Trim(), ([string]$el.GetAttribute('Serialnumber')).Trim())) {
+      if ($cand -cmatch '([TA])([UL])([0-9]+)([A-Za-z])$') { $kind = $matches[1]; $arch = $matches[2]; $n0 = [int]$matches[3]; $rev = $matches[4]; break }
+    }
+    if (-not $kind) { continue }
+    $revs[$rev] = 1 + [int]$revs[$rev]
     $states = @(([string]$el.GetAttribute('State')).Split(',') | ForEach-Object { $_.Trim() })
     $lvl = 0
     if (@($states | Where-Object { $TRIM_AT -contains $_ }).Count -gt 0) { $lvl = 1 }
