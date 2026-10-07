@@ -323,6 +323,113 @@ const cfg = A.arCfg({});
     eq(A.sameHolder(fam, fam[0]).map(x => x.key), ['b'], 'brothers and sisters on the same policy are found (insurance accounts, same policyholder)');
   }
 
+  section('Edge’s Insurance Aging: each insurance account’s carrier');
+  {
+    const IX = JSON.parse(fs.readFileSync(path.join(FX, 'ins-expected.json'), 'utf8'));
+    const IKEYS = ['patient', 'acct', 'sts', 'rp', 'home', 'due', 'b0', 'b30', 'b60', 'b90', 'days', 'bal', 'lastAmt', 'recv', 'carrier', 'cphone'];
+    const ipick = r => { const o = {}; IKEYS.forEach(k => { o[k] = r[k] === undefined ? null : r[k]; }); return o; };
+    for (const [file, kind] of [['ins-aging.xls', 'xls'], ['ins-aging.tsv', 'text']]) {
+      const p = await A.readReportFile(file, fs.readFileSync(path.join(FX, file)));
+      ok(p.insAging === true && p.kind === kind && !p.ob, file + ': a file dropped on Reports is taken for the Insurance Aging (not an A/R report)');
+      eq(p.rows.map(ipick), IX.rows, file + ': every account read, with its ID, “Recieved” date and carrier (' + p.rows.length + ')');
+      eq(p.groups, IX.groups, file + ': the carrier lines — padded or short, a name with “ - ” in it, a broken phone, none at all');
+      ok(p.check.ok === true && /each matching Edge’s count/.test(p.check.why) && /69 accounts/.test(p.check.why), file + ': adds up to Edge’s “(69 Total Patients)” line and each group to its “(N Patients)”: ' + p.check.why);
+      ok(p.asOf === '2026-10-05' && p.meta.edge === '8.0.22.1003' && p.rows.every(r => !r.note), file + ': the date and Edge version; nothing left over as a note');
+    }
+    {
+      // an account missing from a group (a damaged export) is caught by that group's own count
+      const grid = (await A.readGridFile('x.xls', fs.readFileSync(path.join(FX, 'ins-aging.xls')))).sheets[0];
+      const cut = grid.findIndex((r, i) => i > 9 && r && r[1] && /^99-/.test(String(r[1])));
+      const p2 = A.insAgingFromGrid({ sheets: [grid.filter((r, i) => i !== cut)] });
+      ok(p2.check.ok === false && /Bayou Dental Mutual: \d+ read, Edge says \d+/.test(p2.check.why), 'an account missing from a group is caught: ' + p2.check.why);
+      const p3 = A.insAgingFromGrid({ sheets: [grid.filter(r => !(r && /^\(\d+ Total Patients\)$/.test(String(r[0]))))] });
+      ok(p3.check.ok === false, 'so is a report cut off before Edge’s total line: ' + p3.check.why);
+    }
+    let notOurs = ''; try { await A.readInsAging('edge-full.xls', fs.readFileSync(path.join(FX, 'edge-full.xls'))); } catch (e) { notOurs = e.message; }
+    ok(/isn’t Edge’s Insurance Aging/.test(notOurs), 'the A/R Aging isn’t taken for the Insurance Aging');
+    eq([['Aetna   -   8554966289'], ['Delta Dental - MA                                    -   (800) 872-0500            '], ['Delta Dental - MA'], ['Humana PPO'],
+      ['Humana Comp Benefits                                 -   (800-943-6880       '], ['Delta Dental MI   -   1-800-448-3815'], ['Name   -   ']].map(([t]) => A.edgeCarrierLine(t)),
+    [{ name: 'Aetna', phone: '8554966289' }, { name: 'Delta Dental - MA', phone: '(800) 872-0500' }, { name: 'Delta Dental - MA', phone: '' }, { name: 'Humana PPO', phone: '' },
+      { name: 'Humana Comp Benefits', phone: '(800-943-6880' }, { name: 'Delta Dental MI', phone: '1-800-448-3815' }, { name: 'Name', phone: '' }], 'carrier lines: the name and phone, split at the last “ - ” before a phone number');
+    // Edge v8's labels on the A/R Aging too: "ID", "Recieved", and "(N Total Patients)" as the total line (never an account)
+    {
+      const H = ['Patient', 'ID', null, 'Sts', 'Responsible Party', 'Home  Ph', 'Amt Due', '0-30', '31-60', '61-90', '91+', null, 'Days', null, 'Balance', null, 'Last Amt', 'Recieved'];
+      const R = (pt, id, rp, due, b0, b90, days, bal, last, recv) => [pt, id, null, 'A-Comp Bra', rp, '(352) 555-0101', due, b0, 0, 0, b90, null, days, null, bal, null, last, recv];
+      const grid = [['Accounts Receivable Aging', null, null, null, null, null, null, null, null, null, null, null, null, 46300.5], ['Accounts Receivable Aging'], ['Tuesday, October 6, 2026  Office: All,  Doctor: All'], ['Exclude Zero Dollar Balances'], ['Subgroup: None'], [], [], H,
+        R('Avery Sample', '99-0001', 'Jordan Sample', 150, 150, 0, '12', 1950, 150, 46280), R('Riley Demo', '99-0002', 'INS: Alex Demo', -85, 0, 0, '0', -85, 85, 46100), R('Quinn Example', '99-0003', 'Pat Example', 400, 0, 400, '120', 400, null, null),
+        ['(3 Total Patients)', null, null, null, null, null, 465, 150, 0, 0, 400, null, null, null, 2265], [], ['Edge v8.0.22.1003']];
+      const p = A.edgeFromGrid({ sheets: [grid] }, 'v8.xls');
+      eq([p.rows.length, p.rows.map(r => r.recv), p.rows.map(r => r.acct), p.rows.map(r => r.note), p.total && p.total.n, p.check.ok],
+        [3, ['2026-09-15', '2026-03-19', ''], ['99-0001', '99-0002', '99-0003'], ['', '', ''], 3, true], 'A/R Aging with Edge v8’s labels: the “Recieved” dates and the IDs are read, and “(3 Total Patients)” is the total line, not an account');
+    }
+    // the carriers, filled in from it
+    const rep = A.buildReport([await A.readEdgeAR('edge-full.xls', fs.readFileSync(path.join(FX, 'edge-full.xls')))]), accts = A.reportAccts(rep, cfg), insA = accts.filter(a => a.ins);
+    const p = await A.readInsAging('ins-aging.xls', fs.readFileSync(path.join(FX, 'ins-aging.xls')));
+    const want = a => { const l = IX.rows.filter(r => A.normName(r.patient) === A.normName(a.patient) && A.normName(A.rpName(r)) === A.normName(A.rpName(a))); return (l.length > 1 ? l.find(r => Math.abs(r.bal - a.bal) < 0.005) : l[0] || {}).carrier || null; };
+    const t1 = Date.UTC(2026, 9, 6, 13), ids = {}, idFor = n => ids[n] || (ids[n] = 'c' + String(Object.keys(ids).length + 1).padStart(12, '0'));
+    const bk = A.emptyBook(), r1 = A.edgeCarriersApply(bk, p, { by: 'jamie', idFor }, t1);
+    let b = A.normBook(bk);
+    eq([b.carriers.map(c => c.name), b.carriers.map(c => c.phone)], [['Bayou Dental Mutual', 'Gator Benefits - FL', 'Heron Life Ins.', 'Manatee Concordia (Tricare)', 'Osprey Dental Plan', 'Pelican Dental', 'zz OLD - Heron Life'],
+      ['(800) 555-0142', '1-800-555-0177', '', '(844)555-0199', '(800 555-0123', '8005550188', '8005550100']], 'Edge’s carriers are added with Edge’s phone numbers; one Edge lists twice (once without a phone) is one carrier');
+    eq([r1.added.length, r1.accounts, r1.twice, b.edge && b.edge.asOf, b.edge && b.edge.n, b.edge && b.edge.by], [7, 68, 1, '2026-10-05', 69, 'jamie'], 'the import: 7 carriers, 68 accounts (one patient with two contracts at two carriers), its date and who');
+    const got = insA.map(a => (A.carrierOf(b, a.key, a) || {}).name || null);
+    ok(insA.length > 50 && insA.every((a, i) => got[i] === want(a)), 'every insurance account on the A/R report gets the carrier Edge lists it under (' + insA.length + ')');
+    const tw = insA.find(a => A.normName(a.patient) === A.normName(IX.twice));
+    ok(tw && A.carrierOf(b, tw.key, tw) && !A.carrierOf(b, tw.key) && A.carrierOf(b, tw.key, tw).name === want(tw), 'two contracts of one patient and policyholder at two carriers: told apart by the balance (' + (tw ? A.carrierOf(b, tw.key, tw).name : '') + ')');
+    // a carrier set by hand always wins, and an import never changes it
+    const h = insA.find(a => a !== tw && want(a) !== 'Pelican Dental'), pel = b.carriers.find(c => c.name === 'Pelican Dental').id;
+    A.carrierTag(bk, [h.key], pel); b = A.normBook(bk);
+    const s1 = A.carrierSrc(b, h.key, h);
+    ok(s1.c.name === 'Pelican Dental' && s1.hand.name === 'Pelican Dental' && s1.edge.name === want(h) && s1.differs, 'set by hand: the hand-set carrier shows, and Edge’s is known (they differ)');
+    A.edgeCarriersApply(bk, p, { by: 'sam', idFor }, t1 + 1000); b = A.normBook(bk);
+    ok(A.carrierOf(b, h.key, h).name === 'Pelican Dental' && b.tags[h.key] === pel, 'importing again doesn’t touch it');
+    A.carrierTag(bk, [h.key], ''); b = A.normBook(bk);
+    ok(A.carrierOf(b, h.key, h).name === want(h) && !A.carrierSrc(b, h.key, h).hand, 'taking the hand-set carrier off goes back to Edge’s');
+    // matched by name: a carrier the office added by hand is linked, its own details kept, a missing phone filled in
+    const bk2 = A.emptyBook(), mine = A.carrierSave(bk2, { name: 'pelican   DENTAL', portal: 'https://provider.example.com/pelican', payer: 'PEL01' }, { by: 'jamie' }, t1);
+    const own = A.carrierSave(bk2, { name: 'Bayou Dental Mutual', phone: '(800) 555-0000' }, { by: 'jamie' }, t1);
+    let nx = 0; const r2 = A.edgeCarriersApply(bk2, p, { by: 'jamie', idFor: () => 'c' + String(++nx).padStart(12, 'e') }, t1); let b2 = A.normBook(bk2);
+    const pc = b2.carriers.find(c => c.id === mine), bc = b2.carriers.find(c => c.id === own);
+    eq([b2.carriers.length, r2.added.length, r2.linked, r2.phones, pc.name, pc.portal, pc.phone, pc.edge, bc.phone], [7, 5, 2, 1, 'pelican   DENTAL', 'https://provider.example.com/pelican', '8005550188', ['Pelican Dental'], '(800) 555-0000'],
+      'a carrier already in the list is matched by name (case and spaces aside): linked, its portal and payer ID kept, its missing phone filled in, a phone it had kept');
+    // renamed in the app: still Edge's carrier
+    A.carrierSave(bk2, { id: own, name: 'Bayou (BDM)', phone: '(800) 555-0000' }, { by: 'jamie' }, t1 + 1);
+    const r3 = A.edgeCarriersApply(bk2, p, { by: 'jamie' }, t1 + 2); b2 = A.normBook(bk2);
+    ok(r3.added.length === 0 && b2.carriers.length === 7 && b2.carriers.find(c => c.id === own).edge[0] === 'Bayou Dental Mutual', 'a carrier renamed in the app keeps Edge’s name for it: the next import adds nothing');
+    // merged: the old carrier's accounts — and Edge's name for it — go to the other one, for good
+    const old = b2.carriers.find(c => c.name === 'zz OLD - Heron Life'), heron = b2.carriers.find(c => c.name === 'Heron Life Ins.');
+    const oldAccts = insA.filter(a => (A.carrierOf(b2, a.key, a) || {}).id === old.id);
+    A.carrierMerge(bk2, old.id, heron.id); b2 = A.normBook(bk2);
+    const hr = b2.carriers.find(c => c.id === heron.id);
+    ok(oldAccts.length > 0 && oldAccts.every(a => A.carrierOf(b2, a.key, a).id === heron.id) && !b2.carriers.some(c => c.id === old.id) && hr.phone === '8005550100' && hr.edge.join('|') === 'Heron Life Ins.|zz OLD - Heron Life',
+      'merging “zz OLD - Heron Life” into “Heron Life Ins.”: its ' + oldAccts.length + ' accounts move, its phone fills the blank, Edge’s name for it goes along');
+    const r4 = A.edgeCarriersApply(bk2, p, { by: 'jamie' }, t1 + 3); b2 = A.normBook(bk2);
+    ok(r4.added.length === 0 && b2.carriers.length === 6 && oldAccts.every(a => A.carrierOf(b2, a.key, a).id === heron.id), 'and the next import keeps them there (nothing added back)');
+    ok(/changed/.test((() => { try { A.carrierMerge(bk2, old.id, heron.id); return ''; } catch (e) { return e.message; } })()), 'merging a carrier that’s already gone is refused');
+    // an older report never overrides a newer one; a year without an account lets it go
+    const moved = insA[1], p12 = Object.assign({}, p, { asOf: '2026-10-12', rows: p.rows.map(r => A.normName(r.patient) === A.normName(moved.patient) ? Object.assign({}, r, { carrier: 'Gator Benefits - FL' }) : r) });
+    const bk3 = A.emptyBook(); A.edgeCarriersApply(bk3, p12, { by: 'x' }, t1); const r5 = A.edgeCarriersApply(bk3, p, { by: 'x' }, t1 + 1); let b3 = A.normBook(bk3);
+    ok(r5.older && b3.edge.asOf === '2026-10-12' && A.carrierOf(b3, moved.key, moved).name === 'Gator Benefits - FL', 'an older Insurance Aging imported after a newer one doesn’t undo it');
+    bk3.etags['gone patient|someone|I'] = { c: bk3.carriers[0].id, d: '2025-08-01' };
+    A.edgeCarriersApply(bk3, Object.assign({}, p, { asOf: '2026-10-19' }), { by: 'x' }, t1 + 2);
+    ok(!bk3.etags['gone patient|someone|I'] && Object.keys(bk3.etags).length === 68, 'an account on no Insurance Aging for over a year is let go');
+    // what's read back is checked; removing a carrier takes Edge's say about it too
+    const nb2 = A.normBook({ book: 1, carriers: [{ id: 'c000000000001', name: 'Fine', edge: ['Fine', 'FINE', 7, 'Fine Co'] }], tags: {},
+      etags: { a: { c: 'c000000000001', d: '2026-10-05' }, b: { c: 'c999999999999', d: '2026-10-05' }, c: { c: 'c000000000001', d: 'soon' }, d: { m: [{ c: 'c000000000001', bal: 5 }, { c: 'c999999999999', bal: 6 }], d: '2026-10-05' }, e: 'x' }, edge: { asOf: '2026-10-05', n: 3, groups: 'many' } });
+    eq([nb2.carriers[0].edge, Object.keys(nb2.etags), nb2.etags.d.m.length, nb2.edge.n, nb2.edge.groups], [['Fine', 'Fine Co'], ['a', 'd'], 1, 3, 0], 'read back: Edge’s names deduplicated, links to carriers that aren’t there and bad dates dropped');
+    const bk4 = A.emptyBook(); A.edgeCarriersApply(bk4, p, { by: 'x' }, t1); const gator = bk4.carriers.find(c => c.name === 'Gator Benefits - FL').id;
+    A.carrierRemove(bk4, gator);
+    ok(!Object.values(bk4.etags).some(v => v.c === gator || (v.m && v.m.some(x => x.c === gator))), 'removing a carrier drops Edge’s say about it');
+    // the preview's numbers
+    const bk5 = A.emptyBook(); A.carrierTag(A.bookFix(bk5), [], ''); const own5 = A.carrierSave(bk5, { name: 'Hand Picked Dental' }, {}, t1); A.carrierTag(bk5, [insA[0].key, insA[2].key], own5);
+    const plan = A.edgeCarriersPlan(bk5, p, accts, { by: 'x' }, t1);
+    eq([plan.ins, plan.got, plan.newly, plan.differ, plan.without, plan.added.length, plan.carriers], [insA.length, insA.length, insA.length - 2, 2, 0, 7, 8], 'the preview: every insurance account on the A/R report with a carrier, ' + (insA.length - 2) + ' getting one now, 2 set by hand that Edge has elsewhere');
+    ok(JSON.stringify(bk5.etags) === '{}' && !bk5.edge, 'and the preview changes nothing');
+    // focus sees a carrier from Edge (its filing limit)
+    const bk6 = A.emptyBook(); A.edgeCarriersApply(bk6, p, { by: 'x' }, t1); const b6 = A.normBook(bk6);
+    ok(insA.filter(a => A.carrierOf(b6, a.key, a)).length === insA.length, 'Focus and the lists see Edge’s carriers through the same lookup');
+  }
+
   section('Focus: what to do first');
   {
     const T = '2026-10-06', asOfF = '2026-10-05', at = (iso, h) => { const [y, m, d] = iso.split('-').map(Number); return new Date(y, m - 1, d, h || 10).getTime(); };

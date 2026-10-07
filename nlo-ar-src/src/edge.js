@@ -316,6 +316,7 @@ function readGridText(text) {
    ===================================================================== */
 const AR_HEAD = [
   ['patient', /^(patient|patientname|name|pt|ptname)$/],
+  ['acct', /^(id|acct|acctno|acctnum|account|accountno|accountnum|accountnumber|patientid|ptid)$/],
   ['sts', /^(sts|status|ptstatus|patientstatus)$/],
   ['rp', /^(responsibleparty|respparty|responsible|resp|rp|guarantor|party)$/],
   ['home', /^(homeph|homephone|home|phone|ph)$/],
@@ -328,7 +329,7 @@ const AR_HEAD = [
   ['days', /^(days|dayspastdue|age|daysold)$/],
   ['bal', /^(balance|contractbalance|bal|contractbal|totalbalance|acctbalance)$/],
   ['lastAmt', /^(lastamt|lastamount|lastpaymentamount|lastpmt|lastpaid|lastpayment)$/],
-  ['recv', /^(received|datereceived|lastpaymentdate|lastpaiddate|lastreceived|lastpmtdate|paymentdate)$/]
+  ['recv', /^(received|recieved|datereceived|daterecieved|lastpaymentdate|lastpaiddate|lastreceived|lastrecieved|lastpmtdate|paymentdate)$/] // Edge v8 spells it "Recieved"
 ];
 const NUM_KEYS = ['due', 'b0', 'b30', 'b60', 'b90', 'days', 'bal', 'lastAmt'];
 function headKey(v) {
@@ -378,7 +379,8 @@ function findHeader(grid) {
   return null;
 }
 function fitsKey(k, v, date1904) { return NUM_KEYS.includes(k) ? toNum(v) != null : k === 'recv' ? !!toISODate(v, date1904) : true; }
-const TOTAL_RE = /^\(?\s*\d[\d,]*\s+(patients?|accounts?|records?)\s*\)?$/i;
+/* "(95 Patients)"; Edge v8 ends a grouped report with "(329 Total Patients)" */
+const TOTAL_RE = /^\(?\s*\d[\d,]*\s+(?:total\s+)?(patients?|accounts?|records?)\s*\)?$/i;
 /* Read one sheet of the report. Each value sits under its heading; Excel exports sometimes shift a value a column to the right
    (merged cells), so a cell belongs to the nearest heading at or to the left of it. A cell past a heading that already has its
    value (Edge puts the account's billing note there, with no heading) is kept as the note. */
@@ -398,7 +400,7 @@ function parseARGrid(grid, date1904) {
     for (const v of grid[r] || []) if (typeof v === 'number' && v > 36526 && v < 73051 && !meta.stamp) meta.stamp = toISODate(v, date1904);
   }
   if (!meta.asOf && meta.stamp) meta.asOf = meta.stamp;
-  const rows = []; let total = null;
+  const rows = [], at = []; let total = null;
   for (let r = hd.r + 1; r < grid.length; r++) {
     const row = grid[r]; if (!row) continue;
     const texts = rowText(row); if (!texts.length) continue;
@@ -420,8 +422,8 @@ function parseARGrid(grid, date1904) {
     const patient = String(o.patient == null ? '' : o.patient).trim();
     const nums = {}; NUM_KEYS.forEach(k => { nums[k] = toNum(o[k]); });
     if (!patient || (nums.due == null && nums.bal == null && nums.b0 == null && nums.b90 == null)) continue;
-    const bucketSum = round2((nums.b0 || 0) + (nums.b30 || 0) + (nums.b60 || 0) + (nums.b90 || 0));
-    rows.push({
+    const bucketSum = round2((nums.b0 || 0) + (nums.b30 || 0) + (nums.b60 || 0) + (nums.b90 || 0)), acct = String(o.acct == null ? '' : o.acct).trim().slice(0, 20);
+    rows.push(Object.assign({
       patient, sts: String(o.sts == null ? '' : o.sts).trim(), rp: String(o.rp == null ? '' : o.rp).trim(),
       home: String(o.home == null ? '' : o.home).trim(), work: String(o.work == null ? '' : o.work).trim(),
       due: nums.due != null ? round2(nums.due) : bucketSum,
@@ -429,9 +431,10 @@ function parseARGrid(grid, date1904) {
       days: nums.days != null ? Math.round(nums.days) : null, bal: nums.bal != null ? round2(nums.bal) : null,
       lastAmt: nums.lastAmt != null ? round2(nums.lastAmt) : null, recv: o.recv != null ? toISODate(o.recv, date1904) : '',
       note: extra.join(' · ').slice(0, 300)
-    });
+    }, acct ? { acct } : {})); // Edge's account ID, when the report has that column (Edge v8's insurance aging does)
+    at.push(r);
   }
-  return { meta, rows, total, cols: heads.map(h => h.k) };
+  return { meta, rows, total, cols: heads.map(h => h.k), at };
 }
 /* the file → { meta, rows, total, check } (check: Edge's own totals against the rows read) */
 async function readEdgeAR(name, bytes) {
@@ -520,8 +523,73 @@ async function readOBFailed(name, bytes) {
   if (!p) throw errCode('not-ob', 'This isn’t OrthoBanc’s Failed Transaction Report.');
   return Object.assign(p, { name: name || '', kind: g.kind || 'text' });
 }
-/* a file dropped on Reports: OrthoBanc's failed-payment report, or Edge's A/R report */
+/* =====================================================================
+   Edge's "Insurance Accounts Receivable Aging" (6 Oct 2026). The A/R
+   Aging's columns plus the account ID, insurance contracts only, grouped
+   by carrier: each group starts with a line "Carrier name   -   phone"
+   (just the name when Edge has no phone for it) and ends "(N Patients)";
+   the last line, "(N Total Patients)", has the totals. The app reads it
+   for one thing: which carrier each insurance account is with.
+   ===================================================================== */
+const INS_AGING_RE = /insurance\s+accounts?\s+receivable\s+aging/i;
+function isInsAgingSheet(grid) { return grid.slice(0, 10).some(r => rowText(r).some(t => t.length < 200 && INS_AGING_RE.test(t))); }
+/* "Delta Dental - MA      -   (800) 872-0500" → { name: 'Delta Dental - MA', phone: '(800) 872-0500' }; "Humana PPO" → no phone */
+function edgeCarrierLine(t) {
+  const s = String(t == null ? '' : t).replace(/\s+/g, ' ').trim(), m = /^(.*\S)\s+-\s*([(+\d][\d\s().+-]*)$/.exec(s);
+  if (m && (m[2].match(/\d/g) || []).length >= 7) return { name: m[1].trim().slice(0, 80), phone: m[2].trim().slice(0, 30) };
+  return { name: s.replace(/\s+-\s*$/, '').trim().slice(0, 80), phone: '' };
+}
+/* the report, or null when the file is something else: { insAging, meta, asOf, rows (each with its carrier), groups, total, check } */
+function insAgingFromGrid(g) {
+  let best = null, seen = false;
+  for (const sh of (g && g.sheets) || []) {
+    const grid = Array.from(sh || [], r => r || []);
+    if (!isInsAgingSheet(grid)) continue;
+    seen = true;
+    const p = parseARGrid(grid, g.date1904); if (!p) continue;
+    const hd = findHeader(grid), dueCol = hd.cols.due != null ? hd.cols.due : Infinity, acctRow = new Set(p.at);
+    // the lines between the accounts: a carrier's name (and phone), or the "(N Patients)" closing its group
+    const heads = [], foots = [];
+    for (let r = hd.r + 1; r < grid.length; r++) {
+      if (acctRow.has(r)) continue;
+      const cells = []; (grid[r] || []).forEach((v, c) => { if (v != null && String(v).trim() !== '') cells.push({ c, v }); });
+      if (!cells.length) continue;
+      const first = String(cells[0].v).trim();
+      if (TOTAL_RE.test(first)) { if (!/total/i.test(first)) foots.push({ r, n: Number(first.replace(/\D/g, '')) || 0 }); continue; }
+      if (cells.length > 2 || cells[0].c >= dueCol || cells.some(x => typeof x.v === 'number')) continue;
+      const t = cells.map(x => String(x.v).trim()).join(' - ');
+      if (/^edge\s+v\d/i.test(t) || INS_AGING_RE.test(t) || /accounts\s+receivable|^subgroup:|^page\s+\d|office:|doctor:|^(exclude|include)\b/i.test(t) || headKey(cells[0].v) === 'patient') continue;
+      heads.push(Object.assign({ r, n: 0 }, edgeCarrierLine(t)));
+    }
+    // each account goes with the carrier line above it
+    let hi = -1, loose = 0;
+    const rows = p.rows.map((row, i) => {
+      while (hi + 1 < heads.length && heads[hi + 1].r < p.at[i]) hi++;
+      const h = heads[hi]; if (h) h.n++; else loose++;
+      return Object.assign({}, row, { carrier: h ? h.name : '', cphone: h ? h.phone : '' });
+    });
+    // every group against its own "(N Patients)", and the whole report against Edge's total line
+    const probs = [], tot = checkTotals(p);
+    if (tot.ok === false) probs.push(tot.why);
+    if (loose) probs.push(plural(loose, 'account') + ' above the first carrier line');
+    heads.forEach((h, i) => { const end = i + 1 < heads.length ? heads[i + 1].r : Infinity, f = foots.filter(x => x.r > h.r && x.r < end).pop(); if (f && f.n !== h.n) probs.push(h.name + ': ' + h.n + ' read, Edge says ' + f.n); });
+    const check = probs.length ? { ok: false, why: probs.slice(0, 4).join('; ') + (probs.length > 4 ? '; and ' + (probs.length - 4) + ' more' : '') }
+      : tot.ok ? { ok: true, why: tot.why.replace(/\.$/, '') + ' — ' + plural(heads.length, 'carrier group') + ', each matching Edge’s count.' } : tot;
+    const out = { insAging: true, meta: p.meta, asOf: p.meta.asOf, rows, groups: heads.map(h => ({ name: h.name, phone: h.phone, n: h.n })), total: p.total, check };
+    if (!best || rows.length > best.rows.length) best = out;
+  }
+  if (seen && !best) throw errCode('bad-insaging', 'This looks like Edge’s Insurance Aging, but its columns (Patient … Amt Due … Balance) couldn’t be found.');
+  return best;
+}
+async function readInsAging(name, bytes) {
+  const g = await readGridFile(name, bytes), p = insAgingFromGrid(g);
+  if (!p) throw errCode('not-insaging', 'This isn’t Edge’s Insurance Aging report.');
+  return Object.assign(p, { name: name || '', kind: g.kind || 'text' });
+}
+/* a file dropped on Reports: OrthoBanc's failed-payment report, Edge's Insurance Aging, or Edge's A/R report */
 async function readReportFile(name, bytes) {
   const g = await readGridFile(name, bytes), ob = obFromGrid(g);
-  return ob ? Object.assign(ob, { name: name || '', kind: g.kind || 'text' }) : edgeFromGrid(g, name);
+  if (ob) return Object.assign(ob, { name: name || '', kind: g.kind || 'text' });
+  const ia = insAgingFromGrid(g);
+  return ia ? Object.assign(ia, { name: name || '', kind: g.kind || 'text' }) : edgeFromGrid(g, name);
 }

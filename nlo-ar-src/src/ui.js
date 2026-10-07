@@ -332,7 +332,7 @@ async function bookChange(fn, action, okMsg) {
   if (!--S.bookPend && S.bookSrv) { const srv = S.bookSrv; S.bookSrv = null; gotBook(srv === 'gone' ? null : srv); }
   return ok ? (ret === undefined ? true : ret) : false;
 }
-function carrierFor(key) { return carrierOf(S.book, key); }
+function carrierFor(key) { return carrierOf(S.book, key, S.byKey ? S.byKey.get(key) : null); }
 /* OrthoBanc's imported reports (one record per report day): kept apart from the accounts */
 function gotOB(id, raw) {
   if (S.obPend[id]) { S.obSrv[id] = raw || 'gone'; return; } // my own change is on its way: wait for it

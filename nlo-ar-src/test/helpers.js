@@ -42,4 +42,24 @@ function obReportTSV(longDate, hold, other) {
   section('** Action On Your Part Is Needed **', hold); blank(); section('** No Action Required On Your Part **', other);
   return lines.join('\r\n');
 }
-module.exports = { routes, watch, CHROME, obReportTSV };
+/* a made-up Edge "Insurance Accounts Receivable Aging" as Excel's tab-separated text, laid out like the real export (see
+   make_ins_fixture.py): groups are { line: the carrier line as Edge prints it ("Name   -   phone" or just the name),
+   rows: [{ patient, acct, sts, rp ('INS: …'), home, due, b0, b30, b60, b90, days, bal, lastAmt, recv: 'M/D/YYYY' }] } */
+function insAgingTSV(longDate, groups) {
+  const lines = [], put = cells => { const a = []; Object.keys(cells).forEach(c => { a[c] = cells[c]; }); lines.push(Array.from(a, v => v == null ? '' : String(v)).join('\t')); };
+  const m = v => (v < 0 ? '-' : '') + Math.abs(v).toFixed(2), tot = { n: 0, due: 0, b0: 0, b30: 0, b60: 0, b90: 0, bal: 0 };
+  put({ 0: 'Insurance Accounts Receivable Aging', 13: '10/6/2026 9:12 AM' }); put({ 0: 'Insurance Accounts Receivable Aging' }); put({ 0: longDate + '  Office: All,  Doctor: All' });
+  put({ 0: 'Exclude Zero Dollar Balances' }); put({ 0: 'Subgroup: None' }); lines.push(''); lines.push('');
+  put({ 0: 'Patient', 1: 'ID', 3: 'Sts', 4: 'Responsible Party', 5: 'Home  Ph', 6: 'Amt Due', 7: '0-30', 8: '31-60', 9: '61-90', 10: '91+', 12: 'Days', 14: 'Balance', 16: 'Last Amt', 17: 'Recieved' });
+  groups.forEach(g => {
+    put({ 0: g.line });
+    g.rows.forEach(r => {
+      put({ 0: r.patient, 1: r.acct, 3: r.sts, 4: r.rp, 5: r.home || '', 6: m(r.due), 7: m(r.b0), 8: m(r.b30), 9: m(r.b60), 10: m(r.b90), 12: String(r.days == null ? 0 : r.days), 14: m(r.bal), 16: r.lastAmt == null ? '' : m(r.lastAmt), 17: r.recv || '' });
+      tot.n++; ['due', 'b0', 'b30', 'b60', 'b90', 'bal'].forEach(k => { tot[k] += r[k]; });
+    });
+    put({ 0: '(' + g.rows.length + ' Patients)' });
+  });
+  put({ 0: '(' + tot.n + ' Total Patients)', 6: m(tot.due), 7: m(tot.b0), 8: m(tot.b30), 9: m(tot.b60), 10: m(tot.b90), 14: m(tot.bal) }); lines.push(''); put({ 0: 'Edge v8.0.22.1003' });
+  return lines.join('\r\n');
+}
+module.exports = { routes, watch, CHROME, obReportTSV, insAgingTSV };

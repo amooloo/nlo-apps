@@ -734,8 +734,19 @@ ol.steps b{color:var(--navy)}
 .carBox{border:1px solid var(--grey-100);background:var(--grey-50);border-radius:var(--r-sm);padding:10px 12px;margin:12px 0}
 .carHd{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .carHd .i{color:var(--blue)}
-.carHd .carSel{flex:1 1 180px}
+.carHd .carSel{flex:1 1 180px;max-width:340px}
 .carInfo{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px}
+.carSrc{margin-top:8px}
+.iaLine{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--blue-100);color:var(--blue-700);border-radius:10px;padding:9px 12px;font-size:12.5px;font-weight:600;margin-bottom:12px}
+.iaLine>span{flex:1 1 260px}
+.iaLine .btn{margin-left:auto}
+.carRest{margin-top:14px}
+.carRow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:7px 0;border-bottom:1px solid var(--grey-100)}
+.carRow:last-child{border-bottom:none}
+.carRow b{color:var(--navy);min-width:0;overflow-wrap:anywhere}
+.carRow .small{flex:1 1 160px}
+.iaGroups{max-height:280px;overflow:auto;padding-right:4px}
+.mergeBox{margin:0 0 10px}
 @media (max-width:520px){ .carGrid{grid-template-columns:minmax(0,1fr)} .carSel{max-width:100%} }
 /* ---------- trends and the weekly brief (6 Oct 2026) ---------- */
 .tStats{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:12px}

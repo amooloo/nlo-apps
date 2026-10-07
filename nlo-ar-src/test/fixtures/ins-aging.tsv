@@ -1,0 +1,96 @@
+Insurance Accounts Receivable Aging													10/5/2026 2:21 PM
+Insurance Accounts Receivable Aging
+Monday, October 5, 2026  Office: All,  Doctor: All
+Exclude Zero Dollar Balances
+Subgroup: None
+
+
+Patient	ID		Sts	Responsible Party	Home  Ph	Amt Due	0-30	31-60	61-90	91+		Days		Balance		Last Amt	Recieved
+Bayou Dental Mutual                                  -   (800) 555-0142            
+Avery Demo	99-0148		A- Ph I Br	INS: Lee Demo	(352) 555-0143	88.88	11.11	11.11	11.11	55.55		233		133.32
+José Example	99-0132		Retention	INS: Pat Example	(352) 555-0163	-450.25	0.00	0.00	0.00	0.00		0		-450.25		600.25	8/26/2026
+Riley Example	99-0116		Start Sche	INS: Mrs. Robin Example	(352) 555-0183	11.11	11.11	0.00	0.00	0.00		15		211.09		11.11	9/17/2026
+Hayden Notreal	99-0140		A-Comp Bra	INS: Mrs. Pat Notreal	(352) 555-0103	33.33	11.11	11.11	11.11	0.00		79		233.31		11.11	7/15/2026
+Sawyer Notreal	99-0124		Start Sche	INS: Pat Notreal	(352) 555-0123	-128.00	0.00	0.00	0.00	0.00		0		-128.00		228.00	3/25/2023
+Łucja O'Sample	99-0100		A-Comp Inv	INS: Pat O'Sample	(352) 555-0103	188.87	11.11	11.11	11.11	155.54		488		388.85
+Wren Sampleton	99-0800		A-Comp Bra	INS: Lee Sampleton	(352) 555-0200	0.00	0.00	0.00	0.00	0.00		0		600.00		150.00	9/15/2026
+Emerson Testcase	99-0156		A-Comp Bra	INS: Mrs. Lee Testcase	(352) 555-0183	11.11	11.11	0.00	0.00	0.00		15		199.98		11.11	9/17/2026
+Shay Testcase	99-0108		RET ONLY	INS: Mrs. Chris Testcase	(352) 555-0143	44.44	11.11	11.11	11.11	11.11		112		144.43		11.11	6/12/2026
+(9 Patients)
+Gator Benefits - FL                                  -   1-800-555-0177
+Remy Demo-Ray	99-0117		Retention	INS: Robin Demo-Ray	(352) 555-0188	147.22	136.11	11.11	0.00	0.00		47		236.10		11.11	8/16/2026
+Emerson Example	99-0149		A- Ph I Br	INS: Mrs. Lee Example	(352) 555-0148	147.22	136.11	11.11	0.00	0.00		47		358.31		11.11	8/16/2026
+Remy Exampleton	99-0133		Inactive	INS: Mr. Jordan Exampleton	(352) 555-0168	247.21	11.11	11.11	11.11	213.88		301		291.65		11.11	12/5/2025
+Łucja Exämple	99-0125		A-Comp NLA	INS: Pat Exämple	(352) 555-0128	202.77	11.11	11.11	11.11	169.44		186		313.87		11.11	3/30/2026
+Bay Fakely	99-0803		A-Comp Bra	INS: Chris Fakely	(352) 555-0203	0.00	0.00	0.00	0.00	0.00		0		825.00		225.00	9/12/2026
+Finley Fakeworth	99-0141		A- Ph I Br	INS: Chris Fakeworth	(352) 555-0108	136.11	136.11	0.00	0.00	0.00		4		247.21		11.11	9/28/2026
+Kendall Mockley	99-0101		Retention	INS: Pat Mockley	(352) 555-0108	-310.00	0.00	0.00	0.00	0.00		0		-310.00		460.00	8/26/2026
+Finley O'Sample	99-0157		Inactive	INS: Mr. Pat O'Sample	(352) 555-0188	180.55	11.11	11.11	11.11	147.22		141		224.99		11.11	5/14/2026
+Łucja O'Sample	99-0900		A-Comp Inv	INS: Pat O'Sample	(352) 555-0103	0.00	0.00	0.00	0.00	0.00		0		640.00		160.00	9/23/2026
+Sawyer Sample	99-0109		Start Sche	INS: Mrs. Alex Sample	(352) 555-0148	313.87	11.11	11.11	11.11	280.54		488		513.85		11.11	6/1/2025
+(10 Patients)
+Heron Life Ins.
+Skyler Demo-Ray	99-0110		A- Ph II B	INS: Mr. Alex Demo-Ray	(352) 555-0153	122.21	11.11	11.11	11.11	88.88		301		322.19		11.11	12/5/2025
+Arden Exämple	99-0158		A- Ph I Br	INS: Lee Exämple	(352) 555-0193	22.22	11.11	11.11	0.00	0.00		33		199.98		11.11	8/30/2026
+Marlow Fakeworth	99-0142		Inactive	INS: Mr. Lee Fakeworth	(352) 555-0113	-85.00	0.00	0.00	0.00	0.00		0		-85.00		85.00	2/27/2026
+Reese Sample	99-0134		A- Ph II B	INS: Mr. Chris Sample	(352) 555-0173	155.54	11.11	11.11	11.11	122.21		395		211.09		11.11	9/2/2025
+Zoë Sample	99-0126		A-Comp Inv	INS: Mr. Alex Sample	(352) 555-0133	22.22	11.11	11.11	0.00	0.00		33		211.09		11.11	8/30/2026
+Remy Samplesen	99-0150		A-Comp Bra	INS: Mrs. Chris Samplesen	(352) 555-0153	44.44	11.11	11.11	11.11	11.11		93		99.99		11.11	7/1/2026
+Jordan Testcase	99-0118		Inactive	INS: Mrs. Pat Testcase	(352) 555-0193	22.22	11.11	11.11	0.00	0.00		33		77.77
+Quinn Testcase	99-0102		A- Ph I Br	INS: Mr. Lee Testcase	(352) 555-0113	-25.25	0.00	0.00	0.00	0.00		0		-25.25		25.25	3/25/2023
+(8 Patients)
+Manatee Concordia (Tricare)   -   (844)555-0199
+Kit Demoley	99-0801		A-Comp Bra	INS: Robin Demoley	(352) 555-0201	0.00	0.00	0.00	0.00	0.00		0		675.00		175.00	9/14/2026
+Dakota Example	99-0127		RET ONLY	INS: Mrs. Alex Example	(352) 555-0138	147.22	136.11	11.11	0.00	0.00		58		247.21		11.11	8/5/2026
+Dana Exampleton	99-0151		A-Comp Bra	INS: Mr. Chris Exampleton	(352) 555-0158	136.11	136.11	0.00	0.00	0.00		24		191.66		11.11	9/8/2026
+Parker Exampleton	99-0111		A- Ph II B	INS: Alex Exampleton	(352) 555-0158	169.44	11.11	11.11	11.11	136.11		112		213.88		11.11	6/12/2026
+Hayden Placeholder	99-0135		A- Ph I Br	INS: Mrs. Robin Placeholder	(352) 555-0178	180.55	11.11	11.11	11.11	147.22		141		358.31		11.11	5/14/2026
+Hayden Sample	99-0119		A-Comp Bra	INS: Alex Sample	(352) 555-0198	-85.00	0.00	0.00	0.00	0.00		0		-85.00		235.00	7/2/2026
+Shay Sample	99-0143		A-Comp NLA	INS: Chris Sample	(352) 555-0118	169.44	11.11	11.11	11.11	136.11		93		258.32		11.11	7/1/2026
+Łucja Samplesen	99-0103		RET ONLY	INS: Robin Samplesen	(352) 555-0118	247.21	11.11	11.11	11.11	213.88		301		424.97		11.11	12/5/2025
+Dana Testcase	99-0159		Start Sche	INS: Lee Testcase	(352) 555-0198	147.22	136.11	11.11	0.00	0.00		33		347.20		11.11	8/30/2026
+(9 Patients)
+Osprey Dental Plan                                   -   (800 555-0123       
+Riley Demo	99-0160		Inactive	INS: Jordan Demo	(352) 555-0103	11.11	11.11	0.00	0.00	0.00		15		88.88
+Drew Demo-Ray	99-0144		Retention	INS: Mr. Robin Demo-Ray	(352) 555-0123	77.77	11.11	11.11	11.11	44.44		186		133.32		11.11	3/30/2026
+Harper Example	99-0120		RET ONLY	INS: Mrs. Jordan Example	(352) 555-0103	155.54	11.11	11.11	11.11	122.21		395		255.53		11.11	9/2/2025
+Elliot Exampleton	99-0128		A-Comp Bra	INS: Alex Exampleton	(352) 555-0143	11.11	11.11	0.00	0.00	0.00		4		166.65		11.11	9/28/2026
+Emerson Exampleton	99-0152		A-Comp Bra	INS: Mr. Alex Exampleton	(352) 555-0163	22.22	11.11	11.11	0.00	0.00		58		177.76		11.11	8/5/2026
+Emerson Notreal	99-0112		A-Comp Bra	INS: Mr. Alex Notreal	(352) 555-0163	-310.00	0.00	0.00	0.00	0.00		0		-310.00		460.00	2/27/2026
+Peyton Samplesen	99-0104		A-Comp Inv	INS: Mrs. Jordan Samplesen	(352) 555-0123	44.44	11.11	11.11	11.11	11.11		93		77.77		11.11	7/1/2026
+Peyton Testcase	99-0136		A-Comp NLA	INS: Mr. Pat Testcase	(352) 555-0183	188.87	11.11	11.11	11.11	155.54		488		266.64
+(8 Patients)
+Pelican Dental
+Cameron Demo-Ray	99-0145		Inactive	INS: Pat Demo-Ray	(352) 555-0128	169.44	11.11	11.11	11.11	136.11		112		347.20		11.11	6/12/2026
+Rowan Demoray	99-0121		Retention	INS: Jordan Demoray	(352) 555-0108	-450.25	0.00	0.00	0.00	0.00		0		-450.25		450.25	7/2/2026
+Avery Mockley	99-0153		Retention	INS: Robin Mockley	(352) 555-0168	202.77	11.11	11.11	11.11	169.44		186		424.97		11.11	3/30/2026
+Harper Mockley	99-0105		A- Ph I Br	INS: Mrs. Pat Mockley	(352) 555-0128	-450.00	0.00	0.00	0.00	0.00		0		-450.00		550.00	3/25/2023
+Zoë Notreal	99-0137		Retention	INS: Chris Notreal	(352) 555-0188	-128.25	0.00	0.00	0.00	0.00		0		-128.25		278.25	8/26/2026
+Drew Sample	99-0129		A- Ph II B	INS: Mr. Robin Sample	(352) 555-0148	158.33	136.11	11.11	11.11	0.00		79		280.54		11.11	7/15/2026
+Emerson Sample	99-0113		Inactive	INS: Alex Sample	(352) 555-0168	-25.50	0.00	0.00	0.00	0.00		0		-25.50		25.50	9/23/2026
+Kendall Sample	99-0161		A- Ph I Br	INS: Pat Sample	(352) 555-0108	213.88	11.11	11.11	11.11	180.55		233		247.21		11.11	2/11/2026
+(8 Patients)
+Pelican Dental    -   8005550188
+Marlow Demo	99-0162		Retention	INS: Lee Demo	(352) 555-0113	11.11	11.11	0.00	0.00	0.00		4		177.76		11.11	9/28/2026
+Skyler Demoray	99-0130		A-Comp Bra	INS: Mrs. Jordan Demoray	(352) 555-0153	22.22	11.11	11.11	0.00	0.00		33		166.65
+Blake Example	99-0106		Inactive	INS: Mrs. Lee Example	(352) 555-0133	22.22	11.11	11.11	0.00	0.00		33		99.99
+Drew Exampleton	99-0138		A- Ph II B	INS: Mr. Robin Exampleton	(352) 555-0193	155.54	11.11	11.11	11.11	122.21		395		199.98		11.11	9/2/2025
+Blake Exämple	99-0154		A- Ph II B	INS: Jordan Exämple	(352) 555-0173	33.33	11.11	11.11	11.11	0.00		79		66.66
+José Fakeworth	99-0114		A-Comp Inv	INS: Alex Fakeworth	(352) 555-0173	11.11	11.11	0.00	0.00	0.00		15		111.10		11.11	9/17/2026
+Kendall Fakeworth	99-0146		A- Ph II B	INS: Mr. Lee Fakeworth	(352) 555-0133	122.21	11.11	11.11	11.11	88.88		301		177.76		11.11	12/5/2025
+Ash Mockwell	99-0802		A-Comp Bra	INS: Pat Mockwell	(352) 555-0202	0.00	0.00	0.00	0.00	0.00		0		750.00		200.00	9/13/2026
+José Placeholder	99-0122		A-Comp NLA	INS: Pat Placeholder	(352) 555-0113	188.87	11.11	11.11	11.11	155.54		488		244.42		11.11	6/1/2025
+(9 Patients)
+zz OLD - Heron Life    -   8005550100
+Parker Fakeworth	99-0139		RET ONLY	INS: Chris Fakeworth	(352) 555-0198	-128.50	0.00	0.00	0.00	0.00		0		-128.50		128.50	8/26/2026
+Skyler Notreal	99-0123		Inactive	INS: Mrs. Alex Notreal	(352) 555-0118	-62.50	0.00	0.00	0.00	0.00		0		-62.50		212.50	8/26/2026
+Remy Placeholder	99-0163		Inactive	INS: Lee Placeholder	(352) 555-0118	169.44	11.11	11.11	11.11	136.11		93		391.64		11.11	7/1/2026
+Cameron Sample	99-0107		RET ONLY	INS: Chris Sample	(352) 555-0138	-85.25	0.00	0.00	0.00	0.00		0		-85.25		235.25	2/27/2026
+Dakota Sample	99-0147		A- Ph I Br	INS: Mrs. Lee Sample	(352) 555-0138	280.54	11.11	11.11	11.11	247.21		395		424.97		11.11	9/2/2025
+Quinn Samplesen	99-0131		RET ONLY	INS: Pat Samplesen	(352) 555-0158	136.11	136.11	0.00	0.00	0.00		4		269.43		11.11	9/28/2026
+José Testcase	99-0155		A- Ph I Br	INS: Mr. Chris Testcase	(352) 555-0178	-240.00	0.00	0.00	0.00	0.00		0		-240.00		340.00	8/21/2025
+Kendall Testcase	99-0115		RET ONLY	INS: Chris Testcase	(352) 555-0178	136.11	136.11	0.00	0.00	0.00		15		358.31		11.11	9/17/2026
+(8 Patients)
+(69 Total Patients)						2,919.27	1,669.39	433.29	322.19	3,458.15				12,342.01
+
+Edge v8.0.22.1003

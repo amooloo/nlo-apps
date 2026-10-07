@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-YPF53X8Sx5C50BN3ZW0r2UYOuM+fjExHd3Q40eSIezI=' https://www.gstatic.com/firebasejs/10.12.2/; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://aisa-worker.akhavan-ak.workers.dev http://127.0.0.1:8080 http://127.0.0.1:9099; frame-src https://nlo-cases.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-cTAjQa21L4WrY20fOPUS7fScNqDygHILhHvg5DmOWKA=' https://www.gstatic.com/firebasejs/10.12.2/; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://aisa-worker.akhavan-ak.workers.dev http://127.0.0.1:8080 http://127.0.0.1:9099; frame-src https://nlo-cases.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO A/R</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -748,8 +748,19 @@ ol.steps b{color:var(--navy)}
 .carBox{border:1px solid var(--grey-100);background:var(--grey-50);border-radius:var(--r-sm);padding:10px 12px;margin:12px 0}
 .carHd{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .carHd .i{color:var(--blue)}
-.carHd .carSel{flex:1 1 180px}
+.carHd .carSel{flex:1 1 180px;max-width:340px}
 .carInfo{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px}
+.carSrc{margin-top:8px}
+.iaLine{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--blue-100);color:var(--blue-700);border-radius:10px;padding:9px 12px;font-size:12.5px;font-weight:600;margin-bottom:12px}
+.iaLine>span{flex:1 1 260px}
+.iaLine .btn{margin-left:auto}
+.carRest{margin-top:14px}
+.carRow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:7px 0;border-bottom:1px solid var(--grey-100)}
+.carRow:last-child{border-bottom:none}
+.carRow b{color:var(--navy);min-width:0;overflow-wrap:anywhere}
+.carRow .small{flex:1 1 160px}
+.iaGroups{max-height:280px;overflow:auto;padding-right:4px}
+.mergeBox{margin:0 0 10px}
 @media (max-width:520px){ .carGrid{grid-template-columns:minmax(0,1fr)} .carSel{max-width:100%} }
 /* ---------- trends and the weekly brief (6 Oct 2026) ---------- */
 .tStats{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:12px}
@@ -1301,6 +1312,7 @@ function readGridText(text) {
    ===================================================================== */
 const AR_HEAD = [
   ['patient', /^(patient|patientname|name|pt|ptname)$/],
+  ['acct', /^(id|acct|acctno|acctnum|account|accountno|accountnum|accountnumber|patientid|ptid)$/],
   ['sts', /^(sts|status|ptstatus|patientstatus)$/],
   ['rp', /^(responsibleparty|respparty|responsible|resp|rp|guarantor|party)$/],
   ['home', /^(homeph|homephone|home|phone|ph)$/],
@@ -1313,7 +1325,7 @@ const AR_HEAD = [
   ['days', /^(days|dayspastdue|age|daysold)$/],
   ['bal', /^(balance|contractbalance|bal|contractbal|totalbalance|acctbalance)$/],
   ['lastAmt', /^(lastamt|lastamount|lastpaymentamount|lastpmt|lastpaid|lastpayment)$/],
-  ['recv', /^(received|datereceived|lastpaymentdate|lastpaiddate|lastreceived|lastpmtdate|paymentdate)$/]
+  ['recv', /^(received|recieved|datereceived|daterecieved|lastpaymentdate|lastpaiddate|lastreceived|lastrecieved|lastpmtdate|paymentdate)$/] // Edge v8 spells it "Recieved"
 ];
 const NUM_KEYS = ['due', 'b0', 'b30', 'b60', 'b90', 'days', 'bal', 'lastAmt'];
 function headKey(v) {
@@ -1363,7 +1375,8 @@ function findHeader(grid) {
   return null;
 }
 function fitsKey(k, v, date1904) { return NUM_KEYS.includes(k) ? toNum(v) != null : k === 'recv' ? !!toISODate(v, date1904) : true; }
-const TOTAL_RE = /^\(?\s*\d[\d,]*\s+(patients?|accounts?|records?)\s*\)?$/i;
+/* "(95 Patients)"; Edge v8 ends a grouped report with "(329 Total Patients)" */
+const TOTAL_RE = /^\(?\s*\d[\d,]*\s+(?:total\s+)?(patients?|accounts?|records?)\s*\)?$/i;
 /* Read one sheet of the report. Each value sits under its heading; Excel exports sometimes shift a value a column to the right
    (merged cells), so a cell belongs to the nearest heading at or to the left of it. A cell past a heading that already has its
    value (Edge puts the account's billing note there, with no heading) is kept as the note. */
@@ -1383,7 +1396,7 @@ function parseARGrid(grid, date1904) {
     for (const v of grid[r] || []) if (typeof v === 'number' && v > 36526 && v < 73051 && !meta.stamp) meta.stamp = toISODate(v, date1904);
   }
   if (!meta.asOf && meta.stamp) meta.asOf = meta.stamp;
-  const rows = []; let total = null;
+  const rows = [], at = []; let total = null;
   for (let r = hd.r + 1; r < grid.length; r++) {
     const row = grid[r]; if (!row) continue;
     const texts = rowText(row); if (!texts.length) continue;
@@ -1405,8 +1418,8 @@ function parseARGrid(grid, date1904) {
     const patient = String(o.patient == null ? '' : o.patient).trim();
     const nums = {}; NUM_KEYS.forEach(k => { nums[k] = toNum(o[k]); });
     if (!patient || (nums.due == null && nums.bal == null && nums.b0 == null && nums.b90 == null)) continue;
-    const bucketSum = round2((nums.b0 || 0) + (nums.b30 || 0) + (nums.b60 || 0) + (nums.b90 || 0));
-    rows.push({
+    const bucketSum = round2((nums.b0 || 0) + (nums.b30 || 0) + (nums.b60 || 0) + (nums.b90 || 0)), acct = String(o.acct == null ? '' : o.acct).trim().slice(0, 20);
+    rows.push(Object.assign({
       patient, sts: String(o.sts == null ? '' : o.sts).trim(), rp: String(o.rp == null ? '' : o.rp).trim(),
       home: String(o.home == null ? '' : o.home).trim(), work: String(o.work == null ? '' : o.work).trim(),
       due: nums.due != null ? round2(nums.due) : bucketSum,
@@ -1414,9 +1427,10 @@ function parseARGrid(grid, date1904) {
       days: nums.days != null ? Math.round(nums.days) : null, bal: nums.bal != null ? round2(nums.bal) : null,
       lastAmt: nums.lastAmt != null ? round2(nums.lastAmt) : null, recv: o.recv != null ? toISODate(o.recv, date1904) : '',
       note: extra.join(' · ').slice(0, 300)
-    });
+    }, acct ? { acct } : {})); // Edge's account ID, when the report has that column (Edge v8's insurance aging does)
+    at.push(r);
   }
-  return { meta, rows, total, cols: heads.map(h => h.k) };
+  return { meta, rows, total, cols: heads.map(h => h.k), at };
 }
 /* the file → { meta, rows, total, check } (check: Edge's own totals against the rows read) */
 async function readEdgeAR(name, bytes) {
@@ -1505,10 +1519,75 @@ async function readOBFailed(name, bytes) {
   if (!p) throw errCode('not-ob', 'This isn’t OrthoBanc’s Failed Transaction Report.');
   return Object.assign(p, { name: name || '', kind: g.kind || 'text' });
 }
-/* a file dropped on Reports: OrthoBanc's failed-payment report, or Edge's A/R report */
+/* =====================================================================
+   Edge's "Insurance Accounts Receivable Aging" (6 Oct 2026). The A/R
+   Aging's columns plus the account ID, insurance contracts only, grouped
+   by carrier: each group starts with a line "Carrier name   -   phone"
+   (just the name when Edge has no phone for it) and ends "(N Patients)";
+   the last line, "(N Total Patients)", has the totals. The app reads it
+   for one thing: which carrier each insurance account is with.
+   ===================================================================== */
+const INS_AGING_RE = /insurance\s+accounts?\s+receivable\s+aging/i;
+function isInsAgingSheet(grid) { return grid.slice(0, 10).some(r => rowText(r).some(t => t.length < 200 && INS_AGING_RE.test(t))); }
+/* "Delta Dental - MA      -   (800) 872-0500" → { name: 'Delta Dental - MA', phone: '(800) 872-0500' }; "Humana PPO" → no phone */
+function edgeCarrierLine(t) {
+  const s = String(t == null ? '' : t).replace(/\s+/g, ' ').trim(), m = /^(.*\S)\s+-\s*([(+\d][\d\s().+-]*)$/.exec(s);
+  if (m && (m[2].match(/\d/g) || []).length >= 7) return { name: m[1].trim().slice(0, 80), phone: m[2].trim().slice(0, 30) };
+  return { name: s.replace(/\s+-\s*$/, '').trim().slice(0, 80), phone: '' };
+}
+/* the report, or null when the file is something else: { insAging, meta, asOf, rows (each with its carrier), groups, total, check } */
+function insAgingFromGrid(g) {
+  let best = null, seen = false;
+  for (const sh of (g && g.sheets) || []) {
+    const grid = Array.from(sh || [], r => r || []);
+    if (!isInsAgingSheet(grid)) continue;
+    seen = true;
+    const p = parseARGrid(grid, g.date1904); if (!p) continue;
+    const hd = findHeader(grid), dueCol = hd.cols.due != null ? hd.cols.due : Infinity, acctRow = new Set(p.at);
+    // the lines between the accounts: a carrier's name (and phone), or the "(N Patients)" closing its group
+    const heads = [], foots = [];
+    for (let r = hd.r + 1; r < grid.length; r++) {
+      if (acctRow.has(r)) continue;
+      const cells = []; (grid[r] || []).forEach((v, c) => { if (v != null && String(v).trim() !== '') cells.push({ c, v }); });
+      if (!cells.length) continue;
+      const first = String(cells[0].v).trim();
+      if (TOTAL_RE.test(first)) { if (!/total/i.test(first)) foots.push({ r, n: Number(first.replace(/\D/g, '')) || 0 }); continue; }
+      if (cells.length > 2 || cells[0].c >= dueCol || cells.some(x => typeof x.v === 'number')) continue;
+      const t = cells.map(x => String(x.v).trim()).join(' - ');
+      if (/^edge\s+v\d/i.test(t) || INS_AGING_RE.test(t) || /accounts\s+receivable|^subgroup:|^page\s+\d|office:|doctor:|^(exclude|include)\b/i.test(t) || headKey(cells[0].v) === 'patient') continue;
+      heads.push(Object.assign({ r, n: 0 }, edgeCarrierLine(t)));
+    }
+    // each account goes with the carrier line above it
+    let hi = -1, loose = 0;
+    const rows = p.rows.map((row, i) => {
+      while (hi + 1 < heads.length && heads[hi + 1].r < p.at[i]) hi++;
+      const h = heads[hi]; if (h) h.n++; else loose++;
+      return Object.assign({}, row, { carrier: h ? h.name : '', cphone: h ? h.phone : '' });
+    });
+    // every group against its own "(N Patients)", and the whole report against Edge's total line
+    const probs = [], tot = checkTotals(p);
+    if (tot.ok === false) probs.push(tot.why);
+    if (loose) probs.push(plural(loose, 'account') + ' above the first carrier line');
+    heads.forEach((h, i) => { const end = i + 1 < heads.length ? heads[i + 1].r : Infinity, f = foots.filter(x => x.r > h.r && x.r < end).pop(); if (f && f.n !== h.n) probs.push(h.name + ': ' + h.n + ' read, Edge says ' + f.n); });
+    const check = probs.length ? { ok: false, why: probs.slice(0, 4).join('; ') + (probs.length > 4 ? '; and ' + (probs.length - 4) + ' more' : '') }
+      : tot.ok ? { ok: true, why: tot.why.replace(/\.$/, '') + ' — ' + plural(heads.length, 'carrier group') + ', each matching Edge’s count.' } : tot;
+    const out = { insAging: true, meta: p.meta, asOf: p.meta.asOf, rows, groups: heads.map(h => ({ name: h.name, phone: h.phone, n: h.n })), total: p.total, check };
+    if (!best || rows.length > best.rows.length) best = out;
+  }
+  if (seen && !best) throw errCode('bad-insaging', 'This looks like Edge’s Insurance Aging, but its columns (Patient … Amt Due … Balance) couldn’t be found.');
+  return best;
+}
+async function readInsAging(name, bytes) {
+  const g = await readGridFile(name, bytes), p = insAgingFromGrid(g);
+  if (!p) throw errCode('not-insaging', 'This isn’t Edge’s Insurance Aging report.');
+  return Object.assign(p, { name: name || '', kind: g.kind || 'text' });
+}
+/* a file dropped on Reports: OrthoBanc's failed-payment report, Edge's Insurance Aging, or Edge's A/R report */
 async function readReportFile(name, bytes) {
   const g = await readGridFile(name, bytes), ob = obFromGrid(g);
-  return ob ? Object.assign(ob, { name: name || '', kind: g.kind || 'text' }) : edgeFromGrid(g, name);
+  if (ob) return Object.assign(ob, { name: name || '', kind: g.kind || 'text' });
+  const ia = insAgingFromGrid(g);
+  return ia ? Object.assign(ia, { name: name || '', kind: g.kind || 'text' }) : edgeFromGrid(g, name);
 }
 
 /* =====================================================================
@@ -2077,19 +2156,52 @@ function normCarrier(c) {
   c = c && typeof c === 'object' ? c : {};
   const tf = Number(c.tf);
   return { id: CARRIER_ID.test(c.id) ? c.id : '', name: strOf(c.name, 60).trim(), phone: strOf(c.phone, 40).trim(), portal: cleanUrl(c.portal), payer: strOf(c.payer, 40).trim(),
-    fax: strOf(c.fax, 40).trim(), tf: Number.isInteger(tf) && tf > 0 && tf <= 1095 ? tf : 0, notes: strOf(c.notes, 1000) };
+    fax: strOf(c.fax, 40).trim(), tf: Number.isInteger(tf) && tf > 0 && tf <= 1095 ? tf : 0, notes: strOf(c.notes, 1000), edge: edgeNames(c.edge) };
 }
+/* the names Edge's Insurance Aging uses for a carrier (as Edge prints them; matched without case, spaces or punctuation) */
+function edgeName(s) { return String(s == null ? '' : s).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().slice(0, 80); }
+function edgeNames(l) { const seen = new Set(); return (Array.isArray(l) ? l : []).filter(x => typeof x === 'string').map(x => x.replace(/\s+/g, ' ').trim().slice(0, 80)).filter(x => { const k = edgeName(x); if (!k || seen.has(k)) return false; seen.add(k); return true; }).slice(0, 20); }
 function normBook(b) {
   if (!b || typeof b !== 'object' || !b.book || b.locked) return null;
   const carriers = (Array.isArray(b.carriers) ? b.carriers.slice(0, 200) : []).map(normCarrier).filter(c => c.id && c.name);
   const ids = new Set(carriers.map(c => c.id)), tags = {};
   if (b.tags && typeof b.tags === 'object') Object.keys(b.tags).slice(0, 5000).forEach(k => { const v = b.tags[k]; if (k.length <= 400 && typeof v === 'string' && ids.has(v)) tags[k] = v; });
   const ob = (Array.isArray(b.ob) ? b.ob.slice(-60) : []).map(x => x && typeof x === 'object' ? { id: strOf(x.id, 20), at: numOr0(x.at), by: strOf(x.by, 60), for: isoOrBlank(x.for), n: Number.isInteger(x.n) && x.n >= 0 && x.n <= 500 ? x.n : null, note: strOf(x.note, 300) } : null).filter(x => x && x.for && x.at);
-  return { id: strOf(b.id, 40), rev: numOr0(b.rev), v: numOr0(b.v), updatedAt: numOrNull(b.updatedAt), carriers: carriers.sort((x, y) => x.name.localeCompare(y.name)), tags, ob };
+  // Edge's carrier for each insurance account (from its Insurance Aging): one carrier, or — the same patient and policyholder
+  // under two carriers (two contracts) — each with its balance, to tell them apart
+  const etags = {};
+  if (b.etags && typeof b.etags === 'object' && !Array.isArray(b.etags)) Object.keys(b.etags).slice(0, 6000).forEach(k => {
+    const v = b.etags[k], d = v && typeof v === 'object' ? isoOrBlank(v.d) : ''; if (k.length > 400 || !d) return;
+    if (typeof v.c === 'string' && ids.has(v.c)) etags[k] = { c: v.c, d };
+    else if (Array.isArray(v.m)) { const m = v.m.slice(0, 6).filter(x => x && typeof x.c === 'string' && ids.has(x.c)).map(x => ({ c: x.c, bal: numOrNull(x.bal), due: numOrNull(x.due) })); if (m.length) etags[k] = { m, d }; }
+  });
+  const e = b.edge && typeof b.edge === 'object' && isoOrBlank(b.edge.asOf) ? { asOf: b.edge.asOf, at: numOr0(b.edge.at), by: strOf(b.edge.by, 60), n: Number.isInteger(b.edge.n) && b.edge.n >= 0 ? b.edge.n : 0, groups: Number.isInteger(b.edge.groups) && b.edge.groups >= 0 ? b.edge.groups : 0 } : null;
+  return { id: strOf(b.id, 40), rev: numOr0(b.rev), v: numOr0(b.v), updatedAt: numOrNull(b.updatedAt), carriers: carriers.sort((x, y) => x.name.localeCompare(y.name)), tags, ob, etags, edge: e };
 }
-function carrierOf(book, key) { const id = book && book.tags[key]; return id ? book.carriers.find(c => c.id === id) || null : null; }
+/* an account's key without the "#2" the A/R report adds when the same patient and payer are on it twice */
+function baseKey(key) { return String(key || '').replace(/#\d+$/, ''); }
+/* Edge's carrier for an account (a: the account, to tell two contracts of one patient and policyholder apart by balance) */
+function edgeIdOf(book, key, a) {
+  const e = book && book.etags && book.etags[baseKey(key)]; if (!e) return '';
+  if (e.c) return e.c;
+  if (!a || a.bal == null || !Array.isArray(e.m)) return '';
+  const hit = e.m.filter(x => x.bal != null && Math.abs(x.bal - a.bal) < 0.005);
+  return hit.length && hit.every(x => x.c === hit[0].c) ? hit[0].c : '';
+}
+/* the account's carrier: the one set by hand, else Edge's */
+function carrierOf(book, key, a) {
+  if (!book) return null;
+  const id = book.tags[key] || edgeIdOf(book, key, a);
+  return id ? book.carriers.find(c => c.id === id) || null : null;
+}
+/* where it comes from: set by hand (and whether Edge has it under another carrier), or from Edge */
+function carrierSrc(book, key, a) {
+  const find = id => (id && book ? book.carriers.find(c => c.id === id) || null : null);
+  const hand = book ? find(book.tags[key]) : null, edge = book ? find(edgeIdOf(book, key, a)) : null;
+  return { c: hand || edge, hand, edge, differs: !!(hand && edge && hand.id !== edge.id) };
+}
 /* changes to the carrier book, made on its decrypted copy */
-function bookFix(d) { if (!Array.isArray(d.carriers)) d.carriers = []; if (!d.tags || typeof d.tags !== 'object') d.tags = {}; if (!Array.isArray(d.ob)) d.ob = []; Object.assign(d, { book: 1, key: '', state: 'open' }); return d; }
+function bookFix(d) { if (!Array.isArray(d.carriers)) d.carriers = []; if (!d.tags || typeof d.tags !== 'object') d.tags = {}; if (!d.etags || typeof d.etags !== 'object' || Array.isArray(d.etags)) d.etags = {}; if (!Array.isArray(d.ob)) d.ob = []; Object.assign(d, { book: 1, key: '', state: 'open' }); return d; }
 function carrierSave(d, f, o, now) {
   bookFix(d); f = f || {};
   const c = normCarrier(Object.assign({}, f, { id: f.id || 'c' + uid8() }));
@@ -2097,10 +2209,14 @@ function carrierSave(d, f, o, now) {
   if (String(f.portal || '').trim() && !c.portal) throw errCode('bad-url', 'The portal needs to be a web address starting with https://');
   if (d.carriers.some(x => x.id !== c.id && String(x.name || '').trim().toLowerCase() === c.name.toLowerCase())) throw errCode('dup', c.name + ' is already in the list.');
   const rec = Object.assign(c, { at: now, by: (o && o.by) || '' }), i = d.carriers.findIndex(x => x.id === c.id);
+  if (f.edge === undefined && i >= 0) rec.edge = edgeNames(d.carriers[i].edge); // editing it keeps Edge's names for it
   if (i >= 0) d.carriers[i] = rec; else d.carriers.push(rec);
   return c.id;
 }
-function carrierRemove(d, id) { bookFix(d); d.carriers = d.carriers.filter(x => x.id !== id); Object.keys(d.tags).forEach(k => { if (d.tags[k] === id) delete d.tags[k]; }); }
+function carrierRemove(d, id) {
+  bookFix(d); d.carriers = d.carriers.filter(x => x.id !== id); Object.keys(d.tags).forEach(k => { if (d.tags[k] === id) delete d.tags[k]; });
+  Object.keys(d.etags).forEach(k => { const v = d.etags[k]; if (!v || v.c === id) { delete d.etags[k]; return; } if (Array.isArray(v.m)) { v.m = v.m.filter(x => x && x.c !== id); if (!v.m.length) delete d.etags[k]; } });
+}
 function carrierTag(d, keys, id) {
   bookFix(d);
   if (id && !d.carriers.some(x => x.id === id)) throw errCode('gone', 'That carrier was just removed.');
@@ -2108,6 +2224,84 @@ function carrierTag(d, keys, id) {
 }
 /* the other insurance accounts under the same policyholder (brothers and sisters on a parent's plan) */
 function sameHolder(accts, a) { const h = normName(rpName(a)); return h ? accts.filter(x => x.ins && x.key !== a.key && normName(rpName(x)) === h) : []; }
+/* the same company twice (Edge often lists one under two names): its accounts, Edge's names for it and anything filled in on
+   it move to `into`, and it's removed — so the next Insurance Aging puts those accounts on `into` too */
+function carrierMerge(d, fromId, intoId) {
+  bookFix(d);
+  const from = d.carriers.find(x => x.id === fromId), into = d.carriers.find(x => x.id === intoId);
+  if (!from || !into || from === into) throw errCode('gone', 'Those carriers just changed — try again.');
+  into.edge = edgeNames((Array.isArray(into.edge) ? into.edge : []).concat(Array.isArray(from.edge) ? from.edge : []));
+  ['phone', 'portal', 'payer', 'fax'].forEach(k => { if (!String(into[k] || '').trim() && String(from[k] || '').trim()) into[k] = from[k]; });
+  if (!into.tf && from.tf) into.tf = from.tf;
+  if (String(from.notes || '').trim()) into.notes = (String(into.notes || '').trim() ? into.notes + '\n' + from.notes : from.notes).slice(0, 1000);
+  Object.keys(d.tags).forEach(k => { if (d.tags[k] === fromId) d.tags[k] = intoId; });
+  Object.keys(d.etags).forEach(k => {
+    const v = d.etags[k]; if (!v) return;
+    if (v.c === fromId) v.c = intoId;
+    if (Array.isArray(v.m)) { v.m.forEach(x => { if (x && x.c === fromId) x.c = intoId; }); if (v.m.length && v.m.every(x => x && x.c === v.m[0].c)) d.etags[k] = { c: v.m[0].c, d: v.d }; }
+  });
+  d.carriers = d.carriers.filter(x => x.id !== fromId);
+}
+
+/* =====================================================================
+   Carriers from Edge's Insurance Aging (6 Oct 2026). That report groups
+   the insurance accounts by carrier, so one import gives each insurance
+   account its carrier, and each carrier Edge's phone number. Edge's say
+   is kept by account (etags), apart from the carriers set by hand
+   (tags): those always win and an import never changes them. Edge's
+   carriers are matched to the book's by an earlier import's link, or by
+   name — so a carrier the office renamed or merged stays as it is.
+   p: the report (insAgingFromGrid); o: { by, today, idFor(name) → the id for a new carrier }.
+   ===================================================================== */
+function edgeCarriersApply(d, p, o, now) {
+  bookFix(d); o = o || {};
+  const asOf = isoOrBlank(p.asOf) || o.today || isoOf(new Date(now)), res = { added: [], linked: 0, phones: 0, accounts: 0, twice: 0, older: false, full: false };
+  // 1. Edge's carriers → the book's; a carrier Edge lists twice under one name is one carrier
+  const byEdge = new Map(), byName = new Map(), idOf = new Map();
+  d.carriers.forEach(c => { edgeNames(c.edge).forEach(n => { if (!byEdge.has(edgeName(n))) byEdge.set(edgeName(n), c); }); const nn = edgeName(c.name); if (nn && !byName.has(nn)) byName.set(nn, c); });
+  for (const g of p.groups || []) {
+    const n = edgeName(g.name), phone = String(g.phone || '').trim().slice(0, 40); if (!n) continue;
+    let c = byEdge.get(n) || byName.get(n);
+    if (!c) {
+      if (d.carriers.length >= 200) { res.full = true; continue; } // the carrier book's limit
+      c = { id: (o.idFor && o.idFor(n)) || 'c' + uid8(), name: String(g.name).replace(/\s+/g, ' ').trim().slice(0, 60), phone, portal: '', payer: '', fax: '', tf: 0, notes: '', edge: [g.name], at: now, by: o.by || '' };
+      d.carriers.push(c); res.added.push(c.name);
+    } else {
+      const names = edgeNames(c.edge);
+      if (!names.some(x => edgeName(x) === n)) { c.edge = edgeNames(names.concat([g.name])); if (!idOf.has(n)) res.linked++; }
+      if (!String(c.phone || '').trim() && phone) { c.phone = phone; res.phones++; }
+    }
+    byEdge.set(n, c); idOf.set(n, c.id);
+  }
+  // 2. each account (keyed like the A/R lists: patient + policyholder) gets Edge's carrier, unless a newer import already said
+  const per = new Map();
+  for (const r of p.rows || []) {
+    const id = idOf.get(edgeName(r.carrier)); if (!id) continue;
+    const k = acctKey(isIns(r) ? r : Object.assign({}, r, { rp: 'INS: ' + (r.rp || '') }));
+    if (!per.has(k)) per.set(k, []);
+    per.get(k).push({ c: id, bal: numOrNull(r.bal), due: numOrNull(r.due) });
+  }
+  per.forEach((l, k) => {
+    const cur = d.etags[k]; if (cur && isoOrBlank(cur.d) > asOf) return;
+    const one = l.every(x => x.c === l[0].c);
+    d.etags[k] = one ? { c: l[0].c, d: asOf } : { m: l.slice(0, 6), d: asOf };
+    res.accounts++; if (!one) res.twice++;
+  });
+  // 3. the date of the newest import; accounts not on any Insurance Aging for over a year are let go (the book stays small)
+  if (d.edge && isoOrBlank(d.edge.asOf) > asOf) res.older = true;
+  else d.edge = { asOf, at: now, by: o.by || '', n: (p.rows || []).length, groups: (p.groups || []).length };
+  const cut = addDays(d.edge.asOf, -400);
+  Object.keys(d.etags).forEach(k => { const v = d.etags[k]; if (!v || typeof v !== 'object' || !isoOrBlank(v.d) || v.d < cut) delete d.etags[k]; });
+  return res;
+}
+/* what an import would do, for its preview: run on a copy of the book, then count the A/R report's insurance accounts */
+function edgeCarriersPlan(bookRaw, p, accts, o, now) {
+  const raw = JSON.parse(JSON.stringify(bookRaw || emptyBook())), before = normBook(Object.assign({}, raw, { book: 1 })), d = bookFix(raw);
+  const res = edgeCarriersApply(d, p, o, now), after = normBook(d), ins = (accts || []).filter(a => a.ins);
+  const has = (b, a) => !!carrierOf(b, a.key, a);
+  return Object.assign(res, { ins: ins.length, got: ins.filter(a => has(after, a)).length, newly: ins.filter(a => !has(before, a) && has(after, a)).length,
+    differ: ins.filter(a => carrierSrc(after, a.key, a).differs).length, without: ins.filter(a => !has(after, a)).length, carriers: after.carriers.length, book: after });
+}
 
 /* =====================================================================
    Focus (6 Oct 2026): what to do first today, as one list across the
@@ -2157,7 +2351,7 @@ function focusEntries(ctx) {
     }
     if (a.ins && a.pd > 0) {
       // days past due today: the report's, carried on to today
-      const c = carrierOf(ctx.book, a.key), dn = a.days != null ? a.days + (ctx.asOf ? Math.max(0, daysBetween(ctx.asOf, t)) : 0) : null;
+      const c = carrierOf(ctx.book, a.key, a), dn = a.days != null ? a.days + (ctx.asOf ? Math.max(0, daysBetween(ctx.asOf, t)) : 0) : null;
       if (c && c.tf && dn != null && dn >= c.tf - 30 && dn <= c.tf && !filed(it)) put(mk(a, it, 'tf', c.name + '’s filing limit (' + c.tf + ' days) is ' + (c.tf > dn ? 'in ' + plural(c.tf - dn, 'day') : 'today'), 'Call the carrier', 10));
       if (!it) {
         const who = c ? c.name : 'the carrier';
@@ -3483,7 +3677,7 @@ async function bookChange(fn, action, okMsg) {
   if (!--S.bookPend && S.bookSrv) { const srv = S.bookSrv; S.bookSrv = null; gotBook(srv === 'gone' ? null : srv); }
   return ok ? (ret === undefined ? true : ret) : false;
 }
-function carrierFor(key) { return carrierOf(S.book, key); }
+function carrierFor(key) { return carrierOf(S.book, key, S.byKey ? S.byKey.get(key) : null); }
 /* OrthoBanc's imported reports (one record per report day): kept apart from the accounts */
 function gotOB(id, raw) {
   if (S.obPend[id]) { S.obSrv[id] = raw || 'gone'; return; } // my own change is on its way: wait for it
@@ -4318,7 +4512,8 @@ function viewReports() {
     '<input type="file" id="arFile" accept=".xls,.xlsx,.csv,.txt,.htm,.html,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" multiple class="hidden">' +
     '<div class="pasteBox" id="pasteBox" tabindex="0" role="textbox" aria-label="Paste the report here">Or open the export in Excel, select everything (Ctrl+A), copy (Ctrl+C), click here and paste (Ctrl+V).</div>' +
     (imp && imp.err ? '<div class="lockErr" style="margin-top:12px">' + esc(imp.err) + '</div>' : '') + edgeStepsHTML(!S.reports.length) +
-    '<p class="small muted" style="margin-top:10px">OrthoBanc’s Failed Transaction Report (FailedTransactions.xls) can be dropped here too — it opens its own list.</p>';
+    '<p class="small muted" style="margin-top:10px">OrthoBanc’s Failed Transaction Report (FailedTransactions.xls) can be dropped here too — it opens its own list.</p>' +
+    '<p class="small muted" style="margin-top:6px">So can Edge’s <b>Insurance Aging</b> — it fills in each insurance account’s carrier (Insurance → Carriers).</p>' + iaStepsHTML(false);
   h += '</div></div></div><div>' + reportListHTML() + '</div></div>';
   return h;
 }
@@ -4381,6 +4576,7 @@ function afterReports() {
     try {
       const g = html && /<table/i.test(html) ? readHTMLTables(html) : readGridText(text || ''), ob = obFromGrid(g);
       if (ob) { obPreview(Object.assign(ob, { name: 'Pasted from Excel', kind: 'text' })); return; } // OrthoBanc's failed-payment report
+      const ia = insAgingFromGrid(g); if (ia) { insAgingPreview(Object.assign(ia, { name: 'Pasted from Excel', kind: 'text' })); return; } // Edge's Insurance Aging: carriers
       addParsed([{ name: 'Pasted from Excel', p: edgeFromGrid(g, 'Pasted from Excel') }]);
     }
     catch (x) { S.imp = { files: [], err: errText(x) }; renderView(); }
@@ -4388,14 +4584,18 @@ function afterReports() {
   paintPhotos();
 }
 async function addFiles(files) {
-  const out = []; let ob = null;
+  const out = []; let ob = null, ia = null;
   for (const f of files) {
     if (f.size > 40 * 1024 * 1024) { out.push({ name: f.name, err: 'That file is too big to be an A/R report.' }); continue; }
-    try { const p = await readReportFile(f.name, await f.arrayBuffer()); if (p.ob) { ob = ob || p; continue; } out.push({ name: f.name, p }); } // OrthoBanc's report goes its own way
-    catch (x) { out.push({ name: f.name, err: errText(x) }); }
+    try {
+      const p = await readReportFile(f.name, await f.arrayBuffer());
+      if (p.ob) { ob = ob || p; continue; } // OrthoBanc's report goes its own way
+      if (p.insAging) { ia = ia || p; continue; } // so does Edge's Insurance Aging (it only fills in carriers)
+      out.push({ name: f.name, p });
+    } catch (x) { out.push({ name: f.name, err: errText(x) }); }
   }
   if (out.length) addParsed(out);
-  if (ob) obPreview(ob);
+  if (ob) obPreview(ob); else if (ia) insAgingPreview(ia);
 }
 function addParsed(list) {
   const files = ((S.imp && S.imp.files) || []).concat(list);
@@ -4486,24 +4686,40 @@ Object.assign(ACT, {
    each insurance account, calling a carrier once about all its accounts
    ===================================================================== */
 function carrierStats(c) {
-  const tags = S.book ? S.book.tags : {}, mine = S.accts.filter(a => a.ins && tags[a.key] === c.id), pd = mine.filter(a => a.pd > 0);
+  const mine = S.accts.filter(a => a.ins && (carrierFor(a.key) || {}).id === c.id), pd = mine.filter(a => a.pd > 0);
   let last = null; mine.forEach(a => { const it = itemFor(a.key); ((it && it.log) || []).forEach(e => { if (/^ins_/.test(e.k) && (!last || e.at > last.at)) last = e; }); });
   const days = pd.map(a => a.days).filter(d => d != null);
   return { all: mine, pd, pdAmt: round2(pd.reduce((s, a) => s + a.pd, 0)), never: pd.filter(a => a.months > 0).length, oldest: days.length ? Math.max(...days) : null,
     avg: days.length ? Math.round(days.reduce((s, d) => s + d, 0) / days.length) : null, credit: round2(mine.filter(a => a.credit > 0).reduce((s, a) => s + a.credit, 0)),
-    paid: S.diff && S.prev ? S.diff.cleared.filter(k => tags[k] === c.id).length : null, last, near: c.tf ? pd.filter(a => a.days != null && a.days >= c.tf - 30 && a.days <= c.tf).length : 0 };
+    paid: S.diff && S.prev ? S.diff.cleared.filter(k => (carrierOf(S.book, k) || {}).id === c.id).length : null, last, near: c.tf ? pd.filter(a => a.days != null && a.days >= c.tf - 30 && a.days <= c.tf).length : 0 };
 }
-function carrierSelect(key, c, chg) {
-  const list = S.book ? S.book.carriers : [];
-  return '<select class="inp carSel" data-chg="' + chg + '" data-key="' + esc(key) + '" aria-label="Insurance carrier"><option value="">' + (c ? 'No carrier' : 'Pick the carrier…') + '</option>' +
-    list.map(x => '<option value="' + esc(x.id) + '"' + (c && c.id === x.id ? ' selected' : '') + '>' + esc(x.name) + '</option>').join('') + '<option value="_new">New carrier…</option></select>';
+/* src: carrierSrc(…) for the account (null: none yet). With Edge's carrier, the first choice is "Edge's" — picking another sets it by hand. */
+function carrierSelect(key, src, chg) {
+  const list = S.book ? S.book.carriers : [], hand = src && src.hand, edge = src && src.edge;
+  const first = edge ? '<option value=""' + (hand ? '' : ' selected') + '>Edge: ' + esc(edge.name) + '</option>' : '<option value="">' + (hand ? 'No carrier' : 'Pick the carrier…') + '</option>';
+  return '<select class="inp carSel" data-chg="' + chg + '" data-key="' + esc(key) + '" aria-label="Insurance carrier">' + first +
+    list.map(x => '<option value="' + esc(x.id) + '"' + (hand && hand.id === x.id ? ' selected' : '') + '>' + esc(x.name) + '</option>').join('') + '<option value="_new">New carrier…</option></select>';
 }
 function carriersTabHTML() {
-  const list = S.book ? S.book.carriers : [], untagged = S.accts.filter(a => a.ins && a.pd > 0 && !carrierFor(a.key));
-  let h = '<div class="listHd">' + ic('shield', 16) + '<span><b>Insurance carriers.</b> Edge’s report shows the policyholder, not the carrier, so set each insurance account’s carrier once — the app remembers it, and brothers and sisters on the same policy get it too. Then the carrier’s phone, portal and payer ID are on the account, slow payers stand out, and one call can cover all of a carrier’s accounts.</span></div>';
+  const list = S.book ? S.book.carriers : [], untagged = S.accts.filter(a => a.ins && a.pd > 0 && !carrierFor(a.key)), e = S.book && S.book.edge;
+  const differ = S.accts.filter(a => a.ins && carrierSrc(S.book, a.key, a).differs);
+  let h = '<div class="listHd">' + ic('shield', 16) + '<span><b>Insurance carriers.</b> Edge’s A/R Aging shows the policyholder, not the carrier. Drop Edge’s <b>Insurance Aging</b> on Reports and every insurance account gets its carrier, with Edge’s phone number for it — or set one by hand (brothers and sisters on the same policy get it too); a carrier set by hand is never changed by an import. Then the carrier’s phone, portal and payer ID are on the account, slow payers stand out, and one call can cover all of a carrier’s accounts.</span></div>';
+  h += '<div class="iaLine">' + ic('import', 16) + '<span>' + (e ? 'From Edge’s Insurance Aging of <b>' + esc(fmtDateLong(e.asOf)) + '</b> · ' + plural(e.n, 'account') + ' · imported by ' + esc(shortName(e.by)) + ', ' + esc(fmtWhen(e.at)) : 'Edge’s Insurance Aging hasn’t been imported yet — one import gives every insurance account its carrier.') + '</span>' +
+    '<button class="btn btn-sec btn-sm" data-act="iaPick">' + ic('import', 15) + (e ? 'Import a newer one' : 'Import Insurance Aging') + '</button></div>' + (e ? '' : iaStepsHTML(true));
   h += '<div class="btnRow" style="margin-bottom:14px"><button class="btn btn-pri btn-sm" data-act="carrierNew">' + ic('plus', 15) + 'Add a carrier</button>' + (untagged.length ? '<button class="btn btn-ghost" data-act="scrollUntagged">' + plural(untagged.length, 'account') + ' without a carrier</button>' : '') + '</div>';
-  if (!list.length) h += '<div class="card"><div class="empty">No carriers yet. Add the ones you bill most — their provider phone line, portal and payer ID — then set them on the accounts below.</div></div>';
-  else h += '<div class="carGrid">' + list.map(c => Object.assign({ c }, carrierStats(c))).sort((x, y) => y.pdAmt - x.pdAmt || x.c.name.localeCompare(y.c.name)).map(carrierCardHTML).join('') + '</div>';
+  if (!list.length) h += '<div class="card"><div class="empty">No carriers yet. Import Edge’s Insurance Aging, or add the ones you bill most — their provider phone line, portal and payer ID — then set them on the accounts below.</div></div>';
+  else {
+    // a card for each carrier with something past due or in credit, and the ones added by hand; Edge's other carriers in a short list
+    const R = list.map(c => Object.assign({ c }, carrierStats(c))), card = r => r.pd.length || r.credit || !(r.c.edge && r.c.edge.length), rest = R.filter(r => !card(r));
+    h += '<div class="carGrid">' + R.filter(card).sort((x, y) => y.pdAmt - x.pdAmt || x.c.name.localeCompare(y.c.name)).map(carrierCardHTML).join('') + '</div>';
+    if (rest.length) h += '<details class="help carRest"><summary>' + plural(rest.length, 'more carrier') + ' from Edge — nothing past due or in credit</summary>' +
+      rest.sort((x, y) => x.c.name.localeCompare(y.c.name)).map(r => '<div class="carRow"><b>' + esc(r.c.name) + '</b><span class="small muted">' + esc(r.c.phone ? phoneTxt(r.c.phone) : 'no phone') + (r.all.length ? ' · ' + plural(r.all.length, 'account') + ' on the report' : '') + '</span>' +
+        '<button class="btn btn-ghost btn-sm" data-act="carrierEdit" data-id="' + esc(r.c.id) + '">Edit</button></div>').join('') + '</details>';
+  }
+  if (differ.length) h += '<div class="card" id="carDiffer" style="margin-top:18px"><div class="cardHd"><h3>Set by hand — Edge has another carrier</h3><span class="sub">' + plural(differ.length, 'account') + '</span><span style="flex:1"></span>' +
+    '<button class="btn btn-sec btn-sm" data-act="carrierUseEdgeAll">Use Edge’s for all ' + differ.length + '</button></div><div class="cardBd">' +
+    differ.map(a => { const s2 = carrierSrc(S.book, a.key, a); return '<div class="tagRow"><button class="linkBtn" data-act="open" data-key="' + esc(a.key) + '"><b>' + esc(a.patient) + '</b> <span class="muted">· ' + esc(rpName(a)) + '</span></button>' +
+      '<span class="small">Set: <b>' + esc(s2.hand.name) + '</b> · Edge: <b>' + esc(s2.edge.name) + '</b></span><button class="btn btn-ghost btn-sm" data-act="carrierUseEdge" data-key="' + esc(a.key) + '">Use Edge’s</button></div>'; }).join('') + '</div></div>';
   h += '<div class="card" id="untagged" style="margin-top:18px"><div class="cardHd"><h3>Insurance accounts without a carrier</h3><span class="sub">' + plural(untagged.length, 'account') + ' past due</span></div><div class="cardBd">' +
     (untagged.length ? untagged.sort((x, y) => (y.days || 0) - (x.days || 0)).map(a => '<div class="tagRow"><button class="linkBtn" data-act="open" data-key="' + esc(a.key) + '"><b>' + esc(a.patient) + '</b> <span class="muted">· ' + esc(rpName(a)) + '</span></button>' +
       '<span class="small muted">' + money(a.pd) + (a.days != null ? ' · ' + a.days + ' days' : '') + (a.months ? ' · nothing paid' : '') + '</span>' + carrierSelect(a.key, null, 'tagRow') + '</div>').join('')
@@ -4529,6 +4745,10 @@ function carrierFormHTML(c, tagKey) {
     f('carName', 'Name', c.name, 'e.g. the plan on the EOB') + '<div class="grid2">' + f('carPhone', 'Provider phone line', c.phone, '(800) 555-…', 'tel') + f('carFax', 'Fax', c.fax) + '</div>' +
     f('carPortal', 'Provider portal (web address)', c.portal, 'https://…', 'url') + '<div class="grid2">' + f('carPayer', 'Payer ID', c.payer) + f('carTf', 'Timely filing limit (days)', c.tf || '', 'e.g. 365', 'number') + '</div>' +
     '<div class="field"><label for="carNotes">Notes — claims address, who to ask for, what they need</label><textarea id="carNotes" class="inp" rows="3">' + esc(c.notes || '') + '</textarea></div>' +
+    (c.edge && c.edge.length ? '<div class="small muted" style="margin:-4px 0 10px">In Edge’s Insurance Aging as ' + c.edge.map(n => '“' + esc(n) + '”').join(', ') + '.</div>' : '') +
+    (c.id && S.book && S.book.carriers.length > 1 ? '<details class="help mergeBox"><summary>Same company as another carrier? Merge them</summary><div class="small muted" style="margin:4px 0 8px">Edge often lists one company under two names. Merging moves this one’s accounts — and Edge’s name for it — to the carrier you pick, so the next Insurance Aging puts them there too; anything filled in here that the other one lacks goes with it. Then this one is removed.</div>' +
+      '<div class="btnRow"><select id="carMergeInto" class="inp carSel" aria-label="Merge into"><option value="">Merge into…</option>' + S.book.carriers.filter(x => x.id !== c.id).map(x => '<option value="' + esc(x.id) + '">' + esc(x.name) + '</option>').join('') + '</select>' +
+      '<button class="btn btn-sec btn-sm" data-act="carrierMerge" data-id="' + esc(c.id) + '">Merge</button></div></details>' : '') +
     '<div class="mFt">' + (c.id ? '<button class="btn btn-ghost" data-act="carrierDel" data-id="' + esc(c.id) + '" style="margin-right:auto;color:var(--coral-700)">Remove</button>' : '') +
     '<button class="btn btn-ghost" data-act="closeModal">Cancel</button><button class="btn btn-pri" data-act="carrierSave" data-id="' + esc(c.id || '') + '" data-tag="' + esc(tagKey || '') + '">Save</button></div>';
 }
@@ -4537,8 +4757,8 @@ function tagKeysFor(key) { const a = S.byKey.get(key); return a ? [key].concat(s
 async function setCarrier(key, val) {
   if (!key) return;
   if (val === '_new') { openModal(carrierFormHTML(null, key)); queueRender(); if (S.openKey) refreshDrawer(); return; }
-  const keys = val ? tagKeysFor(key) : [key], c = val && S.book ? S.book.carriers.find(x => x.id === val) : null;
-  await bookChange(d => carrierTag(d, keys, val), { a: 'carrier', op: 'tag', n: keys.length }, val ? (c ? c.name : 'Carrier') + ' set' + (keys.length > 1 ? ' on ' + plural(keys.length, 'account') + ' (same policyholder)' : '') : 'Carrier taken off');
+  const keys = val ? tagKeysFor(key) : [key], c = val && S.book ? S.book.carriers.find(x => x.id === val) : null, ed = !val && carrierSrc(S.book, key, S.byKey.get(key)).edge;
+  await bookChange(d => carrierTag(d, keys, val), { a: 'carrier', op: 'tag', n: keys.length }, val ? (c ? c.name : 'Carrier') + ' set' + (keys.length > 1 ? ' on ' + plural(keys.length, 'account') + ' (same policyholder)' : '') : ed ? 'Back to Edge’s carrier: ' + ed.name : 'Carrier taken off');
 }
 Object.assign(CHG, { carrierPick(t) { setCarrier(t.dataset.key || S.openKey, t.value); }, tagRow(t) { setCarrier(t.dataset.key, t.value); } });
 Object.assign(ACT, {
@@ -4557,10 +4777,29 @@ Object.assign(ACT, {
   },
   async carrierDel(t) {
     const c = S.book && S.book.carriers.find(x => x.id === t.dataset.id); if (!c) return;
-    const n = Object.keys(S.book.tags).filter(k => S.book.tags[k] === c.id).length;
+    const n = Object.keys(S.book.tags).filter(k => S.book.tags[k] === c.id).length, ne = Object.keys(S.book.etags).filter(k => { const v = S.book.etags[k]; return v.c === c.id || (v.m && v.m.some(x => x.c === c.id)); }).length;
     closeModal();
-    if (!(await confirmBox('Remove ' + c.name + '?', n ? 'It’s set on ' + plural(n, 'account') + '; they’ll have no carrier.' : 'No accounts have it.', 'Remove', true))) return;
+    const why = (n || ne ? 'It’s on ' + plural(n + ne, 'account') + (ne ? ' (' + ne + ' from Edge’s Insurance Aging)' : '') + '; they’ll have no carrier.' : 'No accounts have it.') +
+      (c.edge && c.edge.length ? ' The next Insurance Aging adds it back — to fold it into another carrier, use Merge instead.' : '');
+    if (!(await confirmBox('Remove ' + c.name + '?', why, 'Remove', true))) return;
     await bookChange(d => carrierRemove(d, c.id), { a: 'carrier', op: 'remove', name: c.name }, 'Removed ' + c.name);
+  },
+  async carrierMerge(t) {
+    const from = S.book && S.book.carriers.find(x => x.id === t.dataset.id), into = S.book && S.book.carriers.find(x => x.id === (($('#carMergeInto') || {}).value || ''));
+    if (!from) return; if (!into) { toast('Pick the carrier to merge it into.', { bad: true }); return; }
+    const n = carrierStats(from).all.length;
+    closeModal();
+    if (!(await confirmBox('Merge ' + from.name + ' into ' + into.name + '?', (n ? 'Its ' + plural(n, 'account') + ' on the report move to ' + into.name + '. ' : '') + 'From now on Edge’s ' + (from.edge && from.edge.length ? from.edge.map(x => '“' + x + '”').join(', ') : 'name for it') + ' lands on ' + into.name + ', and ' + from.name + ' is removed.', 'Merge'))) return;
+    await bookChange(d => carrierMerge(d, from.id, into.id), { a: 'carrier', op: 'merge', name: from.name, into: into.name }, 'Merged ' + from.name + ' into ' + into.name);
+  },
+  async carrierUseEdge(t) {
+    const key = t.dataset.key, a = S.byKey.get(key), src = carrierSrc(S.book, key, a); if (!src.hand || !src.edge) return;
+    await bookChange(d => carrierTag(d, [key], ''), { a: 'carrier', op: 'tag', n: 1 }, 'Back to Edge’s carrier: ' + src.edge.name);
+  },
+  async carrierUseEdgeAll() {
+    const keys = S.accts.filter(a => a.ins && carrierSrc(S.book, a.key, a).differs).map(a => a.key); if (!keys.length) return;
+    if (!(await confirmBox('Use Edge’s carrier on ' + plural(keys.length, 'account') + '?', 'The carriers set by hand on them are taken off, so each shows the carrier Edge’s Insurance Aging lists it under.', 'Use Edge’s'))) return;
+    await bookChange(d => carrierTag(d, keys, ''), { a: 'carrier', op: 'tag', n: keys.length }, 'Edge’s carrier on ' + plural(keys.length, 'account'));
   },
   carrierCallAll(t) {
     const c = S.book && S.book.carriers.find(x => x.id === t.dataset.id); if (!c) return;
@@ -4579,8 +4818,10 @@ Object.assign(ACT, {
 });
 /* the carrier on an insurance account's panel: pick it, call it, open its portal */
 function carrierBoxHTML(a) {
-  const c = carrierFor(a.key);
-  let h = '<div class="carBox"><div class="carHd">' + ic('shield', 16) + '<b>Carrier</b>' + carrierSelect(a.key, c, 'carrierPick') + '</div>';
+  const src = carrierSrc(S.book, a.key, a), c = src.c, e = S.book && S.book.edge;
+  let h = '<div class="carBox"><div class="carHd">' + ic('shield', 16) + '<b>Carrier</b>' + carrierSelect(a.key, src.c ? src : null, 'carrierPick') + '</div>';
+  if (src.differs) h += '<div class="notice info carSrc" style="margin:10px 0 0">Set by hand. Edge’s Insurance Aging' + (e ? ' (' + esc(fmtDate(e.asOf)) + ')' : '') + ' has this account under <b>' + esc(src.edge.name) + '</b>. <button class="linkBtn" data-act="carrierUseEdge" data-key="' + esc(a.key) + '">Use Edge’s</button></div>';
+  else if (c && !src.hand) h += '<div class="small muted carSrc">From Edge’s Insurance Aging' + (e ? ' of ' + esc(fmtDate(e.asOf)) : '') + '</div>';
   if (c) {
     const left = c.tf && a.days != null && a.pd > 0 ? c.tf - a.days : null;
     h += '<div class="carInfo">' + (telHref(c.phone) ? '<a class="btn btn-act btn-sm" href="' + esc(telHref(c.phone)) + '">' + ic('call', 15) + 'Call ' + esc(phoneTxt(c.phone)) + '</a>' : '') +
@@ -4588,9 +4829,71 @@ function carrierBoxHTML(a) {
       (c.payer ? '<span class="small">Payer ID <b>' + esc(c.payer) + '</b> <button class="linkBtn" data-act="copyVal" data-v="' + esc(c.payer) + '">Copy</button></span>' : '') + (c.fax ? '<span class="small">Fax ' + esc(c.fax) + '</span>' : '') + '</div>' +
       (left != null && left <= 30 ? '<div class="notice ' + (left < 0 ? 'bad' : '') + '" style="margin:10px 0 0">' + esc(left >= 0 ? c.name + '’s timely-filing limit (' + c.tf + ' days) is ' + (left ? 'in ' + plural(left, 'day') : 'today') + '.' : 'Past ' + c.name + '’s timely-filing limit (' + c.tf + ' days) by ' + plural(-left, 'day') + '.') + '</div>' : '') +
       (c.notes ? '<div class="small muted carNotes">' + esc(c.notes) + '</div>' : '');
-  } else if (S.book && S.book.carriers.length) h += '<div class="small muted">Set it once — brothers and sisters on the same policy get it too.</div>';
+  } else if (S.book && S.book.carriers.length) h += '<div class="small muted">Set it once — brothers and sisters on the same policy get it too.' + (S.book.edge ? ' It wasn’t on the ' + esc(fmtDate(S.book.edge.asOf)) + ' Insurance Aging.' : ' Or drop Edge’s Insurance Aging on Reports to fill in every account’s.') + '</div>';
   return h + '</div>';
 }
+
+/* =====================================================================
+   Edge's Insurance Aging, imported (6 Oct 2026): read on this computer,
+   it gives each insurance account its carrier (and each carrier Edge's
+   phone number). Only that is kept — sealed in the carrier book; the
+   file isn't. A carrier set by hand is never changed.
+   ===================================================================== */
+function iaStepsHTML(open) {
+  return '<details class="help"' + (open ? ' open' : '') + '><summary>How to export the Insurance Aging from Edge</summary><ol class="steps small">' +
+    '<li>In Edge: <b>Home</b> → <b>Reporting</b>, type <b>Insurance</b> in the search box at the top and open the insurance aging report (it prints as “Insurance Accounts Receivable Aging”).</li>' +
+    '<li>Leave the date on <b>Today</b>, tick <b>Exclude Zero Dollar Balances</b>, <b>Subgroup: None</b> — then <b>View</b>.</li>' +
+    '<li><b>Export ▾</b> → <b>Excel</b>, drop the file on Reports (or here), then delete it from Downloads.</li></ol>' +
+    '<p class="small muted">Run it the same day as the A/R Aging, so every account on the lists is on it.</p></details>';
+}
+async function iaReadFiles(files) {
+  for (const f of files) {
+    if (f.size > 40 * 1024 * 1024) { toast('That file is too big to be the Insurance Aging.', { bad: true }); continue; }
+    try { insAgingPreview(await readInsAging(f.name, await f.arrayBuffer())); return; }
+    catch (x) { toast(errText(x), { bad: true }); }
+  }
+}
+function insAgingPreview(p) {
+  const t = todayISO(), e = S.book && S.book.edge, plan = edgeCarriersPlan(S.bookRaw, p, S.accts, { by: meSid(), today: t }, Date.now()), notes = [];
+  if (!p.asOf) notes.push(['bad', 'There’s no date in the file, so it’s saved as today’s.']);
+  if (p.check.ok === false) notes.push(['bad', p.check.why + ' — check the whole report was exported.']);
+  if (plan.older) notes.push(['info', 'A newer Insurance Aging (' + fmtDate(e.asOf) + ') was imported before: this one only fills in the accounts it didn’t have.']);
+  if (S.rep && p.asOf && p.asOf !== S.rep.asOf) notes.push(['info', 'The lists show the ' + fmtDate(S.rep.asOf) + ' A/R report; this Insurance Aging is from ' + fmtDate(p.asOf) + '. Run both on the same day for the best match.']);
+  if (plan.differ) notes.push(['info', plural(plan.differ, 'account') + ' set by hand ' + (plan.differ === 1 ? 'is' : 'are') + ' under another carrier in Edge — kept as set; Insurance → Carriers lists ' + (plan.differ === 1 ? 'it' : 'them') + ' to check.']);
+  if (plan.twice) notes.push(['info', plural(plan.twice, 'patient') + ' ' + (plan.twice === 1 ? 'has' : 'have') + ' two insurance contracts under the same policyholder with different carriers — each is matched by its balance.']);
+  if (plan.full) notes.push(['bad', 'The carrier list is full (200) — some of Edge’s carriers weren’t added.']);
+  if (!S.rep) notes.push(['info', 'No A/R report yet — the carriers are ready for the accounts when the first one comes in.']);
+  // Edge's carrier lines, the same name put together (as they'll be in the list)
+  const gm = new Map(); (p.groups || []).forEach(g => { const k = edgeName(g.name); if (!k) return; const x = gm.get(k) || { name: g.name, phones: [], n: 0 }; if (g.phone && !x.phones.includes(g.phone)) x.phones.push(g.phone); x.n += g.n; gm.set(k, x); });
+  const groups = Array.from(gm.values()).sort((x, y) => y.n - x.n || x.name.localeCompare(y.name));
+  S.iaImp = { p };
+  openModal('<h3>Insurance Aging · ' + esc(fmtDateLong(p.asOf || t)) + '</h3>' +
+    '<div class="lsub">Read on this computer. Only which carrier each insurance account is with (and Edge’s phone number for each carrier) is kept, sealed — not the file. A carrier set by hand is never changed.</div>' +
+    '<div class="prevGrid">' + obStat(p.rows.length, 'insurance accounts in Edge') + obStat(plan.carriers, 'carriers' + (plan.added.length ? ' · ' + plan.added.length + ' new' : '')) +
+      (S.rep ? obStat(plan.got + ' of ' + plan.ins, 'insurance accounts on the ' + fmtDate(S.rep.asOf) + ' A/R report with a carrier · ' + plan.newly + ' getting one now') : obStat(plan.accounts, 'accounts with a carrier')) + '</div>' +
+    (p.check.ok ? '<div class="chk ok">' + ic('done', 14) + esc(p.check.why) + '</div>' : '') +
+    notes.map(([k, n]) => '<div class="notice ' + k + '" style="margin-top:8px">' + esc(n) + '</div>').join('') +
+    '<details class="help"><summary>Edge’s carriers (' + groups.length + ')</summary><div class="iaGroups">' + groups.map(g => '<div class="carRow"><b>' + esc(g.name) + '</b><span class="small muted">' + esc(g.phones.length ? g.phones.map(phoneTxt).join(' or ') : 'no phone in Edge') + ' · ' + plural(g.n, 'account') + '</span></div>').join('') + '</div></details>' +
+    '<div class="mFt" style="margin-top:14px"><button class="btn btn-ghost" data-act="closeModal">Cancel</button><button class="btn btn-teal" data-act="iaSave" id="iaSave">' + ic('lock', 15) + 'Save the carriers (sealed)</button></div>');
+}
+Object.assign(ACT, {
+  iaPick() {
+    const i = document.createElement('input'); i.type = 'file'; i.accept = '.xls,.xlsx,.csv,.txt,.htm,.html'; i.className = 'hidden';
+    i.onchange = () => { const fs = Array.from(i.files || []); i.remove(); if (fs.length) iaReadFiles(fs); };
+    document.body.appendChild(i); i.click();
+  },
+  async iaSave() {
+    const I = S.iaImp; if (!I) return; const btn = $('#iaSave'); busyBtn(btn, true, 'Sealing and saving…');
+    const ids = {}, o = { by: meSid(), today: todayISO(), idFor: n => ids[n] || (ids[n] = 'c' + uid8()) }; // the same new ids both times bookChange runs it
+    let res = null;
+    const ok = await bookChange((d, now) => { res = edgeCarriersApply(d, I.p, o, now); }, { a: 'carrier', op: 'edge', asOf: I.p.asOf || '', n: I.p.rows.length },
+      'Carriers saved from Edge’s Insurance Aging of ' + fmtDate(I.p.asOf || todayISO()));
+    if (!ok) { busyBtn(btn, false); return; }
+    S.iaImp = null; closeModal();
+    // on to the carriers — unless an A/R report dropped in with it is still waiting on Reports to be saved
+    if (!(S.view === 'reports' && S.imp && S.imp.files && S.imp.files.length)) { S.view = 'ins'; S.tab.ins = 'carriers'; renderNav(); renderView(); window.scrollTo(0, 0); }
+  }
+});
 
 /* =====================================================================
    Trends (6 Oct 2026): week over week, the pace to the goals, who did
@@ -5124,7 +5427,8 @@ function histText(x) {
     case 'obcheck': return 'checked OrthoBanc’s failed-payment report (' + fmtDate(x.for) + (x.n != null ? ', ' + plural(x.n, 'failed payment') : '') + ')';
     case 'obimport': return 'imported OrthoBanc’s failed-payment report (' + fmtDate(x.day) + (x.n != null ? ', ' + plural(x.n, 'failed payment') : '') + ')';
     case 'obtick': return (x.on === false ? 'unticked ' : 'ticked ') + plural(x.n || 1, 'family', 'families') + (x.on === false ? '' : ' as texted') + ' (OrthoBanc, ' + fmtDate(x.day) + ')';
-    case 'carrier': return x.op === 'add' ? 'added the carrier ' + (x.name || '') : x.op === 'edit' ? 'updated the carrier ' + (x.name || '') : x.op === 'remove' ? 'removed the carrier ' + (x.name || '') : x.op === 'tag' ? 'set the carrier on ' + plural(x.n || 1, 'insurance account') : 'changed the insurance carriers';
+    case 'carrier': return x.op === 'add' ? 'added the carrier ' + (x.name || '') : x.op === 'edit' ? 'updated the carrier ' + (x.name || '') : x.op === 'remove' ? 'removed the carrier ' + (x.name || '') : x.op === 'tag' ? 'set the carrier on ' + plural(x.n || 1, 'insurance account') :
+      x.op === 'edge' ? 'filled in the carriers from Edge’s Insurance Aging' + (x.asOf ? ' of ' + fmtDate(x.asOf) : '') + (x.n ? ' (' + plural(x.n, 'account') + ')' : '') : x.op === 'merge' ? 'merged the carrier ' + (x.name || '') + ' into ' + (x.into || '') : 'changed the insurance carriers';
     default: return x.a || '';
   }
 }
@@ -5587,7 +5891,7 @@ function tourSteps(kind) {
     { id: 'batch', enter: () => tourGoView('pd'), at: () => $('#view .batchBar') || $('#view .subChips'), t: 'Many at once', b: 'With one step picked, the bar above the list marks them all at once — e.g. this week’s Letter #2s, printed together from Edge. Letters Dr. A signs go to him together too.' },
     { id: 'p91', need: { ok: () => S.view === 'pd', go: 'batch' }, at: () => $('#view [data-act=tab][data-t="91"]'), t: 'Biggest first', b: '91+ days is ranked by the money at 91+ days; a dashed line marks where 70% of it is reached. 31–90 and 0–30 catch accounts before they age.',
       act: 'Tap 91+ days.', done: () => S.view === 'pd' && S.tab.pd === '91' },
-    { id: 'ins', at: () => tVis('#nav-ins', '#mnav-ins'), t: 'Insurance', b: 'Insurance accounts where nothing has been paid: a past due that’s an exact multiple of the $11.11 instalment means that many untouched months. Triaged: monitor, chase now, investigate, never filed? The Carriers tab has each carrier’s phone, portal and payer ID, and who’s slow to pay.',
+    { id: 'ins', at: () => tVis('#nav-ins', '#mnav-ins'), t: 'Insurance', b: 'Insurance accounts where nothing has been paid: a past due that’s an exact multiple of the $11.11 instalment means that many untouched months. Triaged: monitor, chase now, investigate, never filed? The Carriers tab has each carrier’s phone, portal and payer ID, and who’s slow to pay — Edge’s Insurance Aging, dropped on Reports, fills in every account’s carrier.',
       act: 'Tap Insurance.', done: () => S.view === 'ins' },
     { id: 'cr', at: () => tVis('#nav-cr', '#mnav-cr'), t: 'Credit balances', b: 'Oldest first. Before a refund, each account has the checklist from the FC instructions — the credit often belongs on the family’s balance or a sibling instead. In December, the credit audit tab tracks every credit until the refunds are out (by March 31).',
       act: 'Tap Credits.', done: () => S.view === 'cr' },

@@ -6,7 +6,7 @@
 const { chromium } = require('playwright');
 const path = require('path');
 const fs = require('fs');
-const { routes, watch, CHROME, obReportTSV } = require('./helpers');
+const { routes, watch, CHROME, obReportTSV, insAgingTSV } = require('./helpers');
 const BASE = 'http://127.0.0.1:' + (process.env.PORT || 8767) + '/';
 const CASES = BASE + 'nlo-cases.html?emu', AR = BASE + 'nlo-ar.html?emu';
 const PROJECT = 'demo-nlo-cases';
@@ -261,8 +261,25 @@ async function openAcct(p, name) { await p.evaluate(n => { const a = S.accts.fin
   check(true, 'Jamie ticks the family on HOLD as texted; Dr. A sees it');
   await jamie.click('#modalWrap [data-act=closeModal]');
   check(await jamie.evaluate(keys => keys.every(k => !itemFor(k)), obD.keys), 'importing and ticking added nothing to the accounts on the list');
+  // Edge's Insurance Aging (made-up), pasted by Jamie on Reports: every insurance account's carrier, in the sealed carrier book, live on Dr. A's screen
+  const iaD = await jamie.evaluate(() => {
+    const ins = S.accts.filter(a => a.ins), row = (a, i) => ({ patient: a.patient, acct: '99-' + (9100 + i), sts: a.sts, rp: a.rp, home: a.home, due: a.due, b0: a.b0, b30: a.b30, b60: a.b60, b90: a.b90, days: a.days, bal: a.bal == null ? 0 : a.bal, lastAmt: a.lastAmt, recv: '' });
+    return { keys: ins.map(a => a.key), hand: ins.filter(a => S.book && S.book.tags[a.key]).map(a => a.key), long: new Date(S.rep.asOf + 'T12:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }),
+      groups: [{ line: 'Quokka Mutual Dental'.padEnd(53) + '-   (800) 555-0164', rows: ins.map(row) }] };
+  });
+  await jamie.click('#nav-reports'); await jamie.waitForSelector('#pasteBox');
+  await jamie.evaluate(t => { const dt = new DataTransfer(); dt.setData('text/plain', t); document.querySelector('#pasteBox').dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true })); }, insAgingTSV(iaD.long, iaD.groups));
+  await jamie.waitForSelector('#iaSave');
+  const iaPv = (await jamie.innerText('#modalWrap')).replace(/\s+/g, ' ');
+  check(iaD.hand.length >= 1 && /insurance aging/i.test(iaPv) && /Matches Edge’s totals/.test(iaPv) && new RegExp(iaD.hand.length + ' accounts? set by hand (is|are) under another carrier in Edge').test(iaPv),
+    'Edge’s Insurance Aging pasted on Reports opens its own preview (the ' + iaD.hand.length + ' Dr. A set by hand stay as set)' + (/Matches/.test(iaPv) ? '' : ' :: ' + iaPv));
+  await jamie.click('#iaSave');
+  await owner.waitForFunction(([keys, hand]) => S.book && S.book.edge && keys.every(k => { const a = S.byKey.get(k), s = carrierSrc(S.book, k, a); return hand.includes(k) ? s.hand && s.hand.name === 'Zephyr Test Dental' && s.edge && s.edge.name === 'Quokka Mutual Dental' : s.c && s.c.name === 'Quokka Mutual Dental' && !s.hand; }), [iaD.keys, iaD.hand], { timeout: 30000 });
+  check(iaD.hand.includes(insKey), 'saved sealed: Dr. A’s screen has every insurance account’s carrier from Edge at once (' + iaD.keys.length + '), and the ' + iaD.hand.length + ' he set by hand are still his');
+  const jSid = await jamie.evaluate(() => meSid());
+  check(await owner.evaluate(sid => { const c = S.book.carriers.find(x => x.name === 'Quokka Mutual Dental'); return !!c && c.phone === '(800) 555-0164' && c.edge[0] === 'Quokka Mutual Dental' && S.book.edge.by === sid; }, jSid), 'the carrier came with Edge’s phone number; who imported it is kept');
   const bookBlob = JSON.stringify(await fsDocs('arItems')) + JSON.stringify(await fsDocs('arLog'));
-  check(!/Zephyr|ZTD77|555-0188|Zzyzx|ob9300000|3050[19]|Insufficient/.test(bookBlob), 'the carriers, the OrthoBanc checks and the imported OrthoBanc list are sealed in the database');
+  check(!/Zephyr|ZTD77|555-0188|Zzyzx|ob9300000|3050[19]|Insufficient|Quokka|555-0164|99-91\d\d/.test(bookBlob), 'the carriers (Edge’s too), the OrthoBanc checks and the imported OrthoBanc list are sealed in the database');
 
   console.log('\n# Dr. A turns Jamie off: she’s locked out at once; a new A/R key; everything sealed again');
   await owner.click('#nav-settings'); await owner.waitForSelector('#accessBox .sw[data-uid="' + jamieUid + '"]');

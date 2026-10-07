@@ -7,7 +7,7 @@
    Run: node test/demo_smoke.js  (screenshots go to shots/) */
 const { chromium } = require('playwright');
 const fs = require('fs'), path = require('path');
-const { routes, watch, CHROME, obReportTSV } = require('./helpers');
+const { routes, watch, CHROME, obReportTSV, insAgingTSV } = require('./helpers');
 const URL = 'http://127.0.0.1:' + (process.env.PORT || 8766) + '/nlo-ar.html?demo';
 const SHOTS = path.join(__dirname, '..', 'shots');
 let pass = 0, fail = 0;
@@ -364,6 +364,68 @@ const shot = (p, n, full) => p.screenshot({ path: path.join(SHOTS, n + '.png'), 
   ok(await page.$eval('#drawer .carBox', e => /Bayside Dental Plan/.test(e.querySelector('select').selectedOptions[0].textContent) && !!e.querySelector('a[href^="tel:"]') && !!e.querySelector('a[target=_blank]') && /BDP01/.test(e.textContent)), 'the account’s panel: its carrier, with Call, Portal and the payer ID');
   await page.click('#drawer [data-act=closeDrawer]');
   await page.click('[data-act=clearF]').catch(() => { });
+
+  // ---- Edge's Insurance Aging: every insurance account's carrier (a made-up export of the demo's insurance accounts)
+  const IA = await S_(() => {
+    const ins = S.accts.filter(a => a.ins), src = a => carrierSrc(S.book, a.key, a), un = ins.filter(a => !src(a).c), bay = ins.filter(a => (src(a).hand || {}).name === 'Bayside Dental Plan');
+    const row = (a, i) => ({ patient: a.patient, acct: '99-' + (8100 + i), sts: a.sts, rp: a.rp, home: a.home, due: a.due, b0: a.b0, b30: a.b30, b60: a.b60, b90: a.b90, days: a.days, bal: a.bal == null ? 0 : a.bal, lastAmt: a.lastAmt, recv: '' });
+    const by = { pel: [], gulf: [], bay: [], other: {} };
+    ins.forEach((a, i) => { const s = src(a); if (!s.c || a.key === bay[0].key) by.pel.push(row(a, i)); else if (s.c.name === 'Bayside Dental Plan') by.bay.push(row(a, i)); else if (s.c.name === 'Gulf Dental Group') by.gulf.push(row(a, i)); else (by.other[s.c.name] = by.other[s.c.name] || []).push(row(a, i)); });
+    const extra = [{ patient: 'Imaginary Testerton', acct: '99-8990', sts: 'A-Comp Bra', rp: 'INS: Pat Testerton', home: '', due: 0, b0: 0, b30: 0, b60: 0, b90: 0, days: 0, bal: 700, lastAmt: 175, recv: '9/15/2026' },
+      { patient: 'Notreal Placeholder', acct: '99-8991', sts: 'A-Comp Bra', rp: 'INS: Lee Placeholder', home: '', due: 0, b0: 0, b30: 0, b60: 0, b90: 0, days: 0, bal: 450, lastAmt: 150, recv: '9/20/2026' }];
+    const groups = [{ line: 'Bayside Dental Plan'.padEnd(53) + '-   (800) 555-0142            ', rows: by.bay }, { line: 'Gulf Dental Group   -   8005550123', rows: by.gulf },
+      { line: 'Old Heron Life   -   8005550100', rows: extra }, { line: 'Pelican Coast Dental'.padEnd(53) + '-   (800) 555-0161', rows: by.pel.slice(0, -1) }, { line: 'PELICAN COAST DENTAL', rows: by.pel.slice(-1) }]
+      .concat(Object.keys(by.other).sort().map(n => ({ line: n + '   -   (800) 555-0190', rows: by.other[n] })));
+    return { groups, n: ins.length + 2, un: un.map(a => a.key), diff: bay[0].key, agree: bay[1].key, nCar: S.book.carriers.length, reps: S.reports.length, tags: Object.keys(S.book.tags).length,
+      long: new Date(S.rep.asOf + 'T12:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) };
+  });
+  const iaFile = { name: 'in_aging.xls', mimeType: 'application/vnd.ms-excel', buffer: Buffer.from(insAgingTSV(IA.long, IA.groups)) };
+  await page.click('#nav-reports'); await page.waitForSelector('#dropZone');
+  ok(/Insurance Aging/.test(await page.textContent('#view')), 'Reports says Edge’s Insurance Aging can be dropped there too (with how to export it)');
+  await page.setInputFiles('#arFile', iaFile); await page.waitForSelector('#iaSave');
+  const iaPv = (await page.innerText('#modalWrap')).replace(/\s+/g, ' ');
+  ok(/insurance aging/i.test(iaPv) && new RegExp(IA.n + ' insurance accounts in Edge').test(iaPv) && new RegExp((IA.nCar + 2) + ' carriers · 2 new').test(iaPv) && /Edge’s carriers \(7\)/.test(iaPv) && new RegExp((IA.n - 2) + ' of ' + (IA.n - 2) + ' insurance accounts on the .* A/R report with a carrier · ' + IA.un.length + ' getting one now').test(iaPv) && /1 account set by hand is under another carrier in Edge/.test(iaPv) && /never changed/.test(iaPv) && /each matching Edge’s count/.test(iaPv),
+    'dropped on Reports: its own preview — ' + IA.n + ' accounts, Edge’s 8 carrier lines as 7 carriers (Pelican’s two lines as one), 2 of them new, every insurance account on the A/R report with a carrier, ' + IA.un.length + ' getting one now, 1 set by hand that Edge has elsewhere');
+  ok(!(await S_(() => !!(S.imp && S.imp.files && S.imp.files.length))), 'it isn’t taken for an A/R report');
+  await shot(page, 'ia-preview');
+  await page.click('#iaSave'); await page.waitForSelector('.iaLine');
+  const iaT = await S_(() => ({ view: S.view, tab: S.tab.ins, line: document.querySelector('.iaLine').textContent, untagged: document.querySelectorAll('#untagged .tagRow').length, differ: document.querySelectorAll('#carDiffer .tagRow').length,
+    car: S.book.carriers.length, gulf: S.book.carriers.filter(c => /gulf/i.test(c.name)).length, gulfEdge: (S.book.carriers.find(c => c.name === 'Gulf Dental Group') || {}).edge, edge: S.book.edge, tags: Object.keys(S.book.tags).length, reps: S.reports.length }));
+  ok(iaT.view === 'ins' && iaT.tab === 'carriers' && /From Edge’s Insurance Aging of/.test(iaT.line) && iaT.untagged === 0 && iaT.differ === 1, 'saved: on to Insurance → Carriers — “From Edge’s Insurance Aging of …”, no account without a carrier, 1 set by hand that Edge has elsewhere');
+  ok(iaT.car === IA.nCar + 2 && iaT.gulf === 1 && JSON.stringify(iaT.gulfEdge) === '["Gulf Dental Group"]' && iaT.edge.n === IA.n && iaT.tags === IA.tags && iaT.reps === IA.reps,
+    'the carriers already in the list are matched by name (no second Gulf Dental Group), 2 added; the hand-set ones untouched (' + iaT.tags + '); no A/R report added');
+  await shot(page, 'ia-carriers', true);
+  // an account that had no carrier: Edge's, with Edge's phone
+  await page.evaluate(k => openDrawer(k), IA.un[0]); await page.waitForSelector('#drawer .carBox');
+  const unBox = await page.$eval('#drawer .carBox', e => ({ sel: e.querySelector('select').selectedOptions[0].textContent, src: (e.querySelector('.carSrc') || {}).textContent || '', tel: (e.querySelector('a[href^="tel:"]') || {}).textContent || '' }));
+  ok(unBox.sel === 'Edge: Pelican Coast Dental' && /From Edge’s Insurance Aging of/.test(unBox.src) && /555-0161/.test(unBox.tel), 'its panel: “Edge: Pelican Coast Dental”, Call (800) 555-0161 — ' + unBox.src);
+  await shot(page, 'ia-panel');
+  await page.click('#drawer [data-act=closeDrawer]');
+  // set by hand, Edge has it elsewhere: kept, with Edge's a tap away
+  await page.evaluate(k => openDrawer(k), IA.diff); await page.waitForSelector('#drawer .carBox .notice');
+  ok(/Set by hand\. Edge’s Insurance Aging .* has this account under Pelican Coast Dental/.test((await page.innerText('#drawer .carBox .notice')).replace(/\s+/g, ' ')) && /Bayside Dental Plan/.test(await page.$eval('#drawer .carBox select', e => e.selectedOptions[0].textContent)),
+    'set by hand but under another carrier in Edge: Bayside stays, and the panel says Edge has it under Pelican Coast Dental');
+  await page.click('#drawer [data-act=carrierUseEdge]'); await page.waitForTimeout(400);
+  ok(await page.evaluate(k => carrierFor(k).name === 'Pelican Coast Dental' && !S.book.tags[k], IA.diff) && await page.$eval('#drawer .carBox', e => /^Edge: /.test(e.querySelector('select').selectedOptions[0].textContent)), '“Use Edge’s”: the hand-set carrier comes off and Edge’s shows');
+  await page.click('#drawer [data-act=closeDrawer]');
+  ok(await page.evaluate(k => !!S.book.tags[k] && carrierFor(k).name === 'Bayside Dental Plan' && !carrierSrc(S.book, k, S.byKey.get(k)).differs, IA.agree), 'a carrier set by hand that Edge agrees with stays set by hand');
+  ok(!(await page.$('#carDiffer')), 'nothing left where Edge and a hand-set carrier disagree');
+  // Edge's carriers with nothing past due are in a short list; merging one into another
+  ok(await page.$eval('.carRest summary', e => /1 more carrier from Edge/.test(e.textContent)), 'Edge’s carriers with nothing past due or in credit are in a short list (Old Heron Life)');
+  await page.click('.carRest summary'); await page.click('.carRest [data-act=carrierEdit]'); await page.waitForSelector('#carMergeInto', { state: 'attached' });
+  ok(/In Edge’s Insurance Aging as “Old Heron Life”/.test(await page.textContent('#modalWrap')), 'its form says what Edge calls it');
+  const coastal = await S_(() => S.book.carriers.find(c => c.name === 'Coastal Benefits').id);
+  await page.click('.mergeBox summary'); await page.selectOption('#carMergeInto', coastal); await page.click('[data-act=carrierMerge]'); await page.click('#cbYes'); await page.waitForTimeout(400);
+  ok(await S_(() => !S.book.carriers.some(c => c.name === 'Old Heron Life') && S.book.carriers.find(c => c.name === 'Coastal Benefits').edge.includes('Old Heron Life')), 'Merge into Coastal Benefits: Old Heron Life is gone, and Edge’s name for it now lands on Coastal Benefits');
+  // the same file again, from the Carriers tab: nothing new, nothing merged comes back
+  const [iaFc] = await Promise.all([page.waitForEvent('filechooser'), page.click('.iaLine [data-act=iaPick]')]);
+  await iaFc.setFiles(iaFile); await page.waitForSelector('#iaSave');
+  const iaPv2 = (await page.innerText('#modalWrap')).replace(/\s+/g, ' ');
+  ok(new RegExp((IA.nCar + 1) + ' carriers').test(iaPv2) && !/carriers · \d+ new/.test(iaPv2) && /0 getting one now/.test(iaPv2), 'imported again (Import a newer one): no new carriers, nothing new to fill in');
+  await page.click('#iaSave'); await page.waitForSelector('.iaLine'); await page.waitForTimeout(300);
+  ok(await S_(() => !S.book.carriers.some(c => c.name === 'Old Heron Life') && S.book.carriers.length) === IA.nCar + 1 && await page.evaluate(k => carrierFor(k).name === 'Pelican Coast Dental', IA.diff), 'saved again: the merged carrier stays merged, and the account set back to Edge’s stays Edge’s');
+  ok(await S_(() => (S.book.edge && S.book.edge.by) === meSid()), 'who imported it is kept');
+  await page.click('[data-act=tab][data-t=all]').catch(() => { });
   // ---- the December credit audit
   await page.click('#nav-cr'); await page.click('[data-act=tab][data-t=audit]'); await page.waitForTimeout(150);
   ok(await page.$eval('#view', e => /The next audit starts/.test(e.textContent) && e.querySelectorAll('.aChk').length > 5), 'Credits → December audit (outside December): when it starts, and every credit listed');
