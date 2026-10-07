@@ -878,7 +878,7 @@ body.phOff .pav,body.phOff .dPh,body.phOff .phSlot,body.phOff .mlPh{display:none
 .iprMsg,.iprNone{margin-bottom:8px}
 /* the IPR chart (Amir, 6 Oct 2026: "make the diagram look nicer"): one chart, a switch for this visit / so far, a key */
 .iprMap{border:1px solid var(--grey-100);border-radius:16px;padding:12px 12px 8px;margin-bottom:10px;background:#fff}
-.iprMapHd{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;margin:0 2px 6px}
+.iprMapHd{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;margin:0 2px 6px}
 .iprSeg{display:inline-flex;flex-wrap:wrap;background:var(--grey-50);border:1px solid var(--grey-100);border-radius:999px;padding:3px;gap:2px}
 .iprSegB{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:4px 13px;border-radius:999px;font-size:12.5px;color:var(--grey-500);white-space:nowrap;transition:background .15s var(--ease),color .15s var(--ease)}
 .iprSegB i{width:9px;height:9px;border-radius:50%;flex:none;opacity:.45}
@@ -887,23 +887,15 @@ body.phOff .pav,body.phOff .dPh,body.phOff .phSlot,body.phOff .mlPh{display:none
 .iprSegB[aria-pressed="true"]{background:#fff;box-shadow:var(--sh-xs);color:var(--navy)}
 .iprSegB[aria-pressed="true"] i{opacity:1}
 @media (hover:hover){ .iprSegB[aria-pressed="false"]:hover{color:var(--navy)} }
-.iprTogs{display:inline-flex;flex-wrap:wrap;gap:6px}
 .iprTog{display:inline-flex;align-items:center;gap:7px;min-height:32px;padding:4px 12px 4px 9px;border:1px solid var(--grey-200);border-radius:999px;background:#fff;font-size:12.5px;color:var(--grey-700);white-space:nowrap;transition:background .15s var(--ease),border-color .15s var(--ease),color .15s var(--ease)}
 .iprTog b{color:var(--navy);font-weight:700;font-variant-numeric:tabular-nums}
 .iprTog .sw{flex:none;display:inline-block;width:14px;height:14px;border-radius:50%;border:2px solid var(--sw,var(--navy));background:var(--sw,var(--navy))}
-.iprTog .sw.sp{--sw:var(--mint-600);width:18px;border-radius:6px}
 .iprTog .sw.bt{width:0;height:0;border-radius:0;border-width:9px 6px 0;border-style:solid;border-color:var(--navy-900) transparent transparent;background:none}
 .iprTog[aria-pressed="false"]{background:var(--grey-50);border-style:dashed;color:var(--grey-400)}
 .iprTog[aria-pressed="false"] b{color:var(--grey-400)}
 .iprTog[aria-pressed="false"] .sw{background:none}
 .iprTog[aria-pressed="false"] .sw.bt{border-top-color:var(--grey-300)}
 @media (hover:hover){ .iprTog:hover{border-color:var(--grey-400)} }
-.iprSegB:disabled{opacity:.45;cursor:default}
-.iprKey{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--grey-600);white-space:nowrap}
-.iprKey b{color:var(--navy);font-weight:700;font-variant-numeric:tabular-nums}
-.iprKey i{width:9px;height:9px;border-radius:50%;flex:none}
-.iprKey i.sp{width:16px;border-radius:5px;background:var(--mint)}
-.iprKey i.btI{width:0;height:0;border-radius:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:8px solid var(--navy-900)}
 .iprSvg{display:block;width:100%;height:auto;max-width:620px;margin:0 auto}
 .iprSvg .gum{fill:var(--coral-100)}
 .iprSvg .crown{stroke:#A9B3C0;stroke-width:1;stroke-linejoin:round}
@@ -912,10 +904,8 @@ body.phOff .pav,body.phOff .dPh,body.phOff .phSlot,body.phOff .mlPh{display:none
 .iprSvg .mid{stroke:var(--grey-300);stroke-width:.9;stroke-dasharray:3 3}
 .iprSvg .bdg rect{fill:var(--bdg);stroke:#fff;stroke-width:2;paint-order:stroke}
 .iprSvg .bdg text{font-family:var(--fb);font-size:11px;font-weight:700;fill:#fff;text-anchor:middle;dominant-baseline:central;font-variant-numeric:tabular-nums}
-.iprSvg .bdg.sp rect{fill:var(--mint)}
 .iprSvg .lead line{stroke:var(--bdg);stroke-width:1.3}
 .iprSvg .lead circle{fill:var(--bdg);stroke:#fff;stroke-width:1.2}
-.iprSvg .bdg.sp text{fill:var(--navy-900)}
 .iprSvg .bt{fill:var(--navy-900)}
 .iprMapFt{display:flex;justify-content:center;gap:22px;font-size:12px;color:var(--grey-500);margin-top:2px}
 .iprMapFt b{color:var(--navy);font-weight:700;font-variant-numeric:tabular-nums}

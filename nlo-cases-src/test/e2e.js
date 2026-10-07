@@ -383,6 +383,11 @@ async function openByName(p, name) {
   await owner.fill('#cf-chart', '156541'); await owner.click('[data-act=iprPull]');
   await owner.waitForSelector('#cf-iprMsg:has-text("it’s in")', { timeout: 20000 });
   check(/^The latest visit, .*Sep 28.* — it’s in\./.test(await owner.textContent('#cf-iprMsg')) && await owner.isVisible('#cf-iprChart .iprMap svg'), 'Get from IPR Tracker: the latest visit is in, with its chart (' + await owner.textContent('#cf-iprMsg') + ')');
+  // the form's chart opens on the spaces like the case panel's, and its own switch flips it to the IPR (7 Oct 2026)
+  const fSp = await owner.$eval('#cf-iprChart .iprMap', m => m.dataset.layer + ' ' + Array.from(m.querySelectorAll('svg .bdg.sp text')).map(t => t.textContent).join(' '));
+  await owner.click('#cf-iprChart .iprSegB[data-v=visit]'); await owner.waitForSelector('#cf-iprChart .iprMap[data-layer=visit]', { timeout: 10000 });
+  check(fSp === 'sp 0.3' && await owner.$eval('#cf-iprChart .iprMap', m => Array.from(m.querySelectorAll('svg .bdg.ipr text')).map(t => t.textContent).join(' ')) === '0.2',
+    'the New case form’s chart opens on the 0.3 space; its switch shows this visit’s IPR (0.2)');
   const pulled = await owner.inputValue('#cf-ipr');
   check(/IPR THIS VISIT\nUpper: none|Lower: LR3–LR2 0\.2mm/.test(pulled) && /UR1–UL1 0\.3mm/.test(pulled) && /CUMULATIVE IPR \(2 visits\)/.test(pulled), 'chart # without the dash still finds the patient; newest visit + cumulative pulled');
   await owner.click('#ncSave'); await owner.waitForSelector('#modalWrap', { state: 'detached', timeout: 20000 });
@@ -390,27 +395,33 @@ async function openByName(p, name) {
   await owner.waitForSelector('#iprBox .stat:has-text("In the chart note")', { timeout: 20000 });
   check(true, 'the case panel shows the pulled IPR note is the one in the chart note');
   // one IPR section drawing the IPR Tracker's chart (3 Oct 2026): newest visit + IPR so far + spaces & black triangles
-  // (6 Oct 2026: one chart — the amounts out past the gums, joined to their contacts; This visit / So far; IPR, Spaces and Black triangles switch on and off)
+  // (6 Oct 2026: one chart — the amounts out past the gums, joined to their contacts)
+  // (7 Oct 2026, Amir's pick "A": one switch — IPR this visit · IPR so far · Spaces — the spaces drawn like the IPR, in blue, and the IPR
+  //  in red; it opens on the spaces with the black triangles, "what's useful for tx planning"; the black triangles switch on and off)
   const iprMap = async layer => {
     if (layer && await owner.locator('#iprBox .iprSegB[data-v=' + layer + ']').count() && (await owner.getAttribute('#iprBox .iprSegB[data-v=' + layer + ']', 'aria-pressed')) !== 'true') {
       await owner.click('#iprBox .iprSegB[data-v=' + layer + ']'); await owner.waitForSelector('#iprBox .iprMap[data-layer=' + layer + ']', { timeout: 10000 }); }
     return owner.$eval('#iprBox .iprMap', m => ({ lay: m.dataset.layer, ipr: Array.from(m.querySelectorAll('svg .bdg.ipr text')).map(t => t.textContent).join(' '), sp: Array.from(m.querySelectorAll('svg .bdg.sp text')).map(t => t.textContent).join(' '),
       bt: m.querySelectorAll('svg .bt').length, seg: m.querySelectorAll('.iprSegB').length, label: m.querySelector('svg').getAttribute('aria-label') }));
   };
-  let ipv = await iprMap('visit'), ipc = await iprMap('cum');
-  check(ipv.seg === 2 && ipv.ipr === '0.2' && /LR3–LR2 0\.2mm/.test(ipv.label) && ipc.ipr === '0.2 0.2' && ipv.sp === '0.3' && ipv.bt === 1 && /Black triangles: UR1–UL1/.test(ipv.label),
-    'the IPR section draws the IPR Tracker’s chart: this visit (LR3–LR2 0.2), so far (0.2 + 0.2), the 0.3 space and ▼ at UR1–UL1');
-  await owner.click('#iprBox .iprTog[data-k=sp]'); await owner.waitForSelector('#iprBox .iprTog[data-k=sp][aria-pressed=false]', { timeout: 10000 });
-  check((await iprMap()).sp === '' && (await iprMap()).bt === 1 && await owner.evaluate(() => JSON.parse(localStorage.getItem('nloCases.iprShow')).sp === false), 'Spaces switches off (remembered on this computer); the black triangle stays');
-  await owner.click('#iprBox .iprTog[data-k=sp]'); await owner.waitForSelector('#iprBox .iprTog[data-k=sp][aria-pressed=true]', { timeout: 10000 });
+  const ip0 = await iprMap(), fillOf = sel => owner.$eval(sel, el => getComputedStyle(el).fill);
+  check(ip0.lay === 'sp' && ip0.sp === '0.3' && ip0.ipr === '' && ip0.bt === 1 && ip0.seg === 3 && /^Spaces\. Upper: UR1–UL1 0\.3mm\. Lower: none\. Black triangles: UR1–UL1\.$/.test(ip0.label) &&
+    await fillOf('#iprBox svg .bdg.sp rect') === 'rgb(3, 105, 161)', 'the IPR section opens on the spaces: the 0.3 space at UR1–UL1 in blue with its line, ▼ there (' + ip0.label + ')');
+  let ipv = await iprMap('visit');
+  const redTag = await fillOf('#iprBox svg .bdg.ipr rect'), ipc = await iprMap('cum');
+  check(ipv.ipr === '0.2' && ipv.sp === '' && /LR3–LR2 0\.2mm/.test(ipv.label) && ipc.ipr === '0.2 0.2' && ipv.bt === 1 && /Black triangles: UR1–UL1/.test(ipv.label) && redTag === 'rgb(217, 45, 32)',
+    'the same switch shows the IPR, in red: this visit (LR3–LR2 0.2), so far (0.2 + 0.2); ▼ still at UR1–UL1');
+  await owner.click('#iprBox .iprTog[data-k=bt]'); await owner.waitForSelector('#iprBox .iprTog[data-k=bt][aria-pressed=false]', { timeout: 10000 });
+  check((await iprMap()).bt === 0 && await owner.evaluate(() => localStorage.getItem('nloCases.iprBt') === 'off'), 'the black triangles switch off (remembered on this computer)');
+  await owner.click('#iprBox .iprTog[data-k=bt]'); await owner.waitForSelector('#iprBox .iprTog[data-k=bt][aria-pressed=true]', { timeout: 10000 });
   check(/^Sep 28 visit · IPR 0\.2 mm · 0\.4 mm so far · spaces 0\.3 mm · 1 black triangle$/.test(await owner.textContent('#dsS-ipr')), 'its heading sums up the visit (' + await owner.textContent('#dsS-ipr') + ')');
   check(!(await owner.isVisible('#iprBox :text("From the IPR Tracker")')) && (await owner.locator('#drawer .ds[data-ds=ipr]').count()) === 1, 'no second “From the IPR Tracker” box');
   await put('nlo/ipr/visits/p1/v3', { id: 'v3', patient_uuid: 'p1', date: '2026-10-01', created_at: '2026-10-01T10:00:00Z', upper_ipr: { 'UL2|UL3': '0.1' }, lower_ipr: {}, upper_spaces: {}, lower_spaces: {}, upper_bt: {}, lower_bt: {} });
   await owner.click('#iprBox [data-act=iprRefresh]');
   await owner.waitForSelector('#iprBox [data-act=iprUse]', { timeout: 20000 });
   check(/3 visits on file/.test(await owner.textContent('#iprBox')) && /Use this visit in the chart note/.test(await owner.textContent('#iprBox [data-act=iprUse]')), 'refresh picks up a newer IPR visit (and offers it for the chart note)');
-  ipv = await iprMap('visit'); ipc = await iprMap('cum');
-  check(ipv.ipr === '0.1' && ipv.sp === '' && ipc.ipr === '0.2 0.1 0.2', 'the chart redraws for the newer visit (UL2–UL3 0.1; no spaces that visit), and so far adds it up');
+  ipv = await iprMap('visit'); const ipc3 = await iprMap('cum'), ips = await iprMap('sp');
+  check(ipv.ipr === '0.1' && ips.sp === '' && ipc3.ipr === '0.2 0.1 0.2', 'the chart redraws for the newer visit (UL2–UL3 0.1; no spaces that visit), and so far adds it up');
   await owner.click('#iprBox [data-act=iprUse]');
   await owner.waitForSelector('#noteTxt:has-text("UL2-UL3 0.1mm")', { timeout: 20000 }); // (the chart note pastes as plain ASCII)
   check(true, '"Use this visit in the chart note" saves the new note (encrypted like the rest)');
@@ -429,7 +440,8 @@ async function openByName(p, name) {
   await owner.waitForFunction(() => { const c = openCases().find(x => x.patient === 'Ivy Pulltest'); return c && c.iprSnap && c.iprSnap.visits === 3; }, null, { timeout: 20000 }).catch(() => {});
   check(await owner.evaluate(() => { const c = openCases().find(x => x.patient === 'Ivy Pulltest'); return !!(c && c.iprSnap && c.iprSnap.visits === 3 && c.iprSnap.chart === '156541'); }), 'each reading of the IPR Tracker is kept on the case (sealed): 3 visits');
   await openByName(gwen, 'Ivy Pulltest'); await gwen.waitForSelector('#iprBox .iprMap svg', { timeout: 20000 });
-  check(/3 visits on file · synced /.test(await gwen.textContent('#iprBox .iprMeta')) && await gwen.isVisible('#iprBox [data-act=iprConnect]'), 'Gwen (not connected to the IPR Tracker) sees the chart from the case, with Connect to refresh');
+  check(/3 visits on file · synced /.test(await gwen.textContent('#iprBox .iprMeta')) && await gwen.isVisible('#iprBox [data-act=iprConnect]') && await gwen.getAttribute('#iprBox .iprMap', 'data-layer') === 'visit',
+    'Gwen (not connected to the IPR Tracker) sees the chart from the case, with Connect to refresh — on the IPR, as that visit has no spaces');
   await gwen.click('#drawer [data-act=closeDrawer] >> nth=0'); await gwen.fill('#q', '');
   await put('nlo/ipr/patients/p2', { id: 'p2', name: 'MQ', patient_id: '15-7777' });
   await put('nlo/ipr/visits/p2', { v1: { id: 'v1', patient_uuid: 'p2', date: '2026-10-02', created_at: '2026-10-02T10:00:00Z', upper_ipr: { 'UR1|UL1': '0.2' }, lower_ipr: {}, upper_spaces: {}, lower_spaces: {}, upper_bt: {}, lower_bt: {} } });

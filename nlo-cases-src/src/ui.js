@@ -1955,7 +1955,7 @@ async function iprPull(btnOrRoot, quiet) {
     const r = await L.latest(chart);
     if (r.status === 'not-found') { msg.textContent = 'No IPR Tracker patient with chart # ' + chart + ' yet.'; return; }
     if (r.status === 'no-visits') { msg.textContent = 'Patient found, but no visits recorded yet.'; return; }
-    $('#cf-ipr', root).value = r.note; const box = $('#cf-iprChart', root); if (box) box.innerHTML = iprPreviewHTML(r);
+    $('#cf-ipr', root).value = r.note; const box = $('#cf-iprChart', root); if (box) { box._ipr = r; delete box.dataset.lay; box.innerHTML = iprPreviewHTML(r); } // (its switch: iprPrevLayer)
     msg.textContent = (r.date === todayISO() ? 'Today’s visit' : 'The latest visit, ' + fmtDay(r.date)) + (r.initials ? ' (' + r.initials + ')' : '') + ' — it’s in.' + (r.date === todayISO() ? '' : ' Enter today’s in the IPR Tracker if there is one.');
   } catch (e) { msg.textContent = /popup/i.test(String(e && (e.code || e.message))) ? 'Allow pop-ups for this site, then try again.' : /permission|denied/i.test(String(e && (e.code || e.message))) ? 'This Google account can’t read the IPR Tracker.' : 'Couldn’t reach the IPR Tracker.'; }
 }
@@ -2062,7 +2062,11 @@ function onClick(e) {
     case 'dsTg': { const sec = t.closest('.ds'); if (!sec) break; const on = !sec.classList.contains('open'); dsShow(sec, on); (S.dsTog = S.dsTog || new Map()).set(sec.dataset.ds, on); dsAllSync(); if (on) dsReveal(sec); break; }
     case 'dsAll': { const on = t.dataset.all !== '1'; dsSetAllMode(on); S.dsTog = new Map(); $$('#drawer .ds:not(.line)').forEach(sec => dsShow(sec, on || sec.classList.contains('pin'))); dsAllSync(); break; }
     case 'iprLayer': { const c = findCase(S.openId); if (!c) break; (S.iprLayer = S.iprLayer || {})[c.id] = t.dataset.v; iprPaint(c); break; }
-    case 'iprTog': { const c = findCase(S.openId); if (!c) break; iprShowSet(t.dataset.k, t.getAttribute('aria-pressed') !== 'true'); iprPaint(c); break; }
+    case 'iprTog': { const c = findCase(S.openId); if (!c) break; iprBtSet(t.getAttribute('aria-pressed') !== 'true'); iprPaint(c); break; }
+    // the New case form's copy of the chart: the same switch, on the reading it just brought in
+    case 'iprPrevLayer': case 'iprPrevTog': { const box = t.closest('#cf-iprChart'); if (!box || !box._ipr) break;
+      if (a === 'iprPrevTog') iprBtSet(t.getAttribute('aria-pressed') !== 'true'); else box.dataset.lay = t.dataset.v;
+      box.innerHTML = iprPreviewHTML(box._ipr, box.dataset.lay); break; }
     case 'advance': { const c = findCase(id); const n = c && nextStage(c); if (n) moveStage(id, n); break; }
     case 'complete': completeCase(id); break;
     case 'setStage': moveStage(S.openId, t.dataset.k); break;

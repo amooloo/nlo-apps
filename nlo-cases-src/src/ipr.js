@@ -113,10 +113,12 @@ function iprNoteFromVisits(visits) {
    Amir, 3 Oct 2026: instead of the written IPR note, "a diagram … with lines and where the spacing is and black triangles".
    Amir, 6 Oct 2026: "make the diagram look nicer" — and it stays open even when the rest of the case is folded (ui.js).
    One chart instead of three stacked ones: both arches as seen from the front (upper teeth hang from the gums, lower teeth
-   stand on theirs, in their real proportions), the IPR amount sitting right on each contact, the spaces in the bite gap
-   between the arches, ▼ at a black triangle. A switch picks which IPR it shows — this visit or all visits so far; the
-   switch carries both totals, so nothing is hidden behind it. Plain SVG markup (numbers and fixed labels only). */
-const IPR_COL = { visit: '#1B2F4C', cum: '#2E52C9', space: '#64F4C9', bt: '#11203A' }; // navy, blue-500, mint, navy-900
+   stand on theirs, in their real proportions), each amount outside its arch with a line to its contact, ▼ at a black triangle.
+   Amir, 7 Oct 2026 (he picked "A" of three): IPR in red, and "IPR and spaces as 2 sides of a same toggle" — one switch picks what
+   the amounts are: IPR this visit, IPR so far, or the spaces (drawn the same way, in blue); the switch carries every total, so
+   nothing is hidden behind it. It opens on the spaces, with the black triangles, "because that's what's useful for tx planning".
+   Plain SVG markup (numbers and fixed labels only). */
+const IPR_COL = { visit: '#D92D20', cum: '#9B1C1C', sp: '#0369A1', bt: '#11203A' }; // red, dark red, blue, navy-900
 /* crown sizes in mm (mesiodistal width, crown height) and shape, by tooth number — an average adult's */
 const IPR_CROWN = {
   U: { 1: [8.6, 10.6, 'inc'], 2: [6.6, 9.0, 'inc'], 3: [7.6, 10.0, 'can'], 4: [7.0, 8.4, 'pm'], 5: [6.6, 7.8, 'pm'], 6: [10.0, 7.4, 'mol'], 7: [9.0, 7.0, 'mol'] },
@@ -137,11 +139,11 @@ function iprCrownPath(w, h, kind) {
   return s + ' C' + X(.02) + ',' + Y(.9) + ' 0,' + Y(.8) + ' 0,' + Y(.6) + ' C0,' + Y(.42) + ' ' + r(n * .25) + ',' + Y(.28) + ' ' + r(n) + ',' + Y(.12) + 'Z';
 }
 let IPR_SEQ = 0; // a fresh id for each chart's gradient
-/* both arches with one IPR layer (`ipr`: {upper, lower} contacts → mm, coloured `col`), the spaces and the black triangles.
-   Each tooth's number sits on the tooth, on one straight row per arch; each IPR amount sits outside its arch with a line to its
-   contact (Amir, 6 Oct 2026: "numbers of the teeth on the teeth and then lines connecting the values to the interproximal") —
-   amounts too close to fit side by side go one row further out. Spaces sit in the bite between the arches, at their contact. */
-function iprMapSVG(ipr, d, col, label) {
+/* both arches with one layer of amounts (`ipr`: {upper, lower} contacts → mm — this visit's IPR, IPR so far, or the spaces;
+   `kind` 'ipr' or 'sp'), coloured `col`, and the black triangles of `d`. Each tooth's number sits on the tooth, on one straight
+   row per arch; each amount sits outside its arch with a line to its contact (Amir, 6 Oct 2026: "numbers of the teeth on the
+   teeth and then lines connecting the values to the interproximal") — amounts too close to fit side by side go one row further out. */
+function iprMapSVG(ipr, d, col, label, kind) {
   const NUMS = [7, 6, 5, 4, 3, 2, 1, 1, 2, 3, 4, 5, 6, 7], MM = 4.2, GAPX = 1.2, PADX = 18, ROW = 19, BH = 16;
   const r = v => Math.round(v * 100) / 100, gid = 'iprG' + (++IPR_SEQ);
   const row = a => { const out = []; let x = 0; NUMS.forEach((t, i) => { const [w, h, kind] = IPR_CROWN[a][t]; out.push({ t, x, w: w * MM, h: h * MM, kind }); x += w * MM + (i < 13 ? GAPX : 0); }); return { teeth: out, w: x }; };
@@ -178,65 +180,60 @@ function iprMapSVG(ipr, d, col, label) {
   }).join('');
   s += teeth(U, ux, true) + teeth(L, lx, false);
   const pill = (cx, cy, txt, cls, w) => '<g class="bdg ' + cls + '"><rect x="' + r(cx - w / 2) + '" y="' + r(cy - BH / 2) + '" width="' + r(w) + '" height="' + BH + '" rx="' + BH / 2 + '"/><text x="' + cx + '" y="' + r(cy + .5) + '">' + txt + '</text></g>';
-  // IPR: the amount out past the gums, a line to the contact, a dot on it
+  // each amount (IPR or a space) out past the gums, a line to the contact, a dot on it
   const amounts = (P, upper) => P.list.map(b => {
     const cy = upper ? TOP - 11 - b.rr * ROW : GUM_L + 32 + 11 + b.rr * ROW, y1 = upper ? cy + BH / 2 : cy - BH / 2, y2 = upper ? CT_U : CT_L;
-    return '<g class="lead"><line x1="' + b.cx + '" y1="' + r(y1) + '" x2="' + b.cx + '" y2="' + r(y2) + '"/><circle cx="' + b.cx + '" cy="' + r(y2) + '" r="2.4"/></g>' + pill(b.cx, cy, b.t, 'ipr', b.w);
+    return '<g class="lead"><line x1="' + b.cx + '" y1="' + r(y1) + '" x2="' + b.cx + '" y2="' + r(y2) + '"/><circle cx="' + b.cx + '" cy="' + r(y2) + '" r="2.4"/></g>' + pill(b.cx, cy, b.t, kind === 'sp' ? 'sp' : 'ipr', b.w);
   }).join('');
-  // the spaces in the bite, at their contact; ▼ in the gum-side gap of a black triangle, pointing to the contact
-  const finds = (arch, x0, upper, spO, btO) => KEYS[upper ? 'U' : 'L'].map((k, i) => {
-    const cx = at(arch, x0, i), a = arch.teeth[i], b = arch.teeth[i + 1]; let m = '';
-    if (btO && btO[k]) { const neck = upper ? OCC_U - Math.min(a.h, b.h) + 3 : OCC_L + Math.min(a.h, b.h) - 3, dir = upper ? 1 : -1;
-      m += '<polygon class="bt" points="' + r(cx - 5) + ',' + r(neck) + ' ' + r(cx + 5) + ',' + r(neck) + ' ' + cx + ',' + r(neck + dir * 9) + '"/>'; }
-    const sp = parseFloat((spO || {})[k]) || 0; if (sp > 0) { const t = mm1(sp); m += pill(cx, upper ? OCC_U + 9 : OCC_L - 9, t, 'sp', bw(t)); }
-    return m;
+  // ▼ in the gum-side gap of a black triangle, pointing to the contact
+  const bts = (arch, x0, upper, btO) => KEYS[upper ? 'U' : 'L'].map((k, i) => {
+    if (!(btO && btO[k])) return '';
+    const cx = at(arch, x0, i), a = arch.teeth[i], b = arch.teeth[i + 1], neck = upper ? OCC_U - Math.min(a.h, b.h) + 3 : OCC_L + Math.min(a.h, b.h) - 3, dir = upper ? 1 : -1;
+    return '<polygon class="bt" points="' + r(cx - 5) + ',' + r(neck) + ' ' + r(cx + 5) + ',' + r(neck) + ' ' + cx + ',' + r(neck + dir * 9) + '"/>';
   }).join('');
-  s += '<g style="--bdg:' + col + '">' + amounts(PU, true) + amounts(PL, false) + '</g>' + finds(U, ux, true, d.upperSpaces, d.upperBT) + finds(L, lx, false, d.lowerSpaces, d.lowerBT);
+  s += '<g style="--bdg:' + col + '">' + amounts(PU, true) + amounts(PL, false) + '</g>' + bts(U, ux, true, d.upperBT) + bts(L, lx, false, d.lowerBT);
   return s + '</svg>';
 }
-/* which IPR the chart shows for this reading: the one picked (S.iprLayer, while the case is open), else this visit's when
-   there is any, else all visits so far */
+/* what the chart shows for this reading: the side picked on its switch (S.iprLayer while the case is open; the New case form
+   keeps its own), else the spaces (Amir, 7 Oct 2026: "default it to spacing … because that's what's useful for tx planning") —
+   or, at a visit with no spaces, the IPR: this visit's when there is any, else all visits so far */
 function iprLayerOf(d, picked) {
-  const t = sumContacts, now = t(d.upper) + t(d.lower), cum = t(d.cumUpper) + t(d.cumLower);
+  const t = sumContacts, now = t(d.upper) + t(d.lower), cum = t(d.cumUpper) + t(d.cumLower), sp = t(d.upperSpaces) + t(d.lowerSpaces);
   const both = d.visitCount > 1 && cum > 0 && !(Object.keys(d.cumUpper).every(k => mm1(d.cumUpper[k]) === mm1(d.upper[k])) && Object.keys(d.cumLower).every(k => mm1(d.cumLower[k]) === mm1(d.lower[k])));
-  const lay = both && (picked === 'cum' || picked === 'visit') ? picked : now > 0 || !both ? 'visit' : 'cum';
-  return { lay, both, now, cum };
+  const lay = picked === 'sp' || picked === 'visit' || (picked === 'cum' && both) ? picked : sp > 0 ? 'sp' : now > 0 || !both ? 'visit' : 'cum';
+  return { lay, both, now, cum, sp };
 }
-/* which of the three the chart shows (Amir, 6 Oct 2026: "a toggle where you can switch on or off IPR, spacing or black triangles"),
-   remembered on this computer like the hidden list columns (not patient data) */
-const IPR_SHOW_KEY = 'nloCases.iprShow';
-function iprShown() { let o = {}; try { o = JSON.parse(localStorage.getItem(IPR_SHOW_KEY) || '{}') || {}; } catch (e) { } return { ipr: o.ipr !== false, sp: o.sp !== false, bt: o.bt !== false }; }
-function iprShowSet(k, on) { const o = iprShown(); o[k] = !!on; try { localStorage.setItem(IPR_SHOW_KEY, JSON.stringify(o)); } catch (e) { } }
-/* the chart for one IPR Tracker reading (`d` from iprNoteFromVisits): three switches above it — IPR (with this visit / so far),
-   spaces, black triangles — each with its total, and the IPR totals per arch under it */
-function iprPanelsHTML(d, picked) {
+/* the black triangles switch, remembered on this computer like the hidden list columns (not patient data); on unless turned off.
+   (The 6 Oct 2026 IPR / spaces / black triangles switches were kept under 'nloCases.iprShow': gone with the one switch.) */
+const IPR_BT_KEY = 'nloCases.iprBt';
+function iprBtShown() { try { return localStorage.getItem(IPR_BT_KEY) !== 'off'; } catch (e) { return true; } }
+function iprBtSet(on) { try { localStorage.setItem(IPR_BT_KEY, on ? 'on' : 'off'); localStorage.removeItem('nloCases.iprShow'); } catch (e) { } }
+/* the chart for one IPR Tracker reading (`d` from iprNoteFromVisits): the one switch above it — IPR this visit · IPR so far ·
+   Spaces, each with its total (just "IPR" when all the visits add up to this one) — and the black triangles on/off beside it;
+   under it, the shown amounts per arch. `form`: the New case form's copy, whose switch acts on the form (ui.js iprPrevLayer/Tog). */
+function iprPanelsHTML(d, picked, form) {
   if (!d) return '';
   const t = sumContacts, mm = v => mm1(v) + ' mm', list = o => { const r = noteRowsOf(o); return r.length ? listRows(r) : 'none'; };
-  const { lay, both, now, cum } = iprLayerOf(d, picked), sp = t(d.upperSpaces) + t(d.lowerSpaces), on = iprShown();
+  const { lay, both, now, cum, sp } = iprLayerOf(d, picked), btOn = iprBtShown();
   const bt = noteBTsOf(d.upperBT).concat(noteBTsOf(d.lowerBT)).map(k => ckLabel(k));
   if (!(now > 0) && !(cum > 0) && !(sp > 0) && !bt.length) return '<div class="small muted iprNone">No IPR, spaces or black triangles recorded at this visit.</div>';
-  const ipr = lay === 'cum' ? { upper: d.cumUpper, lower: d.cumLower } : { upper: d.upper, lower: d.lower }, none = { upper: {}, lower: {} };
-  const tog = (k, sw, l, n) => '<button type="button" class="iprTog" data-act="iprTog" data-k="' + k + '" aria-pressed="' + on[k] + '" title="' + (on[k] ? 'Hide' : 'Show') + ' ' + esc(l.toLowerCase()) + ' on the chart">' +
-    '<span class="sw ' + k + '"' + (k === 'ipr' ? ' style="--sw:' + IPR_COL[lay] + '"' : '') + ' aria-hidden="true"></span>' + l + (n ? ' <b>' + n + '</b>' : '') + '</button>';
-  const seg = (v, l, n, sub) => '<button type="button" class="iprSegB" data-act="iprLayer" data-v="' + v + '" aria-pressed="' + (lay === v) + '"' + (on.ipr ? '' : ' disabled') + '><i style="background:' + IPR_COL[v] + '"></i>' + l + ' <b>' + (n > 0 ? mm(n) : 'none') + '</b>' + (sub ? '<span>' + sub + '</span>' : '') + '</button>';
-  const head = '<div class="iprTogs" role="group" aria-label="What the chart shows">' +
-      tog('ipr', '', both ? 'IPR' : 'IPR this visit', both ? '' : (now > 0 ? mm(now) : 'none')) +
-      tog('sp', '', 'Spaces', sp > 0 ? mm(sp) : 'none') + tog('bt', '', 'Black triangles', bt.length ? String(bt.length) : 'none') + '</div>' +
-    (both ? '<div class="iprSeg" role="group" aria-label="Which IPR the chart shows">' + seg('visit', 'This visit', now) + seg('cum', 'So far', cum, d.visitCount + ' visits') + '</div>' : '');
-  const what = lay === 'cum' ? 'IPR over all ' + d.visitCount + ' visits' : 'IPR this visit';
-  const label = [on.ipr ? what + '. Upper: ' + list(ipr.upper) + '. Lower: ' + list(ipr.lower) + '.' : '', on.sp ? 'Spaces, upper: ' + list(d.upperSpaces) + '; lower: ' + list(d.lowerSpaces) + '.' : '',
-    on.bt ? 'Black triangles: ' + (bt.join(', ') || 'none') + '.' : ''].filter(Boolean).join(' ') || 'Both arches; nothing switched on.';
-  const show = Object.assign({}, d, on.sp ? {} : { upperSpaces: {}, lowerSpaces: {} }, on.bt ? {} : { upperBT: {}, lowerBT: {} });
-  const uT = t(ipr.upper), lT = t(ipr.lower);
-  return '<div class="iprMap" data-layer="' + lay + '"><div class="iprMapHd">' + head + '</div>' + iprMapSVG(on.ipr ? ipr : none, show, IPR_COL[lay], label) +
-    (on.ipr && uT + lT > 0 ? '<div class="iprMapFt"><span>Upper <b>' + mm(uT) + '</b></span><span>Lower <b>' + mm(lT) + '</b></span></div>' : '') + '</div>';
+  // (each side's total in mm without the unit, like the amounts on the chart, so the three fit on one line in the case panel)
+  const seg = (v, l, n, tip) => '<button type="button" class="iprSegB" data-act="' + (form ? 'iprPrevLayer' : 'iprLayer') + '" data-v="' + v + '" aria-pressed="' + (lay === v) + '" title="' + esc(tip + ': ' + (n > 0 ? mm(n) : 'none')) + '">' +
+    '<i style="background:' + IPR_COL[v] + '"></i>' + l + ' <b>' + (n > 0 ? mm1(n) : 'none') + '</b></button>';
+  const head = '<div class="iprSeg" role="group" aria-label="What the chart shows">' +
+      (both ? seg('visit', 'IPR this visit', now, 'IPR at this visit') + seg('cum', 'IPR so far', cum, 'IPR over all ' + d.visitCount + ' visits') : seg('visit', 'IPR', now, 'IPR at this visit')) +
+      seg('sp', 'Spaces', sp, 'Spaces at this visit') + '</div>' +
+    '<button type="button" class="iprTog" data-act="' + (form ? 'iprPrevTog' : 'iprTog') + '" data-k="bt" aria-pressed="' + btOn + '" title="' + (btOn ? 'Hide' : 'Show') + ' the black triangles on the chart">' +
+      '<span class="sw bt" aria-hidden="true"></span>Black triangles <b>' + (bt.length ? bt.length : 'none') + '</b></button>';
+  const vals = lay === 'sp' ? { upper: d.upperSpaces, lower: d.lowerSpaces } : lay === 'cum' ? { upper: d.cumUpper, lower: d.cumLower } : { upper: d.upper, lower: d.lower };
+  const what = lay === 'sp' ? 'Spaces' : lay === 'cum' ? 'IPR over all ' + d.visitCount + ' visits' : 'IPR this visit';
+  const label = what + '. Upper: ' + list(vals.upper) + '. Lower: ' + list(vals.lower) + '.' + (btOn ? ' Black triangles: ' + (bt.join(', ') || 'none') + '.' : '');
+  const show = btOn ? d : Object.assign({}, d, { upperBT: {}, lowerBT: {} }), uT = t(vals.upper), lT = t(vals.lower);
+  return '<div class="iprMap' + (form ? ' iprPrev' : '') + '" data-layer="' + lay + '"><div class="iprMapHd">' + head + '</div>' + iprMapSVG(vals, show, IPR_COL[lay], label, lay === 'sp' ? 'sp' : 'ipr') +
+    (uT + lT > 0 ? '<div class="iprMapFt"><span>Upper <b>' + mm(uT) + '</b></span><span>Lower <b>' + mm(lT) + '</b></span></div>' : '') + '</div>';
 }
-/* the New case form's look at a reading: this visit's IPR, the spaces and the black triangles in one chart */
-function iprPreviewHTML(r) {
-  const d = r && r.d; if (!d) return '';
-  const label = 'IPR this visit. Upper: ' + (noteRowsOf(d.upper).length ? listRows(noteRowsOf(d.upper)) : 'none') + '. Lower: ' + (noteRowsOf(d.lower).length ? listRows(noteRowsOf(d.lower)) : 'none') + '.';
-  return '<div class="iprMap iprPrev"><div class="iprMapHd"><span class="iprKey"><b>' + esc(iprSumText(r)) + '</b></span></div>' + iprMapSVG({ upper: d.upper, lower: d.lower }, d, IPR_COL.visit, label) + '</div>';
-}
+/* the New case form's look at a reading: the same chart and switch as the case panel's */
+function iprPreviewHTML(r, picked) { return r && r.d ? iprPanelsHTML(r.d, picked, true) : ''; }
 /* one line for the folded IPR heading: "Oct 2 visit · IPR 0.3 mm · 0.5 mm so far · spaces 0.3 mm · 1 black triangle" */
 function iprSumText(r) {
   const d = r.d, t = sumContacts; if (!d) return '';
