@@ -41,7 +41,7 @@ function viewAdmin() {
     '</div><div class="small muted">Per aligner: materials for one aligner (sheet, printed model, packaging). Per set: anything paid once per case, such as a setup fee. Estimate = per set + aligners × per aligner.</div></div></div>';
   const deleted = '<div class="card" style="margin-top:18px"><div class="cardHd"><h3>Deleted cases</h3><span class="sub">Last 90 days</span><span style="flex:1"></span><button class="btn btn-ghost" data-act="loadDeleted">' + ic('refresh', 15) + 'Load</button></div><div class="cardBd" id="delBox">' + (S.delList ? delListHTML(S.delList) : '<div class="small muted">Deleted cases can be brought back. Click Load.</div>') + '</div></div>';
   const actv = '<div class="card" style="margin-top:18px"><div class="cardHd"><h3>Recent activity</h3><span class="sub">Last 7 days</span><span style="flex:1"></span><button class="btn btn-ghost" data-act="loadActivity">' + ic('refresh', 15) + 'Load</button></div><div class="cardBd" id="actBox"><div class="small muted">Shows who changed what. Click Load.</div></div></div>';
-  return rulesCardHTML() + '<div class="adminGrid"><div>' + team + defaults + shipWarnCardHTML() + alCostCard + noteInstrCardHTML() + rxAdminCardHTML() + '</div><div>' + sec + backupCardHTML() + (S.rulesOld ? '' : mailAdminHTML()) + actv + deleted + dupAdminCardHTML() + '</div></div>';
+  return rulesCardHTML() + '<div class="adminGrid"><div>' + team + defaults + shipWarnCardHTML() + alCostCard + noteInstrCardHTML() + rxAdminCardHTML() + '</div><div>' + sec + backupCardHTML() + (S.rulesOld ? '' : mailAdminHTML() + labAdminHTML()) + actv + deleted + dupAdminCardHTML() + '</div></div>';
 }
 /* Deleted cases, once loaded (it stays through the page's own redraws — the Staff Hub roster or the lab-email status arriving) */
 function delListHTML(list) {
@@ -106,7 +106,7 @@ function iprAccountHTML() {
   // (5 Oct 2026: every open aligner case's IPR chart is synced at once, and kept on the case for everyone)
   return u ? '<p class="small" style="margin-bottom:10px">Reading the IPR Tracker as <b>' + esc(u.email || 'signed in') + '</b> until you lock or sign out. Every open aligner case with a chart # gets its latest IPR chart, kept on the case for everyone' + (last ? ' — last synced from this computer ' + esc(fmtWhen(last)) : '') + '.</p>' +
       '<div class="pickRow"><button class="btn btn-sec btn-sm" data-act="iprSyncAll">' + ic('refresh', 15) + 'Sync all patients now</button><button class="btn btn-ghost btn-sm" data-act="iprDisconnect">Disconnect now</button></div>'
-    : '<p class="small" style="margin-bottom:10px">Not connected. Connect with the Google account the IPR Tracker uses; it disconnects again when you lock or sign out. The IPR charts already synced stay on the cases.</p><button class="btn btn-sec btn-sm" data-act="iprConnect">Connect IPR Tracker</button>';
+    : '<p class="small" style="margin-bottom:10px">Not connected. Connect with the Google account the IPR Tracker uses. It stays connected on this computer, like the IPR Tracker itself, until you disconnect it. The IPR charts already synced stay on the cases.</p><button class="btn btn-sec btn-sm" data-act="iprConnect">Connect IPR Tracker</button>';
 }
 /* ---------- staff dialogs ---------- */
 function issuedModal(name, res, reissue) {
@@ -175,9 +175,11 @@ const ADMIN_ACTS = {
     try {
       const list = await B.activity(7); const box = $('#actBox'); if (!box) return;
       if (!list.length) { box.innerHTML = '<div class="small muted">No activity in the last 7 days.</div>'; return; }
-      box.innerHTML = list.filter(x => x.a !== 'rekey').slice(0, 80).map(x => {
-        const c = S.cases.get(x.caseId); const who = x.a === 'email' ? ((MAIL_CO[x.co] || {}).l || 'Lab') + ' email' : firstName(staffName(x.sid, x.sid));
-        const what = { create: 'created', import: 'imported', stage: 'moved', comment: 'commented on', close: 'completed', reopen: 'reopened', assign: 'reassigned', edit: 'edited', restore: 'restored', delete: 'deleted', save: 'saved', rekey: 're-sealed', email: 'updated', photo: 'changed the photo of', dup: 'removed a duplicate:', undup: 'brought back', notdup: 'marked as not a duplicate', dupcopy: 'copied a duplicate’s comments to' }[x.a] || x.a;
+      // (the lab PC's readings in between — "printed 9 of 22" — aren't listed, like on the case; it's "Lab PC", not whoever's app saved it)
+      const labHand = x => x.a === 'lab' && (x.hand || x.unlink || x.relink);
+      box.innerHTML = list.filter(x => x.a !== 'rekey' && (x.a !== 'lab' || x.first || x.step || labHand(x) || (x.fields || []).length)).slice(0, 80).map(x => {
+        const c = S.cases.get(x.caseId); const who = x.a === 'email' ? ((MAIL_CO[x.co] || {}).l || 'Lab') + ' email' : x.a === 'lab' && !labHand(x) ? 'Lab PC' : firstName(staffName(x.sid, x.sid));
+        const what = { create: 'created', import: 'imported', stage: 'moved', comment: 'commented on', close: 'completed', reopen: 'reopened', assign: 'reassigned', edit: 'edited', restore: 'restored', delete: 'deleted', save: 'saved', rekey: 're-sealed', email: 'updated', lab: 'updated the lab progress of', photo: 'changed the photo of', dup: 'removed a duplicate:', undup: 'brought back', notdup: 'marked as not a duplicate', dupcopy: 'copied a duplicate’s comments to' }[x.a] || x.a;
         return '<div class="hist"><time>' + esc(fmtWhen(x.at)) + '</time><span><b>' + esc(who) + '</b> ' + esc(what) + ' ' + (c ? '<button class="linkBtn" data-act="open" data-id="' + esc(c.id) + '">' + ptName(c.patient) + '</button>' : 'a completed case') + '</span></div>';
       }).join('');
     } catch (x) { const box = $('#actBox'); if (box) box.innerHTML = '<div class="small" style="color:var(--coral-700)">' + esc(errText(x)) + '</div>'; }
@@ -339,7 +341,7 @@ Object.assign(ADMIN_ACTS, {
 /* ---------- Team from Staff Hub's office roster (Amir: "for the team, can I just add from staff hub?")
    Staff Hub shares a basic roster (name they go by, title, active / last day, photo) in the nlo-inventory database,
    which Cadence, the calendar and the IPR Tracker already follow. Here it's read with the IPR link's Google sign-in
-   (it ends when NLO Cases locks). Logins are still made here: each person's own password unlocks the office key. ---------- */
+   (it stays connected on this computer until someone disconnects it). Logins are still made here: each person's own password unlocks the office key. ---------- */
 const SH = { data: null, err: '', loading: false, at: 0 };
 function shPeople() { return Object.values((SH.data && SH.data.people) || {}).filter(p => p && p.id && p.name); }
 function shNorm(s) { return String(s || '').normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/^dr\.?\s+/, '').replace(/[^a-z\s'-]/g, ' ').replace(/\s+/g, ' ').trim(); }
@@ -378,7 +380,7 @@ function shBoxHTML() {
   const L = iprLink(), head = '<div class="shBox" id="shBox"><div class="shHd"><b>From Staff Hub</b><span class="small muted">the office roster Cadence and the IPR Tracker follow</span>';
   if (!L.init()) return head + '</div><p class="small muted">Not available in this browser.</p></div>';
   if (!L.user()) return head + '</div><p class="small" style="margin:4px 0 10px">Pick people from Staff Hub’s roster instead of typing them in, and see who has left.</p>' +
-    '<button class="btn btn-sec btn-sm" data-act="shConnect">' + ic('team', 15) + 'Connect to the office roster</button><p class="small muted" style="margin-top:6px">Uses the Google sign-in the IPR Tracker link uses. It ends when NLO Cases locks.</p></div>';
+    '<button class="btn btn-sec btn-sm" data-act="shConnect">' + ic('team', 15) + 'Connect to the office roster</button><p class="small muted" style="margin-top:6px">Uses the Google sign-in the IPR Tracker link uses. It stays connected on this computer, like the IPR Tracker itself.</p></div>';
   if (SH.err) return head + '</div><p class="small" style="color:var(--coral-700);margin:6px 0 8px">' + esc(SH.err) + '</p><button class="btn btn-ghost btn-sm" data-act="shRefresh">' + ic('refresh', 15) + 'Try again</button></div>';
   if (!SH.data) { shLoad(); return head + '</div><p class="small muted">Loading the office roster…</p></div>'; }
   if (Date.now() - SH.at > 30000 && !SH.loading) shLoad(); // read again when Team & security is opened later (shows the last copy meanwhile)

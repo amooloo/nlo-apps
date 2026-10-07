@@ -225,8 +225,10 @@ const FB = {
   /* ---------- lab-email updates (see mail.js and mail/script.js) ---------- */
   async mailState() {
     const [ib, beats, bots] = await Promise.all([FB.db.doc('meta/inbox').get(), FB.db.collection('mailbeat').get(), FB.isOwner() ? FB.db.collection('mailbots').get() : null]);
-    return { on: ib.exists && (!bots || bots.size > 0), pub: ib.exists ? ib.data() : null,
-      beats: beats.docs.map(d => Object.assign({ id: d.id }, d.data(), { at: FB.tsMs(d.data().at) })), bots: bots ? bots.docs.map(d => ({ uid: d.id, email: d.data().email })) : [] };
+    // (the robot logins are the email robot's and the lab PC's — lab.js; "on" is the email robot's)
+    const list = bots ? bots.docs.map(d => ({ uid: d.id, email: d.data().email })) : [];
+    return { on: ib.exists && (!bots || list.some(x => !labBot(x))), pub: ib.exists ? ib.data() : null,
+      beats: beats.docs.map(d => Object.assign({ id: d.id }, d.data(), { at: FB.tsMs(d.data().at) })), bots: list };
   },
   /* the inbox key pair: the script seals to its public half; the private half is sealed with the office key */
   async inboxKeyPair() {
@@ -238,10 +240,8 @@ const FB = {
     await FB.track(FB.db.doc('meta/inbox').set({ pub, kid, senders: MAIL_SENDERS, at: FB.ts() }));
     FB.inboxPriv = null;
   },
-  /* owner: a login for the email robot (it can only add sealed items to the inbox) — one at a time */
-  async mailSetup() {
-    if (!(await FB.db.doc('meta/inbox').get()).exists) await FB.inboxKeyPair();
-    const email = 'mailbot.' + randChars(10).toLowerCase() + '@' + STAFF_DOMAIN, password = randChars(32);
+  /* a robot's login (made in a second, throwaway Firebase app, so the owner stays signed in): its uid */
+  async robotLogin(email, password) {
     const sec = firebase.initializeApp(FB.cfg, 'bot' + Date.now()); let uid;
     try {
       const sa = sec.auth();
@@ -250,10 +250,17 @@ const FB = {
       uid = (await sa.createUserWithEmailAndPassword(email, password)).user.uid;
       await sa.signOut();
     } finally { try { await sec.delete(); } catch (e) { } }
+    return uid;
+  },
+  /* owner: a login for the email robot (it can only add sealed items to the inbox) — one at a time (the lab PC's is its own) */
+  async mailSetup() {
+    if (!(await FB.db.doc('meta/inbox').get()).exists) await FB.inboxKeyPair();
+    const email = 'mailbot.' + randChars(10).toLowerCase() + '@' + STAFF_DOMAIN, password = randChars(32);
+    const uid = await FB.robotLogin(email, password);
     const old = await FB.db.collection('mailbots').get();
     const box = await Crypto.sealJSON(FB.keys[FB.curV], { email, password, uid }, 'mailbot');
     const b = FB.db.batch();
-    old.docs.forEach(d => b.delete(d.ref));
+    old.docs.filter(d => !labBot(d.data())).forEach(d => b.delete(d.ref));
     b.set(FB.db.doc('mailbots/' + uid), { email, at: FB.ts() });
     b.set(FB.db.doc('meta/mailbot'), { v: FB.curV, iv: box.iv, ct: box.ct });
     await FB.track(b.commit());
@@ -262,7 +269,26 @@ const FB = {
   async mailCreds() { const s = await FB.db.doc('meta/mailbot').get(); if (!s.exists) return null; const d = s.data(); return Crypto.openJSON(FB.keys[d.v], d, 'mailbot'); },
   async mailOff() {
     const old = await FB.db.collection('mailbots').get(); const b = FB.db.batch();
-    old.docs.forEach(d => b.delete(d.ref)); b.delete(FB.db.doc('meta/mailbot'));
+    old.docs.filter(d => !labBot(d.data())).forEach(d => b.delete(d.ref)); b.delete(FB.db.doc('meta/mailbot'));
+    await FB.track(b.commit());
+  },
+  /* owner: the lab PC's login (lab.js) — like the email robot's, it can only add sealed items to the inbox and note its check-in.
+     Shown once, in the setup code (not kept: a new code replaces it) */
+  async labSetup() {
+    if (!(await FB.db.doc('meta/inbox').get()).exists) await FB.inboxKeyPair();
+    const email = LAB_BOT + randChars(10).toLowerCase() + '@' + STAFF_DOMAIN, password = randChars(32);
+    const uid = await FB.robotLogin(email, password);
+    const [old, beats] = await Promise.all([FB.db.collection('mailbots').get(), FB.db.collection('mailbeat').get()]); const b = FB.db.batch();
+    old.docs.filter(d => labBot(d.data())).forEach(d => b.delete(d.ref));
+    beats.docs.filter(d => labBeat(d.data())).forEach(d => b.delete(d.ref)); // (the old login's check-ins: the new one checks in afresh)
+    b.set(FB.db.doc('mailbots/' + uid), { email, at: FB.ts() });
+    await FB.track(b.commit());
+    return { email, password };
+  },
+  async labOff() {
+    const [old, beats] = await Promise.all([FB.db.collection('mailbots').get(), FB.db.collection('mailbeat').get()]); const b = FB.db.batch();
+    old.docs.filter(d => labBot(d.data())).forEach(d => b.delete(d.ref));
+    beats.docs.filter(d => labBeat(d.data())).forEach(d => b.delete(d.ref)); // (its check-ins: nothing to show once it's off)
     await FB.track(b.commit());
   },
   async mailSenders(list) { await FB.db.doc('meta/inbox').update({ senders: list }); },
@@ -270,13 +296,14 @@ const FB = {
   async inboxLoad() {
     const snap = await FB.db.collection('inbox').get(), out = [];
     // the private half of the inbox key, opened once (again if an email uses a key set up since)
-    if (!FB.inboxPriv || snap.docs.some(d => !FB.inboxPriv[d.data().kid])) {
+    FB.inboxNoKid = FB.inboxNoKid || new Set(); // (a key id that isn't in meta/inboxKey: looked for once a session, not every sync)
+    if (!FB.inboxPriv || snap.docs.some(d => !FB.inboxPriv[d.data().kid] && !FB.inboxNoKid.has(String(d.data().kid)))) {
       const priv = {}; const s = await FB.db.doc('meta/inboxKey').get();
       if (s.exists) for (const kid of Object.keys(s.data().keys || {})) {
         const box = s.data().keys[kid];
         try { priv[kid] = await Crypto.importPriv(await Crypto.open(FB.keys[box.v], box, 'inboxkey:' + kid)); } catch (e) { }
       }
-      FB.inboxPriv = priv;
+      FB.inboxPriv = priv; snap.docs.forEach(d => { if (!priv[d.data().kid]) FB.inboxNoKid.add(String(d.data().kid)); });
     }
     for (const d of snap.docs) {
       const x = d.data(); let mail = null;

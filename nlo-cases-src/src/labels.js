@@ -153,7 +153,14 @@ function labelsModal(c) {
     w.addEventListener('click', e => {
       const d = e.target.closest('#lb-days [data-days]'); if (d) { st.days = Number(d.dataset.days); $$('#lb-days .pick', w).forEach(b => b.setAttribute('aria-pressed', String(b === d))); draw(); }
     });
-    $w('#lb-print').onclick = () => printLabelList(chosen());
+    // printed the bag labels of a set that's been trimmed: offer to move it on to Packaging (Amir, 6 Oct 2026 — the bag labels
+    // print from NLO Cases, not the trimmer, so this is where the case learns it's being packed)
+    $w('#lb-print').onclick = () => printLabelList(chosen(), () => {
+      const cur = findCase(c.id); if (!cur || cur.status === 'done' || cur.type !== 'nla' || !['trim', 'polish'].includes(liveStage(cur))) return;
+      closeModal();
+      confirmBox('Move to Packaging?', 'The bag labels for ' + (cur.patient || 'this patient') + ' went to the printer. Move the case from ' + stageLabel(cur) + ' to Packaging now?', 'Move to Packaging', 'mint', 'Not yet')
+        .then(ok => { if (ok) moveStage(c.id, 'pack'); });
+    });
     $w('#lb-csv').onclick = () => {
       const blob = new Blob([labelsCSV(chosen().map(x => x.lbl))], { type: 'text/csv' });
       const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = (st.patient || 'Patient').replace(/\s+/g, '_') + '_aligner_labels.csv';

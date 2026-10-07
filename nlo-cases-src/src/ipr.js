@@ -13,6 +13,14 @@ const IPR_FB = {
   appId: "1:471691286148:web:b362a98186f648bd4914d1"
 };
 const IPR_URL = 'IPR_Tracker.html';
+/* the IPR Tracker straight to a patient's new visit (Amir, 6 Oct 2026: "the step for IPR entry should open up the IPR tracker so they
+   can upload it there instead of having to enter it in IPR tracker and then reconnect it in case tracker"): its #chart=…&ini=… link,
+   which IPR_Tracker.html reads once (the patient's visits, or New patient filled in). Only the chart # and initials ride on it, in
+   the part of the address that never leaves the computer. Coming back to NLO Cases reads the visit in by itself (iprBack, ui.js). */
+function iprDeepUrl(chart, name) {
+  const t = nameTokens(name), ini = t.length ? (t[0][0] + (t.length > 1 ? t[t.length - 1][0] : '')).toUpperCase() : '';
+  return IPR_URL + (String(chart || '').trim() ? '#chart=' + encodeURIComponent(String(chart).trim()) + (ini ? '&ini=' + ini : '') : '');
+}
 const IPR_UPPER = ["UR7", "UR6", "UR5", "UR4", "UR3", "UR2", "UR1", "UL1", "UL2", "UL3", "UL4", "UL5", "UL6", "UL7"];
 const IPR_LOWER = ["LR7", "LR6", "LR5", "LR4", "LR3", "LR2", "LR1", "LL1", "LL2", "LL3", "LL4", "LL5", "LL6", "LL7"];
 
@@ -101,63 +109,133 @@ function iprNoteFromVisits(visits) {
   return { date: v.date || '', assistant: v.assistant_initials || '', visits: vs.length, note: buildChartNote(d), d };
 }
 
-/* ---------- the IPR Tracker's printed chart, drawn in the case panel ----------
-   Amir, 3 Oct 2026: instead of the written IPR note, "a diagram … with lines and where the spacing is and black triangles",
-   like the IPR Tracker prints. Same layout as its PrintChart: the upper teeth in a row (UR7 … UL7, gums at the top), the
-   lower teeth mirrored under them; at each contact with an amount, a line and the mm; ▼ at a black triangle. A panel is
-   drawn only when it has something in it. Plain SVG markup (numbers and fixed labels only). */
-const IPR_COL = { visit: '#1d4ed8', cum: '#7e22ce', space: '#0369a1' }; // the printed chart's colours
-function iprArchSVG(up, lo, btU, btL, color, label) {
-  const NUMS = [7, 6, 5, 4, 3, 2, 1, 1, 2, 3, 4, 5, 6, 7], PAD = 6, CH = 48, GAP = 12;
-  const lw = n => IPR_TW[n === 1 ? 2 : n]; // lower centrals are drawn with the lateral's narrower outline
-  const xs = [], lx = []; let x = PAD; NUMS.forEach(n => { xs.push(x); x += IPR_TW[n]; }); const W = x + PAD;
-  let y = PAD; NUMS.forEach(n => { lx.push(y); y += lw(n); }); const off = (W - (y + PAD)) / 2; // the lower row is centred
-  // room for the amounts above the upper row / below the lower row only when that arch has any (keeps the panels short)
-  const any = o => Object.values(o).some(v => parseFloat(v) > 0), ANN = any(up) ? 30 : 8, ANNB = any(lo) ? 30 : 8;
-  const uBase = ANN + CH, lTop = uBase + GAP, lBot = lTop + CH, H = lBot + ANNB;
-  const r = v => Math.round(v * 100) / 100;
-  let s = '<svg class="iprSvg" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc(label) + '">' +
-    '<line class="mid" x1="' + xs[7] + '" y1="' + (ANN - 2) + '" x2="' + xs[7] + '" y2="' + (lBot + 2) + '"/>' +
-    '<line class="base" x1="' + PAD + '" y1="' + uBase + '" x2="' + (W - PAD) + '" y2="' + uBase + '"/><line class="base" x1="' + PAD + '" y1="' + lTop + '" x2="' + (W - PAD) + '" y2="' + lTop + '"/>';
-  NUMS.forEach((n, i) => {
-    s += '<path class="tooth" d="' + iprToothPath(n) + '" transform="translate(' + xs[i] + ',' + ANN + ')"/><text class="tn" x="' + r(xs[i] + IPR_TW[n] / 2) + '" y="' + r(ANN + IPR_TH[n] * .52) + '">' + n + '</text>';
-    const dn = n === 1 ? 2 : n, h = IPR_TH[dn], l = r(lx[i] + off);
-    s += '<path class="tooth" d="' + iprToothPath(dn) + '" transform="translate(' + l + ',' + (lTop + h) + ') scale(1,-1)"/><text class="tn" x="' + r(l + IPR_TW[dn] / 2) + '" y="' + r(lTop + h * .48) + '">' + n + '</text>';
-  });
-  // a contact: the amount on a short line outside the arch, and ▼ in the gum-side gap for a black triangle
-  const mark = (cx, v, bt, upper) => {
-    cx = r(cx); let m = '';
-    if (v > 0) m += upper
-      ? '<line x1="' + cx + '" y1="' + (ANN - 3) + '" x2="' + cx + '" y2="' + (ANN - 13) + '" stroke="' + color + '" stroke-width="1"/><text class="v" x="' + cx + '" y="' + (ANN - 16) + '" fill="' + color + '">' + mm1(v) + '</text>'
-      : '<line x1="' + cx + '" y1="' + (lBot + 3) + '" x2="' + cx + '" y2="' + (lBot + 13) + '" stroke="' + color + '" stroke-width="1"/><text class="v" x="' + cx + '" y="' + (lBot + 24) + '" fill="' + color + '">' + mm1(v) + '</text>';
-    if (bt) m += upper ? '<polygon class="bt" points="' + cx + ',' + (ANN + 10) + ' ' + (cx - 6) + ',' + (ANN + 1) + ' ' + (cx + 6) + ',' + (ANN + 1) + '"/>'
-      : '<polygon class="bt" points="' + cx + ',' + (lBot - 10) + ' ' + (cx - 6) + ',' + (lBot - 1) + ' ' + (cx + 6) + ',' + (lBot - 1) + '"/>';
+/* ---------- the IPR chart in the case panel ----------
+   Amir, 3 Oct 2026: instead of the written IPR note, "a diagram … with lines and where the spacing is and black triangles".
+   Amir, 6 Oct 2026: "make the diagram look nicer" — and it stays open even when the rest of the case is folded (ui.js).
+   One chart instead of three stacked ones: both arches as seen from the front (upper teeth hang from the gums, lower teeth
+   stand on theirs, in their real proportions), the IPR amount sitting right on each contact, the spaces in the bite gap
+   between the arches, ▼ at a black triangle. A switch picks which IPR it shows — this visit or all visits so far; the
+   switch carries both totals, so nothing is hidden behind it. Plain SVG markup (numbers and fixed labels only). */
+const IPR_COL = { visit: '#1B2F4C', cum: '#2E52C9', space: '#64F4C9', bt: '#11203A' }; // navy, blue-500, mint, navy-900
+/* crown sizes in mm (mesiodistal width, crown height) and shape, by tooth number — an average adult's */
+const IPR_CROWN = {
+  U: { 1: [8.6, 10.6, 'inc'], 2: [6.6, 9.0, 'inc'], 3: [7.6, 10.0, 'can'], 4: [7.0, 8.4, 'pm'], 5: [6.6, 7.8, 'pm'], 6: [10.0, 7.4, 'mol'], 7: [9.0, 7.0, 'mol'] },
+  L: { 1: [5.4, 9.0, 'inc'], 2: [5.9, 9.4, 'inc'], 3: [6.8, 10.6, 'can'], 4: [7.0, 8.4, 'pm'], 5: [7.0, 8.0, 'pm'], 6: [11.0, 7.6, 'mol'], 7: [10.4, 7.2, 'mol'] }
+};
+/* a crown outline w × h with the biting edge at the bottom (y = h) and the gum line at the top (y = 0): narrower at the neck,
+   widest at the contacts, then the edge — flat (incisors), a cusp tip (canines), a blunt cusp (premolars) or two cusps (molars) */
+function iprCrownPath(w, h, kind) {
+  const r = v => Math.round(v * 100) / 100, n = w * .15, X = f => r(w * f), Y = f => r(h * f);
+  let s = 'M' + r(n) + ',' + Y(.12) + ' Q' + X(.5) + ',' + Y(-.1) + ' ' + r(w - n) + ',' + Y(.12) +
+    ' C' + r(w - n * .25) + ',' + Y(.28) + ' ' + r(w) + ',' + Y(.42) + ' ' + r(w) + ',' + Y(.6) +
+    ' C' + r(w) + ',' + Y(.8) + ' ' + X(.98) + ',' + Y(.9) + ' ' + X(.92) + ',' + Y(.95);
+  if (kind === 'inc') s += ' Q' + X(.5) + ',' + Y(1.03) + ' ' + X(.08) + ',' + Y(.95);
+  else if (kind === 'can') s += ' Q' + X(.72) + ',' + Y(.96) + ' ' + X(.52) + ',' + Y(1.04) + ' Q' + X(.3) + ',' + Y(.95) + ' ' + X(.08) + ',' + Y(.9);
+  else if (kind === 'pm') s += ' Q' + X(.72) + ',' + Y(1.01) + ' ' + X(.5) + ',' + Y(1.02) + ' Q' + X(.28) + ',' + Y(1.01) + ' ' + X(.08) + ',' + Y(.94);
+  else s += ' Q' + X(.82) + ',' + Y(1.02) + ' ' + X(.68) + ',' + Y(1) + ' Q' + X(.56) + ',' + Y(.95) + ' ' + X(.5) + ',' + Y(.94) +
+    ' Q' + X(.44) + ',' + Y(.95) + ' ' + X(.32) + ',' + Y(1) + ' Q' + X(.18) + ',' + Y(1.02) + ' ' + X(.08) + ',' + Y(.94);
+  return s + ' C' + X(.02) + ',' + Y(.9) + ' 0,' + Y(.8) + ' 0,' + Y(.6) + ' C0,' + Y(.42) + ' ' + r(n * .25) + ',' + Y(.28) + ' ' + r(n) + ',' + Y(.12) + 'Z';
+}
+let IPR_SEQ = 0; // a fresh id for each chart's gradient
+/* both arches with one IPR layer (`ipr`: {upper, lower} contacts → mm, coloured `col`), the spaces and the black triangles.
+   Each tooth's number sits on the tooth, on one straight row per arch; each IPR amount sits outside its arch with a line to its
+   contact (Amir, 6 Oct 2026: "numbers of the teeth on the teeth and then lines connecting the values to the interproximal") —
+   amounts too close to fit side by side go one row further out. Spaces sit in the bite between the arches, at their contact. */
+function iprMapSVG(ipr, d, col, label) {
+  const NUMS = [7, 6, 5, 4, 3, 2, 1, 1, 2, 3, 4, 5, 6, 7], MM = 4.2, GAPX = 1.2, PADX = 18, ROW = 19, BH = 16;
+  const r = v => Math.round(v * 100) / 100, gid = 'iprG' + (++IPR_SEQ);
+  const row = a => { const out = []; let x = 0; NUMS.forEach((t, i) => { const [w, h, kind] = IPR_CROWN[a][t]; out.push({ t, x, w: w * MM, h: h * MM, kind }); x += w * MM + (i < 13 ? GAPX : 0); }); return { teeth: out, w: x }; };
+  const U = row('U'), L = row('L'), inner = Math.max(U.w, L.w), W = inner + PADX * 2;
+  const ux = PADX + (inner - U.w) / 2, lx = PADX + (inner - L.w) / 2;
+  const at = (arch, x0, i) => r(x0 + arch.teeth[i].x + arch.teeth[i].w + GAPX / 2); // contact i: between tooth i and tooth i+1
+  const bw = txt => 8 + txt.length * 6.2;
+  // the contacts of an arch in order (UR7|UR6 … UL6|UL7): contact i is between tooth i and tooth i+1 of the row
+  const KEYS = { U: IPR_UPPER.slice(0, -1).map((t, i) => t + '|' + IPR_UPPER[i + 1]), L: IPR_LOWER.slice(0, -1).map((t, i) => t + '|' + IPR_LOWER[i + 1]) };
+  // the amounts of one arch, each in the first row out where it doesn't run into its neighbour
+  const place = (arch, x0, o, keys) => { const ends = [], out = [];
+    keys.forEach((k, i) => { const v = parseFloat((o || {})[k]) || 0; if (!(v > 0)) return;
+      const cx = at(arch, x0, i), t = mm1(v), w = bw(t); let rr = 0; while (ends[rr] != null && ends[rr] > cx - w / 2 - 3) rr++;
+      ends[rr] = cx + w / 2; out.push({ cx, t, w, rr }); });
+    return { list: out, rows: ends.length }; };
+  const PU = place(U, ux, ipr.upper, KEYS.U), PL = place(L, lx, ipr.lower, KEYS.L);
+  const TOP = PU.rows ? 8 + PU.rows * ROW : 6;               // room above the upper gums for its amounts
+  const OCC_U = TOP + 56, OCC_L = OCC_U + 36;                  // the upper and lower biting edges
+  const NUM_U = OCC_U - 21, NUM_L = OCC_L + 21, CT_U = OCC_U - 9, CT_L = OCC_L + 9; // number rows; where the contacts are
+  const GUM_L = OCC_L + 24, H = GUM_L + 32 + (PL.rows ? 8 + PL.rows * ROW : 6);
+  let s = '<svg class="iprSvg" viewBox="0 0 ' + r(W) + ' ' + r(H) + '" role="img" aria-label="' + esc(label) + '">' +
+    '<defs><linearGradient id="' + gid + 'u" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#F1F4F8"/></linearGradient>' +
+    '<linearGradient id="' + gid + 'l" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#F1F4F8"/></linearGradient></defs>' +
+    // the gums: a soft band behind the necks of each arch (it shows between the teeth like the papillae do)
+    '<rect class="gum" x="' + r(PADX - 8) + '" y="' + TOP + '" width="' + r(inner + 16) + '" height="32" rx="14"/>' +
+    '<rect class="gum" x="' + r(PADX - 8) + '" y="' + GUM_L + '" width="' + r(inner + 16) + '" height="32" rx="14"/>' +
+    '<line class="mid" x1="' + r(W / 2) + '" y1="' + (TOP + 2) + '" x2="' + r(W / 2) + '" y2="' + (GUM_L + 30) + '"/>' +
+    '<text class="side" x="' + r(PADX - 3) + '" y="' + (TOP + 16) + '" text-anchor="end">R</text><text class="side" x="' + r(W - PADX + 3) + '" y="' + (TOP + 16) + '">L</text>' +
+    '<text class="side" x="' + r(PADX - 3) + '" y="' + (GUM_L + 16) + '" text-anchor="end">R</text><text class="side" x="' + r(W - PADX + 3) + '" y="' + (GUM_L + 16) + '">L</text>';
+  const teeth = (arch, x0, upper) => arch.teeth.map(o => {
+    const x = r(x0 + o.x), cx = r(x0 + o.x + o.w / 2);
+    return '<path class="crown" fill="url(#' + gid + (upper ? 'u' : 'l') + ')" d="' + iprCrownPath(o.w, o.h, o.kind) + '" transform="translate(' + x + ',' + r(upper ? OCC_U - o.h : OCC_L + o.h) + ')' + (upper ? '' : ' scale(1,-1)') + '"/>' +
+      '<text class="tn" x="' + cx + '" y="' + (upper ? NUM_U : NUM_L) + '">' + o.t + '</text>';
+  }).join('');
+  s += teeth(U, ux, true) + teeth(L, lx, false);
+  const pill = (cx, cy, txt, cls, w) => '<g class="bdg ' + cls + '"><rect x="' + r(cx - w / 2) + '" y="' + r(cy - BH / 2) + '" width="' + r(w) + '" height="' + BH + '" rx="' + BH / 2 + '"/><text x="' + cx + '" y="' + r(cy + .5) + '">' + txt + '</text></g>';
+  // IPR: the amount out past the gums, a line to the contact, a dot on it
+  const amounts = (P, upper) => P.list.map(b => {
+    const cy = upper ? TOP - 11 - b.rr * ROW : GUM_L + 32 + 11 + b.rr * ROW, y1 = upper ? cy + BH / 2 : cy - BH / 2, y2 = upper ? CT_U : CT_L;
+    return '<g class="lead"><line x1="' + b.cx + '" y1="' + r(y1) + '" x2="' + b.cx + '" y2="' + r(y2) + '"/><circle cx="' + b.cx + '" cy="' + r(y2) + '" r="2.4"/></g>' + pill(b.cx, cy, b.t, 'ipr', b.w);
+  }).join('');
+  // the spaces in the bite, at their contact; ▼ in the gum-side gap of a black triangle, pointing to the contact
+  const finds = (arch, x0, upper, spO, btO) => KEYS[upper ? 'U' : 'L'].map((k, i) => {
+    const cx = at(arch, x0, i), a = arch.teeth[i], b = arch.teeth[i + 1]; let m = '';
+    if (btO && btO[k]) { const neck = upper ? OCC_U - Math.min(a.h, b.h) + 3 : OCC_L + Math.min(a.h, b.h) - 3, dir = upper ? 1 : -1;
+      m += '<polygon class="bt" points="' + r(cx - 5) + ',' + r(neck) + ' ' + r(cx + 5) + ',' + r(neck) + ' ' + cx + ',' + r(neck + dir * 9) + '"/>'; }
+    const sp = parseFloat((spO || {})[k]) || 0; if (sp > 0) { const t = mm1(sp); m += pill(cx, upper ? OCC_U + 9 : OCC_L - 9, t, 'sp', bw(t)); }
     return m;
-  };
-  Object.keys(up).forEach((k, i) => { s += mark(xs[i] + IPR_TW[NUMS[i]], parseFloat(up[k]) || 0, btU && btU[k], true); });
-  Object.keys(lo).forEach((k, i) => { s += mark(lx[i] + off + lw(NUMS[i]), parseFloat(lo[k]) || 0, btL && btL[k], false); });
+  }).join('');
+  s += '<g style="--bdg:' + col + '">' + amounts(PU, true) + amounts(PL, false) + '</g>' + finds(U, ux, true, d.upperSpaces, d.upperBT) + finds(L, lx, false, d.lowerSpaces, d.lowerBT);
   return s + '</svg>';
 }
-/* the panels for one IPR Tracker reading (`d` from iprNoteFromVisits): IPR this visit, IPR over all visits (when there's
-   more than one and it isn't the same picture), spaces & black triangles */
-function iprPanelsHTML(d) {
+/* which IPR the chart shows for this reading: the one picked (S.iprLayer, while the case is open), else this visit's when
+   there is any, else all visits so far */
+function iprLayerOf(d, picked) {
+  const t = sumContacts, now = t(d.upper) + t(d.lower), cum = t(d.cumUpper) + t(d.cumLower);
+  const both = d.visitCount > 1 && cum > 0 && !(Object.keys(d.cumUpper).every(k => mm1(d.cumUpper[k]) === mm1(d.upper[k])) && Object.keys(d.cumLower).every(k => mm1(d.cumLower[k]) === mm1(d.lower[k])));
+  const lay = both && (picked === 'cum' || picked === 'visit') ? picked : now > 0 || !both ? 'visit' : 'cum';
+  return { lay, both, now, cum };
+}
+/* which of the three the chart shows (Amir, 6 Oct 2026: "a toggle where you can switch on or off IPR, spacing or black triangles"),
+   remembered on this computer like the hidden list columns (not patient data) */
+const IPR_SHOW_KEY = 'nloCases.iprShow';
+function iprShown() { let o = {}; try { o = JSON.parse(localStorage.getItem(IPR_SHOW_KEY) || '{}') || {}; } catch (e) { } return { ipr: o.ipr !== false, sp: o.sp !== false, bt: o.bt !== false }; }
+function iprShowSet(k, on) { const o = iprShown(); o[k] = !!on; try { localStorage.setItem(IPR_SHOW_KEY, JSON.stringify(o)); } catch (e) { } }
+/* the chart for one IPR Tracker reading (`d` from iprNoteFromVisits): three switches above it — IPR (with this visit / so far),
+   spaces, black triangles — each with its total, and the IPR totals per arch under it */
+function iprPanelsHTML(d, picked) {
   if (!d) return '';
-  const t = sumContacts, mm = v => mm1(v) + ' mm', same = (a, b) => Object.keys(a).every(k => mm1(a[k]) === mm1(b[k]));
-  const list = o => { const r = noteRowsOf(o); return r.length ? listRows(r) : 'none'; };
-  const bts = (u, l) => noteBTsOf(u).concat(noteBTsOf(l)).map(k => ckLabel(k));
-  const panel = (k, col, title, totals, svg) => '<div class="iprP" data-p="' + k + '"><div class="iprPH"><b style="color:' + col + '">' + title + '</b><span>' + totals + '</span></div>' + svg + '</div>';
-  const uI = t(d.upper), lI = t(d.lower), uS = t(d.upperSpaces), lS = t(d.lowerSpaces), cU = t(d.cumUpper), cL = t(d.cumLower), bt = bts(d.upperBT, d.lowerBT);
-  let h = '';
-  if (uI + lI > 0) h += panel('visit', IPR_COL.visit, 'IPR this visit', 'Upper ' + mm(uI) + ' · Lower ' + mm(lI) + ' · Total ' + mm(uI + lI),
-    iprArchSVG(d.upper, d.lower, null, null, IPR_COL.visit, 'IPR this visit. Upper: ' + list(d.upper) + '. Lower: ' + list(d.lower) + '.'));
-  if (d.visitCount > 1 && cU + cL > 0 && !(same(d.cumUpper, d.upper) && same(d.cumLower, d.lower)))
-    h += panel('cum', IPR_COL.cum, 'IPR so far · ' + d.visitCount + ' visits', 'Upper ' + mm(cU) + ' · Lower ' + mm(cL) + ' · Total ' + mm(cU + cL),
-      iprArchSVG(d.cumUpper, d.cumLower, null, null, IPR_COL.cum, 'IPR over all ' + d.visitCount + ' visits. Upper: ' + list(d.cumUpper) + '. Lower: ' + list(d.cumLower) + '.'));
-  if (uS + lS > 0 || bt.length) h += panel('space', IPR_COL.space, 'Spaces &amp; black triangles',
-    (uS + lS > 0 ? 'Upper ' + mm(uS) + ' · Lower ' + mm(lS) : 'No spaces') + (bt.length ? ' · ' + bt.length + ' black triangle' + (bt.length > 1 ? 's' : '') + ' <i class="btKey" aria-hidden="true"></i>' : ''),
-    iprArchSVG(d.upperSpaces, d.lowerSpaces, d.upperBT, d.lowerBT, IPR_COL.space, 'Spaces. Upper: ' + list(d.upperSpaces) + '. Lower: ' + list(d.lowerSpaces) + '. Black triangles: ' + (bt.join(', ') || 'none') + '.'));
-  if (!h) return '<div class="small muted">No IPR, spaces or black triangles recorded at this visit.</div>';
-  return (uI + lI > 0 ? '' : '<div class="small muted iprNone">No IPR at this visit.</div>') + h;
+  const t = sumContacts, mm = v => mm1(v) + ' mm', list = o => { const r = noteRowsOf(o); return r.length ? listRows(r) : 'none'; };
+  const { lay, both, now, cum } = iprLayerOf(d, picked), sp = t(d.upperSpaces) + t(d.lowerSpaces), on = iprShown();
+  const bt = noteBTsOf(d.upperBT).concat(noteBTsOf(d.lowerBT)).map(k => ckLabel(k));
+  if (!(now > 0) && !(cum > 0) && !(sp > 0) && !bt.length) return '<div class="small muted iprNone">No IPR, spaces or black triangles recorded at this visit.</div>';
+  const ipr = lay === 'cum' ? { upper: d.cumUpper, lower: d.cumLower } : { upper: d.upper, lower: d.lower }, none = { upper: {}, lower: {} };
+  const tog = (k, sw, l, n) => '<button type="button" class="iprTog" data-act="iprTog" data-k="' + k + '" aria-pressed="' + on[k] + '" title="' + (on[k] ? 'Hide' : 'Show') + ' ' + esc(l.toLowerCase()) + ' on the chart">' +
+    '<span class="sw ' + k + '"' + (k === 'ipr' ? ' style="--sw:' + IPR_COL[lay] + '"' : '') + ' aria-hidden="true"></span>' + l + (n ? ' <b>' + n + '</b>' : '') + '</button>';
+  const seg = (v, l, n, sub) => '<button type="button" class="iprSegB" data-act="iprLayer" data-v="' + v + '" aria-pressed="' + (lay === v) + '"' + (on.ipr ? '' : ' disabled') + '><i style="background:' + IPR_COL[v] + '"></i>' + l + ' <b>' + (n > 0 ? mm(n) : 'none') + '</b>' + (sub ? '<span>' + sub + '</span>' : '') + '</button>';
+  const head = '<div class="iprTogs" role="group" aria-label="What the chart shows">' +
+      tog('ipr', '', both ? 'IPR' : 'IPR this visit', both ? '' : (now > 0 ? mm(now) : 'none')) +
+      tog('sp', '', 'Spaces', sp > 0 ? mm(sp) : 'none') + tog('bt', '', 'Black triangles', bt.length ? String(bt.length) : 'none') + '</div>' +
+    (both ? '<div class="iprSeg" role="group" aria-label="Which IPR the chart shows">' + seg('visit', 'This visit', now) + seg('cum', 'So far', cum, d.visitCount + ' visits') + '</div>' : '');
+  const what = lay === 'cum' ? 'IPR over all ' + d.visitCount + ' visits' : 'IPR this visit';
+  const label = [on.ipr ? what + '. Upper: ' + list(ipr.upper) + '. Lower: ' + list(ipr.lower) + '.' : '', on.sp ? 'Spaces, upper: ' + list(d.upperSpaces) + '; lower: ' + list(d.lowerSpaces) + '.' : '',
+    on.bt ? 'Black triangles: ' + (bt.join(', ') || 'none') + '.' : ''].filter(Boolean).join(' ') || 'Both arches; nothing switched on.';
+  const show = Object.assign({}, d, on.sp ? {} : { upperSpaces: {}, lowerSpaces: {} }, on.bt ? {} : { upperBT: {}, lowerBT: {} });
+  const uT = t(ipr.upper), lT = t(ipr.lower);
+  return '<div class="iprMap" data-layer="' + lay + '"><div class="iprMapHd">' + head + '</div>' + iprMapSVG(on.ipr ? ipr : none, show, IPR_COL[lay], label) +
+    (on.ipr && uT + lT > 0 ? '<div class="iprMapFt"><span>Upper <b>' + mm(uT) + '</b></span><span>Lower <b>' + mm(lT) + '</b></span></div>' : '') + '</div>';
+}
+/* the New case form's look at a reading: this visit's IPR, the spaces and the black triangles in one chart */
+function iprPreviewHTML(r) {
+  const d = r && r.d; if (!d) return '';
+  const label = 'IPR this visit. Upper: ' + (noteRowsOf(d.upper).length ? listRows(noteRowsOf(d.upper)) : 'none') + '. Lower: ' + (noteRowsOf(d.lower).length ? listRows(noteRowsOf(d.lower)) : 'none') + '.';
+  return '<div class="iprMap iprPrev"><div class="iprMapHd"><span class="iprKey"><b>' + esc(iprSumText(r)) + '</b></span></div>' + iprMapSVG({ upper: d.upper, lower: d.lower }, d, IPR_COL.visit, label) + '</div>';
 }
 /* one line for the folded IPR heading: "Oct 2 visit · IPR 0.3 mm · 0.5 mm so far · spaces 0.3 mm · 1 black triangle" */
 function iprSumText(r) {
@@ -179,8 +257,9 @@ const IPR = {
     IPR.app = firebase.initializeApp(cfg, 'ipr');
     IPR.auth = IPR.app.auth(); IPR.db = IPR.app.database();
     if (IPR.emu) { IPR.auth.useEmulator('http://127.0.0.1:9099', { disableWarnings: true }); IPR.db.useEmulator('127.0.0.1', 9000); }
-    // this tab only, and signed out whenever NLO Cases locks (so it never outlives the person's session)
-    try { IPR.auth.setPersistence(firebase.auth.Auth.Persistence.SESSION); } catch (e) { }
+    // stays connected on this computer, like the IPR Tracker itself (Amir, 6 Oct 2026: staff had to reconnect after every lock);
+    // Team & security → Disconnect now signs it out
+    try { IPR.auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL); } catch (e) { }
     return true;
   },
   user() { return IPR.auth && IPR.auth.currentUser; },

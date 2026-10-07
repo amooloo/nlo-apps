@@ -235,6 +235,10 @@ async function mailMemAdd(fp) {
   const m = mailMemLoad(); m.set(await mailHash(fp), Date.now());
   try { localStorage.setItem(MAILMEM, JSON.stringify(Array.from(m, ([h, t]) => ({ h, t })).slice(-3000))); } catch (e) { }
 }
+async function mailMemDel(fp) { // (a lab order dismissed here once, and linked to a case since)
+  const m = mailMemLoad(); if (!m.delete(await mailHash(fp))) return;
+  try { localStorage.setItem(MAILMEM, JSON.stringify(Array.from(m, ([h, t]) => ({ h, t })).slice(-3000))); } catch (e) { }
+}
 /* the completed cases a lab email could be about (mailMatch: closed after the email's date, less two weeks) — those closed since
    the oldest email waiting, not every completed case; read again after half an hour */
 async function mailClosedReady(docs) {
@@ -244,14 +248,24 @@ async function mailClosedReady(docs) {
   if (m && m.days >= days && Date.now() - m.at < 30 * 60e3) return;
   try { const list = liveCases(await B.loadClosed(days)); if (S.inApp) S.mailClosed = { list, days, at: Date.now() }; } catch (e) { }
 }
+/* an opened inbox item as the app reads it: plain text and numbers only. A robot could seal anything — an object where a string
+   should be would stop every sync on every computer (security review, 6 Oct 2026) — so the known fields are taken as text */
+function plainStr(v) { return typeof v === 'string' ? v : typeof v === 'number' && isFinite(v) ? String(v) : ''; }
+function mailNorm(m) {
+  if (!m || typeof m !== 'object' || Array.isArray(m)) return null;
+  if (m.lab) return Object.assign({}, m, { lab: 1 }); // (the lab PC's: lab.js reads its own fields as carefully)
+  const n = typeof m.date === 'number' ? m.date : Number(plainStr(m.date));
+  return { box: plainStr(m.box), from: plainStr(m.from), subject: plainStr(m.subject), text: plainStr(m.text), html: plainStr(m.html), date: n > 0 && isFinite(n) ? n : 0 };
+}
 async function mailSync() {
   if (!S.inApp || !B.inboxLoad || S.firstLoad) return;
   if (MAILS.busy) { MAILS.again = true; return; }
   MAILS.busy = true;
   try {
     const docs = await B.inboxLoad(); if (!S.inApp) return;
+    docs.forEach(d => { d.mail = mailNorm(d.mail); });
     if (docs.length) await mailClosedReady(docs);
-    const open = openCases(), closed = (S.hist || []).concat(S.closed || [], (S.mailClosed && S.mailClosed.list) || []), groups = new Map(), unread = [], mem = mailMemLoad();
+    const open = openCases(), closed = (S.hist || []).concat(S.closed || [], (S.mailClosed && S.mailClosed.list) || []), groups = new Map(), unread = [], mem = mailMemLoad(), labDocs = [];
     // updates waiting for someone, one row per update however many emails carry it
     const wait = (d, i, ev, cands) => {
       const fp = mailFp(ev); let g = groups.get(fp);
@@ -260,36 +274,42 @@ async function mailSync() {
       if (!g.cands.length && cands && cands.length) g.cands = cands;
     };
     for (const d of docs) {
-      if (!d.mail) { unread.push({ d, bad: true }); continue; }
-      if (leadsMail(d.mail)) { if (Date.now() - (d.at || Date.now()) > 30 * 864e5) await B.inboxDelete(d.id).catch(() => { }); continue; }
-      const evs = mailParse(d.mail);
-      if (!evs.length) { // not a format the app reads yet: kept a month, so a newer app can still read it
-        if (Date.now() - (d.at || Date.now()) > 30 * 864e5) await B.inboxDelete(d.id).catch(() => { }); else unread.push({ d });
-        continue;
-      }
-      const done = new Set(d.done || []), add = [], todo = [];
-      for (let i = 0; i < evs.length; i++) {
-        if (done.has(i)) continue;
-        const ev = Object.assign(evs[i], { key: d.id + ':' + i, at: d.mail.date || d.at || Date.now() });
-        // dealt with already (this copy, or the same update in another email): mark it done here too, never show it again
-        const fp = mailFp(ev);
-        if (MAILS.gone.has(ev.key) || MAILS.goneFp.has(fp) || mem.has(await mailHash(fp))) { done.add(i); add.push(i); continue; }
-        const m = mailMatch(ev, open, closed);
-        if (m.c || m.done) todo.push({ i, ev, m }); else wait(d, i, ev, m.many);
-      }
-      // what can be applied is applied by one open app (the one that claims the email); the rest wait on Today
-      if (todo.length && await B.inboxClaim(d.id)) {
-        for (const { i, ev, m } of todo) {
-          let ok = !!m.done; if (m.c) { try { await mailApply(ev, m.c); ok = true; } catch (e) { ok = e && e.code === 'skip'; } }
-          if (ok) { done.add(i); add.push(i); } else wait(d, i, ev, [m.c]);
+      const old = Date.now() - (d.at || Date.now()) > 30 * 864e5;
+      // can't be opened (another key, or damaged): kept a month like a format the app doesn't read, then cleared
+      if (!d.mail) { if (old) await B.inboxDelete(d.id).catch(() => { }); else unread.push({ d, bad: true }); continue; }
+      if (d.mail.lab) { labDocs.push(d); continue; } // the lab PC's progress on the in-house sets (lab.js)
+      try {
+        if (leadsMail(d.mail)) { if (Date.now() - (d.at || Date.now()) > 30 * 864e5) await B.inboxDelete(d.id).catch(() => { }); continue; }
+        const evs = mailParse(d.mail);
+        if (!evs.length) { // not a format the app reads yet: kept a month, so a newer app can still read it
+          if (Date.now() - (d.at || Date.now()) > 30 * 864e5) await B.inboxDelete(d.id).catch(() => { }); else unread.push({ d });
+          continue;
         }
-      }
-      if (done.size >= evs.length) await B.inboxDelete(d.id).catch(() => { });
-      else if (add.length) await B.inboxDone(d.id, add).catch(() => { });
+        const done = new Set(d.done || []), add = [], todo = [];
+        for (let i = 0; i < evs.length; i++) {
+          if (done.has(i)) continue;
+          const ev = Object.assign(evs[i], { key: d.id + ':' + i, at: d.mail.date || d.at || Date.now() });
+          // dealt with already (this copy, or the same update in another email): mark it done here too, never show it again
+          const fp = mailFp(ev);
+          if (MAILS.gone.has(ev.key) || MAILS.goneFp.has(fp) || mem.has(await mailHash(fp))) { done.add(i); add.push(i); continue; }
+          const m = mailMatch(ev, open, closed);
+          if (m.c || m.done) todo.push({ i, ev, m }); else wait(d, i, ev, m.many);
+        }
+        // what can be applied is applied by one open app (the one that claims the email); the rest wait on Today
+        if (todo.length && await B.inboxClaim(d.id)) {
+          for (const { i, ev, m } of todo) {
+            let ok = !!m.done; if (m.c) { try { await mailApply(ev, m.c); ok = true; } catch (e) { ok = e && e.code === 'skip'; } }
+            if (ok) { done.add(i); add.push(i); } else wait(d, i, ev, [m.c]);
+          }
+        }
+        if (done.size >= evs.length) await B.inboxDelete(d.id).catch(() => { });
+        else if (add.length) await B.inboxDone(d.id, add).catch(() => { });
+      } catch (e) { if (window.console) console.warn('email update:', e && e.message); if (old) await B.inboxDelete(d.id).catch(() => { }); } // (one item that fails doesn't stop the rest)
     }
+    let labSig = ''; try { labSig = await labSync(labDocs, open, closed, mem); } catch (e) { if (window.console) console.warn('lab progress:', e && e.message); }
     const list = Array.from(groups.values()).filter(g => !MAILS.goneFp.has(g.fp)).sort((a, b) => (b.ev.at || 0) - (a.ev.at || 0));
     MAILS.list = list; MAILS.unread = unread;
-    const sig = list.map(x => x.id + '#' + x.items.length).join() + '|' + unread.length;
+    const sig = list.map(x => x.id + '#' + x.items.length).join() + '|' + unread.length + '|' + labSig;
     if (sig !== MAILS.sig) { MAILS.sig = sig; if (S.view === 'today' || S.view === 'admin') queueRender('team'); }
     if (isOwner()) mailOwnerChecks();
   } catch (e) { if (window.console) console.warn('email updates:', e && e.message); }
@@ -355,7 +375,7 @@ function mailAdminHTML() {
   if (!st) return head + '<div class="small muted">Loading…</div></div></div>';
   const how = '<p class="small" style="margin-bottom:10px">A small script in each Gmail account that gets lab emails (yours and the records inbox) sends them — uLab, Partners Dental Solutions, Specialty Appliances, Oliv, Angel and anything labeled “Lab Update” — to this app, locked so only the app can read them. When anyone has NLO Cases open, cases move on by themselves: plan ready → Dr. A action, received by the lab → Manufacturing, shipped → Shipped with the tracking #, delivered → Arrived, on hold → a Lab hold flag. Anything it can’t place shows on Today.</p>';
   if (!st.on) return head + how + '<button class="btn btn-act btn-sm" data-act="mailSetup">' + ic('plus', 15) + 'Set up email updates</button></div></div>';
-  const beats = (st.beats || []).slice().sort((a, b) => (b.at || 0) - (a.at || 0));
+  const beats = (st.beats || []).filter(b => !labBeat(b)).sort((a, b) => (b.at || 0) - (a.at || 0)); // (the lab PC's are under Lab PC)
   const box = b => { const late = !b.at || Date.now() - b.at > 40 * 60000;
     return '<div class="mlBeat"><span class="dot ' + (b.err ? 'bad' : late ? 'busy' : 'ok') + '"></span><b>' + esc(b.box) + '</b><span class="small muted">checked ' + esc(b.at ? fmtWhen(b.at) : '—') + (b.sent ? ' · ' + b.sent + ' sent' : '') + (b.ver ? ' · script v' + esc(b.ver) : '') + '</span>' +
       (b.err ? '<div class="small" style="color:var(--coral-700);flex-basis:100%">Last problem: ' + esc(b.err) + '</div>' : late ? '<div class="small" style="color:var(--amber-700);flex-basis:100%">No check in the last 40 minutes. Is the script still on?</div>' : '') + '</div>'; };

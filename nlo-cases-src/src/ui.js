@@ -27,6 +27,7 @@ const IC = {
   search: '<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
   next: '<path d="M9 6l6 6-6 6"/>',
+  back: '<path d="M15 6l-6 6 6 6"/>',
   x: '<path d="M6 6l12 12M18 6L6 18"/>',
   trash: '<path d="M4.5 7h15M9.5 7V4.8h5V7M6.5 7l1 12.5h9l1-12.5"/>',
   shield: '<path d="M12 3l7 2.8v5.5c0 4.4-3 7.5-7 9.2-4-1.7-7-4.8-7-9.2V5.8z"/><path d="M9.2 12l2 2 3.6-3.8"/>',
@@ -42,7 +43,9 @@ const IC = {
   collapse: '<path d="M7 4l5 5 5-5M7 20l5-5 5 5"/>',
   alert: '<path d="M12 4.2l8.6 15.3H3.4z"/><path d="M12 10v4.3M12 16.9v.1"/>',
   chart: '<path d="M4 20.5h16"/><path d="M7 16.5v-5M12 16.5V5.5M17 16.5v-8"/>',
-  copy: '<rect x="8.5" y="8.5" width="11" height="11" rx="2"/><path d="M15.5 8.5V6A1.5 1.5 0 0014 4.5H6A1.5 1.5 0 004.5 6v8A1.5 1.5 0 006 15.5h2.5"/>'
+  copy: '<rect x="8.5" y="8.5" width="11" height="11" rx="2"/><path d="M15.5 8.5V6A1.5 1.5 0 0014 4.5H6A1.5 1.5 0 004.5 6v8A1.5 1.5 0 006 15.5h2.5"/>',
+  // the lab PC (Ortho Factory): a 3D printer's frame, its build plate and a part on it
+  lab: '<path d="M4.5 20.5V4.5h15v16"/><path d="M4.5 8h15"/><path d="M10 8v2.5h4V8"/><path d="M7.5 17h9"/><path d="M9.5 17v-3h5v3"/>'
 };
 function ic(n, s) { s = s || 18; return '<svg class="i" width="' + s + '" height="' + s + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (IC[n] || '') + '</svg>'; }
 
@@ -96,6 +99,7 @@ function boot() {
   phInit();
   try { S.lastLogin = localStorage.getItem('nloCases.lastLogin') || ''; } catch (e) { }
   document.addEventListener('click', onClick);
+  document.addEventListener('visibilitychange', iprBack); window.addEventListener('focus', iprBack); // back from the IPR Tracker
   document.addEventListener('change', onChange);
   document.addEventListener('input', onInput);
   document.addEventListener('keydown', e => {
@@ -275,6 +279,7 @@ function enterApp() {
       const first = S.firstLoad; S.firstLoad = false; queueRender();
       if (first) setTimeout(mailSync, 300); // lab emails that came in while nobody had the app open
       if (first) setTimeout(iprAutoSync, 1500); // the IPR Tracker, for every patient at once, when the link is still on in this tab
+      else if (LABS.list.length && up.some(c => c.type === 'nla')) labSoon(); // a lab order waiting on Today may fit a case just added or changed (lab.js)
       if (S.openId && (up.some(c => c.id === S.openId) || gone.includes(S.openId))) { const rd = () => { if (S.openId) refreshDrawer(gone.includes(S.openId)); }; if (!afterPress(rd)) rd(); }
     },
     inbox() { mailSync(); },
@@ -340,8 +345,9 @@ async function lockOut(msg) {
   S.cases = new Map(); S.closed = []; histReset(); wkReset(); dupReset(); S.members = []; S.roster = []; S.iprCache = {}; S.verList = null; S.delList = null; S.impList = null; S.bk = null;
   Object.assign(MAILS, { list: [], unread: [], pick: {}, sig: '', state: null, stateAt: 0, script: '', gone: new Set(), goneFp: new Set(), hk: null, mem: null });
   phReset(); rxReset(); SH.data = null; SH.err = '';
+  labReset(); // (lab orders waiting, the lab PC's setup code — lab.js)
   { const ts = $('#toasts'); if (ts) ts.innerHTML = ''; } // a toast's Copy chart note / Download PDF is for the case on screen
-  try { await iprLink().disconnect(); } catch (e) { }
+  // (the IPR Tracker link stays connected on this computer — Amir, 6 Oct 2026; what it read is dropped with S.iprCache above)
   $('#view').innerHTML = '';
   await B.signOut();
   lockScreen('login', { ok: msg });
@@ -572,6 +578,15 @@ function dateChip(c, x, none, split) {
   return '<span class="due"' + tip + '>' + (z ? i : '') + w + ' ' + esc(fmtDate(x.d) + on) + '</span>';
 }
 /* ---------- flags: ship to patient (an alert wherever the case shows), one-click tracking, MARPE records ---------- */
+/* a case added with Quick add whose details aren't in yet (Amir, 6 Oct 2026: "an option for quick add where they can enter the basics
+   and then we can add to it later") */
+function quickFlag(c) { return c && c.quick && c.status !== 'done' ? '<span class="flag quickF" title="Added with Quick add — the rest of the details still need to go in">' + ic('edit', 13) + 'Finish details</span>' : ''; }
+function quickNoticeHTML(c) {
+  if (!c.quick || c.status === 'done') return '';
+  return '<div class="notice quickN" role="note">' + ic('edit', 18) + '<div class="quickNB"><div><b>Finish details</b> — added with Quick add' + (c.createdBy ? ' by ' + esc(firstName(staffName(c.createdBy, ''))) : '') +
+    (c.createdAt ? ' ' + esc(fmtWhen(c.createdAt)) : '') + '. The rest of the details aren’t in yet.</div><div class="quickNBtns"><button type="button" class="btn btn-pri btn-sm" data-act="quickFinish">' + ic('edit', 15) + 'Finish details</button>' +
+    '<button type="button" class="btn btn-ghost btn-sm" data-act="quickDone" title="Take the tag off: this case doesn’t need more">Nothing more to add</button></div></div></div>';
+}
 function shipFlag(c, short) { return c.shipToPatient ? '<span class="flag ship" title="Ship to patient">' + ic('truck', 13) + (short ? 'Ship' : 'Ship to patient') + '</span>' : ''; }
 function trackLinks(c) {
   return trackList(c).filter(t => t.url).map(t => '<a class="flag trk" data-act="track" href="' + esc(t.url) + '" target="_blank" rel="noopener noreferrer" title="Track ' + esc((t.carrier ? t.carrier + ' ' : '') + t.n) + '">' +
@@ -972,7 +987,7 @@ function asgKey(e) {
   return false;
 }
 function row(c, meta) {
-  const sw = shipWarnFlag(c) + dupFlag(c); // (Not shipped, Possible duplicate: on their own line under the name, so a narrow column doesn't cut the name short)
+  const sw = quickFlag(c) + shipWarnFlag(c) + dupFlag(c); // (Finish details, Not shipped, Possible duplicate: on their own line under the name, so a narrow column doesn't cut the name short)
   return '<button class="row" data-act="open" data-id="' + esc(c.id) + '">' + ptAv(c, 36) +
     '<span class="grow"><span class="pt">' + ptName(c.patient) + '</span>' + (sw ? '<span class="rFlag">' + sw + '</span>' : '') + '<span class="meta">' + esc(meta != null ? meta : (typeOf(c).l + ' · ' + stageLabel(c) + (c.detail ? ' · ' + c.detail : ''))) + '</span></span>' + shipFlag(c, true) + dueChip(c) + avatar(c) + '</button>';
 }
@@ -999,7 +1014,9 @@ function viewToday() {
   const right = '<div class="card"><div class="cardHd"><h3>Needs Dr. A</h3><span class="sub">' + dr.length + ' waiting</span></div><div class="cardBd">' +
     (dr.length ? dr.map(x => row(x)).join('') : '<div class="empty">Nothing waiting on Dr. A.</div>') + '</div></div>' +
     (noDate ? '<div class="card" style="margin-top:14px"><div class="cardBd" style="padding:14px 20px"><button class="linkBtn" data-act="tile" data-f="none">' + noDate + ' open case' + (noDate > 1 ? 's have' : ' has') + ' no lab date or delivery appt</button></div></div>' : '');
-  return h + backupDueHTML() + mailCardHTML() + cleanupCardHTML(all) + '<div class="twoCol"><div>' + left + '</div><div>' + right + '</div></div>';
+  const qk = openCases().filter(x => x.quick).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+  const quickCard = qk.length ? '<div class="card quickCard"><div class="cardHd"><h3>Finish details</h3><span class="sub">' + qk.length + ' case' + (qk.length > 1 ? 's' : '') + ' added with Quick add — open one and tap Finish details</span></div><div class="cardBd">' + qk.map(x => row(x)).join('') + '</div></div>' : '';
+  return h + backupDueHTML() + quickCard + mailCardHTML() + labWaitHTML() + cleanupCardHTML(all) + '<div class="twoCol"><div>' + left + '</div><div>' + right + '</div></div>';
 }
 
 /* ---------- Board ---------- */
@@ -1030,13 +1047,14 @@ function kcard(c, last, steps) {
   const mixed = S.boardFlow === 'outside' || S.boardFlow === 'inhouse' || S.boardFlow === 'retainer';
   // appliances and MARPE: the lab's logo on every card (the lab differs from card to card even on their own tabs)
   const labbed = (c.type === 'appliance' || c.type === 'marpe') && !!LAB_LOGO[labName(c.lab)];
-  const flags = shipWarnFlag(c) + dupFlag(c) + shipFlag(c) + recFlag(c) + holdFlag(c);
+  const flags = quickFlag(c) + shipWarnFlag(c) + dupFlag(c) + shipFlag(c) + recFlag(c) + holdFlag(c);
   // the arrow names where it goes ("Move to TxP approved")
   const nx = last ? null : nextStage(c), shipsNext = !!nx && !!shipEnd(c) && nx === shipEnd(c);
   const tip = last ? 'Mark complete' : shipsNext ? 'Shipped to the patient — completes the case' : nx ? 'Move to ' + stageLabel(Object.assign({}, c, { stage: nx })) : 'Move to next stage';
   return '<div class="kc" data-act="open" data-id="' + esc(c.id) + '" role="button" tabindex="0">' +
     '<div class="kHd">' + ptAv(c, 32) + '<div class="pt">' + ptName(c.patient) + '</div></div>' + (c.detail || alN(c) ? '<div class="dt">' + esc(c.detail || '') + alignerMini(c) + '</div>' : '') +
     (flags ? '<div class="flags">' + flags + '</div>' : '') +
+    labCardHTML(c) + // in-house: where the set is in the lab (Ortho Factory, from the lab PC), and its next step with one tap (lab.js)
     (steps ? '<div class="kstep">' + progHTML(c, steps) + '<div><b>' + esc(stageLabel(c)) + '</b><span>' + (steps.indexOf(c.stage) + 1) + ' of ' + steps.length + '</span></div></div>' : '') +
     '<div class="ft">' + (mixed || labbed ? typeMark(c, true) : '') + dueChip(c) + trackLinks(c) + asgBtnHTML(c, true) +
     '<button class="adv" data-act="' + (last ? 'complete' : 'advance') + '" data-id="' + esc(c.id) + '" title="' + esc(tip) + '" aria-label="' + esc(tip) + '">' + ic(last ? 'done' : 'next', 17) + '</button></div></div>';
@@ -1291,7 +1309,7 @@ function listBodyHTML(base) {
       (on('notes') ? th('notes', 'Notes', 'hideM noteCol') : '') + (on('lab') ? th('lab', 'Lab date', 'hideM dateCol') : '') + (on('appt') ? th('appt', 'Delivery appt', 'hideM dateCol') : '') + (on('tx') ? th('tx', 'Tx progress', 'hideM txCol') : '') + (on('cost') ? th('cost', 'Tx cost', 'hideM txCol') : '') +
       (on('ship') ? th('ship', 'Shipping', 'hideM') : '') + (on('who') ? th('who', 'Assigned', 'hideM') : '') + (on('updated') ? th('updated', 'Updated', 'hideM') : '') + '</tr></thead><tbody>' +
     list.map(c => { const g = stageGroup(flowOf(c), c.stage), ship = on('ship') ? shipFlag(c) + trackLinks(c) : '';
-      const df = dupFlag(c);
+      const df = quickFlag(c) + dupFlag(c);
       return '<tr class="click" data-act="open" data-id="' + esc(c.id) + '" tabindex="0"><td><div class="ptCell">' + ptAv(c, 36) + '<div class="ptTxt"><div class="pt">' + ptName(c.patient) + '</div><div class="small muted">' + esc(c.detail || '') + alignerMini(c) + '</div>' +
       (ship ? '<div class="flags onlyM">' + ship + '</div>' : '') + (on('stage') ? '' : (shipWarn(c) || df ? '<div class="flags">' + shipWarnFlag(c) + df + '</div>' : '') + dateM(c)) + (on('notes') ? noteMobHTML(c) : '') + '</div></div></td>' +
       (on('type') ? '<td class="hideM">' + typeMark(c) + '</td>' : '') +
@@ -1332,7 +1350,7 @@ async function loadClosed() {
 /* ---------- Drawer ---------- */
 function findCase(id) { return S.cases.get(id) || S.closed.find(c => c.id === id); }
 function openDrawer(id) {
-  S.openId = id; S.editing = false; S.history = null; S.dsTog = new Map(); S.wtyRedraw = false; // each case opens folded (or all open, see dsAllMode)
+  S.openId = id; S.editing = false; S.editWiz = null; S.history = null; S.dsTog = new Map(); S.wtyRedraw = false; // each case opens folded (or all open, see dsAllMode)
   if (!$('#drawer')) {
     const scrim = document.createElement('div'); scrim.id = 'scrim'; scrim.dataset.act = 'closeDrawer'; document.body.appendChild(scrim);
     const d = document.createElement('aside'); d.id = 'drawer'; d.setAttribute('role', 'dialog'); d.setAttribute('aria-modal', 'true'); d.setAttribute('aria-label', 'Case'); document.body.appendChild(d);
@@ -1342,7 +1360,7 @@ function openDrawer(id) {
 function closeDrawer(force) {
   if (!force && S.editing && editDirty() && !confirm('Discard your changes?')) return;
   wtyFlush(); S.wtyRedraw = false; // a Specialty invoice date typed and not yet saved (warranty.js)
-  S.openId = null; S.editing = false; const d = $('#drawer'), s = $('#scrim'); if (d) d.remove(); if (s) s.remove();
+  S.openId = null; S.editing = false; S.editWiz = null; const d = $('#drawer'), s = $('#scrim'); if (d) d.remove(); if (s) s.remove();
 }
 function refreshDrawer(gone) {
   if (!S.openId) return;
@@ -1360,15 +1378,18 @@ async function loadHistory(id) {
   try { const h = await B.caseLog(id); if (S.openId === id && seq > (S.histShown || 0)) { S.histShown = seq; S.history = h; S.histRev = rev0; const el = $('#histBox'); if (el) el.innerHTML = historyHTML(findCase(id)); wtyRefresh(id); stageMarksPaint(findCase(id));
     const c = findCase(id); if (c && String(c.notes || '').trim() && !notesAuthor(c)) { noteAuthKeep(c, h); noteByPaint(); } } } catch (e) { }
 }
-const FIELD_LABELS = { rx: 'Herbst Rx', rxRet: 'Retainer Rx', rxMet: 'Metal Rx', rxFun: 'Functional Rx', invDate: 'invoice date', noGuarantee: 'No Guarantee', photo: 'photo', labRef: 'lab case #', labHold: 'lab hold', planUrl: 'plan link', shipToPatient: 'ship to patient', records: 'records on file', zoomDate: 'Zoom call', zoomTime: 'Zoom call', tracking: 'tracking #', carrier: 'carrier', teeth: 'tooth chart', teethNote: 'tooth chart', chart: 'chart #', titanUrl: 'Titan link', initial: 'initial/refinement', appliances: 'appliance', lab: 'lab', arches: 'arch', retKinds: 'retainer type', goals: 'Dr. A’s instructions', instrPicks: 'Dr. A’s instructions', instrOther: 'Dr. A’s instructions', extras: 'extras', variant: 'case type', type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery appt', deliveryTime: 'appt time', txStart: 'treatment start', txEnd: 'expected removal', acrylic: 'acrylic color', glitter: 'acrylic color', alU: 'aligners', alL: 'aligners', aligners: 'aligners', atTemplates: 'attachment templates', treatArch: 'arches to treat', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes', iprSnap: 'IPR chart (from the IPR Tracker)', refN: 'refinement #', remake: 'remake', scanOnFile: 'scan on file' };
+const FIELD_LABELS = { labOrd: 'lab progress', labNot: 'lab order', quick: 'Quick add tag', rx: 'Herbst Rx', rxRet: 'Retainer Rx', rxMet: 'Metal Rx', rxFun: 'Functional Rx', invDate: 'invoice date', noGuarantee: 'No Guarantee', photo: 'photo', labRef: 'lab case #', labHold: 'lab hold', planUrl: 'plan link', shipToPatient: 'ship to patient', records: 'records on file', zoomDate: 'Zoom call', zoomTime: 'Zoom call', tracking: 'tracking #', carrier: 'carrier', teeth: 'tooth chart', teethNote: 'tooth chart', chart: 'chart #', titanUrl: 'Titan link', initial: 'initial/refinement', appliances: 'appliance', lab: 'lab', arches: 'arch', retKinds: 'retainer type', goals: 'Dr. A’s instructions', instrPicks: 'Dr. A’s instructions', instrOther: 'Dr. A’s instructions', extras: 'extras', variant: 'case type', type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery appt', deliveryTime: 'appt time', txStart: 'treatment start', txEnd: 'expected removal', acrylic: 'acrylic color', glitter: 'acrylic color', alU: 'aligners', alL: 'aligners', aligners: 'aligners', atTemplates: 'attachment templates', treatArch: 'arches to treat', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes', iprSnap: 'IPR chart (from the IPR Tracker)', refN: 'refinement #', remake: 'remake', scanOnFile: 'scan on file' };
 function historyHTML(c) {
   const h = S.history; if (!h) return '<div class="small muted">Loading…</div>'; if (!h.length) return '<div class="small muted">No history yet.</div>';
   const stageName = k => { const s = c && (caseStages(c).find(x => x[0] === k) || flowOf(c).stages.find(x => x[0] === k)); return s ? s[1] : (c && retiredStageLabel(c, k)) || k; };
   const shipped = x => x.close ? ' and marked it complete (shipped to the patient)' : '';
-  return h.filter(x => x.a !== 'rekey' && x.a !== 'save').reverse().map(x => {
+  // (the lab PC's readings in between — "printed 9 of 22" — aren't listed; when it links an order, fills in counts, or a step is done for every aligner, they are)
+  const labShown = x => x.a !== 'lab' || x.first || x.unlink || x.relink || x.step || (x.fields || []).length;
+  return h.filter(x => x.a !== 'rekey' && x.a !== 'save' && labShown(x)).reverse().map(x => {
     let t = '';
     if (x.a === 'create') t = 'created the case'; else if (x.a === 'import') t = 'imported it from Asana';
-    else if (x.a === 'stage') t = 'moved it to ' + stageName(x.to) + ((x.fields || []).length ? ' (and set ' + Array.from(new Set(x.fields.map(f => FIELD_LABELS[f] || f))).join(', ') + ')' : '') + shipped(x);
+    else if (x.a === 'stage') t = 'moved it to ' + stageName(x.to) + ((x.fields || []).length ? ' (and set ' + Array.from(new Set(x.fields.map(f => FIELD_LABELS[f] || f))).join(', ') + ')' : '') + shipped(x) + (x.via === 'lab' ? ', as the lab PC suggested' : '');
+    else if (x.a === 'lab') t = labHistText(x);
     else if (x.a === 'comment') t = 'added a comment';
     else if (x.a === 'close') t = 'marked it complete'; else if (x.a === 'reopen') t = 'reopened it';
     else if (x.a === 'assign') t = x.to ? 'assigned it to ' + staffName(x.to, x.to) : 'unassigned it';
@@ -1381,7 +1402,7 @@ function historyHTML(c) {
       t = (x.to ? 'moved it to ' + stageName(x.to) + (f.length ? ' and saved the ' : '') : f.length ? 'saved the ' : 'updated it') + f.join(', ') + shipped(x);
     }
     else t = x.a;
-    const who = x.a === 'email' ? ((MAIL_CO[x.co] || {}).l || 'Lab') + ' email' : (firstName(staffName(x.sid, x.sid)) || x.sid);
+    const who = x.a === 'email' ? ((MAIL_CO[x.co] || {}).l || 'Lab') + ' email' : x.a === 'lab' && !x.hand && !x.unlink && !x.relink ? 'Lab PC' : (firstName(staffName(x.sid, x.sid)) || x.sid);
     return '<div class="hist"><time>' + esc(fmtWhen(x.at)) + '</time><span><b>' + esc(who) + '</b> ' + esc(t) + '</span></div>';
   }).join('');
 }
@@ -1390,9 +1411,17 @@ function renderDrawer() {
   if (S.editing) { // the patient's name stays big at the top while editing (Amir), and follows the name field as it's typed
     d.innerHTML = '<div class="dHd dEdit">' + ptAv(c, 64) + '<div style="flex:1;min-width:0"><div class="dEditLbl">' + ic('edit', 13) + 'Editing case</div><h3 id="dEditName">' + esc(c.patient || '(no name)') + '</h3>' +
       '<div class="sub">' + typeBadge(c) + (c.detail ? '<span class="small muted">' + esc(c.detail) + '</span>' : '') + '</div></div><button class="iconBtn" data-act="closeDrawer" aria-label="Close">' + ic('x') + '</button></div>' +
+    // Finish details on a Quick add case: the same form, in the New case steps (from Case on), and Save takes the tag off
+    (S.editWiz ? '<div class="dWiz"><ol class="wizBar" id="dWizBar" aria-label="Steps"></ol></div>' : '') +
     '<div class="dBd"><div id="drawerNotice"></div>' + caseFormHTML(S.editBase, false) + '</div>' +
-    '<div class="dFt"><button class="btn btn-pri" data-act="saveEdit">Save changes</button><button class="btn btn-sec" data-act="cancelEdit">Cancel</button></div>';
+    (S.editWiz ? '<div class="dFt wizFt"><button class="btn btn-sec" data-act="cancelEdit">Cancel</button><span class="wizSp"></span><button class="btn btn-sec" type="button" id="dWizBack">' + ic('back', 16) + 'Back</button>' +
+      '<button class="btn btn-pri" type="button" id="dWizNext">Next' + ic('next', 16) + '</button><button class="btn btn-teal" data-act="saveEdit" id="dWizSave">' + ic('done', 16) + 'Save details</button></div>'
+      : '<div class="dFt"><button class="btn btn-pri" data-act="saveEdit">Save changes</button><button class="btn btn-sec" data-act="cancelEdit">Cancel</button></div>');
     d.dataset.mode = 'edit'; wireCaseForm(d, false); phPaint(); savPaint(d);
+    if (S.editWiz) { const bd = $('.dBd', d);
+      wizInit(d, { mode: 'finish', start: S.editWiz, bar: () => $('#dWizBar', d), errBox: () => $('#drawerNotice', d),
+        btns: () => ({ back: $('#dWizBack', d), next: $('#dWizNext', d), save: $('#dWizSave', d) }), top: () => { if (bd) bd.scrollTop = 0; } });
+      $('#dWizNext', d).onclick = () => wizNext(d); $('#dWizBack', d).onclick = () => wizBack(d); }
     const nm = $('#cf-patient', d), hd = $('#dEditName', d); if (nm && hd) nm.addEventListener('input', () => { hd.textContent = nm.value.trim() || '(no name)'; });
     return; }
   if (c.locked) {
@@ -1430,6 +1459,7 @@ function renderDrawer() {
     (done ? '<div class="notice info">Completed ' + esc(fmtWhen(c.closedAt)) + '</div>' : '') +
     (c.shipToPatient ? '<div class="notice ship" role="note">' + ic('truck', 18) + '<span><b>Ship to patient</b></span></div>' : '') +
     (!done && shipWarn(c) ? (x => '<div class="notice noship ' + x.lv + '" role="note">' + ic(x.lv === 'late' ? 'alert' : 'truck', 18) + '<span><b>' + shipWarnLabel(x) + '</b> — ' + esc(shipWarnWhy(c, x)) + '</span></div>')(shipWarn(c)) : '') +
+    quickNoticeHTML(c) + // added with Quick add: Finish details
     dupNoticeHTML(c) + // another open case that looks like this one (dupes.js)
     (isHeld(c) ? '<div class="notice bad mpOld" role="note"><span><b>' + esc(holdText(c)) + '</b></span>' + (done ? '' : '<button class="btn btn-sec btn-sm" data-act="clearHold">Hold is sorted out</button>') + '</div>' : '') +
     // a MARPE entered (or imported) as an appliance before MARPE had its own steps: one click moves it over
@@ -1448,6 +1478,8 @@ function renderDrawer() {
       '<div class="stepper">' + caseStages(c).map(([k, l], i) => { const g = stageGroup(flow, k);
         return (g && g.stages[0] === k ? '<div class="stepGrp' + (i <= si ? ' d' : '') + '">' + esc(g.l) + '</div>' : '') +
         '<button class="step ' + (i < si ? 'past' : i === si ? 'cur' : '') + (g ? ' sub' : '') + '" data-act="setStage" data-k="' + k + '"' + (done ? ' disabled' : '') + ' aria-pressed="' + (i === si) + '"><span class="n">' + (i < si ? '✓' : i + 1) + '</span>' + esc(l) + stageMarkHTML(marks[k]) + '</button>'; }).join('') + '</div>') +
+    // in-house: the set in Ortho Factory, from the lab PC — the step it's ready for is on the heading, one tap (lab.js)
+    (c.type === 'nla' && c.labOrd && c.labOrd.key ? dsec('lab', 'Lab', labSumHTML(c), labBoxHTML(c), done ? '' : labGoHTML(c, true)) : '') +
     (flow === FLOWS.marpe ? dsec('marpe', 'MARPE', marpeSum(c), marpeBoxHTML(c, done)) : '') +
     dsec('details', 'Details', (who ? 'Assigned to <b>' + esc(who) + '</b>' : 'Unassigned') + (!done && dueOf(c) ? ' · ' + dueChip(c) : c.deliveryDate ? ' · ' + delWord(c) + ' ' + esc(fmtDate(c.deliveryDate)) : ''),
       '<div class="kv">' +
@@ -1469,12 +1501,12 @@ function renderDrawer() {
     wtySecHTML(c) +
     (c.type === 'nla' ? dsec('tx', 'Treatment', txSumHTML(c), '<div id="txBox">' + txBoxHTML(c) + '</div>') : '') +
     (c.type === 'nla' ? dsec('aligners', 'Aligners', nAl ? '<b>' + nAl + '</b> aligners in this set' + (c.alU || c.alL ? ' (' + (one === 'U' ? 'U ' + (c.alU || 0) + ' · upper only' : one === 'L' ? 'L ' + (c.alL || 0) + ' · lower only' : 'U ' + (c.alU || 0) + ' · L ' + (c.alL || 0)) + ')' : '') : 'Aligner counts not entered yet',
-      '<div id="alBox">' + alignerTotalHTML(c, false) + '</div>') : '') +
+      labCountsNote(c) + '<div id="alBox">' + alignerTotalHTML(c, false) + '</div>') : '') +
     // (retainers & whitening trays: the bag label, which then offers to complete the case (Amir, 2 Oct 2026), is Print labels in the header)
     (c.instructions ? dsec('instr', 'Dr. A’s instructions', oneLine(c.instructions), txt(c.instructions)) : '') +
     (hasTeeth ? dsec('teeth', 'Tooth chart', oneLine(teethSummary(c.teeth)), '<div class="tc ro">' + toothChartHTML(c.teeth, true) + '</div><div class="txt" style="margin-top:8px">' + esc(teethSummary(c.teeth)) + '</div>') : '') +
     // one IPR section: the IPR Tracker's chart for this chart # (the typed "IPR & spacing" and "From the IPR Tracker" were the same thing twice)
-    (iprLive(c) || String(c.ipr || '').trim() ? dsec('ipr', 'IPR & spacing', iprSumHTML(c), '<div id="iprBox">' + iprBoxHTML(c) + '</div>') : '') +
+    (iprLive(c) || String(c.ipr || '').trim() ? dsec('ipr', 'IPR & spacing', iprSumHTML(c), '<div id="iprBox">' + iprBoxHTML(c) + '</div>', '', iprPinned(c)) : '') +
     (c.notes ? dsec('notes', 'Notes', oneLine(c.notes), txt(c.notes) + noteByHTML(c)) : '') + // (and who wrote it, 5 Oct 2026)
     dsec('comments', 'Comments', lastC ? (cmts.length > 1 ? cmts.length + ' · ' : '') + '<b>' + esc(firstName(staffName(lastC.by, lastC.by))) + ':</b> ' + esc(String(lastC.text || '').replace(/\s+/g, ' ')) : '<span class="muted">None yet</span>',
       (cmts.map(x => '<div class="cmt"><span class="av" data-sav="' + esc(x.by || '') + '">' + esc(initials(staffName(x.by, x.by))) + '</span><div><div class="w"><b>' + esc(firstName(staffName(x.by, x.by))) + '</b> · ' + esc(fmtWhen(x.at)) + '</div><div style="white-space:pre-wrap;overflow-wrap:anywhere">' + esc(x.text) + '</div></div></div>').join('') || '<div class="small muted" style="margin-bottom:6px">No comments yet.</div>') +
@@ -1620,10 +1652,12 @@ const DS_KEY = 'nloCases.panelOpen';
 function dsAllMode() { if (S.dsAll == null) { try { S.dsAll = localStorage.getItem(DS_KEY) === 'all'; } catch (e) { S.dsAll = false; } } return S.dsAll; }
 function dsSetAllMode(on) { S.dsAll = !!on; try { if (on) localStorage.setItem(DS_KEY, 'all'); else localStorage.removeItem(DS_KEY); } catch (e) { } }
 function dsIsOpen(k) { return S.dsTog && S.dsTog.has(k) ? S.dsTog.get(k) : dsAllMode(); }
-/* `title` is plain text; `sum` (the folded line) and `body` are markup; `act` = a button that works while folded (Copy) */
-function dsec(k, title, sum, body, act) {
-  const o = dsIsOpen(k);
-  return '<section class="ds' + (o ? ' open' : '') + '" data-ds="' + k + '"><div class="dsHd"><button type="button" class="dsTg" data-act="dsTg" aria-expanded="' + o + '" aria-controls="ds-' + k + '">' +
+/* `title` is plain text; `sum` (the folded line) and `body` are markup; `act` = a button that works while folded (Copy);
+   `pin` = open even when the case is folded and through Collapse all (the IPR chart, Amir 6 Oct 2026: "even in the collapse mode
+   the IPR tracker graph should be expanded") — a tap on its heading still folds it for that case */
+function dsec(k, title, sum, body, act, pin) {
+  const o = pin && !(S.dsTog && S.dsTog.has(k)) ? true : dsIsOpen(k);
+  return '<section class="ds' + (o ? ' open' : '') + (pin ? ' pin' : '') + '" data-ds="' + k + '"><div class="dsHd"><button type="button" class="dsTg" data-act="dsTg" aria-expanded="' + o + '" aria-controls="ds-' + k + '">' +
     '<span class="dsCh">' + ic('next', 16) + '</span><span class="dsT">' + esc(title) + '</span><span class="dsS" id="dsS-' + k + '">' + (sum || '') + '</span></button>' + (act || '') + '</div>' +
     '<div class="dsBd" id="ds-' + k + '"' + (o ? '' : ' hidden') + '>' + body + '</div></section>';
 }
@@ -1638,7 +1672,7 @@ function dsShow(sec, on) {
 /* the header button says what it will do: Expand all unless every section is already open */
 function dsAllSync() {
   const d = $('#drawer'), b = d && $('.dAll', d); if (!b) return;
-  const secs = $$('.ds:not(.line)', d), all = secs.length > 0 && secs.every(s => s.classList.contains('open'));
+  const secs = $$('.ds:not(.line):not(.pin)', d), all = secs.length > 0 && secs.every(s => s.classList.contains('open'));
   b.innerHTML = ic(all ? 'collapse' : 'expand', 16) + '<span class="t">' + (all ? 'Collapse all' : 'Expand all') + '</span>';
   b.dataset.all = all ? '1' : '0'; b.setAttribute('aria-label', all ? 'Collapse all sections' : 'Expand all sections');
 }
@@ -1665,14 +1699,14 @@ function marpeBoxHTML(c, done) {
     (recordsMissing(c).length && stageIndex(c) <= 0 && !done ? '<div class="small muted mpHint">Both have to be on file before it moves to Submitted to lab.</div>' : '') + '</div>';
 }
 /* before a stage move goes through, ask for what it needs (see stageNeeds); `extra` = fields already collected */
-function stageGateModal(c, to, needs, extra) {
+function stageGateModal(c, to, needs, extra, via) {
   const lbl = (flowOf(c).stages.find(s => s[0] === to) || [0, to])[1], r = extra.records || c.records || [], one = oneArch(c);
   openModal('<h3>' + esc(lbl) + '</h3><div class="lsub">' + esc((c.patient || '') + ' · ' + typeOf(c).l) + '</div>' +
     (needs.includes('records') ? '<div class="gate" id="gRecs"><b>Before it goes to the lab, both have to be on file:</b>' + MARPE_RECORDS.map(([k, l]) =>
       '<label class="gateRow"><input type="checkbox" data-rec="' + k + '"' + (r.includes(k) ? ' checked' : '') + '>' + esc(l) + '</label>').join('') + '</div>' : '') +
     (needs.includes('zoom') ? '<div class="gate"><b>When is the Zoom call?</b><div class="zoomRow"><div class="field"><label for="gZoomDate">Date</label><input type="date" id="gZoomDate"></div>' +
       '<div class="field"><label for="gZoomTime">Time</label><input type="time" id="gZoomTime"></div></div></div>' : '') +
-    // in-house: the aligners in this set (from Titan) and any attachment templates, as it reaches TxP approved (or Export STLs)
+    // in-house: the aligners in this set (from Titan) and any attachment templates, as it reaches TxP approved
     // (one arch only: just that arch's count, and the template answers that fit it)
     (needs.includes('aligners') ? '<div class="gate" id="gAl"><b>How many aligners in this set? <span class="h5n">from Titan' + (one ? ' · ' + esc(treatArchLabel(one).toLowerCase()) : '') + '</span></b><div class="alRow">' +
       (one === 'L' ? '' : '<div class="field"><label for="gAlU">Upper aligners</label><input id="gAlU" type="number" inputmode="numeric" min="0" max="99" step="1" placeholder="0" value="' + esc(c.alU || '') + '"></div>') +
@@ -1692,7 +1726,7 @@ function stageGateModal(c, to, needs, extra) {
         if ($('#gRecs', w)) add.records = MARPE_RECORDS.map(x => x[0]);
         if (zd) { add.zoomDate = zd.value; add.zoomTime = $('#gZoomTime', w).value || ''; }
         if (al) { const u = n('#gAlU'), l = n('#gAlL'); add.alU = u || ''; add.alL = l || ''; add.aligners = u + l || ''; add.atTemplates = atV(); }
-        closeModal(); moveStage(c.id, to, add, needs);
+        closeModal(); moveStage(c.id, to, add, needs, via);
       };
     });
 }
@@ -1797,7 +1831,7 @@ function iprSumHTML(c) {
 function iprBoxHTML(c) {
   const x = iprRead(c), saved = String(c.ipr || '').trim();
   const savedBox = saved ? '<div class="iprSaved"><div class="k">IPR note saved on the case <span>(used in the chart note)</span></div><div class="txt">' + esc(saved) + '</div></div>' : '';
-  const open = '<a class="btn btn-ghost" href="' + IPR_URL + '" target="_blank" rel="noopener">' + ic('ext', 14) + 'Open IPR Tracker</a>';
+  const open = '<a class="btn btn-ghost" href="' + esc(iprDeepUrl(c.chart, c.patient)) + '" target="_blank" rel="noopener" data-act="iprOpen">' + ic('ext', 14) + (c.chart ? 'Enter IPR in the IPR Tracker' : 'Open IPR Tracker') + '</a>';
   const msg = (t, plain) => '<div class="small' + (plain ? '' : ' muted') + ' iprMsg">' + t + '</div>';
   switch (x.k) {
     case 'off': return savedBox;
@@ -1813,14 +1847,22 @@ function iprBoxHTML(c) {
   const synced = x.k === 'snap' ? ' · <span class="iprSync" title="' + esc('Saved on the case ' + fmtWhen(r.at) + (r.by ? ' by ' + (noteWho({ by: r.by }) || '') : '')) + '">synced ' + esc(fmtWhen(r.at)) + '</span>' +
     (x.loading ? ' · <span class="muted">checking for a newer visit…</span>' : x.err ? ' · <span style="color:var(--coral-700)">' + esc(x.err) + '</span>' : '') : '';
   return '<div class="iprMeta">Latest visit <b>' + esc(fmtDay(r.date)) + '</b>' + (r.assistant ? ' · ' + esc(r.assistant) : '') + ' · ' + r.visits + ' visit' + (r.visits === 1 ? '' : 's') + ' on file' + synced + '</div>' +
-    iprPanelsHTML(r.d) +
+    iprPanelsHTML(r.d, (S.iprLayer || {})[c.id]) +
     '<div class="iprFoot">' + (!live ? '' : same ? '<span class="stat ok">' + ic('done', 14) + 'In the chart note</span>' : '<button class="btn btn-sec btn-sm" data-act="iprUse">' + (saved ? 'Use this visit in the chart note' : 'Add to the chart note') + '</button>') +
     (!live ? '' : on ? '<button class="btn btn-ghost" data-act="iprRefresh">' + ic('refresh', 14) + 'Refresh</button><button class="btn btn-ghost" data-act="iprSyncAll">' + ic('refresh', 14) + 'Sync all patients</button>'
       : '<button class="btn btn-ghost" data-act="iprConnect">' + ic('refresh', 14) + 'Connect to refresh</button>') + open + '</div>' +
     (saved && !same ? '<details class="iprOld"><summary>The chart note has an earlier IPR note</summary><div class="txt">' + esc(saved) + '</div></details>' : '');
 }
-/* redraw the IPR section (its folded line too) once the IPR Tracker answers */
-function iprPaint(c) { const b = $('#iprBox'), s = $('#dsS-ipr'); if (b) b.innerHTML = iprBoxHTML(c); if (s) s.innerHTML = iprSumHTML(c); }
+/* the IPR section stays open (folded case or not) whenever it has a chart to show */
+function iprPinned(c) { const k = iprRead(c).k; return k === 'ok' || k === 'snap'; }
+/* redraw the IPR section (its folded line too) once the IPR Tracker answers; a chart that just came in opens the section
+   (unless someone folded it by hand on this case) */
+function iprPaint(c) {
+  const b = $('#iprBox'), s = $('#dsS-ipr'); if (b) b.innerHTML = iprBoxHTML(c); if (s) s.innerHTML = iprSumHTML(c);
+  const sec = b && b.closest('.ds'); if (!sec) return;
+  const pin = iprPinned(c); sec.classList.toggle('pin', pin);
+  if (pin && !(S.dsTog && S.dsTog.has('ipr')) && !sec.classList.contains('open')) { dsShow(sec, true); dsAllSync(); }
+}
 async function iprAutoLoad(c, force) {
   const L = iprLink(); if (!L.init()) return;
   if (!L.user()) { await L.waitUser(); if (!L.user()) return; }
@@ -1877,7 +1919,7 @@ function openModal(html, onReady) {
   if (onReady) onReady(w);
   return w;
 }
-function closeModal() { const w = $('#modalWrap'); if (w) w.remove(); }
+function closeModal() { const w = $('#modalWrap'); if (w) w.remove(); if (LABS.code) { LABS.code = ''; LABS.cmd = ''; } } // (the lab PC's setup code is shown once)
 /* text is plain text (escaped here), never HTML */
 /* danger: true = a red button; 'mint' = the brand mint (Mark complete, like everywhere else) */
 function confirmBox(title, text, okLabel, danger, noLabel) {
@@ -1888,19 +1930,31 @@ function confirmBox(title, text, okLabel, danger, noLabel) {
   });
 }
 /* New case / edit form: fill the IPR box from the IPR Tracker using the chart # */
-async function iprPull(btn) {
-  const root = btn.closest('.modal') || $('#drawer'); const msg = $('#cf-iprMsg', root);
-  const chart = ($('#cf-chart', root).value || '').trim();
+/* the IPR Tracker's latest visit into the form: the note for the chart note, and the chart to look at. `quiet`: on its own after
+   coming back from the IPR Tracker — it doesn't open the Google sign-in (that needs a tap) */
+async function iprPull(btnOrRoot, quiet) {
+  const root = btnOrRoot.closest ? (btnOrRoot.closest('.modal') || $('#drawer')) : btnOrRoot; if (!root) return;
+  const msg = $('#cf-iprMsg', root), chartEl = $('#cf-chart', root); if (!msg || !chartEl) return;
+  const chart = (chartEl.value || '').trim();
   if (!chart) { msg.textContent = 'Enter the chart # first.'; return; }
   const L = iprLink(); if (!L.init()) { msg.textContent = 'IPR link unavailable in this browser.'; return; }
   try {
-    if (!L.user()) await L.connect();
+    if (!L.user()) { if (quiet) { msg.textContent = 'Tap Get from IPR Tracker to bring the visit in (connects this computer to the IPR Tracker once).'; return; } await L.connect(); }
     msg.textContent = 'Reading the IPR Tracker…';
     const r = await L.latest(chart);
-    if (r.status === 'not-found') { msg.textContent = 'No IPR Tracker patient with chart # ' + chart + '.'; return; }
+    if (r.status === 'not-found') { msg.textContent = 'No IPR Tracker patient with chart # ' + chart + ' yet.'; return; }
     if (r.status === 'no-visits') { msg.textContent = 'Patient found, but no visits recorded yet.'; return; }
-    $('#cf-ipr', root).value = r.note; msg.textContent = 'From the visit on ' + fmtDay(r.date) + (r.initials ? ' (' + r.initials + ')' : '') + '.';
+    $('#cf-ipr', root).value = r.note; const box = $('#cf-iprChart', root); if (box) box.innerHTML = iprPreviewHTML(r);
+    msg.textContent = (r.date === todayISO() ? 'Today’s visit' : 'The latest visit, ' + fmtDay(r.date)) + (r.initials ? ' (' + r.initials + ')' : '') + ' — it’s in.' + (r.date === todayISO() ? '' : ' Enter today’s in the IPR Tracker if there is one.');
   } catch (e) { msg.textContent = /popup/i.test(String(e && (e.code || e.message))) ? 'Allow pop-ups for this site, then try again.' : /permission|denied/i.test(String(e && (e.code || e.message))) ? 'This Google account can’t read the IPR Tracker.' : 'Couldn’t reach the IPR Tracker.'; }
+}
+/* back from the IPR Tracker (this tab shows again): a form or an open case that sent someone there reads the visit in by itself */
+function iprBack() {
+  if (document.visibilityState === 'hidden' || !S.inApp) return;
+  const now = Date.now(); if (now - (S.iprBackAt || 0) < 1500) return; S.iprBackAt = now; // (the tab showing and the window's focus come together)
+  $$('#modalWrap .modal, #drawer').forEach(root => { if (root._iprWait && now - root._iprWait < 3 * 3600e3 && $('#cf-chart', root)) iprPull(root, true); });
+  const w = S.iprWait, c = w && S.openId === w.id && !S.editing && now - w.at < 3 * 3600e3 ? findCase(w.id) : null;
+  if (c && c.chart) iprAutoLoad(c, true);
 }
 
 /* ---------- saved versions (owner) ---------- */
@@ -1908,7 +1962,7 @@ async function versionsModal(id) {
   openModal('<h3>Saved versions</h3><div class="lsub">Every change keeps the copy it replaced. Restoring makes that copy current again (and keeps today’s too).</div><div id="verList"><div class="small muted">Loading…</div></div><div class="mFt"><button class="btn btn-sec" data-act="closeModal">Close</button></div>');
   try {
     const list = await B.caseVersions(id); S.verList = list; S.verId = id;
-    const how = { stage: 'moved', comment: 'commented', edit: 'edited', close: 'completed', reopen: 'reopened', assign: 'reassigned', restore: 'restored', save: 'saved', rekey: 'key change', delete: 'deleted', photo: 'photo changed', email: 'lab email' };
+    const how = { stage: 'moved', comment: 'commented', edit: 'edited', close: 'completed', reopen: 'reopened', assign: 'reassigned', restore: 'restored', save: 'saved', rekey: 'key change', delete: 'deleted', photo: 'photo changed', email: 'lab email', lab: 'lab PC' };
     $('#verList').innerHTML = list.length ? '<div class="tblWrap"><table class="tbl"><thead><tr><th>Version</th><th>Contents</th><th></th></tr></thead><tbody>' + list.map((v, i) =>
       '<tr><td class="small"><b>#' + v.rev + '</b><div class="muted">replaced ' + esc(fmtWhen(v.replacedAt)) + '<br>by ' + esc(firstName(staffName(v.replacedBy, v.replacedBy))) + (v.replacedHow ? ' (' + esc(how[v.replacedHow] || v.replacedHow) + ')' : '') + '</div></td>' +
       '<td class="small">' + (v.data ? '<b>' + esc(v.data.patient || '') + '</b><div class="muted">' + esc(typeOf(v.data).l + ' · ' + stageLabel(v.data) + (dueDateOf(v.data) ? ' · ' + fmtDate(dueDateOf(v.data)) : '')) + '</div>' : '<span style="color:var(--coral-700)">Can’t be read</span>') + '</td>' +
@@ -1934,18 +1988,20 @@ async function copyText(s) {
 async function act(fn, okMsg) { try { await fn(); if (okMsg) toast(okMsg); } catch (e) { toast(errText(e), { bad: true }); } }
 function nextStage(c) { const st = caseStages(c); const i = stageIndex(c); return i >= 0 && i < st.length - 1 ? st[i + 1][0] : null; }
 /* `extra` = fields saved with the move (e.g. MARPE records, the Zoom call, aligner counts); a move that still needs something
-   asks first; `asked` = what the asking window already collected */
-async function moveStage(id, to, extra, asked) {
+   asks first; `asked` = what the asking window already collected; `via` = 'lab': the lab PC's one-tap suggestion (lab.js) —
+   its aligner counts came from the export, so the counts window only opens when they're still missing */
+async function moveStage(id, to, extra, asked, via) {
   const c = findCase(id); if (!c || c.stage === to) return;
   extra = extra || {};
-  const needs = stageNeeds(Object.assign({}, c, extra), to).filter(x => !(asked || []).includes(x));
-  if (needs.length) { stageGateModal(c, to, needs, extra); return; }
+  let needs = stageNeeds(Object.assign({}, c, extra), to).filter(x => !(asked || []).includes(x));
+  if (via === 'lab') needs = needs.filter(x => x !== 'aligners' || alignersMissing(Object.assign({}, c, extra)));
+  if (needs.length) { stageGateModal(c, to, needs, extra, via); return; }
   const end = shipEnd(c), keys = flowOf(c).stages.map(s => s[0]);
   if (end && keys.indexOf(to) >= keys.indexOf(end)) return shipDone(c, end, extra);
   const from = c.stage, fields = Object.keys(extra), before = {}; fields.forEach(k => { before[k] = c[k]; });
   c.stage = to; Object.assign(c, extra); queueRender(); if (S.openId === id) renderDrawer();
   S.pend = S.pend || {}; const mine = S.pend[id] = { to, extra };
-  try { await B.mutateCase(id, d => { d.stage = to; Object.assign(d, extra); }, Object.assign({ a: 'stage', from, to }, fields.length ? { fields } : {})); }
+  try { await B.mutateCase(id, d => { d.stage = to; Object.assign(d, extra); }, Object.assign({ a: 'stage', from, to }, fields.length ? { fields } : {}, via ? { via } : {})); }
   catch (e) { const cur = findCase(id); if (cur && S.pend[id] === mine) { cur.stage = from; Object.assign(cur, before); queueRender(); if (S.openId === id) renderDrawer(); } toast(errText(e), { bad: true }); return; }
   finally { if (S.pend[id] === mine) delete S.pend[id]; }
   // the open case's history (and the Specialty warranty that counts from the day it shipped) shows the move
@@ -2005,7 +2061,9 @@ function onClick(e) {
     case 'openClosed': openDrawer(id); break;
     case 'closeDrawer': closeDrawer(); break;
     case 'dsTg': { const sec = t.closest('.ds'); if (!sec) break; const on = !sec.classList.contains('open'); dsShow(sec, on); (S.dsTog = S.dsTog || new Map()).set(sec.dataset.ds, on); dsAllSync(); if (on) dsReveal(sec); break; }
-    case 'dsAll': { const on = t.dataset.all !== '1'; dsSetAllMode(on); S.dsTog = new Map(); $$('#drawer .ds:not(.line)').forEach(sec => dsShow(sec, on)); dsAllSync(); break; }
+    case 'dsAll': { const on = t.dataset.all !== '1'; dsSetAllMode(on); S.dsTog = new Map(); $$('#drawer .ds:not(.line)').forEach(sec => dsShow(sec, on || sec.classList.contains('pin'))); dsAllSync(); break; }
+    case 'iprLayer': { const c = findCase(S.openId); if (!c) break; (S.iprLayer = S.iprLayer || {})[c.id] = t.dataset.v; iprPaint(c); break; }
+    case 'iprTog': { const c = findCase(S.openId); if (!c) break; iprShowSet(t.dataset.k, t.getAttribute('aria-pressed') !== 'true'); iprPaint(c); break; }
     case 'advance': { const c = findCase(id); const n = c && nextStage(c); if (n) moveStage(id, n); break; }
     case 'complete': completeCase(id); break;
     case 'setStage': moveStage(S.openId, t.dataset.k); break;
@@ -2032,8 +2090,10 @@ function onClick(e) {
     case 'addCmt': { const txt = ($('#cmtText').value || '').trim(); if (!txt) return; const cid = S.openId;
       $('#cmtText').value = ''; act(() => B.mutateCase(cid, d => { d.comments = (d.comments || []).concat([{ id: uid8(), at: Date.now(), by: meSid(), text: txt }]); }, { a: 'comment' })); break; }
     // (a lab saved under its old name counts as its new name, so opening Edit doesn't look like a change)
-    case 'edit': { const c = findCase(S.openId); S.editBase = JSON.parse(JSON.stringify(c)); if (S.editBase.lab) S.editBase.lab = labName(S.editBase.lab); S.editing = true; renderDrawer(); break; }
-    case 'cancelEdit': S.editing = false; renderDrawer(); break;
+    case 'edit': { const c = findCase(S.openId); S.editBase = JSON.parse(JSON.stringify(c)); if (S.editBase.lab) S.editBase.lab = labName(S.editBase.lab); S.editing = true; S.editWiz = null; renderDrawer(); break; }
+    case 'cancelEdit': S.editing = false; S.editWiz = null; renderDrawer(); break;
+    case 'quickFinish': { const c = findCase(S.openId); if (!c) break; S.editBase = JSON.parse(JSON.stringify(c)); if (S.editBase.lab) S.editBase.lab = labName(S.editBase.lab); S.editing = true; S.editWiz = 'case'; renderDrawer(); break; }
+    case 'quickDone': { const id = S.openId; act(() => B.mutateCase(id, x => { if (!x.quick) return 'skip'; x.quick = ''; }, { a: 'edit', fields: ['quick'] }), 'Finish details taken off'); break; }
     case 'saveEdit': saveEdit(); break;
     case 'delCase': (async () => { const c = findCase(S.openId); if (await confirmBox('Delete this case?', 'This removes ' + c.patient + ' from every list. Dr. A can bring it back from Team & security for 90 days. To finish a case normally, use “Mark complete” instead.', 'Delete', true)) { const cid = S.openId; closeDrawer(true); act(() => B.deleteCase(cid), 'Case deleted'); } })(); break;
     case 'newCase': newCaseModal(); break;
@@ -2067,6 +2127,12 @@ function onClick(e) {
     case 'iprUse': { const c = findCase(S.openId); const lv = c && (S.iprCache || {})[IPR.norm(c.chart)], r = lv && lv.note ? lv : iprSnapOf(c); if (!r || !r.note) return;
       act(() => B.mutateCase(c.id, d => { d.ipr = r.note; }, { a: 'edit', fields: ['ipr'] }), 'IPR note added to the chart note'); break; }
     case 'iprPull': iprPull(t); break;
+    case 'iprEnter': { const root = t.closest('.modal') || $('#drawer'); const ch = (($('#cf-chart', root) || {}).value || '').trim(), msg = $('#cf-iprMsg', root);
+      if (!ch) { if (msg) msg.textContent = 'Enter the chart # first.'; break; }
+      window.open(iprDeepUrl(ch, (($('#cf-patient', root) || {}).value || '')), '_blank', 'noopener'); root._iprWait = Date.now();
+      if (msg) msg.textContent = 'Enter the visit in the IPR Tracker and save it there. When you come back to this window, it shows up here by itself.';
+      break; }
+    case 'iprOpen': S.iprWait = { id: S.openId, at: Date.now() }; break; // (the link opens the IPR Tracker; coming back refreshes the chart)
     case 'restoreVer': restoreVer(Number(t.dataset.i)); break;
     default: if (ADMIN_ACTS[a]) ADMIN_ACTS[a](t, e);
   }
@@ -2075,6 +2141,8 @@ function onChange(e) {
   const t = e.target;
   if (t.classList && t.classList.contains('mlSel')) { const x = MAILS.list.find(g => g.id === t.dataset.g); if (x) { MAILS.pick[x.id] = t.value; const b = $('[data-act=mailApply][data-g="' + CSS.escape(x.id) + '"]'); if (b) b.disabled = !t.value;
     const ph = $('[data-mlph="' + CSS.escape(x.id) + '"]'); if (ph) { ph.innerHTML = ptAv(t.value ? findCase(t.value) : null, 32); phPaint(); } } return; }
+  // a lab order on Today: the case picked for it (lab.js)
+  if (t.classList && t.classList.contains('labSel')) { const x = LABS.list.find(g => g.id === t.dataset.g); if (x) { LABS.pick[x.id] = t.value; const b = $('[data-act=labLink][data-g="' + CSS.escape(x.id) + '"]'); if (b) b.disabled = !t.value; } return; }
   if (t.matches && t.matches('input[data-old]')) { if (t.checked) S.oldOff.delete(t.dataset.old); else S.oldOff.add(t.dataset.old); syncOld(); return; }
   if (t.id === 'oldMonths') { S.oldMonths = Number(t.value) || 3; S.oldOff.clear(); renderView(); return; }
   if (t.id === 'oldNoDate') { S.oldNoDate = t.checked; renderView(); return; }
@@ -2100,13 +2168,15 @@ function onChange(e) {
 }
 function onInput(e) { if (e.target.id === 'q') { S.q = e.target.value; renderView(); } }
 async function saveEdit() {
-  const d = $('#drawer'); const now = readCaseForm(d);
+  const d = $('#drawer'); const now = readCaseForm(d), wiz = !!(S.editWiz && d && d._wiz);
+  if (wiz) for (const st of wizSteps(d)) { const x = wizCheck(d, st.k); if (x) { wizGo(d, st.k); wizSay(d, x); return; } }
   if (!now.type || !now.patient) { $('#drawerNotice').innerHTML = '<div class="notice bad">Type and patient name are required.</div>'; return; }
   if (now.titanUrl && !safeUrl(now.titanUrl)) { $('#drawerNotice').innerHTML = '<div class="notice bad">The Titan link must start with https://</div>'; return; }
   const txBad = !!now.txStart !== !!now.txEnd ? 'Enter both the treatment start and the expected removal (or leave both empty).' : now.txStart && now.txEnd <= now.txStart ? 'The expected removal has to be after the treatment start.' : '';
   if (txBad) { $('#drawerNotice').innerHTML = '<div class="notice bad">' + txBad + '</div>'; $('#drawerNotice').scrollIntoView({ block: 'nearest' }); return; }
   const base = S.editBase; const changed = FORM_KEYS.filter(k => !sameVal(now[k], base[k])).concat((now.variant || '') !== (base.variant || '') ? ['variant'] : []);
-  if (!changed.length) { S.editing = false; renderDrawer(); return; }
+  const finish = wiz && !!base.quick; // Finish details: saving the steps takes the Quick add tag off
+  if (!changed.length && !finish) { S.editing = false; S.editWiz = null; renderDrawer(); return; }
   // the same checks as moving the stage from the case: MARPE records before the lab, a date for the Zoom call
   // (in-house: the form has the aligner counts and attachment templates, so only missing ones stop the save)
   const needs = (changed.includes('stage') && !changed.includes('type') ? stageNeeds(Object.assign({}, base, now, { stage: base.stage }), now.stage) : [])
@@ -2126,18 +2196,19 @@ async function saveEdit() {
       if (changed.includes('txStart') || changed.includes('txEnd')) x.txAt = Date.now(); // the patient's treatment dates are the ones saved last
       if (changed.includes('notes')) notesStamp(x, nAt); // who wrote the Notes, and when (the Notes column)
       if (changed.includes('type') && !FLOWS[TYPE[x.type].flow].stages.some(s => s[0] === x.stage)) x.stage = firstStage(x.type);
+      if (finish) x.quick = '';
     };
     // (a step changed here is logged with where it went, like a move from the stepper: the Specialty warranty counts from Shipped)
-    await B.mutateCase(id, x => { apply(x); if (ships) return 'done'; }, Object.assign({ a: 'edit', fields: changed }, changed.includes('stage') ? { from: base.stage, to: now.stage } : {}, ships ? { close: 1 } : {}));
+    await B.mutateCase(id, x => { apply(x); if (ships) return 'done'; }, Object.assign({ a: 'edit', fields: finish ? changed.concat('quick') : changed }, changed.includes('stage') ? { from: base.stage, to: now.stage } : {}, ships ? { close: 1 } : {}));
     // show the saved copy right away (the live update from the server follows a moment later)
     const cur = findCase(id); if (cur) apply(cur);
     if (ships) { // shipped to the patient = complete
       if (S.hist && cur) S.hist.unshift(Object.assign({}, cur, { status: 'done', closedAt: Date.now() }));
-      S.editing = false; closeDrawer(true); S.closedLoaded = false;
+      S.editing = false; S.editWiz = null; closeDrawer(true); S.closedLoaded = false;
       toast((ptNameText(now.patient) || 'Case') + ' shipped to the patient — case complete', { action: 'Undo', onAction: () => act(() => B.mutateCase(id, x => { x.stage = base.stage; return 'open'; }, { a: 'reopen' }), 'Reopened') });
       return;
     }
-    S.editing = false; toast('Saved'); renderDrawer(); loadHistory(id);
+    S.editing = false; S.editWiz = null; toast(finish ? 'Details saved — Finish details is off' : 'Saved'); renderDrawer(); loadHistory(id);
     if (changed.includes('stage') && cur && isLastStage(cur, now.stage)) offerComplete(id); // reached its last step: done?
   } catch (x) { busyBtn(btn, false); toast(errText(x), { bad: true }); }
 }

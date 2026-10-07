@@ -78,8 +78,8 @@ const DEMO = {
       rxMet: { form: 'specialty-metal', exp: ['hyrax'], teeth: { UR6: 'band', UL6: 'band' }, printed3d: true, awt: ['U'] },
       rxFun: { form: 'specialty-functional', actL: 'schwarz', exp: 'mid', dent: 'mixed', teeth: { LR6: 'delta', LL6: 'delta', LR4: 'ball', LL4: 'ball' },
         notes: 'Full-time wear for several months. Lingual horseshoe adapted into the lingual embrasures; block out only what insertion needs. No labial bow.' } });
-    // in-house sets past Export STLs: attachment templates answered (some with, some without)
-    all.filter(c => c.type === 'nla' && stageIndex(c) >= FLOWS.inhouse.stages.findIndex(x => x[0] === 'fab')).forEach((c, i) => { c.atTemplates = ['UL', 'none', 'U'][i % 3]; });
+    // in-house sets from TxP approved on: attachment templates answered (some with, some without)
+    all.filter(c => c.type === 'nla' && stageIndex(c) >= FLOWS.inhouse.stages.findIndex(x => x[0] === 'txpok')).forEach((c, i) => { c.atTemplates = ['UL', 'none', 'U'][i % 3]; });
     // one arch only: an in-house set for the upper arch, InSmile braces on the lower
     const uo = all.find(c => c.type === 'nla' && c.stage === 'send'), lo = all.find(c => c.type === 'insmile' && c.stage === 'mfg');
     if (uo) Object.assign(uo, { treatArch: 'U', alL: '', detail: 'Aligners (In-House, upper only)', atTemplates: atFor(uo.atTemplates, 'U') || 'U' });
@@ -128,6 +128,23 @@ const DEMO = {
       appliances: ['MARA'], detail: 'MARA', lab: LAB_SPEC, stage: 'milestones', assignee: 'sarah', assistant: 'gwen', scanner: 'iTero', deliveryDate: addDays(t, -38), comments: [], createdAt: Date.now() - 60 * day, createdBy: 'amir' });
     DEMO.logs.push({ caseId: 'demoSpecW', a: 'create', at: Date.now() - 60 * day, sid: 'amir' }, { caseId: 'demoSpecW', a: 'stage', from: 'mfg', to: 'shipped', at: Date.now() - 44 * day, sid: 'sarah' },
       { caseId: 'demoSpecW', a: 'stage', from: 'shipped', to: 'milestones', at: Date.now() - 40 * day, sid: 'sarah' }, { caseId: 'demoSpecW', a: 'close', at: Date.now() - 40 * day + 60e3, sid: 'sarah' });
+    // the lab PC (lab.js): Ortho Factory's progress on the in-house sets (made-up orders) — the refinement being trimmed, the
+    // upper-only set printing, the approved plan just exported (no counts typed: the export's fill in), a plan still at Uploaded
+    // to Titan whose export has two more lower aligners than were typed, and an order for a patient NLO Cases doesn't have
+    // (Today asks which case it is)
+    const nla = Array.from(DEMO.cases.values()).filter(c => c.type === 'nla' && c.status === 'open'), on = k => nla.find(c => c.stage === k);
+    const iso = ms => { const d = new Date(ms), p = n => String(n).padStart(2, '0'); return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + 'T' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds()); };
+    const nm = c => ({ first: c.patient.split(' ')[0], last: c.patient.split(' ').slice(-1)[0] }), cnt = (n, s, p, l, tr) => ({ n, sent: s, printed: p, labeled: l, trimmed: tr, bagged: 0 });
+    const th = on('thermo'), sd = on('send'), ok = on('txpok'), tp = nla.filter(c => c.stage === 'txp')[1], ords = [];
+    if (ok) Object.assign(ok, { alU: '', alL: '', aligners: '' });
+    if (th) ords.push(Object.assign({ key: 'D1001B', pid: 'D1001', rev: 'B', ordered: iso(ago(3 * 1440)), au: 10, al: 8, tu: 1, tl: 1, a: cnt(18, 18, 18, 18, 5), t: cnt(2, 2, 2, 2, 2), lv: { au: '-4443333333', al: '-44333333', tu: '-4', tl: '-4' }, act: ago(25) }, nm(th)));
+    if (sd) ords.push(Object.assign({ key: 'D2207A', pid: 'D2207', rev: 'A', ordered: iso(ago(2 * 1440)), au: 22, al: 0, tu: 0, tl: 0, a: cnt(22, 22, 9, 0, 0), t: cnt(0, 0, 0, 0, 0), lv: { au: '-' + '2'.repeat(9) + '1'.repeat(13) }, act: ago(40) }, nm(sd)));
+    if (ok) ords.push(Object.assign({ key: 'D3310A', pid: 'D3310', rev: 'A', ordered: iso(ago(90)), au: 20, al: 18, tu: 1, tl: 1, a: cnt(38, 0, 0, 0, 0), t: cnt(2, 0, 0, 0, 0), lv: { au: '-' + '0'.repeat(20), al: '-' + '0'.repeat(18), tu: '-0', tl: '-0' }, act: ago(90) }, nm(ok)));
+    if (tp) ords.push(Object.assign({ key: 'D4415A', pid: 'D4415', rev: 'A', ordered: iso(ago(1440)), au: tp.alU || 12, al: (tp.alL || 12) + 2, tu: 0, tl: 0, a: cnt((tp.alU || 12) + (tp.alL || 12) + 2, 0, 0, 0, 0), t: cnt(0, 0, 0, 0, 0), act: ago(1440) }, nm(tp)));
+    ords.push({ key: 'D5120A', pid: 'D5120', rev: 'A', first: 'Robin', last: 'Tailor', ordered: iso(ago(1440)), au: 16, al: 16, tu: 1, tl: 0, a: cnt(32, 12, 0, 0, 0), t: cnt(1, 1, 0, 0, 0), lv: { au: '-' + '1'.repeat(12) + '0'.repeat(4), al: '-' + '0'.repeat(16), tu: '-1' }, act: ago(15) });
+    const now = Date.now();
+    DEMO.mail.inbox.push({ id: 'mlab1', at: ago(2), done: [], mail: { lab: 1, v: 1, src: 'Lab PC', pc: 'LAB-PC', ver: '1.0', at: now, orders: ords.map(o => Object.assign(o, { at: now })) } });
+    DEMO.mail.beats.push({ id: 'b3', box: 'Lab PC · LAB-PC', at: ago(2), seen: 9, sent: ords.length, err: '', ver: 'lab 1.0' });
   },
   /* patient photos (in memory) */
   photos: new Map(),
@@ -165,7 +182,11 @@ const DEMO = {
   },
   /* lab-email updates: the inbox as the app would see it after opening each sealed email */
   mail: { on: true, beats: [], inbox: [] },
-  async mailState() { return { on: DEMO.mail.on, pub: { senders: MAIL_SENDERS }, beats: DEMO.mail.beats.slice(), bots: DEMO.mail.on ? [{ uid: 'bot', email: 'mailbot.demo@staff.example' }] : [] }; },
+  lab: { on: true }, // the lab PC (lab.js)
+  async mailState() { return { on: DEMO.mail.on, pub: { senders: MAIL_SENDERS }, beats: DEMO.mail.beats.slice(),
+    bots: (DEMO.mail.on ? [{ uid: 'bot', email: 'mailbot.demo@staff.example' }] : []).concat(DEMO.lab.on ? [{ uid: 'labbot', email: 'labbot.demo@staff.example' }] : []) }; },
+  async labSetup() { DEMO.lab.on = true; return { email: 'labbot.demo@staff.example', password: 'demo-only-not-a-real-login' }; },
+  async labOff() { DEMO.lab.on = false; DEMO.mail.beats = DEMO.mail.beats.filter(b => !labBeat(b)); },
   async mailSetup() { DEMO.mail.on = true; return DEMO.mailCreds(); },
   async mailCreds() { return DEMO.mail.on ? { email: 'mailbot.demo@staff.example', password: 'demo-only-not-a-real-login' } : null; },
   async mailOff() { DEMO.mail.on = false; },
@@ -239,7 +260,7 @@ const DEMO = {
           const al = [8, 10, 12, 14, 16, 18, 20, 22, 24], maker = R() < .7 ? who : pick(team);
           Object.assign(c, { detail: 'Aligners (In-House)', initial: 'yes', alU: pick(al), alL: pick(al), atTemplates: 'none', stage: 'txp' });
           mv('txp', 'txpok', (6 + R() * 40) * H, 'amir');
-          ['fab', 'send', 'print', 'thermo', 'trim', 'polish', 'wash', 'pack'].reduce((from, to) => { mv(from, to, (1 + R() * 9 * pace[maker].make) * H, maker); return to; }, 'txpok');
+          ['send', 'print', 'thermo', 'trim', 'polish', 'pack'].reduce((from, to) => { mv(from, to, (1 + R() * 9 * pace[maker].make) * H, maker); return to; }, 'txpok');
           mv('pack', 'checkedin', (4 + R() * 40) * H, pick(team)); c.stage = 'checkedin';
         } else if (type === 'appliance') {
           Object.assign(c, { detail: 'Herbst', appliances: ['Herbst'], lab: LAB_SPEC });

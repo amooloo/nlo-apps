@@ -211,7 +211,7 @@ function dupAsk(w, o, list) {
   box.innerHTML = '<div class="dupAsk" role="alert"><div class="daHd">' + ic('alert', 18) + '<b>' + ptName(o.patient) + ' already has an open ' + esc(typeOf(o).l) + ' case' + (more ? ' (and ' + more + ' more)' : '') + '</b></div>' +
     '<div class="daTx">' + esc(caseLine(c)) + '. If it’s the same case, open it instead of making a second one.</div>' +
     '<div class="daBtns"><button type="button" class="btn btn-pri btn-sm" data-act="ptOpen" data-id="' + esc(c.id) + '">Open that case</button><button type="button" class="btn btn-sec btn-sm" id="ncDupOk">Create a second case anyway</button></div></div>';
-  $('#ncDupOk', box).onclick = () => { w._dupOk = box.dataset.sig; const f = $('#ncForm', w); if (f.requestSubmit) f.requestSubmit(); else $('#ncSave', w).click(); };
+  $('#ncDupOk', box).onclick = () => { w._dupOk = box.dataset.sig; if (w._dupRetry) { w._dupRetry(); return; } const f = $('#ncForm', w); if (f.requestSubmit) f.requestSubmit(); else $('#ncSave', w).click(); };
   box.scrollIntoView({ block: 'center' });
 }
 /* New case's submit: true = go ahead (`o` gets notDup when a second case was asked for on purpose) */

@@ -39,14 +39,18 @@ const FLOWS = {
     ['approved', 'Design approved'], ['delivered', 'Delivered'] ] },
   /* in fabrication = the NL Lab checklist each Asana case carried as subtasks (Exported STLs → Final Wash and Dry);
      the board shows the seven steps as one "In fabrication" column */
+  /* Amir, 6 Oct 2026: staff upload the scan into Titan for Dr. A ("All they do is upload the case into titan for me"); he does the
+     movement, approves and exports, and the export shows up in the trimmer's software right away ("so export model becomes
+     redundant"). Each step after that is one the lab PC can see in Ortho Factory and offers with one tap (lab.js) — Polishing and
+     Final wash & dry are one step now, and Packaging is tapped by hand (its labels print from NLO Cases, not the trimmer). Same keys,
+     so saved cases keep their place; a case saved at a step that went shows at the one that took it over (RETIRED_STAGES). */
   inhouse: { label: 'In-house lab', labDone: 'pack', stages: [
-    ['txp', 'TxP needed'],
-    // Amir, 3 Oct 2026: "add a middle step that says TxP completed or approved and it would still let me enter the U/L stages
-    // because I may not be able to export them right away" — the plan is done and its counts are in, waiting to be exported
+    ['txp', 'Uploaded to Titan'],
+    // Amir, 3 Oct 2026: "add a middle step that says TxP completed or approved and it would still let me enter the U/L stages"
     ['txpok', 'TxP approved'],
-    ['fab', 'Export STLs'], ['send', 'Send to printer'], ['print', 'Printing'], ['thermo', 'Thermoforming'], ['trim', 'Trimming'], ['polish', 'Polishing'], ['wash', 'Final wash & dry'],
-    ['pack', 'Made – needs packaging'], ['checkedin', 'Checked in'] ],
-    groups: [{ l: 'In fabrication', stages: ['fab', 'send', 'print', 'thermo', 'trim', 'polish', 'wash'] }] },
+    ['send', 'Ready to print'], ['print', 'Printing'], ['thermo', 'Thermoforming'], ['trim', 'Trimming'], ['polish', 'Polish, wash & dry'],
+    ['pack', 'Packaging'], ['checkedin', 'Checked in'] ],
+    groups: [{ l: 'In fabrication', stages: ['send', 'print', 'thermo', 'trim', 'polish'] }] },
   /* the first step says what's waiting (Amir, 5 Oct 2026: "the first step right now says printing which does not make sense"): to be
      made; then Printing, Milestones and the front desk (Amir, 6 Oct 2026: "the steps for retainers and whitening is To make >
      printing > milestones > Front desk pick up" — no Sarah's desk, and no Picked up step after it). The key 'print' is the old
@@ -120,7 +124,9 @@ function stageLabel(c) { const k = liveStage(c), s = caseStages(c).find(x => x[0
 /* retired steps: a case saved at one shows (and moves on) from the step that replaced it; history keeps the old name.
    In-house "Reset needed in 2 days" (Amir, 3 Oct 2026: it was never a step after TxP — resets were one or two aligners
    needed in a couple of days, kept in a column of the NL Lab project — and "we are actually not doing resets any longer") */
-const RETIRED_STAGES = { inhouse: { reset: { to: 'txp', l: 'Reset needed in 2 days' } },
+const RETIRED_STAGES = { inhouse: { reset: { to: 'txp', l: 'Reset needed in 2 days' },
+    // Export STLs and Final wash & dry (Amir, 6 Oct 2026): the export happens as the TxP is approved; washing goes with polishing
+    fab: { to: 'txpok', l: 'Export STLs' }, wash: { to: 'polish', l: 'Final wash & dry' } },
   // retainers "On Sarah's desk" (Amir, 6 Oct 2026: "retainers are NOT placed on Sarah's desk. They are made and put on the front desk"),
   // and "Picked up", a last step for a few hours that day (completed cases there show at Front desk pickup)
   retainer: { sarah: { to: 'pickup', l: 'On Sarah’s desk' }, pickedup: { to: 'pickup', l: 'Picked up' } } };
@@ -192,7 +198,7 @@ function labDueOf(c) {
   if (c.labDate && !labStepDone(c)) return { d: c.labDate, k: 'lab' };
   return null;
 }
-/* past the lab step: from the flow's labDone stage on (outside labs and appliances: Manufacturing; in-house: Made – needs packaging) */
+/* past the lab step: from the flow's labDone stage on (outside labs and appliances: Manufacturing; in-house: Packaging) */
 function labStepDone(c) {
   const f = flowOf(c); if (!f.labDone) return false;
   const done = f.stages.findIndex(s => s[0] === f.labDone); return done >= 0 && stageIndex(c) >= done;
@@ -417,7 +423,8 @@ const PROJECT_TYPES = [
 ];
 function typeFromProject(p) { const hit = PROJECT_TYPES.find(([re]) => re.test(p || '')); return hit ? hit[1] : ''; }
 /* NL Lab cases in Asana carry the fabrication checklist as subtasks; the first unticked one is where the case is */
-const FAB_SUBTASKS = [[/export/i, 'fab'], [/sent? to (the )?print/i, 'send'], [/print/i, 'print'], [/thermo/i, 'thermo'], [/trim/i, 'trim'], [/polish/i, 'polish'], [/wash|dry/i, 'wash']];
+// (the Asana checklist's Exported STLs and Final wash & dry are TxP approved and Polish, wash & dry now — 6 Oct 2026)
+const FAB_SUBTASKS = [[/export/i, 'txpok'], [/sent? to (the )?print/i, 'send'], [/print/i, 'print'], [/thermo/i, 'thermo'], [/trim/i, 'trim'], [/polish/i, 'polish'], [/wash|dry/i, 'polish']];
 function fabStepFromSubtasks(subtasks) {
   const list = (subtasks || []).filter(x => x && FAB_SUBTASKS.some(([re]) => re.test(x.name || '')));
   if (!list.length) return '';
@@ -439,7 +446,7 @@ function stageFromSection(type, section, subtasks) {
     if (/misc/.test(s)) return 'todo';
     if (/txp/.test(s)) return pick('txp');
     if (/reset/.test(s)) return pick('txp'); // resets are retired (3 Oct 2026): one still in that column lands at TxP needed
-    if (/fabrication/.test(s)) return fabStepFromSubtasks(subtasks) || pick('fab');
+    if (/fabrication/.test(s)) return fabStepFromSubtasks(subtasks) || pick('send');
     if (/package|made/.test(s)) return pick('pack');
     if (/checked in/.test(s)) return pick('checkedin');
     return flow[0];

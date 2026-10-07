@@ -5,7 +5,7 @@
    Counted from the case history (who did what, when: B.workLog) and the cases themselves, for the last 7, 30 or 90 days:
    - Cases entered: the new cases each person entered (createdBy), on the day they entered them. Asana imports don't count.
    - Steps moved: each time they moved a case to another step. Lab emails don't count (the app moves those cases by itself).
-   - Aligners made: in-house sets moved to "Made – needs packaging" (or past it), for whoever moved them there: the set's upper +
+   - Aligners made: in-house sets moved to "Packaging" (or past it), for whoever moved them there: the set's upper +
      lower aligners.
    - Retainers (retainers, whitening trays and mouthguards): entered, and how long after the scan date on the case (same day = 0);
      made = reached Milestones (past To make and Printing), for whoever moved it there, and how long after the case was entered.
@@ -198,7 +198,7 @@ function wkHowHTML() {
   return '<details class="wkHow"><summary>How these are counted</summary><ul>' +
     li('Cases entered:', 'new cases each person entered in the app, counted on the day they entered them. Cases brought in from Asana don’t count.') +
     li('Steps moved:', 'each time they moved a case to another step. Moves made by lab emails don’t count.') +
-    li('Aligners made:', 'in-house sets moved to “Made – needs packaging” (or past it), for whoever moved them there — the set’s upper and lower aligners.') +
+    li('Aligners made:', 'in-house sets moved to “Packaging” (or past it), for whoever moved them there — the set’s upper and lower aligners.') +
     li('Retainers:', 'retainers, whitening trays and mouthguards. <i>Scan → entered</i> counts days from the scan date on the case to the day it was entered (the same day is 0). <i>Made</i> is when it reached Milestones (past To make and Printing), for whoever moved it there; <i>Entered → made</i> is the time from entering it to then. A retainer from a scan on file, or a remake from the model, isn’t in the scan → entered average (no new scan).') +
     li('Now:', 'open cases assigned to each person. Late = its lab or delivery date has passed. Tap a number to see those cases.') +
     '</ul></details>';

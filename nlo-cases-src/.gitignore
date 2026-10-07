@@ -1,0 +1,6 @@
+node_modules/
+dist/
+shots/
+package-lock.json
+*-debug.log
+test/asana-sample.csv

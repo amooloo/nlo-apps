@@ -20,10 +20,13 @@ const { routes, watch } = require('./helpers');
   await page.screenshot({ path: 'shots/drawer.png' });
   await page.click('[data-act=closeDrawer] >> nth=0');
   await page.click('.topBar [data-act=newCase]'); await page.waitForSelector('#ncForm');
-  await page.click('#ncForm .tt[data-tile=oliv]'); await page.fill('#cf-patient', 'Test Person');
+  await page.click('#ncForm .tt[data-tile=oliv]'); await page.fill('#cf-patient', 'Test Person'); await page.fill('#cf-chart', '99-0001'); // (name and chart # are required — 6 Oct 2026)
   await page.screenshot({ path: 'shots/newcase.png' });
   console.log('auto dates', await page.inputValue('#cf-scanDate'), await page.inputValue('#cf-labDate'), await page.inputValue('#cf-deliveryDate'), 'assignee', await page.inputValue('#cf-assignee'));
+  // New case is in steps (Patient > Case > … > Review): Next until Create case shows
+  for (let i = 0; i < 8 && !(await page.isVisible('#ncSave')); i++) { await page.click('#ncNext'); await page.waitForTimeout(120); }
   await page.click('#ncSave'); await page.waitForTimeout(300);
+  console.log('new case saved:', await page.evaluate(() => openCases().some(c => c.patient === 'Test Person')));
   await page.click('#nav-admin'); await page.waitForSelector('.adminGrid'); await page.screenshot({ path: 'shots/admin.png', fullPage: true });
   await page.click('#nav-import'); await page.screenshot({ path: 'shots/import.png' });
   await page.click('#nav-done'); await page.waitForTimeout(200); await page.screenshot({ path: 'shots/done.png' });

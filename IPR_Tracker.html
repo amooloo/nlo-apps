@@ -2128,6 +2128,24 @@ function App() {
 
     // Wizard flow state
   const [flowStep, setFlowStep] = React.useState(null); // null | "choose" | "search" | "newPatient" | "visitSetup" | "prescribed"
+  // A link from NLO Cases opens one patient's new visit (Amir, 6 Oct 2026: enter the IPR here once, instead of here and again in
+  // the case): IPR_Tracker.html#chart=<patient ID>&ini=<initials>. The patient's visits (Start new visit), or New patient filled in.
+  // The link is used once (the address goes back to plain), and only a patient ID and initials ever ride on it.
+  const [deepPick, setDeepPick] = React.useState(null);
+  React.useEffect(() => {
+    let q = null; try { q = new URLSearchParams(String(location.hash || "").replace(/^#/, "")); } catch (e) { return; }
+    const chart = String(q.get("chart") || "").trim().slice(0, 40), ini = String(q.get("ini") || "").replace(/[^A-Za-z]/g, "").toUpperCase().slice(0, 4);
+    if (!chart) return;
+    try { history.replaceState(null, "", location.pathname + location.search); } catch (e) { }
+    const norm = v => String(v || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    (async () => {
+      let res = [];
+      try { const enc = encodeURIComponent(chart); res = (await sbGet(`patients?or=(name.ilike.*${enc}*,patient_id.ilike.*${enc}*)&order=name&limit=20`)) || []; } catch (e) { res = []; }
+      const hit = res.filter(r => norm(r.patient_id) === norm(chart));
+      setDeepPick(hit.length === 1 ? { patient: hit[0] } : { chart, ini, many: hit.length > 1 });
+      setFlowStep(hit.length ? "search" : "newPatient");
+    })();
+  }, []);
   const [prescribedUpper, setPrescribedUpper] = React.useState(initContacts(UPPER));
   const [prescribedLower, setPrescribedLower] = React.useState(initContacts(LOWER));
   const [pendingSave, setPendingSave] = React.useState(false); // true = auto-save after patient selected
@@ -2714,6 +2732,13 @@ const [dbConnected, setDbConnected] = React.useState(null); // null=checking, tr
     const [recVisits, setRecVisits] = React.useState([]);
     const [recVisitsLoading, setRecVisitsLoading] = React.useState(false);
     const go = step => { setWizMsg(''); setFlowStep(step); };
+    // opened from an NLO Cases link (deepPick, above): straight to that patient's visits, or New patient with the ID and initials in
+    React.useEffect(() => {
+      const d = deepPick; if (!d) return; setDeepPick(null);
+      if (d.patient) selectPatientForVisit(d.patient);
+      else if (d.many) setSearchInputVal(d.chart); // (two records with that ID: the search shows both)
+      else { setTempPatientId(d.chart); setTempInitials(d.ini || ""); }
+    }, []);
 
     const doSearch = async () => {
       const q = searchInputVal.trim();

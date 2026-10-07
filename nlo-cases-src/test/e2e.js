@@ -3,7 +3,7 @@ const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
-const { routes, watch, panelsOpen } = require('./helpers');
+const { routes, watch, panelsOpen, stepsAsOnePage } = require('./helpers');
 const { makeGas } = require('./gas');
 const URL0 = 'http://127.0.0.1:8765/nlo-cases.html?emu';
 const PROJECT = 'demo-nlo-cases';
@@ -31,7 +31,7 @@ async function verifyEmail(email) {
 async function newPage(browser, label, errs, vp, folded) {
   const ctx = await browser.newContext({ viewport: vp || { width: 1360, height: 900 }, acceptDownloads: true });
   await routes(ctx); if (!folded) await panelsOpen(ctx); // the case panel opens folded unless Expand all was tapped (3 Oct 2026)
-  const p = await ctx.newPage(); watch(p, errs, label); global.__errs = errs; (global.__pages = global.__pages || []).push({ l: label, p });
+  const p = await ctx.newPage(); watch(p, errs, label); stepsAsOnePage(p); global.__errs = errs; (global.__pages = global.__pages || []).push({ l: label, p });
   p.on('response', r => { if (r.status() === 403) { let docs = ''; try { docs = Array.from(new Set((r.request().postData() || '').match(/documents\/[A-Za-z_]+\/[A-Za-z0-9_\-]+/g) || [])).map(x => x.replace('documents/', '')).join(' '); } catch (e) { }
     forbidden.push(label + ' @ ' + SECTION + ' :: ' + r.request().method() + ' ' + r.url().replace(/\?.*/, '') + (docs ? ' [' + docs + ']' : '') + ' ' + new Date().toISOString().slice(11, 23)); } });
   return p;
@@ -380,7 +380,8 @@ async function openByName(p, name) {
   await owner.fill('#cf-chart', '999-0000'); await owner.click('[data-act=iprPull]');
   await owner.waitForSelector('#cf-iprMsg:has-text("No IPR Tracker patient")', { timeout: 20000 }); check(true, 'unknown chart # says so');
   await owner.fill('#cf-chart', '156541'); await owner.click('[data-act=iprPull]');
-  await owner.waitForSelector('#cf-iprMsg:has-text("From the visit on")', { timeout: 20000 });
+  await owner.waitForSelector('#cf-iprMsg:has-text("it’s in")', { timeout: 20000 });
+  check(/^The latest visit, .*Sep 28.* — it’s in\./.test(await owner.textContent('#cf-iprMsg')) && await owner.isVisible('#cf-iprChart .iprMap svg'), 'Get from IPR Tracker: the latest visit is in, with its chart (' + await owner.textContent('#cf-iprMsg') + ')');
   const pulled = await owner.inputValue('#cf-ipr');
   check(/IPR THIS VISIT\nUpper: none|Lower: LR3–LR2 0\.2mm/.test(pulled) && /UR1–UL1 0\.3mm/.test(pulled) && /CUMULATIVE IPR \(2 visits\)/.test(pulled), 'chart # without the dash still finds the patient; newest visit + cumulative pulled');
   await owner.click('#ncSave'); await owner.waitForSelector('#modalWrap', { state: 'detached', timeout: 20000 });
@@ -388,35 +389,45 @@ async function openByName(p, name) {
   await owner.waitForSelector('#iprBox .stat:has-text("In the chart note")', { timeout: 20000 });
   check(true, 'the case panel shows the pulled IPR note is the one in the chart note');
   // one IPR section drawing the IPR Tracker's chart (3 Oct 2026): newest visit + IPR so far + spaces & black triangles
-  const iprSvgs = () => owner.$$eval('#iprBox .iprP', ps => ps.map(x => ({ p: x.dataset.p, vals: Array.from(x.querySelectorAll('svg text.v')).map(t => t.textContent).join(' '), bt: x.querySelectorAll('svg .bt').length, label: x.querySelector('svg').getAttribute('aria-label') })));
-  let pan = await iprSvgs();
-  check(pan.map(x => x.p).join(',') === 'visit,cum,space' && pan[0].vals === '0.2' && /LR3–LR2 0\.2mm/.test(pan[0].label) && pan[1].vals === '0.2 0.2' && pan[2].vals === '0.3' && pan[2].bt === 1 && /Black triangles: UR1–UL1/.test(pan[2].label),
-    'the IPR section draws the IPR Tracker’s chart: this visit (LR3–LR2 0.2), so far, the 0.3 space and ▼ at UR1–UL1');
+  // (6 Oct 2026: one chart — the amounts out past the gums, joined to their contacts; This visit / So far; IPR, Spaces and Black triangles switch on and off)
+  const iprMap = async layer => {
+    if (layer && await owner.locator('#iprBox .iprSegB[data-v=' + layer + ']').count() && (await owner.getAttribute('#iprBox .iprSegB[data-v=' + layer + ']', 'aria-pressed')) !== 'true') {
+      await owner.click('#iprBox .iprSegB[data-v=' + layer + ']'); await owner.waitForSelector('#iprBox .iprMap[data-layer=' + layer + ']', { timeout: 10000 }); }
+    return owner.$eval('#iprBox .iprMap', m => ({ lay: m.dataset.layer, ipr: Array.from(m.querySelectorAll('svg .bdg.ipr text')).map(t => t.textContent).join(' '), sp: Array.from(m.querySelectorAll('svg .bdg.sp text')).map(t => t.textContent).join(' '),
+      bt: m.querySelectorAll('svg .bt').length, seg: m.querySelectorAll('.iprSegB').length, label: m.querySelector('svg').getAttribute('aria-label') }));
+  };
+  let ipv = await iprMap('visit'), ipc = await iprMap('cum');
+  check(ipv.seg === 2 && ipv.ipr === '0.2' && /LR3–LR2 0\.2mm/.test(ipv.label) && ipc.ipr === '0.2 0.2' && ipv.sp === '0.3' && ipv.bt === 1 && /Black triangles: UR1–UL1/.test(ipv.label),
+    'the IPR section draws the IPR Tracker’s chart: this visit (LR3–LR2 0.2), so far (0.2 + 0.2), the 0.3 space and ▼ at UR1–UL1');
+  await owner.click('#iprBox .iprTog[data-k=sp]'); await owner.waitForSelector('#iprBox .iprTog[data-k=sp][aria-pressed=false]', { timeout: 10000 });
+  check((await iprMap()).sp === '' && (await iprMap()).bt === 1 && await owner.evaluate(() => JSON.parse(localStorage.getItem('nloCases.iprShow')).sp === false), 'Spaces switches off (remembered on this computer); the black triangle stays');
+  await owner.click('#iprBox .iprTog[data-k=sp]'); await owner.waitForSelector('#iprBox .iprTog[data-k=sp][aria-pressed=true]', { timeout: 10000 });
   check(/^Sep 28 visit · IPR 0\.2 mm · 0\.4 mm so far · spaces 0\.3 mm · 1 black triangle$/.test(await owner.textContent('#dsS-ipr')), 'its heading sums up the visit (' + await owner.textContent('#dsS-ipr') + ')');
-  check(!(await owner.isVisible('#drawer :text("From the IPR Tracker")')), 'no second “From the IPR Tracker” box');
+  check(!(await owner.isVisible('#iprBox :text("From the IPR Tracker")')) && (await owner.locator('#drawer .ds[data-ds=ipr]').count()) === 1, 'no second “From the IPR Tracker” box');
   await put('nlo/ipr/visits/p1/v3', { id: 'v3', patient_uuid: 'p1', date: '2026-10-01', created_at: '2026-10-01T10:00:00Z', upper_ipr: { 'UL2|UL3': '0.1' }, lower_ipr: {}, upper_spaces: {}, lower_spaces: {}, upper_bt: {}, lower_bt: {} });
   await owner.click('#iprBox [data-act=iprRefresh]');
   await owner.waitForSelector('#iprBox [data-act=iprUse]', { timeout: 20000 });
   check(/3 visits on file/.test(await owner.textContent('#iprBox')) && /Use this visit in the chart note/.test(await owner.textContent('#iprBox [data-act=iprUse]')), 'refresh picks up a newer IPR visit (and offers it for the chart note)');
-  pan = await iprSvgs();
-  check(pan.map(x => x.p).join(',') === 'visit,cum' && pan[0].vals === '0.1' && pan[1].vals === '0.2 0.1 0.2', 'the chart redraws for the newer visit (no spaces that visit, so no spaces panel)');
+  ipv = await iprMap('visit'); ipc = await iprMap('cum');
+  check(ipv.ipr === '0.1' && ipv.sp === '' && ipc.ipr === '0.2 0.1 0.2', 'the chart redraws for the newer visit (UL2–UL3 0.1; no spaces that visit), and so far adds it up');
   await owner.click('#iprBox [data-act=iprUse]');
   await owner.waitForSelector('#noteTxt:has-text("UL2-UL3 0.1mm")', { timeout: 20000 }); // (the chart note pastes as plain ASCII)
   check(true, '"Use this visit in the chart note" saves the new note (encrypted like the rest)');
   // folded, the way the panel opens on a computer where nobody tapped Expand all: the IPR heading still sums up the visit
   await owner.click('#drawer [data-act=dsAll]');
-  check(await owner.evaluate(() => Array.from(document.querySelectorAll('#drawer .ds:not(.line)')).every(x => !x.classList.contains('open') && x.querySelector('.dsBd').hidden) && localStorage.getItem('nloCases.panelOpen') === null), 'Collapse all folds every section (and forgets Expand all)');
+  check(await owner.evaluate(() => Array.from(document.querySelectorAll('#drawer .ds:not(.line)')).every(x => x.dataset.ds === 'ipr' ? x.classList.contains('open') : !x.classList.contains('open') && x.querySelector('.dsBd').hidden) && localStorage.getItem('nloCases.panelOpen') === null),
+    'Collapse all folds every section but the IPR chart, which stays open (Amir, 6 Oct 2026) — and forgets Expand all');
   await owner.click('#drawer [data-act=closeDrawer] >> nth=0'); await openByName(owner, 'Ivy Pulltest');
   await owner.waitForFunction(() => /^Oct 1 visit · IPR 0\.1 mm · 0\.5 mm so far$/.test((document.querySelector('#dsS-ipr') || {}).textContent || ''), null, { timeout: 20000 }).catch(() => {});
-  check(await owner.evaluate(() => Array.from(document.querySelectorAll('#drawer .ds:not(.line)')).every(x => !x.classList.contains('open'))) && /^Oct 1 visit · IPR 0\.1 mm · 0\.5 mm so far$/.test(await owner.textContent('#dsS-ipr')), 'reopened folded; the IPR heading reads the newer visit from the IPR Tracker (' + await owner.textContent('#dsS-ipr') + ')');
-  await owner.click('#drawer .ds[data-ds=ipr] .dsTg'); await owner.waitForSelector('#iprBox .iprP[data-p=visit] svg', { timeout: 10000 });
-  check(await owner.isVisible('#iprBox .stat:has-text("In the chart note")'), 'tapping the IPR heading shows the chart (now in the chart note)');
+  check(await owner.evaluate(() => Array.from(document.querySelectorAll('#drawer .ds:not(.line)')).every(x => x.dataset.ds === 'ipr' || !x.classList.contains('open'))) && /^Oct 1 visit · IPR 0\.1 mm · 0\.5 mm so far$/.test(await owner.textContent('#dsS-ipr')), 'reopened folded; the IPR heading reads the newer visit from the IPR Tracker (' + await owner.textContent('#dsS-ipr') + ')');
+  await owner.waitForSelector('#iprBox .iprMap svg', { timeout: 10000 });
+  check(await owner.isVisible('#iprBox .iprMap svg') && await owner.isVisible('#iprBox .stat:has-text("In the chart note")'), 'the IPR chart shows without tapping (it stays open), now in the chart note');
   await owner.click('#drawer [data-act=dsAll]'); // Expand all again for the rest of these tests
   await owner.click('#drawer [data-act=closeDrawer] >> nth=0');
   // the IPR chart kept on the case (Amir, 5 Oct 2026: "the graph doesn't stay … can it be synced for all the pt. at once")
   await owner.waitForFunction(() => { const c = openCases().find(x => x.patient === 'Ivy Pulltest'); return c && c.iprSnap && c.iprSnap.visits === 3; }, null, { timeout: 20000 }).catch(() => {});
   check(await owner.evaluate(() => { const c = openCases().find(x => x.patient === 'Ivy Pulltest'); return !!(c && c.iprSnap && c.iprSnap.visits === 3 && c.iprSnap.chart === '156541'); }), 'each reading of the IPR Tracker is kept on the case (sealed): 3 visits');
-  await openByName(gwen, 'Ivy Pulltest'); await gwen.waitForSelector('#iprBox .iprP[data-p=visit] svg', { timeout: 20000 });
+  await openByName(gwen, 'Ivy Pulltest'); await gwen.waitForSelector('#iprBox .iprMap svg', { timeout: 20000 });
   check(/3 visits on file · synced /.test(await gwen.textContent('#iprBox .iprMeta')) && await gwen.isVisible('#iprBox [data-act=iprConnect]'), 'Gwen (not connected to the IPR Tracker) sees the chart from the case, with Connect to refresh');
   await gwen.click('#drawer [data-act=closeDrawer] >> nth=0'); await gwen.fill('#q', '');
   await put('nlo/ipr/patients/p2', { id: 'p2', name: 'MQ', patient_id: '15-7777' });
@@ -461,7 +472,7 @@ async function openByName(p, name) {
 
   console.log('\n# Tap-first form: choices land on the case');
   await owner.click('.topBar [data-act=newCase]'); await owner.waitForSelector('#ncForm');
-  await owner.click('#ncSave'); await owner.waitForSelector('#ncErr .lockErr'); check(/case type/i.test(await owner.textContent('#ncErr')), 'asks for a case type first');
+  await owner.click('#ncSave'); await owner.waitForSelector('#ncErr .lockErr'); check(/patient’s name/i.test(await owner.textContent('#ncErr')), 'asks for the patient’s name first (6 Oct 2026: name and chart # come first, then the case type)');
   await owner.click('#ncForm .tt[data-tile=oliv]'); await owner.fill('#cf-patient', 'Petra Tapform');
   await owner.click('.pickRow[data-g=initial] .pick[data-v=no]');
   await owner.click('.pickRow[data-g=assistant] .pick:has-text("Gwen")');
@@ -512,8 +523,8 @@ async function openByName(p, name) {
   check(await owner.textContent('#cf-teethSum') === 'No attachment: UR3 to UL3, LR3 to LL2\nImplant: UL6', 'tooth chart: anteriors in one tap, single teeth toggle, summary reads in Palmer');
   await owner.click('#ncSave'); await owner.waitForSelector('#modalWrap', { state: 'detached', timeout: 20000 });
   await owner.click('#nav-board'); await owner.fill('#q', ''); await owner.click('[data-act=flow][data-k=inhouse]');
-  await owner.waitForSelector('section[aria-label="TxP needed"] .kc:has-text("Fiona Finisher")', { timeout: 20000 });
-  check(true, 'lands on the in-house board at TxP needed');
+  await owner.waitForSelector('section[aria-label="Uploaded to Titan"] .kc:has-text("Fiona Finisher")', { timeout: 20000 });
+  check(true, 'lands on the in-house board at Uploaded to Titan');
   await owner.click('.kc:has-text("Fiona Finisher")'); await owner.waitForSelector('#drawer .tc.ro');
   check(await owner.isVisible('#drawer .txt:has-text("Implant: UL6")') && (await owner.locator('#drawer .tc.ro .tooth.m-noatt').count()) === 11, 'case view shows the chart and its summary');
   await owner.click('#drawer [data-act=edit]'); await owner.waitForSelector('#drawer .cf');
@@ -849,29 +860,29 @@ async function openByName(p, name) {
   check(/40 aligners in this set/.test(await owner.textContent('#cf-alTotal')), 'aligners, not stages: upper 20 + lower 20 = 40 in this set');
   await owner.click('#ncSave'); await owner.waitForSelector('#modalWrap', { state: 'detached', timeout: 20000 });
   await openByName(owner, 'Nadia Setcount');
-  check((await owner.locator('#drawer .stepGrp:has-text("In fabrication")').count()) === 1 && (await owner.locator('#drawer .step.sub').count()) === 7, 'the stepper shows the seven fabrication steps under In fabrication');
+  check((await owner.locator('#drawer .stepGrp:has-text("In fabrication")').count()) === 1 && (await owner.locator('#drawer .step.sub').count()) === 5, 'the stepper shows the five fabrication steps under In fabrication (Ready to print … Polish, wash & dry — 6 Oct 2026)');
   // TxP approved (3 Oct 2026): the plan is done and the counts go in, even if the export waits
   await owner.click('#drawer .step[data-k=txpok]'); await owner.waitForSelector('#gAl', { timeout: 10000 });
   check(await owner.textContent('#modalWrap h3') === 'TxP approved' && await owner.inputValue('#gAlU') === '20' && await owner.inputValue('#gAlL') === '20' && await owner.isDisabled('#gGo'), 'TxP approved asks for the aligners (filled in: U 20 · L 20) and waits for the attachment-template answer');
   await owner.click('.pickRow[data-g=gAt] .pick[data-v=UL]'); await owner.click('#gGo');
   await owner.waitForSelector('#drawer .step.cur[data-k=txpok]', { timeout: 15000 });
   check(await owner.evaluate(() => { const c = findCase(S.openId); return c.stage === 'txpok' && c.atTemplates === 'UL' && c.aligners === 40; }), 'saved at TxP approved with the counts and the template answer (before any export)');
-  await owner.click('#drawer .step[data-k=fab]'); await owner.waitForSelector('#drawer .step.cur[data-k=fab]', { timeout: 15000 });
-  check(!(await owner.isVisible('#modalWrap')), 'TxP approved → Export STLs doesn’t ask again');
+  await owner.click('#drawer .step[data-k=send]'); await owner.waitForSelector('#drawer .step.cur[data-k=send]', { timeout: 15000 });
+  check(!(await owner.isVisible('#modalWrap')), 'TxP approved → Ready to print doesn’t ask again (no Export STLs step: Dr. A exports right after approving)');
   check(/Attachment templates: Upper & Lower/.test(await owner.textContent('#alBox')), 'the answer is saved with the move (Attachment templates: Upper & Lower)');
   check(/40 aligners in this set \(U 20 · L 20\)/.test(await owner.textContent('#alBox')) && /Patient total: 40 aligners/.test(await owner.textContent('#alBox')), 'the case shows its 40 aligners (U 20 · L 20) and the patient total');
   await owner.click('#drawer [data-act=closeDrawer] >> nth=0');
   await owner.click('#nav-board'); await owner.fill('#q', ''); await owner.click('[data-act=flow][data-k=inhouse]');
   const nCard = 'section[aria-label="In fabrication"] .kc:has-text("Nadia Setcount")';
-  await owner.waitForSelector(nCard + ' .kstep:has-text("Export STLs")', { timeout: 15000 }).catch(e => boardDiag(owner, 'Nadia Setcount', e));
-  check(/1 of 7/.test(await owner.textContent(nCard + ' .kstep')), 'board: one In fabrication column; the card shows Export STLs, 1 of 7');
-  await owner.click(nCard + ' .adv'); await owner.waitForSelector(nCard + ' .kstep:has-text("Send to printer")', { timeout: 15000 });
-  check(/2 of 7/.test(await owner.textContent(nCard + ' .kstep')) && (await owner.locator(nCard + ' .sprog i.d').count()) === 1, 'the arrow moves it one step (Send to printer, 2 of 7)');
+  await owner.waitForSelector(nCard + ' .kstep:has-text("Ready to print")', { timeout: 15000 }).catch(e => boardDiag(owner, 'Nadia Setcount', e));
+  check(/1 of 5/.test(await owner.textContent(nCard + ' .kstep')), 'board: one In fabrication column; the card shows Ready to print, 1 of 5');
+  await owner.click(nCard + ' .adv'); await owner.waitForSelector(nCard + ' .kstep:has-text("Printing")', { timeout: 15000 });
+  check(/2 of 5/.test(await owner.textContent(nCard + ' .kstep')) && (await owner.locator(nCard + ' .sprog i.d').count()) === 1, 'the arrow moves it one step (Printing, 2 of 5)');
   await owner.click('#nav-list'); await owner.fill('#q', 'Nadia Setcount');
   const nRow = 'tr.click:has-text("Nadia Setcount")'; await owner.waitForSelector(nRow + ' .sprog');
-  check((await owner.locator(nRow + ' .sprog i').count()) === 11 && (await owner.locator(nRow + ' .sprog .pg i').count()) === 7 && (await owner.locator(nRow + ' .sprog i.d').count()) === 3 && (await owner.locator(nRow + ' .sprog i.c').count()) === 1
-    && (await owner.locator(nRow + ' .sprog b').count()) === 10 && (await owner.locator(nRow + ' .sprog b.d').count()) === 3, 'list: a circle for every step joined by a line (3 done — TxP needed, TxP approved, Export STLs — now on step 4 of 11, the line filled up to it)');
-  check(/Send to printer · in fabrication 2\/7/.test(await owner.textContent(nRow + ' td.stg')), 'list: says Send to printer, in fabrication 2/7');
+  check((await owner.locator(nRow + ' .sprog i').count()) === 9 && (await owner.locator(nRow + ' .sprog .pg i').count()) === 5 && (await owner.locator(nRow + ' .sprog i.d').count()) === 3 && (await owner.locator(nRow + ' .sprog i.c').count()) === 1
+    && (await owner.locator(nRow + ' .sprog b').count()) === 8 && (await owner.locator(nRow + ' .sprog b.d').count()) === 3, 'list: a circle for every step joined by a line (3 done — Uploaded to Titan, TxP approved, Ready to print — now on step 4 of 9, the line filled up to it)');
+  check(/Printing · in fabrication 2\/5/.test(await owner.textContent(nRow + ' td.stg')), 'list: says Printing, in fabrication 2/5');
   await owner.click(nRow); await owner.waitForSelector('#drawer .stepper');
   await owner.click('#drawer .dFt [data-act=complete]'); await owner.waitForSelector('#drawer', { state: 'hidden', timeout: 15000 }).catch(() => {});
   await sleep(800);
@@ -905,7 +916,7 @@ async function openByName(p, name) {
     const b = stageFromSection('nla', 'In Fabrication', [S('Exported STLs', true), S('Sent to printer', true), S('Printing COMPLETED', true), S('Thermoforming', true), S('Trimming', true), S('Polished', true), S('Final Wash and Dry', false)]);
     const c = stageFromSection('nla', 'In Fabrication', null);
     const rows = asanaRowsFromCSV('Task ID,Name,Section/Column,Projects,Completed At,Parent task\n1,"Test Case - Aligners (In-House)",In Fabrication,NL Lab,,\n2,Exported STLs,,,2026-10-01,"Test Case - Aligners (In-House)"\n3,Sent to printer,,,,"Test Case - Aligners (In-House)"');
-    return a === 'print' && b === 'wash' && c === 'fab' && rows.length === 1 && caseFromAsana(rows[0], 'NL Lab', []).stage === 'send';
+    return a === 'print' && b === 'polish' && c === 'send' && rows.length === 1 && caseFromAsana(rows[0], 'NL Lab', []).stage === 'send';
   }), 'Asana import: the NL Lab checklist (subtasks) picks the fabrication step, from the API or a CSV');
 
   console.log('\n# In-house treatment: Start and Expected removal, and the graph of where the patient is');
@@ -1313,6 +1324,103 @@ async function openByName(p, name) {
   check(/inbox key|turned off/.test(offErr), 'after Turn off the script can’t send anything');
   await owner.click('#nav-today');
 
+  console.log('\n# Lab PC: Ortho Factory’s progress on in-house sets (the PowerShell script against the emulators, made-up orders)');
+  {
+    const { execFileSync } = require('child_process'), os = require('os');
+    await owner.evaluate(async () => {
+      const mk = o => B.createCase(Object.assign({ comments: [], createdAt: Date.now(), createdBy: meSid(), type: 'nla', initial: 'yes' }, o));
+      await mk({ patient: 'Lumen Printwell', chart: '61-0001', stage: 'txp', scanDate: addDays(todayISO(), -6) });
+      await mk({ patient: 'Tess Trimbright', chart: '61-0002', stage: 'print', scanDate: addDays(todayISO(), -9), alU: 6, alL: 6, aligners: 12, atTemplates: 'UL' });
+    });
+    await owner.click('#nav-admin'); await owner.waitForSelector('#labAdmin [data-act=labSetup]', { timeout: 20000 });
+    await owner.click('#labAdmin [data-act=labSetup]'); await owner.click('#cbYes');
+    await owner.waitForSelector('#labCode', { timeout: 30000 });
+    const labCode = (await owner.textContent('#labCode')).trim();
+    const labCfg = JSON.parse(Buffer.from(labCode.slice(8).replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8'));
+    check(labCode.startsWith('NLOLAB1.') && /^labbot\.[a-z0-9]+@staff\./.test(labCfg.e) && /^[A-Z0-9]{32}$/.test(labCfg.w) && labCfg.p === PROJECT && labCfg.fb === 'http://127.0.0.1:8080/v1',
+      'Set up the lab PC makes its own robot login and shows it once, in the setup code');
+    await owner.click('.modal [data-act=closeModal]');
+    check(!JSON.stringify(await fsDump()).includes(labCfg.w), 'the lab PC’s password isn’t stored anywhere');
+    check(await owner.evaluate(async () => { const st = await B.mailState(); return st.bots.filter(labBot).length === 1 && !st.on; }), 'its login is its own: email updates stay off (they were turned off above)');
+    // made-up Ortho Factory order folders: an export nobody counted yet, a set being made, one for a patient NLO Cases doesn't have
+    const labDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nlolab-')), labData = path.join(labDir, 'data'), labApp = path.join(labDir, 'app'); fs.mkdirSync(labData);
+    const ST = ['New', 'New,SentTo3DPrinter', 'New,SentTo3DPrinter,DoneWith3DPrinter', 'New,SentTo3DPrinter,DoneWith3DPrinter,TrimPathApproved,ThermoformedLabelPrinted', 'New,SentTo3DPrinter,DoneWith3DPrinter,TrimPathApproved,ThermoformedLabelPrinted,Trimmed'];
+    const folderAt = (ms, who) => { const d = new Date(ms), p2 = n => String(n).padStart(2, '0'); return d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate()) + ' ' + p2(d.getHours()) + ' ' + p2(d.getMinutes()) + ' ' + p2(d.getSeconds()) + ' - A - Dr. Test - ' + who + ' - ' + Math.random().toString(16).slice(2, 6); };
+    const writeOrder = (folder, id, first, last, rev, up, lo, tmpl) => {
+      const el = (k, a, n, lv) => '  <' + k + a + n + rev + ' Name="' + first + ' ' + last + ' - ' + n + '" Serialnumber="' + id + k + a + n + rev + '" State="' + ST[lv] + '">\n    <Archmodel>x.stl</Archmodel>\n  </' + k + a + n + rev + '>';
+      const body = up.map((lv, i) => el('A', 'U', i + 1, lv)).concat(lo.map((lv, i) => el('A', 'L', i + 1, lv)), (tmpl || []).map(([a, lv]) => el('T', a, 1, lv))).join('\n');
+      const dir = path.join(labData, folder); fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(path.join(dir, id + '_1_Order.xml'), '<?xml version="1.0" encoding="utf-8"?>\n<Patient Firstname="' + first + '" Lastname="' + last + '" ID="' + id + '" DueDate="20261020">\n' + body + '\n</Patient>\n');
+    };
+    const t0 = Date.now(), fL = folderAt(t0 - 2 * 3600e3, 'Lumen Printwell'), fT = folderAt(t0 - 26 * 3600e3, 'Tess Trimbright'), fO = folderAt(t0 - 5 * 3600e3, 'Otto Unplaced');
+    writeOrder(fL, '91001', 'Lumen', 'Printwell', 'A', Array(10).fill(0), Array(8).fill(0), [['U', 0], ['L', 0]]);
+    writeOrder(fT, '91002', 'Tess', 'Trimbright', 'C', [4, 3, 3, 2, 2, 1], [4, 2, 2, 1, 1, 1]);
+    writeOrder(fO, '91003', 'Otto', 'Unplaced', 'A', [1, 1, 1, 1, 0, 0], [1, 1, 0, 0, 0, 0]);
+    fs.mkdirSync(path.join(labData, 'DreamAlign working folder')); // (not an order)
+    const ps = (...a) => { try { return execFileSync('pwsh', ['-NoProfile', '-File', path.join(__dirname, '..', 'lab', 'nlo-lab-bridge.ps1')].concat(a, ['-DataDir', labData, '-AppDir', labApp, '-TestPlain']),
+      { env: Object.assign({}, process.env, { NLO_LAB_TEST_PLAIN: '1', NO_PROXY: 'localhost,127.0.0.1', no_proxy: 'localhost,127.0.0.1' }), encoding: 'utf8', timeout: 120000 }); }
+      catch (e) { return String(e.stdout || '') + String(e.stderr || '') + ' [exit ' + e.status + ']'; } };
+    const inst = ps('-Install', '-Code', labCode);
+    check(/Encryption check: OK/.test(inst) && /Signed in to NLO Cases: OK/.test(inst), 'the script checks its encryption on this computer and signs in with the setup code (-Install)' + (/Signed in/.test(inst) ? '' : ' — ' + inst.slice(-400)));
+    const dry = ps('-DryRun');
+    check(/Orders in .*: 3 \(3 changed/.test(dry) && /91002C\s+Tess Trimbright .* printed 8\/12 .* trimmed 2\/12/.test(dry) && /upper -433221\s+lower -422111/.test(dry), 'a dry run reads the 3 orders, each aligner’s step too (a working folder isn’t an order), and sends nothing');
+    const once = ps('-Once');
+    check(/Sent 3 order updates/.test(once), 'one pass sends the 3 orders, sealed (' + ((once.match(/Sent[^\n]*/) || [once.slice(-300)])[0]) + ')');
+    await owner.waitForFunction(() => { const c = n => openCases().find(x => x.patient === n); const a = c('Lumen Printwell'), b = c('Tess Trimbright'); return !!(a && b && a.labOrd && b.labOrd && b.labOrd.a.printed === 8); }, null, { timeout: 40000 }).catch(() => {});
+    const lp = await owner.evaluate(() => { const c = openCases().find(x => x.patient === 'Lumen Printwell'); return c && c.labOrd ? { key: c.labOrd.key, alU: c.alU, alL: c.alL, n: c.aligners, at: c.atTemplates, sug: (labSuggest(c) || {}).to } : null; });
+    check(lp && lp.key === '91001A' && lp.alU === 10 && lp.alL === 8 && lp.n === 18 && lp.at === 'UL' && lp.sug === 'send', 'the export fills in the counts nobody typed (U 10 · L 8, templates upper & lower) and offers Ready to print (' + JSON.stringify(lp) + ')');
+    const tt = await owner.evaluate(() => { const c = openCases().find(x => x.patient === 'Tess Trimbright'); return c && c.labOrd ? { a: c.labOrd.a, lv: c.labOrd.lv, alU: c.alU, sug: (labSuggest(c) || {}).to } : null; });
+    check(tt && tt.a.n === 12 && tt.a.printed === 8 && tt.a.trimmed === 2 && tt.lv.au === '-433221' && tt.lv.al === '-422111' && tt.alU === 6 && tt.sug === 'trim',
+      'a set being made: every aligner’s step comes along (U1 trimmed … U6 on the printer), the typed counts stay, and the first ones thermoformed → it offers Trimming');
+    await owner.click('#nav-board'); await owner.fill('#q', ''); await owner.click('[data-act=flow][data-k=inhouse]');
+    const lCard = '.kc:has-text("Lumen Printwell")', tCard = '.kc:has-text("Tess Trimbright")';
+    await owner.waitForSelector(lCard + ' .labGo:has-text("Ready to print")', { timeout: 20000 });
+    check(await owner.isVisible(tCard + ' .labM .lic-print.live') && /8\/12/.test(await owner.textContent(tCard + ' .labLn')) && /2\/12/.test(await owner.textContent(tCard + ' .labLn')),
+      'board: Tess’s card has the Print (8/12, the printer moving — 4 still on it) and Trim (2/12) bars');
+    await owner.click(lCard + ' .labGo');
+    await owner.waitForFunction(() => { const c = openCases().find(x => x.patient === 'Lumen Printwell'); return c && c.stage === 'send'; }, null, { timeout: 20000 });
+    check(!(await owner.isVisible('#modalWrap')), 'one tap moves Lumen to Ready to print — no counts window (the counts came from the export)');
+    await openByName(owner, 'Lumen Printwell'); await owner.waitForSelector('#histBox .hist:has-text("Lab PC")', { timeout: 20000 });
+    const lh = await owner.textContent('#histBox');
+    check(/Lab PC found Ortho Factory order 91001A, filled in the aligner counts from the export \(U 10 · L 8\), answered attachment templates from the export/.test(lh) && /moved it to Ready to print, as the lab PC suggested/.test(lh),
+      'history: the Lab PC found the order and filled in the counts; the move says it was the lab PC’s suggestion');
+    await owner.click('#drawer [data-act=closeDrawer] >> nth=0'); await owner.fill('#q', '');
+    await owner.click('#nav-today'); await owner.waitForSelector('#labCard .mlRow:has-text("Otto Unplaced")', { timeout: 20000 });
+    check(/on the printer, 6 of 12/.test(await owner.textContent('#labCard')) && (await owner.locator('#labCard .mlRow').count()) === 1, 'Today: only the order it couldn’t place asks which case it is (Otto Unplaced — on the printer, 6 of 12)');
+    dump = JSON.stringify(await fsDump());
+    { const plain = dump.replace(/"[A-Za-z0-9+/=_-]{40,}"/g, '""'), lk = /Printwell|Trimbright|Unplaced|91001A|91002C|-433221/.exec(plain);
+      check(!lk, 'no patient name, order # or progress is readable anywhere in the database' + (lk ? ' — found “' + lk[0] + '”' : '')); }
+    await owner.click('#labCard [data-act=labSkip]');
+    await owner.waitForFunction(async () => !document.querySelector('#labCard') && (await B.inboxLoad()).length === 0, null, { timeout: 20000 });
+    check(true, 'Dismiss clears it, and every lab message has left the inbox');
+    // the set moves on: every model printed, more trimmed
+    writeOrder(fT, '91002', 'Tess', 'Trimbright', 'C', [4, 4, 4, 3, 3, 2], [4, 4, 3, 2, 2, 2]);
+    const once2 = ps('-Once');
+    check(/Sent 1 order update /.test(once2), 'the next pass sends only the order that changed (' + ((once2.match(/Sent[^\n]*/) || [once2.slice(-300)])[0]) + ')');
+    await owner.waitForFunction(() => { const c = openCases().find(x => x.patient === 'Tess Trimbright'); return c && c.labOrd && c.labOrd.a.printed === 12; }, null, { timeout: 30000 });
+    await openByName(owner, 'Tess Trimbright'); await owner.waitForSelector('#histBox .hist:has-text("reported every model printed")', { timeout: 20000 });
+    check((await owner.locator('#histBox .hist:has-text("Lab PC")').count()) === 2, 'history: when the order was found and when every model was printed (not each reading)');
+    if (!(await owner.evaluate(() => document.querySelector('#drawer .ds[data-ds=lab]').classList.contains('open')))) await owner.click('#drawer .ds[data-ds=lab] .dsTg');
+    check((await owner.locator('#drawer .labGrid .labGr .lac.l4').count()) === 5 && (await owner.locator('#drawer .labGrid .labGr .lac').count()) === 12
+      && /Upper aligners: trimmed 1–3; thermoformed 4–5; printed 6/.test(await owner.getAttribute('#drawer .labGrid .labGr >> nth=0', 'aria-label')),
+      'the case’s Lab section shows each aligner by number: U1–3 and L1–2 trimmed (' + await owner.getAttribute('#drawer .labGrid .labGr >> nth=0', 'aria-label') + ')');
+    await owner.click('#drawer [data-act=closeDrawer] >> nth=0'); await owner.fill('#q', '');
+    // what the lab PC's login can do: add sealed messages and its check-in — not read a case
+    const lt = (await (await fetch('http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=demo-key', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: labCfg.e, password: labCfg.w, returnSecureToken: true }) })).json()).idToken;
+    const rd = await fetch(`http://127.0.0.1:8080/v1/projects/${PROJECT}/databases/(default)/documents/cases?pageSize=5`, { headers: { Authorization: 'Bearer ' + lt } });
+    const rk = await fetch(`http://127.0.0.1:8080/v1/projects/${PROJECT}/databases/(default)/documents/meta/inboxKey`, { headers: { Authorization: 'Bearer ' + lt } });
+    check(rd.status === 403 && rk.status === 403, 'the lab PC’s login can’t read the cases or the inbox key (' + rd.status + ', ' + rk.status + ')');
+    await owner.click('#nav-admin'); await owner.waitForSelector('#labAdmin .mlBeat:has-text("Lab PC")', { timeout: 20000 });
+    check(/3 orders in Ortho Factory · 4 updates sent today/.test(await owner.textContent('#labAdmin')) && !(await owner.isVisible('#mailAdmin .mlBeat:has-text("Lab PC")')), 'Team & security shows the lab PC’s check-in under Lab PC (not under Email updates)');
+    await owner.click('#labAdmin [data-act=labOff]'); await owner.click('#cbYes'); await owner.waitForSelector('.toast:has-text("Lab PC turned off")', { timeout: 20000 });
+    await owner.waitForSelector('#labAdmin [data-act=labSetup]:has-text("Set up the lab PC")', { timeout: 20000 });
+    writeOrder(fT, '91002', 'Tess', 'Trimbright', 'C', [4, 4, 4, 4, 4, 4], [4, 4, 4, 4, 4, 4]);
+    const off = ps('-Once');
+    check(/Problem: .*HTTP 403/.test(off) && !/Sent 1/.test(off), 'after Turn off the lab PC can’t send anything (its check-ins are cleared too)');
+    fs.rmSync(labDir, { recursive: true, force: true });
+    await owner.click('#nav-today');
+  }
+
   console.log('\n# Patient photos: added, reused, changed, removed, pasted, blurred, re-sealed');
   // test pictures drawn in the page (made-up), as a camera or a file would give them
   const pic = async (color, name) => ({ name, mimeType: 'image/jpeg', buffer: Buffer.from(await owner.evaluate(cl => { const c = document.createElement('canvas'); c.width = 1200; c.height = 1500; const g = c.getContext('2d');
@@ -1352,8 +1460,9 @@ async function openByName(p, name) {
   await owner.click('#ncForm .tt[data-tile=models]'); await owner.fill('#cf-patient', PP); await owner.waitForSelector('#cf-photo.set', { timeout: 15000 });
   await owner.click('#cf-photo'); await owner.click('#phWrap [data-ph=remove]'); await owner.waitForSelector('#phWrap', { state: 'detached' });
   check(!(await owner.isVisible('#cf-photo.set')), '…or not, if it’s taken off in the form');
-  await owner.fill('#cf-chart', '77-1'); await owner.waitForTimeout(600);
-  check(!(await owner.isVisible('#cf-photo.set')), 'and it doesn’t come back while typing');
+  // (the chart # is required now — 6 Oct 2026: the patient's own, typed in after the photo was taken off)
+  await owner.fill('#cf-chart', await owner.evaluate(n => (openCases().find(c => c.patient === n && c.chart) || {}).chart || '77-1', PP)); await owner.waitForTimeout(600);
+  check(!(await owner.isVisible('#cf-photo.set')), 'and it doesn’t come back while typing (the patient’s chart #)');
   await owner.click('#ncSave'); await owner.waitForSelector('#modalWrap', { state: 'detached', timeout: 20000 });
   await owner.waitForFunction(n => openCases().filter(c => c.patient === n).length === 3, PP, { timeout: 20000 });
   pc = await ptCases(owner);

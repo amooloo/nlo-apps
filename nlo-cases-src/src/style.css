@@ -565,6 +565,40 @@ td.shipCol .flags{margin-top:0}
 .portals .small{flex-basis:100%}
 a.btn{text-decoration:none}
 .cfMore{margin-top:10px;border-top:1px solid var(--grey-100);padding-top:10px}
+/* New case in steps (Amir, 6 Oct 2026): a row of step names, one step's sections at a time, Back / Next / Create case */
+.wizBar{display:flex;flex-wrap:wrap;gap:6px;list-style:none;margin:2px 0 14px;padding:0}
+.wizBar li{display:flex}
+.wizBar button{display:inline-flex;align-items:center;gap:8px;min-height:36px;padding:4px 14px 4px 5px;border-radius:999px;border:1px solid var(--grey-200);background:#fff;font-size:13px;font-weight:600;color:var(--grey-500);transition:border-color .15s var(--ease),color .15s var(--ease)}
+.wizBar .n{width:26px;height:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:var(--grey-100);color:var(--grey-600);font-weight:700;font-size:12px;font-variant-numeric:tabular-nums}
+.wizBar li.cur button{border-color:var(--navy);color:var(--navy)}
+.wizBar li.cur .n{background:var(--navy);color:#fff}
+.wizBar li.done button{color:var(--grey-700)}
+.wizBar li.done .n{background:var(--mint);color:var(--navy-900)}
+@media (hover:hover){ .wizBar button:hover{border-color:var(--grey-400);color:var(--navy)} }
+.cf.wiz>[data-step].wizOff{display:none !important}
+.cf.wiz>.cfSec{border-bottom:none}
+.cf:not(.wiz)>.wizSumSec{display:none}
+.wizFt .wizSp{flex:1}
+.dWiz{padding:10px 24px 0;border-bottom:1px solid var(--grey-100)}
+.dWiz .wizBar{margin:2px 0 10px}
+.flag.quickF{background:var(--amber-100);color:var(--amber-700);border:1px solid var(--amber-200)}
+.notice.quickN{display:flex;gap:12px;align-items:flex-start;background:var(--amber-100);border:1px solid var(--amber-200);color:var(--grey-700)}
+.notice.quickN>svg{color:var(--amber-700);flex:none;margin-top:2px}
+.quickNB{flex:1;min-width:0}
+.quickNBtns{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.wizFt [hidden]{display:none !important}
+.wsList{display:grid;grid-template-columns:auto 1fr;gap:6px 18px;font-size:13.5px;margin:2px 0 6px}
+.wsRow{display:contents}
+.wsRow .k{color:var(--grey-500);font-size:12.5px;padding-top:1px}
+.wsRow .v{color:var(--grey-700);min-width:0;overflow-wrap:anywhere}
+.wsRow .v b{color:var(--navy)}
+/* the patient's name and chart #: needed, and they stand out until they're filled in (Amir, 6 Oct 2026) */
+.reqT{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:999px;background:var(--amber-100);color:var(--amber-700);font-family:var(--fb);font-size:10px;font-weight:700;letter-spacing:.02em;text-transform:none;vertical-align:1px}
+.field.req input:placeholder-shown{border-color:var(--amber-600);background:#FFF9EC}
+.field.req.bad input{border-color:var(--coral-600);background:#fff;box-shadow:0 0 0 3px var(--coral-100)}
+.field.req.bad .reqT{background:var(--coral-100);color:var(--coral-700)}
+@media (max-width:520px){ .wizBar button{padding:3px 10px 3px 4px;font-size:12px} .wizBar .n{width:22px;height:22px} .wsList{grid-template-columns:1fr;gap:2px} .wsRow .k{margin-top:6px} }
+@media (prefers-reduced-motion:reduce){ .wizBar button{transition:none} }
 .cfMore summary{cursor:pointer;font-size:12.5px;font-weight:600;color:var(--grey-600);padding:6px 0}
 @media (max-width:860px){ #modalWrap{padding:0} .modal.wide{border-radius:0;min-height:100vh} .tileGrid{grid-template-columns:repeat(2,1fr)} }
 
@@ -693,7 +727,7 @@ a.btn{text-decoration:none}
 .mlWhat{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;flex:1 1 320px;min-width:0}
 .mlName{font-weight:700;color:var(--navy)}
 .mlDo{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.mlSel{min-height:34px;padding:5px 10px;max-width:320px;width:auto}
+.mlSel,.labSel{min-height:34px;padding:5px 10px;max-width:320px;width:auto}
 .mlBeat{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding:8px 0;border-bottom:1px solid var(--grey-100)}
 .mlBeat b{color:var(--navy)}
 .mlBtns{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
@@ -833,17 +867,53 @@ body.phOff .pav,body.phOff .dPh,body.phOff .phSlot,body.phOff .mlPh{display:none
 .iprMeta{font-size:12.5px;color:var(--grey-600);margin-bottom:10px}
 .iprMeta b{color:var(--navy)}
 .iprMsg,.iprNone{margin-bottom:8px}
-.iprP{border:1px solid var(--grey-100);border-radius:12px;padding:10px 10px 4px;margin-bottom:10px;background:#fff}
-.iprPH{display:flex;align-items:baseline;flex-wrap:wrap;gap:2px 10px;margin:0 4px 2px;font-size:12px;color:var(--grey-600)}
-.iprPH b{font-family:var(--fd);font-weight:500;font-size:11.5px;letter-spacing:.1em;text-transform:uppercase}
-.btKey{display:inline-block;width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:8px solid #111;vertical-align:middle;margin-left:3px}
-.iprSvg{display:block;width:100%;height:auto;max-width:560px;margin:0 auto}
-.iprSvg .tooth{fill:#fff;stroke:#334155;stroke-width:1.2}
-.iprSvg .tn{font-family:var(--fb);font-size:11px;font-weight:700;fill:#475569;text-anchor:middle;dominant-baseline:central}
-.iprSvg .v{font-family:var(--fb);font-size:11.5px;font-weight:700;text-anchor:middle}
-.iprSvg .mid{stroke:#cbd5e1;stroke-width:.8;stroke-dasharray:3 2}
-.iprSvg .base{stroke:#cbd5e1;stroke-width:.5}
-.iprSvg .bt{fill:#111}
+/* the IPR chart (Amir, 6 Oct 2026: "make the diagram look nicer"): one chart, a switch for this visit / so far, a key */
+.iprMap{border:1px solid var(--grey-100);border-radius:16px;padding:12px 12px 8px;margin-bottom:10px;background:#fff}
+.iprMapHd{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;margin:0 2px 6px}
+.iprSeg{display:inline-flex;flex-wrap:wrap;background:var(--grey-50);border:1px solid var(--grey-100);border-radius:999px;padding:3px;gap:2px}
+.iprSegB{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:4px 13px;border-radius:999px;font-size:12.5px;color:var(--grey-500);white-space:nowrap;transition:background .15s var(--ease),color .15s var(--ease)}
+.iprSegB i{width:9px;height:9px;border-radius:50%;flex:none;opacity:.45}
+.iprSegB b{font-weight:700;font-variant-numeric:tabular-nums}
+.iprSegB span{font-size:11px;color:var(--grey-400)}
+.iprSegB[aria-pressed="true"]{background:#fff;box-shadow:var(--sh-xs);color:var(--navy)}
+.iprSegB[aria-pressed="true"] i{opacity:1}
+@media (hover:hover){ .iprSegB[aria-pressed="false"]:hover{color:var(--navy)} }
+.iprTogs{display:inline-flex;flex-wrap:wrap;gap:6px}
+.iprTog{display:inline-flex;align-items:center;gap:7px;min-height:32px;padding:4px 12px 4px 9px;border:1px solid var(--grey-200);border-radius:999px;background:#fff;font-size:12.5px;color:var(--grey-700);white-space:nowrap;transition:background .15s var(--ease),border-color .15s var(--ease),color .15s var(--ease)}
+.iprTog b{color:var(--navy);font-weight:700;font-variant-numeric:tabular-nums}
+.iprTog .sw{flex:none;display:inline-block;width:14px;height:14px;border-radius:50%;border:2px solid var(--sw,var(--navy));background:var(--sw,var(--navy))}
+.iprTog .sw.sp{--sw:var(--mint-600);width:18px;border-radius:6px}
+.iprTog .sw.bt{width:0;height:0;border-radius:0;border-width:9px 6px 0;border-style:solid;border-color:var(--navy-900) transparent transparent;background:none}
+.iprTog[aria-pressed="false"]{background:var(--grey-50);border-style:dashed;color:var(--grey-400)}
+.iprTog[aria-pressed="false"] b{color:var(--grey-400)}
+.iprTog[aria-pressed="false"] .sw{background:none}
+.iprTog[aria-pressed="false"] .sw.bt{border-top-color:var(--grey-300)}
+@media (hover:hover){ .iprTog:hover{border-color:var(--grey-400)} }
+.iprSegB:disabled{opacity:.45;cursor:default}
+.iprKey{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--grey-600);white-space:nowrap}
+.iprKey b{color:var(--navy);font-weight:700;font-variant-numeric:tabular-nums}
+.iprKey i{width:9px;height:9px;border-radius:50%;flex:none}
+.iprKey i.sp{width:16px;border-radius:5px;background:var(--mint)}
+.iprKey i.btI{width:0;height:0;border-radius:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:8px solid var(--navy-900)}
+.iprSvg{display:block;width:100%;height:auto;max-width:620px;margin:0 auto}
+.iprSvg .gum{fill:var(--coral-100)}
+.iprSvg .crown{stroke:#A9B3C0;stroke-width:1;stroke-linejoin:round}
+.iprSvg .tn{font-family:var(--fb);font-size:11px;font-weight:600;fill:var(--grey-500);text-anchor:middle;dominant-baseline:central}
+.iprSvg .side{font-family:var(--fb);font-size:10px;font-weight:700;fill:var(--coral-700);opacity:.55;dominant-baseline:central}
+.iprSvg .mid{stroke:var(--grey-300);stroke-width:.9;stroke-dasharray:3 3}
+.iprSvg .bdg rect{fill:var(--bdg);stroke:#fff;stroke-width:2;paint-order:stroke}
+.iprSvg .bdg text{font-family:var(--fb);font-size:11px;font-weight:700;fill:#fff;text-anchor:middle;dominant-baseline:central;font-variant-numeric:tabular-nums}
+.iprSvg .bdg.sp rect{fill:var(--mint)}
+.iprSvg .lead line{stroke:var(--bdg);stroke-width:1.3}
+.iprSvg .lead circle{fill:var(--bdg);stroke:#fff;stroke-width:1.2}
+.iprSvg .bdg.sp text{fill:var(--navy-900)}
+.iprSvg .bt{fill:var(--navy-900)}
+.iprMapFt{display:flex;justify-content:center;gap:22px;font-size:12px;color:var(--grey-500);margin-top:2px}
+.iprMapFt b{color:var(--navy);font-weight:700;font-variant-numeric:tabular-nums}
+@media (prefers-reduced-motion:reduce){ .iprSegB,.iprTog{transition:none} }
+@media (max-width:520px){ .iprSegB{padding:4px 10px;font-size:12px} .iprSegB span{display:none} .iprMap{padding:10px 8px 6px} }
+.iprGo{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:2px 0 6px}
+.iprPrev{margin:8px 0 2px}
 .iprFoot{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px}
 .iprSaved{margin-top:10px}
 .iprSaved .k{font-family:var(--fd);font-weight:500;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--grey-500);margin-bottom:4px}
@@ -1503,3 +1573,77 @@ body.phHide .pnm:not(:hover)::after{content:attr(data-s)}
 .dkWhat{margin:4px 0 6px}
 /* the case panel's footer: the quieter actions (Remove duplicate; Dr. A's Versions and Delete) stay together on the right */
 .dFtR{display:flex;flex-wrap:wrap;gap:2px;margin-left:auto;justify-content:flex-end}
+/* the lab PC (lab.js): an in-house set's printing and trimming, print by print, and the step it's ready for — one tap */
+.labLn{display:flex;align-items:flex-start;gap:6px;font-size:12px;color:var(--grey-600);line-height:1.3}
+.labLn>.i{flex:none;margin-top:1px;color:var(--mint-700)}
+.labB{flex:1;min-width:0;display:flex;flex-direction:column;align-items:stretch;gap:4px}
+.labB .t{font-weight:600;color:var(--grey-600)}
+.labB .labGo{align-self:flex-start;margin-top:1px}
+.labM{display:grid;grid-template-columns:16px 1fr auto;align-items:center;gap:7px;min-width:0;font-size:11px;font-weight:600;color:var(--grey-600)}
+.labM .bar{display:flex;height:6px;border-radius:3px;background:var(--grey-100);overflow:hidden}
+.labM .bar i{display:block;height:100%;background:var(--mint-600)}
+.labM .bar i.q{background:var(--mint-200)}
+.labM.done .bar i{background:var(--mint-700)}
+.labM .v{min-width:34px;text-align:right;font-variant-numeric:tabular-nums;color:var(--navy)}
+.labM.done .v{color:var(--mint-700)}
+.labGo{display:inline-flex;align-items:center;gap:3px;border-radius:99px;padding:4px 11px 4px 6px;min-height:30px;background:var(--mint);color:var(--navy-900);font-weight:700;font-size:12.5px;line-height:1.2;white-space:nowrap;box-shadow:inset 0 0 0 1px var(--mint-600);transition:background .14s var(--ease)}
+.labGo:hover{background:var(--mint-600)}
+.labGo.sm{min-height:24px;padding:2px 9px 2px 4px;font-size:11.5px}
+.dsHd .labGo{flex:none}
+.ds.open .dsHd .labGo{display:none} /* (open: the same button is in the section) */
+@media (pointer:coarse){ .labGo.sm{min-height:32px;padding:4px 11px 4px 6px} }
+.labBox{display:flex;flex-direction:column;gap:7px}
+.labRow{display:grid;grid-template-columns:18px minmax(104px,150px) 1fr auto;align-items:center;gap:10px;font-size:12.5px;color:var(--grey-700)}
+.labRow .l{display:flex;flex-direction:column;line-height:1.25}
+.labRow .l small{font-size:11px;color:var(--grey-500);font-weight:500}
+.labRow .bar{display:flex;height:8px;border-radius:4px;background:var(--grey-100);overflow:hidden}
+.labRow .bar i{display:block;height:100%;background:var(--mint-600)}
+.labRow .bar i.q{background:var(--mint-200)}
+.labRow.done .l{color:var(--mint-700);font-weight:600}
+.labRow.done .bar i{background:var(--mint-700)}
+.labRow .v{font-variant-numeric:tabular-nums;min-width:54px;text-align:right;color:var(--grey-600)}
+.labRow .v b{color:var(--navy)}
+/* each aligner of the set by its number, coloured by its step (lab.js labGridHTML) */
+.labGrid{display:flex;flex-direction:column;gap:6px;margin-top:4px;padding-top:9px;border-top:1px solid var(--grey-100)}
+.labGr{display:grid;grid-template-columns:42px 1fr;gap:8px;align-items:start}
+.lagL{font-size:11px;font-weight:600;color:var(--grey-600);padding-top:3px}
+.lagC{display:flex;flex-wrap:wrap;gap:3px}
+.lac{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:20px;padding:0 3px;border-radius:5px;font-size:10.5px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1;box-sizing:border-box}
+.lac.l0{background:var(--grey-100);color:var(--grey-400)}
+.lac.l1{background:#fff;color:var(--navy);box-shadow:inset 0 0 0 1.5px var(--mint-600);border:0;outline:1px dashed transparent}
+.lac.l1{background-image:repeating-linear-gradient(135deg,transparent 0 3px,var(--mint-100) 3px 6px)}
+.lac.l2{background:var(--mint-100);color:var(--navy);box-shadow:inset 0 0 0 1px var(--mint-200)}
+.lac.l3{background:var(--mint-200);color:var(--navy-900)}
+.lac.l4{background:var(--mint-700);color:#fff}
+.lagKey{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:11px;color:var(--grey-600);margin-top:2px}
+.lagKey span{display:inline-flex;align-items:center;gap:5px}
+.lagKey .lac{min-width:11px;width:11px;height:11px;padding:0;border-radius:3px}
+/* the stations' icons: grey before the step starts, navy once it has, mint when the whole set is through; moving while it's going on */
+.lic{display:block;flex:none;color:var(--grey-400)}
+.on>.lic{color:var(--navy)}
+.done>.lic{color:var(--mint-700)}
+.lic.live{color:var(--navy)}
+.lic .ph{animation:none}
+.lic.live .ph{animation:licHead 1.3s ease-in-out infinite alternate}
+.lic.live .l1{animation:licL1 3.9s linear infinite}
+.lic.live .l2{animation:licL2 3.9s linear infinite}
+.lic.live .l3{animation:licL3 3.9s linear infinite}
+@keyframes licHead{from{transform:translateX(-4px)}to{transform:translateX(4px)}}
+@keyframes licL1{0%,12%{opacity:0}16%,94%{opacity:1}100%{opacity:0}}
+@keyframes licL2{0%,45%{opacity:0}49%,94%{opacity:1}100%{opacity:0}}
+@keyframes licL3{0%,78%{opacity:0}82%,94%{opacity:1}100%{opacity:0}}
+.lic-trim .sa,.lic-trim .sb{transform-origin:12.6px 12px}
+.lic.live .sa{animation:licSnipA 1.1s ease-in-out infinite}
+.lic.live .sb{animation:licSnipB 1.1s ease-in-out infinite}
+@keyframes licSnipA{0%,100%{transform:rotate(0)}40%,55%{transform:rotate(-16deg)}}
+@keyframes licSnipB{0%,100%{transform:rotate(0)}40%,55%{transform:rotate(16deg)}}
+@media (prefers-reduced-motion:reduce){ .lic.live *{animation:none !important} }
+.labT,.labMeta{line-height:1.5}
+.labMeta b{color:var(--navy)}
+.labBtns{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:4px}
+.notice.labCnt{display:flex;align-items:center;flex-wrap:wrap;gap:8px 10px}
+.notice.labCnt>.i{flex:none}
+.notice.labCnt>span{flex:1 1 220px}
+.labCmd{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:6px 0 2px}
+.labCmd code{flex:1 1 260px;min-width:0;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11.5px;line-height:1.45;background:var(--grey-50);border:1px solid var(--grey-200);border-radius:8px;padding:7px 10px;color:var(--navy);word-break:break-all;user-select:all}
+@media (prefers-reduced-motion:reduce){ .labGo{transition:none} }

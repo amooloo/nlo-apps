@@ -534,12 +534,14 @@ function caseFormHTML(c, isNew) {
   const teeth0 = canonTeeth(c.teeth), scope0 = noattScopeOf(teeth0);
   const rxTile = (v, ic, l) => '<button type="button" class="pick rxTile" data-v="' + esc(v) + '" aria-pressed="' + extras.includes(v) + '">' + rxArt(ic) + '<span><b>' + esc(l) + '</b></span></button>';
   return '<div class="cf" data-new="' + (isNew ? 1 : 0) + '" data-id="' + esc(c.id || '') + '">' +
-    '<div class="cfSec"><h5>Case type</h5><div class="tileGrid" role="radiogroup" aria-label="Case type">' + TILES.filter(t => !t.legacy || t.v === tile).map(t =>
+    // the patient first, then the case type (Amir, 6 Oct 2026: "pt's demographic > next tx > etc."; the name and chart # are both
+    // needed and stand out — "pt's name and chart number should be mandatory and those fields should be highlighted").
+    // A new case can take the patient's photo right here (a case being edited changes it from the case itself)
+    '<div class="cfSec" data-step="patient"><div class="ptRowF">' + (isNew ? phSlotHTML() : '') + '<div class="grid2"><div class="field req"><label for="cf-patient">Patient name <span class="reqT">required</span></label><input id="cf-patient" autocomplete="off" placeholder="First and last name" value="' + esc(c.patient || '') + '" required></div>' +
+    '<div class="field req"><label for="cf-chart">Chart # <span class="reqT">required</span></label><input id="cf-chart" autocomplete="off" spellcheck="false" inputmode="text" placeholder="The patient’s chart # in Edge" value="' + esc(c.chart || '') + '"' + (isNew ? ' required' : '') + '></div></div></div></div>' +
+    '<div class="cfSec" data-step="patient"><h5>Case type</h5><div class="tileGrid" role="radiogroup" aria-label="Case type">' + TILES.filter(t => !t.legacy || t.v === tile).map(t =>
       '<button type="button" class="tt' + (t.c ? ' c-' + t.c : '') + '" role="radio" data-tile="' + t.v + '" aria-checked="' + (tile === t.v) + '">' + tileArt(t) + '<b>' + esc(t.l) + '</b><span>' + esc(t.s) + '</span></button>').join('') + '</div></div>' +
-    // a new case can take the patient's photo right here (a case being edited changes it from the case itself)
-    '<div class="cfSec"><div class="ptRowF">' + (isNew ? phSlotHTML() : '') + '<div class="grid2"><div class="field"><label for="cf-patient">Patient name *</label><input id="cf-patient" autocomplete="off" value="' + esc(c.patient || '') + '" required></div>' +
-    '<div class="field"><label for="cf-chart">Chart #</label><input id="cf-chart" autocomplete="off" spellcheck="false" inputmode="text" placeholder="For the IPR Tracker link" value="' + esc(c.chart || '') + '"></div></div></div></div>' +
-    '<div class="cfSec"' + show('appliance marpe') + '><div' + show('appliance') + '><h5>Appliance</h5>' + pickRow('appliances', withSaved(PICK.appliances, c.appliances), c.appliances || [], true) +
+    '<div class="cfSec" data-step="case"' + show('appliance marpe') + '><div' + show('appliance') + '><h5>Appliance</h5>' + pickRow('appliances', withSaved(PICK.appliances, c.appliances), c.appliances || [], true) +
       // Hawley retainers: the arch, shown once Hawley is tapped; the acrylic color (Specialty's guide) for the Hawley or the Schwarz
       '<div id="cf-hawleyWrap" class="hawleyWrap"' + ((c.appliances || []).includes(HAWLEY) ? '' : ' hidden') + '><h5>Hawley arch</h5>' +
         pickRow('hawleyArch', ['Upper', 'Lower'], (c.appliances || []).includes(HAWLEY) ? (c.arches || []) : [], true) + '</div>' +
@@ -547,19 +549,21 @@ function caseFormHTML(c, isNew) {
         esc(acrylicFor(c.appliances)) + '</span></h5>' + acrylicPaletteHTML(acrylicName(c), c.acrylic && acrylicName(c) !== c.acrylic ? c.acrylic + '|1' : '') +
         '<div class="hint small" id="cf-acrHint" hidden></div></div>' +
       '</div>' +
-    '<h5>Lab</h5>' + labRowHTML(withSaved(PICK.labs, labName(c.lab)), labName(c.lab)) + '<div class="hint small" id="cf-labHint" style="margin-top:6px"></div>' +
-      rxFormSecHTML(c) + '</div>' + // Specialty's Herbst Rx (rx.js), Retainer Rx (rxret.js), Metal Rx (rxmetal.js) and Functional Rx (rxfun.js), filled out from here or later from the case
+    '<h5>Lab</h5>' + labRowHTML(withSaved(PICK.labs, labName(c.lab)), labName(c.lab)) + '<div class="hint small" id="cf-labHint" style="margin-top:6px"></div></div>' +
+    // Specialty's Herbst Rx (rx.js), Retainer Rx (rxret.js), Metal Rx (rxmetal.js) and Functional Rx (rxfun.js), filled out from here or later
+    // from the case — its own step in New case ("Lab Rx"), shown only while one of them applies
+    '<div class="cfSec cfRx" data-step="rx"' + show('appliance') + '>' + rxFormSecHTML(c) + '</div>' +
     // MARPE: the two records the lab needs, and the Zoom call once it's set up
-    '<div class="cfSec"' + show('marpe') + '><h5>Records on file <span class="h5n">both have to be on file before it goes to the lab</span></h5>' +
+    '<div class="cfSec" data-step="case"' + show('marpe') + '><h5>Records on file <span class="h5n">both have to be on file before it goes to the lab</span></h5>' +
       pickRow('records', MARPE_RECORDS.map(([v, l]) => ({ v, l })), c.records || [], true) +
       '<h5>Zoom call <span class="h5n">once the lab sets it up</span></h5><div class="zoomRow">' + date('cf-zoomDate', 'Date', c.zoomDate) +
       '<div class="field"><label for="cf-zoomTime">Time</label><input type="time" id="cf-zoomTime" value="' + esc(c.zoomTime || '') + '"></div></div></div>' +
-    '<div class="cfSec"' + show('retainer') + '><h5>Arch</h5>' + pickRow('arches', PICK.arches, c.arches || [], true, 'archPick', archIc) + '<div id="cf-retKindsWrap"' + (tile === 'mouthguard' ? ' style="display:none"' : '') + '><h5>Making</h5>' + pickRow('retKinds', PICK.retKinds, c.retKinds || [], true) +
+    '<div class="cfSec" data-step="case"' + show('retainer') + '><h5>Arch</h5>' + pickRow('arches', PICK.arches, c.arches || [], true, 'archPick', archIc) + '<div id="cf-retKindsWrap"' + (tile === 'mouthguard' ? ' style="display:none"' : '') + '><h5>Making</h5>' + pickRow('retKinds', PICK.retKinds, c.retKinds || [], true) +
       // a scan on file or a remake (Amir, 5–6 Oct 2026: "the option also should be remake w/ or w/o model", "add the option 'scan on file'")
       '<h5>Scan on file or a remake? <span class="h5n">only if it is one — tap again to clear</span></h5>' + pickRow('remake', RET_FROM, c.scanOnFile ? 'file' : c.remake || '', false) + '</div></div>' +
     // aligners and InSmile: which arches are treated — both unless picked (Amir, 2 Oct 2026: not always both arches)
-    '<div class="cfSec"' + show('aligner braces') + '><h5>Arches to treat</h5>' + pickRow('treatArch', TREAT_OPTS, oneArch(c) || 'UL', false, 'archPick', archIc) + '</div>' +
-    '<div class="cfSec"' + show('aligner') + '><h5>Initial submission?</h5>' + pickRow('initial', [{ v: 'yes', l: 'Yes — first set' }, { v: 'no', l: 'No — refinement' }, { v: 'mid', l: 'Mid-course correction' }, { v: FIN, l: 'Finishing aligners' }], initialVal, false) +
+    '<div class="cfSec" data-step="case"' + show('aligner braces') + '><h5>Arches to treat</h5>' + pickRow('treatArch', TREAT_OPTS, oneArch(c) || 'UL', false, 'archPick', archIc) + '</div>' +
+    '<div class="cfSec" data-step="case"' + show('aligner') + '><h5>Initial submission?</h5>' + pickRow('initial', [{ v: 'yes', l: 'Yes — first set' }, { v: 'no', l: 'No — refinement' }, { v: 'mid', l: 'Mid-course correction' }, { v: FIN, l: 'Finishing aligners' }], initialVal, false) +
       // which refinement (Amir, 5 Oct 2026: "when you pick refinement, it should allow you to pick which number refinement. 1, 2, etc.")
       '<div class="refNWrap" id="cf-refNWrap"' + (initialVal === 'no' ? '' : ' hidden') + '><span class="flabel" id="cf-refNLbl">Which refinement?</span>' +
         '<div class="pickRow" role="group" aria-labelledby="cf-refNLbl" data-g="refN" data-multi="0">' + REF_NS.map(n => '<button type="button" class="pick sm" data-v="' + n + '" aria-pressed="' + (Number(c.refN) === n) + '" aria-label="Refinement ' + n + '">' + n + '</button>').join('') +
@@ -567,13 +571,13 @@ function caseFormHTML(c, isNew) {
         '<div class="small refNHint" id="cf-refNHint" aria-live="polite"></div></div>' +
       '</div>' +
     // in-house: one count per treated arch (the untreated arch's field is hidden, see wireCaseForm)
-    '<div class="cfSec"' + showTiles(INHOUSE_TILES.join(' ')) + '><h5>Aligners in this set <span class="h5n">count each arch from Titan</span></h5><div class="alRow">' +
+    '<div class="cfSec" data-step="case"' + showTiles(INHOUSE_TILES.join(' ')) + '><h5>Aligners in this set <span class="h5n">count each arch from Titan</span></h5><div class="alRow">' +
       '<div class="field"' + (oneArch(c) === 'L' ? ' style="display:none"' : '') + '><label for="cf-alU">Upper aligners</label><input id="cf-alU" type="number" inputmode="numeric" min="0" max="99" step="1" placeholder="0" value="' + esc(c.alU || '') + '"></div>' +
       '<div class="field"' + (oneArch(c) === 'U' ? ' style="display:none"' : '') + '><label for="cf-alL">Lower aligners</label><input id="cf-alL" type="number" inputmode="numeric" min="0" max="99" step="1" placeholder="0" value="' + esc(c.alL || '') + '"></div>' +
       '<div class="alTot" id="cf-alTotal" aria-live="polite"></div></div>' +
       '<h5>Attachment templates <span class="h5n">asked again when the TxP is approved</span></h5>' + pickRow('atTemplates', AT_OPTS, atFor(c.atTemplates, oneArch(c)), false) + '</div>' +
     // in-house: the patient's treatment Start and Expected removal (on the initial set, or while the patient has none; see txOf)
-    '<div class="cfSec"' + showTiles(INHOUSE_TILES.join(' ')) + '><h5>Treatment <span class="h5n">the patient’s start and expected removal — for the treatment graph</span></h5>' +
+    '<div class="cfSec" data-step="case"' + showTiles(INHOUSE_TILES.join(' ')) + '><h5>Treatment <span class="h5n">the patient’s start and expected removal — for the treatment graph</span></h5>' +
       '<div class="txFromRow" id="cf-txFromRow" hidden><span class="small muted" id="cf-txFrom"></span><button type="button" class="btn btn-sec btn-sm" id="cf-txChange">Change</button></div>' +
       '<div class="grid2" id="cf-txWrap">' + date('cf-txStart', 'Start', c.txStart) + date('cf-txEnd', 'Expected removal', c.txEnd) +
       // the treatment time: tap the months and the expected removal fills in (Amir, 4 Oct 2026; see txLenSync in wireCaseForm)
@@ -582,23 +586,23 @@ function caseFormHTML(c, isNew) {
         '<label class="txOther"><input id="cf-txMonths" type="number" min="1" max="' + TX_MAX_MONTHS + '" step="1" inputmode="numeric" placeholder="Other" aria-label="Other treatment time, in months">months</label></div>' +
         '<div class="small txLenHint" id="cf-txLenHint" aria-live="polite"></div></div>' +
       '</div></div>' +
-    '<div class="cfSec"' + showTiles('insmile') + '><h5>Initial or digital enhancement?</h5>' + pickRow('initialDE', [{ v: 'yes', l: 'Initial' }, { v: 'de1', l: 'DE 1' }, { v: 'de2', l: 'DE 2' }, { v: 'de3', l: 'DE 3' }], c.initial || '', false) + '</div>' +
-    '<div class="cfSec"><h5>Assistant</h5>' + staffPickRow('assistant', withSavedStaff(roster, c.assistant), c.assistant || '') +
+    '<div class="cfSec" data-step="case"' + showTiles('insmile') + '><h5>Initial or digital enhancement?</h5>' + pickRow('initialDE', [{ v: 'yes', l: 'Initial' }, { v: 'de1', l: 'DE 1' }, { v: 'de2', l: 'DE 2' }, { v: 'de3', l: 'DE 3' }], c.initial || '', false) + '</div>' +
+    '<div class="cfSec" data-step="scan"><h5>Assistant</h5>' + staffPickRow('assistant', withSavedStaff(roster, c.assistant), c.assistant || '') +
     '<div' + show('aligner braces appliance marpe retainer models') + '><h5>Scanner</h5>' + scanPickRow(c.scanner || '') + '</div></div>' +
-    '<div class="cfSec"><h5>Dates</h5><div class="pickRow" style="margin-bottom:8px"><button type="button" class="pick sm" data-scan="0">Scanned today</button><button type="button" class="pick sm" data-scan="-1">Yesterday</button></div>' +
+    '<div class="cfSec" data-step="scan"><h5>Dates</h5><div class="pickRow" style="margin-bottom:8px"><button type="button" class="pick sm" data-scan="0">Scanned today</button><button type="button" class="pick sm" data-scan="-1">Yesterday</button></div>' +
     '<div class="grid3">' + date('cf-scanDate', 'Scan date', c.scanDate) + date('cf-labDate', 'Lab completion', c.labDate) + '<div class="field"><label for="cf-deliveryDate" id="cf-delLbl">' + (c.shipToPatient && groupOfTile(tile) === 'aligner' ? 'Expected delivery' : 'Delivery appt') + '</label><input type="date" id="cf-deliveryDate" value="' + esc(c.deliveryDate || '') + '">' + timeSelectHTML('cf-deliveryTime', c.deliveryTime || '', 'Appointment time') + '</div>' + '</div>' +
     '<div class="hint small muted" id="cf-autoHint" style="margin:-4px 0 0">Filled in from the scan date — change any of them.</div>' +
     // aligners going straight to the patient: an alert on the case everywhere it shows (Amir, 2 Oct 2026)
     '<div' + show('aligner') + '><button type="button" class="shipTgl" id="cf-ship" aria-pressed="' + !!c.shipToPatient + '">' + ic('truck', 22) +
       '<span><b>Ship to patient</b><small>An alert on the case · it’s complete once it ships</small></span></button></div></div>' +
-    '<div class="cfSec"' + show('aligner braces') + '><h5>Dr. A’s instructions from last visit</h5>' +
+    '<div class="cfSec" data-step="instr"' + show('aligner braces') + '><h5>Dr. A’s instructions from last visit</h5>' +
     '<div class="goalGrid">' + GOALS.filter(gl => !gl.legacy || (c.goals || {})[gl.k]).map(gl => '<div class="goal">' + instrArt(gl.ic) + '<div class="goalB"><b>' + esc(gl.l) + '</b>' + (gl.s ? '<span>' + esc(gl.s) + '</span>' : '') + '</div>' +
       pickRow('goal_' + gl.k, [{ v: 'maintain', l: 'Maintain' }, { v: 'improve', l: 'Improve' }], (c.goals || {})[gl.k] || '', false, 'sm') + '</div>').join('') + '</div>' +
     '<div class="pickRow itGrid" role="group" aria-label="Instructions" data-g="instrPicks" data-multi="1">' + INSTR.map(it =>
       '<button type="button" class="pick itile" data-v="' + esc(it.v) + '" aria-pressed="' + picks.includes(it.v) + '" title="' + esc(it.v) + '">' + instrArt(it.ic) + '<span>' + esc(it.l) + '</span></button>').join('') + '</div>' +
     (oldPicks.length ? '<div class="hint small muted" style="margin:10px 0 6px">Earlier choices on this case</div>' + pickRow('instrPicks', oldPicks, oldPicks, true) : '') +
     '<div class="field" style="margin-top:10px"><label for="cf-instrOther">Other instructions</label><textarea id="cf-instrOther" rows="2" placeholder="Only if it isn’t one of the pictures">' + esc(instrOther) + '</textarea></div></div>' +
-    '<div class="cfSec"' + show('aligner') + '><h5>Teeth, IPR &amp; attachments</h5>' +
+    '<div class="cfSec" data-step="instr"' + show('aligner') + '><h5>Teeth, IPR &amp; attachments</h5>' +
     '<div class="pickRow rxGrid" data-g="extras" data-multi="1">' + rxTile('No IPR', 'noipr', 'No IPR') +
       '<button type="button" class="rxTile" id="cf-noatt" aria-pressed="' + !!scope0 + '" aria-controls="cf-noattScope">' + rxArt('noatt') + '<span><b>No attachments</b><small id="cf-noattSub">' + esc(scope0 ? NOATT_SCOPES.find(x => x.v === scope0).l : '') + '</small></span></button>' +
       rxTile('No elastics', 'noelastic', 'No elastics') + '</div>' +
@@ -611,13 +615,19 @@ function caseFormHTML(c, isNew) {
     '<div id="cf-tcChart">' + toothChartHTML(teeth0, false) + '</div><div class="tcSum" id="cf-teethSum">' + esc(teethSummary(teeth0) || 'Pick a marker, then tap teeth.') + '</div>' +
     '<input type="hidden" id="cf-teeth" value="' + esc(JSON.stringify(teeth0)) + '"></div></div>' +
     // the chief concern (first sets) or the CC from last visit (later sets), written in the patient's own words (Amir, 3 Oct 2026)
-    '<div class="cfSec"' + show('aligner braces appliance marpe') + '><h5><span id="cf-ccTitle">' + esc(ccTitle(c)) + '</span> <span class="h5n" id="cf-ccNote">in the patient’s own words</span></h5>' +
+    '<div class="cfSec" data-step="instr"' + show('aligner braces appliance marpe') + '><h5><span id="cf-ccTitle">' + esc(ccTitle(c)) + '</span> <span class="h5n" id="cf-ccNote">in the patient’s own words</span></h5>' +
     '<div class="field"><textarea id="cf-cc" rows="2" autocomplete="off" aria-labelledby="cf-ccTitle cf-ccNote" placeholder="e.g. “My bite doesn’t feel right”">' + esc(c.cc || '') + '</textarea></div></div>' +
-    '<div class="cfSec"' + show('aligner') + '><div class="field"><label for="cf-ipr" style="display:flex;align-items:center;gap:8px">IPR, spacing &amp; black triangles<span style="flex:1"></span><button type="button" class="btn btn-ghost" data-act="iprPull" style="min-height:30px;padding:2px 10px;font-size:12px">' + ic('download', 14) + 'Get from IPR Tracker</button></label>' +
-    '<textarea id="cf-ipr" rows="3" placeholder="Tap “Get from IPR Tracker” (uses the chart #)">' + esc(c.ipr || '') + '</textarea><div class="hint" id="cf-iprMsg"></div></div></div>' +
+    // IPR, spacing and black triangles are entered once, in the IPR Tracker (Amir, 6 Oct 2026): its button opens the patient's new
+    // visit there, and coming back here brings the visit in by itself (iprBack, ui.js) — the chart, and the note for the chart note
+    '<div class="cfSec" data-step="instr"' + show('aligner') + '><h5>IPR, spacing &amp; black triangles <span class="h5n">entered once, in the IPR Tracker</span></h5>' +
+    '<div class="iprGo"><button type="button" class="btn btn-pri btn-sm" data-act="iprEnter">' + ic('ext', 15) + 'Enter IPR in the IPR Tracker</button>' +
+    '<button type="button" class="btn btn-ghost btn-sm" data-act="iprPull">' + ic('download', 14) + 'Get from IPR Tracker</button></div>' +
+    '<div class="hint small" id="cf-iprMsg" aria-live="polite"></div><div id="cf-iprChart"></div>' +
+    '<div class="field" style="margin-top:8px"><label for="cf-ipr">For the chart note</label><textarea id="cf-ipr" rows="3" placeholder="Fills in from the IPR Tracker">' + esc(c.ipr || '') + '</textarea></div></div>' +
     // the Titan link isn't asked any more (Amir, 3 Oct 2026: "we are not using it now"); a case that already has one still shows it, to keep or clear
-    (c.titanUrl ? '<div class="cfSec" id="cf-titanWrap"' + show(INHOUSE_TILES.includes(tile) ? g : '__never') + '><div class="field"><label for="cf-titanUrl">Titan link</label><input id="cf-titanUrl" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://… (Titan’s shared web-viewer link)" value="' + esc(c.titanUrl || '') + '"></div></div>' : '') +
-    '<details class="cfMore"' + (isNew ? '' : ' open') + '><summary>More: what’s being made, stage, who it’s assigned to, notes</summary>' +
+    (c.titanUrl ? '<div class="cfSec" data-step="case" id="cf-titanWrap"' + show(INHOUSE_TILES.includes(tile) ? g : '__never') + '><div class="field"><label for="cf-titanUrl">Titan link</label><input id="cf-titanUrl" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://… (Titan’s shared web-viewer link)" value="' + esc(c.titanUrl || '') + '"></div></div>' : '') +
+    '<div class="cfSec wizSumSec" data-step="review"><h5>Check it over</h5><div id="wizSum"></div></div>' +
+    '<details class="cfMore" data-step="review"' + (isNew ? '' : ' open') + '><summary>More: what’s being made, stage, who it’s assigned to, notes</summary>' +
     '<div class="grid2" style="margin-top:12px"><div class="field"><label for="cf-detail">What’s being made</label><input id="cf-detail" value="' + esc(c.detail || '') + '" data-auto="' + (isNew || !c.detail ? 1 : 0) + '"></div>' +
     '<div class="field"><label for="cf-stage">Stage</label><select id="cf-stage">' + stages.map(([k, l]) => opt(k, k === 'checkedin' && shipEnd(c) ? 'Shipped to patient' : l, (c.stage || (stages[0] || [])[0]) === k)).join('') + '</select></div></div>' +
     '<div class="field"><label>Assigned to</label>' + assignTilesHTML('cf-assignee', c.assignee) + '</div>' +
@@ -837,6 +847,7 @@ function wireCaseForm(root, isNew) {
     if (det.dataset.auto === '1') det.value = autoDetail(o, tile);
     assignTilesSync(root); alTot();
     if (isNew && root._dupSync) root._dupSync(); // the patient's open cases under the name: a case like this one already? (dupes.js)
+    if (root._wiz) wizPaint(root); // New case in steps: the steps that apply to this case type
   };
   // in-house aligners: this set plus the patient's earlier sets (matched by chart #, else name)
   const cfEl = $('.cf', root) || root;
@@ -1018,41 +1029,148 @@ function editDirty() {
 function newCaseModal() {
   const roster = activeRoster().filter(r => r.role !== 'owner');
   const base = { scanDate: todayISO(), assistant: roster.some(r => r.sid === meSid()) ? meSid() : '' };
-  openModal('<h3>New case</h3><div class="lsub">Tap through it after the scan. Only the patient’s name needs typing. Encrypted before it leaves this computer.</div><div id="ncErr"></div><form id="ncForm" novalidate>' + caseFormHTML(base, true) +
-    '<div id="ncDup"></div><div class="mFt"><button class="btn btn-sec" type="button" data-act="closeModal">Cancel</button><button class="btn btn-teal" type="submit" id="ncSave">' + ic('plus', 16) + 'Create case</button></div></form>', w => {
+  openModal('<h3>New case</h3><div class="lsub">One step at a time, then Create case — or Quick add with just the patient and the case type, and finish the details later. Encrypted before it leaves this computer.</div>' +
+    '<ol class="wizBar" id="ncWizBar" aria-label="Steps"></ol><div id="ncErr"></div><form id="ncForm" novalidate>' + caseFormHTML(base, true) +
+    '<div id="ncDup"></div><div class="mFt wizFt"><button class="btn btn-sec" type="button" data-act="closeModal">Cancel</button><span class="wizSp"></span>' +
+    '<button class="btn btn-sec" type="button" id="ncQuick" title="Create the case with just the patient and the case type, and finish the details later">' + ic('plus', 16) + 'Quick add</button>' +
+    '<button class="btn btn-sec" type="button" id="ncBack">' + ic('back', 16) + 'Back</button><button class="btn btn-pri" type="button" id="ncNext">Next' + ic('next', 16) + '</button>' +
+    '<button class="btn btn-teal" type="submit" id="ncSave">' + ic('plus', 16) + 'Create case</button></div></form>', w => {
       w.querySelector('.modal').classList.add('wide');
       wireCaseForm(w, true); phWireForm(w); ptWire(w); savPaint(w); // (ptWire: the name looks up the patients already in — dupes.js)
-      $('#ncForm', w).onsubmit = async e => {
-        e.preventDefault(); const data = readCaseForm(w);
-        const err = m => { $('#ncErr', w).innerHTML = '<div class="lockErr" role="alert">' + esc(m) + '</div>'; $('#ncErr', w).scrollIntoView({ block: 'nearest' }); };
-        if (!data.type) return err('Tap a case type.');
-        if (!data.patient) return err('Enter the patient’s name.');
-        // an appliance needs its appliance, and an in-house set what it is (Amir, 3 Oct 2026: "they have to pick an appliance
-        // type. Otherwise, it does not allow them to create the case. Same thing when they're creating … next level aligners")
-        const need = (g, m) => { const row = $('.pickRow[data-g=' + g + ']', w); if (row) { row.classList.add('need'); row.scrollIntoView({ block: 'center' }); } $('#ncErr', w).innerHTML = '<div class="lockErr" role="alert">' + esc(m) + '</div>'; };
-        if (data.type === 'appliance' && !data.appliances.length) return need('appliances', 'Pick the appliance (MSE, Herbst, D2…) to create the case.');
-        if (data.type === 'appliance' && data.appliances.includes(HAWLEY) && !(data.arches || []).length) return need('hawleyArch', 'Pick the arch for the Hawley retainers (upper, lower or both) to create the case.');
-        if (data.type === 'nla' && !data.initial && data.variant !== 'finishing') return need('initial', 'Pick what this set is — first set, refinement, mid-course correction or finishing aligners — to create the case.');
-        if (data.titanUrl && !safeUrl(data.titanUrl)) return err('The Titan link must start with https://');
-        if (!!data.txStart !== !!data.txEnd) return err('Enter both the treatment start and the expected removal (or leave both empty).');
-        if (data.txStart && data.txEnd <= data.txStart) return err('The expected removal has to be after the treatment start.');
-        data.stage = data.stage || firstStage(data.type);
-        const needs = stageNeeds(Object.assign({}, data, { stage: firstStage(data.type) }), data.stage);
-        if (needs.includes('records')) return err('Tick both records (STL scan and CBCT) before starting it at ' + stageLabel(data) + '.');
-        if (needs.includes('zoom')) return err('Add the Zoom call date to start it at Zoom call scheduled.');
-        if (needs.includes('aligners') && alignersMissing(data)) return err('Enter ' + alAskText(data) + ' and pick Attachment templates to start it at ' + stageLabel(data) + '.');
+      const body = w.querySelector('.modal');
+      wizInit(w, { mode: 'new', start: 'patient', bar: () => $('#ncWizBar', w), errBox: () => $('#ncErr', w),
+        btns: () => ({ back: $('#ncBack', w), next: $('#ncNext', w), save: $('#ncSave', w), quick: $('#ncQuick', w) }), top: () => { if (body) body.scrollTop = 0; } });
+      $('#ncNext', w).onclick = () => wizNext(w);
+      $('#ncBack', w).onclick = () => wizBack(w);
+      $('#ncQuick', w).onclick = () => create(true);
+      $('#ncSave', w).onclick = e => { e.preventDefault(); create(false); };
+      // Enter in a box goes on to the next step (Create case only from the last one)
+      $('#ncForm', w).onsubmit = e => { e.preventDefault(); if (wizAtLast(w)) create(false); else wizNext(w); };
+      const err = m => { $('#ncErr', w).innerHTML = '<div class="lockErr" role="alert">' + esc(m) + '</div>'; $('#ncErr', w).scrollIntoView({ block: 'nearest' }); };
+      async function create(quick) {
+        const data = readCaseForm(w);
+        // the patient step first (name, chart #, case type), then — for Create case — every step's own checks, each shown on its step
+        for (const k of quick ? ['patient'] : wizSteps(w).map(x => x.k)) { const x = wizCheck(w, k); if (x) { wizGo(w, k); wizSay(w, x); return; } }
+        if (!quick) {
+          if (data.titanUrl && !safeUrl(data.titanUrl)) return err('The Titan link must start with https://');
+          data.stage = data.stage || firstStage(data.type);
+          const needs = stageNeeds(Object.assign({}, data, { stage: firstStage(data.type) }), data.stage);
+          if (needs.includes('records')) return err('Tick both records (STL scan and CBCT) before starting it at ' + stageLabel(data) + '.');
+          if (needs.includes('zoom')) return err('Add the Zoom call date to start it at Zoom call scheduled.');
+          if (needs.includes('aligners') && alignersMissing(data)) return err('Enter ' + alAskText(data) + ' and pick Attachment templates to start it at ' + stageLabel(data) + '.');
+        } else {
+          // Quick add (Amir, 6 Oct 2026: "enter the basics and then we can add to it later"): the case starts at its first step with the
+          // scan date and assistant filled in, and stays tagged "Finish details" until someone goes through the steps
+          data.stage = firstStage(data.type); data.quick = Date.now();
+        }
         // the patient already has an open case like this one: asked first (Open that case / Create a second case anyway) — dupes.js
+        w._dupRetry = () => create(quick);
         if (!dupGate(w, data)) return;
         Object.assign(data, { comments: [], createdAt: Date.now(), createdBy: meSid() });
         if (String(data.notes || '').trim()) notesStamp(data, data.createdAt); // who wrote the Notes (the list's Notes column)
         if (data.txStart || data.txEnd) data.txAt = Date.now();
-        busyBtn($('#ncSave', w), true, 'Saving…');
+        const btn = quick ? $('#ncQuick', w) : $('#ncSave', w); busyBtn(btn, true, 'Saving…');
         try {
           await B.createCase(data, w._ph ? w._ph.bytes : null); closeModal();
-          toast('Case created for ' + ptNameText(data.patient), { action: 'Copy chart note', ms: 12000, onAction: () => copyText(chartNote(data)).then(ok => toast(ok ? 'Chart note copied — paste it into the patient’s chart' : 'Couldn’t copy — open the case to copy its chart note', ok ? {} : { bad: true })) });
-          rxCreatedToast(data);
+          if (quick) toast('Case added for ' + ptNameText(data.patient) + ' — it shows Finish details until the rest is in');
+          else {
+            toast('Case created for ' + ptNameText(data.patient), { action: 'Copy chart note', ms: 12000, onAction: () => copyText(chartNote(data)).then(ok => toast(ok ? 'Chart note copied — paste it into the patient’s chart' : 'Couldn’t copy — open the case to copy its chart note', ok ? {} : { bad: true })) });
+            rxCreatedToast(data);
+          }
         }
-        catch (x) { busyBtn($('#ncSave', w), false); err(errText(x)); }
-      };
+        catch (x) { busyBtn(btn, false); err(errText(x)); }
+      }
     });
+}
+/* ---------- New case in steps (Amir, 6 Oct 2026: "break them down into a few sections so the assistants don't get overwhelmed.
+   they will just click next and go to the next section", "pt's demographic > next tx > etc.") ----------
+   The form is the same one Edit shows on one page; each of its sections names its step (data-step), and only the current step's
+   sections show. A step with nothing for this kind of case is skipped (Lab Rx unless Specialty's Rx applies; Instructions for
+   retainers, mouthguards and study models). Going back keeps everything. Also "Finish details" on a Quick add case (ui.js). */
+const WIZ = [{ k: 'patient', l: 'Patient' }, { k: 'case', l: 'Case' }, { k: 'rx', l: 'Lab Rx' }, { k: 'scan', l: 'Scan & dates' }, { k: 'instr', l: 'Instructions' }, { k: 'review', l: 'Review' }];
+function wizOn(root, k) {
+  if (k === 'patient' || k === 'review') return true;
+  return $$('.cf > [data-step="' + k + '"]', root).some(el => el.style.display !== 'none' && !el.hidden && (k !== 'rx' || $$('.rxFormSec', el).some(x => !x.hidden)));
+}
+function wizSteps(root) { return WIZ.filter(x => wizOn(root, x.k)); }
+function wizAtLast(root) { const st = wizSteps(root); return !!root._wiz && st.length > 0 && st[st.length - 1].k === root._wiz.cur; }
+/* what keeps a step from going on: { msg, el } (the same checks Create case always made, plus the chart #) */
+function wizCheck(root, k) {
+  const d = readCaseForm(root), f = id => $('#' + id, root), row = g => $('.pickRow[data-g="' + g + '"]', root);
+  if (k === 'patient') {
+    if (!d.patient) return { msg: 'Enter the patient’s name.', el: f('cf-patient') };
+    if (!d.chart) return { msg: 'Enter the patient’s chart # (from Edge).', el: f('cf-chart') };
+    if (!d.type) return { msg: 'Tap a case type.', el: $('.tileGrid', root) };
+  }
+  if (k === 'case') {
+    // an appliance needs its appliance, and an in-house set what it is (Amir, 3 Oct 2026)
+    if (d.type === 'appliance' && !d.appliances.length) return { msg: 'Pick the appliance (MSE, Herbst, D2…).', el: row('appliances') };
+    if (d.type === 'appliance' && d.appliances.includes(HAWLEY) && !(d.arches || []).length) return { msg: 'Pick the arch for the Hawley retainers (upper, lower or both).', el: row('hawleyArch') };
+    if (d.type === 'nla' && !d.initial && d.variant !== 'finishing') return { msg: 'Pick what this set is: first set, refinement, mid-course correction or finishing aligners.', el: row('initial') };
+    if (!!d.txStart !== !!d.txEnd) return { msg: 'Enter both the treatment start and the expected removal (or leave both empty).', el: f(d.txStart ? 'cf-txEnd' : 'cf-txStart') };
+    if (d.txStart && d.txEnd <= d.txStart) return { msg: 'The expected removal has to be after the treatment start.', el: f('cf-txEnd') };
+  }
+  return null;
+}
+/* say what's missing, and point at it */
+function wizSay(root, x) {
+  const w = root._wiz, box = w && w.errBox(); if (box) box.innerHTML = x ? '<div class="lockErr" role="alert">' + esc(x.msg) + '</div>' : '';
+  if (!x || !x.el) return;
+  const fld = x.el.closest && x.el.closest('.field.req'); if (fld) fld.classList.add('bad');
+  if (x.el.classList && x.el.classList.contains('pickRow')) x.el.classList.add('need');
+  if (x.el.tagName === 'INPUT') x.el.focus({ preventScroll: true });
+  x.el.scrollIntoView({ block: 'center' });
+}
+function wizPaint(root) {
+  const w = root._wiz; if (!w) return;
+  const steps = wizSteps(root), all = WIZ.map(x => x.k); let i = steps.findIndex(x => x.k === w.cur);
+  if (i < 0) { const at = all.indexOf(w.cur); i = 0; steps.forEach((x, j) => { if (all.indexOf(x.k) <= at) i = j; }); w.cur = steps[i].k; } // its step went away
+  const cf = $('.cf', root); if (cf) cf.classList.add('wiz');
+  $$('.cf > [data-step]', root).forEach(el => el.classList.toggle('wizOff', el.dataset.step !== w.cur));
+  const bar = w.bar && w.bar();
+  if (bar) bar.innerHTML = steps.map((x, j) => '<li class="' + (j < i ? 'done' : j === i ? 'cur' : '') + '"><button type="button" data-wiz="' + x.k + '"' + (j === i ? ' aria-current="step"' : '') + '>' +
+    '<span class="n" aria-hidden="true">' + (j < i ? '✓' : j + 1) + '</span>' + esc(x.l) + '</button></li>').join('');
+  const last = i === steps.length - 1, b = w.btns ? w.btns() : {};
+  if (b.back) b.back.hidden = i === 0; if (b.next) b.next.hidden = last; if (b.save) b.save.hidden = !last; if (b.quick) b.quick.hidden = i !== 0;
+  if (w.cur === 'review') {
+    const sum = $('#wizSum', root); if (sum) sum.innerHTML = wizSumHTML(readCaseForm(root), ($('#cf-tile', root) || {}).value || '');
+    const more = $('.cf > details.cfMore', root); if (more) more.open = true;
+  }
+}
+function wizGo(root, k) { root._wiz.cur = k; wizPaint(root); if (root._wiz.top) root._wiz.top(); }
+function wizNext(root) {
+  const w = root._wiz, steps = wizSteps(root), i = steps.findIndex(x => x.k === w.cur), x = wizCheck(root, w.cur);
+  if (x) { wizSay(root, x); return false; }
+  wizSay(root, null); if (i < steps.length - 1) wizGo(root, steps[i + 1].k); return true;
+}
+function wizBack(root) { const steps = wizSteps(root), i = steps.findIndex(x => x.k === root._wiz.cur); wizSay(root, null); if (i > 0) wizGo(root, steps[i - 1].k); }
+/* a step name in the bar: back any time; forward through the steps between, as long as each one is complete */
+function wizJump(root, k) {
+  const steps = wizSteps(root), i = steps.findIndex(x => x.k === root._wiz.cur), j = steps.findIndex(x => x.k === k); if (j < 0 || j === i) return;
+  for (let n = i; n < j; n++) { const x = wizCheck(root, steps[n].k); if (x) { wizGo(root, steps[n].k); wizSay(root, x); return; } }
+  wizSay(root, null); wizGo(root, k);
+}
+function wizInit(root, opts) {
+  root._wiz = Object.assign({ cur: 'patient' }, opts, { cur: opts.start || 'patient' });
+  if (!root._wizWired) { root._wizWired = true;
+    root.addEventListener('click', e => { const b = e.target.closest('[data-wiz]'); if (b && root.contains(b) && root._wiz) { e.preventDefault(); wizJump(root, b.dataset.wiz); } });
+    // typing a name or chart # takes its red away
+    root.addEventListener('input', e => { const fld = e.target.closest && e.target.closest('.field.req.bad'); if (fld && String(e.target.value || '').trim()) fld.classList.remove('bad'); });
+  }
+  wizPaint(root);
+}
+/* the Review step: what the case will say, at a glance */
+function wizSumHTML(o, tile) {
+  const row = (k, v) => v ? '<div class="wsRow"><span class="k">' + esc(k) + '</span><span class="v">' + v + '</span></div>' : '';
+  const what = (o.detail || autoDetail(o, tile) || (TYPE[o.type] || {}).l || ''), lab = o.lab ? labName(o.lab) : '';
+  const del = o.deliveryDate ? fmtDay(o.deliveryDate) + (o.deliveryTime ? ', ' + fmtTime(o.deliveryTime) : '') : '';
+  return '<div class="wsList">' +
+    row('Patient', '<b>' + esc(o.patient || '') + '</b>' + (o.chart ? ' <span class="muted">· chart # ' + esc(o.chart) + '</span>' : '')) +
+    row('Case', esc(what) + (lab ? ' <span class="muted">· ' + esc(lab) + '</span>' : '')) +
+    row('Scan', esc([o.scanner, o.scanDate ? fmtDay(o.scanDate) : '', o.assistant ? 'by ' + firstName(staffName(o.assistant, '')) : ''].filter(Boolean).join(' · '))) +
+    row('Lab completion', esc(o.labDate ? fmtDay(o.labDate) : '')) +
+    row(o.shipToPatient ? 'Expected delivery' : 'Delivery appt', esc(del) + (o.shipToPatient ? ' <span class="muted">· shipped to the patient</span>' : '')) +
+    row('Dr. A’s instructions', esc(o.instructions || '')) +
+    row(ccTitle(o), o.cc ? esc(o.cc) : '') +
+    '</div>';
 }

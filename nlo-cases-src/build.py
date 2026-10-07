@@ -2,7 +2,7 @@ import pathlib, shutil, sys
 root = pathlib.Path(__file__).parent
 src = root / 'src'
 t = (src / 'template.html').read_text()
-js = '\n'.join((src / f).read_text() for f in ['core.js', 'backend.js', 'demo.js', 'ipr.js', 'ui.js', 'logos.js', 'pics.js', 'caseform.js', 'labels.js', 'admin.js', 'mail.js', 'photos.js', 'dupes.js', 'rxdata.js', 'rxdraw.js', 'rx.js', 'rxret.js', 'rxmetal.js', 'rxfun.js', 'warranty.js', 'work.js', 'tour.js'])
+js = '\n'.join((src / f).read_text() for f in ['core.js', 'backend.js', 'demo.js', 'ipr.js', 'ui.js', 'logos.js', 'pics.js', 'caseform.js', 'labels.js', 'admin.js', 'mail.js', 'lab.js', 'photos.js', 'dupes.js', 'rxdata.js', 'rxdraw.js', 'rx.js', 'rxret.js', 'rxmetal.js', 'rxfun.js', 'warranty.js', 'work.js', 'tour.js'])
 js += "\nif (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();\n"
 # the security rules ship inside the page (owner's email left as a placeholder), so Team & security can hand out
 # exactly the rules this version needs when the live ones are older
@@ -52,4 +52,13 @@ shutil.copytree(pics_dir, root / 'dist' / 'nlo-cases-pics')
 gs = root / 'mail' / 'nlo-cases-mail.gs'
 assert gs.exists() and '/*NLO_CONFIG*/null' in gs.read_text(), 'run node tools/build-mail.js first'
 shutil.copy(gs, root / 'dist' / 'nlo-cases-mail.gs')
+# the lab PC's script (lab/nlo-lab-bridge.ps1; no secrets in it: the setup code from Team & security is pasted in on the lab PC)
+ps1 = root / 'lab' / 'nlo-lab-bridge.ps1'
+ps1_text = ps1.read_text()
+assert 'NLOLAB1.' in ps1_text and ps1_text.count("'__NLO_PROJECT__'") == 1
+if cfg.exists():  # it accepts setup codes for this office's project only
+    ps1_text = ps1_text.replace("'__NLO_PROJECT__'", "'" + json.loads(cfg.read_text())['projectId'].replace("'", '') + "'", 1)
+# (Windows PowerShell 5.1 reads a file without a BOM as the PC's code page: the script is kept to plain ASCII)
+assert all(ord(ch) < 128 for ch in ps1_text), 'the lab PC script must be plain ASCII'
+(root / 'dist' / 'nlo-lab-bridge.ps1').write_text(ps1_text)
 print('built', len(out), 'bytes')
