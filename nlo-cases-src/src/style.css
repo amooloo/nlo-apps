@@ -296,6 +296,12 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
 .step::after{top:50%;bottom:0}
 .step.past::before,.step.cur::before,.step.past::after{background:var(--mint-600)}
 .stepper>.step:first-child::before,.stepper>.step:last-child::after{display:none}
+/* the last step (Checked into Milestones: Mark complete is offered there) is a diamond, the milestone mark (Amir, 7 Oct 2026);
+   the diamond is drawn behind the number so the number stays upright */
+.step.ms .n,.step.ms.past .n,.step.ms.cur .n{background:transparent;box-shadow:none}
+.step.ms .n::before{content:'';position:absolute;z-index:-1;inset:2.5px;border-radius:3px;transform:rotate(45deg);background:#fff;box-shadow:inset 0 0 0 2px var(--grey-300)}
+.step.ms.past .n::before{background:var(--mint-600);box-shadow:none}
+.step.ms.cur .n::before{background:var(--blue);box-shadow:0 0 0 3px var(--blue-200)}
 .kv{display:grid;grid-template-columns:repeat(2,1fr);gap:10px 16px}
 .kv div{min-width:0}
 .kv .k{font-family:var(--fd);font-weight:500;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--grey-500)}
@@ -491,6 +497,9 @@ body.demo #drawer{bottom:31px} body.demo #side{padding-bottom:31px} body.demo #v
 .sprog .pg i.c{width:9px;height:9px;box-shadow:0 0 0 2px #fff}
 .sprog .pg b{min-width:2px}
 .sprog.sub{max-width:none;margin:2px 0 6px}
+/* the last step: a diamond, the milestone mark (Amir, 7 Oct 2026: "a flag or diamond instead of a circle") */
+.sprog i.ms{width:9px;height:9px;margin-left:2px;border-radius:2px;transform:rotate(45deg)}
+.sprog i.ms.c{width:10px;height:10px;box-shadow:0 0 0 2.5px var(--mint-200)}
 td.stg{min-width:150px}
 .kstep{margin-top:8px;padding:7px 8px 6px;border-radius:8px;background:var(--mint-100)}
 .kstep>div{display:flex;align-items:baseline;gap:6px;font-size:12px;color:var(--navy)}

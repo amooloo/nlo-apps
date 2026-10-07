@@ -271,8 +271,10 @@ async function previewImport(rows) {
     const c = caseFromAsana(t, t.project, roster); if (!c.patient) return;
     // still open in Asana but already at the end (picked up / checked in) and not recent: delivered, so leave it out
     if (skipDelivered && !t.completed && typeOf(c).flow !== 'misc') {
-      const st = flowOf(c).stages, when = c.deliveryDate || '';
-      if (c.stage === st[st.length - 1][0] && (!when || when < weekAgo)) { delivered++; return; }
+      // (delivered in Asana: its last step — and a retainer at the front desk or a MARPE delivered, the last steps before Checked into
+      // Milestones became every case's last step, 7 Oct 2026)
+      const fl = typeOf(c).flow, end = [lastStageKey(c)].concat(fl === 'retainer' ? ['pickup'] : fl === 'marpe' ? ['delivered'] : []), when = c.deliveryDate || '';
+      if (end.includes(c.stage) && (!when || when < weekAgo)) { delivered++; return; }
     }
     list.push(c);
   });

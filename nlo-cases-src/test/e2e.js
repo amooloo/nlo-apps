@@ -221,13 +221,14 @@ async function openByName(p, name) {
   await owner.click('[data-act=clearF]');
   await owner.click('#nav-board');
   for (let i = 0; i < 3; i++) { await owner.click('.kc:has-text("' + P2 + '") .adv'); await sleep(900); }
-  await owner.waitForSelector('section[aria-label="Front desk pickup"] .kc:has-text("' + P2 + '")', { timeout: 15000 });
-  check(true, 'advance moved the case through to the last stage');
+  // retainers: To make > Printing > Front desk pickup > Checked into Milestones, the last step (Amir's staff, 7 Oct 2026)
+  await owner.waitForSelector('section[aria-label="Checked into Milestones"] .kc:has-text("' + P2 + '")', { timeout: 15000 });
+  check(true, 'advance moved the case through to the last stage (To make → Printing → Front desk pickup → Checked into Milestones)');
   // reaching the last step asks whether it's done (3 Oct 2026); "Not yet" leaves it there
   await owner.waitForSelector('#cbNo', { timeout: 10000 });
-  check(/Mark this case complete\?/.test(await owner.textContent('#modalWrap h3')) && /last step, Front desk pickup/.test(await owner.textContent('#modalWrap .lsub')), 'reaching the last step asks “Mark this case complete?”');
+  check(/Mark this case complete\?/.test(await owner.textContent('#modalWrap h3')) && /last step, Checked into Milestones/.test(await owner.textContent('#modalWrap .lsub')), 'reaching the last step asks “Mark this case complete?”');
   await owner.click('#cbNo'); await owner.waitForSelector('#modalWrap', { state: 'detached', timeout: 5000 }).catch(() => {});
-  check(await owner.isVisible('section[aria-label="Front desk pickup"] .kc:has-text("' + P2 + '")'), '“Not yet” keeps it open at its last step');
+  check(await owner.isVisible('section[aria-label="Checked into Milestones"] .kc:has-text("' + P2 + '")'), '“Not yet” keeps it open at its last step');
   await owner.click('.kc:has-text("' + P2 + '") .adv');
   await owner.waitForSelector('.kc:has-text("' + P2 + '")', { state: 'detached', timeout: 15000 });
   check(true, 'completing removes it from the board');
@@ -884,7 +885,14 @@ async function openByName(p, name) {
     && (await owner.locator(nRow + ' .sprog b').count()) === 8 && (await owner.locator(nRow + ' .sprog b.d').count()) === 3, 'list: a circle for every step joined by a line (3 done — Uploaded to Titan, TxP approved, Ready to print — now on step 4 of 9, the line filled up to it)');
   check(/Printing · in fabrication 2\/5/.test(await owner.textContent(nRow + ' td.stg')), 'list: says Printing, in fabrication 2/5');
   await owner.click(nRow); await owner.waitForSelector('#drawer .stepper');
-  await owner.click('#drawer .dFt [data-act=complete]'); await owner.waitForSelector('#drawer', { state: 'hidden', timeout: 15000 }).catch(() => {});
+  // Mark complete only at the last step, Checked into Milestones (Amir's staff, 7 Oct 2026)
+  check(!(await owner.isVisible('#drawer .dFt [data-act=complete]')) && /Mark complete comes at Checked into Milestones/.test(await owner.textContent('#drawer .dFt')),
+    'the case panel offers no Mark complete before the last step — it says it comes at Checked into Milestones');
+  await owner.evaluate(() => completeCase(S.openId)); await sleep(400);
+  check(await owner.isVisible('#drawer') && await owner.isVisible('.toast:has-text("Checked into Milestones")'), 'and completing it from anywhere else before then is refused, with why');
+  await owner.click('#drawer .step[data-k=checkedin]'); await owner.waitForSelector('#cbYes', { timeout: 10000 });
+  check(/last step, Checked into Milestones/.test(await owner.textContent('#modalWrap .lsub')), 'in-house: Checked into Milestones is the last step (it was “Checked in”), and getting there asks to complete');
+  await owner.click('#cbYes'); await owner.waitForSelector('#drawer', { state: 'hidden', timeout: 15000 }).catch(() => {});
   await sleep(800);
   await owner.click('#nav-admin');
   // (a rare flake here — the cost not saved within 15 s, seen twice on 3 Oct: watch whether the box was redrawn under the typing)
@@ -1018,11 +1026,14 @@ async function openByName(p, name) {
   await owner.fill('#q', ''); await owner.click('#nav-board'); await owner.click('[data-act=flow][data-k=marpe]');
   await owner.click(zCard + ' .adv'); await owner.waitForSelector('section[aria-label="Design approved"] .kc:has-text("Marco Palatewide")', { timeout: 20000 });
   await owner.click('section[aria-label="Design approved"] .kc:has-text("Marco Palatewide") .adv');
-  await owner.waitForSelector('section[aria-label="Delivered"] .kc:has-text("Marco Palatewide") .adv[data-act=complete]', { timeout: 20000 });
+  await owner.waitForSelector('section[aria-label="Delivered"] .kc:has-text("Marco Palatewide") .adv[data-act=advance]', { timeout: 20000 }); await sleep(600);
+  check(!(await owner.isVisible('#cbNo')), 'Design approved → Delivered: not the last step any more, so no “complete?” yet');
+  await owner.click('section[aria-label="Delivered"] .kc:has-text("Marco Palatewide") .adv');
+  await owner.waitForSelector('section[aria-label="Checked into Milestones"] .kc:has-text("Marco Palatewide") .adv[data-act=complete]', { timeout: 20000 });
   await owner.waitForSelector('#cbNo', { timeout: 10000 });
-  check(/last step, Delivered/.test(await owner.textContent('#modalWrap .lsub')), 'Design approved → Delivered asks whether it’s complete');
+  check(/last step, Checked into Milestones/.test(await owner.textContent('#modalWrap .lsub')), 'Delivered → Checked into Milestones asks whether it’s complete');
   await owner.click('#cbNo'); await owner.waitForSelector('#modalWrap', { state: 'detached', timeout: 5000 }).catch(() => {});
-  check(true, 'Design approved → Delivered (then Mark complete)');
+  check(true, 'Design approved → Delivered → Checked into Milestones (then Mark complete)');
   await openByName(owner, 'Marco Palatewide'); await owner.waitForSelector('#histBox .hist:has-text("Zoom call scheduled")', { timeout: 20000 });
   const mHist = await owner.textContent('#histBox');
   check(/moved it to Zoom call scheduled \(and set Zoom call\)/.test(mHist) && /moved it to Submitted to lab \(and set records on file\)/.test(mHist), 'history says what was filled in with each move');
@@ -1030,6 +1041,11 @@ async function openByName(p, name) {
   await owner.click('#drawer [data-act=closeDrawer] >> nth=0'); await owner.fill('#q', '');
   check(await owner.evaluate(() => stageFromSection('marpe', 'Hold (CBCT/Zoom)') === 'records' && stageFromSection('marpe', 'Submitted') === 'submitted' && stageFromSection('marpe', 'Manufacturing') === 'approved'
     && caseFromAsana({ name: 'Test Person - MARPE', section: 'To Submit', notes: '' }, 'Appliance', []).type === 'marpe' && caseFromAsana({ name: 'Test Person - Herbst', section: 'To Submit', notes: '' }, 'Appliance', []).type === 'appliance'), 'Asana import: MARPE tasks in the Appliance project become MARPE cases at the matching step');
+  check(await owner.evaluate(() => stageFromSection('marpe', 'Checked into Milestones') === 'milestones' && stageFromSection('retainer', 'Milestones') === 'pickup'
+    && liveStage({ type: 'retainer', stage: 'milestones' }) === 'pickup' && caseStages({ type: 'retainer' }).map(s => s[0]).join(',') === 'print,printing,pickup,checkedin'
+    && caseStages({ type: 'nla' }).map(s => s[0]).slice(-2).join(',') === 'pack,checkedin' && caseStages({ type: 'nla', shipToPatient: true }).map(s => s[0]).slice(-3).join(',') === 'pack,shipped,checkedin'
+    && caseStages({ type: 'models' }).map(s => s[1]).slice(-1)[0] === 'Ready'),
+    'every case but study models ends at Checked into Milestones; a retainer saved at the old Milestones step (before pickup) shows at Front desk pickup; Asana’s sections map to match');
   // a MARPE that was entered or imported as an appliance before
   await owner.evaluate(() => B.createCase({ type: 'appliance', patient: 'Otto Oldmarpe', stage: 'mfg', appliances: ['MARPE'], lab: 'Partner Dental Studios', detail: 'MARPE', comments: [], createdAt: Date.now(), createdBy: meSid() }));
   // (the lab rebranded: Partner Dental Studios is Partners Dental Solutions now — an older case reads with the new name; Amir, 3 Oct 2026)
@@ -1079,28 +1095,42 @@ async function openByName(p, name) {
   await owner.fill('#q', '');
   dump = JSON.stringify(await fsDump());
   check(!dump.includes('Shipwell') && !dump.includes('Palatewide') && !dump.includes('1Z999AA1012'), 'MARPE and shipping details are encrypted too');
-  // shipped to the patient = complete (Amir, 3 Oct 2026): its steps end at Shipped, its date is the expected delivery,
-  // and reaching Shipped completes the case; Undo reopens it at the step it was on
+  // shipped to the patient (Amir's staff, 7 Oct 2026 — until then reaching Shipped completed it): Shipped, then Checked into
+  // Milestones like every case (no Arrived); its date is the expected delivery; Mark complete only at Checked into Milestones
   await openByName(owner, 'Shelby Shipwell');
-  check(await owner.evaluate(() => Array.from(document.querySelectorAll('#drawer .stepper .step')).map(b => b.dataset.k).join(',')) === 'submit,dra,mfg,shipped', 'shipped to the patient: its steps end at Shipped (no Arrived or Checked into Milestones)');
+  check(await owner.evaluate(() => Array.from(document.querySelectorAll('#drawer .stepper .step')).map(b => b.dataset.k).join(',')) === 'submit,dra,mfg,shipped,milestones', 'shipped to the patient: Shipped, then Checked into Milestones (no Arrived)');
   check(/Expected delivery/.test(await owner.textContent('#drawer .kv')) && !/Delivery appt/.test(await owner.textContent('#drawer .kv')), 'its date is the Expected delivery (no appointment)');
   await owner.click('#drawer .step[data-k=shipped]');
-  await owner.waitForSelector('.toast:has-text("shipped to the patient — case complete")', { timeout: 20000 });
-  await owner.waitForFunction(() => !document.querySelector('#drawer') && !openCases().some(c => c.patient === 'Shelby Shipwell'), null, { timeout: 20000 });
-  check(true, 'moving it to Shipped completes the case (and closes it)');
-  await owner.click('.toast:has-text("case complete") button');
-  await owner.waitForFunction(() => { const c = openCases().find(x => x.patient === 'Shelby Shipwell'); return c && c.stage === 'submit'; }, null, { timeout: 20000 });
-  check(true, 'Undo reopens it at the step it was on');
+  await owner.waitForFunction(() => { const c = openCases().find(x => x.patient === 'Shelby Shipwell'); return c && c.stage === 'shipped'; }, null, { timeout: 20000 }); await sleep(600);
+  check(await owner.isVisible('#drawer') && !(await owner.isVisible('#cbYes')) && !(await owner.isVisible('#drawer .dFt [data-act=complete]')), 'moving it to Shipped keeps it open: no “complete?” and no Mark complete yet');
+  check(/Shipped to patient/.test(await owner.textContent('#dsS-note')), 'from Shipped its chart note is the shipped-to-the-patient one');
+  await owner.click('#drawer .step[data-k=milestones]'); await owner.waitForSelector('#cbNo', { timeout: 10000 });
+  check(/last step, Checked into Milestones/.test(await owner.textContent('#modalWrap .lsub')), 'Checked into Milestones is its last step, and getting there asks to complete');
+  await owner.click('#cbNo'); await owner.waitForSelector('#modalWrap', { state: 'detached', timeout: 5000 }).catch(() => {});
+  check(await owner.isVisible('#drawer .dFt [data-act=complete]') && !(await owner.isVisible('#drawer .dFtHint')), 'there the case panel offers Mark complete');
+  await owner.click('#drawer .dFt [data-act=complete]');
+  await owner.waitForFunction(() => !openCases().some(c => c.patient === 'Shelby Shipwell'), null, { timeout: 20000 });
+  check(true, 'Mark complete completes it');
+  await owner.click('.toast:has-text("marked complete") button');
+  await owner.waitForFunction(() => { const c = openCases().find(x => x.patient === 'Shelby Shipwell'); return c && c.stage === 'milestones'; }, null, { timeout: 20000 });
+  check(true, 'Undo reopens it at Checked into Milestones');
   await owner.evaluate(() => B.createCase({ type: 'oliv', patient: 'Sid Shipboard', stage: 'mfg', shipToPatient: true, deliveryDate: '2026-10-20', comments: [], createdAt: Date.now(), createdBy: meSid() }));
   await owner.fill('#q', ''); await owner.click('#nav-board'); await owner.click('[data-act=flow][data-k=outside]');
   const sidCard = 'section[aria-label="Manufacturing"] .kc:has-text("Sid Shipboard")';
   await owner.waitForSelector(sidCard, { timeout: 20000 }).catch(e => boardDiag(owner, 'Sid Shipboard', e));
-  check(await owner.getAttribute(sidCard + ' .adv', 'title') === 'Shipped to the patient — completes the case' && /Expected delivery/.test(await owner.textContent(sidCard + ' .due')), 'board: the arrow says the next step ships and completes it; the chip reads Expected delivery');
+  check(await owner.getAttribute(sidCard + ' .adv', 'title') === 'Move to Shipped' && /Expected delivery/.test(await owner.textContent(sidCard + ' .due')), 'board: the arrow moves it to Shipped (it no longer completes it); the chip reads Expected delivery');
   await owner.click(sidCard + ' .adv');
+  const sidShip = 'section[aria-label="Shipped"] .kc:has-text("Sid Shipboard")';
+  await owner.waitForSelector(sidShip, { timeout: 20000 });
+  check(await owner.getAttribute(sidShip + ' .adv', 'title') === 'Move to Checked into Milestones', 'at Shipped its arrow goes on to Checked into Milestones (skipping Arrived)');
+  await owner.click(sidShip + ' .adv');
+  await owner.waitForSelector('section[aria-label="Checked into Milestones"] .kc:has-text("Sid Shipboard") .adv[data-act=complete]', { timeout: 20000 });
+  await owner.waitForSelector('#cbYes', { timeout: 10000 }); await owner.click('#cbYes');
   await owner.waitForSelector('.kc:has-text("Sid Shipboard")', { state: 'detached', timeout: 20000 });
   await owner.click('#nav-done'); await owner.fill('#q', 'Sid Shipboard'); await owner.waitForSelector('tr.click:has-text("Sid Shipboard")', { timeout: 20000 });
   await owner.click('tr.click:has-text("Sid Shipboard")'); await owner.waitForSelector('#histBox .hist:has-text("marked it complete")', { timeout: 20000 });
-  check(/moved it to Shipped and marked it complete \(shipped to the patient\)/.test(await owner.textContent('#histBox')) && /Shipped/.test(await owner.textContent('#drawer .dsS')), 'the board arrow shipped it: Completed, at Shipped; history says so');
+  { const sh = await owner.textContent('#histBox');
+    check(/moved it to Shipped/.test(sh) && /moved it to Checked into Milestones/.test(sh) && /Checked into Milestones/.test(await owner.textContent('#drawer .dsS')), 'the board arrows: Shipped, then Checked into Milestones, then complete; history says each'); }
   await owner.click('#drawer [data-act=closeDrawer] >> nth=0'); await owner.fill('#q', '');
 
   console.log('\n# Chart note, lab case #, Ship to patient turns on No IPR and No attachments');
@@ -1241,9 +1271,9 @@ async function openByName(p, name) {
   check(pq.tracking === '1Z7F167A0211300001', 'Partners’ daily summary → the right appliance shipped, with the UPS tracking # (matched on “Priya Q.”)');
   check(mh && mh.hold && /lower jaw/.test(mh.hold.reason) && mh.stage === 'submitted', 'a case on hold at Partners gets the hold and its reason');
   check(an.labRef === 'A12BC', 'Angel “Treatment Plan to be Reviewed” → Dr. A action, with Angel’s patient #');
-  await owner.waitForFunction(() => !openCases().some(x => x.patient === 'Selma Shipdirect'), null, { timeout: 20000 }).catch(() => {});
-  const sel = await owner.evaluate(async () => { const c = (await B.loadClosed(30)).find(x => x.patient === 'Selma Shipdirect'); return c ? { status: c.status, stage: c.stage, tracking: c.tracking || '' } : null; });
-  check(sel && sel.status === 'done' && sel.stage === 'shipped' && sel.tracking === '777755554444', 'uLab shipped for a case shipped to the patient → Shipped and complete, with the tracking #');
+  await owner.waitForFunction(() => { const c = openCases().find(x => x.patient === 'Selma Shipdirect'); return c && c.stage === 'shipped'; }, null, { timeout: 20000 }).catch(() => {});
+  const sel = await owner.evaluate(() => { const c = openCases().find(x => x.patient === 'Selma Shipdirect'); return c ? { status: c.status, stage: c.stage, tracking: c.tracking || '' } : null; });
+  check(sel && sel.status !== 'done' && sel.stage === 'shipped' && sel.tracking === '777755554444', 'uLab shipped for a case shipped to the patient → Shipped with the tracking #, still open (Checked into Milestones comes next; 7 Oct 2026)');
   await owner.click('#nav-today'); await owner.waitForSelector('#mailCard .mlRow:has-text("Robin T.")', { timeout: 20000 });
   check((await owner.locator('#mailCard .mlRow').count()) === 1, 'Today: only the shipment it couldn’t place waits for someone to pick the case');
   const rid = await owner.evaluate(() => openCases().find(c => c.patient === 'Rory Tamsin').id);
@@ -1545,7 +1575,7 @@ async function openByName(p, name) {
   check(!/Pia Portrait|Portrait/.test(dump), 'the patient’s name isn’t readable anywhere in the database');
   await gwen.fill('#q', ''); await owner.click('#nav-today');
 
-  console.log('\n# Delivery time; retainer labels offer to complete the case');
+  console.log('\n# Delivery time; retainer labels offer Front desk pickup (Mark complete at Checked into Milestones)');
   const tmr = await owner.evaluate(() => { const d = new Date(); d.setDate(d.getDate() + 1); return isoOf(d); });
   await owner.click('#nav-list'); await owner.fill('#q', '');
   await newCase(owner, { type: 'retainer', patient: 'Rhea Labelworth', delivery: tmr, time: '13:30' });
@@ -1558,7 +1588,13 @@ async function openByName(p, name) {
   const rlp = await gwen.evaluate(() => window.__printed);
   check(rlp.n === 1 && /Rhea Labelworth/.test(rlp.txt) && /Retainers/.test(rlp.txt), 'Print label sends the retainer label (one 2×4 page)');
   await gwen.waitForSelector('#cbYes', { timeout: 10000 });
-  check(/Mark this case complete\?/.test(await gwen.textContent('#modalWrap')), 'after printing it asks whether to mark the case complete');
+  check(/Move to Front desk pickup\?/.test(await gwen.textContent('#modalWrap')), 'after printing it offers to move the case to Front desk pickup (not to complete it: that comes at Checked into Milestones)');
+  await gwen.click('#cbYes');
+  await owner.waitForFunction(() => (openCases().find(c => c.patient === 'Rhea Labelworth') || {}).stage === 'pickup', null, { timeout: 15000 }).catch(() => {});
+  check(await owner.evaluate(() => (openCases().find(c => c.patient === 'Rhea Labelworth') || {}).stage === 'pickup'), '“Move to Front desk pickup” moves it there for everyone, still open');
+  if (!(await gwen.isVisible('#drawer .stepper'))) await gwen.click('#drawer .ds[data-ds=stage] .dsTg');
+  await gwen.click('#drawer .step[data-k=checkedin]'); await gwen.waitForSelector('#cbYes', { timeout: 10000 });
+  check(/last step, Checked into Milestones/.test(await gwen.textContent('#modalWrap .lsub')), 'checking it into Milestones (the last step) asks to complete');
   await gwen.click('#cbYes'); await gwen.waitForSelector('.toast:has-text("marked complete")', { timeout: 15000 });
   await owner.waitForFunction(() => !openCases().some(c => c.patient === 'Rhea Labelworth'), null, { timeout: 15000 }).catch(() => {});
   check(!(await owner.evaluate(() => openCases().some(c => c.patient === 'Rhea Labelworth'))), '“Mark complete” completes it for everyone');
@@ -1633,7 +1669,7 @@ async function openByName(p, name) {
   await sarah.evaluate(async () => {
     const here = async id => { for (let i = 0; i < 150 && !S.cases.get(id); i++) await new Promise(r => setTimeout(r, 100)); };
     const rid = await B.createCase({ type: 'retainer', patient: 'Wynn Workload', stage: 'print', scanDate: addDays(todayISO(), -1), arches: ['Upper'], retKinds: ['TT’s'], comments: [], createdAt: Date.now(), createdBy: meSid() });
-    await here(rid); await moveStage(rid, 'milestones');
+    await here(rid); await moveStage(rid, 'pickup'); // (made: at the front desk — Milestones is the last step since 7 Oct 2026)
     const nid = await B.createCase({ type: 'nla', patient: 'Nell Workload', stage: 'wash', initial: 'yes', alU: 12, alL: 10, atTemplates: 'none', comments: [], createdAt: Date.now(), createdBy: meSid() });
     await here(nid); await moveStage(nid, 'pack');
   });

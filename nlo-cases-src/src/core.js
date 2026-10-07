@@ -34,9 +34,10 @@ const FLOWS = {
   /* MARPE has its own steps (Amir, 2 Oct 2026): the STL scan and a CBCT of the upper and lower jaws on file first,
      then the lab, a Zoom call on a set date, design approval, delivery. The Zoom call is the case's next date until
      the design is approved; after that, the delivery date. */
+  // every case ends at Checked into Milestones, and only then is it marked complete (Amir's staff, 7 Oct 2026; study models excepted)
   marpe: { label: 'MARPE', labDone: 'approved', zoomUntil: 'approved', stages: [
     ['records', 'Records: STL + CBCT'], ['submitted', 'Submitted to lab'], ['zoom', 'Zoom call scheduled'],
-    ['approved', 'Design approved'], ['delivered', 'Delivered'] ] },
+    ['approved', 'Design approved'], ['delivered', 'Delivered'], ['milestones', 'Checked into Milestones'] ] },
   /* in fabrication = the NL Lab checklist each Asana case carried as subtasks (Exported STLs → Final Wash and Dry);
      the board shows the seven steps as one "In fabrication" column */
   /* Amir, 6 Oct 2026: staff upload the scan into Titan for Dr. A ("All they do is upload the case into titan for me"); he does the
@@ -49,14 +50,19 @@ const FLOWS = {
     // Amir, 3 Oct 2026: "add a middle step that says TxP completed or approved and it would still let me enter the U/L stages"
     ['txpok', 'TxP approved'],
     ['send', 'Ready to print'], ['print', 'Printing'], ['thermo', 'Thermoforming'], ['trim', 'Trimming'], ['polish', 'Polish, wash & dry'],
-    ['pack', 'Packaging'], ['checkedin', 'Checked in'] ],
+    // a set shipped to the patient: Shipped to patient, then Checked into Milestones like every other (staff, 7 Oct 2026)
+    ['pack', 'Packaging'], ['shipped', 'Shipped to patient'], ['checkedin', 'Checked into Milestones'] ],
+    shipOnly: ['shipped'], // (steps only a case shipped to the patient goes through: caseStages)
     groups: [{ l: 'In fabrication', stages: ['send', 'print', 'thermo', 'trim', 'polish'] }] },
   /* the first step says what's waiting (Amir, 5 Oct 2026: "the first step right now says printing which does not make sense"): to be
      made; then Printing, Milestones and the front desk (Amir, 6 Oct 2026: "the steps for retainers and whitening is To make >
      printing > milestones > Front desk pick up" — no Sarah's desk, and no Picked up step after it). The key 'print' is the old
-     Printing step's, kept so cases saved at it stay at To make. */
-  retainer: { label: 'Retainers & mouthguards', labDone: 'milestones', stages: [
-    ['print', 'To make'], ['printing', 'Printing'], ['milestones', 'Milestones'], ['pickup', 'Front desk pickup'] ] },
+     Printing step's, kept so cases saved at it stay at To make.
+     Then (Amir's staff, 7 Oct 2026: "the last step of all the cases should be checked in Milestone and only then it will be marked
+     as complete"): To make > Printing > Front desk pickup > Checked into Milestones. The Milestones step before pickup went (a
+     case saved there shows at Front desk pickup: RETIRED_STAGES); the new last step has its own key. */
+  retainer: { label: 'Retainers & mouthguards', labDone: 'pickup', stages: [
+    ['print', 'To make'], ['printing', 'Printing'], ['pickup', 'Front desk pickup'], ['checkedin', 'Checked into Milestones'] ] },
   models: { label: 'Study models', labDone: 'ready', stages: [ ['print', 'To print'], ['ready', 'Ready'] ] },
   retreat: { label: 'Retreatment', stages: [
     ['intake', 'Intake & assessment'], ['review', 'Pending review'], ['proposal', 'Send proposal'],
@@ -129,26 +135,39 @@ const RETIRED_STAGES = { inhouse: { reset: { to: 'txp', l: 'Reset needed in 2 da
     fab: { to: 'txpok', l: 'Export STLs' }, wash: { to: 'polish', l: 'Final wash & dry' } },
   // retainers "On Sarah's desk" (Amir, 6 Oct 2026: "retainers are NOT placed on Sarah's desk. They are made and put on the front desk"),
   // and "Picked up", a last step for a few hours that day (completed cases there show at Front desk pickup)
-  retainer: { sarah: { to: 'pickup', l: 'On Sarah’s desk' }, pickedup: { to: 'pickup', l: 'Picked up' } } };
+  retainer: { sarah: { to: 'pickup', l: 'On Sarah’s desk' }, pickedup: { to: 'pickup', l: 'Picked up' },
+    // Milestones before Front desk pickup (7 Oct 2026: Checked into Milestones is the last step now, after pickup)
+    milestones: { to: 'pickup', l: 'Milestones' } } };
 function liveStage(c) { const r = c && (RETIRED_STAGES[typeOf(c).flow] || {})[c.stage]; return r ? r.to : c && c.stage; }
 function retiredStageLabel(c, k) { const r = (RETIRED_STAGES[typeOf(c).flow] || {})[k]; return r ? r.l : ''; }
 /* completed cases as read: at the step that replaced a retired one — and without the ones removed as a duplicate (dupes.js: they
    aren't in Completed, the patient's history or the Workload page) */
 function liveCases(list) { return (list || []).filter(c => c && !c.dup).map(c => { c.stage = liveStage(c); return c; }); }
-/* Ship to patient (aligners): the case ends when it ships (Amir, 3 Oct 2026: "if the case is being shipped, the last stage
-   is shipped (we still need to know the EXPECTED DELIVERY). so shipped status = complete"). Outside labs: Shipped is the
-   last step (Arrived and Checked into Milestones don't apply); in-house: the last step reads "Shipped to patient" (it is
-   "Checked in" for everyone else). Reaching it marks the case complete (moveStage, saveEdit, lab emails). */
-function shipEnd(c) { if (!c || !c.shipToPatient || !(TYPE[c.type] || {}).aligner) return null; const fl = typeOf(c).flow; return fl === 'outside' ? 'shipped' : fl === 'inhouse' ? 'checkedin' : null; }
-/* the steps this case goes through: its flow's, ending at Shipped for a case shipped to the patient */
+/* Ship to patient (aligners): its Shipped step (we still need to know the EXPECTED DELIVERY — Amir, 3 Oct 2026), then Checked
+   into Milestones like every case, and only then complete (Amir's staff, 7 Oct 2026; it used to complete on reaching Shipped).
+   Outside labs skip Arrived (the set doesn't come to the office); in-house sets go Packaging > Shipped to patient. */
+function shipStep(c) { return c && c.shipToPatient && (TYPE[c.type] || {}).aligner && ['outside', 'inhouse'].includes(typeOf(c).flow) ? 'shipped' : null; }
+/* the steps this case goes through: its flow's, without the ones that aren't for it — Arrived for a case shipped to the patient,
+   the shipped-only steps (in-house Shipped to patient) for one that isn't */
 function caseStages(c) {
-  const st = flowOf(c).stages, e = shipEnd(c); if (!e) return st;
-  return st.slice(0, st.findIndex(s => s[0] === e) + 1).map(s => s[0] === 'checkedin' ? ['checkedin', 'Shipped to patient'] : s);
+  const f = flowOf(c), ship = !!shipStep(c);
+  return ship ? f.stages.filter(s => s[0] !== 'arrived') : f.shipOnly ? f.stages.filter(s => !f.shipOnly.includes(s[0])) : f.stages;
 }
+/* the step a case at `k` is at on its own steps: `k`, or — a step it skips (Ship to patient switched after it got there) — the
+   next one of its own steps after it (the last one when none is) */
+function pathStage(c, k) {
+  const own = caseStages(c).map(s => s[0]); if (!k || own.includes(k)) return k;
+  const all = flowOf(c).stages.map(s => s[0]), i = all.indexOf(k); if (i < 0) return k;
+  return own.find(x => all.indexOf(x) > i) || own[own.length - 1];
+}
+/* the case's last step (Checked into Milestones for all but study models): Mark complete is only offered there */
+function lastStageKey(c) { const st = caseStages(c); return st.length ? st[st.length - 1][0] : ''; }
+function atLastStage(c) { return !!c && !!c.stage && pathStage(c, liveStage(c)) === lastStageKey(c); }
 /* the case's delivery date is the patient's delivery appointment (Amir, 3 Oct 2026: "change it to Delivery appt");
    a case shipped to the patient has no appointment, just the expected delivery */
 function delWord(c) { return c && c.shipToPatient && (TYPE[c.type] || {}).aligner ? 'Expected delivery' : 'Delivery appt'; }
-function stageIndex(c) { return flowOf(c).stages.findIndex(x => x[0] === c.stage); }
+/* where the case is on its own steps (caseStages: a case shipped to the patient skips some) */
+function stageIndex(c) { const own = caseStages(c); return own.findIndex(x => x[0] === pathStage(c, c.stage)); }
 function firstStage(type) { return FLOWS[(TYPE[type] || TYPE.misc).flow].stages[0][0]; }
 /* the stage group a stage belongs to (e.g. the in-house "In fabrication" steps), or null */
 function stageGroup(flow, k) { return (flow.groups || []).find(g => g.stages.includes(k)) || null; }
@@ -437,7 +456,7 @@ function stageFromSection(type, section, subtasks) {
   const pick = k => flow.includes(k) ? k : flow[0];
   if (type === 'retainer' || type === 'mouthguard') {
     if (/tt|wt/.test(s) && /-/.test(s)) return pick('print');
-    if (/milestone/.test(s)) return pick('milestones');
+    if (/milestone/.test(s)) return pick('pickup'); // (Asana's Milestones came before the front desk: made, waiting there now)
     if (/sarah/.test(s)) return pick('pickup'); // (no Sarah's desk any more: made retainers wait at the front desk)
     if (/pick ?up|front desk/.test(s)) return pick('pickup');
     return flow[0];
@@ -454,7 +473,8 @@ function stageFromSection(type, section, subtasks) {
   if (type === 'marpe') { // from the Appliance project: on hold for the CBCT/Zoom (before it was submitted) = gathering records
     if (/submitted/.test(s)) return 'submitted';
     if (/zoom/.test(s) && !/hold/.test(s)) return 'zoom';
-    if (/approv|manufactur|shipped|arrived|milestone/.test(s)) return 'approved';
+    if (/milestone/.test(s)) return 'milestones';
+    if (/approv|manufactur|shipped|arrived/.test(s)) return 'approved';
     if (/deliver/.test(s)) return 'delivered';
     return 'records';
   }

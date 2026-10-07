@@ -172,7 +172,8 @@ function labelsModal(c) {
 
 /* ---------- Retainer and whitening tray labels (Amir, 2 Oct 2026) ----------
    One 2×4 in label per bag in the Label Maker's style: patient, upper/lower, what's inside, a bottom line and a
-   date. After printing, it offers to mark the case complete. TT's are the retainers, WT's the whitening trays. */
+   date. After printing, it offers to move the case on to Front desk pickup (Mark complete comes at Checked into Milestones, the
+   last step since 7 Oct 2026 — it used to offer Mark complete here). TT's are the retainers, WT's the whitening trays. */
 const RET_LABELS = [
   { k: 'TT’s', one: 'Retainer', many: 'Retainers', note: 'Wear retainers as directed' },
   { k: 'WT’s', one: 'Whitening tray', many: 'Whitening trays', note: 'Use whitening trays as directed' }
@@ -205,10 +206,17 @@ function retLabelsModal(c) {
     w.addEventListener('input', draw); w.addEventListener('change', draw);
     $w('#rl-print').onclick = () => printLabelPages(labels.map(retLabelHTML), () => {
       closeModal();
-      // printed: offer to finish the case (it can be reopened later)
+      // printed: the bag goes to the front desk — offer that step (or, already checked into Milestones, to finish the case)
       const cur = findCase(c.id); if (!cur || cur.status === 'done') return;
-      confirmBox('Mark this case complete?', 'The label for ' + (cur.patient || 'this patient') + ' went to the printer. Move the case to Completed now? You can undo right after, or reopen it later.', 'Mark complete', 'mint', 'Not yet')
-        .then(ok => { if (ok) completeCase(c.id); });
+      if (atLastStage(cur)) {
+        confirmBox('Mark this case complete?', 'The label for ' + (cur.patient || 'this patient') + ' went to the printer. Move the case to Completed now? You can undo right after, or reopen it later.', 'Mark complete', 'mint', 'Not yet')
+          .then(ok => { if (ok) completeCase(c.id); });
+        return;
+      }
+      const ks = caseStages(cur).map(s => s[0]), at = ks.indexOf(pathStage(cur, liveStage(cur))), pk = ks.indexOf('pickup');
+      if (pk < 0 || at >= pk) return;
+      confirmBox('Move to Front desk pickup?', 'The label for ' + (cur.patient || 'this patient') + ' went to the printer. Move the case from ' + stageLabel(cur) + ' to Front desk pickup now?', 'Move to Front desk pickup', 'mint', 'Not yet')
+        .then(ok => { if (ok) moveStage(c.id, 'pickup'); });
     });
     draw();
   });

@@ -1,3 +1,6 @@
+// SUPERSEDED 7 Oct 2026 (Amir's staff: every case ends at Checked into Milestones, and only then is it complete; a case shipped to
+// the patient goes Shipped > Checked into Milestones and no longer completes at Shipped). The checks below describe the 3 Oct rules;
+// test/e2e.js covers the current ones. Kept for its screenshots and history only.
 // Amir, 3 Oct 2026: "Delivery appt" (not "Delivery"); a case shipped to the patient ends at Shipped — reaching it completes
 // the case, and its date is the expected delivery; and his upper / lower arch pictures on the arch choices — demo
 const { chromium } = require('playwright');
@@ -27,7 +30,7 @@ const OUT = process.argv[2] || 'shots';
   check(await p.textContent('#cf-delLbl') === 'Delivery appt' && await p.isVisible('#cf-deliveryTime') && await p.getAttribute('#cf-deliveryTime', 'aria-label') === 'Appointment time', 'New case: the date reads “Delivery appt”, with its time');
   await p.click('#cf-ship'); await p.waitForTimeout(60);
   check(await p.textContent('#cf-delLbl') === 'Expected delivery' && !(await p.isVisible('#cf-deliveryTime')), 'Ship to patient: it reads “Expected delivery” and the time goes away (no appointment)');
-  check(/complete once it ships/.test(await p.textContent('#cf-ship')), 'the Ship to patient switch says the case is complete once it ships');
+  check(/Shipped, then Checked into Milestones/.test(await p.textContent('#cf-ship')), 'the Ship to patient switch says Shipped, then Checked into Milestones (7 Oct 2026; it used to complete once it shipped)');
   await p.click('#cf-ship'); await p.waitForTimeout(60);
   check(await p.textContent('#cf-delLbl') === 'Delivery appt' && await p.isVisible('#cf-deliveryTime'), 'switching it off brings back “Delivery appt” and the time');
   await p.click('#ncForm .tt[data-tile=retainer]'); await p.waitForTimeout(100);

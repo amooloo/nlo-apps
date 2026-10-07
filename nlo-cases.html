@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-EcN69R07jolGRZoz++DlEw4dArRUtJXlqWWjEoogiFQ=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-mC7K8Xxcl5PL2RmwfujEC5CmP23ydEr6PRd4h0DcPa4=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO Cases</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -310,6 +310,12 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
 .step::after{top:50%;bottom:0}
 .step.past::before,.step.cur::before,.step.past::after{background:var(--mint-600)}
 .stepper>.step:first-child::before,.stepper>.step:last-child::after{display:none}
+/* the last step (Checked into Milestones: Mark complete is offered there) is a diamond, the milestone mark (Amir, 7 Oct 2026);
+   the diamond is drawn behind the number so the number stays upright */
+.step.ms .n,.step.ms.past .n,.step.ms.cur .n{background:transparent;box-shadow:none}
+.step.ms .n::before{content:'';position:absolute;z-index:-1;inset:2.5px;border-radius:3px;transform:rotate(45deg);background:#fff;box-shadow:inset 0 0 0 2px var(--grey-300)}
+.step.ms.past .n::before{background:var(--mint-600);box-shadow:none}
+.step.ms.cur .n::before{background:var(--blue);box-shadow:0 0 0 3px var(--blue-200)}
 .kv{display:grid;grid-template-columns:repeat(2,1fr);gap:10px 16px}
 .kv div{min-width:0}
 .kv .k{font-family:var(--fd);font-weight:500;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--grey-500)}
@@ -505,6 +511,9 @@ body.demo #drawer{bottom:31px} body.demo #side{padding-bottom:31px} body.demo #v
 .sprog .pg i.c{width:9px;height:9px;box-shadow:0 0 0 2px #fff}
 .sprog .pg b{min-width:2px}
 .sprog.sub{max-width:none;margin:2px 0 6px}
+/* the last step: a diamond, the milestone mark (Amir, 7 Oct 2026: "a flag or diamond instead of a circle") */
+.sprog i.ms{width:9px;height:9px;margin-left:2px;border-radius:2px;transform:rotate(45deg)}
+.sprog i.ms.c{width:10px;height:10px;box-shadow:0 0 0 2.5px var(--mint-200)}
 td.stg{min-width:150px}
 .kstep{margin-top:8px;padding:7px 8px 6px;border-radius:8px;background:var(--mint-100)}
 .kstep>div{display:flex;align-items:baseline;gap:6px;font-size:12px;color:var(--navy)}
@@ -1735,9 +1744,10 @@ const FLOWS = {
   /* MARPE has its own steps (Amir, 2 Oct 2026): the STL scan and a CBCT of the upper and lower jaws on file first,
      then the lab, a Zoom call on a set date, design approval, delivery. The Zoom call is the case's next date until
      the design is approved; after that, the delivery date. */
+  // every case ends at Checked into Milestones, and only then is it marked complete (Amir's staff, 7 Oct 2026; study models excepted)
   marpe: { label: 'MARPE', labDone: 'approved', zoomUntil: 'approved', stages: [
     ['records', 'Records: STL + CBCT'], ['submitted', 'Submitted to lab'], ['zoom', 'Zoom call scheduled'],
-    ['approved', 'Design approved'], ['delivered', 'Delivered'] ] },
+    ['approved', 'Design approved'], ['delivered', 'Delivered'], ['milestones', 'Checked into Milestones'] ] },
   /* in fabrication = the NL Lab checklist each Asana case carried as subtasks (Exported STLs → Final Wash and Dry);
      the board shows the seven steps as one "In fabrication" column */
   /* Amir, 6 Oct 2026: staff upload the scan into Titan for Dr. A ("All they do is upload the case into titan for me"); he does the
@@ -1750,14 +1760,19 @@ const FLOWS = {
     // Amir, 3 Oct 2026: "add a middle step that says TxP completed or approved and it would still let me enter the U/L stages"
     ['txpok', 'TxP approved'],
     ['send', 'Ready to print'], ['print', 'Printing'], ['thermo', 'Thermoforming'], ['trim', 'Trimming'], ['polish', 'Polish, wash & dry'],
-    ['pack', 'Packaging'], ['checkedin', 'Checked in'] ],
+    // a set shipped to the patient: Shipped to patient, then Checked into Milestones like every other (staff, 7 Oct 2026)
+    ['pack', 'Packaging'], ['shipped', 'Shipped to patient'], ['checkedin', 'Checked into Milestones'] ],
+    shipOnly: ['shipped'], // (steps only a case shipped to the patient goes through: caseStages)
     groups: [{ l: 'In fabrication', stages: ['send', 'print', 'thermo', 'trim', 'polish'] }] },
   /* the first step says what's waiting (Amir, 5 Oct 2026: "the first step right now says printing which does not make sense"): to be
      made; then Printing, Milestones and the front desk (Amir, 6 Oct 2026: "the steps for retainers and whitening is To make >
      printing > milestones > Front desk pick up" — no Sarah's desk, and no Picked up step after it). The key 'print' is the old
-     Printing step's, kept so cases saved at it stay at To make. */
-  retainer: { label: 'Retainers & mouthguards', labDone: 'milestones', stages: [
-    ['print', 'To make'], ['printing', 'Printing'], ['milestones', 'Milestones'], ['pickup', 'Front desk pickup'] ] },
+     Printing step's, kept so cases saved at it stay at To make.
+     Then (Amir's staff, 7 Oct 2026: "the last step of all the cases should be checked in Milestone and only then it will be marked
+     as complete"): To make > Printing > Front desk pickup > Checked into Milestones. The Milestones step before pickup went (a
+     case saved there shows at Front desk pickup: RETIRED_STAGES); the new last step has its own key. */
+  retainer: { label: 'Retainers & mouthguards', labDone: 'pickup', stages: [
+    ['print', 'To make'], ['printing', 'Printing'], ['pickup', 'Front desk pickup'], ['checkedin', 'Checked into Milestones'] ] },
   models: { label: 'Study models', labDone: 'ready', stages: [ ['print', 'To print'], ['ready', 'Ready'] ] },
   retreat: { label: 'Retreatment', stages: [
     ['intake', 'Intake & assessment'], ['review', 'Pending review'], ['proposal', 'Send proposal'],
@@ -1830,26 +1845,39 @@ const RETIRED_STAGES = { inhouse: { reset: { to: 'txp', l: 'Reset needed in 2 da
     fab: { to: 'txpok', l: 'Export STLs' }, wash: { to: 'polish', l: 'Final wash & dry' } },
   // retainers "On Sarah's desk" (Amir, 6 Oct 2026: "retainers are NOT placed on Sarah's desk. They are made and put on the front desk"),
   // and "Picked up", a last step for a few hours that day (completed cases there show at Front desk pickup)
-  retainer: { sarah: { to: 'pickup', l: 'On Sarah’s desk' }, pickedup: { to: 'pickup', l: 'Picked up' } } };
+  retainer: { sarah: { to: 'pickup', l: 'On Sarah’s desk' }, pickedup: { to: 'pickup', l: 'Picked up' },
+    // Milestones before Front desk pickup (7 Oct 2026: Checked into Milestones is the last step now, after pickup)
+    milestones: { to: 'pickup', l: 'Milestones' } } };
 function liveStage(c) { const r = c && (RETIRED_STAGES[typeOf(c).flow] || {})[c.stage]; return r ? r.to : c && c.stage; }
 function retiredStageLabel(c, k) { const r = (RETIRED_STAGES[typeOf(c).flow] || {})[k]; return r ? r.l : ''; }
 /* completed cases as read: at the step that replaced a retired one — and without the ones removed as a duplicate (dupes.js: they
    aren't in Completed, the patient's history or the Workload page) */
 function liveCases(list) { return (list || []).filter(c => c && !c.dup).map(c => { c.stage = liveStage(c); return c; }); }
-/* Ship to patient (aligners): the case ends when it ships (Amir, 3 Oct 2026: "if the case is being shipped, the last stage
-   is shipped (we still need to know the EXPECTED DELIVERY). so shipped status = complete"). Outside labs: Shipped is the
-   last step (Arrived and Checked into Milestones don't apply); in-house: the last step reads "Shipped to patient" (it is
-   "Checked in" for everyone else). Reaching it marks the case complete (moveStage, saveEdit, lab emails). */
-function shipEnd(c) { if (!c || !c.shipToPatient || !(TYPE[c.type] || {}).aligner) return null; const fl = typeOf(c).flow; return fl === 'outside' ? 'shipped' : fl === 'inhouse' ? 'checkedin' : null; }
-/* the steps this case goes through: its flow's, ending at Shipped for a case shipped to the patient */
+/* Ship to patient (aligners): its Shipped step (we still need to know the EXPECTED DELIVERY — Amir, 3 Oct 2026), then Checked
+   into Milestones like every case, and only then complete (Amir's staff, 7 Oct 2026; it used to complete on reaching Shipped).
+   Outside labs skip Arrived (the set doesn't come to the office); in-house sets go Packaging > Shipped to patient. */
+function shipStep(c) { return c && c.shipToPatient && (TYPE[c.type] || {}).aligner && ['outside', 'inhouse'].includes(typeOf(c).flow) ? 'shipped' : null; }
+/* the steps this case goes through: its flow's, without the ones that aren't for it — Arrived for a case shipped to the patient,
+   the shipped-only steps (in-house Shipped to patient) for one that isn't */
 function caseStages(c) {
-  const st = flowOf(c).stages, e = shipEnd(c); if (!e) return st;
-  return st.slice(0, st.findIndex(s => s[0] === e) + 1).map(s => s[0] === 'checkedin' ? ['checkedin', 'Shipped to patient'] : s);
+  const f = flowOf(c), ship = !!shipStep(c);
+  return ship ? f.stages.filter(s => s[0] !== 'arrived') : f.shipOnly ? f.stages.filter(s => !f.shipOnly.includes(s[0])) : f.stages;
 }
+/* the step a case at `k` is at on its own steps: `k`, or — a step it skips (Ship to patient switched after it got there) — the
+   next one of its own steps after it (the last one when none is) */
+function pathStage(c, k) {
+  const own = caseStages(c).map(s => s[0]); if (!k || own.includes(k)) return k;
+  const all = flowOf(c).stages.map(s => s[0]), i = all.indexOf(k); if (i < 0) return k;
+  return own.find(x => all.indexOf(x) > i) || own[own.length - 1];
+}
+/* the case's last step (Checked into Milestones for all but study models): Mark complete is only offered there */
+function lastStageKey(c) { const st = caseStages(c); return st.length ? st[st.length - 1][0] : ''; }
+function atLastStage(c) { return !!c && !!c.stage && pathStage(c, liveStage(c)) === lastStageKey(c); }
 /* the case's delivery date is the patient's delivery appointment (Amir, 3 Oct 2026: "change it to Delivery appt");
    a case shipped to the patient has no appointment, just the expected delivery */
 function delWord(c) { return c && c.shipToPatient && (TYPE[c.type] || {}).aligner ? 'Expected delivery' : 'Delivery appt'; }
-function stageIndex(c) { return flowOf(c).stages.findIndex(x => x[0] === c.stage); }
+/* where the case is on its own steps (caseStages: a case shipped to the patient skips some) */
+function stageIndex(c) { const own = caseStages(c); return own.findIndex(x => x[0] === pathStage(c, c.stage)); }
 function firstStage(type) { return FLOWS[(TYPE[type] || TYPE.misc).flow].stages[0][0]; }
 /* the stage group a stage belongs to (e.g. the in-house "In fabrication" steps), or null */
 function stageGroup(flow, k) { return (flow.groups || []).find(g => g.stages.includes(k)) || null; }
@@ -2138,7 +2166,7 @@ function stageFromSection(type, section, subtasks) {
   const pick = k => flow.includes(k) ? k : flow[0];
   if (type === 'retainer' || type === 'mouthguard') {
     if (/tt|wt/.test(s) && /-/.test(s)) return pick('print');
-    if (/milestone/.test(s)) return pick('milestones');
+    if (/milestone/.test(s)) return pick('pickup'); // (Asana's Milestones came before the front desk: made, waiting there now)
     if (/sarah/.test(s)) return pick('pickup'); // (no Sarah's desk any more: made retainers wait at the front desk)
     if (/pick ?up|front desk/.test(s)) return pick('pickup');
     return flow[0];
@@ -2155,7 +2183,8 @@ function stageFromSection(type, section, subtasks) {
   if (type === 'marpe') { // from the Appliance project: on hold for the CBCT/Zoom (before it was submitted) = gathering records
     if (/submitted/.test(s)) return 'submitted';
     if (/zoom/.test(s) && !/hold/.test(s)) return 'zoom';
-    if (/approv|manufactur|shipped|arrived|milestone/.test(s)) return 'approved';
+    if (/milestone/.test(s)) return 'milestones';
+    if (/approv|manufactur|shipped|arrived/.test(s)) return 'approved';
     if (/deliver/.test(s)) return 'delivered';
     return 'records';
   }
@@ -3047,7 +3076,7 @@ const DEMO = {
       ['angel', 'mfg', 'sarah', 6], ['ulab', 'submit', 'gwen', 1], ['insmile', 'dra', 'amir', 5], ['invisalign', 'milestones', 'sarah', 0],
       ['nla', 'txp', 'amir', -2], ['nla', 'txp', 'amir', 3], ['nla', 'txp', 'angelika', 2], ['nla', 'thermo', 'angelika', 6], ['nla', 'send', 'kaylee', 8], ['nla', 'pack', 'gwen', 1],
       ['appliance', 'submit', 'sarah', 7], ['appliance', 'hold', 'amir', null], ['appliance', 'mfg', 'sarah', 15],
-      ['retainer', 'print', 'angelika', 1], ['retainer', 'print', 'gwen', null], ['retainer', 'milestones', 'sarah', 0], ['retainer', 'pickup', 'sarah', -3],
+      ['retainer', 'print', 'angelika', 1], ['retainer', 'print', 'gwen', null], ['retainer', 'checkedin', 'sarah', 0], ['retainer', 'pickup', 'sarah', -3],
       ['ulab', 'mfg', 'gwen', 10], ['models', 'print', 'kaylee', 4], ['mouthguard', 'print', 'kaylee', 2], ['insmile', 'mfg', 'sarah', 9],
       ['marpe', 'records', 'sarah', null], ['marpe', 'zoom', 'amir', 16], ['marpe', 'approved', 'sarah', 12]
     ];
@@ -3266,8 +3295,8 @@ const DEMO = {
         if (type === 'retainer' || type === 'mouthguard') {
           Object.assign(c, type === 'retainer' ? { detail: "U/L TT's", arches: ['Upper', 'Lower'], retKinds: ['TT’s'] } : { detail: 'Mouthguard (U)' });
           const maker = R() < .75 ? who : pick(team);
-          mv('print', 'printing', (0.5 + R() * 12 * pace[maker].make) * H, maker); mv('printing', 'milestones', (1 + R() * 18 * pace[maker].make) * H, maker);
-          mv('milestones', 'pickup', (1 + R() * 20) * H, pick(team)); c.stage = 'pickup';
+          mv('print', 'printing', (0.5 + R() * 12 * pace[maker].make) * H, maker); mv('printing', 'pickup', (1 + R() * 18 * pace[maker].make) * H, maker);
+          mv('pickup', 'checkedin', (1 + R() * 20) * H, pick(team)); c.stage = 'checkedin'; // (made at the front desk, then checked into Milestones)
         } else if (type === 'nla') {
           const al = [8, 10, 12, 14, 16, 18, 20, 22, 24], maker = R() < .7 ? who : pick(team);
           Object.assign(c, { detail: 'Aligners (In-House)', initial: 'yes', alU: pick(al), alL: pick(al), atTemplates: 'none', stage: 'txp' });
@@ -4299,7 +4328,8 @@ function bizBefore(iso, n) { let d = iso; for (let i = 0; n > 0 && i < 60; i++) 
 /* { lv: 'late' | 'soon', appt, by (the day it has to ship by) } or null; `today` (an ISO date) is for tests */
 function shipWarn(c, today) {
   if (!c || c.locked || c.status === 'done') return null;
-  const keys = flowOf(c).stages.map(x => x[0]), si = keys.indexOf('shipped'); if (si < 0 || keys.indexOf(liveStage(c)) >= si) return null;
+  if (typeOf(c).flow === 'inhouse') return null; // (an in-house set shipped to the patient has a Shipped step too since 7 Oct 2026 — the warning is for outside labs)
+  const keys = caseStages(c).map(x => x[0]), si = keys.indexOf('shipped'); if (si < 0 || keys.indexOf(pathStage(c, liveStage(c))) >= si) return null;
   const a = apptOf(c); if (!a || !txDateOk(a.d)) return null;
   const w = shipWarnDays(), t = today || todayISO(), by = bizBefore(a.d, w.late);
   if (t >= by) return { lv: 'late', appt: a.d, by };
@@ -4344,7 +4374,7 @@ function chartNote(c, visit) {
   const t = typeOf(c), L = [], what = noteWhat(c);
   const told = v => noteKindsOf(c).map(k => noteInstr(k, v)).filter(Boolean).filter((x, i, a) => a.indexOf(x) === i); // what the patient was told
   if (visit === 'del' && hasDelNote(c)) {
-    if (shipEnd(c)) { const tr = trackList(c).map(x => (x.carrier ? x.carrier + ' ' : '') + x.n).join(', ');
+    if (shipStep(c)) { const tr = trackList(c).map(x => (x.carrier ? x.carrier + ' ' : '') + x.n).join(', ');
       L.push('Shipped ' + what + ' to the patient' + (tr ? ' (' + tr + ')' : '') + '.'); }
     else {
       // in-house sets: how many aligners went out
@@ -4376,14 +4406,16 @@ function noteAscii(L) { return L.join('\n').replace(/[‘’]/g, "'").replace(/[
 /* study models aren't delivered to a patient: their note is the scan's only */
 function hasDelNote(c) { return !!c && c.type !== 'models'; }
 /* which visit's note the case panel shows (and Copy copies) unless it's switched: the delivery's once the case is complete, at
-   its last step, or its delivery appointment has come; the scan's before that */
+   its last step, or its delivery appointment has come — and from the step where it went out (shipped to the patient: Shipped; a
+   MARPE: Delivered), now that Checked into Milestones comes after those (7 Oct 2026); the scan's before that */
 function noteVisitDef(c) {
   if (!hasDelNote(c)) return 'scan';
   if (c.status === 'done' || (c.deliveryDate && dayDiff(c.deliveryDate) <= 0)) return 'del';
-  const st = caseStages(c); return st.length && c.stage === st[st.length - 1][0] ? 'del' : 'scan';
+  const st = caseStages(c).map(s => s[0]), si = st.indexOf(pathStage(c, c.stage)), out = st.indexOf(shipStep(c) || (typeOf(c).flow === 'marpe' ? 'delivered' : ''));
+  return si >= 0 && (si === st.length - 1 || (out >= 0 && si >= out)) ? 'del' : 'scan';
 }
 function noteVisitOf(c) { const v = c && S.noteVisit && S.noteVisit.get(c.id); return v && (v === 'scan' || hasDelNote(c)) ? v : noteVisitDef(c); }
-function noteVisitName(c, v) { return v === 'del' ? (shipEnd(c) ? 'Shipped to patient' : 'Delivery visit') : 'Scan visit'; }
+function noteVisitName(c, v) { return v === 'del' ? (shipStep(c) ? 'Shipped to patient' : 'Delivery visit') : 'Scan visit'; }
 /* the Chart note section: its folded heading names the visit Copy copies; inside, the two visits to switch between, the note,
    and for Dr. A where its wording comes from */
 function noteSumHTML(c) { return '<b>' + esc(noteVisitName(c, noteVisitOf(c))) + '</b> <span class="muted">· to paste into the patient’s chart</span>'; }
@@ -4487,16 +4519,18 @@ function stageMarksPaint(c) {
   $$('.step[data-k]', st).forEach(b => { const w = $('.stWhen', b); if (w) w.outerHTML = stageMarkHTML(m[b.dataset.k]); });
 }
 /* stage progress: a circle per stage (done, current, to come) joined by a line that fills in up to the current stage
-   (Amir, 2 Oct 2026: circles connected with a line, not a row of rectangles); a stage group (In fabrication) sits in its own band */
+   (Amir, 2 Oct 2026: circles connected with a line, not a row of rectangles); a stage group (In fabrication) sits in its own band.
+   The last step — Checked into Milestones, where Mark complete is offered — is a diamond, the milestone mark (Amir, 7 Oct 2026:
+   "maybe the final shape for the mile stone would be a flag or diamond instead of a circle?") */
 function progHTML(c, only) {
-  const f = flowOf(c), si = stageIndex(c), keys = only || caseStages(c).map(s => s[0]);
+  const f = flowOf(c), si = stageIndex(c), keys = only || caseStages(c).map(s => s[0]), end = lastStageKey(c);
   let h = '', first = true;
   caseStages(c).forEach(([k, l], i) => {
     if (!keys.includes(k)) return;
     const g = !only && stageGroup(f, k);
     if (!first) h += '<b' + (i <= si ? ' class="d"' : '') + '></b>'; // the line into this stage: filled once the case has got here
     if (g && g.stages[0] === k) h += '<span class="pg" title="' + esc(g.l) + '">';
-    h += '<i class="' + (i < si ? 'd' : i === si ? 'c' : '') + '" title="' + esc(l) + '"></i>';
+    h += '<i class="' + [i < si ? 'd' : i === si ? 'c' : '', k === end ? 'ms' : ''].filter(Boolean).join(' ') + '" title="' + esc(l) + '"></i>';
     if (g && g.stages[g.stages.length - 1] === k) h += '</span>';
     first = false;
   });
@@ -4710,13 +4744,14 @@ function viewBoard() {
   const inFlow = all.filter(c => typeOf(c).flow === S.boardFlow);
   // one column per stage, except a stage group (e.g. the seven "In fabrication" steps) shares one column
   const cols = [];
-  flow.stages.forEach(([sk, sl]) => { const g = stageGroup(flow, sk); if (!g) cols.push({ l: sl, keys: [sk] }); else if (g.stages[0] === sk) cols.push({ l: g.l, keys: g.stages, grp: true }); });
-  const lastKey = flow.stages[flow.stages.length - 1][0];
+  // (a step only cases shipped to the patient go through — in-house Shipped to patient — shows while a case is at it)
+  flow.stages.forEach(([sk, sl]) => { if ((flow.shipOnly || []).includes(sk) && !inFlow.some(c => c.stage === sk)) return;
+    const g = stageGroup(flow, sk); if (!g) cols.push({ l: sl, keys: [sk] }); else if (g.stages[0] === sk) cols.push({ l: g.l, keys: g.stages, grp: true }); });
   h += '<div class="board">' + cols.map((col, i) => {
     const items = inFlow.filter(c => col.keys.includes(c.stage) || (i === 0 && !flow.stages.some(s => s[0] === c.stage)))
       .sort((a, b) => col.grp ? (stageIndex(b) - stageIndex(a)) || byDue(a, b) : byDue(a, b));
     return '<section class="col' + (col.grp ? ' grp' : '') + '" aria-label="' + esc(col.l) + '"><div class="colHd"><h4>' + esc(col.l) + '</h4><span class="c">' + items.length + '</span></div><div class="colBd">' +
-      (items.map(c => kcard(c, c.stage === lastKey || c.stage === shipEnd(c), col.grp ? col.keys : null)).join('') || '<div class="empty" style="padding:14px 4px">—</div>') + '</div></section>';
+      (items.map(c => kcard(c, atLastStage(c), col.grp ? col.keys : null)).join('') || '<div class="empty" style="padding:14px 4px">—</div>') + '</div></section>';
   }).join('') + '</div>';
   return h;
 }
@@ -4726,8 +4761,8 @@ function kcard(c, last, steps) {
   const labbed = (c.type === 'appliance' || c.type === 'marpe') && !!LAB_LOGO[labName(c.lab)];
   const flags = quickFlag(c) + shipWarnFlag(c) + dupFlag(c) + shipFlag(c) + recFlag(c) + holdFlag(c);
   // the arrow names where it goes ("Move to TxP approved")
-  const nx = last ? null : nextStage(c), shipsNext = !!nx && !!shipEnd(c) && nx === shipEnd(c);
-  const tip = last ? 'Mark complete' : shipsNext ? 'Shipped to the patient — completes the case' : nx ? 'Move to ' + stageLabel(Object.assign({}, c, { stage: nx })) : 'Move to next stage';
+  const nx = last ? null : nextStage(c);
+  const tip = last ? 'Mark complete' : nx ? 'Move to ' + stageLabel(Object.assign({}, c, { stage: nx })) : 'Move to next stage';
   return '<div class="kc" data-act="open" data-id="' + esc(c.id) + '" role="button" tabindex="0">' +
     '<div class="kHd">' + ptAv(c, 32) + '<div class="pt">' + ptName(c.patient) + '</div></div>' + (c.detail || alN(c) ? '<div class="dt">' + esc(c.detail || '') + alignerMini(c) + '</div>' : '') +
     (flags ? '<div class="flags">' + flags + '</div>' : '') +
@@ -5126,7 +5161,7 @@ function renderDrawer() {
   const lblBtn = c.type === 'nla' ? '<div class="dLbl" id="dLbl"><button type="button" class="btn btn-pri btn-sm" data-act="labels"' + (nAl ? '' : ' disabled') + '>' + ic('print', 15) + 'Print labels</button>' +
       (nAl ? '' : '<span class="small muted">once the aligner counts are in (Edit)</span>') + '</div>'
     : c.type === 'retainer' ? '<div class="dLbl" id="dLbl"><button type="button" class="btn btn-pri btn-sm" data-act="retLabels" title="The label for the bag: patient, upper/lower, retainers or whitening trays">' + ic('print', 15) + 'Print labels</button>' +
-      (done ? '' : '<span class="small muted">for the bag — then it asks to mark the case complete</span>') + '</div>' : '';
+      (done ? '' : '<span class="small muted">for the bag — then it offers to move the case to Front desk pickup</span>') + '</div>' : '';
   d.dataset.for = c.id; d.dataset.mode = 'view';
   d.innerHTML = '<div class="dHd"><button type="button" class="dPh" data-act="phEdit" title="' + (c.photo ? 'Change or remove the photo' : 'Add a photo of the patient') + '" aria-label="' + (c.photo ? 'Patient photo: change or remove' : 'Add a patient photo') + '">' + ptAv(c, 64) + '<span class="dPhCam">' + ic('camera', 13) + '</span></button>' +
     // what the case is (arch, appliances, lab, kind of submission, extras) sits under the name — it was its own "Case" section
@@ -5153,9 +5188,10 @@ function renderDrawer() {
     '<div class="dsList">' +
     // the step's station icon moves while the case is at Printing, Thermoforming or Trimming (lab.js labStepIcon; Amir, 7 Oct 2026)
     dsec('stage', 'Stage', (done ? 'Completed · ' : '') + labStepIcon(c, 17) + '<b>' + esc(stageLabel(c)) + '</b>' + progHTML(c),
-      '<div class="stepper">' + caseStages(c).map(([k, l], i) => { const g = stageGroup(flow, k);
+      // the last step's marker is a diamond, the milestone mark, like on the progress line (progHTML)
+      '<div class="stepper">' + caseStages(c).map(([k, l], i, all) => { const g = stageGroup(flow, k);
         return (g && g.stages[0] === k ? '<div class="stepGrp' + (i <= si ? ' d' : '') + '">' + esc(g.l) + '</div>' : '') +
-        '<button class="step ' + (i < si ? 'past' : i === si ? 'cur' : '') + (g ? ' sub' : '') + '" data-act="setStage" data-k="' + k + '"' + (done ? ' disabled' : '') + ' aria-pressed="' + (i === si) + '"><span class="n">' + (i < si ? '✓' : i + 1) + '</span>' + esc(l) + (i === si ? labStepIcon(c, 18) : '') + stageMarkHTML(marks[k]) + '</button>'; }).join('') + '</div>') +
+        '<button class="step ' + (i < si ? 'past' : i === si ? 'cur' : '') + (g ? ' sub' : '') + (i === all.length - 1 ? ' ms' : '') + '" data-act="setStage" data-k="' + k + '"' + (done ? ' disabled' : '') + ' aria-pressed="' + (i === si) + '"><span class="n">' + (i < si ? '✓' : i + 1) + '</span>' + esc(l) + (i === si ? labStepIcon(c, 18) : '') + stageMarkHTML(marks[k]) + '</button>'; }).join('') + '</div>') +
     // in-house: the set in Ortho Factory, from the lab PC — the step it's ready for is on the heading, one tap (lab.js)
     (c.type === 'nla' && c.labOrd && c.labOrd.key ? dsec('lab', 'Lab', labSumHTML(c), labBoxHTML(c), done ? '' : labGoHTML(c, true)) : '') +
     (flow === FLOWS.marpe ? dsec('marpe', 'MARPE', marpeSum(c), marpeBoxHTML(c, done)) : '') +
@@ -5195,8 +5231,11 @@ function renderDrawer() {
       '<button type="button" class="btn btn-sec btn-sm dsAct" data-act="copyNote">' + ic('copy', 14) + 'Copy</button>') +
     dsec('history', 'History', c.updatedAt ? 'Last change ' + esc(fmtWhen(c.updatedAt)) + (c.by && firstName(staffName(c.by, '')) ? ' · ' + esc(firstName(staffName(c.by, ''))) : '') : '', '<div id="histBox">' + historyHTML(c) + '</div>') +
     '</div></div>' +
+    // Mark complete only at the case's last step — Checked into Milestones (Amir's staff, 7 Oct 2026: "only then it will be marked as complete")
     '<div class="dFt">' + (done ? '<button class="btn btn-sec" data-act="reopen">Reopen</button>' :
-      '<button class="btn btn-mint" data-act="complete" data-id="' + esc(c.id) + '">' + ic('done', 16) + 'Mark complete</button><button class="btn btn-sec" data-act="edit">' + ic('edit', 16) + 'Edit</button>') +
+      (atLastStage(c) ? '<button class="btn btn-mint" data-act="complete" data-id="' + esc(c.id) + '">' + ic('done', 16) + 'Mark complete</button>' : '') +
+      '<button class="btn btn-sec" data-act="edit">' + ic('edit', 16) + 'Edit</button>' +
+      (atLastStage(c) ? '' : '<span class="small muted dFtHint">Mark complete comes at ' + esc((caseStages(c).slice(-1)[0] || [0, 'the last step'])[1]) + '</span>')) +
     // a case entered twice: anyone can take the extra one out (dupes.js)
     '<span class="dFtR"><button class="btn btn-ghost" data-act="dupRemove" title="This case was entered twice: take this one out and keep the other">' + ic('copy', 16) + 'Remove duplicate</button>' +
     (isOwner() ? '<button class="btn btn-ghost" data-act="versions">' + ic('clock', 16) + 'Versions</button><button class="btn btn-ghost" data-act="delCase" style="color:var(--coral-700)">' + ic('trash', 16) + 'Delete</button>' : '') + '</span></div>';
@@ -5674,8 +5713,6 @@ async function moveStage(id, to, extra, asked, via) {
   let needs = stageNeeds(Object.assign({}, c, extra), to).filter(x => !(asked || []).includes(x));
   if (via === 'lab') needs = needs.filter(x => x !== 'aligners' || alignersMissing(Object.assign({}, c, extra)));
   if (needs.length) { stageGateModal(c, to, needs, extra, via); return; }
-  const end = shipEnd(c), keys = flowOf(c).stages.map(s => s[0]);
-  if (end && keys.indexOf(to) >= keys.indexOf(end)) return shipDone(c, end, extra);
   const from = c.stage, fields = Object.keys(extra), before = {}; fields.forEach(k => { before[k] = c[k]; });
   c.stage = to; Object.assign(c, extra); queueRender(); if (S.openId === id) renderDrawer();
   S.pend = S.pend || {}; const mine = S.pend[id] = { to, extra };
@@ -5689,27 +5726,17 @@ async function moveStage(id, to, extra, asked, via) {
 /* a case that reaches its last step is asked about once, by whoever moved it there (Amir, 3 Oct 2026: "when a case reaches the
    last checklist then user should get a prompt to move it to complete. like if you mark the case as checked in milestones …
    this is true for all the appliances") — every kind of case; "Not yet" leaves it at that step (✓ on its card or Mark complete
-   later). A case shipped to the patient is already completed when it ships, so it isn't asked. */
+   later). The last step is Checked into Milestones for every kind but study models — a case shipped to the patient too, which
+   used to complete as it shipped (Amir's staff, 7 Oct 2026) — and Mark complete isn't offered before it. */
 function isLastStage(c, k) { const st = caseStages(c); return !!st.length && st[st.length - 1][0] === k; }
 function offerComplete(id) {
   const c = findCase(id); if (!c || c.status === 'done' || c.stage !== caseStages(c).slice(-1)[0][0]) return;
   confirmBox('Mark this case complete?', (c.patient || 'This case') + ' is at its last step, ' + stageLabel(c) + '. Move it to Completed now? You can undo right after, or reopen it later.', 'Mark complete', 'mint', 'Not yet')
     .then(ok => { if (ok) completeCase(id); });
 }
-/* shipped to the patient = complete (Amir, 3 Oct 2026): one save moves it to its last step and completes it; Undo puts
-   the step back and reopens it */
-async function shipDone(c, end, extra) {
-  const id = c.id, from = c.stage, fields = Object.keys(extra || {});
-  try {
-    await B.mutateCase(id, d => { d.stage = end; Object.assign(d, extra || {}); return 'done'; }, Object.assign({ a: 'stage', from, to: end, close: 1 }, fields.length ? { fields } : {}));
-    if (S.hist) S.hist.unshift(Object.assign({}, c, extra || {}, { stage: end, status: 'done', closedAt: Date.now() }));
-    if (S.openId === id) closeDrawer(true);
-    S.closedLoaded = false;
-    toast((ptNameText(c.patient) || 'Case') + ' shipped to the patient — case complete', { action: 'Undo', onAction: () => act(() => B.mutateCase(id, d => { d.stage = from; return 'open'; }, { a: 'reopen' }), 'Reopened') });
-  } catch (e) { toast(errText(e), { bad: true }); }
-}
 async function completeCase(id) {
   const c = findCase(id); if (!c) return;
+  if (!atLastStage(c)) { toast('Move it to ' + ((caseStages(c).slice(-1)[0] || [0, 'its last step'])[1]) + ' first — that’s when a case is marked complete', { bad: true }); return; }
   try {
     await B.mutateCase(id, () => 'done', { a: 'close' });
     if (S.hist) S.hist.unshift(Object.assign({}, c, { status: 'done', closedAt: Date.now() }));
@@ -5860,9 +5887,9 @@ async function saveEdit() {
   const needs = (changed.includes('stage') && !changed.includes('type') ? stageNeeds(Object.assign({}, base, now, { stage: base.stage }), now.stage) : [])
     .filter(x => x !== 'aligners' || alignersMissing(now));
   if (needs.length) { $('#drawerNotice').innerHTML = '<div class="notice bad">' + (needs.includes('records') ? 'Tick both records (STL scan and CBCT) under Records on file before moving it to ' + esc(stageLabel(now)) + '.' : needs.includes('aligners') ? 'Enter ' + alAskText(now) + ' and pick Attachment templates before moving it to ' + esc(stageLabel(now)) + '.' : 'Add the Zoom call date before moving it to Zoom call scheduled.') + '</div>'; $('#drawerNotice').scrollIntoView({ block: 'nearest' }); return; }
-  const end = shipEnd(now), sk = FLOWS[TYPE[now.type].flow].stages.map(s => s[0]);
-  const ships = !!end && (changed.includes('stage') || changed.includes('shipToPatient')) && sk.indexOf(now.stage) >= sk.indexOf(end);
-  if (ships && now.stage !== end) { now.stage = end; if (!changed.includes('stage')) changed.push('stage'); }
+  // a step this case skips now (Ship to patient switched after it got there): the next of its own steps. (Shipped to the patient
+  // no longer completes it — Checked into Milestones comes after, 7 Oct 2026.)
+  if (now.type && now.stage) { const own = pathStage(now, now.stage); if (own !== now.stage) { now.stage = own; if (!changed.includes('stage')) changed.push('stage'); } }
   const btn = $('[data-act=saveEdit]', d); busyBtn(btn, true, 'Saving…');
   const id = S.openId, nAt = Date.now();
   try {
@@ -5877,15 +5904,9 @@ async function saveEdit() {
       if (finish) x.quick = '';
     };
     // (a step changed here is logged with where it went, like a move from the stepper: the Specialty warranty counts from Shipped)
-    await B.mutateCase(id, x => { apply(x); if (ships) return 'done'; }, Object.assign({ a: 'edit', fields: finish ? changed.concat('quick') : changed }, changed.includes('stage') ? { from: base.stage, to: now.stage } : {}, ships ? { close: 1 } : {}));
+    await B.mutateCase(id, x => { apply(x); }, Object.assign({ a: 'edit', fields: finish ? changed.concat('quick') : changed }, changed.includes('stage') ? { from: base.stage, to: now.stage } : {}));
     // show the saved copy right away (the live update from the server follows a moment later)
     const cur = findCase(id); if (cur) apply(cur);
-    if (ships) { // shipped to the patient = complete
-      if (S.hist && cur) S.hist.unshift(Object.assign({}, cur, { status: 'done', closedAt: Date.now() }));
-      S.editing = false; S.editWiz = null; closeDrawer(true); S.closedLoaded = false;
-      toast((ptNameText(now.patient) || 'Case') + ' shipped to the patient — case complete', { action: 'Undo', onAction: () => act(() => B.mutateCase(id, x => { x.stage = base.stage; return 'open'; }, { a: 'reopen' }), 'Reopened') });
-      return;
-    }
     S.editing = false; S.editWiz = null; toast(finish ? 'Details saved — Finish details is off' : 'Saved'); renderDrawer(); loadHistory(id);
     if (changed.includes('stage') && cur && isLastStage(cur, now.stage)) offerComplete(id); // reached its last step: done?
   } catch (x) { busyBtn(btn, false); toast(errText(x), { bad: true }); }
@@ -6428,7 +6449,7 @@ function caseFormHTML(c, isNew) {
   const show = (groups) => ' data-show="' + groups + '"' + (groups.split(' ').includes(g) ? '' : ' style="display:none"');
   const showTiles = (tiles) => ' data-tiles="' + tiles + '"' + (tiles.split(' ').includes(tile) ? '' : ' style="display:none"');
   const roster = activeRoster().filter(r => r.role !== 'owner');
-  const stages = c.type ? FLOWS[TYPE[c.type].flow].stages : [];
+  const stages = c.type ? caseStages(c) : []; // (this case's own steps: Ship to patient drops Arrived or adds Shipped to patient)
   const opt = (v, l, sel) => '<option value="' + esc(v) + '"' + (sel ? ' selected' : '') + '>' + esc(l) + '</option>';
   const people = (sel, none) => opt('', none) + activeRoster().map(r => opt(r.sid, r.name, sel === r.sid)).join('');
   const date = (id, l, v) => '<div class="field"><label for="' + id + '">' + l + '</label><input type="date" id="' + id + '" value="' + esc(v || '') + '"></div>';
@@ -6500,7 +6521,7 @@ function caseFormHTML(c, isNew) {
     '<div class="hint small muted" id="cf-autoHint" style="margin:-4px 0 0">Filled in from the scan date — change any of them.</div>' +
     // aligners going straight to the patient: an alert on the case everywhere it shows (Amir, 2 Oct 2026)
     '<div' + show('aligner') + '><button type="button" class="shipTgl" id="cf-ship" aria-pressed="' + !!c.shipToPatient + '">' + ic('truck', 22) +
-      '<span><b>Ship to patient</b><small>An alert on the case · it’s complete once it ships</small></span></button></div></div>' +
+      '<span><b>Ship to patient</b><small>An alert on the case · Shipped, then Checked into Milestones</small></span></button></div></div>' +
     '<div class="cfSec" data-step="instr"' + show('aligner braces') + '><h5>Dr. A’s instructions from last visit</h5>' +
     '<div class="goalGrid">' + GOALS.filter(gl => !gl.legacy || (c.goals || {})[gl.k]).map(gl => '<div class="goal">' + instrArt(gl.ic) + '<div class="goalB"><b>' + esc(gl.l) + '</b>' + (gl.s ? '<span>' + esc(gl.s) + '</span>' : '') + '</div>' +
       pickRow('goal_' + gl.k, [{ v: 'maintain', l: 'Maintain' }, { v: 'improve', l: 'Improve' }], (c.goals || {})[gl.k] || '', false, 'sm') + '</div>').join('') + '</div>' +
@@ -6535,7 +6556,7 @@ function caseFormHTML(c, isNew) {
     '<div class="cfSec wizSumSec" data-step="review"><h5>Check it over</h5><div id="wizSum"></div></div>' +
     '<details class="cfMore" data-step="review"' + (isNew ? '' : ' open') + '><summary>More: what’s being made, stage, who it’s assigned to, notes</summary>' +
     '<div class="grid2" style="margin-top:12px"><div class="field"><label for="cf-detail">What’s being made</label><input id="cf-detail" value="' + esc(c.detail || '') + '" data-auto="' + (isNew || !c.detail ? 1 : 0) + '"></div>' +
-    '<div class="field"><label for="cf-stage">Stage</label><select id="cf-stage">' + stages.map(([k, l]) => opt(k, k === 'checkedin' && shipEnd(c) ? 'Shipped to patient' : l, (c.stage || (stages[0] || [])[0]) === k)).join('') + '</select></div></div>' +
+    '<div class="field"><label for="cf-stage">Stage</label><select id="cf-stage">' + stages.map(([k, l]) => opt(k, l, ((c.stage && pathStage(c, c.stage)) || (stages[0] || [])[0]) === k)).join('') + '</select></div></div>' +
     '<div class="field"><label>Assigned to</label>' + assignTilesHTML('cf-assignee', c.assignee) + '</div>' +
     '<div class="grid2"><div class="field"><label for="cf-tracking">Tracking #</label><input id="cf-tracking" autocomplete="off" spellcheck="false" placeholder="UPS, FedEx or USPS — becomes a Track button" value="' + esc(c.tracking || '') + '"></div></div>' +
     '<div class="grid2"><div class="field"><label for="cf-labRef">Lab case # / patient ID</label><input id="cf-labRef" autocomplete="off" spellcheck="false" placeholder="The lab’s own number (lab emails fill it in)" value="' + esc(c.labRef || '') + '"></div><div></div></div>' +
@@ -6656,6 +6677,10 @@ function wireCaseForm(root, isNew) {
   if (!isNew && det.dataset.auto !== '1' && det.value) { const o0 = readCaseForm(root), tl = $r('#cf-tile').value;
     if (det.value === autoDetail(o0, tl) || det.value === autoDetail(Object.assign({}, o0, { rxMet: '' }), tl)) det.dataset.auto = '1'; }
   // "Delivery appt" and its time, or "Expected delivery" when it's shipped to the patient (no appointment)
+  // the Stage menu lists this case's own steps: Ship to patient drops Arrived (outside labs) or adds Shipped to patient (in-house)
+  const syncStages = () => { const sel = $r('#cf-stage'), o = readCaseForm(root); if (!sel || !o.type) return;
+    const st = caseStages(o), was = sel.value; sel.innerHTML = st.map(([k, l]) => '<option value="' + k + '">' + esc(l) + '</option>').join('');
+    sel.value = (was && pathStage(o, was)) || st[0][0]; };
   const syncDel = () => { const sh = $r('#cf-ship'), on = groupOfTile($r('#cf-tile').value) === 'aligner' && !!sh && sh.getAttribute('aria-pressed') === 'true';
     const l = $r('#cf-delLbl'), tm = $r('#cf-deliveryTime'); if (l) l.textContent = on ? 'Expected delivery' : 'Delivery appt'; if (tm) tm.style.display = on ? 'none' : ''; };
   // in-house: the treatment dates show on the initial set, or while the patient has none from another set; otherwise one line says where they come from
@@ -6730,12 +6755,12 @@ function wireCaseForm(root, isNew) {
     }
     if (typeChanged) {
       const type = o.type, stage = $r('#cf-stage'), was = stage.value, wasL = (stage.selectedOptions[0] || {}).textContent || '';
-      stage.innerHTML = type ? FLOWS[TYPE[type].flow].stages.map(([k, l]) => '<option value="' + k + '">' + esc(l) + '</option>').join('') : '';
+      stage.innerHTML = type ? caseStages(o).map(([k, l]) => '<option value="' + k + '">' + esc(l) + '</option>').join('') : '';
       // editing: the case keeps its step when the new type has it (Oliv → Angel, or its own tile tapped again), else the step of the
       // same name (Manufacturing → Design approved for a MARPE), else the first (found 4 Oct 2026: tapping a case's tile in Edit put it
       // back at its first step, and saving moved an Oliv case in Manufacturing back to To submit)
       // (and back to a type that has the step the case was saved at: that step again)
-      if (!isNew && type && was) { const ks = FLOWS[TYPE[type].flow].stages.map(s => s[0]), saved = (S.editBase || {}).stage;
+      if (!isNew && type && was) { const ks = caseStages(o).map(s => s[0]), saved = (S.editBase || {}).stage;
         stage.value = ks.includes(was) ? was : ks.includes(saved) ? saved : stageFromSection(type, wasL); if (!stage.value) stage.selectedIndex = 0; }
       if (isNew && type) { stage.dataset.manual = ''; $r('#cf-assignee').dataset.manual = ''; $r('#cf-assignee').value = defaultAssignee(type); }
       if (isNew && ['aligner', 'braces', 'appliance', 'marpe', 'retainer', 'models'].includes(g) && !pressed(root, 'scanner').length) setPick(root, 'scanner', 'Allied Star', true);
@@ -6823,7 +6848,7 @@ function wireCaseForm(root, isNew) {
         if (na && na.dataset.byShip === '1') { const t = readTeeth(); if (noattScopeOf(t) === 'all') { ALL_TEETH.forEach(k => setMark(t, k, 'noatt', false)); drawTeeth(t); $r('#cf-noattScope').hidden = true; syncNoatt(); } }
         if (ipr) delete ipr.dataset.byShip; if (na) delete na.dataset.byShip;
       }
-      syncDel(); return;
+      syncDel(); syncStages(); return;
     }
     const tool = e.target.closest('.tcTools [data-tool]');
     if (tool && root.contains(tool)) { $$('.tcTools [data-tool]', root).forEach(b => b.setAttribute('aria-checked', String(b === tool))); return; }
@@ -7255,7 +7280,8 @@ function labelsModal(c) {
 
 /* ---------- Retainer and whitening tray labels (Amir, 2 Oct 2026) ----------
    One 2×4 in label per bag in the Label Maker's style: patient, upper/lower, what's inside, a bottom line and a
-   date. After printing, it offers to mark the case complete. TT's are the retainers, WT's the whitening trays. */
+   date. After printing, it offers to move the case on to Front desk pickup (Mark complete comes at Checked into Milestones, the
+   last step since 7 Oct 2026 — it used to offer Mark complete here). TT's are the retainers, WT's the whitening trays. */
 const RET_LABELS = [
   { k: 'TT’s', one: 'Retainer', many: 'Retainers', note: 'Wear retainers as directed' },
   { k: 'WT’s', one: 'Whitening tray', many: 'Whitening trays', note: 'Use whitening trays as directed' }
@@ -7288,10 +7314,17 @@ function retLabelsModal(c) {
     w.addEventListener('input', draw); w.addEventListener('change', draw);
     $w('#rl-print').onclick = () => printLabelPages(labels.map(retLabelHTML), () => {
       closeModal();
-      // printed: offer to finish the case (it can be reopened later)
+      // printed: the bag goes to the front desk — offer that step (or, already checked into Milestones, to finish the case)
       const cur = findCase(c.id); if (!cur || cur.status === 'done') return;
-      confirmBox('Mark this case complete?', 'The label for ' + (cur.patient || 'this patient') + ' went to the printer. Move the case to Completed now? You can undo right after, or reopen it later.', 'Mark complete', 'mint', 'Not yet')
-        .then(ok => { if (ok) completeCase(c.id); });
+      if (atLastStage(cur)) {
+        confirmBox('Mark this case complete?', 'The label for ' + (cur.patient || 'this patient') + ' went to the printer. Move the case to Completed now? You can undo right after, or reopen it later.', 'Mark complete', 'mint', 'Not yet')
+          .then(ok => { if (ok) completeCase(c.id); });
+        return;
+      }
+      const ks = caseStages(cur).map(s => s[0]), at = ks.indexOf(pathStage(cur, liveStage(cur))), pk = ks.indexOf('pickup');
+      if (pk < 0 || at >= pk) return;
+      confirmBox('Move to Front desk pickup?', 'The label for ' + (cur.patient || 'this patient') + ' went to the printer. Move the case from ' + stageLabel(cur) + ' to Front desk pickup now?', 'Move to Front desk pickup', 'mint', 'Not yet')
+        .then(ok => { if (ok) moveStage(c.id, 'pickup'); });
     });
     draw();
   });
@@ -7570,8 +7603,10 @@ async function previewImport(rows) {
     const c = caseFromAsana(t, t.project, roster); if (!c.patient) return;
     // still open in Asana but already at the end (picked up / checked in) and not recent: delivered, so leave it out
     if (skipDelivered && !t.completed && typeOf(c).flow !== 'misc') {
-      const st = flowOf(c).stages, when = c.deliveryDate || '';
-      if (c.stage === st[st.length - 1][0] && (!when || when < weekAgo)) { delivered++; return; }
+      // (delivered in Asana: its last step — and a retainer at the front desk or a MARPE delivered, the last steps before Checked into
+      // Milestones became every case's last step, 7 Oct 2026)
+      const fl = typeOf(c).flow, end = [lastStageKey(c)].concat(fl === 'retainer' ? ['pickup'] : fl === 'marpe' ? ['delivered'] : []), when = c.deliveryDate || '';
+      if (end.includes(c.stage) && (!when || when < weekAgo)) { delivered++; return; }
     }
     list.push(c);
   });
@@ -8108,15 +8143,15 @@ function mailMatch(ev, open, closed) {
 }
 /* what an update does to a case: the step it moves to (forward only) and the fields it fills in */
 function mailEffect(c, ev) {
-  const fl = typeOf(c).flow, keys = flowOf(c).stages.map(s => s[0]), si = keys.indexOf(c.stage), at = k => keys.indexOf(k);
+  const fl = typeOf(c).flow, keys = caseStages(c).map(s => s[0]), si = keys.indexOf(pathStage(c, c.stage)), at = k => keys.indexOf(k);
   const fwd = k => keys.includes(k) && at(k) > si ? k : null, set = {}; let to = null;
   if (ev.kind === 'plan') to = fwd('dra');
   else if (ev.kind === 'received') to = fl === 'appliance' ? fwd('mfg') : fl === 'marpe' ? fwd('submitted') : null;
   else if (ev.kind === 'shipped') to = fl === 'marpe' ? fwd('approved') : fwd('shipped');
   else if (ev.kind === 'delivered') to = fwd('arrived');
-  // shipped to the patient: Shipped is its last step, and getting there completes the case (Amir, 3 Oct 2026)
-  const end = shipEnd(c); let close = false;
-  if (end && to && at(to) >= at(end)) { to = fwd(end); close = !!to; }
+  // shipped to the patient: a lab email takes it as far as Shipped (it skips Arrived), never on to Checked into Milestones —
+  // someone checks it in, and only then is it complete (Amir's staff, 7 Oct 2026; until then Shipped completed the case)
+  const sp = shipStep(c); if (sp && (ev.kind === 'shipped' || ev.kind === 'delivered')) to = fwd(sp);
   if (ev.kind === 'hold') {
     const late = si >= (fl === 'marpe' ? at('delivered') : at('shipped')), h = { date: ev.holdDate || '', reason: ev.reason || '' };
     if (si >= 0 && !late && c.labHoldSeen !== h.date + '|' + h.reason && !(c.labHold && c.labHold.date === h.date && c.labHold.reason === h.reason)) set.labHold = h;
@@ -8125,7 +8160,7 @@ function mailEffect(c, ev) {
   const tk = trackInfo(ev.tracking) || trackInfo(trackFromUrl(ev.trackUrl));
   if (tk && !trackList(c).some(t => t.n === tk.n)) { set.tracking = (String(c.tracking || '').trim() + ' ' + tk.n).trim(); if (!tk.carrier && ev.carrier && !c.carrier) set.carrier = String(ev.carrier).slice(0, 20); }
   if (ev.planUrl && okLabLink(ev.co, ev.planUrl) && c.planUrl !== ev.planUrl) set.planUrl = ev.planUrl;
-  return { to, set, close };
+  return { to, set };
 }
 /* apply one update to a case (in a transaction; an update already applied, or one that changes nothing, is skipped) */
 async function mailApply(ev, c) {
@@ -8137,8 +8172,7 @@ async function mailApply(ev, c) {
     if (e2.to) d.stage = e2.to;
     Object.assign(d, e2.set);
     d.mailIds = (d.mailIds || []).concat(ev.key).slice(-40);
-    if (e2.close) return 'done';
-  }, Object.assign({ a: 'email', co: ev.co, kind: ev.kind, from: c.stage, to: eff.to || null, fields: Object.keys(eff.set) }, eff.close ? { close: 1 } : {}));
+  }, Object.assign({ a: 'email', co: ev.co, kind: ev.kind, from: c.stage, to: eff.to || null, fields: Object.keys(eff.set) }));
   return 'ok';
 }
 
@@ -13096,7 +13130,8 @@ document.addEventListener('change', e => {
    - Aligners made: in-house sets moved to "Packaging" (or past it), for whoever moved them there: the set's upper +
      lower aligners.
    - Retainers (retainers, whitening trays and mouthguards): entered, and how long after the scan date on the case (same day = 0);
-     made = reached Milestones (past To make and Printing), for whoever moved it there, and how long after the case was entered.
+     made = reached Front desk pickup (past To make and Printing; before 7 Oct 2026 the step after Printing was Milestones), for
+     whoever moved it there, and how long after the case was entered.
      A retainer from a scan on file, or a remake from the model on file, has no new scan: it isn't in the scan → entered average.
    - Now: the open cases assigned to each person, by kind, and how many of them are late (lab or delivery date passed).
    The history is read once and kept while the app is open: a longer period reads only the older part, Refresh only what's new.
@@ -13161,15 +13196,15 @@ function wkStats() {
     const p = per(by); p.entered++;
     if (typeOf(c).flow === 'retainer') { p.retIn++; if (txDateOk(c.scanDate) && !c.scanOnFile && c.remake !== 'model') p.retLag.push(Math.max(0, wkDay(isoOf(new Date(c.createdAt))) - wkDay(c.scanDate))); }
   });
-  const IH = FLOWS.inhouse.stages.map(s => s[0]), PACK = IH.indexOf('pack'), RT = FLOWS.retainer.stages.map(s => s[0]), MADE = RT.indexOf('milestones'), alDone = new Set(), retDone = new Set();
+  const IH = FLOWS.inhouse.stages.map(s => s[0]), PACK = IH.indexOf('pack'), RT = FLOWS.retainer.stages.map(s => s[0]), MADE = RT.indexOf('pickup'), alDone = new Set(), retDone = new Set();
   log.forEach(x => {
     if (!wkMoved(x)) return;
     const p = per(x.sid || '?'), c = pool.get(x.caseId); p.moved++;
     if (!c) return;
     const fl = typeOf(c).flow;
     if (fl === 'inhouse' && IH.indexOf(x.to) >= PACK && IH.indexOf(x.from) < PACK && !alDone.has(c.id)) { alDone.add(c.id); p.sets++; p.al += alN(c); }
-    // (a step it was at that isn't one any more — Sarah's desk, Picked up — was after Milestones)
-    const ri = k => RT.includes(k) ? RT.indexOf(k) : k ? MADE + 1 : -1;
+    // (a step it was at that isn't one any more — Milestones before the front desk, Sarah's desk, Picked up — was made already)
+    const ri = k => RT.includes(k) ? RT.indexOf(k) : k ? MADE : -1;
     if (fl === 'retainer' && ri(x.to) >= MADE && ri(x.from) < MADE && !retDone.has(c.id)) { retDone.add(c.id); p.ret++; if (c.createdAt && x.at > c.createdAt) p.retMake.push(x.at - c.createdAt); }
   });
   openCases().forEach(c => {
@@ -13287,7 +13322,7 @@ function wkHowHTML() {
     li('Cases entered:', 'new cases each person entered in the app, counted on the day they entered them. Cases brought in from Asana don’t count.') +
     li('Steps moved:', 'each time they moved a case to another step. Moves made by lab emails don’t count.') +
     li('Aligners made:', 'in-house sets moved to “Packaging” (or past it), for whoever moved them there — the set’s upper and lower aligners.') +
-    li('Retainers:', 'retainers, whitening trays and mouthguards. <i>Scan → entered</i> counts days from the scan date on the case to the day it was entered (the same day is 0). <i>Made</i> is when it reached Milestones (past To make and Printing), for whoever moved it there; <i>Entered → made</i> is the time from entering it to then. A retainer from a scan on file, or a remake from the model, isn’t in the scan → entered average (no new scan).') +
+    li('Retainers:', 'retainers, whitening trays and mouthguards. <i>Scan → entered</i> counts days from the scan date on the case to the day it was entered (the same day is 0). <i>Made</i> is when it reached Front desk pickup (past To make and Printing), for whoever moved it there; <i>Entered → made</i> is the time from entering it to then. A retainer from a scan on file, or a remake from the model, isn’t in the scan → entered average (no new scan).') +
     li('Now:', 'open cases assigned to each person. Late = its lab or delivery date has passed. Tap a number to see those cases.') +
     '</ul></details>';
 }

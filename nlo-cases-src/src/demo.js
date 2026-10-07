@@ -35,7 +35,7 @@ const DEMO = {
       ['angel', 'mfg', 'sarah', 6], ['ulab', 'submit', 'gwen', 1], ['insmile', 'dra', 'amir', 5], ['invisalign', 'milestones', 'sarah', 0],
       ['nla', 'txp', 'amir', -2], ['nla', 'txp', 'amir', 3], ['nla', 'txp', 'angelika', 2], ['nla', 'thermo', 'angelika', 6], ['nla', 'send', 'kaylee', 8], ['nla', 'pack', 'gwen', 1],
       ['appliance', 'submit', 'sarah', 7], ['appliance', 'hold', 'amir', null], ['appliance', 'mfg', 'sarah', 15],
-      ['retainer', 'print', 'angelika', 1], ['retainer', 'print', 'gwen', null], ['retainer', 'milestones', 'sarah', 0], ['retainer', 'pickup', 'sarah', -3],
+      ['retainer', 'print', 'angelika', 1], ['retainer', 'print', 'gwen', null], ['retainer', 'checkedin', 'sarah', 0], ['retainer', 'pickup', 'sarah', -3],
       ['ulab', 'mfg', 'gwen', 10], ['models', 'print', 'kaylee', 4], ['mouthguard', 'print', 'kaylee', 2], ['insmile', 'mfg', 'sarah', 9],
       ['marpe', 'records', 'sarah', null], ['marpe', 'zoom', 'amir', 16], ['marpe', 'approved', 'sarah', 12]
     ];
@@ -254,8 +254,8 @@ const DEMO = {
         if (type === 'retainer' || type === 'mouthguard') {
           Object.assign(c, type === 'retainer' ? { detail: "U/L TT's", arches: ['Upper', 'Lower'], retKinds: ['TT’s'] } : { detail: 'Mouthguard (U)' });
           const maker = R() < .75 ? who : pick(team);
-          mv('print', 'printing', (0.5 + R() * 12 * pace[maker].make) * H, maker); mv('printing', 'milestones', (1 + R() * 18 * pace[maker].make) * H, maker);
-          mv('milestones', 'pickup', (1 + R() * 20) * H, pick(team)); c.stage = 'pickup';
+          mv('print', 'printing', (0.5 + R() * 12 * pace[maker].make) * H, maker); mv('printing', 'pickup', (1 + R() * 18 * pace[maker].make) * H, maker);
+          mv('pickup', 'checkedin', (1 + R() * 20) * H, pick(team)); c.stage = 'checkedin'; // (made at the front desk, then checked into Milestones)
         } else if (type === 'nla') {
           const al = [8, 10, 12, 14, 16, 18, 20, 22, 24], maker = R() < .7 ? who : pick(team);
           Object.assign(c, { detail: 'Aligners (In-House)', initial: 'yes', alU: pick(al), alL: pick(al), atTemplates: 'none', stage: 'txp' });

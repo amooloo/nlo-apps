@@ -1,3 +1,6 @@
+// SUPERSEDED 7 Oct 2026 (Amir's staff: every case ends at Checked into Milestones, and only then is it complete; a case shipped to
+// the patient goes Shipped > Checked into Milestones and no longer completes at Shipped). The checks below describe the 3 Oct rules;
+// test/e2e.js covers the current ones. Kept for its screenshots and history only.
 // Amir, 3 Oct 2026: "when a case reaches the last checklist then user should get a prompt to move it to complete. like if you
 // mark the case as checked in milestones … this is true for all the appliances" — demo
 const { chromium } = require('playwright');

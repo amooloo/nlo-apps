@@ -522,7 +522,7 @@ function caseFormHTML(c, isNew) {
   const show = (groups) => ' data-show="' + groups + '"' + (groups.split(' ').includes(g) ? '' : ' style="display:none"');
   const showTiles = (tiles) => ' data-tiles="' + tiles + '"' + (tiles.split(' ').includes(tile) ? '' : ' style="display:none"');
   const roster = activeRoster().filter(r => r.role !== 'owner');
-  const stages = c.type ? FLOWS[TYPE[c.type].flow].stages : [];
+  const stages = c.type ? caseStages(c) : []; // (this case's own steps: Ship to patient drops Arrived or adds Shipped to patient)
   const opt = (v, l, sel) => '<option value="' + esc(v) + '"' + (sel ? ' selected' : '') + '>' + esc(l) + '</option>';
   const people = (sel, none) => opt('', none) + activeRoster().map(r => opt(r.sid, r.name, sel === r.sid)).join('');
   const date = (id, l, v) => '<div class="field"><label for="' + id + '">' + l + '</label><input type="date" id="' + id + '" value="' + esc(v || '') + '"></div>';
@@ -594,7 +594,7 @@ function caseFormHTML(c, isNew) {
     '<div class="hint small muted" id="cf-autoHint" style="margin:-4px 0 0">Filled in from the scan date — change any of them.</div>' +
     // aligners going straight to the patient: an alert on the case everywhere it shows (Amir, 2 Oct 2026)
     '<div' + show('aligner') + '><button type="button" class="shipTgl" id="cf-ship" aria-pressed="' + !!c.shipToPatient + '">' + ic('truck', 22) +
-      '<span><b>Ship to patient</b><small>An alert on the case · it’s complete once it ships</small></span></button></div></div>' +
+      '<span><b>Ship to patient</b><small>An alert on the case · Shipped, then Checked into Milestones</small></span></button></div></div>' +
     '<div class="cfSec" data-step="instr"' + show('aligner braces') + '><h5>Dr. A’s instructions from last visit</h5>' +
     '<div class="goalGrid">' + GOALS.filter(gl => !gl.legacy || (c.goals || {})[gl.k]).map(gl => '<div class="goal">' + instrArt(gl.ic) + '<div class="goalB"><b>' + esc(gl.l) + '</b>' + (gl.s ? '<span>' + esc(gl.s) + '</span>' : '') + '</div>' +
       pickRow('goal_' + gl.k, [{ v: 'maintain', l: 'Maintain' }, { v: 'improve', l: 'Improve' }], (c.goals || {})[gl.k] || '', false, 'sm') + '</div>').join('') + '</div>' +
@@ -629,7 +629,7 @@ function caseFormHTML(c, isNew) {
     '<div class="cfSec wizSumSec" data-step="review"><h5>Check it over</h5><div id="wizSum"></div></div>' +
     '<details class="cfMore" data-step="review"' + (isNew ? '' : ' open') + '><summary>More: what’s being made, stage, who it’s assigned to, notes</summary>' +
     '<div class="grid2" style="margin-top:12px"><div class="field"><label for="cf-detail">What’s being made</label><input id="cf-detail" value="' + esc(c.detail || '') + '" data-auto="' + (isNew || !c.detail ? 1 : 0) + '"></div>' +
-    '<div class="field"><label for="cf-stage">Stage</label><select id="cf-stage">' + stages.map(([k, l]) => opt(k, k === 'checkedin' && shipEnd(c) ? 'Shipped to patient' : l, (c.stage || (stages[0] || [])[0]) === k)).join('') + '</select></div></div>' +
+    '<div class="field"><label for="cf-stage">Stage</label><select id="cf-stage">' + stages.map(([k, l]) => opt(k, l, ((c.stage && pathStage(c, c.stage)) || (stages[0] || [])[0]) === k)).join('') + '</select></div></div>' +
     '<div class="field"><label>Assigned to</label>' + assignTilesHTML('cf-assignee', c.assignee) + '</div>' +
     '<div class="grid2"><div class="field"><label for="cf-tracking">Tracking #</label><input id="cf-tracking" autocomplete="off" spellcheck="false" placeholder="UPS, FedEx or USPS — becomes a Track button" value="' + esc(c.tracking || '') + '"></div></div>' +
     '<div class="grid2"><div class="field"><label for="cf-labRef">Lab case # / patient ID</label><input id="cf-labRef" autocomplete="off" spellcheck="false" placeholder="The lab’s own number (lab emails fill it in)" value="' + esc(c.labRef || '') + '"></div><div></div></div>' +
@@ -750,6 +750,10 @@ function wireCaseForm(root, isNew) {
   if (!isNew && det.dataset.auto !== '1' && det.value) { const o0 = readCaseForm(root), tl = $r('#cf-tile').value;
     if (det.value === autoDetail(o0, tl) || det.value === autoDetail(Object.assign({}, o0, { rxMet: '' }), tl)) det.dataset.auto = '1'; }
   // "Delivery appt" and its time, or "Expected delivery" when it's shipped to the patient (no appointment)
+  // the Stage menu lists this case's own steps: Ship to patient drops Arrived (outside labs) or adds Shipped to patient (in-house)
+  const syncStages = () => { const sel = $r('#cf-stage'), o = readCaseForm(root); if (!sel || !o.type) return;
+    const st = caseStages(o), was = sel.value; sel.innerHTML = st.map(([k, l]) => '<option value="' + k + '">' + esc(l) + '</option>').join('');
+    sel.value = (was && pathStage(o, was)) || st[0][0]; };
   const syncDel = () => { const sh = $r('#cf-ship'), on = groupOfTile($r('#cf-tile').value) === 'aligner' && !!sh && sh.getAttribute('aria-pressed') === 'true';
     const l = $r('#cf-delLbl'), tm = $r('#cf-deliveryTime'); if (l) l.textContent = on ? 'Expected delivery' : 'Delivery appt'; if (tm) tm.style.display = on ? 'none' : ''; };
   // in-house: the treatment dates show on the initial set, or while the patient has none from another set; otherwise one line says where they come from
@@ -824,12 +828,12 @@ function wireCaseForm(root, isNew) {
     }
     if (typeChanged) {
       const type = o.type, stage = $r('#cf-stage'), was = stage.value, wasL = (stage.selectedOptions[0] || {}).textContent || '';
-      stage.innerHTML = type ? FLOWS[TYPE[type].flow].stages.map(([k, l]) => '<option value="' + k + '">' + esc(l) + '</option>').join('') : '';
+      stage.innerHTML = type ? caseStages(o).map(([k, l]) => '<option value="' + k + '">' + esc(l) + '</option>').join('') : '';
       // editing: the case keeps its step when the new type has it (Oliv → Angel, or its own tile tapped again), else the step of the
       // same name (Manufacturing → Design approved for a MARPE), else the first (found 4 Oct 2026: tapping a case's tile in Edit put it
       // back at its first step, and saving moved an Oliv case in Manufacturing back to To submit)
       // (and back to a type that has the step the case was saved at: that step again)
-      if (!isNew && type && was) { const ks = FLOWS[TYPE[type].flow].stages.map(s => s[0]), saved = (S.editBase || {}).stage;
+      if (!isNew && type && was) { const ks = caseStages(o).map(s => s[0]), saved = (S.editBase || {}).stage;
         stage.value = ks.includes(was) ? was : ks.includes(saved) ? saved : stageFromSection(type, wasL); if (!stage.value) stage.selectedIndex = 0; }
       if (isNew && type) { stage.dataset.manual = ''; $r('#cf-assignee').dataset.manual = ''; $r('#cf-assignee').value = defaultAssignee(type); }
       if (isNew && ['aligner', 'braces', 'appliance', 'marpe', 'retainer', 'models'].includes(g) && !pressed(root, 'scanner').length) setPick(root, 'scanner', 'Allied Star', true);
@@ -917,7 +921,7 @@ function wireCaseForm(root, isNew) {
         if (na && na.dataset.byShip === '1') { const t = readTeeth(); if (noattScopeOf(t) === 'all') { ALL_TEETH.forEach(k => setMark(t, k, 'noatt', false)); drawTeeth(t); $r('#cf-noattScope').hidden = true; syncNoatt(); } }
         if (ipr) delete ipr.dataset.byShip; if (na) delete na.dataset.byShip;
       }
-      syncDel(); return;
+      syncDel(); syncStages(); return;
     }
     const tool = e.target.closest('.tcTools [data-tool]');
     if (tool && root.contains(tool)) { $$('.tcTools [data-tool]', root).forEach(b => b.setAttribute('aria-checked', String(b === tool))); return; }
