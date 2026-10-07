@@ -268,7 +268,10 @@ function labIcon(k, live, s) {
     print: '<path d="M4.5 20.5V3.5h15v17"/><path d="M2.5 20.5h19"/><path d="M4.5 7.5h15"/><path class="ph" d="M9.6 6h4.8v2.7H9.6zM12 8.7v1.6"/>' +
       '<path class="l1" d="M8 18.4h8"/><path class="l2" d="M8.6 16.3h6.8"/><path class="l3" d="M9.2 14.2h5.6"/>',
     thermo: '<path d="M4.5 20h15"/><path d="M7.5 20c0-3.3 2-5.5 4.5-5.5s4.5 2.2 4.5 5.5"/><path d="M8.5 11c1-1 1-2 0-3s-1-2 0-3"/><path d="M12 11c1-1 1-2 0-3s-1-2 0-3"/><path d="M15.5 11c1-1 1-2 0-3s-1-2 0-3"/>',
-    trim: '<g class="sa"><circle cx="4.8" cy="7.2" r="2.3"/><path d="M6.8 8.4l13.7 8.5"/></g><g class="sb"><circle cx="4.8" cy="16.8" r="2.3"/><path d="M6.8 15.6l13.7-8.5"/></g>'
+    /* solid blades that taper to a point, finger rings angled out a little more than the blades so they stay apart mid-snip
+       (Amir picked "A, Sharp" of three, 7 Oct 2026). Both halves turn about the pivot at 12.6,12 (style.css licSnipA/B). */
+    trim: '<g class="sa"><circle cx="6.24" cy="6.66" r="2.3"/><path d="M7.92 8.07L12.22 11.68"/><path d="M12.49 11.44L20.98 16.27C17.3 16.86 14.11 15.24 11.6 13.96C10.67 13.48 11.69 11.03 12.49 11.44Z" fill="currentColor" stroke="none"/></g>' +
+      '<g class="sb"><circle cx="6.24" cy="17.34" r="2.3"/><path d="M7.92 15.93L12.22 12.32"/><path d="M12.49 12.56L20.98 7.73C17.3 7.14 14.11 8.76 11.6 10.04C10.67 10.52 11.69 12.97 12.49 12.56Z" fill="currentColor" stroke="none"/></g>'
   }[k] || '';
   return '<svg class="lic lic-' + k + (live ? ' live' : '') + '" width="' + s + '" height="' + s + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + body + '</svg>';
 }
