@@ -1342,20 +1342,22 @@ async function openByName(p, name) {
     await owner.click('.modal [data-act=closeModal]');
     check(!JSON.stringify(await fsDump()).includes(labCfg.w), 'the lab PC’s password isn’t stored anywhere');
     check(await owner.evaluate(async () => { const st = await B.mailState(); return st.bots.filter(labBot).length === 1 && !st.on; }), 'its login is its own: email updates stay off (they were turned off above)');
-    // made-up Ortho Factory order folders: an export nobody counted yet, a set being made, one for a patient NLO Cases doesn't have
+    // made-up Ortho Factory order folders (the real <OrderData> format: trimming only — New -> SentToTrimmer/Barcode -> Trimmed):
+    // an export nobody counted yet, a set part-trimmed, and one for a patient NLO Cases doesn't have, filed in the Finished folder
     const labDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nlolab-')), labData = path.join(labDir, 'data'), labApp = path.join(labDir, 'app'); fs.mkdirSync(labData);
-    const ST = ['New', 'New,SentTo3DPrinter', 'New,SentTo3DPrinter,DoneWith3DPrinter', 'New,SentTo3DPrinter,DoneWith3DPrinter,TrimPathApproved,ThermoformedLabelPrinted', 'New,SentTo3DPrinter,DoneWith3DPrinter,TrimPathApproved,ThermoformedLabelPrinted,Trimmed'];
+    const finBase = path.join(labDir, 'Finished', '2026', '10', '07'); // Ortho Factory moves finished folders here (beside InputFolder)
+    const ST = ['New', 'New,SentToTrimmer,Barcode', 'New,SentToTrimmer,Barcode,Trimmed']; // level 0 not at the trimmer, 1 at the trimmer, 2 trimmed
     const folderAt = (ms, who) => { const d = new Date(ms), p2 = n => String(n).padStart(2, '0'); return d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate()) + ' ' + p2(d.getHours()) + ' ' + p2(d.getMinutes()) + ' ' + p2(d.getSeconds()) + ' - A - Dr. Test - ' + who + ' - ' + Math.random().toString(16).slice(2, 6); };
-    const writeOrder = (folder, id, first, last, rev, up, lo, tmpl) => {
+    const writeOrder = (base, folder, id, first, last, rev, up, lo, tmpl) => {
       const el = (k, a, n, lv) => '  <' + k + a + n + rev + ' Name="' + first + ' ' + last + ' - ' + n + '" Serialnumber="' + id + k + a + n + rev + '" State="' + ST[lv] + '">\n    <Archmodel>x.stl</Archmodel>\n  </' + k + a + n + rev + '>';
-      const body = up.map((lv, i) => el('A', 'U', i + 1, lv)).concat(lo.map((lv, i) => el('A', 'L', i + 1, lv)), (tmpl || []).map(([a, lv]) => el('T', a, 1, lv))).join('\n');
-      const dir = path.join(labData, folder); fs.mkdirSync(dir, { recursive: true });
-      fs.writeFileSync(path.join(dir, id + '_1_Order.xml'), '<?xml version="1.0" encoding="utf-8"?>\n<Patient Firstname="' + first + '" Lastname="' + last + '" ID="' + id + '" DueDate="20261020">\n' + body + '\n</Patient>\n');
+      const body = up.map((lv, i) => el('A', 'U', i + 1, lv)).concat(lo.map((lv, i) => el('A', 'L', i + 1, lv)), (tmpl || []).map(([a, lv]) => el('T', a, 0, lv))).join('\n');
+      const dir = path.join(base, folder); fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(path.join(dir, id + '_1_Order.xml'), '<?xml version="1.0" encoding="utf-8"?>\n<OrderData Type="Titan_Angled">\n  <Patient Firstname="' + first + '" Lastname="' + last + '" ID="' + id + '" DueDate="20261020" />\n' + body + '\n</OrderData>\n');
     };
     const t0 = Date.now(), fL = folderAt(t0 - 2 * 3600e3, 'Lumen Printwell'), fT = folderAt(t0 - 26 * 3600e3, 'Tess Trimbright'), fO = folderAt(t0 - 5 * 3600e3, 'Otto Unplaced');
-    writeOrder(fL, '91001', 'Lumen', 'Printwell', 'A', Array(10).fill(0), Array(8).fill(0), [['U', 0], ['L', 0]]);
-    writeOrder(fT, '91002', 'Tess', 'Trimbright', 'C', [4, 3, 3, 2, 2, 1], [4, 2, 2, 1, 1, 1]);
-    writeOrder(fO, '91003', 'Otto', 'Unplaced', 'A', [1, 1, 1, 1, 0, 0], [1, 1, 0, 0, 0, 0]);
+    writeOrder(labData, fL, '91001', 'Lumen', 'Printwell', 'A', Array(10).fill(0), Array(8).fill(0), [['U', 0], ['L', 0]]);
+    writeOrder(labData, fT, '91002', 'Tess', 'Trimbright', 'C', [2, 1, 1, 0, 0, 0], [2, 2, 1, 0, 0, 0]);
+    writeOrder(finBase, fO, '91003', 'Otto', 'Unplaced', 'A', [1, 1, 1, 1, 0, 0], [1, 1, 0, 0, 0, 0]);
     fs.mkdirSync(path.join(labData, 'DreamAlign working folder')); // (not an order)
     const ps = (...a) => { try { return execFileSync('pwsh', ['-NoProfile', '-File', path.join(__dirname, '..', 'lab', 'nlo-lab-bridge.ps1')].concat(a, ['-DataDir', labData, '-AppDir', labApp, '-TestPlain']),
       { env: Object.assign({}, process.env, { NLO_LAB_TEST_PLAIN: '1', NO_PROXY: 'localhost,127.0.0.1', no_proxy: 'localhost,127.0.0.1' }), encoding: 'utf8', timeout: 120000 }); }
@@ -1363,20 +1365,20 @@ async function openByName(p, name) {
     const inst = ps('-Install', '-Code', labCode);
     check(/Encryption check: OK/.test(inst) && /Signed in to NLO Cases: OK/.test(inst), 'the script checks its encryption on this computer and signs in with the setup code (-Install)' + (/Signed in/.test(inst) ? '' : ' — ' + inst.slice(-400)));
     const dry = ps('-DryRun');
-    check(/Orders in .*: 3 \(3 changed/.test(dry) && /91002C\s+Tess Trimbright .* printed 8\/12 .* trimmed 2\/12/.test(dry) && /upper -433221\s+lower -422111/.test(dry), 'a dry run reads the 3 orders, each aligner’s step too (a working folder isn’t an order), and sends nothing');
+    check(/Orders in .*: 3 \(3 changed/.test(dry) && /91002C\s+Tess Trimbright .* at trimmer 6\/12 .* trimmed 3\/12/.test(dry) && /upper -211000\s+lower -221000/.test(dry), 'a dry run reads the 3 orders (one from the Finished folder), each aligner’s trim step too, and sends nothing');
     const once = ps('-Once');
     check(/Sent 3 order updates/.test(once), 'one pass sends the 3 orders, sealed (' + ((once.match(/Sent[^\n]*/) || [once.slice(-300)])[0]) + ')');
-    await owner.waitForFunction(() => { const c = n => openCases().find(x => x.patient === n); const a = c('Lumen Printwell'), b = c('Tess Trimbright'); return !!(a && b && a.labOrd && b.labOrd && b.labOrd.a.printed === 8); }, null, { timeout: 40000 }).catch(() => {});
+    await owner.waitForFunction(() => { const c = n => openCases().find(x => x.patient === n); const a = c('Lumen Printwell'), b = c('Tess Trimbright'); return !!(a && b && a.labOrd && b.labOrd && b.labOrd.a.trimmed === 3); }, null, { timeout: 40000 }).catch(() => {});
     const lp = await owner.evaluate(() => { const c = openCases().find(x => x.patient === 'Lumen Printwell'); return c && c.labOrd ? { key: c.labOrd.key, alU: c.alU, alL: c.alL, n: c.aligners, at: c.atTemplates, sug: (labSuggest(c) || {}).to } : null; });
     check(lp && lp.key === '91001A' && lp.alU === 10 && lp.alL === 8 && lp.n === 18 && lp.at === 'UL' && lp.sug === 'send', 'the export fills in the counts nobody typed (U 10 · L 8, templates upper & lower) and offers Ready to print (' + JSON.stringify(lp) + ')');
     const tt = await owner.evaluate(() => { const c = openCases().find(x => x.patient === 'Tess Trimbright'); return c && c.labOrd ? { a: c.labOrd.a, lv: c.labOrd.lv, alU: c.alU, sug: (labSuggest(c) || {}).to } : null; });
-    check(tt && tt.a.n === 12 && tt.a.printed === 8 && tt.a.trimmed === 2 && tt.lv.au === '-433221' && tt.lv.al === '-422111' && tt.alU === 6 && tt.sug === 'trim',
-      'a set being made: every aligner’s step comes along (U1 trimmed … U6 on the printer), the typed counts stay, and the first ones thermoformed → it offers Trimming');
+    check(tt && tt.a.n === 12 && tt.a.atTrimmer === 6 && tt.a.trimmed === 3 && tt.lv.au === '-211000' && tt.lv.al === '-221000' && tt.alU === 6 && tt.sug === 'trim',
+      'a set part-trimmed: every aligner’s trim step comes along (U1 trimmed, U2–3 at the trimmer), the typed counts stay, and the first ones at the trimmer → it offers Trimming');
     await owner.click('#nav-board'); await owner.fill('#q', ''); await owner.click('[data-act=flow][data-k=inhouse]');
     const lCard = '.kc:has-text("Lumen Printwell")', tCard = '.kc:has-text("Tess Trimbright")';
     await owner.waitForSelector(lCard + ' .labGo:has-text("Ready to print")', { timeout: 20000 });
-    check(await owner.isVisible(tCard + ' .labM .lic-print.live') && /8\/12/.test(await owner.textContent(tCard + ' .labLn')) && /2\/12/.test(await owner.textContent(tCard + ' .labLn')),
-      'board: Tess’s card has the Print (8/12, the printer moving — 4 still on it) and Trim (2/12) bars');
+    check(await owner.isVisible(tCard + ' .labM .lic-trim.live') && /3\/12/.test(await owner.textContent(tCard + ' .labLn')) && !(await owner.isVisible(tCard + ' .lic-print')),
+      'board: Tess’s card has the Trim bar (3/12, the scissors moving — 3 more at the trimmer) and no 3D-printing bar from Ortho Factory');
     await owner.click(lCard + ' .labGo');
     await owner.waitForFunction(() => { const c = openCases().find(x => x.patient === 'Lumen Printwell'); return c && c.stage === 'send'; }, null, { timeout: 20000 });
     check(!(await owner.isVisible('#modalWrap')), 'one tap moves Lumen to Ready to print — no counts window (the counts came from the export)');
@@ -1386,24 +1388,24 @@ async function openByName(p, name) {
       'history: the Lab PC found the order and filled in the counts; the move says it was the lab PC’s suggestion');
     await owner.click('#drawer [data-act=closeDrawer] >> nth=0'); await owner.fill('#q', '');
     await owner.click('#nav-today'); await owner.waitForSelector('#labCard .mlRow:has-text("Otto Unplaced")', { timeout: 20000 });
-    check(/on the printer, 6 of 12/.test(await owner.textContent('#labCard')) && (await owner.locator('#labCard .mlRow').count()) === 1, 'Today: only the order it couldn’t place asks which case it is (Otto Unplaced — on the printer, 6 of 12)');
+    check(/6 at the trimmer/.test(await owner.textContent('#labCard')) && (await owner.locator('#labCard .mlRow').count()) === 1, 'Today: only the order it couldn’t place asks which case it is (Otto Unplaced, read from the Finished folder — 6 at the trimmer)');
     dump = JSON.stringify(await fsDump());
-    { const plain = dump.replace(/"[A-Za-z0-9+/=_-]{40,}"/g, '""'), lk = /Printwell|Trimbright|Unplaced|91001A|91002C|-433221/.exec(plain);
+    { const plain = dump.replace(/"[A-Za-z0-9+/=_-]{40,}"/g, '""'), lk = /Printwell|Trimbright|Unplaced|91001A|91002C|-211000/.exec(plain);
       check(!lk, 'no patient name, order # or progress is readable anywhere in the database' + (lk ? ' — found “' + lk[0] + '”' : '')); }
     await owner.click('#labCard [data-act=labSkip]');
     await owner.waitForFunction(async () => !document.querySelector('#labCard') && (await B.inboxLoad()).length === 0, null, { timeout: 20000 });
     check(true, 'Dismiss clears it, and every lab message has left the inbox');
-    // the set moves on: every model printed, more trimmed
-    writeOrder(fT, '91002', 'Tess', 'Trimbright', 'C', [4, 4, 4, 3, 3, 2], [4, 4, 3, 2, 2, 2]);
+    // the set moves on: every aligner trimmed
+    writeOrder(labData, fT, '91002', 'Tess', 'Trimbright', 'C', [2, 2, 2, 2, 2, 2], [2, 2, 2, 2, 2, 2]);
     const once2 = ps('-Once');
     check(/Sent 1 order update /.test(once2), 'the next pass sends only the order that changed (' + ((once2.match(/Sent[^\n]*/) || [once2.slice(-300)])[0]) + ')');
-    await owner.waitForFunction(() => { const c = openCases().find(x => x.patient === 'Tess Trimbright'); return c && c.labOrd && c.labOrd.a.printed === 12; }, null, { timeout: 30000 });
-    await openByName(owner, 'Tess Trimbright'); await owner.waitForSelector('#histBox .hist:has-text("reported every model printed")', { timeout: 20000 });
-    check((await owner.locator('#histBox .hist:has-text("Lab PC")').count()) === 2, 'history: when the order was found and when every model was printed (not each reading)');
+    await owner.waitForFunction(() => { const c = openCases().find(x => x.patient === 'Tess Trimbright'); return c && c.labOrd && c.labOrd.a.trimmed === 12; }, null, { timeout: 30000 });
+    await openByName(owner, 'Tess Trimbright'); await owner.waitForSelector('#histBox .hist:has-text("reported every aligner trimmed")', { timeout: 20000 });
+    check((await owner.locator('#histBox .hist:has-text("Lab PC")').count()) === 2, 'history: when the order was found and when every aligner was trimmed (not each reading)');
     if (!(await owner.evaluate(() => document.querySelector('#drawer .ds[data-ds=lab]').classList.contains('open')))) await owner.click('#drawer .ds[data-ds=lab] .dsTg');
-    check((await owner.locator('#drawer .labGrid .labGr .lac.l4').count()) === 5 && (await owner.locator('#drawer .labGrid .labGr .lac').count()) === 12
-      && /Upper aligners: trimmed 1–3; thermoformed 4–5; printed 6/.test(await owner.getAttribute('#drawer .labGrid .labGr >> nth=0', 'aria-label')),
-      'the case’s Lab section shows each aligner by number: U1–3 and L1–2 trimmed (' + await owner.getAttribute('#drawer .labGrid .labGr >> nth=0', 'aria-label') + ')');
+    check((await owner.locator('#drawer .labGrid .labGr .lac.l2').count()) === 12 && (await owner.locator('#drawer .labGrid .labGr .lac').count()) === 12
+      && /Upper aligners: trimmed 1–6/.test(await owner.getAttribute('#drawer .labGrid .labGr >> nth=0', 'aria-label')),
+      'the case’s Lab section shows each aligner by number, all trimmed (' + await owner.getAttribute('#drawer .labGrid .labGr >> nth=0', 'aria-label') + ')');
     await owner.click('#drawer [data-act=closeDrawer] >> nth=0'); await owner.fill('#q', '');
     // what the lab PC's login can do: add sealed messages and its check-in — not read a case
     const lt = (await (await fetch('http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=demo-key', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: labCfg.e, password: labCfg.w, returnSecureToken: true }) })).json()).idToken;
@@ -1414,7 +1416,7 @@ async function openByName(p, name) {
     check(/3 orders in Ortho Factory · 4 updates sent today/.test(await owner.textContent('#labAdmin')) && !(await owner.isVisible('#mailAdmin .mlBeat:has-text("Lab PC")')), 'Team & security shows the lab PC’s check-in under Lab PC (not under Email updates)');
     await owner.click('#labAdmin [data-act=labOff]'); await owner.click('#cbYes'); await owner.waitForSelector('.toast:has-text("Lab PC turned off")', { timeout: 20000 });
     await owner.waitForSelector('#labAdmin [data-act=labSetup]:has-text("Set up the lab PC")', { timeout: 20000 });
-    writeOrder(fT, '91002', 'Tess', 'Trimbright', 'C', [4, 4, 4, 4, 4, 4], [4, 4, 4, 4, 4, 4]);
+    writeOrder(labData, folderAt(Date.now(), 'Nova Afteroff'), '91009', 'Nova', 'Afteroff', 'A', [0, 0], [0, 0]); // a brand-new order (always tried)
     const off = ps('-Once');
     check(/Problem: .*HTTP 403/.test(off) && !/Sent 1/.test(off), 'after Turn off the lab PC can’t send anything (its check-ins are cleared too)');
     fs.rmSync(labDir, { recursive: true, force: true });

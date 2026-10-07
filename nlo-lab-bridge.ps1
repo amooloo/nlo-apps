@@ -1,11 +1,13 @@
 <#
   NLO Lab Bridge  -  tells NLO Cases where each in-house aligner set is in the lab.
 
-  Ortho Factory (the Trimlign software) keeps one folder per order in C:\ProgramData\TrimLignAI\InputFolder, with an
-  <id>_<n>_Order.xml listing every aligner and how far it has got. This script reads those files (it never changes them),
-  counts how many aligners are sent to the printer, printed, thermoformed and trimmed, and sends each order's counts to
-  NLO Cases - sealed with NLO Cases' office key, so nothing but the app can read them - using the lab PC's own login.
-  That login can add sealed items to NLO Cases' inbox and note when it last checked in. It can't read or change anything.
+  Ortho Factory (the Trimlign software) keeps one folder per order in C:\ProgramData\TrimLignAI\InputFolder (and moves finished
+  folders to a "Finished" folder beside it), each with an <id>_<n>_Order.xml listing every aligner and how far it has got. Ortho
+  Factory records TRIMMING - sent to the trimmer, then trimmed - not 3D printing or thermoforming (those don't run through it in
+  this office; printing reaches NLO Cases from the Formlabs feed instead). This script reads those files (it never changes them),
+  counts how many aligners are at the trimmer and trimmed, and sends each order's counts to NLO Cases - sealed with NLO Cases'
+  office key, so nothing but the app can read them - using the lab PC's own login. That login can add sealed items to NLO Cases'
+  inbox and note when it last checked in. It can't read or change anything.
 
   Set up once, signed in as the Laboratory user (no administrator needed):
       powershell -NoProfile -ExecutionPolicy Bypass -File "<where you saved it>\nlo-lab-bridge.ps1" -Install
@@ -27,7 +29,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version 2
-$VER = '1.0'
+$VER = '2.0'
 $POLL_S = 20           # how often the order files are looked at (only files that changed are read again)
 $GAP_S = 300           # an order's next update waits this long, unless a step is finished for every aligner
 $BEAT_S = 300          # check-in with NLO Cases (Team & security shows it)
@@ -255,9 +257,12 @@ function Send-Beat($cfg, [string]$beatId, [int]$seen, [int]$sent, [string]$err) 
 
 # ---------------------------------------------------------------- reading Ortho Factory's orders (read-only)
 # An order folder's name starts with when it was ordered: "2026-10-05 17 08 17 - A - Dr. ... - <patient> - 1e47". Other folders
-# (DreamAlign working folders) are skipped. Each aligner is an element named <T|A><U|L><stage><revision letter>; its State
-# attribute lists, comma-separated, every step it has been through.
-$STEPS = @('SentTo3DPrinter', 'DoneWith3DPrinter', 'ThermoformedLabelPrinted', 'Trimmed', 'BagLabelPrinted')
+# (DreamAlign working folders) are skipped. The file is <OrderData> with a <Patient> child and, beside it, one element per
+# aligner/template named <T|A><U|L><number><revision letter>; its State attribute lists, comma-separated, the trim steps it has
+# been through. Ortho Factory records trimming only, so each aligner is at one of three levels:
+#   0 not at the trimmer yet   1 at the trimmer (State has SentToTrimmer or Barcode)   2 trimmed (State has Trimmed)
+$TRIM_AT = @('SentToTrimmer', 'Barcode', 'TrimPathApproved')   # at the trimmer (this office's files use SentToTrimmer / Barcode)
+$TRIM_DONE = @('Trimmed')
 $script:Seen = @{}   # path -> @{ t = last write time; o = the order read from it }
 function Read-OrderXml([string]$path) {
   $fs = [System.IO.File]::Open($path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]'ReadWrite, Delete')
@@ -277,15 +282,24 @@ function Get-Order([System.IO.DirectoryInfo]$dir) {
   $xml = $null
   for ($try = 0; $try -lt 4; $try++) { try { $xml = Read-OrderXml $file.FullName; break } catch { Start-Sleep -Milliseconds 400 } }   # (Ortho Factory may be writing it)
   if (-not $xml) { if ($prev) { return $prev.o }; return $null }
-  $pt = $xml.DocumentElement; if (-not $pt -or $pt.LocalName -ne 'Patient') { return $null }
+  $root = $xml.DocumentElement; if (-not $root) { return $null }
+  # <OrderData> with a <Patient> child and the aligner elements beside it (an older layout had <Patient> as the root itself)
+  $pt = $null
+  if ($root.LocalName -eq 'Patient') { $pt = $root }
+  else { foreach ($ch in $root.ChildNodes) { if ($ch.NodeType -eq [System.Xml.XmlNodeType]::Element -and $ch.LocalName -eq 'Patient') { $pt = $ch; break } } }
+  if (-not $pt) { return $null }
   $items = @{}; $revs = @{}
-  foreach ($el in $pt.ChildNodes) {
+  foreach ($el in $root.ChildNodes) {
     if ($el.NodeType -ne [System.Xml.XmlNodeType]::Element) { continue }
-    if ($el.LocalName -notmatch '^([TA])([UL])(\d+)([A-Z])$') { continue }
-    $kind = $matches[1]; $arch = $matches[2]; $rev = $matches[4]; $revs[$rev] = 1 + [int]$revs[$rev]
+    if ($el.LocalName -notmatch '^([TA])([UL])(\d+)([A-Za-z])$') { continue }
+    $kind = $matches[1]; $arch = $matches[2]; $n0 = [int]$matches[3]; $rev = $matches[4]; $revs[$rev] = 1 + [int]$revs[$rev]
     $states = @(([string]$el.GetAttribute('State')).Split(',') | ForEach-Object { $_.Trim() })
-    $lvl = -1; for ($i = 0; $i -lt $STEPS.Count; $i++) { if ($states -contains $STEPS[$i]) { $lvl = $i } }   # a later step counts the earlier ones as done
-    $items[$el.LocalName] = @{ k = $kind; arch = $arch; n = [int]$matches[3]; lvl = $lvl }
+    $lvl = 0
+    if (@($states | Where-Object { $TRIM_AT -contains $_ }).Count -gt 0) { $lvl = 1 }
+    if (@($states | Where-Object { $TRIM_DONE -contains $_ }).Count -gt 0) { $lvl = 2 }   # trimmed counts "at the trimmer" as done too
+    # one physical aligner per kind+arch+number (not per element name): if a number ever appears twice, keep the furthest step
+    $ik = $kind + $arch + [string]$n0
+    if ($items.ContainsKey($ik)) { if ($lvl -gt $items[$ik].lvl) { $items[$ik].lvl = $lvl } } else { $items[$ik] = @{ k = $kind; arch = $arch; n = $n0; lvl = $lvl } }
   }
   if ($items.Count -eq 0) { return $null }
   $pid0 = ([string]$pt.GetAttribute('ID')).Trim(); if (-not $pid0) { $pid0 = ($file.Name -split '_')[0] }
@@ -299,11 +313,10 @@ function Get-Order([System.IO.DirectoryInfo]$dir) {
   return $o
 }
 # Each aligner's step, by its number (Amir, 6 Oct 2026: "so it can tell you which aligners have been trimmed and which ones haven't"):
-# one character per aligner from number 0 up - 0 not sent to the printer yet, 1 on the printer, 2 printed, 3 thermoformed, 4 trimmed,
-# 5 bagged; '-' for a number the set doesn't have
+# one character per aligner from number 0 up - 0 not at the trimmer yet, 1 at the trimmer, 2 trimmed; '-' for a number the set doesn't have
 function Get-Levels($items, [string]$kind, [string]$arch) {
   $max = -1; $lv = @{}
-  foreach ($it in $items.Values) { if ($it.k -eq $kind -and $it.arch -eq $arch -and $it.n -ge 0 -and $it.n -le 99) { $lv[[int]$it.n] = [Math]::Min(5, [int]$it.lvl + 1); if ($it.n -gt $max) { $max = [int]$it.n } } }
+  foreach ($it in $items.Values) { if ($it.k -eq $kind -and $it.arch -eq $arch -and $it.n -ge 0 -and $it.n -le 99) { $lv[[int]$it.n] = [Math]::Min(2, [int]$it.lvl); if ($it.n -gt $max) { $max = [int]$it.n } } }
   if ($max -lt 0) { return '' }
   $sb = New-Object System.Text.StringBuilder
   for ($i = 0; $i -le $max; $i++) { if ($lv.ContainsKey($i)) { [void]$sb.Append([string]$lv[$i]) } else { [void]$sb.Append('-') } }
@@ -322,12 +335,12 @@ function Merge-Orders($all) {
   }
   $out = New-Object System.Collections.Generic.List[object]
   foreach ($m in $byKey.Values) {
-    $a = @{ n = 0; sent = 0; printed = 0; labeled = 0; trimmed = 0; bagged = 0 }; $t = @{ n = 0; sent = 0; printed = 0; labeled = 0; trimmed = 0; bagged = 0 }
+    $a = @{ n = 0; atTrimmer = 0; trimmed = 0 }; $t = @{ n = 0; atTrimmer = 0; trimmed = 0 }
     $au = 0; $al = 0; $tu = 0; $tl = 0
     foreach ($it in $m.items.Values) {
       $c = $a; if ($it.k -eq 'T') { $c = $t; if ($it.arch -eq 'U') { $tu++ } else { $tl++ } } else { if ($it.arch -eq 'U') { $au++ } else { $al++ } }
       $c.n++; $l = $it.lvl
-      if ($l -ge 0) { $c.sent++ }; if ($l -ge 1) { $c.printed++ }; if ($l -ge 2) { $c.labeled++ }; if ($l -ge 3) { $c.trimmed++ }; if ($l -ge 4) { $c.bagged++ }
+      if ($l -ge 1) { $c.atTrimmer++ }; if ($l -ge 2) { $c.trimmed++ }
     }
     $lv = [ordered]@{ au = (Get-Levels $m.items 'A' 'U'); al = (Get-Levels $m.items 'A' 'L'); tu = (Get-Levels $m.items 'T' 'U'); tl = (Get-Levels $m.items 'T' 'L') }
     $out.Add([ordered]@{ key = $m.key; pid = $m.pid; rev = $m.rev; first = $m.first; last = $m.last; ordered = $m.ordered; due = $m.due
@@ -337,15 +350,24 @@ function Merge-Orders($all) {
 }
 function Get-Orders {
   if (-not (Test-Path -LiteralPath $DataDir)) { throw ('Ortho Factory''s order folder isn''t there: ' + $DataDir) }
-  $list = New-Object System.Collections.Generic.List[object]
-  foreach ($d in (Get-ChildItem -LiteralPath $DataDir -Directory -ErrorAction SilentlyContinue)) {
-    try { $o = Get-Order $d; if ($o) { $list.Add($o) } } catch { $tag = ($d.Name -split ' - ')[-1]; Write-Log ('Could not read the order folder ending "' + $tag + '" (dated ' + $d.Name.Substring(0, [Math]::Min(19, $d.Name.Length)) + ')') }
+  # the live orders are in InputFolder; Ortho Factory moves whole order folders into a "Finished" folder beside it as it goes
+  # (being there doesn't mean the set is done), so read both. One order file per folder; a folder read once isn't read again.
+  $roots = New-Object System.Collections.Generic.List[string]; $roots.Add($DataDir)
+  $fin = Join-Path (Split-Path -Parent $DataDir) 'Finished'; if ((Test-Path -LiteralPath $fin) -and $fin -ne $DataDir) { $roots.Add($fin) }
+  $list = New-Object System.Collections.Generic.List[object]; $done = @{}
+  foreach ($root in $roots) {
+    foreach ($f in (Get-ChildItem -LiteralPath $root -Recurse -Filter '*_Order.xml' -File -ErrorAction SilentlyContinue)) {
+      $d = $f.Directory; if (-not $d -or $done.ContainsKey($d.FullName)) { continue }; $done[$d.FullName] = 1
+      try { $o = Get-Order $d; if ($o) { $list.Add($o) } } catch { $tag = ($d.Name -split ' - ')[-1]; Write-Log ('Could not read the order folder ending "' + $tag + '"') }
+    }
   }
+  # keep the parse cache bounded: drop remembered files that have moved or gone (Finished is a growing archive)
+  foreach ($p in @($script:Seen.Keys)) { if (-not (Test-Path -LiteralPath $p)) { [void]$script:Seen.Remove($p) } }
   return ,$list
 }
 function Get-Hash([string]$s) { $h = [System.Security.Cryptography.SHA256]::Create(); try { return (ConvertTo-Hex ($h.ComputeHash([Text.Encoding]::UTF8.GetBytes($s)))).Substring(0, 32) } finally { $h.Dispose() } }
-function Get-Sig($o) { $a = $o.a; $t = $o.t; return Get-Hash (@($o.first, $o.last, $o.au, $o.al, $o.tu, $o.tl, $a.n, $a.sent, $a.printed, $a.labeled, $a.trimmed, $a.bagged, $t.n, $t.sent, $t.printed, $t.labeled, $t.trimmed, $t.bagged, $o.lv.au, $o.lv.al, $o.lv.tu, $o.lv.tl) -join '|') }   # (a hash: no names in state.json)
-function Get-Done($o) { $a = $o.a; if ($a.n -le 0) { return '' }; return (@('sent', 'printed', 'labeled', 'trimmed', 'bagged') | Where-Object { $a[$_] -ge $a.n }) -join ',' }
+function Get-Sig($o) { $a = $o.a; $t = $o.t; return Get-Hash (@($o.first, $o.last, $o.au, $o.al, $o.tu, $o.tl, $a.n, $a.atTrimmer, $a.trimmed, $t.n, $t.atTrimmer, $t.trimmed, $o.lv.au, $o.lv.al, $o.lv.tu, $o.lv.tl) -join '|') }   # (a hash: no names in state.json)
+function Get-Done($o) { $a = $o.a; if ($a.n -le 0) { return '' }; return (@('atTrimmer', 'trimmed') | Where-Object { $a[$_] -ge $a.n }) -join ',' }
 
 # ---------------------------------------------------------------- what was sent (so only changes go out)
 function Get-State { if (Test-Path -LiteralPath $STATE_FILE) { try { return ([System.IO.File]::ReadAllText($STATE_FILE) | ConvertFrom-Json) } catch { } }; return $null }
@@ -377,7 +399,7 @@ function Invoke-Pass($cfg, $st, [bool]$dry) {
   # one sealed item per 25 orders
   for ($i = 0; $i -lt $send.Count; $i += 25) {
     $batch = @($send | Select-Object -Skip $i -First 25)
-    $payload = [ordered]@{ lab = 1; v = 1; src = 'Lab PC'; pc = [string]$env:COMPUTERNAME; ver = $VER; at = $now; orders = @($batch | ForEach-Object { $x = [ordered]@{}; foreach ($k in $_.o.Keys) { $x[$k] = $_.o[$k] }; $x['at'] = $now; $x }) }
+    $payload = [ordered]@{ lab = 1; v = 2; src = 'Lab PC'; pc = [string]$env:COMPUTERNAME; ver = $VER; at = $now; orders = @($batch | ForEach-Object { $x = [ordered]@{}; foreach ($k in $_.o.Keys) { $x[$k] = $_.o[$k] }; $x['at'] = $now; $x }) }
     $id = Send-Sealed $cfg $payload
     foreach ($b in $batch) { $st.orders | Add-Member -NotePropertyName $b.o.key -NotePropertyValue ([pscustomobject]@{ sig = $b.sig; done = $b.done; at = $now }) -Force }
     $st.sentToday = [int]$st.sentToday + $batch.Count
@@ -392,12 +414,12 @@ function Invoke-Pass($cfg, $st, [bool]$dry) {
 # ---------------------------------------------------------------- the modes
 function Show-Orders($res) {
   Write-Host ''
-  Write-Host ('Orders in ' + $DataDir + ': ' + $res.orders.Count + ' (' + $res.active + ' changed in the last ' + $ACTIVE_DAYS + ' days - the ones it sends)')
+  Write-Host ('Orders in ' + $DataDir + ' (and Finished): ' + $res.orders.Count + ' (' + $res.active + ' changed in the last ' + $ACTIVE_DAYS + ' days - the ones it sends)')
   foreach ($o in $res.orders) {
     $a = $o.a
     Write-Host ('  ' + $o.key.PadRight(12) + ' ' + ($o.first + ' ' + $o.last).PadRight(26) + ' ordered ' + $o.ordered + '  U ' + $o.au + ' L ' + $o.al + ' templates ' + ($o.tu + $o.tl) +
-      '  sent ' + $a.sent + '/' + $a.n + '  printed ' + $a.printed + '/' + $a.n + '  thermoformed ' + $a.labeled + '/' + $a.n + '  trimmed ' + $a.trimmed + '/' + $a.n)
-    Write-Host ('               upper ' + $o.lv.au + '   lower ' + $o.lv.al + '   (each aligner from #0: 0 not printed, 1 on the printer, 2 printed, 3 thermoformed, 4 trimmed)')
+      '  at trimmer ' + $a.atTrimmer + '/' + $a.n + '  trimmed ' + $a.trimmed + '/' + $a.n)
+    Write-Host ('               upper ' + $o.lv.au + '   lower ' + $o.lv.al + '   (each aligner from #0: 0 not at the trimmer, 1 at the trimmer, 2 trimmed)')
   }
   Write-Host ('Would send now: ' + $res.send.Count + ' (names travel only inside the sealed update)')
 }

@@ -128,23 +128,23 @@ const DEMO = {
       appliances: ['MARA'], detail: 'MARA', lab: LAB_SPEC, stage: 'milestones', assignee: 'sarah', assistant: 'gwen', scanner: 'iTero', deliveryDate: addDays(t, -38), comments: [], createdAt: Date.now() - 60 * day, createdBy: 'amir' });
     DEMO.logs.push({ caseId: 'demoSpecW', a: 'create', at: Date.now() - 60 * day, sid: 'amir' }, { caseId: 'demoSpecW', a: 'stage', from: 'mfg', to: 'shipped', at: Date.now() - 44 * day, sid: 'sarah' },
       { caseId: 'demoSpecW', a: 'stage', from: 'shipped', to: 'milestones', at: Date.now() - 40 * day, sid: 'sarah' }, { caseId: 'demoSpecW', a: 'close', at: Date.now() - 40 * day + 60e3, sid: 'sarah' });
-    // the lab PC (lab.js): Ortho Factory's progress on the in-house sets (made-up orders) — the refinement being trimmed, the
-    // upper-only set printing, the approved plan just exported (no counts typed: the export's fill in), a plan still at Uploaded
-    // to Titan whose export has two more lower aligners than were typed, and an order for a patient NLO Cases doesn't have
-    // (Today asks which case it is)
+    // the lab PC (lab.js): Ortho Factory's trimming on the in-house sets (made-up orders) — the refinement part-trimmed, an
+    // upper-only set at the trimmer, the approved plan just exported (no counts typed: the export's fill in), a plan still at
+    // Uploaded to Titan whose export has two more lower aligners than were typed, and an order for a patient NLO Cases doesn't
+    // have (Today asks which case it is)
     const nla = Array.from(DEMO.cases.values()).filter(c => c.type === 'nla' && c.status === 'open'), on = k => nla.find(c => c.stage === k);
     const iso = ms => { const d = new Date(ms), p = n => String(n).padStart(2, '0'); return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + 'T' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds()); };
-    const nm = c => ({ first: c.patient.split(' ')[0], last: c.patient.split(' ').slice(-1)[0] }), cnt = (n, s, p, l, tr) => ({ n, sent: s, printed: p, labeled: l, trimmed: tr, bagged: 0 });
+    const nm = c => ({ first: c.patient.split(' ')[0], last: c.patient.split(' ').slice(-1)[0] }), cnt = (n, at, tr) => ({ n, atTrimmer: at, trimmed: tr });
     const th = on('thermo'), sd = on('send'), ok = on('txpok'), tp = nla.filter(c => c.stage === 'txp')[1], ords = [];
     if (ok) Object.assign(ok, { alU: '', alL: '', aligners: '' });
-    if (th) ords.push(Object.assign({ key: 'D1001B', pid: 'D1001', rev: 'B', ordered: iso(ago(3 * 1440)), au: 10, al: 8, tu: 1, tl: 1, a: cnt(18, 18, 18, 18, 5), t: cnt(2, 2, 2, 2, 2), lv: { au: '-4443333333', al: '-44333333', tu: '-4', tl: '-4' }, act: ago(25) }, nm(th)));
-    if (sd) ords.push(Object.assign({ key: 'D2207A', pid: 'D2207', rev: 'A', ordered: iso(ago(2 * 1440)), au: 22, al: 0, tu: 0, tl: 0, a: cnt(22, 22, 9, 0, 0), t: cnt(0, 0, 0, 0, 0), lv: { au: '-' + '2'.repeat(9) + '1'.repeat(13) }, act: ago(40) }, nm(sd)));
-    if (ok) ords.push(Object.assign({ key: 'D3310A', pid: 'D3310', rev: 'A', ordered: iso(ago(90)), au: 20, al: 18, tu: 1, tl: 1, a: cnt(38, 0, 0, 0, 0), t: cnt(2, 0, 0, 0, 0), lv: { au: '-' + '0'.repeat(20), al: '-' + '0'.repeat(18), tu: '-0', tl: '-0' }, act: ago(90) }, nm(ok)));
-    if (tp) ords.push(Object.assign({ key: 'D4415A', pid: 'D4415', rev: 'A', ordered: iso(ago(1440)), au: tp.alU || 12, al: (tp.alL || 12) + 2, tu: 0, tl: 0, a: cnt((tp.alU || 12) + (tp.alL || 12) + 2, 0, 0, 0, 0), t: cnt(0, 0, 0, 0, 0), act: ago(1440) }, nm(tp)));
-    ords.push({ key: 'D5120A', pid: 'D5120', rev: 'A', first: 'Robin', last: 'Tailor', ordered: iso(ago(1440)), au: 16, al: 16, tu: 1, tl: 0, a: cnt(32, 12, 0, 0, 0), t: cnt(1, 1, 0, 0, 0), lv: { au: '-' + '1'.repeat(12) + '0'.repeat(4), al: '-' + '0'.repeat(16), tu: '-1' }, act: ago(15) });
+    if (th) ords.push(Object.assign({ key: 'D1001B', pid: 'D1001', rev: 'B', ordered: iso(ago(3 * 1440)), au: 10, al: 8, tu: 1, tl: 1, a: cnt(18, 18, 5), t: cnt(2, 2, 2), lv: { au: '-' + '2'.repeat(3) + '1'.repeat(7), al: '-' + '2'.repeat(2) + '1'.repeat(6), tu: '2', tl: '2' }, act: ago(25) }, nm(th)));
+    if (sd) ords.push(Object.assign({ key: 'D2207A', pid: 'D2207', rev: 'A', ordered: iso(ago(2 * 1440)), au: 22, al: 0, tu: 0, tl: 0, a: cnt(22, 9, 0), t: cnt(0, 0, 0), lv: { au: '-' + '1'.repeat(9) + '0'.repeat(13) }, act: ago(40) }, nm(sd)));
+    if (ok) ords.push(Object.assign({ key: 'D3310A', pid: 'D3310', rev: 'A', ordered: iso(ago(90)), au: 20, al: 18, tu: 1, tl: 1, a: cnt(38, 0, 0), t: cnt(2, 0, 0), lv: { au: '-' + '0'.repeat(20), al: '-' + '0'.repeat(18), tu: '0', tl: '0' }, act: ago(90) }, nm(ok)));
+    if (tp) ords.push(Object.assign({ key: 'D4415A', pid: 'D4415', rev: 'A', ordered: iso(ago(1440)), au: tp.alU || 12, al: (tp.alL || 12) + 2, tu: 0, tl: 0, a: cnt((tp.alU || 12) + (tp.alL || 12) + 2, 0, 0), t: cnt(0, 0, 0), act: ago(1440) }, nm(tp)));
+    ords.push({ key: 'D5120A', pid: 'D5120', rev: 'A', first: 'Robin', last: 'Tailor', ordered: iso(ago(1440)), au: 16, al: 16, tu: 1, tl: 0, a: cnt(32, 12, 0), t: cnt(1, 1, 0), lv: { au: '-' + '1'.repeat(12) + '0'.repeat(4), al: '-' + '0'.repeat(16), tu: '1' }, act: ago(15) });
     const now = Date.now();
-    DEMO.mail.inbox.push({ id: 'mlab1', at: ago(2), done: [], mail: { lab: 1, v: 1, src: 'Lab PC', pc: 'LAB-PC', ver: '1.0', at: now, orders: ords.map(o => Object.assign(o, { at: now })) } });
-    DEMO.mail.beats.push({ id: 'b3', box: 'Lab PC · LAB-PC', at: ago(2), seen: 9, sent: ords.length, err: '', ver: 'lab 1.0' });
+    DEMO.mail.inbox.push({ id: 'mlab1', at: ago(2), done: [], mail: { lab: 1, v: 2, src: 'Lab PC', pc: 'LAB-PC', ver: '2.0', at: now, orders: ords.map(o => Object.assign(o, { at: now })) } });
+    DEMO.mail.beats.push({ id: 'b3', box: 'Lab PC · LAB-PC', at: ago(2), seen: ords.length, sent: ords.length, err: '', ver: 'lab 2.0' });
   },
   /* patient photos (in memory) */
   photos: new Map(),
