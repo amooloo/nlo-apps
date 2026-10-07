@@ -1635,6 +1635,14 @@ body.phHide .pnm:not(:hover)::after{content:attr(data-s)}
 .lic.live .sb{animation:licSnipB 1.1s ease-in-out infinite}
 @keyframes licSnipA{0%,100%{transform:rotate(0)}40%,55%{transform:rotate(-16deg)}}
 @keyframes licSnipB{0%,100%{transform:rotate(0)}40%,55%{transform:rotate(16deg)}}
+/* thermoforming: at rest the sheet hangs under the heater; while it's going on the heater glows, the sheet sags and drops, the formed tray shows */
+.lic-thermo .thT{opacity:0}
+.lic.live .thH{animation:licGlow 3.4s ease-in-out infinite}
+.lic.live .thS{animation:licSag 3.4s ease-in-out infinite}
+.lic.live .thT{animation:licDrape 3.4s ease-in-out infinite}
+@keyframes licGlow{0%,44%,100%{opacity:1}15%,30%{opacity:.45}}
+@keyframes licSag{0%{opacity:1;transform:translateY(0)}35%{opacity:1;transform:translateY(.8px)}50%{opacity:0;transform:translateY(2.8px)}90%{opacity:0;transform:translateY(0)}100%{opacity:1}}
+@keyframes licDrape{0%,44%{opacity:0}54%,88%{opacity:1}97%,100%{opacity:0}}
 @media (prefers-reduced-motion:reduce){ .lic.live *{animation:none !important} }
 .labT,.labMeta{line-height:1.5}
 .labMeta b{color:var(--navy)}

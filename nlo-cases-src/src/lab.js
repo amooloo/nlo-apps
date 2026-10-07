@@ -260,18 +260,29 @@ function labGoHTML(c, small) {
   return '<button type="button" class="labGo' + (small ? ' sm' : '') + '" data-act="labMove" data-id="' + esc(c.id) + '" data-to="' + esc(sg.to) + '" title="' + esc(tip) + '" aria-label="' + esc(tip) + '">' + ic('next', small ? 13 : 15) + esc(l) + '</button>';
 }
 /* ---------- the stations' icons (Amir, 6 Oct 2026: "clean animated icons … printing could be a simple 3d printing and trimming
-   could be a scissor cutting"): a 3D printer whose nozzle sweeps while the layers build up, a mould under heat, scissors that snip.
-   They move only while that step is going on for the set (and never for someone who turned motion down) ---------- */
+   could be a scissor cutting"). Redrawn 7 Oct with solid parts; Amir's picks of the options: printing "B, Printer", thermoforming
+   "A, Sheet drapes", trimming "A, Sharp". A printer whose head slides while solid layers stack into a tooth crown, a heater that
+   softens the sheet until it sags and drapes over a tooth, scissors that snip. They move only while that step is going on for the
+   set (and never for someone who turned motion down) ---------- */
 function labIcon(k, live, s) {
   s = s || 16;
+  const F = ' fill="currentColor" stroke="none"',
+    tooth = 'M12 11.8C11.2 11.1 10.5 10.8 9.6 10.8C8.1 10.8 7.3 11.9 7.3 13.4C7.3 14.9 8 15.7 8.3 17.2L8.8 20.5H11L11.5 18.6C11.6 18.1 12.4 18.1 12.5 18.6' +
+      'L13 20.5H15.2L15.7 17.2C16 15.7 16.7 14.9 16.7 13.4C16.7 11.9 15.9 10.8 14.4 10.8C13.5 10.8 12.8 11.1 12 11.8Z';
   const body = {
-    print: '<path d="M4.5 20.5V3.5h15v17"/><path d="M2.5 20.5h19"/><path d="M4.5 7.5h15"/><path class="ph" d="M9.6 6h4.8v2.7H9.6zM12 8.7v1.6"/>' +
-      '<path class="l1" d="M8 18.4h8"/><path class="l2" d="M8.6 16.3h6.8"/><path class="l3" d="M9.2 14.2h5.6"/>',
-    thermo: '<path d="M4.5 20h15"/><path d="M7.5 20c0-3.3 2-5.5 4.5-5.5s4.5 2.2 4.5 5.5"/><path d="M8.5 11c1-1 1-2 0-3s-1-2 0-3"/><path d="M12 11c1-1 1-2 0-3s-1-2 0-3"/><path d="M15.5 11c1-1 1-2 0-3s-1-2 0-3"/>',
-    /* solid blades that taper to a point, finger rings angled out a little more than the blades so they stay apart mid-snip
-       (Amir picked "A, Sharp" of three, 7 Oct 2026). Both halves turn about the pivot at 12.6,12 (style.css licSnipA/B). */
-    trim: '<g class="sa"><circle cx="6.24" cy="6.66" r="2.3"/><path d="M7.92 8.07L12.22 11.68"/><path d="M12.49 11.44L20.98 16.27C17.3 16.86 14.11 15.24 11.6 13.96C10.67 13.48 11.69 11.03 12.49 11.44Z" fill="currentColor" stroke="none"/></g>' +
-      '<g class="sb"><circle cx="6.24" cy="17.34" r="2.3"/><path d="M7.92 15.93L12.22 12.32"/><path d="M12.49 12.56L20.98 7.73C17.3 7.14 14.11 8.76 11.6 10.04C10.67 10.52 11.69 12.97 12.49 12.56Z" fill="currentColor" stroke="none"/></g>'
+    print: '<path d="M4.5 20.5V4h15v16.5"/><path d="M2.5 20.5h19"/><path d="M4.5 8h15"/>' +
+      '<g class="ph"><rect x="9.7" y="5.8" width="4.6" height="3.5" rx=".7"' + F + '/><path d="M10.7 9.1h2.6l-.75 1.75h-1.1z"' + F + '/></g>' +
+      '<rect class="l1" x="7.4" y="17.6" width="9.2" height="1.9" rx=".6"' + F + '/><rect class="l2" x="8.2" y="15.2" width="7.6" height="1.85" rx=".6"' + F + '/>' +
+      '<path class="l3" d="M8.6 14.5v-.55c0-.9.65-1.4 1.75-1.4s1.75.5 1.75 1.4v.55zM11.9 14.5v-.55c0-.9.65-1.4 1.75-1.4s1.75.5 1.75 1.4v.55z"' + F + '/>',
+    /* heater (thH) on top, the softened sheet (thS) sags then drops, and the formed tray (thT) shows over the tooth (style.css licSag/licDrape) */
+    thermo: '<rect class="thH" x="4" y="2.6" width="16" height="2.1" rx="1.05"' + F + '/><path d="M3.5 20.5h17"/><path d="' + tooth + '"' + F + '/>' +
+      '<path class="thS" d="M4 7.4Q12 9.8 20 7.4"/>' +
+      '<path class="thT" stroke-width="1.5" d="M3.8 20.5C5.5 20.5 5.9 19.3 6.1 17.4C6.25 15.9 5.75 15 5.75 13.4C5.75 10.9 7.3 9.2 9.6 9.2C10.7 9.2 11.4 9.6 12 10.1' +
+      'C12.6 9.6 13.3 9.2 14.4 9.2C16.7 9.2 18.25 10.9 18.25 13.4C18.25 15 17.75 15.9 17.9 17.4C18.1 19.3 18.5 20.5 20.2 20.5"/>',
+    /* solid blades that taper to a point, finger rings angled out a little more than the blades so they stay apart mid-snip.
+       Both halves turn about the pivot at 12.6,12 (style.css licSnipA/B). */
+    trim: '<g class="sa"><circle cx="6.24" cy="6.66" r="2.3"/><path d="M7.92 8.07L12.22 11.68"/><path d="M12.49 11.44L20.98 16.27C17.3 16.86 14.11 15.24 11.6 13.96C10.67 13.48 11.69 11.03 12.49 11.44Z"' + F + '/></g>' +
+      '<g class="sb"><circle cx="6.24" cy="17.34" r="2.3"/><path d="M7.92 15.93L12.22 12.32"/><path d="M12.49 12.56L20.98 7.73C17.3 7.14 14.11 8.76 11.6 10.04C10.67 10.52 11.69 12.97 12.49 12.56Z"' + F + '/></g>'
   }[k] || '';
   return '<svg class="lic lic-' + k + (live ? ' live' : '') + '" width="' + s + '" height="' + s + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + body + '</svg>';
 }
