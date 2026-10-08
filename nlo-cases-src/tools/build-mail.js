@@ -39,7 +39,8 @@ const root = path.join(__dirname, '..');
   const KAT = { ikm, salt, info, hkdf, d, pub: peer, ecdh, key, iv, pt, aad, gcm };
   // the bundle must agree with WebCrypto here too, or there's no point shipping it
   const same = NLOSeal.hex(NLOSeal.hkdf(NLOSeal.unhex(ikm), NLOSeal.unhex(salt), NLOSeal.unhex(info), 32)) === hkdf
-    && NLOSeal.hex(NLOSeal.ecdhX(d, peer)) === ecdh && NLOSeal.hex(NLOSeal.gcm(NLOSeal.unhex(key), NLOSeal.unhex(iv), NLOSeal.unhex(pt), NLOSeal.unhex(aad))) === gcm;
+    && NLOSeal.hex(NLOSeal.ecdhX(d, peer)) === ecdh && NLOSeal.hex(NLOSeal.gcm(NLOSeal.unhex(key), NLOSeal.unhex(iv), NLOSeal.unhex(pt), NLOSeal.unhex(aad))) === gcm
+    && NLOSeal.hex(NLOSeal.gcmOpen(NLOSeal.unhex(key), NLOSeal.unhex(iv), NLOSeal.unhex(gcm), NLOSeal.unhex(aad))) === pt;
   if (!same) throw new Error('NLOSeal disagrees with WebCrypto');
 
   let src = fs.readFileSync(path.join(root, 'mail/script.js'), 'utf8');

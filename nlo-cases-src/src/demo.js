@@ -96,7 +96,7 @@ const DEMO = {
     const ul = all.find(c => c.type === 'ulab' && c.stage === 'mfg'), ol = all.find(c => c.type === 'oliv' && c.stage === 'submit'), ap = all.find(c => c.type === 'appliance' && c.stage === 'mfg');
     const fL = n => n.split(' ')[0] + ' ' + n.split(' ').slice(-1)[0][0] + '.', Fl = n => n[0] + '. ' + n.split(' ').slice(-1)[0];
     const ago = m => Date.now() - m * 60e3;
-    DEMO.mail.beats = [{ id: 'b1', box: 'office@example.com', at: ago(4), seen: 2, sent: 2, err: '', ver: '1' }, { id: 'b2', box: 'records@example.com', at: ago(7), seen: 1, sent: 1, err: '', ver: '1' }];
+    DEMO.mail.beats = [{ id: 'b1', box: 'office@example.com', at: ago(4), seen: 2, sent: 2, err: '', ver: '1' }, { id: 'b' + 'd2'.repeat(16), box: 'records@example.com', at: ago(7), seen: 1, sent: 1, err: '', ver: '2', pub: { kty: 'EC', crv: 'P-256', x: 'demoKeyForTheFrontDeskEmailOnlyXXXXXXXXXXX'.slice(0, 43), y: 'demoKeyForTheFrontDeskEmailOnlyYYYYYYYYYYY'.slice(0, 43) } }];
     DEMO.mail.inbox = [
       { id: 'mdemo1', at: ago(50), done: [], mail: { box: 'office@example.com', from: 'uLab Systems <noreply@ulabsystems.com>', subject: 'Your uLab order DMO42 has shipped.', date: ago(50),
         text: 'Your Order Has Shipped!\nGreat news! The following order is on the way to your office:\nOrder Number: DMO42\nPatient Name: ' + ul.patient + '\nClick here to track your order: 123456789012' } },
@@ -164,7 +164,7 @@ const DEMO = {
   },
   /* patient photos (in memory) */
   photos: new Map(),
-  async rulesLevel() { return 2; },
+  async rulesLevel() { return 3; },
   /* the patient index: in memory every case is at hand, so a patient's cases are found by their keys (histKeys in ui.js) */
   idxOn: true,
   async loadPatients(keys) { const want = new Set(keys); return Array.from(DEMO.cases.values()).filter(c => histKeys(c).some(k => want.has(k))).map(c => JSON.parse(JSON.stringify(c))); },
@@ -199,7 +199,7 @@ const DEMO = {
   /* lab-email updates: the inbox as the app would see it after opening each sealed email */
   mail: { on: true, beats: [], inbox: [] },
   lab: { on: true }, // the lab PC (lab.js)
-  async mailState() { return { on: DEMO.mail.on, pub: { senders: MAIL_SENDERS }, beats: DEMO.mail.beats.slice(),
+  async mailState() { return { on: DEMO.mail.on, pub: Object.assign({ senders: MAIL_SENDERS }, DEMO.notify ? { notify: JSON.parse(JSON.stringify(DEMO.notify)) } : {}), beats: DEMO.mail.beats.slice(),
     bots: (DEMO.mail.on ? [{ uid: 'bot', email: 'mailbot.demo@staff.example' }] : []).concat(DEMO.lab.on ? [{ uid: 'labbot', email: 'labbot.demo@staff.example' }] : []) }; },
   async labSetup() { DEMO.lab.on = true; return { email: 'labbot.demo@staff.example', password: 'demo-only-not-a-real-login' }; },
   async labOff() { DEMO.lab.on = false; DEMO.mail.beats = DEMO.mail.beats.filter(b => !labBeat(b)); },
@@ -207,6 +207,12 @@ const DEMO = {
   async mailCreds() { return DEMO.mail.on ? { email: 'mailbot.demo@staff.example', password: 'demo-only-not-a-real-login' } : null; },
   async mailOff() { DEMO.mail.on = false; },
   async mailSenders() { },
+  // the front-desk email (noship.js): off until it's turned on in Team & security; what would be sent is kept in DEMO.outbox
+  notify: null, outbox: [],
+  async notifyCfg() { return DEMO.notify; },
+  async notifySet(n) { DEMO.notify = JSON.parse(JSON.stringify(n)); },
+  async noshipSend(id, appt, msg, n) { await DEMO.mutateCase(id, d => { if (d.noshipMail === appt) return 'skip'; d.noshipMail = appt; }, { a: 'noship', appt, addr: n.to }); DEMO.outbox.push({ at: Date.now(), to: n.to, msg }); },
+  async noshipTest(msg, n) { DEMO.outbox.push({ at: Date.now(), to: n.to, msg, test: true }); },
   async inboxLoad() { return JSON.parse(JSON.stringify(DEMO.mail.inbox)); },
   async inboxClaim() { return true; },
   async inboxDone(id, idx) { const x = DEMO.mail.inbox.find(i => i.id === id); if (x) x.done = Array.from(new Set((x.done || []).concat(idx))); },

@@ -16,7 +16,7 @@ service cloud.firestore {
     // verified email address (stops anyone else claiming an empty office)
     function bootstrapping() {
       return authed() && !hasSetup()
-        && request.auth.token.email == '__OWNER_EMAIL__' && request.auth.token.email_verified == true
+        && request.auth.token.email == 'dr.test@example.com' && request.auth.token.email_verified == true
         && getAfter(/databases/$(db)/documents/meta/setup).data.owner == request.auth.uid;
     }
     // a public key must look like a P-256 JWK (the owner's client also tolerates bad ones)
@@ -24,14 +24,6 @@ service cloud.firestore {
       return !('pub' in d) || (d.pub is map && d.pub.keys().hasOnly(['kty', 'crv', 'x', 'y'])
         && d.pub.kty == 'EC' && d.pub.crv == 'P-256' && d.pub.x is string && d.pub.y is string
         && d.pub.x.size() == 43 && d.pub.y.size() == 43);
-    }
-    // the front-desk email for cases not shipped in time (8 Oct 2026): on or off, the one address it may go to, which mailbox's
-    // script sends it and that script's public key (the note is sealed to it), and whether it names the patient
-    function okNotify(d) {
-      return !('notify' in d) || (d.notify is map && d.notify.keys().hasOnly(['on', 'to', 'box', 'pub', 'names'])
-        && d.notify.on is bool && d.notify.names is bool
-        && d.notify.to is string && d.notify.to.size() <= 120 && d.notify.to.matches('^[^@ ]+@[^@ ]+[.][^@ ]+$')
-        && d.notify.box is string && d.notify.box.matches('^(b[0-9a-f]{32})?$') && okPub(d.notify));
     }
 
     match /meta/setup {
@@ -146,9 +138,6 @@ service cloud.firestore {
     match /meta/rules_20261004 {
       allow get: if isMember();
     }
-    match /meta/rules_20261008 {
-      allow get: if isMember();
-    }
 
     // ---------- patient photos ----------
     // One small picture per case, sealed in the browser with the office key like the case itself.
@@ -188,11 +177,10 @@ service cloud.firestore {
     // the inbox public key the robot seals to (and which senders to forward)
     match /meta/inbox {
       allow get: if isMember() || isBot();
-      allow create, update: if isOwner() && request.resource.data.keys().hasOnly(['pub', 'kid', 'senders', 'at', 'notify'])
+      allow create, update: if isOwner() && request.resource.data.keys().hasOnly(['pub', 'kid', 'senders', 'at'])
         && 'pub' in request.resource.data && okPub(request.resource.data)
         && request.resource.data.kid is string && request.resource.data.kid.size() <= 40
-        && request.resource.data.senders is list && request.resource.data.senders.size() <= 40
-        && okNotify(request.resource.data);
+        && request.resource.data.senders is list && request.resource.data.senders.size() <= 40;
       allow delete: if false;
     }
     // its private half, sealed with the office key
@@ -226,33 +214,14 @@ service cloud.firestore {
     // when each mailbox's script last checked the mail (no patient data)
     match /mailbeat/{id} {
       allow get, list: if isMember();
-      // (pub: the key a newer script opens front-desk notes with — its private half stays in that Gmail account)
       allow create, update: if isBot() && id.matches('^b[0-9a-f]{32}$')
-        && request.resource.data.keys().hasOnly(['box', 'at', 'seen', 'sent', 'err', 'ver', 'pub']) && okPub(request.resource.data)
+        && request.resource.data.keys().hasOnly(['box', 'at', 'seen', 'sent', 'err', 'ver'])
         && request.resource.data.box is string && request.resource.data.box.size() <= 120
         && request.resource.data.at == request.time
         && request.resource.data.seen is int && request.resource.data.sent is int
         && request.resource.data.err is string && request.resource.data.err.size() <= 300
         && request.resource.data.ver is string && request.resource.data.ver.size() <= 20;
       allow delete: if isOwner();
-    }
-
-    // ---------- a note for the front desk (Amir, 8 Oct 2026: "when the case gets delayed (not shipped by the expected time)
-    // please also send a email to Questions@thenextlevelorthodontics.com to let the front desk know") ----------
-    // An open app adds a note here in the same save that marks the case as emailed, sealed to one mailbox script's own key
-    // (its private half never leaves that Gmail account). That script opens it, emails meta/inbox's front-desk address — the
-    // only address it sends these to — and removes it. Nobody else can read it.
-    match /outbox/{id} {
-      allow create: if isMember() && id.matches('^o[0-9a-f]{32}$')
-        && request.resource.data.keys().hasOnly(['box', 'epk', 'iv', 'ct', 'at'])
-        && request.resource.data.box is string && request.resource.data.box.matches('^b[0-9a-f]{32}$')
-        && request.resource.data.epk is map && request.resource.data.epk.keys().hasOnly(['kty', 'crv', 'x', 'y'])
-        && request.resource.data.iv is string && request.resource.data.iv.size() <= 24
-        && request.resource.data.ct is string && request.resource.data.ct.size() <= 20000
-        && request.resource.data.at == request.time;
-      allow get, list: if isBot();
-      allow delete: if isBot() || isOwner();
-      allow update: if false;
     }
 
     // ---------- NLO Leads (same office, same logins, same key ring) ----------

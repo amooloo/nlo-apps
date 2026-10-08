@@ -1756,3 +1756,13 @@ button.stk .stkE{transition:transform .15s var(--ease)}
   @media (hover:hover){ button.stk:hover .stkE{transform:rotate(var(--r,0deg))} .stkOpt:hover{transform:none} }
   .stepStk.flash,.hist.flash,.dsHd.flash{animation:none;background:var(--mint-100)}
 }
+/* ---------- Not shipped → an email to the front desk (noship.js, Amir 8 Oct 2026) ---------- */
+.nsBox{margin-top:16px;padding-top:14px;border-top:1px solid var(--grey-100)}
+.nsBox h5{font-family:var(--fd);font-weight:500;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--grey-500);margin-bottom:8px}
+.nsOn{display:flex;align-items:flex-start;gap:8px;margin:0 0 10px;color:var(--grey-700)}
+.nsOn .dot{margin-top:5px}
+.nsForm{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;max-width:420px}
+.nsForm .field{margin:0}
+.nsForm .lbl{display:block;font-size:12px;font-weight:600;color:var(--grey-600);margin-bottom:4px}
+.nsChk{grid-column:1/-1;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--grey-700)}
+.nsSent{display:inline-block;font-weight:600;opacity:.85}

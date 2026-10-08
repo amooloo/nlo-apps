@@ -6,10 +6,14 @@
    app can open it, and drops it in the app's inbox. The next time anyone has NLO Cases open, the app reads
    it and updates the case. This script can't see any case, and nobody else can read what it sends.
 
+   If NLO Cases picked this mailbox to email the front desk (Team & security → Email updates), it also sends
+   the front-desk emails NLO Cases leaves for it — a case not shipped in time — to the one address set there.
+   Those notes are locked with this script's own key, which never leaves this Google account.
+
    Turn on:  pick "setup" next to Run (top bar), press Run, and allow access.
    Turn off: pick "stop", press Run.
    ===================================================================== */
-var VERSION = '1';
+var VERSION = '2';
 var CONFIG = /*NLO_CONFIG*/null; // filled in by NLO Cases when you copy the script
 var DAY = 86400000;
 var DEFAULT_SENDERS = ['ulabsystems.com', 'partnersdentalstudio.com', 'olivortho.com', 'angelaligner.com', 'angelalign.com'];
@@ -20,6 +24,7 @@ function setup() {
   selfTest_();
   var props = PropertiesService.getScriptProperties();
   props.setProperty('NLO_CFG', JSON.stringify(CONFIG));
+  key_(props, true); // (this script's own key for front-desk notes: made once, kept in this project's properties)
   if (!props.getProperty('NLO_SINCE')) props.setProperty('NLO_SINCE', String(Date.now() - 14 * DAY)); // first time: the last two weeks
   props.setProperty('NLO_FAILS', '0');
   CacheService.getScriptCache().removeAll(['NLO_TOK', 'NLO_OFFICE']);
@@ -83,8 +88,55 @@ function run_(cfg, props) {
   Object.keys(seen).forEach(function (k) { if (seen[k] > cut) keep[k] = seen[k]; });
   props.setProperty('NLO_SEEN', JSON.stringify(keep));
   if (finished) props.setProperty('NLO_SINCE', String(started));
-  beat_(cfg, s, looked, sent, '');
-  return sent + ' email' + (sent === 1 ? '' : 's') + ' sent to NLO Cases';
+  var fd = 0, fdErr = '';
+  try { fd = outbox_(cfg, s, props); } catch (e) { fdErr = 'Front-desk email: ' + String((e && e.message) || e); }
+  beat_(cfg, s, looked, sent, fdErr);
+  return sent + ' email' + (sent === 1 ? '' : 's') + ' sent to NLO Cases' + (fd ? ', ' + fd + ' to the front desk' : '');
+}
+
+/* ---------- front-desk emails (Amir, 8 Oct 2026: "when the case gets delayed (not shipped by the expected time) please also
+   send a email to Questions@thenextlevelorthodontics.com to let the front desk know") ----------
+   NLO Cases leaves a note in its outbox, locked with this script's own key, when a case isn't marked shipped in time. If the
+   owner picked this mailbox to send them, each note is opened here and emailed to the front-desk address the owner set — the
+   only address these go to, whatever a note says — and then removed. Notes for another mailbox are left for it. */
+function key_(props, make) {
+  var k = props.getProperty('NLO_KEY'); if (k) return JSON.parse(k);
+  if (!make) return null;
+  var nk = NLOSeal.newKey(rand_); props.setProperty('NLO_KEY', JSON.stringify(nk)); return nk;
+}
+function boxId_() { return 'b' + NLOSeal.sha256hex(mailbox_()).slice(0, 32); }
+function str_(f) { return f && f.stringValue != null ? String(f.stringValue) : ''; }
+function outbox_(cfg, s, props) {
+  var key = key_(props, false); if (!key) return 0;
+  // the owner's settings, read fresh each time (turning it off or changing the address takes effect on the next check)
+  var g = http_(cfg, 'get', cfg.fsBase + '/' + docName_(cfg, 'meta/inbox'), null, s.tok);
+  var nf = g.code === 200 && g.json && g.json.fields && g.json.fields.notify && g.json.fields.notify.mapValue && g.json.fields.notify.mapValue.fields;
+  if (!nf || !(nf.on && nf.on.booleanValue === true) || str_(nf.box) !== boxId_()) return 0; // off, or another mailbox sends them
+  var to = str_(nf.to); if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) return 0;
+  var r = http_(cfg, 'get', cfg.fsBase + '/' + docName_(cfg, 'outbox') + '?pageSize=50', null, s.tok);
+  if (r.code !== 200) return 0; // (older security rules: there's no outbox yet)
+  var sent = 0, done = JSON.parse(props.getProperty('NLO_OUT') || '{}'), docs = (r.json && r.json.documents) || [], bad = 0;
+  for (var i = 0; i < docs.length; i++) {
+    var d = docs[i], f = d.fields || {}, id = String(d.name || '').split('/').pop();
+    if (str_(f.box) !== boxId_()) continue; // for another mailbox's script
+    if (!done[id]) {
+      var e = f.epk && f.epk.mapValue && f.epk.mapValue.fields, msg = null;
+      try {
+        msg = JSON.parse(NLOSeal.utf8dec(NLOSeal.openFrom(key.d, { epk: { kty: str_(e.kty), crv: str_(e.crv), x: str_(e.x), y: str_(e.y) }, iv: str_(f.iv), ct: str_(f.ct) }, 'outbox:' + id)));
+      } catch (x) { msg = null; }
+      if (msg && typeof msg.subject === 'string' && typeof msg.text === 'string') {
+        MailApp.sendEmail(to, cap_(msg.subject, 200), cap_(msg.text, 8000), { name: 'NLO Cases' });
+        sent++;
+      } else bad++; // locked with another key (this script was set up afresh): nothing to send
+      done[id] = Date.now(); props.setProperty('NLO_OUT', JSON.stringify(done)); // sent once, even if removing it fails below
+    }
+    commit_(cfg, s, [{ delete: d.name }]);
+  }
+  var keep = {}, cut = Date.now() - 30 * DAY;
+  Object.keys(done).forEach(function (k) { if (done[k] > cut) keep[k] = done[k]; });
+  props.setProperty('NLO_OUT', JSON.stringify(keep));
+  if (bad) throw new Error(bad + ' note' + (bad === 1 ? '' : 's') + ' couldn’t be opened (locked with an older key) — NLO Cases picks up this mailbox’s new key by itself');
+  return sent;
 }
 
 /* ---------- NLO Cases (Firebase) ---------- */
@@ -141,11 +193,14 @@ function put_(cfg, s, docId, sealed) {
   throw new Error('NLO Cases inbox refused an email (' + r.code + ').');
 }
 function beat_(cfg, s, looked, sent, err) {
-  var box = mailbox_();
-  commit_(cfg, s, [{ update: { name: docName_(cfg, 'mailbeat/b' + NLOSeal.sha256hex(box).slice(0, 32)), fields: {
-    box: { stringValue: box.slice(0, 120) }, seen: { integerValue: String(looked) }, sent: { integerValue: String(sent) },
-    err: { stringValue: String(err || '').slice(0, 290) }, ver: { stringValue: VERSION } } },
-    updateTransforms: [{ fieldPath: 'at', setToServerValue: 'REQUEST_TIME' }] }]);
+  var box = mailbox_(), key = key_(PropertiesService.getScriptProperties(), false);
+  var fields = { box: { stringValue: box.slice(0, 120) }, seen: { integerValue: String(looked) }, sent: { integerValue: String(sent) },
+    err: { stringValue: String(err || '').slice(0, 290) }, ver: { stringValue: VERSION } };
+  // (pub: this script's key, which NLO Cases locks front-desk notes with)
+  if (key) fields.pub = { mapValue: { fields: { kty: { stringValue: 'EC' }, crv: { stringValue: 'P-256' }, x: { stringValue: key.pub.x }, y: { stringValue: key.pub.y } } } };
+  var w = function (f) { return [{ update: { name: docName_(cfg, 'mailbeat/' + boxId_()), fields: f }, updateTransforms: [{ fieldPath: 'at', setToServerValue: 'REQUEST_TIME' }] }]; };
+  var r = commit_(cfg, s, w(fields));
+  if (key && r.code === 403) { delete fields.pub; commit_(cfg, s, w(fields)); } // (security rules older than the front-desk email: check in without it)
 }
 
 /* ---------- helpers ---------- */
@@ -197,6 +252,7 @@ function selfTest_() {
   if (!K) return;
   var ok = NLOSeal.hex(NLOSeal.hkdf(NLOSeal.unhex(K.ikm), NLOSeal.unhex(K.salt), NLOSeal.unhex(K.info), 32)) === K.hkdf
     && NLOSeal.hex(NLOSeal.ecdhX(K.d, K.pub)) === K.ecdh
-    && NLOSeal.hex(NLOSeal.gcm(NLOSeal.unhex(K.key), NLOSeal.unhex(K.iv), NLOSeal.unhex(K.pt), NLOSeal.unhex(K.aad))) === K.gcm;
+    && NLOSeal.hex(NLOSeal.gcm(NLOSeal.unhex(K.key), NLOSeal.unhex(K.iv), NLOSeal.unhex(K.pt), NLOSeal.unhex(K.aad))) === K.gcm
+    && NLOSeal.hex(NLOSeal.gcmOpen(NLOSeal.unhex(K.key), NLOSeal.unhex(K.iv), NLOSeal.unhex(K.gcm), NLOSeal.unhex(K.aad))) === K.pt;
   if (!ok) throw new Error('The encryption self-test failed in this Google account. Nothing was sent. Tell Claude: "NLO Cases email script self-test failed".');
 }

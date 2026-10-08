@@ -58,7 +58,7 @@ function makeGas(o) {
       computeDigest: (alg, s) => Array.from(nodeCrypto.createHash(alg).update(String(s), 'utf8').digest()).map(b => b > 127 ? b - 256 : b)
     },
     Session: { getEffectiveUser: () => ({ getEmail: () => o.user || 'office@example.com' }) },
-    MailApp: { sendEmail: (to, subject, body) => mails.push({ to, subject, body }) },
+    MailApp: { sendEmail: (to, subject, body, opts) => mails.push({ to, subject, body, opts: opts || null }) },
     Logger: { log: s => logs.push(String(s)) }
   });
   // o.source: a script exactly as NLO Cases hands it out (its settings already filled in)

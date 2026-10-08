@@ -103,6 +103,75 @@ const AppCrypto = app.Crypto;
   let noCfg = ''; try { g3.ctx.setup(); } catch (e) { noCfg = e.message; }
   check(/Copy the script again/.test(noCfg), 'a copy without the NLO Cases login says to copy the script again');
 
+  console.log('\n# Front-desk emails (8 Oct 2026): a case not shipped in time');
+  {
+    const store = { notify: null, outbox: [], deletes: [], beats: [], outboxCode: 200 };
+    const mapOf = o => ({ mapValue: { fields: Object.fromEntries(Object.entries(o).map(([k, v]) => [k, typeof v === 'boolean' ? { booleanValue: v } : { stringValue: String(v) }])) } });
+    const fk = (url, opt) => {
+      const res = (code, obj) => ({ getResponseCode: () => code, getContentText: () => JSON.stringify(obj) });
+      if (/accounts:signInWithPassword/.test(url)) return res(200, { idToken: 'tok' });
+      if (/documents\/meta\/inbox$/.test(url)) {
+        const fields = { kid: { stringValue: 'k1' }, pub: { mapValue: { fields: { kty: { stringValue: 'EC' }, crv: { stringValue: 'P-256' }, x: { stringValue: pub.x }, y: { stringValue: pub.y } } } }, senders: { arrayValue: { values: [] } } };
+        if (store.notify) fields.notify = mapOf(store.notify);
+        return res(200, { fields });
+      }
+      if (/documents\/outbox\?pageSize=/.test(url)) return store.outboxCode === 200 ? res(200, { documents: store.outbox.filter(d => !store.deletes.includes(d.name)) }) : res(store.outboxCode, { error: { status: 'PERMISSION_DENIED' } });
+      if (/documents:commit$/.test(url)) {
+        const w = JSON.parse(opt.payload).writes[0];
+        if (w.delete) { store.deletes.push(w.delete); return res(200, {}); }
+        if (/\/mailbeat\//.test(w.update.name)) { store.beats.push(w); return res(200, {}); }
+        return res(200, {});
+      }
+      return res(404, {});
+    };
+    const gf = makeGas({ messages: [], fetch: fk, user: 'records@example.com', config: cfg });
+    gf.ctx.setup();
+    const k = JSON.parse(gf.props.get('NLO_KEY') || 'null'), box = 'b' + gf.ctx.NLOSeal.sha256hex('records@example.com').slice(0, 32);
+    const bf = store.beats[store.beats.length - 1].update.fields;
+    check(!!k && /^[0-9a-f]{64}$/.test(k.d) && bf.pub && bf.pub.mapValue.fields.x.stringValue === k.pub.x && store.beats[store.beats.length - 1].update.name.endsWith('/mailbeat/' + box),
+      'setup makes the script’s own key and its check-in shows the public half (the private half stays in the script’s properties)');
+    const k0 = gf.props.get('NLO_KEY'); gf.ctx.setup(); check(gf.props.get('NLO_KEY') === k0, 'running setup again keeps the same key');
+    // NLO Cases (WebCrypto) seals a note to that key, the way the app does
+    const noteDoc = async (id, msg, forBox, kpub) => {
+      const sealedNote = await AppCrypto.sealTo(kpub || k.pub, new TextEncoder().encode(JSON.stringify(msg)), 'outbox:' + id);
+      return { name: 'projects/demo-nlo-cases/databases/(default)/documents/outbox/' + id, fields: { box: { stringValue: forBox || box },
+        epk: { mapValue: { fields: { kty: { stringValue: 'EC' }, crv: { stringValue: 'P-256' }, x: { stringValue: sealedNote.epk.x }, y: { stringValue: sealedNote.epk.y } } } },
+        iv: { stringValue: sealedNote.iv }, ct: { stringValue: sealedNote.ct } } };
+    };
+    const subj = 'Not shipped: Dana Exampleton — delivery appt Thu, Oct 10', body = 'Dana Exampleton’s Herbst (Specialty Orthodontic Lab) isn’t marked shipped.\n🦷 Check with the lab, or reschedule.';
+    store.outbox.push(await noteDoc('o' + '1'.repeat(32), { v: 1, subject: subj, text: body, to: 'someone-else@example.com' }));
+    store.outbox.push(await noteDoc('o' + '2'.repeat(32), { v: 1, subject: 'For the other mailbox', text: 'x' }, 'b' + 'f'.repeat(32)));
+    gf.mails.length = 0; gf.ctx.checkMail();
+    check(gf.mails.length === 0, 'off (or never turned on): nothing is sent');
+    store.notify = { on: true, to: 'Questions@frontdesk.example', box, names: true };
+    const r1 = gf.ctx.checkMail();
+    check(gf.mails.length === 1 && gf.mails[0].to === 'Questions@frontdesk.example' && gf.mails[0].subject === subj && gf.mails[0].body === body && gf.mails[0].opts && gf.mails[0].opts.name === 'NLO Cases',
+      'on: the note is opened and emailed to the front-desk address, word for word, from “NLO Cases” (' + r1 + ')');
+    check(!gf.mails.some(m => m.to === 'someone-else@example.com'), 'it goes only to the address the owner set (whatever a note says)');
+    check(store.deletes.length === 1 && store.deletes[0].endsWith('/outbox/o' + '1'.repeat(32)), 'the note is removed once it’s sent; the other mailbox’s note is left for it');
+    gf.ctx.checkMail(); check(gf.mails.length === 1, 'the next check sends nothing twice');
+    store.deletes.length = 0; store.outbox = store.outbox.filter(d => d.name.endsWith('o' + '1'.repeat(32))); // (as if the removal didn't go through)
+    gf.ctx.checkMail(); check(gf.mails.length === 1 && store.deletes.length === 1, '…even when removing it failed the first time (it’s removed, not sent again)');
+    store.outbox = [];
+    const other = await AppCrypto.pubJwk(await AppCrypto.newPair());
+    store.outbox.push(await noteDoc('o' + '3'.repeat(32), { v: 1, subject: 'x', text: 'y' }, box, other));
+    const n3 = await noteDoc('o' + '4'.repeat(32), { v: 1, subject: 'x', text: 'y' }); n3.fields.ct.stringValue = n3.fields.ct.stringValue.slice(0, -6) + (n3.fields.ct.stringValue.slice(-6, -2) === 'AAAA' ? 'BBBB' : 'AAAA') + n3.fields.ct.stringValue.slice(-2);
+    store.outbox.push(n3);
+    gf.ctx.checkMail();
+    const lastErr = store.beats[store.beats.length - 1].update.fields.err.stringValue;
+    check(gf.mails.length === 1 && /couldn’t be opened/.test(lastErr), 'a note locked with another key, or changed, isn’t sent — the check-in says so (' + lastErr + ')');
+    store.outbox = [await noteDoc('o' + '5'.repeat(32), { v: 1, subject: 's', text: 't' })];
+    store.notify = { on: true, to: 'Questions@frontdesk.example', box: 'b' + 'f'.repeat(32), names: true };
+    gf.ctx.checkMail(); check(gf.mails.length === 1, 'when the owner picks another mailbox, this one sends nothing');
+    store.notify = { on: false, to: 'Questions@frontdesk.example', box, names: true };
+    gf.ctx.checkMail(); check(gf.mails.length === 1, 'turned off: nothing is sent');
+    store.notify = { on: true, to: 'Questions@frontdesk.example', box, names: true }; store.outboxCode = 403;
+    let crashed = false; try { gf.ctx.checkMail(); } catch (e) { crashed = true; }
+    check(!crashed && gf.mails.length === 1, 'security rules older than the front-desk email: the lab emails still go, no front-desk emails');
+    store.outboxCode = 200; gf.ctx.checkMail();
+    check(gf.mails.length === 2 && gf.mails[1].subject === 's', 'once they’re published, the waiting note goes out');
+  }
+
   console.log('\nPASS ' + pass + '  FAIL ' + fail);
   process.exit(fail ? 1 : 0);
 })().catch(e => { console.error('CRASH', e); process.exit(2); });

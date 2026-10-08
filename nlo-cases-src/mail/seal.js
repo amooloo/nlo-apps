@@ -1,4 +1,5 @@
-/* NLOSeal — seal bytes to a P-256 public key exactly the way NLO Cases' Crypto.sealTo does in the browser:
+/* NLOSeal — seal bytes to a P-256 public key exactly the way NLO Cases' Crypto.sealTo does in the browser
+   (and, since 8 Oct 2026, open what the app seals to this script's own key: the front-desk notes):
    ECDH on P-256 (the shared point's x) → HKDF-SHA256 (salt: 32 zero bytes) → AES-256-GCM (AAD = the same info).
    Written for Google Apps Script, which has no WebCrypto, TextEncoder or crypto.getRandomValues (and whose editor
    rejects BigInt literals): plain-JS libraries only — bn.js and elliptic's curve maths for P-256, aes-js for the AES
@@ -23,6 +24,20 @@ var P256 = new ShortCurve({
 });
 
 /* ---------- bytes ---------- */
+function utf8dec(b) { // like TextDecoder (UTF-8; a broken sequence becomes U+FFFD)
+  var s = '', i = 0;
+  while (i < b.length) {
+    var c = b[i++], n = 0, cp = 0;
+    if (c < 0x80) { s += String.fromCharCode(c); continue; }
+    if (c >= 0xc2 && c < 0xe0) { n = 1; cp = c & 31; } else if (c >= 0xe0 && c < 0xf0) { n = 2; cp = c & 15; } else if (c >= 0xf0 && c < 0xf5) { n = 3; cp = c & 7; } else { s += '\ufffd'; continue; }
+    var ok = i + n <= b.length;
+    for (var k = 0; ok && k < n; k++) { var x = b[i + k]; if ((x & 0xc0) !== 0x80) ok = false; else cp = (cp << 6) | (x & 63); }
+    if (!ok || (n === 2 && cp < 0x800) || (n === 3 && (cp < 0x10000 || cp > 0x10ffff)) || (cp >= 0xd800 && cp <= 0xdfff)) { s += '\ufffd'; continue; }
+    i += n;
+    if (cp >= 0x10000) { cp -= 0x10000; s += String.fromCharCode(0xd800 + (cp >> 10), 0xdc00 + (cp & 1023)); } else s += String.fromCharCode(cp);
+  }
+  return s;
+}
 function utf8(s) { // like TextEncoder: lone surrogates become U+FFFD
   s = String(s); var out = [];
   for (var i = 0; i < s.length; i++) {
@@ -108,6 +123,24 @@ function gcm(key, iv, pt, aad) {
   return ct.concat(tag);
 }
 
+/* opening: the tag is checked before anything is returned (a changed byte, or a note sealed for another key, opens nothing) */
+function gcmOpen(key, iv, data, aad) {
+  if (iv.length !== 12) throw new Error('GCM IV must be 12 bytes');
+  if (data.length < 16) throw new Error('Too short to open');
+  var ct = data.slice(0, data.length - 16), tag = data.slice(data.length - 16);
+  var aes = new aesjs.AES(key), H = words(aes.encrypt([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]));
+  var J0 = iv.concat([0, 0, 0, 1]), S = ghash(H, aad, ct), E = aes.encrypt(J0), diff = 0;
+  for (var t = 0; t < 16; t++) diff |= (E[t] ^ S[t]) ^ tag[t];
+  if (diff) throw new Error('It could not be opened (changed, or sealed for another key)');
+  var ctr = J0.slice(), pt = new Array(ct.length);
+  for (var off = 0; off < ct.length; off += 16) {
+    for (var i = 15; i >= 12; i--) { ctr[i] = (ctr[i] + 1) & 255; if (ctr[i]) break; } // inc32
+    var ks = aes.encrypt(ctr);
+    for (var j = 0; j < 16 && off + j < ct.length; j++) pt[off + j] = ct[off + j] ^ ks[j];
+  }
+  return pt;
+}
+
 /* ---------- ECDH (P-256) ---------- */
 function pubPoint(jwk) {
   if (!jwk || jwk.kty !== 'EC' || jwk.crv !== 'P-256') throw new Error('The office key is not a P-256 key');
@@ -117,6 +150,19 @@ function pubPoint(jwk) {
 }
 function ecdhX(privHex, jwk) { return pubPoint(jwk).mul(new BN(privHex, 16)).getX().toArray('be', 32); }
 function pubOf(privHex) { var E = P256.g.mul(new BN(privHex, 16)); return { kty: 'EC', crv: 'P-256', x: b64url(E.getX().toArray('be', 32)), y: b64url(E.getY().toArray('be', 32)) }; }
+
+/* this script's own key pair (front-desk notes are sealed to its public half): { d: private key as hex, pub: JWK } */
+function newKey(rand) {
+  var d; do { d = new BN(rand(32)); } while (d.isZero() || d.cmp(P256.n) >= 0);
+  var h = d.toString(16); while (h.length < 64) h = '0' + h;
+  return { d: h, pub: pubOf(h) };
+}
+var ZERO32 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+/* openFrom(privHex, { epk, iv, ct }, info) → bytes: what the app's Crypto.sealTo sealed to this script's key */
+function openFrom(privHex, box, info) {
+  var inf = utf8(info), key = hkdf(ecdhX(privHex, box.epk), ZERO32, inf, 32);
+  return gcmOpen(key, unb64(box.iv), unb64(box.ct), inf);
+}
 
 /* sealTo(pub, bytes, info, rand) → { epk, iv, ct } — rand(n) must return n random bytes */
 function sealTo(pub, bytes, info, rand) {
@@ -130,4 +176,4 @@ function sealTo(pub, bytes, info, rand) {
   };
 }
 
-module.exports = { sealTo: sealTo, utf8: utf8, b64: b64, b64url: b64url, unb64: unb64, hex: hex, unhex: unhex, sha256hex: sha256hex, hkdf: hkdf, gcm: gcm, ecdhX: ecdhX, pubOf: pubOf };
+module.exports = { sealTo: sealTo, openFrom: openFrom, newKey: newKey, utf8: utf8, utf8dec: utf8dec, b64: b64, b64url: b64url, unb64: unb64, hex: hex, unhex: unhex, sha256hex: sha256hex, hkdf: hkdf, gcm: gcm, gcmOpen: gcmOpen, ecdhX: ecdhX, pubOf: pubOf };

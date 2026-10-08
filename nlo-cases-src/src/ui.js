@@ -281,13 +281,13 @@ function enterApp() {
       S.casesV = (S.casesV || 0) + 1; // (the open cases changed: possible duplicates are worked out again — dupes.js)
       const first = S.firstLoad; S.firstLoad = false; queueRender();
       if (first) setTimeout(mailSync, 300); // lab emails that came in while nobody had the app open
-      else msgWatch(); // a note tagging you, just now (notes.js)
+      else { msgWatch(); nsSoon(); } // a note tagging you, just now (notes.js); a case that may need the front desk emailed (noship.js)
       if (first) setTimeout(iprAutoSync, 1500); // the IPR Tracker, for every patient at once, when the link is still on in this tab
       else if (LABS.list.length && up.some(c => c.type === 'nla')) labSoon(); // a lab order waiting on Today may fit a case just added or changed (lab.js)
       if (S.openId && (up.some(c => c.id === S.openId) || gone.includes(S.openId))) { const rd = () => { if (S.openId) refreshDrawer(gone.includes(S.openId)); }; if (!afterPress(rd)) rd(); }
     },
     inbox() { mailSync(); },
-    mailbeat(list) { if (MAILS.state) MAILS.state.beats = list; if (S.view === 'admin') queueRender('team'); },
+    mailbeat(list) { if (MAILS.state) { MAILS.state.beats = list; nsKeepKey(); } if (S.view === 'admin') queueRender('team'); },
     roster(list) { S.roster = list; queueRender('team'); },
     members(list) { S.members = list; if (S.view === 'admin') queueRender('team'); },
     settings(s) {
@@ -307,6 +307,7 @@ function enterApp() {
     if (S.inApp && !S.tour && Date.now() - S.lastAct > mins * 60000) lockOut('Locked after ' + mins + ' minutes without activity.'); // practice mode has nothing to hide
   }, 15000);
   clearInterval(S.mailTimer); S.mailTimer = setInterval(mailSync, 180000); // also catches emails a case couldn't take yet
+  clearInterval(S.nsTimer); S.nsTimer = setInterval(nsCheck, 300000); // the front-desk email, even when no lab email comes in (noship.js)
   S.rulesOld = false; rulesCheck();
   // practice mode: the tour starts by itself once, and after Lock it picks up where it was
   if (S.tour && (!S.tourBegun || TOUR.paused)) { S.tourBegun = true; const from = TOUR.paused; TOUR.paused = null; setTimeout(() => { if (S.inApp && !TOUR.on) tourStart(S.tour, from); }, 500); }
@@ -316,20 +317,21 @@ function enterApp() {
    (S.rulesOld: photos / email updates wait; S.rulesIdx: only the index waits). true = all of them are live. */
 async function rulesCheck() {
   const was = !!S.rulesOld;
-  S.rulesOld = false; S.rulesIdx = false; document.body.classList.remove('phOff');
+  S.rulesOld = false; S.rulesIdx = false; S.rulesMail = false; document.body.classList.remove('phOff');
   if (!B.rulesLevel) return true;
-  const lv = await B.rulesLevel(); if (!S.inApp) return lv >= 2;
-  S.rulesLv = lv; S.rulesOld = lv < 1; S.rulesIdx = lv === 1; document.body.classList.toggle('phOff', lv < 1);
-  if (lv < 2) queueRender('team');
+  const lv = await B.rulesLevel(); if (!S.inApp) return lv >= 3;
+  // (S.rulesMail: only the front-desk email waits — 8 Oct 2026, noship.js)
+  S.rulesLv = lv; S.rulesOld = lv < 1; S.rulesIdx = lv === 1; S.rulesMail = lv === 2; document.body.classList.toggle('phOff', lv < 1);
+  if (lv < 3) queueRender('team'); else nsSoon(); // (the front-desk email can go — noship.js)
   // just published: the live updates the older rules refused (lab inbox, mailbox check-ins) start again without signing in again
   if (lv >= 1 && was && S.h) { B.start(S.h); MAILS.state = null; queueRender('team'); }
   idxMaintain();
-  return lv >= 2;
+  return lv >= 3;
 }
 /* the owner's app keeps the patient index (see FB.idxFields): once the newer rules are live it indexes every case (once),
    then, at most every 6 hours, the cases saved since — an app opened before the update saves without the index */
 async function idxMaintain() {
-  if (!S.inApp || !isOwner() || S.rulesLv !== 2 || !S.settingsLoaded || S.idxRan || !B.indexCases) return;
+  if (!S.inApp || !isOwner() || !(S.rulesLv >= 2) || !S.settingsLoaded || S.idxRan || !B.indexCases) return; // (2: the index's rules; 3 adds the front-desk email's)
   const last = Number(S.settings.pidx) || 0, t0 = Date.now(); if (last && t0 - last < 6 * 3600e3) return;
   S.idxRan = true;
   try {
@@ -344,7 +346,7 @@ async function idxMaintain() {
 async function lockOut(msg) {
   if (!S.inApp) return;
   if (TOUR.on) msg = tourPause(msg); // practice mode: signing back in picks the tour up again
-  S.inApp = false; clearInterval(S.idleTimer); clearInterval(S.mailTimer);
+  S.inApp = false; clearInterval(S.idleTimer); clearInterval(S.mailTimer); clearInterval(S.nsTimer); NS.cfg = null;
   closeModal(); closeDrawer(true);
   S.cases = new Map(); S.closed = []; histReset(); wkReset(); dupReset(); S.members = []; S.roster = []; S.iprCache = {}; S.verList = null; S.delList = null; S.impList = null; S.bk = null;
   Object.assign(MAILS, { list: [], unread: [], pick: {}, sig: '', state: null, stateAt: 0, script: '', gone: new Set(), goneFp: new Set(), hk: null, mem: null });
@@ -1260,7 +1262,7 @@ function noteAuthKeep(c, log) {
 function noteAuthDone() { if (S.view === 'list' || S.view === 'mine') queueRender(); noteByPaint(); }
 /* the newest history entry that set the Notes field: an edit (or a step move / lab email) that lists it, the creation, the
    Asana import; a restored version (or anything else) could have changed it without saying, so the writer isn't known */
-const NOTE_KEEP_ACTS = ['edit', 'stage', 'email', 'photo', 'reopen', 'close', 'assign', 'comment', 'rekey', 'sticker'];
+const NOTE_KEEP_ACTS = ['edit', 'stage', 'email', 'photo', 'reopen', 'close', 'assign', 'comment', 'rekey', 'sticker', 'noship'];
 function noteAuthFrom(log) {
   for (let i = log.length - 1; i >= 0; i--) {
     const x = log[i] || {};
@@ -1413,6 +1415,7 @@ function historyHTML(c) {
     else if (x.a === 'assign') t = x.to ? 'assigned it to ' + staffName(x.to, x.to) : 'unassigned it';
     else if (x.a === 'edit') t = 'changed ' + Array.from(new Set((x.fields || []).filter(f => f !== 'instructions').map(f => FIELD_LABELS[f] || f))).join(', ') + shipped(x);
     else if (x.a === 'restore') t = 'restored an earlier version';
+    else if (x.a === 'noship') t = 'emailed the front desk' + (x.addr ? ' (' + x.addr + ')' : '') + ': not marked shipped, with the ' + delWord(c || {}).toLowerCase() + ' on ' + fmtDay(x.appt);
     else if (x.a === 'dup' || x.a === 'undup' || x.a === 'notdup' || x.a === 'dupcopy') t = dupHistText(x); // (dupes.js)
     else if (x.a === 'photo') t = { add: 'added a photo', change: 'changed the photo', remove: 'removed the photo', copy: 'added the photo from another of the patient’s cases', undo: 'put the earlier photo back' }[x.how] || 'changed the photo';
     else if (x.a === 'email') { // applied from a lab email (mail.js); shown as the email, not the person whose app applied it
@@ -1420,7 +1423,7 @@ function historyHTML(c) {
       t = (x.to ? 'moved it to ' + stageName(x.to) + (f.length ? ' and saved the ' : '') : f.length ? 'saved the ' : 'updated it') + f.join(', ') + shipped(x);
     }
     else t = x.a;
-    const who = x.a === 'email' ? ((MAIL_CO[x.co] || {}).l || 'Lab') + ' email' : x.a === 'lab' && !x.hand && !x.unlink && !x.relink ? 'Lab PC' : (firstName(staffName(x.sid, x.sid)) || x.sid);
+    const who = x.a === 'email' ? ((MAIL_CO[x.co] || {}).l || 'Lab') + ' email' : x.a === 'lab' && !x.hand && !x.unlink && !x.relink ? 'Lab PC' : x.a === 'noship' ? 'NLO Cases' : (firstName(staffName(x.sid, x.sid)) || x.sid);
     // a step someone did takes stickers: on the row after the words, and the smiley at its end (stickers.js)
     const sk = stkHistHTML(c, x, t);
     return '<div class="hist" data-w="' + esc(stkHKey(x)) + '"><time>' + esc(fmtWhen(x.at)) + '</time><span class="hTx"><b>' + esc(who) + '</b> ' + esc(t) + sk.chips + '</span>' + sk.add + '</div>';
@@ -1479,7 +1482,7 @@ function renderDrawer() {
     '<div class="dBd"><div id="drawerNotice"></div>' +
     (done ? '<div class="notice info">Completed ' + esc(fmtWhen(c.closedAt)) + '</div>' : '') +
     (c.shipToPatient ? '<div class="notice ship" role="note">' + ic('truck', 18) + '<span><b>Ship to patient</b></span></div>' : '') +
-    (!done && shipWarn(c) ? (x => '<div class="notice noship ' + x.lv + '" role="note">' + ic(x.lv === 'late' ? 'alert' : 'truck', 18) + '<span><b>' + shipWarnLabel(x) + '</b> — ' + esc(shipWarnWhy(c, x)) + '</span></div>')(shipWarn(c)) : '') +
+    (!done && shipWarn(c) ? (x => '<div class="notice noship ' + x.lv + '" role="note">' + ic(x.lv === 'late' ? 'alert' : 'truck', 18) + '<span><b>' + shipWarnLabel(x) + '</b> — ' + esc(shipWarnWhy(c, x)) + (c.noshipMail && c.noshipMail === x.appt ? ' <span class="nsSent">The front desk was emailed.</span>' : '') + '</span></div>')(shipWarn(c)) : '') +
     quickNoticeHTML(c) + // added with Quick add: Finish details
     dupNoticeHTML(c) + // another open case that looks like this one (dupes.js)
     (isHeld(c) ? '<div class="notice bad mpOld" role="note"><span><b>' + esc(holdText(c)) + '</b></span>' + (done ? '' : '<button class="btn btn-sec btn-sm" data-act="clearHold">Hold is sorted out</button>') + '</div>' : '') +
