@@ -45,7 +45,9 @@ const IC = {
   chart: '<path d="M4 20.5h16"/><path d="M7 16.5v-5M12 16.5V5.5M17 16.5v-8"/>',
   copy: '<rect x="8.5" y="8.5" width="11" height="11" rx="2"/><path d="M15.5 8.5V6A1.5 1.5 0 0014 4.5H6A1.5 1.5 0 004.5 6v8A1.5 1.5 0 006 15.5h2.5"/>',
   // the lab PC (Ortho Factory): a 3D printer's frame, its build plate and a part on it
-  lab: '<path d="M4.5 20.5V4.5h15v16"/><path d="M4.5 8h15"/><path d="M10 8v2.5h4V8"/><path d="M7.5 17h9"/><path d="M9.5 17v-3h5v3"/>'
+  lab: '<path d="M4.5 20.5V4.5h15v16"/><path d="M4.5 8h15"/><path d="M10 8v2.5h4V8"/><path d="M7.5 17h9"/><path d="M9.5 17v-3h5v3"/>',
+  // send a sticker (stickers.js): a smiley with a plus
+  stk: '<circle cx="10.5" cy="13.5" r="7.5"/><path d="M8 11.6v.5M13 11.6v.5"/><path d="M7.7 15.5a3.6 3.6 0 005.6 0"/><path d="M19.5 2.5v5M17 5h5"/>'
 };
 function ic(n, s) { s = s || 18; return '<svg class="i" width="' + s + '" height="' + s + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (IC[n] || '') + '</svg>'; }
 
@@ -274,7 +276,8 @@ function enterApp() {
     cases(up, gone) {
       // a stage move still being saved wins over an older copy arriving from the server (quick → → → clicks)
       // (a case saved at a retired step shows at the step that replaced it — see liveStage)
-      up.forEach(c => { applNorm(c); c.stage = liveStage(c); const p = S.pend && S.pend[c.id]; if (p) { c.stage = p.to; if (p.extra) Object.assign(c, p.extra); } S.cases.set(c.id, c); }); gone.forEach(id => S.cases.delete(id));
+      // (and a sticker sent from here and not saved yet stays on — stickers.js)
+      up.forEach(c => { applNorm(c); c.stage = liveStage(c); const p = S.pend && S.pend[c.id]; if (p) { c.stage = p.to; if (p.extra) Object.assign(c, p.extra); } stkPendApply(c); S.cases.set(c.id, c); }); gone.forEach(id => S.cases.delete(id));
       S.casesV = (S.casesV || 0) + 1; // (the open cases changed: possible duplicates are worked out again — dupes.js)
       const first = S.firstLoad; S.firstLoad = false; queueRender();
       if (first) setTimeout(mailSync, 300); // lab emails that came in while nobody had the app open
@@ -795,12 +798,15 @@ function noteKindsOf(c) {
 function stageMarks(c) {
   const h = c && S.history && S.openId === c.id ? S.history : null; if (!h || !h.length) return {};
   const L = h.slice().sort((a, b) => (a.at || 0) - (b.at || 0)), out = {};
-  // the case changed after this copy of its history was read (it's being read again): no marks until then, rather than wrong ones
-  if (S.histRev !== c.rev) return {};
+  // the case changed after this copy of its history was read (it's being read again): no marks until then, rather than wrong ones —
+  // unless it's still at the same step (a note, a sticker, an edit): the marks it had still hold, and stay on screen meanwhile
+  if (S.histRev !== c.rev) { const k = S.marksKeep; return k && k.id === c.id && k.stage === c.stage ? k.m : {}; }
   const moved = x => x && x.to && (x.a === 'stage' || x.a === 'email' || (x.a === 'edit' && (x.fields || []).includes('stage')));
   const first = L.find(moved), born = L.find(x => x.a === 'create' || x.a === 'import' || x.a === 'restore'), start = first ? first.from : c.stage;
-  if (born && start) out[start] = { at: born.at, by: born.a === 'import' ? 'asana' : born.sid || '' };
-  L.forEach(x => { if (moved(x)) out[x.to] = { at: x.at, by: x.a === 'email' ? 'email' : x.sid || '' }; });
+  // (h: the history entry, for a sticker on the step — stickers.js)
+  if (born && start) out[start] = { at: born.at, by: born.a === 'import' ? 'asana' : born.sid || '', h: stkHKey(born), born: true };
+  L.forEach(x => { if (moved(x)) out[x.to] = { at: x.at, by: x.a === 'email' ? 'email' : x.sid || '', h: stkHKey(x) }; });
+  S.marksKeep = { id: c.id, stage: c.stage, m: out };
   return out;
 }
 function stageMarkHTML(m) {
@@ -813,6 +819,8 @@ function stageMarkHTML(m) {
 function stageMarksPaint(c) {
   const st = $('#drawer .stepper'); if (!st || !c) return; const m = stageMarks(c);
   $$('.step[data-k]', st).forEach(b => { const w = $('.stWhen', b); if (w) w.outerHTML = stageMarkHTML(m[b.dataset.k]); });
+  // (and the smiley beside each step someone moved the case to — stickers.js)
+  const keep = stkHold(); $$('.stkSlot[data-k]', st).forEach(sl => { const h = stkSlotHTML(c, sl.dataset.k, m[sl.dataset.k]); if (sl.innerHTML !== h) sl.innerHTML = h; }); stkReanchor(keep);
 }
 /* stage progress: a circle per stage (done, current, to come) joined by a line that fills in up to the current stage
    (Amir, 2 Oct 2026: circles connected with a line, not a row of rectangles); a stage group (In fabrication) sits in its own band.
@@ -1252,7 +1260,7 @@ function noteAuthKeep(c, log) {
 function noteAuthDone() { if (S.view === 'list' || S.view === 'mine') queueRender(); noteByPaint(); }
 /* the newest history entry that set the Notes field: an edit (or a step move / lab email) that lists it, the creation, the
    Asana import; a restored version (or anything else) could have changed it without saying, so the writer isn't known */
-const NOTE_KEEP_ACTS = ['edit', 'stage', 'email', 'photo', 'reopen', 'close', 'assign', 'comment', 'rekey'];
+const NOTE_KEEP_ACTS = ['edit', 'stage', 'email', 'photo', 'reopen', 'close', 'assign', 'comment', 'rekey', 'sticker'];
 function noteAuthFrom(log) {
   for (let i = log.length - 1; i >= 0; i--) {
     const x = log[i] || {};
@@ -1368,6 +1376,7 @@ function openDrawer(id) {
 function closeDrawer(force) {
   if (!force && S.editing && editDirty() && !confirm('Discard your changes?')) return;
   wtyFlush(); S.wtyRedraw = false; // a Specialty invoice date typed and not yet saved (warranty.js)
+  stkClose(); // (the stickers to pick from — stickers.js)
   S.openId = null; S.editing = false; S.editWiz = null; const d = $('#drawer'), s = $('#scrim'); if (d) d.remove(); if (s) s.remove();
 }
 function refreshDrawer(gone) {
@@ -1383,7 +1392,7 @@ function refreshDrawer(gone) {
 async function loadHistory(id) {
   // (two loads in flight: an answer older than the one on screen is dropped — a later load that fails leaves the earlier one)
   const seq = S.histSeq = (S.histSeq || 0) + 1, rev0 = (findCase(id) || {}).rev; // (the version of the case this history goes with)
-  try { const h = await B.caseLog(id); if (S.openId === id && seq > (S.histShown || 0)) { S.histShown = seq; S.history = h; S.histRev = rev0; const el = $('#histBox'); if (el) el.innerHTML = historyHTML(findCase(id)); wtyRefresh(id); stageMarksPaint(findCase(id));
+  try { const h = await B.caseLog(id); if (S.openId === id && seq > (S.histShown || 0)) { S.histShown = seq; S.history = h; S.histRev = rev0; const el = $('#histBox'); if (el) { const keep = stkHold(); el.innerHTML = historyHTML(findCase(id)); stkPop(el); stkReanchor(keep); } wtyRefresh(id); stageMarksPaint(findCase(id));
     const c = findCase(id); if (c && String(c.notes || '').trim() && !notesAuthor(c)) { noteAuthKeep(c, h); noteByPaint(); } } } catch (e) { }
 }
 const FIELD_LABELS = { labOrd: 'lab progress', labNot: 'lab order', quick: 'Quick add tag', rx: 'Herbst Rx', rxRet: 'Retainer Rx', rxMet: 'Metal Rx', rxFun: 'Functional Rx', invDate: 'invoice date', noGuarantee: 'No Guarantee', photo: 'photo', labRef: 'lab case #', labHold: 'lab hold', planUrl: 'plan link', shipToPatient: 'ship to patient', records: 'records on file', zoomDate: 'Zoom call', zoomTime: 'Zoom call', tracking: 'tracking #', carrier: 'carrier', teeth: 'tooth chart', teethNote: 'tooth chart', chart: 'chart #', titanUrl: 'Titan link', initial: 'initial/refinement', appliances: 'appliance', lab: 'lab', arches: 'arch', retKinds: 'retainer type', goals: 'Dr. A’s instructions', instrPicks: 'Dr. A’s instructions', instrOther: 'Dr. A’s instructions', extras: 'extras', variant: 'case type', type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery appt', deliveryTime: 'appt time', txStart: 'treatment start', txEnd: 'expected removal', acrylic: 'acrylic color', glitter: 'acrylic color', alU: 'aligners', alL: 'aligners', aligners: 'aligners', atTemplates: 'attachment templates', treatArch: 'arches to treat', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes', iprSnap: 'IPR chart (from the IPR Tracker)', refN: 'refinement #', remake: 'remake', scanOnFile: 'scan on file' };
@@ -1393,7 +1402,8 @@ function historyHTML(c) {
   const shipped = x => x.close ? ' and marked it complete (shipped to the patient)' : '';
   // (the lab PC's readings in between — "printed 9 of 22" — aren't listed; when it links an order, fills in counts, or a step is done for every aligner, they are)
   const labShown = x => x.a !== 'lab' || x.first || x.unlink || x.relink || x.step || (x.fields || []).length;
-  return h.filter(x => x.a !== 'rekey' && x.a !== 'save' && labShown(x)).reverse().map(x => {
+  // (a sticker isn't listed: it's on what it was sent for — stickers.js)
+  return h.filter(x => x.a !== 'rekey' && x.a !== 'save' && x.a !== 'sticker' && labShown(x)).reverse().map(x => {
     let t = '';
     if (x.a === 'create') t = 'created the case'; else if (x.a === 'import') t = 'imported it from Asana';
     else if (x.a === 'stage') t = 'moved it to ' + stageName(x.to) + ((x.fields || []).length ? ' (and set ' + Array.from(new Set(x.fields.map(f => FIELD_LABELS[f] || f))).join(', ') + ')' : '') + shipped(x) + (x.via === 'lab' ? ', as the lab PC suggested' : '');
@@ -1411,12 +1421,15 @@ function historyHTML(c) {
     }
     else t = x.a;
     const who = x.a === 'email' ? ((MAIL_CO[x.co] || {}).l || 'Lab') + ' email' : x.a === 'lab' && !x.hand && !x.unlink && !x.relink ? 'Lab PC' : (firstName(staffName(x.sid, x.sid)) || x.sid);
-    return '<div class="hist"><time>' + esc(fmtWhen(x.at)) + '</time><span><b>' + esc(who) + '</b> ' + esc(t) + '</span></div>';
+    // a step someone did takes stickers: on the row after the words, and the smiley at its end (stickers.js)
+    const sk = stkHistHTML(c, x, t);
+    return '<div class="hist" data-w="' + esc(stkHKey(x)) + '"><time>' + esc(fmtWhen(x.at)) + '</time><span class="hTx"><b>' + esc(who) + '</b> ' + esc(t) + sk.chips + '</span>' + sk.add + '</div>';
   }).join('');
 }
 function renderDrawer() {
   const d = $('#drawer'); const c = findCase(S.openId); if (!d || !c) return;
   if (S.editing) { // the patient's name stays big at the top while editing (Amir), and follows the name field as it's typed
+    stkClose(); // (the stickers to pick from, if they were open)
     d.innerHTML = '<div class="dHd dEdit">' + ptAv(c, 64) + '<div style="flex:1;min-width:0"><div class="dEditLbl">' + ic('edit', 13) + 'Editing case</div><h3 id="dEditName">' + esc(c.patient || '(no name)') + '</h3>' +
       '<div class="sub">' + typeBadge(c) + (c.detail ? '<span class="small muted">' + esc(c.detail) + '</span>' : '') + '</div></div><button class="iconBtn" data-act="closeDrawer" aria-label="Close">' + ic('x') + '</button></div>' +
     // Finish details on a Quick add case: the same form, in the New case steps (from Case on), and Save takes the tag off
@@ -1440,6 +1453,7 @@ function renderDrawer() {
   }
   const ct0 = $('#cmtText'), keepCmt = ct0 ? ct0.value : '', hadFocus = !!ct0 && document.activeElement === ct0, keepSel = hadFocus ? [ct0.selectionStart, ct0.selectionEnd] : null;
   const wKeep = wtyKeep(); // (the Specialty invoice date being typed: warranty.js)
+  const sKeep = stkHold(); // (the stickers to pick from, open: they stay open, at the new copy of their smiley — stickers.js)
   // a live update redraws the panel: keep it where it was scrolled to (same case, not coming back from Edit)
   const bd0 = $('.dBd', d), keepTop = bd0 && d.dataset.for === c.id && d.dataset.mode === 'view' ? bd0.scrollTop : 0;
   const done = c.status === 'done'; const flow = flowOf(c); const si = stageIndex(c);
@@ -1484,9 +1498,12 @@ function renderDrawer() {
     // the step's station icon moves while the case is at Printing, Thermoforming or Trimming (lab.js labStepIcon; Amir, 7 Oct 2026)
     dsec('stage', 'Stage', (done ? 'Completed · ' : '') + labStepIcon(c, 17) + '<b>' + esc(stageLabel(c)) + '</b>' + progHTML(c),
       // the last step's marker is a diamond, the milestone mark, like on the progress line (progHTML)
+      // each step's row: the step, the smiley that sends a sticker to whoever moved the case there, and its stickers under it (stickers.js)
       '<div class="stepper">' + caseStages(c).map(([k, l], i, all) => { const g = stageGroup(flow, k);
         return (g && g.stages[0] === k ? '<div class="stepGrp' + (i <= si ? ' d' : '') + '">' + esc(g.l) + '</div>' : '') +
-        '<button class="step ' + (i < si ? 'past' : i === si ? 'cur' : '') + (g ? ' sub' : '') + (i === all.length - 1 ? ' ms' : '') + '" data-act="setStage" data-k="' + k + '"' + (done ? ' disabled' : '') + ' aria-pressed="' + (i === si) + '"><span class="n">' + (i < si ? '✓' : i + 1) + '</span>' + esc(l) + (i === si ? labStepIcon(c, 18) : '') + stageMarkHTML(marks[k]) + '</button>'; }).join('') + '</div>') +
+        '<div class="stepL' + (i < si ? ' past' : i === si ? ' cur' : '') + '" data-sk="' + k + '">' +
+        '<button class="step ' + (i < si ? 'past' : i === si ? 'cur' : '') + (g ? ' sub' : '') + (i === all.length - 1 ? ' ms' : '') + '" data-act="setStage" data-k="' + k + '"' + (done ? ' disabled' : '') + ' aria-pressed="' + (i === si) + '"><span class="n">' + (i < si ? '✓' : i + 1) + '</span>' + esc(l) + (i === si ? labStepIcon(c, 18) : '') + stageMarkHTML(marks[k]) + '</button>' +
+        stkStepHTML(c, k, marks[k]) + '</div>'; }).join('') + '</div>') +
     // in-house: the set in Ortho Factory, from the lab PC — the step it's ready for is on the heading, one tap (lab.js)
     (c.type === 'nla' && c.labOrd && c.labOrd.key ? dsec('lab', 'Lab', labSumHTML(c), labBoxHTML(c), done ? '' : labGoHTML(c, true)) : '') +
     (flow === FLOWS.marpe ? dsec('marpe', 'MARPE', marpeSum(c), marpeBoxHTML(c, done)) : '') +
@@ -1534,10 +1551,11 @@ function renderDrawer() {
     '<span class="dFtR"><button class="btn btn-ghost" data-act="dupRemove" title="This case was entered twice: take this one out and keep the other">' + ic('copy', 16) + 'Remove duplicate</button>' +
     (isOwner() ? '<button class="btn btn-ghost" data-act="versions">' + ic('clock', 16) + 'Versions</button><button class="btn btn-ghost" data-act="delCase" style="color:var(--coral-700)">' + ic('trash', 16) + 'Delete</button>' : '') + '</span></div>';
   const t = $('#cmtText'); if (t) { t.value = keepCmt; if (hadFocus) { t.focus(); if (keepSel) try { t.setSelectionRange(keepSel[0], keepSel[1]); } catch (e) { } mtUpdate(t); } } // (an @ list open as it redrew stays open)
-  notesSeen(c); // (a note tagging you, now on screen, is read — notes.js)
+  notesSeen(c); // (a note tagging you, now on screen, is read — notes.js; and the stickers sent to you on the case)
   wtyRestore(wKeep);
   if (keepTop) $('.dBd', d).scrollTop = keepTop;
   dsAllSync(); phPaint(); savPaint(d); phWireDrawer(d); picPaint(d);
+  stkAfterDraw(c, sKeep); // (a sticker that just arrived pops on; the stickers to pick from stay open — stickers.js)
   if (typeOf(c).aligner && c.chart && !done) iprAutoLoad(c);
   if (c.type === 'nla') ensureHist([c]);
 }
@@ -1670,7 +1688,8 @@ function dsIsOpen(k) { return S.dsTog && S.dsTog.has(k) ? S.dsTog.get(k) : dsAll
 function dsec(k, title, sum, body, act, pin) {
   const o = pin && !(S.dsTog && S.dsTog.has(k)) ? true : dsIsOpen(k);
   return '<section class="ds' + (o ? ' open' : '') + (pin ? ' pin' : '') + '" data-ds="' + k + '"><div class="dsHd"><button type="button" class="dsTg" data-act="dsTg" aria-expanded="' + o + '" aria-controls="ds-' + k + '">' +
-    '<span class="dsCh">' + ic('next', 16) + '</span><span class="dsT">' + esc(title) + '</span><span class="dsS" id="dsS-' + k + '">' + (sum || '') + '</span></button>' + (act || '') + '</div>' +
+    '<span class="dsCh">' + ic('next', 16) + '</span><span class="dsT">' + esc(title) + '</span><span class="dsS" id="dsS-' + k + '">' + (sum || '') + '</span></button>' +
+    stkHdHTML(k, title) + (act || '') + '</div>' + // (the section's stickers, and the smiley that sends one — stickers.js)
     '<div class="dsBd" id="ds-' + k + '"' + (o ? '' : ' hidden') + '>' + body + '</div></section>';
 }
 /* a one-line section with nothing to open, just its button (the retainer label) */
@@ -2096,6 +2115,11 @@ function onClick(e) {
     case 'notesAll': { const c = findCase(S.openId); if (!c) break; (S.notesAll = S.notesAll || {})[c.id] = true; notesPaint(c); notesSeen(c); break; }
     case 'msgOpen': msgOpen(id, t.dataset.n); break;
     case 'msgAllRead': msgMarkRead(msgList().map(m => m.k)); renderNav(); renderView(); break;
+    // stickers (stickers.js): the smiley opens them; one picked goes on (or comes off); a tap on one that's there; one in Messages
+    case 'stkAdd': stkOpen(t); break;
+    case 'stkPut': stkPut(t.dataset.e); break;
+    case 'stkTog': stkTog(t); break;
+    case 'stkMsgOpen': stkMsgOpen(id, t.dataset.s); break;
     // (a lab saved under its old name counts as its new name, so opening Edit doesn't look like a change)
     case 'edit': { const c = findCase(S.openId); S.editBase = JSON.parse(JSON.stringify(c)); if (S.editBase.lab) S.editBase.lab = labName(S.editBase.lab); S.editing = true; S.editWiz = null; renderDrawer(); break; }
     case 'cancelEdit': S.editing = false; S.editWiz = null; renderDrawer(); break;

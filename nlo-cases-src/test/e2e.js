@@ -206,6 +206,42 @@ async function openByName(p, name) {
   await owner.waitForSelector('#histBox .hist:has-text("moved it to Dr. A action")', { timeout: 15000 });
   check(await owner.isVisible('#histBox .hist:has-text("Gwen")'), 'history shows who moved it');
 
+  console.log('\n# Stickers (7 Oct 2026): on a note, on a step someone did, in a section — and in their Messages');
+  await gwen.click('#drawer [data-act=closeDrawer]'); // (Gwen isn't looking at the case: what comes is new for her)
+  const gwenSid = await owner.evaluate(() => (S.roster.find(r => /^Gwen/.test(r.name)) || {}).sid);
+  await owner.hover('#drawer .cmt:has-text("Scan looks good")'); await owner.click('#drawer .cmt:has-text("Scan looks good") .stkAdd'); await owner.waitForSelector('#stkPick');
+  check(/Gwen\s*gets it in Messages/.test(await owner.textContent('#stkPick .stkTo')), 'a sticker on Gwen’s note: “Gwen gets it in Messages”');
+  await owner.click('#stkPick .stkOpt[data-e="🎉"]');
+  await owner.waitForSelector('#drawer .cmt:has-text("Scan looks good") .stk.mine', { timeout: 15000 });
+  await owner.waitForSelector('#drawer .stkSlot[data-k=dra] .stkAdd', { state: 'attached', timeout: 15000 });
+  await owner.hover('#drawer .step[data-k=dra]'); await owner.click('#drawer .stkSlot[data-k=dra] .stkAdd'); await owner.waitForSelector('#stkPick');
+  await owner.click('#stkPick .stkOpt[data-e="👍"]');
+  await owner.waitForSelector('#drawer .stepStk[data-k=dra] .stk.mine', { timeout: 15000 });
+  await owner.hover('#drawer .ds[data-ds=details] .dsHd'); await owner.click('#drawer .ds[data-ds=details] .dsHd .stkAdd'); await owner.waitForSelector('#stkPick #stkToSel');
+  await owner.selectOption('#stkToSel', gwenSid); await owner.click('#stkPick .stkOpt[data-e="💪"]');
+  await owner.waitForSelector('#drawer .ds[data-ds=details] .dsHd .stk.mine', { timeout: 15000 });
+  check(await owner.evaluate(g => { const L = stkList(findCase(S.openId)); return L.length === 3 && L.every(s => s.to === g && s.by === meSid()) && L.some(s => s.on === 's:details') && L.some(s => s.k === 'dra' && /^h:\d+$/.test(s.on)); }, gwenSid),
+    'Dr. A’s three stickers are on the case, all for Gwen (the step’s names the history entry of her move)');
+  await gwen.waitForFunction(() => { const e = document.querySelector('#nav-msgs .cnt'); return e && !e.classList.contains('hidden') && e.textContent === '3'; }, null, { timeout: 20000 }).catch(() => {});
+  check(await gwen.evaluate(() => { const e = document.querySelector('#nav-msgs .cnt'); return !!e && !e.classList.contains('hidden') && e.textContent === '3'; }), 'Gwen’s Messages: 3 new');
+  await gwen.click('#nav-msgs'); await gwen.waitForSelector('.msgRow.stkMsg', { timeout: 10000 });
+  const gm = await gwen.$$eval('.msgRow.stkMsg', rs => rs.map(r => r.textContent.replace(/\s+/g, ' ')));
+  check(gm.length === 3 && gm.every(t => /Dr\. A sent you a sticker/.test(t)) && gm.some(t => /On your note: “Scan looks good/.test(t)) && gm.some(t => /On your move to Dr\. A action/.test(t)) && gm.some(t => /In Details/.test(t)),
+    'Messages: Dr. A’s stickers on her note, her move to Dr. A action, and in Details');
+  await owner.click('#drawer .ds[data-ds=details] .dsHd .stk.mine');
+  await gwen.waitForFunction(() => document.querySelectorAll('.msgRow.stkMsg').length === 2, null, { timeout: 15000 }).catch(() => {});
+  check(await gwen.evaluate(() => document.querySelectorAll('.msgRow.stkMsg').length) === 2, 'Dr. A takes the 💪 back: it leaves her Messages');
+  await gwen.click('.msgRow.stkMsg:has-text("On your move")');
+  await gwen.waitForSelector('#drawer .stepStk[data-k=dra] .stk:has-text("Dr. A")', { timeout: 15000 }).catch(() => {});
+  check(await gwen.isVisible('#drawer .stepStk[data-k=dra] .stk:has-text("Dr. A")'), 'opening it: the case, with Dr. A’s 👍 under the step');
+  await gwen.waitForFunction(() => document.querySelector('#nav-msgs .cnt').classList.contains('hidden'), null, { timeout: 10000 }).catch(() => {});
+  check(await gwen.evaluate(() => document.querySelector('#nav-msgs .cnt').classList.contains('hidden')), 'the case on screen: its stickers are read');
+  await owner.waitForSelector('#histBox .hist:has-text("moved it to Dr. A action") .stk', { timeout: 15000 }).catch(() => {});
+  check(await owner.isVisible('#histBox .hist:has-text("moved it to Dr. A action") .stk') && !(await owner.$('#histBox .hist:has-text("sticker")')), 'History: the 👍 sits on Gwen’s move; stickers aren’t rows of their own');
+  dump = JSON.stringify(await fsDump());
+  check(!dump.includes('🎉') && !dump.includes('💪') && !dump.includes('"sticker"'), 'stickers are sealed with the case (nothing readable in Firestore)');
+  await gwen.click('#drawer [data-act=closeDrawer]'); await openByName(gwen, P1); // (back on the list with the case open, where the next part expects her)
+
   console.log('\n# Two people edit the same case at once — both changes kept');
   await owner.click('#drawer [data-act=edit]'); await owner.waitForSelector('#cf-notes');
   await owner.fill('#cf-notes', 'owner-note-1');
@@ -420,8 +456,9 @@ async function openByName(p, name) {
       bt: m.querySelectorAll('svg .bt').length, seg: m.querySelectorAll('.iprSegB').length, label: m.querySelector('svg').getAttribute('aria-label') }));
   };
   const ip0 = await iprMap(), fillOf = sel => owner.$eval(sel, el => getComputedStyle(el).fill);
+  const spFill = await fillOf('#iprBox svg .bdg.sp rect').catch(e => 'none: ' + e.message.split('\n')[0]);
   check(ip0.lay === 'sp' && ip0.sp === '0.3' && ip0.ipr === '' && ip0.bt === 1 && ip0.seg === 3 && /^Spaces\. Upper: UR1–UL1 0\.3mm\. Lower: none\. Black triangles: UR1–UL1\.$/.test(ip0.label) &&
-    await fillOf('#iprBox svg .bdg.sp rect') === 'rgb(3, 105, 161)', 'the IPR section opens on the spaces: the 0.3 space at UR1–UL1 in blue with its line, ▼ there (' + ip0.label + ')');
+    spFill === 'rgb(3, 105, 161)', 'the IPR section opens on the spaces: the 0.3 space at UR1–UL1 in blue with its line, ▼ there (' + JSON.stringify(Object.assign({}, ip0, { fill: spFill })) + ')');
   let ipv = await iprMap('visit');
   const redTag = await fillOf('#iprBox svg .bdg.ipr rect'), ipc = await iprMap('cum');
   check(ipv.ipr === '0.2' && ipv.sp === '' && /LR3–LR2 0\.2mm/.test(ipv.label) && ipc.ipr === '0.2 0.2' && ipv.bt === 1 && /Black triangles: UR1–UL1/.test(ipv.label) && redTag === 'rgb(217, 45, 32)',

@@ -177,7 +177,7 @@ const ADMIN_ACTS = {
       if (!list.length) { box.innerHTML = '<div class="small muted">No activity in the last 7 days.</div>'; return; }
       // (the lab PC's readings in between — "printed 9 of 22" — aren't listed, like on the case; it's "Lab PC", not whoever's app saved it)
       const labHand = x => x.a === 'lab' && (x.hand || x.unlink || x.relink);
-      box.innerHTML = list.filter(x => x.a !== 'rekey' && (x.a !== 'lab' || x.first || x.step || labHand(x) || (x.fields || []).length)).slice(0, 80).map(x => {
+      box.innerHTML = list.filter(x => x.a !== 'rekey' && x.a !== 'sticker' && (x.a !== 'lab' || x.first || x.step || labHand(x) || (x.fields || []).length)).slice(0, 80).map(x => {
         const c = S.cases.get(x.caseId); const who = x.a === 'email' ? ((MAIL_CO[x.co] || {}).l || 'Lab') + ' email' : x.a === 'lab' && !labHand(x) ? 'Lab PC' : firstName(staffName(x.sid, x.sid));
         const what = { create: 'created', import: 'imported', stage: 'moved', comment: 'added a note to', close: 'completed', reopen: 'reopened', assign: 'reassigned', edit: 'edited', restore: 'restored', delete: 'deleted', save: 'saved', rekey: 're-sealed', email: 'updated', lab: 'updated the lab progress of', photo: 'changed the photo of', dup: 'removed a duplicate:', undup: 'brought back', notdup: 'marked as not a duplicate', dupcopy: 'copied a duplicate’s comments to' }[x.a] || x.a;
         return '<div class="hist"><time>' + esc(fmtWhen(x.at)) + '</time><span><b>' + esc(who) + '</b> ' + esc(what) + ' ' + (c ? '<button class="linkBtn" data-act="open" data-id="' + esc(c.id) + '">' + ptName(c.patient) + '</button>' : 'a completed case') + '</span></div>';
