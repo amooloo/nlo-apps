@@ -45,6 +45,7 @@ button{cursor:pointer;}
 .task-box{border-radius:6px;display:inline-flex;align-items:center;justify-content:center;padding:0;flex:none;font-weight:700;line-height:1;cursor:pointer;}
 .task-box:focus-visible,.pill-btn:focus-visible{outline:2px solid var(--blue-500);outline-offset:2px;}
 :root{--violet-500:#7C5CD6;}
+.av-ini::before{content:attr(data-ini);}
 @media (max-width:700px){
   .month-cell{min-height:74px !important;}
   .detail-panel{width:100vw !important;}
@@ -95,7 +96,7 @@ function isAllowedEmail(email){
    list sync from here — same endpoint the Checklist app uses. */
 const TIMEOFF_API = "https://script.google.com/macros/s/AKfycbxvI_d6muf_OepqurNrxnV2O0bMaGjnyNH6SKKNqQcvXMzjN6ZBjc26aa5LkN3Grj2J/exec";
 const SYNC_INTERVAL_MIN = 15;
-const CAL_VERSION = "1.2 (Oct 8, 2026)";
+const CAL_VERSION = "1.3 (Oct 8, 2026)";
 
 /* Staff roster seeded from Gusto (active employees, July 2026). Editable in Settings.
    Names only: birthdays and hire dates are kept in Firebase (Settings > Staff), never in this public file. */
@@ -260,7 +261,9 @@ const ROSTER_AT = "nlo/cadence/roster/updatedAt";
 let calDates = null, calRosterAt = null;
 function nloRosterToday(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function nloRosterActive(p){return !!p && p.active!==false && !(p.end && p.end<=nloRosterToday());}
-const ROSTER_ROLE_SHORT = { "orthodontic assistant":"OA", "treatment coordinator":"TC", "appointment coordinator":"AC", "marketing coordinator":"Marketing", "clinical lead":"Clinical Lead" };
+const ROSTER_ROLE_SHORT = { "orthodontic assistant":"OA", "treatment coordinator":"TC", "appointment coordinator":"AC", "marketing coordinator":"Marketing", "clinical lead":"Clinical Lead",
+  "scheduling coordinator":"SC", "office coordinator":"OC", "office manager":"OM", "financial coordinator":"FC", "front desk / scheduling":"Front Desk",
+  "clinical & marketing coordinator":"Marketing", "clinical and marketing coordinator":"Marketing", "lab technician":"Lab" };
 function rosterLabel(p){
   const nm=String(p.nick||p.first||p.name||"").trim(), t=String(p.title||"").trim().toLowerCase();
   const r=Object.prototype.hasOwnProperty.call(ROSTER_ROLE_SHORT,t)?ROSTER_ROLE_SHORT[t]:"";
@@ -270,31 +273,94 @@ function nloRosterPhoto(p){return p&&typeof p.photo==="string"&&p.photo.indexOf(
 function calAvatar(st,sz){
   const nm=String(st&&st.name||"?").replace(/\s*\(.*$/,"").trim(), ini=(nm.split(/\s+/).map(w=>w[0]||"").slice(0,2).join("")||"?").toUpperCase();
   const g=st&&st.left?"filter:grayscale(1);":"";
-  return `<span style="width:${sz}px;height:${sz}px;border-radius:50%;background:#294169;color:#fff;font-size:${Math.round(sz*.38)}px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;flex:none;overflow:hidden;${g}">${st&&st.photo?`<img src="${st.photo}" alt="" style="width:100%;height:100%;object-fit:cover;display:block;">`:esc(ini)}</span>`;
+  return `<span aria-hidden="true" style="width:${sz}px;height:${sz}px;border-radius:50%;background:#294169;color:#fff;font-size:${Math.round(sz*.38)}px;font-weight:700;line-height:1;display:inline-flex;align-items:center;justify-content:center;flex:none;overflow:hidden;${g}">${st&&st.photo?`<img src="${st.photo}" alt="" style="width:100%;height:100%;object-fit:cover;display:block;">`:`<span class="av-ini" data-ini="${esc(ini)}"></span>`}</span>`;
 }
+/* The calendar's staff list, following Staff Hub: anyone matched to a roster person shows Staff Hub's name
+   ("goes by" + role) and photo, and is marked left once Staff Hub ends them. Birthdays (and hire dates when
+   Staff Hub has none) stay the calendar's own. Memoised until the calendar's list, the roster or the dates change. */
+let calStaffMemo=null, calStaffKey=[null,null,null];
 function calStaff(){
   const raw=(S.data&&S.data.staff)||{}, ppl=calRoster;
+  if(calStaffMemo&&calStaffKey[0]===raw&&calStaffKey[1]===ppl&&calStaffKey[2]===calDates) return calStaffMemo;
   const ids=ppl?Object.keys(ppl).filter(k=>ppl[k]&&typeof ppl[k]==="object"):[];
-  if(!ids.length) return raw;
-  const norm=x=>String(x==null?"":x).trim().toLowerCase();
-  const only=test=>{ const c=ids.filter(test); return c.length===1?c[0]:null; };
-  const out={}, claimed={};
-  Object.keys(raw).forEach(id=>{
-    const st=raw[id];
-    if(!st||typeof st!=="object"){ out[id]=st; return; }
-    const full=norm(st.name), label=norm(String(st.name==null?"":st.name).split(" (")[0]);
-    let pid=ids.indexOf(id)>=0?id:null;
-    if(!pid&&full) pid=only(k=>{ const n=norm(ppl[k].name); return !!n&&(n===full||n===label); });
-    if(!pid&&label) pid=only(k=>norm(ppl[k].nick)===label||norm(ppl[k].first)===label);
-    let ph=null;
-    if(pid){ claimed[pid]=true; ph=nloRosterPhoto(ppl[pid]); if(!nloRosterActive(ppl[pid])){ out[id]=Object.assign({},st,{active:false,left:true},ph?{photo:ph}:{}); return; } }
-    out[id]=ph?Object.assign({},st,{photo:ph}):st;
-  });
-  ids.forEach(pid=>{
-    if(!claimed[pid]&&!raw[pid]&&/^[\w-]+$/.test(pid)&&nloRosterActive(ppl[pid])) out[pid]=Object.assign({ name:rosterLabel(ppl[pid])||pid, active:true, roster:true },nloRosterPhoto(ppl[pid])?{photo:nloRosterPhoto(ppl[pid])}:{});
-  });
+  let out=raw;
+  if(ids.length){
+    const norm=x=>String(x==null?"":x).trim().toLowerCase();
+    const only=test=>{ const c=ids.filter(test); return c.length===1?c[0]:null; };
+    const hubStart=pid=>{ const d=calDates&&calDates[pid]; return d&&typeof d.start==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(d.start)?d.start:null; };
+    const claimed={};
+    out={};
+    Object.keys(raw).forEach(id=>{
+      const st=raw[id];
+      if(!st||typeof st!=="object"){ out[id]=st; return; }
+      const full=norm(st.name), label=norm(String(st.name==null?"":st.name).split(" (")[0]);
+      let pid=ids.indexOf(id)>=0?id:null;
+      if(!pid&&full) pid=only(k=>{ const n=norm(ppl[k].name); return !!n&&(n===full||n===label); });
+      if(!pid&&label) pid=only(k=>norm(ppl[k].nick)===label||norm(ppl[k].first)===label);
+      if(!pid){ out[id]=st; return; }
+      claimed[pid]=true;
+      const p=ppl[pid], ph=nloRosterPhoto(p);
+      const o=Object.assign({},st,{ name:rosterLabel(p)||st.name, savedName:st.name, rid:pid });
+      if(ph) o.photo=ph; else delete o.photo;
+      if(!o.hireDate&&hubStart(pid)){ o.hireDate=hubStart(pid); o.hireFromHub=true; }
+      if(!nloRosterActive(p)){ o.active=false; o.left=true; }
+      out[id]=o;
+    });
+    ids.forEach(pid=>{
+      if(claimed[pid]||raw[pid]||!/^[\w-]+$/.test(pid)||!nloRosterActive(ppl[pid])) return;
+      const p=ppl[pid], o={ name:rosterLabel(p)||pid, active:true, roster:true, rid:pid };
+      if(nloRosterPhoto(p)) o.photo=nloRosterPhoto(p);
+      if(hubStart(pid)){ o.hireDate=hubStart(pid); o.hireFromHub=true; }
+      out[pid]=o;
+    });
+  }
+  calStaffMemo=out; calStaffKey=[raw,ppl,calDates];
   return out;
 }
+/* the person (name, photo, left) for a roster id: their calendar record if they have one, else the roster entry */
+function personByRid(rid){
+  const staffL=calStaff();
+  for(const k in staffL){ if(staffL[k]&&staffL[k].rid===rid) return staffL[k]; }
+  const p=calRoster&&calRoster[rid];
+  return p?{ name:rosterLabel(p)||p.name||"", photo:nloRosterPhoto(p), left:!nloRosterActive(p), rid:rid }:null;
+}
+/* the person behind a Time-Off app name. That app can hold legal names ("Maria Jordan" for Wila), so match the
+   roster on full name, then first + last, then a last name only one person has, then a lone first name;
+   else the calendar's own list by name. No match = the Time-Off name as it is, without a face. */
+let ptoWhoMemo={}, ptoWhoKey=null;
+function ptoPerson(name){
+  const staffL=calStaff();
+  if(ptoWhoKey!==staffL){ ptoWhoMemo={}; ptoWhoKey=staffL; }
+  const key=String(name==null?"":name);
+  if(Object.prototype.hasOwnProperty.call(ptoWhoMemo,key)) return ptoWhoMemo[key];
+  const norm=x=>String(x==null?"":x).toLowerCase().replace(/\s*\(.*$/,"").normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-z ]/g," ").replace(/\s+/g," ").trim();
+  const n=norm(key), w=n?n.split(" "):[], first=w[0]||"", last=w.length>1?w[w.length-1]:"";
+  let res=null;
+  if(n){
+    const ppl=calRoster||{}, ids=Object.keys(ppl).filter(k=>ppl[k]&&typeof ppl[k]==="object");
+    const one=f=>{ const c=ids.filter(f); return c.length===1?c[0]:null; };
+    const rid=one(k=>norm(ppl[k].name)===n)
+      ||(last?one(k=>norm(ppl[k].first)===first&&norm(ppl[k].last)===last):null)
+      ||(last?one(k=>norm(ppl[k].last)===last):null)
+      ||(!last?one(k=>norm(ppl[k].first)===first||norm(ppl[k].nick)===first):null);
+    if(rid) res=personByRid(rid);
+    else {
+      const c=Object.keys(staffL).filter(k=>{ const st=staffL[k]; if(!st||typeof st!=="object") return false; const m=norm(st.name); return m===n||(!last&&m.split(" ")[0]===first); });
+      if(c.length===1) res=staffL[c[0]];
+    }
+  }
+  ptoWhoMemo[key]=res;
+  return res;
+}
+/* the face for an entry: PTO, birthdays, anniversaries and Staff Hub dates belong to a person */
+function entryPerson(e){
+  if(!e) return null;
+  if(e.who) return e.who;
+  if(e.type==="hr") return personByRid(e.staffId);
+  if(e.staffId&&(e.type==="pto"||e.type==="bday"||e.type==="anniv")){ const st=calStaff()[e.staffId]; return st&&typeof st==="object"?st:{ name:e.staffName||"" }; }
+  return null;
+}
+function whoFace(e,sz){ const p=entryPerson(e); return p?calAvatar(p,sz):""; }
 
 /* ================= STAFF HUB DATES =================
    Shared by Staff Hub (Settings → Office roster → "Show staff dates on the office calendar", on by default):
@@ -441,7 +507,12 @@ function entriesFor(ds,ignoreFilters){
     const e=data.events[id];
     if(!ignoreFilters && S.filters[e.type]===false) return;
     if(e.type==="pto" && officeClosed(ds)) return; // office is closed — PTO doesn't apply
-    if(occursOn(e,ds)) out.push(Object.assign({id},e));
+    if(occursOn(e,ds)){
+      const o=Object.assign({id},e);
+      /* PTO shows the person's current (Staff Hub) name; the name saved with the entry only if they're no longer listed */
+      if(o.type==="pto"&&o.staffId&&staffL[o.staffId]&&staffL[o.staffId].name) o.staffName=staffL[o.staffId].name;
+      out.push(o);
+    }
   });
   /* approved time off synced from the Time-Off Request app */
   if((ignoreFilters || S.filters.pto) && !officeClosed(ds)){
@@ -449,8 +520,9 @@ function entriesFor(ds,ignoreFilters){
         const start=String(r.start||"").slice(0,10), end=String(r.end||r.start||"").slice(0,10);
         if(!start) return;
         if(ds>=start && ds<=(end||start)){
+          const who=ptoPerson(r.employeeName);   /* the Staff Hub person behind the Time-Off app's name, if any */
           out.push({ id:"to_"+(r.id||i), type:"pto", title:r.requestType||r.reason||"PTO",
-                     staffId:null, staffName:r.employeeName||"PTO",
+                     staffId:null, staffName:who?who.name:(r.employeeName||"PTO"), who:who,
                      startDate:start, endDate:end||start, time:null,
                      unpaid:String(r.paidType||"").toLowerCase().indexOf("unpaid")>=0,
                      notes:(r.paidType?String(r.paidType):"")+(r.hours?(" · "+r.hours+" hrs"):""),
@@ -672,8 +744,10 @@ function render(){
     const d=parseD(ds); return DAYS[d.getDay()].slice(0,3)+" "+prettyDate(ds);
   };
   const lbl1=dayLbl(d1), lbl2=dayLbl(d2);
-  const outToday=entriesFor(d1,true).filter(e=>e.type==="pto").map(e=>e.staffName||"PTO");
-  const outTomorrow=entriesFor(d2,true).filter(e=>e.type==="pto").map(e=>e.staffName||"PTO");
+  const outOnce=list=>list.filter((e,i,a)=>a.findIndex(x=>(x.staffName||"PTO")===(e.staffName||"PTO"))===i);
+  const outTodayE=outOnce(entriesFor(d1,true).filter(e=>e.type==="pto"));
+  const outTomorrowE=outOnce(entriesFor(d2,true).filter(e=>e.type==="pto"));
+  const outToday=outTodayE.map(e=>e.staffName||"PTO"), outTomorrow=outTomorrowE.map(e=>e.staffName||"PTO");
   const anyOut=outToday.length>0||outTomorrow.length>0;
 
   /* ---- header ---- */
@@ -725,10 +799,11 @@ function render(){
   const bPad=phone?"8px 14px":"10px 24px", bFs=phone?"14px":"15px", bGap=phone?"4px 14px":"6px 20px";
   const whoLab=col=>`<span class="disp" style="font-weight:600;letter-spacing:.14em;font-size:${phone?"12px":"13px"};color:${col};">Who's out</span>`;
   let who="";
-  if(outToday.length) who+=`<span style="font-size:${bFs};color:var(--navy-800);"><strong style="font-weight:700;">${lbl1}:</strong> ${esc(outToday.join(", "))}</span>`;
-  if(outTomorrow.length) who+=`<span style="font-size:${bFs};color:var(--grey-600);"><strong style="font-weight:700;color:var(--navy-800);">${lbl2}:</strong> ${esc(outTomorrow.join(", "))}</span>`;
+  const faces=list=>list.map((e,i)=>`<span style="display:inline-flex;align-items:center;gap:6px;white-space:nowrap;">${whoFace(e,phone?20:22)}${esc(e.staffName||"PTO")}${i<list.length-1?",":""}</span>`).join("");
+  if(outToday.length) who+=`<span style="font-size:${bFs};color:var(--navy-800);display:inline-flex;align-items:center;flex-wrap:wrap;gap:4px 6px;"><strong style="font-weight:700;">${lbl1}:</strong> ${faces(outTodayE)}</span>`;
+  if(outTomorrow.length) who+=`<span style="font-size:${bFs};color:var(--grey-600);display:inline-flex;align-items:center;flex-wrap:wrap;gap:4px 6px;"><strong style="font-weight:700;color:var(--navy-800);">${lbl2}:</strong> ${faces(outTomorrowE)}</span>`;
   if(st==="ok"){
-    if(anyOut) h+=`<div style="background:var(--coral-100);border-bottom:1px solid var(--coral-200);padding:${bPad};display:flex;align-items:baseline;gap:${bGap};flex-wrap:wrap;">${whoLab("var(--coral-700)")}${who}</div>`;
+    if(anyOut) h+=`<div style="background:var(--coral-100);border-bottom:1px solid var(--coral-200);padding:${bPad};display:flex;align-items:center;gap:${bGap};flex-wrap:wrap;">${whoLab("var(--coral-700)")}${who}</div>`;
     else h+=`<div style="background:var(--mint-100);border-bottom:1px solid var(--mint-200);padding:${bPad};display:flex;align-items:baseline;gap:${bGap};flex-wrap:wrap;">${whoLab("var(--mint-700)")}<span style="font-size:${bFs};color:var(--navy-800);">Full team in ${lbl1==="Today"?"today":lbl1} and ${lbl2==="Tomorrow"?"tomorrow":lbl2}.</span></div>`;
   } else {
     const at=S.sync.at?S.sync.at.toLocaleTimeString([],{hour:"numeric",minute:"2-digit"}):"";
@@ -738,7 +813,7 @@ function render(){
     else note=`<span style="font-size:${bFs};color:var(--amber-700);font-weight:600;">⚠ The Time-Off app isn't answering. ${anyOut?"This list is":"No one was out"} as of ${esc(at)}.</span>`;
     const retry=st==="loading"?"":`<button data-act="sync-now" ${S.sync.busy?"disabled":""} style="border:1px solid var(--amber-600);background:#fff;border-radius:999px;padding:4px 12px;font-size:12.5px;font-weight:700;color:var(--amber-700);cursor:${S.sync.busy?"default":"pointer"};">${S.sync.busy?"Checking…":"Try again"}</button>`;
     const warm=st!=="loading";
-    h+=`<div style="background:${warm?"var(--amber-100)":"var(--grey-100)"};border-bottom:1px solid ${warm?"#F5DFA9":"var(--grey-200)"};padding:${bPad};display:flex;align-items:baseline;gap:${bGap};flex-wrap:wrap;">${whoLab(warm?"var(--amber-700)":"var(--grey-600)")}${who}${note}${retry}</div>`;
+    h+=`<div style="background:${warm?"var(--amber-100)":"var(--grey-100)"};border-bottom:1px solid ${warm?"#F5DFA9":"var(--grey-200)"};padding:${bPad};display:flex;align-items:center;gap:${bGap};flex-wrap:wrap;">${whoLab(warm?"var(--amber-700)":"var(--grey-600)")}${who}${note}${retry}</div>`;
   }
   if(S.dbError && !S.connected){
     h+=`<div style="background:var(--amber-100);padding:${phone?"8px 14px":"8px 24px"};font-size:13.5px;color:var(--amber-700);font-weight:600;">⚠ Cannot reach the shared database (${esc(S.dbError)}). Check the Firebase rules for nlo/calendar.</div>`;
@@ -864,9 +939,10 @@ function renderMonth(today,cd){
     } else {
       const MAX=3;
       entries.slice(0,MAX).forEach(e=>{
-        const c=typeColors(e.type), done=isDone(e,ds);
+        const c=typeColors(e.type), done=isDone(e,ds), pp=entryPerson(e);
         const label=e.type==="event"&&e.time?fmtTime(e.time)+" "+entryLabel(e):entryLabel(e);
-        h+=`<div style="font-size:13px;font-weight:600;border-radius:6px;padding:3px 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:6px;background:${c.bg};color:${c.fg};${done?"opacity:.6;":""}"><span style="font-size:9px;flex:none;">${done?"✓":c.glyph}</span><span style="overflow:hidden;text-overflow:ellipsis;${done?"text-decoration:line-through;":""}">${esc(label)}</span></div>`;
+        const lead=pp&&pp.photo?calAvatar(pp,16):`<span style="font-size:9px;flex:none;">${done?"✓":c.glyph}</span>`;
+        h+=`<div style="font-size:13px;font-weight:600;border-radius:6px;padding:3px 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:6px;background:${c.bg};color:${c.fg};${done?"opacity:.6;":""}">${lead}<span style="overflow:hidden;text-overflow:ellipsis;${done?"text-decoration:line-through;":""}">${esc(label)}</span></div>`;
       });
       if(entries.length>MAX) h+=`<div style="font-size:12px;font-weight:600;color:var(--grey-500);padding:0 8px;">+${entries.length-MAX} more</div>`;
     }
@@ -879,7 +955,7 @@ function renderMonth(today,cd){
 function weekEntry(e,ds){
   const c=typeColors(e.type), done=isDone(e,ds);
   return `<div style="border-radius:8px;padding:8px 10px;background:${c.bg};">
-        <div style="display:flex;align-items:center;gap:7px;font-weight:700;font-size:14px;color:${c.fg};">${e.type==="task"?taskBox(e,ds,18):`<span style="font-size:9px;flex:none;">${c.glyph}</span>`}<span style="min-width:0;overflow-wrap:break-word;${done?DONE_STYLE:""}">${esc(entryLabel(e))}</span></div>
+        <div style="display:flex;align-items:center;gap:7px;font-weight:700;font-size:14px;color:${c.fg};">${e.type==="task"?taskBox(e,ds,18):(entryPerson(e)?whoFace(e,20):`<span style="font-size:9px;flex:none;">${c.glyph}</span>`)}<span style="min-width:0;overflow-wrap:break-word;${done?DONE_STYLE:""}">${esc(entryLabel(e))}</span></div>
         <div style="font-size:12.5px;font-weight:500;margin-top:2px;color:${c.fg};opacity:.85;overflow-wrap:break-word;">${esc(entrySub(e))}</div>
       </div>`;
 }
@@ -972,7 +1048,7 @@ function renderAgenda(today,cursor){
       const timeLabel=e.time?fmtTime(e.time):(e.type==="pto"?prettyRange(e.startDate,e.endDate):"All day");
       h+=`<div style="background:var(--white);border:1px solid var(--grey-200);border-left:6px solid ${c.edge};border-radius:10px;padding:${phone?"12px":"14px 16px"};display:flex;gap:${phone?"10px":"14px"};align-items:center;">
         <span style="font-family:var(--font-mono);font-size:${phone?"12.5px":"14px"};font-weight:500;color:var(--grey-500);min-width:${phone?"58px":"76px"};flex:none;">${esc(timeLabel)}</span>
-        ${e.type==="task"?taskBox(e,ds):""}
+        ${e.type==="task"?taskBox(e,ds):whoFace(e,phone?28:30)}
         <div style="flex:1;min-width:0;">
           <div style="font-weight:700;font-size:${phone?"16px":"17px"};color:var(--navy-800);overflow-wrap:break-word;${done?DONE_STYLE:""}">${esc(entryLabel(e))}</div>`;
       if(e.notes) h+=`<div style="font-size:14px;color:var(--grey-500);margin-top:3px;overflow-wrap:break-word;">${esc(e.notes)}</div>`;
@@ -1023,7 +1099,7 @@ function renderDetail(today,dd){
     const doneAt=done?(e.recurrence?e.doneDates[dd]:e.doneAt):null;
     h+=`<div style="border:1px solid var(--grey-200);border-left:6px solid ${c.edge};border-radius:10px;padding:12px 14px;">
       <div style="display:flex;align-items:center;gap:10px;">
-        ${e.type==="task"?taskBox(e,dd):""}
+        ${e.type==="task"?taskBox(e,dd):whoFace(e,30)}
         <div style="flex:1;min-width:0;font-weight:700;font-size:16px;color:var(--navy-800);overflow-wrap:break-word;${done?DONE_STYLE:""}">${esc(entryLabel(e))}</div>
         <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:${c.edge};flex:none;">${entryTypeLabel(e)}</span>
       </div>
@@ -1156,10 +1232,14 @@ function renderSettings(){
     const st=staffL[id];
     if(S.editStaffId===id){
       h+=`<div style="border:2px solid var(--blue-500);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:8px;">
-        <input type="text" id="se-name" value="${esc(st.name)}" placeholder="Name" style="${inpSm}font-size:14px;font-weight:600;">
+        ${st.rid
+          ?`<div style="display:flex;align-items:center;gap:10px;">${calAvatar(st,34)}<div style="min-width:0;"><div style="font-size:14px;font-weight:700;color:var(--navy-800);">${esc(st.name)}</div><div style="font-size:12px;color:var(--grey-400);">Name and photo come from Staff Hub — change them there.</div></div></div>`
+          :`<input type="text" id="se-name" value="${esc(st.name)}" placeholder="Name" style="${inpSm}font-size:14px;font-weight:600;">`}
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
           <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--grey-600);">🎂 Birthday<input type="date" id="se-bday" value="${st.birthday||""}" style="${inpSm}"></label>
-          <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--grey-600);">Date of hire<input type="date" id="se-hire" value="${st.hireDate||""}" style="${inpSm}"></label>
+          ${st.hireFromHub
+            ?`<div style="display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--grey-600);">Date of hire<span style="font-size:13px;font-weight:600;text-transform:none;letter-spacing:0;color:var(--navy-800);padding:9px 0;">${prettyDate(st.hireDate)}, ${parseD(st.hireDate).getFullYear()} · Staff Hub</span></div>`
+            :`<label style="display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--grey-600);">Date of hire<input type="date" id="se-hire" value="${st.hireDate||""}" style="${inpSm}"></label>`}
         </div>
         <div style="display:flex;gap:8px;justify-content:flex-end;">
           <button data-act="staff-edit-cancel" class="hov-grey" style="border:1px solid var(--grey-300);background:#fff;border-radius:999px;padding:7px 14px;font-size:13px;font-weight:600;color:var(--navy-800);">Cancel</button>
@@ -1174,7 +1254,7 @@ function renderSettings(){
         meta.push("Hired "+prettyDate(st.hireDate)+", "+parseD(st.hireDate).getFullYear()+" · Tier "+t.n);
       }
       if(st.left) meta.push("Marked as left in Staff Hub");
-      if(st.roster) meta.push("From the Staff Hub roster");
+      else if(st.rid) meta.push("Name and photo from Staff Hub");
       h+=`<div style="display:flex;align-items:center;gap:10px;border:1px solid var(--grey-200);border-radius:10px;padding:8px 12px;">
         <label style="display:flex;align-items:center;gap:10px;flex:1;cursor:pointer;min-width:0;">
           <input type="checkbox" data-chg="staff-toggle" data-id="${id}" ${st.active?"checked":""}${st.left||st.roster?" disabled":""} style="width:18px;height:18px;accent-color:#1D3EA9;flex:none;">
@@ -1199,7 +1279,7 @@ function renderSettings(){
       </div>
       <button data-act="staff-add" class="hov-navy9" style="border:none;background:var(--navy-800);border-radius:999px;padding:9px;font-weight:700;font-size:14px;color:#fff;">Add staff member</button>
     </div>
-    <div style="font-size:12.5px;color:var(--grey-400);margin-bottom:24px;">Birthday 🎂 and work-anniversary 🎉 entries (with vacation-tier milestones at 2 and 5 years) appear on the calendar automatically. Removing someone deletes all their calendar entries.</div>
+    <div style="font-size:12.5px;color:var(--grey-400);margin-bottom:24px;">Names and photos come from Staff Hub: add or end staff there and the calendar follows. Birthdays are kept here (hire dates too, for anyone Staff Hub has none for). Birthday 🎂 and work-anniversary 🎉 entries (with vacation-tier milestones at 2 and 5 years) appear on the calendar automatically. Removing someone here deletes all their calendar entries.</div>
 
     <div class="disp" style="font-weight:600;letter-spacing:.12em;font-size:14px;color:var(--blue-600);margin-bottom:10px;">Time-Off app sync</div>
     <div style="font-size:14px;color:var(--grey-600);margin-bottom:4px;">Approved requests from the Time-Off Request app and office holidays appear on the calendar automatically.</div>
@@ -1323,12 +1403,14 @@ document.getElementById("app").addEventListener("click",(ev)=>{
     case "staff-edit": S.editStaffId=el.dataset.id; render(); break;
     case "staff-edit-cancel": S.editStaffId=null; render(); break;
     case "staff-edit-save": {
-      const id=el.dataset.id;
-      const name=(document.getElementById("se-name").value||"").trim();
+      const id=el.dataset.id, cur=calStaff()[id]||{};
+      const nameEl=document.getElementById("se-name"), hireEl=document.getElementById("se-hire");
+      const name=nameEl?(nameEl.value||"").trim():String(cur.savedName||cur.name||"").trim();
       if(!name) break;
-      const upd={ name,
-        birthday: document.getElementById("se-bday").value||null,
-        hireDate: document.getElementById("se-hire").value||null };
+      const upd={ birthday: document.getElementById("se-bday").value||null };
+      if(hireEl) upd.hireDate=hireEl.value||null;
+      /* someone from Staff Hub keeps the name they were saved under (the calendar shows Staff Hub's) */
+      if(nameEl||!S.data.staff[id]) upd.name=name;
       /* first save for a Staff Hub-only person creates their calendar record */
       if(!S.data.staff[id]) upd.active=true;
       db.ref(CAL_ROOT+"/staff/"+id).update(upd).catch(fbErr);
