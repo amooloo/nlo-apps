@@ -2008,8 +2008,12 @@ function renderYourRequests() {
     const fmtEnd   = fmtDate(r.endDate, true);
     const paidType = r.paidType || 'N/A';
     const hoursLabel = r.hours || 'Full Day';
-    const cancelBtn = status === 'pending'
-      ? `<button class="cancel-btn" onclick="cancelRequest('${escapeHTML(r.id)}')">Cancel</button>`
+    // Pending requests can be cancelled any time; approved ones only before
+    // they start (the server checks this too and emails Dr. Akhavan + scheduling).
+    const upcoming = parseLocalDate(r.startDate).getTime() > parseLocalDate(todayStr()).getTime();
+    const canCancel = status === 'pending' || (status === 'approved' && upcoming);
+    const cancelBtn = canCancel
+      ? `<button class="cancel-btn" onclick="cancelRequest('${escapeHTML(r.id)}', ${status === 'approved'})">Cancel</button>`
       : '';
 
     html += `
@@ -2031,8 +2035,11 @@ function renderYourRequests() {
 // ============================================================
 // CANCEL REQUEST
 // ============================================================
-async function cancelRequest(id) {
-  if (!confirm('Are you sure you want to cancel this time-off request?')) return;
+async function cancelRequest(id, wasApproved) {
+  const question = wasApproved
+    ? 'This request is already approved. Cancel it?\n\nDr. Akhavan and scheduling will be told. If you still need some of these days off, submit a new request.'
+    : 'Are you sure you want to cancel this time-off request?';
+  if (!confirm(question)) return;
 
   try {
     const resp = await fetch(API_URL, {
@@ -2046,7 +2053,7 @@ async function cancelRequest(id) {
     });
     const data = await resp.json();
     if (data.success) {
-      showToast('Request cancelled.');
+      showToast(wasApproved ? 'Request cancelled. Dr. Akhavan and scheduling have been told.' : 'Request cancelled.');
       await loadRequests();
       renderCalendar();
       if (currentUser.role === 'admin' || currentUser.role === 'approver') renderManageList();
