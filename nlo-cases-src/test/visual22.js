@@ -28,15 +28,14 @@ const URL0 = 'http://127.0.0.1:8765/nlo-cases.html?demo';
   await p.waitForFunction(() => /visit ·/.test((document.querySelector('#dsS-ipr') || {}).textContent || ''), null, { timeout: 5000 }).catch(() => {});
   let st = await state(); const sum = k => (st.find(x => x.k === k) || {}).sum || '';
   console.log('   sections:', st.map(x => x.k).join(' '));
-  check(folded(st) && st.length === 10, 'a case opens with every section folded: heading only, aria-expanded=false, body hidden');
-  check(st.map(x => x.k).join(',') === 'stage,details,tx,aligners,instr,ipr,notes,comments,note,history', 'order: Stage, Details, Treatment (in-house), Aligners, Dr. A’s instructions, IPR & spacing, Notes, Comments, Chart note (moved down), History');
+  check(folded(st.filter(x => !['notes', 'ipr'].includes(x.k))) && st.length === 10, 'a case opens with every section folded but the Notes and the IPR chart, which stay open (6–7 Oct 2026)');
+  check(st.map(x => x.k).join(',') === 'stage,lab,details,tx,aligners,instr,ipr,notes,note,history', 'order (7 Oct 2026: Notes and Comments are one Notes list): Stage, Details, Treatment (in-house), Aligners, Dr. A’s instructions, IPR & spacing, Notes, Chart note (moved down), History');
   check(/^Thermoforming/.test(sum('stage')), 'Stage heading: the current stage (' + sum('stage') + ')');
   check(/^Assigned to \S+ · Lab /.test(sum('details')), 'Details heading: who it’s assigned to and the next date (' + sum('details') + ')');
   check(sum('aligners') === '18 aligners in this set (U 10 · L 8)', 'Aligners heading: this set’s count');
   check(sum('instr') === 'Close remaining spaces, improve bite.', 'Dr. A’s instructions heading: the instructions on one line');
   check(/^\w{3} \d{1,2} visit · IPR 0\.3 mm · 0\.8 mm so far · spaces 0\.5 mm · 2 black triangles$/.test(sum('ipr')), 'IPR heading: the latest visit in one line (' + sum('ipr') + ')');
-  check(sum('notes') === 'Travels for work', 'Notes heading: the note');
-  check(sum('comments') === '2 · Gwen: Patient asked about timing', 'Comments heading: how many, and the latest');
+  check(sum('notes') === '3 · Gwen: Patient asked about timing', 'Notes heading: how many (the case form’s note and the two added since), and the latest');
   check(/to paste into the patient’s chart/.test(sum('note')) && /^Last change /.test(sum('history')), 'Chart note and History headings');
   const cc = await p.evaluate(() => { const b = document.querySelector('#drawer .ccBox'), l = document.querySelector('#drawer .dsList');
     return b && { t: b.querySelector('.ccV').textContent, k: b.querySelector('.ccK').textContent, before: !!(b.compareDocumentPosition(l) & Node.DOCUMENT_POSITION_FOLLOWING), bg: getComputedStyle(b).backgroundColor, fs: parseFloat(getComputedStyle(b.querySelector('.ccV')).fontSize), h: b.offsetHeight, role: b.getAttribute('role') }; });
@@ -82,10 +81,10 @@ const URL0 = 'http://127.0.0.1:8765/nlo-cases.html?demo';
   check(kb1 && !(await state()).find(x => x.k === 'details').open, 'Enter opens a section, Space folds it again (keyboard)');
 
   // a comment from this panel: Comments stays open through the redraw, and the new comment shows
-  await p.click('#drawer .ds[data-ds=comments] .dsTg'); await p.fill('#cmtText', 'Called the lab'); await p.click('[data-act=addCmt]');
+  await p.fill('#cmtText', 'Called the lab'); await p.click('[data-act=addCmt]'); // (the Notes list is open already — 7 Oct 2026)
   await p.waitForSelector('#drawer .cmt:has-text("Called the lab")', { timeout: 5000 }).catch(() => {});
   st = await state();
-  check(st.find(x => x.k === 'comments').open && await p.isVisible('#drawer .cmt:has-text("Called the lab")') && /^3 · /.test(st.find(x => x.k === 'comments').sum), 'after adding a comment the section stays open (and its heading counts 3)');
+  check(st.find(x => x.k === 'notes').open && await p.isVisible('#drawer .cmt:has-text("Called the lab")') && /^4 · /.test(st.find(x => x.k === 'notes').sum), 'after adding a comment the section stays open (and its heading counts 3)');
 
   // the next case opens folded again
   const mpRec = await p.evaluate(() => openCases().find(c => c.type === 'marpe' && c.stage === 'records').id);

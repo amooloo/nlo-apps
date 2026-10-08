@@ -181,13 +181,28 @@ async function openByName(p, name) {
   console.log('\n# Gwen moves the case and comments; owner sees both');
   await openByName(gwen, P1);
   await gwen.click('#drawer [data-act=setStage][data-k=dra]');
-  await gwen.fill('#cmtText', 'Scan looks good, sent to Dr. A'); await gwen.click('[data-act=addCmt]');
+  // (7 Oct 2026) the note tags Dr. A, picked from the @ list as it's typed
+  await gwen.click('#cmtText'); await gwen.keyboard.type('Scan looks good, sent to @dr');
+  await gwen.waitForSelector('#mtList .mtOpt', { timeout: 5000 }); const mtFirst = await gwen.textContent('#mtList .mtOpt');
+  await gwen.keyboard.press('Enter'); await gwen.keyboard.type('please check');
+  check(await gwen.inputValue('#cmtText') === 'Scan looks good, sent to @Dr. A please check' && /@Dr\. A/.test(mtFirst), 'typing @dr offers Dr. A, and Enter puts “@Dr. A” in the note');
+  await gwen.click('[data-act=addCmt]');
   await gwen.waitForSelector('#drawer .cmt', { timeout: 15000 });
+  check(await gwen.evaluate(() => { const c = findCase(S.openId), x = (c.comments || []).slice(-1)[0]; return !!x && Array.isArray(x.to) && x.to.length === 1 && staff(x.to[0]).role === 'owner'; })
+    && await gwen.isVisible('#drawer #notesList .mt:has-text("@Dr. A")') && await gwen.inputValue('#cmtText') === '', 'the note keeps who it tags (Dr. A), shows the tag, and stays in the open Notes list');
+  await owner.waitForFunction(() => { const e = document.querySelector('#nav-msgs .cnt'); return e && !e.classList.contains('hidden') && e.textContent === '1'; }, null, { timeout: 15000 }).catch(() => {});
+  check(await owner.evaluate(() => { const e = document.querySelector('#nav-msgs .cnt'); return !!e && !e.classList.contains('hidden') && e.textContent === '1'; }), 'Dr. A’s Messages shows 1 new');
+  await owner.click('#nav-msgs'); await owner.waitForSelector('.msgRow.new', { timeout: 10000 });
+  check(/Gwen/.test(await owner.textContent('.msgRow.new')) && /Scan looks good, sent to @Dr\. A please check/.test(await owner.textContent('.msgRow.new')), 'Messages lists Gwen’s note with the patient');
   await openByName(owner, P1);
   await owner.waitForSelector('#drawer .step.cur:has-text("Dr. A action")', { timeout: 15000 });
   check(true, 'stage change reached the owner');
   await owner.waitForSelector('#drawer .cmt:has-text("Scan looks good")', { timeout: 15000 });
-  check(true, 'comment reached the owner');
+  check(true, 'the note reached the owner');
+  await owner.waitForFunction(() => document.querySelector('#nav-msgs .cnt').classList.contains('hidden'), null, { timeout: 10000 }).catch(() => {});
+  check(await owner.evaluate(() => document.querySelector('#nav-msgs .cnt').classList.contains('hidden')), 'opening the case (the note on screen) marks it read');
+  await owner.waitForSelector('#histBox .hist:has-text("added a note for Dr. A")', { timeout: 15000 }).catch(() => {});
+  check(await owner.isVisible('#histBox .hist:has-text("added a note for Dr. A")'), 'history: “Gwen added a note for Dr. A”');
   await owner.waitForSelector('#histBox .hist:has-text("moved it to Dr. A action")', { timeout: 15000 });
   check(await owner.isVisible('#histBox .hist:has-text("Gwen")'), 'history shows who moved it');
 
@@ -199,7 +214,7 @@ async function openByName(p, name) {
   await Promise.all([owner.click('[data-act=saveEdit]'), gwen.click('[data-act=saveEdit]')]);
   await sleep(2500);
   await kay.click('#nav-today'); await openByName(kay, P1);
-  await kay.waitForSelector('#drawer .txt:has-text("owner-note-1")', { timeout: 15000 });
+  await kay.waitForSelector('#drawer #notesList .cmt:has-text("owner-note-1")', { timeout: 15000 });
   await kay.waitForSelector('#drawer .ccBox:has-text("gwen-cc-1")', { timeout: 15000 });
   check(true, 'both simultaneous edits survived');
   await kay.click('#drawer [data-act=closeDrawer] >> nth=0');
@@ -274,7 +289,7 @@ async function openByName(p, name) {
   await sarah.click('#mnav-list'); await sarah.fill('#q', P3);
   await sarah.waitForSelector('tr.click:has-text("' + P3 + '")', { timeout: 20000 });
   check(true, 'Sarah (phone, still signed in) reads the new-key case');
-  await openByName(sarah, P1); check(await sarah.isVisible('#drawer .txt:has-text("owner-note-1")'), 'Sarah reads the re-sealed old case');
+  await openByName(sarah, P1); check(await sarah.isVisible('#drawer #notesList .cmt:has-text("owner-note-1")'), 'Sarah reads the re-sealed old case');
 
   console.log('\n# Idle lock');
   await sarah.evaluate(() => { S.lastAct = Date.now() - 11 * 60000; });
@@ -298,7 +313,7 @@ async function openByName(p, name) {
   await owner.waitForSelector('.lockErr', { timeout: 30000 }); check(true, 'wrong recovery code refused');
   await owner.fill('#recCode', RECOVERY.toLowerCase().replace(/-/g, ' ')); await owner.click('#recForm button[type=submit]');
   await waitApp(owner); await openByName(owner, P1);
-  check(await owner.isVisible('#drawer .txt:has-text("owner-note-1")'), 'owner reads cases after recovery');
+  check(await owner.isVisible('#drawer #notesList .cmt:has-text("owner-note-1")'), 'owner reads cases after recovery');
   await owner.click('#drawer [data-act=closeDrawer] >> nth=0');
   await owner.click('#side [data-act=lock]'); await signIn(owner, OWNER_EMAIL, 'Owner-Reset-999'); await waitApp(owner);
   check(true, 'owner signs in normally with the new password afterwards');
@@ -340,11 +355,11 @@ async function openByName(p, name) {
   check(nVer >= 4, 'case has its earlier versions (' + nVer + ')');
   await owner.click('#verList tbody tr:last-child [data-act=restoreVer]');
   await owner.waitForSelector('#drawer .step.cur:has-text("To submit")', { timeout: 20000 });
-  check(!(await owner.isVisible('#drawer .txt:has-text("owner-note-1")')), 'restoring the first version brings back the original contents');
+  check(!(await owner.isVisible('#drawer #notesList .cmt:has-text("owner-note-1")')), 'restoring the first version brings back the original contents');
   await owner.waitForSelector('#histBox .hist:has-text("restored an earlier version")', { timeout: 15000 });
   await owner.click('#drawer [data-act=versions]'); await owner.waitForSelector('#verList table', { timeout: 20000 });
   await owner.click('#verList tbody tr:first-child [data-act=restoreVer]');
-  await owner.waitForSelector('#drawer .txt:has-text("owner-note-1")', { timeout: 20000 });
+  await owner.waitForSelector('#drawer #notesList .cmt:has-text("owner-note-1")', { timeout: 20000 });
   check(true, 'the newer copy was kept and can be restored too');
   await owner.click('#drawer [data-act=closeDrawer] >> nth=0');
 
@@ -427,11 +442,11 @@ async function openByName(p, name) {
   check(true, '"Use this visit in the chart note" saves the new note (encrypted like the rest)');
   // folded, the way the panel opens on a computer where nobody tapped Expand all: the IPR heading still sums up the visit
   await owner.click('#drawer [data-act=dsAll]');
-  check(await owner.evaluate(() => Array.from(document.querySelectorAll('#drawer .ds:not(.line)')).every(x => x.dataset.ds === 'ipr' ? x.classList.contains('open') : !x.classList.contains('open') && x.querySelector('.dsBd').hidden) && localStorage.getItem('nloCases.panelOpen') === null),
-    'Collapse all folds every section but the IPR chart, which stays open (Amir, 6 Oct 2026) — and forgets Expand all');
+  check(await owner.evaluate(() => Array.from(document.querySelectorAll('#drawer .ds:not(.line)')).every(x => x.dataset.ds === 'ipr' || x.dataset.ds === 'notes' ? x.classList.contains('open') : !x.classList.contains('open') && x.querySelector('.dsBd').hidden) && localStorage.getItem('nloCases.panelOpen') === null),
+    'Collapse all folds every section but the IPR chart and the Notes, which stay open (Amir, 6 and 7 Oct 2026) — and forgets Expand all');
   await owner.click('#drawer [data-act=closeDrawer] >> nth=0'); await openByName(owner, 'Ivy Pulltest');
   await owner.waitForFunction(() => /^Oct 1 visit · IPR 0\.1 mm · 0\.5 mm so far$/.test((document.querySelector('#dsS-ipr') || {}).textContent || ''), null, { timeout: 20000 }).catch(() => {});
-  check(await owner.evaluate(() => Array.from(document.querySelectorAll('#drawer .ds:not(.line)')).every(x => x.dataset.ds === 'ipr' || !x.classList.contains('open'))) && /^Oct 1 visit · IPR 0\.1 mm · 0\.5 mm so far$/.test(await owner.textContent('#dsS-ipr')), 'reopened folded; the IPR heading reads the newer visit from the IPR Tracker (' + await owner.textContent('#dsS-ipr') + ')');
+  check(await owner.evaluate(() => Array.from(document.querySelectorAll('#drawer .ds:not(.line)')).every(x => x.dataset.ds === 'ipr' || x.dataset.ds === 'notes' || !x.classList.contains('open'))) && /^Oct 1 visit · IPR 0\.1 mm · 0\.5 mm so far$/.test(await owner.textContent('#dsS-ipr')), 'reopened folded; the IPR heading reads the newer visit from the IPR Tracker (' + await owner.textContent('#dsS-ipr') + ')');
   await owner.waitForSelector('#iprBox .iprMap svg', { timeout: 10000 });
   check(await owner.isVisible('#iprBox .iprMap svg') && await owner.isVisible('#iprBox .stat:has-text("In the chart note")'), 'the IPR chart shows without tapping (it stays open), now in the chart note');
   await owner.click('#drawer [data-act=dsAll]'); // Expand all again for the rest of these tests
@@ -812,7 +827,7 @@ async function openByName(p, name) {
   check((await owner.getAttribute('#drawer .tt[data-tile=inbrace]', 'aria-checked')) === 'true' && (await owner.locator('#drawer .tt[data-tile]').count()) === (await owner.evaluate(() => TILES.filter(t => !t.legacy).length + 1)), 'an older InBrace case still edits as InBrace');
   await owner.fill('#drawer #cf-notes', 'legacy-edit-ok');
   await owner.click('[data-act=saveEdit]'); await owner.waitForSelector('#drawer .stepper', { timeout: 20000 });
-  check(await owner.isVisible('#drawer .dHd .badge:has-text("InBrace")') && await owner.isVisible('#drawer .txt:has-text("legacy-edit-ok")'), 'saving keeps it InBrace with the change');
+  check(await owner.isVisible('#drawer .dHd .badge:has-text("InBrace")') && await owner.isVisible('#drawer #notesList .cmt:has-text("legacy-edit-ok")'), 'saving keeps it InBrace with the change');
   await owner.click('#drawer [data-act=closeDrawer] >> nth=0');
   check((await owner.locator('select[data-f=type] option[value=inbrace]').count()) === 1, 'the filter offers InBrace while such a case is open');
 
@@ -827,7 +842,7 @@ async function openByName(p, name) {
   check((await owner.getAttribute('#drawer .pickRow[data-g=extras] .pick:has-text("Next Level Express")', 'aria-pressed')) === 'true', 'an older case keeps its Next Level Express choice when edited');
   await owner.fill('#drawer #cf-notes', 'express-edit-ok');
   await owner.click('[data-act=saveEdit]'); await owner.waitForSelector('#drawer .stepper', { timeout: 20000 });
-  check(await owner.isVisible('#drawer .badge:has-text("Next Level Express")') && await owner.isVisible('#drawer .txt:has-text("express-edit-ok")'), 'saving the edit doesn’t drop it');
+  check(await owner.isVisible('#drawer .badge:has-text("Next Level Express")') && await owner.isVisible('#drawer #notesList .cmt:has-text("express-edit-ok")'), 'saving the edit doesn’t drop it');
   await owner.click('#drawer [data-act=closeDrawer] >> nth=0');
 
   console.log('\n# Case types: company logos and pictures; Retreatment retired; Study models; retainers in 2 office days');
@@ -1196,7 +1211,7 @@ async function openByName(p, name) {
   check(/^Dr\. A · /.test(await gwen.textContent(RR + ' td.noteCol .nBy')), 'Gwen’s list shows Dr. A’s note “Sent to printing”, with his name');
   await gwen.click(RR); await gwen.waitForSelector('#drawer .dsList'); await gwen.click('#drawer [data-act=edit]'); await gwen.waitForSelector('#cf-notes');
   await gwen.fill('#cf-notes', 'Bag is on Sarah’s desk'); await gwen.click('[data-act=saveEdit]');
-  await gwen.waitForSelector('#drawer #dNoteBy:has-text("Gwen")', { timeout: 20000 });
+  await gwen.waitForSelector('#drawer #notesList [data-note="field"] .w:has-text("Gwen")', { timeout: 20000 });
   check(true, 'Gwen writes the Notes (Edit): the case says she wrote it');
   await gwen.click('#drawer [data-act=closeDrawer] >> nth=0');
   await owner.click('#nav-list'); await owner.fill('#q', 'Rory Refinewell');
@@ -1464,7 +1479,7 @@ async function openByName(p, name) {
         /lic-trim(?! live)/.test(labStepIcon(Object.assign(cs('trim'), { labOrd: o(6, 6, old) }), 15)) && !/live/.test(labStepIcon(Object.assign(cs('trim'), { labOrd: o(6, 6, old) }), 15)),
         labNowText(o(1, 0)), labNowText(o(6, 2)), labNowText(o(4, 2)), labNowText(o(6, 6)), labNowText(o(0, 0))]; });
     check(JSON.stringify(mv) === JSON.stringify([true, false, false, false, true, true, true, true, true, true, true,
-      '1 of 6 stickers printed', 'trimmed 2 of 6 · all stickers printed', 'trimmed 2 of 6 · 4 of 6 stickers printed', 'all 6 trimmed', 'in Ortho Factory, 6 aligners']),
+      '1 of 6 stickers printed', 'trimmed 2 of 6 · all stickers printed', 'trimmed 2 of 6 · 4 of 6 stickers printed', 'all 6 trimmed', 'STLs exported, 6 aligners']),
       'icons move only at the case’s own step (scissors at Trimming until all are trimmed, not for stickers printed at Ready to print; a Trim bar keeps the card to one pair), and the lab line says stickers (' + JSON.stringify(mv) + ')');
     await owner.click('#drawer [data-act=closeDrawer] >> nth=0'); await owner.fill('#q', '');
     // what the lab PC's login can do: add sealed messages and its check-in — not read a case

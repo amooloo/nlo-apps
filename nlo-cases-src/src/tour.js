@@ -44,7 +44,7 @@ function tourSteps(kind) {
     { id: 'open', need: onBoard, at: card, t: 'Open a case', b: 'Everything about the case is one tap away.', act: 'Tap your card.', done: () => !!TOUR.id && S.openId === TOUR.id },
     { id: 'panel', need: inCase, at: () => $('#drawer .dHd'), t: 'The case', b: 'Each section folds to one line: tap a heading to open it, or Expand all. The steps, Details, Edit and the patient’s photo are all here.' },
     { id: 'note', need: inCase, at: () => $('#drawer [data-ds=note] .dsHd'), t: 'Chart note', b: 'Copy (on its heading) puts the note on the clipboard, ready to paste into the patient’s chart. Open it to switch between the scan visit’s note and the delivery visit’s, each with what the patient was told.' },
-    { id: 'comments', need: inCase, at: () => $('#drawer [data-ds=comments] .dsHd'), t: 'Comments', b: 'Notes for the team about this case. Everyone sees them, with who wrote them and when.' },
+    { id: 'comments', need: inCase, at: () => $('#drawer [data-ds=notes] .dsHd'), t: 'Notes', b: 'Notes for the team about this case, with who wrote them and when. It stays open. Type @ and a name to tag someone: the note goes to their Messages.' },
     { id: 'close', at: () => $('#drawer [data-act=closeDrawer]'), t: 'Close it', b: 'Back to where you were.', act: 'Tap ✕ (or press Esc).', done: () => !S.openId },
     { id: 'list', at: () => tVis('#nav-list', '#mnav-list'), t: 'All open cases', b: 'Every open case in one table. My cases is the same list, just yours.', act: 'Tap All open cases.', done: () => S.view === 'list' },
     { id: 'search', need: onList, at: () => $('#q'), t: 'Search', b: 'Type part of a name, chart #, kind of case or step.', act: 'Search for your patient.',

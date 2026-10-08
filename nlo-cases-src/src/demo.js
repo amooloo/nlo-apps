@@ -145,6 +145,13 @@ const DEMO = {
     const now = Date.now();
     DEMO.mail.inbox.push({ id: 'mlab1', at: ago(2), done: [], mail: { lab: 1, v: 2, src: 'Lab PC', pc: 'LAB-PC', ver: '2.1', at: now, orders: ords.map(o => Object.assign(o, { at: now })) } });
     DEMO.mail.beats.push({ id: 'b3', box: 'Lab PC · LAB-PC', at: ago(2), seen: ords.length, sent: ords.length, err: '', ver: 'lab 2.1' });
+    // notes that tag the one practising (notes.js): two new in Messages and one already read, on open cases
+    const me = DEMO.me.staffId, tagged = Array.from(DEMO.cases.values()).filter(c => c.status === 'open').slice(2, 5);
+    [[0, 'gwen', 'Patient asked if the attachments can wait a week — @' + (me === 'amir' ? 'Dr. A' : 'Practice') + ' ok with that?', 35],
+     [1, 'sarah', '@' + (me === 'amir' ? 'Dr. A' : 'Practice') + ' the lab called: they need the bite registration again before Friday.', 180],
+     [2, 'angelika', 'Trimmed and polished. @' + (me === 'amir' ? 'Dr. A' : 'Practice') + ' one aligner has a thin edge, take a look at the delivery.', 26 * 60]].forEach(([i, by, text, min]) => {
+      const c = tagged[i]; if (c) c.comments = (c.comments || []).concat([{ id: 'dn' + i, at: Date.now() - min * 60e3, by, text, to: [me] }]); });
+    try { if (tagged[2]) localStorage.setItem('nloCases.msgRead.' + me, JSON.stringify([tagged[2].id + '/dn2'])); } catch (e) { }
   },
   /* patient photos (in memory) */
   photos: new Map(),

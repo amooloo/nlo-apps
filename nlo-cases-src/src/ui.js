@@ -267,7 +267,7 @@ function bindLockForms(mode) {
 /* ---------- enter / leave ---------- */
 function enterApp() {
   if (['work', 'admin', 'import'].includes(S.view) && !isOwner()) S.view = 'today'; // (Dr. A's pages, left open when someone else signs in after him)
-  S.inApp = true; S.cases = new Map(); S.closed = []; histReset(); S.firstLoad = true; S.lastAct = Date.now(); S.settingsLoaded = false; S.rulesLv = null; S.idxRan = false; S.noteVisit = new Map();
+  S.inApp = true; S.msgSince = Date.now(); S.cases = new Map(); S.closed = []; histReset(); S.firstLoad = true; S.lastAct = Date.now(); S.settingsLoaded = false; S.rulesLv = null; S.idxRan = false; S.noteVisit = new Map();
   $('#lockWrap').classList.add('hidden'); $('#app').classList.remove('hidden');
   renderShell(); renderView();
   S.h = {
@@ -278,6 +278,7 @@ function enterApp() {
       S.casesV = (S.casesV || 0) + 1; // (the open cases changed: possible duplicates are worked out again — dupes.js)
       const first = S.firstLoad; S.firstLoad = false; queueRender();
       if (first) setTimeout(mailSync, 300); // lab emails that came in while nobody had the app open
+      else msgWatch(); // a note tagging you, just now (notes.js)
       if (first) setTimeout(iprAutoSync, 1500); // the IPR Tracker, for every patient at once, when the link is still on in this tab
       else if (LABS.list.length && up.some(c => c.type === 'nla')) labSoon(); // a lab order waiting on Today may fit a case just added or changed (lab.js)
       if (S.openId && (up.some(c => c.id === S.openId) || gone.includes(S.openId))) { const rd = () => { if (S.openId) refreshDrawer(gone.includes(S.openId)); }; if (!afterPress(rd)) rd(); }
@@ -443,7 +444,7 @@ function queueRender(kind) {
   });
 }
 const NAV = [
-  ['today', 'Today', 'today'], ['board', 'Board', 'board'], ['list', 'All open cases', 'list'], ['mine', 'My cases', 'user'], ['done', 'Completed', 'done']
+  ['today', 'Today', 'today'], ['board', 'Board', 'board'], ['list', 'All open cases', 'list'], ['mine', 'My cases', 'user'], ['msgs', 'Messages', 'chat'], ['done', 'Completed', 'done']
 ];
 function renderShell() {
   const owner = isOwner();
@@ -465,7 +466,7 @@ function renderShell() {
 function renderNav() {
   const c = counts();
   const set = (k, n, red) => ['nav-', 'mnav-'].forEach(p => { const el = $('#' + p + k + ' .cnt'); if (!el) return; el.textContent = n; el.classList.toggle('hidden', !n); el.classList.toggle('red', !!red); });
-  set('today', c.over, true); set('list', c.all); set('mine', c.mine);
+  set('today', c.over, true); set('list', c.all); set('mine', c.mine); set('msgs', msgUnread(), true);
   $$('.navBtn[data-v]').forEach(b => b.classList.toggle('on', b.dataset.v === S.view));
 }
 function renderSync() {
@@ -475,7 +476,7 @@ function renderSync() {
   else if (B && B.pending) { cls = 'busy'; t = 'Saving…'; }
   el.innerHTML = '<span class="dot ' + cls + '"></span>' + t;
 }
-const TITLES = { today: 'Today', board: 'Board', list: 'All open cases', mine: 'My cases', done: 'Completed', work: 'Workload', admin: 'Team & security', import: 'Import & export', account: 'My account' };
+const TITLES = { today: 'Today', board: 'Board', list: 'All open cases', mine: 'My cases', msgs: 'Messages', done: 'Completed', work: 'Workload', admin: 'Team & security', import: 'Import & export', account: 'My account' };
 function topBar(extra) {
   return '<div class="topBar"><h2>' + esc(TITLES[S.view]) + '</h2>' +
     (['today', 'board', 'list', 'mine', 'done'].includes(S.view) ? '<label class="searchBox">' + ic('search', 17) + '<span class="hidden">Search</span><input id="q" type="search" placeholder="Search patient, type, stage…" value="' + esc(S.q) + '" aria-label="Search cases"></label>' : '<span style="flex:1"></span>') +
@@ -495,6 +496,7 @@ function renderView() {
   else if (S.view === 'list') h = viewList(listBase(), true);
   else if (S.view === 'mine') h = viewList(listBase(), false);
   else if (S.view === 'done') h = viewDone();
+  else if (S.view === 'msgs') h = viewMsgs();
   else if (S.view === 'work') h = isOwner() ? viewWork() : '';
   else if (S.view === 'admin') h = isOwner() ? viewAdmin() : '';
   else if (S.view === 'import') h = isOwner() ? viewImport() : '';
@@ -1267,7 +1269,7 @@ function noteByHTML(c) {
   const w = noteWho({ by: au.by }), when = au.at ? fmtWhen(au.at) : '';
   return '<div class="small muted nAuth" id="dNoteBy">' + (w || when ? '— ' + (w ? (au.by === 'asana' ? esc(w) : '<b>' + esc(w) + '</b>') : '') + (w && when ? ', ' : '') + esc(when) : '') + '</div>';
 }
-function noteByPaint() { const el = $('#dNoteBy'), c = el && S.openId && findCase(S.openId); if (c) el.outerHTML = noteByHTML(c); }
+function noteByPaint() { const c = S.openId && findCase(S.openId); if (!c) return; const el = $('#dNoteBy'); if (el) el.outerHTML = noteByHTML(c); if ($('#notesList')) notesPaint(c); }
 const LIST_COLS = [['type', 'Type'], ['stage', 'Stage'], ['notes', 'Notes'], ['lab', 'Lab date'], ['appt', 'Delivery appt'], ['tx', 'Tx progress'], ['cost', 'Tx cost'], ['ship', 'Shipping'], ['who', 'Assigned'], ['updated', 'Updated']];
 /* optional columns stay off until someone ticks them in Columns (Amir, 4 Oct 2026: "add an optional column for total cost per tx
    so far"); remembered on that computer as nloCases.shownCols. They don't count in "N hidden", and Show all leaves them be. */
@@ -1396,7 +1398,7 @@ function historyHTML(c) {
     if (x.a === 'create') t = 'created the case'; else if (x.a === 'import') t = 'imported it from Asana';
     else if (x.a === 'stage') t = 'moved it to ' + stageName(x.to) + ((x.fields || []).length ? ' (and set ' + Array.from(new Set(x.fields.map(f => FIELD_LABELS[f] || f))).join(', ') + ')' : '') + shipped(x) + (x.via === 'lab' ? ', as the lab PC suggested' : '');
     else if (x.a === 'lab') t = labHistText(x);
-    else if (x.a === 'comment') t = 'added a comment';
+    else if (x.a === 'comment') t = 'added a note' + (Array.isArray(x.tag) && x.tag.length ? ' for ' + x.tag.map(s => (staff(s) && staff(s).role === 'owner') ? 'Dr. A' : firstName(staffName(s, s))).join(', ') : '');
     else if (x.a === 'close') t = 'marked it complete'; else if (x.a === 'reopen') t = 'reopened it';
     else if (x.a === 'assign') t = x.to ? 'assigned it to ' + staffName(x.to, x.to) : 'unassigned it';
     else if (x.a === 'edit') t = 'changed ' + Array.from(new Set((x.fields || []).filter(f => f !== 'instructions').map(f => FIELD_LABELS[f] || f))).join(', ') + shipped(x);
@@ -1436,7 +1438,7 @@ function renderDrawer() {
       (isOwner() ? '<p class="small" style="margin-bottom:12px">Every earlier version is kept. Pick the last good one to restore it.</p><button class="btn btn-pri" data-act="versions">' + ic('clock', 16) + 'Restore a saved version</button>' : '<p class="small">Ask Dr. A — he can restore it from its saved versions.</p>') + '</div>';
     return;
   }
-  const keepCmt = $('#cmtText') ? $('#cmtText').value : ''; const hadFocus = document.activeElement && document.activeElement.id === 'cmtText';
+  const ct0 = $('#cmtText'), keepCmt = ct0 ? ct0.value : '', hadFocus = !!ct0 && document.activeElement === ct0, keepSel = hadFocus ? [ct0.selectionStart, ct0.selectionEnd] : null;
   const wKeep = wtyKeep(); // (the Specialty invoice date being typed: warranty.js)
   // a live update redraws the panel: keep it where it was scrolled to (same case, not coming back from Edit)
   const bd0 = $('.dBd', d), keepTop = bd0 && d.dataset.for === c.id && d.dataset.mode === 'view' ? bd0.scrollTop : 0;
@@ -1445,7 +1447,6 @@ function renderDrawer() {
   const txt = v => '<div class="txt">' + esc(v) + '</div>';
   const oneLine = v => esc(String(v || '').trim().replace(/\s*\n+\s*/g, ' · ')); // a section's text on its folded heading
   const cc = ccShown(c), ccNone = cc === 'None'; // (an older note like "This is initial" isn't a concern: not shown)
-  const cmts = c.comments || [], lastC = cmts[cmts.length - 1];
   const who = c.assignee ? firstName(staffName(c.assignee, '')) || '—' : c.assigneeName ? c.assigneeName + ' (Asana)' : '';
   const nAl = alN(c), one = oneArch(c), hasTeeth = !!(c.teeth && Object.keys(c.teeth).length);
   const marks = stageMarks(c); // when each step was reached, and by whom (from the case's history, once it's loaded)
@@ -1515,10 +1516,9 @@ function renderDrawer() {
     (hasTeeth ? dsec('teeth', 'Tooth chart', oneLine(teethSummary(c.teeth)), '<div class="tc ro">' + toothChartHTML(c.teeth, true) + '</div><div class="txt" style="margin-top:8px">' + esc(teethSummary(c.teeth)) + '</div>') : '') +
     // one IPR section: the IPR Tracker's chart for this chart # (the typed "IPR & spacing" and "From the IPR Tracker" were the same thing twice)
     (iprLive(c) || String(c.ipr || '').trim() ? dsec('ipr', 'IPR & spacing', iprSumHTML(c), '<div id="iprBox">' + iprBoxHTML(c) + '</div>', '', iprPinned(c)) : '') +
-    (c.notes ? dsec('notes', 'Notes', oneLine(c.notes), txt(c.notes) + noteByHTML(c)) : '') + // (and who wrote it, 5 Oct 2026)
-    dsec('comments', 'Comments', lastC ? (cmts.length > 1 ? cmts.length + ' · ' : '') + '<b>' + esc(firstName(staffName(lastC.by, lastC.by))) + ':</b> ' + esc(String(lastC.text || '').replace(/\s+/g, ' ')) : '<span class="muted">None yet</span>',
-      (cmts.map(x => '<div class="cmt"><span class="av" data-sav="' + esc(x.by || '') + '">' + esc(initials(staffName(x.by, x.by))) + '</span><div><div class="w"><b>' + esc(firstName(staffName(x.by, x.by))) + '</b> · ' + esc(fmtWhen(x.at)) + '</div><div style="white-space:pre-wrap;overflow-wrap:anywhere">' + esc(x.text) + '</div></div></div>').join('') || '<div class="small muted" style="margin-bottom:6px">No comments yet.</div>') +
-      (done ? '' : '<div class="field" style="margin-top:8px;margin-bottom:6px"><label for="cmtText" class="hidden">Add a comment</label><textarea id="cmtText" rows="2" placeholder="Add a comment…"></textarea></div><button class="btn btn-sec btn-sm" data-act="addCmt">Add comment</button>')) +
+    // Notes: the Notes typed in the case form and every note added here, in one list that stays open even when the panel is
+    // folded, with the box to add one and tag someone with @ (Amir, 7 Oct 2026 — notes.js)
+    dsec('notes', 'Notes', notesSumHTML(c), notesBodyHTML(c, done), '', true) +
     // the chart note: further down and folded (Amir, 3 Oct 2026); Copy works without opening it. The scan visit's note or the
     // delivery visit's (5 Oct 2026), the heading says which one Copy copies
     dsec('note', 'Chart note', noteSumHTML(c), noteBodyHTML(c),
@@ -1533,7 +1533,8 @@ function renderDrawer() {
     // a case entered twice: anyone can take the extra one out (dupes.js)
     '<span class="dFtR"><button class="btn btn-ghost" data-act="dupRemove" title="This case was entered twice: take this one out and keep the other">' + ic('copy', 16) + 'Remove duplicate</button>' +
     (isOwner() ? '<button class="btn btn-ghost" data-act="versions">' + ic('clock', 16) + 'Versions</button><button class="btn btn-ghost" data-act="delCase" style="color:var(--coral-700)">' + ic('trash', 16) + 'Delete</button>' : '') + '</span></div>';
-  const t = $('#cmtText'); if (t) { t.value = keepCmt; if (hadFocus) t.focus(); }
+  const t = $('#cmtText'); if (t) { t.value = keepCmt; if (hadFocus) { t.focus(); if (keepSel) try { t.setSelectionRange(keepSel[0], keepSel[1]); } catch (e) { } mtUpdate(t); } } // (an @ list open as it redrew stays open)
+  notesSeen(c); // (a note tagging you, now on screen, is read — notes.js)
   wtyRestore(wKeep);
   if (keepTop) $('.dBd', d).scrollTop = keepTop;
   dsAllSync(); phPaint(); savPaint(d); phWireDrawer(d); picPaint(d);
@@ -2090,8 +2091,11 @@ function onClick(e) {
     case 'assignTo': { const to = t.dataset.v || '', id = S.openId, c = findCase(id); if (!c || (c.assignee || '') === to) break;
       $$('#drawer .dAssign .aTile').forEach(b => b.setAttribute('aria-pressed', String(b === t)));
       act(() => B.mutateCase(id, d => { d.assignee = to; if (to) d.assigneeName = ''; }, { a: 'assign', to }), to ? 'Assigned to ' + staffName(to) : 'Unassigned'); break; }
-    case 'addCmt': { const txt = ($('#cmtText').value || '').trim(); if (!txt) return; const cid = S.openId;
-      $('#cmtText').value = ''; act(() => B.mutateCase(cid, d => { d.comments = (d.comments || []).concat([{ id: uid8(), at: Date.now(), by: meSid(), text: txt }]); }, { a: 'comment' })); break; }
+    case 'addCmt': { const ta = $('#cmtText'), txt = ((ta && ta.value) || '').trim(); if (!txt) return; const cid = S.openId, to = noteTagsOf(txt);
+      ta.value = ''; mtClose(); act(() => B.mutateCase(cid, d => { d.comments = (d.comments || []).concat([Object.assign({ id: uid8(), at: Date.now(), by: meSid(), text: txt }, to.length ? { to } : {})]); }, Object.assign({ a: 'comment' }, to.length ? { tag: to } : {}))); break; }
+    case 'notesAll': { const c = findCase(S.openId); if (!c) break; (S.notesAll = S.notesAll || {})[c.id] = true; notesPaint(c); notesSeen(c); break; }
+    case 'msgOpen': msgOpen(id, t.dataset.n); break;
+    case 'msgAllRead': msgMarkRead(msgList().map(m => m.k)); renderNav(); renderView(); break;
     // (a lab saved under its old name counts as its new name, so opening Edit doesn't look like a change)
     case 'edit': { const c = findCase(S.openId); S.editBase = JSON.parse(JSON.stringify(c)); if (S.editBase.lab) S.editBase.lab = labName(S.editBase.lab); S.editing = true; S.editWiz = null; renderDrawer(); break; }
     case 'cancelEdit': S.editing = false; S.editWiz = null; renderDrawer(); break;

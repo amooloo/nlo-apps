@@ -23,7 +23,7 @@ const LAB_STEPS = [
   { k: 'atTrimmer', l: 'Sticker printed', to: 'trim', first: true, why: 'the first stickers are printed' },
   { k: 'trimmed', l: 'Trimmed', to: 'polish', why: 'every aligner is trimmed' }
 ];
-const LAB_ORDER_STEP = { to: 'send', why: 'the order is in Ortho Factory' }; // the export arrived: Ready to print
+const LAB_ORDER_STEP = { to: 'send', why: 'the STLs are exported' }; // the export arrived: Ready to print (Amir, 7 Oct 2026: say "STLs exported", not "in Ortho Factory")
 function labBeat(b) { return /^lab pc/i.test(String((b && b.box) || '')); }
 function labBot(x) { return String((x && x.email) || '').indexOf(LAB_BOT) === 0; }
 
@@ -239,13 +239,13 @@ function labHistText(x) {
 /* ---------- what the case shows ---------- */
 /* "1 of 6 stickers printed", "all stickers printed" — how many aligners have their sticker (trimmed ones included) */
 function labStickText(at, n) { return at >= n ? 'all stickers printed' : at + ' of ' + n + ' sticker' + (n === 1 ? '' : 's') + ' printed'; }
-/* "1 of 6 stickers printed", "trimmed 5 of 18 · all stickers printed", "all 18 trimmed", "in Ortho Factory, 18 aligners" —
+/* "1 of 6 stickers printed", "trimmed 5 of 18 · all stickers printed", "all 18 trimmed", "STLs exported, 18 aligners" —
    where the set is in the lab */
 function labNowText(o) {
-  const a = (o && o.a) || {}, n = a.n || 0; if (!n) return 'in Ortho Factory';
+  const a = (o && o.a) || {}, n = a.n || 0; if (!n) return 'STLs exported';
   const tr = a.trimmed || 0, at = Math.max(a.atTrimmer || 0, tr);
   if (tr >= n) return 'all ' + n + ' trimmed';
-  if (!at) return 'in Ortho Factory, ' + n + ' aligner' + (n === 1 ? '' : 's');
+  if (!at) return 'STLs exported, ' + n + ' aligner' + (n === 1 ? '' : 's');
   if (!tr) return labStickText(at, n);
   return 'trimmed ' + tr + ' of ' + n + (at > tr ? ' · ' + labStickText(at, n) : '');
 }
@@ -368,7 +368,7 @@ function labCardHTML(c) {
   const o = c.labOrd; if (!o || !o.key || c.type !== 'nla' || c.status === 'done') return '';
   const a = o.a || {}, n = a.n || 0, any = n && ((a.atTrimmer || 0) > 0 || (a.trimmed || 0) > 0);
   return '<div class="labLn" title="' + esc('Ortho Factory order ' + o.key + ' · ' + labNowText(o) + (labWhen(o) ? ' · ' + labWhen(o) : '')) + '">' +
-    (any ? '' : ic('lab', 13)) + '<div class="labB">' + (any ? labMetersHTML(o, c) : '<span class="t">In Ortho Factory</span>') + labGoHTML(c, true) + '</div></div>';
+    (any ? '' : ic('lab', 13)) + '<div class="labB">' + (any ? labMetersHTML(o, c) : '<span class="t">STLs exported</span>') + labGoHTML(c, true) + '</div></div>';
 }
 /* "upper trimmed · lower thermoformed" (each arch's templates as far as the furthest behind of them), else from the counts */
 function labTemplText(o) {
@@ -386,7 +386,7 @@ function labBoxHTML(c) {
     return '<div class="labRow' + (done ? ' done' : v ? ' on' : '') + '">' + labIcon(r.k, !done && lv[r.k], 18) + '<span class="l">' + esc(r.l) + (more ? '<small>' + esc(more) + '</small>' : '') + '</span>' +
       labBar(v, a[r.q] || 0, n) + '<span class="v"><b>' + v + '</b> of ' + n + '</span></div>'; };
   const t = o.t || {}, ord = labOrderedMs(o), done = c.status === 'done';
-  return '<div class="labBox">' + (any ? LAB_ROWS.map(row).join('') + labGridHTML(o) : '<div class="small">In Ortho Factory, no stickers printed yet' + (n ? ' (' + n + ' aligner' + (n === 1 ? '' : 's') + ')' : '') + '.</div>') +
+  return '<div class="labBox">' + (any ? LAB_ROWS.map(row).join('') + labGridHTML(o) : '<div class="small">STLs exported, no stickers printed yet' + (n ? ' (' + n + ' aligner' + (n === 1 ? '' : 's') + ')' : '') + '.</div>') +
     '<div class="small muted labT">Printing shows here once the Formlabs print feed is connected.</div>' +
     (t.n ? '<div class="small muted labT">Attachment templates: ' + esc(labTemplText(o)) + '</div>' : '') +
     '<div class="small muted labMeta">Ortho Factory order <b>' + esc(o.key) + '</b>' + (ord ? ' · exported ' + esc(fmtWhen(ord)) : '') + (o.au ? ' · U ' + o.au : '') + (o.al ? ' · L ' + o.al : '') +

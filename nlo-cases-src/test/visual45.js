@@ -31,7 +31,7 @@ const OUT = process.argv[2] || 'shots';
   console.log('\n# Dr. A writes "Sent to printing" on a patient');
   const pt = await p.evaluate(() => openCases().find(c => c.type === 'retainer' && c.stage === 'print' && !(c.comments || []).length));
   await p.evaluate(id => openDrawer(id), pt.id); await p.waitForSelector('#drawer .dsList');
-  if (!(await p.isVisible('#cmtText'))) await p.click('#drawer .ds[data-ds=comments] .dsTg');
+  if (!(await p.isVisible('#cmtText'))) await p.click('#drawer .ds[data-ds=notes] .dsTg'); // (Notes stays open — 7 Oct 2026)
   await p.fill('#cmtText', 'Sent to printing'); await p.click('[data-act=addCmt]');
   await p.waitForSelector('#drawer .cmt:has-text("Sent to printing")', { timeout: 5000 }).catch(() => {});
   await p.evaluate(() => closeDrawer()); await list();
@@ -47,8 +47,10 @@ const OUT = process.argv[2] || 'shots';
   await p.waitForSelector('#drawer .ds[data-ds=notes]', { timeout: 5000 }).catch(() => {});
   const saved = await p.evaluate(id => { const c = findCase(id); return { by: c.notesBy, at: c.notesAt > Date.now() - 60e3, h: c.notesH === noteHash(c.notes) }; }, pt.id);
   check(saved.by === 'amir' && saved.at && saved.h, 'saving the Notes records who wrote it and when');
-  if (!(await p.evaluate(() => document.querySelector('#drawer .ds[data-ds=notes]').classList.contains('open')))) await p.click('#drawer .ds[data-ds=notes] .dsTg');
-  check(/^— Dr\. A, \w{3} \d+, /.test(await p.textContent('#dNoteBy')), 'the case’s Notes section says who wrote it (' + (await p.textContent('#dNoteBy')) + ')');
+  // (7 Oct 2026: the case form's Notes is the first note of the one Notes list, which stays open)
+  await p.waitForSelector('#notesList [data-note="field"]', { timeout: 5000 }).catch(() => {});
+  const fw = await p.textContent('#notesList [data-note="field"] .w').catch(() => '');
+  check(/^Dr\. A · \w{3} \d+, /.test(fw), 'the Notes list shows the case form’s note with who wrote it (' + fw + ')');
   await p.evaluate(() => closeDrawer()); await list();
   c1 = await cell(pt.id);
   check(c1.t === 'Patient will pick up Thursday' && /^Dr\. A · /.test(c1.by), 'the newer of the two shows: the Notes, written after the comment');
