@@ -1629,16 +1629,18 @@ body.phHide .pnm:not(:hover)::after{content:attr(data-s)}
 .ds.open .dsHd .labGo{display:none} /* (open: the same button is in the section) */
 @media (pointer:coarse){ .labGo.sm{min-height:32px;padding:4px 11px 4px 6px} }
 .labBox{display:flex;flex-direction:column;gap:7px}
-.labRow{display:grid;grid-template-columns:18px minmax(104px,150px) 1fr auto;align-items:center;gap:10px;font-size:12.5px;color:var(--grey-700)}
-.labRow .l{display:flex;flex-direction:column;line-height:1.25}
-.labRow .l small{font-size:11px;color:var(--grey-500);font-weight:500}
-.labRow .bar{display:flex;height:8px;border-radius:4px;background:var(--grey-100);overflow:hidden}
-.labRow .bar i{display:block;height:100%;background:var(--mint-600)}
-.labRow .bar i.q{background:var(--mint-200)}
-.labRow.done .l{color:var(--mint-700);font-weight:600}
-.labRow.done .bar i{background:var(--mint-700)}
-.labRow .v{font-variant-numeric:tabular-nums;min-width:54px;text-align:right;color:var(--grey-600)}
-.labRow .v b{color:var(--navy)}
+/* (the lab PC's progress rows were .labRow — the Lab picker's name in the case form — and the picker took their grid:
+   Specialty squeezed out, Next Level stretched; Amir, 8 Oct 2026) */
+.labPr{display:grid;grid-template-columns:18px minmax(104px,150px) 1fr auto;align-items:center;gap:10px;font-size:12.5px;color:var(--grey-700)}
+.labPr .l{display:flex;flex-direction:column;line-height:1.25}
+.labPr .l small{font-size:11px;color:var(--grey-500);font-weight:500}
+.labPr .bar{display:flex;height:8px;border-radius:4px;background:var(--grey-100);overflow:hidden}
+.labPr .bar i{display:block;height:100%;background:var(--mint-600)}
+.labPr .bar i.q{background:var(--mint-200)}
+.labPr.done .l{color:var(--mint-700);font-weight:600}
+.labPr.done .bar i{background:var(--mint-700)}
+.labPr .v{font-variant-numeric:tabular-nums;min-width:54px;text-align:right;color:var(--grey-600)}
+.labPr .v b{color:var(--navy)}
 /* each aligner of the set by its number, coloured by its step (lab.js labGridHTML) */
 .labGrid{display:flex;flex-direction:column;gap:6px;margin-top:4px;padding-top:9px;border-top:1px solid var(--grey-100)}
 .labGr{display:grid;grid-template-columns:42px 1fr;gap:8px;align-items:start}
