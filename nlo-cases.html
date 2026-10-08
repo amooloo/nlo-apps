@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-mC7K8Xxcl5PL2RmwfujEC5CmP23ydEr6PRd4h0DcPa4=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-5x1gB0GhIMvr1fsYcA8XfvLyxSHHNTN8U5iGB4PesmQ=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO Cases</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -325,6 +325,40 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
 .cmt:last-child{border-bottom:none}
 .cmt .w{font-size:12px;color:var(--grey-500)}
 .cmt .w b{color:var(--navy)}
+/* Notes: one list on the case, tags with @, and Messages (notes.js, Amir 7 Oct 2026) */
+.cmtB{min-width:0;flex:1}
+.nTx{white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;color:var(--grey-700)}
+.mt{color:var(--blue-500);font-weight:700}
+.cmt.toMe .nTx{color:var(--navy)}
+.cmt.flash{animation:noteFlash 2.6s var(--ease)}
+@keyframes noteFlash{0%,35%{background:var(--mint-100);box-shadow:0 0 0 6px var(--mint-100)}100%{background:transparent;box-shadow:0 0 0 6px transparent}}
+.notesMore{display:block;font-size:12.5px;margin:2px 0 4px}
+.notesNone{margin-bottom:6px}
+.field.noteNew{position:relative;margin:8px 0 6px}
+.mtList{position:absolute;left:0;right:0;top:100%;z-index:40;margin-top:4px;background:#fff;border:1px solid var(--grey-200);border-radius:12px;box-shadow:var(--sh-md);padding:4px;max-height:248px;overflow:auto}
+.mtList[hidden]{display:none}
+.mtOpt{display:flex;align-items:center;gap:9px;width:100%;min-height:38px;padding:5px 9px;border-radius:8px;font-size:13px;color:var(--grey-700);text-align:left}
+.mtOpt .av{width:26px;height:26px;font-size:10px}
+.mtOpt b{color:var(--navy);font-weight:700}
+.mtOpt small{margin-left:auto;color:var(--grey-500);font-size:11.5px}
+.mtOpt[aria-selected="true"]{background:var(--blue-100)}
+@media (hover:hover){ .mtOpt:hover{background:var(--grey-50)} .mtOpt[aria-selected="true"]:hover{background:var(--blue-100)} }
+.noteBtns{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:6px 0 4px}
+.msgList{display:flex;flex-direction:column;gap:2px;padding-top:6px}
+.msgRow{display:flex;align-items:flex-start;gap:12px;width:100%;padding:12px 12px;border-radius:12px;text-align:left;transition:background .15s var(--ease)}
+@media (hover:hover){ .msgRow:hover{background:var(--grey-50)} }
+.msgRow.new{background:var(--blue-100)}
+@media (hover:hover){ .msgRow.new:hover{background:#DCE3F6} }
+.msgMain{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
+.msgTop{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.msgPt{color:var(--navy);font-size:14px}
+.msgWhen{margin-left:auto;font-size:12px;color:var(--grey-500);white-space:nowrap}
+.msgTx{font-size:13px;color:var(--grey-700);white-space:pre-wrap;overflow-wrap:anywhere}
+.msgTx>b{color:var(--navy)}
+.msgDot{width:9px;height:9px;border-radius:50%;background:var(--coral-600);flex:none;margin-top:7px}
+.msgEmpty{text-align:center;padding:26px 12px;color:var(--grey-500)}
+.msgEmpty p{margin:8px 0 0}
+@media (prefers-reduced-motion:reduce){ .cmt.flash{animation:none;background:var(--mint-100)} .msgRow{transition:none} }
 .hist{font-size:12.5px;color:var(--grey-600);padding:5px 0;display:flex;gap:8px}
 .hist time{color:var(--grey-400);white-space:nowrap;font-size:11.5px;min-width:96px}
 .notice{background:var(--amber-100);color:var(--amber-700);border-radius:10px;padding:9px 12px;font-size:12.5px;font-weight:600;margin-bottom:12px}
@@ -892,7 +926,7 @@ body.phOff .pav,body.phOff .dPh,body.phOff .phSlot,body.phOff .mlPh{display:none
 .iprMsg,.iprNone{margin-bottom:8px}
 /* the IPR chart (Amir, 6 Oct 2026: "make the diagram look nicer"): one chart, a switch for this visit / so far, a key */
 .iprMap{border:1px solid var(--grey-100);border-radius:16px;padding:12px 12px 8px;margin-bottom:10px;background:#fff}
-.iprMapHd{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;margin:0 2px 6px}
+.iprMapHd{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;margin:0 2px 6px}
 .iprSeg{display:inline-flex;flex-wrap:wrap;background:var(--grey-50);border:1px solid var(--grey-100);border-radius:999px;padding:3px;gap:2px}
 .iprSegB{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:4px 13px;border-radius:999px;font-size:12.5px;color:var(--grey-500);white-space:nowrap;transition:background .15s var(--ease),color .15s var(--ease)}
 .iprSegB i{width:9px;height:9px;border-radius:50%;flex:none;opacity:.45}
@@ -901,23 +935,15 @@ body.phOff .pav,body.phOff .dPh,body.phOff .phSlot,body.phOff .mlPh{display:none
 .iprSegB[aria-pressed="true"]{background:#fff;box-shadow:var(--sh-xs);color:var(--navy)}
 .iprSegB[aria-pressed="true"] i{opacity:1}
 @media (hover:hover){ .iprSegB[aria-pressed="false"]:hover{color:var(--navy)} }
-.iprTogs{display:inline-flex;flex-wrap:wrap;gap:6px}
 .iprTog{display:inline-flex;align-items:center;gap:7px;min-height:32px;padding:4px 12px 4px 9px;border:1px solid var(--grey-200);border-radius:999px;background:#fff;font-size:12.5px;color:var(--grey-700);white-space:nowrap;transition:background .15s var(--ease),border-color .15s var(--ease),color .15s var(--ease)}
 .iprTog b{color:var(--navy);font-weight:700;font-variant-numeric:tabular-nums}
 .iprTog .sw{flex:none;display:inline-block;width:14px;height:14px;border-radius:50%;border:2px solid var(--sw,var(--navy));background:var(--sw,var(--navy))}
-.iprTog .sw.sp{--sw:var(--mint-600);width:18px;border-radius:6px}
 .iprTog .sw.bt{width:0;height:0;border-radius:0;border-width:9px 6px 0;border-style:solid;border-color:var(--navy-900) transparent transparent;background:none}
 .iprTog[aria-pressed="false"]{background:var(--grey-50);border-style:dashed;color:var(--grey-400)}
 .iprTog[aria-pressed="false"] b{color:var(--grey-400)}
 .iprTog[aria-pressed="false"] .sw{background:none}
 .iprTog[aria-pressed="false"] .sw.bt{border-top-color:var(--grey-300)}
 @media (hover:hover){ .iprTog:hover{border-color:var(--grey-400)} }
-.iprSegB:disabled{opacity:.45;cursor:default}
-.iprKey{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--grey-600);white-space:nowrap}
-.iprKey b{color:var(--navy);font-weight:700;font-variant-numeric:tabular-nums}
-.iprKey i{width:9px;height:9px;border-radius:50%;flex:none}
-.iprKey i.sp{width:16px;border-radius:5px;background:var(--mint)}
-.iprKey i.btI{width:0;height:0;border-radius:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:8px solid var(--navy-900)}
 .iprSvg{display:block;width:100%;height:auto;max-width:620px;margin:0 auto}
 .iprSvg .gum{fill:var(--coral-100)}
 .iprSvg .crown{stroke:#A9B3C0;stroke-width:1;stroke-linejoin:round}
@@ -926,10 +952,8 @@ body.phOff .pav,body.phOff .dPh,body.phOff .phSlot,body.phOff .mlPh{display:none
 .iprSvg .mid{stroke:var(--grey-300);stroke-width:.9;stroke-dasharray:3 3}
 .iprSvg .bdg rect{fill:var(--bdg);stroke:#fff;stroke-width:2;paint-order:stroke}
 .iprSvg .bdg text{font-family:var(--fb);font-size:11px;font-weight:700;fill:#fff;text-anchor:middle;dominant-baseline:central;font-variant-numeric:tabular-nums}
-.iprSvg .bdg.sp rect{fill:var(--mint)}
 .iprSvg .lead line{stroke:var(--bdg);stroke-width:1.3}
 .iprSvg .lead circle{fill:var(--bdg);stroke:#fff;stroke-width:1.2}
-.iprSvg .bdg.sp text{fill:var(--navy-900)}
 .iprSvg .bt{fill:var(--navy-900)}
 .iprMapFt{display:flex;justify-content:center;gap:22px;font-size:12px;color:var(--grey-500);margin-top:2px}
 .iprMapFt b{color:var(--navy);font-weight:700;font-variant-numeric:tabular-nums}
@@ -3186,6 +3210,13 @@ const DEMO = {
     const now = Date.now();
     DEMO.mail.inbox.push({ id: 'mlab1', at: ago(2), done: [], mail: { lab: 1, v: 2, src: 'Lab PC', pc: 'LAB-PC', ver: '2.1', at: now, orders: ords.map(o => Object.assign(o, { at: now })) } });
     DEMO.mail.beats.push({ id: 'b3', box: 'Lab PC · LAB-PC', at: ago(2), seen: ords.length, sent: ords.length, err: '', ver: 'lab 2.1' });
+    // notes that tag the one practising (notes.js): two new in Messages and one already read, on open cases
+    const me = DEMO.me.staffId, tagged = Array.from(DEMO.cases.values()).filter(c => c.status === 'open').slice(2, 5);
+    [[0, 'gwen', 'Patient asked if the attachments can wait a week — @' + (me === 'amir' ? 'Dr. A' : 'Practice') + ' ok with that?', 35],
+     [1, 'sarah', '@' + (me === 'amir' ? 'Dr. A' : 'Practice') + ' the lab called: they need the bite registration again before Friday.', 180],
+     [2, 'angelika', 'Trimmed and polished. @' + (me === 'amir' ? 'Dr. A' : 'Practice') + ' one aligner has a thin edge, take a look at the delivery.', 26 * 60]].forEach(([i, by, text, min]) => {
+      const c = tagged[i]; if (c) c.comments = (c.comments || []).concat([{ id: 'dn' + i, at: Date.now() - min * 60e3, by, text, to: [me] }]); });
+    try { if (tagged[2]) localStorage.setItem('nloCases.msgRead.' + me, JSON.stringify([tagged[2].id + '/dn2'])); } catch (e) { }
   },
   /* patient photos (in memory) */
   photos: new Map(),
@@ -3493,10 +3524,12 @@ function iprNoteFromVisits(visits) {
    Amir, 3 Oct 2026: instead of the written IPR note, "a diagram … with lines and where the spacing is and black triangles".
    Amir, 6 Oct 2026: "make the diagram look nicer" — and it stays open even when the rest of the case is folded (ui.js).
    One chart instead of three stacked ones: both arches as seen from the front (upper teeth hang from the gums, lower teeth
-   stand on theirs, in their real proportions), the IPR amount sitting right on each contact, the spaces in the bite gap
-   between the arches, ▼ at a black triangle. A switch picks which IPR it shows — this visit or all visits so far; the
-   switch carries both totals, so nothing is hidden behind it. Plain SVG markup (numbers and fixed labels only). */
-const IPR_COL = { visit: '#1B2F4C', cum: '#2E52C9', space: '#64F4C9', bt: '#11203A' }; // navy, blue-500, mint, navy-900
+   stand on theirs, in their real proportions), each amount outside its arch with a line to its contact, ▼ at a black triangle.
+   Amir, 7 Oct 2026 (he picked "A" of three): IPR in red, and "IPR and spaces as 2 sides of a same toggle" — one switch picks what
+   the amounts are: IPR this visit, IPR so far, or the spaces (drawn the same way, in blue); the switch carries every total, so
+   nothing is hidden behind it. It opens on the spaces, with the black triangles, "because that's what's useful for tx planning".
+   Plain SVG markup (numbers and fixed labels only). */
+const IPR_COL = { visit: '#D92D20', cum: '#9B1C1C', sp: '#0369A1', bt: '#11203A' }; // red, dark red, blue, navy-900
 /* crown sizes in mm (mesiodistal width, crown height) and shape, by tooth number — an average adult's */
 const IPR_CROWN = {
   U: { 1: [8.6, 10.6, 'inc'], 2: [6.6, 9.0, 'inc'], 3: [7.6, 10.0, 'can'], 4: [7.0, 8.4, 'pm'], 5: [6.6, 7.8, 'pm'], 6: [10.0, 7.4, 'mol'], 7: [9.0, 7.0, 'mol'] },
@@ -3517,11 +3550,11 @@ function iprCrownPath(w, h, kind) {
   return s + ' C' + X(.02) + ',' + Y(.9) + ' 0,' + Y(.8) + ' 0,' + Y(.6) + ' C0,' + Y(.42) + ' ' + r(n * .25) + ',' + Y(.28) + ' ' + r(n) + ',' + Y(.12) + 'Z';
 }
 let IPR_SEQ = 0; // a fresh id for each chart's gradient
-/* both arches with one IPR layer (`ipr`: {upper, lower} contacts → mm, coloured `col`), the spaces and the black triangles.
-   Each tooth's number sits on the tooth, on one straight row per arch; each IPR amount sits outside its arch with a line to its
-   contact (Amir, 6 Oct 2026: "numbers of the teeth on the teeth and then lines connecting the values to the interproximal") —
-   amounts too close to fit side by side go one row further out. Spaces sit in the bite between the arches, at their contact. */
-function iprMapSVG(ipr, d, col, label) {
+/* both arches with one layer of amounts (`ipr`: {upper, lower} contacts → mm — this visit's IPR, IPR so far, or the spaces;
+   `kind` 'ipr' or 'sp'), coloured `col`, and the black triangles of `d`. Each tooth's number sits on the tooth, on one straight
+   row per arch; each amount sits outside its arch with a line to its contact (Amir, 6 Oct 2026: "numbers of the teeth on the
+   teeth and then lines connecting the values to the interproximal") — amounts too close to fit side by side go one row further out. */
+function iprMapSVG(ipr, d, col, label, kind) {
   const NUMS = [7, 6, 5, 4, 3, 2, 1, 1, 2, 3, 4, 5, 6, 7], MM = 4.2, GAPX = 1.2, PADX = 18, ROW = 19, BH = 16;
   const r = v => Math.round(v * 100) / 100, gid = 'iprG' + (++IPR_SEQ);
   const row = a => { const out = []; let x = 0; NUMS.forEach((t, i) => { const [w, h, kind] = IPR_CROWN[a][t]; out.push({ t, x, w: w * MM, h: h * MM, kind }); x += w * MM + (i < 13 ? GAPX : 0); }); return { teeth: out, w: x }; };
@@ -3558,65 +3591,60 @@ function iprMapSVG(ipr, d, col, label) {
   }).join('');
   s += teeth(U, ux, true) + teeth(L, lx, false);
   const pill = (cx, cy, txt, cls, w) => '<g class="bdg ' + cls + '"><rect x="' + r(cx - w / 2) + '" y="' + r(cy - BH / 2) + '" width="' + r(w) + '" height="' + BH + '" rx="' + BH / 2 + '"/><text x="' + cx + '" y="' + r(cy + .5) + '">' + txt + '</text></g>';
-  // IPR: the amount out past the gums, a line to the contact, a dot on it
+  // each amount (IPR or a space) out past the gums, a line to the contact, a dot on it
   const amounts = (P, upper) => P.list.map(b => {
     const cy = upper ? TOP - 11 - b.rr * ROW : GUM_L + 32 + 11 + b.rr * ROW, y1 = upper ? cy + BH / 2 : cy - BH / 2, y2 = upper ? CT_U : CT_L;
-    return '<g class="lead"><line x1="' + b.cx + '" y1="' + r(y1) + '" x2="' + b.cx + '" y2="' + r(y2) + '"/><circle cx="' + b.cx + '" cy="' + r(y2) + '" r="2.4"/></g>' + pill(b.cx, cy, b.t, 'ipr', b.w);
+    return '<g class="lead"><line x1="' + b.cx + '" y1="' + r(y1) + '" x2="' + b.cx + '" y2="' + r(y2) + '"/><circle cx="' + b.cx + '" cy="' + r(y2) + '" r="2.4"/></g>' + pill(b.cx, cy, b.t, kind === 'sp' ? 'sp' : 'ipr', b.w);
   }).join('');
-  // the spaces in the bite, at their contact; ▼ in the gum-side gap of a black triangle, pointing to the contact
-  const finds = (arch, x0, upper, spO, btO) => KEYS[upper ? 'U' : 'L'].map((k, i) => {
-    const cx = at(arch, x0, i), a = arch.teeth[i], b = arch.teeth[i + 1]; let m = '';
-    if (btO && btO[k]) { const neck = upper ? OCC_U - Math.min(a.h, b.h) + 3 : OCC_L + Math.min(a.h, b.h) - 3, dir = upper ? 1 : -1;
-      m += '<polygon class="bt" points="' + r(cx - 5) + ',' + r(neck) + ' ' + r(cx + 5) + ',' + r(neck) + ' ' + cx + ',' + r(neck + dir * 9) + '"/>'; }
-    const sp = parseFloat((spO || {})[k]) || 0; if (sp > 0) { const t = mm1(sp); m += pill(cx, upper ? OCC_U + 9 : OCC_L - 9, t, 'sp', bw(t)); }
-    return m;
+  // ▼ in the gum-side gap of a black triangle, pointing to the contact
+  const bts = (arch, x0, upper, btO) => KEYS[upper ? 'U' : 'L'].map((k, i) => {
+    if (!(btO && btO[k])) return '';
+    const cx = at(arch, x0, i), a = arch.teeth[i], b = arch.teeth[i + 1], neck = upper ? OCC_U - Math.min(a.h, b.h) + 3 : OCC_L + Math.min(a.h, b.h) - 3, dir = upper ? 1 : -1;
+    return '<polygon class="bt" points="' + r(cx - 5) + ',' + r(neck) + ' ' + r(cx + 5) + ',' + r(neck) + ' ' + cx + ',' + r(neck + dir * 9) + '"/>';
   }).join('');
-  s += '<g style="--bdg:' + col + '">' + amounts(PU, true) + amounts(PL, false) + '</g>' + finds(U, ux, true, d.upperSpaces, d.upperBT) + finds(L, lx, false, d.lowerSpaces, d.lowerBT);
+  s += '<g style="--bdg:' + col + '">' + amounts(PU, true) + amounts(PL, false) + '</g>' + bts(U, ux, true, d.upperBT) + bts(L, lx, false, d.lowerBT);
   return s + '</svg>';
 }
-/* which IPR the chart shows for this reading: the one picked (S.iprLayer, while the case is open), else this visit's when
-   there is any, else all visits so far */
+/* what the chart shows for this reading: the side picked on its switch (S.iprLayer while the case is open; the New case form
+   keeps its own), else the spaces (Amir, 7 Oct 2026: "default it to spacing … because that's what's useful for tx planning") —
+   or, at a visit with no spaces, the IPR: this visit's when there is any, else all visits so far */
 function iprLayerOf(d, picked) {
-  const t = sumContacts, now = t(d.upper) + t(d.lower), cum = t(d.cumUpper) + t(d.cumLower);
+  const t = sumContacts, now = t(d.upper) + t(d.lower), cum = t(d.cumUpper) + t(d.cumLower), sp = t(d.upperSpaces) + t(d.lowerSpaces);
   const both = d.visitCount > 1 && cum > 0 && !(Object.keys(d.cumUpper).every(k => mm1(d.cumUpper[k]) === mm1(d.upper[k])) && Object.keys(d.cumLower).every(k => mm1(d.cumLower[k]) === mm1(d.lower[k])));
-  const lay = both && (picked === 'cum' || picked === 'visit') ? picked : now > 0 || !both ? 'visit' : 'cum';
-  return { lay, both, now, cum };
+  const lay = picked === 'sp' || picked === 'visit' || (picked === 'cum' && both) ? picked : sp > 0 ? 'sp' : now > 0 || !both ? 'visit' : 'cum';
+  return { lay, both, now, cum, sp };
 }
-/* which of the three the chart shows (Amir, 6 Oct 2026: "a toggle where you can switch on or off IPR, spacing or black triangles"),
-   remembered on this computer like the hidden list columns (not patient data) */
-const IPR_SHOW_KEY = 'nloCases.iprShow';
-function iprShown() { let o = {}; try { o = JSON.parse(localStorage.getItem(IPR_SHOW_KEY) || '{}') || {}; } catch (e) { } return { ipr: o.ipr !== false, sp: o.sp !== false, bt: o.bt !== false }; }
-function iprShowSet(k, on) { const o = iprShown(); o[k] = !!on; try { localStorage.setItem(IPR_SHOW_KEY, JSON.stringify(o)); } catch (e) { } }
-/* the chart for one IPR Tracker reading (`d` from iprNoteFromVisits): three switches above it — IPR (with this visit / so far),
-   spaces, black triangles — each with its total, and the IPR totals per arch under it */
-function iprPanelsHTML(d, picked) {
+/* the black triangles switch, remembered on this computer like the hidden list columns (not patient data); on unless turned off.
+   (The 6 Oct 2026 IPR / spaces / black triangles switches were kept under 'nloCases.iprShow': gone with the one switch.) */
+const IPR_BT_KEY = 'nloCases.iprBt';
+function iprBtShown() { try { return localStorage.getItem(IPR_BT_KEY) !== 'off'; } catch (e) { return true; } }
+function iprBtSet(on) { try { localStorage.setItem(IPR_BT_KEY, on ? 'on' : 'off'); localStorage.removeItem('nloCases.iprShow'); } catch (e) { } }
+/* the chart for one IPR Tracker reading (`d` from iprNoteFromVisits): the one switch above it — IPR this visit · IPR so far ·
+   Spaces, each with its total (just "IPR" when all the visits add up to this one) — and the black triangles on/off beside it;
+   under it, the shown amounts per arch. `form`: the New case form's copy, whose switch acts on the form (ui.js iprPrevLayer/Tog). */
+function iprPanelsHTML(d, picked, form) {
   if (!d) return '';
   const t = sumContacts, mm = v => mm1(v) + ' mm', list = o => { const r = noteRowsOf(o); return r.length ? listRows(r) : 'none'; };
-  const { lay, both, now, cum } = iprLayerOf(d, picked), sp = t(d.upperSpaces) + t(d.lowerSpaces), on = iprShown();
+  const { lay, both, now, cum, sp } = iprLayerOf(d, picked), btOn = iprBtShown();
   const bt = noteBTsOf(d.upperBT).concat(noteBTsOf(d.lowerBT)).map(k => ckLabel(k));
   if (!(now > 0) && !(cum > 0) && !(sp > 0) && !bt.length) return '<div class="small muted iprNone">No IPR, spaces or black triangles recorded at this visit.</div>';
-  const ipr = lay === 'cum' ? { upper: d.cumUpper, lower: d.cumLower } : { upper: d.upper, lower: d.lower }, none = { upper: {}, lower: {} };
-  const tog = (k, sw, l, n) => '<button type="button" class="iprTog" data-act="iprTog" data-k="' + k + '" aria-pressed="' + on[k] + '" title="' + (on[k] ? 'Hide' : 'Show') + ' ' + esc(l.toLowerCase()) + ' on the chart">' +
-    '<span class="sw ' + k + '"' + (k === 'ipr' ? ' style="--sw:' + IPR_COL[lay] + '"' : '') + ' aria-hidden="true"></span>' + l + (n ? ' <b>' + n + '</b>' : '') + '</button>';
-  const seg = (v, l, n, sub) => '<button type="button" class="iprSegB" data-act="iprLayer" data-v="' + v + '" aria-pressed="' + (lay === v) + '"' + (on.ipr ? '' : ' disabled') + '><i style="background:' + IPR_COL[v] + '"></i>' + l + ' <b>' + (n > 0 ? mm(n) : 'none') + '</b>' + (sub ? '<span>' + sub + '</span>' : '') + '</button>';
-  const head = '<div class="iprTogs" role="group" aria-label="What the chart shows">' +
-      tog('ipr', '', both ? 'IPR' : 'IPR this visit', both ? '' : (now > 0 ? mm(now) : 'none')) +
-      tog('sp', '', 'Spaces', sp > 0 ? mm(sp) : 'none') + tog('bt', '', 'Black triangles', bt.length ? String(bt.length) : 'none') + '</div>' +
-    (both ? '<div class="iprSeg" role="group" aria-label="Which IPR the chart shows">' + seg('visit', 'This visit', now) + seg('cum', 'So far', cum, d.visitCount + ' visits') + '</div>' : '');
-  const what = lay === 'cum' ? 'IPR over all ' + d.visitCount + ' visits' : 'IPR this visit';
-  const label = [on.ipr ? what + '. Upper: ' + list(ipr.upper) + '. Lower: ' + list(ipr.lower) + '.' : '', on.sp ? 'Spaces, upper: ' + list(d.upperSpaces) + '; lower: ' + list(d.lowerSpaces) + '.' : '',
-    on.bt ? 'Black triangles: ' + (bt.join(', ') || 'none') + '.' : ''].filter(Boolean).join(' ') || 'Both arches; nothing switched on.';
-  const show = Object.assign({}, d, on.sp ? {} : { upperSpaces: {}, lowerSpaces: {} }, on.bt ? {} : { upperBT: {}, lowerBT: {} });
-  const uT = t(ipr.upper), lT = t(ipr.lower);
-  return '<div class="iprMap" data-layer="' + lay + '"><div class="iprMapHd">' + head + '</div>' + iprMapSVG(on.ipr ? ipr : none, show, IPR_COL[lay], label) +
-    (on.ipr && uT + lT > 0 ? '<div class="iprMapFt"><span>Upper <b>' + mm(uT) + '</b></span><span>Lower <b>' + mm(lT) + '</b></span></div>' : '') + '</div>';
+  // (each side's total in mm without the unit, like the amounts on the chart, so the three fit on one line in the case panel)
+  const seg = (v, l, n, tip) => '<button type="button" class="iprSegB" data-act="' + (form ? 'iprPrevLayer' : 'iprLayer') + '" data-v="' + v + '" aria-pressed="' + (lay === v) + '" title="' + esc(tip + ': ' + (n > 0 ? mm(n) : 'none')) + '">' +
+    '<i style="background:' + IPR_COL[v] + '"></i>' + l + ' <b>' + (n > 0 ? mm1(n) : 'none') + '</b></button>';
+  const head = '<div class="iprSeg" role="group" aria-label="What the chart shows">' +
+      (both ? seg('visit', 'IPR this visit', now, 'IPR at this visit') + seg('cum', 'IPR so far', cum, 'IPR over all ' + d.visitCount + ' visits') : seg('visit', 'IPR', now, 'IPR at this visit')) +
+      seg('sp', 'Spaces', sp, 'Spaces at this visit') + '</div>' +
+    '<button type="button" class="iprTog" data-act="' + (form ? 'iprPrevTog' : 'iprTog') + '" data-k="bt" aria-pressed="' + btOn + '" title="' + (btOn ? 'Hide' : 'Show') + ' the black triangles on the chart">' +
+      '<span class="sw bt" aria-hidden="true"></span>Black triangles <b>' + (bt.length ? bt.length : 'none') + '</b></button>';
+  const vals = lay === 'sp' ? { upper: d.upperSpaces, lower: d.lowerSpaces } : lay === 'cum' ? { upper: d.cumUpper, lower: d.cumLower } : { upper: d.upper, lower: d.lower };
+  const what = lay === 'sp' ? 'Spaces' : lay === 'cum' ? 'IPR over all ' + d.visitCount + ' visits' : 'IPR this visit';
+  const label = what + '. Upper: ' + list(vals.upper) + '. Lower: ' + list(vals.lower) + '.' + (btOn ? ' Black triangles: ' + (bt.join(', ') || 'none') + '.' : '');
+  const show = btOn ? d : Object.assign({}, d, { upperBT: {}, lowerBT: {} }), uT = t(vals.upper), lT = t(vals.lower);
+  return '<div class="iprMap' + (form ? ' iprPrev' : '') + '" data-layer="' + lay + '"><div class="iprMapHd">' + head + '</div>' + iprMapSVG(vals, show, IPR_COL[lay], label, lay === 'sp' ? 'sp' : 'ipr') +
+    (uT + lT > 0 ? '<div class="iprMapFt"><span>Upper <b>' + mm(uT) + '</b></span><span>Lower <b>' + mm(lT) + '</b></span></div>' : '') + '</div>';
 }
-/* the New case form's look at a reading: this visit's IPR, the spaces and the black triangles in one chart */
-function iprPreviewHTML(r) {
-  const d = r && r.d; if (!d) return '';
-  const label = 'IPR this visit. Upper: ' + (noteRowsOf(d.upper).length ? listRows(noteRowsOf(d.upper)) : 'none') + '. Lower: ' + (noteRowsOf(d.lower).length ? listRows(noteRowsOf(d.lower)) : 'none') + '.';
-  return '<div class="iprMap iprPrev"><div class="iprMapHd"><span class="iprKey"><b>' + esc(iprSumText(r)) + '</b></span></div>' + iprMapSVG({ upper: d.upper, lower: d.lower }, d, IPR_COL.visit, label) + '</div>';
-}
+/* the New case form's look at a reading: the same chart and switch as the case panel's */
+function iprPreviewHTML(r, picked) { return r && r.d ? iprPanelsHTML(r.d, picked, true) : ''; }
 /* one line for the folded IPR heading: "Oct 2 visit · IPR 0.3 mm · 0.5 mm so far · spaces 0.3 mm · 1 black triangle" */
 function iprSumText(r) {
   const d = r.d, t = sumContacts; if (!d) return '';
@@ -3973,7 +4001,7 @@ function bindLockForms(mode) {
 /* ---------- enter / leave ---------- */
 function enterApp() {
   if (['work', 'admin', 'import'].includes(S.view) && !isOwner()) S.view = 'today'; // (Dr. A's pages, left open when someone else signs in after him)
-  S.inApp = true; S.cases = new Map(); S.closed = []; histReset(); S.firstLoad = true; S.lastAct = Date.now(); S.settingsLoaded = false; S.rulesLv = null; S.idxRan = false; S.noteVisit = new Map();
+  S.inApp = true; S.msgSince = Date.now(); S.cases = new Map(); S.closed = []; histReset(); S.firstLoad = true; S.lastAct = Date.now(); S.settingsLoaded = false; S.rulesLv = null; S.idxRan = false; S.noteVisit = new Map();
   $('#lockWrap').classList.add('hidden'); $('#app').classList.remove('hidden');
   renderShell(); renderView();
   S.h = {
@@ -3984,6 +4012,7 @@ function enterApp() {
       S.casesV = (S.casesV || 0) + 1; // (the open cases changed: possible duplicates are worked out again — dupes.js)
       const first = S.firstLoad; S.firstLoad = false; queueRender();
       if (first) setTimeout(mailSync, 300); // lab emails that came in while nobody had the app open
+      else msgWatch(); // a note tagging you, just now (notes.js)
       if (first) setTimeout(iprAutoSync, 1500); // the IPR Tracker, for every patient at once, when the link is still on in this tab
       else if (LABS.list.length && up.some(c => c.type === 'nla')) labSoon(); // a lab order waiting on Today may fit a case just added or changed (lab.js)
       if (S.openId && (up.some(c => c.id === S.openId) || gone.includes(S.openId))) { const rd = () => { if (S.openId) refreshDrawer(gone.includes(S.openId)); }; if (!afterPress(rd)) rd(); }
@@ -4149,7 +4178,7 @@ function queueRender(kind) {
   });
 }
 const NAV = [
-  ['today', 'Today', 'today'], ['board', 'Board', 'board'], ['list', 'All open cases', 'list'], ['mine', 'My cases', 'user'], ['done', 'Completed', 'done']
+  ['today', 'Today', 'today'], ['board', 'Board', 'board'], ['list', 'All open cases', 'list'], ['mine', 'My cases', 'user'], ['msgs', 'Messages', 'chat'], ['done', 'Completed', 'done']
 ];
 function renderShell() {
   const owner = isOwner();
@@ -4171,7 +4200,7 @@ function renderShell() {
 function renderNav() {
   const c = counts();
   const set = (k, n, red) => ['nav-', 'mnav-'].forEach(p => { const el = $('#' + p + k + ' .cnt'); if (!el) return; el.textContent = n; el.classList.toggle('hidden', !n); el.classList.toggle('red', !!red); });
-  set('today', c.over, true); set('list', c.all); set('mine', c.mine);
+  set('today', c.over, true); set('list', c.all); set('mine', c.mine); set('msgs', msgUnread(), true);
   $$('.navBtn[data-v]').forEach(b => b.classList.toggle('on', b.dataset.v === S.view));
 }
 function renderSync() {
@@ -4181,7 +4210,7 @@ function renderSync() {
   else if (B && B.pending) { cls = 'busy'; t = 'Saving…'; }
   el.innerHTML = '<span class="dot ' + cls + '"></span>' + t;
 }
-const TITLES = { today: 'Today', board: 'Board', list: 'All open cases', mine: 'My cases', done: 'Completed', work: 'Workload', admin: 'Team & security', import: 'Import & export', account: 'My account' };
+const TITLES = { today: 'Today', board: 'Board', list: 'All open cases', mine: 'My cases', msgs: 'Messages', done: 'Completed', work: 'Workload', admin: 'Team & security', import: 'Import & export', account: 'My account' };
 function topBar(extra) {
   return '<div class="topBar"><h2>' + esc(TITLES[S.view]) + '</h2>' +
     (['today', 'board', 'list', 'mine', 'done'].includes(S.view) ? '<label class="searchBox">' + ic('search', 17) + '<span class="hidden">Search</span><input id="q" type="search" placeholder="Search patient, type, stage…" value="' + esc(S.q) + '" aria-label="Search cases"></label>' : '<span style="flex:1"></span>') +
@@ -4201,6 +4230,7 @@ function renderView() {
   else if (S.view === 'list') h = viewList(listBase(), true);
   else if (S.view === 'mine') h = viewList(listBase(), false);
   else if (S.view === 'done') h = viewDone();
+  else if (S.view === 'msgs') h = viewMsgs();
   else if (S.view === 'work') h = isOwner() ? viewWork() : '';
   else if (S.view === 'admin') h = isOwner() ? viewAdmin() : '';
   else if (S.view === 'import') h = isOwner() ? viewImport() : '';
@@ -4973,7 +5003,7 @@ function noteByHTML(c) {
   const w = noteWho({ by: au.by }), when = au.at ? fmtWhen(au.at) : '';
   return '<div class="small muted nAuth" id="dNoteBy">' + (w || when ? '— ' + (w ? (au.by === 'asana' ? esc(w) : '<b>' + esc(w) + '</b>') : '') + (w && when ? ', ' : '') + esc(when) : '') + '</div>';
 }
-function noteByPaint() { const el = $('#dNoteBy'), c = el && S.openId && findCase(S.openId); if (c) el.outerHTML = noteByHTML(c); }
+function noteByPaint() { const c = S.openId && findCase(S.openId); if (!c) return; const el = $('#dNoteBy'); if (el) el.outerHTML = noteByHTML(c); if ($('#notesList')) notesPaint(c); }
 const LIST_COLS = [['type', 'Type'], ['stage', 'Stage'], ['notes', 'Notes'], ['lab', 'Lab date'], ['appt', 'Delivery appt'], ['tx', 'Tx progress'], ['cost', 'Tx cost'], ['ship', 'Shipping'], ['who', 'Assigned'], ['updated', 'Updated']];
 /* optional columns stay off until someone ticks them in Columns (Amir, 4 Oct 2026: "add an optional column for total cost per tx
    so far"); remembered on that computer as nloCases.shownCols. They don't count in "N hidden", and Show all leaves them be. */
@@ -5102,7 +5132,7 @@ function historyHTML(c) {
     if (x.a === 'create') t = 'created the case'; else if (x.a === 'import') t = 'imported it from Asana';
     else if (x.a === 'stage') t = 'moved it to ' + stageName(x.to) + ((x.fields || []).length ? ' (and set ' + Array.from(new Set(x.fields.map(f => FIELD_LABELS[f] || f))).join(', ') + ')' : '') + shipped(x) + (x.via === 'lab' ? ', as the lab PC suggested' : '');
     else if (x.a === 'lab') t = labHistText(x);
-    else if (x.a === 'comment') t = 'added a comment';
+    else if (x.a === 'comment') t = 'added a note' + (Array.isArray(x.tag) && x.tag.length ? ' for ' + x.tag.map(s => (staff(s) && staff(s).role === 'owner') ? 'Dr. A' : firstName(staffName(s, s))).join(', ') : '');
     else if (x.a === 'close') t = 'marked it complete'; else if (x.a === 'reopen') t = 'reopened it';
     else if (x.a === 'assign') t = x.to ? 'assigned it to ' + staffName(x.to, x.to) : 'unassigned it';
     else if (x.a === 'edit') t = 'changed ' + Array.from(new Set((x.fields || []).filter(f => f !== 'instructions').map(f => FIELD_LABELS[f] || f))).join(', ') + shipped(x);
@@ -5142,7 +5172,7 @@ function renderDrawer() {
       (isOwner() ? '<p class="small" style="margin-bottom:12px">Every earlier version is kept. Pick the last good one to restore it.</p><button class="btn btn-pri" data-act="versions">' + ic('clock', 16) + 'Restore a saved version</button>' : '<p class="small">Ask Dr. A — he can restore it from its saved versions.</p>') + '</div>';
     return;
   }
-  const keepCmt = $('#cmtText') ? $('#cmtText').value : ''; const hadFocus = document.activeElement && document.activeElement.id === 'cmtText';
+  const ct0 = $('#cmtText'), keepCmt = ct0 ? ct0.value : '', hadFocus = !!ct0 && document.activeElement === ct0, keepSel = hadFocus ? [ct0.selectionStart, ct0.selectionEnd] : null;
   const wKeep = wtyKeep(); // (the Specialty invoice date being typed: warranty.js)
   // a live update redraws the panel: keep it where it was scrolled to (same case, not coming back from Edit)
   const bd0 = $('.dBd', d), keepTop = bd0 && d.dataset.for === c.id && d.dataset.mode === 'view' ? bd0.scrollTop : 0;
@@ -5151,7 +5181,6 @@ function renderDrawer() {
   const txt = v => '<div class="txt">' + esc(v) + '</div>';
   const oneLine = v => esc(String(v || '').trim().replace(/\s*\n+\s*/g, ' · ')); // a section's text on its folded heading
   const cc = ccShown(c), ccNone = cc === 'None'; // (an older note like "This is initial" isn't a concern: not shown)
-  const cmts = c.comments || [], lastC = cmts[cmts.length - 1];
   const who = c.assignee ? firstName(staffName(c.assignee, '')) || '—' : c.assigneeName ? c.assigneeName + ' (Asana)' : '';
   const nAl = alN(c), one = oneArch(c), hasTeeth = !!(c.teeth && Object.keys(c.teeth).length);
   const marks = stageMarks(c); // when each step was reached, and by whom (from the case's history, once it's loaded)
@@ -5221,10 +5250,9 @@ function renderDrawer() {
     (hasTeeth ? dsec('teeth', 'Tooth chart', oneLine(teethSummary(c.teeth)), '<div class="tc ro">' + toothChartHTML(c.teeth, true) + '</div><div class="txt" style="margin-top:8px">' + esc(teethSummary(c.teeth)) + '</div>') : '') +
     // one IPR section: the IPR Tracker's chart for this chart # (the typed "IPR & spacing" and "From the IPR Tracker" were the same thing twice)
     (iprLive(c) || String(c.ipr || '').trim() ? dsec('ipr', 'IPR & spacing', iprSumHTML(c), '<div id="iprBox">' + iprBoxHTML(c) + '</div>', '', iprPinned(c)) : '') +
-    (c.notes ? dsec('notes', 'Notes', oneLine(c.notes), txt(c.notes) + noteByHTML(c)) : '') + // (and who wrote it, 5 Oct 2026)
-    dsec('comments', 'Comments', lastC ? (cmts.length > 1 ? cmts.length + ' · ' : '') + '<b>' + esc(firstName(staffName(lastC.by, lastC.by))) + ':</b> ' + esc(String(lastC.text || '').replace(/\s+/g, ' ')) : '<span class="muted">None yet</span>',
-      (cmts.map(x => '<div class="cmt"><span class="av" data-sav="' + esc(x.by || '') + '">' + esc(initials(staffName(x.by, x.by))) + '</span><div><div class="w"><b>' + esc(firstName(staffName(x.by, x.by))) + '</b> · ' + esc(fmtWhen(x.at)) + '</div><div style="white-space:pre-wrap;overflow-wrap:anywhere">' + esc(x.text) + '</div></div></div>').join('') || '<div class="small muted" style="margin-bottom:6px">No comments yet.</div>') +
-      (done ? '' : '<div class="field" style="margin-top:8px;margin-bottom:6px"><label for="cmtText" class="hidden">Add a comment</label><textarea id="cmtText" rows="2" placeholder="Add a comment…"></textarea></div><button class="btn btn-sec btn-sm" data-act="addCmt">Add comment</button>')) +
+    // Notes: the Notes typed in the case form and every note added here, in one list that stays open even when the panel is
+    // folded, with the box to add one and tag someone with @ (Amir, 7 Oct 2026 — notes.js)
+    dsec('notes', 'Notes', notesSumHTML(c), notesBodyHTML(c, done), '', true) +
     // the chart note: further down and folded (Amir, 3 Oct 2026); Copy works without opening it. The scan visit's note or the
     // delivery visit's (5 Oct 2026), the heading says which one Copy copies
     dsec('note', 'Chart note', noteSumHTML(c), noteBodyHTML(c),
@@ -5239,7 +5267,8 @@ function renderDrawer() {
     // a case entered twice: anyone can take the extra one out (dupes.js)
     '<span class="dFtR"><button class="btn btn-ghost" data-act="dupRemove" title="This case was entered twice: take this one out and keep the other">' + ic('copy', 16) + 'Remove duplicate</button>' +
     (isOwner() ? '<button class="btn btn-ghost" data-act="versions">' + ic('clock', 16) + 'Versions</button><button class="btn btn-ghost" data-act="delCase" style="color:var(--coral-700)">' + ic('trash', 16) + 'Delete</button>' : '') + '</span></div>';
-  const t = $('#cmtText'); if (t) { t.value = keepCmt; if (hadFocus) t.focus(); }
+  const t = $('#cmtText'); if (t) { t.value = keepCmt; if (hadFocus) { t.focus(); if (keepSel) try { t.setSelectionRange(keepSel[0], keepSel[1]); } catch (e) { } mtUpdate(t); } } // (an @ list open as it redrew stays open)
+  notesSeen(c); // (a note tagging you, now on screen, is read — notes.js)
   wtyRestore(wKeep);
   if (keepTop) $('.dBd', d).scrollTop = keepTop;
   dsAllSync(); phPaint(); savPaint(d); phWireDrawer(d); picPaint(d);
@@ -5661,7 +5690,7 @@ async function iprPull(btnOrRoot, quiet) {
     const r = await L.latest(chart);
     if (r.status === 'not-found') { msg.textContent = 'No IPR Tracker patient with chart # ' + chart + ' yet.'; return; }
     if (r.status === 'no-visits') { msg.textContent = 'Patient found, but no visits recorded yet.'; return; }
-    $('#cf-ipr', root).value = r.note; const box = $('#cf-iprChart', root); if (box) box.innerHTML = iprPreviewHTML(r);
+    $('#cf-ipr', root).value = r.note; const box = $('#cf-iprChart', root); if (box) { box._ipr = r; delete box.dataset.lay; box.innerHTML = iprPreviewHTML(r); } // (its switch: iprPrevLayer)
     msg.textContent = (r.date === todayISO() ? 'Today’s visit' : 'The latest visit, ' + fmtDay(r.date)) + (r.initials ? ' (' + r.initials + ')' : '') + ' — it’s in.' + (r.date === todayISO() ? '' : ' Enter today’s in the IPR Tracker if there is one.');
   } catch (e) { msg.textContent = /popup/i.test(String(e && (e.code || e.message))) ? 'Allow pop-ups for this site, then try again.' : /permission|denied/i.test(String(e && (e.code || e.message))) ? 'This Google account can’t read the IPR Tracker.' : 'Couldn’t reach the IPR Tracker.'; }
 }
@@ -5768,7 +5797,11 @@ function onClick(e) {
     case 'dsTg': { const sec = t.closest('.ds'); if (!sec) break; const on = !sec.classList.contains('open'); dsShow(sec, on); (S.dsTog = S.dsTog || new Map()).set(sec.dataset.ds, on); dsAllSync(); if (on) dsReveal(sec); break; }
     case 'dsAll': { const on = t.dataset.all !== '1'; dsSetAllMode(on); S.dsTog = new Map(); $$('#drawer .ds:not(.line)').forEach(sec => dsShow(sec, on || sec.classList.contains('pin'))); dsAllSync(); break; }
     case 'iprLayer': { const c = findCase(S.openId); if (!c) break; (S.iprLayer = S.iprLayer || {})[c.id] = t.dataset.v; iprPaint(c); break; }
-    case 'iprTog': { const c = findCase(S.openId); if (!c) break; iprShowSet(t.dataset.k, t.getAttribute('aria-pressed') !== 'true'); iprPaint(c); break; }
+    case 'iprTog': { const c = findCase(S.openId); if (!c) break; iprBtSet(t.getAttribute('aria-pressed') !== 'true'); iprPaint(c); break; }
+    // the New case form's copy of the chart: the same switch, on the reading it just brought in
+    case 'iprPrevLayer': case 'iprPrevTog': { const box = t.closest('#cf-iprChart'); if (!box || !box._ipr) break;
+      if (a === 'iprPrevTog') iprBtSet(t.getAttribute('aria-pressed') !== 'true'); else box.dataset.lay = t.dataset.v;
+      box.innerHTML = iprPreviewHTML(box._ipr, box.dataset.lay); break; }
     case 'advance': { const c = findCase(id); const n = c && nextStage(c); if (n) moveStage(id, n); break; }
     case 'complete': completeCase(id); break;
     case 'setStage': moveStage(S.openId, t.dataset.k); break;
@@ -5792,8 +5825,11 @@ function onClick(e) {
     case 'assignTo': { const to = t.dataset.v || '', id = S.openId, c = findCase(id); if (!c || (c.assignee || '') === to) break;
       $$('#drawer .dAssign .aTile').forEach(b => b.setAttribute('aria-pressed', String(b === t)));
       act(() => B.mutateCase(id, d => { d.assignee = to; if (to) d.assigneeName = ''; }, { a: 'assign', to }), to ? 'Assigned to ' + staffName(to) : 'Unassigned'); break; }
-    case 'addCmt': { const txt = ($('#cmtText').value || '').trim(); if (!txt) return; const cid = S.openId;
-      $('#cmtText').value = ''; act(() => B.mutateCase(cid, d => { d.comments = (d.comments || []).concat([{ id: uid8(), at: Date.now(), by: meSid(), text: txt }]); }, { a: 'comment' })); break; }
+    case 'addCmt': { const ta = $('#cmtText'), txt = ((ta && ta.value) || '').trim(); if (!txt) return; const cid = S.openId, to = noteTagsOf(txt);
+      ta.value = ''; mtClose(); act(() => B.mutateCase(cid, d => { d.comments = (d.comments || []).concat([Object.assign({ id: uid8(), at: Date.now(), by: meSid(), text: txt }, to.length ? { to } : {})]); }, Object.assign({ a: 'comment' }, to.length ? { tag: to } : {}))); break; }
+    case 'notesAll': { const c = findCase(S.openId); if (!c) break; (S.notesAll = S.notesAll || {})[c.id] = true; notesPaint(c); notesSeen(c); break; }
+    case 'msgOpen': msgOpen(id, t.dataset.n); break;
+    case 'msgAllRead': msgMarkRead(msgList().map(m => m.k)); renderNav(); renderView(); break;
     // (a lab saved under its old name counts as its new name, so opening Edit doesn't look like a change)
     case 'edit': { const c = findCase(S.openId); S.editBase = JSON.parse(JSON.stringify(c)); if (S.editBase.lab) S.editBase.lab = labName(S.editBase.lab); S.editing = true; S.editWiz = null; renderDrawer(); break; }
     case 'cancelEdit': S.editing = false; S.editWiz = null; renderDrawer(); break;
@@ -5916,6 +5952,175 @@ function printCode() {
   const w = window.open('', '_blank', 'width=600,height=400'); if (!w) return;
   w.document.write('<title>NLO Cases recovery code</title><body style="font-family:sans-serif;padding:40px"><h2>NLO Cases — recovery code</h2><p>Keep this somewhere safe. It unlocks the office’s case data if the owner password is forgotten.</p><pre style="font-size:26px;letter-spacing:2px">' + esc(code) + '</pre><p>Printed ' + esc(new Date().toLocaleString()) + '</p></body>');
   w.document.close(); w.focus(); w.print();
+}
+
+/* ---------- Notes on a case, @ tags and Messages (Amir, 7 Oct 2026) ----------
+   "I don't think notes section should only appear in the edit mode. It should be available even when all the sections are
+   collapsed. and when you add a new note it should stay there. Also any chance … you can use the @ sign and add another person
+   to that message and it would go into their message center?" He picked: one Notes list (the Notes typed in Edit and the
+   Comments, together), a Messages page, and read marks kept on each computer.
+   A note is an entry of the case's comments (encrypted with the rest of the case): { id, at, by, text, to?: [sid…] } — `to`
+   being the people tagged with @ in it. The case's Notes text from the case form shows as its first note. */
+
+const NOTES_SHOWN = 4; // the newest few; "Show N earlier notes" opens the rest (S.notesAll, while the app is open)
+
+/* every note on the case, oldest first; the Notes text from the case form is the first one (in its place, where its time is known) */
+function noteList(c) {
+  const out = (c.comments || []).filter(x => x && String(x.text || '').trim()).map(x => ({ id: String(x.id || ''), at: x.at || 0, by: x.by || '',
+    text: String(x.text).trim(), to: Array.isArray(x.to) ? x.to.filter(s => typeof s === 'string') : [] }));
+  const t = String(c.notes || '').trim();
+  if (t) { const au = notesAuthor(c); out.push({ id: 'field', at: au ? au.at || 0 : 0, by: au ? au.by || '' : '', text: t, to: [], field: true }); }
+  return out.sort((a, b) => (a.at || 0) - (b.at || 0));
+}
+
+/* ---------- who can be tagged, and how ---------- */
+/* everyone with an NLO Cases login, by the name they go by ("Dr. A" for the doctor); two with the same first name get their last
+   initial. `pick`: only the ones who can be tagged now (still active, not you) */
+function mtPeople(pick) {
+  const me = meSid(), all = (S.roster || []).filter(r => r && r.sid);
+  const first = r => r.role === 'owner' ? 'Dr. A' : firstName(r.name) || String(r.name || '');
+  const seen = {}; all.filter(r => r.active).forEach(r => { const f = first(r).toLowerCase(); seen[f] = (seen[f] || 0) + 1; });
+  return all.filter(r => !pick || (r.active && r.sid !== me)).map(r => {
+    let l = first(r); const p = String(r.name || '').trim().split(/\s+/);
+    if (r.role !== 'owner' && seen[l.toLowerCase()] > 1 && p.length > 1) l += ' ' + p[p.length - 1][0].toUpperCase();
+    return { sid: r.sid, l, name: String(r.name || l), role: r.role };
+  });
+}
+const reEsc = s => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+function mtRe(label, flags) { return new RegExp('@' + reEsc(label) + '(?![\\p{L}\\p{N}])', flags || 'iu'); }
+/* the people a note tags: whoever's "@name" is in it (picked from the list or typed out) */
+function noteTagsOf(text) { return Array.from(new Set(mtPeople(true).filter(p => mtRe(p.l).test(text)).map(p => p.sid))); }
+/* a note's text with its tags picked out */
+function noteTextHTML(n) {
+  let h = esc(n.text); const P = mtPeople(false);
+  (n.to || []).forEach(sid => {
+    const p = P.find(x => x.sid === sid); if (!p) return;
+    const labs = Array.from(new Set([p.l, p.role === 'owner' ? 'Dr. A' : firstName(p.name)])).filter(Boolean).sort((a, b) => b.length - a.length);
+    for (const l of labs) { const re = mtRe(esc(l), 'giu'); if (re.test(h)) { h = h.replace(mtRe(esc(l), 'giu'), m => '<span class="mt">' + m + '</span>'); return; } }
+  });
+  return h;
+}
+function noteWhoOf(n) { return n.by ? noteWho(n) || firstName(staffName(n.by, n.by)) : ''; }
+
+/* ---------- the Notes section of the case panel: pinned open, the list and the box to add one ---------- */
+function notesSumHTML(c) {
+  const L = noteList(c), last = L[L.length - 1]; if (!last) return '<span class="muted">None yet</span>';
+  return (L.length > 1 ? L.length + ' · ' : '') + (noteWhoOf(last) ? '<b>' + esc(noteWhoOf(last)) + ':</b> ' : '') + esc(last.text.replace(/\s+/g, ' '));
+}
+function notesListHTML(c) {
+  const L = noteList(c), me = meSid(), all = !!(S.notesAll && S.notesAll[c.id]), hid = all ? 0 : Math.max(0, L.length - NOTES_SHOWN);
+  if (!L.length) return '<div class="small muted notesNone">No notes yet.</div>';
+  const one = n => { const w = noteWhoOf(n);
+    return '<div class="cmt' + (n.to.includes(me) ? ' toMe' : '') + '" data-note="' + esc(n.id) + '"><span class="av" data-sav="' + esc(n.by || '') + '">' + esc(n.by ? initials(staffName(n.by, n.by)) : 'N') + '</span><div class="cmtB"><div class="w">' +
+      (w ? '<b>' + esc(w) + '</b>' : '<b>Notes</b>') + (n.at ? ' · ' + esc(fmtWhen(n.at)) : '') + '</div><div class="nTx">' + noteTextHTML(n) + '</div></div></div>'; };
+  return (hid ? '<button type="button" class="linkBtn notesMore" data-act="notesAll">Show ' + hid + ' earlier note' + (hid === 1 ? '' : 's') + '</button>' : '') + L.slice(hid).map(one).join('');
+}
+function notesBodyHTML(c, done) {
+  return '<div id="notesList">' + notesListHTML(c) + '</div>' + (done ? '' :
+    '<div class="field noteNew"><label for="cmtText" class="hidden">Add a note</label><textarea id="cmtText" rows="2" placeholder="Add a note… type @ to tag someone" autocomplete="off" aria-autocomplete="list" aria-controls="mtList" aria-expanded="false"></textarea>' +
+    '<div class="mtList" id="mtList" role="listbox" aria-label="Tag someone" hidden></div></div>' +
+    '<div class="noteBtns"><button class="btn btn-sec btn-sm" data-act="addCmt">Add note</button><span class="small muted">Anyone you tag with @ gets it in their Messages.</span></div>');
+}
+/* the list again (a new note, Show earlier, or who wrote the case form's Notes once the history says) — not the box being typed in */
+function notesPaint(c) { const el = $('#notesList'); if (el && c) { el.innerHTML = notesListHTML(c); savPaint(el); } const s = $('#dsS-notes'); if (s && c) s.innerHTML = notesSumHTML(c); }
+
+/* ---------- the @ list while typing a note ---------- */
+const MT = { sel: 0, list: [], start: -1 };
+function mtBox() { return $('#mtList'); }
+function mtClose() { const b = mtBox(), t = $('#cmtText'); if (b) { b.hidden = true; b.innerHTML = ''; } if (t) t.setAttribute('aria-expanded', 'false'); MT.list = []; MT.start = -1; }
+/* the "@na" being typed just before the cursor, if any */
+function mtToken(t) {
+  const pos = t.selectionStart, before = t.value.slice(0, pos), m = before.match(/(^|[\s(])@([^\s@]{0,24})$/u);
+  return m ? { q: m[2], start: pos - m[2].length - 1 } : null;
+}
+function mtUpdate(t) {
+  const k = mtToken(t); if (!k) { mtClose(); return; }
+  const q = k.q.toLowerCase(), L = mtPeople(true).filter(p => !q || p.l.toLowerCase().startsWith(q) || p.name.toLowerCase().split(/\s+/).some(w => w.replace(/^dr\.?$/, '').startsWith(q))).slice(0, 6);
+  const b = mtBox(); if (!b || !L.length) { mtClose(); return; }
+  MT.list = L; MT.start = k.start; MT.sel = Math.min(MT.sel, L.length - 1);
+  b.innerHTML = L.map((p, i) => '<button type="button" class="mtOpt" role="option" id="mtO' + i + '" data-i="' + i + '" aria-selected="' + (i === MT.sel) + '"><span class="av" data-sav="' + esc(p.sid) + '">' + esc(initials(p.name)) + '</span><b>@' + esc(p.l) + '</b>' +
+    (p.name !== p.l && !(p.role === 'owner') ? '<small>' + esc(p.name) + '</small>' : '') + '</button>').join('');
+  b.hidden = false; t.setAttribute('aria-expanded', 'true'); t.setAttribute('aria-activedescendant', 'mtO' + MT.sel); savPaint(b);
+}
+function mtPick(i) {
+  const t = $('#cmtText'), p = MT.list[i]; if (!t || !p || MT.start < 0) return;
+  const pos = t.selectionStart, ins = '@' + p.l + ' ';
+  t.value = t.value.slice(0, MT.start) + ins + t.value.slice(pos);
+  const at = MT.start + ins.length; mtClose(); t.focus(); try { t.setSelectionRange(at, at); } catch (e) { }
+}
+function mtMove(d) {
+  if (!MT.list.length) return; MT.sel = (MT.sel + d + MT.list.length) % MT.list.length;
+  $$('#mtList .mtOpt').forEach((o, i) => o.setAttribute('aria-selected', String(i === MT.sel)));
+  const t = $('#cmtText'); if (t) t.setAttribute('aria-activedescendant', 'mtO' + MT.sel);
+}
+document.addEventListener('input', e => { if (e.target && e.target.id === 'cmtText') { MT.sel = 0; mtUpdate(e.target); } });
+document.addEventListener('click', e => { if (e.target && e.target.id === 'cmtText') mtUpdate(e.target); else if (!(e.target.closest && e.target.closest('#mtList'))) mtClose(); });
+// (on the way down, so the list's keys don't also close the case panel: Escape there closes it)
+document.addEventListener('keydown', e => {
+  if (!(e.target && e.target.id === 'cmtText')) return;
+  if (MT.list.length && !mtBox().hidden) {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); e.stopPropagation(); mtMove(e.key === 'ArrowDown' ? 1 : -1); return; }
+    if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); e.stopPropagation(); mtPick(MT.sel); return; }
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); mtClose(); return; }
+  }
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); const b = $('#drawer [data-act=addCmt]'); if (b) b.click(); } // Ctrl+Enter adds it
+}, true);
+document.addEventListener('mousedown', e => { const o = e.target.closest && e.target.closest('#mtList .mtOpt'); if (o) { e.preventDefault(); mtPick(+o.dataset.i); } }); // (before the box loses focus)
+
+/* ---------- Messages: the notes that tag you, newest first ---------- */
+/* what's been read, on this computer (Amir chose that over syncing it) — "<case>/<note>" for each */
+function msgKey() { return 'nloCases.msgRead.' + (meSid() || ''); }
+function msgRead() { try { return new Set(JSON.parse(localStorage.getItem(msgKey()) || '[]')); } catch (e) { return new Set(); } }
+function msgMarkRead(keys) {
+  const s = msgRead(), n = s.size; keys.forEach(k => s.add(k)); if (s.size === n) return false;
+  try { localStorage.setItem(msgKey(), JSON.stringify(Array.from(s).slice(-800))); } catch (e) { } return true;
+}
+const MSG_OLD = 30 * 864e5; // a tag older than this isn't new on a computer that never showed it
+function msgList() {
+  const me = meSid(); if (!me) return [];
+  const out = [], seen = new Set();
+  const scan = c => (c.comments || []).forEach(x => {
+    if (!x || !Array.isArray(x.to) || !x.to.includes(me) || x.by === me || !String(x.text || '').trim()) return;
+    const k = c.id + '/' + x.id; if (seen.has(k)) return; seen.add(k);
+    out.push({ c, k, n: { id: String(x.id || ''), at: x.at || 0, by: x.by || '', text: String(x.text).trim(), to: x.to.filter(s => typeof s === 'string') } });
+  });
+  openCases().forEach(scan); (S.closed || []).forEach(scan);
+  return out.sort((a, b) => (b.n.at || 0) - (a.n.at || 0));
+}
+function msgIsNew(m, read) { return !read.has(m.k) && Date.now() - (m.n.at || 0) < MSG_OLD; }
+function msgUnread() { if (!S.inApp) return 0; const r = msgRead(); return msgList().filter(m => msgIsNew(m, r)).length; }
+function viewMsgs() {
+  const L = msgList(), r = msgRead(), nNew = L.filter(m => msgIsNew(m, r)).length;
+  if (!L.length) return '<div class="card"><div class="cardBd"><div class="msgEmpty">' + ic('chat', 28) + '<p><b>No messages yet</b></p><p class="small muted">When someone tags you in a case’s notes with @, the note shows up here. Tag someone yourself in any case’s Notes.</p></div></div></div>';
+  return '<div class="card msgCard"><div class="cardHd"><h3>Notes that tag you</h3><span class="sub">' + (nNew ? nNew + ' new' : 'All read') + '</span><span style="flex:1"></span>' +
+    (nNew ? '<button class="btn btn-ghost btn-sm" data-act="msgAllRead">Mark all as read</button>' : '') + '</div><div class="cardBd msgList">' +
+    L.map(m => { const nw = msgIsNew(m, r);
+      return '<button type="button" class="msgRow' + (nw ? ' new' : '') + '" data-act="msgOpen" data-id="' + esc(m.c.id) + '" data-n="' + esc(m.n.id) + '">' + ptAv(m.c, 40) +
+        '<span class="msgMain"><span class="msgTop"><b class="msgPt">' + esc(m.c.patient || '(no name)') + '</b>' + typeBadge(m.c) + '<span class="msgWhen">' + esc(fmtWhen(m.n.at)) + '</span></span>' +
+        '<span class="msgTx"><b>' + esc(noteWhoOf(m.n) || 'Someone') + ':</b> ' + noteTextHTML(m.n) + '</span></span>' + (nw ? '<span class="msgDot" title="New"></span>' : '') + '</button>'; }).join('') + '</div></div>';
+}
+/* open the case at the note (opening Show earlier if it's further up) and flash it */
+function noteFlash(nid) {
+  setTimeout(() => {
+    const c = findCase(S.openId); if (!c) return; const sel = '#notesList [data-note="' + (window.CSS && CSS.escape ? CSS.escape(nid) : nid) + '"]';
+    let el = $(sel); if (!el) { (S.notesAll = S.notesAll || {})[c.id] = true; notesPaint(c); el = $(sel); }
+    if (!el) return; el.scrollIntoView({ block: 'center', behavior: 'smooth' }); el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 2600);
+  }, 80);
+}
+function msgOpen(caseId, nid) { msgMarkRead([caseId + '/' + nid]); renderNav(); openDrawer(caseId); noteFlash(nid); if (S.view === 'msgs') renderView(); }
+/* the case panel shows a note that tags you: it's read */
+function notesSeen(c) {
+  const me = meSid(); if (!me || !c) return;
+  const all = !!(S.notesAll && S.notesAll[c.id]), L = noteList(c), shown = all ? L : L.slice(Math.max(0, L.length - NOTES_SHOWN));
+  if (msgMarkRead(shown.filter(n => n.to.includes(me) && n.by !== me && n.id !== 'field').map(n => c.id + '/' + n.id))) { renderNav(); if (S.view === 'msgs') queueRender(); }
+}
+/* a note tagging you arrives while the app is open: say so, with Open */
+function msgWatch() {
+  if (!S.inApp) return; const r = msgRead(); S.msgToasted = S.msgToasted || new Set();
+  const fresh = msgList().filter(m => msgIsNew(m, r) && !S.msgToasted.has(m.k) && (m.n.at || 0) > (S.msgSince || 0) && m.c.id !== S.openId);
+  fresh.forEach(m => S.msgToasted.add(m.k));
+  if (fresh.length === 1) { const m = fresh[0]; toast((noteWhoOf(m.n) || 'Someone') + ' tagged you on ' + (m.c.patient || 'a case'), { action: 'Open', onAction: () => msgOpen(m.c.id, m.n.id), ms: 9000 }); }
+  else if (fresh.length > 1) toast(fresh.length + ' new notes tag you', { action: 'Messages', onAction: () => { S.view = 'msgs'; renderNav(); renderView(); }, ms: 9000 });
 }
 
 /* company logos for the case-type tiles and the labs (pasted by Amir, 2–3 Oct 2026); generated by tools/logos.py, do not edit by hand */
@@ -7511,7 +7716,7 @@ const ADMIN_ACTS = {
       const labHand = x => x.a === 'lab' && (x.hand || x.unlink || x.relink);
       box.innerHTML = list.filter(x => x.a !== 'rekey' && (x.a !== 'lab' || x.first || x.step || labHand(x) || (x.fields || []).length)).slice(0, 80).map(x => {
         const c = S.cases.get(x.caseId); const who = x.a === 'email' ? ((MAIL_CO[x.co] || {}).l || 'Lab') + ' email' : x.a === 'lab' && !labHand(x) ? 'Lab PC' : firstName(staffName(x.sid, x.sid));
-        const what = { create: 'created', import: 'imported', stage: 'moved', comment: 'commented on', close: 'completed', reopen: 'reopened', assign: 'reassigned', edit: 'edited', restore: 'restored', delete: 'deleted', save: 'saved', rekey: 're-sealed', email: 'updated', lab: 'updated the lab progress of', photo: 'changed the photo of', dup: 'removed a duplicate:', undup: 'brought back', notdup: 'marked as not a duplicate', dupcopy: 'copied a duplicate’s comments to' }[x.a] || x.a;
+        const what = { create: 'created', import: 'imported', stage: 'moved', comment: 'added a note to', close: 'completed', reopen: 'reopened', assign: 'reassigned', edit: 'edited', restore: 'restored', delete: 'deleted', save: 'saved', rekey: 're-sealed', email: 'updated', lab: 'updated the lab progress of', photo: 'changed the photo of', dup: 'removed a duplicate:', undup: 'brought back', notdup: 'marked as not a duplicate', dupcopy: 'copied a duplicate’s comments to' }[x.a] || x.a;
         return '<div class="hist"><time>' + esc(fmtWhen(x.at)) + '</time><span><b>' + esc(who) + '</b> ' + esc(what) + ' ' + (c ? '<button class="linkBtn" data-act="open" data-id="' + esc(c.id) + '">' + ptName(c.patient) + '</button>' : 'a completed case') + '</span></div>';
       }).join('');
     } catch (x) { const box = $('#actBox'); if (box) box.innerHTML = '<div class="small" style="color:var(--coral-700)">' + esc(errText(x)) + '</div>'; }
@@ -8439,7 +8644,7 @@ const LAB_STEPS = [
   { k: 'atTrimmer', l: 'Sticker printed', to: 'trim', first: true, why: 'the first stickers are printed' },
   { k: 'trimmed', l: 'Trimmed', to: 'polish', why: 'every aligner is trimmed' }
 ];
-const LAB_ORDER_STEP = { to: 'send', why: 'the order is in Ortho Factory' }; // the export arrived: Ready to print
+const LAB_ORDER_STEP = { to: 'send', why: 'the STLs are exported' }; // the export arrived: Ready to print (Amir, 7 Oct 2026: say "STLs exported", not "in Ortho Factory")
 function labBeat(b) { return /^lab pc/i.test(String((b && b.box) || '')); }
 function labBot(x) { return String((x && x.email) || '').indexOf(LAB_BOT) === 0; }
 
@@ -8655,13 +8860,13 @@ function labHistText(x) {
 /* ---------- what the case shows ---------- */
 /* "1 of 6 stickers printed", "all stickers printed" — how many aligners have their sticker (trimmed ones included) */
 function labStickText(at, n) { return at >= n ? 'all stickers printed' : at + ' of ' + n + ' sticker' + (n === 1 ? '' : 's') + ' printed'; }
-/* "1 of 6 stickers printed", "trimmed 5 of 18 · all stickers printed", "all 18 trimmed", "in Ortho Factory, 18 aligners" —
+/* "1 of 6 stickers printed", "trimmed 5 of 18 · all stickers printed", "all 18 trimmed", "STLs exported, 18 aligners" —
    where the set is in the lab */
 function labNowText(o) {
-  const a = (o && o.a) || {}, n = a.n || 0; if (!n) return 'in Ortho Factory';
+  const a = (o && o.a) || {}, n = a.n || 0; if (!n) return 'STLs exported';
   const tr = a.trimmed || 0, at = Math.max(a.atTrimmer || 0, tr);
   if (tr >= n) return 'all ' + n + ' trimmed';
-  if (!at) return 'in Ortho Factory, ' + n + ' aligner' + (n === 1 ? '' : 's');
+  if (!at) return 'STLs exported, ' + n + ' aligner' + (n === 1 ? '' : 's');
   if (!tr) return labStickText(at, n);
   return 'trimmed ' + tr + ' of ' + n + (at > tr ? ' · ' + labStickText(at, n) : '');
 }
@@ -8784,7 +8989,7 @@ function labCardHTML(c) {
   const o = c.labOrd; if (!o || !o.key || c.type !== 'nla' || c.status === 'done') return '';
   const a = o.a || {}, n = a.n || 0, any = n && ((a.atTrimmer || 0) > 0 || (a.trimmed || 0) > 0);
   return '<div class="labLn" title="' + esc('Ortho Factory order ' + o.key + ' · ' + labNowText(o) + (labWhen(o) ? ' · ' + labWhen(o) : '')) + '">' +
-    (any ? '' : ic('lab', 13)) + '<div class="labB">' + (any ? labMetersHTML(o, c) : '<span class="t">In Ortho Factory</span>') + labGoHTML(c, true) + '</div></div>';
+    (any ? '' : ic('lab', 13)) + '<div class="labB">' + (any ? labMetersHTML(o, c) : '<span class="t">STLs exported</span>') + labGoHTML(c, true) + '</div></div>';
 }
 /* "upper trimmed · lower thermoformed" (each arch's templates as far as the furthest behind of them), else from the counts */
 function labTemplText(o) {
@@ -8802,7 +9007,7 @@ function labBoxHTML(c) {
     return '<div class="labRow' + (done ? ' done' : v ? ' on' : '') + '">' + labIcon(r.k, !done && lv[r.k], 18) + '<span class="l">' + esc(r.l) + (more ? '<small>' + esc(more) + '</small>' : '') + '</span>' +
       labBar(v, a[r.q] || 0, n) + '<span class="v"><b>' + v + '</b> of ' + n + '</span></div>'; };
   const t = o.t || {}, ord = labOrderedMs(o), done = c.status === 'done';
-  return '<div class="labBox">' + (any ? LAB_ROWS.map(row).join('') + labGridHTML(o) : '<div class="small">In Ortho Factory, no stickers printed yet' + (n ? ' (' + n + ' aligner' + (n === 1 ? '' : 's') + ')' : '') + '.</div>') +
+  return '<div class="labBox">' + (any ? LAB_ROWS.map(row).join('') + labGridHTML(o) : '<div class="small">STLs exported, no stickers printed yet' + (n ? ' (' + n + ' aligner' + (n === 1 ? '' : 's') + ')' : '') + '.</div>') +
     '<div class="small muted labT">Printing shows here once the Formlabs print feed is connected.</div>' +
     (t.n ? '<div class="small muted labT">Attachment templates: ' + esc(labTemplText(o)) + '</div>' : '') +
     '<div class="small muted labMeta">Ortho Factory order <b>' + esc(o.key) + '</b>' + (ord ? ' · exported ' + esc(fmtWhen(ord)) : '') + (o.au ? ' · U ' + o.au : '') + (o.al ? ' · L ' + o.al : '') +
@@ -13402,7 +13607,7 @@ function tourSteps(kind) {
     { id: 'open', need: onBoard, at: card, t: 'Open a case', b: 'Everything about the case is one tap away.', act: 'Tap your card.', done: () => !!TOUR.id && S.openId === TOUR.id },
     { id: 'panel', need: inCase, at: () => $('#drawer .dHd'), t: 'The case', b: 'Each section folds to one line: tap a heading to open it, or Expand all. The steps, Details, Edit and the patient’s photo are all here.' },
     { id: 'note', need: inCase, at: () => $('#drawer [data-ds=note] .dsHd'), t: 'Chart note', b: 'Copy (on its heading) puts the note on the clipboard, ready to paste into the patient’s chart. Open it to switch between the scan visit’s note and the delivery visit’s, each with what the patient was told.' },
-    { id: 'comments', need: inCase, at: () => $('#drawer [data-ds=comments] .dsHd'), t: 'Comments', b: 'Notes for the team about this case. Everyone sees them, with who wrote them and when.' },
+    { id: 'comments', need: inCase, at: () => $('#drawer [data-ds=notes] .dsHd'), t: 'Notes', b: 'Notes for the team about this case, with who wrote them and when. It stays open. Type @ and a name to tag someone: the note goes to their Messages.' },
     { id: 'close', at: () => $('#drawer [data-act=closeDrawer]'), t: 'Close it', b: 'Back to where you were.', act: 'Tap ✕ (or press Esc).', done: () => !S.openId },
     { id: 'list', at: () => tVis('#nav-list', '#mnav-list'), t: 'All open cases', b: 'Every open case in one table. My cases is the same list, just yours.', act: 'Tap All open cases.', done: () => S.view === 'list' },
     { id: 'search', need: onList, at: () => $('#q'), t: 'Search', b: 'Type part of a name, chart #, kind of case or step.', act: 'Search for your patient.',
