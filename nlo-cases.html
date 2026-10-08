@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-5x1gB0GhIMvr1fsYcA8XfvLyxSHHNTN8U5iGB4PesmQ=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-6B2f9DkHHQWHnALSkX/2ibo/qNKZ3LcfE4j5sJL2G5c=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO Cases</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -297,7 +297,10 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
 .sec{margin-top:18px}
 .sec h5{font-family:var(--fd);font-weight:500;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--grey-500);margin-bottom:8px}
 /* the case's stages: circles joined by a line down the side, filled in up to the current stage */
-.stepper{display:flex;flex-direction:column;gap:2px}
+.stepper{display:grid;grid-template-columns:minmax(0,1fr) auto;row-gap:2px}
+.stepL{display:contents} /* a step's row: the step, the smiley beside it, its stickers under it (stickers.js) */
+.stepper .step{grid-column:1}
+.stepper>.stepGrp{grid-column:1/-1}
 .step{position:relative;display:flex;align-items:center;gap:12px;padding:8px 13px;border-radius:10px;border:0;text-align:left;font-weight:600;font-size:13px;color:var(--grey-600);background:transparent;min-height:40px}
 .step:hover{background:var(--blue-100)}
 .step .n{position:relative;z-index:1;width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:inset 0 0 0 2px var(--grey-300);color:var(--grey-500);font-size:11px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;flex:none}
@@ -309,7 +312,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
 .step::before{top:-2px;bottom:50%}
 .step::after{top:50%;bottom:0}
 .step.past::before,.step.cur::before,.step.past::after{background:var(--mint-600)}
-.stepper>.step:first-child::before,.stepper>.step:last-child::after{display:none}
+.stepper>.stepL:first-child>.step::before,.stepper>.stepL:last-child>.step::after{display:none}
 /* the last step (Checked into Milestones: Mark complete is offered there) is a diamond, the milestone mark (Amir, 7 Oct 2026);
    the diamond is drawn behind the number so the number stays upright */
 .step.ms .n,.step.ms.past .n,.step.ms.cur .n{background:transparent;box-shadow:none}
@@ -1640,16 +1643,18 @@ body.phHide .pnm:not(:hover)::after{content:attr(data-s)}
 .ds.open .dsHd .labGo{display:none} /* (open: the same button is in the section) */
 @media (pointer:coarse){ .labGo.sm{min-height:32px;padding:4px 11px 4px 6px} }
 .labBox{display:flex;flex-direction:column;gap:7px}
-.labRow{display:grid;grid-template-columns:18px minmax(104px,150px) 1fr auto;align-items:center;gap:10px;font-size:12.5px;color:var(--grey-700)}
-.labRow .l{display:flex;flex-direction:column;line-height:1.25}
-.labRow .l small{font-size:11px;color:var(--grey-500);font-weight:500}
-.labRow .bar{display:flex;height:8px;border-radius:4px;background:var(--grey-100);overflow:hidden}
-.labRow .bar i{display:block;height:100%;background:var(--mint-600)}
-.labRow .bar i.q{background:var(--mint-200)}
-.labRow.done .l{color:var(--mint-700);font-weight:600}
-.labRow.done .bar i{background:var(--mint-700)}
-.labRow .v{font-variant-numeric:tabular-nums;min-width:54px;text-align:right;color:var(--grey-600)}
-.labRow .v b{color:var(--navy)}
+/* (the lab PC's progress rows were .labRow — the Lab picker's name in the case form — and the picker took their grid:
+   Specialty squeezed out, Next Level stretched; Amir, 8 Oct 2026) */
+.labPr{display:grid;grid-template-columns:18px minmax(104px,150px) 1fr auto;align-items:center;gap:10px;font-size:12.5px;color:var(--grey-700)}
+.labPr .l{display:flex;flex-direction:column;line-height:1.25}
+.labPr .l small{font-size:11px;color:var(--grey-500);font-weight:500}
+.labPr .bar{display:flex;height:8px;border-radius:4px;background:var(--grey-100);overflow:hidden}
+.labPr .bar i{display:block;height:100%;background:var(--mint-600)}
+.labPr .bar i.q{background:var(--mint-200)}
+.labPr.done .l{color:var(--mint-700);font-weight:600}
+.labPr.done .bar i{background:var(--mint-700)}
+.labPr .v{font-variant-numeric:tabular-nums;min-width:54px;text-align:right;color:var(--grey-600)}
+.labPr .v b{color:var(--navy)}
 /* each aligner of the set by its number, coloured by its step (lab.js labGridHTML) */
 .labGrid{display:flex;flex-direction:column;gap:6px;margin-top:4px;padding-top:9px;border-top:1px solid var(--grey-100)}
 .labGr{display:grid;grid-template-columns:42px 1fr;gap:8px;align-items:start}
@@ -1704,6 +1709,77 @@ body.phHide .pnm:not(:hover)::after{content:attr(data-s)}
 .labCmd{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:6px 0 2px}
 .labCmd code{flex:1 1 260px;min-width:0;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11.5px;line-height:1.45;background:var(--grey-50);border:1px solid var(--grey-200);border-radius:8px;padding:7px 10px;color:var(--navy);word-break:break-all;user-select:all}
 @media (prefers-reduced-motion:reduce){ .labGo{transition:none} }
+
+/* ---------- Stickers (stickers.js, Amir 7 Oct 2026): on notes, steps someone did and sections ----------
+   a sticker is the emoji with a white die-cut edge and a soft shadow, at its own slight angle (--r), then who sent it */
+.stk{display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 9px 0 5px;border-radius:13px;font-size:12px;font-weight:600;line-height:1;color:var(--grey-600);background:var(--grey-50);vertical-align:middle;white-space:nowrap;max-width:100%;min-width:0}
+.stkE{display:inline-block;flex:none;font-size:17px;line-height:1;transform:rotate(var(--r,0deg));filter:drop-shadow(1px 0 0 #fff) drop-shadow(-1px 0 0 #fff) drop-shadow(0 1px 0 #fff) drop-shadow(0 -1px 0 #fff) drop-shadow(0 1.5px 1.2px rgba(17,32,58,.3))}
+.stkW{overflow:hidden;text-overflow:ellipsis;min-width:0}
+button.stk{transition:background .15s var(--ease)}
+button.stk .stkE{transition:transform .15s var(--ease)}
+.stk.mine{background:var(--blue-100);color:var(--blue-700);box-shadow:inset 0 0 0 1px var(--blue-200)}
+@media (hover:hover){ button.stk:hover{background:var(--grey-100)} button.stk.mine:hover{background:#DCE3F6} button.stk:hover .stkE{transform:rotate(var(--r,0deg)) scale(1.15)} }
+.stk.pop .stkE{animation:stkPop .6s cubic-bezier(.2,1.5,.35,1)}
+@keyframes stkPop{0%{transform:scale(.2) rotate(-35deg);opacity:0}55%{transform:scale(1.35) rotate(calc(var(--r,0deg) + 10deg));opacity:1}100%{transform:scale(1) rotate(var(--r,0deg))}}
+/* the smiley that sends one: shows on the row the pointer is over (always, a little faint, on a touchscreen) */
+.stkAdd{flex:none;display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;color:var(--grey-400);opacity:0;transition:opacity .15s var(--ease),background .15s var(--ease),color .15s var(--ease)}
+.stkAdd.on,.stkAdd:focus-visible{opacity:1;color:var(--navy);background:var(--grey-100)}
+@media (hover:hover){ .stkAdd:hover{color:var(--navy);background:var(--grey-100)} .cmt:hover .stkAdd,.hist:hover .stkAdd,.dsHd:hover .stkAdd,.stepL:hover .stkAdd{opacity:1} }
+@media (hover:none){ .stkAdd{opacity:.45} .ds:not(.open)>.dsHd .stkAdd{display:none} }
+/* a note: the smiley at its top right, its stickers under the text */
+.cmt{position:relative}
+.cmt>.stkAdd{position:absolute;top:3px;right:-4px}
+.cmt .w{padding-right:28px}
+.stkRow{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+/* a step: the smiley beside it; its stickers on a line under it, the stage line running through */
+.stkSlot{grid-column:2;align-self:center;display:flex;align-items:center;justify-content:center;width:32px;min-height:28px}
+.stepStk{grid-column:1/-1;position:relative;display:flex;flex-wrap:wrap;gap:4px;padding:1px 0 5px 49px;border-radius:10px}
+.stepStk::before{content:'';position:absolute;left:24px;top:-2px;bottom:0;width:2px;background:var(--grey-200)}
+.stepL.past>.stepStk::before{background:var(--mint-600)}
+.stepper>.stepL:last-child>.stepStk::before{display:none}
+/* History: after the words, the smiley at the row's end */
+.hist .hTx{flex:1;min-width:0}
+.hist>.stkAdd{width:24px;height:24px;margin:-3px -4px -3px 0}
+.stkIn{display:inline-flex;flex-wrap:wrap;gap:4px;vertical-align:middle;margin-left:2px}
+.stkIn .stk{height:22px;font-size:11.5px;padding-right:8px}
+.stkIn .stkE{font-size:15px}
+/* a section's heading: its stickers, then the smiley */
+.stkHd{flex:0 1 auto;min-width:0;display:flex;align-items:center;gap:4px}
+.stkHd .stk{flex:0 1 auto;height:24px}
+@media (max-width:520px){ .stkHd .stkW{display:none} .stkHd .stk{padding:0 6px} }
+/* the stickers to pick from */
+.stkPick{position:fixed;z-index:60;background:#fff;border:1px solid var(--grey-200);border-radius:16px;box-shadow:var(--sh-lg);padding:8px;width:max-content;max-width:calc(100vw - 16px)}
+.stkGrid{display:grid;grid-template-columns:repeat(8,40px);gap:2px}
+@media (max-width:420px){ .stkGrid{grid-template-columns:repeat(4,44px)} .stkOpt{width:44px;height:44px} }
+.stkOpt{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:23px;line-height:1;transition:transform .12s var(--ease),background .12s var(--ease)}
+.stkOpt span{filter:drop-shadow(1px 0 0 #fff) drop-shadow(-1px 0 0 #fff) drop-shadow(0 1px 0 #fff) drop-shadow(0 -1px 0 #fff) drop-shadow(0 1.5px 1.2px rgba(17,32,58,.25))}
+@media (hover:hover){ .stkOpt:hover{background:var(--grey-50);transform:scale(1.18) rotate(-5deg)} }
+.stkOpt[aria-pressed="true"]{background:var(--blue-100);box-shadow:inset 0 0 0 1.5px var(--blue-200)}
+.stkTo{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-top:6px;padding:7px 4px 1px;border-top:1px solid var(--grey-100);font-size:12px;color:var(--grey-500)}
+.stkTo b{color:var(--navy)}
+.stkTo label{font-weight:600;color:var(--grey-600)}
+.stkTo select{font:inherit;font-weight:600;color:var(--navy);border:1px solid var(--grey-200);border-radius:8px;padding:4px 6px;background:#fff;max-width:200px}
+/* in Messages */
+.stkTx{display:flex;align-items:center;gap:8px}
+.stkE.big{font-size:24px}
+.msgOn{font-size:12.5px;color:var(--grey-500);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* what a sticker in Messages is on, flashed when it's opened */
+.stepStk.flash,.hist.flash,.dsHd.flash{animation:noteFlash 2.6s var(--ease);border-radius:10px}
+@media (prefers-reduced-motion:reduce){
+  .stk.pop .stkE{animation:none} .stkAdd,button.stk,button.stk .stkE,.stkOpt{transition:none}
+  @media (hover:hover){ button.stk:hover .stkE{transform:rotate(var(--r,0deg))} .stkOpt:hover{transform:none} }
+  .stepStk.flash,.hist.flash,.dsHd.flash{animation:none;background:var(--mint-100)}
+}
+/* ---------- Not shipped → an email to the front desk (noship.js, Amir 8 Oct 2026) ---------- */
+.nsBox{margin-top:16px;padding-top:14px;border-top:1px solid var(--grey-100)}
+.nsBox h5{font-family:var(--fd);font-weight:500;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--grey-500);margin-bottom:8px}
+.nsOn{display:flex;align-items:flex-start;gap:8px;margin:0 0 10px;color:var(--grey-700)}
+.nsOn .dot{margin-top:5px}
+.nsForm{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;max-width:420px}
+.nsForm .field{margin:0}
+.nsForm .lbl{display:block;font-size:12px;font-weight:600;color:var(--grey-600);margin-bottom:4px}
+.nsChk{grid-column:1/-1;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--grey-700)}
+.nsSent{display:inline-block;font-weight:600;opacity:.85}
 
 </style>
 </head>
@@ -2537,7 +2613,7 @@ const FB = {
     const cur = await FB.db.doc('meta/inboxKey').get();
     const keys = Object.assign({}, cur.exists ? cur.data().keys : {}, { [kid]: { v: FB.curV, iv: box.iv, ct: box.ct } });
     await FB.track(FB.db.doc('meta/inboxKey').set({ keys, cur: kid }));
-    await FB.track(FB.db.doc('meta/inbox').set({ pub, kid, senders: MAIL_SENDERS, at: FB.ts() }));
+    await FB.track(FB.db.doc('meta/inbox').set({ pub, kid, senders: MAIL_SENDERS, at: FB.ts() }, { merge: true })); // (keeps the front-desk email settings)
     FB.inboxPriv = null;
   },
   /* a robot's login (made in a second, throwaway Firebase app, so the owner stays signed in): its uid */
@@ -2592,6 +2668,20 @@ const FB = {
     await FB.track(b.commit());
   },
   async mailSenders(list) { await FB.db.doc('meta/inbox').update({ senders: list }); },
+  /* ---------- the front-desk email for a case not shipped in time (noship.js) ----------
+     The owner's settings sit with the inbox key the scripts read (meta/inbox.notify: on, to, box, pub, names); a note for the sending
+     mailbox's script is sealed to that script's own key and goes in the same save that marks the case as emailed for this appt */
+  async notifyCfg() { const s = await FB.db.doc('meta/inbox').get(); return s.exists ? (s.data().notify || null) : null; },
+  async notifySet(n) { await FB.track(FB.db.doc('meta/inbox').update({ notify: n })); },
+  async outboxNote(msg, n) {
+    const id = 'o' + Array.from(rnd(16), b => b.toString(16).padStart(2, '0')).join(''), box = await Crypto.sealTo(n.pub, TE.encode(JSON.stringify(msg)), 'outbox:' + id);
+    return { ref: FB.db.doc('outbox/' + id), data: { box: n.box, epk: box.epk, iv: box.iv, ct: box.ct, at: FB.ts() } };
+  },
+  async noshipSend(id, appt, msg, n) {
+    const note = await FB.outboxNote(msg, n);
+    return FB.mutateCase(id, d => { if (d.noshipMail === appt) return 'skip'; d.noshipMail = appt; }, { a: 'noship', appt, addr: n.to }, tx => { tx.set(note.ref, note.data); });
+  },
+  async noshipTest(msg, n) { const note = await FB.outboxNote(msg, n); await FB.track(note.ref.set(note.data)); },
   /* every inbox item, opened: [{ id, at, done, mail }] (mail = null when it can't be opened) */
   async inboxLoad() {
     const snap = await FB.db.collection('inbox').get(), out = [];
@@ -2657,7 +2747,8 @@ const FB = {
     const out = [];
     for (const d of snap.docs) {
       const x = d.data(); const key = FB.keys[x.v];
-      try { out.push(Object.assign(await Crypto.openJSON(key, x, 'log:' + d.id), { at: FB.tsMs(x.at), sid: x.sid })); } catch (e) { }
+      // (rev: which version of the case the entry made — a sticker on a step someone did names it, stickers.js)
+      try { out.push(Object.assign(await Crypto.openJSON(key, x, 'log:' + d.id), { at: FB.tsMs(x.at), sid: x.sid, rev: x.rev })); } catch (e) { }
     }
     return out.sort((a, b) => (a.at || 0) - (b.at || 0));
   },
@@ -2806,10 +2897,12 @@ const FB = {
     return { v, iv: box.iv, ct: box.ct, pv, at: FB.ts(), by: FB.uid };
   },
   /* which of the security rules this version needs are live: 0 = older than patient photos and email updates, 1 = those but
-     not the patient index and marked deletes (4 Oct 2026), 2 = all of them. An older set refuses the read that checks. */
+     not the patient index and marked deletes (4 Oct 2026), 2 = those but not the front-desk email (8 Oct 2026), 3 = all of them.
+     An older set refuses the read that checks. */
   async rulesLevel() {
     const can = async p => { try { await FB.db.doc(p).get(); return true; } catch (e) { return !/permission/i.test(String((e && (e.code || e.message)) || '')); } };
-    const lv = !(await can('photos/_rules_check')) ? 0 : (await can('meta/rules_20261004')) ? 2 : 1;
+    let lv = !(await can('photos/_rules_check')) ? 0 : (await can('meta/rules_20261004')) ? 2 : 1;
+    if (lv === 2 && await can('meta/rules_20261008')) lv = 3;
     FB.idxOn = lv >= 2; return lv;
   },
   /* a save was refused while writing the index: are the newer rules really live? (false = they aren't; saves go without it) */
@@ -3161,7 +3254,7 @@ const DEMO = {
     const ul = all.find(c => c.type === 'ulab' && c.stage === 'mfg'), ol = all.find(c => c.type === 'oliv' && c.stage === 'submit'), ap = all.find(c => c.type === 'appliance' && c.stage === 'mfg');
     const fL = n => n.split(' ')[0] + ' ' + n.split(' ').slice(-1)[0][0] + '.', Fl = n => n[0] + '. ' + n.split(' ').slice(-1)[0];
     const ago = m => Date.now() - m * 60e3;
-    DEMO.mail.beats = [{ id: 'b1', box: 'office@example.com', at: ago(4), seen: 2, sent: 2, err: '', ver: '1' }, { id: 'b2', box: 'records@example.com', at: ago(7), seen: 1, sent: 1, err: '', ver: '1' }];
+    DEMO.mail.beats = [{ id: 'b1', box: 'office@example.com', at: ago(4), seen: 2, sent: 2, err: '', ver: '1' }, { id: 'b' + 'd2'.repeat(16), box: 'records@example.com', at: ago(7), seen: 1, sent: 1, err: '', ver: '2', pub: { kty: 'EC', crv: 'P-256', x: 'demoKeyForTheFrontDeskEmailOnlyXXXXXXXXXXX'.slice(0, 43), y: 'demoKeyForTheFrontDeskEmailOnlyYYYYYYYYYYY'.slice(0, 43) } }];
     DEMO.mail.inbox = [
       { id: 'mdemo1', at: ago(50), done: [], mail: { box: 'office@example.com', from: 'uLab Systems <noreply@ulabsystems.com>', subject: 'Your uLab order DMO42 has shipped.', date: ago(50),
         text: 'Your Order Has Shipped!\nGreat news! The following order is on the way to your office:\nOrder Number: DMO42\nPatient Name: ' + ul.patient + '\nClick here to track your order: 123456789012' } },
@@ -3217,10 +3310,19 @@ const DEMO = {
      [2, 'angelika', 'Trimmed and polished. @' + (me === 'amir' ? 'Dr. A' : 'Practice') + ' one aligner has a thin edge, take a look at the delivery.', 26 * 60]].forEach(([i, by, text, min]) => {
       const c = tagged[i]; if (c) c.comments = (c.comments || []).concat([{ id: 'dn' + i, at: Date.now() - min * 60e3, by, text, to: [me] }]); });
     try { if (tagged[2]) localStorage.setItem('nloCases.msgRead.' + me, JSON.stringify([tagged[2].id + '/dn2'])); } catch (e) { }
+    // stickers (stickers.js): Sarah's 👍 on Gwen's note, and two for the one practising — Sarah's 🙏 in a case's Details, and
+    // Gwen's 🎉 on a step they did (a move to the step that case is at, three hours ago)
+    const stk = (c, s) => { if (c) c.stickers = (c.stickers || []).concat([s]); };
+    if (tagged[0]) stk(tagged[0], { id: 'ds0', at: Date.now() - 22 * 60e3, by: 'sarah', e: '👍', on: 'n:dn0', to: 'gwen' });
+    if (tagged[1]) stk(tagged[1], { id: 'ds1', at: Date.now() - 55 * 60e3, by: 'sarah', e: '🙏', on: 's:details', to: me, l: 'Details' });
+    const mv = Array.from(DEMO.cases.values()).find(c => c.status === 'open' && !tagged.includes(c) && stageIndex(c) > 0);
+    if (mv) { const st = caseStages(mv), i = stageIndex(mv), at = Date.now() - 3 * 3600e3;
+      DEMO.logs.push({ caseId: mv.id, a: 'stage', from: st[i - 1][0], to: mv.stage, at, sid: me });
+      stk(mv, { id: 'ds2', at: Date.now() - 40 * 60e3, by: 'gwen', e: '🎉', on: 'h:t' + at, to: me, k: mv.stage, l: 'moved it to ' + st[i][1] }); }
   },
   /* patient photos (in memory) */
   photos: new Map(),
-  async rulesLevel() { return 2; },
+  async rulesLevel() { return 3; },
   /* the patient index: in memory every case is at hand, so a patient's cases are found by their keys (histKeys in ui.js) */
   idxOn: true,
   async loadPatients(keys) { const want = new Set(keys); return Array.from(DEMO.cases.values()).filter(c => histKeys(c).some(k => want.has(k))).map(c => JSON.parse(JSON.stringify(c))); },
@@ -3255,7 +3357,7 @@ const DEMO = {
   /* lab-email updates: the inbox as the app would see it after opening each sealed email */
   mail: { on: true, beats: [], inbox: [] },
   lab: { on: true }, // the lab PC (lab.js)
-  async mailState() { return { on: DEMO.mail.on, pub: { senders: MAIL_SENDERS }, beats: DEMO.mail.beats.slice(),
+  async mailState() { return { on: DEMO.mail.on, pub: Object.assign({ senders: MAIL_SENDERS }, DEMO.notify ? { notify: JSON.parse(JSON.stringify(DEMO.notify)) } : {}), beats: DEMO.mail.beats.slice(),
     bots: (DEMO.mail.on ? [{ uid: 'bot', email: 'mailbot.demo@staff.example' }] : []).concat(DEMO.lab.on ? [{ uid: 'labbot', email: 'labbot.demo@staff.example' }] : []) }; },
   async labSetup() { DEMO.lab.on = true; return { email: 'labbot.demo@staff.example', password: 'demo-only-not-a-real-login' }; },
   async labOff() { DEMO.lab.on = false; DEMO.mail.beats = DEMO.mail.beats.filter(b => !labBeat(b)); },
@@ -3263,6 +3365,12 @@ const DEMO = {
   async mailCreds() { return DEMO.mail.on ? { email: 'mailbot.demo@staff.example', password: 'demo-only-not-a-real-login' } : null; },
   async mailOff() { DEMO.mail.on = false; },
   async mailSenders() { },
+  // the front-desk email (noship.js): off until it's turned on in Team & security; what would be sent is kept in DEMO.outbox
+  notify: null, outbox: [],
+  async notifyCfg() { return DEMO.notify; },
+  async notifySet(n) { DEMO.notify = JSON.parse(JSON.stringify(n)); },
+  async noshipSend(id, appt, msg, n) { await DEMO.mutateCase(id, d => { if (d.noshipMail === appt) return 'skip'; d.noshipMail = appt; }, { a: 'noship', appt, addr: n.to }); DEMO.outbox.push({ at: Date.now(), to: n.to, msg }); },
+  async noshipTest(msg, n) { DEMO.outbox.push({ at: Date.now(), to: n.to, msg, test: true }); },
   async inboxLoad() { return JSON.parse(JSON.stringify(DEMO.mail.inbox)); },
   async inboxClaim() { return true; },
   async inboxDone(id, idx) { const x = DEMO.mail.inbox.find(i => i.id === id); if (x) x.done = Array.from(new Set((x.done || []).concat(idx))); },
@@ -3278,7 +3386,7 @@ const DEMO = {
       const c = Object.assign({}, item.data, { id, rev: 1, v: 1, status: item.status || 'open', by: DEMO.me.staffId, updatedAt: Date.now(), closedAt: item.status === 'done' ? (item.closedAt || Date.now()) : null });
       if (item.photo) { c.photo = 'dv' + uid8(); DEMO.photos.set(id, { pv: c.photo, bytes: item.photo }); }
       item.id = id; item.photoV = c.photo || '';
-      DEMO.cases.set(id, c); DEMO.logs.push({ caseId: id, a: (item.action || { a: 'create' }).a, at: Date.now(), sid: DEMO.me.staffId }); DEMO.emit(c); return id;
+      DEMO.cases.set(id, c); DEMO.logs.push({ caseId: id, a: (item.action || { a: 'create' }).a, at: Date.now(), sid: DEMO.me.staffId, rev: c.rev || 1 }); DEMO.emit(c); return id;
     });
   },
   async createCase(data, photo) { return (await DEMO.createCases([{ data, photo: photo || null }]))[0]; },
@@ -3289,7 +3397,7 @@ const DEMO = {
     (DEMO.versions[id] = DEMO.versions[id] || []).push({ rev: c.rev, replacedAt: Date.now(), replacedBy: DEMO.me.staffId, replacedHow: action && action.a, data: JSON.parse(JSON.stringify(c)) });
     if (st === 'done' || st === 'open') { data.status = st; data.closedAt = st === 'done' ? Date.now() : null; }
     data.rev++; data.updatedAt = Date.now(); data.by = DEMO.me.staffId;
-    DEMO.cases.set(id, data); if (action) DEMO.logs.push(Object.assign({ caseId: id, at: Date.now(), sid: DEMO.me.staffId }, action));
+    DEMO.cases.set(id, data); if (action) DEMO.logs.push(Object.assign({ caseId: id, at: Date.now(), sid: DEMO.me.staffId, rev: data.rev }, action));
     await new Promise(r => setTimeout(r, 60)); DEMO.emit(data);
   },
   async deleteCase(id) { const c = DEMO.cases.get(id); if (c) DEMO.deleted.push({ caseId: id, at: Date.now(), sid: DEMO.me.staffId, data: JSON.parse(JSON.stringify(c)) }); DEMO.cases.delete(id); DEMO.photos.delete(id); if (c && DEMO.h) DEMO.h.cases([], [id], false); },
@@ -3779,7 +3887,9 @@ const IC = {
   chart: '<path d="M4 20.5h16"/><path d="M7 16.5v-5M12 16.5V5.5M17 16.5v-8"/>',
   copy: '<rect x="8.5" y="8.5" width="11" height="11" rx="2"/><path d="M15.5 8.5V6A1.5 1.5 0 0014 4.5H6A1.5 1.5 0 004.5 6v8A1.5 1.5 0 006 15.5h2.5"/>',
   // the lab PC (Ortho Factory): a 3D printer's frame, its build plate and a part on it
-  lab: '<path d="M4.5 20.5V4.5h15v16"/><path d="M4.5 8h15"/><path d="M10 8v2.5h4V8"/><path d="M7.5 17h9"/><path d="M9.5 17v-3h5v3"/>'
+  lab: '<path d="M4.5 20.5V4.5h15v16"/><path d="M4.5 8h15"/><path d="M10 8v2.5h4V8"/><path d="M7.5 17h9"/><path d="M9.5 17v-3h5v3"/>',
+  // send a sticker (stickers.js): a smiley with a plus
+  stk: '<circle cx="10.5" cy="13.5" r="7.5"/><path d="M8 11.6v.5M13 11.6v.5"/><path d="M7.7 15.5a3.6 3.6 0 005.6 0"/><path d="M19.5 2.5v5M17 5h5"/>'
 };
 function ic(n, s) { s = s || 18; return '<svg class="i" width="' + s + '" height="' + s + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (IC[n] || '') + '</svg>'; }
 
@@ -4008,17 +4118,18 @@ function enterApp() {
     cases(up, gone) {
       // a stage move still being saved wins over an older copy arriving from the server (quick → → → clicks)
       // (a case saved at a retired step shows at the step that replaced it — see liveStage)
-      up.forEach(c => { applNorm(c); c.stage = liveStage(c); const p = S.pend && S.pend[c.id]; if (p) { c.stage = p.to; if (p.extra) Object.assign(c, p.extra); } S.cases.set(c.id, c); }); gone.forEach(id => S.cases.delete(id));
+      // (and a sticker sent from here and not saved yet stays on — stickers.js)
+      up.forEach(c => { applNorm(c); c.stage = liveStage(c); const p = S.pend && S.pend[c.id]; if (p) { c.stage = p.to; if (p.extra) Object.assign(c, p.extra); } stkPendApply(c); S.cases.set(c.id, c); }); gone.forEach(id => S.cases.delete(id));
       S.casesV = (S.casesV || 0) + 1; // (the open cases changed: possible duplicates are worked out again — dupes.js)
       const first = S.firstLoad; S.firstLoad = false; queueRender();
       if (first) setTimeout(mailSync, 300); // lab emails that came in while nobody had the app open
-      else msgWatch(); // a note tagging you, just now (notes.js)
+      else { msgWatch(); nsSoon(); } // a note tagging you, just now (notes.js); a case that may need the front desk emailed (noship.js)
       if (first) setTimeout(iprAutoSync, 1500); // the IPR Tracker, for every patient at once, when the link is still on in this tab
       else if (LABS.list.length && up.some(c => c.type === 'nla')) labSoon(); // a lab order waiting on Today may fit a case just added or changed (lab.js)
       if (S.openId && (up.some(c => c.id === S.openId) || gone.includes(S.openId))) { const rd = () => { if (S.openId) refreshDrawer(gone.includes(S.openId)); }; if (!afterPress(rd)) rd(); }
     },
     inbox() { mailSync(); },
-    mailbeat(list) { if (MAILS.state) MAILS.state.beats = list; if (S.view === 'admin') queueRender('team'); },
+    mailbeat(list) { if (MAILS.state) { MAILS.state.beats = list; nsKeepKey(); } if (S.view === 'admin') queueRender('team'); },
     roster(list) { S.roster = list; queueRender('team'); },
     members(list) { S.members = list; if (S.view === 'admin') queueRender('team'); },
     settings(s) {
@@ -4038,6 +4149,7 @@ function enterApp() {
     if (S.inApp && !S.tour && Date.now() - S.lastAct > mins * 60000) lockOut('Locked after ' + mins + ' minutes without activity.'); // practice mode has nothing to hide
   }, 15000);
   clearInterval(S.mailTimer); S.mailTimer = setInterval(mailSync, 180000); // also catches emails a case couldn't take yet
+  clearInterval(S.nsTimer); S.nsTimer = setInterval(nsCheck, 300000); // the front-desk email, even when no lab email comes in (noship.js)
   S.rulesOld = false; rulesCheck();
   // practice mode: the tour starts by itself once, and after Lock it picks up where it was
   if (S.tour && (!S.tourBegun || TOUR.paused)) { S.tourBegun = true; const from = TOUR.paused; TOUR.paused = null; setTimeout(() => { if (S.inApp && !TOUR.on) tourStart(S.tour, from); }, 500); }
@@ -4047,20 +4159,21 @@ function enterApp() {
    (S.rulesOld: photos / email updates wait; S.rulesIdx: only the index waits). true = all of them are live. */
 async function rulesCheck() {
   const was = !!S.rulesOld;
-  S.rulesOld = false; S.rulesIdx = false; document.body.classList.remove('phOff');
+  S.rulesOld = false; S.rulesIdx = false; S.rulesMail = false; document.body.classList.remove('phOff');
   if (!B.rulesLevel) return true;
-  const lv = await B.rulesLevel(); if (!S.inApp) return lv >= 2;
-  S.rulesLv = lv; S.rulesOld = lv < 1; S.rulesIdx = lv === 1; document.body.classList.toggle('phOff', lv < 1);
-  if (lv < 2) queueRender('team');
+  const lv = await B.rulesLevel(); if (!S.inApp) return lv >= 3;
+  // (S.rulesMail: only the front-desk email waits — 8 Oct 2026, noship.js)
+  S.rulesLv = lv; S.rulesOld = lv < 1; S.rulesIdx = lv === 1; S.rulesMail = lv === 2; document.body.classList.toggle('phOff', lv < 1);
+  if (lv < 3) queueRender('team'); else nsSoon(); // (the front-desk email can go — noship.js)
   // just published: the live updates the older rules refused (lab inbox, mailbox check-ins) start again without signing in again
   if (lv >= 1 && was && S.h) { B.start(S.h); MAILS.state = null; queueRender('team'); }
   idxMaintain();
-  return lv >= 2;
+  return lv >= 3;
 }
 /* the owner's app keeps the patient index (see FB.idxFields): once the newer rules are live it indexes every case (once),
    then, at most every 6 hours, the cases saved since — an app opened before the update saves without the index */
 async function idxMaintain() {
-  if (!S.inApp || !isOwner() || S.rulesLv !== 2 || !S.settingsLoaded || S.idxRan || !B.indexCases) return;
+  if (!S.inApp || !isOwner() || !(S.rulesLv >= 2) || !S.settingsLoaded || S.idxRan || !B.indexCases) return; // (2: the index's rules; 3 adds the front-desk email's)
   const last = Number(S.settings.pidx) || 0, t0 = Date.now(); if (last && t0 - last < 6 * 3600e3) return;
   S.idxRan = true;
   try {
@@ -4075,7 +4188,7 @@ async function idxMaintain() {
 async function lockOut(msg) {
   if (!S.inApp) return;
   if (TOUR.on) msg = tourPause(msg); // practice mode: signing back in picks the tour up again
-  S.inApp = false; clearInterval(S.idleTimer); clearInterval(S.mailTimer);
+  S.inApp = false; clearInterval(S.idleTimer); clearInterval(S.mailTimer); clearInterval(S.nsTimer); NS.cfg = null;
   closeModal(); closeDrawer(true);
   S.cases = new Map(); S.closed = []; histReset(); wkReset(); dupReset(); S.members = []; S.roster = []; S.iprCache = {}; S.verList = null; S.delList = null; S.impList = null; S.bk = null;
   Object.assign(MAILS, { list: [], unread: [], pick: {}, sig: '', state: null, stateAt: 0, script: '', gone: new Set(), goneFp: new Set(), hk: null, mem: null });
@@ -4529,12 +4642,15 @@ function noteKindsOf(c) {
 function stageMarks(c) {
   const h = c && S.history && S.openId === c.id ? S.history : null; if (!h || !h.length) return {};
   const L = h.slice().sort((a, b) => (a.at || 0) - (b.at || 0)), out = {};
-  // the case changed after this copy of its history was read (it's being read again): no marks until then, rather than wrong ones
-  if (S.histRev !== c.rev) return {};
+  // the case changed after this copy of its history was read (it's being read again): no marks until then, rather than wrong ones —
+  // unless it's still at the same step (a note, a sticker, an edit): the marks it had still hold, and stay on screen meanwhile
+  if (S.histRev !== c.rev) { const k = S.marksKeep; return k && k.id === c.id && k.stage === c.stage ? k.m : {}; }
   const moved = x => x && x.to && (x.a === 'stage' || x.a === 'email' || (x.a === 'edit' && (x.fields || []).includes('stage')));
   const first = L.find(moved), born = L.find(x => x.a === 'create' || x.a === 'import' || x.a === 'restore'), start = first ? first.from : c.stage;
-  if (born && start) out[start] = { at: born.at, by: born.a === 'import' ? 'asana' : born.sid || '' };
-  L.forEach(x => { if (moved(x)) out[x.to] = { at: x.at, by: x.a === 'email' ? 'email' : x.sid || '' }; });
+  // (h: the history entry, for a sticker on the step — stickers.js)
+  if (born && start) out[start] = { at: born.at, by: born.a === 'import' ? 'asana' : born.sid || '', h: stkHKey(born), born: true };
+  L.forEach(x => { if (moved(x)) out[x.to] = { at: x.at, by: x.a === 'email' ? 'email' : x.sid || '', h: stkHKey(x) }; });
+  S.marksKeep = { id: c.id, stage: c.stage, m: out };
   return out;
 }
 function stageMarkHTML(m) {
@@ -4547,6 +4663,8 @@ function stageMarkHTML(m) {
 function stageMarksPaint(c) {
   const st = $('#drawer .stepper'); if (!st || !c) return; const m = stageMarks(c);
   $$('.step[data-k]', st).forEach(b => { const w = $('.stWhen', b); if (w) w.outerHTML = stageMarkHTML(m[b.dataset.k]); });
+  // (and the smiley beside each step someone moved the case to — stickers.js)
+  const keep = stkHold(); $$('.stkSlot[data-k]', st).forEach(sl => { const h = stkSlotHTML(c, sl.dataset.k, m[sl.dataset.k]); if (sl.innerHTML !== h) sl.innerHTML = h; }); stkReanchor(keep);
 }
 /* stage progress: a circle per stage (done, current, to come) joined by a line that fills in up to the current stage
    (Amir, 2 Oct 2026: circles connected with a line, not a row of rectangles); a stage group (In fabrication) sits in its own band.
@@ -4986,7 +5104,7 @@ function noteAuthKeep(c, log) {
 function noteAuthDone() { if (S.view === 'list' || S.view === 'mine') queueRender(); noteByPaint(); }
 /* the newest history entry that set the Notes field: an edit (or a step move / lab email) that lists it, the creation, the
    Asana import; a restored version (or anything else) could have changed it without saying, so the writer isn't known */
-const NOTE_KEEP_ACTS = ['edit', 'stage', 'email', 'photo', 'reopen', 'close', 'assign', 'comment', 'rekey'];
+const NOTE_KEEP_ACTS = ['edit', 'stage', 'email', 'photo', 'reopen', 'close', 'assign', 'comment', 'rekey', 'sticker', 'noship'];
 function noteAuthFrom(log) {
   for (let i = log.length - 1; i >= 0; i--) {
     const x = log[i] || {};
@@ -5102,6 +5220,7 @@ function openDrawer(id) {
 function closeDrawer(force) {
   if (!force && S.editing && editDirty() && !confirm('Discard your changes?')) return;
   wtyFlush(); S.wtyRedraw = false; // a Specialty invoice date typed and not yet saved (warranty.js)
+  stkClose(); // (the stickers to pick from — stickers.js)
   S.openId = null; S.editing = false; S.editWiz = null; const d = $('#drawer'), s = $('#scrim'); if (d) d.remove(); if (s) s.remove();
 }
 function refreshDrawer(gone) {
@@ -5117,7 +5236,7 @@ function refreshDrawer(gone) {
 async function loadHistory(id) {
   // (two loads in flight: an answer older than the one on screen is dropped — a later load that fails leaves the earlier one)
   const seq = S.histSeq = (S.histSeq || 0) + 1, rev0 = (findCase(id) || {}).rev; // (the version of the case this history goes with)
-  try { const h = await B.caseLog(id); if (S.openId === id && seq > (S.histShown || 0)) { S.histShown = seq; S.history = h; S.histRev = rev0; const el = $('#histBox'); if (el) el.innerHTML = historyHTML(findCase(id)); wtyRefresh(id); stageMarksPaint(findCase(id));
+  try { const h = await B.caseLog(id); if (S.openId === id && seq > (S.histShown || 0)) { S.histShown = seq; S.history = h; S.histRev = rev0; const el = $('#histBox'); if (el) { const keep = stkHold(); el.innerHTML = historyHTML(findCase(id)); stkPop(el); stkReanchor(keep); } wtyRefresh(id); stageMarksPaint(findCase(id));
     const c = findCase(id); if (c && String(c.notes || '').trim() && !notesAuthor(c)) { noteAuthKeep(c, h); noteByPaint(); } } } catch (e) { }
 }
 const FIELD_LABELS = { labOrd: 'lab progress', labNot: 'lab order', quick: 'Quick add tag', rx: 'Herbst Rx', rxRet: 'Retainer Rx', rxMet: 'Metal Rx', rxFun: 'Functional Rx', invDate: 'invoice date', noGuarantee: 'No Guarantee', photo: 'photo', labRef: 'lab case #', labHold: 'lab hold', planUrl: 'plan link', shipToPatient: 'ship to patient', records: 'records on file', zoomDate: 'Zoom call', zoomTime: 'Zoom call', tracking: 'tracking #', carrier: 'carrier', teeth: 'tooth chart', teethNote: 'tooth chart', chart: 'chart #', titanUrl: 'Titan link', initial: 'initial/refinement', appliances: 'appliance', lab: 'lab', arches: 'arch', retKinds: 'retainer type', goals: 'Dr. A’s instructions', instrPicks: 'Dr. A’s instructions', instrOther: 'Dr. A’s instructions', extras: 'extras', variant: 'case type', type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery appt', deliveryTime: 'appt time', txStart: 'treatment start', txEnd: 'expected removal', acrylic: 'acrylic color', glitter: 'acrylic color', alU: 'aligners', alL: 'aligners', aligners: 'aligners', atTemplates: 'attachment templates', treatArch: 'arches to treat', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes', iprSnap: 'IPR chart (from the IPR Tracker)', refN: 'refinement #', remake: 'remake', scanOnFile: 'scan on file' };
@@ -5127,7 +5246,8 @@ function historyHTML(c) {
   const shipped = x => x.close ? ' and marked it complete (shipped to the patient)' : '';
   // (the lab PC's readings in between — "printed 9 of 22" — aren't listed; when it links an order, fills in counts, or a step is done for every aligner, they are)
   const labShown = x => x.a !== 'lab' || x.first || x.unlink || x.relink || x.step || (x.fields || []).length;
-  return h.filter(x => x.a !== 'rekey' && x.a !== 'save' && labShown(x)).reverse().map(x => {
+  // (a sticker isn't listed: it's on what it was sent for — stickers.js)
+  return h.filter(x => x.a !== 'rekey' && x.a !== 'save' && x.a !== 'sticker' && labShown(x)).reverse().map(x => {
     let t = '';
     if (x.a === 'create') t = 'created the case'; else if (x.a === 'import') t = 'imported it from Asana';
     else if (x.a === 'stage') t = 'moved it to ' + stageName(x.to) + ((x.fields || []).length ? ' (and set ' + Array.from(new Set(x.fields.map(f => FIELD_LABELS[f] || f))).join(', ') + ')' : '') + shipped(x) + (x.via === 'lab' ? ', as the lab PC suggested' : '');
@@ -5137,6 +5257,7 @@ function historyHTML(c) {
     else if (x.a === 'assign') t = x.to ? 'assigned it to ' + staffName(x.to, x.to) : 'unassigned it';
     else if (x.a === 'edit') t = 'changed ' + Array.from(new Set((x.fields || []).filter(f => f !== 'instructions').map(f => FIELD_LABELS[f] || f))).join(', ') + shipped(x);
     else if (x.a === 'restore') t = 'restored an earlier version';
+    else if (x.a === 'noship') t = 'emailed the front desk' + (x.addr ? ' (' + x.addr + ')' : '') + ': not marked shipped, with the ' + delWord(c || {}).toLowerCase() + ' on ' + fmtDay(x.appt);
     else if (x.a === 'dup' || x.a === 'undup' || x.a === 'notdup' || x.a === 'dupcopy') t = dupHistText(x); // (dupes.js)
     else if (x.a === 'photo') t = { add: 'added a photo', change: 'changed the photo', remove: 'removed the photo', copy: 'added the photo from another of the patient’s cases', undo: 'put the earlier photo back' }[x.how] || 'changed the photo';
     else if (x.a === 'email') { // applied from a lab email (mail.js); shown as the email, not the person whose app applied it
@@ -5144,13 +5265,16 @@ function historyHTML(c) {
       t = (x.to ? 'moved it to ' + stageName(x.to) + (f.length ? ' and saved the ' : '') : f.length ? 'saved the ' : 'updated it') + f.join(', ') + shipped(x);
     }
     else t = x.a;
-    const who = x.a === 'email' ? ((MAIL_CO[x.co] || {}).l || 'Lab') + ' email' : x.a === 'lab' && !x.hand && !x.unlink && !x.relink ? 'Lab PC' : (firstName(staffName(x.sid, x.sid)) || x.sid);
-    return '<div class="hist"><time>' + esc(fmtWhen(x.at)) + '</time><span><b>' + esc(who) + '</b> ' + esc(t) + '</span></div>';
+    const who = x.a === 'email' ? ((MAIL_CO[x.co] || {}).l || 'Lab') + ' email' : x.a === 'lab' && !x.hand && !x.unlink && !x.relink ? 'Lab PC' : x.a === 'noship' ? 'NLO Cases' : (firstName(staffName(x.sid, x.sid)) || x.sid);
+    // a step someone did takes stickers: on the row after the words, and the smiley at its end (stickers.js)
+    const sk = stkHistHTML(c, x, t);
+    return '<div class="hist" data-w="' + esc(stkHKey(x)) + '"><time>' + esc(fmtWhen(x.at)) + '</time><span class="hTx"><b>' + esc(who) + '</b> ' + esc(t) + sk.chips + '</span>' + sk.add + '</div>';
   }).join('');
 }
 function renderDrawer() {
   const d = $('#drawer'); const c = findCase(S.openId); if (!d || !c) return;
   if (S.editing) { // the patient's name stays big at the top while editing (Amir), and follows the name field as it's typed
+    stkClose(); // (the stickers to pick from, if they were open)
     d.innerHTML = '<div class="dHd dEdit">' + ptAv(c, 64) + '<div style="flex:1;min-width:0"><div class="dEditLbl">' + ic('edit', 13) + 'Editing case</div><h3 id="dEditName">' + esc(c.patient || '(no name)') + '</h3>' +
       '<div class="sub">' + typeBadge(c) + (c.detail ? '<span class="small muted">' + esc(c.detail) + '</span>' : '') + '</div></div><button class="iconBtn" data-act="closeDrawer" aria-label="Close">' + ic('x') + '</button></div>' +
     // Finish details on a Quick add case: the same form, in the New case steps (from Case on), and Save takes the tag off
@@ -5174,6 +5298,7 @@ function renderDrawer() {
   }
   const ct0 = $('#cmtText'), keepCmt = ct0 ? ct0.value : '', hadFocus = !!ct0 && document.activeElement === ct0, keepSel = hadFocus ? [ct0.selectionStart, ct0.selectionEnd] : null;
   const wKeep = wtyKeep(); // (the Specialty invoice date being typed: warranty.js)
+  const sKeep = stkHold(); // (the stickers to pick from, open: they stay open, at the new copy of their smiley — stickers.js)
   // a live update redraws the panel: keep it where it was scrolled to (same case, not coming back from Edit)
   const bd0 = $('.dBd', d), keepTop = bd0 && d.dataset.for === c.id && d.dataset.mode === 'view' ? bd0.scrollTop : 0;
   const done = c.status === 'done'; const flow = flowOf(c); const si = stageIndex(c);
@@ -5199,7 +5324,7 @@ function renderDrawer() {
     '<div class="dBd"><div id="drawerNotice"></div>' +
     (done ? '<div class="notice info">Completed ' + esc(fmtWhen(c.closedAt)) + '</div>' : '') +
     (c.shipToPatient ? '<div class="notice ship" role="note">' + ic('truck', 18) + '<span><b>Ship to patient</b></span></div>' : '') +
-    (!done && shipWarn(c) ? (x => '<div class="notice noship ' + x.lv + '" role="note">' + ic(x.lv === 'late' ? 'alert' : 'truck', 18) + '<span><b>' + shipWarnLabel(x) + '</b> — ' + esc(shipWarnWhy(c, x)) + '</span></div>')(shipWarn(c)) : '') +
+    (!done && shipWarn(c) ? (x => '<div class="notice noship ' + x.lv + '" role="note">' + ic(x.lv === 'late' ? 'alert' : 'truck', 18) + '<span><b>' + shipWarnLabel(x) + '</b> — ' + esc(shipWarnWhy(c, x)) + (c.noshipMail && c.noshipMail === x.appt ? ' <span class="nsSent">The front desk was emailed.</span>' : '') + '</span></div>')(shipWarn(c)) : '') +
     quickNoticeHTML(c) + // added with Quick add: Finish details
     dupNoticeHTML(c) + // another open case that looks like this one (dupes.js)
     (isHeld(c) ? '<div class="notice bad mpOld" role="note"><span><b>' + esc(holdText(c)) + '</b></span>' + (done ? '' : '<button class="btn btn-sec btn-sm" data-act="clearHold">Hold is sorted out</button>') + '</div>' : '') +
@@ -5218,9 +5343,12 @@ function renderDrawer() {
     // the step's station icon moves while the case is at Printing, Thermoforming or Trimming (lab.js labStepIcon; Amir, 7 Oct 2026)
     dsec('stage', 'Stage', (done ? 'Completed · ' : '') + labStepIcon(c, 17) + '<b>' + esc(stageLabel(c)) + '</b>' + progHTML(c),
       // the last step's marker is a diamond, the milestone mark, like on the progress line (progHTML)
+      // each step's row: the step, the smiley that sends a sticker to whoever moved the case there, and its stickers under it (stickers.js)
       '<div class="stepper">' + caseStages(c).map(([k, l], i, all) => { const g = stageGroup(flow, k);
         return (g && g.stages[0] === k ? '<div class="stepGrp' + (i <= si ? ' d' : '') + '">' + esc(g.l) + '</div>' : '') +
-        '<button class="step ' + (i < si ? 'past' : i === si ? 'cur' : '') + (g ? ' sub' : '') + (i === all.length - 1 ? ' ms' : '') + '" data-act="setStage" data-k="' + k + '"' + (done ? ' disabled' : '') + ' aria-pressed="' + (i === si) + '"><span class="n">' + (i < si ? '✓' : i + 1) + '</span>' + esc(l) + (i === si ? labStepIcon(c, 18) : '') + stageMarkHTML(marks[k]) + '</button>'; }).join('') + '</div>') +
+        '<div class="stepL' + (i < si ? ' past' : i === si ? ' cur' : '') + '" data-sk="' + k + '">' +
+        '<button class="step ' + (i < si ? 'past' : i === si ? 'cur' : '') + (g ? ' sub' : '') + (i === all.length - 1 ? ' ms' : '') + '" data-act="setStage" data-k="' + k + '"' + (done ? ' disabled' : '') + ' aria-pressed="' + (i === si) + '"><span class="n">' + (i < si ? '✓' : i + 1) + '</span>' + esc(l) + (i === si ? labStepIcon(c, 18) : '') + stageMarkHTML(marks[k]) + '</button>' +
+        stkStepHTML(c, k, marks[k]) + '</div>'; }).join('') + '</div>') +
     // in-house: the set in Ortho Factory, from the lab PC — the step it's ready for is on the heading, one tap (lab.js)
     (c.type === 'nla' && c.labOrd && c.labOrd.key ? dsec('lab', 'Lab', labSumHTML(c), labBoxHTML(c), done ? '' : labGoHTML(c, true)) : '') +
     (flow === FLOWS.marpe ? dsec('marpe', 'MARPE', marpeSum(c), marpeBoxHTML(c, done)) : '') +
@@ -5268,10 +5396,11 @@ function renderDrawer() {
     '<span class="dFtR"><button class="btn btn-ghost" data-act="dupRemove" title="This case was entered twice: take this one out and keep the other">' + ic('copy', 16) + 'Remove duplicate</button>' +
     (isOwner() ? '<button class="btn btn-ghost" data-act="versions">' + ic('clock', 16) + 'Versions</button><button class="btn btn-ghost" data-act="delCase" style="color:var(--coral-700)">' + ic('trash', 16) + 'Delete</button>' : '') + '</span></div>';
   const t = $('#cmtText'); if (t) { t.value = keepCmt; if (hadFocus) { t.focus(); if (keepSel) try { t.setSelectionRange(keepSel[0], keepSel[1]); } catch (e) { } mtUpdate(t); } } // (an @ list open as it redrew stays open)
-  notesSeen(c); // (a note tagging you, now on screen, is read — notes.js)
+  notesSeen(c); // (a note tagging you, now on screen, is read — notes.js; and the stickers sent to you on the case)
   wtyRestore(wKeep);
   if (keepTop) $('.dBd', d).scrollTop = keepTop;
   dsAllSync(); phPaint(); savPaint(d); phWireDrawer(d); picPaint(d);
+  stkAfterDraw(c, sKeep); // (a sticker that just arrived pops on; the stickers to pick from stay open — stickers.js)
   if (typeOf(c).aligner && c.chart && !done) iprAutoLoad(c);
   if (c.type === 'nla') ensureHist([c]);
 }
@@ -5404,7 +5533,8 @@ function dsIsOpen(k) { return S.dsTog && S.dsTog.has(k) ? S.dsTog.get(k) : dsAll
 function dsec(k, title, sum, body, act, pin) {
   const o = pin && !(S.dsTog && S.dsTog.has(k)) ? true : dsIsOpen(k);
   return '<section class="ds' + (o ? ' open' : '') + (pin ? ' pin' : '') + '" data-ds="' + k + '"><div class="dsHd"><button type="button" class="dsTg" data-act="dsTg" aria-expanded="' + o + '" aria-controls="ds-' + k + '">' +
-    '<span class="dsCh">' + ic('next', 16) + '</span><span class="dsT">' + esc(title) + '</span><span class="dsS" id="dsS-' + k + '">' + (sum || '') + '</span></button>' + (act || '') + '</div>' +
+    '<span class="dsCh">' + ic('next', 16) + '</span><span class="dsT">' + esc(title) + '</span><span class="dsS" id="dsS-' + k + '">' + (sum || '') + '</span></button>' +
+    stkHdHTML(k, title) + (act || '') + '</div>' + // (the section's stickers, and the smiley that sends one — stickers.js)
     '<div class="dsBd" id="ds-' + k + '"' + (o ? '' : ' hidden') + '>' + body + '</div></section>';
 }
 /* a one-line section with nothing to open, just its button (the retainer label) */
@@ -5830,6 +5960,11 @@ function onClick(e) {
     case 'notesAll': { const c = findCase(S.openId); if (!c) break; (S.notesAll = S.notesAll || {})[c.id] = true; notesPaint(c); notesSeen(c); break; }
     case 'msgOpen': msgOpen(id, t.dataset.n); break;
     case 'msgAllRead': msgMarkRead(msgList().map(m => m.k)); renderNav(); renderView(); break;
+    // stickers (stickers.js): the smiley opens them; one picked goes on (or comes off); a tap on one that's there; one in Messages
+    case 'stkAdd': stkOpen(t); break;
+    case 'stkPut': stkPut(t.dataset.e); break;
+    case 'stkTog': stkTog(t); break;
+    case 'stkMsgOpen': stkMsgOpen(id, t.dataset.s); break;
     // (a lab saved under its old name counts as its new name, so opening Edit doesn't look like a change)
     case 'edit': { const c = findCase(S.openId); S.editBase = JSON.parse(JSON.stringify(c)); if (S.editBase.lab) S.editBase.lab = labName(S.editBase.lab); S.editing = true; S.editWiz = null; renderDrawer(); break; }
     case 'cancelEdit': S.editing = false; S.editWiz = null; renderDrawer(); break;
@@ -6010,9 +6145,10 @@ function notesSumHTML(c) {
 function notesListHTML(c) {
   const L = noteList(c), me = meSid(), all = !!(S.notesAll && S.notesAll[c.id]), hid = all ? 0 : Math.max(0, L.length - NOTES_SHOWN);
   if (!L.length) return '<div class="small muted notesNone">No notes yet.</div>';
+  // (each note takes stickers: the smiley at its top right sends one to whoever wrote it, and they sit under the text — stickers.js)
   const one = n => { const w = noteWhoOf(n);
     return '<div class="cmt' + (n.to.includes(me) ? ' toMe' : '') + '" data-note="' + esc(n.id) + '"><span class="av" data-sav="' + esc(n.by || '') + '">' + esc(n.by ? initials(staffName(n.by, n.by)) : 'N') + '</span><div class="cmtB"><div class="w">' +
-      (w ? '<b>' + esc(w) + '</b>' : '<b>Notes</b>') + (n.at ? ' · ' + esc(fmtWhen(n.at)) : '') + '</div><div class="nTx">' + noteTextHTML(n) + '</div></div></div>'; };
+      (w ? '<b>' + esc(w) + '</b>' : '<b>Notes</b>') + (n.at ? ' · ' + esc(fmtWhen(n.at)) : '') + '</div><div class="nTx">' + noteTextHTML(n) + '</div>' + stkNoteRowHTML(c, n) + '</div>' + stkNoteAddHTML(c, n) + '</div>'; };
   return (hid ? '<button type="button" class="linkBtn notesMore" data-act="notesAll">Show ' + hid + ' earlier note' + (hid === 1 ? '' : 's') + '</button>' : '') + L.slice(hid).map(one).join('');
 }
 function notesBodyHTML(c, done) {
@@ -6022,7 +6158,7 @@ function notesBodyHTML(c, done) {
     '<div class="noteBtns"><button class="btn btn-sec btn-sm" data-act="addCmt">Add note</button><span class="small muted">Anyone you tag with @ gets it in their Messages.</span></div>');
 }
 /* the list again (a new note, Show earlier, or who wrote the case form's Notes once the history says) — not the box being typed in */
-function notesPaint(c) { const el = $('#notesList'); if (el && c) { el.innerHTML = notesListHTML(c); savPaint(el); } const s = $('#dsS-notes'); if (s && c) s.innerHTML = notesSumHTML(c); }
+function notesPaint(c) { const el = $('#notesList'); if (el && c) { const keep = stkHold(); el.innerHTML = notesListHTML(c); savPaint(el); stkPop(el); stkReanchor(keep); } const s = $('#dsS-notes'); if (s && c) s.innerHTML = notesSumHTML(c); }
 
 /* ---------- the @ list while typing a note ---------- */
 const MT = { sel: 0, list: [], start: -1 };
@@ -6067,7 +6203,7 @@ document.addEventListener('keydown', e => {
 }, true);
 document.addEventListener('mousedown', e => { const o = e.target.closest && e.target.closest('#mtList .mtOpt'); if (o) { e.preventDefault(); mtPick(+o.dataset.i); } }); // (before the box loses focus)
 
-/* ---------- Messages: the notes that tag you, newest first ---------- */
+/* ---------- Messages: the notes that tag you and the stickers sent to you (stickers.js), newest first ---------- */
 /* what's been read, on this computer (Amir chose that over syncing it) — "<case>/<note>" for each */
 function msgKey() { return 'nloCases.msgRead.' + (meSid() || ''); }
 function msgRead() { try { return new Set(JSON.parse(localStorage.getItem(msgKey()) || '[]')); } catch (e) { return new Set(); } }
@@ -6085,16 +6221,16 @@ function msgList() {
     out.push({ c, k, n: { id: String(x.id || ''), at: x.at || 0, by: x.by || '', text: String(x.text).trim(), to: x.to.filter(s => typeof s === 'string') } });
   });
   openCases().forEach(scan); (S.closed || []).forEach(scan);
-  return out.sort((a, b) => (b.n.at || 0) - (a.n.at || 0));
+  return out.concat(stkMsgs(me, seen)).sort((a, b) => (b.n.at || 0) - (a.n.at || 0));
 }
 function msgIsNew(m, read) { return !read.has(m.k) && Date.now() - (m.n.at || 0) < MSG_OLD; }
 function msgUnread() { if (!S.inApp) return 0; const r = msgRead(); return msgList().filter(m => msgIsNew(m, r)).length; }
 function viewMsgs() {
   const L = msgList(), r = msgRead(), nNew = L.filter(m => msgIsNew(m, r)).length;
-  if (!L.length) return '<div class="card"><div class="cardBd"><div class="msgEmpty">' + ic('chat', 28) + '<p><b>No messages yet</b></p><p class="small muted">When someone tags you in a case’s notes with @, the note shows up here. Tag someone yourself in any case’s Notes.</p></div></div></div>';
-  return '<div class="card msgCard"><div class="cardHd"><h3>Notes that tag you</h3><span class="sub">' + (nNew ? nNew + ' new' : 'All read') + '</span><span style="flex:1"></span>' +
+  if (!L.length) return '<div class="card"><div class="cardBd"><div class="msgEmpty">' + ic('chat', 28) + '<p><b>No messages yet</b></p><p class="small muted">When someone tags you in a case’s notes with @, or sends you a sticker, it shows up here. Tag someone yourself in any case’s Notes, or tap the smiley beside a note, a step or a section to send a sticker.</p></div></div></div>';
+  return '<div class="card msgCard"><div class="cardHd"><h3>Notes and stickers for you</h3><span class="sub">' + (nNew ? nNew + ' new' : 'All read') + '</span><span style="flex:1"></span>' +
     (nNew ? '<button class="btn btn-ghost btn-sm" data-act="msgAllRead">Mark all as read</button>' : '') + '</div><div class="cardBd msgList">' +
-    L.map(m => { const nw = msgIsNew(m, r);
+    L.map(m => { const nw = msgIsNew(m, r); if (m.st) return stkMsgRowHTML(m, nw);
       return '<button type="button" class="msgRow' + (nw ? ' new' : '') + '" data-act="msgOpen" data-id="' + esc(m.c.id) + '" data-n="' + esc(m.n.id) + '">' + ptAv(m.c, 40) +
         '<span class="msgMain"><span class="msgTop"><b class="msgPt">' + esc(m.c.patient || '(no name)') + '</b>' + typeBadge(m.c) + '<span class="msgWhen">' + esc(fmtWhen(m.n.at)) + '</span></span>' +
         '<span class="msgTx"><b>' + esc(noteWhoOf(m.n) || 'Someone') + ':</b> ' + noteTextHTML(m.n) + '</span></span>' + (nw ? '<span class="msgDot" title="New"></span>' : '') + '</button>'; }).join('') + '</div></div>';
@@ -6108,19 +6244,334 @@ function noteFlash(nid) {
   }, 80);
 }
 function msgOpen(caseId, nid) { msgMarkRead([caseId + '/' + nid]); renderNav(); openDrawer(caseId); noteFlash(nid); if (S.view === 'msgs') renderView(); }
-/* the case panel shows a note that tags you: it's read */
+/* the case panel shows a note that tags you: it's read — and so are the stickers sent to you on the case */
 function notesSeen(c) {
   const me = meSid(); if (!me || !c) return;
   const all = !!(S.notesAll && S.notesAll[c.id]), L = noteList(c), shown = all ? L : L.slice(Math.max(0, L.length - NOTES_SHOWN));
-  if (msgMarkRead(shown.filter(n => n.to.includes(me) && n.by !== me && n.id !== 'field').map(n => c.id + '/' + n.id))) { renderNav(); if (S.view === 'msgs') queueRender(); }
+  const st = stkList(c).filter(s => s.to === me && s.by !== me).map(s => c.id + '/s/' + s.id);
+  if (msgMarkRead(shown.filter(n => n.to.includes(me) && n.by !== me && n.id !== 'field').map(n => c.id + '/' + n.id).concat(st))) { renderNav(); if (S.view === 'msgs') queueRender(); }
 }
 /* a note tagging you arrives while the app is open: say so, with Open */
 function msgWatch() {
   if (!S.inApp) return; const r = msgRead(); S.msgToasted = S.msgToasted || new Set();
   const fresh = msgList().filter(m => msgIsNew(m, r) && !S.msgToasted.has(m.k) && (m.n.at || 0) > (S.msgSince || 0) && m.c.id !== S.openId);
   fresh.forEach(m => S.msgToasted.add(m.k));
-  if (fresh.length === 1) { const m = fresh[0]; toast((noteWhoOf(m.n) || 'Someone') + ' tagged you on ' + (m.c.patient || 'a case'), { action: 'Open', onAction: () => msgOpen(m.c.id, m.n.id), ms: 9000 }); }
-  else if (fresh.length > 1) toast(fresh.length + ' new notes tag you', { action: 'Messages', onAction: () => { S.view = 'msgs'; renderNav(); renderView(); }, ms: 9000 });
+  if (fresh.length === 1) { const m = fresh[0];
+    if (m.st) toast(stkName(m.st.by) + ' sent you ' + m.st.e + ' on ' + (m.c.patient || 'a case'), { action: 'Open', onAction: () => stkMsgOpen(m.c.id, m.st.id), ms: 9000 });
+    else toast((noteWhoOf(m.n) || 'Someone') + ' tagged you on ' + (m.c.patient || 'a case'), { action: 'Open', onAction: () => msgOpen(m.c.id, m.n.id), ms: 9000 }); }
+  else if (fresh.length > 1) { const nS = fresh.filter(m => m.st).length;
+    toast(fresh.length + (nS === fresh.length ? ' new stickers for you' : nS ? ' new in Messages' : ' new notes tag you'), { action: 'Messages', onAction: () => { S.view = 'msgs'; renderNav(); renderView(); }, ms: 9000 }); }
+}
+
+/* ---------- Stickers on a case (Amir, 7 Oct 2026) ----------
+   "it would be cool to be able to add stickers in the form of emoji's to each other in different sections". He picked: on a note,
+   and "also to steps that someone does. like moving something from Polishing to packaging etc.", on any section of a case, and the
+   person it's for gets it in their Messages.
+   A sticker is an entry of the case's stickers (sealed with the rest of the case):
+     { id, at, by, e: '🎉', on, to?: sid, k?: step key, l?: what it's on, in words (for Messages) }
+   on: 'n:<note id>' a note ('n:field' = the case form's Notes) · 'h:<rev>' a step someone did — an entry of the case's history
+   ('h:t<ms>' for an entry without a rev) · 's:<section>' a section of the case panel.
+   Who it's for: the note's writer, whoever did the step, or — on a section — whoever last worked on it (else the case's assignee),
+   which the sender can change. A tap on a sticker that's already there sends yours too, or takes yours back. */
+
+const STK_SET = ['👍', '🎉', '❤️', '✅', '😂', '🙏', '💪', '🦷'];
+const STK_SAY = { '👍': 'Thumbs up', '🎉': 'Party popper', '❤️': 'Heart', '✅': 'Check mark', '😂': 'Laughing', '🙏': 'Thank you', '💪': 'Flexed arm', '🦷': 'Tooth' };
+const STK_MAX = 200; // kept on a case (the oldest go first)
+/* the sections whose heading takes stickers — all but Stage, Notes and History, whose steps and notes take them one by one —
+   and what each is made of, to tell who last worked on it */
+const STK_NO_SEC = ['stage', 'notes', 'history'];
+const STK_SEC_F = {
+  lab: ['labOrd', 'labNot', 'labRef', 'labHold'], marpe: ['records', 'zoomDate', 'zoomTime'],
+  details: ['assignee', 'assistant', 'scanner', 'scanDate', 'dueDate', 'labDate', 'deliveryDate', 'deliveryTime', 'tracking', 'carrier', 'labRef', 'chart', 'shipToPatient'],
+  tx: ['txStart', 'txEnd'], aligners: ['alU', 'alL', 'aligners', 'atTemplates', 'treatArch'], instr: ['instructions', 'goals', 'instrPicks', 'instrOther'],
+  teeth: ['teeth', 'teethNote'], ipr: ['ipr', 'iprSnap'], wty: ['invDate', 'noGuarantee'], rx: ['rx'], rxRet: ['rxRet'], rxMet: ['rxMet'], rxFun: ['rxFun']
+};
+
+function stkOk(s) { return !!s && typeof s === 'object' && typeof s.id === 'string' && typeof s.e === 'string' && s.e.length <= 16 && typeof s.on === 'string' && s.on.length <= 80 && typeof s.by === 'string'; }
+function stkList(c) { return c && Array.isArray(c.stickers) ? c.stickers.filter(stkOk) : []; }
+function stkOn(c, on) { return on ? stkList(c).filter(s => s.on === on) : []; }
+/* "Dr. A", a first name — or "You" */
+function stkName(sid) { const r = staff(sid); return r && r.role === 'owner' ? 'Dr. A' : firstName(staffName(sid, '')) || 'Someone'; }
+function stkWho(sid) { return sid && sid === meSid() ? 'You' : stkName(sid); }
+/* each sticker sits at its own slight angle, the same every time */
+function stkTilt(id) { let h = 7; for (const ch of String(id)) h = (h * 31 + ch.charCodeAt(0)) % 997; return (h % 13) - 6; }
+/* the entry of the case's history a step's sticker is on */
+function stkHKey(x) { return x && x.rev ? 'h:' + x.rev : x && x.at ? 'h:t' + x.at : ''; }
+/* who did it, when it was a person (not a lab email, the lab PC's readings or the Asana import) */
+function stkDoer(x) {
+  if (!x || !x.sid || ['email', 'import', 'rekey', 'save', 'sticker', 'restore', 'noship'].includes(x.a)) return '';
+  if (x.a === 'lab' && !x.hand && !x.unlink && !x.relink) return '';
+  return staff(x.sid) ? x.sid : '';
+}
+function stkStepName(c, k) { const s = caseStages(c).find(x => x[0] === k) || flowOf(c).stages.find(x => x[0] === k); return s ? s[1] : (retiredStageLabel(c, k) || k); }
+
+/* ---------- on the case panel ---------- */
+function stkAttrs(x) {
+  return ' data-on="' + esc(x.on || '') + '"' + (x.to ? ' data-to="' + esc(x.to) + '"' : '') + (x.k ? ' data-k="' + esc(x.k) + '"' : '') + (x.l ? ' data-l="' + esc(x.l) + '"' : '') + (x.sec ? ' data-sec="1"' : '') + (x.w ? ' data-w="' + esc(x.w) + '"' : '');
+}
+/* the stickers on one thing, one chip per sticker: "🎉 You, Gwen" — yours marked; `x.ro`: a completed case, nothing to tap */
+function stkChipsHTML(L, x) {
+  if (!L.length) return '';
+  const me = meSid(), G = [];
+  L.slice().sort((a, b) => (a.at || 0) - (b.at || 0)).forEach(s => { let g = G.find(y => y.e === s.e); if (!g) G.push(g = { e: s.e, L: [] }); g.L.push(s); });
+  return G.map(g => {
+    const mine = g.L.some(s => s.by === me), ppl = Array.from(new Set(g.L.map(s => s.by))).sort((a, b) => (b === me) - (a === me)), who = ppl.map(stkWho);
+    const lab = who.length > 2 ? who.slice(0, 2).join(', ') + ' +' + (who.length - 2) : who.join(', ');
+    const tip = g.L.map(s => stkWho(s.by) + (s.to && s.to !== s.by ? ' → ' + stkWho(s.to) : '') + ' · ' + fmtWhen(s.at)).join('\n');
+    const say = (STK_SAY[g.e] || 'Sticker') + ' from ' + who.join(', '), ids = ' data-ids="' + esc(g.L.map(s => s.id).join(' ')) + '"';
+    const inner = '<span class="stkE" style="--r:' + stkTilt(g.L[0].id) + 'deg" aria-hidden="true">' + esc(g.e) + '</span><span class="stkW">' + esc(lab) + '</span>';
+    if (x.ro) return '<span class="stk ro" role="img"' + ids + ' title="' + esc(tip) + '" aria-label="' + esc(say) + '">' + inner + '</span>';
+    return '<button type="button" class="stk' + (mine ? ' mine' : '') + '" data-act="stkTog" data-e="' + esc(g.e) + '"' + stkAttrs(x) + ids + ' aria-pressed="' + mine + '"' +
+      ' title="' + esc(tip + '\n' + (mine ? 'Tap to take yours back' : 'Tap to send one too')) + '" aria-label="' + esc(say) + '">' + inner + '</button>';
+  }).join('');
+}
+/* the smiley that opens the stickers (`w`: where it is, to find it again after the panel redraws) */
+function stkAddHTML(x, w) {
+  return '<button type="button" class="stkAdd" data-act="stkAdd"' + stkAttrs(Object.assign({}, x, { w })) + ' aria-haspopup="dialog" aria-expanded="false" title="Send a sticker" aria-label="Send a sticker' + (x.what ? ' on ' + esc(x.what) : '') + '">' + ic('stk', 17) + '</button>';
+}
+/* a note: the smiley at the top right, its stickers under the text */
+function stkNoteAddHTML(c, n) {
+  if (c.status === 'done') return '';
+  return stkAddHTML({ on: 'n:' + n.id, to: n.by && staff(n.by) ? n.by : '', what: 'this note' }, 'n:' + n.id);
+}
+function stkNoteRowHTML(c, n) {
+  const L = stkOn(c, 'n:' + n.id); if (!L.length) return '';
+  return '<div class="stkRow">' + stkChipsHTML(L, { on: 'n:' + n.id, to: n.by && staff(n.by) ? n.by : '', w: 'n:' + n.id, ro: c.status === 'done' }) + '</div>';
+}
+/* a step of the Stage section: the smiley beside the step someone moved the case to (once the history says who), the step's
+   stickers on a line under it */
+function stkStepCtx(c, k, m) {
+  if (!m || !m.h || !m.by || !staff(m.by)) return null;
+  const nm = stkStepName(c, k);
+  return { on: m.h, to: m.by, k, l: m.born ? 'created the case' : 'moved it to ' + nm, what: m.born ? 'the step the case started at' : 'the move to ' + nm };
+}
+function stkSlotHTML(c, k, m) { const x = c.status === 'done' ? null : stkStepCtx(c, k, m); return x ? stkAddHTML(x, 'st:' + k) : ''; }
+function stkStepHTML(c, k, m) {
+  const L = stkList(c).filter(s => s.k === k), x = Object.assign(stkStepCtx(c, k, m) || { on: '', k }, { w: 'st:' + k });
+  return '<span class="stkSlot" data-k="' + esc(k) + '">' + stkSlotHTML(c, k, m) + '</span>' +
+    (L.length ? '<div class="stepStk" data-k="' + esc(k) + '">' + stkChipsHTML(L, Object.assign({}, x, { ro: c.status === 'done' })) + '</div>' : '');
+}
+/* a history entry someone made: its stickers after the words, the smiley at the end of the row */
+function stkHistHTML(c, x, t) {
+  const h = stkHKey(x), who = x.a === 'comment' ? '' : stkDoer(x); if (!c || !h) return { chips: '', add: '' };
+  const k = x.to && (x.a === 'stage' || (x.a === 'edit' && (x.fields || []).includes('stage'))) ? x.to : '';
+  const ctx = { on: h, to: who, k, l: String(t || '').slice(0, 140), w: 'hi:' + h }, L = stkOn(c, h), done = c.status === 'done';
+  return { chips: L.length ? ' <span class="stkIn">' + stkChipsHTML(L, Object.assign({ ro: done }, ctx)) + '</span>' : '',
+    add: who && !done ? stkAddHTML(Object.assign({ what: 'this step' }, ctx), 'hi:' + h) : '' };
+}
+/* a section's heading (every one but Stage, Notes and History) */
+function stkHdHTML(k, title) {
+  if (STK_NO_SEC.includes(k) || S.editing) return '';
+  const c = S.openId && findCase(S.openId); if (!c) return '';
+  const on = 's:' + k, L = stkOn(c, on), done = c.status === 'done'; if (done && !L.length) return '';
+  const x = { on, l: String(title || '').slice(0, 80), sec: true, w: 's:' + k };
+  return '<span class="stkHd">' + stkChipsHTML(L, Object.assign({ ro: done }, x)) + (done ? '' : stkAddHTML(Object.assign({ what: title }, x), 's:' + k)) + '</span>';
+}
+/* who a sticker on a section is for, to start with: the last one (not you) whose change touched it — the history says — or who
+   made the case; else the case's assignee */
+function stkSecTo(c, k) {
+  const me = meSid(), F = STK_SEC_F[k] || [], h = S.history && S.openId === c.id ? S.history : [];
+  for (let i = h.length - 1; i >= 0; i--) {
+    const x = h[i] || {}, who = stkDoer(x), fs = x.fields || []; if (!who || who === me) continue;
+    if (x.a === 'create' || (['edit', 'stage'].includes(x.a) && fs.some(f => F.includes(f))) || (k === 'details' && x.a === 'assign') || (k === 'lab' && x.a === 'lab')) return who;
+  }
+  const a = c.assignee, r = a && staff(a); return r && r.active && a !== me ? a : '';
+}
+
+/* ---------- sending (and taking back) ---------- */
+/* what's been sent from here and not saved yet: it shows at once, and a copy of the case arriving before it's saved keeps it */
+function stkPendApply(c) {
+  const P = S.stkPend && S.stkPend[c.id]; if (!P || !P.length) return;
+  let L = Array.isArray(c.stickers) ? c.stickers.slice() : [];
+  P.forEach(p => { if (p.op === 'add') { if (!L.some(s => s && s.id === p.s.id)) L.push(p.s); } else L = L.filter(s => !(s && p.ids.includes(s.id))); });
+  c.stickers = L;
+}
+function stkPendDrop(id, op) { const P = S.stkPend && S.stkPend[id]; if (P) { S.stkPend[id] = P.filter(p => p !== op); if (!S.stkPend[id].length) delete S.stkPend[id]; } }
+function stkNew(e, x, to) {
+  const me = meSid();
+  return Object.assign({ id: uid8(), at: Date.now(), by: me, e, on: x.on }, to && to !== me ? { to } : {}, x.k ? { k: x.k } : {}, x.l ? { l: String(x.l).slice(0, 140) } : {});
+}
+async function stkApply(id, op) {
+  const c = findCase(id); if (!c) return;
+  S.stkPend = S.stkPend || {}; (S.stkPend[id] = S.stkPend[id] || []).push(op);
+  stkPendApply(c); if (S.openId === id && !S.editing) renderDrawer();
+  const meta = op.op === 'add' ? Object.assign({ a: 'sticker', e: op.s.e, on: op.s.on }, op.s.to ? { who: op.s.to } : {}) : { a: 'sticker', del: true, e: op.e || '', on: op.on || '' };
+  try {
+    await B.mutateCase(id, d => {
+      let L = Array.isArray(d.stickers) ? d.stickers.filter(stkOk) : [];
+      if (op.op === 'add') { if (L.some(s => s.id === op.s.id)) return 'skip'; L = L.concat([op.s]); if (L.length > STK_MAX) L = L.slice(L.length - STK_MAX); }
+      else { const n = L.length; L = L.filter(s => !op.ids.includes(s.id)); if (L.length === n) return 'skip'; }
+      d.stickers = L;
+    }, meta);
+  } catch (e) {
+    if (!(e && e.code === 'skip')) { // not saved: it comes off again (or back)
+      stkPendDrop(id, op); const cur = findCase(id);
+      if (cur) { let L = stkList(cur); if (op.op === 'add') L = L.filter(s => s.id !== op.s.id); else op.removed.forEach(s => { if (!L.some(y => y.id === s.id)) L.push(s); }); cur.stickers = L; }
+      if (S.openId === id && !S.editing) renderDrawer();
+      toast(errText(e), { bad: true });
+    }
+  } finally { stkPendDrop(id, op); }
+}
+/* a tap on a sticker that's there: yours comes off, or one like it goes on from you */
+function stkTog(t) {
+  const c = findCase(S.openId); if (!c || c.status === 'done') return;
+  const me = meSid(), ids = String(t.dataset.ids || '').split(' '), L = stkList(c).filter(s => ids.includes(s.id)); if (!L.length) return;
+  const mine = L.filter(s => s.by === me);
+  if (mine.length) { stkApply(c.id, { op: 'del', ids: mine.map(s => s.id), removed: mine, e: mine[0].e, on: mine[0].on }); return; }
+  const f = L[L.length - 1], x = { on: t.dataset.on || f.on, k: t.dataset.k || f.k || '', l: t.dataset.l || f.l || '' };
+  stkApply(c.id, { op: 'add', s: stkNew(f.e, x, t.dataset.sec === '1' ? (f.to || '') : (t.dataset.to || f.to || '')) });
+}
+
+/* ---------- the stickers to pick from ---------- */
+function stkTargetMine(c, x) { const me = meSid(); return stkList(c).filter(s => s.by === me && (x.k ? s.k === x.k : s.on === x.on)); }
+function stkOpen(btn) {
+  const c = findCase(S.openId); if (!c || c.status === 'done') return;
+  if (S.stk && S.stk.w === btn.dataset.w) { stkClose(true); return; } // (its smiley again: closes it)
+  stkClose();
+  const d = btn.dataset, x = { on: d.on || '', to: d.to || '', k: d.k || '', l: d.l || '', sec: d.sec === '1' };
+  if (!x.on) return;
+  if (x.sec) x.to = stkSecTo(c, x.on.slice(2));
+  const have = new Set(stkTargetMine(c, x).map(s => s.e));
+  const m = document.createElement('div'); m.className = 'stkPick'; m.id = 'stkPick'; m.setAttribute('role', 'dialog'); m.setAttribute('aria-label', 'Send a sticker');
+  m.innerHTML = '<div class="stkGrid" role="group" aria-label="Stickers">' + STK_SET.map(e => '<button type="button" class="stkOpt" data-act="stkPut" data-e="' + esc(e) + '" aria-pressed="' + have.has(e) + '"' +
+      ' title="' + esc(STK_SAY[e] + (have.has(e) ? ' — yours is on it: tap to take it back' : '')) + '" aria-label="' + esc(STK_SAY[e]) + '"><span aria-hidden="true">' + esc(e) + '</span></button>').join('') + '</div>' + stkToHTML(x);
+  const host = $('#drawer') || document.body; host.appendChild(m);
+  S.stk = { id: c.id, x, w: d.w, btn, el: m }; btn.setAttribute('aria-expanded', 'true'); btn.classList.add('on');
+  stkPlace();
+  const f = $('.stkOpt', m); if (f) f.focus({ preventScroll: true });
+}
+/* who gets it: fixed on a note or a step (the one who wrote or did it); picked on a section */
+function stkToHTML(x) {
+  const me = meSid();
+  if (x.sec) {
+    const P = mtPeople(true), opts = [['', 'No one — it just stays here']].concat(P.map(p => [p.sid, p.l]));
+    if (x.to && !P.some(p => p.sid === x.to)) opts.push([x.to, stkName(x.to)]);
+    return '<div class="stkTo"><label for="stkToSel">For</label><select id="stkToSel">' + opts.map(([v, l]) => '<option value="' + esc(v) + '"' + (v === x.to ? ' selected' : '') + '>' + esc(l) + '</option>').join('') + '</select><span class="stkToNote" id="stkToNote">' + stkToNote(x.to) + '</span></div>';
+  }
+  if (!x.to || x.to === me) return '<div class="stkTo">' + (x.to === me ? 'It’s your own — it just stays here' : 'It just stays here') + '</div>';
+  return '<div class="stkTo"><b>' + esc(stkName(x.to)) + '</b>&nbsp;gets it in Messages</div>';
+}
+function stkToNote(to) { return to ? 'gets it in Messages' : ''; }
+/* under its smiley, right edges lined up (above it when there's no room below), kept on screen */
+function stkPlace() {
+  const P = S.stk, m = P && P.el, b = P && P.btn; if (!m || !b || !b.isConnected) return;
+  const r = b.getBoundingClientRect(), mw = m.offsetWidth, mh = m.offsetHeight, vw = document.documentElement.clientWidth, vh = innerHeight;
+  let top = r.bottom + 6; if (top + mh > vh - 8 && r.top - mh - 6 >= 8) top = r.top - mh - 6;
+  m.style.left = Math.round(Math.max(8, Math.min(r.right - mw, vw - mw - 8))) + 'px';
+  m.style.top = Math.round(Math.max(8, Math.min(top, vh - mh - 8))) + 'px';
+}
+function stkFollow() {
+  const b = S.stk && S.stk.btn; if (!b) return;
+  const r = b.getBoundingClientRect(), bd = b.closest('.dBd'), v = bd ? bd.getBoundingClientRect() : { top: 0, bottom: innerHeight };
+  if (!b.isConnected || r.bottom < v.top || r.top > v.bottom) stkClose(); else stkPlace();
+}
+function stkClose(back) {
+  const P = S.stk; S.stk = null; if (!P) return;
+  if (P.el) P.el.remove();
+  if (P.btn && P.btn.isConnected) { P.btn.setAttribute('aria-expanded', 'false'); P.btn.classList.remove('on'); if (back) P.btn.focus({ preventScroll: true }); }
+}
+function stkPut(e) {
+  const P = S.stk; if (!P) return; const sel = $('#stkToSel'), to = P.x.sec ? (sel ? sel.value : P.x.to) : P.x.to;
+  stkClose(true);
+  const c = findCase(P.id); if (!c || c.status === 'done') return;
+  const mine = stkTargetMine(c, P.x).filter(s => s.e === e);
+  if (mine.length) stkApply(c.id, { op: 'del', ids: mine.map(s => s.id), removed: mine, e, on: P.x.on });
+  else stkApply(c.id, { op: 'add', s: stkNew(e, P.x, to) });
+}
+/* a redraw of the panel (or part of it) is coming: where the focus is, among the stickers */
+function stkHold() {
+  const P = S.stk, a = document.activeElement; if (!a || !a.dataset) return null;
+  if (P && P.el && P.el.contains(a)) return { pick: a.dataset.e || (a.id === 'stkToSel' ? 'sel' : '') };
+  if (a.dataset.w && (a.dataset.act === 'stkAdd' || a.dataset.act === 'stkTog') && a.closest('#drawer')) return { w: a.dataset.w, e: a.dataset.act === 'stkTog' ? a.dataset.e || '' : '' };
+  return null;
+}
+const cssq = v => (window.CSS && CSS.escape ? CSS.escape(v) : String(v).replace(/["\\]/g, '\\$&'));
+/* … and it's done: the stickers to pick from go back in it, at the new copy of their smiley (closed if it's gone); the focus goes
+   back to the sticker (or the smiley) it was on */
+function stkReanchor(keep) {
+  const P = S.stk, d = $('#drawer');
+  if (P) {
+    const b = d && P.id === S.openId && !S.editing ? $('[data-act=stkAdd][data-w="' + cssq(P.w) + '"]', d) : null;
+    if (!b) stkClose();
+    else {
+      P.btn = b; b.setAttribute('aria-expanded', 'true'); b.classList.add('on');
+      if (!P.el.isConnected) d.appendChild(P.el);
+      stkPlace();
+      if (keep && keep.pick) { const f = keep.pick === 'sel' ? $('#stkToSel', P.el) : $$('.stkOpt', P.el).find(o => o.dataset.e === keep.pick); if (f && document.activeElement !== f) f.focus({ preventScroll: true }); }
+      return;
+    }
+  }
+  if (!keep || !keep.w || !d || (document.activeElement && document.activeElement !== document.body && d.contains(document.activeElement))) return;
+  const q = '[data-w="' + cssq(keep.w) + '"]', el = (keep.e && $$('[data-act=stkTog]' + q, d).find(x => x.dataset.e === keep.e)) || $('[data-act=stkAdd]' + q, d);
+  if (el) el.focus({ preventScroll: true });
+}
+/* a sticker that wasn't on screen before pops on (the first look at a case shows what's there as it is) */
+function stkPop(root) {
+  const id = S.openId; if (!root || !id) return;
+  S.stkSeen = S.stkSeen || new Map(); let seen = S.stkSeen.get(id);
+  const c = findCase(id), all = stkList(c).map(s => s.id);
+  if (!seen) { S.stkSeen.set(id, new Set(all)); return; }
+  $$('.stk[data-ids]', root).forEach(el => { if (el.dataset.ids.split(' ').some(x => !seen.has(x))) { el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); } });
+  all.forEach(x => seen.add(x));
+}
+/* after the case panel is drawn (renderDrawer) */
+function stkAfterDraw(c, keep) { stkPop($('#drawer')); stkReanchor(keep); }
+
+document.addEventListener('keydown', e => {
+  const P = S.stk; if (!P || !P.el) return;
+  if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); stkClose(true); return; }
+  if (!P.el.contains(document.activeElement)) return;
+  const items = $$('.stkOpt', P.el), i = items.indexOf(document.activeElement); if (i < 0) return;
+  const go = j => { e.preventDefault(); e.stopPropagation(); items[(j + items.length) % items.length].focus(); };
+  if (e.key === 'ArrowRight' || e.key === 'ArrowDown') go(i + 1); else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') go(i - 1);
+  else if (e.key === 'Home') go(0); else if (e.key === 'End') go(items.length - 1);
+}, true);
+document.addEventListener('mousedown', e => { const P = S.stk; if (P && !(P.el && P.el.contains(e.target)) && !(e.target.closest && e.target.closest('[data-act=stkAdd]'))) stkClose(); }, true);
+document.addEventListener('focusin', e => { const P = S.stk; if (P && P.el && !P.el.contains(e.target) && !(e.target.closest && e.target.closest('[data-act=stkAdd]'))) stkClose(); });
+document.addEventListener('scroll', e => { if (S.stk && !(e.target && e.target.closest && e.target.closest('#stkPick'))) stkFollow(); }, true);
+window.addEventListener('resize', () => { if (S.stk) stkClose(); });
+document.addEventListener('change', e => { if (e.target && e.target.id === 'stkToSel') { const n = $('#stkToNote'); if (n) n.textContent = stkToNote(e.target.value); } });
+
+/* ---------- in Messages ---------- */
+/* the stickers sent to you, on the cases at hand (open, and the completed ones loaded) — Messages lists them with the notes */
+function stkMsgs(me, seen) {
+  const out = [];
+  const scan = c => stkList(c).forEach(s => {
+    if (s.to !== me || s.by === me) return; const k = c.id + '/s/' + s.id; if (seen.has(k)) return; seen.add(k);
+    out.push({ c, k, st: s, n: { id: s.id, at: s.at || 0, by: s.by } });
+  });
+  openCases().forEach(scan); (S.closed || []).forEach(scan);
+  return out;
+}
+/* what it's on, for Messages */
+function stkWhat(c, s) {
+  if (s.on.startsWith('n:')) { const n = noteList(c).find(x => x.id === s.on.slice(2)), t = n ? n.text.replace(/\s+/g, ' ') : '';
+    return t ? 'On your note: “' + (t.length > 90 ? t.slice(0, 88).trim() + '…' : t) + '”' : 'On your note'; }
+  if (s.on.startsWith('h:')) { const l = String(s.l || ''); return /^moved it to /.test(l) ? 'On your move to ' + l.slice(12) : l ? 'On what you did: ' + l : 'On a step you did'; }
+  return 'In ' + (s.l || 'the case');
+}
+function stkMsgRowHTML(m, nw) {
+  const s = m.st, c = m.c;
+  return '<button type="button" class="msgRow stkMsg' + (nw ? ' new' : '') + '" data-act="stkMsgOpen" data-id="' + esc(c.id) + '" data-s="' + esc(s.id) + '">' + ptAv(c, 40) +
+    '<span class="msgMain"><span class="msgTop"><b class="msgPt">' + esc(c.patient || '(no name)') + '</b>' + typeBadge(c) + '<span class="msgWhen">' + esc(fmtWhen(s.at)) + '</span></span>' +
+    '<span class="msgTx stkTx"><span class="stkE big" style="--r:' + stkTilt(s.id) + 'deg" role="img" aria-label="' + esc(STK_SAY[s.e] || 'Sticker') + '">' + esc(s.e) + '</span><span><b>' + esc(stkName(s.by)) + '</b> sent you a sticker</span></span>' +
+    '<span class="msgOn">' + esc(stkWhat(c, s)) + '</span></span>' + (nw ? '<span class="msgDot" title="New"></span>' : '') + '</button>';
+}
+/* open the case at the sticker and flash what it's on */
+function stkMsgOpen(caseId, sid) {
+  msgMarkRead([caseId + '/s/' + sid]); renderNav(); openDrawer(caseId); if (S.view === 'msgs') renderView();
+  const s = stkList(findCase(caseId)).find(x => x.id === sid); if (s) stkFlash(s);
+}
+function stkFlash(s) {
+  const flash = el => { if (!el) return; el.scrollIntoView({ block: 'center', behavior: 'smooth' }); el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 2600); };
+  const open = k => { const sec = $('#drawer .ds[data-ds=' + k + ']'); if (sec && !sec.classList.contains('open')) { dsShow(sec, true); (S.dsTog = S.dsTog || new Map()).set(k, true); dsAllSync(); } return sec; };
+  if (s.on.startsWith('n:')) { noteFlash(s.on.slice(2)); return; }
+  setTimeout(() => {
+    if (s.on.startsWith('s:')) { const sec = open(s.on.slice(2)); flash(sec && $('.dsHd', sec)); return; }
+    if (s.k && $('#drawer .stepStk[data-k="' + s.k + '"]')) { open('stage'); flash($('#drawer .stepStk[data-k="' + s.k + '"]')); return; }
+    open('history'); let n = 0; const sel = '#histBox .hist[data-w="' + s.on + '"]';
+    const look = () => { const el = $(sel); if (el) flash(el); else if (++n < 30 && S.openId) setTimeout(look, 150); }; look();
+  }, 80);
 }
 
 /* company logos for the case-type tiles and the labs (pasted by Amir, 2–3 Oct 2026); generated by tools/logos.py, do not edit by hand */
@@ -7597,12 +8048,13 @@ function shipWarnCardHTML() {
 
 /* the live security rules are older than this version of the app: the owner pastes the new ones into the Firebase console
    (they ship inside the page, so they always match it; the owner's own sign-in email is filled in here) */
-const NLO_RULES = "rules_version = '2';\n// NLO Cases \u2014 Firestore security rules.\n// Case bodies are encrypted in the browser; these rules decide WHO may read or\n// write the ciphertext, keep the history log append-only, and stop anyone who\n// is not an active member (or a removed member) from touching anything.\nservice cloud.firestore {\n  match /databases/{db}/documents {\n    function authed() { return request.auth != null; }\n    function hasSetup() { return exists(/databases/$(db)/documents/meta/setup); }\n    function isOwner() { return authed() && hasSetup() && get(/databases/$(db)/documents/meta/setup).data.owner == request.auth.uid; }\n    function myDoc() { return /databases/$(db)/documents/members/$(request.auth.uid); }\n    function isMember() { return authed() && exists(myDoc()) && get(myDoc()).data.active == true; }\n    function mySid() { return get(myDoc()).data.staffId; }\n    function curV() { return get(/databases/$(db)/documents/meta/keys).data.current; }\n    // true only inside the one-time office setup batch, and only for the practice owner's\n    // verified email address (stops anyone else claiming an empty office)\n    function bootstrapping() {\n      return authed() && !hasSetup()\n        && request.auth.token.email == '__OWNER_EMAIL__' && request.auth.token.email_verified == true\n        && getAfter(/databases/$(db)/documents/meta/setup).data.owner == request.auth.uid;\n    }\n    // a public key must look like a P-256 JWK (the owner's client also tolerates bad ones)\n    function okPub(d) {\n      return !('pub' in d) || (d.pub is map && d.pub.keys().hasOnly(['kty', 'crv', 'x', 'y'])\n        && d.pub.kty == 'EC' && d.pub.crv == 'P-256' && d.pub.x is string && d.pub.y is string\n        && d.pub.x.size() == 43 && d.pub.y.size() == 43);\n    }\n\n    match /meta/setup {\n      allow get: if isMember();\n      allow create: if bootstrapping()\n        && request.resource.data.keys().hasOnly(['owner', 'at'])\n        && request.resource.data.owner == request.auth.uid\n        && request.resource.data.at == request.time\n        && getAfter(myDoc()).data.role == 'owner';\n      allow update, delete: if false;\n    }\n    match /meta/keys {\n      allow get: if isMember();\n      allow create: if bootstrapping() && request.resource.data.keys().hasOnly(['current']) && request.resource.data.current == 1;\n      allow update: if isOwner() && request.resource.data.keys().hasOnly(['current'])\n        && request.resource.data.current == resource.data.current + 1;\n      allow delete: if false;\n    }\n    match /meta/settings {\n      allow get: if isMember();\n      allow create: if bootstrapping() || isOwner();\n      allow update: if isOwner();\n      allow delete: if false;\n    }\n    match /meta/recovery {\n      allow get: if isOwner();\n      allow create: if bootstrapping() || isOwner();\n      allow update: if isOwner();\n      allow delete: if false;\n    }\n    // username -> sign-in address. Readable one at a time (needed before sign-in), never listable.\n    match /logins/{name} {\n      allow get: if true;\n      allow list: if false;\n      allow create, update: if isOwner() && request.resource.data.keys().hasOnly(['email']) && request.resource.data.email is string;\n      allow delete: if isOwner();\n    }\n    match /members/{uid} {\n      allow get: if authed() && (request.auth.uid == uid || isOwner());\n      allow list: if isOwner();\n      allow create: if (isOwner() && request.resource.data.role == 'staff')\n        || (bootstrapping() && uid == request.auth.uid && request.resource.data.role == 'owner' && request.resource.data.active == true);\n      // the owner manages everyone (and can never demote themself); a person may only\n      // update their own key material, and only while still active\n      allow update: if (isOwner() && (uid != request.auth.uid || (request.resource.data.role == 'owner' && request.resource.data.active == true)))\n        || (authed() && request.auth.uid == uid && resource.data.active == true\n            && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['pub']) || okPub(request.resource.data))\n            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pub', 'priv', 'privPrev', 'ring', 'ringV', 'boot', 'mustSetup', 'lastLogin']));\n      allow delete: if false;\n    }\n    match /roster/{sid} {\n      allow read: if isMember();\n      allow create, update: if isOwner() || bootstrapping();\n      allow delete: if false;\n    }\n    // Every write to a case must come with a history entry, at the fixed id \"<case>_<rev>\",\n    // holding the previous encrypted copy. History can't be edited or deleted, so any\n    // overwrite \u2014 buggy, careless or malicious \u2014 can be undone from it.\n    function histAfter(id, rev) { return existsAfter(/databases/$(db)/documents/log/$(id + '_' + string(rev))); }\n    // The patient index (4 Oct 2026): pn / pc are keyed hashes (HMAC with a key derived from the office key) of the\n    // patient's name and chart #, so an app can fetch one patient's earlier cases instead of every completed case.\n    // Without the office key they say nothing about who the patient is.\n    function okIdx(d) {\n      return (!('pn' in d) || (d.pn is string && d.pn.size() == 22)) && (!('pc' in d) || (d.pc is string && d.pc.size() == 22));\n    }\n    match /cases/{id} {\n      function okCase() {\n        let d = request.resource.data;\n        return d.keys().hasOnly(['v', 'iv', 'ct', 'status', 'rev', 'by', 'sid', 'createdAt', 'updatedAt', 'closedAt', 'pn', 'pc'])\n          && d.v == curV() && d.iv is string && d.ct is string && d.ct.size() < 600000\n          && d.rev is int && d.by == request.auth.uid && d.sid == mySid()\n          && d.updatedAt == request.time && okIdx(d)\n          && ((d.status == 'open' && d.closedAt == null) || (d.status == 'done' && d.closedAt is timestamp));\n      }\n      allow read: if isMember();\n      allow create: if isMember() && okCase() && request.resource.data.rev == 1\n        && request.resource.data.createdAt == request.time && histAfter(id, 1);\n      allow update: if isMember() && okCase() && request.resource.data.rev == resource.data.rev + 1\n        && request.resource.data.createdAt == resource.data.createdAt && histAfter(id, request.resource.data.rev);\n      // the index alone (the owner's app indexing the office, or catching up on a case an older copy of the app saved):\n      // nothing about the case itself changes, so no new version\n      allow update: if isMember() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pn', 'pc'])\n        && okIdx(request.resource.data);\n      allow delete: if isOwner() && histAfter(id, resource.data.rev + 1);\n    }\n    match /log/{lid} {\n      function caseBefore() { return /databases/$(db)/documents/cases/$(request.resource.data.caseId); }\n      function okHist() {\n        let d = request.resource.data;\n        return (exists(caseBefore()) && d.rev == get(caseBefore()).data.rev + 1\n                 && d.prev == {'v': get(caseBefore()).data.v, 'iv': get(caseBefore()).data.iv, 'ct': get(caseBefore()).data.ct})\n          || (!exists(caseBefore()) && d.rev == 1 && d.prev == null);\n      }\n      function okAfter() {\n        let d = request.resource.data;\n        return (existsAfter(caseBefore()) && getAfter(caseBefore()).data.rev == d.rev)\n          || (!existsAfter(caseBefore()) && exists(caseBefore()) && isOwner());\n      }\n      // del: marks the entry of a deleted case (so Deleted cases reads only those, not every recent entry)\n      allow read: if isMember();\n      allow create: if isMember()\n        && request.resource.data.keys().hasOnly(['caseId', 'rev', 'uid', 'sid', 'at', 'v', 'iv', 'ct', 'prev', 'del'])\n        && request.resource.data.uid == request.auth.uid && request.resource.data.sid == mySid()\n        && request.resource.data.at == request.time && request.resource.data.caseId is string\n        && request.resource.data.rev is int && lid == request.resource.data.caseId + '_' + string(request.resource.data.rev)\n        && request.resource.data.v is int && request.resource.data.ct is string && request.resource.data.ct.size() < 20000\n        && (!('del' in request.resource.data) || (request.resource.data.del == true && !existsAfter(caseBefore())))\n        && okHist() && okAfter();\n      allow update, delete: if false;\n    }\n    // which set of these rules is live: the app reads this (it needn't exist); older rules refuse it\n    match /meta/rules_20261004 {\n      allow get: if isMember();\n    }\n\n    // ---------- patient photos ----------\n    // One small picture per case, sealed in the browser with the office key like the case itself.\n    // It changes only together with a save of its case (so the case's history shows who added or\n    // changed it), or with a brand-new case; the owner re-seals pictures unchanged after a key change.\n    function caseDoc(id) { return /databases/$(db)/documents/cases/$(id); }\n    function caseSavedNow(id) { return exists(caseDoc(id)) && existsAfter(caseDoc(id)) && getAfter(caseDoc(id)).data.rev == get(caseDoc(id)).data.rev + 1; }\n    match /photos/{id} {\n      function okPhoto() {\n        let d = request.resource.data;\n        return d.keys().hasOnly(['v', 'iv', 'ct', 'pv', 'at', 'by']) && d.v == curV()\n          && d.iv is string && d.iv.size() <= 24 && d.ct is string && d.ct.size() <= 90000\n          && d.pv is string && d.pv.size() > 0 && d.pv.size() <= 20\n          && d.by == request.auth.uid && d.at == request.time;\n      }\n      allow get: if isMember();\n      allow list: if isOwner();\n      allow create: if isMember() && okPhoto() && existsAfter(caseDoc(id)) && (!exists(caseDoc(id)) || caseSavedNow(id));\n      allow update: if isMember() && okPhoto() && existsAfter(caseDoc(id))\n        && (caseSavedNow(id) || (isOwner() && request.resource.data.pv == resource.data.pv));\n      allow delete: if isMember() && (!existsAfter(caseDoc(id)) || caseSavedNow(id));\n    }\n\n    // ---------- lab-email updates ----------\n    // A small Google Apps Script in the office's Gmail accounts forwards lab emails, sealed to the office\n    // inbox key so only the app can open them. Its own login (made by the owner) can add sealed items to the\n    // inbox and note when it last checked the mail. It can't read or change anything else.\n    function isBot() { return authed() && exists(/databases/$(db)/documents/mailbots/$(request.auth.uid)); }\n    match /mailbots/{uid} {\n      allow get: if authed() && (request.auth.uid == uid || isOwner());\n      allow list: if isOwner();\n      allow create: if isOwner() && request.resource.data.keys().hasOnly(['email', 'at'])\n        && request.resource.data.email is string && request.resource.data.at == request.time;\n      allow delete: if isOwner();\n      allow update: if false;\n    }\n    // the inbox public key the robot seals to (and which senders to forward)\n    match /meta/inbox {\n      allow get: if isMember() || isBot();\n      allow create, update: if isOwner() && request.resource.data.keys().hasOnly(['pub', 'kid', 'senders', 'at'])\n        && 'pub' in request.resource.data && okPub(request.resource.data)\n        && request.resource.data.kid is string && request.resource.data.kid.size() <= 40\n        && request.resource.data.senders is list && request.resource.data.senders.size() <= 40;\n      allow delete: if false;\n    }\n    // its private half, sealed with the office key\n    match /meta/inboxKey {\n      allow get: if isMember();\n      allow create, update: if isOwner();\n      allow delete: if false;\n    }\n    // the robot's login, sealed with the office key, so the owner can show the script again\n    match /meta/mailbot {\n      allow get, create, update, delete: if isOwner();\n    }\n    match /inbox/{id} {\n      allow create: if isBot() && id.matches('^m[0-9a-f]{40}$')\n        && request.resource.data.keys().hasOnly(['kid', 'epk', 'iv', 'ct', 'at'])\n        && request.resource.data.kid is string && request.resource.data.kid.size() <= 40\n        && request.resource.data.epk is map && request.resource.data.epk.keys().hasOnly(['kty', 'crv', 'x', 'y'])\n        && request.resource.data.iv is string && request.resource.data.iv.size() <= 24\n        && request.resource.data.ct is string && request.resource.data.ct.size() <= 400000\n        && request.resource.data.at == request.time;\n      allow get, list: if isMember();\n      // staff mark which updates in an email are dealt with (and which open app is handling it), and remove it once all are\n      // (a claim is checked only when it changes \u2014 marking updates done keeps the earlier claim as it was)\n      allow update: if isMember() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['done', 'claim'])\n        && (!('done' in request.resource.data) || (request.resource.data.done is list && request.resource.data.done.size() <= 200))\n        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['claim'])\n            || (request.resource.data.claim is map && request.resource.data.claim.keys().hasOnly(['by', 'at'])\n                && request.resource.data.claim.by is string && request.resource.data.claim.by.size() <= 20 && request.resource.data.claim.at == request.time));\n      allow delete: if isMember();\n    }\n    // when each mailbox's script last checked the mail (no patient data)\n    match /mailbeat/{id} {\n      allow get, list: if isMember();\n      allow create, update: if isBot() && id.matches('^b[0-9a-f]{32}$')\n        && request.resource.data.keys().hasOnly(['box', 'at', 'seen', 'sent', 'err', 'ver'])\n        && request.resource.data.box is string && request.resource.data.box.size() <= 120\n        && request.resource.data.at == request.time\n        && request.resource.data.seen is int && request.resource.data.sent is int\n        && request.resource.data.err is string && request.resource.data.err.size() <= 300\n        && request.resource.data.ver is string && request.resource.data.ver.size() <= 20;\n      allow delete: if isOwner();\n    }\n\n    // ---------- NLO Leads (same office, same logins, same key ring) ----------\n    // Leads follow the same pattern as cases: sealed in the browser, every write comes with an\n    // append-only history entry (\"leadLog/<lead>_<rev>\") holding the copy it replaced.\n    function leadHistAfter(id, rev) { return existsAfter(/databases/$(db)/documents/leadLog/$(id + '_' + string(rev))); }\n    match /leads/{id} {\n      function okLead() {\n        let d = request.resource.data;\n        return d.keys().hasOnly(['v', 'iv', 'ct', 'status', 'rev', 'by', 'sid', 'createdAt', 'updatedAt', 'closedAt'])\n          && d.v == curV() && d.iv is string && d.ct is string && d.ct.size() < 300000\n          && d.rev is int && d.by == request.auth.uid && d.sid == mySid()\n          && d.updatedAt == request.time\n          && ((d.status == 'open' && d.closedAt == null) || (d.status == 'done' && d.closedAt is timestamp));\n      }\n      allow read: if isMember();\n      allow create: if isMember() && okLead() && request.resource.data.rev == 1\n        && request.resource.data.createdAt == request.time && leadHistAfter(id, 1);\n      allow update: if isMember() && okLead() && request.resource.data.rev == resource.data.rev + 1\n        && request.resource.data.createdAt == resource.data.createdAt && leadHistAfter(id, request.resource.data.rev);\n      allow delete: if isOwner() && leadHistAfter(id, resource.data.rev + 1);\n    }\n    match /leadLog/{lid} {\n      function leadBefore() { return /databases/$(db)/documents/leads/$(request.resource.data.leadId); }\n      function okLeadHist() {\n        let d = request.resource.data;\n        return (exists(leadBefore()) && d.rev == get(leadBefore()).data.rev + 1\n                 && d.prev == {'v': get(leadBefore()).data.v, 'iv': get(leadBefore()).data.iv, 'ct': get(leadBefore()).data.ct})\n          || (!exists(leadBefore()) && d.rev == 1 && d.prev == null);\n      }\n      function okLeadAfter() {\n        let d = request.resource.data;\n        return (existsAfter(leadBefore()) && getAfter(leadBefore()).data.rev == d.rev)\n          || (!existsAfter(leadBefore()) && exists(leadBefore()) && isOwner());\n      }\n      allow read: if isMember();\n      allow create: if isMember()\n        && request.resource.data.keys().hasOnly(['leadId', 'rev', 'uid', 'sid', 'at', 'v', 'iv', 'ct', 'prev'])\n        && request.resource.data.uid == request.auth.uid && request.resource.data.sid == mySid()\n        && request.resource.data.at == request.time && request.resource.data.leadId is string\n        && request.resource.data.rev is int && lid == request.resource.data.leadId + '_' + string(request.resource.data.rev)\n        && request.resource.data.v is int && request.resource.data.ct is string && request.resource.data.ct.size() < 20000\n        && okLeadHist() && okLeadAfter();\n      allow update, delete: if false;\n    }\n    // Website requests. Only the receiving service writes these (with its own server credentials,\n    // which these rules don't apply to), sealed to the feed's public key. Staff remove one only by\n    // filing it, in the same save, as a new open lead under the same id; the owner can remove one\n    // that can't be opened.\n    function leadDoc(id) { return /databases/$(db)/documents/leads/$(id); }\n    match /leadInbox/{id} {\n      allow read: if isMember();\n      allow create, update: if false;\n      allow delete: if isOwner() || (isMember() && !exists(leadDoc(id)) && existsAfter(leadDoc(id))\n        && getAfter(leadDoc(id)).data.rev == 1 && getAfter(leadDoc(id)).data.status == 'open');\n    }\n    // the feed's key pair: public half in the clear (the service seals to it), private half sealed with the office key\n    match /meta/intake {\n      function okIntake() {\n        let d = request.resource.data;\n        return d.keys().hasOnly(['kid', 'pub', 'priv', 'at']) && d.kid is string && d.kid.size() < 40\n          && 'pub' in d && okPub(d)\n          && d.priv is map && d.priv.keys().hasOnly(['v', 'iv', 'ct']) && d.priv.v is int && d.priv.iv is string && d.priv.ct is string && d.priv.ct.size() < 2000\n          && d.at is timestamp;\n      }\n      allow get: if isMember();\n      allow create, update: if isOwner() && okIntake();\n      allow delete: if false;\n    }\n    // the secret in the website's webhook address: its hash (checked by the service), a copy sealed for the owner, on/off\n    match /meta/intakeSecret {\n      function okSecret() {\n        let d = request.resource.data;\n        return d.keys().hasOnly(['hash', 'box', 'on', 'at']) && d.hash is string && d.hash.matches('^[0-9a-f]{64}$')\n          && d.box is map && d.box.keys().hasOnly(['v', 'iv', 'ct']) && d.box.v is int && d.box.ct is string && d.box.ct.size() < 400\n          && d.on is bool && d.at is timestamp;\n      }\n      allow get: if isOwner();\n      allow create, update: if isOwner() && okSecret();\n      allow delete: if false;\n    }\n    // when the receiving service last took or refused a request (times and a reason word only); written by the service\n    match /meta/intakeStats {\n      allow get: if isOwner();\n      allow write: if false;\n    }\n\n    // ---------- NLO A/R (same office, same logins; its own key, only for the people Dr. A gives A/R to) ----------\n    // Each person's copy of the A/R key ring is sealed to their own key pair (arAccess/<their uid>): these rules\n    // decide who may read A/R at all, and only those people can open what they read. Reports from Edge and the\n    // notes on each account are sealed in the browser; every save of an account keeps the copy it replaced.\n    function arGrant() { return /databases/$(db)/documents/arAccess/$(request.auth.uid); }\n    function isAR() { return isMember() && (isOwner() || exists(arGrant())); }\n    function arCurV() { return get(/databases/$(db)/documents/meta/arKeys).data.current; }\n    function okSealed(b, max) {\n      return b is map && b.keys().hasOnly(['epk', 'iv', 'ct']) && b.epk is map && b.epk.keys().hasOnly(['kty', 'crv', 'x', 'y'])\n        && b.iv is string && b.iv.size() <= 24 && b.ct is string && b.ct.size() <= max;\n    }\n    match /arAccess/{uid} {\n      function okGrant() {\n        let d = request.resource.data;\n        let m = get(/databases/$(db)/documents/members/$(uid)).data;\n        return d.keys().hasOnly(['ring', 'ringV', 'pubX', 'sid', 'by', 'at']) && okSealed(d.ring, 2000)\n          && d.ringV is int && d.pubX is string && d.pubX.size() == 43 && d.sid is string && d.sid == m.staffId\n          && m.active == true && d.by == request.auth.uid && d.at == request.time;\n      }\n      allow get: if (request.auth != null && request.auth.uid == uid && isMember()) || isOwner();\n      allow list: if isOwner();\n      allow create, update: if isOwner() && exists(/databases/$(db)/documents/members/$(uid)) && okGrant();\n      allow delete: if isOwner();\n    }\n    match /meta/arKeys {\n      allow get: if isAR();\n      allow create: if isOwner() && request.resource.data.keys().hasOnly(['current']) && request.resource.data.current == 1;\n      allow update: if isOwner() && request.resource.data.keys().hasOnly(['current']) && request.resource.data.current == resource.data.current + 1;\n      allow delete: if false;\n    }\n    // a copy of the A/R key ring sealed to the office recovery key, so Dr. A's recovery code can always get it back\n    match /meta/arEscrow {\n      allow get: if isOwner();\n      allow create, update: if isOwner() && request.resource.data.keys().hasOnly(['ring', 'ringV', 'recX', 'by', 'at'])\n        && okSealed(request.resource.data.ring, 2000) && request.resource.data.ringV is int && request.resource.data.by == request.auth.uid;\n      allow delete: if false;\n    }\n    // who has A/R (staff ids only), so accounts can be assigned to them\n    match /meta/arTeam {\n      allow get: if isAR();\n      allow create, update: if isOwner() && request.resource.data.keys().hasOnly(['sids', 'at'])\n        && request.resource.data.sids is list && request.resource.data.sids.size() <= 40;\n      allow delete: if false;\n    }\n    // one change of the A/R key at a time, across Dr. A's screens (held for a moment while the key changes)\n    match /meta/arKeyLock {\n      allow get, delete: if isOwner();\n      allow create, update: if isOwner() && request.resource.data.keys().hasOnly(['by', 'at'])\n        && request.resource.data.by is string && request.resource.data.by.size() <= 80 && request.resource.data.at == request.time;\n    }\n    // which set of these rules is live (the app reads this; older rules refuse it)\n    match /meta/rules_ar_1 {\n      allow get: if isMember();\n    }\n    // An imported report: a small index doc (date, count, sealed totals) and the sealed report itself, saved together.\n    // The person who imported it may take it back for a day; the owner any time.\n    function arRep(id) { return get(/databases/$(db)/documents/arReports/$(id)).data; }\n    function myFreshReport(id) { return arRep(id).uid == request.auth.uid && request.time < arRep(id).at + duration.value(1, 'd'); }\n    match /arReports/{id} {\n      function okRep() {\n        let d = request.resource.data;\n        return d.keys().hasOnly(['v', 'sum', 'asOf', 'n', 'uid', 'sid', 'at'])\n          && d.v == arCurV() && d.sum is map && d.sum.keys().hasOnly(['iv', 'ct']) && d.sum.iv is string && d.sum.iv.size() <= 24\n          && d.sum.ct is string && d.sum.ct.size() < 20000\n          && d.asOf is string && d.asOf.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') && d.n is int && d.n >= 0;\n      }\n      allow read: if isAR();\n      allow create: if isAR() && okRep() && request.resource.data.uid == request.auth.uid && request.resource.data.sid == mySid()\n        && request.resource.data.at == request.time && existsAfter(/databases/$(db)/documents/arReportData/$(id));\n      // the owner re-seals it under a newer A/R key: same report, nothing else changes\n      allow update: if isOwner() && okRep() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['v', 'sum']);\n      allow delete: if (isOwner() || (isAR() && myFreshReport(id))) && !existsAfter(/databases/$(db)/documents/arReportData/$(id));\n    }\n    match /arReportData/{id} {\n      function okData() {\n        let d = request.resource.data;\n        return d.keys().hasOnly(['v', 'iv', 'ct']) && d.v == arCurV() && d.iv is string && d.iv.size() <= 24 && d.ct is string && d.ct.size() < 1000000;\n      }\n      allow read: if isAR();\n      allow create: if isAR() && okData() && !exists(/databases/$(db)/documents/arReports/$(id)) && existsAfter(/databases/$(db)/documents/arReports/$(id));\n      allow update: if isOwner() && okData() && exists(/databases/$(db)/documents/arReports/$(id));\n      allow delete: if (isOwner() || (isAR() && myFreshReport(id))) && !existsAfter(/databases/$(db)/documents/arReports/$(id));\n    }\n    // An account someone has worked (calls, notes, follow-up, resolved): saved like a case \u2014 sealed, and every write\n    // comes with an append-only history entry (\"arLog/<item>_<rev>\") holding the copy it replaced.\n    function arHistAfter(id, rev) { return existsAfter(/databases/$(db)/documents/arLog/$(id + '_' + string(rev))); }\n    match /arItems/{id} {\n      function okItem() {\n        let d = request.resource.data;\n        return d.keys().hasOnly(['v', 'iv', 'ct', 'status', 'rev', 'by', 'sid', 'createdAt', 'updatedAt'])\n          && d.v == arCurV() && d.iv is string && d.iv.size() <= 24 && d.ct is string && d.ct.size() < 300000\n          && d.rev is int && d.by == request.auth.uid && d.sid == mySid() && d.updatedAt == request.time\n          && (d.status == 'open' || d.status == 'done');\n      }\n      allow read: if isAR();\n      allow create: if isAR() && id.matches('^a[0-9A-Za-z_-]{22}$') && okItem() && request.resource.data.rev == 1\n        && request.resource.data.createdAt == request.time && arHistAfter(id, 1);\n      allow update: if isAR() && okItem() && request.resource.data.rev == resource.data.rev + 1\n        && request.resource.data.createdAt == resource.data.createdAt && arHistAfter(id, request.resource.data.rev);\n      // never deleted, so a record's history can't be restarted or skipped\n      allow delete: if false;\n    }\n    match /arLog/{lid} {\n      function itemBefore() { return /databases/$(db)/documents/arItems/$(request.resource.data.itemId); }\n      function okArHist() {\n        let d = request.resource.data;\n        return (exists(itemBefore()) && d.rev == get(itemBefore()).data.rev + 1\n                 && d.prev == {'v': get(itemBefore()).data.v, 'iv': get(itemBefore()).data.iv, 'ct': get(itemBefore()).data.ct})\n          || (!exists(itemBefore()) && d.rev == 1 && d.prev == null);\n      }\n      function okArAfter() { return existsAfter(itemBefore()) && getAfter(itemBefore()).data.rev == request.resource.data.rev; }\n      allow read: if isAR();\n      allow create: if isAR()\n        && request.resource.data.keys().hasOnly(['itemId', 'rev', 'uid', 'sid', 'at', 'v', 'iv', 'ct', 'prev'])\n        && request.resource.data.uid == request.auth.uid && request.resource.data.sid == mySid()\n        && request.resource.data.at == request.time && request.resource.data.itemId is string\n        && request.resource.data.rev is int && lid == request.resource.data.itemId + '_' + string(request.resource.data.rev)\n        && request.resource.data.v == arCurV() && request.resource.data.iv is string && request.resource.data.iv.size() <= 24\n        && request.resource.data.ct is string && request.resource.data.ct.size() < 20000\n        && okArHist() && okArAfter();\n      allow update, delete: if false;\n    }\n  }\n}\n";
+const NLO_RULES = "rules_version = '2';\n// NLO Cases \u2014 Firestore security rules.\n// Case bodies are encrypted in the browser; these rules decide WHO may read or\n// write the ciphertext, keep the history log append-only, and stop anyone who\n// is not an active member (or a removed member) from touching anything.\nservice cloud.firestore {\n  match /databases/{db}/documents {\n    function authed() { return request.auth != null; }\n    function hasSetup() { return exists(/databases/$(db)/documents/meta/setup); }\n    function isOwner() { return authed() && hasSetup() && get(/databases/$(db)/documents/meta/setup).data.owner == request.auth.uid; }\n    function myDoc() { return /databases/$(db)/documents/members/$(request.auth.uid); }\n    function isMember() { return authed() && exists(myDoc()) && get(myDoc()).data.active == true; }\n    function mySid() { return get(myDoc()).data.staffId; }\n    function curV() { return get(/databases/$(db)/documents/meta/keys).data.current; }\n    // true only inside the one-time office setup batch, and only for the practice owner's\n    // verified email address (stops anyone else claiming an empty office)\n    function bootstrapping() {\n      return authed() && !hasSetup()\n        && request.auth.token.email == '__OWNER_EMAIL__' && request.auth.token.email_verified == true\n        && getAfter(/databases/$(db)/documents/meta/setup).data.owner == request.auth.uid;\n    }\n    // a public key must look like a P-256 JWK (the owner's client also tolerates bad ones)\n    function okPub(d) {\n      return !('pub' in d) || (d.pub is map && d.pub.keys().hasOnly(['kty', 'crv', 'x', 'y'])\n        && d.pub.kty == 'EC' && d.pub.crv == 'P-256' && d.pub.x is string && d.pub.y is string\n        && d.pub.x.size() == 43 && d.pub.y.size() == 43);\n    }\n    // the front-desk email for cases not shipped in time (8 Oct 2026): on or off, the one address it may go to, which mailbox's\n    // script sends it and that script's public key (the note is sealed to it), and whether it names the patient\n    function okNotify(d) {\n      return !('notify' in d) || (d.notify is map && d.notify.keys().hasOnly(['on', 'to', 'box', 'pub', 'names'])\n        && d.notify.on is bool && d.notify.names is bool\n        && d.notify.to is string && d.notify.to.size() <= 120 && d.notify.to.matches('^[^@ ]+@[^@ ]+[.][^@ ]+$')\n        && d.notify.box is string && d.notify.box.matches('^(b[0-9a-f]{32})?$') && okPub(d.notify));\n    }\n\n    match /meta/setup {\n      allow get: if isMember();\n      allow create: if bootstrapping()\n        && request.resource.data.keys().hasOnly(['owner', 'at'])\n        && request.resource.data.owner == request.auth.uid\n        && request.resource.data.at == request.time\n        && getAfter(myDoc()).data.role == 'owner';\n      allow update, delete: if false;\n    }\n    match /meta/keys {\n      allow get: if isMember();\n      allow create: if bootstrapping() && request.resource.data.keys().hasOnly(['current']) && request.resource.data.current == 1;\n      allow update: if isOwner() && request.resource.data.keys().hasOnly(['current'])\n        && request.resource.data.current == resource.data.current + 1;\n      allow delete: if false;\n    }\n    match /meta/settings {\n      allow get: if isMember();\n      allow create: if bootstrapping() || isOwner();\n      allow update: if isOwner();\n      allow delete: if false;\n    }\n    match /meta/recovery {\n      allow get: if isOwner();\n      allow create: if bootstrapping() || isOwner();\n      allow update: if isOwner();\n      allow delete: if false;\n    }\n    // username -> sign-in address. Readable one at a time (needed before sign-in), never listable.\n    match /logins/{name} {\n      allow get: if true;\n      allow list: if false;\n      allow create, update: if isOwner() && request.resource.data.keys().hasOnly(['email']) && request.resource.data.email is string;\n      allow delete: if isOwner();\n    }\n    match /members/{uid} {\n      allow get: if authed() && (request.auth.uid == uid || isOwner());\n      allow list: if isOwner();\n      allow create: if (isOwner() && request.resource.data.role == 'staff')\n        || (bootstrapping() && uid == request.auth.uid && request.resource.data.role == 'owner' && request.resource.data.active == true);\n      // the owner manages everyone (and can never demote themself); a person may only\n      // update their own key material, and only while still active\n      allow update: if (isOwner() && (uid != request.auth.uid || (request.resource.data.role == 'owner' && request.resource.data.active == true)))\n        || (authed() && request.auth.uid == uid && resource.data.active == true\n            && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['pub']) || okPub(request.resource.data))\n            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pub', 'priv', 'privPrev', 'ring', 'ringV', 'boot', 'mustSetup', 'lastLogin']));\n      allow delete: if false;\n    }\n    match /roster/{sid} {\n      allow read: if isMember();\n      allow create, update: if isOwner() || bootstrapping();\n      allow delete: if false;\n    }\n    // Every write to a case must come with a history entry, at the fixed id \"<case>_<rev>\",\n    // holding the previous encrypted copy. History can't be edited or deleted, so any\n    // overwrite \u2014 buggy, careless or malicious \u2014 can be undone from it.\n    function histAfter(id, rev) { return existsAfter(/databases/$(db)/documents/log/$(id + '_' + string(rev))); }\n    // The patient index (4 Oct 2026): pn / pc are keyed hashes (HMAC with a key derived from the office key) of the\n    // patient's name and chart #, so an app can fetch one patient's earlier cases instead of every completed case.\n    // Without the office key they say nothing about who the patient is.\n    function okIdx(d) {\n      return (!('pn' in d) || (d.pn is string && d.pn.size() == 22)) && (!('pc' in d) || (d.pc is string && d.pc.size() == 22));\n    }\n    match /cases/{id} {\n      function okCase() {\n        let d = request.resource.data;\n        return d.keys().hasOnly(['v', 'iv', 'ct', 'status', 'rev', 'by', 'sid', 'createdAt', 'updatedAt', 'closedAt', 'pn', 'pc'])\n          && d.v == curV() && d.iv is string && d.ct is string && d.ct.size() < 600000\n          && d.rev is int && d.by == request.auth.uid && d.sid == mySid()\n          && d.updatedAt == request.time && okIdx(d)\n          && ((d.status == 'open' && d.closedAt == null) || (d.status == 'done' && d.closedAt is timestamp));\n      }\n      allow read: if isMember();\n      allow create: if isMember() && okCase() && request.resource.data.rev == 1\n        && request.resource.data.createdAt == request.time && histAfter(id, 1);\n      allow update: if isMember() && okCase() && request.resource.data.rev == resource.data.rev + 1\n        && request.resource.data.createdAt == resource.data.createdAt && histAfter(id, request.resource.data.rev);\n      // the index alone (the owner's app indexing the office, or catching up on a case an older copy of the app saved):\n      // nothing about the case itself changes, so no new version\n      allow update: if isMember() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pn', 'pc'])\n        && okIdx(request.resource.data);\n      allow delete: if isOwner() && histAfter(id, resource.data.rev + 1);\n    }\n    match /log/{lid} {\n      function caseBefore() { return /databases/$(db)/documents/cases/$(request.resource.data.caseId); }\n      function okHist() {\n        let d = request.resource.data;\n        return (exists(caseBefore()) && d.rev == get(caseBefore()).data.rev + 1\n                 && d.prev == {'v': get(caseBefore()).data.v, 'iv': get(caseBefore()).data.iv, 'ct': get(caseBefore()).data.ct})\n          || (!exists(caseBefore()) && d.rev == 1 && d.prev == null);\n      }\n      function okAfter() {\n        let d = request.resource.data;\n        return (existsAfter(caseBefore()) && getAfter(caseBefore()).data.rev == d.rev)\n          || (!existsAfter(caseBefore()) && exists(caseBefore()) && isOwner());\n      }\n      // del: marks the entry of a deleted case (so Deleted cases reads only those, not every recent entry)\n      allow read: if isMember();\n      allow create: if isMember()\n        && request.resource.data.keys().hasOnly(['caseId', 'rev', 'uid', 'sid', 'at', 'v', 'iv', 'ct', 'prev', 'del'])\n        && request.resource.data.uid == request.auth.uid && request.resource.data.sid == mySid()\n        && request.resource.data.at == request.time && request.resource.data.caseId is string\n        && request.resource.data.rev is int && lid == request.resource.data.caseId + '_' + string(request.resource.data.rev)\n        && request.resource.data.v is int && request.resource.data.ct is string && request.resource.data.ct.size() < 20000\n        && (!('del' in request.resource.data) || (request.resource.data.del == true && !existsAfter(caseBefore())))\n        && okHist() && okAfter();\n      allow update, delete: if false;\n    }\n    // which set of these rules is live: the app reads this (it needn't exist); older rules refuse it\n    match /meta/rules_20261004 {\n      allow get: if isMember();\n    }\n    match /meta/rules_20261008 {\n      allow get: if isMember();\n    }\n\n    // ---------- patient photos ----------\n    // One small picture per case, sealed in the browser with the office key like the case itself.\n    // It changes only together with a save of its case (so the case's history shows who added or\n    // changed it), or with a brand-new case; the owner re-seals pictures unchanged after a key change.\n    function caseDoc(id) { return /databases/$(db)/documents/cases/$(id); }\n    function caseSavedNow(id) { return exists(caseDoc(id)) && existsAfter(caseDoc(id)) && getAfter(caseDoc(id)).data.rev == get(caseDoc(id)).data.rev + 1; }\n    match /photos/{id} {\n      function okPhoto() {\n        let d = request.resource.data;\n        return d.keys().hasOnly(['v', 'iv', 'ct', 'pv', 'at', 'by']) && d.v == curV()\n          && d.iv is string && d.iv.size() <= 24 && d.ct is string && d.ct.size() <= 90000\n          && d.pv is string && d.pv.size() > 0 && d.pv.size() <= 20\n          && d.by == request.auth.uid && d.at == request.time;\n      }\n      allow get: if isMember();\n      allow list: if isOwner();\n      allow create: if isMember() && okPhoto() && existsAfter(caseDoc(id)) && (!exists(caseDoc(id)) || caseSavedNow(id));\n      allow update: if isMember() && okPhoto() && existsAfter(caseDoc(id))\n        && (caseSavedNow(id) || (isOwner() && request.resource.data.pv == resource.data.pv));\n      allow delete: if isMember() && (!existsAfter(caseDoc(id)) || caseSavedNow(id));\n    }\n\n    // ---------- lab-email updates ----------\n    // A small Google Apps Script in the office's Gmail accounts forwards lab emails, sealed to the office\n    // inbox key so only the app can open them. Its own login (made by the owner) can add sealed items to the\n    // inbox and note when it last checked the mail. It can't read or change anything else.\n    function isBot() { return authed() && exists(/databases/$(db)/documents/mailbots/$(request.auth.uid)); }\n    match /mailbots/{uid} {\n      allow get: if authed() && (request.auth.uid == uid || isOwner());\n      allow list: if isOwner();\n      allow create: if isOwner() && request.resource.data.keys().hasOnly(['email', 'at'])\n        && request.resource.data.email is string && request.resource.data.at == request.time;\n      allow delete: if isOwner();\n      allow update: if false;\n    }\n    // the inbox public key the robot seals to (and which senders to forward)\n    match /meta/inbox {\n      allow get: if isMember() || isBot();\n      allow create, update: if isOwner() && request.resource.data.keys().hasOnly(['pub', 'kid', 'senders', 'at', 'notify'])\n        && 'pub' in request.resource.data && okPub(request.resource.data)\n        && request.resource.data.kid is string && request.resource.data.kid.size() <= 40\n        && request.resource.data.senders is list && request.resource.data.senders.size() <= 40\n        && okNotify(request.resource.data);\n      allow delete: if false;\n    }\n    // its private half, sealed with the office key\n    match /meta/inboxKey {\n      allow get: if isMember();\n      allow create, update: if isOwner();\n      allow delete: if false;\n    }\n    // the robot's login, sealed with the office key, so the owner can show the script again\n    match /meta/mailbot {\n      allow get, create, update, delete: if isOwner();\n    }\n    match /inbox/{id} {\n      allow create: if isBot() && id.matches('^m[0-9a-f]{40}$')\n        && request.resource.data.keys().hasOnly(['kid', 'epk', 'iv', 'ct', 'at'])\n        && request.resource.data.kid is string && request.resource.data.kid.size() <= 40\n        && request.resource.data.epk is map && request.resource.data.epk.keys().hasOnly(['kty', 'crv', 'x', 'y'])\n        && request.resource.data.iv is string && request.resource.data.iv.size() <= 24\n        && request.resource.data.ct is string && request.resource.data.ct.size() <= 400000\n        && request.resource.data.at == request.time;\n      allow get, list: if isMember();\n      // staff mark which updates in an email are dealt with (and which open app is handling it), and remove it once all are\n      // (a claim is checked only when it changes \u2014 marking updates done keeps the earlier claim as it was)\n      allow update: if isMember() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['done', 'claim'])\n        && (!('done' in request.resource.data) || (request.resource.data.done is list && request.resource.data.done.size() <= 200))\n        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['claim'])\n            || (request.resource.data.claim is map && request.resource.data.claim.keys().hasOnly(['by', 'at'])\n                && request.resource.data.claim.by is string && request.resource.data.claim.by.size() <= 20 && request.resource.data.claim.at == request.time));\n      allow delete: if isMember();\n    }\n    // when each mailbox's script last checked the mail (no patient data)\n    match /mailbeat/{id} {\n      allow get, list: if isMember();\n      // (pub: the key a newer script opens front-desk notes with \u2014 its private half stays in that Gmail account)\n      allow create, update: if isBot() && id.matches('^b[0-9a-f]{32}$')\n        && request.resource.data.keys().hasOnly(['box', 'at', 'seen', 'sent', 'err', 'ver', 'pub']) && okPub(request.resource.data)\n        && request.resource.data.box is string && request.resource.data.box.size() <= 120\n        && request.resource.data.at == request.time\n        && request.resource.data.seen is int && request.resource.data.sent is int\n        && request.resource.data.err is string && request.resource.data.err.size() <= 300\n        && request.resource.data.ver is string && request.resource.data.ver.size() <= 20;\n      allow delete: if isOwner();\n    }\n\n    // ---------- a note for the front desk (Amir, 8 Oct 2026: \"when the case gets delayed (not shipped by the expected time)\n    // please also send a email to Questions@thenextlevelorthodontics.com to let the front desk know\") ----------\n    // An open app adds a note here in the same save that marks the case as emailed, sealed to one mailbox script's own key\n    // (its private half never leaves that Gmail account). That script opens it, emails meta/inbox's front-desk address \u2014 the\n    // only address it sends these to \u2014 and removes it. Nobody else can read it.\n    match /outbox/{id} {\n      allow create: if isMember() && id.matches('^o[0-9a-f]{32}$')\n        && request.resource.data.keys().hasOnly(['box', 'epk', 'iv', 'ct', 'at'])\n        && request.resource.data.box is string && request.resource.data.box.matches('^b[0-9a-f]{32}$')\n        && request.resource.data.epk is map && request.resource.data.epk.keys().hasOnly(['kty', 'crv', 'x', 'y'])\n        && request.resource.data.iv is string && request.resource.data.iv.size() <= 24\n        && request.resource.data.ct is string && request.resource.data.ct.size() <= 20000\n        && request.resource.data.at == request.time;\n      allow get, list: if isBot();\n      allow delete: if isBot() || isOwner();\n      allow update: if false;\n    }\n\n    // ---------- NLO Leads (same office, same logins, same key ring) ----------\n    // Leads follow the same pattern as cases: sealed in the browser, every write comes with an\n    // append-only history entry (\"leadLog/<lead>_<rev>\") holding the copy it replaced.\n    function leadHistAfter(id, rev) { return existsAfter(/databases/$(db)/documents/leadLog/$(id + '_' + string(rev))); }\n    match /leads/{id} {\n      function okLead() {\n        let d = request.resource.data;\n        return d.keys().hasOnly(['v', 'iv', 'ct', 'status', 'rev', 'by', 'sid', 'createdAt', 'updatedAt', 'closedAt'])\n          && d.v == curV() && d.iv is string && d.ct is string && d.ct.size() < 300000\n          && d.rev is int && d.by == request.auth.uid && d.sid == mySid()\n          && d.updatedAt == request.time\n          && ((d.status == 'open' && d.closedAt == null) || (d.status == 'done' && d.closedAt is timestamp));\n      }\n      allow read: if isMember();\n      allow create: if isMember() && okLead() && request.resource.data.rev == 1\n        && request.resource.data.createdAt == request.time && leadHistAfter(id, 1);\n      allow update: if isMember() && okLead() && request.resource.data.rev == resource.data.rev + 1\n        && request.resource.data.createdAt == resource.data.createdAt && leadHistAfter(id, request.resource.data.rev);\n      allow delete: if isOwner() && leadHistAfter(id, resource.data.rev + 1);\n    }\n    match /leadLog/{lid} {\n      function leadBefore() { return /databases/$(db)/documents/leads/$(request.resource.data.leadId); }\n      function okLeadHist() {\n        let d = request.resource.data;\n        return (exists(leadBefore()) && d.rev == get(leadBefore()).data.rev + 1\n                 && d.prev == {'v': get(leadBefore()).data.v, 'iv': get(leadBefore()).data.iv, 'ct': get(leadBefore()).data.ct})\n          || (!exists(leadBefore()) && d.rev == 1 && d.prev == null);\n      }\n      function okLeadAfter() {\n        let d = request.resource.data;\n        return (existsAfter(leadBefore()) && getAfter(leadBefore()).data.rev == d.rev)\n          || (!existsAfter(leadBefore()) && exists(leadBefore()) && isOwner());\n      }\n      allow read: if isMember();\n      allow create: if isMember()\n        && request.resource.data.keys().hasOnly(['leadId', 'rev', 'uid', 'sid', 'at', 'v', 'iv', 'ct', 'prev'])\n        && request.resource.data.uid == request.auth.uid && request.resource.data.sid == mySid()\n        && request.resource.data.at == request.time && request.resource.data.leadId is string\n        && request.resource.data.rev is int && lid == request.resource.data.leadId + '_' + string(request.resource.data.rev)\n        && request.resource.data.v is int && request.resource.data.ct is string && request.resource.data.ct.size() < 20000\n        && okLeadHist() && okLeadAfter();\n      allow update, delete: if false;\n    }\n    // Website requests. Only the receiving service writes these (with its own server credentials,\n    // which these rules don't apply to), sealed to the feed's public key. Staff remove one only by\n    // filing it, in the same save, as a new open lead under the same id; the owner can remove one\n    // that can't be opened.\n    function leadDoc(id) { return /databases/$(db)/documents/leads/$(id); }\n    match /leadInbox/{id} {\n      allow read: if isMember();\n      allow create, update: if false;\n      allow delete: if isOwner() || (isMember() && !exists(leadDoc(id)) && existsAfter(leadDoc(id))\n        && getAfter(leadDoc(id)).data.rev == 1 && getAfter(leadDoc(id)).data.status == 'open');\n    }\n    // the feed's key pair: public half in the clear (the service seals to it), private half sealed with the office key\n    match /meta/intake {\n      function okIntake() {\n        let d = request.resource.data;\n        return d.keys().hasOnly(['kid', 'pub', 'priv', 'at']) && d.kid is string && d.kid.size() < 40\n          && 'pub' in d && okPub(d)\n          && d.priv is map && d.priv.keys().hasOnly(['v', 'iv', 'ct']) && d.priv.v is int && d.priv.iv is string && d.priv.ct is string && d.priv.ct.size() < 2000\n          && d.at is timestamp;\n      }\n      allow get: if isMember();\n      allow create, update: if isOwner() && okIntake();\n      allow delete: if false;\n    }\n    // the secret in the website's webhook address: its hash (checked by the service), a copy sealed for the owner, on/off\n    match /meta/intakeSecret {\n      function okSecret() {\n        let d = request.resource.data;\n        return d.keys().hasOnly(['hash', 'box', 'on', 'at']) && d.hash is string && d.hash.matches('^[0-9a-f]{64}$')\n          && d.box is map && d.box.keys().hasOnly(['v', 'iv', 'ct']) && d.box.v is int && d.box.ct is string && d.box.ct.size() < 400\n          && d.on is bool && d.at is timestamp;\n      }\n      allow get: if isOwner();\n      allow create, update: if isOwner() && okSecret();\n      allow delete: if false;\n    }\n    // when the receiving service last took or refused a request (times and a reason word only); written by the service\n    match /meta/intakeStats {\n      allow get: if isOwner();\n      allow write: if false;\n    }\n\n    // ---------- NLO A/R (same office, same logins; its own key, only for the people Dr. A gives A/R to) ----------\n    // Each person's copy of the A/R key ring is sealed to their own key pair (arAccess/<their uid>): these rules\n    // decide who may read A/R at all, and only those people can open what they read. Reports from Edge and the\n    // notes on each account are sealed in the browser; every save of an account keeps the copy it replaced.\n    function arGrant() { return /databases/$(db)/documents/arAccess/$(request.auth.uid); }\n    function isAR() { return isMember() && (isOwner() || exists(arGrant())); }\n    function arCurV() { return get(/databases/$(db)/documents/meta/arKeys).data.current; }\n    function okSealed(b, max) {\n      return b is map && b.keys().hasOnly(['epk', 'iv', 'ct']) && b.epk is map && b.epk.keys().hasOnly(['kty', 'crv', 'x', 'y'])\n        && b.iv is string && b.iv.size() <= 24 && b.ct is string && b.ct.size() <= max;\n    }\n    match /arAccess/{uid} {\n      function okGrant() {\n        let d = request.resource.data;\n        let m = get(/databases/$(db)/documents/members/$(uid)).data;\n        return d.keys().hasOnly(['ring', 'ringV', 'pubX', 'sid', 'by', 'at']) && okSealed(d.ring, 2000)\n          && d.ringV is int && d.pubX is string && d.pubX.size() == 43 && d.sid is string && d.sid == m.staffId\n          && m.active == true && d.by == request.auth.uid && d.at == request.time;\n      }\n      allow get: if (request.auth != null && request.auth.uid == uid && isMember()) || isOwner();\n      allow list: if isOwner();\n      allow create, update: if isOwner() && exists(/databases/$(db)/documents/members/$(uid)) && okGrant();\n      allow delete: if isOwner();\n    }\n    match /meta/arKeys {\n      allow get: if isAR();\n      allow create: if isOwner() && request.resource.data.keys().hasOnly(['current']) && request.resource.data.current == 1;\n      allow update: if isOwner() && request.resource.data.keys().hasOnly(['current']) && request.resource.data.current == resource.data.current + 1;\n      allow delete: if false;\n    }\n    // a copy of the A/R key ring sealed to the office recovery key, so Dr. A's recovery code can always get it back\n    match /meta/arEscrow {\n      allow get: if isOwner();\n      allow create, update: if isOwner() && request.resource.data.keys().hasOnly(['ring', 'ringV', 'recX', 'by', 'at'])\n        && okSealed(request.resource.data.ring, 2000) && request.resource.data.ringV is int && request.resource.data.by == request.auth.uid;\n      allow delete: if false;\n    }\n    // who has A/R (staff ids only), so accounts can be assigned to them\n    match /meta/arTeam {\n      allow get: if isAR();\n      allow create, update: if isOwner() && request.resource.data.keys().hasOnly(['sids', 'at'])\n        && request.resource.data.sids is list && request.resource.data.sids.size() <= 40;\n      allow delete: if false;\n    }\n    // one change of the A/R key at a time, across Dr. A's screens (held for a moment while the key changes)\n    match /meta/arKeyLock {\n      allow get, delete: if isOwner();\n      allow create, update: if isOwner() && request.resource.data.keys().hasOnly(['by', 'at'])\n        && request.resource.data.by is string && request.resource.data.by.size() <= 80 && request.resource.data.at == request.time;\n    }\n    // which set of these rules is live (the app reads this; older rules refuse it)\n    match /meta/rules_ar_1 {\n      allow get: if isMember();\n    }\n    // An imported report: a small index doc (date, count, sealed totals) and the sealed report itself, saved together.\n    // The person who imported it may take it back for a day; the owner any time.\n    function arRep(id) { return get(/databases/$(db)/documents/arReports/$(id)).data; }\n    function myFreshReport(id) { return arRep(id).uid == request.auth.uid && request.time < arRep(id).at + duration.value(1, 'd'); }\n    match /arReports/{id} {\n      function okRep() {\n        let d = request.resource.data;\n        return d.keys().hasOnly(['v', 'sum', 'asOf', 'n', 'uid', 'sid', 'at'])\n          && d.v == arCurV() && d.sum is map && d.sum.keys().hasOnly(['iv', 'ct']) && d.sum.iv is string && d.sum.iv.size() <= 24\n          && d.sum.ct is string && d.sum.ct.size() < 20000\n          && d.asOf is string && d.asOf.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') && d.n is int && d.n >= 0;\n      }\n      allow read: if isAR();\n      allow create: if isAR() && okRep() && request.resource.data.uid == request.auth.uid && request.resource.data.sid == mySid()\n        && request.resource.data.at == request.time && existsAfter(/databases/$(db)/documents/arReportData/$(id));\n      // the owner re-seals it under a newer A/R key: same report, nothing else changes\n      allow update: if isOwner() && okRep() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['v', 'sum']);\n      allow delete: if (isOwner() || (isAR() && myFreshReport(id))) && !existsAfter(/databases/$(db)/documents/arReportData/$(id));\n    }\n    match /arReportData/{id} {\n      function okData() {\n        let d = request.resource.data;\n        return d.keys().hasOnly(['v', 'iv', 'ct']) && d.v == arCurV() && d.iv is string && d.iv.size() <= 24 && d.ct is string && d.ct.size() < 1000000;\n      }\n      allow read: if isAR();\n      allow create: if isAR() && okData() && !exists(/databases/$(db)/documents/arReports/$(id)) && existsAfter(/databases/$(db)/documents/arReports/$(id));\n      allow update: if isOwner() && okData() && exists(/databases/$(db)/documents/arReports/$(id));\n      allow delete: if (isOwner() || (isAR() && myFreshReport(id))) && !existsAfter(/databases/$(db)/documents/arReports/$(id));\n    }\n    // An account someone has worked (calls, notes, follow-up, resolved): saved like a case \u2014 sealed, and every write\n    // comes with an append-only history entry (\"arLog/<item>_<rev>\") holding the copy it replaced.\n    function arHistAfter(id, rev) { return existsAfter(/databases/$(db)/documents/arLog/$(id + '_' + string(rev))); }\n    match /arItems/{id} {\n      function okItem() {\n        let d = request.resource.data;\n        return d.keys().hasOnly(['v', 'iv', 'ct', 'status', 'rev', 'by', 'sid', 'createdAt', 'updatedAt'])\n          && d.v == arCurV() && d.iv is string && d.iv.size() <= 24 && d.ct is string && d.ct.size() < 300000\n          && d.rev is int && d.by == request.auth.uid && d.sid == mySid() && d.updatedAt == request.time\n          && (d.status == 'open' || d.status == 'done');\n      }\n      allow read: if isAR();\n      allow create: if isAR() && id.matches('^a[0-9A-Za-z_-]{22}$') && okItem() && request.resource.data.rev == 1\n        && request.resource.data.createdAt == request.time && arHistAfter(id, 1);\n      allow update: if isAR() && okItem() && request.resource.data.rev == resource.data.rev + 1\n        && request.resource.data.createdAt == resource.data.createdAt && arHistAfter(id, request.resource.data.rev);\n      // never deleted, so a record's history can't be restarted or skipped\n      allow delete: if false;\n    }\n    match /arLog/{lid} {\n      function itemBefore() { return /databases/$(db)/documents/arItems/$(request.resource.data.itemId); }\n      function okArHist() {\n        let d = request.resource.data;\n        return (exists(itemBefore()) && d.rev == get(itemBefore()).data.rev + 1\n                 && d.prev == {'v': get(itemBefore()).data.v, 'iv': get(itemBefore()).data.iv, 'ct': get(itemBefore()).data.ct})\n          || (!exists(itemBefore()) && d.rev == 1 && d.prev == null);\n      }\n      function okArAfter() { return existsAfter(itemBefore()) && getAfter(itemBefore()).data.rev == request.resource.data.rev; }\n      allow read: if isAR();\n      allow create: if isAR()\n        && request.resource.data.keys().hasOnly(['itemId', 'rev', 'uid', 'sid', 'at', 'v', 'iv', 'ct', 'prev'])\n        && request.resource.data.uid == request.auth.uid && request.resource.data.sid == mySid()\n        && request.resource.data.at == request.time && request.resource.data.itemId is string\n        && request.resource.data.rev is int && lid == request.resource.data.itemId + '_' + string(request.resource.data.rev)\n        && request.resource.data.v == arCurV() && request.resource.data.iv is string && request.resource.data.iv.size() <= 24\n        && request.resource.data.ct is string && request.resource.data.ct.size() < 20000\n        && okArHist() && okArAfter();\n      allow update, delete: if false;\n    }\n  }\n}\n";
 function rulesCardHTML() {
-  if (!(S.rulesOld || S.rulesIdx) || !isOwner()) return '';
+  if (!(S.rulesOld || S.rulesIdx || S.rulesMail) || !isOwner()) return '';
   const pid = (FB.cfg && FB.cfg.projectId) || '';
   const why = S.rulesOld ? 'Patient photos and email updates need them. Until then they stay hidden.'
-    : 'They keep NLO Cases quick as completed cases pile up: each computer loads only the patients it shows. Everything works meanwhile.';
+    : S.rulesIdx ? 'They keep NLO Cases quick as completed cases pile up: each computer loads only the patients it shows. Everything works meanwhile.'
+    : 'The front-desk email for cases not shipped in time needs them (8 Oct 2026). Everything else works meanwhile.';
   return '<div class="card rulesCard" id="rulesCard"><div class="cardHd"><h3>One-time update: security rules</h3><span class="sub">' + why + '</span></div><div class="cardBd">' +
     '<ol class="small mlSteps"><li>Click <b>Copy the new rules</b>.</li><li>Click <b>Open the Firebase console</b> (the Google account that owns the project). Pick <b>Firestore Database</b> in the left menu (the stacked-lines icon under the gear), then the <b>Rules</b> tab.</li>' +
     '<li>Select everything in the editor, paste, and click <b>Publish</b>.</li><li>Come back here and click <b>Check again</b>.</li></ol>' +
@@ -7714,9 +8166,9 @@ const ADMIN_ACTS = {
       if (!list.length) { box.innerHTML = '<div class="small muted">No activity in the last 7 days.</div>'; return; }
       // (the lab PC's readings in between — "printed 9 of 22" — aren't listed, like on the case; it's "Lab PC", not whoever's app saved it)
       const labHand = x => x.a === 'lab' && (x.hand || x.unlink || x.relink);
-      box.innerHTML = list.filter(x => x.a !== 'rekey' && (x.a !== 'lab' || x.first || x.step || labHand(x) || (x.fields || []).length)).slice(0, 80).map(x => {
-        const c = S.cases.get(x.caseId); const who = x.a === 'email' ? ((MAIL_CO[x.co] || {}).l || 'Lab') + ' email' : x.a === 'lab' && !labHand(x) ? 'Lab PC' : firstName(staffName(x.sid, x.sid));
-        const what = { create: 'created', import: 'imported', stage: 'moved', comment: 'added a note to', close: 'completed', reopen: 'reopened', assign: 'reassigned', edit: 'edited', restore: 'restored', delete: 'deleted', save: 'saved', rekey: 're-sealed', email: 'updated', lab: 'updated the lab progress of', photo: 'changed the photo of', dup: 'removed a duplicate:', undup: 'brought back', notdup: 'marked as not a duplicate', dupcopy: 'copied a duplicate’s comments to' }[x.a] || x.a;
+      box.innerHTML = list.filter(x => x.a !== 'rekey' && x.a !== 'sticker' && (x.a !== 'lab' || x.first || x.step || labHand(x) || (x.fields || []).length)).slice(0, 80).map(x => {
+        const c = S.cases.get(x.caseId); const who = x.a === 'email' ? ((MAIL_CO[x.co] || {}).l || 'Lab') + ' email' : x.a === 'lab' && !labHand(x) ? 'Lab PC' : x.a === 'noship' ? 'NLO Cases' : firstName(staffName(x.sid, x.sid));
+        const what = { create: 'created', import: 'imported', stage: 'moved', comment: 'added a note to', close: 'completed', reopen: 'reopened', assign: 'reassigned', edit: 'edited', restore: 'restored', delete: 'deleted', save: 'saved', rekey: 're-sealed', email: 'updated', lab: 'updated the lab progress of', photo: 'changed the photo of', dup: 'removed a duplicate:', undup: 'brought back', notdup: 'marked as not a duplicate', dupcopy: 'copied a duplicate’s comments to', noship: 'emailed the front desk about' }[x.a] || x.a;
         return '<div class="hist"><time>' + esc(fmtWhen(x.at)) + '</time><span><b>' + esc(who) + '</b> ' + esc(what) + ' ' + (c ? '<button class="linkBtn" data-act="open" data-id="' + esc(c.id) + '">' + ptName(c.patient) + '</button>' : 'a completed case') + '</span></div>';
       }).join('');
     } catch (x) { const box = $('#actBox'); if (box) box.innerHTML = '<div class="small" style="color:var(--coral-700)">' + esc(errText(x)) + '</div>'; }
@@ -8490,7 +8942,7 @@ async function mailSync() {
     if (sig !== MAILS.sig) { MAILS.sig = sig; if (S.view === 'today' || S.view === 'admin') queueRender('team'); }
     if (isOwner()) mailOwnerChecks();
   } catch (e) { if (window.console) console.warn('email updates:', e && e.message); }
-  finally { MAILS.busy = false; if (MAILS.again) { MAILS.again = false; setTimeout(mailSync, 400); } }
+  finally { MAILS.busy = false; if (MAILS.again) { MAILS.again = false; setTimeout(mailSync, 400); } else nsCheck(); } // (then the front-desk email — noship.js)
 }
 /* the owner's app keeps the script's sender list current (so a new lab doesn't need a new script); looked at again at
    most once a minute, since a page opened before an update (until it's reloaded) puts its own older list back */
@@ -8560,11 +9012,12 @@ function mailAdminHTML() {
   return head + how +
     (beats.length ? beats.map(box).join('') : '<div class="notice">No mailbox has checked in yet. Get the script and run <b>setup</b> in each Gmail account.</div>') +
     (unread ? '<div class="small muted" style="margin:8px 0">' + unread + ' lab email' + (unread > 1 ? 's' : '') + ' from a format the app doesn’t read yet (kept 30 days): ' + MAILS.unread.filter(x => !x.bad).slice(0, 5).map(x => esc(String(x.d.mail.from || '').replace(/<.*$/, '').trim() || 'unknown sender')).join(', ') + '</div>' : '') +
-    '<div class="mlBtns"><button class="btn btn-sec btn-sm" data-act="mailScript">' + ic('download', 15) + 'Get the script</button><button class="btn btn-ghost btn-sm" data-act="mailOff" style="color:var(--coral-700)">Turn off</button></div></div></div>';
+    '<div class="mlBtns"><button class="btn btn-sec btn-sm" data-act="mailScript">' + ic('download', 15) + 'Get the script</button><button class="btn btn-ghost btn-sm" data-act="mailOff" style="color:var(--coral-700)">Turn off</button></div>' +
+    nsAdminHTML() + '</div></div>'; // (the front-desk email for a case not shipped in time — noship.js)
 }
 async function loadMailState() {
   if (MAILS.stateLoading || !B.mailState) return; MAILS.stateLoading = true;
-  try { MAILS.state = await B.mailState(); MAILS.stateAt = Date.now(); } catch (e) { MAILS.state = { on: false, beats: [], err: errText(e) }; MAILS.stateAt = Date.now(); }
+  try { MAILS.state = await B.mailState(); MAILS.stateAt = Date.now(); nsKeepKey(); } catch (e) { MAILS.state = { on: false, beats: [], err: errText(e) }; MAILS.stateAt = Date.now(); }
   MAILS.stateLoading = false; if (S.view === 'admin') queueRender('team');
 }
 /* the script with this office's robot login filled in */
@@ -8616,6 +9069,134 @@ Object.assign(ADMIN_ACTS, {
     busyBtn(t, true, 'Dismissing…');
     await Promise.all(L.map(g => mailForget(g)));
     toast(L.length + ' email update' + (L.length > 1 ? 's' : '') + ' dismissed'); mailSync();
+  }
+});
+
+/* ---------- Not shipped → an email to the front desk (Amir, 8 Oct 2026) ----------
+   "when the case gets delayed (not shipped by the expected time) please also send a email to Questions@thenextlevelorthodontics.com
+   to let the front desk know" — "want to make sure the email goes out automatically".
+   When an outside lab's case turns red Not shipped (shipWarn 'late': not marked Shipped N business days before its delivery appt, as set
+   in Team & security) and the appt hasn't passed, the first NLO Cases that sees it leaves a note for the email script of the mailbox the
+   owner picked (records@), sealed to that script's own key (only that script can open it), in the same save that marks the case
+   (noshipMail = the appt it was for). However many computers have the app open, it goes once per case and appointment; the script emails
+   it to the front-desk address within 10 minutes. Nothing to click: it's checked at sign-in, after every look at the lab emails (so a
+   shipment that just came in isn't reported as late), every few minutes while the app is open, and when a case changes.
+   The owner turns it on in Team & security → Email updates (the address, the mailbox that sends it, with or without the patient's
+   name) — kept in meta/inbox.notify, which the script reads for the one address it may send these to. */
+
+const NS_TO = 'Questions@thenextlevelorthodontics.com';
+const NS = { cfg: null, at: 0, busy: false, soon: 0 };
+
+/* the owner's settings { on, to, box, pub, names }, kept a minute (false = none yet) */
+async function nsCfg(fresh) {
+  if (!B.notifyCfg) return null;
+  if (!fresh && NS.cfg !== null && Date.now() - NS.at < 60000) return NS.cfg;
+  try { NS.cfg = (await B.notifyCfg()) || false; } catch (e) { NS.cfg = false; }
+  NS.at = Date.now(); return NS.cfg;
+}
+function nsOk(n) { return !!(n && n.on && n.to && n.box && n.pub && n.pub.x); }
+/* the case should email the front desk now: red Not shipped, its appt today or later, not emailed for this appt yet */
+function nsDue(c) {
+  const x = shipWarn(c); if (!x || x.lv !== 'late') return null;
+  if (x.appt < todayISO() || c.noshipMail === x.appt) return null;
+  return x;
+}
+async function nsCheck() {
+  if (!S.inApp || NS.busy || S.firstLoad || S.rulesLv !== 3 || !B.noshipSend) return;
+  if (!openCases().some(c => nsDue(c))) return;
+  NS.busy = true;
+  try {
+    const n = await nsCfg(); if (!nsOk(n)) return;
+    for (const c of openCases().filter(c => nsDue(c)).slice(0, 12)) {
+      const cur = findCase(c.id), x = cur && nsDue(cur); if (!x) continue;
+      try { await B.noshipSend(cur.id, x.appt, nsNote(cur, x, n), n); }
+      catch (e) { if (!(e && e.code === 'skip') && window.console) console.warn('front-desk email:', e && e.message); }
+    }
+  } finally { NS.busy = false; }
+}
+/* a case changed: check again in a moment (after the lab emails being read, if they are) */
+function nsSoon() { clearTimeout(NS.soon); NS.soon = setTimeout(() => { if (MAILS.busy) return; nsCheck(); }, 4000); }
+
+/* the email itself: what the front desk needs to act on (plain text) */
+function nsWhen(x, c) {
+  const a = apptOf(c), dd = dayDiff(x.appt), t = a && a.k === 'delivery' && c.deliveryTime ? fmtTime(c.deliveryTime) : '';
+  return fmtDay(x.appt) + (t ? ' at ' + t : '') + (dd === 0 ? ' (today)' : dd === 1 ? ' (tomorrow)' : dd > 1 ? ' (in ' + dd + ' days)' : '');
+}
+function nsNote(c, x, n) {
+  const pt = String(c.patient || '').trim(), names = n.names !== false && !!pt, appt = delWord(c).toLowerCase();
+  const what = (caseTitle(c) || typeOf(c).l) + (c.lab ? ' from ' + labName(c.lab) : ''), when = nsWhen(x, c);
+  const who = c.assignee ? staffName(c.assignee, '') : c.assigneeName || '';
+  const subject = names ? 'Not shipped: ' + pt + ' - ' + appt + ' ' + fmtDay(x.appt) : 'Not shipped: a case for the ' + appt + ' on ' + fmtDay(x.appt);
+  // (shipped straight to the patient: no appointment to move — the patient is told instead)
+  const todo = c.shipToPatient && typeOf(c).aligner ? 'Please check with the lab, or let the patient know it will be late.' : 'Please check with the lab, or reschedule the appointment.';
+  const details = names ? [c.chart ? 'Chart #: ' + c.chart : '', c.labRef ? refLabel(c) + ': ' + c.labRef : '',
+    String(c.tracking || '').trim() ? 'Tracking #: ' + String(c.tracking).trim() : '', who ? 'Assigned to: ' + who : ''].filter(Boolean) : [];
+  const paras = names
+    ? [pt + "'s " + what + " isn't marked shipped yet.", delWord(c) + ': ' + when + '.', todo, details.join('\n')]
+    : ['A ' + what + ' for the ' + appt + ' on ' + when + " isn't marked shipped yet.", todo + ' Open NLO Cases (Today, Not shipped) to see which patient.'];
+  const text = paras.filter(Boolean).join('\n\n') + '\n\n-- \nSent automatically by NLO Cases. Once the case ships, the lab\'s shipping email (or Shipped in NLO Cases) clears it.';
+  return { v: 1, subject: subject.slice(0, 200), text: text.slice(0, 8000) };
+}
+
+/* ---------- Team & security → Email updates: the front-desk email ---------- */
+/* the mailboxes whose script can send them (a newer script, which shows its key when it checks in), the practice's own address first */
+function nsBoxes() {
+  const st = MAILS.state; if (!st) return [];
+  return (st.beats || []).filter(b => !labBeat(b) && b.pub && b.pub.x && /^b[0-9a-f]{32}$/.test(b.id))
+    .sort((a, b) => (/gmail\.com$/i.test(a.box) ? 1 : 0) - (/gmail\.com$/i.test(b.box) ? 1 : 0) || (b.at || 0) - (a.at || 0));
+}
+function nsAdminHTML() {
+  if (!isOwner()) return '';
+  const head = '<div class="nsBox" id="nsBox"><h5>Not shipped → email the front desk</h5>';
+  if (S.rulesMail) return head + '<p class="small muted">Publish the new security rules first (the card at the top of this page), then come back here.</p></div>';
+  const st = MAILS.state, n = (st && st.pub && st.pub.notify) || {}, boxes = nsBoxes(), on = !!(n.on && n.box && n.pub);
+  const cur = boxes.find(b => b.id === n.box), lv = shipWarnDays().late;
+  const say = 'When an outside lab’s case isn’t marked shipped ' + lv + ' business day' + (lv === 1 ? '' : 's') + ' before its delivery appt (red Not shipped), NLO Cases emails the front desk once — by itself, from the mailbox below, within about 10 minutes.';
+  if (!boxes.length) return head + '<p class="small" style="margin-bottom:8px">' + say + '</p><div class="notice">It needs the newer script in the mailbox that sends it (records@): <b>Get the script</b> below, paste it over the old one in that Gmail account, Save, and run <b>setup</b>. The mailbox appears here once it checks in.</div></div>';
+  const sel = n.box && cur ? n.box : boxes[0].id;
+  return head + '<p class="small" style="margin-bottom:10px">' + say + '</p>' +
+    (on ? '<div class="nsOn small"><span class="dot ok"></span><span><b>On</b> — to <b>' + esc(n.to) + '</b> from ' + esc(cur ? cur.box : 'a mailbox that hasn’t checked in lately') + (n.names ? ', with the patient’s name' : ', without patient names') + '.</span></div>'
+      : '<div class="nsOn small"><span class="dot"></span><span><b>Off</b></span></div>') +
+    '<div class="nsForm"><label class="field"><span class="lbl">Send to</span><input class="inp" id="nsTo" type="email" autocomplete="off" spellcheck="false" value="' + esc(n.to || NS_TO) + '"></label>' +
+    '<label class="field"><span class="lbl">Send from</span><select class="inp" id="nsFrom">' + boxes.map(b => '<option value="' + esc(b.id) + '"' + (b.id === sel ? ' selected' : '') + '>' + esc(b.box) + '</option>').join('') + '</select></label>' +
+    '<label class="nsChk"><input type="checkbox" id="nsNames"' + (n.names === false ? '' : ' checked') + '> Include the patient’s name, chart # and lab case #</label></div>' +
+    '<div class="mlBtns"><button class="btn btn-pri btn-sm" data-act="nsSave">' + (on ? 'Save' : 'Turn on') + '</button>' +
+    (on ? '<button class="btn btn-sec btn-sm" data-act="nsTest">Send a test email</button><button class="btn btn-ghost btn-sm" data-act="nsOff" style="color:var(--coral-700)">Stop front-desk emails</button>' : '') + '</div></div>';
+}
+/* the owner's app keeps the sending mailbox's key current (a script set up afresh has a new one) */
+function nsKeepKey() {
+  const st = MAILS.state, n = st && st.pub && st.pub.notify; if (!isOwner() || !n || !n.on || !n.box || !B.notifySet) return;
+  const b = (st.beats || []).find(x => x.id === n.box); if (!b || !b.pub || !b.pub.x) return;
+  if (n.pub && n.pub.x === b.pub.x && n.pub.y === b.pub.y) return;
+  const next = Object.assign({}, n, { pub: { kty: 'EC', crv: 'P-256', x: b.pub.x, y: b.pub.y } });
+  B.notifySet(next).then(() => { st.pub.notify = next; NS.cfg = null; }).catch(() => { });
+}
+Object.assign(ADMIN_ACTS, {
+  async nsSave(t) {
+    const to = String(($('#nsTo') || {}).value || '').trim(), id = ($('#nsFrom') || {}).value || '', names = !!($('#nsNames') || {}).checked;
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) { toast('Type the front desk’s email address', { bad: true }); return; }
+    const b = nsBoxes().find(x => x.id === id); if (!b) { toast('Pick the mailbox that sends it', { bad: true }); return; }
+    const was = MAILS.state && MAILS.state.pub && MAILS.state.pub.notify, n = { on: true, to, box: b.id, pub: { kty: 'EC', crv: 'P-256', x: b.pub.x, y: b.pub.y }, names };
+    busyBtn(t, true, 'Saving…');
+    try { await B.notifySet(n); if (MAILS.state && MAILS.state.pub) MAILS.state.pub.notify = n; NS.cfg = null; toast(was && was.on ? 'Saved' : 'On: the front desk gets an email when a case isn’t shipped in time'); nsCheck(); }
+    catch (e) { toast(errText(e), { bad: true }); }
+    busyBtn(t, false); queueRender('team');
+  },
+  async nsOff(t) {
+    const n = MAILS.state && MAILS.state.pub && MAILS.state.pub.notify; if (!n) return;
+    busyBtn(t, true, 'Turning off…');
+    try { const off = Object.assign({}, n, { on: false }); await B.notifySet(off); MAILS.state.pub.notify = off; NS.cfg = null; toast('Off: no more front-desk emails'); }
+    catch (e) { toast(errText(e), { bad: true }); }
+    busyBtn(t, false); queueRender('team');
+  },
+  async nsTest(t) {
+    const n = MAILS.state && MAILS.state.pub && MAILS.state.pub.notify; if (!nsOk(n)) return;
+    busyBtn(t, true, 'Sending…');
+    try {
+      await B.noshipTest({ v: 1, subject: 'NLO Cases test: front-desk emails work', text: 'This is a test from NLO Cases (Team & security, Email updates).\n\nWhen a case isn\'t marked shipped in time for its delivery appt, an email like this one comes to this address, by itself.\n\n-- \nSent by NLO Cases.' }, n);
+      toast('Test sent to the mailbox’s script: it should reach ' + n.to + ' within about 10 minutes', { ms: 8000 });
+    } catch (e) { toast(errText(e), { bad: true }); }
+    busyBtn(t, false);
   }
 });
 
@@ -9004,7 +9585,7 @@ function labBoxHTML(c) {
   const o = c.labOrd; if (!o || !o.key) return '';
   const a = o.a || {}, n = a.n || 0, any = n && ((a.atTrimmer || 0) > 0 || (a.trimmed || 0) > 0), lv = labLive(o, c);
   const row = r => { const v = a[r.v] || 0, done = n && v >= n, more = LAB_SAY[r.k](a, n).split(' · ')[1] || '';
-    return '<div class="labRow' + (done ? ' done' : v ? ' on' : '') + '">' + labIcon(r.k, !done && lv[r.k], 18) + '<span class="l">' + esc(r.l) + (more ? '<small>' + esc(more) + '</small>' : '') + '</span>' +
+    return '<div class="labPr' + (done ? ' done' : v ? ' on' : '') + '">' + labIcon(r.k, !done && lv[r.k], 18) + '<span class="l">' + esc(r.l) + (more ? '<small>' + esc(more) + '</small>' : '') + '</span>' +
       labBar(v, a[r.q] || 0, n) + '<span class="v"><b>' + v + '</b> of ' + n + '</span></div>'; };
   const t = o.t || {}, ord = labOrderedMs(o), done = c.status === 'done';
   return '<div class="labBox">' + (any ? LAB_ROWS.map(row).join('') + labGridHTML(o) : '<div class="small">STLs exported, no stickers printed yet' + (n ? ' (' + n + ' aligner' + (n === 1 ? '' : 's') + ')' : '') + '.</div>') +
@@ -13607,7 +14188,7 @@ function tourSteps(kind) {
     { id: 'open', need: onBoard, at: card, t: 'Open a case', b: 'Everything about the case is one tap away.', act: 'Tap your card.', done: () => !!TOUR.id && S.openId === TOUR.id },
     { id: 'panel', need: inCase, at: () => $('#drawer .dHd'), t: 'The case', b: 'Each section folds to one line: tap a heading to open it, or Expand all. The steps, Details, Edit and the patient’s photo are all here.' },
     { id: 'note', need: inCase, at: () => $('#drawer [data-ds=note] .dsHd'), t: 'Chart note', b: 'Copy (on its heading) puts the note on the clipboard, ready to paste into the patient’s chart. Open it to switch between the scan visit’s note and the delivery visit’s, each with what the patient was told.' },
-    { id: 'comments', need: inCase, at: () => $('#drawer [data-ds=notes] .dsHd'), t: 'Notes', b: 'Notes for the team about this case, with who wrote them and when. It stays open. Type @ and a name to tag someone: the note goes to their Messages.' },
+    { id: 'comments', need: inCase, at: () => $('#drawer [data-ds=notes] .dsHd'), t: 'Notes', b: 'Notes for the team about this case, with who wrote them and when. It stays open. Type @ and a name to tag someone: the note goes to their Messages. The smiley beside a note, a step or a section sends a sticker 🎉 — that goes to their Messages too.' },
     { id: 'close', at: () => $('#drawer [data-act=closeDrawer]'), t: 'Close it', b: 'Back to where you were.', act: 'Tap ✕ (or press Esc).', done: () => !S.openId },
     { id: 'list', at: () => tVis('#nav-list', '#mnav-list'), t: 'All open cases', b: 'Every open case in one table. My cases is the same list, just yours.', act: 'Tap All open cases.', done: () => S.view === 'list' },
     { id: 'search', need: onList, at: () => $('#q'), t: 'Search', b: 'Type part of a name, chart #, kind of case or step.', act: 'Search for your patient.',
