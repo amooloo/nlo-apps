@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-6B2f9DkHHQWHnALSkX/2ibo/qNKZ3LcfE4j5sJL2G5c=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-VCGsZwl72SoHuKkBOZuzIsLg7rmqCowcRzQcJB+lGAo=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO Cases</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1655,6 +1655,31 @@ body.phHide .pnm:not(:hover)::after{content:attr(data-s)}
 .labPr.done .bar i{background:var(--mint-700)}
 .labPr .v{font-variant-numeric:tabular-nums;min-width:54px;text-align:right;color:var(--grey-600)}
 .labPr .v b{color:var(--navy)}
+/* the set's prints, from Formlabs' emails (prints.js): a Printing row like the Trimmed one, each print newest first — printing now in
+   navy, printed in mint, aborted in coral, paused (or never said it finished) in amber */
+.labPr.prRow{align-items:start}
+.labPr.prRow>.lic{margin-top:1px}
+.labPr.prRow.bad .l{color:var(--coral-700);font-weight:600}
+.bad>.lic{color:var(--coral-600)}
+.prL{grid-column:3/-1;display:flex;flex-direction:column;gap:7px;min-width:0}
+.prI{line-height:1.35;color:var(--navy);overflow-wrap:anywhere}
+.prI b{font-weight:700}
+.prI .w{font-size:11.5px;color:var(--grey-500)}
+@media (max-width:600px){ .labPr.prRow{grid-template-columns:18px 1fr} .prL{grid-column:2/-1} }
+.prI.done b{color:var(--mint-700)}
+.prI.fail b{color:var(--coral-700)}
+.prI.pause b,.prI.old b{color:var(--amber-700)}
+.prMore{font-size:11px;color:var(--grey-500)}
+/* on the board card: the newest print, one line */
+.prC{display:flex;align-items:center;gap:6px;min-width:0;font-size:11.5px;font-weight:600;color:var(--grey-600)}
+.prC>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.prC.run{color:var(--navy)}
+.prC.done{color:var(--mint-700)}
+.prC.fail{color:var(--coral-700)}
+.prC.fail>.lic{color:var(--coral-600)}
+.prC.pause,.prC.old{color:var(--amber-700)}
+.prFeed{display:flex;align-items:flex-start;gap:7px;margin:8px 0 2px}
+.prFeed>.lic{margin-top:1px}
 /* each aligner of the set by its number, coloured by its step (lab.js labGridHTML) */
 .labGrid{display:flex;flex-direction:column;gap:6px;margin-top:4px;padding-top:9px;border-top:1px solid var(--grey-100)}
 .labGr{display:grid;grid-template-columns:42px 1fr;gap:8px;align-items:start}
@@ -3303,6 +3328,20 @@ const DEMO = {
     const now = Date.now();
     DEMO.mail.inbox.push({ id: 'mlab1', at: ago(2), done: [], mail: { lab: 1, v: 2, src: 'Lab PC', pc: 'LAB-PC', ver: '2.1', at: now, orders: ords.map(o => Object.assign(o, { at: now })) } });
     DEMO.mail.beats.push({ id: 'b3', box: 'Lab PC · LAB-PC', at: ago(2), seen: ords.length, sent: ords.length, err: '', ver: 'lab 2.1' });
+    // Formlabs (prints.js): the printer's emails about each print, in their real format ("<printer> | Print Finished | <models>",
+    // the print's name cut at 128 characters) with made-up names — a print going now for the plan just exported, one finished two
+    // hours ago for the set at Uploaded to Titan (it offers Thermoforming), one aborted for a set with no order yet, and the
+    // refinement at Thermoforming's two prints yesterday
+    const tp0 = nla.filter(c => c.stage === 'txp')[0], PRN = 'CalmOtter';
+    const job = (c, ms) => ms.map(([n, a, t]) => c.patient + ' - ' + n + ' - ' + (a === 'U' ? 'Maxilla' : 'Mandible') + (t ? ' (Template)' : '')).join(', ').slice(0, 128);
+    const fl = (id, min, st, j, x) => DEMO.mail.inbox.push({ id, at: ago(min), done: [], mail: { box: 'office@example.com', from: 'Formlabs Dashboard <' + PR_SENDER + '>', date: ago(min), html: '',
+      subject: PRN + ' | Print ' + st + ' | ' + j, text: 'Print ' + st + '\nHi Amir, ' + (st === 'Started' ? 'Your print "' + j + '" on ' + PRN + ' has started printing in Fast Model Resin. It will be finished in ' + x + ' min.'
+        : 'Print "' + j.slice(0, 35) + '..." on ' + PRN + (st === 'Finished' ? ' finished after ' + x + ' min.' : ' was aborted.')) } });
+    const seq = (a, from, to, t) => { const r = []; for (let n = from; n <= to; n++) r.push([n, a, t]); return r; };
+    if (ok) fl('mpr1', 18, 'Started', job(ok, [[0, 'L', 1], [0, 'U', 1], [1, 'L'], [1, 'U'], [2, 'L'], [2, 'U'], [3, 'L'], [3, 'U']]), 34);
+    if (tp) { const j = job(tp, seq('U', 1, 4)); fl('mpr2', 160, 'Started', j, 40); fl('mpr3', 120, 'Finished', j, 41); }
+    if (tp0) fl('mpr4', 25, 'Aborted', job(tp0, seq('L', 1, 3)));
+    if (th) { const j1 = job(th, seq('U', 1, 10)), j2 = job(th, seq('L', 1, 8)); fl('mpr5', 26 * 60, 'Started', j1, 38); fl('mpr6', 25 * 60 + 20, 'Finished', j1, 41); fl('mpr7', 25 * 60, 'Started', j2, 36); fl('mpr8', 24 * 60 + 22, 'Finished', j2, 39); }
     // notes that tag the one practising (notes.js): two new in Messages and one already read, on open cases
     const me = DEMO.me.staffId, tagged = Array.from(DEMO.cases.values()).filter(c => c.status === 'open').slice(2, 5);
     [[0, 'gwen', 'Patient asked if the attachments can wait a week — @' + (me === 'amir' ? 'Dr. A' : 'Practice') + ' ok with that?', 35],
@@ -5104,7 +5143,7 @@ function noteAuthKeep(c, log) {
 function noteAuthDone() { if (S.view === 'list' || S.view === 'mine') queueRender(); noteByPaint(); }
 /* the newest history entry that set the Notes field: an edit (or a step move / lab email) that lists it, the creation, the
    Asana import; a restored version (or anything else) could have changed it without saying, so the writer isn't known */
-const NOTE_KEEP_ACTS = ['edit', 'stage', 'email', 'photo', 'reopen', 'close', 'assign', 'comment', 'rekey', 'sticker', 'noship'];
+const NOTE_KEEP_ACTS = ['edit', 'stage', 'email', 'photo', 'reopen', 'close', 'assign', 'comment', 'rekey', 'sticker', 'noship', 'lab', 'print'];
 function noteAuthFrom(log) {
   for (let i = log.length - 1; i >= 0; i--) {
     const x = log[i] || {};
@@ -5239,19 +5278,21 @@ async function loadHistory(id) {
   try { const h = await B.caseLog(id); if (S.openId === id && seq > (S.histShown || 0)) { S.histShown = seq; S.history = h; S.histRev = rev0; const el = $('#histBox'); if (el) { const keep = stkHold(); el.innerHTML = historyHTML(findCase(id)); stkPop(el); stkReanchor(keep); } wtyRefresh(id); stageMarksPaint(findCase(id));
     const c = findCase(id); if (c && String(c.notes || '').trim() && !notesAuthor(c)) { noteAuthKeep(c, h); noteByPaint(); } } } catch (e) { }
 }
-const FIELD_LABELS = { labOrd: 'lab progress', labNot: 'lab order', quick: 'Quick add tag', rx: 'Herbst Rx', rxRet: 'Retainer Rx', rxMet: 'Metal Rx', rxFun: 'Functional Rx', invDate: 'invoice date', noGuarantee: 'No Guarantee', photo: 'photo', labRef: 'lab case #', labHold: 'lab hold', planUrl: 'plan link', shipToPatient: 'ship to patient', records: 'records on file', zoomDate: 'Zoom call', zoomTime: 'Zoom call', tracking: 'tracking #', carrier: 'carrier', teeth: 'tooth chart', teethNote: 'tooth chart', chart: 'chart #', titanUrl: 'Titan link', initial: 'initial/refinement', appliances: 'appliance', lab: 'lab', arches: 'arch', retKinds: 'retainer type', goals: 'Dr. A’s instructions', instrPicks: 'Dr. A’s instructions', instrOther: 'Dr. A’s instructions', extras: 'extras', variant: 'case type', type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery appt', deliveryTime: 'appt time', txStart: 'treatment start', txEnd: 'expected removal', acrylic: 'acrylic color', glitter: 'acrylic color', alU: 'aligners', alL: 'aligners', aligners: 'aligners', atTemplates: 'attachment templates', treatArch: 'arches to treat', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes', iprSnap: 'IPR chart (from the IPR Tracker)', refN: 'refinement #', remake: 'remake', scanOnFile: 'scan on file' };
+const FIELD_LABELS = { labOrd: 'lab progress', labNot: 'lab order', prints: 'prints', prIds: 'prints', quick: 'Quick add tag', rx: 'Herbst Rx', rxRet: 'Retainer Rx', rxMet: 'Metal Rx', rxFun: 'Functional Rx', invDate: 'invoice date', noGuarantee: 'No Guarantee', photo: 'photo', labRef: 'lab case #', labHold: 'lab hold', planUrl: 'plan link', shipToPatient: 'ship to patient', records: 'records on file', zoomDate: 'Zoom call', zoomTime: 'Zoom call', tracking: 'tracking #', carrier: 'carrier', teeth: 'tooth chart', teethNote: 'tooth chart', chart: 'chart #', titanUrl: 'Titan link', initial: 'initial/refinement', appliances: 'appliance', lab: 'lab', arches: 'arch', retKinds: 'retainer type', goals: 'Dr. A’s instructions', instrPicks: 'Dr. A’s instructions', instrOther: 'Dr. A’s instructions', extras: 'extras', variant: 'case type', type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery appt', deliveryTime: 'appt time', txStart: 'treatment start', txEnd: 'expected removal', acrylic: 'acrylic color', glitter: 'acrylic color', alU: 'aligners', alL: 'aligners', aligners: 'aligners', atTemplates: 'attachment templates', treatArch: 'arches to treat', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes', iprSnap: 'IPR chart (from the IPR Tracker)', refN: 'refinement #', remake: 'remake', scanOnFile: 'scan on file' };
 function historyHTML(c) {
   const h = S.history; if (!h) return '<div class="small muted">Loading…</div>'; if (!h.length) return '<div class="small muted">No history yet.</div>';
   const stageName = k => { const s = c && (caseStages(c).find(x => x[0] === k) || flowOf(c).stages.find(x => x[0] === k)); return s ? s[1] : (c && retiredStageLabel(c, k)) || k; };
   const shipped = x => x.close ? ' and marked it complete (shipped to the patient)' : '';
   // (the lab PC's readings in between — "printed 9 of 22" — aren't listed; when it links an order, fills in counts, or a step is done for every aligner, they are)
-  const labShown = x => x.a !== 'lab' || x.first || x.unlink || x.relink || x.step || (x.fields || []).length;
+  // (nor a print starting: the Lab section shows it, and History lists how it ended — prints.js)
+  const labShown = x => (x.a !== 'lab' || x.first || x.unlink || x.relink || x.step || (x.fields || []).length) && !(x.a === 'print' && (x.st === 'run' || x.st === 'pause'));
   // (a sticker isn't listed: it's on what it was sent for — stickers.js)
   return h.filter(x => x.a !== 'rekey' && x.a !== 'save' && x.a !== 'sticker' && labShown(x)).reverse().map(x => {
     let t = '';
     if (x.a === 'create') t = 'created the case'; else if (x.a === 'import') t = 'imported it from Asana';
-    else if (x.a === 'stage') t = 'moved it to ' + stageName(x.to) + ((x.fields || []).length ? ' (and set ' + Array.from(new Set(x.fields.map(f => FIELD_LABELS[f] || f))).join(', ') + ')' : '') + shipped(x) + (x.via === 'lab' ? ', as the lab PC suggested' : '');
+    else if (x.a === 'stage') t = 'moved it to ' + stageName(x.to) + ((x.fields || []).length ? ' (and set ' + Array.from(new Set(x.fields.map(f => FIELD_LABELS[f] || f))).join(', ') + ')' : '') + shipped(x) + (x.via === 'lab' ? ', as the lab PC suggested' : x.via === 'print' ? ', as Formlabs suggested' : '');
     else if (x.a === 'lab') t = labHistText(x);
+    else if (x.a === 'print') t = prHistText(x); // (prints.js)
     else if (x.a === 'comment') t = 'added a note' + (Array.isArray(x.tag) && x.tag.length ? ' for ' + x.tag.map(s => (staff(s) && staff(s).role === 'owner') ? 'Dr. A' : firstName(staffName(s, s))).join(', ') : '');
     else if (x.a === 'close') t = 'marked it complete'; else if (x.a === 'reopen') t = 'reopened it';
     else if (x.a === 'assign') t = x.to ? 'assigned it to ' + staffName(x.to, x.to) : 'unassigned it';
@@ -5265,7 +5306,7 @@ function historyHTML(c) {
       t = (x.to ? 'moved it to ' + stageName(x.to) + (f.length ? ' and saved the ' : '') : f.length ? 'saved the ' : 'updated it') + f.join(', ') + shipped(x);
     }
     else t = x.a;
-    const who = x.a === 'email' ? ((MAIL_CO[x.co] || {}).l || 'Lab') + ' email' : x.a === 'lab' && !x.hand && !x.unlink && !x.relink ? 'Lab PC' : x.a === 'noship' ? 'NLO Cases' : (firstName(staffName(x.sid, x.sid)) || x.sid);
+    const who = x.a === 'email' ? ((MAIL_CO[x.co] || {}).l || 'Lab') + ' email' : x.a === 'lab' && !x.hand && !x.unlink && !x.relink ? 'Lab PC' : x.a === 'noship' ? 'NLO Cases' : x.a === 'print' ? 'Formlabs' : (firstName(staffName(x.sid, x.sid)) || x.sid);
     // a step someone did takes stickers: on the row after the words, and the smiley at its end (stickers.js)
     const sk = stkHistHTML(c, x, t);
     return '<div class="hist" data-w="' + esc(stkHKey(x)) + '"><time>' + esc(fmtWhen(x.at)) + '</time><span class="hTx"><b>' + esc(who) + '</b> ' + esc(t) + sk.chips + '</span>' + sk.add + '</div>';
@@ -5349,8 +5390,9 @@ function renderDrawer() {
         '<div class="stepL' + (i < si ? ' past' : i === si ? ' cur' : '') + '" data-sk="' + k + '">' +
         '<button class="step ' + (i < si ? 'past' : i === si ? 'cur' : '') + (g ? ' sub' : '') + (i === all.length - 1 ? ' ms' : '') + '" data-act="setStage" data-k="' + k + '"' + (done ? ' disabled' : '') + ' aria-pressed="' + (i === si) + '"><span class="n">' + (i < si ? '✓' : i + 1) + '</span>' + esc(l) + (i === si ? labStepIcon(c, 18) : '') + stageMarkHTML(marks[k]) + '</button>' +
         stkStepHTML(c, k, marks[k]) + '</div>'; }).join('') + '</div>') +
-    // in-house: the set in Ortho Factory, from the lab PC — the step it's ready for is on the heading, one tap (lab.js)
-    (c.type === 'nla' && c.labOrd && c.labOrd.key ? dsec('lab', 'Lab', labSumHTML(c), labBoxHTML(c), done ? '' : labGoHTML(c, true)) : '') +
+    // in-house: the set in Ortho Factory, from the lab PC, and its prints, from Formlabs — the step it's ready for is on the heading,
+    // one tap (lab.js, prints.js)
+    (labHas(c) ? dsec('lab', 'Lab', labSumHTML(c), labBoxHTML(c), done ? '' : labGoHTML(c, true)) : '') +
     (flow === FLOWS.marpe ? dsec('marpe', 'MARPE', marpeSum(c), marpeBoxHTML(c, done)) : '') +
     dsec('details', 'Details', (who ? 'Assigned to <b>' + esc(who) + '</b>' : 'Unassigned') + (!done && dueOf(c) ? ' · ' + dueChip(c) : c.deliveryDate ? ' · ' + delWord(c) + ' ' + esc(fmtDate(c.deliveryDate)) : ''),
       '<div class="kv">' +
@@ -5865,12 +5907,13 @@ async function act(fn, okMsg) { try { await fn(); if (okMsg) toast(okMsg); } cat
 function nextStage(c) { const st = caseStages(c); const i = stageIndex(c); return i >= 0 && i < st.length - 1 ? st[i + 1][0] : null; }
 /* `extra` = fields saved with the move (e.g. MARPE records, the Zoom call, aligner counts); a move that still needs something
    asks first; `asked` = what the asking window already collected; `via` = 'lab': the lab PC's one-tap suggestion (lab.js) —
-   its aligner counts came from the export, so the counts window only opens when they're still missing */
+   its aligner counts came from the export, so the counts window only opens when they're still missing — or 'print', the printer's
+   (prints.js), the same way */
 async function moveStage(id, to, extra, asked, via) {
   const c = findCase(id); if (!c || c.stage === to) return;
   extra = extra || {};
   let needs = stageNeeds(Object.assign({}, c, extra), to).filter(x => !(asked || []).includes(x));
-  if (via === 'lab') needs = needs.filter(x => x !== 'aligners' || alignersMissing(Object.assign({}, c, extra)));
+  if (via === 'lab' || via === 'print') needs = needs.filter(x => x !== 'aligners' || alignersMissing(Object.assign({}, c, extra)));
   if (needs.length) { stageGateModal(c, to, needs, extra, via); return; }
   const from = c.stage, fields = Object.keys(extra), before = {}; fields.forEach(k => { before[k] = c[k]; });
   c.stage = to; Object.assign(c, extra); queueRender(); if (S.openId === id) renderDrawer();
@@ -6297,9 +6340,9 @@ function stkWho(sid) { return sid && sid === meSid() ? 'You' : stkName(sid); }
 function stkTilt(id) { let h = 7; for (const ch of String(id)) h = (h * 31 + ch.charCodeAt(0)) % 997; return (h % 13) - 6; }
 /* the entry of the case's history a step's sticker is on */
 function stkHKey(x) { return x && x.rev ? 'h:' + x.rev : x && x.at ? 'h:t' + x.at : ''; }
-/* who did it, when it was a person (not a lab email, the lab PC's readings or the Asana import) */
+/* who did it, when it was a person (not a lab email, the lab PC's readings, the printer's or the Asana import) */
 function stkDoer(x) {
-  if (!x || !x.sid || ['email', 'import', 'rekey', 'save', 'sticker', 'restore', 'noship'].includes(x.a)) return '';
+  if (!x || !x.sid || ['email', 'import', 'rekey', 'save', 'sticker', 'restore', 'noship', 'print'].includes(x.a)) return '';
   if (x.a === 'lab' && !x.hand && !x.unlink && !x.relink) return '';
   return staff(x.sid) ? x.sid : '';
 }
@@ -8165,10 +8208,11 @@ const ADMIN_ACTS = {
       const list = await B.activity(7); const box = $('#actBox'); if (!box) return;
       if (!list.length) { box.innerHTML = '<div class="small muted">No activity in the last 7 days.</div>'; return; }
       // (the lab PC's readings in between — "printed 9 of 22" — aren't listed, like on the case; it's "Lab PC", not whoever's app saved it)
+      // (a print starting isn't either: how it ended is — "Formlabs", prints.js)
       const labHand = x => x.a === 'lab' && (x.hand || x.unlink || x.relink);
-      box.innerHTML = list.filter(x => x.a !== 'rekey' && x.a !== 'sticker' && (x.a !== 'lab' || x.first || x.step || labHand(x) || (x.fields || []).length)).slice(0, 80).map(x => {
-        const c = S.cases.get(x.caseId); const who = x.a === 'email' ? ((MAIL_CO[x.co] || {}).l || 'Lab') + ' email' : x.a === 'lab' && !labHand(x) ? 'Lab PC' : x.a === 'noship' ? 'NLO Cases' : firstName(staffName(x.sid, x.sid));
-        const what = { create: 'created', import: 'imported', stage: 'moved', comment: 'added a note to', close: 'completed', reopen: 'reopened', assign: 'reassigned', edit: 'edited', restore: 'restored', delete: 'deleted', save: 'saved', rekey: 're-sealed', email: 'updated', lab: 'updated the lab progress of', photo: 'changed the photo of', dup: 'removed a duplicate:', undup: 'brought back', notdup: 'marked as not a duplicate', dupcopy: 'copied a duplicate’s comments to', noship: 'emailed the front desk about' }[x.a] || x.a;
+      box.innerHTML = list.filter(x => x.a !== 'rekey' && x.a !== 'sticker' && (x.a !== 'lab' || x.first || x.step || labHand(x) || (x.fields || []).length) && !(x.a === 'print' && (x.st === 'run' || x.st === 'pause'))).slice(0, 80).map(x => {
+        const c = S.cases.get(x.caseId); const who = x.a === 'email' ? ((MAIL_CO[x.co] || {}).l || 'Lab') + ' email' : x.a === 'lab' && !labHand(x) ? 'Lab PC' : x.a === 'noship' ? 'NLO Cases' : x.a === 'print' ? 'Formlabs' : firstName(staffName(x.sid, x.sid));
+        const what = { create: 'created', import: 'imported', stage: 'moved', comment: 'added a note to', close: 'completed', reopen: 'reopened', assign: 'reassigned', edit: 'edited', restore: 'restored', delete: 'deleted', save: 'saved', rekey: 're-sealed', email: 'updated', lab: 'updated the lab progress of', photo: 'changed the photo of', dup: 'removed a duplicate:', undup: 'brought back', notdup: 'marked as not a duplicate', dupcopy: 'copied a duplicate’s comments to', noship: 'emailed the front desk about', print: x.st === 'fail' ? 'reported an aborted print for' : 'finished a print for' }[x.a] || x.a;
         return '<div class="hist"><time>' + esc(fmtWhen(x.at)) + '</time><span><b>' + esc(who) + '</b> ' + esc(what) + ' ' + (c ? '<button class="linkBtn" data-act="open" data-id="' + esc(c.id) + '">' + ptName(c.patient) + '</button>' : 'a completed case') + '</span></div>';
       }).join('');
     } catch (x) { const box = $('#actBox'); if (box) box.innerHTML = '<div class="small" style="color:var(--coral-700)">' + esc(errText(x)) + '</div>'; }
@@ -8640,8 +8684,11 @@ Object.assign(ADMIN_ACTS, {
    The website's appointment requests come through the same script (the last sender below) but belong to
    NLO Leads, which files each one and takes it out of the inbox — see leadsMail().
    ===================================================================== */
-/* (Specialty Appliances: their "Daily Case Summary" to the records inbox — Amir, 4 Oct 2026: "yes I want specialty added") */
-const MAIL_SENDERS = ['ulabsystems.com', 'partnersdentalstudio.com', 'specialtyappliances.com', 'olivortho.com', 'angelaligner.com', 'angelalign.com', 'thenextlevelorthodontics@orthohost.com'];
+/* (Specialty Appliances: their "Daily Case Summary" to the records inbox — Amir, 4 Oct 2026: "yes I want specialty added")
+   (Formlabs' Dashboard: each print on the lab's printer, to Dr. A's Gmail — 8 Oct 2026, read by prints.js. Its one address only:
+   Formlabs' support and order emails stay out) */
+const MAIL_SENDERS = ['ulabsystems.com', 'partnersdentalstudio.com', 'specialtyappliances.com', 'olivortho.com', 'angelaligner.com', 'angelalign.com', 'thenextlevelorthodontics@orthohost.com',
+  'dashboard+no-reply@formlabs.com'];
 /* a website appointment request, or something about one in the same thread (Asana's notice): NLO Leads' to handle, so
    this app leaves it alone (one left for a month — NLO Leads never opened — is cleared like any old email) */
 function leadsMail(m) { return /thenextlevelorthodontics@orthohost\.com/i.test(String(m.from || '')) || /website appointment request/i.test(String(m.subject || '')); }
@@ -8894,7 +8941,7 @@ async function mailSync() {
     const docs = await B.inboxLoad(); if (!S.inApp) return;
     docs.forEach(d => { d.mail = mailNorm(d.mail); });
     if (docs.length) await mailClosedReady(docs);
-    const open = openCases(), closed = (S.hist || []).concat(S.closed || [], (S.mailClosed && S.mailClosed.list) || []), groups = new Map(), unread = [], mem = mailMemLoad(), labDocs = [];
+    const open = openCases(), closed = (S.hist || []).concat(S.closed || [], (S.mailClosed && S.mailClosed.list) || []), groups = new Map(), unread = [], mem = mailMemLoad(), labDocs = [], prDocs = [];
     // updates waiting for someone, one row per update however many emails carry it
     const wait = (d, i, ev, cands) => {
       const fp = mailFp(ev); let g = groups.get(fp);
@@ -8907,6 +8954,7 @@ async function mailSync() {
       // can't be opened (another key, or damaged): kept a month like a format the app doesn't read, then cleared
       if (!d.mail) { if (old) await B.inboxDelete(d.id).catch(() => { }); else unread.push({ d, bad: true }); continue; }
       if (d.mail.lab) { labDocs.push(d); continue; } // the lab PC's progress on the in-house sets (lab.js)
+      if (prMail(d.mail)) { prDocs.push(d); continue; } // Formlabs' emails about each print (prints.js)
       try {
         if (leadsMail(d.mail)) { if (Date.now() - (d.at || Date.now()) > 30 * 864e5) await B.inboxDelete(d.id).catch(() => { }); continue; }
         const evs = mailParse(d.mail);
@@ -8936,6 +8984,7 @@ async function mailSync() {
       } catch (e) { if (window.console) console.warn('email update:', e && e.message); if (old) await B.inboxDelete(d.id).catch(() => { }); } // (one item that fails doesn't stop the rest)
     }
     let labSig = ''; try { labSig = await labSync(labDocs, open, closed, mem); } catch (e) { if (window.console) console.warn('lab progress:', e && e.message); }
+    if (prDocs.length) { try { (await prSync(prDocs, open)).unread.forEach(x => unread.push(x)); } catch (e) { if (window.console) console.warn('prints:', e && e.message); } }
     const list = Array.from(groups.values()).filter(g => !MAILS.goneFp.has(g.fp)).sort((a, b) => (b.ev.at || 0) - (a.ev.at || 0));
     MAILS.list = list; MAILS.unread = unread;
     const sig = list.map(x => x.id + '#' + x.items.length).join() + '|' + unread.length + '|' + labSig;
@@ -9002,7 +9051,7 @@ function mailAdminHTML() {
   if (!st || Date.now() - MAILS.stateAt > 60000) loadMailState();
   const head = '<div class="card" style="margin-top:18px" id="mailAdmin"><div class="cardHd"><h3>Email updates</h3><span class="sub">Lab emails update cases by themselves</span></div><div class="cardBd">';
   if (!st) return head + '<div class="small muted">Loading…</div></div></div>';
-  const how = '<p class="small" style="margin-bottom:10px">A small script in each Gmail account that gets lab emails (yours and the records inbox) sends them — uLab, Partners Dental Solutions, Specialty Appliances, Oliv, Angel and anything labeled “Lab Update” — to this app, locked so only the app can read them. When anyone has NLO Cases open, cases move on by themselves: plan ready → Dr. A action, received by the lab → Manufacturing, shipped → Shipped with the tracking #, delivered → Arrived, on hold → a Lab hold flag. Anything it can’t place shows on Today.</p>';
+  const how = '<p class="small" style="margin-bottom:10px">A small script in each Gmail account that gets lab emails (yours and the records inbox) sends them — uLab, Partners Dental Solutions, Specialty Appliances, Oliv, Angel and anything labeled “Lab Update” — to this app, locked so only the app can read them. When anyone has NLO Cases open, cases move on by themselves: plan ready → Dr. A action, received by the lab → Manufacturing, shipped → Shipped with the tracking #, delivered → Arrived, on hold → a Lab hold flag. Anything it can’t place shows on Today. Formlabs’ emails about each print (to your Gmail) show on the in-house set they’re for, in its Lab section, and offer Printing, then Thermoforming, with one tap.</p>';
   if (!st.on) return head + how + '<button class="btn btn-act btn-sm" data-act="mailSetup">' + ic('plus', 15) + 'Set up email updates</button></div></div>';
   const beats = (st.beats || []).filter(b => !labBeat(b)).sort((a, b) => (b.at || 0) - (a.at || 0)); // (the lab PC's are under Lab PC)
   const box = b => { const late = !b.at || Date.now() - b.at > 40 * 60000;
@@ -9011,6 +9060,7 @@ function mailAdminHTML() {
   const unread = MAILS.unread.filter(x => !x.bad).length;
   return head + how +
     (beats.length ? beats.map(box).join('') : '<div class="notice">No mailbox has checked in yet. Get the script and run <b>setup</b> in each Gmail account.</div>') +
+    prFeedHTML() + // (the 3D printer's emails: the newest print on a case — prints.js)
     (unread ? '<div class="small muted" style="margin:8px 0">' + unread + ' lab email' + (unread > 1 ? 's' : '') + ' from a format the app doesn’t read yet (kept 30 days): ' + MAILS.unread.filter(x => !x.bad).slice(0, 5).map(x => esc(String(x.d.mail.from || '').replace(/<.*$/, '').trim() || 'unknown sender')).join(', ') + '</div>' : '') +
     '<div class="mlBtns"><button class="btn btn-sec btn-sm" data-act="mailScript">' + ic('download', 15) + 'Get the script</button><button class="btn btn-ghost btn-sm" data-act="mailOff" style="color:var(--coral-700)">Turn off</button></div>' +
     nsAdminHTML() + '</div></div>'; // (the front-desk email for a case not shipped in time — noship.js)
@@ -9206,7 +9256,8 @@ Object.assign(ADMIN_ACTS, {
    order files (Ortho Factory, C:\ProgramData\TrimLignAI\InputFolder, and its Finished folder) and sends each order's trimming
    progress — which aligners have their sticker printed and which are trimmed — sealed to the office inbox key with its own robot login (like the
    lab-email script: it can add sealed items to the inbox and note its check-ins, nothing else). Names travel only inside the seal.
-   (Ortho Factory records trimming only; 3D printing comes from the Formlabs feed, thermoforming is a manual tap.)
+   (Ortho Factory records trimming only; 3D printing comes from Formlabs' emails about each print (prints.js), thermoforming is a
+   manual tap.)
    Whenever someone has NLO Cases open, the app opens them here (mailSync hands them over), finds the patient's in-house case —
    the order it was linked to before, else the name — keeps the progress on the case (sealed with the rest), fills in the set's
    aligner counts from the export when nobody typed them, and offers the matching step with one tap: Dr. A's "suggest, one tap
@@ -9216,8 +9267,8 @@ const LAB_BOT = 'labbot.'; // the lab PC's robot login (its email starts with th
 const LAB_V = 2; // the lab PC's message format this app reads (trim-centric; a newer script's messages wait, a month, for a newer app)
 const LAB_SHOW_DAYS = 45; // an order nobody can place is asked about on Today while it's this recent and not all trimmed
 /* what Ortho Factory can see, and the in-house step it leads to. Ortho Factory records TRIMMING only — the sticker, then trimmed —
-   not 3D printing or thermoforming (those don't run through it here; printing comes from the Formlabs feed, thermoforming is a
-   manual tap). Amir's lab, 7 Oct 2026: print → thermoform → print the stickers from Ortho Factory → trim (in batch or one by one),
+   not 3D printing or thermoforming (those don't run through it here; printing comes from Formlabs' print emails, prints.js;
+   thermoforming is a manual tap). Amir's lab, 7 Oct 2026: print → thermoform → print the stickers from Ortho Factory → trim (in batch or one by one),
    the trim marked done in Ortho Factory. Printing a sticker is what Ortho Factory's files call SentToTrimmer/Barcode (the key
    stays `atTrimmer`), so the app says "sticker printed", in the words of the lab's own steps. The step follows the work:
    the first stickers printed → Trimming; the set leaves fabrication (→ Polish, wash & dry) once every aligner is trimmed. */
@@ -9452,19 +9503,21 @@ function labNowText(o) {
   return 'trimmed ' + tr + ' of ' + n + (at > tr ? ' · ' + labStickText(at, n) : '');
 }
 function labWhen(o) { return o && (o.act || o.at) ? fmtWhen(o.act || o.at) : ''; } // (when Ortho Factory last changed the order)
-/* the step the lab says the case is ready for, when the case is behind it (the furthest one the work has reached): { to, why } */
+/* the step the lab says the case is ready for, when the case is behind it (the furthest one the work has reached): { to, why, via } —
+   from the lab PC (Ortho Factory: the export, stickers, trimming) and from the printer (Formlabs' emails: printing, printed — prints.js) */
 function labSuggest(c) {
-  const o = c && c.labOrd; if (!o || !o.key || c.type !== 'nla' || c.status === 'done' || c.locked || c.dup) return null;
-  const keys = caseStages(c).map(s => s[0]), si = keys.indexOf(liveStage(c)), a = o.a || {}, n = a.n || 0;
-  let best = keys.indexOf(LAB_ORDER_STEP.to) > si ? LAB_ORDER_STEP : null;
-  if (n) LAB_STEPS.forEach(s => { const v = a[s.k] || 0; if ((s.first ? v > 0 : v >= n) && keys.indexOf(s.to) > si) best = s; });
-  return best && keys.includes(best.to) ? { to: best.to, why: best.why } : null;
+  if (!c || c.type !== 'nla' || c.status === 'done' || c.locked || c.dup) return null;
+  const keys = caseStages(c).map(s => s[0]), si = keys.indexOf(liveStage(c)), at = k => keys.indexOf(k), o = c.labOrd && c.labOrd.key ? c.labOrd : null, opts = [];
+  if (o) { const a = o.a || {}, n = a.n || 0; opts.push(LAB_ORDER_STEP); if (n) LAB_STEPS.forEach(s => { const v = a[s.k] || 0; if (s.first ? v > 0 : v >= n) opts.push(s); }); }
+  const p = prSuggest(c); if (p) opts.push(p);
+  let best = null; opts.forEach(s => { if (at(s.to) > si && (!best || at(s.to) > at(best.to))) best = s; });
+  return best ? { to: best.to, why: best.why, via: best.via || 'lab' } : null;
 }
 function labStageName(c, k) { const s = caseStages(c).find(x => x[0] === k); return s ? s[1] : k; }
 /* the one-tap button: "→ Polish, wash & dry" */
 function labGoHTML(c, small) {
   const sg = labSuggest(c); if (!sg) return '';
-  const l = labStageName(c, sg.to), tip = 'The lab PC says ' + sg.why + ' — move ' + (c.patient ? ptNameText(c.patient) + ' ' : '') + 'to ' + l;
+  const l = labStageName(c, sg.to), tip = (sg.via === 'print' ? 'Formlabs says ' : 'The lab PC says ') + sg.why + ' — move ' + (c.patient ? ptNameText(c.patient) + ' ' : '') + 'to ' + l;
   return '<button type="button" class="labGo' + (small ? ' sm' : '') + '" data-act="labMove" data-id="' + esc(c.id) + '" data-to="' + esc(sg.to) + '" title="' + esc(tip) + '" aria-label="' + esc(tip) + '">' + ic('next', small ? 13 : 15) + esc(l) + '</button>';
 }
 /* ---------- the stations' icons (Amir, 6 Oct 2026: "clean animated icons … printing could be a simple 3d printing and trimming
@@ -9513,6 +9566,7 @@ function labHasBar(c) { const o = c && c.labOrd, a = (o && o.a) || {}; return !!
 function labStepIcon(c, s, card) {
   const k = labStation(c); if (!k) return '';
   if (card && k === 'trim' && labHasBar(c)) return '';
+  if (card && k === 'print' && !labHasBar(c) && prList(c).length) return ''; // (the card's print line has the printer, moving while it prints)
   const a = (c.labOrd && c.labOrd.key && c.labOrd.a) || {}, allCut = k === 'trim' && a.n > 0 && (a.trimmed || 0) >= a.n;
   return labIcon(k, !allCut, s);
 }
@@ -9565,12 +9619,15 @@ function labMeter(r, o, live) {
   return '<span class="labM' + (done ? ' done' : v ? ' on' : '') + '" role="img" aria-label="' + esc(say) + '" title="' + esc(say) + '">' + labIcon(r.k, live && !done, 16) + labBar(v, a[r.q] || 0, n) + '<span class="v">' + v + '/' + n + '</span></span>';
 }
 function labMetersHTML(o, c) { return labMeter(LAB_ROWS[0], o, labLive(o, c).trim); }
-/* the board card's lines: the set's trimming, and the step it's ready for when the case is behind */
+/* the board card's lines: the set's trimming (or, before any sticker is printed, its newest print — prints.js), and the step it's
+   ready for when the case is behind */
 function labCardHTML(c) {
-  const o = c.labOrd; if (!o || !o.key || c.type !== 'nla' || c.status === 'done') return '';
-  const a = o.a || {}, n = a.n || 0, any = n && ((a.atTrimmer || 0) > 0 || (a.trimmed || 0) > 0);
-  return '<div class="labLn" title="' + esc('Ortho Factory order ' + o.key + ' · ' + labNowText(o) + (labWhen(o) ? ' · ' + labWhen(o) : '')) + '">' +
-    (any ? '' : ic('lab', 13)) + '<div class="labB">' + (any ? labMetersHTML(o, c) : '<span class="t">STLs exported</span>') + labGoHTML(c, true) + '</div></div>';
+  if (c.type !== 'nla' || c.status === 'done') return '';
+  const o = c.labOrd && c.labOrd.key ? c.labOrd : null, a = (o && o.a) || {}, n = a.n || 0, any = !!(o && n && ((a.atTrimmer || 0) > 0 || (a.trimmed || 0) > 0));
+  const pl = any ? '' : prCardLine(c); if (!o && !pl) return '';
+  const tip = o ? 'Ortho Factory order ' + o.key + ' · ' + labNowText(o) + (labWhen(o) ? ' · ' + labWhen(o) : '') : '';
+  return '<div class="labLn"' + (tip ? ' title="' + esc(tip) + '"' : '') + '>' +
+    (any || pl ? '' : ic('lab', 13)) + '<div class="labB">' + (any ? labMetersHTML(o, c) : pl || '<span class="t">STLs exported</span>') + labGoHTML(c, true) + '</div></div>';
 }
 /* "upper trimmed · lower thermoformed" (each arch's templates as far as the furthest behind of them), else from the counts */
 function labTemplText(o) {
@@ -9579,17 +9636,24 @@ function labTemplText(o) {
   if (nm(lv.tu) || nm(lv.tl)) return [nm(lv.tu) ? 'upper ' + nm(lv.tu) : '', nm(lv.tl) ? 'lower ' + nm(lv.tl) : ''].filter(Boolean).join(' · ');
   return (t.trimmed || 0) >= t.n ? (t.n === 1 ? 'trimmed' : t.n === 2 ? 'both trimmed' : 'all ' + t.n + ' trimmed') : !t.atTrimmer ? 'no stickers yet' : 'trimmed ' + (t.trimmed || 0) + ' of ' + t.n;
 }
-/* the case panel's Lab section: its folded line, and the counts */
-function labSumHTML(c) { const o = c.labOrd; return o && o.key ? '<b>' + esc(labNowText(o)) + '</b>' + (labWhen(o) ? ' · <span class="muted">' + esc(labWhen(o)) + '</span>' : '') : ''; }
+/* the case panel's Lab section: shown for an in-house set with an Ortho Factory order or a print (prints.js) */
+function labHas(c) { return !!(c && c.type === 'nla' && ((c.labOrd && c.labOrd.key) || prList(c).length)); }
+/* its folded line: the trimming once a sticker is printed, else the newest print, else "STLs exported" */
+function labSumHTML(c) {
+  const o = c.labOrd && c.labOrd.key ? c.labOrd : null, a = (o && o.a) || {}, trim = !!(o && a.n && ((a.atTrimmer || 0) > 0 || (a.trimmed || 0) > 0)), p = prSum(c);
+  const line = (t, w) => '<b>' + esc(t) + '</b>' + (w ? ' · <span class="muted">' + esc(w) + '</span>' : '');
+  return o && (trim || !p) ? line(labNowText(o), labWhen(o)) : p ? line(p.t, p.w) : '';
+}
+/* and what's in it: the printing (prints.js), then the trimming and each aligner */
 function labBoxHTML(c) {
-  const o = c.labOrd; if (!o || !o.key) return '';
+  const o = c.labOrd && c.labOrd.key ? c.labOrd : null;
+  if (!o) return prList(c).length ? '<div class="labBox">' + prBoxHTML(c) + (c.status === 'done' ? '' : '<div class="labBtns">' + labGoHTML(c, false) + '</div>') + '</div>' : '';
   const a = o.a || {}, n = a.n || 0, any = n && ((a.atTrimmer || 0) > 0 || (a.trimmed || 0) > 0), lv = labLive(o, c);
   const row = r => { const v = a[r.v] || 0, done = n && v >= n, more = LAB_SAY[r.k](a, n).split(' · ')[1] || '';
     return '<div class="labPr' + (done ? ' done' : v ? ' on' : '') + '">' + labIcon(r.k, !done && lv[r.k], 18) + '<span class="l">' + esc(r.l) + (more ? '<small>' + esc(more) + '</small>' : '') + '</span>' +
       labBar(v, a[r.q] || 0, n) + '<span class="v"><b>' + v + '</b> of ' + n + '</span></div>'; };
   const t = o.t || {}, ord = labOrderedMs(o), done = c.status === 'done';
-  return '<div class="labBox">' + (any ? LAB_ROWS.map(row).join('') + labGridHTML(o) : '<div class="small">STLs exported, no stickers printed yet' + (n ? ' (' + n + ' aligner' + (n === 1 ? '' : 's') + ')' : '') + '.</div>') +
-    '<div class="small muted labT">Printing shows here once the Formlabs print feed is connected.</div>' +
+  return '<div class="labBox">' + prBoxHTML(c) + (any ? LAB_ROWS.map(row).join('') + labGridHTML(o) : '<div class="small">STLs exported, no stickers printed yet' + (n ? ' (' + n + ' aligner' + (n === 1 ? '' : 's') + ')' : '') + '.</div>') +
     (t.n ? '<div class="small muted labT">Attachment templates: ' + esc(labTemplText(o)) + '</div>' : '') +
     '<div class="small muted labMeta">Ortho Factory order <b>' + esc(o.key) + '</b>' + (ord ? ' · exported ' + esc(fmtWhen(ord)) : '') + (o.au ? ' · U ' + o.au : '') + (o.al ? ' · L ' + o.al : '') +
       (o.tu || o.tl ? ' · templates ' + (o.tu && o.tl ? 'U & L' : o.tu ? 'U' : 'L') : '') + (labWhen(o) ? ' · last change ' + esc(labWhen(o)) : '') + '</div>' +
@@ -9633,7 +9697,7 @@ function labAdminHTML() {
   if (!st || Date.now() - MAILS.stateAt > 60000) loadMailState();
   const head = '<div class="card" style="margin-top:18px" id="labAdmin"><div class="cardHd"><h3>Lab PC</h3><span class="sub">Ortho Factory’s progress on each in-house set</span></div><div class="cardBd">';
   if (!st) return head + '<div class="small muted">Loading…</div></div></div>';
-  const how = '<p class="small" style="margin-bottom:10px">A small script on the lab PC reads Ortho Factory’s orders — which aligners have their sticker printed and which are trimmed — and sends them here, locked so only this app can read them. Each in-house case shows its trimming, fills in its aligner counts from the export, and offers the next step with one tap. Nothing moves by itself. (3D printing comes from the Formlabs feed, not Ortho Factory.) Orders it can’t place show on Today.</p>';
+  const how = '<p class="small" style="margin-bottom:10px">A small script on the lab PC reads Ortho Factory’s orders — which aligners have their sticker printed and which are trimmed — and sends them here, locked so only this app can read them. Each in-house case shows its trimming, fills in its aligner counts from the export, and offers the next step with one tap. Nothing moves by itself. (3D printing comes from Formlabs’ emails about each print, under Email updates — not Ortho Factory.) Orders it can’t place show on Today.</p>';
   const bots = (st.bots || []).filter(labBot), beats = (st.beats || []).filter(labBeat).sort((a, b) => (b.at || 0) - (a.at || 0));
   if (!bots.length) return head + how + '<button class="btn btn-act btn-sm" data-act="labSetup">' + ic('plus', 15) + 'Set up the lab PC</button></div></div>';
   const box = b => { const late = !b.at || Date.now() - b.at > 20 * 60000;
@@ -9684,10 +9748,229 @@ Object.assign(ADMIN_ACTS, {
     try { for (const x of L) await labResolve(x.id, 'skip'); } finally { LABS.quiet = false; }
     toast(L.length + ' lab order' + (L.length > 1 ? 's' : '') + ' dismissed'); mailSync();
   },
-  labMove(t, e) { if (e) e.stopPropagation(); const c = findCase(t.dataset.id); if (c && labSuggest(c) && labSuggest(c).to === t.dataset.to) moveStage(c.id, t.dataset.to, null, null, 'lab'); },
+  labMove(t, e) { if (e) e.stopPropagation(); const c = findCase(t.dataset.id), sg = c && labSuggest(c); if (sg && sg.to === t.dataset.to) moveStage(c.id, t.dataset.to, null, null, sg.via); },
   labUnlink() { const c = findCase(S.openId); if (c) labUnlink(c); },
   labUseCounts() { const c = findCase(S.openId); if (c) labUseCounts(c); }
 });
+
+/* =====================================================================
+   The 3D printer → NLO Cases (Amir, 8 Oct 2026: "isn't it connected already?")
+   Formlabs' Dashboard emails every print on the lab's printer to Dr. A's Gmail: Print Started, Print Finished (after how long),
+   Print Aborted, from dashboard+no-reply@formlabs.com. The email-updates script in that Gmail account passes them to this app sealed,
+   like the lab emails. The sender is on the script's list, which this app keeps (MAIL_SENDERS in mail.js), so nothing needs pasting
+   again. The subject says it all: "<printer> | Print Finished | <the print's name>". A print sent from Titan is named after its
+   models, "<patient> - <aligner #> - Maxilla" (or Mandible; "(Template)" on the attachment templates), comma-separated, and PreForm
+   cuts the name at 128 characters, so a long print lists its first few models.
+   For each patient on a print, the app finds their open in-house set by name (as with the lab PC's orders), keeps the print on the
+   case (sealed with the rest; no names) and offers the step with one tap: a print going → Printing; the latest print finished (none
+   still going) → Thermoforming. Nothing moves by itself. A print named another way (a scanner's export, "<number>_lprofile_occlusion_u"
+   or "<name>_upper") or for a patient with no open in-house set changes nothing.
+   ===================================================================== */
+const PR_SENDER = 'dashboard+no-reply@formlabs.com'; // (on MAIL_SENDERS)
+const PR_KEEP = 12;    // prints kept on a case (the newest)
+const PR_LIVE_H = 12;  // a print with no Finished/Aborted email after this many hours isn't "printing now" any more
+const PR_FRESH_D = 7;  // a finished print offers Thermoforming for this many days
+
+/* ---------- reading the email ---------- */
+function prMail(m) { const f = String((m && m.from) || ''), a = ((/<([^>]+)>/.exec(f) || [0, f])[1] || '').trim().toLowerCase(); return /@formlabs\.com$/.test(a); }
+const PR_ST = [[/^print (started|resumed)$/i, 'run'], [/^print paused$/i, 'pause'], [/^print (finished|completed?|done|succeeded)$/i, 'done'],
+  [/^print (aborted|failed|cancell?ed|stopped|errored|error)$/i, 'fail']];
+function prStatus(s) { const t = String(s || '').replace(/\s+/g, ' ').trim(), x = PR_ST.find(p => p[0].test(t)); return x ? x[1] : ''; }
+/* "17 min", "1 hr 5 min", "2 hours" → minutes */
+function prMins(s) {
+  s = String(s || ''); const h = /(\d{1,3})\s*(?:h|hr|hrs|hour|hours)\b/i.exec(s), m = /(\d{1,4})\s*(?:m|min|mins|minute|minutes)\b/i.exec(s);
+  const v = (h ? +h[1] * 60 : 0) + (m ? +m[1] : 0); return v > 0 && v < 7 * 1440 ? v : 0;
+}
+/* the models on a print, from its name: Titan's "<patient> - <n> - Maxilla|Mandible[ (Template)]" (other names don't say whose) */
+const PR_MODEL = /^(.+?)\s+-\s+(\d{1,3})\s+-\s+(maxilla|mandible|upper|lower)\s*(\(template\))?$/i;
+function prModels(job) {
+  const s = String(job || ''), list = [];
+  s.split(',').forEach(p => { const y = PR_MODEL.exec(p.replace(/\s+/g, ' ').trim()); if (y) list.push({ name: y[1].trim(), n: +y[2], a: /^(maxilla|upper)$/i.test(y[3]) ? 'U' : 'L', t: !!y[4] }); });
+  return { list, cut: s.length >= 120 }; // (a name that long was cut off: the print had more on it)
+}
+/* the patients on a print, each with their models */
+function prGroups(list) {
+  const m = new Map();
+  list.forEach(x => { const k = nameTokens(x.name).join(' '); if (k.split(' ').length < 2) return; if (!m.has(k)) m.set(k, { name: x.name, list: [] }); m.get(k).list.push(x); });
+  return Array.from(m.values());
+}
+/* one Formlabs email: { pr: the printer, st: 'run' | 'pause' | 'done' | 'fail', job, min, eta, groups, cut }; { skip: 1 } for a
+   Dashboard email that isn't a print starting, finishing or stopping (its print-history download, a resin or tank notice);
+   null for one this app can't read (kept a month like any other, so a newer app still can) */
+function prParse(m) {
+  const subj = String((m && m.subject) || '').replace(/\s+/g, ' ').trim();
+  if (/print history export/i.test(subj)) return { skip: 1 };
+  const x = /^(.{1,80}?) \| (.{1,40}?) \| (.+)$/.exec(subj); if (!x) return null;
+  const st = prStatus(x[2]); if (!st) return { skip: 1 };
+  const text = mailText(m).replace(/[|#*]/g, ' ').replace(/\s+/g, ' ');
+  const after = (/\bfinished after ([^.]{1,40})/i.exec(text) || [])[1], ein = (/\bwill be (?:finished|done) in ([^.]{1,40})/i.exec(text) || [])[1];
+  const ms = prModels(x[3]);
+  return { pr: x[1].trim().slice(0, 40), st, job: x[3], min: st === 'done' ? prMins(after) : 0, eta: st === 'run' ? prMins(ein) : 0, groups: prGroups(ms.list), cut: ms.cut };
+}
+/* "U & L templates · U1–4 · L1–2…": what of the patient's set is on the print (… when its name was cut off with more on it) */
+function prWhich(list, cut) {
+  const rng = ns => { const out = []; for (let i = 0; i < ns.length; i++) { let j = i; while (j + 1 < ns.length && ns[j + 1] === ns[j] + 1) j++; out.push(i === j ? String(ns[i]) : ns[i] + '–' + ns[j]); i = j; } return out; };
+  const nums = a => Array.from(new Set(list.filter(x => !x.t && x.a === a).map(x => x.n))).sort((p, q) => p - q);
+  const tu = list.some(x => x.t && x.a === 'U'), tl = list.some(x => x.t && x.a === 'L'), u = rng(nums('U')), l = rng(nums('L'));
+  const parts = [tu && tl ? 'U & L templates' : tu ? 'U template' : tl ? 'L template' : '', u.length ? 'U' + u.join(', U') : '', l.length ? 'L' + l.join(', L') : ''].filter(Boolean);
+  return (parts.join(' · ') || 'models') + (cut ? '…' : '');
+}
+
+/* ---------- finding the case: the patient's open in-house set, by name ---------- */
+function prMatch(name, open) {
+  const mine = c => c && !c.locked && !c.dup && c.type === 'nla' && c.status !== 'done';
+  const cands = open.filter(c => mine(c) && nameMatches(name, 'full', c.patient));
+  if (cands.length < 2) return cands[0] || null;
+  // two open sets for the patient: the one not past printing yet (at Thermoforming or before)
+  const keys = FLOWS.inhouse.stages.map(s => s[0]), lim = keys.indexOf('thermo'), early = cands.filter(c => keys.indexOf(liveStage(c)) <= lim);
+  return early.length === 1 ? early[0] : null; // (two sets still to be printed: which one isn't known, so it's left alone)
+}
+
+/* ---------- what's kept on the case: c.prints = [{ j, pr, st, s, e, min, eta, m }], oldest first ---------- */
+/* a print's own key: its printer and its name (a short hash: the name has the patient's in it) */
+function prJob(pr, job) {
+  const s = String(pr || '') + '|' + String(job || '').replace(/\s+/g, ' ').trim().toLowerCase(); let h = 2166136261;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+  return h.toString(36);
+}
+function prList(c) { return Array.isArray(c && c.prints) ? c.prints.filter(x => x && typeof x === 'object' && (x.s || x.e)) : []; }
+function prAt(x) { return x.s || x.e || 0; }
+/* the case's prints with one email's news. A start adds the print — or fills in the start of one whose end was read first (two
+   emails can reach the app in either order). A finish or an abort closes the latest of that print still going, or adds it when its
+   start was never read. The same print's emails share its printer and name; a reprint of the same name is a new print. */
+function prNext(list, ev) {
+  const L = prList({ prints: list }).map(x => Object.assign({}, x)), same = x => x.j === ev.j && x.pr === ev.pr, DAY = 864e5;
+  if (ev.st === 'run' || ev.st === 'pause') {
+    const ended = L.filter(x => same(x) && x.e && x.e >= ev.at && x.e - ev.at < DAY && (!x.s || Math.abs(x.s - ev.at) <= 5 * 60e3)).pop();
+    const cur = ended ? null : L.filter(x => same(x) && !x.e && x.s <= ev.at + 60e3 && ev.at - x.s < DAY).pop();
+    if (ended) { ended.s = ev.at; if (ev.eta) ended.eta = ev.eta; }
+    else if (cur) { cur.st = ev.st; if (ev.eta) cur.eta = ev.eta; }
+    else L.push({ j: ev.j, pr: ev.pr, st: ev.st, s: ev.at, eta: ev.eta || 0, m: ev.m });
+  } else {
+    const cur = L.filter(x => same(x) && !x.e && x.s <= ev.at && ev.at - x.s < DAY).pop();
+    if (cur) Object.assign(cur, { st: ev.st, e: ev.at }, ev.min ? { min: ev.min } : {});
+    else L.push({ j: ev.j, pr: ev.pr, st: ev.st, s: ev.min ? ev.at - ev.min * 60e3 : 0, e: ev.at, min: ev.min || 0, m: ev.m });
+  }
+  return L.sort((a, b) => prAt(a) - prAt(b)).slice(-PR_KEEP);
+}
+/* printing now: started, and no Finished or Aborted email yet (for half a day at most: an email that never came doesn't keep it going) */
+function prLive(x, now) { return (x.st === 'run' || x.st === 'pause') && !x.e && !!x.s && (now || Date.now()) - x.s < PR_LIVE_H * 3600e3; }
+/* the step the printer's emails say the set is ready for: Printing while a print is going, Thermoforming once the latest finished */
+function prSuggest(c) {
+  const L = prList(c); if (!L.length) return null;
+  const live = L.filter(x => prLive(x));
+  if (live.length) return { to: 'print', why: 'a print is going on ' + live[live.length - 1].pr, via: 'print' };
+  const last = L[L.length - 1];
+  return last.st === 'done' && Date.now() - (last.e || 0) < PR_FRESH_D * 864e5 ? { to: 'thermo', why: 'a print finished on ' + last.pr, via: 'print' } : null;
+}
+
+/* ---------- keeping up: Formlabs' emails in the inbox (handed over by mailSync), oldest first ---------- */
+async function prApply(ev, c) {
+  const cur = findCase(c.id); if (!cur || cur.status === 'done' || cur.locked || cur.dup || cur.type !== 'nla') return 'skip';
+  await B.mutateCase(c.id, d => {
+    if (d.type !== 'nla' || d.dup || (Array.isArray(d.prIds) && d.prIds.includes(ev.key))) return 'skip'; // (this email is on the case already)
+    d.prints = prNext(d.prints, ev);
+    d.prIds = (Array.isArray(d.prIds) ? d.prIds : []).concat(ev.key).slice(-40);
+  }, { a: 'print', st: ev.st, pr: ev.pr, m: ev.m, min: ev.min || 0, eta: ev.eta || 0 });
+  return 'ok';
+}
+/* returns the emails it can't read (Team & security lists them, like any lab email in a format the app doesn't read yet) */
+async function prSync(docs, open) {
+  const unread = [], evs = [];
+  for (const d of docs) {
+    let p = null; try { p = prParse(d.mail); } catch (e) { p = null; }
+    if (!p) { if (Date.now() - (d.at || Date.now()) > 30 * 864e5) await B.inboxDelete(d.id).catch(() => { }); else unread.push({ d }); continue; }
+    if (p.skip || !p.groups.length) { await B.inboxDelete(d.id).catch(() => { }); continue; } // (nothing in it for a case)
+    evs.push({ d, p, at: Number(d.mail.date) || d.at || Date.now() });
+  }
+  evs.sort((a, b) => a.at - b.at);
+  const gone = [];
+  for (const { d, p, at } of evs) {
+    const hits = p.groups.map(g => ({ g, c: prMatch(g.name, open) })).filter(x => x.c);
+    if (!hits.length) { await B.inboxDelete(d.id).catch(() => { }); continue; } // (nobody on it has an open in-house set)
+    // one open app goes through the printer's emails, oldest first: another one has them when it holds the next one — so two
+    // apps don't save one case's prints at the same moment
+    if (!(await B.inboxClaim(d.id))) break;
+    let ok = true;
+    for (const { g, c } of hits) {
+      try { await prApply({ key: d.id, st: p.st, pr: p.pr, j: prJob(p.pr, p.job), at, min: p.min, eta: p.eta, m: prWhich(g.list, p.cut) }, c); }
+      catch (x) { if (!(x && (x.code === 'skip' || x.code === 'gone'))) { ok = false; if (window.console) console.warn('print update:', x && x.message); } }
+    }
+    if (ok || Date.now() - at > 7 * 864e5) gone.push(d.id);
+  }
+  // taken out of the inbox a moment later: another open app looking at the same email right now then finds this one's claim on it,
+  // rather than writing its own claim to an email that's gone (the security rules refuse that)
+  if (gone.length) { await new Promise(r => setTimeout(r, 2500)); for (const id of gone) await B.inboxDelete(id).catch(() => { }); }
+  return { unread };
+}
+
+/* ---------- what the case shows ---------- */
+function prClock(ms) { return new Date(ms).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }); }
+function prWhen(ms) {
+  if (!ms) return ''; const day = t => new Date(new Date(t).toDateString()).getTime(), dd = Math.round((day(Date.now()) - day(ms)) / 864e5);
+  return dd === 0 ? prClock(ms) : dd === 1 ? 'yesterday ' + prClock(ms) : fmtWhen(ms);
+}
+function prDur(min) { min = Math.round(min || 0); return min < 60 ? min + ' min' : Math.floor(min / 60) + ' hr' + (min % 60 ? ' ' + (min % 60) + ' min' : ''); }
+/* each print, newest first: { k: 'run' | 'pause' | 'done' | 'fail' | 'old', say, x } ('old': started, and never said it finished) */
+function prRows(c) {
+  const now = Date.now();
+  return prList(c).slice().reverse().map(x => {
+    const k = prLive(x, now) ? x.st : x.st === 'done' || x.st === 'fail' ? x.st : 'old';
+    return { k, x, say: { run: 'Printing now', pause: 'Paused', done: 'Printed', fail: 'Aborted', old: 'Started' }[k] };
+  });
+}
+/* the Lab section's folded line: { t, w } */
+function prSum(c) {
+  const R = prRows(c); if (!R.length) return null;
+  const live = R.find(r => r.k === 'run' || r.k === 'pause'), top = R[0], n = R.filter(r => r.k === 'done').length;
+  if (live) return { t: (live.k === 'pause' ? 'Print paused' : 'Printing now') + ' on ' + live.x.pr, w: live.k === 'run' && live.x.eta ? 'done about ' + prClock(live.x.s + live.x.eta * 60e3) : '' };
+  if (top.k === 'fail') return { t: 'Print aborted', w: prWhen(top.x.e) };
+  if (n) return { t: 'Printed' + (n > 1 ? ' (' + n + ' prints)' : ''), w: prWhen(top.x.e || top.x.s) };
+  return { t: 'Print started', w: prWhen(top.x.s) };
+}
+/* one print, in words: "U1–4… · on WiseTamarin · 8:46 AM · 17 min" */
+function prItemText(r) {
+  const x = r.x, on = x.pr ? 'on ' + x.pr : '';
+  const w = r.k === 'run' ? 'started ' + prClock(x.s) + (x.eta ? ' · done about ' + prClock(x.s + x.eta * 60e3) : '')
+    : r.k === 'pause' ? 'started ' + prClock(x.s) : r.k === 'old' ? prWhen(x.s) + ' · it never said it finished'
+    : prWhen(x.e) + (r.k === 'done' && x.min ? ' · ' + prDur(x.min) : '');
+  return [on, w].filter(Boolean).join(' · ');
+}
+/* the case panel's Lab section: a Printing row like the Trimmed one — the printer, then each print (newest first) */
+function prBoxHTML(c) {
+  const R = prRows(c), live = R.some(r => r.k === 'run'), top = R[0];
+  if (!R.length) return labStation(c) === 'print' || ['txp', 'txpok', 'send'].includes(liveStage(c)) ? '<div class="small muted labT">No prints from Formlabs yet.</div>' : '';
+  const shown = R.slice(0, 5), cls = live ? ' on' : top.k === 'done' ? ' done' : top.k === 'fail' ? ' bad' : '';
+  return '<div class="labPr prRow' + cls + '">' + labIcon('print', live, 18) + '<span class="l">Printing<small>' + esc(live ? 'printing now' : R.length + ' print' + (R.length === 1 ? '' : 's')) + '</small></span>' +
+    '<div class="prL">' + shown.map(r => '<div class="prI ' + r.k + '"><div><b>' + esc(r.say) + '</b> ' + esc(r.x.m || '') + '</div><div class="w">' + esc(prItemText(r)) + '</div></div>').join('') +
+    (R.length > shown.length ? '<div class="prMore">' + (R.length - shown.length) + ' earlier</div>' : '') + '</div></div>';
+}
+/* the board card's line (before any sticker is printed: then the Trim bar takes over) — the newest print, its icon moving while it
+   prints. Past Thermoforming only a print going now shows (a reprint): how the set's printing went is in the case */
+function prCardLine(c) {
+  const R = prRows(c); if (!R.length) return '';
+  const live = R.find(y => y.k === 'run' || y.k === 'pause'), keys = FLOWS.inhouse.stages.map(s => s[0]);
+  if (!live && keys.indexOf(liveStage(c)) > keys.indexOf('thermo')) return '';
+  const r = live || R[0], k = r.k;
+  const t = k === 'run' ? 'Printing ' + r.x.m : k === 'pause' ? 'Print paused · ' + r.x.m : k === 'fail' ? 'Print aborted · ' + r.x.m : k === 'done' ? 'Printed ' + r.x.m : 'Print started · ' + r.x.m;
+  const tip = r.say + ' ' + (r.x.m || '') + ' · ' + prItemText(r);
+  return '<span class="prC ' + k + '" title="' + esc(tip) + '">' + labIcon('print', k === 'run', 15) + '<span>' + esc(t) + '</span></span>';
+}
+/* the case's history: "Formlabs finished printing U1–4… on WiseTamarin after 17 min" (a print starting isn't listed: the Lab section
+   shows it, and its end follows) */
+function prHistText(x) {
+  const m = x.m ? ' ' + x.m : '', on = x.pr ? ' on ' + x.pr : '';
+  if (x.st === 'done') return 'finished printing' + m + on + (x.min ? ' after ' + prDur(x.min) : '');
+  if (x.st === 'fail') return 'reported the print of' + (m || ' models') + on + ' aborted';
+  if (x.st === 'pause') return 'paused printing' + m + on;
+  return 'started printing' + m + on + (x.eta ? ' (about ' + prDur(x.eta) + ')' : '');
+}
+/* Team & security → Email updates: is it coming through? The newest print on an open case (no names) */
+function prFeedHTML() {
+  let best = null; openCases().forEach(c => { if (c.type !== 'nla') return; prList(c).forEach(x => { const t = x.e || x.s; if (!best || t > best.t) best = { t, pr: x.pr }; }); });
+  return '<div class="small muted prFeed">' + labIcon('print', false, 15) + '<span>' + (best ? 'Formlabs’ print emails come through: the latest print on an in-house set was ' + esc(prWhen(best.t)) + (best.pr ? ' on ' + esc(best.pr) : '') + '.'
+    : 'No print from Formlabs has reached an in-house set yet. They come through the script in the Gmail account that gets Formlabs’ Dashboard emails (' + esc(PR_SENDER) + ').') + '</span></div>';
+}
 
 /* =====================================================================
    Patient photos (Amir, 2 Oct 2026: "much easier to recall cases").
