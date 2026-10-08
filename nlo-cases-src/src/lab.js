@@ -383,7 +383,7 @@ function labBoxHTML(c) {
   const o = c.labOrd; if (!o || !o.key) return '';
   const a = o.a || {}, n = a.n || 0, any = n && ((a.atTrimmer || 0) > 0 || (a.trimmed || 0) > 0), lv = labLive(o, c);
   const row = r => { const v = a[r.v] || 0, done = n && v >= n, more = LAB_SAY[r.k](a, n).split(' · ')[1] || '';
-    return '<div class="labRow' + (done ? ' done' : v ? ' on' : '') + '">' + labIcon(r.k, !done && lv[r.k], 18) + '<span class="l">' + esc(r.l) + (more ? '<small>' + esc(more) + '</small>' : '') + '</span>' +
+    return '<div class="labPr' + (done ? ' done' : v ? ' on' : '') + '">' + labIcon(r.k, !done && lv[r.k], 18) + '<span class="l">' + esc(r.l) + (more ? '<small>' + esc(more) + '</small>' : '') + '</span>' +
       labBar(v, a[r.q] || 0, n) + '<span class="v"><b>' + v + '</b> of ' + n + '</span></div>'; };
   const t = o.t || {}, ord = labOrderedMs(o), done = c.status === 'done';
   return '<div class="labBox">' + (any ? LAB_ROWS.map(row).join('') + labGridHTML(o) : '<div class="small">STLs exported, no stickers printed yet' + (n ? ' (' + n + ' aligner' + (n === 1 ? '' : 's') + ')' : '') + '.</div>') +
