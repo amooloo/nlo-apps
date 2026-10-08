@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-x+OuW2EmJjzzNFApP/W8dc9S0GnDZyHf64INPe1W/1w=' https://www.gstatic.com/firebasejs/10.12.2/; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://aisa-worker.akhavan-ak.workers.dev http://127.0.0.1:8080 http://127.0.0.1:9099; frame-src https://nlo-cases.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-MeVLeog3X53y82xtHc1rREBDRklVNobhBMuzf0O3Q4U=' https://www.gstatic.com/firebasejs/10.12.2/; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://aisa-worker.akhavan-ak.workers.dev http://127.0.0.1:8080 http://127.0.0.1:9099; frame-src https://nlo-cases.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO A/R</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -556,6 +556,18 @@ ol.steps b{color:var(--navy)}
 .logRow .w{font-size:12px;color:var(--grey-500)}
 .logRow .w b{color:var(--navy)}
 .logRow .lt{font-weight:600;color:var(--grey-700)}
+.logRow .ln{white-space:pre-wrap;overflow-wrap:anywhere}
+.etRow{display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid var(--grey-100);font-size:13px}
+.etRow:last-child{border-bottom:none}
+.etRow input[type=checkbox]{margin-top:3px;flex:none;width:17px;height:17px}
+.etRow .grow{flex:1;min-width:0}
+.etRow .etT{font-weight:600;color:var(--navy);overflow-wrap:anywhere}
+.etRow .etA{color:var(--grey-700)}
+.etRow select{max-width:100%}
+.etOpts{display:grid;gap:8px;margin:12px 0 4px;font-size:13px}
+.etOpts label{display:flex;align-items:flex-start;gap:8px}
+.etOpts input[type=checkbox]{margin-top:2px;width:16px;height:16px;flex:none}
+.etList{max-height:300px;overflow:auto;padding-right:4px}
 .logRow .ln{white-space:pre-wrap;overflow-wrap:anywhere;color:var(--grey-700);margin-top:2px}
 .drABox{margin-top:14px;border-radius:var(--r);padding:12px 14px;background:var(--amber-100);border:1.5px solid var(--amber-200);color:var(--amber-700)}
 .drABox b{color:var(--navy)}
@@ -1582,12 +1594,63 @@ async function readInsAging(name, bytes) {
   if (!p) throw errCode('not-insaging', 'This isn’t Edge’s Insurance Aging report.');
   return Object.assign(p, { name: name || '', kind: g.kind || 'text' });
 }
-/* a file dropped on Reports: OrthoBanc's failed-payment report, Edge's Insurance Aging, or Edge's A/R report */
+/* =====================================================================
+   Edge's task list, "Upcoming and Overdue Tasks" (8 Oct 2026) — how the
+   FC kept her A/R work: grouped by operator (a line with the name), then
+   one row per task: Task (a title with the patient's name in it), Due
+   Date, Category, Creator, Description (a running log). Read here; the
+   tasks are matched to accounts in ar.js (taskMatch).
+   ===================================================================== */
+const TASK_HEAD = [['title', /^(task|tasks|tasktitle|subject)$/], ['due', /^(duedate|due|date)$/], ['cat', /^(category|type)$/], ['creator', /^(creator|createdby|author)$/], ['desc', /^(description|notes|note|details)$/], ['op', /^(operator|assignedto|assignee|staff)$/]];
+function taskHead(v) { const n = String(v == null ? '' : v).toLowerCase().replace(/[^a-z]/g, ''); const h = TASK_HEAD.find(([, re]) => re.test(n)); return h ? h[0] : ''; }
+/* the task list, or null when the file is something else: { edgeTasks, asOf, tasks: [{ op, title, due, cat, creator, desc }], check } */
+function edgeTasksFromGrid(g) {
+  for (const sh of (g && g.sheets) || []) {
+    const grid = Array.from(sh || [], r => r || []);
+    const top = grid.slice(0, 10).map(r => rowText(r).join(' ')).join(' ');
+    let hr = -1, cols = null;
+    for (let r = 0; r < Math.min(grid.length, 40) && hr < 0; r++) {
+      const c = {}; (grid[r] || []).forEach((v, i) => { const k = taskHead(v); if (k && c[k] == null) c[k] = i; });
+      if (c.title != null && c.due != null && (c.desc != null || c.creator != null)) { hr = r; cols = c; }
+    }
+    if (hr < 0 || !/task/i.test(top)) continue;
+    let asOf = '';
+    for (let r = 0; r < hr && !asOf; r++) for (const v of grid[r] || []) if (typeof v === 'number' && v > 36526 && v < 73051) { asOf = toISODate(v, g.date1904); break; }
+    if (!asOf) for (let r = 0; r < hr && !asOf; r++) asOf = reportDate(rowText(grid[r]).join(' '));
+    const txt = v => String(v == null ? '' : v).replace(/\r\n?/g, '\n').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+    const tasks = []; let op = '', odd = 0;
+    for (let r = hr + 1; r < grid.length; r++) {
+      const row = grid[r]; const texts = rowText(row); if (!texts.length) continue;
+      const title = txt(row[cols.title]).replace(/\s+/g, ' ');
+      if (/^edge\s+v\d/i.test(texts[0])) continue;
+      const due = cols.due != null && row[cols.due] != null && String(row[cols.due]).trim() !== '' ? toISODate(row[cols.due], g.date1904) : '';
+      const desc = cols.desc != null ? txt(row[cols.desc]) : '', creator = cols.creator != null ? txt(row[cols.creator]).slice(0, 60) : '';
+      // a line with just a name: the operator the tasks below belong to
+      if (title && !due && !desc && !creator && texts.length === 1) { op = title.slice(0, 60); continue; }
+      if (!title) { odd++; continue; }
+      if (cols.op != null && row[cols.op] != null && String(row[cols.op]).trim()) op = txt(row[cols.op]).slice(0, 60);
+      tasks.push({ op, title: title.slice(0, 300), due, cat: cols.cat != null ? txt(row[cols.cat]).slice(0, 60) : '', creator, desc: desc.slice(0, 1800) });
+    }
+    const noDue = tasks.filter(t => !t.due).length, ops = Array.from(new Set(tasks.map(t => t.op).filter(Boolean)));
+    const check = !tasks.length ? { ok: false, why: 'No tasks in this file.' } : noDue || odd ? { ok: false, why: plural(tasks.length, 'task') + ' read' + (noDue ? '; ' + noDue + ' without a due date' : '') + (odd ? '; ' + plural(odd, 'line') + ' without a task' : '') + '.' }
+      : { ok: true, why: plural(tasks.length, 'task') + ' read' + (ops.length ? ' (' + ops.join(', ') + ')' : '') + ', each with its due date.' };
+    return { edgeTasks: true, asOf, tasks, ops, check };
+  }
+  return null;
+}
+async function readEdgeTasks(name, bytes) {
+  const g = await readGridFile(name, bytes), p = edgeTasksFromGrid(g);
+  if (!p) throw errCode('not-tasks', 'This isn’t Edge’s task list (Upcoming and Overdue Tasks).');
+  return Object.assign(p, { name: name || '', kind: g.kind || 'text' });
+}
+/* a file dropped on Reports: OrthoBanc's failed-payment report, Edge's Insurance Aging, Edge's task list, or Edge's A/R report */
 async function readReportFile(name, bytes) {
   const g = await readGridFile(name, bytes), ob = obFromGrid(g);
   if (ob) return Object.assign(ob, { name: name || '', kind: g.kind || 'text' });
   const ia = insAgingFromGrid(g);
-  return ia ? Object.assign(ia, { name: name || '', kind: g.kind || 'text' }) : edgeFromGrid(g, name);
+  if (ia) return Object.assign(ia, { name: name || '', kind: g.kind || 'text' });
+  const et = edgeTasksFromGrid(g);
+  return et ? Object.assign(et, { name: name || '', kind: g.kind || 'text' }) : edgeFromGrid(g, name);
 }
 
 /* =====================================================================
@@ -1938,6 +2001,7 @@ function logLabel(e) {
   if (e.k === 'drA_ok') return st ? 'Dr. A signed ' + st.s : 'Dr. A OK’d it';
   if (e.k === 'drA_no') return st ? 'Dr. A: not yet (' + st.s + ')' : 'Dr. A said not yet';
   if (e.k === 'ladder') return st ? st.did : 'Collections step';
+  if (e.k === 'edgetask') return 'Edge task' + (e.op ? ' (' + e.op + ')' : '') + (e.date ? ' · due ' + fmtDate(e.date) + ' in Edge' : '');
   if (e.k === 'aa_broken') return 'Arrangement broken';
   if (e.k === 'mhold_on') return 'Put on Maintenance Hold';
   if (e.k === 'mhold_off') return 'Maintenance Hold lifted';
@@ -2115,7 +2179,7 @@ function normSum(s) {
   const kp = s.kp && typeof s.kp === 'object' ? { ptOf: i(s.kp.ptOf), ptPd: i(s.kp.ptPd), ptPd30: i(s.kp.ptPd30), insOf: numOrNull(s.kp.insOf) == null ? null : i(s.kp.insOf), insLate: numOrNull(s.kp.insLate) == null ? null : i(s.kp.insLate), win: i(s.kp.win) } : null;
   return { asOf: isoOrBlank(s.asOf), cover: normCover(s.cover), pd: numOr0(s.pd), b90: numOr0(s.b90), b31: numOr0(s.b31), n91: i(s.n91), never: i(s.never), neverPd: numOr0(s.neverPd), cr: numOr0(s.cr), crWork: numOr0(s.crWork), crN: i(s.crN), bal: numOrNull(s.bal), kp, fl: normFlow(s.fl) };
 }
-const LOG_KINDS = new Set(Object.keys(LOGS).concat(['done', 'reopen', 'drA_ask', 'drA_ok', 'drA_no', 'ladder', 'aa_broken', 'mhold_on', 'mhold_off']));
+const LOG_KINDS = new Set(Object.keys(LOGS).concat(['done', 'reopen', 'drA_ask', 'drA_ok', 'drA_no', 'ladder', 'aa_broken', 'mhold_on', 'mhold_off', 'edgetask']));
 function normLog(e) {
   e = e && typeof e === 'object' ? e : {};
   const o = { id: strOf(e.id, 40), at: numOr0(e.at), by: strOf(e.by, 60), k: LOG_KINDS.has(e.k) ? e.k : 'note', note: strOf(e.note, 2000) };
@@ -2124,6 +2188,7 @@ function normLog(e) {
   if (o.k === 'reopen' && e.fresh === true) o.fresh = true;
   if (isoOrBlank(e.date)) o.date = e.date;
   if (numOrNull(e.amt) != null) o.amt = e.amt;
+  if (o.k === 'edgetask') { if (/^t[0-9a-z]{4,14}$/.test(String(e.et || ''))) o.et = e.et; o.op = strOf(e.op, 60); }
   if (e.prev && typeof e.prev === 'object') o.prev = { stage: own(STAGES, e.prev.stage) ? e.prev.stage : '', follow: isoOrBlank(e.prev.follow), drA: e.prev.drA === true };
   return o;
 }
@@ -2304,6 +2369,156 @@ function edgeCarriersPlan(bookRaw, p, accts, o, now) {
 }
 
 /* =====================================================================
+   Edge tasks, imported (8 Oct 2026). Before A/R the FC kept her work as
+   Edge tasks: a title with the patient's name in it ("LETTERS - Jane
+   Doe", "AA MADE - …", "INS MetLife Questionnaire Jane Doe", "PT - …"),
+   a due date and a running description. Each task is matched to its
+   account on the A/R report and added to it as an "Edge task" entry.
+   It only fills what's empty: the follow-up (the task's due date — an
+   overdue one, the next office day unless asked otherwise), the stage
+   (an "AA MADE" task: payment plan, which pauses the ladder) and who
+   it's assigned to. Nothing already set in A/R changes, and a task
+   already added isn't added again.
+   ===================================================================== */
+const NAME_SFX = new Set(['jr', 'sr', 'ii', 'iii', 'iv']);
+/* a name's words: lower case, accents, apostrophes, titles and Jr./III left out ("D'Testa" → "dtesta", "Testa-Fakewood" → "testa fakewood");
+   camel: words run together split where a capital follows a small letter ("FakewellWaiting" → "fakewell waiting", "McKay" → "mc kay") */
+function nameWords(s, camel) {
+  let t = String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/['’`]/g, '');
+  if (camel) t = t.replace(/([a-z])([A-Z])/g, '$1 $2');
+  return t.toLowerCase().replace(/^\s*ins\s*:\s*/, '').replace(/\b(mr|mrs|ms|miss|dr)\.?\s+/g, '').split(/[^a-z]+/).filter(w => w && !NAME_SFX.has(w));
+}
+/* letters apart, a swapped pair counting once ("Robni" / "Robin" = 1) */
+function nameDist(a, b) {
+  const m = a.length, n = b.length; if (Math.abs(m - n) > 2) return 3;
+  const d = Array.from({ length: m + 1 }, (_, i) => [i].concat(new Array(n).fill(0)));
+  for (let j = 1; j <= n; j++) d[0][j] = j;
+  for (let i = 1; i <= m; i++) for (let j = 1; j <= n; j++) {
+    d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+  }
+  return d[m][n];
+}
+function taskIsIns(title) { return /^\s*(ins\b|terminated\s+ins\b)/i.test(title || ''); }
+function taskIsAA(title) { return /^\s*aa\s+made\b/i.test(title || ''); }
+/* the same task (title, due date, text) always gets the same id, so importing again adds nothing new */
+function taskId(t) {
+  const s = nameWords(t.title).join(' ') + '|' + (t.due || '') + '|' + String(t.desc || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  let h1 = 0x811c9dc5, h2 = 0x9747b28c;
+  for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); h1 = Math.imul(h1 ^ c, 0x01000193) >>> 0; h2 = Math.imul(h2 ^ c, 0x5bd1e995) >>> 0; }
+  return 't' + h1.toString(36) + h2.toString(36).slice(0, 4);
+}
+/* how a name's words w sit in a title's words tw: 3 = as written (a middle name or two between, or first and last run together),
+   2 = the first or last name a letter or two off ("Robni Testfield"), 0 = not there */
+function wordsFit(tw, w) {
+  if (w.length < 2) return 0;
+  const f = w[0], l = w[w.length - 1], tol = s => (s.length >= 6 ? 2 : 1);
+  let best = 0;
+  for (let i = 0; i < tw.length; i++) {
+    const x = tw[i];
+    if (x === f + l) return 3;
+    if (x === f) for (let j = i + 1; j <= i + 3 && j < tw.length; j++) if (tw[j] === l) return 3;
+    const y = tw[i + 1]; if (!y) continue;
+    if (y === l && f.length >= 3 && x.length >= 3 && nameDist(x, f) <= tol(f)) best = 2;
+    if (x === f && l.length >= 4 && nameDist(y, l) <= tol(l)) best = 2;
+  }
+  return best;
+}
+/* a name or title read both ways — as written, and with words run together split apart ("RobinTestfield", "FakewellWaiting"
+   in a title; "McKay" in a title or a name) — each as its words and the set of them */
+function nameForms(s) {
+  const a = nameWords(s, false), b = nameWords(s, true), f = w => ({ w, set: new Set(w) });
+  return a.join(' ') === b.join(' ') ? [f(a)] : [f(a), f(b)];
+}
+/* the best fit over both readings of each; a title without the first name, the last name or the two run together can't fit
+   (wordsFit needs one of them as written), so it's passed over at once */
+function formsFit(tf, nf) {
+  let best = 0;
+  for (const t of tf) for (const n of nf) {
+    const w = n.w; if (w.length < 2) continue;
+    const f = w[0], l = w[w.length - 1]; if (!t.set.has(f) && !t.set.has(l) && !t.set.has(f + l)) continue;
+    best = Math.max(best, wordsFit(t.w, w)); if (best === 3) return 3;
+  }
+  return best;
+}
+/* how a name sits in a task title, so "Arden Demo" never fits "Arden Demoray" */
+function nameFit(title, name) { return formsFit(nameForms(title), nameForms(name)); }
+/* each account's names read once, for matching many tasks */
+function nameIndex(accts) { return (accts || []).map(a => ({ a, pf: nameForms(a.patient), rf: nameForms(rpName(a)) })); }
+/* the account a task belongs to: { how: 'exact' | 'close' | 'two' | 'none', a, why, cands }. An "INS …" task goes with the
+   insurance account, the rest with the patient's own; only a name as written on the right kind of account is 'exact' —
+   a name a letter off, the other kind of account or the responsible party's name is 'close' (to be ticked in the preview).
+   ix: nameIndex(accts), when there are many tasks */
+function taskMatch(accts, t, ix) {
+  const wantIns = taskIsIns(t.title), tf = nameForms(t.title), hits = [];
+  for (const x of ix || nameIndex(accts)) {
+    const a = x.a, fit = formsFit(tf, x.pf), rp = fit ? 0 : formsFit(tf, x.rf);
+    if (!fit && rp < 3) continue;
+    const same = !!a.ins === wantIns;
+    hits.push({ a, score: fit ? (fit === 3 ? 6 : 4) - (same ? 0 : 1) : 2,
+      why: !fit ? 'by the responsible party’s name' : fit === 2 ? 'the name is spelled differently' : !same ? (a.ins ? 'the insurance account' : 'the patient’s own account') : '' });
+  }
+  if (!hits.length) return { how: 'none', a: null, why: '', cands: [] };
+  const top = Math.max(...hits.map(h => h.score)), best = hits.filter(h => h.score === top);
+  if (best.length > 1) return { how: 'two', a: null, why: 'more than one account fits', cands: best.map(h => h.a) };
+  return { how: top === 6 ? 'exact' : 'close', a: best[0].a, why: best[0].why, cands: [best[0].a] };
+}
+/* the follow-up a task gives: its due date (on an office day); an overdue one the next office day, its own date (overdue 'edge'),
+   or the account's day in the spread (overdue 'spread', spreadOn) */
+function taskFollow(due, today, overdue, spreadOn) {
+  if (!isoOrBlank(due)) return '';
+  if (due >= today) return nextOfficeDay(due);
+  return overdue === 'edge' ? due : overdue === 'spread' && isoOrBlank(spreadOn) ? spreadOn : nextOfficeDay(today);
+}
+/* a long list of overdue tasks spread over the next `days` office days instead of all on one day: the accounts whose earliest
+   task is overdue, oldest first, about the same number each day → { key: date }. groups: [{ a, tasks }] (edgeTasksPlan's by) */
+function spreadFollow(groups, today, days) {
+  const late = (groups || []).map(g => ({ key: g.a.key, due: (g.tasks || []).map(t => isoOrBlank(t.due)).filter(Boolean).sort()[0] || '' }))
+    .filter(x => x.due && x.due < today).sort((x, y) => (x.due < y.due ? -1 : x.due > y.due ? 1 : 0));
+  const per = Math.max(1, Math.ceil(late.length / Math.max(1, days || 10))), out = {};
+  let d = nextOfficeDay(today);
+  late.forEach((x, i) => { if (i && i % per === 0) d = nextOfficeDay(addDays(d, 1)); out[x.key] = d; });
+  return out;
+}
+/* the import: each task's account (the match, or the pick made in the preview: picks[i] = an account key or ''), whether it's
+   already on that account, and per account the tasks to add. A task already on one of the accounts that fit (ticked in an
+   import before) counts as added before, so it isn't asked about again. itemOf(key) → the account's record or null;
+   matches: each task's taskMatch, if worked out already (the preview keeps them while it's open) */
+function edgeTasksPlan(accts, itemOf, tasks, picks, matches) {
+  const ix = matches ? null : nameIndex(accts), byKey = new Map((accts || []).map(a => [a.key, a]));
+  const rows = (tasks || []).map((t, i) => {
+    const id = taskId(t), m = matches ? matches[i] : taskMatch(accts, t, ix), has = a => { const it = a ? itemOf(a.key) : null; return !!(it && (it.log || []).some(e => e && e.et === id)); };
+    const picked = !!picks && Object.prototype.hasOwnProperty.call(picks, i), before = picked ? null : (m.cands || []).find(has) || null;
+    const p = picked ? picks[i] : before ? before.key : m.how === 'exact' ? m.a.key : '';
+    const a = p ? byKey.get(p) || null : null;
+    return { i, t, id, m, a, dupe: has(a) };
+  });
+  const by = new Map();
+  rows.forEach(r => { if (!r.a || r.dupe) return; if (!by.has(r.a.key)) by.set(r.a.key, { a: r.a, tasks: [] }); by.get(r.a.key).tasks.push(Object.assign({ id: r.id }, r.t)); });
+  return { rows, by };
+}
+/* add an account's tasks to its record (mutates it): one "Edge task" entry each; an empty follow-up gets the earliest one they
+   give, an empty stage "payment plan" for an AA MADE task (o.aa), an empty assignee o.assign — never on a resolved account.
+   o: { by, today, overdue: 'today' | 'edge' | 'spread', spreadOn: the account's day in the spread, aa, assign } → how many were added */
+function edgeTasksApply(item, list, o, now) {
+  o = o || {};
+  const today = o.today || isoOf(new Date(now)), have = new Set((item.log || []).map(e => e && e.et).filter(Boolean)), add = (list || []).filter(t => t && t.id && !have.has(t.id));
+  if (!add.length) return 0;
+  const prev = { stage: item.stage || '', follow: item.follow || '', drA: !!item.drA };
+  item.log = (item.log || []).concat(add.map(t => {
+    const e = { id: uid8(), at: now, by: o.by || '', k: 'edgetask', note: (String(t.title || '') + (t.desc ? '\n' + t.desc : '')).slice(0, 2000), et: t.id, op: String(t.op || '').slice(0, 60), prev };
+    if (isoOrBlank(t.due)) e.date = t.due;
+    return e;
+  }));
+  if (item.state !== 'done') {
+    if (!item.follow) { const f = add.map(t => taskFollow(t.due, today, o.overdue, o.spreadOn)).filter(Boolean).sort()[0]; if (f) item.follow = f; }
+    if (!item.stage && o.aa && add.some(t => taskIsAA(t.title))) item.stage = 'plan';
+    if (!item.assignee && o.assign) item.assignee = o.assign;
+  }
+  return add.length;
+}
+
+/* =====================================================================
    Focus (6 Oct 2026): what to do first today, as one list across the
    collections ladder, follow-ups, insurance, credits and Dr. A's OKs.
    Urgent: a promise to pay whose day passed; a letter waiting a week or
@@ -2325,7 +2540,7 @@ function focusEntries(ctx) {
   const t = ctx.today, best = new Map();
   const put = e => { const cur = best.get(e.key); if (!cur) best.set(e.key, e); else if (e.sev < cur.sev) { e.also = [cur.why].concat(cur.also); best.set(e.key, e); } else cur.also.push(e.why); };
   const mk = (a, it, kind, why, act, min, amt) => { const sev = FOCUS_SEV[kind]; return { key: a ? a.key : it.key, a: a || null, it: it || null, kind, sev, cls: sev < 10 ? 'urgent' : sev < 20 ? 'today' : 'later', why, act, min, amt: amt != null ? amt : a ? (a.pd > 0 ? a.pd : a.credit) : 0, also: [] }; };
-  const recent = (it, days) => !!it && (it.log || []).some(e => e.at && daysBetween(isoOf(new Date(e.at)), t) <= days);
+  const recent = (it, days) => !!it && (it.log || []).some(e => e.at && e.k !== 'edgetask' && daysBetween(isoOf(new Date(e.at)), t) <= days);
   const filed = it => !!it && ladEntries(it).some(e => e.k === 'ins_filed' || e.k === 'ins_resub' || e.k === 'ins_appeal');
   (ctx.accts || []).forEach(a => {
     const it = ctx.item(a.key);
@@ -2438,7 +2653,7 @@ function auditOf(it, start) {
   const [y, m, d] = start.split('-').map(Number), t0 = new Date(y, m - 1, d).getTime();
   if (!it) return { reviewed: false, done: false, refund: false, st: '' };
   if (it.state === 'done') return (it.resolvedAt || 0) >= t0 ? { reviewed: true, done: true, refund: it.outcome === 'refund', st: OUTCOMES[it.outcome] || 'Resolved' } : { reviewed: false, done: false, refund: false, st: '' };
-  const E = (it.log || []).filter(e => (e.at || 0) >= t0 && e.k !== 'reopen');
+  const E = (it.log || []).filter(e => (e.at || 0) >= t0 && e.k !== 'reopen' && e.k !== 'edgetask');
   if (!E.length) return { reviewed: false, done: false, refund: false, st: '' };
   const has = k => E.some(e => e.k === k), refund = has('cr_refreq');
   const st = refund ? (E.some(e => e.k === 'drA_ok') ? 'Refund OK’d — cut the check' : E.some(e => e.k === 'drA_no') ? 'Refund: Dr. A said not yet' : 'Refund requested — with Dr. A') :
@@ -4513,7 +4728,8 @@ function viewReports() {
     '<div class="pasteBox" id="pasteBox" tabindex="0" role="textbox" aria-label="Paste the report here">Or open the export in Excel, select everything (Ctrl+A), copy (Ctrl+C), click here and paste (Ctrl+V).</div>' +
     (imp && imp.err ? '<div class="lockErr" style="margin-top:12px">' + esc(imp.err) + '</div>' : '') + edgeStepsHTML(!S.reports.length) +
     '<p class="small muted" style="margin-top:10px">OrthoBanc’s Failed Transaction Report (FailedTransactions.xls) can be dropped here too — it opens its own list.</p>' +
-    '<p class="small muted" style="margin-top:6px">So can Edge’s <b>Insurance Aging</b> — it fills in each insurance account’s carrier (Insurance → Carriers).</p>' + iaStepsHTML(false);
+    '<p class="small muted" style="margin-top:6px">So can Edge’s <b>Insurance Aging</b> — it fills in each insurance account’s carrier (Insurance → Carriers).</p>' + iaStepsHTML(false) +
+    '<p class="small muted" style="margin-top:6px">And Edge’s task list (<b>Upcoming and Overdue Tasks</b>, exported to Excel) — each task is added to its account, with its due date as the follow-up.</p>';
   h += '</div></div></div><div>' + reportListHTML() + '</div></div>';
   return h;
 }
@@ -4577,6 +4793,7 @@ function afterReports() {
       const g = html && /<table/i.test(html) ? readHTMLTables(html) : readGridText(text || ''), ob = obFromGrid(g);
       if (ob) { obPreview(Object.assign(ob, { name: 'Pasted from Excel', kind: 'text' })); return; } // OrthoBanc's failed-payment report
       const ia = insAgingFromGrid(g); if (ia) { insAgingPreview(Object.assign(ia, { name: 'Pasted from Excel', kind: 'text' })); return; } // Edge's Insurance Aging: carriers
+      const et = edgeTasksFromGrid(g); if (et) { edgeTasksPreview(Object.assign(et, { name: 'Pasted from Excel', kind: 'text' })); return; } // Edge's task list
       addParsed([{ name: 'Pasted from Excel', p: edgeFromGrid(g, 'Pasted from Excel') }]);
     }
     catch (x) { S.imp = { files: [], err: errText(x) }; renderView(); }
@@ -4584,18 +4801,19 @@ function afterReports() {
   paintPhotos();
 }
 async function addFiles(files) {
-  const out = []; let ob = null, ia = null;
+  const out = []; let ob = null, ia = null, et = null;
   for (const f of files) {
     if (f.size > 40 * 1024 * 1024) { out.push({ name: f.name, err: 'That file is too big to be an A/R report.' }); continue; }
     try {
       const p = await readReportFile(f.name, await f.arrayBuffer());
       if (p.ob) { ob = ob || p; continue; } // OrthoBanc's report goes its own way
       if (p.insAging) { ia = ia || p; continue; } // so does Edge's Insurance Aging (it only fills in carriers)
+      if (p.edgeTasks) { et = et || p; continue; } // and Edge's task list (notes and follow-ups on the accounts)
       out.push({ name: f.name, p });
     } catch (x) { out.push({ name: f.name, err: errText(x) }); }
   }
   if (out.length) addParsed(out);
-  if (ob) obPreview(ob); else if (ia) insAgingPreview(ia);
+  if (ob) obPreview(ob); else if (ia) insAgingPreview(ia); else if (et) edgeTasksPreview(et);
 }
 function addParsed(list) {
   const files = ((S.imp && S.imp.files) || []).concat(list);
@@ -4637,7 +4855,7 @@ function focusCtx() {
 /* accounts somebody logged something on today */
 function focusDoneToday() {
   const d = new Date(); d.setHours(0, 0, 0, 0); const t0 = d.getTime(), keys = new Set();
-  S.items.forEach(it => { if (!it.locked && it.key && (it.log || []).some(e => (e.at || 0) >= t0 && e.k !== 'reopen')) keys.add(it.key); });
+  S.items.forEach(it => { if (!it.locked && it.key && (it.log || []).some(e => (e.at || 0) >= t0 && e.k !== 'reopen' && e.k !== 'edgetask')) keys.add(it.key); });
   return keys;
 }
 function focusData() {
@@ -4896,6 +5114,106 @@ Object.assign(ACT, {
 });
 
 /* =====================================================================
+   Edge's task list, imported (8 Oct 2026): each of the FC's Edge tasks
+   goes on its account as an "Edge task" entry — its due date fills an
+   empty follow-up, "AA MADE" an empty stage (payment plan), the task's
+   operator an empty "assigned to". A preview first: what's ready, what
+   to check (a name a letter off, the other kind of account, two that
+   fit), what isn't on the A/R report. Nothing set in A/R changes, and
+   importing the list again adds nothing twice.
+   ===================================================================== */
+/* the person the tasks belong to (their operator in Edge, e.g. "Riley"), if exactly one person with A/R goes by that name */
+function etAssignee(ops) {
+  if (!ops || ops.length !== 1) return '';
+  const n = String(ops[0]).trim().toLowerCase(); if (!n) return '';
+  const hits = arPeople().filter(r => { const nm = String(r.name || '').trim().toLowerCase(); return nm === n || nm.split(/\s+/)[0] === n; });
+  return hits.length === 1 ? hits[0].sid : '';
+}
+const ET_SPREAD_DAYS = 10; // a long overdue list: its follow-ups spread over the next two weeks
+function edgeTasksPreview(p) {
+  const sid = etAssignee(p.ops), t = todayISO(), late = p.tasks.filter(x => x.due && x.due < t).length;
+  S.etImp = { p, picks: {}, sid, o: { overdue: late > ET_SPREAD_DAYS ? 'spread' : 'today', aa: true, assign: sid }, busy: '' };
+  openModal('<div id="etBox">' + etBoxHTML() + '</div>');
+}
+/* the plan for the preview; each task's match is worked out once (again only if the accounts change — a new report) */
+function etPlan() {
+  const I = S.etImp, accts = S.rep ? S.accts : [];
+  if (!I.mm || I.mmFor !== accts) { const ix = nameIndex(accts); I.mm = I.p.tasks.map(t => taskMatch(accts, t, ix)); I.mmFor = accts; }
+  return edgeTasksPlan(accts, k => itemFor(k), I.p.tasks, I.picks, I.mm);
+}
+/* each account's day when the overdue follow-ups are spread (only accounts whose follow-up is empty — or that will be reopened) */
+function etSpread(plan) {
+  const groups = Array.from(plan.by.values()).filter(g => { const it = itemFor(g.a.key); return !(it && !isBack(it) && (it.follow || it.state === 'done')); });
+  return spreadFollow(groups, todayISO(), ET_SPREAD_DAYS);
+}
+function etBoxHTML() {
+  const I = S.etImp; if (!I) return '';
+  const p = I.p, plan = etPlan(), t = todayISO(), R = plan.rows, rep = S.rep ? fmtDate(S.rep.asOf) + ' ' : '';
+  const ready = R.filter(r => r.a && !r.dupe), check = R.filter(r => (r.m.how === 'close' || r.m.how === 'two') && !r.dupe), none = R.filter(r => r.m.how === 'none'), dupes = R.filter(r => r.dupe);
+  const nAcc = plan.by.size, overdue = p.tasks.filter(x => x.due && x.due < t).length, aa = ready.filter(r => taskIsAA(r.t.title)).length, nClose = check.filter(r => r.m.how === 'close').length;
+  const when = d => (d ? fmtDate(d) : 'no date'), carr = a => { const c = a.ins ? carrierFor(a.key) : null; return c && c.name ? ' (' + c.name + ')' : ''; };
+  const kindOf = a => (a.ins ? 'insurance' + carr(a) : a.credit > 0 && !(a.pd > 0) ? 'credit' : 'patient');
+  const acctTxt = a => esc(a.patient) + ' <span class="muted">· ' + esc(rpName(a) || '—') + ' · ' + esc(kindOf(a)) + (a.pd > 0 ? ' · ' + money(a.pd) + ' past due' : a.credit > 0 ? ' · ' + money(a.credit) + ' credit' : '') + '</span>';
+  let h = '<h3>' + esc(p.ops && p.ops.length ? p.ops.join(', ') + '’s' : 'Edge') + ' Edge tasks · ' + plural(p.tasks.length, 'task') + '</h3>' +
+    '<div class="lsub">Read on this computer. Each task goes on its account as an “Edge task” note, sealed, and its due date fills an empty follow-up. Nothing already set in A/R changes, and importing the list again adds nothing twice.</div>' +
+    '<div class="prevGrid">' + obStat(ready.length, 'ready, on ' + plural(nAcc, 'account')) + obStat(check.length, 'to check — tick the right ones') + obStat(none.length, 'not on the ' + rep + 'A/R report') + (dupes.length ? obStat(dupes.length, 'added before') : '') + '</div>' +
+    (p.check.ok ? '<div class="chk ok">' + ic('done', 14) + esc(p.check.why) + '</div>' : '<div class="notice bad">' + esc(p.check.why) + '</div>') +
+    (!S.rep ? '<div class="notice info" style="margin-top:8px">No A/R report yet — import this week’s A/R Aging first, so the tasks have accounts to go on.</div>' :
+      S.imp && S.imp.files && S.imp.files.some(f => !f.err) ? '<div class="notice info" style="margin-top:8px">A new A/R report is waiting on Reports. These tasks are matched to the ' + esc(rep) + 'report — save the new one first, then drop the task list again, to match them to it.</div>' : '');
+  const nSp = Object.keys(etSpread(plan)).length, perDay = Math.max(1, Math.ceil(nSp / ET_SPREAD_DAYS)), opt = (v, txt) => '<option value="' + v + '"' + (I.o.overdue === v ? ' selected' : '') + '>' + esc(txt) + '</option>';
+  h += '<div class="etOpts">' + (overdue ? '<div><label for="etOverdue" style="display:block;margin-bottom:4px">' + plural(overdue, 'task is', 'tasks are') + ' overdue in Edge. Their follow-up:</label>' +
+    '<select id="etOverdue" class="inp" data-chg="etOpt">' + opt('today', (nextOfficeDay(t) === t ? 'Today' : 'The next office day') + ' (' + fmtDay(nextOfficeDay(t)) + ') — all of them') +
+    opt('spread', 'Spread over the next 2 weeks, oldest first (about ' + plural(perDay, 'account') + ' a day)') + opt('edge', 'Keep Edge’s dates (they show as late)') + '</select></div>' : '') +
+    (aa ? '<label><input type="checkbox" id="etAA" data-chg="etOpt"' + (I.o.aa ? ' checked' : '') + '><span>“AA MADE” (' + aa + '): mark the account as on a payment plan — that pauses its collections ladder (only where no stage is set yet)</span></label>' : '') +
+    (I.sid ? '<label><input type="checkbox" id="etAssign" data-chg="etOpt"' + (I.o.assign ? ' checked' : '') + '><span>Assign the accounts to ' + esc(shortName(I.sid)) + ' (only ones nobody has)</span></label>' : '') + '</div>';
+  if (check.length) h += '<details class="help" open><summary>Check these (' + check.length + ') — tick the ones that are right</summary><div class="etList">' + check.map(r => {
+    const i = r.i, has = Object.prototype.hasOwnProperty.call(I.picks, i), picked = has ? I.picks[i] : '';
+    if (r.m.how === 'two') return '<div class="etRow"><div class="grow"><div class="etT">' + esc(r.t.title) + '</div><div class="small muted">Due ' + esc(when(r.t.due)) + ' · ' + esc(r.m.why) + '</div>' +
+      '<select class="inp" data-chg="etPick" data-i="' + i + '" aria-label="Which account" style="margin-top:4px"><option value="">Skip it</option>' + r.m.cands.map(a => '<option value="' + esc(a.key) + '"' + (picked === a.key ? ' selected' : '') + '>' + esc(a.patient + ' · ' + (rpName(a) || '—') + ' · ' + kindOf(a) + (a.pd > 0 ? ' · ' + money(a.pd) + ' past due' : a.credit > 0 ? ' · ' + money(a.credit) + ' credit' : '')) + '</option>').join('') + '</select></div></div>';
+    return '<label class="etRow"><input type="checkbox" data-chg="etPick" data-i="' + i + '" data-key="' + esc(r.m.a.key) + '"' + (picked ? ' checked' : '') + '><span class="grow"><span class="etT">' + esc(r.t.title) + '</span><br><span class="small etA">→ ' + acctTxt(r.m.a) + '</span><br><span class="small muted">Due ' + esc(when(r.t.due)) + ' · ' + esc(r.m.why) + '</span></span></label>';
+  }).join('') + '</div>' + (nClose > 1 ? '<div class="btnRow" style="margin-top:6px"><button class="btn btn-ghost btn-sm" data-act="etTickAll">Tick all ' + nClose + '</button></div>' : '') + '</details>';
+  if (none.length) h += '<details class="help"><summary>Not on the A/R report (' + none.length + ') — nothing is added for these</summary><div class="small muted" style="margin:4px 0 6px">Their account isn’t past due or in credit on the ' + rep + 'report, or the name in the task isn’t on it. Keep them in Edge, or import the list again after a newer report.</div><div class="etList">' +
+    none.map(r => '<div class="etRow"><div class="grow"><div class="etT">' + esc(r.t.title) + '</div><div class="small muted">Due ' + esc(when(r.t.due)) + '</div></div></div>').join('') + '</div></details>';
+  if (ready.length) h += '<details class="help"><summary>Ready: ' + plural(ready.length, 'task') + ' on ' + plural(nAcc, 'account') + '</summary><div class="etList">' + Array.from(plan.by.values()).map(g => '<div class="etRow"><div class="grow"><div class="etA">' + acctTxt(g.a) + '</div>' +
+    g.tasks.map(x => '<div class="small muted">• ' + esc(x.title) + ' (due ' + esc(when(x.due)) + ')</div>').join('') + '</div></div>').join('') + '</div></details>';
+  if (dupes.length) h += '<div class="small muted" style="margin-top:6px">' + plural(dupes.length, 'task was', 'tasks were') + ' added before — skipped.</div>';
+  return h + '<div class="mFt" style="margin-top:14px"><button class="btn btn-ghost" data-act="closeModal">Cancel</button><button class="btn btn-teal" data-act="etSave" id="etSave"' + (ready.length && !I.busy ? '' : ' disabled') + '>' + ic('lock', 15) +
+    '<span>' + esc(I.busy || 'Add ' + plural(ready.length, 'task') + ' to ' + plural(nAcc, 'account') + ' (sealed)') + '</span></button></div>';
+}
+/* redraw the preview, keeping which lists are open and where it's scrolled */
+function refreshET() {
+  const box = $('#etBox'); if (!box) return;
+  const w = $('#modalWrap'), top = w ? w.scrollTop : 0, open = $$('details', box).map(d => d.open);
+  box.innerHTML = etBoxHTML(); $$('details', box).forEach((d, i) => { if (open[i] != null) d.open = open[i]; }); if (w) w.scrollTop = top;
+}
+Object.assign(CHG, {
+  etOpt() { const I = S.etImp; if (!I) return; const ov = $('#etOverdue'), aa = $('#etAA'), as = $('#etAssign'); if (ov) I.o.overdue = ov.value === 'edge' || ov.value === 'spread' ? ov.value : 'today'; if (aa) I.o.aa = aa.checked; if (as) I.o.assign = as.checked ? I.sid : ''; refreshET(); },
+  etPick(t) { const I = S.etImp; if (!I) return; I.picks[Number(t.dataset.i)] = t.type === 'checkbox' ? (t.checked ? t.dataset.key || '' : '') : t.value; refreshET(); }
+});
+Object.assign(ACT, {
+  etTickAll() { const I = S.etImp; if (!I) return; etPlan().rows.forEach(r => { if (r.m.how === 'close') I.picks[r.i] = r.m.a.key; }); refreshET(); },
+  async etSave() {
+    const I = S.etImp; if (!I || I.busy) return;
+    const plan = etPlan(), groups = Array.from(plan.by.values()); if (!groups.length) return;
+    const o = Object.assign({ by: meSid(), today: todayISO() }, I.o), total = groups.length, sp = o.overdue === 'spread' ? etSpread(plan) : {};
+    let done = 0, okN = 0, added = 0;
+    const busy = s => { I.busy = s; const b = $('#etSave'); if (b) { b.disabled = true; const sp = $('span', b); if (sp) sp.textContent = s; } };
+    busy('Adding… 0 of ' + plural(total, 'account'));
+    // a few accounts at a time: each is its own sealed save, with its history
+    for (let i = 0; i < groups.length; i += 3) {
+      await Promise.all(groups.slice(i, i + 3).map(async g => {
+        const now = Date.now(), og = Object.assign({}, o, { spreadOn: sp[g.a.key] || '' }), r = await change(g.a.key, d => { edgeTasksApply(d, g.tasks, og, now); }, { a: 'edgetask', n: g.tasks.length });
+        done++; if (r) { okN++; added += g.tasks.length; } busy('Adding… ' + done + ' of ' + plural(total, 'account'));
+      }));
+    }
+    S.etImp = null; closeModal();
+    toast('Added ' + plural(added, 'task') + ' to ' + plural(okN, 'account') + (okN < total ? ' — ' + (total - okN) + ' couldn’t be saved; import the list again to add them' : ''), okN < total ? { bad: true, ms: 9000 } : { ms: 6000 });
+    // on to Today (the follow-ups) — unless an A/R report dropped in with it is still waiting on Reports to be saved
+    if (!(S.view === 'reports' && S.imp && S.imp.files && S.imp.files.length)) { S.view = 'today'; renderNav(); renderView(); window.scrollTo(0, 0); } else renderView();
+  }
+});
+
+/* =====================================================================
    Trends (6 Oct 2026): week over week, the pace to the goals, who did
    what — and a weekly brief from AISA, written from the totals only
    ===================================================================== */
@@ -4921,7 +5239,7 @@ function weekActivity() {
   S.items.forEach(it => {
     if (it.locked) return;
     (it.log || []).forEach(e => {
-      if ((e.at || 0) < t0 || !e.by || e.k === 'reopen') return;
+      if ((e.at || 0) < t0 || !e.by || e.k === 'reopen' || e.k === 'edgetask') return; // an imported Edge task isn't work done this week
       const r = one(e.by); r.all++;
       if (e.k === 'ladder' && own(LAD_BY, e.step)) { const s = LAD_BY[e.step]; if (s.n) r.letters++; else r.texts++; if (s.call) r.calls++; if (s.id === 'c75') r.texts++; }
       else if (/^ins_/.test(e.k)) r.ins++;
@@ -5429,6 +5747,7 @@ function histText(x) {
     case 'obtick': return (x.on === false ? 'unticked ' : 'ticked ') + plural(x.n || 1, 'family', 'families') + (x.on === false ? '' : ' as texted') + ' (OrthoBanc, ' + fmtDate(x.day) + ')';
     case 'carrier': return x.op === 'add' ? 'added the carrier ' + (x.name || '') : x.op === 'edit' ? 'updated the carrier ' + (x.name || '') : x.op === 'remove' ? 'removed the carrier ' + (x.name || '') : x.op === 'tag' ? 'set the carrier on ' + plural(x.n || 1, 'insurance account') :
       x.op === 'edge' ? 'filled in the carriers from Edge’s Insurance Aging' + (x.asOf ? ' of ' + fmtDate(x.asOf) : '') + (x.n ? ' (' + plural(x.n, 'account') + ')' : '') : x.op === 'merge' ? 'merged the carrier ' + (x.name || '') + ' into ' + (x.into || '') : 'changed the insurance carriers';
+    case 'edgetask': return 'added ' + plural(x.n || 1, 'task') + ' from Edge';
     default: return x.a || '';
   }
 }

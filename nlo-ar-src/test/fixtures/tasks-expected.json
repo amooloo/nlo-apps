@@ -1,0 +1,236 @@
+[
+ {
+  "op": "Riley",
+  "title": "LETTERS - Emerson Samplesen LETTER RETURNED",
+  "due": "2026-09-03",
+  "cat": "",
+  "creator": "Riley",
+  "desc": "Reminder texted to the parent.\nSecond reminder texted; parent asked for a call on Friday.\n\n09/14/2026 letter mailed and emailed.",
+  "want": {
+   "how": "exact",
+   "patient": "Emerson Samplesen",
+   "ins": false
+  }
+ },
+ {
+  "op": "Riley",
+  "title": "AA MADE - Kendall Placeholder",
+  "due": "2026-09-04",
+  "cat": "",
+  "creator": "Riley",
+  "desc": "AA MADE: drafts on the 4th of each month.",
+  "want": {
+   "how": "exact",
+   "patient": "Kendall Placeholder",
+   "ins": false
+  }
+ },
+ {
+  "op": "Riley",
+  "title": "AA MADE - Dana Fakeworth",
+  "due": "2026-08-24",
+  "cat": "",
+  "creator": "Riley",
+  "desc": "10/01 parent paid $75.00 on the past due.\nAA MADE: $40.00 every other Friday",
+  "want": {
+   "how": "exact",
+   "patient": "Dana Fakeworth",
+   "ins": false
+  }
+ },
+ {
+  "op": "Riley",
+  "title": "PT - Avery O'Sample",
+  "due": "2026-11-12",
+  "cat": "",
+  "creator": "Riley",
+  "desc": "Call about the balance.",
+  "want": {
+   "how": "exact",
+   "patient": "Avery O'Sample",
+   "ins": false
+  }
+ },
+ {
+  "op": "Riley",
+  "title": "START LETTERS EMERSON DEMO",
+  "due": "2026-08-28",
+  "cat": "",
+  "creator": "Riley",
+  "desc": "Start the letters.",
+  "want": {
+   "how": "exact",
+   "patient": "Emerson Demo",
+   "ins": false
+  }
+ },
+ {
+  "op": "Riley",
+  "title": "PT - José Q Demo",
+  "due": "2026-08-20",
+  "cat": "",
+  "creator": "Riley",
+  "desc": "Middle initial in the task.",
+  "want": {
+   "how": "exact",
+   "patient": "José Demo",
+   "ins": false
+  }
+ },
+ {
+  "op": "Riley",
+  "title": "PT INS PAID SUBSCRIBER SawyerMockley",
+  "due": "2026-09-28",
+  "cat": "",
+  "creator": "Riley",
+  "desc": "Insurance paid the subscriber.",
+  "want": {
+   "how": "exact",
+   "patient": "Sawyer Mockley",
+   "ins": false
+  }
+ },
+ {
+  "op": "Riley",
+  "title": "PT - Pakrer Testcase",
+  "due": "2026-08-19",
+  "cat": "",
+  "creator": "Riley",
+  "desc": "First name a letter off.",
+  "want": {
+   "how": "close",
+   "patient": "Parker Testcase",
+   "ins": false
+  }
+ },
+ {
+  "op": "Riley",
+  "title": "LETTERS - Pat Fakeworth",
+  "due": "2026-08-27",
+  "cat": "",
+  "creator": "Riley",
+  "desc": "Named after a parent with three children on the report.",
+  "want": {
+   "how": "two",
+   "patient": "",
+   "ins": false
+  }
+ },
+ {
+  "op": "Riley",
+  "title": "AA MADE - Robin Testcase",
+  "due": "2026-09-14",
+  "cat": "",
+  "creator": "Riley",
+  "desc": "Named after the responsible party.",
+  "want": {
+   "how": "close",
+   "patient": "Finley Testcase",
+   "ins": false
+  }
+ },
+ {
+  "op": "Riley",
+  "title": "PT - Imaginary Nobodyton",
+  "due": "2026-08-13",
+  "cat": "",
+  "creator": "Riley",
+  "desc": "Not on the A/R report.",
+  "want": {
+   "how": "none",
+   "patient": "",
+   "ins": false
+  }
+ },
+ {
+  "op": "Riley",
+  "title": "INS MetLife Questionnaire Łucja O'Sample",
+  "due": "2026-07-09",
+  "cat": "",
+  "creator": "Riley",
+  "desc": "Questionnaire sent.",
+  "want": {
+   "how": "exact",
+   "patient": "Łucja O'Sample",
+   "ins": true
+  }
+ },
+ {
+  "op": "Riley",
+  "title": "INS GEHA Kendall Mockley WRITE OFF",
+  "due": "2026-03-11",
+  "cat": "",
+  "creator": "Riley",
+  "desc": "Write off the balance.",
+  "want": {
+   "how": "exact",
+   "patient": "Kendall Mockley",
+   "ins": true
+  }
+ },
+ {
+  "op": "Riley",
+  "title": "INS MetLife Quinn TestcaseWaiting for denial",
+  "due": "2026-07-02",
+  "cat": "",
+  "creator": "Riley",
+  "desc": "Waiting for the denial.",
+  "want": {
+   "how": "exact",
+   "patient": "Quinn Testcase",
+   "ins": true
+  }
+ },
+ {
+  "op": "Riley",
+  "title": "INS Ameritas Łucja Sapmlesen AS BILLED CLAIM",
+  "due": "2026-07-01",
+  "cat": "",
+  "creator": "Riley",
+  "desc": "Last name a letter off.",
+  "want": {
+   "how": "close",
+   "patient": "Łucja Samplesen",
+   "ins": true
+  }
+ },
+ {
+  "op": "Riley",
+  "title": "INS TERMINATED Arden Demoray",
+  "due": "2026-06-22",
+  "cat": "",
+  "creator": "Riley",
+  "desc": "Insurance terminated — the patient account.",
+  "want": {
+   "how": "close",
+   "patient": "Arden Demoray",
+   "ins": false
+  }
+ },
+ {
+  "op": "Riley",
+  "title": "LETTERS - Emerson Samplesen",
+  "due": "2026-10-30",
+  "cat": "",
+  "creator": "Riley",
+  "desc": "A second task for the same account.",
+  "want": {
+   "how": "exact",
+   "patient": "Emerson Samplesen",
+   "ins": false
+  }
+ },
+ {
+  "op": "Jamie",
+  "title": "PT - Shay Demo",
+  "due": "2026-10-20",
+  "cat": "",
+  "creator": "Jamie",
+  "desc": "",
+  "want": {
+   "how": "exact",
+   "patient": "Shay Demo",
+   "ins": false
+  }
+ }
+]

@@ -62,4 +62,19 @@ function insAgingTSV(longDate, groups) {
   put({ 0: '(' + tot.n + ' Total Patients)', 6: m(tot.due), 7: m(tot.b0), 8: m(tot.b30), 9: m(tot.b60), 10: m(tot.b90), 14: m(tot.bal) }); lines.push(''); put({ 0: 'Edge v8.0.22.1003' });
   return lines.join('\r\n');
 }
-module.exports = { routes, watch, CHROME, obReportTSV, insAgingTSV };
+/* a made-up Edge "Upcoming and Overdue Tasks" list as Excel's tab-separated text, laid out like the real export (see
+   make_tasks_fixture.py): run: 'M/D/YYYY h:mm AM'; groups are { op: the operator, tasks: [{ title, due: 'M/D/YYYY', desc }] }
+   (a description may run over several lines) */
+function edgeTasksTSV(run, groups) {
+  const lines = [], put = cells => { const a = []; Object.keys(cells).forEach(c => { a[c] = cells[c]; }); lines.push(Array.from(a, v => v == null ? '' : String(v)).join('\t')); };
+  const q = s => (/[\t\n"]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s);
+  put({ 0: 'Upcoming and Overdue Tasks', 9: run }); for (let i = 0; i < 5; i++) lines.push('');
+  put({ 0: 'Operator' }); put({ 0: 'Task', 3: 'Due Date', 5: 'Category', 6: 'Creator', 7: 'Description' });
+  groups.forEach(g => {
+    put({ 0: g.op });
+    g.tasks.forEach(t => put(Object.assign({ 0: q(t.title), 3: t.due + ' 8:00 AM', 6: g.op }, t.desc ? { 7: q(t.desc) } : {})));
+  });
+  lines.push(''); put({ 0: 'Edge v8.0.22.1003' });
+  return lines.join('\r\n');
+}
+module.exports = { routes, watch, CHROME, obReportTSV, insAgingTSV, edgeTasksTSV };

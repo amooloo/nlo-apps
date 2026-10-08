@@ -528,7 +528,8 @@ function viewReports() {
     '<div class="pasteBox" id="pasteBox" tabindex="0" role="textbox" aria-label="Paste the report here">Or open the export in Excel, select everything (Ctrl+A), copy (Ctrl+C), click here and paste (Ctrl+V).</div>' +
     (imp && imp.err ? '<div class="lockErr" style="margin-top:12px">' + esc(imp.err) + '</div>' : '') + edgeStepsHTML(!S.reports.length) +
     '<p class="small muted" style="margin-top:10px">OrthoBanc’s Failed Transaction Report (FailedTransactions.xls) can be dropped here too — it opens its own list.</p>' +
-    '<p class="small muted" style="margin-top:6px">So can Edge’s <b>Insurance Aging</b> — it fills in each insurance account’s carrier (Insurance → Carriers).</p>' + iaStepsHTML(false);
+    '<p class="small muted" style="margin-top:6px">So can Edge’s <b>Insurance Aging</b> — it fills in each insurance account’s carrier (Insurance → Carriers).</p>' + iaStepsHTML(false) +
+    '<p class="small muted" style="margin-top:6px">And Edge’s task list (<b>Upcoming and Overdue Tasks</b>, exported to Excel) — each task is added to its account, with its due date as the follow-up.</p>';
   h += '</div></div></div><div>' + reportListHTML() + '</div></div>';
   return h;
 }
@@ -592,6 +593,7 @@ function afterReports() {
       const g = html && /<table/i.test(html) ? readHTMLTables(html) : readGridText(text || ''), ob = obFromGrid(g);
       if (ob) { obPreview(Object.assign(ob, { name: 'Pasted from Excel', kind: 'text' })); return; } // OrthoBanc's failed-payment report
       const ia = insAgingFromGrid(g); if (ia) { insAgingPreview(Object.assign(ia, { name: 'Pasted from Excel', kind: 'text' })); return; } // Edge's Insurance Aging: carriers
+      const et = edgeTasksFromGrid(g); if (et) { edgeTasksPreview(Object.assign(et, { name: 'Pasted from Excel', kind: 'text' })); return; } // Edge's task list
       addParsed([{ name: 'Pasted from Excel', p: edgeFromGrid(g, 'Pasted from Excel') }]);
     }
     catch (x) { S.imp = { files: [], err: errText(x) }; renderView(); }
@@ -599,18 +601,19 @@ function afterReports() {
   paintPhotos();
 }
 async function addFiles(files) {
-  const out = []; let ob = null, ia = null;
+  const out = []; let ob = null, ia = null, et = null;
   for (const f of files) {
     if (f.size > 40 * 1024 * 1024) { out.push({ name: f.name, err: 'That file is too big to be an A/R report.' }); continue; }
     try {
       const p = await readReportFile(f.name, await f.arrayBuffer());
       if (p.ob) { ob = ob || p; continue; } // OrthoBanc's report goes its own way
       if (p.insAging) { ia = ia || p; continue; } // so does Edge's Insurance Aging (it only fills in carriers)
+      if (p.edgeTasks) { et = et || p; continue; } // and Edge's task list (notes and follow-ups on the accounts)
       out.push({ name: f.name, p });
     } catch (x) { out.push({ name: f.name, err: errText(x) }); }
   }
   if (out.length) addParsed(out);
-  if (ob) obPreview(ob); else if (ia) insAgingPreview(ia);
+  if (ob) obPreview(ob); else if (ia) insAgingPreview(ia); else if (et) edgeTasksPreview(et);
 }
 function addParsed(list) {
   const files = ((S.imp && S.imp.files) || []).concat(list);
@@ -652,7 +655,7 @@ function focusCtx() {
 /* accounts somebody logged something on today */
 function focusDoneToday() {
   const d = new Date(); d.setHours(0, 0, 0, 0); const t0 = d.getTime(), keys = new Set();
-  S.items.forEach(it => { if (!it.locked && it.key && (it.log || []).some(e => (e.at || 0) >= t0 && e.k !== 'reopen')) keys.add(it.key); });
+  S.items.forEach(it => { if (!it.locked && it.key && (it.log || []).some(e => (e.at || 0) >= t0 && e.k !== 'reopen' && e.k !== 'edgetask')) keys.add(it.key); });
   return keys;
 }
 function focusData() {
@@ -911,6 +914,106 @@ Object.assign(ACT, {
 });
 
 /* =====================================================================
+   Edge's task list, imported (8 Oct 2026): each of the FC's Edge tasks
+   goes on its account as an "Edge task" entry — its due date fills an
+   empty follow-up, "AA MADE" an empty stage (payment plan), the task's
+   operator an empty "assigned to". A preview first: what's ready, what
+   to check (a name a letter off, the other kind of account, two that
+   fit), what isn't on the A/R report. Nothing set in A/R changes, and
+   importing the list again adds nothing twice.
+   ===================================================================== */
+/* the person the tasks belong to (their operator in Edge, e.g. "Riley"), if exactly one person with A/R goes by that name */
+function etAssignee(ops) {
+  if (!ops || ops.length !== 1) return '';
+  const n = String(ops[0]).trim().toLowerCase(); if (!n) return '';
+  const hits = arPeople().filter(r => { const nm = String(r.name || '').trim().toLowerCase(); return nm === n || nm.split(/\s+/)[0] === n; });
+  return hits.length === 1 ? hits[0].sid : '';
+}
+const ET_SPREAD_DAYS = 10; // a long overdue list: its follow-ups spread over the next two weeks
+function edgeTasksPreview(p) {
+  const sid = etAssignee(p.ops), t = todayISO(), late = p.tasks.filter(x => x.due && x.due < t).length;
+  S.etImp = { p, picks: {}, sid, o: { overdue: late > ET_SPREAD_DAYS ? 'spread' : 'today', aa: true, assign: sid }, busy: '' };
+  openModal('<div id="etBox">' + etBoxHTML() + '</div>');
+}
+/* the plan for the preview; each task's match is worked out once (again only if the accounts change — a new report) */
+function etPlan() {
+  const I = S.etImp, accts = S.rep ? S.accts : [];
+  if (!I.mm || I.mmFor !== accts) { const ix = nameIndex(accts); I.mm = I.p.tasks.map(t => taskMatch(accts, t, ix)); I.mmFor = accts; }
+  return edgeTasksPlan(accts, k => itemFor(k), I.p.tasks, I.picks, I.mm);
+}
+/* each account's day when the overdue follow-ups are spread (only accounts whose follow-up is empty — or that will be reopened) */
+function etSpread(plan) {
+  const groups = Array.from(plan.by.values()).filter(g => { const it = itemFor(g.a.key); return !(it && !isBack(it) && (it.follow || it.state === 'done')); });
+  return spreadFollow(groups, todayISO(), ET_SPREAD_DAYS);
+}
+function etBoxHTML() {
+  const I = S.etImp; if (!I) return '';
+  const p = I.p, plan = etPlan(), t = todayISO(), R = plan.rows, rep = S.rep ? fmtDate(S.rep.asOf) + ' ' : '';
+  const ready = R.filter(r => r.a && !r.dupe), check = R.filter(r => (r.m.how === 'close' || r.m.how === 'two') && !r.dupe), none = R.filter(r => r.m.how === 'none'), dupes = R.filter(r => r.dupe);
+  const nAcc = plan.by.size, overdue = p.tasks.filter(x => x.due && x.due < t).length, aa = ready.filter(r => taskIsAA(r.t.title)).length, nClose = check.filter(r => r.m.how === 'close').length;
+  const when = d => (d ? fmtDate(d) : 'no date'), carr = a => { const c = a.ins ? carrierFor(a.key) : null; return c && c.name ? ' (' + c.name + ')' : ''; };
+  const kindOf = a => (a.ins ? 'insurance' + carr(a) : a.credit > 0 && !(a.pd > 0) ? 'credit' : 'patient');
+  const acctTxt = a => esc(a.patient) + ' <span class="muted">· ' + esc(rpName(a) || '—') + ' · ' + esc(kindOf(a)) + (a.pd > 0 ? ' · ' + money(a.pd) + ' past due' : a.credit > 0 ? ' · ' + money(a.credit) + ' credit' : '') + '</span>';
+  let h = '<h3>' + esc(p.ops && p.ops.length ? p.ops.join(', ') + '’s' : 'Edge') + ' Edge tasks · ' + plural(p.tasks.length, 'task') + '</h3>' +
+    '<div class="lsub">Read on this computer. Each task goes on its account as an “Edge task” note, sealed, and its due date fills an empty follow-up. Nothing already set in A/R changes, and importing the list again adds nothing twice.</div>' +
+    '<div class="prevGrid">' + obStat(ready.length, 'ready, on ' + plural(nAcc, 'account')) + obStat(check.length, 'to check — tick the right ones') + obStat(none.length, 'not on the ' + rep + 'A/R report') + (dupes.length ? obStat(dupes.length, 'added before') : '') + '</div>' +
+    (p.check.ok ? '<div class="chk ok">' + ic('done', 14) + esc(p.check.why) + '</div>' : '<div class="notice bad">' + esc(p.check.why) + '</div>') +
+    (!S.rep ? '<div class="notice info" style="margin-top:8px">No A/R report yet — import this week’s A/R Aging first, so the tasks have accounts to go on.</div>' :
+      S.imp && S.imp.files && S.imp.files.some(f => !f.err) ? '<div class="notice info" style="margin-top:8px">A new A/R report is waiting on Reports. These tasks are matched to the ' + esc(rep) + 'report — save the new one first, then drop the task list again, to match them to it.</div>' : '');
+  const nSp = Object.keys(etSpread(plan)).length, perDay = Math.max(1, Math.ceil(nSp / ET_SPREAD_DAYS)), opt = (v, txt) => '<option value="' + v + '"' + (I.o.overdue === v ? ' selected' : '') + '>' + esc(txt) + '</option>';
+  h += '<div class="etOpts">' + (overdue ? '<div><label for="etOverdue" style="display:block;margin-bottom:4px">' + plural(overdue, 'task is', 'tasks are') + ' overdue in Edge. Their follow-up:</label>' +
+    '<select id="etOverdue" class="inp" data-chg="etOpt">' + opt('today', (nextOfficeDay(t) === t ? 'Today' : 'The next office day') + ' (' + fmtDay(nextOfficeDay(t)) + ') — all of them') +
+    opt('spread', 'Spread over the next 2 weeks, oldest first (about ' + plural(perDay, 'account') + ' a day)') + opt('edge', 'Keep Edge’s dates (they show as late)') + '</select></div>' : '') +
+    (aa ? '<label><input type="checkbox" id="etAA" data-chg="etOpt"' + (I.o.aa ? ' checked' : '') + '><span>“AA MADE” (' + aa + '): mark the account as on a payment plan — that pauses its collections ladder (only where no stage is set yet)</span></label>' : '') +
+    (I.sid ? '<label><input type="checkbox" id="etAssign" data-chg="etOpt"' + (I.o.assign ? ' checked' : '') + '><span>Assign the accounts to ' + esc(shortName(I.sid)) + ' (only ones nobody has)</span></label>' : '') + '</div>';
+  if (check.length) h += '<details class="help" open><summary>Check these (' + check.length + ') — tick the ones that are right</summary><div class="etList">' + check.map(r => {
+    const i = r.i, has = Object.prototype.hasOwnProperty.call(I.picks, i), picked = has ? I.picks[i] : '';
+    if (r.m.how === 'two') return '<div class="etRow"><div class="grow"><div class="etT">' + esc(r.t.title) + '</div><div class="small muted">Due ' + esc(when(r.t.due)) + ' · ' + esc(r.m.why) + '</div>' +
+      '<select class="inp" data-chg="etPick" data-i="' + i + '" aria-label="Which account" style="margin-top:4px"><option value="">Skip it</option>' + r.m.cands.map(a => '<option value="' + esc(a.key) + '"' + (picked === a.key ? ' selected' : '') + '>' + esc(a.patient + ' · ' + (rpName(a) || '—') + ' · ' + kindOf(a) + (a.pd > 0 ? ' · ' + money(a.pd) + ' past due' : a.credit > 0 ? ' · ' + money(a.credit) + ' credit' : '')) + '</option>').join('') + '</select></div></div>';
+    return '<label class="etRow"><input type="checkbox" data-chg="etPick" data-i="' + i + '" data-key="' + esc(r.m.a.key) + '"' + (picked ? ' checked' : '') + '><span class="grow"><span class="etT">' + esc(r.t.title) + '</span><br><span class="small etA">→ ' + acctTxt(r.m.a) + '</span><br><span class="small muted">Due ' + esc(when(r.t.due)) + ' · ' + esc(r.m.why) + '</span></span></label>';
+  }).join('') + '</div>' + (nClose > 1 ? '<div class="btnRow" style="margin-top:6px"><button class="btn btn-ghost btn-sm" data-act="etTickAll">Tick all ' + nClose + '</button></div>' : '') + '</details>';
+  if (none.length) h += '<details class="help"><summary>Not on the A/R report (' + none.length + ') — nothing is added for these</summary><div class="small muted" style="margin:4px 0 6px">Their account isn’t past due or in credit on the ' + rep + 'report, or the name in the task isn’t on it. Keep them in Edge, or import the list again after a newer report.</div><div class="etList">' +
+    none.map(r => '<div class="etRow"><div class="grow"><div class="etT">' + esc(r.t.title) + '</div><div class="small muted">Due ' + esc(when(r.t.due)) + '</div></div></div>').join('') + '</div></details>';
+  if (ready.length) h += '<details class="help"><summary>Ready: ' + plural(ready.length, 'task') + ' on ' + plural(nAcc, 'account') + '</summary><div class="etList">' + Array.from(plan.by.values()).map(g => '<div class="etRow"><div class="grow"><div class="etA">' + acctTxt(g.a) + '</div>' +
+    g.tasks.map(x => '<div class="small muted">• ' + esc(x.title) + ' (due ' + esc(when(x.due)) + ')</div>').join('') + '</div></div>').join('') + '</div></details>';
+  if (dupes.length) h += '<div class="small muted" style="margin-top:6px">' + plural(dupes.length, 'task was', 'tasks were') + ' added before — skipped.</div>';
+  return h + '<div class="mFt" style="margin-top:14px"><button class="btn btn-ghost" data-act="closeModal">Cancel</button><button class="btn btn-teal" data-act="etSave" id="etSave"' + (ready.length && !I.busy ? '' : ' disabled') + '>' + ic('lock', 15) +
+    '<span>' + esc(I.busy || 'Add ' + plural(ready.length, 'task') + ' to ' + plural(nAcc, 'account') + ' (sealed)') + '</span></button></div>';
+}
+/* redraw the preview, keeping which lists are open and where it's scrolled */
+function refreshET() {
+  const box = $('#etBox'); if (!box) return;
+  const w = $('#modalWrap'), top = w ? w.scrollTop : 0, open = $$('details', box).map(d => d.open);
+  box.innerHTML = etBoxHTML(); $$('details', box).forEach((d, i) => { if (open[i] != null) d.open = open[i]; }); if (w) w.scrollTop = top;
+}
+Object.assign(CHG, {
+  etOpt() { const I = S.etImp; if (!I) return; const ov = $('#etOverdue'), aa = $('#etAA'), as = $('#etAssign'); if (ov) I.o.overdue = ov.value === 'edge' || ov.value === 'spread' ? ov.value : 'today'; if (aa) I.o.aa = aa.checked; if (as) I.o.assign = as.checked ? I.sid : ''; refreshET(); },
+  etPick(t) { const I = S.etImp; if (!I) return; I.picks[Number(t.dataset.i)] = t.type === 'checkbox' ? (t.checked ? t.dataset.key || '' : '') : t.value; refreshET(); }
+});
+Object.assign(ACT, {
+  etTickAll() { const I = S.etImp; if (!I) return; etPlan().rows.forEach(r => { if (r.m.how === 'close') I.picks[r.i] = r.m.a.key; }); refreshET(); },
+  async etSave() {
+    const I = S.etImp; if (!I || I.busy) return;
+    const plan = etPlan(), groups = Array.from(plan.by.values()); if (!groups.length) return;
+    const o = Object.assign({ by: meSid(), today: todayISO() }, I.o), total = groups.length, sp = o.overdue === 'spread' ? etSpread(plan) : {};
+    let done = 0, okN = 0, added = 0;
+    const busy = s => { I.busy = s; const b = $('#etSave'); if (b) { b.disabled = true; const sp = $('span', b); if (sp) sp.textContent = s; } };
+    busy('Adding… 0 of ' + plural(total, 'account'));
+    // a few accounts at a time: each is its own sealed save, with its history
+    for (let i = 0; i < groups.length; i += 3) {
+      await Promise.all(groups.slice(i, i + 3).map(async g => {
+        const now = Date.now(), og = Object.assign({}, o, { spreadOn: sp[g.a.key] || '' }), r = await change(g.a.key, d => { edgeTasksApply(d, g.tasks, og, now); }, { a: 'edgetask', n: g.tasks.length });
+        done++; if (r) { okN++; added += g.tasks.length; } busy('Adding… ' + done + ' of ' + plural(total, 'account'));
+      }));
+    }
+    S.etImp = null; closeModal();
+    toast('Added ' + plural(added, 'task') + ' to ' + plural(okN, 'account') + (okN < total ? ' — ' + (total - okN) + ' couldn’t be saved; import the list again to add them' : ''), okN < total ? { bad: true, ms: 9000 } : { ms: 6000 });
+    // on to Today (the follow-ups) — unless an A/R report dropped in with it is still waiting on Reports to be saved
+    if (!(S.view === 'reports' && S.imp && S.imp.files && S.imp.files.length)) { S.view = 'today'; renderNav(); renderView(); window.scrollTo(0, 0); } else renderView();
+  }
+});
+
+/* =====================================================================
    Trends (6 Oct 2026): week over week, the pace to the goals, who did
    what — and a weekly brief from AISA, written from the totals only
    ===================================================================== */
@@ -936,7 +1039,7 @@ function weekActivity() {
   S.items.forEach(it => {
     if (it.locked) return;
     (it.log || []).forEach(e => {
-      if ((e.at || 0) < t0 || !e.by || e.k === 'reopen') return;
+      if ((e.at || 0) < t0 || !e.by || e.k === 'reopen' || e.k === 'edgetask') return; // an imported Edge task isn't work done this week
       const r = one(e.by); r.all++;
       if (e.k === 'ladder' && own(LAD_BY, e.step)) { const s = LAD_BY[e.step]; if (s.n) r.letters++; else r.texts++; if (s.call) r.calls++; if (s.id === 'c75') r.texts++; }
       else if (/^ins_/.test(e.k)) r.ins++;

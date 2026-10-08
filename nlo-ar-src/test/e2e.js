@@ -6,7 +6,7 @@
 const { chromium } = require('playwright');
 const path = require('path');
 const fs = require('fs');
-const { routes, watch, CHROME, obReportTSV, insAgingTSV } = require('./helpers');
+const { routes, watch, CHROME, obReportTSV, insAgingTSV, edgeTasksTSV } = require('./helpers');
 const BASE = 'http://127.0.0.1:' + (process.env.PORT || 8767) + '/';
 const CASES = BASE + 'nlo-cases.html?emu', AR = BASE + 'nlo-ar.html?emu';
 const PROJECT = 'demo-nlo-cases';
@@ -278,8 +278,25 @@ async function openAcct(p, name) { await p.evaluate(n => { const a = S.accts.fin
   check(iaD.hand.includes(insKey), 'saved sealed: Dr. A’s screen has every insurance account’s carrier from Edge at once (' + iaD.keys.length + '), and the ' + iaD.hand.length + ' he set by hand are still his');
   const jSid = await jamie.evaluate(() => meSid());
   check(await owner.evaluate(sid => { const c = S.book.carriers.find(x => x.name === 'Quokka Mutual Dental'); return !!c && c.phone === '(800) 555-0164' && c.edge[0] === 'Quokka Mutual Dental' && S.book.edge.by === sid; }, jSid), 'the carrier came with Edge’s phone number; who imported it is kept');
+  // Edge's task list (made-up), pasted by Jamie on Reports: each task on its account, sealed, live on Dr. A's screen
+  const etD = await jamie.evaluate(() => {
+    const two = a => a.patient.trim().split(/\s+/).length === 2 && S.accts.filter(x => x.patient === a.patient).length === 1;
+    const free = S.accts.filter(a => !a.ins && a.pd > 0 && !itemFor(a.key) && two(a)).slice(0, 2);
+    return { keys: free.map(a => a.key), tasks: [
+      { title: 'LETTERS - ' + free[0].patient + ' LETTER RETURNED', due: '9/3/2026', desc: 'Quillfeather texted the reminder.\nSecond reminder texted.' },
+      { title: 'AA MADE - ' + free[1].patient, due: '9/14/2026', desc: 'Quillfeather plan: $40.00 every other Friday' },
+      { title: 'PT - Imaginary Nobodyton', due: '9/30/2026', desc: 'Not on the report.' }] };
+  });
+  await jamie.click('#nav-reports'); await jamie.waitForSelector('#pasteBox');
+  await jamie.evaluate(t => { const dt = new DataTransfer(); dt.setData('text/plain', t); document.querySelector('#pasteBox').dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true })); }, edgeTasksTSV('10/8/2026 6:45 AM', [{ op: 'Jamie', tasks: etD.tasks }]));
+  await jamie.waitForSelector('#etSave');
+  const etPv = (await jamie.innerText('#modalWrap')).replace(/\s+/g, ' ');
+  check(/3 tasks read \(Jamie\)/.test(etPv) && /2 ready, on 2 accounts/.test(etPv) && /1 not on the/.test(etPv) && /Assign the accounts to Jamie/.test(etPv), 'Edge’s task list pasted on Reports opens its own preview (2 ready, 1 not on the report, to be assigned to Jamie)');
+  await jamie.click('#etSave');
+  await owner.waitForFunction(([keys, sid]) => keys.every(k => { const it = itemFor(k); return !!it && it.log.some(e => e.k === 'edgetask' && e.op === 'Jamie' && /Quillfeather/.test(e.note)) && !!it.follow && it.assignee === sid; }) && itemFor(keys[1]).stage === 'plan', [etD.keys, jSid], { timeout: 30000 });
+  check(true, 'saved sealed: Dr. A’s screen has both tasks on their accounts at once — follow-ups set, assigned to Jamie, the “AA MADE” one on a payment plan');
   const bookBlob = JSON.stringify(await fsDocs('arItems')) + JSON.stringify(await fsDocs('arLog'));
-  check(!/Zephyr|ZTD77|555-0188|Zzyzx|ob9300000|3050[19]|Insufficient|Quokka|555-0164|99-91\d\d/.test(bookBlob), 'the carriers (Edge’s too), the OrthoBanc checks and the imported OrthoBanc list are sealed in the database');
+  check(!/Zephyr|ZTD77|555-0188|Zzyzx|ob9300000|3050[19]|Insufficient|Quokka|555-0164|99-91\d\d|Quillfeather|LETTER RETURNED|edgetask|Nobodyton/.test(bookBlob), 'the carriers (Edge’s too), the OrthoBanc checks, the imported OrthoBanc list and the imported Edge tasks are sealed in the database');
 
   console.log('\n# Dr. A turns Jamie off: she’s locked out at once; a new A/R key; everything sealed again');
   await owner.click('#nav-settings'); await owner.waitForSelector('#accessBox .sw[data-uid="' + jamieUid + '"]');
@@ -361,7 +378,8 @@ async function openAcct(p, name) { await p.evaluate(n => { const a = S.accts.fin
   await signIn(owner2, AR, OWNER_EMAIL, 'Owner-Reset-999'); await waitApp(owner2); await waitState(owner2, 'ok');
   await owner2.waitForFunction(() => S.rep && S.rep.asOf === '2026-10-05', null, { timeout: 30000 });
   const vBefore = Number((await fsDoc('meta/arKeys')).fields.current.integerValue);
-  // one screen is in the middle of a key change; the other tries to start one
+  // one screen is in the middle of a key change; the other tries to start one (once the key change before has let go of its lock)
+  for (let i = 0; i < 60 && await fsDoc('meta/arKeyLock'); i++) await sleep(250);
   const hold = owner.evaluate(() => B.withKeyLock(() => new Promise(r => setTimeout(r, 2500))));
   await sleep(600);
   const r2 = await owner2.evaluate(async () => { try { await B.arRotate(); return 'ok'; } catch (e) { return e.code || e.message; } });

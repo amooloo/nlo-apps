@@ -430,6 +430,78 @@ const cfg = A.arCfg({});
     ok(insA.filter(a => A.carrierOf(b6, a.key, a)).length === insA.length, 'Focus and the lists see Edge’s carriers through the same lookup');
   }
 
+  section('Edge’s task list: each task on its account');
+  {
+    const TX = JSON.parse(fs.readFileSync(path.join(FX, 'tasks-expected.json'), 'utf8')), TK = ['op', 'title', 'due', 'cat', 'creator', 'desc'];
+    const tpick = t => { const o = {}; TK.forEach(k => { o[k] = t[k] === undefined ? null : t[k]; }); return o; };
+    for (const [file, kind] of [['edge-tasks.xls', 'xls'], ['edge-tasks.tsv', 'text']]) {
+      const p = await A.readReportFile(file, fs.readFileSync(path.join(FX, file)));
+      ok(p.edgeTasks === true && p.kind === kind && !p.insAging && !p.ob, file + ': dropped on Reports, it’s taken for Edge’s task list');
+      eq(p.tasks.map(tpick), TX.map(tpick), file + ': every task read — operator, title, due date, creator and the running description (its line breaks kept)');
+      ok(p.check.ok === true && /18 tasks read \(Riley, Jamie\)/.test(p.check.why) && p.asOf === '2026-10-08', file + ': ' + p.check.why + ' · run ' + p.asOf);
+    }
+    let refused = ''; try { await A.readEdgeTasks('x', fs.readFileSync(path.join(FX, 'edge-full.xls'))); } catch (e) { refused = e.message; }
+    ok(/isn’t Edge’s task list/.test(refused), 'the A/R Aging isn’t taken for a task list');
+    eq([A.nameWords("Ja'Fakea Mockwell"), A.nameWords('Britt Testa-Fakewood'), A.nameWords('José Q Demo Jr'), A.nameDist('robni', 'robin'), A.nameDist('mockly', 'mockley'), A.nameDist('mockwell', 'mockwool')],
+      [['jafakea', 'mockwell'], ['britt', 'testa', 'fakewood'], ['jose', 'q', 'demo'], 1, 1, 2], 'names: apostrophes, hyphens, accents and Jr. aside; two letters swapped count once');
+    eq([A.nameWords('FakewellWaiting', true), A.nameWords('McKay', true), A.nameFit('PT - Robin McKay', 'Robin Mc Kay'), A.nameFit('PT - RobinMcKay', 'Robin McKay'),
+      A.nameFit('INS MetLife Robin TestfieldWaiting for denial', 'Robin Testfield'), A.nameFit('PT - Robin Q Testfield', 'Robin Testfield'), A.nameFit('PT - Robni Testfield', 'Robin Testfield'),
+      A.nameFit('INS TERMINATED Lane Fakewood', 'Lane Fake'), A.nameFit('LETTERS - Robin Testfield', 'Robin Testfeld'), A.nameFit('PT - Robin', 'Robin Testfield')],
+      [['fakewell', 'waiting'], ['mc', 'kay'], 3, 3, 3, 3, 2, 0, 2, 0],
+      'a name in a title: words run together split apart (either side), a middle initial between, a letter off; “Lane Fake” isn’t in “Lane Fakewood”, and a first name alone fits nobody');
+    eq(['INS MetLife X', 'TERMINATED INS - X', 'PT INS PAID SUBSCRIBER X', 'AA MADE - X', 'LETTERS - X'].map(t => [A.taskIsIns(t), A.taskIsAA(t)]), [[true, false], [true, false], [false, false], [false, true], [false, false]],
+      '“INS …” tasks go with the insurance account, the rest with the patient’s own; “AA MADE” means a payment plan');
+    // matching against the made-up A/R report
+    const rep = A.buildReport([await A.readEdgeAR('edge-full.xls', fs.readFileSync(path.join(FX, 'edge-full.xls')))]), accts = A.reportAccts(rep, cfg);
+    const tasks = (await A.readEdgeTasks('edge-tasks.xls', fs.readFileSync(path.join(FX, 'edge-tasks.xls')))).tasks;
+    const got = tasks.map(t => { const m = A.taskMatch(accts, t); return { how: m.how, patient: m.a ? m.a.patient : '', ins: m.a ? !!m.a.ins : false }; });
+    eq(got, TX.map(t => t.want), 'each task finds its account: as written, with a middle initial, run into the next word, with accents; a letter off, by the responsible party, the other kind of account (to check); one not on the report');
+    const items = new Map(), itemOf = k => items.get(k) || null, exactN = TX.filter(t => t.want.how === 'exact').length;
+    let plan = A.edgeTasksPlan(accts, itemOf, tasks, {});
+    ok(plan.rows.filter(r => r.a).length === exactN && plan.by.size === exactN - 1, 'only the ones as written are ready on their own (' + exactN + ' tasks, two of them on one account)');
+    const picks = {}; got.forEach((g, i) => { if (g.how === 'close') picks[i] = A.taskMatch(accts, tasks[i]).a.key; });
+    plan = A.edgeTasksPlan(accts, itemOf, tasks, picks);
+    ok(plan.rows.filter(r => r.a).length === exactN + Object.keys(picks).length, 'ticked in the preview, the ones to check are added too');
+    const t0 = Date.UTC(2026, 9, 8, 14), today = '2026-10-08', grp = n => plan.by.get(accts.find(a => a.patient === TX[n].want.patient && !!a.ins === TX[n].want.ins).key);
+    const g0 = grp(0), it0 = A.blankItem(g0.a);
+    const n0 = A.edgeTasksApply(it0, g0.tasks, { by: 'amir', today, overdue: 'today', aa: true, assign: 'riley' }, t0);
+    eq([n0, it0.log.map(e => e.k), it0.log.map(e => e.date), it0.follow, it0.stage, it0.assignee, it0.log[0].op, /LETTER RETURNED\nReminder texted to the parent\.\nSecond reminder texted/.test(it0.log[0].note)],
+      [2, ['edgetask', 'edgetask'], ['2026-09-03', '2026-10-30'], '2026-10-08', '', 'riley', 'Riley', true],
+      'two tasks on one account: an “Edge task” entry each (due date, Riley’s, the title and the running log); the overdue one makes the follow-up the next office day; assigned to Riley');
+    ok(A.edgeTasksApply(it0, g0.tasks, { by: 'amir', today }, t0 + 1) === 0 && it0.log.length === 2, 'importing again adds nothing');
+    const it1 = A.blankItem(g0.a); A.edgeTasksApply(it1, g0.tasks, { by: 'amir', today, overdue: 'edge' }, t0);
+    ok(it1.follow === '2026-09-03', 'or the follow-up keeps Edge’s date (late)');
+    const sp = A.spreadFollow([{ a: { key: 'a' }, tasks: [{ due: '2026-09-01' }] }, { a: { key: 'b' }, tasks: [{ due: '2026-11-01' }, { due: '2026-08-01' }] }, { a: { key: 'c' }, tasks: [{ due: '2026-11-20' }] },
+      { a: { key: 'd' }, tasks: [{ due: '2026-09-15' }] }, { a: { key: 'e' }, tasks: [{ due: '' }] }], today, 2), d1 = A.nextOfficeDay(today), d2 = A.nextOfficeDay(A.addDays(d1, 1));
+    eq(sp, { b: d1, a: d1, d: d2 }, 'or spread: a long overdue list over the next office days, oldest first, the same number a day (' + d1 + ', ' + d2 + '); a task due later or with no date isn’t spread');
+    const it2 = A.blankItem(g0.a); A.edgeTasksApply(it2, g0.tasks, { today, overdue: 'spread', spreadOn: d2 }, t0);
+    const it3 = A.blankItem(g0.a); A.edgeTasksApply(it3, g0.tasks, { today, overdue: 'spread' }, t0);
+    ok(it2.follow === d2 && it3.follow === A.nextOfficeDay(today), 'spread: the account’s follow-up is its day in the spread (without one, the next office day)');
+    const gA = grp(1), itA = A.blankItem(gA.a), itB = Object.assign(A.blankItem(gA.a), { stage: 'waiting', follow: '2026-10-20', assignee: 'jamie' });
+    const itC = Object.assign(A.blankItem(gA.a), { state: 'done', outcome: 'paid' }), itD = A.blankItem(gA.a);
+    A.edgeTasksApply(itA, gA.tasks, { by: 'amir', today, aa: true }, t0); A.edgeTasksApply(itB, gA.tasks, { by: 'amir', today, aa: true, assign: 'riley' }, t0);
+    A.edgeTasksApply(itC, gA.tasks, { by: 'amir', today, aa: true, assign: 'riley' }, t0); A.edgeTasksApply(itD, gA.tasks, { by: 'amir', today, aa: false }, t0);
+    eq([itA.stage, itA.follow, [itB.stage, itB.follow, itB.assignee], [itC.state, itC.follow, itC.stage, itC.assignee, itC.log.length], itD.stage], ['plan', '2026-10-08', ['waiting', '2026-10-20', 'jamie'], ['done', '', '', '', 1], ''],
+      '“AA MADE” → payment plan (when asked, and no stage yet); what was set in A/R is kept; a resolved account only gets the note');
+    const gF = grp(3), itF = A.blankItem(gF.a); A.edgeTasksApply(itF, gF.tasks, { today }, t0);
+    ok(itF.follow === A.nextOfficeDay('2026-11-12') && itF.log[0].date === '2026-11-12', 'a task due later: its own date, on an office day — ' + itF.follow);
+    const nl = A.normItem(Object.assign({ id: 'x', rev: 1, v: 1 }, it0)).log[0];
+    ok(nl.k === 'edgetask' && /^t[0-9a-z]+$/.test(nl.et) && nl.op === 'Riley' && nl.date === '2026-09-03' && /^Edge task \(Riley\) · due Sep 3(, 2026)? in Edge$/.test(A.logLabel(nl)),
+      'read back: the entry keeps its task id, operator and due date, and shows as “' + A.logLabel(nl) + '”');
+    items.set(g0.a.key, it0);
+    const plan2 = A.edgeTasksPlan(accts, itemOf, tasks, picks);
+    ok(plan2.rows.filter(r => r.dupe).length === 2 && !plan2.by.has(g0.a.key), 'tasks already on an account are marked as added before, and skipped');
+    const ci = got.findIndex(g => g.how === 'close'), ca = A.taskMatch(accts, tasks[ci]).a, itc = A.blankItem(ca);
+    A.edgeTasksApply(itc, [Object.assign({ id: A.taskId(tasks[ci]) }, tasks[ci])], { today }, t0); items.set(ca.key, itc);
+    const r3 = A.edgeTasksPlan(accts, itemOf, tasks, {}).rows[ci];
+    ok(r3.dupe && r3.a && r3.a.key === ca.key && r3.m.how === 'close', 'a task ticked in an import before is “added before” when the list comes again, with nothing ticked — it isn’t asked about twice');
+    const a1 = accts.find(a => !a.ins && a.pd > 0), dup = Object.assign({}, a1, { key: a1.key + '#2', bal: (a1.bal || 0) + 100 }), m2 = A.taskMatch([a1, dup], { title: 'PT - ' + a1.patient });
+    ok(m2.how === 'two' && m2.cands.length === 2, 'the same patient twice on the report (two contracts): both fit, so the preview asks which');
+    ok(A.taskId(tasks[0]) === A.taskId(Object.assign({}, tasks[0])) && new Set(tasks.map(A.taskId)).size === tasks.length, 'each task has an id of its own, the same every time');
+    const cr = A.blankItem(g0.a); A.edgeTasksApply(cr, g0.tasks, { today: '2026-12-10' }, Date.UTC(2026, 11, 10, 15));
+    ok(A.auditOf(cr, '2026-12-01').reviewed === false, 'an imported task isn’t work done: it doesn’t count as reviewing a credit in the December audit');
+  }
+
   section('Focus: what to do first');
   {
     const T = '2026-10-06', asOfF = '2026-10-05', at = (iso, h) => { const [y, m, d] = iso.split('-').map(Number); return new Date(y, m - 1, d, h || 10).getTime(); };

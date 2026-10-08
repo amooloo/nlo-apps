@@ -586,10 +586,61 @@ async function readInsAging(name, bytes) {
   if (!p) throw errCode('not-insaging', 'This isn’t Edge’s Insurance Aging report.');
   return Object.assign(p, { name: name || '', kind: g.kind || 'text' });
 }
-/* a file dropped on Reports: OrthoBanc's failed-payment report, Edge's Insurance Aging, or Edge's A/R report */
+/* =====================================================================
+   Edge's task list, "Upcoming and Overdue Tasks" (8 Oct 2026) — how the
+   FC kept her A/R work: grouped by operator (a line with the name), then
+   one row per task: Task (a title with the patient's name in it), Due
+   Date, Category, Creator, Description (a running log). Read here; the
+   tasks are matched to accounts in ar.js (taskMatch).
+   ===================================================================== */
+const TASK_HEAD = [['title', /^(task|tasks|tasktitle|subject)$/], ['due', /^(duedate|due|date)$/], ['cat', /^(category|type)$/], ['creator', /^(creator|createdby|author)$/], ['desc', /^(description|notes|note|details)$/], ['op', /^(operator|assignedto|assignee|staff)$/]];
+function taskHead(v) { const n = String(v == null ? '' : v).toLowerCase().replace(/[^a-z]/g, ''); const h = TASK_HEAD.find(([, re]) => re.test(n)); return h ? h[0] : ''; }
+/* the task list, or null when the file is something else: { edgeTasks, asOf, tasks: [{ op, title, due, cat, creator, desc }], check } */
+function edgeTasksFromGrid(g) {
+  for (const sh of (g && g.sheets) || []) {
+    const grid = Array.from(sh || [], r => r || []);
+    const top = grid.slice(0, 10).map(r => rowText(r).join(' ')).join(' ');
+    let hr = -1, cols = null;
+    for (let r = 0; r < Math.min(grid.length, 40) && hr < 0; r++) {
+      const c = {}; (grid[r] || []).forEach((v, i) => { const k = taskHead(v); if (k && c[k] == null) c[k] = i; });
+      if (c.title != null && c.due != null && (c.desc != null || c.creator != null)) { hr = r; cols = c; }
+    }
+    if (hr < 0 || !/task/i.test(top)) continue;
+    let asOf = '';
+    for (let r = 0; r < hr && !asOf; r++) for (const v of grid[r] || []) if (typeof v === 'number' && v > 36526 && v < 73051) { asOf = toISODate(v, g.date1904); break; }
+    if (!asOf) for (let r = 0; r < hr && !asOf; r++) asOf = reportDate(rowText(grid[r]).join(' '));
+    const txt = v => String(v == null ? '' : v).replace(/\r\n?/g, '\n').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+    const tasks = []; let op = '', odd = 0;
+    for (let r = hr + 1; r < grid.length; r++) {
+      const row = grid[r]; const texts = rowText(row); if (!texts.length) continue;
+      const title = txt(row[cols.title]).replace(/\s+/g, ' ');
+      if (/^edge\s+v\d/i.test(texts[0])) continue;
+      const due = cols.due != null && row[cols.due] != null && String(row[cols.due]).trim() !== '' ? toISODate(row[cols.due], g.date1904) : '';
+      const desc = cols.desc != null ? txt(row[cols.desc]) : '', creator = cols.creator != null ? txt(row[cols.creator]).slice(0, 60) : '';
+      // a line with just a name: the operator the tasks below belong to
+      if (title && !due && !desc && !creator && texts.length === 1) { op = title.slice(0, 60); continue; }
+      if (!title) { odd++; continue; }
+      if (cols.op != null && row[cols.op] != null && String(row[cols.op]).trim()) op = txt(row[cols.op]).slice(0, 60);
+      tasks.push({ op, title: title.slice(0, 300), due, cat: cols.cat != null ? txt(row[cols.cat]).slice(0, 60) : '', creator, desc: desc.slice(0, 1800) });
+    }
+    const noDue = tasks.filter(t => !t.due).length, ops = Array.from(new Set(tasks.map(t => t.op).filter(Boolean)));
+    const check = !tasks.length ? { ok: false, why: 'No tasks in this file.' } : noDue || odd ? { ok: false, why: plural(tasks.length, 'task') + ' read' + (noDue ? '; ' + noDue + ' without a due date' : '') + (odd ? '; ' + plural(odd, 'line') + ' without a task' : '') + '.' }
+      : { ok: true, why: plural(tasks.length, 'task') + ' read' + (ops.length ? ' (' + ops.join(', ') + ')' : '') + ', each with its due date.' };
+    return { edgeTasks: true, asOf, tasks, ops, check };
+  }
+  return null;
+}
+async function readEdgeTasks(name, bytes) {
+  const g = await readGridFile(name, bytes), p = edgeTasksFromGrid(g);
+  if (!p) throw errCode('not-tasks', 'This isn’t Edge’s task list (Upcoming and Overdue Tasks).');
+  return Object.assign(p, { name: name || '', kind: g.kind || 'text' });
+}
+/* a file dropped on Reports: OrthoBanc's failed-payment report, Edge's Insurance Aging, Edge's task list, or Edge's A/R report */
 async function readReportFile(name, bytes) {
   const g = await readGridFile(name, bytes), ob = obFromGrid(g);
   if (ob) return Object.assign(ob, { name: name || '', kind: g.kind || 'text' });
   const ia = insAgingFromGrid(g);
-  return ia ? Object.assign(ia, { name: name || '', kind: g.kind || 'text' }) : edgeFromGrid(g, name);
+  if (ia) return Object.assign(ia, { name: name || '', kind: g.kind || 'text' });
+  const et = edgeTasksFromGrid(g);
+  return et ? Object.assign(et, { name: name || '', kind: g.kind || 'text' }) : edgeFromGrid(g, name);
 }

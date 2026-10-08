@@ -7,7 +7,7 @@
    Run: node test/demo_smoke.js  (screenshots go to shots/) */
 const { chromium } = require('playwright');
 const fs = require('fs'), path = require('path');
-const { routes, watch, CHROME, obReportTSV, insAgingTSV } = require('./helpers');
+const { routes, watch, CHROME, obReportTSV, insAgingTSV, edgeTasksTSV } = require('./helpers');
 const URL = 'http://127.0.0.1:' + (process.env.PORT || 8766) + '/nlo-ar.html?demo';
 const SHOTS = path.join(__dirname, '..', 'shots');
 let pass = 0, fail = 0;
@@ -426,6 +426,88 @@ const shot = (p, n, full) => p.screenshot({ path: path.join(SHOTS, n + '.png'), 
   ok(await S_(() => !S.book.carriers.some(c => c.name === 'Old Heron Life') && S.book.carriers.length) === IA.nCar + 1 && await page.evaluate(k => carrierFor(k).name === 'Pelican Coast Dental', IA.diff), 'saved again: the merged carrier stays merged, and the account set back to Edge’s stays Edge’s');
   ok(await S_(() => (S.book.edge && S.book.edge.by) === meSid()), 'who imported it is kept');
   await page.click('[data-act=tab][data-t=all]').catch(() => { });
+
+  // ---- Edge's task list: the FC's Edge tasks, each on its account (a made-up list about the demo's accounts, Jamie's in Edge)
+  const ET = await S_(() => {
+    const t = todayISO(), md = iso => { const [y, m, d] = iso.split('-').map(Number); return m + '/' + d + '/' + y; };
+    const plain = s => String(s || '').replace(/^(mr|mrs|ms|dr)\.?\s+/i, ''), words = a => a.patient.trim().split(/\s+/);
+    const uses = n => S.accts.filter(x => x.patient === n || plain(rpName(x)) === n).length;
+    const fine = a => words(a).length === 2 && words(a).every(w => w.length >= 4) && uses(a.patient) === 1;
+    const free = S.accts.filter(a => !a.ins && a.pd > 0 && !itemFor(a.key) && fine(a));
+    const worked = S.accts.find(a => !a.ins && a.pd > 0 && fine(a) && (it => !!it && it.state === 'open' && !!it.follow && !!it.stage && !!it.assignee)(itemFor(a.key)));
+    const ins = S.accts.find(a => a.ins && a.pd > 0 && !itemFor(a.key) && fine(a));
+    // a parent with two or more children on the report, and no account of their own
+    const byRp = new Map(); S.accts.filter(a => !a.ins && a.pd > 0).forEach(a => { const r = plain(rpName(a)); if (!byRp.has(r)) byRp.set(r, []); byRp.get(r).push(a); });
+    const sib = Array.from(byRp.entries()).find(([r, l]) => l.length >= 2 && r.split(' ').length === 2 && !S.accts.some(x => x.patient === r));
+    const [A1, B1, D1] = free, typo = w => w.slice(0, 2) + (w[2] === 'x' ? 'z' : 'x') + w.slice(3), later = addDays(t, 20);
+    const tasks = [
+      { title: 'LETTERS - ' + A1.patient + ' LETTER RETURNED', due: '9/3/2026', desc: 'Reminder texted to the parent.\nSecond reminder texted; parent asked for a call on Friday.\n\n9/20/2026 letter mailed and emailed.' },
+      { title: 'AA MADE - ' + B1.patient, due: '9/14/2026', desc: 'AA MADE: $40.00 every other Friday' },
+      { title: 'PT - ' + worked.patient, due: '9/21/2026', desc: 'Call about the balance.' },
+      { title: 'PT - ' + typo(words(D1)[0]) + ' ' + words(D1)[1], due: '9/22/2026', desc: 'First name a letter off.' },
+      { title: 'INS MetLife Questionnaire ' + ins.patient, due: '9/25/2026', desc: 'Questionnaire sent.' },
+      { title: 'LETTERS - ' + sib[0], due: '9/28/2026', desc: 'Named after the parent.' },
+      { title: 'PT - Imaginary Nobodyton', due: '9/30/2026', desc: 'Not on the A/R report.' },
+      { title: 'LETTERS - ' + A1.patient, due: md(later), desc: 'A second task for the same account.' }];
+    return { tasks, K: { A: A1.key, B: B1.key, C: worked.key, D: D1.key, E: ins.key, sib: sib[1].map(a => a.key) }, C0: JSON.parse(JSON.stringify(itemFor(worked.key))), P0f: (it => (it && it.state === 'open' && it.follow) || '')(itemFor(sib[1][0].key)),
+      done0: focusDoneToday().size, week0: JSON.stringify(weekActivity()), later, run: md(t) + ' 6:45 AM', me: meSid() };
+  });
+  const etFile = { name: 'Jamies_task.xls', mimeType: 'application/vnd.ms-excel', buffer: Buffer.from(edgeTasksTSV(ET.run, [{ op: 'Jamie', tasks: ET.tasks }])) };
+  await page.click('#nav-reports'); await page.waitForSelector('#dropZone');
+  ok(/Upcoming and Overdue Tasks/.test(await page.textContent('#view')), 'Reports says Edge’s task list can be dropped there too');
+  await page.setInputFiles('#arFile', etFile); await page.waitForSelector('#etSave');
+  const etPv = (await page.innerText('#modalWrap')).replace(/\s+/g, ' ');
+  ok(/Jamie’s Edge tasks · 8 tasks/i.test(etPv) && /8 tasks read \(Jamie\)/.test(etPv) && /5 ready, on 4 accounts/.test(etPv) && /2 to check/.test(etPv) && /1 not on the .*A\/R report/.test(etPv),
+    'dropped on Reports: its own preview — 8 tasks read (Jamie’s), 5 ready on 4 accounts (two on one), 2 to check, 1 not on the A/R report');
+  ok(!(await S_(() => !!(S.imp && S.imp.files && S.imp.files.length))), 'it isn’t taken for an A/R report');
+  ok(/7 tasks are overdue in Edge/.test(etPv) && /“AA MADE” \(1\)/.test(etPv) && /Assign the accounts to Jamie/.test(etPv) && await page.$eval('#etAssign', e => e.checked) && await page.$eval('#etAA', e => e.checked),
+    'the options: overdue ones followed up ' + (await page.$eval('#etOverdue', e => e.selectedOptions[0].textContent)) + ', “AA MADE” → payment plan, assigned to Jamie (the operator in Edge)');
+  ok(/Add 5 tasks to 4 accounts/.test(await page.textContent('#etSave')), 'the button: Add 5 tasks to 4 accounts');
+  ok(await page.$eval('#etOverdue option[value=spread]', o => /^Spread over the next 2 weeks, oldest first \(about 1 account a day\)$/.test(o.textContent)) && await page.$eval('#etOverdue', e => e.value) === 'today', 'a short list: overdue ones all followed up today; or spread over the next 2 weeks');
+  await page.selectOption('#etOverdue', 'spread'); await page.waitForTimeout(100);
+  ok(await S_(() => S.etImp.o.overdue) === 'spread' && await page.$eval('#etOverdue', e => e.value) === 'spread', 'spreading them can be chosen');
+  await page.selectOption('#etOverdue', 'today'); await page.waitForTimeout(100);
+  const longDefault = await S_(() => { const keep = S.etImp, t = addDays(todayISO(), -30), p = { tasks: Array.from({ length: 11 }, (_, i) => ({ op: 'Jamie', title: 'PT - Imaginary Person' + 'abcdefghijk'[i], due: t, cat: '', creator: 'Jamie', desc: '' })), ops: ['Jamie'], check: { ok: true, why: '' } };
+    S.etImp = null; edgeTasksPreview(p); const v = S.etImp.o.overdue; S.etImp = keep; document.querySelector('#etBox').innerHTML = etBoxHTML(); return v; });
+  ok(longDefault === 'spread', 'a long list (more than 10 overdue): spread by default');
+  const etChk = await page.$$eval('#etBox details[open] .etRow', r => r.map(x => x.textContent.replace(/\s+/g, ' ')));
+  ok(etChk.length === 2 && etChk.some(x => /First name a letter off|the name is spelled differently/.test(x)) && etChk.some(x => /more than one account fits/.test(x) && /Skip it/.test(x)), 'to check: a first name a letter off (a tick), a parent with two children on the report (which one?)');
+  await page.check('#etBox input[type=checkbox][data-chg=etPick]'); await page.waitForTimeout(100);
+  await page.selectOption('#etBox select[data-chg=etPick]', ET.K.sib[0]); await page.waitForTimeout(100);
+  ok(/Add 7 tasks to 6 accounts/.test(await page.textContent('#etSave')), 'ticked and picked: Add 7 tasks to 6 accounts');
+  await page.click('#etBox details:not([open]) summary >> nth=0').catch(() => { });
+  await page.evaluate(() => document.querySelectorAll('.toast').forEach(t => t.remove())); await collect(); await shot(page, 'et-preview');
+  await page.click('#etSave'); await page.waitForFunction(() => !S.etImp, null, { timeout: 10000 }); await page.waitForTimeout(300);
+  ok(await toastHas(/Added 7 tasks to 6 accounts/) && await S_(() => S.view) === 'today', 'saved (sealed): “Added 7 tasks to 6 accounts”, on to Today');
+  const ER = await page.evaluate(K => {
+    const g = k => JSON.parse(JSON.stringify(itemFor(k) || null)), et = it => (it ? it.log.filter(e => e.k === 'edgetask') : []);
+    const A = g(K.A), B = g(K.B), C = g(K.C), D = g(K.D), E = g(K.E), P = g(K.sib[0]), lb = ladFor(S.byKey.get(K.B));
+    return { A, B, C, aEt: et(A), n: { B: et(B).length, C: et(C).length, D: et(D).length, E: et(E).length, P: et(P).length, sib2: et(g(K.sib[1])).length },
+      follow: { D: D.follow, E: E.follow, P: P.follow }, next: nextOfficeDay(todayISO()), bLad: lb ? lb.paused : '?', done: focusDoneToday().size, week: JSON.stringify(weekActivity()) };
+  }, ET.K);
+  ok(ER.aEt.length === 2 && JSON.stringify(ER.aEt.map(e => e.date)) === JSON.stringify(['2026-09-03', ET.later]) && ER.aEt.every(e => e.op === 'Jamie' && e.by === ET.me && /^t[0-9a-z]+$/.test(e.et)) && ER.A.follow === ER.next && ER.A.assignee === 'jamie' && ER.A.stage === '',
+    'two tasks on one account: an “Edge task” entry each (Jamie’s, with Edge’s due date); the overdue one makes the follow-up ' + ER.A.follow + '; assigned to Jamie');
+  ok(/^LETTERS - .* LETTER RETURNED\nReminder texted to the parent\.\nSecond reminder texted; parent asked for a call on Friday\.\n\n9\/20\/2026 letter mailed and emailed\./.test(ER.aEt[0].note), 'the entry keeps the title and Edge’s running description, line breaks and all');
+  ok(ER.B.stage === 'plan' && ER.bLad === 'plan' && ER.B.follow === ER.next, '“AA MADE”: the account is on a payment plan — its collections ladder pauses');
+  ok(ER.C.follow === ET.C0.follow && ER.C.stage === ET.C0.stage && ER.C.assignee === ET.C0.assignee && ER.n.C === 1 && ER.C.log.length === ET.C0.log.length + 1, 'an account already being worked: the task is added, its follow-up (' + ER.C.follow + '), stage and who has it stay');
+  ok(ER.n.D === 1 && ER.n.E === 1 && ER.n.P === 1 && ER.n.sib2 === 0 && ER.follow.D === ER.next && ER.follow.E === ER.next && ER.follow.P === (ET.P0f || ER.next),
+    'the ticked one, the insurance task (on the insurance account) and the picked child: one entry each, followed up ' + ER.next + (ET.P0f ? ' (the child’s own follow-up, ' + ET.P0f + ', kept)' : '') + '; the other child untouched');
+  ok(ER.done === ET.done0 && ER.week === ET.week0, 'imported tasks aren’t work done: Focus’s “done today” and the week’s who-did-what don’t change');
+  await page.evaluate(k => openDrawer(k), ET.K.A); await page.waitForSelector('#drawer .logRow');
+  const etLog = await page.$$eval('#drawer .logRow', r => r.map(x => x.innerText));
+  ok(etLog.some(x => /Edge task \(Jamie\) · due Sep 3(, 2026)? in Edge/.test(x) && /Reminder texted to the parent\.\nSecond reminder texted/.test(x)), 'its panel: “Edge task (Jamie) · due Sep 3 in Edge”, the description on its own lines');
+  await page.waitForFunction(() => S.history != null, null, { timeout: 5000 }).catch(() => { });
+  ok(await page.$eval('#drawer', e => /added 2 tasks from Edge/.test(e.textContent)), 'and its history: “added 2 tasks from Edge”');
+  await page.evaluate(() => { document.querySelectorAll('.toast').forEach(t => t.remove()); const b = document.querySelector('#logBox'); if (b) b.closest('.sec').scrollIntoView({ block: 'start' }); }); await page.waitForTimeout(100);
+  await shot(page, 'et-panel');
+  await page.click('#drawer [data-act=closeDrawer]');
+  // the same list again: everything is “added before”, nothing to check, nothing to add
+  await page.click('#nav-reports'); await page.waitForSelector('#dropZone');
+  await page.setInputFiles('#arFile', etFile); await page.waitForSelector('#etSave');
+  const etPv2 = (await page.innerText('#modalWrap')).replace(/\s+/g, ' ');
+  ok(/7 added before/.test(etPv2) && /0 ready/.test(etPv2) && /0 to check/.test(etPv2) && await page.$eval('#etSave', b => b.disabled), 'the same list again: 7 added before (the ticked and the picked ones too), nothing to check, nothing to add');
+  await page.click('#modalWrap [data-act=closeModal]');
+
   // ---- the December credit audit
   await page.click('#nav-cr'); await page.click('[data-act=tab][data-t=audit]'); await page.waitForTimeout(150);
   ok(await page.$eval('#view', e => /The next audit starts/.test(e.textContent) && e.querySelectorAll('.aChk').length > 5), 'Credits → December audit (outside December): when it starts, and every credit listed');
@@ -550,6 +632,10 @@ const shot = (p, n, full) => p.screenshot({ path: path.join(SHOTS, n + '.png'), 
   await p2.evaluate(() => ACT.obList({ dataset: { day: Array.from(S.obReps.values())[0].day } })); await p2.waitForSelector('#obListBox .obRow');
   await p2.screenshot({ path: path.join(SHOTS, 'phone-ob-list.png'), fullPage: false });
   ok(await p2.$eval('#modalWrap .modal', m => m.getBoundingClientRect().right <= window.innerWidth + 1) && await p2.$$eval('#obListBox .obRow', r => r.every(x => x.scrollWidth <= x.clientWidth + 1)), 'phone: the OrthoBanc list fits');
+  await p2.click('#modalWrap [data-act=closeModal]');
+  await p2.evaluate(async s => edgeTasksPreview(await readReportFile('t.xls', new TextEncoder().encode(s).buffer)), edgeTasksTSV(ET.run, [{ op: 'Jamie', tasks: ET.tasks }])); await p2.waitForSelector('#etSave');
+  await p2.screenshot({ path: path.join(SHOTS, 'phone-et.png'), fullPage: false });
+  ok(await p2.$eval('#modalWrap .modal', m => m.getBoundingClientRect().right <= window.innerWidth + 1) && await p2.$$eval('#etBox .etRow, #etBox select', r => r.every(x => x.getBoundingClientRect().right <= window.innerWidth + 1)), 'phone: the task list’s preview fits');
   await p2.click('#modalWrap [data-act=closeModal]');
   await p2.click('#mnav-pd'); await p2.click('#view tbody tr >> nth=0'); await p2.waitForSelector('#drawer .ladNow');
   await p2.screenshot({ path: path.join(SHOTS, 'phone-drawer.png'), fullPage: false });

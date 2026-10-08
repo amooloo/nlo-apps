@@ -239,6 +239,7 @@ function histText(x) {
     case 'obtick': return (x.on === false ? 'unticked ' : 'ticked ') + plural(x.n || 1, 'family', 'families') + (x.on === false ? '' : ' as texted') + ' (OrthoBanc, ' + fmtDate(x.day) + ')';
     case 'carrier': return x.op === 'add' ? 'added the carrier ' + (x.name || '') : x.op === 'edit' ? 'updated the carrier ' + (x.name || '') : x.op === 'remove' ? 'removed the carrier ' + (x.name || '') : x.op === 'tag' ? 'set the carrier on ' + plural(x.n || 1, 'insurance account') :
       x.op === 'edge' ? 'filled in the carriers from Edge’s Insurance Aging' + (x.asOf ? ' of ' + fmtDate(x.asOf) : '') + (x.n ? ' (' + plural(x.n, 'account') + ')' : '') : x.op === 'merge' ? 'merged the carrier ' + (x.name || '') + ' into ' + (x.into || '') : 'changed the insurance carriers';
+    case 'edgetask': return 'added ' + plural(x.n || 1, 'task') + ' from Edge';
     default: return x.a || '';
   }
 }

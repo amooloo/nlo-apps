@@ -346,6 +346,7 @@ function logLabel(e) {
   if (e.k === 'drA_ok') return st ? 'Dr. A signed ' + st.s : 'Dr. A OK’d it';
   if (e.k === 'drA_no') return st ? 'Dr. A: not yet (' + st.s + ')' : 'Dr. A said not yet';
   if (e.k === 'ladder') return st ? st.did : 'Collections step';
+  if (e.k === 'edgetask') return 'Edge task' + (e.op ? ' (' + e.op + ')' : '') + (e.date ? ' · due ' + fmtDate(e.date) + ' in Edge' : '');
   if (e.k === 'aa_broken') return 'Arrangement broken';
   if (e.k === 'mhold_on') return 'Put on Maintenance Hold';
   if (e.k === 'mhold_off') return 'Maintenance Hold lifted';
@@ -523,7 +524,7 @@ function normSum(s) {
   const kp = s.kp && typeof s.kp === 'object' ? { ptOf: i(s.kp.ptOf), ptPd: i(s.kp.ptPd), ptPd30: i(s.kp.ptPd30), insOf: numOrNull(s.kp.insOf) == null ? null : i(s.kp.insOf), insLate: numOrNull(s.kp.insLate) == null ? null : i(s.kp.insLate), win: i(s.kp.win) } : null;
   return { asOf: isoOrBlank(s.asOf), cover: normCover(s.cover), pd: numOr0(s.pd), b90: numOr0(s.b90), b31: numOr0(s.b31), n91: i(s.n91), never: i(s.never), neverPd: numOr0(s.neverPd), cr: numOr0(s.cr), crWork: numOr0(s.crWork), crN: i(s.crN), bal: numOrNull(s.bal), kp, fl: normFlow(s.fl) };
 }
-const LOG_KINDS = new Set(Object.keys(LOGS).concat(['done', 'reopen', 'drA_ask', 'drA_ok', 'drA_no', 'ladder', 'aa_broken', 'mhold_on', 'mhold_off']));
+const LOG_KINDS = new Set(Object.keys(LOGS).concat(['done', 'reopen', 'drA_ask', 'drA_ok', 'drA_no', 'ladder', 'aa_broken', 'mhold_on', 'mhold_off', 'edgetask']));
 function normLog(e) {
   e = e && typeof e === 'object' ? e : {};
   const o = { id: strOf(e.id, 40), at: numOr0(e.at), by: strOf(e.by, 60), k: LOG_KINDS.has(e.k) ? e.k : 'note', note: strOf(e.note, 2000) };
@@ -532,6 +533,7 @@ function normLog(e) {
   if (o.k === 'reopen' && e.fresh === true) o.fresh = true;
   if (isoOrBlank(e.date)) o.date = e.date;
   if (numOrNull(e.amt) != null) o.amt = e.amt;
+  if (o.k === 'edgetask') { if (/^t[0-9a-z]{4,14}$/.test(String(e.et || ''))) o.et = e.et; o.op = strOf(e.op, 60); }
   if (e.prev && typeof e.prev === 'object') o.prev = { stage: own(STAGES, e.prev.stage) ? e.prev.stage : '', follow: isoOrBlank(e.prev.follow), drA: e.prev.drA === true };
   return o;
 }
@@ -712,6 +714,156 @@ function edgeCarriersPlan(bookRaw, p, accts, o, now) {
 }
 
 /* =====================================================================
+   Edge tasks, imported (8 Oct 2026). Before A/R the FC kept her work as
+   Edge tasks: a title with the patient's name in it ("LETTERS - Jane
+   Doe", "AA MADE - …", "INS MetLife Questionnaire Jane Doe", "PT - …"),
+   a due date and a running description. Each task is matched to its
+   account on the A/R report and added to it as an "Edge task" entry.
+   It only fills what's empty: the follow-up (the task's due date — an
+   overdue one, the next office day unless asked otherwise), the stage
+   (an "AA MADE" task: payment plan, which pauses the ladder) and who
+   it's assigned to. Nothing already set in A/R changes, and a task
+   already added isn't added again.
+   ===================================================================== */
+const NAME_SFX = new Set(['jr', 'sr', 'ii', 'iii', 'iv']);
+/* a name's words: lower case, accents, apostrophes, titles and Jr./III left out ("D'Testa" → "dtesta", "Testa-Fakewood" → "testa fakewood");
+   camel: words run together split where a capital follows a small letter ("FakewellWaiting" → "fakewell waiting", "McKay" → "mc kay") */
+function nameWords(s, camel) {
+  let t = String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/['’`]/g, '');
+  if (camel) t = t.replace(/([a-z])([A-Z])/g, '$1 $2');
+  return t.toLowerCase().replace(/^\s*ins\s*:\s*/, '').replace(/\b(mr|mrs|ms|miss|dr)\.?\s+/g, '').split(/[^a-z]+/).filter(w => w && !NAME_SFX.has(w));
+}
+/* letters apart, a swapped pair counting once ("Robni" / "Robin" = 1) */
+function nameDist(a, b) {
+  const m = a.length, n = b.length; if (Math.abs(m - n) > 2) return 3;
+  const d = Array.from({ length: m + 1 }, (_, i) => [i].concat(new Array(n).fill(0)));
+  for (let j = 1; j <= n; j++) d[0][j] = j;
+  for (let i = 1; i <= m; i++) for (let j = 1; j <= n; j++) {
+    d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+  }
+  return d[m][n];
+}
+function taskIsIns(title) { return /^\s*(ins\b|terminated\s+ins\b)/i.test(title || ''); }
+function taskIsAA(title) { return /^\s*aa\s+made\b/i.test(title || ''); }
+/* the same task (title, due date, text) always gets the same id, so importing again adds nothing new */
+function taskId(t) {
+  const s = nameWords(t.title).join(' ') + '|' + (t.due || '') + '|' + String(t.desc || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  let h1 = 0x811c9dc5, h2 = 0x9747b28c;
+  for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); h1 = Math.imul(h1 ^ c, 0x01000193) >>> 0; h2 = Math.imul(h2 ^ c, 0x5bd1e995) >>> 0; }
+  return 't' + h1.toString(36) + h2.toString(36).slice(0, 4);
+}
+/* how a name's words w sit in a title's words tw: 3 = as written (a middle name or two between, or first and last run together),
+   2 = the first or last name a letter or two off ("Robni Testfield"), 0 = not there */
+function wordsFit(tw, w) {
+  if (w.length < 2) return 0;
+  const f = w[0], l = w[w.length - 1], tol = s => (s.length >= 6 ? 2 : 1);
+  let best = 0;
+  for (let i = 0; i < tw.length; i++) {
+    const x = tw[i];
+    if (x === f + l) return 3;
+    if (x === f) for (let j = i + 1; j <= i + 3 && j < tw.length; j++) if (tw[j] === l) return 3;
+    const y = tw[i + 1]; if (!y) continue;
+    if (y === l && f.length >= 3 && x.length >= 3 && nameDist(x, f) <= tol(f)) best = 2;
+    if (x === f && l.length >= 4 && nameDist(y, l) <= tol(l)) best = 2;
+  }
+  return best;
+}
+/* a name or title read both ways — as written, and with words run together split apart ("RobinTestfield", "FakewellWaiting"
+   in a title; "McKay" in a title or a name) — each as its words and the set of them */
+function nameForms(s) {
+  const a = nameWords(s, false), b = nameWords(s, true), f = w => ({ w, set: new Set(w) });
+  return a.join(' ') === b.join(' ') ? [f(a)] : [f(a), f(b)];
+}
+/* the best fit over both readings of each; a title without the first name, the last name or the two run together can't fit
+   (wordsFit needs one of them as written), so it's passed over at once */
+function formsFit(tf, nf) {
+  let best = 0;
+  for (const t of tf) for (const n of nf) {
+    const w = n.w; if (w.length < 2) continue;
+    const f = w[0], l = w[w.length - 1]; if (!t.set.has(f) && !t.set.has(l) && !t.set.has(f + l)) continue;
+    best = Math.max(best, wordsFit(t.w, w)); if (best === 3) return 3;
+  }
+  return best;
+}
+/* how a name sits in a task title, so "Arden Demo" never fits "Arden Demoray" */
+function nameFit(title, name) { return formsFit(nameForms(title), nameForms(name)); }
+/* each account's names read once, for matching many tasks */
+function nameIndex(accts) { return (accts || []).map(a => ({ a, pf: nameForms(a.patient), rf: nameForms(rpName(a)) })); }
+/* the account a task belongs to: { how: 'exact' | 'close' | 'two' | 'none', a, why, cands }. An "INS …" task goes with the
+   insurance account, the rest with the patient's own; only a name as written on the right kind of account is 'exact' —
+   a name a letter off, the other kind of account or the responsible party's name is 'close' (to be ticked in the preview).
+   ix: nameIndex(accts), when there are many tasks */
+function taskMatch(accts, t, ix) {
+  const wantIns = taskIsIns(t.title), tf = nameForms(t.title), hits = [];
+  for (const x of ix || nameIndex(accts)) {
+    const a = x.a, fit = formsFit(tf, x.pf), rp = fit ? 0 : formsFit(tf, x.rf);
+    if (!fit && rp < 3) continue;
+    const same = !!a.ins === wantIns;
+    hits.push({ a, score: fit ? (fit === 3 ? 6 : 4) - (same ? 0 : 1) : 2,
+      why: !fit ? 'by the responsible party’s name' : fit === 2 ? 'the name is spelled differently' : !same ? (a.ins ? 'the insurance account' : 'the patient’s own account') : '' });
+  }
+  if (!hits.length) return { how: 'none', a: null, why: '', cands: [] };
+  const top = Math.max(...hits.map(h => h.score)), best = hits.filter(h => h.score === top);
+  if (best.length > 1) return { how: 'two', a: null, why: 'more than one account fits', cands: best.map(h => h.a) };
+  return { how: top === 6 ? 'exact' : 'close', a: best[0].a, why: best[0].why, cands: [best[0].a] };
+}
+/* the follow-up a task gives: its due date (on an office day); an overdue one the next office day, its own date (overdue 'edge'),
+   or the account's day in the spread (overdue 'spread', spreadOn) */
+function taskFollow(due, today, overdue, spreadOn) {
+  if (!isoOrBlank(due)) return '';
+  if (due >= today) return nextOfficeDay(due);
+  return overdue === 'edge' ? due : overdue === 'spread' && isoOrBlank(spreadOn) ? spreadOn : nextOfficeDay(today);
+}
+/* a long list of overdue tasks spread over the next `days` office days instead of all on one day: the accounts whose earliest
+   task is overdue, oldest first, about the same number each day → { key: date }. groups: [{ a, tasks }] (edgeTasksPlan's by) */
+function spreadFollow(groups, today, days) {
+  const late = (groups || []).map(g => ({ key: g.a.key, due: (g.tasks || []).map(t => isoOrBlank(t.due)).filter(Boolean).sort()[0] || '' }))
+    .filter(x => x.due && x.due < today).sort((x, y) => (x.due < y.due ? -1 : x.due > y.due ? 1 : 0));
+  const per = Math.max(1, Math.ceil(late.length / Math.max(1, days || 10))), out = {};
+  let d = nextOfficeDay(today);
+  late.forEach((x, i) => { if (i && i % per === 0) d = nextOfficeDay(addDays(d, 1)); out[x.key] = d; });
+  return out;
+}
+/* the import: each task's account (the match, or the pick made in the preview: picks[i] = an account key or ''), whether it's
+   already on that account, and per account the tasks to add. A task already on one of the accounts that fit (ticked in an
+   import before) counts as added before, so it isn't asked about again. itemOf(key) → the account's record or null;
+   matches: each task's taskMatch, if worked out already (the preview keeps them while it's open) */
+function edgeTasksPlan(accts, itemOf, tasks, picks, matches) {
+  const ix = matches ? null : nameIndex(accts), byKey = new Map((accts || []).map(a => [a.key, a]));
+  const rows = (tasks || []).map((t, i) => {
+    const id = taskId(t), m = matches ? matches[i] : taskMatch(accts, t, ix), has = a => { const it = a ? itemOf(a.key) : null; return !!(it && (it.log || []).some(e => e && e.et === id)); };
+    const picked = !!picks && Object.prototype.hasOwnProperty.call(picks, i), before = picked ? null : (m.cands || []).find(has) || null;
+    const p = picked ? picks[i] : before ? before.key : m.how === 'exact' ? m.a.key : '';
+    const a = p ? byKey.get(p) || null : null;
+    return { i, t, id, m, a, dupe: has(a) };
+  });
+  const by = new Map();
+  rows.forEach(r => { if (!r.a || r.dupe) return; if (!by.has(r.a.key)) by.set(r.a.key, { a: r.a, tasks: [] }); by.get(r.a.key).tasks.push(Object.assign({ id: r.id }, r.t)); });
+  return { rows, by };
+}
+/* add an account's tasks to its record (mutates it): one "Edge task" entry each; an empty follow-up gets the earliest one they
+   give, an empty stage "payment plan" for an AA MADE task (o.aa), an empty assignee o.assign — never on a resolved account.
+   o: { by, today, overdue: 'today' | 'edge' | 'spread', spreadOn: the account's day in the spread, aa, assign } → how many were added */
+function edgeTasksApply(item, list, o, now) {
+  o = o || {};
+  const today = o.today || isoOf(new Date(now)), have = new Set((item.log || []).map(e => e && e.et).filter(Boolean)), add = (list || []).filter(t => t && t.id && !have.has(t.id));
+  if (!add.length) return 0;
+  const prev = { stage: item.stage || '', follow: item.follow || '', drA: !!item.drA };
+  item.log = (item.log || []).concat(add.map(t => {
+    const e = { id: uid8(), at: now, by: o.by || '', k: 'edgetask', note: (String(t.title || '') + (t.desc ? '\n' + t.desc : '')).slice(0, 2000), et: t.id, op: String(t.op || '').slice(0, 60), prev };
+    if (isoOrBlank(t.due)) e.date = t.due;
+    return e;
+  }));
+  if (item.state !== 'done') {
+    if (!item.follow) { const f = add.map(t => taskFollow(t.due, today, o.overdue, o.spreadOn)).filter(Boolean).sort()[0]; if (f) item.follow = f; }
+    if (!item.stage && o.aa && add.some(t => taskIsAA(t.title))) item.stage = 'plan';
+    if (!item.assignee && o.assign) item.assignee = o.assign;
+  }
+  return add.length;
+}
+
+/* =====================================================================
    Focus (6 Oct 2026): what to do first today, as one list across the
    collections ladder, follow-ups, insurance, credits and Dr. A's OKs.
    Urgent: a promise to pay whose day passed; a letter waiting a week or
@@ -733,7 +885,7 @@ function focusEntries(ctx) {
   const t = ctx.today, best = new Map();
   const put = e => { const cur = best.get(e.key); if (!cur) best.set(e.key, e); else if (e.sev < cur.sev) { e.also = [cur.why].concat(cur.also); best.set(e.key, e); } else cur.also.push(e.why); };
   const mk = (a, it, kind, why, act, min, amt) => { const sev = FOCUS_SEV[kind]; return { key: a ? a.key : it.key, a: a || null, it: it || null, kind, sev, cls: sev < 10 ? 'urgent' : sev < 20 ? 'today' : 'later', why, act, min, amt: amt != null ? amt : a ? (a.pd > 0 ? a.pd : a.credit) : 0, also: [] }; };
-  const recent = (it, days) => !!it && (it.log || []).some(e => e.at && daysBetween(isoOf(new Date(e.at)), t) <= days);
+  const recent = (it, days) => !!it && (it.log || []).some(e => e.at && e.k !== 'edgetask' && daysBetween(isoOf(new Date(e.at)), t) <= days);
   const filed = it => !!it && ladEntries(it).some(e => e.k === 'ins_filed' || e.k === 'ins_resub' || e.k === 'ins_appeal');
   (ctx.accts || []).forEach(a => {
     const it = ctx.item(a.key);
@@ -846,7 +998,7 @@ function auditOf(it, start) {
   const [y, m, d] = start.split('-').map(Number), t0 = new Date(y, m - 1, d).getTime();
   if (!it) return { reviewed: false, done: false, refund: false, st: '' };
   if (it.state === 'done') return (it.resolvedAt || 0) >= t0 ? { reviewed: true, done: true, refund: it.outcome === 'refund', st: OUTCOMES[it.outcome] || 'Resolved' } : { reviewed: false, done: false, refund: false, st: '' };
-  const E = (it.log || []).filter(e => (e.at || 0) >= t0 && e.k !== 'reopen');
+  const E = (it.log || []).filter(e => (e.at || 0) >= t0 && e.k !== 'reopen' && e.k !== 'edgetask');
   if (!E.length) return { reviewed: false, done: false, refund: false, st: '' };
   const has = k => E.some(e => e.k === k), refund = has('cr_refreq');
   const st = refund ? (E.some(e => e.k === 'drA_ok') ? 'Refund OK’d — cut the check' : E.some(e => e.k === 'drA_no') ? 'Refund: Dr. A said not yet' : 'Refund requested — with Dr. A') :
