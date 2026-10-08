@@ -416,7 +416,7 @@ label.lbl{display:block;font-size:12px;font-weight:800;letter-spacing:.04em;text
    Cadence shows each person's action items and has a "raise for the
    staff meeting" button (see the add-on block at the end of cadence.html).
    ===================================================================== */
-const APP_VERSION = '2.0.1';
+const APP_VERSION = '2.1.0';
 const FB_CONFIG = {
   apiKey: "AIzaSyBFCmDgAKkdfZ4Cb81nK0KCKXtONiwMJy4",
   authDomain: "nlo-inventory.firebaseapp.com",
@@ -817,6 +817,8 @@ function boot() {
   db.ref(P('config')).on('value', s => { S.config = s.val() || {}; S.loaded.config = true; render('inbox', 'follow'); maybeMigrate(); });
   db.ref(P('monthEnd', 'months')).on('value', s => { S.me.months = s.val() || {}; render('inbox', 'run'); }, () => {});
   db.ref(P('currentMeetingId')).on('value', s => { const id = s.val(); if (!id) { createFirstMeeting(); return; } if (id !== S.meetingId) watchMeeting(id); });
+  db.ref('nlo/calendar/events').on('value', s => { S.cal.events = s.val() || {}; S.cal.evDone = true; calUpdated(); }, () => { S.cal.events = null; S.cal.evDone = true; calUpdated(); });
+  db.ref('nlo/calendar/adminDays').on('value', s => { S.cal.admin = s.val() || {}; S.cal.adDone = true; calUpdated(); }, () => { S.cal.admin = null; S.cal.adDone = true; calUpdated(); });
   setTimeout(loadHistory, 1200);
   loadSharedAisa();
   setInterval(tick, 1000);
@@ -825,7 +827,7 @@ function watchMeeting(id) {
   if (meetingRef) meetingRef.off();
   S.meetingId = id; S.meeting = {}; S.loaded.meeting = false; S.attDraft = null;
   meetingRef = db.ref(P('meetings', id));
-  meetingRef.on('value', s => { S.meeting = s.val() || {}; S.loaded.meeting = true; render('top', 'tabs', 'inbox', 'run'); maybeMigrate(); });
+  meetingRef.on('value', s => { S.meeting = s.val() || {}; S.loaded.meeting = true; syncMeetingDateFromCalendar(); render('top', 'tabs', 'inbox', 'run'); maybeMigrate(); });
 }
 function createFirstMeeting() {
   if (S.creating) return; S.creating = true;
@@ -836,6 +838,48 @@ function createFirstMeeting() {
 }
 const meetingDate = () => (S.meeting && S.meeting.meta && S.meeting.meta.date) || S.meetingId || todayYmd();
 const meetingDone = () => !!(S.meeting && S.meeting.meta && S.meeting.meta.status === 'done');
+
+/* ---- Office calendar -> next meeting date. Read-only: nlo/calendar is written by nlo-calendar.html.
+   A staff meeting = a calendar entry that isn't PTO or a task, titled like "Staff meeting", "Staff-mtg", "Team meeting", "Monthly meeting" or "Admin + mtg",
+   or a day marked "Admin + mtg" (adminDays/<date> = 'meeting'). ---- */
+S.cal = { events: null, admin: null, evDone: false, adDone: false, ok: false };
+const CAL_MEETING_RE = /\b(?:staff|team)[\s-]*(?:meeting|mtg)|\bmonthly[\s-]+(?:meeting|mtg)|\badmin(?:\s*day)?\s*(?:\+|&|and)\s*(?:staff\s*)?(?:meeting|mtg)/i;
+function calOccursOn(e, ds) {
+  if (e.recurrence) {
+    if (ds < e.startDate) return false;
+    if (e.until && ds > e.until) return false;
+    const d = parseYmd(ds), b = parseYmd(e.startDate); if (!d || !b) return false;
+    if (e.recurrence === 'weekly') return d.getDay() === b.getDay();
+    if (e.recurrence === 'biweekly') { const n = Math.round((d - b) / 86400000); return d.getDay() === b.getDay() && n % 14 === 0; }
+    const last = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+    if (d.getDate() !== Math.min(b.getDate(), last)) return false;
+    if (e.recurrence === 'monthly') return true;
+    const md = (d.getFullYear() - b.getFullYear()) * 12 + (d.getMonth() - b.getMonth());
+    if (e.recurrence === 'quarterly') return md % 3 === 0;
+    if (e.recurrence === 'yearly') return d.getMonth() === b.getMonth();
+    return false;
+  }
+  return ds >= e.startDate && ds <= (e.endDate || e.startDate);
+}
+function calNextMeeting(fromYmd) {
+  const ev = S.cal.events || {}, ad = S.cal.admin || {};
+  const list = Object.keys(ev).map(k => ev[k]).filter(e => e && e.type !== 'pto' && e.type !== 'task' && e.startDate && CAL_MEETING_RE.test(String(e.title || '')));
+  for (let i = 0; i <= 400; i++) { const ds = addDaysYmd(fromYmd, i); if (ad[ds] === 'meeting' || list.some(e => calOccursOn(e, ds))) return ds; }
+  return '';
+}
+const nextMeetingDefault = () => calNextMeeting(addDaysYmd(meetingDate(), 1)) || suggestNext(meetingDate());
+function syncMeetingDateFromCalendar() {
+  if (!S.cal.ok || !S.loaded.meeting || !S.meetingId) return;
+  const m = S.meeting || {}, meta = m.meta || {};
+  if (meta.status === 'done' || (m.run && m.run.live)) return;
+  if (meta.dateSource === 'manual' && meetingDate() >= todayYmd()) return;
+  const next = calNextMeeting(todayYmd());
+  if (!next || next === meetingDate()) return;
+  const key = S.meetingId + '>' + next; if (S.calLast === key) return; S.calLast = key;
+  const map = {}; map[P('meetings', S.meetingId, 'meta', 'date')] = next; map[P('meetings', S.meetingId, 'meta', 'dateSource')] = 'calendar';
+  up(map).catch(() => { S.calLast = ''; });
+}
+function calUpdated() { S.cal.ok = !!(S.cal.events || S.cal.admin); if (S.cal.evDone && S.cal.adDone) { syncMeetingDateFromCalendar(); render('top', 'inbox', 'run'); } }
 async function loadHistory() {
   if (S.historyLoading) return; S.historyLoading = true;
   try { const s = await db.ref(P('meetings')).once('value'); S.history = s.val() || {}; S.historyErr = ''; }
@@ -1435,7 +1479,7 @@ function decisionSheet(key, preset) {
     card.querySelector('#decText').addEventListener('keydown', e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) save(); });
   });
 }
-function dueChoices() { const t = todayYmd(); return [['Next week', nextOfficeDay(addDaysYmd(t, 7))], ['2 weeks', nextOfficeDay(addDaysYmd(t, 14))], ['Next meeting', suggestNext(meetingDate())], ['No date', '']]; }
+function dueChoices() { const t = todayYmd(); return [['Next week', nextOfficeDay(addDaysYmd(t, 7))], ['2 weeks', nextOfficeDay(addDaysYmd(t, 14))], ['Next meeting', nextMeetingDefault()], ['No date', '']]; }
 function actionSheet(key, opts) {
   opts = opts || {};
   let owner = opts.owner || null, due = opts.due != null ? opts.due : dueChoices()[0][1];
@@ -1585,7 +1629,7 @@ function overviewSheet() {
   }, { wide: true });
 }
 function endSheet() {
-  const t = runTally(), next = suggestNext(meetingDate());
+  const t = runTally(), next = nextMeetingDefault();
   openSheet('<h3 class="sheet-t">End the meeting?</h3><p class="hint">' + plural(t.decisions, 'decision') + ', ' + plural(t.actions, 'new action item') + ', ' + t.parked + ' parked' + (t.notReached ? ', and ' + plural(t.notReached, 'item') + ' not reached — those stay on the list for next time' : '') + '. The minutes are written from what was tapped.</p>' +
     '<label class="lbl">Next meeting</label><input type="date" class="field" id="nextDate" value="' + esc(next) + '" style="max-width:220px">' +
     '<div class="row end" style="margin-top:16px"><button class="btn ghost" data-act="sheet-close">Keep going</button><button class="btn coral" id="endGo">End &amp; save minutes</button></div>', card => {
@@ -1925,16 +1969,18 @@ async function applyAnalysis(id) {
 
 /* ---------------------------------------------------------------- settings + date */
 function dateSheet() {
-  const d = meetingDate();
-  openSheet('<h3 class="sheet-t">Next meeting date</h3><p class="hint">Everything on the list stays put.</p><input type="date" class="field" id="mDate" value="' + esc(d) + '" style="max-width:240px;margin-top:12px" autofocus>' +
+  const d = meetingDate(), calNext = S.cal.ok ? calNextMeeting(todayYmd()) : '';
+  const calLine = !S.cal.ok ? '' : (calNext ? '<p class="hint">Office calendar: <b>' + esc(fmtDate(calNext)) + '</b> <button class="linkbtn" id="mCal">Use it</button></p>' : '<p class="hint">No staff meeting found on the office calendar. Add an event with “Staff meeting” in the title, or mark a day Admin + mtg, and the date fills in by itself.</p>');
+  openSheet('<h3 class="sheet-t">Next meeting date</h3><p class="hint">Everything on the list stays put.</p>' + calLine + '<input type="date" class="field" id="mDate" value="' + esc(d) + '" style="max-width:240px;margin-top:12px" autofocus>' +
     '<label class="lbl">Title</label><input class="field" id="mTitle" value="' + esc((S.meeting.meta && S.meeting.meta.title) || 'Monthly Staff Meeting') + '">' +
     '<div class="row end" style="margin-top:16px"><button class="btn mint" id="mSave">Save</button></div>', card => {
+    const mCal = card.querySelector('#mCal'); if (mCal) mCal.onclick = () => { card.querySelector('#mDate').value = calNext; };
     card.querySelector('#mSave').onclick = async () => {
       const nd = card.querySelector('#mDate').value, title = card.querySelector('#mTitle').value.trim() || 'Monthly Staff Meeting';
       if (!parseYmd(nd)) { toast('Pick a date'); return; }
       closeSheet();
-      if (meetingDone()) { const id = await freeMeetingId(nd); const map = {}; map[P('meetings', id, 'meta')] = { date: nd, title, status: 'collecting', createdAt: Date.now() }; map[P('currentMeetingId')] = id; await up(map); }
-      else { const map = {}; map[P('meetings', S.meetingId, 'meta', 'date')] = nd; map[P('meetings', S.meetingId, 'meta', 'title')] = title; await up(map); }
+      if (meetingDone()) { const id = await freeMeetingId(nd); const map = {}; map[P('meetings', id, 'meta')] = { date: nd, title, status: 'collecting', createdAt: Date.now(), dateSource: nd === calNextMeeting(todayYmd()) ? 'calendar' : 'manual' }; map[P('currentMeetingId')] = id; await up(map); }
+      else { const map = {}; map[P('meetings', S.meetingId, 'meta', 'date')] = nd; map[P('meetings', S.meetingId, 'meta', 'title')] = title; map[P('meetings', S.meetingId, 'meta', 'dateSource')] = nd === calNextMeeting(todayYmd()) ? 'calendar' : 'manual'; await up(map); }
       toast('Saved');
     };
   });
@@ -2060,7 +2106,7 @@ window.addEventListener('beforeprint', () => { if (!$('#printArea').innerHTML) $
 window.addEventListener('afterprint', () => { $('#printArea').innerHTML = ''; });
 
 /* test hooks (harmless in production) */
-window.SMH = { S, guessCategory, buildMinutes, agendaMarkdown, decisionsText, computeCadence, computeSpending, spendSummary, computeOut, matchPerson, runQueue, setRoster, ME_KPI, kpiMonth, version: APP_VERSION };
+window.SMH = { S, calNextMeeting, calOccursOn, syncMeetingDateFromCalendar, nextMeetingDefault, guessCategory, buildMinutes, agendaMarkdown, decisionsText, computeCadence, computeSpending, spendSummary, computeOut, matchPerson, runQueue, setRoster, ME_KPI, kpiMonth, version: APP_VERSION };
 </script>
 </body>
 </html>
