@@ -237,7 +237,7 @@ const FB = {
     const cur = await FB.db.doc('meta/inboxKey').get();
     const keys = Object.assign({}, cur.exists ? cur.data().keys : {}, { [kid]: { v: FB.curV, iv: box.iv, ct: box.ct } });
     await FB.track(FB.db.doc('meta/inboxKey').set({ keys, cur: kid }));
-    await FB.track(FB.db.doc('meta/inbox').set({ pub, kid, senders: MAIL_SENDERS, at: FB.ts() }));
+    await FB.track(FB.db.doc('meta/inbox').set({ pub, kid, senders: MAIL_SENDERS, at: FB.ts() }, { merge: true })); // (keeps the front-desk email settings)
     FB.inboxPriv = null;
   },
   /* a robot's login (made in a second, throwaway Firebase app, so the owner stays signed in): its uid */
@@ -292,6 +292,20 @@ const FB = {
     await FB.track(b.commit());
   },
   async mailSenders(list) { await FB.db.doc('meta/inbox').update({ senders: list }); },
+  /* ---------- the front-desk email for a case not shipped in time (noship.js) ----------
+     The owner's settings sit with the inbox key the scripts read (meta/inbox.notify: on, to, box, pub, names); a note for the sending
+     mailbox's script is sealed to that script's own key and goes in the same save that marks the case as emailed for this appt */
+  async notifyCfg() { const s = await FB.db.doc('meta/inbox').get(); return s.exists ? (s.data().notify || null) : null; },
+  async notifySet(n) { await FB.track(FB.db.doc('meta/inbox').update({ notify: n })); },
+  async outboxNote(msg, n) {
+    const id = 'o' + Array.from(rnd(16), b => b.toString(16).padStart(2, '0')).join(''), box = await Crypto.sealTo(n.pub, TE.encode(JSON.stringify(msg)), 'outbox:' + id);
+    return { ref: FB.db.doc('outbox/' + id), data: { box: n.box, epk: box.epk, iv: box.iv, ct: box.ct, at: FB.ts() } };
+  },
+  async noshipSend(id, appt, msg, n) {
+    const note = await FB.outboxNote(msg, n);
+    return FB.mutateCase(id, d => { if (d.noshipMail === appt) return 'skip'; d.noshipMail = appt; }, { a: 'noship', appt, addr: n.to }, tx => { tx.set(note.ref, note.data); });
+  },
+  async noshipTest(msg, n) { const note = await FB.outboxNote(msg, n); await FB.track(note.ref.set(note.data)); },
   /* every inbox item, opened: [{ id, at, done, mail }] (mail = null when it can't be opened) */
   async inboxLoad() {
     const snap = await FB.db.collection('inbox').get(), out = [];
@@ -507,10 +521,12 @@ const FB = {
     return { v, iv: box.iv, ct: box.ct, pv, at: FB.ts(), by: FB.uid };
   },
   /* which of the security rules this version needs are live: 0 = older than patient photos and email updates, 1 = those but
-     not the patient index and marked deletes (4 Oct 2026), 2 = all of them. An older set refuses the read that checks. */
+     not the patient index and marked deletes (4 Oct 2026), 2 = those but not the front-desk email (8 Oct 2026), 3 = all of them.
+     An older set refuses the read that checks. */
   async rulesLevel() {
     const can = async p => { try { await FB.db.doc(p).get(); return true; } catch (e) { return !/permission/i.test(String((e && (e.code || e.message)) || '')); } };
-    const lv = !(await can('photos/_rules_check')) ? 0 : (await can('meta/rules_20261004')) ? 2 : 1;
+    let lv = !(await can('photos/_rules_check')) ? 0 : (await can('meta/rules_20261004')) ? 2 : 1;
+    if (lv === 2 && await can('meta/rules_20261008')) lv = 3;
     FB.idxOn = lv >= 2; return lv;
   },
   /* a save was refused while writing the index: are the newer rules really live? (false = they aren't; saves go without it) */

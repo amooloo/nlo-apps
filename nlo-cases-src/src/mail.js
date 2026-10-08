@@ -312,7 +312,7 @@ async function mailSync() {
     if (sig !== MAILS.sig) { MAILS.sig = sig; if (S.view === 'today' || S.view === 'admin') queueRender('team'); }
     if (isOwner()) mailOwnerChecks();
   } catch (e) { if (window.console) console.warn('email updates:', e && e.message); }
-  finally { MAILS.busy = false; if (MAILS.again) { MAILS.again = false; setTimeout(mailSync, 400); } }
+  finally { MAILS.busy = false; if (MAILS.again) { MAILS.again = false; setTimeout(mailSync, 400); } else nsCheck(); } // (then the front-desk email — noship.js)
 }
 /* the owner's app keeps the script's sender list current (so a new lab doesn't need a new script); looked at again at
    most once a minute, since a page opened before an update (until it's reloaded) puts its own older list back */
@@ -382,11 +382,12 @@ function mailAdminHTML() {
   return head + how +
     (beats.length ? beats.map(box).join('') : '<div class="notice">No mailbox has checked in yet. Get the script and run <b>setup</b> in each Gmail account.</div>') +
     (unread ? '<div class="small muted" style="margin:8px 0">' + unread + ' lab email' + (unread > 1 ? 's' : '') + ' from a format the app doesn’t read yet (kept 30 days): ' + MAILS.unread.filter(x => !x.bad).slice(0, 5).map(x => esc(String(x.d.mail.from || '').replace(/<.*$/, '').trim() || 'unknown sender')).join(', ') + '</div>' : '') +
-    '<div class="mlBtns"><button class="btn btn-sec btn-sm" data-act="mailScript">' + ic('download', 15) + 'Get the script</button><button class="btn btn-ghost btn-sm" data-act="mailOff" style="color:var(--coral-700)">Turn off</button></div></div></div>';
+    '<div class="mlBtns"><button class="btn btn-sec btn-sm" data-act="mailScript">' + ic('download', 15) + 'Get the script</button><button class="btn btn-ghost btn-sm" data-act="mailOff" style="color:var(--coral-700)">Turn off</button></div>' +
+    nsAdminHTML() + '</div></div>'; // (the front-desk email for a case not shipped in time — noship.js)
 }
 async function loadMailState() {
   if (MAILS.stateLoading || !B.mailState) return; MAILS.stateLoading = true;
-  try { MAILS.state = await B.mailState(); MAILS.stateAt = Date.now(); } catch (e) { MAILS.state = { on: false, beats: [], err: errText(e) }; MAILS.stateAt = Date.now(); }
+  try { MAILS.state = await B.mailState(); MAILS.stateAt = Date.now(); nsKeepKey(); } catch (e) { MAILS.state = { on: false, beats: [], err: errText(e) }; MAILS.stateAt = Date.now(); }
   MAILS.stateLoading = false; if (S.view === 'admin') queueRender('team');
 }
 /* the script with this office's robot login filled in */

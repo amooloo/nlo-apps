@@ -13,10 +13,10 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 let SECTION = ''; const _log = console.log; console.log = (...a) => { if (typeof a[0] === 'string' && a[0].startsWith('\n# ')) SECTION = a[0].trim(); _log(...a); };
 const forbidden = [];
 
-async function fsDump() {
-  // read every document as raw JSON with the emulator's admin bypass
+async function fsDump(cols) {
+  // read every document as raw JSON with the emulator's admin bypass (or just these collections)
   const out = [];
-  for (const col of ['cases', 'log', 'members', 'roster', 'meta', 'logins', 'inbox', 'mailbeat', 'mailbots', 'photos']) {
+  for (const col of cols || ['cases', 'log', 'members', 'roster', 'meta', 'logins', 'inbox', 'mailbeat', 'mailbots', 'photos', 'outbox']) {
     const r = await fetch(`http://127.0.0.1:8080/v1/projects/${PROJECT}/databases/(default)/documents/${col}?pageSize=1000`, { headers: { Authorization: 'Bearer owner' } });
     const j = await r.json(); (j.documents || []).forEach(d => out.push(d));
   }
@@ -1410,6 +1410,49 @@ async function openByName(p, name) {
   check(await owner.evaluate(() => !MAILS.unread.length && !MAILS.list.length && !document.querySelector('#mailCard')), 'NLO Cases leaves them alone: no “format the app doesn’t read” note, nothing on Today');
   check((await owner.evaluate(async () => (await B.inboxLoad()).length)) === 2, '…and leaves them in the inbox for NLO Leads');
   await owner.evaluate(async () => { for (const d of await B.inboxLoad()) await B.inboxDelete(d.id); }); // what NLO Leads does once it has them
+
+  // (8 Oct 2026) "when the case gets delayed (not shipped by the expected time) please also send a email to Questions@… to let the front
+  // desk know" — "want to make sure the email goes out automatically": the app leaves a sealed note, records@'s script emails it
+  console.log('\n# Not shipped → an email to the front desk (records@’s script sends it, by itself)');
+  {
+    const fdId = await owner.evaluate(async () => {
+      let d = todayISO(); do { d = addDays(d, 1); } while (!isBizDay(d)); // the next business day: red Not shipped already
+      return B.createCase({ comments: [], createdAt: Date.now(), createdBy: meSid(), type: 'appliance', patient: 'Fern Frontdesk', stage: 'mfg', lab: 'Specialty Orthodontic Lab',
+        appliances: ['Herbst'], deliveryDate: d, deliveryTime: '14:00', chart: '88-4321', labRef: 'SP9911' });
+    });
+    await owner.waitForFunction(id => { const c = findCase(id); return !!c && (shipWarn(c) || {}).lv === 'late'; }, fdId, { timeout: 20000 });
+    check(await owner.evaluate(id => !findCase(id).noshipMail, fdId), 'off: a red Not shipped case sends nothing');
+    await owner.click('#nav-admin'); await owner.waitForSelector('#nsBox #nsFrom', { timeout: 20000 });
+    const fromOpts = await owner.$$eval('#nsFrom option', os => os.map(o => o.textContent));
+    check(fromOpts.includes('records@example.com') && fromOpts.includes('office@example.com'), 'both mailboxes run the newer script (their check-ins show its key), so either can send it: ' + fromOpts.join(', '));
+    check(await owner.inputValue('#nsTo') === 'Questions@thenextlevelorthodontics.com', 'it goes to Questions@thenextlevelorthodontics.com unless changed');
+    await owner.selectOption('#nsFrom', { label: 'records@example.com' }); await owner.click('[data-act=nsSave]');
+    await owner.waitForFunction(id => { const c = findCase(id); return !!c && c.noshipMail === (shipWarn(c) || {}).appt; }, fdId, { timeout: 30000 }).catch(() => {});
+    check(await owner.evaluate(id => !!findCase(id).noshipMail, fdId), 'turned on: the red case leaves a note for the front desk by itself (no one clicks anything on the case)');
+    const notes = () => fsDump(['outbox']).then(L => L.filter(d => /\/outbox\/o[0-9a-f]{32}$/.test(d.name)));
+    let nl = await notes();
+    check(nl.length === 1 && !/Fern|Frontdesk|88-4321|SP9911|Herbst|Specialty/.test(JSON.stringify(nl).replace(/"[A-Za-z0-9+/=_-]{40,}"/g, '""')), 'one note in the outbox, sealed: no name, chart #, lab case # or appliance readable');
+    gas.mails.length = 0; gas2.mails.length = 0;
+    gas.ctx.checkMail();
+    check(gas.mails.length === 0 && (await notes()).length === 1, 'office@’s script leaves it alone (it’s for records@)');
+    const r = gas2.ctx.checkMail(), m = gas2.mails[0] || {};
+    check(gas2.mails.length === 1 && m.to === 'Questions@thenextlevelorthodontics.com' && /^Not shipped: Fern Frontdesk - delivery appt /.test(m.subject) && (m.opts || {}).name === 'NLO Cases',
+      'records@’s script emails Questions@thenextlevelorthodontics.com from “NLO Cases”: “' + m.subject + '” (' + r + ')');
+    check(/Herbst from Specialty Orthodontic Lab isn't marked shipped yet/.test(m.body || '') && /Delivery appt: .* at 2:00 PM/.test(m.body || '') && /check with the lab, or reschedule/.test(m.body || '') && /Chart #: 88-4321/.test(m.body || '') && /SP9911/.test(m.body || ''),
+      'the email says what, from which lab, when the appt is, what to do, and the chart # and lab case #');
+    check((await notes()).length === 0, 'and removes the note once it’s sent');
+    await owner.evaluate(() => nsCheck()); await sleep(1500); gas2.ctx.checkMail();
+    check(gas2.mails.length === 1, 'nothing twice: the app looking again and the next check send nothing');
+    await openByName(owner, 'Fern Frontdesk');
+    check(/The front desk was emailed\./.test(await owner.textContent('#drawer .notice.noship')), 'the case’s red notice says the front desk was emailed');
+    await owner.waitForSelector('#histBox .hist:has-text("emailed the front desk")', { timeout: 20000 }).catch(() => {});
+    check(/NLO Cases\s*emailed the front desk \(Questions@thenextlevelorthodontics\.com\)/.test(await owner.textContent('#histBox').catch(() => '')), 'History: “NLO Cases emailed the front desk (Questions@…)”');
+    await owner.click('#drawer [data-act=closeDrawer] >> nth=0'); await owner.fill('#q', '');
+    await owner.click('#nav-admin'); await owner.waitForSelector('#nsBox [data-act=nsTest]', { timeout: 20000 });
+    await owner.click('#nsBox [data-act=nsTest]'); await owner.waitForSelector('.toast:has-text("Test sent")', { timeout: 20000 });
+    gas2.ctx.checkMail();
+    check(gas2.mails.length === 2 && /test/i.test(gas2.mails[1].subject) && gas2.mails[1].to === 'Questions@thenextlevelorthodontics.com', 'Send a test email reaches the front desk the same way');
+  }
   await owner.click('#nav-admin'); await owner.waitForSelector('#mailAdmin .mlBeat:has-text("office@example.com")', { timeout: 20000 });
   check(true, 'Team & security shows each mailbox’s last check');
   await owner.click('#mailAdmin [data-act=mailOff]'); await owner.click('#cbYes'); await owner.waitForSelector('.toast:has-text("turned off")', { timeout: 20000 });
@@ -1825,7 +1868,7 @@ async function openByName(p, name) {
 
   console.log('\n# Patient index: each case finds its patient’s other cases (Amir, 4 Oct 2026: "data gets large enough that something bad will happen")');
   const st0 = await owner.evaluate(() => ({ pidx: S.settings.pidx, pidx0: S.settings.pidx0, lv: S.rulesLv, on: FB.idxOn }));
-  check(st0.pidx > 0 && st0.pidx0 > 0 && st0.lv === 2 && st0.on, 'the owner’s app indexed the office once the newer rules were live (here: at setup)');
+  check(st0.pidx > 0 && st0.pidx0 > 0 && st0.lv >= 2 && st0.on, 'the owner’s app indexed the office once the newer rules were live (here: at setup)');
   let docs = await fsDump(); const caseDocs = docs.filter(d => /\/cases\//.test(d.name));
   check(caseDocs.length > 20 && caseDocs.every(d => d.fields.pn && d.fields.pn.stringValue.length === 22), 'every case carries its keyed name (' + caseDocs.length + ' cases)');
   const nadiaIx = await owner.evaluate(() => FB.idxFields({ patient: 'Nadia Setcount', chart: '77-1234' }));
@@ -1912,6 +1955,20 @@ async function openByName(p, name) {
   await owner.evaluate(() => closeModal());
 
   const putRules = async content => { const r = await fetch(`http://127.0.0.1:8080/emulator/v1/projects/${PROJECT}:securityRules`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rules: { files: [{ name: 'firestore.rules', content }] } }) }); if (!r.ok) throw new Error('rules PUT ' + r.status + ' ' + await r.text()); };
+  console.log('\n# Security rules live on 7 Oct (before the front-desk email) — everything else works; the card hands out the newer ones');
+  await putRules(fs.readFileSync(path.join(__dirname, 'rules-1007.rules'), 'utf8')); // (the set in the app published 7 Oct: Cases + Leads + A/R)
+  await owner.click('#nav-today'); await owner.click('#nav-admin');
+  check(await owner.evaluate(() => rulesCheck()) === false && await owner.evaluate(() => S.rulesMail && !S.rulesIdx && !S.rulesOld && FB.idxOn), 'the app notices only the front-desk email waits for newer rules');
+  await owner.waitForSelector('#rulesCard', { timeout: 10000 });
+  check(/front-desk email/.test(await owner.textContent('#rulesCard')) && await owner.isVisible('#mailAdmin') && !(await owner.evaluate(() => document.body.classList.contains('phOff'))), 'the card says it’s for the front-desk email; photos and email updates stay on');
+  check(await owner.evaluate(() => { const was = MAILS.state; MAILS.state = { on: true, beats: [], pub: {} }; const h = nsAdminHTML(); MAILS.state = was; return /Publish the new security rules first/.test(h); }), 'and the front-desk email’s own box says to publish them first');
+  await owner.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: 'http://127.0.0.1:8765' });
+  await owner.click('#rulesCard [data-act=rulesCopy]'); await owner.waitForSelector('.toast:has-text("Rules copied")', { timeout: 10000 });
+  await putRules(await owner.evaluate(() => navigator.clipboard.readText()));
+  await owner.click('#rulesCard [data-act=rulesCheck]'); await owner.waitForSelector('.toast:has-text("up to date")', { timeout: 15000 });
+  await owner.waitForSelector('#rulesCard', { state: 'detached', timeout: 10000 });
+  check(await owner.evaluate(() => S.rulesLv === 3 && !S.rulesMail && !/Publish the new security rules first/.test((() => { const was = MAILS.state; MAILS.state = { on: true, beats: [], pub: {} }; const h = nsAdminHTML(); MAILS.state = was; return h; })())), 'published: the card goes, and the front-desk email can be turned on');
+
   console.log('\n# Older security rules: the set live on 4 Oct (no patient index yet) — everything works; the card hands out the newer ones');
   await putRules(fs.readFileSync(path.join(__dirname, 'rules-1004.rules'), 'utf8'));
   await owner.click('#nav-today'); await owner.click('#nav-admin');
