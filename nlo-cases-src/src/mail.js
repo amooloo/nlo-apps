@@ -10,8 +10,11 @@
    The website's appointment requests come through the same script (the last sender below) but belong to
    NLO Leads, which files each one and takes it out of the inbox — see leadsMail().
    ===================================================================== */
-/* (Specialty Appliances: their "Daily Case Summary" to the records inbox — Amir, 4 Oct 2026: "yes I want specialty added") */
-const MAIL_SENDERS = ['ulabsystems.com', 'partnersdentalstudio.com', 'specialtyappliances.com', 'olivortho.com', 'angelaligner.com', 'angelalign.com', 'thenextlevelorthodontics@orthohost.com'];
+/* (Specialty Appliances: their "Daily Case Summary" to the records inbox — Amir, 4 Oct 2026: "yes I want specialty added")
+   (Formlabs' Dashboard: each print on the lab's printer, to Dr. A's Gmail — 8 Oct 2026, read by prints.js. Its one address only:
+   Formlabs' support and order emails stay out) */
+const MAIL_SENDERS = ['ulabsystems.com', 'partnersdentalstudio.com', 'specialtyappliances.com', 'olivortho.com', 'angelaligner.com', 'angelalign.com', 'thenextlevelorthodontics@orthohost.com',
+  'dashboard+no-reply@formlabs.com'];
 /* a website appointment request, or something about one in the same thread (Asana's notice): NLO Leads' to handle, so
    this app leaves it alone (one left for a month — NLO Leads never opened — is cleared like any old email) */
 function leadsMail(m) { return /thenextlevelorthodontics@orthohost\.com/i.test(String(m.from || '')) || /website appointment request/i.test(String(m.subject || '')); }
@@ -264,7 +267,7 @@ async function mailSync() {
     const docs = await B.inboxLoad(); if (!S.inApp) return;
     docs.forEach(d => { d.mail = mailNorm(d.mail); });
     if (docs.length) await mailClosedReady(docs);
-    const open = openCases(), closed = (S.hist || []).concat(S.closed || [], (S.mailClosed && S.mailClosed.list) || []), groups = new Map(), unread = [], mem = mailMemLoad(), labDocs = [];
+    const open = openCases(), closed = (S.hist || []).concat(S.closed || [], (S.mailClosed && S.mailClosed.list) || []), groups = new Map(), unread = [], mem = mailMemLoad(), labDocs = [], prDocs = [];
     // updates waiting for someone, one row per update however many emails carry it
     const wait = (d, i, ev, cands) => {
       const fp = mailFp(ev); let g = groups.get(fp);
@@ -277,6 +280,7 @@ async function mailSync() {
       // can't be opened (another key, or damaged): kept a month like a format the app doesn't read, then cleared
       if (!d.mail) { if (old) await B.inboxDelete(d.id).catch(() => { }); else unread.push({ d, bad: true }); continue; }
       if (d.mail.lab) { labDocs.push(d); continue; } // the lab PC's progress on the in-house sets (lab.js)
+      if (prMail(d.mail)) { prDocs.push(d); continue; } // Formlabs' emails about each print (prints.js)
       try {
         if (leadsMail(d.mail)) { if (Date.now() - (d.at || Date.now()) > 30 * 864e5) await B.inboxDelete(d.id).catch(() => { }); continue; }
         const evs = mailParse(d.mail);
@@ -306,6 +310,7 @@ async function mailSync() {
       } catch (e) { if (window.console) console.warn('email update:', e && e.message); if (old) await B.inboxDelete(d.id).catch(() => { }); } // (one item that fails doesn't stop the rest)
     }
     let labSig = ''; try { labSig = await labSync(labDocs, open, closed, mem); } catch (e) { if (window.console) console.warn('lab progress:', e && e.message); }
+    if (prDocs.length) { try { (await prSync(prDocs, open)).unread.forEach(x => unread.push(x)); } catch (e) { if (window.console) console.warn('prints:', e && e.message); } }
     const list = Array.from(groups.values()).filter(g => !MAILS.goneFp.has(g.fp)).sort((a, b) => (b.ev.at || 0) - (a.ev.at || 0));
     MAILS.list = list; MAILS.unread = unread;
     const sig = list.map(x => x.id + '#' + x.items.length).join() + '|' + unread.length + '|' + labSig;
@@ -372,7 +377,7 @@ function mailAdminHTML() {
   if (!st || Date.now() - MAILS.stateAt > 60000) loadMailState();
   const head = '<div class="card" style="margin-top:18px" id="mailAdmin"><div class="cardHd"><h3>Email updates</h3><span class="sub">Lab emails update cases by themselves</span></div><div class="cardBd">';
   if (!st) return head + '<div class="small muted">Loading…</div></div></div>';
-  const how = '<p class="small" style="margin-bottom:10px">A small script in each Gmail account that gets lab emails (yours and the records inbox) sends them — uLab, Partners Dental Solutions, Specialty Appliances, Oliv, Angel and anything labeled “Lab Update” — to this app, locked so only the app can read them. When anyone has NLO Cases open, cases move on by themselves: plan ready → Dr. A action, received by the lab → Manufacturing, shipped → Shipped with the tracking #, delivered → Arrived, on hold → a Lab hold flag. Anything it can’t place shows on Today.</p>';
+  const how = '<p class="small" style="margin-bottom:10px">A small script in each Gmail account that gets lab emails (yours and the records inbox) sends them — uLab, Partners Dental Solutions, Specialty Appliances, Oliv, Angel and anything labeled “Lab Update” — to this app, locked so only the app can read them. When anyone has NLO Cases open, cases move on by themselves: plan ready → Dr. A action, received by the lab → Manufacturing, shipped → Shipped with the tracking #, delivered → Arrived, on hold → a Lab hold flag. Anything it can’t place shows on Today. Formlabs’ emails about each print (to your Gmail) show on the in-house set they’re for, in its Lab section, and offer Printing, then Thermoforming, with one tap.</p>';
   if (!st.on) return head + how + '<button class="btn btn-act btn-sm" data-act="mailSetup">' + ic('plus', 15) + 'Set up email updates</button></div></div>';
   const beats = (st.beats || []).filter(b => !labBeat(b)).sort((a, b) => (b.at || 0) - (a.at || 0)); // (the lab PC's are under Lab PC)
   const box = b => { const late = !b.at || Date.now() - b.at > 40 * 60000;
@@ -381,6 +386,7 @@ function mailAdminHTML() {
   const unread = MAILS.unread.filter(x => !x.bad).length;
   return head + how +
     (beats.length ? beats.map(box).join('') : '<div class="notice">No mailbox has checked in yet. Get the script and run <b>setup</b> in each Gmail account.</div>') +
+    prFeedHTML() + // (the 3D printer's emails: the newest print on a case — prints.js)
     (unread ? '<div class="small muted" style="margin:8px 0">' + unread + ' lab email' + (unread > 1 ? 's' : '') + ' from a format the app doesn’t read yet (kept 30 days): ' + MAILS.unread.filter(x => !x.bad).slice(0, 5).map(x => esc(String(x.d.mail.from || '').replace(/<.*$/, '').trim() || 'unknown sender')).join(', ') + '</div>' : '') +
     '<div class="mlBtns"><button class="btn btn-sec btn-sm" data-act="mailScript">' + ic('download', 15) + 'Get the script</button><button class="btn btn-ghost btn-sm" data-act="mailOff" style="color:var(--coral-700)">Turn off</button></div>' +
     nsAdminHTML() + '</div></div>'; // (the front-desk email for a case not shipped in time — noship.js)

@@ -1641,6 +1641,31 @@ body.phHide .pnm:not(:hover)::after{content:attr(data-s)}
 .labPr.done .bar i{background:var(--mint-700)}
 .labPr .v{font-variant-numeric:tabular-nums;min-width:54px;text-align:right;color:var(--grey-600)}
 .labPr .v b{color:var(--navy)}
+/* the set's prints, from Formlabs' emails (prints.js): a Printing row like the Trimmed one, each print newest first — printing now in
+   navy, printed in mint, aborted in coral, paused (or never said it finished) in amber */
+.labPr.prRow{align-items:start}
+.labPr.prRow>.lic{margin-top:1px}
+.labPr.prRow.bad .l{color:var(--coral-700);font-weight:600}
+.bad>.lic{color:var(--coral-600)}
+.prL{grid-column:3/-1;display:flex;flex-direction:column;gap:7px;min-width:0}
+.prI{line-height:1.35;color:var(--navy);overflow-wrap:anywhere}
+.prI b{font-weight:700}
+.prI .w{font-size:11.5px;color:var(--grey-500)}
+@media (max-width:600px){ .labPr.prRow{grid-template-columns:18px 1fr} .prL{grid-column:2/-1} }
+.prI.done b{color:var(--mint-700)}
+.prI.fail b{color:var(--coral-700)}
+.prI.pause b,.prI.old b{color:var(--amber-700)}
+.prMore{font-size:11px;color:var(--grey-500)}
+/* on the board card: the newest print, one line */
+.prC{display:flex;align-items:center;gap:6px;min-width:0;font-size:11.5px;font-weight:600;color:var(--grey-600)}
+.prC>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.prC.run{color:var(--navy)}
+.prC.done{color:var(--mint-700)}
+.prC.fail{color:var(--coral-700)}
+.prC.fail>.lic{color:var(--coral-600)}
+.prC.pause,.prC.old{color:var(--amber-700)}
+.prFeed{display:flex;align-items:flex-start;gap:7px;margin:8px 0 2px}
+.prFeed>.lic{margin-top:1px}
 /* each aligner of the set by its number, coloured by its step (lab.js labGridHTML) */
 .labGrid{display:flex;flex-direction:column;gap:6px;margin-top:4px;padding-top:9px;border-top:1px solid var(--grey-100)}
 .labGr{display:grid;grid-template-columns:42px 1fr;gap:8px;align-items:start}

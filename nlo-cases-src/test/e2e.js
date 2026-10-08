@@ -1453,6 +1453,79 @@ async function openByName(p, name) {
     gas2.ctx.checkMail();
     check(gas2.mails.length === 2 && /test/i.test(gas2.mails[1].subject) && gas2.mails[1].to === 'Questions@thenextlevelorthodontics.com', 'Send a test email reaches the front desk the same way');
   }
+
+  // (8 Oct 2026) Amir: "isn't it connected already?" — Formlabs' Dashboard emails each print to Dr. A's Gmail; the same script passes
+  // them on (its sender list comes from the app, so nothing is pasted again), and the app shows each print on its in-house set and
+  // offers the step with one tap (prints.js). Made-up names in the real emails' exact format.
+  console.log('\n# 3D printer: Formlabs’ emails about each print → the in-house set');
+  {
+    const snd = JSON.stringify((await fsDump(['meta'])).find(d => d.name.endsWith('/meta/inbox')).fields.senders);
+    check(/dashboard\+no-reply@formlabs\.com/.test(snd) && !/"formlabs\.com"/.test(snd), 'the script’s sender list has Formlabs’ Dashboard address (only that one)');
+    await owner.evaluate(async () => {
+      const mk = o => B.createCase(Object.assign({ comments: [], createdAt: Date.now(), createdBy: meSid(), type: 'nla', initial: 'yes' }, o));
+      await mk({ patient: 'Pia Printwright', chart: '62-0001', stage: 'txpok', alU: 4, alL: 4, aligners: 8, atTemplates: 'UL' });
+      await mk({ patient: 'Remy Resinfield', chart: '62-0002', stage: 'send', alU: 6, alL: 6, aligners: 12, atTemplates: 'none' });
+    });
+    const M = 60e3, t0 = Date.now(), FROM = 'Formlabs Dashboard <dashboard+no-reply@formlabs.com>';
+    const J = (n, ms) => ms.map(([k, a, t]) => n + ' - ' + k + ' - ' + (a === 'U' ? 'Maxilla' : 'Mandible') + (t ? ' (Template)' : '')).join(', ').slice(0, 128);
+    const piaJob = J('Pia Printwright', [[0, 'L', 1], [0, 'U', 1], [1, 'L'], [1, 'U'], [2, 'L'], [2, 'U']]), remyJob = J('Remy Resinfield', [[1, 'U'], [2, 'U']]);
+    const fm = (id, at, st, job, text) => ({ id, date: at, from: FROM, to: 'office@example.com', subject: 'WiseOtter | Print ' + st + ' | ' + job, text: 'Print ' + st + '\nHi Amir, ' + text, html: '' });
+    gas.messages.push(
+      fm('f1', t0 - 52 * M, 'Started', piaJob, 'Your print "' + piaJob + '" on WiseOtter has started printing in Fast Model Resin. It will be finished in 34 min. Visit dashboard.formlabs.com anytime'),
+      fm('f2', t0 - 17 * M, 'Finished', piaJob, 'Print "' + piaJob.slice(0, 35) + '..." on WiseOtter finished after 35 min.'),
+      fm('f3', t0 - 12 * M, 'Aborted', remyJob, 'Print "' + remyJob.slice(0, 35) + '..." on WiseOtter was aborted.'),
+      fm('f4', t0 - 6 * M, 'Started', remyJob, 'Your print "' + remyJob + '" on WiseOtter has started printing in Fast Model Resin. It will be finished in 20 min.'),
+      fm('f5', t0 - 40 * M, 'Finished', '70000001_lprofile_occlusion_l, 70000001_lprofile_occlusion_u', 'Print "70000001_lprofile_occlusion_l, 7000..." on WiseOtter finished after 19 min.'),
+      { id: 'f6', date: t0 - 300 * M, from: FROM, subject: 'Your Print History Export - 2026-10-07 02:12', text: 'Print History Export', html: '' },
+      { id: 'f7', date: t0 - 30 * M, from: FROM, subject: 'Formlabs: a new kind of notice', text: 'something new', html: '' },
+      { id: 'f8', date: t0 - 20 * M, from: 'Formlabs Support <support@formlabs.com>', subject: 'Your ticket', text: 'not for the app', html: '' });
+    const r1 = gas.ctx.checkMail();
+    check(/7 emails sent/.test(r1) && /from:dashboard\+no-reply@formlabs\.com/.test(gas.GmailApp.lastQuery || ''), 'the script in Dr. A’s Gmail passes on the 7 Dashboard emails, not Formlabs support’s (' + r1 + ')');
+    await owner.waitForFunction(() => { const c = n => openCases().find(x => x.patient === n), a = c('Pia Printwright'), b = c('Remy Resinfield'); return !!(a && b && prList(a).length === 1 && prList(b).length === 2); }, null, { timeout: 40000 }).catch(() => {});
+    const pr = await owner.evaluate(() => { const g = n => { const c = openCases().find(x => x.patient === n); return c ? { p: prList(c), sug: labSuggest(c) } : null; }; return { pia: g('Pia Printwright'), remy: g('Remy Resinfield') }; });
+    const pia = pr.pia || { p: [] }, remy = pr.remy || { p: [] };
+    check(pia.p.length === 1 && pia.p[0].st === 'done' && pia.p[0].s === t0 - 52 * M && pia.p[0].e === t0 - 17 * M && pia.p[0].min === 35 && pia.p[0].pr === 'WiseOtter' && pia.p[0].m === 'U & L templates · L1…',
+      'Pia’s print — started, then finished after 35 min — is one print on her set: “U & L templates · L1…” on WiseOtter (' + JSON.stringify(pia.p) + ')');
+    check(pia.sug && pia.sug.to === 'thermo' && pia.sug.via === 'print', 'printed (none going) → it offers Thermoforming');
+    check(remy.p.length === 2 && remy.p[0].st === 'fail' && remy.p[1].st === 'run' && remy.p[1].eta === 20 && remy.sug && remy.sug.to === 'print', 'Remy’s: aborted, then started again (about 20 min) → it offers Printing (' + JSON.stringify(remy.p) + ')');
+    // (looked at from here, not by the page polling its inbox: an app is mid-claim on these emails)
+    const inboxN = async () => (await fsDump(['inbox'])).filter(d => /\/inbox\/m[0-9a-f]{40}$/.test(d.name)).length;
+    for (let k = 0; k < 80; k++) { if ((await inboxN()) === 1 && await owner.evaluate(() => !MAILS.busy && MAILS.unread.some(x => x.d.mail && /a new kind of notice/.test(x.d.mail.subject)))) break; await sleep(500); }
+    const left = Object.assign({ n: await inboxN() }, await owner.evaluate(() => ({ unread: MAILS.unread.map(x => (x.d.mail || {}).subject || '?'), busy: MAILS.busy, again: MAILS.again })));
+    const leftOk = left.n === 1 && left.unread.some(s => /a new kind of notice/.test(s));
+    check(leftOk, 'the scanner export’s print, the history download and the handled prints leave the inbox; an email in a format the app doesn’t read stays a month (Team & security lists it) (' + JSON.stringify({ n: left.n, unread: left.unread, busy: left.busy, again: left.again }) + ')');
+    await owner.click('#nav-board'); await owner.fill('#q', ''); await owner.click('[data-act=flow][data-k=inhouse]');
+    const pCard = '.kc:has-text("Pia Printwright")', rCard = '.kc:has-text("Remy Resinfield")';
+    await owner.waitForSelector(pCard + ' .prC', { timeout: 20000 });
+    check(/^Printed U & L templates · L1…$/.test((await owner.textContent(pCard + ' .prC')).trim()) && await owner.isVisible(pCard + ' .labGo:has-text("Thermoforming")'), 'board: Pia’s card says “Printed U & L templates · L1…”, with → Thermoforming');
+    check(await owner.isVisible(rCard + ' .prC.run .lic-print.live') && await owner.isVisible(rCard + ' .labGo:has-text("Printing")') && !(await owner.isVisible(rCard + ' .kstep .lic')), 'Remy’s: “Printing U1–2”, its printer moving (one per card), with → Printing');
+    await owner.click(pCard + ' .labGo');
+    await owner.waitForFunction(() => { const c = openCases().find(x => x.patient === 'Pia Printwright'); return c && c.stage === 'thermo'; }, null, { timeout: 20000 }).catch(() => {});
+    check(await owner.evaluate(() => (openCases().find(x => x.patient === 'Pia Printwright') || {}).stage === 'thermo') && !(await owner.isVisible('#modalWrap')), 'one tap moves Pia to Thermoforming');
+    await openByName(owner, 'Pia Printwright'); await owner.waitForSelector('#histBox .hist:has-text("Formlabs")', { timeout: 20000 }).catch(() => {});
+    const ph = (await owner.textContent('#histBox')).replace(/\s+/g, ' ');
+    check(/Formlabs finished printing U & L templates · L1… on WiseOtter after 35 min/.test(ph) && /moved it to Thermoforming, as Formlabs suggested/.test(ph) && !/started printing/.test(ph),
+      'history: “Formlabs finished printing … on WiseOtter after 35 min”, the move “as Formlabs suggested” (not each start)');
+    await owner.click('#drawer [data-act=closeDrawer] >> nth=0'); await owner.fill('#q', '');
+    gas.messages.push(fm('f9', Date.now(), 'Finished', remyJob, 'Print "' + remyJob.slice(0, 35) + '..." on WiseOtter finished after 21 min.'));
+    check(/1 email sent/.test(gas.ctx.checkMail()), 'Remy’s print finishing goes on the next check');
+    await owner.waitForFunction(() => { const c = openCases().find(x => x.patient === 'Remy Resinfield'); return c && prList(c).some(x => x.st === 'done'); }, null, { timeout: 30000 }).catch(() => {});
+    const rm = await owner.evaluate(() => { const c = openCases().find(x => x.patient === 'Remy Resinfield'); return { p: prList(c).map(x => x.st + (x.min ? ':' + x.min : '')), sug: (labSuggest(c) || {}).to }; });
+    check(rm.p.join() === 'fail,done:21' && rm.sug === 'thermo', 'its print closes (21 min) and it offers Thermoforming (' + JSON.stringify(rm) + ')');
+    await openByName(owner, 'Remy Resinfield');
+    if (!(await owner.evaluate(() => document.querySelector('#drawer .ds[data-ds=lab]').classList.contains('open')))) await owner.click('#drawer .ds[data-ds=lab] .dsTg');
+    const rb = (await owner.textContent('#drawer .labBox')).replace(/\s+/g, ' ');
+    check(/Printing\s*2 prints/.test(rb) && /Printed U1–2\s*on WiseOtter · \d{1,2}:\d{2} [AP]M · 21 min/.test(rb) && /Aborted U1–2\s*on WiseOtter/.test(rb) && rb.indexOf('Printed U1') < rb.indexOf('Aborted U1'),
+      'the case’s Lab section (no Ortho Factory order yet): its prints, newest first (' + rb.slice(0, 140) + ')');
+    await owner.click('#drawer [data-act=closeDrawer] >> nth=0'); await owner.fill('#q', '');
+    dump = JSON.stringify(await fsDump());
+    { const plain = dump.replace(/"[A-Za-z0-9+/=_-]{40,}"/g, '""'), lk = /Printwright|Resinfield|WiseOtter|lprofile/.exec(plain);
+      check(!lk, 'no patient name, printer or model is readable anywhere in the database' + (lk ? ' — found “' + lk[0] + '”' : '')); }
+    await owner.click('#nav-admin'); await owner.waitForSelector('#mailAdmin .prFeed', { timeout: 20000 });
+    check(/latest print on an in-house set was .* on WiseOtter/.test(await owner.textContent('#mailAdmin .prFeed')) && /Formlabs Dashboard/.test(await owner.textContent('#mailAdmin')),
+      'Team & security → Email updates: the newest print that reached a set, and the email it can’t read yet');
+    await owner.evaluate(async () => { for (const d of await B.inboxLoad()) await B.inboxDelete(d.id); }); // (that one: cleared)
+  }
   await owner.click('#nav-admin'); await owner.waitForSelector('#mailAdmin .mlBeat:has-text("office@example.com")', { timeout: 20000 });
   check(true, 'Team & security shows each mailbox’s last check');
   await owner.click('#mailAdmin [data-act=mailOff]'); await owner.click('#cbYes'); await owner.waitForSelector('.toast:has-text("turned off")', { timeout: 20000 });

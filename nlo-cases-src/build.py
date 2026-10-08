@@ -2,7 +2,7 @@ import pathlib, shutil, sys
 root = pathlib.Path(__file__).parent
 src = root / 'src'
 t = (src / 'template.html').read_text()
-js = '\n'.join((src / f).read_text() for f in ['core.js', 'backend.js', 'demo.js', 'ipr.js', 'ui.js', 'notes.js', 'stickers.js', 'logos.js', 'pics.js', 'caseform.js', 'labels.js', 'admin.js', 'mail.js', 'noship.js', 'lab.js', 'photos.js', 'dupes.js', 'rxdata.js', 'rxdraw.js', 'rx.js', 'rxret.js', 'rxmetal.js', 'rxfun.js', 'warranty.js', 'work.js', 'tour.js'])
+js = '\n'.join((src / f).read_text() for f in ['core.js', 'backend.js', 'demo.js', 'ipr.js', 'ui.js', 'notes.js', 'stickers.js', 'logos.js', 'pics.js', 'caseform.js', 'labels.js', 'admin.js', 'mail.js', 'noship.js', 'lab.js', 'prints.js', 'photos.js', 'dupes.js', 'rxdata.js', 'rxdraw.js', 'rx.js', 'rxret.js', 'rxmetal.js', 'rxfun.js', 'warranty.js', 'work.js', 'tour.js'])
 js += "\nif (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();\n"
 # the security rules ship inside the page (owner's email left as a placeholder), so Team & security can hand out
 # exactly the rules this version needs when the live ones are older

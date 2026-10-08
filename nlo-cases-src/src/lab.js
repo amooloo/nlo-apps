@@ -4,7 +4,8 @@
    order files (Ortho Factory, C:\ProgramData\TrimLignAI\InputFolder, and its Finished folder) and sends each order's trimming
    progress — which aligners have their sticker printed and which are trimmed — sealed to the office inbox key with its own robot login (like the
    lab-email script: it can add sealed items to the inbox and note its check-ins, nothing else). Names travel only inside the seal.
-   (Ortho Factory records trimming only; 3D printing comes from the Formlabs feed, thermoforming is a manual tap.)
+   (Ortho Factory records trimming only; 3D printing comes from Formlabs' emails about each print (prints.js), thermoforming is a
+   manual tap.)
    Whenever someone has NLO Cases open, the app opens them here (mailSync hands them over), finds the patient's in-house case —
    the order it was linked to before, else the name — keeps the progress on the case (sealed with the rest), fills in the set's
    aligner counts from the export when nobody typed them, and offers the matching step with one tap: Dr. A's "suggest, one tap
@@ -14,8 +15,8 @@ const LAB_BOT = 'labbot.'; // the lab PC's robot login (its email starts with th
 const LAB_V = 2; // the lab PC's message format this app reads (trim-centric; a newer script's messages wait, a month, for a newer app)
 const LAB_SHOW_DAYS = 45; // an order nobody can place is asked about on Today while it's this recent and not all trimmed
 /* what Ortho Factory can see, and the in-house step it leads to. Ortho Factory records TRIMMING only — the sticker, then trimmed —
-   not 3D printing or thermoforming (those don't run through it here; printing comes from the Formlabs feed, thermoforming is a
-   manual tap). Amir's lab, 7 Oct 2026: print → thermoform → print the stickers from Ortho Factory → trim (in batch or one by one),
+   not 3D printing or thermoforming (those don't run through it here; printing comes from Formlabs' print emails, prints.js;
+   thermoforming is a manual tap). Amir's lab, 7 Oct 2026: print → thermoform → print the stickers from Ortho Factory → trim (in batch or one by one),
    the trim marked done in Ortho Factory. Printing a sticker is what Ortho Factory's files call SentToTrimmer/Barcode (the key
    stays `atTrimmer`), so the app says "sticker printed", in the words of the lab's own steps. The step follows the work:
    the first stickers printed → Trimming; the set leaves fabrication (→ Polish, wash & dry) once every aligner is trimmed. */
@@ -250,19 +251,21 @@ function labNowText(o) {
   return 'trimmed ' + tr + ' of ' + n + (at > tr ? ' · ' + labStickText(at, n) : '');
 }
 function labWhen(o) { return o && (o.act || o.at) ? fmtWhen(o.act || o.at) : ''; } // (when Ortho Factory last changed the order)
-/* the step the lab says the case is ready for, when the case is behind it (the furthest one the work has reached): { to, why } */
+/* the step the lab says the case is ready for, when the case is behind it (the furthest one the work has reached): { to, why, via } —
+   from the lab PC (Ortho Factory: the export, stickers, trimming) and from the printer (Formlabs' emails: printing, printed — prints.js) */
 function labSuggest(c) {
-  const o = c && c.labOrd; if (!o || !o.key || c.type !== 'nla' || c.status === 'done' || c.locked || c.dup) return null;
-  const keys = caseStages(c).map(s => s[0]), si = keys.indexOf(liveStage(c)), a = o.a || {}, n = a.n || 0;
-  let best = keys.indexOf(LAB_ORDER_STEP.to) > si ? LAB_ORDER_STEP : null;
-  if (n) LAB_STEPS.forEach(s => { const v = a[s.k] || 0; if ((s.first ? v > 0 : v >= n) && keys.indexOf(s.to) > si) best = s; });
-  return best && keys.includes(best.to) ? { to: best.to, why: best.why } : null;
+  if (!c || c.type !== 'nla' || c.status === 'done' || c.locked || c.dup) return null;
+  const keys = caseStages(c).map(s => s[0]), si = keys.indexOf(liveStage(c)), at = k => keys.indexOf(k), o = c.labOrd && c.labOrd.key ? c.labOrd : null, opts = [];
+  if (o) { const a = o.a || {}, n = a.n || 0; opts.push(LAB_ORDER_STEP); if (n) LAB_STEPS.forEach(s => { const v = a[s.k] || 0; if (s.first ? v > 0 : v >= n) opts.push(s); }); }
+  const p = prSuggest(c); if (p) opts.push(p);
+  let best = null; opts.forEach(s => { if (at(s.to) > si && (!best || at(s.to) > at(best.to))) best = s; });
+  return best ? { to: best.to, why: best.why, via: best.via || 'lab' } : null;
 }
 function labStageName(c, k) { const s = caseStages(c).find(x => x[0] === k); return s ? s[1] : k; }
 /* the one-tap button: "→ Polish, wash & dry" */
 function labGoHTML(c, small) {
   const sg = labSuggest(c); if (!sg) return '';
-  const l = labStageName(c, sg.to), tip = 'The lab PC says ' + sg.why + ' — move ' + (c.patient ? ptNameText(c.patient) + ' ' : '') + 'to ' + l;
+  const l = labStageName(c, sg.to), tip = (sg.via === 'print' ? 'Formlabs says ' : 'The lab PC says ') + sg.why + ' — move ' + (c.patient ? ptNameText(c.patient) + ' ' : '') + 'to ' + l;
   return '<button type="button" class="labGo' + (small ? ' sm' : '') + '" data-act="labMove" data-id="' + esc(c.id) + '" data-to="' + esc(sg.to) + '" title="' + esc(tip) + '" aria-label="' + esc(tip) + '">' + ic('next', small ? 13 : 15) + esc(l) + '</button>';
 }
 /* ---------- the stations' icons (Amir, 6 Oct 2026: "clean animated icons … printing could be a simple 3d printing and trimming
@@ -311,6 +314,7 @@ function labHasBar(c) { const o = c && c.labOrd, a = (o && o.a) || {}; return !!
 function labStepIcon(c, s, card) {
   const k = labStation(c); if (!k) return '';
   if (card && k === 'trim' && labHasBar(c)) return '';
+  if (card && k === 'print' && !labHasBar(c) && prList(c).length) return ''; // (the card's print line has the printer, moving while it prints)
   const a = (c.labOrd && c.labOrd.key && c.labOrd.a) || {}, allCut = k === 'trim' && a.n > 0 && (a.trimmed || 0) >= a.n;
   return labIcon(k, !allCut, s);
 }
@@ -363,12 +367,15 @@ function labMeter(r, o, live) {
   return '<span class="labM' + (done ? ' done' : v ? ' on' : '') + '" role="img" aria-label="' + esc(say) + '" title="' + esc(say) + '">' + labIcon(r.k, live && !done, 16) + labBar(v, a[r.q] || 0, n) + '<span class="v">' + v + '/' + n + '</span></span>';
 }
 function labMetersHTML(o, c) { return labMeter(LAB_ROWS[0], o, labLive(o, c).trim); }
-/* the board card's lines: the set's trimming, and the step it's ready for when the case is behind */
+/* the board card's lines: the set's trimming (or, before any sticker is printed, its newest print — prints.js), and the step it's
+   ready for when the case is behind */
 function labCardHTML(c) {
-  const o = c.labOrd; if (!o || !o.key || c.type !== 'nla' || c.status === 'done') return '';
-  const a = o.a || {}, n = a.n || 0, any = n && ((a.atTrimmer || 0) > 0 || (a.trimmed || 0) > 0);
-  return '<div class="labLn" title="' + esc('Ortho Factory order ' + o.key + ' · ' + labNowText(o) + (labWhen(o) ? ' · ' + labWhen(o) : '')) + '">' +
-    (any ? '' : ic('lab', 13)) + '<div class="labB">' + (any ? labMetersHTML(o, c) : '<span class="t">STLs exported</span>') + labGoHTML(c, true) + '</div></div>';
+  if (c.type !== 'nla' || c.status === 'done') return '';
+  const o = c.labOrd && c.labOrd.key ? c.labOrd : null, a = (o && o.a) || {}, n = a.n || 0, any = !!(o && n && ((a.atTrimmer || 0) > 0 || (a.trimmed || 0) > 0));
+  const pl = any ? '' : prCardLine(c); if (!o && !pl) return '';
+  const tip = o ? 'Ortho Factory order ' + o.key + ' · ' + labNowText(o) + (labWhen(o) ? ' · ' + labWhen(o) : '') : '';
+  return '<div class="labLn"' + (tip ? ' title="' + esc(tip) + '"' : '') + '>' +
+    (any || pl ? '' : ic('lab', 13)) + '<div class="labB">' + (any ? labMetersHTML(o, c) : pl || '<span class="t">STLs exported</span>') + labGoHTML(c, true) + '</div></div>';
 }
 /* "upper trimmed · lower thermoformed" (each arch's templates as far as the furthest behind of them), else from the counts */
 function labTemplText(o) {
@@ -377,17 +384,24 @@ function labTemplText(o) {
   if (nm(lv.tu) || nm(lv.tl)) return [nm(lv.tu) ? 'upper ' + nm(lv.tu) : '', nm(lv.tl) ? 'lower ' + nm(lv.tl) : ''].filter(Boolean).join(' · ');
   return (t.trimmed || 0) >= t.n ? (t.n === 1 ? 'trimmed' : t.n === 2 ? 'both trimmed' : 'all ' + t.n + ' trimmed') : !t.atTrimmer ? 'no stickers yet' : 'trimmed ' + (t.trimmed || 0) + ' of ' + t.n;
 }
-/* the case panel's Lab section: its folded line, and the counts */
-function labSumHTML(c) { const o = c.labOrd; return o && o.key ? '<b>' + esc(labNowText(o)) + '</b>' + (labWhen(o) ? ' · <span class="muted">' + esc(labWhen(o)) + '</span>' : '') : ''; }
+/* the case panel's Lab section: shown for an in-house set with an Ortho Factory order or a print (prints.js) */
+function labHas(c) { return !!(c && c.type === 'nla' && ((c.labOrd && c.labOrd.key) || prList(c).length)); }
+/* its folded line: the trimming once a sticker is printed, else the newest print, else "STLs exported" */
+function labSumHTML(c) {
+  const o = c.labOrd && c.labOrd.key ? c.labOrd : null, a = (o && o.a) || {}, trim = !!(o && a.n && ((a.atTrimmer || 0) > 0 || (a.trimmed || 0) > 0)), p = prSum(c);
+  const line = (t, w) => '<b>' + esc(t) + '</b>' + (w ? ' · <span class="muted">' + esc(w) + '</span>' : '');
+  return o && (trim || !p) ? line(labNowText(o), labWhen(o)) : p ? line(p.t, p.w) : '';
+}
+/* and what's in it: the printing (prints.js), then the trimming and each aligner */
 function labBoxHTML(c) {
-  const o = c.labOrd; if (!o || !o.key) return '';
+  const o = c.labOrd && c.labOrd.key ? c.labOrd : null;
+  if (!o) return prList(c).length ? '<div class="labBox">' + prBoxHTML(c) + (c.status === 'done' ? '' : '<div class="labBtns">' + labGoHTML(c, false) + '</div>') + '</div>' : '';
   const a = o.a || {}, n = a.n || 0, any = n && ((a.atTrimmer || 0) > 0 || (a.trimmed || 0) > 0), lv = labLive(o, c);
   const row = r => { const v = a[r.v] || 0, done = n && v >= n, more = LAB_SAY[r.k](a, n).split(' · ')[1] || '';
     return '<div class="labPr' + (done ? ' done' : v ? ' on' : '') + '">' + labIcon(r.k, !done && lv[r.k], 18) + '<span class="l">' + esc(r.l) + (more ? '<small>' + esc(more) + '</small>' : '') + '</span>' +
       labBar(v, a[r.q] || 0, n) + '<span class="v"><b>' + v + '</b> of ' + n + '</span></div>'; };
   const t = o.t || {}, ord = labOrderedMs(o), done = c.status === 'done';
-  return '<div class="labBox">' + (any ? LAB_ROWS.map(row).join('') + labGridHTML(o) : '<div class="small">STLs exported, no stickers printed yet' + (n ? ' (' + n + ' aligner' + (n === 1 ? '' : 's') + ')' : '') + '.</div>') +
-    '<div class="small muted labT">Printing shows here once the Formlabs print feed is connected.</div>' +
+  return '<div class="labBox">' + prBoxHTML(c) + (any ? LAB_ROWS.map(row).join('') + labGridHTML(o) : '<div class="small">STLs exported, no stickers printed yet' + (n ? ' (' + n + ' aligner' + (n === 1 ? '' : 's') + ')' : '') + '.</div>') +
     (t.n ? '<div class="small muted labT">Attachment templates: ' + esc(labTemplText(o)) + '</div>' : '') +
     '<div class="small muted labMeta">Ortho Factory order <b>' + esc(o.key) + '</b>' + (ord ? ' · exported ' + esc(fmtWhen(ord)) : '') + (o.au ? ' · U ' + o.au : '') + (o.al ? ' · L ' + o.al : '') +
       (o.tu || o.tl ? ' · templates ' + (o.tu && o.tl ? 'U & L' : o.tu ? 'U' : 'L') : '') + (labWhen(o) ? ' · last change ' + esc(labWhen(o)) : '') + '</div>' +
@@ -431,7 +445,7 @@ function labAdminHTML() {
   if (!st || Date.now() - MAILS.stateAt > 60000) loadMailState();
   const head = '<div class="card" style="margin-top:18px" id="labAdmin"><div class="cardHd"><h3>Lab PC</h3><span class="sub">Ortho Factory’s progress on each in-house set</span></div><div class="cardBd">';
   if (!st) return head + '<div class="small muted">Loading…</div></div></div>';
-  const how = '<p class="small" style="margin-bottom:10px">A small script on the lab PC reads Ortho Factory’s orders — which aligners have their sticker printed and which are trimmed — and sends them here, locked so only this app can read them. Each in-house case shows its trimming, fills in its aligner counts from the export, and offers the next step with one tap. Nothing moves by itself. (3D printing comes from the Formlabs feed, not Ortho Factory.) Orders it can’t place show on Today.</p>';
+  const how = '<p class="small" style="margin-bottom:10px">A small script on the lab PC reads Ortho Factory’s orders — which aligners have their sticker printed and which are trimmed — and sends them here, locked so only this app can read them. Each in-house case shows its trimming, fills in its aligner counts from the export, and offers the next step with one tap. Nothing moves by itself. (3D printing comes from Formlabs’ emails about each print, under Email updates — not Ortho Factory.) Orders it can’t place show on Today.</p>';
   const bots = (st.bots || []).filter(labBot), beats = (st.beats || []).filter(labBeat).sort((a, b) => (b.at || 0) - (a.at || 0));
   if (!bots.length) return head + how + '<button class="btn btn-act btn-sm" data-act="labSetup">' + ic('plus', 15) + 'Set up the lab PC</button></div></div>';
   const box = b => { const late = !b.at || Date.now() - b.at > 20 * 60000;
@@ -482,7 +496,7 @@ Object.assign(ADMIN_ACTS, {
     try { for (const x of L) await labResolve(x.id, 'skip'); } finally { LABS.quiet = false; }
     toast(L.length + ' lab order' + (L.length > 1 ? 's' : '') + ' dismissed'); mailSync();
   },
-  labMove(t, e) { if (e) e.stopPropagation(); const c = findCase(t.dataset.id); if (c && labSuggest(c) && labSuggest(c).to === t.dataset.to) moveStage(c.id, t.dataset.to, null, null, 'lab'); },
+  labMove(t, e) { if (e) e.stopPropagation(); const c = findCase(t.dataset.id), sg = c && labSuggest(c); if (sg && sg.to === t.dataset.to) moveStage(c.id, t.dataset.to, null, null, sg.via); },
   labUnlink() { const c = findCase(S.openId); if (c) labUnlink(c); },
   labUseCounts() { const c = findCase(S.openId); if (c) labUseCounts(c); }
 });

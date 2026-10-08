@@ -32,9 +32,9 @@ function stkWho(sid) { return sid && sid === meSid() ? 'You' : stkName(sid); }
 function stkTilt(id) { let h = 7; for (const ch of String(id)) h = (h * 31 + ch.charCodeAt(0)) % 997; return (h % 13) - 6; }
 /* the entry of the case's history a step's sticker is on */
 function stkHKey(x) { return x && x.rev ? 'h:' + x.rev : x && x.at ? 'h:t' + x.at : ''; }
-/* who did it, when it was a person (not a lab email, the lab PC's readings or the Asana import) */
+/* who did it, when it was a person (not a lab email, the lab PC's readings, the printer's or the Asana import) */
 function stkDoer(x) {
-  if (!x || !x.sid || ['email', 'import', 'rekey', 'save', 'sticker', 'restore', 'noship'].includes(x.a)) return '';
+  if (!x || !x.sid || ['email', 'import', 'rekey', 'save', 'sticker', 'restore', 'noship', 'print'].includes(x.a)) return '';
   if (x.a === 'lab' && !x.hand && !x.unlink && !x.relink) return '';
   return staff(x.sid) ? x.sid : '';
 }

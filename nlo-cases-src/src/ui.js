@@ -1262,7 +1262,7 @@ function noteAuthKeep(c, log) {
 function noteAuthDone() { if (S.view === 'list' || S.view === 'mine') queueRender(); noteByPaint(); }
 /* the newest history entry that set the Notes field: an edit (or a step move / lab email) that lists it, the creation, the
    Asana import; a restored version (or anything else) could have changed it without saying, so the writer isn't known */
-const NOTE_KEEP_ACTS = ['edit', 'stage', 'email', 'photo', 'reopen', 'close', 'assign', 'comment', 'rekey', 'sticker', 'noship'];
+const NOTE_KEEP_ACTS = ['edit', 'stage', 'email', 'photo', 'reopen', 'close', 'assign', 'comment', 'rekey', 'sticker', 'noship', 'lab', 'print'];
 function noteAuthFrom(log) {
   for (let i = log.length - 1; i >= 0; i--) {
     const x = log[i] || {};
@@ -1397,19 +1397,21 @@ async function loadHistory(id) {
   try { const h = await B.caseLog(id); if (S.openId === id && seq > (S.histShown || 0)) { S.histShown = seq; S.history = h; S.histRev = rev0; const el = $('#histBox'); if (el) { const keep = stkHold(); el.innerHTML = historyHTML(findCase(id)); stkPop(el); stkReanchor(keep); } wtyRefresh(id); stageMarksPaint(findCase(id));
     const c = findCase(id); if (c && String(c.notes || '').trim() && !notesAuthor(c)) { noteAuthKeep(c, h); noteByPaint(); } } } catch (e) { }
 }
-const FIELD_LABELS = { labOrd: 'lab progress', labNot: 'lab order', quick: 'Quick add tag', rx: 'Herbst Rx', rxRet: 'Retainer Rx', rxMet: 'Metal Rx', rxFun: 'Functional Rx', invDate: 'invoice date', noGuarantee: 'No Guarantee', photo: 'photo', labRef: 'lab case #', labHold: 'lab hold', planUrl: 'plan link', shipToPatient: 'ship to patient', records: 'records on file', zoomDate: 'Zoom call', zoomTime: 'Zoom call', tracking: 'tracking #', carrier: 'carrier', teeth: 'tooth chart', teethNote: 'tooth chart', chart: 'chart #', titanUrl: 'Titan link', initial: 'initial/refinement', appliances: 'appliance', lab: 'lab', arches: 'arch', retKinds: 'retainer type', goals: 'Dr. A’s instructions', instrPicks: 'Dr. A’s instructions', instrOther: 'Dr. A’s instructions', extras: 'extras', variant: 'case type', type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery appt', deliveryTime: 'appt time', txStart: 'treatment start', txEnd: 'expected removal', acrylic: 'acrylic color', glitter: 'acrylic color', alU: 'aligners', alL: 'aligners', aligners: 'aligners', atTemplates: 'attachment templates', treatArch: 'arches to treat', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes', iprSnap: 'IPR chart (from the IPR Tracker)', refN: 'refinement #', remake: 'remake', scanOnFile: 'scan on file' };
+const FIELD_LABELS = { labOrd: 'lab progress', labNot: 'lab order', prints: 'prints', prIds: 'prints', quick: 'Quick add tag', rx: 'Herbst Rx', rxRet: 'Retainer Rx', rxMet: 'Metal Rx', rxFun: 'Functional Rx', invDate: 'invoice date', noGuarantee: 'No Guarantee', photo: 'photo', labRef: 'lab case #', labHold: 'lab hold', planUrl: 'plan link', shipToPatient: 'ship to patient', records: 'records on file', zoomDate: 'Zoom call', zoomTime: 'Zoom call', tracking: 'tracking #', carrier: 'carrier', teeth: 'tooth chart', teethNote: 'tooth chart', chart: 'chart #', titanUrl: 'Titan link', initial: 'initial/refinement', appliances: 'appliance', lab: 'lab', arches: 'arch', retKinds: 'retainer type', goals: 'Dr. A’s instructions', instrPicks: 'Dr. A’s instructions', instrOther: 'Dr. A’s instructions', extras: 'extras', variant: 'case type', type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery appt', deliveryTime: 'appt time', txStart: 'treatment start', txEnd: 'expected removal', acrylic: 'acrylic color', glitter: 'acrylic color', alU: 'aligners', alL: 'aligners', aligners: 'aligners', atTemplates: 'attachment templates', treatArch: 'arches to treat', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes', iprSnap: 'IPR chart (from the IPR Tracker)', refN: 'refinement #', remake: 'remake', scanOnFile: 'scan on file' };
 function historyHTML(c) {
   const h = S.history; if (!h) return '<div class="small muted">Loading…</div>'; if (!h.length) return '<div class="small muted">No history yet.</div>';
   const stageName = k => { const s = c && (caseStages(c).find(x => x[0] === k) || flowOf(c).stages.find(x => x[0] === k)); return s ? s[1] : (c && retiredStageLabel(c, k)) || k; };
   const shipped = x => x.close ? ' and marked it complete (shipped to the patient)' : '';
   // (the lab PC's readings in between — "printed 9 of 22" — aren't listed; when it links an order, fills in counts, or a step is done for every aligner, they are)
-  const labShown = x => x.a !== 'lab' || x.first || x.unlink || x.relink || x.step || (x.fields || []).length;
+  // (nor a print starting: the Lab section shows it, and History lists how it ended — prints.js)
+  const labShown = x => (x.a !== 'lab' || x.first || x.unlink || x.relink || x.step || (x.fields || []).length) && !(x.a === 'print' && (x.st === 'run' || x.st === 'pause'));
   // (a sticker isn't listed: it's on what it was sent for — stickers.js)
   return h.filter(x => x.a !== 'rekey' && x.a !== 'save' && x.a !== 'sticker' && labShown(x)).reverse().map(x => {
     let t = '';
     if (x.a === 'create') t = 'created the case'; else if (x.a === 'import') t = 'imported it from Asana';
-    else if (x.a === 'stage') t = 'moved it to ' + stageName(x.to) + ((x.fields || []).length ? ' (and set ' + Array.from(new Set(x.fields.map(f => FIELD_LABELS[f] || f))).join(', ') + ')' : '') + shipped(x) + (x.via === 'lab' ? ', as the lab PC suggested' : '');
+    else if (x.a === 'stage') t = 'moved it to ' + stageName(x.to) + ((x.fields || []).length ? ' (and set ' + Array.from(new Set(x.fields.map(f => FIELD_LABELS[f] || f))).join(', ') + ')' : '') + shipped(x) + (x.via === 'lab' ? ', as the lab PC suggested' : x.via === 'print' ? ', as Formlabs suggested' : '');
     else if (x.a === 'lab') t = labHistText(x);
+    else if (x.a === 'print') t = prHistText(x); // (prints.js)
     else if (x.a === 'comment') t = 'added a note' + (Array.isArray(x.tag) && x.tag.length ? ' for ' + x.tag.map(s => (staff(s) && staff(s).role === 'owner') ? 'Dr. A' : firstName(staffName(s, s))).join(', ') : '');
     else if (x.a === 'close') t = 'marked it complete'; else if (x.a === 'reopen') t = 'reopened it';
     else if (x.a === 'assign') t = x.to ? 'assigned it to ' + staffName(x.to, x.to) : 'unassigned it';
@@ -1423,7 +1425,7 @@ function historyHTML(c) {
       t = (x.to ? 'moved it to ' + stageName(x.to) + (f.length ? ' and saved the ' : '') : f.length ? 'saved the ' : 'updated it') + f.join(', ') + shipped(x);
     }
     else t = x.a;
-    const who = x.a === 'email' ? ((MAIL_CO[x.co] || {}).l || 'Lab') + ' email' : x.a === 'lab' && !x.hand && !x.unlink && !x.relink ? 'Lab PC' : x.a === 'noship' ? 'NLO Cases' : (firstName(staffName(x.sid, x.sid)) || x.sid);
+    const who = x.a === 'email' ? ((MAIL_CO[x.co] || {}).l || 'Lab') + ' email' : x.a === 'lab' && !x.hand && !x.unlink && !x.relink ? 'Lab PC' : x.a === 'noship' ? 'NLO Cases' : x.a === 'print' ? 'Formlabs' : (firstName(staffName(x.sid, x.sid)) || x.sid);
     // a step someone did takes stickers: on the row after the words, and the smiley at its end (stickers.js)
     const sk = stkHistHTML(c, x, t);
     return '<div class="hist" data-w="' + esc(stkHKey(x)) + '"><time>' + esc(fmtWhen(x.at)) + '</time><span class="hTx"><b>' + esc(who) + '</b> ' + esc(t) + sk.chips + '</span>' + sk.add + '</div>';
@@ -1507,8 +1509,9 @@ function renderDrawer() {
         '<div class="stepL' + (i < si ? ' past' : i === si ? ' cur' : '') + '" data-sk="' + k + '">' +
         '<button class="step ' + (i < si ? 'past' : i === si ? 'cur' : '') + (g ? ' sub' : '') + (i === all.length - 1 ? ' ms' : '') + '" data-act="setStage" data-k="' + k + '"' + (done ? ' disabled' : '') + ' aria-pressed="' + (i === si) + '"><span class="n">' + (i < si ? '✓' : i + 1) + '</span>' + esc(l) + (i === si ? labStepIcon(c, 18) : '') + stageMarkHTML(marks[k]) + '</button>' +
         stkStepHTML(c, k, marks[k]) + '</div>'; }).join('') + '</div>') +
-    // in-house: the set in Ortho Factory, from the lab PC — the step it's ready for is on the heading, one tap (lab.js)
-    (c.type === 'nla' && c.labOrd && c.labOrd.key ? dsec('lab', 'Lab', labSumHTML(c), labBoxHTML(c), done ? '' : labGoHTML(c, true)) : '') +
+    // in-house: the set in Ortho Factory, from the lab PC, and its prints, from Formlabs — the step it's ready for is on the heading,
+    // one tap (lab.js, prints.js)
+    (labHas(c) ? dsec('lab', 'Lab', labSumHTML(c), labBoxHTML(c), done ? '' : labGoHTML(c, true)) : '') +
     (flow === FLOWS.marpe ? dsec('marpe', 'MARPE', marpeSum(c), marpeBoxHTML(c, done)) : '') +
     dsec('details', 'Details', (who ? 'Assigned to <b>' + esc(who) + '</b>' : 'Unassigned') + (!done && dueOf(c) ? ' · ' + dueChip(c) : c.deliveryDate ? ' · ' + delWord(c) + ' ' + esc(fmtDate(c.deliveryDate)) : ''),
       '<div class="kv">' +
@@ -2023,12 +2026,13 @@ async function act(fn, okMsg) { try { await fn(); if (okMsg) toast(okMsg); } cat
 function nextStage(c) { const st = caseStages(c); const i = stageIndex(c); return i >= 0 && i < st.length - 1 ? st[i + 1][0] : null; }
 /* `extra` = fields saved with the move (e.g. MARPE records, the Zoom call, aligner counts); a move that still needs something
    asks first; `asked` = what the asking window already collected; `via` = 'lab': the lab PC's one-tap suggestion (lab.js) —
-   its aligner counts came from the export, so the counts window only opens when they're still missing */
+   its aligner counts came from the export, so the counts window only opens when they're still missing — or 'print', the printer's
+   (prints.js), the same way */
 async function moveStage(id, to, extra, asked, via) {
   const c = findCase(id); if (!c || c.stage === to) return;
   extra = extra || {};
   let needs = stageNeeds(Object.assign({}, c, extra), to).filter(x => !(asked || []).includes(x));
-  if (via === 'lab') needs = needs.filter(x => x !== 'aligners' || alignersMissing(Object.assign({}, c, extra)));
+  if (via === 'lab' || via === 'print') needs = needs.filter(x => x !== 'aligners' || alignersMissing(Object.assign({}, c, extra)));
   if (needs.length) { stageGateModal(c, to, needs, extra, via); return; }
   const from = c.stage, fields = Object.keys(extra), before = {}; fields.forEach(k => { before[k] = c[k]; });
   c.stage = to; Object.assign(c, extra); queueRender(); if (S.openId === id) renderDrawer();

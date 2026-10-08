@@ -145,6 +145,20 @@ const DEMO = {
     const now = Date.now();
     DEMO.mail.inbox.push({ id: 'mlab1', at: ago(2), done: [], mail: { lab: 1, v: 2, src: 'Lab PC', pc: 'LAB-PC', ver: '2.1', at: now, orders: ords.map(o => Object.assign(o, { at: now })) } });
     DEMO.mail.beats.push({ id: 'b3', box: 'Lab PC · LAB-PC', at: ago(2), seen: ords.length, sent: ords.length, err: '', ver: 'lab 2.1' });
+    // Formlabs (prints.js): the printer's emails about each print, in their real format ("<printer> | Print Finished | <models>",
+    // the print's name cut at 128 characters) with made-up names — a print going now for the plan just exported, one finished two
+    // hours ago for the set at Uploaded to Titan (it offers Thermoforming), one aborted for a set with no order yet, and the
+    // refinement at Thermoforming's two prints yesterday
+    const tp0 = nla.filter(c => c.stage === 'txp')[0], PRN = 'CalmOtter';
+    const job = (c, ms) => ms.map(([n, a, t]) => c.patient + ' - ' + n + ' - ' + (a === 'U' ? 'Maxilla' : 'Mandible') + (t ? ' (Template)' : '')).join(', ').slice(0, 128);
+    const fl = (id, min, st, j, x) => DEMO.mail.inbox.push({ id, at: ago(min), done: [], mail: { box: 'office@example.com', from: 'Formlabs Dashboard <' + PR_SENDER + '>', date: ago(min), html: '',
+      subject: PRN + ' | Print ' + st + ' | ' + j, text: 'Print ' + st + '\nHi Amir, ' + (st === 'Started' ? 'Your print "' + j + '" on ' + PRN + ' has started printing in Fast Model Resin. It will be finished in ' + x + ' min.'
+        : 'Print "' + j.slice(0, 35) + '..." on ' + PRN + (st === 'Finished' ? ' finished after ' + x + ' min.' : ' was aborted.')) } });
+    const seq = (a, from, to, t) => { const r = []; for (let n = from; n <= to; n++) r.push([n, a, t]); return r; };
+    if (ok) fl('mpr1', 18, 'Started', job(ok, [[0, 'L', 1], [0, 'U', 1], [1, 'L'], [1, 'U'], [2, 'L'], [2, 'U'], [3, 'L'], [3, 'U']]), 34);
+    if (tp) { const j = job(tp, seq('U', 1, 4)); fl('mpr2', 160, 'Started', j, 40); fl('mpr3', 120, 'Finished', j, 41); }
+    if (tp0) fl('mpr4', 25, 'Aborted', job(tp0, seq('L', 1, 3)));
+    if (th) { const j1 = job(th, seq('U', 1, 10)), j2 = job(th, seq('L', 1, 8)); fl('mpr5', 26 * 60, 'Started', j1, 38); fl('mpr6', 25 * 60 + 20, 'Finished', j1, 41); fl('mpr7', 25 * 60, 'Started', j2, 36); fl('mpr8', 24 * 60 + 22, 'Finished', j2, 39); }
     // notes that tag the one practising (notes.js): two new in Messages and one already read, on open cases
     const me = DEMO.me.staffId, tagged = Array.from(DEMO.cases.values()).filter(c => c.status === 'open').slice(2, 5);
     [[0, 'gwen', 'Patient asked if the attachments can wait a week — @' + (me === 'amir' ? 'Dr. A' : 'Practice') + ' ok with that?', 35],
