@@ -44,6 +44,7 @@ button{cursor:pointer;}
 .pill-btn{border:none;border-radius:999px;font-family:var(--font-display);font-weight:600;text-transform:uppercase;letter-spacing:.08em;}
 .task-box{border-radius:6px;display:inline-flex;align-items:center;justify-content:center;padding:0;flex:none;font-weight:700;line-height:1;cursor:pointer;}
 .task-box:focus-visible,.pill-btn:focus-visible{outline:2px solid var(--blue-500);outline-offset:2px;}
+:root{--violet-500:#7C5CD6;}
 @media (max-width:700px){
   .month-cell{min-height:74px !important;}
   .detail-panel{width:100vw !important;}
@@ -94,7 +95,7 @@ function isAllowedEmail(email){
    list sync from here — same endpoint the Checklist app uses. */
 const TIMEOFF_API = "https://script.google.com/macros/s/AKfycbxvI_d6muf_OepqurNrxnV2O0bMaGjnyNH6SKKNqQcvXMzjN6ZBjc26aa5LkN3Grj2J/exec";
 const SYNC_INTERVAL_MIN = 15;
-const CAL_VERSION = "1.1 (Oct 8, 2026)";
+const CAL_VERSION = "1.2 (Oct 8, 2026)";
 
 /* Staff roster seeded from Gusto (active employees, July 2026). Editable in Settings.
    Names only: birthdays and hire dates are kept in Firebase (Settings > Staff), never in this public file. */
@@ -136,7 +137,7 @@ const PHONE = window.matchMedia("(max-width:700px)");
 const S = {
   view: PHONE.matches ? "agenda" : "month",
   cursor: null,
-  filters: { pto: true, event: true, task: true },
+  filters: { pto: true, event: true, task: true, hr: true },
   admin: false,
   data: null,               // mirrors RTDB: {events, staff, settings, adminDays}
   detailDate: null,
@@ -147,6 +148,7 @@ const S = {
   editStaffId: null,
   sync: { timeOff: [], holidays: [], at: null, err: null, busy: false },
   saveErr: null,
+  lockNote: "",
   seeded: false,
   connected: false
 };
@@ -252,6 +254,10 @@ function syncState(){ return S.sync.at?(S.sync.err?"stale":"ok"):(S.sync.err?"fa
    No roster (missing, empty or unreadable) = the calendar's own list, exactly as before. */
 const ROSTER_PEOPLE = "nlo/cadence/roster/people";
 let calRoster = null;
+/* staff dates Staff Hub shares for this calendar (see STAFF HUB DATES) and when it last shared the roster */
+const ROSTER_DATES = "nlo/cadence/roster/dates";
+const ROSTER_AT = "nlo/cadence/roster/updatedAt";
+let calDates = null, calRosterAt = null;
 function nloRosterToday(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function nloRosterActive(p){return !!p && p.active!==false && !(p.end && p.end<=nloRosterToday());}
 const ROSTER_ROLE_SHORT = { "orthodontic assistant":"OA", "treatment coordinator":"TC", "appointment coordinator":"AC", "marketing coordinator":"Marketing", "clinical lead":"Clinical Lead" };
@@ -290,6 +296,49 @@ function calStaff(){
   return out;
 }
 
+/* ================= STAFF HUB DATES =================
+   Shared by Staff Hub (Settings → Office roster → "Show staff dates on the office calendar", on by default):
+   each person's start date, next review date and certification expiry dates, plus last days from the roster.
+   Read-only here; they're changed in Staff Hub. Someone who has left keeps only their last day.
+   Review dates can be limited to admin mode (Settings → Staff Hub dates). */
+function hrReviewsAdminOnly(){ return !!(S.data&&S.data.settings&&S.data.settings.hrReviewsAdminOnly); }
+function hrCerts(d){ return Array.isArray(d.certs)?d.certs:(d.certs&&typeof d.certs==="object"?Object.values(d.certs):[]); }
+function hrEntriesFor(ds){
+  const out=[], ppl=calRoster;
+  if(!ppl) return out;
+  const dates=calDates||{};
+  const showReviews=S.admin||!hrReviewsAdminOnly();
+  Object.keys(ppl).forEach(id=>{
+    const p=ppl[id];
+    if(!p||typeof p!=="object") return;
+    const nm=(/^dr\.?\s/i.test(String(p.nick||""))?String(p.nick):String(p.first||p.nick||p.name||"")).trim()||"Staff";   /* "Dr. A" for the owner */
+    const add=(kind,title,sub,n)=>out.push({ id:"hr_"+kind+"_"+id+"_"+ds+(n==null?"":"_"+n), type:"hr", kind:kind, title:title, hrSub:sub,
+      staffId:id, staffName:p.name||nm, startDate:ds, endDate:ds, time:null, notes:"", recurrence:null, synced:true });
+    if(p.end===ds) add("last",nm+"'s last day","Last day at NLO");
+    if(!nloRosterActive(p)) return;
+    const d=dates[id];
+    if(!d||typeof d!=="object") return;
+    if(d.start===ds) add("start",nm+"'s first day","First day at NLO");
+    if(showReviews&&d.review===ds) add("review",nm+" — review","Performance review");
+    hrCerts(d).forEach((c,i)=>{ if(c&&c.expires===ds&&c.name) add("cert",nm+" — "+c.name+" expires","Certification expires — renew before this date",i); });
+  });
+  return out;
+}
+function hrSettingsHtml(){
+  let reviews=0, certs=0;
+  Object.keys(calDates||{}).forEach(id=>{ const d=calDates[id], p=calRoster&&calRoster[id]; if(!d||typeof d!=="object"||!p||!nloRosterActive(p)) return; if(d.review) reviews++; certs+=hrCerts(d).length; });
+  let status;
+  if(!calRoster) status="The office roster from Staff Hub isn't available on this computer.";
+  else if(!calDates) status="Nothing shared yet. In Staff Hub → Settings → Office roster, leave “Show staff dates on the office calendar” ticked, then open Staff Hub once.";
+  else status=reviews+" review date"+(reviews===1?"":"s")+" and "+certs+" certification"+(certs===1?"":"s")+" shared"+(calRosterAt?" · Staff Hub last shared "+prettyDate(fmt(new Date(calRosterAt)))+", "+new Date(calRosterAt).toLocaleTimeString([],{hour:"numeric",minute:"2-digit"}):"")+".";
+  return `<div class="disp" style="font-weight:600;letter-spacing:.12em;font-size:14px;color:var(--blue-600);margin-bottom:10px;">Staff Hub dates</div>
+    <div style="font-size:14px;color:var(--grey-600);margin-bottom:4px;">Start dates, review dates and certification expiry dates from Staff Hub, and last days from the office roster, show as ◆ entries. Change them in Staff Hub.</div>
+    <div style="font-size:12.5px;color:var(--grey-400);margin-bottom:10px;">${esc(status)}</div>
+    <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:var(--navy-800);cursor:pointer;margin-bottom:24px;">
+      <input type="checkbox" data-chg="hr-reviews-admin" ${hrReviewsAdminOnly()?"checked":""} style="width:18px;height:18px;accent-color:#1D3EA9;"> Show review dates only in admin mode
+    </label>`;
+}
+
 /* ================= DATA (Firebase RTDB) ================= */
 /* a refused write: one on-screen banner (however many writes failed) instead of a pop-up per write */
 function fbErr(e){ S.saveErr=(e&&e.message)||"write denied"; bgRender(); }
@@ -324,6 +373,13 @@ db.ref(ROSTER_PEOPLE).on("value",(snap)=>{
   calRoster=(r&&typeof r==="object")?r:null;
   bgRender();
 },()=>{ calRoster=null; bgRender(); });
+/* Staff Hub dates: read-only; missing or unreadable = none shown */
+db.ref(ROSTER_DATES).on("value",(snap)=>{
+  const r=snap.val();
+  calDates=(r&&typeof r==="object")?r:null;
+  bgRender();
+},()=>{ calDates=null; bgRender(); });
+db.ref(ROSTER_AT).on("value",(snap)=>{ calRosterAt=typeof snap.val()==="number"?snap.val():null; if(S.settingsOpen) bgRender(); },()=>{});
 }
 
 /* ================= ENTRY QUERIES ================= */
@@ -378,6 +434,8 @@ function entriesFor(ds,ignoreFilters){
       }
     }
   });
+  /* dates shared from Staff Hub */
+  if(ignoreFilters||S.filters.hr!==false) hrEntriesFor(ds).forEach(e=>out.push(e));
   /* manual calendar entries */
   Object.keys(data.events).forEach(id=>{
     const e=data.events[id];
@@ -400,7 +458,7 @@ function entriesFor(ds,ignoreFilters){
         }
     });
   }
-  const order={holiday:0,pto:1,bday:2,anniv:3,event:4,task:5};
+  const order={holiday:0,pto:1,bday:2,anniv:3,hr:3.5,event:4,task:5};
   out.sort((a,b)=>(order[a.type]-order[b.type])||String(a.time||"").localeCompare(String(b.time||""))||String(a.title).localeCompare(b.title));
   return out;
 }
@@ -411,10 +469,12 @@ function typeColors(t){
   if(t==="anniv")   return {bg:"#E5EAF8",fg:"#16318C",edge:"#2E52C9",glyph:"🎉",label:"Anniversary"};
   if(t==="task")    return {bg:"#FEF2D7",fg:"#996709",edge:"#E29A14",glyph:"▲",label:"Task"};
   if(t==="holiday") return {bg:"#1B2F4C",fg:"#FFFFFF",edge:"#1B2F4C",glyph:"★",label:"Holiday"};
+  if(t==="hr")      return {bg:"#F0EAFB",fg:"#5B3A9E",edge:"#7C5CD6",glyph:"◆",label:"Staff Hub"};
   return {bg:"#E5EAF8",fg:"#16318C",edge:"#1D3EA9",glyph:"■",label:"Event"};
 }
 function entryLabel(e){ return e.type==="pto"?((e.staffName||"PTO")+(e.unpaid?" — unpaid":"")):e.title; }
-function entryTypeLabel(e){ return e.type==="pto"?(e.unpaid?"Unpaid":"PTO"):typeColors(e.type).label; }
+const HR_LABEL={review:"Review",cert:"Cert",start:"First day",last:"Last day"};
+function entryTypeLabel(e){ return e.type==="pto"?(e.unpaid?"Unpaid":"PTO"):(e.type==="hr"?(HR_LABEL[e.kind]||"Staff Hub"):typeColors(e.type).label); }
 function entrySub(e){
   if(e.type==="pto"){
     const parts=["Out "+prettyRange(e.startDate,e.endDate)];
@@ -423,6 +483,7 @@ function entrySub(e){
     if(e.synced) parts.push("Time-Off app");
     return parts.join(" · ");
   }
+  if(e.type==="hr") return e.hrSub+" · from Staff Hub";
   if(e.type==="holiday") return "Office closed";
   if(e.type==="bday") return "Happy birthday! 🎂🎈";
   if(e.type==="anniv") return "Work anniversary";
@@ -684,7 +745,7 @@ function render(){
   }
 
   /* ---- toolbar ---- */
-  const FILTERS=[["pto","●","PTO","--coral-500","#FFE7E1","#C13A28"],["event","■","Events","--blue-600","#E5EAF8","#16318C"],["task","▲","Tasks","--amber-600","#FEF2D7","#996709"]];
+  const FILTERS=[["pto","●","PTO","--coral-500","#FFE7E1","#C13A28"],["event","■","Events","--blue-600","#E5EAF8","#16318C"],["task","▲","Tasks","--amber-600","#FEF2D7","#996709"],["hr","◆","Staff Hub","--violet-500","#F0EAFB","#5B3A9E"]];
   if(phone){
     h+=`<div style="display:flex;align-items:center;gap:6px;padding:12px 14px 8px;">
       <h1 class="disp" style="margin:0;flex:1;min-width:0;font-weight:700;letter-spacing:.01em;font-size:22px;line-height:1.1;color:var(--navy-800);">${esc(periodLabel)}</h1>
@@ -740,6 +801,13 @@ function render(){
       <div style="flex:1;min-width:0;font-size:14px;line-height:1.45;"><strong>Couldn't save that change.</strong> The shared database turned it down. Check that this computer is signed in with the office Google account, then try again.
         <div style="font-size:12px;opacity:.85;margin-top:4px;overflow-wrap:break-word;">${esc(S.saveErr)}</div></div>
       <button data-act="dismiss-save-err" aria-label="Dismiss" style="border:none;background:rgba(255,255,255,.2);color:#fff;border-radius:999px;width:30px;height:30px;padding:0;font-size:14px;flex:none;">✕</button>
+    </div>`;
+  }
+
+  if(S.lockNote&&!S.saveErr){
+    h+=`<div role="status" style="position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:89;width:max-content;max-width:calc(100vw - 24px);background:var(--navy-800);color:#F2F3F4;border-radius:999px;padding:8px 8px 8px 18px;box-shadow:0 12px 30px rgba(17,32,58,.3);display:flex;gap:10px;align-items:center;font-size:14px;">
+      <span>\u{1F512} ${esc(S.lockNote)}</span>
+      <button data-act="dismiss-lock-note" aria-label="Dismiss" style="border:none;background:rgba(255,255,255,.16);color:#fff;border-radius:999px;width:26px;height:26px;padding:0;font-size:12px;flex:none;">✕</button>
     </div>`;
   }
 
@@ -970,6 +1038,8 @@ function renderDetail(today,dd){
       h+=`<div style="font-size:12.5px;color:var(--grey-400);margin-top:8px;">Synced from the Time-Off Request app — manage it there.</div>`;
     } else if(S.admin&&(e.type==="bday"||e.type==="anniv")){
       h+=`<div style="font-size:12.5px;color:var(--grey-400);margin-top:8px;">From the staff list — edit in Settings → Staff.</div>`;
+    } else if(S.admin&&e.type==="hr"){
+      h+=`<div style="font-size:12.5px;color:var(--grey-400);margin-top:8px;">From Staff Hub — change it there.</div>`;
     }
     h+=`</div>`;
   });
@@ -1136,6 +1206,8 @@ function renderSettings(){
     <div style="font-size:12.5px;color:var(--grey-400);margin-bottom:12px;">${esc(syncNote)}</div>
     <button data-act="sync-now" class="hov-grey" style="border:1px solid var(--grey-300);background:#fff;border-radius:999px;padding:8px 18px;font-weight:600;font-size:13px;color:var(--navy-800);margin-bottom:24px;">Sync now</button>
 
+    ${hrSettingsHtml()}
+
     <div class="disp" style="font-weight:600;letter-spacing:.12em;font-size:14px;color:var(--blue-600);margin-bottom:10px;">Office closures</div>
     <div style="font-size:13px;color:var(--grey-500);margin-bottom:10px;">Office-specific closed days (beyond the handbook holidays) — shown as ★ holidays; PTO is never counted on them.</div>
     <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;">`;
@@ -1223,6 +1295,7 @@ document.getElementById("app").addEventListener("click",(ev)=>{
     case "del-entry": deleteEntry(el.dataset.id); break;
     case "task-done": toggleDone(el.dataset.id,el.dataset.date); break;
     case "dismiss-save-err": S.saveErr=null; render(); break;
+    case "dismiss-lock-note": S.lockNote=""; render(); break;
     case "adminday": setAdminDay(el.dataset.date, el.dataset.v||null); break;
     case "open-settings": S.settingsOpen=true; S.pinSaved=false; render(); break;
     case "close-settings": if(ev.target===el||el.tagName==="BUTTON"){ S.settingsOpen=false; render(); } break;
@@ -1295,6 +1368,10 @@ document.getElementById("app").addEventListener("change",(ev)=>{
     fbSet("staff/"+el.dataset.id+"/active",el.checked);
     return;
   }
+  if(el&&el.dataset.chg==="hr-reviews-admin"){
+    fbSet("settings/hrReviewsAdminOnly",el.checked?true:null);
+    return;
+  }
   if(ev.target.id==="f-allday"||ev.target.id==="f-rec"){ readFormDom(); render(); }
   if(ev.target.id==="f-start"){
     readFormDom();
@@ -1319,10 +1396,29 @@ function trySubmitPin(){
   const el=document.getElementById("pin-input");
   const val=el?el.value:S.pinValue;
   const pin=(S.data&&S.data.settings&&S.data.settings.adminPin)||"2468";
-  if(val===pin){ S.admin=true; S.pinOpen=false; S.pinValue=""; S.pinError=false; }
+  if(val===pin){ S.admin=true; S.pinOpen=false; S.pinValue=""; S.pinError=false; S.lockNote=""; adminSeen=Date.now(); }
   else { S.pinValue=val; S.pinError=true; }
   render();
 }
+
+/* ================= ADMIN AUTO-LOCK =================
+   On a shared office computer, admin mode locks itself after 10 minutes without a click, tap, key press or
+   scroll (also checked when someone comes back to the tab). Open admin panels (Settings, Add/Edit) close with it. */
+const ADMIN_IDLE_MIN=10;
+let adminSeen=Date.now();
+["pointerdown","keydown","wheel","touchstart","scroll"].forEach(t=>document.addEventListener(t,()=>{ adminSeen=Date.now(); },{passive:true,capture:true}));
+function lockAdmin(note){
+  S.admin=false; S.paintMode=false; S.settingsOpen=false; S.entryOpen=false; S.form=null;
+  S.blackoutWarn=false; S.formError=""; S.editStaffId=null; S.pinSaved=false;
+  S.lockNote=note||"";
+  render();
+  if(note) setTimeout(()=>{ if(S.lockNote===note){ S.lockNote=""; bgRender(); } },10000);
+}
+function adminIdleCheck(){
+  if(S.admin&&S.data&&Date.now()-adminSeen>ADMIN_IDLE_MIN*60000) lockAdmin("Admin mode locked after "+ADMIN_IDLE_MIN+" minutes without use.");
+}
+setInterval(adminIdleCheck,15000);
+document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible") adminIdleCheck(); });
 
 /* ================= AUTH GATE + BOOT ================= */
 let calBooted=false;

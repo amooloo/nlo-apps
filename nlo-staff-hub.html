@@ -7337,8 +7337,11 @@ function sepAIText(p) {
    NLO apps (Cadence, calendar, IPR tracker, staff meeting,
    inventory) so staff are added or ended in one place.
    Only name, role, "goes by", chairside and active/last day
-   leave Staff Hub. Notes, reviews, pay, contact details and
-   everything else stay encrypted here.
+   leave Staff Hub, plus (unless turned off under Settings →
+   Office roster) the dates the office calendar shows: start
+   date, next review date, and each certification's name and
+   expiry date. Notes, review content, pay, contact details
+   and everything else stay encrypted here.
    Stored at nlo/cadence/roster in the nlo-inventory database
    (the location the staff apps are already allowed to read).
    ===================================================== */
@@ -7446,6 +7449,30 @@ function rosterPeople() {
   });
   return people;
 }
+/* dates for the office calendar (roster "dates"): start date, next review date, and each certification's
+   name + expiry date, for current staff only. Never review notes, scores, cert numbers, issuers or files.
+   Turned off (Settings → Office roster) = nothing is shared and the calendar shows none. */
+function rosterShareDates() { return !(S && S.settings && S.settings.rosterDates === false); }
+function rosterDates() {
+  const out = {};
+  if (!rosterShareDates() || !S || !Array.isArray(S.staff)) return out;
+  S.staff.forEach(p => {
+    if (!p || !p.name || !p.rosterId || p.status === 'former') return;
+    const d = {};
+    if (SEP_YMD.test(p.hireDate || '')) d.start = p.hireDate;
+    if (SEP_YMD.test(p.nextReview || '')) d.review = p.nextReview;
+    const certs = (Array.isArray(S.certs) ? S.certs : [])
+      .filter(c => c && c.staffId === p.id && SEP_YMD.test(c.expires || '') && String(c.name || '').trim())
+      .map(c => ({ name: String(c.name).trim().slice(0, 80), expires: c.expires }))
+      .sort((a, b) => a.expires.localeCompare(b.expires) || a.name.localeCompare(b.name));
+    if (certs.length) d.certs = certs;
+    if (Object.keys(d).length) out[p.rosterId] = d;
+  });
+  return out;
+}
+function rosterDatesBox() {
+  return `<label style="display:flex;align-items:flex-start;gap:9px;font-size:13px;line-height:1.45;color:var(--grey-700);background:var(--grey-100);padding:10px 12px;border-radius:10px;margin:0 0 12px;cursor:pointer"><input type="checkbox" data-chg="rosterDatesToggle" ${rosterShareDates() ? 'checked' : ''} style="width:16px;height:16px;margin-top:2px;flex:none;accent-color:var(--blue)"><span>Show staff dates on the office calendar: start dates, next review dates and certification expiry dates. <span class="tiny">Only the date and the certification’s name are shared, never review notes, scores, numbers or files.</span></span></label>`;
+}
 function rosterErrText(e) {
   const c = String((e && (e.code || e.message)) || '');
   if (/permission|PERMISSION_DENIED/i.test(c)) return 'That Google account can’t update the office roster. Use akhavan.ak@gmail.com or an @thenextlevelorthodontics.com account.';
@@ -7480,10 +7507,13 @@ async function rosterPublish() {
     }
     if (rosterMigrate() && typeof fbQueueWrite === 'function') fbQueueWrite();
     const people = rosterPeople();
-    const json = JSON.stringify(people);
+    const dates = rosterDates();
+    const json = JSON.stringify(people) + '|' + JSON.stringify(dates);
     if (json === rosterSent) return;
     rosterStatus = 'saving'; rosterPanelRefresh();
-    await rosterApp.database().ref(ROSTER_PATH).set({ v: 1, source: 'staff-hub', updatedAt: Date.now(), people: people });
+    const rec = { v: 1, source: 'staff-hub', updatedAt: Date.now(), people: people };
+    if (Object.keys(dates).length) rec.dates = dates;
+    await rosterApp.database().ref(ROSTER_PATH).set(rec);
     rosterSent = json; rosterPrev = people; rosterAt = Date.now(); rosterStatus = 'ready'; rosterErr = '';
   } catch (e) {
     rosterStatus = 'error'; rosterErr = rosterErrText(e);
@@ -7501,7 +7531,7 @@ function rosterPanelHTML() {
   const fbReady = typeof firebase !== 'undefined' && !!firebase.database;
   let head;
   if (!fbReady) head = '<p class="muted">Needs an internet connection. Reload once you’re online.</p>';
-  else if (!rosterUser) head = `<p class="muted" style="margin-bottom:12px">Share a basic team list with Cadence, the calendar, the IPR tracker, staff meeting and inventory. Add a hire or end someone’s employment here and those apps follow. Only name, role, “goes by”, chairside and last day are shared. Notes, reviews, pay and personal details stay encrypted in Staff Hub.</p>
+  else if (!rosterUser) head = `<p class="muted" style="margin-bottom:12px">Share a basic team list with Cadence, the calendar, the IPR tracker, staff meeting and inventory. Add a hire or end someone’s employment here and those apps follow. Only name, role, “goes by”, chairside and last day are shared, plus the calendar dates below if that box is ticked. Notes, review content, pay and personal details stay encrypted in Staff Hub.</p>
       <button class="btn btn-pri btn-sm" data-act="rosterConnect">${ic('users',13)} Connect with Google</button>
       <p class="tiny" style="margin-top:10px">One-time on this device. Use akhavan.ak@gmail.com or an @thenextlevelorthodontics.com account.</p>`;
   else {
@@ -7515,7 +7545,7 @@ function rosterPanelHTML() {
     const n = rosterNameParts(p.name), nick = String(p.nick || '').trim();
     return `<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-top:1px solid var(--grey-100)">${avHTML(p)}<div style="flex:1;min-width:0"><b style="font-size:13px;color:var(--navy)">${esc(p.name)}</b>${nick && nick !== n.first ? ' <span class="muted">· goes by ' + esc(nick) + '</span>' : ''}<div class="tiny">${esc(p.role || 'No role set')}${rosterChairside(p) ? ' · chairside' : ''}</div></div>${rosterStatusLine(p)}</div>`;
   }).join('');
-  return `<div class="panel" style="margin-bottom:18px" id="rosterPanel"><div class="ph"><h3>${ic('users',16)}Office roster</h3></div><div class="pb">${head}${rows ? '<div class="tiny" style="margin:4px 0 2px">What the other apps see (edit a person to change “goes by” or chairside):</div>' + rows : ''}</div></div>`;
+  return `<div class="panel" style="margin-bottom:18px" id="rosterPanel"><div class="ph"><h3>${ic('users',16)}Office roster</h3></div><div class="pb">${head}${rosterDatesBox()}${rows ? '<div class="tiny" style="margin:4px 0 2px">What the other apps see (edit a person to change “goes by” or chairside):</div>' + rows : ''}</div></div>`;
 }
 function rosterPanelRefresh() {
   const el = document.getElementById('rosterPanel');
@@ -7532,6 +7562,14 @@ H.rosterConnect = () => {
   });
 };
 H.rosterNow = () => { rosterSent = ''; rosterQueue(0); };
+H.rosterDatesToggle = t => {
+  if (!S) return;
+  if (!S.settings) S.settings = {};
+  S.settings.rosterDates = !!t.checked;
+  act(t.checked ? 'Turned on sharing staff dates with the office calendar' : 'Turned off sharing staff dates with the office calendar');
+  persist(); rosterQueue(0);
+  toast(t.checked ? 'Staff dates will show on the office calendar' : 'Staff dates removed from the office calendar');
+};
 /* pick several pictures at once; each file is matched to a person by the first name in its file name (Kaylee.png, Gwen.jpg ...) */
 H.rosterPhotos = () => {
   const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*'; inp.multiple = true;
