@@ -362,12 +362,14 @@ Object.assign(ACT, {
     const names = list.slice(0, 12).map(a => a.patient).join(', ') + (list.length > 12 ? ' and ' + (list.length - 12) + ' more' : '');
     const q = m === 'sign' ? 'You signed ' + s.s + ' for ' + plural(list.length, 'account') + '?' : m === 'ask' ? 'Ask Dr. A to sign ' + s.s + ' for ' + plural(list.length, 'account') + '?' : 'Mark ' + s.s + ' ' + s.btn.toLowerCase() + ' for ' + plural(list.length, 'account') + '?';
     if (!(await confirmBox(q, names + '.', m === 'ask' ? 'Ask him' : 'Yes, mark them'))) return;
-    const now = Date.now(), by = meSid(); let ok = 0;
+    const now = Date.now(), by = meSid(), done = [];
     for (const a of list) {
       const fn = m === 'sign' ? d => signStep(d, id, { by }, now) : m === 'ask' ? d => askSign(d, id, { by }, now) : d => { ladderLog(d, id, { by }, now); };
-      if (await change(a.key, fn, m === 'done' ? { a: 'ladder', step: id } : m === 'ask' ? { a: 'drA', step: id } : { a: 'drAok', step: id })) ok++;
+      if (await change(a.key, fn, m === 'done' ? { a: 'ladder', step: id } : m === 'ask' ? { a: 'drA', step: id } : { a: 'drAok', step: id })) done.push(a);
     }
+    const ok = done.length;
     toast(m === 'sign' ? 'Signed ' + plural(ok, 'letter') + ' — ready to send' : m === 'ask' ? 'Asked — ' + plural(ok, 'letter') + ' on Dr. A’s Today' : s.s + ': ' + plural(ok, 'account') + ' marked ' + s.btn.toLowerCase());
+    edgeNotesModal('Notes for Edge · ' + s.s + ' · ' + plural(ok, 'account'), edgeRows(done)); // each account's note, to paste into Edge
   }
 });
 
@@ -829,8 +831,9 @@ Object.assign(ACT, {
   async carrierCallSave(t) {
     const c = S.book && S.book.carriers.find(x => x.id === t.dataset.id); if (!c) return;
     const note = (($('#callNote') || {}).value || '').trim(), list = carrierStats(c).pd, now = Date.now(), by = meSid(); closeModal();
-    let n = 0; for (const a of list) if (await change(a.key, d => { applyLog(d, 'ins_call', { by, note: 'Called ' + c.name + (note ? ': ' + note : '') }, now); }, { a: 'log', k: 'ins_call' })) n++;
-    toast('Logged the call on ' + plural(n, 'account'));
+    const done = []; for (const a of list) if (await change(a.key, d => { applyLog(d, 'ins_call', { by, note: 'Called ' + c.name + (note ? ': ' + note : '') }, now); }, { a: 'log', k: 'ins_call' })) done.push(a);
+    toast('Logged the call on ' + plural(done.length, 'account'));
+    edgeNotesModal('Notes for Edge · called ' + c.name + ' · ' + plural(done.length, 'account'), edgeRows(done));
   },
   scrollUntagged() { const el = $('#untagged'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
 });
@@ -1241,7 +1244,8 @@ function obListHTML(day) {
       '<div class="small">' + esc(r.rp) + (ph ? ' · <a href="tel:' + esc(ph.replace(/[^\d+]/g, '')) + '">' + esc(ph) + '</a>' : '') + '</div>' +
       '<div class="small muted">' + (r.amt != null ? money(r.amt, true) + ' · ' : '') + esc(r.reason || 'No reason given') + (r.date ? ' · drafted ' + esc(fmtDate(r.date)) : '') + (/online/i.test(r.how) ? ' (online payment)' : '') + '</div>' +
       (early.length ? '<div class="small obRep">Failed before: ' + early.slice(0, 4).map(x => esc(fmtDate(x))).join(', ') + '</div>' : '') +
-      (d ? '<div class="small muted">Texted · ' + esc(shortName(d.by)) + ', ' + esc(fmtWhen(d.at)) + '</div>' : '') +
+      (d ? '<div class="small muted">Texted · ' + esc(shortName(d.by)) + ', ' + esc(fmtWhen(d.at)) + ' · <button class="linkBtn ebCp" data-act="obEdge" data-day="' + esc(day) + '" data-id="' + esc(id) + '" title="' + esc(obEdgeNote(r, d, shortName(d.by))) + '">' +
+        (edgeCopied({ at: d.at, k: 'ob:' + id }) ? ic('tick', 12) + 'Copied for Edge' : 'Copy Edge note') + '</button></div>' : '') +
       (!a ? '<div class="small muted">Not on the ' + (S.rep ? esc(fmtDate(S.rep.asOf)) + ' ' : '') + 'A/R report — find them in Edge' + (r.acct ? ' by the account #' : '') + '</div>' : '') + '</div>' +
       (a ? '<button class="btn btn-ghost btn-sm" data-act="obOpen" data-key="' + esc(a.key) + '">Account ' + ic('next', 13) + '</button>' : '') + '</div>';
   };
@@ -1296,7 +1300,14 @@ Object.assign(ACT, {
   async obTick(t) {
     const day = t.dataset.day, id = t.dataset.id, rep = obRepFor(day); if (!rep) return;
     const on = !rep.done[id];
-    await obChange(day, (d, now) => obTick(d, [id], on, { by: meSid() }, now), { a: 'obtick', day, n: 1, on });
+    const ok = await obChange(day, (d, now) => obTick(d, [id], on, { by: meSid() }, now), { a: 'obtick', day, n: 1, on });
+    // ticked as texted: the chart note for Edge (handbook §14 day 0)
+    const r2 = on && ok ? obRepFor(day) : null, row = r2 && r2.rows.find(x => obRowId(x) === id), d = r2 && r2.done[id];
+    if (row && d) toast('Marked texted', { actions: [edgeAct(obEdgeNote(row, d, shortName(d.by)), { at: d.at, k: 'ob:' + id })] });
+  },
+  obEdge(t) {
+    const day = t.dataset.day, id = t.dataset.id, rep = obRepFor(day), row = rep && rep.rows.find(x => obRowId(x) === id), d = rep && rep.done[id];
+    if (row && d) copyForEdge(obEdgeNote(row, d, shortName(d.by)), [{ at: d.at, k: 'ob:' + id }]);
   },
   async obTickAll(t) {
     const day = t.dataset.day, rep = obRepFor(day); if (!rep) return;

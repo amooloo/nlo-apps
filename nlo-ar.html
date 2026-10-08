@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-MeVLeog3X53y82xtHc1rREBDRklVNobhBMuzf0O3Q4U=' https://www.gstatic.com/firebasejs/10.12.2/; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://aisa-worker.akhavan-ak.workers.dev http://127.0.0.1:8080 http://127.0.0.1:9099; frame-src https://nlo-cases.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-lyjzCPm+DIrvCCUT1tVi2TeOcmmwSC2gjwflFmlAVbA=' https://www.gstatic.com/firebasejs/10.12.2/; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://aisa-worker.akhavan-ak.workers.dev http://127.0.0.1:8080 http://127.0.0.1:9099; frame-src https://nlo-cases.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO A/R</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -568,6 +568,15 @@ ol.steps b{color:var(--navy)}
 .etOpts label{display:flex;align-items:flex-start;gap:8px}
 .etOpts input[type=checkbox]{margin-top:2px;width:16px;height:16px;flex:none}
 .etList{max-height:300px;overflow:auto;padding-right:4px}
+.edgeBox{margin:0 0 10px;border:1.5px solid var(--mint-200);background:var(--mint-100);border-radius:12px;padding:10px 12px}
+.edgeBox .ebHd{display:flex;align-items:center;gap:8px;flex-wrap:wrap;color:var(--navy)}
+.edgeBox .ebHd .grow{flex:1;min-width:110px}
+.ebTx{white-space:pre-wrap;overflow-wrap:anywhere;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px;line-height:1.5;color:var(--grey-700);margin-top:6px;user-select:all}
+.etRow .ebTx{margin-top:3px}
+.ebCp{display:inline-flex;align-items:center;gap:4px;margin-top:3px;font-size:12px}
+.ebBtns{display:flex;flex-direction:column;gap:6px;flex:none}
+.ebBtns .btn.done{color:var(--mint-700)}
+@media (max-width:560px){.etRow:has(.ebBtns){flex-wrap:wrap}.ebBtns{flex-direction:row;width:100%}}
 .logRow .ln{white-space:pre-wrap;overflow-wrap:anywhere;color:var(--grey-700);margin-top:2px}
 .drABox{margin-top:14px;border-radius:var(--r);padding:12px 14px;background:var(--amber-100);border:1.5px solid var(--amber-200);color:var(--amber-700)}
 .drABox b{color:var(--navy)}
@@ -2144,6 +2153,80 @@ function breakArrangement(item, o, now) {
 }
 
 /* =====================================================================
+   Edge notes (8 Oct 2026, Amir: "after every action that is taken turn
+   it into a edge note that can be copied and entered into the edge"):
+   each thing done on an account in A/R as one line to paste into the
+   patient's notes in Edge, the way the FC writes them there — the date,
+   what was done, the note, the next follow-up, and who did it:
+   "10/08/26 Called RP, left voicemail. Next F/U 10/12/26. -Sarah".
+   Nothing for what came from Edge (an imported task, an account closed
+   because it's no longer on Edge's report) or for a reopened account.
+   ===================================================================== */
+const EDGE_SAY = {
+  pt_vm: 'Called RP, left voicemail.', pt_noans: 'Called RP, no answer.', pt_spoke: 'Spoke with RP.', pt_text: 'Texted RP.', pt_email: 'Emailed RP.',
+  pt_letter: 'Mailed a letter to RP.', pt_plan: 'Payment plan set up.', ins_pt: 'Billed the insurance balance to the family.',
+  cr_review: 'Reviewed the ledger for the credit balance.', cr_hold: 'Holding the credit until insurance pays out.', cr_refreq: 'Refund requested; waiting for Dr. A’s OK.',
+  aa_broken: 'Alternative Arrangement broken; Letter #8 is next.', mhold_on: 'Placed on Maintenance Hold (comfort visits only).', mhold_off: 'Maintenance Hold lifted.'
+};
+/* MM/DD/YY, as the FC dates her Edge notes */
+function mdy(iso) { const m = /^\d{2}(\d{2})-(\d{2})-(\d{2})$/.exec(String(iso || '')); return m ? m[2] + '/' + m[3] + '/' + m[1] : ''; }
+/* a collections step, said as what went out */
+function ladderSay(s) {
+  if (s.id === 'd0') return 'Texted RP: the payment didn’t go through.';
+  if (s.id === 'c75') return 'Called and texted RP (' + s.text + ') about the Maintenance Hold.';
+  if (!s.n) return 'Texted RP ' + s.text + '.';
+  const how = s.cert ? 'certified + regular mail + email' : String(s.send || '').split(' · ')[0].toLowerCase();
+  return 'Sent ' + s.l + (how ? ' (' + how + ')' : '') + (s.call ? ' and called RP' : '') + (s.text ? '; texted ' + s.text : '') + '.';
+}
+/* the note for one entry. o: { who: who did it, carrier: an insurance account's carrier, follow: the follow-up it set } → '' if none */
+function edgeNoteText(e, o) {
+  if (!e || !e.at || e.k === 'edgetask' || e.k === 'reopen' || (e.k === 'done' && e.outcome === 'cleared')) return '';
+  o = o || {};
+  const st = own(LAD_BY, e.step) ? LAD_BY[e.step] : null, car = String(o.carrier || '').trim(), note = String(e.note || '').replace(/\s+/g, ' ').trim();
+  let say;
+  if (own(EDGE_SAY, e.k)) say = EDGE_SAY[e.k];
+  else if (e.k === 'pt_promise') say = 'RP promised to pay' + (e.amt > 0 ? ' ' + money(e.amt, true) : '') + (isoOrBlank(e.date) ? ' by ' + mdy(e.date) : '') + '.';
+  else if (e.k === 'ins_call') say = /^called\b/i.test(note) ? '' : car ? 'Called ' + car + '.' : 'Called the insurance carrier.';
+  else if (e.k === 'ins_portal') say = car ? 'Checked the ' + car + ' portal.' : 'Checked the insurance portal.';
+  else if (e.k === 'ins_filed') say = car ? 'Claim filed with ' + car + '.' : 'Insurance claim filed.';
+  else if (e.k === 'ins_resub') say = car ? 'Claim resubmitted to ' + car + '.' : 'Insurance claim resubmitted.';
+  else if (e.k === 'ins_denied') say = car ? 'Claim denied by ' + car + '.' : 'Insurance claim denied.';
+  else if (e.k === 'ins_appeal') say = car ? 'Appeal sent to ' + car + '.' : 'Insurance appeal sent.';
+  else if (e.k === 'done') say = 'Account resolved: ' + String(OUTCOMES[e.outcome] || 'resolved').toLowerCase() + '.';
+  else if (e.k === 'drA_ask') say = st ? st.s + ' (' + st.l + ') to Dr. A to sign.' : 'Asked Dr. A:';
+  else if (e.k === 'drA_ok') say = st ? 'Dr. A signed ' + st.s + ' (' + st.l + ').' : 'Dr. A approved.';
+  else if (e.k === 'drA_no') say = st ? 'Dr. A: not yet (' + st.s + ').' : 'Dr. A: not yet.';
+  else if (e.k === 'ladder' && st) say = ladderSay(st);
+  else if (e.k === 'note') say = '';
+  else return '';
+  const nt = note ? (/:$/.test(say) ? note : note.charAt(0).toUpperCase() + note.slice(1)) + (/[.!?]$/.test(note) ? '' : '.') : '';
+  const body = [say, nt].filter(Boolean).join(' ');
+  if (!body) return '';
+  const day = mdy(isoOf(new Date(e.at))), f = isoOrBlank(o.follow), who = String(o.who || '').trim();
+  return (day + ' ' + body + (f ? ' Next F/U ' + mdy(f) + '.' : '') + (who ? ' -' + who : '')).slice(0, 1000);
+}
+/* the follow-up an entry set: for a one-tap log that sets one, the follow-up just after it (the next entry's "before", or the
+   account's own while nothing came after) */
+function followAfter(item, e) {
+  const L = (item && item.log) || [], i = L.indexOf(e);
+  if (i < 0 || !e || !own(LOGS, e.k) || !LOGS[e.k].next) return '';
+  const nx = L.slice(i + 1).find(x => x && x.prev);
+  return isoOrBlank(nx ? nx.prev.follow : item.state === 'open' ? item.follow : '');
+}
+/* the note for an entry of an account's record. whoOf(sid) → the name to sign it with; carrier: the account's carrier's name */
+function edgeNoteOf(item, e, whoOf, carrier) {
+  return e ? edgeNoteText(e, { who: whoOf ? whoOf(e.by) : '', carrier, follow: followAfter(item, e) }) : '';
+}
+/* a family on OrthoBanc's failed-payment list ticked as texted (handbook §14 day 0: text the RP, note it in the chart in Edge).
+   r: the list's row; d: its tick { at, by } */
+function obEdgeNote(r, d, who) {
+  if (!r || !d || !d.at) return '';
+  const w = String(who || '').trim();
+  return mdy(isoOf(new Date(d.at))) + ' Texted RP: OrthoBanc draft' + (r.amt != null && isFinite(r.amt) ? ' of ' + money(r.amt, true) : '') + (isoOrBlank(r.date) ? ' on ' + mdy(r.date) : '') +
+    ' failed' + (r.reason ? ' (' + String(r.reason).replace(/\s+/g, ' ').trim() + ')' : '') + '.' + (r.hold ? ' OrthoBanc stopped drafting (on HOLD).' : '') + (w ? ' -' + w : '');
+}
+
+/* =====================================================================
    What's read back from the database is checked before it's used:
    reports, their totals and account records are sealed by an office
    browser, but nothing in them is trusted to be the right type.
@@ -3617,11 +3700,13 @@ const IC = {
 function ic(n, s) { s = s || 18; return '<svg class="i" width="' + s + '" height="' + s + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (IC[n] || '') + '</svg>'; }
 
 /* ---------- toasts ---------- */
+/* opt: { bad, ms, action + onAction (one button), actions: [{ t, fn }] (more buttons, before it) } */
 function toast(msg, opt) {
   opt = opt || {}; const el = document.createElement('div'); el.className = 'toast' + (opt.bad ? ' bad' : ''); el.setAttribute('role', 'status');
-  el.innerHTML = esc(msg) + (opt.action ? ' <button class="linkBtn" style="color:var(--mint);margin-left:10px;pointer-events:auto">' + esc(opt.action) + '</button>' : '');
-  if (opt.action) el.querySelector('button').onclick = () => { opt.onAction(); el.remove(); };
-  $('#toasts').appendChild(el); setTimeout(() => el.remove(), opt.ms || (opt.action ? 8000 : 3800));
+  const acts = (opt.actions || []).filter(x => x && x.t).concat(opt.action ? [{ t: opt.action, fn: opt.onAction }] : []);
+  el.innerHTML = esc(msg) + acts.map(x => ' <button class="linkBtn" style="color:var(--mint);margin-left:10px;pointer-events:auto">' + esc(x.t) + '</button>').join('');
+  $$('button', el).forEach((b, i) => { b.onclick = () => { el.remove(); acts[i].fn(); }; });
+  $('#toasts').appendChild(el); setTimeout(() => el.remove(), opt.ms || (acts.length ? 8000 : 3800));
 }
 function errText(e) {
   const c = (e && (e.code || e.message)) || '';
@@ -4562,12 +4647,14 @@ Object.assign(ACT, {
     const names = list.slice(0, 12).map(a => a.patient).join(', ') + (list.length > 12 ? ' and ' + (list.length - 12) + ' more' : '');
     const q = m === 'sign' ? 'You signed ' + s.s + ' for ' + plural(list.length, 'account') + '?' : m === 'ask' ? 'Ask Dr. A to sign ' + s.s + ' for ' + plural(list.length, 'account') + '?' : 'Mark ' + s.s + ' ' + s.btn.toLowerCase() + ' for ' + plural(list.length, 'account') + '?';
     if (!(await confirmBox(q, names + '.', m === 'ask' ? 'Ask him' : 'Yes, mark them'))) return;
-    const now = Date.now(), by = meSid(); let ok = 0;
+    const now = Date.now(), by = meSid(), done = [];
     for (const a of list) {
       const fn = m === 'sign' ? d => signStep(d, id, { by }, now) : m === 'ask' ? d => askSign(d, id, { by }, now) : d => { ladderLog(d, id, { by }, now); };
-      if (await change(a.key, fn, m === 'done' ? { a: 'ladder', step: id } : m === 'ask' ? { a: 'drA', step: id } : { a: 'drAok', step: id })) ok++;
+      if (await change(a.key, fn, m === 'done' ? { a: 'ladder', step: id } : m === 'ask' ? { a: 'drA', step: id } : { a: 'drAok', step: id })) done.push(a);
     }
+    const ok = done.length;
     toast(m === 'sign' ? 'Signed ' + plural(ok, 'letter') + ' — ready to send' : m === 'ask' ? 'Asked — ' + plural(ok, 'letter') + ' on Dr. A’s Today' : s.s + ': ' + plural(ok, 'account') + ' marked ' + s.btn.toLowerCase());
+    edgeNotesModal('Notes for Edge · ' + s.s + ' · ' + plural(ok, 'account'), edgeRows(done)); // each account's note, to paste into Edge
   }
 });
 
@@ -5029,8 +5116,9 @@ Object.assign(ACT, {
   async carrierCallSave(t) {
     const c = S.book && S.book.carriers.find(x => x.id === t.dataset.id); if (!c) return;
     const note = (($('#callNote') || {}).value || '').trim(), list = carrierStats(c).pd, now = Date.now(), by = meSid(); closeModal();
-    let n = 0; for (const a of list) if (await change(a.key, d => { applyLog(d, 'ins_call', { by, note: 'Called ' + c.name + (note ? ': ' + note : '') }, now); }, { a: 'log', k: 'ins_call' })) n++;
-    toast('Logged the call on ' + plural(n, 'account'));
+    const done = []; for (const a of list) if (await change(a.key, d => { applyLog(d, 'ins_call', { by, note: 'Called ' + c.name + (note ? ': ' + note : '') }, now); }, { a: 'log', k: 'ins_call' })) done.push(a);
+    toast('Logged the call on ' + plural(done.length, 'account'));
+    edgeNotesModal('Notes for Edge · called ' + c.name + ' · ' + plural(done.length, 'account'), edgeRows(done));
   },
   scrollUntagged() { const el = $('#untagged'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
 });
@@ -5441,7 +5529,8 @@ function obListHTML(day) {
       '<div class="small">' + esc(r.rp) + (ph ? ' · <a href="tel:' + esc(ph.replace(/[^\d+]/g, '')) + '">' + esc(ph) + '</a>' : '') + '</div>' +
       '<div class="small muted">' + (r.amt != null ? money(r.amt, true) + ' · ' : '') + esc(r.reason || 'No reason given') + (r.date ? ' · drafted ' + esc(fmtDate(r.date)) : '') + (/online/i.test(r.how) ? ' (online payment)' : '') + '</div>' +
       (early.length ? '<div class="small obRep">Failed before: ' + early.slice(0, 4).map(x => esc(fmtDate(x))).join(', ') + '</div>' : '') +
-      (d ? '<div class="small muted">Texted · ' + esc(shortName(d.by)) + ', ' + esc(fmtWhen(d.at)) + '</div>' : '') +
+      (d ? '<div class="small muted">Texted · ' + esc(shortName(d.by)) + ', ' + esc(fmtWhen(d.at)) + ' · <button class="linkBtn ebCp" data-act="obEdge" data-day="' + esc(day) + '" data-id="' + esc(id) + '" title="' + esc(obEdgeNote(r, d, shortName(d.by))) + '">' +
+        (edgeCopied({ at: d.at, k: 'ob:' + id }) ? ic('tick', 12) + 'Copied for Edge' : 'Copy Edge note') + '</button></div>' : '') +
       (!a ? '<div class="small muted">Not on the ' + (S.rep ? esc(fmtDate(S.rep.asOf)) + ' ' : '') + 'A/R report — find them in Edge' + (r.acct ? ' by the account #' : '') + '</div>' : '') + '</div>' +
       (a ? '<button class="btn btn-ghost btn-sm" data-act="obOpen" data-key="' + esc(a.key) + '">Account ' + ic('next', 13) + '</button>' : '') + '</div>';
   };
@@ -5496,7 +5585,14 @@ Object.assign(ACT, {
   async obTick(t) {
     const day = t.dataset.day, id = t.dataset.id, rep = obRepFor(day); if (!rep) return;
     const on = !rep.done[id];
-    await obChange(day, (d, now) => obTick(d, [id], on, { by: meSid() }, now), { a: 'obtick', day, n: 1, on });
+    const ok = await obChange(day, (d, now) => obTick(d, [id], on, { by: meSid() }, now), { a: 'obtick', day, n: 1, on });
+    // ticked as texted: the chart note for Edge (handbook §14 day 0)
+    const r2 = on && ok ? obRepFor(day) : null, row = r2 && r2.rows.find(x => obRowId(x) === id), d = r2 && r2.done[id];
+    if (row && d) toast('Marked texted', { actions: [edgeAct(obEdgeNote(row, d, shortName(d.by)), { at: d.at, k: 'ob:' + id })] });
+  },
+  obEdge(t) {
+    const day = t.dataset.day, id = t.dataset.id, rep = obRepFor(day), row = rep && rep.rows.find(x => obRowId(x) === id), d = rep && rep.done[id];
+    if (row && d) copyForEdge(obEdgeNote(row, d, shortName(d.by)), [{ at: d.at, k: 'ob:' + id }]);
   },
   async obTickAll(t) {
     const day = t.dataset.day, rep = obRepFor(day); if (!rep) return;
@@ -5524,12 +5620,14 @@ async function change(key, fn0, action, okMsg) {
   // an account resolved before (on the list again, or resolved long ago and not loaded): working it reopens it, and its collections ladder starts over
   const fn = !cur || isBack(cur) ? d => { if (d.state === 'done') reopenItem(d, { by: meSid(), note: 'On the list again', fresh: true }, now); fn0(d); } : fn0;
   const id = cur ? cur.id : await idFor(key);
-  const copy = JSON.parse(JSON.stringify(cur || base));
+  const copy = JSON.parse(JSON.stringify(cur || base)), had = new Set(((cur || base).log || []).map(e => e && e.id));
   try { fn(copy); } catch (e) { toast(errText(e), { bad: true }); return false; }
   Object.assign(copy, { id, updatedAt: now, by: meSid() });
   S.items.set(id, copy); indexItems(); queueRender(); if (S.openKey === key) renderDrawer();
   S.pend[id] = (S.pend[id] || 0) + 1;
-  return B.mutateItem(id, fn, action, base).then(() => { if (okMsg) toast(okMsg); return true; }, e => {
+  // what was just done, as a note for Edge (offered with the confirmation)
+  const added = (copy.log || []).filter(e => e && !had.has(e.id)), last = added[added.length - 1], en = last ? edgeNote(copy, last) : '';
+  return B.mutateItem(id, fn, action, base).then(() => { if (okMsg) toast(okMsg, en ? { actions: [edgeAct(en, last)] } : {}); return true; }, e => {
     toast(errText(e), { bad: true }); if (!S.srv[id]) S.srv[id] = cur || 'gone'; return false;
   }).then(ok => {
     if (!--S.pend[id]) {
@@ -5539,6 +5637,53 @@ async function change(key, fn0, action, okMsg) {
     }
     return ok;
   });
+}
+
+/* ---------- notes for Edge: what was done, as a line to paste into the patient's notes there ---------- */
+function edgeNote(it, e) {
+  const c = it && it.src === 'ins' ? carrierFor(it.key) : null;
+  return edgeNoteOf(it, e, sid => shortName(sid) || '', c && c.name ? c.name : '');
+}
+/* entries copied for Edge on this computer (until the page closes), so the panel can say so */
+const edgeCpKey = e => (e && e.at) + '|' + (e && e.k);
+function edgeCopied(e) { return !!(S.edgeCp && S.edgeCp.has(edgeCpKey(e))); }
+async function copyForEdge(text, entries) {
+  const ok = await copyText(text);
+  if (ok) {
+    S.edgeCp = S.edgeCp || new Set(); (entries || []).forEach(e => S.edgeCp.add(edgeCpKey(e)));
+    const lb = $('#logBox'); if (lb && S.openKey) lb.innerHTML = logHTML(itemFor(S.openKey));
+    if ($('#obListBox')) refreshOBList();
+  }
+  toast(ok ? 'Copied for Edge — paste it into the patient’s notes there' : 'Couldn’t copy — select the note and copy it by hand', ok ? {} : { bad: true });
+  return ok;
+}
+/* the "Copy for Edge" button on a confirmation */
+function edgeAct(text, e) { return { t: 'Copy for Edge', fn: () => copyForEdge(text, e ? [e] : []) }; }
+/* after a step done for many accounts at once: each account's note, to paste into each one in Edge */
+function edgeNotesModal(title, rows) {
+  if (!rows || !rows.length) return;
+  S.edgeList = rows;
+  openModal('<h3>' + esc(title) + '</h3><div class="lsub">One note per account — paste each into that patient’s notes in Edge.</div><div class="etList">' + rows.map((r, i) =>
+    '<div class="etRow"><div class="grow"><div class="etT">' + esc(r.name) + '</div><div class="ebTx small">' + esc(r.text) + '</div></div><div class="ebBtns">' +
+    '<button class="btn btn-sec btn-sm" data-act="copyEdgeRow" data-i="' + i + '">' + ic('copy', 14) + 'Copy note</button><button class="btn btn-ghost btn-sm" data-act="copyVal" data-v="' + esc(r.name) + '">Copy name</button></div></div>').join('') +
+    '</div><div class="mFt" style="margin-top:14px"><button class="btn btn-pri" data-act="closeModal">Done</button></div>');
+}
+/* the newest entry of each account just changed, as Edge notes (for edgeNotesModal) */
+function edgeRows(accts) {
+  return (accts || []).map(a => { const it = itemFor(a.key), e = it && (it.log || [])[it.log.length - 1], text = e ? edgeNote(it, e) : ''; return text ? { key: a.key, name: a.patient, text, e } : null; }).filter(Boolean);
+}
+Object.assign(ACT, {
+  copyEdge(t) { const it = itemFor(curKey()), e = it && (it.log || []).find(x => x && x.id === t.dataset.id), n = e ? edgeNote(it, e) : ''; if (n) copyForEdge(n, [e]); },
+  copyEdgeDay() { const L = edgeToday(itemFor(curKey())); if (L.length) copyForEdge(L.map(x => x.n).join('\n'), L.map(x => x.e)); },
+  copyEdgeRow(t) {
+    const r = S.edgeList && S.edgeList[Number(t.dataset.i)]; if (!r) return;
+    copyForEdge(r.text, [r.e]).then(ok => { if (ok) { t.innerHTML = ic('tick', 14) + 'Copied'; t.classList.add('done'); } });
+  }
+});
+/* today's entries on an account that make an Edge note, oldest first */
+function edgeToday(it) {
+  const t = todayISO();
+  return ((it && it.log) || []).filter(e => e && e.at && isoOf(new Date(e.at)) === t).map(e => ({ e, n: edgeNote(it, e) })).filter(x => x.n);
 }
 
 /* ---------- drawer ---------- */
@@ -5720,9 +5865,14 @@ function logHTML(it) {
   const L = ((it && it.log) || []).slice().reverse();
   if (!L.length) return '<div class="small muted">Nothing logged yet.</div>';
   const undoId = it && canUndoLog(it) && Date.now() - (L[0].at || 0) < 30 * 60000 && L[0].by === meSid() ? L[0].id : '';
-  return L.map(e => '<div class="logRow">' + avatarHTML(e.by) + '<div style="flex:1;min-width:0"><div class="w"><b>' + esc(shortName(e.by) || '—') + '</b> · ' + esc(fmtWhen(e.at)) + '</div>' +
-    '<div class="lt">' + esc(logLabel(e)) + (e.date && e.k === 'pt_promise' ? ' — by ' + esc(fmtDay(e.date)) : '') + (e.amt != null ? ' · ' + money(e.amt, true) : '') + '</div>' + (e.note ? '<div class="ln">' + esc(e.note) + '</div>' : '') + '</div>' +
-    (e.id === undoId ? '<button class="btn btn-ghost" data-act="undoLog" title="Take this back">' + ic('undo', 14) + 'Undo</button>' : '') + '</div>').join('');
+  // today's work as Edge notes, ready to paste (each entry can also be copied on its own)
+  const td = edgeToday(it), all = td.length && td.every(x => edgeCopied(x.e));
+  const box = td.length ? '<div class="edgeBox"><div class="ebHd">' + ic('note', 15) + '<b>For Edge · today</b><span class="small muted grow">' + (all ? 'copied' : 'paste into the patient’s notes in Edge') + '</span>' +
+    '<button class="btn btn-sec btn-sm" data-act="copyEdgeDay">' + ic(all ? 'tick' : 'copy', 14) + (td.length > 1 ? 'Copy all ' + td.length : 'Copy') + '</button></div><div class="ebTx">' + esc(td.map(x => x.n).join('\n')) + '</div></div>' : '';
+  return box + L.map(e => { const n = edgeNote(it, e); return '<div class="logRow">' + avatarHTML(e.by) + '<div style="flex:1;min-width:0"><div class="w"><b>' + esc(shortName(e.by) || '—') + '</b> · ' + esc(fmtWhen(e.at)) + '</div>' +
+    '<div class="lt">' + esc(logLabel(e)) + (e.date && e.k === 'pt_promise' ? ' — by ' + esc(fmtDay(e.date)) : '') + (e.amt != null ? ' · ' + money(e.amt, true) : '') + '</div>' + (e.note ? '<div class="ln">' + esc(e.note) + '</div>' : '') +
+    (n ? '<button class="linkBtn small ebCp" data-act="copyEdge" data-id="' + esc(e.id) + '" title="' + esc(n) + '">' + (edgeCopied(e) ? ic('tick', 12) + 'Copied for Edge' : 'Copy Edge note') + '</button>' : '') + '</div>' +
+    (e.id === undoId ? '<button class="btn btn-ghost" data-act="undoLog" title="Take this back">' + ic('undo', 14) + 'Undo</button>' : '') + '</div>'; }).join('');
 }
 function histText(x) {
   switch (x.a) {
@@ -5773,7 +5923,8 @@ function doLog(k, extra) {
   try { applyLog(test, k, o, now); } catch (e) { toast(errText(e), { bad: true }); const n = $('#nowNote'); if (n && e.code === 'need-note') n.focus(); return; }
   S.ui = {}; const ni = $('#nowNote'); if (ni) ni.value = '';
   change(key, d => { applyLog(d, k, o, now); }, { a: 'log', k }).then(ok => { if (ok) loadHistory(key); });
-  toast('Logged: ' + LOGS[k].s + (test.follow ? ' · follow up ' + (dayDiff(test.follow) === 0 ? 'today' : fmtDay(test.follow)) : ''), { action: 'Undo', onAction: () => undoLast(key) });
+  const te = test.log[test.log.length - 1], en = edgeNote(test, te);
+  toast('Logged: ' + LOGS[k].s + (test.follow ? ' · follow up ' + (dayDiff(test.follow) === 0 ? 'today' : fmtDay(test.follow)) : ''), { actions: en ? [edgeAct(en, te)] : [], action: 'Undo', onAction: () => undoLast(key) });
 }
 function undoLast(key) {
   const it = itemFor(key); if (!it || !canUndoLog(it)) { toast('Can’t undo that any more — it has changed since.', { bad: true }); return; }
@@ -5788,7 +5939,8 @@ function ladTest(key, fn) {
 function ladRecord(key, s, note) {
   const now = Date.now(), ni = $('#nowNote'); if (ni) ni.value = '';
   change(key, d => { ladderLog(d, s.id, { by: meSid(), note }, now); }, { a: 'ladder', step: s.id }).then(ok => { if (ok) loadHistory(key); });
-  toast('Recorded: ' + s.did, { action: 'Undo', onAction: () => undoLast(key) });
+  const te = { id: '', at: now, by: meSid(), k: 'ladder', step: s.id, note }, en = edgeNote(itemFor(key), te);
+  toast('Recorded: ' + s.did, { actions: en ? [edgeAct(en, te)] : [], action: 'Undo', onAction: () => undoLast(key) });
 }
 /* a certified letter: keep its tracking number with it */
 function certModal(key, s) {
@@ -5867,7 +6019,8 @@ Object.assign(ACT, {
     const key = curKey(), on = t.dataset.on === '1', note = noteVal(), now = Date.now();
     const ni = $('#nowNote'); if (ni) ni.value = '';
     change(key, d => holdLog(d, on, { by: meSid(), note }, now), { a: 'mhold', on }).then(ok => { if (ok) loadHistory(key); });
-    toast(on ? 'On Maintenance Hold — in Edge: the yellow box and a treatment note; tell the clinical team' : 'Hold lifted — take the yellow box off in Edge and tell the clinical team', { ms: 9000, action: 'Undo', onAction: () => undoLast(key) });
+    const te = { id: '', at: now, by: meSid(), k: on ? 'mhold_on' : 'mhold_off', note }, en = edgeNote(itemFor(key), te);
+    toast(on ? 'On Maintenance Hold — in Edge: the yellow box and a treatment note; tell the clinical team' : 'Hold lifted — take the yellow box off in Edge and tell the clinical team', { ms: 9000, actions: en ? [edgeAct(en, te)] : [], action: 'Undo', onAction: () => undoLast(key) });
   },
   async ladAA() {
     const key = curKey(), note = noteVal();

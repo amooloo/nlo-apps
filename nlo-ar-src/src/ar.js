@@ -489,6 +489,80 @@ function breakArrangement(item, o, now) {
 }
 
 /* =====================================================================
+   Edge notes (8 Oct 2026, Amir: "after every action that is taken turn
+   it into a edge note that can be copied and entered into the edge"):
+   each thing done on an account in A/R as one line to paste into the
+   patient's notes in Edge, the way the FC writes them there — the date,
+   what was done, the note, the next follow-up, and who did it:
+   "10/08/26 Called RP, left voicemail. Next F/U 10/12/26. -Sarah".
+   Nothing for what came from Edge (an imported task, an account closed
+   because it's no longer on Edge's report) or for a reopened account.
+   ===================================================================== */
+const EDGE_SAY = {
+  pt_vm: 'Called RP, left voicemail.', pt_noans: 'Called RP, no answer.', pt_spoke: 'Spoke with RP.', pt_text: 'Texted RP.', pt_email: 'Emailed RP.',
+  pt_letter: 'Mailed a letter to RP.', pt_plan: 'Payment plan set up.', ins_pt: 'Billed the insurance balance to the family.',
+  cr_review: 'Reviewed the ledger for the credit balance.', cr_hold: 'Holding the credit until insurance pays out.', cr_refreq: 'Refund requested; waiting for Dr. A’s OK.',
+  aa_broken: 'Alternative Arrangement broken; Letter #8 is next.', mhold_on: 'Placed on Maintenance Hold (comfort visits only).', mhold_off: 'Maintenance Hold lifted.'
+};
+/* MM/DD/YY, as the FC dates her Edge notes */
+function mdy(iso) { const m = /^\d{2}(\d{2})-(\d{2})-(\d{2})$/.exec(String(iso || '')); return m ? m[2] + '/' + m[3] + '/' + m[1] : ''; }
+/* a collections step, said as what went out */
+function ladderSay(s) {
+  if (s.id === 'd0') return 'Texted RP: the payment didn’t go through.';
+  if (s.id === 'c75') return 'Called and texted RP (' + s.text + ') about the Maintenance Hold.';
+  if (!s.n) return 'Texted RP ' + s.text + '.';
+  const how = s.cert ? 'certified + regular mail + email' : String(s.send || '').split(' · ')[0].toLowerCase();
+  return 'Sent ' + s.l + (how ? ' (' + how + ')' : '') + (s.call ? ' and called RP' : '') + (s.text ? '; texted ' + s.text : '') + '.';
+}
+/* the note for one entry. o: { who: who did it, carrier: an insurance account's carrier, follow: the follow-up it set } → '' if none */
+function edgeNoteText(e, o) {
+  if (!e || !e.at || e.k === 'edgetask' || e.k === 'reopen' || (e.k === 'done' && e.outcome === 'cleared')) return '';
+  o = o || {};
+  const st = own(LAD_BY, e.step) ? LAD_BY[e.step] : null, car = String(o.carrier || '').trim(), note = String(e.note || '').replace(/\s+/g, ' ').trim();
+  let say;
+  if (own(EDGE_SAY, e.k)) say = EDGE_SAY[e.k];
+  else if (e.k === 'pt_promise') say = 'RP promised to pay' + (e.amt > 0 ? ' ' + money(e.amt, true) : '') + (isoOrBlank(e.date) ? ' by ' + mdy(e.date) : '') + '.';
+  else if (e.k === 'ins_call') say = /^called\b/i.test(note) ? '' : car ? 'Called ' + car + '.' : 'Called the insurance carrier.';
+  else if (e.k === 'ins_portal') say = car ? 'Checked the ' + car + ' portal.' : 'Checked the insurance portal.';
+  else if (e.k === 'ins_filed') say = car ? 'Claim filed with ' + car + '.' : 'Insurance claim filed.';
+  else if (e.k === 'ins_resub') say = car ? 'Claim resubmitted to ' + car + '.' : 'Insurance claim resubmitted.';
+  else if (e.k === 'ins_denied') say = car ? 'Claim denied by ' + car + '.' : 'Insurance claim denied.';
+  else if (e.k === 'ins_appeal') say = car ? 'Appeal sent to ' + car + '.' : 'Insurance appeal sent.';
+  else if (e.k === 'done') say = 'Account resolved: ' + String(OUTCOMES[e.outcome] || 'resolved').toLowerCase() + '.';
+  else if (e.k === 'drA_ask') say = st ? st.s + ' (' + st.l + ') to Dr. A to sign.' : 'Asked Dr. A:';
+  else if (e.k === 'drA_ok') say = st ? 'Dr. A signed ' + st.s + ' (' + st.l + ').' : 'Dr. A approved.';
+  else if (e.k === 'drA_no') say = st ? 'Dr. A: not yet (' + st.s + ').' : 'Dr. A: not yet.';
+  else if (e.k === 'ladder' && st) say = ladderSay(st);
+  else if (e.k === 'note') say = '';
+  else return '';
+  const nt = note ? (/:$/.test(say) ? note : note.charAt(0).toUpperCase() + note.slice(1)) + (/[.!?]$/.test(note) ? '' : '.') : '';
+  const body = [say, nt].filter(Boolean).join(' ');
+  if (!body) return '';
+  const day = mdy(isoOf(new Date(e.at))), f = isoOrBlank(o.follow), who = String(o.who || '').trim();
+  return (day + ' ' + body + (f ? ' Next F/U ' + mdy(f) + '.' : '') + (who ? ' -' + who : '')).slice(0, 1000);
+}
+/* the follow-up an entry set: for a one-tap log that sets one, the follow-up just after it (the next entry's "before", or the
+   account's own while nothing came after) */
+function followAfter(item, e) {
+  const L = (item && item.log) || [], i = L.indexOf(e);
+  if (i < 0 || !e || !own(LOGS, e.k) || !LOGS[e.k].next) return '';
+  const nx = L.slice(i + 1).find(x => x && x.prev);
+  return isoOrBlank(nx ? nx.prev.follow : item.state === 'open' ? item.follow : '');
+}
+/* the note for an entry of an account's record. whoOf(sid) → the name to sign it with; carrier: the account's carrier's name */
+function edgeNoteOf(item, e, whoOf, carrier) {
+  return e ? edgeNoteText(e, { who: whoOf ? whoOf(e.by) : '', carrier, follow: followAfter(item, e) }) : '';
+}
+/* a family on OrthoBanc's failed-payment list ticked as texted (handbook §14 day 0: text the RP, note it in the chart in Edge).
+   r: the list's row; d: its tick { at, by } */
+function obEdgeNote(r, d, who) {
+  if (!r || !d || !d.at) return '';
+  const w = String(who || '').trim();
+  return mdy(isoOf(new Date(d.at))) + ' Texted RP: OrthoBanc draft' + (r.amt != null && isFinite(r.amt) ? ' of ' + money(r.amt, true) : '') + (isoOrBlank(r.date) ? ' on ' + mdy(r.date) : '') +
+    ' failed' + (r.reason ? ' (' + String(r.reason).replace(/\s+/g, ' ').trim() + ')' : '') + '.' + (r.hold ? ' OrthoBanc stopped drafting (on HOLD).' : '') + (w ? ' -' + w : '');
+}
+
+/* =====================================================================
    What's read back from the database is checked before it's used:
    reports, their totals and account records are sealed by an office
    browser, but nothing in them is trusted to be the right type.

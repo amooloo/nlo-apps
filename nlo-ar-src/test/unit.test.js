@@ -177,6 +177,47 @@ const cfg = A.arCfg({});
     ok(A.blankItem(A.acctOf(row({ due: -50, bal: -50 }), cfg, '2026-10-05')).kind === 'cr', 'a credit account is a credit item');
   }
 
+  section('Edge notes: what was done, as a line to paste into Edge');
+  {
+    const a = A.acctOf(row({ due: 300, b90: 300 }), cfg, '2026-10-05'), it = A.blankItem(a), at = (d, h) => new Date(2026, 9, d, h || 10).getTime();
+    const who = s => ({ jamie: 'Jamie', amir: 'Dr. A' })[s] || '', note = e => A.edgeNoteOf(it, e, who, '');
+    A.applyLog(it, 'pt_vm', { by: 'jamie' }, at(5));                                            // Monday → follow up Thursday the 8th
+    A.applyLog(it, 'pt_text', { by: 'jamie', note: 'sent the payment link' }, at(8));           // Thursday → follow up Monday the 12th
+    A.applyLog(it, 'pt_promise', { by: 'jamie', date: '2026-10-15', amt: 200 }, at(8, 11));
+    A.applyLog(it, 'pt_spoke', { by: 'amir' }, at(8, 12));
+    eq(it.log.map(note), ['10/05/26 Called RP, left voicemail. Next F/U 10/08/26. -Jamie', '10/08/26 Texted RP. Sent the payment link. Next F/U 10/12/26. -Jamie',
+      '10/08/26 RP promised to pay $200.00 by 10/15/26. -Jamie', '10/08/26 Spoke with RP. Next F/U ' + A.mdy(it.follow) + '. -Dr. A'],
+      'each log: the date, what was done (as the FC writes it in Edge), the note, the follow-up it set, who did it');
+    A.resolveItem(it, 'paid', { by: 'jamie', note: 'paid by card' }, at(9));
+    eq([note(it.log[3]), note(it.log[4])], ['10/08/26 Spoke with RP. -Dr. A', '10/09/26 Account resolved: paid. Paid by card. -Jamie'], 'resolved: the outcome; no follow-up left to give');
+    const L = (k, o, x) => A.edgeNoteText(Object.assign({ at: at(6), k }, o || {}), x || {});
+    eq([L('ladder', { step: 'l1' }, { who: 'Jamie' }), L('ladder', { step: 'l3' }), L('ladder', { step: 'l4' }), L('ladder', { step: 'l5', note: 'Certified #9407 1112' }, { who: 'Jamie' }),
+      L('ladder', { step: 'd0' }), L('ladder', { step: 'c75' }), L('ladder', { step: 't8' }), L('ladder', { step: 'aa' })],
+      ['10/06/26 Sent FC- #1, Friendly Reminder (mail or email); texted FC- Delinquent #1. -Jamie', '10/06/26 Sent FC- #3 - Stronger FC Notice (mail or email) and called RP; texted FC- Delinquent #3.',
+        '10/06/26 Sent FC- #4, Doctors First Letter (mail and email); texted FC- Delinquent #4.',
+        '10/06/26 Sent FC- #5, Maint. Hold + Discont. Warning (certified + regular mail + email); texted FC- Delinquent #5 &6. Certified #9407 1112. -Jamie',
+        '10/06/26 Texted RP: the payment didn’t go through.', '10/06/26 Called and texted RP (FC- Delinquent #7) about the Maintenance Hold.', '10/06/26 Texted RP FC- Delinquent #8.',
+        '10/06/26 Sent FC- #8, Broken Arrangement (certified + regular mail + email).'],
+      'collection steps: the letter by Edge’s name, how it went, the text by Weave’s name, the certified tracking number');
+    eq([L('ins_call', { note: 'claim in review' }, { carrier: 'Delta Dental', who: 'Taylor', follow: '2026-10-20' }), L('ins_call', { note: 'Called Delta Dental: claim in review' }, { carrier: 'Delta Dental' }),
+      L('ins_denied', { note: 'over the age limit' }, { carrier: 'Delta Dental' }), L('ins_portal'), L('ins_pt'), L('cr_refreq'), L('cr_hold')],
+      ['10/06/26 Called Delta Dental. Claim in review. Next F/U 10/20/26. -Taylor', '10/06/26 Called Delta Dental: claim in review.', '10/06/26 Claim denied by Delta Dental. Over the age limit.',
+        '10/06/26 Checked the insurance portal.', '10/06/26 Billed the insurance balance to the family.', '10/06/26 Refund requested; waiting for Dr. A’s OK.', '10/06/26 Holding the credit until insurance pays out.'],
+      'insurance: the carrier named when the account has one (a call logged for all of a carrier’s accounts isn’t said twice); credits');
+    eq([L('drA_ask', { note: 'OK to refund $125 by check?' }, { who: 'Jamie' }), L('drA_ok', {}, { who: 'Dr. A' }), L('drA_no', { note: 'wait for the EOB' }), L('drA_ask', { step: 'l5' }), L('drA_ok', { step: 'l5' }),
+      L('mhold_on'), L('mhold_off'), L('aa_broken'), L('note', { note: 'Mom will call Friday' }, { who: 'Jamie' })],
+      ['10/06/26 Asked Dr. A: OK to refund $125 by check? -Jamie', '10/06/26 Dr. A approved. -Dr. A', '10/06/26 Dr. A: not yet. Wait for the EOB.',
+        '10/06/26 Letter #5 (FC- #5, Maint. Hold + Discont. Warning) to Dr. A to sign.', '10/06/26 Dr. A signed Letter #5 (FC- #5, Maint. Hold + Discont. Warning).',
+        '10/06/26 Placed on Maintenance Hold (comfort visits only).', '10/06/26 Maintenance Hold lifted.', '10/06/26 Alternative Arrangement broken; Letter #8 is next.', '10/06/26 Mom will call Friday. -Jamie'],
+      'Dr. A’s OKs and signatures, Maintenance Hold, a broken arrangement, a note on its own');
+    eq([L('edgetask', { note: 'LETTERS - x' }), L('reopen'), L('done', { outcome: 'cleared', note: 'Not in the Oct 5 report' }), A.edgeNoteText({ k: 'pt_vm' }, {}), A.edgeNoteOf(it, null, who, '')], ['', '', '', '', ''],
+      'nothing for what came from Edge (an imported task, an account cleared in Edge) or a reopened account');
+    eq([A.obEdgeNote({ amt: 175, date: '2026-10-02', reason: 'Credit Card - Declined Insufficient Funds', hold: true }, { at: at(5), by: 'jamie' }, 'Jamie'), A.obEdgeNote({ amt: 150, reason: '' }, { at: at(5) }, ''), A.obEdgeNote({ amt: 1 }, null, 'x')],
+      ['10/05/26 Texted RP: OrthoBanc draft of $175.00 on 10/02/26 failed (Credit Card - Declined Insufficient Funds). OrthoBanc stopped drafting (on HOLD). -Jamie', '10/05/26 Texted RP: OrthoBanc draft of $150.00 failed.', ''],
+      'a family ticked as texted on OrthoBanc’s failed-payment list: the chart note for day 0');
+    ok(A.edgeNoteText({ at: at(6), k: 'note', note: 'x'.repeat(2000) }, {}).length === 1000 && A.mdy('2026-01-09') === '01/09/26' && A.mdy('') === '', 'a note stays a sensible length; dates as MM/DD/YY');
+  }
+
   section('The collections ladder (handbook §14)');
   {
     const asOf = '2026-10-05', T = '2026-10-05', at = (y, m, d) => new Date(y, m - 1, d, 10).getTime();

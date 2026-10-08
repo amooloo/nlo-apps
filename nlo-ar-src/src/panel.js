@@ -16,12 +16,14 @@ async function change(key, fn0, action, okMsg) {
   // an account resolved before (on the list again, or resolved long ago and not loaded): working it reopens it, and its collections ladder starts over
   const fn = !cur || isBack(cur) ? d => { if (d.state === 'done') reopenItem(d, { by: meSid(), note: 'On the list again', fresh: true }, now); fn0(d); } : fn0;
   const id = cur ? cur.id : await idFor(key);
-  const copy = JSON.parse(JSON.stringify(cur || base));
+  const copy = JSON.parse(JSON.stringify(cur || base)), had = new Set(((cur || base).log || []).map(e => e && e.id));
   try { fn(copy); } catch (e) { toast(errText(e), { bad: true }); return false; }
   Object.assign(copy, { id, updatedAt: now, by: meSid() });
   S.items.set(id, copy); indexItems(); queueRender(); if (S.openKey === key) renderDrawer();
   S.pend[id] = (S.pend[id] || 0) + 1;
-  return B.mutateItem(id, fn, action, base).then(() => { if (okMsg) toast(okMsg); return true; }, e => {
+  // what was just done, as a note for Edge (offered with the confirmation)
+  const added = (copy.log || []).filter(e => e && !had.has(e.id)), last = added[added.length - 1], en = last ? edgeNote(copy, last) : '';
+  return B.mutateItem(id, fn, action, base).then(() => { if (okMsg) toast(okMsg, en ? { actions: [edgeAct(en, last)] } : {}); return true; }, e => {
     toast(errText(e), { bad: true }); if (!S.srv[id]) S.srv[id] = cur || 'gone'; return false;
   }).then(ok => {
     if (!--S.pend[id]) {
@@ -31,6 +33,53 @@ async function change(key, fn0, action, okMsg) {
     }
     return ok;
   });
+}
+
+/* ---------- notes for Edge: what was done, as a line to paste into the patient's notes there ---------- */
+function edgeNote(it, e) {
+  const c = it && it.src === 'ins' ? carrierFor(it.key) : null;
+  return edgeNoteOf(it, e, sid => shortName(sid) || '', c && c.name ? c.name : '');
+}
+/* entries copied for Edge on this computer (until the page closes), so the panel can say so */
+const edgeCpKey = e => (e && e.at) + '|' + (e && e.k);
+function edgeCopied(e) { return !!(S.edgeCp && S.edgeCp.has(edgeCpKey(e))); }
+async function copyForEdge(text, entries) {
+  const ok = await copyText(text);
+  if (ok) {
+    S.edgeCp = S.edgeCp || new Set(); (entries || []).forEach(e => S.edgeCp.add(edgeCpKey(e)));
+    const lb = $('#logBox'); if (lb && S.openKey) lb.innerHTML = logHTML(itemFor(S.openKey));
+    if ($('#obListBox')) refreshOBList();
+  }
+  toast(ok ? 'Copied for Edge — paste it into the patient’s notes there' : 'Couldn’t copy — select the note and copy it by hand', ok ? {} : { bad: true });
+  return ok;
+}
+/* the "Copy for Edge" button on a confirmation */
+function edgeAct(text, e) { return { t: 'Copy for Edge', fn: () => copyForEdge(text, e ? [e] : []) }; }
+/* after a step done for many accounts at once: each account's note, to paste into each one in Edge */
+function edgeNotesModal(title, rows) {
+  if (!rows || !rows.length) return;
+  S.edgeList = rows;
+  openModal('<h3>' + esc(title) + '</h3><div class="lsub">One note per account — paste each into that patient’s notes in Edge.</div><div class="etList">' + rows.map((r, i) =>
+    '<div class="etRow"><div class="grow"><div class="etT">' + esc(r.name) + '</div><div class="ebTx small">' + esc(r.text) + '</div></div><div class="ebBtns">' +
+    '<button class="btn btn-sec btn-sm" data-act="copyEdgeRow" data-i="' + i + '">' + ic('copy', 14) + 'Copy note</button><button class="btn btn-ghost btn-sm" data-act="copyVal" data-v="' + esc(r.name) + '">Copy name</button></div></div>').join('') +
+    '</div><div class="mFt" style="margin-top:14px"><button class="btn btn-pri" data-act="closeModal">Done</button></div>');
+}
+/* the newest entry of each account just changed, as Edge notes (for edgeNotesModal) */
+function edgeRows(accts) {
+  return (accts || []).map(a => { const it = itemFor(a.key), e = it && (it.log || [])[it.log.length - 1], text = e ? edgeNote(it, e) : ''; return text ? { key: a.key, name: a.patient, text, e } : null; }).filter(Boolean);
+}
+Object.assign(ACT, {
+  copyEdge(t) { const it = itemFor(curKey()), e = it && (it.log || []).find(x => x && x.id === t.dataset.id), n = e ? edgeNote(it, e) : ''; if (n) copyForEdge(n, [e]); },
+  copyEdgeDay() { const L = edgeToday(itemFor(curKey())); if (L.length) copyForEdge(L.map(x => x.n).join('\n'), L.map(x => x.e)); },
+  copyEdgeRow(t) {
+    const r = S.edgeList && S.edgeList[Number(t.dataset.i)]; if (!r) return;
+    copyForEdge(r.text, [r.e]).then(ok => { if (ok) { t.innerHTML = ic('tick', 14) + 'Copied'; t.classList.add('done'); } });
+  }
+});
+/* today's entries on an account that make an Edge note, oldest first */
+function edgeToday(it) {
+  const t = todayISO();
+  return ((it && it.log) || []).filter(e => e && e.at && isoOf(new Date(e.at)) === t).map(e => ({ e, n: edgeNote(it, e) })).filter(x => x.n);
 }
 
 /* ---------- drawer ---------- */
@@ -212,9 +261,14 @@ function logHTML(it) {
   const L = ((it && it.log) || []).slice().reverse();
   if (!L.length) return '<div class="small muted">Nothing logged yet.</div>';
   const undoId = it && canUndoLog(it) && Date.now() - (L[0].at || 0) < 30 * 60000 && L[0].by === meSid() ? L[0].id : '';
-  return L.map(e => '<div class="logRow">' + avatarHTML(e.by) + '<div style="flex:1;min-width:0"><div class="w"><b>' + esc(shortName(e.by) || '—') + '</b> · ' + esc(fmtWhen(e.at)) + '</div>' +
-    '<div class="lt">' + esc(logLabel(e)) + (e.date && e.k === 'pt_promise' ? ' — by ' + esc(fmtDay(e.date)) : '') + (e.amt != null ? ' · ' + money(e.amt, true) : '') + '</div>' + (e.note ? '<div class="ln">' + esc(e.note) + '</div>' : '') + '</div>' +
-    (e.id === undoId ? '<button class="btn btn-ghost" data-act="undoLog" title="Take this back">' + ic('undo', 14) + 'Undo</button>' : '') + '</div>').join('');
+  // today's work as Edge notes, ready to paste (each entry can also be copied on its own)
+  const td = edgeToday(it), all = td.length && td.every(x => edgeCopied(x.e));
+  const box = td.length ? '<div class="edgeBox"><div class="ebHd">' + ic('note', 15) + '<b>For Edge · today</b><span class="small muted grow">' + (all ? 'copied' : 'paste into the patient’s notes in Edge') + '</span>' +
+    '<button class="btn btn-sec btn-sm" data-act="copyEdgeDay">' + ic(all ? 'tick' : 'copy', 14) + (td.length > 1 ? 'Copy all ' + td.length : 'Copy') + '</button></div><div class="ebTx">' + esc(td.map(x => x.n).join('\n')) + '</div></div>' : '';
+  return box + L.map(e => { const n = edgeNote(it, e); return '<div class="logRow">' + avatarHTML(e.by) + '<div style="flex:1;min-width:0"><div class="w"><b>' + esc(shortName(e.by) || '—') + '</b> · ' + esc(fmtWhen(e.at)) + '</div>' +
+    '<div class="lt">' + esc(logLabel(e)) + (e.date && e.k === 'pt_promise' ? ' — by ' + esc(fmtDay(e.date)) : '') + (e.amt != null ? ' · ' + money(e.amt, true) : '') + '</div>' + (e.note ? '<div class="ln">' + esc(e.note) + '</div>' : '') +
+    (n ? '<button class="linkBtn small ebCp" data-act="copyEdge" data-id="' + esc(e.id) + '" title="' + esc(n) + '">' + (edgeCopied(e) ? ic('tick', 12) + 'Copied for Edge' : 'Copy Edge note') + '</button>' : '') + '</div>' +
+    (e.id === undoId ? '<button class="btn btn-ghost" data-act="undoLog" title="Take this back">' + ic('undo', 14) + 'Undo</button>' : '') + '</div>'; }).join('');
 }
 function histText(x) {
   switch (x.a) {
@@ -265,7 +319,8 @@ function doLog(k, extra) {
   try { applyLog(test, k, o, now); } catch (e) { toast(errText(e), { bad: true }); const n = $('#nowNote'); if (n && e.code === 'need-note') n.focus(); return; }
   S.ui = {}; const ni = $('#nowNote'); if (ni) ni.value = '';
   change(key, d => { applyLog(d, k, o, now); }, { a: 'log', k }).then(ok => { if (ok) loadHistory(key); });
-  toast('Logged: ' + LOGS[k].s + (test.follow ? ' · follow up ' + (dayDiff(test.follow) === 0 ? 'today' : fmtDay(test.follow)) : ''), { action: 'Undo', onAction: () => undoLast(key) });
+  const te = test.log[test.log.length - 1], en = edgeNote(test, te);
+  toast('Logged: ' + LOGS[k].s + (test.follow ? ' · follow up ' + (dayDiff(test.follow) === 0 ? 'today' : fmtDay(test.follow)) : ''), { actions: en ? [edgeAct(en, te)] : [], action: 'Undo', onAction: () => undoLast(key) });
 }
 function undoLast(key) {
   const it = itemFor(key); if (!it || !canUndoLog(it)) { toast('Can’t undo that any more — it has changed since.', { bad: true }); return; }
@@ -280,7 +335,8 @@ function ladTest(key, fn) {
 function ladRecord(key, s, note) {
   const now = Date.now(), ni = $('#nowNote'); if (ni) ni.value = '';
   change(key, d => { ladderLog(d, s.id, { by: meSid(), note }, now); }, { a: 'ladder', step: s.id }).then(ok => { if (ok) loadHistory(key); });
-  toast('Recorded: ' + s.did, { action: 'Undo', onAction: () => undoLast(key) });
+  const te = { id: '', at: now, by: meSid(), k: 'ladder', step: s.id, note }, en = edgeNote(itemFor(key), te);
+  toast('Recorded: ' + s.did, { actions: en ? [edgeAct(en, te)] : [], action: 'Undo', onAction: () => undoLast(key) });
 }
 /* a certified letter: keep its tracking number with it */
 function certModal(key, s) {
@@ -359,7 +415,8 @@ Object.assign(ACT, {
     const key = curKey(), on = t.dataset.on === '1', note = noteVal(), now = Date.now();
     const ni = $('#nowNote'); if (ni) ni.value = '';
     change(key, d => holdLog(d, on, { by: meSid(), note }, now), { a: 'mhold', on }).then(ok => { if (ok) loadHistory(key); });
-    toast(on ? 'On Maintenance Hold — in Edge: the yellow box and a treatment note; tell the clinical team' : 'Hold lifted — take the yellow box off in Edge and tell the clinical team', { ms: 9000, action: 'Undo', onAction: () => undoLast(key) });
+    const te = { id: '', at: now, by: meSid(), k: on ? 'mhold_on' : 'mhold_off', note }, en = edgeNote(itemFor(key), te);
+    toast(on ? 'On Maintenance Hold — in Edge: the yellow box and a treatment note; tell the clinical team' : 'Hold lifted — take the yellow box off in Edge and tell the clinical team', { ms: 9000, actions: en ? [edgeAct(en, te)] : [], action: 'Undo', onAction: () => undoLast(key) });
   },
   async ladAA() {
     const key = curKey(), note = noteVal();

@@ -33,6 +33,9 @@ const shot = (p, n, full) => p.screenshot({ path: path.join(SHOTS, n + '.png'), 
   await page.click('#lgBtn');
   await page.waitForSelector('.tiles .tile');
   await page.waitForTimeout(300);
+  // what the page copies (Edge notes, names) is kept here instead of the system clipboard
+  await page.evaluate(() => { window.__clip = []; Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: s => { window.__clip.push(s); return Promise.resolve(); } } }); });
+  const clip = () => page.evaluate(() => window.__clip[window.__clip.length - 1] || '');
   await collect(); await shot(page, 'today', true);
   const c0 = await S_(() => counts());
   ok(await page.$$eval('.tiles .tile', t => t.length) === 7, 'Today: seven tiles (follow-ups, collection steps, 91+, chase now, credits, waiting for Dr. A, cleared)');
@@ -110,6 +113,10 @@ const shot = (p, n, full) => p.screenshot({ path: path.join(SHOTS, n + '.png'), 
   await shot(page, 'ob-list', true);
   await page.click('#obListBox .obTick >> nth=1'); await page.waitForTimeout(300);
   ok(/1 of 4/.test(await page.textContent('#obListBox .obTop')) && await page.$eval('#obListBox .obTick >> nth=1', b => b.getAttribute('aria-pressed') === 'true') && await page.$eval('#obListBox .obTick[aria-pressed=true]', b => /Texted · /.test(b.closest('.obRow').textContent)), 'tick a family: 1 of 4 texted, who and when');
+  ok(await page.$$eval('.toast', t => t.some(x => /Marked texted/.test(x.textContent) && /Copy for Edge/.test(x.textContent))), 'ticking offers its chart note for Edge (handbook §14 day 0)');
+  await page.click('#obListBox [data-act=obEdge]'); await page.waitForTimeout(150);
+  const obNote = await clip();
+  ok(/^\d\d\/\d\d\/\d\d Texted RP: OrthoBanc draft of \$[\d,]+\.\d\d on 10\/02\/26 failed \(.+\)\. -Dr\. A$/.test(obNote) && /Copied for Edge/.test(await page.$eval('#obListBox [data-act=obEdge]', b => b.textContent)), 'its row: Copy Edge note — “' + obNote + '”');
   await page.click('#modalWrap [data-act=closeModal]'); await page.waitForTimeout(250);
   const obB = (await page.innerText('.staleBox.ob')).replace(/\s+/g, ' ');
   ok(/4 failed payments \(1 on HOLD\) — 1 of 4 texted/.test(obB) && await page.isVisible('.staleBox.ob [data-act=obList]'), 'Today: “4 failed payments (1 on HOLD) — 1 of 4 texted”, with the list a tap away');
@@ -184,6 +191,13 @@ const shot = (p, n, full) => p.screenshot({ path: path.join(SHOTS, n + '.png'), 
   const afterLog = await itemOf(k1);
   ok(afterLog.log.length === before.log.length + 1 && afterLog.stage === 'working' && afterLog.follow > before.follow, 'logging “no answer” adds it and moves the follow-up (' + before.follow + ' → ' + afterLog.follow + ')');
   ok(await toastHas(/Logged: No answer/), 'toast confirms the log, with Undo');
+  ok((await page.$$eval('.toast', t => t.filter(x => /Logged: No answer/.test(x.textContent)).map(x => Array.from(x.querySelectorAll('button')).map(b => b.textContent).join(','))))[0] === 'Copy for Edge,Undo', 'and Copy for Edge');
+  await page.click('.toast button:has-text("Copy for Edge")'); await page.waitForTimeout(200);
+  const c1 = await clip();
+  ok(/^\d\d\/\d\d\/\d\d Called RP, no answer\. Next F\/U \d\d\/\d\d\/\d\d\. -Dr\. A$/.test(c1) && await toastHas(/Copied for Edge/), 'Copy for Edge: “' + c1 + '”');
+  ok(await page.$eval('#drawer .edgeBox', e => /For Edge · today/.test(e.textContent) && /Called RP, no answer\./.test(e.textContent) && /copied/.test(e.textContent)), 'the panel shows today’s work as Edge notes (this one copied)');
+  await page.evaluate(() => { const b = document.querySelector('#drawer #logBox'); if (b) b.closest('.sec').scrollIntoView({ block: 'start' }); }); await page.waitForTimeout(100);
+  await shot(page, 'edge-note-panel');
   await page.click('#drawer [data-act=undoLog]'); await page.waitForTimeout(250);
   const afterUndo = await itemOf(k1);
   ok(afterUndo.log.length === before.log.length && afterUndo.stage === before.stage && afterUndo.follow === before.follow, 'Undo puts it back exactly');
@@ -216,6 +230,11 @@ const shot = (p, n, full) => p.screenshot({ path: path.join(SHOTS, n + '.png'), 
   await page.click('#drawer [data-act=drAok]'); await page.waitForTimeout(250);
   const oked = await itemOf(k2);
   ok(oked.drA === false && oked.log[oked.log.length - 1].k === 'drA_ok', 'his OK is logged and it leaves his queue');
+  ok(await page.$$eval('.toast', t => t.some(x => /^OK’d/.test(x.textContent) && /Copy for Edge/.test(x.textContent))), 'confirmations offer Copy for Edge too');
+  await page.click('#drawer #logBox .logRow [data-act=copyEdge] >> nth=0'); await page.waitForTimeout(150);
+  ok(/^\d\d\/\d\d\/\d\d Dr\. A approved\. -Dr\. A$/.test(await clip()) && await page.$eval('#drawer #logBox .logRow [data-act=copyEdge]', b => /Copied for Edge/.test(b.textContent)), 'each entry can be copied on its own: “' + (await clip()) + '”');
+  await page.click('#drawer [data-act=copyEdgeDay]'); await page.waitForTimeout(150);
+  ok(/^\d\d\/\d\d\/\d\d Asked Dr\. A: OK to write off \$40\? Family moved away\. -Dr\. A\n\d\d\/\d\d\/\d\d Dr\. A approved\. -Dr\. A$/.test(await clip()), 'Copy all: today’s notes for the account, in the order they happened');
   // resolve it, then reopen
   await page.click('#drawer [data-act=resolve]'); await page.waitForSelector('#rsPick');
   await collect();
@@ -249,8 +268,14 @@ const shot = (p, n, full) => p.screenshot({ path: path.join(SHOTS, n + '.png'), 
   ok(await S_(() => S.view === 'pd' && S.tab.pd === 'lad' && S.ladStep === 'l1' && S.lastList.length > 1 && S.lastList.every(a => ladFor(a).due.id === 'l1')), 'a step on Today opens the ladder at that step');
   await collect(); await shot(page, 'ladder-l1', true);
   const nL1 = await S_(() => S.lastList.length);
-  await page.click('[data-act=ladBatch][data-m=done]'); await page.click('#cbYes'); await page.waitForTimeout(700);
+  await page.click('[data-act=ladBatch][data-m=done]'); await page.click('#cbYes'); await page.waitForSelector('#modalWrap .etRow', { timeout: 15000 });
   ok(await S_(() => !ladDueAccts().some(a => ladFor(a).due.id === 'l1')) && await toastHas(/Letter #1: \d+ accounts marked sent/), 'all ' + nL1 + ' Letter #1s marked sent at once (sent together from Edge)');
+  const enL = await page.$$eval('#modalWrap .etRow', r => r.map(x => x.querySelector('.ebTx').textContent));
+  ok(enL.length === nL1 && enL.every(t => /^\d\d\/\d\d\/\d\d Sent FC- #1, Friendly Reminder \(mail or email\); texted FC- Delinquent #1\. -Dr\. A$/.test(t)), 'then each account’s note for Edge (' + nL1 + '), to paste into each one: “' + enL[0] + '”');
+  await page.click('#modalWrap [data-act=copyEdgeRow] >> nth=0'); await page.waitForTimeout(150);
+  ok((await clip()) === enL[0] && await page.$eval('#modalWrap [data-act=copyEdgeRow]', b => /Copied/.test(b.textContent)), 'Copy note: copied, and its button says so');
+  await page.evaluate(() => document.querySelectorAll('.toast').forEach(t => t.remove())); await collect(); await shot(page, 'edge-notes-batch');
+  await page.click('#modalWrap [data-act=closeModal]'); await page.waitForTimeout(150);
   ok(await S_(() => S.ladStep === '' && S.lastList.length === ladDueAccts().length), 'with none left at that step, the list shows every step again');
   // Letter #3 and the call, in one tap; undo
   const k3 = await dueKey('l3');
@@ -356,6 +381,10 @@ const shot = (p, n, full) => p.screenshot({ path: path.join(SHOTS, n + '.png'), 
   await page.click('[data-act=carrierCallAll][data-id="' + bay.id + '"]'); await page.fill('#callNote', 'Claims are in review'); await page.click('[data-act=carrierCallSave]');
   await page.waitForFunction(keys => keys.every(k => { const it = itemFor(k); return it && it.log.some(e => e.k === 'ins_call' && /Bayside Dental Plan: Claims are in review/.test(e.note)); }), bay.keys, { timeout: 10000 });
   ok(true, '“Called about all ' + bay.keys.length + '” logs the call (with the note) on each of Bayside’s accounts');
+  await page.waitForSelector('#modalWrap .etRow', { timeout: 10000 });
+  const ccN = await page.$$eval('#modalWrap .etRow .ebTx', r => r.map(x => x.textContent));
+  ok(ccN.length === bay.keys.length && ccN.every(t => /^\d\d\/\d\d\/\d\d Called Bayside Dental Plan: Claims are in review\. Next F\/U \d\d\/\d\d\/\d\d\. -Dr\. A$/.test(t)), 'and each account’s note for Edge: “' + ccN[0] + '”');
+  await page.click('#modalWrap [data-act=closeModal]'); await page.waitForTimeout(150);
   // the carrier on an account's panel; the Carrier filter on the lists
   await page.click('[data-act=tab][data-t=all]'); await page.waitForTimeout(150);
   await page.selectOption('select[data-f=car]', bay.id); await page.waitForTimeout(150);

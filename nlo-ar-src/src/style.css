@@ -554,6 +554,15 @@ ol.steps b{color:var(--navy)}
 .etOpts label{display:flex;align-items:flex-start;gap:8px}
 .etOpts input[type=checkbox]{margin-top:2px;width:16px;height:16px;flex:none}
 .etList{max-height:300px;overflow:auto;padding-right:4px}
+.edgeBox{margin:0 0 10px;border:1.5px solid var(--mint-200);background:var(--mint-100);border-radius:12px;padding:10px 12px}
+.edgeBox .ebHd{display:flex;align-items:center;gap:8px;flex-wrap:wrap;color:var(--navy)}
+.edgeBox .ebHd .grow{flex:1;min-width:110px}
+.ebTx{white-space:pre-wrap;overflow-wrap:anywhere;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px;line-height:1.5;color:var(--grey-700);margin-top:6px;user-select:all}
+.etRow .ebTx{margin-top:3px}
+.ebCp{display:inline-flex;align-items:center;gap:4px;margin-top:3px;font-size:12px}
+.ebBtns{display:flex;flex-direction:column;gap:6px;flex:none}
+.ebBtns .btn.done{color:var(--mint-700)}
+@media (max-width:560px){.etRow:has(.ebBtns){flex-wrap:wrap}.ebBtns{flex-direction:row;width:100%}}
 .logRow .ln{white-space:pre-wrap;overflow-wrap:anywhere;color:var(--grey-700);margin-top:2px}
 .drABox{margin-top:14px;border-radius:var(--r);padding:12px 14px;background:var(--amber-100);border:1.5px solid var(--amber-200);color:var(--amber-700)}
 .drABox b{color:var(--navy)}

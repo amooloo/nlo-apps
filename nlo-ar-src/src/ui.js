@@ -57,11 +57,13 @@ const IC = {
 function ic(n, s) { s = s || 18; return '<svg class="i" width="' + s + '" height="' + s + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (IC[n] || '') + '</svg>'; }
 
 /* ---------- toasts ---------- */
+/* opt: { bad, ms, action + onAction (one button), actions: [{ t, fn }] (more buttons, before it) } */
 function toast(msg, opt) {
   opt = opt || {}; const el = document.createElement('div'); el.className = 'toast' + (opt.bad ? ' bad' : ''); el.setAttribute('role', 'status');
-  el.innerHTML = esc(msg) + (opt.action ? ' <button class="linkBtn" style="color:var(--mint);margin-left:10px;pointer-events:auto">' + esc(opt.action) + '</button>' : '');
-  if (opt.action) el.querySelector('button').onclick = () => { opt.onAction(); el.remove(); };
-  $('#toasts').appendChild(el); setTimeout(() => el.remove(), opt.ms || (opt.action ? 8000 : 3800));
+  const acts = (opt.actions || []).filter(x => x && x.t).concat(opt.action ? [{ t: opt.action, fn: opt.onAction }] : []);
+  el.innerHTML = esc(msg) + acts.map(x => ' <button class="linkBtn" style="color:var(--mint);margin-left:10px;pointer-events:auto">' + esc(x.t) + '</button>').join('');
+  $$('button', el).forEach((b, i) => { b.onclick = () => { el.remove(); acts[i].fn(); }; });
+  $('#toasts').appendChild(el); setTimeout(() => el.remove(), opt.ms || (acts.length ? 8000 : 3800));
 }
 function errText(e) {
   const c = (e && (e.code || e.message)) || '';
