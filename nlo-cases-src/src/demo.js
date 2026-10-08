@@ -152,6 +152,15 @@ const DEMO = {
      [2, 'angelika', 'Trimmed and polished. @' + (me === 'amir' ? 'Dr. A' : 'Practice') + ' one aligner has a thin edge, take a look at the delivery.', 26 * 60]].forEach(([i, by, text, min]) => {
       const c = tagged[i]; if (c) c.comments = (c.comments || []).concat([{ id: 'dn' + i, at: Date.now() - min * 60e3, by, text, to: [me] }]); });
     try { if (tagged[2]) localStorage.setItem('nloCases.msgRead.' + me, JSON.stringify([tagged[2].id + '/dn2'])); } catch (e) { }
+    // stickers (stickers.js): Sarah's 👍 on Gwen's note, and two for the one practising — Sarah's 🙏 in a case's Details, and
+    // Gwen's 🎉 on a step they did (a move to the step that case is at, three hours ago)
+    const stk = (c, s) => { if (c) c.stickers = (c.stickers || []).concat([s]); };
+    if (tagged[0]) stk(tagged[0], { id: 'ds0', at: Date.now() - 22 * 60e3, by: 'sarah', e: '👍', on: 'n:dn0', to: 'gwen' });
+    if (tagged[1]) stk(tagged[1], { id: 'ds1', at: Date.now() - 55 * 60e3, by: 'sarah', e: '🙏', on: 's:details', to: me, l: 'Details' });
+    const mv = Array.from(DEMO.cases.values()).find(c => c.status === 'open' && !tagged.includes(c) && stageIndex(c) > 0);
+    if (mv) { const st = caseStages(mv), i = stageIndex(mv), at = Date.now() - 3 * 3600e3;
+      DEMO.logs.push({ caseId: mv.id, a: 'stage', from: st[i - 1][0], to: mv.stage, at, sid: me });
+      stk(mv, { id: 'ds2', at: Date.now() - 40 * 60e3, by: 'gwen', e: '🎉', on: 'h:t' + at, to: me, k: mv.stage, l: 'moved it to ' + st[i][1] }); }
   },
   /* patient photos (in memory) */
   photos: new Map(),
@@ -213,7 +222,7 @@ const DEMO = {
       const c = Object.assign({}, item.data, { id, rev: 1, v: 1, status: item.status || 'open', by: DEMO.me.staffId, updatedAt: Date.now(), closedAt: item.status === 'done' ? (item.closedAt || Date.now()) : null });
       if (item.photo) { c.photo = 'dv' + uid8(); DEMO.photos.set(id, { pv: c.photo, bytes: item.photo }); }
       item.id = id; item.photoV = c.photo || '';
-      DEMO.cases.set(id, c); DEMO.logs.push({ caseId: id, a: (item.action || { a: 'create' }).a, at: Date.now(), sid: DEMO.me.staffId }); DEMO.emit(c); return id;
+      DEMO.cases.set(id, c); DEMO.logs.push({ caseId: id, a: (item.action || { a: 'create' }).a, at: Date.now(), sid: DEMO.me.staffId, rev: c.rev || 1 }); DEMO.emit(c); return id;
     });
   },
   async createCase(data, photo) { return (await DEMO.createCases([{ data, photo: photo || null }]))[0]; },
@@ -224,7 +233,7 @@ const DEMO = {
     (DEMO.versions[id] = DEMO.versions[id] || []).push({ rev: c.rev, replacedAt: Date.now(), replacedBy: DEMO.me.staffId, replacedHow: action && action.a, data: JSON.parse(JSON.stringify(c)) });
     if (st === 'done' || st === 'open') { data.status = st; data.closedAt = st === 'done' ? Date.now() : null; }
     data.rev++; data.updatedAt = Date.now(); data.by = DEMO.me.staffId;
-    DEMO.cases.set(id, data); if (action) DEMO.logs.push(Object.assign({ caseId: id, at: Date.now(), sid: DEMO.me.staffId }, action));
+    DEMO.cases.set(id, data); if (action) DEMO.logs.push(Object.assign({ caseId: id, at: Date.now(), sid: DEMO.me.staffId, rev: data.rev }, action));
     await new Promise(r => setTimeout(r, 60)); DEMO.emit(data);
   },
   async deleteCase(id) { const c = DEMO.cases.get(id); if (c) DEMO.deleted.push({ caseId: id, at: Date.now(), sid: DEMO.me.staffId, data: JSON.parse(JSON.stringify(c)) }); DEMO.cases.delete(id); DEMO.photos.delete(id); if (c && DEMO.h) DEMO.h.cases([], [id], false); },

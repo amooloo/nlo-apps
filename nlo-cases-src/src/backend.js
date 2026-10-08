@@ -357,7 +357,8 @@ const FB = {
     const out = [];
     for (const d of snap.docs) {
       const x = d.data(); const key = FB.keys[x.v];
-      try { out.push(Object.assign(await Crypto.openJSON(key, x, 'log:' + d.id), { at: FB.tsMs(x.at), sid: x.sid })); } catch (e) { }
+      // (rev: which version of the case the entry made — a sticker on a step someone did names it, stickers.js)
+      try { out.push(Object.assign(await Crypto.openJSON(key, x, 'log:' + d.id), { at: FB.tsMs(x.at), sid: x.sid, rev: x.rev })); } catch (e) { }
     }
     return out.sort((a, b) => (a.at || 0) - (b.at || 0));
   },

@@ -283,7 +283,10 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
 .sec{margin-top:18px}
 .sec h5{font-family:var(--fd);font-weight:500;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--grey-500);margin-bottom:8px}
 /* the case's stages: circles joined by a line down the side, filled in up to the current stage */
-.stepper{display:flex;flex-direction:column;gap:2px}
+.stepper{display:grid;grid-template-columns:minmax(0,1fr) auto;row-gap:2px}
+.stepL{display:contents} /* a step's row: the step, the smiley beside it, its stickers under it (stickers.js) */
+.stepper .step{grid-column:1}
+.stepper>.stepGrp{grid-column:1/-1}
 .step{position:relative;display:flex;align-items:center;gap:12px;padding:8px 13px;border-radius:10px;border:0;text-align:left;font-weight:600;font-size:13px;color:var(--grey-600);background:transparent;min-height:40px}
 .step:hover{background:var(--blue-100)}
 .step .n{position:relative;z-index:1;width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:inset 0 0 0 2px var(--grey-300);color:var(--grey-500);font-size:11px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;flex:none}
@@ -295,7 +298,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
 .step::before{top:-2px;bottom:50%}
 .step::after{top:50%;bottom:0}
 .step.past::before,.step.cur::before,.step.past::after{background:var(--mint-600)}
-.stepper>.step:first-child::before,.stepper>.step:last-child::after{display:none}
+.stepper>.stepL:first-child>.step::before,.stepper>.stepL:last-child>.step::after{display:none}
 /* the last step (Checked into Milestones: Mark complete is offered there) is a diamond, the milestone mark (Amir, 7 Oct 2026);
    the diamond is drawn behind the number so the number stays upright */
 .step.ms .n,.step.ms.past .n,.step.ms.cur .n{background:transparent;box-shadow:none}
@@ -1690,3 +1693,64 @@ body.phHide .pnm:not(:hover)::after{content:attr(data-s)}
 .labCmd{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:6px 0 2px}
 .labCmd code{flex:1 1 260px;min-width:0;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11.5px;line-height:1.45;background:var(--grey-50);border:1px solid var(--grey-200);border-radius:8px;padding:7px 10px;color:var(--navy);word-break:break-all;user-select:all}
 @media (prefers-reduced-motion:reduce){ .labGo{transition:none} }
+
+/* ---------- Stickers (stickers.js, Amir 7 Oct 2026): on notes, steps someone did and sections ----------
+   a sticker is the emoji with a white die-cut edge and a soft shadow, at its own slight angle (--r), then who sent it */
+.stk{display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 9px 0 5px;border-radius:13px;font-size:12px;font-weight:600;line-height:1;color:var(--grey-600);background:var(--grey-50);vertical-align:middle;white-space:nowrap;max-width:100%;min-width:0}
+.stkE{display:inline-block;flex:none;font-size:17px;line-height:1;transform:rotate(var(--r,0deg));filter:drop-shadow(1px 0 0 #fff) drop-shadow(-1px 0 0 #fff) drop-shadow(0 1px 0 #fff) drop-shadow(0 -1px 0 #fff) drop-shadow(0 1.5px 1.2px rgba(17,32,58,.3))}
+.stkW{overflow:hidden;text-overflow:ellipsis;min-width:0}
+button.stk{transition:background .15s var(--ease)}
+button.stk .stkE{transition:transform .15s var(--ease)}
+.stk.mine{background:var(--blue-100);color:var(--blue-700);box-shadow:inset 0 0 0 1px var(--blue-200)}
+@media (hover:hover){ button.stk:hover{background:var(--grey-100)} button.stk.mine:hover{background:#DCE3F6} button.stk:hover .stkE{transform:rotate(var(--r,0deg)) scale(1.15)} }
+.stk.pop .stkE{animation:stkPop .6s cubic-bezier(.2,1.5,.35,1)}
+@keyframes stkPop{0%{transform:scale(.2) rotate(-35deg);opacity:0}55%{transform:scale(1.35) rotate(calc(var(--r,0deg) + 10deg));opacity:1}100%{transform:scale(1) rotate(var(--r,0deg))}}
+/* the smiley that sends one: shows on the row the pointer is over (always, a little faint, on a touchscreen) */
+.stkAdd{flex:none;display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;color:var(--grey-400);opacity:0;transition:opacity .15s var(--ease),background .15s var(--ease),color .15s var(--ease)}
+.stkAdd.on,.stkAdd:focus-visible{opacity:1;color:var(--navy);background:var(--grey-100)}
+@media (hover:hover){ .stkAdd:hover{color:var(--navy);background:var(--grey-100)} .cmt:hover .stkAdd,.hist:hover .stkAdd,.dsHd:hover .stkAdd,.stepL:hover .stkAdd{opacity:1} }
+@media (hover:none){ .stkAdd{opacity:.45} .ds:not(.open)>.dsHd .stkAdd{display:none} }
+/* a note: the smiley at its top right, its stickers under the text */
+.cmt{position:relative}
+.cmt>.stkAdd{position:absolute;top:3px;right:-4px}
+.cmt .w{padding-right:28px}
+.stkRow{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+/* a step: the smiley beside it; its stickers on a line under it, the stage line running through */
+.stkSlot{grid-column:2;align-self:center;display:flex;align-items:center;justify-content:center;width:32px;min-height:28px}
+.stepStk{grid-column:1/-1;position:relative;display:flex;flex-wrap:wrap;gap:4px;padding:1px 0 5px 49px;border-radius:10px}
+.stepStk::before{content:'';position:absolute;left:24px;top:-2px;bottom:0;width:2px;background:var(--grey-200)}
+.stepL.past>.stepStk::before{background:var(--mint-600)}
+.stepper>.stepL:last-child>.stepStk::before{display:none}
+/* History: after the words, the smiley at the row's end */
+.hist .hTx{flex:1;min-width:0}
+.hist>.stkAdd{width:24px;height:24px;margin:-3px -4px -3px 0}
+.stkIn{display:inline-flex;flex-wrap:wrap;gap:4px;vertical-align:middle;margin-left:2px}
+.stkIn .stk{height:22px;font-size:11.5px;padding-right:8px}
+.stkIn .stkE{font-size:15px}
+/* a section's heading: its stickers, then the smiley */
+.stkHd{flex:0 1 auto;min-width:0;display:flex;align-items:center;gap:4px}
+.stkHd .stk{flex:0 1 auto;height:24px}
+@media (max-width:520px){ .stkHd .stkW{display:none} .stkHd .stk{padding:0 6px} }
+/* the stickers to pick from */
+.stkPick{position:fixed;z-index:60;background:#fff;border:1px solid var(--grey-200);border-radius:16px;box-shadow:var(--sh-lg);padding:8px;width:max-content;max-width:calc(100vw - 16px)}
+.stkGrid{display:grid;grid-template-columns:repeat(8,40px);gap:2px}
+@media (max-width:420px){ .stkGrid{grid-template-columns:repeat(4,44px)} .stkOpt{width:44px;height:44px} }
+.stkOpt{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:23px;line-height:1;transition:transform .12s var(--ease),background .12s var(--ease)}
+.stkOpt span{filter:drop-shadow(1px 0 0 #fff) drop-shadow(-1px 0 0 #fff) drop-shadow(0 1px 0 #fff) drop-shadow(0 -1px 0 #fff) drop-shadow(0 1.5px 1.2px rgba(17,32,58,.25))}
+@media (hover:hover){ .stkOpt:hover{background:var(--grey-50);transform:scale(1.18) rotate(-5deg)} }
+.stkOpt[aria-pressed="true"]{background:var(--blue-100);box-shadow:inset 0 0 0 1.5px var(--blue-200)}
+.stkTo{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-top:6px;padding:7px 4px 1px;border-top:1px solid var(--grey-100);font-size:12px;color:var(--grey-500)}
+.stkTo b{color:var(--navy)}
+.stkTo label{font-weight:600;color:var(--grey-600)}
+.stkTo select{font:inherit;font-weight:600;color:var(--navy);border:1px solid var(--grey-200);border-radius:8px;padding:4px 6px;background:#fff;max-width:200px}
+/* in Messages */
+.stkTx{display:flex;align-items:center;gap:8px}
+.stkE.big{font-size:24px}
+.msgOn{font-size:12.5px;color:var(--grey-500);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* what a sticker in Messages is on, flashed when it's opened */
+.stepStk.flash,.hist.flash,.dsHd.flash{animation:noteFlash 2.6s var(--ease);border-radius:10px}
+@media (prefers-reduced-motion:reduce){
+  .stk.pop .stkE{animation:none} .stkAdd,button.stk,button.stk .stkE,.stkOpt{transition:none}
+  @media (hover:hover){ button.stk:hover .stkE{transform:rotate(var(--r,0deg))} .stkOpt:hover{transform:none} }
+  .stepStk.flash,.hist.flash,.dsHd.flash{animation:none;background:var(--mint-100)}
+}
