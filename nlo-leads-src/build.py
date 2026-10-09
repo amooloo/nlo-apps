@@ -28,4 +28,7 @@ assert rules.count('__OWNER_EMAIL__') == 1
 (dist / 'firestore.rules').write_text(rules.replace('__OWNER_EMAIL__', os.environ.get('OWNER_EMAIL', 'dr.test@example.com')))
 logo = root.parent / 'logo-white.png'
 if logo.exists(): shutil.copy(logo, dist / 'logo-white.png')
+# the shared NLO Apps button (the page loads nlo-home.js from beside it on the live site)
+home = root.parent / 'nlo-home.js'
+if home.exists(): shutil.copy(home, dist / 'nlo-home.js')
 print('built', len(out), 'bytes')

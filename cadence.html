@@ -158,6 +158,19 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
   .admin-main{padding-left:12px;padding-right:12px}
 }
 </style>
+  <style id="nlo-home-room">
+  /* The NLO Apps button (nlo-home.js) sits in the top-left corner: keep this app's header clear of it. */
+  @media screen{
+  /* "Who's working?" picker, staff side rail / phone top bar, admin side menu / phone menu button */
+  @media (max-width:979px){html.nlo-home-on .picker{padding-top:var(--nlo-home-drop)}}
+  html.nlo-home-on .staff-rail{padding-top:var(--nlo-home-drop)}
+  @media (max-width:899px){html.nlo-home-on .staff-topbar{padding-left:var(--nlo-home-space)}}
+  html.nlo-home-on .admin-nav{padding-top:var(--nlo-home-drop)}
+  @media (max-width:760px){html.nlo-home-on .admin-burger{margin-left:calc(var(--nlo-home-space) - 12px)}}
+  /* while a window is open over the page, the button steps aside (as it does for dialogs everywhere) */
+  html:has(.modal-overlay)>nlo-home{display:none!important}
+  }
+  </style>
   </head>
   <body>
     <div id="root"></div>
@@ -430,5 +443,6 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
   if (document.body) init(); else document.addEventListener('DOMContentLoaded', init);
 })();
     </script>
+    <script src="nlo-home.js" defer></script>
   </body>
 </html>

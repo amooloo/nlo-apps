@@ -51,6 +51,18 @@ button{cursor:pointer;}
   .detail-panel{width:100vw !important;}
 }
 </style>
+<style id="nlo-home-room">
+/* The NLO Apps button (nlo-home.js) sits in the top-left corner: keep this app's header clear of it. */
+@media screen{
+/* computer header: logo first; phone header: logo row first */
+html.nlo-home-on #app>header:first-child>img:first-child{margin-left:calc(var(--nlo-home-space) - 22px)}
+html.nlo-home-on #app>header:first-child>div:first-child{padding-left:calc(var(--nlo-home-space) - 14px)}
+/* while a panel or window is open (each comes with a click-to-close shade), the button steps aside;
+   the "couldn't save" / lock notes drop in at the top center, so on narrower screens it steps aside for them too */
+html:has(#app>[data-act^="close-"])>nlo-home{display:none!important}
+@media (max-width:799px){html:has(#app>[role=alert],#app>[role=status])>nlo-home{display:none!important}}
+}
+</style>
 </head>
 <body>
 <div id="app"></div>
@@ -1594,5 +1606,6 @@ document.getElementById("signInBtn").addEventListener("click",()=>{
   auth.signInWithPopup(provider).catch(e=>{ document.getElementById("authErr").textContent=e.message||"Sign-in failed."; });
 });
 </script>
+<script src="nlo-home.js" defer></script>
 </body>
 </html>
