@@ -35,6 +35,9 @@ dist = root / 'dist'; dist.mkdir(exist_ok=True)
 (dist / 'firestore.rules').write_text(rules.replace('__OWNER_EMAIL__', os.environ.get('OWNER_EMAIL', 'dr.test@example.com')))
 logo = root.parent / 'logo-white.png'
 if logo.exists(): shutil.copy(logo, dist / 'logo-white.png')
+# the shared NLO Apps button (the page loads nlo-home.js from beside it on the live site)
+home = root.parent / 'nlo-home.js'
+if home.exists(): shutil.copy(home, dist / 'nlo-home.js')
 print('built', len(out), 'bytes')
 
 # ---- the demo on its own (dist/nlo-timeoff-demo.html): a made-up office and nothing to sign in to, for trying it before it
