@@ -580,6 +580,58 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
 .nhBox.on{position:relative}
 .nhBox.on::after{content:"";position:absolute;left:.036in;top:.004in;width:.034in;height:.07in;border:solid #1B2F4C;border-width:0 1.4pt 1.4pt 0;transform:rotate(45deg)}
 </style>
+<style id="nlo-ai-panel">
+/* ===== AI assistant + reports module =====
+   Restored Oct 2026: the Quick Capture upload (2ea6a5b) dropped this block and the cloud-sync one below by mistake,
+   which left the AI insights "Ask" box a tiny unstyled textarea, the answers without bubbles, the thinking dots
+   invisible, and the report checkboxes in label caps. min-width:0 lets the box shrink on narrow phones. */
+#aiOut{max-height:46vh;overflow-y:auto;display:flex;flex-direction:column;gap:10px;margin-bottom:12px;padding-right:4px}
+.aiMsg{border-radius:12px;padding:10px 14px;font-size:13.5px;line-height:1.55;max-width:92%}
+.aiMsg.user{align-self:flex-end;background:var(--blue-100);color:var(--navy);font-weight:500}
+.aiMsg.bot{align-self:flex-start;background:var(--grey-50);border:1px solid var(--grey-100);max-width:100%;width:100%}
+.aiMsg.bot p{margin:0 0 8px}
+.aiMsg.bot p:last-child{margin-bottom:0}
+.aiMsg.bot ul,.aiMsg.bot ol{margin:2px 0 10px 20px}
+.aiMsg.bot li{margin-bottom:4px}
+.aiH{font-weight:700;color:var(--navy);margin:6px 0 6px;font-size:13.5px;font-family:var(--fb)}
+.aiMsg code{background:var(--grey-100);border-radius:4px;padding:1px 5px;font-size:12px}
+.aiErr{color:var(--coral-700);background:var(--coral-100);border:1px solid var(--coral-200)}
+.aiThink span{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--grey-400);margin-right:4px;animation:aiB 1s infinite}
+.aiThink span:nth-child(2){animation-delay:.18s}
+.aiThink span:nth-child(3){animation-delay:.36s}
+@keyframes aiB{0%,80%,100%{opacity:.3;transform:translateY(0)}40%{opacity:1;transform:translateY(-3px)}}
+.aiBar{display:flex;gap:9px;align-items:flex-end}
+.aiBar textarea{flex:1;min-width:0;padding:10px 13px;border:1.5px solid var(--grey-200);border-radius:10px;outline:none;resize:vertical;min-height:46px;font:inherit;color:var(--body-c)}
+.aiBar textarea:focus{border-color:var(--blue)}
+/* phones: the box gets the whole width and Ask sits under it, so the box isn't squeezed and its hint shows in full */
+@media (max-width:460px){.aiBar{flex-wrap:wrap;justify-content:flex-end}.aiBar textarea{flex:1 1 100%}}
+@media (max-width:374px){.aiBar textarea{min-height:96px}}
+label.ckRow{display:flex;align-items:flex-start;gap:9px;padding:5px 0;font-size:13.5px;cursor:pointer;font-family:var(--fb);text-transform:none;letter-spacing:0;font-weight:500;color:var(--body-c);margin:0}
+label.ckRow input{width:16px;height:16px;accent-color:var(--blue);margin-top:2px;flex:none}
+</style>
+
+<style id="nlo-sync-pill">
+/* ===== Cloud sync ===== */
+.sideSync{display:flex;align-items:center;gap:7px;font-size:11.5px;font-weight:600;font-family:var(--fb);padding:7px 10px;border-radius:8px;border:none;text-align:left;cursor:pointer;transition:background var(--fast)}
+.sideSync .i{flex:none}
+.sideSync.ok{background:rgba(100,244,201,.12);color:var(--mint)}
+.sideSync.busy{background:rgba(255,255,255,.06);color:#a9bdd0}
+.sideSync.warn{background:rgba(246,175,36,.14);color:var(--amber)}
+.sideSync.bad{background:rgba(250,98,77,.16);color:var(--coral)}
+.sideSync:hover{filter:brightness(1.12)}
+.cloudLine{display:flex;align-items:center;justify-content:center;gap:7px;font-size:12.5px;color:var(--mut);margin:4px 0 14px;padding:8px 10px;border-radius:9px;background:var(--grey-50);border:1px solid var(--grey-100)}
+.cloudLine.ok{color:var(--mint-700);background:var(--mint-100);border-color:var(--mint-200)}
+.cloudLine.warn{color:var(--amber-700);background:var(--amber-100);border-color:var(--amber-200)}
+.cloudLine .i{flex:none}
+.syncPill{display:inline-flex;align-items:center;gap:6px;border-radius:99px;padding:3px 11px;font-size:11.5px;font-weight:700}
+/* phones (side menu as a top bar): plain text as before, in the state's color so a sync problem stands out */
+@media (max-width:560px){
+  #side #syncStatus{background:none}
+  #side #syncStatus.ok{color:var(--mint)}
+  #side #syncStatus.warn{color:var(--amber)}
+  #side #syncStatus.bad{color:var(--coral)}
+}
+</style>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
@@ -620,6 +672,16 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
 /* side menu on a computer: start the logo below the button; menu across the top on smaller screens: start it after the button */
 @media (min-width:921px){html.nlo-home-on #side .sideTop{padding-top:var(--nlo-home-drop)}}
 @media (max-width:920px){html.nlo-home-on #side .sideTop{padding-left:var(--nlo-home-space)}}
+/* phones (side menu as a top bar): with the button in the bar, the STAFF HUB tag, the logo and the sync status ran into
+   each other. The sync status takes the room that's left (wrapping if it must), the tag is left out at 460px and below,
+   the logo is a little smaller at 374px and below, and Lock app shows just its icon at 340px and below. */
+@media (max-width:560px){
+  html.nlo-home-on #side{grid-template-columns:auto minmax(0,1fr) auto}
+  html.nlo-home-on #side #syncStatus{justify-self:end;min-width:0;white-space:normal;line-height:1.25}
+}
+@media (max-width:460px){html.nlo-home-on #side .sideTop .appTag{display:none}}
+@media (max-width:374px){html.nlo-home-on #side .sideTop img{width:64px}}
+@media (max-width:340px){html.nlo-home-on #side .sideLock{font-size:0;gap:0;padding:8px 10px}}
 /* while a window is open over the page, the button steps aside (as it does for dialogs everywhere) */
 html:has(#modalWrap.open)>nlo-home{display:none!important}
 }
