@@ -1,0 +1,121 @@
+Timestamp,Employee,Type,Amount,NewBalance,Reason,AdjustedBy
+2026-01-01 06:00:00,Jordan Sample,Vacation,-12,0,Jan 1 annual reset (balance paid out via payroll),System
+2026-01-01 06:00:00,Jordan Sample,Sick Leave,-5,0,Jan 1 annual reset,System
+2026-01-01 06:00:00,Riley Example,Vacation,-15.5,0,Jan 1 annual reset (balance paid out via payroll),System
+2026-01-01 06:00:00,Riley Example,Sick Leave,-6,0,Jan 1 annual reset,System
+2026-01-01 06:00:00,Taylor Mock,Vacation,-19,0,Jan 1 annual reset (balance paid out via payroll),System
+2026-01-01 06:00:00,Taylor Mock,Sick Leave,-7,0,Jan 1 annual reset,System
+2026-01-01 06:00:00,Morgan Test,Vacation,-22.5,0,Jan 1 annual reset (balance paid out via payroll),System
+2026-01-01 06:00:00,Morgan Test,Sick Leave,-8,0,Jan 1 annual reset,System
+2026-01-01 06:00:00,Sam Former,Vacation,-33,0,Jan 1 annual reset (balance paid out via payroll),System
+2026-01-01 06:00:00,Sam Former,Sick Leave,-11,0,Jan 1 annual reset,System
+2026-01-31 06:02:00,Jordan Sample,Vacation,8.5,8.5,"Monthly accrual (Tier 3, cap 102)",System
+2026-01-31 06:02:00,Jordan Sample,Sick Leave,2.83,2.83,Monthly accrual,System
+2026-01-31 06:02:00,Riley Example,Vacation,5.67,5.67,"Monthly accrual (Tier 2, cap 68)",System
+2026-01-31 06:02:00,Riley Example,Sick Leave,2.83,2.83,Monthly accrual,System
+2026-01-31 06:02:00,Taylor Mock,Vacation,5.67,5.67,"Monthly accrual (Tier 2, cap 68)",System
+2026-01-31 06:02:00,Taylor Mock,Sick Leave,2.83,2.83,Monthly accrual,System
+2026-01-31 06:02:00,Morgan Test,Vacation,5.67,5.67,"Monthly accrual (Tier 2, cap 68)",System
+2026-01-31 06:02:00,Morgan Test,Sick Leave,2.83,2.83,Monthly accrual,System
+2026-01-31 06:02:00,Sam Former,Vacation,8.5,8.5,"Monthly accrual (Tier 3, cap 102)",System
+2026-01-31 06:02:00,Sam Former,Sick Leave,2.83,2.83,Monthly accrual,System
+2026-02-16 06:01:00,Jordan Sample,Vacation,-42.5,0,Approved time-off: 2026-02-16 — 2026-02-20 (42.5 hrs),System (approved by Amir Akhavan)
+2026-02-17 06:01:00,Riley Example,Sick Leave,-8.5,0,Approved time-off: 2026-02-17 (8.5 hrs),System (approved by Amir Akhavan)
+2026-02-28 06:02:00,Jordan Sample,Vacation,8.5,8.5,"Monthly accrual (Tier 3, cap 102)",System
+2026-02-28 06:02:00,Jordan Sample,Sick Leave,2.83,5.66,Monthly accrual,System
+2026-02-28 06:02:00,Riley Example,Vacation,5.67,11.34,"Monthly accrual (Tier 2, cap 68)",System
+2026-02-28 06:02:00,Riley Example,Sick Leave,2.83,2.83,Monthly accrual,System
+2026-02-28 06:02:00,Taylor Mock,Vacation,5.67,11.34,"Monthly accrual (Tier 2, cap 68)",System
+2026-02-28 06:02:00,Taylor Mock,Sick Leave,2.83,5.66,Monthly accrual,System
+2026-02-28 06:02:00,Morgan Test,Vacation,5.67,11.34,"Monthly accrual (Tier 2, cap 68)",System
+2026-02-28 06:02:00,Morgan Test,Sick Leave,2.83,5.66,Monthly accrual,System
+2026-02-28 06:02:00,Sam Former,Vacation,8.5,17,"Monthly accrual (Tier 3, cap 102)",System
+2026-02-28 06:02:00,Sam Former,Sick Leave,2.83,5.66,Monthly accrual,System
+2026-03-09 06:01:00,Riley Example,Vacation,-42.5,0,Approved time-off: 2026-03-09 — 2026-03-13 (42.5 hrs),System (approved by Amir Akhavan)
+2026-03-23 06:01:00,Sam Former,Vacation,-34,0,Approved time-off: 2026-03-23 — 2026-03-26 (34 hrs),System (approved by Amir Akhavan)
+2026-03-31 06:02:00,Jordan Sample,Vacation,8.5,17,"Monthly accrual (Tier 3, cap 102)",System
+2026-03-31 06:02:00,Jordan Sample,Sick Leave,2.83,8.49,Monthly accrual,System
+2026-03-31 06:02:00,Riley Example,Vacation,8.5,8.5,"Monthly accrual (Tier 3, cap 102)",System
+2026-03-31 06:02:00,Riley Example,Sick Leave,2.83,5.66,Monthly accrual,System
+2026-03-31 06:02:00,Taylor Mock,Vacation,5.67,17.01,"Monthly accrual (Tier 2, cap 68)",System
+2026-03-31 06:02:00,Taylor Mock,Sick Leave,2.83,8.49,Monthly accrual,System
+2026-03-31 06:02:00,Morgan Test,Vacation,5.67,17.01,"Monthly accrual (Tier 2, cap 68)",System
+2026-03-31 06:02:00,Morgan Test,Sick Leave,2.83,8.49,Monthly accrual,System
+2026-03-31 06:02:00,Sam Former,Vacation,8.5,8.5,"Monthly accrual (Tier 3, cap 102)",System
+2026-03-31 06:02:00,Sam Former,Sick Leave,2.83,8.49,Monthly accrual,System
+2026-04-30 06:02:00,Jordan Sample,Vacation,8.5,25.5,"Monthly accrual (Tier 3, cap 102)",System
+2026-04-30 06:02:00,Jordan Sample,Sick Leave,2.83,11.32,Monthly accrual,System
+2026-04-30 06:02:00,Riley Example,Vacation,8.5,17,"Monthly accrual (Tier 3, cap 102)",System
+2026-04-30 06:02:00,Riley Example,Sick Leave,2.83,8.49,Monthly accrual,System
+2026-04-30 06:02:00,Taylor Mock,Vacation,5.67,22.68,"Monthly accrual (Tier 2, cap 68)",System
+2026-04-30 06:02:00,Taylor Mock,Sick Leave,2.83,11.32,Monthly accrual,System
+2026-04-30 06:02:00,Morgan Test,Vacation,5.67,22.68,"Monthly accrual (Tier 2, cap 68)",System
+2026-04-30 06:02:00,Morgan Test,Sick Leave,2.83,11.32,Monthly accrual,System
+2026-04-30 06:02:00,Sam Former,Vacation,8.5,17,"Monthly accrual (Tier 3, cap 102)",System
+2026-04-30 06:02:00,Sam Former,Sick Leave,2.83,11.32,Monthly accrual,System
+2026-05-11 06:01:00,Morgan Test,Vacation,-17,5.68,Approved time-off: 2026-05-11 — 2026-05-12 (17 hrs),System (approved by Amir Akhavan)
+2026-05-31 06:02:00,Jordan Sample,Vacation,8.5,34,"Monthly accrual (Tier 3, cap 102)",System
+2026-05-31 06:02:00,Jordan Sample,Sick Leave,2.83,14.15,Monthly accrual,System
+2026-05-31 06:02:00,Riley Example,Vacation,8.5,25.5,"Monthly accrual (Tier 3, cap 102)",System
+2026-05-31 06:02:00,Riley Example,Sick Leave,2.83,11.32,Monthly accrual,System
+2026-05-31 06:02:00,Taylor Mock,Vacation,5.67,28.35,"Monthly accrual (Tier 2, cap 68)",System
+2026-05-31 06:02:00,Taylor Mock,Sick Leave,2.83,14.15,Monthly accrual,System
+2026-05-31 06:02:00,Morgan Test,Vacation,5.67,11.35,"Monthly accrual (Tier 2, cap 68)",System
+2026-05-31 06:02:00,Morgan Test,Sick Leave,2.83,14.15,Monthly accrual,System
+2026-05-31 06:02:00,Casey Demo,Vacation,2.83,2.83,"Monthly accrual (Tier 1, cap 34)",System
+2026-05-31 06:02:00,Casey Demo,Sick Leave,2.83,2.83,Monthly accrual,System
+2026-05-31 06:02:00,Sam Former,Vacation,8.5,25.5,"Monthly accrual (Tier 3, cap 102)",System
+2026-05-31 06:02:00,Sam Former,Sick Leave,2.83,14.15,Monthly accrual,System
+2026-06-02 06:01:00,Riley Example,Vacation,-8.5,17,Approved time-off: 2026-06-02 (8.5 hrs),System (approved by Amir Akhavan)
+2026-06-30 06:02:00,Jordan Sample,Vacation,8.5,42.5,"Monthly accrual (Tier 3, cap 102)",System
+2026-06-30 06:02:00,Jordan Sample,Sick Leave,2.83,16.98,Monthly accrual,System
+2026-06-30 06:02:00,Riley Example,Vacation,8.5,25.5,"Monthly accrual (Tier 3, cap 102)",System
+2026-06-30 06:02:00,Riley Example,Sick Leave,2.83,14.15,Monthly accrual,System
+2026-06-30 06:02:00,Taylor Mock,Vacation,5.67,34.02,"Monthly accrual (Tier 2, cap 68)",System
+2026-06-30 06:02:00,Taylor Mock,Sick Leave,2.83,16.98,Monthly accrual,System
+2026-06-30 06:02:00,Morgan Test,Vacation,5.67,17.02,"Monthly accrual (Tier 2, cap 68)",System
+2026-06-30 06:02:00,Morgan Test,Sick Leave,2.83,16.98,Monthly accrual,System
+2026-06-30 06:02:00,Casey Demo,Vacation,2.83,5.66,"Monthly accrual (Tier 1, cap 34)",System
+2026-06-30 06:02:00,Casey Demo,Sick Leave,2.83,5.66,Monthly accrual,System
+2026-06-30 06:02:00,Sam Former,Vacation,8.5,34,"Monthly accrual (Tier 3, cap 102)",System
+2026-06-30 06:02:00,Sam Former,Sick Leave,2.83,16.98,Monthly accrual,System
+2026-07-06 06:01:00,Taylor Mock,Vacation,-42.5,0,Approved time-off: 2026-07-06 — 2026-07-10 (42.5 hrs),System (approved by Jordan Sample)
+2026-07-16 14:30:00,Jordan Sample,vacation,8.5,Worked the Saturday open house,Amir Akhavan
+2026-07-31 06:02:00,Jordan Sample,Vacation,8.5,59.5,"Monthly accrual (Tier 3, cap 102)",System
+2026-07-31 06:02:00,Jordan Sample,Sick Leave,2.83,19.81,Monthly accrual,System
+2026-07-31 06:02:00,Riley Example,Vacation,8.5,34,"Monthly accrual (Tier 3, cap 102)",System
+2026-07-31 06:02:00,Riley Example,Sick Leave,2.83,16.98,Monthly accrual,System
+2026-07-31 06:02:00,Taylor Mock,Vacation,5.67,5.67,"Monthly accrual (Tier 2, cap 68)",System
+2026-07-31 06:02:00,Taylor Mock,Sick Leave,2.83,19.81,Monthly accrual,System
+2026-07-31 06:02:00,Morgan Test,Vacation,5.67,22.69,"Monthly accrual (Tier 2, cap 68)",System
+2026-07-31 06:02:00,Morgan Test,Sick Leave,2.83,19.81,Monthly accrual,System
+2026-07-31 06:02:00,Casey Demo,Vacation,2.83,8.49,"Monthly accrual (Tier 1, cap 34)",System
+2026-07-31 06:02:00,Casey Demo,Sick Leave,2.83,8.49,Monthly accrual,System
+2026-07-31 06:02:00,Sam Former,Vacation,8.5,42.5,"Monthly accrual (Tier 3, cap 102)",System
+2026-07-31 06:02:00,Sam Former,Sick Leave,2.83,19.81,Monthly accrual,System
+2026-08-19 06:01:00,Taylor Mock,Vacation,-8.5,0,Approved time-off: 2026-08-19 (8.5 hrs),System (approved by Amir Akhavan)
+2026-08-31 06:02:00,Jordan Sample,Vacation,8.5,68,"Monthly accrual (Tier 3, cap 102)",System
+2026-08-31 06:02:00,Jordan Sample,Sick Leave,2.83,22.64,Monthly accrual,System
+2026-08-31 06:02:00,Riley Example,Vacation,8.5,42.5,"Monthly accrual (Tier 3, cap 102)",System
+2026-08-31 06:02:00,Riley Example,Sick Leave,2.83,19.81,Monthly accrual,System
+2026-08-31 06:02:00,Taylor Mock,Vacation,5.67,5.67,"Monthly accrual (Tier 2, cap 68)",System
+2026-08-31 06:02:00,Taylor Mock,Sick Leave,2.83,22.64,Monthly accrual,System
+2026-08-31 06:02:00,Morgan Test,Vacation,5.67,28.36,"Monthly accrual (Tier 2, cap 68)",System
+2026-08-31 06:02:00,Morgan Test,Sick Leave,2.83,22.64,Monthly accrual,System
+2026-08-31 06:02:00,Casey Demo,Vacation,2.83,11.32,"Monthly accrual (Tier 1, cap 34)",System
+2026-08-31 06:02:00,Casey Demo,Sick Leave,2.83,11.32,Monthly accrual,System
+2026-08-31 06:02:00,Drew Newhire,Vacation,2.83,2.83,"Monthly accrual (Tier 1, cap 34)",System
+2026-08-31 06:02:00,Drew Newhire,Sick Leave,2.83,2.83,Monthly accrual,System
+2026-09-15 06:01:00,Casey Demo,Sick Leave,-8.5,2.82,Approved time-off: 2026-09-15 (8.5 hrs),System (approved by Jordan Sample)
+2026-09-30 06:02:00,Jordan Sample,Vacation,8.5,76.5,"Monthly accrual (Tier 3, cap 102)",System
+2026-09-30 06:02:00,Jordan Sample,Sick Leave,2.83,25.47,Monthly accrual,System
+2026-09-30 06:02:00,Riley Example,Vacation,8.5,51,"Monthly accrual (Tier 3, cap 102)",System
+2026-09-30 06:02:00,Riley Example,Sick Leave,2.83,22.64,Monthly accrual,System
+2026-09-30 06:02:00,Taylor Mock,Vacation,5.67,11.34,"Monthly accrual (Tier 2, cap 68)",System
+2026-09-30 06:02:00,Taylor Mock,Sick Leave,2.83,25.47,Monthly accrual,System
+2026-09-30 06:02:00,Morgan Test,Vacation,5.67,34.03,"Monthly accrual (Tier 2, cap 68)",System
+2026-09-30 06:02:00,Morgan Test,Sick Leave,2.83,25.47,Monthly accrual,System
+2026-09-30 06:02:00,Casey Demo,Vacation,2.83,14.15,"Monthly accrual (Tier 1, cap 34)",System
+2026-09-30 06:02:00,Casey Demo,Sick Leave,2.83,5.65,Monthly accrual,System
+2026-09-30 06:02:00,Drew Newhire,Vacation,2.83,5.66,"Monthly accrual (Tier 1, cap 34)",System
+2026-09-30 06:02:00,Drew Newhire,Sick Leave,2.83,5.66,Monthly accrual,System

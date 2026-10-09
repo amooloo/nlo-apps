@@ -1,0 +1,7 @@
+Name,Passcode,Role,Title,EmploymentType,HireDate,OrientationEndDate,SickLeaveBalance,VacationBalance,LastAccrualDate,Notes,Password,PersonalDaysBalance,DaysOffYTD
+Jordan Sample,NOT-A-REAL-CODE-0,approver,Office Manager,FullTime,2010-06-03,,25.47,76.5,2026-09-30,Approves time off,NOT-A-REAL-PASSWORD-0,,
+Riley Example,NOT-A-REAL-CODE-1,staff,Clinical Assistant,FullTime,2023-03-13,,22.64,51,2026-09-30,,NOT-A-REAL-PASSWORD-1,,
+Taylor Mock,NOT-A-REAL-CODE-2,staff,Clinical Assistant,FullTime,2024-11-17,,25.47,15.59,2026-09-30,,NOT-A-REAL-PASSWORD-2,,
+Morgan Test,NOT-A-REAL-CODE-3,staff,Front Desk,PartTime,2024-09-09,,25.47,34.03,2026-09-30,,NOT-A-REAL-PASSWORD-3,,
+Casey Demo,NOT-A-REAL-CODE-4,staff,Sterilization,FullTime,2026-05-11,,5.65,14.15,2026-09-30,,NOT-A-REAL-PASSWORD-4,,
+Drew Newhire,NOT-A-REAL-CODE-5,staff,Front Desk,FullTime,2026-08-29,,5.66,5.66,2026-09-30,,NOT-A-REAL-PASSWORD-5,,

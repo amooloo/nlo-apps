@@ -105,7 +105,7 @@ const AppCrypto = app.Crypto;
 
   console.log('\n# Front-desk emails (8 Oct 2026): a case not shipped in time');
   {
-    const store = { notify: null, outbox: [], deletes: [], beats: [], outboxCode: 200 };
+    const store = { notify: null, outbox: [], deletes: [], beats: [], outboxCode: 200, toMail: null };
     const mapOf = o => ({ mapValue: { fields: Object.fromEntries(Object.entries(o).map(([k, v]) => [k, typeof v === 'boolean' ? { booleanValue: v } : { stringValue: String(v) }])) } });
     const fk = (url, opt) => {
       const res = (code, obj) => ({ getResponseCode: () => code, getContentText: () => JSON.stringify(obj) });
@@ -115,6 +115,8 @@ const AppCrypto = app.Crypto;
         if (store.notify) fields.notify = mapOf(store.notify);
         return res(200, { fields });
       }
+      if (/documents\/meta\/toMail$/.test(url)) return store.toMailCode && store.toMailCode !== 200 ? res(store.toMailCode, { error: { status: 'UNAVAILABLE' } })
+        : store.toMail ? res(200, { fields: { scrubs: { stringValue: store.toMail } } }) : res(404, { error: { status: 'NOT_FOUND' } });
       if (/documents\/outbox\?pageSize=/.test(url)) return store.outboxCode === 200 ? res(200, { documents: store.outbox.filter(d => !store.deletes.includes(d.name)) }) : res(store.outboxCode, { error: { status: 'PERMISSION_DENIED' } });
       if (/documents:commit$/.test(url)) {
         const w = JSON.parse(opt.payload).writes[0];
@@ -170,6 +172,48 @@ const AppCrypto = app.Crypto;
     check(!crashed && gf.mails.length === 1, 'security rules older than the front-desk email: the lab emails still go, no front-desk emails');
     store.outboxCode = 200; gf.ctx.checkMail();
     check(gf.mails.length === 2 && gf.mails[1].subject === 's', 'once they’re published, the waiting note goes out');
+
+    console.log('\n# Scrubs orders from NLO Time Off (v3, 9 Oct 2026)');
+    check(gf.ctx.VERSION === '3', 'the script says it’s version 3 (NLO Time Off waits for it before sending orders)');
+    const before = gf.mails.length;
+    store.outbox = [await noteDoc('o' + '6'.repeat(32), { kind: 'scrubs', subject: 'Scrubs order: Riley — 2 pairs', text: 'Pair 1: Navy · top and bottom · M · petite', to: 'someone-else@example.com' })];
+    gf.ctx.checkMail();
+    check(gf.mails.length === before && store.deletes.some(d => d.endsWith('/outbox/o' + '6'.repeat(32))), 'with no address set in Time Off: not sent (and not to the front desk)');
+    store.toMail = 'community@office.example';
+    store.outbox = [await noteDoc('o' + '7'.repeat(32), { kind: 'scrubs', subject: 'Scrubs order: Riley — 2 pairs', text: 'Pair 1: Navy · top and bottom · M · petite', to: 'someone-else@example.com' }),
+      await noteDoc('o' + '8'.repeat(32), { v: 1, subject: 'Not shipped', text: 'x' })];
+    gf.ctx.checkMail();
+    const sc = gf.mails.slice(before);
+    check(sc.length === 2 && sc[0].to === 'community@office.example' && sc[0].opts.name === 'NLO Time Off' && /Navy · top and bottom/.test(sc[0].body) && sc[1].to === 'Questions@frontdesk.example',
+      'a scrubs order goes to the address Dr. A set in Time Off (from “NLO Time Off”); the front-desk note still goes to the front desk');
+    check(!gf.mails.some(m => m.to === 'someone-else@example.com'), '…never to an address the note names');
+    store.toMail = 'not an address'; store.outbox = [await noteDoc('o' + '9'.repeat(32), { kind: 'scrubs', subject: 's', text: 't' })];
+    const b2 = gf.mails.length; gf.ctx.checkMail(); check(gf.mails.length === b2, 'an address that isn’t one: nothing is sent');
+    // the address can't be read just then (an outage): the order waits — kept, not sent, not dropped — and goes out later
+    store.toMail = 'community@office.example'; store.toMailCode = 503;
+    store.outbox = [await noteDoc('o' + 'a'.repeat(32), { kind: 'scrubs', subject: 'Scrubs order: Riley — 1 pair', text: 'Pair 1: Gray · top · L' }), await noteDoc('o' + 'b'.repeat(32), { v: 1, subject: 'Not shipped 2', text: 'y' })];
+    const b3 = gf.mails.length; gf.ctx.checkMail();
+    const err3 = store.beats[store.beats.length - 1].update.fields.err.stringValue;
+    check(gf.mails.length === b3 + 1 && gf.mails[b3].subject === 'Not shipped 2' && !store.deletes.some(d => d.endsWith('/outbox/o' + 'a'.repeat(32))) && /scrubs order waiting/.test(err3),
+      'the address can’t be read just then: the order waits (kept, not sent) and the check-in says so; the front-desk note still goes (' + err3 + ')');
+    store.toMailCode = 200; gf.ctx.checkMail();
+    const err4 = store.beats[store.beats.length - 1].update.fields.err.stringValue;
+    check(gf.mails.length === b3 + 2 && gf.mails[b3 + 1].to === 'community@office.example' && gf.mails[b3 + 1].subject === 'Scrubs order: Riley — 1 pair' && store.deletes.some(d => d.endsWith('/outbox/o' + 'a'.repeat(32))) && err4 === '',
+      '…and goes out at the next check, then it’s removed and the problem clears');
+    gf.ctx.checkMail(); check(gf.mails.length === b3 + 2, '…once');
+    // an address Gmail won't take (it passes the format check): that order waits, and the front-desk notes behind it still go
+    const realSend = gf.ctx.MailApp.sendEmail;
+    gf.ctx.MailApp.sendEmail = (to, subject, body, opts) => { if (/,/.test(to)) throw new Error('Invalid email: ' + to); return realSend(to, subject, body, opts); };
+    store.toMail = 'first,last@office.example';
+    store.outbox = [await noteDoc('o' + 'c'.repeat(32), { kind: 'scrubs', subject: 'Scrubs order: Taylor — 1 pair', text: 'Pair 1: Black · bottom · S' }), await noteDoc('o' + 'd'.repeat(32), { v: 1, subject: 'Not shipped 3', text: 'z' })];
+    const b5 = gf.mails.length; gf.ctx.checkMail();
+    const err5 = store.beats[store.beats.length - 1].update.fields.err.stringValue;
+    check(gf.mails.length === b5 + 1 && gf.mails[b5].subject === 'Not shipped 3' && !store.deletes.some(d => d.endsWith('/outbox/o' + 'c'.repeat(32))) && /Gmail wouldn’t send \(Invalid email/.test(err5),
+      'an address Gmail won’t send to: that order waits, the front-desk note after it still goes, and the check-in says why (' + err5 + ')');
+    store.toMail = 'community@office.example'; gf.ctx.checkMail();
+    check(gf.mails.length === b5 + 2 && gf.mails[b5 + 1].to === 'community@office.example' && gf.mails[b5 + 1].subject === 'Scrubs order: Taylor — 1 pair' && store.beats[store.beats.length - 1].update.fields.err.stringValue === '',
+      '…once the address is fixed, it goes out at the next check');
+    gf.ctx.MailApp.sendEmail = realSend;
   }
 
   console.log('\nPASS ' + pass + '  FAIL ' + fail);

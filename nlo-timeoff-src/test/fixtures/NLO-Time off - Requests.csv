@@ -1,0 +1,20 @@
+ID,Timestamp,Employee Name,Start Date,End Date,Request Type,Paid/Unpaid,Hours,Coverage,Notes,Status,Reviewed By,Reviewed At,DeductedOn
+3A51DEEF,2026-02-16 09:16:00,Riley Example,2026-03-09,2026-03-13,Vacation,Paid Time Off,Full Day,,Spring trip,Approved,Amir Akhavan,2026-02-17 10:05:00,2026-03-09
+3A51FDDE,2026-01-27 09:17:00,Riley Example,2026-02-17,2026-02-17,Sick Leave,Paid Time Off,Full Day,,,Approved,Amir Akhavan,2026-01-28 10:05:00,2026-02-17
+3A521CCD,2026-05-12 09:18:00,Riley Example,2026-06-02,2026-06-02,Medical Appointment,Paid Time Off,Morning (AM),,,Approved,Amir Akhavan,2026-05-13 10:05:00,2026-06-02
+3A523BBC,2026-03-25 09:19:00,Riley Example,2026-04-15,2026-04-15,Personal Day,Paid Time Off,Full Day,,,Approved,Amir Akhavan,2026-03-26 10:05:00,2026-04-15
+3A525AAB,2025-12-22 09:20:00,Riley Example,2026-01-12,2026-01-14,Vacation,Paid Time Off,Full Day,,,Denied,Amir Akhavan,2025-12-23 10:05:00,
+3A52799A,2026-10-18 09:21:00,Riley Example,2026-11-17,2026-11-19,Vacation,Paid Time Off,Full Day,,Cousin’s wedding,Pending,,,
+3A529889,2026-06-15 09:22:00,Taylor Mock,2026-07-06,2026-07-10,Vacation,Paid Time Off,Full Day,,,Approved,Jordan Sample,2026-06-16 10:05:00,2026-07-06
+3A52B778,2026-07-29 09:23:00,Taylor Mock,2026-08-19,2026-08-19,Other,Paid Time Off,2 Hours,,Notary appointment,Approved,Amir Akhavan,2026-07-30 10:05:00,2026-08-19
+3A52D667,2026-04-30 09:24:00,Taylor Mock,2026-05-21,2026-05-21,Personal Day,Paid Time Off,Full Day,,,Cancelled,,,
+3A52F556,2026-04-20 09:25:00,Morgan Test,2026-05-11,2026-05-12,Vacation,Paid Time Off,Full Day,,,Approved,Amir Akhavan,2026-04-21 10:05:00,2026-05-11
+3A531445,2026-01-26 09:26:00,Jordan Sample,2026-02-16,2026-02-20,Vacation,Paid Time Off,Full Day,,,Approved,Amir Akhavan,2026-01-27 10:05:00,2026-02-16
+3A533334,2026-04-05 09:27:00,Jordan Sample,2026-04-06,2026-04-07,Bereavement,Paid Time Off,Full Day,,,Approved,Amir Akhavan,2026-04-06 10:05:00,2026-04-06
+3A535223,2026-10-28 09:28:00,Jordan Sample,2026-12-07,2026-12-10,Vacation,Paid Time Off,Full Day,,,Pending,,,
+3A537112,2026-08-25 09:29:00,Casey Demo,2026-09-15,2026-09-15,Sick Leave,Paid Time Off,Full Day,,,Approved,Jordan Sample,2026-08-26 10:05:00,2026-09-15
+3A539001,2026-09-29 09:30:00,Casey Demo,2026-10-01,2026-10-01,Vacation,Paid Time Off,Full Day,,,Approved,Amir Akhavan,2026-09-30 10:05:00,
+3A53AEF0,2026-10-11 09:31:00,Drew Newhire,2026-10-14,2026-10-14,Other,Paid Time Off,Afternoon (PM),,DMV,Pending,,,
+3A53CDDF,2026-03-02 09:32:00,Sam Former,2026-03-23,2026-03-26,Vacation,Paid Time Off,Full Day,,,Approved,Amir Akhavan,2026-03-03 10:05:00,2026-03-23
+3A53ECCE,2025-07-14 09:33:00,Pat Gone,2025-08-04,2025-08-05,Vacation,Paid Time Off,Full Day,,,Approved,Amir Akhavan,2025-07-15 10:05:00,True
+BAD00001,2026-10-08 09:00:00,Riley Example,,,Vacation,Paid Time Off,Full Day,,,Pending,,,

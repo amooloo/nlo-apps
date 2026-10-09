@@ -7,13 +7,14 @@
    it and updates the case. This script can't see any case, and nobody else can read what it sends.
 
    If NLO Cases picked this mailbox to email the front desk (Team & security → Email updates), it also sends
-   the front-desk emails NLO Cases leaves for it — a case not shipped in time — to the one address set there.
+   the front-desk emails NLO Cases and NLO Time Off leave for it — a case not shipped in time, time off approved —
+   to the one address set there, and NLO Time Off's approved scrubs orders to the one address Dr. A set in Time Off.
    Those notes are locked with this script's own key, which never leaves this Google account.
 
    Turn on:  pick "setup" next to Run (top bar), press Run, and allow access.
    Turn off: pick "stop", press Run.
    ===================================================================== */
-var VERSION = '2';
+var VERSION = '3';
 var CONFIG = /*NLO_CONFIG*/null; // filled in by NLO Cases when you copy the script
 var DAY = 86400000;
 var DEFAULT_SENDERS = ['ulabsystems.com', 'partnersdentalstudio.com', 'olivortho.com', 'angelaligner.com', 'angelalign.com'];
@@ -98,7 +99,10 @@ function run_(cfg, props) {
    send a email to Questions@thenextlevelorthodontics.com to let the front desk know") ----------
    NLO Cases leaves a note in its outbox, locked with this script's own key, when a case isn't marked shipped in time. If the
    owner picked this mailbox to send them, each note is opened here and emailed to the front-desk address the owner set — the
-   only address these go to, whatever a note says — and then removed. Notes for another mailbox are left for it. */
+   only address these go to, whatever a note says — and then removed. Notes for another mailbox are left for it.
+   (v3, 9 Oct 2026) A scrubs order from NLO Time Off goes instead to the address Dr. A set there (meta/toMail), and nowhere
+   else; with none set, it isn't sent. If that address can't be read just then, the order waits for the next check.
+   A note Gmail won't send (a bad address, the day's quota) waits for the next check too, without holding up the others. */
 function key_(props, make) {
   var k = props.getProperty('NLO_KEY'); if (k) return JSON.parse(k);
   if (!make) return null;
@@ -115,7 +119,8 @@ function outbox_(cfg, s, props) {
   var to = str_(nf.to); if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) return 0;
   var r = http_(cfg, 'get', cfg.fsBase + '/' + docName_(cfg, 'outbox') + '?pageSize=50', null, s.tok);
   if (r.code !== 200) return 0; // (older security rules: there's no outbox yet)
-  var sent = 0, done = JSON.parse(props.getProperty('NLO_OUT') || '{}'), docs = (r.json && r.json.documents) || [], bad = 0;
+  var sent = 0, done = JSON.parse(props.getProperty('NLO_OUT') || '{}'), docs = (r.json && r.json.documents) || [], bad = 0, held = 0, failed = 0, why = '';
+  var scrubsTo; // where scrubs orders go: undefined until read; null when it couldn't be read (they wait); '' when none is set
   for (var i = 0; i < docs.length; i++) {
     var d = docs[i], f = d.fields || {}, id = String(d.name || '').split('/').pop();
     if (str_(f.box) !== boxId_()) continue; // for another mailbox's script
@@ -125,8 +130,16 @@ function outbox_(cfg, s, props) {
         msg = JSON.parse(NLOSeal.utf8dec(NLOSeal.openFrom(key.d, { epk: { kty: str_(e.kty), crv: str_(e.crv), x: str_(e.x), y: str_(e.y) }, iv: str_(f.iv), ct: str_(f.ct) }, 'outbox:' + id)));
       } catch (x) { msg = null; }
       if (msg && typeof msg.subject === 'string' && typeof msg.text === 'string') {
-        MailApp.sendEmail(to, cap_(msg.subject, 200), cap_(msg.text, 8000), { name: 'NLO Cases' });
-        sent++;
+        var dest = to, from = 'NLO Cases';
+        if (msg.kind === 'scrubs') {
+          if (scrubsTo === undefined) scrubsTo = scrubsTo_(cfg, s);
+          if (scrubsTo === null) { held++; continue; } // kept (not sent, not removed) for the next check
+          dest = scrubsTo; from = 'NLO Time Off';
+        }
+        if (dest) {
+          try { MailApp.sendEmail(dest, cap_(msg.subject, 200), cap_(msg.text, 8000), { name: from }); sent++; }
+          catch (x) { failed++; why = String((x && x.message) || x); continue; } // kept for the next check; the rest still go
+        }
       } else bad++; // locked with another key (this script was set up afresh): nothing to send
       done[id] = Date.now(); props.setProperty('NLO_OUT', JSON.stringify(done)); // sent once, even if removing it fails below
     }
@@ -135,8 +148,22 @@ function outbox_(cfg, s, props) {
   var keep = {}, cut = Date.now() - 30 * DAY;
   Object.keys(done).forEach(function (k) { if (done[k] > cut) keep[k] = done[k]; });
   props.setProperty('NLO_OUT', JSON.stringify(keep));
-  if (bad) throw new Error(bad + ' note' + (bad === 1 ? '' : 's') + ' couldn’t be opened (locked with an older key) — NLO Cases picks up this mailbox’s new key by itself');
+  var errs = [];
+  if (bad) errs.push(bad + ' note' + (bad === 1 ? '' : 's') + ' couldn’t be opened (locked with an older key) — NLO Cases picks up this mailbox’s new key by itself');
+  if (held) errs.push(held + ' scrubs order' + (held === 1 ? '' : 's') + ' waiting: couldn’t read where NLO Time Off sends them — trying again at the next check');
+  if (failed) errs.push(failed + ' email' + (failed === 1 ? '' : 's') + ' Gmail wouldn’t send (' + cap_(why, 100) + ') — trying again at the next check');
+  if (errs.length) throw new Error(errs.join('; '));
   return sent;
+}
+
+/* where NLO Time Off's scrubs orders go: the address Dr. A set there (meta/toMail) — '' when none is set, null when it
+   couldn't be read just now (an outage, or rules older than Time Off's), so the orders wait rather than being dropped */
+function scrubsTo_(cfg, s) {
+  var g = http_(cfg, 'get', cfg.fsBase + '/' + docName_(cfg, 'meta/toMail'), null, s.tok);
+  if (g.code === 404) return '';
+  if (g.code !== 200) return null;
+  var a = g.json && g.json.fields ? str_(g.json.fields.scrubs) : '';
+  return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(a) ? a : '';
 }
 
 /* ---------- NLO Cases (Firebase) ---------- */

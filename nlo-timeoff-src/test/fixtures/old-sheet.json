@@ -1,0 +1,1603 @@
+{
+ "asOf": "2026-10-08",
+ "tabs": {
+  "Requests": [
+   [
+    "ID",
+    "Timestamp",
+    "Employee Name",
+    "Start Date",
+    "End Date",
+    "Request Type",
+    "Paid/Unpaid",
+    "Hours",
+    "Coverage",
+    "Notes",
+    "Status",
+    "Reviewed By",
+    "Reviewed At",
+    "DeductedOn"
+   ],
+   [
+    "3A51DEEF",
+    "2026-02-16 09:16:00",
+    "Riley Example",
+    "2026-03-09",
+    "2026-03-13",
+    "Vacation",
+    "Paid Time Off",
+    "Full Day",
+    "",
+    "Spring trip",
+    "Approved",
+    "Amir Akhavan",
+    "2026-02-17 10:05:00",
+    "2026-03-09"
+   ],
+   [
+    "3A51FDDE",
+    "2026-01-27 09:17:00",
+    "Riley Example",
+    "2026-02-17",
+    "2026-02-17",
+    "Sick Leave",
+    "Paid Time Off",
+    "Full Day",
+    "",
+    "",
+    "Approved",
+    "Amir Akhavan",
+    "2026-01-28 10:05:00",
+    "2026-02-17"
+   ],
+   [
+    "3A521CCD",
+    "2026-05-12 09:18:00",
+    "Riley Example",
+    "2026-06-02",
+    "2026-06-02",
+    "Medical Appointment",
+    "Paid Time Off",
+    "Morning (AM)",
+    "",
+    "",
+    "Approved",
+    "Amir Akhavan",
+    "2026-05-13 10:05:00",
+    "2026-06-02"
+   ],
+   [
+    "3A523BBC",
+    "2026-03-25 09:19:00",
+    "Riley Example",
+    "2026-04-15",
+    "2026-04-15",
+    "Personal Day",
+    "Paid Time Off",
+    "Full Day",
+    "",
+    "",
+    "Approved",
+    "Amir Akhavan",
+    "2026-03-26 10:05:00",
+    "2026-04-15"
+   ],
+   [
+    "3A525AAB",
+    "2025-12-22 09:20:00",
+    "Riley Example",
+    "2026-01-12",
+    "2026-01-14",
+    "Vacation",
+    "Paid Time Off",
+    "Full Day",
+    "",
+    "",
+    "Denied",
+    "Amir Akhavan",
+    "2025-12-23 10:05:00",
+    ""
+   ],
+   [
+    "3A52799A",
+    "2026-10-18 09:21:00",
+    "Riley Example",
+    "2026-11-17",
+    "2026-11-19",
+    "Vacation",
+    "Paid Time Off",
+    "Full Day",
+    "",
+    "Cousin’s wedding",
+    "Pending",
+    "",
+    "",
+    ""
+   ],
+   [
+    "3A529889",
+    "2026-06-15 09:22:00",
+    "Taylor Mock",
+    "2026-07-06",
+    "2026-07-10",
+    "Vacation",
+    "Paid Time Off",
+    "Full Day",
+    "",
+    "",
+    "Approved",
+    "Jordan Sample",
+    "2026-06-16 10:05:00",
+    "2026-07-06"
+   ],
+   [
+    "3A52B778",
+    "2026-07-29 09:23:00",
+    "Taylor Mock",
+    "2026-08-19",
+    "2026-08-19",
+    "Other",
+    "Paid Time Off",
+    "2 Hours",
+    "",
+    "Notary appointment",
+    "Approved",
+    "Amir Akhavan",
+    "2026-07-30 10:05:00",
+    "2026-08-19"
+   ],
+   [
+    "3A52D667",
+    "2026-04-30 09:24:00",
+    "Taylor Mock",
+    "2026-05-21",
+    "2026-05-21",
+    "Personal Day",
+    "Paid Time Off",
+    "Full Day",
+    "",
+    "",
+    "Cancelled",
+    "",
+    "",
+    ""
+   ],
+   [
+    "3A52F556",
+    "2026-04-20 09:25:00",
+    "Morgan Test",
+    "2026-05-11",
+    "2026-05-12",
+    "Vacation",
+    "Paid Time Off",
+    "Full Day",
+    "",
+    "",
+    "Approved",
+    "Amir Akhavan",
+    "2026-04-21 10:05:00",
+    "2026-05-11"
+   ],
+   [
+    "3A531445",
+    "2026-01-26 09:26:00",
+    "Jordan Sample",
+    "2026-02-16",
+    "2026-02-20",
+    "Vacation",
+    "Paid Time Off",
+    "Full Day",
+    "",
+    "",
+    "Approved",
+    "Amir Akhavan",
+    "2026-01-27 10:05:00",
+    "2026-02-16"
+   ],
+   [
+    "3A533334",
+    "2026-04-05 09:27:00",
+    "Jordan Sample",
+    "2026-04-06",
+    "2026-04-07",
+    "Bereavement",
+    "Paid Time Off",
+    "Full Day",
+    "",
+    "",
+    "Approved",
+    "Amir Akhavan",
+    "2026-04-06 10:05:00",
+    "2026-04-06"
+   ],
+   [
+    "3A535223",
+    "2026-10-28 09:28:00",
+    "Jordan Sample",
+    "2026-12-07",
+    "2026-12-10",
+    "Vacation",
+    "Paid Time Off",
+    "Full Day",
+    "",
+    "",
+    "Pending",
+    "",
+    "",
+    ""
+   ],
+   [
+    "3A537112",
+    "2026-08-25 09:29:00",
+    "Casey Demo",
+    "2026-09-15",
+    "2026-09-15",
+    "Sick Leave",
+    "Paid Time Off",
+    "Full Day",
+    "",
+    "",
+    "Approved",
+    "Jordan Sample",
+    "2026-08-26 10:05:00",
+    "2026-09-15"
+   ],
+   [
+    "3A539001",
+    "2026-09-29 09:30:00",
+    "Casey Demo",
+    "2026-10-01",
+    "2026-10-01",
+    "Vacation",
+    "Paid Time Off",
+    "Full Day",
+    "",
+    "",
+    "Approved",
+    "Amir Akhavan",
+    "2026-09-30 10:05:00",
+    ""
+   ],
+   [
+    "3A53AEF0",
+    "2026-10-11 09:31:00",
+    "Drew Newhire",
+    "2026-10-14",
+    "2026-10-14",
+    "Other",
+    "Paid Time Off",
+    "Afternoon (PM)",
+    "",
+    "DMV",
+    "Pending",
+    "",
+    "",
+    ""
+   ],
+   [
+    "3A53CDDF",
+    "2026-03-02 09:32:00",
+    "Sam Former",
+    "2026-03-23",
+    "2026-03-26",
+    "Vacation",
+    "Paid Time Off",
+    "Full Day",
+    "",
+    "",
+    "Approved",
+    "Amir Akhavan",
+    "2026-03-03 10:05:00",
+    "2026-03-23"
+   ],
+   [
+    "3A53ECCE",
+    "2025-07-14 09:33:00",
+    "Pat Gone",
+    "2025-08-04",
+    "2025-08-05",
+    "Vacation",
+    "Paid Time Off",
+    "Full Day",
+    "",
+    "",
+    "Approved",
+    "Amir Akhavan",
+    "2025-07-15 10:05:00",
+    true
+   ],
+   [
+    "BAD00001",
+    "2026-10-08 09:00:00",
+    "Riley Example",
+    "",
+    "",
+    "Vacation",
+    "Paid Time Off",
+    "Full Day",
+    "",
+    "",
+    "Pending",
+    "",
+    "",
+    ""
+   ]
+  ],
+  "BenefitsEmployees": [
+   [
+    "Name",
+    "Passcode",
+    "Role",
+    "Title",
+    "EmploymentType",
+    "HireDate",
+    "OrientationEndDate",
+    "SickLeaveBalance",
+    "VacationBalance",
+    "LastAccrualDate",
+    "Notes",
+    "Password",
+    "PersonalDaysBalance",
+    "DaysOffYTD"
+   ],
+   [
+    "Jordan Sample",
+    "NOT-A-REAL-CODE-0",
+    "approver",
+    "Office Manager",
+    "FullTime",
+    "2010-06-03",
+    "",
+    25.47,
+    76.5,
+    "2026-09-30",
+    "Approves time off",
+    "NOT-A-REAL-PASSWORD-0",
+    "",
+    ""
+   ],
+   [
+    "Riley Example",
+    "NOT-A-REAL-CODE-1",
+    "staff",
+    "Clinical Assistant",
+    "FullTime",
+    "2023-03-13",
+    "",
+    22.64,
+    51,
+    "2026-09-30",
+    "",
+    "NOT-A-REAL-PASSWORD-1",
+    "",
+    ""
+   ],
+   [
+    "Taylor Mock",
+    "NOT-A-REAL-CODE-2",
+    "staff",
+    "Clinical Assistant",
+    "FullTime",
+    "2024-11-17",
+    "",
+    25.47,
+    15.59,
+    "2026-09-30",
+    "",
+    "NOT-A-REAL-PASSWORD-2",
+    "",
+    ""
+   ],
+   [
+    "Morgan Test",
+    "NOT-A-REAL-CODE-3",
+    "staff",
+    "Front Desk",
+    "PartTime",
+    "2024-09-09",
+    "",
+    25.47,
+    34.03,
+    "2026-09-30",
+    "",
+    "NOT-A-REAL-PASSWORD-3",
+    "",
+    ""
+   ],
+   [
+    "Casey Demo",
+    "NOT-A-REAL-CODE-4",
+    "staff",
+    "Sterilization",
+    "FullTime",
+    "2026-05-11",
+    "",
+    5.65,
+    14.15,
+    "2026-09-30",
+    "",
+    "NOT-A-REAL-PASSWORD-4",
+    "",
+    ""
+   ],
+   [
+    "Drew Newhire",
+    "NOT-A-REAL-CODE-5",
+    "staff",
+    "Front Desk",
+    "FullTime",
+    "2026-08-29",
+    "",
+    5.66,
+    5.66,
+    "2026-09-30",
+    "",
+    "NOT-A-REAL-PASSWORD-5",
+    "",
+    ""
+   ]
+  ],
+  "FormerStaff": [
+   [
+    "Name",
+    "Passcode",
+    "Role",
+    "Title",
+    "EmploymentType",
+    "HireDate",
+    "OrientationEndDate",
+    "SickLeaveBalance",
+    "VacationBalance",
+    "LastAccrualDate",
+    "Notes",
+    "Password",
+    "PersonalDaysBalance",
+    "DaysOffYTD",
+    "Moved from BenefitsEmployees"
+   ],
+   [
+    "Sam Former",
+    "NOT-A-REAL-CODE-0",
+    "staff",
+    "Clinical Assistant",
+    "FullTime",
+    "2022-02-07",
+    "",
+    19.81,
+    42.5,
+    "2026-07-31",
+    "",
+    "NOT-A-REAL-PASSWORD-0",
+    "",
+    "",
+    "2026-08-09"
+   ]
+  ],
+  "BalanceLog": [
+   [
+    "Timestamp",
+    "Employee",
+    "Type",
+    "Amount",
+    "NewBalance",
+    "Reason",
+    "AdjustedBy"
+   ],
+   [
+    "2026-01-01 06:00:00",
+    "Jordan Sample",
+    "Vacation",
+    -12,
+    0,
+    "Jan 1 annual reset (balance paid out via payroll)",
+    "System"
+   ],
+   [
+    "2026-01-01 06:00:00",
+    "Jordan Sample",
+    "Sick Leave",
+    -5,
+    0,
+    "Jan 1 annual reset",
+    "System"
+   ],
+   [
+    "2026-01-01 06:00:00",
+    "Riley Example",
+    "Vacation",
+    -15.5,
+    0,
+    "Jan 1 annual reset (balance paid out via payroll)",
+    "System"
+   ],
+   [
+    "2026-01-01 06:00:00",
+    "Riley Example",
+    "Sick Leave",
+    -6,
+    0,
+    "Jan 1 annual reset",
+    "System"
+   ],
+   [
+    "2026-01-01 06:00:00",
+    "Taylor Mock",
+    "Vacation",
+    -19,
+    0,
+    "Jan 1 annual reset (balance paid out via payroll)",
+    "System"
+   ],
+   [
+    "2026-01-01 06:00:00",
+    "Taylor Mock",
+    "Sick Leave",
+    -7,
+    0,
+    "Jan 1 annual reset",
+    "System"
+   ],
+   [
+    "2026-01-01 06:00:00",
+    "Morgan Test",
+    "Vacation",
+    -22.5,
+    0,
+    "Jan 1 annual reset (balance paid out via payroll)",
+    "System"
+   ],
+   [
+    "2026-01-01 06:00:00",
+    "Morgan Test",
+    "Sick Leave",
+    -8,
+    0,
+    "Jan 1 annual reset",
+    "System"
+   ],
+   [
+    "2026-01-01 06:00:00",
+    "Sam Former",
+    "Vacation",
+    -33,
+    0,
+    "Jan 1 annual reset (balance paid out via payroll)",
+    "System"
+   ],
+   [
+    "2026-01-01 06:00:00",
+    "Sam Former",
+    "Sick Leave",
+    -11,
+    0,
+    "Jan 1 annual reset",
+    "System"
+   ],
+   [
+    "2026-01-31 06:02:00",
+    "Jordan Sample",
+    "Vacation",
+    8.5,
+    8.5,
+    "Monthly accrual (Tier 3, cap 102)",
+    "System"
+   ],
+   [
+    "2026-01-31 06:02:00",
+    "Jordan Sample",
+    "Sick Leave",
+    2.83,
+    2.83,
+    "Monthly accrual",
+    "System"
+   ],
+   [
+    "2026-01-31 06:02:00",
+    "Riley Example",
+    "Vacation",
+    5.67,
+    5.67,
+    "Monthly accrual (Tier 2, cap 68)",
+    "System"
+   ],
+   [
+    "2026-01-31 06:02:00",
+    "Riley Example",
+    "Sick Leave",
+    2.83,
+    2.83,
+    "Monthly accrual",
+    "System"
+   ],
+   [
+    "2026-01-31 06:02:00",
+    "Taylor Mock",
+    "Vacation",
+    5.67,
+    5.67,
+    "Monthly accrual (Tier 2, cap 68)",
+    "System"
+   ],
+   [
+    "2026-01-31 06:02:00",
+    "Taylor Mock",
+    "Sick Leave",
+    2.83,
+    2.83,
+    "Monthly accrual",
+    "System"
+   ],
+   [
+    "2026-01-31 06:02:00",
+    "Morgan Test",
+    "Vacation",
+    5.67,
+    5.67,
+    "Monthly accrual (Tier 2, cap 68)",
+    "System"
+   ],
+   [
+    "2026-01-31 06:02:00",
+    "Morgan Test",
+    "Sick Leave",
+    2.83,
+    2.83,
+    "Monthly accrual",
+    "System"
+   ],
+   [
+    "2026-01-31 06:02:00",
+    "Sam Former",
+    "Vacation",
+    8.5,
+    8.5,
+    "Monthly accrual (Tier 3, cap 102)",
+    "System"
+   ],
+   [
+    "2026-01-31 06:02:00",
+    "Sam Former",
+    "Sick Leave",
+    2.83,
+    2.83,
+    "Monthly accrual",
+    "System"
+   ],
+   [
+    "2026-02-16 06:01:00",
+    "Jordan Sample",
+    "Vacation",
+    -42.5,
+    0,
+    "Approved time-off: 2026-02-16 — 2026-02-20 (42.5 hrs)",
+    "System (approved by Amir Akhavan)"
+   ],
+   [
+    "2026-02-17 06:01:00",
+    "Riley Example",
+    "Sick Leave",
+    -8.5,
+    0,
+    "Approved time-off: 2026-02-17 (8.5 hrs)",
+    "System (approved by Amir Akhavan)"
+   ],
+   [
+    "2026-02-28 06:02:00",
+    "Jordan Sample",
+    "Vacation",
+    8.5,
+    8.5,
+    "Monthly accrual (Tier 3, cap 102)",
+    "System"
+   ],
+   [
+    "2026-02-28 06:02:00",
+    "Jordan Sample",
+    "Sick Leave",
+    2.83,
+    5.66,
+    "Monthly accrual",
+    "System"
+   ],
+   [
+    "2026-02-28 06:02:00",
+    "Riley Example",
+    "Vacation",
+    5.67,
+    11.34,
+    "Monthly accrual (Tier 2, cap 68)",
+    "System"
+   ],
+   [
+    "2026-02-28 06:02:00",
+    "Riley Example",
+    "Sick Leave",
+    2.83,
+    2.83,
+    "Monthly accrual",
+    "System"
+   ],
+   [
+    "2026-02-28 06:02:00",
+    "Taylor Mock",
+    "Vacation",
+    5.67,
+    11.34,
+    "Monthly accrual (Tier 2, cap 68)",
+    "System"
+   ],
+   [
+    "2026-02-28 06:02:00",
+    "Taylor Mock",
+    "Sick Leave",
+    2.83,
+    5.66,
+    "Monthly accrual",
+    "System"
+   ],
+   [
+    "2026-02-28 06:02:00",
+    "Morgan Test",
+    "Vacation",
+    5.67,
+    11.34,
+    "Monthly accrual (Tier 2, cap 68)",
+    "System"
+   ],
+   [
+    "2026-02-28 06:02:00",
+    "Morgan Test",
+    "Sick Leave",
+    2.83,
+    5.66,
+    "Monthly accrual",
+    "System"
+   ],
+   [
+    "2026-02-28 06:02:00",
+    "Sam Former",
+    "Vacation",
+    8.5,
+    17,
+    "Monthly accrual (Tier 3, cap 102)",
+    "System"
+   ],
+   [
+    "2026-02-28 06:02:00",
+    "Sam Former",
+    "Sick Leave",
+    2.83,
+    5.66,
+    "Monthly accrual",
+    "System"
+   ],
+   [
+    "2026-03-09 06:01:00",
+    "Riley Example",
+    "Vacation",
+    -42.5,
+    0,
+    "Approved time-off: 2026-03-09 — 2026-03-13 (42.5 hrs)",
+    "System (approved by Amir Akhavan)"
+   ],
+   [
+    "2026-03-23 06:01:00",
+    "Sam Former",
+    "Vacation",
+    -34,
+    0,
+    "Approved time-off: 2026-03-23 — 2026-03-26 (34 hrs)",
+    "System (approved by Amir Akhavan)"
+   ],
+   [
+    "2026-03-31 06:02:00",
+    "Jordan Sample",
+    "Vacation",
+    8.5,
+    17,
+    "Monthly accrual (Tier 3, cap 102)",
+    "System"
+   ],
+   [
+    "2026-03-31 06:02:00",
+    "Jordan Sample",
+    "Sick Leave",
+    2.83,
+    8.49,
+    "Monthly accrual",
+    "System"
+   ],
+   [
+    "2026-03-31 06:02:00",
+    "Riley Example",
+    "Vacation",
+    8.5,
+    8.5,
+    "Monthly accrual (Tier 3, cap 102)",
+    "System"
+   ],
+   [
+    "2026-03-31 06:02:00",
+    "Riley Example",
+    "Sick Leave",
+    2.83,
+    5.66,
+    "Monthly accrual",
+    "System"
+   ],
+   [
+    "2026-03-31 06:02:00",
+    "Taylor Mock",
+    "Vacation",
+    5.67,
+    17.01,
+    "Monthly accrual (Tier 2, cap 68)",
+    "System"
+   ],
+   [
+    "2026-03-31 06:02:00",
+    "Taylor Mock",
+    "Sick Leave",
+    2.83,
+    8.49,
+    "Monthly accrual",
+    "System"
+   ],
+   [
+    "2026-03-31 06:02:00",
+    "Morgan Test",
+    "Vacation",
+    5.67,
+    17.01,
+    "Monthly accrual (Tier 2, cap 68)",
+    "System"
+   ],
+   [
+    "2026-03-31 06:02:00",
+    "Morgan Test",
+    "Sick Leave",
+    2.83,
+    8.49,
+    "Monthly accrual",
+    "System"
+   ],
+   [
+    "2026-03-31 06:02:00",
+    "Sam Former",
+    "Vacation",
+    8.5,
+    8.5,
+    "Monthly accrual (Tier 3, cap 102)",
+    "System"
+   ],
+   [
+    "2026-03-31 06:02:00",
+    "Sam Former",
+    "Sick Leave",
+    2.83,
+    8.49,
+    "Monthly accrual",
+    "System"
+   ],
+   [
+    "2026-04-30 06:02:00",
+    "Jordan Sample",
+    "Vacation",
+    8.5,
+    25.5,
+    "Monthly accrual (Tier 3, cap 102)",
+    "System"
+   ],
+   [
+    "2026-04-30 06:02:00",
+    "Jordan Sample",
+    "Sick Leave",
+    2.83,
+    11.32,
+    "Monthly accrual",
+    "System"
+   ],
+   [
+    "2026-04-30 06:02:00",
+    "Riley Example",
+    "Vacation",
+    8.5,
+    17,
+    "Monthly accrual (Tier 3, cap 102)",
+    "System"
+   ],
+   [
+    "2026-04-30 06:02:00",
+    "Riley Example",
+    "Sick Leave",
+    2.83,
+    8.49,
+    "Monthly accrual",
+    "System"
+   ],
+   [
+    "2026-04-30 06:02:00",
+    "Taylor Mock",
+    "Vacation",
+    5.67,
+    22.68,
+    "Monthly accrual (Tier 2, cap 68)",
+    "System"
+   ],
+   [
+    "2026-04-30 06:02:00",
+    "Taylor Mock",
+    "Sick Leave",
+    2.83,
+    11.32,
+    "Monthly accrual",
+    "System"
+   ],
+   [
+    "2026-04-30 06:02:00",
+    "Morgan Test",
+    "Vacation",
+    5.67,
+    22.68,
+    "Monthly accrual (Tier 2, cap 68)",
+    "System"
+   ],
+   [
+    "2026-04-30 06:02:00",
+    "Morgan Test",
+    "Sick Leave",
+    2.83,
+    11.32,
+    "Monthly accrual",
+    "System"
+   ],
+   [
+    "2026-04-30 06:02:00",
+    "Sam Former",
+    "Vacation",
+    8.5,
+    17,
+    "Monthly accrual (Tier 3, cap 102)",
+    "System"
+   ],
+   [
+    "2026-04-30 06:02:00",
+    "Sam Former",
+    "Sick Leave",
+    2.83,
+    11.32,
+    "Monthly accrual",
+    "System"
+   ],
+   [
+    "2026-05-11 06:01:00",
+    "Morgan Test",
+    "Vacation",
+    -17,
+    5.68,
+    "Approved time-off: 2026-05-11 — 2026-05-12 (17 hrs)",
+    "System (approved by Amir Akhavan)"
+   ],
+   [
+    "2026-05-31 06:02:00",
+    "Jordan Sample",
+    "Vacation",
+    8.5,
+    34,
+    "Monthly accrual (Tier 3, cap 102)",
+    "System"
+   ],
+   [
+    "2026-05-31 06:02:00",
+    "Jordan Sample",
+    "Sick Leave",
+    2.83,
+    14.15,
+    "Monthly accrual",
+    "System"
+   ],
+   [
+    "2026-05-31 06:02:00",
+    "Riley Example",
+    "Vacation",
+    8.5,
+    25.5,
+    "Monthly accrual (Tier 3, cap 102)",
+    "System"
+   ],
+   [
+    "2026-05-31 06:02:00",
+    "Riley Example",
+    "Sick Leave",
+    2.83,
+    11.32,
+    "Monthly accrual",
+    "System"
+   ],
+   [
+    "2026-05-31 06:02:00",
+    "Taylor Mock",
+    "Vacation",
+    5.67,
+    28.35,
+    "Monthly accrual (Tier 2, cap 68)",
+    "System"
+   ],
+   [
+    "2026-05-31 06:02:00",
+    "Taylor Mock",
+    "Sick Leave",
+    2.83,
+    14.15,
+    "Monthly accrual",
+    "System"
+   ],
+   [
+    "2026-05-31 06:02:00",
+    "Morgan Test",
+    "Vacation",
+    5.67,
+    11.35,
+    "Monthly accrual (Tier 2, cap 68)",
+    "System"
+   ],
+   [
+    "2026-05-31 06:02:00",
+    "Morgan Test",
+    "Sick Leave",
+    2.83,
+    14.15,
+    "Monthly accrual",
+    "System"
+   ],
+   [
+    "2026-05-31 06:02:00",
+    "Casey Demo",
+    "Vacation",
+    2.83,
+    2.83,
+    "Monthly accrual (Tier 1, cap 34)",
+    "System"
+   ],
+   [
+    "2026-05-31 06:02:00",
+    "Casey Demo",
+    "Sick Leave",
+    2.83,
+    2.83,
+    "Monthly accrual",
+    "System"
+   ],
+   [
+    "2026-05-31 06:02:00",
+    "Sam Former",
+    "Vacation",
+    8.5,
+    25.5,
+    "Monthly accrual (Tier 3, cap 102)",
+    "System"
+   ],
+   [
+    "2026-05-31 06:02:00",
+    "Sam Former",
+    "Sick Leave",
+    2.83,
+    14.15,
+    "Monthly accrual",
+    "System"
+   ],
+   [
+    "2026-06-02 06:01:00",
+    "Riley Example",
+    "Vacation",
+    -8.5,
+    17,
+    "Approved time-off: 2026-06-02 (8.5 hrs)",
+    "System (approved by Amir Akhavan)"
+   ],
+   [
+    "2026-06-30 06:02:00",
+    "Jordan Sample",
+    "Vacation",
+    8.5,
+    42.5,
+    "Monthly accrual (Tier 3, cap 102)",
+    "System"
+   ],
+   [
+    "2026-06-30 06:02:00",
+    "Jordan Sample",
+    "Sick Leave",
+    2.83,
+    16.98,
+    "Monthly accrual",
+    "System"
+   ],
+   [
+    "2026-06-30 06:02:00",
+    "Riley Example",
+    "Vacation",
+    8.5,
+    25.5,
+    "Monthly accrual (Tier 3, cap 102)",
+    "System"
+   ],
+   [
+    "2026-06-30 06:02:00",
+    "Riley Example",
+    "Sick Leave",
+    2.83,
+    14.15,
+    "Monthly accrual",
+    "System"
+   ],
+   [
+    "2026-06-30 06:02:00",
+    "Taylor Mock",
+    "Vacation",
+    5.67,
+    34.02,
+    "Monthly accrual (Tier 2, cap 68)",
+    "System"
+   ],
+   [
+    "2026-06-30 06:02:00",
+    "Taylor Mock",
+    "Sick Leave",
+    2.83,
+    16.98,
+    "Monthly accrual",
+    "System"
+   ],
+   [
+    "2026-06-30 06:02:00",
+    "Morgan Test",
+    "Vacation",
+    5.67,
+    17.02,
+    "Monthly accrual (Tier 2, cap 68)",
+    "System"
+   ],
+   [
+    "2026-06-30 06:02:00",
+    "Morgan Test",
+    "Sick Leave",
+    2.83,
+    16.98,
+    "Monthly accrual",
+    "System"
+   ],
+   [
+    "2026-06-30 06:02:00",
+    "Casey Demo",
+    "Vacation",
+    2.83,
+    5.66,
+    "Monthly accrual (Tier 1, cap 34)",
+    "System"
+   ],
+   [
+    "2026-06-30 06:02:00",
+    "Casey Demo",
+    "Sick Leave",
+    2.83,
+    5.66,
+    "Monthly accrual",
+    "System"
+   ],
+   [
+    "2026-06-30 06:02:00",
+    "Sam Former",
+    "Vacation",
+    8.5,
+    34,
+    "Monthly accrual (Tier 3, cap 102)",
+    "System"
+   ],
+   [
+    "2026-06-30 06:02:00",
+    "Sam Former",
+    "Sick Leave",
+    2.83,
+    16.98,
+    "Monthly accrual",
+    "System"
+   ],
+   [
+    "2026-07-06 06:01:00",
+    "Taylor Mock",
+    "Vacation",
+    -42.5,
+    0,
+    "Approved time-off: 2026-07-06 — 2026-07-10 (42.5 hrs)",
+    "System (approved by Jordan Sample)"
+   ],
+   [
+    "2026-07-16 14:30:00",
+    "Jordan Sample",
+    "vacation",
+    8.5,
+    "Worked the Saturday open house",
+    "Amir Akhavan"
+   ],
+   [
+    "2026-07-31 06:02:00",
+    "Jordan Sample",
+    "Vacation",
+    8.5,
+    59.5,
+    "Monthly accrual (Tier 3, cap 102)",
+    "System"
+   ],
+   [
+    "2026-07-31 06:02:00",
+    "Jordan Sample",
+    "Sick Leave",
+    2.83,
+    19.81,
+    "Monthly accrual",
+    "System"
+   ],
+   [
+    "2026-07-31 06:02:00",
+    "Riley Example",
+    "Vacation",
+    8.5,
+    34,
+    "Monthly accrual (Tier 3, cap 102)",
+    "System"
+   ],
+   [
+    "2026-07-31 06:02:00",
+    "Riley Example",
+    "Sick Leave",
+    2.83,
+    16.98,
+    "Monthly accrual",
+    "System"
+   ],
+   [
+    "2026-07-31 06:02:00",
+    "Taylor Mock",
+    "Vacation",
+    5.67,
+    5.67,
+    "Monthly accrual (Tier 2, cap 68)",
+    "System"
+   ],
+   [
+    "2026-07-31 06:02:00",
+    "Taylor Mock",
+    "Sick Leave",
+    2.83,
+    19.81,
+    "Monthly accrual",
+    "System"
+   ],
+   [
+    "2026-07-31 06:02:00",
+    "Morgan Test",
+    "Vacation",
+    5.67,
+    22.69,
+    "Monthly accrual (Tier 2, cap 68)",
+    "System"
+   ],
+   [
+    "2026-07-31 06:02:00",
+    "Morgan Test",
+    "Sick Leave",
+    2.83,
+    19.81,
+    "Monthly accrual",
+    "System"
+   ],
+   [
+    "2026-07-31 06:02:00",
+    "Casey Demo",
+    "Vacation",
+    2.83,
+    8.49,
+    "Monthly accrual (Tier 1, cap 34)",
+    "System"
+   ],
+   [
+    "2026-07-31 06:02:00",
+    "Casey Demo",
+    "Sick Leave",
+    2.83,
+    8.49,
+    "Monthly accrual",
+    "System"
+   ],
+   [
+    "2026-07-31 06:02:00",
+    "Sam Former",
+    "Vacation",
+    8.5,
+    42.5,
+    "Monthly accrual (Tier 3, cap 102)",
+    "System"
+   ],
+   [
+    "2026-07-31 06:02:00",
+    "Sam Former",
+    "Sick Leave",
+    2.83,
+    19.81,
+    "Monthly accrual",
+    "System"
+   ],
+   [
+    "2026-08-19 06:01:00",
+    "Taylor Mock",
+    "Vacation",
+    -8.5,
+    0,
+    "Approved time-off: 2026-08-19 (8.5 hrs)",
+    "System (approved by Amir Akhavan)"
+   ],
+   [
+    "2026-08-31 06:02:00",
+    "Jordan Sample",
+    "Vacation",
+    8.5,
+    68,
+    "Monthly accrual (Tier 3, cap 102)",
+    "System"
+   ],
+   [
+    "2026-08-31 06:02:00",
+    "Jordan Sample",
+    "Sick Leave",
+    2.83,
+    22.64,
+    "Monthly accrual",
+    "System"
+   ],
+   [
+    "2026-08-31 06:02:00",
+    "Riley Example",
+    "Vacation",
+    8.5,
+    42.5,
+    "Monthly accrual (Tier 3, cap 102)",
+    "System"
+   ],
+   [
+    "2026-08-31 06:02:00",
+    "Riley Example",
+    "Sick Leave",
+    2.83,
+    19.81,
+    "Monthly accrual",
+    "System"
+   ],
+   [
+    "2026-08-31 06:02:00",
+    "Taylor Mock",
+    "Vacation",
+    5.67,
+    5.67,
+    "Monthly accrual (Tier 2, cap 68)",
+    "System"
+   ],
+   [
+    "2026-08-31 06:02:00",
+    "Taylor Mock",
+    "Sick Leave",
+    2.83,
+    22.64,
+    "Monthly accrual",
+    "System"
+   ],
+   [
+    "2026-08-31 06:02:00",
+    "Morgan Test",
+    "Vacation",
+    5.67,
+    28.36,
+    "Monthly accrual (Tier 2, cap 68)",
+    "System"
+   ],
+   [
+    "2026-08-31 06:02:00",
+    "Morgan Test",
+    "Sick Leave",
+    2.83,
+    22.64,
+    "Monthly accrual",
+    "System"
+   ],
+   [
+    "2026-08-31 06:02:00",
+    "Casey Demo",
+    "Vacation",
+    2.83,
+    11.32,
+    "Monthly accrual (Tier 1, cap 34)",
+    "System"
+   ],
+   [
+    "2026-08-31 06:02:00",
+    "Casey Demo",
+    "Sick Leave",
+    2.83,
+    11.32,
+    "Monthly accrual",
+    "System"
+   ],
+   [
+    "2026-08-31 06:02:00",
+    "Drew Newhire",
+    "Vacation",
+    2.83,
+    2.83,
+    "Monthly accrual (Tier 1, cap 34)",
+    "System"
+   ],
+   [
+    "2026-08-31 06:02:00",
+    "Drew Newhire",
+    "Sick Leave",
+    2.83,
+    2.83,
+    "Monthly accrual",
+    "System"
+   ],
+   [
+    "2026-09-15 06:01:00",
+    "Casey Demo",
+    "Sick Leave",
+    -8.5,
+    2.82,
+    "Approved time-off: 2026-09-15 (8.5 hrs)",
+    "System (approved by Jordan Sample)"
+   ],
+   [
+    "2026-09-30 06:02:00",
+    "Jordan Sample",
+    "Vacation",
+    8.5,
+    76.5,
+    "Monthly accrual (Tier 3, cap 102)",
+    "System"
+   ],
+   [
+    "2026-09-30 06:02:00",
+    "Jordan Sample",
+    "Sick Leave",
+    2.83,
+    25.47,
+    "Monthly accrual",
+    "System"
+   ],
+   [
+    "2026-09-30 06:02:00",
+    "Riley Example",
+    "Vacation",
+    8.5,
+    51,
+    "Monthly accrual (Tier 3, cap 102)",
+    "System"
+   ],
+   [
+    "2026-09-30 06:02:00",
+    "Riley Example",
+    "Sick Leave",
+    2.83,
+    22.64,
+    "Monthly accrual",
+    "System"
+   ],
+   [
+    "2026-09-30 06:02:00",
+    "Taylor Mock",
+    "Vacation",
+    5.67,
+    11.34,
+    "Monthly accrual (Tier 2, cap 68)",
+    "System"
+   ],
+   [
+    "2026-09-30 06:02:00",
+    "Taylor Mock",
+    "Sick Leave",
+    2.83,
+    25.47,
+    "Monthly accrual",
+    "System"
+   ],
+   [
+    "2026-09-30 06:02:00",
+    "Morgan Test",
+    "Vacation",
+    5.67,
+    34.03,
+    "Monthly accrual (Tier 2, cap 68)",
+    "System"
+   ],
+   [
+    "2026-09-30 06:02:00",
+    "Morgan Test",
+    "Sick Leave",
+    2.83,
+    25.47,
+    "Monthly accrual",
+    "System"
+   ],
+   [
+    "2026-09-30 06:02:00",
+    "Casey Demo",
+    "Vacation",
+    2.83,
+    14.15,
+    "Monthly accrual (Tier 1, cap 34)",
+    "System"
+   ],
+   [
+    "2026-09-30 06:02:00",
+    "Casey Demo",
+    "Sick Leave",
+    2.83,
+    5.65,
+    "Monthly accrual",
+    "System"
+   ],
+   [
+    "2026-09-30 06:02:00",
+    "Drew Newhire",
+    "Vacation",
+    2.83,
+    5.66,
+    "Monthly accrual (Tier 1, cap 34)",
+    "System"
+   ],
+   [
+    "2026-09-30 06:02:00",
+    "Drew Newhire",
+    "Sick Leave",
+    2.83,
+    5.66,
+    "Monthly accrual",
+    "System"
+   ]
+  ],
+  "Holidays": [
+   [
+    "Date",
+    "Label"
+   ],
+   [
+    "2026-12-24",
+    "Christmas Eve"
+   ],
+   [
+    "2026-07-04",
+    "Independence Day"
+   ]
+  ],
+  "Blackouts": [
+   [
+    "Start Date",
+    "End Date",
+    "Label"
+   ],
+   [
+    "2026-01-01",
+    "2026-01-31",
+    "January Blackout (All Year)"
+   ],
+   [
+    "2026-11-23",
+    "2026-11-29",
+    "Thanksgiving Week"
+   ],
+   [
+    "2026-12-21",
+    "2026-12-31",
+    "Holiday rush"
+   ]
+  ]
+ }
+}

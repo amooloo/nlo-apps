@@ -355,7 +355,7 @@ service cloud.firestore {
       function okGrant() {
         let d = request.resource.data;
         let m = get(/databases/$(db)/documents/members/$(uid)).data;
-        return d.keys().hasOnly(['ring', 'ringV', 'pubX', 'sid', 'by', 'at']) && okSealed(d.ring, 2000)
+        return d.keys().hasOnly(['ring', 'ringV', 'pubX', 'sid', 'by', 'at']) && okSealed(d.ring, 20000)
           && d.ringV is int && d.pubX is string && d.pubX.size() == 43 && d.sid is string && d.sid == m.staffId
           && m.active == true && d.by == request.auth.uid && d.at == request.time;
       }
@@ -374,7 +374,7 @@ service cloud.firestore {
     match /meta/arEscrow {
       allow get: if isOwner();
       allow create, update: if isOwner() && request.resource.data.keys().hasOnly(['ring', 'ringV', 'recX', 'by', 'at'])
-        && okSealed(request.resource.data.ring, 2000) && request.resource.data.ringV is int && request.resource.data.by == request.auth.uid;
+        && okSealed(request.resource.data.ring, 20000) && request.resource.data.ringV is int && request.resource.data.by == request.auth.uid;
       allow delete: if false;
     }
     // who has A/R (staff ids only), so accounts can be assigned to them
@@ -461,6 +461,257 @@ service cloud.firestore {
         && request.resource.data.ct is string && request.resource.data.ct.size() < 20000
         && okArHist() && okArAfter();
       allow update, delete: if false;
+    }
+
+    // ---------- NLO Time Off (same office, same logins; its own HR key for the people who approve) ----------
+    // Each request is sealed twice in the browser: to the HR key's public half (meta/toKeys.pub — the people who approve
+    // hold its private half, toDrop/<version>, sealed with their HR key ring) and to the person's own key, so they can
+    // read their own. In the clear: whose it is (staff id), its status and revision, and the day it starts (ms) — so the
+    // rules can let someone cancel approved time off only before it starts. Every save keeps the copy it replaced.
+    function toGrant() { return /databases/$(db)/documents/toAccess/$(request.auth.uid); }
+    function isHR() { return isMember() && (isOwner() || exists(toGrant())); }
+    function toCurV() { return get(/databases/$(db)/documents/meta/toKeys).data.current; }
+    function toReqDoc(id) { return /databases/$(db)/documents/toReq/$(id); }
+    match /toAccess/{uid} {
+      function okToGrant() {
+        let d = request.resource.data;
+        let m = get(/databases/$(db)/documents/members/$(uid)).data;
+        return d.keys().hasOnly(['ring', 'ringV', 'pubX', 'sid', 'by', 'at']) && okSealed(d.ring, 20000)
+          && d.ringV is int && d.pubX is string && d.pubX.size() == 43 && d.sid is string && d.sid == m.staffId
+          && m.active == true && d.by == request.auth.uid && d.at == request.time;
+      }
+      allow get: if (request.auth != null && request.auth.uid == uid && isMember()) || isOwner();
+      allow list: if isOwner();
+      allow create, update: if isOwner() && exists(/databases/$(db)/documents/members/$(uid)) && okToGrant();
+      allow delete: if isOwner();
+    }
+    // the HR key's version and its public half (everyone seals new requests to it)
+    match /meta/toKeys {
+      function okToKeys() { let d = request.resource.data; return d.keys().hasOnly(['current', 'pub']) && d.current is int && 'pub' in d && okPub(d); }
+      allow get: if isMember();
+      allow create: if isOwner() && okToKeys() && request.resource.data.current == 1;
+      allow update: if isOwner() && okToKeys() && request.resource.data.current == resource.data.current + 1;
+      allow delete: if false;
+    }
+    // each version's private half, sealed with the HR key ring; never replaced
+    match /toDrop/{v} {
+      allow get, list: if isHR();
+      allow create: if isOwner() && request.resource.data.keys().hasOnly(['v', 'iv', 'ct'])
+        && request.resource.data.v is int && v == string(request.resource.data.v)
+        && request.resource.data.iv is string && request.resource.data.iv.size() <= 24
+        && request.resource.data.ct is string && request.resource.data.ct.size() <= 2000;
+      allow update, delete: if false;
+    }
+    // a copy of the HR key ring sealed to the office recovery key, so Dr. A's recovery code can always get it back
+    match /meta/toEscrow {
+      allow get: if isOwner();
+      allow create, update: if isOwner() && request.resource.data.keys().hasOnly(['ring', 'ringV', 'recX', 'by', 'at'])
+        && okSealed(request.resource.data.ring, 20000) && request.resource.data.ringV is int && request.resource.data.by == request.auth.uid;
+      allow delete: if false;
+    }
+    // who approves (staff ids only)
+    match /meta/toTeam {
+      allow get: if isMember();
+      allow create, update: if isOwner() && request.resource.data.keys().hasOnly(['sids', 'at'])
+        && request.resource.data.sids is list && request.resource.data.sids.size() <= 40;
+      allow delete: if false;
+    }
+    // one change of the HR key at a time, across Dr. A's screens
+    match /meta/toKeyLock {
+      allow get, delete: if isOwner();
+      allow create, update: if isOwner() && request.resource.data.keys().hasOnly(['by', 'at'])
+        && request.resource.data.by is string && request.resource.data.by.size() <= 80 && request.resource.data.at == request.time;
+    }
+    // which set of these rules is live (the app reads this; older rules refuse it)
+    match /meta/rules_to_1 {
+      allow get: if isMember();
+    }
+    // level 2: scrubs requests (toPerk) — the page asks for the new rules until this one can be read
+    match /meta/rules_to_2 {
+      allow get: if isMember();
+    }
+    // each person's public key (the one their own login holds), so the people who approve can seal their copy to them
+    match /toPeople/{sid} {
+      function okPerson() {
+        let d = request.resource.data;
+        let m = get(/databases/$(db)/documents/members/$(d.uid)).data;
+        return d.keys().hasOnly(['pub', 'uid', 'at']) && okPub(d) && d.uid is string && d.at == request.time
+          && m.active == true && m.staffId == sid && m.pub == d.pub;
+      }
+      allow get, list: if isMember();
+      allow create, update: if isMember() && okPerson() && (request.resource.data.uid == request.auth.uid || isOwner());
+      allow delete: if isOwner();
+    }
+    function toHistAfter(id, rev) { return existsAfter(/databases/$(db)/documents/toLog/$(id + '_' + string(rev))); }
+    match /toReq/{id} {
+      function okReq() {
+        let d = request.resource.data;
+        return d.keys().hasOnly(['sid', 'status', 'rev', 'by', 'bsid', 'v', 'pub', 'startMs', 'hr', 'me', 'createdAt', 'updatedAt'])
+          && d.sid is string && d.sid.size() > 0 && d.sid.size() <= 40
+          && d.status in ['pending', 'approved', 'denied', 'cancelled', 'archived']
+          && d.rev is int && d.by == request.auth.uid && d.bsid == mySid() && d.updatedAt == request.time
+          && d.v == toCurV() && okSealed(d.hr, 30000) && (d.me == null || okSealed(d.me, 30000))
+          && (d.pub == null || okPub(d)) && d.startMs is int && d.startMs > 946684800000 && d.startMs < 4102444800000;
+      }
+      // the person's own requests; the people who approve see everyone's (a request that doesn't exist yet can be looked
+      // for, so a new one can be saved in a transaction)
+      allow get: if isHR() || (isMember() && (resource == null || resource.data.sid == mySid()));
+      allow list: if isHR() || (isMember() && resource.data.sid == mySid());
+      // anyone may ask for their own time off; the people who approve may record it for someone (Dr. A only decides his own)
+      allow create: if isMember() && okReq() && id.matches('^q[0-9a-f]{24}$') && request.resource.data.rev == 1
+        && request.resource.data.createdAt == request.time && toHistAfter(id, 1)
+        && (request.resource.data.status == 'pending' && request.resource.data.sid == mySid()
+            || isHR() && (isOwner() || request.resource.data.sid != mySid() || request.resource.data.status == 'pending'));
+      allow update: if isMember() && okReq() && request.resource.data.rev == resource.data.rev + 1
+        && request.resource.data.createdAt == resource.data.createdAt && request.resource.data.sid == resource.data.sid
+        && toHistAfter(id, request.resource.data.rev)
+        && (
+          // the people who approve: someone else's request, anything (Dr. A: his own too). Their own request goes by
+          // the same rules as anyone's (below) — so nobody who approves can change or undo their own approved time off
+          (isHR() && (isOwner() || resource.data.sid != mySid()))
+          // the person: change it or cancel it while it waits; cancel approved time off only before its first day
+          || (resource.data.sid == mySid() && (
+                (resource.data.status == 'pending' && request.resource.data.status in ['pending', 'cancelled'])
+             || (resource.data.status == 'approved' && request.resource.data.status == 'cancelled'
+                 && request.resource.data.startMs == resource.data.startMs && resource.data.startMs > request.time.toMillis())))
+        );
+      allow delete: if false;
+    }
+    match /toLog/{lid} {
+      function reqBefore() { return toReqDoc(request.resource.data.reqId); }
+      function okToHist() {
+        let d = request.resource.data;
+        return (exists(reqBefore()) && d.rev == get(reqBefore()).data.rev + 1 && d.osid == get(reqBefore()).data.sid
+                 && d.prev == {'v': get(reqBefore()).data.v, 'hr': get(reqBefore()).data.hr, 'me': get(reqBefore()).data.me, 'status': get(reqBefore()).data.status})
+          || (!exists(reqBefore()) && d.rev == 1 && d.prev == null);
+      }
+      function okToAfter() { return existsAfter(reqBefore()) && getAfter(reqBefore()).data.rev == request.resource.data.rev && getAfter(reqBefore()).data.sid == request.resource.data.osid; }
+      allow get, list: if isHR() || (isMember() && resource.data.osid == mySid());
+      allow create: if isMember()
+        && request.resource.data.keys().hasOnly(['reqId', 'rev', 'uid', 'sid', 'osid', 'a', 'at', 'prev'])
+        && request.resource.data.uid == request.auth.uid && request.resource.data.sid == mySid()
+        && request.resource.data.at == request.time && request.resource.data.reqId is string
+        && request.resource.data.rev is int && lid == request.resource.data.reqId + '_' + string(request.resource.data.rev)
+        && request.resource.data.a is string && request.resource.data.a.size() <= 20
+        && okToHist() && okToAfter();
+      allow update, delete: if false;
+    }
+    // who's out: one entry per approved request, sealed with the office key — everyone sees who's off and when, never why.
+    // It changes only together with its request (or the owner seals it again after the office key changes).
+    match /toOut/{id} {
+      function outReq() { return toReqDoc(id); }
+      function reqSavedNow() { return existsAfter(outReq()) && (!exists(outReq()) || getAfter(outReq()).data.rev == get(outReq()).data.rev + 1); }
+      function okOut() {
+        let d = request.resource.data;
+        return d.keys().hasOnly(['v', 'iv', 'ct', 'at']) && d.v is int && d.iv is string && d.iv.size() <= 24
+          && d.ct is string && d.ct.size() <= 4000 && d.at == request.time;
+      }
+      allow get, list: if isMember();
+      allow create, update: if isMember() && okOut() && reqSavedNow() && getAfter(outReq()).data.status == 'approved';
+      allow update: if isOwner() && okOut() && exists(outReq()) && get(outReq()).data.status == 'approved';
+      allow delete: if (isMember() && reqSavedNow() && getAfter(outReq()).data.status != 'approved') || isOwner();
+    }
+    // each person's HR record (hire date, orientation, full/part-time, opening balance, adjustments): the HR key; Dr. A
+    // writes it, and every save keeps the copy it replaced
+    function toHRHistAfter(sid, rev) { return existsAfter(/databases/$(db)/documents/toHRLog/$(sid + '_' + string(rev))); }
+    match /toHR/{sid} {
+      function okHR() {
+        let d = request.resource.data;
+        return d.keys().hasOnly(['v', 'iv', 'ct', 'rev', 'by', 'updatedAt']) && d.v == toCurV()
+          && d.iv is string && d.iv.size() <= 24 && d.ct is string && d.ct.size() < 200000
+          && d.rev is int && d.by == request.auth.uid && d.updatedAt == request.time;
+      }
+      allow get, list: if isHR();
+      allow create: if isOwner() && okHR() && request.resource.data.rev == 1 && toHRHistAfter(sid, 1);
+      allow update: if isOwner() && okHR() && request.resource.data.rev == resource.data.rev + 1 && toHRHistAfter(sid, request.resource.data.rev);
+      allow delete: if false;
+    }
+    match /toHRLog/{lid} {
+      function hrBefore() { return /databases/$(db)/documents/toHR/$(request.resource.data.hsid); }
+      function okHRHist() {
+        let d = request.resource.data;
+        return (exists(hrBefore()) && d.rev == get(hrBefore()).data.rev + 1
+                 && d.prev == {'v': get(hrBefore()).data.v, 'iv': get(hrBefore()).data.iv, 'ct': get(hrBefore()).data.ct})
+          || (!exists(hrBefore()) && d.rev == 1 && d.prev == null);
+      }
+      allow get, list: if isHR();
+      allow create: if isOwner() && request.resource.data.keys().hasOnly(['hsid', 'rev', 'uid', 'at', 'a', 'prev'])
+        && request.resource.data.uid == request.auth.uid && request.resource.data.at == request.time
+        && request.resource.data.hsid is string && request.resource.data.rev is int
+        && lid == request.resource.data.hsid + '_' + string(request.resource.data.rev)
+        && request.resource.data.a is string && request.resource.data.a.size() <= 20
+        && okHRHist() && existsAfter(hrBefore()) && getAfter(hrBefore()).data.rev == request.resource.data.rev;
+      allow update, delete: if false;
+    }
+    // each person's own copy of their HR record (sealed to them), so their app can work out their balance and statement
+    match /toMine/{sid} {
+      function okMine() {
+        let d = request.resource.data;
+        return d.keys().hasOnly(['box', 'pubX', 'at', 'by']) && okSealed(d.box, 200000)
+          && d.pubX is string && d.pubX.size() == 43 && d.at == request.time && d.by == request.auth.uid;
+      }
+      allow get: if isMember() && (sid == mySid() || isHR());
+      allow list: if isHR();
+      allow create, update: if isOwner() && okMine();
+      allow delete: if isOwner();
+    }
+    // the who's-out feed CADANCe and the office calendar read: names, dates and morning/afternoon, and how many requests
+    // are waiting — sealed with a key kept in those apps' settings, never in a page. Anyone may fetch the sealed copy; any
+    // member may write it (so a cancellation reaches the calendar at once): it shows nothing a member can't already see,
+    // the readers check every value, and Dr. A's or an approver's next visit writes it afresh.
+    match /toFeed/{id} {
+      allow get: if true;
+      allow list: if false;
+      allow create, update: if isMember() && id == 'live' && request.resource.data.keys().hasOnly(['iv', 'ct', 'at'])
+        && request.resource.data.iv is string && request.resource.data.iv.size() <= 24
+        && request.resource.data.ct is string && request.resource.data.ct.size() <= 200000 && request.resource.data.at == request.time;
+      allow delete: if isOwner();
+    }
+    // scrubs (a yearly allowance): asked for with a reason and approved like time off — sealed the same two ways (the HR
+    // key and the person's own key); in plain form only whose, the status and the year it counts against
+    match /toPerk/{id} {
+      function okPerk() {
+        let d = request.resource.data;
+        return d.keys().hasOnly(['sid', 'status', 'rev', 'by', 'bsid', 'v', 'pub', 'year', 'hr', 'me', 'createdAt', 'updatedAt'])
+          && d.sid is string && d.sid.size() > 0 && d.sid.size() <= 40
+          && d.status in ['pending', 'approved', 'denied', 'cancelled']
+          && d.rev is int && d.by == request.auth.uid && d.bsid == mySid() && d.updatedAt == request.time
+          && d.v == toCurV() && okSealed(d.hr, 8000) && (d.me == null || okSealed(d.me, 8000))
+          && (d.pub == null || okPub(d)) && d.year is int && d.year >= 2000 && d.year < 2100;
+      }
+      allow get: if isHR() || (isMember() && (resource == null || resource.data.sid == mySid()));
+      allow list: if isHR() || (isMember() && resource.data.sid == mySid());
+      // anyone may ask for their own (waiting for approval), counted against this year (the office is on Eastern time, so
+      // on Jan 1 in UTC — Dec 31 evening in Gainesville — last year is accepted too)
+      allow create: if isMember() && okPerk() && id.matches('^p[0-9a-f]{24}$') && request.resource.data.rev == 1
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.status == 'pending' && request.resource.data.sid == mySid()
+        && (request.resource.data.year == request.time.year()
+          || (request.resource.data.year == request.time.year() - 1 && request.time.month() == 1 && request.time.day() == 1));
+      // the people who approve decide someone else's (Dr. A his own too); the person may change or cancel theirs while it waits
+      allow update: if isMember() && okPerk() && request.resource.data.rev == resource.data.rev + 1
+        && request.resource.data.createdAt == resource.data.createdAt && request.resource.data.sid == resource.data.sid
+        && request.resource.data.year == resource.data.year
+        && ((isHR() && (isOwner() || resource.data.sid != mySid()))
+          || (resource.data.sid == mySid() && resource.data.status == 'pending' && request.resource.data.status in ['pending', 'cancelled']));
+      allow delete: if false;
+    }
+    // where Time Off's approved scrubs orders are emailed (NLO Cases' email robot reads it, and sends them nowhere else)
+    match /meta/toMail {
+      allow get: if isMember() || isBot();
+      allow create, update: if isOwner() && request.resource.data.keys().hasOnly(['scrubs', 'at'])
+        && request.resource.data.scrubs is string && request.resource.data.scrubs.size() <= 120
+        && (request.resource.data.scrubs == '' || request.resource.data.scrubs.matches('^[^@ ]+@[^@ ]+[.][^@ ]+$'))
+        && request.resource.data.at == request.time;
+      allow delete: if false;
+    }
+    // the feed's key, sealed with the office key
+    match /meta/toFeedKey {
+      allow get: if isMember();
+      allow create, update: if isOwner() && request.resource.data.keys().hasOnly(['v', 'iv', 'ct', 'at'])
+        && request.resource.data.v is int && request.resource.data.iv is string && request.resource.data.iv.size() <= 24
+        && request.resource.data.ct is string && request.resource.data.ct.size() <= 400 && request.resource.data.at == request.time;
+      allow delete: if false;
     }
   }
 }
