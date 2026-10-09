@@ -275,6 +275,12 @@
     .output-panel { position: static; }
   }
 </style>
+<style id="nlo-home-room">
+/* The NLO Apps button (nlo-home.js) sits in the top-left corner: keep this app's header clear of it. */
+@media screen{
+html.nlo-home-on .header{padding-left:var(--nlo-home-space)}
+}
+</style>
 </head>
 <body>
 
@@ -1154,5 +1160,6 @@ async function runAccuracyCheck(key) {
 }
 function escapeHtml(s) { const d = document.createElement('div'); d.textContent = String(s); return d.innerHTML; }
 </script>
+<script src="nlo-home.js" defer></script>
 </body>
 </html>

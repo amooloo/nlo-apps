@@ -434,6 +434,15 @@ textarea.in.code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13p
   .card,.tblwrap,.llist{box-shadow:none;border:1px solid var(--g200)}
 }
 </style>
+<style id="nlo-home-room">
+/* The NLO Apps button (nlo-home.js) sits in the top-left corner: keep this app's header clear of it. */
+@media screen{
+/* the header row is centered at 1080px wide: only pad it when it reaches the corner */
+html.nlo-home-on .top-in{padding-left:max(16px,calc(var(--nlo-home-space) - max(0px,(100vw - 1080px) / 2)))}
+/* on narrow phones, drop the small logo so "Onboarding" still fits beside the person's name; a long name shortens the title with … */
+@media (max-width:480px){html.nlo-home-on .top .brand img{display:none}html.nlo-home-on .top .brand-t{min-width:0;overflow:hidden;text-overflow:ellipsis}}
+}
+</style>
 </head>
 <body>
 <div id="app"></div>
@@ -2684,5 +2693,6 @@ window.addEventListener('hashchange', () => { const k = keyFromUrl(); if (k && k
 window.NLO_ONB = { S, ACT, planStats, dayNumber, dateOfDay, md, lessonState, go, version: APP_VERSION };
 boot();
 </script>
+<script src="nlo-home.js" defer></script>
 </body>
 </html>

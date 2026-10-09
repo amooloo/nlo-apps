@@ -965,6 +965,13 @@
     }
 
 </style>
+<style id="nlo-home-room">
+/* The NLO Apps button (nlo-home.js) sits in the top-left corner: keep this app's header clear of it. */
+@media screen{
+/* on narrow phones the small "Standard Operating Procedures" line would sit under the button: hide just that line (its space stays, so the sticky bar below doesn't move) */
+@media (max-width:460px){html.nlo-home-on header .subtitle{visibility:hidden}}
+}
+</style>
 </head>
 <body>
 
@@ -7404,5 +7411,6 @@
 </script>
 
 <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" title="Back to top" aria-label="Back to top">↑</button>
+<script src="nlo-home.js" defer></script>
 </body>
 </html>

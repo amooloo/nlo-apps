@@ -294,6 +294,9 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
 }
 @media (min-width:861px){ .mobNav{display:none} }
 @media print{ #side,.topBar,.mobBar,.mobNav{display:none} }
+/* The NLO Apps button (../nlo-home.js) sits in the top-left corner: start the side menu's logo below it on a computer, and the phone bar's logo after it */
+@media screen{ html.nlo-home-on .sideTop{padding-top:var(--nlo-home-drop)} }
+@media screen and (max-width:860px){ html.nlo-home-on .mobBar{padding-left:var(--nlo-home-space)} }
 
 body.demo #drawer{bottom:31px} body.demo #side{padding-bottom:31px} body.demo #view{padding-bottom:90px}
 .nameCell{display:flex;align-items:center;gap:9px}
@@ -3327,5 +3330,6 @@ document.addEventListener('submit', async e => {
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 
 </script>
+<script src="nlo-home.js" defer></script>
 </body>
 </html>

@@ -344,6 +344,14 @@ label.lbl{display:block;font-size:12px;font-weight:800;letter-spacing:.04em;text
   .obtns{grid-template-columns:repeat(2,1fr)}
 }
 </style>
+<style id="nlo-home-room">
+/* The NLO Apps button (nlo-home.js) sits in the top-left corner: keep this app's header clear of it. */
+@media screen{
+/* move just the title (not the whole bar, so its second row keeps its full width) */
+html.nlo-home-on .top .brand{margin-left:calc(var(--nlo-home-space) - 18px)}
+@media (max-width:640px){html.nlo-home-on .top .brand{margin-left:calc(var(--nlo-home-space) - 14px)}}
+}
+</style>
 </head>
 <body>
 
@@ -2108,5 +2116,6 @@ window.addEventListener('afterprint', () => { $('#printArea').innerHTML = ''; })
 /* test hooks (harmless in production) */
 window.SMH = { S, calNextMeeting, calOccursOn, syncMeetingDateFromCalendar, nextMeetingDefault, guessCategory, buildMinutes, agendaMarkdown, decisionsText, computeCadence, computeSpending, spendSummary, computeOut, matchPerson, runQueue, setRoster, ME_KPI, kpiMonth, version: APP_VERSION };
 </script>
+<script src="nlo-home.js" defer></script>
 </body>
 </html>

@@ -614,6 +614,16 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
   .tscroll>table.tbl th:first-child,.tscroll>table.tbl td:first-child{position:sticky;left:0;z-index:1;background:var(--card,#fff);box-shadow:1px 0 0 var(--grey-100)}
 }
 </style>
+<style id="nlo-home-room">
+/* The NLO Apps button (nlo-home.js) sits in the top-left corner: keep this app's header clear of it. */
+@media screen{
+/* side menu on a computer: start the logo below the button; menu across the top on smaller screens: start it after the button */
+@media (min-width:921px){html.nlo-home-on #side .sideTop{padding-top:var(--nlo-home-drop)}}
+@media (max-width:920px){html.nlo-home-on #side .sideTop{padding-left:var(--nlo-home-space)}}
+/* while a window is open over the page, the button steps aside (as it does for dialogs everywhere) */
+html:has(#modalWrap.open)>nlo-home{display:none!important}
+}
+</style>
 </head>
 <body>
 
@@ -7595,4 +7605,5 @@ H.rosterDisconnect = () => { if (rosterApp) rosterApp.auth().signOut(); };
 
 </script>
 
+<script src="nlo-home.js" defer></script>
 </body></html>
