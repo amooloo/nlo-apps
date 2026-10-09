@@ -154,18 +154,25 @@ function nextTierDate(pol, hire, iso) {
   return { n: cur.n + 1, date: isoOf(dt), perMonth: next.perMonth, cap: next.cap };
 }
 function orientEnd(p, pol) { return isISO(p.orient) ? p.orient : isISO(p.hire) ? addDays(p.hire, pol.orientDays) : ''; }
-/* full- or part-time on day d: `type` is what they are now; `typeWas` keeps what they were before each change brought in from
+/* how someone is employed, as a record keeps it: 'FT' full-time, 'PT' part-time (and PRN, temp, contractor: no paid time off
+   under the handbook) or 'SAL' salary (Dr. A, 9 Oct 2026: vacation and sick leave aren't counted in hours — no balance, nothing
+   earned or paid out, not on the payroll or year-end lists; their time off is still asked for and shows on Who's out) */
+function normType(t) { return t === 'PT' || t === 'SAL' ? t : 'FT'; }
+function isSalaried(p) { return !!p && normType(p.type) === 'SAL'; }
+/* how they're employed on day d: `type` is what they are now; `typeWas` keeps what they were before each change brought in from
    Staff Hub ([{ until, type }]: that type through `until`), so a change counts from its day and earlier months stay as they were */
 function typeOn(p, d) {
   const was = Array.isArray(p.typeWas) ? p.typeWas.filter(x => x && isISO(x.until)).sort((a, b) => a.until < b.until ? -1 : a.until > b.until ? 1 : 0) : [];
-  for (const x of was) if (d <= x.until) return x.type === 'PT' ? 'PT' : 'FT';
-  return p.type === 'PT' ? 'PT' : 'FT';
+  for (const x of was) if (d <= x.until) return normType(x.type);
+  return normType(p.type);
 }
 /* does this person earn time off at the month-end d? */
 function accruesOn(p, pol, d) {
   if (!isISO(p.hire) || p.hire > d) return false;
   if (isISO(p.left) && d > p.left) return false;
-  if (typeOn(p, d) === 'PT' && !pol.ptAccrues) return false;
+  const ty = typeOn(p, d);
+  if (ty === 'SAL') return false;
+  if (ty === 'PT' && !pol.ptAccrues) return false;
   const oe = orientEnd(p, pol); return !oe || oe <= d;
 }
 /* the next month-end accrual from day iso on (what it'll be), or null when nothing more is earned */
@@ -178,12 +185,14 @@ function nextAccrual(p, pol, iso) {
 /* =====================================================================
    The ledger: one person's balances, day by day, from their opening
    balance through day `to`.
-   person: { hire, orient, type: 'FT'|'PT', left, open: { asOf, vac, sick }, adj: [{ id, date, b, h, note }] }
+   person: { hire, orient, type: 'FT'|'PT'|'SAL', typeWas, left, open: { asOf, vac, sick }, adj: [{ id, date, b, h, note }] }
    reqs:   [{ id, status, type, paid, start, end, part }]
    person.settled: ids of requests the old Time-Off app already took off (part of an opening balance carried over from it) —
    kept in the HR record Dr. A writes, never in a request (whoever asks could write that)
+   On salary there's no balance: on the first salaried day what's left is closed (not paid out — Dr. A, 9 Oct 2026), paid time
+   off comes from no balance, adjustments don't apply and nothing is earned.
    → { vac, sick, asOf, entries, byReq, payouts }
-     entries: { date, k: open|take|free|unpaid|adjust|accrue|yearend, … , vac, sick (balances after) }
+     entries: { date, k: open|take|free|unpaid|adjust|accrue|yearend|salary, … , vac, sick (balances after) }
      byReq[id]: { days, hours, vac, sick, free, unpaid, future } (future: hours after `to`, not worked out yet)
    ===================================================================== */
 function ledger(person, reqs, pol, closed, to) {
@@ -213,13 +222,19 @@ function ledger(person, reqs, pol, closed, to) {
       ['vac', 'sick'].forEach(b => { const left = bal[b]; if (YP.yearEnd[b] === 'payout') po[b] = left; else po[b === 'vac' ? 'lostVac' : 'lostSick'] = left; bal[b] = 0; });
       if (po.vac || po.sick || po.lostVac || po.lostSick) { payouts.push(po); E.push(Object.assign({ date: d, k: 'yearend', year: y, pay: { vac: po.vac, sick: po.sick }, lost: { vac: po.lostVac, sick: po.lostSick } }, after())); }
     }
+    const sal = typeOn(p, d) === 'SAL';
+    if (sal && (bal.vac || bal.sick)) { // on salary from today: what's left is closed, not paid out
+      E.push({ date: d, k: 'salary', closed: { vac: bal.vac, sick: bal.sick }, vac: 0, sick: 0 }); bal.vac = 0; bal.sick = 0;
+    }
     for (const x of onDay.get(d) || []) {
       if (x.adj) {
+        if (sal) continue; // no balance to adjust on salary
         const a = x.adj, want = round2(a.h), got = round2(Math.max(-bal[a.b], want)); bal[a.b] = round2(bal[a.b] + got);
         E.push(Object.assign({ date: d, k: 'adjust', b: a.b, h: got, want, note: a.note || '', id: a.id || '' }, after())); continue;
       }
       const st = byReq[x.id];
-      if (x.b === 'vac' || x.b === 'sick') {
+      if (sal && (x.b === 'vac' || x.b === 'sick')) { st.free = round2(st.free + x.h); E.push(Object.assign({ date: d, k: 'free', h: x.h, id: x.id, type: x.type, sal: true }, after())); }
+      else if (x.b === 'vac' || x.b === 'sick') {
         const t = round2(Math.max(0, Math.min(x.h, bal[x.b]))), short = round2(x.h - t);
         bal[x.b] = round2(bal[x.b] - t); st[x.b] = round2(st[x.b] + t); st.unpaid = round2(st.unpaid + short);
         E.push(Object.assign({ date: d, k: 'take', b: x.b, h: x.h, paid: t, unpaid: short, id: x.id, type: x.type }, after()));
@@ -371,7 +386,7 @@ function payPeriod(L, from, to) {
   for (const e of L.entries) {
     if (e.date < from || e.date > to) continue;
     if (e.k === 'take') { o[e.b] = round2(o[e.b] + e.paid); o.unpaid = round2(o.unpaid + e.unpaid); o.days.add(e.date); }
-    else if (e.k === 'free') { o.free = round2(o.free + e.h); o.days.add(e.date); }
+    else if (e.k === 'free' && !e.sal) { o.free = round2(o.free + e.h); o.days.add(e.date); } // on salary: not hours for payroll
     else if (e.k === 'unpaid') { o.unpaid = round2(o.unpaid + e.h); o.days.add(e.date); }
   }
   o.days = o.days.size; return o;

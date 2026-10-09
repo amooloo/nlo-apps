@@ -62,9 +62,10 @@ function shTeamState(roster, people, today) {
   };
 }
 
-/* Staff Hub's word for how someone is employed (Full-time, Part-time, PRN / Temp, Contractor) as an HR record's: 'FT' or 'PT'
-   (anyone not full-time earns no paid time off under the handbook), '' when it says nothing Time Off knows */
-function shEmpType(e) { const s = String(e || '').toLowerCase(); return /full/.test(s) ? 'FT' : /part|prn|temp|contract|diem|season/.test(s) ? 'PT' : ''; }
+/* Staff Hub's word for how someone is employed (Full-time, Full-time (salary), Part-time, PRN / Temp, Contractor) as an HR record's: 'SAL'
+   (salary: no balance in Time Off), 'FT', or 'PT' (anyone else earns no paid time off under the handbook); '' when it says nothing
+   Time Off knows */
+function shEmpType(e) { const s = String(e || '').toLowerCase(); return /salar/.test(s) ? 'SAL' : /full/.test(s) ? 'FT' : /part|prn|temp|contract|diem|season/.test(s) ? 'PT' : ''; }
 /* what Staff Hub says about a person, in an HR record's terms — only what it says: hire (its start date), type with emp (its own
    word), left (its last day; '' while it has them on staff with no last day — someone it shows as gone with no date says nothing) */
 function shFacts(p) {
@@ -91,7 +92,7 @@ function shMark(f, pid) { return { id: pid, f: SH_FIELDS.filter(k => k in f) }; 
 function shApply(d, f, pid, from) {
   if ('hire' in f) d.hire = f.hire;
   if ('type' in f) {
-    const was = d.type === 'PT' ? 'PT' : 'FT';
+    const was = normType(d.type);
     if (from && was !== f.type) d.typeWas = (Array.isArray(d.typeWas) ? d.typeWas : []).concat([{ until: addDays(from, -1), type: was }]);
     d.type = f.type; d.emp = f.emp;
   } else delete d.emp;
@@ -101,21 +102,23 @@ function shApply(d, f, pid, from) {
 /* what putting Staff Hub's facts in a record would change: list — the start date, full-/part-time and last day that differ (these
    wait for Dr. A); any — anything at all, Staff Hub's word for the employment and which fields came from it included */
 function shChanges(rec, f, pid) {
-  const list = [], cur = { hire: rec.hire || '', type: rec.type === 'PT' ? 'PT' : 'FT', left: rec.left || '' };
+  const list = [], cur = { hire: rec.hire || '', type: normType(rec.type), left: rec.left || '' };
   SH_FIELDS.forEach(k => { if (k in f && f[k] !== cur[k]) list.push({ k, from: cur[k], to: f[k] }); });
   const m = shMark(f, pid), was = rec.sh || {};
   const any = list.length > 0 || (rec.emp || '') !== (f.emp || '') || was.id !== m.id || (Array.isArray(was.f) ? was.f.join() : '') !== m.f.join();
   return { list, any };
 }
-/* a change in words: "start date Mar 13, 2023 → Mar 1, 2023", "part-time from Oct 9", "last day Oct 30", "on staff (no last day)" */
+/* a change in words: "start date Mar 13, 2023 → Mar 1, 2023", "part-time from Oct 9", "salary from Oct 9", "last day Oct 30",
+   "on staff (no last day)" */
 function shChangeLine(c, f, from) {
   if (c.k === 'hire') return 'start date ' + (c.from ? fmtDate(c.from) + ' → ' : '') + fmtDate(c.to);
   if (c.k === 'type') return empWord(c.to, f && f.emp) + (from ? ' from ' + fmtDate(from) : '');
   return c.to ? 'last day ' + fmtDate(c.to) : 'on staff (no last day)';
 }
-/* how a record says someone is employed: Staff Hub's word when it gave one, else Full-time / Part-time; empWord in a sentence */
-function empText(p) { return p && p.type === 'PT' ? (p.emp && shEmpType(p.emp) === 'PT' ? p.emp : 'Part-time') : 'Full-time'; }
-function empWord(type, emp) { return type === 'PT' ? (emp && shEmpType(emp) === 'PT' && !/^part/i.test(emp) ? emp : 'part-time') : 'full-time'; }
+/* how a record says someone is employed: Staff Hub's word when it gave one, else Full-time / Part-time / Salary; empWord in a
+   sentence */
+function empText(p) { const t = normType(p && p.type); return t === 'SAL' ? (p.emp && shEmpType(p.emp) === 'SAL' ? p.emp : 'Salary') : t === 'PT' ? (p.emp && shEmpType(p.emp) === 'PT' ? p.emp : 'Part-time') : 'Full-time'; }
+function empWord(type, emp) { return type === 'SAL' ? 'salary' : type === 'PT' ? (emp && shEmpType(emp) === 'PT' && !/^part/i.test(emp) ? emp : 'part-time') : 'full-time'; }
 
 /* the move from the old app: a person's row in the old Sheet with Staff Hub's start date, full-/part-time and last day in place of
    the Sheet's, and where they differ → { p, diffs: [{ k, sheet, sh }] } */
@@ -123,7 +126,7 @@ function shOverOld(p, f) {
   const o = Object.assign({}, p), diffs = [];
   if (!f) return { p: o, diffs };
   if (f.hire && f.hire !== (p.hire || '')) { diffs.push({ k: 'hire', sheet: p.hire || '', sh: f.hire }); o.hire = f.hire; }
-  if (f.type && f.type !== (p.type === 'PT' ? 'PT' : 'FT')) { diffs.push({ k: 'type', sheet: p.type === 'PT' ? 'PT' : 'FT', sh: f.type, emp: f.emp }); o.type = f.type; }
+  if (f.type && f.type !== normType(p.type)) { diffs.push({ k: 'type', sheet: normType(p.type), sh: f.type, emp: f.emp }); o.type = f.type; }
   const was = p.former ? (p.moved || '') : '';
   if ('left' in f && f.left !== was) { diffs.push({ k: 'left', sheet: was, sh: f.left }); o.former = !!f.left; o.moved = f.left; }
   return { p: o, diffs };

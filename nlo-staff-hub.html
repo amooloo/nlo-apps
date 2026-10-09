@@ -1337,7 +1337,7 @@ function staffModal(p) {
         <button type="button" class="btn btn-sec btn-sm" id="sfPhotoPick">Choose photo</button><button type="button" class="btn btn-sec btn-sm" id="sfPhotoClear">Remove</button>
         <input type="file" id="sfPhotoFile" accept="image/*" style="display:none"></div></div>
     <div class="frow">
-      <div class="field"><label>Employment</label><select id="sfEmp">${['Full-time','Part-time','PRN / Temp','Contractor'].map(e => `<option ${p.employment === e ? 'selected' : ''}>${e}</option>`).join('')}</select></div>
+      <div class="field"><label>Employment</label><select id="sfEmp">${['Full-time','Full-time (salary)','Part-time','PRN / Temp','Contractor'].map(e => `<option ${p.employment === e ? 'selected' : ''}>${e}</option>`).join('')}</select></div>
       <div class="field"><label>Hire date</label><input type="date" id="sfHire" value="${esc(p.hireDate)}"></div>
     </div>
     <div class="frow">

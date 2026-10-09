@@ -103,6 +103,8 @@ function shEffect(x) {
   const a = balLine(x.sid, rec), b = balLine(x.sid, next); if (!a || !b) return '';
   const t = todayISO(), na = nextAccrual(rec, S.pol, t), nb = nextAccrual(next, S.pol, t), acc = n => n ? '+' + hrs(n.vac) + ' / +' + hrs(n.sick) + ' h on ' + fmtDate(n.date) : 'none';
   const nextTxt = (na ? na.date + na.vac + '/' + na.sick : '') === (nb ? nb.date + nb.vac + '/' + nb.sick : '') ? '' : ' · next earned: ' + acc(na) + ' → ' + acc(nb);
+  const toSal = normType(next.type) === 'SAL' && normType(rec.type) !== 'SAL';
+  if (toSal) return 'On salary from today: no balance any more — ' + (a.vac || a.sick ? hrs(a.vac) + ' h vacation and ' + hrs(a.sick) + ' h sick leave close, not paid out' : 'nothing to close') + '; nothing more is earned';
   return (a.vac === b.vac && a.sick === b.sick ? 'Balances today stay as they are' : 'Today: vacation ' + hrs(a.vac) + ' → ' + hrs(b.vac) + ' h, sick ' + hrs(a.sick) + ' → ' + hrs(b.sick) + ' h') + nextTxt;
 }
 /* what Staff Hub says about a team entry's person, as its HR record takes it: a removed login's record only ever gets a last day (a
@@ -240,7 +242,7 @@ function shLock(sid, rec) {
   if (SH.data && shAvailable()) { const p = shLinks(S.roster, shPeopleOf(SH.data)).get(sid); if (!p) return null; const f = shOwn(rec, shFactsOf(sid, p)); return Object.keys(f).length ? { f, pid: p.id, live: true } : null; }
   const m = rec && rec.sh;
   if (!m || !Array.isArray(m.f) || !m.f.length) return null;
-  const f = {}; m.f.filter(k => SH_FIELDS.includes(k)).forEach(k => { f[k] = k === 'type' ? (rec.type === 'PT' ? 'PT' : 'FT') : rec[k] || ''; });
+  const f = {}; m.f.filter(k => SH_FIELDS.includes(k)).forEach(k => { f[k] = k === 'type' ? normType(rec.type) : rec[k] || ''; });
   if ('type' in f && rec.emp) f.emp = rec.emp;
   return { f, pid: m.id, live: false };
 }

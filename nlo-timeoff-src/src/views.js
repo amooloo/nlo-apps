@@ -34,6 +34,7 @@ function balCards(sid, p) {
     return '<div class="card balCard wide"><div class="cardBd"><div class="balEmpty">' + ic('info', 20) + '<div><b>' + (sid === meSid() ? 'Your balances aren’t set up yet' : 'No HR record yet') + '</b><div class="small muted">' +
       (S.mine === undefined && sid === meSid() ? 'Loading…' : sid === meSid() && isOwner() ? 'No HR record for you — add one in Team if you want to track your own balances.' : 'Dr. A adds the hire date and balances (Team → the person). Until then requests still go through; their hours are worked out once it’s added.') + '</div></div></div></div></div>';
   }
+  if (isSalaried(p)) return salaryCards(sid);
   const L = ledgerOf(sid), t = todayISO(), na = nextAccrual(p, S.pol, t), tier = tierAt(S.pol, p.hire, t), pt = p.type === 'PT' && !S.pol.ptAccrues;
   const pend = reqsOf(sid).filter(r => r.status === 'pending');
   let after = null;
@@ -56,6 +57,13 @@ function balCards(sid, p) {
   return card('vac', 'Vacation', 'sun') + card('sick', 'Sick leave', 'med') +
     '<div class="card balCard yr"><div class="cardBd"><div class="balTop">' + ic('cal', 18) + '<span>' + yr + ' so far</span></div><div class="balN">' + daysOff + '<small> days off</small></div>' +
     '<div class="balSub muted">' + esc(yeTxt) + '</div><button class="linkBtn small" data-act="nav" data-v="mine" data-tab="stmt">See the statement</button></div></div>';
+}
+/* on salary: no balance to show — just that, and how many days off this year */
+function salaryCards(sid) {
+  const t = todayISO(), yr = t.slice(0, 4), daysOff = reqsOf(sid).filter(r => r.status === 'approved').reduce((s, r) => s + reqDays(r, S.closed, S.pol).filter(d => d.date.startsWith(yr) && d.date <= t).length, 0);
+  return '<div class="card balCard wide"><div class="cardBd"><div class="balEmpty">' + ic('info', 20) + '<div><b>On salary</b><div class="small muted">' +
+    (sid === meSid() ? 'Your vacation and sick leave aren’t counted in hours, so there’s no balance here. You still ask for time off here, and it shows on Who’s out.' : 'Vacation and sick leave aren’t counted in hours, so there’s no balance. Time off is still asked for here and shows on Who’s out.') + '</div></div></div></div></div>' +
+    '<div class="card balCard yr"><div class="cardBd"><div class="balTop">' + ic('cal', 18) + '<span>' + yr + ' so far</span></div><div class="balN">' + daysOff + '<small> days off</small></div></div></div>';
 }
 /* one request on a list */
 function reqRow(r, opts) {
@@ -139,6 +147,7 @@ function paidFieldHTML(f) {
 const TYPE_ICON = { vac: 'sun', sick: 'med', personal: 'user', medical: 'clock', family: 'heart', bereave: 'note', other: 'cal' };
 function typeSub(k, sid) {
   const b = S.pol.route[k];
+  if (k !== 'bereave' && isSalaried(personOf(sid))) return k === 'sick' ? 'On salary · today or earlier' : 'On salary — no balance';
   if (k === 'bereave') return (bereavePaid(sid) ? 'Paid' : 'Unpaid (part-time)') + ' · up to ' + S.pol.bereaveDays + ' days';
   if (k === 'personal') return 'Paid, from no balance';
   if (k === 'sick') return 'From sick leave · today or earlier';
@@ -164,7 +173,8 @@ function formSummary() {
     h += '<div class="dayList">' + days.slice(0, 40).map(d => '<span class="dayPill">' + esc(fmtDay(d.date)) + '</span>').join('') + (days.length > 40 ? '<span class="small muted">+ ' + (days.length - 40) + ' more</span>' : '') + '</div>';
     if (skipped.length) h += '<div class="small muted" style="margin-top:6px">Closed, so not counted: ' + esc(skipped.map(([d, l]) => fmtDay(d) + ' (' + l + ')').join(', ')) + '</div>';
     const b = bucketOf(r, S.pol);
-    if (p && (b === 'vac' || b === 'sick')) {
+    if (p && isSalaried(p) && b !== 'unpaid') h += '<div class="kvRow"><span>Paid</span><b>On salary — no balance</b></div>';
+    else if (p && (b === 'vac' || b === 'sick')) {
       const pv = preview(p, ctx.reqs, r, S.pol, S.closed, todayISO());
       h += '<div class="kvRow"><span>From ' + (b === 'sick' ? 'sick leave' : 'vacation') + '</span><b>' + hrs(pv[b]) + ' h</b></div>' +
         (pv.unpaid ? '<div class="kvRow"><span>Unpaid</span><b class="coral">' + hrs(pv.unpaid) + ' h</b></div>' : '') +
@@ -285,7 +295,8 @@ function stmtWhat(e) {
   if (e.k === 'open') return 'Opening balance' + (e.note ? ' — ' + esc(e.note) : '');
   if (e.k === 'accrue') return 'Earned (' + tierName(e.tier) + ')' + (e.capped ? ' <span class="small muted">— at the cap</span>' : '');
   if (e.k === 'take') return tag + (e.unpaid ? ' <span class="small coral">' + hrs(e.unpaid) + ' h unpaid</span>' : '');
-  if (e.k === 'free') return tag + ' <span class="small muted">paid, from no balance (' + hrs(e.h) + ' h)</span>';
+  if (e.k === 'free') return tag + ' <span class="small muted">' + (e.sal ? 'on salary' : 'paid, from no balance') + ' (' + hrs(e.h) + ' h)</span>';
+  if (e.k === 'salary') return 'On salary from today — no balance from here on; ' + (e.closed.vac || e.closed.sick ? hrs(e.closed.vac) + ' h vacation and ' + hrs(e.closed.sick) + ' h sick leave closed, not paid out' : 'nothing to close');
   if (e.k === 'unpaid') return tag + ' <span class="small muted">unpaid (' + hrs(e.h) + ' h)</span>';
   if (e.k === 'adjust') return 'Adjustment' + (e.note ? ': ' + esc(e.note) : '') + (e.h !== e.want ? ' <span class="small muted">(only ' + hrs(Math.abs(e.h)) + ' h could come off)</span>' : '');
   if (e.k === 'yearend') return e.year + ' balance ' + (e.pay.vac || e.pay.sick ? 'paid out' : 'not carried over') + ' — the new year starts at 0';
@@ -298,6 +309,7 @@ function stmtDelta(e, b) {
   else if (e.k === 'take' && e.b === b) n = -e.paid;
   else if (e.k === 'adjust' && e.b === b) n = e.h;
   else if (e.k === 'yearend') n = -((e.pay[b] || 0) + (e.lost[b] || 0));
+  else if (e.k === 'salary') n = -(e.closed[b] || 0);
   if (!n) return '<span class="muted">—</span>';
   return '<span class="' + (n > 0 ? 'plus' : 'minus') + '">' + (n > 0 ? '+' : '−') + hrs(Math.abs(n)) + '</span>';
 }
@@ -343,8 +355,9 @@ function viewBenefits() {
   let h = '<div class="twoCol"><div>';
   h += '<div class="card"><div class="cardHd"><h3>Your time off</h3><span class="tierPill t' + tier.n + '">' + tierName(tier.n) + '</span></div><div class="cardBd">' +
     '<div class="kvRow"><span>Started</span><b>' + esc(fmtDateLong(p.hire)) + ' · ' + plural(tier.years, 'full year') + '</b></div>' +
-    '<div class="kvRow"><span>Employment</span><b>' + (pt ? 'Part-time' : 'Full-time') + '</b></div>' +
-    (pt && !S.pol.ptAccrues ? '<div class="notice">Part-time staff don’t earn paid vacation or sick leave (handbook).</div>' :
+    '<div class="kvRow"><span>Employment</span><b>' + esc(empText(p)) + '</b></div>' +
+    (isSalaried(p) ? '<div class="notice">On salary: vacation and sick leave aren’t counted in hours, so there’s no balance. Time off is still asked for here and shows on Who’s out.</div>' :
+    pt && !S.pol.ptAccrues ? '<div class="notice">Part-time staff don’t earn paid vacation or sick leave (handbook).</div>' :
       '<div class="kvRow"><span>Vacation</span><b>' + hrs(tier.perMonth) + ' h a month · ' + hrs(Math.min(round2(tier.perMonth * 12), tier.cap)) + ' h a year (' + hrs(round2(Math.min(tier.perMonth * 12, tier.cap) / S.pol.day)) + ' days)</b></div>' +
       '<div class="kvRow"><span>Sick leave</span><b>' + hrs(S.pol.sickPerMonth) + ' h a month · ' + hrs(round2(S.pol.sickPerMonth * 12)) + ' h a year</b></div>' +
       (oe > t ? '<div class="kvRow"><span>Earning starts</span><b>After orientation (' + esc(fmtDate(oe)) + ')</b></div>' : '') +
@@ -509,13 +522,14 @@ function decisionChecks(r) {
   const p = personOf(r.sid), others = allReqs().filter(x => x.sid !== r.sid && x.id !== r.id && (x.status === 'approved' || x.status === 'pending'))
     .map(x => ({ sid: x.sid, name: shortName(x.sid), start: x.start, end: x.end, status: x.status, sameDept: !!(deptOf(x.sid) && deptOf(x.sid) === deptOf(r.sid)) }));
   const c = checkRequest(r, { pol: S.pol, closed: S.closed, blackouts: S.blackouts, today: todayISO(), person: p, reqs: reqsOf(r.sid).filter(x => x.id !== r.id), others });
-  const b = bucketOf(r, S.pol), pv = p && (b === 'vac' || b === 'sick') ? preview(p, reqsOf(r.sid).filter(x => x.id !== r.id), r, S.pol, S.closed, todayISO()) : null;
+  const b = bucketOf(r, S.pol), pv = p && !isSalaried(p) && (b === 'vac' || b === 'sick') ? preview(p, reqsOf(r.sid).filter(x => x.id !== r.id), r, S.pol, S.closed, todayISO()) : null;
   return { c, b, pv, p };
 }
 function checksHTML(r) {
   const { c, b, pv, p } = decisionChecks(r);
   let h = '<div class="decide">';
   if (pv) h += '<div class="kvRow"><span>From ' + (b === 'sick' ? 'sick leave' : 'vacation') + '</span><b>' + hrs(pv[b]) + ' h</b></div>' + (pv.unpaid ? '<div class="kvRow"><span>Unpaid</span><b class="coral">' + hrs(pv.unpaid) + ' h</b></div>' : '') + '<div class="kvRow"><span>Left after it</span><b>' + hrs(pv.after[b]) + ' h</b></div>';
+  else if (p && isSalaried(p) && b !== 'unpaid') h += '<div class="kvRow"><span>Paid</span><b>On salary — no balance</b></div>';
   else if (b === 'none') h += '<div class="kvRow"><span>Paid</span><b>From no balance</b></div>';
   else if (b === 'unpaid') h += '<div class="kvRow"><span>Paid</span><b>Unpaid</b></div>';
   if (!p) h += '<div class="small muted">No HR record for ' + esc(shortName(r.sid)) + ' yet, so there’s no balance to check against.</div>';
@@ -607,7 +621,7 @@ async function openReqDrawer(id, keep) {
   if (r.decision && r.decision.note) h += '<div class="sec"><h5>' + (r.status === 'denied' ? 'Why it wasn’t approved' : 'Note from ' + esc(shortName(r.decision.by))) + '</h5><div class="small apNote">' + esc(r.decision.note) + '</div></div>';
   if (r.status === 'approved' || r.status === 'pending') {
     const p = personOf(r.sid), b = bucketOf(r, S.pol);
-    if (p && (b === 'vac' || b === 'sick')) {
+    if (p && !isSalaried(p) && (b === 'vac' || b === 'sick')) {
       const L = ledgerOf(r.sid, r.end > t ? r.end : t), st = L && L.byReq[r.id], pv = r.status === 'pending' ? preview(p, reqsOf(r.sid).filter(x => x.id !== r.id), r, S.pol, S.closed, t) : null;
       const x = pv || st, old = (p.settled || []).includes(r.id), before = !old && x && x.before && p.open && r.start <= p.open.asOf;
       if (x) h += '<div class="sec"><h5>Hours</h5><div class="kvRow"><span>From ' + (b === 'sick' ? 'sick leave' : 'vacation') + '</span><b>' + hrs((x[b] || 0) + (old ? x.before || 0 : 0)) + ' h</b></div>' +
@@ -644,7 +658,7 @@ function viewTeam() {
   let h = '<div class="listHd"><div class="seg" role="tablist">' + [['people', 'People'], ['pay', 'Payroll'], ['year', 'Year end']].map(([k, l]) => '<button role="tab" data-act="tab" data-t="' + k + '" aria-pressed="' + (tab === k) + '">' + l + '</button>').join('') + '</div><span></span></div>';
   if (tab === 'pay') return h + payrollHTML();
   if (tab === 'year') return h + yearEndHTML();
-  const t = todayISO(), people = activeStaff();
+  const t = todayISO(), all = activeStaff(), sal = all.filter(r => isSalaried(personOf(r.sid))), people = all.filter(r => !isSalaried(personOf(r.sid)));
   h += '<div class="card"><div class="tblWrap"><table class="tbl"><thead><tr><th>Person</th><th>Tier</th><th class="num">Vacation</th><th class="num">Sick</th><th class="hideM">Next accrual</th><th class="hideM">Coming up</th></tr></thead><tbody>' +
     people.map(r => {
       const p = personOf(r.sid), L = p ? ledgerOf(r.sid) : null, tier = p && p.hire ? tierAt(S.pol, p.hire, t) : null, na = p ? nextAccrual(p, S.pol, t) : null;
@@ -655,6 +669,7 @@ function viewTeam() {
         '<td class="hideM small">' + (na ? '+' + hrs(na.vac) + ' / +' + hrs(na.sick) + ' h · ' + esc(fmtDate(na.date)) : '<span class="muted">—</span>') + '</td>' +
         '<td class="hideM small">' + (next ? esc(fmtRange(next.start, next.end)) : '<span class="muted">—</span>') + (w ? ' <span class="stat wait">' + w + ' waiting</span>' : '') + '</td></tr>';
     }).join('') + '</tbody></table></div></div>';
+  if (sal.length) h += '<p class="small muted salLine" style="margin-top:10px">On salary, so no balance: ' + sal.map(r => '<button class="linkBtn" data-act="openPerson" data-sid="' + esc(r.sid) + '">' + esc(staffName(r.sid)) + '</button>').join(', ') + '.</p>';
   if (isOwner()) {
     h += shTeamHTML() + '<p class="small muted" style="margin-top:10px">Tap someone to see their statement, change their balance or add an adjustment. People come from NLO Cases’ team, which follows Staff Hub; start dates, full- or part-time and last days come from Staff Hub too, once you bring them in.</p>';
     setTimeout(() => shAuto().catch(() => { }), 0); // reads Staff Hub's roster if it hasn't lately (Team then lists who has no login)
@@ -671,11 +686,11 @@ function openPersonDrawer(sid, keep) {
     h += '<div class="sec"><h5>HR record</h5><div class="kvRow"><span>Hire date</span><b>' + esc(p.hire ? fmtDateLong(p.hire) : '—') + shTag(p, 'hire') + '</b></div>' +
       '<div class="kvRow"><span>Employment</span><b>' + esc(empText(p)) + shTag(p, 'type') + '</b></div><div class="kvRow"><span>Orientation ends</span><b>' + esc(orientEnd(p, S.pol) ? fmtDate(orientEnd(p, S.pol)) : '—') + (p.orient ? '' : ' <span class="small muted">(90 days)</span>') + '</b></div>' +
       (p.left ? '<div class="kvRow"><span>Last day</span><b>' + esc(fmtDate(p.left)) + shTag(p, 'left') + '</b></div>' : '') +
-      '<div class="kvRow"><span>Opening balance</span><b>' + (p.open ? hrs(p.open.vac) + ' h vacation · ' + hrs(p.open.sick) + ' h sick, end of ' + esc(fmtDate(p.open.asOf)) : 'From the hire date (0)') + '</b></div>' +
-      (p.open && p.open.note ? '<div class="small muted">' + esc(p.open.note) + '</div>' : '') +
+      (isSalaried(p) ? '' : '<div class="kvRow"><span>Opening balance</span><b>' + (p.open ? hrs(p.open.vac) + ' h vacation · ' + hrs(p.open.sick) + ' h sick, end of ' + esc(fmtDate(p.open.asOf)) : 'From the hire date (0)') + '</b></div>' +
+      (p.open && p.open.note ? '<div class="small muted">' + esc(p.open.note) + '</div>' : '')) +
       (p.notes ? '<div class="kvRow"><span>Notes</span><b style="text-align:right;white-space:pre-wrap;font-weight:500">' + esc(p.notes) + '</b></div>' : '') +
       (owner ? shWhoHTML(sid) : '') +
-      (owner ? '<div class="btnRow"><button class="btn btn-sec btn-sm" data-act="editHR" data-sid="' + esc(sid) + '">Change…</button><button class="btn btn-sec btn-sm" data-act="addAdj" data-sid="' + esc(sid) + '">Add an adjustment…</button></div>' : '') + '</div>';
+      (owner ? '<div class="btnRow"><button class="btn btn-sec btn-sm" data-act="editHR" data-sid="' + esc(sid) + '">Change…</button>' + (isSalaried(p) ? '' : '<button class="btn btn-sec btn-sm" data-act="addAdj" data-sid="' + esc(sid) + '">Add an adjustment…</button>') + '</div>' : '') + '</div>';
     const ben = p.ben || {}, k = k401Entry(p.hire), y = Number(t.slice(0, 4)), per = S.scrubs.perYear;
     h += '<div class="sec"><h5>Benefits</h5><div class="kvRow"><span>Celebrate Primary Care</span><b>' + (ben.celebrate ? '<span class="sug mint">' + ic('done', 13) + 'Enrolled</span>' : 'Not enrolled') + '</b></div>' +
       '<div class="kvRow"><span>401(k)</span><b>' + (ben.k401 ? '<span class="sug mint">' + ic('done', 13) + 'Enrolled</span>' : k && k <= t ? 'Eligible — not enrolled' : k ? 'Eligible from ' + esc(fmtDate(k)) : '—') + '</b></div>' +
@@ -708,7 +723,7 @@ function payrollRows(from, to) {
   if (!isISO(from) || !isISO(to) || to < from) return [];
   return activeStaff().concat(S.roster.filter(r => !r.active)).map(r => {
     const p = personOf(r.sid), rs = reqsOf(r.sid).filter(x => x.status === 'approved' && x.end >= from && x.start <= to);
-    if (!rs.length) return null;
+    if (!rs.length || (p && typeOn(p, from) === 'SAL' && typeOn(p, to) === 'SAL')) return null; // on salary: not hours for payroll
     if (p) {
       const L = ledgerOf(r.sid, to), o = Object.assign({ name: staffName(r.sid), pre: 0 }, payPeriod(L, from, to));
       // days on or before the opening balance, or taken off by the old app, aren't in the ledger: count them as asked
@@ -744,7 +759,7 @@ function yearEndHTML() {
     const L = ledger(p, reqsOf(r.sid), S.pol, S.closed, (y + 1) + '-01-01'), po = L.payouts.find(x => x.year === y);
     return po ? { name: staffName(r.sid), po } : null;
   }).filter(Boolean);
-  const gone = everyone.map(r => { const p = personOf(r.sid); if (!p || !isISO(p.left) || p.left.slice(0, 4) !== String(y) || p.left >= y + '-12-31') return null; const L = ledger(p, reqsOf(r.sid), S.pol, S.closed, p.left); return { name: staffName(r.sid), left: p.left, vac: L.vac, sick: L.sick }; }).filter(Boolean);
+  const gone = everyone.map(r => { const p = personOf(r.sid); if (!p || !isISO(p.left) || p.left.slice(0, 4) !== String(y) || p.left >= y + '-12-31' || typeOn(p, p.left) === 'SAL') return null; const L = ledger(p, reqsOf(r.sid), S.pol, S.closed, p.left); return { name: staffName(r.sid), left: p.left, vac: L.vac, sick: L.sick }; }).filter(Boolean);
   const goneHTML = gone.length ? '<div class="subH" style="margin-top:18px">Left during ' + y + '</div><p class="small muted" style="margin:-4px 0 8px">Their balance on their last day — for their last paycheck, not the year-end list.</p><div class="tblWrap"><table class="tbl"><thead><tr><th>Person</th><th>Last day</th><th class="num">Vacation</th><th class="num">Sick</th></tr></thead><tbody>' +
     gone.map(x => '<tr><td>' + esc(x.name) + '</td><td>' + esc(fmtDate(x.left)) + '</td><td class="num">' + hrs(x.vac) + '</td><td class="num">' + hrs(x.sick) + '</td></tr>').join('') + '</tbody></table></div>' : '';
   const done = (y + '-12-31') < t;

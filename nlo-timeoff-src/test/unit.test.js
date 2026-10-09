@@ -383,6 +383,34 @@ section('Staff Hub’s roster: start date, full-/part-time, last day');
   eq([H.typeOn(back, '2026-06-30'), H.typeOn(back, '2026-08-31'), H.typeOn(back, '2026-09-30'), H.ledger(back, [], pol0, cl0, '2026-09-30').vac], ['FT', 'PT', 'FT', 59.5], '…and full-time again from Sept 1: July and August earn nothing (51 + 8.5 h)');
 }
 
+section('Salary: no balance (Dr. A, 9 Oct 2026)');
+{
+  eq(['Full-time (salary)', 'Salary', 'salaried', 'Full-time'].map(H.shEmpType), ['SAL', 'SAL', 'SAL', 'FT'], 'Staff Hub’s “Full-time (salary)” (or any word with salary) is salary, not full-time');
+  eq(H.shFacts({ start: '2020-01-06', employment: 'Full-time (salary)', active: true }), { hire: '2020-01-06', type: 'SAL', emp: 'Full-time (salary)', left: '' }, 'Staff Hub’s facts: salary');
+  eq([H.empText({ type: 'SAL', emp: 'Full-time (salary)' }), H.empText({ type: 'SAL' }), H.empWord('SAL', 'Full-time (salary)'), H.normType('SAL'), H.normType('x'), H.isSalaried({ type: 'SAL' }), H.isSalaried({ type: 'FT' }), H.isSalaried(null)],
+    ['Full-time (salary)', 'Salary', 'salary', 'SAL', 'FT', true, false, false], 'how salary is shown, and what counts as salary');
+  const pol0 = H.policyOf({}), cl0 = H.makeClosed([]);
+  const was = { sid: 'e', hire: '2020-01-06', type: 'FT', left: '', open: { asOf: '2026-10-09', vac: 85, sick: 28.3 }, adj: [{ id: 'a1', date: '2026-10-20', b: 'vac', h: 4, note: 'x' }] };
+  eq(H.shChanges(was, { type: 'SAL', emp: 'Full-time (salary)', left: '' }, 's_e').list, [{ k: 'type', from: 'FT', to: 'SAL' }], 'full-time → salary waits for Dr. A like any change of employment');
+  const sal = JSON.parse(JSON.stringify(was)); H.shApply(sal, { type: 'SAL', emp: 'Full-time (salary)' }, 's_e', '2026-10-12');
+  eq([sal.type, sal.emp, sal.typeWas, H.typeOn(sal, '2026-10-11'), H.typeOn(sal, '2026-10-12')], ['SAL', 'Full-time (salary)', [{ until: '2026-10-11', type: 'FT' }], 'FT', 'SAL'], 'brought in on Oct 12: full-time through Oct 11, salary from Oct 12');
+  const vac = [{ id: 'v1', status: 'approved', type: 'vac', paid: true, start: '2026-10-26', end: '2026-10-29', part: 'full' }, { id: 'u1', status: 'approved', type: 'vac', paid: false, start: '2026-11-02', end: '2026-11-02', part: 'full' }];
+  const L = H.ledger(sal, vac, pol0, cl0, '2027-01-31'), close = L.entries.filter(e => e.k === 'salary');
+  eq(close.map(e => [e.date, e.closed]), [['2026-10-12', { vac: 85, sick: 28.3 }]], 'on the first salaried day the 85 h vacation and 28.3 h sick leave close (not paid out — Eve’s were dropped)');
+  eq([L.vac, L.sick, L.payouts, L.entries.filter(e => e.k === 'accrue').length, L.entries.filter(e => e.k === 'adjust').length], [0, 0, [], 0, 0], '…then no balance: nothing earned, nothing paid out at year end, adjustments don’t apply');
+  eq([L.byReq.v1.free, L.byReq.v1.vac, L.byReq.u1.unpaid], [34, 0, 8.5], 'paid time off on salary comes from no balance; unpaid stays unpaid');
+  const pp = H.payPeriod(L, '2026-10-01', '2026-11-30');
+  eq([pp.vac, pp.free, pp.unpaid], [0, 0, 8.5], 'payroll: salaried paid days aren’t hours to pay (only the unpaid day shows)');
+  eq([H.accruesOn(sal, pol0, '2026-10-31'), H.nextAccrual(sal, pol0, '2026-10-12'), H.accruesOn(sal, pol0, '2026-09-30')], [false, null, true], 'nothing is earned on salary (September, still full-time, was)');
+  const own = { sid: 'a', hire: '2019-05-21', type: 'SAL', open: { asOf: '2026-10-09', vac: 85, sick: 28.3 } };
+  const Lo = H.ledger(own, [], pol0, cl0, '2026-12-31');
+  eq([Lo.vac, Lo.sick, Lo.entries.filter(e => e.k === 'salary').map(e => e.date)], [0, 0, ['2026-10-10']], 'a record that is salary from the start (Dr. A): what it opened with closes the next day');
+  const pv = H.preview(own, [], { type: 'vac', paid: true, start: '2026-11-02', end: '2026-11-03', part: 'full' }, pol0, cl0, '2026-10-12');
+  eq([pv.vac, pv.free, pv.unpaid], [0, 17, 0], 'asking on salary: no balance taken, nothing unpaid');
+  const ck = H.checkRequest({ type: 'vac', paid: true, start: '2026-11-02', end: '2026-11-03', part: 'full' }, { pol: pol0, closed: cl0, blackouts: [], today: '2026-10-12', person: own, reqs: [], others: [] });
+  ok(!ck.warns.some(w => w.k === 'short' || w.k === 'pt'), 'no “not enough vacation” warning on salary');
+}
+
 section('Staff Hub’s roster: the move uses its dates');
 {
   const row = person('Riley Example'), f = H.shFacts({ start: '2023-03-01', employment: 'Full-time', active: true });

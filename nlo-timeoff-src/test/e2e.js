@@ -464,6 +464,23 @@ const nextOffice = (p, from) => p.evaluate(f => nextOfficeDay(addDays(todayISO()
   await signIn(morgan2, TO, 'morgan', 'Morgan-Pass-2026'); await morgan2.waitForFunction(() => /needs a reset/.test(document.querySelector('#lockCard').textContent), null, { timeout: 30000 }).catch(() => { });
   check(/key was changed outside NLO Cases/.test(await morgan2.textContent('#lockCard')), 'signing in with that login: “Login needs a reset — its key was changed outside NLO Cases”');
 
+  console.log('\n# Salary in Staff Hub: no balance in Time Off (Dr. A, 9 Oct 2026)');
+  const rs0 = await owner.evaluate(() => { const L = ledgerOf('riley'); return [L.vac, L.sick]; });
+  await rtPut('nlo/cadence/roster/people/s_riley', shP('s_riley', 'Riley', 'Tester', { start: '2023-03-01', employment: 'Full-time (salary)' }));
+  await owner.click('#side [data-act=nav][data-v=settings]'); await owner.click('#shBox [data-act=shRefresh]');
+  await owner.waitForSelector('#shBox [data-act=shApplyOne][data-sid=riley]', { timeout: 25000 });
+  const salTxt = (await owner.textContent('#shBox .shWait')).replace(/\s+/g, ' ');
+  check(/Riley Tester\s*salary from/.test(salTxt) && /On salary from today: no balance any more/.test(salTxt), 'made “Full-time (salary)” in Staff Hub: it waits, and says the balance closes, not paid out — ' + salTxt.slice(0, 160));
+  await owner.click('#shBox [data-act=shApplyOne][data-sid=riley]');
+  await owner.waitForFunction(() => S.hrRecs.get('riley').type === 'SAL', null, { timeout: 20000 });
+  const rs1 = await owner.evaluate(() => { const r = S.hrRecs.get('riley'), t = todayISO(); return [r.emp, r.typeWas.slice(-1)[0].type, ledgerOf('riley', addDays(t, 1)).vac, ledgerOf('riley', addDays(t, 1)).sick, nextAccrual(r, S.pol, t)]; });
+  check(rs1[0] === 'Full-time (salary)' && rs1[1] === 'FT' && rs1[2] === 0 && rs1[3] === 0 && rs1[4] === null, 'brought in: salary from today — from tomorrow no balance (was ' + rs0.join(' / ') + ' h) and nothing to earn');
+  await owner.click('#side [data-act=nav][data-v=team]'); await owner.waitForSelector('#view .salLine', { timeout: 10000 });
+  check(/On salary, so no balance: Riley Tester/.test(await owner.textContent('#view .salLine')) && !(await owner.$('#view tr[data-sid=riley]')), 'Team: Riley is listed as on salary, not in the balances table');
+  await riley.waitForFunction(() => S.mine && S.mine.type === 'SAL', null, { timeout: 30000 }).catch(() => { });
+  await riley.evaluate(() => { S.view = 'home'; renderNav(); renderView(); }); await sleep(300);
+  check(/On salary/.test(await riley.textContent('#view')), 'Riley’s own Home says she’s on salary (her copy follows)');
+
   check(!errs.length, 'no page errors' + (errs.length ? ':\n    ' + errs.join('\n    ') : ''));
   await browser.close();
   console.log('\n' + passes.length + ' passed, ' + fails.length + ' failed');

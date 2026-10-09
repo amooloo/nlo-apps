@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-HihQsT+/PmMEvceL++zLtlmfMBixzXBBRJlVT1KtAnQ=' https://www.gstatic.com/firebasejs/10.12.2/ https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://nlo-inventory-default-rtdb.firebaseio.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000; frame-src https://nlo-cases.firebaseapp.com https://nlo-inventory.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-Lg2gMjxXGRZL0XAO4LI22ZE0MCQsMOyUaYjJF64MPQ4=' https://www.gstatic.com/firebasejs/10.12.2/ https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://nlo-inventory-default-rtdb.firebaseio.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000; frame-src https://nlo-cases.firebaseapp.com https://nlo-inventory.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO Time Off</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1010,18 +1010,25 @@ function nextTierDate(pol, hire, iso) {
   return { n: cur.n + 1, date: isoOf(dt), perMonth: next.perMonth, cap: next.cap };
 }
 function orientEnd(p, pol) { return isISO(p.orient) ? p.orient : isISO(p.hire) ? addDays(p.hire, pol.orientDays) : ''; }
-/* full- or part-time on day d: `type` is what they are now; `typeWas` keeps what they were before each change brought in from
+/* how someone is employed, as a record keeps it: 'FT' full-time, 'PT' part-time (and PRN, temp, contractor: no paid time off
+   under the handbook) or 'SAL' salary (Dr. A, 9 Oct 2026: vacation and sick leave aren't counted in hours — no balance, nothing
+   earned or paid out, not on the payroll or year-end lists; their time off is still asked for and shows on Who's out) */
+function normType(t) { return t === 'PT' || t === 'SAL' ? t : 'FT'; }
+function isSalaried(p) { return !!p && normType(p.type) === 'SAL'; }
+/* how they're employed on day d: `type` is what they are now; `typeWas` keeps what they were before each change brought in from
    Staff Hub ([{ until, type }]: that type through `until`), so a change counts from its day and earlier months stay as they were */
 function typeOn(p, d) {
   const was = Array.isArray(p.typeWas) ? p.typeWas.filter(x => x && isISO(x.until)).sort((a, b) => a.until < b.until ? -1 : a.until > b.until ? 1 : 0) : [];
-  for (const x of was) if (d <= x.until) return x.type === 'PT' ? 'PT' : 'FT';
-  return p.type === 'PT' ? 'PT' : 'FT';
+  for (const x of was) if (d <= x.until) return normType(x.type);
+  return normType(p.type);
 }
 /* does this person earn time off at the month-end d? */
 function accruesOn(p, pol, d) {
   if (!isISO(p.hire) || p.hire > d) return false;
   if (isISO(p.left) && d > p.left) return false;
-  if (typeOn(p, d) === 'PT' && !pol.ptAccrues) return false;
+  const ty = typeOn(p, d);
+  if (ty === 'SAL') return false;
+  if (ty === 'PT' && !pol.ptAccrues) return false;
   const oe = orientEnd(p, pol); return !oe || oe <= d;
 }
 /* the next month-end accrual from day iso on (what it'll be), or null when nothing more is earned */
@@ -1034,12 +1041,14 @@ function nextAccrual(p, pol, iso) {
 /* =====================================================================
    The ledger: one person's balances, day by day, from their opening
    balance through day `to`.
-   person: { hire, orient, type: 'FT'|'PT', left, open: { asOf, vac, sick }, adj: [{ id, date, b, h, note }] }
+   person: { hire, orient, type: 'FT'|'PT'|'SAL', typeWas, left, open: { asOf, vac, sick }, adj: [{ id, date, b, h, note }] }
    reqs:   [{ id, status, type, paid, start, end, part }]
    person.settled: ids of requests the old Time-Off app already took off (part of an opening balance carried over from it) —
    kept in the HR record Dr. A writes, never in a request (whoever asks could write that)
+   On salary there's no balance: on the first salaried day what's left is closed (not paid out — Dr. A, 9 Oct 2026), paid time
+   off comes from no balance, adjustments don't apply and nothing is earned.
    → { vac, sick, asOf, entries, byReq, payouts }
-     entries: { date, k: open|take|free|unpaid|adjust|accrue|yearend, … , vac, sick (balances after) }
+     entries: { date, k: open|take|free|unpaid|adjust|accrue|yearend|salary, … , vac, sick (balances after) }
      byReq[id]: { days, hours, vac, sick, free, unpaid, future } (future: hours after `to`, not worked out yet)
    ===================================================================== */
 function ledger(person, reqs, pol, closed, to) {
@@ -1069,13 +1078,19 @@ function ledger(person, reqs, pol, closed, to) {
       ['vac', 'sick'].forEach(b => { const left = bal[b]; if (YP.yearEnd[b] === 'payout') po[b] = left; else po[b === 'vac' ? 'lostVac' : 'lostSick'] = left; bal[b] = 0; });
       if (po.vac || po.sick || po.lostVac || po.lostSick) { payouts.push(po); E.push(Object.assign({ date: d, k: 'yearend', year: y, pay: { vac: po.vac, sick: po.sick }, lost: { vac: po.lostVac, sick: po.lostSick } }, after())); }
     }
+    const sal = typeOn(p, d) === 'SAL';
+    if (sal && (bal.vac || bal.sick)) { // on salary from today: what's left is closed, not paid out
+      E.push({ date: d, k: 'salary', closed: { vac: bal.vac, sick: bal.sick }, vac: 0, sick: 0 }); bal.vac = 0; bal.sick = 0;
+    }
     for (const x of onDay.get(d) || []) {
       if (x.adj) {
+        if (sal) continue; // no balance to adjust on salary
         const a = x.adj, want = round2(a.h), got = round2(Math.max(-bal[a.b], want)); bal[a.b] = round2(bal[a.b] + got);
         E.push(Object.assign({ date: d, k: 'adjust', b: a.b, h: got, want, note: a.note || '', id: a.id || '' }, after())); continue;
       }
       const st = byReq[x.id];
-      if (x.b === 'vac' || x.b === 'sick') {
+      if (sal && (x.b === 'vac' || x.b === 'sick')) { st.free = round2(st.free + x.h); E.push(Object.assign({ date: d, k: 'free', h: x.h, id: x.id, type: x.type, sal: true }, after())); }
+      else if (x.b === 'vac' || x.b === 'sick') {
         const t = round2(Math.max(0, Math.min(x.h, bal[x.b]))), short = round2(x.h - t);
         bal[x.b] = round2(bal[x.b] - t); st[x.b] = round2(st[x.b] + t); st.unpaid = round2(st.unpaid + short);
         E.push(Object.assign({ date: d, k: 'take', b: x.b, h: x.h, paid: t, unpaid: short, id: x.id, type: x.type }, after()));
@@ -1227,7 +1242,7 @@ function payPeriod(L, from, to) {
   for (const e of L.entries) {
     if (e.date < from || e.date > to) continue;
     if (e.k === 'take') { o[e.b] = round2(o[e.b] + e.paid); o.unpaid = round2(o.unpaid + e.unpaid); o.days.add(e.date); }
-    else if (e.k === 'free') { o.free = round2(o.free + e.h); o.days.add(e.date); }
+    else if (e.k === 'free' && !e.sal) { o.free = round2(o.free + e.h); o.days.add(e.date); } // on salary: not hours for payroll
     else if (e.k === 'unpaid') { o.unpaid = round2(o.unpaid + e.h); o.days.add(e.date); }
   }
   o.days = o.days.size; return o;
@@ -1322,9 +1337,10 @@ function shTeamState(roster, people, today) {
   };
 }
 
-/* Staff Hub's word for how someone is employed (Full-time, Part-time, PRN / Temp, Contractor) as an HR record's: 'FT' or 'PT'
-   (anyone not full-time earns no paid time off under the handbook), '' when it says nothing Time Off knows */
-function shEmpType(e) { const s = String(e || '').toLowerCase(); return /full/.test(s) ? 'FT' : /part|prn|temp|contract|diem|season/.test(s) ? 'PT' : ''; }
+/* Staff Hub's word for how someone is employed (Full-time, Full-time (salary), Part-time, PRN / Temp, Contractor) as an HR record's: 'SAL'
+   (salary: no balance in Time Off), 'FT', or 'PT' (anyone else earns no paid time off under the handbook); '' when it says nothing
+   Time Off knows */
+function shEmpType(e) { const s = String(e || '').toLowerCase(); return /salar/.test(s) ? 'SAL' : /full/.test(s) ? 'FT' : /part|prn|temp|contract|diem|season/.test(s) ? 'PT' : ''; }
 /* what Staff Hub says about a person, in an HR record's terms — only what it says: hire (its start date), type with emp (its own
    word), left (its last day; '' while it has them on staff with no last day — someone it shows as gone with no date says nothing) */
 function shFacts(p) {
@@ -1351,7 +1367,7 @@ function shMark(f, pid) { return { id: pid, f: SH_FIELDS.filter(k => k in f) }; 
 function shApply(d, f, pid, from) {
   if ('hire' in f) d.hire = f.hire;
   if ('type' in f) {
-    const was = d.type === 'PT' ? 'PT' : 'FT';
+    const was = normType(d.type);
     if (from && was !== f.type) d.typeWas = (Array.isArray(d.typeWas) ? d.typeWas : []).concat([{ until: addDays(from, -1), type: was }]);
     d.type = f.type; d.emp = f.emp;
   } else delete d.emp;
@@ -1361,21 +1377,23 @@ function shApply(d, f, pid, from) {
 /* what putting Staff Hub's facts in a record would change: list — the start date, full-/part-time and last day that differ (these
    wait for Dr. A); any — anything at all, Staff Hub's word for the employment and which fields came from it included */
 function shChanges(rec, f, pid) {
-  const list = [], cur = { hire: rec.hire || '', type: rec.type === 'PT' ? 'PT' : 'FT', left: rec.left || '' };
+  const list = [], cur = { hire: rec.hire || '', type: normType(rec.type), left: rec.left || '' };
   SH_FIELDS.forEach(k => { if (k in f && f[k] !== cur[k]) list.push({ k, from: cur[k], to: f[k] }); });
   const m = shMark(f, pid), was = rec.sh || {};
   const any = list.length > 0 || (rec.emp || '') !== (f.emp || '') || was.id !== m.id || (Array.isArray(was.f) ? was.f.join() : '') !== m.f.join();
   return { list, any };
 }
-/* a change in words: "start date Mar 13, 2023 → Mar 1, 2023", "part-time from Oct 9", "last day Oct 30", "on staff (no last day)" */
+/* a change in words: "start date Mar 13, 2023 → Mar 1, 2023", "part-time from Oct 9", "salary from Oct 9", "last day Oct 30",
+   "on staff (no last day)" */
 function shChangeLine(c, f, from) {
   if (c.k === 'hire') return 'start date ' + (c.from ? fmtDate(c.from) + ' → ' : '') + fmtDate(c.to);
   if (c.k === 'type') return empWord(c.to, f && f.emp) + (from ? ' from ' + fmtDate(from) : '');
   return c.to ? 'last day ' + fmtDate(c.to) : 'on staff (no last day)';
 }
-/* how a record says someone is employed: Staff Hub's word when it gave one, else Full-time / Part-time; empWord in a sentence */
-function empText(p) { return p && p.type === 'PT' ? (p.emp && shEmpType(p.emp) === 'PT' ? p.emp : 'Part-time') : 'Full-time'; }
-function empWord(type, emp) { return type === 'PT' ? (emp && shEmpType(emp) === 'PT' && !/^part/i.test(emp) ? emp : 'part-time') : 'full-time'; }
+/* how a record says someone is employed: Staff Hub's word when it gave one, else Full-time / Part-time / Salary; empWord in a
+   sentence */
+function empText(p) { const t = normType(p && p.type); return t === 'SAL' ? (p.emp && shEmpType(p.emp) === 'SAL' ? p.emp : 'Salary') : t === 'PT' ? (p.emp && shEmpType(p.emp) === 'PT' ? p.emp : 'Part-time') : 'Full-time'; }
+function empWord(type, emp) { return type === 'SAL' ? 'salary' : type === 'PT' ? (emp && shEmpType(emp) === 'PT' && !/^part/i.test(emp) ? emp : 'part-time') : 'full-time'; }
 
 /* the move from the old app: a person's row in the old Sheet with Staff Hub's start date, full-/part-time and last day in place of
    the Sheet's, and where they differ → { p, diffs: [{ k, sheet, sh }] } */
@@ -1383,7 +1401,7 @@ function shOverOld(p, f) {
   const o = Object.assign({}, p), diffs = [];
   if (!f) return { p: o, diffs };
   if (f.hire && f.hire !== (p.hire || '')) { diffs.push({ k: 'hire', sheet: p.hire || '', sh: f.hire }); o.hire = f.hire; }
-  if (f.type && f.type !== (p.type === 'PT' ? 'PT' : 'FT')) { diffs.push({ k: 'type', sheet: p.type === 'PT' ? 'PT' : 'FT', sh: f.type, emp: f.emp }); o.type = f.type; }
+  if (f.type && f.type !== normType(p.type)) { diffs.push({ k: 'type', sheet: normType(p.type), sh: f.type, emp: f.emp }); o.type = f.type; }
   const was = p.former ? (p.moved || '') : '';
   if ('left' in f && f.left !== was) { diffs.push({ k: 'left', sheet: was, sh: f.left }); o.former = !!f.left; o.moved = f.left; }
   return { p: o, diffs };
@@ -3330,6 +3348,7 @@ function balCards(sid, p) {
     return '<div class="card balCard wide"><div class="cardBd"><div class="balEmpty">' + ic('info', 20) + '<div><b>' + (sid === meSid() ? 'Your balances aren’t set up yet' : 'No HR record yet') + '</b><div class="small muted">' +
       (S.mine === undefined && sid === meSid() ? 'Loading…' : sid === meSid() && isOwner() ? 'No HR record for you — add one in Team if you want to track your own balances.' : 'Dr. A adds the hire date and balances (Team → the person). Until then requests still go through; their hours are worked out once it’s added.') + '</div></div></div></div></div>';
   }
+  if (isSalaried(p)) return salaryCards(sid);
   const L = ledgerOf(sid), t = todayISO(), na = nextAccrual(p, S.pol, t), tier = tierAt(S.pol, p.hire, t), pt = p.type === 'PT' && !S.pol.ptAccrues;
   const pend = reqsOf(sid).filter(r => r.status === 'pending');
   let after = null;
@@ -3352,6 +3371,13 @@ function balCards(sid, p) {
   return card('vac', 'Vacation', 'sun') + card('sick', 'Sick leave', 'med') +
     '<div class="card balCard yr"><div class="cardBd"><div class="balTop">' + ic('cal', 18) + '<span>' + yr + ' so far</span></div><div class="balN">' + daysOff + '<small> days off</small></div>' +
     '<div class="balSub muted">' + esc(yeTxt) + '</div><button class="linkBtn small" data-act="nav" data-v="mine" data-tab="stmt">See the statement</button></div></div>';
+}
+/* on salary: no balance to show — just that, and how many days off this year */
+function salaryCards(sid) {
+  const t = todayISO(), yr = t.slice(0, 4), daysOff = reqsOf(sid).filter(r => r.status === 'approved').reduce((s, r) => s + reqDays(r, S.closed, S.pol).filter(d => d.date.startsWith(yr) && d.date <= t).length, 0);
+  return '<div class="card balCard wide"><div class="cardBd"><div class="balEmpty">' + ic('info', 20) + '<div><b>On salary</b><div class="small muted">' +
+    (sid === meSid() ? 'Your vacation and sick leave aren’t counted in hours, so there’s no balance here. You still ask for time off here, and it shows on Who’s out.' : 'Vacation and sick leave aren’t counted in hours, so there’s no balance. Time off is still asked for here and shows on Who’s out.') + '</div></div></div></div></div>' +
+    '<div class="card balCard yr"><div class="cardBd"><div class="balTop">' + ic('cal', 18) + '<span>' + yr + ' so far</span></div><div class="balN">' + daysOff + '<small> days off</small></div></div></div>';
 }
 /* one request on a list */
 function reqRow(r, opts) {
@@ -3435,6 +3461,7 @@ function paidFieldHTML(f) {
 const TYPE_ICON = { vac: 'sun', sick: 'med', personal: 'user', medical: 'clock', family: 'heart', bereave: 'note', other: 'cal' };
 function typeSub(k, sid) {
   const b = S.pol.route[k];
+  if (k !== 'bereave' && isSalaried(personOf(sid))) return k === 'sick' ? 'On salary · today or earlier' : 'On salary — no balance';
   if (k === 'bereave') return (bereavePaid(sid) ? 'Paid' : 'Unpaid (part-time)') + ' · up to ' + S.pol.bereaveDays + ' days';
   if (k === 'personal') return 'Paid, from no balance';
   if (k === 'sick') return 'From sick leave · today or earlier';
@@ -3460,7 +3487,8 @@ function formSummary() {
     h += '<div class="dayList">' + days.slice(0, 40).map(d => '<span class="dayPill">' + esc(fmtDay(d.date)) + '</span>').join('') + (days.length > 40 ? '<span class="small muted">+ ' + (days.length - 40) + ' more</span>' : '') + '</div>';
     if (skipped.length) h += '<div class="small muted" style="margin-top:6px">Closed, so not counted: ' + esc(skipped.map(([d, l]) => fmtDay(d) + ' (' + l + ')').join(', ')) + '</div>';
     const b = bucketOf(r, S.pol);
-    if (p && (b === 'vac' || b === 'sick')) {
+    if (p && isSalaried(p) && b !== 'unpaid') h += '<div class="kvRow"><span>Paid</span><b>On salary — no balance</b></div>';
+    else if (p && (b === 'vac' || b === 'sick')) {
       const pv = preview(p, ctx.reqs, r, S.pol, S.closed, todayISO());
       h += '<div class="kvRow"><span>From ' + (b === 'sick' ? 'sick leave' : 'vacation') + '</span><b>' + hrs(pv[b]) + ' h</b></div>' +
         (pv.unpaid ? '<div class="kvRow"><span>Unpaid</span><b class="coral">' + hrs(pv.unpaid) + ' h</b></div>' : '') +
@@ -3581,7 +3609,8 @@ function stmtWhat(e) {
   if (e.k === 'open') return 'Opening balance' + (e.note ? ' — ' + esc(e.note) : '');
   if (e.k === 'accrue') return 'Earned (' + tierName(e.tier) + ')' + (e.capped ? ' <span class="small muted">— at the cap</span>' : '');
   if (e.k === 'take') return tag + (e.unpaid ? ' <span class="small coral">' + hrs(e.unpaid) + ' h unpaid</span>' : '');
-  if (e.k === 'free') return tag + ' <span class="small muted">paid, from no balance (' + hrs(e.h) + ' h)</span>';
+  if (e.k === 'free') return tag + ' <span class="small muted">' + (e.sal ? 'on salary' : 'paid, from no balance') + ' (' + hrs(e.h) + ' h)</span>';
+  if (e.k === 'salary') return 'On salary from today — no balance from here on; ' + (e.closed.vac || e.closed.sick ? hrs(e.closed.vac) + ' h vacation and ' + hrs(e.closed.sick) + ' h sick leave closed, not paid out' : 'nothing to close');
   if (e.k === 'unpaid') return tag + ' <span class="small muted">unpaid (' + hrs(e.h) + ' h)</span>';
   if (e.k === 'adjust') return 'Adjustment' + (e.note ? ': ' + esc(e.note) : '') + (e.h !== e.want ? ' <span class="small muted">(only ' + hrs(Math.abs(e.h)) + ' h could come off)</span>' : '');
   if (e.k === 'yearend') return e.year + ' balance ' + (e.pay.vac || e.pay.sick ? 'paid out' : 'not carried over') + ' — the new year starts at 0';
@@ -3594,6 +3623,7 @@ function stmtDelta(e, b) {
   else if (e.k === 'take' && e.b === b) n = -e.paid;
   else if (e.k === 'adjust' && e.b === b) n = e.h;
   else if (e.k === 'yearend') n = -((e.pay[b] || 0) + (e.lost[b] || 0));
+  else if (e.k === 'salary') n = -(e.closed[b] || 0);
   if (!n) return '<span class="muted">—</span>';
   return '<span class="' + (n > 0 ? 'plus' : 'minus') + '">' + (n > 0 ? '+' : '−') + hrs(Math.abs(n)) + '</span>';
 }
@@ -3639,8 +3669,9 @@ function viewBenefits() {
   let h = '<div class="twoCol"><div>';
   h += '<div class="card"><div class="cardHd"><h3>Your time off</h3><span class="tierPill t' + tier.n + '">' + tierName(tier.n) + '</span></div><div class="cardBd">' +
     '<div class="kvRow"><span>Started</span><b>' + esc(fmtDateLong(p.hire)) + ' · ' + plural(tier.years, 'full year') + '</b></div>' +
-    '<div class="kvRow"><span>Employment</span><b>' + (pt ? 'Part-time' : 'Full-time') + '</b></div>' +
-    (pt && !S.pol.ptAccrues ? '<div class="notice">Part-time staff don’t earn paid vacation or sick leave (handbook).</div>' :
+    '<div class="kvRow"><span>Employment</span><b>' + esc(empText(p)) + '</b></div>' +
+    (isSalaried(p) ? '<div class="notice">On salary: vacation and sick leave aren’t counted in hours, so there’s no balance. Time off is still asked for here and shows on Who’s out.</div>' :
+    pt && !S.pol.ptAccrues ? '<div class="notice">Part-time staff don’t earn paid vacation or sick leave (handbook).</div>' :
       '<div class="kvRow"><span>Vacation</span><b>' + hrs(tier.perMonth) + ' h a month · ' + hrs(Math.min(round2(tier.perMonth * 12), tier.cap)) + ' h a year (' + hrs(round2(Math.min(tier.perMonth * 12, tier.cap) / S.pol.day)) + ' days)</b></div>' +
       '<div class="kvRow"><span>Sick leave</span><b>' + hrs(S.pol.sickPerMonth) + ' h a month · ' + hrs(round2(S.pol.sickPerMonth * 12)) + ' h a year</b></div>' +
       (oe > t ? '<div class="kvRow"><span>Earning starts</span><b>After orientation (' + esc(fmtDate(oe)) + ')</b></div>' : '') +
@@ -3805,13 +3836,14 @@ function decisionChecks(r) {
   const p = personOf(r.sid), others = allReqs().filter(x => x.sid !== r.sid && x.id !== r.id && (x.status === 'approved' || x.status === 'pending'))
     .map(x => ({ sid: x.sid, name: shortName(x.sid), start: x.start, end: x.end, status: x.status, sameDept: !!(deptOf(x.sid) && deptOf(x.sid) === deptOf(r.sid)) }));
   const c = checkRequest(r, { pol: S.pol, closed: S.closed, blackouts: S.blackouts, today: todayISO(), person: p, reqs: reqsOf(r.sid).filter(x => x.id !== r.id), others });
-  const b = bucketOf(r, S.pol), pv = p && (b === 'vac' || b === 'sick') ? preview(p, reqsOf(r.sid).filter(x => x.id !== r.id), r, S.pol, S.closed, todayISO()) : null;
+  const b = bucketOf(r, S.pol), pv = p && !isSalaried(p) && (b === 'vac' || b === 'sick') ? preview(p, reqsOf(r.sid).filter(x => x.id !== r.id), r, S.pol, S.closed, todayISO()) : null;
   return { c, b, pv, p };
 }
 function checksHTML(r) {
   const { c, b, pv, p } = decisionChecks(r);
   let h = '<div class="decide">';
   if (pv) h += '<div class="kvRow"><span>From ' + (b === 'sick' ? 'sick leave' : 'vacation') + '</span><b>' + hrs(pv[b]) + ' h</b></div>' + (pv.unpaid ? '<div class="kvRow"><span>Unpaid</span><b class="coral">' + hrs(pv.unpaid) + ' h</b></div>' : '') + '<div class="kvRow"><span>Left after it</span><b>' + hrs(pv.after[b]) + ' h</b></div>';
+  else if (p && isSalaried(p) && b !== 'unpaid') h += '<div class="kvRow"><span>Paid</span><b>On salary — no balance</b></div>';
   else if (b === 'none') h += '<div class="kvRow"><span>Paid</span><b>From no balance</b></div>';
   else if (b === 'unpaid') h += '<div class="kvRow"><span>Paid</span><b>Unpaid</b></div>';
   if (!p) h += '<div class="small muted">No HR record for ' + esc(shortName(r.sid)) + ' yet, so there’s no balance to check against.</div>';
@@ -3903,7 +3935,7 @@ async function openReqDrawer(id, keep) {
   if (r.decision && r.decision.note) h += '<div class="sec"><h5>' + (r.status === 'denied' ? 'Why it wasn’t approved' : 'Note from ' + esc(shortName(r.decision.by))) + '</h5><div class="small apNote">' + esc(r.decision.note) + '</div></div>';
   if (r.status === 'approved' || r.status === 'pending') {
     const p = personOf(r.sid), b = bucketOf(r, S.pol);
-    if (p && (b === 'vac' || b === 'sick')) {
+    if (p && !isSalaried(p) && (b === 'vac' || b === 'sick')) {
       const L = ledgerOf(r.sid, r.end > t ? r.end : t), st = L && L.byReq[r.id], pv = r.status === 'pending' ? preview(p, reqsOf(r.sid).filter(x => x.id !== r.id), r, S.pol, S.closed, t) : null;
       const x = pv || st, old = (p.settled || []).includes(r.id), before = !old && x && x.before && p.open && r.start <= p.open.asOf;
       if (x) h += '<div class="sec"><h5>Hours</h5><div class="kvRow"><span>From ' + (b === 'sick' ? 'sick leave' : 'vacation') + '</span><b>' + hrs((x[b] || 0) + (old ? x.before || 0 : 0)) + ' h</b></div>' +
@@ -3940,7 +3972,7 @@ function viewTeam() {
   let h = '<div class="listHd"><div class="seg" role="tablist">' + [['people', 'People'], ['pay', 'Payroll'], ['year', 'Year end']].map(([k, l]) => '<button role="tab" data-act="tab" data-t="' + k + '" aria-pressed="' + (tab === k) + '">' + l + '</button>').join('') + '</div><span></span></div>';
   if (tab === 'pay') return h + payrollHTML();
   if (tab === 'year') return h + yearEndHTML();
-  const t = todayISO(), people = activeStaff();
+  const t = todayISO(), all = activeStaff(), sal = all.filter(r => isSalaried(personOf(r.sid))), people = all.filter(r => !isSalaried(personOf(r.sid)));
   h += '<div class="card"><div class="tblWrap"><table class="tbl"><thead><tr><th>Person</th><th>Tier</th><th class="num">Vacation</th><th class="num">Sick</th><th class="hideM">Next accrual</th><th class="hideM">Coming up</th></tr></thead><tbody>' +
     people.map(r => {
       const p = personOf(r.sid), L = p ? ledgerOf(r.sid) : null, tier = p && p.hire ? tierAt(S.pol, p.hire, t) : null, na = p ? nextAccrual(p, S.pol, t) : null;
@@ -3951,6 +3983,7 @@ function viewTeam() {
         '<td class="hideM small">' + (na ? '+' + hrs(na.vac) + ' / +' + hrs(na.sick) + ' h · ' + esc(fmtDate(na.date)) : '<span class="muted">—</span>') + '</td>' +
         '<td class="hideM small">' + (next ? esc(fmtRange(next.start, next.end)) : '<span class="muted">—</span>') + (w ? ' <span class="stat wait">' + w + ' waiting</span>' : '') + '</td></tr>';
     }).join('') + '</tbody></table></div></div>';
+  if (sal.length) h += '<p class="small muted salLine" style="margin-top:10px">On salary, so no balance: ' + sal.map(r => '<button class="linkBtn" data-act="openPerson" data-sid="' + esc(r.sid) + '">' + esc(staffName(r.sid)) + '</button>').join(', ') + '.</p>';
   if (isOwner()) {
     h += shTeamHTML() + '<p class="small muted" style="margin-top:10px">Tap someone to see their statement, change their balance or add an adjustment. People come from NLO Cases’ team, which follows Staff Hub; start dates, full- or part-time and last days come from Staff Hub too, once you bring them in.</p>';
     setTimeout(() => shAuto().catch(() => { }), 0); // reads Staff Hub's roster if it hasn't lately (Team then lists who has no login)
@@ -3967,11 +4000,11 @@ function openPersonDrawer(sid, keep) {
     h += '<div class="sec"><h5>HR record</h5><div class="kvRow"><span>Hire date</span><b>' + esc(p.hire ? fmtDateLong(p.hire) : '—') + shTag(p, 'hire') + '</b></div>' +
       '<div class="kvRow"><span>Employment</span><b>' + esc(empText(p)) + shTag(p, 'type') + '</b></div><div class="kvRow"><span>Orientation ends</span><b>' + esc(orientEnd(p, S.pol) ? fmtDate(orientEnd(p, S.pol)) : '—') + (p.orient ? '' : ' <span class="small muted">(90 days)</span>') + '</b></div>' +
       (p.left ? '<div class="kvRow"><span>Last day</span><b>' + esc(fmtDate(p.left)) + shTag(p, 'left') + '</b></div>' : '') +
-      '<div class="kvRow"><span>Opening balance</span><b>' + (p.open ? hrs(p.open.vac) + ' h vacation · ' + hrs(p.open.sick) + ' h sick, end of ' + esc(fmtDate(p.open.asOf)) : 'From the hire date (0)') + '</b></div>' +
-      (p.open && p.open.note ? '<div class="small muted">' + esc(p.open.note) + '</div>' : '') +
+      (isSalaried(p) ? '' : '<div class="kvRow"><span>Opening balance</span><b>' + (p.open ? hrs(p.open.vac) + ' h vacation · ' + hrs(p.open.sick) + ' h sick, end of ' + esc(fmtDate(p.open.asOf)) : 'From the hire date (0)') + '</b></div>' +
+      (p.open && p.open.note ? '<div class="small muted">' + esc(p.open.note) + '</div>' : '')) +
       (p.notes ? '<div class="kvRow"><span>Notes</span><b style="text-align:right;white-space:pre-wrap;font-weight:500">' + esc(p.notes) + '</b></div>' : '') +
       (owner ? shWhoHTML(sid) : '') +
-      (owner ? '<div class="btnRow"><button class="btn btn-sec btn-sm" data-act="editHR" data-sid="' + esc(sid) + '">Change…</button><button class="btn btn-sec btn-sm" data-act="addAdj" data-sid="' + esc(sid) + '">Add an adjustment…</button></div>' : '') + '</div>';
+      (owner ? '<div class="btnRow"><button class="btn btn-sec btn-sm" data-act="editHR" data-sid="' + esc(sid) + '">Change…</button>' + (isSalaried(p) ? '' : '<button class="btn btn-sec btn-sm" data-act="addAdj" data-sid="' + esc(sid) + '">Add an adjustment…</button>') + '</div>' : '') + '</div>';
     const ben = p.ben || {}, k = k401Entry(p.hire), y = Number(t.slice(0, 4)), per = S.scrubs.perYear;
     h += '<div class="sec"><h5>Benefits</h5><div class="kvRow"><span>Celebrate Primary Care</span><b>' + (ben.celebrate ? '<span class="sug mint">' + ic('done', 13) + 'Enrolled</span>' : 'Not enrolled') + '</b></div>' +
       '<div class="kvRow"><span>401(k)</span><b>' + (ben.k401 ? '<span class="sug mint">' + ic('done', 13) + 'Enrolled</span>' : k && k <= t ? 'Eligible — not enrolled' : k ? 'Eligible from ' + esc(fmtDate(k)) : '—') + '</b></div>' +
@@ -4004,7 +4037,7 @@ function payrollRows(from, to) {
   if (!isISO(from) || !isISO(to) || to < from) return [];
   return activeStaff().concat(S.roster.filter(r => !r.active)).map(r => {
     const p = personOf(r.sid), rs = reqsOf(r.sid).filter(x => x.status === 'approved' && x.end >= from && x.start <= to);
-    if (!rs.length) return null;
+    if (!rs.length || (p && typeOn(p, from) === 'SAL' && typeOn(p, to) === 'SAL')) return null; // on salary: not hours for payroll
     if (p) {
       const L = ledgerOf(r.sid, to), o = Object.assign({ name: staffName(r.sid), pre: 0 }, payPeriod(L, from, to));
       // days on or before the opening balance, or taken off by the old app, aren't in the ledger: count them as asked
@@ -4040,7 +4073,7 @@ function yearEndHTML() {
     const L = ledger(p, reqsOf(r.sid), S.pol, S.closed, (y + 1) + '-01-01'), po = L.payouts.find(x => x.year === y);
     return po ? { name: staffName(r.sid), po } : null;
   }).filter(Boolean);
-  const gone = everyone.map(r => { const p = personOf(r.sid); if (!p || !isISO(p.left) || p.left.slice(0, 4) !== String(y) || p.left >= y + '-12-31') return null; const L = ledger(p, reqsOf(r.sid), S.pol, S.closed, p.left); return { name: staffName(r.sid), left: p.left, vac: L.vac, sick: L.sick }; }).filter(Boolean);
+  const gone = everyone.map(r => { const p = personOf(r.sid); if (!p || !isISO(p.left) || p.left.slice(0, 4) !== String(y) || p.left >= y + '-12-31' || typeOn(p, p.left) === 'SAL') return null; const L = ledger(p, reqsOf(r.sid), S.pol, S.closed, p.left); return { name: staffName(r.sid), left: p.left, vac: L.vac, sick: L.sick }; }).filter(Boolean);
   const goneHTML = gone.length ? '<div class="subH" style="margin-top:18px">Left during ' + y + '</div><p class="small muted" style="margin:-4px 0 8px">Their balance on their last day — for their last paycheck, not the year-end list.</p><div class="tblWrap"><table class="tbl"><thead><tr><th>Person</th><th>Last day</th><th class="num">Vacation</th><th class="num">Sick</th></tr></thead><tbody>' +
     gone.map(x => '<tr><td>' + esc(x.name) + '</td><td>' + esc(fmtDate(x.left)) + '</td><td class="num">' + hrs(x.vac) + '</td><td class="num">' + hrs(x.sick) + '</td></tr>').join('') + '</tbody></table></div>' : '';
   const done = (y + '-12-31') < t;
@@ -4402,14 +4435,14 @@ Object.assign(ACT, {
     const sid = t.dataset.sid, p = S.hrRecs.get(sid) || {}, o = p.open || {}, name = staffName(sid), depts = Array.from(new Set(Array.from(S.hrRecs.values()).map(x => x.dept).filter(Boolean))).sort();
     // the start date, full-/part-time and last day Staff Hub gives are its — changed there, shown here. A record that's here keeps its
     // own until Dr. A brings Staff Hub's in (Settings → Staff Hub); a new one starts from Staff Hub's.
-    const has = S.hrRecs.has(sid), lk = shLock(sid, S.hrRecs.get(sid)), L = k => !!(lk && k in lk.f), V = k => has ? (k === 'type' ? (p.type === 'PT' ? 'PT' : 'FT') : p[k] || '') : L(k) ? lk.f[k] : '';
+    const has = S.hrRecs.has(sid), lk = shLock(sid, S.hrRecs.get(sid)), L = k => !!(lk && k in lk.f), V = k => has ? (k === 'type' ? normType(p.type) : p[k] || '') : L(k) ? lk.f[k] : '';
     const shHint = (k, word) => {
       if (!L(k)) return '';
       const sv = lk.f[k], diff = has && lk.live && sv !== V(k), say = k === 'type' ? empWord(sv, lk.f.emp) : sv ? fmtDate(sv) : 'on staff, no last day';
       return '<div class="hint">' + (diff && k === 'left' && !sv ? 'Staff Hub has them on staff, with no last day — if they’ve left, end their employment there' : diff ? 'Staff Hub says ' + esc(say) + ' — bring it in under Settings → Staff Hub' : k === 'left' && !sv ? 'Staff Hub has them on staff — a last day is set there' : 'From Staff Hub' + (word || '') + ' — change it there') + '</div>';
     };
     const typeSel = L('type') ? '<select id="hrType" disabled><option value="' + V('type') + '" selected>' + esc(empText(has ? p : { type: lk.f.type, emp: lk.f.emp })) + '</option></select>' + shHint('type')
-      : '<select id="hrType"><option value="FT"' + (p.type !== 'PT' ? ' selected' : '') + '>Full-time</option><option value="PT"' + (p.type === 'PT' ? ' selected' : '') + '>Part-time</option></select>';
+      : '<select id="hrType">' + [['FT', 'Full-time'], ['PT', 'Part-time'], ['SAL', 'Salary (no balance)']].map(([v, l]) => '<option value="' + v + '"' + (normType(p.type) === v ? ' selected' : '') + '>' + l + '</option>').join('') + '</select>';
     openModal('<h3>' + esc(name) + '</h3><div class="lsub">HR record — you and the people who approve see it; ' + esc(firstName(name)) + ' sees their own hire date and balances, not the notes</div>' +
       '<div class="grid2"><div class="field"><label for="hrHire">Hire date</label><input type="date" id="hrHire" value="' + esc(V('hire')) + '"' + (L('hire') ? ' disabled' : '') + '>' + shHint('hire', ' (its start date)') + '</div>' +
       '<div class="field"><label for="hrOrient">Orientation ends <span class="opt">(blank: ' + S.pol.orientDays + ' days)</span></label><input type="date" id="hrOrient" value="' + esc(p.orient || '') + '"></div></div>' +
@@ -4437,13 +4470,16 @@ Object.assign(ACT, {
         if (!(v >= 0 && v <= 2000) || !(s >= 0 && s <= 2000)) return toast('Balances are 0 to 2000 hours.', { bad: true });
         open = Object.assign({}, p.open && p.open.from ? { from: p.open.from } : {}, { asOf, vac: round2(v), sick: round2(s), note: g('hrOpenNote').slice(0, 240) });
       }
-      const next = Object.assign({}, p, { hire, orient, left, type: L('type') ? V('type') : $('#hrType').value === 'PT' ? 'PT' : 'FT', dept: g('hrDept').slice(0, 40), notes: ($('#hrNotes').value || '').trim().slice(0, 600), open });
+      const next = Object.assign({}, p, { hire, orient, left, type: L('type') ? V('type') : normType($('#hrType').value), dept: g('hrDept').slice(0, 40), notes: ($('#hrNotes').value || '').trim().slice(0, 600), open });
       const before = S.hrRecs.has(sid) ? balLine(sid, p) : null, after = balLine(sid, next);
-      if (before && after && (before.vac !== after.vac || before.sick !== after.sick) &&
+      // read before asking: the question replaces this form
+      const ben = { celebrate: !!$('#hrCel').checked, k401: !!$('#hrK401').checked };
+      if (before && normType(next.type) === 'SAL' && normType(p.type) !== 'SAL') {
+        if (!(await confirmBox('Put ' + name + ' on salary?', 'No vacation or sick balance from here on, and nothing more is earned' + (before.vac || before.sick ? ' — ' + hrs(before.vac) + ' h vacation and ' + hrs(before.sick) + ' h sick leave close, not paid out' : '') + '. Their time off is still asked for here and shows on Who’s out.', 'Put on salary'))) return;
+      } else if (before && after && (before.vac !== after.vac || before.sick !== after.sick) &&
         !(await confirmBox('Change ' + firstName(name) + '’s balance?', 'Vacation ' + hrs(before.vac) + ' → ' + hrs(after.vac) + ' h, sick ' + hrs(before.sick) + ' → ' + hrs(after.sick) + ' h today.', 'Save'))) return;
       const btn = $('#hrSave'); if (btn) busyBtn(btn, true, 'Saving…');
       try {
-        const ben = { celebrate: !!$('#hrCel').checked, k401: !!$('#hrK401').checked };
         const known = !!(SH.data && shAvailable()); // Staff Hub read on this computer: whether they're on it is known
         await B.putHR(sid, d => {
           // Staff Hub's fields aren't written from here: the record keeps what it has (a change brought in meanwhile included)
@@ -4615,6 +4651,8 @@ function shEffect(x) {
   const a = balLine(x.sid, rec), b = balLine(x.sid, next); if (!a || !b) return '';
   const t = todayISO(), na = nextAccrual(rec, S.pol, t), nb = nextAccrual(next, S.pol, t), acc = n => n ? '+' + hrs(n.vac) + ' / +' + hrs(n.sick) + ' h on ' + fmtDate(n.date) : 'none';
   const nextTxt = (na ? na.date + na.vac + '/' + na.sick : '') === (nb ? nb.date + nb.vac + '/' + nb.sick : '') ? '' : ' · next earned: ' + acc(na) + ' → ' + acc(nb);
+  const toSal = normType(next.type) === 'SAL' && normType(rec.type) !== 'SAL';
+  if (toSal) return 'On salary from today: no balance any more — ' + (a.vac || a.sick ? hrs(a.vac) + ' h vacation and ' + hrs(a.sick) + ' h sick leave close, not paid out' : 'nothing to close') + '; nothing more is earned';
   return (a.vac === b.vac && a.sick === b.sick ? 'Balances today stay as they are' : 'Today: vacation ' + hrs(a.vac) + ' → ' + hrs(b.vac) + ' h, sick ' + hrs(a.sick) + ' → ' + hrs(b.sick) + ' h') + nextTxt;
 }
 /* what Staff Hub says about a team entry's person, as its HR record takes it: a removed login's record only ever gets a last day (a
@@ -4752,7 +4790,7 @@ function shLock(sid, rec) {
   if (SH.data && shAvailable()) { const p = shLinks(S.roster, shPeopleOf(SH.data)).get(sid); if (!p) return null; const f = shOwn(rec, shFactsOf(sid, p)); return Object.keys(f).length ? { f, pid: p.id, live: true } : null; }
   const m = rec && rec.sh;
   if (!m || !Array.isArray(m.f) || !m.f.length) return null;
-  const f = {}; m.f.filter(k => SH_FIELDS.includes(k)).forEach(k => { f[k] = k === 'type' ? (rec.type === 'PT' ? 'PT' : 'FT') : rec[k] || ''; });
+  const f = {}; m.f.filter(k => SH_FIELDS.includes(k)).forEach(k => { f[k] = k === 'type' ? normType(rec.type) : rec[k] || ''; });
   if ('type' in f && rec.emp) f.emp = rec.emp;
   return { f, pid: m.id, live: false };
 }

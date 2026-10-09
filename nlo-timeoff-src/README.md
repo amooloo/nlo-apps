@@ -27,6 +27,12 @@ office, on the NLO Cases platform: the same Firebase project (`nlo-cases`), logi
   name. Dr. A's computer reads the roster with the Google sign-in NLO Cases uses for it (a second Firebase app named `ipr`;
   connecting in either app connects both), at sign-in and when Settings or Team is opened; nothing is written to Staff Hub.
   The move from the old app uses Staff Hub's facts too and shows where the Sheet differs.
+- Salary (Amir, 9 Oct 2026): Staff Hub's Employment "Full-time (salary)" (any word with "salar") is `type: 'SAL'`
+  (`normType`, `isSalaried` in policy.js). On salary there's no balance: on the first salaried day what's left closes, not
+  paid out (a `salary` entry on the statement), nothing is earned, paid time off comes from no balance, adjustments don't
+  apply, and they're off the payroll and year-end lists. Their time off is still asked for and shows on Who's out. Team
+  lists them under the table. Dr. A isn't on Staff Hub's staff list, so his own record's Employment is set in the HR
+  editor (Salary is a choice there for records Staff Hub doesn't supply).
 - Approved scrubs orders are emailed by NLO Cases' email robot (`../nlo-cases-src/mail/script.js`, v3 or later) to the
   address in `meta/toMail`. After changing `mail/script.js`, run `node tools/build-mail.js` in `nlo-cases-src` (it needs
   esbuild, aes-js, elliptic and hash.js) and publish `mail/nlo-cases-mail.gs` as `../nlo-cases-mail.gs`.

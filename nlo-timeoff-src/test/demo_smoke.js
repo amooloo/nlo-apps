@@ -444,6 +444,45 @@ const ok = (c, m) => { if (c) { pass++; console.log('  ok  ' + m); } else { fail
   await page.selectOption('#benAs', 'taylor'); await page.waitForTimeout(200);
   ok(/Order emailed/.test(await page.textContent('#view')) && !/order these by hand/.test(await page.textContent('#view')), '…and Taylor’s, approved earlier, show the order was emailed');
   await E(() => { DEMO.toMail = SCRUBS.to; });
+
+  /* ---- changing an opening balance asks first, then saves (the question replaces the form: what it said is kept) ---- */
+  console.log('# Dr. A: an opening balance changed, and salary');
+  await nav('team'); await page.click('[data-act=tab][data-t=people]'); await page.click('#view tr[data-sid=taylor]'); await page.waitForSelector('#drawer [data-act=editHR]');
+  const tOpen = await E(() => JSON.parse(JSON.stringify(S.hrRecs.get('taylor').open || null)));
+  await page.click('#drawer [data-act=editHR]'); await page.waitForSelector('#hrVac');
+  await page.fill('#hrAsOf', tOpen ? tOpen.asOf : await E(() => addDays(todayISO(), -1))); await page.fill('#hrVac', String(Math.round(((tOpen ? tOpen.vac : 0) + 1) * 100) / 100)); await page.fill('#hrSick', String(tOpen ? tOpen.sick : 0));
+  await page.check('#hrCel'); await page.click('#hrSave'); await page.waitForSelector('#cbYes');
+  ok(/Change Taylor’s balance\?/.test(await page.textContent('#modalWrap')), 'a different opening balance asks first');
+  await page.click('#cbYes'); await settle();
+  const tAfter = await E(() => S.hrRecs.get('taylor'));
+  ok(tAfter.open && Math.abs(tAfter.open.vac - ((tOpen ? tOpen.vac : 0) + 1)) < 0.011 && tAfter.ben && tAfter.ben.celebrate === true, '…and once you say so, it’s saved with what the form said (vacation +1 h, Celebrate ticked)');
+  await page.click('#drawer [data-act=closeDrawer]').catch(() => { });
+
+  /* ---- salary: no balance (Drew isn't on Staff Hub, so it's set here) ---- */
+  await page.click('#view tr[data-sid=drew]'); await page.waitForSelector('#drawer [data-act=editHR]');
+  const drewBefore = await bal('drew'), dh = await E(b => [hrs(b.vac), hrs(b.sick)], drewBefore);
+  await page.click('#drawer [data-act=editHR]'); await page.waitForSelector('#hrType');
+  ok(await page.$$eval('#hrType option', o => o.map(x => x.value).join()) === 'FT,PT,SAL', 'the HR record offers Full-time, Part-time and Salary');
+  await page.selectOption('#hrType', 'SAL'); await page.click('#hrSave'); await page.waitForSelector('#cbYes'); await collect();
+  ok(/Put Drew \(demo\) on salary\?/.test(await page.textContent('#modalWrap')) && (await page.textContent('#modalWrap')).includes(dh[0] + ' h vacation and ' + dh[1] + ' h sick leave close, not paid out'), 'putting Drew on salary says what closes: ' + (await page.textContent('#modalWrap')).slice(0, 160));
+  await page.click('#cbYes'); await settle();
+  ok(await E(() => S.hrRecs.get('drew').type) === 'SAL', '…and his record is salary');
+  const teamTxt = await page.textContent('#view');
+  ok(!(await page.$('#view tr[data-sid=drew]')) && /On salary, so no balance: Drew \(demo\)/.test(teamTxt), 'Team: Drew isn’t in the balances table; a line under it says he’s on salary');
+  await page.click('#drawer [data-act=closeDrawer]'); await page.waitForTimeout(250);
+  await page.click('#view .salLine [data-act=openPerson][data-sid=drew]'); await page.waitForSelector('#drawer .balEmpty');
+  const dTxt = await page.textContent('#drawer');
+  const kv = await page.$$eval('#drawer .kvRow', r => r.map(x => x.textContent.trim()));
+  ok(/On salary/.test(dTxt) && kv.some(x => /^Employment\s*Salary/.test(x)) && !(await page.$('#drawer [data-act=addAdj]')) && !kv.some(x => /^Opening balance/.test(x)), 'his panel: “On salary”, no balance, no adjustments, no opening balance' + ' — ' + kv.join(' | ').slice(0, 200));
+  ok(/On salary from today — no balance from here on/.test(dTxt), '…and his statement says from when, and what closed');
+  await shot('owner-salary-drawer');
+  ok(await E(() => ledgerOf('drew', addDays(todayISO(), 1)).vac === 0 && nextAccrual(S.hrRecs.get('drew'), S.pol, todayISO()) === null), '…and from tomorrow there’s no balance and nothing to earn');
+  await page.click('#drawer [data-act=closeDrawer]');
+  await page.click('[data-act=tab][data-t=pay]'); await page.waitForTimeout(150);
+  ok(!/Drew/.test(await page.textContent('#view')), 'payroll: Drew isn’t listed');
+  await page.click('[data-act=tab][data-t=year]'); await page.waitForTimeout(150);
+  ok(!/Drew/.test(await page.textContent('#view')), 'year end: nothing to pay Drew');
+  await page.click('[data-act=tab][data-t=people]'); await page.waitForTimeout(100);
   await lock();
 
   /* =================== phone =================== */
