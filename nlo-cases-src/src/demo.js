@@ -165,7 +165,8 @@ const DEMO = {
      [1, 'sarah', '@' + (me === 'amir' ? 'Dr. A' : 'Practice') + ' the lab called: they need the bite registration again before Friday.', 180],
      [2, 'angelika', 'Trimmed and polished. @' + (me === 'amir' ? 'Dr. A' : 'Practice') + ' one aligner has a thin edge, take a look at the delivery.', 26 * 60]].forEach(([i, by, text, min]) => {
       const c = tagged[i]; if (c) c.comments = (c.comments || []).concat([{ id: 'dn' + i, at: Date.now() - min * 60e3, by, text, to: [me] }]); });
-    try { if (tagged[2]) localStorage.setItem('nloCases.msgRead.' + me, JSON.stringify([tagged[2].id + '/dn2'])); } catch (e) { }
+    // (the third read on this computer 20 hours ago: under Read, greyed out with its stamp)
+    try { localStorage.setItem('nloCases.msgSeen.' + me, JSON.stringify(tagged[2] ? { [tagged[2].id + '/dn2']: Date.now() - 20 * 3600e3 } : {})); } catch (e) { }
     // stickers (stickers.js): Sarah's 👍 on Gwen's note, and two for the one practising — Sarah's 🙏 in a case's Details, and
     // Gwen's 🎉 on a step they did (a move to the step that case is at, three hours ago)
     const stk = (c, s) => { if (c) c.stickers = (c.stickers || []).concat([s]); };

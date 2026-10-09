@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-dDSd6jm0LWvL4J7efG3Q+nVVd7bddPLo9I5edpvXSK0=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-vhm94auPIF6uIkMfEt4UPPQJ8wTmLbRJIoUwOUGH/eA=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO Cases</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -361,6 +361,28 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
 .msgDot{width:9px;height:9px;border-radius:50%;background:var(--coral-600);flex:none;margin-top:7px}
 .msgEmpty{text-align:center;padding:26px 12px;color:var(--grey-500)}
 .msgEmpty p{margin:8px 0 0}
+/* New / Read / Archive (9 Oct 2026): a read one leaves New, greyed out under Read with a stamp of when it was read */
+.msgCard .cardHd{min-height:62px} /* (the same height with or without Mark all as read: switching tabs doesn't make the page jump) */
+.msgTabs{display:flex;gap:8px;flex-wrap:wrap;padding:0 20px 8px}
+.msgTabs .chip.hasNew:not(.on) .c{opacity:1;color:#fff;background:var(--coral-600);border-radius:99px;padding:0 6px;font-size:11px;display:inline-block;line-height:17px;min-width:17px;text-align:center}
+.msgItem{display:flex;align-items:center;gap:8px}
+.msgItem>.msgRow{flex:1;min-width:0}
+.msgChk{flex:none;width:40px;height:40px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;border:1.5px solid var(--grey-200);background:#fff;color:var(--grey-500);transition:background .15s var(--ease),border-color .15s var(--ease),color .15s var(--ease)}
+@media (hover:hover){ .msgChk:hover{background:var(--mint-100);border-color:var(--mint-600);color:var(--mint-700)} }
+.msgChk:focus-visible,.msgUn:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.msgUn{flex:none;color:var(--grey-500)}
+.msgRow.seen .pav{filter:grayscale(1);opacity:.5}
+.msgRow.seen .msgPt{color:var(--grey-500);font-weight:600}
+.msgRow.seen .msgTx,.msgRow.seen .msgOn,.msgRow.seen .msgWhen{color:var(--grey-400)}
+.msgRow.seen .msgTx b,.msgRow.seen .msgTx .mt{color:var(--grey-500)}
+.msgRow.seen .badge,.msgRow.seen .stkE{filter:grayscale(1);opacity:.55}
+.msgStamp{align-self:flex-start;display:inline-flex;align-items:center;gap:4px;margin-top:3px;padding:1px 9px 1px 6px;border:1.5px solid var(--mint-600);border-radius:6px;color:var(--mint-700);background:#fff;font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;transform:rotate(-1.5deg);white-space:nowrap}
+.msgStamp .i{stroke-width:2.6}
+.msgNone{text-align:center;padding:26px 12px 22px;color:var(--grey-500)}
+.msgNone .i{color:var(--mint-600)}
+.msgNone p{margin:8px 0 0}
+.msgFoot{padding:0 20px 16px;font-size:12px;color:var(--grey-500)}
+@media (max-width:640px){ .msgItem{gap:4px} .msgRow{padding:12px 8px} .msgItem.seen{flex-wrap:wrap} .msgItem.seen>.msgRow{flex-basis:100%} .msgUn{margin:-10px 0 4px auto} }
 @media (prefers-reduced-motion:reduce){ .cmt.flash{animation:none;background:var(--mint-100)} .msgRow{transition:none} }
 .hist{font-size:12.5px;color:var(--grey-600);padding:5px 0;display:flex;gap:8px}
 .hist time{color:var(--grey-400);white-space:nowrap;font-size:11.5px;min-width:96px}
@@ -3359,7 +3381,8 @@ const DEMO = {
      [1, 'sarah', '@' + (me === 'amir' ? 'Dr. A' : 'Practice') + ' the lab called: they need the bite registration again before Friday.', 180],
      [2, 'angelika', 'Trimmed and polished. @' + (me === 'amir' ? 'Dr. A' : 'Practice') + ' one aligner has a thin edge, take a look at the delivery.', 26 * 60]].forEach(([i, by, text, min]) => {
       const c = tagged[i]; if (c) c.comments = (c.comments || []).concat([{ id: 'dn' + i, at: Date.now() - min * 60e3, by, text, to: [me] }]); });
-    try { if (tagged[2]) localStorage.setItem('nloCases.msgRead.' + me, JSON.stringify([tagged[2].id + '/dn2'])); } catch (e) { }
+    // (the third read on this computer 20 hours ago: under Read, greyed out with its stamp)
+    try { localStorage.setItem('nloCases.msgSeen.' + me, JSON.stringify(tagged[2] ? { [tagged[2].id + '/dn2']: Date.now() - 20 * 3600e3 } : {})); } catch (e) { }
     // stickers (stickers.js): Sarah's 👍 on Gwen's note, and two for the one practising — Sarah's 🙏 in a case's Details, and
     // Gwen's 🎉 on a step they did (a move to the step that case is at, three hours ago)
     const stk = (c, s) => { if (c) c.stickers = (c.stickers || []).concat([s]); };
@@ -3945,7 +3968,9 @@ const IC = {
   // the lab PC (Ortho Factory): a 3D printer's frame, its build plate and a part on it
   lab: '<path d="M4.5 20.5V4.5h15v16"/><path d="M4.5 8h15"/><path d="M10 8v2.5h4V8"/><path d="M7.5 17h9"/><path d="M9.5 17v-3h5v3"/>',
   // send a sticker (stickers.js): a smiley with a plus
-  stk: '<circle cx="10.5" cy="13.5" r="7.5"/><path d="M8 11.6v.5M13 11.6v.5"/><path d="M7.7 15.5a3.6 3.6 0 005.6 0"/><path d="M19.5 2.5v5M17 5h5"/>'
+  stk: '<circle cx="10.5" cy="13.5" r="7.5"/><path d="M8 11.6v.5M13 11.6v.5"/><path d="M7.7 15.5a3.6 3.6 0 005.6 0"/><path d="M19.5 2.5v5M17 5h5"/>',
+  // a plain tick (Messages: mark as read, and the Read stamp — notes.js)
+  check: '<path d="M5 12.5l4.6 4.5L19 7.5"/>'
 };
 function ic(n, s) { s = s || 18; return '<svg class="i" width="' + s + '" height="' + s + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (IC[n] || '') + '</svg>'; }
 
@@ -4393,6 +4418,9 @@ function renderView() {
   // Team & security: a box just tapped into (after leaving another, whose save redraws the page) keeps the cursor
   const fa = S.view === 'admin' && document.activeElement, fid = fa && fa.id && v.contains(fa) ? fa.id : '';
   const fSel = fid && typeof fa.selectionStart === 'number' ? [fa.selectionStart, fa.selectionEnd] : null;
+  // Messages: the tab, ✓ or Mark unread the keyboard is on keeps it through a redraw (notes.js)
+  const ma = S.view === 'msgs' && document.activeElement && v.contains(document.activeElement) ? document.activeElement : null, cssE = x => window.CSS && CSS.escape ? CSS.escape(x) : x;
+  const mSel = ma && ma.dataset ? (ma.id ? '#' + cssE(ma.id) : ma.dataset.k && ma.dataset.act ? '[data-act="' + cssE(ma.dataset.act) + '"][data-k="' + cssE(ma.dataset.k) + '"]' : '') : '';
   let h = '';
   if (S.view === 'today') h = viewToday();
   else if (S.view === 'board') h = viewBoard();
@@ -4409,6 +4437,7 @@ function renderView() {
   if (qSel) { const q = $('#q'); if (q) { q.focus(); const n = q.value.length; try { q.setSelectionRange(Math.min(qSel[0], n), Math.min(qSel[1], n), qSel[2] || 'none'); } catch (e) { } } }
   if (fid) { const n = document.getElementById(fid); if (n && v.contains(n) && n !== document.activeElement) { n.focus({ preventScroll: true });
     if (fSel && typeof n.selectionStart === 'number') try { n.setSelectionRange(fSel[0], fSel[1]); } catch (e) { } } }
+  if (mSel) { const n = $(mSel, v); if (n) n.focus({ preventScroll: true }); }
   phPaint(); savPaint(); logoPaint(v); picPaint(v); if (S.view === 'admin') shPaint();
   asgReanchor();
 }
@@ -5260,7 +5289,9 @@ async function loadClosed() {
   if (S.closedLoading) return; S.closedLoading = true;
   try { S.closed = liveCases(await B.loadClosed(S.closedDays)); S.closedLoaded = true; }
   catch (e) { toast(errText(e), { bad: true }); S.closedLoaded = true; S.closed = []; }
-  S.closedLoading = false; if (S.view === 'done') renderView();
+  S.closedLoading = false;
+  // (Messages lists the notes on completed cases too, once they're loaded — notes.js; queued, so a click half done goes through first)
+  if (S.view === 'msgs') queueRender(); else { if (S.view === 'done') renderView(); renderNav(); }
 }
 
 /* ---------- Drawer ---------- */
@@ -5974,7 +6005,7 @@ function onClick(e) {
   if (t.tagName === 'SELECT') return;
   if (a === 'advance' || a === 'complete') { e.stopPropagation(); }
   switch (a) {
-    case 'nav': S.view = t.dataset.v; if (S.view !== 'list') S.f = noFilters(); renderNav(); renderView(); window.scrollTo(0, 0); break;
+    case 'nav': S.view = t.dataset.v; if (S.view !== 'list') S.f = noFilters(); if (S.view === 'msgs') S.msgTab = 'new'; renderNav(); renderView(); window.scrollTo(0, 0); break;
     case 'tile': { const f = t.dataset.f; S.f = noFilters();
       if (f === 'mine') { S.view = 'mine'; } else { S.view = 'list'; if (['over', 'week', 'none'].includes(f)) S.f.due = f; else S.f.grp = f; }
       renderNav(); renderView(); break; }
@@ -6019,7 +6050,11 @@ function onClick(e) {
       ta.value = ''; mtClose(); act(() => B.mutateCase(cid, d => { d.comments = (d.comments || []).concat([Object.assign({ id: uid8(), at: Date.now(), by: meSid(), text: txt }, to.length ? { to } : {})]); }, Object.assign({ a: 'comment' }, to.length ? { tag: to } : {}))); break; }
     case 'notesAll': { const c = findCase(S.openId); if (!c) break; (S.notesAll = S.notesAll || {})[c.id] = true; notesPaint(c); notesSeen(c); break; }
     case 'msgOpen': msgOpen(id, t.dataset.n); break;
-    case 'msgAllRead': msgMarkRead(msgList().map(m => m.k)); renderNav(); renderView(); break;
+    case 'msgAllRead': msgAllRead(); break;
+    // Messages' New / Read / Archive (notes.js): a tab; the ✓ on one; Mark unread on one under Read
+    case 'msgTab': S.msgTab = t.dataset.k; renderView(); { const b = $('#msgTab-' + S.msgTab); if (b) b.focus({ preventScroll: true }); } break;
+    case 'msgMark': msgMarkOne(t.dataset.k); break;
+    case 'msgUnmark': msgUnmarkOne(t.dataset.k); break;
     // stickers (stickers.js): the smiley opens them; one picked goes on (or comes off); a tap on one that's there; one in Messages
     case 'stkAdd': stkOpen(t); break;
     case 'stkPut': stkPut(t.dataset.e); break;
@@ -6263,15 +6298,44 @@ document.addEventListener('keydown', e => {
 }, true);
 document.addEventListener('mousedown', e => { const o = e.target.closest && e.target.closest('#mtList .mtOpt'); if (o) { e.preventDefault(); mtPick(+o.dataset.i); } }); // (before the box loses focus)
 
-/* ---------- Messages: the notes that tag you and the stickers sent to you (stickers.js), newest first ---------- */
-/* what's been read, on this computer (Amir chose that over syncing it) — "<case>/<note>" for each */
-function msgKey() { return 'nloCases.msgRead.' + (meSid() || ''); }
-function msgRead() { try { return new Set(JSON.parse(localStorage.getItem(msgKey()) || '[]')); } catch (e) { return new Set(); } }
-function msgMarkRead(keys) {
-  const s = msgRead(), n = s.size; keys.forEach(k => s.add(k)); if (s.size === n) return false;
-  try { localStorage.setItem(msgKey(), JSON.stringify(Array.from(s).slice(-800))); } catch (e) { } return true;
+/* ---------- Messages: the notes that tag you and the stickers sent to you (stickers.js), newest first ----------
+   New / Read / Archive (Amir, 9 Oct 2026: "the messages should be removed once marked as read and then move to archive after
+   30 days. or they need to be grayed out or stamped or something because right now its not clear except for the fact that the
+   badge is gone"): a message leaves New once it's read — opened, shown in its case, its ✓ tapped, or Mark all as read — and
+   sits under Read, greyed out with a "Read <when>" stamp, for 30 days; then it's under Archive. One not opened within 30 days
+   of being sent stops counting as new (as before) and goes to Archive too. */
+/* what's been read, on this computer (Amir chose that over syncing it): "<case>/<note>" or "<case>/s/<sticker>" → when it was
+   read (ms; 0 = read before 9 Oct 2026, when only *that* it was read was kept, in nloCases.msgRead.<sid>) */
+const MSG_OLD = 30 * 864e5;  // a message not read within this long of being sent isn't new any more (it's in Archive)
+const MSG_KEEP = 30 * 864e5; // a read one stays under Read this long after it was read, then it's in Archive
+const MSG_MAX = 2000;        // read marks kept per person on a computer (the longest-read go first)
+function msgKey() { return 'nloCases.msgSeen.' + (meSid() || ''); }
+function msgRead() {
+  try {
+    const raw = localStorage.getItem(msgKey()), m = new Map();
+    if (raw) { const o = JSON.parse(raw); if (o && typeof o === 'object' && !Array.isArray(o)) Object.keys(o).forEach(k => { if (typeof o[k] === 'number') m.set(k, o[k]); }); return m; }
+    const old = JSON.parse(localStorage.getItem('nloCases.msgRead.' + (meSid() || '')) || '[]'); // (the marks kept before 9 Oct 2026)
+    if (Array.isArray(old)) old.forEach(k => { if (typeof k === 'string') m.set(k, 0); });
+    if (m.size) msgSave(m);
+    return m;
+  } catch (e) { return new Map(); }
 }
-const MSG_OLD = 30 * 864e5; // a tag older than this isn't new on a computer that never showed it
+function msgSave(m) {
+  let e = Array.from(m.entries()); if (e.length > MSG_MAX) e = e.sort((a, b) => b[1] - a[1]).slice(0, MSG_MAX);
+  try { localStorage.setItem(msgKey(), JSON.stringify(Object.fromEntries(e))); } catch (x) { }
+}
+/* (a message already read keeps the time it was first read) */
+function msgMarkRead(keys) {
+  const m = msgRead(), now = Date.now(); let ch = false;
+  keys.forEach(k => { if (!m.has(k)) { m.set(k, now); ch = true; } });
+  if (ch) msgSave(m); return ch;
+}
+function msgMarkUnread(keys) {
+  const m = msgRead(); let ch = false; keys.forEach(k => { if (m.delete(k)) ch = true; });
+  if (ch) msgSave(m); return ch;
+}
+/* only the ones still new: one already in Archive (never opened within 30 days) stays there when its case is opened */
+function msgReadIfNew(keys) { const r = msgRead(); return msgMarkRead(msgList().filter(m => keys.includes(m.k) && msgIsNew(m, r)).map(m => m.k)); }
 function msgList() {
   const me = meSid(); if (!me) return [];
   const out = [], seen = new Set();
@@ -6283,17 +6347,76 @@ function msgList() {
   openCases().forEach(scan); (S.closed || []).forEach(scan);
   return out.concat(stkMsgs(me, seen)).sort((a, b) => (b.n.at || 0) - (a.n.at || 0));
 }
-function msgIsNew(m, read) { return !read.has(m.k) && Date.now() - (m.n.at || 0) < MSG_OLD; }
+/* where a message sits: 'new', 'read' (read in the last 30 days) or 'arch' */
+function msgBox(m, read, now) {
+  now = now || Date.now();
+  if (!read.has(m.k)) return now - (m.n.at || 0) < MSG_OLD ? 'new' : 'arch';
+  return now - Math.max(read.get(m.k) || 0, m.n.at || 0) < MSG_KEEP ? 'read' : 'arch'; // (one read before its time was kept counts from when it was sent)
+}
+function msgIsNew(m, read) { return msgBox(m, read) === 'new'; }
 function msgUnread() { if (!S.inApp) return 0; const r = msgRead(); return msgList().filter(m => msgIsNew(m, r)).length; }
+const MSG_TABS = [['new', 'New'], ['read', 'Read'], ['arch', 'Archive']];
+const MSG_FOOT = { read: 'Each one moves to Archive 30 days after it was read.', arch: 'Read more than 30 days ago, or not opened within 30 days of being sent.' };
 function viewMsgs() {
-  const L = msgList(), r = msgRead(), nNew = L.filter(m => msgIsNew(m, r)).length;
+  if (!S.closedLoaded) loadClosed(); // (and the completed cases': a case can be finished after someone tagged you on it)
+  const L = msgList(), r = msgRead(), now = Date.now(), by = { new: [], read: [], arch: [] };
+  L.forEach(m => by[msgBox(m, r, now)].push(m));
   if (!L.length) return '<div class="card"><div class="cardBd"><div class="msgEmpty">' + ic('chat', 28) + '<p><b>No messages yet</b></p><p class="small muted">When someone tags you in a case’s notes with @, or sends you a sticker, it shows up here. Tag someone yourself in any case’s Notes, or tap the smiley beside a note, a step or a section to send a sticker.</p></div></div></div>';
+  const tab = by[S.msgTab] ? S.msgTab : 'new', nNew = by.new.length, rows = by[tab];
   return '<div class="card msgCard"><div class="cardHd"><h3>Notes and stickers for you</h3><span class="sub">' + (nNew ? nNew + ' new' : 'All read') + '</span><span style="flex:1"></span>' +
-    (nNew ? '<button class="btn btn-ghost btn-sm" data-act="msgAllRead">Mark all as read</button>' : '') + '</div><div class="cardBd msgList">' +
-    L.map(m => { const nw = msgIsNew(m, r); if (m.st) return stkMsgRowHTML(m, nw);
-      return '<button type="button" class="msgRow' + (nw ? ' new' : '') + '" data-act="msgOpen" data-id="' + esc(m.c.id) + '" data-n="' + esc(m.n.id) + '">' + ptAv(m.c, 40) +
-        '<span class="msgMain"><span class="msgTop"><b class="msgPt">' + esc(m.c.patient || '(no name)') + '</b>' + typeBadge(m.c) + '<span class="msgWhen">' + esc(fmtWhen(m.n.at)) + '</span></span>' +
-        '<span class="msgTx"><b>' + esc(noteWhoOf(m.n) || 'Someone') + ':</b> ' + noteTextHTML(m.n) + '</span></span>' + (nw ? '<span class="msgDot" title="New"></span>' : '') + '</button>'; }).join('') + '</div></div>';
+    (tab === 'new' && nNew ? '<button class="btn btn-ghost btn-sm" data-act="msgAllRead">Mark all as read</button>' : '') + '</div>' +
+    '<div class="msgTabs" role="tablist" aria-label="Messages">' + MSG_TABS.map(([k, l]) => '<button type="button" class="chip' + (k === tab ? ' on' : '') + (k === 'new' && by.new.length ? ' hasNew' : '') +
+      '" role="tab" id="msgTab-' + k + '" aria-selected="' + (k === tab) + '" data-act="msgTab" data-k="' + k + '">' + l + '<span class="c">' + by[k].length + '</span></button>').join('') + '</div>' +
+    '<div class="cardBd msgList" role="tabpanel" aria-labelledby="msgTab-' + tab + '">' + (rows.length ? rows.map(m => msgItemHTML(m, tab, r)).join('') : msgNoneHTML(tab, by)) + '</div>' +
+    (MSG_FOOT[tab] && rows.length ? '<div class="msgFoot">' + MSG_FOOT[tab] + '</div>' : '') + '</div>';
+}
+function msgNoneHTML(tab, by) {
+  const t = tab === 'new' ? ['You’re all caught up', 'Nothing new. ' + (by.read.length ? 'What you’ve read is under Read.' : 'What you read goes under Read.')]
+    : tab === 'read' ? ['Nothing read in the last 30 days', 'A message moves here once you’ve read it.'] : ['Nothing in the archive yet', 'Read messages move here 30 days after they were read.'];
+  return '<div class="msgNone">' + ic(tab === 'new' ? 'done' : 'chat', 26) + '<p><b>' + t[0] + '</b></p><p class="small muted">' + t[1] + '</p></div>';
+}
+/* one row: the message (opens its case) — New ones with a ✓ to mark them read; read ones greyed out, stamped when they were read */
+function msgItemHTML(m, tab, r) {
+  const nw = tab === 'new', row = m.st ? stkMsgRowHTML(m, nw, msgStampHTML(m, r)) : noteMsgRowHTML(m, nw, msgStampHTML(m, r));
+  const what = (m.st ? stkName(m.st.by) + '’s sticker' : (noteWhoOf(m.n) || 'Someone') + '’s note') + ' on ' + (m.c.patient || 'a case');
+  const side = nw ? '<button type="button" class="msgChk" data-act="msgMark" data-k="' + esc(m.k) + '" title="Mark as read" aria-label="Mark as read: ' + esc(what) + '">' + ic('check', 18) + '</button>'
+    : tab === 'read' && Date.now() - (m.n.at || 0) < MSG_OLD ? '<button type="button" class="btn btn-ghost btn-sm msgUn" data-act="msgUnmark" data-k="' + esc(m.k) + '" aria-label="Mark as unread: ' + esc(what) + '">Mark unread</button>' : '';
+  return '<div class="msgItem ' + (nw ? 'new' : 'seen') + '" data-k="' + esc(m.k) + '">' + row + side + '</div>';
+}
+function noteMsgRowHTML(m, nw, stamp) {
+  return '<button type="button" class="msgRow ' + (nw ? 'new' : 'seen') + '" data-act="msgOpen" data-id="' + esc(m.c.id) + '" data-n="' + esc(m.n.id) + '">' + ptAv(m.c, 40) +
+    '<span class="msgMain"><span class="msgTop"><b class="msgPt">' + esc(m.c.patient || '(no name)') + '</b>' + typeBadge(m.c) + '<span class="msgWhen">' + esc(fmtWhen(m.n.at)) + '</span></span>' +
+    '<span class="msgTx"><b>' + esc(noteWhoOf(m.n) || 'Someone') + ':</b> ' + noteTextHTML(m.n) + '</span>' + (nw ? '' : stamp) + '</span>' + (nw ? '<span class="msgDot" title="New"></span>' : '') + '</button>';
+}
+/* "✓ Read today, 2:14 PM" / "✓ Read yesterday" / "✓ Read Oct 3" (just "✓ Read" for one read before the time was kept) */
+function msgStampHTML(m, r) {
+  if (!r.has(m.k)) return ''; const t = r.get(m.k) || 0;
+  return '<span class="msgStamp">' + ic('check', 12) + 'Read' + (t ? ' ' + esc(msgWhenWord(t)) : '') + '</span>';
+}
+function msgWhenWord(t) {
+  const d = new Date(t), now = new Date(), day = x => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const ago = Math.round((day(now) - day(d)) / 864e5), tm = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  if (ago === 0) return 'today, ' + tm;
+  if (ago === 1) return 'yesterday, ' + tm;
+  const o = { month: 'short', day: 'numeric' }; if (d.getFullYear() !== now.getFullYear()) o.year = 'numeric';
+  return d.toLocaleDateString(undefined, o);
+}
+/* the ✓ on one, Mark all as read — each with Undo — and Mark unread (it goes back under New) */
+function msgAfter(was) {
+  renderNav(); if (S.view !== 'msgs') return; renderView();
+  // (the keyboard stays in the list: on the row that took its place, else the one before, else the tab)
+  if (was == null) return; const L = $$('#view .msgItem'), it = L[Math.min(was, L.length - 1)];
+  const el = (it && ($('.msgChk, .msgUn', it) || $('.msgRow', it))) || $('#msgTab-' + (S.msgTab || 'new')); if (el) el.focus({ preventScroll: true });
+}
+function msgSpot(k) { const L = $$('#view .msgItem'); const i = L.findIndex(x => x.dataset.k === k); return i < 0 ? null : i; }
+function msgMarkOne(k) {
+  const was = msgSpot(k); if (!k || !msgMarkRead([k])) return; msgAfter(was);
+  toast('Marked as read — it’s under Read now', { action: 'Undo', onAction: () => { msgMarkUnread([k]); msgAfter(); } });
+}
+function msgUnmarkOne(k) { const was = msgSpot(k); if (!k || !msgMarkUnread([k])) return; msgAfter(was); toast('Marked as unread — it’s back under New'); }
+function msgAllRead() {
+  const r = msgRead(), ks = msgList().filter(m => msgIsNew(m, r)).map(m => m.k); if (!ks.length || !msgMarkRead(ks)) return; msgAfter();
+  toast((ks.length === 1 ? '1 message' : ks.length + ' messages') + ' marked as read', { action: 'Undo', onAction: () => { msgMarkUnread(ks); msgAfter(); } });
 }
 /* open the case at the note (opening Show earlier if it's further up) and flash it */
 function noteFlash(nid) {
@@ -6303,13 +6426,14 @@ function noteFlash(nid) {
     if (!el) return; el.scrollIntoView({ block: 'center', behavior: 'smooth' }); el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 2600);
   }, 80);
 }
-function msgOpen(caseId, nid) { msgMarkRead([caseId + '/' + nid]); renderNav(); openDrawer(caseId); noteFlash(nid); if (S.view === 'msgs') renderView(); }
-/* the case panel shows a note that tags you: it's read — and so are the stickers sent to you on the case */
+function msgOpen(caseId, nid) { msgReadIfNew([caseId + '/' + nid]); renderNav(); openDrawer(caseId); noteFlash(nid); if (S.view === 'msgs') renderView(); }
+/* the case panel shows a note that tags you: it's read — and so are the stickers sent to you on the case (the ones still new:
+   one already in Archive stays there) */
 function notesSeen(c) {
   const me = meSid(); if (!me || !c) return;
-  const all = !!(S.notesAll && S.notesAll[c.id]), L = noteList(c), shown = all ? L : L.slice(Math.max(0, L.length - NOTES_SHOWN));
-  const st = stkList(c).filter(s => s.to === me && s.by !== me).map(s => c.id + '/s/' + s.id);
-  if (msgMarkRead(shown.filter(n => n.to.includes(me) && n.by !== me && n.id !== 'field').map(n => c.id + '/' + n.id).concat(st))) { renderNav(); if (S.view === 'msgs') queueRender(); }
+  const all = !!(S.notesAll && S.notesAll[c.id]), L = noteList(c), shown = all ? L : L.slice(Math.max(0, L.length - NOTES_SHOWN)), fresh = x => Date.now() - (x.at || 0) < MSG_OLD;
+  const st = stkList(c).filter(s => s.to === me && s.by !== me && fresh(s)).map(s => c.id + '/s/' + s.id);
+  if (msgMarkRead(shown.filter(n => n.to.includes(me) && n.by !== me && n.id !== 'field' && fresh(n)).map(n => c.id + '/' + n.id).concat(st))) { renderNav(); if (S.view === 'msgs') queueRender(); }
 }
 /* a note tagging you arrives while the app is open: say so, with Open */
 function msgWatch() {
@@ -6320,7 +6444,7 @@ function msgWatch() {
     if (m.st) toast(stkName(m.st.by) + ' sent you ' + m.st.e + ' on ' + (m.c.patient || 'a case'), { action: 'Open', onAction: () => stkMsgOpen(m.c.id, m.st.id), ms: 9000 });
     else toast((noteWhoOf(m.n) || 'Someone') + ' tagged you on ' + (m.c.patient || 'a case'), { action: 'Open', onAction: () => msgOpen(m.c.id, m.n.id), ms: 9000 }); }
   else if (fresh.length > 1) { const nS = fresh.filter(m => m.st).length;
-    toast(fresh.length + (nS === fresh.length ? ' new stickers for you' : nS ? ' new in Messages' : ' new notes tag you'), { action: 'Messages', onAction: () => { S.view = 'msgs'; renderNav(); renderView(); }, ms: 9000 }); }
+    toast(fresh.length + (nS === fresh.length ? ' new stickers for you' : nS ? ' new in Messages' : ' new notes tag you'), { action: 'Messages', onAction: () => { S.view = 'msgs'; S.msgTab = 'new'; renderNav(); renderView(); }, ms: 9000 }); }
 }
 
 /* ---------- Stickers on a case (Amir, 7 Oct 2026) ----------
@@ -6610,16 +6734,17 @@ function stkWhat(c, s) {
   if (s.on.startsWith('h:')) { const l = String(s.l || ''); return /^moved it to /.test(l) ? 'On your move to ' + l.slice(12) : l ? 'On what you did: ' + l : 'On a step you did'; }
   return 'In ' + (s.l || 'the case');
 }
-function stkMsgRowHTML(m, nw) {
+/* (a read one greyed out, with when it was read — notes.js) */
+function stkMsgRowHTML(m, nw, stamp) {
   const s = m.st, c = m.c;
-  return '<button type="button" class="msgRow stkMsg' + (nw ? ' new' : '') + '" data-act="stkMsgOpen" data-id="' + esc(c.id) + '" data-s="' + esc(s.id) + '">' + ptAv(c, 40) +
+  return '<button type="button" class="msgRow stkMsg ' + (nw ? 'new' : 'seen') + '" data-act="stkMsgOpen" data-id="' + esc(c.id) + '" data-s="' + esc(s.id) + '">' + ptAv(c, 40) +
     '<span class="msgMain"><span class="msgTop"><b class="msgPt">' + esc(c.patient || '(no name)') + '</b>' + typeBadge(c) + '<span class="msgWhen">' + esc(fmtWhen(s.at)) + '</span></span>' +
     '<span class="msgTx stkTx"><span class="stkE big" style="--r:' + stkTilt(s.id) + 'deg" role="img" aria-label="' + esc(STK_SAY[s.e] || 'Sticker') + '">' + esc(s.e) + '</span><span><b>' + esc(stkName(s.by)) + '</b> sent you a sticker</span></span>' +
-    '<span class="msgOn">' + esc(stkWhat(c, s)) + '</span></span>' + (nw ? '<span class="msgDot" title="New"></span>' : '') + '</button>';
+    '<span class="msgOn">' + esc(stkWhat(c, s)) + '</span>' + (nw ? '' : stamp || '') + '</span>' + (nw ? '<span class="msgDot" title="New"></span>' : '') + '</button>';
 }
 /* open the case at the sticker and flash what it's on */
 function stkMsgOpen(caseId, sid) {
-  msgMarkRead([caseId + '/s/' + sid]); renderNav(); openDrawer(caseId); if (S.view === 'msgs') renderView();
+  msgReadIfNew([caseId + '/s/' + sid]); renderNav(); openDrawer(caseId); if (S.view === 'msgs') renderView();
   const s = stkList(findCase(caseId)).find(x => x.id === sid); if (s) stkFlash(s);
 }
 function stkFlash(s) {

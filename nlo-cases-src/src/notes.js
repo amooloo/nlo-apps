@@ -112,15 +112,44 @@ document.addEventListener('keydown', e => {
 }, true);
 document.addEventListener('mousedown', e => { const o = e.target.closest && e.target.closest('#mtList .mtOpt'); if (o) { e.preventDefault(); mtPick(+o.dataset.i); } }); // (before the box loses focus)
 
-/* ---------- Messages: the notes that tag you and the stickers sent to you (stickers.js), newest first ---------- */
-/* what's been read, on this computer (Amir chose that over syncing it) — "<case>/<note>" for each */
-function msgKey() { return 'nloCases.msgRead.' + (meSid() || ''); }
-function msgRead() { try { return new Set(JSON.parse(localStorage.getItem(msgKey()) || '[]')); } catch (e) { return new Set(); } }
-function msgMarkRead(keys) {
-  const s = msgRead(), n = s.size; keys.forEach(k => s.add(k)); if (s.size === n) return false;
-  try { localStorage.setItem(msgKey(), JSON.stringify(Array.from(s).slice(-800))); } catch (e) { } return true;
+/* ---------- Messages: the notes that tag you and the stickers sent to you (stickers.js), newest first ----------
+   New / Read / Archive (Amir, 9 Oct 2026: "the messages should be removed once marked as read and then move to archive after
+   30 days. or they need to be grayed out or stamped or something because right now its not clear except for the fact that the
+   badge is gone"): a message leaves New once it's read — opened, shown in its case, its ✓ tapped, or Mark all as read — and
+   sits under Read, greyed out with a "Read <when>" stamp, for 30 days; then it's under Archive. One not opened within 30 days
+   of being sent stops counting as new (as before) and goes to Archive too. */
+/* what's been read, on this computer (Amir chose that over syncing it): "<case>/<note>" or "<case>/s/<sticker>" → when it was
+   read (ms; 0 = read before 9 Oct 2026, when only *that* it was read was kept, in nloCases.msgRead.<sid>) */
+const MSG_OLD = 30 * 864e5;  // a message not read within this long of being sent isn't new any more (it's in Archive)
+const MSG_KEEP = 30 * 864e5; // a read one stays under Read this long after it was read, then it's in Archive
+const MSG_MAX = 2000;        // read marks kept per person on a computer (the longest-read go first)
+function msgKey() { return 'nloCases.msgSeen.' + (meSid() || ''); }
+function msgRead() {
+  try {
+    const raw = localStorage.getItem(msgKey()), m = new Map();
+    if (raw) { const o = JSON.parse(raw); if (o && typeof o === 'object' && !Array.isArray(o)) Object.keys(o).forEach(k => { if (typeof o[k] === 'number') m.set(k, o[k]); }); return m; }
+    const old = JSON.parse(localStorage.getItem('nloCases.msgRead.' + (meSid() || '')) || '[]'); // (the marks kept before 9 Oct 2026)
+    if (Array.isArray(old)) old.forEach(k => { if (typeof k === 'string') m.set(k, 0); });
+    if (m.size) msgSave(m);
+    return m;
+  } catch (e) { return new Map(); }
 }
-const MSG_OLD = 30 * 864e5; // a tag older than this isn't new on a computer that never showed it
+function msgSave(m) {
+  let e = Array.from(m.entries()); if (e.length > MSG_MAX) e = e.sort((a, b) => b[1] - a[1]).slice(0, MSG_MAX);
+  try { localStorage.setItem(msgKey(), JSON.stringify(Object.fromEntries(e))); } catch (x) { }
+}
+/* (a message already read keeps the time it was first read) */
+function msgMarkRead(keys) {
+  const m = msgRead(), now = Date.now(); let ch = false;
+  keys.forEach(k => { if (!m.has(k)) { m.set(k, now); ch = true; } });
+  if (ch) msgSave(m); return ch;
+}
+function msgMarkUnread(keys) {
+  const m = msgRead(); let ch = false; keys.forEach(k => { if (m.delete(k)) ch = true; });
+  if (ch) msgSave(m); return ch;
+}
+/* only the ones still new: one already in Archive (never opened within 30 days) stays there when its case is opened */
+function msgReadIfNew(keys) { const r = msgRead(); return msgMarkRead(msgList().filter(m => keys.includes(m.k) && msgIsNew(m, r)).map(m => m.k)); }
 function msgList() {
   const me = meSid(); if (!me) return [];
   const out = [], seen = new Set();
@@ -132,17 +161,76 @@ function msgList() {
   openCases().forEach(scan); (S.closed || []).forEach(scan);
   return out.concat(stkMsgs(me, seen)).sort((a, b) => (b.n.at || 0) - (a.n.at || 0));
 }
-function msgIsNew(m, read) { return !read.has(m.k) && Date.now() - (m.n.at || 0) < MSG_OLD; }
+/* where a message sits: 'new', 'read' (read in the last 30 days) or 'arch' */
+function msgBox(m, read, now) {
+  now = now || Date.now();
+  if (!read.has(m.k)) return now - (m.n.at || 0) < MSG_OLD ? 'new' : 'arch';
+  return now - Math.max(read.get(m.k) || 0, m.n.at || 0) < MSG_KEEP ? 'read' : 'arch'; // (one read before its time was kept counts from when it was sent)
+}
+function msgIsNew(m, read) { return msgBox(m, read) === 'new'; }
 function msgUnread() { if (!S.inApp) return 0; const r = msgRead(); return msgList().filter(m => msgIsNew(m, r)).length; }
+const MSG_TABS = [['new', 'New'], ['read', 'Read'], ['arch', 'Archive']];
+const MSG_FOOT = { read: 'Each one moves to Archive 30 days after it was read.', arch: 'Read more than 30 days ago, or not opened within 30 days of being sent.' };
 function viewMsgs() {
-  const L = msgList(), r = msgRead(), nNew = L.filter(m => msgIsNew(m, r)).length;
+  if (!S.closedLoaded) loadClosed(); // (and the completed cases': a case can be finished after someone tagged you on it)
+  const L = msgList(), r = msgRead(), now = Date.now(), by = { new: [], read: [], arch: [] };
+  L.forEach(m => by[msgBox(m, r, now)].push(m));
   if (!L.length) return '<div class="card"><div class="cardBd"><div class="msgEmpty">' + ic('chat', 28) + '<p><b>No messages yet</b></p><p class="small muted">When someone tags you in a case’s notes with @, or sends you a sticker, it shows up here. Tag someone yourself in any case’s Notes, or tap the smiley beside a note, a step or a section to send a sticker.</p></div></div></div>';
+  const tab = by[S.msgTab] ? S.msgTab : 'new', nNew = by.new.length, rows = by[tab];
   return '<div class="card msgCard"><div class="cardHd"><h3>Notes and stickers for you</h3><span class="sub">' + (nNew ? nNew + ' new' : 'All read') + '</span><span style="flex:1"></span>' +
-    (nNew ? '<button class="btn btn-ghost btn-sm" data-act="msgAllRead">Mark all as read</button>' : '') + '</div><div class="cardBd msgList">' +
-    L.map(m => { const nw = msgIsNew(m, r); if (m.st) return stkMsgRowHTML(m, nw);
-      return '<button type="button" class="msgRow' + (nw ? ' new' : '') + '" data-act="msgOpen" data-id="' + esc(m.c.id) + '" data-n="' + esc(m.n.id) + '">' + ptAv(m.c, 40) +
-        '<span class="msgMain"><span class="msgTop"><b class="msgPt">' + esc(m.c.patient || '(no name)') + '</b>' + typeBadge(m.c) + '<span class="msgWhen">' + esc(fmtWhen(m.n.at)) + '</span></span>' +
-        '<span class="msgTx"><b>' + esc(noteWhoOf(m.n) || 'Someone') + ':</b> ' + noteTextHTML(m.n) + '</span></span>' + (nw ? '<span class="msgDot" title="New"></span>' : '') + '</button>'; }).join('') + '</div></div>';
+    (tab === 'new' && nNew ? '<button class="btn btn-ghost btn-sm" data-act="msgAllRead">Mark all as read</button>' : '') + '</div>' +
+    '<div class="msgTabs" role="tablist" aria-label="Messages">' + MSG_TABS.map(([k, l]) => '<button type="button" class="chip' + (k === tab ? ' on' : '') + (k === 'new' && by.new.length ? ' hasNew' : '') +
+      '" role="tab" id="msgTab-' + k + '" aria-selected="' + (k === tab) + '" data-act="msgTab" data-k="' + k + '">' + l + '<span class="c">' + by[k].length + '</span></button>').join('') + '</div>' +
+    '<div class="cardBd msgList" role="tabpanel" aria-labelledby="msgTab-' + tab + '">' + (rows.length ? rows.map(m => msgItemHTML(m, tab, r)).join('') : msgNoneHTML(tab, by)) + '</div>' +
+    (MSG_FOOT[tab] && rows.length ? '<div class="msgFoot">' + MSG_FOOT[tab] + '</div>' : '') + '</div>';
+}
+function msgNoneHTML(tab, by) {
+  const t = tab === 'new' ? ['You’re all caught up', 'Nothing new. ' + (by.read.length ? 'What you’ve read is under Read.' : 'What you read goes under Read.')]
+    : tab === 'read' ? ['Nothing read in the last 30 days', 'A message moves here once you’ve read it.'] : ['Nothing in the archive yet', 'Read messages move here 30 days after they were read.'];
+  return '<div class="msgNone">' + ic(tab === 'new' ? 'done' : 'chat', 26) + '<p><b>' + t[0] + '</b></p><p class="small muted">' + t[1] + '</p></div>';
+}
+/* one row: the message (opens its case) — New ones with a ✓ to mark them read; read ones greyed out, stamped when they were read */
+function msgItemHTML(m, tab, r) {
+  const nw = tab === 'new', row = m.st ? stkMsgRowHTML(m, nw, msgStampHTML(m, r)) : noteMsgRowHTML(m, nw, msgStampHTML(m, r));
+  const what = (m.st ? stkName(m.st.by) + '’s sticker' : (noteWhoOf(m.n) || 'Someone') + '’s note') + ' on ' + (m.c.patient || 'a case');
+  const side = nw ? '<button type="button" class="msgChk" data-act="msgMark" data-k="' + esc(m.k) + '" title="Mark as read" aria-label="Mark as read: ' + esc(what) + '">' + ic('check', 18) + '</button>'
+    : tab === 'read' && Date.now() - (m.n.at || 0) < MSG_OLD ? '<button type="button" class="btn btn-ghost btn-sm msgUn" data-act="msgUnmark" data-k="' + esc(m.k) + '" aria-label="Mark as unread: ' + esc(what) + '">Mark unread</button>' : '';
+  return '<div class="msgItem ' + (nw ? 'new' : 'seen') + '" data-k="' + esc(m.k) + '">' + row + side + '</div>';
+}
+function noteMsgRowHTML(m, nw, stamp) {
+  return '<button type="button" class="msgRow ' + (nw ? 'new' : 'seen') + '" data-act="msgOpen" data-id="' + esc(m.c.id) + '" data-n="' + esc(m.n.id) + '">' + ptAv(m.c, 40) +
+    '<span class="msgMain"><span class="msgTop"><b class="msgPt">' + esc(m.c.patient || '(no name)') + '</b>' + typeBadge(m.c) + '<span class="msgWhen">' + esc(fmtWhen(m.n.at)) + '</span></span>' +
+    '<span class="msgTx"><b>' + esc(noteWhoOf(m.n) || 'Someone') + ':</b> ' + noteTextHTML(m.n) + '</span>' + (nw ? '' : stamp) + '</span>' + (nw ? '<span class="msgDot" title="New"></span>' : '') + '</button>';
+}
+/* "✓ Read today, 2:14 PM" / "✓ Read yesterday" / "✓ Read Oct 3" (just "✓ Read" for one read before the time was kept) */
+function msgStampHTML(m, r) {
+  if (!r.has(m.k)) return ''; const t = r.get(m.k) || 0;
+  return '<span class="msgStamp">' + ic('check', 12) + 'Read' + (t ? ' ' + esc(msgWhenWord(t)) : '') + '</span>';
+}
+function msgWhenWord(t) {
+  const d = new Date(t), now = new Date(), day = x => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const ago = Math.round((day(now) - day(d)) / 864e5), tm = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  if (ago === 0) return 'today, ' + tm;
+  if (ago === 1) return 'yesterday, ' + tm;
+  const o = { month: 'short', day: 'numeric' }; if (d.getFullYear() !== now.getFullYear()) o.year = 'numeric';
+  return d.toLocaleDateString(undefined, o);
+}
+/* the ✓ on one, Mark all as read — each with Undo — and Mark unread (it goes back under New) */
+function msgAfter(was) {
+  renderNav(); if (S.view !== 'msgs') return; renderView();
+  // (the keyboard stays in the list: on the row that took its place, else the one before, else the tab)
+  if (was == null) return; const L = $$('#view .msgItem'), it = L[Math.min(was, L.length - 1)];
+  const el = (it && ($('.msgChk, .msgUn', it) || $('.msgRow', it))) || $('#msgTab-' + (S.msgTab || 'new')); if (el) el.focus({ preventScroll: true });
+}
+function msgSpot(k) { const L = $$('#view .msgItem'); const i = L.findIndex(x => x.dataset.k === k); return i < 0 ? null : i; }
+function msgMarkOne(k) {
+  const was = msgSpot(k); if (!k || !msgMarkRead([k])) return; msgAfter(was);
+  toast('Marked as read — it’s under Read now', { action: 'Undo', onAction: () => { msgMarkUnread([k]); msgAfter(); } });
+}
+function msgUnmarkOne(k) { const was = msgSpot(k); if (!k || !msgMarkUnread([k])) return; msgAfter(was); toast('Marked as unread — it’s back under New'); }
+function msgAllRead() {
+  const r = msgRead(), ks = msgList().filter(m => msgIsNew(m, r)).map(m => m.k); if (!ks.length || !msgMarkRead(ks)) return; msgAfter();
+  toast((ks.length === 1 ? '1 message' : ks.length + ' messages') + ' marked as read', { action: 'Undo', onAction: () => { msgMarkUnread(ks); msgAfter(); } });
 }
 /* open the case at the note (opening Show earlier if it's further up) and flash it */
 function noteFlash(nid) {
@@ -152,13 +240,14 @@ function noteFlash(nid) {
     if (!el) return; el.scrollIntoView({ block: 'center', behavior: 'smooth' }); el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 2600);
   }, 80);
 }
-function msgOpen(caseId, nid) { msgMarkRead([caseId + '/' + nid]); renderNav(); openDrawer(caseId); noteFlash(nid); if (S.view === 'msgs') renderView(); }
-/* the case panel shows a note that tags you: it's read — and so are the stickers sent to you on the case */
+function msgOpen(caseId, nid) { msgReadIfNew([caseId + '/' + nid]); renderNav(); openDrawer(caseId); noteFlash(nid); if (S.view === 'msgs') renderView(); }
+/* the case panel shows a note that tags you: it's read — and so are the stickers sent to you on the case (the ones still new:
+   one already in Archive stays there) */
 function notesSeen(c) {
   const me = meSid(); if (!me || !c) return;
-  const all = !!(S.notesAll && S.notesAll[c.id]), L = noteList(c), shown = all ? L : L.slice(Math.max(0, L.length - NOTES_SHOWN));
-  const st = stkList(c).filter(s => s.to === me && s.by !== me).map(s => c.id + '/s/' + s.id);
-  if (msgMarkRead(shown.filter(n => n.to.includes(me) && n.by !== me && n.id !== 'field').map(n => c.id + '/' + n.id).concat(st))) { renderNav(); if (S.view === 'msgs') queueRender(); }
+  const all = !!(S.notesAll && S.notesAll[c.id]), L = noteList(c), shown = all ? L : L.slice(Math.max(0, L.length - NOTES_SHOWN)), fresh = x => Date.now() - (x.at || 0) < MSG_OLD;
+  const st = stkList(c).filter(s => s.to === me && s.by !== me && fresh(s)).map(s => c.id + '/s/' + s.id);
+  if (msgMarkRead(shown.filter(n => n.to.includes(me) && n.by !== me && n.id !== 'field' && fresh(n)).map(n => c.id + '/' + n.id).concat(st))) { renderNav(); if (S.view === 'msgs') queueRender(); }
 }
 /* a note tagging you arrives while the app is open: say so, with Open */
 function msgWatch() {
@@ -169,5 +258,5 @@ function msgWatch() {
     if (m.st) toast(stkName(m.st.by) + ' sent you ' + m.st.e + ' on ' + (m.c.patient || 'a case'), { action: 'Open', onAction: () => stkMsgOpen(m.c.id, m.st.id), ms: 9000 });
     else toast((noteWhoOf(m.n) || 'Someone') + ' tagged you on ' + (m.c.patient || 'a case'), { action: 'Open', onAction: () => msgOpen(m.c.id, m.n.id), ms: 9000 }); }
   else if (fresh.length > 1) { const nS = fresh.filter(m => m.st).length;
-    toast(fresh.length + (nS === fresh.length ? ' new stickers for you' : nS ? ' new in Messages' : ' new notes tag you'), { action: 'Messages', onAction: () => { S.view = 'msgs'; renderNav(); renderView(); }, ms: 9000 }); }
+    toast(fresh.length + (nS === fresh.length ? ' new stickers for you' : nS ? ' new in Messages' : ' new notes tag you'), { action: 'Messages', onAction: () => { S.view = 'msgs'; S.msgTab = 'new'; renderNav(); renderView(); }, ms: 9000 }); }
 }

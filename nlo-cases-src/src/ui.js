@@ -47,7 +47,9 @@ const IC = {
   // the lab PC (Ortho Factory): a 3D printer's frame, its build plate and a part on it
   lab: '<path d="M4.5 20.5V4.5h15v16"/><path d="M4.5 8h15"/><path d="M10 8v2.5h4V8"/><path d="M7.5 17h9"/><path d="M9.5 17v-3h5v3"/>',
   // send a sticker (stickers.js): a smiley with a plus
-  stk: '<circle cx="10.5" cy="13.5" r="7.5"/><path d="M8 11.6v.5M13 11.6v.5"/><path d="M7.7 15.5a3.6 3.6 0 005.6 0"/><path d="M19.5 2.5v5M17 5h5"/>'
+  stk: '<circle cx="10.5" cy="13.5" r="7.5"/><path d="M8 11.6v.5M13 11.6v.5"/><path d="M7.7 15.5a3.6 3.6 0 005.6 0"/><path d="M19.5 2.5v5M17 5h5"/>',
+  // a plain tick (Messages: mark as read, and the Read stamp — notes.js)
+  check: '<path d="M5 12.5l4.6 4.5L19 7.5"/>'
 };
 function ic(n, s) { s = s || 18; return '<svg class="i" width="' + s + '" height="' + s + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (IC[n] || '') + '</svg>'; }
 
@@ -495,6 +497,9 @@ function renderView() {
   // Team & security: a box just tapped into (after leaving another, whose save redraws the page) keeps the cursor
   const fa = S.view === 'admin' && document.activeElement, fid = fa && fa.id && v.contains(fa) ? fa.id : '';
   const fSel = fid && typeof fa.selectionStart === 'number' ? [fa.selectionStart, fa.selectionEnd] : null;
+  // Messages: the tab, ✓ or Mark unread the keyboard is on keeps it through a redraw (notes.js)
+  const ma = S.view === 'msgs' && document.activeElement && v.contains(document.activeElement) ? document.activeElement : null, cssE = x => window.CSS && CSS.escape ? CSS.escape(x) : x;
+  const mSel = ma && ma.dataset ? (ma.id ? '#' + cssE(ma.id) : ma.dataset.k && ma.dataset.act ? '[data-act="' + cssE(ma.dataset.act) + '"][data-k="' + cssE(ma.dataset.k) + '"]' : '') : '';
   let h = '';
   if (S.view === 'today') h = viewToday();
   else if (S.view === 'board') h = viewBoard();
@@ -511,6 +516,7 @@ function renderView() {
   if (qSel) { const q = $('#q'); if (q) { q.focus(); const n = q.value.length; try { q.setSelectionRange(Math.min(qSel[0], n), Math.min(qSel[1], n), qSel[2] || 'none'); } catch (e) { } } }
   if (fid) { const n = document.getElementById(fid); if (n && v.contains(n) && n !== document.activeElement) { n.focus({ preventScroll: true });
     if (fSel && typeof n.selectionStart === 'number') try { n.setSelectionRange(fSel[0], fSel[1]); } catch (e) { } } }
+  if (mSel) { const n = $(mSel, v); if (n) n.focus({ preventScroll: true }); }
   phPaint(); savPaint(); logoPaint(v); picPaint(v); if (S.view === 'admin') shPaint();
   asgReanchor();
 }
@@ -1362,7 +1368,9 @@ async function loadClosed() {
   if (S.closedLoading) return; S.closedLoading = true;
   try { S.closed = liveCases(await B.loadClosed(S.closedDays)); S.closedLoaded = true; }
   catch (e) { toast(errText(e), { bad: true }); S.closedLoaded = true; S.closed = []; }
-  S.closedLoading = false; if (S.view === 'done') renderView();
+  S.closedLoading = false;
+  // (Messages lists the notes on completed cases too, once they're loaded — notes.js; queued, so a click half done goes through first)
+  if (S.view === 'msgs') queueRender(); else { if (S.view === 'done') renderView(); renderNav(); }
 }
 
 /* ---------- Drawer ---------- */
@@ -2076,7 +2084,7 @@ function onClick(e) {
   if (t.tagName === 'SELECT') return;
   if (a === 'advance' || a === 'complete') { e.stopPropagation(); }
   switch (a) {
-    case 'nav': S.view = t.dataset.v; if (S.view !== 'list') S.f = noFilters(); renderNav(); renderView(); window.scrollTo(0, 0); break;
+    case 'nav': S.view = t.dataset.v; if (S.view !== 'list') S.f = noFilters(); if (S.view === 'msgs') S.msgTab = 'new'; renderNav(); renderView(); window.scrollTo(0, 0); break;
     case 'tile': { const f = t.dataset.f; S.f = noFilters();
       if (f === 'mine') { S.view = 'mine'; } else { S.view = 'list'; if (['over', 'week', 'none'].includes(f)) S.f.due = f; else S.f.grp = f; }
       renderNav(); renderView(); break; }
@@ -2121,7 +2129,11 @@ function onClick(e) {
       ta.value = ''; mtClose(); act(() => B.mutateCase(cid, d => { d.comments = (d.comments || []).concat([Object.assign({ id: uid8(), at: Date.now(), by: meSid(), text: txt }, to.length ? { to } : {})]); }, Object.assign({ a: 'comment' }, to.length ? { tag: to } : {}))); break; }
     case 'notesAll': { const c = findCase(S.openId); if (!c) break; (S.notesAll = S.notesAll || {})[c.id] = true; notesPaint(c); notesSeen(c); break; }
     case 'msgOpen': msgOpen(id, t.dataset.n); break;
-    case 'msgAllRead': msgMarkRead(msgList().map(m => m.k)); renderNav(); renderView(); break;
+    case 'msgAllRead': msgAllRead(); break;
+    // Messages' New / Read / Archive (notes.js): a tab; the ✓ on one; Mark unread on one under Read
+    case 'msgTab': S.msgTab = t.dataset.k; renderView(); { const b = $('#msgTab-' + S.msgTab); if (b) b.focus({ preventScroll: true }); } break;
+    case 'msgMark': msgMarkOne(t.dataset.k); break;
+    case 'msgUnmark': msgUnmarkOne(t.dataset.k); break;
     // stickers (stickers.js): the smiley opens them; one picked goes on (or comes off); a tap on one that's there; one in Messages
     case 'stkAdd': stkOpen(t); break;
     case 'stkPut': stkPut(t.dataset.e); break;

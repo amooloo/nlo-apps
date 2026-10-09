@@ -285,16 +285,17 @@ function stkWhat(c, s) {
   if (s.on.startsWith('h:')) { const l = String(s.l || ''); return /^moved it to /.test(l) ? 'On your move to ' + l.slice(12) : l ? 'On what you did: ' + l : 'On a step you did'; }
   return 'In ' + (s.l || 'the case');
 }
-function stkMsgRowHTML(m, nw) {
+/* (a read one greyed out, with when it was read — notes.js) */
+function stkMsgRowHTML(m, nw, stamp) {
   const s = m.st, c = m.c;
-  return '<button type="button" class="msgRow stkMsg' + (nw ? ' new' : '') + '" data-act="stkMsgOpen" data-id="' + esc(c.id) + '" data-s="' + esc(s.id) + '">' + ptAv(c, 40) +
+  return '<button type="button" class="msgRow stkMsg ' + (nw ? 'new' : 'seen') + '" data-act="stkMsgOpen" data-id="' + esc(c.id) + '" data-s="' + esc(s.id) + '">' + ptAv(c, 40) +
     '<span class="msgMain"><span class="msgTop"><b class="msgPt">' + esc(c.patient || '(no name)') + '</b>' + typeBadge(c) + '<span class="msgWhen">' + esc(fmtWhen(s.at)) + '</span></span>' +
     '<span class="msgTx stkTx"><span class="stkE big" style="--r:' + stkTilt(s.id) + 'deg" role="img" aria-label="' + esc(STK_SAY[s.e] || 'Sticker') + '">' + esc(s.e) + '</span><span><b>' + esc(stkName(s.by)) + '</b> sent you a sticker</span></span>' +
-    '<span class="msgOn">' + esc(stkWhat(c, s)) + '</span></span>' + (nw ? '<span class="msgDot" title="New"></span>' : '') + '</button>';
+    '<span class="msgOn">' + esc(stkWhat(c, s)) + '</span>' + (nw ? '' : stamp || '') + '</span>' + (nw ? '<span class="msgDot" title="New"></span>' : '') + '</button>';
 }
 /* open the case at the sticker and flash what it's on */
 function stkMsgOpen(caseId, sid) {
-  msgMarkRead([caseId + '/s/' + sid]); renderNav(); openDrawer(caseId); if (S.view === 'msgs') renderView();
+  msgReadIfNew([caseId + '/s/' + sid]); renderNav(); openDrawer(caseId); if (S.view === 'msgs') renderView();
   const s = stkList(findCase(caseId)).find(x => x.id === sid); if (s) stkFlash(s);
 }
 function stkFlash(s) {
