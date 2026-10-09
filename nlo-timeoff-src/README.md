@@ -25,6 +25,10 @@ office, on the NLO Cases platform: the same Firebase project (`nlo-cases`), logi
 - In the Firebase emulators (`NO_PROXY=localhost,127.0.0.1 npx firebase emulators:exec --only firestore,auth --project demo-nlo-cases "<cmd>"`):
   `node test/rules.test.mjs` (the rules) and `node test/e2e.js` (the real NLO Cases and Time Off pages; needs a static
   server on :8771 serving `nlo-timeoff.html` next to `nlo-cases.html` and `logo-white.png`).
+- `node test/feed_readers.js` — the office calendar and CADANCe reading the feed (a stand-in Firebase,
+  `test/fake-firebase.js`; needs a static server on :8772 serving the repo root). They read it once its key is saved in
+  the calendar's Admin settings → Time-Off sync (kept at `nlo/cadence/timeOffFeed` in the nlo-inventory database), and
+  the old Time-Off app until then.
 - The browser tests serve Google's exact Firebase SDK files (the page checks their integrity), fetched once into
   `test/vendor/firebasejs-10.12.2/` (not committed).
 - `node test/make_fixture.js && python3 test/make_fixture.py` rebuilds the made-up old Sheet in `test/fixtures/` from

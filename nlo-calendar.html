@@ -95,8 +95,13 @@ function isAllowedEmail(email){
 /* Time-Off Request app backend (Apps Script). Approved requests + holiday
    list sync from here — same endpoint the Checklist app uses. */
 const TIMEOFF_API = "https://script.google.com/macros/s/AKfycbxvI_d6muf_OepqurNrxnV2O0bMaGjnyNH6SKKNqQcvXMzjN6ZBjc26aa5LkN3Grj2J/exec";
+/* NLO Time Off (Oct 2026) replaces that app. Once its feed key is saved here (Admin settings → Time-Off sync), approved
+   time off and office closures come from NLO Time Off's feed instead: a public address, but sealed (AES-GCM) so only the
+   key opens it. The key is kept at nlo/cadence/timeOffFeed, where the Checklist app (CADANCe) reads it too. */
+const TO_FEED_URL = "https://firestore.googleapis.com/v1/projects/nlo-cases/databases/(default)/documents/toFeed/live";
+const TO_FEED_CFG = "nlo/cadence/timeOffFeed";
 const SYNC_INTERVAL_MIN = 15;
-const CAL_VERSION = "1.3 (Oct 8, 2026)";
+const CAL_VERSION = "1.4 (Oct 9, 2026)";
 
 /* Staff roster seeded from Gusto (active employees, July 2026). Editable in Settings.
    Names only: birthdays and hire dates are kept in Firebase (Settings > Staff), never in this public file. */
@@ -147,7 +152,8 @@ const S = {
   settingsOpen: false, pinSaved: false,
   paintMode: false,
   editStaffId: null,
-  sync: { timeOff: [], holidays: [], at: null, err: null, busy: false },
+  sync: { timeOff: [], holidays: [], at: null, err: null, busy: false, src: "" },   // src: "timeoff" (NLO Time Off) or "old"
+  toFeed: { key: "", saving: false, msg: "", bad: false },   // the NLO Time Off feed key (nlo/cadence/timeOffFeed)
   saveErr: null,
   lockNote: "",
   seeded: false,
@@ -215,6 +221,29 @@ function holidayMap(){
 /* S.sync.at = when the Time-Off app last answered (null until it first does); S.sync.err = the last try failed.
    A failed try keeps the last good list, says so in the Who's-out bar, and tries again 2 minutes later. */
 let syncRetry=null;
+/* NLO Time Off's feed, opened with its key: { v, ok, timeOff:[{id, employeeName, start, end, hours, part}], holidays, pending } */
+const b64bytes=x=>Uint8Array.from(atob(String(x)),c=>c.charCodeAt(0));
+async function readTimeOffFeed(key,opts){
+  const res=await fetch(TO_FEED_URL,Object.assign({},opts||{},{cache:"no-store"}));
+  if(res.status===404) throw new Error("NLO Time Off hasn't written its feed yet");
+  if(!res.ok) throw new Error("NLO Time Off's feed: HTTP "+res.status);
+  const d=await res.json(), f=(d&&d.fields)||{}, iv=f.iv&&f.iv.stringValue, ct=f.ct&&f.ct.stringValue;
+  if(!iv||!ct) throw new Error("NLO Time Off's feed is empty");
+  let pt;
+  try{
+    const k=await crypto.subtle.importKey("raw",b64bytes(key),{name:"AES-GCM"},false,["decrypt"]);
+    pt=await crypto.subtle.decrypt({name:"AES-GCM",iv:b64bytes(iv),additionalData:new TextEncoder().encode("tofeed")},k,b64bytes(ct));
+  }catch(e){ throw new Error("the saved key doesn't open NLO Time Off's feed (was a new key made there?)"); }
+  const j=JSON.parse(new TextDecoder().decode(pt));
+  if(!j||!Array.isArray(j.timeOff)) throw new Error("NLO Time Off's feed isn't in the expected shape");
+  return j;
+}
+/* the saved key: "" when none (then the old Time-Off app). A failed read keeps the last key seen, so a blip doesn't
+   send the calendar back to the old app. */
+async function timeOffFeedKey(){
+  try{ const s=await db.ref(TO_FEED_CFG).once("value"); const v=s.val(); S.toFeed.key=v&&typeof v.key==="string"?v.key:""; }catch(e){}
+  return S.toFeed.key;
+}
 async function syncTimeOff(){
   if(S.sync.busy) return;
   S.sync.busy=true;
@@ -222,14 +251,19 @@ async function syncTimeOff(){
   const ctl=typeof AbortController==="function"?new AbortController():null;
   const timer=ctl?setTimeout(()=>ctl.abort(),30000):null;
   try{
-    const sep=TIMEOFF_API.includes("?")?"&":"?";
     const opts={method:"GET",redirect:"follow"};
     if(ctl) opts.signal=ctl.signal;
-    const res=await fetch(TIMEOFF_API+sep+"action=getchecklistsync",opts);
-    if(!res.ok) throw new Error("HTTP "+res.status);
-    const j=await res.json();
+    const key=await timeOffFeedKey();
+    let j;
+    if(key){ j=await readTimeOffFeed(key,opts); }
+    else {
+      const sep=TIMEOFF_API.includes("?")?"&":"?";
+      const res=await fetch(TIMEOFF_API+sep+"action=getchecklistsync",opts);
+      if(!res.ok) throw new Error("HTTP "+res.status);
+      j=await res.json();
+    }
     if(j.ok===false) throw new Error(j.error||"Sync error");
-    S.sync={ timeOff:(j.timeOff||[]), holidays:(j.holidays||[]), at:new Date(), err:null, busy:false };
+    S.sync={ timeOff:(j.timeOff||[]), holidays:(j.holidays||[]), at:new Date(), err:null, busy:false, src:key?"timeoff":"old" };
   }catch(e){
     S.sync.err=(e&&e.name==="AbortError")?"no answer after 30 seconds":((e&&e.message)||String(e));
     S.sync.busy=false;
@@ -525,7 +559,7 @@ function entriesFor(ds,ignoreFilters){
                      staffId:null, staffName:who?who.name:(r.employeeName||"PTO"), who:who,
                      startDate:start, endDate:end||start, time:null,
                      unpaid:String(r.paidType||"").toLowerCase().indexOf("unpaid")>=0,
-                     notes:(r.paidType?String(r.paidType):"")+(r.hours?(" · "+r.hours+" hrs"):""),
+                     notes:[r.paidType?String(r.paidType):"", r.hours?(/^[\d.]+$/.test(String(r.hours))?r.hours+" hrs":String(r.hours)):""].filter(Boolean).join(" · "),
                      recurrence:null, synced:true });
         }
     });
@@ -1111,7 +1145,7 @@ function renderDetail(today,dd){
         <button data-act="del-entry" data-id="${e.id}" class="hov-coral1" style="border:1px solid var(--coral-200);background:#fff;border-radius:8px;padding:6px 14px;font-size:13px;font-weight:600;color:var(--coral-700);">Delete</button>
       </div>`;
     } else if(S.admin&&e.synced&&e.type==="pto"){
-      h+=`<div style="font-size:12.5px;color:var(--grey-400);margin-top:8px;">Synced from the Time-Off Request app — manage it there.</div>`;
+      h+=`<div style="font-size:12.5px;color:var(--grey-400);margin-top:8px;">Synced from ${S.sync.src==="timeoff"?"NLO Time Off":"the Time-Off Request app"} — manage it there.</div>`;
     } else if(S.admin&&(e.type==="bday"||e.type==="anniv")){
       h+=`<div style="font-size:12.5px;color:var(--grey-400);margin-top:8px;">From the staff list — edit in Settings → Staff.</div>`;
     } else if(S.admin&&e.type==="hr"){
@@ -1282,9 +1316,21 @@ function renderSettings(){
     <div style="font-size:12.5px;color:var(--grey-400);margin-bottom:24px;">Names and photos come from Staff Hub: add or end staff there and the calendar follows. Birthdays are kept here (hire dates too, for anyone Staff Hub has none for). Birthday 🎂 and work-anniversary 🎉 entries (with vacation-tier milestones at 2 and 5 years) appear on the calendar automatically. Removing someone here deletes all their calendar entries.</div>
 
     <div class="disp" style="font-weight:600;letter-spacing:.12em;font-size:14px;color:var(--blue-600);margin-bottom:10px;">Time-Off app sync</div>
-    <div style="font-size:14px;color:var(--grey-600);margin-bottom:4px;">Approved requests from the Time-Off Request app and office holidays appear on the calendar automatically.</div>
+    <div style="font-size:14px;color:var(--grey-600);margin-bottom:4px;">Approved time off and office holidays appear on the calendar automatically, from ${S.toFeed.key?"<b>NLO Time Off</b>":"the old Time-Off Request app"}.</div>
     <div style="font-size:12.5px;color:var(--grey-400);margin-bottom:12px;">${esc(syncNote)}</div>
-    <button data-act="sync-now" class="hov-grey" style="border:1px solid var(--grey-300);background:#fff;border-radius:999px;padding:8px 18px;font-weight:600;font-size:13px;color:var(--navy-800);margin-bottom:24px;">Sync now</button>
+    <button data-act="sync-now" class="hov-grey" style="border:1px solid var(--grey-300);background:#fff;border-radius:999px;padding:8px 18px;font-weight:600;font-size:13px;color:var(--navy-800);margin-bottom:14px;">Sync now</button>
+    <div style="border:1px solid var(--grey-200);border-radius:10px;padding:12px;margin-bottom:24px;display:flex;flex-direction:column;gap:8px;">
+      <div style="font-size:13px;font-weight:700;color:var(--navy-800);">NLO Time Off feed key</div>
+      <div style="font-size:12.5px;color:var(--grey-500);">${S.toFeed.key
+        ?"Saved — the calendar and the Checklist app (CADANCe) read NLO Time Off. Paste a new key here only if one was made in NLO Time Off."
+        :"From NLO Time Off → Settings → CADANCe and the office calendar → Address and key. Saving it switches the calendar and the Checklist app (CADANCe) from the old Time-Off app to NLO Time Off."}</div>
+      <div style="display:flex;gap:8px;">
+        <input type="password" id="to-feed-key" autocomplete="off" spellcheck="false" placeholder="${S.toFeed.key?"••••••••  (saved)":"Paste the key"}" style="flex:1;min-width:0;padding:9px;border:2px solid var(--grey-300);border-radius:10px;font-size:13px;color:var(--navy-800);">
+        <button data-act="to-feed-save" ${S.toFeed.saving?"disabled":""} class="hov-navy9" style="border:none;background:var(--navy-800);border-radius:10px;padding:9px 16px;font-weight:700;font-size:13px;color:#fff;">${S.toFeed.saving?"Checking…":"Save"}</button>
+      </div>
+      ${S.toFeed.msg?`<div style="font-size:12.5px;font-weight:600;color:${S.toFeed.bad?"var(--coral-700)":"var(--mint-700)"};">${esc(S.toFeed.msg)}</div>`:""}
+      ${S.toFeed.key?`<button data-act="to-feed-clear" class="hov-grey" style="align-self:flex-start;border:1px solid var(--grey-300);background:#fff;border-radius:999px;padding:6px 14px;font-size:12.5px;font-weight:600;color:var(--navy-800);">Go back to the old Time-Off app</button>`:""}
+    </div>
 
     ${hrSettingsHtml()}
 
@@ -1380,6 +1426,13 @@ document.getElementById("app").addEventListener("click",(ev)=>{
     case "open-settings": S.settingsOpen=true; S.pinSaved=false; render(); break;
     case "close-settings": if(ev.target===el||el.tagName==="BUTTON"){ S.settingsOpen=false; render(); } break;
     case "sync-now": syncTimeOff(); break;
+    case "to-feed-save": saveTimeOffFeedKey(); break;
+    case "to-feed-clear": {
+      if(!window.confirm("Go back to the old Time-Off app?\n\nThe calendar and the Checklist app (CADANCe) will show time off from the old app again.")) break;
+      db.ref(TO_FEED_CFG).remove().then(()=>{ S.toFeed.key=""; S.toFeed.msg="Back to the old Time-Off app."; S.toFeed.bad=false; render(); syncTimeOff(); })
+        .catch(e=>{ S.toFeed.msg="Couldn't change it: "+((e&&e.message)||e); S.toFeed.bad=true; render(); });
+      break;
+    }
     case "staff-remove": {
       const id=el.dataset.id;
       if(!window.confirm("Remove "+S.data.staff[id].name+"?\n\nThis also deletes ALL their calendar entries — PTO, birthday, and work-anniversary dates.")) break;
@@ -1501,6 +1554,22 @@ function adminIdleCheck(){
 }
 setInterval(adminIdleCheck,15000);
 document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible") adminIdleCheck(); });
+
+/* NLO Time Off feed key: checked against the feed before it's saved, so a wrong key never switches anything */
+async function saveTimeOffFeedKey(){
+  const inp=document.getElementById("to-feed-key"), key=String((inp&&inp.value)||"").trim();
+  let raw=null; try{ raw=b64bytes(key); }catch(e){}
+  if(!raw||raw.length!==32){ S.toFeed.msg="That isn't the key — copy it from NLO Time Off → Settings → CADANCe and the office calendar → Address and key."; S.toFeed.bad=true; render(); return; }
+  S.toFeed.saving=true; S.toFeed.msg=""; render();
+  try{
+    const j=await readTimeOffFeed(key);
+    const me=(auth.currentUser&&auth.currentUser.email)||"";
+    await db.ref(TO_FEED_CFG).set({ key, at:firebase.database.ServerValue.TIMESTAMP, by:me });
+    S.toFeed.key=key; S.toFeed.msg="Saved — "+j.timeOff.length+" approved request"+(j.timeOff.length===1?"":"s")+" in NLO Time Off's feed. The calendar and the Checklist app read it from now on.";
+    S.toFeed.bad=false; clearInputs(["to-feed-key"]);
+  }catch(e){ S.toFeed.msg="Not saved: "+((e&&e.message)||e); S.toFeed.bad=true; }
+  S.toFeed.saving=false; render(); syncTimeOff();
+}
 
 /* ================= AUTH GATE + BOOT ================= */
 let calBooted=false;
