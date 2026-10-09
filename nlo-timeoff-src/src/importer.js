@@ -223,6 +223,7 @@ function viewImport() {
     (I.st === 'reading' ? '<div class="small muted" style="margin-top:10px">Reading…</div>' : '') +
     (I.err ? '<div class="lockErr" style="margin-top:12px">' + esc(I.err) + '</div>' : '') + '</div></div>';
   if (I.st !== 'ready' && I.st !== 'moving') return h;
+  if (I.shAt !== SH.at && I.st === 'ready') impAudit(); // Staff Hub read again since (e.g. from Settings)
   const D = I.data, rows = I.rows, go = rows.filter(r => r.sid && !r.off), reqN = impReqCount(go);
   h += '<div class="card" style="margin-top:18px"><div class="cardHd"><h3>What’s in it</h3></div><div class="cardBd">' +
     '<div class="prevGrid"><div><div class="n">' + rows.filter(r => !r.p.noRow).length + '</div><div class="l">people</div></div><div><div class="n">' + D.reqs.length + '</div><div class="l">requests</div></div>' +
@@ -233,7 +234,11 @@ function viewImport() {
     (!D.have.log ? '<div class="notice">There’s no BalanceLog tab, so the check below can’t say why balances differ — only by how much.</div>' : '') +
     (D.bad.length ? '<details class="help"><summary>' + plural(D.bad.length, 'request row') + ' can’t be read and won’t move</summary><ul class="helpList small">' + D.bad.slice(0, 30).map(b => '<li>Row ' + b.row + (b.name ? ' (' + esc(b.name) + ')' : '') + ': ' + esc(b.why) + '</li>').join('') + '</ul></details>' : '') +
     '</div></div>';
-  h += '<div class="subH" style="margin-top:20px">People</div><p class="small muted" style="margin:-4px 0 12px">Each person is matched to their NLO Cases login. The balance they start from is the old app’s unless you pick another — the check shows where the old app and the handbook disagree.</p>';
+  h += '<div class="subH" style="margin-top:20px">People</div><p class="small muted" style="margin:-4px 0 12px">Each person is matched to their NLO Cases login. The balance they start from is the old app’s unless you pick another — the check shows where the old app and the handbook disagree.' +
+    (I.shOn ? ' Hire dates, full- or part-time and last days are Staff Hub’s for everyone it has; where the Sheet says something else, it’s shown. <button class="linkBtn" data-act="shRefresh">Read Staff Hub again</button>' : '') + '</p>';
+  if (!I.shOn && shAvailable()) h += SH.user === null ? '<div class="notice info">Staff Hub isn’t connected on this computer, so the move would use the Sheet’s hire dates and full- or part-time. <button class="linkBtn" data-act="shConnect">Connect to the office roster</button> to use Staff Hub’s.</div>'
+    : SH.err ? '<div class="notice">Staff Hub: ' + esc(SH.err) + ' Until it can be read, the move would use the Sheet’s hire dates. <button class="linkBtn" data-act="shRefresh">Try again</button></div>'
+    : '<div class="notice info">Reading Staff Hub’s roster…</div>';
   h += rows.map((r, i) => impPersonHTML(r, i)).join('');
   if (I.clos.length || I.blk.length) {
     h += '<div class="card" style="margin-top:6px"><div class="cardHd"><h3>Office closures and blackouts</h3></div><div class="cardBd">' +
@@ -266,9 +271,15 @@ function impPersonHTML(r, i) {
     const dv = round2(a.hand.vac - a.old.vac), ds = round2(a.hand.sick - a.old.sick);
     flag = !dv && !ds ? '<span class="imFlag ok">' + ic('done', 13) + 'Matches the handbook</span>' : '<span class="imFlag' + (dv < 0 || ds < 0 ? ' bad' : '') + '">Handbook: ' + [dv ? (dv > 0 ? '+' : '−') + hrs(Math.abs(dv)) + ' h vacation' : '', ds ? (ds > 0 ? '+' : '−') + hrs(Math.abs(ds)) + ' h sick' : ''].filter(Boolean).join(', ') + '</span>';
   }
+  // what the move uses: Staff Hub's start date, full-/part-time and last day where it has them, else the Sheet's
+  const e = r.eff || p, shLeft = (r.diffs || []).some(d => d.k === 'left');
   let h = '<div class="imPerson' + (skip ? ' skip' : '') + '"><div class="imHd">' + (r.sid ? avatarHTML(r.sid) : '<span class="av none">–</span>') + '<div class="grow"><b>' + esc(p.name) + '</b>' +
-    '<div class="small muted">' + esc([p.noRow ? 'Only on requests (no balance row)' : p.former ? 'Former staff' + (p.moved ? ' · moved ' + fmtDate(p.moved) : '') : '', p.hire ? 'Hired ' + fmtDate(p.hire) : (p.noRow ? '' : 'No hire date in the Sheet'), p.noRow ? '' : p.type === 'PT' ? 'Part-time' : 'Full-time', p.title, plural(reqs.length, 'request') + (wait ? ' (' + wait + ' waiting)' : '')].filter(Boolean).join(' · ')) + '</div></div>' +
+    '<div class="small muted">' + esc([p.noRow ? 'Only on requests (no balance row)' : e.former ? 'Former staff' + (e.moved ? (shLeft ? ' · last day ' : ' · moved ') + fmtDate(e.moved) : '') : '', e.hire ? 'Hired ' + fmtDate(e.hire) : (p.noRow ? '' : 'No hire date in the Sheet'),
+      p.noRow ? '' : empText({ type: e.type, emp: r.shf && r.shf.type === e.type ? r.shf.emp : '' }), p.title, plural(reqs.length, 'request') + (wait ? ' (' + wait + ' waiting)' : '')].filter(Boolean).join(' · ')) + '</div></div>' +
     flag + '<select class="inp" data-chg="imSid" data-i="' + i + '" aria-label="Who ' + esc(p.name) + ' is">' + opts + '</select></div>';
+  // a different full-/part-time or last day changes what they earn from here on: worth a look (Staff Hub's Employment starts out as Full-time)
+  if (!p.noRow && r.sid && I.shOn) h += r.shp ? (r.diffs.length ? '<div class="small imSh' + (r.diffs.some(d => d.k !== 'hire') ? ' warn' : '') + '">' + ic(r.diffs.some(d => d.k !== 'hire') ? 'warn' : 'info', 13) + '<span>Staff Hub: ' + esc(r.diffs.map(shDiffText).join('; ')) + ' — the move uses Staff Hub’s' + (r.diffs.some(d => d.k !== 'hire') ? '. If Staff Hub has it wrong, change it there, then press Read Staff Hub again (above).' : '.') + '</span></div>' : '')
+    : '<div class="small muted imSh">Not linked to Staff Hub, so the Sheet’s hire date and full- or part-time are used (link them on Team to use Staff Hub’s).</div>';
   if (has) {
     const ex = S.hrRecs.get(r.sid), early = (ex.adj || []).filter(x => x.date <= I.asOf).length;
     h += '<label class="chk" style="margin-top:8px"><input type="checkbox" data-chg="imReplace" data-i="' + i + '"' + (r.replace ? ' checked' : '') + '> Already has a record here — replace it</label>' +
@@ -312,6 +323,9 @@ async function impRead(files) {
 /* the Sheet, read: who's who, what the check finds, and the id each request gets here */
 async function impLoad(x) {
   const I = S.imp, D = parseOldSheet(x), ids = new Map();
+  // Staff Hub's start dates, full-/part-time and last days take the Sheet's place (Amir, 9 Oct 2026): its roster, read now if
+  // this computer is connected and it hasn't been yet
+  if (shAvailable()) { try { if (SH.user === undefined) await shCheckUser(); if (SH.user && !SH.data) await shLoad(); } catch (e) { } }
   for (let i = 0; i < D.reqs.length; i += 200) {
     const part = D.reqs.slice(i, i + 200), got = await Promise.all(part.map(q => B.importReqId(q.lid)));
     part.forEach((q, k) => ids.set(q.lid, got[k]));
@@ -326,11 +340,18 @@ async function impLoad(x) {
     .sort((a, b) => (!!a.p.noRow - !!b.p.noRow) || (!!a.p.former - !!b.p.former) || a.p.name.localeCompare(b.p.name));
   impAudit();
 }
-/* the check, for everyone, with the closures being brought over counted as closed too */
+/* the check, for everyone, with the closures being brought over counted as closed too — and with Staff Hub's start date,
+   full-/part-time and last day in place of the Sheet's for anyone it has (r.eff; r.diffs says where they differ) */
 function impAudit() {
   const I = S.imp, D = I.data; if (!D) return;
   const closed = makeClosed(((S.settings.to || {}).closures || []).concat(I.clos.filter(c => c.on || c.have).map(c => ({ date: c.date, label: c.label }))));
-  I.rows.forEach(r => { const k = normName(r.p.name); r.audit = r.p.noRow ? null : auditOld(r.p, D.byName.get(k) || [], D.logByName.get(k) || [], S.pol, closed, I.asOf); });
+  const links = SH.data && shAvailable() ? shLinks(S.roster, shPeopleOf(SH.data)) : null; I.shAt = SH.at; I.shOn = !!links;
+  I.rows.forEach(r => {
+    const k = normName(r.p.name), sp = links && r.sid ? links.get(r.sid) || null : null;
+    r.shp = sp; r.shf = sp ? shFactsOf(r.sid, sp) : null; // a removed login: only Staff Hub's last day
+    const o = shOverOld(r.p, r.p.noRow ? null : r.shf); r.eff = o.p; r.diffs = o.diffs;
+    r.audit = r.p.noRow ? null : auditOld(r.eff, D.byName.get(k) || [], D.logByName.get(k) || [], S.pol, closed, I.asOf);
+  });
 }
 Object.assign(CHG, {
   imAsOf(t) { if (!isISO(t.value) || t.value > todayISO()) return; S.imp.asOf = t.value; impAudit(); paintImport(); },
@@ -338,7 +359,7 @@ Object.assign(CHG, {
     const I = S.imp, r = I.rows[Number(t.dataset.i)]; if (!r) return;
     const other = t.value && I.rows.find(x => x !== r && x.sid === t.value);
     if (other) { toast(staffName(t.value) + ' is already matched to “' + other.p.name + '” — that one is set to Don’t move.', { ms: 6000 }); other.sid = ''; }
-    r.sid = t.value; paintImport();
+    r.sid = t.value; impAudit(); paintImport(); // Staff Hub's dates are the new person's
   },
   imReplace(t) { const r = S.imp.rows[Number(t.dataset.i)]; if (r) { r.replace = t.checked; paintImport(); } },
   imTyped(t) { const r = S.imp.rows[Number(t.dataset.i)]; if (!r) return; r.typed[t.dataset.b] = t.value; if (r.pick !== 'typed') { r.pick = 'typed'; paintKeep(t); } },
@@ -437,13 +458,15 @@ async function impRun(go) {
         continue;
       }
       const nums = r.pick === 'hand' ? a.hand : r.pick === 'typed' ? { vac: round2(Number(r.typed.vac)), sick: round2(Number(r.typed.sick)) } : a.old;
+      const e = r.eff || p; // Staff Hub's start date, full-/part-time and last day where it has them (impAudit)
       await B.putHR(r.sid, d => {
         // kept from the record here: adjustments, department and what they're enrolled in (none of it is in the old Sheet)
         const keep = { adj: Array.isArray(d.adj) ? d.adj : [], dept: d.dept || p.title || '', ben: d.ben && typeof d.ben === 'object' ? d.ben : {} };
         Object.keys(d).forEach(x => { if (x !== 'sid') delete d[x]; });
-        Object.assign(d, keep, { hire: p.hire || '', orient: p.orient || '', type: p.type, left: p.former ? (p.moved || '') : '', notes: p.notes || '',
+        Object.assign(d, keep, { hire: e.hire || '', orient: p.orient || '', type: e.type, left: e.former ? (e.moved || '') : '', notes: p.notes || '',
           open: { asOf: T, vac: round2(Math.max(0, nums.vac)), sick: round2(Math.max(0, nums.sick)), note: impOpenNote(r.pick, a, T), from: { pick: r.pick, old: a.old, hand: a.hand } },
           oldDed, settled: r.pick === 'hand' ? [] : oldDed, moved: { at: now, by: me, name: p.name } });
+        if (r.shp && r.shf) shApply(d, r.shf, r.shp.id);
       }, 'import');
       out.people++;
     } catch (e) { out.failed.push(p.name + ' (' + errText(e) + ')'); }

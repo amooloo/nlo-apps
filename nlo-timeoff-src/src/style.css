@@ -55,6 +55,7 @@ svg.i{flex:none;display:inline-block;vertical-align:-3px}
 .field label,.flabel{display:block;font-family:var(--fd);font-weight:500;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--grey-500);margin-bottom:6px}
 .field input,.field select,.field textarea,.inp{width:100%;padding:10px 13px;border:1.5px solid var(--grey-200);border-radius:10px;background:#fff;outline:none;transition:border-color .14s var(--ease),box-shadow .14s var(--ease);min-height:42px}
 .field input:focus,.field select:focus,.field textarea:focus,.inp:focus{border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-100)}
+.field input:disabled,.field select:disabled,.inp:disabled{background:var(--grey-100);border-color:var(--grey-100);color:var(--grey-600);cursor:not-allowed;opacity:1}
 .field textarea{resize:vertical;min-height:70px;line-height:1.45}
 .field .hint{font-size:11.5px;color:var(--grey-500);margin-top:5px}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}
@@ -577,6 +578,13 @@ label.chk input{width:17px;height:17px;accent-color:var(--navy)}
 .imFlag{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;border-radius:99px;padding:2px 9px;background:var(--amber-100);color:var(--amber-700);white-space:nowrap}
 .imFlag.ok{background:var(--mint-100);color:var(--mint-700)}
 .imFlag.bad{background:var(--coral-100);color:var(--coral-700)}
+.shWait{border:1px solid var(--blue-100);background:#F6FAFD;border-radius:12px;padding:10px 14px 6px;margin:0 0 14px}
+.shWait .accessRow{padding:8px 0}
+.btnCol{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex:none}
+.imSh{display:flex;align-items:flex-start;gap:6px;margin-top:8px;color:var(--blue-700)}
+.imSh .i{flex:none;margin-top:1px}
+.imSh.muted{color:var(--grey-500)}
+.imSh.warn{color:var(--amber-700)}
 
 @media (max-width:1100px){ .formGrid{grid-template-columns:minmax(0,1fr)} .formGrid>div:last-child{position:static} }
 @media (max-width:860px){

@@ -1915,6 +1915,21 @@ async function openByName(p, name) {
   check(gw2 && gw2.fields.photo && /^data:image\/jpeg;base64,/.test(gw2.fields.photo.stringValue) && gw2.fields.photoSrc && gw2.fields.photoSrc.stringValue === gwenRow.fields.photoSrc.stringValue, 'Staff Hub without her photo: NLO Cases keeps the one it has (a missing photo there never removes one here)');
   await rput('nlo/cadence/roster/people/s_gwen', rp('s_gwen', 'Gwen', 'Tester', 'Orthodontic assistant', { photo: staffPic }));
   await owner.click('#shBox [data-act=shRefresh]'); await owner.waitForTimeout(1500);
+  // names follow Staff Hub (9 Oct 2026): a new name there becomes her name here — her team entry and her login — and Time Off,
+  // A/R and Leads show it; a login already removed (Kaylee) keeps its name
+  await rput('nlo/cadence/roster/people/s_gwen', rp('s_gwen', 'Gwen', 'Renamed', 'Orthodontic assistant', { photo: staffPic }));
+  await rput('nlo/cadence/roster/people/s_kaylee', rp('s_kaylee', 'Kaylee', 'Renamed', 'Orthodontic assistant', { active: false, end: '2026-09-30' }));
+  await owner.click('#shBox [data-act=shRefresh]'); await owner.waitForSelector('.toast:has-text("From Staff Hub: Gwen Renamed")', { timeout: 20000 });
+  const nmDump = await fsDump(), nmRoster = sid => nmDump.find(d => d.name.endsWith('/roster/' + sid));
+  const nmLogins = sid => nmDump.filter(d => /\/members\//.test(d.name) && d.fields.staffId && d.fields.staffId.stringValue === sid && d.fields.active && d.fields.active.booleanValue);
+  check(nmRoster('gwen').fields.name.stringValue === 'Gwen Renamed' && nmRoster('gwen').fields.initials.stringValue === 'GR' && nmRoster('gwen').fields.rid.stringValue === 's_gwen'
+    && nmLogins('gwen').length === 1 && nmLogins('gwen')[0].fields.name.stringValue === 'Gwen Renamed', 'a new name in Staff Hub: NLO Cases takes it (her team entry and her login), and links her to the roster');
+  check(nmRoster('kaylee').fields.name.stringValue === 'Kaylee Tester', 'a login already removed keeps its name');
+  await owner.waitForSelector('#app tr:has-text("Gwen Renamed")', { timeout: 20000 });
+  check(true, 'the team list shows the new name');
+  await rput('nlo/cadence/roster/people/s_gwen', rp('s_gwen', 'Gwen', 'Tester', 'Orthodontic assistant', { photo: staffPic }));
+  await owner.click('#shBox [data-act=shRefresh]'); await owner.waitForSelector('.toast:has-text("From Staff Hub: Gwen Tester")', { timeout: 20000 });
+  check((await fsDump()).find(d => d.name.endsWith('/roster/gwen')).fields.name.stringValue === 'Gwen Tester', '…and back again when Staff Hub changes it back');
   // staff as photo tiles with names underneath: Assistant and Assigned to
   await owner.click('.topBar [data-act=newCase]'); await owner.waitForSelector('#ncForm .staffRow[data-g=assistant] .sTile[data-v=gwen] .av.ph img', { timeout: 10000 });
   check(/Gwen/.test(await owner.textContent('#ncForm .staffRow[data-g=assistant] .sTile[data-v=gwen] .sNm')), 'New case: the Assistant choices are staff photos with the name underneath');

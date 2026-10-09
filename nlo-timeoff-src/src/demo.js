@@ -64,7 +64,7 @@ const DEMO = {
     h.people(new Map(DEMO.members.filter(m => m.pub).map(m => [m.staffId, { pub: DEMO.copy(m.pub), uid: m.uid }])));
     DEMO.emit();
   },
-  mineOf(rec) { return { sid: rec.sid, hire: rec.hire || '', orient: rec.orient || '', type: rec.type || 'FT', left: rec.left || '', open: DEMO.copy(rec.open || null), adj: DEMO.copy(rec.adj || []), settled: DEMO.copy(rec.settled || []), ben: DEMO.copy(rec.ben || {}), at: Date.now() }; },
+  mineOf(rec) { return { sid: rec.sid, hire: rec.hire || '', orient: rec.orient || '', type: rec.type || 'FT', typeWas: DEMO.copy(rec.typeWas || []), emp: rec.emp || '', left: rec.left || '', open: DEMO.copy(rec.open || null), adj: DEMO.copy(rec.adj || []), settled: DEMO.copy(rec.settled || []), ben: DEMO.copy(rec.ben || {}), at: Date.now() }; },
   emit() {
     const h = DEMO.h; if (!h || !DEMO.me) return;
     const all = Array.from(DEMO.reqs.values()), me = DEMO.me.staffId, hr = DEMO.hrOn();
@@ -152,6 +152,18 @@ const DEMO = {
   feedKeyB64() { return DEMO.feedKey; }, projectId() { return 'nlo-cases'; },
   async deskStatus() { await DEMO.wait(80); return { on: true, to: 'frontdesk@example.com' }; },
   async saveSettings(patch) { await DEMO.wait(150); if (!DEMO.isOwner()) throw errCode('permission-denied'); DEMO.merge(DEMO.settings, DEMO.copy(patch)); if (DEMO.h) DEMO.h.settings(DEMO.copy(DEMO.settings)); },
+  /* Staff Hub's office roster, made up (seed): connected from the start */
+  shOn: true, shData: null,
+  async shUser() { return DEMO.shOn ? { email: 'demo@example.com' } : null; },
+  async shConnect() { await DEMO.wait(200); DEMO.shOn = true; },
+  async shRoster() { await DEMO.wait(160); if (!DEMO.shOn) throw errCode('sh-off'); return DEMO.copy(DEMO.shData); },
+  async setStaffName(sid, name, rid) {
+    await DEMO.wait(100); if (!DEMO.isOwner()) throw errCode('permission-denied');
+    const r = DEMO.roster.find(x => x.sid === sid); if (!r) return;
+    if (name) { r.name = name; r.initials = initials(name); DEMO.members.filter(m => m.staffId === sid && m.active).forEach(m => { m.name = name; }); }
+    if (rid) r.rid = rid;
+    if (DEMO.h) DEMO.h.roster(DEMO.roster.map(DEMO.copy));
+  },
 
   /* =====================================================================
      The made-up office: six people (one has left), a year of time off,
@@ -182,6 +194,15 @@ const DEMO = {
     rec('morgan', { hire: '2024-09-09', type: 'PT', dept: 'Front office', open });
     rec('taylor', { hire: addDays(t, -(365 * 2 - 40)), dept: 'Clinical', open, ben: { celebrate: false, k401: true } });
     rec('sam', { hire: '2022-02-07', dept: 'Clinical', left: office(addDays(t, -60), -1), open });
+    // Staff Hub's roster: everyone but Drew (so his hire date is typed here), with the same start dates and full-/part-time as above —
+    // except Jordan's start date, two days earlier there (it waits for Dr. A to bring it in); Avery starts soon and has no login
+    const shp = (id, name, o) => Object.assign({ id, name, first: name.split(' ')[0], last: '', nick: name.split(' ')[0], short: name.split(' ')[0], title: '', chairside: false, active: true }, o);
+    DEMO.shData = { v: 1, source: 'staff-hub', updatedAt: now - 3 * 3600000, people: {} };
+    [shp('s_amir', 'Dr. Akhavan', { title: 'Orthodontist' }), shp('demo-jordan', 'Jordan (demo)', { title: 'Office Manager', start: '2010-06-01', employment: 'Full-time' }),
+      shp('demo-riley', 'Riley (demo)', { title: 'Clinical Assistant', start: '2023-03-13', employment: 'Full-time' }), shp('demo-casey', 'Casey (demo)', { title: 'Sterilization', start: addDays(t, -150), employment: 'Full-time' }),
+      shp('demo-morgan', 'Morgan (demo)', { title: 'Front Desk', start: '2024-09-09', employment: 'Part-time' }), shp('demo-taylor', 'Taylor (demo)', { title: 'Clinical Assistant', start: addDays(t, -(365 * 2 - 40)), employment: 'Full-time' }),
+      shp('demo-sam', 'Sam (demo)', { title: 'Clinical Assistant', start: '2022-02-07', employment: 'Full-time', active: false, end: office(addDays(t, -60), -1) }),
+      shp('demo-avery', 'Avery (demo)', { title: 'Clinical Assistant', start: office(addDays(t, 10), 1), employment: 'Full-time' })].forEach(p => { DEMO.shData.people[p.id] = p; });
     // requests
     const add = (sid, type, start, end, o) => {
       o = o || {}; const id = 'q' + hexId(12), status = o.status || 'pending', asked = o.asked || at(addDays(start, -21), 9);

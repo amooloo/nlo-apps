@@ -302,6 +302,103 @@ for (const p of D.people.filter(p => !p.noRow)) {
   eq([j.lines.length, j.notes.length], [0, 1], 'Jordan: the same balance both ways (one note: a week bigger than the balance)');
 }
 
+section('Staff Hub’s roster: who is who');
+const H = load(['core.js', 'policy.js', 'roster.js']);
+{
+  const T = '2026-10-09';
+  const shp = (id, name, o) => Object.assign({ id, name, first: name.split(' ')[0], last: name.split(' ').slice(1).join(' '), nick: name.split(' ')[0], title: 'Staff', active: true }, o || {});
+  const people = H.shPeopleOf({ people: Object.fromEntries([shp('s_amir', 'Dr. Akhavan'), shp('s_riley', 'Riley Tester', { start: '2023-03-01', employment: 'Full-time' }), shp('s_sas', 'Sasha Sands', { start: '2021-05-03', employment: 'Part-time' }),
+    shp('s_kel', 'Kelsey Dunn', { start: '2024-01-08' }), shp('s_ali', 'Ali Gone', { active: false, end: '2026-08-01', start: '2020-01-06' }), shp('s_nina', 'Nina Rostered', { start: '2099-11-02' }),
+    shp('s_jo', 'Jo March', { nick: 'Jojo' }), shp('s_sam1', 'Sam Lee'), shp('s_sam2', 'Sam Lee'), shp('s_old', 'Ola Left', { active: false, end: '2025-01-31' }),
+    shp('s_tessb', 'Tess Barlow', { active: false, end: '2026-06-30' }), shp('s_mia1', 'Mia Ross', { active: false, end: '2024-02-01' }), shp('s_mia2', 'Mia Ross'),
+    { id: 's_x', name: '' }, null].map(p => [p ? p.id || 'x' : 'n', p])) });
+  eq(people.length, 13, 'people without a name (or nothing at all) are left out');
+  const roster = [{ sid: 'amir', name: 'Dr. Akhavan', role: 'owner', active: true }, { sid: 'riley', name: 'Riley Tester', role: 'staff', active: true },
+    { sid: 'sasha', name: 'Sasha Bell', role: 'staff', active: true, rid: 's_sas' }, { sid: 'kelsey', name: 'Kelsey Dunn', role: 'staff', active: true },
+    { sid: 'kelsey3', name: 'Kelsey Dunn', role: 'staff', active: true }, { sid: 'kelsey2', name: 'Kelsey Dunn', role: 'staff', active: false },
+    { sid: 'ali', name: 'Ali Gone', role: 'staff', active: false, rid: 's_ali' }, { sid: 'jojo', name: 'Jojo March', role: 'staff', active: true },
+    { sid: 'pat', name: 'Pat Nobody', role: 'staff', active: true }, { sid: 'sam', name: 'Sam Lee', role: 'staff', active: true }, { sid: 'ola', name: 'Ola Left', role: 'staff', active: false },
+    { sid: 'tess', name: 'Tess', role: 'staff', active: true }, { sid: 'mia', name: 'Mia Ross', role: 'staff', active: true }, { sid: 'ivy', name: 'Ivy Adams', role: 'staff', active: true, rid: '-' },
+    { sid: 'riley2', name: 'Riley Tester', role: 'staff', active: true, rid: 's_riley_old' }];
+  const L = H.shLinks(roster, people, T), linked = Array.from(L, ([sid, p]) => sid + '→' + p.id).sort();
+  eq(linked, ['ali→s_ali', 'jojo→s_jo', 'mia→s_mia2', 'riley→s_riley', 'sasha→s_sas'],
+    'linked: by name; by the saved id after a change of name (Sasha); by the name they go by (Jojo); the Mia still on staff, not the one who left; a removed login only by its saved id (Ali)');
+  ok(!L.has('kelsey') && !L.has('kelsey3') && !L.has('kelsey2') && !L.has('amir') && !L.has('pat') && !L.has('sam') && !L.has('ola') && !L.has('tess') && !L.has('ivy') && !L.has('riley2'),
+    '…not: two current logins for one person, a removed login by name, the owner, nobody there, two Sam Lees there, a first name alone (Tess ≠ Tess Barlow who left), “not on Staff Hub”, a saved id Staff Hub doesn’t have');
+  eq(H.shByName('Tess', people, T), null, 'a single name never matches');
+  eq(H.shLinks([{ sid: 'a', name: 'Riley Tester', role: 'staff', active: true }, { sid: 'b', name: 'Somebody Else', role: 'staff', active: true, rid: 's_riley' }], people, T).get('b').id, 's_riley', 'a saved link wins over a match by name');
+  ok(!H.shLinks([{ sid: 'a', name: 'Riley Tester', role: 'staff', active: true }, { sid: 'b', name: 'Somebody Else', role: 'staff', active: true, rid: 's_riley' }], people, T).has('a'), '…and the login matched only by name isn’t linked');
+  const st = H.shTeamState(roster, people, T);
+  eq([st.logins, st.linked], [11, 4], '11 current logins (not the owner), 4 of them linked');
+  eq(st.noLogin.map(p => p.name), ['Nina Rostered', 'Sam Lee', 'Sam Lee'], 'on Staff Hub without a login: Nina (starting later too) — not anyone who left, nor Dr. A');
+  eq(st.missing.map(r => r.name), ['Pat Nobody', 'Riley Tester', 'Sam Lee', 'Tess'], 'current logins not linked to Staff Hub (Ivy, “not on Staff Hub”, isn’t listed)');
+  eq(st.twice.map(x => x.p.id + ':' + x.names.length), ['s_kel:2'], 'two current logins for one person');
+  eq(st.free.map(p => p.id), ['s_kel', 's_nina', 's_sam1', 's_sam2', 's_ali', 's_mia1', 's_old', 's_tessb'], 'Staff Hub people no current login is linked to, for linking by hand (still on staff first; Ali, linked only through a removed login, can be a rehire’s)');
+  ok(H.shGone(people.find(p => p.id === 's_ali'), T) && !H.shGone(people.find(p => p.id === 's_nina'), T) && H.shGone({ end: '2026-10-01' }, T) && !H.shGone({ end: '2026-10-09' }, T), 'gone: shown as left, or past the last day');
+}
+
+section('Staff Hub’s roster: start date, full-/part-time, last day');
+{
+  eq(['Full-time', 'Part-time', 'PRN / Temp', 'Contractor', 'part time', 'Volunteer', ''].map(H.shEmpType), ['FT', 'PT', 'PT', 'PT', 'PT', '', ''], 'full-time is FT; part-time, PRN and contractors earn no paid time off (PT); anything else says nothing');
+  eq(H.shFacts({ start: '2023-03-01', employment: 'Full-time', active: true }), { hire: '2023-03-01', type: 'FT', emp: 'Full-time', left: '' }, 'on staff: start date, full-time, no last day');
+  eq(H.shFacts({ start: '2020-01-06', active: false, end: '2026-08-01' }), { hire: '2020-01-06', left: '2026-08-01' }, 'left: the last day (no employment given: nothing said about it)');
+  eq(H.shFacts({ active: false }), {}, 'shown as left with no day: says nothing about the last day');
+  eq(H.shFacts({ start: '2026-02-30', end: '2025-01-01', employment: 'PRN / Temp' }), { type: 'PT', emp: 'PRN / Temp', left: '2025-01-01' }, 'a date that isn’t one is ignored');
+  eq(H.shFacts({ start: '2024-05-01', end: '2024-04-30' }), { hire: '2024-05-01' }, 'a last day before the start date is ignored');
+  const f = H.shFacts({ start: '2023-03-01', employment: 'Part-time', active: true });
+  const rec = { sid: 'riley', hire: '2023-03-13', type: 'FT', left: '', dept: 'Clinical', open: { asOf: '2026-10-08', vac: 10, sick: 2 } };
+  const ch = H.shChanges(rec, f, 's_riley');
+  eq([ch.any, ch.list], [true, [{ k: 'hire', from: '2023-03-13', to: '2023-03-01' }, { k: 'type', from: 'FT', to: 'PT' }]], 'what would change: the start date and part-time (these wait for Dr. A)');
+  eq(ch.list.map(c => H.shChangeLine(c, f, c.k === 'type' ? '2026-10-09' : '')), ['start date Mar 13, 2023 → Mar 1, 2023', 'part-time from Oct 9'], '…in words');
+  ok(/^last day Aug 1/.test(H.shChangeLine({ k: 'left', from: '', to: '2026-08-01' })) && H.shChangeLine({ k: 'left', from: '2026-08-01', to: '' }) === 'on staff (no last day)'
+    && H.shChangeLine({ k: 'type', to: 'PT' }, { emp: 'PRN / Temp' }) === 'PRN / Temp', '…a last day, back on staff, PRN');
+  const d = JSON.parse(JSON.stringify(rec)); H.shApply(d, f, 's_riley', '2026-10-09');
+  eq(d, { sid: 'riley', hire: '2023-03-01', type: 'PT', left: '', dept: 'Clinical', open: { asOf: '2026-10-08', vac: 10, sick: 2 }, typeWas: [{ until: '2026-10-08', type: 'FT' }], emp: 'Part-time', sh: { id: 's_riley', f: ['hire', 'type', 'left'] } },
+    'brought in: the three, Staff Hub’s word, which came from it, and full-time kept for the days before today — the rest untouched');
+  eq(H.shChanges(d, f, 's_riley'), { list: [], any: false }, 'again: nothing to change');
+  eq(H.shChanges(Object.assign({}, d, { sh: null }), f, 's_riley'), { list: [], any: true }, 'the same values but not marked as Staff Hub’s: only the mark (it goes in by itself)');
+  const n = { sid: 'nina' }; H.shApply(n, H.shFacts({ start: '2026-10-14', employment: 'Part-time', active: true }), 's_nina', '');
+  ok(n.type === 'PT' && !n.typeWas && n.hire === '2026-10-14', 'a new record: no earlier full-/part-time to keep');
+  const d2 = JSON.parse(JSON.stringify(d)); H.shApply(d2, { hire: '2023-03-01' }, 's_riley', '2026-10-09');
+  eq([d2.type, d2.emp, d2.left, d2.sh.f], ['PT', undefined, '', ['hire']], 'Staff Hub says only the start date: the rest is kept, and is this app’s to change');
+  // a record without a type (made from Staff Hub when it gave no employment) is full-time: a later part-time counts from its day too
+  const nt = { sid: 'n', hire: '2020-01-06' }; H.shApply(nt, { type: 'PT', emp: 'Part-time' }, 's_n', '2026-07-01');
+  eq(nt.typeWas, [{ until: '2026-06-30', type: 'FT' }], 'a record without a type: full-time kept for the days before');
+  // Keep Time Off’s: Staff Hub’s value for a field is set aside until Staff Hub says something else for it
+  const kr = { hire: '2010-06-01', type: 'FT', shKeep: { hire: '2012-03-05' } };
+  eq([H.shOwn(kr, { hire: '2012-03-05', type: 'FT', emp: 'Full-time', left: '' }), H.shOwn(kr, { hire: '2012-04-02', left: '' }), H.shOwn({ shKeep: { type: 'PT' } }, { type: 'PT', emp: 'PRN / Temp', left: '' })],
+    [{ type: 'FT', emp: 'Full-time', left: '' }, { hire: '2012-04-02', left: '' }, { left: '' }], 'kept: that value isn’t offered again (nor Staff Hub’s word with a kept employment); a different one is');
+  eq(H.shChanges(kr, H.shOwn(kr, { hire: '2012-03-05', type: 'FT', emp: 'Full-time', left: '' }), 's_k').list, [], '…so nothing waits for it');
+  eq([H.empWord('PT', 'PRN / Temp'), H.empWord('PT', 'Part-time'), H.empWord('FT', 'Full-time'), H.empWord('PT')], ['PRN / Temp', 'part-time', 'full-time', 'part-time'], 'employment in a sentence');
+  eq([H.empText({ type: 'PT', emp: 'PRN / Temp' }), H.empText({ type: 'PT' }), H.empText({ type: 'FT', emp: 'Full-time' }), H.empText({ type: 'PT', emp: 'Full-time' }), H.empText(null)],
+    ['PRN / Temp', 'Part-time', 'Full-time', 'Part-time', 'Full-time'], 'how employment is shown');
+  // a change of full-/part-time counts from its day: the months before keep what was earned
+  const pol0 = H.policyOf({}), cl0 = H.makeClosed([]);
+  const ft = { sid: 'x', hire: '2020-01-06', type: 'FT', left: '', open: { asOf: '2025-12-31', vac: 0, sick: 0 } };
+  const ptNow = Object.assign({}, ft); H.shApply(ptNow, { type: 'PT', emp: 'Part-time' }, 's_x', '2026-07-01');
+  const Lft = H.ledger(ft, [], pol0, cl0, '2026-09-30'), Lpt = H.ledger(ptNow, [], pol0, cl0, '2026-09-30'), Lall = H.ledger(Object.assign({}, ft, { type: 'PT' }), [], pol0, cl0, '2026-09-30');
+  eq([H.typeOn(ptNow, '2026-06-30'), H.typeOn(ptNow, '2026-07-01'), H.typeOn(ft, '2026-07-01')], ['FT', 'PT', 'FT'], 'full-time through June 30, part-time from July 1');
+  eq([Lft.vac, Lpt.vac, Lall.vac], [76.5, 51, 0], 'vacation by Sept 30 (Gold, 8.5 h a month): full-time all year 76.5 h; part-time from July 1 keeps Jan–June’s 51 h (not 0, as part-time all along)');
+  const back = JSON.parse(JSON.stringify(ptNow)); H.shApply(back, { type: 'FT', emp: 'Full-time' }, 's_x', '2026-09-01');
+  eq([H.typeOn(back, '2026-06-30'), H.typeOn(back, '2026-08-31'), H.typeOn(back, '2026-09-30'), H.ledger(back, [], pol0, cl0, '2026-09-30').vac], ['FT', 'PT', 'FT', 59.5], '…and full-time again from Sept 1: July and August earn nothing (51 + 8.5 h)');
+}
+
+section('Staff Hub’s roster: the move uses its dates');
+{
+  const row = person('Riley Example'), f = H.shFacts({ start: '2023-03-01', employment: 'Full-time', active: true });
+  const o = H.shOverOld(row, f);
+  eq([o.p.hire, o.p.type, o.p.former, o.diffs], ['2023-03-01', 'FT', false, [{ k: 'hire', sheet: '2023-03-13', sh: '2023-03-01' }]], 'Riley: Staff Hub’s start date in place of the Sheet’s, and where they differ');
+  eq(H.shDiffText(o.diffs[0]), 'started Mar 1, 2023 (the Sheet: Mar 13, 2023)', '…in words');
+  eq(H.shOverOld(row, null), { p: row, diffs: [] }, 'not on Staff Hub: the Sheet’s');
+  const sam = H.shOverOld(person('Sam Former'), H.shFacts({ start: '2022-02-07', employment: 'Full-time', active: true }));
+  eq([sam.p.former, sam.p.moved, sam.diffs.map(x => x.k)], [false, '', ['left']], 'the Sheet has Sam as former staff, Staff Hub on staff: Staff Hub’s');
+  ok(/^still on staff \(the Sheet: former staff, moved Aug 9/.test(H.shDiffText(sam.diffs[0])), '…in words: ' + H.shDiffText(sam.diffs[0]));
+  // the check uses them: Morgan full-time in Staff Hub earns what the handbook gives full-time staff
+  const mt = H.shOverOld(person('Morgan Test'), H.shFacts({ start: '2024-09-09', employment: 'Full-time', active: true }));
+  const a = M.auditOld(mt.p, D.reqs, D.log, mpol, mclosed, T0), a0 = audit('Morgan Test');
+  ok(mt.diffs.some(x => x.k === 'type') && a0.hand.vac === 0 && a.hand.vac > 0 && !a.lines.some(l => /part-time/.test(l.why)), 'Morgan full-time on Staff Hub (part-time in the Sheet): the check gives her ' + a.hand.vac + ' h vacation instead of 0');
+}
+
 section('The old Sheet: the downloaded files');
 (async () => {
   const fs = require('fs'), path = require('path'), FX = path.join(__dirname, 'fixtures');

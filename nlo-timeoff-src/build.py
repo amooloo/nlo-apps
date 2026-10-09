@@ -4,7 +4,7 @@ Time Off share it). The page carries a copy of those rules (owner's email left a
 import base64, hashlib, json, os, pathlib, shutil
 root = pathlib.Path(__file__).parent
 src = root / 'src'
-FILES = ['core.js', 'policy.js', 'reader.js', 'backend.js', 'demo.js', 'ui.js', 'views.js', 'admin.js', 'importer.js']
+FILES = ['core.js', 'policy.js', 'roster.js', 'reader.js', 'backend.js', 'demo.js', 'ui.js', 'views.js', 'admin.js', 'staffhub.js', 'importer.js']
 t = (src / 'template.html').read_text()
 js = '\n'.join((src / f).read_text() for f in FILES if (src / f).exists())
 rules = (root.parent / 'nlo-cases-src' / 'firestore.rules').read_text()

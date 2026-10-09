@@ -7336,8 +7336,10 @@ function sepAIText(p) {
    Shares a small, non-sensitive team list with the other
    NLO apps (Cadence, calendar, IPR tracker, staff meeting,
    inventory) so staff are added or ended in one place.
-   Only name, role, "goes by", chairside and active/last day
-   leave Staff Hub, plus (unless turned off under Settings →
+   Only name, role, "goes by", chairside, active/last day, start
+   date and full-/part-time leave Staff Hub (NLO Time Off counts
+   vacation tiers from the start date and follows the rest),
+   plus (unless turned off under Settings →
    Office roster) the dates the office calendar shows: start
    date, next review date, and each certification's name and
    expiry date. Notes, review content, pay, contact details
@@ -7435,6 +7437,9 @@ function rosterPerson(p) {
   };
   const end = rosterEnd(p);
   if (end) o.end = end;
+  /* NLO Time Off (Oct 2026) follows these: vacation tiers count from the start date, and part-time staff earn none */
+  if (SEP_YMD.test(p.hireDate || '')) o.start = p.hireDate;
+  if (p.employment) o.employment = String(p.employment).slice(0, 40);
   if (photoOK(p)) o.photo = p.photo;
   return o;
 }
@@ -7471,7 +7476,7 @@ function rosterDates() {
   return out;
 }
 function rosterDatesBox() {
-  return `<label style="display:flex;align-items:flex-start;gap:9px;font-size:13px;line-height:1.45;color:var(--grey-700);background:var(--grey-100);padding:10px 12px;border-radius:10px;margin:0 0 12px;cursor:pointer"><input type="checkbox" data-chg="rosterDatesToggle" ${rosterShareDates() ? 'checked' : ''} style="width:16px;height:16px;margin-top:2px;flex:none;accent-color:var(--blue)"><span>Show staff dates on the office calendar: start dates, next review dates and certification expiry dates. <span class="tiny">Only the date and the certification’s name are shared, never review notes, scores, numbers or files.</span></span></label>`;
+  return `<label style="display:flex;align-items:flex-start;gap:9px;font-size:13px;line-height:1.45;color:var(--grey-700);background:var(--grey-100);padding:10px 12px;border-radius:10px;margin:0 0 12px;cursor:pointer"><input type="checkbox" data-chg="rosterDatesToggle" ${rosterShareDates() ? 'checked' : ''} style="width:16px;height:16px;margin-top:2px;flex:none;accent-color:var(--blue)"><span>Show staff dates on the office calendar: start dates, next review dates and certification expiry dates. <span class="tiny">Only the date and the certification’s name are shared, never review notes, scores, numbers or files. (Start dates and full- or part-time are in the team list either way: the office apps can read them, and NLO Time Off counts vacation from them.)</span></span></label>`;
 }
 function rosterErrText(e) {
   const c = String((e && (e.code || e.message)) || '');
@@ -7531,7 +7536,7 @@ function rosterPanelHTML() {
   const fbReady = typeof firebase !== 'undefined' && !!firebase.database;
   let head;
   if (!fbReady) head = '<p class="muted">Needs an internet connection. Reload once you’re online.</p>';
-  else if (!rosterUser) head = `<p class="muted" style="margin-bottom:12px">Share a basic team list with Cadence, the calendar, the IPR tracker, staff meeting and inventory. Add a hire or end someone’s employment here and those apps follow. Only name, role, “goes by”, chairside and last day are shared, plus the calendar dates below if that box is ticked. Notes, review content, pay and personal details stay encrypted in Staff Hub.</p>
+  else if (!rosterUser) head = `<p class="muted" style="margin-bottom:12px">Share a basic team list with Cadence, the calendar, the IPR tracker, staff meeting and inventory. Add a hire or end someone’s employment here and those apps follow. Only name, role, “goes by”, chairside, start date, full- or part-time and last day are shared (NLO Time Off counts vacation tiers from the start date), plus the calendar dates below if that box is ticked. Notes, review content, pay and personal details stay encrypted in Staff Hub.</p>
       <button class="btn btn-pri btn-sm" data-act="rosterConnect">${ic('users',13)} Connect with Google</button>
       <p class="tiny" style="margin-top:10px">One-time on this device. Use akhavan.ak@gmail.com or an @thenextlevelorthodontics.com account.</p>`;
   else {

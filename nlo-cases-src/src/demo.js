@@ -328,6 +328,12 @@ const DEMO = {
     DEMO.h.roster(DEMO.roster.slice()); DEMO.h.members(DEMO.members.slice());
     return { temp: tempPassword(), username };
   },
+  async setStaffName(sid, name, rid) {
+    const r = DEMO.roster.find(x => x.sid === sid); if (!r) return;
+    if (name) Object.assign(r, { name, initials: initials(name) }); if (rid) r.rid = rid;
+    if (name) DEMO.members.forEach(m => { if (m.staffId === sid && m.active) m.name = name; });
+    DEMO.h.roster(DEMO.roster.map(x => Object.assign({}, x))); DEMO.h.members(DEMO.members.slice());
+  },
   async setStaffPhoto(sid, photo, src) {
     const r = DEMO.roster.find(x => x.sid === sid); if (!r) return;
     if (photo) Object.assign(r, { photo, photoSrc: src }); else { delete r.photo; delete r.photoSrc; }

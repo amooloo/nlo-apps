@@ -154,11 +154,18 @@ function nextTierDate(pol, hire, iso) {
   return { n: cur.n + 1, date: isoOf(dt), perMonth: next.perMonth, cap: next.cap };
 }
 function orientEnd(p, pol) { return isISO(p.orient) ? p.orient : isISO(p.hire) ? addDays(p.hire, pol.orientDays) : ''; }
+/* full- or part-time on day d: `type` is what they are now; `typeWas` keeps what they were before each change brought in from
+   Staff Hub ([{ until, type }]: that type through `until`), so a change counts from its day and earlier months stay as they were */
+function typeOn(p, d) {
+  const was = Array.isArray(p.typeWas) ? p.typeWas.filter(x => x && isISO(x.until)).sort((a, b) => a.until < b.until ? -1 : a.until > b.until ? 1 : 0) : [];
+  for (const x of was) if (d <= x.until) return x.type === 'PT' ? 'PT' : 'FT';
+  return p.type === 'PT' ? 'PT' : 'FT';
+}
 /* does this person earn time off at the month-end d? */
 function accruesOn(p, pol, d) {
   if (!isISO(p.hire) || p.hire > d) return false;
   if (isISO(p.left) && d > p.left) return false;
-  if (p.type === 'PT' && !pol.ptAccrues) return false;
+  if (typeOn(p, d) === 'PT' && !pol.ptAccrues) return false;
   const oe = orientEnd(p, pol); return !oe || oe <= d;
 }
 /* the next month-end accrual from day iso on (what it'll be), or null when nothing more is earned */

@@ -649,27 +649,32 @@ function viewTeam() {
     people.map(r => {
       const p = personOf(r.sid), L = p ? ledgerOf(r.sid) : null, tier = p && p.hire ? tierAt(S.pol, p.hire, t) : null, na = p ? nextAccrual(p, S.pol, t) : null;
       const next = reqsOf(r.sid).filter(x => x.status === 'approved' && x.end >= t).sort(byStart)[0], w = reqsOf(r.sid).filter(x => x.status === 'pending').length;
-      return '<tr class="click" tabindex="0" data-act="openPerson" data-sid="' + esc(r.sid) + '"><td><span class="nameCell">' + avatarHTML(r.sid) + '<span><b>' + esc(staffName(r.sid)) + '</b>' + (p ? '<div class="small muted">' + (p.type === 'PT' ? 'Part-time · ' : '') + (p.hire ? 'since ' + esc(fmtDate(p.hire)) : 'no hire date') + '</div>' : '<div class="small coral">No HR record yet</div>') + '</span></span></td>' +
-        '<td>' + (p && p.type === 'PT' && !S.pol.ptAccrues ? '<span class="tierPill">Part-time</span>' : tier ? '<span class="tierPill t' + tier.n + '">' + tierName(tier.n) + '</span>' : '<span class="muted">—</span>') + '</td>' +
+      return '<tr class="click" tabindex="0" data-act="openPerson" data-sid="' + esc(r.sid) + '"><td><span class="nameCell">' + avatarHTML(r.sid) + '<span><b>' + esc(staffName(r.sid)) + '</b>' + (p ? '<div class="small muted">' + (p.type === 'PT' ? esc(empText(p)) + ' · ' : '') + (p.hire ? 'since ' + esc(fmtDate(p.hire)) : 'no hire date') + (isISO(p.left) && p.left >= t ? ' · last day ' + esc(fmtDate(p.left)) : '') + '</div>' : '<div class="small coral">No HR record yet</div>') + '</span></span></td>' +
+        '<td>' + (p && p.type === 'PT' && !S.pol.ptAccrues ? '<span class="tierPill">' + esc(empText(p)) + '</span>' : tier ? '<span class="tierPill t' + tier.n + '">' + tierName(tier.n) + '</span>' : '<span class="muted">—</span>') + '</td>' +
         '<td class="num">' + (L ? '<b>' + hrs(L.vac) + '</b><div class="small muted">' + esc(daysTxt(L.vac)) + '</div>' : '—') + '</td><td class="num">' + (L ? '<b>' + hrs(L.sick) + '</b>' : '—') + '</td>' +
         '<td class="hideM small">' + (na ? '+' + hrs(na.vac) + ' / +' + hrs(na.sick) + ' h · ' + esc(fmtDate(na.date)) : '<span class="muted">—</span>') + '</td>' +
         '<td class="hideM small">' + (next ? esc(fmtRange(next.start, next.end)) : '<span class="muted">—</span>') + (w ? ' <span class="stat wait">' + w + ' waiting</span>' : '') + '</td></tr>';
     }).join('') + '</tbody></table></div></div>';
-  if (isOwner()) h += '<p class="small muted" style="margin-top:10px">Tap someone to see their statement, change their hire date or balance, or add an adjustment. People come from NLO Cases’ team (which follows Staff Hub).</p>';
+  if (isOwner()) {
+    h += shTeamHTML() + '<p class="small muted" style="margin-top:10px">Tap someone to see their statement, change their balance or add an adjustment. People come from NLO Cases’ team, which follows Staff Hub; start dates, full- or part-time and last days come from Staff Hub too, once you bring them in.</p>';
+    setTimeout(() => shAuto().catch(() => { }), 0); // reads Staff Hub's roster if it hasn't lately (Team then lists who has no login)
+  }
   return h;
 }
 ACT.openPerson = t => openPersonDrawer(t.dataset.sid);
 function openPersonDrawer(sid, keep) {
   S.openSid = sid; S.openId = '';
   const p = personOf(sid), t = todayISO(), owner = isOwner();
-  let h = '<div class="dHd">' + avatarHTML(sid, '', true) + '<div class="grow"><h3>' + esc(staffName(sid)) + '</h3><div class="sub">' + (p && p.hire ? '<span class="tierPill t' + tierAt(S.pol, p.hire, t).n + '">' + tierName(tierAt(S.pol, p.hire, t).n) + '</span> ' : '') + (p ? esc(p.type === 'PT' ? 'Part-time' : 'Full-time') + (p.dept ? ' · ' + esc(p.dept) : '') : 'No HR record yet') + '</div></div><button class="iconBtn" data-act="closeDrawer" aria-label="Close">' + ic('x') + '</button></div><div class="dBd">';
+  let h = '<div class="dHd">' + avatarHTML(sid, '', true) + '<div class="grow"><h3>' + esc(staffName(sid)) + '</h3><div class="sub">' + (p && p.hire ? '<span class="tierPill t' + tierAt(S.pol, p.hire, t).n + '">' + tierName(tierAt(S.pol, p.hire, t).n) + '</span> ' : '') + (p ? esc(empText(p)) + (p.dept ? ' · ' + esc(p.dept) : '') : 'No HR record yet') + '</div></div><button class="iconBtn" data-act="closeDrawer" aria-label="Close">' + ic('x') + '</button></div><div class="dBd">';
   if (p) {
     h += '<div class="balGrid sm">' + balCards(sid, p) + '</div>';
-    h += '<div class="sec"><h5>HR record</h5><div class="kvRow"><span>Hire date</span><b>' + esc(p.hire ? fmtDateLong(p.hire) : '—') + '</b></div><div class="kvRow"><span>Orientation ends</span><b>' + esc(orientEnd(p, S.pol) ? fmtDate(orientEnd(p, S.pol)) : '—') + (p.orient ? '' : ' <span class="small muted">(90 days)</span>') + '</b></div>' +
-      (p.left ? '<div class="kvRow"><span>Last day</span><b>' + esc(fmtDate(p.left)) + '</b></div>' : '') +
+    h += '<div class="sec"><h5>HR record</h5><div class="kvRow"><span>Hire date</span><b>' + esc(p.hire ? fmtDateLong(p.hire) : '—') + shTag(p, 'hire') + '</b></div>' +
+      '<div class="kvRow"><span>Employment</span><b>' + esc(empText(p)) + shTag(p, 'type') + '</b></div><div class="kvRow"><span>Orientation ends</span><b>' + esc(orientEnd(p, S.pol) ? fmtDate(orientEnd(p, S.pol)) : '—') + (p.orient ? '' : ' <span class="small muted">(90 days)</span>') + '</b></div>' +
+      (p.left ? '<div class="kvRow"><span>Last day</span><b>' + esc(fmtDate(p.left)) + shTag(p, 'left') + '</b></div>' : '') +
       '<div class="kvRow"><span>Opening balance</span><b>' + (p.open ? hrs(p.open.vac) + ' h vacation · ' + hrs(p.open.sick) + ' h sick, end of ' + esc(fmtDate(p.open.asOf)) : 'From the hire date (0)') + '</b></div>' +
       (p.open && p.open.note ? '<div class="small muted">' + esc(p.open.note) + '</div>' : '') +
       (p.notes ? '<div class="kvRow"><span>Notes</span><b style="text-align:right;white-space:pre-wrap;font-weight:500">' + esc(p.notes) + '</b></div>' : '') +
+      (owner ? shWhoHTML(sid) : '') +
       (owner ? '<div class="btnRow"><button class="btn btn-sec btn-sm" data-act="editHR" data-sid="' + esc(sid) + '">Change…</button><button class="btn btn-sec btn-sm" data-act="addAdj" data-sid="' + esc(sid) + '">Add an adjustment…</button></div>' : '') + '</div>';
     const ben = p.ben || {}, k = k401Entry(p.hire), y = Number(t.slice(0, 4)), per = S.scrubs.perYear;
     h += '<div class="sec"><h5>Benefits</h5><div class="kvRow"><span>Celebrate Primary Care</span><b>' + (ben.celebrate ? '<span class="sug mint">' + ic('done', 13) + 'Enrolled</span>' : 'Not enrolled') + '</b></div>' +
@@ -678,7 +683,7 @@ function openPersonDrawer(sid, keep) {
       perksOf(sid).filter(x => x.year === y).map(perkRow).join('') + '</div>';
     if ((p.adj || []).length) h += '<div class="sec"><h5>Adjustments</h5>' + p.adj.slice().sort((a, b) => a.date < b.date ? 1 : -1).map(a => '<div class="hist"><time>' + esc(fmtDate(a.date)) + '</time><span><b>' + (a.h > 0 ? '+' : '−') + hrs(Math.abs(a.h)) + ' h ' + (a.b === 'sick' ? 'sick' : 'vacation') + '</b> — ' + esc(a.note || '') + (a.by ? ' <span class="muted">(' + esc(shortName(a.by)) + ')</span>' : '') + '</span>' + (owner ? '<button class="linkBtn small" style="margin-left:auto" data-act="rmAdj" data-sid="' + esc(sid) + '" data-id="' + esc(a.id || '') + '">Remove</button>' : '') + '</div>').join('') + '</div>';
     h += '<div class="sec">' + statementHTML(sid).replace('<div class="card">', '<div class="card flat">') + '</div>';
-  } else if (owner) h += '<div class="empty">No hire date or balance yet.<br><button class="btn btn-teal btn-sm" style="margin-top:12px" data-act="editHR" data-sid="' + esc(sid) + '">Add the HR record</button></div>';
+  } else if (owner) h += '<div class="empty">No hire date or balance yet.<br><button class="btn btn-teal btn-sm" style="margin-top:12px" data-act="editHR" data-sid="' + esc(sid) + '">Add the HR record</button></div>' + (shWhoHTML(sid) ? '<div class="sec">' + shWhoHTML(sid) + '</div>' : '');
   else h += '<div class="empty">Dr. A hasn’t added an HR record yet.</div>';
   const rs = reqsOf(sid).sort(byStart).reverse();
   h += '<div class="sec"><h5>Requests</h5>' + (rs.length ? rs.slice(0, 40).map(r => reqRow(r)).join('') : '<div class="small muted">None yet.</div>') + '</div>';

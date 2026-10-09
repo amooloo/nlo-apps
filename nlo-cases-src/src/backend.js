@@ -720,6 +720,14 @@ const FB = {
     const gen = (rs.exists ? (rs.data().gen || 0) : 0) + 1;
     return FB.issue({ sid: username, name: name.trim(), username, gen, rid: rid || '' });
   },
+  /* owner: a person's name (on their roster entry and their logins) and/or their link to Staff Hub's roster — names follow Staff Hub */
+  async setStaffName(sid, name, rid) {
+    const up = {}; if (name) Object.assign(up, { name, initials: initials(name) }); if (rid) up.rid = rid;
+    if (!Object.keys(up).length) return;
+    const b = FB.db.batch(); b.update(FB.db.doc('roster/' + sid), up);
+    if (name) (await FB.db.collection('members').where('staffId', '==', sid).get()).docs.forEach(d => { if (d.data().active) b.update(d.ref, { name }); });
+    await FB.track(b.commit());
+  },
   /* owner: a staff photo from Staff Hub (a small data: URL, not patient data) on the person's roster entry; '' removes it */
   async setStaffPhoto(sid, photo, src) {
     await FB.track(FB.db.doc('roster/' + sid).update(photo ? { photo, photoSrc: src } : { photo: FB.del(), photoSrc: FB.del() }));

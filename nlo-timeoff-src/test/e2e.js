@@ -286,6 +286,63 @@ const nextOffice = (p, from) => p.evaluate(f => nextOfficeDay(addDays(todayISO()
   await riley.waitForFunction(id => S.reqs.get(id) && !S.reqs.get(id).locked && S.reqs.get(id).rev >= 4, rid, { timeout: 30000 });
   check(true, 'Riley still opens her (re-sealed) requests');
 
+  console.log('\n# Staff Hub’s roster: start dates, full-/part-time, last days and names (a made-up roster in the database emulator)');
+  const RT = 'http://127.0.0.1:9000/', rtPut = (p, body) => fetch(RT + p + '.json?ns=' + PROJECT, { method: 'PUT', headers: { Authorization: 'Bearer owner' }, body: JSON.stringify(body) });
+  await fetch(RT + '.settings/rules.json?ns=' + PROJECT, { method: 'PUT', headers: { Authorization: 'Bearer owner' }, body: JSON.stringify({ rules: { '.read': 'auth != null', '.write': false } }) });
+  const shP = (id, first, last, o) => Object.assign({ id, name: first + ' ' + last, first, last, nick: first, short: first + ' ' + last[0] + '.', title: 'Staff', chairside: false, active: true }, o || {});
+  const ninaStart = await owner.evaluate(() => addDays(todayISO(), 5));
+  check((await rtPut('nlo/cadence/roster', { v: 1, source: 'staff-hub', updatedAt: Date.now(), people: {
+    s_amir: { id: 's_amir', name: 'Dr. Test', first: 'Dr.', last: 'Test', title: 'Orthodontist', active: true },
+    s_riley: shP('s_riley', 'Riley', 'Tester', { start: '2023-03-01', employment: 'Full-time' }), s_sarah: shP('s_sarah', 'Sarah', 'Tester', { start: '2019-05-06', employment: 'Full-time' }),
+    s_morgan: shP('s_morgan', 'Morgan', 'Tester', { start: '2024-09-02', employment: 'Part-time' }), s_nina: shP('s_nina', 'Nina', 'Rostered', { start: ninaStart, employment: 'Full-time' }) } })).ok, 'a made-up office roster');
+  await owner.click('#side [data-act=nav][data-v=settings]'); await owner.waitForSelector('#shBox [data-act=shConnect]', { timeout: 20000 });
+  check(/Connect to the office roster/.test(await owner.textContent('#shBox')), 'Settings → Staff Hub: not connected on this computer yet');
+  await owner.click('#shBox [data-act=shConnect]');
+  const shToast = async (p, txt) => p.waitForSelector('.toast:has-text("' + txt + '")', { timeout: 25000 }).then(() => true, () => false);
+  await owner.waitForSelector('#shBox .shWait [data-act=shApplyOne][data-sid=riley]', { timeout: 25000 });
+  const wait1 = (await owner.textContent('#shBox .shWait')).replace(/\s+/g, ' ');
+  check(/Riley Tester\s*start date Mar 13, 2023 → Mar 1, 2023/.test(wait1) && /Balances today stay as they are/.test(wait1), 'connected: Riley’s start date there differs — it waits for Dr. A, with what it does to her balance: ' + wait1.slice(0, 120));
+  check(await owner.evaluate(() => S.hrRecs.get('riley').hire === '2023-03-13' && !S.hrRecs.get('riley').sh), '…and her record doesn’t change until he brings it in');
+  await owner.click('#shBox [data-act=shApplyOne][data-sid=riley]');
+  check(await shToast(owner, 'Brought in from Staff Hub — Riley Tester: start date Mar 13, 2023 → Mar 1, 2023'), 'Bring in');
+  await owner.waitForFunction(() => { const r = S.hrRecs.get('riley'); return r && r.hire === '2023-03-01' && r.emp === 'Full-time' && r.sh && r.sh.id === 's_riley'; }, null, { timeout: 20000 });
+  check(true, '…her HR record: Mar 1, 2023, marked as Staff Hub’s');
+  check(!(await owner.evaluate(() => S.hrRecs.has('sarah') || S.hrRecs.has('morgan') || SH.pending.some(x => x.sid === 'sarah' || x.sid === 'morgan'))), 'Sarah and Morgan have no record yet: none is offered before the move (their balances come over with it)');
+  const rr = await fsDoc('roster/riley'), rsa = await fsDoc('roster/sarah');
+  check(rr.fields.rid.stringValue === 's_riley' && rsa.fields.rid.stringValue === 's_sarah', 'Riley and Sarah are linked to their Staff Hub entries (the link NLO Cases uses too)');
+  const shBox = (await owner.textContent('#shBox')).replace(/\s+/g, ' ');
+  check(/3 of 3 people with a login/.test(shBox) && /no login yet ?Nina Rostered/.test(shBox), 'the card: everyone with a login is linked; Nina is on Staff Hub with no login yet');
+  await riley.waitForFunction(() => S.mine && S.mine.hire === '2023-03-01', null, { timeout: 30000 });
+  check(true, 'Riley’s own copy says so at once');
+  check(!JSON.stringify(await fsDocs('toHR')).includes('2023-03-01'), 'nothing from Staff Hub in plain form here');
+  await owner.click('#side [data-act=nav][data-v=team]'); await owner.waitForSelector('#shTeam .accessRow', { timeout: 20000 });
+  check(/No login yet[\s\S]*Nina Rostered/.test(await owner.textContent('#shTeam')), 'Team lists Nina: on Staff Hub, no login yet');
+  await owner.click('#view tr[data-sid=riley]'); await owner.click('#drawer [data-act=editHR]'); await owner.waitForSelector('#hrSave');
+  check(await owner.evaluate(() => ['hrHire', 'hrType', 'hrLeft'].every(id => document.getElementById(id).disabled) && document.getElementById('hrHire').value === '2023-03-01'), 'her HR record: hire date, employment and last day are Staff Hub’s (changed there, not here)');
+  await owner.click('.modal [data-act=closeModal]'); await owner.keyboard.press('Escape');
+  const rb0 = await owner.evaluate(() => { const L = ledgerOf('riley'); return [L.vac, L.sick]; });
+  await rtPut('nlo/cadence/roster/people/s_riley', shP('s_riley', 'Riley', 'Tester', { start: '2023-03-01', employment: 'Part-time' }));
+  await owner.click('#side [data-act=nav][data-v=settings]'); await owner.click('#shBox [data-act=shRefresh]');
+  await owner.waitForSelector('#shBox [data-act=shApplyOne][data-sid=riley]', { timeout: 25000 });
+  check(/Riley Tester\s*part-time from/.test((await owner.textContent('#shBox .shWait')).replace(/\s+/g, ' ')) && await owner.evaluate(() => S.hrRecs.get('riley').type === 'FT'), 'made part-time in Staff Hub: “Read it again” shows it waiting (part-time from today)');
+  await owner.click('#shBox [data-act=shApplyOne][data-sid=riley]'); check(await shToast(owner, 'Riley Tester: part-time from'), '…brought in');
+  await owner.waitForFunction(() => S.hrRecs.get('riley').type === 'PT', null, { timeout: 20000 });
+  const rb1 = await owner.evaluate(() => { const r = S.hrRecs.get('riley'), L = ledgerOf('riley'); return [L.vac, L.sick, r.typeWas.length, r.typeWas[0].type]; });
+  const monthEnd = await owner.evaluate(() => isLastOfMonth(todayISO())); // (today's own month-end accrual follows the change)
+  check((monthEnd || (rb1[0] === rb0[0] && rb1[1] === rb0[1])) && rb1[2] === 1 && rb1[3] === 'FT', 'part-time from today: what she has earned stays (' + rb0.join(' / ') + ' h)');
+  await rtPut('nlo/cadence/roster/people/s_riley', shP('s_riley', 'Riley', 'Tester', { start: '2023-03-01', employment: 'Full-time' }));
+  await rtPut('nlo/cadence/roster/people/s_sarah', shP('s_sarah', 'Sarah', 'Renamed', { start: '2019-05-06', employment: 'Full-time' }));
+  await owner.waitForSelector('#shBox [data-act=shRefresh]'); await owner.click('#shBox [data-act=shRefresh]');
+  check(await shToast(owner, 'From Staff Hub: Sarah Renamed'), 'a new name in Staff Hub comes in by itself');
+  const sRos = await fsDoc('roster/sarah'), sMem = (await fsDocs('members')).filter(d => d.fields.staffId && d.fields.staffId.stringValue === 'sarah' && d.fields.active && d.fields.active.booleanValue);
+  check(sRos.fields.name.stringValue === 'Sarah Renamed' && sRos.fields.initials.stringValue === 'SR' && sMem.length === 1 && sMem[0].fields.name.stringValue === 'Sarah Renamed', '…her team entry and her login take it (NLO Cases and every app show it)');
+  await owner.waitForSelector('#shBox [data-act=shApplyOne][data-sid=riley]', { timeout: 25000 }); await owner.click('#shBox [data-act=shApplyOne][data-sid=riley]');
+  await owner.waitForFunction(() => S.hrRecs.get('riley').type === 'FT', null, { timeout: 20000 });
+  check(true, 'Riley full-time again (brought in)');
+  await rtPut('nlo/cadence/roster/people/s_sarah', shP('s_sarah', 'Sarah', 'Tester', { start: '2019-05-06', employment: 'Full-time' }));
+  await owner.waitForSelector('#shBox [data-act=shRefresh]'); await owner.click('#shBox [data-act=shRefresh]');
+  check(await shToast(owner, 'From Staff Hub: Sarah Tester'), '…and back');
+
   console.log('\n# Moving from the old app (a made-up Sheet)');
   await owner.click('#side [data-act=nav][data-v=settings]'); await owner.click('[data-act=nav][data-v=import]'); await owner.waitForSelector('#imFile', { state: 'attached' });
   await owner.setInputFiles('#imFile', path.join(__dirname, 'fixtures', 'old-sheet.xlsx'));
@@ -293,6 +350,8 @@ const nextOffice = (p, from) => p.evaluate(f => nextOfficeDay(addDays(todayISO()
   await owner.fill('#imAsOf', '2026-10-08'); await owner.dispatchEvent('#imAsOf', 'change'); await sleep(300);
   const rows = await owner.evaluate(() => S.imp.rows.map(r => r.p.name + '→' + (r.sid || '')));
   check(rows.includes('Riley Example→riley') && rows.includes('Morgan Test→morgan') && rows.includes('Taylor Mock→'), 'names matched to logins (Riley, Morgan; nobody here for the others): ' + rows.join(', '));
+  const shNotes = await owner.evaluate(() => { const t = k => (document.querySelectorAll('.imPerson')[k].querySelector('.imSh') || {}).textContent || ''; return [t(S.imp.rows.findIndex(r => r.sid === 'riley')), t(S.imp.rows.findIndex(r => r.sid === 'morgan'))]; });
+  check(/Staff Hub: started Mar 1, 2023 \(the Sheet: Mar 13, 2023\)/.test(shNotes[0]) && /Staff Hub: started Sep 2, 2024 \(the Sheet: Sep 9, 2024\)/.test(shNotes[1]), 'the move uses Staff Hub’s start dates, and says where the Sheet’s differ (Riley, Morgan)');
   const iR = await owner.evaluate(() => S.imp.rows.findIndex(r => r.sid === 'riley'));
   await owner.check('[data-chg=imReplace][data-i="' + iR + '"]'); await sleep(150);
   // as if an earlier move stopped after its first request: one of Riley's old requests (one the old app took off) is here already
@@ -315,6 +374,8 @@ const nextOffice = (p, from) => p.evaluate(f => nextOfficeDay(addDays(todayISO()
   check(res.people === 2 && res.reqs === want.reqs && !res.failed.length, 'moved: Riley and Morgan, ' + res.reqs + ' requests' + (res.failed.length ? ' — failed: ' + res.failed.join('; ') : ''));
   const rHR = await owner.evaluate(() => S.hrRecs.get('riley').open);
   check(rHR.asOf === '2026-10-08' && rHR.vac === want.old.vac && rHR.sick === want.old.sick, 'Riley starts from the old app’s balance as of Oct 8 (' + rHR.vac + ' h vacation)');
+  const mvd = await owner.evaluate(() => { const r = S.hrRecs.get('riley'), m = S.hrRecs.get('morgan'); return [r.hire, r.sh && r.sh.id, m.hire, m.type, m.emp, m.sh && m.sh.id]; });
+  check(JSON.stringify(mvd) === JSON.stringify(['2023-03-01', 's_riley', '2024-09-02', 'PT', 'Part-time', 's_morgan']), 'moved records: Staff Hub’s start dates and part-time (Morgan), marked as Staff Hub’s: ' + JSON.stringify(mvd));
   const rSet = await owner.evaluate(() => S.hrRecs.get('riley').settled || []);
   check(rSet.length === 4 && rSet.includes(pre.id), 'her record lists the 4 requests the old app already took off (so they aren’t taken again) — the one moved earlier too');
   const legacy = (await fsDocs('toReq')).length;
@@ -329,6 +390,19 @@ const nextOffice = (p, from) => p.evaluate(f => nextOfficeDay(addDays(todayISO()
   check(true, 'Riley sees her 6 old requests and her new opening balance, opened with her own key');
   const mDocs = (await fsDocs('toReq')).filter(d => d.fields.sid.stringValue === 'morgan');
   check(mDocs.length === 1 && mDocs.every(d => d.fields.me.nullValue === null || d.fields.me.nullValue !== undefined) && !(await fsDoc('toMine/morgan')), 'Morgan hasn’t signed in yet: her copies wait for her key');
+
+  console.log('\n# A hire since the move gets their Time Off record from Staff Hub');
+  await addPerson(ownerC, 'Nina Rostered', 'nina');
+  await owner.waitForFunction(() => S.roster.some(r => r.sid === 'nina' && r.active), null, { timeout: 20000 });
+  await owner.click('#side [data-act=nav][data-v=settings]'); await owner.waitForSelector('#shBox [data-act=shRefresh]'); await owner.click('#shBox [data-act=shRefresh]');
+  await owner.waitForSelector('#shBox [data-act=shApplyOne][data-sid=nina]', { timeout: 25000 });
+  check(/Nina Rostered\s*Start their Time Off record: hired /.test((await owner.textContent('#shBox .shWait')).replace(/\s+/g, ' ')) && !(await owner.evaluate(() => S.hrRecs.has('nina'))), 'Nina (added in NLO Cases, starting after the move): her record is offered, not made');
+  await owner.click('#shBox [data-act=shApplyOne][data-sid=nina]');
+  check(await shToast(owner, 'Nina Rostered: Time Off record made'), '…brought in');
+  await owner.waitForFunction(() => S.hrRecs.has('nina'), null, { timeout: 20000 });
+  const nr = await owner.evaluate(() => S.hrRecs.get('nina'));
+  check(nr && nr.hire === ninaStart && nr.type === 'FT' && !nr.open && nr.sh.id === 's_nina' && (await fsDoc('roster/nina')).fields.rid.stringValue === 's_nina', '…from 0 on her start date (' + ninaStart + '), full-time, linked to Staff Hub');
+  check(/Everyone on Staff Hub’s roster has a login/.test(await owner.evaluate(() => shTeamHTML())), 'Team: everyone on Staff Hub has a login now');
 
   console.log('\n# Morgan signs in for the first time; Dr. A’s next visit seals her copies to her');
   const morgan = await newPage(browser, 'morgan', errs);

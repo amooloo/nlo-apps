@@ -6,10 +6,10 @@
    balance, adjustments). My account (password — the NLO Cases login).
    ===================================================================== */
 function viewSettings() {
-  return '<div class="adminGrid"><div>' + approversCardHTML() + hrKeyCardHTML() + moveCardHTML() + feedCardHTML() + '</div><div>' +
+  return '<div class="adminGrid"><div>' + approversCardHTML() + shCardHTML() + hrKeyCardHTML() + moveCardHTML() + feedCardHTML() + '</div><div>' +
     policyCardHTML() + scrubsSetCardHTML() + blackoutsCardHTML() + closuresCardHTML() + deskCardHTML() + securityCardHTML() + '</div></div>';
 }
-function afterSettings() { loadHRPeople(); loadFeed(); loadDesk(); loadScrubsMail(); }
+function afterSettings() { loadHRPeople(); loadFeed(); loadDesk(); loadScrubsMail(); shAuto().catch(() => { }); }
 function paintSettings() { if (S.view !== 'settings') return; const y = window.scrollY; $('#view').innerHTML = viewSettings(); paintPhotos($('#view')); afterSettings(); window.scrollTo(0, y); }
 
 /* ---------- who approves (who holds the HR key) ---------- */
@@ -344,12 +344,22 @@ function balLine(sid, rec) {
 Object.assign(ACT, {
   editHR(t) {
     const sid = t.dataset.sid, p = S.hrRecs.get(sid) || {}, o = p.open || {}, name = staffName(sid), depts = Array.from(new Set(Array.from(S.hrRecs.values()).map(x => x.dept).filter(Boolean))).sort();
+    // the start date, full-/part-time and last day Staff Hub gives are its — changed there, shown here. A record that's here keeps its
+    // own until Dr. A brings Staff Hub's in (Settings → Staff Hub); a new one starts from Staff Hub's.
+    const has = S.hrRecs.has(sid), lk = shLock(sid, S.hrRecs.get(sid)), L = k => !!(lk && k in lk.f), V = k => has ? (k === 'type' ? (p.type === 'PT' ? 'PT' : 'FT') : p[k] || '') : L(k) ? lk.f[k] : '';
+    const shHint = (k, word) => {
+      if (!L(k)) return '';
+      const sv = lk.f[k], diff = has && lk.live && sv !== V(k), say = k === 'type' ? empWord(sv, lk.f.emp) : sv ? fmtDate(sv) : 'on staff, no last day';
+      return '<div class="hint">' + (diff && k === 'left' && !sv ? 'Staff Hub has them on staff, with no last day — if they’ve left, end their employment there' : diff ? 'Staff Hub says ' + esc(say) + ' — bring it in under Settings → Staff Hub' : k === 'left' && !sv ? 'Staff Hub has them on staff — a last day is set there' : 'From Staff Hub' + (word || '') + ' — change it there') + '</div>';
+    };
+    const typeSel = L('type') ? '<select id="hrType" disabled><option value="' + V('type') + '" selected>' + esc(empText(has ? p : { type: lk.f.type, emp: lk.f.emp })) + '</option></select>' + shHint('type')
+      : '<select id="hrType"><option value="FT"' + (p.type !== 'PT' ? ' selected' : '') + '>Full-time</option><option value="PT"' + (p.type === 'PT' ? ' selected' : '') + '>Part-time</option></select>';
     openModal('<h3>' + esc(name) + '</h3><div class="lsub">HR record — you and the people who approve see it; ' + esc(firstName(name)) + ' sees their own hire date and balances, not the notes</div>' +
-      '<div class="grid2"><div class="field"><label for="hrHire">Hire date</label><input type="date" id="hrHire" value="' + esc(p.hire || '') + '"></div>' +
+      '<div class="grid2"><div class="field"><label for="hrHire">Hire date</label><input type="date" id="hrHire" value="' + esc(V('hire')) + '"' + (L('hire') ? ' disabled' : '') + '>' + shHint('hire', ' (its start date)') + '</div>' +
       '<div class="field"><label for="hrOrient">Orientation ends <span class="opt">(blank: ' + S.pol.orientDays + ' days)</span></label><input type="date" id="hrOrient" value="' + esc(p.orient || '') + '"></div></div>' +
-      '<div class="grid2"><div class="field"><label for="hrType">Employment</label><select id="hrType"><option value="FT"' + (p.type !== 'PT' ? ' selected' : '') + '>Full-time</option><option value="PT"' + (p.type === 'PT' ? ' selected' : '') + '>Part-time</option></select></div>' +
+      '<div class="grid2"><div class="field"><label for="hrType">Employment</label>' + typeSel + '</div>' +
       '<div class="field"><label for="hrDept">Department</label><input id="hrDept" maxlength="40" list="deptList" value="' + esc(p.dept || '') + '"><datalist id="deptList">' + depts.map(d => '<option value="' + esc(d) + '">').join('') + '</datalist><div class="hint">Two people in one department off together get a warning.</div></div></div>' +
-      '<div class="grid2"><div class="field"><label for="hrLeft">Last day <span class="opt">(if they’ve left)</span></label><input type="date" id="hrLeft" value="' + esc(p.left || '') + '"></div><div></div></div>' +
+      '<div class="grid2"><div class="field"><label for="hrLeft">Last day <span class="opt">(if they’ve left)</span></label><input type="date" id="hrLeft" value="' + esc(V('left')) + '"' + (L('left') ? ' disabled' : '') + '>' + shHint('left') + '</div><div></div></div>' +
       '<div class="flabel" style="margin-top:4px">Opening balance</div><div class="grid3"><div class="field"><label for="hrAsOf">As of the end of</label><input type="date" id="hrAsOf" value="' + esc(o.asOf || '') + '"></div>' +
       '<div class="field"><label for="hrVac">Vacation (h)</label><input type="number" step="0.01" min="0" max="2000" inputmode="decimal" id="hrVac" value="' + esc(o.asOf ? String(o.vac || 0) : '') + '"></div>' +
       '<div class="field"><label for="hrSick">Sick (h)</label><input type="number" step="0.01" min="0" max="2000" inputmode="decimal" id="hrSick" value="' + esc(o.asOf ? String(o.sick || 0) : '') + '"></div></div>' +
@@ -360,8 +370,8 @@ Object.assign(ACT, {
       '<div class="field"><label for="hrNotes">Notes <span class="opt">(you and the people who approve)</span></label><textarea id="hrNotes" maxlength="600">' + esc(p.notes || '') + '</textarea></div>' +
       '<div class="mFt"><button class="btn btn-sec btn-sm" data-act="closeModal">Cancel</button><button class="btn btn-pri btn-sm" id="hrSave">Save</button></div>', true);
     $('#hrSave').onclick = async () => {
-      const g = id => ($('#' + id).value || '').trim(), hire = g('hrHire'), orient = g('hrOrient'), left = g('hrLeft'), asOf = g('hrAsOf'), vs = g('hrVac'), ss = g('hrSick');
-      if (!isISO(hire)) return toast('Add the hire date.', { bad: true });
+      const g = id => ($('#' + id).value || '').trim(), hire = L('hire') ? V('hire') : g('hrHire'), orient = g('hrOrient'), left = L('left') ? V('left') : g('hrLeft'), asOf = g('hrAsOf'), vs = g('hrVac'), ss = g('hrSick');
+      if (!isISO(hire)) return toast(L('hire') ? 'Bring in Staff Hub’s start date for ' + firstName(name) + ' first (Settings → Staff Hub).' : 'Add the hire date.', { bad: true });
       if (orient && (!isISO(orient) || orient < hire)) return toast('Orientation ends on or after the hire date.', { bad: true });
       if (left && (!isISO(left) || left < hire)) return toast('The last day is on or after the hire date.', { bad: true });
       let open = null;
@@ -371,14 +381,21 @@ Object.assign(ACT, {
         if (!(v >= 0 && v <= 2000) || !(s >= 0 && s <= 2000)) return toast('Balances are 0 to 2000 hours.', { bad: true });
         open = Object.assign({}, p.open && p.open.from ? { from: p.open.from } : {}, { asOf, vac: round2(v), sick: round2(s), note: g('hrOpenNote').slice(0, 240) });
       }
-      const next = Object.assign({}, p, { hire, orient, left, type: $('#hrType').value === 'PT' ? 'PT' : 'FT', dept: g('hrDept').slice(0, 40), notes: ($('#hrNotes').value || '').trim().slice(0, 600), open });
+      const next = Object.assign({}, p, { hire, orient, left, type: L('type') ? V('type') : $('#hrType').value === 'PT' ? 'PT' : 'FT', dept: g('hrDept').slice(0, 40), notes: ($('#hrNotes').value || '').trim().slice(0, 600), open });
       const before = S.hrRecs.has(sid) ? balLine(sid, p) : null, after = balLine(sid, next);
       if (before && after && (before.vac !== after.vac || before.sick !== after.sick) &&
         !(await confirmBox('Change ' + firstName(name) + '’s balance?', 'Vacation ' + hrs(before.vac) + ' → ' + hrs(after.vac) + ' h, sick ' + hrs(before.sick) + ' → ' + hrs(after.sick) + ' h today.', 'Save'))) return;
       const btn = $('#hrSave'); if (btn) busyBtn(btn, true, 'Saving…');
       try {
         const ben = { celebrate: !!$('#hrCel').checked, k401: !!$('#hrK401').checked };
-        await B.putHR(sid, d => { Object.assign(d, { hire: next.hire, orient: next.orient, left: next.left, type: next.type, dept: next.dept, notes: next.notes, ben }); if (next.open) d.open = next.open; else delete d.open; if (!Array.isArray(d.adj)) d.adj = []; }, S.hrRecs.has(sid) ? 'edit' : 'create');
+        const known = !!(SH.data && shAvailable()); // Staff Hub read on this computer: whether they're on it is known
+        await B.putHR(sid, d => {
+          // Staff Hub's fields aren't written from here: the record keeps what it has (a change brought in meanwhile included)
+          const own = { orient: next.orient, dept: next.dept, notes: next.notes, ben }; SH_FIELDS.forEach(k => { if (!L(k)) own[k] = next[k]; });
+          Object.assign(d, own); if (next.open) d.open = next.open; else delete d.open; if (!Array.isArray(d.adj)) d.adj = [];
+          if (!has && lk && lk.live) shApply(d, lk.f, lk.pid); // a new record, from Staff Hub
+          else if (known && !lk) { delete d.sh; delete d.emp; } // not on Staff Hub: what's typed here is the record's own
+        }, has ? 'edit' : 'create');
         closeModal(); toast('Saved');
       } catch (e) { if (btn) busyBtn(btn, false); toast(errText(e), { bad: true }); }
     };

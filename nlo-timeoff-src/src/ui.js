@@ -209,7 +209,7 @@ async function enterApp() {
   Object.assign(S, {
     inApp: true, st: 'opening', view: 'home', tab: {}, q: '', roster: [], team: [], people: new Map(), reqs: new Map(), perks: new Map(), board: [], mine: undefined, hrRecs: new Map(),
     form: null, openId: '', openSid: '', month: todayISO().slice(0, 8) + '01', firstLoad: true, loadErr: '', lastAct: Date.now(), day: todayISO(), ver: S.ver + 1, gotReqs: false,
-    imp: null, polEd: null, hrP: null, desk: null, feedInfo: null, accessBusy: '', rotating: null, benAs: '', scrubsMail: null
+    imp: null, polEd: null, hrP: null, desk: null, feedInfo: null, accessBusy: '', rotating: null, benAs: '', scrubsMail: null, gotRoster: false, gotHR: false
   });
   $('#lockWrap').classList.add('hidden'); $('#app').classList.remove('hidden');
   renderShell(); renderView();
@@ -234,7 +234,7 @@ function startLive() {
   renderShell(); renderView();
   B.start({
     settings(s) { if (!S.inApp) return; S.settings = Object.assign({ idleMin: 10 }, s || {}); S.pol = policyOf(S.settings); S.scrubs = scrubsOf(S.settings); S.closed = makeClosed(((S.settings.to || {}).closures) || []); S.blackouts = blackoutsOf(S.settings); bump(); queueRender('settings'); },
-    roster(list) { if (!S.inApp) return; S.roster = list; bump(); queueRender('team'); const wb = $('#side .whoBox'); if (wb && wb.firstElementChild) { wb.firstElementChild.outerHTML = avatarHTML(meSid(), B.me && B.me.name); paintPhotos(wb); } },
+    roster(list) { if (!S.inApp) return; S.roster = list; S.gotRoster = true; bump(); queueRender('team'); const wb = $('#side .whoBox'); if (wb && wb.firstElementChild) { wb.firstElementChild.outerHTML = avatarHTML(meSid(), B.me && B.me.name); paintPhotos(wb); } },
     team(sids) { if (!S.inApp) return; S.team = Array.isArray(sids) ? sids.filter(x => typeof x === 'string') : []; queueRender('team'); },
     people(map) { if (!S.inApp) return; S.people = map; queueRender('team'); },
     board(list) { if (!S.inApp) return; S.board = list.filter(x => x && typeof x.sid === 'string' && isISO(x.start) && isISO(x.end)); bump(); queueRender(); },
@@ -246,7 +246,7 @@ function startLive() {
     },
     mine(m) { if (!S.inApp) return; S.mine = m && !m.locked ? m : null; bump(); queueRender(); },
     perks(list) { if (!S.inApp) return; S.perks = new Map(list.filter(x => x && !x.locked).map(x => [x.id, x])); bump(); queueRender(); if (S.openSid) refreshDrawer(); },
-    hr(list) { if (!S.inApp) return; S.hrRecs = new Map(list.filter(x => !x.locked).map(x => [x.sid, x])); bump(); queueRender(); if (S.openSid) refreshDrawer(); },
+    hr(list) { if (!S.inApp) return; S.hrRecs = new Map(list.filter(x => !x.locked).map(x => [x.sid, x])); S.gotHR = true; bump(); queueRender(); if (S.openSid) refreshDrawer(); },
     access(kind) { if (kind === 'off') lockOut('Your approver access was turned off. Sign in again.'); else toast('You can approve time off now — sign in again to see Approvals.', { ms: 9000, action: 'Lock', onAction: () => lockOut('Sign in again to see Approvals.') }); },
     revoked() { lockOut('Your access was turned off.'); },
     rekeyed() { if (S.inApp && isOwner()) setTimeout(ownerUpkeep, 1500); },
@@ -254,6 +254,7 @@ function startLive() {
     error(e) { if (/permission/.test((e && e.code) || '')) lockOut('Your access changed. Sign in again.'); else toast(errText(e), { bad: true }); }
   });
   if (!S.demo) setTimeout(upkeep, 3500);
+  else setTimeout(() => shAuto().catch(() => { }), 700); // the demo's made-up Staff Hub roster
 }
 async function lockOut(msg) {
   if (!S.inApp) return;
@@ -325,6 +326,7 @@ async function upkeep() {
     try { await B.publishPeople(); } catch (e) { }
     try { const kc = await B.checkKeys(); if (kc.length) toast(staffKeyMsg(kc), { bad: true, ms: 20000 }); } catch (e) { }
     await ownerUpkeep();
+    await shAuto().catch(() => { }); // Staff Hub's start dates, full-/part-time, last days and names (staffhub.js)
   }
   if (isHR()) await syncFeed(true).catch(() => { });
 }

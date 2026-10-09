@@ -710,7 +710,7 @@ const FB = {
   /* the person's own copy of their HR record, sealed to them */
   async mineDoc(sid, data) {
     const pub = FB.trustedPub(sid); if (!pub) return null;
-    const c = { sid, hire: data.hire || '', orient: data.orient || '', type: data.type || 'FT', left: data.left || '', open: data.open || null, adj: data.adj || [], settled: data.settled || [], ben: data.ben || {}, at: Date.now() };
+    const c = { sid, hire: data.hire || '', orient: data.orient || '', type: data.type || 'FT', typeWas: data.typeWas || [], emp: data.emp || '', left: data.left || '', open: data.open || null, adj: data.adj || [], settled: data.settled || [], ben: data.ben || {}, at: Date.now() };
     return { box: await Crypto.sealJSONTo(pub, c, 'tomine:' + sid), pubX: pub.x, at: FB.ts(), by: FB.uid };
   },
   /* which key each person's copy is sealed to (Dr. A's upkeep re-seals one whose person has a new key) */
@@ -755,5 +755,58 @@ const FB = {
   feedKeyB64() { return FB.feedKey ? FB.feedKey.b64 : ''; },
   projectId() { return FB.cfg ? FB.cfg.projectId : ''; },
 
-  async saveSettings(patch) { await FB.track(FB.doc('meta/settings').set(patch, { merge: true })); }
+  async saveSettings(patch) { await FB.track(FB.doc('meta/settings').set(patch, { merge: true })); },
+
+  /* ---------- Staff Hub's office roster (roster.js, staffhub.js) ----------
+     Read with the Google sign-in NLO Cases' "Connect to the office roster" uses: a second Firebase app named 'ipr' for the
+     nlo-inventory project (the IPR Tracker's), kept signed in on this computer — the same name and project as NLO Cases', so
+     connecting in either app connects both. Only the roster is read, once when asked, with a plain request and the sign-in's
+     token (no database library); Staff Hub is never written to. Locking Time Off doesn't disconnect it, as in NLO Cases. */
+  sh: null,
+  shInit() {
+    if (FB.sh) return true;
+    if (!FB.available() || !firebase.auth) return false;
+    const cfg = FB.emu ? { apiKey: 'demo-key', authDomain: 'localhost', projectId: 'demo-nlo-cases', appId: 'demo' } : SH_FB;
+    const app = firebase.apps.find(a => a && a.name === 'ipr') || firebase.initializeApp(cfg, 'ipr'), auth = app.auth();
+    if (FB.emu) auth.useEmulator('http://127.0.0.1:9099', { disableWarnings: true });
+    try { auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL); } catch (e) { }
+    FB.sh = { auth, ready: new Promise(res => { const off = auth.onAuthStateChanged(u => { off(); res(u); }); }) };
+    return true;
+  },
+  async shUser() { if (!FB.shInit()) return null; await FB.sh.ready; return FB.sh.auth.currentUser || null; },
+  /* straight from the click (a sign-in window may only open from one) */
+  shConnect() {
+    if (!FB.shInit()) return Promise.reject(errCode('no-sh', 'Not available in this browser.'));
+    if (FB.emu) return FB.sh.auth.signInAnonymously();
+    const p = new firebase.auth.GoogleAuthProvider(); p.setCustomParameters({ prompt: 'select_account' });
+    return FB.sh.auth.signInWithPopup(p);
+  },
+  /* { v, source, updatedAt, people: { id: { id, name, first, last, nick, title, active, end?, start?, employment?, … } } } or null */
+  async shRoster() {
+    const u = await FB.shUser(); if (!u) throw errCode('sh-off', 'Not connected to the office roster.');
+    const tok = await u.getIdToken();
+    const url = (FB.emu ? 'http://127.0.0.1:9000/' : SH_FB.databaseURL + '/') + 'nlo/cadence/roster.json?' + (FB.emu ? 'ns=demo-nlo-cases&' : '') + 'auth=' + encodeURIComponent(tok);
+    let r;
+    try { r = await fetch(url, { cache: 'no-store', credentials: 'omit' }); } catch (e) { throw errCode('unavailable', 'Couldn’t reach the office roster.'); }
+    if (r.status === 401 || r.status === 403) throw errCode('permission-denied', 'This Google account can’t read the office roster.');
+    if (!r.ok) throw errCode('unavailable', 'Couldn’t reach the office roster.');
+    return r.json();
+  },
+  /* names follow Staff Hub (as in NLO Cases): a person's team entry and their current logins take its name; `rid` links the entry
+     to its Staff Hub person, so a later change of name still finds them */
+  async setStaffName(sid, name, rid) {
+    const up = {}; if (name) Object.assign(up, { name, initials: initials(name) }); if (rid) up.rid = rid;
+    if (!Object.keys(up).length) return;
+    const b = FB.db.batch(); b.update(FB.doc('roster/' + sid), up);
+    if (name) (await FB.db.collection('members').where('staffId', '==', sid).get()).docs.forEach(d => { if (d.data().active) b.update(d.ref, { name }); });
+    await FB.track(b.commit());
+  }
+};
+/* the nlo-inventory project (the IPR Tracker's), where Staff Hub shares the office roster — public by design, like any Firebase web config */
+const SH_FB = {
+  apiKey: "AIzaSyBFCmDgAKkdfZ4Cb81nK0KCKXtONiwMJy4",
+  authDomain: "nlo-inventory.firebaseapp.com",
+  databaseURL: "https://nlo-inventory-default-rtdb.firebaseio.com",
+  projectId: "nlo-inventory",
+  appId: "1:471691286148:web:b362a98186f648bd4914d1"
 };

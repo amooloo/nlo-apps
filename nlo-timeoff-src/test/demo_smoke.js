@@ -111,6 +111,22 @@ const ok = (c, m) => { if (c) { pass++; console.log('  ok  ' + m); } else { fail
   ok(await page.$$eval('#view tbody tr', r => r.length) === 7, 'Team: everyone who works here (7, Dr. A included)');
   ok(/No HR record yet/.test(await page.textContent('#view tr[data-sid=drew]')), 'Drew (new) has no HR record yet');
   ok(/Part-time/.test(await page.textContent('#view tr[data-sid=morgan] td:nth-child(2)')), 'Morgan shows Part-time instead of a tier');
+  // ---- Staff Hub (a made-up roster): start dates, full-/part-time and last days come from it
+  ok(await E(() => S.hrRecs.get('morgan').emp === 'Part-time' && ['riley', 'casey', 'morgan', 'taylor'].every(s => (S.hrRecs.get(s).sh || {}).id === 'demo-' + s && S.hrRecs.get(s).sh.f.join() === 'hire,type,left') && S.hrRecs.get('sam').sh.f.join() === 'left'),
+    'where Staff Hub and the records agree, the records are marked as Staff Hub’s by themselves (Riley, Casey, Morgan, Taylor; for Sam, whose login was removed, only his last day)');
+  ok(await E(() => S.hrRecs.get('jordan').hire === '2010-06-03' && !S.hrRecs.get('jordan').sh && SH.pending.length === 1 && SH.pending[0].sid === 'jordan'), '…Jordan’s start date there differs: it waits for Dr. A, and nothing changes until then');
+  ok(await toastHas(/Staff Hub has changes for Jordan — nothing changes here until you bring them in/), '…and Dr. A is told so when he opens Time Off');
+  await page.waitForSelector('#shTeam .accessRow', { timeout: 5000 }).catch(() => { });
+  const shT = await page.textContent('#shTeam');
+  ok(/No login yet[\s\S]*Avery \(demo\)[\s\S]*starts/.test(shT) && /Not linked to Staff Hub[\s\S]*Drew \(demo\)/.test(shT) && /Staff Hub has changes for Jordan/.test(shT), 'Team: Avery is on Staff Hub with no login yet (starting soon); Drew isn’t linked to Staff Hub; Jordan’s change waits in Settings');
+  await page.click('#view tr[data-sid=morgan]'); await page.waitForSelector('#drawer [data-act=editHR]');
+  ok((await page.$$eval('#drawer .sug.blue', e => e.length)) === 2, 'Morgan’s record: her hire date and part-time marked “Staff Hub”');
+  await page.click('#drawer [data-act=editHR]'); await page.waitForSelector('#hrSave'); await collect();
+  ok(await E(() => ['hrHire', 'hrType', 'hrLeft'].every(id => document.getElementById(id).disabled)) && /From Staff Hub \(its start date\) — change it there/.test(await page.textContent('.modal')), '…her HR record: hire date, employment and last day can’t be changed here (“From Staff Hub — change it there”)');
+  await page.fill('#hrNotes', 'Prefers mornings'); await page.click('#hrSave'); ok(await toastHas(/^Saved/), '…the rest can');
+  await settle();
+  ok(await E(() => { const m = S.hrRecs.get('morgan'); return m.notes === 'Prefers mornings' && m.hire === '2024-09-09' && m.type === 'PT' && m.emp === 'Part-time' && m.sh.id === 'demo-morgan'; }), '…and Staff Hub’s stay as they were');
+  await page.keyboard.press('Escape');
   await page.click('#view tr[data-sid=drew]'); await page.waitForSelector('#drawer [data-act=editHR]');
   await page.click('#drawer [data-act=editHR]'); await page.waitForSelector('#hrSave');
   await page.click('#hrSave'); ok(await toastHas(/Add the hire date/), 'an HR record needs the hire date');
@@ -121,6 +137,11 @@ const ok = (c, m) => { if (c) { pass++; console.log('  ok  ' + m); } else { fail
   const drewRec = await E(() => S.hrRecs.get('drew'));
   ok(drewRec && drewRec.hire === drewHire && drewRec.dept === 'Front office' && !drewRec.open, '…hire date and department; no opening balance (from 0 on the hire date)');
   await page.keyboard.press('Escape');
+  await page.click('#shTeam [data-act=shLink][data-sid=drew]'); await page.waitForSelector('#shPick'); await collect();
+  ok(await E(() => Array.from(document.querySelectorAll('#shPick option')).map(o => o.value).join()) === ',demo-avery,demo-sam,-', 'Link…: Drew can be linked to someone on Staff Hub no current login is linked to (Avery; Sam, whose login was removed — a rehire’s new login would be linked so), or marked as not on it');
+  await page.selectOption('#shPick', '-'); await page.click('#shPickSave'); ok(await toastHas(/Drew \(demo\): not on Staff Hub/), '…marked as not on Staff Hub');
+  await page.waitForFunction(() => !/Drew/.test((document.querySelector('#shTeam') || {}).textContent || 'Drew'), null, { timeout: 8000 }).catch(() => { });
+  ok(await E(() => staff('drew').rid === '-' && !/Not linked to Staff Hub/.test(document.querySelector('#shTeam').textContent)), '…and Team no longer asks about him (his hire date is kept here)');
   await page.click('#view tr[data-sid=riley]'); await page.waitForSelector('#drawer [data-act=addAdj]'); await collect(); await shot('owner-person', true);
   ok(/Statement/.test(await page.textContent('#drawer')) && /Opening balance/.test(await page.textContent('#drawer')), 'Riley’s panel: balances, HR record, statement');
   const rb0 = await bal('riley');
@@ -152,6 +173,28 @@ const ok = (c, m) => { if (c) { pass++; console.log('  ok  ' + m); } else { fail
   ok(/year end/i.test(await page.textContent('#view .cardHd h3')), 'Year end: what’s left on Dec 31');
   // ---- settings
   await nav('settings'); await page.waitForSelector('#apprBox .accessRow'); await page.waitForTimeout(300); await collect(); await shot('owner-settings', true);
+  // Staff Hub: connected; changes wait for Dr. A, with what they do to the balance
+  await page.waitForSelector('#shBox [data-act=shRefresh]');
+  const shB = await page.textContent('#shBox');
+  ok(/Waiting for you \(1\)[\s\S]*Jordan \(demo\)[\s\S]*start date Jun 3, 2010 → Jun 1, 2010[\s\S]*Balances today stay as they are/.test(shB) && /5 of 6 people with a login/.test(shB) && /no login yet\s*Avery \(demo\)/i.test(shB),
+    'Settings → Staff Hub: Jordan’s start date waits, with what it does to the balance (nothing today); 5 of 6 linked; Avery has no login yet');
+  await page.click('#shBox [data-act=shApplyOne][data-sid=jordan]'); ok(await toastHas(/Brought in from Staff Hub — Jordan \(demo\): start date Jun 3, 2010 → Jun 1, 2010/), 'Bring in: Jordan’s start date');
+  await settle();
+  ok(await E(() => S.hrRecs.get('jordan').hire === '2010-06-01' && S.hrRecs.get('jordan').sh.id === 'demo-jordan' && !SH.pending.length), '…in the record, marked as Staff Hub’s; nothing else waits');
+  const tb0 = await bal('taylor');
+  await E(() => { DEMO.shData.people['demo-taylor'].employment = 'PRN / Temp'; });
+  await page.click('#shBox [data-act=shRefresh]'); await page.waitForSelector('#shBox [data-act=shApplyOne][data-sid=taylor]', { timeout: 5000 });
+  ok(/Taylor \(demo\)[\s\S]*PRN \/ Temp from/.test(await page.textContent('#shBox')) && await E(() => S.hrRecs.get('taylor').type === 'FT'), 'Taylor made PRN in Staff Hub: “Read it again” shows it waiting (“PRN / Temp from today”) — her record unchanged until it’s brought in');
+  await page.click('#shBox [data-act=shApplyOne][data-sid=taylor]'); ok(await toastHas(/Taylor \(demo\): PRN \/ Temp from/), '…brought in');
+  await settle();
+  ok(await E(() => { const r = S.hrRecs.get('taylor'); return r.type === 'PT' && r.emp === 'PRN / Temp' && r.typeWas.length === 1 && r.typeWas[0].type === 'FT' && r.typeWas[0].until === addDays(todayISO(), -1); }) && (await E(() => isLastOfMonth(todayISO())) || JSON.stringify(await bal('taylor')) === JSON.stringify(tb0)),
+    '…PRN from today: what she has earned stays (full-time through yesterday)');
+  ok(/Last brought in, .*Taylor \(demo\): PRN \/ Temp from/.test(await page.textContent('#shBox')), '…and the card says what was brought in last');
+  await E(() => { DEMO.shData.people['demo-taylor'].employment = 'Full-time'; });
+  await page.click('#shBox [data-act=shRefresh]'); await page.waitForSelector('#shBox [data-act=shApplyOne][data-sid=taylor]', { timeout: 5000 });
+  await page.click('#shBox [data-act=shApplyOne][data-sid=taylor]'); ok(await toastHas(/Taylor \(demo\): full-time from/), '…and back to full-time');
+  await settle();
+  ok(await E(() => S.hrRecs.get('taylor').type === 'FT') && JSON.stringify(await bal('taylor')) === JSON.stringify(tb0), '…her balance as it was');
   const sw = uid => '#apprBox [data-act=toggleHR][data-uid="' + uid + '"]';
   ok(await page.$eval(sw('u-casey'), e => e.disabled) && /sign in once/.test(await page.textContent('#apprBox .accessRow:has([data-uid="u-casey"])')), 'Who approves: Casey can’t be turned on until she has signed in once');
   ok(await page.$eval(sw('u-jordan'), e => e.getAttribute('aria-checked')) === 'true', 'Jordan approves');
@@ -210,6 +253,9 @@ const ok = (c, m) => { if (c) { pass++; console.log('  ok  ' + m); } else { fail
   ok(JSON.stringify(rows.map(r => r.sid)) === JSON.stringify(['casey', 'drew', 'jordan', 'morgan', 'riley', 'taylor', 'sam', '']), 'every old name matched to its login (Pat Gone, no login: Don’t move): ' + rows.map(r => r.n + '→' + (r.sid || '–')).join(', '));
   ok(!(await page.$eval('#view', e => e.innerHTML)).includes('NOT-A-REAL'), 'no password or passcode anywhere on the screen');
   const iT = rows.findIndex(r => r.sid === 'taylor'), iM = rows.findIndex(r => r.sid === 'morgan'), iR = rows.findIndex(r => r.sid === 'riley'), iD = rows.findIndex(r => r.sid === 'drew'), iC = rows.findIndex(r => r.sid === 'casey');
+  const shNotes = await page.$$eval('.imPerson', e => e.map(x => (x.querySelector('.imSh') || {}).textContent || '')), iJ = rows.findIndex(r => r.sid === 'jordan');
+  ok(/Staff Hub: started Jun 1, 2010 \(the Sheet: Jun 3, 2010\) — the move uses Staff Hub’s/.test(shNotes[iJ]) && /Not linked to Staff Hub/.test(shNotes[iD]) && shNotes[iR] === '' && /Hired Jun 1, 2010/.test(await E(i => document.querySelectorAll('.imPerson')[i].textContent, iJ)),
+    'the move uses Staff Hub’s dates: Jordan’s start date there isn’t the Sheet’s (said so); Drew isn’t linked to Staff Hub (the Sheet’s); Riley’s agree (nothing to say)');
   ok(/Handbook: −/.test(await E(i => document.querySelectorAll('.imPerson')[i].textContent, iT)), 'Taylor: the handbook gives less (Tier 2 too early, a week Mon–Fri, hours typed in)');
   ok(/Already has a record here/.test(await E(i => document.querySelectorAll('.imPerson')[i].textContent, iR)) && /Already has a record/.test(await E(i => document.querySelectorAll('.imPerson')[i].textContent, iC)) && !(await E(i => document.querySelectorAll('.imPerson')[i].querySelector('.imNums'), iR)), 'people with a record here already are skipped unless Replace is ticked');
   for (const i of [iR, iT, iM, iD]) { await page.check('[data-chg=imReplace][data-i="' + i + '"]'); await page.waitForTimeout(80); } // (Drew's record was made above)
@@ -232,6 +278,7 @@ const ok = (c, m) => { if (c) { pass++; console.log('  ok  ' + m); } else { fail
   ok(after.riley.vac === want.riley.vac && after.riley.sick === want.riley.sick && after.riley.asOf === await E(() => todayISO()), 'Riley starts from the old app’s balance (the default), as of today');
   ok(after.taylor.vac === want.taylor.vac && after.taylor.from.pick === 'hand', 'Taylor from the handbook’s');
   ok(after.morgan.vac === 10 && after.morgan.sick === 0 && after.mt === 'PT', 'Morgan from the numbers typed (and part-time)');
+  ok(await E(() => ['riley', 'taylor', 'morgan'].every(s => (S.hrRecs.get(s).sh || {}).id === 'demo-' + s) && !S.hrRecs.get('drew').sh), '…Staff Hub’s start dates and full-/part-time for Riley, Taylor and Morgan (marked as Staff Hub’s); Drew’s from the Sheet');
   ok(after.n === before.n + res.reqs, 'the requests are here');
   const leg = await E(() => allReqs().filter(r => r.legacy).map(r => ({ id: r.id, sid: r.sid, st: r.status, ded: r.legacy.ded, took: r.legacy.took, ev: r.events.map(e => e.a).join() })));
   // Casey has no Replace: her record stays as it was, except that it now lists the moved requests the old app took off
