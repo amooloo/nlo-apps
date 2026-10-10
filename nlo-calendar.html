@@ -113,7 +113,7 @@ const TIMEOFF_API = "https://script.google.com/macros/s/AKfycbxvI_d6muf_OepqurNr
 const TO_FEED_URL = "https://firestore.googleapis.com/v1/projects/nlo-cases/databases/(default)/documents/toFeed/live";
 const TO_FEED_CFG = "nlo/cadence/timeOffFeed";
 const SYNC_INTERVAL_MIN = 15;
-const CAL_VERSION = "1.4 (Oct 9, 2026)";
+const CAL_VERSION = "1.5 (Oct 10, 2026)";
 
 /* Staff roster seeded from Gusto (active employees, July 2026). Editable in Settings.
    Names only: birthdays and hire dates are kept in Firebase (Settings > Staff), never in this public file. */
@@ -560,29 +560,29 @@ function entriesFor(ds,ignoreFilters){
       out.push(o);
     }
   });
-  /* approved time off synced from the Time-Off Request app */
+  /* approved time off synced from NLO Time Off (or the old Time-Off app): who is out, and the part of the day
+     for a half day. The kind of time off and paid/unpaid are never brought into the calendar. */
   if((ignoreFilters || S.filters.pto) && !officeClosed(ds)){
       S.sync.timeOff.forEach((r,i)=>{
         const start=String(r.start||"").slice(0,10), end=String(r.end||r.start||"").slice(0,10);
         if(!start) return;
         if(ds>=start && ds<=(end||start)){
           const who=ptoPerson(r.employeeName);   /* the Staff Hub person behind the Time-Off app's name, if any */
-          out.push({ id:"to_"+(r.id||i), type:"pto", title:r.requestType||r.reason||"PTO",
-                     staffId:null, staffName:who?who.name:(r.employeeName||"PTO"), who:who,
-                     startDate:start, endDate:end||start, time:null,
-                     unpaid:String(r.paidType||"").toLowerCase().indexOf("unpaid")>=0,
-                     notes:[r.paidType?String(r.paidType):"", r.hours?(/^[\d.]+$/.test(String(r.hours))?r.hours+" hrs":String(r.hours)):""].filter(Boolean).join(" · "),
-                     recurrence:null, synced:true });
+          out.push({ id:"to_"+(r.id||i), type:"pto", title:"Out",
+                     staffId:null, staffName:who?who.name:(r.employeeName||OUT_NOBODY), who:who,
+                     startDate:start, endDate:end||start, time:null, part:outPartOf(r),
+                     notes:"", recurrence:null, synced:true });
         }
     });
   }
   const order={holiday:0,pto:1,bday:2,anniv:3,hr:3.5,event:4,task:5};
-  out.sort((a,b)=>(order[a.type]-order[b.type])||String(a.time||"").localeCompare(String(b.time||""))||String(a.title).localeCompare(b.title));
+  /* same kind and time: by what's shown, so the people out are in name order */
+  out.sort((a,b)=>(order[a.type]-order[b.type])||String(a.time||"").localeCompare(String(b.time||""))||String(entryLabel(a)).localeCompare(String(entryLabel(b))));
   return out;
 }
 
 function typeColors(t){
-  if(t==="pto")     return {bg:"#FFE7E1",fg:"#C13A28",edge:"#FA624D",glyph:"●",label:"PTO"};
+  if(t==="pto")     return {bg:"#FFE7E1",fg:"#C13A28",edge:"#FA624D",glyph:"●",label:"Out"};
   if(t==="bday")    return {bg:"#E2FBF4",fg:"#137a61",edge:"#64F4C9",glyph:"🎂",label:"Birthday"};
   if(t==="anniv")   return {bg:"#E5EAF8",fg:"#16318C",edge:"#2E52C9",glyph:"🎉",label:"Anniversary"};
   if(t==="task")    return {bg:"#FEF2D7",fg:"#996709",edge:"#E29A14",glyph:"▲",label:"Task"};
@@ -590,17 +590,29 @@ function typeColors(t){
   if(t==="hr")      return {bg:"#F0EAFB",fg:"#5B3A9E",edge:"#7C5CD6",glyph:"◆",label:"Staff Hub"};
   return {bg:"#E5EAF8",fg:"#16318C",edge:"#1D3EA9",glyph:"■",label:"Event"};
 }
-function entryLabel(e){ return e.type==="pto"?((e.staffName||"PTO")+(e.unpaid?" — unpaid":"")):e.title; }
+/* ================= WHO'S OUT =================
+   Time off shows only that someone is out: their name, the dates, and "Morning" / "Afternoon" for a half day.
+   Never the kind of time off (vacation, sick, personal…), paid or unpaid, or a label typed for it, whether it
+   comes from NLO Time Off, the old Time-Off app or an entry made here. Entries keep the internal type "pto",
+   so saved entries and the Staff Meeting Hub (which skips that type) carry on unchanged. */
+const OUT_NOBODY="Staff member";
+function outPartOf(r){
+  const p=String((r&&r.part)||"").toLowerCase(), h=String(r&&r.hours!=null?r.hours:"").trim();
+  if(p==="am") return "Morning";
+  if(p==="pm") return "Afternoon";
+  if(p==="full") return "";
+  if(/morning|\(am\)/i.test(h)) return "Morning";
+  if(/afternoon|\(pm\)/i.test(h)) return "Afternoon";
+  /* the old Time-Off app can send hours: a part of one day shows as hours, a full day (8.5) as nothing */
+  const n=Number(h), one=String((r&&r.start)||"").slice(0,10)===String((r&&(r.end||r.start))||"").slice(0,10);
+  if(/^\d+(\.\d+)?$/.test(h)&&n>0&&n<8.5&&one) return n+" hrs";
+  return "";
+}
+function entryLabel(e){ return e.type==="pto"?(e.staffName||OUT_NOBODY):e.title; }
 const HR_LABEL={review:"Review",cert:"Cert",start:"First day",last:"Last day"};
-function entryTypeLabel(e){ return e.type==="pto"?(e.unpaid?"Unpaid":"PTO"):(e.type==="hr"?(HR_LABEL[e.kind]||"Staff Hub"):typeColors(e.type).label); }
+function entryTypeLabel(e){ return e.type==="pto"?"Out":(e.type==="hr"?(HR_LABEL[e.kind]||"Staff Hub"):typeColors(e.type).label); }
 function entrySub(e){
-  if(e.type==="pto"){
-    const parts=["Out "+prettyRange(e.startDate,e.endDate)];
-    if(e.title&&e.title!=="PTO") parts.push(e.title);
-    parts.push(e.unpaid?"Unpaid (no PTO used)":"Paid");
-    if(e.synced) parts.push("Time-Off app");
-    return parts.join(" · ");
-  }
+  if(e.type==="pto") return "Out "+prettyRange(e.startDate,e.endDate)+(e.part?" · "+e.part:"");
   if(e.type==="hr") return e.hrSub+" · from Staff Hub";
   if(e.type==="holiday") return "Office closed";
   if(e.type==="bday") return "Happy birthday! 🎂🎈";
@@ -641,7 +653,7 @@ function fmtStamp(ms){ const d=new Date(ms); return isNaN(d)?"":SMON[d.getMonth(
 /* ================= MUTATIONS ================= */
 function blankForm(ds){
   const d=ds||todayStr();
-  return {id:null,type:"event",title:"",staffId:"",startDate:d,endDate:d,allDay:true,time:"09:00",notes:"",recurrence:"",until:"",unpaid:false};
+  return {id:null,type:"event",title:"",staffId:"",startDate:d,endDate:d,allDay:true,time:"09:00",notes:"",recurrence:"",until:""};
 }
 function readFormDom(){
   const f=S.form; if(!f) return;
@@ -655,12 +667,11 @@ function readFormDom(){
   if(g("f-rec")) f.recurrence=g("f-rec").value;
   if(g("f-notes")) f.notes=g("f-notes").value;
   if(g("f-allday")) f.allDay=g("f-allday").checked;
-  if(g("f-unpaid")) f.unpaid=g("f-unpaid").checked;
 }
 function saveEntry(force){
   readFormDom();
   const f=S.form, data=S.data;
-  if(f.type==="pto"&&!f.staffId){ S.formError="Pick a staff member for PTO."; S.blackoutWarn=false; return render(); }
+  if(f.type==="pto"&&!f.staffId){ S.formError="Pick who's out."; S.blackoutWarn=false; return render(); }
   if(f.type!=="pto"&&!f.title.trim()){ S.formError="Give this entry a title."; S.blackoutWarn=false; return render(); }
   if(!f.startDate){ S.formError="Start date is required."; S.blackoutWarn=false; return render(); }
   /* events and tasks can repeat: each repeat is one day, and "Repeat until" (optional) ends the series */
@@ -677,7 +688,7 @@ function saveEntry(force){
   const staff=f.staffId?calStaff()[f.staffId]:null;
   const rec={
     type:f.type,
-    title:f.type==="pto"?(f.title.trim()||"PTO"):f.title.trim(),
+    title:f.type==="pto"?"Out":f.title.trim(),
     staffId:f.type==="pto"?f.staffId:null,
     staffName:f.type==="pto"&&staff?staff.name:null,
     startDate:f.startDate, endDate:end,
@@ -685,7 +696,6 @@ function saveEntry(force){
     notes:f.notes.trim(),
     recurrence:rep,
     until:until,
-    unpaid:f.type==="pto"&&!!f.unpaid,
     createdAt:Date.now()
   };
   const id=f.id||("e"+Date.now()+Math.floor(Math.random()*999));
@@ -790,10 +800,10 @@ function render(){
     const d=parseD(ds); return DAYS[d.getDay()].slice(0,3)+" "+prettyDate(ds);
   };
   const lbl1=dayLbl(d1), lbl2=dayLbl(d2);
-  const outOnce=list=>list.filter((e,i,a)=>a.findIndex(x=>(x.staffName||"PTO")===(e.staffName||"PTO"))===i);
+  const outOnce=list=>list.filter((e,i,a)=>a.findIndex(x=>(x.staffName||OUT_NOBODY)===(e.staffName||OUT_NOBODY))===i);
   const outTodayE=outOnce(entriesFor(d1,true).filter(e=>e.type==="pto"));
   const outTomorrowE=outOnce(entriesFor(d2,true).filter(e=>e.type==="pto"));
-  const outToday=outTodayE.map(e=>e.staffName||"PTO"), outTomorrow=outTomorrowE.map(e=>e.staffName||"PTO");
+  const outToday=outTodayE.map(e=>e.staffName||OUT_NOBODY), outTomorrow=outTomorrowE.map(e=>e.staffName||OUT_NOBODY);
   const anyOut=outToday.length>0||outTomorrow.length>0;
 
   /* ---- header ---- */
@@ -845,7 +855,7 @@ function render(){
   const bPad=phone?"8px 14px":"10px 24px", bFs=phone?"14px":"15px", bGap=phone?"4px 14px":"6px 20px";
   const whoLab=col=>`<span class="disp" style="font-weight:600;letter-spacing:.14em;font-size:${phone?"12px":"13px"};color:${col};">Who's out</span>`;
   let who="";
-  const faces=list=>list.map((e,i)=>`<span style="display:inline-flex;align-items:center;gap:6px;white-space:nowrap;">${whoFace(e,phone?20:22)}${esc(e.staffName||"PTO")}${i<list.length-1?",":""}</span>`).join("");
+  const faces=list=>list.map((e,i)=>`<span style="display:inline-flex;align-items:center;gap:6px;white-space:nowrap;">${whoFace(e,phone?20:22)}${esc(e.staffName||OUT_NOBODY)}${i<list.length-1?",":""}</span>`).join("");
   if(outToday.length) who+=`<span style="font-size:${bFs};color:var(--navy-800);display:inline-flex;align-items:center;flex-wrap:wrap;gap:4px 6px;"><strong style="font-weight:700;">${lbl1}:</strong> ${faces(outTodayE)}</span>`;
   if(outTomorrow.length) who+=`<span style="font-size:${bFs};color:var(--grey-600);display:inline-flex;align-items:center;flex-wrap:wrap;gap:4px 6px;"><strong style="font-weight:700;color:var(--navy-800);">${lbl2}:</strong> ${faces(outTomorrowE)}</span>`;
   if(st==="ok"){
@@ -866,7 +876,7 @@ function render(){
   }
 
   /* ---- toolbar ---- */
-  const FILTERS=[["pto","●","PTO","--coral-500","#FFE7E1","#C13A28"],["event","■","Events","--blue-600","#E5EAF8","#16318C"],["task","▲","Tasks","--amber-600","#FEF2D7","#996709"],["hr","◆","Staff Hub","--violet-500","#F0EAFB","#5B3A9E"]];
+  const FILTERS=[["pto","●","Out","--coral-500","#FFE7E1","#C13A28"],["event","■","Events","--blue-600","#E5EAF8","#16318C"],["task","▲","Tasks","--amber-600","#FEF2D7","#996709"],["hr","◆","Staff Hub","--violet-500","#F0EAFB","#5B3A9E"]];
   if(phone){
     h+=`<div style="display:flex;align-items:center;gap:6px;padding:12px 14px 8px;">
       <h1 class="disp" style="margin:0;flex:1;min-width:0;font-weight:700;letter-spacing:.01em;font-size:22px;line-height:1.1;color:var(--navy-800);">${esc(periodLabel)}</h1>
@@ -968,7 +978,7 @@ function renderMonth(today,cd){
     if(ad&&!phone) h+=`<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;"><span class="disp" style="transform:rotate(-16deg);font-weight:700;font-size:15px;letter-spacing:.16em;color:${ad==="meeting"?"#D8412E":"#1F9E7E"};opacity:.45;white-space:nowrap;">${ad==="meeting"?"Admin + Mtg":"Admin Day"}</span></div>`;
     h+=`<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
         <span style="font-weight:700;font-size:${phone?"13px":"15px"};min-width:${phone?"22px":"26px"};height:${phone?"22px":"26px"};display:inline-flex;align-items:center;justify-content:center;border-radius:999px;background:${isToday?"#1D3EA9":"transparent"};color:${isToday?"#FFFFFF":(closed?"#969FAB":"#1B2F4C")};">${d.getDate()}</span>`;
-    if(blackout&&!phone) h+=`<span class="disp" style="font-weight:600;letter-spacing:.1em;font-size:10px;background:var(--navy-800);color:#fff;border-radius:4px;padding:2px 6px;">No PTO</span>`;
+    if(blackout&&!phone) h+=`<span class="disp" style="font-weight:600;letter-spacing:.1em;font-size:10px;background:var(--navy-800);color:#fff;border-radius:4px;padding:2px 6px;">No time off</span>`;
     h+=`</div>`;
     if(phone){
       /* phones: one small coloured mark per entry; tap the day for the details */
@@ -1024,7 +1034,7 @@ function renderWeek(today,cursor){
         <span style="font-weight:700;font-size:20px;color:${isToday?"#1D3EA9":"#1B2F4C"};">${d.getDate()}</span>`;
     if(closed) h+=`<span style="font-size:11px;font-weight:600;color:var(--grey-400);text-transform:uppercase;letter-spacing:.08em;">Closed</span>`;
     h+=`</div>`;
-    if(blackout) h+=`<span class="disp" style="font-weight:600;letter-spacing:.1em;font-size:11px;background:var(--navy-800);color:#fff;border-radius:4px;padding:3px 8px;align-self:flex-start;">No PTO — blackout</span>`;
+    if(blackout) h+=`<span class="disp" style="font-weight:600;letter-spacing:.1em;font-size:11px;background:var(--navy-800);color:#fff;border-radius:4px;padding:3px 8px;align-self:flex-start;">Blackout — no time off</span>`;
     if(adW) h+=`<div style="align-self:flex-start;">${adminDayTag(ds)}</div>`;
     entriesFor(ds).forEach(e=>{ h+=weekEntry(e,ds); });
     h+=`</div>`;
@@ -1058,7 +1068,7 @@ function renderWeekList(today,ws){
         <span class="disp" style="font-weight:700;letter-spacing:.06em;font-size:16px;color:${isToday?"#1D3EA9":"#1B2F4C"};">${name}</span>`;
     if(isToday) h+=`<span class="disp" style="font-weight:600;letter-spacing:.1em;font-size:11px;background:var(--blue-600);color:#fff;border-radius:999px;padding:2px 10px;">Today</span>`;
     if(closed) h+=`<span style="font-size:11px;font-weight:600;color:var(--grey-400);text-transform:uppercase;letter-spacing:.08em;">Closed</span>`;
-    if(blackout) h+=`<span class="disp" style="font-weight:600;letter-spacing:.1em;font-size:10px;background:var(--navy-800);color:#fff;border-radius:4px;padding:2px 6px;">No PTO</span>`;
+    if(blackout) h+=`<span class="disp" style="font-weight:600;letter-spacing:.1em;font-size:10px;background:var(--navy-800);color:#fff;border-radius:4px;padding:2px 6px;">No time off</span>`;
     h+=adminDayTag(ds,true);
     h+=`</div>`;
     if(!entries.length) h+=`<div style="font-size:13px;color:var(--grey-400);">Nothing scheduled</div>`;
@@ -1085,7 +1095,7 @@ function renderAgenda(today,cursor){
       <div data-act="open-day" data-date="${ds}" style="display:flex;align-items:center;flex-wrap:wrap;gap:${phone?"8px":"12px"};cursor:pointer;margin-bottom:8px;">
         <span class="disp" style="font-weight:700;letter-spacing:.06em;font-size:${phone?"17px":"20px"};color:${isToday?"#1D3EA9":"#1B2F4C"};">${DAYS[d.getDay()]} · ${SMON[d.getMonth()]} ${d.getDate()}</span>`;
     if(isToday) h+=`<span class="disp" style="font-weight:600;letter-spacing:.1em;font-size:12px;background:var(--blue-600);color:#fff;border-radius:999px;padding:3px 12px;">Today</span>`;
-    if(isBlackout(ds)) h+=`<span class="disp" style="font-weight:600;letter-spacing:.1em;font-size:12px;background:var(--navy-800);color:#fff;border-radius:4px;padding:3px 10px;">No PTO</span>`;
+    if(isBlackout(ds)) h+=`<span class="disp" style="font-weight:600;letter-spacing:.1em;font-size:12px;background:var(--navy-800);color:#fff;border-radius:4px;padding:3px 10px;">No time off</span>`;
     h+=adminDayTag(ds);
     h+=`<div style="flex:1;min-width:20px;height:1px;background:var(--grey-200);"></div></div>
       <div style="display:flex;flex-direction:column;gap:8px;">`;
@@ -1097,6 +1107,7 @@ function renderAgenda(today,cursor){
         ${e.type==="task"?taskBox(e,ds):whoFace(e,phone?28:30)}
         <div style="flex:1;min-width:0;">
           <div style="font-weight:700;font-size:${phone?"16px":"17px"};color:var(--navy-800);overflow-wrap:break-word;${done?DONE_STYLE:""}">${esc(entryLabel(e))}</div>`;
+      if(e.type==="pto"&&e.part) h+=`<div style="font-size:14px;color:var(--grey-500);margin-top:3px;">${esc(e.part)}</div>`;
       if(e.notes) h+=`<div style="font-size:14px;color:var(--grey-500);margin-top:3px;overflow-wrap:break-word;">${esc(e.notes)}</div>`;
       h+=`</div><span style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;flex:none;color:${c.edge};">${entryTypeLabel(e)}</span>
       </div>`;
@@ -1123,7 +1134,7 @@ function renderDetail(today,dd){
       </div>
       <button data-act="close-detail" aria-label="Close" style="border:none;background:var(--navy-700);color:#F2F3F4;border-radius:999px;width:34px;height:34px;font-size:16px;">✕</button>
     </div>`;
-  if(isBlackout(dd)) h+=`<div class="disp" style="background:var(--navy-800);color:#E29A14;padding:8px 22px;font-size:13px;font-weight:600;letter-spacing:.06em;">Blackout date — PTO not allowed</div>`;
+  if(isBlackout(dd)) h+=`<div class="disp" style="background:var(--navy-800);color:#E29A14;padding:8px 22px;font-size:13px;font-weight:600;letter-spacing:.06em;">Blackout date — no time off</div>`;
   if(ad==="admin") h+=`<div class="disp" style="background:var(--mint-100);color:var(--mint-700);padding:8px 22px;font-size:13px;font-weight:600;letter-spacing:.06em;border-bottom:1px solid var(--mint-200);">Admin day — flexible (Dr. A can schedule off)</div>`;
   if(ad==="meeting") h+=`<div class="disp" style="background:var(--coral-100);color:var(--coral-700);padding:8px 22px;font-size:13px;font-weight:600;letter-spacing:.06em;border-bottom:1px solid var(--coral-200);">Admin day + staff meeting — Dr. A must attend</div>`;
   /* quick admin-day toggle (admin only) */
@@ -1202,24 +1213,22 @@ function renderEntry(){
   <div data-keep-scroll="entry" style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:71;background:#fff;border-radius:16px;padding:26px;width:min(460px,94vw);max-height:92vh;overflow-y:auto;box-shadow:0 24px 60px rgba(17,32,58,.35);">
     <div class="disp" style="font-weight:700;font-size:24px;color:var(--navy-800);margin-bottom:16px;">${f.id?"Edit entry":"Add entry"}</div>
     <div style="display:flex;gap:6px;background:var(--grey-100);border-radius:999px;padding:4px;margin-bottom:16px;">
-      ${typeBtn("pto","●","PTO")}${typeBtn("event","■","Event")}${typeBtn("task","▲","Task")}
+      ${typeBtn("pto","●","Out")}${typeBtn("event","■","Event")}${typeBtn("task","▲","Task")}
     </div>
     <div style="display:flex;flex-direction:column;gap:12px;">`;
   if(f.type==="pto"){
-    h+=`<label style="${lab}">Staff member
+    h+=`<label style="${lab}">Who's out
       <select id="f-staff" style="${inp}background:#fff;"><option value="">— Select staff —</option>`;
     const staffL=calStaff();
     Object.keys(staffL).filter(id=>staffL[id].active||(staffL[id].left&&id===f.staffId)).forEach(id=>{
       h+=`<option value="${id}" ${f.staffId===id?"selected":""}>${esc(staffL[id].name)}</option>`;
     });
-    h+=`</select></label>
-      <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:var(--navy-800);cursor:pointer;">
-        <input type="checkbox" id="f-unpaid" ${f.unpaid?"checked":""} style="width:18px;height:18px;accent-color:#1D3EA9;"> Unpaid time off (no PTO balance used)
-      </label>`;
-  }
-  h+=`<label style="${lab}">${f.type==="pto"?"Label (optional)":"Title"}
-      <input type="text" id="f-title" value="${esc(f.title)}" placeholder="${f.type==="pto"?"e.g. Vacation, Sick day":(f.type==="task"?"e.g. Supply order due":"e.g. Staff meeting")}" style="${inp}">
+    h+=`</select></label>`;
+  } else {
+    h+=`<label style="${lab}">Title
+      <input type="text" id="f-title" value="${esc(f.title)}" placeholder="${f.type==="task"?"e.g. Supply order due":"e.g. Staff meeting"}" style="${inp}">
     </label>`;
+  }
   /* events and tasks can repeat; "Repeat until" (optional) ends the series */
   if(f.type!=="pto"){
     const o=(v,l)=>`<option value="${v}" ${(f.recurrence||"")===v?"selected":""}>${l}</option>`;
@@ -1245,7 +1254,7 @@ function renderEntry(){
   if(S.blackoutWarn){
     h+=`<div style="background:var(--amber-100);border:1px solid #F5DFA9;border-radius:10px;padding:12px 14px;">
       <div style="font-weight:700;font-size:14px;color:var(--amber-700);">⚠ Blackout date conflict</div>
-      <div style="font-size:13.5px;color:var(--grey-600);margin-top:4px;">This PTO overlaps a blackout date. Save anyway?</div>
+      <div style="font-size:13.5px;color:var(--grey-600);margin-top:4px;">This overlaps a blackout date. Save anyway?</div>
       <button data-act="save-anyway" class="hov-amber7" style="margin-top:10px;border:none;background:var(--amber-600);border-radius:999px;padding:8px 18px;font-weight:700;font-size:13px;color:#fff;">Save anyway</button>
     </div>`;
   }
@@ -1347,7 +1356,7 @@ function renderSettings(){
     ${hrSettingsHtml()}
 
     <div class="disp" style="font-weight:600;letter-spacing:.12em;font-size:14px;color:var(--blue-600);margin-bottom:10px;">Office closures</div>
-    <div style="font-size:13px;color:var(--grey-500);margin-bottom:10px;">Office-specific closed days (beyond the handbook holidays) — shown as ★ holidays; PTO is never counted on them.</div>
+    <div style="font-size:13px;color:var(--grey-500);margin-bottom:10px;">Office-specific closed days (beyond the handbook holidays) — shown as ★ holidays; nobody shows as out on them.</div>
     <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;">`;
   const closures=data.settings.closures||{};
   const clKeys=Object.keys(closures).sort();
@@ -1364,7 +1373,7 @@ function renderSettings(){
       <button data-act="closure-add" class="hov-navy9" style="border:none;background:var(--navy-800);border-radius:10px;padding:10px 18px;font-weight:700;font-size:14px;color:#fff;">Add</button>
     </div>
 
-    <div class="disp" style="font-weight:600;letter-spacing:.12em;font-size:14px;color:var(--blue-600);margin-bottom:10px;">Blackout dates (no PTO)</div>
+    <div class="disp" style="font-weight:600;letter-spacing:.12em;font-size:14px;color:var(--blue-600);margin-bottom:10px;">Blackout dates (no time off)</div>
     <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;">`;
   if(!blackoutList.length) h+=`<span style="font-size:14px;color:var(--grey-500);">None set.</span>`;
   blackoutList.forEach(ds=>{
@@ -1425,9 +1434,9 @@ document.getElementById("app").addEventListener("click",(ev)=>{
     case "edit-entry": {
       const e=S.data.events[el.dataset.id];
       if(!e) break;
-      S.form={ id:el.dataset.id, type:e.type, title:(e.type==="pto"&&e.title==="PTO")?"":e.title, staffId:e.staffId||"",
+      S.form={ id:el.dataset.id, type:e.type, title:e.type==="pto"?"":e.title, staffId:e.staffId||"",
                startDate:e.startDate, endDate:e.endDate||e.startDate, allDay:!e.time, time:e.time||"09:00",
-               notes:e.notes||"", recurrence:e.recurrence||"", until:e.until||"", unpaid:!!e.unpaid };
+               notes:e.notes||"", recurrence:e.recurrence||"", until:e.until||"" };
       S.entryOpen=true; S.blackoutWarn=false; S.formError=""; render(); break;
     }
     case "del-entry": deleteEntry(el.dataset.id); break;
@@ -1447,7 +1456,7 @@ document.getElementById("app").addEventListener("click",(ev)=>{
     }
     case "staff-remove": {
       const id=el.dataset.id;
-      if(!window.confirm("Remove "+S.data.staff[id].name+"?\n\nThis also deletes ALL their calendar entries — PTO, birthday, and work-anniversary dates.")) break;
+      if(!window.confirm("Remove "+S.data.staff[id].name+"?\n\nThis also deletes ALL their calendar entries — days out, birthday, and work-anniversary dates.")) break;
       Object.keys(S.data.events).forEach(eid=>{ if(S.data.events[eid].staffId===id) fbRemove("events/"+eid); });
       fbRemove("staff/"+id);
       if(S.editStaffId===id) S.editStaffId=null;
