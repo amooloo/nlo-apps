@@ -1,0 +1,30 @@
+<div id="app">
+<nav id="sidebar" aria-label="NLO Botox">
+  <div class="sb-logo"><img src="logo-white.png" alt="Next Level Orthodontics"><div><h2>NLO Botox</h2><p>Neuromodulator planner</p></div></div>
+  <div class="sb-nav">
+    <div class="sb-section">Plan</div>
+    <button class="sb-item" data-view="map">Injection map</button>
+    <button class="sb-item" data-view="plan">Treatment plan <span class="sb-count" id="sbCount" hidden></span></button>
+    <button class="sb-item" data-view="dilution">Dilution &amp; syringe</button>
+    <div class="sb-section">Print</div>
+    <button class="sb-item" data-view="print">Forms &amp; handouts</button>
+    <div class="sb-section">Reference</div>
+    <button class="sb-item" data-view="safety">Safety &amp; complications</button>
+    <button class="sb-item" data-view="sources">Products &amp; sources</button>
+  </div>
+  <div class="sb-foot">Starting doses per site follow the AAFE course where it gives one, otherwise the published literature (Xeomin and Botox units, 1 : 1). For a trained injector to adjust. Nothing about patients is stored.</div>
+</nav>
+<div id="main">
+  <header class="topbar">
+    <div><div id="pageTitle">Injection map</div><div class="sub" id="pageSub"></div></div>
+    <button class="prod-chip" data-act="prod-chip" title="Product and dilution"><span class="dot" aria-hidden="true"></span><span id="prodChipTxt"></span></button>
+  </header>
+  <section class="panel" id="panel-map" aria-label="Injection map"></section>
+  <section class="panel" id="panel-plan" aria-label="Treatment plan"></section>
+  <section class="panel" id="panel-dilution" aria-label="Dilution and syringe"></section>
+  <section class="panel" id="panel-print" aria-label="Forms and handouts"></section>
+  <section class="panel" id="panel-safety" aria-label="Safety and complications"></section>
+  <section class="panel" id="panel-sources" aria-label="Products and sources"></section>
+</div>
+</div>
+<div id="printRoot"></div>
