@@ -27,6 +27,11 @@ clock … that sends me and multiple people alerts when someone is getting close
 - **Payroll every other Friday**: the Payroll page shows each person's two-week regular and overtime hours first (overtime
   still worked out per workweek, then added), marks payroll day, and the alert script emails the numbers that Friday
   at 7 AM. Payroll Friday = the period's last Friday when it ends Fri–Sun, else the first Friday after it ends.
+- **Each pay period's time cards kept, automatically** (Amir, 10 Oct 2026: "I definitely want to keep the data for at
+  least 2 years. I would love to make this automated so I don't have to"): the morning after a pay period ends (7 AM,
+  never before 8 PM on its payroll Friday), the alert script emails the period's time cards as the Payroll page's two
+  spreadsheets (Totals, Every day — corrections with who, when and why), each in an email of its own ("Time cards: … (for
+  your records)"), email only, on the payroll numbers' setting. A period nobody has time in sends nothing.
 - **Getting close to 40 hours**: "only warning that they are getting close and only approved ot allows them to go over" —
   a pop-up warning at the time clock and on My time from the first heads-up hour (or when 40 h would come today); at or
   over 40 h without approval, a clock-in (or back from lunch) is asked first — "Clock in anyway", never refused — and
@@ -165,6 +170,7 @@ approvals, Payroll, Settings and "I forgot to punch" work from anywhere, and the
 | noret | went to lunch and never came back or clocked out | `noret|punchId` |
 | req | someone asks for a missed punch, or leaves a note (each request once) | `req|requestId` |
 | payroll | payroll Friday, 7 AM: each person's two-week regular and overtime hours, and what to fix first (email only) | `payroll|periodStart` |
+| payroll | the morning after a pay period ends (not before 8 PM on its payroll Friday): its time cards, two spreadsheets attached, an email of its own (email only; nothing for a period nobody has time in) | `records|periodStart` |
 | short | a paid short break (info; off by default) | `short|sid|day|ms` |
 | pin | 5 wrong PINs (locked 10 minutes) | `pin|sid|t0ms` |
 | digest | the daily summary at the set time | `digest|day` |
@@ -176,7 +182,8 @@ already asked for doesn't alert (their request does). Someone salaried gets only
 ## Build status (10 Oct 2026, early morning)
 - All passing: unit 122 (`test/unit.test.js`), rules 418 (`test/rules.test.mjs`), the office check 66
   (`test/worker.test.mjs`: the Worker under Node on the emulators, plus Google's RS256 signature with a key made in the
-  test), alert script 57 (`test/robot.test.js`, fake Apps Script services on the real emulators), end to end 99, three
+  test), alert script 77 (`test/robot.test.js`, fake Apps Script services on the real emulators; 10 Oct afternoon, with
+  the time cards), end to end 99, three
   runs in a row (`test/e2e.py`: the real page on the emulators, with the office check Dr. A copies running under Node
   (`test/worker_server.mjs`) and each browser on a pretend network; a time box takes office time, so it uses
   `office_hm`), demo click-through 116 (`test/demo_smoke.py`). The other apps' rules suites on the same rules file:

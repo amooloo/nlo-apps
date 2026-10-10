@@ -5,8 +5,9 @@
    What it covers: setup and the 5-minute timer; reading the clock through the rules as the script's own login; the alerts
    (the newest heads-up, overtime, from home, wrong PINs, someone who left gets none); one email per check and a push per
    alert; each alert once — again on the next check, and from a second copy of the script; a push that fails is tried again
-   later on its own; Dr. A's test; the daily summary; nights; no alert settings; a login that was turned off (and the warning
-   email after 3 failures). */
+   later on its own; Dr. A's test; the daily summary; payroll Friday; each pay period's time cards for the records (when,
+   the two spreadsheets, an email of its own, once, never holding up the alerts); nights; no alert settings; a login that
+   was turned off (and the warning email after 3 failures). */
 const fs = require('fs'), path = require('path'), cp = require('child_process'), vm = require('vm');
 const TCE = vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'src', 'engine.js'), 'utf8') + '\nTCE', vm.createContext({ Intl, Date, Math, JSON, Object, Array, String, Number, Set, Map }));
 const { load, calls } = require('./gas_fakes');
@@ -69,6 +70,7 @@ const tsMs = s => Date.parse(s);
     await put('meta/setup', { owner: 'owner', at: new Date() });
     await put('meta/keys', { current: 1 });
     for (const [sid, active] of [['gwen', true], ['kim', true], ['wila', true], ['lee', false]]) await put('roster/' + sid, { name: sid[0].toUpperCase() + sid.slice(1) + ' Tester', role: 'staff', active, initials: 'XT' });
+    await put('roster/amir', { name: 'Dr. Amir Tester', role: 'owner', active: true, initials: 'AT' }); // (makes corrections; not on the clock)
     for (const sid of ['gwen', 'kim', 'lee']) await put('tcStaff/' + sid, { on: true, home: false, hdays: [], early: '', cap: 0, pinAt: new Date(), at: new Date(), by: 'owner' });
     await put('tcStaff/wila', { on: true, home: true, hdays: [], early: '', cap: 0, pinAt: new Date(), at: new Date(), by: 'owner' });
     await put('meta/tc', { wk: (dow + 4) % 7, ot: 40, thr: [36, 38], early: '', late: '', shift: 0, brk: 20, days: [0, 1, 2, 3, 4, 5, 6], pay: '', at: new Date() });
@@ -120,7 +122,7 @@ const tsMs = s => Date.parse(s);
     ok('the alerts sent are noted, each by email and push as chosen', sent1.length === 4 && sent1.every(x => x.st === 'sent') &&
       sent1.find(x => x.type === 'home').ch === '2' && sent1.find(x => x.type === 'ot').ch === '3', sent1.map(x => [x.type, x.st, x.ch]));
     const beat = (await list('tcBeat'))[0] || {};
-    ok('the script checks in: its mailbox, version, no problem', beat.box === 'records@example.com' && beat.ver === '1' && beat.err === '' && beat.id === su.localId, beat);
+    ok('the script checks in: its mailbox, version, no problem', beat.box === 'records@example.com' && beat.ver === '2' && beat.err === '' && beat.id === su.localId, beat);
 
     console.log('\n# each alert once');
     const r2 = A.run('check_(true)');
@@ -201,6 +203,70 @@ const tsMs = s => Date.parse(s);
     ok('…and Lee, who left during the period, marked so (her hours are still owed)', /Lee \(left\) — 40 h regular, 0\.5 h overtime \(40\.5 h in all\)/.test(pm.body), pm.body);
     const n1 = pf.mail.length; pf.run('check_(true)');
     ok('…once', !pf.mail.slice(n1).some(m => /Payroll: /.test(m.body)));
+    ok('…with nothing attached', !pm.attachments);
+
+    console.log('\n# each pay period’s time cards, for the records');
+    // when they go: the morning after the period ends, and never before 8 PM on its payroll Friday (in office time)
+    {
+      const due = (anchor, iso, hm) => pf.ctx.recordsDue_({ emails: ['dr.test@example.com'], route: {} }, { pay: anchor, wk: 0 }, pf.ctx.PropertiesService.getScriptProperties(), iso, TCE.atTime(iso, hm));
+      const per = x => (x ? x.join(' – ') : 'none');
+      ok('a Sunday–Saturday period (Oct 11 – Oct 24, payroll Fri Oct 23): Sunday Oct 25 from 7 AM', per(due('2026-10-11', '2026-10-25', '06:59')) === 'none' && per(due('2026-10-11', '2026-10-25', '07:00')) === '2026-10-11 – 2026-10-24' && per(due('2026-10-11', '2026-10-31', '23:00')) === '2026-10-11 – 2026-10-24', [due('2026-10-11', '2026-10-25', '06:59'), due('2026-10-11', '2026-10-25', '07:00')]);
+      ok('…not a week after that (the script was off: old news)', per(due('2026-10-11', '2026-11-02', '08:00')) === 'none');
+      ok('a Monday–Sunday period (Oct 12 – Oct 25): Monday Oct 26 from 7 AM', per(due('2026-10-12', '2026-10-26', '06:59')) === 'none' && per(due('2026-10-12', '2026-10-26', '07:00')) === '2026-10-12 – 2026-10-25');
+      ok('a period that ends Thursday (Oct 9 – Oct 22): its payroll Friday, from 8 PM (after the day’s fixes)', per(due('2026-10-09', '2026-10-23', '07:30')) === 'none' && per(due('2026-10-09', '2026-10-23', '19:59')) === 'none' && per(due('2026-10-09', '2026-10-23', '20:00')) === '2026-10-09 – 2026-10-22');
+      const off2 = pf.ctx.recordsDue_({ emails: ['dr.test@example.com'], route: { payroll: 2 } }, { pay: '2026-10-11', wk: 0 }, pf.ctx.PropertiesService.getScriptProperties(), '2026-10-25', TCE.atTime('2026-10-25', '09:00'));
+      const off3 = pf.ctx.recordsDue_({ emails: [], route: {} }, { pay: '2026-10-11', wk: 0 }, pf.ctx.PropertiesService.getScriptProperties(), '2026-10-25', TCE.atTime('2026-10-25', '09:00'));
+      ok('none when payroll emails are turned off, or there’s no address', off2 === null && off3 === null);
+    }
+    // the period above (pa – pz), with push on and the payroll numbers set to push too: the time cards still go by email only
+    const recDue = Math.max(TCE.atTime(TCE.addDays(pz, 1), '07:00'), TCE.atTime(payFri, '20:00'));
+    await put('meta/tcAlerts', { emails: ['dr.test@example.com'], topic: 'nlo-clock-test1', route: { payroll: 3 }, digest: '', test: null, at: new Date() });
+    const rc0 = load(cfg, 'records@example.com', { off: recDue - 10 * 60000 - Date.now() });
+    Object.assign(rc0.props, pf.props);
+    rc0.run('check_(true)');
+    ok('10 minutes before their time: no time cards yet', !rc0.mail.some(m => /^Time cards: /.test(m.subject)), rc0.mail.map(m => m.subject));
+    const rcx = load(cfg, 'records@example.com', { off: recDue + 5 * 60000 - Date.now() });
+    Object.assign(rcx.props, pf.props);
+    rcx.ctx.records_ = () => { throw new Error('boom'); }; // (making them fails, somehow)
+    let rx = '', ex = '';
+    try { rx = rcx.run('check_(true)'); } catch (e) { ex = e.message; }
+    ok('a problem making them never holds up the alerts: the check goes on, and says so', !ex && /The time cards couldn’t be made: boom/.test(rx) && /The time cards couldn’t be made: boom/.test((await list('tcBeat')).find(b => b.box === 'records@example.com').err) && !rcx.mail.some(m => /^Time cards: /.test(m.subject)), [rx, ex]);
+    const rc = load(cfg, 'records@example.com', { off: recDue + 10 * 60000 - Date.now() });
+    Object.assign(rc.props, pf.props);
+    const pushN = pushes().length;
+    rc.run('check_(true)');
+    const tcm = rc.mail.find(m => /^Time cards: /.test(m.subject)) || { attachments: [], body: '' };
+    if (process.env.SHOW) console.log(tcm.body, (tcm.attachments || []).map(x => x.name + '\n' + x.text).join('\n'));
+    ok('then: an email of its own, “Time cards: … (for your records)”', tcm.subject === 'Time cards: ' + TCE.dayText(pa) + ' – ' + TCE.dayText(pz) + ' (for your records)' && tcm.to === 'dr.test@example.com' && !/\(\+\d+ more\)/.test(tcm.subject), rc.mail.map(m => m.subject));
+    const att = tcm.attachments || [], f1 = att.find(x => x.name === 'time-clock-' + pa + '-to-' + pz + '.csv') || { text: '' }, f2 = att.find(x => x.name === 'time-clock-days-' + pa + '-to-' + pz + '.csv') || { text: '' };
+    ok('…the two spreadsheets attached (the Payroll page’s Totals and Every day)', att.length === 2 && f1.type === 'text/csv' && f2.type === 'text/csv', att.map(x => x.name));
+    ok('…spreadsheet-ready: UTF-8 mark, every cell quoted, CR LF', f1.text.charCodeAt(0) === 0xFEFF && f1.text.endsWith('\r\n') && f1.text.split('\r\n')[0] === '\uFEFF"Employee","Period start","Period end","Regular hours","Overtime hours","Total hours","Pay type","To check","Week of ' + pa + ' regular","Week of ' + pa + ' overtime","Week of ' + TCE.addDays(pa, 7) + ' regular","Week of ' + TCE.addDays(pa, 7) + ' overtime"', f1.text.split('\r\n')[0]);
+    const t1rows = f1.text.split('\r\n').slice(1, -1);
+    ok('…totals: everyone, by full name, overtime by workweek', t1rows.length === 4 &&
+      t1rows[0] === '"Gwen Tester","' + pa + '","' + pz + '","38","0","38","Hourly","No clock-out ' + TCE.dayText(today) + '","38","0","0","0"' &&
+      t1rows[1] === '"Kim Tester","' + pa + '","' + pz + '","40","0.5","40.5","Hourly","","40","0.5","0","0"' &&
+      t1rows[2] === '"Lee Tester","' + pa + '","' + pz + '","40","0.5","40.5","Hourly","","40","0.5","0","0"' &&
+      /^"Wila Tester","[^"]+","[^"]+","0","0","0","Hourly","No clock-out /.test(t1rows[3]), t1rows);
+    const d2 = f2.text.split('\r\n');
+    ok('…every day: the punches and hours', d2[0] === '\uFEFF"Employee","Date","Day","Punches","Hours","Flags","Corrections"' &&
+      d2.includes('"Kim Tester","' + TCE.addDays(today, -2) + '","' + TCE.WD[TCE.dow(TCE.addDays(today, -2))] + '","In 7:00 AM; Out 8:30 PM","13.5","",""') &&
+      d2.includes('"Gwen Tester","' + TCE.addDays(today, -1) + '","' + TCE.WD[TCE.dow(TCE.addDays(today, -1))] + '","In 7:00 AM; Out 7:40 PM","12.67","",""'), d2.slice(0, 8));
+    ok('…a correction: who made it, when, and why', d2.some(l => l.startsWith('"Gwen Tester","' + today + '"') && /"In \d+:\d\d [AP]M","0","No clock-out","Added In \d+:\d\d [AP]M \(Dr\. A, [^:]+: Forgot to clock in\)"$/.test(l)), d2.filter(l => /Gwen/.test(l)));
+    ok('…from home marked so, and the day flagged', d2.some(l => l.startsWith('"Wila Tester","' + today + '"') && /"In \d+:\d\d [AP]M \(home\)","0","Home; No clock-out",""$/.test(l)), d2.filter(l => /Wila/.test(l)));
+    ok('…the email says what’s in them, and to keep it', /each person’s regular and overtime hours/.test(tcm.body) && /Kim Tester — 40 h regular, 0\.5 h overtime/.test(tcm.body) && /Keep this email: it’s this pay period’s record/.test(tcm.body), tcm.body);
+    ok('…by email only (no push, even with the payroll numbers set to push)', !pushes().slice(pushN).some(x => /^Time cards/.test(x.title)), pushes().slice(pushN).map(x => x.title));
+    const rcN = rc.mail.length; rc.run('check_(true)');
+    ok('…once', !rc.mail.slice(rcN).some(m => /^Time cards: /.test(m.subject)));
+    const rc2 = load(cfg, 'akhavan@example.com', { off: recDue + 20 * 60000 - Date.now() }); // (a second copy of the script, its own memory)
+    rc2.run('check_(true)');
+    ok('…and not again from a second copy of the script', !rc2.mail.some(m => /^Time cards: /.test(m.subject)), rc2.mail.map(m => m.subject));
+    // the next period: nobody has time in it, so nothing to keep
+    const pz2 = TCE.addDays(pz, 14), recDue2 = Math.max(TCE.atTime(TCE.addDays(pz2, 1), '07:00'), TCE.atTime(TCE.payDayOf(pz2), '20:00'));
+    const rc3 = load(cfg, 'records@example.com', { off: recDue2 + 10 * 60000 - Date.now() });
+    Object.assign(rc3.props, rc.props);
+    rc3.run('check_(true)');
+    ok('a period nobody has time in: no time cards', !rc3.mail.some(m => /^Time cards: /.test(m.subject)), rc3.mail.map(m => m.subject));
+    await put('meta/tcAlerts', { emails: ['dr.test@example.com'], topic: '', route: {}, digest: '', test: null, at: new Date() });
 
     console.log('\n# nights');
     const night = load(cfg, 'records@example.com', { off: 0 });

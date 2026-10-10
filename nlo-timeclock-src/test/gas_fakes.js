@@ -37,6 +37,7 @@ function services(box, clock) {
     DigestAlgorithm: { SHA_256: 'sha256' }, Charset: { UTF_8: 'utf8' },
     computeDigest: (alg, s) => Array.from(crypto.createHash(alg).update(String(s), 'utf8').digest()).map(b => (b > 127 ? b - 256 : b)),
     getUuid: () => crypto.randomUUID(),
+    newBlob: (data, type, name) => ({ name, type, text: String(data), getName: () => name, getContentType: () => type, getDataAsString: () => String(data) }),
     formatDate: (d, tz, pat) => {
       if (pat !== 'yyyy-MM-dd-HH-mm') throw new Error('unexpected pattern ' + pat);
       const o = {}; new Intl.DateTimeFormat('en-US', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(d).forEach(x => { o[x.type] = x.value; });

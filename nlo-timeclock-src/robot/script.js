@@ -11,7 +11,9 @@
      • forgets to clock out, or never comes back from lunch,
      • asks a manager for a punch they missed (or leaves a note) at the time clock or on My time,
      • or when someone types 5 wrong PINs for a person at the time clock.
-   On payroll Friday (7 AM) it emails each person's regular and overtime hours for the two weeks.
+   On payroll Friday (7 AM) it emails each person's regular and overtime hours for the two weeks. The morning after a
+   pay period ends, it emails that period's time cards as two spreadsheets (the same as the Payroll page's), so this
+   Gmail account keeps a copy of every pay period without anyone downloading them.
    If Dr. A set a time for it, it also sends a daily summary. Each alert goes out once, even if this script
    ends up in two Gmail accounts by accident. Emails come from this Gmail account.
 
@@ -21,7 +23,7 @@
    Turn on:  pick "setup" next to Run (top bar), press Run, and allow access.
    Turn off: pick "stop", press Run.
    ===================================================================== */
-var VERSION = '1';
+var VERSION = '2';
 var CONFIG = /*TC_CONFIG*/null; // filled in by NLO Time Clock when you copy the script (Time Clock → Alerts → Get the script)
 
 // where each kind of alert goes when Dr. A hasn't picked: 1 = email, 2 = phone push, 3 = both, 0 = not sent
@@ -109,13 +111,17 @@ function run_(cfg, s, props, now) {
   const today = TCE.dayOf(now), wkIso = TCE.weekOf(today, set.wk);
   // payroll Friday, from 7 AM until the numbers have gone out: the whole pay period is needed
   const pay = payrollDue_(A, set, props, today, now);
+  // the time cards of the pay period just over (for the records), until they've gone: that whole period too
+  const rec = recordsDue_(A, set, props, today, now);
   // the punches that matter now: this workweek, and at least the last 3 days (a missing clock-out from last week)
   // (payroll: from the start of the workweek the period starts in, as that week's first 40 hours are regular)
-  const from = Math.min(TCE.dayStart(wkIso), TCE.dayStart(TCE.addDays(today, -3)), pay ? TCE.dayStart(TCE.weekOf(pay[0], set.wk)) : Infinity);
+  const from = Math.min(TCE.dayStart(wkIso), TCE.dayStart(TCE.addDays(today, -3)), pay ? TCE.dayStart(TCE.weekOf(pay[0], set.wk)) : Infinity,
+    rec ? TCE.dayStart(TCE.weekOf(rec[0], set.wk)) : Infinity);
   const P = bySid_(window_(cfg, s, 'tcPunch', from, 'punches', punchOf_));
   // corrections made since an hour before that (one can add a time up to an hour ahead); a time added before the
-  // window is left out, like the punches around it
-  const F = bySid_(window_(cfg, s, 'tcFix', from - TCE.HOUR, 'fixes', fixOf_).filter(f => f.op !== 'add' || f.t >= from));
+  // window is left out, like the punches around it. ('fixes2': kept with who made each one; copies saved before that are
+  // read again)
+  const F = bySid_(window_(cfg, s, 'tcFix', from - TCE.HOUR, 'fixes2', fixOf_).filter(f => f.op !== 'add' || f.t >= from));
   const approved = approvals_(cfg, s, wkIso);
 
   // requests still waiting for a manager: an alert for each new one (from someone on the clock), and the daily summary lists them
@@ -136,8 +142,12 @@ function run_(cfg, s, props, now) {
   if (test) alerts.push(test);
   if (A.digest && now >= TCE.atTime(today, A.digest)) alerts.push(digest_(weeks, today, now, asks, onClock));
   if (pay) alerts.push(payroll_(cfg, s, office, set, P, F, asks, pay, now));
+  // (the time cards never hold up the alerts: a problem making them shows on the check-in, and the next check tries again)
+  let recErr = '';
+  if (rec) { try { const t = records_(cfg, s, props, office, set, P, F, asks, rec, now); if (t) alerts.push(t); } catch (e) { recErr = 'The time cards couldn’t be made: ' + cap_(msg_(e), 120); } }
 
   const r = deliver_(cfg, s, props, alerts, A, now);
+  if (recErr) r.errs.push(recErr);
   if (test && r.fin[test.key]) props.setProperty('TC_TEST', String(test.ms));
   beat_(cfg, s, r.sent, r.errs.join(' · '));
   const said = r.sent + ' alert' + (r.sent === 1 ? '' : 's') + ' sent' + (r.errs.length ? ' — ' + r.errs.join(' · ') : '');
@@ -167,15 +177,20 @@ function routeOf_(route, type) {
   return DEFAULT_ROUTE[type] != null ? DEFAULT_ROUTE[type] : 3;
 }
 
-/* the clock's settings, the names and who's on the clock: read again every 10 minutes (they rarely change) */
+/* the clock's settings, the names and who's on the clock: read again every 10 minutes (they rarely change).
+   names: first names (the alerts); full: full names, "Dr. A" for the owner (the time cards, as the page shows them) */
 function office_(cfg, s, now) {
-  const hit = cacheGet_('office');
+  const hit = cacheGet_('office2');
   if (hit && hit.at <= now && now - hit.at < 10 * TCE.MIN) return hit;
   const tc = getDoc_(cfg, s, 'meta/tc', 'settings');
-  const roster = query_(cfg, s, 'roster', [], null, ['name', 'active']).docs; // (not the photos)
+  const roster = query_(cfg, s, 'roster', [], null, ['name', 'active', 'role']).docs; // (not the photos)
   const staff = query_(cfg, s, 'tcStaff', [], null, null).docs;
-  const names = {}, active = {};
-  roster.forEach(d => { const f = plain_(d.fields), sid = idOf_(d); names[sid] = firstName_(f.name); active[sid] = f.active === true; });
+  const names = {}, active = {}, full = {};
+  roster.forEach(d => {
+    const f = plain_(d.fields), sid = idOf_(d);
+    names[sid] = firstName_(f.name); active[sid] = f.active === true;
+    full[sid] = f.role === 'owner' ? 'Dr. A' : cap_(String(f.name || '').trim(), 80) || names[sid];
+  });
   const people = [], all = [];
   staff.forEach(d => {
     const f = plain_(d.fields), sid = idOf_(d), p = { sid, name: names[sid] || 'Someone', staff: f, active: !!active[sid] };
@@ -184,8 +199,8 @@ function office_(cfg, s, now) {
   });
   const byName = (a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : a.sid < b.sid ? -1 : 1);
   people.sort(byName); all.sort(byName);
-  const o = { at: now, set: tc ? plain_(tc.fields) : null, names, people, all };
-  cachePut_('office', o, 10 * 60);
+  const o = { at: now, set: tc ? plain_(tc.fields) : null, names, full, people, all };
+  cachePut_('office2', o, 10 * 60);
   return o;
 }
 /* "Robin Tester" → "Robin"; "Dr. Riley Test" → "Riley" */
@@ -214,7 +229,7 @@ function window_(cfg, s, coll, from, name, conv) {
 function punchOf_(d) { const f = plain_(d.fields); return { id: idOf_(d), sid: f.sid, kind: f.kind, at: f.at, src: f.src, net: f.net || '', by: f.by || '' }; }
 function fixOf_(d) {
   const f = plain_(d.fields);
-  return { id: idOf_(d), sid: f.sid, op: f.op, ref: f.ref || '', kind: f.kind || '', t: Number(f.t) || 0, why: f.why || '', by: f.by || '', at: f.at };
+  return { id: idOf_(d), sid: f.sid, op: f.op, ref: f.ref || '', kind: f.kind || '', t: Number(f.t) || 0, why: f.why || '', by: f.by || '', bsid: f.bsid || '', at: f.at };
 }
 function bySid_(list) { const o = {}; list.forEach(x => { (o[x.sid] = o[x.sid] || []).push(x); }); return o; }
 
@@ -314,6 +329,92 @@ function payroll_(cfg, s, office, set, P, F, asks, pay, now) {
   return { key: 'payroll|' + a, type: 'payroll', sid: '', prio: 3, title: 'Payroll: ' + TCE.dayText(a) + ' – ' + TCE.dayText(z), text };
 }
 
+/* ---------- each pay period's time cards, for the records (Amir: "I definitely want to keep the data for at least 2
+   years … automated so I don't have to") ----------
+   The morning after a pay period ends (7 AM, and never before 8 PM on its payroll Friday, when that day's fixes are in):
+   one email of its own with the period's time cards as two spreadsheets, the same as the Payroll page's "Totals" and
+   "Every day" — each person's regular and overtime hours, and every day's punches, hours, flags and corrections (who made
+   each, when, and why). Kept in this Gmail account, they're a copy of every pay period that nobody has to download.
+   Email only, on the same setting as the payroll numbers. A period nobody has time in sends nothing. */
+var KSHORT_ = { in: 'In', lunch: 'Lunch', back: 'Back', out: 'Out' };
+var FLAG_ = { early: 'Early', offday: 'Closed day', home: 'Home', homeday: 'Home, other day', offnet: 'Off the office network', nonet: 'Network not checked', late: 'Still in late', long: 'Long shift' };
+var ISSUE_ = { 'missing-out': 'No clock-out', 'no-return': 'Never back from lunch', 'no-in': 'No clock-in', 'lunch-out': 'Out from lunch, no Back', 'double-in': 'Clocked in twice', 'double-out': 'Clocked out twice', 'double-lunch': 'Lunch pressed twice' };
+/* the pay period whose time cards go out now: the last one that's over, from its time for a week (then it's old news:
+   the script was off), until they've gone — null otherwise */
+function recordsDue_(A, set, props, today, now) {
+  if (!set.pay || !A.emails.length || !(routeOf_(A.route, 'payroll') & 1)) return null; // (no address, or turned off)
+  const cur = TCE.payPeriodOf(today, set.pay);
+  if (!cur) return null;
+  const rec = TCE.payPeriodOf(TCE.addDays(cur[0], -1), set.pay);
+  const due = Math.max(TCE.atTime(TCE.addDays(rec[1], 1), '07:00'), TCE.atTime(TCE.payDayOf(rec[1]), '20:00'));
+  if (now < due || now > due + 7 * TCE.DAY) return null;
+  if (doneLoad_(props)[alertId_('records|' + rec[0]).slice(1, 17)]) return null; // (sent already, or nothing to send)
+  return rec;
+}
+function records_(cfg, s, props, office, set, P, F, asks, rec, now) {
+  const a = rec[0], z = rec[1], from = TCE.dayStart(a), to = TCE.dayStart(TCE.addDays(z, 1)), key = 'records|' + a;
+  const full = office.full || {}, nameOf = sid => full[sid] || office.names[sid] || 'Someone';
+  const asked = (asks || []).filter(r => r.ps.some(q => q.t >= from && q.t < to));
+  // everyone on the clock, and anyone else with time in the period (someone who left, or was taken off the clock)
+  const who = (office.all || office.people).map(p => ({ p, list: TCE.entries(P[p.sid] || [], F[p.sid] || []) }))
+    .filter(x => (x.p.staff.on === true && x.p.active) || x.list.some(e => e.t >= from && e.t < to));
+  if (!who.some(x => x.list.some(e => e.t >= from && e.t < to)) && !asked.length) {
+    // nobody has any time in the period (the first one, before the time clock was in use, say): nothing to keep
+    const done = doneLoad_(props), stamp = Math.floor(now / TCE.MIN);
+    done[alertId_(key).slice(1, 17)] = stamp; doneSave_(props, done, stamp);
+    return null;
+  }
+  const appr = {};
+  for (let wk = TCE.weekOf(a, set.wk); wk <= z; wk = TCE.addDays(wk, 7)) appr[wk] = approvals_(cfg, s, wk);
+  const rows = who.map(x => {
+    const staff = TCE.staffOf(x.p.staff), pp = TCE.payPeriod(x.list, set, staff, a, z, now, wk => (appr[wk] && appr[wk][x.p.sid]) || 0);
+    const issues = pp.issues.map(i => (ISSUE_[i.type] || i.type) + ' ' + TCE.dayText(i.day));
+    asked.forEach(r => { if (r.sid === x.p.sid) issues.push('Asked for a missed punch (not approved yet)'); });
+    return { name: nameOf(x.p.sid), sal: staff.sal, pp, issues };
+  }).sort((x, y) => (x.name < y.name ? -1 : x.name > y.name ? 1 : 0));
+  const weekCols = rows.length ? rows[0].pp.weeks : [];
+  const totals = [['Employee', 'Period start', 'Period end', 'Regular hours', 'Overtime hours', 'Total hours', 'Pay type', 'To check']
+    .concat(flat_(weekCols.map(x => ['Week of ' + x.wkIso + ' regular', 'Week of ' + x.wkIso + ' overtime'])))]
+    .concat(rows.map(r => [r.name, a, z, hNum_(r.pp.reg), hNum_(r.pp.ot), hNum_(r.pp.reg + r.pp.ot), r.sal ? 'Salaried (hours for the record)' : 'Hourly', r.issues.join('; ')]
+      .concat(flat_(r.pp.weeks.map(x => [hNum_(x.reg), hNum_(x.ot)])))));
+  const days = [['Employee', 'Date', 'Day', 'Punches', 'Hours', 'Flags', 'Corrections']];
+  rows.forEach(r => r.pp.weeks.forEach(x => x.w.days.forEach(d => {
+    if (d.iso < a || d.iso > z || (!d.entries.length && !d.ms)) return;
+    const live = d.entries.filter(e => !e.void);
+    const fixes = d.entries.filter(e => e.fix || e.void).map(e => {
+      const f = e.void || e.fix;
+      return (e.void ? 'Took out ' : 'Added ') + KSHORT_[e.kind] + ' ' + TCE.timeText(e.t) + ' (' + nameOf(f.bsid) + (f.at > 0 ? ', ' + TCE.dayText(TCE.dayOf(f.at)) : '') + ': ' + f.why + ')';
+    });
+    days.push([r.name, d.iso, TCE.WD[TCE.dow(d.iso)], live.map(e => KSHORT_[e.kind] + ' ' + TCE.timeText(e.t) + whereText_(e)).join('; '), hNum_(d.ms),
+      d.flags.map(f => FLAG_[f.type] || f.type).concat(d.issues.map(i => ISSUE_[i.type] || i.type)).concat(d.gaps.map(g => g.min + '-min break paid')).join('; '), fixes.join('; ')]);
+  })));
+  const lines = rows.filter(r => r.pp.reg + r.pp.ot > 0 || r.issues.length).map(r => r.name + ' — ' + (r.sal ? TCE.hText(r.pp.reg + r.pp.ot) + ' (salaried, for the record)'
+    : TCE.hText(r.pp.reg) + ' regular, ' + TCE.hText(r.pp.ot) + ' overtime') + (r.issues.length ? ' · to check: ' + r.issues.join('; ') : ''));
+  const name1 = 'time-clock-' + a + '-to-' + z + '.csv', name2 = 'time-clock-days-' + a + '-to-' + z + '.csv';
+  const text = 'The time cards for the pay period ' + TCE.dayText(a) + ' – ' + TCE.dayText(z) + ', as they stand ' + TCE.dayText(TCE.dayOf(now)) + ' at ' + TCE.timeText(now) + '. Attached:\n' +
+    '• ' + name1 + ': each person’s regular and overtime hours (overtime is counted for each workweek)\n' +
+    '• ' + name2 + ': every day: the punches, the hours, anything flagged, and each correction (who made it, when, and why)\n\n' +
+    lines.join('\n') + '\n\n' +
+    'Keep this email: it’s this pay period’s record. The Time Clock keeps every punch and correction too, and anything changed later shows there as a correction.';
+  return { key, type: 'payroll', sid: '', prio: 2, title: 'Time cards: ' + TCE.dayText(a) + ' – ' + TCE.dayText(z) + ' (for your records)', text,
+    files: [{ name: name1, text: csvOf_(totals) }, { name: name2, text: csvOf_(days) }] };
+}
+/* where a punch came from, as the Payroll page's spreadsheet says it */
+function whereText_(e) {
+  return e.src === 'home' ? ' (home)' : e.via === 'own' ? ' (own phone/computer)' : e.via === 'clock' && e.net === 'off' ? ' (off the office network)' : e.via === 'clock' && e.net === 'unk' ? ' (network not checked)' : '';
+}
+/* hours for a spreadsheet: "38.5" (two decimals at most) */
+function hNum_(ms) { const v = TCE.h2(ms); return String(Object.is(v, -0) ? 0 : v); }
+function flat_(lists) { return [].concat.apply([], lists); }
+/* a spreadsheet file, as the page downloads it: every cell quoted, a leading = + - @ (or tab/CR) made plain text (so a
+   spreadsheet never runs it as a formula), lines ending in CR LF, and a byte-order mark so Excel reads it as UTF-8 */
+function csvCell_(v) {
+  let s = String(v == null ? '' : v);
+  if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+  return '"' + s.replace(/"/g, '""') + '"';
+}
+function csvOf_(rows) { return '\uFEFF' + rows.map(r => r.map(csvCell_).join(',')).join('\r\n') + '\r\n'; }
+
 /* the daily summary: each person who clocked in this week, then anything flagged today */
 function digest_(weeks, today, now, asks, names) {
   const rows = [], flags = [];
@@ -359,7 +460,7 @@ function deliver_(cfg, s, props, alerts, A, now) {
   const errs = [], work = [], fin = {}, seen = {};
   const list = alerts.slice().sort((a, b) => (b.prio || 3) - (a.prio || 3)); // the most important first (the email's subject)
   for (const a of list) {
-    const want = (a.type === 'test' ? 3 : routeOf_(A.route, a.type)) & can; // (a test goes everywhere)
+    const want = (a.type === 'test' ? 3 : routeOf_(A.route, a.type)) & can & (a.files ? 1 : 3); // (a test goes everywhere; files only by email)
     if (!want) continue; // not sent (Dr. A's choice), or nowhere to send it
     const id = alertId_(a.key), k = id.slice(1, 17);
     if (seen[id]) continue;
@@ -371,12 +472,17 @@ function deliver_(cfg, s, props, alerts, A, now) {
     if (!c.mine) continue; // the other copy is sending it right now
     work.push({ a, id, k, want, had: c.had, need: want & ~c.had, got: c.had });
   }
-  // email: one for everything this check found
-  const mail = work.filter(w => w.need & 1);
-  if (mail.length) {
-    try { email_(cfg, A.emails, mail.map(w => w.a)); mail.forEach(w => { w.got |= 1; }); }
+  // email: one for everything this check found — except one with files (the time cards), which goes in an email of its
+  // own, easy to find later
+  const mail = work.filter(w => w.need & 1), batch = mail.filter(w => !w.a.files);
+  if (batch.length) {
+    try { email_(cfg, A.emails, batch.map(w => w.a)); batch.forEach(w => { w.got |= 1; }); }
     catch (e) { errs.push('Email didn’t go: ' + cap_(msg_(e), 120)); }
   }
+  mail.filter(w => w.a.files).forEach(w => {
+    try { email_(cfg, A.emails, [w.a]); w.got |= 1; }
+    catch (e) { errs.push('Email didn’t go: ' + cap_(msg_(e), 120)); }
+  });
   // phone push: one per alert, or one for all when there are more than 4
   const push = work.filter(w => w.need & 2);
   if (push.length > 4) {
@@ -438,7 +544,7 @@ function mark_(cfg, s, id, st, ch) {
   return r.code === 200;
 }
 
-/* one email, from this Gmail account, with every alert of this check */
+/* one email, from this Gmail account, with every alert of this check (and any files they carry, attached) */
 function email_(cfg, emails, list) {
   const subject = list[0].title + (list.length > 1 ? ' (+' + (list.length - 1) + ' more)' : '');
   const body = list.map(a => a.title + '\n' + a.text + '\n').join('\n') +
@@ -446,7 +552,10 @@ function email_(cfg, emails, list) {
   let left = null;
   try { left = MailApp.getRemainingDailyQuota(); } catch (e) { }
   if (left != null && left < emails.length) throw new Error('this Gmail account’s daily email limit is used up (it resets within a day)');
-  MailApp.sendEmail({ to: emails.join(','), subject: cap_(subject, 250), body: cap_(body, 20000), name: 'NLO Time Clock' });
+  const msg = { to: emails.join(','), subject: cap_(subject, 250), body: cap_(body, 20000), name: 'NLO Time Clock' };
+  const files = flat_(list.map(a => (a.files || []).map(f => Utilities.newBlob(f.text, 'text/csv', f.name))));
+  if (files.length) msg.attachments = files;
+  MailApp.sendEmail(msg);
 }
 /* a phone push through ntfy (the free app: subscribe to the topic shown in Time Clock → Alerts) */
 function push_(cfg, topic, title, message, prio) {
