@@ -1,0 +1,11 @@
+import { initializeTestEnvironment, assertSucceeds, assertFails } from '@firebase/rules-unit-testing';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { readFileSync } from 'fs';
+const env = await initializeTestEnvironment({ projectId: 'demo-nlo-cases', firestore: { rules: readFileSync('dist/firestore.rules', 'utf8'), host: '127.0.0.1', port: 8080 } });
+await env.withSecurityRulesDisabled(async c => { await setDoc(doc(c.firestore(), 'roster/gwen'), { name: 'Gwen', active: true }); await setDoc(doc(c.firestore(), 'tcKiosks/k1'), { name: 'Front desk' }); });
+const kiosk = env.authenticatedContext('k1').firestore();
+const nobody = env.authenticatedContext('zz').firestore();
+await assertSucceeds(getDoc(doc(kiosk, 'roster/gwen')));
+await assertFails(getDoc(doc(nobody, 'roster/gwen')));
+console.log('rules compile; kiosk reads the roster, a stranger cannot');
+await env.cleanup();

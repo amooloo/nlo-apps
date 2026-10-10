@@ -83,7 +83,10 @@ service cloud.firestore {
       allow delete: if false;
     }
     match /roster/{sid} {
-      allow read: if isMember();
+      // (NLO Time Clock: the office's time-clock computer shows each person's name and photo; its alert script names them;
+      // an approved laptop reads only the people it's for)
+      allow read: if isMember() || isTcDevice();
+      allow get: if lapHas(sid);
       allow create, update: if isOwner() || bootstrapping();
       allow delete: if false;
     }
@@ -712,6 +715,455 @@ service cloud.firestore {
         && request.resource.data.v is int && request.resource.data.iv is string && request.resource.data.iv.size() <= 24
         && request.resource.data.ct is string && request.resource.data.ct.size() <= 400 && request.resource.data.at == request.time;
       allow delete: if false;
+    }
+    // ---------- NLO Time Clock (same office, same logins; Amir, 9 Oct 2026: "a robust custom clock time ... that sends me and
+    // multiple people alerts when someone is getting close to overtime and set up boundaries") ----------
+    // Staff clock in at the office's time-clock computer (its own login, made by Dr. A on that computer) with a 4-digit PIN.
+    // The office lock (Amir, 9 Oct 2026: "only available when it's used inside the office", lock punching only, block
+    // anywhere else): once Dr. A turns it on, they may also clock in on their own phone or computer, signed in, but only
+    // on the office network — a small Cloudflare Worker (its own login, which can only write down networks) checks the
+    // address right before the punch, and these rules take the punch only within 2 minutes of that, on a network Dr. A
+    // saved as the office's, and only under the one-time punch number that check gave the page (one check, one punch).
+    // From home: only on a laptop Dr. A approved, for the people he picked (with their PIN),
+    // clocking in and out only, marked Home. Timesheets, approvals, payroll and settings work from anywhere.
+    // A punch takes the server's time and is never changed or deleted: a correction is a new record (who, when, why), so
+    // the original always stays visible. A PIN's hash is never readable — these rules compare against it — and each person gets 5 tries in 10 minutes, counted
+    // before the PIN is checked. Someone who missed a punch asks for it (Amir, 9 Oct 2026: staff used to clock out an extra
+    // time just to leave a note); it counts once a manager approves it. A small Google Apps Script (its own login) reads the
+    // clock to send the alerts.
+    // Managers: Dr. A and the people he makes time clock managers (isTcMgr()). Nobody corrects their own time except Dr. A.
+    // the time clock's managers: Dr. A, and the people he picks (People → Edit). Amir, 9 Oct 2026: "right now the manager is
+    // me, Dr. Akhavan" — approving time off (isHR) doesn't make someone a time clock manager.
+    function isTcMgr() { return isOwner() || (isMember() && exists(/databases/$(db)/documents/tcMgrs/$(mySid()))); }
+    function isKiosk() { return authed() && exists(/databases/$(db)/documents/tcKiosks/$(request.auth.uid)); }
+    function isTcBot() { return authed() && exists(/databases/$(db)/documents/tcBots/$(request.auth.uid)); }
+    function isTcDevice() { return isKiosk() || isTcBot(); }
+    // an approved laptop (its own login, like a time-clock computer), and whether it's for this person (it reads and
+    // punches only for the people Dr. A picked for it)
+    function lapDoc() { return /databases/$(db)/documents/tcLaptops/$(request.auth.uid); }
+    function isLaptop() { return authed() && exists(lapDoc()); }
+    function lapHas(sid) { return sid in get(lapDoc()).data.sids; } // (not a laptop: no record, so refused)
+    // a device that takes this person's PIN: a time-clock computer, or a laptop that's theirs
+    function punchDev(sid) { return isKiosk() || lapHas(sid); }
+    // the office check's login (the Worker), and what it wrote down: the network a login was on a moment ago
+    function isNetBot() { return authed() && exists(/databases/$(db)/documents/tcNetBot/$(request.auth.uid)); }
+    function okNet(s) { return s is string && s.matches('^(v4:[0-9]{1,3}([.][0-9]{1,3}){3}|v6:[0-9a-f]{1,4}(:[0-9a-f]{1,4}){3})$'); }
+    function seenDoc(u) { return /databases/$(db)/documents/tcNetSeen/$(u); }
+    function seenNet(u, m) { return request.time < get(seenDoc(u)).data.at + duration.value(m, 'm'); }
+    // on the office network: the office check saw this login on a network Dr. A saved as the office's in the last 2
+    // minutes, and gave its page this punch's number (pid) — so each check is good for one punch, and only for the page that
+    // asked (nobody can read the numbers back)
+    function atOffice(u, pid) {
+      return seenNet(u, 2) && get(seenDoc(u)).data.pid == pid && exists(/databases/$(db)/documents/tcOffice/$(get(seenDoc(u)).data.net));
+    }
+    function tcSetDoc() { return /databases/$(db)/documents/meta/tc; }
+    function lockOn() { return get(tcSetDoc()).data.get('lock', false) == true; }
+    function tcStaffDoc(sid) { return /databases/$(db)/documents/tcStaff/$(sid); }
+    function tcTryDoc(sid) { return /databases/$(db)/documents/tcTry/$(sid); }
+    function tcTryPhDoc(sid) { return /databases/$(db)/documents/tcTryPh/$(sid); }
+    function tcPinDoc(sid) { return /databases/$(db)/documents/tcPin/$(sid); }
+    function okHM(s) { return s is string && (s == '' || s.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$')); }
+    // on the clock: Dr. A turned it on for them, and they're on the office's team (someone who left stops at once).
+    // (Here and below, get() alone where a missing record should refuse anyway: each exists() and get() counts toward
+    // the database's 10 look-ups for one save.)
+    function onClock(sid) {
+      return get(tcStaffDoc(sid)).data.on == true && get(/databases/$(db)/documents/roster/$(sid)).data.active == true;
+    }
+    // this time-clock computer just took this person's right PIN (within 5 minutes) ...
+    function kioskOk(sid) {
+      return get(tcTryDoc(sid)).data.ok == true && get(tcTryDoc(sid)).data.k == request.auth.uid
+        && request.time < get(tcTryDoc(sid)).data.at + duration.value(5, 'm');
+    }
+    // ... and uses it up in the same save, for this one thing (u: the punch's id, or 'pin' for a new PIN)
+    function tryUsed(sid, u) {
+      return getAfter(tcTryDoc(sid)).data.ok == false && getAfter(tcTryDoc(sid)).data.n == 0 && getAfter(tcTryDoc(sid)).data.u == u;
+    }
+
+    // the clock's settings: the workweek, overtime and the heads-up hours, the boundaries, the office days, the pay period;
+    // the office lock (on or off) and where the office check runs (a workers.dev address)
+    match /meta/tc {
+      function okTc() {
+        let d = request.resource.data;
+        return d.keys().hasOnly(['wk', 'ot', 'thr', 'early', 'late', 'shift', 'brk', 'days', 'pay', 'lock', 'wurl', 'at'])
+          && (!('lock' in d) || d.lock is bool)
+          && (!('wurl' in d) || (d.wurl is string && (d.wurl == '' || d.wurl.matches('^https://[a-z0-9-]{1,63}[.][a-z0-9-]{1,63}[.]workers[.]dev$'))))
+          && d.wk is int && d.wk >= 0 && d.wk <= 6
+          && d.ot is number && d.ot >= 20 && d.ot <= 80
+          && d.thr is list && d.thr.size() <= 5
+          && okHM(d.early) && okHM(d.late)
+          && d.shift is number && d.shift >= 0 && d.shift <= 24
+          && d.brk is int && d.brk >= 0 && d.brk <= 60
+          && d.days is list && d.days.size() <= 7
+          && d.pay is string && (d.pay == '' || d.pay.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$'))
+          && d.at == request.time;
+      }
+      allow get: if isMember() || isTcDevice() || isLaptop();
+      allow create, update: if isOwner() && okTc();
+      allow delete: if false;
+    }
+    // where the alerts go (emails, the phone-push topic), which alerts go where, the daily summary's time, a test request
+    match /meta/tcAlerts {
+      function okAlerts() {
+        let d = request.resource.data;
+        return d.keys().hasOnly(['emails', 'topic', 'route', 'digest', 'test', 'at'])
+          && d.emails is list && d.emails.size() <= 10
+          && d.topic is string && d.topic.matches('^[A-Za-z0-9_-]{0,64}$')
+          && d.route is map && d.route.size() <= 30
+          && okHM(d.digest)
+          && (!('test' in d) || d.test == null || d.test is timestamp)
+          && d.at == request.time;
+      }
+      allow get: if isTcMgr() || isTcBot();
+      allow create, update: if isOwner() && okAlerts();
+      allow delete: if false;
+    }
+    // each person's clock settings: on the clock, may clock in from home (and on which days), their own earliest
+    // clock-in, a weekly cap, salaried (hours kept for the record: no overtime), and when their PIN was last set
+    match /tcStaff/{sid} {
+      function okStaff() {
+        let d = request.resource.data;
+        return d.keys().hasOnly(['on', 'home', 'hdays', 'early', 'cap', 'sal', 'pinAt', 'pinBy', 'at', 'by'])
+          && d.on is bool && d.home is bool && d.hdays is list && d.hdays.size() <= 7 && (!('sal' in d) || d.sal is bool)
+          && (!('pinBy' in d) || d.pinBy in ['', 'mgr', 'self'])
+          && okHM(d.early) && d.cap is number && d.cap >= 0 && d.cap <= 80
+          && (d.pinAt == null || d.pinAt is timestamp)
+          && d.at == request.time && d.by == request.auth.uid;
+      }
+      allow get, list: if isTcMgr() || isTcDevice() || (isMember() && sid == mySid());
+      allow get: if lapHas(sid);
+      // Dr. A decides who's on the clock, who may clock in from home, and their limits
+      allow create, update: if isOwner() && okStaff() && sid.size() <= 40;
+      // a PIN set by a manager, or changed by the person at the time clock (or their laptop) right after their PIN: only
+      // pinAt (and who set it: the time clock nudges someone with a manager's PIN to pick their own) moves
+      allow update: if okStaff() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pinAt', 'pinBy', 'at', 'by'])
+        && request.resource.data.pinAt == request.time && existsAfter(tcPinDoc(sid))
+        && ((request.resource.data.pinBy == 'mgr' && isTcMgr())
+          || (request.resource.data.pinBy == 'self' && punchDev(sid) && kioskOk(sid) && tryUsed(sid, 'pin')));
+      allow delete: if false;
+    }
+    // the PIN's hash: nobody can read it; the try rules below compare against it
+    match /tcPin/{sid} {
+      function okPin() {
+        let d = request.resource.data;
+        return d.keys().hasOnly(['h', 'at']) && d.h is string && d.h.matches('^[0-9a-f]{64}$') && d.at == request.time;
+      }
+      allow get, list: if false;
+      // (a time clock or laptop: right after the person's PIN; anyone else: a manager)
+      allow create, update: if okPin() && exists(tcStaffDoc(sid))
+        && ((isKiosk() || isLaptop()) ? (punchDev(sid) && kioskOk(sid) && tryUsed(sid, 'pin')) : isTcMgr());
+      allow delete: if isTcMgr();
+    }
+    // PIN tries at the time clock: counted before the PIN is checked, at most 5 in 10 minutes for each person. The hash of
+    // the PIN tried goes in tcTryPh (same save), which nobody can read: anyone who could read it could work the PIN out.
+    // bad: tries since the last right PIN (the alert script tells Dr. A when someone keeps trying a coworker's PIN).
+    match /tcTry/{sid} {
+      function okTry(d) {
+        return d.keys().hasOnly(['n', 't0', 'at', 'ok', 'k', 'bad', 'u']) && d.n is int && d.t0 is timestamp && d.at is timestamp
+          && d.ok is bool && d.k is string && d.bad is int && d.u is string && d.u.size() <= 30;
+      }
+      function aTry(d) {
+        return d.ok == false && d.at == request.time && d.k == request.auth.uid && d.u == ''
+          && existsAfter(tcTryPhDoc(sid)) && getAfter(tcTryPhDoc(sid)).data.at == request.time;
+      }
+      function cleared(d) { return d.n == 0 && d.ok == false && d.k == '' && d.at == request.time && d.t0 == request.time && d.bad == 0; }
+      allow get, list: if isTcMgr() || isTcDevice();
+      allow get: if lapHas(sid);
+      allow create: if punchDev(sid) && onClock(sid) && okTry(request.resource.data) && aTry(request.resource.data)
+        && request.resource.data.n == 1 && request.resource.data.t0 == request.time && request.resource.data.bad == 1;
+      allow update: if punchDev(sid) && onClock(sid) && okTry(request.resource.data) && (
+          // the next try: a fresh 10 minutes once the last ones are over, otherwise the count goes up (5 at most)
+          (aTry(request.resource.data) && request.resource.data.bad == resource.data.bad + 1 && (
+              (request.time > resource.data.t0 + duration.value(10, 'm') && request.resource.data.n == 1 && request.resource.data.t0 == request.time)
+           || (resource.data.n < 5 && request.resource.data.n == resource.data.n + 1 && request.resource.data.t0 == resource.data.t0)))
+          // the check: only "ok" changes, and only when the PIN tried (already counted, its hash saved with it) is the right one
+       || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ok']) && request.resource.data.ok == true
+              && resource.data.ok == false && resource.data.k == request.auth.uid
+              && request.time < resource.data.at + duration.value(2, 'm')
+              && get(tcTryPhDoc(sid)).data.at == resource.data.at && get(tcTryPhDoc(sid)).data.ph == get(tcPinDoc(sid)).data.h)
+          // used up after a right PIN (u: the punch, or 'pin' for a new PIN; '' if they walked away): no tries left over
+       || (resource.data.ok == true && resource.data.k == request.auth.uid && cleared(request.resource.data)));
+      // a manager clears a lockout
+      allow update: if request.resource.data.u == '' && okTry(request.resource.data) && cleared(request.resource.data) && isTcMgr();
+      allow delete: if isTcMgr();
+    }
+    // the hash of the PIN just tried: written with its try, never readable (the check above compares it with tcPin)
+    match /tcTryPh/{sid} {
+      allow get, list: if false;
+      allow create, update: if punchDev(sid) && onClock(sid) && request.resource.data.keys().hasOnly(['ph', 'at'])
+        && request.resource.data.ph is string && request.resource.data.ph.matches('^[0-9a-f]{64}$') && request.resource.data.at == request.time
+        && existsAfter(tcTryDoc(sid)) && getAfter(tcTryDoc(sid)).data.at == request.time
+        && getAfter(tcTryDoc(sid)).data.k == request.auth.uid && getAfter(tcTryDoc(sid)).data.ok == false && getAfter(tcTryDoc(sid)).data.n > 0;
+      allow delete: if isTcMgr();
+    }
+    // punches: the server's time; never changed or deleted. net: where it came from — 'office' (the office check saw this
+    // login on the office network in the last 2 minutes), 'off' (another network), 'unk' (it couldn't be checked), ''
+    // (the office lock is off: not checked)
+    match /tcPunch/{id} {
+      function okPunch() {
+        let d = request.resource.data;
+        return id.matches('^p[0-9a-f]{24}$') && d.keys().hasOnly(['sid', 'kind', 'at', 'src', 'by', 'net'])
+          && d.sid is string && d.kind in ['in', 'lunch', 'back', 'out'] && d.at == request.time && d.by == request.auth.uid
+          && d.net in ['', 'office', 'off', 'unk'] && onClock(d.sid);
+      }
+      allow get, list: if isTcMgr() || isTcDevice() || (isMember() && resource.data.sid == mySid()) || lapHas(resource.data.sid);
+      // at the time clock, right after the person's PIN (the try is used up in the same save). It's never refused for the
+      // network: off the office network (moved, or the office's internet changed) it goes through, flagged ('off', 'unk').
+      allow create: if request.resource.data.src == 'kiosk' && isKiosk() && okPunch()
+        && kioskOk(request.resource.data.sid) && tryUsed(request.resource.data.sid, id)
+        && ((request.resource.data.net == 'office' && atOffice(request.auth.uid, id)) || request.resource.data.net in ['off', 'unk']
+          || (request.resource.data.net == '' && !lockOn()));
+      // on their own phone or computer, signed in, for themselves: only with the office lock on, on the office network
+      allow create: if request.resource.data.src == 'own' && isMember() && okPunch() && request.resource.data.sid == mySid()
+        && request.resource.data.net == 'office' && lockOn() && atOffice(request.auth.uid, id);
+      // on a laptop Dr. A approved, for the people he picked, right after their PIN: at the office like the time clock;
+      // anywhere else (marked Home) only for someone he allows home, and only clocking in or out
+      allow create: if request.resource.data.src == 'laptop' && lapHas(request.resource.data.sid) && okPunch()
+        && kioskOk(request.resource.data.sid) && tryUsed(request.resource.data.sid, id)
+        && ((request.resource.data.net == 'office' && atOffice(request.auth.uid, id))
+          || (request.resource.data.net in ['', 'off', 'unk'] && request.resource.data.kind in ['in', 'out']
+            && get(tcStaffDoc(request.resource.data.sid)).data.home == true));
+      allow update, delete: if false;
+    }
+    // corrections: a punch added (with its time) or one taken out, each with who, when and why; never changed or deleted
+    match /tcFix/{id} {
+      function okFix() {
+        let d = request.resource.data;
+        return id.matches('^f[0-9a-f]{24}$') && d.keys().hasOnly(['sid', 'op', 'ref', 'kind', 't', 'why', 'by', 'bsid', 'at'])
+          && d.sid is string && d.sid.size() > 0 && d.sid.size() <= 40 && exists(tcStaffDoc(d.sid))
+          && d.why is string && d.why.size() > 0 && d.why.size() <= 300
+          && d.by == request.auth.uid && d.bsid == mySid() && d.at == request.time
+          && ((d.op == 'add' && d.kind in ['in', 'lunch', 'back', 'out'] && d.ref == ''
+                && d.t is int && d.t > 946684800000 && d.t < request.time.toMillis() + 3600000)
+           || (d.op == 'void' && d.kind == '' && d.t == 0 && (
+                 (d.ref.matches('^p[0-9a-f]{24}$') && exists(/databases/$(db)/documents/tcPunch/$(d.ref))
+                   && get(/databases/$(db)/documents/tcPunch/$(d.ref)).data.sid == d.sid)
+              || (d.ref.matches('^f[0-9a-f]{24}$') && exists(/databases/$(db)/documents/tcFix/$(d.ref))
+                   && get(/databases/$(db)/documents/tcFix/$(d.ref)).data.sid == d.sid
+                   && get(/databases/$(db)/documents/tcFix/$(d.ref)).data.op == 'add'))));
+      }
+      allow get, list: if isTcMgr() || isTcDevice() || (isMember() && resource.data.sid == mySid()) || lapHas(resource.data.sid);
+      allow create: if isTcMgr() && okFix() && (request.resource.data.sid != mySid() || isOwner());
+      allow update, delete: if false;
+    }
+    // overtime approved ahead of time for one person and one workweek (id: <staff id>_<first day of the week>)
+    match /tcOT/{id} {
+      function okOT() {
+        let d = request.resource.data;
+        return d.keys().hasOnly(['sid', 'week', 'hrs', 'why', 'by', 'bsid', 'at'])
+          && d.sid is string && d.week is string && d.week.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') && id == d.sid + '_' + d.week
+          && d.hrs is number && d.hrs >= 20 && d.hrs <= 80 && d.why is string && d.why.size() <= 300
+          && d.by == request.auth.uid && d.bsid == mySid() && d.at == request.time;
+      }
+      allow get, list: if isTcMgr() || isTcDevice() || (isMember() && resource.data.sid == mySid()) || lapHas(resource.data.sid);
+      allow create, update: if isTcMgr() && okOT() && (request.resource.data.sid != mySid() || isOwner());
+      allow delete: if isTcMgr() && (resource.data.sid != mySid() || isOwner());
+    }
+    // asking a manager to fix their time: the punches they missed (at most 2, from the last 31 days; none = just a note).
+    // It changes nobody's time: a manager approves it (the punches are added as corrections in the same save) or declines it.
+    function kioskAsk(sid) {
+      return get(tcTryDoc(sid)).data.ok == true && get(tcTryDoc(sid)).data.k == request.auth.uid
+        && request.time < get(tcTryDoc(sid)).data.at + duration.value(10, 'm');
+    }
+    function tcReqNDoc(sid) { return /databases/$(db)/documents/tcReqN/$(sid); }
+    // at most 10 requests in 24 hours for each person, counted in the same save (like the PIN tries)
+    function reqCounted(sid) {
+      let a = getAfter(tcReqNDoc(sid)).data;
+      return a.at == request.time && (
+          (!exists(tcReqNDoc(sid)) && a.n == 1 && a.t0 == request.time)
+       || (exists(tcReqNDoc(sid)) && (
+             (request.time > get(tcReqNDoc(sid)).data.t0 + duration.value(24, 'h') && a.n == 1 && a.t0 == request.time)
+          || (get(tcReqNDoc(sid)).data.n < 10 && a.n == get(tcReqNDoc(sid)).data.n + 1 && a.t0 == get(tcReqNDoc(sid)).data.t0))));
+    }
+    // a correction an approval names: added for this person in the same save
+    function okFxOf(f, sid) {
+      return f is string && f.matches('^f[0-9a-f]{24}$') && existsAfter(/databases/$(db)/documents/tcFix/$(f))
+        && getAfter(/databases/$(db)/documents/tcFix/$(f)).data.sid == sid && getAfter(/databases/$(db)/documents/tcFix/$(f)).data.op == 'add';
+    }
+    match /tcReqN/{sid} {
+      allow get: if isTcMgr() || isTcDevice() || (isMember() && sid == mySid()) || lapHas(sid);
+      // only with a request of theirs in the same save (nobody can use up a coworker's)
+      allow create, update: if request.resource.data.keys().hasOnly(['n', 't0', 'at']) && request.resource.data.n is int
+        && request.resource.data.t0 is timestamp && request.resource.data.at == request.time
+        && ((isMember() && sid == mySid()) || (punchDev(sid) && kioskAsk(sid)));
+      allow delete: if false;
+    }
+    match /tcReq/{id} {
+      function okAsk(p) {
+        return p is map && p.keys().hasOnly(['k', 't']) && p.k in ['in', 'lunch', 'back', 'out'] && p.t is int
+          && p.t > request.time.toMillis() - 2678400000 && p.t < request.time.toMillis() + 3600000;
+      }
+      function okReq() {
+        let d = request.resource.data;
+        return id.matches('^r[0-9a-f]{24}$') && d.keys().hasOnly(['sid', 'ps', 'note', 'src', 'by', 'at', 'st'])
+          && d.sid is string && onClock(d.sid)
+          && d.ps is list && d.ps.size() <= 2 && (d.ps.size() < 1 || okAsk(d.ps[0])) && (d.ps.size() < 2 || okAsk(d.ps[1]))
+          && d.note is string && d.note.size() <= 200 && (d.ps.size() > 0 || d.note.size() > 0)
+          && d.by == request.auth.uid && d.at == request.time && d.st == 'open';
+      }
+      allow get, list: if isTcMgr() || isTcDevice() || (isMember() && resource.data.sid == mySid()) || lapHas(resource.data.sid);
+      // at the time clock (or their approved laptop), after the person's PIN (the form takes a moment: up to 10 minutes;
+      // the PIN isn't used up)
+      allow create: if ((request.resource.data.src == 'kiosk' && isKiosk()) || (request.resource.data.src == 'laptop' && lapHas(request.resource.data.sid))) && okReq()
+        && kioskAsk(request.resource.data.sid) && reqCounted(request.resource.data.sid);
+      // signed in with their own login, for themselves
+      allow create: if isMember() && okReq() && request.resource.data.src == 'me' && request.resource.data.sid == mySid()
+        && reqCounted(request.resource.data.sid);
+      // a manager answers it, once (their own only Dr. A answers): approved (with the corrections for each punch asked for,
+      // in the same save) or declined, with an optional note
+      allow update: if isTcMgr() && (resource.data.sid != mySid() || isOwner()) && resource.data.st == 'open'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['st', 'rby', 'rbsid', 'rat', 'rwhy', 'fx'])
+        && request.resource.data.st in ['ok', 'no'] && request.resource.data.rby == request.auth.uid
+        && request.resource.data.rbsid == mySid() && request.resource.data.rat == request.time
+        && request.resource.data.rwhy is string && request.resource.data.rwhy.size() <= 300 && request.resource.data.fx is list
+        && ((request.resource.data.st == 'no' && request.resource.data.fx.size() == 0)
+         || (request.resource.data.st == 'ok' && request.resource.data.fx.size() == resource.data.ps.size()
+             && (resource.data.ps.size() < 1 || okFxOf(request.resource.data.fx[0], resource.data.sid))
+             && (resource.data.ps.size() < 2 || okFxOf(request.resource.data.fx[1], resource.data.sid))));
+      // the person takes it back while it waits
+      allow update: if resource.data.st == 'open' && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['st', 'rat'])
+        && request.resource.data.st == 'x' && request.resource.data.rat == request.time
+        && ((isMember() && resource.data.sid == mySid()) || (punchDev(resource.data.sid) && kioskAsk(resource.data.sid)));
+      allow delete: if false;
+    }
+    // the alerts sent (each one once: the script claims it here before sending it)
+    match /tcSent/{id} {
+      function okSent(d) {
+        return d.keys().hasOnly(['k', 'type', 'sid', 'text', 'st', 'ch', 'at', 'up'])
+          && d.k is string && d.k.size() <= 160 && d.type is string && d.type.size() <= 20 && d.sid is string && d.sid.size() <= 40
+          && d.text is string && d.text.size() <= 600 && d.st in ['claim', 'sent', 'fail'] && d.ch is int && d.up == request.time;
+      }
+      allow get, list: if isTcMgr() || isTcBot();
+      allow create: if isTcBot() && id.matches('^a[0-9a-f]{32}$') && okSent(request.resource.data)
+        && request.resource.data.st == 'claim' && request.resource.data.at == request.time;
+      allow update: if isTcBot() && okSent(request.resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['st', 'ch', 'up', 'text']);
+      allow delete: if isOwner();
+    }
+    // when the alert script last checked (and any problem it hit)
+    match /tcBeat/{uid} {
+      allow get, list: if isTcMgr();
+      allow create, update: if isTcBot() && uid == request.auth.uid
+        && request.resource.data.keys().hasOnly(['box', 'ver', 'err', 'sent', 'at'])
+        && request.resource.data.box is string && request.resource.data.box.size() <= 120
+        && request.resource.data.ver is string && request.resource.data.ver.size() <= 20
+        && request.resource.data.err is string && request.resource.data.err.size() <= 300
+        && request.resource.data.sent is int && request.resource.data.at == request.time;
+      allow delete: if isOwner();
+    }
+    // who manages the time clock besides Dr. A (by staff id): only he adds or removes them
+    match /tcMgrs/{sid} {
+      allow get: if isTcMgr() || (isMember() && sid == mySid());
+      allow list: if isTcMgr();
+      allow create: if isOwner() && request.resource.data.keys().hasOnly(['at', 'by']) && request.resource.data.at == request.time
+        && request.resource.data.by == request.auth.uid && exists(tcStaffDoc(sid));
+      allow update: if false;
+      allow delete: if isOwner();
+    }
+    // the office's time-clock computers (each its own login, made by Dr. A on that computer)
+    match /tcKiosks/{uid} {
+      allow get: if isTcMgr() || (authed() && request.auth.uid == uid);
+      allow list: if isTcMgr() || isTcBot();
+      allow create: if isOwner() && request.resource.data.keys().hasOnly(['name', 'at', 'by'])
+        && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 40
+        && request.resource.data.at == request.time && request.resource.data.by == request.auth.uid;
+      allow update: if (isOwner() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name'])
+            && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 40)
+        || (authed() && request.auth.uid == uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['seen'])
+            && request.resource.data.seen == request.time);
+      allow delete: if isOwner();
+    }
+    // the alert script's login (made by Dr. A)
+    match /tcBots/{uid} {
+      allow get: if authed() && (request.auth.uid == uid || isOwner());
+      allow list: if isOwner();
+      allow create: if isOwner() && request.resource.data.keys().hasOnly(['email', 'at'])
+        && request.resource.data.email is string && request.resource.data.email.size() <= 120 && request.resource.data.at == request.time;
+      allow update: if false;
+      allow delete: if isOwner();
+    }
+    // approved laptops (Amir, 9 Oct 2026: the laptop one of his assistants uses to work from home sometimes, and the one
+    // a teammate who works from home uses): each its own login, made on that laptop and approved by Dr. A with the code it
+    // shows, for the people he picked — a time clock that also works away from the office. He renames one, changes who
+    // uses it, or takes it back (a lost laptop, someone leaving).
+    match /tcLaptops/{uid} {
+      function okLap(d) {
+        return d.name is string && d.name.size() > 0 && d.name.size() <= 40 && d.sids is list && d.sids.size() > 0 && d.sids.size() <= 4
+          && d.sids[0] is string && d.sids[0].size() <= 40 && (d.sids.size() < 2 || (d.sids[1] is string && d.sids[1].size() <= 40))
+          && (d.sids.size() < 3 || (d.sids[2] is string && d.sids[2].size() <= 40)) && (d.sids.size() < 4 || (d.sids[3] is string && d.sids[3].size() <= 40));
+      }
+      allow get: if isTcMgr() || (authed() && request.auth.uid == uid);
+      allow list: if isTcMgr() || isTcBot();
+      // (only a laptop asking for it in the last 30 minutes: Dr. A types the code it shows)
+      allow create: if isOwner() && request.resource.data.keys().hasOnly(['name', 'sids', 'at', 'by']) && okLap(request.resource.data)
+        && request.resource.data.at == request.time && request.resource.data.by == request.auth.uid
+        && request.time < get(/databases/$(db)/documents/tcLapReq/$(uid)).data.at + duration.value(30, 'm');
+      allow update: if (isOwner() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'sids']) && okLap(request.resource.data))
+        || (authed() && request.auth.uid == uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['seen'])
+            && request.resource.data.seen == request.time);
+      allow delete: if isOwner();
+    }
+    // a laptop asking to be approved: its own new login, made on that laptop, and a 6-digit code it shows, so Dr. A approves
+    // the right one on his own phone or computer (his password never goes on the laptop). Anyone can make a login, so a
+    // request says nothing but its code and which browser it is (no words of its own to show Dr. A), each login asks once,
+    // and only Dr. A clears requests.
+    match /tcLapReq/{uid} {
+      allow get: if authed() && (request.auth.uid == uid || isOwner());
+      allow list: if isOwner();
+      allow create: if authed() && request.auth.uid == uid && request.resource.data.keys().hasOnly(['code', 'dev', 'at'])
+        && request.resource.data.code is string && request.resource.data.code.matches('^[0-9]{6}$')
+        && request.resource.data.dev is string
+        && request.resource.data.dev.matches('^(Edge|Opera|Firefox|Chrome|Safari|A browser)( on (iPhone|iPad|Android|a Chromebook|Windows|a Mac|Linux))?$')
+        && request.resource.data.at == request.time
+        && !exists(/databases/$(db)/documents/members/$(uid));
+      allow update: if false;
+      allow delete: if isOwner();
+    }
+    // the office check's login (made by Dr. A: Settings → Office network). It reads which networks are the office's and
+    // writes down the network a login was on, nothing else.
+    match /tcNetBot/{uid} {
+      allow get: if authed() && (request.auth.uid == uid || isOwner());
+      allow list: if isOwner();
+      allow create: if isOwner() && request.resource.data.keys().hasOnly(['email', 'at'])
+        && request.resource.data.email is string && request.resource.data.email.size() <= 120 && request.resource.data.at == request.time;
+      allow update: if false;
+      allow delete: if isOwner();
+    }
+    // the network a login was on a moment ago, with the database's time and the one-time punch number its page was given
+    // (the office check writes it right before a punch). Only Dr. A reads them (nobody can read a punch number back), and
+    // only for the office's people and devices (a login anyone could make gets nothing written).
+    match /tcNetSeen/{uid} {
+      allow get: if isOwner();
+      allow create, update: if isNetBot() && request.resource.data.keys().hasOnly(['net', 'office', 'org', 'city', 'pid', 'relay', 'at'])
+        && okNet(request.resource.data.net) && request.resource.data.office is bool
+        && request.resource.data.org is string && request.resource.data.org.size() <= 100
+        && request.resource.data.city is string && request.resource.data.city.size() <= 60
+        && request.resource.data.pid is string && request.resource.data.pid.matches('^p[0-9a-f]{24}$') && request.resource.data.relay is bool
+        && request.resource.data.at == request.time
+        && (exists(/databases/$(db)/documents/members/$(uid)) || exists(/databases/$(db)/documents/tcKiosks/$(uid)) || exists(/databases/$(db)/documents/tcLaptops/$(uid)));
+      allow delete: if isOwner();
+    }
+    // the office's networks: Dr. A saves the one he's on right now ("This is the office" — never an address many people
+    // share, like iCloud Private Relay or a VPN); he can rename or remove one
+    match /tcOffice/{net} {
+      function okOffice(d) {
+        return okNet(net) && d.keys().hasOnly(['name', 'org', 'city', 'by', 'at'])
+          && d.name is string && d.name.size() > 0 && d.name.size() <= 40
+          && d.org is string && d.org.size() <= 100 && d.city is string && d.city.size() <= 60
+          && d.by == request.auth.uid && d.at == request.time;
+      }
+      allow get, list: if isOwner() || isNetBot();
+      allow create: if isOwner() && okOffice(request.resource.data) && seenNet(request.auth.uid, 5)
+        && get(seenDoc(request.auth.uid)).data.net == net && get(seenDoc(request.auth.uid)).data.relay == false;
+      allow update: if isOwner() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name'])
+        && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 40;
+      allow delete: if isOwner();
+    }
+    // which set of these rules is live (the page reads this; older rules refuse it)
+    match /meta/rules_tc_1 {
+      allow get: if isMember() || isTcDevice();
+    }
+    match /meta/rules_tc_2 {
+      allow get: if isMember() || isTcDevice() || isLaptop() || isNetBot();
     }
   }
 }

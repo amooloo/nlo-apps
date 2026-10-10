@@ -1,0 +1,5 @@
+dist/
+shots/
+node_modules
+*.log
+test/vendor/
