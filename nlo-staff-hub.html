@@ -683,8 +683,12 @@ label.ckRow input{width:16px;height:16px;accent-color:var(--blue);margin-top:2px
 @media (max-width:374px){html.nlo-home-on #side .sideTop img{width:64px}}
 @media (max-width:340px){html.nlo-home-on #side .sideLock{font-size:0;gap:0;padding:8px 10px}}
 /* while a window is open over the page, the button steps aside (as it does for dialogs everywhere) */
-html:has(#modalWrap.open)>nlo-home{display:none!important}
+html:has(#modalWrap.open)>:is(nlo-home,nlo-aisa){display:none!important}
 }
+</style>
+<style id="nlo-aisa-room">
+/* Ask AISA (nlo-aisa.js) sits in the bottom-right corner: on phones the toasts show above it. */
+@media screen and (max-width:600px){html.nlo-aisa-on #toasts{bottom:calc(var(--nlo-aisa-lift) + 4px)}}
 </style>
 </head>
 <body>
@@ -7668,4 +7672,5 @@ H.rosterDisconnect = () => { if (rosterApp) rosterApp.auth().signOut(); };
 </script>
 
 <script src="nlo-home.js" defer></script>
+<script src="nlo-aisa.js" defer></script>
 </body></html>

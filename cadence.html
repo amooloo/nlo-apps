@@ -168,7 +168,20 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
   html.nlo-home-on .admin-nav{padding-top:var(--nlo-home-drop)}
   @media (max-width:760px){html.nlo-home-on .admin-burger{margin-left:calc(var(--nlo-home-space) - 12px)}}
   /* while a window is open over the page, the button steps aside (as it does for dialogs everywhere) */
-  html:has(.modal-overlay)>nlo-home{display:none!important}
+  html:has(.modal-overlay)>:is(nlo-home,nlo-aisa){display:none!important}
+  }
+  </style>
+  <style id="nlo-aisa-room">
+  /* Ask AISA (nlo-aisa.js) sits in the bottom-right corner. The "Staff meeting" button moves to its left; on phones and
+     tablets both sit above the staff bottom bar, and on a checklist it sits above the Certify button (which keeps its full width). */
+  @media screen{
+  html.nlo-aisa-on .nlo-mtg-fab{right:var(--nlo-aisa-space)}
+  @media (min-width:900px){html.nlo-aisa-on .nlo-mtg-fab{bottom:20px}}
+  @media (max-width:899px){html:has(.staff-bottomnav){--nlo-aisa-bottom:88px}}
+  @media (max-width:700px){html:has(.certify-dock){--nlo-aisa-bottom:124px}}
+  @media (max-width:360px){html:has(.certify-dock){--nlo-aisa-bottom:140px}}
+  /* the "Staff meeting" sheet is over the page: AISA steps aside for it */
+  html:has(.nlo-mtg-panel.show)>nlo-aisa{display:none!important}
   }
   </style>
   </head>
@@ -444,5 +457,6 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 })();
     </script>
     <script src="nlo-home.js" defer></script>
+    <script src="nlo-aisa.js" defer></script>
   </body>
 </html>

@@ -38,6 +38,9 @@ shutil.copy(logo, dist / 'logo-white.png')
 # the shared NLO Apps button (the page loads nlo-home.js from beside it on the live site)
 home = root.parent / 'nlo-home.js'
 if home.exists(): shutil.copy(home, dist / 'nlo-home.js')
+# Ask AISA in the corner (the page loads nlo-aisa.js from beside it on the live site)
+aisa = root.parent / 'nlo-aisa.js'
+if aisa.exists(): shutil.copy(aisa, dist / 'nlo-aisa.js')
 print('built the page', len(out), 'bytes')
 
 # ---- the alert script: its instructions first, then the shared arithmetic (engine.js), then the rest of the script

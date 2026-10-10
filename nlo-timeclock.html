@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-//M5C+jQDJB44XmtpQ9z7mIBqJoTjvbXXek8BFBZrG0=' https://www.gstatic.com/firebasejs/10.12.2/ https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.workers.dev http://127.0.0.1:8080 http://127.0.0.1:9099; frame-src https://nlo-cases.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-//M5C+jQDJB44XmtpQ9z7mIBqJoTjvbXXek8BFBZrG0=' https://www.gstatic.com/firebasejs/10.12.2/ https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.workers.dev https://nlo-inventory-default-rtdb.firebaseio.com http://127.0.0.1:8080 http://127.0.0.1:9099; frame-src https://nlo-cases.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>NLO Time Clock</title>
@@ -302,10 +302,14 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
 @media (min-width:861px){ .mobNav{display:none} }
 @media print{ #side,.topBar,.mobBar,.mobNav{display:none} }
 /* The NLO Apps button (nlo-home.js) sits in the top-left corner: start the side menu's logo below it on a computer, and the phone bar's logo after it.
-   On the time clock itself it stays away: staff there only clock in and out. */
+   On the time clock itself it stays away: staff there only clock in and out. So does Ask AISA (nlo-aisa.js). */
 @media screen{ html.nlo-home-on .sideTop{padding-top:var(--nlo-home-drop)} }
 @media screen and (max-width:860px){ html.nlo-home-on .mobBar{padding-left:var(--nlo-home-space)} }
-html:has(#kiosk:not(.hidden)) > nlo-home{display:none !important}
+html:has(#kiosk:not(.hidden)) > :is(nlo-home, nlo-aisa){display:none !important}
+/* Ask AISA sits in the bottom-right corner: in the demo it stays above the demo banner (one row, or two on narrow screens), and on phones the toasts show above it */
+html:has(body.demo){--nlo-aisa-bottom:56px}
+@media (max-width:599px){ html:has(body.demo){--nlo-aisa-bottom:80px} }
+@media screen and (max-width:600px){ html.nlo-aisa-on #toasts{bottom:calc(var(--nlo-aisa-lift) + 4px)} }
 
 body.demo #drawer{bottom:31px} body.demo #side{padding-bottom:31px} body.demo #view{padding-bottom:90px}
 .nameCell{display:flex;align-items:center;gap:9px}
@@ -3968,5 +3972,6 @@ if (document.readyState === 'loading') document.addEventListener('DOMContentLoad
 
 </script>
 <script src="nlo-home.js" defer></script>
+<script src="nlo-aisa.js" defer></script>
 </body>
 </html>

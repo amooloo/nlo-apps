@@ -310,9 +310,11 @@ Copy one <a class="app"> block. Fill in href, data-name (full name), data-desc (
 shown on hover), the short label, and a 48x48 white icon inside the tile.
 Themes: t-blue, t-coral, t-mint, t-gold, t-navy, t-ai
 Icon colors: #fff for main shapes, fill-opacity .45–.7 for back shapes, currentColor for cut-in details.
-In the app's own page, add this line just before </body> so it gets the "NLO Apps" button back to this page
-(same button, same corner, in every app; see nlo-home.js):
+In the app's own page, add these two lines just before </body>: the "NLO Apps" button back to this page
+(same button, same top-left corner, in every app; see nlo-home.js) and Ask AISA in the bottom-right corner
+(see nlo-aisa.js; a page with its own Content-Security-Policy also needs the AISA worker in connect-src):
     <script src="nlo-home.js" defer></script>
+    <script src="nlo-aisa.js" defer></script>
 -->
 
 <nav class="apps-grid" aria-label="Applications">
@@ -756,5 +758,6 @@ Next Level Orthodontics &middot; Internal Tools
 })();
 </script>
 
+<script src="nlo-aisa.js" defer></script>
 </body>
 </html>

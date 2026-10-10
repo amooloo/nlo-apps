@@ -352,6 +352,10 @@ html.nlo-home-on .top .brand{margin-left:calc(var(--nlo-home-space) - 18px)}
 @media (max-width:640px){html.nlo-home-on .top .brand{margin-left:calc(var(--nlo-home-space) - 14px)}}
 }
 </style>
+<style id="nlo-aisa-room">
+/* Ask AISA (nlo-aisa.js) sits in the bottom-right corner: on phones the toast shows above it. */
+@media screen and (max-width:600px){html.nlo-aisa-on #toast{bottom:calc(var(--nlo-aisa-lift) + 4px)}}
+</style>
 </head>
 <body>
 
@@ -2117,5 +2121,6 @@ window.addEventListener('afterprint', () => { $('#printArea').innerHTML = ''; })
 window.SMH = { S, calNextMeeting, calOccursOn, syncMeetingDateFromCalendar, nextMeetingDefault, guessCategory, buildMinutes, agendaMarkdown, decisionsText, computeCadence, computeSpending, spendSummary, computeOut, matchPerson, runQueue, setRoster, ME_KPI, kpiMonth, version: APP_VERSION };
 </script>
 <script src="nlo-home.js" defer></script>
+<script src="nlo-aisa.js" defer></script>
 </body>
 </html>

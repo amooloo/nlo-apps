@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Assemble NLO Botox into one HTML file.
-   nlo-botox.html          full page for the nlo-apps repo (loads nlo-home.js, uses logo-white.png)
+   nlo-botox.html          full page for the nlo-apps repo (loads nlo-home.js and nlo-aisa.js, uses logo-white.png)
    artifact/nlo-botox.html  page body for the claude.ai artifact (no doctype/head/body, no nlo-home.js)"""
 import os, sys
 here = os.path.dirname(os.path.abspath(__file__))
@@ -40,6 +40,7 @@ full = f"""<!DOCTYPE html>
 {js}
 </script>
 <script src="nlo-home.js" defer></script>
+<script src="nlo-aisa.js" defer></script>
 </body>
 </html>
 """

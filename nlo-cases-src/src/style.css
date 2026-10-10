@@ -427,6 +427,9 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
 /* The NLO Apps button (nlo-home.js) sits in the top-left corner: start the side menu's logo below it on a computer, and the phone bar's logo after it */
 @media screen{ html.nlo-home-on .sideTop{padding-top:var(--nlo-home-drop)} }
 @media screen and (max-width:860px){ html.nlo-home-on .mobBar{padding-left:var(--nlo-home-space)} }
+/* Ask AISA (nlo-aisa.js) sits in the bottom-right corner: in the demo it stays above the demo banner, and on phones the toasts show above it */
+html:has(body.demo){--nlo-aisa-bottom:48px}
+@media screen and (max-width:600px){ html.nlo-aisa-on #toasts{bottom:calc(var(--nlo-aisa-lift) + 4px)} }
 
 body.demo #drawer{bottom:31px} body.demo #side{padding-bottom:31px} body.demo #view{padding-bottom:90px}
 .nameCell{display:flex;align-items:center;gap:9px}

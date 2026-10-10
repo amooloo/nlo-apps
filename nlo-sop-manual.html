@@ -972,6 +972,10 @@
 @media (max-width:460px){html.nlo-home-on header .subtitle{visibility:hidden}}
 }
 </style>
+<style id="nlo-aisa-room">
+/* Ask AISA (nlo-aisa.js) sits in the bottom-right corner: the back-to-top button sits above it. */
+@media screen{html.nlo-aisa-on .back-to-top{bottom:var(--nlo-aisa-lift)}}
+</style>
 </head>
 <body>
 
@@ -7412,5 +7416,6 @@
 
 <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" title="Back to top" aria-label="Back to top">↑</button>
 <script src="nlo-home.js" defer></script>
+<script src="nlo-aisa.js" defer></script>
 </body>
 </html>

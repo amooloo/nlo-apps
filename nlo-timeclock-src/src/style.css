@@ -286,10 +286,14 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
 @media (min-width:861px){ .mobNav{display:none} }
 @media print{ #side,.topBar,.mobBar,.mobNav{display:none} }
 /* The NLO Apps button (nlo-home.js) sits in the top-left corner: start the side menu's logo below it on a computer, and the phone bar's logo after it.
-   On the time clock itself it stays away: staff there only clock in and out. */
+   On the time clock itself it stays away: staff there only clock in and out. So does Ask AISA (nlo-aisa.js). */
 @media screen{ html.nlo-home-on .sideTop{padding-top:var(--nlo-home-drop)} }
 @media screen and (max-width:860px){ html.nlo-home-on .mobBar{padding-left:var(--nlo-home-space)} }
-html:has(#kiosk:not(.hidden)) > nlo-home{display:none !important}
+html:has(#kiosk:not(.hidden)) > :is(nlo-home, nlo-aisa){display:none !important}
+/* Ask AISA sits in the bottom-right corner: in the demo it stays above the demo banner (one row, or two on narrow screens), and on phones the toasts show above it */
+html:has(body.demo){--nlo-aisa-bottom:56px}
+@media (max-width:599px){ html:has(body.demo){--nlo-aisa-bottom:80px} }
+@media screen and (max-width:600px){ html.nlo-aisa-on #toasts{bottom:calc(var(--nlo-aisa-lift) + 4px)} }
 
 body.demo #drawer{bottom:31px} body.demo #side{padding-bottom:31px} body.demo #view{padding-bottom:90px}
 .nameCell{display:flex;align-items:center;gap:9px}

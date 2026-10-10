@@ -127,8 +127,12 @@ html.nlo-home-on .top .brand{margin-left:calc(var(--nlo-home-space) - 18px)}
 @media (max-width:640px){html.nlo-home-on .top .brand b{font-size:17px}}
 @media (max-width:419px){html.nlo-home-on .top .brand span{display:none}}
 /* while a sheet is open over the page, the button steps aside (as it does for dialogs everywhere) */
-html:has(#sheet.open)>nlo-home{display:none!important}
+html:has(#sheet.open)>:is(nlo-home,nlo-aisa){display:none!important}
 }
+</style>
+<style id="nlo-aisa-room">
+/* Ask AISA (nlo-aisa.js) sits in the bottom-right corner: on phones the toast shows above it. */
+@media screen and (max-width:600px){html.nlo-aisa-on #toast{bottom:calc(var(--nlo-aisa-lift) + 4px)}}
 </style>
 </head>
 <body>
@@ -721,5 +725,6 @@ function reviewEdge(m, out) {
 window.MEH = { S, computeTotals, yearData, baseline, edgeValues, edgePhaseKey, version: APP_VERSION };
 </script>
 <script src="nlo-home.js" defer></script>
+<script src="nlo-aisa.js" defer></script>
 </body>
 </html>

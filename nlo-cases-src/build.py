@@ -38,6 +38,9 @@ if logo: shutil.copy(logo, root / 'dist' / 'logo-white.png')
 # the shared NLO Apps button (the page loads nlo-home.js from beside it on the live site)
 home = root.parent / 'nlo-home.js'
 if home.exists(): shutil.copy(home, root / 'dist' / 'nlo-home.js')
+# Ask AISA in the corner (the page loads nlo-aisa.js from beside it on the live site)
+aisa = root.parent / 'nlo-aisa.js'
+if aisa.exists(): shutil.copy(aisa, root / 'dist' / 'nlo-aisa.js')
 # the black NLO logo printed on aligner labels (same image as the Label Maker's)
 lbl = next((p for p in [root.parent / 'nlo-label-logo.png', root / 'nlo-label-logo.png'] if p.exists()), None)
 if lbl: shutil.copy(lbl, root / 'dist' / 'nlo-label-logo.png')

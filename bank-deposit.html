@@ -208,6 +208,10 @@
     #slip .sig div{flex:1;border-top:1px solid #000;padding-top:4px}
   }
 </style>
+<style id="nlo-aisa-room">
+/* Ask AISA (nlo-aisa.js) sits in the bottom-right corner: on narrow screens the pinned total leaves it that corner, so the total and Print stay clear. */
+@media screen and (max-width:680px){html.nlo-aisa-on .total{padding-right:var(--nlo-aisa-space)}}
+</style>
 </head>
 <body>
 
@@ -457,5 +461,6 @@
 })();
 </script>
 <script src="nlo-home.js" defer></script>
+<script src="nlo-aisa.js" defer></script>
 </body>
 </html>
