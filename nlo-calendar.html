@@ -113,7 +113,7 @@ const TIMEOFF_API = "https://script.google.com/macros/s/AKfycbxvI_d6muf_OepqurNr
 const TO_FEED_URL = "https://firestore.googleapis.com/v1/projects/nlo-cases/databases/(default)/documents/toFeed/live";
 const TO_FEED_CFG = "nlo/cadence/timeOffFeed";
 const SYNC_INTERVAL_MIN = 15;
-const CAL_VERSION = "1.5 (Oct 10, 2026)";
+const CAL_VERSION = "1.6 (Oct 10, 2026)";
 
 /* Staff roster seeded from Gusto (active employees, July 2026). Editable in Settings.
    Names only: birthdays and hire dates are kept in Firebase (Settings > Staff), never in this public file. */
@@ -348,7 +348,8 @@ function calStaff(){
       const p=ppl[pid], ph=nloRosterPhoto(p);
       const o=Object.assign({},st,{ name:rosterLabel(p)||st.name, savedName:st.name, rid:pid });
       if(ph) o.photo=ph; else delete o.photo;
-      if(!o.hireDate&&hubStart(pid)){ o.hireDate=hubStart(pid); o.hireFromHub=true; }
+      /* Staff Hub's start date wins; the calendar's own hire date only counts for someone Staff Hub has none for */
+      if(hubStart(pid)){ o.hireDate=hubStart(pid); o.hireFromHub=true; }
       if(!nloRosterActive(p)){ o.active=false; o.left=true; }
       out[id]=o;
     });
