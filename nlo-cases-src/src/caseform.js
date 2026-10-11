@@ -601,7 +601,7 @@ function caseFormHTML(c, isNew) {
     '<div class="pickRow itGrid" role="group" aria-label="Instructions" data-g="instrPicks" data-multi="1">' + INSTR.map(it =>
       '<button type="button" class="pick itile" data-v="' + esc(it.v) + '" aria-pressed="' + picks.includes(it.v) + '" title="' + esc(it.v) + '">' + instrArt(it.ic) + '<span>' + esc(it.l) + '</span></button>').join('') + '</div>' +
     (oldPicks.length ? '<div class="hint small muted" style="margin:10px 0 6px">Earlier choices on this case</div>' + pickRow('instrPicks', oldPicks, oldPicks, true) : '') +
-    '<div class="field" style="margin-top:10px"><label for="cf-instrOther">Other instructions</label><textarea id="cf-instrOther" rows="2" placeholder="Only if it isn’t one of the pictures">' + esc(instrOther) + '</textarea></div></div>' +
+    '<div class="field" style="margin-top:10px"><label for="cf-instrOther">Other instructions</label><textarea id="cf-instrOther" rows="2" placeholder="Only if it isn’t one of the pictures">' + esc(instrOther) + '</textarea></div>' + aiBarHTML() + '</div>' +
     '<div class="cfSec" data-step="instr"' + show('aligner') + '><h5>Teeth, IPR &amp; attachments</h5>' +
     '<div class="pickRow rxGrid" data-g="extras" data-multi="1">' + rxTile('No IPR', 'noipr', 'No IPR') +
       '<button type="button" class="rxTile" id="cf-noatt" aria-pressed="' + !!scope0 + '" aria-controls="cf-noattScope">' + rxArt('noatt') + '<span><b>No attachments</b><small id="cf-noattSub">' + esc(scope0 ? NOATT_SCOPES.find(x => x.v === scope0).l : '') + '</small></span></button>' +

@@ -1819,3 +1819,32 @@ button.stk .stkE{transition:transform .15s var(--ease)}
 .nsForm .lbl{display:block;font-size:12px;font-weight:600;color:var(--grey-600);margin-bottom:4px}
 .nsChk{grid-column:1/-1;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--grey-700)}
 .nsSent{display:inline-block;font-weight:600;opacity:.85}
+/* ---------- Make it clear — AI for Dr. A's instructions (ai.js, Amir 10 Oct 2026) ---------- */
+.aiBar{display:flex;align-items:center;flex-wrap:wrap;gap:6px 12px;margin-top:8px}
+.aiBar .btn{color:var(--blue);background:var(--blue-100);border:1.5px solid var(--blue-200)}
+.aiBar .btn:hover{background:var(--blue-200);color:var(--blue-800)}
+.aiBar .small{flex:1 1 220px;min-width:0;color:var(--grey-500);line-height:1.35}
+.aiOut{margin-top:10px;padding:12px 14px;border:1.5px solid var(--blue-200);border-radius:12px;background:#F5F7FD;color:var(--grey-700)}
+.aiOut[hidden]{display:none}
+.aiOut:has(> .aiMsg.bad){border-color:var(--coral-200);background:var(--coral-100)}
+.aiOut:has(> .aiDone){border-color:var(--mint-200);background:var(--mint-100)}
+.aiHd{display:flex;align-items:center;gap:6px;font-family:var(--fd);font-weight:500;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--blue);margin-bottom:6px}
+.aiRow{display:flex;align-items:flex-start;gap:10px;padding:7px 0;font-size:13.5px;line-height:1.4;color:var(--grey-700);cursor:pointer}
+.aiRow.ro{cursor:default}
+.aiRow+.aiRow{border-top:1px solid var(--blue-100)}
+.aiRow input[type=checkbox]{flex:none;width:18px;height:18px;margin-top:1px;accent-color:var(--blue);cursor:pointer}
+.aiBul{flex:none;width:18px;text-align:center;color:var(--blue-500);font-weight:700}
+.aiTag{display:inline-block;margin-left:8px;padding:1px 8px;border-radius:99px;background:var(--amber-100);color:var(--amber-700);font-size:10.5px;font-weight:700;letter-spacing:.03em;white-space:nowrap;vertical-align:1px;cursor:help}
+.aiCheck{margin-top:10px;padding:9px 12px;border-radius:10px;background:var(--amber-100);font-size:12.5px;line-height:1.4;color:var(--grey-700)}
+.aiCheck b{display:block;font-family:var(--fd);font-weight:500;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--amber-700);margin-bottom:2px}
+.aiCheck ul{margin:0;padding-left:18px}
+.aiCheck li{margin:3px 0}
+.aiAct{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.aiFine{margin-top:8px;font-size:11.5px;line-height:1.35;color:var(--grey-500)}
+.aiMsg{font-size:13px;line-height:1.4}
+.aiMsg.bad{color:var(--coral-700);font-weight:600}
+.aiDone{display:flex;align-items:center;flex-wrap:wrap;gap:6px;font-size:13px;font-weight:600;color:var(--mint-700)}
+.aiLink{padding:0 2px;background:none;border:0;font:inherit;font-weight:600;color:var(--blue);text-decoration:underline;text-underline-offset:2px;cursor:pointer}
+.aiLink:hover{color:var(--blue-800)}
+#aiCard textarea{min-height:0}
+#aiCard label .h5n{margin-left:8px;text-transform:none;letter-spacing:0;font-family:var(--fb);font-size:11.5px;font-weight:500;color:var(--grey-400)}
