@@ -987,7 +987,7 @@
     <div class="subtitle">Standard Operating Procedures</div>
     <h1><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin-right:4px;"><path d="M12 2C9 2 7 4 7 6.5S8.5 12 8.5 14c0 2-1 4-1 6s1.5 2 2.5 2 1.5-1 2-1 1 1 2 1 2.5 0 2.5-2-1-4-1-6S16 9 16 6.5 15 2 12 2z"/></svg> Orthodontic Clinical Manual</h1>
     <!-- EDIT: Update clinic name and date below -->
-    <div class="meta">Last updated: June 10, 2026 &nbsp;·&nbsp; Synced to AISA Master Knowledge Base v2.31 &nbsp;·&nbsp; For internal clinical use only</div>
+    <div class="meta">Last updated: October 11, 2026 (NLO Cases replaces Tally and Asana) &nbsp;·&nbsp; Synced to AISA Master Knowledge Base v2.31 &nbsp;·&nbsp; For internal clinical use only</div>
   </div>
 </header>
 
@@ -2506,7 +2506,7 @@
               <li>Upload scans (or impressions) to the aligner manufacturer portal (e.g., Invisalign Doctor Site or equivalent).</li>
               <li>Indicate in the prescription: treatment goals, tooth movements still needed, any modifications (IPR, attachments, staging preferences).</li>
               <li>Select refinement type: <strong>Full Refinement</strong> (complete re-planning from current position) or <strong>Limited Refinement</strong> (targeted correction of specific teeth).</li>
-              <li>Submit and note submission date in chart. Set a recall task in Asana/Edge for plan review in <strong>2–3 weeks</strong>.</li>
+              <li>Submit and note submission date in chart. The refinement is tracked in <strong>NLO Cases</strong> (entered right after the scan as Refinement N): Dr. A's plan review is its Dr. A action step, and its Lab date fills in <strong>3 weeks</strong> after the scan.</li>
               <li>When the refinement plan arrives, Dr. Akhavan reviews the ClinCheck/virtual setup before approving for manufacture.</li>
             </ol>
 
@@ -2525,7 +2525,7 @@
               <li>Pre-refinement photos and scan date recorded in visit note.</li>
               <li>Submission confirmation (case number / submission date) logged in chart.</li>
               <li>Attachment template tray number and any IPR performed noted.</li>
-              <li>Asana task created for plan review and delivery follow-up.</li>
+              <li>Refinement case entered in NLO Cases (plan review and delivery follow-up are its steps and its Delivery appt date).</li>
             </ul>
 
           </div>
@@ -2561,7 +2561,7 @@
             <ul>
               <li>Confirm removable retainers are fabricated, trimmed, and polished — verify fit on model.</li>
               <li>Confirm custom whitening trays are fabricated and trimmed.</li>
-              <li><strong>Place retainers and whitening trays at the front desk before 8:00 AM</strong> — patient picks up at the front desk.</li>
+              <li><strong>Place retainers and whitening trays at the front desk before 8:00 AM</strong> — patient picks up at the front desk. Move the case in NLO Cases to <strong>Front desk pickup</strong>.</li>
               <li>Enter retainer readiness into <strong>Milestones in Edge</strong>.</li>
               <li>If a bonded lingual retainer is planned, notify the clinical team — that portion requires a chair visit per <a href="#sop-cl-012" onclick="navigateToSop('sop-cl-012');return false;" style="color:#1a73e8;text-decoration:underline;">SOP-CL-012</a>.</li>
             </ul>
@@ -2582,7 +2582,7 @@
             </ol>
 
             <div class="alert-box alert-success">
-              Mark retainer delivery complete in <strong>Milestones in Edge</strong> once the patient has picked up.
+              Mark retainer delivery complete in <strong>Milestones in Edge</strong> once the patient has picked up. Then move the case in NLO Cases to <strong>Checked into Milestones</strong> (its last step) and tap <strong>Mark complete</strong>.
             </div>
           </div>
         </details>
@@ -2590,7 +2590,7 @@
 
       
 <!-- ── SOP: Retention Protocol ── -->
-      <article id="sop-cl-012" class="sop-card" data-keywords="retainer retention essix hawley trutain zendura fixed bonded lingual wire permanent removable wear schedule nighttime full time fabrication trimline Ministar block out Ivery liquid dam asana turnaround">
+      <article id="sop-cl-012" class="sop-card" data-keywords="retainer retention essix hawley trutain zendura fixed bonded lingual wire permanent removable wear schedule nighttime full time fabrication trimline Ministar block out Ivery liquid dam NLO Cases turnaround">
         <details>
           <summary class="sop-summary">
             <span class="sop-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0d8282" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;"><path d="M6 3h12l4 6-10 13L2 9z"/><path d="M2 9h20"/></svg></span>
@@ -2679,10 +2679,11 @@
               <li>Allow the block-out to cure fully before thermoforming.</li>
             </ul>
 
-            <h4>Fabrication Workflow &amp; Asana</h4>
+            <h4>Fabrication Workflow &amp; NLO Cases</h4>
             <ol>
               <li>Scan the patient for retainers (upper and/or lower as indicated); confirm scan quality before dismissing.</li>
-              <li><strong>Add the patient to Asana</strong> under the appropriate retainer fabrication column immediately after scanning. Do not wait until the next day.</li>
+              <li><strong>Enter the case in NLO Cases</strong> immediately after scanning (New case → Retainers tile: the arch, and TT's and/or WT's; the Mouthguard tile for a mouthguard). Do not wait until the next day. The Delivery appt fills in 2 office days after the scan, and the case is assigned to you by default.</li>
+              <li>Move the case along as it's made: <strong>To make → Printing → Front desk pickup → Checked into Milestones</strong>.</li>
               <li>Print model, block out edentulous areas if needed (Ivery Liquid Dam), thermoform with Ministar S using Zendura A.</li>
               <li>Trim to standard trimlines (facial ≤1 mm past gingival margin, lingual at CEJ); smooth all edges.</li>
               <li>Quality-check: verify full seating on model, no voids, no sharp edges.</li>
@@ -3077,7 +3078,7 @@
 
       
 <!-- ── SOP: Phase I — RPE / L Schwartz Protocol ── -->
-      <article id="sop-cl-007" class="sop-card" data-keywords="phase one phase I RPE expander schwartz 2x6 metal U RPE L Sch scan delivery activation turns 407 212 216 601 bonding">
+      <article id="sop-cl-007" class="sop-card" data-keywords="phase one phase I RPE expander schwartz 2x6 metal U RPE L Sch scan delivery activation turns 407 212 216 601 bonding NLO Cases">
         <details>
           <summary class="sop-summary">
             <span class="sop-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0d8282" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg></span>
@@ -3117,16 +3118,12 @@
 
                   <h4 style="margin:10px 0 4px;font-size:0.82rem;color:#555;text-transform:uppercase;letter-spacing:.04em;">Appliance Submission — Complete Before End of Day</h4>
                   <div class="alert-box alert-danger" style="margin:4px 0 8px;">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#c0392b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin-right:3px;"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg> <strong>Submit the Tally form the same day as the scan.</strong> Do not wait until the next day.
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#c0392b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin-right:3px;"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg> <strong>Enter the case in NLO Cases the same day as the scan.</strong> Do not wait until the next day.
                   </div>
                   <ul>
-                    <li>Follow <strong><a href="#sop-cl-006" onclick="navigateToSop('sop-cl-006');return false;" style="color:#1a73e8;text-decoration:underline;">SOP-CL-006 — Appliance Submission</a></strong> to complete the Tally form.</li>
+                    <li>Follow <strong><a href="#sop-cl-006" onclick="navigateToSop('sop-cl-006');return false;" style="color:#1a73e8;text-decoration:underline;">SOP-CL-006 — Appliance Submission</a></strong>: NLO Cases → New case → Appliance tile.</li>
                     <li>Include: patient name, appliances ordered (U RPE + L Schwartz), color choice, scan date, and any special instructions from Dr. A.</li>
                   </ul>
-                  <a href="https://tally.so/r/3EpQdr" target="_blank" class="tally-btn" style="margin:6px 0 10px;display:inline-flex;">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1a52bf" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin-right:3px;"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg> Open Appliance Submission Form
-                    <span class="tally-url">tally.so/r/3EpQdr</span>
-                  </a>
 
                   <h4 style="margin:10px 0 4px;font-size:0.82rem;color:#555;text-transform:uppercase;letter-spacing:.04em;">Scheduling</h4>
                   <ul>
@@ -3236,13 +3233,13 @@
       </article>
 
       
-<!-- ── SOP: Appliance Submission — Scan & Tally Form ── -->
-      <article id="sop-cl-006" class="sop-card" data-keywords="appliance submission scan upper lower palate tally form RPE schwartz expander same day submit order">
+<!-- ── SOP: Appliance Submission — Scan & NLO Cases Entry ── -->
+      <article id="sop-cl-006" class="sop-card" data-keywords="appliance submission scan upper lower palate NLO Cases new case case entry RPE schwartz expander same day submit order">
         <details>
           <summary class="sop-summary">
             <span class="sop-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0d8282" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></span>
             <div class="sop-title-wrap">
-              <div class="sop-title">Appliance Submission — Scan &amp; Tally Form</div>
+              <div class="sop-title">Appliance Submission — Scan &amp; NLO Cases Entry</div>
               <div class="sop-subtitle">SOP-CL-006 &nbsp;·&nbsp; Clinical Assistant</div>
             </div>
             <div class="sop-tags">
@@ -3263,16 +3260,21 @@
               <li>Verify both scans are complete, accurate, and free of voids before proceeding.</li>
             </ol>
 
-            <h4>Submit the Appliance Order</h4>
-            <p>Open the Tally submission form and complete all required fields:</p>
+            <h4>Enter the Case in NLO Cases</h4>
+            <p>Open <strong>NLO Cases</strong> → <strong>New case</strong>. Type the <strong>Patient name</strong> and the <strong>Chart #</strong> (both required — the chart # from Edge), tap the case-type tile (Oliv, In-house, Retainers, Mouthguard, Appliance, Angel, uLab, Invisalign, InSmile, Study models, MARPE), then <strong>Next</strong> through the steps — Case (what's being made and the lab), Lab Rx (when Specialty's Rx applies), Scan &amp; dates (assistant, scanner, dates), Instructions (Dr. A's instructions) and Review — and tap <strong>Create case</strong>. The case is encrypted before it leaves the computer.</p>
+            <ul>
+              <li><strong>Quick add</strong> creates the case with just the patient, chart # and case type; it stays tagged "Finish details" until someone fills in the rest.</li>
+              <li>If the patient already has an open case of the same kind, the form says so before a second one is created.</li>
+              <li>Entering a case in NLO Cases does <strong>NOT</strong> submit anything to the lab — the prescription still goes through the lab's own portal (SOP-LAB-001, Layer 3).</li>
+            </ul>
 
-            <a href="https://tally.so/r/3EpQdr" target="_blank" class="tally-btn">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1a52bf" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin-right:3px;"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg> Open Appliance Submission Form
-              <span class="tally-url">tally.so/r/3EpQdr</span>
+            <a href="https://amooloo.github.io/nlo-apps/nlo-cases.html" target="_blank" class="tally-btn">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1a52bf" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin-right:3px;"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg> Open NLO Cases
+              <span class="tally-url">amooloo.github.io/nlo-apps/nlo-cases.html</span>
             </a>
 
             <div class="alert-box alert-danger" style="margin-top:12px;">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#c0392b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin-right:3px;"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg> <strong>The Tally form must be completed the same day the patient was scanned.</strong> Do not wait until the next day.
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#c0392b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin-right:3px;"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg> <strong>The case must be entered in NLO Cases the same day the patient was scanned.</strong> Do not wait until the next day.
             </div>
 
           </div>
@@ -5938,7 +5940,7 @@
             <ol>
               <li>Open Edge and review the full day's schedule — flag any patients with outstanding balances, missing forms, or pending consents.</li>
               <li>Confirm any same-day lab work or retainers are printed and ready.</li>
-              <li>Check the Asana retainer fabrication board — confirm any retainers due today are completed and bagged.</li>
+              <li>Check NLO Cases (Today, or the Board's Retainers &amp; mouthguards tab) — confirm any retainers due today are completed, bagged and at Front desk pickup.</li>
               <li>Check messages (Weave / voicemail) from after-hours and triage before the first patient arrives.</li>
             </ol>
 
@@ -5957,7 +5959,7 @@
               <li>Reconcile the day's payments in Edge — confirm all charges and payments are posted.</li>
               <li>Send any outstanding patient communications (appointment reminders, follow-up messages).</li>
               <li>Review tomorrow's schedule: confirm all charts are complete, any needed records or appliances are queued.</li>
-              <li>Add any new retainer cases to Asana with the correct due date (2 business days from scan).</li>
+              <li>Confirm every retainer scanned today has a case in NLO Cases with the correct Delivery appt (2 business days from scan — it fills in by itself).</li>
               <li>Lock the front desk and secure the office per practice closing checklist.</li>
             </ol>
 
@@ -6899,7 +6901,7 @@
 
 
       <!-- ── SOP-LB-001: Appliance Tracking & Check-In ── -->
-      <article id="sop-lab-001" class="sop-card" data-category="lab" data-keywords="lab appliance tracking check-in submission three-layer model Tally Sarah ASANA Edge appliances panel sent expected received prescription outside lab Oliv NLA refinement initial aligner boxes here verification photos mismatch daily reconciliation">
+      <article id="sop-lab-001" class="sop-card" data-category="lab" data-keywords="lab appliance tracking check-in submission three-layer model NLO Cases Sarah Edge appliances panel sent expected received prescription outside lab Oliv NLA refinement initial aligner boxes here verification photos mismatch daily reconciliation">
         <details>
           <summary class="sop-summary">
             <span class="sop-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3949ab" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg></span>
@@ -6914,30 +6916,21 @@
             <div class="info-grid">
               <div class="info-item"><div class="label">SOP ID</div><div class="value">SOP-LAB-001 (formerly SOP-LB-001)</div></div>
               <div class="info-item"><div class="label">Owner</div><div class="value">Sarah (Office Coordinator)</div></div>
-              <div class="info-item"><div class="label">Tools</div><div class="value">Tally · Edge Appliances panel · Asana · Lab portals</div></div>
+              <div class="info-item"><div class="label">Tools</div><div class="value">NLO Cases · Edge Appliances panel · Lab portals</div></div>
             </div>
 
             <div class="alert-box alert-danger">
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#c0392b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin-right:3px;"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> <strong>An "appliance submission" at NLO is NOT a single action.</strong> It is THREE distinct actions across three tracking surfaces. Read the Three-Layer Model below before answering any submission question — conflating the layers leads to wrong instructions about who does what.
             </div>
 
-            <h4>Layer 1 — Tally (Universal Internal Tracking)</h4>
+            <h4>Layer 1 — NLO Cases (Universal Internal Tracking)</h4>
             <ul>
-              <li>Every case is submitted to Tally by the <strong>assistant who scanned the patient</strong>, regardless of appliance type (non-aligner, initial aligner, refinement aligner, NLA — all of them).</li>
-              <li><strong>EXCEPTION:</strong> Retainers and whitening trays do <strong>NOT</strong> go through Tally. The assistant who makes them adds the patient directly to the <em>Retainers and Whitening trays</em> Asana project, same day, in their own column (e.g., "Angelika - TT's/WT's"). No Tally submission, no Sarah routing step.</li>
-              <li>Tally is for <strong>internal tracking only</strong> — it does NOT submit anything to an outside lab or manufacturer.</li>
-              <li>Tally syncs to Asana — entries land in the <strong>Tally Imput</strong> project. Sarah reviews each entry and moves it to the correct project:</li>
+              <li>Every case is entered in <strong>NLO Cases</strong> by the <strong>assistant who scanned the patient</strong>, right after the scan and always the same day, regardless of case type — outside aligners (Oliv, Angel, uLab, Invisalign), InSmile braces, appliances, MARPE, in-house NLA, retainers, whitening trays, mouthguards and study models. All of them.</li>
+              <li>NLO Cases is NLO's encrypted case tracker. It replaced Tally and Asana for patient cases in October 2026; neither is used for cases any more.</li>
+              <li>NLO Cases is for <strong>internal tracking only</strong> — entering or moving a case does NOT submit anything to an outside lab or manufacturer; the prescription still goes through the lab's own portal (Layer 3). For Specialty Appliances cases, NLO Cases can fill in Specialty's Rx form (Herbst, Retainer, Metal or Functional Rx) as a PDF to send with the case.</li>
+              <li><strong>No intake or routing step:</strong> the case-type tile picked in New case puts the case on the right board at its first step. "Assigned to" fills in by case type — for example Sarah for Oliv, Angel, Invisalign, Appliance and MARPE cases; Dr. A for in-house aligners; the person entering it for retainers, mouthguards and study models (Dr. A can change these defaults). A D2 distalizer (picked under the Appliance tile) is made in-house: it is routed to the NL Lab, starts at Manufacturing and is assigned to Dr. A. Tap the assigned name on the list or on a board card to give the case to someone else.</li>
             </ul>
-            <table class="bond-table">
-              <thead><tr><th>Appliance type</th><th>Asana project</th><th>Entry section</th></tr></thead>
-              <tbody>
-                <tr><td>Non-aligner outside-lab (MARA, Herbst, MSE, etc.)</td><td><strong>Appliance</strong></td><td>SARAH TO Submit</td></tr>
-                <tr><td>Oliv aligners (initial or refinement)</td><td><strong>Oliv</strong></td><td>SARAH TO Submit</td></tr>
-                <tr><td>In-house NLA</td><td><strong>NL Lab</strong></td><td>Per fabrication stage</td></tr>
-                <tr><td>Retainers / whitening trays</td><td><strong>Retainers and Whitening trays</strong></td><td>Direct — skips Tally entirely</td></tr>
-              </tbody>
-            </table>
-            <p style="font-size:0.82rem;color:#444;">See <strong>SOP-CL-006</strong> for the Tally appliance submission form link and field requirements.</p>
+            <p style="font-size:0.82rem;color:#444;">See <strong>SOP-CL-006</strong> for entering a case, and <strong>NLO Cases — Boards, Steps &amp; Automatic Updates</strong> below for each kind of case's steps.</p>
 
             <h4>Layer 2 — Edge Cloud Appliances Panel (Per-Patient Lifecycle)</h4>
             <ul>
@@ -6967,39 +6960,48 @@
 
             <h4>Who Does What — Summary by Case Type</h4>
             <ul>
-              <li><strong>Non-aligner case:</strong> Scanning DA → Tally + Appliances panel row. Sarah → submits prescription + marks SENT, then marks RECEIVED at check-in. Whoever delivers → records delivery.</li>
-              <li><strong>Initial aligner case:</strong> Scanning DA → Tally + panel row. Sarah → submits to manufacturer + marks SENT, marks RECEIVED. Delivery DA → records delivery.</li>
-              <li><strong>Refinement aligner case:</strong> Scanning DA → Tally + panel row + submits prescription + marks SENT (owns the case end-to-end through submission). Sarah → marks RECEIVED. Delivery DA → records delivery.</li>
-              <li><strong>In-house NLA:</strong> Scanning DA → Tally (still required); Sarah moves to NL Lab project. Dr. A → Titan design, staging, print export (Steps 1–3, Dr. A only). Dr. A currently performs all fabrication steps (staff trained and help with label printing). Delivery DA → records delivery and moves the NL Lab Asana card.</li>
+              <li><strong>Non-aligner case:</strong> Scanning DA → enters the case in NLO Cases + Appliances panel row. Sarah → submits prescription + marks SENT, then marks RECEIVED at check-in. Whoever delivers → records delivery.</li>
+              <li><strong>Initial aligner case:</strong> Scanning DA → enters the case in NLO Cases + panel row. Sarah → submits to manufacturer + marks SENT, marks RECEIVED. Delivery DA → records delivery.</li>
+              <li><strong>Refinement aligner case:</strong> Scanning DA → enters the case in NLO Cases + panel row + submits prescription + marks SENT (owns the case end-to-end through submission). Sarah → marks RECEIVED. Delivery DA → records delivery.</li>
+              <li><strong>In-house NLA:</strong> Scanning DA → enters the case in NLO Cases (In-house tile; still required). It lands on the In-house lab board at Uploaded to Titan, assigned to Dr. A by default. Dr. A → Titan design, staging, print export (Steps 1–3, Dr. A only). Dr. A currently performs all fabrication steps (staff trained and help with label printing). Whoever does each step moves the case to it in NLO Cases, through Packaging and finally Checked into Milestones. Delivery DA → records delivery.</li>
             </ul>
             <div class="alert-box alert-warning">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d68000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin-right:3px;"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> <strong>Known operational gaps:</strong> (1) NL Lab Asana cards are frequently not moved at handoffs — move the card every time work changes hands. (2) NLA fabrication currently bottlenecks on Dr. A; a dedicated lab/sterilization tech is the planned long-term fix.
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d68000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin-right:3px;"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> <strong>Operational rules:</strong> (1) Nothing in NLO Cases moves by itself. The lab PC (trimming progress from Ortho Factory) and the 3D printer (Formlabs' print emails) offer the matching step with one tap, but someone still has to tap it — move the case at every handoff, including when Dr. A delegates a fabrication step and when the aligners are delivered. (2) NLA fabrication currently bottlenecks on Dr. A; a dedicated lab/sterilization tech is the planned long-term fix.
             </div>
 
-            <h4>Asana Appliance Tracking Directory</h4>
+            <h4>NLO Cases — Boards, Steps &amp; Automatic Updates</h4>
+            <p style="font-size:0.82rem;color:#444;">The Board has one tab per kind of case; each column is a step, and the arrow on a case's card moves it to the next step. Every case ends at <strong>Checked into Milestones</strong> (study models: Ready), and <strong>Mark complete</strong> is offered only at that last step.</p>
             <table class="bond-table">
-              <thead><tr><th>Project</th><th>Purpose</th><th>Section flow</th></tr></thead>
+              <thead><tr><th>Kind of case</th><th>Steps (in order)</th></tr></thead>
               <tbody>
-                <tr><td><strong>Tally Imput</strong></td><td>Intake staging — all Tally submissions land here</td><td>Appliance input → Sarah routes to the correct project</td></tr>
-                <tr><td><strong>Appliance</strong></td><td>Non-aligner outside-lab cases (Sarah end-to-end)</td><td>SARAH TO Submit → Case Hold-CBCT/Zoom → Submitted to Lab → Manufacturing → Shipped → Checked Into Milestones</td></tr>
-                <tr><td><strong>Oliv</strong></td><td>Oliv aligner cases</td><td>SARAH TO Submit → Dr. A - Action Required → Manufacturing → Shipped (AI email scan moves card) → Arrived → Checked Into Milestones</td></tr>
-                <tr><td><strong>NL Lab</strong></td><td>In-house NLA fabrication board</td><td>Dr. A (Misc.) · TxP needed · Reset needed in 2 days · In Fabrication · Made, need to package · Checked In</td></tr>
-                <tr><td><strong>Retainers and Whitening trays</strong></td><td>Direct entry — no Tally</td><td>Per-clinician columns (Angelika / Bri / Gwen / Kaylee / Sarah) → MILESTONES → Placed on Sarah Desk → FRONT DESK PICK UP</td></tr>
+                <tr><td><strong>Outside aligners &amp; braces</strong> (Oliv, Angel Aligners, uLab, Invisalign, InSmile)</td><td>To submit → Dr. A action → Manufacturing → Shipped → Arrived → Checked into Milestones. A set shipped straight to the patient skips Arrived.</td></tr>
+                <tr><td><strong>Appliances</strong> (Herbst, MARA, MSE, RPE, Hawley retainers, Schwarz, finger springs, other lab appliances)</td><td>To submit → Hold (CBCT/Zoom) → Submitted to lab → Manufacturing → Shipped → Checked into Milestones. A D2 distalizer is made in-house and starts at Manufacturing.</td></tr>
+                <tr><td><strong>MARPE</strong></td><td>Records: STL + CBCT → Submitted to lab → Zoom call scheduled → Design approved → Delivered → Checked into Milestones. Both records must be on file before Submitted to lab.</td></tr>
+                <tr><td><strong>In-house lab</strong> (in-house NLA aligners, including finishing aligners)</td><td>Uploaded to Titan → TxP approved → Ready to print → Printing → Thermoforming → Trimming → Polish, wash &amp; dry → Packaging → Checked into Milestones. Moving a case to TxP approved asks for the upper and lower aligner counts and the attachment templates.</td></tr>
+                <tr><td><strong>Retainers &amp; mouthguards</strong> (TT's, WT's and mouthguards)</td><td>To make → Printing → Front desk pickup → Checked into Milestones. Finished retainers go to the front desk for pickup — not to Sarah's desk.</td></tr>
+                <tr><td><strong>Study models</strong></td><td>To print → Ready</td></tr>
               </tbody>
             </table>
+            <ul>
+              <li><strong>Dates:</strong> every case shows a <strong>Lab date</strong> and a <strong>Delivery appt</strong>, filled in from the scan date (aligners and braces: Lab date 3 weeks and Delivery appt 4 weeks after the scan; retainers and mouthguards: Delivery appt 2 office days after the scan). Change them to the real dates.</li>
+              <li><strong>Lab emails</strong> from uLab, Partners, Specialty Appliances, Oliv and Angel move the matching case forward (never back) whenever someone has NLO Cases open. An update that matches no case waits on Today for someone to pick the case.</li>
+              <li><strong>Not shipped:</strong> an outside-lab case not yet marked Shipped turns <strong>orange</strong> 4 business days and <strong>red</strong> 2 business days before its Delivery appt.</li>
+              <li><strong>Labels</strong> print from the case: an in-house aligner set's labels once its aligner counts are in, and a retainer case's bag label (which then offers to move the case to Front desk pickup).</li>
+              <li>Each person has their own NLO Cases login, made by Dr. A. Tap <strong>Lock</strong> whenever you step away; it also locks itself after a few minutes without activity.</li>
+            </ul>
 
             <h4>Appliance Arrival &amp; Check-In (Sarah)</h4>
             <ul>
               <li><strong>Box receiving:</strong> all UPS/FedEx/DHL/USPS shipments go behind front desk reception, next to the business office, under the <strong>"Boxes Here"</strong> sign. Sarah opens boxes ASAP — do not let them accumulate.</li>
-              <li><strong>Outside-lab appliances (MARA, Herbst, MSE, custom):</strong> verify the package against the chart — check the <strong>MODELS against the patient's PHOTOS</strong>, not just the name (labs can mislabel or swap cases). Inspect the appliance itself to confirm it is correct for the prescribed treatment. If everything matches, mark Received in milestones (Edge Appliances panel + Asana section).</li>
-              <li><strong>Aligners (Oliv, etc.):</strong> patient name is printed on them — a name check is typically sufficient. Mark Received in milestones.</li>
+              <li><strong>Outside-lab appliances (MARA, Herbst, MSE, custom):</strong> verify the package against the chart — check the <strong>MODELS against the patient's PHOTOS</strong>, not just the name (labs can mislabel or swap cases). Inspect the appliance itself to confirm it is correct for the prescribed treatment. If everything matches, mark Received in milestones (Edge Appliances panel) and move the case in NLO Cases to Checked into Milestones.</li>
+              <li><strong>Aligners (Oliv, etc.):</strong> patient name is printed on them — a name check is typically sufficient. Mark Received in milestones (Edge Appliances panel) and move the case in NLO Cases to Arrived, then Checked into Milestones.</li>
               <li><strong>Mismatch escalation:</strong> wrong patient, wrong appliance, or defect → Sarah calls the lab immediately AND notifies the patient/RP about the delay.</li>
               <li><strong>After check-in:</strong> place the appliance in the designated location for the clinical team. The team member who delivers chairside confirms delivery in the system.</li>
-              <li><strong>Daily reconciliation:</strong> cross-check the appliance arrival log against due-date appointments every day. If an appliance hasn't arrived by its expected date, contact the lab immediately and notify the front desk to reschedule if needed.</li>
+              <li><strong>Daily reconciliation:</strong> cross-check the appliance arrival log against due-date appointments every day. If an appliance hasn't arrived by its expected date, contact the lab immediately and notify the front desk to reschedule if needed. NLO Cases flags it early: an outside-lab case not marked Shipped turns orange, then red, as its Delivery appt nears.</li>
             </ul>
 
             <div class="alert-box alert-info">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1a52bf" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin-right:3px;"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 017 7c0 2.38-1.19 4.47-3 5.74V17a1 1 0 01-1 1h-2a1 1 0 01-1-1v-2.26C10.19 13.47 9 11.38 9 9a7 7 0 017-7z"/></svg> <strong>End-of-day rule:</strong> every clinician verifies that all patients scanned that day have been submitted via Tally. When checking in an appliance, confirm the patient's delivery appointment is correctly scheduled.
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1a52bf" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin-right:3px;"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 017 7c0 2.38-1.19 4.47-3 5.74V17a1 1 0 01-1 1h-2a1 1 0 01-1-1v-2.26C10.19 13.47 9 11.38 9 9a7 7 0 017-7z"/></svg> <strong>End-of-day rule:</strong> every clinician verifies that every patient scanned that day has a case in NLO Cases. When checking in an appliance, confirm the patient's delivery appointment is correctly scheduled.
             </div>
           </div>
         </details>
