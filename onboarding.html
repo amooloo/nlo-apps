@@ -1305,8 +1305,13 @@ function loadSops() {
       const subt = (($('.sop-subtitle', a) || {}).textContent || '').replace(/\s+/g, ' ').trim();
       const code = (subt.split('·')[0] || '').replace(/^Legacy\s+/i, '').trim();
       const body = $('.sop-body', a);
-      $$('script', body || a).forEach(x => x.remove());
-      $$('*', body || a).forEach(x => Array.from(x.attributes).forEach(at => { if (/^on/i.test(at.name)) x.removeAttribute(at.name); }));
+      $$('script, object, embed, base, meta, frame, frameset, animate, set', body || a).forEach(x => x.remove());
+      $$('*', body || a).forEach(x => Array.from(x.attributes).forEach(at => {
+        const n = at.name.toLowerCase(), v = String(at.value || '').replace(/[\x00-\x20]/g, '').toLowerCase();
+        if (/^on/.test(n) || n === 'srcdoc' || /^(javascript|vbscript):/.test(v) || (/^data:/.test(v) && !(x.tagName === 'IMG' && /^data:image\//.test(v)))) x.removeAttribute(at.name);
+      }));
+      /* only https video players may stay as embedded frames (the SOP box lets them run their own scripts) */
+      $$('iframe', body || a).forEach(x => { if (!/^https:\/\//i.test(x.getAttribute('src') || '')) x.remove(); });
       redactSecrets(body || a);
       const e ={ id: a.id, title, subt, code, html: body ? body.innerHTML : '' };
       SOPS.byId[a.id] = e; SOPS.list.push(e);
@@ -1358,7 +1363,11 @@ async function mountSop(el) {
     if (hd) hd.innerHTML = `${ic('clipboard', 20)}<div class="grow"><div class="c">${esc(e.code || e.id.toUpperCase())}</div><div class="t">${esc(e.title)}</div></div><a class="btn btn-g btn-sm" href="${SOP_URL}" target="_blank" rel="noopener">${ic('ext', 14)}Manual</a>`;
     const f = document.createElement('iframe');
     f.className = 'sopframe'; f.title = e.title;
-    f.setAttribute('sandbox', 'allow-same-origin allow-popups allow-popups-to-escape-sandbox');
+    /* allow-scripts is for the embedded video players (YouTube etc.); the SOP's own scripts,
+       event handlers and javascript: links are stripped in loadSops, so nothing of ours runs in here */
+    f.setAttribute('sandbox', 'allow-same-origin allow-scripts allow-popups allow-popups-to-escape-sandbox');
+    f.setAttribute('allow', 'autoplay; encrypted-media; fullscreen; picture-in-picture; clipboard-write');
+    f.setAttribute('allowfullscreen', '');
     f.srcdoc = sopDoc(e);
     el.innerHTML = ''; el.appendChild(f);
     const fit = () => { try { const d = f.contentDocument; if (d && d.body) f.style.height = Math.max(120, d.documentElement.scrollHeight) + 'px'; } catch (x) { } };
