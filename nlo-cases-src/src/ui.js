@@ -512,7 +512,7 @@ function renderView() {
   else if (S.view === 'import') h = isOwner() ? viewImport() : '';
   else if (S.view === 'account') h = viewAccount();
   $('#topSlot').innerHTML = topBar();
-  wkTipHide(); v.innerHTML = h;
+  wkTipHide(); v.innerHTML = h; if (S.view === 'admin') admFold(v); /* (Team & security: every card is a toggle — admin.js) */
   if (qSel) { const q = $('#q'); if (q) { q.focus(); const n = q.value.length; try { q.setSelectionRange(Math.min(qSel[0], n), Math.min(qSel[1], n), qSel[2] || 'none'); } catch (e) { } } }
   if (fid) { const n = document.getElementById(fid); if (n && v.contains(n) && n !== document.activeElement) { n.focus({ preventScroll: true });
     if (fSel && typeof n.selectionStart === 'number') try { n.setSelectionRange(fSel[0], fSel[1]); } catch (e) { } } }
@@ -2111,7 +2111,7 @@ function onClick(e) {
     case 'copyNote': { const c = findCase(S.openId); if (!c) break; const v = noteVisitOf(c);
       copyText(chartNote(c, v)).then(ok => toast(ok ? 'Chart note copied (' + noteVisitName(c, v).toLowerCase() + ') — paste it into the patient’s chart' : 'Couldn’t copy — select the note and copy it', ok ? {} : { bad: true })); break; }
     case 'noteVisit': { const c = findCase(S.openId); if (!c) break; (S.noteVisit = S.noteVisit || new Map()).set(c.id, t.dataset.v === 'del' ? 'del' : 'scan'); noteRefresh(); break; }
-    case 'niGo': { const k = t.dataset.nk; closeDrawer(); if (S.openId) break; S.view = 'admin'; (S.niOpen = S.niOpen || new Set()).add(k); renderNav(); renderView();
+    case 'niGo': { const k = t.dataset.nk; closeDrawer(); if (S.openId) break; S.view = 'admin'; (S.niOpen = S.niOpen || new Set()).add(k); fdReveal('Chart note'); renderNav(); renderView();
       const r = $('#niRow-' + k); if (r) { r.scrollIntoView({ block: 'center' }); const box = $('textarea', r); if (box) box.focus({ preventScroll: true }); } break; }
     case 'clearHold': { const cid = S.openId; act(() => B.mutateCase(cid, d => { if (!d.labHold) return 'skip'; d.labHoldSeen = (d.labHold.date || '') + '|' + (d.labHold.reason || ''); d.labHold = ''; }, { a: 'edit', fields: ['labHold'] }), 'Lab hold cleared'); break; }
     case 'toMarpe': { const c = findCase(S.openId); if (c && isOldMarpe(c)) toMarpe(c); break; }

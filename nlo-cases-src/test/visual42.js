@@ -4,11 +4,11 @@
 // that isn't a backup; patient history fetched by patient (not every completed case); the rules card when only the index waits.
 const { chromium } = require('playwright');
 const fs = require('fs'), zlib = require('zlib');
-const { routes, watch } = require('./helpers');
+const { routes, watch, adminOpen } = require('./helpers');
 (async () => {
   const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
   const errs = [];
-  const ctx = await browser.newContext({ viewport: { width: 1360, height: 900 }, acceptDownloads: true }); await routes(ctx);
+  const ctx = await browser.newContext({ viewport: { width: 1360, height: 900 }, acceptDownloads: true }); await routes(ctx); await adminOpen(ctx);
   const p = await ctx.newPage(); watch(p, errs, 'demo');
   await p.goto('http://127.0.0.1:8765/nlo-cases.html?demo'); await p.click('#lgBtn'); await p.waitForSelector('.tiles');
   let fails = 0; const check = (ok, what) => { console.log((ok ? '  ok   ' : '  FAIL ') + what); if (!ok) fails++; };

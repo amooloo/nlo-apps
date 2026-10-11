@@ -1848,3 +1848,23 @@ button.stk .stkE{transition:transform .15s var(--ease)}
 .aiLink:hover{color:var(--blue-800)}
 #aiCard textarea{min-height:0}
 #aiCard label .h5n{margin-left:8px;text-transform:none;letter-spacing:0;font-family:var(--fb);font-size:11.5px;font-weight:500;color:var(--grey-400)}
+
+/* ---------- Team & security (10 Oct 2026): every card is a toggle, folded until tapped ---------- */
+.fdBar{display:flex;align-items:center;gap:10px;margin:0 0 12px}
+.fdAll{flex:none;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;min-height:40px;padding:6px 12px}
+.card.fold>.cardHd{cursor:pointer;min-height:56px;padding-top:8px;padding-bottom:8px;border-radius:var(--r)}
+.card.fold.open>.cardHd{border-radius:var(--r) var(--r) 0 0;padding-bottom:10px}
+.card.fold:not(.open)>:not(.cardHd){display:none}
+.card.fold:not(.open)>.cardHd>.btn{display:none} /* (Add person, Load: they show once the card is open, where what they do can be seen) */
+@media (hover:hover){ .card.fold>.cardHd:hover{background:var(--grey-50)} } /* no sticky grey row after a tap on the office touchscreens */
+.fdCh{flex:none;width:18px;display:inline-flex;justify-content:center;color:var(--grey-400);transition:transform .16s var(--ease)}
+.card.fold.open>.cardHd .fdCh{transform:rotate(90deg);color:var(--navy)}
+.fdBtn{font:inherit;letter-spacing:inherit;text-transform:inherit;color:inherit;text-align:left;padding:0}
+.card.fold>.cardHd h3{flex:none;white-space:nowrap} /* (the title stays on one line; it's the grey line beside it that wraps) */
+@media (prefers-reduced-motion:reduce){ .fdCh{transition:none} }
+@media (max-width:520px){
+  .fdAll .t{display:none} .fdAll{padding:6px 10px;min-width:44px;min-height:44px;justify-content:center}
+  /* phone: the grey line always sits under the heading (not beside it on some cards and below on others) */
+  .card.fold>.cardHd{row-gap:2px}
+  .card.fold>.cardHd .sub{order:1;flex:1 0 100%;padding-left:28px}
+}

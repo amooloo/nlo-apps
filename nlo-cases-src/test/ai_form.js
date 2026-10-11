@@ -5,7 +5,7 @@
    The real Worker + Gemini are not touched (the Worker's side is test/ai_worker.mjs). */
 const { chromium } = require('playwright');
 const fs = require('fs');
-const { routes, watch, stepsAsOnePage } = require('./helpers');
+const { routes, watch, stepsAsOnePage, adminOpen } = require('./helpers');
 const URL0 = 'http://127.0.0.1:8765/nlo-cases.html?demo';
 const WORKER = 'https://aisa-worker.akhavan-ak.workers.dev/rewrite-instructions';
 const SHOTS = process.env.SHOTS || '';
@@ -18,7 +18,7 @@ const shot = async (p, name, opt) => { if (SHOTS) { fs.mkdirSync(SHOTS, { recurs
   const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' }).catch(() => chromium.launch());
   const errs = [];
   const ctx = await browser.newContext({ viewport: { width: 1360, height: 1000 } });
-  await routes(ctx);
+  await routes(ctx); await adminOpen(ctx);
 
   // ---- a made-up Worker ----
   let mode = 'ok', sent = [], gate = null;

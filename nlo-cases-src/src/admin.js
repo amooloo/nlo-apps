@@ -674,3 +674,75 @@ Object.assign(ADMIN_ACTS, {
   niReset(t) { const k = t.dataset.nk; if (!NOTE_KIND[k]) return; (S.niOpen = S.niOpen || new Set()).add(k);
     act(() => B.saveSettings({ noteInstr: { [k + '.scan']: null, [k + '.del']: null } }), 'Back to the suggested wording'); }
 });
+
+/* =====================================================================
+   Team & security: every card is a toggle (Amir, 10 Oct 2026: "the setting for some of these apps are overwhelming. each
+   section should be a toggle"). The page opens as a short list of titled rows — each keeps its one-line description beside
+   the title — and a tap on a row opens it. Expand all / Collapse all sits above the list. What's open is remembered on this
+   computer (localStorage nloCases.adminOpen: the open cards' titles, or "all" after Expand all; not patient data, like the
+   hidden columns and the case panel's Expand all). A folded card stays in the page, just hidden by the style sheet
+   (.card.fold:not(.open)), so everything that looks for a box in one (the Staff Hub list, a redraw, the tour) still finds it
+   and nothing is moved or re-made. The one-time security-rules card is a to-do, not a setting: it stays open and isn't a
+   toggle. admFold() wires the cards after every draw of the page (renderView).
+   ===================================================================== */
+const FD_KEY = 'nloCases.adminOpen';
+/* { all: Expand all is on, set: the open cards' titles (remembered), tmp: opened for now only (the tour) } */
+function fdState() {
+  if (S.fd) return S.fd;
+  let raw = null; try { raw = localStorage.getItem(FD_KEY); } catch (e) { }
+  const f = { all: raw === 'all', set: new Set(), tmp: new Set() };
+  if (raw && raw !== 'all') { try { const a = JSON.parse(raw); if (Array.isArray(a)) a.forEach(k => { if (typeof k === 'string') f.set.add(k); }); } catch (e) { } }
+  return (S.fd = f);
+}
+function fdSave() {
+  const f = fdState();
+  try { if (f.all) localStorage.setItem(FD_KEY, 'all'); else if (f.set.size) localStorage.setItem(FD_KEY, JSON.stringify(Array.from(f.set))); else localStorage.removeItem(FD_KEY); } catch (e) { }
+}
+function fdCards() { return $$('#view .adminGrid > div > .card.fold'); }
+function fdIsOpen(k) { const f = fdState(); return f.all || f.set.has(k) || f.tmp.has(k); }
+function fdApply(card, on) {
+  card.classList.toggle('open', !!on);
+  const b = $('.fdBtn', card); if (b) b.setAttribute('aria-expanded', String(!!on));
+}
+/* the button above the list says what it will do: Expand all unless every card is already open */
+function fdAllSync() {
+  const b = $('#view .fdAll'); if (!b) return;
+  const cs = fdCards(), all = cs.length > 0 && cs.every(c => c.classList.contains('open'));
+  b.innerHTML = ic(all ? 'collapse' : 'expand', 16) + '<span class="t">' + (all ? 'Collapse all' : 'Expand all') + '</span>';
+  b.setAttribute('aria-label', all ? 'Collapse all sections' : 'Expand all sections');
+}
+/* turn each card of the page into a toggle: a chevron, the title as a real button (screen readers hear "Team, collapsed"),
+   the whole heading row tappable (a heading's own buttons — Add person, Load — keep working), and the bar above the list */
+function admFold(v) {
+  $$('.adminGrid > div > .card', v).forEach(card => {
+    const hd = $(':scope > .cardHd', card), h3 = hd && $('h3', hd); if (!h3 || card.classList.contains('fold')) return;
+    const k = h3.textContent.trim(); if (!k) return;
+    const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'fdBtn'; btn.textContent = k;
+    h3.textContent = ''; h3.appendChild(btn);
+    const ch = document.createElement('span'); ch.className = 'fdCh'; ch.setAttribute('aria-hidden', 'true'); ch.innerHTML = ic('next', 16);
+    hd.insertBefore(ch, hd.firstChild); hd.dataset.act = 'fdTg';
+    card.classList.add('fold'); card.dataset.fold = k; fdApply(card, fdIsOpen(k));
+  });
+  const grid = $('.adminGrid', v);
+  if (grid && !$('.fdBar', v)) grid.insertAdjacentHTML('beforebegin', '<div class="fdBar"><span class="small muted">Tap a heading to open it</span><span style="flex:1"></span><button type="button" class="btn btn-ghost fdAll" data-act="fdAll"></button></div>');
+  fdAllSync();
+}
+/* open one card by its title — the Chart note link on a case lands in it; `tmp` = just for now, not remembered (the tour) */
+function fdReveal(title, tmp) {
+  const f = fdState(); if (tmp) f.tmp.add(title); else if (!f.all) { f.set.add(title); fdSave(); }
+  const c = fdCards().find(x => x.dataset.fold === title); if (c) { fdApply(c, true); fdAllSync(); }
+}
+Object.assign(ADMIN_ACTS, {
+  fdTg(t) {
+    const card = t.closest('.card.fold'); if (!card) return;
+    const f = fdState(), k = card.dataset.fold, on = !card.classList.contains('open');
+    if (f.all) { f.all = false; f.set = new Set(fdCards().map(c => c.dataset.fold)); } // (one shut after Expand all: the rest stay open)
+    f.tmp.delete(k); if (on) f.set.add(k); else f.set.delete(k);
+    fdSave(); fdApply(card, on); fdAllSync();
+  },
+  fdAll() {
+    const f = fdState(), cs = fdCards(), all = cs.length > 0 && cs.every(c => c.classList.contains('open'));
+    f.tmp.clear(); if (all) { f.all = false; f.set = new Set(); } else f.all = true;
+    fdSave(); cs.forEach(c => fdApply(c, !all)); fdAllSync();
+  }
+});

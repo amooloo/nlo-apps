@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-qVg9yY12k0oBAmvJ9iN6jBpPN2wpfi0LHP29u9N/vtw=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com https://aisa-worker.akhavan-ak.workers.dev http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-Uk4yxyoEhq5R87HTk27rIWSG4L4ryy8zco5dmVMLjcY=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com https://aisa-worker.akhavan-ak.workers.dev http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO Cases</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1862,6 +1862,26 @@ button.stk .stkE{transition:transform .15s var(--ease)}
 .aiLink:hover{color:var(--blue-800)}
 #aiCard textarea{min-height:0}
 #aiCard label .h5n{margin-left:8px;text-transform:none;letter-spacing:0;font-family:var(--fb);font-size:11.5px;font-weight:500;color:var(--grey-400)}
+
+/* ---------- Team & security (10 Oct 2026): every card is a toggle, folded until tapped ---------- */
+.fdBar{display:flex;align-items:center;gap:10px;margin:0 0 12px}
+.fdAll{flex:none;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;min-height:40px;padding:6px 12px}
+.card.fold>.cardHd{cursor:pointer;min-height:56px;padding-top:8px;padding-bottom:8px;border-radius:var(--r)}
+.card.fold.open>.cardHd{border-radius:var(--r) var(--r) 0 0;padding-bottom:10px}
+.card.fold:not(.open)>:not(.cardHd){display:none}
+.card.fold:not(.open)>.cardHd>.btn{display:none} /* (Add person, Load: they show once the card is open, where what they do can be seen) */
+@media (hover:hover){ .card.fold>.cardHd:hover{background:var(--grey-50)} } /* no sticky grey row after a tap on the office touchscreens */
+.fdCh{flex:none;width:18px;display:inline-flex;justify-content:center;color:var(--grey-400);transition:transform .16s var(--ease)}
+.card.fold.open>.cardHd .fdCh{transform:rotate(90deg);color:var(--navy)}
+.fdBtn{font:inherit;letter-spacing:inherit;text-transform:inherit;color:inherit;text-align:left;padding:0}
+.card.fold>.cardHd h3{flex:none;white-space:nowrap} /* (the title stays on one line; it's the grey line beside it that wraps) */
+@media (prefers-reduced-motion:reduce){ .fdCh{transition:none} }
+@media (max-width:520px){
+  .fdAll .t{display:none} .fdAll{padding:6px 10px;min-width:44px;min-height:44px;justify-content:center}
+  /* phone: the grey line always sits under the heading (not beside it on some cards and below on others) */
+  .card.fold>.cardHd{row-gap:2px}
+  .card.fold>.cardHd .sub{order:1;flex:1 0 100%;padding-left:28px}
+}
 
 </style>
 </head>
@@ -4465,7 +4485,7 @@ function renderView() {
   else if (S.view === 'import') h = isOwner() ? viewImport() : '';
   else if (S.view === 'account') h = viewAccount();
   $('#topSlot').innerHTML = topBar();
-  wkTipHide(); v.innerHTML = h;
+  wkTipHide(); v.innerHTML = h; if (S.view === 'admin') admFold(v); /* (Team & security: every card is a toggle — admin.js) */
   if (qSel) { const q = $('#q'); if (q) { q.focus(); const n = q.value.length; try { q.setSelectionRange(Math.min(qSel[0], n), Math.min(qSel[1], n), qSel[2] || 'none'); } catch (e) { } } }
   if (fid) { const n = document.getElementById(fid); if (n && v.contains(n) && n !== document.activeElement) { n.focus({ preventScroll: true });
     if (fSel && typeof n.selectionStart === 'number') try { n.setSelectionRange(fSel[0], fSel[1]); } catch (e) { } } }
@@ -6064,7 +6084,7 @@ function onClick(e) {
     case 'copyNote': { const c = findCase(S.openId); if (!c) break; const v = noteVisitOf(c);
       copyText(chartNote(c, v)).then(ok => toast(ok ? 'Chart note copied (' + noteVisitName(c, v).toLowerCase() + ') — paste it into the patient’s chart' : 'Couldn’t copy — select the note and copy it', ok ? {} : { bad: true })); break; }
     case 'noteVisit': { const c = findCase(S.openId); if (!c) break; (S.noteVisit = S.noteVisit || new Map()).set(c.id, t.dataset.v === 'del' ? 'del' : 'scan'); noteRefresh(); break; }
-    case 'niGo': { const k = t.dataset.nk; closeDrawer(); if (S.openId) break; S.view = 'admin'; (S.niOpen = S.niOpen || new Set()).add(k); renderNav(); renderView();
+    case 'niGo': { const k = t.dataset.nk; closeDrawer(); if (S.openId) break; S.view = 'admin'; (S.niOpen = S.niOpen || new Set()).add(k); fdReveal('Chart note'); renderNav(); renderView();
       const r = $('#niRow-' + k); if (r) { r.scrollIntoView({ block: 'center' }); const box = $('textarea', r); if (box) box.focus({ preventScroll: true }); } break; }
     case 'clearHold': { const cid = S.openId; act(() => B.mutateCase(cid, d => { if (!d.labHold) return 'skip'; d.labHoldSeen = (d.labHold.date || '') + '|' + (d.labHold.reason || ''); d.labHold = ''; }, { a: 'edit', fields: ['labHold'] }), 'Lab hold cleared'); break; }
     case 'toMarpe': { const c = findCase(S.openId); if (c && isOldMarpe(c)) toMarpe(c); break; }
@@ -8878,6 +8898,78 @@ document.addEventListener('toggle', e => {
 Object.assign(ADMIN_ACTS, {
   niReset(t) { const k = t.dataset.nk; if (!NOTE_KIND[k]) return; (S.niOpen = S.niOpen || new Set()).add(k);
     act(() => B.saveSettings({ noteInstr: { [k + '.scan']: null, [k + '.del']: null } }), 'Back to the suggested wording'); }
+});
+
+/* =====================================================================
+   Team & security: every card is a toggle (Amir, 10 Oct 2026: "the setting for some of these apps are overwhelming. each
+   section should be a toggle"). The page opens as a short list of titled rows — each keeps its one-line description beside
+   the title — and a tap on a row opens it. Expand all / Collapse all sits above the list. What's open is remembered on this
+   computer (localStorage nloCases.adminOpen: the open cards' titles, or "all" after Expand all; not patient data, like the
+   hidden columns and the case panel's Expand all). A folded card stays in the page, just hidden by the style sheet
+   (.card.fold:not(.open)), so everything that looks for a box in one (the Staff Hub list, a redraw, the tour) still finds it
+   and nothing is moved or re-made. The one-time security-rules card is a to-do, not a setting: it stays open and isn't a
+   toggle. admFold() wires the cards after every draw of the page (renderView).
+   ===================================================================== */
+const FD_KEY = 'nloCases.adminOpen';
+/* { all: Expand all is on, set: the open cards' titles (remembered), tmp: opened for now only (the tour) } */
+function fdState() {
+  if (S.fd) return S.fd;
+  let raw = null; try { raw = localStorage.getItem(FD_KEY); } catch (e) { }
+  const f = { all: raw === 'all', set: new Set(), tmp: new Set() };
+  if (raw && raw !== 'all') { try { const a = JSON.parse(raw); if (Array.isArray(a)) a.forEach(k => { if (typeof k === 'string') f.set.add(k); }); } catch (e) { } }
+  return (S.fd = f);
+}
+function fdSave() {
+  const f = fdState();
+  try { if (f.all) localStorage.setItem(FD_KEY, 'all'); else if (f.set.size) localStorage.setItem(FD_KEY, JSON.stringify(Array.from(f.set))); else localStorage.removeItem(FD_KEY); } catch (e) { }
+}
+function fdCards() { return $$('#view .adminGrid > div > .card.fold'); }
+function fdIsOpen(k) { const f = fdState(); return f.all || f.set.has(k) || f.tmp.has(k); }
+function fdApply(card, on) {
+  card.classList.toggle('open', !!on);
+  const b = $('.fdBtn', card); if (b) b.setAttribute('aria-expanded', String(!!on));
+}
+/* the button above the list says what it will do: Expand all unless every card is already open */
+function fdAllSync() {
+  const b = $('#view .fdAll'); if (!b) return;
+  const cs = fdCards(), all = cs.length > 0 && cs.every(c => c.classList.contains('open'));
+  b.innerHTML = ic(all ? 'collapse' : 'expand', 16) + '<span class="t">' + (all ? 'Collapse all' : 'Expand all') + '</span>';
+  b.setAttribute('aria-label', all ? 'Collapse all sections' : 'Expand all sections');
+}
+/* turn each card of the page into a toggle: a chevron, the title as a real button (screen readers hear "Team, collapsed"),
+   the whole heading row tappable (a heading's own buttons — Add person, Load — keep working), and the bar above the list */
+function admFold(v) {
+  $$('.adminGrid > div > .card', v).forEach(card => {
+    const hd = $(':scope > .cardHd', card), h3 = hd && $('h3', hd); if (!h3 || card.classList.contains('fold')) return;
+    const k = h3.textContent.trim(); if (!k) return;
+    const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'fdBtn'; btn.textContent = k;
+    h3.textContent = ''; h3.appendChild(btn);
+    const ch = document.createElement('span'); ch.className = 'fdCh'; ch.setAttribute('aria-hidden', 'true'); ch.innerHTML = ic('next', 16);
+    hd.insertBefore(ch, hd.firstChild); hd.dataset.act = 'fdTg';
+    card.classList.add('fold'); card.dataset.fold = k; fdApply(card, fdIsOpen(k));
+  });
+  const grid = $('.adminGrid', v);
+  if (grid && !$('.fdBar', v)) grid.insertAdjacentHTML('beforebegin', '<div class="fdBar"><span class="small muted">Tap a heading to open it</span><span style="flex:1"></span><button type="button" class="btn btn-ghost fdAll" data-act="fdAll"></button></div>');
+  fdAllSync();
+}
+/* open one card by its title — the Chart note link on a case lands in it; `tmp` = just for now, not remembered (the tour) */
+function fdReveal(title, tmp) {
+  const f = fdState(); if (tmp) f.tmp.add(title); else if (!f.all) { f.set.add(title); fdSave(); }
+  const c = fdCards().find(x => x.dataset.fold === title); if (c) { fdApply(c, true); fdAllSync(); }
+}
+Object.assign(ADMIN_ACTS, {
+  fdTg(t) {
+    const card = t.closest('.card.fold'); if (!card) return;
+    const f = fdState(), k = card.dataset.fold, on = !card.classList.contains('open');
+    if (f.all) { f.all = false; f.set = new Set(fdCards().map(c => c.dataset.fold)); } // (one shut after Expand all: the rest stay open)
+    f.tmp.delete(k); if (on) f.set.add(k); else f.set.delete(k);
+    fdSave(); fdApply(card, on); fdAllSync();
+  },
+  fdAll() {
+    const f = fdState(), cs = fdCards(), all = cs.length > 0 && cs.every(c => c.classList.contains('open'));
+    f.tmp.clear(); if (all) { f.all = false; f.set = new Set(); } else f.all = true;
+    fdSave(); cs.forEach(c => fdApply(c, !all)); fdAllSync();
+  }
 });
 
 /* =====================================================================
@@ -14874,11 +14966,11 @@ function tourSteps(kind) {
     { id: 'work', at: () => tVis('#nav-work', '#mnav-work'), t: 'Workload (Dr. A)', b: 'What each person entered, made and moved in the last 7, 30 or 90 days, how long retainers take from the scan to made, and what’s on everyone’s plate now.',
       act: 'Tap Workload.', done: () => S.view === 'work' },
     { id: 'admin', at: () => tVis('#nav-admin', '#mnav-admin'), t: 'Team & security (Dr. A)', b: 'Only you see this page.', act: 'Tap Team & security.', done: () => S.view === 'admin' },
-    { id: 'team', need: { ok: () => S.view === 'admin', go: 'admin' }, at: () => $$('#view .card').find(c => /^Team$/.test(((c.querySelector('h3') || {}).textContent || '').trim())),
+    { id: 'team', need: { ok: () => S.view === 'admin', go: 'admin' }, enter: () => fdReveal('Team', true), at: () => $$('#view .card').find(c => /^Team$/.test(((c.querySelector('h3') || {}).textContent || '').trim())),
       t: 'Team', b: 'Add people from Staff Hub (each gets a temporary password from you), reissue a login when someone forgets theirs, and remove someone who has left.' },
-    { id: 'cost', need: { ok: () => S.view === 'admin', go: 'admin' }, at: () => { const i = $('#alPer'); return i && i.closest('.card'); },
+    { id: 'cost', need: { ok: () => S.view === 'admin', go: 'admin' }, enter: () => fdReveal('In-house aligner cost', true), at: () => { const i = $('#alPer'); return i && i.closest('.card'); },
       t: 'In-house aligner cost', b: 'What an aligner (and a set) costs: the estimates on in-house cases and the optional Tx cost column use it.' },
-    { id: 'mail', need: { ok: () => S.view === 'admin', go: 'admin' }, at: () => $('#mailAdmin'), t: 'Email updates', b: 'Lab emails (uLab, Partners, Oliv, Angel) move cases along on their own, and anything that doesn’t match a case waits on Today.' }
+    { id: 'mail', need: { ok: () => S.view === 'admin', go: 'admin' }, enter: () => fdReveal('Email updates', true), at: () => $('#mailAdmin'), t: 'Email updates', b: 'Lab emails (uLab, Partners, Oliv, Angel) move cases along on their own, and anything that doesn’t match a case waits on Today.' }
   );
   st.push({ id: 'end', t: 'You’re all set', b: 'That’s the basics. Close this tab to go back to NLO Cases — your real cases were never touched. You can practice again any time from My account.' });
   return st;

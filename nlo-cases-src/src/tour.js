@@ -57,11 +57,11 @@ function tourSteps(kind) {
     { id: 'work', at: () => tVis('#nav-work', '#mnav-work'), t: 'Workload (Dr. A)', b: 'What each person entered, made and moved in the last 7, 30 or 90 days, how long retainers take from the scan to made, and what’s on everyone’s plate now.',
       act: 'Tap Workload.', done: () => S.view === 'work' },
     { id: 'admin', at: () => tVis('#nav-admin', '#mnav-admin'), t: 'Team & security (Dr. A)', b: 'Only you see this page.', act: 'Tap Team & security.', done: () => S.view === 'admin' },
-    { id: 'team', need: { ok: () => S.view === 'admin', go: 'admin' }, at: () => $$('#view .card').find(c => /^Team$/.test(((c.querySelector('h3') || {}).textContent || '').trim())),
+    { id: 'team', need: { ok: () => S.view === 'admin', go: 'admin' }, enter: () => fdReveal('Team', true), at: () => $$('#view .card').find(c => /^Team$/.test(((c.querySelector('h3') || {}).textContent || '').trim())),
       t: 'Team', b: 'Add people from Staff Hub (each gets a temporary password from you), reissue a login when someone forgets theirs, and remove someone who has left.' },
-    { id: 'cost', need: { ok: () => S.view === 'admin', go: 'admin' }, at: () => { const i = $('#alPer'); return i && i.closest('.card'); },
+    { id: 'cost', need: { ok: () => S.view === 'admin', go: 'admin' }, enter: () => fdReveal('In-house aligner cost', true), at: () => { const i = $('#alPer'); return i && i.closest('.card'); },
       t: 'In-house aligner cost', b: 'What an aligner (and a set) costs: the estimates on in-house cases and the optional Tx cost column use it.' },
-    { id: 'mail', need: { ok: () => S.view === 'admin', go: 'admin' }, at: () => $('#mailAdmin'), t: 'Email updates', b: 'Lab emails (uLab, Partners, Oliv, Angel) move cases along on their own, and anything that doesn’t match a case waits on Today.' }
+    { id: 'mail', need: { ok: () => S.view === 'admin', go: 'admin' }, enter: () => fdReveal('Email updates', true), at: () => $('#mailAdmin'), t: 'Email updates', b: 'Lab emails (uLab, Partners, Oliv, Angel) move cases along on their own, and anything that doesn’t match a case waits on Today.' }
   );
   st.push({ id: 'end', t: 'You’re all set', b: 'That’s the basics. Close this tab to go back to NLO Cases — your real cases were never touched. You can practice again any time from My account.' });
   return st;

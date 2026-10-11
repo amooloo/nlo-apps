@@ -15,7 +15,10 @@ function watch(page, errs, label) {
 }
 /* the case panel folds every section by default (3 Oct 2026); tests written against the open panel start with
    "Expand all" remembered, the way an office computer would after someone tapped it */
-async function panelsOpen(ctx) { await ctx.addInitScript(() => { try { localStorage.setItem('nloCases.panelOpen', 'all'); } catch (e) { } }); }
+async function panelsOpen(ctx) { await ctx.addInitScript(() => { try { localStorage.setItem('nloCases.panelOpen', 'all'); localStorage.setItem('nloCases.adminOpen', 'all'); } catch (e) { } }); }
+/* Team & security folds every card until it's tapped (10 Oct 2026); tests written against the open page start with
+   "Expand all" remembered. (panelsOpen does this too, so a test that already calls it needs nothing more.) */
+async function adminOpen(ctx) { await ctx.addInitScript(() => { try { localStorage.setItem('nloCases.adminOpen', 'all'); } catch (e) { } }); }
 /* New case is in steps now (Patient > Case > Lab Rx > Scan & dates > Instructions > Review — 6 Oct 2026). For tests written
    against the one-page form: before one touches a field of the form, its step is shown (wizGo — no checks: Create case checks
    every step anyway), and clicking Create case (#ncSave) goes Next through the steps first, stopping where a step says what's
@@ -56,4 +59,4 @@ function stepsAsOnePage(p) {
   }
   return p;
 }
-module.exports = { routes, watch, panelsOpen, stepsAsOnePage };
+module.exports = { routes, watch, panelsOpen, adminOpen, stepsAsOnePage };
