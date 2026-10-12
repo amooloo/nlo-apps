@@ -35,7 +35,9 @@ function makeGas(o) {
       // one thread per subject, like Gmail's conversation view; a thread comes back whole (replies from anyone included)
       const subjects = new Set(hit.map(m => m.subject));
       const threads = {}; messages.filter(m => subjects.has(m.subject)).forEach(m => { (threads[m.subject] = threads[m.subject] || []).push(m); });
-      return Object.values(threads).slice(start || 0, (start || 0) + (max || 100)).map(list => ({ getMessages: () => list.map(msgObj) }));
+      // newest conversation first, as Gmail returns them; start/max page through them
+      const last = list => Math.max.apply(null, list.map(m => m.date));
+      return Object.values(threads).sort((x, y) => last(y) - last(x)).slice(start || 0, (start || 0) + (max || 100)).map(list => ({ getMessages: () => list.map(msgObj) }));
     }
   };
   const fetcher = o.fetch || ((url, opt) => { const r = curlFetch(url, opt); return { getResponseCode: () => r.code, getContentText: () => r.body }; });
@@ -43,7 +45,8 @@ function makeGas(o) {
     console,
     GmailApp,
     UrlFetchApp: { fetch: fetcher },
-    PropertiesService: { getScriptProperties: () => ({ getProperty: k => props.has(k) ? props.get(k) : null, setProperty: (k, v) => { props.set(k, String(v)); }, deleteProperty: k => props.delete(k) }) },
+    // (Apps Script refuses a value over 9 KB: "Argument too large: value")
+    PropertiesService: { getScriptProperties: () => ({ getProperty: k => props.has(k) ? props.get(k) : null, setProperty: (k, v) => { if (Buffer.byteLength(String(v), 'utf8') > 9 * 1024) throw new Error('Argument too large: value'); props.set(k, String(v)); }, deleteProperty: k => props.delete(k) }) },
     CacheService: { getScriptCache: () => ({ get: k => cache.has(k) ? cache.get(k) : null, put: (k, v) => { cache.set(k, String(v)); }, removeAll: ks => ks.forEach(k => cache.delete(k)) }) },
     LockService: { getScriptLock: () => ({ tryLock: () => true, releaseLock: () => { } }) },
     ScriptApp: {

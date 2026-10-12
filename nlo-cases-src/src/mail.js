@@ -66,10 +66,14 @@ function cleanName(s) {
   return String(s || '').replace(/[​ ]/g, ' ').replace(/\s+(click here|tracking|order number|patient name|case number)\b.*$/i, '')
     .replace(/\s+/g, ' ').replace(/^[\s"'“”(:,.*_-]+|[\s"'“”):,*_-]+$/g, '').slice(0, 80); // (*bold* in a plain-text copy)
 }
-/* uLab: "Your uLab order X has shipped." — Order Number / Patient Name / tracking #, maybe several orders */
+/* uLab: "Your uLab order X has shipped." — Order Number / Patient Name / tracking #, maybe several orders. Read only when the
+   subject says it shipped: any uLab email that mentioned shipping anywhere used to count (12 Oct 2026 review: an order confirmation
+   saying the aligners "will be shipped within 5–7 days" would have moved the case to Shipped). Any other uLab email stays unread,
+   listed under Team & security → Email updates, until the app learns its format. */
+function ulabShipped(subject) { const s = String(subject || ''); return /\bshipped\b|\bon\s+(?:the|its|their)\s+way\b/i.test(s) && !/\b(?:will|to)\s+be\s+shipped\b|\bonce\b|\bwhen\b|\bnot\b/i.test(s); }
 function parseUlab(m) {
   const t = mailText(m), out = [];
-  if (!/shipped|on the way/i.test((m.subject || '') + ' ' + t)) return out;
+  if (!ulabShipped(m.subject)) return out;
   t.split(/Order Number\s*:/i).slice(1).forEach(p => {
     const name = (p.match(/Patient Name\s*:\s*([^\n]+)/i) || [])[1];
     if (name) out.push({ kind: 'shipped', name, ref: (p.match(/^\s*([A-Za-z0-9-]{2,30})/) || [])[1] || '', tracking: (p.match(/track your order\s*:?\s*([A-Za-z0-9]{8,34})/i) || [])[1] || '' });
@@ -156,16 +160,37 @@ function trackFromUrl(url) {
 }
 
 /* ---------- finding the case ---------- */
+/* matched on the name alone: a lab's daily summary names a patient "First L." and its shipped table has no case # — it could be someone
+   else (a patient not entered yet, or the same first name and initial). Partners' and Specialty's rows move a case by themselves only
+   when the case is at that lab and has been sent there; otherwise they wait on Today with the case suggested (12 Oct 2026). The aligner
+   companies give full names and their own case #s. */
+function nameOnlyOk(ev, c) {
+  const co = MAIL_CO[ev.co]; if (!co || !co.lab) return true;
+  if (!c.lab || labName(c.lab) !== co.lab) return false;
+  if (ev.kind === 'received') return true;
+  const keys = caseStages(c).map(s => s[0]), sub = keys.indexOf('submitted');
+  return sub < 0 || keys.indexOf(pathStage(c, c.stage)) >= sub;
+}
 function mailMatch(ev, open, closed) {
   const co = MAIL_CO[ev.co]; if (!co) return { none: true };
   const mine = c => !c.locked && co.types.includes(c.type) && (!co.lab || !c.lab || labName(c.lab) === co.lab);
   const ref = normRef(ev.ref);
-  // 1. the company's own case # saved on a case (from an earlier email, or typed in)
-  if (ref) { const byRef = open.filter(c => mine(c) && normRef(c.labRef) === ref); if (byRef.length === 1) return { c: byRef[0] }; }
-  // 2. the name among this company's open cases (a different saved case # rules a case out)
-  const cands = open.filter(c => mine(c) && nameMatches(ev.name, ev.nameKind, c.patient) && !(ref && c.labRef && normRef(c.labRef) !== ref));
-  if (cands.length === 1) return { c: cands[0] };
-  if (cands.length > 1) { const fwd = cands.filter(c => !!mailEffect(c, ev).to); return fwd.length === 1 ? { c: fwd[0] } : { many: cands }; }
+  const byName = c => mine(c) && nameMatches(ev.name, ev.nameKind, c.patient) && !(ref && c.labRef && normRef(c.labRef) !== ref); // (a different saved case # rules a case out)
+  // 1. the company's own case # saved on a case (from an earlier email, or typed in) — unless that case can't move for this update and
+  //    another of the patient's open cases can: Angel keeps one patient # for every refinement, so a refinement's "ready for review" or
+  //    "shipped" landed on the first case, changed nothing there, and was cleared (12 Oct 2026)
+  if (ref) {
+    const byRef = open.filter(c => mine(c) && normRef(c.labRef) === ref);
+    if (byRef.length === 1) {
+      if (mailEffect(byRef[0], ev).to) return { c: byRef[0] };
+      const other = open.filter(c => c !== byRef[0] && byName(c) && !!mailEffect(c, ev).to && nameOnlyOk(ev, c));
+      return { c: other.length === 1 ? other[0] : byRef[0] };
+    }
+  }
+  // 2. the name among this company's open cases
+  const cands = open.filter(byName);
+  if (cands.length === 1) return nameOnlyOk(ev, cands[0]) ? { c: cands[0] } : { many: cands, check: true };
+  if (cands.length > 1) { const fwd = cands.filter(c => !!mailEffect(c, ev).to); return fwd.length === 1 && nameOnlyOk(ev, fwd[0]) ? { c: fwd[0] } : { many: fwd.length === 1 ? fwd.concat(cands.filter(c => c !== fwd[0])) : cands }; }
   // 3. about a case already completed: nothing to do (a shipment notice can trail the visit by days)
   const recent = ev.kind === 'shipped' || ev.kind === 'delivered' || ev.kind === 'hold' ? 14 * 864e5 : 0;
   if (closed.some(c => mine(c) && ((ref && normRef(c.labRef) === ref) || nameMatches(ev.name, ev.nameKind, c.patient)) && (c.closedAt || 0) >= (ev.at || 0) - recent)) return { done: true };
@@ -187,6 +212,7 @@ function mailEffect(c, ev) {
     if (si >= 0 && !late && c.labHoldSeen !== h.date + '|' + h.reason && !(c.labHold && c.labHold.date === h.date && c.labHold.reason === h.reason)) set.labHold = h;
   } else if (c.labHold && (ev.kind === 'shipped' || ev.kind === 'delivered')) set.labHold = '';
   if (ev.ref && !c.labRef) set.labRef = String(ev.ref).slice(0, 40);
+  const lab = MAIL_CO[ev.co] && MAIL_CO[ev.co].lab; if (lab && !c.lab) set.lab = lab; // (its next summary rows then match by themselves)
   const tk = trackInfo(ev.tracking) || trackInfo(trackFromUrl(ev.trackUrl));
   if (tk && !trackList(c).some(t => t.n === tk.n)) { set.tracking = (String(c.tracking || '').trim() + ' ' + tk.n).trim(); if (!tk.carrier && ev.carrier && !c.carrier) set.carrier = String(ev.carrier).slice(0, 20); }
   if (ev.planUrl && okLabLink(ev.co, ev.planUrl) && c.planUrl !== ev.planUrl) set.planUrl = ev.planUrl;
@@ -269,9 +295,9 @@ async function mailSync() {
     if (docs.length) await mailClosedReady(docs);
     const open = openCases(), closed = (S.hist || []).concat(S.closed || [], (S.mailClosed && S.mailClosed.list) || []), groups = new Map(), unread = [], mem = mailMemLoad(), labDocs = [], prDocs = [];
     // updates waiting for someone, one row per update however many emails carry it
-    const wait = (d, i, ev, cands) => {
+    const wait = (d, i, ev, cands, check) => {
       const fp = mailFp(ev); let g = groups.get(fp);
-      if (!g) { g = { id: d.id + ':' + i, fp, ev, items: [], cands: cands || [] }; groups.set(fp, g); }
+      if (!g) { g = { id: d.id + ':' + i, fp, ev, items: [], cands: cands || [], check: !!check }; groups.set(fp, g); }
       g.items.push({ d, i, key: d.id + ':' + i }); if ((ev.at || 0) > (g.ev.at || 0)) g.ev = ev;
       if (!g.cands.length && cands && cands.length) g.cands = cands;
     };
@@ -296,7 +322,7 @@ async function mailSync() {
           const fp = mailFp(ev);
           if (MAILS.gone.has(ev.key) || MAILS.goneFp.has(fp) || mem.has(await mailHash(fp))) { done.add(i); add.push(i); continue; }
           const m = mailMatch(ev, open, closed);
-          if (m.c || m.done) todo.push({ i, ev, m }); else wait(d, i, ev, m.many);
+          if (m.c || m.done) todo.push({ i, ev, m }); else wait(d, i, ev, m.many, m.check);
         }
         // what can be applied is applied by one open app (the one that claims the email); the rest wait on Today
         if (todo.length && await B.inboxClaim(d.id)) {
@@ -346,11 +372,30 @@ async function mailForget(g) {
   try { await mailMemAdd(g.fp); } catch (e) { }
 }
 
+/* ---------- Today, for Dr. A: a mailbox that has gone quiet ----------
+   Each mailbox's script checks every 10 minutes and notes it (mailbeat). When one hasn't for an hour, or reports a problem, lab
+   emails from that mailbox aren't reaching the app — until now that showed only under Team & security (12 Oct 2026). The lab PC's
+   check-ins are left out (it's off at night; Team & security shows it). */
+const MAIL_QUIET = 60 * 60000;
+function mailHealthBad() { return (MAILS.beats || []).filter(b => !labBeat(b) && (b.err || !b.at || Date.now() - b.at > MAIL_QUIET)); }
+function mailHealthHTML() {
+  if (!isOwner() || S.tour) return '';
+  const bad = mailHealthBad(); MAILS.healthSig = bad.map(b => b.id + (b.err ? '!' : '')).join();
+  if (!bad.length) return '';
+  return '<div class="card bkDue mlHealth" id="mlHealth"><div class="cardBd">' + ic('alert', 20) + '<span class="grow"><b>Lab emails may not be reaching NLO Cases.</b> ' +
+    bad.map(b => esc(b.box || 'A mailbox') + (b.err ? ' reported a problem: ' + esc(b.err) : b.at ? ' hasn’t checked in since ' + esc(fmtWhen(b.at)) : ' hasn’t checked in yet')).join(' · ') +
+    '</span><button class="btn btn-sec btn-sm" data-act="nav" data-v="admin">Team &amp; security</button></div></div>';
+}
+// a mailbox goes quiet without anything changing, so look again every 5 minutes
+if (typeof setInterval === 'function') setInterval(() => {
+  try { if (S.view === 'today' && isOwner() && mailHealthBad().map(b => b.id + (b.err ? '!' : '')).join() !== (MAILS.healthSig || '')) queueRender(); } catch (e) { }
+}, 5 * 60000);
+
 /* ---------- Today: updates waiting for a case ---------- */
 function mailCardHTML() {
   const L = MAILS.list; if (!L.length) return '';
   const open = openCases().filter(c => !c.locked).sort((a, b) => String(a.patient || '').localeCompare(String(b.patient || '')));
-  return '<div class="card mailCard" id="mailCard"><div class="cardHd"><h3>Email updates</h3><span class="sub">' + L.length + ' from lab emails didn’t match an open case — pick the case, or dismiss</span><span style="flex:1"></span>' +
+  return '<div class="card mailCard" id="mailCard"><div class="cardHd"><h3>Email updates</h3><span class="sub">' + L.length + ' from lab emails didn’t match an open case for sure — pick the case, or dismiss</span><span style="flex:1"></span>' +
     (L.length > 1 ? '<button class="btn btn-ghost btn-sm" data-act="mailSkipAll" title="Nothing to do for any of these">Dismiss all</button>' : '') + '</div><div class="cardBd">' +
     L.map(x => {
       const ev = x.ev, co = MAIL_CO[ev.co], pick = MAILS.pick[x.id] || (x.cands.length === 1 ? x.cands[0].id : ''), gid = esc(x.id);
@@ -361,7 +406,7 @@ function mailCardHTML() {
         (ev.tracking ? '<span class="small muted">' + esc((trackInfo(ev.tracking) || {}).carrier || 'tracking') + ' ' + esc(ev.tracking) + '</span>' : '') +
         (ev.reason ? '<span class="small" style="color:var(--coral-700)">' + esc(ev.reason) + '</span>' : '') +
         '<span class="small muted">' + esc(fmtWhen(ev.at)) + '</span>' + (x.items.length > 1 ? '<span class="small muted">in ' + x.items.length + ' emails</span>' : '') +
-        (x.cands.length > 1 ? '<span class="small" style="color:var(--amber-700)">' + x.cands.length + ' possible cases</span>' : '') + '</div>' +
+        (x.cands.length > 1 ? '<span class="small" style="color:var(--amber-700)">' + x.cands.length + ' possible cases</span>' : x.check ? '<span class="small" style="color:var(--amber-700)">Matched on the name only — check it’s this case</span>' : '') + '</div>' +
         '<div class="mlDo"><span class="mlPh" data-mlph="' + gid + '">' + ptAv(pick ? findCase(pick) : null, 32) + '</span><select class="inp mlSel" data-g="' + gid + '" aria-label="Case for this update"><option value="">Pick the case…</option>' +
         (x.cands.length > 1 ? '<optgroup label="Possible matches">' + x.cands.map(opt).join('') + '</optgroup>' : '') +
         (mine.length ? '<optgroup label="' + esc(co.l) + ' cases">' + mine.map(opt).join('') + '</optgroup>' : '') +

@@ -289,7 +289,7 @@ function enterApp() {
       if (S.openId && (up.some(c => c.id === S.openId) || gone.includes(S.openId))) { const rd = () => { if (S.openId) refreshDrawer(gone.includes(S.openId)); }; if (!afterPress(rd)) rd(); }
     },
     inbox() { mailSync(); },
-    mailbeat(list) { if (MAILS.state) { MAILS.state.beats = list; nsKeepKey(); } if (S.view === 'admin') queueRender('team'); },
+    mailbeat(list) { MAILS.beats = list; if (MAILS.state) { MAILS.state.beats = list; nsKeepKey(); } if (S.view === 'admin') queueRender('team'); else if (S.view === 'today') queueRender(); },
     roster(list) { S.roster = list; queueRender('team'); },
     members(list) { S.members = list; if (S.view === 'admin') queueRender('team'); },
     settings(s) {
@@ -1039,7 +1039,7 @@ function viewToday() {
     (noDate ? '<div class="card" style="margin-top:14px"><div class="cardBd" style="padding:14px 20px"><button class="linkBtn" data-act="tile" data-f="none">' + noDate + ' open case' + (noDate > 1 ? 's have' : ' has') + ' no lab date or delivery appt</button></div></div>' : '');
   const qk = openCases().filter(x => x.quick).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
   const quickCard = qk.length ? '<div class="card quickCard"><div class="cardHd"><h3>Finish details</h3><span class="sub">' + qk.length + ' case' + (qk.length > 1 ? 's' : '') + ' added with Quick add — open one and tap Finish details</span></div><div class="cardBd">' + qk.map(x => row(x)).join('') + '</div></div>' : '';
-  return h + backupDueHTML() + quickCard + mailCardHTML() + labWaitHTML() + cleanupCardHTML(all) + '<div class="twoCol"><div>' + left + '</div><div>' + right + '</div></div>';
+  return h + mailHealthHTML() + backupDueHTML() + quickCard + mailCardHTML() + labWaitHTML() + cleanupCardHTML(all) + '<div class="twoCol"><div>' + left + '</div><div>' + right + '</div></div>';
 }
 
 /* ---------- Board ---------- */

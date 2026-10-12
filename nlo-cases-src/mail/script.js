@@ -13,11 +13,17 @@
 
    Turn on:  pick "setup" next to Run (top bar), press Run, and allow access.
    Turn off: pick "stop", press Run.
+
+   v4 (12 Oct 2026): the list of emails already sent stays small. Apps Script keeps at most 9 KB in one setting, and v3 kept a
+   month of ids — about 275 emails, which Dr. A's Gmail (Formlabs sends two emails per print) would pass, and from then on every
+   check failed. It also looks past the newest 100 conversations and sends the oldest first, so nothing is skipped after an outage.
    ===================================================================== */
-var VERSION = '3';
+var VERSION = '4';
 var CONFIG = /*NLO_CONFIG*/null; // filled in by NLO Cases when you copy the script
 var DAY = 86400000;
 var DEFAULT_SENDERS = ['ulabsystems.com', 'partnersdentalstudio.com', 'olivortho.com', 'angelaligner.com', 'angelalign.com'];
+var KEEP_MAX = 8000;   // characters: the most kept in one setting (Apps Script refuses a value over 9 KB)
+var PAGES = 10;        // conversations are searched 100 at a time, up to 1,000 a check
 
 /* Run once: checks the encryption, turns on the 10-minute check, and checks right away. */
 function setup() {
@@ -64,35 +70,65 @@ function checkMail() {
 function run_(cfg, props) {
   var s = session_(cfg);
   var since = Number(props.getProperty('NLO_SINCE')) || (Date.now() - 14 * DAY);
+  // every email at or before NLO_FLOOR has been sent: when the list of sent emails had to be trimmed to fit, its oldest went
+  // (emails are sent oldest first, so nothing older is still waiting)
+  var floor = Number(props.getProperty('NLO_FLOOR')) || 0;
   var seen = JSON.parse(props.getProperty('NLO_SEEN') || '{}');
   var senders = (s.office.senders && s.office.senders.length) ? s.office.senders : DEFAULT_SENDERS;
-  var q = '{' + senders.map(function (d) { return 'from:' + d; }).join(' ') + ' label:lab-update} after:' + Math.floor((since - 2 * DAY) / 1000);
-  var threads = GmailApp.search(q, 0, 100), box = mailbox_(), started = Date.now(), looked = 0, sent = 0, finished = true;
-  outer:
-  for (var t = 0; t < threads.length; t++) {
-    var msgs = threads[t].getMessages();
-    for (var i = 0; i < msgs.length; i++) {
-      var m = msgs[i], id = m.getId();
-      if (seen[id] || m.getDate().getTime() < since - 2 * DAY) continue;
-      if (Date.now() - started > 4 * 60 * 1000) { finished = false; break outer; } // well inside Apps Script's 6-minute limit
-      looked++;
-      var mail = { v: 1, box: box, id: id, from: m.getFrom(), to: m.getTo(), subject: m.getSubject(), date: m.getDate().getTime(),
-        text: cap_(m.getPlainBody(), 40000), html: cap_(slim_(m.getBody()), 120000) };
-      var docId = 'm' + NLOSeal.sha256hex(box + '|' + id).slice(0, 40);
-      var sealed = NLOSeal.sealTo(s.office.pub, NLOSeal.utf8(JSON.stringify(mail)), 'inbox:' + docId, rand_);
-      put_(cfg, s, docId, sealed);
-      seen[id] = Date.now(); sent++;
-      props.setProperty('NLO_SEEN', JSON.stringify(seen)); // progress survives a later failure
+  var lo = since - 2 * DAY;
+  var q = '{' + senders.map(function (d) { return 'from:' + d; }).join(' ') + ' label:lab-update} after:' + Math.floor(lo / 1000);
+  var box = mailbox_(), started = Date.now(), looked = 0, sent = 0, finished = true, todo = [], more = '';
+  // every email waiting, from every page of the search (Gmail hands back 100 conversations at a time, newest first)
+  pages:
+  for (var p = 0; p < PAGES; p++) {
+    var threads = GmailApp.search(q, p * 100, 100);
+    for (var t = 0; t < threads.length; t++) {
+      if (Date.now() - started > 3 * 60 * 1000) { finished = false; break pages; } // well inside Apps Script's 6-minute limit
+      var msgs = threads[t].getMessages();
+      for (var i = 0; i < msgs.length; i++) {
+        var m = msgs[i], id = m.getId(), at = m.getDate().getTime();
+        if (seen[id] || at < lo || at <= floor) continue;
+        todo.push({ m: m, id: id, at: at });
+      }
     }
+    if (threads.length < 100) break;
+    if (p === PAGES - 1) { finished = false; more = 'More than ' + (PAGES * 100) + ' conversations to look through — the rest at the next check'; }
   }
-  var keep = {}, cut = Date.now() - 30 * DAY;
-  Object.keys(seen).forEach(function (k) { if (seen[k] > cut) keep[k] = seen[k]; });
-  props.setProperty('NLO_SEEN', JSON.stringify(keep));
-  if (finished) props.setProperty('NLO_SINCE', String(started));
+  todo.sort(function (a, b) { return a.at - b.at; }); // oldest first
+  for (var j = 0; j < todo.length; j++) {
+    if (Date.now() - started > 4 * 60 * 1000) { finished = false; break; }
+    var x = todo[j]; looked++;
+    var mail = { v: 1, box: box, id: x.id, from: x.m.getFrom(), to: x.m.getTo(), subject: x.m.getSubject(), date: x.at,
+      text: cap_(x.m.getPlainBody(), 40000), html: cap_(slim_(x.m.getBody()), 120000) };
+    var docId = 'm' + NLOSeal.sha256hex(box + '|' + x.id).slice(0, 40);
+    var sealed = NLOSeal.sealTo(s.office.pub, NLOSeal.utf8(JSON.stringify(mail)), 'inbox:' + docId, rand_);
+    put_(cfg, s, docId, sealed);
+    seen[x.id] = x.at; sent++;
+    floor = keepSeen_(props, seen, lo, floor); // progress survives a later failure
+  }
+  if (finished) { props.setProperty('NLO_SINCE', String(started)); lo = started - 2 * DAY; }
+  keepSeen_(props, seen, lo, floor); // only what the next search can still find
   var fd = 0, fdErr = '';
   try { fd = outbox_(cfg, s, props); } catch (e) { fdErr = 'Front-desk email: ' + String((e && e.message) || e); }
-  beat_(cfg, s, looked, sent, fdErr);
+  beat_(cfg, s, looked, sent, [more, fdErr].filter(Boolean).join('; '));
   return sent + ' email' + (sent === 1 ? '' : 's') + ' sent to NLO Cases' + (fd ? ', ' + fd + ' to the front desk' : '');
+}
+/* the emails already sent, as { Gmail id: the email's time }: only those the next search can still find (newer than lo), and
+   never more than fits in one setting — if they don't fit, the oldest go, and NLO_FLOOR remembers that everything up to them
+   was sent. Returns the floor. */
+function keepSeen_(props, seen, lo, floor) {
+  Object.keys(seen).forEach(function (k) { if (!(seen[k] >= lo) || seen[k] <= floor) delete seen[k]; });
+  var cut = fit_(seen);
+  if (cut > floor) { floor = cut; props.setProperty('NLO_FLOOR', String(floor)); }
+  props.setProperty('NLO_SEEN', JSON.stringify(seen));
+  return floor;
+}
+/* drops the oldest entries of { id: time } until it fits in one setting; returns the newest time dropped (0: none) */
+function fit_(map) {
+  var s = JSON.stringify(map); if (s.length <= KEEP_MAX) return 0;
+  var ks = Object.keys(map).sort(function (a, b) { return map[a] - map[b]; }), cut = 0, len = s.length;
+  while (len > KEEP_MAX && ks.length) { var k = ks.shift(); len -= JSON.stringify(k).length + String(map[k]).length + 2; cut = Math.max(cut, map[k]); delete map[k]; }
+  return cut;
 }
 
 /* ---------- front-desk emails (Amir, 8 Oct 2026: "when the case gets delayed (not shipped by the expected time) please also
@@ -141,12 +177,14 @@ function outbox_(cfg, s, props) {
           catch (x) { failed++; why = String((x && x.message) || x); continue; } // kept for the next check; the rest still go
         }
       } else bad++; // locked with another key (this script was set up afresh): nothing to send
-      done[id] = Date.now(); props.setProperty('NLO_OUT', JSON.stringify(done)); // sent once, even if removing it fails below
+      done[id] = Date.now(); fit_(done); props.setProperty('NLO_OUT', JSON.stringify(done)); // sent once, even if removing it fails below
     }
     commit_(cfg, s, [{ delete: d.name }]);
   }
-  var keep = {}, cut = Date.now() - 30 * DAY;
+  // (only matters while removing a note keeps failing: a week is plenty, and it always fits in one setting)
+  var keep = {}, cut = Date.now() - 7 * DAY;
   Object.keys(done).forEach(function (k) { if (done[k] > cut) keep[k] = done[k]; });
+  fit_(keep);
   props.setProperty('NLO_OUT', JSON.stringify(keep));
   var errs = [];
   if (bad) errs.push(bad + ' note' + (bad === 1 ? '' : 's') + ' couldn’t be opened (locked with an older key) — NLO Cases picks up this mailbox’s new key by itself');

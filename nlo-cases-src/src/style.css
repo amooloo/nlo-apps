@@ -198,6 +198,7 @@ svg.i{flex:none;display:inline-block;vertical-align:-3px}
 .bkDue{margin-bottom:18px;border:1.5px solid var(--blue-200)}
 .bkDue .cardBd{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 18px}
 .bkDue .cardBd>.i{color:var(--blue-700);flex:none}
+.mlHealth{border-color:var(--coral-200)}.mlHealth .cardBd>.i{color:var(--coral-700)}
 .bkDue .grow{flex:1;min-width:220px;font-size:13.5px;color:var(--navy)}
 .bkHead{display:flex;flex-direction:column;gap:2px;margin:4px 0 8px}
 .bkHead b{color:var(--navy);font-size:14px}

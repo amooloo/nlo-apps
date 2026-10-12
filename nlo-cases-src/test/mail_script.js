@@ -174,7 +174,7 @@ const AppCrypto = app.Crypto;
     check(gf.mails.length === 2 && gf.mails[1].subject === 's', 'once they’re published, the waiting note goes out');
 
     console.log('\n# Scrubs orders from NLO Time Off (v3, 9 Oct 2026)');
-    check(gf.ctx.VERSION === '3', 'the script says it’s version 3 (NLO Time Off waits for it before sending orders)');
+    check(gf.ctx.VERSION === '4', 'the script says it’s version 4 (NLO Time Off waits for v3 or later before sending orders)');
     const before = gf.mails.length;
     store.outbox = [await noteDoc('o' + '6'.repeat(32), { kind: 'scrubs', subject: 'Scrubs order: Riley — 2 pairs', text: 'Pair 1: Navy · top and bottom · M · petite', to: 'someone-else@example.com' })];
     gf.ctx.checkMail();
@@ -214,6 +214,73 @@ const AppCrypto = app.Crypto;
     check(gf.mails.length === b5 + 2 && gf.mails[b5 + 1].to === 'community@office.example' && gf.mails[b5 + 1].subject === 'Scrubs order: Taylor — 1 pair' && store.beats[store.beats.length - 1].update.fields.err.stringValue === '',
       '…once the address is fixed, it goes out at the next check');
     gf.ctx.MailApp.sendEmail = realSend;
+  }
+
+  // (v4, 12 Oct 2026) Apps Script keeps at most 9 KB in one setting. v3 kept a month of sent ids there (~275 emails), which Dr. A's
+  // Gmail passes once Formlabs' print emails go through it; then every check failed. It also only looked at the newest 100
+  // conversations. The stand-in refuses a setting over 9 KB, as Google does. MAIL_GS=<file> runs this part against another copy.
+  console.log('\n# A busy mailbox (v4): the list of sent emails always fits, and nothing is skipped');
+  {
+    const D = 864e5, now = Date.now();
+    const src = process.env.MAIL_GS ? fs.readFileSync(process.env.MAIL_GS, 'utf8') : fs.readFileSync(path.join(__dirname, '..', 'mail', 'nlo-cases-mail.gs'), 'utf8');
+    const cfgSrc = src.replace('/*NLO_CONFIG*/null', JSON.stringify(cfg));
+    const mkStore = () => ({ order: [], names: new Set(), dup: 0, beats: [] });
+    const fakeFs = st => (url, opt) => {
+      const res = (code, obj) => ({ getResponseCode: () => code, getContentText: () => JSON.stringify(obj) });
+      if (/accounts:signInWithPassword/.test(url)) return res(200, { idToken: 'tok' });
+      if (/documents\/meta\/inbox$/.test(url)) return res(200, { fields: { kid: { stringValue: 'k1' }, pub: { mapValue: { fields: { kty: { stringValue: 'EC' }, crv: { stringValue: 'P-256' }, x: { stringValue: pub.x }, y: { stringValue: pub.y } } } },
+        senders: { arrayValue: { values: [{ stringValue: 'dashboard+no-reply@formlabs.com' }, { stringValue: 'ulabsystems.com' }] } } } });
+      if (/documents\/outbox/.test(url)) return res(200, {});
+      if (/documents:commit$/.test(url)) {
+        const w = JSON.parse(opt.payload).writes[0];
+        if (/\/mailbeat\//.test(w.update.name)) { st.beats.push(w.update.fields); return res(200, {}); }
+        if (st.names.has(w.update.name)) { st.dup++; return res(409, { error: { status: 'ALREADY_EXISTS' } }); }
+        st.names.add(w.update.name); st.order.push(w.update.name); return res(200, {});
+      }
+      return res(404, {});
+    };
+    // n print emails spread evenly over the last `days` days, each its own conversation (as Formlabs' are)
+    const prints = (tag, n, days) => Array.from({ length: n }, (_, i) => ({ id: tag + i, date: now - days * D + Math.round((i + 0.5) * days * D / n),
+      from: 'Formlabs Dashboard <dashboard+no-reply@formlabs.com>', subject: 'Print ' + tag + i + ' finished on Form 4B', text: 'Your print finished.' }));
+    const docOf = (g, id) => 'projects/demo-nlo-cases/databases/(default)/documents/inbox/m' + g.ctx.NLOSeal.sha256hex('office@example.com|' + id).slice(0, 40);
+    const sizes = g => ['NLO_SEEN', 'NLO_OUT'].map(k => (g.props.get(k) || '').length);
+    // (sealing is checked above; here a quick stand-in keeps hundreds of emails fast)
+    const run = g => { g.ctx.NLOSeal.sealTo = () => ({ epk: { kty: 'EC', crv: 'P-256', x: 'x', y: 'y' }, iv: 'i', ct: 'c' }); try { return g.ctx.checkMail(); } catch (e) { return 'ERR ' + e.message; } };
+
+    // 1. a mailbox v3 had already filled: a month of ids, as v3 kept them (the time each was sent)
+    { const st = mkStore(), msgs = prints('a', 5, 0.5), g = makeGas({ source: cfgSrc, messages: msgs, fetch: fakeFs(st), user: 'office@example.com' });
+      g.props.set('NLO_CFG', JSON.stringify(cfg)); g.props.set('NLO_SINCE', String(now - 3600e3));
+      const full = {}; for (let i = 0; i < 278; i++) full['18f' + String(i).padStart(13, '0')] = now - Math.round(i * 30 * D / 278);
+      g.props.set('NLO_SEEN', JSON.stringify(full));
+      const r = run(g);
+      check(/5 emails sent/.test(r) && st.order.length === 5, 'a mailbox whose list v3 had nearly filled (278 ids, ' + JSON.stringify(full).length + ' characters) takes new emails again (' + r + ')');
+      check(sizes(g)[0] < 3000, '…and its list is cut back to what the next search can still find (' + sizes(g)[0] + ' characters)'); }
+
+    // 2. more than 100 conversations since the last check (an outage of a few days): every one goes, oldest first
+    { const st = mkStore(), msgs = prints('b', 250, 5), g = makeGas({ source: cfgSrc, messages: msgs, fetch: fakeFs(st), user: 'office@example.com' });
+      g.props.set('NLO_CFG', JSON.stringify(cfg)); g.props.set('NLO_SINCE', String(now - 5 * D));
+      const r = run(g), want = msgs.map(m => docOf(g, m.id));
+      check(st.order.length === 250 && want.every(n => st.names.has(n)), '250 conversations since the last check: all 250 go, not just the newest 100 (' + r + ')');
+      check(st.order.every((n, i) => n === want[i]), '…oldest first');
+      check(/0 emails sent/.test(run(g)) && st.order.length === 250, '…and the next check sends nothing twice'); }
+
+    // 3. a long outage: more sent emails than fit in one setting — the oldest are trimmed, nothing is lost or sent twice
+    { const st = mkStore(), msgs = prints('c', 600, 25), g = makeGas({ source: cfgSrc, messages: msgs, fetch: fakeFs(st), user: 'office@example.com' });
+      g.props.set('NLO_CFG', JSON.stringify(cfg)); g.props.set('NLO_SINCE', String(now - 25 * D));
+      const r = run(g), sz = sizes(g);
+      check(st.order.length === 600 && msgs.every(m => st.names.has(docOf(g, m.id))) && st.dup === 0, '600 emails after a 25-day outage: every one goes, once (' + r + ')');
+      check(sz[0] <= 9 * 1024 && sz[1] <= 9 * 1024 && Number(g.props.get('NLO_FLOOR')) > now - 25 * D, '…the list never passes 9 KB: its oldest were trimmed along the way (' + sz[0] + ' characters now)');
+      check(/0 emails sent/.test(run(g)) && st.order.length === 600 && st.dup === 0, '…and the next check sends nothing twice');
+      msgs.push(...prints('d', 3, 0.01)); const r2 = run(g);
+      check(/3 emails sent/.test(r2) && st.order.length === 603, 'new emails after that still go (' + r2 + ')');
+      const last = st.beats[st.beats.length - 1] || {};
+      check(last.ver && last.ver.stringValue === '4' && last.err && last.err.stringValue === '', 'the check-in says script v4, no problem'); }
+
+    // 4. the same mailbox week after week: the list stays small
+    { const st = mkStore(), msgs = prints('e', 30, 1), g = makeGas({ source: cfgSrc, messages: msgs, fetch: fakeFs(st), user: 'office@example.com' });
+      g.props.set('NLO_CFG', JSON.stringify(cfg)); g.props.set('NLO_SINCE', String(now - 1 * D));
+      run(g);
+      check(st.order.length === 30 && sizes(g)[0] < 1500, 'a day of 30 print emails: the list holds about 2 days (' + sizes(g)[0] + ' characters), not a month'); }
   }
 
   console.log('\nPASS ' + pass + '  FAIL ' + fail);

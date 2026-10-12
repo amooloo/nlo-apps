@@ -1400,6 +1400,22 @@ async function openByName(p, name) {
   await owner.waitForSelector('.toast:has-text("2 email updates dismissed")', { timeout: 20000 });
   await owner.waitForFunction(async () => !document.querySelector('#mailCard') && (await B.inboxLoad()).length === 0, null, { timeout: 20000 });
   check(true, 'Dismiss all clears the card (and the emails)');
+  // (12 Oct 2026) a mailbox whose script stops checking in shows on Dr. A's Today, not only under Team & security
+  {
+    const beatUrl = `http://127.0.0.1:8080/v1/projects/${PROJECT}/databases/(default)/documents/mailbeat/b${'9'.repeat(32)}`;
+    const quiet = { box: { stringValue: 'quiet@example.com' }, at: { timestampValue: new Date(Date.now() - 3 * 3600e3).toISOString() }, err: { stringValue: '' }, ver: { stringValue: '4' }, seen: { integerValue: '0' }, sent: { integerValue: '0' } };
+    await fetch(beatUrl, { method: 'PATCH', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' }, body: JSON.stringify({ fields: quiet }) });
+    await owner.click('#nav-today');
+    await owner.waitForSelector('#mlHealth:has-text("quiet@example.com")', { timeout: 20000 }).catch(() => {});
+    const t1 = await owner.textContent('#mlHealth').catch(() => '');
+    check(/quiet@example\.com hasn’t checked in since/.test(t1) && !/office@example\.com|records@example\.com/.test(t1), 'Today (Dr. A): a mailbox that hasn’t checked in for 3 hours is flagged; the two checking in every 10 minutes aren’t (' + String(t1).slice(0, 120) + ')');
+    await fetch(beatUrl, { method: 'PATCH', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' }, body: JSON.stringify({ fields: Object.assign({}, quiet, { at: { timestampValue: new Date().toISOString() }, err: { stringValue: 'NLO Cases sign-in failed (400 INVALID_LOGIN_CREDENTIALS)' } }) }) });
+    await owner.waitForSelector('#mlHealth:has-text("reported a problem")', { timeout: 20000 }).catch(() => {});
+    check(/quiet@example\.com reported a problem: NLO Cases sign-in failed/.test(await owner.textContent('#mlHealth').catch(() => '')), '…and one that checks in with a problem shows the problem');
+    await fetch(beatUrl, { method: 'DELETE', headers: { Authorization: 'Bearer owner' } });
+    await owner.waitForFunction(() => !/quiet@example\.com/.test((document.querySelector('#mlHealth') || {}).textContent || ''), null, { timeout: 20000 }).catch(() => {});
+    check(!/quiet@example\.com/.test((await owner.textContent('#mlHealth').catch(() => '')) || ''), '…and the flag goes once it’s sorted');
+  }
   // the website's appointment requests come through the same script, but they're NLO Leads' (it files them and clears them)
   check(/thenextlevelorthodontics@orthohost\.com/.test(JSON.stringify((await fsDump(['meta'])).find(d => d.name.endsWith('/meta/inbox')).fields.senders)), 'the script’s sender list includes the website form’s mailer');
   gas2.messages.push({ id: 'w1', date: Date.now(), from: 'thenextlevelorthodontics@orthohost.com', subject: 'Website Appointment Request - Sky',
