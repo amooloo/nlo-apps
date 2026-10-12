@@ -315,8 +315,8 @@ VIEWS.pay = () => {
     (anyIssue ? '<div class="notice bad">Some days aren’t complete (time with a missing clock-in or clock-out counts 0 hours, and a missed punch someone asked for counts once approved). Fix them on Now or in Timesheets before running payroll.</div>' : '') +
     '<div class="card"><div class="tblWrap"><table class="tbl pay"><thead><tr><th rowspan="2">Person</th><th class="num" rowspan="2">Regular<br><span class="muted small">2 weeks</span></th><th class="num" rowspan="2">Overtime<br><span class="muted small">2 weeks</span></th><th class="num" rowspan="2">Total</th><th rowspan="2">To check</th>' + wkHead + '</tr><tr>' + sub + '</tr></thead><tbody>' +
     (body || '<tr><td colspan="9" class="muted">Nobody on the clock.</td></tr>') + '</tbody></table></div></div>' +
-    (DEMO_ONLY ? '<p class="muted small" style="margin-top:10px">In the office’s copy, this page also downloads the totals and every day as CSV files (for Paychex) and prints.</p>'
-      : '<div class="btnRow"><button class="btn btn-pri btn-sm" data-act="payCsv">' + ic('download', 15) + 'Totals (CSV)</button><button class="btn btn-sec btn-sm" data-act="payCsvDays">' + ic('download', 15) + 'Every day (CSV)</button><button class="btn btn-sec btn-sm" data-act="payPrint">' + ic('print', 15) + 'Print</button></div>') +
+    (DEMO_ONLY ? '<p class="muted small" style="margin-top:10px">In the office’s copy, this page also downloads the totals and every day as CSV files, makes the Paychex punch file (<button class="linkBtn" data-act="payPx">see what goes in it</button>) and prints.</p>'
+      : '<div class="btnRow"><button class="btn btn-pri btn-sm" data-act="payCsv">' + ic('download', 15) + 'Totals (CSV)</button><button class="btn btn-sec btn-sm" data-act="payCsvDays">' + ic('download', 15) + 'Every day (CSV)</button><button class="btn btn-sec btn-sm" data-act="payPx">' + ic('download', 15) + 'Paychex punch file</button><button class="btn btn-sec btn-sm" data-act="payPrint">' + ic('print', 15) + 'Print</button></div>') +
     '<p class="muted small" style="margin-top:10px">Overtime is worked out by workweek (over ' + S.set.ot + ' hours from ' + TCE.WD[S.set.wk] + ' to ' + TCE.WD[(S.set.wk + 6) % 7] + '), never by pay period.' + (rows.some(r => r.weeks.some(x => x.partial)) ? ' * A workweek that starts or ends outside this period: only its days inside the period are counted here, and its overtime is shown in the period it ends in.' : '') + ' Read ' + esc(agoText(P.at, Date.now())) + ' · <button class="linkBtn" data-act="payReload">read again</button></p>';
 };
 function payNav(a, z, cur) {
@@ -361,6 +361,146 @@ ACT.payCsvDays = () => {
   download('time-clock-days-' + a + '-to-' + z + '.csv', csvOf(out));
 };
 ACT.payPrint = () => { document.body.classList.add('printPay'); window.print(); setTimeout(() => document.body.classList.remove('printPay'), 500); };
+
+/* ---------- Paychex: the Punch Detail Import (Payroll Center), from the pay period on screen ----------
+   S.px: { done, rules, cid, ids, err } — Paychex's company ID and each person's worker ID (meta/tcPx), read when Settings
+   or Payroll needs them (Dr. A and managers), and again each time the file is made. The time clock works without them. */
+async function pxRead() {
+  let rules = true, d = { cid: '', ids: {}, at: 0 }, err = '';
+  try { rules = await B.pxRulesOk(); } catch (e) { } // (offline: try to read them anyway)
+  if (rules) { try { d = await B.loadPx(); } catch (e) { if (B.isPerm(e)) rules = false; else err = errText(e); } }
+  return (S.px = { done: true, rules, cid: d.cid, ids: d.ids, at: d.at, err });
+}
+function pxNeed(again) {
+  if (!again && S.px && (S.px.loading || S.px.done)) return;
+  S.px = { loading: true };
+  pxRead().then(pxRedraw);
+}
+/* the card again: on its own when something else on Settings isn't saved yet (the page is kept as it is then) */
+function pxRedraw() { const el = $('#pxCard'); if (el && S.dirty) el.outerHTML = paychexCardHTML(); else queueRender(); }
+// what Dr. A types in the card stays on screen until it's saved, when a live update (or another card's Save) redraws the page
+document.addEventListener('input', e => {
+  const t = e.target; if (!t || !t.closest || !t.closest('#pxCard')) return;
+  const d = S.pxDraft || (S.pxDraft = { ids: {} });
+  if (t.id === 'pxCid') d.cid = t.value; else if (t.dataset && t.dataset.sid) d.ids[t.dataset.sid] = t.value;
+});
+document.addEventListener('toggle', e => { if (e.target && e.target.classList && e.target.classList.contains('pxMore')) S.pxMoreOpen = e.target.open; }, true);
+/* who can have a worker ID: everyone on the clock and anyone with an ID (main: true — every ID saved is on screen, so a
+   Save keeps it), then everyone else who has been on the clock (someone who left, or was taken off it, still has a last
+   check), Dr. A aside */
+function pxPeople() {
+  const ids = (S.px && S.px.ids) || {}, out = new Set(Object.keys(ids));
+  S.staff.forEach((st, sid) => { const r = person(sid); if (!(r && r.role === 'owner' && !(st && st.on))) out.add(sid); });
+  return Array.from(out).map(sid => {
+    const st = S.staff.get(sid), r = person(sid), now = !!(st && st.on && r && r.active);
+    return { sid, sal: staffOf(sid).sal, now, left: !r || !r.active, main: now || !!ids[sid] };
+  }).sort((a, b) => (b.now - a.now) || nameOf(a.sid).localeCompare(nameOf(b.sid)));
+}
+function paychexCardHTML() {
+  if (!B.isMgr()) return '';
+  const own = B.isOwner(), dis = own ? '' : ' disabled', P = S.px || {}, D = S.pxDraft || { ids: {} };
+  pxNeed();
+  let body;
+  if (!P.done) body = '<p class="muted small">Reading…</p>';
+  else if (P.err) body = '<p class="bad small" style="margin-bottom:8px">Couldn’t read the Paychex IDs: ' + esc(P.err) + '</p><button class="btn btn-sec btn-sm" data-act="pxAgain">' + ic('refresh', 15) + 'Check again</button>';
+  else if (!P.rules) {
+    body = own ? '<p class="small" style="margin-bottom:8px">This needs the database’s updated rules first (the same rules, with Paychex’s IDs added; the time clock keeps working meanwhile):</p>' +
+      '<ol class="steps"><li><button class="btn btn-sec btn-sm" data-act="copyRules">' + ic('copy', 15) + 'Copy the new rules</button></li>' +
+      '<li><a class="btn btn-sec btn-sm" href="https://console.firebase.google.com/project/nlo-cases/firestore" target="_blank" rel="noopener">Open the Firebase console</a> → <b>Firestore Database</b> → <b>Rules</b> tab.</li>' +
+      '<li>Select everything in the editor, paste, and press <b>Publish</b>.</li>' +
+      '<li><button class="btn btn-pri btn-sm" data-act="pxAgain">' + ic('refresh', 15) + 'Check again</button></li></ol>'
+      : '<p class="muted small">Dr. A turns this on.</p>';
+  } else {
+    const val = sid => D.ids[sid] != null ? D.ids[sid] : (P.ids[sid] || '');
+    const tag = r => r.left ? 'left' : !r.now ? 'off the clock' : r.sal ? 'salaried: not in the file' : '';
+    const row = r => '<div class="kvRow pxRow"><label for="pxW-' + esc(r.sid) + '">' + esc(nameOf(r.sid)) + (tag(r) ? ' <span class="muted small">(' + tag(r) + ')</span>' : '') + '</label>' +
+      '<input class="inp pxW" id="pxW-' + esc(r.sid) + '" data-sid="' + esc(r.sid) + '" maxlength="10" autocomplete="off" spellcheck="false" placeholder="Worker ID" value="' + esc(val(r.sid)) + '"' + dis + '></div>';
+    const all = pxPeople(), more = all.filter(r => !r.main);
+    // (opened, or typed in: kept open when the page redraws)
+    const open = S.pxMoreOpen || more.some(r => D.ids[r.sid] != null && D.ids[r.sid] !== '');
+    const rows = all.filter(r => r.main).map(row).join('') +
+      (more.length ? '<details class="pxMore"' + (open ? ' open' : '') + '><summary class="small">Someone who left, or isn’t on the clock now (' + more.length + '): their last check</summary>' + more.map(row).join('') + '</details>' : '');
+    body = '<p class="small muted" style="margin-bottom:10px">For the Paychex punch file on the Payroll page (Paychex Payroll Center: Punch Detail Import). Type the IDs as Paychex shows them: the company ID and each person’s worker ID.</p>' +
+      '<div class="field"><label for="pxCid">Paychex company ID</label><input id="pxCid" maxlength="8" autocomplete="off" spellcheck="false" value="' + esc(D.cid != null ? D.cid : P.cid) + '"' + dis + '></div>' +
+      '<span class="flabel">Worker IDs</span>' + (rows || '<p class="muted small">Nobody on the clock yet.</p>') +
+      (own ? '<div class="btnRow"><button class="btn btn-pri btn-sm" data-act="pxSave">Save</button></div>' : '<p class="muted small" style="margin-top:8px">Dr. A changes these.</p>');
+  }
+  return '<div class="card" id="pxCard" data-nodirty style="margin-top:18px"><div class="cardHd"><h3>' + ic('sheet', 18) + ' Paychex</h3></div><div class="cardBd">' + body + '</div></div>';
+}
+ACT.pxAgain = () => { pxNeed(true); pxRedraw(); };
+ACT.pxSave = async b => {
+  const cx = $('#pxCid'), cid = String(cx.value || '').trim();
+  if (cid && !TCE.pxCidOk(cid)) { toast('The company ID is up to 8 letters or digits, as Paychex shows it.', { bad: true }); cx.focus(); return; }
+  const ids = {}, seen = {};
+  for (const x of $$('#pxCard input.pxW')) {
+    const v = String(x.value || '').trim(), sid = x.dataset.sid;
+    if (!v) continue;
+    if (!TCE.pxWidOk(v)) { toast(nameOf(sid) + '’s worker ID: up to 10 letters or digits.', { bad: true }); x.focus(); return; }
+    // (one ID for two people would put one person's punches on the other's check stub)
+    if (seen[v]) { toast(nameOf(seen[v]) + ' and ' + nameOf(sid) + ' have the same worker ID.', { bad: true }); x.focus(); return; }
+    seen[v] = sid; ids[sid] = v;
+  }
+  busyBtn(b, true);
+  try {
+    await B.savePx(cid, ids, (S.px && S.px.at) || 0);
+    toast('Saved.'); S.pxDraft = null; S.px = { loading: true }; pxRedraw(); pxRead().then(pxRedraw); // (read again: when they were saved)
+  } catch (e) {
+    // (saved in another window meanwhile: show those, with what was typed here on top, to save again)
+    if (e && e.code === 'stale') { toast('Not saved: the Paychex IDs were changed in another window since this page read them. They’re shown now, with what you typed here; press Save again to keep yours.', { bad: true }); pxRead().then(pxRedraw); }
+    else toast(errText(e), { bad: true });
+  } finally { busyBtn(b, false); }
+};
+/* the file for the period on screen: who's in it (and their hours), who isn't and why, and the days still to finish */
+function pxFileOf(a, z) {
+  const rows = payRows(a, z, S.pay.data), now = nowMs(), P = S.px || {}, from = TCE.dayStart(a), to = TCE.dayStart(TCE.addDays(z, 1));
+  const out = { people: [], lines: 0, noId: [], sal: [], fix: [], open: [], asks: [] };
+  rows.forEach(r => {
+    const px = TCE.paychexLines(r.list, S.set, a, z, now);
+    const asked = reqsOf(r.sid, 'open').some(q => q.ps.some(p => p.t >= from && p.t < to));
+    if (!px.lines.length && !px.fix.length && !px.open.length && !asked) return; // (no time in the period)
+    if (r.sal) { out.sal.push(r.name); return; }
+    const wid = (P.ids || {})[r.sid];
+    if (!wid) { out.noId.push(r.name); return; }
+    if (px.lines.length) {
+      // (the lines add up to the hours paid — regular and overtime, each as entered — when they hold all of them)
+      const want = TCE.pxWant(px.lines, r.reg, r.ot);
+      out.people.push({ wid, name: r.name, lines: px.lines, want, days: new Set(px.lines.map(l => l.day)).size, ms: px.lines.reduce((n, l) => n + l.ms, 0), off: want === undefined && !px.open.length ? r.reg + r.ot : null });
+      out.lines += px.lines.length;
+    }
+    px.fix.forEach(d => out.fix.push(r.name + ', ' + TCE.dayText(d)));
+    if (px.open.length) out.open.push(r.name);
+    if (asked) out.asks.push(r.name);
+  });
+  out.text = TCE.paychexCsv(P.cid || '', out.people);
+  out.name = 'paychex-punches-' + a + '-to-' + z + '.csv';
+  return out;
+}
+ACT.payPx = async b => {
+  if (!S.pay || !S.pay.data) { toast('The period is still loading.'); return; }
+  busyBtn(b, true, 'Reading…');
+  let P; try { P = await pxRead(); } finally { busyBtn(b, false); }
+  if (!P.rules) { toast('First the updated rules: Settings → Paychex.', { bad: true }); return; }
+  if (P.err) { toast('Couldn’t read the Paychex IDs: ' + P.err, { bad: true }); return; }
+  if (!P.cid && !S.demo) { toast('Add the Paychex company ID first: Settings → Paychex.', { bad: true }); return; }
+  if (!S.pay || !S.pay.data) return;
+  const [a, z] = periodOf(S.pay.start), f = pxFileOf(a, z);
+  S.pxFile = f;
+  // (the hours in the file: the hours paid; someone on the clock right now has today's time so far on the Payroll page
+  // only, and anything else that differs is shown)
+  const tbl = f.people.map(p => '<tr><td><b class="pt">' + esc(p.name) + '</b></td><td>' + esc(p.wid) + '</td><td class="num">' + p.days + '</td><td class="num"><b>' + (p.want !== undefined ? String(p.want / 100) : hNum(p.ms)) + '</b>' +
+    (p.off != null ? ' <span class="bad small">(Payroll page: ' + hNum(p.off) + ')</span>' : '') + '</td></tr>').join('');
+  openModal('<h3>Paychex punch file</h3><p class="lsub">' + esc(TCE.dayText(a) + ' – ' + TCE.dayText(z)) + ': each day’s punches and hours, for ' + plural(f.people.length, 'person', 'people') + ' (' + plural(f.lines, 'line') + '). In Paychex Payroll Center, import it with Punch Detail Import.</p>' +
+    (f.fix.length ? '<div class="notice bad">Not finished, so the unfinished part isn’t in the file (a missing clock-in or clock-out, or never back from lunch): ' + esc(f.fix.join('; ')) + '. Fix them in Timesheets, then make the file again.</div>' : '') +
+    (f.open.length ? '<div class="notice">On the clock right now, so the rest of today isn’t in it yet: ' + esc(f.open.join(', ')) + '. Make the file once the day is over.</div>' : '') +
+    (f.asks.length ? '<div class="notice bad">A missed punch they asked for isn’t in it until it’s approved: ' + esc(f.asks.join(', ')) + '. Approve or turn it down on Now, then make the file again.</div>' : '') +
+    (f.noId.length ? '<div class="notice">Not in the file, with no Paychex worker ID yet (Settings → Paychex): ' + esc(f.noId.join(', ')) + '.</div>' : '') +
+    (f.people.length ? '<div class="tblWrap" style="margin:4px 0 10px"><table class="tbl"><thead><tr><th>Person</th><th>Worker ID</th><th class="num">Days</th><th class="num">Hours</th></tr></thead><tbody>' + tbl + '</tbody></table></div>' : '') +
+    (f.sal.length ? '<p class="muted small" style="margin-bottom:8px">Salaried, so not in the file: ' + esc(f.sal.join(', ')) + '.</p>' : '') +
+    '<p class="small muted">Paychex prints these punches on each check stub. The file has no regular and overtime split, so enter the hours to pay as before (this page’s totals). Importing a file again replaces each person’s punches from the one before.</p>' +
+    '<div class="mFt"><button class="btn btn-sec" data-act="closeM">' + (DEMO_ONLY ? 'Close' : 'Cancel') + '</button>' +
+    (DEMO_ONLY ? '' : '<button class="btn btn-pri" data-act="payPxGo"' + (f.people.length ? '' : ' disabled') + '>' + ic('download', 15) + 'Download</button>') + '</div>', 'wide');
+};
+ACT.payPxGo = () => { const f = S.pxFile; if (f && f.people.length) download(f.name, f.text, 'text/csv;charset=utf-8', true); closeModal(); };
 
 /* ---------- People ---------- */
 VIEWS.people = () => {
@@ -512,7 +652,7 @@ VIEWS.settings = () => {
     (own ? '<div class="btnRow"><button class="btn btn-pri" data-act="setSave">Save</button></div>' : '<p class="muted small">Dr. A changes these.</p>') + '</div></div></div>' +
     '<div><div class="card"><div class="cardHd"><h3>' + ic('monitor', 18) + ' Time-clock computers</h3></div><div class="cardBd">' + kiosks +
     (own ? '<p class="small muted" style="margin:10px 0">On the computer or iPad staff will clock in at, sign in here and:</p><button class="btn btn-sec btn-sm" data-act="kioskEnroll">' + ic('clock', 15) + 'Make this computer a time clock</button>' : '') + '</div></div>' +
-    officeCardHTML() + laptopsCardHTML() +
+    officeCardHTML() + laptopsCardHTML() + paychexCardHTML() +
     (B.noIndex && B.indexLink && own ? '<div class="card" style="margin-top:18px"><div class="cardHd"><h3>Faster “My time” for staff</h3></div><div class="cardBd"><p class="small">Staff checking their own week read all their punches until the database has an index for it. One click makes it (Firebase console, then Create).</p><a class="btn btn-sec btn-sm" href="' + esc(B.indexLink) + '" target="_blank" rel="noopener">Make the index</a></div></div>' : '') +
     '</div></div>';
 };

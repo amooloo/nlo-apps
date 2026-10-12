@@ -650,3 +650,10 @@ body.demo #kiosk{bottom:31px}
 .lapWait{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:10px 0 0}
 .lapWait .inp{max-width:150px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:18px;letter-spacing:.2em;text-align:center}
 .ofCover{margin-top:8px}
+/* Paychex: each person's worker ID */
+.pxRow{align-items:center}
+.pxRow label{min-width:0;overflow-wrap:anywhere}
+.pxRow .inp{flex:0 0 150px;max-width:150px;min-height:36px;padding:7px 11px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13.5px}
+#pxCid{max-width:180px;font-family:ui-monospace,Menlo,Consolas,monospace}
+.pxMore{margin-top:8px}
+.pxMore summary{cursor:pointer;color:var(--grey-600);padding:6px 0}

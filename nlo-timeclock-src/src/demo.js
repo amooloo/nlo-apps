@@ -44,6 +44,9 @@ const DEMO = (() => {
     D.lapReqs = [{ id: 'l_new', code: LAP_CODE, dev: 'Chrome on Windows', at: now - 2 * MIN }];
     D.seen.k_front = Object.assign({ at: now - 3 * MIN, pid: '' }, NET.office);
     D.alerts = { emails: ['dr.a@example.com'], topic: 'nlo-clock-demo0000', route: {}, digest: '18:00', test: null, at: now - 7 * TCE.DAY };
+    // Paychex: a made-up company ID and worker IDs for everyone on the clock but one (so the punch file shows who it leaves out)
+    D.px = { cid: '00099999', ids: {}, at: now - 30 * TCE.DAY };
+    people.filter(([sid, , role]) => role !== 'owner' && sid !== 's_avery').forEach(([sid], i) => { D.px.ids[sid] = 'E' + (101 + i); }); // (Avery: no ID yet)
     let n = 0;
     // (src 'home': from home on their approved laptop; 'own': their own phone at the office)
     const P = (sid, kind, iso, hm, src, net) => D.punches.push({ id: 'p' + String(++n).padStart(24, '0'), sid, kind, at: TCE.atTime(iso, hm),
@@ -329,6 +332,13 @@ const DEMO = (() => {
     async delOT(sid, week) { await wait(120); B.fixOk(sid); D.ot = D.ot.filter(x => x.id !== sid + '_' + week); later(); },
     async saveSettings(o) { await wait(150); if (!isOwner()) deny(); D.set = Object.assign({}, o, { lock: !!o.lock, wurl: o.wurl || '', at: now() }); later(); },
     async saveAlerts(o) { await wait(150); if (!isOwner()) deny(); D.alerts = Object.assign({}, D.alerts, o, { at: now() }); later(); },
+    async pxRulesOk() { return true; },
+    async loadPx() { await wait(80); if (!D.mgr) deny(); return { cid: (D.px && D.px.cid) || '', ids: Object.assign({}, (D.px && D.px.ids) || {}), at: (D.px && D.px.at) || 0 }; },
+    async savePx(cid, ids, at) {
+      await wait(150); if (!isOwner()) deny();
+      if (((D.px && D.px.at) || 0) !== (at || 0)) throw errCode('stale', 'Not saved: the Paychex IDs were changed in another window since this page read them.');
+      D.px = { cid, ids: Object.assign({}, ids), at: Date.now() };
+    },
     async testAlert() { await wait(150); if (!isOwner()) deny(); D.alerts.test = now(); later(); },
     async makeBot() { await wait(200); if (!isOwner()) deny(); return { email: 'tc-alerts-demo@example.com', password: 'demo-only', uid: 'b_demo' }; },
     async hasBot() { return true; },

@@ -32,6 +32,20 @@ clock … that sends me and multiple people alerts when someone is getting close
   never before 8 PM on its payroll Friday), the alert script emails the period's time cards as the Payroll page's two
   spreadsheets (Totals, Every day — corrections with who, when and why), each in an email of its own ("Time cards: … (for
   your records)"), email only, on the payroll numbers' setting. A period nobody has time in sends nothing.
+- **The Paychex punch file** (Amir, 12 Oct 2026, with Paychex's own "Specification for Punch Detail Import" and its
+  template from Paychex Payroll Center): Payroll → **Paychex punch file** makes the period's CSV as the spec says (the
+  template's 13 headers exactly, MM/DD/YYYY, HH:MMAM, a line a day with up to two in/out pairs — a 3rd pair on a 2nd
+  line —, Total Hours with paid short breaks, CR LF, no byte-order mark), and the payroll-Friday email has it attached.
+  Paychex prints the punches on each check stub; the file has **no regular/overtime split**, so the hours to pay are
+  still entered from the Payroll page (Paychex's SPI import, 37 columns, would carry them: it needs Paychex to turn it
+  on). Each person's lines add up to the hours paid (regular and overtime, each rounded as entered), not a hundredth
+  off. Left out, and said so: salaried people, anyone without a worker ID, unfinished time (a missing clock-in/out,
+  never back from lunch: fix and make it again — the last import replaces each person's punches), time still running
+  (on the clock right now), a missed punch waiting for approval. Paychex's IDs (`meta/tcPx`: the company ID, each
+  person's worker ID) are typed in Settings → Paychex by Dr. A only (managers read them; the alert script reads them);
+  they need the rules with `meta/rules_tc_3` — the time clock itself keeps working on the older rules. A save made over
+  newer IDs (another window) is refused, and the latest shown with what was typed. Known limit: a shift that crosses
+  midnight is on the day it started (none at this office; the 16-hour rule splits a forgotten clock-out).
 - **Getting close to 40 hours**: "only warning that they are getting close and only approved ot allows them to go over" —
   a pop-up warning at the time clock and on My time from the first heads-up hour (or when 40 h would come today); at or
   over 40 h without approval, a clock-in (or back from lunch) is asked first — "Clock in anyway", never refused — and
@@ -169,7 +183,7 @@ approvals, Payroll, Settings and "I forgot to punch" work from anywhere, and the
 | miss | a clock-out (or lunch) with no clock-in before it (`no-in`; the same button twice within 15 min is not) | `noin|punchId` |
 | noret | went to lunch and never came back or clocked out | `noret|punchId` |
 | req | someone asks for a missed punch, or leaves a note (each request once) | `req|requestId` |
-| payroll | payroll Friday, 7 AM: each person's two-week regular and overtime hours, and what to fix first (email only) | `payroll|periodStart` |
+| payroll | payroll Friday, 7 AM: each person's two-week regular and overtime hours, and what to fix first; by email with the Paychex punch file attached (an email of its own then) once Paychex's IDs are in, and who isn't in it; a push has the words only (nothing about the file) | `payroll|periodStart` |
 | payroll | the morning after a pay period ends (not before 8 PM on its payroll Friday): its time cards, two spreadsheets attached, an email of its own (email only; nothing for a period nobody has time in) | `records|periodStart` |
 | short | a paid short break (info; off by default) | `short|sid|day|ms` |
 | pin | 5 wrong PINs (locked 10 minutes) | `pin|sid|t0ms` |
@@ -179,15 +193,21 @@ approvals, Payroll, Settings and "I forgot to punch" work from anywhere, and the
 Corrections a manager makes never alert (early/offday/home only fire for real punches). A missing punch the person has
 already asked for doesn't alert (their request does). Someone salaried gets only the missing-punch alerts.
 
-## Build status (10 Oct 2026, early morning)
-- All passing: unit 122 (`test/unit.test.js`), rules 418 (`test/rules.test.mjs`), the office check 66
+## Build status (12 Oct 2026, morning: the Paychex punch file)
+- All passing: unit 143 (`test/unit.test.js`), rules 433 (`test/rules.test.mjs`), the office check 66
   (`test/worker.test.mjs`: the Worker under Node on the emulators, plus Google's RS256 signature with a key made in the
-  test), alert script 77 (`test/robot.test.js`, fake Apps Script services on the real emulators; 10 Oct afternoon, with
-  the time cards), end to end 99, three
-  runs in a row (`test/e2e.py`: the real page on the emulators, with the office check Dr. A copies running under Node
+  test), alert script 86 (`test/robot.test.js`, fake Apps Script services on the real emulators), end to end 106
+  (`test/e2e.py`: the real page on the emulators, with the office check Dr. A copies running under Node
   (`test/worker_server.mjs`) and each browser on a pretend network; a time box takes office time, so it uses
-  `office_hm`), demo click-through 116 (`test/demo_smoke.py`). The other apps' rules suites on the same rules file:
-  Cases 233, Leads 77, A/R 97, Time Off 159.
+  `office_hm`), demo click-through 138 (`test/demo_smoke.py`). The other apps' rules suites on the same rules file:
+  Cases 233, Leads 77, A/R 97, Time Off 159. (Time Off's demo click-through: 2 of its checks about Riley's demo week
+  fail on 12 Oct against its live page too — the demo's dates move with today; nothing to do with the rules.)
+- An independent review of the Paychex punch file (12 Oct) found no hole in the rules and no CSV Paychex would refuse;
+  fixed from it: people who left (or were taken off the clock) can be given a worker ID for their last check; a failed
+  read showed an empty form that could be saved over the IDs → the error and Check again; a save over newer IDs → refused;
+  the file's total was the period rounded once, a hundredth off regular + overtime as entered → now the hours paid; a
+  payroll push said "attached"; never back from lunch one day and a clock-out the next → no longer "out from lunch 29 h
+  later"; signing out now forgets the IDs and anything typed.
 - **The alert script and end-to-end tests assume daytime at the office** (a clock-in "3 hours ago today", a run that
   doesn't cross midnight, not 3:00–3:05 AM when an idle time clock reloads itself): run them between about 3:30 AM and
   9 PM Eastern.

@@ -179,6 +179,31 @@ const FB = {
     try { await (asKiosk ? FB.kdb : FB.db).doc('meta/rules_tc_2').get(); return true; }
     catch (e) { if (FB.isPerm(e)) return false; throw e; }
   },
+  /* the rules that know Paychex's IDs (meta/tcPx) are live: the time clock works without them; only those IDs wait */
+  async pxRulesOk() {
+    try { await FB.db.doc('meta/rules_tc_3').get(); return true; }
+    catch (e) { if (FB.isPerm(e)) return false; throw e; }
+  },
+  /* Paychex: the company ID and each person's worker ID (Dr. A writes; managers read) → { cid, ids, at } (empty ones when
+     there are none yet; at: when they were saved, 0 for never) */
+  async loadPx() {
+    const s = await FB.db.doc('meta/tcPx').get();
+    const d = s.exists ? s.data() : {};
+    const ids = {};
+    if (d.ids && typeof d.ids === 'object') Object.keys(d.ids).forEach(k => { if (TCE.pxWidOk(d.ids[k])) ids[k] = d.ids[k]; });
+    return { cid: TCE.pxCidOk(d.cid) ? d.cid : '', ids, at: s.exists ? FB.tsMs(d.at) : 0 };
+  },
+  /* all of them at once (they replace what's there) — refused when they were saved again since these were read (at, as
+     loadPx gave it: another tab, say), so nothing saved there is lost */
+  async savePx(cid, ids, at) {
+    if (!FB.isOwner()) throw errCode('permission');
+    const ref = FB.db.doc('meta/tcPx');
+    await FB.track(FB.db.runTransaction(async t => {
+      const s = await t.get(ref);
+      if ((s.exists ? FB.tsMs(s.data().at) : 0) !== (at || 0)) throw errCode('stale', 'Not saved: the Paychex IDs were changed in another window since this page read them.');
+      t.set(ref, { cid, ids, at: FB.ts() });
+    }));
+  },
 
   /* ---------- the office lock: where this login is right now ----------
      The office check (url: a workers.dev address) looks at the address the request comes from and writes down, under

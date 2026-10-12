@@ -114,6 +114,24 @@ await ok('the alert script reads them', getDoc(doc(as('bot1'), 'meta/tcAlerts'))
 await no('staff can’t', getDoc(doc(as('ca'), 'meta/tcAlerts')));
 await no('the time clock can’t', getDoc(doc(kiosk('kiosk1'), 'meta/tcAlerts')));
 
+console.log('\n# Paychex: the company ID and each person’s worker ID (Dr. A)');
+const PX = { cid: '00123456', ids: { gwen: 'E104', kim: '17' } };
+await ok('Dr. A saves them', setDoc(doc(as('owner'), 'meta/tcPx'), Object.assign({ at: serverTimestamp() }, PX)));
+await ok('…and changes one', setDoc(doc(as('owner'), 'meta/tcPx'), { cid: '00123456', ids: { gwen: 'E104', kim: '18' }, at: serverTimestamp() }));
+await no('…not a company ID longer than 8, or with other characters', setDoc(doc(as('owner'), 'meta/tcPx'), { cid: '123-4567', ids: {}, at: serverTimestamp() }));
+await no('…not with an extra field', setDoc(doc(as('owner'), 'meta/tcPx'), Object.assign({ x: 1, at: serverTimestamp() }, PX)));
+await no('…not without the server’s time', setDoc(doc(as('owner'), 'meta/tcPx'), Object.assign({ at: now() }, PX)));
+await no('a manager can’t change them', setDoc(doc(as('fc'), 'meta/tcPx'), Object.assign({ at: serverTimestamp() }, PX)));
+await ok('a manager reads them (for the punch file)', getDoc(doc(as('fc'), 'meta/tcPx')));
+await ok('the alert script reads them (the payroll-Friday email)', getDoc(doc(as('bot1'), 'meta/tcPx')));
+await no('staff can’t', getDoc(doc(as('ca'), 'meta/tcPx')));
+await no('the time clock can’t', getDoc(doc(kiosk('kiosk1'), 'meta/tcPx')));
+await no('the alert script can’t change them', setDoc(doc(as('bot1'), 'meta/tcPx'), Object.assign({ at: serverTimestamp() }, PX)));
+await no('a stranger can’t read them', getDoc(doc(as('stranger'), 'meta/tcPx')));
+await ok('the rules level for them is readable to staff', getDoc(doc(as('ca'), 'meta/rules_tc_3')));
+await ok('…and to the time clock', getDoc(doc(kiosk('kiosk1'), 'meta/rules_tc_3')));
+await no('…not to a stranger', getDoc(doc(as('stranger'), 'meta/rules_tc_3')));
+
 console.log('\n# who manages the time clock: Dr. A, and whoever he adds');
 await no('someone who approves time off isn’t a time clock manager (Tina reads no punches)', getDocs(collection(as('hr2'), 'tcPunch')));
 await no('…or corrections', getDocs(collection(as('hr2'), 'tcFix')));

@@ -423,6 +423,12 @@ async def steps(b, log):
     r = await sp.evaluate("FB.saveSettings(Object.assign({}, TCE.DEFAULTS, { ot: 50 })).then(() => 'saved', e => e.code)")
     check('…and the database refuses a change from her', 'permission' in r, r)
     QUIET['on'] = False
+    await sp.wait_for_selector('#pxCard #pxCid')
+    check('the Paychex IDs are read-only for her too', await sp.is_disabled('#pxCid') and await sp.locator('#pxCard [data-act=pxSave]').count() == 0)
+    QUIET['on'] = True
+    r = await sp.evaluate("FB.db.doc('meta/tcPx').set({ cid: '1', ids: {}, at: FB.ts() }).then(() => 'saved', e => e.code)")
+    check('…and the database refuses them from her', 'permission' in r, r)
+    QUIET['on'] = False
 
     print('\n# Kim (not allowed from home), at home')
     NETS['kim'] = HOME_IP
@@ -471,6 +477,29 @@ async def steps(b, log):
     async with op.expect_download() as dl: await op.click('[data-act=payCsv]')
     csv = open(await (await dl.value).path(), encoding='utf-8-sig').read()
     check('…and downloads for Paychex', csv.startswith('"Employee","Period start"') and 'Gwen Tester' in csv, csv[:200])
+
+    print('\n# Dr. A: the Paychex punch file')
+    await op.click('.navBtn[data-v=settings]'); await op.wait_for_selector('#pxCard #pxCid')
+    await op.fill('#pxCid', '00123456')
+    for sid, wid in [('gwen', 'G7'), ('kim', 'K8'), ('wila', 'W9')]: await op.fill(f'#pxCard input.pxW[data-sid={sid}]', wid)
+    await op.click('#pxCard [data-act=pxSave]'); await op.wait_for_timeout(1000)
+    d = get('meta/tcPx') or {}; ids = {k: list(v.values())[0] for k, v in ((d.get('ids') or {}).get('fields') or {}).items()}
+    check('Settings → Paychex: the company ID and the worker IDs saved (Sarah: none yet)', d.get('cid') == '00123456' and ids == {'gwen': 'G7', 'kim': 'K8', 'wila': 'W9'}, d)
+    # saved meanwhile somewhere else (another window): this page's Save is refused, then goes through with the latest shown
+    put('meta/tcPx', {'cid': '00123456', 'ids': {'gwen': 'G7', 'kim': 'K8', 'wila': 'W9', 'sarah': 'S5'}, 'at': {'__ts': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}})
+    await op.fill('#pxCard input.pxW[data-sid=kim]', 'K88'); await op.click('#pxCard [data-act=pxSave]'); await op.wait_for_timeout(1500)
+    d2 = get('meta/tcPx') or {}; ids2 = {k: list(v.values())[0] for k, v in ((d2.get('ids') or {}).get('fields') or {}).items()}
+    check('…saved meanwhile in another window: refused (nothing lost), and the latest shown with what was typed', 'changed in another window' in await toast_text(op) and ids2.get('kim') == 'K8' and await op.input_value('#pxCard input.pxW[data-sid=sarah]') == 'S5' and await op.input_value('#pxCard input.pxW[data-sid=kim]') == 'K88', [ids2, await toast_text(op)])
+    await op.click('#pxCard [data-act=pxSave]'); await op.wait_for_timeout(1200)
+    d3 = get('meta/tcPx') or {}; ids3 = {k: list(v.values())[0] for k, v in ((d3.get('ids') or {}).get('fields') or {}).items()}
+    check('…then Save again keeps both', ids3 == {'gwen': 'G7', 'kim': 'K88', 'wila': 'W9', 'sarah': 'S5'}, ids3)
+    await op.fill('#pxCard input.pxW[data-sid=sarah]', ''); await op.fill('#pxCard input.pxW[data-sid=kim]', 'K8'); await op.click('#pxCard [data-act=pxSave]'); await op.wait_for_timeout(1200)
+    await op.click('.navBtn[data-v=pay]'); await op.wait_for_selector('[data-act=payPx]'); await op.click('[data-act=payPx]')
+    await op.wait_for_selector('.modal:has-text("Paychex punch file")'); pxm = await op.inner_text('.modal')
+    check('Payroll → Paychex punch file: who’s in it, by worker ID (not Sarah: no time this period)', re.search(r'Gwen Tester\s+G7\s+\d', pxm) is not None and 'Sarah' not in pxm, pxm[-500:])
+    async with op.expect_download() as dl: await op.click('[data-act=payPxGo]')
+    raw = open(await (await dl.value).path(), 'rb').read(); xl = raw.decode('ascii').split('\r\n')
+    check('…the file: Paychex’s header row first, then a line for each finished part of a day, by worker ID', raw[:10] == b'Company ID' and xl[0].endswith('Check Seq Number,Total Hours') and len(xl) > 2 and all(re.match(r'00123456,(G7|K8|W9),\d\d/\d\d/\d{4},(Clock In|End Meal),\d\d:\d\d[AP]M,', l) for l in xl[1:-1]) and xl[-1] == '', xl)
 
     print('\n# Dr. A removes the time clock')
     QUIET['on'] = True  # (the front desk's live updates are refused from now on, as they should be)

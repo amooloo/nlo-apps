@@ -11,7 +11,8 @@
      • forgets to clock out, or never comes back from lunch,
      • asks a manager for a punch they missed (or leaves a note) at the time clock or on My time,
      • or when someone types 5 wrong PINs for a person at the time clock.
-   On payroll Friday (7 AM) it emails each person's regular and overtime hours for the two weeks. The morning after a
+   On payroll Friday (7 AM) it emails each person's regular and overtime hours for the two weeks, with the Paychex punch
+   file attached (once Paychex's IDs are in Time Clock → Settings → Paychex). The morning after a
    pay period ends, it emails that period's time cards as two spreadsheets (the same as the Payroll page's), so this
    Gmail account keeps a copy of every pay period without anyone downloading them.
    If Dr. A set a time for it, it also sends a daily summary. Each alert goes out once, even if this script
@@ -23,7 +24,7 @@
    Turn on:  pick "setup" next to Run (top bar), press Run, and allow access.
    Turn off: pick "stop", press Run.
    ===================================================================== */
-var VERSION = '2';
+var VERSION = '3';
 var CONFIG = /*TC_CONFIG*/null; // filled in by NLO Time Clock when you copy the script (Time Clock → Alerts → Get the script)
 
 // where each kind of alert goes when Dr. A hasn't picked: 1 = email, 2 = phone push, 3 = both, 0 = not sent
@@ -141,7 +142,7 @@ function run_(cfg, s, props, now) {
   const test = testAlert_(A, props, now);
   if (test) alerts.push(test);
   if (A.digest && now >= TCE.atTime(today, A.digest)) alerts.push(digest_(weeks, today, now, asks, onClock));
-  if (pay) alerts.push(payroll_(cfg, s, office, set, P, F, asks, pay, now));
+  if (pay) alerts.push(payroll_(cfg, s, office, set, P, F, asks, pay, now, !!(A.emails.length && (routeOf_(A.route, 'payroll') & 1))));
   // (the time cards never hold up the alerts: a problem making them shows on the check-in, and the next check tries again)
   let recErr = '';
   if (rec) { try { const t = records_(cfg, s, props, office, set, P, F, asks, rec, now); if (t) alerts.push(t); } catch (e) { recErr = 'The time cards couldn’t be made: ' + cap_(msg_(e), 120); } }
@@ -301,11 +302,13 @@ function payrollDue_(A, set, props, today, now) {
   if (doneLoad_(props)[alertId_('payroll|' + pay[0]).slice(1, 17)]) return null; // (sent already)
   return pay;
 }
-/* the payroll numbers: each person's regular and overtime hours for the two weeks (overtime counted by workweek) */
-function payroll_(cfg, s, office, set, P, F, asks, pay, now) {
+/* the payroll numbers: each person's regular and overtime hours for the two weeks (overtime counted by workweek), and
+   — when they go by email (mail) — the Paychex punch file attached once Paychex's IDs are in (Settings → Paychex) */
+function payroll_(cfg, s, office, set, P, F, asks, pay, now, mail) {
   const a = pay[0], z = pay[1], to = TCE.dayStart(TCE.addDays(z, 1)), from = TCE.dayStart(a);
   const appr = {};
   for (let wk = TCE.weekOf(a, set.wk); wk <= z; wk = TCE.addDays(wk, 7)) appr[wk] = approvals_(cfg, s, wk);
+  const px = mail ? paychexIds_(cfg, s) : null, pxIn = [], pxNoId = [], pxOpen = [];
   const lines = [], fix = [];
   const word = { 'missing-out': 'no clock-out', 'no-return': 'never back from lunch', 'no-in': 'no clock-in', 'lunch-out': 'clocked out from lunch (no Back)' };
   // everyone on the clock, and anyone else with time in the period (someone who left, or was taken off the clock)
@@ -316,17 +319,56 @@ function payroll_(cfg, s, office, set, P, F, asks, pay, now) {
     const who = p.name + (!p.active ? ' (left)' : !current ? ' (off the clock)' : '');
     pp.issues.forEach(i => fix.push(who + ': ' + word[i.type] + ' ' + TCE.dayText(i.day)));
     if (!tot && !pp.issues.length) return; // (no time in this period)
+    if (px && px.ids && !px.err && !staff.sal) { // (salaried: not in the punch file)
+      try {
+        const pl = TCE.paychexLines(list, set, a, z, now);
+        // (each person's lines add up to the hours paid: regular and overtime, each as entered)
+        if (pl.lines.length) { if (px.ids[p.sid]) pxIn.push({ wid: px.ids[p.sid], lines: pl.lines, want: TCE.pxWant(pl.lines, pp.reg, pp.ot) }); else pxNoId.push(who); }
+        if (pl.open.length && px.ids[p.sid]) pxOpen.push(who);
+      } catch (e) { px.err = cap_(msg_(e), 80); } // (the punch file never holds up the payroll numbers)
+    }
     lines.push(staff.sal ? who + ' (salaried) — ' + TCE.hText(tot) + ', for the record'
       : who + ' — ' + TCE.hText(pp.reg) + ' regular, ' + TCE.hText(pp.ot) + ' overtime (' + TCE.hText(tot) + ' in all)' +
         (pp.ot ? ': ' + pp.weeks.filter(x => x.ot > 0).map(x => TCE.hText(x.ot) + ' the week of ' + TCE.dayText(x.wkIso)).join(', ') : ''));
   });
   const names = {}; office.people.forEach(p => { names[p.sid] = p.name; });
   (asks || []).forEach(r => { if (r.ps.some(q => q.t >= from && q.t < to)) fix.push(names[r.sid] + ' asked for a missed punch: ' + TCE.reqText(r) + ' (not approved yet)'); });
+  // the punch file: in this email (one of its own then), never on its own — it's "as of" the same moment as the numbers.
+  // (Only by email: a push carries the words, so with the numbers going by push only, nothing is said about it.)
+  let pxText = '', files = null;
+  const pxName = 'paychex-punches-' + a + '-to-' + z + '.csv';
+  if (px && !px.err && px.cid && pxIn.length) { try { files = [{ name: pxName, text: TCE.paychexCsv(px.cid, pxIn) }]; } catch (e) { px.err = cap_(msg_(e), 80); } }
+  if (!mail) pxText = '';
+  else if (px && px.err) pxText = 'The Paychex punch file couldn’t be made this time (' + px.err + '): get it from the Payroll page → Paychex punch file.';
+  else if (!px || !px.cid) pxText = 'To get the Paychex punch file attached here too, add Paychex’s IDs in the Time Clock: Settings → Paychex.';
+  else {
+    pxText = files ? 'Paychex punch file (attached to the email): ' + pxName + ', each day’s punches and hours for ' + pxIn.length + (pxIn.length === 1 ? ' person' : ' people') +
+      ', to import in Paychex Payroll Center (Punch Detail Import). Paychex prints them on each check stub; the hours to pay are the ones above. ' +
+      'Salaried people aren’t in it' + (fix.length ? ', and neither is time still to fix' : '') + '. After fixing anything, get a new one: the Payroll page → Paychex punch file.'
+      : pxNoId.length ? 'No Paychex punch file: nobody with finished time has a Paychex worker ID yet (Settings → Paychex).' : 'No Paychex punch file: there’s no finished time to put in it.';
+    if (pxOpen.length) pxText += '\nNot in it yet, on the clock right now: ' + pxOpen.join(', ') + ' (get a new one once they’re done).';
+    if (pxNoId.length) pxText += '\nNot in the punch file, with no Paychex worker ID yet (Settings → Paychex): ' + pxNoId.join(', ') + '.';
+  }
   const text = 'Pay period ' + TCE.dayText(a) + ' – ' + TCE.dayText(z) + '. The hours to enter (overtime is counted for each workweek, then added up):\n\n' +
     (lines.length ? lines.join('\n') : 'Nobody has time in this period.') +
     (fix.length ? '\n\nFix these first (on the Now screen, or in Timesheets):\n' + fix.join('\n') : '') +
-    '\n\nThese are the hours as of ' + TCE.timeText(now) + (to > now ? ' (the period ends ' + TCE.dayText(z) + ')' : '') + '. The Payroll page always has the latest numbers.';
-  return { key: 'payroll|' + a, type: 'payroll', sid: '', prio: 3, title: 'Payroll: ' + TCE.dayText(a) + ' – ' + TCE.dayText(z), text };
+    '\n\nThese are the hours as of ' + TCE.timeText(now) + (to > now ? ' (the period ends ' + TCE.dayText(z) + ')' : '') + '. The Payroll page always has the latest numbers.' +
+    (pxText ? '\n\n' + pxText : '');
+  const o = { key: 'payroll|' + a, type: 'payroll', sid: '', prio: 3, title: 'Payroll: ' + TCE.dayText(a) + ' – ' + TCE.dayText(z), text };
+  if (files) o.files = files;
+  return o;
+}
+/* Paychex's IDs (Settings → Paychex) for the punch file: { cid, ids }; null when there are none yet, or when the
+   database's rules are older than the IDs (the time clock works without them); { err } when they couldn't be read now */
+function paychexIds_(cfg, s) {
+  let r;
+  // (straight to the database: a refusal here is old rules, not a login to renew)
+  try { r = http_(cfg, 'get', root_(cfg) + '/meta/tcPx', null, s.tok); } catch (e) { return { err: cap_(msg_(e), 80) }; }
+  if (r.code === 404 || r.code === 403) return null;
+  if (r.code !== 200 || !r.json) return { err: why_(r) };
+  const f = plain_(r.json.fields), ids = {};
+  if (f.ids && typeof f.ids === 'object') Object.keys(f.ids).forEach(k => { if (TCE.pxWidOk(f.ids[k])) ids[k] = f.ids[k]; });
+  return { cid: TCE.pxCidOk(f.cid) ? f.cid : '', ids };
 }
 
 /* ---------- each pay period's time cards, for the records (Amir: "I definitely want to keep the data for at least 2
@@ -396,7 +438,7 @@ function records_(cfg, s, props, office, set, P, F, asks, rec, now) {
     '• ' + name2 + ': every day: the punches, the hours, anything flagged, and each correction (who made it, when, and why)\n\n' +
     lines.join('\n') + '\n\n' +
     'Keep this email: it’s this pay period’s record. The Time Clock keeps every punch and correction too, and anything changed later shows there as a correction.';
-  return { key, type: 'payroll', sid: '', prio: 2, title: 'Time cards: ' + TCE.dayText(a) + ' – ' + TCE.dayText(z) + ' (for your records)', text,
+  return { key, type: 'payroll', sid: '', prio: 2, title: 'Time cards: ' + TCE.dayText(a) + ' – ' + TCE.dayText(z) + ' (for your records)', text, only: 1,
     files: [{ name: name1, text: csvOf_(totals) }, { name: name2, text: csvOf_(days) }] };
 }
 /* where a punch came from, as the Payroll page's spreadsheet says it */
@@ -460,7 +502,7 @@ function deliver_(cfg, s, props, alerts, A, now) {
   const errs = [], work = [], fin = {}, seen = {};
   const list = alerts.slice().sort((a, b) => (b.prio || 3) - (a.prio || 3)); // the most important first (the email's subject)
   for (const a of list) {
-    const want = (a.type === 'test' ? 3 : routeOf_(A.route, a.type)) & can & (a.files ? 1 : 3); // (a test goes everywhere; files only by email)
+    const want = (a.type === 'test' ? 3 : routeOf_(A.route, a.type)) & can & (a.only || 3); // (a test goes everywhere; the time cards only by email)
     if (!want) continue; // not sent (Dr. A's choice), or nowhere to send it
     const id = alertId_(a.key), k = id.slice(1, 17);
     if (seen[id]) continue;
@@ -472,8 +514,8 @@ function deliver_(cfg, s, props, alerts, A, now) {
     if (!c.mine) continue; // the other copy is sending it right now
     work.push({ a, id, k, want, had: c.had, need: want & ~c.had, got: c.had });
   }
-  // email: one for everything this check found — except one with files (the time cards), which goes in an email of its
-  // own, easy to find later
+  // email: one for everything this check found — except one with files (the time cards, the payroll numbers with the
+  // Paychex punch file), which goes in an email of its own, easy to find later (a push carries the words only)
   const mail = work.filter(w => w.need & 1), batch = mail.filter(w => !w.a.files);
   if (batch.length) {
     try { email_(cfg, A.emails, batch.map(w => w.a)); batch.forEach(w => { w.got |= 1; }); }

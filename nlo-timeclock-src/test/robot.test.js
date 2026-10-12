@@ -122,7 +122,7 @@ const tsMs = s => Date.parse(s);
     ok('the alerts sent are noted, each by email and push as chosen', sent1.length === 4 && sent1.every(x => x.st === 'sent') &&
       sent1.find(x => x.type === 'home').ch === '2' && sent1.find(x => x.type === 'ot').ch === '3', sent1.map(x => [x.type, x.st, x.ch]));
     const beat = (await list('tcBeat'))[0] || {};
-    ok('the script checks in: its mailbox, version, no problem', beat.box === 'records@example.com' && beat.ver === '2' && beat.err === '' && beat.id === su.localId, beat);
+    ok('the script checks in: its mailbox, version, no problem', beat.box === 'records@example.com' && beat.ver === '3' && beat.err === '' && beat.id === su.localId, beat);
 
     console.log('\n# each alert once');
     const r2 = A.run('check_(true)');
@@ -204,6 +204,52 @@ const tsMs = s => Date.parse(s);
     const n1 = pf.mail.length; pf.run('check_(true)');
     ok('…once', !pf.mail.slice(n1).some(m => /Payroll: /.test(m.body)));
     ok('…with nothing attached', !pm.attachments);
+    ok('…and how to get the Paychex punch file attached too (no Paychex IDs yet)', /To get the Paychex punch file attached here too, add Paychex’s IDs in the Time Clock: Settings → Paychex\./.test(pm.body), pm.body);
+
+    console.log('\n# payroll Friday with Paychex’s IDs: the punch file attached');
+    // (the same payroll email again, as if it hadn't gone yet: its entry in the list of alerts sent taken out)
+    const payId = pf.ctx.alertId_('payroll|' + pa);
+    await put('meta/tcAlerts', { emails: ['dr.test@example.com'], topic: 'nlo-clock-test1', route: { payroll: 3 }, digest: '', test: null, at: new Date() });
+    await del('tcSent/' + payId);
+    const pxe = load(cfg, 'records@example.com', { off: TCE.atTime(payFri, '07:30') - Date.now() });
+    Object.assign(pxe.props, A.props);
+    pxe.ctx.paychexIds_ = () => ({ err: 'boom' }); // (Paychex's IDs couldn't be read, somehow)
+    pxe.run('check_(true)');
+    const em = pxe.mail.find(m => /Payroll: /.test(m.body)) || { body: '' };
+    ok('the IDs can’t be read: the payroll numbers still go, saying where to get the file', /Gwen — 38 h regular/.test(em.body) && /The Paychex punch file couldn’t be made this time \(boom\): get it from the Payroll page → Paychex punch file\./.test(em.body) && !em.attachments, em.body);
+    await del('tcSent/' + payId);
+    await put('meta/tcPx', { cid: '00123456', ids: { gwen: 'E104', kim: '7' }, at: new Date() }); // (Lee, who left, and Wila: no ID)
+    const px = load(cfg, 'records@example.com', { off: TCE.atTime(payFri, '07:30') - Date.now() });
+    Object.assign(px.props, A.props);
+    const pxPush = pushes().length;
+    px.run('check_(true)');
+    const xm = px.mail.find(m => /Payroll: /.test(m.body)) || { body: '', attachments: [] };
+    if (process.env.SHOW) console.log(xm.body, (xm.attachments || []).map(x => x.name + '\n' + x.text).join('\n'));
+    const xa = (xm.attachments || [])[0] || { text: '' }, xl = xa.text.split('\r\n');
+    ok('the payroll numbers come in an email of their own, the punch file attached', xm.subject === 'Payroll: ' + TCE.dayText(pa) + ' – ' + TCE.dayText(pz) && (xm.attachments || []).length === 1 && xa.name === 'paychex-punches-' + pa + '-to-' + pz + '.csv' && xa.type === 'text/csv', [xm.subject, (xm.attachments || []).map(x => x.name)]);
+    ok('…the file: Paychex’s header row first (no byte-order mark), CR LF', xl[0] === 'Company ID,Worker ID,Punch/Apply Date,Punch Type 1,Punch Time 1,Punch Type 2,Punch Time 2,Punch Type 3,Punch Time 3,Punch Type 4,Punch Time 4,Check Seq Number,Total Hours' && xa.text.endsWith('\r\n'), xl[0]);
+    const md = iso => TCE.pxDate(iso);
+    ok('…Gwen’s and Kim’s days by worker ID; 12 h 40 min three times is 12.67, 12.67, 12.66 (38.00, her hours)', xl.length === 8 &&
+      xl[1] === '00123456,E104,' + md(TCE.addDays(today, -3)) + ',Clock In,07:00AM,Clock Out,07:40PM,,,,,,12.67' &&
+      xl[2] === '00123456,E104,' + md(TCE.addDays(today, -2)) + ',Clock In,07:00AM,Clock Out,07:40PM,,,,,,12.67' &&
+      xl[3] === '00123456,E104,' + md(TCE.addDays(today, -1)) + ',Clock In,07:00AM,Clock Out,07:40PM,,,,,,12.66' &&
+      xl.slice(4, 7).every(l => /^00123456,7,\d\d\/\d\d\/\d{4},Clock In,07:00AM,Clock Out,08:30PM,,,,,,13\.50$/.test(l)) && xl[7] === '', xl);
+    ok('…the email says what’s attached, that time still to fix isn’t in it, and who has no worker ID (Lee, who left)', /Paychex punch file \(attached to the email\): paychex-punches-[\d-]+-to-[\d-]+\.csv, each day’s punches and hours for 2 people, to import in Paychex Payroll Center \(Punch Detail Import\)\./.test(xm.body) &&
+      /Salaried people aren’t in it, and neither is time still to fix\. After fixing anything, get a new one: the Payroll page → Paychex punch file\./.test(xm.body) && /Not in the punch file, with no Paychex worker ID yet \(Settings → Paychex\): Lee \(left\)\./.test(xm.body) && !/Wila \(/.test(xm.body), xm.body);
+    ok('…and the phone push still goes (the words, without the file)', pushes().slice(pxPush).some(x => x.title === 'Payroll: ' + TCE.dayText(pa) + ' – ' + TCE.dayText(pz)), pushes().slice(pxPush).map(x => x.title));
+    const pxN = px.mail.length; px.run('check_(true)');
+    ok('…once', !px.mail.slice(pxN).some(m => /Payroll: /.test(m.body)));
+    // the payroll numbers by phone push only: nothing about a file nobody would get
+    await put('meta/tcAlerts', { emails: ['dr.test@example.com'], topic: 'nlo-clock-test1', route: { payroll: 2 }, digest: '', test: null, at: new Date() });
+    await del('tcSent/' + payId);
+    const pxp = load(cfg, 'records@example.com', { off: TCE.atTime(payFri, '07:30') - Date.now() });
+    Object.assign(pxp.props, A.props);
+    const ppN = pushes().length;
+    pxp.run('check_(true)');
+    const pp1 = pushes().slice(ppN).find(x => /^Payroll: /.test(x.title)) || { message: '' };
+    ok('the payroll numbers by push only: the push says nothing about the punch file, and no email', /Gwen — 38 h regular/.test(pp1.message) && !/Paychex/.test(pp1.message) && !pxp.mail.some(m => /Payroll: /.test(m.body)), [pp1.message, pxp.mail.map(m => m.subject)]);
+    await del('meta/tcPx');
+    await put('meta/tcAlerts', { emails: ['dr.test@example.com'], topic: '', route: {}, digest: '', test: null, at: new Date() });
 
     console.log('\n# each pay period’s time cards, for the records');
     // when they go: the morning after the period ends, and never before 8 PM on its payroll Friday (in office time)

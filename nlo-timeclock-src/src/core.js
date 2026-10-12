@@ -79,8 +79,9 @@ function csvCell(v) {
   return '"' + s.replace(/"/g, '""') + '"';
 }
 function csvOf(rows) { return rows.map(r => r.map(csvCell).join(',')).join('\r\n') + '\r\n'; }
-function download(name, text, type) {
-  const blob = new Blob(['﻿' + text], { type: type || 'text/csv;charset=utf-8' }), url = URL.createObjectURL(blob);
+/* bare: no byte-order mark (Paychex reads the first header by its exact name; the spreadsheets keep theirs for Excel) */
+function download(name, text, type, bare) {
+  const blob = new Blob([(bare ? '' : '\uFEFF') + text], { type: type || 'text/csv;charset=utf-8' }), url = URL.createObjectURL(blob);
   const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click();
   setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1500);
 }

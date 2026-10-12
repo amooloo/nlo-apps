@@ -401,6 +401,7 @@ async function lockOut(msg) {
   const back = S.fromKiosk && B.kiosk;
   S.timers.forEach(t => clearInterval(t)); S.timers = [];
   closeModal(); B.stop(); await B.signOut(); S.mode = ''; S.fromKiosk = false; S.view = 'now';
+  S.px = null; S.pxDraft = null; S.pxFile = null; // (Paychex's IDs, and anything typed there: not for the next person here)
   if (back) { enterKiosk(); return; }
   if (S.demo) { lockScreen('demo'); return; }
   lockScreen('login', msg ? { ok: msg } : {});
@@ -571,7 +572,7 @@ ACT.doSetup = async b => {
   const team = Array.from(S.roster.values()).filter(r => r.active && r.role !== 'owner').map(r => r.sid);
   if (await act(b, () => B.setupOffice(team), 'The time clock is set up. Next: People (PINs), then Alerts.')) { S.view = 'people'; renderShell(); }
 };
-ACT.go = b => { S.view = b.dataset.v; S.dirty = false; closeModal(); renderView(); window.scrollTo(0, 0); };
+ACT.go = b => { S.view = b.dataset.v; S.dirty = false; S.pxDraft = null; closeModal(); renderView(); window.scrollTo(0, 0); };
 // (data-nodirty: a box on those screens that isn't one of their settings — the code a laptop shows, say)
 ['input', 'change'].forEach(ev => document.addEventListener(ev, e => { if (S.mode === 'app' && (S.view === 'settings' || S.view === 'alerts') && e.target.closest && e.target.closest('#view') && !e.target.closest('[data-nodirty]')) S.dirty = true; }));
 document.addEventListener('click', e => { if (S.mode === 'app' && (S.view === 'settings' || S.view === 'alerts') && e.target.closest && e.target.closest('#view .pick')) S.dirty = true; }, true);

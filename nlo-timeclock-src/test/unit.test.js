@@ -265,6 +265,66 @@ w = wk([PN('in', MON, '08:00', 'own', 'office', 'u1'), PN('out', MON, '16:00', '
 eq('her phone and a laptop at the office: nothing to flag', w.days[1].flags.map(f => f.type), []);
 yes('the network alert is on the alert list (email and push)', TCE.ALERTS.some(a => a[0] === 'net') && TCE.ROUTE.net === 3);
 
+console.log('\n# forgot to clock out one day, and to clock in the next');
+w = wk([P('gwen', 'in', WED, '08:00'), P('gwen', 'out', THU, '17:00')], at(THU, '18:00'));
+eq('not one 33-hour shift: both flagged, nothing counted until fixed', [TCE.h2(w.total), w.issues.map(x => x.type)], [0, ['missing-out', 'no-in']]);
+w = wk([P('gwen', 'in', MON, '20:00'), P('gwen', 'out', TUE, '01:00')], at(TUE, '09:00'));
+eq('…a late shift past midnight still pairs', [TCE.h2(w.total), w.issues.length], [5, 0]);
+
+{
+  // lunch Monday, never back; a clock-out Tuesday with no clock-in: not "out from lunch 29 hours later"
+  const tl = TCE.timeline(TCE.entries([P('gwen', 'in', MON, '08:00'), P('gwen', 'lunch', MON, '12:00'), P('gwen', 'out', TUE, '17:00')], []), at(WED, '09:00'));
+  eq('never back from lunch one day, a clock-out with no clock-in the next', tl.issues.map(i => [i.type, i.day]), [['no-return', MON], ['no-in', TUE]]);
+}
+console.log('\n# Paychex: the punch detail import');
+const pxList = [
+  P('gwen', 'in', MON, '07:58'), P('gwen', 'lunch', MON, '12:00'), P('gwen', 'back', MON, '12:30'), P('gwen', 'out', MON, '17:02'),
+  P('gwen', 'in', TUE, '08:00'), P('gwen', 'out', TUE, '10:00'), P('gwen', 'in', TUE, '10:10'), P('gwen', 'lunch', TUE, '12:00'), P('gwen', 'back', TUE, '12:30'), P('gwen', 'out', TUE, '16:00'),
+  P('gwen', 'in', WED, '08:00'),
+  P('gwen', 'in', THU, '08:00'), P('gwen', 'out', THU, '13:00')];
+const pxp = TCE.paychexLines(TCE.entries(pxList, []), SET, '2026-10-11', '2026-10-24', at('2026-10-23', '07:00'));
+eq('a line a day with up to two pairs; a paid 10-minute break in the hours; a third pair on a line of its own', pxp.lines.map(l => [l.day, l.pairs.length, TCE.h2(l.ms)]), [[MON, 2, 8.57], [TUE, 2, 4], [TUE, 1, 3.5], [THU, 1, 5]]);
+eq('…the day with no clock-out is left out, to fix first', pxp.fix, [WED]);
+const pxc = TCE.paychexCsv('00123456', [{ wid: 'E104', lines: pxp.lines }]).split('\r\n');
+eq('the header row, exactly as Paychex names the columns', pxc[0], 'Company ID,Worker ID,Punch/Apply Date,Punch Type 1,Punch Time 1,Punch Type 2,Punch Time 2,Punch Type 3,Punch Time 3,Punch Type 4,Punch Time 4,Check Seq Number,Total Hours');
+eq('a day with lunch', pxc[1], '00123456,E104,10/12/2026,Clock In,07:58AM,Start Meal,12:00PM,End Meal,12:30PM,Clock Out,05:02PM,,8.57');
+eq('two pairs, then the third on the next line', [pxc[2], pxc[3]], ['00123456,E104,10/13/2026,Clock In,08:00AM,Clock Out,10:00AM,Clock In,10:10AM,Start Meal,12:00PM,,4.00', '00123456,E104,10/13/2026,End Meal,12:30PM,Clock Out,04:00PM,,,,,,3.50']);
+eq('…a line for every day worked, and the file ends with a line break (nothing before the header)', [pxc.length, pxc[4], pxc[5], pxc[0].charCodeAt(0)], [6, '00123456,E104,10/15/2026,Clock In,08:00AM,Clock Out,01:00PM,,,,,,5.00', '', 67]);
+const pxFix = TCE.paychexLines(TCE.entries(pxList, [{ id: fid(), sid: 'gwen', op: 'add', ref: '', kind: 'out', t: at(WED, '16:30'), why: 'forgot', by: 'mgr' }]), SET, '2026-10-11', '2026-10-24', at('2026-10-23', '07:00'));
+eq('once a manager adds the clock-out, that day is in', [pxFix.fix, pxFix.lines.filter(l => l.day === WED).map(l => TCE.h2(l.ms))], [[], [8.5]]);
+const pxLate = TCE.paychexLines(TCE.entries([P('gwen', 'in', MON, '08:00'), P('gwen', 'lunch', MON, '12:00'), P('gwen', 'out', MON, '17:00')], []), SET, '2026-10-11', '2026-10-24', at('2026-10-23', '07:00'));
+eq('out from lunch hours later (no Back): the morning is in, the day is to fix', [pxLate.lines.map(l => TCE.h2(l.ms)), pxLate.fix], [[4], [MON]]);
+{
+  const now = at(TUE, '14:00'), mk = l => TCE.paychexLines(TCE.entries(l, []), SET, '2026-10-11', '2026-10-24', now);
+  const inNow = mk([P('gwen', 'in', MON, '08:00'), P('gwen', 'out', MON, '16:00'), P('gwen', 'in', TUE, '08:00'), P('gwen', 'lunch', TUE, '12:00'), P('gwen', 'back', TUE, '12:30')]);
+  eq('clocked in right now: today’s morning is in, the rest of today isn’t over (not a day to fix)', [inNow.lines.map(l => [l.day, TCE.h2(l.ms)]), inNow.fix, inNow.open], [[[MON, 8], [TUE, 4]], [], [TUE]]);
+  const atLunch = mk([P('gwen', 'in', TUE, '08:00'), P('gwen', 'lunch', TUE, '12:00')]);
+  eq('…and at lunch right now', [atLunch.lines.map(l => [l.day, TCE.h2(l.ms)]), atLunch.fix, atLunch.open], [[[TUE, 4]], [], [TUE]]);
+}
+{
+  const fixed = TCE.entries(pxList, [{ id: fid(), sid: 'gwen', op: 'add', ref: '', kind: 'out', t: at(WED, '16:30'), why: 'forgot', by: 'mgr' }]);
+  const pp = TCE.payPeriod(fixed, SET, STAFF, '2026-10-11', '2026-10-24', at('2026-10-23', '07:00'));
+  const fl = TCE.paychexLines(fixed, SET, '2026-10-11', '2026-10-24', at('2026-10-23', '07:00'));
+  eq('the file’s hours add up to the Payroll page’s total for the period', TCE.h2(fl.lines.reduce((n, l) => n + l.ms, 0)), TCE.h2(pp.reg + pp.ot));
+}
+eq('each line’s hours add up to the total rounded once (three 20-minute pairs: 1.00, not 0.99)', [TCE.pxHundredths([20 * MIN, 20 * MIN, 20 * MIN]), TCE.pxHundredths([8 * H + 34 * MIN, 0]), TCE.pxHundredths([])], [[34, 33, 33], [857, 0], []]);
+{
+  // weeks of 38 h 20 min and 42 h 20 min: 78.33 regular + 2.33 overtime are paid (80.66), not 80 h 40 min rounded (80.67)
+  const ls = [], add = (ms, n) => { for (let i = 0; i < n; i++) ls.push({ ms }); };
+  add(8 * H + 4 * MIN, 10);
+  const reg = 78 * H + 20 * MIN, ot = 2 * H + 20 * MIN, w = TCE.pxWant(ls, reg, ot), hs = TCE.pxHundredths(ls.map(l => l.ms), w);
+  eq('the lines add up to the hours paid: regular and overtime, each rounded as entered (80.66, not 80.67)', [w, hs.reduce((n, x) => n + x, 0), hs.every(x => x === 806 || x === 807)], [8066, 8066, true]);
+  eq('…only when the lines hold all of the time paid (someone on the clock now: their own total)', TCE.pxWant(ls.slice(1), reg, ot), undefined);
+  eq('…and a total the lines can’t reach a hundredth each is ignored', TCE.pxHundredths([20 * MIN, 20 * MIN, 20 * MIN], 105), [34, 33, 33]);
+}
+{
+  const t = l => ({ day: MON, pairs: [{ a: at(MON, l[0]), b: at(MON, l[1]), ak: 'in', bk: 'out' }], ms: at(MON, l[1]) - at(MON, l[0]) });
+  const rows = TCE.paychexCsv('1234', [{ wid: '7', lines: [t(['08:00', '08:20']), t(['09:00', '09:20']), t(['10:00', '10:20'])] }]).split('\r\n').slice(1, 4);
+  eq('…and so in the file (Paychex adds the lines up for the check stub)', rows.map(r => r.split(',').pop()), ['0.34', '0.33', '0.33']);
+}
+eq('Paychex IDs: up to 8 (company) and 10 (worker) letters or digits', [TCE.pxCidOk('00123456'), TCE.pxCidOk('123456789'), TCE.pxCidOk(''), TCE.pxWidOk('E104'), TCE.pxWidOk('E-104'), TCE.pxWidOk('12345678901'), TCE.pxWidOk(null)], [true, false, false, true, false, false, false]);
+eq('times as Paychex reads them (noon, midnight, afternoon)', [TCE.pxTime(at(MON, '12:05')), TCE.pxTime(at(MON, '00:15')), TCE.pxTime(at(MON, '13:40'))], ['12:05PM', '12:15AM', '01:40PM']);
+
 console.log('\n# small things the page uses');
 eq('a laptop asking to be approved says what it is', [devText('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36'),
   devText('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15'),
