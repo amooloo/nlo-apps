@@ -129,12 +129,57 @@
 
   .checks{border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
   .chk{
-    display:grid;grid-template-columns:26px 1fr 28px;align-items:center;gap:10px;
+    display:grid;grid-template-columns:26px 1fr auto 28px;align-items:center;gap:10px;
     padding:8px 10px 8px 12px;border-bottom:1px solid var(--line-2);
   }
   .chk:last-child{border-bottom:none}
   .chk .i{font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums}
-  .chk .amt{font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+  .chk .amt{font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:-.01em;text-align:right}
+  .chk .from{
+    appearance:none;border:none;background:none;font:inherit;font-size:13.5px;color:var(--ink-2);
+    text-align:left;cursor:pointer;padding:2px 0;min-width:0;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .chk .from.none{color:var(--muted);opacity:.6}
+
+  .btn-cam{display:inline-flex;align-items:center;justify-content:center;padding:9px 12px}
+  .btn-cam svg{width:19px;height:19px}
+
+  /* ---------- scan sheet ---------- */
+  .scan{
+    position:fixed;inset:0;z-index:50;display:none;align-items:flex-end;justify-content:center;
+    background:rgba(10,14,20,.45);padding:12px;
+  }
+  .scan.open{display:flex}
+  @media (min-width:600px){.scan{align-items:center}}
+  .sheet{
+    width:100%;max-width:440px;background:var(--surface);border:1px solid var(--line);
+    border-radius:16px;box-shadow:var(--shadow);padding:16px;max-height:92vh;overflow:auto;
+  }
+  .sheet .sh-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+  .sheet h3{font-size:16px;font-weight:650}
+  .sheet .close{
+    appearance:none;border:none;background:none;cursor:pointer;color:var(--muted);
+    font-size:22px;line-height:1;padding:2px 6px;border-radius:6px;
+  }
+  .sheet img{
+    display:block;width:100%;max-height:170px;object-fit:contain;border-radius:8px;
+    background:var(--surface-2);border:1px solid var(--line);
+  }
+  .scan-status{font-size:13px;color:var(--ink-2);margin:10px 0 4px;min-height:19px}
+  .scan-status.warn{color:var(--warn)}
+  .bar{height:4px;border-radius:4px;background:var(--line-2);overflow:hidden;margin-bottom:6px}
+  .bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
+  .field{display:block;margin-top:10px}
+  .field span{display:block;font-size:11px;font-weight:650;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+  .field input{
+    width:100%;font:inherit;font-size:16px;padding:9px 12px;text-align:left;color:var(--ink);
+    background:var(--surface);border:1px solid var(--line);border-radius:8px;
+  }
+  .field input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+  .field input.verify{border-color:var(--warn);background:var(--warn-soft)}
+  .sheet .actions{margin-top:14px}
+  .sheet .privacy{font-size:11px;color:var(--muted);margin-top:10px;text-align:center}
   .chk .x{
     appearance:none;border:none;background:none;cursor:pointer;color:var(--muted);
     font-size:17px;line-height:1;padding:3px 6px;border-radius:6px;
@@ -179,7 +224,7 @@
   #slip{display:none}
   @media print{
     body{background:#fff;color:#000;padding:0}
-    .wrap{display:none!important}
+    .wrap,.scan{display:none!important}
     #slip{
       display:block!important;padding:.45in;max-width:7.5in;
       font-family:-apple-system,"Segoe UI",Arial,sans-serif;color:#000;
@@ -245,8 +290,12 @@
 
       <div class="addbar">
         <input type="number" id="checkInput" step="0.01" min="0" placeholder="Check amount" inputmode="decimal">
+        <button class="btn btn-ghost btn-cam" onclick="startScan()" title="Scan a check with the camera" aria-label="Scan check">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7.5 6.5H4a1 1 0 0 0-1 1V19a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V7.5a1 1 0 0 0-1-1h-3.5z"/><circle cx="12" cy="13" r="3.5"/></svg>
+        </button>
         <button class="btn btn-primary" onclick="addCheck()">Add</button>
       </div>
+      <input type="file" id="camInput" accept="image/*" capture="environment" hidden>
 
       <div id="checkList"></div>
 
@@ -271,6 +320,23 @@
         <div id="toast"></div>
       </div>
     </div>
+  </div>
+</div>
+
+<div class="scan" id="scan" role="dialog" aria-modal="true" aria-labelledby="scanTitle">
+  <div class="sheet">
+    <div class="sh-head"><h3 id="scanTitle">Scanned check</h3><button class="close" onclick="closeScan()" aria-label="Close">&times;</button></div>
+    <img id="scanImg" alt="Check photo">
+    <div class="scan-status" id="scanStatus"></div>
+    <div class="bar"><i id="scanBar"></i></div>
+    <label class="field"><span>Amount</span><input type="number" id="scanAmt" step="0.01" min="0" inputmode="decimal" placeholder="0.00"></label>
+    <label class="field"><span>From</span><input type="text" id="scanFrom" autocomplete="off" placeholder="e.g. Delta Dental"></label>
+    <div class="actions">
+      <button class="btn btn-ghost" onclick="retakeScan()">Retake</button>
+      <button class="btn btn-ghost" onclick="acceptScan(true)">Add + next</button>
+      <button class="btn btn-primary" onclick="acceptScan(false)">Add</button>
+    </div>
+    <div class="privacy">Read on this device. The photo isn't uploaded or saved.</div>
   </div>
 </div>
 
@@ -302,7 +368,12 @@
     return Math.round((t + coinOf()) * 100) / 100;
   }
   function checksTotal(){
-    return Math.round(checks.reduce(function(s,c){ return s + c; }, 0) * 100) / 100;
+    return Math.round(checks.reduce(function(s,c){ return s + c.amt; }, 0) * 100) / 100;
+  }
+  function esc(s){
+    return String(s).replace(/[&<>"']/g, function(ch){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];
+    });
   }
   function daySheet(){
     var raw = $('daySheet').value;
@@ -347,21 +418,28 @@
     var el = $('checkList');
     if(!checks.length){ el.innerHTML = '<div class="empty">No checks entered</div>'; return; }
     var html = '<div class="checks">';
-    checks.forEach(function(amt, i){
+    checks.forEach(function(c, i){
       html += '<div class="chk"><span class="i num">' + (i+1) + '</span>' +
-              '<span class="amt num">' + money(amt) + '</span>' +
+              '<button class="from' + (c.from ? '' : ' none') + '" data-e="' + i + '" title="Tap to edit who it\'s from">' +
+                (c.from ? esc(c.from) : 'From?') + '</button>' +
+              '<span class="amt num">' + money(c.amt) + '</span>' +
               '<button class="x" title="Remove" data-i="' + i + '">&times;</button></div>';
     });
     el.innerHTML = html + '</div>';
+  }
+
+  function pushCheck(amt, from){
+    checks.push({ amt: Math.round(amt * 100) / 100, from: (from || '').trim() });
+    renderChecks(); paint();
   }
 
   window.addCheck = function(){
     var input = $('checkInput');
     var amt = parseFloat(input.value);
     if(isNaN(amt) || amt <= 0){ input.focus(); return; }
-    checks.push(Math.round(amt * 100) / 100);
     input.value = '';
-    renderChecks(); paint(); input.focus();
+    pushCheck(amt, '');
+    input.focus();
   };
 
   window.clearAll = function(){
@@ -399,9 +477,27 @@
       ? '<tr><td>Coin</td><td class="r">&mdash;</td><td class="r">' + money(coinOf()) + '</td></tr>' : '';
     var checkRows = checks.length
       ? checks.map(function(x,i){
-          return '<tr><td>Check ' + (i+1) + '</td><td class="r">' + money(x) + '</td></tr>';
+          return '<tr><td>Check ' + (i+1) + '</td><td>' + esc(x.from || '—') + '</td><td class="r">' + money(x.amt) + '</td></tr>';
         }).join('')
-      : '<tr><td colspan="2" style="color:#777">No checks</td></tr>';
+      : '<tr><td colspan="3" style="color:#777">No checks</td></tr>';
+
+    /* By-payer subtotals, only when at least one check has a payer */
+    var byPayer = '';
+    if(checks.some(function(x){ return x.from; })){
+      var groups = {}, order = [];
+      checks.forEach(function(x){
+        var key = x.from || 'Not specified';
+        if(!groups[key]){ groups[key] = {n:0, t:0}; order.push(key); }
+        groups[key].n++; groups[key].t += x.amt;
+      });
+      order.sort(function(a,b){ return groups[b].t - groups[a].t; });
+      byPayer = '<h3>Checks by payer</h3>' +
+        '<table><thead><tr><th>From</th><th class="r">Checks</th><th class="r">Amount</th></tr></thead><tbody>' +
+        order.map(function(k){
+          return '<tr><td>' + esc(k) + '</td><td class="r">' + groups[k].n + '</td><td class="r">' +
+                 money(Math.round(groups[k].t * 100) / 100) + '</td></tr>';
+        }).join('') + '</tbody></table>';
+    }
 
     var ds = daySheet(), v = variance();
     var recon = ds === null ? '' :
@@ -423,9 +519,9 @@
       '<tr class="sub"><td>Cash subtotal</td><td></td><td class="r">' + money(c) + '</td></tr>' +
       '</tbody></table>' +
       '<h3>Checks (' + checks.length + ')</h3>' +
-      '<table><thead><tr><th>Item</th><th class="r">Amount</th></tr></thead><tbody>' + checkRows +
-      '<tr class="sub"><td>Checks subtotal</td><td class="r">' + money(k) + '</td></tr>' +
-      '</tbody></table>' +
+      '<table><thead><tr><th>Item</th><th>From</th><th class="r">Amount</th></tr></thead><tbody>' + checkRows +
+      '<tr class="sub"><td>Checks subtotal</td><td></td><td class="r">' + money(k) + '</td></tr>' +
+      '</tbody></table>' + byPayer +
       '<div class="grand"><span>TOTAL DEPOSIT</span><span>' + money(g) + '</span></div>' +
       recon +
       '<div class="sig"><div>Prepared by</div><div>Verified by</div><div>Bank receipt #</div></div>';
@@ -449,11 +545,262 @@
   $('daySheet').addEventListener('input', paint);
 
   $('checkList').addEventListener('click', function(e){
+    var f = e.target.closest('.from');
+    if(f){
+      var c = checks[Number(f.getAttribute('data-e'))];
+      var v = window.prompt('Who is this check from?', c.from || '');
+      if(v !== null){ c.from = v.trim(); renderChecks(); }
+      return;
+    }
     var b = e.target.closest('.x');
     if(!b) return;
     checks.splice(Number(b.getAttribute('data-i')), 1);
     renderChecks(); paint();
   });
+
+  /* ================= Check scanning (on-device OCR) =================
+     Tesseract.js runs in the browser (WebAssembly). Only the library and
+     its English language file are downloaded; the photo itself never
+     leaves the device and is discarded when the sheet closes. We keep
+     only two things from the check: the amount and the payer name. */
+
+  var TESS_SRC = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+  var workerP = null, scanUrl = null, scanSeq = 0;
+
+  var PAYERS = [
+    [/delta\s*dent/i,'Delta Dental'],
+    [/met\s*life/i,'MetLife'],
+    [/cigna/i,'Cigna'],
+    [/aetna/i,'Aetna'],
+    [/guardian/i,'Guardian'],
+    [/united\s*concordia/i,'United Concordia'],
+    [/united\s*health\s*care|\buhc\b/i,'UnitedHealthcare'],
+    [/humana/i,'Humana'],
+    [/florida\s*blue/i,'Florida Blue'],
+    [/blue\s*cross|\bbcbs\b|blue\s*shield/i,'Blue Cross Blue Shield'],
+    [/anthem/i,'Anthem'],
+    [/ameritas/i,'Ameritas'],
+    [/principal\s*(life|financial)/i,'Principal'],
+    [/sun\s*life/i,'Sun Life'],
+    [/lincoln\s*(financial|national)/i,'Lincoln Financial'],
+    [/\bgeha\b/i,'GEHA'],
+    [/careington/i,'Careington'],
+    [/denta\s*quest/i,'DentaQuest'],
+    [/\bmcna\b/i,'MCNA Dental'],
+    [/liberty\s*dental/i,'Liberty Dental'],
+    [/assurant/i,'Assurant'],
+    [/\bunum\b/i,'Unum'],
+    [/physicians\s*mutual/i,'Physicians Mutual'],
+    [/renaissance/i,'Renaissance Dental'],
+    [/spirit\s*dental/i,'Spirit Dental'],
+    [/dominion\s*(dental|national)/i,'Dominion Dental'],
+    [/envolve/i,'Envolve Dental'],
+    [/tricare/i,'TRICARE'],
+    [/mutual\s*of\s*omaha/i,'Mutual of Omaha'],
+    [/\bbeam\s*(dental|benefit)/i,'Beam Dental'],
+    [/colonial\s*life/i,'Colonial Life'],
+    [/\baflac\b/i,'Aflac'],
+    [/standard\s*insurance/i,'The Standard'],
+    /* payment agents some insurers pay through; listed last so a named insurer wins */
+    [/echo\s*health/i,'ECHO Health'],
+    [/\bzelis\b/i,'Zelis'],
+    [/\bvpay\b/i,'VPay'],
+    [/change\s*healthcare/i,'Change Healthcare'],
+    [/instamed/i,'InstaMed']
+  ];
+  var NOT_PAYER = /next\s*level|akhavan|orthodont|\bpay\b|order\s*of|\bdate\b|\bvoid\b|dollars|\bmemo\b|check\s*(no|number|#)|amount|\bbank\b|\bn\.?\s?a\.?$|chase|wells\s*fargo|fifth\s*third|truist|citibank|pnc|u\.?s\.?\s*bank|jpmorgan|days|non.?negotiable|\bnw\b|gainesville|\bfl\b\s*\d|\d{5}/i;
+
+  function findAmount(text){
+    var t = text
+      .replace(/\bS(?=[*\d])/g, '$')                    /* "S412.00" -> "$412.00" */
+      .replace(/(\d)[oO](?=\d|\.)/g, '$10')             /* O misread as 0 inside numbers */
+      .replace(/(\d),(\d{2})(?!\d)/g, '$1.$2')           /* "412,00" -> "412.00" */
+      .replace(/([$*]\s*)(\d{1,3})[ .](\d{3}\.\d{2})(?!\d)/g, '$1$2,$3'); /* "***1 250.50" -> "***1,250.50" */
+    var re = /([$*][$*\s]*)?(\d{1,3}(?:,\d{3})+|\d{1,6})\.(\d{2})(?![\d.\/])/g;
+    var best = {}, m;
+    while((m = re.exec(t))){
+      var prev = t.charAt(m.index - 1);
+      if(/[\d.\/]/.test(prev)) continue;               /* part of a date or longer number */
+      var val = parseFloat(m[2].replace(/,/g,'') + '.' + m[3]);
+      if(!(val > 0) || val > 250000) continue;
+      var lineStart = t.lastIndexOf('\n', m.index) + 1;
+      var line = t.slice(lineStart, t.indexOf('\n', m.index) === -1 ? t.length : t.indexOf('\n', m.index));
+      var score = 0;
+      if(m[1] && m[1].indexOf('$') > -1) score += 3;
+      if(m[1] && m[1].indexOf('*') > -1) score += 4;    /* check-protector stars = printed check amount */
+      if(/amount|pay\s*exactly|check\s*amt|net\s*pay|total/i.test(line)) score += 2;
+      var key = val.toFixed(2);
+      best[key] = (best[key] || 0) + score + 1;        /* repeats (face + stub) add weight */
+    }
+    var keys = Object.keys(best);
+    if(!keys.length) return null;
+    keys.sort(function(a,b){ return (best[b] - best[a]) || (parseFloat(b) - parseFloat(a)); });
+    return { value: parseFloat(keys[0]), sure: best[keys[0]] >= 4 };
+  }
+
+  function findPayer(text){
+    for(var i = 0; i < PAYERS.length; i++){
+      if(PAYERS[i][1] && PAYERS[i][0].test(text)) return { name: PAYERS[i][1], sure: true };
+    }
+    /* Fallback: first name-like line above the "Pay to the order of" line */
+    var lines = text.split('\n').map(function(s){
+      /* drop "CHECK NO. …", "DATE …" etc. that print on the same line as the payer */
+      return s.replace(/\s+(check|chk|date|void|no\.|#).*$/i, '').trim();
+    });
+    var stop = lines.length;
+    for(var j = 0; j < lines.length; j++){ if(/order\s*of|^pay\b/i.test(lines[j])){ stop = j; break; } }
+    for(var k = 0; k < stop; k++){
+      if(((lines[k].match(/\d/g) || []).length) >= 3) continue;      /* address / numbers line */
+      var s = lines[k].replace(/[^A-Za-z&.,' -]/g,' ').replace(/\s+/g,' ').trim();
+      var letters = (s.match(/[A-Za-z]/g) || []).length;
+      if(letters >= 5 && letters / s.length > .7 && !NOT_PAYER.test(s)){
+        var nice = s.toLowerCase().replace(/\b[a-z]/g, function(ch){ return ch.toUpperCase(); })
+                    .replace(/\b(Inc|Llc|Co|Corp)\b\.?/g, function(w){ return w.toUpperCase().replace('.',''); });
+        return { name: nice.slice(0, 40), sure: false };
+      }
+    }
+    return { name: '', sure: false };
+  }
+
+  function loadTesseract(){
+    if(workerP) return workerP;
+    workerP = new Promise(function(resolve, reject){
+      if(window.Tesseract) return resolve();
+      var s = document.createElement('script');
+      s.src = TESS_SRC; s.onload = resolve;
+      s.onerror = function(){ reject(new Error('Could not load the check reader. Check the internet connection.')); };
+      document.head.appendChild(s);
+    }).then(function(){
+      return window.Tesseract.createWorker('eng', 1, {
+        logger: function(m){
+          if(m.status === 'recognizing text') setBar(m.progress);
+          else if(/loading|initializ/.test(m.status)) setStatus('Getting the check reader ready (first time only)…');
+        }
+      });
+    });
+    workerP.catch(function(){ workerP = null; });
+    return workerP;
+  }
+
+  function setStatus(msg, warn){
+    var el = $('scanStatus'); el.textContent = msg; el.classList.toggle('warn', !!warn);
+  }
+  function setBar(p){ $('scanBar').style.width = Math.round((p || 0) * 100) + '%'; }
+
+  /* Downscale + grayscale; optional 90° rotation for sideways shots */
+  function prepCanvas(img, rot){
+    var w = img.naturalWidth, h = img.naturalHeight;
+    var scale = Math.min(1, 2000 / Math.max(w, h));
+    w = Math.round(w * scale); h = Math.round(h * scale);
+    var c = document.createElement('canvas');
+    var side = rot % 180 !== 0;
+    c.width = side ? h : w; c.height = side ? w : h;
+    var x = c.getContext('2d');
+    x.translate(c.width / 2, c.height / 2);
+    x.rotate(rot * Math.PI / 180);
+    x.drawImage(img, -w / 2, -h / 2, w, h);
+    var d = x.getImageData(0, 0, c.width, c.height), p = d.data;
+    for(var i = 0; i < p.length; i += 4){
+      var g = p[i] * .299 + p[i+1] * .587 + p[i+2] * .114;
+      g = Math.max(0, Math.min(255, (g - 128) * 1.35 + 128));   /* a little more contrast */
+      p[i] = p[i+1] = p[i+2] = g;
+    }
+    x.putImageData(d, 0, 0);
+    return c;
+  }
+
+  function readCheck(img, seq){
+    var portrait = img.naturalHeight > img.naturalWidth * 1.15;
+    var tries = portrait ? [0, 90, 270] : [0, 180];
+    var bestRes = null;
+    return loadTesseract().then(function(worker){
+      var run = function(i){
+        if(i >= tries.length || seq !== scanSeq) return bestRes;
+        setStatus(i === 0 ? 'Reading check…' : 'Trying another angle…'); setBar(0);
+        return worker.recognize(prepCanvas(img, tries[i])).then(function(r){
+          var text = r.data.text || '';
+          var res = { amt: findAmount(text), payer: findPayer(text), conf: r.data.confidence || 0 };
+          var good = function(z){ return (z.amt ? 2 : 0) + (z.payer.sure ? 2 : z.payer.name ? 1 : 0) + z.conf / 100; };
+          if(!bestRes || good(res) > good(bestRes)) bestRes = res;
+          if(res.amt && res.payer.sure && res.conf > 55) return bestRes;   /* good enough, stop early */
+          return run(i + 1);
+        });
+      };
+      return run(0);
+    });
+  }
+
+  function openSheet(){
+    $('scan').classList.add('open');
+    $('scanAmt').value = ''; $('scanFrom').value = '';
+    $('scanAmt').classList.remove('verify'); $('scanFrom').classList.remove('verify');
+    setBar(0);
+  }
+
+  window.startScan = function(){ $('camInput').value = ''; $('camInput').click(); };
+  window.retakeScan = function(){ window.startScan(); };
+
+  window.closeScan = function(){
+    scanSeq++;                                   /* cancel any read in progress */
+    $('scan').classList.remove('open');
+    $('scanImg').removeAttribute('src');
+    if(scanUrl){ URL.revokeObjectURL(scanUrl); scanUrl = null; }
+    $('camInput').value = '';
+  };
+
+  window.acceptScan = function(next){
+    var amt = parseFloat($('scanAmt').value);
+    if(isNaN(amt) || amt <= 0){ $('scanAmt').focus(); $('scanAmt').classList.add('verify'); return; }
+    var from = $('scanFrom').value.trim();
+    pushCheck(amt, from);
+    window.closeScan();
+    toast('Added ' + money(amt) + (from ? ' from ' + esc(from) : ''));
+    if(next) window.startScan();
+  };
+
+  $('camInput').addEventListener('change', function(){
+    var file = this.files && this.files[0];
+    if(!file) return;
+    var seq = ++scanSeq;
+    if(scanUrl) URL.revokeObjectURL(scanUrl);
+    scanUrl = URL.createObjectURL(file);
+    openSheet();
+    var img = $('scanImg');
+    img.onload = function(){
+      readCheck(img, seq).then(function(r){
+        if(seq !== scanSeq || !r) return;
+        setBar(1);
+        if(r.amt) $('scanAmt').value = r.amt.value.toFixed(2);
+        $('scanFrom').value = r.payer.name;
+        $('scanAmt').classList.toggle('verify', !r.amt || !r.amt.sure);
+        $('scanFrom').classList.toggle('verify', !r.payer.sure);
+        if(!r.amt && !r.payer.name) setStatus("Couldn't read this one. Retake closer, flat and well lit, or type it in.", true);
+        else if(!r.amt || !r.amt.sure || !r.payer.sure) setStatus('Check the highlighted field before adding.', true);
+        else setStatus('Read it. Confirm and add.');
+        if(!r.amt) $('scanAmt').focus();
+      }).catch(function(err){
+        if(seq !== scanSeq) return;
+        setStatus(err && err.message ? err.message : 'Something went wrong reading the check. Type it in instead.', true);
+      });
+    };
+    img.onerror = function(){ setStatus("That photo couldn't be opened. Try again.", true); };
+    img.src = scanUrl;
+  });
+
+  $('scanAmt').addEventListener('keydown', function(e){
+    if(e.key === 'Enter'){ e.preventDefault(); $('scanFrom').focus(); }
+  });
+  $('scanFrom').addEventListener('keydown', function(e){
+    if(e.key === 'Enter'){ e.preventDefault(); window.acceptScan(false); }
+  });
+  $('scanAmt').addEventListener('input', function(){ this.classList.remove('verify'); });
+  $('scanFrom').addEventListener('input', function(){ this.classList.remove('verify'); });
+  document.addEventListener('keydown', function(e){
+    if(e.key === 'Escape' && $('scan').classList.contains('open')) window.closeScan();
+  });
+
+  /* exposed for testing the parsers */
+  window.__depositParse = { findAmount: findAmount, findPayer: findPayer };
 
   renderChecks();
   paint();
