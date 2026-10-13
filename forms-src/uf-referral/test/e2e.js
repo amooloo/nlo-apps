@@ -3,7 +3,7 @@
 const { chromium } = require('playwright');
 const fs = require('fs'), path = require('path');
 const URL0 = process.argv[2], VIEWER = process.argv[3] === 'viewer';
-const OUT = path.resolve('out'); fs.mkdirSync(OUT, { recursive: true });
+const OUT = fs.mkdtempSync(path.join(require('os').tmpdir(), 'ufr-e2e-'));   // the downloaded PDFs (outside the repo)
 let pass = 0, fail = 0;
 const ok = (c, m) => { if (c) pass++; else { fail++; console.log('FAIL:', m); } };
 const offsite = r => { const u = r.request().url(); return /^https?:\/\//.test(u) && !u.startsWith('http://127.0.0.1') ? r.abort() : r.continue(); };
