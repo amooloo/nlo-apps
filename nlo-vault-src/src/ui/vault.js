@@ -432,7 +432,7 @@ async function onClick(e) {
     case 'edit': if (it) openEditor(it); break;
     case 'newFolder': A.folderDialog(null); break;
     case 'editFolder': A.folderDialog(b.dataset.f); break;
-    case 'resumeRot': resumeRotations(true); break;
+    case 'resumeRot': if (await A.ownerKeys()) resumeRotations(true); break;
     case 'fav': {
       const s = favs(); if (s.has(id)) s.delete(id); else s.add(id);
       try { await S.savePrefs({ favs: Array.from(s) }); } catch (er) { toast(errorText(er), { kind: 'bad' }); }
@@ -705,7 +705,7 @@ export async function lockNow(why) {
   closeAllModals();
   try { await S.lock(); } catch (e) { }
   // a fresh page: nothing from this session stays in memory
-  const q = why === 'idle' ? '?locked=idle' : why === 'removed' ? '?locked=removed' : '';
+  const q = why === 'idle' ? '?locked=idle' : why === 'removed' ? '?locked=removed' : why === 'button' ? '?locked=button' : '';
   location.replace(location.pathname + q);
 }
 

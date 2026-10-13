@@ -6,6 +6,7 @@ import { V, COLORS } from '../store.js';
 import { FIELDS, parseDelimited, parseHtmlTables, guessColumns, rowsToItems, parseBlocks, sniff, looksLikeHeader, dupKey } from '../importer.js';
 import { vaultPasswordProblem } from '../gen.js';
 import { go, renderAll } from './vault.js';
+import { ownerKeys } from './admin.js';
 
 let IMP = null;   // { kind: 'table'|'blocks', rows, map, hasHeader, sections, blocks, source }
 
@@ -148,6 +149,7 @@ function drawPreview() {
   on('impGo', 'click', () => runImport());
 }
 async function runImport() {
+  if (!(await ownerKeys())) return;   // opened with Face ID: an import (and any new folders) needs his password too
   const p = plan();
   const rows = p.rows.filter(r => !(r.dup && IMP.dup === 'skip'));
   if (rows.some(r => !r.fid)) {
@@ -224,6 +226,7 @@ export function renderBackup(c) {
     const pw = $('#bkPw', c).value;
     const prob = vaultPasswordProblem(pw, ['nlo', 'vault', 'backup']); if (prob) return err(prob);
     if (pw !== $('#bkPw2', c).value) return err('The two passwords don’t match.');
+    if (!(await ownerKeys())) return;   // opened with Face ID: a full copy of every login needs his password too
     const btn = $('#bkBtn', c); btn.disabled = true;
     try {
       const text = await S.backupFile(pw);
@@ -259,6 +262,7 @@ function drawRestore() {
     <ul class="plain small">${Array.from(byFolder.entries()).map(([fid, n]) => html`<li>${names.get(fid) || 'Folder'}: ${n}${folderByName(names.get(fid)) ? '' : html` <span class="muted">(folder will be made)</span>`}</li>`)}</ul>
     <button type="button" class="btn primary" id="rsGo" ${fresh.length ? '' : 'disabled'}>Add ${fresh.length} ${fresh.length === 1 ? 'login' : 'logins'} back</button>`);
   $('#rsGo', el).addEventListener('click', async () => {
+    if (!(await ownerKeys())) return;
     const btn = $('#rsGo', el); btn.disabled = true;
     try {
       const made = new Map();

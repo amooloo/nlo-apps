@@ -29,6 +29,7 @@ export function errorText(e) {
   if (c === 'name-unknown') return 'This folder’s name couldn’t be read (its key wasn’t made by Dr. A). Open the folder and give it a new key first.';
   if (c === 'no-key') return 'This folder’s key isn’t ready (or wasn’t made by Dr. A). Open the folder to see what to do.';
   if (/too-many-requests/.test(c)) return 'Too many tries. Wait a few minutes and try again.';
+  if (c === 'need-password') return 'You opened the vault with Face ID: type your vault password first (it asks when you start this).';
   return (e && e.message && !/^Firebase|^\[/.test(e.message) ? e.message : 'Something went wrong') + (c ? ' (' + c + ')' : '');
 }
 

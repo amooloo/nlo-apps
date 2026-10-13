@@ -22,7 +22,9 @@ function boot() {
   showSignIn({
     setupLink: p.has('setup'),
     msg: locked === 'idle' ? 'The vault locked itself after a while without use.' : locked === 'removed' ? 'Your access to the vault was turned off.' : '',
-    kind: 'soft'
+    kind: 'soft',
+    // Face ID (if on for this phone) asks straight away — but not right after someone pressed Lock
+    auto: locked !== 'removed' && locked !== 'button' && !p.has('setup')
   });
 }
 // test build only (removed from the production build): lets the browser tests look at the state

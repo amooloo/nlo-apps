@@ -107,6 +107,17 @@ input[readonly] { background: var(--soft); color: var(--muted); }
 .lockLinks { display: flex; flex-direction: column; align-items: center; gap: 2px; margin-top: 14px; }
 .lockMeta { display: flex; align-items: center; justify-content: center; gap: 8px; color: rgba(255,255,255,.7); font-size: 12.5px; margin-top: 16px; text-align: center; }
 .lockMeta .ic { color: var(--mint); width: 16px; height: 16px; }
+/* Face ID on this phone */
+.bioBox { margin: 14px 0 4px; }
+.bioBox .btn.block { min-height: 52px; font-size: 16px; }
+.bioBox .btn.block .ic { width: 22px; height: 22px; }
+.bioBox .err { margin-top: 8px; text-align: center; }
+.bioWho { text-align: center; margin: 6px 0 0; }
+.bioBox .lockLinks { margin-top: 6px; }
+.orLine { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 12.5px; margin: 14px 0 0; }
+.orLine::before, .orLine::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.bioOn { display: flex; gap: 8px; align-items: flex-start; }
+.bioOn .ic { flex: none; color: #0B7C61; margin-top: 1px; }
 .codeBox { font-size: 22px; font-weight: 700; letter-spacing: 1.5px; text-align: center; padding: 16px 10px; margin: 14px 0; background: var(--soft); border: 2px dashed var(--navy); border-radius: 12px; word-break: break-all; }
 
 /* ---------- the vault frame ---------- */

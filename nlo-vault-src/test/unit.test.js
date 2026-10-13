@@ -94,6 +94,58 @@ console.log('\n# encryption');
   ok(Object.keys(counts).length === 31 && Math.min(...Object.values(counts)) > 800, 'random numbers cover every value evenly');
 }
 
+console.log('\n# password -> keys never changes (fixed outputs recorded from the version live on 4 Oct 2026)');
+{
+  // if any of these change, every existing password would stop opening the vault
+  const KNOWN = {
+    sarah: { pw: 'correct horse battery staple', authPw: 'nv1.s83JdJMNdSUi-_YY4Qkj_03TziwmUmaRO7qywwuv-gU', wrapCt: 'aLLEmlivTFG9JXQo1BIe2EntWiXD', lockTok: '4I3VjJvkXYgT3ed4GasrpNDECIqejBmLyANuTjFUQk0' },
+    'dr.test@example.com': { pw: 'maple river cocoa lamp desk', authPw: 'nv1.X1DQ5YB9h4GTvmlfc369Ab8mHJEmLWAITuswUsIQUSg', wrapCt: '/kV4INJlDsIVC1U5bDQ6WIu8+pxA', lockTok: 'dZyjpEfkYHTocgBmb__fP45wMMnw6goIQ8K24j3vQaQ' }
+  };
+  const fixedWrap = async k => C.b64(await crypto.subtle.encrypt({ name: 'AES-GCM', iv: new Uint8Array(12), additionalData: C.TE.encode('v') }, k, C.TE.encode('known')));
+  for (const [login, k] of Object.entries(KNOWN)) {
+    const m = await C.deriveMaster(k.pw, login);
+    ok(m.authPw === k.authPw && await fixedWrap(m.wrapKey) === k.wrapCt && await C.lockToken(m.lockKey, 'x/1') === k.lockTok, 'same sign-in secret, wrap key and lock key as before for ' + login);
+    const bits = await C.masterBits(k.pw, login), m2 = await C.keysFromMaster(bits);
+    ok(bits.length === 32 && m2.authPw === k.authPw && await fixedWrap(m2.wrapKey) === k.wrapCt && await C.lockToken(m2.lockKey, 'x/1') === k.lockTok, '…and the two-step version (master, then keys) gives exactly the same');
+  }
+  await throws(C.keysFromMaster(new Uint8Array(31)), 'a master of the wrong size is refused');
+  await throws(C.keysFromMaster('not bytes'), '…and so is anything that isn’t bytes');
+}
+
+console.log('\n# Face ID on Dr. A’s phone: a small copy locked with the passkey’s secret');
+{
+  const m = await C.deriveMaster('maple river cocoa lamp desk', 'dr@x.test', 1000);
+  const pair = await C.newPair(), pub = await C.pubJwk(pair), e = await C.privBytes(pair);
+  const copy = { a: m.authPw, e: C.b64(e) };
+  const prf = C.rnd(32), aad = C.AAD.bio('u1', 'Dr@X.test ', 'cred1');
+  ok(aad === 'nlo-vault/v1/bio/u1/dr@x.test/cred1', 'bound to the person, their login (as typed any way) and the passkey');
+  const box = await C.sealJSON(await C.bioKey(prf), copy, aad);
+  const back = await C.openJSON(await C.bioKey(prf.slice()), box, aad);
+  ok(back.a === copy.a && back.e === copy.e, 'the passkey’s secret opens the copy kept on the phone');
+  ok(C.unb64(box.ct).length % 256 === 16, 'the copy is padded like everything else (its size says little)');
+  const pk = await C.importPrivFor(C.unb64(back.e), pub);
+  const g = await C.sealTo(pub, C.rnd(32), C.AAD.grant('u1', 'f1', 1));
+  ok((await C.openFrom(pk, g, C.AAD.grant('u1', 'f1', 1))).length === 32, '…and its key opens his folder keys');
+  const other = await C.pubJwk(await C.newPair());
+  await throws(C.importPrivFor(C.unb64(back.e), other), 'a key that isn’t the other half of his public key is refused');
+  await throws(C.importPrivFor(C.unb64(back.e), null), '…and so is one with no public key to check against');
+  await throws(crypto.subtle.exportKey('pkcs8', pk), 'the key, once in the browser, can’t be taken out again');
+  await throws(C.openJSON(await C.bioKey(C.rnd(32)), box, aad), 'another passkey’s secret can’t open the copy');
+  await throws(C.openJSON(await C.bioKey(prf), box, C.AAD.bio('u2', 'dr@x.test', 'cred1')), 'it can’t be used for another person');
+  await throws(C.openJSON(await C.bioKey(prf), box, C.AAD.bio('u1', 'sarah', 'cred1')), '…or another login');
+  await throws(C.openJSON(await C.bioKey(prf), box, C.AAD.bio('u1', 'dr@x.test', 'cred2')), '…or with another passkey');
+  const bad = Object.assign({}, box, { ct: C.b64(C.unb64(box.ct).map((x, i) => i === 3 ? x ^ 1 : x)) });
+  await throws(C.openJSON(await C.bioKey(prf), bad, aad), 'a changed byte is detected');
+  await throws(C.bioKey(new Uint8Array(16)), 'a too-short secret is refused');
+  await throws(crypto.subtle.exportKey('raw', await C.bioKey(prf)), 'the key made from the secret can’t be taken out of the browser');
+  // what the phone never gets: the wrap key (his key container, with his signing key) or the lock key (his key copy)
+  const rawBox = await C.seal(m.wrapKey, C.packKeys(e, C.rnd(138)), C.AAD.priv('u1'));
+  const fromCopy = await C.keysFromMaster(C.rnd(32));
+  await throws(C.open(fromCopy.wrapKey, rawBox, C.AAD.priv('u1')), 'nothing in the copy opens his key container (and so his signing key)');
+  ok(!JSON.stringify(copy).includes('lock') && Object.keys(copy).join() === 'a,e', 'the copy holds only the sign-in secret and the folder key');
+  e.fill(0);
+}
+
 console.log('\n# 2-step codes (RFC 6238 test vectors)');
 {
   const key = new TextEncoder().encode('12345678901234567890');

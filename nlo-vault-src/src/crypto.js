@@ -73,10 +73,19 @@ export function loginId(s) { return String(s || '').trim().toLowerCase(); }
 
 /* ---------- password -> keys ---------- */
 export async function deriveMaster(password, login, iter) {
+  const bits = await masterBits(password, login, iter);
+  try { return await keysFromMaster(bits); } finally { bits.fill(0); }
+}
+/* the slow step: the 32-byte master from the password */
+export async function masterBits(password, login, iter) {
   const pw = String(password || '').normalize('NFC');
   const salt = await sha256(TE.encode('nlo-vault/v1/salt/' + loginId(login)));
   const base = await subtle().importKey('raw', TE.encode(pw), 'PBKDF2', false, ['deriveBits']);
-  const bits = await subtle().deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt, iterations: iter || KDF_ITER }, base, 256);
+  return new Uint8Array(await subtle().deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt, iterations: iter || KDF_ITER }, base, 256));
+}
+/* the fast step: sign-in secret, wrap key and lock key from the master (Face ID unlock starts here, see bio.js) */
+export async function keysFromMaster(bits) {
+  if (!(bits instanceof Uint8Array) || bits.length !== 32) throw new Error('bad-master');
   const hk = await subtle().importKey('raw', bits, 'HKDF', false, ['deriveBits', 'deriveKey']);
   const zero = new Uint8Array(32);
   const authBits = await subtle().deriveBits({ name: 'HKDF', hash: 'SHA-256', salt: zero, info: TE.encode('nlo-vault/v1/auth') }, hk, 256);
@@ -84,6 +93,17 @@ export async function deriveMaster(password, login, iter) {
     { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
   const lockKey = await hmacKey(await subtle().deriveBits({ name: 'HKDF', hash: 'SHA-256', salt: zero, info: TE.encode('nlo-vault/v1/lock') }, hk, 256));
   return { authPw: 'nv1.' + b64u(authBits), wrapKey, lockKey };
+}
+
+/* ---------- Face ID on one phone (bio.js) ----------
+   The phone's passkey hands out its PRF secret only after Face ID (or the phone's passcode). That secret, through
+   HKDF, becomes the AES-256-GCM key that locks this person's master on that phone. */
+export async function bioKey(prf) {
+  const raw = prf instanceof Uint8Array ? prf : new Uint8Array(prf);
+  if (raw.length < 32) throw new Error('bad-prf');
+  const hk = await subtle().importKey('raw', raw, 'HKDF', false, ['deriveKey']);
+  return subtle().deriveKey({ name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(32), info: TE.encode('nlo-vault/v1/bio') }, hk,
+    { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
 }
 
 /* ---------- one-time tokens that guard Dr. A's own key copy ----------
@@ -151,6 +171,12 @@ export async function pubJwk(pair) {
 }
 export async function privBytes(pair) { return new Uint8Array(await subtle().exportKey('pkcs8', pair.privateKey)); }
 export async function importPriv(bytes) { return subtle().importKey('pkcs8', bytes, EC, false, ['deriveBits']); }
+/* a private key brought back from a phone (bio.js): used only if it is the other half of this person's public key */
+export async function importPrivFor(bytes, pub) {
+  const j = await subtle().exportKey('jwk', await subtle().importKey('pkcs8', bytes, EC, true, ['deriveBits']));
+  if (!pub || typeof pub.x !== 'string' || j.x !== pub.x || j.y !== pub.y) throw new Error('key-mismatch');
+  return importPriv(bytes);
+}
 async function importPub(j) {
   if (!j || j.kty !== 'EC' || j.crv !== 'P-256' || typeof j.x !== 'string' || typeof j.y !== 'string') throw new Error('bad-pub');
   return subtle().importKey('jwk', { kty: 'EC', crv: 'P-256', x: j.x, y: j.y, ext: true }, EC, true, []);
@@ -162,7 +188,7 @@ async function boxKey(bits, epkBytes, info) {
     { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
 }
 /* the uncompressed point 04||x||y of a public JWK (used as the HKDF salt) */
-function unb64u(s) { return unb64(String(s).replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((String(s).length + 3) % 4)); }
+export function unb64u(s) { return unb64(String(s).replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((String(s).length + 3) % 4)); }
 function jwkRaw(j) { const x = unb64u(j.x), y = unb64u(j.y), out = new Uint8Array(65); out[0] = 4; out.set(x, 1); out.set(y, 33); return out; }
 export async function sealTo(pub, bytes, info) {
   const pk = await importPub(pub);
@@ -228,5 +254,6 @@ export const AAD = {
   grant: (uid, fid, kv) => 'nlo-vault/v1/grant/' + uid + '/' + fid + '/' + kv,
   folder: (fid, kv) => 'nlo-vault/v1/folder/' + fid + '/' + kv,
   item: (iid, fid, kv) => 'nlo-vault/v1/item/' + iid + '/' + fid + '/' + kv,
-  backup: 'nlo-vault/v1/backup'
+  backup: 'nlo-vault/v1/backup',
+  bio: (uid, login, cred) => 'nlo-vault/v1/bio/' + uid + '/' + loginId(login) + '/' + cred
 };

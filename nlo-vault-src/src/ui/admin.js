@@ -5,6 +5,7 @@ import { V, COLORS, LOCK_CHOICES } from '../store.js';
 import { vaultPasswordProblem } from '../gen.js';
 import { U, go, renderAll, healthOf, pwStrength, avatar } from './vault.js';
 import { showRecoveryCode } from './lock.js';
+import { bioSupported, bioDevice, bioRecord, bioEnable, bioForget } from '../bio.js';
 
 const fname = fid => { const f = V.folders.get(fid); return f ? f.name : 'a deleted folder'; };
 const people = () => Array.from(V.users.values()).filter(u => u.role === 'staff' && u.active).sort((a, b) => a.name.localeCompare(b.name));
@@ -82,6 +83,7 @@ export function renderTeam(c) {
   $$('select[data-acc]', c).forEach(s => s.addEventListener('change', () => accessChanged(s)));
 }
 async function accessChanged(s) {
+  if (!(await ownerKeys())) { renderAll(); return; }
   const [fid, uid] = s.dataset.acc.split('|'), role = s.value || null;
   const u = V.users.get(uid);
   if (!role) {
@@ -210,7 +212,8 @@ function personFoldersDialog(uid) {
     cur.set(fid, role); renderAll();
   }));
 }
-export function folderDialog(fid) {
+export async function folderDialog(fid) {
+  if (!(await ownerKeys())) return;   // (a new folder's key carries his signature; its settings decide who gets in)
   const f = fid ? V.folders.get(fid) : null;
   const items = fid ? Array.from(V.items.values()).filter(i => i.f === fid).length : 0;
   let color = f ? f.color : 'blue';
@@ -250,8 +253,9 @@ export async function onAdminClick(act, b) {
   const uid = b.dataset.u, u = uid ? V.users.get(uid) : null;
   switch (act) {
     case 'openItem': { const it = V.items.get(b.dataset.id); if (!it) return; U.view = 'all'; U.q = ''; U.sel = it.id; U.detail = true; renderAll(); break; }
-    case 'addPerson': addPersonDialog(); break;
+    case 'addPerson': if (await ownerKeys()) addPersonDialog(); break;
     case 'repairKey': {
+      if (!(await ownerKeys())) return;
       const fid = b.dataset.f, f = V.folders.get(fid);
       const what = 'The folder gets a new key that you sign. Every login is locked again with it; any login saved with the key you didn’t make goes back to its last version you can vouch for, and anything slipped in is removed (a copy stays in its history). Do this after you’ve changed your email password and your vault password.';
       let meta = null;
@@ -279,10 +283,10 @@ export async function onAdminClick(act, b) {
       renderAll();
       break;
     }
-    case 'personFolders': personFoldersDialog(uid); break;
+    case 'personFolders': if (await ownerKeys()) personFoldersDialog(uid); break;
     case 'folderUp': case 'folderDown': try { await S.moveFolder(b.dataset.f, act === 'folderUp' ? -1 : 1); } catch (er) { toast(errorText(er), { kind: 'bad' }); } break;
     case 'reissue': {
-      if (!u) return;
+      if (!u || !(await ownerKeys())) return;
       if (!(await confirmBox({ title: 'Reissue ' + u.name + '’s login?', body: 'Use this when they forgot their password. They get a new temporary password and keep the same folders. Their old password stops working.', yes: 'Reissue login' }))) return;
       const m = openModal(html`<div class="mbody"><p>Making a new login…</p></div>`, { sticky: true });
       try { const r = await S.reissue(uid); showTempCard(m, u.name, r.username, r.temp, true); }
@@ -290,7 +294,7 @@ export async function onAdminClick(act, b) {
       break;
     }
     case 'removePerson': {
-      if (!u) return;
+      if (!u || !(await ownerKeys())) return;
       const fids = Array.from(V.grants.values()).filter(g => g.uid === uid).map(g => g.fid);
       const box = await confirmAccessRemoval(u, fids, true);
       if (!box) return;
@@ -299,7 +303,7 @@ export async function onAdminClick(act, b) {
       break;
     }
     case 'rehire': {
-      if (!u) return;
+      if (!u || !(await ownerKeys())) return;
       if (!(await confirmBox({ title: 'Give ' + u.name + ' a new login?', body: 'They get a new temporary password and no folders until you choose them.', yes: 'Make a login' }))) return;
       const m = openModal(html`<div class="mbody"><p>Making a new login…</p></div>`, { sticky: true });
       try { const r = await S.reissue(uid); showTempCard(m, u.name, r.username, r.temp, true); renderAll(); }
@@ -415,6 +419,7 @@ export function renderSettings(c) {
       <p class="muted small">It also locks when you close the tab. Shared office computers: keep this short.</p>
       ${V.owner ? html`<label class="fld inline"><span>Office limit: everyone’s vault locks after at most</span><select id="stMax">${LOCK_CHOICES.map(n => html`<option value="${n}" ${max === n ? 'selected' : ''}>${n} minutes</option>`)}</select></label>` : ''}
     </section>
+    <section class="card pad hidden" id="stBio"></section>
     <section class="card pad"><h2>Change my password</h2>
       <form id="cpForm" novalidate autocomplete="off">
         <label class="fld"><span>Current password</span><input id="cpCur" type="password" autocomplete="off" maxlength="200"></label>
@@ -439,7 +444,10 @@ export function renderSettings(c) {
       </ul></section>
   </div>`);
   $('#stLock', c).addEventListener('change', async e => { try { await S.savePrefs({ lock: +e.target.value }); toast('Saved'); } catch (er) { toast(errorText(er), { kind: 'bad' }); } });
-  const sm = $('#stMax', c); if (sm) sm.addEventListener('change', async e => { try { await S.saveSettings({ lockMax: +e.target.value }); toast('Saved'); } catch (er) { toast(errorText(er), { kind: 'bad' }); } });
+  const sm = $('#stMax', c); if (sm) sm.addEventListener('change', async e => {
+    if (!(await ownerKeys())) { e.target.value = String(max); return; }
+    try { await S.saveSettings({ lockMax: +e.target.value }); toast('Saved'); } catch (er) { toast(errorText(er), { kind: 'bad' }); }
+  });
   const me = V.me || {};
   const ctx = [me.name, me.username, 'nlo', 'vault'].concat(String(me.name || '').split(' '));
   $('#cpNew', c).addEventListener('input', () => setHTML($('#cpMeter', c), meterHTML($('#cpNew', c).value, ctx)));
@@ -452,9 +460,96 @@ export function renderSettings(c) {
     const prob = vaultPasswordProblem(n1, ctx); if (prob) return err(prob);
     if (n1 !== n2) return err('The new passwords don’t match.');
     const btn = $('#cpBtn', c); btn.disabled = true; btn.textContent = 'Changing…';
-    try { await S.changePassword(cur, n1); $('#cpForm', c).reset(); setHTML($('#cpMeter', c), ''); toast('Password changed'); }
+    try {
+      await S.changePassword(cur, n1); $('#cpForm', c).reset(); setHTML($('#cpMeter', c), '');
+      // Face ID on this phone held the old password's key: it's switched off and can be turned on again
+      const br = bioRecord(), bd = bioDevice();
+      if (br && br.uid === V.uid) { bioForget(); drawBio(c); toast('Password changed. Turn ' + (bd ? bd.name : 'Face ID') + ' on again (above) to keep using it.', { ms: 7000 }); }
+      else toast('Password changed');
+    }
     catch (er) { err(er.code === 'bad-current' ? 'Your current password isn’t right.' : errorText(er)); }
     btn.disabled = false; btn.textContent = 'Change password';
+  });
+  drawBio(c);
+}
+
+/* ---------- Face ID on this phone (bio.js) ---------- */
+const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+async function drawBio(c) {
+  const box = $('#stBio', c); if (!box) return;
+  // Dr. A only for now: for staff it would quietly swap the vault password he asks for with their phone's passcode
+  const d = V.owner ? await bioSupported() : null;
+  if (!box.isConnected) return;
+  const rec = bioRecord(), mine = !!rec && rec.uid === V.uid;
+  const dv = d || (mine ? bioDevice() : null);
+  if (!dv) { box.classList.add('hidden'); setHTML(box, ''); return; }
+  box.classList.remove('hidden');
+  if (mine) {
+    setHTML(box, html`<h2>${cap(dv.name)}</h2>
+      <p class="bioOn">${ic('check')}<span><b>On for this ${dv.device}</b> since ${fmtDate(rec.at)}. The vault opens with ${dv.name} here — no password to type.</span></p>
+      <p class="muted small">Opened with ${dv.name}, you can use and change logins straight away. Adding people, changing who can open what, new folders and backups still ask for your password once. Changing your password turns ${dv.name} off; then turn it on again.</p>
+      <button type="button" class="btn" id="bioOffBtn">Turn off on this ${dv.device}</button>`);
+    $('#bioOffBtn', box).addEventListener('click', async () => {
+      if (!(await confirmBox({ title: 'Turn off ' + dv.name + '?', body: 'The vault will ask for your password on this ' + dv.device + ' again.', yes: 'Turn off' }))) return;
+      bioForget(); toast(cap(dv.name) + ' is off on this ' + dv.device); drawBio(c);
+    });
+  } else {
+    setHTML(box, html`<h2>${cap(dv.name)}</h2>
+      <p>Open the vault with ${dv.name} instead of typing your password on this ${dv.device}. You type your password once to turn it on.</p>
+      <p class="muted small">Only on your own ${dv.device}: anyone who can unlock it — with ${dv.name} or its passcode — could see and change your logins (not people, access or folder keys; those still need your password).${dv.kind === 'ios' ? ' Turning on Stolen Device Protection (iPhone Settings → Face ID & Passcode) makes it Face ID only — no passcode — away from familiar places like home and work.' : ''}${rec ? ' (Something else is set up on this ' + dv.device + ' now; turning it on replaces it.)' : ''}</p>
+      <button type="button" class="btn primary" id="bioOnBtn">${ic('face')}<span>Turn on ${dv.name}</span></button>`);
+    $('#bioOnBtn', box).addEventListener('click', () => bioOnDialog(dv, () => drawBio(c)));
+  }
+}
+function bioOnDialog(dv, after) {
+  const m = openModal(html`<form id="boForm" novalidate autocomplete="off"><div class="mhead"><h2>Turn on ${dv.name}</h2><button type="button" class="iconBtn" data-close aria-label="Close">${ic('x')}</button></div>
+    <div class="mbody"><p>Type your vault password once. Then ${dv.look.charAt(0).toLowerCase() + dv.look.slice(1)} when it asks — twice: once to make the passkey, once to check it.</p>
+      <label class="fld"><span>Your vault password</span><input id="boPw" type="password" autocomplete="off" autofocus maxlength="200"></label>
+      <p id="boErr" class="err hidden" role="alert"></p></div>
+    <div class="mfoot"><button type="button" class="btn" data-close>Cancel</button><button type="submit" class="btn primary" id="boBtn">Turn on</button></div></form>`, { label: 'Turn on ' + dv.name });
+  $('#boForm', m.el).addEventListener('submit', async e => {
+    e.preventDefault();
+    const x = $('#boErr', m.el), say = t => { x.textContent = t; x.classList.toggle('hidden', !t); };
+    say('');
+    const pw = $('#boPw', m.el).value;
+    if (!pw) return say('Type your vault password.');
+    const btn = $('#boBtn', m.el); btn.disabled = true; btn.textContent = 'Checking…';
+    let copy = null;
+    try {
+      copy = await S.deviceCopy(pw);
+      btn.textContent = dv.look + '…';
+      await bioEnable({ uid: V.uid, login: V.login, name: (V.me || {}).name, copy });
+      m.close(true); toast(cap(dv.name) + ' is on for this ' + dv.device); after();
+    } catch (er) {
+      btn.disabled = false; btn.textContent = 'Turn on';
+      const code = er.code || '';
+      say(code === 'bad-current' ? 'That isn’t your vault password.'
+        : code === 'bio-cancel' ? cap(dv.name) + ' didn’t finish, so nothing changed. Try again when you’re ready.'
+          : code === 'bio-no-prf' ? (dv.kind === 'ios' ? 'This ' + dv.device + ' can’t do it: it needs iOS 18 or newer, with the passkey saved in Apple’s Passwords (iCloud Keychain).' : 'This phone can’t do it: it needs an up-to-date Chrome with Google Password Manager.')
+            : code === 'bio-storage' ? 'This browser won’t keep it (is it a private window?). Nothing changed.'
+              : errorText(er));
+    } finally { if (copy) copy.e.fill(0); }
+  });
+}
+
+/* A Face ID session doesn't have Dr. A's signing key (bio.js): anything that changes who can open what asks for his
+   password once, until the vault locks. True when he can go ahead. */
+export function ownerKeys() {
+  if (!V.owner || V.spriv) return Promise.resolve(true);
+  return new Promise(resolve => {
+    let ok = false;
+    const m = openModal(html`<form id="okForm" novalidate autocomplete="off"><div class="mhead"><h2>Your password, please</h2><button type="button" class="iconBtn" data-close aria-label="Close">${ic('x')}</button></div>
+      <div class="mbody"><p>You opened the vault with ${(bioDevice() || { name: 'Face ID' }).name}. Adding people, changing who can open what, new folders and backups need your vault password — once, until the vault locks.</p>
+        <label class="fld"><span>Your vault password</span><input id="okPw" type="password" autocomplete="off" autofocus maxlength="200"></label>
+        <p id="okErr" class="err hidden" role="alert"></p></div>
+      <div class="mfoot"><button type="button" class="btn" data-close>Cancel</button><button type="submit" class="btn primary" id="okBtn">Continue</button></div></form>`,
+      { label: 'Your password', onClose: () => resolve(ok) });
+    $('#okForm', m.el).addEventListener('submit', async e => {
+      e.preventDefault();
+      const btn = $('#okBtn', m.el), x = $('#okErr', m.el); btn.disabled = true; btn.textContent = 'Checking…'; x.classList.add('hidden');
+      try { await S.unlockOwnerKeys($('#okPw', m.el).value); ok = true; m.close(true); }
+      catch (er) { btn.disabled = false; btn.textContent = 'Continue'; x.textContent = er.code === 'bad-current' ? 'That isn’t your vault password.' : errorText(er); x.classList.remove('hidden'); }
+    });
   });
 }
 function newCodeDialog() {

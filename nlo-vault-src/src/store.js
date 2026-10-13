@@ -87,13 +87,76 @@ function idFor(login) { return loginKind(login) === 'email' ? C.loginId(login) :
 
 /* returns { state: 'ok' | 'first' (temporary password) | 'recover' (owner: key needs the recovery code) | 'broken' } */
 export async function signIn(login, password) {
+  return signInKeys(login, () => C.deriveMaster(password, idFor(login)));
+}
+async function signInKeys(login, keys) {
   const email = await emailFor(login).catch(e => { throw e.code === 'bad-login' ? err('bad-login') : e; });
-  const m = await C.deriveMaster(password, idFor(login));
+  const m = await keys();
   let cred;
   try { cred = await signInWithEmailAndPassword(V.auth, email, m.authPw); }
   catch (e) { throw /invalid-credential|wrong-password|user-not-found|invalid-email|invalid-login/.test(e.code || '') ? err('bad-login') : e; }
   return afterAuth(cred.user, login, m);
 }
+
+/* ---------- Face ID on Dr. A's phone (bio.js) ----------
+   The phone keeps only the sign-in secret and the key that opens his folders — never the password's master, the
+   wrap key, the lock key or his signing key. So a Face ID session can use and edit logins, but anything that changes
+   who can open what (people, access, folder keys) or his own key copy still needs his password (unlockOwnerKeys). */
+/* check the password just typed (as a password change does) and return what the phone may keep */
+export async function deviceCopy(password) {
+  if (!V.auth || !V.auth.currentUser || !V.login || !V.uid) throw err('no-session');
+  const m = await C.deriveMaster(password, V.login);
+  const u = V.auth.currentUser;
+  try { await reauthenticateWithCredential(u, EmailAuthProvider.credential(u.email, m.authPw)); }
+  catch (e) { throw /invalid-credential|wrong-password|invalid-login|user-mismatch/.test(e.code || '') ? err('bad-current') : e; }
+  const { raw } = await openOwn(await keysNow(), m.wrapKey);
+  if (!raw) throw err('bad-current');
+  let pk; try { pk = C.unpackKeys(raw); } finally { raw.fill(0); }
+  if (pk.s) pk.s.fill(0);
+  return { a: m.authPw, e: pk.e };   // (the caller zeroes e)
+}
+/* sign in with the copy the phone keeps: only for the account it was made for, and only with that person's own key */
+/* (it skips the key-copy states a password sign-in handles — temporary passwords, a half-finished password change —
+   because Face ID is Dr. A's only: his copy is never temporary, and a password sign-in tidies a half-finished change) */
+export async function signInDevice(login, uid, copy) {
+  const email = await emailFor(login).catch(e => { throw e.code === 'bad-login' ? err('bad-login') : e; });
+  let cred;
+  try { cred = await signInWithEmailAndPassword(V.auth, email, copy.a); }
+  catch (e) { throw /invalid-credential|wrong-password|user-not-found|invalid-email|invalid-login/.test(e.code || '') ? err('bad-login') : e; }
+  if (cred.user.uid !== uid) { await lockOut(); throw err('bad-login'); }
+  V.uid = uid; V.login = idFor(login);
+  const us = await getDoc(D('users/' + V.uid)).catch(e => { if (e.code === 'permission-denied') return null; throw e; });
+  if (!us || !us.exists()) { await lockOut(); throw err('not-member'); }
+  const u = us.data();
+  if (!u.active) { await lockOut(); throw err('inactive'); }
+  let priv;
+  try { priv = await C.importPrivFor(copy.e, u.pub); } catch (e) { await lockOut(); throw err('bio-broken'); }
+  V.me = Object.assign({ uid: V.uid }, u); V.owner = u.role === 'owner';
+  V.priv = priv; V.spriv = null; V.pub = u.pub; V.viaDevice = true;
+  V._m = { authPw: copy.a, wrapKey: null, lockKey: null };
+  const st = await getDoc(D('meta/setup'));
+  V.spk = st.exists() ? st.data().spk : null;
+  await start();
+  return { state: 'ok' };
+}
+/* in a Face ID session: Dr. A types his password to use his signing key again (until the vault locks) */
+export async function unlockOwnerKeys(password) {
+  if (!V.uid || !V.login) throw err('no-session');
+  const m = await C.deriveMaster(password, V.login);
+  const { raw } = await openOwn(await keysNow(), m.wrapKey);
+  if (!raw) throw err('bad-current');
+  let pk; try { pk = C.unpackKeys(raw); } finally { raw.fill(0); }
+  try { V.spriv = pk.s ? await C.importSignPriv(pk.s) : null; }
+  finally { pk.e.fill(0); if (pk.s) pk.s.fill(0); }
+  V._m = m; V.viaDevice = false;
+}
+/* Dr. A's signing key, or a clear reason why it isn't here */
+function signer() {
+  if (!V.spriv) throw err(V.owner && V.viaDevice ? 'need-password' : 'no-sign-key');
+  return V.spriv;
+}
+/* folder settings, the office lock limit and backups: in a Face ID session, only after the password too */
+function fullSession() { if (V.owner && V.viaDevice && !V.spriv) throw err('need-password'); }
 async function afterAuth(user, login, m) {
   V.uid = user.uid; V.login = idFor(login);
   const us = await getDoc(D('users/' + V.uid)).catch(e => { if (e.code === 'permission-denied') return null; throw e; });
@@ -104,7 +167,7 @@ async function afterAuth(user, login, m) {
   }
   const u = us.data();
   if (!u.active) { await lockOut(); throw err('inactive'); }
-  V.me = Object.assign({ uid: V.uid }, u); V.owner = u.role === 'owner';
+  V.me = Object.assign({ uid: V.uid }, u); V.owner = u.role === 'owner'; V.viaDevice = false;
   const ks = await getDoc(D('keys/' + V.uid));
   if (!ks.exists()) { return { state: V.owner ? 'recover' : 'broken' }; }
   const k = ks.data();
@@ -683,10 +746,10 @@ async function sealGrant(uid, fid, pub, f, versions) {
 function memberVersions(f) { return f.rot ? [f.rot.from, f.rot.to].filter(v => f.raw.has(v)) : [f.kv]; }
 export async function createFolder({ name, color, def }) {
   if (!V.owner) throw err('owner-only');
-  if (!V.spriv) throw err('no-sign-key');
+  signer();
   const fid = C.newId(12), raw = C.rnd(32), k = await C.aesKey(raw);
   const order = Math.max(0, ...folderList().map(f => f.order || 0)) + 1;
-  const fdoc = { name: await C.sealJSON(k, folderMeta(name, def, false), C.AAD.folder(fid, 1)), kv: 1, ks: { 1: await C.signFolderKey(V.spriv, fid, 1, raw) },
+  const fdoc = { name: await C.sealJSON(k, folderMeta(name, def, false), C.AAD.folder(fid, 1)), kv: 1, ks: { 1: await C.signFolderKey(signer(), fid, 1, raw) },
     color: COLORS.includes(color) ? color : 'gray', order, at: ts(), by: V.uid };
   const batch = writeBatch(V.db);
   batch.set(D('folders/' + fid), fdoc);
@@ -696,6 +759,7 @@ export async function createFolder({ name, color, def }) {
   return fid;
 }
 export async function updateFolder(fid, { name, color, def }) {
+  fullSession();
   const f = V.folders.get(fid), d = V.rawFolders.get(fid);
   const k = f.keys.get(d.kv);
   const upd = { name: await C.sealJSON(k, folderMeta(name, def, f.priv), C.AAD.folder(fid, d.kv)), color: COLORS.includes(color) ? color : 'gray', def: deleteField(), at: ts(), by: V.uid };
@@ -712,6 +776,7 @@ export async function moveFolder(fid, dir) {
   await batch.commit();
 }
 export async function deleteFolder(fid) {
+  fullSession();
   const n = Array.from(V.items.values()).filter(i => i.f === fid).length;
   if (n) throw err('not-empty');
   const batch = writeBatch(V.db);
@@ -726,6 +791,7 @@ export async function setAccess(fid, uid, role, opts) {
   opts = opts || {};
   const f = V.folders.get(fid), u = V.users.get(uid), gid = uid + '_' + fid;
   if (!V.owner || !f || !u || uid === V.uid) throw err('bad-access');
+  signer();
   const had = V.grants.get(gid);
   if (role) {
     if (!u.active) throw err('inactive');
@@ -759,7 +825,7 @@ export async function setAccess(fid, uid, role, opts) {
    Someone signed in as him (say through his email) could add a "person" of their own or a place in a folder. His
    browser seals a key only to people whose public key he signed when he added them, in places he signed for the
    folder's current key version — so it never hands a real key to anyone he didn't choose. */
-const memberSig = (uid, fid, role, kv) => C.signText(V.spriv, C.SIG.member(uid, fid, role, kv));
+const memberSig = (uid, fid, role, kv) => C.signText(signer(), C.SIG.member(uid, fid, role, kv));
 async function personOk(u) { return !!u && !!V.spk && await C.verifyText(V.spk, u.ps, C.SIG.person(u.uid, u.pub)); }
 async function memberOk(g, kv) { return !!g && !!kv && !!V.spk && await C.verifyText(V.spk, g.gs, C.SIG.member(g.uid, g.fid, g.role, kv)); }
 /* the newest key version of a folder that Dr. A signed (what its members' places are signed for) */
@@ -815,13 +881,14 @@ export async function usernameFree(username) {
 }
 export async function addPerson({ name, username, access }) {
   if (!V.owner) throw err('owner-only');
+  signer();   // (before a login is made)
   const un = slugUser(username);
   if (!un || un.length < 2) throw err('bad-username');
   if (!(await usernameFree(un))) throw err('username-taken');
   const L = await newLogin(un, 1);
   const batch = writeBatch(V.db);
   batch.set(D('users/' + L.uid), { name: String(name).trim().slice(0, 60), username: un, role: 'staff', active: true, pub: L.pub, n: L.n, at: ts(), by: V.uid,
-    ps: await C.signText(V.spriv, C.SIG.person(L.uid, L.pub)) });
+    ps: await C.signText(signer(), C.SIG.person(L.uid, L.pub)) });
   batch.set(D('keys/' + L.uid), { wrap: L.wrap, temp: true, at: ts() });
   batch.set(D('logins/' + await loginDocId(un)), { n: L.n });
   for (const [fid, role] of Object.entries(access || {})) {
@@ -836,6 +903,7 @@ export async function addPerson({ name, username, access }) {
 /* forgot password: a fresh login for the same person (same folders); the old login stops working */
 export async function reissue(oldUid) {
   if (!V.owner) throw err('owner-only');
+  signer();
   const u = V.users.get(oldUid); if (!u || u.role !== 'staff') throw err('bad-person');
   if (!(await personOk(u))) throw err('unknown-person');
   const ls = await getDoc(D('logins/' + await loginDocId(u.username)));
@@ -843,7 +911,7 @@ export async function reissue(oldUid) {
   const L = await newLogin(u.username, n0);
   const batch = writeBatch(V.db);
   batch.set(D('users/' + L.uid), { name: u.name, username: u.username, role: 'staff', active: true, pub: L.pub, n: L.n, at: ts(), by: V.uid, replaces: oldUid,
-    ps: await C.signText(V.spriv, C.SIG.person(L.uid, L.pub)) });
+    ps: await C.signText(signer(), C.SIG.person(L.uid, L.pub)) });
   batch.set(D('keys/' + L.uid), { wrap: L.wrap, temp: true, at: ts() });
   batch.update(D('users/' + oldUid), { active: false, replacedBy: L.uid, removedAt: ts() });
   batch.set(D('logins/' + await loginDocId(u.username)), { n: L.n });
@@ -862,6 +930,7 @@ export async function reissue(oldUid) {
 export async function removePerson(uid, opts) {
   opts = opts || {};
   const u = V.users.get(uid); if (!V.owner || !u || u.role !== 'staff') throw err('bad-person');
+  signer();   // (taking them out gives their folders new signed keys)
   const theirs = Array.from(V.grants.values()).filter(g => g.uid === uid);
   const batch = writeBatch(V.db);
   batch.update(D('users/' + uid), { active: false, removedAt: ts() });
@@ -906,7 +975,7 @@ async function rotateNow(fid, why, progress, drop, roles, meta) {
   const resumed = !!(d.rot && d.kv === d.rot.to && f.keys.has(d.rot.to));
   if (resumed) { from = d.rot.from; to = d.rot.to; why = why || d.rot.why || ''; }
   else {
-    if (!V.spriv) throw err('no-sign-key');
+    signer();
     // repairing a folder whose current key Dr. A never signed: carry its logins over from the newest key he did sign
     if (!f.raw.has(from)) from = refKv(f) || from;
     const places = await placesNow(fid), mine = places.find(g => g.uid === V.uid);
@@ -917,7 +986,7 @@ async function rotateNow(fid, why, progress, drop, roles, meta) {
     f.raw.set(to, raw); f.keys.set(to, k);   // (needed to seal it; taken back out below if the write is refused)
     try {
       const batch = writeBatch(V.db);
-      batch.update(D('folders/' + fid), { kv: to, ['ks.' + to]: await C.signFolderKey(V.spriv, fid, to, raw), name: await C.sealJSON(k, folderMeta(f.name, f.def, f.priv), C.AAD.folder(fid, to)),
+      batch.update(D('folders/' + fid), { kv: to, ['ks.' + to]: await C.signFolderKey(signer(), fid, to, raw), name: await C.sealJSON(k, folderMeta(f.name, f.def, f.priv), C.AAD.folder(fid, to)),
         rot: { from, to, why: String(why || '').slice(0, 80) }, at: ts(), by: V.uid });
       const mineBox = await C.sealTo(V.pub, raw, C.AAD.grant(V.uid, fid, to));
       if (mine) batch.update(D('grants/' + mine.id), { ['keys.' + to]: mineBox, at: ts(), by: V.uid });
@@ -995,6 +1064,7 @@ async function replaceUntrusted(id, fid, why) {
 /* folders left half-way through a key change (the page was closed) */
 export function unfinishedRotations() { return V.owner ? folderList().filter(f => f.rot) : []; }
 export async function saveSettings(s) {
+  fullSession();
   const lockMax = Math.max(1, Math.min(60, s.lockMax | 0 || 10));
   await updateDoc(D('meta/settings'), { lockMax, at: ts() });
   log('settings');
@@ -1025,6 +1095,7 @@ export function snapshotAll() {
   return { app: 'nlo-vault', v: 1, at: Date.now(), by: V.me ? V.me.name : '', folders, items };
 }
 export async function backupFile(password) {
+  fullSession();
   const data = C.TE.encode(JSON.stringify(snapshotAll()));
   const box = await C.secretSeal(password, data, C.AAD.backup, C.KDF_ITER);
   log('backup', { n: Array.from(V.items.values()).filter(i => i.d && !i.del).length });
