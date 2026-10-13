@@ -1083,11 +1083,9 @@
     .ufr-modal-bar { flex-wrap: wrap; }
     .ufr-modal-title { flex: 1 1 100%; }
   }
-  /* with a fifth folder the folder bar can wrap on narrow screens instead of running off the page */
-  @media (max-width: 1100px) {
-    .folder-bar { flex-wrap: wrap; row-gap: 8px; }
-    .seg-track { flex-wrap: wrap; }
-  }
+  /* when the folders don't fit on one row (narrower screens, larger text) the folder bar wraps instead of running off the page */
+  .folder-bar { flex-wrap: wrap; row-gap: 8px; }
+  .seg-track { flex-wrap: wrap; }
 }
 /* The UF form prints from its own PDF (a hidden frame), never as part of this page. */
 .ufr-print-frame { position: fixed; right: 0; bottom: 0; width: 1px; height: 1px; border: 0; opacity: 0; pointer-events: none; }
@@ -1119,6 +1117,7 @@ html.nlo-home-on .app-header{padding-left:var(--nlo-home-space)}
       <button class="folder-btn" id="folderBtn-dc" onclick="switchFolder('dc')">Discontinuation</button>
       <button class="folder-btn" id="folderBtn-collection" onclick="switchFolder('collection')">Collection</button>
       <button class="folder-btn" id="folderBtn-referrals" onclick="switchFolder('referrals')">Referrals</button>
+      <button class="folder-btn" id="folderBtn-letters" onclick="switchFolder('letters')">Letters</button>
     </div>
     <span class="folder-divider"></span>
     <button class="folder-btn batch-folder-btn" id="folderBtn-batch" onclick="switchFolder('batch')">
@@ -1140,7 +1139,6 @@ html.nlo-home-on .app-header{padding-left:var(--nlo-home-space)}
   </div>
   <div class="folder-tabs" id="folderTabs-finish" style="display:none">
     <button class="tab-btn" data-tab="crb" onclick="switchTab('crb', this)">Completion w/ Balance</button>
-    <button class="tab-btn" data-tab="mil" onclick="switchTab('mil', this)">Military Letter</button>
   </div>
   <div class="folder-tabs" id="folderTabs-dc" style="display:none">
     <button class="tab-btn" data-tab="dc-decay" onclick="switchTab('dc-decay', this)">Due to Decay</button>
@@ -1161,6 +1159,9 @@ html.nlo-home-on .app-header{padding-left:var(--nlo-home-space)}
   </div>
   <div class="folder-tabs" id="folderTabs-referrals" style="display:none">
     <button class="tab-btn" data-tab="ufr" onclick="switchTab('ufr', this)">UF Oral Surgery</button>
+  </div>
+  <div class="folder-tabs" id="folderTabs-letters" style="display:none">
+    <button class="tab-btn" data-tab="mil" onclick="switchTab('mil', this)">Military Letter</button>
   </div>
 </div>
 
@@ -1203,6 +1204,13 @@ html.nlo-home-on .app-header{padding-left:var(--nlo-home-space)}
           <label class="batch-selectall"><input type="checkbox" id="batch_all_collection" onchange="batchToggleAll('collection', this.checked)"> Select all</label>
         </div>
         <div id="batchList-collection"></div>
+      </div>
+      <div class="batch-col">
+        <div class="batch-col-head">
+          <span class="batch-col-title">Letters</span>
+          <label class="batch-selectall"><input type="checkbox" id="batch_all_letters" onchange="batchToggleAll('letters', this.checked)"> Select all</label>
+        </div>
+        <div id="batchList-letters"></div>
       </div>
     </div>
     <div class="batch-actions">
@@ -5242,9 +5250,9 @@ html.nlo-home-on .app-header{padding-left:var(--nlo-home-space)}
   }
 
   // ==================== FOLDER NAVIGATION ====================
-  const FOLDER_FIRST_TAB = { start: 'fra', finish: 'crb', dc: 'dc-decay', collection: 'aa', referrals: 'ufr' };
+  const FOLDER_FIRST_TAB = { start: 'fra', finish: 'crb', dc: 'dc-decay', collection: 'aa', referrals: 'ufr', letters: 'mil' };
   function switchFolder(folder) {
-    ['start', 'finish', 'dc', 'collection', 'referrals', 'batch', 'tocalc'].forEach(f => {
+    ['start', 'finish', 'dc', 'collection', 'referrals', 'letters', 'batch', 'tocalc'].forEach(f => {
       document.getElementById('folderBtn-' + f).classList.toggle('active', f === folder);
       const tabs = document.getElementById('folderTabs-' + f);
       if (tabs) tabs.style.display = (f === folder) ? 'flex' : 'none';
@@ -6835,7 +6843,7 @@ html.nlo-home-on .app-header{padding-left:var(--nlo-home-space)}
     { key: 'sec-ins',      folder: 'start',  label: 'Secondary Ins Benefits',    nameId: 'secins_patientName',      print: () => secins_print() },
     { key: 'priv',         folder: 'start',  label: 'Privacy & Photo Release',   nameId: 'priv_patientName',        print: () => priv_printForm() },
     { key: 'crb',          folder: 'finish', label: 'Completion w/ Balance',     nameId: 'crb_patientName',         print: () => crb_printForm() },
-    { key: 'mil',          folder: 'finish', label: 'Military Letter',           nameId: 'mil_patientName',         print: () => mil_print() },
+    { key: 'mil',          folder: 'letters', label: 'Military Letter',          nameId: 'mil_patientName',         print: () => mil_print() },
     { key: 'dc-decay',     folder: 'dc'    , label: 'Due to Decay',                 nameId: 'dc_decay_patientName',    print: () => dc_decay_print() },
     { key: 'dc-transfer',  folder: 'dc'    , label: 'To Transfer Out',              nameId: 'dc_transfer_patientName', print: () => dc_transfer_print() },
     { key: 'dc-balance',   folder: 'dc'    , label: 'With Balance',               nameId: 'dc_balance_patientName',  print: () => dc_balance_print() },
@@ -6851,7 +6859,7 @@ html.nlo-home-on .app-header{padding-left:var(--nlo-home-space)}
   ];
 
   // Build the checkbox lists
-  ['start', 'finish', 'dc', 'collection'].forEach(folder => {
+  ['start', 'finish', 'dc', 'collection', 'letters'].forEach(folder => {
     const wrap = document.getElementById('batchList-' + folder);
     BATCH_FORMS.filter(f => f.folder === folder).forEach(f => {
       const lbl = document.createElement('label');
@@ -6877,7 +6885,7 @@ html.nlo-home-on .app-header{padding-left:var(--nlo-home-space)}
     document.getElementById('batchCount').textContent = n + (n === 1 ? ' form selected' : ' forms selected');
     document.getElementById('batchPrintBtn').disabled =
       n === 0 || !document.getElementById('batch_patientName').value.trim();
-    ['start', 'finish', 'dc', 'collection'].forEach(folder => {
+    ['start', 'finish', 'dc', 'collection', 'letters'].forEach(folder => {
       const items = BATCH_FORMS.filter(f => f.folder === folder);
       const all = items.every(f => document.getElementById('batch_cb_' + f.key).checked);
       document.getElementById('batch_all_' + folder).checked = all;

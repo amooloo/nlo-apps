@@ -113,12 +113,12 @@ const offsite = r => { const u = r.request().url(); return /^https?:\/\//.test(u
   ok(await page.isHidden('#ufr_modal') && !(await page.$('#ufr_modalPaper iframe')), 'Esc closes and drops the PDF frame');
 
   // other forms still print as before
-  await page.click('#folderBtn-finish'); await page.click('.tab-btn[data-tab="mil"]');
+  await page.click('#folderBtn-letters'); await page.click('.tab-btn[data-tab="mil"]');
   await page.fill('#mil_patientName', 'Test Patient');
   await page.evaluate(() => { window.__dual = null; window.print = () => { window.__dual = Array.from(document.querySelectorAll('.print-doc.print-active')).map(d => d.id); }; mil_print(); });
   await page.waitForTimeout(300);
   ok(JSON.stringify(await page.evaluate(() => window.__dual)) === JSON.stringify(['mil_printDoc', 'mil_printDoc_copy2']), 'military letter still dual-copy prints');
-  for (const f of ['start', 'finish', 'dc', 'collection', 'referrals', 'batch', 'tocalc']) {
+  for (const f of ['start', 'finish', 'dc', 'collection', 'referrals', 'letters', 'batch', 'tocalc']) {
     await page.click('#folderBtn-' + f);
     ok((await page.evaluate(() => document.querySelectorAll('.tab-content.active').length)) === 1, 'folder ' + f + ' shows one tab');
   }
