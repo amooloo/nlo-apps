@@ -17,6 +17,10 @@
    Gmail account keeps a copy of every pay period without anyone downloading them.
    If Dr. A set a time for it, it also sends a daily summary. Each alert goes out once, even if this script
    ends up in two Gmail accounts by accident. Emails come from this Gmail account.
+   Phone pushes go straight to ntfy. When Google's servers can't reach ntfy.sh (it shuts out, for hours at a time,
+   addresses that many people share, and Google's are shared by everyone's scripts), they go through ntfy's own email
+   address for the topic instead, from this Gmail account: the same notification on the phone, without the priority or
+   the tap-to-open link. The direct way is tried again 3 hours later.
 
    It can only read the time clock, and write its own list of alerts sent and when it last checked:
    it can't change anyone's time. At night (10 PM to 5 AM) it checks every half hour instead.
@@ -530,7 +534,7 @@ const TCE = (() => {
   };
 })();
 
-var VERSION = '3';
+var VERSION = '4';
 var CONFIG = /*TC_CONFIG*/null; // filled in by NLO Time Clock when you copy the script (Time Clock → Alerts → Get the script)
 
 // where each kind of alert goes when Dr. A hasn't picked: 1 = email, 2 = phone push, 3 = both, 0 = not sent
@@ -548,6 +552,7 @@ function setup() {
   const props = PropertiesService.getScriptProperties();
   props.setProperty('TC_CFG', JSON.stringify(CONFIG));
   props.setProperty('TC_FAILS', '0');
+  props.deleteProperty('TC_NTFY_REST'); // (a fresh start: phone pushes try the direct way first)
   GEN_ = String(Number(props.getProperty('TC_GEN') || 0) + 1);
   props.setProperty('TC_GEN', GEN_); // fresh copies of everything: the login, the people, the punches
   const cfg = cfg_(props);
@@ -659,7 +664,8 @@ function run_(cfg, s, props, now) {
   beat_(cfg, s, r.sent, r.errs.join(' · '));
   const said = r.sent + ' alert' + (r.sent === 1 ? '' : 's') + ' sent' + (r.errs.length ? ' — ' + r.errs.join(' · ') : '');
   const log = 'checked ' + office.people.length + ' ' + (office.people.length === 1 ? 'person' : 'people') + '; ' + said +
-    (r.titles.length ? ' (' + r.titles.join('; ') + ')' : '') + '.';
+    (r.titles.length ? ' (' + r.titles.join('; ') + ')' : '') +
+    (r.via === 'mail' ? '; the phone push went through ntfy’s email address (Google’s servers can’t reach ntfy.sh right now)' : '') + '.';
   return { said, log: cap_(log, 1500) };
 }
 
@@ -1031,17 +1037,15 @@ function deliver_(cfg, s, props, alerts, A, now) {
     try { email_(cfg, A.emails, [w.a]); w.got |= 1; }
     catch (e) { errs.push('Email didn’t go: ' + cap_(msg_(e), 120)); }
   });
-  // phone push: one per alert, or one for all when there are more than 4
+  // phone push: one per alert, or one for all when there are more than 4 — or, while Google's servers can't reach ntfy,
+  // one email for all of them to ntfy's address for the topic
   const push = work.filter(w => w.need & 2);
-  if (push.length > 4) {
-    try {
-      push_(cfg, A.topic, push.length + ' time clock alerts', push.map(w => w.a.title).join('\n'), Math.max.apply(null, push.map(w => w.a.prio || 3)));
-      push.forEach(w => { w.got |= 2; });
-    } catch (e) { errs.push('Phone push didn’t go: ' + cap_(msg_(e), 120)); }
-  } else {
-    let bad = '';
-    push.forEach(w => { try { push_(cfg, A.topic, w.a.title, w.a.text, w.a.prio); w.got |= 2; } catch (e) { bad = msg_(e); } });
-    if (bad) errs.push('Phone push didn’t go: ' + cap_(bad, 120));
+  let via = '';
+  if (push.length) {
+    const p = pushes_(cfg, props, A.topic, push.map(w => w.a), now);
+    push.forEach((w, i) => { if (p.got[i]) w.got |= 2; });
+    if (p.err) errs.push('Phone push didn’t go: ' + cap_(p.err, 120));
+    via = p.via;
   }
   let sent = 0;
   const titles = [];
@@ -1053,7 +1057,7 @@ function deliver_(cfg, s, props, alerts, A, now) {
   let unnoted = 0;
   work.forEach(w => { if (!mark_(cfg, s, w.id, (w.got & w.want) === w.want ? 'sent' : 'fail', w.got)) unnoted++; });
   if (unnoted) errs.push('Couldn’t note ' + unnoted + ' alert' + (unnoted === 1 ? '' : 's') + ' as sent');
-  return { sent, errs, fin, titles };
+  return { sent, errs, fin, titles, via };
 }
 
 /* claim an alert: { mine, had } to send it (had: channels already sent), { over } when it's done, {} to leave it, { err } */
@@ -1105,14 +1109,65 @@ function email_(cfg, emails, list) {
   if (files.length) msg.attachments = files;
   MailApp.sendEmail(msg);
 }
-/* a phone push through ntfy (the free app: subscribe to the topic shown in Time Clock → Alerts) */
+/* The phone pushes of one check (ntfy, the free app: subscribe to the topic shown in Time Clock → Alerts), for these
+   alerts: { got: [went?, for each], err, via: 'ntfy' | 'mail' | '' }.
+   Straight to ntfy: one push per alert, or one for all when there are more than 4. When Google's servers can't reach
+   ntfy (no answer at all, or "too many": ntfy.sh shuts out, for hours at a time, addresses that many people share, and
+   Google's are shared by everyone's scripts), the ones still to go go in one email to ntfy's own address for the topic,
+   which ntfy turns into the same notification. Then the direct way rests for 3 hours: while it's shut out, each try
+   hangs about a minute, and the minutes count against the time Google gives this account's scripts each day. */
+var NTFY_REST_ = 3 * 3600000;
+function pushes_(cfg, props, topic, list, now) {
+  const got = list.map(() => false);
+  let err = '', via = '', rest = !!cfg.ntfyMail && Number(props.getProperty('TC_NTFY_REST') || 0) > now;
+  if (!rest) {
+    const groups = list.length > 4 ? [list.map((a, i) => i)] : list.map((a, i) => [i]);
+    for (const g of groups) {
+      const one = g.length === 1 ? list[g[0]] : null;
+      try {
+        if (one) push_(cfg, topic, one.title, one.text, one.prio);
+        else push_(cfg, topic, g.length + ' time clock alerts', g.map(i => list[i].title).join('\n'), Math.max.apply(null, g.map(i => list[i].prio || 3)));
+        g.forEach(i => { got[i] = true; });
+        via = 'ntfy';
+      } catch (e) {
+        err = msg_(e);
+        if (e.away && cfg.ntfyMail) { rest = true; props.setProperty('TC_NTFY_REST', String(now + NTFY_REST_)); break; }
+      }
+    }
+  }
+  const left = list.filter((a, i) => !got[i]);
+  if (rest && left.length) {
+    try { pushMail_(cfg, topic, left); list.forEach((a, i) => { got[i] = true; }); err = ''; via = 'mail'; }
+    catch (e) { err = msg_(e); }
+  }
+  return { got, err, via };
+}
+/* one phone push, straight to ntfy */
 function push_(cfg, topic, title, message, prio) {
   const body = { topic, title: cap_(title, 200), message: cap_(message, 3500), priority: Math.max(1, Math.min(5, Math.round(prio) || 3)), tags: ['alarm_clock'], click: cfg.appUrl };
   let r;
   try { r = UrlFetchApp.fetch(cfg.ntfyBase + '/', { method: 'post', contentType: 'application/json', payload: ascii_(JSON.stringify(body)), muteHttpExceptions: true }); }
-  catch (e) { throw new Error('couldn’t reach ntfy (' + cap_(msg_(e), 80) + ')'); }
+  catch (e) { throw away_('couldn’t reach ntfy (' + cap_(msg_(e), 80) + ')'); }
   const code = r.getResponseCode();
-  if (code !== 200) throw new Error('ntfy answered ' + code + (code === 429 ? ' (too many messages just now)' : ''));
+  if (code === 429) throw away_('ntfy answered 429 (too many messages from Google’s servers just now)');
+  if (code !== 200) throw new Error('ntfy answered ' + code);
+}
+/* a problem reaching ntfy from Google's servers (the email way still works) */
+function away_(text) { const e = new Error(text); e.away = true; return e; }
+/* phone pushes through ntfy's email address for the topic: one email from this Gmail account for all of them (it counts
+   toward the account's emails for the day). ntfy turns it into the notification: the subject is its title, the email
+   its words (no priority, no tap-to-open link). */
+function pushMail_(cfg, topic, list) {
+  let left = null;
+  try { left = MailApp.getRemainingDailyQuota(); } catch (e) { }
+  if (left != null && left < 1) throw new Error('this Gmail account’s daily email limit is used up (it resets within a day)');
+  const one = list.length === 1 ? list[0] : null;
+  MailApp.sendEmail({
+    to: cfg.ntfyMail.replace('{topic}', topic),
+    subject: cap_(one ? one.title : list.length + ' time clock alerts', 200),
+    body: utf8Cap_(one ? one.text : list.map(a => a.title).join('\n'), 3500), // (ntfy keeps 4,096 bytes)
+    name: 'NLO Time Clock'
+  });
 }
 
 /* when this script last checked, which Gmail account it's in, and any problem (Time Clock → Alerts shows it) */
@@ -1132,6 +1187,8 @@ function cfg_(props) {
   c.fsBase = c.fsBase || 'https://firestore.googleapis.com/v1';
   c.appUrl = c.appUrl || APP_URL;
   c.ntfyBase = String(c.ntfyBase || 'https://ntfy.sh').replace(/\/+$/, '');
+  // ntfy's email address for a topic (ntfy.sh's: ntfy-<topic>@ntfy.sh); '' for a server without one
+  c.ntfyMail = c.ntfyMail != null ? String(c.ntfyMail) : c.ntfyBase === 'https://ntfy.sh' ? 'ntfy-{topic}@ntfy.sh' : '';
   return c;
 }
 function http_(cfg, method, url, body, tok) {
@@ -1288,6 +1345,18 @@ function ascii_(json) { return json.replace(/[\u007f-\uffff]/g, c => '\\u' + ('0
 function mailbox_() { try { return Session.getEffectiveUser().getEmail() || 'this account'; } catch (e) { return 'this account'; } }
 /* at most n characters (as the database counts them: UTF-16 units), never cutting an emoji in half */
 function cap_(s, n) { s = String(s == null ? '' : s); if (s.length <= n) return s; let k = n; const c = s.charCodeAt(k - 1); if (c >= 0xD800 && c <= 0xDBFF) k--; return s.slice(0, k); }
+/* at most n bytes once in UTF-8, never cutting a character in half */
+function utf8Cap_(s, n) {
+  s = String(s == null ? '' : s);
+  let b = 0, i = 0;
+  for (; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    const w = c < 0x80 ? 1 : c < 0x800 ? 2 : c >= 0xD800 && c <= 0xDBFF ? 4 : c >= 0xDC00 && c <= 0xDFFF ? 0 : 3; // (a pair: 4 for both halves)
+    if (b + w > n) break;
+    b += w;
+  }
+  return s.slice(0, i);
+}
 function msg_(e) { return String((e && e.message) || e); }
 function stopTriggers_() { ScriptApp.getProjectTriggers().forEach(t => { if (t.getHandlerFunction() === 'tick') ScriptApp.deleteTrigger(t); }); }
 /* after 3 failed checks in a row: one email a day to this Gmail account, saying what to do */

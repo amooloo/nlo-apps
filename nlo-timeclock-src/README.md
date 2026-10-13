@@ -51,6 +51,17 @@ clock … that sends me and multiple people alerts when someone is getting close
   over 40 h without approval, a clock-in (or back from lunch) is asked first — "Clock in anyway", never refused — and
   every such clock-in alerts the managers (`otin`). Managers approve overtime ahead of time in Timesheets.
 - **Alerts by email and phone push** (the free ntfy app), to Dr. A and anyone he adds.
+  - **When Google's servers can't reach ntfy.sh** (13 Oct 2026, the first morning on the clock: every push failed with
+    "couldn't reach ntfy (Address unavailable: https://ntfy.sh/)", each try hanging about a minute, while every email
+    went; ntfy.sh was up. ntfy.sh bans, at its firewall, addresses that get too many of its "too many requests" answers,
+    for 1–4 hours, and Apps Script's outgoing addresses are shared by everyone's scripts): the alert script (version 4)
+    sends the pushes that didn't go in one email to ntfy's own address for the topic, `ntfy-<topic>@ntfy.sh` (ntfy turns
+    it into the same notification: the subject is its title, the email its words; no priority, tags or tap-to-open
+    link), and lets the direct way rest 3 hours (`TC_NTFY_REST` in the script's properties) so checks don't hang a
+    minute each — trigger time counts against the account's daily Apps Script runtime. A "too many" (429) answer counts
+    the same; any other answer from ntfy (a 500, say) is an error as before (its email address is the same server).
+    Each such email counts toward the Gmail account's emails for the day (checked first). `cfg.ntfyMail` (the address,
+    `{topic}` filled in) defaults to ntfy.sh's; '' for another ntfy server (no email way).
 - **Boundaries: let them punch, flag it, alert** — never block (time worked has to be paid; blocking invites
   off-the-clock work).
 - **Lunch: clock out and back in.** A break shorter than 20 minutes counts as paid time (federal rule: short rest breaks

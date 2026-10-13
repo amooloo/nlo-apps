@@ -5,7 +5,8 @@
    What it covers: setup and the 5-minute timer; reading the clock through the rules as the script's own login; the alerts
    (the newest heads-up, overtime, from home, wrong PINs, someone who left gets none); one email per check and a push per
    alert; each alert once — again on the next check, and from a second copy of the script; a push that fails is tried again
-   later on its own; Dr. A's test; the daily summary; payroll Friday; each pay period's time cards for the records (when,
+   later on its own; when Google's servers can't reach ntfy (no answer, or "too many"), the push through ntfy's email
+   address for the topic, the direct way resting 3 hours, then back; Dr. A's test; the daily summary; payroll Friday; each pay period's time cards for the records (when,
    the two spreadsheets, an email of its own, once, never holding up the alerts); nights; no alert settings; a login that
    was turned off (and the warning email after 3 failures). */
 const fs = require('fs'), path = require('path'), cp = require('child_process'), vm = require('vm');
@@ -49,7 +50,7 @@ const tsMs = s => Date.parse(s);
   const ntfy = cp.spawn(process.execPath, ['-e', `
     const http = require('http'), fs = require('fs');
     http.createServer((q, r) => { let b = ''; q.on('data', c => b += c); q.on('end', () => {
-      if (fs.existsSync(${JSON.stringify(NTFY_FAIL)})) { r.statusCode = 500; return r.end('down'); }
+      if (fs.existsSync(${JSON.stringify(NTFY_FAIL)})) { const c = Number(fs.readFileSync(${JSON.stringify(NTFY_FAIL)}, 'utf8')); r.statusCode = c >= 400 ? c : 500; return r.end('down'); }
       fs.appendFileSync(${JSON.stringify(NTFY_LOG)}, b.replace(/\\n/g, ' ') + '\\n'); r.end('{}'); }); }).listen(${NTFY_PORT}, '127.0.0.1');`], { stdio: 'inherit' });
   await new Promise(r => setTimeout(r, 400));
   try {
@@ -122,7 +123,7 @@ const tsMs = s => Date.parse(s);
     ok('the alerts sent are noted, each by email and push as chosen', sent1.length === 4 && sent1.every(x => x.st === 'sent') &&
       sent1.find(x => x.type === 'home').ch === '2' && sent1.find(x => x.type === 'ot').ch === '3', sent1.map(x => [x.type, x.st, x.ch]));
     const beat = (await list('tcBeat'))[0] || {};
-    ok('the script checks in: its mailbox, version, no problem', beat.box === 'records@example.com' && beat.ver === '3' && beat.err === '' && beat.id === su.localId, beat);
+    ok('the script checks in: its mailbox, version, no problem', beat.box === 'records@example.com' && beat.ver === '4' && beat.err === '' && beat.id === su.localId, beat);
 
     console.log('\n# each alert once');
     const r2 = A.run('check_(true)');
@@ -172,6 +173,61 @@ const tsMs = s => Date.parse(s);
     const r6 = later.run('check_(true)');
     ok('11 minutes later: the push alone, not the email again', r6 === '1 alert sent' && later.mail.length === 0 && pushes().length === 8 && pushes()[7].title === 'Test alert from NLO Time Clock', [r6, later.mail.length, pushes().length]);
     ok('…now noted as sent both ways', (await list('tcSent')).find(x => x.type === 'test').ch === '3');
+
+    console.log('\n# Google’s servers can’t reach ntfy: the push goes through ntfy’s email address for the topic');
+    const mailCfg = { ntfyMail: 'ntfy-{topic}@ntfy.test' }, toNtfy = m => m.to === 'ntfy-nlo-clock-test1@ntfy.test';
+    const sentFor = async ms => (await list('tcSent')).find(x => x.k === 'test|' + ms) || {};
+    const testNow = async () => { const t = new Date(); await put('meta/tcAlerts', { emails: ['dr.test@example.com'], topic: 'nlo-clock-test1', route: {}, digest: '', test: t, at: new Date() }); return t.getTime(); };
+    // a copy of the script with its memory (the props), its login set to use ntfy's email address
+    const copy = (over, from) => { const c = Object.assign({}, cfg, mailCfg, over), x = load(c, 'records@example.com'); Object.assign(x.props, from.props); x.props.TC_CFG = JSON.stringify(c); return x; };
+    // (nothing answers at port 8797: the same "Address unavailable" Apps Script gives when ntfy.sh shuts Google out)
+    const away = copy({ ntfyBase: 'http://127.0.0.1:8797' }, later);
+    const pAway = pushes().length, tA = await testNow();
+    const ra = away.run('check_(true)'), pm1 = away.mail.find(toNtfy) || {};
+    ok('ntfy can’t be reached: Dr. A’s test still goes, by email and through ntfy’s email address, nothing to report', ra === '1 alert sent' && away.mail.length === 2 && away.mail[0].to === 'dr.test@example.com' &&
+      pm1.subject === 'Test alert from NLO Time Clock' && /^Dr\. A asked for a test at .*the time clock’s alerts reach you here/.test(pm1.body) && pm1.name === 'NLO Time Clock' && !pm1.attachments && pushes().length === pAway, [ra, away.mail.map(m => m.to + ' / ' + m.subject)]);
+    ok('…noted as sent both ways', (s => s.st === 'sent' && s.ch === '3')(await sentFor(tA)), await sentFor(tA));
+    ok('…the check-in shows no problem (version 4)', (b => b.err === '' && b.ver === '4')((await list('tcBeat'))[0] || {}), (await list('tcBeat'))[0]);
+    ok('…the log says how the push went', away.logs.some(l => /1 alert sent \(Test alert from NLO Time Clock\); the phone push went through ntfy’s email address/.test(l)), away.logs);
+    const restA = Number(away.props.TC_NTFY_REST || 0);
+    ok('…and the direct way rests for 3 hours', restA >= tA + 3 * H - 60000 && restA <= Date.now() + 3 * H, (restA - tA) / 60000);
+    // ntfy answers again, but within the 3 hours: no direct try (each one hangs a minute while it's shut out)
+    const resting = copy({}, away);
+    await put('tcReq/r' + '4'.repeat(24), { sid: 'gwen', ps: [], note: 'Left 10 min early', src: 'me', by: 'gwen-uid', at: new Date(Date.now() - 60000), st: 'open' });
+    await put('tcReq/r' + '5'.repeat(24), { sid: 'kim', ps: [], note: 'Came in at 6:55 to set up', src: 'me', by: 'kim-uid', at: new Date(Date.now() - 60000), st: 'open' });
+    const pRest = pushes().length, rr2 = resting.run('check_(true)'), pm2 = resting.mail.find(toNtfy) || {};
+    ok('within the 3 hours: no direct try; one email to ntfy’s address for both alerts, their titles', rr2 === '2 alerts sent' && pushes().length === pRest && resting.mail.length === 2 &&
+      pm2.subject === '2 time clock alerts' && pm2.body === 'Gwen left a note for the managers\nKim left a note for the managers', [rr2, resting.mail.map(m => m.to + ' / ' + m.subject), pm2.body]);
+    await del('tcReq/r' + '4'.repeat(24)); await del('tcReq/r' + '5'.repeat(24));
+    // 3 hours later: straight to ntfy again
+    const back = copy({}, resting);
+    back.props.TC_NTFY_REST = String(Date.now() - 1000);
+    const pBack = pushes().length, tB = await testNow(), rb2 = back.run('check_(true)');
+    ok('after the 3 hours: straight to ntfy again, with nothing to ntfy’s email address', rb2 === '1 alert sent' && pushes().length === pBack + 1 && pushes()[pBack].title === 'Test alert from NLO Time Clock' &&
+      pushes()[pBack].click === cfg.appUrl && !back.mail.some(toNtfy) && (s => s.ch === '3')(await sentFor(tB)), [rb2, back.mail.map(m => m.to), pushes().slice(pBack)]);
+    // ntfy says "too many" (Google's address, shared by everyone's scripts, is over ntfy's limit): the same as no answer
+    fs.writeFileSync(NTFY_FAIL, '429');
+    const busy = copy({}, back);
+    const tC = await testNow(), rc4 = busy.run('check_(true)');
+    ok('ntfy answers 429 (too many): through ntfy’s email address too, and the direct way rests', rc4 === '1 alert sent' && busy.mail.some(toNtfy) && Number(busy.props.TC_NTFY_REST) > Date.now() + 2 * H && (s => s.ch === '3')(await sentFor(tC)), [rc4, busy.mail.map(m => m.to)]);
+    // a problem at ntfy itself (500): its email address is the same server, so no email there; it's tried again later
+    fs.writeFileSync(NTFY_FAIL, '500');
+    const down = copy({}, back);
+    const tD = await testNow(), rd = down.run('check_(true)');
+    ok('ntfy itself answers 500: no email to its address, the problem shows, no rest', rd === '1 alert sent — Phone push didn’t go: ntfy answered 500' && !down.mail.some(toNtfy) && !(Number(down.props.TC_NTFY_REST) > Date.now()) && (s => s.st === 'fail' && s.ch === '1')(await sentFor(tD)), [rd, down.mail.map(m => m.to)]);
+    fs.unlinkSync(NTFY_FAIL);
+    // the Gmail account's emails for the day used up: says so (and the next check tries again)
+    const full = copy({ ntfyBase: 'http://127.0.0.1:8797' }, back);
+    full.ctx.MailApp.getRemainingDailyQuota = () => 0;
+    const tE = await testNow(), rf = full.run('check_(true)');
+    ok('no emails left today: the push says so too', /Phone push didn’t go: this Gmail account’s daily email limit is used up/.test(rf) && full.mail.length === 0 && (s => s.st === 'fail' && s.ch === '0')(await sentFor(tE)), rf);
+    await put('meta/tcAlerts', { emails: ['dr.test@example.com', 'manager@example.com'], topic: 'nlo-clock-test1', route: {}, digest: '', test: null, at: new Date() });
+    {
+      const cf = o => away.ctx.cfg_({ getProperty: k => (k === 'TC_CFG' ? JSON.stringify(Object.assign({ apiKey: 'k', projectId: 'p', botEmail: 'b@x.yz', botPassword: 'pw' }, o)) : null) });
+      ok('ntfy’s email address: ntfy.sh’s own (ntfy-<topic>@ntfy.sh), none for another ntfy server', cf({}).ntfyMail === 'ntfy-{topic}@ntfy.sh' && cf({ ntfyBase: 'https://ntfy.sh/' }).ntfyMail === 'ntfy-{topic}@ntfy.sh' && cf({ ntfyBase: 'https://push.example.com' }).ntfyMail === '', [cf({}).ntfyMail, cf({ ntfyBase: 'https://push.example.com' }).ntfyMail]);
+      const u8 = away.ctx.utf8Cap_;
+      ok('the email to ntfy stays under its 4,096 bytes, never cutting a character in half', u8('a’b', 3) === 'a' && u8('a’b', 4) === 'a’' && u8('😀x', 4) === '😀' && u8('😀x', 3) === '' && u8('abc', 10) === 'abc' && u8('x'.repeat(5000), 3500).length === 3500);
+    }
 
     console.log('\n# the daily summary');
     await put('meta/tcAlerts', { emails: ['dr.test@example.com'], topic: 'nlo-clock-test1', route: {}, digest: '00:00', test: null, at: new Date() });
