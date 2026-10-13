@@ -28,7 +28,7 @@ function nsDue(c) {
   return x;
 }
 async function nsCheck() {
-  if (!S.inApp || NS.busy || S.firstLoad || S.rulesLv !== 3 || !B.noshipSend) return;
+  if (!S.inApp || NS.busy || S.firstLoad || !(S.rulesLv >= 3) || !B.noshipSend) return;
   if (!openCases().some(c => nsDue(c))) return;
   NS.busy = true;
   try {

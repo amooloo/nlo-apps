@@ -118,35 +118,64 @@ document.addEventListener('mousedown', e => { const o = e.target.closest && e.ta
    badge is gone"): a message leaves New once it's read — opened, shown in its case, its ✓ tapped, or Mark all as read — and
    sits under Read, greyed out with a "Read <when>" stamp, for 30 days; then it's under Archive. One not opened within 30 days
    of being sent stops counting as new (as before) and goes to Archive too. */
-/* what's been read, on this computer (Amir chose that over syncing it): "<case>/<note>" or "<case>/s/<sticker>" → when it was
-   read (ms; 0 = read before 9 Oct 2026, when only *that* it was read was kept, in nloCases.msgRead.<sid>) */
+/* what's been read: "<case>/<note>" or "<case>/s/<sticker>" → when it was read (ms; 0 = read before 9 Oct 2026, when only
+   *that* it was read was kept, in nloCases.msgRead.<sid>). Kept in this browser (nloCases.msgSeen.<sid>) and — once the
+   12 Oct 2026 security rules are live — in the person's own sealed copy in the office database, so it follows them to every
+   computer and phone (see "read marks on every device" below). Amir, 12 Oct 2026: "the messages on nlo case tracker keeps
+   coming back as unread. i have marked the same message as read 3 times and it still showed as unread" — each computer, phone
+   and web address (amooloo.github.io, apps.thenextlevelorthodontics.com) kept its own marks, and a ✓ on a message another tab
+   had already marked did nothing (no redraw), so it looked stuck. A Mark unread is kept too (nloCases.msgUnseen.<sid>: key →
+   when), so a device that still has the old mark doesn't bring it back. */
 const MSG_OLD = 30 * 864e5;  // a message not read within this long of being sent isn't new any more (it's in Archive)
 const MSG_KEEP = 30 * 864e5; // a read one stays under Read this long after it was read, then it's in Archive
-const MSG_MAX = 2000;        // read marks kept per person on a computer (the longest-read go first)
+const MSG_MAX = 2000;        // read marks kept per person (the longest-read go first)
+const MSG_UNSEEN_KEEP = 60 * 864e5; // a Mark unread is remembered this long (by then the message is in Archive either way)
+/* what this tab couldn't write to the browser's storage (full, or blocked): kept here instead, so a ✓ still takes */
+const MSGL = { mem: {}, warned: false };
 function msgKey() { return 'nloCases.msgSeen.' + (meSid() || ''); }
+function msgUKey() { return 'nloCases.msgUnseen.' + (meSid() || ''); }
+function msgLsGet(k) { if (Object.prototype.hasOwnProperty.call(MSGL.mem, k)) return MSGL.mem[k]; try { return localStorage.getItem(k); } catch (e) { return null; } }
+function msgLsSet(k, v) {
+  try { localStorage.setItem(k, v); delete MSGL.mem[k]; return true; }
+  catch (e) {
+    MSGL.mem[k] = v;
+    // (said once: with the office copy on, the marks are kept there anyway)
+    if (!MSGL.warned && !MSYNC.on && S.inApp) { MSGL.warned = true; toast('This browser couldn’t save your read marks (its storage is full or blocked). They’ll show as new again after you sign in.', { bad: true, ms: 9000 }); }
+    return false;
+  }
+}
+function msgMapOf(raw) {
+  const m = new Map();
+  try { const o = JSON.parse(raw); if (o && typeof o === 'object' && !Array.isArray(o)) Object.keys(o).forEach(k => { const t = o[k]; if (typeof t === 'number' && isFinite(t) && t >= 0) m.set(k, t); }); } catch (e) { }
+  return m;
+}
 function msgRead() {
-  try {
-    const raw = localStorage.getItem(msgKey()), m = new Map();
-    if (raw) { const o = JSON.parse(raw); if (o && typeof o === 'object' && !Array.isArray(o)) Object.keys(o).forEach(k => { if (typeof o[k] === 'number') m.set(k, o[k]); }); return m; }
-    const old = JSON.parse(localStorage.getItem('nloCases.msgRead.' + (meSid() || '')) || '[]'); // (the marks kept before 9 Oct 2026)
-    if (Array.isArray(old)) old.forEach(k => { if (typeof k === 'string') m.set(k, 0); });
-    if (m.size) msgSave(m);
-    return m;
-  } catch (e) { return new Map(); }
+  const raw = msgLsGet(msgKey());
+  if (raw) return msgMapOf(raw);
+  const m = new Map(); // (the marks kept before 9 Oct 2026: read, when unknown)
+  try { const old = JSON.parse(msgLsGet('nloCases.msgRead.' + (meSid() || '')) || '[]'); if (Array.isArray(old)) old.forEach(k => { if (typeof k === 'string') m.set(k, 0); }); } catch (e) { }
+  if (m.size) msgSave(m);
+  return m;
 }
-function msgSave(m) {
-  let e = Array.from(m.entries()); if (e.length > MSG_MAX) e = e.sort((a, b) => b[1] - a[1]).slice(0, MSG_MAX);
-  try { localStorage.setItem(msgKey(), JSON.stringify(Object.fromEntries(e))); } catch (x) { }
-}
-/* (a message already read keeps the time it was first read) */
+/* the Mark unreads (key → when), for the other devices */
+function msgUnseen() { return msgMapOf(msgLsGet(msgUKey()) || '{}'); }
+function msgTrim(m, max) { const e = Array.from(m.entries()); return e.length > max ? e.sort((a, b) => b[1] - a[1]).slice(0, max) : e; }
+function msgSave(m) { msgLsSet(msgKey(), JSON.stringify(Object.fromEntries(msgTrim(m, MSG_MAX)))); msgSyncSoon(); }
+function msgUSave(u) { const now = Date.now(); msgLsSet(msgUKey(), JSON.stringify(Object.fromEntries(msgTrim(new Map(Array.from(u).filter(([, t]) => now - t < MSG_UNSEEN_KEEP)), MSG_MAX)))); }
+/* (a message already read keeps the time it was first read here. A mark is stamped just after the opposite one this browser
+   knows of, so it wins on every device even when this computer's clock is behind the one that made that) */
 function msgMarkRead(keys) {
-  const m = msgRead(), now = Date.now(); let ch = false;
-  keys.forEach(k => { if (!m.has(k)) { m.set(k, now); ch = true; } });
-  if (ch) msgSave(m); return ch;
+  const m = msgRead(), u = msgUnseen(), now = Date.now(); let ch = false, uch = false;
+  keys.forEach(k => { if (!m.has(k)) { m.set(k, Math.max(now, (u.get(k) || 0) + 1)); ch = true; } if (u.delete(k)) uch = true; });
+  if (uch) msgUSave(u);
+  if (ch) msgSave(m); else if (uch) msgSyncSoon();
+  return ch;
 }
 function msgMarkUnread(keys) {
-  const m = msgRead(); let ch = false; keys.forEach(k => { if (m.delete(k)) ch = true; });
-  if (ch) msgSave(m); return ch;
+  const m = msgRead(), u = msgUnseen(), now = Date.now(); let ch = false;
+  keys.forEach(k => { if (m.has(k)) { u.set(k, Math.max(now, (m.get(k) || 0) + 1)); m.delete(k); ch = true; } });
+  if (ch) { msgUSave(u); msgSave(m); }
+  return ch;
 }
 /* only the ones still new: one already in Archive (never opened within 30 days) stays there when its case is opened */
 function msgReadIfNew(keys) { const r = msgRead(); return msgMarkRead(msgList().filter(m => keys.includes(m.k) && msgIsNew(m, r)).map(m => m.k)); }
@@ -223,13 +252,16 @@ function msgAfter(was) {
   const el = (it && ($('.msgChk, .msgUn', it) || $('.msgRow', it))) || $('#msgTab-' + (S.msgTab || 'new')); if (el) el.focus({ preventScroll: true });
 }
 function msgSpot(k) { const L = $$('#view .msgItem'); const i = L.findIndex(x => x.dataset.k === k); return i < 0 ? null : i; }
+/* (each one redraws even when there was nothing to change: another tab, or another device, may have marked it already — the
+   list on screen was just behind, and a ✓ that did nothing looked like it hadn't taken) */
 function msgMarkOne(k) {
-  const was = msgSpot(k); if (!k || !msgMarkRead([k])) return; msgAfter(was);
+  if (!k) return; const was = msgSpot(k); msgMarkRead([k]); msgAfter(was);
   toast('Marked as read — it’s under Read now', { action: 'Undo', onAction: () => { msgMarkUnread([k]); msgAfter(); } });
 }
-function msgUnmarkOne(k) { const was = msgSpot(k); if (!k || !msgMarkUnread([k])) return; msgAfter(was); toast('Marked as unread — it’s back under New'); }
+function msgUnmarkOne(k) { if (!k) return; const was = msgSpot(k); msgMarkUnread([k]); msgAfter(was); toast('Marked as unread — it’s back under New'); }
 function msgAllRead() {
-  const r = msgRead(), ks = msgList().filter(m => msgIsNew(m, r)).map(m => m.k); if (!ks.length || !msgMarkRead(ks)) return; msgAfter();
+  const shown = $$('#view .msgItem.new').map(x => x.dataset.k), r = msgRead(), ks = Array.from(new Set(shown.concat(msgList().filter(m => msgIsNew(m, r)).map(m => m.k))));
+  msgMarkRead(ks); msgAfter(); if (!ks.length) return;
   toast((ks.length === 1 ? '1 message' : ks.length + ' messages') + ' marked as read', { action: 'Undo', onAction: () => { msgMarkUnread(ks); msgAfter(); } });
 }
 /* open the case at the note (opening Show earlier if it's further up) and flash it */
@@ -260,3 +292,91 @@ function msgWatch() {
   else if (fresh.length > 1) { const nS = fresh.filter(m => m.st).length;
     toast(fresh.length + (nS === fresh.length ? ' new stickers for you' : nS ? ' new in Messages' : ' new notes tag you'), { action: 'Messages', onAction: () => { S.view = 'msgs'; S.msgTab = 'new'; renderNav(); renderView(); }, ms: 9000 }); }
 }
+
+/* ---------- read marks on every device (12 Oct 2026) ----------
+   With the 12 Oct rules live (rules level 4, backend.js), each person's marks are also kept in msgSeen/<their staff id>,
+   sealed with the office key like a case; only they can read or write it (firestore.rules). This browser's marks and that
+   copy are merged both ways — a message is read if its latest mark is newer than its latest Mark unread — and the copy is
+   watched live, so reading a message on the phone clears it on the front-desk PC as well. Until the rules are published,
+   marks stay with each browser, as before. */
+const MSYNC = { on: false, timer: 0, busy: false, again: false, fails: 0, retry: 0, gen: 0 }; // (gen: one per sign-in's syncing)
+function msgCopy() { return { r: msgRead(), u: msgUnseen() }; }
+const MSG_NONE = () => ({ r: new Map(), u: new Map() });
+/* the office copy as it comes — { r: { key: when read }, u: { key: when marked unread } } — or null (none yet) */
+function msgCopyOf(o) {
+  const f = x => { const m = new Map(); if (x && typeof x === 'object' && !Array.isArray(x)) Object.keys(x).forEach(k => { const t = x[k]; if (typeof t === 'number' && isFinite(t) && t >= 0) m.set(k, t); }); return m; };
+  return { r: f(o && o.r), u: f(o && o.u) };
+}
+function msgMerge(a, b) {
+  const r = new Map(), u = new Map(), now = Date.now(), at = (m, k) => m.has(k) ? m.get(k) : -1;
+  new Set([...a.r.keys(), ...a.u.keys(), ...b.r.keys(), ...b.u.keys()]).forEach(k => {
+    const rt = Math.max(at(a.r, k), at(b.r, k)), ut = Math.max(at(a.u, k), at(b.u, k));
+    if (ut > rt) { if (now - ut < MSG_UNSEEN_KEEP) u.set(k, ut); } else r.set(k, rt);
+  });
+  return { r: new Map(msgTrim(r, MSG_MAX)), u: new Map(msgTrim(u, MSG_MAX)) };
+}
+function msgSame(a, b) { const eq = (x, y) => x.size === y.size && Array.from(x).every(([k, t]) => y.get(k) === t); return eq(a.r, b.r) && eq(a.u, b.u); }
+function msgPlain(c) { return { r: Object.fromEntries(c.r), u: Object.fromEntries(c.u) }; }
+/* keep a merged copy in this browser; redraw when it changes what's shown */
+function msgKeep(c) {
+  if (msgSame(msgCopy(), c)) return;
+  msgLsSet(msgUKey(), JSON.stringify(Object.fromEntries(c.u))); msgLsSet(msgKey(), JSON.stringify(Object.fromEntries(c.r)));
+  msgRepaint();
+}
+function msgRepaint() { if (!S.inApp) return; renderNav(); if (S.view === 'msgs') queueRender(); }
+/* on once the rules check (ui.js) finds the 12 Oct rules live; Lock ends it (msgSyncStop, and FB.stop drops the watch) */
+function msgSyncStart() {
+  if (!S.inApp || !B || !B.msgSeenWatch || !meSid()) return;
+  if (!MSYNC.on) { MSYNC.on = true; MSYNC.gen++; }
+  clearTimeout(MSYNC.retry); const gen = MSYNC.gen, sid = meSid();
+  B.msgSeenWatch(o => { if (MSYNC.gen === gen && meSid() === sid) msgFromOffice(o); }, e => { if (MSYNC.gen === gen) msgWatchErr(e); });
+}
+function msgSyncStop() { clearTimeout(MSYNC.timer); clearTimeout(MSYNC.retry); MSYNC.gen++; Object.assign(MSYNC, { on: false, timer: 0, retry: 0, again: false, fails: 0 }); }
+/* the office copy, as it is now */
+function msgFromOffice(o) {
+  if (!S.inApp || !MSYNC.on) return;
+  const off = msgCopyOf(o), m = msgMerge(off, msgCopy());
+  msgKeep(m);
+  if (!msgSame(m, msgMerge(off, MSG_NONE()))) msgSyncSoon(); // (this browser knows marks the copy doesn't yet)
+}
+function msgSyncSoon(ms) { if (!MSYNC.on) return; clearTimeout(MSYNC.timer); MSYNC.timer = setTimeout(msgPush, ms == null ? 600 : ms); }
+async function msgPush() {
+  if (!MSYNC.on || !S.inApp) return;
+  if (MSYNC.busy) { MSYNC.again = true; return; }
+  MSYNC.busy = true; const gen = MSYNC.gen, sid = meSid(), mine = msgCopy(); // (this person's marks, as they are now)
+  try {
+    // (inside a transaction: what another device wrote a moment ago is merged in, not written over)
+    const kept = await B.msgSeenSave(o => {
+      const off = msgCopyOf(o), m = msgMerge(off, mine);
+      return msgSame(m, msgMerge(off, MSG_NONE())) ? null : msgPlain(m);
+    });
+    if (MSYNC.gen !== gen || meSid() !== sid) return; // (locked meanwhile)
+    MSYNC.fails = 0;
+    if (S.inApp && MSYNC.on) msgKeep(msgMerge(msgCopyOf(kept), msgCopy()));
+  } catch (e) { if (MSYNC.gen === gen) msgSyncErr(e); }
+  finally { MSYNC.busy = false; if (MSYNC.again) { MSYNC.again = false; msgSyncSoon(); } } // (also one asked for by the next sign-in meanwhile)
+}
+const msgRefused = e => /permission/i.test(String((e && (e.code || e.message)) || ''));
+/* refused because an older set of rules was published again: back to this browser only, for this session. (A save sealed
+   with the office key a key change has just replaced is refused too: the rules are still the newest, so it tries again.) */
+async function msgStillAllowed(e) {
+  if (!msgRefused(e)) return true;
+  let lv = 0; try { lv = await B.rulesLevel(); } catch (x) { }
+  if (lv >= 4) return true;
+  msgSyncStop(); if (B.msgSeenUnwatch) B.msgSeenUnwatch();
+  rulesCheck(); // (so Dr. A's Team & security offers the newer rules again — ui.js)
+  return false;
+}
+/* a save didn't go through (offline, a key change still reaching this computer…): again a little later */
+async function msgSyncErr(e) {
+  if (!MSYNC.on || !(await msgStillAllowed(e)) || !MSYNC.on) return;
+  MSYNC.fails++; msgSyncSoon(Math.min(300000, 10000 * MSYNC.fails));
+}
+/* the watch ended with an error: watched again in a little while */
+async function msgWatchErr(e) {
+  if (B && B.msgSeenUnwatch) B.msgSeenUnwatch();
+  if (!MSYNC.on || !(await msgStillAllowed(e)) || !MSYNC.on) return;
+  clearTimeout(MSYNC.retry); MSYNC.retry = setTimeout(() => { if (MSYNC.on) msgSyncStart(); }, 30000);
+}
+/* another tab on this computer changed the marks: show it here too (practice mode's keys carry its own prefix — tour.js) */
+window.addEventListener('storage', e => { if (S.inApp && (e.key === null || e.key.endsWith(msgKey()) || e.key.endsWith(msgUKey()))) { msgRepaint(); msgSyncSoon(); } });

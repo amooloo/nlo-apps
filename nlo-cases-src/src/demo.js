@@ -179,7 +179,7 @@ const DEMO = {
   },
   /* patient photos (in memory) */
   photos: new Map(),
-  async rulesLevel() { return 3; },
+  async rulesLevel() { return 4; },
   /* the patient index: in memory every case is at hand, so a patient's cases are found by their keys (histKeys in ui.js) */
   idxOn: true,
   async loadPatients(keys) { const want = new Set(keys); return Array.from(DEMO.cases.values()).filter(c => histKeys(c).some(k => want.has(k))).map(c => JSON.parse(JSON.stringify(c))); },
@@ -258,7 +258,7 @@ const DEMO = {
     await new Promise(r => setTimeout(r, 60)); DEMO.emit(data);
   },
   async deleteCase(id) { const c = DEMO.cases.get(id); if (c) DEMO.deleted.push({ caseId: id, at: Date.now(), sid: DEMO.me.staffId, data: JSON.parse(JSON.stringify(c)) }); DEMO.cases.delete(id); DEMO.photos.delete(id); if (c && DEMO.h) DEMO.h.cases([], [id], false); },
-  async loadClosed() { return Array.from(DEMO.cases.values()).filter(c => c.status === 'done').map(c => JSON.parse(JSON.stringify(c))); },
+  async loadClosed(days) { const since = days ? Date.now() - days * 864e5 : 0; return Array.from(DEMO.cases.values()).filter(c => c.status === 'done' && (c.closedAt || 0) >= since).map(c => JSON.parse(JSON.stringify(c))); },
   async loadChanged(days) { const since = Date.now() - days * 864e5; return Array.from(DEMO.cases.values()).filter(c => (c.updatedAt || 0) >= since).map(c => JSON.parse(JSON.stringify(c))); },
   async loadAll() { return Array.from(DEMO.cases.values()).map(c => JSON.parse(JSON.stringify(c))); },
   async caseLog(id) { return DEMO.logs.filter(l => l.caseId === id).slice().sort((a, b) => a.at - b.at); },

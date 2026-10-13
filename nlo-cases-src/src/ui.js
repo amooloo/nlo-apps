@@ -49,7 +49,9 @@ const IC = {
   // send a sticker (stickers.js): a smiley with a plus
   stk: '<circle cx="10.5" cy="13.5" r="7.5"/><path d="M8 11.6v.5M13 11.6v.5"/><path d="M7.7 15.5a3.6 3.6 0 005.6 0"/><path d="M19.5 2.5v5M17 5h5"/>',
   // a plain tick (Messages: mark as read, and the Read stamp — notes.js)
-  check: '<path d="M5 12.5l4.6 4.5L19 7.5"/>'
+  check: '<path d="M5 12.5l4.6 4.5L19 7.5"/>',
+  // a paper plane (To submit: cases still to go out to a lab)
+  send: '<path d="M20.5 3.5L10.2 13.8"/><path d="M20.5 3.5l-6.6 17-3.7-6.7-6.7-3.7z"/>'
 };
 function ic(n, s) { s = s || 18; return '<svg class="i" width="' + s + '" height="' + s + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (IC[n] || '') + '</svg>'; }
 
@@ -271,7 +273,7 @@ function bindLockForms(mode) {
 /* ---------- enter / leave ---------- */
 function enterApp() {
   if (['work', 'admin', 'import'].includes(S.view) && !isOwner()) S.view = 'today'; // (Dr. A's pages, left open when someone else signs in after him)
-  S.inApp = true; S.msgSince = Date.now(); S.cases = new Map(); S.closed = []; histReset(); S.firstLoad = true; S.lastAct = Date.now(); S.settingsLoaded = false; S.rulesLv = null; S.idxRan = false; S.noteVisit = new Map();
+  S.inApp = true; S.msgSince = Date.now(); S.cases = new Map(); S.closed = []; S.closedLoaded = false; histReset(); S.firstLoad = true; S.lastAct = Date.now(); S.settingsLoaded = false; S.rulesLv = null; S.idxRan = false; S.noteVisit = new Map();
   $('#lockWrap').classList.add('hidden'); $('#app').classList.remove('hidden');
   renderShell(); renderView();
   S.h = {
@@ -299,7 +301,7 @@ function enterApp() {
       idxMaintain();
     },
     revoked() { lockOut('Your access to NLO Cases was turned off.'); },
-    rekeyed() { },
+    rekeyed() { if (MSYNC.on) msgSyncSoon(0); }, // (read marks: a copy that couldn't be opened during the key change — notes.js)
     error(e) { if (/permission/.test((e && e.code) || '')) lockOut('Your access changed. Sign in again.'); else toast(errText(e), { bad: true }); }
   };
   B.start(S.h);
@@ -319,16 +321,20 @@ function enterApp() {
    (S.rulesOld: photos / email updates wait; S.rulesIdx: only the index waits). true = all of them are live. */
 async function rulesCheck() {
   const was = !!S.rulesOld;
-  S.rulesOld = false; S.rulesIdx = false; S.rulesMail = false; document.body.classList.remove('phOff');
+  S.rulesOld = false; S.rulesIdx = false; S.rulesMail = false; S.rulesMsg = false; document.body.classList.remove('phOff');
   if (!B.rulesLevel) return true;
-  const lv = await B.rulesLevel(); if (!S.inApp) return lv >= 3;
-  // (S.rulesMail: only the front-desk email waits — 8 Oct 2026, noship.js)
-  S.rulesLv = lv; S.rulesOld = lv < 1; S.rulesIdx = lv === 1; S.rulesMail = lv === 2; document.body.classList.toggle('phOff', lv < 1);
-  if (lv < 3) queueRender('team'); else nsSoon(); // (the front-desk email can go — noship.js)
+  const lv = await B.rulesLevel(); if (!S.inApp) return lv >= 4;
+  // (S.rulesMail: the front-desk email waits — 8 Oct 2026, noship.js; S.rulesMsg: only read marks following each person
+  // to every computer wait — 12 Oct 2026, notes.js — they stay with each browser meanwhile)
+  S.rulesLv = lv; S.rulesOld = lv < 1; S.rulesIdx = lv === 1; S.rulesMail = lv === 2; S.rulesMsg = lv === 3; document.body.classList.toggle('phOff', lv < 1);
+  if (lv < 4) queueRender('team');
+  if (lv >= 3) nsSoon(); // (the front-desk email can go — noship.js)
   // just published: the live updates the older rules refused (lab inbox, mailbox check-ins) start again without signing in again
   if (lv >= 1 && was && S.h) { B.start(S.h); MAILS.state = null; queueRender('team'); }
+  // (read marks: this person's copy, on every device — notes.js; an older set published again: back to this browser only)
+  if (lv >= 4) msgSyncStart(); else if (MSYNC.on) { msgSyncStop(); if (B.msgSeenUnwatch) B.msgSeenUnwatch(); }
   idxMaintain();
-  return lv >= 3;
+  return lv >= 4;
 }
 /* the owner's app keeps the patient index (see FB.idxFields): once the newer rules are live it indexes every case (once),
    then, at most every 6 hours, the cases saved since — an app opened before the update saves without the index */
@@ -348,9 +354,11 @@ async function idxMaintain() {
 async function lockOut(msg) {
   if (!S.inApp) return;
   if (TOUR.on) msg = tourPause(msg); // practice mode: signing back in picks the tour up again
-  S.inApp = false; clearInterval(S.idleTimer); clearInterval(S.mailTimer); clearInterval(S.nsTimer); NS.cfg = null;
+  S.inApp = false; clearInterval(S.idleTimer); clearInterval(S.mailTimer); clearInterval(S.nsTimer); NS.cfg = null; msgSyncStop();
   closeModal(); closeDrawer(true);
-  S.cases = new Map(); S.closed = []; histReset(); wkReset(); dupReset(); S.members = []; S.roster = []; S.iprCache = {}; S.verList = null; S.delList = null; S.impList = null; S.bk = null;
+  S.cases = new Map(); S.closed = []; histReset(); wkReset(); dupReset();
+  // (completed cases are loaded again for the next sign-in — a load still running is thrown away — and Completed's own choices start over)
+  Object.assign(S, { closedLoaded: false, closedGen: (S.closedGen || 0) + 1, closedDays: 90, doneDays: 90, df: null, dsort: null }); S.members = []; S.roster = []; S.iprCache = {}; S.verList = null; S.delList = null; S.impList = null; S.bk = null;
   Object.assign(MAILS, { list: [], unread: [], pick: {}, sig: '', state: null, stateAt: 0, script: '', gone: new Set(), goneFp: new Set(), hk: null, mem: null });
   phReset(); rxReset(); SH.data = null; SH.err = '';
   labReset(); // (lab orders waiting, the lab PC's setup code — lab.js)
@@ -405,7 +413,7 @@ function counts() {
     over: all.filter(c => dueBucket(c) === 'over').length,
     week: all.filter(c => ['today', 'week'].includes(dueBucket(c))).length,
     dr: all.filter(c => DR_STAGES.includes(c.stage)).length,
-    fab: all.filter(c => FAB_STAGES.includes(c.stage)).length,
+    fab: all.filter(inFab).length,
     arrived: all.filter(c => c.stage === 'arrived').length,
     mine: all.filter(c => c.assignee === me).length
   };
@@ -451,7 +459,7 @@ function queueRender(kind) {
   });
 }
 const NAV = [
-  ['today', 'Today', 'today'], ['board', 'Board', 'board'], ['list', 'All open cases', 'list'], ['mine', 'My cases', 'user'], ['msgs', 'Messages', 'chat'], ['done', 'Completed', 'done']
+  ['today', 'Today', 'today'], ['board', 'Board', 'board'], ['list', 'All open cases', 'list'], ['mine', 'My cases', 'user'], ['submit', 'To submit', 'send'], ['msgs', 'Messages', 'chat'], ['done', 'Completed', 'done']
 ];
 function renderShell() {
   const owner = isOwner();
@@ -473,7 +481,7 @@ function renderShell() {
 function renderNav() {
   const c = counts();
   const set = (k, n, red) => ['nav-', 'mnav-'].forEach(p => { const el = $('#' + p + k + ' .cnt'); if (!el) return; el.textContent = n; el.classList.toggle('hidden', !n); el.classList.toggle('red', !!red); });
-  set('today', c.over, true); set('list', c.all); set('mine', c.mine); set('msgs', msgUnread(), true);
+  set('today', c.over, true); set('list', c.all); set('mine', c.mine); set('submit', submitCases().length); set('msgs', msgUnread(), true);
   $$('.navBtn[data-v]').forEach(b => b.classList.toggle('on', b.dataset.v === S.view));
 }
 function renderSync() {
@@ -483,11 +491,11 @@ function renderSync() {
   else if (B && B.pending) { cls = 'busy'; t = 'Saving…'; }
   el.innerHTML = '<span class="dot ' + cls + '"></span>' + t;
 }
-const TITLES = { today: 'Today', board: 'Board', list: 'All open cases', mine: 'My cases', msgs: 'Messages', done: 'Completed', work: 'Workload', admin: 'Team & security', import: 'Import & export', account: 'My account' };
+const TITLES = { today: 'Today', board: 'Board', list: 'All open cases', mine: 'My cases', submit: 'To submit to labs', msgs: 'Messages', done: 'Completed', work: 'Workload', admin: 'Team & security', import: 'Import & export', account: 'My account' };
 function topBar(extra) {
   return '<div class="topBar"><h2>' + esc(TITLES[S.view]) + '</h2>' +
-    (['today', 'board', 'list', 'mine', 'done'].includes(S.view) ? '<label class="searchBox">' + ic('search', 17) + '<span class="hidden">Search</span><input id="q" type="search" placeholder="Search patient, type, stage…" value="' + esc(S.q) + '" aria-label="Search cases"></label>' : '<span style="flex:1"></span>') +
-    (extra || '') + (['today', 'board', 'list', 'mine', 'done'].includes(S.view) ? phHideBtn() : '') + '<button class="btn btn-teal" data-act="newCase">' + ic('plus', 16) + 'New case</button></div>';
+    (['today', 'board', 'list', 'mine', 'submit', 'done'].includes(S.view) ? '<label class="searchBox">' + ic('search', 17) + '<span class="hidden">Search</span><input id="q" type="search" placeholder="Search patient, type, stage…" value="' + esc(S.q) + '" aria-label="Search cases"></label>' : '<span style="flex:1"></span>') +
+    (extra || '') + (['today', 'board', 'list', 'mine', 'submit', 'done'].includes(S.view) ? phHideBtn() : '') + '<button class="btn btn-teal" data-act="newCase">' + ic('plus', 16) + 'New case</button></div>';
 }
 function renderView() {
   // the search box keeps its cursor and selection through a redraw (it used to jump to the end, so a live update landing just
@@ -505,6 +513,7 @@ function renderView() {
   else if (S.view === 'board') h = viewBoard();
   else if (S.view === 'list') h = viewList(listBase(), true);
   else if (S.view === 'mine') h = viewList(listBase(), false);
+  else if (S.view === 'submit') h = viewSubmit();
   else if (S.view === 'done') h = viewDone();
   else if (S.view === 'msgs') h = viewMsgs();
   else if (S.view === 'work') h = isOwner() ? viewWork() : '';
@@ -802,7 +811,11 @@ function noteKindsOf(c) {
 }
 /* when each step was reached and by whom (Amir, 5 Oct 2026: "when you look at the stage, can you put a mark for the date each step was
    moved and by who? keep it light and simple. so it doesn't look busy"): from the case's history — the latest move into each step
-   (a tap, an edit, a lab email); the step the case started at, when it was made (or brought in from Asana) */
+   (a tap, an edit, a lab email); the step the case started at, when it was made (or brought in from Asana).
+   A move back doesn't re-date anything (Amir, 12 Oct 2026: "if the case was submiited october 2nd, and I accidently move it to Dr
+   needed and then realized made mistake and move it back it should not stamp it with the new date"): the step it goes back to
+   keeps the date it was first reached, and the steps after it lose theirs — they're to come again. (The Specialty warranty
+   already counts moves forward only — warranty.js.) */
 function stageMarks(c) {
   const h = c && S.history && S.openId === c.id ? S.history : null; if (!h || !h.length) return {};
   const L = h.slice().sort((a, b) => (a.at || 0) - (b.at || 0)), out = {};
@@ -813,7 +826,13 @@ function stageMarks(c) {
   const first = L.find(moved), born = L.find(x => x.a === 'create' || x.a === 'import' || x.a === 'restore'), start = first ? first.from : c.stage;
   // (h: the history entry, for a sticker on the step — stickers.js)
   if (born && start) out[start] = { at: born.at, by: born.a === 'import' ? 'asana' : born.sid || '', h: stkHKey(born), born: true };
-  L.forEach(x => { if (moved(x)) out[x.to] = { at: x.at, by: x.a === 'email' ? 'email' : x.sid || '', h: stkHKey(x) }; });
+  const ks = flowOf(c).stages.map(s => s[0]), rt = RETIRED_STAGES[typeOf(c).flow] || {}, pos = k => ks.indexOf(rt[k] ? rt[k].to : k);
+  L.forEach(x => {
+    if (!moved(x)) return;
+    const a = pos(x.from), b = pos(x.to);
+    if (a >= 0 && b >= 0 && b < a) { ks.slice(b + 1).forEach(k => { delete out[k]; }); if (out[x.to]) return; } // (a move back)
+    out[x.to] = { at: x.at, by: x.a === 'email' ? 'email' : x.sid || '', h: stkHKey(x) };
+  });
   S.marksKeep = { id: c.id, stage: c.stage, m: out };
   return out;
 }
@@ -902,7 +921,7 @@ function histArrived() {
   $$('.cf').forEach(cf => { if (cf._alTot) cf._alTot(); if (cf._syncTx) cf._syncTx(); });
   const nc = $('#modalWrap'); if (nc && nc._ptRefresh) nc._ptRefresh(); // New case: the patient search and their cases (dupes.js)
   if (!S.editing && S.openId) renderDrawer();
-  if (S.view === 'list' || S.view === 'mine') queueRender();
+  if (S.view === 'list' || S.view === 'mine' || S.view === 'submit') queueRender();
 }
 /* estimated cost of n aligners in one set: owner's settings (Team & security), per set + per aligner; null until set */
 function alCost(n, sets) {
@@ -1096,7 +1115,7 @@ function applyFilters(list) {
     if (f.due) { const b = dueBucket(c); if (f.due === 'week' ? !['today', 'week'].includes(b) : f.due === '14' ? !['today', 'week', '14'].includes(b) : b !== f.due) return false; }
     if (f.del && !delMatch(c, f)) return false;
     if (f.grp === 'dr' && !DR_STAGES.includes(c.stage)) return false;
-    if (f.grp === 'fab' && !FAB_STAGES.includes(c.stage)) return false;
+    if (f.grp === 'fab' && !inFab(c)) return false;
     if (f.grp === 'arrived' && c.stage !== 'arrived') return false;
     if (f.ship && !c.shipToPatient) return false;
     if (f.noship && !shipWarn(c)) return false;
@@ -1197,7 +1216,7 @@ function viewList(base, showWho) {
   return h + '<div id="listBody">' + listBodyHTML(base) + '</div>';
 }
 /* the cases on All open cases / My cases (the delivery day box redraws just this, so typing a date isn't interrupted) */
-function listBase() { return S.view === 'mine' ? openCases().filter(c => c.assignee === meSid()) : openCases(); }
+function listBase() { return S.view === 'mine' ? openCases().filter(c => c.assignee === meSid()) : S.view === 'submit' ? submitCases() : openCases(); }
 /* columns anyone can hide on their computer (Amir, 2 Oct 2026: "can I just click it and make it hidden?"): the eye on a
    column's heading hides it, the Columns menu brings it back; remembered on this computer only (not patient data) */
 /* (4 Oct 2026: the one "Next date" column became Lab date + Delivery appt; a hidden "Next date" ('due') isn't carried over) */
@@ -1265,7 +1284,7 @@ function noteAuthKeep(c, log) {
   try { const m = noteAuthCache(), ks = Object.keys(m); if (ks.length > 800) ks.sort((a, b) => (m[a].t || 0) - (m[b].t || 0)).slice(0, ks.length - 800).forEach(k => delete m[k]);
     localStorage.setItem('nloCases.noteAuth', JSON.stringify(m)); } catch (e) { }
 }
-function noteAuthDone() { if (S.view === 'list' || S.view === 'mine') queueRender(); noteByPaint(); }
+function noteAuthDone() { if (S.view === 'list' || S.view === 'mine' || S.view === 'submit') queueRender(); noteByPaint(); }
 /* the newest history entry that set the Notes field: an edit (or a step move / lab email) that lists it, the creation, the
    Asana import; a restored version (or anything else) could have changed it without saying, so the writer isn't known */
 const NOTE_KEEP_ACTS = ['edit', 'stage', 'email', 'photo', 'reopen', 'close', 'assign', 'comment', 'rekey', 'sticker', 'noship', 'lab', 'print'];
@@ -1314,9 +1333,9 @@ function colsControlHTML(keys) {
       (n ? '<button type="button" class="linkBtn" data-act="showCols">Show all</button>' : '') + '<div class="small muted colNote">Saved on this computer</div></div>' : '') + '</div>';
 }
 function listBodyHTML(base) {
-  const list = sortList(applyFilters(base));
+  const list = sortList(applyFilters(base)), sub = S.view === 'submit';
   if (list.some(c => c.type === 'nla')) ensureHist(list.filter(c => c.type === 'nla'));
-  if (!list.length) return '<div class="card"><div class="empty">' + (base.length ? 'No cases match.' : 'No open cases yet.') + '</div></div>';
+  if (!list.length) return '<div class="card"><div class="empty">' + (base.length ? 'No cases match.' : sub ? 'Nothing waiting to go to a lab: every case has been sent.' : 'No open cases yet.') + '</div></div>';
   const hid = hiddenCols(), on = k => !hid.has(k);
   // a heading sorts; its eye hides the column (the Columns menu above the table brings it back)
   const th = (k, l, cls) => '<th class="' + (cls || '') + '"><span class="thIn"><button data-act="sort" data-k="' + k + '">' + l + (sortShown() === k ? (S.sort.dir > 0 ? ' ↑' : ' ↓') : '') + '</button>' +
@@ -1330,6 +1349,7 @@ function listBodyHTML(base) {
     return '<div class="flags onlyM">' + (m || '<span class="due none">No date</span>') + '</div>';
   };
   return '<div class="card tblWrap"><table class="tbl"><thead><tr>' + th('patient', 'Patient') + (on('type') ? th('type', 'Type', 'hideM') : '') + (on('stage') ? th('stage', 'Stage') : '') +
+      (sub ? '<th class="subCol"><span class="hidden">Sent to the lab</span></th>' : '') +
       (on('notes') ? th('notes', 'Notes', 'hideM noteCol') : '') + (on('lab') ? th('lab', 'Lab date', 'hideM dateCol') : '') + (on('appt') ? th('appt', 'Delivery appt', 'hideM dateCol') : '') + (on('tx') ? th('tx', 'Tx progress', 'hideM txCol') : '') + (on('cost') ? th('cost', 'Tx cost', 'hideM txCol') : '') +
       (on('ship') ? th('ship', 'Shipping', 'hideM') : '') + (on('who') ? th('who', 'Assigned', 'hideM') : '') + (on('updated') ? th('updated', 'Updated', 'hideM') : '') + '</tr></thead><tbody>' +
     list.map(c => { const g = stageGroup(flowOf(c), c.stage), ship = on('ship') ? shipFlag(c) + trackLinks(c) : '';
@@ -1339,6 +1359,7 @@ function listBodyHTML(base) {
       (on('type') ? '<td class="hideM">' + typeMark(c) + '</td>' : '') +
       (on('stage') ? '<td class="stg">' + progHTML(c) + '<div class="small">' + esc(stageLabel(c)) + (g ? ' <span class="muted">· ' + esc(g.l.toLowerCase()) + ' ' + (g.stages.indexOf(c.stage) + 1) + '/' + g.stages.length + '</span>' : '') + '</div>' +
         (recFlag(c) || holdFlag(c) || shipWarn(c) || df ? '<div class="flags">' + shipWarnFlag(c) + df + recFlag(c) + holdFlag(c) + '</div>' : '') + dateM(c) + '</td>' : '') +
+      (sub ? '<td class="subCol">' + submitBtnHTML(c) + '</td>' : '') + // (To submit: Submitted, next to the step it moves on)
       (on('notes') ? '<td class="hideM noteCol">' + noteCellHTML(c) + '</td>' : '') + // the latest note, next to the stage (5 Oct 2026)
       (on('lab') ? '<td class="hideM dateCol labCol">' + labChip(c, true) + '</td>' : '') +
       (on('appt') ? '<td class="hideM dateCol apptCol">' + apptChip(c, true) + '</td>' : '') +
@@ -1350,25 +1371,94 @@ function listBodyHTML(base) {
     '</tbody></table></div><div class="small muted" style="margin-top:8px">' + list.length + ' case' + (list.length === 1 ? '' : 's') + '</div>';
 }
 
-/* ---------- Completed ---------- */
+/* ---------- To submit (Amir, 12 Oct 2026: "can you create a separate tab that is for things that need to go out to labs outside ---
+   otherwords things that need to be submitted to the lab thaht have not been submittted yet") ----------
+   Every open case not sent to its outside lab yet: outside aligners & braces and appliances at To submit, appliances on Hold (waiting
+   on a CBCT or Zoom call), and MARPE cases still gathering their records (he picked both). The open-case list's search, filters,
+   sorting and columns, plus Submitted on each row: it moves the case to Submitted to lab (with Undo), the same move as that step
+   in the case panel — asking first for what the step needs (a MARPE's records). */
+const SUBMIT_AT = { outside: ['submit'], appliance: ['submit', 'hold'], marpe: ['records'] };
+function toSubmit(c) { return !!c && !c.locked && !c.dup && c.status !== 'done' && (SUBMIT_AT[typeOf(c).flow] || []).includes(c.stage); }
+function submitCases() { return openCases().filter(toSubmit); }
+function viewSubmit() {
+  if (S.firstLoad && !S.demo) return '<div class="empty">Loading cases…</div>';
+  return '<p class="small muted subIntro">Cases not sent to their lab yet: at To submit, appliances on Hold, and MARPE cases gathering records. Tap <b>Submitted</b> once a case has gone to the lab.</p>' +
+    viewList(listBase(), true);
+}
+function submitBtnHTML(c) {
+  const what = 'Sent to the lab: move ' + (PH.hide ? 'this case' : (c.patient || 'this case')) + ' to Submitted to lab';
+  return '<button type="button" class="btn btn-sec btn-sm subBtn" data-act="markSubmitted" data-id="' + esc(c.id) + '" title="' + esc(what) + '" aria-label="' + esc(what) + '">' + ic('send', 15) + '<span>Submitted</span></button>';
+}
+async function submitDone(id) {
+  const c = findCase(id); if (!c || !toSubmit(c) || !caseStages(c).some(x => x[0] === 'submitted')) return;
+  const from = c.stage;
+  await moveStage(id, 'submitted'); // (a step that needs something first asks; the case moves once that's answered)
+  const now = findCase(id); if (!now || now.stage !== 'submitted') return;
+  // (Undo only while it's still there: someone else, or a lab email, may have moved it on meanwhile)
+  toast('Moved to Submitted to lab', { action: 'Undo', onAction: () => { const x = findCase(id); if (x && x.status !== 'done' && x.stage === 'submitted') moveStage(id, from); } });
+}
+
+/* ---------- Completed (Amir, 12 Oct 2026: "for completed cases, there should still be a way to sort and filter them and search") ----------
+   The search box at the top (as before), how far back (the last 90 days to start; it used to be a "Show older" button), the type and
+   who it was assigned to; every heading sorts, newest completed first to start with. A search that finds nothing in the time shown
+   offers to look through all of them. */
+const DONE_ALL = 3650, DONE_RANGES = [[30, 'Completed in the last 30 days'], [90, 'Completed in the last 90 days'], [365, 'Completed in the last year'], [DONE_ALL, 'All completed cases']];
+const DONE_SORT0 = { k: 'closed', dir: -1 };
+function doneFilters() { return { type: '', who: '' }; }
+/* the time picked: further back than what's loaded loads more; shorter just cuts what's shown */
+function doneRange(d) { S.doneDays = d; if (d > S.closedDays) { S.closedDays = d; S.closedLoaded = false; } renderView(); }
+/* the people to filter by: the team, and anyone who has left but had completed cases here */
+function doneWho(list) {
+  const had = new Set(list.map(c => c.assignee).filter(Boolean));
+  return (S.roster || []).filter(r => r && r.sid && (r.active || had.has(r.sid))).sort((a, b) => (b.role === 'owner') - (a.role === 'owner') || (b.active ? 1 : 0) - (a.active ? 1 : 0) || String(a.name).localeCompare(String(b.name)));
+}
+function doneSort(list) {
+  const { k, dir } = S.dsort || DONE_SORT0;
+  const val = c => k === 'patient' ? String(c.patient || '').toLowerCase() : k === 'type' ? typeOf(c).l : k === 'who' ? String(staffName(c.assignee, c.assigneeName) || '').toLowerCase()
+    : k === 'appt' ? (c.deliveryDate || '') : k === 'stage' ? (stageLabel(c) || '') : (c.closedAt || 0);
+  const memo = new Map(), v = c => { if (!memo.has(c)) memo.set(c, val(c)); return memo.get(c); }, newest = (a, b) => (b.closedAt || 0) - (a.closedAt || 0);
+  // (no one assigned, no delivery appt: last whichever way it's sorted; ties: the newest completed first)
+  return list.slice().sort((a, b) => { const x = v(a), y = v(b); if (x === '' || y === '') return x === y ? newest(a, b) : x === '' ? 1 : -1;
+    return (x < y ? -1 : x > y ? 1 : 0) * dir || newest(a, b); });
+}
 function viewDone() {
   if (!S.closedLoaded) { loadClosed(); return '<div class="empty">Loading completed cases…</div>'; }
-  const list = S.closed.filter(matchesQ).sort((a, b) => (b.closedAt || 0) - (a.closedAt || 0));
-  let h = '<div class="filters"><span class="small muted">Completed in the last ' + S.closedDays + ' days</span>' +
-    (S.closedDays < 3650 ? '<button class="btn btn-ghost" data-act="moreClosed">Show older</button>' : '') + colsControlHTML(['type', 'stage']) + '</div>';
-  if (!list.length) return h + '<div class="card"><div class="empty">No completed cases' + (S.q ? ' match' : '') + '.</div></div>';
+  // (S.closedDays: how far back the completed cases are loaded — it only grows, as Messages looks through them too; S.doneDays: the
+  // time picked here, which may be shorter: what's shown is cut to it)
+  const df = S.df = S.df || doneFilters(), sort = S.dsort || DONE_SORT0, shown = S.doneDays || 90, from = shown >= DONE_ALL ? 0 : Date.now() - shown * 864e5;
+  const all = S.closed.filter(c => (c.closedAt || 0) >= from);
+  const list = doneSort(all.filter(c => matchesQ(c) && (!df.type || c.type === df.type) && (!df.who || (df.who === '_none' ? !(c.assignee || c.assigneeName) : c.assignee === df.who))));
+  let h = '<div class="filters">' +
+    '<select data-df="days" aria-label="How far back">' + DONE_RANGES.map(([d, l]) => '<option value="' + d + '"' + (shown === d ? ' selected' : '') + '>' + l + '</option>').join('') + '</select>' +
+    '<select data-df="type" aria-label="Type"' + (df.type ? ' class="on"' : '') + '><option value="">All types</option>' + typesShown(all, df.type).map(t => '<option value="' + t.k + '"' + (df.type === t.k ? ' selected' : '') + '>' + esc(t.l) + '</option>').join('') + '</select>' +
+    '<select data-df="who" aria-label="Assigned to"' + (df.who ? ' class="on"' : '') + '><option value="">Anyone</option><option value="_none"' + (df.who === '_none' ? ' selected' : '') + '>Unassigned</option>' +
+      doneWho(all).map(r => '<option value="' + esc(r.sid) + '"' + (df.who === r.sid ? ' selected' : '') + '>' + esc(r.name) + '</option>').join('') + '</select>' +
+    (df.type || df.who ? '<button class="btn btn-ghost" data-act="doneClear">Clear filters</button>' : '') + colsControlHTML(['type', 'who', 'appt', 'stage']) + '</div>';
+  const older = S.q && shown < DONE_ALL ? '<button class="linkBtn" data-act="doneAll">Look through all completed cases</button>' : '';
+  if (!list.length) return h + '<div class="card"><div class="empty">' + (all.length ? 'No completed cases match.' : 'No cases completed in this time.') + (older ? '<div style="margin-top:8px">' + older + '</div>' : '') + '</div></div>';
   const hid = hiddenCols(), on = k => !hid.has(k);
-  const th = (k, l, cls) => '<th class="' + (cls || '') + '"><span class="thIn">' + l + '<button class="thHide" data-act="hideCol" data-k="' + k + '" title="Hide this column" aria-label="Hide the ' + esc(l) + ' column">' + ic('eyeOff', 14) + '</button></span></th>';
-  return h + '<div class="card tblWrap"><table class="tbl"><thead><tr><th>Patient</th>' + (on('type') ? th('type', 'Type', 'hideM') : '') + '<th>Completed</th>' + (on('stage') ? th('stage', 'Last stage', 'hideM') : '') + '</tr></thead><tbody>' +
+  // a heading sorts (again: the other way); its eye hides the column (the Columns menu brings it back)
+  const th = (k, l, cls, keep) => '<th class="' + (cls || '') + '"><span class="thIn"><button data-act="dsort" data-k="' + k + '">' + l + (sort.k === k ? (sort.dir > 0 ? ' ↑' : ' ↓') : '') + '</button>' +
+    (keep ? '' : '<button class="thHide" data-act="hideCol" data-k="' + k + '" title="Hide this column" aria-label="Hide the ' + esc(l) + ' column">' + ic('eyeOff', 14) + '</button>') + '</span></th>';
+  return h + '<div class="card tblWrap"><table class="tbl doneTbl"><thead><tr>' + th('patient', 'Patient', '', true) + (on('type') ? th('type', 'Type', 'hideM') : '') + (on('who') ? th('who', 'Assigned', 'hideM') : '') +
+    (on('appt') ? th('appt', 'Delivery appt', 'hideM') : '') + th('closed', 'Completed', '', true) + (on('stage') ? th('stage', 'Last stage', 'hideM') : '') + '</tr></thead><tbody>' +
     list.map(c => '<tr class="click" data-act="openClosed" data-id="' + esc(c.id) + '" tabindex="0"><td><div class="ptCell">' + ptAv(c, 36) + '<div class="ptTxt"><div class="pt">' + ptName(c.patient) + '</div><div class="small muted">' + esc(c.detail || '') + '</div></div></div></td>' +
-      (on('type') ? '<td class="hideM">' + typeMark(c) + '</td>' : '') + '<td class="small">' + esc(fmtWhen(c.closedAt)) + '</td>' + (on('stage') ? '<td class="hideM small">' + esc(stageLabel(c)) + '</td>' : '') + '</tr>').join('') +
-    '</tbody></table></div>';
+      (on('type') ? '<td class="hideM">' + typeMark(c) + '</td>' : '') +
+      (on('who') ? '<td class="hideM small">' + esc(staffName(c.assignee, c.assigneeName) || '—') + '</td>' : '') +
+      (on('appt') ? '<td class="hideM small">' + esc(c.deliveryDate ? fmtDate(c.deliveryDate) : '—') + '</td>' : '') +
+      '<td class="small">' + esc(fmtWhen(c.closedAt)) + '</td>' + (on('stage') ? '<td class="hideM small">' + esc(stageLabel(c)) + '</td>' : '') + '</tr>').join('') +
+    '</tbody></table></div><div class="small muted" style="margin-top:8px">' + list.length + ' case' + (list.length === 1 ? '' : 's') + (older ? ' · ' + older : '') + '</div>';
 }
 async function loadClosed() {
   if (S.closedLoading) return; S.closedLoading = true;
-  try { S.closed = liveCases(await B.loadClosed(S.closedDays)); S.closedLoaded = true; }
-  catch (e) { toast(errText(e), { bad: true }); S.closedLoaded = true; S.closed = []; }
+  const days = S.closedDays, gen = S.closedGen = (S.closedGen || 0) + 1; let list = null, err = null;
+  try { list = liveCases(await B.loadClosed(days)); } catch (e) { err = e; }
   S.closedLoading = false;
+  // (locked meanwhile: thrown away, and loaded afresh for whoever is in now; asked to go further back meanwhile: loaded again)
+  if (gen !== S.closedGen) { if (S.inApp && !S.closedLoaded && (S.view === 'done' || S.view === 'msgs')) loadClosed(); return; }
+  if (S.closedDays > days) { loadClosed(); return; }
+  if (err) { toast(errText(err), { bad: true }); S.closed = []; } else S.closed = list;
+  S.closedLoaded = true;
   // (Messages lists the notes on completed cases too, once they're loaded — notes.js; queued, so a click half done goes through first)
   if (S.view === 'msgs') queueRender(); else { if (S.view === 'done') renderView(); renderNav(); }
 }
@@ -2103,6 +2193,10 @@ function onClick(e) {
       if (a === 'iprPrevTog') iprBtSet(t.getAttribute('aria-pressed') !== 'true'); else box.dataset.lay = t.dataset.v;
       box.innerHTML = iprPreviewHTML(box._ipr, box.dataset.lay); break; }
     case 'advance': { const c = findCase(id); const n = c && nextStage(c); if (n) moveStage(id, n); break; }
+    case 'markSubmitted': submitDone(id); break;
+    case 'dsort': { const k = t.dataset.k, cur = S.dsort || DONE_SORT0; S.dsort = { k, dir: cur.k === k ? -cur.dir : k === 'closed' ? -1 : 1 }; renderView(); break; }
+    case 'doneClear': S.df = doneFilters(); renderView(); break;
+    case 'doneAll': doneRange(DONE_ALL); break;
     case 'complete': completeCase(id); break;
     case 'setStage': moveStage(S.openId, t.dataset.k); break;
     case 'labels': { const c = findCase(S.openId); if (c && alN(c)) labelsModal(c); break; }
@@ -2197,6 +2291,8 @@ function onChange(e) {
   if (t.id === 'oldMonths') { S.oldMonths = Number(t.value) || 3; S.oldOff.clear(); renderView(); return; }
   if (t.id === 'oldNoDate') { S.oldNoDate = t.checked; renderView(); return; }
   if (t.dataset.col) { setColHidden(t.dataset.col, !t.checked); S.colMenu = true; renderView(); return; }
+  // Completed's filters (its time range loads more when it's longer than what's loaded)
+  if (t.dataset.df) { const k = t.dataset.df; if (k === 'days') doneRange(Number(t.value) || 90); else { S.df[k] = t.value; renderView(); } return; }
   if (t.dataset.f === 'delDay') { S.f.delDay = t.value; const lb = $('#listBody'); if (lb) { lb.innerHTML = listBodyHTML(listBase()); phPaint(); savPaint(lb); logoPaint(lb); picPaint(lb); } return; }
   if (t.dataset.f) { S.f[t.dataset.f] = t.value; if (t.dataset.f === 'type') S.f.stage = '';
     // "Delivery on a day…": start on today and open the date picker

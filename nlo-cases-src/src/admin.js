@@ -62,11 +62,12 @@ function shipWarnCardHTML() {
    (they ship inside the page, so they always match it; the owner's own sign-in email is filled in here) */
 const NLO_RULES = "__NLO_RULES__";
 function rulesCardHTML() {
-  if (!(S.rulesOld || S.rulesIdx || S.rulesMail) || !isOwner()) return '';
+  if (!(S.rulesOld || S.rulesIdx || S.rulesMail || S.rulesMsg) || !isOwner()) return '';
   const pid = (FB.cfg && FB.cfg.projectId) || '';
   const why = S.rulesOld ? 'Patient photos and email updates need them. Until then they stay hidden.'
     : S.rulesIdx ? 'They keep NLO Cases quick as completed cases pile up: each computer loads only the patients it shows. Everything works meanwhile.'
-    : 'The front-desk email for cases not shipped in time needs them (8 Oct 2026). Everything else works meanwhile.';
+    : S.rulesMail ? 'The front-desk email for cases not shipped in time needs them (8 Oct 2026). Everything else works meanwhile.'
+    : 'So a message read on one computer or phone is read on all of them (12 Oct 2026). Until then, read marks stay with each browser.';
   return '<div class="card rulesCard" id="rulesCard"><div class="cardHd"><h3>One-time update: security rules</h3><span class="sub">' + why + '</span></div><div class="cardBd">' +
     '<ol class="small mlSteps"><li>Click <b>Copy the new rules</b>.</li><li>Click <b>Open the Firebase console</b> (the Google account that owns the project). Pick <b>Firestore Database</b> in the left menu (the stacked-lines icon under the gear), then the <b>Rules</b> tab.</li>' +
     '<li>Select everything in the editor, paste, and click <b>Publish</b>.</li><li>Come back here and click <b>Check again</b>.</li></ol>' +

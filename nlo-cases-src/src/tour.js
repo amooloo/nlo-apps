@@ -39,7 +39,7 @@ function tourSteps(kind) {
     { id: 'tab', need: onBoard, at: () => $('.boardTabs [data-k=outside]'), t: 'One tab per kind of case', b: 'Oliv, Angel, uLab and Invisalign cases are under Outside aligners & braces.', act: 'Tap Outside aligners & braces.',
       done: () => S.view === 'board' && S.boardFlow === 'outside' },
     { id: 'move', need: onBoard, enter: () => { const c = mine(); TOUR.st0 = c ? c.stage : ''; }, at: () => { const k = card(); return k && k.querySelector('.adv'); },
-      t: 'Move a case along', b: 'Each column is a step. Once you’ve submitted it in Oliv’s portal, the arrow on its card moves it to the next step (here, Dr. A action).', act: 'Tap the arrow on your card.',
+      t: 'Move a case along', b: 'Each column is a step. Once you’ve submitted it in Oliv’s portal, the arrow on its card moves it to the next step (here, Submitted to lab).', act: 'Tap the arrow on your card.',
       done: () => { const c = mine(); return !!c && !!TOUR.st0 && c.stage !== TOUR.st0; } },
     { id: 'open', need: onBoard, at: card, t: 'Open a case', b: 'Everything about the case is one tap away.', act: 'Tap your card.', done: () => !!TOUR.id && S.openId === TOUR.id },
     { id: 'panel', need: inCase, at: () => $('#drawer .dHd'), t: 'The case', b: 'Each section folds to one line: tap a heading to open it, or Expand all. The steps, Details, Edit and the patient’s photo are all here.' },

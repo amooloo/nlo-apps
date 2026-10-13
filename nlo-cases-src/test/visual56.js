@@ -11,7 +11,7 @@ const OUT = process.argv[2] || 'shots';
   const p = await ctx.newPage(); watch(p, errs, 'demo');
   await p.goto('http://127.0.0.1:8765/nlo-cases.html?demo'); await p.click('#lgBtn'); await p.waitForSelector('.tiles');
   let fails = 0; const check = (ok, what) => { console.log((ok ? '  ok   ' : '  FAIL ') + what); if (!ok) fails++; };
-  await p.waitForFunction(() => S.rulesLv === 3, null, { timeout: 5000 }).catch(() => {});
+  await p.waitForFunction(() => S.rulesLv >= 3, null, { timeout: 5000 }).catch(() => {});
   // the Email updates card (Team & security redraws as the mailboxes check in, so it's found afresh each time)
   const shotCard = async f => { await p.waitForTimeout(400); const r = await p.evaluate(() => { const c = document.querySelector('#nsBox').closest('.card'); c.scrollIntoView({ block: 'start' }); const b = c.getBoundingClientRect(); return { x: b.x, y: b.y, width: b.width, height: Math.min(b.height, innerHeight - b.y) }; });
     await p.screenshot({ path: OUT + '/' + f, clip: r }); };

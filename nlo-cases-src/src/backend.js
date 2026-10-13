@@ -12,6 +12,7 @@ const FB = {
   uid: null, me: null, priv: null, ring: null, keys: null, curV: 0, ringV: 0,
   unsubs: [], pending: 0, onSync: null,
   idxOn: false, idxKey: null, // the patient index (see idxFields): written once the live rules allow it
+  msgOn: false, msgUnsub: null, // read marks that follow each person (msgSeen…, 12 Oct 2026): once the live rules allow it
 
   ts() { return firebase.firestore.FieldValue.serverTimestamp(); },
   del() { return firebase.firestore.FieldValue.delete(); },
@@ -181,10 +182,10 @@ const FB = {
 
   async signOut() {
     FB.stop();
-    FB.priv = FB.ring = FB.keys = FB.me = FB.uid = FB.inboxPriv = FB.idxKey = null; FB.curV = FB.ringV = 0; FB.idxOn = false;
+    FB.priv = FB.ring = FB.keys = FB.me = FB.uid = FB.inboxPriv = FB.idxKey = null; FB.curV = FB.ringV = 0; FB.idxOn = FB.msgOn = false;
     try { await FB.auth.signOut(); } catch (e) { }
   },
-  stop() { FB.unsubs.forEach(u => { try { u(); } catch (e) { } }); FB.unsubs = []; },
+  stop() { FB.unsubs.forEach(u => { try { u(); } catch (e) { } }); FB.unsubs = []; FB.msgUnsub = null; },
 
   /* ---------- live data ---------- */
   async decryptDoc(id, d) {
@@ -521,13 +522,51 @@ const FB = {
     return { v, iv: box.iv, ct: box.ct, pv, at: FB.ts(), by: FB.uid };
   },
   /* which of the security rules this version needs are live: 0 = older than patient photos and email updates, 1 = those but
-     not the patient index and marked deletes (4 Oct 2026), 2 = those but not the front-desk email (8 Oct 2026), 3 = all of them.
-     An older set refuses the read that checks. */
+     not the patient index and marked deletes (4 Oct 2026), 2 = those but not the front-desk email (8 Oct 2026), 3 = those but
+     not read marks that follow each person (12 Oct 2026), 4 = all of them. An older set refuses the read that checks. */
   async rulesLevel() {
     const can = async p => { try { await FB.db.doc(p).get(); return true; } catch (e) { return !/permission/i.test(String((e && (e.code || e.message)) || '')); } };
     let lv = !(await can('photos/_rules_check')) ? 0 : (await can('meta/rules_20261004')) ? 2 : 1;
     if (lv === 2 && await can('meta/rules_20261008')) lv = 3;
-    FB.idxOn = lv >= 2; return lv;
+    if (lv === 3 && await can('meta/rules_20261012')) lv = 4;
+    FB.idxOn = lv >= 2; FB.msgOn = lv >= 4; return lv;
+  },
+
+  /* ---------- read marks on Messages (notes.js, 12 Oct 2026): each person's own copy, msgSeen/<staff id> ----------
+     { r: { "<case>/<note>": when read }, u: { …: when marked unread } }, sealed with the office key (only they may read or
+     write it — firestore.rules), so a message read on one computer or phone is read on all of them. */
+  async msgSeenOpen(d, sid) {
+    const key = FB.keys && FB.keys[d.v];
+    if (!key) throw errCode('no-key', 'Missing key version ' + d.v);
+    return Crypto.openJSON(key, d, 'msgseen:' + sid);
+  },
+  /* live: cb(the copy, or null when there's none yet). One watch at a time; Lock (FB.stop) ends it */
+  msgSeenWatch(cb, onErr) {
+    if (FB.msgUnsub || !FB.me) return;
+    const sid = FB.me.staffId;
+    const u = FB.db.doc('msgSeen/' + sid).onSnapshot(async s => {
+      let o = null;
+      // (one that can't be opened here yet — a key change still reaching this computer — is skipped, not taken as empty)
+      if (s.exists) { try { o = await FB.msgSeenOpen(s.data(), sid); } catch (e) { return; } }
+      cb(o);
+    }, e => { onErr(e); });
+    FB.msgUnsub = u; FB.unsubs.push(u);
+  },
+  msgSeenUnwatch() { const u = FB.msgUnsub; FB.msgUnsub = null; if (u) { try { u(); } catch (e) { } FB.unsubs = FB.unsubs.filter(x => x !== u); } },
+  /* fn(the copy as it is now, or null) → the copy to keep (null: leave it); in a transaction, so two devices saving at once
+     both get their marks in. Returns the copy kept. */
+  async msgSeenSave(fn) {
+    const sid = FB.me.staffId, ref = FB.db.doc('msgSeen/' + sid);
+    return FB.track(FB.db.runTransaction(async tx => {
+      const s = await tx.get(ref);
+      const cur = s.exists ? await FB.msgSeenOpen(s.data(), sid) : null; // (can't be opened yet: try again later, never written over)
+      const next = fn(cur); if (!next) return cur;
+      const v = FB.curV, key = FB.keys && FB.keys[v];
+      if (!key) throw errCode('no-key', 'Missing key version ' + v);
+      const box = await Crypto.sealJSON(key, next, 'msgseen:' + sid);
+      tx.set(ref, { v, iv: box.iv, ct: box.ct, at: FB.ts() });
+      return next;
+    }));
   },
   /* a save was refused while writing the index: are the newer rules really live? (false = they aren't; saves go without it) */
   async idxRecheck() { try { await FB.rulesLevel(); } catch (e) { FB.idxOn = false; } return FB.idxOn; },
@@ -745,6 +784,8 @@ const FB = {
     b.update(FB.db.doc('roster/' + sid), { active: false });
     if (rs.username) b.delete(FB.db.doc('logins/' + rs.username));
     await FB.track(b.commit());
+    // their read marks too (the username can go to someone new later) — on their own, so nothing about it can hold the rest up
+    if (FB.msgOn) await FB.db.doc('msgSeen/' + sid).delete().catch(() => { });
   },
   /* new office key; everyone still active gets it; every case is re-sealed under it */
   async rotate(progress) {

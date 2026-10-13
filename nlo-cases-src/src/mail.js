@@ -201,7 +201,9 @@ function mailEffect(c, ev) {
   const fl = typeOf(c).flow, keys = caseStages(c).map(s => s[0]), si = keys.indexOf(pathStage(c, c.stage)), at = k => keys.indexOf(k);
   const fwd = k => keys.includes(k) && at(k) > si ? k : null, set = {}; let to = null;
   if (ev.kind === 'plan') to = fwd('dra');
-  else if (ev.kind === 'received') to = fl === 'appliance' ? fwd('mfg') : fl === 'marpe' ? fwd('submitted') : null;
+  // (outside aligners: the lab has it — Submitted to lab, 12 Oct 2026. None of the aligner companies' emails read so far says a
+  // case was received, so staff tap that step; the setup coming back moves it to Dr. A action from either step)
+  else if (ev.kind === 'received') to = fl === 'appliance' ? fwd('mfg') : fl === 'marpe' || fl === 'outside' ? fwd('submitted') : null;
   else if (ev.kind === 'shipped') to = fl === 'marpe' ? fwd('approved') : fwd('shipped');
   else if (ev.kind === 'delivered') to = fwd('arrived');
   // shipped to the patient: a lab email takes it as far as Shipped (it skips Arrived), never on to Checked into Milestones —

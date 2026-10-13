@@ -1403,6 +1403,13 @@ svg.rxArch{display:block;width:100%;height:auto}
 .wtySteps a{color:var(--blue)}
 @media (max-width:520px){.wtyTbl th{width:auto;display:block;border-bottom:0;padding-bottom:0}.wtyTbl tr{display:grid;grid-template-columns:1fr auto}.wtyTbl th{grid-column:1/-1}.wtyTbl td{border-bottom:1px dashed var(--grey-200)}}
 
+/* To submit (12 Oct 2026): the line saying what's here, and Submitted on each row (it stays on phones) */
+.subIntro{margin:-4px 0 12px;max-width:760px}
+.tbl td.subCol,.tbl th.subCol{width:1%;white-space:nowrap;padding-left:0}
+.subBtn{gap:6px;color:var(--mint-700)}
+.subBtn:hover{border-color:var(--mint-600);background:var(--mint-100)}
+@media (max-width:640px){ .subBtn span{display:none} .subBtn{padding:6px 10px} }
+
 /* ---------- Phone fit (Oct 2026) ----------
    iPhones zoom the page in when a box under 16px gets the cursor (and it stays zoomed), and one long chip made
    the whole page a few px wider than the screen. Long chips now wrap; on phones the date chips sit under the name. */

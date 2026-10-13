@@ -24,9 +24,12 @@ const KDF_ITER = 600000;
 /* ---------- Case types and the stages each one moves through ---------- */
 const FLOWS = {
   /* labDone: from this stage on, the case's next date is its delivery date, not the lab date. Outside labs: once the case
-     is in Manufacturing (Amir, 2 Oct 2026: "once it goes to manufacturing … it should be showing the delivery date") */
+     is in Manufacturing (Amir, 2 Oct 2026: "once it goes to manufacturing … it should be showing the delivery date").
+     Submitted to lab (Amir, 12 Oct 2026, with the To submit page — "things that need to be submitted to the lab that have not
+     been submitted yet"): staff tap it when they send the case, or the lab's "received" email moves it there; until then a
+     case sent and waiting for the lab's setup sat at To submit too. A case saved at To submit stays there. */
   outside: { label: 'Outside aligners & braces', labDone: 'mfg', stages: [
-    ['submit', 'To submit'], ['dra', 'Dr. A action'], ['mfg', 'Manufacturing'],
+    ['submit', 'To submit'], ['submitted', 'Submitted to lab'], ['dra', 'Dr. A action'], ['mfg', 'Manufacturing'],
     ['shipped', 'Shipped'], ['arrived', 'Arrived'], ['milestones', 'Checked into Milestones'] ] },
   appliance: { label: 'Appliances', labDone: 'mfg', stages: [
     ['submit', 'To submit'], ['hold', 'Hold (CBCT/Zoom)'], ['submitted', 'Submitted to lab'],
@@ -109,6 +112,9 @@ const SCANNERS = ['Allied Star', 'iTero', 'Other'];
 /* Stages that need the doctor, and stages where the case is in fabrication. */
 const DR_STAGES = ['dra', 'txp', 'todo', 'review'];
 const FAB_STAGES = ['mfg', 'fab', 'send', 'print', 'thermo', 'trim', 'polish', 'wash', 'submitted', 'approved'];
+/* in fabrication (Today's tile, its filter): an outside aligner case at Submitted to lab (12 Oct 2026) isn't — the lab is making its
+   setup for Dr. A, nothing is being made yet */
+function inFab(c) { return !!c && FAB_STAGES.includes(c.stage) && !(c.stage === 'submitted' && typeOf(c).flow === 'outside'); }
 /* the patient's chief concern, written down in the patient's own words (Amir, 3 Oct 2026, evening: "take out all the options and
    just write in exactly what they say, for example, my bite is not right"; that morning it had become a fixed list to tap,
    replacing buttons learned from whatever was typed most, like "This is initial"). A first set asks for the chief concern,

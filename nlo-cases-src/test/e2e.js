@@ -206,6 +206,44 @@ async function openByName(p, name) {
   await owner.waitForSelector('#histBox .hist:has-text("moved it to Dr. A action")', { timeout: 15000 });
   check(await owner.isVisible('#histBox .hist:has-text("Gwen")'), 'history shows who moved it');
 
+  console.log('\n# Read marks follow Dr. A to his other computers and phone (12 Oct 2026)');
+  // (Amir: "the messages on nlo case tracker keeps coming back as unread. i have marked the same message as read 3 times and it
+  // still showed as unread" — each browser kept its own marks)
+  const ownerSid = await owner.evaluate(() => meSid()), p1Id = await owner.evaluate(() => S.openId);
+  const seenCopy = async () => { for (let i = 0; i < 60; i++) { const d = (await fsDump(['msgSeen'])).find(x => x.name.endsWith('/msgSeen/' + ownerSid)); if (d) return d; await sleep(250); } return null; };
+  const unread = p => p.evaluate(() => msgUnread());
+  const waitUnread = (p, n) => p.waitForFunction(n => msgUnread() === n, n, { timeout: 15000 }).catch(() => {});
+  check(await owner.evaluate(() => S.rulesLv === 4 && MSYNC.on), 'the newest rules are live: Dr. A’s read marks are kept in his own copy as well');
+  const sd = await seenCopy();
+  check(!!sd && Object.keys(sd.fields).sort().join() === 'at,ct,iv,v' && sd.fields.v.integerValue === '1', 'his copy is in the office database, sealed with the office key (v, iv, ct, at — nothing else)');
+  check(!!p1Id && !JSON.stringify(await fsDump(['msgSeen'])).includes(p1Id), '…it doesn’t even say which cases (no case id in the clear)');
+  const ownerPc2 = await newPage(browser, 'owner-pc2', errs);
+  await signIn(ownerPc2, OWNER_EMAIL, OWNER_PW); await waitApp(ownerPc2);
+  await ownerPc2.waitForFunction(() => MSYNC.on, null, { timeout: 15000 }).catch(() => {}); await waitUnread(ownerPc2, 0);
+  check(await ownerPc2.evaluate(() => MSYNC.on && msgList().length === 1) && await unread(ownerPc2) === 0, 'another computer (its own browser, nothing kept in it): Gwen’s note, read on the first, isn’t new here');
+  await ownerPc2.click('#nav-msgs'); await ownerPc2.waitForSelector('.msgTabs');
+  check((await ownerPc2.textContent('.msgTabs')).replace(/\s+/g, '') === 'New0Read1Archive0', 'its Messages: New 0, Read 1 (' + (await ownerPc2.textContent('.msgTabs')).replace(/\s+/g, '') + ')');
+  await owner.click('#drawer [data-act=closeDrawer]'); await owner.click('#nav-msgs'); await owner.waitForSelector('.msgTabs');
+  await gwen.click('#cmtText'); await gwen.keyboard.type('Refinement scan is in too, @dr');
+  await gwen.waitForSelector('#mtList .mtOpt', { timeout: 5000 }); await gwen.keyboard.press('Enter'); await gwen.keyboard.type('when you have a minute');
+  await gwen.click('[data-act=addCmt]'); await gwen.waitForSelector('#drawer .cmt:has-text("Refinement scan is in too")', { timeout: 15000 });
+  await waitUnread(owner, 1); await waitUnread(ownerPc2, 1);
+  check(await unread(owner) === 1 && await unread(ownerPc2) === 1, 'Gwen tags him again: new on both computers');
+  await owner.bringToFront(); await owner.waitForSelector('.msgList .msgItem.new .msgChk', { timeout: 10000 });
+  const k2 = await owner.getAttribute('.msgList .msgItem.new', 'data-k');
+  await owner.click('.msgList .msgItem.new .msgChk'); await waitUnread(ownerPc2, 0);
+  check(await unread(ownerPc2) === 0 && await ownerPc2.evaluate(k => msgRead().has(k), k2), 'ticked on the first computer: read on the second within seconds, without a reload');
+  await ownerPc2.bringToFront(); await ownerPc2.click('#msgTab-read'); await ownerPc2.waitForSelector('.msgList .msgItem[data-k="' + k2 + '"] .msgUn', { timeout: 10000 });
+  await ownerPc2.click('.msgList .msgItem[data-k="' + k2 + '"] .msgUn'); await waitUnread(owner, 1);
+  check(await unread(owner) === 1 && await owner.evaluate(k => !msgRead().has(k), k2), 'Mark unread on the second: it’s new again on the first (the old mark there doesn’t bring it back)');
+  await owner.bringToFront(); await owner.waitForSelector('.msgList .msgRow.new', { timeout: 10000 });
+  await owner.click('.msgList .msgRow.new'); await owner.waitForSelector('#drawer .cmt:has-text("Refinement scan is in too")', { timeout: 15000 });
+  await waitUnread(ownerPc2, 0);
+  check(await unread(owner) === 0 && await unread(ownerPc2) === 0, 'opened on the first: read on both again');
+  check(await ownerPc2.evaluate(k => (JSON.parse(localStorage.getItem('nloCases.msgSeen.' + meSid()) || '{}')[k] || 0) > 0, k2), '…and kept in the second computer’s browser as well');
+  await ownerPc2.context().close();
+  await owner.keyboard.press('Escape'); await openByName(owner, P1);
+
   console.log('\n# Stickers (7 Oct 2026): on a note, on a step someone did, in a section — and in their Messages');
   await gwen.click('#drawer [data-act=closeDrawer]'); // (Gwen isn't looking at the case: what comes is new for her)
   const gwenSid = await owner.evaluate(() => (S.roster.find(r => /^Gwen/.test(r.name)) || {}).sid);
@@ -1162,7 +1200,7 @@ async function openByName(p, name) {
   // shipped to the patient (Amir's staff, 7 Oct 2026 — until then reaching Shipped completed it): Shipped, then Checked into
   // Milestones like every case (no Arrived); its date is the expected delivery; Mark complete only at Checked into Milestones
   await openByName(owner, 'Shelby Shipwell');
-  check(await owner.evaluate(() => Array.from(document.querySelectorAll('#drawer .stepper .step')).map(b => b.dataset.k).join(',')) === 'submit,dra,mfg,shipped,milestones', 'shipped to the patient: Shipped, then Checked into Milestones (no Arrived)');
+  check(await owner.evaluate(() => Array.from(document.querySelectorAll('#drawer .stepper .step')).map(b => b.dataset.k).join(',')) === 'submit,submitted,dra,mfg,shipped,milestones', 'shipped to the patient: Shipped, then Checked into Milestones (no Arrived)');
   check(/Expected delivery/.test(await owner.textContent('#drawer .kv')) && !/Delivery appt/.test(await owner.textContent('#drawer .kv')), 'its date is the Expected delivery (no appointment)');
   await owner.click('#drawer .step[data-k=shipped]');
   await owner.waitForFunction(() => { const c = openCases().find(x => x.patient === 'Shelby Shipwell'); return c && c.stage === 'shipped'; }, null, { timeout: 20000 }); await sleep(600);
@@ -1289,7 +1327,27 @@ async function openByName(p, name) {
   await owner.waitForSelector('#drawer .step[data-k=dra] .stWhen:has-text("Gwen")', { timeout: 20000 }).catch(() => {});
   const smk = await owner.$$eval('#drawer .step[data-k]', bs => bs.map(b => b.dataset.k + '=' + ((b.querySelector('.stWhen') || {}).textContent || '')));
   check(/^dra=\w{3} \d+ · Gwen$/.test(smk.find(x => x.startsWith('dra=')) || '') && /^submit=\w{3} \d+ · Dr\. A$/.test(smk.find(x => x.startsWith('submit=')) || ''), 'the Stage steps say when each was reached and by whom (' + smk.join(', ') + ')');
-  await owner.click('#drawer [data-act=closeDrawer] >> nth=0'); await gwen.click('#drawer [data-act=closeDrawer] >> nth=0');
+  // a move put right keeps the step's date and who (Amir, 12 Oct 2026: "if the case was submiited october 2nd, and I accidently move it
+  // to Dr needed and then realized mad e mistake and move it back it should not stamp it with the new date"): Gwen takes it back
+  await owner.click('#drawer [data-act=closeDrawer] >> nth=0');
+  await gwen.click('#drawer .step[data-k=submit]');
+  await owner.waitForFunction(id => (openCases().find(c => c.id === id) || {}).stage === 'submit', smId, { timeout: 20000 });
+  await owner.evaluate(id => openDrawer(id), smId);
+  await owner.waitForSelector('#histBox .hist:has-text("moved it to To submit")', { timeout: 20000 }).catch(() => {});
+  await owner.waitForFunction(() => !((document.querySelector('#drawer .step[data-k=dra] .stWhen') || {}).textContent || '').trim(), null, { timeout: 10000 }).catch(() => {});
+  const smk2 = await owner.$$eval('#drawer .step[data-k]', bs => bs.map(b => b.dataset.k + '=' + ((b.querySelector('.stWhen') || {}).textContent || '')));
+  check((smk2.find(x => x.startsWith('submit=')) || '') === (smk.find(x => x.startsWith('submit=')) || '-') && smk2.includes('dra='),
+    'moved back by Gwen: To submit keeps its date and who (not Gwen, not now), and Dr. A action has none (' + smk2.join(', ') + ')');
+  // To submit (12 Oct 2026): it's on Gwen's To submit page; Submitted moves it to the new step for everyone
+  await gwen.click('#drawer [data-act=closeDrawer] >> nth=0');
+  await gwen.click('#nav-submit'); await gwen.waitForSelector('#listBody tr[data-id="' + smId + '"] .subBtn', { timeout: 20000 });
+  check(await gwen.evaluate(() => { const e = document.querySelector('#nav-submit .cnt'); return !!e && +e.textContent === submitCases().length && submitCases().length >= 1; }), 'To submit lists it (the menu counts ' + await gwen.evaluate(() => submitCases().length) + ')');
+  await gwen.click('#listBody tr[data-id="' + smId + '"] .subBtn');
+  await owner.waitForFunction(id => (openCases().find(c => c.id === id) || {}).stage === 'submitted', smId, { timeout: 20000 }).catch(() => {});
+  await owner.waitForSelector('#histBox .hist:has-text("moved it to Submitted to lab")', { timeout: 20000 }).catch(() => {});
+  check(await owner.evaluate(id => (openCases().find(c => c.id === id) || {}).stage === 'submitted', smId) && await owner.isVisible('#histBox .hist:has-text("moved it to Submitted to lab")') &&
+    !(await gwen.$('#listBody tr[data-id="' + smId + '"]')), 'Submitted: Dr. A sees it at Submitted to lab (history says Gwen moved it), and it’s off Gwen’s To submit');
+  await owner.click('#drawer [data-act=closeDrawer] >> nth=0'); await gwen.click('#nav-today');
 
   console.log('\n# Email updates: the script in a Gmail account → the app updates cases');
   await owner.evaluate(async () => {
@@ -2059,6 +2117,23 @@ async function openByName(p, name) {
   await owner.evaluate(() => closeModal());
 
   const putRules = async content => { const r = await fetch(`http://127.0.0.1:8080/emulator/v1/projects/${PROJECT}:securityRules`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rules: { files: [{ name: 'firestore.rules', content }] } }) }); if (!r.ok) throw new Error('rules PUT ' + r.status + ' ' + await r.text()); };
+  console.log('\n# Older security rules: the set in main before 12 Oct — read marks stay with each browser; the card hands out the newer ones');
+  await putRules(fs.readFileSync(path.join(__dirname, 'rules-1012-pre.rules'), 'utf8')); // (Cases + Leads + A/R + Time Off + Time Clock, without msgSeen)
+  await owner.click('#nav-today'); await owner.click('#nav-admin');
+  check(await owner.evaluate(() => rulesCheck()) === false && await owner.evaluate(() => S.rulesMsg && !S.rulesMail && !S.rulesIdx && !S.rulesOld && !MSYNC.on && !FB.msgUnsub && FB.idxOn), 'the app notices only read marks wait for newer rules; it stops keeping them in his copy');
+  await owner.waitForSelector('#rulesCard', { timeout: 10000 });
+  check(/read on all of them/.test(await owner.textContent('#rulesCard')) && /stay with each browser/.test(await owner.textContent('#rulesCard')), 'the card says what they’re for');
+  await owner.evaluate(() => msgMarkRead(['e2eCase/e2eNote'])); await sleep(1500);
+  check(await owner.evaluate(() => msgRead().has('e2eCase/e2eNote')), 'a message read meanwhile is kept in this browser');
+  await owner.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: 'http://127.0.0.1:8765' });
+  await owner.click('#rulesCard [data-act=rulesCopy]'); await owner.waitForSelector('.toast:has-text("Rules copied")', { timeout: 10000 });
+  await putRules(await owner.evaluate(() => navigator.clipboard.readText()));
+  await owner.click('#rulesCard [data-act=rulesCheck]'); await owner.waitForSelector('.toast:has-text("up to date")', { timeout: 15000 });
+  await owner.waitForSelector('#rulesCard', { state: 'detached', timeout: 10000 });
+  check(await owner.evaluate(() => S.rulesLv === 4 && MSYNC.on && !S.rulesMsg), 'published: read marks are kept in his copy again, without signing in again');
+  let carried = false; for (let i = 0; i < 40 && !carried; i++) { carried = await owner.evaluate(async () => { const o = await FB.msgSeenSave(() => null); return !!(o && o.r && o.r['e2eCase/e2eNote'] > 0); }); if (!carried) await sleep(250); }
+  check(carried, '…including the one read while they waited: carried into his copy');
+
   console.log('\n# Security rules live on 7 Oct (before the front-desk email) — everything else works; the card hands out the newer ones');
   await putRules(fs.readFileSync(path.join(__dirname, 'rules-1007.rules'), 'utf8')); // (the set in the app published 7 Oct: Cases + Leads + A/R)
   await owner.click('#nav-today'); await owner.click('#nav-admin');
@@ -2071,7 +2146,7 @@ async function openByName(p, name) {
   await putRules(await owner.evaluate(() => navigator.clipboard.readText()));
   await owner.click('#rulesCard [data-act=rulesCheck]'); await owner.waitForSelector('.toast:has-text("up to date")', { timeout: 15000 });
   await owner.waitForSelector('#rulesCard', { state: 'detached', timeout: 10000 });
-  check(await owner.evaluate(() => S.rulesLv === 3 && !S.rulesMail && !/Publish the new security rules first/.test((() => { const was = MAILS.state; MAILS.state = { on: true, beats: [], pub: {} }; const h = nsAdminHTML(); MAILS.state = was; return h; })())), 'published: the card goes, and the front-desk email can be turned on');
+  check(await owner.evaluate(() => S.rulesLv === 4 && MSYNC.on && !S.rulesMail && !/Publish the new security rules first/.test((() => { const was = MAILS.state; MAILS.state = { on: true, beats: [], pub: {} }; const h = nsAdminHTML(); MAILS.state = was; return h; })())), 'published: the card goes, and the front-desk email can be turned on');
 
   console.log('\n# Older security rules: the set live on 4 Oct (no patient index yet) — everything works; the card hands out the newer ones');
   await putRules(fs.readFileSync(path.join(__dirname, 'rules-1004.rules'), 'utf8'));
