@@ -55,40 +55,46 @@ function codeText(c) { return 'NLO Vault recovery code\n\n' + c + '\n\nKeep this
 export function showSignIn(o) {
   o = o || {};
   const last = remembered();
-  // Face ID on this phone, if Dr. A turned it on here (Settings)
-  if (bioJunk()) { bioForget(); o = Object.assign({}, o, { msg: 'Face ID needs to be set up again on this phone. Sign in with your password, then turn it on in Settings.', kind: 'warn', auto: false }); }
+  // Face ID on this phone (or "unlock with your iPhone" on this computer), if Dr. A turned it on here (Settings)
+  const dev = bioDevice();
+  if (bioJunk()) {
+    bioForget();
+    if (dev) o = Object.assign({}, o, { msg: cap(dev.feature) + ' needs to be set up again on this ' + dev.device + '. Sign in with your password, then turn it on in Settings.', kind: 'warn', auto: false });
+  }
   const rec = bioRecord();
-  const bio = rec && window.PublicKeyCredential ? bioDevice() : null;
+  const bio = rec && window.PublicKeyCredential ? dev : null;
+  // on a computer others use, Dr. A's button stays second when someone else signed in here last
+  const mineHere = !!bio && (!last || last.trim().toLowerCase() === rec.login);
   signingIn = false;
   page(html`
     <h1>Sign in</h1>
     ${o.msg ? html`<p class="note ${o.kind || ''}">${o.msg}</p>` : ''}
     ${bio ? html`<div class="bioBox">
-        <button type="button" class="btn primary block" id="bioBtn">${ic('face')}<span>Unlock with ${bio.name}</span></button>
-        <p class="bioWho muted small">as ${rec.name || rec.login}</p>
+        <button type="button" class="btn ${mineHere ? 'primary' : ''} block" id="bioBtn">${ic('face')}<span>${bio.btn}</span></button>
+        <p class="bioWho muted small">as ${rec.name || rec.login}${bio.route === 'computer' ? ' · scan the code with your iPhone' : ''}</p>
         <p id="bioErr" class="err hidden" role="alert"></p>
-        <div class="lockLinks hidden" id="bioMore"><button type="button" class="link small" id="bioOff">Stop using ${bio.name} on this ${bio.device}</button></div>
+        <div class="lockLinks hidden" id="bioMore"><button type="button" class="link small" id="bioOff">Turn off ${bio.feature} on this ${bio.device}</button></div>
       </div>
       <div class="orLine"><span>or type your password</span></div>` : ''}
     <form id="liForm" autocomplete="off" novalidate>
       <label class="fld"><span>Username</span><input id="liUser" autocomplete="username" spellcheck="false" autocapitalize="off" value="${last}" placeholder="Your username (Dr. A: your email)" ${last ? '' : 'autofocus'} maxlength="120"></label>
-      ${pwField('liPw', 'Password', { autofocus: !!last && !bio, ac: 'off' })}
+      ${pwField('liPw', 'Password', { autofocus: !!last && !mineHere, ac: 'off' })}
       <label class="chk"><input type="checkbox" id="liRemember" ${last || !o.first ? 'checked' : ''}> Remember my username on this computer</label>
       <p id="liErr" class="err hidden" role="alert"></p>
-      <button class="btn ${bio ? '' : 'primary'} block" id="liBtn" type="submit">${ic('unlock')}<span>Unlock</span></button>
+      <button class="btn ${mineHere ? '' : 'primary'} block" id="liBtn" type="submit">${ic('unlock')}<span>Unlock</span></button>
     </form>
     <div class="lockLinks">
       <button type="button" class="link" id="liForgot">Forgot your password?</button>
       ${last && !o.setupLink ? '' : html`<button type="button" class="link small muted" id="liSetup">First time? Set up the vault (Dr. A)</button>`}
     </div>`);
   wireToggles($('#root'));
-  if (last && !bio) setTimeout(() => $('#liPw') && $('#liPw').focus(), 30);
+  if (last && !mineHere) setTimeout(() => $('#liPw') && $('#liPw').focus(), 30);
   if (bio) {
     $('#bioBtn').addEventListener('click', () => bioGo(bio, false));
-    $('#bioOff').addEventListener('click', () => { bioForget(); showSignIn({ msg: bio.name + ' is off on this ' + bio.device + '. Sign in with your password.', kind: 'soft' }); });
-    // opening the vault asks for Face ID straight away (once per page load, only while the page is in front, and only
-    // if the last person who signed in here is the one Face ID is for)
-    if (o.auto && !bioAsked && (!last || last.trim().toLowerCase() === rec.login)) {
+    $('#bioOff').addEventListener('click', () => { bioForget(); showSignIn({ msg: cap(bio.feature) + ' is off on this ' + bio.device + '. Sign in with your password.', kind: 'soft' }); });
+    // on his phone, opening the vault asks for Face ID straight away (once per page load, only while the page is in
+    // front, and only if he signed in here last). Never on a computer: the code to scan appears only when he clicks.
+    if (bio.route === 'phone' && o.auto && !bioAsked && mineHere) {
       bioAsked = true;
       const ask = () => setTimeout(() => { if ($('#bioBtn')) bioGo(bio, true); }, 250);
       if (document.visibilityState === 'visible') ask();
@@ -139,7 +145,7 @@ async function bioGo(bio, auto) {
   // (only the label changes, so the Face ID icon stays; the password button waits meanwhile)
   const label = on => {
     const b = $('#bioBtn'), lb = $('#liBtn'); if (lb) lb.disabled = on;
-    if (!b) return; b.disabled = on; const t = b.querySelector('span'); if (t) t.textContent = on ? 'Unlocking…' : 'Unlock with ' + bio.name;
+    if (!b) return; b.disabled = on; const t = b.querySelector('span'); if (t) t.textContent = on ? (bio.route === 'computer' ? 'Scan the code with your iPhone…' : 'Unlocking…') : bio.btn;
   };
   signingIn = true; label(true); showErr('bioErr', '');
   let got = null;
@@ -153,14 +159,14 @@ async function bioGo(bio, auto) {
     const c = err.code || '';
     // the copy on this phone no longer works: forget it and say why
     const gone = msg => { bioForget(); showSignIn({ msg, kind: 'warn' }); };
-    if (c === 'bad-login') gone('Your password or login changed since ' + bio.name + ' was turned on, so it’s off on this ' + bio.device + ' now. Sign in with your password — you can turn ' + bio.name + ' on again in Settings.');
+    if (c === 'bad-login') gone('Your password or login changed since ' + bio.feature + ' was set up here, so it’s off on this ' + bio.device + ' now. Sign in with your password — you can set it up again in Settings.');
     else if (c === 'not-member' || c === 'inactive') gone('This login has been turned off. Ask Dr. A.');
-    else if (c === 'bio-broken' || c === 'bio-no-prf' || c === 'bio-none') gone(bio.name + ' needs to be set up again on this ' + bio.device + '. Sign in with your password, then turn it on in Settings.');
+    else if (c === 'bio-broken' || c === 'bio-no-prf' || c === 'bio-none') gone(cap(bio.feature) + ' needs to be set up again on this ' + bio.device + '. Sign in with your password, then turn it on in Settings.');
     else {
       label(false);
       // cancelled (or Face ID didn't recognise them): the button stays; when the phone asked by itself, say nothing
       if (c !== 'bio-cancel' || !auto) {
-        showErr('bioErr', c === 'bio-cancel' ? cap(bio.name) + ' didn’t finish. Try again, or type your password.'
+        showErr('bioErr', c === 'bio-cancel' ? bio.cancel
           : c === 'bio-other-device' ? 'Use this ' + bio.device + '’s own ' + bio.name + ', not another device.' : errorText(err));
         const more = $('#bioMore'); if (more) more.classList.remove('hidden');
       }

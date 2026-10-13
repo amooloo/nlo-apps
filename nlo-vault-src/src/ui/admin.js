@@ -464,7 +464,7 @@ export function renderSettings(c) {
       await S.changePassword(cur, n1); $('#cpForm', c).reset(); setHTML($('#cpMeter', c), '');
       // Face ID on this phone held the old password's key: it's switched off and can be turned on again
       const br = bioRecord(), bd = bioDevice();
-      if (br && br.uid === V.uid) { bioForget(); drawBio(c); toast('Password changed. Turn ' + (bd ? bd.name : 'Face ID') + ' on again (above) to keep using it.', { ms: 7000 }); }
+      if (br && br.uid === V.uid) { bioForget(); drawBio(c); toast('Password changed. Turn ' + (bd ? bd.feature : 'Face ID') + ' on again (above) to keep using it' + (bd && bd.route === 'phone' ? ' — and set it up again on any computer where you use your iPhone' : '') + '.', { ms: 8000 }); }
       else toast('Password changed');
     }
     catch (er) { err(er.code === 'bad-current' ? 'Your current password isn’t right.' : errorText(er)); }
@@ -473,7 +473,7 @@ export function renderSettings(c) {
   drawBio(c);
 }
 
-/* ---------- Face ID on this phone (bio.js) ---------- */
+/* ---------- Face ID on this phone, or "unlock with your iPhone" on this computer (bio.js) ---------- */
 const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
 async function drawBio(c) {
   const box = $('#stBio', c); if (!box) return;
@@ -483,49 +483,59 @@ async function drawBio(c) {
   const rec = bioRecord(), mine = !!rec && rec.uid === V.uid;
   const dv = d || (mine ? bioDevice() : null);
   if (!dv) { box.classList.add('hidden'); setHTML(box, ''); return; }
+  const pc = dv.route === 'computer';
   box.classList.remove('hidden');
   if (mine) {
-    setHTML(box, html`<h2>${cap(dv.name)}</h2>
-      <p class="bioOn">${ic('check')}<span><b>On for this ${dv.device}</b> since ${fmtDate(rec.at)}. The vault opens with ${dv.name} here — no password to type.</span></p>
-      <p class="muted small">Opened with ${dv.name}, you can use and change logins straight away. Adding people, changing who can open what, new folders and backups still ask for your password once. Changing your password turns ${dv.name} off; then turn it on again.</p>
+    setHTML(box, html`<h2>${dv.heading}</h2>
+      <p class="bioOn">${ic('check')}<span><b>On for this ${dv.device}</b> since ${fmtDate(rec.at)}. ${pc
+        ? 'On the sign-in page, click “Unlock with your iPhone”, scan the code with your iPhone and use Face ID — no password to type here.'
+        : 'The vault opens with ' + dv.name + ' here — no password to type.'}</span></p>
+      <p class="muted small">Opened this way, you can use and change logins straight away. Adding people, changing who can open what, folders, imports and backups still ask for your password once. Changing your password turns this off; then set it up again.${pc ? '' : ' To use your iPhone on a computer too: open the vault there → Settings → Unlock with your iPhone.'}</p>
       <button type="button" class="btn" id="bioOffBtn">Turn off on this ${dv.device}</button>`);
     $('#bioOffBtn', box).addEventListener('click', async () => {
-      if (!(await confirmBox({ title: 'Turn off ' + dv.name + '?', body: 'The vault will ask for your password on this ' + dv.device + ' again.', yes: 'Turn off' }))) return;
-      bioForget(); toast(cap(dv.name) + ' is off on this ' + dv.device); drawBio(c);
+      if (!(await confirmBox({ title: 'Turn off ' + dv.feature + '?', body: 'The vault will ask for your password on this ' + dv.device + ' again.', yes: 'Turn off' }))) return;
+      bioForget(); toast(cap(dv.feature) + ' is off on this ' + dv.device); drawBio(c);
     });
+  } else if (pc) {
+    setHTML(box, html`<h2>${dv.heading}</h2>
+      <p>Open the vault on this computer without typing your password: click “Unlock with your iPhone”, scan the code with your iPhone and use Face ID. You type your password once to set it up.</p>
+      <p class="muted small">It only works with your iPhone right next to this computer (they check each other over Bluetooth) and your Face ID, so nobody can do it from anywhere else — and nothing is typed here for anyone to watch or record. Like typing your password, it’s only as safe as the computer itself, so use it on computers you trust, and only scan a code the vault shows on a computer you’re sitting at. Same as on your iPhone: someone with your iPhone and its passcode could open your logins; people, access and folder keys still need your password.${rec ? ' (Something else is set up on this computer now; setting it up replaces it.)' : ''}</p>
+      ${dv.noBluetooth ? html`<div class="callout warn">${ic('alert')}<div>This computer doesn’t seem to have Bluetooth, which your iPhone needs to check it’s nearby. Turn Bluetooth on — or, if the computer has none, a small USB Bluetooth adapter adds it.</div></div>` : ''}
+      <button type="button" class="btn primary" id="bioOnBtn">${ic('face')}<span>${dv.onBtn}</span></button>`);
+    $('#bioOnBtn', box).addEventListener('click', () => bioOnDialog(dv, () => drawBio(c)));
   } else {
-    setHTML(box, html`<h2>${cap(dv.name)}</h2>
+    setHTML(box, html`<h2>${dv.heading}</h2>
       <p>Open the vault with ${dv.name} instead of typing your password on this ${dv.device}. You type your password once to turn it on.</p>
       <p class="muted small">Only on your own ${dv.device}: anyone who can unlock it — with ${dv.name} or its passcode — could see and change your logins (not people, access or folder keys; those still need your password).${dv.kind === 'ios' ? ' Turning on Stolen Device Protection (iPhone Settings → Face ID & Passcode) makes it Face ID only — no passcode — away from familiar places like home and work.' : ''}${rec ? ' (Something else is set up on this ' + dv.device + ' now; turning it on replaces it.)' : ''}</p>
-      <button type="button" class="btn primary" id="bioOnBtn">${ic('face')}<span>Turn on ${dv.name}</span></button>`);
+      <button type="button" class="btn primary" id="bioOnBtn">${ic('face')}<span>${dv.onBtn}</span></button>`);
     $('#bioOnBtn', box).addEventListener('click', () => bioOnDialog(dv, () => drawBio(c)));
   }
 }
 function bioOnDialog(dv, after) {
-  const m = openModal(html`<form id="boForm" novalidate autocomplete="off"><div class="mhead"><h2>Turn on ${dv.name}</h2><button type="button" class="iconBtn" data-close aria-label="Close">${ic('x')}</button></div>
-    <div class="mbody"><p>Type your vault password once. Then ${dv.look.charAt(0).toLowerCase() + dv.look.slice(1)} when it asks — twice: once to make the passkey, once to check it.</p>
+  const m = openModal(html`<form id="boForm" novalidate autocomplete="off"><div class="mhead"><h2>${dv.dlg}</h2><button type="button" class="iconBtn" data-close aria-label="Close">${ic('x')}</button></div>
+    <div class="mbody"><p>Type your vault password once. ${dv.how}</p>
       <label class="fld"><span>Your vault password</span><input id="boPw" type="password" autocomplete="off" autofocus maxlength="200"></label>
       <p id="boErr" class="err hidden" role="alert"></p></div>
-    <div class="mfoot"><button type="button" class="btn" data-close>Cancel</button><button type="submit" class="btn primary" id="boBtn">Turn on</button></div></form>`, { label: 'Turn on ' + dv.name });
+    <div class="mfoot"><button type="button" class="btn" data-close>Cancel</button><button type="submit" class="btn primary" id="boBtn">${dv.route === 'computer' ? 'Continue' : 'Turn on'}</button></div></form>`, { label: dv.dlg });
   $('#boForm', m.el).addEventListener('submit', async e => {
     e.preventDefault();
     const x = $('#boErr', m.el), say = t => { x.textContent = t; x.classList.toggle('hidden', !t); };
     say('');
     const pw = $('#boPw', m.el).value;
     if (!pw) return say('Type your vault password.');
-    const btn = $('#boBtn', m.el); btn.disabled = true; btn.textContent = 'Checking…';
+    const btn = $('#boBtn', m.el), label = btn.textContent; btn.disabled = true; btn.textContent = 'Checking…';
     let copy = null;
     try {
       copy = await S.deviceCopy(pw);
       btn.textContent = dv.look + '…';
       await bioEnable({ uid: V.uid, login: V.login, name: (V.me || {}).name, copy });
-      m.close(true); toast(cap(dv.name) + ' is on for this ' + dv.device); after();
+      m.close(true); toast(cap(dv.feature) + ' is on for this ' + dv.device); after();
     } catch (er) {
-      btn.disabled = false; btn.textContent = 'Turn on';
+      btn.disabled = false; btn.textContent = label;
       const code = er.code || '';
       say(code === 'bad-current' ? 'That isn’t your vault password.'
-        : code === 'bio-cancel' ? cap(dv.name) + ' didn’t finish, so nothing changed. Try again when you’re ready.'
-          : code === 'bio-no-prf' ? (dv.kind === 'ios' ? 'This ' + dv.device + ' can’t do it: it needs iOS 18 or newer, with the passkey saved in Apple’s Passwords (iCloud Keychain).' : 'This phone can’t do it: it needs an up-to-date Chrome with Google Password Manager.')
+        : code === 'bio-cancel' ? dv.cancelSetup
+          : code === 'bio-no-prf' ? dv.cant
             : code === 'bio-storage' ? 'This browser won’t keep it (is it a private window?). Nothing changed.'
               : errorText(er));
     } finally { if (copy) copy.e.fill(0); }

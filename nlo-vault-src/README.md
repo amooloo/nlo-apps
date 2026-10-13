@@ -57,8 +57,12 @@ revision numbers, who/when). Google never sees a vault password.
 - **Session**: Firebase Auth in memory only; Firestore memory cache only. Auto-lock after inactivity (office max set by
   Dr. A, 1–60 min; each person can choose shorter); a lock reloads the page so nothing stays in memory. Copied secrets are
   cleared from the clipboard after 30 s (when the vault is in front). Removed people are locked out of an open vault.
-- **Face ID on Dr. A's phone** (`src/bio.js`, opt-in in Settings; iPhone, or an Android phone's fingerprint/face; not offered
-  on computers or iPads, and not to staff for now). After he types his password once (checked by re-authentication and by
+- **Face ID on Dr. A's phone, and "Unlock with your iPhone" on computers** (`src/bio.js`, opt-in in Settings per device;
+  iPhone or an Android phone's fingerprint/face; on a computer, the browser's QR code scanned with his iPhone; not on iPads
+  or Android tablets, and not offered to staff for now). On a computer the passkey is made on his iPhone through the code
+  (cross-platform, hint "hybrid"; the iPhone checks over Bluetooth that it is next to the computer), one per computer
+  browser, and the computer keeps the same kind of sealed copy described next; the code appears only when he clicks
+  (never by itself), and his button drops to second place when someone else signed in on that computer last. After he types his password once (checked by re-authentication and by
   opening his key copy), the phone makes a platform passkey (user verification required) and the vault uses it once.
   HKDF(the passkey's PRF output for a random 32-byte salt, "nlo-vault/v1/bio") is an AES-256-GCM key that seals a small copy
   kept **only in that browser's localStorage** (`nloVault.bio`): his sign-in secret and his ECDH private key, AAD
@@ -66,11 +70,15 @@ revision numbers, who/when). Google never sees a vault password.
   Face ID → PRF → the copy → Firebase sign-in (must be the same uid) → the private key is used only if it matches his
   signed public key. A Face ID session can read and change logins; adding people, access changes, new folders, folder-key
   changes, backups and the office lock limit ask for his password (which opens his key copy and his signing key for that
-  session). Nothing about it is stored in Firebase (rules unchanged). Changing the password turns it off (the sign-in secret
-  no longer matches; other phones notice on their next try and forget their copy). Lock button: no automatic Face ID prompt
+  session). Nothing about it is stored in Firebase (rules unchanged). Changing the password stops it working everywhere
+  (the sign-in secret no longer matches; the device where it's changed forgets its copy at once, other phones and
+  computers the next time they're tried). Lock button: no automatic Face ID prompt
   after it; opening the vault or an idle lock asks once. Turning it off asks the phone to delete the passkey
   (`signalUnknownCredential`). Anyone who can unlock the phone (Face ID or its passcode) can use his logins — Stolen Device
-  Protection makes it Face ID only away from familiar places.
+  Protection makes it Face ID only away from familiar places. Needs iOS 18 (18.4+ through the code), and on a computer
+  an up-to-date Chrome or Edge (Windows 11 is the surest; Windows 10 reported to work) or a Mac, plus Bluetooth. Apple's
+  PRF over the code has had bugs (some still reported): every failure falls back to the password, and a copy that stops
+  opening is forgotten with a "set it up again" message.
 - **Page hardening** (`build.mjs`): CSP `default-src 'none'`, script and style allowed only by SHA-256 hash, connect only to
   Google's sign-in and Firestore endpoints, `frame-ancestors 'none'`, `require-trusted-types-for 'script'`
   (only `setHTML()` in `src/html.js` can write HTML; every interpolated value is escaped), `form-action 'none'`, no outside
@@ -117,6 +125,11 @@ to overwrite Dr. A's key copy — and checks that none of it yields a readable p
   verification on that Google account.
 - Anyone who could see a password may have copied it; removing them flags those passwords, but they must be changed on
   the websites themselves.
+- **"Unlock with your iPhone" on a computer** leaves a sealed copy in that computer's browser; it opens only with his
+  iPhone next to it and Face ID (or the iPhone's passcode). Like typing the password there, it's only as safe as the
+  computer: malware or a browser extension on it can read what the open vault shows (and, at unlock, the copy itself —
+  his sign-in secret and folder key, still not his signing key). Use it on computers he trusts; a password change is
+  what invalidates every copy.
 - **Face ID on Dr. A's phone** makes that phone's unlock (Face ID, or its passcode) enough to read and change his logins on
   it. If the phone is lost or someone else may have used it: change the vault password from a computer (that switches
   Face ID off everywhere), erase the phone with Find My, and change the passwords that matter most on the websites

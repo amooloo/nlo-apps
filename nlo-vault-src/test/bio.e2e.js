@@ -63,7 +63,7 @@ async function newPage(browser, label, o) {
   if (o.faceId) {
     const cdp = await ctx.newCDPSession(p);
     await cdp.send('WebAuthn.enable', { enableUI: false });
-    const r = await cdp.send('WebAuthn.addVirtualAuthenticator', { options: { protocol: 'ctap2', ctap2Version: 'ctap2_1', transport: 'internal', hasResidentKey: true,
+    const r = await cdp.send('WebAuthn.addVirtualAuthenticator', { options: { protocol: 'ctap2', ctap2Version: 'ctap2_1', transport: o.faceId === 'qr' ? 'hybrid' : 'internal', hasResidentKey: true,
       hasUserVerification: true, isUserVerified: true, automaticPresenceSimulation: true, hasPrf: o.faceId !== 'no-prf' } });
     p.cdp = cdp; p.authId = r.authenticatorId;
   }
@@ -158,7 +158,8 @@ const session = p => state(p, () => ({ sign: !!window.__vault.V.spriv, lock: !!(
     const tempSarah = await addPerson(desk, 'Sarah B.', 'sarah', { 'Front office': 'edit' });
     check(/^[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}$/.test(tempSarah), 'vault ready: two logins, and Sarah added (Front office)');
     await settings(desk); await sleep(800);
-    check(await desk.isHidden('#stBio'), 'on a computer, Settings doesn’t offer Face ID (office computers are shared)');
+    await desk.waitForSelector('#stBio:not(.hidden) #bioOnBtn');
+    check(/Unlock with your iPhone/.test(await desk.textContent('#stBio h2')) && !/Turn on Face ID/.test(await desk.textContent('#stBio')), 'on a computer, Dr. A’s Settings offer “Unlock with your iPhone” (not Face ID on the computer itself)');
     await desk.context().close();
 
     console.log('\n# An iPhone whose passkeys aren’t set up (no Face ID/passcode for them)');
@@ -352,6 +353,44 @@ const session = p => state(p, () => ({ sign: !!window.__vault.V.spriv, lock: !!(
     check(await passkeyCount(np, 0) === 0, '…and the passkey it just made is deleted again');
     await np.context().close();
 
+    console.log('\n# On a computer: scan the code with the iPhone');
+    const pc = await newPage(browser, 'computer-qr', { faceId: 'qr' });
+    await signIn(pc, OWNER, PW3); await waitVault(pc);
+    await settings(pc);
+    await pc.waitForSelector('#stBio:not(.hidden) #bioOnBtn');
+    const pcOffer = await pc.textContent('#stBio');
+    check(/Unlock with your iPhone/.test(await pc.textContent('#stBio h2')) && /right next to this computer/.test(pcOffer) && /only scan a code the vault shows/.test(pcOffer) && /computers you trust/.test(pcOffer),
+      'Settings explain it: the iPhone must be right next to the computer, use it on computers you trust, and only scan codes the vault shows where you sit');
+    check(await pc.isVisible('#stBio .callout.warn') && /Bluetooth/.test(await pc.textContent('#stBio .callout.warn')), '…and warn when the computer seems to have no Bluetooth (as this test browser says)');
+    await sleep(300); await pc.screenshot({ path: SHOTS + 'bio-07-computer-settings.png', fullPage: true });
+    const k0 = await counts(pc);
+    await turnOn(pc, PW3);
+    await pc.waitForSelector('#stBio .bioOn', { timeout: 30000 });
+    const k1 = await counts(pc), rc = JSON.parse(await rec(pc));
+    check(rc.kind === 'computer' && rc.tr.includes('hybrid') && k1.creates === k0.creates + 1 && k1.gets === k0.gets + 1, 'set up with the code: a passkey saved on the iPhone, then used once to check it');
+    const pkc = await passkeys(pc);
+    check(pkc.length === 1 && pkc[0].rpId === 'localhost', '…one passkey, on the iPhone, for the vault’s own address');
+    check(!(await rec(ph)) || JSON.parse(await rec(ph)).id !== rc.id, 'the computer has its own passkey (turning things off on one device doesn’t touch the other)');
+    const k2 = (await counts(pc)).gets;
+    await pc.goto(URL0); await pc.waitForSelector('#bioBtn'); await sleep(900);
+    await pc.goto(URL0 + '?locked=idle'); await pc.waitForSelector('#bioBtn'); await sleep(900);
+    check((await counts(pc)).gets === k2 && !(await pc.$('#app')), 'the computer never brings up the code by itself (not on opening, not after locking itself)');
+    check(/Unlock with your iPhone/.test(await pc.textContent('#bioBtn')) && /scan the code with your iPhone/.test(await pc.textContent('.bioWho')) && /primary/.test(await pc.getAttribute('#bioBtn', 'class')),
+      'the sign-in page shows “Unlock with your iPhone”, whose it is and what to do');
+    await pc.screenshot({ path: SHOTS + 'bio-08-computer-sign-in.png' });
+    await pc.click('#bioBtn'); await waitVault(pc);
+    const s3 = await session(pc);
+    check(s3.face && !s3.sign && !s3.lock && !s3.wrap, 'a click, the code and Face ID open it — with the same limits (no signing key on this computer)');
+    check(await waitFor(pc, () => Array.from(window.__vault.V.items.values()).some(i => i.d && i.d.p === 'Ch@seBank-Zx81-Qp')), 'his logins open');
+    await nav(pc, 'team'); await pc.click('[data-act=addPerson]'); await pc.waitForSelector('#okPw');
+    check(/opened the vault with your iPhone/.test(await pc.textContent('.modal')), '“Add a person” still asks for the password');
+    await pc.click('.modal .mfoot [data-close]'); await sleep(300);
+    await setFlag(pc, '__cancel', '1');
+    await lockAndReload(pc); await pc.waitForSelector('#bioBtn'); await pc.click('#bioBtn');
+    await pc.waitForSelector('#bioErr:not(.hidden)');
+    check(/Bluetooth has to be on/.test(await pc.textContent('#bioErr')) && !(await pc.$('#app')), 'if the code isn’t scanned (closed, or no Bluetooth), it says what to check; the password still works underneath');
+    await pc.fill('#liUser', OWNER); await pc.fill('#liPw', PW3); await pc.click('#liBtn'); await waitVault(pc);
+
     console.log('\n# Staff');
     const sp = await newPage(browser, 'sarah-iphone', { phone: true, faceId: true });
     await signIn(sp, 'sarah', tempSarah); await sp.waitForSelector('#fpForm', { timeout: 30000 });
@@ -359,6 +398,21 @@ const session = p => state(p, () => ({ sign: !!window.__vault.V.spriv, lock: !!(
     await settings(sp); await sleep(800);
     check(await sp.isHidden('#stBio') && (await counts(sp)).creates === 0, 'Sarah’s Settings don’t offer Face ID (Dr. A only, for now)');
     await sp.context().close();
+    // the same computer, shared: Sarah signs in there with her password
+    await lockAndReload(pc); await pc.waitForSelector('#liUser');
+    await pc.fill('#liUser', 'sarah'); await pc.fill('#liPw', SARAH_PW); await pc.click('#liBtn'); await waitVault(pc);
+    await settings(pc); await sleep(800);
+    check(await pc.isHidden('#stBio'), 'on the shared computer, her Settings don’t offer it either');
+    const k3 = (await counts(pc)).gets;
+    await lockAndReload(pc); await pc.waitForSelector('#bioBtn'); await sleep(700);
+    check(!/primary/.test(await pc.getAttribute('#bioBtn', 'class')) && /primary/.test(await pc.getAttribute('#liBtn', 'class')) && (await counts(pc)).gets === k3,
+      'after she signed in there, the password is the main button and Dr. A’s “Unlock with your iPhone” is second');
+    await pc.screenshot({ path: SHOTS + 'bio-09-shared-computer.png' });
+    await pc.fill('#liUser', OWNER); await pc.fill('#liPw', PW3); await pc.click('#liBtn'); await waitVault(pc);
+    await settings(pc); await pc.waitForSelector('#bioOffBtn'); await pc.click('#bioOffBtn'); await pc.click('.modal [data-yes]');
+    await pc.waitForSelector('#stBio #bioOnBtn');
+    check(!(await rec(pc)), 'Dr. A turns it off on the computer: forgotten there');
+    await pc.context().close();
 
     const db2 = JSON.stringify(await dumpDb());
     check(!/nloVault|"bio"|passkey/i.test(db2), 'still nothing about Face ID anywhere in Firebase');
