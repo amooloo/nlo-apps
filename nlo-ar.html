@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-kEYv22FCQAsOWbu25xHzve27kaHmt4v2uBE0BvPYLy0=' https://www.gstatic.com/firebasejs/10.12.2/; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://aisa-worker.akhavan-ak.workers.dev https://nlo-inventory-default-rtdb.firebaseio.com http://127.0.0.1:8080 http://127.0.0.1:9099; frame-src https://nlo-cases.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-Z8rscahSl32yiwkPzr3QJbWYpTM1K/1863Yjonddwao=' https://www.gstatic.com/firebasejs/10.12.2/; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://aisa-worker.akhavan-ak.workers.dev https://nlo-inventory-default-rtdb.firebaseio.com http://127.0.0.1:8080 http://127.0.0.1:9099; frame-src https://nlo-cases.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO A/R</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -5865,7 +5865,7 @@ function checksHTML(it, done) {
   const c = (it && it.checks) || {}, n = REFUND_CHECKS.filter(([k]) => c[k]).length;
   return '<div class="sec"><h5>Before a refund · ' + n + ' of ' + REFUND_CHECKS.length + '</h5><div class="chkList">' + REFUND_CHECKS.map(([k, l]) =>
     '<label class="' + (c[k] ? 'on' : '') + '"><input type="checkbox" data-chg="check" data-k="' + k + '"' + (c[k] ? ' checked' : '') + (done ? ' disabled' : '') + '><span>' + esc(l) + '</span></label>').join('') + '</div>' +
-    '<p class="small muted" style="margin-top:6px">From the FC instructions (Credits &amp; Refunds). Transferring to the family’s balance is usually better than a refund. The refund form is in the <a href="NLO_Financial_Suite.html" target="_blank" rel="noopener">Financial Suite</a> (Refund Authorization).</p></div>';
+    '<p class="small muted" style="margin-top:6px">From the FC instructions (Credits &amp; Refunds). Transferring to the family’s balance is usually better than a refund. The refund form is in the <a href="NLO_Financial_Suite.html" target="_blank" rel="noopener">Forms</a> (Refund Authorization).</p></div>';
 }
 function logHTML(it) {
   const L = ((it && it.log) || []).slice().reverse();

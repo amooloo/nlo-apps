@@ -255,7 +255,7 @@ function checksHTML(it, done) {
   const c = (it && it.checks) || {}, n = REFUND_CHECKS.filter(([k]) => c[k]).length;
   return '<div class="sec"><h5>Before a refund · ' + n + ' of ' + REFUND_CHECKS.length + '</h5><div class="chkList">' + REFUND_CHECKS.map(([k, l]) =>
     '<label class="' + (c[k] ? 'on' : '') + '"><input type="checkbox" data-chg="check" data-k="' + k + '"' + (c[k] ? ' checked' : '') + (done ? ' disabled' : '') + '><span>' + esc(l) + '</span></label>').join('') + '</div>' +
-    '<p class="small muted" style="margin-top:6px">From the FC instructions (Credits &amp; Refunds). Transferring to the family’s balance is usually better than a refund. The refund form is in the <a href="NLO_Financial_Suite.html" target="_blank" rel="noopener">Financial Suite</a> (Refund Authorization).</p></div>';
+    '<p class="small muted" style="margin-top:6px">From the FC instructions (Credits &amp; Refunds). Transferring to the family’s balance is usually better than a refund. The refund form is in the <a href="NLO_Financial_Suite.html" target="_blank" rel="noopener">Forms</a> (Refund Authorization).</p></div>';
 }
 function logHTML(it) {
   const L = ((it && it.log) || []).slice().reverse();
