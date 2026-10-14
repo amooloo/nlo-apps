@@ -7559,7 +7559,7 @@ function rosterDatesBox() {
 }
 function rosterErrText(e) {
   const c = String((e && (e.code || e.message)) || '');
-  if (/permission|PERMISSION_DENIED/i.test(c)) return 'That Google account can’t update the office roster. Use akhavan.ak@gmail.com or an @thenextlevelorthodontics.com account.';
+  if (/permission|PERMISSION_DENIED/i.test(c)) return 'That Google account can’t update the office roster. Only akhavan.ak@gmail.com can (since 14 Oct 2026).';
   if (/popup-blocked/.test(c)) return 'The sign-in window was blocked. Allow pop-ups for this page and try again.';
   if (/network|unavailable|offline/i.test(c)) return 'No connection right now — the roster will update when you’re back online.';
   return 'Couldn’t update the office roster (' + (c || 'unknown error') + ').';
@@ -7639,7 +7639,7 @@ function rosterPanelHTML() {
   if (!fbReady) head = '<p class="muted">Needs an internet connection. Reload once you’re online.</p>';
   else if (!rosterUser) head = `<p class="muted" style="margin-bottom:12px">Share a basic team list with Cadence, the calendar, the IPR tracker, staff meeting and inventory. Add a hire or end someone’s employment here and those apps follow. Only name, role, “goes by”, chairside, start date, full- or part-time and last day are shared (NLO Time Off counts vacation tiers from the start date), plus the calendar dates below if that box is ticked. Notes, review content, pay and personal details stay encrypted in Staff Hub.</p>
       <button class="btn btn-pri btn-sm" data-act="rosterConnect">${ic('users',13)} Connect with Google</button>
-      <p class="tiny" style="margin-top:10px">One-time on this device. Use akhavan.ak@gmail.com or an @thenextlevelorthodontics.com account.</p>`;
+      <p class="tiny" style="margin-top:10px">One-time on this device, with akhavan.ak@gmail.com (the only account that can update the office roster).</p>`;
   else {
     const when = rosterAt ? new Date(rosterAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
     const state = rosterStatus === 'error' ? `<span style="color:var(--coral-700)">${esc(rosterErr)}</span>`
