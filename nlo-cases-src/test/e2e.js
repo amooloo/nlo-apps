@@ -309,10 +309,10 @@ async function openByName(p, name) {
   check(!(await owner.isVisible('#listBody tr.click:has-text("' + P2 + '")')), '“No delivery appt” leaves it out');
   await owner.click('[data-act=clearF]');
   await owner.click('#nav-board');
-  for (let i = 0; i < 3; i++) { await owner.click('.kc:has-text("' + P2 + '") .adv'); await sleep(900); }
-  // retainers: To make > Printing > Front desk pickup > Checked into Milestones, the last step (Amir's staff, 7 Oct 2026)
+  for (let i = 0; i < 4; i++) { await owner.click('.kc:has-text("' + P2 + '") .adv'); await sleep(900); }
+  // retainers: To make > Printing > Finishing > Front desk pickup > Checked into Milestones, the last step (Amir's staff, 7 Oct 2026)
   await owner.waitForSelector('section[aria-label="Checked into Milestones"] .kc:has-text("' + P2 + '")', { timeout: 15000 });
-  check(true, 'advance moved the case through to the last stage (To make → Printing → Front desk pickup → Checked into Milestones)');
+  check(true, 'advance moved the case through to the last stage (To make → Printing → Finishing → Front desk pickup → Checked into Milestones)');
   // reaching the last step asks whether it's done (3 Oct 2026); "Not yet" leaves it there
   await owner.waitForSelector('#cbNo', { timeout: 10000 });
   check(/Mark this case complete\?/.test(await owner.textContent('#modalWrap h3')) && /last step, Checked into Milestones/.test(await owner.textContent('#modalWrap .lsub')), 'reaching the last step asks “Mark this case complete?”');

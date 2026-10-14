@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-Ed4tTrQ/HTutcOrkstR5FrphD1D852zjXoLEyJ14SIk=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com https://aisa-worker.akhavan-ak.workers.dev http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-KIRvbeDHwrBpxcBk80fxggtP2p2NgOwQzqhRHQXwc2w=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com https://aisa-worker.akhavan-ak.workers.dev http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO Cases</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1983,9 +1983,12 @@ const FLOWS = {
      Printing step's, kept so cases saved at it stay at To make.
      Then (Amir's staff, 7 Oct 2026: "the last step of all the cases should be checked in Milestone and only then it will be marked
      as complete"): To make > Printing > Front desk pickup > Checked into Milestones. The Milestones step before pickup went (a
-     case saved there shows at Front desk pickup: RETIRED_STAGES); the new last step has its own key. */
+     case saved there shows at Front desk pickup: RETIRED_STAGES); the new last step has its own key.
+     Then (staff via Amir, 14 Oct 2026: "it would be useful to have an intermediate step" between Printing and Front desk pickup):
+     To make > Printing > Finishing > Front desk pickup > Checked into Milestones. Finishing = trimmed, polished and bagged, not at the
+     desk yet; cases already at Printing or Front desk pickup stay where they are (nothing is renamed). */
   retainer: { label: 'Retainers & mouthguards', labDone: 'pickup', stages: [
-    ['print', 'To make'], ['printing', 'Printing'], ['pickup', 'Front desk pickup'], ['checkedin', 'Checked into Milestones'] ] },
+    ['print', 'To make'], ['printing', 'Printing'], ['finishing', 'Finishing'], ['pickup', 'Front desk pickup'], ['checkedin', 'Checked into Milestones'] ] },
   models: { label: 'Study models', labDone: 'ready', stages: [ ['print', 'To print'], ['ready', 'Ready'] ] },
   retreat: { label: 'Retreatment', stages: [
     ['intake', 'Intake & assessment'], ['review', 'Pending review'], ['proposal', 'Send proposal'],

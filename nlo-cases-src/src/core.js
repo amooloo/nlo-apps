@@ -63,9 +63,12 @@ const FLOWS = {
      Printing step's, kept so cases saved at it stay at To make.
      Then (Amir's staff, 7 Oct 2026: "the last step of all the cases should be checked in Milestone and only then it will be marked
      as complete"): To make > Printing > Front desk pickup > Checked into Milestones. The Milestones step before pickup went (a
-     case saved there shows at Front desk pickup: RETIRED_STAGES); the new last step has its own key. */
+     case saved there shows at Front desk pickup: RETIRED_STAGES); the new last step has its own key.
+     Then (staff via Amir, 14 Oct 2026: "it would be useful to have an intermediate step" between Printing and Front desk pickup):
+     To make > Printing > Finishing > Front desk pickup > Checked into Milestones. Finishing = trimmed, polished and bagged, not at the
+     desk yet; cases already at Printing or Front desk pickup stay where they are (nothing is renamed). */
   retainer: { label: 'Retainers & mouthguards', labDone: 'pickup', stages: [
-    ['print', 'To make'], ['printing', 'Printing'], ['pickup', 'Front desk pickup'], ['checkedin', 'Checked into Milestones'] ] },
+    ['print', 'To make'], ['printing', 'Printing'], ['finishing', 'Finishing'], ['pickup', 'Front desk pickup'], ['checkedin', 'Checked into Milestones'] ] },
   models: { label: 'Study models', labDone: 'ready', stages: [ ['print', 'To print'], ['ready', 'Ready'] ] },
   retreat: { label: 'Retreatment', stages: [
     ['intake', 'Intake & assessment'], ['review', 'Pending review'], ['proposal', 'Send proposal'],
