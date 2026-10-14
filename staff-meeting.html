@@ -473,7 +473,7 @@ html.nlo-home-on .top .brand{margin-left:calc(var(--nlo-home-space) - 18px)}
    Cadence shows each person's action items and has a "raise for the
    staff meeting" button (see the add-on block at the end of cadence.html).
    ===================================================================== */
-const APP_VERSION = '2.3.0';
+const APP_VERSION = '2.3.1';
 const FB_CONFIG = {
   apiKey: "AIzaSyBFCmDgAKkdfZ4Cb81nK0KCKXtONiwMJy4",
   authDomain: "nlo-inventory.firebaseapp.com",
@@ -817,8 +817,10 @@ function seedCatalog(manual) {
 function kpiMonth() {
   const o = S.meeting && S.meeting.meta && S.meeting.meta.kpiMonth;
   if (/^\d{4}-\d{2}$/.test(o || '')) return o;
+  /* the latest completed month (Oct 2026 review: meetings fall on the 22nd–30th, so "this month after the 20th" showed a month
+     whose Month-End numbers can't be in yet); "Numbers for" still picks any other month */
   const d = parseYmd(meetingDate()) || new Date();
-  const m = new Date(d.getFullYear(), d.getMonth() - (d.getDate() <= 20 ? 1 : 0), 15);
+  const m = new Date(d.getFullYear(), d.getMonth() - 1, 15);
   return m.getFullYear() + '-' + pad(m.getMonth() + 1);
 }
 function addMonthsYm(ym, n) { const d = parseYmd(ym + '-15') || new Date(); d.setDate(15); d.setMonth(d.getMonth() + n); return d.getFullYear() + '-' + pad(d.getMonth() + 1); }
