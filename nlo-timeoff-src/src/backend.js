@@ -639,6 +639,8 @@ const FB = {
         const r = fn(content) || {}; const status = r.status || prevStatus || 'pending';
         if (content.sid !== (cur ? cur.sid : opts.create.sid)) throw errCode('bad', 'A request can’t change hands.');
         if (!isISO(content.start) || !isISO(content.end)) throw errCode('bad', 'A request needs its dates.');
+        if (content.part !== 'time') { delete content.from; delete content.to; } // times belong to "specific times" only
+        else if (!okWindow(content.from, content.to)) throw errCode('bad', 'Pick the times — from and to.');
         // the person's copy: sealed to their public key (theirs, or the one on toPeople for someone else — unless that
         // login's key changed in place, when there's no copy for them until the login is reissued)
         let mine = FB.trustedPub(content.sid);
@@ -654,7 +656,7 @@ const FB = {
         // who's out: an entry while it's approved, none otherwise
         const outRef = FB.doc('toOut/' + id);
         if (status === 'approved') {
-          const box = await Crypto.sealJSON(FB.officeKey(), { sid: content.sid, start: content.start, end: content.end, part: content.part || 'full' }, 'toout:' + id);
+          const box = await Crypto.sealJSON(FB.officeKey(), outEntry(content), 'toout:' + id);
           tx.set(outRef, { v: FB.curV, iv: box.iv, ct: box.ct, at: FB.ts() });
         } else if (prevStatus === 'approved') tx.delete(outRef);
         if (note) tx.set(note.ref, note.data);

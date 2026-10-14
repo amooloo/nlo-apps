@@ -32,6 +32,55 @@ eq(A.oldScriptHours('2026-10-27', '2026-10-27', '2 Hours'), 8.5, '…the old scr
 eq(A.reqHours(R({ start: '2026-10-26', end: '2026-10-29', part: 'pm' }), closed, pol), 17, 'four afternoons: 17 h');
 eq(A.reqHours(R({ start: '2026-10-30', end: '2026-11-01' }), closed, pol), 0, 'Fri–Sun: no office days');
 
+section('Specific times (Dr. A, 14 Oct 2026: the front desk needs to know exactly when)');
+eq(['14:00', '09:15', '12:00', '00:30', '19:00'].map(t => A.fmtClock(t)), ['2:00 PM', '9:15 AM', '12:00 PM', '12:30 AM', '7:00 PM'], 'times of day read the American way');
+eq([A.fmtClock('14:00', true), A.fmtClock('14:30', true), A.fmtClock('9:00'), A.fmtClock('25:00')], ['2 PM', '2:30 PM', '', ''], '…compact on the hour; anything that isn’t HH:MM is nothing');
+eq([A.fmtWindow('14:00', '15:30'), A.fmtWindow('14:00', '15:30', true), A.fmtWindow('11:30', '13:00'), A.fmtWindow('11:30', '13:00', true)],
+  ['2:00–3:30 PM', '2–3:30 PM', '11:30 AM–1:00 PM', '11:30 AM–1 PM'], 'a window: AM/PM once when both share it');
+eq([A.fmtWindow('15:00', '14:00'), A.fmtWindow('14:00', '14:00'), A.fmtWindow('', '15:00')], ['', '', ''], '…and nothing for one that ends before (or as) it starts');
+eq([A.okWindow('09:00', '09:30'), A.okWindow('09:00', '09:00'), A.okWindow('9:00', '10:00'), A.okWindow('09:00', '24:00'), A.okWindow(null, '10:00')], [true, false, false, false, false], 'okWindow: two HH:MM times, the second later');
+eq([A.windowHours('14:00', '15:30'), A.windowHours('08:00', '08:30'), A.windowHours('07:45', '09:00'), A.windowHours('15:00', '14:00')], [1.5, 0.5, 1.25, 0], 'the hours between: 1.5, 0.5, 1.25 (0 when it isn’t a window)');
+const tc = A.timeChoices();
+ok(tc[0] === '06:00' && tc[tc.length - 1] === '19:00' && tc.length === 53 && tc.every((t, i) => !i || A.hmMin(t) - A.hmMin(tc[i - 1]) === 15), 'the form offers every 15 minutes, 6 AM to 7 PM (' + tc.length + ')');
+const T = (from, to, o) => R(Object.assign({ start: '2026-10-27', end: '2026-10-27', part: 'time', from, to }, o));
+eq(A.reqHours(T('14:00', '15:30'), closed, pol), 1.5, '2:00–3:30 PM on a Tuesday: 1.5 h');
+eq(A.reqHours(T('08:00', '08:30'), closed, pol), 0.5, '30 minutes: 0.5 h');
+eq(A.reqHours(T('15:30', '17:30', { start: '2026-10-26', end: '2026-10-30' }), closed, pol), 8, '3:30–5:30 PM each day, Mon–Fri: 4 office days × 2 h = 8 h');
+eq(A.reqHours(T('15:30', '17:30', { start: '2026-11-23', end: '2026-11-27' }), closed, pol), 4, '…Thanksgiving week: only Mon and Tue count (4 h)');
+eq(A.reqHours(T('06:00', '19:00'), closed, pol), 8.5, 'longer than a day: counts as a full day (8.5 h)');
+eq(A.reqHours(T('', ''), closed, pol), 8.5, 'no times (can’t be saved, never opens): counted as a full day, never as nothing');
+eq([A.partOf(T('14:00', '15:30')), A.partShortOf(T('14:00', '15:30'))], ['2:00–3:30 PM', '2–3:30 PM'], 'what it says about the day: the times');
+eq([A.partOf(R({ part: 'am' })), A.partShortOf(R({ part: 'am' })), A.partOf(R({ part: 'h2' })), A.partShortOf(R({ part: 'h2' })), A.partOf(T('', '')), A.partShortOf(R({}))],
+  ['Morning (AM)', 'AM', '2 hours', '2 h', 'Specific times', 'Full'], '…and the other choices as before');
+eq(A.PARTS.map(p => p.k), ['full', 'am', 'pm', 'time'], 'the form offers full day, morning, afternoon and specific times (no more 2/4/6 hours)');
+ok(['h2', 'h4', 'h6', 'half'].every(k => A.PART[k]) && A.noTimes('h4') && !A.noTimes('time') && !A.noTimes('am'), '…the old 2/4/6-hour requests still read, and are known to have no times');
+{
+  const ctx = { pol, closed, blackouts: [], today: '2026-10-14', person: null, reqs: [], others: [] }, chk = r => A.checkRequest(Object.assign({ type: 'medical', paid: true }, r), ctx);
+  const none = chk(T('', '')), back = chk(T('15:00', '14:00')), half = chk(T('14:00', '')), good = chk(T('14:00', '15:30'));
+  ok(none.blocks.some(b => b.k === 'times' && /Pick the times/.test(b.msg)) && !none.days.length, 'specific times without times: blocked (“Pick the times — from and to.”)');
+  ok(half.blocks.some(b => b.k === 'times' && /Pick the times/.test(b.msg)), '…with only From: blocked too');
+  ok(back.blocks.some(b => b.k === 'times' && /end time is before the start/.test(b.msg)), 'an end before the start: blocked (“The end time is before the start time.”)');
+  ok(!good.blocks.length && good.days.length === 1 && good.days[0].h === 1.5 && !good.warns.some(w => w.k === 'long' || w.k === 'notimes'), '2:00–3:30 PM: nothing in the way, 1.5 h');
+  ok(chk(T('06:00', '19:00')).warns.some(w => w.k === 'long' && /counts as a full day/.test(w.msg)), 'longer than a day: a warning that it counts as a full day');
+  const old = chk(R({ start: '2026-10-27', end: '2026-10-27', part: 'h2' }));
+  ok(!old.blocks.length && old.warns.some(w => w.k === 'notimes' && /front desk won’t know when/.test(w.msg)), 'an old “2 hours” request: a warning that it has no times (approvers see it)');
+  ok(!chk(R({ start: '2026-10-27', end: '2026-10-27', part: 'am' })).warns.some(w => w.k === 'notimes'), '…a morning has no such warning');
+  const oc = chk(R({ start: '2026-10-27', end: '2026-10-27', part: 'full', from: '14:00', to: '15:30' }));
+  ok(oc.warns.some(w => w.k === 'oldcopy' && /asked for 2:00–3:30 PM but now says full day — it was changed on an older copy/.test(w.msg)) && oc.days[0].h === 8.5,
+    'a timed request changed on an older copy of Time Off (now a full day, times still inside): approvers are warned');
+  ok(!good.warns.some(w => w.k === 'oldcopy'), '…a request that still says specific times isn’t');
+}
+ok(A.okContent({ start: '2026-10-27', end: '2026-10-27', type: 'vac', part: 'time', from: '14:00', to: '15:30' }), 'sealed content with specific times opens');
+ok(!A.okContent({ start: '2026-10-27', end: '2026-10-27', type: 'vac', part: 'time' }) && !A.okContent({ start: '2026-10-27', end: '2026-10-27', type: 'vac', part: 'time', from: '15:30', to: '14:00' }), '…specific times without times, or backwards: treated as one that can’t be opened');
+ok(!A.okContent({ start: '2026-10-27', end: '2026-10-27', type: 'vac', part: 'full', from: '2pm' }) && A.okContent({ start: '2026-10-27', end: '2026-10-27', type: 'vac', part: 'full' }), '…a time that isn’t HH:MM, likewise; a full day needs none');
+eq(A.outEntry({ sid: 'riley', start: '2026-10-27', end: '2026-10-27', part: 'time', from: '14:00', to: '15:30', type: 'medical', note: 'Dentist', cover: 'Casey' }), { sid: 'riley', start: '2026-10-27', end: '2026-10-27', part: 'time', from: '14:00', to: '15:30' }, 'Who’s out gets the times — never the kind of time off, notes or cover');
+eq(A.outEntry({ sid: 'riley', start: '2026-10-27', end: '2026-10-28', part: 'am', from: '14:00', to: '15:30' }), { sid: 'riley', start: '2026-10-27', end: '2026-10-28', part: 'am' }, '…and no times for anything but specific times');
+{
+  const p = { sid: 'x', hire: '2024-01-08', type: 'FT', open: { asOf: '2026-09-30', vac: 20, sick: 5 }, adj: [] };
+  const L = A.ledger(p, [T('14:00', '15:30', { id: 'dent' })], pol, closed, '2026-10-28');
+  ok(L.byReq.dent.vac === 1.5 && Math.abs(L.vac - 18.5) < 1e-9, 'the ledger takes 1.5 h of vacation for it (20 → ' + L.vac + ')');
+}
+
 section('Tiers and service');
 eq(A.yearsOfService('2024-10-08', '2026-10-07'), 1, 'a day before the 2nd anniversary: 1 year');
 eq(A.tierAt(pol, '2024-10-08', '2026-10-07').n, 1, '…Tier 1');
@@ -447,6 +496,31 @@ section('The old Sheet: the downloaded files');
   ok(/PDF/.test(e2), 'a PDF: told to download the .xlsx');
   eq([M.toISODate(46303), M.toISODate('10/8/2026'), M.toISODate('2026-10-08 14:05:00'), M.toISODate('nope'), M.toISODate('2026-02-30')], ['2026-10-08', '2026-10-08', '2026-10-08', '', ''], 'dates: Excel numbers, US and ISO text; not-dates are blank');
   eq(new Date(M.toWhenMs(46303.5)).toString().slice(16, 21), '12:00', 'an Excel date-time is office (local) time');
+
+  section('The front-desk email says exactly when (Dr. A, 14 Oct 2026)');
+  {
+    // views.js with just what deskMail needs: the front-desk switch and first names
+    const pre = ['const ACT = {}, CHG = {};', 'const S = { settings: { to: {} } };', 'function shortName(s) { return { riley: "Riley" }[s] || s; }'].join('\n');
+    const V = load(['core.js', 'policy.js', 'views.js'], pre);
+    // a Tuesday to Friday this year (the email leaves out this year), Mon–Thu office days
+    let d = new Date().getFullYear() + '-10-01'; while (V.weekday(d) !== 2) d = V.addDays(d, 1);
+    const tue = d, thu = V.addDays(d, 2), mon = V.addDays(d, -1), day = V.fmtDayY(tue);
+    const M2 = (o, k) => V.deskMail(Object.assign({ sid: 'riley', type: 'vac', note: 'Beach trip', cover: 'Casey', start: tue, end: tue, part: 'full' }, o), k || 'block');
+    const tm = M2({ part: 'time', from: '14:00', to: '15:30' });
+    eq(tm, { subject: 'Schedule block needed: Riley, ' + V.fmtRange(tue, tue) + ', 2:00–3:30 PM', text: 'Please block the schedule for Riley on ' + day + ' from 2:00 PM to 3:30 PM (1.5 hours). Their time off was approved.\n\n— NLO Time Off' }, 'specific times: the day and exactly when, in the subject and the email');
+    ok(/\(1 hour\)/.test(M2({ part: 'time', from: '08:00', to: '09:00' }).text) && /from 8:00 AM to 8:30 AM \(0\.5 hours\)/.test(M2({ part: 'time', from: '08:00', to: '08:30' }).text), '…“(1 hour)”, “(0.5 hours)”');
+    eq(M2({ part: 'time', from: '15:30', to: '17:30', start: mon, end: thu }).text.split('.')[0], 'Please block the schedule for Riley from 3:30 PM to 5:30 PM each day, ' + V.fmtDayY(mon) + ' to ' + V.fmtDayY(thu) + ' (2 hours a day)', '…several days: the times each day');
+    ok(/, 3:30–5:30 PM each day$/.test(M2({ part: 'time', from: '15:30', to: '17:30', start: mon, end: thu }).subject), '…and in the subject');
+    eq(M2({ part: 'time', from: '14:00', to: '15:30' }, 'release'), { subject: 'Schedule block no longer needed: Riley, ' + V.fmtRange(tue, tue) + ', 2:00–3:30 PM', text: 'Riley’s time off on ' + day + ' from 2:00 PM to 3:30 PM (1.5 hours) was cancelled. Please take the schedule block off.\n\n— NLO Time Off' }, 'cancelled: the same times, “no longer needed”');
+    eq([M2({ part: 'am' }).text.split('.')[0], M2({ part: 'pm', start: mon, end: thu }).text.split('.')[0], M2({}).text.split('.')[0], M2({ start: mon, end: thu }).text.split('.')[0]],
+      ['Please block the schedule for Riley on ' + day + ' (morning)', 'Please block the schedule for Riley on ' + V.fmtDayY(mon) + ' to ' + V.fmtDayY(thu) + ' (afternoon each day)', 'Please block the schedule for Riley on ' + day + ' (full day)', 'Please block the schedule for Riley on ' + V.fmtDayY(mon) + ' to ' + V.fmtDayY(thu) + ' (full days)'],
+      'a morning, afternoons, a full day, full days (no more “(morning (am))”)');
+    ok(/, morning$/.test(M2({ part: 'am' }).subject) && /, afternoon$/.test(M2({ part: 'pm' }).subject) && M2({}).subject === 'Schedule block needed: Riley, ' + V.fmtRange(tue, tue), '…the subject says morning or afternoon too');
+    eq([M2({ part: 'h2' }).text.split('.')[0], M2({ part: 'h4', start: mon, end: thu }).text.split('.')[0]], ['Please block the schedule for Riley on ' + day + ' (2 hours — no times given)', 'Please block the schedule for Riley on ' + V.fmtDayY(mon) + ' to ' + V.fmtDayY(thu) + ' (4 hours each day — no times given)'], 'an old 2-/4-hour request: says no times were given');
+    ok(['time', 'am', 'full', 'h2'].every(p => !/Beach|Casey|vac|Vacation/i.test(JSON.stringify(M2({ part: p, from: '14:00', to: '15:30' })))), 'never the kind of time off, notes or who covers');
+    V.S.settings.to.frontDesk = false;
+    ok(M2({ part: 'time', from: '14:00', to: '15:30' }) === null, 'front-desk emails off: none');
+  }
   console.log('\n' + pass + ' passed, ' + fail + ' failed');
   process.exit(fail ? 1 : 0);
 })();

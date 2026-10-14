@@ -21,7 +21,11 @@ const oldFeed = { ok: true, timeOff: [{ id: 'old1', employeeName: 'Riley Tester'
 const newFeed = { v: 1, ok: true, pending: 2, syncedAt: new Date().toISOString(), holidays: [{ date: D.tue, label: 'Office closed (test)', source: 'custom' }],
   timeOff: [{ id: 'q' + 'a'.repeat(24), sid: 'riley', rid: '', employeeName: 'Riley Tester', start: D.mon, end: D.mon, hours: 'Full Day', part: 'full' },
     { id: 'q' + 'b'.repeat(24), sid: 'sam', rid: '', employeeName: 'Sam Tester', start: D.wed, end: D.wed, hours: 'Morning (AM)', part: 'am' },
-    { id: 'q' + 'c'.repeat(24), sid: 'zed', rid: '', employeeName: 'Nobody Known', start: D.wed, end: D.wed, hours: 'Full Day', part: 'full' }] };
+    { id: 'q' + 'c'.repeat(24), sid: 'zed', rid: '', employeeName: 'Nobody Known', start: D.wed, end: D.wed, hours: 'Full Day', part: 'full' },
+    // specific times (14 Oct 2026): "1.5 Hours" plus from/to; an older "2 hours" request (no times); and times that make no sense
+    { id: 'q' + 'd'.repeat(24), sid: 'kim', rid: '', employeeName: 'Kim Tester', start: D.wed, end: D.wed, hours: '1.5 Hours', part: 'time', from: '14:00', to: '15:30' },
+    { id: 'q' + 'e'.repeat(24), sid: 'lee', rid: '', employeeName: 'Lee Tester', start: D.wed, end: D.wed, hours: '2 Hours', part: 'h2' },
+    { id: 'q' + 'f'.repeat(24), sid: 'max', rid: '', employeeName: 'Max Tester', start: D.wed, end: D.wed, hours: '1 Hour', part: 'time', from: '25:00', to: '<b>x</b>' }] };
 (async () => {
   const keyB64 = A.b64(crypto.getRandomValues(new Uint8Array(32))), key = await A.Crypto.rawKey(keyB64);
   const box = await A.Crypto.sealJSON(key, newFeed, 'tofeed');   // exactly as NLO Time Off writes it
@@ -50,8 +54,8 @@ const newFeed = { v: 1, ok: true, pending: 2, syncedAt: new Date().toISOString()
   {
     let { ctx, page, errs } = await newPage({}, owner);
     await page.goto(BASE + 'nlo-calendar.html'); await page.waitForFunction(() => S.sync && S.sync.at, null, { timeout: 15000 });
-    const e1 = await page.evaluate(d => entriesFor(d, true).filter(e => e.synced).map(e => e.staffName + '|' + e.notes), D.thu);
-    ok(await page.evaluate(() => S.sync.src) === 'old' && hits.old >= 1 && hits.feed === 0 && e1.length === 1 && /Riley Tester/.test(e1[0]) && /Paid · Full Day/.test(e1[0]), 'no key yet: time off from the old app, as before (' + e1.join() + ')');
+    const e1 = await page.evaluate(d => entriesFor(d, true).filter(e => e.synced).map(e => e.staffName + '|' + e.part + '|' + e.title + '|' + e.notes), D.thu);
+    ok(await page.evaluate(() => S.sync.src) === 'old' && hits.old >= 1 && hits.feed === 0 && JSON.stringify(e1) === JSON.stringify(['Riley Tester||Out|']), 'no key yet: time off from the old app, as before — “Out”, never the kind of time off (' + e1.join() + ')');
     await page.evaluate(() => { S.admin = true; S.settingsOpen = true; render(); });
     ok(/NLO Time Off feed key/.test(await page.textContent('body')) && /from the old Time-Off Request app/.test(await page.textContent('body')), 'Admin settings → Time-Off sync: a place for NLO Time Off’s feed key; it says the old app is the source');
     await page.fill('#to-feed-key', 'not-a-key'); await page.click('[data-act=to-feed-save]'); await page.waitForTimeout(300);
@@ -63,9 +67,13 @@ const newFeed = { v: 1, ok: true, pending: 2, syncedAt: new Date().toISOString()
     feedStatus = 200; await page.fill('#to-feed-key', keyB64); await page.click('[data-act=to-feed-save]');
     await page.waitForFunction(() => S.sync && S.sync.src === 'timeoff', null, { timeout: 10000 });
     const cfg = await page.evaluate(() => window.__FAKE.store.nlo.cadence.timeOffFeed);
-    ok(cfg && cfg.key === keyB64 && typeof cfg.at === 'number' && cfg.by === owner.email && Object.keys(cfg).sort().join() === 'at,by,key', 'the right key: saved at nlo/cadence/timeOffFeed (key, when, by whom) — ' + /Saved — 3 approved requests/.test(await page.textContent('body')));
-    const m = await page.evaluate(d => entriesFor(d, true).filter(e => e.synced).map(e => e.staffName + '|' + e.notes + '|' + e.title), D.mon), w = await page.evaluate(d => entriesFor(d, true).filter(e => e.synced).map(e => e.staffName + '|' + e.notes), D.wed), th = await page.evaluate(d => entriesFor(d, true).filter(e => e.synced).length, D.thu);
-    ok(m.length === 1 && /^Riley Tester\|Full Day\|PTO$/.test(m[0]) && w.some(x => x === 'Sam Tester|Morning (AM)') && th === 0, 'the calendar now shows NLO Time Off’s approved time off (never the kind of time off) and drops the old app’s: ' + m.concat(w).join(' / '));
+    ok(cfg && cfg.key === keyB64 && typeof cfg.at === 'number' && cfg.by === owner.email && Object.keys(cfg).sort().join() === 'at,by,key', 'the right key: saved at nlo/cadence/timeOffFeed (key, when, by whom) — ' + /Saved — \d+ approved requests/.test(await page.textContent('body')));
+    const sh = d => page.evaluate(d => entriesFor(d, true).filter(e => e.synced).map(e => e.staffName + '|' + e.part + '|' + e.title), d);
+    const m = await sh(D.mon), w = await sh(D.wed), th = (await sh(D.thu)).length;
+    ok(JSON.stringify(m) === JSON.stringify(['Riley Tester||Out']) && w.includes('Sam Tester|Morning|Out') && th === 0, 'the calendar now shows NLO Time Off’s approved time off (never the kind of time off) and drops the old app’s: ' + m.concat(w).join(' / '));
+    ok(w.includes('Kim Tester|2–3:30 PM|Out'), 'specific times: “Kim Tester · 2–3:30 PM” (not a whole day out) — ' + w.join(' / '));
+    ok(await page.evaluate(d => entrySub(entriesFor(d, true).find(e => e.staffName === 'Kim Tester')), D.wed) === 'Out ' + await page.evaluate(d => prettyRange(d, d), D.wed) + ' · 2–3:30 PM', '…“Out <day> · 2–3:30 PM” where the entry is opened');
+    ok(w.includes('Lee Tester|2 hrs|Out') && w.includes('Max Tester|Part of the day|Out'), 'an older “2 hours” request: “2 hrs”; times that make no sense: “Part of the day” (never shown as given)');
     ok(await page.evaluate(d => !!(holidayMap()[d] && /Office closed/.test(holidayMap()[d].label)), D.tue), '…and NLO Time Off’s office closures');
     await page.evaluate(() => { S.settingsOpen = true; render(); });
     ok(/read NLO Time Off/.test(await page.textContent('body')) && /Go back to the old Time-Off app/.test(await page.textContent('body')), 'Settings says it reads NLO Time Off, with a way back');
@@ -92,7 +100,7 @@ const newFeed = { v: 1, ok: true, pending: 2, syncedAt: new Date().toISOString()
     await page.goto(BASE + 'cadence.html'); await page.waitForFunction(() => window.__FAKE.store.nlo && window.__FAKE.store.nlo.cadence && window.__FAKE.store.nlo.cadence.state, null, { timeout: 20000 });
     const st = await page.evaluate(() => JSON.parse(JSON.stringify(window.__FAKE.store.nlo.cadence.state)));
     await ctx.close();
-    st.staff = [{ id: 's_riley', name: 'Riley Tester', status: 'active', roleId: (st.roles && st.roles[0] && st.roles[0].id) || '' }, { id: 's_sam', name: 'Sam Tester', status: 'active', roleId: (st.roles && st.roles[0] && st.roles[0].id) || '' }];
+    st.staff = ['riley', 'sam', 'kim', 'lee'].map(k => ({ id: 's_' + k, name: k[0].toUpperCase() + k.slice(1) + ' Tester', status: 'active', roleId: (st.roles && st.roles[0] && st.roles[0].id) || '' }));
     st.timeOff = []; st.instances = [];
     const tof = s => (s.timeOff || []).filter(o => String(o.id).startsWith('tof_')).map(o => o.staffId + '@' + o.date + ':' + o.scope + ':' + o.id.split('_')[1]).sort();
     // without a key: the old app
@@ -112,7 +120,7 @@ const newFeed = { v: 1, ok: true, pending: 2, syncedAt: new Date().toISOString()
     await page.waitForFunction(() => { const s = window.__FAKE.store.nlo.cadence.state; return s && (s.timeOff || []).some(o => String(o.id).startsWith('tof_q')); }, null, { timeout: 20000 });
     const t2 = tof(await page.evaluate(() => window.__FAKE.store.nlo.cadence.state));
     ok(hits.feed >= 1 && hits.old === 0 && JSON.stringify(t2) === JSON.stringify(['s_riley@' + D.mon + ':full:q' + 'a'.repeat(24), 's_sam@' + D.wed + ':am:q' + 'b'.repeat(24)].sort()),
-      'with the key: NLO Time Off’s approved time off (morning/afternoon kept), the old app’s gone, nobody unknown added (' + t2.join() + ')');
+      'with the key: NLO Time Off’s approved time off (morning/afternoon kept), the old app’s gone, nobody unknown added — and Kim’s 2:00–3:30 PM and Lee’s 2 hours don’t take them off their checklists (' + t2.join() + ')');
     ok(!errs.length, 'no page errors' + (errs.length ? ': ' + errs.join(' | ') : ''));
     // a feed it can't open (a new key made in NLO Time Off): what it has stays, and it never falls back to the old app
     await page.evaluate(() => { window.__FAKE.store.nlo.cadence.timeOffFeed.key = btoa(String.fromCharCode.apply(null, crypto.getRandomValues(new Uint8Array(32)))); });

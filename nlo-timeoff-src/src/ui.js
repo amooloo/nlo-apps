@@ -344,6 +344,13 @@ async function ownerUpkeep() {
     const pub = B.trustedPub(x.sid); if (!pub || x.pubX === pub.x) continue;
     try { await B.savePerk(x.id, () => { }, { a: 'reseal' }); } catch (e) { }
   }
+  // approved specific times whose Who's-out entry lacks the times (an older copy of Time Off approved it): saved again,
+  // which writes the entry, and so the feed, with the times
+  for (const r of allReqs()) {
+    if (r.status !== 'approved' || r.part !== 'time' || !okWindow(r.from, r.to)) continue;
+    const o = S.board.find(x => x.id === r.id); if (!o || (o.from === r.from && o.to === r.to)) continue;
+    try { await B.saveReq(r.id, () => { }, { a: 'reseal' }); } catch (e) { }
+  }
   let mineX = new Map(); try { mineX = await B.mineXs(); } catch (e) { }
   for (const [sid, rec] of S.hrRecs) {
     const pub = B.trustedPub(sid); if (!pub || mineX.get(sid) === pub.x) continue;
@@ -351,11 +358,24 @@ async function ownerUpkeep() {
   }
 }
 function staffKeyMsg(names) { return names.join(', ') + (names.length > 1 ? '’ logins' : '’s login') + ' changed its key without a reissue, so nothing new is sealed to it. If that’s expected, reissue the login in NLO Cases (Team & security); their copies are sealed to the new login the next time you open Time Off.'; }
-/* the who's-out feed CADANCe and the office calendar read: names, dates, morning/afternoon, closures and how many requests wait */
-function feedHours(part) { return { full: 'Full Day', am: 'Morning (AM)', pm: 'Afternoon (PM)', h2: '2 Hours', h4: '4 Hours', h6: '6 Hours', half: 'Half Day' }[part] || 'Full Day'; }
+/* the who's-out feed CADANCe and the office calendar read: names, dates, morning/afternoon (or the times), closures and how
+   many requests wait. Specific times are "1.5 Hours" plus from/to: CADANCe takes only full days, mornings and afternoons (and
+   reads "am"/"pm" anywhere in the words), so a short absence never stops someone's checklists; the calendar shows the times. */
+function feedHours(o) {
+  if (o.part === 'time') {
+    const h = windowHours(o.from, o.to);
+    if (!h) return 'Part of the day'; // an entry an older copy of Time Off wrote without its times: still less than a day
+    return h >= polOn(S.pol, o.start).day ? 'Full Day' : hrs(h) + (h === 1 ? ' Hour' : ' Hours');
+  }
+  return { full: 'Full Day', am: 'Morning (AM)', pm: 'Afternoon (PM)', h2: '2 Hours', h4: '4 Hours', h6: '6 Hours', half: 'Half Day' }[o.part] || 'Full Day';
+}
 function buildFeed(pending) {
   const t = todayISO(), lo = addDays(t, -60), hi = addDays(t, 400), y = Number(t.slice(0, 4));
-  const timeOff = S.board.filter(o => o.end >= lo && o.start <= hi).map(o => { const r = staff(o.sid) || {}; return { id: o.id, sid: o.sid, rid: r.rid || '', employeeName: r.name || o.sid, start: o.start, end: o.end, hours: feedHours(o.part), part: o.part || 'full' }; })
+  const timeOff = S.board.filter(o => o.end >= lo && o.start <= hi).map(o => {
+    const r = staff(o.sid) || {}, row = { id: o.id, sid: o.sid, rid: r.rid || '', employeeName: r.name || o.sid, start: o.start, end: o.end, hours: feedHours(o), part: o.part || 'full' };
+    if (row.part === 'time' && okWindow(o.from, o.to)) { row.from = o.from; row.to = o.to; }
+    return row;
+  })
     .sort((a, b) => a.start < b.start ? -1 : a.start > b.start ? 1 : a.id < b.id ? -1 : 1);
   const holidays = [];
   [y - 1, y, y + 1].forEach(yy => fixedHolidays(yy).forEach(h => holidays.push({ date: h.date, label: h.label, source: 'fixed' })));
@@ -488,7 +508,7 @@ function paintPhotos(root) { $$('img[data-photo]', root || document).forEach(img
 const STATUS = { pending: ['Waiting', 'wait'], approved: ['Approved', 'ok'], denied: ['Not approved', 'bad'], cancelled: ['Cancelled', 'off'], archived: ['Taken back', 'off'] };
 function statusChip(s) { const x = STATUS[s] || [s, 'off']; return '<span class="stat ' + x[1] + '">' + esc(x[0]) + '</span>'; }
 function typeChip(k) { return '<span class="badge ty-' + esc(k || 'other') + '">' + esc(typeLabel(k)) + '</span>'; }
-function partNote(r) { return r.part && r.part !== 'full' ? ' · ' + esc(partLabel(r.part).replace(' (AM)', '').replace(' (PM)', '')) + (reqDays(r, S.closed, S.pol).length > 1 ? ' each day' : '') : ''; }
+function partNote(r) { return r.part && r.part !== 'full' ? ' · ' + esc(r.part === 'time' ? partOf(r) : partLabel(r.part).replace(' (AM)', '').replace(' (PM)', '')) + (reqDays(r, S.closed, S.pol).length > 1 ? ' each day' : '') : ''; }
 /* "2 days · 17 h" */
 function sizeTxt(r) { const d = reqDays(r, S.closed, S.pol), h = round2(d.reduce((s, x) => s + x.h, 0)); return plural(d.length, 'office day') + ' · ' + hrs(h) + ' h'; }
 function daysTxt(h) { const d = round2(h / S.pol.day); return d ? '≈ ' + hrs(d) + ' day' + (d === 1 ? '' : 's') : ''; }

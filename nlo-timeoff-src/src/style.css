@@ -508,6 +508,10 @@ ol.steps b{color:var(--navy)}
 .seg.wrap{display:flex;flex-wrap:wrap;border:none;border-radius:0;overflow:visible;background:none;gap:6px}
 .seg.wrap button{border:1.5px solid var(--grey-200);border-radius:99px;background:#fff}
 .seg.wrap button[aria-pressed="true"]{border-color:var(--navy);background:var(--navy);color:#fff}
+/* specific times: From and To side by side (one under the other on a phone, so "3:30 PM · 1.5 h" isn't cut off) */
+.timeGrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 12px;max-width:460px;margin-top:12px}
+.timeGrid .field{margin-bottom:4px}
+@media (max-width:520px){ .timeGrid{grid-template-columns:minmax(0,1fr);max-width:none} }
 .sumCard .cardBd{padding-top:0}
 .sumBig{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:8px}
 .sumBig b{font-family:var(--fd);font-weight:600;font-size:30px;color:var(--navy);line-height:1.1}

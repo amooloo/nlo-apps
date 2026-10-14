@@ -79,6 +79,24 @@ function fmtRange(a, b) {
   if (y1 === y2 && m1 === m2) return parseISO(a).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' – ' + Number(b.slice(8)) + (y1 !== cy ? ', ' + y1 : '');
   return fmtDate(a) + ' – ' + fmtDate(b);
 }
+/* times of day as "HH:MM" (24-hour), for time off asked for as specific times: "14:00" → "2:00 PM" */
+function isHM(s) { return typeof s === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(s); }
+function hmMin(s) { return Number(s.slice(0, 2)) * 60 + Number(s.slice(3, 5)); }
+function hmOf(min) { return String(Math.floor(min / 60)).padStart(2, '0') + ':' + String(min % 60).padStart(2, '0'); }
+/* a part of one day: from a time to a later one */
+function okWindow(from, to) { return isHM(from) && isHM(to) && hmMin(to) > hmMin(from); }
+/* "2:00 PM" — compact: "2 PM" on the hour */
+function fmtClock(hm, compact) {
+  if (!isHM(hm)) return '';
+  const m = hmMin(hm), h = Math.floor(m / 60), mm = m % 60;
+  return (h % 12 || 12) + (compact && !mm ? '' : ':' + String(mm).padStart(2, '0')) + ' ' + (h < 12 ? 'AM' : 'PM');
+}
+/* "2:00–3:30 PM", "11:30 AM–1:00 PM" — compact: "2–3:30 PM", "11:30 AM–1 PM" */
+function fmtWindow(from, to, compact) {
+  if (!okWindow(from, to)) return '';
+  const a = fmtClock(from, compact), b = fmtClock(to, compact);
+  return (a.slice(-2) === b.slice(-2) ? a.slice(0, -3) : a) + '–' + b;
+}
 function round2(n) { return Math.round((Number(n) || 0) * 100) / 100; }
 /* hours on screen: 34, 4.25, 2.83 (at most two decimals, none when whole) */
 function hrs(n) { const r = round2(n); return (Object.is(r, -0) ? 0 : r).toLocaleString('en-US', { maximumFractionDigits: 2 }); }
@@ -91,6 +109,7 @@ function errCode(code, msg) { const e = new Error(msg || code); e.code = code; r
 function okContent(c) {
   return !!c && typeof c === 'object' && isISO(c.start) && isISO(c.end) && c.end >= c.start && daysBetween(c.start, c.end) <= 366
     && typeof c.type === 'string' && c.type.length <= 20 && (c.part == null || typeof c.part === 'string')
+    && (c.part !== 'time' || okWindow(c.from, c.to)) && ['from', 'to'].every(k => c[k] == null || isHM(c[k]))
     && ['note', 'cover'].every(k => c[k] == null || (typeof c[k] === 'string' && c[k].length <= 5000))
     && (c.events == null || Array.isArray(c.events));
 }

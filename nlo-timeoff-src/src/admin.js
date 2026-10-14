@@ -98,7 +98,7 @@ function hrKeyBodyHTML() {
   return '<div class="kvRow"><span>Current HR key</span><b>#' + esc(String(v)) + '</b></div>' +
     '<div class="kvRow"><span>Copy kept with your recovery code</span>' + rec + '</div>' +
     '<div class="kvRow"><span>People who approve</span><b>' + (P && !P.err ? P.grants.length : '…') + '</b></div>' +
-    '<p class="small muted" style="margin-top:10px">Requests and HR records are sealed on the computer that saves them; the database only holds the sealed copies, plus whose they are, their status and the day they start. Each person can always open their own requests and balances (their copy is sealed to their login). Everyone sees who’s out — names, days and morning/afternoon, never why.' +
+    '<p class="small muted" style="margin-top:10px">Requests and HR records are sealed on the computer that saves them; the database only holds the sealed copies, plus whose they are, their status and the day they start. Each person can always open their own requests and balances (their copy is sealed to their login). Everyone sees who’s out — names, days, and morning/afternoon or the times, never why.' +
     (P && P.hasRecovery === false ? ' Set up the recovery code in NLO Cases → Team &amp; security.' : '') + '</p>' +
     '<div class="btnRow"><button class="btn btn-ghost" data-act="newHRKey"' + (S.accessBusy || S.rotating ? ' disabled' : '') + '>' + ic('key', 15) + 'Make a new HR key now</button></div><p class="small muted">Only needed if a computer or phone that had Approvals open is lost or stolen.</p>';
 }
@@ -126,7 +126,7 @@ function feedCardHTML() {
 }
 function feedBodyHTML() {
   const F = S.feedInfo;
-  return '<p class="small">They show who’s out from a feed Time Off keeps up to date: names, days and morning/afternoon, office closures, and how many requests are waiting — never the kind of time off, notes or anyone’s hours. The feed is sealed with its own key; they need the key to read it.</p>' +
+  return '<p class="small">They show who’s out from a feed Time Off keeps up to date: names, days, and morning/afternoon or the times (2:00–3:30 PM), office closures, and how many requests are waiting — never the kind of time off, notes or anyone’s balance. The feed is sealed with its own key; they need the key to read it.</p>' +
     (!F ? '<div class="small muted">Loading…</div>' :
       '<div class="kvRow"><span>Last updated</span><b>' + (F.at ? esc(fmtWhen(F.at)) : 'Not yet') + '</b></div><div class="kvRow"><span>In it now</span><b>' + plural(F.n, 'approved request') + (F.pending != null ? ' · ' + F.pending + ' waiting' : '') + '</b></div>' +
       '<details class="help"><summary>Address and key (for setting up CADANCe and the calendar)</summary><div class="small muted" style="margin-top:6px">Address</div><div class="keyBox">' + esc(feedURL()) + '</div>' +
@@ -316,7 +316,7 @@ function deskBodyHTML() {
     '<button type="button" class="sw" role="switch" aria-checked="' + on + '" aria-label="Email the front desk" data-act="toggleDesk"></button></div>' +
     '<div class="kvRow"><span>NLO Cases’ email robot</span>' + robot + '</div>' +
     (D && !D.err && !D.on ? '<p class="small muted">The emails go out through NLO Cases’ email robot (the one that sends the case emails). Turn its notices on in NLO Cases → Settings → Email.</p>' : '') +
-    '<details class="help"><summary>What the email says</summary><div class="txt" style="margin-top:6px">Schedule block needed: Riley, Nov 2 – 4\n\nPlease block the schedule for Riley on Mon, Nov 2 to Wed, Nov 4 (full days). Their time off was approved.</div><p class="small muted" style="margin-top:6px">Only the name, the days and morning/afternoon — never the kind of time off or notes.</p></details>';
+    '<details class="help"><summary>What the email says</summary><div class="txt" style="margin-top:6px">Schedule block needed: Riley, Tue, Nov 3, 2:00–3:30 PM\n\nPlease block the schedule for Riley on Tue, Nov 3 from 2:00 PM to 3:30 PM (1.5 hours). Their time off was approved.</div><p class="small muted" style="margin-top:6px">Only the name, the days and exactly when — all day, the morning, the afternoon or the times — never the kind of time off or notes.</p></details>';
 }
 ACT.toggleDesk = async () => {
   const on = (S.settings.to || {}).frontDesk !== false;

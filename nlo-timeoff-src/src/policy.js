@@ -33,14 +33,34 @@ const TYPES = [
 const TYPE = Object.fromEntries(TYPES.map(t => [t.k, t]));
 function typeLabel(k) { return (TYPE[k] && TYPE[k].l) || 'Time off'; }
 
-/* how much of each day */
+/* how much of each day. Anything less than a morning or an afternoon is asked for as specific times, from one time to
+   another (Dr. A, 14 Oct 2026: the front desk has to know exactly when to block the chair); the hours are the time between.
+   The 2-, 4- and 6-hour choices that came before had no times; requests made with them still read and count as they were. */
 const PARTS = [
   { k: 'full', l: 'Full day', s: 'Full' }, { k: 'am', l: 'Morning (AM)', s: 'AM' }, { k: 'pm', l: 'Afternoon (PM)', s: 'PM' },
-  { k: 'h2', l: '2 hours', s: '2 h', h: 2 }, { k: 'h4', l: '4 hours', s: '4 h', h: 4 }, { k: 'h6', l: '6 hours', s: '6 h', h: 6 }
+  { k: 'time', l: 'Specific times', s: 'Times' }
 ];
-const PART = Object.fromEntries(PARTS.concat([{ k: 'half', l: 'Half day', s: 'Half' }]).map(p => [p.k, p]));
+const PARTS_OLD = [{ k: 'h2', l: '2 hours', s: '2 h', h: 2 }, { k: 'h4', l: '4 hours', s: '4 h', h: 4 }, { k: 'h6', l: '6 hours', s: '6 h', h: 6 }, { k: 'half', l: 'Half day', s: 'Half' }];
+const PART = Object.fromEntries(PARTS.concat(PARTS_OLD).map(p => [p.k, p]));
 function partLabel(k) { return (PART[k] && PART[k].l) || 'Full day'; }
 function partShort(k) { return (PART[k] && PART[k].s) || 'Full'; }
+/* the times the form offers: every 15 minutes from 6 AM to 7 PM */
+const TIME_STEP = 15, TIME_FIRST = '06:00', TIME_LAST = '19:00';
+function timeChoices() { const out = []; for (let m = hmMin(TIME_FIRST); m <= hmMin(TIME_LAST); m += TIME_STEP) out.push(hmOf(m)); return out; }
+/* the hours between two times (0 when they aren't a part of a day) */
+function windowHours(from, to) { return okWindow(from, to) ? round2((hmMin(to) - hmMin(from)) / 60) : 0; }
+/* what a request takes of each day, in words: "Morning (AM)", "2:00–3:30 PM", "2 hours"; short: "AM", "2–3:30 PM", "2 h" */
+function partOf(r) { return r && r.part === 'time' ? fmtWindow(r.from, r.to) || partLabel('time') : partLabel(r && r.part); }
+function partShortOf(r) { return r && r.part === 'time' ? fmtWindow(r.from, r.to, true) || partShort('time') : partShort(r && r.part); }
+/* a request from before specific times: some hours, but not when */
+function noTimes(part) { return !!(PART[part] && PART[part].h); }
+/* a request's Who's-out entry (sealed with the office key): whose, the days and how much of each — the times too, for
+   specific times. Never the kind of time off or notes. */
+function outEntry(r) {
+  const o = { sid: r.sid, start: r.start, end: r.end, part: r.part || 'full' };
+  if (o.part === 'time' && okWindow(r.from, r.to)) { o.from = r.from; o.to = r.to; }
+  return o;
+}
 
 /* ---------- the policy (Dr. A can change these in Settings) ---------- */
 const POLICY = {
@@ -92,8 +112,10 @@ function normPolicy(raw) {
   if (s.route && typeof s.route === 'object') TYPES.forEach(t => { if (['vac', 'sick', 'none'].includes(s.route[t.k])) p.route[t.k] = s.route[t.k]; });
   return p;
 }
-function partHours(part, pol) {
+/* the hours a request takes from each office day it covers (r: the request, for its times) */
+function partHours(part, pol, r) {
   if (part === 'am' || part === 'pm' || part === 'half') return round2(pol.day / 2);
+  if (part === 'time') { const h = windowHours(r && r.from, r && r.to); return h ? Math.min(h, pol.day) : pol.day; }
   const p = PART[part]; if (p && p.h) return Math.min(p.h, pol.day);
   return pol.day;
 }
@@ -129,7 +151,7 @@ function nextOfficeDay(iso, closed) { let d = iso; for (let i = 0; i < 60; i++) 
 /* the office days a request covers, with the hours of each */
 function reqDays(r, closed, pol) {
   const out = []; if (!r || !isISO(r.start) || !isISO(r.end) || r.end < r.start) return out;
-  for (let d = r.start, g = 0; d <= r.end && g < 400; d = addDays(d, 1), g++) if (isOfficeDay(d, closed)) out.push({ date: d, h: partHours(r.part, polOn(pol, d)) });
+  for (let d = r.start, g = 0; d <= r.end && g < 400; d = addDays(d, 1), g++) if (isOfficeDay(d, closed)) out.push({ date: d, h: partHours(r.part, polOn(pol, d), r) });
   return out;
 }
 function reqHours(r, closed, pol) { return round2(reqDays(r, closed, pol).reduce((s, d) => s + d.h, 0)); }
@@ -315,8 +337,12 @@ function checkRequest(r, ctx) {
   if (!isISO(r.start) || !isISO(r.end)) blocks.push({ k: 'dates', msg: 'Pick the first and last day.' });
   else if (r.end < r.start) blocks.push({ k: 'dates', msg: 'The last day is before the first day.' });
   else if (daysBetween(r.start, r.end) > 120) blocks.push({ k: 'dates', msg: 'That’s more than four months — split it into shorter requests.' });
+  if (r.part === 'time' && !okWindow(r.from, r.to)) blocks.push({ k: 'times', msg: isHM(r.from) && isHM(r.to) ? 'The end time is before the start time.' : 'Pick the times — from and to.' });
   if (blocks.length) return { blocks, warns, days: [] };
   const days = reqDays(r, closed, pol);
+  if (r.part === 'time' && windowHours(r.from, r.to) > polOn(pol, r.start).day) warns.push({ k: 'long', msg: 'That’s longer than a full day (' + hrs(polOn(pol, r.start).day) + ' h), so it counts as a full day.' });
+  if (r.part !== 'time' && okWindow(r.from, r.to)) warns.push({ k: 'oldcopy', msg: 'It was asked for ' + fmtWindow(r.from, r.to) + ' but now says ' + partLabel(r.part).toLowerCase() + ' — it was changed on an older copy of Time Off. Check the times before deciding.' });
+  if (noTimes(r.part)) warns.push({ k: 'notimes', msg: 'No times given (' + partLabel(r.part).toLowerCase() + '), so the front desk won’t know when to block the schedule. While it waits, it can be changed to specific times.' });
   if (!days.length) blocks.push({ k: 'closed', msg: 'The office is closed every day in that range (it’s open Monday to Thursday).' });
   for (const h of blackoutHits(r, blackouts)) blocks.push({ k: 'blackout', msg: h.b.label + ' is a blackout period for ' + typeLabel(r.type).toLowerCase() + ' (' + fmtDate(h.from) + ' – ' + fmtDate(h.to) + ').', b: h.b });
   // sick leave is only ever after the fact: today or days already past, never ahead of time (Dr. A, 9 Oct 2026) — the

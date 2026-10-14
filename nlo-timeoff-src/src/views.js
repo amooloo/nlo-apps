@@ -89,14 +89,14 @@ function weekCard() {
 }
 /* who's off on day d: approved time off (everyone sees), plus — for the people who approve — what's been asked */
 function outOn(d) {
-  const out = S.board.filter(o => o.start <= d && o.end >= d && isOfficeDay(d, S.closed)).map(o => ({ sid: o.sid, part: o.part, id: o.id, asked: false }));
-  if (isHR()) pendingAll().forEach(r => { if (r.start <= d && r.end >= d && isOfficeDay(d, S.closed)) out.push({ sid: r.sid, part: r.part, id: r.id, asked: true }); });
+  const out = S.board.filter(o => o.start <= d && o.end >= d && isOfficeDay(d, S.closed)).map(o => ({ sid: o.sid, part: o.part, from: o.from, to: o.to, id: o.id, asked: false }));
+  if (isHR()) pendingAll().forEach(r => { if (r.start <= d && r.end >= d && isOfficeDay(d, S.closed)) out.push({ sid: r.sid, part: r.part, from: r.from, to: r.to, id: r.id, asked: true }); });
   return out.sort((a, b) => (a.asked - b.asked) || shortName(a.sid).localeCompare(shortName(b.sid)));
 }
 function outChip(o) {
   const canOpen = isHR() || o.sid === meSid();
-  return '<span class="outChip' + (o.asked ? ' asked' : '') + '"' + (canOpen ? ' role="button" tabindex="0" data-act="openReq" data-id="' + esc(o.id) + '"' : '') + ' title="' + esc(staffName(o.sid) + (o.asked ? ' — asked, not approved yet' : '') + (o.part && o.part !== 'full' ? ' — ' + partLabel(o.part) : '')) + '">' +
-    avatarHTML(o.sid) + esc(shortName(o.sid)) + (o.part && o.part !== 'full' ? ' <i>' + esc(partShort(o.part)) + '</i>' : '') + (o.asked ? ' <i>asked</i>' : '') + '</span>';
+  return '<span class="outChip' + (o.asked ? ' asked' : '') + '"' + (canOpen ? ' role="button" tabindex="0" data-act="openReq" data-id="' + esc(o.id) + '"' : '') + ' title="' + esc(staffName(o.sid) + (o.asked ? ' — asked, not approved yet' : '') + (o.part && o.part !== 'full' ? ' — ' + partOf(o) : '')) + '">' +
+    avatarHTML(o.sid) + esc(shortName(o.sid)) + (o.part && o.part !== 'full' ? ' <i>' + esc(partShortOf(o)) + '</i>' : '') + (o.asked ? ' <i>asked</i>' : '') + '</span>';
 }
 function closuresSoonCard() {
   const t = todayISO(), list = [];
@@ -108,7 +108,7 @@ function closuresSoonCard() {
 
 /* ---------- Request time off (also: change a waiting one; the people who approve can record time off for someone) ---------- */
 function newForm(o) {
-  return Object.assign({ sid: meSid(), type: '', paid: true, start: '', end: '', part: 'full', cover: '', note: '', record: false, editId: '' }, o || {});
+  return Object.assign({ sid: meSid(), type: '', paid: true, start: '', end: '', part: 'full', from: '', to: '', cover: '', note: '', record: false, editId: '' }, o || {});
 }
 function formDirty() { const f = S.form; return !!(f && !f.sent && (f.type || f.start || f.note || f.cover)); }
 function viewForm() {
@@ -125,15 +125,32 @@ function viewForm() {
   const mx = f.type === 'sick' ? ' max="' + todayISO() + '"' : ''; // sick leave: today or earlier
   h += '<div class="grid2"><div class="field"><label for="fStart">First day</label><input type="date" id="fStart" data-inp="fDate" value="' + esc(f.start) + '"' + mx + '></div>' +
     '<div class="field"><label for="fEnd">Last day</label><input type="date" id="fEnd" data-inp="fDate" value="' + esc(f.end) + '"' + mx + '><div class="hint"><button type="button" class="linkBtn" data-act="fOneDay">Just one day</button></div></div></div>';
+  // a waiting request from before specific times keeps its old choice (e.g. "2 hours") until it's changed
+  const parts = PARTS.concat(PART[f.part] && !PARTS.some(p => p.k === f.part) ? [PART[f.part]] : []);
   h += '<div class="field"><span class="flabel">How much of each day</span><div class="seg wrap" role="group" aria-label="How much of each day">' +
-    PARTS.map(p => '<button type="button" data-act="fPart" data-k="' + p.k + '" aria-pressed="' + (f.part === p.k) + '">' + esc(p.l) + '</button>').join('') + '</div>' +
-    '<div class="hint">A full day is ' + hrs(S.pol.day) + ' h; a morning or afternoon ' + hrs(S.pol.day / 2) + ' h. The office is open Monday to Thursday.</div></div>';
+    parts.map(p => '<button type="button" data-act="fPart" data-k="' + p.k + '" aria-pressed="' + (f.part === p.k) + '">' + esc(p.l + (noTimes(p.k) ? ' (no times)' : '')) + '</button>').join('') + '</div>' +
+    '<div id="fTimes">' + timesHTML(f) + '</div>' +
+    '<div class="hint">A full day is ' + hrs(S.pol.day) + ' h; a morning or afternoon ' + hrs(S.pol.day / 2) + ' h. For less, pick Specific times — the front desk is told exactly when. The office is open Monday to Thursday.</div></div>';
   h += '<div class="field" id="fPaidBox">' + paidFieldHTML(f) + '</div>';
   h += '<div class="field"><label for="fCover">Who covers for you <span class="opt">(optional)</span></label><input id="fCover" maxlength="120" data-inp="fText" value="' + esc(f.cover) + '" placeholder="e.g. Gwen takes my seat"></div>';
   h += '<div class="field"><label for="fNote">Notes <span class="opt">(optional — only you and the people who approve see them)</span></label><textarea id="fNote" maxlength="600" data-inp="fText">' + esc(f.note) + '</textarea></div>';
   if (hr && !f.editId && (forOther || isOwner())) h += '<label class="chk"><input type="checkbox" id="fRecord" data-chg="fRecord"' + (f.record ? ' checked' : '') + '> Record it as approved' + (forOther ? '' : ' (your own)') + '</label>';
   h += '</div></div><div><div class="card sumCard" id="fSum">' + formSummary() + '</div></div></div>';
   return h;
+}
+/* specific times: From and To, every 15 minutes; each To says how long it comes to (e.g. "3:30 PM · 1.5 h") */
+function timeOpt(v, l, cur) { return '<option value="' + esc(v) + '"' + (v === cur ? ' selected' : '') + '>' + esc(l) + '</option>'; }
+function withTime(list, v) { return isHM(v) && !list.includes(v) ? list.concat([v]).sort() : list; } // a saved time not on the list stays
+function toOptsHTML(f) {
+  const tos = withTime(timeChoices().filter(t => !isHM(f.from) || hmMin(t) > hmMin(f.from)), f.to);
+  return timeOpt('', 'Pick a time', f.to) + tos.map(t => timeOpt(t, fmtClock(t) + (okWindow(f.from, t) ? ' · ' + hrs(windowHours(f.from, t)) + ' h' : ''), f.to)).join('');
+}
+function timesHTML(f) {
+  if (f.part !== 'time') return '';
+  const froms = withTime(timeChoices().slice(0, -1), f.from);
+  return '<div class="timeGrid"><div class="field"><label for="fFrom">From</label><select id="fFrom" data-chg="fTime">' + timeOpt('', 'Pick a time', f.from) + froms.map(t => timeOpt(t, fmtClock(t), f.from)).join('') + '</select></div>' +
+    '<div class="field"><label for="fTo">To</label><select id="fTo" data-chg="fTime">' + toOptsHTML(f) + '</select></div></div>' +
+    '<div class="hint" style="margin-top:0">The hours are the time between From and To.</div>';
 }
 /* paid or unpaid: the person's choice, except bereavement, which the handbook decides — paid for a death in the immediate
    family (part-time staff: unpaid) */
@@ -157,6 +174,7 @@ function afterForm() { }
 /* the live summary next to the form: the days, the hours, where they come from, and anything to know */
 function formSummary() {
   const f = S.form, p = personOf(f.sid), r = { id: f.editId || '__new', type: f.type, paid: f.paid, start: f.start, end: f.end || f.start, part: f.part };
+  if (f.part === 'time') { r.from = f.from; r.to = f.to; }
   if (!f.type || !f.start) return '<div class="cardHd"><h3>Summary</h3></div><div class="cardBd"><div class="empty">Pick what kind and the dates.</div></div>';
   const others = (isHR() ? allReqs().filter(x => x.sid !== f.sid && (x.status === 'approved' || x.status === 'pending')).map(x => ({ sid: x.sid, start: x.start, end: x.end, status: x.status }))
     : S.board.filter(o => o.sid !== f.sid).map(o => ({ sid: o.sid, start: o.start, end: o.end, status: 'approved' })))
@@ -169,7 +187,7 @@ function formSummary() {
   if (!blocks.length || override) {
     const days = c.days, total = round2(days.reduce((s, d) => s + d.h, 0));
     const skipped = []; if (isISO(r.start) && isISO(r.end) && r.end >= r.start) for (let d = r.start, g = 0; d <= r.end && g < 130; d = addDays(d, 1), g++) { const cl = S.closed(d); if (cl && weekday(d) >= 1 && weekday(d) <= 4) skipped.push([d, cl]); }
-    h += '<div class="sumBig"><b>' + hrs(total) + ' h</b><span>' + plural(days.length, 'office day') + (days.length && f.part !== 'full' ? ' · ' + esc(partLabel(f.part)) + ' each' : '') + '</span></div>';
+    h += '<div class="sumBig"><b>' + hrs(total) + ' h</b><span>' + plural(days.length, 'office day') + (days.length && f.part !== 'full' ? ' · ' + esc(partOf(r)) + (days.length > 1 ? ' each' : '') : '') + '</span></div>';
     h += '<div class="dayList">' + days.slice(0, 40).map(d => '<span class="dayPill">' + esc(fmtDay(d.date)) + '</span>').join('') + (days.length > 40 ? '<span class="small muted">+ ' + (days.length - 40) + ' more</span>' : '') + '</div>';
     if (skipped.length) h += '<div class="small muted" style="margin-top:6px">Closed, so not counted: ' + esc(skipped.map(([d, l]) => fmtDay(d) + ' (' + l + ')').join(', ')) + '</div>';
     const b = bucketOf(r, S.pol);
@@ -203,18 +221,23 @@ Object.assign(ACT, {
     const pb = $('#fPaidBox'); if (pb) pb.innerHTML = paidFieldHTML(S.form);
     ['#fStart', '#fEnd'].forEach(q => { const el = $(q); if (el) { if (S.form.type === 'sick') el.max = todayISO(); else el.removeAttribute('max'); } });
     if (S.form.type === 'sick' && !S.form.start) { S.form.start = S.form.end = todayISO(); const a = $('#fStart'), b = $('#fEnd'); if (a) a.value = S.form.start; if (b) b.value = S.form.end; } $$('[data-act=fType]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.k === S.form.type))); refreshSummary(); },
-  fPart(t) { S.form.part = t.dataset.k; $$('[data-act=fPart]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.k === S.form.part))); refreshSummary(); },
+  fPart(t) {
+    S.form.part = t.dataset.k; $$('[data-act=fPart]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.k === S.form.part)));
+    const tb = $('#fTimes'); if (tb) tb.innerHTML = timesHTML(S.form); refreshSummary();
+  },
   fPaid(t) { S.form.paid = t.dataset.v === '1'; $$('[data-act=fPaid]').forEach(b => b.setAttribute('aria-pressed', String((b.dataset.v === '1') === S.form.paid))); refreshSummary(); },
   fOneDay() { if (!S.form.start) { const a = $('#fStart'); if (a) a.focus(); return; } S.form.end = S.form.start; const b = $('#fEnd'); if (b) b.value = S.form.end; refreshSummary(); },
   async fSend(t) {
     const f = S.form; if (f.type === 'bereave') f.paid = bereavePaid(f.sid);
     const r = { type: f.type, paid: f.paid, start: f.start, end: f.end || f.start, part: f.part };
+    if (f.part === 'time') { r.from = f.from; r.to = f.to; }
     if (!TYPE[r.type] || !isISO(r.start) || !isISO(r.end)) { toast('Pick what kind and the dates first.', { bad: true }); return; }
+    if (r.part === 'time' && !okWindow(r.from, r.to)) { toast('Pick the times — from and to.', { bad: true }); return; }
     busyBtn(t, true, 'Saving…');
     const me = meSid(), now = Date.now(), status = f.record ? 'approved' : 'pending';
     try {
       if (f.editId) {
-        await B.saveReq(f.editId, c => { Object.assign(c, r, { cover: f.cover.trim(), note: f.note.trim() }); c.events = (c.events || []).concat([{ a: 'edit', by: me, at: now }]); }, { a: 'edit' });
+        await B.saveReq(f.editId, c => { Object.assign(c, r, { cover: f.cover.trim(), note: f.note.trim() }); if (r.part !== 'time') { delete c.from; delete c.to; } c.events = (c.events || []).concat([{ a: 'edit', by: me, at: now }]); }, { a: 'edit' });
         toast('Changed — it still waits for approval');
       } else {
         const id = B.newReqId();
@@ -238,15 +261,34 @@ Object.assign(CHG, {
     if (S.form.start && (!S.form.end || S.form.end < S.form.start)) { S.form.end = S.form.start; if (b && document.activeElement !== b) b.value = S.form.end; }
     refreshSummary();
   },
-  fText() { const a = $('#fCover'), b = $('#fNote'); if (a) S.form.cover = a.value; if (b) S.form.note = b.value; }
+  fText() { const a = $('#fCover'), b = $('#fNote'); if (a) S.form.cover = a.value; if (b) S.form.note = b.value; },
+  /* From or To picked: To lists only later times, each with how long it comes to */
+  fTime(t) {
+    const f = S.form, a = $('#fFrom'), b = $('#fTo'); f.from = a ? a.value : ''; f.to = b ? b.value : '';
+    if (isHM(f.from) && isHM(f.to) && !okWindow(f.from, f.to)) f.to = '';
+    // only To's list changes (later times, how long each comes to); the select being typed in is never rebuilt
+    if (t && t.id === 'fFrom' && b) b.innerHTML = toOptsHTML(f);
+    refreshSummary();
+  }
 });
-/* the front-desk email: block (approved) or release (cancelled/taken back) the schedule */
+/* the front-desk email: block (approved) or release (cancelled/taken back) the schedule. Who, the days and exactly when —
+   the whole day, the morning, the afternoon or the times (Dr. A, 14 Oct 2026); never the kind of time off or notes. */
 function deskMail(r, kind) {
   if ((S.settings.to || {}).frontDesk === false) return null;
-  const who = shortName(r.sid), when = r.start === r.end ? fmtDayY(r.start) : fmtDayY(r.start) + ' to ' + fmtDayY(r.end);
-  const part = r.part && r.part !== 'full' ? ' (' + partLabel(r.part).toLowerCase() + (r.start !== r.end ? ' each day' : '') + ')' : r.start === r.end ? ' (full day)' : ' (full days)';
-  if (kind === 'block') return { subject: 'Schedule block needed: ' + who + ', ' + fmtRange(r.start, r.end), text: 'Please block the schedule for ' + who + ' on ' + when + part + '. Their time off was approved.\n\n— NLO Time Off' };
-  return { subject: 'Schedule block no longer needed: ' + who + ', ' + fmtRange(r.start, r.end), text: who + '’s time off on ' + when + part + ' was cancelled. Please take the schedule block off.\n\n— NLO Time Off' };
+  const who = shortName(r.sid), one = r.start === r.end, when = one ? fmtDayY(r.start) : fmtDayY(r.start) + ' to ' + fmtDayY(r.end);
+  const timed = r.part === 'time' && okWindow(r.from, r.to), part = r.part || 'full';
+  let what, subj = fmtRange(r.start, r.end);
+  if (timed) {
+    const h = windowHours(r.from, r.to), span = 'from ' + fmtClock(r.from) + ' to ' + fmtClock(r.to);
+    what = (one ? 'on ' + when + ' ' + span : span + ' each day, ' + when) + ' (' + hrs(h) + (h === 1 ? ' hour' : ' hours') + (one ? '' : ' a day') + ')';
+    subj += ', ' + fmtWindow(r.from, r.to) + (one ? '' : ' each day');
+  } else {
+    const words = { full: one ? 'full day' : 'full days', am: 'morning', pm: 'afternoon', half: 'half day' }[part];
+    what = 'on ' + when + ' (' + (words ? words + (part !== 'full' && !one ? ' each day' : '') : partLabel(part).toLowerCase() + (one ? '' : ' each day') + ' — no times given') + ')';
+    if (part === 'am' || part === 'pm') subj += ', ' + words;
+  }
+  if (kind === 'block') return { subject: 'Schedule block needed: ' + who + ', ' + subj, text: 'Please block the schedule for ' + who + ' ' + what + '. Their time off was approved.\n\n— NLO Time Off' };
+  return { subject: 'Schedule block no longer needed: ' + who + ', ' + subj, text: who + '’s time off ' + what + ' was cancelled. Please take the schedule block off.\n\n— NLO Time Off' };
 }
 
 /* ---------- My time off: requests and the statement ---------- */
@@ -557,7 +599,7 @@ function allReqsHTML() {
     sel('y', [['', 'Any year']].concat(years.map(y => [y, y]))) + '<span class="small muted">' + plural(list.length, 'request') + '</span></div>';
   if (!list.length) return h + '<div class="card"><div class="cardBd"><div class="empty">No requests match.</div></div></div>';
   return h + '<div class="card"><div class="tblWrap"><table class="tbl"><thead><tr><th>Who</th><th>When</th><th class="hideM">Kind</th><th class="num hideM">Hours</th><th>Status</th></tr></thead><tbody>' +
-    list.map(r => '<tr class="click" tabindex="0" data-act="openReq" data-id="' + esc(r.id) + '"><td><span class="nameCell">' + avatarHTML(r.sid) + esc(shortName(r.sid)) + '</span></td><td class="nowrap">' + esc(fmtRange(r.start, r.end)) + '<div class="small muted">' + esc(partShort(r.part)) + '</div></td><td class="hideM">' + typeChip(r.type) + (r.paid ? '' : ' <span class="badge unp">Unpaid</span>') + '</td><td class="num hideM">' + hrs(reqHours(r, S.closed, S.pol)) + '</td><td>' + statusChip(r.status) + '</td></tr>').join('') +
+    list.map(r => '<tr class="click" tabindex="0" data-act="openReq" data-id="' + esc(r.id) + '"><td><span class="nameCell">' + avatarHTML(r.sid) + esc(shortName(r.sid)) + '</span></td><td class="nowrap">' + esc(fmtRange(r.start, r.end)) + '<div class="small muted">' + esc(partShortOf(r)) + '</div></td><td class="hideM">' + typeChip(r.type) + (r.paid ? '' : ' <span class="badge unp">Unpaid</span>') + '</td><td class="num hideM">' + hrs(reqHours(r, S.closed, S.pol)) + '</td><td>' + statusChip(r.status) + '</td></tr>').join('') +
     '</tbody></table></div></div>';
 }
 CHG.allF = t => { const f = S.tab.allF || { who: '', st: '', y: todayISO().slice(0, 4) }; f[t.dataset.k] = t.value; S.tab.allF = f; renderView(); };
@@ -601,7 +643,7 @@ Object.assign(ACT, {
   },
   editReq(t) {
     const r = S.reqs.get(t.dataset.id); if (!r) return;
-    S.form = newForm({ editId: r.id, sid: r.sid, type: r.type, paid: r.paid, start: r.start, end: r.end, part: r.part, cover: r.cover || '', note: r.note || '' });
+    S.form = newForm({ editId: r.id, sid: r.sid, type: r.type, paid: r.paid, start: r.start, end: r.end, part: r.part, from: r.from || '', to: r.to || '', cover: r.cover || '', note: r.note || '' });
     closeDrawer(); S.view = 'new'; renderNav(); renderView(); window.scrollTo(0, 0);
   },
   openReq(t) { openReqDrawer(t.dataset.id); }
@@ -614,7 +656,7 @@ async function openReqDrawer(id, keep) {
   const me = meSid(), mine = r.sid === me, hr = isHR(), t = todayISO();
   const days = reqDays(r, S.closed, S.pol), total = round2(days.reduce((s, d) => s + d.h, 0));
   let h = '<div class="dHd">' + avatarHTML(r.sid, '', true) + '<div class="grow"><h3>' + esc(fmtRange(r.start, r.end)) + '</h3><div class="sub">' + esc(staffName(r.sid)) + ' · ' + typeChip(r.type) + (r.paid ? '' : ' <span class="badge unp">Unpaid</span>') + ' ' + statusChip(r.status) + '</div></div><button class="iconBtn" data-act="closeDrawer" aria-label="Close">' + ic('x') + '</button></div><div class="dBd">';
-  h += '<div class="kvRow"><span>Each day</span><b>' + esc(partLabel(r.part)) + '</b></div><div class="kvRow"><span>Office days</span><b>' + days.length + ' · ' + hrs(total) + ' h</b></div>' +
+  h += '<div class="kvRow"><span>Each day</span><b>' + esc(partOf(r)) + '</b></div><div class="kvRow"><span>Office days</span><b>' + days.length + ' · ' + hrs(total) + ' h</b></div>' +
     '<div class="dayList" style="margin:6px 0 10px">' + days.slice(0, 60).map(d => '<span class="dayPill">' + esc(fmtDay(d.date)) + '</span>').join('') + '</div>';
   if (r.cover) h += '<div class="kvRow"><span>Covering</span><b>' + esc(r.cover) + '</b></div>';
   if (r.note) h += '<div class="sec"><h5>Notes</h5><div class="small apNote">' + esc(r.note) + '</div></div>';
