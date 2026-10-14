@@ -177,7 +177,7 @@ html:has(#sheet.open)>:is(nlo-home,nlo-aisa){display:none!important}
    (that path already has the right access rules). Each month also stores
    computed `totals`, which the Staff Meeting Hub reads for its KPIs.
    ===================================================================== */
-const APP_VERSION = '1.2.0';
+const APP_VERSION = '1.3.0';
 const FB_CONFIG = { apiKey: "AIzaSyBFCmDgAKkdfZ4Cb81nK0KCKXtONiwMJy4", authDomain: "nlo-inventory.firebaseapp.com", databaseURL: "https://nlo-inventory-default-rtdb.firebaseio.com", projectId: "nlo-inventory", storageBucket: "nlo-inventory.firebasestorage.app", messagingSenderId: "471691286148", appId: "1:471691286148:web:b362a98186f648bd4914d1" };
 const ME = 'nlo/staffMeeting/monthEnd';
 const ROSTER_PATH = 'nlo/cadence/roster/people';
@@ -470,6 +470,7 @@ RENDER.goals = () => {
     bi('np', 'New patients', '') + bi('startsInc', 'Starts including Phase II', '') + bi('startsLess', 'Starts not counting Phase II', '') + '</div><div>' + bi('coll', 'Net collections', '$') + bi('net', 'Production (net)', '$') + '</div></div></div>' +
     '<div class="card"><div class="card-h"><h2>Treatment coordinator columns</h2></div><p class="hint">New patients and starts get one column per TC — tap to add or remove. ' + (cfgTcs.length ? '' : 'Right now it follows the Staff Hub titles (Treatment Coordinator).') + '</p><div class="ptiles">' + tcTiles + '</div></div>' +
     '<div class="card"><div class="card-h"><h2>Due date</h2></div><div class="frow"><span class="l">Month-end numbers are due by this day of the next month</span><input class="num" type="text" inputmode="numeric" data-cfg="dueDay" value="' + esc(dueDay()) + '"></div></div>' +
+    '<div class="card"><div class="card-h"><h2>Backup</h2></div><p class="hint">The database is backed up daily (since Oct 12). This is also a copy for you to keep: every month, the goals and the settings in one file. Restore brings back only months the app doesn’t have — nothing here is changed.</p><div class="row" style="margin-top:10px;gap:8px"><button class="btn ghost sm" data-act="me-backup">Download all months</button>' + (S.isOwner ? '<button class="btn ghost sm" data-act="me-restore">Restore from a file</button>' : '') + '</div></div>' +
     '<div class="card"><div class="card-h"><h2>Back-filling past months</h2></div><p class="hint">' + (nShim ? nShim + ' months were copied from Shimmin (' + esc(fmtYm(shimKeys[0], { month: 'short', year: 'numeric' })) + ' – ' + esc(fmtYm(shimKeys[shimKeys.length - 1], { month: 'short', year: 'numeric' })) + '). ' : '') + 'To bring over another month from Shimmin: pick the month at the top, then use the button below (Shimmin → EOM Executive Summary → Ctrl+P → Save as PDF). The AI reads the page and you check the numbers before saving.</p><div class="row" style="margin-top:10px"><button class="btn ghost sm" data-act="import">Read a Shimmin PDF into ' + esc(fmtYm(S.month)) + '</button></div></div>' +
     '<p class="hint">Month-End Numbers ' + APP_VERSION + ' · totals only — never patient names.</p>';
 };
@@ -515,6 +516,29 @@ document.addEventListener('click', e => {
     case 'tc': { const id = el.dataset.pid; let cur = tcList().map(x => ({ id: x.id, name: x.name })); cur = cur.some(x => x.id === id) ? cur.filter(x => x.id !== id) : cur.concat([{ id, name: shortName(person(id)) }]); db.ref(MP('config', 'tcs')).set(cur.length ? cur : null); break; }
     case 'tip': { const k = el.dataset.k, l = el.dataset.l; const text = tipOf(k, el.dataset.d || ''); openSheet('<h3 class="sheet-t">' + esc(l) + '</h3><p style="margin-top:8px">' + (text ? esc(text) : '<span class="muted">No tip yet.</span>') + '</p>' + (S.isOwner ? '<label class="lbl">Edit the tip (where to find this number in Edge, etc.)</label><textarea class="field" id="tipT" rows="3">' + esc(text) + '</textarea><div class="row end" style="margin-top:12px"><button class="btn mint" id="tipS">Save tip</button></div>' : ''), c => { const s = c.querySelector('#tipS'); if (s) s.onclick = () => { db.ref(MP('config', 'tips', k)).set(c.querySelector('#tipT').value.trim() || null); closeSheet(); }; }); break; }
     case 'import': importSheet(); break;
+    case 'me-backup': {
+      const data = { app: 'nlo-month-end', v: 1, at: new Date().toISOString(), months: S.months, years: S.years, config: S.config };
+      const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 1)], { type: 'application/json' }));
+      a.download = 'month-end-backup-' + (d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()))(new Date()) + '.json'; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+      toast('Downloaded ' + Object.keys(S.months).length + ' months', 'good'); break;
+    }
+    case 'me-restore': {
+      if (!S.isOwner) break;
+      const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'application/json,.json';
+      inp.onchange = async () => {
+        try {
+          const d = JSON.parse(await inp.files[0].text());
+          if (!d || d.app !== 'nlo-month-end' || !d.months || typeof d.months !== 'object') throw new Error('That isn’t a Month-End backup file.');
+          const add = Object.keys(d.months).filter(k => /^\d{4}-\d{2}$/.test(k) && d.months[k] && typeof d.months[k] === 'object' && !S.months[k]).sort();
+          const kept = Object.keys(d.months).filter(k => S.months[k]).length;
+          if (!add.length) { toast('Nothing to bring back — the app already has all ' + kept + ' months in that file.', 'good'); return; }
+          if (!confirm('Bring back ' + add.length + ' month' + (add.length > 1 ? 's' : '') + ' (' + add.map(k => fmtYm(k, { month: 'short', year: 'numeric' })).join(', ') + ')? The ' + kept + ' months already here stay as they are.')) return;
+          const map = {}; add.forEach(k => { map[MP('months', k)] = d.months[k]; });
+          await up(map); toast('Brought back ' + add.length + ' month' + (add.length > 1 ? 's' : ''), 'good');
+        } catch (e) { toast('Not restored: ' + e.message, 'bad'); }
+      };
+      inp.click(); break;
+    }
     case 'edge': edgeSheet(); break;
     case 'print-month': printMonth(); break;
     case 'print-year': printYear(); break;
@@ -562,6 +586,7 @@ async function geminiJSON(system, parts) {
 function fileToPart(f) { return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => { const s = String(r.result); res({ inline_data: { mime_type: f.type || 'application/pdf', data: s.slice(s.indexOf(',') + 1) } }); }; r.onerror = () => rej(new Error('Could not read the file')); r.readAsDataURL(f); }); }
 function importSheet() {
   const m = S.month;
+  if ((S.months[m] || {}).final) { toast(fmtYm(m) + ' is marked complete — reopen it before reading a PDF into it.', 'bad'); return; }
   openSheet('<h3 class="sheet-t">Read a Shimmin PDF into ' + esc(fmtYm(m)) + '</h3><ol class="steps small"><li>In Shimmin, open <b>EOM Executive Summary</b> for ' + esc(fmtYm(m)) + '.</li><li>Press <b>Ctrl+P</b> (⌘P on a Mac) → <b>Save as PDF</b>.</li><li>Drop the PDF here (or screenshots of the whole page).</li></ol>' +
     '<label class="drop" id="dz"><input type="file" id="df" accept="application/pdf,image/*" multiple hidden><span id="dn">Choose or drop the PDF</span></label><div id="ds" class="small bold" style="margin-top:10px;min-height:18px"></div><div class="row end" style="margin-top:8px"><button class="btn blue" id="dg" disabled>Read it</button></div>', card => {
     let files = [];
@@ -593,8 +618,9 @@ function reviewImport(m, found, vals) {
     '<p class="hint" style="margin-top:6px">Fix anything that looks off. New patients and starts go into one “Team” column (Shimmin’s page has the totals).</p><div class="fgrid" style="margin-top:8px">' + keys.map(k => '<div class="frow"><span class="l">' + esc(IMPORT_LABELS[k]) + '</span><input class="num wide" type="text" inputmode="decimal" data-ik="' + k + '" value="' + (vals[k] != null ? esc(vals[k]) : '') + '"></div>').join('') + '</div>' +
     '<div class="row end" style="margin-top:14px"><span class="hint grow" id="target">Saving to ' + esc(fmtYm(m)) + (S.months[m] && filledCount(S.months[m]) ? ' — this replaces what’s there' : '') + '</span><button class="btn mint" id="imSave">Save</button></div>', card => {
     let target = m;
-    const u = card.querySelector('#useFound'); if (u) u.onclick = () => { target = found; card.querySelector('#target').textContent = 'Saving to ' + fmtYm(found) + (S.months[found] && filledCount(S.months[found]) ? ' — this replaces what’s there' : ''); };
+    const u = card.querySelector('#useFound'); if (u) u.onclick = () => { target = found; card.querySelector('#target').textContent = 'Saving to ' + fmtYm(found) + ((S.months[found] || {}).final ? ' — marked complete: reopen it first' : S.months[found] && filledCount(S.months[found]) ? ' — this replaces what’s there' : ''); };
     card.querySelector('#imSave').onclick = async () => {
+      if ((S.months[target] || {}).final) { toast(fmtYm(target) + ' is marked complete — reopen it first.', 'bad'); return; }
       const v = {}; $$('[data-ik]', card).forEach(i => { const n = num(i.value); if (n != null) v[i.dataset.ik] = n; });
       const team = {}; Object.keys(IMPORT_KEYS).forEach(k => { if (v[k] != null) team[IMPORT_KEYS[k]] = v[k]; });
       const rec = { tcs: Object.keys(team).length ? { all: team } : null, source: 'shimmin-pdf', importedAt: Date.now(), updatedAt: Date.now() };
