@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-3T6Lzuw3Y7f73Rs0Vn+/2LC0wm2UpJ/TmCLHKdapNm8=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com https://aisa-worker.akhavan-ak.workers.dev http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-Ed4tTrQ/HTutcOrkstR5FrphD1D852zjXoLEyJ14SIk=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://app.asana.com https://aisa-worker.akhavan-ak.workers.dev http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO Cases</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -4315,6 +4315,7 @@ function enterApp() {
       if (first) setTimeout(mailSync, 300); // lab emails that came in while nobody had the app open
       else { msgWatch(); nsSoon(); } // a note tagging you, just now (notes.js); a case that may need the front desk emailed (noship.js)
       if (first) setTimeout(iprAutoSync, 1500); // the IPR Tracker, for every patient at once, when the link is still on in this tab
+      if (first) setTimeout(shAutoSync, 2500); // Staff Hub's names and photos onto the team, for Dr. A (admin.js)
       else if (LABS.list.length && up.some(c => c.type === 'nla')) labSoon(); // a lab order waiting on Today may fit a case just added or changed (lab.js)
       if (S.openId && (up.some(c => c.id === S.openId) || gone.includes(S.openId))) { const rd = () => { if (S.openId) refreshDrawer(gone.includes(S.openId)); }; if (!afterPress(rd)) rd(); }
     },
@@ -8877,6 +8878,17 @@ async function shLoad() {
   try { SH.data = (await iprLink().roster()) || { people: {} }; SH.at = Date.now(); shPhotos(); shNames(); }
   catch (e) { SH.data = null; SH.err = /permission|denied/i.test(String(e && (e.code || e.message))) ? 'This Google account can’t read the office roster. Connect with the account Staff Hub shares it with.' : 'Couldn’t reach the office roster. Check the connection and try again.'; }
   SH.loading = false; if (S.view === 'admin') queueRender('team');
+}
+/* at Dr. A's sign-in, not only when Team & security is opened (Amir, 14 Oct 2026: a last name corrected in Staff Hub was "still
+   misspelled in other apps" — NLO Time Clock, Leads and A/R show this team's names): on a computer where the office roster is
+   connected, the roster is read once the team has loaded, and names and photos follow (shNames, shPhotos). Nothing else changes:
+   logins are still made here, and someone who left is only flagged. */
+async function shAutoSync() {
+  if (S.demo || !isOwner()) return;
+  const L = iprLink(); if (!L.init()) return;
+  const u = L.user() || await L.waitUser(); if (!u || !S.inApp) return;
+  for (let i = 0; i < 100 && S.inApp && !S.roster.length; i++) await new Promise(r => setTimeout(r, 100));
+  if (S.inApp && S.roster.length && !SH.data && !SH.loading) await shLoad();
 }
 function shPhoto(p) { const el = '<span class="av shAv"' + (p.photo ? ' data-shph="' + esc(p.id) + '"' : '') + '>' + esc(initials(p.name)) + '</span>'; return el; }
 function shBoxHTML() {

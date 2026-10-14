@@ -2004,6 +2004,14 @@ async function openByName(p, name) {
   await rput('nlo/cadence/roster/people/s_gwen', rp('s_gwen', 'Gwen', 'Tester', 'Orthodontic assistant', { photo: staffPic }));
   await owner.click('#shBox [data-act=shRefresh]'); await owner.waitForSelector('.toast:has-text("From Staff Hub: Gwen Tester")', { timeout: 20000 });
   check((await fsDump()).find(d => d.name.endsWith('/roster/gwen')).fields.name.stringValue === 'Gwen Tester', '…and back again when Staff Hub changes it back');
+  // at sign-in, without opening Team & security (Amir, 14 Oct 2026: a name corrected in Staff Hub "still misspelled in other apps"):
+  // the office roster is read once the team has loaded, on a computer where it's connected
+  await rput('nlo/cadence/roster/people/s_gwen', rp('s_gwen', 'Gwen', 'Signedin', 'Orthodontic assistant', { photo: staffPic }));
+  await owner.click('#side [data-act=lock]'); await signIn(owner, OWNER_EMAIL, 'Owner-Reset-999'); await waitApp(owner);
+  await owner.waitForSelector('.toast:has-text("From Staff Hub: Gwen Signedin")', { timeout: 30000 });
+  check(await owner.evaluate(() => S.view !== 'admin' && !document.querySelector('#shBox')) && (await fsDump()).find(d => d.name.endsWith('/roster/gwen')).fields.name.stringValue === 'Gwen Signedin', 'Dr. A signs in and the new name comes in by itself, Team & security never opened');
+  await rput('nlo/cadence/roster/people/s_gwen', rp('s_gwen', 'Gwen', 'Tester', 'Orthodontic assistant', { photo: staffPic }));
+  await owner.click('#nav-admin'); await owner.waitForSelector('#shBox'); await owner.click('#shBox [data-act=shRefresh]'); await owner.waitForSelector('.toast:has-text("From Staff Hub: Gwen Tester")', { timeout: 20000 });
   // staff as photo tiles with names underneath: Assistant and Assigned to
   await owner.click('.topBar [data-act=newCase]'); await owner.waitForSelector('#ncForm .staffRow[data-g=assistant] .sTile[data-v=gwen] .av.ph img', { timeout: 10000 });
   check(/Gwen/.test(await owner.textContent('#ncForm .staffRow[data-g=assistant] .sTile[data-v=gwen] .sNm')), 'New case: the Assistant choices are staff photos with the name underneath');

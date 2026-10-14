@@ -1096,6 +1096,7 @@ function render() {
     case 'settings': m.innerHTML = viewSettings(); break;
     default: m.innerHTML = viewDashboard();
   }
+  if (['dashboard', 'staff', 'staffDetail', 'newhire'].indexOf(route.page) >= 0 && typeof rosterBannerHTML === 'function') m.insertAdjacentHTML('afterbegin', rosterBannerHTML());
 }
 
 /* ---------- Dashboard ---------- */
@@ -1176,7 +1177,7 @@ function viewStaffList() {
   if (q) list = list.filter(p => (p.name + ' ' + (p.role||'')).toLowerCase().includes(q));
   list.sort((a,b) => (a.status === 'former') - (b.status === 'former') || a.name.localeCompare(b.name));
   return `
-  ${pageHeadHTML('People', 'Staff', plural(activeStaff().length,'active team member') + (route.showFormer ? ' · showing former staff too' : ''),
+  ${pageHeadHTML('People', 'Staff', plural(activeStaff().length,'active team member') + (route.showFormer ? ' · showing former staff too' : '') + (rosterSharedText() ? ' · ' + esc(rosterSharedText()) : ''),
     `<div class="searchBox">${ic('search',15)}<input type="text" id="staffSearch" placeholder="Search name or role…" value="${esc(route.staffFilter)}" data-chg="staffSearch"></div>
      <button class="chip ${route.showFormer ? 'on' : ''}" data-act="toggleFormer">Show former</button>
      <button class="btn btn-pri" data-act="addStaff">${ic('plus',15)} Add staff</button>`)}
@@ -1449,14 +1450,16 @@ function staffModal(p) {
     if (isNew) {
       const np = Object.assign({ id:uid(), status:'active', created:Date.now() }, vals);
       S.staff.push(np); act('Added staff member ' + name);
-      persist(); closeModal(); goStaff(np.id); toast(name + ' added');
+      persist(); closeModal(); goStaff(np.id); toast(name + ' added' + rosterToastTail());
     } else {
       Object.assign(p, vals); act('Updated profile for ' + name);
-      persist(); closeModal(); render(); toast('Profile updated');
+      persist(); closeModal(); render(); toast('Profile updated' + rosterToastTail());
     }
   };
   setTimeout(() => $('#sfName').focus(), 60);
 }
+/* what a save toast says about the other apps */
+function rosterToastTail() { return !rosterKnown ? '' : rosterUser && rosterStatus !== 'error' ? ' · the office apps follow' : ' · not shared with the other apps from this computer'; }
 H.addStaff = () => staffModal(null);
 H.editStaff = t => staffModal(staffById(t.dataset.id));
 H.archiveStaff = t => {
@@ -7436,7 +7439,7 @@ var ROSTER_LEGACY_GOESBY = { s_wila: 'Wila', s_eve: 'Eve', s_bri: 'Bri' };
 /* chairside (IPR) labels that differ from the name someone goes by */
 var ROSTER_CHAIR_LABEL = { s_angelika: 'Angie' };
 var rosterApp = null, rosterUser = null, rosterTimer = null, rosterSent = '', rosterPrev = null, rosterLoaded = false;
-var rosterStatus = 'off', rosterErr = '', rosterAt = 0;
+var rosterStatus = 'off', rosterErr = '', rosterAt = 0, rosterKnown = false, rosterToldErr = '';
 
 function rosterSlug(x) { return String(x || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z]/g, ''); }
 function rosterNameParts(name) {
@@ -7567,7 +7570,7 @@ function rosterInit() {
   if (!firebase.apps.some(a => a && a.name === '[DEFAULT]')) return null;   /* Staff Hub's own sign-in must be set up first */
   try { rosterApp = firebase.app('nloRoster'); } catch (e) { rosterApp = firebase.initializeApp(ROSTER_FB, 'nloRoster'); }
   rosterApp.auth().onAuthStateChanged(u => {
-    rosterUser = u || null; rosterLoaded = false; rosterSent = ''; rosterErr = '';
+    rosterUser = u || null; rosterLoaded = false; rosterSent = ''; rosterErr = ''; rosterKnown = true;
     rosterStatus = u ? 'ready' : 'off';
     if (u) rosterQueue(200);
     rosterPanelRefresh();
@@ -7598,8 +7601,30 @@ async function rosterPublish() {
     rosterSent = json; rosterPrev = people; rosterAt = Date.now(); rosterStatus = 'ready'; rosterErr = '';
   } catch (e) {
     rosterStatus = 'error'; rosterErr = rosterErrText(e);
+    if (rosterErr !== rosterToldErr) { rosterToldErr = rosterErr; toast(rosterErr, true); }
   }
   rosterPanelRefresh();
+}
+/* Amir, 14 Oct 2026: "if I change something on there, it should automatically change everywhere else ... do I need to do additional
+   pressing of a button?" — no button: every save here goes out to the other apps within seconds, as long as this computer is
+   connected to the office roster. When it isn't (or the last share failed), a bar on Dashboard, Staff and each person says so. */
+function rosterBannerHTML() {
+  if (!rosterKnown || !S || !Array.isArray(S.staff)) return '';
+  if (rosterStatus === 'error') return `<div id="rosterBar" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 14px;padding:10px 14px;border-radius:12px;background:var(--coral-100);color:var(--coral-700);font-size:13px;line-height:1.4">${ic('alert',16)}<span style="flex:1;min-width:200px"><b>Staff changes aren’t reaching the other apps.</b> ${esc(rosterErr)}</span><button class="btn btn-sec btn-sm" data-act="rosterNow">Try again</button></div>`;
+  if (!rosterUser) return `<div id="rosterBar" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 14px;padding:10px 14px;border-radius:12px;background:var(--amber-100);color:var(--amber-700);font-size:13px;line-height:1.4">${ic('alert',16)}<span style="flex:1;min-width:200px"><b>Staff changes made on this computer aren’t reaching the other apps.</b> Connect the office roster once (akhavan.ak@gmail.com); after that every save here goes out by itself.</span><button class="btn btn-pri btn-sm" data-act="rosterConnect">${ic('users',13)} Connect</button></div>`;
+  return '';
+}
+function rosterBannerRefresh() {
+  const el = document.getElementById('rosterBar'), html = rosterBannerHTML();
+  if (el) { if (html) el.outerHTML = html; else el.remove(); }
+  else if (html && route && ['dashboard', 'staff', 'staffDetail', 'newhire'].indexOf(route.page) >= 0) { const m = $('#main'); if (m) m.insertAdjacentHTML('afterbegin', html); }
+}
+/* "Shared with the office apps at 9:12 AM" for the Staff page */
+function rosterSharedText() {
+  if (!rosterKnown) return '';
+  if (rosterStatus === 'error' || !rosterUser) return 'not reaching the other apps from this computer';
+  if (rosterStatus === 'saving') return 'sharing with the office apps…';
+  return rosterAt ? 'shared with the office apps at ' + new Date(rosterAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'connected to the office apps';
 }
 function rosterStatusLine(p) {
   if (p.status === 'former') return '<span class="badge b-gray">Left' + (rosterEnd(p) ? ' ' + esc(fmtD(rosterEnd(p))) : '') + '</span>';
@@ -7620,6 +7645,7 @@ function rosterPanelHTML() {
     const state = rosterStatus === 'error' ? `<span style="color:var(--coral-700)">${esc(rosterErr)}</span>`
       : rosterStatus === 'saving' ? 'Sharing…' : (when ? 'Shared at ' + esc(when) : 'Connected');
     head = `<p class="muted" style="margin-bottom:10px">${state} · signed in as ${esc(rosterUser.email || '')}</p>
+      <p class="tiny" style="margin:-4px 0 10px">Every save here goes out to the other apps within seconds; nothing to press. “Share now” only sends the list again.</p>
       <div style="display:flex;gap:9px;flex-wrap:wrap;margin-bottom:12px"><button class="btn btn-sec btn-sm" data-act="rosterNow">Share now</button><button class="btn btn-sec btn-sm" data-act="rosterPhotos">Add photos</button><button class="btn btn-sec btn-sm" data-act="rosterDisconnect">Disconnect</button></div>`;
   }
   const rows = list.map(p => {
@@ -7631,6 +7657,7 @@ function rosterPanelHTML() {
 function rosterPanelRefresh() {
   const el = document.getElementById('rosterPanel');
   if (el && route && route.page === 'settings') el.outerHTML = rosterPanelHTML();
+  rosterBannerRefresh();
 }
 H.rosterConnect = () => {
   const app = rosterInit();

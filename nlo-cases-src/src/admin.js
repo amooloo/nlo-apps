@@ -382,6 +382,17 @@ async function shLoad() {
   catch (e) { SH.data = null; SH.err = /permission|denied/i.test(String(e && (e.code || e.message))) ? 'This Google account can’t read the office roster. Connect with the account Staff Hub shares it with.' : 'Couldn’t reach the office roster. Check the connection and try again.'; }
   SH.loading = false; if (S.view === 'admin') queueRender('team');
 }
+/* at Dr. A's sign-in, not only when Team & security is opened (Amir, 14 Oct 2026: a last name corrected in Staff Hub was "still
+   misspelled in other apps" — NLO Time Clock, Leads and A/R show this team's names): on a computer where the office roster is
+   connected, the roster is read once the team has loaded, and names and photos follow (shNames, shPhotos). Nothing else changes:
+   logins are still made here, and someone who left is only flagged. */
+async function shAutoSync() {
+  if (S.demo || !isOwner()) return;
+  const L = iprLink(); if (!L.init()) return;
+  const u = L.user() || await L.waitUser(); if (!u || !S.inApp) return;
+  for (let i = 0; i < 100 && S.inApp && !S.roster.length; i++) await new Promise(r => setTimeout(r, 100));
+  if (S.inApp && S.roster.length && !SH.data && !SH.loading) await shLoad();
+}
 function shPhoto(p) { const el = '<span class="av shAv"' + (p.photo ? ' data-shph="' + esc(p.id) + '"' : '') + '>' + esc(initials(p.name)) + '</span>'; return el; }
 function shBoxHTML() {
   const L = iprLink(), head = '<div class="shBox" id="shBox"><div class="shHd"><b>From Staff Hub</b><span class="small muted">the office roster Cadence and the IPR Tracker follow</span>';

@@ -287,6 +287,7 @@ function enterApp() {
       if (first) setTimeout(mailSync, 300); // lab emails that came in while nobody had the app open
       else { msgWatch(); nsSoon(); } // a note tagging you, just now (notes.js); a case that may need the front desk emailed (noship.js)
       if (first) setTimeout(iprAutoSync, 1500); // the IPR Tracker, for every patient at once, when the link is still on in this tab
+      if (first) setTimeout(shAutoSync, 2500); // Staff Hub's names and photos onto the team, for Dr. A (admin.js)
       else if (LABS.list.length && up.some(c => c.type === 'nla')) labSoon(); // a lab order waiting on Today may fit a case just added or changed (lab.js)
       if (S.openId && (up.some(c => c.id === S.openId) || gone.includes(S.openId))) { const rd = () => { if (S.openId) refreshDrawer(gone.includes(S.openId)); }; if (!afterPress(rd)) rd(); }
     },
