@@ -168,6 +168,34 @@ main{max-width:1080px;margin:0 auto;padding:12px 14px 80px}
 .item .meta{font-size:12px;color:var(--muted);font-weight:600;margin-top:3px;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .item .acts{display:flex;gap:2px;align-items:center;flex:none}
 .item select.cat-select{margin-top:1px}
+/* item outcomes (2.2): Resolved / Write outcome / Push to later — a full-width row under the item */
+.item.has-o{flex-wrap:wrap}
+.oacts{display:flex;gap:6px;flex-wrap:wrap;flex-basis:100%;padding-left:40px;margin-top:-3px}
+.item.nostar .oacts{padding-left:0}
+.obtn{display:inline-flex;align-items:center;gap:5px;border:1.5px solid var(--line);background:#fff;color:var(--navy-7);border-radius:999px;padding:5px 11px;font-size:12px;font-weight:700;line-height:1.25;white-space:nowrap}
+.obtn .o-n{display:none}
+@media (max-width:480px){.obtn .o-w{display:none}.obtn .o-n{display:inline}.obtn{padding:5px 10px}}
+.obtn:hover{border-color:var(--navy-5);color:var(--navy)}
+.obtn.res{background:var(--mint-1);border-color:rgba(31,158,126,.38);color:var(--mint-7)}
+.obtn.res:hover{border-color:var(--mint-7);color:var(--mint-7)}
+.obtn.later:hover{border-color:var(--amber-7);color:var(--amber-7);background:var(--amber-1)}
+.subl{font-size:13px;color:var(--text);font-weight:600;margin-top:6px;padding:6px 10px;background:var(--sunk);border-radius:9px;word-wrap:break-word}
+.item.closed .txt{color:var(--navy-7)}
+.ifoot{margin-top:14px;padding-top:12px;border-top:1px dashed var(--line-2)}
+.ifoot .fchip.plain{padding:6px 12px}
+.quote{background:var(--sunk);border-radius:12px;padding:11px 13px;margin-top:6px;font-weight:700;color:var(--strong);font-size:14.5px;word-wrap:break-word}
+.quote .qmeta{font-size:12px;color:var(--muted);font-weight:600;margin-top:5px;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.trail{list-style:none;margin-top:8px}
+.trail li{font-size:12.5px;color:var(--muted);font-weight:600;padding:2px 0;word-wrap:break-word}
+.seg{display:flex;gap:4px;background:var(--sunk);border-radius:12px;padding:4px;margin-top:14px}
+.seg button{flex:1;padding:10px 8px;border-radius:9px;font-weight:800;font-size:13.5px;color:var(--navy-5)}
+.seg button.on{background:#fff;color:var(--navy);box-shadow:0 1px 3px rgba(17,32,58,.16)}
+.btn.amber{background:var(--amber);color:var(--navy)}
+.dtopic{display:block;font-size:12px;color:var(--muted);font-weight:600;margin-top:2px}
+.ob.later{background:rgba(246,175,36,.3);border-color:rgba(246,175,36,.5)}
+#toast.act{pointer-events:auto}
+#toast .tbtn{margin-left:12px;background:rgba(255,255,255,.24);color:#fff;border-radius:8px;padding:4px 12px;font-weight:800;font-size:13px}
+#toast .tbtn:hover{background:rgba(255,255,255,.34)}
 
 /* KPI */
 .kpi-role{margin-top:14px}
@@ -424,11 +452,16 @@ html.nlo-home-on .top .brand{margin-left:calc(var(--nlo-home-space) - 18px)}
      decisions log (sent to AISA's knowledge base with the admin key that
      the AISA portal saves on the same computer).
    - HISTORY: past meetings, minutes, Plaud transcripts read in full by AI.
+   - OUTCOMES (2.2): every agenda item has ✓ Resolved (one tap, undo), Write
+     outcome (saved on the item; optionally a decision in the log) and Push to
+     later (off this agenda; back by itself for the first meeting on or after
+     the date). Nothing is lost: pushed and closed items stay listed under the
+     agenda with Reopen. Run mode has the same "Later" (key L).
    Data: Firebase RTDB (project nlo-inventory) under nlo/staffMeeting.
    Cadence shows each person's action items and has a "raise for the
    staff meeting" button (see the add-on block at the end of cadence.html).
    ===================================================================== */
-const APP_VERSION = '2.1.0';
+const APP_VERSION = '2.2.0';
 const FB_CONFIG = {
   apiKey: "AIzaSyBFCmDgAKkdfZ4Cb81nK0KCKXtONiwMJy4",
   authDomain: "nlo-inventory.firebaseapp.com",
@@ -509,6 +542,11 @@ function fmtNum(v, unit) {
 }
 let toastT = 0;
 function toast(msg, kind) { const el = $('#toast'); el.textContent = msg; el.className = 'show' + (kind ? ' ' + kind : ''); clearTimeout(toastT); toastT = setTimeout(() => { el.className = ''; }, 2800); }
+function toastUndo(msg, undo) {
+  const el = $('#toast'); el.innerHTML = '<span>' + esc(msg) + '</span><button class="tbtn" type="button">Undo</button>'; el.className = 'show good act';
+  el.querySelector('.tbtn').onclick = () => { clearTimeout(toastT); el.className = ''; undo(); };
+  clearTimeout(toastT); toastT = setTimeout(() => { el.className = ''; }, 6500);
+}
 async function copyText(t) {
   try { await navigator.clipboard.writeText(t); return true; } catch (e) {}
   const ta = document.createElement('textarea'); ta.value = t; ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select();
@@ -525,7 +563,8 @@ const S = {
   auto: null, autoLoading: false, autoAt: 0,
   tab: 'inbox', stale: new Set(),
   follow: { person: '', overdue: false, showDone: false, q: '' }, histOpen: {}, histQ: '',
-  attDraft: null, seeded: false, migrated: false, migrating: false, gemKey: null, me: { months: {} }
+  attDraft: null, seeded: false, migrated: false, migrating: false, gemKey: null, me: { months: {} },
+  inboxShow: { pushed: false, closed: false, closedAll: false }
 };
 
 /* ---------------------------------------------------------------- render scheduler */
@@ -873,19 +912,28 @@ function calOccursOn(e, ds) {
   }
   return ds >= e.startDate && ds <= (e.endDate || e.startDate);
 }
+function calMeetingEvents() { const ev = S.cal.events || {}; return Object.keys(ev).map(k => ev[k]).filter(e => e && e.type !== 'pto' && e.type !== 'task' && e.startDate && CAL_MEETING_RE.test(String(e.title || ''))); }
+function calIsMeeting(ds, list) { return (S.cal.admin || {})[ds] === 'meeting' || (list || calMeetingEvents()).some(e => calOccursOn(e, ds)); }
 function calNextMeeting(fromYmd) {
-  const ev = S.cal.events || {}, ad = S.cal.admin || {};
-  const list = Object.keys(ev).map(k => ev[k]).filter(e => e && e.type !== 'pto' && e.type !== 'task' && e.startDate && CAL_MEETING_RE.test(String(e.title || '')));
-  for (let i = 0; i <= 400; i++) { const ds = addDaysYmd(fromYmd, i); if (ad[ds] === 'meeting' || list.some(e => calOccursOn(e, ds))) return ds; }
+  const list = calMeetingEvents();
+  for (let i = 0; i <= 400; i++) { const ds = addDaysYmd(fromYmd, i); if (calIsMeeting(ds, list)) return ds; }
+  return '';
+}
+/* the latest staff meeting on the calendar on or before a date (looks back `days`, default 120) */
+function calPrevMeeting(toYmd, days) {
+  const list = calMeetingEvents();
+  for (let i = 0; i <= (days || 120); i++) { const ds = addDaysYmd(toYmd, -i); if (calIsMeeting(ds, list)) return ds; }
   return '';
 }
 const nextMeetingDefault = () => calNextMeeting(addDaysYmd(meetingDate(), 1)) || suggestNext(meetingDate());
+/* where to start looking on the calendar: today — or the day after the meeting this one follows, when that was today or later */
+function calFrom() { const meta = (S.meeting && S.meeting.meta) || {}, t = todayYmd(), after = meta.status === 'done' ? meta.date : meta.after; return after && after >= t ? addDaysYmd(after, 1) : t; }
 function syncMeetingDateFromCalendar() {
   if (!S.cal.ok || !S.loaded.meeting || !S.meetingId) return;
   const m = S.meeting || {}, meta = m.meta || {};
   if (meta.status === 'done' || (m.run && m.run.live)) return;
   if (meta.dateSource === 'manual' && meetingDate() >= todayYmd()) return;
-  const next = calNextMeeting(todayYmd());
+  const next = calNextMeeting(calFrom());
   if (!next || next === meetingDate()) return;
   const key = S.meetingId + '>' + next; if (S.calLast === key) return; S.calLast = key;
   const map = {}; map[P('meetings', S.meetingId, 'meta', 'date')] = next; map[P('meetings', S.meetingId, 'meta', 'dateSource')] = 'calendar';
@@ -1256,7 +1304,12 @@ function newHiresBlock(n) {
 }
 
 /* ---------------------------------------------------------------- inbox panel */
-const openInbox = () => entriesOf(S.inbox).filter(([, it]) => it.status !== 'closed');
+/* "Pushed" = its pushUntil date is after the coming meeting: off this agenda, back by itself for the first meeting on or after that date. */
+const isPushed = it => !!(it && it.status !== 'closed' && it.pushUntil && it.pushUntil > meetingDate());
+const openInbox = () => entriesOf(S.inbox).filter(([, it]) => it.status !== 'closed' && !isPushed(it));
+const pushedInbox = () => entriesOf(S.inbox).filter(([, it]) => isPushed(it)).sort((a, b) => String(a[1].pushUntil).localeCompare(String(b[1].pushUntil)) || (a[1].createdAt || 0) - (b[1].createdAt || 0));
+const closedAt = it => ((it.outcome && it.outcome.at) || it.createdAt || 0);
+const closedInbox = () => entriesOf(S.inbox).filter(([, it]) => it.status === 'closed').sort((a, b) => closedAt(b[1]) - closedAt(a[1]));
 const openActions = () => entriesOf(S.actions).filter(([, a]) => a.status !== 'done' && a.status !== 'dropped');
 const isOverdue = a => !!(a && a.due && a.due < todayYmd() && a.status !== 'done' && a.status !== 'dropped');
 const byStarThenOld = (a, b) => (!!b[1].star - !!a[1].star) || ((a[1].createdAt || 0) - (b[1].createdAt || 0));
@@ -1311,21 +1364,51 @@ function kpiCardHTML() {
     note + (open ? tiles : folded) + foot + '</div>';
 }
 function inboxListHTML() {
-  const open = openInbox();
+  const open = openInbox(), pushed = pushedInbox(), closed = closedInbox(), sh = S.inboxShow;
   const groups = CAT_ORDER.map(c => [c, open.filter(([, it]) => catOf(it) === c).sort(byStarThenOld)]).filter(g => g[1].length);
   const acts = openActions();
   const list = groups.length ? groups.map(([c, items]) => '<div class="group"><div class="group-h">' + catPill(c) + '<span class="eyebrow">' + esc(CATS[c].section) + '</span><span class="line"></span><span class="small muted">' + items.length + '</span></div>' + items.map(([id, it]) => itemRow(id, it)).join('') + '</div>').join('')
-    : '<p class="empty">Nothing raised yet. Use the bar at the top — typed or by voice — any time something comes up.</p>';
+    : '<p class="empty">' + (pushed.length || closed.length ? 'Nothing open for this meeting.' : 'Nothing raised yet. Use the bar at the top — typed or by voice — any time something comes up.') + '</p>';
   const review = acts.length ? '<div class="group"><div class="group-h"><span class="cat c-action">To-dos</span><span class="eyebrow">Last time’s to-dos to review</span><span class="line"></span><button class="linkbtn small" data-act="tab" data-tab="follow">' + acts.length + ' open ›</button></div></div>' : '';
-  return '<div class="card"><div class="card-h"><h2>On the agenda</h2><span class="muted small">' + plural(open.length, 'item') + '</span></div>' + review + list + '</div>';
+  const chips = pushed.length || closed.length ? '<div class="chips ifoot">' +
+    (pushed.length ? '<button class="fchip plain' + (sh.pushed ? ' on' : '') + '" data-act="ib-show" data-k="pushed" aria-expanded="' + !!sh.pushed + '">⏭ Pushed to later <span class="n">' + pushed.length + '</span></button>' : '') +
+    (closed.length ? '<button class="fchip plain' + (sh.closed ? ' on' : '') + '" data-act="ib-show" data-k="closed" aria-expanded="' + !!sh.closed + '">✓ Resolved &amp; closed <span class="n">' + closed.length + '</span></button>' : '') + '</div>' : '';
+  const pList = sh.pushed && pushed.length ? '<div class="group"><div class="group-h"><span class="eyebrow">Pushed to later</span><span class="line"></span></div>' + pushed.map(([id, it]) => pushedRow(id, it)).join('') + '</div>' : '';
+  const shownClosed = sh.closedAll ? closed : closed.slice(0, 15);
+  const cList = sh.closed && closed.length ? '<div class="group"><div class="group-h"><span class="eyebrow">Resolved &amp; closed</span><span class="line"></span><span class="small muted">newest first</span></div>' + shownClosed.map(([id, it]) => closedRow(id, it)).join('') +
+    (closed.length > shownClosed.length ? '<div class="row" style="margin-top:8px"><button class="linkbtn small" data-act="ib-more">Show all ' + closed.length + '</button></div>' : '') + '</div>' : '';
+  return '<div class="card"><div class="card-h"><h2>On the agenda</h2><span class="muted small">' + plural(open.length, 'item') + '</span></div>' + review + list + chips + pList + cList + '</div>';
+}
+const whoHTML = it => { const p = authorOf(it); return p ? '<span class="who">' + avatar(p, 18) + esc(shortName(p)) + '</span>' : (it.name ? esc(it.name) : ''); };
+/* label: [wide, narrow] — phones get the short one */
+const oLabel = (icon, wide, narrow) => icon + ' ' + (narrow ? '<span class="o-w">' + wide + '</span><span class="o-n">' + narrow + '</span>' : wide);
+function itemBtns(id, pushed) {
+  const b = (act, cls, label, title) => '<button class="obtn' + (cls ? ' ' + cls : '') + '" data-act="' + act + '" data-id="' + esc(id) + '" title="' + esc(title) + '">' + label + '</button>';
+  return '<div class="oacts">' + (pushed ? b('it-back', '', oLabel('↩', 'Back on this agenda', 'Back now'), 'Put it on the coming meeting after all') : '') +
+    b('it-resolve', 'res', '✓ Resolved', 'Close it. It stays under “Resolved & closed”.') +
+    b('it-outcome', '', '✎ Outcome', 'Write what came of it, then close it') +
+    b('it-later', 'later', pushed ? '⏭ Change date' : oLabel('⏭', 'Push to later', 'Later'), 'Take it off this agenda until a later meeting') + '</div>';
 }
 function itemRow(id, it) {
-  const p = authorOf(it); const c = catOf(it);
-  const meta = [p ? '<span class="who">' + avatar(p, 18) + esc(shortName(p)) + '</span>' : (it.name ? esc(it.name) : ''), esc(fmtWhen(it.createdAt)), it.via === 'cadence' ? 'via Cadence' : it.via === 'transcript' ? 'from a transcript' : '', it.parked ? '<span class="tag amber">parked ' + it.parked + '×</span>' : ''].filter(Boolean).join(' · ');
-  return '<div class="item"><button class="star' + (it.star ? ' on' : '') + '" data-act="inbox-star" data-id="' + esc(id) + '" title="' + (it.star ? 'Priority — goes first' : 'Mark as priority') + '" aria-label="Priority">★</button>' +
-    '<div class="body"><div class="txt">' + esc(it.text) + '</div><div class="meta">' + meta + '</div></div>' +
+  const c = catOf(it), lp = lastPush(it);
+  const meta = [whoHTML(it), esc(fmtWhen(it.createdAt)), it.via === 'cadence' ? 'via Cadence' : it.via === 'transcript' ? 'from a transcript' : '', it.parked ? '<span class="tag amber">parked ' + it.parked + '×</span>' : '', lp ? '<span class="tag amber">⏭ pushed ' + esc(fmtShort(lp.date)) + '</span>' : ''].filter(Boolean).join(' · ');
+  return '<div class="item has-o"><button class="star' + (it.star ? ' on' : '') + '" data-act="inbox-star" data-id="' + esc(id) + '" title="' + (it.star ? 'Priority — goes first' : 'Mark as priority') + '" aria-label="Priority">★</button>' +
+    '<div class="body"><div class="txt">' + esc(it.text) + '</div><div class="meta">' + meta + '</div>' + (lp && lp.text ? '<div class="subl">' + esc(lp.text) + '</div>' : '') + '</div>' +
     '<div class="acts">' + catSelect(c, 'data-change="inbox-cat" data-id="' + esc(id) + '" aria-label="Section"') +
-    '<button class="xbtn" data-act="inbox-edit" data-id="' + esc(id) + '" title="Edit" aria-label="Edit">✎</button><button class="xbtn" data-act="inbox-del" data-id="' + esc(id) + '" title="Delete" aria-label="Delete">×</button></div></div>';
+    '<button class="xbtn" data-act="inbox-edit" data-id="' + esc(id) + '" title="Edit" aria-label="Edit">✎</button><button class="xbtn" data-act="inbox-del" data-id="' + esc(id) + '" title="Delete" aria-label="Delete">×</button></div>' + itemBtns(id, false) + '</div>';
+}
+function pushedRow(id, it) {
+  const lp = lastPush(it);
+  const meta = [catPill(catOf(it)), whoHTML(it), '<span class="tag amber">⏭ ' + esc(backText(it.pushUntil, pushLabel(it))) + '</span>', lp && lp.date ? 'pushed ' + esc(fmtShort(lp.date)) : ''].filter(Boolean).join(' · ');
+  return '<div class="item has-o nostar"><div class="body"><div class="txt">' + esc(it.text) + '</div><div class="meta">' + meta + '</div>' + (lp && lp.text ? '<div class="subl">' + esc(lp.text) + '</div>' : '') + '</div>' +
+    '<div class="acts"><button class="xbtn" data-act="inbox-edit" data-id="' + esc(id) + '" title="Edit" aria-label="Edit">✎</button><button class="xbtn" data-act="inbox-del" data-id="' + esc(id) + '" title="Delete" aria-label="Delete">×</button></div>' + itemBtns(id, true) + '</div>';
+}
+function closedRow(id, it) {
+  const info = outcomeInfo(id, it), hub = !!(it.outcome && it.outcome.via === 'hub');
+  const meta = [catPill(catOf(it)), whoHTML(it), '<span class="tag' + (info.tone ? ' ' + info.tone : '') + '">' + esc(info.label) + '</span>'].filter(Boolean).join(' · ');
+  return '<div class="item closed has-o nostar"><div class="body"><div class="txt">' + esc(it.text) + '</div><div class="meta">' + meta + '</div>' + (info.text ? '<div class="subl">' + esc(info.text) + '</div>' : '') + '</div>' +
+    '<div class="acts"><button class="xbtn" data-act="inbox-del" data-id="' + esc(id) + '" title="Delete for good" aria-label="Delete">×</button></div>' +
+    '<div class="oacts">' + (hub ? '<button class="obtn" data-act="it-outcome" data-id="' + esc(id) + '">' + (it.outcome.text ? '✎ Edit outcome' : '+ Add the outcome') + '</button>' : '') + '<button class="obtn" data-act="it-reopen" data-id="' + esc(id) + '" title="Put it back on the agenda">↩ Reopen</button></div></div>';
 }
 function editInbox(id) {
   const it = S.inbox[id]; if (!it) return;
@@ -1338,6 +1421,228 @@ function editInbox(id) {
   });
 }
 function editInboxWith(id, text, who) { const map = {}; map[P('inbox', id, 'text')] = clip(text, 600); map[P('inbox', id, 'personId')] = who ? who.id : ''; map[P('inbox', id, 'name')] = who ? who.name : ''; up(map).then(() => editInbox(id)); }
+
+/* ---------------------------------------------------------------- item outcomes: Resolved / Write outcome / Push to later (2.2)
+   Data on nlo/staffMeeting/inbox/{id}:
+   - outcome  {type:'resolved'|'decided', text, date, at, by, decisionId?, via:'hub'} (status 'closed')
+              — the Run screen's own outcomes {type:'decided'|'action'|'covered'|'dropped', meetingId, at} are left as they are
+   - pushUntil 'YYYY-MM-DD' — off the agenda while it's after the coming meeting's date
+   - trail/{key} {kind:'pushed'|'reopened', text, date, at, by, until?, label?, meetingId?} — the item's history, never trimmed
+   A decision written here: nlo/staffMeeting/decisions/{id} with via:'outcome', topic (the item) and meetingId only when that
+   date was a meeting ended in the Hub, so it never lands in the coming meeting's minutes. */
+const byWho = () => { const a = currentAuthor(); return a ? shortName(a) : (S.userName || S.email || ''); };
+const trailOf = it => entriesOf(it && it.trail).sort((a, b) => (a[1].at || 0) - (b[1].at || 0)).map(([, t]) => t);
+const lastPush = it => trailOf(it).filter(t => t.kind === 'pushed').pop() || null;
+const pushLabel = it => { const lp = lastPush(it); return lp && lp.until === it.pushUntil ? (lp.label || '') : ''; };
+function doneMeetingOn(ds) { const h = S.history || {}; return Object.keys(h).find(k => { const m = (h[k] || {}).meta || {}; return m.status === 'done' && m.date === ds; }) || ''; }
+const isMeetingDay = ds => !!ds && ((S.cal.ok && calIsMeeting(ds)) || !!doneMeetingOn(ds));
+/* "the Nov 24 meeting" (office calendar) / "the December meeting" / "Jan 15" */
+function untilPhrase(until, label) {
+  if (!until) return '';
+  const m = calNextMeeting(until);
+  if (m && m < addDaysYmd(until, 75)) return 'the ' + fmtShort(m) + ' meeting';
+  if (label) return 'the ' + label;
+  if (/-01$/.test(until)) return 'the ' + ymLabel(until.slice(0, 7), { month: 'long' }) + ' meeting';
+  return fmtShort(until);
+}
+const backText = (until, label) => { const ph = untilPhrase(until, label); return /^the /.test(ph) ? 'back for ' + ph : 'back from ' + ph; };
+/* the most recent staff meeting (office calendar or a meeting ended in the Hub), on or before today */
+function lastMeetingDate() {
+  const t = todayYmd(); let best = S.cal.ok ? calPrevMeeting(t, 120) : '';
+  Object.keys(S.history || {}).forEach(k => { const m = ((S.history || {})[k] || {}).meta || {}; if (m.status === 'done' && m.date && m.date <= t && m.date > best) best = m.date; });
+  return best;
+}
+/* raised before the last meeting (in the last 45 days) → it was most likely settled there; otherwise today */
+function defaultOutcomeDate(it) {
+  const t = todayYmd(), lm = lastMeetingDate();
+  if (lm && lm < t && lm >= addDaysYmd(t, -45) && it && it.createdAt && ymdOf(new Date(it.createdAt)) <= lm) return lm;
+  return t;
+}
+/* "Bring it back for": the next three meetings after the coming one. Real dates from the office calendar; otherwise the
+   month (it comes back for the first meeting on or after the 1st). `until` = first day it may come back. */
+function laterChoices() {
+  const out = []; let prev = meetingDate(), exact = true;
+  for (let i = 0; i < 3; i++) {
+    const until = exact ? addDaysYmd(prev, 1) : addMonthsYm(prev.slice(0, 7), 1) + '-01';
+    const cal = calNextMeeting(until);
+    if (cal && cal < addDaysYmd(until, 75)) { out.push({ until, label: fmtShort(cal) + ' meeting' }); prev = cal; exact = true; }
+    else { const g = exact ? suggestNext(prev) : until; out.push({ until, label: ymLabel(g.slice(0, 7), { month: 'long' }) + ' meeting' }); prev = g; exact = false; }
+  }
+  return out;
+}
+/* how a closed item ended — for the "Resolved & closed" list */
+function outcomeInfo(id, it) {
+  const o = (it && it.outcome) || {}, t = o.type || 'resolved';
+  const mdate = o.meetingId ? ((meetingRec(o.meetingId).meta || {}).date || '') : '';
+  const when = o.date || mdate || (o.at ? ymdOf(new Date(o.at)) : '');
+  const where = mdate || isMeetingDay(when) ? ' at the ' + fmtShort(mdate || when) + ' meeting' : (when ? ' · ' + fmtShort(when) : '');
+  let label = '✓ Resolved', text = o.text || '', tone = 'green';
+  if (t === 'decided') { label = '✓ Decided'; if (!text) text = valsOf(S.decisions).filter(d => d.inboxId === id).map(d => d.text).join(' · '); }
+  else if (t === 'action') { label = '→ To-do'; tone = 'blue'; if (!text) text = valsOf(S.actions).filter(a => a.source && a.source.inboxId === id).map(a => { const p = ownerOf(a); return (p ? shortName(p) : (a.owner || 'Unassigned')) + ': ' + a.text + (a.due ? ' (due ' + fmtShort(a.due) + ')' : ''); }).join(' · '); }
+  else if (t === 'covered') label = '✓ Covered';
+  else if (t === 'dropped') { label = '✕ Dropped'; tone = ''; }
+  return { label: label + where, text, when, tone };
+}
+function trailLine(t) {
+  const d = t.date ? fmtShort(t.date) : t.at ? fmtShort(ymdOf(new Date(t.at))) : '';
+  const by = t.by ? ' <span class="faint">· ' + esc(t.by) + '</span>' : '';
+  if (t.kind === 'pushed') return '⏭ ' + esc(d) + ' — pushed' + (t.until ? ' to ' + esc(untilPhrase(t.until, t.label)) : '') + (t.text ? ': ' + esc(t.text) : '') + by;
+  if (t.kind === 'reopened') return '↩ ' + esc(d) + ' — reopened' + (t.text ? ' (was: ' + esc(t.text) + ')' : '') + by;
+  return esc(d) + (t.text ? ' — ' + esc(t.text) : '') + by;
+}
+/* while a meeting is live, its items are handled on the Run screen (so the minutes stay right) */
+function liveJump(id) {
+  if (!liveRun()) return false;
+  const key = 'i:' + id; if (runQueue().indexOf(key) < 0) return false;
+  setTab('run'); goRun(key); toast('The meeting is live — handle it here'); return true;
+}
+function undoClose(id, prev, did) {
+  const map = {};
+  map[P('inbox', id, 'status')] = 'open'; map[P('inbox', id, 'outcome')] = null; map[P('inbox', id, 'pushUntil')] = prev.pushUntil || null;
+  if (did) map[P('decisions', did)] = null;
+  up(map).then(() => toast('Undone — it’s back')).catch(e => toast('Could not undo: ' + e.message, 'bad'));
+}
+async function quickResolve(id) {
+  const it = S.inbox[id]; if (!it || it.status === 'closed') return;
+  const prev = { pushUntil: it.pushUntil || null }, map = {};
+  map[P('inbox', id, 'status')] = 'closed'; map[P('inbox', id, 'pushUntil')] = null;
+  map[P('inbox', id, 'outcome')] = { type: 'resolved', text: '', date: defaultOutcomeDate(it), at: Date.now(), by: byWho(), via: 'hub' };
+  try { await up(map); toastUndo('Resolved ✓', () => undoClose(id, prev, '')); }
+  catch (e) { toast('Could not save: ' + e.message, 'bad'); }
+}
+async function saveOutcome(id, text, date, asDecision) {
+  const it = S.inbox[id]; if (!it) return;
+  const now = Date.now(), map = {}, prevO = it.status === 'closed' && it.outcome && it.outcome.via === 'hub' ? it.outcome : null;
+  const prev = { pushUntil: it.pushUntil || null };
+  let did = prevO && prevO.decisionId && S.decisions[prevO.decisionId] ? prevO.decisionId : '', created = '';
+  if (asDecision && text) {
+    const old = did ? S.decisions[did] : null; if (!did) { did = newKey(P('decisions')); created = did; }
+    map[P('decisions', did)] = clean({ text: clip(text, 1000), meetingId: doneMeetingOn(date), date, inboxId: id, personId: it.personId || '', name: it.name || '', createdAt: old ? (old.createdAt || now) : now, via: 'outcome', topic: clip(it.text, 200) });
+  } else if (did) { map[P('decisions', did)] = null; did = ''; }
+  map[P('inbox', id, 'status')] = 'closed'; map[P('inbox', id, 'pushUntil')] = null;
+  map[P('inbox', id, 'outcome')] = clean({ type: did ? 'decided' : 'resolved', text: clip(text, 1000), date, at: prevO ? (prevO.at || now) : now, by: prevO ? (prevO.by || byWho()) : byWho(), editedAt: prevO ? now : undefined, decisionId: did || undefined, via: 'hub' });
+  try {
+    await up(map);
+    if (prevO) toast('Saved ✓', 'good');
+    else toastUndo((did ? 'Decision saved' : 'Outcome saved') + ' — item closed ✓', () => undoClose(id, prev, created));
+  } catch (e) { toast('Could not save: ' + e.message, 'bad'); }
+}
+async function pushItem(id, until, note, runKey) {
+  const it = S.inbox[id]; if (!it) return;
+  const now = Date.now(), map = {}, tk = newKey(P('inbox', id, 'trail')), prev = it.pushUntil || null;
+  const ch = laterChoices().find(x => x.until === until);
+  if (runKey) inboxPrev(runKey, map);
+  map[P('inbox', id, 'pushUntil')] = until;
+  map[P('inbox', id, 'trail', tk)] = clean({ kind: 'pushed', text: clip(note, 600) || undefined, until, label: ch ? ch.label : undefined, date: runKey ? meetingDate() : todayYmd(), at: now, by: byWho(), meetingId: runKey ? S.meetingId : undefined });
+  if (runKey) { map[outPath(runKey) + '/type'] = 'pushed'; map[outPath(runKey) + '/until'] = until; map[outPath(runKey) + '/trailKey'] = tk; map[outPath(runKey) + '/at'] = now; }
+  try {
+    await up(map);
+    if (runKey) autoNext(runKey);
+    else toastUndo('Pushed — ' + backText(until, ch && ch.label) + ' ✓', () => { const m = {}; m[P('inbox', id, 'pushUntil')] = prev; m[P('inbox', id, 'trail', tk)] = null; up(m).then(() => toast('Undone')).catch(e => toast('Could not undo: ' + e.message, 'bad')); });
+  } catch (e) { toast('Could not save: ' + e.message, 'bad'); }
+}
+/* during a live meeting, an item put back on the agenda joins the end of the meeting's list (like one raised mid-meeting) */
+function joinLiveQueue(id, map) {
+  const r = liveRun(); if (!r) return false;
+  const q = arrOf(r.queue).filter(k => typeof k === 'string'), key = 'i:' + id;
+  if (q.indexOf(key) >= 0) return false;
+  const w = q.indexOf('wrap'); q.splice(w >= 0 ? w : q.length, 0, key);
+  map[P('meetings', S.meetingId, 'run', 'queue')] = q; return true;
+}
+function bringBack(id) {
+  const it = S.inbox[id]; if (!it) return;
+  const prev = it.pushUntil || null, map = {}, key = 'i:' + id;
+  map[P('inbox', id, 'pushUntil')] = null;
+  const joined = joinLiveQueue(id, map);
+  up(map).then(() => toastUndo('Back on the ' + fmtShort(meetingDate()) + ' agenda', () => {
+    const m = {}; m[P('inbox', id, 'pushUntil')] = prev;
+    const r = liveRun(); if (joined && r && !outcomeOf(key)) m[P('meetings', S.meetingId, 'run', 'queue')] = arrOf(r.queue).filter(k => k !== key);
+    up(m).then(() => toast('Undone')).catch(e => toast('Could not undo: ' + e.message, 'bad'));
+  })).catch(e => toast('Could not save: ' + e.message, 'bad'));
+}
+async function reopenItem(id) {
+  const it = S.inbox[id]; if (!it || it.status !== 'closed') return;
+  const info = outcomeInfo(id, it), map = {};
+  joinLiveQueue(id, map);
+  map[P('inbox', id, 'status')] = 'open'; map[P('inbox', id, 'outcome')] = null; map[P('inbox', id, 'pushUntil')] = null;
+  map[P('inbox', id, 'trail', newKey(P('inbox', id, 'trail')))] = clean({ kind: 'reopened', text: clip(info.label.replace(/^[✓✕→]\s*/, '') + (info.text ? ': ' + info.text : ''), 600), date: todayYmd(), at: Date.now(), by: byWho() });
+  try { await up(map); toast('Back on the ' + fmtShort(meetingDate()) + ' agenda' + (info.label.indexOf('Decided') >= 0 ? ' (its decision stays in the log)' : '')); }
+  catch (e) { toast('Could not reopen: ' + e.message, 'bad'); }
+}
+/* the sheet behind "✎ Outcome…" and "⏭ Push to later" (and the Run screen's "Later") */
+function itemSheet(id, mode, opts) {
+  opts = opts || {};
+  const it = S.inbox[id]; if (!it) return;
+  const runKey = opts.runKey || '';
+  const editO = !runKey && it.status === 'closed' && it.outcome && it.outcome.via === 'hub' ? it.outcome : null;
+  if (!runKey && it.status === 'closed' && !editO) return;
+  if (editO) mode = 'outcome';
+  if (runKey) mode = 'push';
+  const p = authorOf(it), c = catOf(it), today = todayYmd(), lm = lastMeetingDate(), lp = lastPush(it);
+  let date = editO ? (editO.date || today) : defaultOutcomeDate(it);
+  const when = [];
+  if (lm && lm < today && lm >= addDaysYmd(today, -120)) when.push(['Last meeting · ' + fmtShort(lm), lm]);
+  when.push(['Today · ' + fmtShort(today), today]);
+  const later = laterChoices();
+  let until = !runKey && isPushed(it) ? it.pushUntil : later[0].until;
+  const decOn = editO ? !!(editO.decisionId && S.decisions[editO.decisionId]) : ['issue', 'action', 'suggestion'].indexOf(c) >= 0;
+  const pre = editO ? (editO.text || '') : (!runKey && isPushed(it) && lp && lp.text ? lp.text : '');
+  const trail = trailOf(it);
+  const title = runKey ? 'Push to a later meeting' : editO ? 'The outcome' : 'What happened with this?';
+  openSheet('<h3 class="sheet-t">' + title + '</h3>' +
+    '<div class="quote">' + esc(it.text) + '<div class="qmeta">' + [catPill(c), esc(p ? shortName(p) : (it.name || '')), it.createdAt ? 'raised ' + esc(fmtWhen(it.createdAt)) : ''].filter(Boolean).join('<span>·</span>') + '</div></div>' +
+    (trail.length ? '<ul class="trail">' + trail.map(t => '<li>' + trailLine(t) + '</li>').join('') + '</ul>' : '') +
+    (runKey || editO ? '' : '<div class="seg" id="isSeg"><button type="button" data-mode="outcome">✓ Write the outcome</button><button type="button" data-mode="push">⏭ Push to later</button></div>') +
+    '<label class="lbl" id="isLbl" for="isText"></label><textarea class="field" id="isText" rows="3" maxlength="1000" autofocus>' + esc(pre) + '</textarea>' +
+    '<div id="isOut"><label class="toggle"><input type="checkbox" id="isDec"' + (decOn ? ' checked' : '') + '>It’s a decision — also put it in the decisions log</label>' +
+    '<label class="lbl">When</label><div class="dchips" id="isWhen">' + when.map(([l, d]) => '<button type="button" class="dchip" data-d="' + d + '">' + esc(l) + '</button>').join('') + '</div>' +
+    '<input type="date" class="field" id="isDate" value="' + esc(date) + '" max="' + today + '" style="max-width:220px;margin-top:8px"></div>' +
+    '<div id="isPush"><label class="lbl">Bring it back for</label><div class="dchips" id="isUntil">' + later.map(x => '<button type="button" class="dchip" data-u="' + x.until + '">' + esc(x.label) + '</button>').join('') + '</div>' +
+    '<div class="row" style="margin-top:8px;gap:8px"><span class="small muted bold">or a date:</span><input type="date" class="field" id="isUntilDate" min="' + addDaysYmd(meetingDate(), 1) + '" style="max-width:200px" aria-label="Come back from this date"></div>' +
+    '<p class="hint" id="isUntilHint" style="margin-top:8px"></p></div>' +
+    '<div class="row end" style="margin-top:16px"><button class="btn" id="isSave"></button></div>', card => {
+    const ta = card.querySelector('#isText'), save = card.querySelector('#isSave'), dIn = card.querySelector('#isDate'), uIn = card.querySelector('#isUntilDate');
+    const sync = () => {
+      $$('#isWhen .dchip', card).forEach(b => b.classList.toggle('sel', b.dataset.d === date)); dIn.value = date;
+      const ch = later.find(x => x.until === until);
+      $$('#isUntil .dchip', card).forEach(b => b.classList.toggle('sel', b.dataset.u === until)); uIn.value = ch ? '' : until;
+      card.querySelector('#isUntilHint').textContent = 'It comes off the ' + fmtShort(meetingDate()) + ' agenda and comes back by itself for ' +
+        (ch ? 'the ' + ch.label : 'the first meeting on or after ' + fmtDate(until, { month: 'short', day: 'numeric', year: 'numeric' })) + '. Until then it waits under “Pushed to later”.';
+    };
+    const setMode = m => {
+      mode = m;
+      $$('#isSeg [data-mode]', card).forEach(b => b.classList.toggle('on', b.dataset.mode === m));
+      card.querySelector('#isOut').hidden = m !== 'outcome'; card.querySelector('#isPush').hidden = m !== 'push';
+      card.querySelector('#isLbl').textContent = m === 'outcome' ? 'What was the outcome?' : 'Note (optional)';
+      ta.placeholder = m === 'outcome' ? 'e.g. Decided to… · Fixed — … · Gwen will handle it' : 'e.g. Waiting on the vendor’s quote';
+      save.textContent = m === 'outcome' ? (editO ? 'Save' : 'Save & close it') : (!runKey && isPushed(it) ? 'Change the date' : 'Push it');
+      save.className = 'btn ' + (m === 'outcome' ? 'mint' : 'amber');
+    };
+    card.addEventListener('click', e => {
+      const sg = e.target.closest('[data-mode]'); if (sg) { setMode(sg.dataset.mode); ta.focus(); return; }
+      const w = e.target.closest('[data-d]'); if (w) { date = w.dataset.d; sync(); return; }
+      const u = e.target.closest('[data-u]'); if (u) { until = u.dataset.u; sync(); }
+    });
+    dIn.onchange = () => { if (parseYmd(dIn.value)) date = dIn.value; sync(); };
+    uIn.onchange = () => { if (parseYmd(uIn.value)) until = uIn.value; sync(); };
+    const go = async () => {
+      const txt = ta.value.trim();
+      if (mode === 'outcome') {
+        const dec = card.querySelector('#isDec').checked;
+        if (dec && !txt) { toast('Write the decision — or untick “It’s a decision”'); ta.focus(); return; }
+        if (!parseYmd(date)) { toast('Pick when it happened'); return; }
+        closeSheet(); await saveOutcome(id, txt, date, dec);
+      } else {
+        if (!parseYmd(until)) { toast('Pick when it should come back'); return; }
+        if (until <= meetingDate()) { toast('Pick a date after the ' + fmtShort(meetingDate()) + ' meeting'); return; }
+        closeSheet(); await pushItem(id, until, txt, runKey);
+      }
+    };
+    save.onclick = go;
+    ta.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); go(); } });
+    setMode(mode === 'push' ? 'push' : 'outcome'); sync();
+  });
+}
 
 /* ---------------------------------------------------------------- Gemini (office key from the Inventory app's settings) */
 async function geminiKey() {
@@ -1434,7 +1739,7 @@ async function startMeeting() {
 function goRun(key) { if (!liveRun()) return; S.meeting.run.cur = key; render('run'); db.ref(P('meetings', S.meetingId, 'run', 'cur')).set(key); }
 function runStep(dir) { const r = liveRun(); if (!r) return; const q = runQueue(); let i = q.indexOf(r.cur); if (i < 0) i = 0; const j = Math.max(0, Math.min(q.length - 1, i + dir)); if (j !== i) goRun(q[j]); }
 function autoNext(key) { setTimeout(() => { const r = liveRun(); if (r && r.cur === key) runStep(1); }, 650); }
-function inboxPrev(key, map) { const o = outcomeOf(key); if (o && o.prev) return; const it = S.inbox[key.slice(2)]; if (it) map[outPath(key) + '/prev'] = { status: it.status || 'open', parked: it.parked || 0 }; }
+function inboxPrev(key, map) { const o = outcomeOf(key); if (o && o.prev) return; const it = S.inbox[key.slice(2)]; if (it) map[outPath(key) + '/prev'] = { status: it.status || 'open', parked: it.parked || 0, pushUntil: it.pushUntil || '' }; }
 async function markInbox(key, type) {
   const id = key.slice(2), it = S.inbox[id]; if (!it) return;
   const map = {}, now = Date.now(); inboxPrev(key, map);
@@ -1474,7 +1779,7 @@ async function undoOutcome(key) {
   const o = outcomeOf(key); if (!o) return; const map = {};
   Object.keys(o.decisionIds || {}).forEach(id => { map[P('decisions', id)] = null; });
   Object.keys(o.actionIds || {}).forEach(id => { map[P('actionItems', id)] = null; });
-  if (key.startsWith('i:')) { const id = key.slice(2), it = S.inbox[id]; if (it) { const pv = o.prev || { status: 'open', parked: it.parked || 0 }; map[P('inbox', id, 'status')] = pv.status === 'closed' ? 'closed' : 'open'; map[P('inbox', id, 'parked')] = pv.parked || 0; map[P('inbox', id, 'outcome')] = null; map[P('inbox', id, 'lastParked')] = null; } }
+  if (key.startsWith('i:')) { const id = key.slice(2), it = S.inbox[id]; if (it) { const pv = o.prev || { status: 'open', parked: it.parked || 0 }; map[P('inbox', id, 'status')] = pv.status === 'closed' ? 'closed' : 'open'; map[P('inbox', id, 'parked')] = pv.parked || 0; map[P('inbox', id, 'outcome')] = null; map[P('inbox', id, 'lastParked')] = null; map[P('inbox', id, 'pushUntil')] = pv.pushUntil || null; if (o.trailKey) map[P('inbox', id, 'trail', o.trailKey)] = null; } }
   if (key.startsWith('r:')) { const id = key.slice(2); if (S.actions[id] && o.prev) { map[P('actionItems', id, 'status')] = o.prev.status || 'open'; map[P('actionItems', id, 'carried')] = o.prev.carried || 0; map[P('actionItems', id, 'due')] = o.prev.due || ''; map[P('actionItems', id, 'completedAt')] = o.prev.completedAt || null; map[P('actionItems', id, 'reviews', okey(S.meetingId))] = null; } }
   map[outPath(key)] = null;
   try { await up(map); toast('Undone'); } catch (e) { toast('Could not undo: ' + e.message, 'bad'); }
@@ -1536,7 +1841,7 @@ RENDER.run = () => {
     '<div class="progress"><i style="width:' + pct + '%"></i></div>' +
     '<div class="stage-body">' + stageItemHTML(key) + '</div>' +
     '<div class="nav"><button class="btn" data-act="run-back"' + (i === 0 ? ' disabled' : '') + '>‹ Back</button>' + (key !== 'wrap' ? '<button class="btn next" data-act="run-next">Next ›</button>' : '') + '</div>' +
-    '<div class="kb">Keys: ← → move · D decided · A action · P park · C covered · X drop</div></div>';
+    '<div class="kb">Keys: ← → move · D decided · A action · P park · L later · C covered · X drop</div></div>';
 };
 function runStartHTML() {
   const d = meetingDate(), att = S.attDraft || {};
@@ -1567,12 +1872,13 @@ function stageItemHTML(key) {
   }
   const it = S.inbox[key.slice(2)]; if (!it) return '<div class="big">(removed)</div>';
   const c = catOf(it), p = authorOf(it);
-  const meta = [p ? '<span class="who" style="color:#fff">' + avatar(p, 24) + esc(shortName(p)) + '</span>' : (it.name ? esc(it.name) : ''), it.star ? '<span class="tag amber">★ priority</span>' : '', it.parked ? '<span class="tag amber">parked ' + it.parked + '×</span>' : '', it.createdAt ? '<span>raised ' + esc(fmtWhen(it.createdAt)) + '</span>' : ''].filter(Boolean).join('');
+  const lp = o && o.type === 'pushed' ? null : lastPush(it);
+  const meta = [p ? '<span class="who" style="color:#fff">' + avatar(p, 24) + esc(shortName(p)) + '</span>' : (it.name ? esc(it.name) : ''), it.star ? '<span class="tag amber">★ priority</span>' : '', it.parked ? '<span class="tag amber">parked ' + it.parked + '×</span>' : '', lp ? '<span class="tag amber">⏭ pushed ' + esc(fmtShort(lp.date)) + (lp.text ? ': ' + esc(clip(lp.text, 90)) : '') + '</span>' : '', it.createdAt ? '<span>raised ' + esc(fmtWhen(it.createdAt)) + '</span>' : ''].filter(Boolean).join('');
   return '<div class="sec">' + esc(CATS[c].section) + '</div><div class="big">' + esc(it.text) + '</div><div class="smeta">' + meta + '</div>' + outcomeHTML(key, o) +
     (o && o.type !== 'decided' && o.type !== 'action' ? '' : '<div class="obtns">' + (o ? '' : '') +
       '<button class="ob decided" data-act="out" data-type="decided" data-key="' + esc(key) + '">' + (o ? '+ Decision' : '✓ Decided') + '<small>D</small></button>' +
       '<button class="ob action" data-act="out" data-type="action" data-key="' + esc(key) + '">' + (o ? '+ Action' : '→ Action') + '<small>A</small></button>' +
-      (o ? '' : '<button class="ob park" data-act="out" data-type="parked" data-key="' + esc(key) + '">⏸ Park<small>P · next meeting</small></button><button class="ob" data-act="out" data-type="covered" data-key="' + esc(key) + '">Covered<small>C · no decision</small></button><button class="ob" data-act="out" data-type="dropped" data-key="' + esc(key) + '">✕ Drop<small>X</small></button>') + '</div>');
+      (o ? '' : '<button class="ob park" data-act="out" data-type="parked" data-key="' + esc(key) + '">⏸ Park<small>P · next meeting</small></button><button class="ob later" data-act="out" data-type="later" data-key="' + esc(key) + '">⏭ Later<small>L · pick a meeting</small></button><button class="ob" data-act="out" data-type="covered" data-key="' + esc(key) + '">Covered<small>C · no decision</small></button><button class="ob" data-act="out" data-type="dropped" data-key="' + esc(key) + '">✕ Drop<small>X</small></button>') + '</div>');
 }
 function outcomeHTML(key, o) {
   if (!o) return '';
@@ -1580,6 +1886,7 @@ function outcomeHTML(key, o) {
   Object.keys(o.decisionIds || {}).forEach(id => { const d = S.decisions[id]; if (d) rows.push('<div class="outrow">✓ Decided: ' + esc(d.text) + '</div>'); });
   Object.keys(o.actionIds || {}).forEach(id => { const a = S.actions[id]; if (a) { const p = ownerOf(a); rows.push('<div class="outrow">→ ' + (p ? avatar(p, 22) + ' <b>' + esc(shortName(p)) + '</b>' : '') + ' ' + esc(a.text) + (a.due ? ' · due ' + esc(fmtShort(a.due)) : '') + '</div>'); } });
   if (o.type === 'parked') rows.push('<div class="outrow park">⏸ Parked — it stays on the list for next time</div>');
+  if (o.type === 'pushed') { const pi = key.startsWith('i:') ? S.inbox[key.slice(2)] : null, tr = pi && o.trailKey && pi.trail ? pi.trail[o.trailKey] : null; rows.push('<div class="outrow park">⏭ Pushed to later — ' + esc(backText(o.until, tr && tr.label)) + (tr && tr.text ? ' · ' + esc(tr.text) : '') + '</div>'); }
   if (o.type === 'covered' && !rows.length) rows.push('<div class="outrow">Covered — no decision needed</div>');
   if (o.type === 'dropped') rows.push('<div class="outrow drop">✕ Dropped</div>');
   return '<div class="outs">' + rows.join('') + '<div class="row"><button class="sbtn" data-act="out-undo" data-key="' + esc(key) + '">Undo this item</button></div></div>';
@@ -1610,14 +1917,14 @@ function coverBtns(key, o) {
 async function coverKey(key) { const map = {}; map[outPath(key) + '/type'] = 'covered'; map[outPath(key) + '/at'] = Date.now(); await up(map); autoNext(key); }
 function runTally() {
   const r = S.meeting.run || {}, outs = r.outcomes || {}, q = runQueue();
-  const t = { decisions: 0, actions: 0, parked: 0, covered: 0, reviewed: 0, done: 0, notReached: 0 };
-  q.forEach(k => { if (k === 'wrap') return; const o = outs[okey(k)]; if (!o) { if (k.startsWith('i:') || k.startsWith('r:')) t.notReached++; return; } t.decisions += Object.keys(o.decisionIds || {}).length; t.actions += Object.keys(o.actionIds || {}).length; if (o.type === 'parked') t.parked++; if (o.type === 'covered') t.covered++; if (k.startsWith('r:')) { t.reviewed++; if (o.type === 'done') t.done++; } });
+  const t = { decisions: 0, actions: 0, parked: 0, pushed: 0, covered: 0, reviewed: 0, done: 0, notReached: 0 };
+  q.forEach(k => { if (k === 'wrap') return; const o = outs[okey(k)]; if (!o) { if (k.startsWith('i:') || k.startsWith('r:')) t.notReached++; return; } t.decisions += Object.keys(o.decisionIds || {}).length; t.actions += Object.keys(o.actionIds || {}).length; if (o.type === 'parked') t.parked++; if (o.type === 'pushed') t.pushed++; if (o.type === 'covered') t.covered++; if (k.startsWith('r:')) { t.reviewed++; if (o.type === 'done') t.done++; } });
   return t;
 }
 function wrapHTML() {
   const t = runTally(), o = outcomeOf('wrap');
   return '<div class="sec">Wrap-up</div><div class="big">That’s the list.</div><div class="info">' +
-    '<div class="ibox"><h4>So far</h4><ul><li><b>' + t.decisions + '</b>' + (t.decisions === 1 ? 'decision' : 'decisions') + '</li><li><b>' + t.actions + '</b>new action ' + (t.actions === 1 ? 'item' : 'items') + '</li><li><b>' + t.done + '</b>of ' + t.reviewed + ' to-dos done</li><li><b>' + t.parked + '</b>parked for next time</li>' + (t.notReached ? '<li class="bad"><b>' + t.notReached + '</b>not reached (they stay on the list)</li>' : '') + '</ul></div>' +
+    '<div class="ibox"><h4>So far</h4><ul><li><b>' + t.decisions + '</b>' + (t.decisions === 1 ? 'decision' : 'decisions') + '</li><li><b>' + t.actions + '</b>new action ' + (t.actions === 1 ? 'item' : 'items') + '</li><li><b>' + t.done + '</b>of ' + t.reviewed + ' to-dos done</li><li><b>' + t.parked + '</b>parked for next time</li>' + (t.pushed ? '<li><b>' + t.pushed + '</b>pushed to a later meeting</li>' : '') + (t.notReached ? '<li class="bad"><b>' + t.notReached + '</b>not reached (they stay on the list)</li>' : '') + '</ul></div>' +
     '<div class="ibox"><h4>Anything else?</h4><p style="opacity:.8">Type it in the bar at the top — it shows up here as the next item.</p></div></div>' + outcomeHTML('wrap', o) +
     '<div class="obtns"><button class="ob action" data-act="out" data-type="action" data-key="wrap">+ Action</button><button class="ob decided" data-act="out" data-type="decided" data-key="wrap">+ Decision</button><button class="ob" data-act="run-end" style="background:var(--coral)">End meeting &amp; save minutes</button></div>';
 }
@@ -1628,7 +1935,7 @@ function overviewSheet() {
     const sec = k === 'wrap' ? 'Wrap-up' : k === 'numbers' ? 'Numbers' : k === 'team' ? 'Team' : k.startsWith('r:') ? 'Last time’s to-dos' : CATS[catOf(S.inbox[k.slice(2)])].section;
     const head = sec !== last ? '<div class="eyebrow" style="margin-top:12px">' + esc(sec) + '</div>' : ''; last = sec;
     const o = outcomeOf(k);
-    const icon = !o ? '○' : o.type === 'parked' || o.type === 'carried' ? '⏸' : o.type === 'dropped' ? '✕' : '✓';
+    const icon = !o ? '○' : o.type === 'pushed' ? '⏭' : o.type === 'parked' || o.type === 'carried' ? '⏸' : o.type === 'dropped' ? '✕' : '✓';
     const label = k === 'wrap' ? 'Wrap-up' : k === 'numbers' ? 'Numbers' : k === 'team' ? 'Team' : clip(itemText(k), 90);
     return head + '<button class="item" data-go="' + esc(k) + '" style="width:100%;text-align:left' + (k === r.cur ? ';background:var(--blue-1);border-radius:10px' : '') + '"><span style="width:18px;color:' + (o ? 'var(--mint-7)' : 'var(--faint)') + '">' + icon + '</span><span class="body"><span class="txt">' + esc(label) + '</span></span></button>';
   }).join('');
@@ -1642,7 +1949,7 @@ function overviewSheet() {
 }
 function endSheet() {
   const t = runTally(), next = nextMeetingDefault();
-  openSheet('<h3 class="sheet-t">End the meeting?</h3><p class="hint">' + plural(t.decisions, 'decision') + ', ' + plural(t.actions, 'new action item') + ', ' + t.parked + ' parked' + (t.notReached ? ', and ' + plural(t.notReached, 'item') + ' not reached — those stay on the list for next time' : '') + '. The minutes are written from what was tapped.</p>' +
+  openSheet('<h3 class="sheet-t">End the meeting?</h3><p class="hint">' + plural(t.decisions, 'decision') + ', ' + plural(t.actions, 'new action item') + ', ' + t.parked + ' parked' + (t.pushed ? ', ' + t.pushed + ' pushed to later' : '') + (t.notReached ? ', and ' + plural(t.notReached, 'item') + ' not reached — those stay on the list for next time' : '') + '. The minutes are written from what was tapped.</p>' +
     '<label class="lbl">Next meeting</label><input type="date" class="field" id="nextDate" value="' + esc(next) + '" style="max-width:220px">' +
     '<div class="row end" style="margin-top:16px"><button class="btn ghost" data-act="sheet-close">Keep going</button><button class="btn coral" id="endGo">End &amp; save minutes</button></div>', card => {
     card.querySelector('#endGo').onclick = async () => { const d = card.querySelector('#nextDate').value; if (!parseYmd(d)) { toast('Pick the next meeting date'); return; } card.querySelector('#endGo').disabled = true; closeSheet(); await endMeeting(d); };
@@ -1665,7 +1972,7 @@ async function endMeeting(nextDate) {
   map[P('meetings', mid, 'meta', 'status')] = 'done';
   map[P('meetings', mid, 'meta', 'endedAt')] = now;
   map[P('meetings', mid, 'minutes')] = { text: minutes, at: now };
-  map[P('meetings', nextId, 'meta')] = { date: nextDate, title: (S.meeting.meta && S.meeting.meta.title) || 'Monthly Staff Meeting', status: 'collecting', createdAt: now };
+  map[P('meetings', nextId, 'meta')] = { date: nextDate, title: (S.meeting.meta && S.meeting.meta.title) || 'Monthly Staff Meeting', status: 'collecting', createdAt: now, after: meetingDate() };
   map[P('currentMeetingId')] = nextId;
   try { await up(map); } catch (e) { toast('Could not end the meeting: ' + e.message, 'bad'); return; }
   S.history = null; loadHistory();
@@ -1701,9 +2008,11 @@ function buildMinutes(mid) {
   const covered = keys.filter(k => { const o = outs[okey(k)]; return o && o.type === 'covered'; }).map(items).filter(Boolean);
   const parked = keys.filter(k => { const o = outs[okey(k)]; return o && o.type === 'parked'; }).map(items).filter(Boolean);
   const dropped = keys.filter(k => { const o = outs[okey(k)]; return o && o.type === 'dropped'; }).map(items).filter(Boolean);
+  const pushedM = keys.filter(k => { const o = outs[okey(k)]; return o && o.type === 'pushed'; }).map(k => { const t = items(k), o = outs[okey(k)], pi = S.inbox[k.slice(2)], tr = pi && o.trailKey && pi.trail ? pi.trail[o.trailKey] : null; return t ? t + ' — ' + backText(o.until, tr && tr.label) + (tr && tr.text ? ' (' + tr.text + ')' : '') : ''; }).filter(Boolean);
   const missed = keys.filter(k => !outs[okey(k)] && S.inbox[k.slice(2)]).map(items).filter(Boolean);
   if (covered.length) { L.push('', '## Discussed'); covered.forEach(t => L.push('- ' + t)); }
   if (parked.length) { L.push('', '## Parked for next meeting'); parked.forEach(t => L.push('- ' + t)); }
+  if (pushedM.length) { L.push('', '## Pushed to a later meeting'); pushedM.forEach(t => L.push('- ' + t)); }
   if (missed.length) { L.push('', '## Not reached (still on the list)'); missed.forEach(t => L.push('- ' + t)); }
   if (dropped.length) { L.push('', '## Dropped'); dropped.forEach(t => L.push('- ' + t)); }
   const nums = [];
@@ -1729,7 +2038,7 @@ function mdToHtml(md) {
 }
 function minutesSheet(mid, text, justEnded, nextDate) {
   const nextD = nextDate || meetingDate();
-  openSheet((justEnded ? '<h3 class="sheet-t">Meeting saved ✓</h3><p class="hint">Next meeting: <b>' + esc(fmtLong(nextD)) + '</b>. Parked and unreached items are already on its list; open to-dos show up in Cadence for their owners.</p>' : '<h3 class="sheet-t">Minutes</h3>') +
+  openSheet((justEnded ? '<h3 class="sheet-t">Meeting saved ✓</h3><p class="hint">Next meeting: <b>' + esc(fmtLong(nextD)) + '</b>. Parked and unreached items are already on its list; pushed ones come back on their own dates. Open to-dos show up in Cadence for their owners.</p>' : '<h3 class="sheet-t">Minutes</h3>') +
     '<div class="md card" style="box-shadow:none;border:1.5px solid var(--line);margin-top:12px">' + mdToHtml(text) + '</div>' +
     '<div class="row end" style="margin-top:14px"><button class="btn ghost" id="mCopy">Copy text</button><button class="btn ghost" id="mPrint">Print</button>' + (justEnded ? '<button class="btn blue" id="mTr">Add Plaud transcript</button>' : '') + '</div>', card => {
     card.querySelector('#mCopy').onclick = async () => { toast(await copyText(text) ? 'Copied' : 'Copy failed'); };
@@ -1753,7 +2062,8 @@ function agendaMarkdown() {
   { const sp = normSpend(snap.spend); if (sp) nums.push(spendLine(sp)); }
   (snap.kpis || []).filter(k => k.value != null).forEach(k => nums.push('- ' + k.label + ': ' + fmtNum(k.value, k.unit) + ' / goal ' + (k.goal || '—') + (k.met === false ? ' — off goal' : k.met ? ' ✓' : '')));
   const open = openInbox();
-  const cat = c => open.filter(([, it]) => catOf(it) === c).sort(byStarThenOld).map(([, it]) => '- ' + (it.star ? '★ ' : '') + it.text + (it.name ? ' _(' + whoLabel(authorOf(it), it.name) + ')_' : '') + (it.parked ? ' — parked ' + it.parked + '×' : ''));
+  const pushedNote = it => { const lp = lastPush(it); return lp ? ' — pushed ' + fmtShort(lp.date) + (lp.text ? ': ' + lp.text : '') : ''; };
+  const cat = c => open.filter(([, it]) => catOf(it) === c).sort(byStarThenOld).map(([, it]) => '- ' + (it.star ? '★ ' : '') + it.text + (it.name ? ' _(' + whoLabel(authorOf(it), it.name) + ')_' : '') + (it.parked ? ' — parked ' + it.parked + '×' : '') + pushedNote(it));
   const kpiItems = cat('kpi');
   if (nums.length || kpiItems.length) { L.push('', '## 2. Numbers'); nums.concat(kpiItems).forEach(x => L.push(x)); }
   let n = 3;
@@ -1810,7 +2120,7 @@ function decisionsCardHTML() {
   const aisaLine = aisaKey() ? (ai.lastSentAt ? 'AISA last updated ' + fmtWhen(ai.lastSentAt) + ' · ' + plural(ai.count || 0, 'decision') : 'Not sent to AISA yet') : 'Sending to AISA needs the AISA admin key (Settings → AISA)';
   return '<div class="card"><div class="card-h"><h2>Decisions log</h2><span class="muted small">' + esc(aisaLine) + '</span><div class="r"><button class="btn ghost sm" data-act="dec-download">Download .txt</button><button class="btn blue sm" data-act="dec-aisa">Send to AISA</button></div></div>' +
     '<input class="field" type="search" placeholder="Search decisions…" data-change="dec-search" value="' + esc(S.follow.q) + '" style="max-width:340px;margin-bottom:6px">' +
-    (list.length ? Object.keys(groups).sort().reverse().map(k => '<div class="dgroup"><div class="eyebrow" style="margin:8px 0 2px">' + esc(k ? fmtLong(k) : 'Undated') + '</div>' + groups[k].map(([id, d]) => '<div class="dec"><span style="color:var(--mint-7);font-weight:800">✓</span><span class="txt">' + esc(d.text) + (d.name ? ' <span class="muted small">— raised by ' + esc(whoLabel(person(d.personId) || matchPerson(d.name), d.name)) + '</span>' : '') + '</span><button class="xbtn" data-act="dec-edit" data-id="' + esc(id) + '" aria-label="Edit">✎</button></div>').join('') + '</div>').join('')
+    (list.length ? Object.keys(groups).sort().reverse().map(k => '<div class="dgroup"><div class="eyebrow" style="margin:8px 0 2px">' + esc(k ? fmtLong(k) : 'Undated') + '</div>' + groups[k].map(([id, d]) => '<div class="dec"><span style="color:var(--mint-7);font-weight:800">✓</span><span class="txt">' + esc(d.text) + (d.name ? ' <span class="muted small">— raised by ' + esc(whoLabel(person(d.personId) || matchPerson(d.name), d.name)) + '</span>' : '') + (d.topic ? '<span class="dtopic">re: ' + esc(d.topic) + '</span>' : '') + '</span><button class="xbtn" data-act="dec-edit" data-id="' + esc(id) + '" aria-label="Edit">✎</button></div>').join('') + '</div>').join('')
       : '<p class="empty">' + (q ? 'No decision matches “' + esc(S.follow.q) + '”.' : 'Decisions you record in a meeting land here — and in AISA, so staff can ask “what did we decide about…?”') + '</p>') + '</div>';
 }
 function editDecisionSheet(id) {
@@ -1839,7 +2149,7 @@ function decisionsText() {
     'These are decisions the Next Level Orthodontics team made at its staff meetings, newest first. They come from the Staff Meeting Hub and are refreshed after each meeting. When two decisions cover the same topic, the newer one replaces the older one. If a decision seems to conflict with an SOP, check with Dr. Akhavan.', ''];
   Object.keys(groups).sort().reverse().forEach(k => {
     L.push('=== Staff meeting decisions — ' + (k ? fmtLong(k) : 'undated') + ' ===');
-    groups[k].forEach(d => L.push('- ' + String(d.text).replace(/\s+/g, ' ').trim() + (d.name ? ' (raised by ' + d.name + ')' : '')));
+    groups[k].forEach(d => L.push('- ' + String(d.text).replace(/\s+/g, ' ').trim() + (d.topic ? ' (about: ' + String(d.topic).replace(/\s+/g, ' ').trim() + ')' : '') + (d.name ? ' (raised by ' + d.name + ')' : '')));
     L.push('');
   });
   return L.join('\n');
@@ -1981,7 +2291,7 @@ async function applyAnalysis(id) {
 
 /* ---------------------------------------------------------------- settings + date */
 function dateSheet() {
-  const d = meetingDate(), calNext = S.cal.ok ? calNextMeeting(todayYmd()) : '';
+  const d = meetingDate(), calNext = S.cal.ok ? calNextMeeting(calFrom()) : '';
   const calLine = !S.cal.ok ? '' : (calNext ? '<p class="hint">Office calendar: <b>' + esc(fmtDate(calNext)) + '</b> <button class="linkbtn" id="mCal">Use it</button></p>' : '<p class="hint">No staff meeting found on the office calendar. Add an event with “Staff meeting” in the title, or mark a day Admin + mtg, and the date fills in by itself.</p>');
   openSheet('<h3 class="sheet-t">Next meeting date</h3><p class="hint">Everything on the list stays put.</p>' + calLine + '<input type="date" class="field" id="mDate" value="' + esc(d) + '" style="max-width:240px;margin-top:12px" autofocus>' +
     '<label class="lbl">Title</label><input class="field" id="mTitle" value="' + esc((S.meeting.meta && S.meeting.meta.title) || 'Monthly Staff Meeting') + '">' +
@@ -1991,8 +2301,8 @@ function dateSheet() {
       const nd = card.querySelector('#mDate').value, title = card.querySelector('#mTitle').value.trim() || 'Monthly Staff Meeting';
       if (!parseYmd(nd)) { toast('Pick a date'); return; }
       closeSheet();
-      if (meetingDone()) { const id = await freeMeetingId(nd); const map = {}; map[P('meetings', id, 'meta')] = { date: nd, title, status: 'collecting', createdAt: Date.now(), dateSource: nd === calNextMeeting(todayYmd()) ? 'calendar' : 'manual' }; map[P('currentMeetingId')] = id; await up(map); }
-      else { const map = {}; map[P('meetings', S.meetingId, 'meta', 'date')] = nd; map[P('meetings', S.meetingId, 'meta', 'title')] = title; map[P('meetings', S.meetingId, 'meta', 'dateSource')] = nd === calNextMeeting(todayYmd()) ? 'calendar' : 'manual'; await up(map); }
+      if (meetingDone()) { const id = await freeMeetingId(nd); const map = {}; map[P('meetings', id, 'meta')] = { date: nd, title, status: 'collecting', createdAt: Date.now(), after: meetingDate(), dateSource: nd === calNextMeeting(calFrom()) ? 'calendar' : 'manual' }; map[P('currentMeetingId')] = id; await up(map); }
+      else { const map = {}; map[P('meetings', S.meetingId, 'meta', 'date')] = nd; map[P('meetings', S.meetingId, 'meta', 'title')] = title; map[P('meetings', S.meetingId, 'meta', 'dateSource')] = nd === calNextMeeting(calFrom()) ? 'calendar' : 'manual'; await up(map); }
       toast('Saved');
     };
   });
@@ -2046,6 +2356,13 @@ document.addEventListener('click', e => {
     case 'inbox-star': if (S.inbox[id]) db.ref(P('inbox', id, 'star')).set(!S.inbox[id].star); break;
     case 'inbox-edit': editInbox(id); break;
     case 'inbox-del': if (S.inbox[id] && confirm('Delete “' + clip(S.inbox[id].text, 60) + '”?')) db.ref(P('inbox', id)).remove(); break;
+    case 'it-resolve': if (!liveJump(id)) quickResolve(id); break;
+    case 'it-outcome': if (!liveJump(id)) itemSheet(id, 'outcome'); break;
+    case 'it-later': if (!liveJump(id)) itemSheet(id, 'push'); break;
+    case 'it-back': bringBack(id); break;
+    case 'it-reopen': if (!liveJump(id)) reopenItem(id); break;
+    case 'ib-show': { const k = el.dataset.k; S.inboxShow[k] = !S.inboxShow[k]; render('inbox'); break; }
+    case 'ib-more': S.inboxShow.closedAll = true; render('inbox'); break;
     case 'print-agenda': printDoc(mdToHtml(agendaMarkdown()), 'Staff meeting agenda'); break;
     case 'att': { const pid = el.dataset.pid; S.attDraft = S.attDraft || {}; S.attDraft[pid] = S.attDraft[pid] === false; render('run'); break; }
     case 'run-start': startMeeting(); break;
@@ -2058,6 +2375,7 @@ document.addEventListener('click', e => {
       const t = el.dataset.type;
       if (t === 'decided') decisionSheet(key, key === 'numbers' || key === 'team' || key === 'wrap' ? '' : undefined);
       else if (t === 'action') actionSheet(key, key === 'numbers' || key === 'team' || key === 'wrap' ? { text: '' } : {});
+      else if (t === 'later') itemSheet(key.slice(2), 'push', { runKey: key });
       else markInbox(key, t);
       break;
     }
@@ -2109,7 +2427,7 @@ document.addEventListener('keydown', e => {
   const o = outcomeOf(key);
   if (key.startsWith('r:')) { if (o) return; if (k === 'd') reviewAction(key, 'done'); else if (k === 'o') carrySheet(key); else if (k === 'x') reviewAction(key, 'dropped'); return; }
   if (key.startsWith('i:')) {
-    if (k === 'd') decisionSheet(key); else if (k === 'a') actionSheet(key, {}); else if (o) return; else if (k === 'p') markInbox(key, 'parked'); else if (k === 'c') markInbox(key, 'covered'); else if (k === 'x') markInbox(key, 'dropped');
+    if (k === 'd') decisionSheet(key); else if (k === 'a') actionSheet(key, {}); else if (o) return; else if (k === 'p') markInbox(key, 'parked'); else if (k === 'l') itemSheet(key.slice(2), 'push', { runKey: key }); else if (k === 'c') markInbox(key, 'covered'); else if (k === 'x') markInbox(key, 'dropped');
     return;
   }
   if (k === 'd') decisionSheet(key, ''); else if (k === 'a') actionSheet(key, { text: '' }); else if (k === 'c' && !o && key !== 'wrap') coverKey(key);
@@ -2118,7 +2436,7 @@ window.addEventListener('beforeprint', () => { if (!$('#printArea').innerHTML) $
 window.addEventListener('afterprint', () => { $('#printArea').innerHTML = ''; });
 
 /* test hooks (harmless in production) */
-window.SMH = { S, calNextMeeting, calOccursOn, syncMeetingDateFromCalendar, nextMeetingDefault, guessCategory, buildMinutes, agendaMarkdown, decisionsText, computeCadence, computeSpending, spendSummary, computeOut, matchPerson, runQueue, setRoster, ME_KPI, kpiMonth, version: APP_VERSION };
+window.SMH = { S, calFrom, isPushed, openInbox, pushedInbox, closedInbox, laterChoices, lastMeetingDate, defaultOutcomeDate, outcomeInfo, backText, calPrevMeeting, quickResolve, saveOutcome, pushItem, reopenItem, calNextMeeting, calOccursOn, syncMeetingDateFromCalendar, nextMeetingDefault, guessCategory, buildMinutes, agendaMarkdown, decisionsText, computeCadence, computeSpending, spendSummary, computeOut, matchPerson, runQueue, setRoster, ME_KPI, kpiMonth, version: APP_VERSION };
 </script>
 <script src="nlo-home.js" defer></script>
 <script src="nlo-aisa.js" defer></script>
