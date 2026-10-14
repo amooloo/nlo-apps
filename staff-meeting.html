@@ -196,6 +196,15 @@ main{max-width:1080px;margin:0 auto;padding:12px 14px 80px}
 #toast.act{pointer-events:auto}
 #toast .tbtn{margin-left:12px;background:rgba(255,255,255,.24);color:#fff;border-radius:8px;padding:4px 12px;font-weight:800;font-size:13px}
 #toast .tbtn:hover{background:rgba(255,255,255,.34)}
+/* @mentions (2.3) */
+.mrow{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px}
+.mchip{display:inline-flex;align-items:center;gap:6px;border:1.5px solid var(--line);background:#fff;border-radius:999px;padding:3px 11px 3px 3px;font-size:12.5px;font-weight:700;color:var(--navy-7)}
+.mchip.on{border-color:var(--blue);background:var(--blue-1);color:var(--blue)}
+@media (hover:hover){.mchip:hover{border-color:var(--blue);color:var(--blue)}}
+.mline{display:flex;gap:6px 10px;flex-wrap:wrap;align-items:center;margin-top:8px;font-size:12.5px;font-weight:700}
+.mline .todo{display:inline-flex;align-items:center;gap:5px;flex-wrap:wrap;color:var(--mint-7)}
+.mline .bad{color:var(--coral-7)}
+.mtag{color:var(--blue);font-weight:800}
 
 /* KPI */
 .kpi-role{margin-top:14px}
@@ -457,11 +466,14 @@ html.nlo-home-on .top .brand{margin-left:calc(var(--nlo-home-space) - 18px)}
      later (off this agenda; back by itself for the first meeting on or after
      the date). Nothing is lost: pushed and closed items stay listed under the
      agenda with Reopen. Run mode has the same "Later" (key L).
+   - @MENTIONS (2.3): "@Sarah and @Savannah will get it done" in an outcome, a
+     push note or a Run decision gives each tagged person a to-do (Follow-ups +
+     their Cadence screen). Typing @ suggests names; @DrA and @Everyone work too.
    Data: Firebase RTDB (project nlo-inventory) under nlo/staffMeeting.
    Cadence shows each person's action items and has a "raise for the
    staff meeting" button (see the add-on block at the end of cadence.html).
    ===================================================================== */
-const APP_VERSION = '2.2.0';
+const APP_VERSION = '2.3.0';
 const FB_CONFIG = {
   apiKey: "AIzaSyBFCmDgAKkdfZ4Cb81nK0KCKXtONiwMJy4",
   authDomain: "nlo-inventory.firebaseapp.com",
@@ -1393,20 +1405,20 @@ function itemRow(id, it) {
   const c = catOf(it), lp = lastPush(it);
   const meta = [whoHTML(it), esc(fmtWhen(it.createdAt)), it.via === 'cadence' ? 'via Cadence' : it.via === 'transcript' ? 'from a transcript' : '', it.parked ? '<span class="tag amber">parked ' + it.parked + '×</span>' : '', lp ? '<span class="tag amber">⏭ pushed ' + esc(fmtShort(lp.date)) + '</span>' : ''].filter(Boolean).join(' · ');
   return '<div class="item has-o"><button class="star' + (it.star ? ' on' : '') + '" data-act="inbox-star" data-id="' + esc(id) + '" title="' + (it.star ? 'Priority — goes first' : 'Mark as priority') + '" aria-label="Priority">★</button>' +
-    '<div class="body"><div class="txt">' + esc(it.text) + '</div><div class="meta">' + meta + '</div>' + (lp && lp.text ? '<div class="subl">' + esc(lp.text) + '</div>' : '') + '</div>' +
+    '<div class="body"><div class="txt">' + esc(it.text) + '</div><div class="meta">' + meta + '</div>' + (lp && lp.text ? '<div class="subl">' + mentionHTML(lp.text) + '</div>' : '') + '</div>' +
     '<div class="acts">' + catSelect(c, 'data-change="inbox-cat" data-id="' + esc(id) + '" aria-label="Section"') +
     '<button class="xbtn" data-act="inbox-edit" data-id="' + esc(id) + '" title="Edit" aria-label="Edit">✎</button><button class="xbtn" data-act="inbox-del" data-id="' + esc(id) + '" title="Delete" aria-label="Delete">×</button></div>' + itemBtns(id, false) + '</div>';
 }
 function pushedRow(id, it) {
   const lp = lastPush(it);
   const meta = [catPill(catOf(it)), whoHTML(it), '<span class="tag amber">⏭ ' + esc(backText(it.pushUntil, pushLabel(it))) + '</span>', lp && lp.date ? 'pushed ' + esc(fmtShort(lp.date)) : ''].filter(Boolean).join(' · ');
-  return '<div class="item has-o nostar"><div class="body"><div class="txt">' + esc(it.text) + '</div><div class="meta">' + meta + '</div>' + (lp && lp.text ? '<div class="subl">' + esc(lp.text) + '</div>' : '') + '</div>' +
+  return '<div class="item has-o nostar"><div class="body"><div class="txt">' + esc(it.text) + '</div><div class="meta">' + meta + '</div>' + (lp && lp.text ? '<div class="subl">' + mentionHTML(lp.text) + '</div>' : '') + '</div>' +
     '<div class="acts"><button class="xbtn" data-act="inbox-edit" data-id="' + esc(id) + '" title="Edit" aria-label="Edit">✎</button><button class="xbtn" data-act="inbox-del" data-id="' + esc(id) + '" title="Delete" aria-label="Delete">×</button></div>' + itemBtns(id, true) + '</div>';
 }
 function closedRow(id, it) {
   const info = outcomeInfo(id, it), hub = !!(it.outcome && it.outcome.via === 'hub');
   const meta = [catPill(catOf(it)), whoHTML(it), '<span class="tag' + (info.tone ? ' ' + info.tone : '') + '">' + esc(info.label) + '</span>'].filter(Boolean).join(' · ');
-  return '<div class="item closed has-o nostar"><div class="body"><div class="txt">' + esc(it.text) + '</div><div class="meta">' + meta + '</div>' + (info.text ? '<div class="subl">' + esc(info.text) + '</div>' : '') + '</div>' +
+  return '<div class="item closed has-o nostar"><div class="body"><div class="txt">' + esc(it.text) + '</div><div class="meta">' + meta + '</div>' + (info.text ? '<div class="subl">' + mentionHTML(info.text) + '</div>' : '') + '</div>' +
     '<div class="acts"><button class="xbtn" data-act="inbox-del" data-id="' + esc(id) + '" title="Delete for good" aria-label="Delete">×</button></div>' +
     '<div class="oacts">' + (hub ? '<button class="obtn" data-act="it-outcome" data-id="' + esc(id) + '">' + (it.outcome.text ? '✎ Edit outcome' : '+ Add the outcome') + '</button>' : '') + '<button class="obtn" data-act="it-reopen" data-id="' + esc(id) + '" title="Put it back on the agenda">↩ Reopen</button></div></div>';
 }
@@ -1465,8 +1477,8 @@ function laterChoices() {
   for (let i = 0; i < 3; i++) {
     const until = exact ? addDaysYmd(prev, 1) : addMonthsYm(prev.slice(0, 7), 1) + '-01';
     const cal = calNextMeeting(until);
-    if (cal && cal < addDaysYmd(until, 75)) { out.push({ until, label: fmtShort(cal) + ' meeting' }); prev = cal; exact = true; }
-    else { const g = exact ? suggestNext(prev) : until; out.push({ until, label: ymLabel(g.slice(0, 7), { month: 'long' }) + ' meeting' }); prev = g; exact = false; }
+    if (cal && cal < addDaysYmd(until, 75)) { out.push({ until, label: fmtShort(cal) + ' meeting', meet: cal }); prev = cal; exact = true; }
+    else { const g = suggestNext(prev); out.push({ until, label: ymLabel(g.slice(0, 7), { month: 'long' }) + ' meeting', meet: g }); prev = g; exact = false; }
   }
   return out;
 }
@@ -1476,9 +1488,11 @@ function outcomeInfo(id, it) {
   const mdate = o.meetingId ? ((meetingRec(o.meetingId).meta || {}).date || '') : '';
   const when = o.date || mdate || (o.at ? ymdOf(new Date(o.at)) : '');
   const where = mdate || isMeetingDay(when) ? ' at the ' + fmtShort(mdate || when) + ' meeting' : (when ? ' · ' + fmtShort(when) : '');
+  const todos = (o.via === 'hub' ? Object.keys(o.actionIds || {}).map(k => S.actions[k]) : valsOf(S.actions).filter(a => a.source && a.source.inboxId === id)).filter(Boolean);
+  const forWho = todos.length ? 'to-do' + (todos.length > 1 ? 's' : '') + ' for ' + todos.map(a => { const p = ownerOf(a); return (p ? shortName(p) : (a.owner || 'Unassigned')) + (a.status === 'done' ? ' ✓' : ''); }).join(', ') : '';
   let label = '✓ Resolved', text = o.text || '', tone = 'green';
-  if (t === 'decided') { label = '✓ Decided'; if (!text) text = valsOf(S.decisions).filter(d => d.inboxId === id).map(d => d.text).join(' · '); }
-  else if (t === 'action') { label = '→ To-do'; tone = 'blue'; if (!text) text = valsOf(S.actions).filter(a => a.source && a.source.inboxId === id).map(a => { const p = ownerOf(a); return (p ? shortName(p) : (a.owner || 'Unassigned')) + ': ' + a.text + (a.due ? ' (due ' + fmtShort(a.due) + ')' : ''); }).join(' · '); }
+  if (t === 'decided') { label = '✓ Decided' + (forWho ? ' + ' + forWho : ''); if (!text) text = valsOf(S.decisions).filter(d => d.inboxId === id).map(d => d.text).join(' · '); }
+  else if (t === 'action') { label = '→ ' + (forWho ? forWho.charAt(0).toUpperCase() + forWho.slice(1) : 'To-do'); tone = 'blue'; if (!text) text = todos.map(a => { const p = ownerOf(a); return (p ? shortName(p) : (a.owner || 'Unassigned')) + ': ' + a.text + (a.due ? ' (due ' + fmtShort(a.due) + ')' : ''); }).join(' · '); }
   else if (t === 'covered') label = '✓ Covered';
   else if (t === 'dropped') { label = '✕ Dropped'; tone = ''; }
   return { label: label + where, text, when, tone };
@@ -1486,9 +1500,9 @@ function outcomeInfo(id, it) {
 function trailLine(t) {
   const d = t.date ? fmtShort(t.date) : t.at ? fmtShort(ymdOf(new Date(t.at))) : '';
   const by = t.by ? ' <span class="faint">· ' + esc(t.by) + '</span>' : '';
-  if (t.kind === 'pushed') return '⏭ ' + esc(d) + ' — pushed' + (t.until ? ' to ' + esc(untilPhrase(t.until, t.label)) : '') + (t.text ? ': ' + esc(t.text) : '') + by;
-  if (t.kind === 'reopened') return '↩ ' + esc(d) + ' — reopened' + (t.text ? ' (was: ' + esc(t.text) + ')' : '') + by;
-  return esc(d) + (t.text ? ' — ' + esc(t.text) : '') + by;
+  if (t.kind === 'pushed') return '⏭ ' + esc(d) + ' — pushed' + (t.until ? ' to ' + esc(untilPhrase(t.until, t.label)) : '') + (t.text ? ': ' + mentionHTML(t.text) : '') + by;
+  if (t.kind === 'reopened') return '↩ ' + esc(d) + ' — reopened' + (t.text ? ' (was: ' + mentionHTML(t.text) + ')' : '') + by;
+  return esc(d) + (t.text ? ' — ' + mentionHTML(t.text) : '') + by;
 }
 /* while a meeting is live, its items are handled on the Run screen (so the minutes stay right) */
 function liveJump(id) {
@@ -1496,10 +1510,134 @@ function liveJump(id) {
   const key = 'i:' + id; if (runQueue().indexOf(key) < 0) return false;
   setTab('run'); goRun(key); toast('The meeting is live — handle it here'); return true;
 }
-function undoClose(id, prev, did) {
+
+/* ---------------------------------------------------------------- @mentions → to-dos (2.3)
+   "@Sarah and @Savannah will get it done" gives Sarah and Savannah one to-do each (Follow-ups + their Cadence screen).
+   A token is a person's short name without spaces (plus a last initial when two people share it), @DrA or @Everyone;
+   first names, nicknames and first+last also match. Anything that doesn't match exactly one person is left as typed. */
+const MENTION_RE = /(^|[^\p{L}\p{N}_@])@(\p{L}[\p{L}\p{N}.]*)/gu;
+const tokOf = s => String(s || '').replace(/[^\p{L}\p{N}]/gu, '');
+function mentionPeople() { return activePeople().concat([TEAM]); }
+function mentionToken(p, list) {
+  if (p.id === OWNER_ID) return 'DrA';
+  if (p.id === TEAM_ID) return 'Everyone';
+  const base = tokOf(shortName(p)) || tokOf(p.name);
+  const clash = (list || mentionPeople()).some(q => q.id !== p.id && q.id !== OWNER_ID && q.id !== TEAM_ID && tokOf(shortName(q)).toLowerCase() === base.toLowerCase());
+  if (!clash) return base;
+  const last = tokOf(p.last || String(p.name || '').trim().split(/\s+/).slice(1).join(''));
+  return base + (last ? last[0].toUpperCase() : '');
+}
+function mentionKeys(p, list) {
+  const k = [mentionToken(p, list)];
+  if (p.id === OWNER_ID) k.push('DrA', 'DrAkhavan', 'Akhavan', 'Amir', 'DrAmir');
+  else if (p.id === TEAM_ID) k.push('Everyone', 'All', 'Team', 'Everybody');
+  else k.push(p.first, p.nick, String(p.name || '').trim().split(/\s+/)[0], p.first && p.last ? p.first + p.last : '');
+  return k.map(x => tokOf(x).toLowerCase()).filter(Boolean);
+}
+function mentionIndex() {
+  const list = mentionPeople(), idx = {};
+  list.forEach(p => mentionKeys(p, list).forEach(k => { const a = idx[k] = idx[k] || []; if (!a.some(q => q.id === p.id)) a.push(p); }));
+  return idx;
+}
+function mentionOf(tok, idx) { const t = tok.replace(/\.+$/, ''), hits = idx[tokOf(t).toLowerCase()] || []; return { t, trail: tok.slice(t.length), p: hits.length === 1 ? hits[0] : null }; }
+function parseMentions(text) {
+  const idx = mentionIndex(), people = [], unknown = [];
+  String(text || '').replace(MENTION_RE, (m, pre, tok) => { const r = mentionOf(tok, idx); if (r.p) { if (!people.some(q => q.id === r.p.id)) people.push(r.p); } else if (unknown.indexOf('@' + r.t) < 0) unknown.push('@' + r.t); return m; });
+  return { people, unknown };
+}
+/* "@Sarah will…" → "Sarah will…" — for the to-do, the decisions log, AISA and print */
+function stripMentions(text) { const idx = mentionIndex(); return String(text || '').replace(MENTION_RE, (m, pre, tok) => { const r = mentionOf(tok, idx); return r.p ? pre + shortName(r.p) + r.trail : m; }); }
+/* escaped text with tagged names highlighted */
+function mentionHTML(text) { const idx = mentionIndex(); return esc(text).replace(MENTION_RE, (m, pre, tok) => { const r = mentionOf(tok, idx); return r.p ? pre + '<b class="mtag">@' + esc(r.t) + '</b>' + r.trail : m; }); }
+/* what the to-do says: the item, then the outcome — unless the outcome already says what the item is, or is only names */
+function todoText(topic, text) {
+  const plain = stripMentions(text).replace(/\s+/g, ' ').trim();
+  const bare = String(text || '').replace(MENTION_RE, '$1').replace(/\band\b/gi, '').replace(/[\s,;:.!?&+\-–—]+/g, '');
+  if (!bare) return clip(topic || plain || 'Follow up from the staff meeting', 600);
+  if (topic && similar(topic, plain) < 0.6) return clip(clip(topic, 160) + ' — ' + plain, 600);
+  return clip(plain, 600);
+}
+/* one to-do per tagged person; on a later edit, open ones follow the text and due date, untagged open ones go, done ones stay */
+function syncTodos(map, inboxId, people, text, due, oldIds, extra) {
+  const now = Date.now(), out = {}, have = Object.keys(oldIds || {}).filter(k => S.actions[k]).map(k => [k, S.actions[k]]);
+  have.forEach(([k, a]) => {
+    if (!people.some(p => p.id === a.ownerId)) { if (a.status === 'open') map[P('actionItems', k)] = null; else out[k] = true; return; }
+    out[k] = true;
+    if (a.status === 'open') { map[P('actionItems', k, 'text')] = clip(text, 600); map[P('actionItems', k, 'due')] = due || ''; }
+  });
+  people.forEach(p => {
+    if (have.some(([, a]) => a.ownerId === p.id)) return;
+    const k = newKey(P('actionItems'));
+    map[P('actionItems', k)] = clean({ text: clip(text, 600), owner: p.id === TEAM_ID ? 'Everyone' : p.name, ownerId: p.id, due: due || '', status: 'open', meetingId: extra.meetingId || '', date: extra.date || undefined, createdAt: now, carried: 0, source: inboxId ? { inboxId, via: extra.via } : { via: extra.via } });
+    out[k] = true;
+  });
+  return out;
+}
+const todoNote = people => people.length ? ' · ' + plural(people.length, 'to-do') + ' for ' + people.map(p => shortName(p)).join(' & ') : '';
+function todoDueChoices(nextMtg, cur) {
+  const t = todayYmd(), out = [], seen = new Set();
+  const add = (l, d) => { if (seen.has(d)) return; seen.add(d); out.push([l, d]); };
+  if (nextMtg) add('Next meeting · ' + fmtShort(nextMtg), nextMtg);
+  const w1 = nextOfficeDay(addDaysYmd(t, 7)), w2 = nextOfficeDay(addDaysYmd(t, 14));
+  add('Next week · ' + fmtShort(w1), w1); add('2 weeks · ' + fmtShort(w2), w2);
+  if (cur && !seen.has(cur)) add(fmtShort(cur), cur);
+  add('No date', '');
+  return out;
+}
+/* the @ helper under a textarea: name suggestions while typing "@…", an "@ Tag someone" button and who will get a to-do */
+function mentionUI(card, ta, opts) {
+  opts = opts || {};
+  const box = card.querySelector(opts.box);
+  box.innerHTML = '<div class="mrow" data-m="sug" hidden></div><div class="mline"><button type="button" class="linkbtn small" data-m="tag">@ Tag someone</button><span data-m="who"></span></div>';
+  const sug = box.querySelector('[data-m="sug"]'), who = box.querySelector('[data-m="who"]');
+  let list = [], act = 0;
+  const caret = () => (ta.selectionStart == null ? ta.value.length : ta.selectionStart);
+  const query = () => { const pos = caret(), m = /(^|[^\p{L}\p{N}_@])@([\p{L}\p{N}.]*)$/u.exec(ta.value.slice(0, pos)); return m ? { q: m[2], start: pos - m[2].length - 1, end: pos } : null; };
+  const draw = () => {
+    const q = query(), all = mentionPeople();
+    if (!q) { sug.hidden = true; list = []; }
+    else {
+      const ql = tokOf(q.q).toLowerCase();
+      list = all.filter(p => !ql || mentionKeys(p, all).concat(String(p.name || '').split(/\s+/).map(w => tokOf(w).toLowerCase())).some(k => k.indexOf(ql) === 0)).slice(0, 12);
+      act = Math.min(act, Math.max(0, list.length - 1));
+      sug.hidden = false;
+      sug.innerHTML = list.length ? list.map((p, i) => '<button type="button" class="mchip' + (i === act ? ' on' : '') + '" data-pid="' + esc(p.id) + '">' + avatar(p, 22) + esc(shortName(p)) + '</button>').join('')
+        : '<span class="small muted">No one on the staff list matches “' + esc(q.q) + '”.</span>';
+    }
+    const r = parseMentions(ta.value), note = r.people.length && opts.dueNote ? opts.dueNote() : '';
+    who.innerHTML = (r.people.length ? '<span class="todo">→ To-do' + (r.people.length > 1 ? 's' : '') + ' for ' + r.people.map(p => avatar(p, 18) + esc(shortName(p))).join(', ') + (note ? ' · ' + esc(note) : '') + '</span>' : '') +
+      (r.unknown.length ? '<span class="bad">' + esc(r.unknown.join(', ')) + ' — not on the staff list</span>' : '');
+    if (opts.onChange) opts.onChange(r);
+  };
+  const insertAt = (start, end, str) => { ta.value = ta.value.slice(0, start) + str + ta.value.slice(end); ta.focus(); ta.selectionStart = ta.selectionEnd = start + str.length; };
+  const pick = pid => {
+    const all = mentionPeople(), p = all.find(x => x.id === pid); if (!p) return;
+    const q = query(), tok = '@' + mentionToken(p, all) + ' ';
+    if (q) insertAt(q.start, q.end, tok);
+    else { const pos = caret(), pre = ta.value.slice(0, pos); insertAt(pos, pos, (pre && !/\s$/.test(pre) ? ' ' : '') + tok); }
+    act = 0; draw();
+  };
+  sug.addEventListener('mousedown', e => e.preventDefault());
+  sug.addEventListener('click', e => { const b = e.target.closest('[data-pid]'); if (b) pick(b.dataset.pid); });
+  box.querySelector('[data-m="tag"]').addEventListener('click', () => { const pos = caret(), pre = ta.value.slice(0, pos); insertAt(pos, pos, (pre && !/\s$/.test(pre) ? ' ' : '') + '@'); act = 0; draw(); });
+  ta.addEventListener('input', () => { act = 0; draw(); });
+  ta.addEventListener('click', draw);
+  ta.addEventListener('keyup', e => { if (/^(ArrowLeft|ArrowRight|Home|End)$/.test(e.key)) draw(); });
+  ta.addEventListener('keydown', e => {
+    if (sug.hidden || !list.length) return;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); act = (act + (e.key === 'ArrowDown' ? 1 : list.length - 1)) % list.length; draw(); }
+    else if ((e.key === 'Enter' && !e.metaKey && !e.ctrlKey && !e.shiftKey) || e.key === 'Tab') { e.preventDefault(); pick(list[act].id); }
+    else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); sug.hidden = true; list = []; }
+  });
+  draw();
+  return { refresh: draw };
+}
+
+function undoClose(id, prev, did, aids) {
   const map = {};
   map[P('inbox', id, 'status')] = 'open'; map[P('inbox', id, 'outcome')] = null; map[P('inbox', id, 'pushUntil')] = prev.pushUntil || null;
   if (did) map[P('decisions', did)] = null;
+  Object.keys(aids || {}).forEach(k => { map[P('actionItems', k)] = null; });
   up(map).then(() => toast('Undone — it’s back')).catch(e => toast('Could not undo: ' + e.message, 'bad'));
 }
 async function quickResolve(id) {
@@ -1510,35 +1648,41 @@ async function quickResolve(id) {
   try { await up(map); toastUndo('Resolved ✓', () => undoClose(id, prev, '')); }
   catch (e) { toast('Could not save: ' + e.message, 'bad'); }
 }
-async function saveOutcome(id, text, date, asDecision) {
+async function saveOutcome(id, text, date, asDecision, due) {
   const it = S.inbox[id]; if (!it) return;
   const now = Date.now(), map = {}, prevO = it.status === 'closed' && it.outcome && it.outcome.via === 'hub' ? it.outcome : null;
-  const prev = { pushUntil: it.pushUntil || null };
+  const prev = { pushUntil: it.pushUntil || null }, plain = stripMentions(text), people = parseMentions(text).people;
   let did = prevO && prevO.decisionId && S.decisions[prevO.decisionId] ? prevO.decisionId : '', created = '';
   if (asDecision && text) {
     const old = did ? S.decisions[did] : null; if (!did) { did = newKey(P('decisions')); created = did; }
-    map[P('decisions', did)] = clean({ text: clip(text, 1000), meetingId: doneMeetingOn(date), date, inboxId: id, personId: it.personId || '', name: it.name || '', createdAt: old ? (old.createdAt || now) : now, via: 'outcome', topic: clip(it.text, 200) });
+    map[P('decisions', did)] = clean({ text: clip(plain, 1000), meetingId: doneMeetingOn(date), date, inboxId: id, personId: it.personId || '', name: it.name || '', createdAt: old ? (old.createdAt || now) : now, via: 'outcome', topic: clip(it.text, 200) });
   } else if (did) { map[P('decisions', did)] = null; did = ''; }
+  const oldIds = (prevO && prevO.actionIds) || null;
+  const aids = syncTodos(map, id, people, todoText(it.text, text), due, oldIds, { meetingId: doneMeetingOn(date), date, via: 'outcome' });
+  const newAids = {}; Object.keys(aids).forEach(k => { if (!(oldIds && oldIds[k])) newAids[k] = true; });
   map[P('inbox', id, 'status')] = 'closed'; map[P('inbox', id, 'pushUntil')] = null;
-  map[P('inbox', id, 'outcome')] = clean({ type: did ? 'decided' : 'resolved', text: clip(text, 1000), date, at: prevO ? (prevO.at || now) : now, by: prevO ? (prevO.by || byWho()) : byWho(), editedAt: prevO ? now : undefined, decisionId: did || undefined, via: 'hub' });
+  map[P('inbox', id, 'outcome')] = clean({ type: did ? 'decided' : (Object.keys(aids).length ? 'action' : 'resolved'), text: clip(text, 1000), date, at: prevO ? (prevO.at || now) : now, by: prevO ? (prevO.by || byWho()) : byWho(), editedAt: prevO ? now : undefined, decisionId: did || undefined, actionIds: Object.keys(aids).length ? aids : undefined, via: 'hub' });
   try {
     await up(map);
-    if (prevO) toast('Saved ✓', 'good');
-    else toastUndo((did ? 'Decision saved' : 'Outcome saved') + ' — item closed ✓', () => undoClose(id, prev, created));
+    if (prevO) toast('Saved ✓' + todoNote(people), 'good');
+    else toastUndo((did ? 'Decision saved' : 'Outcome saved') + todoNote(people), () => undoClose(id, prev, created, newAids));
   } catch (e) { toast('Could not save: ' + e.message, 'bad'); }
 }
+/* the date a pushed item's to-dos are due: the meeting it comes back for */
+function pushDue(until) { const ch = laterChoices().find(x => x.until === until); return ch ? ch.meet : (calNextMeeting(until) || until); }
 async function pushItem(id, until, note, runKey) {
   const it = S.inbox[id]; if (!it) return;
   const now = Date.now(), map = {}, tk = newKey(P('inbox', id, 'trail')), prev = it.pushUntil || null;
-  const ch = laterChoices().find(x => x.until === until);
+  const ch = laterChoices().find(x => x.until === until), people = parseMentions(note).people;
+  const aids = people.length ? syncTodos(map, id, people, todoText(it.text, note), pushDue(until), null, { meetingId: runKey ? S.meetingId : '', date: runKey ? meetingDate() : todayYmd(), via: 'push' }) : {};
   if (runKey) inboxPrev(runKey, map);
   map[P('inbox', id, 'pushUntil')] = until;
-  map[P('inbox', id, 'trail', tk)] = clean({ kind: 'pushed', text: clip(note, 600) || undefined, until, label: ch ? ch.label : undefined, date: runKey ? meetingDate() : todayYmd(), at: now, by: byWho(), meetingId: runKey ? S.meetingId : undefined });
-  if (runKey) { map[outPath(runKey) + '/type'] = 'pushed'; map[outPath(runKey) + '/until'] = until; map[outPath(runKey) + '/trailKey'] = tk; map[outPath(runKey) + '/at'] = now; }
+  map[P('inbox', id, 'trail', tk)] = clean({ kind: 'pushed', text: clip(note, 600) || undefined, until, label: ch ? ch.label : undefined, date: runKey ? meetingDate() : todayYmd(), at: now, by: byWho(), meetingId: runKey ? S.meetingId : undefined, actionIds: people.length ? aids : undefined });
+  if (runKey) { map[outPath(runKey) + '/type'] = 'pushed'; map[outPath(runKey) + '/until'] = until; map[outPath(runKey) + '/trailKey'] = tk; map[outPath(runKey) + '/at'] = now; Object.keys(aids).forEach(k => { map[outPath(runKey) + '/actionIds/' + k] = true; }); }
   try {
     await up(map);
-    if (runKey) autoNext(runKey);
-    else toastUndo('Pushed — ' + backText(until, ch && ch.label) + ' ✓', () => { const m = {}; m[P('inbox', id, 'pushUntil')] = prev; m[P('inbox', id, 'trail', tk)] = null; up(m).then(() => toast('Undone')).catch(e => toast('Could not undo: ' + e.message, 'bad')); });
+    if (runKey) { if (people.length) toast('Pushed' + todoNote(people), 'good'); autoNext(runKey); }
+    else toastUndo('Pushed — ' + backText(until, ch && ch.label) + todoNote(people), () => { const m = {}; m[P('inbox', id, 'pushUntil')] = prev; m[P('inbox', id, 'trail', tk)] = null; Object.keys(aids).forEach(k => { m[P('actionItems', k)] = null; }); up(m).then(() => toast('Undone')).catch(e => toast('Could not undo: ' + e.message, 'bad')); });
   } catch (e) { toast('Could not save: ' + e.message, 'bad'); }
 }
 /* during a live meeting, an item put back on the agenda joins the end of the meeting's list (like one raised mid-meeting) */
@@ -1569,7 +1713,7 @@ async function reopenItem(id) {
   try { await up(map); toast('Back on the ' + fmtShort(meetingDate()) + ' agenda' + (info.label.indexOf('Decided') >= 0 ? ' (its decision stays in the log)' : '')); }
   catch (e) { toast('Could not reopen: ' + e.message, 'bad'); }
 }
-/* the sheet behind "✎ Outcome…" and "⏭ Push to later" (and the Run screen's "Later") */
+/* the sheet behind "✎ Outcome" and "⏭ Push to later" (and the Run screen's "Later") */
 function itemSheet(id, mode, opts) {
   opts = opts || {};
   const it = S.inbox[id]; if (!it) return;
@@ -1585,16 +1729,22 @@ function itemSheet(id, mode, opts) {
   when.push(['Today · ' + fmtShort(today), today]);
   const later = laterChoices();
   let until = !runKey && isPushed(it) ? it.pushUntil : later[0].until;
-  const decOn = editO ? !!(editO.decisionId && S.decisions[editO.decisionId]) : ['issue', 'action', 'suggestion'].indexOf(c) >= 0;
+  const decCat = ['issue', 'action', 'suggestion'].indexOf(c) >= 0;
+  const decOn = editO ? !!(editO.decisionId && S.decisions[editO.decisionId]) : decCat;
   const pre = editO ? (editO.text || '') : (!runKey && isPushed(it) && lp && lp.text ? lp.text : '');
+  /* to-dos from @tags are due by the coming meeting unless changed (an edited outcome keeps its to-dos' date) */
+  const nextMtg = meetingDate() >= today ? meetingDate() : nextMeetingDefault();
+  const openTodos = editO ? Object.keys(editO.actionIds || {}).map(k => S.actions[k]).filter(a => a && a.status === 'open') : [];
+  let due = openTodos.length ? (openTodos[0].due || '') : nextMtg;
   const trail = trailOf(it);
   const title = runKey ? 'Push to a later meeting' : editO ? 'The outcome' : 'What happened with this?';
   openSheet('<h3 class="sheet-t">' + title + '</h3>' +
     '<div class="quote">' + esc(it.text) + '<div class="qmeta">' + [catPill(c), esc(p ? shortName(p) : (it.name || '')), it.createdAt ? 'raised ' + esc(fmtWhen(it.createdAt)) : ''].filter(Boolean).join('<span>·</span>') + '</div></div>' +
     (trail.length ? '<ul class="trail">' + trail.map(t => '<li>' + trailLine(t) + '</li>').join('') + '</ul>' : '') +
     (runKey || editO ? '' : '<div class="seg" id="isSeg"><button type="button" data-mode="outcome">✓ Write the outcome</button><button type="button" data-mode="push">⏭ Push to later</button></div>') +
-    '<label class="lbl" id="isLbl" for="isText"></label><textarea class="field" id="isText" rows="3" maxlength="1000" autofocus>' + esc(pre) + '</textarea>' +
-    '<div id="isOut"><label class="toggle"><input type="checkbox" id="isDec"' + (decOn ? ' checked' : '') + '>It’s a decision — also put it in the decisions log</label>' +
+    '<label class="lbl" id="isLbl" for="isText"></label><textarea class="field" id="isText" rows="3" maxlength="1000" autofocus>' + esc(pre) + '</textarea><div id="isMention"></div>' +
+    '<div id="isOut"><div id="isDueBlock" hidden><label class="lbl">To-dos due</label><div class="dchips" id="isDue">' + todoDueChoices(nextMtg, due).map(([l, d]) => '<button type="button" class="dchip' + (d === due ? ' sel' : '') + '" data-due="' + d + '">' + esc(l) + '</button>').join('') + '</div></div>' +
+    '<label class="toggle"><input type="checkbox" id="isDec"' + (decOn ? ' checked' : '') + '>It’s a decision — also put it in the decisions log</label>' +
     '<label class="lbl">When</label><div class="dchips" id="isWhen">' + when.map(([l, d]) => '<button type="button" class="dchip" data-d="' + d + '">' + esc(l) + '</button>').join('') + '</div>' +
     '<input type="date" class="field" id="isDate" value="' + esc(date) + '" max="' + today + '" style="max-width:220px;margin-top:8px"></div>' +
     '<div id="isPush"><label class="lbl">Bring it back for</label><div class="dchips" id="isUntil">' + later.map(x => '<button type="button" class="dchip" data-u="' + x.until + '">' + esc(x.label) + '</button>').join('') + '</div>' +
@@ -1602,36 +1752,49 @@ function itemSheet(id, mode, opts) {
     '<p class="hint" id="isUntilHint" style="margin-top:8px"></p></div>' +
     '<div class="row end" style="margin-top:16px"><button class="btn" id="isSave"></button></div>', card => {
     const ta = card.querySelector('#isText'), save = card.querySelector('#isSave'), dIn = card.querySelector('#isDate'), uIn = card.querySelector('#isUntilDate');
+    const decChk = card.querySelector('#isDec'), dueBlock = card.querySelector('#isDueBlock');
+    let decTouched = !!editO;
+    decChk.addEventListener('change', () => { decTouched = true; });
+    const chOf = () => later.find(x => x.until === until);
+    /* an outcome that only assigns people is a to-do, not a decision — until the box is touched */
+    const mu = mentionUI(card, ta, {
+      box: '#isMention',
+      dueNote: () => { if (mode !== 'push') return ''; const ch = chOf(); return ch ? 'due by the ' + ch.label : 'due ' + fmtShort(pushDue(until)); },
+      onChange: r => { if (!decTouched) decChk.checked = !r.people.length && decCat; dueBlock.hidden = mode !== 'outcome' || !r.people.length; }
+    });
     const sync = () => {
       $$('#isWhen .dchip', card).forEach(b => b.classList.toggle('sel', b.dataset.d === date)); dIn.value = date;
-      const ch = later.find(x => x.until === until);
+      const ch = chOf();
       $$('#isUntil .dchip', card).forEach(b => b.classList.toggle('sel', b.dataset.u === until)); uIn.value = ch ? '' : until;
       card.querySelector('#isUntilHint').textContent = 'It comes off the ' + fmtShort(meetingDate()) + ' agenda and comes back by itself for ' +
         (ch ? 'the ' + ch.label : 'the first meeting on or after ' + fmtDate(until, { month: 'short', day: 'numeric', year: 'numeric' })) + '. Until then it waits under “Pushed to later”.';
+      mu.refresh();
     };
     const setMode = m => {
       mode = m;
       $$('#isSeg [data-mode]', card).forEach(b => b.classList.toggle('on', b.dataset.mode === m));
       card.querySelector('#isOut').hidden = m !== 'outcome'; card.querySelector('#isPush').hidden = m !== 'push';
       card.querySelector('#isLbl').textContent = m === 'outcome' ? 'What was the outcome?' : 'Note (optional)';
-      ta.placeholder = m === 'outcome' ? 'e.g. Decided to… · Fixed — … · Gwen will handle it' : 'e.g. Waiting on the vendor’s quote';
+      ta.placeholder = m === 'outcome' ? 'e.g. Decided to… · Fixed — … · @Gwen will handle it' : 'e.g. Waiting on the vendor’s quote · @Sarah to get prices';
       save.textContent = m === 'outcome' ? (editO ? 'Save' : 'Save & close it') : (!runKey && isPushed(it) ? 'Change the date' : 'Push it');
       save.className = 'btn ' + (m === 'outcome' ? 'mint' : 'amber');
+      mu.refresh();
     };
     card.addEventListener('click', e => {
       const sg = e.target.closest('[data-mode]'); if (sg) { setMode(sg.dataset.mode); ta.focus(); return; }
       const w = e.target.closest('[data-d]'); if (w) { date = w.dataset.d; sync(); return; }
-      const u = e.target.closest('[data-u]'); if (u) { until = u.dataset.u; sync(); }
+      const u = e.target.closest('[data-u]'); if (u) { until = u.dataset.u; sync(); return; }
+      const dd = e.target.closest('[data-due]'); if (dd) { due = dd.dataset.due; $$('#isDue .dchip', card).forEach(b => b.classList.toggle('sel', b === dd)); }
     });
     dIn.onchange = () => { if (parseYmd(dIn.value)) date = dIn.value; sync(); };
     uIn.onchange = () => { if (parseYmd(uIn.value)) until = uIn.value; sync(); };
     const go = async () => {
       const txt = ta.value.trim();
       if (mode === 'outcome') {
-        const dec = card.querySelector('#isDec').checked;
+        const dec = decChk.checked;
         if (dec && !txt) { toast('Write the decision — or untick “It’s a decision”'); ta.focus(); return; }
         if (!parseYmd(date)) { toast('Pick when it happened'); return; }
-        closeSheet(); await saveOutcome(id, txt, date, dec);
+        closeSheet(); await saveOutcome(id, txt, date, dec, due);
       } else {
         if (!parseYmd(until)) { toast('Pick when it should come back'); return; }
         if (until <= meetingDate()) { toast('Pick a date after the ' + fmtShort(meetingDate()) + ' meeting'); return; }
@@ -1748,13 +1911,17 @@ async function markInbox(key, type) {
   map[outPath(key) + '/type'] = type; map[outPath(key) + '/at'] = now;
   try { await up(map); autoNext(key); } catch (e) { toast('Could not save: ' + e.message, 'bad'); }
 }
-async function addDecision(key, text) {
-  const did = newKey(P('decisions')), now = Date.now(), map = {};
+async function addDecision(key, text, due) {
+  const did = newKey(P('decisions')), now = Date.now(), map = {}, people = parseMentions(text).people;
   let raiser = { personId: '', name: '' }, inboxId = '';
   if (key && key.startsWith('i:')) { const it = S.inbox[key.slice(2)]; if (it) { raiser = { personId: it.personId || '', name: it.name || '' }; inboxId = key.slice(2); inboxPrev(key, map); map[P('inbox', inboxId, 'status')] = 'closed'; map[P('inbox', inboxId, 'outcome')] = { type: 'decided', meetingId: S.meetingId, at: now }; } }
-  map[P('decisions', did)] = { text: clip(text, 1000), meetingId: S.meetingId || '', date: meetingDate(), inboxId, personId: raiser.personId, name: raiser.name, createdAt: now };
+  map[P('decisions', did)] = { text: clip(stripMentions(text), 1000), meetingId: S.meetingId || '', date: meetingDate(), inboxId, personId: raiser.personId, name: raiser.name, createdAt: now };
   if (key) { map[outPath(key) + '/decisionIds/' + did] = true; map[outPath(key) + '/type'] = 'decided'; map[outPath(key) + '/at'] = now; }
-  try { await up(map); toast('Decision saved ✓', 'good'); } catch (e) { toast('Could not save: ' + e.message, 'bad'); }
+  if (people.length) {
+    const aids = syncTodos(map, inboxId, people, todoText(inboxId ? itemText(key) : '', text), due === undefined ? nextMeetingDefault() : due, null, { meetingId: S.meetingId || '', date: meetingDate(), via: 'meeting' });
+    if (key) Object.keys(aids).forEach(k => { map[outPath(key) + '/actionIds/' + k] = true; });
+  }
+  try { await up(map); toast('Decision saved ✓' + todoNote(people), 'good'); } catch (e) { toast('Could not save: ' + e.message, 'bad'); }
 }
 async function addAction(key, f) {
   const aid = newKey(P('actionItems')), now = Date.now(), map = {}, o = f.owner, prev = key ? outcomeOf(key) : null;
@@ -1790,10 +1957,16 @@ function itemText(key) {
   return '';
 }
 function decisionSheet(key, preset) {
-  openSheet('<h3 class="sheet-t">What did we decide?</h3><p class="hint">Write it the way you’d want it remembered — it goes in the minutes and the decisions log' + (aisaKey() ? ' (and AISA)' : '') + '.</p><textarea class="field" id="decText" rows="4" autofocus>' + esc(preset != null ? preset : itemText(key)) + '</textarea><div class="row end" style="margin-top:14px"><button class="btn mint" id="decSave">Save decision</button></div>', card => {
-    const save = () => { const t = card.querySelector('#decText').value.trim(); if (!t) return; closeSheet(); addDecision(key, t); };
+  const nextMtg = nextMeetingDefault(); let due = nextMtg;
+  openSheet('<h3 class="sheet-t">What did we decide?</h3><p class="hint">Write it the way you’d want it remembered — it goes in the minutes and the decisions log' + (aisaKey() ? ' (and AISA)' : '') + '. Tag people with @ to give them a to-do.</p><textarea class="field" id="decText" rows="4" autofocus>' + esc(preset != null ? preset : itemText(key)) + '</textarea><div id="decMention"></div>' +
+    '<div id="decDueBlock" hidden><label class="lbl">To-dos due</label><div class="dchips" id="decDue">' + todoDueChoices(nextMtg).map(([l, d]) => '<button type="button" class="dchip' + (d === due ? ' sel' : '') + '" data-due="' + d + '">' + esc(l) + '</button>').join('') + '</div></div>' +
+    '<div class="row end" style="margin-top:14px"><button class="btn mint" id="decSave">Save decision</button></div>', card => {
+    const ta = card.querySelector('#decText');
+    mentionUI(card, ta, { box: '#decMention', onChange: r => { card.querySelector('#decDueBlock').hidden = !r.people.length; } });
+    card.querySelector('#decDue').addEventListener('click', e => { const b = e.target.closest('[data-due]'); if (!b) return; due = b.dataset.due; $$('#decDue .dchip', card).forEach(x => x.classList.toggle('sel', x === b)); });
+    const save = () => { const t = ta.value.trim(); if (!t) return; closeSheet(); addDecision(key, t, due); };
     card.querySelector('#decSave').onclick = save;
-    card.querySelector('#decText').addEventListener('keydown', e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) save(); });
+    ta.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) save(); });
   });
 }
 function dueChoices() { const t = todayYmd(); return [['Next week', nextOfficeDay(addDaysYmd(t, 7))], ['2 weeks', nextOfficeDay(addDaysYmd(t, 14))], ['Next meeting', nextMeetingDefault()], ['No date', '']]; }
@@ -1873,7 +2046,7 @@ function stageItemHTML(key) {
   const it = S.inbox[key.slice(2)]; if (!it) return '<div class="big">(removed)</div>';
   const c = catOf(it), p = authorOf(it);
   const lp = o && o.type === 'pushed' ? null : lastPush(it);
-  const meta = [p ? '<span class="who" style="color:#fff">' + avatar(p, 24) + esc(shortName(p)) + '</span>' : (it.name ? esc(it.name) : ''), it.star ? '<span class="tag amber">★ priority</span>' : '', it.parked ? '<span class="tag amber">parked ' + it.parked + '×</span>' : '', lp ? '<span class="tag amber">⏭ pushed ' + esc(fmtShort(lp.date)) + (lp.text ? ': ' + esc(clip(lp.text, 90)) : '') + '</span>' : '', it.createdAt ? '<span>raised ' + esc(fmtWhen(it.createdAt)) + '</span>' : ''].filter(Boolean).join('');
+  const meta = [p ? '<span class="who" style="color:#fff">' + avatar(p, 24) + esc(shortName(p)) + '</span>' : (it.name ? esc(it.name) : ''), it.star ? '<span class="tag amber">★ priority</span>' : '', it.parked ? '<span class="tag amber">parked ' + it.parked + '×</span>' : '', lp ? '<span class="tag amber">⏭ pushed ' + esc(fmtShort(lp.date)) + (lp.text ? ': ' + esc(clip(stripMentions(lp.text), 90)) : '') + '</span>' : '', it.createdAt ? '<span>raised ' + esc(fmtWhen(it.createdAt)) + '</span>' : ''].filter(Boolean).join('');
   return '<div class="sec">' + esc(CATS[c].section) + '</div><div class="big">' + esc(it.text) + '</div><div class="smeta">' + meta + '</div>' + outcomeHTML(key, o) +
     (o && o.type !== 'decided' && o.type !== 'action' ? '' : '<div class="obtns">' + (o ? '' : '') +
       '<button class="ob decided" data-act="out" data-type="decided" data-key="' + esc(key) + '">' + (o ? '+ Decision' : '✓ Decided') + '<small>D</small></button>' +
@@ -1886,7 +2059,7 @@ function outcomeHTML(key, o) {
   Object.keys(o.decisionIds || {}).forEach(id => { const d = S.decisions[id]; if (d) rows.push('<div class="outrow">✓ Decided: ' + esc(d.text) + '</div>'); });
   Object.keys(o.actionIds || {}).forEach(id => { const a = S.actions[id]; if (a) { const p = ownerOf(a); rows.push('<div class="outrow">→ ' + (p ? avatar(p, 22) + ' <b>' + esc(shortName(p)) + '</b>' : '') + ' ' + esc(a.text) + (a.due ? ' · due ' + esc(fmtShort(a.due)) : '') + '</div>'); } });
   if (o.type === 'parked') rows.push('<div class="outrow park">⏸ Parked — it stays on the list for next time</div>');
-  if (o.type === 'pushed') { const pi = key.startsWith('i:') ? S.inbox[key.slice(2)] : null, tr = pi && o.trailKey && pi.trail ? pi.trail[o.trailKey] : null; rows.push('<div class="outrow park">⏭ Pushed to later — ' + esc(backText(o.until, tr && tr.label)) + (tr && tr.text ? ' · ' + esc(tr.text) : '') + '</div>'); }
+  if (o.type === 'pushed') { const pi = key.startsWith('i:') ? S.inbox[key.slice(2)] : null, tr = pi && o.trailKey && pi.trail ? pi.trail[o.trailKey] : null; rows.push('<div class="outrow park">⏭ Pushed to later — ' + esc(backText(o.until, tr && tr.label)) + (tr && tr.text ? ' · ' + mentionHTML(tr.text) : '') + '</div>'); }
   if (o.type === 'covered' && !rows.length) rows.push('<div class="outrow">Covered — no decision needed</div>');
   if (o.type === 'dropped') rows.push('<div class="outrow drop">✕ Dropped</div>');
   return '<div class="outs">' + rows.join('') + '<div class="row"><button class="sbtn" data-act="out-undo" data-key="' + esc(key) + '">Undo this item</button></div></div>';
@@ -2008,7 +2181,7 @@ function buildMinutes(mid) {
   const covered = keys.filter(k => { const o = outs[okey(k)]; return o && o.type === 'covered'; }).map(items).filter(Boolean);
   const parked = keys.filter(k => { const o = outs[okey(k)]; return o && o.type === 'parked'; }).map(items).filter(Boolean);
   const dropped = keys.filter(k => { const o = outs[okey(k)]; return o && o.type === 'dropped'; }).map(items).filter(Boolean);
-  const pushedM = keys.filter(k => { const o = outs[okey(k)]; return o && o.type === 'pushed'; }).map(k => { const t = items(k), o = outs[okey(k)], pi = S.inbox[k.slice(2)], tr = pi && o.trailKey && pi.trail ? pi.trail[o.trailKey] : null; return t ? t + ' — ' + backText(o.until, tr && tr.label) + (tr && tr.text ? ' (' + tr.text + ')' : '') : ''; }).filter(Boolean);
+  const pushedM = keys.filter(k => { const o = outs[okey(k)]; return o && o.type === 'pushed'; }).map(k => { const t = items(k), o = outs[okey(k)], pi = S.inbox[k.slice(2)], tr = pi && o.trailKey && pi.trail ? pi.trail[o.trailKey] : null; return t ? t + ' — ' + backText(o.until, tr && tr.label) + (tr && tr.text ? ' (' + stripMentions(tr.text) + ')' : '') : ''; }).filter(Boolean);
   const missed = keys.filter(k => !outs[okey(k)] && S.inbox[k.slice(2)]).map(items).filter(Boolean);
   if (covered.length) { L.push('', '## Discussed'); covered.forEach(t => L.push('- ' + t)); }
   if (parked.length) { L.push('', '## Parked for next meeting'); parked.forEach(t => L.push('- ' + t)); }
@@ -2062,7 +2235,7 @@ function agendaMarkdown() {
   { const sp = normSpend(snap.spend); if (sp) nums.push(spendLine(sp)); }
   (snap.kpis || []).filter(k => k.value != null).forEach(k => nums.push('- ' + k.label + ': ' + fmtNum(k.value, k.unit) + ' / goal ' + (k.goal || '—') + (k.met === false ? ' — off goal' : k.met ? ' ✓' : '')));
   const open = openInbox();
-  const pushedNote = it => { const lp = lastPush(it); return lp ? ' — pushed ' + fmtShort(lp.date) + (lp.text ? ': ' + lp.text : '') : ''; };
+  const pushedNote = it => { const lp = lastPush(it); return lp ? ' — pushed ' + fmtShort(lp.date) + (lp.text ? ': ' + stripMentions(lp.text) : '') : ''; };
   const cat = c => open.filter(([, it]) => catOf(it) === c).sort(byStarThenOld).map(([, it]) => '- ' + (it.star ? '★ ' : '') + it.text + (it.name ? ' _(' + whoLabel(authorOf(it), it.name) + ')_' : '') + (it.parked ? ' — parked ' + it.parked + '×' : '') + pushedNote(it));
   const kpiItems = cat('kpi');
   if (nums.length || kpiItems.length) { L.push('', '## 2. Numbers'); nums.concat(kpiItems).forEach(x => L.push(x)); }
@@ -2098,7 +2271,7 @@ RENDER.follow = () => {
 };
 function actionRow(id, a) {
   const p = ownerOf(a), done = a.status === 'done' || a.status === 'dropped';
-  const from = a.meetingId && (meetingRec(a.meetingId).meta || {}).date;
+  const from = (a.meetingId && (meetingRec(a.meetingId).meta || {}).date) || a.date || '';
   const meta = [p ? '<span class="who">' + avatar(p, 18) + esc(shortName(p)) + '</span>' : (a.owner ? esc(a.owner) : '<span class="tag">No owner</span>'),
     a.due ? '<span class="tag' + (isOverdue(a) ? ' red' : '') + '">' + (isOverdue(a) ? 'overdue · ' : 'due ') + esc(fmtShort(a.due)) + '</span>' : '',
     (a.carried || 0) >= 1 ? '<span class="tag ' + ((a.carried || 0) >= 2 ? 'red' : 'amber') + '">carried ' + a.carried + '×</span>' : '',
@@ -2436,7 +2609,7 @@ window.addEventListener('beforeprint', () => { if (!$('#printArea').innerHTML) $
 window.addEventListener('afterprint', () => { $('#printArea').innerHTML = ''; });
 
 /* test hooks (harmless in production) */
-window.SMH = { S, calFrom, isPushed, openInbox, pushedInbox, closedInbox, laterChoices, lastMeetingDate, defaultOutcomeDate, outcomeInfo, backText, calPrevMeeting, quickResolve, saveOutcome, pushItem, reopenItem, calNextMeeting, calOccursOn, syncMeetingDateFromCalendar, nextMeetingDefault, guessCategory, buildMinutes, agendaMarkdown, decisionsText, computeCadence, computeSpending, spendSummary, computeOut, matchPerson, runQueue, setRoster, ME_KPI, kpiMonth, version: APP_VERSION };
+window.SMH = { S, parseMentions, stripMentions, mentionToken, todoText, calFrom, isPushed, openInbox, pushedInbox, closedInbox, laterChoices, lastMeetingDate, defaultOutcomeDate, outcomeInfo, backText, calPrevMeeting, quickResolve, saveOutcome, pushItem, reopenItem, calNextMeeting, calOccursOn, syncMeetingDateFromCalendar, nextMeetingDefault, guessCategory, buildMinutes, agendaMarkdown, decisionsText, computeCadence, computeSpending, spendSummary, computeOut, matchPerson, runQueue, setRoster, ME_KPI, kpiMonth, version: APP_VERSION };
 </script>
 <script src="nlo-home.js" defer></script>
 <script src="nlo-aisa.js" defer></script>
