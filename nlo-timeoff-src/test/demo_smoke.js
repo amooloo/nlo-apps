@@ -236,6 +236,7 @@ const ok = (c, m) => { if (c) { pass++; console.log('  ok  ' + m); } else { fail
   ok(rOct !== null, '(Riley has approved time off)');
   // front desk, feed
   await page.waitForSelector('#deskBox .sug'); ok(/frontdesk@example\.com/.test(await page.textContent('#deskBox')), 'Front-desk emails: on, and where they go');
+  ok(/from 2:00 PM to 3:30 PM \(1\.5 hours\)/.test(await page.textContent('#deskBox')) && /exactly when/.test(await page.textContent('#deskBox')), '…“What the email says” shows the times');
   await page.click('[data-act=toggleDesk]'); await page.waitForTimeout(400);
   ok((await E(() => S.settings.to.frontDesk)) === false, 'turned off');
   await page.click('[data-act=toggleDesk]'); await page.waitForTimeout(400);
@@ -377,20 +378,40 @@ const ok = (c, m) => { if (c) { pass++; console.log('  ok  ' + m); } else { fail
   ok(/Paid — bereavement for someone in the immediate family is paid/.test(await page.textContent('#fPaidBox')) && !(await page.$('#fPaidBox [data-act=fPaid]')) && /Paid · up to 3 days/.test(await page.textContent('[data-act=fType][data-k=bereave]')), 'bereavement: paid (immediate family), no paid/unpaid choice');
   await page.click('[data-act=fType][data-k=vac]'); await page.waitForTimeout(100);
   ok(!!(await page.$('#fPaidBox [data-act=fPaid]')), '…vacation has the paid/unpaid choice again');
-  // send one, change it, cancel it
+  // send one for specific times (Dr. A, 14 Oct 2026: exactly when, so the front desk knows where to block the chair), change it, cancel it
   const d1 = await E(() => nextOfficeDay(addDays(todayISO(), 9), S.closed));
   await page.click('[data-act=fType][data-k=medical]'); await page.fill('#fStart', d1); await page.fill('#fEnd', d1); await page.dispatchEvent('#fEnd', 'input');
-  await page.click('[data-act=fPart][data-k=h2]'); await page.fill('#fNote', 'Dentist'); await page.dispatchEvent('#fNote', 'input'); await page.waitForTimeout(150); await collect(); await shot('staff-form');
-  ok(/2 h/.test(await page.textContent('#fSum .sumBig')) && /From vacation/.test(await page.textContent('#fSum')), 'a 2-hour appointment: 2 h from vacation');
+  ok(await page.$$eval('[data-act=fPart]', b => b.map(x => x.dataset.k).join()) === 'full,am,pm,time', 'how much of the day: full day, morning, afternoon or specific times (no more 2/4/6 hours)');
+  await page.click('[data-act=fPart][data-k=time]'); await page.waitForSelector('#fFrom');
+  ok(/Pick the times — from and to/.test(await page.textContent('#fSum')) && await page.$eval('[data-act=fSend]', b => b.disabled), 'specific times: nothing to send until the times are picked');
+  const fromOpts = await page.$$eval('#fFrom option', o => o.map(x => x.textContent));
+  ok(fromOpts.length === 53 && fromOpts[1] === '6:00 AM' && fromOpts[fromOpts.length - 1] === '6:45 PM', 'From: every 15 minutes, 6:00 AM to 6:45 PM');
+  await page.selectOption('#fFrom', '14:00'); await page.waitForTimeout(120);
+  const toOpts = await page.$$eval('#fTo option', o => o.map(x => x.value + '=' + x.textContent));
+  ok(toOpts[1] === '14:15=2:15 PM · 0.25 h' && toOpts.includes('14:30=2:30 PM · 0.5 h') && toOpts.includes('15:30=3:30 PM · 1.5 h') && !toOpts.some(x => /^1[0-3]:|^14:00/.test(x)), 'To: only later times, each saying how long (30 min = 0.5 h, 1.5 h …)');
+  await page.selectOption('#fTo', '15:30'); await page.fill('#fNote', 'Dentist'); await page.dispatchEvent('#fNote', 'input'); await page.waitForTimeout(150); await collect(); await shot('staff-form');
+  const sumT = await page.textContent('#fSum');
+  ok(/1\.5 h/.test(await page.textContent('#fSum .sumBig')) && /2:00–3:30 PM/.test(sumT) && /From vacation/.test(sumT) && !(await page.$eval('[data-act=fSend]', b => b.disabled)), '2:00–3:30 PM: 1.5 h from vacation, ready to send');
+  await page.selectOption('#fFrom', '16:00'); await page.waitForTimeout(120);
+  ok((await page.$eval('#fTo', e => e.value)) === '' && /Pick the times/.test(await page.textContent('#fSum')), 'a From after the To empties the To');
+  await page.focus('#fFrom'); await page.keyboard.type('12:3'); await page.waitForTimeout(150);
+  ok((await page.$eval('#fFrom', e => e.value)) === '12:30' && await E(() => document.activeElement && document.activeElement.id === 'fFrom'), 'typing “12:3” into From picks 12:30 PM (and it keeps the focus)');
+  await page.selectOption('#fFrom', '14:00'); await page.waitForTimeout(80); await page.selectOption('#fTo', '15:30'); await page.waitForTimeout(120);
   await page.click('[data-act=fSend]'); ok(await toastHas(/^Sent/), 'Sent');
   await settle();
   const mine = await E(d => allReqs().find(r => r.start === d && r.type === 'medical'), d1);
-  ok(mine && mine.status === 'pending' && mine.note === 'Dentist' && mine.part === 'h2', '…waiting for approval, with her note');
+  ok(mine && mine.status === 'pending' && mine.note === 'Dentist' && mine.part === 'time' && mine.from === '14:00' && mine.to === '15:30', '…waiting for approval: 2:00–3:30 PM, with her note');
+  ok(/2:00–3:30 PM/.test(await page.textContent('.reqRow[data-id="' + mine.id + '"]')), 'My time off shows the times');
   await page.click('.reqRow[data-id="' + mine.id + '"]'); await page.waitForSelector('#drawer [data-act=editReq]'); await collect();
+  const drT = await page.textContent('#drawer');
+  ok(/Each day\s*2:00–3:30 PM/.test(drT) && /Office days\s*1 · 1\.5 h/.test(drT), 'the request: 2:00–3:30 PM, 1 office day, 1.5 h');
   await page.click('#drawer [data-act=editReq]'); await page.waitForSelector('#fSum');
-  await page.click('[data-act=fPart][data-k=am]'); await page.click('[data-act=fSend]'); ok(await toastHas(/Changed — it still waits/), 'changed: a morning instead');
+  ok((await page.$eval('#fFrom', e => e.value)) === '14:00' && (await page.$eval('#fTo', e => e.value)) === '15:30', 'changing it: its times are filled in');
+  await page.click('[data-act=fPart][data-k=am]'); await page.waitForTimeout(80);
+  ok(!(await page.$('#fFrom')), '…a morning has no times to pick');
+  await page.click('[data-act=fSend]'); ok(await toastHas(/Changed — it still waits/), 'changed: a morning instead');
   await settle();
-  ok((await E(id => S.reqs.get(id).part, mine.id)) === 'am', '…saved');
+  ok((await E(id => { const r = S.reqs.get(id); return r.part + '/' + ('from' in r) + '/' + ('to' in r); }, mine.id)) === 'am/false/false', '…saved as a morning, and the times are gone from it');
   await page.click('.reqRow[data-id="' + mine.id + '"]'); await page.waitForSelector('#drawer [data-act=cancelReq]');
   await page.click('#drawer [data-act=cancelReq]'); await page.click('#cbYes'); ok(await toastHas(/Cancelled/), 'and cancelled');
   await settle();
@@ -408,6 +429,13 @@ const ok = (c, m) => { if (c) { pass++; console.log('  ok  ' + m); } else { fail
   await nav('out'); await page.waitForTimeout(150);
   const chips = await page.$$eval('.outChip', c => c.map(x => x.textContent).join(' '));
   ok(chips.length > 0 && !/Vacation|Sick|Medical|Personal|Bereave/.test(chips), 'Who’s out: names and morning/afternoon, never why');
+  // half an hour, 8:00–8:30 AM (Dr. A approves it below)
+  await nav('new'); await page.click('[data-act=fType][data-k=medical]'); await page.fill('#fStart', d1); await page.fill('#fEnd', d1); await page.dispatchEvent('#fEnd', 'input');
+  await page.click('[data-act=fPart][data-k=time]'); await page.selectOption('#fFrom', '08:00'); await page.waitForTimeout(80); await page.selectOption('#fTo', '08:30'); await page.waitForTimeout(150);
+  ok(/0\.5 h/.test(await page.textContent('#fSum .sumBig')) && /8:00–8:30 AM/.test(await page.textContent('#fSum')), 'half an hour, 8:00–8:30 AM: 0.5 h');
+  await page.click('[data-act=fSend]'); ok(await toastHas(/^Sent/), 'Sent'); await settle();
+  const halfHour = await E(d => { const r = allReqs().find(x => x.start === d && x.type === 'medical' && x.status === 'pending' && x.part === 'time'); return r ? r.id : null; }, d1);
+  ok(!!halfHour, '…waiting for approval');
   await nav('ben'); await collect(); await shot('staff-benefits');
   ok(/Celebrate Primary Care/.test(await page.textContent('#view')) && /401\(k\)/.test(await page.textContent('#view')), 'My benefits: time off, Celebrate Primary Care, 401(k)');
   const hds = await page.$$eval('#view .cardHd', hs => hs.map(h => h.textContent)), hd = re => hds.find(x => re.test(x)) || '';
@@ -430,9 +458,38 @@ const ok = (c, m) => { if (c) { pass++; console.log('  ok  ' + m); } else { fail
   await nav('account'); await collect();
   ok(/Change password/.test(await page.textContent('#view')), 'My account: change password (the NLO Cases one)');
 
+  /* =================== Dr. A again: specific times approved =================== */
+  console.log('# Dr. A again: specific times approved, and an old “2 hours” request');
+  await lock(); await signIn('', page, true);
+  const ob1 = await E(() => DEMO.outbox.length);
+  await nav('appr'); await page.waitForSelector('.apCard [data-act=approve][data-id="' + halfHour + '"]');
+  ok(/8:00–8:30 AM/.test(await card(halfHour)) && /0\.5 h/.test(await card(halfHour)), 'Approvals: Riley’s 8:00–8:30 AM, 0.5 h');
+  await page.click('[data-act=approve][data-id="' + halfHour + '"]'); ok(await toastHas(/Approved — Riley sees it now/), 'Approved'); await settle();
+  const em = await E(() => DEMO.outbox[DEMO.outbox.length - 1]), dayY = await E(d => fmtDayY(d), d1), rng = await E(d => fmtRange(d, d), d1);
+  ok((await E(() => DEMO.outbox.length)) === ob1 + 1 && em.subject === 'Schedule block needed: Riley, ' + rng + ', 8:00–8:30 AM' && em.text.startsWith('Please block the schedule for Riley on ' + dayY + ' from 8:00 AM to 8:30 AM (0.5 hours). Their time off was approved.'),
+    'the front desk is told exactly when — “' + em.subject + '” / “' + em.text.split('\n')[0] + '”');
+  ok(!/Dentist|Medical|medical/.test(em.subject + em.text), '…never the kind of time off or the note');
+  const bo = await E(id => S.board.find(o => o.id === id), halfHour);
+  ok(bo && bo.part === 'time' && bo.from === '08:00' && bo.to === '08:30' && !('type' in bo) && !('note' in bo), 'Who’s out has the times (never the kind or the note)');
+  const fr = await E(id => buildFeed(0).timeOff.find(x => x.id === id), halfHour);
+  ok(fr && fr.hours === '0.5 Hours' && fr.from === '08:00' && fr.to === '08:30' && fr.part === 'time', 'the feed for the calendar and CADANCe: “0.5 Hours”, 8:00 to 8:30');
+  ok(await E(d => [feedHours({ part: 'time', start: d }), feedHours({ part: 'time', start: d, from: '07:00', to: '17:00' }), feedHours({ part: 'time', start: d, from: '08:00', to: '09:00' })].join('|'), d1) === 'Part of the day|Full Day|1 Hour',
+    '…an entry without its times: “Part of the day” (CADANCe leaves their checklists); a day or more: “Full Day”; one hour: “1 Hour”');
+  await nav('out');
+  for (let i = 0; i < 3 && !(await E(id => !!document.querySelector('.outChip[data-id="' + id + '"]'), halfHour)); i++) { await page.click('[data-act=mon][data-n="1"]'); await page.waitForTimeout(120); }
+  const hc = await E(id => { const c = document.querySelector('.calDay .outChip[data-id="' + id + '"]'); return c ? c.textContent + '|' + c.title : ''; }, halfHour);
+  ok(/Riley.*8–8:30 AM/.test(hc) && /8:00–8:30 AM/.test(hc), 'Who’s out (month): “Riley 8–8:30 AM”, the full times on hover — ' + hc);
+  await shot('owner-out-times');
+  await page.click('[data-act=mon][data-n="0"]').catch(() => { });
+  // an old "2 hours" request (from before specific times): Approvals says it has no times, and so does the email
+  const oldId = await E(async d => { const id = B.newReqId(); await B.saveReq(id, c => { Object.assign(c, { type: 'medical', paid: true, start: d, end: d, part: 'h2', cover: '', note: '', at: Date.now(), events: [{ a: 'submit', by: 'taylor', at: Date.now() }] }); return { status: 'pending' }; }, { create: { sid: 'taylor' }, a: 'submit' }); return id; }, d1);
+  await nav('appr'); await page.waitForSelector('.apCard [data-act=approve][data-id="' + oldId + '"]');
+  ok(/No times given \(2 hours\), so the front desk won’t know when/.test(await card(oldId)), 'an old “2 hours” request: Approvals says it has no times');
+  await page.click('[data-act=approve][data-id="' + oldId + '"]'); await toastHas(/Approved/); await settle();
+  ok(/\(2 hours — no times given\)/.test((await E(() => DEMO.outbox[DEMO.outbox.length - 1])).text), '…and its email says so');
+
   /* =================== Dr. A again: an order that can't be emailed =================== */
   console.log('# Dr. A again: an order that can’t be emailed');
-  await lock(); await signIn('', page, true);
   const rP = await E(() => { const x = allPerks().find(p => p.sid === 'riley' && p.status === 'pending'); return x ? x.id : null; });
   await E(() => { DEMO.toMail = ''; });
   await nav('appr'); await page.waitForSelector('[data-act=approvePerk][data-id="' + rP + '"]');
@@ -501,7 +558,11 @@ const ok = (c, m) => { if (c) { pass++; console.log('  ok  ' + m); } else { fail
     }
     ok(!wide.length, 'phone, ' + (as || 'Dr. A') + ': ' + views.length + ' screens, none wider than the screen' + (wide.length ? ' — ' + wide.join(', ') : ''));
   }
-  await mp.evaluate(() => { S.view = 'mine'; renderView(); }); await mp.waitForTimeout(150);
+  await mp.evaluate(() => { S.form = newForm({ type: 'medical', start: nextOfficeDay(addDays(todayISO(), 9), S.closed), end: nextOfficeDay(addDays(todayISO(), 9), S.closed), part: 'time', from: '14:00', to: '15:30' }); S.view = 'new'; renderNav(); renderView(); window.scrollTo(0, 0); }); await mp.waitForTimeout(200);
+  const tg = await mp.evaluate(() => { const a = document.querySelector('#fFrom').getBoundingClientRect(), b = document.querySelector('#fTo').getBoundingClientRect(); return { below: b.top > a.bottom, over: document.documentElement.scrollWidth - window.innerWidth, w: Math.round(Math.min(a.width, b.width)) }; });
+  ok(tg.below && tg.over <= 0 && tg.w >= 280, 'phone: From, then To under it, each the width of the form (“3:30 PM · 1.5 h” isn’t cut off), nothing wider than the screen (' + JSON.stringify(tg) + ')');
+  await mp.evaluate(() => document.querySelector('#fFrom').scrollIntoView({ block: 'center' })); await mp.screenshot({ path: path.join(SHOTS, 'phone-staff-times.png') });
+  await mp.evaluate(() => { S.form = null; S.view = 'mine'; renderView(); }); await mp.waitForTimeout(150);
   await mp.click('.reqRow'); await mp.waitForSelector('#drawer');
   ok(await mp.evaluate(() => document.querySelector('#drawer').getBoundingClientRect().width <= window.innerWidth), 'phone: a request opens full width');
   await mp.screenshot({ path: path.join(SHOTS, 'phone-staff-request.png') });

@@ -68,7 +68,7 @@ const DEMO = {
   emit() {
     const h = DEMO.h; if (!h || !DEMO.me) return;
     const all = Array.from(DEMO.reqs.values()), me = DEMO.me.staffId, hr = DEMO.hrOn();
-    h.board(all.filter(r => r.status === 'approved').map(r => ({ id: r.id, sid: r.sid, start: r.start, end: r.end, part: r.part || 'full' })));
+    h.board(all.filter(r => r.status === 'approved').map(r => Object.assign(outEntry(r), { id: r.id })));
     h.reqs((hr ? all : all.filter(r => r.sid === me)).map(DEMO.copy), []);
     if (h.perks) h.perks(Array.from(DEMO.perks.values()).filter(x => hr || x.sid === me).map(DEMO.copy));
     const rec = DEMO.recs.get(me); h.mine(rec ? DEMO.mineOf(rec) : null);
@@ -86,6 +86,8 @@ const DEMO = {
     const prev = cur ? cur.status : null, r = fn(content) || {}, status = r.status || prev || 'pending';
     if (content.sid !== (cur ? cur.sid : opts.create.sid)) throw errCode('bad', 'A request can’t change hands.');
     if (!isISO(content.start) || !isISO(content.end)) throw errCode('bad', 'A request needs its dates.');
+    if (content.part !== 'time') { delete content.from; delete content.to; } // as the real backend does
+    else if (!okWindow(content.from, content.to)) throw errCode('bad', 'Pick the times — from and to.');
     const mine = content.sid === me, startMs = dayStartMs(content.start);
     const okCreate = (status === 'pending' && mine) || (hr && (owner || !mine || status === 'pending'));
     const okUpdate = !!cur && ((hr && (owner || cur.sid !== me)) ||

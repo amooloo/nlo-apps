@@ -119,7 +119,7 @@ const TIMEOFF_API = "https://script.google.com/macros/s/AKfycbxvI_d6muf_OepqurNr
 const TO_FEED_URL = "https://firestore.googleapis.com/v1/projects/nlo-cases/databases/(default)/documents/toFeed/live";
 const TO_FEED_CFG = "nlo/cadence/timeOffFeed";
 const SYNC_INTERVAL_MIN = 15;
-const CAL_VERSION = "1.7 (Oct 10, 2026)";
+const CAL_VERSION = "1.8 (Oct 14, 2026)";
 
 /* Staff roster seeded from Gusto (active employees, July 2026). Editable in Settings.
    Names only: birthdays and hire dates are kept in Firebase (Settings > Staff), never in this public file. */
@@ -600,7 +600,8 @@ function typeColors(t){
   return {bg:"#E5EAF8",fg:"#16318C",edge:"#1D3EA9",glyph:"■",label:"Event"};
 }
 /* ================= WHO'S OUT =================
-   Time off shows only that someone is out: their name, the dates, and "Morning" / "Afternoon" for a half day.
+   Time off shows only that someone is out: their name, the dates, and "Morning" / "Afternoon" for a half day (or the
+   times, "2–3:30 PM", for part of a day asked for as specific times in NLO Time Off).
    Never the kind of time off (vacation, sick, personal…), paid or unpaid, or a label typed for it, whether it
    comes from NLO Time Off, the old Time-Off app or an entry made here. Entries keep the internal type "pto",
    so saved entries and the Staff Meeting Hub (which skips that type) carry on unchanged. */
@@ -610,12 +611,22 @@ function outPartOf(r){
   if(p==="am") return "Morning";
   if(p==="pm") return "Afternoon";
   if(p==="full") return "";
+  /* NLO Time Off: specific times (Oct 14, 2026) → "2–3:30 PM"; its earlier 2-, 4- and 6-hour requests → "2 hrs" */
+  if(p==="time") return outTimes(r.from,r.to)||"Part of the day";
+  if(/^h[246]$/.test(p)) return p.slice(1)+" hrs";
   if(/morning|\(am\)/i.test(h)) return "Morning";
   if(/afternoon|\(pm\)/i.test(h)) return "Afternoon";
   /* the old Time-Off app can send hours: a part of one day shows as hours, a full day (8.5) as nothing */
   const n=Number(h), one=String((r&&r.start)||"").slice(0,10)===String((r&&(r.end||r.start))||"").slice(0,10);
   if(/^\d+(\.\d+)?$/.test(h)&&n>0&&n<8.5&&one) return n+" hrs";
   return "";
+}
+/* "14:00", "15:30" → "2–3:30 PM"; "11:30", "13:00" → "11:30 AM–1 PM" ("" unless both are times of day, the first earlier) */
+function outTimes(a,b){
+  const ok=s=>typeof s==="string"&&/^([01]\d|2[0-3]):[0-5]\d$/.test(s), min=s=>Number(s.slice(0,2))*60+Number(s.slice(3,5));
+  if(!ok(a)||!ok(b)||min(b)<=min(a)) return "";
+  const c=s=>{ const m=min(s),h=Math.floor(m/60),mm=m%60; return (h%12||12)+(mm?":"+String(mm).padStart(2,"0"):"")+" "+(h<12?"AM":"PM"); };
+  const x=c(a), y=c(b); return (x.slice(-2)===y.slice(-2)?x.slice(0,-3):x)+"–"+y;
 }
 function entryLabel(e){ return e.type==="pto"?(e.staffName||OUT_NOBODY):e.title; }
 const HR_LABEL={review:"Review",cert:"Cert",start:"First day",last:"Last day"};

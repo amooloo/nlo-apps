@@ -25,6 +25,9 @@ async function verifyEmail(email) {
 }
 async function newPage(browser, label, errs, vp, tz) {
   const ctx = await browser.newContext({ viewport: vp || { width: 1360, height: 900 }, timezoneId: tz || 'America/New_York' });
+  // NLO Cases' Team & security folds every card until it's tapped (since 10 Oct 2026): this test adds people there, so
+  // "Expand all" is remembered, as NLO Cases' own tests do (adminOpen in nlo-cases-src/test/helpers.js)
+  await ctx.addInitScript(() => { try { localStorage.setItem('nloCases.adminOpen', 'all'); } catch (e) { } });
   await routes(ctx); const p = await ctx.newPage(); watch(p, errs, label);
   return p;
 }
@@ -71,7 +74,13 @@ const nextOffice = (p, from) => p.evaluate(f => nextOfficeDay(addDays(todayISO()
   await ownerC.goto(CASES + '#setup'); await ownerC.waitForSelector('#setupForm');
   await ownerC.fill('#suEmail', OWNER_EMAIL); await ownerC.fill('#suPw1', OWNER_PW); await ownerC.fill('#suPw2', OWNER_PW);
   await ownerC.click('#setupForm button[type=submit]'); await ownerC.waitForSelector('#verifyForm', { timeout: 30000 });
-  await verifyEmail(OWNER_EMAIL); await ownerC.click('#verifyForm button[type=submit]');
+  await verifyEmail(OWNER_EMAIL);
+  // the emulator can take a moment to report the address as verified ("Not verified yet"): press Continue again
+  for (let i = 0; i < 5 && !(await ownerC.$('#recShow')); i++) {
+    await ownerC.click('#verifyForm button[type=submit]').catch(() => { });
+    await ownerC.waitForSelector('#recShow', { timeout: 8000 }).catch(() => { });
+  }
+  if (!(await ownerC.$('#recShow'))) console.log('  (setup screen says: ' + (await ownerC.textContent('#lockCard').catch(() => '?')).replace(/\s+/g, ' ').slice(0, 300) + ')');
   await ownerC.waitForSelector('#recShow', { timeout: 30000 });
   await ownerC.check('#codeAck'); await ownerC.click('#codeDone'); await waitApp(ownerC);
   const sarahTemp = await addPerson(ownerC, 'Sarah Tester', 'sarah');
@@ -114,8 +123,11 @@ const nextOffice = (p, from) => p.evaluate(f => nextOfficeDay(addDays(todayISO()
   console.log('\n# Dr. A: Sarah approves');
   await owner.waitForSelector('#apprBox .accessRow');
   const sarahUid = await sarah.evaluate(() => FB.uid);
-  for (let i = 0; i < 60; i++) { await owner.evaluate(() => loadHRPeople()); await sleep(300); if (await owner.evaluate(u => !!(S.hrP && S.hrP.members && S.hrP.members.some(m => m.uid === u && m.pub)), sarahUid)) break; }
+  // her key in, and her first password chosen (mustSetup cleared): the switch can be turned on
+  for (let i = 0; i < 120; i++) { await owner.evaluate(() => loadHRPeople()); await sleep(300); if (await owner.evaluate(u => !!(S.hrP && S.hrP.members && S.hrP.members.some(m => m.uid === u && m.pub && !m.mustSetup)), sarahUid)) break; }
   check(/Morgan Tester[\s\S]*sign in once/.test(await owner.textContent('#apprBox')), 'Morgan can’t approve until she has signed in once');
+  for (let i = 0; i < 120 && !(await owner.$('#apprBox .sw[data-uid="' + sarahUid + '"]:not([disabled])')); i++) { await sleep(500); if (i % 10 === 9) await owner.evaluate(() => loadHRPeople()); } // (redrawn once her key is in)
+  if (!(await owner.$('#apprBox .sw[data-uid="' + sarahUid + '"]:not([disabled])'))) console.log('  (approving switch still off: ' + JSON.stringify(await owner.evaluate(u => ({ busy: [!!S.accessBusy, !!S.rotating, !!B.rotating], m: S.hrP && S.hrP.members && S.hrP.members.filter(m => m.uid === u).map(m => ({ pub: !!m.pub, mustSetup: m.mustSetup, active: m.active })), err: S.hrP && S.hrP.err }), sarahUid)) + ')');
   await owner.click('#apprBox .sw[data-uid="' + sarahUid + '"]'); await owner.click('#cbYes');
   await owner.waitForFunction(u => S.hrP && S.hrP.grants && S.hrP.grants.some(g => g.uid === u) && !S.accessBusy, sarahUid, { timeout: 30000 });
   check(!!(await fsDoc('toAccess/' + sarahUid)), 'her copy of the HR key is saved (sealed to her login)');
@@ -259,13 +271,49 @@ const nextOffice = (p, from) => p.evaluate(f => nextOfficeDay(addDays(todayISO()
   await riley.waitForFunction(id => S.perks.get(id) && S.perks.get(id).status === 'approved', pid, { timeout: 30000 });
   check(true, 'Riley sees it approved');
 
+  console.log('\n# Specific times (14 Oct 2026): Riley asks for 2:00–3:30 PM, Sarah approves, the front desk is told exactly when');
+  const d3 = await nextOffice(riley, 14);
+  await riley.click('#side [data-act=nav][data-v=new]'); await riley.waitForSelector('[data-act=fType][data-k=medical]');
+  await riley.click('[data-act=fType][data-k=medical]'); await riley.fill('#fStart', d3); await riley.fill('#fEnd', d3); await riley.dispatchEvent('#fEnd', 'input');
+  await riley.click('[data-act=fPart][data-k=time]'); await riley.selectOption('#fFrom', '14:00'); await sleep(100); await riley.selectOption('#fTo', '15:30');
+  await riley.fill('#fNote', 'Orthopedist follow-up'); await riley.dispatchEvent('#fNote', 'input'); await sleep(150);
+  check(/1\.5 h/.test(await riley.textContent('#fSum .sumBig')) && /2:00–3:30 PM/.test(await riley.textContent('#fSum')), 'the form: 2:00–3:30 PM, 1.5 h');
+  await riley.click('[data-act=fSend]'); check(await toast(riley, /^Sent/), 'Sent'); await saved(riley);
+  const tid = await riley.evaluate(d => { const r = allReqs().find(x => x.start === d && x.part === 'time' && x.status === 'pending'); return r ? r.id : null; }, d3);
+  const tdoc = tid && await fsDoc('toReq/' + tid);
+  check(!!tdoc && Object.keys(tdoc.fields).sort().join() === 'bsid,by,createdAt,hr,me,pub,rev,sid,startMs,status,updatedAt,v' && !/14:00|15:30|Orthopedist|medical/.test(JSON.stringify(tdoc)), 'saved like any request: the times are sealed with the rest, nothing new in plain form');
+  await sarah.waitForFunction(id => S.reqs.has(id) && !S.reqs.get(id).locked, tid, { timeout: 30000 });
+  await sarah.click('#side [data-act=nav][data-v=appr]'); await sarah.waitForSelector('.apCard [data-act=approve][data-id="' + tid + '"]');
+  check(/2:00–3:30 PM/.test(await sarah.textContent('.apCard:has([data-id="' + tid + '"])')), 'Sarah sees 2:00–3:30 PM (opened with the HR key)');
+  const outT = (await fsDocs('outbox')).length;
+  await sarah.click('[data-act=approve][data-id="' + tid + '"]');
+  // (the scrubs approval's toast, also “Approved — Riley sees it now…”, can still be on screen: wait for this one to land)
+  await sarah.waitForFunction(id => S.reqs.get(id) && S.reqs.get(id).status === 'approved', tid, { timeout: 30000 }); await saved(sarah);
+  check(true, 'Approved');
+  let obT = await fsDocs('outbox'); for (let i = 0; i < 40 && obT.length < outT + 1; i++) { await sleep(250); obT = await fsDocs('outbox'); }
+  check(obT.length === outT + 1, 'a note for the front desk is waiting for the email robot');
+  const notes = await owner.evaluate(async ([docs, priv]) => {
+    const key = await Crypto.importPriv(unb64(priv)), out = [];
+    for (const doc of docs) { const f = doc.fields, id = doc.name.split('/').pop(), e = f.epk.mapValue.fields; try { out.push(JSON.parse(TD.decode(await Crypto.openFrom(key, { epk: { kty: e.kty.stringValue, crv: e.crv.stringValue, x: e.x.stringValue, y: e.y.stringValue }, iv: f.iv.stringValue, ct: f.ct.stringValue }, 'outbox:' + id)))); } catch (x) { } }
+    return out;
+  }, [obT, desk.priv]);
+  const wantT = await owner.evaluate(d => ({ subject: 'Schedule block needed: Riley, ' + fmtRange(d, d) + ', 2:00–3:30 PM', text: 'Please block the schedule for Riley on ' + fmtDayY(d) + ' from 2:00 PM to 3:30 PM (1.5 hours). Their time off was approved.\n\n— NLO Time Off' }), d3);
+  check(notes.some(m => m.subject === wantT.subject && m.text === wantT.text), 'the robot can open it: “' + wantT.subject + '” — “' + wantT.text.split('\n')[0] + '”');
+  check(!notes.some(m => /Orthopedist|medical/i.test(m.subject + m.text)), '…never the kind of time off or the note');
+  const outDoc = await fsDoc('toOut/' + tid);
+  check(!!outDoc && !/14:00|15:30|Riley/.test(JSON.stringify(outDoc)), 'on Who’s out, sealed with the office key (no times or names in plain form)');
+  await riley.waitForFunction(id => { const o = S.board.find(x => x.id === id); return !!o && o.part === 'time' && o.from === '14:00' && o.to === '15:30'; }, tid, { timeout: 30000 });
+  check(true, 'everyone’s Who’s out opens it: 2:00–3:30 PM');
+
   console.log('\n# The feed for CADANCe and the office calendar');
   await owner.evaluate(() => syncFeed(true)); await saved(owner);
   const feedKey = await owner.evaluate(() => B.feedKeyB64());
   const raw = await (await fetch(FS + 'toFeed/live')).json();   // no sign-in: it can be fetched, but it's sealed
   const feed = await owner.evaluate(async ([doc, k]) => { const key = await Crypto.rawKey(k); return Crypto.openJSON(key, { iv: doc.fields.iv.stringValue, ct: doc.fields.ct.stringValue }, 'tofeed'); }, [raw, feedKey]);
   check(raw.fields && raw.fields.ct && !/Riley|Sarah/.test(JSON.stringify(raw)), 'the feed can be fetched without signing in, but it’s sealed');
-  check(feed.timeOff.length === 2 && feed.timeOff.some(o => o.employeeName === 'Riley Tester' && o.start === yd) && feed.timeOff.some(o => o.employeeName === 'Sarah Tester'), 'opened with its key: Riley’s sick day and Sarah’s day off, by name');
+  check(feed.timeOff.length === 3 && feed.timeOff.some(o => o.employeeName === 'Riley Tester' && o.start === yd) && feed.timeOff.some(o => o.employeeName === 'Sarah Tester'), 'opened with its key: Riley’s sick day, her 2:00–3:30 PM and Sarah’s day off, by name');
+  const ft = feed.timeOff.find(o => o.id === tid);
+  check(!!ft && ft.part === 'time' && ft.from === '14:00' && ft.to === '15:30' && ft.hours === '1.5 Hours', '…the times as from/to, and “1.5 Hours” (so CADANCe doesn’t read it as a morning or afternoon)');
   check(!/sick|personal|Beach|"type"|"note"/i.test(JSON.stringify(feed.timeOff)), '…never the kind of time off or notes');
   const fr = await (await fetch(FS + 'toFeed?pageSize=10')).json().catch(() => ({}));
   check(!fr.documents, 'listing the feed collection without signing in: refused');
@@ -407,7 +455,8 @@ const nextOffice = (p, from) => p.evaluate(f => nextOfficeDay(addDays(todayISO()
   console.log('\n# Morgan signs in for the first time; Dr. A’s next visit seals her copies to her');
   const morgan = await newPage(browser, 'morgan', errs);
   await signIn(morgan, TO, 'morgan', morganTemp); await firstPw(morgan, 'Morgan-Pass-2026'); await waitApp(morgan); await waitSt(morgan, 'staff');
-  check(!!(await fsDoc('toPeople/morgan')), 'her public key is published');
+  let morganPub = null; for (let i = 0; i < 40 && !(morganPub = await fsDoc('toPeople/morgan')); i++) await sleep(250); // (written just after she's in)
+  check(!!morganPub, 'her public key is published');
   await owner.reload(); await owner.waitForSelector('#lgUser'); await owner.fill('#lgUser', OWNER_EMAIL); await owner.fill('#lgPw', OWNER_PW); await owner.click('#lgBtn'); await waitApp(owner); await waitSt(owner, 'hr');
   await morgan.waitForFunction(() => S.mine && S.mine.type === 'PT' && allReqs().length === 1 && !allReqs()[0].locked, null, { timeout: 45000 });
   check(true, 'Morgan sees her balance (part-time) and her old request');

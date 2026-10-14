@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-w/ogmxSSs4JnwV0z3zPEMJShIh5tI+5vASPGuYS22D8=' https://www.gstatic.com/firebasejs/10.12.2/ https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://nlo-inventory-default-rtdb.firebaseio.com https://aisa-worker.akhavan-ak.workers.dev http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000; frame-src https://nlo-cases.firebaseapp.com https://nlo-inventory.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-qlIt3MTMqClM8LTywv81iJ5NpAC+eyE/pmZ2gzDivHM=' https://www.gstatic.com/firebasejs/10.12.2/ https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.google.com/images/cleardot.gif; connect-src 'self' https://*.googleapis.com https://nlo-inventory-default-rtdb.firebaseio.com https://aisa-worker.akhavan-ak.workers.dev http://127.0.0.1:8080 http://127.0.0.1:9099 http://127.0.0.1:9000; frame-src https://nlo-cases.firebaseapp.com https://nlo-inventory.firebaseapp.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#1B2F4C">
 <title>NLO Time Off</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -522,6 +522,10 @@ ol.steps b{color:var(--navy)}
 .seg.wrap{display:flex;flex-wrap:wrap;border:none;border-radius:0;overflow:visible;background:none;gap:6px}
 .seg.wrap button{border:1.5px solid var(--grey-200);border-radius:99px;background:#fff}
 .seg.wrap button[aria-pressed="true"]{border-color:var(--navy);background:var(--navy);color:#fff}
+/* specific times: From and To side by side (one under the other on a phone, so "3:30 PM · 1.5 h" isn't cut off) */
+.timeGrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 12px;max-width:460px;margin-top:12px}
+.timeGrid .field{margin-bottom:4px}
+@media (max-width:520px){ .timeGrid{grid-template-columns:minmax(0,1fr);max-width:none} }
 .sumCard .cardBd{padding-top:0}
 .sumBig{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:8px}
 .sumBig b{font-family:var(--fd);font-weight:600;font-size:30px;color:var(--navy);line-height:1.1}
@@ -762,6 +766,24 @@ function fmtRange(a, b) {
   if (y1 === y2 && m1 === m2) return parseISO(a).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' – ' + Number(b.slice(8)) + (y1 !== cy ? ', ' + y1 : '');
   return fmtDate(a) + ' – ' + fmtDate(b);
 }
+/* times of day as "HH:MM" (24-hour), for time off asked for as specific times: "14:00" → "2:00 PM" */
+function isHM(s) { return typeof s === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(s); }
+function hmMin(s) { return Number(s.slice(0, 2)) * 60 + Number(s.slice(3, 5)); }
+function hmOf(min) { return String(Math.floor(min / 60)).padStart(2, '0') + ':' + String(min % 60).padStart(2, '0'); }
+/* a part of one day: from a time to a later one */
+function okWindow(from, to) { return isHM(from) && isHM(to) && hmMin(to) > hmMin(from); }
+/* "2:00 PM" — compact: "2 PM" on the hour */
+function fmtClock(hm, compact) {
+  if (!isHM(hm)) return '';
+  const m = hmMin(hm), h = Math.floor(m / 60), mm = m % 60;
+  return (h % 12 || 12) + (compact && !mm ? '' : ':' + String(mm).padStart(2, '0')) + ' ' + (h < 12 ? 'AM' : 'PM');
+}
+/* "2:00–3:30 PM", "11:30 AM–1:00 PM" — compact: "2–3:30 PM", "11:30 AM–1 PM" */
+function fmtWindow(from, to, compact) {
+  if (!okWindow(from, to)) return '';
+  const a = fmtClock(from, compact), b = fmtClock(to, compact);
+  return (a.slice(-2) === b.slice(-2) ? a.slice(0, -3) : a) + '–' + b;
+}
 function round2(n) { return Math.round((Number(n) || 0) * 100) / 100; }
 /* hours on screen: 34, 4.25, 2.83 (at most two decimals, none when whole) */
 function hrs(n) { const r = round2(n); return (Object.is(r, -0) ? 0 : r).toLocaleString('en-US', { maximumFractionDigits: 2 }); }
@@ -774,6 +796,7 @@ function errCode(code, msg) { const e = new Error(msg || code); e.code = code; r
 function okContent(c) {
   return !!c && typeof c === 'object' && isISO(c.start) && isISO(c.end) && c.end >= c.start && daysBetween(c.start, c.end) <= 366
     && typeof c.type === 'string' && c.type.length <= 20 && (c.part == null || typeof c.part === 'string')
+    && (c.part !== 'time' || okWindow(c.from, c.to)) && ['from', 'to'].every(k => c[k] == null || isHM(c[k]))
     && ['note', 'cover'].every(k => c[k] == null || (typeof c[k] === 'string' && c[k].length <= 5000))
     && (c.events == null || Array.isArray(c.events));
 }
@@ -895,14 +918,34 @@ const TYPES = [
 const TYPE = Object.fromEntries(TYPES.map(t => [t.k, t]));
 function typeLabel(k) { return (TYPE[k] && TYPE[k].l) || 'Time off'; }
 
-/* how much of each day */
+/* how much of each day. Anything less than a morning or an afternoon is asked for as specific times, from one time to
+   another (Dr. A, 14 Oct 2026: the front desk has to know exactly when to block the chair); the hours are the time between.
+   The 2-, 4- and 6-hour choices that came before had no times; requests made with them still read and count as they were. */
 const PARTS = [
   { k: 'full', l: 'Full day', s: 'Full' }, { k: 'am', l: 'Morning (AM)', s: 'AM' }, { k: 'pm', l: 'Afternoon (PM)', s: 'PM' },
-  { k: 'h2', l: '2 hours', s: '2 h', h: 2 }, { k: 'h4', l: '4 hours', s: '4 h', h: 4 }, { k: 'h6', l: '6 hours', s: '6 h', h: 6 }
+  { k: 'time', l: 'Specific times', s: 'Times' }
 ];
-const PART = Object.fromEntries(PARTS.concat([{ k: 'half', l: 'Half day', s: 'Half' }]).map(p => [p.k, p]));
+const PARTS_OLD = [{ k: 'h2', l: '2 hours', s: '2 h', h: 2 }, { k: 'h4', l: '4 hours', s: '4 h', h: 4 }, { k: 'h6', l: '6 hours', s: '6 h', h: 6 }, { k: 'half', l: 'Half day', s: 'Half' }];
+const PART = Object.fromEntries(PARTS.concat(PARTS_OLD).map(p => [p.k, p]));
 function partLabel(k) { return (PART[k] && PART[k].l) || 'Full day'; }
 function partShort(k) { return (PART[k] && PART[k].s) || 'Full'; }
+/* the times the form offers: every 15 minutes from 6 AM to 7 PM */
+const TIME_STEP = 15, TIME_FIRST = '06:00', TIME_LAST = '19:00';
+function timeChoices() { const out = []; for (let m = hmMin(TIME_FIRST); m <= hmMin(TIME_LAST); m += TIME_STEP) out.push(hmOf(m)); return out; }
+/* the hours between two times (0 when they aren't a part of a day) */
+function windowHours(from, to) { return okWindow(from, to) ? round2((hmMin(to) - hmMin(from)) / 60) : 0; }
+/* what a request takes of each day, in words: "Morning (AM)", "2:00–3:30 PM", "2 hours"; short: "AM", "2–3:30 PM", "2 h" */
+function partOf(r) { return r && r.part === 'time' ? fmtWindow(r.from, r.to) || partLabel('time') : partLabel(r && r.part); }
+function partShortOf(r) { return r && r.part === 'time' ? fmtWindow(r.from, r.to, true) || partShort('time') : partShort(r && r.part); }
+/* a request from before specific times: some hours, but not when */
+function noTimes(part) { return !!(PART[part] && PART[part].h); }
+/* a request's Who's-out entry (sealed with the office key): whose, the days and how much of each — the times too, for
+   specific times. Never the kind of time off or notes. */
+function outEntry(r) {
+  const o = { sid: r.sid, start: r.start, end: r.end, part: r.part || 'full' };
+  if (o.part === 'time' && okWindow(r.from, r.to)) { o.from = r.from; o.to = r.to; }
+  return o;
+}
 
 /* ---------- the policy (Dr. A can change these in Settings) ---------- */
 const POLICY = {
@@ -954,8 +997,10 @@ function normPolicy(raw) {
   if (s.route && typeof s.route === 'object') TYPES.forEach(t => { if (['vac', 'sick', 'none'].includes(s.route[t.k])) p.route[t.k] = s.route[t.k]; });
   return p;
 }
-function partHours(part, pol) {
+/* the hours a request takes from each office day it covers (r: the request, for its times) */
+function partHours(part, pol, r) {
   if (part === 'am' || part === 'pm' || part === 'half') return round2(pol.day / 2);
+  if (part === 'time') { const h = windowHours(r && r.from, r && r.to); return h ? Math.min(h, pol.day) : pol.day; }
   const p = PART[part]; if (p && p.h) return Math.min(p.h, pol.day);
   return pol.day;
 }
@@ -991,7 +1036,7 @@ function nextOfficeDay(iso, closed) { let d = iso; for (let i = 0; i < 60; i++) 
 /* the office days a request covers, with the hours of each */
 function reqDays(r, closed, pol) {
   const out = []; if (!r || !isISO(r.start) || !isISO(r.end) || r.end < r.start) return out;
-  for (let d = r.start, g = 0; d <= r.end && g < 400; d = addDays(d, 1), g++) if (isOfficeDay(d, closed)) out.push({ date: d, h: partHours(r.part, polOn(pol, d)) });
+  for (let d = r.start, g = 0; d <= r.end && g < 400; d = addDays(d, 1), g++) if (isOfficeDay(d, closed)) out.push({ date: d, h: partHours(r.part, polOn(pol, d), r) });
   return out;
 }
 function reqHours(r, closed, pol) { return round2(reqDays(r, closed, pol).reduce((s, d) => s + d.h, 0)); }
@@ -1177,8 +1222,12 @@ function checkRequest(r, ctx) {
   if (!isISO(r.start) || !isISO(r.end)) blocks.push({ k: 'dates', msg: 'Pick the first and last day.' });
   else if (r.end < r.start) blocks.push({ k: 'dates', msg: 'The last day is before the first day.' });
   else if (daysBetween(r.start, r.end) > 120) blocks.push({ k: 'dates', msg: 'That’s more than four months — split it into shorter requests.' });
+  if (r.part === 'time' && !okWindow(r.from, r.to)) blocks.push({ k: 'times', msg: isHM(r.from) && isHM(r.to) ? 'The end time is before the start time.' : 'Pick the times — from and to.' });
   if (blocks.length) return { blocks, warns, days: [] };
   const days = reqDays(r, closed, pol);
+  if (r.part === 'time' && windowHours(r.from, r.to) > polOn(pol, r.start).day) warns.push({ k: 'long', msg: 'That’s longer than a full day (' + hrs(polOn(pol, r.start).day) + ' h), so it counts as a full day.' });
+  if (r.part !== 'time' && okWindow(r.from, r.to)) warns.push({ k: 'oldcopy', msg: 'It was asked for ' + fmtWindow(r.from, r.to) + ' but now says ' + partLabel(r.part).toLowerCase() + ' — it was changed on an older copy of Time Off. Check the times before deciding.' });
+  if (noTimes(r.part)) warns.push({ k: 'notimes', msg: 'No times given (' + partLabel(r.part).toLowerCase() + '), so the front desk won’t know when to block the schedule. While it waits, it can be changed to specific times.' });
   if (!days.length) blocks.push({ k: 'closed', msg: 'The office is closed every day in that range (it’s open Monday to Thursday).' });
   for (const h of blackoutHits(r, blackouts)) blocks.push({ k: 'blackout', msg: h.b.label + ' is a blackout period for ' + typeLabel(r.type).toLowerCase() + ' (' + fmtDate(h.from) + ' – ' + fmtDate(h.to) + ').', b: h.b });
   // sick leave is only ever after the fact: today or days already past, never ahead of time (Dr. A, 9 Oct 2026) — the
@@ -2235,6 +2284,8 @@ const FB = {
         const r = fn(content) || {}; const status = r.status || prevStatus || 'pending';
         if (content.sid !== (cur ? cur.sid : opts.create.sid)) throw errCode('bad', 'A request can’t change hands.');
         if (!isISO(content.start) || !isISO(content.end)) throw errCode('bad', 'A request needs its dates.');
+        if (content.part !== 'time') { delete content.from; delete content.to; } // times belong to "specific times" only
+        else if (!okWindow(content.from, content.to)) throw errCode('bad', 'Pick the times — from and to.');
         // the person's copy: sealed to their public key (theirs, or the one on toPeople for someone else — unless that
         // login's key changed in place, when there's no copy for them until the login is reissued)
         let mine = FB.trustedPub(content.sid);
@@ -2250,7 +2301,7 @@ const FB = {
         // who's out: an entry while it's approved, none otherwise
         const outRef = FB.doc('toOut/' + id);
         if (status === 'approved') {
-          const box = await Crypto.sealJSON(FB.officeKey(), { sid: content.sid, start: content.start, end: content.end, part: content.part || 'full' }, 'toout:' + id);
+          const box = await Crypto.sealJSON(FB.officeKey(), outEntry(content), 'toout:' + id);
           tx.set(outRef, { v: FB.curV, iv: box.iv, ct: box.ct, at: FB.ts() });
         } else if (prevStatus === 'approved') tx.delete(outRef);
         if (note) tx.set(note.ref, note.data);
@@ -2477,7 +2528,7 @@ const DEMO = {
   emit() {
     const h = DEMO.h; if (!h || !DEMO.me) return;
     const all = Array.from(DEMO.reqs.values()), me = DEMO.me.staffId, hr = DEMO.hrOn();
-    h.board(all.filter(r => r.status === 'approved').map(r => ({ id: r.id, sid: r.sid, start: r.start, end: r.end, part: r.part || 'full' })));
+    h.board(all.filter(r => r.status === 'approved').map(r => Object.assign(outEntry(r), { id: r.id })));
     h.reqs((hr ? all : all.filter(r => r.sid === me)).map(DEMO.copy), []);
     if (h.perks) h.perks(Array.from(DEMO.perks.values()).filter(x => hr || x.sid === me).map(DEMO.copy));
     const rec = DEMO.recs.get(me); h.mine(rec ? DEMO.mineOf(rec) : null);
@@ -2495,6 +2546,8 @@ const DEMO = {
     const prev = cur ? cur.status : null, r = fn(content) || {}, status = r.status || prev || 'pending';
     if (content.sid !== (cur ? cur.sid : opts.create.sid)) throw errCode('bad', 'A request can’t change hands.');
     if (!isISO(content.start) || !isISO(content.end)) throw errCode('bad', 'A request needs its dates.');
+    if (content.part !== 'time') { delete content.from; delete content.to; } // as the real backend does
+    else if (!okWindow(content.from, content.to)) throw errCode('bad', 'Pick the times — from and to.');
     const mine = content.sid === me, startMs = dayStartMs(content.start);
     const okCreate = (status === 'pending' && mine) || (hr && (owner || !mine || status === 'pending'));
     const okUpdate = !!cur && ((hr && (owner || cur.sid !== me)) ||
@@ -3090,6 +3143,13 @@ async function ownerUpkeep() {
     const pub = B.trustedPub(x.sid); if (!pub || x.pubX === pub.x) continue;
     try { await B.savePerk(x.id, () => { }, { a: 'reseal' }); } catch (e) { }
   }
+  // approved specific times whose Who's-out entry lacks the times (an older copy of Time Off approved it): saved again,
+  // which writes the entry, and so the feed, with the times
+  for (const r of allReqs()) {
+    if (r.status !== 'approved' || r.part !== 'time' || !okWindow(r.from, r.to)) continue;
+    const o = S.board.find(x => x.id === r.id); if (!o || (o.from === r.from && o.to === r.to)) continue;
+    try { await B.saveReq(r.id, () => { }, { a: 'reseal' }); } catch (e) { }
+  }
   let mineX = new Map(); try { mineX = await B.mineXs(); } catch (e) { }
   for (const [sid, rec] of S.hrRecs) {
     const pub = B.trustedPub(sid); if (!pub || mineX.get(sid) === pub.x) continue;
@@ -3097,11 +3157,24 @@ async function ownerUpkeep() {
   }
 }
 function staffKeyMsg(names) { return names.join(', ') + (names.length > 1 ? '’ logins' : '’s login') + ' changed its key without a reissue, so nothing new is sealed to it. If that’s expected, reissue the login in NLO Cases (Team & security); their copies are sealed to the new login the next time you open Time Off.'; }
-/* the who's-out feed CADANCe and the office calendar read: names, dates, morning/afternoon, closures and how many requests wait */
-function feedHours(part) { return { full: 'Full Day', am: 'Morning (AM)', pm: 'Afternoon (PM)', h2: '2 Hours', h4: '4 Hours', h6: '6 Hours', half: 'Half Day' }[part] || 'Full Day'; }
+/* the who's-out feed CADANCe and the office calendar read: names, dates, morning/afternoon (or the times), closures and how
+   many requests wait. Specific times are "1.5 Hours" plus from/to: CADANCe takes only full days, mornings and afternoons (and
+   reads "am"/"pm" anywhere in the words), so a short absence never stops someone's checklists; the calendar shows the times. */
+function feedHours(o) {
+  if (o.part === 'time') {
+    const h = windowHours(o.from, o.to);
+    if (!h) return 'Part of the day'; // an entry an older copy of Time Off wrote without its times: still less than a day
+    return h >= polOn(S.pol, o.start).day ? 'Full Day' : hrs(h) + (h === 1 ? ' Hour' : ' Hours');
+  }
+  return { full: 'Full Day', am: 'Morning (AM)', pm: 'Afternoon (PM)', h2: '2 Hours', h4: '4 Hours', h6: '6 Hours', half: 'Half Day' }[o.part] || 'Full Day';
+}
 function buildFeed(pending) {
   const t = todayISO(), lo = addDays(t, -60), hi = addDays(t, 400), y = Number(t.slice(0, 4));
-  const timeOff = S.board.filter(o => o.end >= lo && o.start <= hi).map(o => { const r = staff(o.sid) || {}; return { id: o.id, sid: o.sid, rid: r.rid || '', employeeName: r.name || o.sid, start: o.start, end: o.end, hours: feedHours(o.part), part: o.part || 'full' }; })
+  const timeOff = S.board.filter(o => o.end >= lo && o.start <= hi).map(o => {
+    const r = staff(o.sid) || {}, row = { id: o.id, sid: o.sid, rid: r.rid || '', employeeName: r.name || o.sid, start: o.start, end: o.end, hours: feedHours(o), part: o.part || 'full' };
+    if (row.part === 'time' && okWindow(o.from, o.to)) { row.from = o.from; row.to = o.to; }
+    return row;
+  })
     .sort((a, b) => a.start < b.start ? -1 : a.start > b.start ? 1 : a.id < b.id ? -1 : 1);
   const holidays = [];
   [y - 1, y, y + 1].forEach(yy => fixedHolidays(yy).forEach(h => holidays.push({ date: h.date, label: h.label, source: 'fixed' })));
@@ -3234,7 +3307,7 @@ function paintPhotos(root) { $$('img[data-photo]', root || document).forEach(img
 const STATUS = { pending: ['Waiting', 'wait'], approved: ['Approved', 'ok'], denied: ['Not approved', 'bad'], cancelled: ['Cancelled', 'off'], archived: ['Taken back', 'off'] };
 function statusChip(s) { const x = STATUS[s] || [s, 'off']; return '<span class="stat ' + x[1] + '">' + esc(x[0]) + '</span>'; }
 function typeChip(k) { return '<span class="badge ty-' + esc(k || 'other') + '">' + esc(typeLabel(k)) + '</span>'; }
-function partNote(r) { return r.part && r.part !== 'full' ? ' · ' + esc(partLabel(r.part).replace(' (AM)', '').replace(' (PM)', '')) + (reqDays(r, S.closed, S.pol).length > 1 ? ' each day' : '') : ''; }
+function partNote(r) { return r.part && r.part !== 'full' ? ' · ' + esc(r.part === 'time' ? partOf(r) : partLabel(r.part).replace(' (AM)', '').replace(' (PM)', '')) + (reqDays(r, S.closed, S.pol).length > 1 ? ' each day' : '') : ''; }
 /* "2 days · 17 h" */
 function sizeTxt(r) { const d = reqDays(r, S.closed, S.pol), h = round2(d.reduce((s, x) => s + x.h, 0)); return plural(d.length, 'office day') + ' · ' + hrs(h) + ' h'; }
 function daysTxt(h) { const d = round2(h / S.pol.day); return d ? '≈ ' + hrs(d) + ' day' + (d === 1 ? '' : 's') : ''; }
@@ -3409,14 +3482,14 @@ function weekCard() {
 }
 /* who's off on day d: approved time off (everyone sees), plus — for the people who approve — what's been asked */
 function outOn(d) {
-  const out = S.board.filter(o => o.start <= d && o.end >= d && isOfficeDay(d, S.closed)).map(o => ({ sid: o.sid, part: o.part, id: o.id, asked: false }));
-  if (isHR()) pendingAll().forEach(r => { if (r.start <= d && r.end >= d && isOfficeDay(d, S.closed)) out.push({ sid: r.sid, part: r.part, id: r.id, asked: true }); });
+  const out = S.board.filter(o => o.start <= d && o.end >= d && isOfficeDay(d, S.closed)).map(o => ({ sid: o.sid, part: o.part, from: o.from, to: o.to, id: o.id, asked: false }));
+  if (isHR()) pendingAll().forEach(r => { if (r.start <= d && r.end >= d && isOfficeDay(d, S.closed)) out.push({ sid: r.sid, part: r.part, from: r.from, to: r.to, id: r.id, asked: true }); });
   return out.sort((a, b) => (a.asked - b.asked) || shortName(a.sid).localeCompare(shortName(b.sid)));
 }
 function outChip(o) {
   const canOpen = isHR() || o.sid === meSid();
-  return '<span class="outChip' + (o.asked ? ' asked' : '') + '"' + (canOpen ? ' role="button" tabindex="0" data-act="openReq" data-id="' + esc(o.id) + '"' : '') + ' title="' + esc(staffName(o.sid) + (o.asked ? ' — asked, not approved yet' : '') + (o.part && o.part !== 'full' ? ' — ' + partLabel(o.part) : '')) + '">' +
-    avatarHTML(o.sid) + esc(shortName(o.sid)) + (o.part && o.part !== 'full' ? ' <i>' + esc(partShort(o.part)) + '</i>' : '') + (o.asked ? ' <i>asked</i>' : '') + '</span>';
+  return '<span class="outChip' + (o.asked ? ' asked' : '') + '"' + (canOpen ? ' role="button" tabindex="0" data-act="openReq" data-id="' + esc(o.id) + '"' : '') + ' title="' + esc(staffName(o.sid) + (o.asked ? ' — asked, not approved yet' : '') + (o.part && o.part !== 'full' ? ' — ' + partOf(o) : '')) + '">' +
+    avatarHTML(o.sid) + esc(shortName(o.sid)) + (o.part && o.part !== 'full' ? ' <i>' + esc(partShortOf(o)) + '</i>' : '') + (o.asked ? ' <i>asked</i>' : '') + '</span>';
 }
 function closuresSoonCard() {
   const t = todayISO(), list = [];
@@ -3428,7 +3501,7 @@ function closuresSoonCard() {
 
 /* ---------- Request time off (also: change a waiting one; the people who approve can record time off for someone) ---------- */
 function newForm(o) {
-  return Object.assign({ sid: meSid(), type: '', paid: true, start: '', end: '', part: 'full', cover: '', note: '', record: false, editId: '' }, o || {});
+  return Object.assign({ sid: meSid(), type: '', paid: true, start: '', end: '', part: 'full', from: '', to: '', cover: '', note: '', record: false, editId: '' }, o || {});
 }
 function formDirty() { const f = S.form; return !!(f && !f.sent && (f.type || f.start || f.note || f.cover)); }
 function viewForm() {
@@ -3445,15 +3518,32 @@ function viewForm() {
   const mx = f.type === 'sick' ? ' max="' + todayISO() + '"' : ''; // sick leave: today or earlier
   h += '<div class="grid2"><div class="field"><label for="fStart">First day</label><input type="date" id="fStart" data-inp="fDate" value="' + esc(f.start) + '"' + mx + '></div>' +
     '<div class="field"><label for="fEnd">Last day</label><input type="date" id="fEnd" data-inp="fDate" value="' + esc(f.end) + '"' + mx + '><div class="hint"><button type="button" class="linkBtn" data-act="fOneDay">Just one day</button></div></div></div>';
+  // a waiting request from before specific times keeps its old choice (e.g. "2 hours") until it's changed
+  const parts = PARTS.concat(PART[f.part] && !PARTS.some(p => p.k === f.part) ? [PART[f.part]] : []);
   h += '<div class="field"><span class="flabel">How much of each day</span><div class="seg wrap" role="group" aria-label="How much of each day">' +
-    PARTS.map(p => '<button type="button" data-act="fPart" data-k="' + p.k + '" aria-pressed="' + (f.part === p.k) + '">' + esc(p.l) + '</button>').join('') + '</div>' +
-    '<div class="hint">A full day is ' + hrs(S.pol.day) + ' h; a morning or afternoon ' + hrs(S.pol.day / 2) + ' h. The office is open Monday to Thursday.</div></div>';
+    parts.map(p => '<button type="button" data-act="fPart" data-k="' + p.k + '" aria-pressed="' + (f.part === p.k) + '">' + esc(p.l + (noTimes(p.k) ? ' (no times)' : '')) + '</button>').join('') + '</div>' +
+    '<div id="fTimes">' + timesHTML(f) + '</div>' +
+    '<div class="hint">A full day is ' + hrs(S.pol.day) + ' h; a morning or afternoon ' + hrs(S.pol.day / 2) + ' h. For less, pick Specific times — the front desk is told exactly when. The office is open Monday to Thursday.</div></div>';
   h += '<div class="field" id="fPaidBox">' + paidFieldHTML(f) + '</div>';
   h += '<div class="field"><label for="fCover">Who covers for you <span class="opt">(optional)</span></label><input id="fCover" maxlength="120" data-inp="fText" value="' + esc(f.cover) + '" placeholder="e.g. Gwen takes my seat"></div>';
   h += '<div class="field"><label for="fNote">Notes <span class="opt">(optional — only you and the people who approve see them)</span></label><textarea id="fNote" maxlength="600" data-inp="fText">' + esc(f.note) + '</textarea></div>';
   if (hr && !f.editId && (forOther || isOwner())) h += '<label class="chk"><input type="checkbox" id="fRecord" data-chg="fRecord"' + (f.record ? ' checked' : '') + '> Record it as approved' + (forOther ? '' : ' (your own)') + '</label>';
   h += '</div></div><div><div class="card sumCard" id="fSum">' + formSummary() + '</div></div></div>';
   return h;
+}
+/* specific times: From and To, every 15 minutes; each To says how long it comes to (e.g. "3:30 PM · 1.5 h") */
+function timeOpt(v, l, cur) { return '<option value="' + esc(v) + '"' + (v === cur ? ' selected' : '') + '>' + esc(l) + '</option>'; }
+function withTime(list, v) { return isHM(v) && !list.includes(v) ? list.concat([v]).sort() : list; } // a saved time not on the list stays
+function toOptsHTML(f) {
+  const tos = withTime(timeChoices().filter(t => !isHM(f.from) || hmMin(t) > hmMin(f.from)), f.to);
+  return timeOpt('', 'Pick a time', f.to) + tos.map(t => timeOpt(t, fmtClock(t) + (okWindow(f.from, t) ? ' · ' + hrs(windowHours(f.from, t)) + ' h' : ''), f.to)).join('');
+}
+function timesHTML(f) {
+  if (f.part !== 'time') return '';
+  const froms = withTime(timeChoices().slice(0, -1), f.from);
+  return '<div class="timeGrid"><div class="field"><label for="fFrom">From</label><select id="fFrom" data-chg="fTime">' + timeOpt('', 'Pick a time', f.from) + froms.map(t => timeOpt(t, fmtClock(t), f.from)).join('') + '</select></div>' +
+    '<div class="field"><label for="fTo">To</label><select id="fTo" data-chg="fTime">' + toOptsHTML(f) + '</select></div></div>' +
+    '<div class="hint" style="margin-top:0">The hours are the time between From and To.</div>';
 }
 /* paid or unpaid: the person's choice, except bereavement, which the handbook decides — paid for a death in the immediate
    family (part-time staff: unpaid) */
@@ -3477,6 +3567,7 @@ function afterForm() { }
 /* the live summary next to the form: the days, the hours, where they come from, and anything to know */
 function formSummary() {
   const f = S.form, p = personOf(f.sid), r = { id: f.editId || '__new', type: f.type, paid: f.paid, start: f.start, end: f.end || f.start, part: f.part };
+  if (f.part === 'time') { r.from = f.from; r.to = f.to; }
   if (!f.type || !f.start) return '<div class="cardHd"><h3>Summary</h3></div><div class="cardBd"><div class="empty">Pick what kind and the dates.</div></div>';
   const others = (isHR() ? allReqs().filter(x => x.sid !== f.sid && (x.status === 'approved' || x.status === 'pending')).map(x => ({ sid: x.sid, start: x.start, end: x.end, status: x.status }))
     : S.board.filter(o => o.sid !== f.sid).map(o => ({ sid: o.sid, start: o.start, end: o.end, status: 'approved' })))
@@ -3489,7 +3580,7 @@ function formSummary() {
   if (!blocks.length || override) {
     const days = c.days, total = round2(days.reduce((s, d) => s + d.h, 0));
     const skipped = []; if (isISO(r.start) && isISO(r.end) && r.end >= r.start) for (let d = r.start, g = 0; d <= r.end && g < 130; d = addDays(d, 1), g++) { const cl = S.closed(d); if (cl && weekday(d) >= 1 && weekday(d) <= 4) skipped.push([d, cl]); }
-    h += '<div class="sumBig"><b>' + hrs(total) + ' h</b><span>' + plural(days.length, 'office day') + (days.length && f.part !== 'full' ? ' · ' + esc(partLabel(f.part)) + ' each' : '') + '</span></div>';
+    h += '<div class="sumBig"><b>' + hrs(total) + ' h</b><span>' + plural(days.length, 'office day') + (days.length && f.part !== 'full' ? ' · ' + esc(partOf(r)) + (days.length > 1 ? ' each' : '') : '') + '</span></div>';
     h += '<div class="dayList">' + days.slice(0, 40).map(d => '<span class="dayPill">' + esc(fmtDay(d.date)) + '</span>').join('') + (days.length > 40 ? '<span class="small muted">+ ' + (days.length - 40) + ' more</span>' : '') + '</div>';
     if (skipped.length) h += '<div class="small muted" style="margin-top:6px">Closed, so not counted: ' + esc(skipped.map(([d, l]) => fmtDay(d) + ' (' + l + ')').join(', ')) + '</div>';
     const b = bucketOf(r, S.pol);
@@ -3523,18 +3614,23 @@ Object.assign(ACT, {
     const pb = $('#fPaidBox'); if (pb) pb.innerHTML = paidFieldHTML(S.form);
     ['#fStart', '#fEnd'].forEach(q => { const el = $(q); if (el) { if (S.form.type === 'sick') el.max = todayISO(); else el.removeAttribute('max'); } });
     if (S.form.type === 'sick' && !S.form.start) { S.form.start = S.form.end = todayISO(); const a = $('#fStart'), b = $('#fEnd'); if (a) a.value = S.form.start; if (b) b.value = S.form.end; } $$('[data-act=fType]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.k === S.form.type))); refreshSummary(); },
-  fPart(t) { S.form.part = t.dataset.k; $$('[data-act=fPart]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.k === S.form.part))); refreshSummary(); },
+  fPart(t) {
+    S.form.part = t.dataset.k; $$('[data-act=fPart]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.k === S.form.part)));
+    const tb = $('#fTimes'); if (tb) tb.innerHTML = timesHTML(S.form); refreshSummary();
+  },
   fPaid(t) { S.form.paid = t.dataset.v === '1'; $$('[data-act=fPaid]').forEach(b => b.setAttribute('aria-pressed', String((b.dataset.v === '1') === S.form.paid))); refreshSummary(); },
   fOneDay() { if (!S.form.start) { const a = $('#fStart'); if (a) a.focus(); return; } S.form.end = S.form.start; const b = $('#fEnd'); if (b) b.value = S.form.end; refreshSummary(); },
   async fSend(t) {
     const f = S.form; if (f.type === 'bereave') f.paid = bereavePaid(f.sid);
     const r = { type: f.type, paid: f.paid, start: f.start, end: f.end || f.start, part: f.part };
+    if (f.part === 'time') { r.from = f.from; r.to = f.to; }
     if (!TYPE[r.type] || !isISO(r.start) || !isISO(r.end)) { toast('Pick what kind and the dates first.', { bad: true }); return; }
+    if (r.part === 'time' && !okWindow(r.from, r.to)) { toast('Pick the times — from and to.', { bad: true }); return; }
     busyBtn(t, true, 'Saving…');
     const me = meSid(), now = Date.now(), status = f.record ? 'approved' : 'pending';
     try {
       if (f.editId) {
-        await B.saveReq(f.editId, c => { Object.assign(c, r, { cover: f.cover.trim(), note: f.note.trim() }); c.events = (c.events || []).concat([{ a: 'edit', by: me, at: now }]); }, { a: 'edit' });
+        await B.saveReq(f.editId, c => { Object.assign(c, r, { cover: f.cover.trim(), note: f.note.trim() }); if (r.part !== 'time') { delete c.from; delete c.to; } c.events = (c.events || []).concat([{ a: 'edit', by: me, at: now }]); }, { a: 'edit' });
         toast('Changed — it still waits for approval');
       } else {
         const id = B.newReqId();
@@ -3558,15 +3654,34 @@ Object.assign(CHG, {
     if (S.form.start && (!S.form.end || S.form.end < S.form.start)) { S.form.end = S.form.start; if (b && document.activeElement !== b) b.value = S.form.end; }
     refreshSummary();
   },
-  fText() { const a = $('#fCover'), b = $('#fNote'); if (a) S.form.cover = a.value; if (b) S.form.note = b.value; }
+  fText() { const a = $('#fCover'), b = $('#fNote'); if (a) S.form.cover = a.value; if (b) S.form.note = b.value; },
+  /* From or To picked: To lists only later times, each with how long it comes to */
+  fTime(t) {
+    const f = S.form, a = $('#fFrom'), b = $('#fTo'); f.from = a ? a.value : ''; f.to = b ? b.value : '';
+    if (isHM(f.from) && isHM(f.to) && !okWindow(f.from, f.to)) f.to = '';
+    // only To's list changes (later times, how long each comes to); the select being typed in is never rebuilt
+    if (t && t.id === 'fFrom' && b) b.innerHTML = toOptsHTML(f);
+    refreshSummary();
+  }
 });
-/* the front-desk email: block (approved) or release (cancelled/taken back) the schedule */
+/* the front-desk email: block (approved) or release (cancelled/taken back) the schedule. Who, the days and exactly when —
+   the whole day, the morning, the afternoon or the times (Dr. A, 14 Oct 2026); never the kind of time off or notes. */
 function deskMail(r, kind) {
   if ((S.settings.to || {}).frontDesk === false) return null;
-  const who = shortName(r.sid), when = r.start === r.end ? fmtDayY(r.start) : fmtDayY(r.start) + ' to ' + fmtDayY(r.end);
-  const part = r.part && r.part !== 'full' ? ' (' + partLabel(r.part).toLowerCase() + (r.start !== r.end ? ' each day' : '') + ')' : r.start === r.end ? ' (full day)' : ' (full days)';
-  if (kind === 'block') return { subject: 'Schedule block needed: ' + who + ', ' + fmtRange(r.start, r.end), text: 'Please block the schedule for ' + who + ' on ' + when + part + '. Their time off was approved.\n\n— NLO Time Off' };
-  return { subject: 'Schedule block no longer needed: ' + who + ', ' + fmtRange(r.start, r.end), text: who + '’s time off on ' + when + part + ' was cancelled. Please take the schedule block off.\n\n— NLO Time Off' };
+  const who = shortName(r.sid), one = r.start === r.end, when = one ? fmtDayY(r.start) : fmtDayY(r.start) + ' to ' + fmtDayY(r.end);
+  const timed = r.part === 'time' && okWindow(r.from, r.to), part = r.part || 'full';
+  let what, subj = fmtRange(r.start, r.end);
+  if (timed) {
+    const h = windowHours(r.from, r.to), span = 'from ' + fmtClock(r.from) + ' to ' + fmtClock(r.to);
+    what = (one ? 'on ' + when + ' ' + span : span + ' each day, ' + when) + ' (' + hrs(h) + (h === 1 ? ' hour' : ' hours') + (one ? '' : ' a day') + ')';
+    subj += ', ' + fmtWindow(r.from, r.to) + (one ? '' : ' each day');
+  } else {
+    const words = { full: one ? 'full day' : 'full days', am: 'morning', pm: 'afternoon', half: 'half day' }[part];
+    what = 'on ' + when + ' (' + (words ? words + (part !== 'full' && !one ? ' each day' : '') : partLabel(part).toLowerCase() + (one ? '' : ' each day') + ' — no times given') + ')';
+    if (part === 'am' || part === 'pm') subj += ', ' + words;
+  }
+  if (kind === 'block') return { subject: 'Schedule block needed: ' + who + ', ' + subj, text: 'Please block the schedule for ' + who + ' ' + what + '. Their time off was approved.\n\n— NLO Time Off' };
+  return { subject: 'Schedule block no longer needed: ' + who + ', ' + subj, text: who + '’s time off ' + what + ' was cancelled. Please take the schedule block off.\n\n— NLO Time Off' };
 }
 
 /* ---------- My time off: requests and the statement ---------- */
@@ -3877,7 +3992,7 @@ function allReqsHTML() {
     sel('y', [['', 'Any year']].concat(years.map(y => [y, y]))) + '<span class="small muted">' + plural(list.length, 'request') + '</span></div>';
   if (!list.length) return h + '<div class="card"><div class="cardBd"><div class="empty">No requests match.</div></div></div>';
   return h + '<div class="card"><div class="tblWrap"><table class="tbl"><thead><tr><th>Who</th><th>When</th><th class="hideM">Kind</th><th class="num hideM">Hours</th><th>Status</th></tr></thead><tbody>' +
-    list.map(r => '<tr class="click" tabindex="0" data-act="openReq" data-id="' + esc(r.id) + '"><td><span class="nameCell">' + avatarHTML(r.sid) + esc(shortName(r.sid)) + '</span></td><td class="nowrap">' + esc(fmtRange(r.start, r.end)) + '<div class="small muted">' + esc(partShort(r.part)) + '</div></td><td class="hideM">' + typeChip(r.type) + (r.paid ? '' : ' <span class="badge unp">Unpaid</span>') + '</td><td class="num hideM">' + hrs(reqHours(r, S.closed, S.pol)) + '</td><td>' + statusChip(r.status) + '</td></tr>').join('') +
+    list.map(r => '<tr class="click" tabindex="0" data-act="openReq" data-id="' + esc(r.id) + '"><td><span class="nameCell">' + avatarHTML(r.sid) + esc(shortName(r.sid)) + '</span></td><td class="nowrap">' + esc(fmtRange(r.start, r.end)) + '<div class="small muted">' + esc(partShortOf(r)) + '</div></td><td class="hideM">' + typeChip(r.type) + (r.paid ? '' : ' <span class="badge unp">Unpaid</span>') + '</td><td class="num hideM">' + hrs(reqHours(r, S.closed, S.pol)) + '</td><td>' + statusChip(r.status) + '</td></tr>').join('') +
     '</tbody></table></div></div>';
 }
 CHG.allF = t => { const f = S.tab.allF || { who: '', st: '', y: todayISO().slice(0, 4) }; f[t.dataset.k] = t.value; S.tab.allF = f; renderView(); };
@@ -3921,7 +4036,7 @@ Object.assign(ACT, {
   },
   editReq(t) {
     const r = S.reqs.get(t.dataset.id); if (!r) return;
-    S.form = newForm({ editId: r.id, sid: r.sid, type: r.type, paid: r.paid, start: r.start, end: r.end, part: r.part, cover: r.cover || '', note: r.note || '' });
+    S.form = newForm({ editId: r.id, sid: r.sid, type: r.type, paid: r.paid, start: r.start, end: r.end, part: r.part, from: r.from || '', to: r.to || '', cover: r.cover || '', note: r.note || '' });
     closeDrawer(); S.view = 'new'; renderNav(); renderView(); window.scrollTo(0, 0);
   },
   openReq(t) { openReqDrawer(t.dataset.id); }
@@ -3934,7 +4049,7 @@ async function openReqDrawer(id, keep) {
   const me = meSid(), mine = r.sid === me, hr = isHR(), t = todayISO();
   const days = reqDays(r, S.closed, S.pol), total = round2(days.reduce((s, d) => s + d.h, 0));
   let h = '<div class="dHd">' + avatarHTML(r.sid, '', true) + '<div class="grow"><h3>' + esc(fmtRange(r.start, r.end)) + '</h3><div class="sub">' + esc(staffName(r.sid)) + ' · ' + typeChip(r.type) + (r.paid ? '' : ' <span class="badge unp">Unpaid</span>') + ' ' + statusChip(r.status) + '</div></div><button class="iconBtn" data-act="closeDrawer" aria-label="Close">' + ic('x') + '</button></div><div class="dBd">';
-  h += '<div class="kvRow"><span>Each day</span><b>' + esc(partLabel(r.part)) + '</b></div><div class="kvRow"><span>Office days</span><b>' + days.length + ' · ' + hrs(total) + ' h</b></div>' +
+  h += '<div class="kvRow"><span>Each day</span><b>' + esc(partOf(r)) + '</b></div><div class="kvRow"><span>Office days</span><b>' + days.length + ' · ' + hrs(total) + ' h</b></div>' +
     '<div class="dayList" style="margin:6px 0 10px">' + days.slice(0, 60).map(d => '<span class="dayPill">' + esc(fmtDay(d.date)) + '</span>').join('') + '</div>';
   if (r.cover) h += '<div class="kvRow"><span>Covering</span><b>' + esc(r.cover) + '</b></div>';
   if (r.note) h += '<div class="sec"><h5>Notes</h5><div class="small apNote">' + esc(r.note) + '</div></div>';
@@ -4193,7 +4308,7 @@ function hrKeyBodyHTML() {
   return '<div class="kvRow"><span>Current HR key</span><b>#' + esc(String(v)) + '</b></div>' +
     '<div class="kvRow"><span>Copy kept with your recovery code</span>' + rec + '</div>' +
     '<div class="kvRow"><span>People who approve</span><b>' + (P && !P.err ? P.grants.length : '…') + '</b></div>' +
-    '<p class="small muted" style="margin-top:10px">Requests and HR records are sealed on the computer that saves them; the database only holds the sealed copies, plus whose they are, their status and the day they start. Each person can always open their own requests and balances (their copy is sealed to their login). Everyone sees who’s out — names, days and morning/afternoon, never why.' +
+    '<p class="small muted" style="margin-top:10px">Requests and HR records are sealed on the computer that saves them; the database only holds the sealed copies, plus whose they are, their status and the day they start. Each person can always open their own requests and balances (their copy is sealed to their login). Everyone sees who’s out — names, days, and morning/afternoon or the times, never why.' +
     (P && P.hasRecovery === false ? ' Set up the recovery code in NLO Cases → Team &amp; security.' : '') + '</p>' +
     '<div class="btnRow"><button class="btn btn-ghost" data-act="newHRKey"' + (S.accessBusy || S.rotating ? ' disabled' : '') + '>' + ic('key', 15) + 'Make a new HR key now</button></div><p class="small muted">Only needed if a computer or phone that had Approvals open is lost or stolen.</p>';
 }
@@ -4221,7 +4336,7 @@ function feedCardHTML() {
 }
 function feedBodyHTML() {
   const F = S.feedInfo;
-  return '<p class="small">They show who’s out from a feed Time Off keeps up to date: names, days and morning/afternoon, office closures, and how many requests are waiting — never the kind of time off, notes or anyone’s hours. The feed is sealed with its own key; they need the key to read it.</p>' +
+  return '<p class="small">They show who’s out from a feed Time Off keeps up to date: names, days, and morning/afternoon or the times (2:00–3:30 PM), office closures, and how many requests are waiting — never the kind of time off, notes or anyone’s balance. The feed is sealed with its own key; they need the key to read it.</p>' +
     (!F ? '<div class="small muted">Loading…</div>' :
       '<div class="kvRow"><span>Last updated</span><b>' + (F.at ? esc(fmtWhen(F.at)) : 'Not yet') + '</b></div><div class="kvRow"><span>In it now</span><b>' + plural(F.n, 'approved request') + (F.pending != null ? ' · ' + F.pending + ' waiting' : '') + '</b></div>' +
       '<details class="help"><summary>Address and key (for setting up CADANCe and the calendar)</summary><div class="small muted" style="margin-top:6px">Address</div><div class="keyBox">' + esc(feedURL()) + '</div>' +
@@ -4411,7 +4526,7 @@ function deskBodyHTML() {
     '<button type="button" class="sw" role="switch" aria-checked="' + on + '" aria-label="Email the front desk" data-act="toggleDesk"></button></div>' +
     '<div class="kvRow"><span>NLO Cases’ email robot</span>' + robot + '</div>' +
     (D && !D.err && !D.on ? '<p class="small muted">The emails go out through NLO Cases’ email robot (the one that sends the case emails). Turn its notices on in NLO Cases → Settings → Email.</p>' : '') +
-    '<details class="help"><summary>What the email says</summary><div class="txt" style="margin-top:6px">Schedule block needed: Riley, Nov 2 – 4\n\nPlease block the schedule for Riley on Mon, Nov 2 to Wed, Nov 4 (full days). Their time off was approved.</div><p class="small muted" style="margin-top:6px">Only the name, the days and morning/afternoon — never the kind of time off or notes.</p></details>';
+    '<details class="help"><summary>What the email says</summary><div class="txt" style="margin-top:6px">Schedule block needed: Riley, Tue, Nov 3, 2:00–3:30 PM\n\nPlease block the schedule for Riley on Tue, Nov 3 from 2:00 PM to 3:30 PM (1.5 hours). Their time off was approved.</div><p class="small muted" style="margin-top:6px">Only the name, the days and exactly when — all day, the morning, the afternoon or the times — never the kind of time off or notes.</p></details>';
 }
 ACT.toggleDesk = async () => {
   const on = (S.settings.to || {}).frontDesk !== false;
