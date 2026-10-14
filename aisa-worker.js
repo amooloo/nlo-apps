@@ -88,12 +88,15 @@
 //      so answers never go blank mid-retrain. Old generation is then
 //      removed. Thinking-config fallback retries only on thinking errors.
 //
+// v2.7.1 (14 Oct 2026, app review Fix-first #10): /ask and /ask-stream refuse bodies over ~3.5 MB, history over 12 turns
+//      or over 120,000 characters, and only the newest 20,000 characters of history (4,000 per message) reach Gemini; a non-image attachment and inventory data over 20,000
+//      characters; a question with a photo or a long history counts as 5 toward the daily cap.
 // Earlier history: v2.3 (KB version visibility), v2.2 (follow-up-aware
 // search, /health), v2.1 (/purge-stale, polite deletes, CORS exact
 // match), v2.0 (streaming, answer cache).
 // ====================================================================
 
-const WORKER_VERSION = '2.7.0';
+const WORKER_VERSION = '2.7.1';
 
 // ---------- Model (fallback — the live choice is saved from the portal) ----------
 const MODEL = 'gemini-3.8-flash';
@@ -208,6 +211,7 @@ export default {
 async function handleAsk(request, env, ctx, origin, stream) {
   const t0 = Date.now();
   if (rateLimit(request)) return jsonResponse({ error: 'Too many requests — please wait a moment.' }, 429, origin);
+  if ((parseInt(request.headers.get('Content-Length') || '0', 10) || 0) > 3600000) return jsonResponse({ error: 'Request too large' }, 413, origin);
   let reqJson;
   try { reqJson = await request.json(); } catch (e) { return jsonResponse({ error: 'Invalid JSON body' }, 400, origin); }
   const bad = validateAsk(reqJson);
@@ -239,7 +243,7 @@ async function handleAsk(request, env, ctx, origin, stream) {
   if (await overDailyCap(env)) {
     return jsonResponse({ error: 'AISA has reached its daily question limit. Please try again tomorrow or let Dr. Akhavan know.' }, 429, origin);
   }
-  countQuestion(env, ctx);
+  countQuestion(env, ctx, (reqJson.image || JSON.stringify(reqJson.history || []).length > 8000) ? 5 : 1);
 
   // 3) Retrieval
   const r = await retrieve(reqJson, env);
@@ -301,6 +305,17 @@ function validateAsk(reqJson) {
   if (!reqJson || !reqJson.question || typeof reqJson.question !== 'string' || !reqJson.question.trim()) return 'Missing "question" field';
   if (reqJson.question.length > 4000) return 'Question too long (max 4000 characters)';
   if (reqJson.image && reqJson.image.data && reqJson.image.data.length > 2800000) return 'Image too large (max ~2MB)';
+  if (reqJson.image && (typeof reqJson.image.mimeType !== 'string' || !/^image\/(png|jpe?g|webp|gif|heic|heif)$/i.test(reqJson.image.mimeType))) return 'Only a picture can be attached';
+  if (reqJson.inventoryData != null && String(reqJson.inventoryData).length > 20000) return 'Inventory data too long';
+  if (reqJson.history != null) {
+    if (!Array.isArray(reqJson.history) || reqJson.history.length > 12) return 'History too long (12 turns max)';
+    let all = 0;
+    for (const t of reqJson.history) for (const p of (t && Array.isArray(t.parts) ? t.parts : [])) {
+      const n = String((p && p.text) || '').length; all += n;
+      if (n > 30000) return 'A previous message is too long';
+    }
+    if (all > 120000) return 'Conversation too long — start a new chat';
+  }
   return null;
 }
 
@@ -770,11 +785,15 @@ ${knowledge}`;
 
   const contents = [];
   if (Array.isArray(history)) {
-    for (const turn of history.slice(-12)) {
-      if (turn && Array.isArray(turn.parts) && (turn.role === 'user' || turn.role === 'model')) {
-        contents.push({ role: turn.role, parts: turn.parts.map(p => ({ text: String((p && p.text) || '') })) });
+    let budget = 20000; // the most recent turns first: each part up to 4,000 characters, 20,000 in all
+    const keep = [];
+    for (const turn of history.slice(-12).reverse()) {
+      if (turn && Array.isArray(turn.parts) && (turn.role === 'user' || turn.role === 'model') && budget > 0) {
+        const parts = turn.parts.map(p => { const t = String((p && p.text) || '').slice(0, Math.min(4000, budget)); budget -= t.length; return { text: t }; });
+        keep.unshift({ role: turn.role, parts });
       }
     }
+    contents.push(...keep);
   }
   contents.push({ role: 'user', parts: userParts });
 
@@ -1495,13 +1514,13 @@ async function overDailyCap(env) {
   }
   return USAGE.count >= DAILY_QUESTION_CAP;
 }
-function countQuestion(env, ctx) {
-  USAGE.count++;
+function countQuestion(env, ctx, w) {
+  w = w || 1; USAGE.count += w;
   const day = USAGE.day || today();
   const p = (async () => {
     try {
       const n = parseInt((await env.KNOWLEDGE_KV.get('usage:' + day)) || '0', 10) || 0;
-      await env.KNOWLEDGE_KV.put('usage:' + day, String(Math.max(n + 1, USAGE.count)), { expirationTtl: 3 * 86400 });
+      await env.KNOWLEDGE_KV.put('usage:' + day, String(Math.max(n + w, USAGE.count)), { expirationTtl: 3 * 86400 });
     } catch (e) {}
   })();
   if (ctx && ctx.waitUntil) ctx.waitUntil(p);

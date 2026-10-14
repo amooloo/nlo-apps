@@ -309,6 +309,7 @@ html.nlo-home-on .header{padding-left:var(--nlo-home-space)}
       <div class="text">AI key:</div>
       <input type="password" id="aiKey" placeholder="Admin key — unlocks auto-describe">
       <button onclick="saveAiKey()" title="Stored in this browser only">Save</button>
+      <button onclick="forgetAiKey()" title="Remove the admin key from this computer">Forget key</button>
     </div>
   </div>
 
@@ -466,6 +467,17 @@ function markConnected() {
   banner.classList.add("connected");
   banner.querySelector(".icon").textContent = "✅";
   banner.querySelector(".text").textContent = "Google Drive connected";
+}
+
+/* Oct 2026 review (Fix-first #10): the admin key stayed on every office computer it was ever typed on; any of them could change
+   the knowledge base. Forget it on shared computers after training. */
+function forgetAiKey() {
+  aiKey = '';
+  try { localStorage.removeItem('nlo_admin_key'); } catch (e) {}
+  document.getElementById('aiKey').value = '';
+  document.getElementById('adminKey').value = '';
+  alert('The admin key was removed from this computer.');
+  location.reload();
 }
 
 function saveAiKey() {
