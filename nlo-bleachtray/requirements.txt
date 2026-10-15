@@ -1,0 +1,16 @@
+numpy>=1.26
+scipy>=1.11
+trimesh>=4.4
+networkx
+rtree
+shapely>=2.0
+manifold3d>=3.0
+mapbox_earcut
+scikit-learn>=1.4
+joblib
+pymeshfix
+pyvista
+fastapi
+uvicorn
+python-multipart
+matplotlib

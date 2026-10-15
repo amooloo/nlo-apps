@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NLO Bleach Tray</title>
+<style>
+  :root { --bg:#f6f5f2; --panel:#ffffff; --ink:#1b1b1f; --muted:#6b6b73; --accent:#2f6fed; --ok:#1f9d55; --warn:#d97706; --err:#c0392b; --line:#e4e2dc; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:14px/1.45 -apple-system, "Segoe UI", Inter, Roboto, sans-serif; color:var(--ink); background:var(--bg); height:100vh; display:flex; flex-direction:column; }
+  header { display:flex; align-items:center; gap:14px; padding:10px 18px; background:var(--panel); border-bottom:1px solid var(--line); }
+  header h1 { font-size:16px; margin:0; letter-spacing:.2px; }
+  header .sub { color:var(--muted); font-size:12px; }
+  main { flex:1; display:grid; grid-template-columns: 330px 1fr; min-height:0; }
+  aside { background:var(--panel); border-right:1px solid var(--line); padding:14px; overflow:auto; }
+  section.viewer { position:relative; min-height:0; }
+  canvas { display:block; }
+  .drop { border:2px dashed #c9c6bd; border-radius:10px; padding:18px; text-align:center; color:var(--muted); cursor:pointer; transition:.15s; }
+  .drop.over { border-color:var(--accent); background:#eef3ff; color:var(--accent); }
+  .drop b { color:var(--ink); }
+  label.f { display:block; font-size:12px; color:var(--muted); margin:10px 0 4px; }
+  select, input[type=text], input[type=number] { width:100%; padding:7px 8px; border:1px solid var(--line); border-radius:6px; font:inherit; background:#fff; }
+  .row { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  button { font:inherit; padding:8px 12px; border-radius:7px; border:1px solid var(--line); background:#fff; cursor:pointer; }
+  button.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+  button.primary:disabled { opacity:.5; cursor:default; }
+  button.small { padding:5px 9px; font-size:12px; }
+  .jobs { margin-top:14px; border-top:1px solid var(--line); padding-top:10px; }
+  .job { padding:8px; border:1px solid var(--line); border-radius:8px; margin-bottom:6px; cursor:pointer; display:flex; justify-content:space-between; align-items:center; gap:6px; }
+  .job.active { border-color:var(--accent); background:#f3f6ff; }
+  .job .nm { font-weight:600; font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pill { font-size:11px; padding:2px 7px; border-radius:999px; background:#eee; color:var(--muted); white-space:nowrap; }
+  .pill.done { background:#e4f6ea; color:var(--ok); } .pill.running,.pill.queued { background:#fff4e0; color:var(--warn); } .pill.error { background:#fde8e6; color:var(--err); }
+  .log { font:11px/1.4 ui-monospace, Menlo, Consolas, monospace; background:#f3f2ee; border-radius:6px; padding:8px; max-height:140px; overflow:auto; white-space:pre-wrap; color:#444; }
+  .toolbar { position:absolute; top:12px; left:12px; display:flex; gap:8px; align-items:center; background:rgba(255,255,255,.92); border:1px solid var(--line); border-radius:9px; padding:7px 10px; backdrop-filter:blur(6px); }
+  .toolbar .tab { padding:5px 10px; border-radius:6px; cursor:pointer; color:var(--muted); }
+  .toolbar .tab.on { background:var(--accent); color:#fff; }
+  .brush { position:absolute; top:12px; right:12px; background:rgba(255,255,255,.94); border:1px solid var(--line); border-radius:9px; padding:9px 12px; width:250px; display:none; }
+  .brush.on { display:block; }
+  .brush h4 { margin:0 0 6px; font-size:12px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.4px; }
+  .stats { position:absolute; bottom:12px; left:12px; background:rgba(255,255,255,.92); border:1px solid var(--line); border-radius:9px; padding:8px 12px; font-size:12px; color:var(--muted); max-width:560px; }
+  .stats b { color:var(--ink); }
+  .dl { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
+  .hint { font-size:12px; color:var(--muted); margin-top:6px; }
+  .seg { display:inline-flex; border:1px solid var(--line); border-radius:6px; overflow:hidden; }
+  .seg button { border:0; border-radius:0; } .seg button.on { background:var(--accent); color:#fff; }
+  input[type=range] { width:100%; }
+</style>
+</head>
+<body>
+<header>
+  <h1>NLO Bleach Tray</h1>
+  <span class="sub">Raw scan → reservoirs → horseshoe model with Trimlign base → .pts trimline</span>
+</header>
+<main>
+  <aside>
+    <div class="drop" id="drop"><b>Drop the upper and/or lower scan STL</b><br>one or two files, or click to choose</div>
+    <input type="file" id="file" accept=".stl,.ply" multiple style="display:none">
+    <div class="row">
+      <div><label class="f">Patient first name</label><input type="text" id="pfirst" placeholder="Arman"></div>
+      <div><label class="f">Last name</label><input type="text" id="plast" placeholder="Shetty"></div>
+    </div>
+    <div class="row">
+      <div><label class="f">Arch</label><select id="arch"><option value="">Auto-detect</option><option value="upper">Upper (Maxilla)</option><option value="lower">Lower (Mandible)</option></select></div>
+      <div><label class="f">Stage #</label><input type="number" id="stage" value="0" min="0" step="1"></div>
+    </div>
+    <div class="row">
+      <div><label class="f">Patient ID (Edge, optional)</label><input type="text" id="pid" placeholder="80010"></div>
+      <div><label class="f">Piece type</label><select id="kind"><option value="T">Template (T)</option><option value="A">Aligner (A)</option></select></div>
+    </div>
+    <label class="f">OrthoFactory input folder (writes a Titan-style order there)</label>
+    <input type="text" id="export" placeholder="S:\\clinical\\3D printing\\Titan" value="">
+    <label class="f">Doctor (for the order folder name)</label>
+    <input type="text" id="doctor" value="Dr. Amir Akhavan">
+    <input type="hidden" id="name">
+    <label class="f">Preset</label>
+    <select id="preset">
+      <option value="bleaching">Bleaching tray — reservoirs 5-5, scalloped at gum line</option>
+      <option value="bleaching_3_3">Bleaching tray — reservoirs 3-3</option>
+      <option value="aligner_high">Aligner / retainer — high line 1.25 mm onto gums, semi-scallop</option>
+      <option value="plain_model">Plain model — no reservoirs, gum-line trimline</option>
+    </select>
+    <div class="row">
+      <div><label class="f">Reservoir height (mm)</label><input type="number" id="res_h" step="0.1" min="0" max="1.5" value="0.5"></div>
+      <div><label class="f">Reservoir teeth (from midline)</label><input type="number" id="res_n" step="1" min="0" max="7" value="5"></div>
+    </div>
+    <div class="row">
+      <div><label class="f">Trimline offset onto gum (mm)</label><input type="number" id="tl_off" step="0.25" min="0" max="4" value="0"></div>
+      <div><label class="f">Papilla bridge radius (mm)</label><input type="number" id="bridge" step="0.5" min="0" max="6" value="3"></div>
+    </div>
+    <label class="f">Trimlign base</label>
+    <select id="base"><option value="1">Add base (Titan placement)</option><option value="0">No base</option></select>
+    <div style="margin-top:12px"><button class="primary" id="go" disabled>Process scan</button></div>
+    <div class="hint" id="filehint">No file selected.</div>
+    <div class="jobs">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Cases this session</div>
+      <div id="jobs"></div>
+    </div>
+    <div id="detail" style="display:none">
+      <div class="log" id="log"></div>
+      <div class="dl" id="dl"></div>
+    </div>
+  </aside>
+  <section class="viewer">
+    <div class="toolbar">
+      <span class="tab on" data-tab="result">Result</span>
+      <span class="tab" data-tab="seg">Segmentation / fix</span>
+      <span class="tab" data-tab="scan">Scan + reservoirs</span>
+      <span style="width:1px;height:18px;background:var(--line)"></span>
+      <label style="font-size:12px;color:var(--muted)"><input type="checkbox" id="showtl" checked> trimline</label>
+    </div>
+    <div class="brush" id="brush">
+      <h4>Brush — fix tooth / gum labels</h4>
+      <div class="seg"><button class="on" data-mode="tooth">Paint tooth</button><button data-mode="gum">Paint gum</button><button data-mode="off">Off</button></div>
+      <label class="f">Radius: <span id="rv">1.5</span> mm</label>
+      <input type="range" id="radius" min="0.5" max="5" step="0.25" value="1.5">
+      <div class="hint">Hold <b>Shift</b> and drag on the model to paint. Rotate with the mouse otherwise.</div>
+      <div style="margin-top:8px;display:flex;gap:6px"><button class="primary small" id="rerun">Apply fixes & re-run</button><button class="small" id="clearfix">Clear</button></div>
+      <div class="hint" id="fixcount">No edits.</div>
+    </div>
+    <div class="stats" id="stats">Drop a scan to begin.</div>
+    <canvas id="c"></canvas>
+  </section>
+</main>
+
+<script type="importmap">
+{ "imports": { "three": "/static/vendor/three/three.module.js",
+               "three/addons/": "/static/vendor/three/addons/" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const $ = s => document.querySelector(s);
+const canvas = $('#c'), viewer = $('section.viewer');
+const renderer = new THREE.WebGLRenderer({canvas, antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0xf6f5f2);
+const camera = new THREE.PerspectiveCamera(35, 1, 1, 2000); camera.position.set(0, -140, 110); camera.up.set(0,0,1);
+const controls = new OrbitControls(camera, canvas); controls.target.set(0,-15,5);
+scene.add(new THREE.HemisphereLight(0xffffff, 0x9a9a9a, 1.1));
+const key = new THREE.DirectionalLight(0xffffff, 1.2); key.position.set(60,-80,140); scene.add(key);
+const fill = new THREE.DirectionalLight(0xffffff, .5); fill.position.set(-80,60,40); scene.add(fill);
+const grid = new THREE.GridHelper(200, 20, 0xdddddd, 0xeeeeee); grid.rotation.x = Math.PI/2; grid.position.z = -0.05; scene.add(grid);
+
+function resize(){ const w = viewer.clientWidth, h = viewer.clientHeight; renderer.setSize(w,h,false); camera.aspect = w/h; camera.updateProjectionMatrix(); }
+new ResizeObserver(resize).observe(viewer); resize();
+(function loop(){ controls.update(); renderer.render(scene, camera); requestAnimationFrame(loop); })();
+
+// ---------- state ----------
+let currentJob = null, tab = 'result';
+const groups = { result: new THREE.Group(), seg: new THREE.Group(), scan: new THREE.Group() };
+Object.values(groups).forEach(g => scene.add(g));
+let segMesh = null, segLabels = null, segDisp = null, segColors = null, segPos = null, segBase = null;
+const edits = { add: new Set(), remove: new Set() };
+let brushMode = 'tooth';
+
+function showTab(t){ tab = t; for (const k in groups) groups[k].visible = (k === t); document.querySelectorAll('.tab').forEach(e => e.classList.toggle('on', e.dataset.tab === t)); $('#brush').classList.toggle('on', t === 'seg'); }
+document.querySelectorAll('.tab').forEach(e => e.onclick = () => showTab(e.dataset.tab));
+$('#showtl').onchange = () => { for (const k in groups) groups[k].children.forEach(c => { if (c.userData.trimline) c.visible = $('#showtl').checked; }); };
+
+// ---------- file handling ----------
+let files = [];
+const drop = $('#drop');
+drop.onclick = () => $('#file').click();
+$('#file').onchange = e => setFiles([...e.target.files]);
+['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', e => setFiles([...e.dataTransfer.files]));
+function setFiles(fs){ fs = fs.filter(f => /\.(stl|ply)$/i.test(f.name)).slice(0,2); if(!fs.length) return; files = fs; $('#filehint').textContent = fs.map(f => `${f.name} (${(f.size/1e6).toFixed(1)} MB)`).join(' + '); $('#go').disabled = false; $('#name').value = fs[0].name.replace(/\.(stl|ply)$/i,''); const m = fs[0].name.match(/^([A-Za-z]+)[_ -]+([A-Za-z]+)/); if (m && !$('#pfirst').value) { $('#pfirst').value = m[1]; $('#plast').value = m[2]; } }
+
+$('#preset').onchange = () => { const p = $('#preset').value; const map = { bleaching:[0.5,5,0,3], bleaching_3_3:[0.5,3,0,3], aligner_high:[0,0,1.25,4], plain_model:[0,0,0,3] }[p]; $('#res_h').value = map[0]; $('#res_n').value = map[1]; $('#tl_off').value = map[2]; $('#bridge').value = map[3]; };
+function params(){ return { reservoir_height: +$('#res_h').value, reservoir_max_position: +$('#res_n').value, trimline_offset: +$('#tl_off').value, bridge_radius: +$('#bridge').value, add_base: $('#base').value === '1', patient_first: $('#pfirst').value.trim(), patient_last: $('#plast').value.trim(), stage: +$('#stage').value, arch: $('#arch').value || null, order_root: $('#export').value.trim(), patient_id: $('#pid').value.trim(), kind: $('#kind').value, doctor: $('#doctor').value.trim() }; }
+try { $('#export').value = localStorage.getItem('exportFolder') || ''; } catch(e) {}
+$('#export').onchange = () => { try { localStorage.setItem('exportFolder', $('#export').value.trim()); } catch(e) {} };
+
+$('#go').onclick = async () => {
+  const fd = new FormData(); files.forEach(f => fd.append('files', f)); fd.append('arches', JSON.stringify(files.map((f,i) => i===0 ? ($('#arch').value || null) : null))); fd.append('preset', $('#preset').value); fd.append('params', JSON.stringify(params())); fd.append('name', $('#name').value);
+  $('#go').disabled = true;
+  const r = await fetch('/api/jobs', { method:'POST', body: fd }); const j = await r.json();
+  $('#go').disabled = false; refreshJobs(); selectJob(j.id);
+};
+
+// ---------- jobs ----------
+async function refreshJobs(){
+  const jobs = await (await fetch('/api/jobs')).json();
+  $('#jobs').innerHTML = jobs.map(j => `<div class="job ${j.id===currentJob?'active':''}" data-id="${j.id}"><span class="nm">${j.name}</span><span class="pill ${j.status}">${j.status}</span></div>`).join('') || '<div class="hint">None yet.</div>';
+  document.querySelectorAll('.job').forEach(e => e.onclick = () => selectJob(e.dataset.id));
+}
+let pollTimer = null;
+async function selectJob(id){
+  currentJob = id; refreshJobs(); $('#detail').style.display = 'block';
+  clearInterval(pollTimer);
+  const tick = async () => {
+    const j = await (await fetch('/api/jobs/'+id)).json();
+    $('#log').textContent = (j.log||[]).join('\n') + (j.error ? '\nERROR: '+j.error : '');
+    if (j.status === 'done') { clearInterval(pollTimer); refreshJobs(); await loadResult(id, j); }
+    if (j.status === 'error') { clearInterval(pollTimer); refreshJobs(); $('#stats').textContent = 'Processing failed — see log.'; }
+  };
+  await tick(); pollTimer = setInterval(tick, 1200);
+}
+
+// ---------- loading results ----------
+function parseSTL(buf){
+  const dv = new DataView(buf); const n = dv.getUint32(80, true);
+  const pos = new Float32Array(n*9); let o = 84;
+  for (let i=0;i<n;i++){ o += 12; for (let k=0;k<9;k++){ pos[i*9+k] = dv.getFloat32(o, true); o += 4; } o += 2; }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.computeVertexNormals(); return g;
+}
+function clear(group){ while(group.children.length) { const c = group.children.pop(); c.geometry?.dispose(); c.material?.dispose(); } }
+function addTrimline(group, pts, color=0xe11d48){
+  const g = new THREE.BufferGeometry().setFromPoints(pts.map(p => new THREE.Vector3(p[0],p[1],p[2]+0.15)));
+  const m = new THREE.LineLoop(g, new THREE.LineBasicMaterial({color, linewidth:2})); m.userData.trimline = true; m.visible = $('#showtl').checked; group.add(m);
+}
+let scanIdx = 0;
+async function loadResult(id, j){
+  if (scanIdx >= (j.scans||[]).length) scanIdx = 0;
+  const r = (j.reports || [j.report])[scanIdx] || {};
+  const scanSel = (j.scans||[]).length > 1 ? `<div class="seg" style="margin-bottom:6px">${j.scans.map((s,i) => `<button class="small ${i===scanIdx?'on':''}" data-scan="${i}">${s.arch||'scan '+(i+1)}</button>`).join('')}</div>` : '';
+  const orderNote = j.order_folder ? `<div class="hint" style="color:var(--ok)">OrthoFactory order written:<br>${j.order_folder}</div>` : (j.order_error ? `<div class="hint" style="color:var(--err)">Order folder failed: ${j.order_error}</div>` : '');
+  $('#stats').innerHTML = `<b>${j.name}</b> — ${r.arch || ''} · ${r.teeth ? Object.keys(r.teeth).length : '?'} teeth · body ${r.body_watertight ? 'watertight' : 'NOT watertight'} · ${r.body_volume_ml} mL · base: ${r.base} · trimline ${r.trimline_points} pts · ${r.elapsed_s}s`;
+  const tb = r.titan_basename; const exp = orderNote; const q = `?scan=${scanIdx}`;
+  $('#dl').innerHTML = scanSel + (tb ? `<a href="/api/jobs/${id}/file/titan_stl${q}" download><button class="small primary">${tb}.stl</button></a><a href="/api/jobs/${id}/file/titan_pts${q}" download><button class="small primary">${tb}.pts</button></a>` : '') + `<a href="/api/jobs/${id}/file/model${q}" download><button class="small">Model (.stl)</button></a><a href="/api/jobs/${id}/file/trimline${q}" download><button class="small">Trimline (.pts)</button></a><a href="/api/jobs/${id}/file/scan_res${q}" download><button class="small">Scan + reservoirs (.stl)</button></a>` + exp;
+  document.querySelectorAll('[data-scan]').forEach(b => b.onclick = () => { scanIdx = +b.dataset.scan; loadResult(id, j); });
+  // result model
+  clear(groups.result);
+  const buf = await (await fetch(`/api/jobs/${id}/file/model${q}`)).arrayBuffer();
+  const mat = new THREE.MeshStandardMaterial({ color: 0xd8d2c4, roughness: .75, metalness: 0 });
+  groups.result.add(new THREE.Mesh(parseSTL(buf), mat));
+  const tl = await (await fetch(`/api/jobs/${id}/trimline.json${q}`)).json();
+  addTrimline(groups.result, tl);
+  // segmentation mesh
+  await loadSeg(id, scanIdx);
+  edits.add.clear(); edits.remove.clear(); updateFixCount();
+  showTab(tab);
+}
+const palette = [0xcfd4da, 0x60a5fa, 0xf472b6, 0x34d399, 0xfbbf24, 0xa78bfa, 0xfb7185, 0x22d3ee, 0x4ade80, 0xf59e0b, 0x818cf8, 0xe879f9, 0x2dd4bf, 0xf97316, 0x93c5fd, 0xbef264];
+async function loadSeg(id, k=0){
+  const buf = await (await fetch(`/api/jobs/${id}/segmesh?scan=${k}`)).arrayBuffer();
+  const dv = new DataView(buf); const nV = dv.getUint32(0,true), nF = dv.getUint32(4,true);
+  let o = 8; const V = new Float32Array(buf, o, nV*3); o += nV*12; const F = new Uint32Array(buf, o, nF*3); o += nF*12;
+  segLabels = new Uint16Array(buf.slice(o, o+nV*2)); o += nV*2; segDisp = new Float32Array(buf.slice(o, o+nV*4));
+  segPos = V;
+  clear(groups.seg); clear(groups.scan);
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(V.slice(), 3)); g.setIndex(new THREE.BufferAttribute(F.slice(), 1)); g.computeVertexNormals();
+  segColors = new Float32Array(nV*3); paintColors();
+  g.setAttribute('color', new THREE.BufferAttribute(segColors, 3));
+  segMesh = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ vertexColors:true, roughness:.8 })); groups.seg.add(segMesh);
+  // scan + reservoirs heat
+  const g2 = g.clone(); const col2 = new Float32Array(nV*3); const c = new THREE.Color();
+  for (let i=0;i<nV;i++){ const t = Math.min(segDisp[i]/0.5, 1); c.setHSL(0.08 - 0.08*t, t>0.02 ? 0.9 : 0, t>0.02 ? 0.35+0.3*t : 0.82); col2[i*3]=c.r; col2[i*3+1]=c.g; col2[i*3+2]=c.b; }
+  g2.setAttribute('color', new THREE.BufferAttribute(col2, 3));
+  groups.scan.add(new THREE.Mesh(g2, new THREE.MeshStandardMaterial({ vertexColors:true, roughness:.8 })));
+  const bb = new THREE.Box3().setFromBufferAttribute(g.getAttribute('position')); segBase = bb;
+}
+function paintColors(){
+  const c = new THREE.Color();
+  for (let i=0;i<segLabels.length;i++){
+    let lab = segLabels[i]; if (edits.add.has(i)) lab = 99; if (edits.remove.has(i)) lab = 0;
+    c.setHex(lab === 0 ? 0xe9e4d8 : lab === 99 ? 0x1d4ed8 : palette[lab % palette.length]);
+    segColors[i*3]=c.r; segColors[i*3+1]=c.g; segColors[i*3+2]=c.b;
+  }
+  if (segMesh) segMesh.geometry.getAttribute('color').needsUpdate = true;
+}
+// ---------- brush ----------
+document.querySelectorAll('.seg button').forEach(b => b.onclick = () => { document.querySelectorAll('.seg button').forEach(x => x.classList.remove('on')); b.classList.add('on'); brushMode = b.dataset.mode; });
+$('#radius').oninput = () => $('#rv').textContent = $('#radius').value;
+const ray = new THREE.Raycaster(); const mouse = new THREE.Vector2(); let painting = false;
+function paintAt(ev){
+  if (!segMesh || tab !== 'seg' || brushMode === 'off') return;
+  const r = canvas.getBoundingClientRect(); mouse.x = ((ev.clientX - r.left)/r.width)*2-1; mouse.y = -((ev.clientY - r.top)/r.height)*2+1;
+  ray.setFromCamera(mouse, camera); const hit = ray.intersectObject(segMesh, false)[0]; if (!hit) return;
+  const rad = +$('#radius').value, r2 = rad*rad, p = hit.point;
+  for (let i=0;i<segLabels.length;i++){ const dx = segPos[i*3]-p.x, dy = segPos[i*3+1]-p.y, dz = segPos[i*3+2]-p.z; if (dx*dx+dy*dy+dz*dz < r2){ if (brushMode === 'tooth'){ edits.remove.delete(i); if (segLabels[i]===0) edits.add.add(i); } else { edits.add.delete(i); if (segLabels[i]!==0) edits.remove.add(i); } } }
+  paintColors(); updateFixCount();
+}
+canvas.addEventListener('pointerdown', ev => { if (ev.shiftKey && tab === 'seg'){ painting = true; controls.enabled = false; paintAt(ev); } });
+canvas.addEventListener('pointermove', ev => { if (painting) paintAt(ev); });
+window.addEventListener('pointerup', () => { painting = false; controls.enabled = true; });
+function updateFixCount(){ $('#fixcount').textContent = (edits.add.size || edits.remove.size) ? `${edits.add.size} vertices → tooth, ${edits.remove.size} → gum` : 'No edits.'; }
+$('#clearfix').onclick = () => { edits.add.clear(); edits.remove.clear(); paintColors(); updateFixCount(); };
+$('#rerun').onclick = async () => {
+  if (!currentJob) return;
+  const fd = new FormData(); fd.append('edits', JSON.stringify({ scan: scanIdx, add:[...edits.add], remove:[...edits.remove] })); fd.append('params', JSON.stringify(params()));
+  await fetch(`/api/jobs/${currentJob}/rerun`, { method:'POST', body: fd }); selectJob(currentJob);
+};
+refreshJobs(); showTab('result');
+</script>
+</body>
+</html>
