@@ -18,7 +18,7 @@ TITLE_RE = re.compile(r"^(dr|mr|mrs|ms|miss|prof)\.?[ _\-]+", re.I)
 ARCH_RE = re.compile(r"(upper|maxil|lower|mandib)", re.I)
 
 DEFAULT_CONFIG = dict(
-    inbox="", titan="", preset="bleaching", poll=4, pair_wait=45, doctor="Dr. Amir Akhavan", kind="T", stage=0,
+    inbox="", titan="", preset="both", poll=4, pair_wait=45, doctor="Dr. Amir Akhavan", kind="T", stage=0,
     params={},
 )
 
@@ -95,16 +95,21 @@ class Watcher:
         params = dict(PRESETS.get(self.cfg["preset"], PRESETS["bleaching"]))
         params.update(self.cfg.get("params") or {})
         pieces = []; results = []
+        from .server_presets import variants_for
+        variants = variants_for(self.cfg.get("preset") or "both")
+        feat_cache = {}
         try:
             for path, arch in ent["files"][:2]:
-                p = dict(params); p["arch"] = arch
-                name = f"{ent['first']}_{ent['last']}_{arch or 'scan'}"
-                rep = process(path, work, name=name, params=p, models=self.models, log=self.log)
-                pieces.append(dict(arch=rep["arch"], stl=rep["outputs"]["model"], pts=rep["outputs"]["trimline"],
-                                   stage=int(self.cfg["stage"]), kind=self.cfg["kind"]))
+                moved = None
+                for vpreset, tag, kind, stage in variants:
+                    p = dict(params); p.update(PRESETS.get(vpreset, {})); p["arch"] = arch; p["stage"] = stage; p["kind"] = kind
+                    name = f"{ent['first']}_{ent['last']}_{arch or 'scan'}_{tag}"
+                    rep = process(path, work, name=name, params=p, models=self.models, log=self.log, feat_cache=feat_cache)
+                    pieces.append(dict(arch=rep["arch"], stl=rep["outputs"]["model"], pts=rep["outputs"]["trimline"], stage=stage, kind=kind))
+                    results.append((rep, path, dict(preset=vpreset, tag=tag, kind=kind, stage=stage)))
                 moved = os.path.join(work, os.path.basename(path))
                 shutil.move(path, moved)
-                results.append((rep, moved))
+                results = [(r[0], moved if r[1] == path else r[1], r[2]) for r in results]
             if self.on_result is not None and not self.cfg.get("auto_approve"):
                 ent2 = dict(ent); ent2.update(stage=int(self.cfg["stage"]), kind=self.cfg["kind"], doctor=self.cfg["doctor"], preset=self.cfg["preset"])
                 self.on_result(ent2, work, results)

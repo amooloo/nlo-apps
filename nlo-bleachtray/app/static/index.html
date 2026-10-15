@@ -78,7 +78,7 @@
 </header>
 <main>
   <aside>
-    <div class="drop" id="drop"><b>Drop the scan STL here</b> (anywhere on this page works)<br>upper and/or lower — it starts on its own. Or click to choose.</div>
+    <div class="drop" id="drop"><b>Drop the scan STL here</b> (anywhere on this page works)<br>upper and/or lower, one patient or a whole day's scans — it starts on its own. Or click to choose.</div>
     <input type="file" id="file" accept=".stl,.ply" multiple style="display:none">
     <div class="row">
       <div><label class="f">Patient first name</label><input type="text" id="pfirst" placeholder="Arman"></div>
@@ -86,10 +86,11 @@
     </div>
     <div class="row">
       <div><label class="f">Arch</label><select id="arch"><option value="">Auto-detect</option><option value="upper">Upper (Maxilla)</option><option value="lower">Lower (Mandible)</option></select></div>
-      <div><label class="f">Recipe</label><select id="preset">
-        <option value="bleaching">Bleaching tray 5-5</option>
-        <option value="bleaching_3_3">Bleaching tray 3-3</option>
-        <option value="aligner_high">Aligner / retainer (high line)</option>
+      <div><label class="f">Make</label><select id="preset">
+        <option value="both">Whitening tray + retainer (both)</option>
+        <option value="bleaching">Whitening tray 5-5 only</option>
+        <option value="bleaching_3_3">Whitening tray 3-3 only</option>
+        <option value="aligner_high">Retainer only (line 1.25 mm onto the gum)</option>
         <option value="plain_model">Plain model</option>
       </select></div>
     </div>
@@ -271,19 +272,26 @@ $('#file').onchange = e => setFiles([...e.target.files], true);
 ['dragenter','dragover'].forEach(ev => window.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
 window.addEventListener('dragleave', e => { if (!e.relatedTarget) drop.classList.remove('over'); });
 window.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('over'); if (e.dataTransfer && e.dataTransfer.files.length) setFiles([...e.dataTransfer.files], true); });
+const nameOf = fn => { const m = fn.replace(/\.(stl|ply)$/i,'').replace(/^(dr|mr|mrs|ms|miss|prof)\.?[ _-]+/i, '').match(/^([A-Za-z][A-Za-z'\-]*)[_ -]+([A-Za-z][A-Za-z'\-]*)/); return m ? [m[1], m[2]] : null; };
 function setFiles(fs, auto){
-  fs = fs.filter(f => /\.(stl|ply)$/i.test(f.name)).slice(0,2);
+  fs = fs.filter(f => /\.(stl|ply)$/i.test(f.name));
   if(!fs.length) { $('#filehint').textContent = 'That was not an STL file.'; return; }
-  files = fs; $('#filehint').textContent = fs.map(f => `${f.name} (${(f.size/1e6).toFixed(1)} MB)`).join(' + ');
+  files = fs;
+  // several patients at once (a whole day's scans): one case per patient, names from the file names
+  const patients = new Set(fs.map(f => (nameOf(f.name) || ['', f.name]).join(' ').toLowerCase()));
+  bulk = fs.length > 2 || patients.size > 1;
+  $('#filehint').textContent = bulk ? `${fs.length} files · ${patients.size} patient${patients.size > 1 ? 's' : ''} — one case each, upper + lower paired by name`
+                                    : fs.map(f => `${f.name} (${(f.size/1e6).toFixed(1)} MB)`).join(' + ');
   $('#name').value = fs[0].name.replace(/\.(stl|ply)$/i,'');
-  const m = fs[0].name.replace(/^(dr|mr|mrs|ms|miss|prof)\.?[ _-]+/i, '').match(/^([A-Za-z][A-Za-z'\-]*)[_ -]+([A-Za-z][A-Za-z'\-]*)/);
-  if (m) { $('#pfirst').value = m[1]; $('#plast').value = m[2]; }
-  $('#rerunbox').style.display = 'block';
-  if (auto && $('#pfirst').value.trim() && $('#plast').value.trim()) { $('#filehint').textContent += ' — processing…'; $('#go').click(); }
+  const m = nameOf(fs[0].name);
+  if (m) { $('#pfirst').value = m[0]; $('#plast').value = m[1]; }
+  $('#rerunbox').style.display = bulk ? 'none' : 'block';
+  if (auto && (bulk || ($('#pfirst').value.trim() && $('#plast').value.trim()))) { $('#filehint').textContent += ' — processing…'; $('#go').click(); }
   else if (auto) { $('#filehint').textContent += ' — type the patient\'s first and last name, then click "Run again".'; }
 }
+let bulk = false;
 
-$('#preset').onchange = () => { const p = $('#preset').value; const map = { bleaching:[0.5,5,'0','3'], bleaching_3_3:[0.5,3,'0','3'], aligner_high:[0,0,'1.25','4'], plain_model:[0,0,'0','3'] }[p]; $('#res_h').value = map[0]; $('#res_n').value = map[1]; $('#tl_off').value = map[2]; $('#bridge').value = map[3]; };
+$('#preset').onchange = () => { const p = $('#preset').value; const map = { both:[0.5,5,'0','3'], bleaching:[0.5,5,'0','3'], bleaching_3_3:[0.5,3,'0','3'], aligner_high:[0,0,'1.25','4'], plain_model:[0,0,'0','3'] }[p]; $('#res_h').value = map[0]; $('#res_n').value = map[1]; $('#tl_off').value = map[2]; $('#bridge').value = map[3]; };
 function params(){ return { reservoir_height: +$('#res_h').value, reservoir_max_position: +$('#res_n').value, trimline_offset: +$('#tl_off').value, bridge_radius: +$('#bridge').value, add_base: $('#base').value === '1', patient_first: $('#pfirst').value.trim(), patient_last: $('#plast').value.trim(), stage: +$('#stage').value, arch: $('#arch').value || null, order_root: $('#export').value.trim(), patient_id: $('#pid').value.trim(), kind: $('#kind').value, doctor: $('#doctor').value.trim(), engrave: $('#engrave').value === '1', engrave_text: $('#engrave_text').value.trim(), adjust: { ...adjust } }; }
 try { $('#export').value = localStorage.getItem('exportFolder') || ''; } catch(e) {}
 $('#export').onchange = () => { try { localStorage.setItem('exportFolder', $('#export').value.trim()); } catch(e) {} };
@@ -323,32 +331,44 @@ async function refreshScanner(){
 }
 
 $('#go').onclick = async () => {
-  const fd = new FormData(); files.forEach(f => fd.append('files', f)); fd.append('arches', JSON.stringify(files.map((f,i) => i===0 ? ($('#arch').value || null) : null))); fd.append('preset', $('#preset').value); fd.append('params', JSON.stringify(params())); fd.append('name', $('#name').value);
   if (!files.length) return;
+  const pr = params(); if (bulk) { pr.patient_first = ''; pr.patient_last = ''; pr.arch = null; }
+  const fd = new FormData(); files.forEach(f => fd.append('files', f)); fd.append('arches', JSON.stringify(files.map((f,i) => (i===0 && !bulk) ? ($('#arch').value || null) : null))); fd.append('preset', $('#preset').value); fd.append('params', JSON.stringify(pr)); fd.append('name', bulk ? '' : $('#name').value);
   $('#go').disabled = true;
   const r = await fetch('/api/jobs', { method:'POST', body: fd }); const j = await r.json();
-  $('#go').disabled = false; refreshJobs(); selectJob(j.id);
+  $('#go').disabled = false;
+  if (!r.ok) { showErr(j.detail || 'Upload failed'); return; }
+  if ((j.joined || []).length) $('#filehint').textContent += ' — added to the case already open for this patient.';
+  else if (j.cases > 1) $('#filehint').textContent = `${j.cases} cases started — they run one after another (see the list below).`;
+  refreshJobs(); selectJob(j.id);
 };
 
 // ---------- jobs ----------
 async function refreshJobs(){
   const jobs = await (await fetch('/api/jobs')).json();
   const st = j => j.status === 'done' ? (j.review || 'review') : j.status;
-  $('#jobs').innerHTML = jobs.map(j => `<div class="job ${j.id===currentJob?'active':''}" data-id="${j.id}"><span class="nm">${j.name}</span><span class="pill ${st(j)}">${st(j) === 'review' ? 'check & send' : st(j)}</span></div>`).join('') || '<div class="hint">None yet.</div>';
+  const lab = j => st(j) === 'review' ? 'check & send' : st(j) === 'queued' ? (j.ahead ? `waiting (${j.ahead} ahead)` : 'waiting') : st(j);
+  const ar = j => (j.arches || []).map(a => a === 'upper' ? 'U' : 'L').join('+');
+  $('#jobs').innerHTML = jobs.map(j => `<div class="job ${j.id===currentJob?'active':''}" data-id="${j.id}"><span class="nm">${j.name}${ar(j) ? ` <span class="hint" style="display:inline;margin:0">${ar(j)}</span>` : ''}</span><span class="pill ${st(j)}">${lab(j)}</span></div>`).join('') || '<div class="hint">None yet.</div>';
   document.querySelectorAll('.job').forEach(e => e.onclick = () => selectJob(e.dataset.id));
 }
 let pollTimer = null;
 async function selectJob(id){
   currentJob = id; refreshJobs(); $('#detail').style.display = 'block';
   clearInterval(pollTimer);
+  // keeps watching the open case: a lower dropped by someone else joins it and shows up when done
+  let shown = '';
   const tick = async () => {
     const j = await (await fetch('/api/jobs/'+id)).json();
     $('#log').textContent = (j.log||[]).join('\n') + (j.error ? '\nERROR: '+j.error : '');
-    if (j.status === 'running' || j.status === 'queued') renderProgress(j);
-    if (j.status === 'done') { clearInterval(pollTimer); refreshJobs(); try { await loadResult(id, j); } catch (ex) { showErr('Could not show the result: ' + (ex && ex.message || ex)); } }
-    if (j.status === 'error') { clearInterval(pollTimer); refreshJobs(); $('#stats').textContent = 'Processing failed — see the processing log.'; }
+    const sig = `${j.status}|${(j.reports||[]).length}|${j.review||''}`;
+    if (j.status === 'running' || j.status === 'queued') { renderProgress(j); if (shown !== sig) refreshJobs(); shown = sig; return; }
+    if (shown === sig) return;
+    shown = sig; refreshJobs();
+    if (j.status === 'done') { try { await loadResult(id, j); } catch (ex) { showErr('Could not show the result: ' + (ex && ex.message || ex)); } }
+    if (j.status === 'error') { $('#stats').textContent = 'Processing failed — see the processing log.'; }
   };
-  await tick(); pollTimer = setInterval(tick, 1200);
+  await tick(); pollTimer = setInterval(tick, 1500);
 }
 
 // ---------- progress while a case is being processed ----------
@@ -357,9 +377,15 @@ function renderProgress(j){
   const pct = Math.round(100 * Math.min(1, p.frac));
   const el = j.started ? Math.max(0, Math.round(Date.now() / 1000 - j.started)) : 0;
   const mmss = `${Math.floor(el / 60)}:${String(el % 60).padStart(2, '0')}`;
-  const which = (p.of > 1) ? ` (arch ${p.scan + 1} of ${p.of})` : '';
+  const sc = (j.scans || [])[p.scan] || {};
+  const which = (p.of > 1) ? ` (model ${p.scan + 1} of ${p.of}${sc.arch || sc.tag ? ': ' + [sc.arch, sc.tag].filter(Boolean).join(' ') : ''})` : '';
   const box = $('#review'); box.className = 'review working';
-  box.innerHTML = `<b>Processing… ${pct}%</b> — ${p.label}${which}<div class="bar"><div style="width:${pct}%"></div></div><div class="hint">${mmss} elapsed · usually 1–3 minutes per arch, longer on a slow PC</div>`;
+  if (j.status === 'queued') {
+    box.innerHTML = `<b>Waiting in line</b> — ${j.ahead ? `${j.ahead} case${j.ahead > 1 ? 's' : ''} ahead of this one` : 'starting shortly'}<div class="bar"><div style="width:0%"></div></div><div class="hint">cases run one after another; you can close this page and come back</div>`;
+    $('#stats').innerHTML = `<b>${j.name}</b> — waiting${j.ahead ? ` (${j.ahead} ahead)` : ''}`;
+    return;
+  }
+  box.innerHTML = `<b>Processing… ${pct}%</b> — ${p.label}${which}<div class="bar"><div style="width:${pct}%"></div></div><div class="hint">${mmss} elapsed · about 1–2 minutes per model, longer on a slow PC</div>`;
   $('#stats').innerHTML = `<b>${j.name}</b> — processing ${pct}%: ${p.label}${which}`;
 }
 
@@ -371,11 +397,12 @@ function renderReview(id, j){
   const box = $('#review'); box.className = 'review ' + (j.review || '');
   const n = (j.scans || []).length;
   if (j.review === 'sent') {
-    box.innerHTML = `<b>Sent to OrthoFactory.</b> It appears under Production as a stage-0 Template.<div class="hint">${j.order_folder || ''}</div>`;
+    box.innerHTML = `<b>Sent to OrthoFactory.</b> Whitening trays are Template pieces (TU0A/TL0A), retainers Aligner pieces (AU1A/AL1A).<div class="hint">${j.order_folder || ''}</div>`;
   } else if (j.review === 'discarded') {
     box.innerHTML = `<b>Discarded</b> — nothing was sent to OrthoFactory.`;
   } else {
-    box.innerHTML = `<b>Check the 3D result${n > 1 ? ' (both arches)' : ''}.</b> Fix teeth with the brush or nudge the base if needed, then:` +
+    const what = n > 1 ? ` (${n} models: ${(j.scans || []).map(s => [s.arch, s.tag].filter(Boolean).join(' ')).join(', ')})` : '';
+    box.innerHTML = `<b>Check the 3D result${what}.</b> Fix teeth with the brush or nudge the base if needed, then:` +
       `<div class="btns"><button class="primary small" id="sendbtn">Send to OrthoFactory</button><button class="small" id="discardbtn">Discard</button></div>` +
       (j.order_error ? `<div class="hint" style="color:var(--err)">${j.order_error}</div>` : '');
     $('#sendbtn').onclick = async () => { $('#sendbtn').disabled = true; $('#sendbtn').textContent = 'Sending…'; const r = await (await fetch(`/api/jobs/${id}/approve`, { method:'POST', body: new FormData() })).json(); refreshJobs(); renderReview(id, r); if (r.order_error) showErr(r.order_error); };
@@ -404,7 +431,7 @@ let scanIdx = 0;
 async function loadResult(id, j){
   if (scanIdx >= (j.scans||[]).length) scanIdx = 0;
   const r = (j.reports || [j.report])[scanIdx] || {};
-  const scanSel = (j.scans||[]).length > 1 ? `<div class="seg" style="margin-bottom:6px">${j.scans.map((s,i) => `<button class="small ${i===scanIdx?'on':''}" data-scan="${i}">${s.arch||'scan '+(i+1)}</button>`).join('')}</div>` : '';
+  const scanSel = (j.scans||[]).length > 1 ? `<div class="seg" style="margin-bottom:6px">${j.scans.map((s,i) => `<button class="small ${i===scanIdx?'on':''}" data-scan="${i}">${(s.arch||'scan '+(i+1)) + (s.tag ? ' ' + s.tag : '')}</button>`).join('')}</div>` : '';
   renderReview(id, j);
   $('#stats').innerHTML = `<b>${j.name}</b> — ${r.arch || ''} · ${r.teeth ? Object.keys(r.teeth).length : '?'} teeth · body ${r.body_watertight ? 'watertight' : 'NOT watertight'} · ${r.body_volume_ml} mL · base: ${r.base} · trimline ${r.trimline_points} pts · ${r.elapsed_s}s`;
   const tb = r.titan_basename; const exp = ''; const q = `?scan=${scanIdx}`;
