@@ -102,6 +102,14 @@
   .drop b{display:block;font-family:var(--fd);font-weight:600;font-size:14px;letter-spacing:.05em;text-transform:uppercase;color:var(--navy);margin-bottom:3px}
   .drop:hover{border-color:var(--navy-500)}
   .drop.over{border-color:var(--mint-600);background:var(--mint-100);color:var(--mint-700)}
+  .scanrow{border:1.5px solid var(--grey-200);border-radius:12px;padding:10px 12px;margin-top:10px;background:var(--grey-50)}
+  .scanrow .fn{font-weight:700;color:var(--navy);font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .scanrow .opts{display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-top:8px}
+  .scanrow label.ck{display:inline-flex;align-items:center;gap:6px;font-weight:600;font-size:12.5px;color:var(--grey-700);cursor:pointer}
+  .scanrow label.ck input{accent-color:var(--blue);width:15px;height:15px}
+  .scanrow select{width:auto;min-height:32px;padding:4px 28px 4px 10px;font-size:12.5px}
+  .scanrow .rm{margin-left:auto;color:var(--grey-400);font-size:18px;line-height:1;cursor:pointer}
+  .scanrow .rm:hover{color:var(--coral-700)}
   details.adv{margin-top:14px;border-top:1px solid var(--grey-100);padding-top:10px}
   details.adv summary{font-family:var(--fd);font-weight:500;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--grey-500);cursor:pointer;user-select:none;list-style:none;display:flex;align-items:center;gap:8px}
   details.adv summary::before{content:"";width:0;height:0;border-left:5px solid currentColor;border-top:4px solid transparent;border-bottom:4px solid transparent;transition:transform .14s}
@@ -180,24 +188,19 @@
         <div class="card">
           <div class="cardHd"><h3>New case</h3></div>
           <div class="cardBd">
-            <div class="drop" id="drop"><b>Drop the scan STL here</b>anywhere on this page works · upper and/or lower, one patient or a whole day's scans — it starts on its own. Or click to choose.</div>
+            <div class="drop" id="drop"><b>Drop the scan STL here</b>anywhere on this page works · one arch at a time — the app then asks what to make and whether the opposing arch is coming. A whole day's scans at once run with the defaults. Or click to choose.</div>
             <input type="file" id="file" accept=".stl,.ply,.pts" multiple style="display:none">
             <div class="row">
               <div><label class="f">Patient first name</label><input type="text" id="pfirst" placeholder="Arman"></div>
               <div><label class="f">Last name</label><input type="text" id="plast" placeholder="Shetty"></div>
             </div>
-            <div class="row">
-              <div><label class="f">Arch</label><select id="arch"><option value="">Auto-detect</option><option value="upper">Upper (Maxilla)</option><option value="lower">Lower (Mandible)</option></select></div>
-              <div><label class="f">Make</label><select id="preset">
-                <option value="both">Whitening tray + retainer (both)</option>
-                <option value="bleaching">Whitening tray 5-5 only</option>
-                <option value="bleaching_3_3">Whitening tray 3-3 only</option>
-                <option value="aligner_high">Retainer only (line 1.25 mm onto the gum)</option>
-                <option value="plain_model">Plain model</option>
-              </select></div>
-            </div>
             <input type="hidden" id="name"><input type="hidden" id="stage" value="0"><input type="hidden" id="kind" value="T">
             <div class="hint" id="filehint">No file yet.</div>
+            <div id="setup" style="display:none">
+              <div id="setuplist"></div>
+              <div class="hint" id="setuphint"></div>
+              <div class="btns" style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button class="primary small" id="startcase">Start</button><button class="small" id="addopp">Add the opposing arch…</button><button class="small" id="cancelcase">Cancel</button></div>
+            </div>
             <div id="rerunbox" style="display:none;margin-top:10px"><button class="small" id="go">Run again with these settings</button></div>
             <details class="adv">
               <summary>Advanced settings</summary>
@@ -223,6 +226,16 @@
                 <select id="engrave"><option value="1">Patient name + WHITENING / RETAINER</option><option value="0">None</option></select>
                 <input type="text" id="engrave_text" placeholder="custom text, e.g. K. POST | UPPER" style="margin-top:6px">
               </div></div>
+            <div class="row">
+              <div><label class="f">Arch (bulk drops)</label><select id="arch"><option value="">Auto-detect</option><option value="upper">Upper (Maxilla)</option><option value="lower">Lower (Mandible)</option></select></div>
+              <div><label class="f">Default (bulk drops, drop folder)</label><select id="preset">
+                <option value="both">Whitening tray + retainer (both)</option>
+                <option value="bleaching">Whitening tray 5-5 only</option>
+                <option value="bleaching_3_3">Whitening tray 3-3 only</option>
+                <option value="aligner_high">Retainer only (line 1.25 mm onto the gum)</option>
+                <option value="plain_model">Plain model</option>
+              </select></div>
+            </div>
               <label class="f">Patient ID in Edge (optional)</label><input type="text" id="pid" placeholder="80010">
               <label class="f">OrthoFactory input folder (approved orders are written there)</label>
               <input type="text" id="export" placeholder="S:\clinical\3D printing\Titan" value="">
@@ -375,28 +388,82 @@ window.addEventListener('dragleave', e => { if (!e.relatedTarget) drop.classList
 window.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('over'); if (e.dataTransfer && e.dataTransfer.files.length) setFiles([...e.dataTransfer.files], true); });
 const isTitan = fn => /^(\d{6,}[ _-]+)?.+?[ _]+-[ _]+\d+[ _]+-[ _]+(Maxilla|Mandible)/i.test(fn.replace(/\.(stl|pts)$/i, ''));
 const nameOf = fn => { const m = fn.replace(/\.(stl|ply)$/i,'').replace(/^(dr|mr|mrs|ms|miss|prof)\.?[ _-]+/i, '').match(/^([A-Za-z][A-Za-z'\-]*)[_ -]+([A-Za-z][A-Za-z'\-]*)/); return m ? [m[1], m[2]] : null; };
+const archOf = fn => /upper|maxil/i.test(fn) ? 'upper' : (/lower|mandib/i.test(fn) ? 'lower' : '');
+async function fileTitan(titanFiles){
+  const fd = new FormData(); titanFiles.forEach(f => fd.append('files', f));
+  const r = await fetch('/api/jobs', { method:'POST', body: fd }); const j = await r.json();
+  if (r.ok && (j.filed || []).length) $('#filehint').textContent = `Filed for training: ${j.filed.join(', ')}`;
+}
+// A single patient's scan is not processed on the spot: the app first asks what to make of it
+// (whitening tray and/or retainer) and whether the opposing arch is coming. Whole-day drops
+// (several patients) skip the questions and use the defaults.
+let pending = [];   // [{file, arch, wt, tt}]
 function setFiles(fs, auto){
   fs = fs.filter(f => /\.(stl|ply)$/i.test(f.name) || (/\.pts$/i.test(f.name) && isTitan(f.name)));
   if(!fs.length) { $('#filehint').textContent = 'That was not an STL file.'; return; }
-  files = fs;
   const titanFiles = fs.filter(f => isTitan(f.name)); fs = fs.filter(f => !isTitan(f.name));
-  if (!fs.length) {   // only Titan exports: file them for training, nothing to process
-    $('#filehint').textContent = `${titanFiles.length} Titan export${titanFiles.length > 1 ? 's' : ''} — filing under training\\<patient>…`;
-    $('#go').click(); return;
-  }
+  if (titanFiles.length) fileTitan(titanFiles);
+  if (!fs.length) return;
   // several patients at once (a whole day's scans): one case per patient, names from the file names
   const patients = new Set(fs.map(f => (nameOf(f.name) || ['', f.name]).join(' ').toLowerCase()));
   bulk = fs.length > 2 || patients.size > 1;
-  $('#filehint').textContent = bulk ? `${fs.length} files · ${patients.size} patient${patients.size > 1 ? 's' : ''} — one case each, upper + lower paired by name`
-                                    : fs.map(f => `${f.name} (${(f.size/1e6).toFixed(1)} MB)`).join(' + ');
-  $('#name').value = fs[0].name.replace(/\.(stl|ply)$/i,'');
-  const m = nameOf(fs[0].name);
-  if (m) { $('#pfirst').value = m[0]; $('#plast').value = m[1]; }
-  $('#rerunbox').style.display = bulk ? 'none' : 'block';
-  if (auto && (bulk || ($('#pfirst').value.trim() && $('#plast').value.trim()))) { $('#filehint').textContent += ' — processing…'; $('#go').click(); }
-  else if (auto) { $('#filehint').textContent += ' — type the patient\'s first and last name, then click "Run again".'; }
+  if (bulk) {
+    files = fs; pending = []; renderSetup();
+    $('#filehint').textContent = `${fs.length} files · ${patients.size} patient${patients.size > 1 ? 's' : ''} — one case each, upper + lower paired by name — processing with the defaults (${$('#preset').selectedOptions[0].text})…`;
+    $('#rerunbox').style.display = 'none';
+    if (auto) $('#go').click();
+    return;
+  }
+  const preset = $('#preset').value;
+  const dflt = { wt: preset !== 'aligner_high' && preset !== 'plain_model', tt: preset === 'both' || preset === 'aligner_high' };
+  for (const f of fs) {
+    if (pending.length >= 2) break;
+    pending.push({ file: f, arch: archOf(f.name) || (pending.length === 1 && pending[0].arch ? (pending[0].arch === 'upper' ? 'lower' : 'upper') : ''), wt: dflt.wt, tt: dflt.tt });
+  }
+  const first = pending[0].file;
+  $('#name').value = first.name.replace(/\.(stl|ply)$/i,'');
+  const m = nameOf(first.name);
+  if (m && !$('#pfirst').value.trim() && !$('#plast').value.trim() || (m && pending.length === 1)) { $('#pfirst').value = m[0]; $('#plast').value = m[1]; }
+  $('#filehint').textContent = '';
+  $('#rerunbox').style.display = 'none';
+  renderSetup();
 }
 let bulk = false;
+function renderSetup(){
+  const box = $('#setup');
+  if (!pending.length) { box.style.display = 'none'; return; }
+  box.style.display = 'block';
+  $('#setuplist').innerHTML = pending.map((p, i) => `<div class="scanrow" data-i="${i}">
+      <div style="display:flex;align-items:center;gap:8px"><span class="fn" title="${p.file.name}">${p.file.name}</span><span class="rm" data-rm="${i}" title="remove">×</span></div>
+      <div class="opts">
+        <select data-arch="${i}"><option value="" ${!p.arch?'selected':''}>Arch: auto-detect</option><option value="upper" ${p.arch==='upper'?'selected':''}>Upper (maxilla)</option><option value="lower" ${p.arch==='lower'?'selected':''}>Lower (mandible)</option></select>
+        <label class="ck"><input type="checkbox" data-wt="${i}" ${p.wt?'checked':''}> Whitening tray</label>
+        <label class="ck"><input type="checkbox" data-tt="${i}" ${p.tt?'checked':''}> Retainer (TT)</label>
+      </div></div>`).join('');
+  document.querySelectorAll('[data-arch]').forEach(e => e.onchange = () => { pending[+e.dataset.arch].arch = e.value; });
+  document.querySelectorAll('[data-wt]').forEach(e => e.onchange = () => { pending[+e.dataset.wt].wt = e.checked; setupCount(); });
+  document.querySelectorAll('[data-tt]').forEach(e => e.onchange = () => { pending[+e.dataset.tt].tt = e.checked; setupCount(); });
+  document.querySelectorAll('[data-rm]').forEach(e => e.onclick = () => { pending.splice(+e.dataset.rm, 1); renderSetup(); });
+  const n = pending.length;
+  $('#addopp').style.display = n < 2 ? '' : 'none';
+  $('#setuphint').textContent = n < 2 ? 'Opposing arch too? Drop it on the page now (or click "Add the opposing arch"), then Start. Nothing runs until you click Start.'
+                                      : 'Both arches in one case — one OrthoFactory order. Nothing runs until you click Start.';
+  setupCount();
+}
+function setupCount(){
+  const nModels = pending.reduce((a, p) => a + ((p.wt ? 1 : 0) + (p.tt ? 1 : 0) || 1), 0);
+  const what = pending.map(p => (p.wt && p.tt) ? 'whitening + retainer' : p.wt ? 'whitening' : p.tt ? 'retainer' : 'plain model');
+  $('#startcase').textContent = `Start — make ${nModels} model${nModels > 1 ? 's' : ''}` + (new Set(what).size === 1 ? ` (${what[0]})` : '');
+}
+$('#addopp').onclick = () => $('#file').click();
+$('#cancelcase').onclick = () => { pending = []; files = []; renderSetup(); $('#filehint').textContent = 'No file yet.'; };
+$('#startcase').onclick = () => {
+  if (!pending.length) return;
+  if (!($('#pfirst').value.trim() && $('#plast').value.trim())) { $('#filehint').textContent = "Type the patient's first and last name first."; return; }
+  files = pending.map(p => p.file);
+  $('#go').dataset.pending = JSON.stringify(pending.map(p => ({ arch: p.arch || null, makes: [p.wt ? 'WT' : null, p.tt ? 'TT' : null].filter(Boolean) })));
+  $('#go').click();
+};
 
 $('#preset').onchange = () => { const p = $('#preset').value; const map = { both:[0.5,5,'0','3'], bleaching:[0.5,5,'0','3'], bleaching_3_3:[0.5,3,'0','3'], aligner_high:[0,0,'1.25','4'], plain_model:[0,0,'0','3'] }[p]; $('#res_h').value = map[0]; $('#res_n').value = map[1]; $('#tl_off').value = map[2]; $('#bridge').value = map[3]; };
 function params(){ return { reservoir_height: +$('#res_h').value, reservoir_max_position: +$('#res_n').value, trimline_offset: +$('#tl_off').value, bridge_radius: +$('#bridge').value, add_base: $('#base').value === '1', patient_first: $('#pfirst').value.trim(), patient_last: $('#plast').value.trim(), stage: +$('#stage').value, arch: $('#arch').value || null, order_root: $('#export').value.trim(), patient_id: $('#pid').value.trim(), kind: $('#kind').value, doctor: $('#doctor').value.trim(), engrave: $('#engrave').value === '1', engrave_text: $('#engrave_text').value.trim(), adjust: { ...adjust } }; }
@@ -440,11 +507,17 @@ async function refreshScanner(){
 $('#go').onclick = async () => {
   if (!files.length) return;
   const pr = params(); if (bulk) { pr.patient_first = ''; pr.patient_last = ''; pr.arch = null; }
-  const fd = new FormData(); files.forEach(f => fd.append('files', f)); fd.append('arches', JSON.stringify(files.map((f,i) => (i===0 && !bulk) ? ($('#arch').value || null) : null))); fd.append('preset', $('#preset').value); fd.append('params', JSON.stringify(pr)); fd.append('name', bulk ? '' : $('#name').value);
-  $('#go').disabled = true;
+  const pend = $('#go').dataset.pending ? JSON.parse($('#go').dataset.pending) : null; delete $('#go').dataset.pending;
+  const fd = new FormData(); files.forEach(f => fd.append('files', f));
+  fd.append('arches', JSON.stringify(pend ? pend.map(p => p.arch) : files.map((f,i) => (i===0 && !bulk) ? ($('#arch').value || null) : null)));
+  if (pend) fd.append('makes', JSON.stringify(pend.map(p => p.makes)));
+  fd.append('preset', $('#preset').value); fd.append('params', JSON.stringify(pr)); fd.append('name', bulk ? '' : $('#name').value);
+  $('#go').disabled = true; $('#startcase').disabled = true; $('#startcase').textContent = 'Starting…';
   const r = await fetch('/api/jobs', { method:'POST', body: fd }); const j = await r.json();
-  $('#go').disabled = false;
-  if (!r.ok) { showErr(j.detail || 'Upload failed'); return; }
+  $('#go').disabled = false; $('#startcase').disabled = false;
+  if (!r.ok) { showErr(j.detail || 'Upload failed'); renderSetup(); return; }
+  pending = []; renderSetup(); $('#rerunbox').style.display = bulk ? 'none' : 'block';
+  $('#filehint').textContent = files.map(f => f.name).join(' + ') + ' — processing…';
   if ((j.filed || []).length) $('#filehint').textContent = `Filed for training: ${j.filed.join(', ')}` + (j.cases ? ' — and processing the scans.' : '');
   if (!j.id) { refreshJobs(); return; }
   if ((j.joined || []).length) $('#filehint').textContent += ' — added to the case already open for this patient.';
@@ -478,7 +551,7 @@ async function selectJob(id){
     if (shown === sig) return;
     shown = sig; refreshJobs();
     if (j.status === 'done') { try { await loadResult(id, j); } catch (ex) { showErr('Could not show the result: ' + (ex && ex.message || ex)); } }
-    if (j.status === 'error') { $('#stats').textContent = 'Processing failed — see the processing log.'; }
+    if (j.status === 'error') { $('#stats').textContent = 'Processing failed — see the processing log.'; const box = $('#review'); box.className = 'review discarded'; box.innerHTML = '<b>Processing failed.</b> Open the processing log below and send Dr. Akhavan the last lines; "Run again with these settings" starts the case over.'; $('#dl').innerHTML = ''; $('#rerunbox').style.display = 'block'; }
   };
   await tick(); pollTimer = setInterval(tick, 1500);
 }
@@ -524,7 +597,9 @@ function renderReview(id, j){
 
 // ---------- loading results ----------
 function parseSTL(buf){
+  if (!buf || buf.byteLength < 84) throw new Error('not a model file (the case is probably being rebuilt - it reloads when done)');
   const dv = new DataView(buf); const n = dv.getUint32(80, true);
+  if (buf.byteLength < 84 + 50 * n) throw new Error('model file incomplete (the case is probably being rebuilt - it reloads when done)');
   const pos = new Float32Array(n*9); let o = 84;
   for (let i=0;i<n;i++){ o += 12; for (let k=0;k<9;k++){ pos[i*9+k] = dv.getFloat32(o, true); o += 4; } o += 2; }
   const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.computeVertexNormals(); return g;
@@ -540,7 +615,14 @@ function addTrimline(group, pts, color=0xe11d48){
   for (const m of [solid, ghost]) { m.userData.trimline = true; m.visible = $('#showtl').checked; group.add(m); }
 }
 let scanIdx = 0;
+let loadSeq = 0;
+async function fetchOk(url){ const r = await fetch(url); if (!r.ok) throw new Error(`not available right now (${r.status}) - the case is probably being rebuilt; it reloads when done`); return r; }
 async function loadResult(id, j){
+  // a click on a scan button while the case is being re-run must not try to read half-written files
+  const fresh = await (await fetch('/api/jobs/' + id)).json();
+  if (fresh.status !== 'done') { renderProgress(fresh); return; }
+  j = fresh;
+  const seq = ++loadSeq;
   if (scanIdx >= (j.scans||[]).length) scanIdx = 0;
   const r = (j.reports || [j.report])[scanIdx] || {};
   const scanSel = (j.scans||[]).length > 1 ? `<div class="seg" style="margin-bottom:6px">${j.scans.map((s,i) => `<button class="small ${i===scanIdx?'on':''}" data-scan="${i}">${(s.arch||'scan '+(i+1)) + (s.tag ? ' ' + s.tag : '')}</button>`).join('')}</div>` : '';
@@ -548,20 +630,21 @@ async function loadResult(id, j){
   $('#stats').innerHTML = `<b>${j.name}</b> — ${r.arch || ''} · ${r.teeth ? Object.keys(r.teeth).length : '?'} teeth · body ${r.body_watertight ? 'watertight' : 'NOT watertight'} · ${r.body_volume_ml} mL · base: ${r.base} · trimline ${r.trimline_points} pts · ${r.elapsed_s}s`;
   const tb = r.titan_basename; const exp = ''; const q = `?scan=${scanIdx}`;
   $('#dl').innerHTML = scanSel + (tb ? `<a href="/api/jobs/${id}/file/titan_stl${q}" download><button class="small primary">${tb}.stl</button></a><a href="/api/jobs/${id}/file/titan_pts${q}" download><button class="small primary">${tb}.pts</button></a>` : '') + `<a href="/api/jobs/${id}/file/model${q}" download><button class="small">Model (.stl)</button></a><a href="/api/jobs/${id}/file/trimline${q}" download><button class="small">Trimline (.pts)</button></a><a href="/api/jobs/${id}/file/scan_res${q}" download><button class="small">Scan + reservoirs (.stl)</button></a>` + exp;
-  document.querySelectorAll('[data-scan]').forEach(b => b.onclick = () => { scanIdx = +b.dataset.scan; loadResult(id, j); });
+  document.querySelectorAll('[data-scan]').forEach(b => b.onclick = () => { scanIdx = +b.dataset.scan; loadResult(id, j).catch(ex => showErr('Could not show that model: ' + (ex && ex.message || ex))); });
   // result: the arch body and the base as two pieces, so the arch can be moved on the base
-  clear(groups.result); archGroup = null;
   const mat = new THREE.MeshStandardMaterial({ color: 0xd8d2c4, roughness: .75, metalness: 0 });
   const bodyRes = await fetch(`/api/jobs/${id}/file/body${q}`);
+  const bodyBuf = await (bodyRes.ok ? bodyRes : await fetchOk(`/api/jobs/${id}/file/model${q}`)).arrayBuffer();
+  const tl = await (await fetchOk(`/api/jobs/${id}/trimline.json${q}`)).json();
+  let baseBuf = null;
+  if (r.base && r.base !== 'none') { const bres = await fetch('/api/base.stl'); if (bres.ok) baseBuf = await bres.arrayBuffer(); }
+  if (seq !== loadSeq) return;            // a newer selection took over while this one was loading
+  clear(groups.result); archGroup = null;
   const g = new THREE.Group(); g.matrixAutoUpdate = false;
-  g.add(new THREE.Mesh(parseSTL(await (bodyRes.ok ? bodyRes : await fetch(`/api/jobs/${id}/file/model${q}`)).arrayBuffer()), mat));
-  const tl = await (await fetch(`/api/jobs/${id}/trimline.json${q}`)).json();
+  g.add(new THREE.Mesh(parseSTL(bodyBuf), mat));
   addTrimline(g, tl);
   groups.result.add(g); archGroup = g;
-  if (r.base && r.base !== 'none') {
-    const bres = await fetch('/api/base.stl');
-    if (bres.ok) groups.result.add(new THREE.Mesh(parseSTL(await bres.arrayBuffer()), new THREE.MeshStandardMaterial({ color: 0x9aa4b2, roughness: .8, metalness: .05 })));
-  }
+  if (baseBuf) groups.result.add(new THREE.Mesh(parseSTL(baseBuf), new THREE.MeshStandardMaterial({ color: 0x9aa4b2, roughness: .8, metalness: .05 })));
   applied = Object.assign({ yaw_deg: 0, dx: 0, dy: 0, dz: 0 }, r.adjust || {});
   adjust = { ...applied }; pivot = r.adjust_pivot || [0, 0];
   updatePlacement();
@@ -596,12 +679,14 @@ $('#applyplace').onclick = async () => {
   fd.append('edits', JSON.stringify((edits.add.size || edits.remove.size) ? { scan: scanIdx, add:[...edits.add], remove:[...edits.remove] } : null));
   fd.append('params', JSON.stringify(params()));
   $('#applyplace').disabled = true; $('#placestate').textContent = 'Rebuilding…';
-  await fetch(`/api/jobs/${currentJob}/rerun`, { method:'POST', body: fd }); selectJob(currentJob);
+  await fetch(`/api/jobs/${currentJob}/rerun`, { method:'POST', body: fd }); $('#dl').innerHTML = ''; selectJob(currentJob);
 };
 const palette = [0xcfd4da, 0x60a5fa, 0xf472b6, 0x34d399, 0xfbbf24, 0xa78bfa, 0xfb7185, 0x22d3ee, 0x4ade80, 0xf59e0b, 0x818cf8, 0xe879f9, 0x2dd4bf, 0xf97316, 0x93c5fd, 0xbef264];
 async function loadSeg(id, k=0){
-  const buf = await (await fetch(`/api/jobs/${id}/segmesh?scan=${k}`)).arrayBuffer();
+  const buf = await (await fetchOk(`/api/jobs/${id}/segmesh?scan=${k}`)).arrayBuffer();
+  if (buf.byteLength < 8) throw new Error('segmentation not available right now');
   const dv = new DataView(buf); const nV = dv.getUint32(0,true), nF = dv.getUint32(4,true);
+  if (buf.byteLength < 8 + nV*12 + nF*12 + nV*2 + nV*4) throw new Error('segmentation file incomplete (the case is probably being rebuilt)');
   let o = 8; const V = new Float32Array(buf, o, nV*3); o += nV*12; const F = new Uint32Array(buf, o, nF*3); o += nF*12;
   segLabels = new Uint16Array(buf.slice(o, o+nV*2)); o += nV*2; segDisp = new Float32Array(buf.slice(o, o+nV*4));
   segPos = V;
@@ -646,7 +731,7 @@ $('#clearfix').onclick = () => { edits.add.clear(); edits.remove.clear(); paintC
 $('#rerun').onclick = async () => {
   if (!currentJob) return;
   const fd = new FormData(); fd.append('edits', JSON.stringify({ scan: scanIdx, add:[...edits.add], remove:[...edits.remove] })); fd.append('params', JSON.stringify(params()));
-  await fetch(`/api/jobs/${currentJob}/rerun`, { method:'POST', body: fd }); selectJob(currentJob);
+  await fetch(`/api/jobs/${currentJob}/rerun`, { method:'POST', body: fd }); $('#dl').innerHTML = ''; selectJob(currentJob);
 };
 refreshJobs(); showTab('result'); setInterval(refreshJobs, 10000);
 window.__appReady = true;

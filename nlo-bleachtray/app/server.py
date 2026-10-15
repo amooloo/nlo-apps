@@ -210,7 +210,7 @@ def _run(job):
                 job["progress"] = dict(frac=round((i + frac) / n, 3), label=label, scan=k, of=len(job["scans"]), step=i, steps=n)
             if me is not None and job["scans"][me.get("scan", 0)]["path"] == scan["path"] and scan["path"] not in overrides:
                 progress(0.02, "applying your brush fixes")
-                overrides[scan["path"]] = _apply_mask_edit(job, me.get("scan", 0))
+                overrides[scan["path"]] = _apply_mask_edit(job, me.get("scan", 0), edit=me)
                 fixed[scan["path"]] = overrides[scan["path"]]
             override = overrides.get(scan["path"], fixed.get(scan["path"]))
             params = dict(job["params"]); params["arch"] = scan.get("arch") or None
@@ -291,8 +291,9 @@ def register_watcher_result(ent, work, results, log=print):
     return jid
 
 
-def _apply_mask_edit(job, k=0):
+def _apply_mask_edit(job, k=0, edit=None):
     """Turn brush edits (vertex index lists) into corrected per-tooth labels."""
+    edit = edit if edit is not None else (job.get("mask_edit") or {})
     from bleachtray.mesh_utils import load_scan
     from bleachtray.orient import rough_orient
     from bleachtray.segment import predict_tooth_prob, clean_mask
@@ -301,8 +302,8 @@ def _apply_mask_edit(job, k=0):
     st = np.load(os.path.join(job["dir"], f"{scan['name']}_state.npz"))
     labels = st["labels"]
     mask = labels > 0
-    add = np.array(job["mask_edit"].get("add", []), dtype=int)
-    rem = np.array(job["mask_edit"].get("remove", []), dtype=int)
+    add = np.array(edit.get("add", []), dtype=int)
+    rem = np.array(edit.get("remove", []), dtype=int)
     if len(add):
         mask[add] = True
     if len(rem):
@@ -371,12 +372,12 @@ def _open_case_for(first, last, arch, max_age=45 * 60):
     return None
 
 
-def _add_scans(job, path, filename, arch, preset):
+def _add_scans(job, path, filename, arch, preset, variants=None):
     stem = "".join(c for c in os.path.splitext(filename)[0] if c.isalnum() or c in "-_ ").strip().replace(" ", "_") or "scan"
     k = len({sc["path"] for sc in job["scans"]})
     if any(sc["name"].startswith(stem) for sc in job["scans"]):
         stem = f"{stem}_{k + 1}"
-    for vpreset, tag, kind, stage in variants_for(preset):
+    for vpreset, tag, kind, stage in (variants or variants_for(preset)):
         job["scans"].append(dict(path=path, name=f"{stem}_{tag}", filename=filename, arch=arch, preset=vpreset, tag=tag, kind=kind, stage=stage))
     job["filename"] = ", ".join(dict.fromkeys(sc["filename"] for sc in job["scans"]))
 
@@ -403,10 +404,19 @@ def _group_uploads(items):
     return cases
 
 
+def _variants_from_makes(makes, preset):
+    """Per-file choice from the page ("WT", "TT", both or none) -> variant tuples."""
+    wt = "bleaching_3_3" if preset == "bleaching_3_3" else "bleaching"
+    table = {"WT": (wt, "WT", "T", 0), "TT": ("aligner_high", "TT", "A", 1)}
+    out = [table[t] for t in (makes or []) if t in table]
+    return out or [("plain_model", "MODEL", "T", 0)]
+
+
 @app.post("/api/jobs")
 async def create_job(files: List[UploadFile] = File(...), preset: str = Form("bleaching"), params: str = Form("{}"),
-                     name: str = Form(""), arches: str = Form("[]")):
-    """Any number of scans at once: one case per patient (upper + lower paired by the file names)."""
+                     name: str = Form(""), arches: str = Form("[]"), makes: str = Form("")):
+    """Any number of scans at once: one case per patient (upper + lower paired by the file names).
+    `makes`: per-file list of what to make (["WT","TT"]); without it every file gets the preset's variants."""
     p0 = dict(PRESETS.get(preset, PRESETS["bleaching"]))
     try:
         p0.update(json.loads(params or "{}"))
@@ -416,6 +426,10 @@ async def create_job(files: List[UploadFile] = File(...), preset: str = Form("bl
         arch_list = json.loads(arches or "[]")
     except Exception:
         arch_list = []
+    try:
+        makes_list = json.loads(makes) if makes else None
+    except Exception:
+        makes_list = None
     from bleachtray.watch import titan_export, file_titan_export
     blobs, filed = [], []
     for k, f in enumerate(files):
@@ -440,6 +454,7 @@ async def create_job(files: List[UploadFile] = File(...), preset: str = Form("bl
         raise HTTPException(400, "no STL files")
     cases = _group_uploads([(k, fn, (arch_list[i] if i < len(arch_list) else None) or None) for i, (k, fn, _) in enumerate(blobs)])
     data = {k: (fn, b) for k, fn, b in blobs}
+    per_file = {k: (_variants_from_makes(makes_list[i], preset) if makes_list and i < len(makes_list) else None) for i, (k, fn, _) in enumerate(blobs)}
     single = len(cases) == 1
     ids, joined = [], []
     for case in cases:
@@ -456,7 +471,7 @@ async def create_job(files: List[UploadFile] = File(...), preset: str = Form("bl
                 path = os.path.join(other["dir"], f"scan{len({sc['path'] for sc in other['scans']})}_{''.join(c for c in fn if c.isalnum() or c in '-_.')}")
                 with open(path, "wb") as fh:
                     fh.write(data[k][1])
-                _add_scans(other, path, fn, arch, other.get("preset") or preset)
+                _add_scans(other, path, fn, arch, other.get("preset") or preset, variants=per_file.get(k))
                 other.setdefault("log", []).append(f"{arch} scan added to this case: {fn}")
                 ids.append(other["id"]); joined.append(other["id"])
                 _enqueue(other)
@@ -469,7 +484,7 @@ async def create_job(files: List[UploadFile] = File(...), preset: str = Form("bl
             path = os.path.join(jdir, f"scan{len({sc['path'] for sc in job['scans']})}_{''.join(c for c in fn if c.isalnum() or c in '-_.')}")
             with open(path, "wb") as fh:
                 fh.write(data[k][1])
-            _add_scans(job, path, fn, arch, preset)
+            _add_scans(job, path, fn, arch, preset, variants=per_file.get(k))
         nm = f"{first} {last}".strip() or (name if single else "") or job["scans"][0]["name"]
         job["name"] = ("".join(c for c in nm if c.isalnum() or c in "-_ ").strip() or "case").replace(" ", "_")
         JOBS[jid] = job
