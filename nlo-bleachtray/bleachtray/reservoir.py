@@ -44,3 +44,34 @@ def apply_displacement(mesh, d):
     out = mesh.copy()
     out.vertices = mesh.vertices + mesh.vertex_normals * d[:, None]
     return out
+
+
+def smooth_periphery(mesh, labels, A, start=2.0, full=4.5, iters=30, lam=0.5, mu=-0.52):
+    """Taubin-smooth the scan surface away from the teeth: weight 0 up to `start` mm from the gum
+    line, 1 from `full` mm on. Removes scanner noise and ragged cheek/lip tissue at the periphery
+    while leaving teeth and the gum line exactly as scanned."""
+    import scipy.sparse as sp
+    from .segment import geodesic_dilate
+    import scipy.sparse.csgraph as csg
+    from .segment import _edge_lengths_graph
+    tooth = labels > 0
+    comp = ~tooth
+    e = A.tocoo()
+    seed = np.zeros(len(tooth), bool)
+    seed[e.row[comp[e.row] & tooth[e.col]]] = True
+    G = _edge_lengths_graph(mesh, A, comp)
+    src = np.where(seed)[0]
+    if len(src) == 0:
+        return mesh
+    d = csg.dijkstra(G, directed=False, indices=src, min_only=True)
+    d[tooth] = 0.0
+    d[~np.isfinite(d)] = full + 10
+    w = _smoothstep((d - start) / max(full - start, 1e-6))
+    deg = np.asarray(A.sum(1)).ravel(); deg[deg == 0] = 1
+    Dinv = sp.diags(1.0 / deg)
+    V = mesh.vertices.copy()
+    for _ in range(iters):
+        V = V + (w * lam)[:, None] * (Dinv @ (A @ V) - V)
+        V = V + (w * mu)[:, None] * (Dinv @ (A @ V) - V)
+    out = mesh.copy(); out.vertices = V
+    return out

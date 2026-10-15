@@ -161,16 +161,27 @@ def shelf_solid(surface, outline, z_bottom, z_floor, slope=0.12, clearance=0.3, 
     # heights are carried outward from the scan's OPEN EDGE (where the scanner stopped): behind the
     # molars that edge is high on the gingiva, in front of proclined incisors it is low under the
     # crown. A 2 mm "lowest surface nearby" cap guarantees the shelf never rises into an undercut.
+    # Computed on the regular grid and blurred so the skirt is smooth, then sampled at the mesh points.
+    import scipy.ndimage as ndi
     loops_b = boundary_loops(surface)
     bidx = np.concatenate(loops_b) if loops_b else np.arange(len(V))
     btree = cKDTree(V[bidx][:, :2])
-    dist, jb = btree.query(P2)
-    z_edge = V[bidx][jb, 2]
     tree = cKDTree(V[:, :2])
-    neigh = tree.query_ball_point(P2, r=2.0)
-    _, jn = tree.query(P2)
+    Gall = np.column_stack([gx.ravel(), gy.ravel()])
+    dist_g, jb = btree.query(Gall)
+    z_edge = V[bidx][jb, 2]
+    neigh = tree.query_ball_point(Gall, r=2.0)
+    _, jn = tree.query(Gall)
     z_low = np.array([V[idx, 2].min() if len(idx) else V[jn[i], 2] for i, idx in enumerate(neigh)])
-    ztop = np.minimum(z_edge - slope * dist, z_low) - clearance
+    # rounded falloff: gentle at the edge, steeper further out (reads as a bevel, not a ledge)
+    fall = slope * dist_g + 0.015 * dist_g ** 2
+    zg = np.minimum(z_edge - fall, z_low) - clearance
+    zg = zg.reshape(gx.shape)
+    zg = ndi.gaussian_filter(zg, sigma=1.5)   # 0.75 mm smoothing
+    # sample at the mesh points (grid + ring)
+    ii = np.clip(np.round((P2[:, 1] - ys[0]) / cell).astype(int), 0, zg.shape[0] - 1)
+    jj = np.clip(np.round((P2[:, 0] - xs[0]) / cell).astype(int), 0, zg.shape[1] - 1)
+    ztop = zg[ii, jj]
     # no paper-thin flakes: anything lower than 0.6 mm above the floor is dropped below the floor
     ztop = np.where(ztop < z_floor + 0.6, z_bottom + 0.5, ztop)
     top = np.column_stack([P2, ztop])
@@ -353,11 +364,13 @@ def outline_prism(outline, z0, z1):
     return m3.Manifold.extrude(cs, z1 - z0).translate([0, 0, z0])
 
 
-def build_body(mesh_final, outline, z_floor=0.0, overhang=1.2, log=print, shelf=True):
-    """Printable solid horseshoe: loosely clip the surface, close it below the floor, then cut it
+def build_body(mesh_final, outline, z_floor=0.0, overhang=1.2, log=print, shelf=False, scan_region=None):
+    """Printable solid horseshoe: clip the surface (to `scan_region` if given, else loosely to the
+    outline), close it below the floor, union a smooth synthetic skirt out to the outline, then cut
     with the outline prism so walls and floor are exact. Returns (trimesh body, method)."""
     loose = outline.buffer(overhang, join_style=1)
-    surf = clip_surface(mesh_final, loose, z_floor - 0.5)
+    region = scan_region.intersection(loose) if scan_region is not None else loose
+    surf = clip_surface(mesh_final, region, z_floor - 0.5)
     surf = repair_boundary(surf, log=log)
     raw_solid = solidify(surf, z_floor - 3.0, outline=None, snap=False)
     man = to_manifold(raw_solid)
