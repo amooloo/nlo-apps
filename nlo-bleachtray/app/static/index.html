@@ -37,6 +37,13 @@
   .toolbar .tab.on { background:var(--accent); color:#fff; }
   .brush { position:absolute; top:12px; right:12px; background:rgba(255,255,255,.94); border:1px solid var(--line); border-radius:9px; padding:9px 12px; width:250px; display:none; }
   .brush.on { display:block; }
+  .place { position:absolute; top:12px; right:12px; background:rgba(255,255,255,.94); border:1px solid var(--line); border-radius:9px; padding:9px 12px; width:300px; display:none; }
+  .place.on { display:block; }
+  .place h4 { margin:0 0 6px; font-size:12px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.4px; }
+  .prow { display:grid; grid-template-columns:72px 1fr 1fr 52px 1fr 1fr; gap:4px; align-items:center; margin:4px 0; font-size:12px; color:var(--muted); }
+  .prow button { padding:4px 0; font-size:12px; }
+  .prow .val { text-align:center; font-variant-numeric:tabular-nums; color:var(--ink); font-weight:600; }
+  .place .hint { margin-top:6px; }
   .brush h4 { margin:0 0 6px; font-size:12px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.4px; }
   .stats { position:absolute; bottom:12px; left:12px; background:rgba(255,255,255,.92); border:1px solid var(--line); border-radius:9px; padding:8px 12px; font-size:12px; color:var(--muted); max-width:560px; }
   .stats b { color:var(--ink); }
@@ -126,6 +133,16 @@
       <div style="margin-top:8px;display:flex;gap:6px"><button class="primary small" id="rerun">Apply fixes & re-run</button><button class="small" id="clearfix">Clear</button></div>
       <div class="hint" id="fixcount">No edits.</div>
     </div>
+    <div class="place" id="place">
+      <h4>Position on the base</h4>
+      <div class="prow"><span>Rotate</span><button data-adj="yaw_deg" data-d="-1">&#8634; 1&deg;</button><button data-adj="yaw_deg" data-d="-0.25">&#8634; &frac14;&deg;</button><span class="val" id="v_yaw_deg">0.0&deg;</span><button data-adj="yaw_deg" data-d="0.25">&frac14;&deg; &#8635;</button><button data-adj="yaw_deg" data-d="1">1&deg; &#8635;</button></div>
+      <div class="prow"><span>Left / right</span><button data-adj="dx" data-d="-1">&larr; 1</button><button data-adj="dx" data-d="-0.25">&larr; &frac14;</button><span class="val" id="v_dx">0.00</span><button data-adj="dx" data-d="0.25">&frac14; &rarr;</button><button data-adj="dx" data-d="1">1 &rarr;</button></div>
+      <div class="prow"><span>Back / forward</span><button data-adj="dy" data-d="-1">&darr; 1</button><button data-adj="dy" data-d="-0.25">&darr; &frac14;</button><span class="val" id="v_dy">0.00</span><button data-adj="dy" data-d="0.25">&frac14; &uarr;</button><button data-adj="dy" data-d="1">1 &uarr;</button></div>
+      <div class="prow"><span>Down / up</span><button data-adj="dz" data-d="-1">&#8681; 1</button><button data-adj="dz" data-d="-0.25">&#8681; &frac14;</button><span class="val" id="v_dz">0.00</span><button data-adj="dz" data-d="0.25">&frac14; &#8679;</button><button data-adj="dz" data-d="1">1 &#8679;</button></div>
+      <div class="hint">mm and degrees. The arch moves live on the base; <b>Apply</b> rebuilds the model and replaces the OrthoFactory order (~1 min). <b>Reset</b> goes back to the automatic placement.</div>
+      <div style="margin-top:8px;display:flex;gap:6px"><button class="primary small" id="applyplace">Apply</button><button class="small" id="resetplace">Reset to automatic</button></div>
+      <div class="hint" id="placestate"></div>
+    </div>
     <div class="stats" id="stats">Drop a scan to begin.</div>
     <div id="fatal"></div>
     <canvas id="c"></canvas>
@@ -163,7 +180,7 @@ const canvas = $('#c'), viewer = $('section.viewer');
 const renderer = new THREE.WebGLRenderer({canvas, antialias:true});
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 const scene = new THREE.Scene(); scene.background = new THREE.Color(0xf6f5f2);
-const camera = new THREE.PerspectiveCamera(35, 1, 1, 2000); camera.position.set(0, -140, 110); camera.up.set(0,0,1);
+const camera = new THREE.PerspectiveCamera(35, 1, 1, 2000); camera.position.set(0, 150, 105); camera.up.set(0,0,1);
 const controls = new OrbitControls(camera, canvas); controls.target.set(0,-15,5);
 scene.add(new THREE.HemisphereLight(0xffffff, 0x9a9a9a, 1.1));
 const key = new THREE.DirectionalLight(0xffffff, 1.2); key.position.set(60,-80,140); scene.add(key);
@@ -182,9 +199,9 @@ let segMesh = null, segLabels = null, segDisp = null, segColors = null, segPos =
 const edits = { add: new Set(), remove: new Set() };
 let brushMode = 'tooth';
 
-function showTab(t){ tab = t; for (const k in groups) groups[k].visible = (k === t); document.querySelectorAll('.tab').forEach(e => e.classList.toggle('on', e.dataset.tab === t)); $('#brush').classList.toggle('on', t === 'seg'); }
+function showTab(t){ tab = t; for (const k in groups) groups[k].visible = (k === t); document.querySelectorAll('.tab').forEach(e => e.classList.toggle('on', e.dataset.tab === t)); $('#brush').classList.toggle('on', t === 'seg'); $('#place').classList.toggle('on', t === 'result' && !!archGroup); }
 document.querySelectorAll('.tab').forEach(e => e.onclick = () => showTab(e.dataset.tab));
-$('#showtl').onchange = () => { for (const k in groups) groups[k].children.forEach(c => { if (c.userData.trimline) c.visible = $('#showtl').checked; }); };
+$('#showtl').onchange = () => { for (const k in groups) groups[k].traverse(c => { if (c.userData.trimline) c.visible = $('#showtl').checked; }); };
 
 // ---------- file handling ----------
 let files = [];
@@ -207,7 +224,7 @@ function setFiles(fs, auto){
 }
 
 $('#preset').onchange = () => { const p = $('#preset').value; const map = { bleaching:[0.5,5,0,3], bleaching_3_3:[0.5,3,0,3], aligner_high:[0,0,1.25,4], plain_model:[0,0,0,3] }[p]; $('#res_h').value = map[0]; $('#res_n').value = map[1]; $('#tl_off').value = map[2]; $('#bridge').value = map[3]; };
-function params(){ return { reservoir_height: +$('#res_h').value, reservoir_max_position: +$('#res_n').value, trimline_offset: +$('#tl_off').value, bridge_radius: +$('#bridge').value, add_base: $('#base').value === '1', patient_first: $('#pfirst').value.trim(), patient_last: $('#plast').value.trim(), stage: +$('#stage').value, arch: $('#arch').value || null, order_root: $('#export').value.trim(), patient_id: $('#pid').value.trim(), kind: $('#kind').value, doctor: $('#doctor').value.trim() }; }
+function params(){ return { reservoir_height: +$('#res_h').value, reservoir_max_position: +$('#res_n').value, trimline_offset: +$('#tl_off').value, bridge_radius: +$('#bridge').value, add_base: $('#base').value === '1', patient_first: $('#pfirst').value.trim(), patient_last: $('#plast').value.trim(), stage: +$('#stage').value, arch: $('#arch').value || null, order_root: $('#export').value.trim(), patient_id: $('#pid').value.trim(), kind: $('#kind').value, doctor: $('#doctor').value.trim(), adjust: { ...adjust } }; }
 try { $('#export').value = localStorage.getItem('exportFolder') || ''; } catch(e) {}
 $('#export').onchange = () => { try { localStorage.setItem('exportFolder', $('#export').value.trim()); } catch(e) {} };
 // The folder install.bat found on the lab PC is the default, so nobody has to type it.
@@ -251,7 +268,7 @@ function parseSTL(buf){
   for (let i=0;i<n;i++){ o += 12; for (let k=0;k<9;k++){ pos[i*9+k] = dv.getFloat32(o, true); o += 4; } o += 2; }
   const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.computeVertexNormals(); return g;
 }
-function clear(group){ while(group.children.length) { const c = group.children.pop(); c.geometry?.dispose(); c.material?.dispose(); } }
+function clear(group){ group.traverse(c => { if (c !== group) { c.geometry?.dispose(); c.material?.dispose(); } }); while(group.children.length) group.remove(group.children[0]); }
 function addTrimline(group, pts, color=0xe11d48){
   const g = new THREE.BufferGeometry().setFromPoints(pts.map(p => new THREE.Vector3(p[0],p[1],p[2]+0.15)));
   const m = new THREE.LineLoop(g, new THREE.LineBasicMaterial({color, linewidth:2})); m.userData.trimline = true; m.visible = $('#showtl').checked; group.add(m);
@@ -266,18 +283,55 @@ async function loadResult(id, j){
   const tb = r.titan_basename; const exp = orderNote; const q = `?scan=${scanIdx}`;
   $('#dl').innerHTML = scanSel + (tb ? `<a href="/api/jobs/${id}/file/titan_stl${q}" download><button class="small primary">${tb}.stl</button></a><a href="/api/jobs/${id}/file/titan_pts${q}" download><button class="small primary">${tb}.pts</button></a>` : '') + `<a href="/api/jobs/${id}/file/model${q}" download><button class="small">Model (.stl)</button></a><a href="/api/jobs/${id}/file/trimline${q}" download><button class="small">Trimline (.pts)</button></a><a href="/api/jobs/${id}/file/scan_res${q}" download><button class="small">Scan + reservoirs (.stl)</button></a>` + exp;
   document.querySelectorAll('[data-scan]').forEach(b => b.onclick = () => { scanIdx = +b.dataset.scan; loadResult(id, j); });
-  // result model
-  clear(groups.result);
-  const buf = await (await fetch(`/api/jobs/${id}/file/model${q}`)).arrayBuffer();
+  // result: the arch body and the base as two pieces, so the arch can be moved on the base
+  clear(groups.result); archGroup = null;
   const mat = new THREE.MeshStandardMaterial({ color: 0xd8d2c4, roughness: .75, metalness: 0 });
-  groups.result.add(new THREE.Mesh(parseSTL(buf), mat));
+  const bodyRes = await fetch(`/api/jobs/${id}/file/body${q}`);
+  const g = new THREE.Group(); g.matrixAutoUpdate = false;
+  g.add(new THREE.Mesh(parseSTL(await (bodyRes.ok ? bodyRes : await fetch(`/api/jobs/${id}/file/model${q}`)).arrayBuffer()), mat));
   const tl = await (await fetch(`/api/jobs/${id}/trimline.json${q}`)).json();
-  addTrimline(groups.result, tl);
+  addTrimline(g, tl);
+  groups.result.add(g); archGroup = g;
+  if (r.base && r.base !== 'none') {
+    const bres = await fetch('/api/base.stl');
+    if (bres.ok) groups.result.add(new THREE.Mesh(parseSTL(await bres.arrayBuffer()), new THREE.MeshStandardMaterial({ color: 0x9aa4b2, roughness: .8, metalness: .05 })));
+  }
+  applied = Object.assign({ yaw_deg: 0, dx: 0, dy: 0, dz: 0 }, r.adjust || {});
+  adjust = { ...applied }; pivot = r.adjust_pivot || [0, 0];
+  updatePlacement();
   // segmentation mesh
   await loadSeg(id, scanIdx);
   edits.add.clear(); edits.remove.clear(); updateFixCount();
   showTab(tab);
 }
+// ---------- placement on the base ----------
+let archGroup = null, pivot = [0, 0];
+let adjust = { yaw_deg: 0, dx: 0, dy: 0, dz: 0 }, applied = { yaw_deg: 0, dx: 0, dy: 0, dz: 0 };
+function placeMatrix(a){ // rotate about the trimline centroid, then shift (same as the server)
+  return new THREE.Matrix4().makeTranslation(pivot[0] + a.dx, pivot[1] + a.dy, a.dz)
+    .multiply(new THREE.Matrix4().makeRotationZ(a.yaw_deg * Math.PI / 180))
+    .multiply(new THREE.Matrix4().makeTranslation(-pivot[0], -pivot[1], 0));
+}
+function updatePlacement(){
+  if (archGroup) archGroup.matrix.copy(placeMatrix(adjust).multiply(placeMatrix(applied).invert()));
+  $('#v_yaw_deg').innerHTML = adjust.yaw_deg.toFixed(2).replace(/\.?0+$/, '') + '&deg;';
+  for (const k of ['dx', 'dy', 'dz']) $('#v_' + k).textContent = adjust[k].toFixed(2);
+  const pending = ['yaw_deg', 'dx', 'dy', 'dz'].some(k => Math.abs(adjust[k] - applied[k]) > 1e-9);
+  const auto = ['yaw_deg', 'dx', 'dy', 'dz'].every(k => Math.abs(adjust[k]) < 1e-9);
+  $('#placestate').textContent = pending ? 'Preview only — click Apply to rebuild the model with this placement.' : (auto ? 'Automatic placement.' : 'Applied.');
+  $('#placestate').style.color = pending ? 'var(--warn)' : 'var(--muted)';
+  $('#applyplace').disabled = !pending;
+}
+document.querySelectorAll('[data-adj]').forEach(b => b.onclick = () => { adjust[b.dataset.adj] = Math.round((adjust[b.dataset.adj] + +b.dataset.d) * 100) / 100; updatePlacement(); });
+$('#resetplace').onclick = () => { adjust = { yaw_deg: 0, dx: 0, dy: 0, dz: 0 }; updatePlacement(); };
+$('#applyplace').onclick = async () => {
+  if (!currentJob) return;
+  const fd = new FormData();
+  fd.append('edits', JSON.stringify((edits.add.size || edits.remove.size) ? { scan: scanIdx, add:[...edits.add], remove:[...edits.remove] } : null));
+  fd.append('params', JSON.stringify(params()));
+  $('#applyplace').disabled = true; $('#placestate').textContent = 'Rebuilding…';
+  await fetch(`/api/jobs/${currentJob}/rerun`, { method:'POST', body: fd }); selectJob(currentJob);
+};
 const palette = [0xcfd4da, 0x60a5fa, 0xf472b6, 0x34d399, 0xfbbf24, 0xa78bfa, 0xfb7185, 0x22d3ee, 0x4ade80, 0xf59e0b, 0x818cf8, 0xe879f9, 0x2dd4bf, 0xf97316, 0x93c5fd, 0xbef264];
 async function loadSeg(id, k=0){
   const buf = await (await fetch(`/api/jobs/${id}/segmesh?scan=${k}`)).arrayBuffer();

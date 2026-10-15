@@ -61,6 +61,15 @@ def _run(job):
         job["mask_edit"] = None
         site = site_config()
         root = (job["params"].get("order_root") or "").strip() or site["order_root"]
+        # a re-run replaces the previous order of this case (if OrthoFactory has not taken it yet)
+        prev = job.get("order_folder")
+        if prev and os.path.isdir(prev):
+            try:
+                import shutil
+                shutil.rmtree(prev)
+                log(f"previous order folder removed: {prev}")
+            except Exception as ex:  # noqa
+                log(f"could not remove the previous order folder ({ex}); delete the older order in OrthoFactory")
         job["order_folder"] = None; job["order_error"] = None
         if root and job["params"].get("patient_first") and job["params"].get("patient_last"):
             pieces = [dict(arch=sc["arch"], stl=sc["report"]["outputs"]["model"], pts=sc["report"]["outputs"]["trimline"],
@@ -120,6 +129,15 @@ def index():
 @app.get("/api/presets")
 def presets():
     return {"defaults": DEFAULTS, "presets": PRESETS, "site": site_config()}
+
+
+@app.get("/api/base.stl")
+def base_stl():
+    """The Trimlign base (Titan's mesh), for the viewer: shown under the arch so it can be positioned."""
+    path = os.path.join(ROOT, "assets", "trimlign_base_titan.stl")
+    if not os.path.exists(path):
+        raise HTTPException(404)
+    return FileResponse(path, media_type="model/stl")
 
 
 from typing import List

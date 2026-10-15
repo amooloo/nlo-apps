@@ -170,11 +170,25 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     T_place[2, 3] = -z_floor
     mesh_f.apply_transform(T_place)
     margin_f = trimesh.transform_points(margin_f, T_place)
+    # manual correction of the placement on the base (from the app): rotate about the trimline
+    # centroid, then shift. Zero by default; the app's Reset puts it back to the automatic placement.
+    pivot = margin_f[:, :2].mean(0)
+    rep["adjust_pivot"] = [round(float(pivot[0]), 3), round(float(pivot[1]), 3)]
+    adj = dict(yaw_deg=0.0, dx=0.0, dy=0.0, dz=0.0)
+    adj.update({k: float(v or 0.0) for k, v in (P.get("adjust") or {}).items() if k in adj})
+    rep["adjust"] = adj
+    T_adj = np.eye(4)
+    if any(abs(v) > 1e-9 for v in adj.values()):
+        R = trimesh.transformations.rotation_matrix(np.deg2rad(adj["yaw_deg"]), [0, 0, 1], [pivot[0], pivot[1], 0.0])
+        T_adj = R.copy(); T_adj[:3, 3] += [adj["dx"], adj["dy"], adj["dz"]]
+        mesh_f.apply_transform(T_adj)
+        margin_f = trimesh.transform_points(margin_f, T_adj)
+        log(f"[{name}] manual placement: yaw {adj['yaw_deg']:+.1f} deg, shift x {adj['dx']:+.2f} y {adj['dy']:+.2f} z {adj['dz']:+.2f} mm")
     # Trimlign reach: cross over the last molars instead of wrapping behind them
     if P.get("distal_cap_mm", 0.0) > 0:
         margin_f = cap_distal(margin_f, mesh_f, keep_mm=P.get("distal_cap_mm", 0.0))
         margin_f = smooth_polyline(resample_polyline(margin_f, P["trimline_spacing"]), iters=2)
-    T_total = T_place @ T_ref @ T_rough
+    T_total = T_adj @ T_place @ T_ref @ T_rough
     rep["transform_raw_to_output"] = T_total.tolist()
 
     # solid horseshoe
