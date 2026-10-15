@@ -2,7 +2,7 @@
 rem NLO Bleach Tray - zero-click mode. Leave this window open (minimised is fine).
 rem Drop scan files into the BleachTray folder; finished orders appear in OrthoFactory.
 if not "%~1"=="run" (
-  start "NLO Bleach Tray watcher" cmd /k ""%~f0" run"
+  start "NLO Bleach Tray watcher" /min cmd /k ""%~f0" run"
   exit /b
 )
 cd /d "%~dp0"
