@@ -65,28 +65,33 @@ async def save_settings(scanner_folder: str = Form(None)):
 def scanner_recent(days: int = 14):
     """Scans the scanner exported recently (top folder + one level), grouped by patient."""
     from bleachtray.watch import parse_name
-    folder = site_config()["scanner_folder"]
-    if not folder:
+    setting = site_config()["scanner_folder"]
+    if not setting:
         return {"folder": "", "patients": []}
-    if not os.path.isdir(folder):
-        return {"folder": folder, "error": "folder not found from this PC", "patients": []}
+    folders = [f.strip() for f in setting.split(";") if f.strip()]   # several PCs: separate with ;
+    missing = [f for f in folders if not os.path.isdir(f)]
+    if len(missing) == len(folders):
+        return {"folder": setting, "error": "folder not found from this PC", "patients": []}
     cutoff = time.time() - days * 86400
     files = []
-    try:
-        for root, dirs, names in os.walk(folder):
-            if root[len(folder):].count(os.sep) >= 2:
-                dirs[:] = []
-            for fn in names:
-                if fn.lower().endswith(".stl"):
-                    p = os.path.join(root, fn)
-                    try:
-                        mt = os.path.getmtime(p)
-                    except OSError:
-                        continue
-                    if mt >= cutoff:
-                        files.append((p, mt))
-    except Exception as ex:  # noqa
-        return {"folder": folder, "error": str(ex), "patients": []}
+    for folder in folders:
+        if folder in missing:
+            continue
+        try:
+            for root, dirs, names in os.walk(folder):
+                if root[len(folder):].count(os.sep) >= 2:
+                    dirs[:] = []
+                for fn in names:
+                    if fn.lower().endswith(".stl"):
+                        p = os.path.join(root, fn)
+                        try:
+                            mt = os.path.getmtime(p)
+                        except OSError:
+                            continue
+                        if mt >= cutoff:
+                            files.append((p, mt))
+        except Exception as ex:  # noqa
+            missing.append(folder)
     groups = {}
     for p, mt in sorted(files, key=lambda x: -x[1]):
         first, last, arch = parse_name(os.path.basename(p))
@@ -95,7 +100,10 @@ def scanner_recent(days: int = 14):
         if len(g["files"]) < 2 and not any(f["arch"] == arch for f in g["files"] if arch):
             g["files"].append(dict(path=p, name=os.path.basename(p), arch=arch, when=mt))
     out = sorted(groups.values(), key=lambda g: -g["when"])[:40]
-    return {"folder": folder, "patients": out}
+    res = {"folder": setting, "patients": out}
+    if missing:
+        res["warning"] = "not reachable from this PC: " + "; ".join(missing)
+    return res
 
 
 @app.post("/api/scanner/make")
@@ -103,10 +111,11 @@ async def scanner_make(paths: str = Form(...), preset: str = Form("bleaching"), 
     """Make a case from scans still in the scanner's folder (copied into the job, originals untouched)."""
     import shutil
     from bleachtray.watch import parse_name
-    folder = site_config()["scanner_folder"]
+    folders = [f.strip() for f in site_config()["scanner_folder"].split(";") if f.strip()]
     plist = [p for p in json.loads(paths) if p][:2]
     for p in plist:
-        if not folder or not os.path.abspath(p).startswith(os.path.abspath(folder)) or not os.path.isfile(p):
+        ok = any(os.path.abspath(p).startswith(os.path.abspath(f)) for f in folders)
+        if not ok or not os.path.isfile(p):
             raise HTTPException(400, f"not a scan in the scanner folder: {p}")
     jid = uuid.uuid4().hex[:10]
     jdir = os.path.join(JOBS_DIR, jid)

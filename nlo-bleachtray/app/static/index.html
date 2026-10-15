@@ -126,7 +126,7 @@
       <div class="hint" id="exporthint" style="margin-top:2px"></div>
       <label class="f">Doctor (for the order folder name)</label>
       <input type="text" id="doctor" value="Dr. Amir Akhavan">
-      <label class="f">Scanner export folder (AlliedStar) — lists recent scans here, one click makes the tray</label>
+      <label class="f">Scanner export folder(s) — lists recent scans here, one click makes the tray (several PCs: separate with ;)</label>
       <div class="row" style="grid-template-columns:1fr auto"><input type="text" id="scanfolder" placeholder="e.g. \\SCANNER-PC\AlliedStar\Export"><button class="small" id="scanfolder_save">Save</button></div>
       <div class="hint" id="scanfolder_hint"></div>
     </details>
@@ -309,8 +309,9 @@ async function refreshScanner(){
   if (!d.folder) { box.style.display = 'none'; return; }
   box.style.display = 'block';
   if (d.error) { $('#scanner').innerHTML = `<div class="hint" style="color:var(--err)">${d.folder}: ${d.error}</div>`; return; }
-  if (!d.patients.length) { $('#scanner').innerHTML = '<div class="hint">No scans in the last 14 days.</div>'; return; }
-  $('#scanner').innerHTML = d.patients.map((p, i) => `<div class="job"><span class="nm">${p.first} ${p.last}<br><span class="hint" style="margin:0">${p.date} · ${p.files.map(f => f.arch || 'scan').join(' + ')}</span></span><button class="small primary" data-make="${i}">Make tray</button></div>`).join('');
+  const warn = d.warning ? `<div class="hint" style="color:var(--warn)">${d.warning}</div>` : '';
+  if (!d.patients.length) { $('#scanner').innerHTML = warn + '<div class="hint">No scans in the last 14 days.</div>'; return; }
+  $('#scanner').innerHTML = warn + d.patients.map((p, i) => `<div class="job"><span class="nm">${p.first} ${p.last}<br><span class="hint" style="margin:0">${p.date} · ${p.files.map(f => f.arch || 'scan').join(' + ')}</span></span><button class="small primary" data-make="${i}">Make tray</button></div>`).join('');
   document.querySelectorAll('[data-make]').forEach(b => b.onclick = async () => {
     const p = d.patients[+b.dataset.make]; b.disabled = true; b.textContent = 'Starting…';
     $('#pfirst').value = p.first; $('#plast').value = p.last;
