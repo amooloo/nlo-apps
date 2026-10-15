@@ -31,7 +31,7 @@ sign-in; if it's gone, double-click `start_watch.bat` in the app folder).
 
 ## If a case needs a look
 
-Double-click **`start_app.bat`**. A web page opens: drag a scan in, see the result in 3D, paint over a tooth the
+Double-click **`start_app.bat`** on the lab PC. A web page opens there, and any other office computer can open the same app in its browser at `http://<lab PC name>:8765` (the black window prints the exact address). Drag a scan in, see the result in 3D, paint over a tooth the
 computer missed (hold **Shift** and drag on the *Segmentation / fix* tab), re-run. The OrthoFactory order and the
 downloads are on the left. Presets: *Bleaching tray* (reservoirs 5-5, line at the gum), *Bleaching 3-3*,
 *Aligner / retainer* (line 1.25 mm onto the gums, semi-scallop), *Plain model*.
