@@ -35,7 +35,7 @@ def split_titan(titan):
     return body, teeth
 
 
-def build(raw_path, titan_path, out_path, tol=0.3, log=print):
+def build(raw_path, titan_path, out_path, tol=0.3, model_hint=True, log=print):
     raw = load_scan(raw_path)
     titan = trimesh.load(titan_path, force="mesh")
     body, teeth = split_titan(titan)
@@ -83,8 +83,27 @@ def build(raw_path, titan_path, out_path, tol=0.3, log=print):
         best_d[idx[closer]] = dd[closer]
         labels[idx[closer]] = i + 1
     labels[best_d > tol] = 0
-    counts = np.bincount(labels)
-    log(f"labels: {int((labels > 0).sum())} tooth vertices of {len(labels)} ({100 * (labels > 0).mean():.1f}%), teeth sizes {counts[1:].tolist()}")
+    # -1 = "don't train on this": (a) the band just outside a shell (tol..1 mm) - cervical uncertainty, or a
+    # tooth the aligner stage moved slightly; (b) surface far from every shell that the current model is sure
+    # is tooth - a tooth Titan did not export as a shell (happens in stage-1 files). Labelling those as gum
+    # would teach the model that whole teeth are gum.
+    ignore = (best_d > tol) & (best_d <= 1.0)
+    if model_hint:
+        try:
+            from bleachtray.orient import rough_orient
+            from bleachtray.segment import load_models, predict_tooth_prob
+            from bleachtray.mesh_utils import smooth_field
+            mesh, _ = rough_orient(raw)
+            p, _, aux = predict_tooth_prob(mesh, load_models(model_hint if isinstance(model_hint, str) else None))
+            ps = smooth_field(aux["A"], p, 4)
+            far_tooth = (best_d > 1.0) & (ps > 0.8)
+            ignore |= far_tooth
+            log(f"model hint: {int(far_tooth.sum())} vertices look like tooth but have no Titan shell -> ignored")
+        except Exception as ex:  # noqa
+            log(f"model hint skipped: {ex}")
+    labels[ignore] = -1
+    counts = np.bincount(labels[labels >= 0])
+    log(f"labels: {int((labels > 0).sum())} tooth, {int((labels == 0).sum())} gum, {int((labels < 0).sum())} ignored of {len(labels)}; teeth sizes {counts[1:].tolist()}")
     np.savez(out_path, T=T, labels=labels, tooth_centers=np.array(centers), raw_vertices_titan=V,
              residual_median=float(np.median(d)), raw=os.path.abspath(raw_path), titan=os.path.abspath(titan_path))
     log(f"saved {out_path}")
@@ -94,5 +113,6 @@ def build(raw_path, titan_path, out_path, tol=0.3, log=print):
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("raw"); ap.add_argument("titan"); ap.add_argument("out"); ap.add_argument("--tol", type=float, default=0.3)
+    ap.add_argument("--no-model-hint", action="store_true", help="do not use the current model to spot teeth without a Titan shell")
     a = ap.parse_args()
-    build(a.raw, a.titan, a.out, tol=a.tol)
+    build(a.raw, a.titan, a.out, tol=a.tol, model_hint=not a.no_model_hint)
