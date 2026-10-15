@@ -85,7 +85,9 @@ code { font-family:ui-monospace,Menlo,Consolas,monospace; font-size:.88em; backg
       <li>Orders show up in OrthoFactory as <b>Template</b> pieces (<code>TU0A</code> upper / <code>TL0A</code> lower), exactly like a stage-0 Titan export.</li>
       <li>Processing takes about 30–40 seconds per arch.</li>
       <li>Something looks wrong on a case? Send Dr. Akhavan the patient name and the files from <code>BleachTray\done\…</code> (or <code>failed\…</code>).</li>
-      <li><b>Updating:</b> double-click <code>update.bat</code> in the app folder on the PC that runs the app. It fetches the newest version, keeps the settings, and restarts the app.</li>
+      <li><b>Updating:</b> on the PC that runs the app, press <b>Win + R</b>, paste the line below, press Enter. It fetches the newest version from GitHub, keeps the settings, and restarts the app (ends with "UPDATE DONE").<br>
+        <code style="white-space:normal;word-break:break-all;display:block;margin-top:6px;padding:8px 10px;font-size:.78em">powershell -NoExit -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol='Tls12'; iex (iwr 'https://raw.githubusercontent.com/amooloo/nlo-apps/main/nlo-bleachtray/update.ps1' -UseBasicParsing).Content"</code>
+        <span class="muted">(On a PC that allows .bat files, double-clicking <code>update.bat</code> in the app folder does the same.)</span></li>
     </ul>
     <a class="btn alt" href="https://github.com/amooloo/nlo-apps/tree/main/nlo-bleachtray">Technical details &amp; code</a>
   </div>
