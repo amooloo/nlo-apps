@@ -65,7 +65,12 @@
   .review .btns { display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; }
   .review.working { background:#eef3ff; border-color:#c7d7fb; }
   .bar { height:10px; background:#dfe6f5; border-radius:999px; overflow:hidden; margin:8px 0 4px; }
-  .bar > div { height:100%; background:var(--accent); border-radius:999px; transition:width .6s ease; }
+  .bar > div { height:100%; background:var(--accent); border-radius:999px; transition:width .6s ease; background-image:linear-gradient(135deg, rgba(255,255,255,.35) 25%, transparent 25%, transparent 50%, rgba(255,255,255,.35) 50%, rgba(255,255,255,.35) 75%, transparent 75%); background-size:18px 18px; animation:stripes 1s linear infinite; }
+  @keyframes stripes { to { background-position:18px 0; } }
+  .spin { display:inline-block; width:10px; height:10px; border:2px solid currentColor; border-right-color:transparent; border-radius:50%; animation:spin .8s linear infinite; margin-right:5px; vertical-align:-1px; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .dot { display:inline-block; width:7px; height:7px; border-radius:50%; background:currentColor; margin-right:5px; animation:pulse 1.2s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity:.25; transform:scale(.8); } 50% { opacity:1; transform:scale(1.1); } }
   .pill.review { background:#fff4e0; color:var(--warn); } .pill.sent { background:#e4f6ea; color:var(--ok); } .pill.discarded { background:#eee; color:var(--muted); }
   #errline { display:none; position:absolute; bottom:12px; right:12px; max-width:520px; background:#fde8e6; color:var(--err); border:1px solid #f1b9b4; border-radius:9px; padding:8px 12px; font-size:12px; z-index:6; }
 </style>
@@ -79,7 +84,7 @@
 <main>
   <aside>
     <div class="drop" id="drop"><b>Drop the scan STL here</b> (anywhere on this page works)<br>upper and/or lower, one patient or a whole day's scans — it starts on its own. Or click to choose.</div>
-    <input type="file" id="file" accept=".stl,.ply" multiple style="display:none">
+    <input type="file" id="file" accept=".stl,.ply,.pts" multiple style="display:none">
     <div class="row">
       <div><label class="f">Patient first name</label><input type="text" id="pfirst" placeholder="Arman"></div>
       <div><label class="f">Last name</label><input type="text" id="plast" placeholder="Shetty"></div>
@@ -272,11 +277,17 @@ $('#file').onchange = e => setFiles([...e.target.files], true);
 ['dragenter','dragover'].forEach(ev => window.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
 window.addEventListener('dragleave', e => { if (!e.relatedTarget) drop.classList.remove('over'); });
 window.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('over'); if (e.dataTransfer && e.dataTransfer.files.length) setFiles([...e.dataTransfer.files], true); });
+const isTitan = fn => /^(\d{6,}[ _-]+)?.+?[ _]+-[ _]+\d+[ _]+-[ _]+(Maxilla|Mandible)/i.test(fn.replace(/\.(stl|pts)$/i, ''));
 const nameOf = fn => { const m = fn.replace(/\.(stl|ply)$/i,'').replace(/^(dr|mr|mrs|ms|miss|prof)\.?[ _-]+/i, '').match(/^([A-Za-z][A-Za-z'\-]*)[_ -]+([A-Za-z][A-Za-z'\-]*)/); return m ? [m[1], m[2]] : null; };
 function setFiles(fs, auto){
-  fs = fs.filter(f => /\.(stl|ply)$/i.test(f.name));
+  fs = fs.filter(f => /\.(stl|ply)$/i.test(f.name) || (/\.pts$/i.test(f.name) && isTitan(f.name)));
   if(!fs.length) { $('#filehint').textContent = 'That was not an STL file.'; return; }
   files = fs;
+  const titanFiles = fs.filter(f => isTitan(f.name)); fs = fs.filter(f => !isTitan(f.name));
+  if (!fs.length) {   // only Titan exports: file them for training, nothing to process
+    $('#filehint').textContent = `${titanFiles.length} Titan export${titanFiles.length > 1 ? 's' : ''} — filing under training\\<patient>…`;
+    $('#go').click(); return;
+  }
   // several patients at once (a whole day's scans): one case per patient, names from the file names
   const patients = new Set(fs.map(f => (nameOf(f.name) || ['', f.name]).join(' ').toLowerCase()));
   bulk = fs.length > 2 || patients.size > 1;
@@ -338,6 +349,8 @@ $('#go').onclick = async () => {
   const r = await fetch('/api/jobs', { method:'POST', body: fd }); const j = await r.json();
   $('#go').disabled = false;
   if (!r.ok) { showErr(j.detail || 'Upload failed'); return; }
+  if ((j.filed || []).length) $('#filehint').textContent = `Filed for training: ${j.filed.join(', ')}` + (j.cases ? ' — and processing the scans.' : '');
+  if (!j.id) { refreshJobs(); return; }
   if ((j.joined || []).length) $('#filehint').textContent += ' — added to the case already open for this patient.';
   else if (j.cases > 1) $('#filehint').textContent = `${j.cases} cases started — they run one after another (see the list below).`;
   refreshJobs(); selectJob(j.id);
@@ -347,7 +360,10 @@ $('#go').onclick = async () => {
 async function refreshJobs(){
   const jobs = await (await fetch('/api/jobs')).json();
   const st = j => j.status === 'done' ? (j.review || 'review') : j.status;
-  const lab = j => st(j) === 'review' ? 'check & send' : st(j) === 'queued' ? (j.ahead ? `waiting (${j.ahead} ahead)` : 'waiting') : st(j);
+  const lab = j => st(j) === 'review' ? 'check & send'
+    : st(j) === 'queued' ? `<span class="dot"></span>${j.ahead ? `waiting (${j.ahead} ahead)` : 'starting'}`
+    : st(j) === 'running' ? `<span class="spin"></span>${j.progress && j.progress.frac ? Math.round(100 * Math.min(1, j.progress.frac)) + '%' : 'working'}`
+    : st(j);
   const ar = j => (j.arches || []).map(a => a === 'upper' ? 'U' : 'L').join('+');
   $('#jobs').innerHTML = jobs.map(j => `<div class="job ${j.id===currentJob?'active':''}" data-id="${j.id}"><span class="nm">${j.name}${ar(j) ? ` <span class="hint" style="display:inline;margin:0">${ar(j)}</span>` : ''}</span><span class="pill ${st(j)}">${lab(j)}</span></div>`).join('') || '<div class="hint">None yet.</div>';
   document.querySelectorAll('.job').forEach(e => e.onclick = () => selectJob(e.dataset.id));
