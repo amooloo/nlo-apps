@@ -4,8 +4,12 @@ import scipy.sparse as sp
 import trimesh
 
 
-def load_scan(path):
-    """Load a raw intraoral scan STL/PLY, keep the largest connected component, clean it."""
+MAX_FACES = 200_000   # scans above this are decimated first (same detail as a ~10 MB scanner export)
+
+
+def load_scan(path, max_faces=MAX_FACES):
+    """Load a raw intraoral scan STL/PLY, keep the largest connected component, clean it.
+    Very dense scans are decimated to `max_faces` so processing time stays ~constant."""
     m = trimesh.load(path, force="mesh")
     m.update_faces(m.nondegenerate_faces())
     m.update_faces(m.unique_faces())
@@ -14,8 +18,28 @@ def load_scan(path):
     if len(parts) > 1:
         m = max(parts, key=lambda p: p.area)
     m.remove_unreferenced_vertices()
+    if max_faces and len(m.faces) > max_faces:
+        m = decimate(m, max_faces)
     trimesh.repair.fix_normals(m)  # consistent winding; outward sign fixed in orient
     return m
+
+
+def decimate(m, target_faces):
+    """Quadric decimation (deterministic). Needs the fast-simplification package; without it the
+    mesh is returned unchanged (processing just takes longer)."""
+    try:
+        import fast_simplification
+    except ImportError:
+        return m
+    v, f = fast_simplification.simplify(np.asarray(m.vertices, dtype=np.float32), np.asarray(m.faces, dtype=np.int32),
+                                        target_reduction=1.0 - target_faces / len(m.faces), agg=5)
+    out = trimesh.Trimesh(np.asarray(v, dtype=np.float64), np.asarray(f, dtype=np.int64), process=True)
+    out.update_faces(out.nondegenerate_faces())
+    out.remove_unreferenced_vertices()
+    parts = out.split(only_watertight=False)
+    if len(parts) > 1:
+        out = max(parts, key=lambda p: p.area)
+    return out
 
 
 def adjacency(mesh):

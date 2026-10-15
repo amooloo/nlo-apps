@@ -5,6 +5,17 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex">
 <title>NLO Bleach Tray</title>
+<script>
+// Clicking "Bleach Tray" on the home page goes straight to the app running on Dr. A's PC.
+// This page itself (the instructions) is shown only when opened with ?help.
+(function () {
+  window.NLO_BT = { DEFAULT_LAB_PC: "DrA", key: "nlo.bleachtray.labpc" };
+  var name = "";
+  try { name = localStorage.getItem(NLO_BT.key) || ""; } catch (e) {}
+  name = name || NLO_BT.DEFAULT_LAB_PC;
+  if (!/[?&]help\b/.test(location.search) && name) location.replace("http://" + name + ":8765/");
+})();
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -43,20 +54,20 @@ code { font-family:ui-monospace,Menlo,Consolas,monospace; font-size:.88em; backg
   <div class="card">
     <h2>Everyday use <span class="pill">takes 1 minute</span></h2>
     <div class="step"><div class="num">1</div><p class="big">Export the patient's scan as an STL from the scanner, with the patient's name in the file name (the scanner does this on its own: <code>Armaan_Shetty_20261015_09-20-31_upper.stl</code>).</p></div>
-    <div class="step"><div class="num">2</div><p class="big">Drag that file into the folder <span class="path">S:\clinical\3D printing\BleachTray</span> on the lab PC. If you have an upper and a lower, drag both.</p></div>
+    <div class="step"><div class="num">2</div><p class="big">In File Explorer, drag that file into the folder <span class="path">S:\clinical\3D printing\BleachTray</span>. If you have an upper and a lower, drag both.</p></div>
     <div class="step"><div class="num">3</div><p class="big">Wait about a minute. Open OrthoFactory → <b>Production</b>. The patient is listed like any Titan case. Print the model on the Form 4B, thermoform, trim on the Trimlign.</p></div>
-    <p class="muted" style="margin-top:12px">That's it. The file you dragged moves into <code>BleachTray\done</code> when it worked, or into <code>BleachTray\failed</code> with a note explaining what happened when it didn't. The small black window called "NLO Bleach Tray" must be open on the lab PC (it starts by itself at sign-in; if it's gone, double-click <code>start_app.bat</code> in the app folder).</p>
+    <p class="muted" style="margin-top:12px">That's it. The file you dragged moves into <code>BleachTray\done</code> when it worked, or into <code>BleachTray\failed</code> with a note explaining what happened when it didn't. The small black window called "NLO Bleach Tray" must be open on the PC that runs the app (Dr. A's PC for now; it starts by itself at sign-in; if it's gone, double-click <code>start_app.bat</code> in the app folder).</p>
   </div>
 
   <div class="card">
     <h2>If a case needs a look <span class="pill">optional</span></h2>
-    <p>Open the app from any office computer: drag a scan in, see the result in 3D, paint over a tooth the computer missed (hold <b>Shift</b> and drag), re-run. Downloads and the OrthoFactory order are on the left. It runs on the lab PC, so the lab PC has to be on.</p>
+    <p>Open the app from any office computer and drop a scan anywhere on the page: it processes on its own and sends the order to OrthoFactory (a green "OrthoFactory order written" line confirms it). See the result in 3D, paint over a tooth the computer missed (hold <b>Shift</b> and drag), re-run. It runs on Dr. A's PC for now, so that PC has to be on. Clicking <b>Bleach Tray</b> on the NLO apps home page opens it directly.</p>
     <a class="btn" id="openapp" href="#">Open the Bleach Tray app</a>
     <p class="muted" id="labpc-line" style="margin-top:10px"></p>
   </div>
 
   <div class="card">
-    <h2>One-time setup on the lab PC <span class="pill">about 10 minutes, one person, once</span></h2>
+    <h2>One-time setup on the PC that runs the app <span class="pill">about 10 minutes, one person, once</span></h2>
     <div class="step"><div class="num">1</div><p>Get the app folder onto the PC: download <b>nlo-bleachtray.zip</b> from Dr. Akhavan (or from the <a href="https://github.com/amooloo/nlo-apps/tree/main/nlo-bleachtray">code page</a> → green <b>Code</b> button → <b>Download ZIP</b>), right-click it → <b>Extract All</b>, and put the <code>nlo-bleachtray</code> folder somewhere permanent, for example <span class="path">C:\NLO\nlo-bleachtray</span>.</p></div>
     <div class="step"><div class="num">2</div><p>Open that folder and double-click <code>install.bat</code>. A black window walks you through everything:</p></div>
     <ul style="margin-left:44px">
@@ -72,39 +83,38 @@ code { font-family:ui-monospace,Menlo,Consolas,monospace; font-size:.88em; backg
     <ul>
       <li>Default is the <b>bleaching tray</b> recipe: 0.5 mm reservoirs on the front teeth to the second premolars, trim line following the gum line. Other recipes (3-3, aligner "high line") are available in the browser app.</li>
       <li>Orders show up in OrthoFactory as <b>Template</b> pieces (<code>TU0A</code> upper / <code>TL0A</code> lower), exactly like a stage-0 Titan export.</li>
-      <li>Processing takes about 30–40 seconds per arch on the lab PC.</li>
+      <li>Processing takes about 30–40 seconds per arch.</li>
       <li>Something looks wrong on a case? Send Dr. Akhavan the patient name and the files from <code>BleachTray\done\…</code> (or <code>failed\…</code>).</li>
+      <li><b>Updating:</b> double-click <code>update.bat</code> in the app folder on the PC that runs the app. It fetches the newest version, keeps the settings, and restarts the app.</li>
     </ul>
     <a class="btn alt" href="https://github.com/amooloo/nlo-apps/tree/main/nlo-bleachtray">Technical details &amp; code</a>
   </div>
 </main>
 <script>
 (function () {
-  var DEFAULT_LAB_PC = "";          // computer name of the lab PC, e.g. "NLO-LAB" (set once here, or per browser below)
-  var key = "nlo.bleachtray.labpc";
-  var name = "";
+  var key = NLO_BT.key, name = "";
   try { name = localStorage.getItem(key) || ""; } catch (e) {}
-  name = name || DEFAULT_LAB_PC;
+  name = name || NLO_BT.DEFAULT_LAB_PC;
   var btn = document.getElementById("openapp"), line = document.getElementById("labpc-line");
   function render() {
-    if (name) {
-      btn.href = "http://" + name + ":8765/";
-      btn.target = "_blank";
-      line.innerHTML = 'Lab PC: <b>' + name + '</b> &nbsp;<a href="#" id="chg">change</a>';
-    } else {
-      btn.href = "#";
-      line.innerHTML = 'First time here: <a href="#" id="chg">tell this page the lab PC\'s name</a> (the black "NLO Bleach Tray" window on the lab PC prints it as http://NAME:8765).';
-    }
+    btn.href = "http://" + name + ":8765/";
+    btn.target = "_blank";
+    line.innerHTML = 'The app runs on the PC named <b>' + name + '</b> (it has to be on, with the black "NLO Bleach Tray" window open). ' +
+      '<a href="#" id="chg">Use a different PC in this browser</a>' +
+      (name !== NLO_BT.DEFAULT_LAB_PC ? ' &nbsp;·&nbsp; <a href="#" id="rst">back to ' + NLO_BT.DEFAULT_LAB_PC + '</a>' : '');
     document.getElementById("chg").onclick = function (ev) { ev.preventDefault(); ask(); };
+    var r = document.getElementById("rst");
+    if (r) r.onclick = function (ev) { ev.preventDefault(); name = NLO_BT.DEFAULT_LAB_PC; try { localStorage.removeItem(key); } catch (e) {} render(); };
   }
   function ask() {
-    var v = prompt("Computer name of the lab PC (from the black NLO Bleach Tray window: http://NAME:8765):", name || "");
+    var v = prompt("Computer name of the PC that runs the app (the black NLO Bleach Tray window prints it as http://NAME:8765):", name || "");
     if (v === null) return;
-    name = v.trim().replace(/^https?:\/\//, "").replace(/[:/].*$/, "");
+    v = v.trim().replace(/^https?:\/\//, "").replace(/[:/].*$/, "");
+    if (!v) return;
+    name = v;
     try { localStorage.setItem(key, name); } catch (e) {}
     render();
   }
-  btn.addEventListener("click", function (ev) { if (!name) { ev.preventDefault(); ask(); } });
   render();
 })();
 </script>

@@ -7,7 +7,7 @@ puts it into OrthoFactory as an order, like a Titan export. Nothing to pay per c
 
 1. Export the patient's scan as an STL from the scanner, with the patient's name in the file name
    (the scanner does this on its own, e.g. `Armaan_Shetty_20261015_09-20-31_upper.stl`).
-2. Drag the file into **`S:\clinical\3D printing\BleachTray`** on the lab PC. Upper and lower? Drag both.
+2. In File Explorer, drag the file into the folder **`S:\clinical\3D printing\BleachTray`**. Upper and lower? Drag both.
 3. Wait about a minute. OrthoFactory → **Production** now lists the patient like any Titan case.
    Print the model on the Form 4B, thermoform, trim on the Trimlign.
 
@@ -30,6 +30,11 @@ serves the browser app to the whole office.
    * Answer **y** when it asks to start the watcher automatically at sign-in.
 3. Double-click **`start_app.bat`** once to start it now.
 
+## Updating the app
+
+Double-click **`update.bat`** in the app folder on the PC that runs it. It downloads the newest version, keeps
+your settings and the base, and restarts the app.
+
 ## Moving the app to another PC
 
 On the old PC double-click `uninstall_autostart.bat` and close the app's window. On the new PC extract the zip,
@@ -38,10 +43,12 @@ Any PC that can see the S: drive can host it; it just has to be on and signed in
 
 ## If a case needs a look
 
-From any office computer open `http://<lab PC name>:8765` — or click **Bleach Tray** on the NLO apps home page, which opens it for you (the black window on the lab PC prints the exact address). Drag a scan in, see the result in 3D, paint over a tooth the
-computer missed (hold **Shift** and drag on the *Segmentation / fix* tab), re-run. The OrthoFactory order and the
-downloads are on the left. Presets: *Bleaching tray* (reservoirs 5-5, line at the gum), *Bleaching 3-3*,
-*Aligner / retainer* (line 1.25 mm onto the gums, semi-scallop), *Plain model*.
+From any office computer open `http://<lab PC name>:8765` — or click **Bleach Tray** on the NLO apps home page,
+which opens it for you (the black window on the lab PC prints the exact address). Drop a scan anywhere on the page:
+it processes on its own and writes the OrthoFactory order (the green line under the result confirms it). See the
+result in 3D, paint over a tooth the computer missed (hold **Shift** and drag on the *Segmentation / fix* tab),
+re-run. Presets: *Bleaching tray* (reservoirs 5-5, line at the gum), *Bleaching 3-3*, *Aligner / retainer*
+(line 1.25 mm onto the gums, semi-scallop), *Plain model*.
 
 ---
 
@@ -57,11 +64,11 @@ downloads are on the left. Presets: *Bleaching tray* (reservoirs 5-5, line at th
 ```
 
 **How it works.** Auto-orientation from geometry (occlusal up, anterior +y, midline from mirror-image tooth
-pairs). A gradient-boosted classifier trained on Titan's own tooth segmentation labels every vertex tooth/gingiva
+pairs, cross-checked against a parabola fit of the gum-line loop; the shape midline is used when they disagree by > 8°). A gradient-boosted classifier trained on Titan's own tooth segmentation labels every vertex tooth/gingiva
 from multi-scale curvature, height-below-cusp and radial-position features; teeth are separated by geodesic erosion
 from the gum line with an adaptive re-split for broad molar contacts, then numbered from the midline. The gum line
 is the 0.5 iso-contour of the tooth mask; papillae are bridged with a 2D closing and snapped onto the surface.
-Reservoirs are a feathered normal displacement. The solid: clipped surface closed below the floor, unioned with a
+Reservoirs are a feathered normal displacement on the facial surfaces, kept 0.5 mm from the gum line and 0.4 mm from the incisal edges, the neighbouring teeth and the facial-lingual transition (full height ~0.6 mm further in). The solid: clipped surface closed below the floor, unioned with a
 gingiva shelf (so there is always material beyond the scan edge, e.g. behind the last molars), intersected with the
 extruded horseshoe outline (manifold3d booleans), unioned with a manifold rebuild of the Trimlign base at Titan's
 placement (facial gum line of the centrals 6.0 / 4.5 mm in front of the locating hole for upper / lower; floor

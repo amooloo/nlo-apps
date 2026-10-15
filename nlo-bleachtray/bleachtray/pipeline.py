@@ -3,7 +3,7 @@ import os, time, json
 import numpy as np
 import trimesh
 from .mesh_utils import load_scan, smooth_field
-from .orient import rough_orient, refine_frame
+from .orient import rough_orient, refine_frame, symmetry_frame, yaw_of
 from .segment import (predict_tooth_prob, clean_mask, split_teeth, merge_small_teeth, resplit_elongated,
                       order_teeth, margin_contour, resample_polyline, smooth_polyline, load_models,
                       bridge_embrasures, geodesic_dilate, cap_distal)
@@ -15,7 +15,7 @@ FACIAL_MARGIN_Y_AT_MIDLINE = {"upper": 6.0, "lower": 4.5}   # facial gum line of
 FLOOR_BELOW_LOWEST_MARGIN = 3.0    # model floor is 3 mm below the lowest point of the trimline (validated in OrthoFactory 10/15/2026)
 
 DEFAULTS = dict(
-    reservoir_height=0.5, reservoir_setback=1.0, reservoir_feather=1.0, reservoir_max_position=5,
+    reservoir_height=0.5, reservoir_setback=0.5, reservoir_feather=0.6, reservoir_max_position=5,
     facial_offset=4.5, lingual_offset=4.0, trimline_spacing=0.5, add_base=True,
     trimline_offset=0.0,   # mm onto the gingiva: 0 = scalloped at the gum line (bleaching); 2-3 = "high" aligner line
     bridge_radius=3.0,     # straight bridges across papillae narrower than ~2x this
@@ -144,6 +144,20 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
         by_pos.setdefault(pos, {})[side] = cents[tid][:2]
     pairs = [by_pos[p][1] - by_pos[p][-1] for p in (1, 2, 3) if p in by_pos and -1 in by_pos[p] and 1 in by_pos[p]]
     mesh_f, T_ref = refine_frame(mesh_r, contact, pairs)
+    # cross-check against the midline of the arch SHAPE (needs no tooth numbering): if the two
+    # disagree badly, a tooth was mis-numbered and the shape midline is the safer one
+    T_sym, yaw_sym, _ = symmetry_frame(margin[:, :2])
+    d_yaw = abs(np.degrees((yaw_of(T_ref) - yaw_sym + np.pi) % (2 * np.pi) - np.pi))
+    x_sym = trimesh.transform_points(np.array([[contact[0], contact[1], 0.0]]), T_sym)[0, 0]
+    rep["midline_check"] = dict(pairs=len(pairs), yaw_diff_deg=round(float(d_yaw), 1), contact_x_in_shape_frame=round(float(x_sym), 2))
+    if not pairs or d_yaw > 8.0 or abs(x_sym) > 4.0:
+        log(f"[{name}] WARNING midline from tooth pairs looks wrong ({len(pairs)} pairs, {d_yaw:.1f} deg off the arch "
+            f"shape, contact {x_sym:+.1f} mm off its axis) - using the arch-shape midline instead")
+        rep["midline_check"]["used"] = "arch_shape"
+        T_ref = T_sym
+        mesh_f = mesh_r.copy(); mesh_f.apply_transform(T_ref)
+    else:
+        rep["midline_check"]["used"] = "tooth_pairs"
     margin_f = trimesh.transform_points(margin, T_ref)
     # y so the facial gum line at the midline is FACIAL_MARGIN_Y_AT_MIDLINE; z so floor = 0
     near_mid = np.abs(margin_f[:, 0]) < 2.0
