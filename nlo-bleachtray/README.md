@@ -32,8 +32,14 @@ serves the browser app to the whole office.
 
 ## Updating the app
 
-Double-click **`update.bat`** in the app folder on the PC that runs it. It downloads the newest version, keeps
-your settings and the base, and restarts the app.
+On the PC that runs the app: **Win + R**, paste this line, Enter (it downloads the newest version, keeps your
+settings and the base, restarts the app, and ends with "UPDATE DONE"):
+
+```
+powershell -NoExit -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol='Tls12'; iex (iwr 'https://raw.githubusercontent.com/amooloo/nlo-apps/main/nlo-bleachtray/update.ps1' -UseBasicParsing).Content"
+```
+
+On a PC that allows .bat files, double-clicking `update.bat` in the app folder does the same.
 
 ## Moving the app to another PC
 
