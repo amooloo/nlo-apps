@@ -28,16 +28,113 @@ MODELS = load_models()
 from bleachtray.server_presets import PRESETS  # noqa: E402
 
 
+CFG_PATH = os.path.join(ROOT, "watch_config.json")
+
+
+def _read_cfg():
+    try:
+        with open(CFG_PATH, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
 def site_config():
     """Settings install.bat saved for this PC (watch_config.json): the OrthoFactory input folder, the
-    doctor name, the drop folder. The browser app uses them as defaults so nobody has to type them."""
-    try:
-        with open(os.path.join(ROOT, "watch_config.json"), encoding="utf-8") as f:
-            cfg = json.load(f)
-    except Exception:
-        cfg = {}
+    doctor name, the drop folder, the scanner's export folder. The browser app uses them as defaults."""
+    cfg = _read_cfg()
     return dict(order_root=cfg.get("titan") or "", doctor=cfg.get("doctor") or "Dr. Amir Akhavan",
-                inbox=cfg.get("inbox") or "")
+                inbox=cfg.get("inbox") or "", scanner_folder=cfg.get("scanner_folder") or "")
+
+
+@app.post("/api/settings")
+async def save_settings(scanner_folder: str = Form(None)):
+    """Persist office-wide settings into watch_config.json (only the keys given)."""
+    cfg = _read_cfg()
+    if scanner_folder is not None:
+        cfg["scanner_folder"] = scanner_folder.strip()
+    try:
+        with open(CFG_PATH, "w", encoding="utf-8") as f:
+            json.dump(cfg, f, indent=2)
+    except Exception as ex:  # noqa
+        raise HTTPException(500, f"could not save settings: {ex}")
+    return site_config()
+
+
+@app.get("/api/scanner/recent")
+def scanner_recent(days: int = 14):
+    """Scans the scanner exported recently (top folder + one level), grouped by patient."""
+    from bleachtray.watch import parse_name
+    folder = site_config()["scanner_folder"]
+    if not folder:
+        return {"folder": "", "patients": []}
+    if not os.path.isdir(folder):
+        return {"folder": folder, "error": "folder not found from this PC", "patients": []}
+    cutoff = time.time() - days * 86400
+    files = []
+    try:
+        for root, dirs, names in os.walk(folder):
+            if root[len(folder):].count(os.sep) >= 2:
+                dirs[:] = []
+            for fn in names:
+                if fn.lower().endswith(".stl"):
+                    p = os.path.join(root, fn)
+                    try:
+                        mt = os.path.getmtime(p)
+                    except OSError:
+                        continue
+                    if mt >= cutoff:
+                        files.append((p, mt))
+    except Exception as ex:  # noqa
+        return {"folder": folder, "error": str(ex), "patients": []}
+    groups = {}
+    for p, mt in sorted(files, key=lambda x: -x[1]):
+        first, last, arch = parse_name(os.path.basename(p))
+        key = (first.lower(), last.lower(), time.strftime("%Y-%m-%d", time.localtime(mt)))
+        g = groups.setdefault(key, dict(first=first, last=last, date=key[2], when=mt, files=[]))
+        if len(g["files"]) < 2 and not any(f["arch"] == arch for f in g["files"] if arch):
+            g["files"].append(dict(path=p, name=os.path.basename(p), arch=arch, when=mt))
+    out = sorted(groups.values(), key=lambda g: -g["when"])[:40]
+    return {"folder": folder, "patients": out}
+
+
+@app.post("/api/scanner/make")
+async def scanner_make(paths: str = Form(...), preset: str = Form("bleaching"), params: str = Form("{}")):
+    """Make a case from scans still in the scanner's folder (copied into the job, originals untouched)."""
+    import shutil
+    from bleachtray.watch import parse_name
+    folder = site_config()["scanner_folder"]
+    plist = [p for p in json.loads(paths) if p][:2]
+    for p in plist:
+        if not folder or not os.path.abspath(p).startswith(os.path.abspath(folder)) or not os.path.isfile(p):
+            raise HTTPException(400, f"not a scan in the scanner folder: {p}")
+    jid = uuid.uuid4().hex[:10]
+    jdir = os.path.join(JOBS_DIR, jid)
+    os.makedirs(jdir, exist_ok=True)
+    pr = dict(PRESETS.get(preset, PRESETS["bleaching"]))
+    try:
+        pr.update(json.loads(params or "{}"))
+    except Exception:
+        pass
+    scans = []
+    for k, p in enumerate(plist):
+        fn = os.path.basename(p)
+        dst = os.path.join(jdir, f"scan{k}_{''.join(c for c in fn if c.isalnum() or c in '-_.')}")
+        shutil.copyfile(p, dst)
+        first, last, arch = parse_name(fn)
+        stem = "".join(c for c in os.path.splitext(fn)[0] if c.isalnum() or c in "-_ ").strip().replace(" ", "_") or f"scan{k}"
+        scans.append(dict(path=dst, name=stem, filename=fn, arch=arch))
+    first, last, _ = parse_name(os.path.basename(plist[0]))
+    pr.setdefault("patient_first", first); pr.setdefault("patient_last", last)
+    if not pr.get("patient_first"): pr["patient_first"] = first
+    if not pr.get("patient_last"): pr["patient_last"] = last
+    job = dict(id=jid, dir=jdir, scans=scans, name=f"{first}_{last}", params=pr, status="queued",
+               created=time.time(), filename=", ".join(sc["filename"] for sc in scans), preset=preset, source="scanner")
+    JOBS[jid] = job
+    for old in sorted(JOBS.values(), key=lambda j: -j["created"])[4:]:
+        old.pop("feat_cache", None)
+    threading.Thread(target=_run, args=(job,), daemon=True).start()
+    return {"id": jid}
 
 
 def _run(job):

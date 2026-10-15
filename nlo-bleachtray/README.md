@@ -19,6 +19,12 @@ processed, or to `BleachTray\failed` with an `error.txt`. The small black window
 the PC that runs the app (it starts by itself at sign-in; if it's gone, double-click `start_app.bat` in the app
 folder). That one window watches the drop folder *and* serves the app page to the whole office.
 
+## Scanner integration (AlliedStar or any scanner that exports STLs)
+
+Advanced settings → *Scanner export folder* → Save (once, for the whole office). The app lists the scans exported in
+the last 14 days, grouped by patient and arch; **Make tray** copies them into a case and processes them. The
+originals in the scanner folder are never touched.
+
 ## Updating the app
 
 On the PC that runs the app: **Win + R**, paste this line, Enter (it downloads the newest version, keeps your
