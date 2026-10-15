@@ -67,11 +67,35 @@ def _start_watcher():
     threading.Thread(target=Watcher(cfg, log=log, on_result=on_result).run_forever, daemon=True).start()
 
 
+def _wait_for_port(seconds=40):
+    """True once port is free. Right after an update the old copy may still be letting go of it;
+    a second copy started by hand while one is already running never gets it."""
+    import socket
+    for i in range(seconds):
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            s.bind((host, port))
+            s.close()
+            return True
+        except OSError:
+            s.close()
+            if i == 0:
+                print(f"  Port {port} is still in use (the previous copy of the app is shutting down) - waiting...")
+            time.sleep(1)
+    return False
+
+
 if __name__ == "__main__":
     import socket
     print(f"  NLO Bleach Tray - browser app on this PC: http://127.0.0.1:{port}")
     if host == "0.0.0.0":
         print(f"  Other office computers:  http://{socket.gethostname()}:{port}")
+    if not _wait_for_port():
+        print("")
+        print("  Another copy of the app is already running on this PC (look for a window called 'NLO Bleach Tray').")
+        print("  Nothing to do - that copy serves the app. This window can be closed.")
+        print("  (If no such window exists, restart the PC, or run update again.)")
+        sys.exit(0)
     _start_watcher()
     if "--no-browser" not in sys.argv:
         threading.Thread(target=_open, daemon=True).start()

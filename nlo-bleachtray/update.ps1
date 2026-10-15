@@ -49,7 +49,13 @@ else { Write-Host '       (Python 3.13 not found in the usual place - skipped)' 
 Write-Host ' [4/4] Restarting the app...'
 taskkill /F /T /FI 'WINDOWTITLE eq NLO Bleach Tray' 2>&1 | Out-Null
 taskkill /F /T /FI 'WINDOWTITLE eq NLO Bleach Tray - *' 2>&1 | Out-Null
-Start-Sleep 2
+# whatever still holds the app's port (a copy started by hand, a window with another title) goes too
+try {
+  $owners = Get-NetTCPConnection -LocalPort 8765 -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique
+  foreach ($pid_ in $owners) { if ($pid_ -and $pid_ -ne $PID) { taskkill /F /T /PID $pid_ 2>&1 | Out-Null } }
+} catch {}
+$tries = 0
+while ($tries -lt 20 -and (Get-NetTCPConnection -LocalPort 8765 -State Listen -ErrorAction SilentlyContinue)) { Start-Sleep 1; $tries++ }
 Start-Process -FilePath (Join-Path $dst 'start_app.bat') -ArgumentList 'autostart' -WorkingDirectory $dst
 Remove-Item $t -Recurse -Force -ErrorAction SilentlyContinue
 Write-Host ''
