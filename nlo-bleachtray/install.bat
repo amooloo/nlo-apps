@@ -13,12 +13,13 @@ echo   NLO Bleach Tray - one-time setup
 echo  ===============================================
 echo.
 
-rem ---- 1. Python present? --------------------------------------------------
+rem ---- 1. A Python version the components support (3.11 - 3.14) -------------
 set "PY="
-py -3 --version >nul 2>&1 && set "PY=py -3"
-if not defined PY python --version >nul 2>&1 && set "PY=python"
+for %%V in (3.13 3.12 3.14 3.11) do call :trypy %%V
+if not defined PY python -c "import sys; sys.exit(0 if (3,11)<=sys.version_info[:2]<=(3,14) else 1)" >nul 2>&1 && set "PY=python"
 if not defined PY goto :nopython
-echo  [1/4] Python found.
+for /f "tokens=*" %%v in ('%PY% -c "import sys; print(sys.version.split()[0])"') do set "PYVER=%%v"
+echo  [1/4] Python %PYVER% found.
 
 rem ---- 2. Libraries ------------------------------------------------------
 echo  [2/4] Installing the app's components (2-5 minutes, needs internet)...
@@ -67,16 +68,23 @@ goto :eof
 echo  Done - the watcher will start minimised at sign-in.
 goto :eof
 
+:trypy
+if defined PY goto :eof
+py -%~1 --version >nul 2>&1 && set "PY=py -%~1"
+goto :eof
+
 :nopython
-echo  Python is not installed yet. Python is the free program this app runs on.
+echo  This app needs Python 3.13 (the free program it runs on). Either it is not installed,
+echo  or only a newer Python is installed, which the geometry components do not support yet.
+echo  Having both installed side by side is fine.
 echo.
-echo  A download page will open. On it:
-echo    1. Click the yellow "Download Python" button and run the file it downloads.
+echo  The Python 3.13 installer will download now. When it has downloaded:
+echo    1. Run it (double-click python-3.13.16-amd64.exe in your Downloads).
 echo    2. IMPORTANT: on the first screen tick the box "Add python.exe to PATH".
 echo    3. Click "Install Now" and wait for "Setup was successful".
 echo  Then close this window and double-click install.bat again.
 echo.
-start https://www.python.org/downloads/windows/
+start https://www.python.org/ftp/python/3.13.16/python-3.13.16-amd64.exe
 goto :eof
 
 :pipfail

@@ -20,9 +20,10 @@ sign-in; if it's gone, double-click `start_watch.bat` in the app folder).
 1. Put the `nlo-bleachtray` folder somewhere permanent, e.g. `C:\NLO\nlo-bleachtray`
    (from the zip: right-click → *Extract All*).
 2. Double-click **`install.bat`**. It walks you through everything:
-   * If the PC has no **Python** yet (the free program the app runs on), it opens the download page.
-     Click the yellow *Download Python* button, run the file, and on the first screen tick
-     **"Add python.exe to PATH"** before *Install Now*. Then double-click `install.bat` again.
+   * If the PC has no **Python 3.13** yet (the free program the app runs on), it downloads the right installer
+     for you. Run it, and on the first screen tick **"Add python.exe to PATH"** before *Install Now*.
+     Then double-click `install.bat` again. (The newest Python from python.org is too new for the
+     geometry components; 3.13 next to it is fine.)
    * It installs the app's components, finds the Titan folder, learns the Trimlign base from one of your existing
      Titan exports, and creates the `BleachTray` drop folder next to the Titan folder.
    * Answer **y** when it asks to start the watcher automatically at sign-in.
