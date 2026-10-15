@@ -5,7 +5,7 @@ Secondary: a shortcut in the Startup folder, created if the folder exists or can
 """
 import os, sys, subprocess
 
-target = os.path.abspath(sys.argv[1])
+target = os.path.abspath(sys.argv[1])  # start_app.bat (serves the app + watches the folder)
 ok = False
 try:
     import winreg
