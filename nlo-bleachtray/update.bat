@@ -1,8 +1,15 @@
 @echo off
 rem NLO Bleach Tray - get the latest version from GitHub and restart the app. Keeps your settings and the base.
+rem Works from inside the app folder, or from anywhere (Downloads, Desktop): it finds the app folder.
 if "%~1"=="run" goto :run
-rem Run a copy of this file from TEMP, so the copy in the app folder can be replaced while it runs.
 set "NLO_APPDIR=%~dp0"
+if not exist "%NLO_APPDIR%run_app.py" call :findapp
+if not exist "%NLO_APPDIR%run_app.py" (
+  echo  Could not find the NLO Bleach Tray app folder on this PC.
+  set /p "NLO_APPDIR=  Type the app folder path (e.g. C:\nlo-bleachtray\nlo-bleachtray) and press Enter: "
+)
+if not "%NLO_APPDIR:~-1%"=="\" set "NLO_APPDIR=%NLO_APPDIR%\"
+rem Run a copy of this file from TEMP, so the copy in the app folder can be replaced while it runs.
 copy /y "%~f0" "%TEMP%\nlo-bleachtray-update.bat" >nul
 start "Updating NLO Bleach Tray" cmd /k ""%TEMP%\nlo-bleachtray-update.bat" run"
 exit /b
@@ -28,7 +35,7 @@ if errorlevel 1 goto :fail
 if not exist "%TMPD%\nlo-apps-main\nlo-bleachtray\run_app.py" goto :fail
 echo  [3/4] Copying the new files in (settings, the base and finished cases are kept)...
 robocopy "%TMPD%\nlo-apps-main\nlo-bleachtray" "%NLO_APPDIR%." /E /XF watch_config.json /XD jobs out samples /NFL /NDL /NJH /NJS /NP >nul
-if errorlevel 8 goto :fail
+if errorlevel 8 goto :copyfail
 call "%NLO_APPDIR%_findpy.bat"
 if defined PY "%PY%" -m pip install --quiet --disable-pip-version-check --no-warn-script-location -r requirements.txt
 echo  [4/4] Restarting the app...
@@ -40,6 +47,19 @@ rmdir /s /q "%TMPD%" >nul 2>&1
 echo.
 echo  Updated. The app is running again (minimised window "NLO Bleach Tray").
 echo  You can close this window.
+echo.
+goto :eof
+
+:findapp
+for %%D in ("C:\nlo-bleachtray\nlo-bleachtray" "C:\nlo-bleachtray" "C:\NLO\nlo-bleachtray" "%USERPROFILE%\nlo-bleachtray\nlo-bleachtray" "%USERPROFILE%\nlo-bleachtray" "%USERPROFILE%\Desktop\nlo-bleachtray\nlo-bleachtray" "%USERPROFILE%\Desktop\nlo-bleachtray" "%USERPROFILE%\Downloads\nlo-bleachtray\nlo-bleachtray" "D:\nlo-bleachtray\nlo-bleachtray") do (
+  if exist "%%~D\run_app.py" set "NLO_APPDIR=%%~D\" & goto :eof
+)
+goto :eof
+
+:copyfail
+echo.
+echo  Windows did not allow writing into %NLO_APPDIR%
+echo  Right-click update.bat and choose "Run as administrator", then try again.
 echo.
 goto :eof
 
