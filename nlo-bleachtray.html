@@ -14,60 +14,67 @@
 body { font-family:'Montserrat',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background:var(--page); color:var(--navy); min-height:100vh; }
 header { background:var(--navy); color:#fff; padding:36px 24px 30px; text-align:center; }
 header h1 { font-size:1.4rem; font-weight:800; letter-spacing:.3px; }
-header p { opacity:.7; font-size:.85rem; margin-top:8px; }
+header p { opacity:.75; font-size:.9rem; margin-top:8px; max-width:640px; margin-left:auto; margin-right:auto; line-height:1.5; }
 main { max-width:760px; margin:36px auto 60px; padding:0 20px; }
 .card { background:#fff; border-radius:14px; padding:22px 24px; box-shadow:0 1px 2px rgba(27,47,76,.06), 0 6px 20px rgba(27,47,76,.06); margin-bottom:18px; }
 .card h2 { font-size:.8rem; text-transform:uppercase; letter-spacing:2px; color:var(--blue); margin-bottom:12px; font-weight:700; }
-p, li { font-size:.95rem; line-height:1.55; }
-ol, ul { padding-left:22px; margin-top:6px; }
-li { margin:6px 0; }
-code { font-family:ui-monospace,Menlo,Consolas,monospace; font-size:.85em; background:#eef1f6; padding:2px 6px; border-radius:5px; }
-pre { background:#1B2F4C; color:#e8eefc; padding:14px 16px; border-radius:10px; overflow:auto; font-size:.82rem; line-height:1.5; margin-top:8px; }
+p, li { font-size:.95rem; line-height:1.6; }
+ol, ul { padding-left:24px; margin-top:6px; }
+li { margin:8px 0; }
+li li { margin:4px 0; font-size:.9rem; }
+code { font-family:ui-monospace,Menlo,Consolas,monospace; font-size:.88em; background:#eef1f6; padding:2px 7px; border-radius:5px; white-space:nowrap; }
+.path { font-family:ui-monospace,Menlo,Consolas,monospace; font-size:.9em; background:#1B2F4C; color:#e8eefc; padding:3px 9px; border-radius:6px; white-space:nowrap; }
 .btn { display:inline-block; background:var(--blue); color:#fff; text-decoration:none; font-weight:700; padding:12px 18px; border-radius:10px; margin:8px 8px 0 0; font-size:.9rem; }
 .btn.alt { background:#fff; color:var(--blue); border:2px solid var(--blue); }
-.pill { display:inline-block; background:#E6F9F2; color:#0B7C61; font-weight:700; font-size:.75rem; padding:4px 10px; border-radius:999px; margin-left:8px; vertical-align:middle; }
-.steps li strong { color:var(--navy); }
+.pill { display:inline-block; background:#E6F9F2; color:#0B7C61; font-weight:700; font-size:.72rem; padding:4px 10px; border-radius:999px; margin-left:8px; vertical-align:middle; }
+.big { font-size:1.05rem; }
+.muted { color:#5b6b80; font-size:.88rem; }
+.step { display:flex; gap:14px; align-items:flex-start; margin:12px 0; }
+.num { flex:0 0 30px; height:30px; border-radius:50%; background:var(--blue); color:#fff; font-weight:800; display:flex; align-items:center; justify-content:center; font-size:.9rem; margin-top:2px; }
 </style>
 </head>
 <body>
 <header>
   <h1>NLO Bleach Tray</h1>
-  <p>Scan in → bleaching-tray model with reservoirs, Trimlign base and trimline → straight into OrthoFactory. $0 per case.</p>
+  <p>Makes the bleaching-tray model from a scan, with the gel reservoirs, the Trimlign base and the trim line, and puts it into OrthoFactory as an order. Nothing to pay per case.</p>
 </header>
 <main>
+
   <div class="card">
-    <h2>Open it <span class="pill">runs on the lab PC</span></h2>
-    <p>This one is not a web page — it does real 3D work, so it runs on the lab computer (or any office computer with Python).
-       Start it with <code>python run_app.py</code> in its folder, or use the shortcut on the lab PC desktop once installed.</p>
-    <a class="btn" href="http://127.0.0.1:8765/">Open on this computer</a>
-    <a class="btn alt" href="https://github.com/amooloo/nlo-apps/tree/main/nlo-bleachtray">Code &amp; setup guide</a>
+    <h2>Everyday use <span class="pill">takes 1 minute</span></h2>
+    <div class="step"><div class="num">1</div><p class="big">Export the patient's scan as an STL from the scanner, with the patient's name in the file name (the scanner does this on its own: <code>Armaan_Shetty_20261015_09-20-31_upper.stl</code>).</p></div>
+    <div class="step"><div class="num">2</div><p class="big">Drag that file into the folder <span class="path">S:\clinical\3D printing\BleachTray</span> on the lab PC. If you have an upper and a lower, drag both.</p></div>
+    <div class="step"><div class="num">3</div><p class="big">Wait about a minute. Open OrthoFactory → <b>Production</b>. The patient is listed like any Titan case. Print the model on the Form 4B, thermoform, trim on the Trimlign.</p></div>
+    <p class="muted" style="margin-top:12px">That's it. The file you dragged moves into <code>BleachTray\done</code> when it worked, or into <code>BleachTray\failed</code> with a note explaining what happened when it didn't. The little black window called "NLO Bleach Tray watcher" must be open on the lab PC (it starts by itself at sign-in; if it's gone, double-click <code>start_watch.bat</code> in the app folder).</p>
   </div>
 
   <div class="card">
-    <h2>Zero-click</h2>
-    <p>With the watcher running on the lab PC, drop the scanner's STL into <code>S:\clinical\3D printing\BleachTray</code>.
-       About 30 seconds later the finished order is in OrthoFactory's Production list. Upper and lower dropped together become one order.
-       Failures go to <code>failed\</code> with an <code>error.txt</code>; the browser app below is for checking and fixing a case by hand.</p>
+    <h2>If a case needs a look <span class="pill">optional</span></h2>
+    <p>Double-click <code>start_app.bat</code> in the app folder. A web page opens where you can drag a scan in, see the result in 3D, paint over a tooth the computer missed (hold <b>Shift</b> and drag), and re-run. Downloads and the OrthoFactory order are on the left.</p>
+    <a class="btn" href="http://127.0.0.1:8765/">Open it (on the PC where it runs)</a>
   </div>
 
   <div class="card">
-    <h2>Browser app — check or fix a case</h2>
-    <ol class="steps">
-      <li><strong>Drop</strong> the upper and/or lower scan STL from the scanner.</li>
-      <li><strong>Name</strong> the patient (first, last) and pick the preset — <em>Bleaching tray</em> is the default: 0.5 mm reservoirs on 5-5, trimline scalloped at the gum line.</li>
-      <li><strong>Process.</strong> About 30–45 seconds per arch. Check the 3D preview; if a tooth was missed, fix it with the brush on the <em>Segmentation</em> tab and re-run.</li>
-      <li><strong>Done.</strong> The order appears in OrthoFactory's Production list like any Titan export (the app writes the order folder into <code>S:\clinical\3D printing\Titan</code>). Print the STL on the Form 4B, thermoform, trim on the Trimlign.</li>
-    </ol>
+    <h2>One-time setup on the lab PC <span class="pill">about 10 minutes, one person, once</span></h2>
+    <div class="step"><div class="num">1</div><p>Get the app folder onto the PC: download <b>nlo-bleachtray.zip</b> from Dr. Akhavan (or from the <a href="https://github.com/amooloo/nlo-apps/tree/main/nlo-bleachtray">code page</a> → green <b>Code</b> button → <b>Download ZIP</b>), right-click it → <b>Extract All</b>, and put the <code>nlo-bleachtray</code> folder somewhere permanent, for example <span class="path">C:\NLO\nlo-bleachtray</span>.</p></div>
+    <div class="step"><div class="num">2</div><p>Open that folder and double-click <code>install.bat</code>. A black window walks you through everything:</p></div>
+    <ul style="margin-left:44px">
+      <li>If the PC doesn't have <b>Python</b> yet (the free program the app runs on), it opens the download page. Click the yellow <b>Download Python</b> button, run the file, and on the very first screen tick <b>"Add python.exe to PATH"</b> before clicking <b>Install Now</b>. Then double-click <code>install.bat</code> again.</li>
+      <li>It installs the app's components (a few minutes), finds the Titan folder on its own, learns the Trimlign base from one of your existing Titan exports, and creates the <code>BleachTray</code> drop folder next to the Titan folder.</li>
+      <li>When it asks "Start the watcher automatically every time this PC signs in?", type <b>y</b>.</li>
+    </ul>
+    <div class="step"><div class="num">3</div><p>Double-click <code>start_watch.bat</code> once to start it now. Done — go to <b>Everyday use</b> above.</p></div>
   </div>
 
   <div class="card">
-    <h2>Install once</h2>
-    <pre>cd nlo-bleachtray
-python -m pip install -r requirements.txt
-python tools/import_base.py "S:\clinical\3D printing\Titan\&lt;any order folder&gt;\&lt;Patient&gt; - 1 - Maxilla.stl"
-python run_watch.py --inbox "S:\clinical\3D printing\BleachTray" --titan "S:\clinical\3D printing\Titan"
-python run_app.py      (optional: the browser app)</pre>
-    <p>The third line pulls the Trimlign base out of any existing Titan export; it is not stored in this repository.</p>
+    <h2>Good to know</h2>
+    <ul>
+      <li>Default is the <b>bleaching tray</b> recipe: 0.5 mm reservoirs on the front teeth to the second premolars, trim line following the gum line. Other recipes (3-3, aligner "high line") are available in the browser app.</li>
+      <li>Orders show up in OrthoFactory as <b>Template</b> pieces (<code>TU0A</code> upper / <code>TL0A</code> lower), exactly like a stage-0 Titan export.</li>
+      <li>Processing takes about 30–40 seconds per arch on the lab PC.</li>
+      <li>Something looks wrong on a case? Send Dr. Akhavan the patient name and the files from <code>BleachTray\done\…</code> (or <code>failed\…</code>).</li>
+    </ul>
+    <a class="btn alt" href="https://github.com/amooloo/nlo-apps/tree/main/nlo-bleachtray">Technical details &amp; code</a>
   </div>
 </main>
 <script src="nlo-home.js" defer></script>

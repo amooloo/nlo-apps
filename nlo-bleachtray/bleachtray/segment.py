@@ -376,6 +376,54 @@ def bridge_embrasures(loop, mesh, radius=3.0, snap_tol=1.5):
     return out
 
 
+def cap_distal(loop, mesh, keep_mm=2.5, snap_tol=2.0):
+    """Trimlign cannot reach around the distal of the last molars: cut the loop's posterior tips
+    off with a straight line `keep_mm` in front of the loop's most posterior point on each side,
+    so the path crosses over the last molar instead of wrapping behind it (what Titan does).
+    Posterior is -y in the output frame. Points on the cut are snapped onto the model surface."""
+    from shapely.geometry import Polygon, LineString, box
+    from scipy.spatial import cKDTree
+    from trimesh.proximity import ProximityQuery
+    P = Polygon(loop[:, :2])
+    if not P.is_valid:
+        P = P.buffer(0)
+    out_xy = []
+    # treat each side separately: left (x<0) and right (x>0) halves, cut each at its own y level
+    minx, miny, maxx, maxy = P.bounds
+    parts = []
+    for sign in (-1, 1):
+        half = P.intersection(box(0 if sign > 0 else minx - 1, miny - 1, maxx + 1 if sign > 0 else 0, maxy + 1))
+        if half.is_empty:
+            continue
+        y_cut = half.bounds[1] + keep_mm
+        parts.append(half.intersection(box(minx - 1, y_cut, maxx + 1, maxy + 1)))
+    if not parts:
+        return loop
+    from shapely.ops import unary_union
+    Pc = unary_union(parts).buffer(0.01).buffer(-0.01)
+    if Pc.geom_type == "MultiPolygon":
+        Pc = max(Pc.geoms, key=lambda g: g.area)
+    ring = LineString(Pc.exterior.coords)
+    n = max(int(ring.length / 0.25), 64)
+    new_xy = np.array([ring.interpolate(t, normalized=True).coords[0] for t in np.linspace(0, 1, n, endpoint=False)])
+    tree = cKDTree(loop[:, :2])
+    d, j = tree.query(new_xy)
+    anchor = d < 0.08
+    z = np.full(n, np.nan)
+    z[anchor] = loop[j[anchor], 2]
+    # non-anchor (the straight cuts): z from nearest original points, then snapped to the surface
+    if (~anchor).any():
+        z[~anchor] = loop[j[~anchor], 2]
+    out = np.column_stack([new_xy, z])
+    out[anchor, :2] = loop[j[anchor], :2]
+    if (~anchor).any():
+        pq = ProximityQuery(mesh)
+        closest, dist, _ = pq.on_surface(out[~anchor])
+        ok = dist < snap_tol
+        tmp = out[~anchor]; tmp[ok] = closest[ok]; out[~anchor] = tmp
+    return out
+
+
 def resample_polyline(P, spacing=0.5, closed=True):
     if closed and np.linalg.norm(P[0] - P[-1]) > 1e-6:
         P = np.vstack([P, P[:1]])

@@ -6,13 +6,13 @@ from .mesh_utils import load_scan, smooth_field
 from .orient import rough_orient, refine_frame
 from .segment import (predict_tooth_prob, clean_mask, split_teeth, merge_small_teeth, resplit_elongated,
                       order_teeth, margin_contour, resample_polyline, smooth_polyline, load_models,
-                      bridge_embrasures, geodesic_dilate)
+                      bridge_embrasures, geodesic_dilate, cap_distal)
 from .reservoir import reservoir_displacement, apply_displacement
 from .solid import horseshoe_outline, build_body, add_base
 
 # Titan/Trimlign placement convention measured from a Titan export (see notes):
 FACIAL_MARGIN_Y_AT_MIDLINE = {"upper": 6.0, "lower": 4.5}   # facial gum line of the centrals, mm in front of the base's locating hole (measured from Titan exports)
-FLOOR_BELOW_LOWEST_MARGIN = 3.0    # model floor is 3 mm below the lowest point of the trimline
+FLOOR_BELOW_LOWEST_MARGIN = 3.0    # model floor is 3 mm below the lowest point of the trimline (validated in OrthoFactory 10/15/2026)
 
 DEFAULTS = dict(
     reservoir_height=0.5, reservoir_setback=1.0, reservoir_feather=1.0, reservoir_max_position=5,
@@ -20,6 +20,7 @@ DEFAULTS = dict(
     trimline_offset=0.0,   # mm onto the gingiva: 0 = scalloped at the gum line (bleaching); 2-3 = "high" aligner line
     bridge_radius=3.0,     # straight bridges across papillae narrower than ~2x this
     trimline_smooth=4,
+    distal_cap_mm=0.0,     # >0: trimline stops this far in front of its most posterior point per side (Titan ~2.5); 0 = wrap the last molar (validated)
     patient_first="", patient_last="", stage=0, arch=None, export_folder="",
 )
 
@@ -130,7 +131,7 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     # scan in OrthoFactory / Titan (they do their own basing + trim path)
     scan_res = mesh_r.copy()
     scan_res.apply_transform(np.linalg.inv(T_rough))
-    scan_res_path = os.path.join(out_dir, f"{name}_scan_with_reservoirs.stl")
+    scan_res_path = os.path.join(out_dir, f"{name}_scan_with_reservoirs_NOBASE_not_for_trimlign.stl")
     scan_res.export(scan_res_path)
 
     # final frame: x-axis from mirror-image tooth pairs (1-1, 2-2, 3-3), x = 0 at the incisor contact
@@ -151,6 +152,10 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     T_place[2, 3] = -z_floor
     mesh_f.apply_transform(T_place)
     margin_f = trimesh.transform_points(margin_f, T_place)
+    # Trimlign reach: cross over the last molars instead of wrapping behind them
+    if P.get("distal_cap_mm", 0.0) > 0:
+        margin_f = cap_distal(margin_f, mesh_f, keep_mm=P.get("distal_cap_mm", 0.0))
+        margin_f = smooth_polyline(resample_polyline(margin_f, P["trimline_spacing"]), iters=2)
     T_total = T_place @ T_ref @ T_rough
     rep["transform_raw_to_output"] = T_total.tolist()
 
