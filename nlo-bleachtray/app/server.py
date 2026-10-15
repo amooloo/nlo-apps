@@ -416,12 +416,27 @@ async def create_job(files: List[UploadFile] = File(...), preset: str = Form("bl
         arch_list = json.loads(arches or "[]")
     except Exception:
         arch_list = []
-    blobs = []
+    from bleachtray.watch import titan_export, file_titan_export
+    blobs, filed = [], []
     for k, f in enumerate(files):
-        if not f.filename or not f.filename.lower().endswith((".stl", ".ply")):
+        if not f.filename or not f.filename.lower().endswith((".stl", ".ply", ".pts")):
             continue
-        blobs.append((k, f.filename, await f.read()))
+        if f.filename.lower().endswith(".pts") and not titan_export(f.filename):
+            continue
+        data_k = await f.read()
+        if titan_export(f.filename):
+            # a Titan export is a reference for training, not a scan to process
+            tmp = os.path.join(JOBS_DIR, "_titan_" + "".join(c for c in f.filename if c.isalnum() or c in "-_. "))
+            os.makedirs(JOBS_DIR, exist_ok=True)
+            with open(tmp, "wb") as fh:
+                fh.write(data_k)
+            dst = file_titan_export(ROOT, tmp, move=True, log=lambda m: None, filename=f.filename)
+            filed.append(os.path.relpath(dst, ROOT) if dst else f.filename)
+            continue
+        blobs.append((k, f.filename, data_k))
     if not blobs:
+        if filed:
+            return {"id": None, "ids": [], "joined": [], "cases": 0, "filed": filed}
         raise HTTPException(400, "no STL files")
     cases = _group_uploads([(k, fn, (arch_list[i] if i < len(arch_list) else None) or None) for i, (k, fn, _) in enumerate(blobs)])
     data = {k: (fn, b) for k, fn, b in blobs}
@@ -463,7 +478,7 @@ async def create_job(files: List[UploadFile] = File(...), preset: str = Form("bl
     for jid in ids:
         if jid not in joined:
             _enqueue(JOBS[jid])
-    return {"id": ids[0], "ids": ids, "joined": joined, "cases": len(ids)}
+    return {"id": ids[0], "ids": ids, "joined": joined, "cases": len(ids), "filed": filed}
 
 
 @app.post("/api/jobs/{jid}/rerun")
@@ -488,7 +503,8 @@ async def rerun(jid: str, edits: str = Form("{}"), params: str = Form("{}")):
 @app.get("/api/jobs")
 def list_jobs():
     return [{k: v for k, v in j.items() if k in ("id", "name", "status", "created", "filename", "preset", "review", "source")}
-            | dict(ahead=_ahead(j), arches=sorted({sc.get("arch") for sc in j["scans"] if sc.get("arch")}), models=len(j["scans"]))
+            | dict(ahead=_ahead(j), arches=sorted({sc.get("arch") for sc in j["scans"] if sc.get("arch")}), models=len(j["scans"]),
+                   progress=(j.get("progress") if j.get("status") == "running" else None))
             for j in sorted(JOBS.values(), key=lambda j: -j["created"])]
 
 
@@ -496,33 +512,47 @@ def _review_view(job):
     return {k: job.get(k) for k in ("id", "name", "status", "review", "order_folder", "order_error")} | {"scans": [dict(arch=sc.get("arch"), tag=sc.get("tag")) for sc in job["scans"]]}
 
 
-TRAIN_DIR = os.path.join(ROOT, "training")
-
-
 def _save_training(job, log=print):
-    """A case someone corrected with the brush and then approved is a labelled example: the scan plus
-    the corrected tooth labels go to <app>/training, where they can be picked up to retrain the model
-    (tools/train_eval.py). Automatic results are not saved - they would only teach the model itself."""
+    """Every case that is sent goes to training/<Last, First>/: the raw scan of each arch, the tooth
+    labels that were sent (marked 'corrected' when someone used the brush, 'automatic' otherwise) and
+    a case.json. Titan exports dropped on the page land in the same folder, so one patient's folder
+    holds everything that teaches the model (tools/train_eval.py picks it up)."""
     import shutil
-    fixed = job.get("fixed_labels") or {}
-    if not fixed:
+    from bleachtray.watch import training_dir
+    first, last = job["params"].get("patient_first") or "", job["params"].get("patient_last") or ""
+    if not (first or last):
         return []
-    os.makedirs(TRAIN_DIR, exist_ok=True)
-    saved = []
-    for path, labels in fixed.items():
-        sc = next((sc for sc in job["scans"] if sc["path"] == path), None)
-        if sc is None:
-            continue
-        stem = f"{job['name']}_{sc.get('arch') or 'scan'}_{job['id']}"
+    d = training_dir(ROOT, first, last)
+    fixed = job.get("fixed_labels") or {}
+    saved, meta = [], dict(first=first, last=last, sent=time.strftime("%Y-%m-%d %H:%M"), case=job["id"], arches={})
+    for path in dict.fromkeys(sc["path"] for sc in job["scans"]):
+        sc = next(sc for sc in job["scans"] if sc["path"] == path)
+        arch = sc.get("arch") or "scan"
         try:
-            shutil.copyfile(path, os.path.join(TRAIN_DIR, stem + ".stl"))
-            np.savez(os.path.join(TRAIN_DIR, stem + ".npz"), labels=np.asarray(labels, dtype=np.int16), arch=sc.get("arch") or "",
-                     source=os.path.basename(path), approved=time.time())
-            saved.append(stem)
+            shutil.copyfile(path, os.path.join(d, f"scan_{arch}.stl"))
+            labels = fixed.get(path)
+            if labels is None:
+                st = os.path.join(job["dir"], f"{sc['name']}_state.npz")
+                if os.path.exists(st):
+                    labels = np.load(st)["labels"]
+            if labels is not None:
+                np.savez(os.path.join(d, f"labels_{arch}.npz"), labels=np.asarray(labels, dtype=np.int16), arch=arch,
+                         corrected=path in fixed, source=os.path.basename(path), approved=time.time())
+            meta["arches"][arch] = dict(source=sc["filename"], corrected=path in fixed, teeth=len((sc.get("report") or {}).get("teeth", {})))
+            saved.append(arch)
         except Exception as ex:  # noqa
             log(f"could not save the training example ({ex})")
+    try:
+        prev = {}
+        cj = os.path.join(d, "case.json")
+        if os.path.exists(cj):
+            prev = json.load(open(cj))
+        prev.update(meta); prev.setdefault("history", []).append(dict(sent=meta["sent"], case=job["id"], corrected=[a for a, m in meta["arches"].items() if m["corrected"]]))
+        json.dump(prev, open(cj, "w"), indent=1)
+    except Exception as ex:  # noqa
+        log(f"case.json not written ({ex})")
     if saved:
-        log(f"brush-corrected case saved for training: {', '.join(saved)}")
+        log(f"saved for training: {os.path.relpath(d, ROOT)} ({', '.join(saved)}{'; brush-corrected' if fixed else ''})")
     return saved
 
 

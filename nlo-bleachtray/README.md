@@ -25,10 +25,12 @@ folder). That one window watches the drop folder *and* serves the app page to th
 
 ## It learns from your corrections
 
-Every case you fixed with the brush and then sent is saved in the app folder under `training\` (the scan and the
-corrected tooth labels). Zip that folder and send it to Dr. Akhavan now and then: the model is retrained on it and
-the next update needs fewer corrections. Cases that needed no brush are not saved (they would only teach the
-model what it already does).
+Every case that is sent is saved in the app folder under `training\<Last, First> - <date>\`: the scan of each
+arch, the tooth labels that were sent (marked *corrected* when someone used the brush) and a `case.json`. Titan
+exports (`First Last - 0 - Maxilla.stl` / `.pts`) dropped on the app page or into the drop folder are not processed;
+they are filed into the same patient folder as a reference. Zip `training\` and send it to Dr. Akhavan now and
+then: the model is retrained on the corrected cases and on the Titan references, and the next update needs fewer
+corrections.
 
 ## Scanner integration (AlliedStar or any scanner that exports STLs)
 

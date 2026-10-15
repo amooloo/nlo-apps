@@ -16,6 +16,68 @@ from datetime import datetime
 NAME_RE = re.compile(r"^(?P<first>[A-Za-z][A-Za-z'\-]*)[ _\-]+(?P<last>[A-Za-z][A-Za-z'\-]*)")
 TITLE_RE = re.compile(r"^(dr|mr|mrs|ms|miss|prof)\.?[ _\-]+", re.I)
 ARCH_RE = re.compile(r"(upper|maxil|lower|mandib)", re.I)
+# a Titan / OrthoFactory export ("First Last - 0 - Maxilla.stl", also with _ instead of spaces, with or
+# without a leading timestamp): a reference for training, never a scan to process
+TITAN_RE = re.compile(r"^(?:\d{6,}[ _-]+)?(?P<name>.+?)[ _]+-[ _]+(?P<stage>\d+)[ _]+-[ _]+(?P<arch>Maxilla|Mandible)(?P<rest>.*)$", re.I)
+
+
+def titan_export(filename):
+    """(first, last, stage, arch) if the file name is a Titan export, else None."""
+    m = TITAN_RE.match(os.path.splitext(os.path.basename(filename))[0])
+    if not m:
+        return None
+    first, last, _ = parse_name(m.group("name").replace("_", " ") + ".stl")
+    return first, last, int(m.group("stage")), ("upper" if m.group("arch").lower() == "maxilla" else "lower")
+
+
+def training_dir(root, first, last, max_age_days=45, fuzzy=False):
+    """training/<Last, First> - <date>/ : one folder per patient and visit, holding everything that
+    teaches the model (scans, labels, Titan exports). Files for the same patient within `max_age_days`
+    go to the same folder; a later visit gets a new dated folder. `fuzzy` (used for Titan exports,
+    whose names are typed by hand) tolerates a spelling difference: "Pollenberg" joins "Pellenbarg"."""
+    import difflib
+    safe = lambda t: "".join(c for c in t if c.isalnum() or c in " -'").strip() or "Unknown"
+    base = os.path.join(root, "training")
+    os.makedirs(base, exist_ok=True)
+    patient = f"{safe(last)}, {safe(first)}"
+    cands = []
+    for existing in sorted(os.listdir(base)):
+        m = re.match(r"^(?P<last>[^,]+), (?P<first>.+?)(?: - (?P<date>\d{4}-\d{2}-\d{2}))?$", existing)
+        if not m:
+            continue
+        same = f"{m.group('last')}, {m.group('first')}".lower() == patient.lower()
+        if not same and fuzzy:
+            same = difflib.SequenceMatcher(None, f"{m.group('last')}, {m.group('first')}".lower(), patient.lower()).ratio() >= 0.8
+        if not same:
+            continue
+        try:
+            when = time.mktime(time.strptime(m.group("date"), "%Y-%m-%d")) if m.group("date") else os.path.getmtime(os.path.join(base, existing))
+        except Exception:
+            when = os.path.getmtime(os.path.join(base, existing))
+        cands.append((when, existing))
+    if cands:
+        when, existing = max(cands)
+        if time.time() - when < max_age_days * 86400:
+            return os.path.join(base, existing)
+    d = os.path.join(base, f"{patient} - {time.strftime('%Y-%m-%d')}")
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+def file_titan_export(root, path, move=False, log=print, filename=None):
+    """Put a Titan export into the patient's training folder (copied, or moved from a drop folder).
+    `filename` is the original name when `path` is a temporary upload."""
+    import shutil
+    info = titan_export(filename or path)
+    if not info:
+        return None
+    first, last, stage, arch = info
+    d = training_dir(root, first, last, fuzzy=True)
+    dst = os.path.join(d, f"titan_stage{stage}_{arch}{os.path.splitext(filename or path)[1].lower()}")
+    if os.path.abspath(dst) != os.path.abspath(path):
+        (shutil.move if move else shutil.copyfile)(path, dst)
+    log(f"Titan export filed for training: {os.path.relpath(dst, root)}")
+    return dst
 
 DEFAULT_CONFIG = dict(
     inbox="", titan="", preset="both", poll=4, pair_wait=45, doctor="Dr. Amir Akhavan", kind="T", stage=0,
@@ -64,9 +126,16 @@ class Watcher:
     def scan_inbox(self):
         for fn in sorted(os.listdir(self.inbox)):
             p = os.path.join(self.inbox, fn)
-            if not fn.lower().endswith(".stl") or not os.path.isfile(p) or p in self.seen:
+            if not (fn.lower().endswith(".stl") or (fn.lower().endswith(".pts") and titan_export(fn))) or not os.path.isfile(p) or p in self.seen:
                 continue
             if not stable(p):
+                continue
+            if titan_export(fn):
+                self.seen.add(p)
+                try:
+                    file_titan_export(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), p, move=True, log=self.log)
+                except Exception as ex:  # noqa
+                    self.log(f"could not file {fn}: {ex}")
                 continue
             first, last, arch = parse_name(fn)
             key = (first.lower(), last.lower())
