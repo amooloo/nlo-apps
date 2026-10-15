@@ -4,7 +4,7 @@ import numpy as np
 import trimesh
 from .mesh_utils import load_scan, smooth_field
 from .orient import rough_orient, refine_frame, symmetry_frame, yaw_of
-from .segment import (predict_tooth_prob, clean_mask, split_teeth, merge_small_teeth, resplit_elongated,
+from .segment import (predict_tooth_prob, clean_mask, split_teeth, split_teeth_arch, merge_small_teeth, resplit_elongated,
                       order_teeth, margin_contour, resample_polyline, smooth_polyline, load_models,
                       bridge_embrasures, geodesic_dilate, cap_distal)
 from .reservoir import reservoir_displacement, apply_displacement, smooth_periphery
@@ -59,6 +59,23 @@ def titan_basename(first, last, stage, arch):
     return f"{clean(first)}_{clean(last)}_-_{int(stage)}_-_{archname}"
 
 
+def separate_teeth(mesh, mask, p_ip, A, aux, arch, log=print):
+    """Per-tooth labels: arch-profile boundaries (contacts from the interproximal classifier, incisal
+    height dips, footprint pinches, facial grooves) + downhill flood. Falls back to the older
+    gum-line erosion split if that yields fewer than 6 teeth."""
+    aux = dict(aux); aux["p_ip"] = p_ip
+    labels, bounds = split_teeth_arch(mesh, mask, A, aux, arch=arch, log=log)
+    labels = merge_small_teeth(mesh, labels, A)
+    n = len(np.unique(labels[labels > 0]))
+    if n < 6:
+        log(f"  arch-profile split found only {n} teeth - falling back to erosion split")
+        labels, _ = split_teeth(mesh, mask, p_ip, A, aux, erode_mm=2.0, concave_cut=-9)
+        labels = merge_small_teeth(mesh, labels, A)
+        labels = resplit_elongated(mesh, labels, A, aux)
+        labels = merge_small_teeth(mesh, labels, A)
+    return labels
+
+
 def detect_arch(mesh, filename=""):
     """'upper' or 'lower'. Filename hints first; otherwise an upper scan has a palate (lots of surface
     inside the arch ring), a lower scan does not."""
@@ -94,6 +111,7 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     rep["steps"].append(("load+orient", round(time.time() - t0, 2)))
 
     models = models or load_models()
+    arch_hint = P.get("arch") or detect_arch(mesh, os.path.basename(scan_path))
     p_tooth, p_ip, aux = predict_tooth_prob(mesh, models)
     A = aux["A"]
     if label_override is not None:
@@ -101,10 +119,7 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
         mask = labels > 0
     else:
         mask = clean_mask(smooth_field(A, p_tooth, 4) > 0.5, A)
-        labels, _ = split_teeth(mesh, mask, p_ip, A, aux, erode_mm=2.0, concave_cut=-9)
-        labels = merge_small_teeth(mesh, labels, A)
-        labels = resplit_elongated(mesh, labels, A, aux)
-        labels = merge_small_teeth(mesh, labels, A)
+        labels = separate_teeth(mesh, mask, p_ip, A, aux, arch_hint, log=log)
     info, cents, center, contact = order_teeth(mesh, labels, aux)
     n_teeth = len(info)
     rep["teeth"] = {int(k): dict(side=int(v[0]), position=int(v[1])) for k, v in info.items()}
@@ -163,7 +178,7 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     near_mid = np.abs(margin_f[:, 0]) < 2.0
     facial_y = margin_f[near_mid][:, 1].max() if near_mid.any() else margin_f[:, 1].max()
     z_floor = margin_f[:, 2].min() - FLOOR_BELOW_LOWEST_MARGIN
-    arch = P.get("arch") or detect_arch(mesh, os.path.basename(scan_path))
+    arch = arch_hint
     rep["arch"] = arch
     T_place = np.eye(4)
     T_place[1, 3] = FACIAL_MARGIN_Y_AT_MIDLINE[arch] - facial_y

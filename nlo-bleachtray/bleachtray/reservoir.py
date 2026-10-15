@@ -42,6 +42,26 @@ def reservoir_displacement(mesh, labels, info, aux, A, height=0.5, setback=1.0, 
         top = np.percentile(z[m], 99.5)
         edge_zone |= m & (z > top - edge_band) & (nrm[:, 2] > 0.25)
     region = sel & facial & ~edge_zone
+    # a tooth label sometimes drags in a patch of gingiva (classifier slip): keep only the main
+    # facial patch of each tooth, and nothing clearly below its facial gum line
+    from .mesh_utils import connected_components
+    e = A.tocoo()
+    gum_adjacent = np.zeros(n, bool)
+    gum_adjacent[e.row[(labels[e.row] > 0) & (labels[e.col] == 0)]] = True
+    for tid in sel_ids:
+        m = region & (labels == tid)
+        if m.sum() < 10:
+            region &= ~m
+            continue
+        cerv = (labels == tid) & gum_adjacent & (n_out > 0.3)
+        if cerv.sum() >= 10:
+            z_cerv = np.median(z[cerv])
+            region &= ~(m & (z < z_cerv - 1.5))
+            m = region & (labels == tid)
+        comp = connected_components(m, A)
+        if (comp >= 0).any():
+            keep = np.argmax(np.bincount(comp[comp >= 0]))
+            region &= ~(m & (comp != keep))
     # distance, inside each tooth's own facial field, from its rim (gum line, neighbouring teeth,
     # incisal edge, facial-lingual transition)
     d_rim = np.zeros(n)
