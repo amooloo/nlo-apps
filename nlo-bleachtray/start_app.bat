@@ -11,6 +11,9 @@ if not defined PY (
   echo  Python 3.13 was not found on this PC. Close this window and double-click install.bat.
   goto :eof
 )
-"%PY%" run_app.py
+echo  Other office computers can open this app in their browser at:   http://%COMPUTERNAME%:8765
+echo  (If Windows asks whether to allow Python through the firewall, click Allow.)
+echo.
+"%PY%" run_app.py --lan
 echo.
 echo  The app stopped. Close this window and double-click start_app.bat to start it again.
