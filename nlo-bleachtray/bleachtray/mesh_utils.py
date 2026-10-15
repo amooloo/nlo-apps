@@ -18,10 +18,44 @@ def load_scan(path, max_faces=MAX_FACES):
     if len(parts) > 1:
         m = max(parts, key=lambda p: p.area)
     m.remove_unreferenced_vertices()
+    m = strip_flat_base(m)
     if max_faces and len(m.faces) > max_faces:
         m = decimate(m, max_faces)
     trimesh.repair.fix_normals(m)  # consistent winding; outward sign fixed in orient
     return m
+
+
+def strip_flat_base(m, min_frac=0.06, tol=0.35):
+    """Closed-shell exports (iTero "with base", 3Shape solid models) have a large flat floor and a
+    skirt. The floor would be taken for the occlusal surface, so it is removed here; the skirt is
+    harmless (it reads as gum). A raw scan has no large planar facet and is returned unchanged."""
+    try:
+        facets = m.facets
+        if len(facets) == 0:
+            return m
+        areas = m.facets_area
+        i = int(np.argmax(areas))
+        if areas[i] < min_frac * m.area:
+            return m
+        faces = facets[i]
+        normal = m.face_normals[faces].mean(0); normal /= np.linalg.norm(normal)
+        origin = m.triangles_center[faces].mean(0)
+        # every face lying in that plane (the floor is often split into several facets)
+        d = (m.triangles_center - origin) @ normal
+        on_plane = (np.abs(d) < tol) & ((m.face_normals @ normal) > 0.9)
+        if on_plane.sum() < 3:
+            return m
+        keep = np.where(~on_plane)[0]
+        out = m.submesh([keep], append=True)
+        out.remove_unreferenced_vertices()
+        parts = out.split(only_watertight=False)
+        if len(parts) > 1:
+            out = max(parts, key=lambda p: p.area)
+        out.metadata["flat_base_removed"] = True
+        out.metadata["up_hint"] = (-normal).tolist()
+        return out
+    except Exception:
+        return m
 
 
 def decimate(m, target_faces):
@@ -34,6 +68,7 @@ def decimate(m, target_faces):
     v, f = fast_simplification.simplify(np.asarray(m.vertices, dtype=np.float32), np.asarray(m.faces, dtype=np.int32),
                                         target_reduction=1.0 - target_faces / len(m.faces), agg=5)
     out = trimesh.Trimesh(np.asarray(v, dtype=np.float64), np.asarray(f, dtype=np.int64), process=True)
+    out.metadata.update(m.metadata)
     out.update_faces(out.nondegenerate_faces())
     out.remove_unreferenced_vertices()
     parts = out.split(only_watertight=False)
