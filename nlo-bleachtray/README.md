@@ -80,6 +80,9 @@ placement (facial gum line of the centrals 6.0 / 4.5 mm in front of the locating
 capitals, 0.4 mm deep, on the flat strip of the base plate inside the arch (y -13.5..-8.4, z 1.0). Switch off or
 override under Advanced settings.
 
+**Scanner exports.** Open-shell or closed-shell (iTero "with base", 3Shape solid) STLs both work: a large flat floor is
+detected and removed before orientation, the skirt reads as gum. Scans over 200k faces are decimated first.
+
 **Validation.** One upper vs Titan: gum line within 0.17 mm median / 0.25 mm p90 of Titan's tooth boundaries,
 95 % per-tooth agreement, base placement within 0.35 mm / 2°. First order accepted by OrthoFactory's simulator
 on 10/15/2026 (Arman Shetty, 10 59 21).
