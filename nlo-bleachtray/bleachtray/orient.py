@@ -98,3 +98,39 @@ def refine_frame(mesh, incisor_contact_xy, pair_vectors):
     out = mesh.copy()
     out.apply_transform(T)
     return out, T
+
+
+def symmetry_frame(points_xy, max_deg=50.0, step_deg=0.5):
+    """Midline from the arch shape alone (no tooth numbering): rotate about z until a parabola fits
+    the gum-line loop best, then put the parabola's axis at x = 0.
+
+    Returns (T 4x4, yaw_rad, residual_mm). Used as a cross-check / fallback for `refine_frame`, whose
+    mirror-pair midline fails when a tooth is mis-numbered."""
+    P = np.asarray(points_xy, dtype=float)[:, :2]
+    c = P.mean(0)
+    P0 = P - c
+    best = None
+    for deg in np.arange(-max_deg, max_deg + 1e-9, step_deg):
+        th = np.deg2rad(deg)
+        ct, st = np.cos(th), np.sin(th)
+        Q = P0 @ np.array([[ct, st], [-st, ct]])  # rotate by +th
+        X = np.c_[Q[:, 0] ** 2, Q[:, 0], np.ones(len(Q))]
+        coef = np.linalg.lstsq(X, Q[:, 1], rcond=None)[0]
+        if coef[0] >= 0:  # arch must open towards -y (anterior at +y)
+            continue
+        r = float(np.sqrt(((X @ coef - Q[:, 1]) ** 2).mean()))
+        if best is None or r < best[0]:
+            best = (r, th, coef)
+    if best is None:
+        return np.eye(4), 0.0, float("inf")
+    r, th, (a, b, _) = best
+    x0 = -b / (2 * a)
+    Rz = trimesh.transformations.rotation_matrix(th, [0, 0, 1])
+    T = Rz.copy()
+    cz = trimesh.transform_points(np.array([[c[0], c[1], 0.0]]), Rz)[0]
+    T[0, 3] -= cz[0] + x0        # parabola axis -> x = 0
+    return T, th, r
+
+
+def yaw_of(T):
+    return float(np.arctan2(T[1, 0], T[0, 0]))

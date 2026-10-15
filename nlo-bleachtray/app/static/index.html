@@ -11,7 +11,7 @@
   header { display:flex; align-items:center; gap:14px; padding:10px 18px; background:var(--panel); border-bottom:1px solid var(--line); }
   header h1 { font-size:16px; margin:0; letter-spacing:.2px; }
   header .sub { color:var(--muted); font-size:12px; }
-  main { flex:1; display:grid; grid-template-columns: 330px 1fr; min-height:0; }
+  main { flex:1; display:grid; grid-template-columns: 350px 1fr; min-height:0; }
   aside { background:var(--panel); border-right:1px solid var(--line); padding:14px; overflow:auto; }
   section.viewer { position:relative; min-height:0; }
   canvas { display:block; }
@@ -45,16 +45,21 @@
   .seg { display:inline-flex; border:1px solid var(--line); border-radius:6px; overflow:hidden; }
   .seg button { border:0; border-radius:0; } .seg button.on { background:var(--accent); color:#fff; }
   input[type=range] { width:100%; }
+  details.adv { margin-top:14px; border-top:1px solid var(--line); padding-top:8px; }
+  details.adv summary { font-size:12px; color:var(--muted); cursor:pointer; user-select:none; }
+  #fatal { display:none; position:absolute; top:60px; left:12px; right:12px; background:#fde8e6; color:var(--err); border:1px solid #f1b9b4; border-radius:9px; padding:10px 14px; font-size:13px; z-index:5; }
+  header a { color:var(--muted); font-size:12px; margin-left:auto; }
 </style>
 </head>
 <body>
 <header>
   <h1>NLO Bleach Tray</h1>
-  <span class="sub">Raw scan → reservoirs → horseshoe model with Trimlign base → .pts trimline</span>
+  <span class="sub">Drop a scan — the bleaching-tray model goes to OrthoFactory.</span>
+  <a href="https://amooloo.github.io/nlo-apps/nlo-bleachtray.html?help" target="_blank">How to use</a>
 </header>
 <main>
   <aside>
-    <div class="drop" id="drop"><b>Drop the upper and/or lower scan STL</b><br>one or two files, or click to choose</div>
+    <div class="drop" id="drop"><b>Drop the scan STL here</b> (anywhere on this page works)<br>upper and/or lower — it starts on its own. Or click to choose.</div>
     <input type="file" id="file" accept=".stl,.ply" multiple style="display:none">
     <div class="row">
       <div><label class="f">Patient first name</label><input type="text" id="pfirst" placeholder="Arman"></div>
@@ -62,36 +67,39 @@
     </div>
     <div class="row">
       <div><label class="f">Arch</label><select id="arch"><option value="">Auto-detect</option><option value="upper">Upper (Maxilla)</option><option value="lower">Lower (Mandible)</option></select></div>
-      <div><label class="f">Stage #</label><input type="number" id="stage" value="0" min="0" step="1"></div>
+      <div><label class="f">Recipe</label><select id="preset">
+        <option value="bleaching">Bleaching tray 5-5</option>
+        <option value="bleaching_3_3">Bleaching tray 3-3</option>
+        <option value="aligner_high">Aligner / retainer (high line)</option>
+        <option value="plain_model">Plain model</option>
+      </select></div>
     </div>
-    <div class="row">
-      <div><label class="f">Patient ID (Edge, optional)</label><input type="text" id="pid" placeholder="80010"></div>
-      <div><label class="f">Piece type</label><select id="kind"><option value="T">Template (T)</option><option value="A">Aligner (A)</option></select></div>
-    </div>
-    <label class="f">OrthoFactory input folder (writes a Titan-style order there)</label>
-    <input type="text" id="export" placeholder="S:\\clinical\\3D printing\\Titan" value="">
-    <label class="f">Doctor (for the order folder name)</label>
-    <input type="text" id="doctor" value="Dr. Amir Akhavan">
     <input type="hidden" id="name">
-    <label class="f">Preset</label>
-    <select id="preset">
-      <option value="bleaching">Bleaching tray — reservoirs 5-5, scalloped at gum line</option>
-      <option value="bleaching_3_3">Bleaching tray — reservoirs 3-3</option>
-      <option value="aligner_high">Aligner / retainer — high line 1.25 mm onto gums, semi-scallop</option>
-      <option value="plain_model">Plain model — no reservoirs, gum-line trimline</option>
-    </select>
-    <div class="row">
-      <div><label class="f">Reservoir height (mm)</label><input type="number" id="res_h" step="0.1" min="0" max="1.5" value="0.5"></div>
-      <div><label class="f">Reservoir teeth (from midline)</label><input type="number" id="res_n" step="1" min="0" max="7" value="5"></div>
-    </div>
-    <div class="row">
-      <div><label class="f">Trimline offset onto gum (mm)</label><input type="number" id="tl_off" step="0.25" min="0" max="4" value="0"></div>
-      <div><label class="f">Papilla bridge radius (mm)</label><input type="number" id="bridge" step="0.5" min="0" max="6" value="3"></div>
-    </div>
-    <label class="f">Trimlign base</label>
-    <select id="base"><option value="1">Add base (Titan placement)</option><option value="0">No base</option></select>
     <div style="margin-top:12px"><button class="primary" id="go" disabled>Process scan</button></div>
     <div class="hint" id="filehint">No file selected.</div>
+    <details class="adv">
+      <summary>Advanced settings</summary>
+      <div class="row">
+        <div><label class="f">Stage #</label><input type="number" id="stage" value="0" min="0" step="1"></div>
+        <div><label class="f">Piece type</label><select id="kind"><option value="T">Template (T)</option><option value="A">Aligner (A)</option></select></div>
+      </div>
+      <label class="f">Patient ID (Edge, optional)</label><input type="text" id="pid" placeholder="80010">
+      <label class="f">OrthoFactory input folder (the finished order is written there)</label>
+      <input type="text" id="export" placeholder="S:\clinical\3D printing\Titan" value="">
+      <div class="hint" id="exporthint" style="margin-top:2px"></div>
+      <label class="f">Doctor (for the order folder name)</label>
+      <input type="text" id="doctor" value="Dr. Amir Akhavan">
+      <div class="row">
+        <div><label class="f">Reservoir height (mm)</label><input type="number" id="res_h" step="0.1" min="0" max="1.5" value="0.5"></div>
+        <div><label class="f">Reservoir teeth (from midline)</label><input type="number" id="res_n" step="1" min="0" max="7" value="5"></div>
+      </div>
+      <div class="row">
+        <div><label class="f">Trimline offset onto gum (mm)</label><input type="number" id="tl_off" step="0.25" min="0" max="4" value="0"></div>
+        <div><label class="f">Papilla bridge radius (mm)</label><input type="number" id="bridge" step="0.5" min="0" max="6" value="3"></div>
+      </div>
+      <label class="f">Trimlign base</label>
+      <select id="base"><option value="1">Add base (Titan placement)</option><option value="0">No base</option></select>
+    </details>
     <div class="jobs">
       <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Cases this session</div>
       <div id="jobs"></div>
@@ -119,10 +127,29 @@
       <div class="hint" id="fixcount">No edits.</div>
     </div>
     <div class="stats" id="stats">Drop a scan to begin.</div>
+    <div id="fatal"></div>
     <canvas id="c"></canvas>
   </section>
 </main>
 
+<script>
+// If the 3D viewer's script fails to load (old browser, or the files were not served correctly),
+// say so instead of silently doing nothing when buttons and tabs are clicked.
+(function () {
+  var errs = [];
+  window.addEventListener('error', function (e) { errs.push(e.message || String(e)); }, true);
+  window.addEventListener('unhandledrejection', function (e) { errs.push(String(e.reason && e.reason.message || e.reason)); });
+  setTimeout(function () {
+    if (window.__appReady) return;
+    var box = document.getElementById('fatal');
+    box.style.display = 'block';
+    box.innerHTML = '<b>The app did not start in this browser.</b> ' +
+      (errs.length ? 'Error: ' + errs.join(' | ') : 'No error was reported — the browser may be too old for this page.') +
+      '<br>Try the latest Chrome or Edge. If that does not help, take a screenshot of this message for Dr. Akhavan. ' +
+      'The drop folder (S:\\clinical\\3D printing\\BleachTray) still works regardless.';
+  }, 4000);
+})();
+</script>
 <script type="importmap">
 { "imports": { "three": "/static/vendor/three/three.module.js",
                "three/addons/": "/static/vendor/three/addons/" } }
@@ -163,16 +190,33 @@ $('#showtl').onchange = () => { for (const k in groups) groups[k].children.forEa
 let files = [];
 const drop = $('#drop');
 drop.onclick = () => $('#file').click();
-$('#file').onchange = e => setFiles([...e.target.files]);
-['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
-['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
-drop.addEventListener('drop', e => setFiles([...e.dataTransfer.files]));
-function setFiles(fs){ fs = fs.filter(f => /\.(stl|ply)$/i.test(f.name)).slice(0,2); if(!fs.length) return; files = fs; $('#filehint').textContent = fs.map(f => `${f.name} (${(f.size/1e6).toFixed(1)} MB)`).join(' + '); $('#go').disabled = false; $('#name').value = fs[0].name.replace(/\.(stl|ply)$/i,''); const m = fs[0].name.match(/^([A-Za-z]+)[_ -]+([A-Za-z]+)/); if (m && !$('#pfirst').value) { $('#pfirst').value = m[1]; $('#plast').value = m[2]; } }
+$('#file').onchange = e => setFiles([...e.target.files], true);
+// A scan dropped ANYWHERE on the page is taken by the app (otherwise the browser would just download it).
+['dragenter','dragover'].forEach(ev => window.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+window.addEventListener('dragleave', e => { if (!e.relatedTarget) drop.classList.remove('over'); });
+window.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('over'); if (e.dataTransfer && e.dataTransfer.files.length) setFiles([...e.dataTransfer.files], true); });
+function setFiles(fs, auto){
+  fs = fs.filter(f => /\.(stl|ply)$/i.test(f.name)).slice(0,2);
+  if(!fs.length) { $('#filehint').textContent = 'That was not an STL file.'; return; }
+  files = fs; $('#filehint').textContent = fs.map(f => `${f.name} (${(f.size/1e6).toFixed(1)} MB)`).join(' + ');
+  $('#go').disabled = false; $('#name').value = fs[0].name.replace(/\.(stl|ply)$/i,'');
+  const m = fs[0].name.match(/^([A-Za-z]+)[_ -]+([A-Za-z]+)/);
+  if (m) { $('#pfirst').value = m[1]; $('#plast').value = m[2]; }
+  if (auto && $('#pfirst').value.trim() && $('#plast').value.trim()) { $('#filehint').textContent += ' — processing. (Wrong name? Fix it and click Process scan again.)'; $('#go').click(); }
+  else if (auto) { $('#filehint').textContent += ' — type the patient\'s first and last name, then click Process scan.'; }
+}
 
 $('#preset').onchange = () => { const p = $('#preset').value; const map = { bleaching:[0.5,5,0,3], bleaching_3_3:[0.5,3,0,3], aligner_high:[0,0,1.25,4], plain_model:[0,0,0,3] }[p]; $('#res_h').value = map[0]; $('#res_n').value = map[1]; $('#tl_off').value = map[2]; $('#bridge').value = map[3]; };
 function params(){ return { reservoir_height: +$('#res_h').value, reservoir_max_position: +$('#res_n').value, trimline_offset: +$('#tl_off').value, bridge_radius: +$('#bridge').value, add_base: $('#base').value === '1', patient_first: $('#pfirst').value.trim(), patient_last: $('#plast').value.trim(), stage: +$('#stage').value, arch: $('#arch').value || null, order_root: $('#export').value.trim(), patient_id: $('#pid').value.trim(), kind: $('#kind').value, doctor: $('#doctor').value.trim() }; }
 try { $('#export').value = localStorage.getItem('exportFolder') || ''; } catch(e) {}
 $('#export').onchange = () => { try { localStorage.setItem('exportFolder', $('#export').value.trim()); } catch(e) {} };
+// The folder install.bat found on the lab PC is the default, so nobody has to type it.
+fetch('/api/presets').then(r => r.json()).then(p => {
+  const s = p.site || {};
+  if (!$('#export').value && s.order_root) $('#export').value = s.order_root;
+  if (s.doctor) $('#doctor').value = s.doctor;
+  if (!$('#export').value) $('#exporthint').textContent = 'Not set: orders will NOT go to OrthoFactory until this is filled in (or run install.bat on this PC).';
+}).catch(() => {});
 
 $('#go').onclick = async () => {
   const fd = new FormData(); files.forEach(f => fd.append('files', f)); fd.append('arches', JSON.stringify(files.map((f,i) => i===0 ? ($('#arch').value || null) : null))); fd.append('preset', $('#preset').value); fd.append('params', JSON.stringify(params())); fd.append('name', $('#name').value);
@@ -217,7 +261,7 @@ async function loadResult(id, j){
   if (scanIdx >= (j.scans||[]).length) scanIdx = 0;
   const r = (j.reports || [j.report])[scanIdx] || {};
   const scanSel = (j.scans||[]).length > 1 ? `<div class="seg" style="margin-bottom:6px">${j.scans.map((s,i) => `<button class="small ${i===scanIdx?'on':''}" data-scan="${i}">${s.arch||'scan '+(i+1)}</button>`).join('')}</div>` : '';
-  const orderNote = j.order_folder ? `<div class="hint" style="color:var(--ok)">OrthoFactory order written:<br>${j.order_folder}</div>` : (j.order_error ? `<div class="hint" style="color:var(--err)">Order folder failed: ${j.order_error}</div>` : '');
+  const orderNote = j.order_folder ? `<div class="hint" style="color:var(--ok)">OrthoFactory order written:<br>${j.order_folder}</div>` : (j.order_error ? `<div class="hint" style="color:var(--err)">Not sent to OrthoFactory: ${j.order_error}</div>` : '');
   $('#stats').innerHTML = `<b>${j.name}</b> — ${r.arch || ''} · ${r.teeth ? Object.keys(r.teeth).length : '?'} teeth · body ${r.body_watertight ? 'watertight' : 'NOT watertight'} · ${r.body_volume_ml} mL · base: ${r.base} · trimline ${r.trimline_points} pts · ${r.elapsed_s}s`;
   const tb = r.titan_basename; const exp = orderNote; const q = `?scan=${scanIdx}`;
   $('#dl').innerHTML = scanSel + (tb ? `<a href="/api/jobs/${id}/file/titan_stl${q}" download><button class="small primary">${tb}.stl</button></a><a href="/api/jobs/${id}/file/titan_pts${q}" download><button class="small primary">${tb}.pts</button></a>` : '') + `<a href="/api/jobs/${id}/file/model${q}" download><button class="small">Model (.stl)</button></a><a href="/api/jobs/${id}/file/trimline${q}" download><button class="small">Trimline (.pts)</button></a><a href="/api/jobs/${id}/file/scan_res${q}" download><button class="small">Scan + reservoirs (.stl)</button></a>` + exp;
@@ -285,6 +329,7 @@ $('#rerun').onclick = async () => {
   await fetch(`/api/jobs/${currentJob}/rerun`, { method:'POST', body: fd }); selectJob(currentJob);
 };
 refreshJobs(); showTab('result');
+window.__appReady = true;
 </script>
 </body>
 </html>

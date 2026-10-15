@@ -1,6 +1,12 @@
 """Local web app: drop a scan STL, get a print-ready bleaching-tray model + Trimlign trimline."""
-import os, sys, io, json, uuid, threading, time, struct, traceback
+import os, sys, io, json, uuid, threading, time, struct, traceback, mimetypes
 import numpy as np
+
+# Windows PCs often have ".js = text/plain" in the registry, which Python's mimetypes picks up and the
+# browser then refuses to run the 3D viewer ("Expected a JavaScript module script"). Force the right types.
+for _ext, _mt in ((".js", "application/javascript"), (".mjs", "application/javascript"), (".css", "text/css"),
+                  (".html", "text/html"), (".json", "application/json"), (".stl", "model/stl")):
+    mimetypes.add_type(_mt, _ext)
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse, Response, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -22,6 +28,18 @@ MODELS = load_models()
 from bleachtray.server_presets import PRESETS  # noqa: E402
 
 
+def site_config():
+    """Settings install.bat saved for this PC (watch_config.json): the OrthoFactory input folder, the
+    doctor name, the drop folder. The browser app uses them as defaults so nobody has to type them."""
+    try:
+        with open(os.path.join(ROOT, "watch_config.json"), encoding="utf-8") as f:
+            cfg = json.load(f)
+    except Exception:
+        cfg = {}
+    return dict(order_root=cfg.get("titan") or "", doctor=cfg.get("doctor") or "Dr. Amir Akhavan",
+                inbox=cfg.get("inbox") or "")
+
+
 def _run(job):
     job["status"] = "running"
     job["log"] = []
@@ -41,19 +59,25 @@ def _run(job):
         job["report"] = reports[0]
         job["reports"] = reports
         job["mask_edit"] = None
-        root = (job["params"].get("order_root") or "").strip()
+        site = site_config()
+        root = (job["params"].get("order_root") or "").strip() or site["order_root"]
+        job["order_folder"] = None; job["order_error"] = None
         if root and job["params"].get("patient_first") and job["params"].get("patient_last"):
             pieces = [dict(arch=sc["arch"], stl=sc["report"]["outputs"]["model"], pts=sc["report"]["outputs"]["trimline"],
                            stage=int(job["params"].get("stage", 0)), kind=job["params"].get("kind", "T")) for sc in job["scans"]]
             try:
                 folder = write_order_folder(root, job["params"]["patient_first"], job["params"]["patient_last"], pieces,
                                             patient_id=job["params"].get("patient_id") or None,
-                                            doctor=job["params"].get("doctor") or "Dr. Amir Akhavan")
+                                            doctor=job["params"].get("doctor") or site["doctor"])
                 job["order_folder"] = folder
                 log(f"OrthoFactory order written: {folder}")
             except Exception as ex:  # noqa
                 job["order_error"] = str(ex)
                 log(f"order folder failed: {ex}")
+        elif not root:
+            job["order_error"] = "no OrthoFactory folder set (run install.bat, or type it in the box on the left)"
+        else:
+            job["order_error"] = "patient first + last name needed for an OrthoFactory order"
         job["status"] = "done"
     except Exception as ex:  # noqa
         job["status"] = "error"
@@ -95,7 +119,7 @@ def index():
 
 @app.get("/api/presets")
 def presets():
-    return {"defaults": DEFAULTS, "presets": PRESETS}
+    return {"defaults": DEFAULTS, "presets": PRESETS, "site": site_config()}
 
 
 from typing import List

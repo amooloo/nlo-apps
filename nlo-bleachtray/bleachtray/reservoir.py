@@ -10,33 +10,60 @@ def _smoothstep(x):
 
 
 def reservoir_displacement(mesh, labels, info, aux, A, height=0.5, setback=1.0, feather=1.0,
-                           max_position=5, facial_only=True, exclude_occlusal=True):
+                           max_position=5, edge_clearance=0.4, edge_feather=0.6, edge_normal_z=0.6,
+                           edge_band=0.3, facial_only=True, exclude_occlusal=True):
     """Return per-vertex displacement magnitude (mm) along vertex normals.
 
     labels: per-vertex tooth id (0 = gingiva); info: id -> (side, position from midline)
+
+    The bump covers the facial surface of each selected tooth and stops short of every rim of that
+    surface: `setback` mm from the gum line, and `edge_clearance` mm from the incisal edge / cusp
+    ridges, from the neighbouring teeth (interproximal) and from the facial-lingual transition.
+    Full height is reached `feather` / `edge_feather` mm further in.
     """
     n = len(mesh.vertices)
-    sel = np.zeros(n, bool)
-    for tid, (side, pos) in info.items():
-        if pos <= max_position:
-            sel |= labels == tid
+    sel_ids = [tid for tid, (side, pos) in info.items() if pos <= max_position]
+    sel = np.isin(labels, sel_ids)
     if not sel.any():
         return np.zeros(n)
     tooth_mask = labels > 0
-    dist = geodesic_from_boundary(mesh, A, tooth_mask)  # distance from gum line, on teeth
-    w = _smoothstep((dist - setback) / max(feather, 1e-6))
-    w[~sel] = 0.0
     nrm = mesh.vertex_normals
-    if facial_only:
-        out_dir = aux["out_dir"]
-        n_out = (nrm[:, :2] * out_dir).sum(1)
-        w *= _smoothstep((n_out - 0.05) / 0.35)
-    if exclude_occlusal:
-        w *= _smoothstep((0.80 - nrm[:, 2]) / 0.25)
-    # smooth the weight field so the bump has no steps, then renormalise its plateau
-    w = smooth_field(A, w, 4)
-    w = np.clip(w / max(np.percentile(w[sel], 97), 1e-6), 0, 1)
-    w[~tooth_mask] = 0.0
+    z = mesh.vertices[:, 2]
+    out_dir = aux["out_dir"]
+    n_out = (nrm[:, :2] * out_dir).sum(1)
+    facial = n_out > 0.05 if facial_only else np.ones(n, bool)
+    # incisal edge / cusp zone: surface facing up, plus the top band of each tooth (sharp edges have
+    # few up-facing vertices, the band catches those)
+    edge_zone = (nrm[:, 2] > edge_normal_z) if exclude_occlusal else np.zeros(n, bool)
+    for tid in sel_ids:
+        m = labels == tid
+        if m.sum() < 10:
+            continue
+        top = np.percentile(z[m], 99.5)
+        edge_zone |= m & (z > top - edge_band) & (nrm[:, 2] > 0.25)
+    region = sel & facial & ~edge_zone
+    # distance, inside each tooth's own facial field, from its rim (gum line, neighbouring teeth,
+    # incisal edge, facial-lingual transition)
+    d_rim = np.zeros(n)
+    for tid in sel_ids:
+        m = region & (labels == tid)
+        if m.sum() < 10:
+            region &= ~m
+            continue
+        d = geodesic_from_boundary(mesh, A, m)
+        d_rim[m] = d[m]
+    d_gum = geodesic_from_boundary(mesh, A, tooth_mask)  # distance from the gum line, on teeth
+    w = _smoothstep((d_rim - edge_clearance) / max(edge_feather, 1e-6))
+    w *= _smoothstep((d_gum - setback) / max(feather, 1e-6))
+    w[~region] = 0.0
+    # smooth the weight field so the bump has no steps, renormalise its plateau, then re-impose the
+    # clearances exactly (smoothing creeps a few edges outward)
+    w = smooth_field(A, w, 3)
+    pos = w[region & (w > 0)]
+    w = np.clip(w / max(np.percentile(pos, 97) if len(pos) else 1.0, 1e-6), 0, 1)
+    w[~region] = 0.0
+    w[d_rim < edge_clearance] = 0.0
+    w[d_gum < setback] = 0.0
     return height * w
 
 
