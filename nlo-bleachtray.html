@@ -44,7 +44,14 @@ pre { background:#1B2F4C; color:#e8eefc; padding:14px 16px; border-radius:10px; 
   </div>
 
   <div class="card">
-    <h2>How to use</h2>
+    <h2>Zero-click</h2>
+    <p>With the watcher running on the lab PC, drop the scanner's STL into <code>S:\clinical\3D printing\BleachTray</code>.
+       About 30 seconds later the finished order is in OrthoFactory's Production list. Upper and lower dropped together become one order.
+       Failures go to <code>failed\</code> with an <code>error.txt</code>; the browser app below is for checking and fixing a case by hand.</p>
+  </div>
+
+  <div class="card">
+    <h2>Browser app — check or fix a case</h2>
     <ol class="steps">
       <li><strong>Drop</strong> the upper and/or lower scan STL from the scanner.</li>
       <li><strong>Name</strong> the patient (first, last) and pick the preset — <em>Bleaching tray</em> is the default: 0.5 mm reservoirs on 5-5, trimline scalloped at the gum line.</li>
@@ -58,7 +65,8 @@ pre { background:#1B2F4C; color:#e8eefc; padding:14px 16px; border-radius:10px; 
     <pre>cd nlo-bleachtray
 python -m pip install -r requirements.txt
 python tools/import_base.py "S:\clinical\3D printing\Titan\&lt;any order folder&gt;\&lt;Patient&gt; - 1 - Maxilla.stl"
-python run_app.py</pre>
+python run_watch.py --inbox "S:\clinical\3D printing\BleachTray" --titan "S:\clinical\3D printing\Titan"
+python run_app.py      (optional: the browser app)</pre>
     <p>The third line pulls the Trimlign base out of any existing Titan export; it is not stored in this repository.</p>
   </div>
 </main>
