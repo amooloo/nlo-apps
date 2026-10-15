@@ -4,215 +4,311 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NLO Bleach Tray</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Oswald:wght@500;600&display=swap" rel="stylesheet">
 <style>
-  :root { --bg:#f6f5f2; --panel:#ffffff; --ink:#1b1b1f; --muted:#6b6b73; --accent:#2f6fed; --ok:#1f9d55; --warn:#d97706; --err:#c0392b; --line:#e4e2dc; }
-  * { box-sizing:border-box; }
-  body { margin:0; font:14px/1.45 -apple-system, "Segoe UI", Inter, Roboto, sans-serif; color:var(--ink); background:var(--bg); height:100vh; display:flex; flex-direction:column; }
-  header { display:flex; align-items:center; gap:14px; padding:10px 18px; background:var(--panel); border-bottom:1px solid var(--line); }
-  header h1 { font-size:16px; margin:0; letter-spacing:.2px; }
-  header .sub { color:var(--muted); font-size:12px; }
-  main { flex:1; display:grid; grid-template-columns: 350px 1fr; min-height:0; }
-  aside { background:var(--panel); border-right:1px solid var(--line); padding:14px; overflow:auto; }
-  section.viewer { position:relative; min-height:0; }
-  canvas { display:block; position:absolute; inset:0; width:100% !important; height:100% !important; z-index:0; }
-  .toolbar, .brush, .place, .stats, #fatal, #errline { z-index:2; }
-  .drop { border:2px dashed #c9c6bd; border-radius:10px; padding:18px; text-align:center; color:var(--muted); cursor:pointer; transition:.15s; }
-  .drop.over { border-color:var(--accent); background:#eef3ff; color:var(--accent); }
-  .drop b { color:var(--ink); }
-  label.f { display:block; font-size:12px; color:var(--muted); margin:10px 0 4px; }
-  select, input[type=text], input[type=number] { width:100%; padding:7px 8px; border:1px solid var(--line); border-radius:6px; font:inherit; background:#fff; }
-  .row { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
-  button { font:inherit; padding:8px 12px; border-radius:7px; border:1px solid var(--line); background:#fff; cursor:pointer; }
-  button.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
-  button.primary:disabled { opacity:.5; cursor:default; }
-  button.small { padding:5px 9px; font-size:12px; }
-  .jobs { margin-top:14px; border-top:1px solid var(--line); padding-top:10px; }
-  .job { padding:8px; border:1px solid var(--line); border-radius:8px; margin-bottom:6px; cursor:pointer; display:flex; justify-content:space-between; align-items:center; gap:6px; }
-  .job.active { border-color:var(--accent); background:#f3f6ff; }
-  .job .nm { font-weight:600; font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .pill { font-size:11px; padding:2px 7px; border-radius:999px; background:#eee; color:var(--muted); white-space:nowrap; }
-  .pill.done { background:#e4f6ea; color:var(--ok); } .pill.running,.pill.queued { background:#fff4e0; color:var(--warn); } .pill.error { background:#fde8e6; color:var(--err); }
-  .log { font:11px/1.4 ui-monospace, Menlo, Consolas, monospace; background:#f3f2ee; border-radius:6px; padding:8px; max-height:140px; overflow:auto; white-space:pre-wrap; color:#444; }
-  .toolbar { position:absolute; top:12px; left:12px; display:flex; gap:8px; align-items:center; background:rgba(255,255,255,.92); border:1px solid var(--line); border-radius:9px; padding:7px 10px; backdrop-filter:blur(6px); }
-  .toolbar .tab { padding:5px 10px; border-radius:6px; cursor:pointer; color:var(--muted); }
-  .toolbar .tab.on { background:var(--accent); color:#fff; }
-  .brush { position:absolute; top:12px; right:12px; background:rgba(255,255,255,.94); border:1px solid var(--line); border-radius:9px; padding:9px 12px; width:250px; display:none; }
-  .brush.on { display:block; }
-  .place { position:absolute; top:12px; right:12px; background:rgba(255,255,255,.94); border:1px solid var(--line); border-radius:9px; padding:9px 12px; width:300px; display:none; }
-  .place.on { display:block; }
-  .place h4 { margin:0 0 6px; font-size:12px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.4px; }
-  .prow { display:grid; grid-template-columns:72px 1fr 1fr 52px 1fr 1fr; gap:4px; align-items:center; margin:4px 0; font-size:12px; color:var(--muted); }
-  .prow button { padding:4px 0; font-size:12px; }
-  .prow .val { text-align:center; font-variant-numeric:tabular-nums; color:var(--ink); font-weight:600; }
-  .place .hint { margin-top:6px; }
-  .brush h4 { margin:0 0 6px; font-size:12px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.4px; }
-  .stats { position:absolute; bottom:12px; left:12px; background:rgba(255,255,255,.92); border:1px solid var(--line); border-radius:9px; padding:8px 12px; font-size:12px; color:var(--muted); max-width:560px; }
-  .stats b { color:var(--ink); }
-  .dl { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
-  .hint { font-size:12px; color:var(--muted); margin-top:6px; }
-  .seg { display:inline-flex; border:1px solid var(--line); border-radius:6px; overflow:hidden; }
-  .seg button { border:0; border-radius:0; } .seg button.on { background:var(--accent); color:#fff; }
-  input[type=range] { width:100%; }
-  details.adv { margin-top:14px; border-top:1px solid var(--line); padding-top:8px; }
-  details.adv summary { font-size:12px; color:var(--muted); cursor:pointer; user-select:none; }
-  #fatal { display:none; position:absolute; top:60px; left:12px; right:12px; background:#fde8e6; color:var(--err); border:1px solid #f1b9b4; border-radius:9px; padding:10px 14px; font-size:13px; z-index:5; }
-  header a { color:var(--muted); font-size:12px; margin-left:auto; }
-  .opt { display:grid; grid-template-columns:48px 1fr; gap:10px; align-items:start; margin-top:8px; }
-  .opt .ico { width:48px; height:48px; margin-top:12px; }
-  .opt label.f { margin-top:4px; }
-  .review { margin-top:10px; padding:10px 12px; border-radius:9px; background:#fff7e6; border:1px solid #f3dca8; font-size:13px; }
-  .review.sent { background:#e4f6ea; border-color:#bfe6cc; } .review.discarded { background:#eee; border-color:#ddd; color:var(--muted); }
-  .review .btns { display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; }
-  .review.working { background:#eef3ff; border-color:#c7d7fb; }
-  .bar { height:10px; background:#dfe6f5; border-radius:999px; overflow:hidden; margin:8px 0 4px; }
-  .bar > div { height:100%; background:var(--accent); border-radius:999px; transition:width .6s ease; background-image:linear-gradient(135deg, rgba(255,255,255,.35) 25%, transparent 25%, transparent 50%, rgba(255,255,255,.35) 50%, rgba(255,255,255,.35) 75%, transparent 75%); background-size:18px 18px; animation:stripes 1s linear infinite; }
-  @keyframes stripes { to { background-position:18px 0; } }
-  .spin { display:inline-block; width:10px; height:10px; border:2px solid currentColor; border-right-color:transparent; border-radius:50%; animation:spin .8s linear infinite; margin-right:5px; vertical-align:-1px; }
-  @keyframes spin { to { transform:rotate(360deg); } }
-  .dot { display:inline-block; width:7px; height:7px; border-radius:50%; background:currentColor; margin-right:5px; animation:pulse 1.2s ease-in-out infinite; }
-  @keyframes pulse { 0%,100% { opacity:.25; transform:scale(.8); } 50% { opacity:1; transform:scale(1.1); } }
-  .pill.review { background:#fff4e0; color:var(--warn); } .pill.sent { background:#e4f6ea; color:var(--ok); } .pill.discarded { background:#eee; color:var(--muted); }
-  #errline { display:none; position:absolute; bottom:12px; right:12px; max-width:520px; background:#fde8e6; color:var(--err); border:1px solid #f1b9b4; border-radius:9px; padding:8px 12px; font-size:12px; z-index:6; }
+  /* NLO apps design system (same tokens as the other NLO apps) */
+  :root{
+    --navy-900:#11203A; --navy:#1B2F4C; --navy-700:#294169; --navy-600:#385686; --navy-500:#5471A0; --navy-100:#E8ECF2;
+    --blue-800:#122874; --blue-700:#16318C; --blue:#1D3EA9; --blue-500:#2E52C9; --blue-200:#BCC8EE; --blue-100:#E5EAF8;
+    --coral-700:#D8412E; --coral-600:#EE4F3A; --coral:#FA624D; --coral-200:#FFC8BF; --coral-100:#FFE7E1;
+    --mint-700:#1F9E7E; --mint-600:#34C49E; --mint:#64F4C9; --mint-200:#C0FBEC; --mint-100:#E2FBF4;
+    --amber-700:#C2820A; --amber-600:#E29A14; --amber:#F6AF24; --amber-200:#FCE2A6; --amber-100:#FEF2D7;
+    --grey-50:#F7F8F9; --grey-100:#ECEEF0; --grey-200:#DCE0E4; --grey-300:#C3C9D0; --grey-400:#969FAB; --grey-500:#6B7685; --grey-600:#4C5868; --grey-700:#33404F;
+    --off:#F2F3F4; --card:#FFFFFF;
+    --fd:'Oswald',system-ui,sans-serif; --fb:'Montserrat',system-ui,-apple-system,sans-serif;
+    --sh-xs:0 1px 2px rgba(17,32,58,.07); --sh-sm:0 2px 6px rgba(17,32,58,.08); --sh-md:0 8px 24px rgba(17,32,58,.10); --sh-lg:0 18px 48px rgba(17,32,58,.15);
+    --r-sm:8px; --r:14px; --r-lg:22px; --ease:cubic-bezier(.4,0,.2,1);
+    /* names the scripts below still use */
+    --ink:var(--grey-700); --muted:var(--grey-500); --accent:var(--blue); --ok:var(--mint-700); --warn:var(--amber-700); --err:var(--coral-700); --line:var(--grey-200);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{font-family:var(--fb);background:var(--off);color:var(--grey-700);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+  button{font:inherit;cursor:pointer;border:none;background:none;color:inherit}
+  input,select,textarea{font:inherit;color:var(--grey-700)}
+  a{color:var(--blue)}
+  :focus-visible{outline:2px solid var(--blue-500);outline-offset:2px;border-radius:4px}
+
+  /* ---------- shell: navy sidebar + main ---------- */
+  #app{display:flex;min-height:100vh}
+  #side{width:248px;flex:none;background:var(--navy);color:#fff;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto}
+  .sideTop{padding:26px 22px 18px;border-bottom:1px solid rgba(255,255,255,.07)}
+  .sideTop img{width:126px;height:auto;display:block}
+  .appTag{font-family:var(--fd);font-weight:500;font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:var(--mint);margin-top:12px}
+  @media screen{ html.nlo-home-on .sideTop{padding-top:var(--nlo-home-drop)} }
+  .nav{padding:8px 12px;display:flex;flex-direction:column;gap:2px}
+  .navLbl{font-family:var(--fd);font-weight:500;font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:#7E92B5;padding:14px 12px 6px;display:flex;align-items:center}
+  .navLbl a{margin-left:auto;color:#9DB0CC;font-family:var(--fb);font-size:11px;letter-spacing:0;text-transform:none;font-weight:600;text-decoration:none}
+  .navLbl a:hover{color:#fff}
+  .job{display:flex;align-items:center;gap:10px;width:100%;padding:9px 12px;border-radius:10px;color:#C9D4E5;font-weight:600;font-size:13px;text-align:left;cursor:pointer;transition:background .14s var(--ease)}
+  .job:hover{background:rgba(255,255,255,.06);color:#fff}
+  .job.active{background:rgba(100,244,201,.12);color:var(--mint)}
+  .job .nm{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .job .nm .hint{display:inline;margin:0 0 0 4px;color:#7E92B5;font-size:11px;font-weight:600}
+  .job .hint{color:#9DB0CC;font-size:11px;font-weight:500;margin:0}
+  .pill{margin-left:auto;flex:none;display:inline-flex;align-items:center;font-size:10.5px;font-weight:700;background:rgba(255,255,255,.12);color:#fff;border-radius:99px;padding:2px 8px;white-space:nowrap;letter-spacing:.02em}
+  .pill.review{background:var(--amber);color:var(--navy-900)} .pill.sent{background:var(--mint);color:var(--navy-900)} .pill.discarded{background:rgba(255,255,255,.08);color:#9DB0CC}
+  .pill.running{background:var(--blue-500);color:#fff} .pill.queued{background:rgba(255,255,255,.14);color:#DCE4EE} .pill.error{background:var(--coral-600);color:#fff}
+  .sidebox{padding:4px 12px 8px}
+  .sidebox .job .nm{white-space:normal;line-height:1.3}
+  .sidebox .job button.small.primary{margin-left:auto;background:var(--mint);color:var(--navy-900);border-color:var(--mint);font-family:var(--fd);font-weight:600;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;border-radius:999px;padding:4px 10px;min-height:0}
+  .sidebox .job button.small.primary:hover{background:var(--mint-600)}
+  .sideFoot{margin-top:auto;padding:16px 20px 22px;border-top:1px solid rgba(255,255,255,.07);display:flex;flex-direction:column;gap:10px}
+  .syncLine{display:flex;align-items:center;gap:7px;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;font-family:var(--fd);font-weight:500;color:#9DB0CC}
+  .sdot{width:8px;height:8px;border-radius:50%;background:var(--mint);flex:none}
+  .sideFoot a{color:#DCE4EE;font-size:12.5px;font-weight:600;text-decoration:none}
+  .sideFoot a:hover{color:#fff}
+
+  #main{flex:1;min-width:0;display:flex;flex-direction:column;height:100vh}
+  .topBar{display:flex;align-items:center;gap:14px;padding:18px 28px 12px;flex:none}
+  .topBar h2{font-family:var(--fd);font-weight:600;font-size:24px;letter-spacing:.02em;text-transform:uppercase;color:var(--navy);white-space:nowrap}
+  .topBar .sub{font-size:12.5px;color:var(--grey-500)}
+  #view{padding:4px 28px 22px;flex:1;min-height:0;display:grid;grid-template-columns:350px minmax(0,1fr);gap:18px;align-items:stretch}
+  .leftCol{min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:14px;padding-right:2px}
+
+  /* ---------- cards ---------- */
+  .card{background:#fff;border-radius:var(--r);box-shadow:var(--sh-xs);border:1px solid var(--grey-100)}
+  .cardHd{display:flex;align-items:center;gap:10px;padding:14px 18px 8px}
+  .cardHd h3{font-family:var(--fd);font-weight:600;font-size:14px;letter-spacing:.06em;text-transform:uppercase;color:var(--navy)}
+  .cardHd .sub{font-size:12px;color:var(--grey-500);margin-left:auto}
+  .cardBd{padding:4px 18px 16px}
+
+  /* ---------- fields ---------- */
+  label.f,.flabel{display:block;font-family:var(--fd);font-weight:500;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--grey-500);margin:12px 0 5px}
+  select,input[type=text],input[type=number]{width:100%;padding:9px 12px;border:1.5px solid var(--grey-200);border-radius:10px;background:#fff;outline:none;min-height:40px;transition:border-color .14s var(--ease),box-shadow .14s var(--ease)}
+  select:focus,input[type=text]:focus,input[type=number]:focus{border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-100)}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .hint{font-size:11.5px;color:var(--grey-500);margin-top:5px;line-height:1.45}
+  input[type=range]{width:100%;accent-color:var(--blue)}
+
+  /* ---------- buttons (class names kept from the scripts) ---------- */
+  button.small,button.primary{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:34px;padding:6px 14px;border-radius:999px;font-family:var(--fd);font-weight:600;font-size:12px;letter-spacing:.06em;text-transform:uppercase;line-height:1.1;white-space:nowrap;background:#fff;border:1.5px solid var(--grey-300);color:var(--navy);transition:background .14s var(--ease),transform .14s var(--ease)}
+  button.small:hover{background:var(--grey-100)}
+  button.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+  button.primary:hover{background:var(--blue-700)}
+  button.primary:disabled,button.small:disabled{opacity:.55;cursor:not-allowed}
+  button:active{transform:scale(.985)}
+  .dl{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+  .dl a{text-decoration:none}
+  .dl button{font-family:var(--fb);text-transform:none;letter-spacing:0;font-size:12px;min-height:30px;padding:4px 12px}
+  .seg{display:inline-flex;border:1.5px solid var(--grey-200);border-radius:999px;overflow:hidden;background:#fff}
+  .seg button{border:0;border-radius:0;min-height:30px;padding:4px 12px;font-family:var(--fb);font-weight:600;font-size:12px;letter-spacing:0;text-transform:none;color:var(--grey-600)}
+  .seg button.on{background:var(--navy);color:#fff}
+
+  /* ---------- drop zone ---------- */
+  .drop{border:2px dashed var(--grey-300);border-radius:var(--r);padding:18px 16px;text-align:center;color:var(--grey-500);cursor:pointer;transition:.15s var(--ease);background:var(--grey-50);font-size:12.5px}
+  .drop b{display:block;font-family:var(--fd);font-weight:600;font-size:14px;letter-spacing:.05em;text-transform:uppercase;color:var(--navy);margin-bottom:3px}
+  .drop:hover{border-color:var(--navy-500)}
+  .drop.over{border-color:var(--mint-600);background:var(--mint-100);color:var(--mint-700)}
+  details.adv{margin-top:14px;border-top:1px solid var(--grey-100);padding-top:10px}
+  details.adv summary{font-family:var(--fd);font-weight:500;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--grey-500);cursor:pointer;user-select:none;list-style:none;display:flex;align-items:center;gap:8px}
+  details.adv summary::before{content:"";width:0;height:0;border-left:5px solid currentColor;border-top:4px solid transparent;border-bottom:4px solid transparent;transition:transform .14s}
+  details.adv[open] summary::before{transform:rotate(90deg)}
+  .opt{display:grid;grid-template-columns:48px 1fr;gap:12px;align-items:start;margin-top:10px}
+  .opt .ico{width:48px;height:48px;margin-top:14px}
+  .opt label.f{margin-top:4px}
+
+  /* ---------- review / progress ---------- */
+  #review{padding:12px 14px;border-radius:12px;background:var(--amber-100);color:var(--amber-700);font-size:13px;line-height:1.5}
+  #review b{color:var(--navy)}
+  #review.sent{background:var(--mint-100);color:var(--mint-700)} #review.discarded{background:var(--grey-100);color:var(--grey-500)} #review.working{background:var(--blue-100);color:var(--blue-700)}
+  #review .btns{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+  #review .hint{color:inherit;opacity:.85}
+  .bar{height:8px;background:rgba(27,47,76,.12);border-radius:999px;overflow:hidden;margin:9px 0 5px}
+  .bar > div{height:100%;background:var(--blue);border-radius:999px;transition:width .6s ease;background-image:linear-gradient(135deg,rgba(255,255,255,.35) 25%,transparent 25%,transparent 50%,rgba(255,255,255,.35) 50%,rgba(255,255,255,.35) 75%,transparent 75%);background-size:18px 18px;animation:stripes 1s linear infinite}
+  @keyframes stripes{to{background-position:18px 0}}
+  .spin{display:inline-block;width:10px;height:10px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin .8s linear infinite;margin-right:5px;vertical-align:-1px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:currentColor;margin-right:5px;animation:pulse 1.2s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:.25;transform:scale(.8)}50%{opacity:1;transform:scale(1.1)}}
+  .log{font:11px/1.45 ui-monospace,Menlo,Consolas,monospace;background:var(--grey-50);border:1px solid var(--grey-100);border-radius:10px;padding:10px;max-height:160px;overflow:auto;white-space:pre-wrap;color:var(--grey-600)}
+  details.logbox summary{font-family:var(--fd);font-weight:500;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--grey-500);cursor:pointer;margin-top:10px}
+
+  /* ---------- 3D viewer card ---------- */
+  section.viewer{position:relative;min-height:0;background:var(--grey-50);border-radius:var(--r);border:1px solid var(--grey-100);box-shadow:var(--sh-xs);overflow:hidden}
+  canvas{display:block;position:absolute;inset:0;width:100% !important;height:100% !important;z-index:0}
+  .toolbar,.brush,.place,.stats,#fatal,#errline{z-index:2}
+  .toolbar{position:absolute;top:12px;left:12px;display:flex;gap:6px;align-items:center;background:rgba(255,255,255,.94);border:1px solid var(--grey-100);border-radius:999px;padding:5px 6px;backdrop-filter:blur(6px);box-shadow:var(--sh-sm)}
+  .toolbar .tab{padding:6px 14px;border-radius:999px;cursor:pointer;color:var(--grey-600);font-weight:600;font-size:12.5px;user-select:none}
+  .toolbar .tab:hover{background:var(--grey-100);color:var(--navy)}
+  .toolbar .tab.on{background:var(--navy);color:#fff}
+  .toolbar label{font-size:12px;color:var(--grey-600);font-weight:600;padding:0 10px 0 4px;display:flex;align-items:center;gap:5px}
+  .toolbar label input{accent-color:var(--blue)}
+  .brush,.place{position:absolute;top:12px;right:12px;background:rgba(255,255,255,.96);border:1px solid var(--grey-100);border-radius:var(--r);padding:12px 14px;box-shadow:var(--sh-md);display:none;backdrop-filter:blur(6px)}
+  .brush{width:262px} .place{width:318px}
+  .brush.on,.place.on{display:block}
+  .brush h4,.place h4{font-family:var(--fd);font-weight:600;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--navy);margin-bottom:8px}
+  .prow{display:grid;grid-template-columns:76px 1fr 1fr 54px 1fr 1fr;gap:4px;align-items:center;margin:4px 0;font-size:12px;color:var(--grey-500)}
+  .prow button{padding:4px 0;font-size:11.5px;border:1.5px solid var(--grey-200);border-radius:8px;background:#fff;color:var(--navy);font-weight:600;min-height:28px}
+  .prow button:hover{background:var(--grey-100)}
+  .prow .val{text-align:center;font-variant-numeric:tabular-nums;color:var(--navy);font-weight:700}
+  .stats{position:absolute;bottom:12px;left:12px;background:rgba(255,255,255,.94);border:1px solid var(--grey-100);border-radius:12px;padding:8px 13px;font-size:12px;color:var(--grey-500);max-width:600px;box-shadow:var(--sh-sm)}
+  .stats b{color:var(--navy)}
+  #fatal{display:none;position:absolute;top:60px;left:12px;right:12px;background:var(--coral-100);color:var(--coral-700);border:1px solid var(--coral-200);border-radius:12px;padding:10px 14px;font-size:13px;z-index:5}
+  #errline{display:none;position:absolute;bottom:12px;right:12px;max-width:520px;background:var(--coral-100);color:var(--coral-700);border:1px solid var(--coral-200);border-radius:12px;padding:8px 12px;font-size:12px;z-index:6}
+
+  @media (max-width:980px){
+    #app{flex-direction:column} #side{width:auto;height:auto;position:static} #main{height:auto}
+    #view{grid-template-columns:1fr;padding:4px 14px 20px} .leftCol{overflow:visible} section.viewer{min-height:420px}
+    .topBar{padding:14px 14px 8px}
+  }
 </style>
 </head>
 <body>
-<header>
-  <h1>NLO Bleach Tray</h1>
-  <span class="sub">Drop a scan — the bleaching-tray model goes to OrthoFactory.</span>
-  <a href="https://amooloo.github.io/nlo-apps/nlo-bleachtray.html?help" target="_blank">How to use</a>
-</header>
-<main>
-  <aside>
-    <div class="drop" id="drop"><b>Drop the scan STL here</b> (anywhere on this page works)<br>upper and/or lower, one patient or a whole day's scans — it starts on its own. Or click to choose.</div>
-    <input type="file" id="file" accept=".stl,.ply,.pts" multiple style="display:none">
-    <div class="row">
-      <div><label class="f">Patient first name</label><input type="text" id="pfirst" placeholder="Arman"></div>
-      <div><label class="f">Last name</label><input type="text" id="plast" placeholder="Shetty"></div>
-    </div>
-    <div class="row">
-      <div><label class="f">Arch</label><select id="arch"><option value="">Auto-detect</option><option value="upper">Upper (Maxilla)</option><option value="lower">Lower (Mandible)</option></select></div>
-      <div><label class="f">Make</label><select id="preset">
-        <option value="both">Whitening tray + retainer (both)</option>
-        <option value="bleaching">Whitening tray 5-5 only</option>
-        <option value="bleaching_3_3">Whitening tray 3-3 only</option>
-        <option value="aligner_high">Retainer only (line 1.25 mm onto the gum)</option>
-        <option value="plain_model">Plain model</option>
-      </select></div>
-    </div>
-    <input type="hidden" id="name"><input type="hidden" id="stage" value="0"><input type="hidden" id="kind" value="T">
-    <div class="hint" id="filehint">No file yet.</div>
-    <div id="rerunbox" style="display:none;margin-top:8px"><button class="small" id="go">Run again with these settings</button></div>
-    <details class="adv">
-      <summary>Advanced settings</summary>
-      <div class="opt"><svg class="ico"><use href="#ico-res"/></svg><div>
-        <label class="f">Gel reservoirs</label>
-        <div class="row"><div><input type="number" id="res_h" step="0.1" min="0" max="1.5" value="0.5"><div class="hint">height (mm)</div></div>
-        <div><input type="number" id="res_n" step="1" min="0" max="7" value="5"><div class="hint">teeth from the midline (5 = canine to 2nd premolar)</div></div></div>
-      </div></div>
-      <div class="opt"><svg class="ico"><use href="#ico-trim"/></svg><div>
-        <label class="f">Trim line</label>
-        <select id="tl_off"><option value="0">At the gum line (bleaching trays)</option><option value="0.5">0.5 mm onto the gum</option><option value="1">1 mm onto the gum</option><option value="1.25">1.25 mm onto the gum (aligners)</option><option value="1.5">1.5 mm onto the gum</option><option value="2">2 mm onto the gum</option></select>
-      </div></div>
-      <div class="opt"><svg class="ico"><use href="#ico-gap"/></svg><div>
-        <label class="f">Between the teeth</label>
-        <select id="bridge"><option value="3">Straight across the gum points (semi-scallop)</option><option value="4">Straight across, wider bridges</option><option value="0">Follow the gum down into every gap (full scallop)</option></select>
-      </div></div>
-      <div class="opt"><svg class="ico"><use href="#ico-base"/></svg><div>
-        <label class="f">Trimlign base</label>
-        <select id="base"><option value="1">Add the base (Titan placement)</option><option value="0">No base</option></select>
-      </div></div>
-      <div class="opt"><svg class="ico"><use href="#ico-eng"/></svg><div>
-        <label class="f">Engraving on the base (inside the arch)</label>
-        <select id="engrave"><option value="1">Patient name + WHITENING / RETAINER</option><option value="0">None</option></select>
-        <input type="text" id="engrave_text" placeholder="custom text, e.g. K. POST | UPPER" style="margin-top:6px">
-      </div></div>
-      <label class="f">Patient ID in Edge (optional)</label><input type="text" id="pid" placeholder="80010">
-      <label class="f">OrthoFactory input folder (approved orders are written there)</label>
-      <input type="text" id="export" placeholder="S:\clinical\3D printing\Titan" value="">
-      <div class="hint" id="exporthint" style="margin-top:2px"></div>
-      <label class="f">Doctor (for the order folder name)</label>
-      <input type="text" id="doctor" value="Dr. Amir Akhavan">
-      <label class="f">Scanner export folder(s) — lists recent scans here, one click makes the tray (several PCs: separate with ;)</label>
-      <div class="row" style="grid-template-columns:1fr auto"><input type="text" id="scanfolder" placeholder="e.g. \\SCANNER-PC\AlliedStar\Export"><button class="small" id="scanfolder_save">Save</button></div>
-      <div class="hint" id="scanfolder_hint"></div>
-    </details>
-    <div class="jobs" id="scannerbox" style="display:none">
-      <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Recent scans from the scanner <a href="#" id="scanrefresh" style="float:right">refresh</a></div>
-      <div id="scanner"></div>
-    </div>
-    <div class="jobs">
-      <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Cases</div>
+<div id="app">
+  <aside id="side">
+    <div class="sideTop"><img src="/static/logo-white.png" alt="Next Level Orthodontics"><div class="appTag">Bleach Tray</div></div>
+    <div class="nav">
+      <div class="navLbl">Cases</div>
       <div id="jobs"></div>
     </div>
-    <div id="detail" style="display:none">
-      <div class="review" id="review"></div>
-      <div class="dl" id="dl"></div>
-      <details style="margin-top:8px"><summary class="hint" style="cursor:pointer">Processing log</summary><div class="log" id="log"></div></details>
+    <div class="nav" id="scannerbox" style="display:none">
+      <div class="navLbl">Recent scans <a href="#" id="scanrefresh">refresh</a></div>
+      <div class="sidebox" id="scanner"></div>
+    </div>
+    <div class="sideFoot">
+      <div class="syncLine"><span class="sdot"></span>App on this PC · OrthoFactory</div>
+      <a href="https://amooloo.github.io/nlo-apps/nlo-bleachtray.html?help" target="_blank">How to use ↗</a>
     </div>
   </aside>
-  <svg width="0" height="0" style="position:absolute">
-    <defs>
-      <symbol id="ico-res" viewBox="0 0 48 48">
-        <path d="M14 8 Q24 4 34 8 L37 30 Q34 42 24 44 Q14 42 11 30 Z" fill="#fff" stroke="#1b1b1f" stroke-width="1.6" stroke-linejoin="round"/>
-        <path d="M17 13 Q24 10 31 13 L33 29 Q31 37 24 38.5 Q17 37 15 29 Z" fill="#9cc3ff" stroke="#2f6fed" stroke-width="1.2"/>
-        <path d="M6 44 Q24 40 42 44" fill="none" stroke="#e08f8f" stroke-width="2"/>
-      </symbol>
-      <symbol id="ico-trim" viewBox="0 0 48 48">
-        <path d="M14 8 Q24 4 34 8 L37 30 Q34 42 24 44 Q14 42 11 30 Z" fill="#fff" stroke="#1b1b1f" stroke-width="1.6" stroke-linejoin="round"/>
-        <path d="M4 40 Q10 30 14 36 Q24 46 34 36 Q38 30 44 40" fill="#f3c9c9" stroke="#e08f8f" stroke-width="1.5"/>
-        <path d="M6 37 Q12 31 15 35 Q24 44 33 35 Q36 31 42 37" fill="none" stroke="#e11d48" stroke-width="2" stroke-dasharray="3 2"/>
-      </symbol>
-      <symbol id="ico-gap" viewBox="0 0 48 48">
-        <path d="M6 10 Q14 6 21 10 L22 30 Q19 42 12 43 Q5 42 4 30 Z" fill="#fff" stroke="#1b1b1f" stroke-width="1.5" stroke-linejoin="round"/>
-        <path d="M27 10 Q34 6 42 10 L44 30 Q43 42 36 43 Q29 42 26 30 Z" fill="#fff" stroke="#1b1b1f" stroke-width="1.5" stroke-linejoin="round"/>
-        <path d="M18 44 L24 30 L30 44 Z" fill="#f3c9c9" stroke="#e08f8f" stroke-width="1.2"/>
-        <path d="M3 36 Q10 33 16 36 L32 36 Q38 33 45 36" fill="none" stroke="#e11d48" stroke-width="2" stroke-dasharray="3 2"/>
-      </symbol>
-      <symbol id="ico-eng" viewBox="0 0 48 48">
-        <rect x="4" y="12" width="40" height="24" rx="3" fill="#dfe3ea" stroke="#4b5563" stroke-width="1.2"/>
-        <text x="24" y="23" text-anchor="middle" font-family="Arial, sans-serif" font-weight="700" font-size="7" fill="#1b1b1f">K. POST</text>
-        <text x="24" y="31" text-anchor="middle" font-family="Arial, sans-serif" font-weight="700" font-size="5.5" fill="#1b1b1f">WHITENING</text>
-      </symbol>
-      <symbol id="ico-base" viewBox="0 0 48 48">
-        <path d="M8 22 Q24 6 40 22 L40 30 Q24 16 8 30 Z" fill="#fff" stroke="#1b1b1f" stroke-width="1.5" stroke-linejoin="round"/>
-        <rect x="4" y="32" width="40" height="9" rx="2" fill="#9aa4b2" stroke="#4b5563" stroke-width="1.2"/>
-        <circle cx="24" cy="36.5" r="1.8" fill="#1b1b1f"/>
-      </symbol>
-    </defs>
-  </svg>
-  <section class="viewer">
-    <div class="toolbar">
-      <span class="tab on" data-tab="result">Result</span>
-      <span class="tab" data-tab="seg">Segmentation / fix</span>
-      <span class="tab" data-tab="scan">Scan + reservoirs</span>
-      <span style="width:1px;height:18px;background:var(--line)"></span>
-      <label style="font-size:12px;color:var(--muted)"><input type="checkbox" id="showtl" checked> trimline</label>
-    </div>
-    <div class="brush" id="brush">
-      <h4>Brush — fix tooth / gum labels</h4>
-      <div class="seg"><button class="on" data-mode="tooth">Paint tooth</button><button data-mode="gum">Paint gum</button><button data-mode="off">Off</button></div>
-      <label class="f">Radius: <span id="rv">1.5</span> mm</label>
-      <input type="range" id="radius" min="0.5" max="5" step="0.25" value="1.5">
-      <div class="hint">Hold <b>Shift</b> and drag on the model to paint. Rotate with the mouse otherwise.</div>
-      <div style="margin-top:8px;display:flex;gap:6px"><button class="primary small" id="rerun">Apply fixes & re-run</button><button class="small" id="clearfix">Clear</button></div>
-      <div class="hint" id="fixcount">No edits.</div>
-    </div>
-    <div class="place" id="place">
-      <h4>Position on the base</h4>
-      <div class="prow"><span>Rotate</span><button data-adj="yaw_deg" data-d="-1">&#8634; 1&deg;</button><button data-adj="yaw_deg" data-d="-0.25">&#8634; &frac14;&deg;</button><span class="val" id="v_yaw_deg">0.0&deg;</span><button data-adj="yaw_deg" data-d="0.25">&frac14;&deg; &#8635;</button><button data-adj="yaw_deg" data-d="1">1&deg; &#8635;</button></div>
-      <div class="prow"><span>Left / right</span><button data-adj="dx" data-d="-1">&larr; 1</button><button data-adj="dx" data-d="-0.25">&larr; &frac14;</button><span class="val" id="v_dx">0.00</span><button data-adj="dx" data-d="0.25">&frac14; &rarr;</button><button data-adj="dx" data-d="1">1 &rarr;</button></div>
-      <div class="prow"><span>Back / forward</span><button data-adj="dy" data-d="-1">&darr; 1</button><button data-adj="dy" data-d="-0.25">&darr; &frac14;</button><span class="val" id="v_dy">0.00</span><button data-adj="dy" data-d="0.25">&frac14; &uarr;</button><button data-adj="dy" data-d="1">1 &uarr;</button></div>
-      <div class="prow"><span>Down / up</span><button data-adj="dz" data-d="-1">&#8681; 1</button><button data-adj="dz" data-d="-0.25">&#8681; &frac14;</button><span class="val" id="v_dz">0.00</span><button data-adj="dz" data-d="0.25">&frac14; &#8679;</button><button data-adj="dz" data-d="1">1 &#8679;</button></div>
-      <div class="hint">mm and degrees. The arch moves live on the base; <b>Apply</b> rebuilds the model and replaces the OrthoFactory order (~1 min). <b>Reset</b> goes back to the automatic placement.</div>
-      <div style="margin-top:8px;display:flex;gap:6px"><button class="primary small" id="applyplace">Apply</button><button class="small" id="resetplace">Reset to automatic</button></div>
-      <div class="hint" id="placestate"></div>
-    </div>
-    <div class="stats" id="stats">Drop a scan to begin.</div>
-    <div id="fatal"></div>
-    <div id="errline"></div>
-    <canvas id="c"></canvas>
-  </section>
-</main>
+  <div id="main">
+    <div class="topBar"><h2>Bleach Tray</h2><span class="sub">Drop a scan — whitening tray + retainer models go to OrthoFactory after you check them.</span></div>
+    <main id="view">
+      <div class="leftCol">
+        <div class="card">
+          <div class="cardHd"><h3>New case</h3></div>
+          <div class="cardBd">
+            <div class="drop" id="drop"><b>Drop the scan STL here</b>anywhere on this page works · upper and/or lower, one patient or a whole day's scans — it starts on its own. Or click to choose.</div>
+            <input type="file" id="file" accept=".stl,.ply,.pts" multiple style="display:none">
+            <div class="row">
+              <div><label class="f">Patient first name</label><input type="text" id="pfirst" placeholder="Arman"></div>
+              <div><label class="f">Last name</label><input type="text" id="plast" placeholder="Shetty"></div>
+            </div>
+            <div class="row">
+              <div><label class="f">Arch</label><select id="arch"><option value="">Auto-detect</option><option value="upper">Upper (Maxilla)</option><option value="lower">Lower (Mandible)</option></select></div>
+              <div><label class="f">Make</label><select id="preset">
+                <option value="both">Whitening tray + retainer (both)</option>
+                <option value="bleaching">Whitening tray 5-5 only</option>
+                <option value="bleaching_3_3">Whitening tray 3-3 only</option>
+                <option value="aligner_high">Retainer only (line 1.25 mm onto the gum)</option>
+                <option value="plain_model">Plain model</option>
+              </select></div>
+            </div>
+            <input type="hidden" id="name"><input type="hidden" id="stage" value="0"><input type="hidden" id="kind" value="T">
+            <div class="hint" id="filehint">No file yet.</div>
+            <div id="rerunbox" style="display:none;margin-top:10px"><button class="small" id="go">Run again with these settings</button></div>
+            <details class="adv">
+              <summary>Advanced settings</summary>
+              <div class="opt"><svg class="ico"><use href="#ico-res"/></svg><div>
+                <label class="f">Gel reservoirs</label>
+                <div class="row"><div><input type="number" id="res_h" step="0.1" min="0" max="1.5" value="0.5"><div class="hint">height (mm)</div></div>
+                <div><input type="number" id="res_n" step="1" min="0" max="7" value="5"><div class="hint">teeth from the midline (5 = canine to 2nd premolar)</div></div></div>
+              </div></div>
+              <div class="opt"><svg class="ico"><use href="#ico-trim"/></svg><div>
+                <label class="f">Trim line</label>
+                <select id="tl_off"><option value="0">At the gum line (bleaching trays)</option><option value="0.5">0.5 mm onto the gum</option><option value="1">1 mm onto the gum</option><option value="1.25">1.25 mm onto the gum (aligners)</option><option value="1.5">1.5 mm onto the gum</option><option value="2">2 mm onto the gum</option></select>
+              </div></div>
+              <div class="opt"><svg class="ico"><use href="#ico-gap"/></svg><div>
+                <label class="f">Between the teeth</label>
+                <select id="bridge"><option value="3">Straight across the gum points (semi-scallop)</option><option value="4">Straight across, wider bridges</option><option value="0">Follow the gum down into every gap (full scallop)</option></select>
+              </div></div>
+              <div class="opt"><svg class="ico"><use href="#ico-base"/></svg><div>
+                <label class="f">Trimlign base</label>
+                <select id="base"><option value="1">Add the base (Titan placement)</option><option value="0">No base</option></select>
+              </div></div>
+              <div class="opt"><svg class="ico"><use href="#ico-eng"/></svg><div>
+                <label class="f">Engraving on the base (inside the arch)</label>
+                <select id="engrave"><option value="1">Patient name + WHITENING / RETAINER</option><option value="0">None</option></select>
+                <input type="text" id="engrave_text" placeholder="custom text, e.g. K. POST | UPPER" style="margin-top:6px">
+              </div></div>
+              <label class="f">Patient ID in Edge (optional)</label><input type="text" id="pid" placeholder="80010">
+              <label class="f">OrthoFactory input folder (approved orders are written there)</label>
+              <input type="text" id="export" placeholder="S:\clinical\3D printing\Titan" value="">
+              <div class="hint" id="exporthint" style="margin-top:2px"></div>
+              <label class="f">Doctor (for the order folder name)</label>
+              <input type="text" id="doctor" value="Dr. Amir Akhavan">
+              <label class="f">Scanner export folder(s) — lists recent scans in the sidebar (several PCs: separate with ;)</label>
+              <div class="row" style="grid-template-columns:1fr auto;align-items:end"><input type="text" id="scanfolder" placeholder="e.g. \\SCANNER-PC\AlliedStar\Export"><button class="small" id="scanfolder_save">Save</button></div>
+              <div class="hint" id="scanfolder_hint"></div>
+            </details>
+          </div>
+        </div>
+        <div class="card" id="detail" style="display:none">
+          <div class="cardHd"><h3>Check &amp; send</h3></div>
+          <div class="cardBd">
+            <div class="review" id="review"></div>
+            <div class="dl" id="dl"></div>
+            <details class="logbox"><summary>Processing log</summary><div class="log" id="log"></div></details>
+          </div>
+        </div>
+      </div>
+      <svg width="0" height="0" style="position:absolute">
+        <defs>
+          <symbol id="ico-res" viewBox="0 0 48 48">
+            <path d="M14 8 Q24 4 34 8 L37 30 Q34 42 24 44 Q14 42 11 30 Z" fill="#fff" stroke="#1B2F4C" stroke-width="1.6" stroke-linejoin="round"/>
+            <path d="M17 13 Q24 10 31 13 L33 29 Q31 37 24 38.5 Q17 37 15 29 Z" fill="#BCC8EE" stroke="#1D3EA9" stroke-width="1.2"/>
+            <path d="M6 44 Q24 40 42 44" fill="none" stroke="#FFC8BF" stroke-width="2"/>
+          </symbol>
+          <symbol id="ico-trim" viewBox="0 0 48 48">
+            <path d="M14 8 Q24 4 34 8 L37 30 Q34 42 24 44 Q14 42 11 30 Z" fill="#fff" stroke="#1B2F4C" stroke-width="1.6" stroke-linejoin="round"/>
+            <path d="M4 40 Q10 30 14 36 Q24 46 34 36 Q38 30 44 40" fill="#FFE7E1" stroke="#FFC8BF" stroke-width="1.5"/>
+            <path d="M6 37 Q12 31 15 35 Q24 44 33 35 Q36 31 42 37" fill="none" stroke="#FA624D" stroke-width="2" stroke-dasharray="3 2"/>
+          </symbol>
+          <symbol id="ico-gap" viewBox="0 0 48 48">
+            <path d="M6 10 Q14 6 21 10 L22 30 Q19 42 12 43 Q5 42 4 30 Z" fill="#fff" stroke="#1B2F4C" stroke-width="1.5" stroke-linejoin="round"/>
+            <path d="M27 10 Q34 6 42 10 L44 30 Q43 42 36 43 Q29 42 26 30 Z" fill="#fff" stroke="#1B2F4C" stroke-width="1.5" stroke-linejoin="round"/>
+            <path d="M18 44 L24 30 L30 44 Z" fill="#FFE7E1" stroke="#FFC8BF" stroke-width="1.2"/>
+            <path d="M3 36 Q10 33 16 36 L32 36 Q38 33 45 36" fill="none" stroke="#FA624D" stroke-width="2" stroke-dasharray="3 2"/>
+          </symbol>
+          <symbol id="ico-eng" viewBox="0 0 48 48">
+            <rect x="4" y="12" width="40" height="24" rx="3" fill="#E8ECF2" stroke="#5471A0" stroke-width="1.2"/>
+            <text x="24" y="23" text-anchor="middle" font-family="Arial, sans-serif" font-weight="700" font-size="7" fill="#1B2F4C">K. POST</text>
+            <text x="24" y="31" text-anchor="middle" font-family="Arial, sans-serif" font-weight="700" font-size="5.5" fill="#1B2F4C">WHITENING</text>
+          </symbol>
+          <symbol id="ico-base" viewBox="0 0 48 48">
+            <path d="M8 22 Q24 6 40 22 L40 30 Q24 16 8 30 Z" fill="#fff" stroke="#1B2F4C" stroke-width="1.5" stroke-linejoin="round"/>
+            <rect x="4" y="32" width="40" height="9" rx="2" fill="#C3C9D0" stroke="#5471A0" stroke-width="1.2"/>
+            <circle cx="24" cy="36.5" r="1.8" fill="#1B2F4C"/>
+          </symbol>
+        </defs>
+      </svg>
+      <section class="viewer">
+        <div class="toolbar">
+          <span class="tab on" data-tab="result">Result</span>
+          <span class="tab" data-tab="seg">Segmentation / fix</span>
+          <span class="tab" data-tab="scan">Scan + reservoirs</span>
+          <label><input type="checkbox" id="showtl" checked> trim line</label>
+        </div>
+        <div class="brush" id="brush">
+          <h4>Brush — fix tooth / gum labels</h4>
+          <div class="seg"><button class="on" data-mode="tooth">Paint tooth</button><button data-mode="gum">Paint gum</button><button data-mode="off">Off</button></div>
+          <label class="f">Radius: <span id="rv">1.5</span> mm</label>
+          <input type="range" id="radius" min="0.5" max="5" step="0.25" value="1.5">
+          <div class="hint">Hold <b>Shift</b> and drag on the model to paint. Rotate with the mouse otherwise.</div>
+          <div style="margin-top:10px;display:flex;gap:6px"><button class="primary small" id="rerun">Apply fixes &amp; re-run</button><button class="small" id="clearfix">Clear</button></div>
+          <div class="hint" id="fixcount">No edits.</div>
+        </div>
+        <div class="place" id="place">
+          <h4>Position on the base</h4>
+          <div class="prow"><span>Rotate</span><button data-adj="yaw_deg" data-d="-1">&#8634; 1&deg;</button><button data-adj="yaw_deg" data-d="-0.25">&#8634; &frac14;&deg;</button><span class="val" id="v_yaw_deg">0.0&deg;</span><button data-adj="yaw_deg" data-d="0.25">&frac14;&deg; &#8635;</button><button data-adj="yaw_deg" data-d="1">1&deg; &#8635;</button></div>
+          <div class="prow"><span>Left / right</span><button data-adj="dx" data-d="-1">&larr; 1</button><button data-adj="dx" data-d="-0.25">&larr; &frac14;</button><span class="val" id="v_dx">0.00</span><button data-adj="dx" data-d="0.25">&frac14; &rarr;</button><button data-adj="dx" data-d="1">1 &rarr;</button></div>
+          <div class="prow"><span>Back / forward</span><button data-adj="dy" data-d="-1">&darr; 1</button><button data-adj="dy" data-d="-0.25">&darr; &frac14;</button><span class="val" id="v_dy">0.00</span><button data-adj="dy" data-d="0.25">&frac14; &uarr;</button><button data-adj="dy" data-d="1">1 &uarr;</button></div>
+          <div class="prow"><span>Down / up</span><button data-adj="dz" data-d="-1">&#8681; 1</button><button data-adj="dz" data-d="-0.25">&#8681; &frac14;</button><span class="val" id="v_dz">0.00</span><button data-adj="dz" data-d="0.25">&frac14; &#8679;</button><button data-adj="dz" data-d="1">1 &#8679;</button></div>
+          <div class="hint">mm and degrees. The arch moves live on the base; <b>Apply</b> rebuilds the model and replaces the OrthoFactory order (~1 min). <b>Reset</b> goes back to the automatic placement.</div>
+          <div style="margin-top:10px;display:flex;gap:6px"><button class="primary small" id="applyplace">Apply</button><button class="small" id="resetplace">Reset to automatic</button></div>
+          <div class="hint" id="placestate"></div>
+        </div>
+        <div class="stats" id="stats">Drop a scan to begin.</div>
+        <div id="fatal"></div>
+        <div id="errline"></div>
+        <canvas id="c"></canvas>
+      </section>
+    </main>
+  </div>
+</div>
+<script src="https://amooloo.github.io/nlo-apps/nlo-home.js" defer></script>
 
 <script>
 // If the 3D viewer's script fails to load (old browser, or the files were not served correctly),
@@ -244,13 +340,13 @@ const $ = s => document.querySelector(s);
 const canvas = $('#c'), viewer = $('section.viewer');
 const renderer = new THREE.WebGLRenderer({canvas, antialias:true});
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-const scene = new THREE.Scene(); scene.background = new THREE.Color(0xf6f5f2);
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0xF7F8F9);
 const camera = new THREE.PerspectiveCamera(35, 1, 1, 2000); camera.position.set(0, 105, 70); camera.up.set(0,0,1);
 const controls = new OrbitControls(camera, canvas); controls.target.set(0,-15,5);
 scene.add(new THREE.HemisphereLight(0xffffff, 0x9a9a9a, 1.1));
 const key = new THREE.DirectionalLight(0xffffff, 1.2); key.position.set(60,-80,140); scene.add(key);
 const fill = new THREE.DirectionalLight(0xffffff, .5); fill.position.set(-80,60,40); scene.add(fill);
-const grid = new THREE.GridHelper(200, 20, 0xdddddd, 0xeeeeee); grid.rotation.x = Math.PI/2; grid.position.z = -0.05; scene.add(grid);
+const grid = new THREE.GridHelper(200, 20, 0xDCE0E4, 0xECEEF0); grid.rotation.x = Math.PI/2; grid.position.z = -0.05; scene.add(grid);
 
 function resize(){ const w = viewer.clientWidth, h = viewer.clientHeight; if (!w || !h) return; renderer.setSize(w,h,false); camera.aspect = w/h; camera.updateProjectionMatrix(); }
 new ResizeObserver(resize).observe(viewer); resize();
