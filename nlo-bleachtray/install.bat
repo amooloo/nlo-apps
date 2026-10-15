@@ -49,7 +49,7 @@ echo.
 echo  ===============================================
 echo   Setup complete.
 echo   Daily use: drop the scan file into   %INBOX%
-echo   To start the watcher now: double-click start_watch.bat
+echo   To start it now: double-click start_app.bat
 echo   You can close this window.
 echo  ===============================================
 echo.
@@ -61,8 +61,8 @@ if exist "%~1:\clinical\3D printing\Titan\." set "TITAN=%~1:\clinical\3D printin
 goto :eof
 
 :autostart
-"%PY%" tools\make_startup_shortcut.py "%~dp0start_watch.bat"
-echo  Done - the watcher will start minimised at sign-in.
+"%PY%" tools\make_startup_shortcut.py "%~dp0start_app.bat"
+echo  Done - the app (watcher + browser app) will start minimised at sign-in.
 goto :eof
 
 :nopython

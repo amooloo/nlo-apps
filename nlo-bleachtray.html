@@ -45,13 +45,14 @@ code { font-family:ui-monospace,Menlo,Consolas,monospace; font-size:.88em; backg
     <div class="step"><div class="num">1</div><p class="big">Export the patient's scan as an STL from the scanner, with the patient's name in the file name (the scanner does this on its own: <code>Armaan_Shetty_20261015_09-20-31_upper.stl</code>).</p></div>
     <div class="step"><div class="num">2</div><p class="big">Drag that file into the folder <span class="path">S:\clinical\3D printing\BleachTray</span> on the lab PC. If you have an upper and a lower, drag both.</p></div>
     <div class="step"><div class="num">3</div><p class="big">Wait about a minute. Open OrthoFactory → <b>Production</b>. The patient is listed like any Titan case. Print the model on the Form 4B, thermoform, trim on the Trimlign.</p></div>
-    <p class="muted" style="margin-top:12px">That's it. The file you dragged moves into <code>BleachTray\done</code> when it worked, or into <code>BleachTray\failed</code> with a note explaining what happened when it didn't. The little black window called "NLO Bleach Tray watcher" must be open on the lab PC (it starts by itself at sign-in; if it's gone, double-click <code>start_watch.bat</code> in the app folder).</p>
+    <p class="muted" style="margin-top:12px">That's it. The file you dragged moves into <code>BleachTray\done</code> when it worked, or into <code>BleachTray\failed</code> with a note explaining what happened when it didn't. The small black window called "NLO Bleach Tray" must be open on the lab PC (it starts by itself at sign-in; if it's gone, double-click <code>start_app.bat</code> in the app folder).</p>
   </div>
 
   <div class="card">
     <h2>If a case needs a look <span class="pill">optional</span></h2>
-    <p>Double-click <code>start_app.bat</code> in the app folder. A web page opens where you can drag a scan in, see the result in 3D, paint over a tooth the computer missed (hold <b>Shift</b> and drag), and re-run. Downloads and the OrthoFactory order are on the left.</p>
-    <a class="btn" href="http://127.0.0.1:8765/">Open it (on the PC where it runs)</a>
+    <p>Open the app from any office computer: drag a scan in, see the result in 3D, paint over a tooth the computer missed (hold <b>Shift</b> and drag), re-run. Downloads and the OrthoFactory order are on the left. It runs on the lab PC, so the lab PC has to be on.</p>
+    <a class="btn" id="openapp" href="#">Open the Bleach Tray app</a>
+    <p class="muted" id="labpc-line" style="margin-top:10px"></p>
   </div>
 
   <div class="card">
@@ -59,11 +60,11 @@ code { font-family:ui-monospace,Menlo,Consolas,monospace; font-size:.88em; backg
     <div class="step"><div class="num">1</div><p>Get the app folder onto the PC: download <b>nlo-bleachtray.zip</b> from Dr. Akhavan (or from the <a href="https://github.com/amooloo/nlo-apps/tree/main/nlo-bleachtray">code page</a> → green <b>Code</b> button → <b>Download ZIP</b>), right-click it → <b>Extract All</b>, and put the <code>nlo-bleachtray</code> folder somewhere permanent, for example <span class="path">C:\NLO\nlo-bleachtray</span>.</p></div>
     <div class="step"><div class="num">2</div><p>Open that folder and double-click <code>install.bat</code>. A black window walks you through everything:</p></div>
     <ul style="margin-left:44px">
-      <li>If the PC doesn't have <b>Python</b> yet (the free program the app runs on), it opens the download page. Click the yellow <b>Download Python</b> button, run the file, and on the very first screen tick <b>"Add python.exe to PATH"</b> before clicking <b>Install Now</b>. Then double-click <code>install.bat</code> again.</li>
+      <li>If the PC doesn't have <b>Python 3.13</b> yet (the free program the app runs on), it downloads the right installer for you. Run it and click <b>Install Now</b>. Then double-click <code>install.bat</code> again. (A newer Python already on the PC is fine; both can stay.)</li>
       <li>It installs the app's components (a few minutes), finds the Titan folder on its own, learns the Trimlign base from one of your existing Titan exports, and creates the <code>BleachTray</code> drop folder next to the Titan folder.</li>
-      <li>When it asks "Start the watcher automatically every time this PC signs in?", type <b>y</b>.</li>
+      <li>When it asks "Start the watcher automatically every time this PC signs in?", type <b>y</b>. From then on the app starts by itself, watching the drop folder and serving the browser app to the office.</li>
     </ul>
-    <div class="step"><div class="num">3</div><p>Double-click <code>start_watch.bat</code> once to start it now. Done — go to <b>Everyday use</b> above.</p></div>
+    <div class="step"><div class="num">3</div><p>Double-click <code>start_app.bat</code> once to start it now. Done — go to <b>Everyday use</b> above.</p></div>
   </div>
 
   <div class="card">
@@ -77,6 +78,36 @@ code { font-family:ui-monospace,Menlo,Consolas,monospace; font-size:.88em; backg
     <a class="btn alt" href="https://github.com/amooloo/nlo-apps/tree/main/nlo-bleachtray">Technical details &amp; code</a>
   </div>
 </main>
+<script>
+(function () {
+  var DEFAULT_LAB_PC = "";          // computer name of the lab PC, e.g. "NLO-LAB" (set once here, or per browser below)
+  var key = "nlo.bleachtray.labpc";
+  var name = "";
+  try { name = localStorage.getItem(key) || ""; } catch (e) {}
+  name = name || DEFAULT_LAB_PC;
+  var btn = document.getElementById("openapp"), line = document.getElementById("labpc-line");
+  function render() {
+    if (name) {
+      btn.href = "http://" + name + ":8765/";
+      btn.target = "_blank";
+      line.innerHTML = 'Lab PC: <b>' + name + '</b> &nbsp;<a href="#" id="chg">change</a>';
+    } else {
+      btn.href = "#";
+      line.innerHTML = 'First time here: <a href="#" id="chg">tell this page the lab PC\'s name</a> (the black "NLO Bleach Tray" window on the lab PC prints it as http://NAME:8765).';
+    }
+    document.getElementById("chg").onclick = function (ev) { ev.preventDefault(); ask(); };
+  }
+  function ask() {
+    var v = prompt("Computer name of the lab PC (from the black NLO Bleach Tray window: http://NAME:8765):", name || "");
+    if (v === null) return;
+    name = v.trim().replace(/^https?:\/\//, "").replace(/[:/].*$/, "");
+    try { localStorage.setItem(key, name); } catch (e) {}
+    render();
+  }
+  btn.addEventListener("click", function (ev) { if (!name) { ev.preventDefault(); ask(); } });
+  render();
+})();
+</script>
 <script src="nlo-home.js" defer></script>
 </body>
 </html>

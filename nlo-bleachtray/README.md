@@ -12,8 +12,9 @@ puts it into OrthoFactory as an order, like a Titan export. Nothing to pay per c
    Print the model on the Form 4B, thermoform, trim on the Trimlign.
 
 The file you dragged moves to `BleachTray\done` when it worked, or to `BleachTray\failed` with an `error.txt` when
-it didn't. The small black window "NLO Bleach Tray watcher" must be open on the lab PC (it starts by itself at
-sign-in; if it's gone, double-click `start_watch.bat` in the app folder).
+it didn't. The small black window "NLO Bleach Tray" must be open on the lab PC (it starts by itself at sign-in;
+if it's gone, double-click `start_app.bat` in the app folder). That one window watches the drop folder *and*
+serves the browser app to the whole office.
 
 ## One-time setup on the lab PC (about 10 minutes, once)
 
@@ -27,11 +28,11 @@ sign-in; if it's gone, double-click `start_watch.bat` in the app folder).
    * It installs the app's components, finds the Titan folder, learns the Trimlign base from one of your existing
      Titan exports, and creates the `BleachTray` drop folder next to the Titan folder.
    * Answer **y** when it asks to start the watcher automatically at sign-in.
-3. Double-click **`start_watch.bat`** once to start it now.
+3. Double-click **`start_app.bat`** once to start it now.
 
 ## If a case needs a look
 
-Double-click **`start_app.bat`** on the lab PC. A web page opens there, and any other office computer can open the same app in its browser at `http://<lab PC name>:8765` (the black window prints the exact address). Drag a scan in, see the result in 3D, paint over a tooth the
+From any office computer open `http://<lab PC name>:8765` — or click **Bleach Tray** on the NLO apps home page, which opens it for you (the black window on the lab PC prints the exact address). Drag a scan in, see the result in 3D, paint over a tooth the
 computer missed (hold **Shift** and drag on the *Segmentation / fix* tab), re-run. The OrthoFactory order and the
 downloads are on the left. Presets: *Bleaching tray* (reservoirs 5-5, line at the gum), *Bleaching 3-3*,
 *Aligner / retainer* (line 1.25 mm onto the gums, semi-scallop), *Plain model*.

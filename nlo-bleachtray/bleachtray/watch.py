@@ -17,7 +17,7 @@ NAME_RE = re.compile(r"^(?P<first>[A-Za-z][A-Za-z'\-]*)[ _\-]+(?P<last>[A-Za-z][
 ARCH_RE = re.compile(r"(upper|maxil|lower|mandib)", re.I)
 
 DEFAULT_CONFIG = dict(
-    inbox="", titan="", preset="bleaching", poll=4, pair_wait=90, doctor="Dr. Amir Akhavan", kind="T", stage=0,
+    inbox="", titan="", preset="bleaching", poll=4, pair_wait=45, doctor="Dr. Amir Akhavan", kind="T", stage=0,
     params={},
 )
 

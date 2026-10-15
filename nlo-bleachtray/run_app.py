@@ -39,6 +39,36 @@ def _open():
     webbrowser.open(f"http://127.0.0.1:{port}")
 
 
+def _start_watcher():
+    """If setup created watch_config.json, run the folder watcher inside this process too, so one
+    autostarted window both watches the drop folder and serves the browser app to the office."""
+    import os, json, datetime
+    here = os.path.dirname(os.path.abspath(__file__))
+    cfg_path = os.path.join(here, "watch_config.json")
+    if not os.path.exists(cfg_path):
+        print("  (no watch_config.json - folder watching is off; run install.bat to set it up)")
+        return
+    cfg = json.load(open(cfg_path))
+    if not cfg.get("inbox"):
+        return
+    os.makedirs(cfg["inbox"], exist_ok=True)
+    logf = open(os.path.join(cfg["inbox"], "bleachtray.log"), "a", encoding="utf-8")
+
+    def log(msg):
+        line = f"{datetime.datetime.now():%Y-%m-%d %H:%M:%S}  {msg}"
+        print(line, flush=True); logf.write(line + "\n"); logf.flush()
+
+    sys.path.insert(0, here)
+    from bleachtray.watch import Watcher
+    threading.Thread(target=Watcher(cfg, log=log).run_forever, daemon=True).start()
+
+
 if __name__ == "__main__":
-    threading.Thread(target=_open, daemon=True).start()
+    import socket
+    print(f"  NLO Bleach Tray - browser app on this PC: http://127.0.0.1:{port}")
+    if host == "0.0.0.0":
+        print(f"  Other office computers:  http://{socket.gethostname()}:{port}")
+    _start_watcher()
+    if "--no-browser" not in sys.argv:
+        threading.Thread(target=_open, daemon=True).start()
     uvicorn.run("app.server:app", host=host, port=port, log_level="warning")
