@@ -14,6 +14,7 @@ import os, re, sys, time, json, shutil, traceback
 from datetime import datetime
 
 NAME_RE = re.compile(r"^(?P<first>[A-Za-z][A-Za-z'\-]*)[ _\-]+(?P<last>[A-Za-z][A-Za-z'\-]*)")
+TITLE_RE = re.compile(r"^(dr|mr|mrs|ms|miss|prof)\.?[ _\-]+", re.I)
 ARCH_RE = re.compile(r"(upper|maxil|lower|mandib)", re.I)
 
 DEFAULT_CONFIG = dict(
@@ -23,7 +24,7 @@ DEFAULT_CONFIG = dict(
 
 
 def parse_name(filename):
-    stem = os.path.splitext(os.path.basename(filename))[0]
+    stem = TITLE_RE.sub("", os.path.splitext(os.path.basename(filename))[0])
     m = NAME_RE.match(stem)
     first, last = (m.group("first"), m.group("last")) if m else ("Scan", re.sub(r"[^A-Za-z0-9]", "", stem)[:20] or "Unknown")
     a = ARCH_RE.search(stem)
