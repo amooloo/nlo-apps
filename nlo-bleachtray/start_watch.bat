@@ -8,7 +8,7 @@ if not "%~1"=="run" (
 cd /d "%~dp0"
 title NLO Bleach Tray watcher
 set "PY="
-py -3 --version >nul 2>&1 && set "PY=py -3"
+for %%V in (3.13 3.12 3.14 3.11) do if not defined PY py -%%V --version >nul 2>&1 && set "PY=py -%%V"
 if not defined PY set "PY=python"
 if not exist watch_config.json (
   echo  Setup has not been run yet. Close this window and double-click install.bat first.

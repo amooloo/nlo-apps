@@ -7,7 +7,7 @@ if not "%~1"=="run" (
 cd /d "%~dp0"
 title NLO Bleach Tray app
 set "PY="
-py -3 --version >nul 2>&1 && set "PY=py -3"
+for %%V in (3.13 3.12 3.14 3.11) do if not defined PY py -%%V --version >nul 2>&1 && set "PY=py -%%V"
 if not defined PY set "PY=python"
 %PY% run_app.py
 echo.
