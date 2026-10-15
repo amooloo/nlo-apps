@@ -87,6 +87,7 @@ code { font-family:ui-monospace,Menlo,Consolas,monospace; font-size:.88em; backg
       <li>Every model is engraved on the base inside the arch: patient name and <b>WHITENING</b> or <b>RETAINER</b> (Advanced settings to change or switch off).</li>
       <li>Processing takes about 30–40 seconds per arch.</li>
       <li>Something looks wrong on a case? Send Dr. Akhavan the patient name and the files from <code>BleachTray\done\…</code> (or <code>failed\…</code>).</li>
+      <li><b>Scanner integration:</b> under Advanced settings, save the scanner's export folder once. The app then lists the recent scans (patient, date, upper/lower) and <b>Make tray</b> processes them in one click — no dragging or re-exporting.</li>
       <li><b>Updating:</b> on the PC that runs the app, press <b>Win + R</b>, paste the line below, press Enter. It fetches the newest version from GitHub, keeps the settings, and restarts the app (ends with "UPDATE DONE").<br>
         <code style="white-space:normal;word-break:break-all;display:block;margin-top:6px;padding:8px 10px;font-size:.78em">powershell -NoExit -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol='Tls12'; iex (iwr 'https://raw.githubusercontent.com/amooloo/nlo-apps/main/nlo-bleachtray/update.ps1' -UseBasicParsing).Content"</code>
         <span class="muted">(On a PC that allows .bat files, double-clicking <code>update.bat</code> in the app folder does the same.)</span></li>

@@ -126,7 +126,14 @@
       <div class="hint" id="exporthint" style="margin-top:2px"></div>
       <label class="f">Doctor (for the order folder name)</label>
       <input type="text" id="doctor" value="Dr. Amir Akhavan">
+      <label class="f">Scanner export folder (AlliedStar) — lists recent scans here, one click makes the tray</label>
+      <div class="row" style="grid-template-columns:1fr auto"><input type="text" id="scanfolder" placeholder="e.g. \\SCANNER-PC\AlliedStar\Export"><button class="small" id="scanfolder_save">Save</button></div>
+      <div class="hint" id="scanfolder_hint"></div>
     </details>
+    <div class="jobs" id="scannerbox" style="display:none">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Recent scans from the scanner <a href="#" id="scanrefresh" style="float:right">refresh</a></div>
+      <div id="scanner"></div>
+    </div>
     <div class="jobs">
       <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Cases</div>
       <div id="jobs"></div>
@@ -286,7 +293,33 @@ fetch('/api/presets').then(r => r.json()).then(p => {
   if (!$('#export').value && s.order_root) $('#export').value = s.order_root;
   if (s.doctor) $('#doctor').value = s.doctor;
   if (!$('#export').value) $('#exporthint').textContent = 'Not set: orders will NOT go to OrthoFactory until this is filled in (or run install.bat on this PC).';
+  $('#scanfolder').value = s.scanner_folder || '';
+  refreshScanner();
 }).catch(() => {});
+$('#scanfolder_save').onclick = async () => {
+  const fd = new FormData(); fd.append('scanner_folder', $('#scanfolder').value.trim());
+  const r = await fetch('/api/settings', { method:'POST', body: fd });
+  $('#scanfolder_hint').textContent = r.ok ? 'Saved for the whole office.' : 'Could not save.';
+  refreshScanner();
+};
+$('#scanrefresh').onclick = ev => { ev.preventDefault(); refreshScanner(); };
+async function refreshScanner(){
+  let d; try { d = await (await fetch('/api/scanner/recent')).json(); } catch (e) { return; }
+  const box = $('#scannerbox');
+  if (!d.folder) { box.style.display = 'none'; return; }
+  box.style.display = 'block';
+  if (d.error) { $('#scanner').innerHTML = `<div class="hint" style="color:var(--err)">${d.folder}: ${d.error}</div>`; return; }
+  if (!d.patients.length) { $('#scanner').innerHTML = '<div class="hint">No scans in the last 14 days.</div>'; return; }
+  $('#scanner').innerHTML = d.patients.map((p, i) => `<div class="job"><span class="nm">${p.first} ${p.last}<br><span class="hint" style="margin:0">${p.date} · ${p.files.map(f => f.arch || 'scan').join(' + ')}</span></span><button class="small primary" data-make="${i}">Make tray</button></div>`).join('');
+  document.querySelectorAll('[data-make]').forEach(b => b.onclick = async () => {
+    const p = d.patients[+b.dataset.make]; b.disabled = true; b.textContent = 'Starting…';
+    $('#pfirst').value = p.first; $('#plast').value = p.last;
+    const fd = new FormData(); fd.append('paths', JSON.stringify(p.files.map(f => f.path))); fd.append('preset', $('#preset').value); fd.append('params', JSON.stringify(params()));
+    const r = await (await fetch('/api/scanner/make', { method:'POST', body: fd })).json();
+    refreshJobs(); if (r.id) selectJob(r.id);
+    b.textContent = 'Make tray'; b.disabled = false;
+  });
+}
 
 $('#go').onclick = async () => {
   const fd = new FormData(); files.forEach(f => fd.append('files', f)); fd.append('arches', JSON.stringify(files.map((f,i) => i===0 ? ($('#arch').value || null) : null))); fd.append('preset', $('#preset').value); fd.append('params', JSON.stringify(params())); fd.append('name', $('#name').value);
@@ -358,8 +391,13 @@ function parseSTL(buf){
 }
 function clear(group){ group.traverse(c => { if (c !== group) { c.geometry?.dispose(); c.material?.dispose(); } }); while(group.children.length) group.remove(group.children[0]); }
 function addTrimline(group, pts, color=0xe11d48){
-  const g = new THREE.BufferGeometry().setFromPoints(pts.map(p => new THREE.Vector3(p[0],p[1],p[2]+0.15)));
-  const m = new THREE.LineLoop(g, new THREE.LineBasicMaterial({color, linewidth:2})); m.userData.trimline = true; m.visible = $('#showtl').checked; group.add(m);
+  // the line lies on the surface, so parts of it would sink just under the mesh (gum bulges, 1 mm
+  // onto the gum for retainers): draw it twice - solid where visible, faint where the model hides it
+  const g = new THREE.BufferGeometry().setFromPoints(pts.map(p => new THREE.Vector3(p[0],p[1],p[2])));
+  const solid = new THREE.LineLoop(g, new THREE.LineBasicMaterial({color, linewidth:2}));
+  const ghost = new THREE.LineLoop(g, new THREE.LineBasicMaterial({color, transparent:true, opacity:0.45, depthTest:false}));
+  ghost.renderOrder = 10;
+  for (const m of [solid, ghost]) { m.userData.trimline = true; m.visible = $('#showtl').checked; group.add(m); }
 }
 let scanIdx = 0;
 async function loadResult(id, j){
