@@ -14,7 +14,8 @@
   main { flex:1; display:grid; grid-template-columns: 350px 1fr; min-height:0; }
   aside { background:var(--panel); border-right:1px solid var(--line); padding:14px; overflow:auto; }
   section.viewer { position:relative; min-height:0; }
-  canvas { display:block; }
+  canvas { display:block; position:absolute; inset:0; width:100% !important; height:100% !important; z-index:0; }
+  .toolbar, .brush, .place, .stats, #fatal, #errline { z-index:2; }
   .drop { border:2px dashed #c9c6bd; border-radius:10px; padding:18px; text-align:center; color:var(--muted); cursor:pointer; transition:.15s; }
   .drop.over { border-color:var(--accent); background:#eef3ff; color:var(--accent); }
   .drop b { color:var(--ink); }
@@ -225,7 +226,7 @@ const key = new THREE.DirectionalLight(0xffffff, 1.2); key.position.set(60,-80,1
 const fill = new THREE.DirectionalLight(0xffffff, .5); fill.position.set(-80,60,40); scene.add(fill);
 const grid = new THREE.GridHelper(200, 20, 0xdddddd, 0xeeeeee); grid.rotation.x = Math.PI/2; grid.position.z = -0.05; scene.add(grid);
 
-function resize(){ const w = viewer.clientWidth, h = viewer.clientHeight; renderer.setSize(w,h,false); camera.aspect = w/h; camera.updateProjectionMatrix(); }
+function resize(){ const w = viewer.clientWidth, h = viewer.clientHeight; if (!w || !h) return; renderer.setSize(w,h,false); camera.aspect = w/h; camera.updateProjectionMatrix(); }
 new ResizeObserver(resize).observe(viewer); resize();
 (function loop(){ controls.update(); renderer.render(scene, camera); requestAnimationFrame(loop); })();
 
@@ -255,7 +256,7 @@ function setFiles(fs, auto){
   if(!fs.length) { $('#filehint').textContent = 'That was not an STL file.'; return; }
   files = fs; $('#filehint').textContent = fs.map(f => `${f.name} (${(f.size/1e6).toFixed(1)} MB)`).join(' + ');
   $('#name').value = fs[0].name.replace(/\.(stl|ply)$/i,'');
-  const m = fs[0].name.match(/^([A-Za-z]+)[_ -]+([A-Za-z]+)/);
+  const m = fs[0].name.replace(/^(dr|mr|mrs|ms|miss|prof)\.?[ _-]+/i, '').match(/^([A-Za-z][A-Za-z'\-]*)[_ -]+([A-Za-z][A-Za-z'\-]*)/);
   if (m) { $('#pfirst').value = m[1]; $('#plast').value = m[2]; }
   $('#rerunbox').style.display = 'block';
   if (auto && $('#pfirst').value.trim() && $('#plast').value.trim()) { $('#filehint').textContent += ' — processing…'; $('#go').click(); }
