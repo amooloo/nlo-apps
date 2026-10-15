@@ -14,16 +14,13 @@ echo  ===============================================
 echo.
 
 rem ---- 1. A Python version the components support (3.11 - 3.14) -------------
-set "PY="
-for %%V in (3.13 3.12 3.14 3.11) do call :trypy %%V
-if not defined PY python -c "import sys; sys.exit(0 if (3,11)<=sys.version_info[:2]<=(3,14) else 1)" >nul 2>&1 && set "PY=python"
+call "%~dp0_findpy.bat"
 if not defined PY goto :nopython
-for /f "tokens=*" %%v in ('%PY% -c "import sys; print(sys.version.split()[0])"') do set "PYVER=%%v"
-echo  [1/4] Python %PYVER% found.
+echo  [1/4] Python found: %PY%
 
 rem ---- 2. Libraries ------------------------------------------------------
 echo  [2/4] Installing the app's components (2-5 minutes, needs internet)...
-%PY% -m pip install --quiet --disable-pip-version-check -r requirements.txt
+"%PY%" -m pip install --quiet --disable-pip-version-check --no-warn-script-location -r requirements.txt
 if errorlevel 1 goto :pipfail
 
 rem ---- 3. Find the Titan folder and the Trimlign base --------------------
@@ -36,14 +33,14 @@ if not defined TITAN (
 )
 echo  [3/4] Titan folder: %TITAN%
 echo        Learning the Trimlign base from an existing Titan export (about a minute)...
-%PY% tools\import_base.py "%TITAN%"
+"%PY%" tools\import_base.py "%TITAN%"
 if errorlevel 1 goto :nobase
 
 rem ---- 4. Inbox + settings ----------------------------------------------
 for %%I in ("%TITAN%\..") do set "PARENT=%%~fI"
 set "INBOX=%PARENT%\BleachTray"
 if not exist "%INBOX%" mkdir "%INBOX%"
-%PY% tools\write_config.py "%INBOX%" "%TITAN%"
+"%PY%" tools\write_config.py "%INBOX%" "%TITAN%"
 echo  [4/4] Drop folder created: %INBOX%
 echo.
 set /p "AUTOSTART=  Start the watcher automatically every time this PC signs in? (y/n): "
@@ -64,25 +61,26 @@ if exist "%~1:\clinical\3D printing\Titan\." set "TITAN=%~1:\clinical\3D printin
 goto :eof
 
 :autostart
-%PY% tools\make_startup_shortcut.py "%~dp0start_watch.bat"
+"%PY%" tools\make_startup_shortcut.py "%~dp0start_watch.bat"
 echo  Done - the watcher will start minimised at sign-in.
 goto :eof
 
-:trypy
-if defined PY goto :eof
-py -%~1 --version >nul 2>&1 && set "PY=py -%~1"
-goto :eof
-
 :nopython
-echo  This app needs Python 3.13 (the free program it runs on). Either it is not installed,
-echo  or only a newer Python is installed, which the geometry components do not support yet.
-echo  Having both installed side by side is fine.
+echo  No Python 3.13 found on this PC (the free program the app runs on).
+echo  I looked in:
+echo     %LOCALAPPDATA%\Programs\Python\Python313
+echo     %ProgramFiles%\Python313
+echo     C:\Python313
+echo  and the "py" launcher. Pythons that are installed, if any:
+py --list 2>nul
+dir /b /ad "%LOCALAPPDATA%\Programs\Python" 2>nul
+dir /b /ad "%ProgramFiles%\Python*" 2>nul
 echo.
-echo  The Python 3.13 installer will download now. When it has downloaded:
-echo    1. Run it (double-click python-3.13.16-amd64.exe in your Downloads).
-echo    2. IMPORTANT: on the first screen tick the box "Add python.exe to PATH".
-echo    3. Click "Install Now" and wait for "Setup was successful".
-echo  Then close this window and double-click install.bat again.
+echo  To install it: the Python 3.13 installer downloads now (python-3.13.16-amd64.exe, in Downloads).
+echo    1. Run it and click "Install Now". (The PATH checkbox is not required.)
+echo    2. Wait for "Setup was successful", then close that window.
+echo    3. Close this window and double-click install.bat again.
+echo  A newer Python already installed is fine; both can stay.
 echo.
 start https://www.python.org/ftp/python/3.13.16/python-3.13.16-amd64.exe
 goto :eof
