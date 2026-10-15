@@ -17,7 +17,20 @@ python tools/import_base.py "S:\clinical\3D printing\Titan\<any order folder>\<P
 The last line pulls the Trimlign base out of any existing Titan export (it sits at a fixed position in every
 Titan file) and builds the app's base assets. It is not kept in this repository.
 
-## Run
+## Zero-click mode (the everyday path)
+
+```
+python run_watch.py --inbox "S:\clinical\3D printing\BleachTray" --titan "S:\clinical\3D printing\Titan"
+```
+
+Drop the scanner's export (e.g. `Armaan_Shetty_20261015_09-20-31_upper.stl`) into the inbox. Patient and arch are
+read from the file name; an upper and a lower for the same patient dropped within 90 s become one order. About 30 s
+later the finished order is in OrthoFactory's input folder and the scan has moved to `inbox\done\<order>\` with all
+outputs; anything that fails lands in `inbox\failed\` with an `error.txt`. The log is `inbox\bleachtray.log`.
+Options are remembered in `watch_config.json`, so afterwards double-clicking `start_watch.bat` is enough (put a
+shortcut to it in `shell:startup` to run at sign-in).
+
+## Run the browser app (check / fix a case)
 
 ```
 python run_app.py            # opens http://127.0.0.1:8765
