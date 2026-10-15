@@ -43,17 +43,24 @@ def site_config():
 def _run(job):
     job["status"] = "running"
     job["log"] = []
+    job["started"] = time.time()
+    job["progress"] = dict(frac=0.0, label="starting", scan=0, of=len(job["scans"]))
     try:
         def log(msg):
             job["log"].append(msg)
         reports = []
+        n = len(job["scans"])
+        job.setdefault("feat_cache", {})
         for k, scan in enumerate(job["scans"]):
+            def progress(frac, label, k=k):
+                job["progress"] = dict(frac=round((k + frac) / n, 3), label=label, scan=k, of=n)
             override = None
             if job.get("mask_edit") is not None and job["mask_edit"].get("scan", 0) == k:
+                progress(0.02, "applying your brush fixes")
                 override = _apply_mask_edit(job, k)
             params = dict(job["params"]); params["arch"] = scan.get("arch") or None
             rep = process(scan["path"], job["dir"], name=scan["name"], params=params, models=MODELS,
-                          label_override=override, log=log)
+                          label_override=override, log=log, progress=progress, feat_cache=job["feat_cache"])
             scan["arch"] = rep["arch"]; scan["report"] = rep
             reports.append(rep)
         job["report"] = reports[0]
@@ -142,7 +149,13 @@ def _apply_mask_edit(job, k=0):
         mask[rem] = False
     raw = load_scan(scan["path"])
     mesh, _ = rough_orient(raw)
-    p_tooth, p_ip, aux = predict_tooth_prob(mesh, MODELS)
+    cache = job.setdefault("feat_cache", {})
+    feats = cache.get(scan["path"])
+    if feats is None:
+        from bleachtray.features import compute_features
+        feats = compute_features(mesh, return_aux=True)
+        cache[scan["path"]] = feats
+    p_tooth, p_ip, aux = predict_tooth_prob(mesh, MODELS, feats=feats)
     A = aux["A"]
     mask = clean_mask(mask, A)
     arch = scan.get("arch") or job["params"].get("arch") or detect_arch(mesh, os.path.basename(scan["path"]))
@@ -198,6 +211,9 @@ async def create_job(files: List[UploadFile] = File(...), preset: str = Form("bl
     job = dict(id=jid, dir=jdir, scans=scans, name=clean_name.replace(" ", "_"), params=p, status="queued",
                created=time.time(), filename=", ".join(sc["filename"] for sc in scans), preset=preset)
     JOBS[jid] = job
+    # feature caches are big: keep them only for the few most recent cases
+    for old in sorted(JOBS.values(), key=lambda j: -j["created"])[4:]:
+        old.pop("feat_cache", None)
     threading.Thread(target=_run, args=(job,), daemon=True).start()
     return {"id": jid}
 
@@ -255,7 +271,8 @@ def job_status(jid: str):
     job = JOBS.get(jid)
     if not job:
         raise HTTPException(404)
-    out = {k: v for k, v in job.items() if k in ("id", "name", "status", "log", "error", "preset", "params", "order_folder", "order_error", "review", "source")}
+    out = {k: v for k, v in job.items() if k in ("id", "name", "status", "log", "error", "preset", "params", "order_folder", "order_error", "review", "source", "progress")}
+    out["started"] = job.get("started")
     out["scans"] = [dict(name=sc["name"], filename=sc["filename"], arch=sc.get("arch")) for sc in job["scans"]]
     if job.get("reports"):
         out["reports"] = [{k: r[k] for k in r if k not in ("transform_raw_to_output",)} for r in job["reports"]]

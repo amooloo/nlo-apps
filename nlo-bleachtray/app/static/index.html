@@ -63,6 +63,9 @@
   .review { margin-top:10px; padding:10px 12px; border-radius:9px; background:#fff7e6; border:1px solid #f3dca8; font-size:13px; }
   .review.sent { background:#e4f6ea; border-color:#bfe6cc; } .review.discarded { background:#eee; border-color:#ddd; color:var(--muted); }
   .review .btns { display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; }
+  .review.working { background:#eef3ff; border-color:#c7d7fb; }
+  .bar { height:10px; background:#dfe6f5; border-radius:999px; overflow:hidden; margin:8px 0 4px; }
+  .bar > div { height:100%; background:var(--accent); border-radius:999px; transition:width .6s ease; }
   .pill.review { background:#fff4e0; color:var(--warn); } .pill.sent { background:#e4f6ea; color:var(--ok); } .pill.discarded { background:#eee; color:var(--muted); }
   #errline { display:none; position:absolute; bottom:12px; right:12px; max-width:520px; background:#fde8e6; color:var(--err); border:1px solid #f1b9b4; border-radius:9px; padding:8px 12px; font-size:12px; z-index:6; }
 </style>
@@ -307,10 +310,23 @@ async function selectJob(id){
   const tick = async () => {
     const j = await (await fetch('/api/jobs/'+id)).json();
     $('#log').textContent = (j.log||[]).join('\n') + (j.error ? '\nERROR: '+j.error : '');
+    if (j.status === 'running' || j.status === 'queued') renderProgress(j);
     if (j.status === 'done') { clearInterval(pollTimer); refreshJobs(); try { await loadResult(id, j); } catch (ex) { showErr('Could not show the result: ' + (ex && ex.message || ex)); } }
     if (j.status === 'error') { clearInterval(pollTimer); refreshJobs(); $('#stats').textContent = 'Processing failed — see the processing log.'; }
   };
   await tick(); pollTimer = setInterval(tick, 1200);
+}
+
+// ---------- progress while a case is being processed ----------
+function renderProgress(j){
+  const p = j.progress || { frac: 0, label: 'starting' };
+  const pct = Math.round(100 * Math.min(1, p.frac));
+  const el = j.started ? Math.max(0, Math.round(Date.now() / 1000 - j.started)) : 0;
+  const mmss = `${Math.floor(el / 60)}:${String(el % 60).padStart(2, '0')}`;
+  const which = (p.of > 1) ? ` (arch ${p.scan + 1} of ${p.of})` : '';
+  const box = $('#review'); box.className = 'review working';
+  box.innerHTML = `<b>Processing… ${pct}%</b> — ${p.label}${which}<div class="bar"><div style="width:${pct}%"></div></div><div class="hint">${mmss} elapsed · usually 1–3 minutes per arch, longer on a slow PC</div>`;
+  $('#stats').innerHTML = `<b>${j.name}</b> — processing ${pct}%: ${p.label}${which}`;
 }
 
 // ---------- review: nothing goes to OrthoFactory until someone looks at it and clicks Send ----------

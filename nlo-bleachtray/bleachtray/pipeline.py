@@ -107,7 +107,7 @@ def detect_arch(mesh, filename=""):
     return "upper" if frac > 0.12 else "lower"
 
 
-def process(scan_path, out_dir, name=None, params=None, models=None, label_override=None, log=print):
+def process(scan_path, out_dir, name=None, params=None, models=None, label_override=None, log=print, progress=None, feat_cache=None):
     """Run the whole pipeline. Returns a dict report. `label_override` lets the UI pass corrected
     per-vertex tooth labels (in the rough-oriented frame) to skip the classifier."""
     P = dict(DEFAULTS)
@@ -118,13 +118,30 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     os.makedirs(out_dir, exist_ok=True)
     rep = dict(name=name, params=P, steps=[])
 
+    def prog(frac, label):
+        if progress is not None:
+            try:
+                progress(frac, label)
+            except Exception:
+                pass
+    prog(0.02, "loading the scan")
+
     raw = load_scan(scan_path)
     mesh, T_rough = rough_orient(raw)
     rep["steps"].append(("load+orient", round(time.time() - t0, 2)))
+    prog(0.08, "finding teeth and gum")
 
     models = models or load_models()
     arch_hint = P.get("arch") or detect_arch(mesh, os.path.basename(scan_path))
-    p_tooth, p_ip, aux = predict_tooth_prob(mesh, models)
+    # features are the same for the same scan, so re-runs (brush fixes, base nudges) reuse them
+    feats = feat_cache.get(scan_path) if feat_cache is not None else None
+    if feats is None:
+        from .features import compute_features
+        feats = compute_features(mesh, return_aux=True)
+        if feat_cache is not None:
+            feat_cache[scan_path] = feats
+    p_tooth, p_ip, aux = predict_tooth_prob(mesh, models, feats=feats)
+    prog(0.30, "separating the teeth")
     A = aux["A"]
     if label_override is not None:
         labels = np.asarray(label_override)
@@ -136,6 +153,7 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     n_teeth = len(info)
     rep["teeth"] = {int(k): dict(side=int(v[0]), position=int(v[1])) for k, v in info.items()}
     rep["steps"].append(("segment", round(time.time() - t0, 2)))
+    prog(0.42, "trim line and reservoirs")
     log(f"[{name}] teeth: {n_teeth} ({sum(1 for s,_ in info.values() if s<0)} left / {sum(1 for s,_ in info.values() if s>0)} right)")
 
     # trimline: gum line (tooth/gingiva boundary), optionally pushed `trimline_offset` mm onto the
@@ -163,6 +181,7 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
         mesh_r = smooth_periphery(mesh_r, labels, A, start=2.0, full=P["facial_offset"])
     rep["reservoir_vertices"] = int((d > 0.05).sum())
     rep["steps"].append(("reservoirs", round(time.time() - t0, 2)))
+    prog(0.55, "building the solid model")
     # "scan with reservoirs" in the ORIGINAL scanner coordinates: drop-in replacement for the raw
     # scan in OrthoFactory / Titan (they do their own basing + trim path)
     scan_res = mesh_r.copy()
@@ -233,6 +252,7 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     rep["body_watertight"] = bool(body.is_watertight)
     rep["body_volume_ml"] = round(float(body.volume) / 1000.0, 2)
     rep["steps"].append(("solid", round(time.time() - t0, 2)))
+    prog(0.85, "adding the base and engraving")
     log(f"[{name}] body watertight={body.is_watertight} volume={rep['body_volume_ml']} mL")
 
     if P["add_base"]:
@@ -286,5 +306,6 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     # debug state for the UI / verification
     np.savez(os.path.join(out_dir, f"{name}_state.npz"), labels=labels, d=d, margin=margin_f,
              T_rough=T_rough, T_ref=T_ref, T_place=T_place, p_tooth=p_tooth)
+    prog(1.0, "done")
     log(f"[{name}] done in {rep['elapsed_s']} s -> {stl_path}")
     return rep
