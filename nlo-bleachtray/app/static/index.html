@@ -56,6 +56,14 @@
   details.adv summary { font-size:12px; color:var(--muted); cursor:pointer; user-select:none; }
   #fatal { display:none; position:absolute; top:60px; left:12px; right:12px; background:#fde8e6; color:var(--err); border:1px solid #f1b9b4; border-radius:9px; padding:10px 14px; font-size:13px; z-index:5; }
   header a { color:var(--muted); font-size:12px; margin-left:auto; }
+  .opt { display:grid; grid-template-columns:48px 1fr; gap:10px; align-items:start; margin-top:8px; }
+  .opt .ico { width:48px; height:48px; margin-top:12px; }
+  .opt label.f { margin-top:4px; }
+  .review { margin-top:10px; padding:10px 12px; border-radius:9px; background:#fff7e6; border:1px solid #f3dca8; font-size:13px; }
+  .review.sent { background:#e4f6ea; border-color:#bfe6cc; } .review.discarded { background:#eee; border-color:#ddd; color:var(--muted); }
+  .review .btns { display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; }
+  .pill.review { background:#fff4e0; color:var(--warn); } .pill.sent { background:#e4f6ea; color:var(--ok); } .pill.discarded { background:#eee; color:var(--muted); }
+  #errline { display:none; position:absolute; bottom:12px; right:12px; max-width:520px; background:#fde8e6; color:var(--err); border:1px solid #f1b9b4; border-radius:9px; padding:8px 12px; font-size:12px; z-index:6; }
 </style>
 </head>
 <body>
@@ -81,41 +89,70 @@
         <option value="plain_model">Plain model</option>
       </select></div>
     </div>
-    <input type="hidden" id="name">
-    <div style="margin-top:12px"><button class="primary" id="go" disabled>Process scan</button></div>
-    <div class="hint" id="filehint">No file selected.</div>
+    <input type="hidden" id="name"><input type="hidden" id="stage" value="0"><input type="hidden" id="kind" value="T">
+    <div class="hint" id="filehint">No file yet.</div>
+    <div id="rerunbox" style="display:none;margin-top:8px"><button class="small" id="go">Run again with these settings</button></div>
     <details class="adv">
       <summary>Advanced settings</summary>
-      <div class="row">
-        <div><label class="f">Stage #</label><input type="number" id="stage" value="0" min="0" step="1"></div>
-        <div><label class="f">Piece type</label><select id="kind"><option value="T">Template (T)</option><option value="A">Aligner (A)</option></select></div>
-      </div>
-      <label class="f">Patient ID (Edge, optional)</label><input type="text" id="pid" placeholder="80010">
-      <label class="f">OrthoFactory input folder (the finished order is written there)</label>
+      <div class="opt"><svg class="ico"><use href="#ico-res"/></svg><div>
+        <label class="f">Gel reservoirs</label>
+        <div class="row"><div><input type="number" id="res_h" step="0.1" min="0" max="1.5" value="0.5"><div class="hint">height (mm)</div></div>
+        <div><input type="number" id="res_n" step="1" min="0" max="7" value="5"><div class="hint">teeth from the midline (5 = canine to 2nd premolar)</div></div></div>
+      </div></div>
+      <div class="opt"><svg class="ico"><use href="#ico-trim"/></svg><div>
+        <label class="f">Trim line</label>
+        <select id="tl_off"><option value="0">At the gum line (bleaching trays)</option><option value="0.5">0.5 mm onto the gum</option><option value="1">1 mm onto the gum</option><option value="1.25">1.25 mm onto the gum (aligners)</option><option value="1.5">1.5 mm onto the gum</option><option value="2">2 mm onto the gum</option></select>
+      </div></div>
+      <div class="opt"><svg class="ico"><use href="#ico-gap"/></svg><div>
+        <label class="f">Between the teeth</label>
+        <select id="bridge"><option value="3">Straight across the gum points (semi-scallop)</option><option value="4">Straight across, wider bridges</option><option value="0">Follow the gum down into every gap (full scallop)</option></select>
+      </div></div>
+      <div class="opt"><svg class="ico"><use href="#ico-base"/></svg><div>
+        <label class="f">Trimlign base</label>
+        <select id="base"><option value="1">Add the base (Titan placement)</option><option value="0">No base</option></select>
+      </div></div>
+      <label class="f">Patient ID in Edge (optional)</label><input type="text" id="pid" placeholder="80010">
+      <label class="f">OrthoFactory input folder (approved orders are written there)</label>
       <input type="text" id="export" placeholder="S:\clinical\3D printing\Titan" value="">
       <div class="hint" id="exporthint" style="margin-top:2px"></div>
       <label class="f">Doctor (for the order folder name)</label>
       <input type="text" id="doctor" value="Dr. Amir Akhavan">
-      <div class="row">
-        <div><label class="f">Reservoir height (mm)</label><input type="number" id="res_h" step="0.1" min="0" max="1.5" value="0.5"></div>
-        <div><label class="f">Reservoir teeth (from midline)</label><input type="number" id="res_n" step="1" min="0" max="7" value="5"></div>
-      </div>
-      <div class="row">
-        <div><label class="f">Trimline offset onto gum (mm)</label><input type="number" id="tl_off" step="0.25" min="0" max="4" value="0"></div>
-        <div><label class="f">Papilla bridge radius (mm)</label><input type="number" id="bridge" step="0.5" min="0" max="6" value="3"></div>
-      </div>
-      <label class="f">Trimlign base</label>
-      <select id="base"><option value="1">Add base (Titan placement)</option><option value="0">No base</option></select>
     </details>
     <div class="jobs">
-      <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Cases this session</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Cases</div>
       <div id="jobs"></div>
     </div>
     <div id="detail" style="display:none">
-      <div class="log" id="log"></div>
+      <div class="review" id="review"></div>
       <div class="dl" id="dl"></div>
+      <details style="margin-top:8px"><summary class="hint" style="cursor:pointer">Processing log</summary><div class="log" id="log"></div></details>
     </div>
   </aside>
+  <svg width="0" height="0" style="position:absolute">
+    <defs>
+      <symbol id="ico-res" viewBox="0 0 48 48">
+        <path d="M14 8 Q24 4 34 8 L37 30 Q34 42 24 44 Q14 42 11 30 Z" fill="#fff" stroke="#1b1b1f" stroke-width="1.6" stroke-linejoin="round"/>
+        <path d="M17 13 Q24 10 31 13 L33 29 Q31 37 24 38.5 Q17 37 15 29 Z" fill="#9cc3ff" stroke="#2f6fed" stroke-width="1.2"/>
+        <path d="M6 44 Q24 40 42 44" fill="none" stroke="#e08f8f" stroke-width="2"/>
+      </symbol>
+      <symbol id="ico-trim" viewBox="0 0 48 48">
+        <path d="M14 8 Q24 4 34 8 L37 30 Q34 42 24 44 Q14 42 11 30 Z" fill="#fff" stroke="#1b1b1f" stroke-width="1.6" stroke-linejoin="round"/>
+        <path d="M4 40 Q10 30 14 36 Q24 46 34 36 Q38 30 44 40" fill="#f3c9c9" stroke="#e08f8f" stroke-width="1.5"/>
+        <path d="M6 37 Q12 31 15 35 Q24 44 33 35 Q36 31 42 37" fill="none" stroke="#e11d48" stroke-width="2" stroke-dasharray="3 2"/>
+      </symbol>
+      <symbol id="ico-gap" viewBox="0 0 48 48">
+        <path d="M6 10 Q14 6 21 10 L22 30 Q19 42 12 43 Q5 42 4 30 Z" fill="#fff" stroke="#1b1b1f" stroke-width="1.5" stroke-linejoin="round"/>
+        <path d="M27 10 Q34 6 42 10 L44 30 Q43 42 36 43 Q29 42 26 30 Z" fill="#fff" stroke="#1b1b1f" stroke-width="1.5" stroke-linejoin="round"/>
+        <path d="M18 44 L24 30 L30 44 Z" fill="#f3c9c9" stroke="#e08f8f" stroke-width="1.2"/>
+        <path d="M3 36 Q10 33 16 36 L32 36 Q38 33 45 36" fill="none" stroke="#e11d48" stroke-width="2" stroke-dasharray="3 2"/>
+      </symbol>
+      <symbol id="ico-base" viewBox="0 0 48 48">
+        <path d="M8 22 Q24 6 40 22 L40 30 Q24 16 8 30 Z" fill="#fff" stroke="#1b1b1f" stroke-width="1.5" stroke-linejoin="round"/>
+        <rect x="4" y="32" width="40" height="9" rx="2" fill="#9aa4b2" stroke="#4b5563" stroke-width="1.2"/>
+        <circle cx="24" cy="36.5" r="1.8" fill="#1b1b1f"/>
+      </symbol>
+    </defs>
+  </svg>
   <section class="viewer">
     <div class="toolbar">
       <span class="tab on" data-tab="result">Result</span>
@@ -145,6 +182,7 @@
     </div>
     <div class="stats" id="stats">Drop a scan to begin.</div>
     <div id="fatal"></div>
+    <div id="errline"></div>
     <canvas id="c"></canvas>
   </section>
 </main>
@@ -180,7 +218,7 @@ const canvas = $('#c'), viewer = $('section.viewer');
 const renderer = new THREE.WebGLRenderer({canvas, antialias:true});
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 const scene = new THREE.Scene(); scene.background = new THREE.Color(0xf6f5f2);
-const camera = new THREE.PerspectiveCamera(35, 1, 1, 2000); camera.position.set(0, 150, 105); camera.up.set(0,0,1);
+const camera = new THREE.PerspectiveCamera(35, 1, 1, 2000); camera.position.set(0, 105, 70); camera.up.set(0,0,1);
 const controls = new OrbitControls(camera, canvas); controls.target.set(0,-15,5);
 scene.add(new THREE.HemisphereLight(0xffffff, 0x9a9a9a, 1.1));
 const key = new THREE.DirectionalLight(0xffffff, 1.2); key.position.set(60,-80,140); scene.add(key);
@@ -216,14 +254,15 @@ function setFiles(fs, auto){
   fs = fs.filter(f => /\.(stl|ply)$/i.test(f.name)).slice(0,2);
   if(!fs.length) { $('#filehint').textContent = 'That was not an STL file.'; return; }
   files = fs; $('#filehint').textContent = fs.map(f => `${f.name} (${(f.size/1e6).toFixed(1)} MB)`).join(' + ');
-  $('#go').disabled = false; $('#name').value = fs[0].name.replace(/\.(stl|ply)$/i,'');
+  $('#name').value = fs[0].name.replace(/\.(stl|ply)$/i,'');
   const m = fs[0].name.match(/^([A-Za-z]+)[_ -]+([A-Za-z]+)/);
   if (m) { $('#pfirst').value = m[1]; $('#plast').value = m[2]; }
-  if (auto && $('#pfirst').value.trim() && $('#plast').value.trim()) { $('#filehint').textContent += ' — processing. (Wrong name? Fix it and click Process scan again.)'; $('#go').click(); }
-  else if (auto) { $('#filehint').textContent += ' — type the patient\'s first and last name, then click Process scan.'; }
+  $('#rerunbox').style.display = 'block';
+  if (auto && $('#pfirst').value.trim() && $('#plast').value.trim()) { $('#filehint').textContent += ' — processing…'; $('#go').click(); }
+  else if (auto) { $('#filehint').textContent += ' — type the patient\'s first and last name, then click "Run again".'; }
 }
 
-$('#preset').onchange = () => { const p = $('#preset').value; const map = { bleaching:[0.5,5,0,3], bleaching_3_3:[0.5,3,0,3], aligner_high:[0,0,1.25,4], plain_model:[0,0,0,3] }[p]; $('#res_h').value = map[0]; $('#res_n').value = map[1]; $('#tl_off').value = map[2]; $('#bridge').value = map[3]; };
+$('#preset').onchange = () => { const p = $('#preset').value; const map = { bleaching:[0.5,5,'0','3'], bleaching_3_3:[0.5,3,'0','3'], aligner_high:[0,0,'1.25','4'], plain_model:[0,0,'0','3'] }[p]; $('#res_h').value = map[0]; $('#res_n').value = map[1]; $('#tl_off').value = map[2]; $('#bridge').value = map[3]; };
 function params(){ return { reservoir_height: +$('#res_h').value, reservoir_max_position: +$('#res_n').value, trimline_offset: +$('#tl_off').value, bridge_radius: +$('#bridge').value, add_base: $('#base').value === '1', patient_first: $('#pfirst').value.trim(), patient_last: $('#plast').value.trim(), stage: +$('#stage').value, arch: $('#arch').value || null, order_root: $('#export').value.trim(), patient_id: $('#pid').value.trim(), kind: $('#kind').value, doctor: $('#doctor').value.trim(), adjust: { ...adjust } }; }
 try { $('#export').value = localStorage.getItem('exportFolder') || ''; } catch(e) {}
 $('#export').onchange = () => { try { localStorage.setItem('exportFolder', $('#export').value.trim()); } catch(e) {} };
@@ -237,6 +276,7 @@ fetch('/api/presets').then(r => r.json()).then(p => {
 
 $('#go').onclick = async () => {
   const fd = new FormData(); files.forEach(f => fd.append('files', f)); fd.append('arches', JSON.stringify(files.map((f,i) => i===0 ? ($('#arch').value || null) : null))); fd.append('preset', $('#preset').value); fd.append('params', JSON.stringify(params())); fd.append('name', $('#name').value);
+  if (!files.length) return;
   $('#go').disabled = true;
   const r = await fetch('/api/jobs', { method:'POST', body: fd }); const j = await r.json();
   $('#go').disabled = false; refreshJobs(); selectJob(j.id);
@@ -245,7 +285,8 @@ $('#go').onclick = async () => {
 // ---------- jobs ----------
 async function refreshJobs(){
   const jobs = await (await fetch('/api/jobs')).json();
-  $('#jobs').innerHTML = jobs.map(j => `<div class="job ${j.id===currentJob?'active':''}" data-id="${j.id}"><span class="nm">${j.name}</span><span class="pill ${j.status}">${j.status}</span></div>`).join('') || '<div class="hint">None yet.</div>';
+  const st = j => j.status === 'done' ? (j.review || 'review') : j.status;
+  $('#jobs').innerHTML = jobs.map(j => `<div class="job ${j.id===currentJob?'active':''}" data-id="${j.id}"><span class="nm">${j.name}</span><span class="pill ${st(j)}">${st(j) === 'review' ? 'check & send' : st(j)}</span></div>`).join('') || '<div class="hint">None yet.</div>';
   document.querySelectorAll('.job').forEach(e => e.onclick = () => selectJob(e.dataset.id));
 }
 let pollTimer = null;
@@ -255,10 +296,30 @@ async function selectJob(id){
   const tick = async () => {
     const j = await (await fetch('/api/jobs/'+id)).json();
     $('#log').textContent = (j.log||[]).join('\n') + (j.error ? '\nERROR: '+j.error : '');
-    if (j.status === 'done') { clearInterval(pollTimer); refreshJobs(); await loadResult(id, j); }
-    if (j.status === 'error') { clearInterval(pollTimer); refreshJobs(); $('#stats').textContent = 'Processing failed — see log.'; }
+    if (j.status === 'done') { clearInterval(pollTimer); refreshJobs(); try { await loadResult(id, j); } catch (ex) { showErr('Could not show the result: ' + (ex && ex.message || ex)); } }
+    if (j.status === 'error') { clearInterval(pollTimer); refreshJobs(); $('#stats').textContent = 'Processing failed — see the processing log.'; }
   };
   await tick(); pollTimer = setInterval(tick, 1200);
+}
+
+// ---------- review: nothing goes to OrthoFactory until someone looks at it and clicks Send ----------
+function showErr(msg){ const e = $('#errline'); e.textContent = msg; e.style.display = 'block'; console.error(msg); }
+window.addEventListener('error', ev => showErr('Page error: ' + (ev.message || ev)));
+window.addEventListener('unhandledrejection', ev => showErr('Page error: ' + (ev.reason && ev.reason.message || ev.reason)));
+function renderReview(id, j){
+  const box = $('#review'); box.className = 'review ' + (j.review || '');
+  const n = (j.scans || []).length;
+  if (j.review === 'sent') {
+    box.innerHTML = `<b>Sent to OrthoFactory.</b> It appears under Production as a stage-0 Template.<div class="hint">${j.order_folder || ''}</div>`;
+  } else if (j.review === 'discarded') {
+    box.innerHTML = `<b>Discarded</b> — nothing was sent to OrthoFactory.`;
+  } else {
+    box.innerHTML = `<b>Check the 3D result${n > 1 ? ' (both arches)' : ''}.</b> Fix teeth with the brush or nudge the base if needed, then:` +
+      `<div class="btns"><button class="primary small" id="sendbtn">Send to OrthoFactory</button><button class="small" id="discardbtn">Discard</button></div>` +
+      (j.order_error ? `<div class="hint" style="color:var(--err)">${j.order_error}</div>` : '');
+    $('#sendbtn').onclick = async () => { $('#sendbtn').disabled = true; $('#sendbtn').textContent = 'Sending…'; const r = await (await fetch(`/api/jobs/${id}/approve`, { method:'POST', body: new FormData() })).json(); refreshJobs(); renderReview(id, r); if (r.order_error) showErr(r.order_error); };
+    $('#discardbtn').onclick = async () => { const r = await (await fetch(`/api/jobs/${id}/discard`, { method:'POST', body: new FormData() })).json(); refreshJobs(); renderReview(id, r); };
+  }
 }
 
 // ---------- loading results ----------
@@ -278,9 +339,9 @@ async function loadResult(id, j){
   if (scanIdx >= (j.scans||[]).length) scanIdx = 0;
   const r = (j.reports || [j.report])[scanIdx] || {};
   const scanSel = (j.scans||[]).length > 1 ? `<div class="seg" style="margin-bottom:6px">${j.scans.map((s,i) => `<button class="small ${i===scanIdx?'on':''}" data-scan="${i}">${s.arch||'scan '+(i+1)}</button>`).join('')}</div>` : '';
-  const orderNote = j.order_folder ? `<div class="hint" style="color:var(--ok)">OrthoFactory order written:<br>${j.order_folder}</div>` : (j.order_error ? `<div class="hint" style="color:var(--err)">Not sent to OrthoFactory: ${j.order_error}</div>` : '');
+  renderReview(id, j);
   $('#stats').innerHTML = `<b>${j.name}</b> — ${r.arch || ''} · ${r.teeth ? Object.keys(r.teeth).length : '?'} teeth · body ${r.body_watertight ? 'watertight' : 'NOT watertight'} · ${r.body_volume_ml} mL · base: ${r.base} · trimline ${r.trimline_points} pts · ${r.elapsed_s}s`;
-  const tb = r.titan_basename; const exp = orderNote; const q = `?scan=${scanIdx}`;
+  const tb = r.titan_basename; const exp = ''; const q = `?scan=${scanIdx}`;
   $('#dl').innerHTML = scanSel + (tb ? `<a href="/api/jobs/${id}/file/titan_stl${q}" download><button class="small primary">${tb}.stl</button></a><a href="/api/jobs/${id}/file/titan_pts${q}" download><button class="small primary">${tb}.pts</button></a>` : '') + `<a href="/api/jobs/${id}/file/model${q}" download><button class="small">Model (.stl)</button></a><a href="/api/jobs/${id}/file/trimline${q}" download><button class="small">Trimline (.pts)</button></a><a href="/api/jobs/${id}/file/scan_res${q}" download><button class="small">Scan + reservoirs (.stl)</button></a>` + exp;
   document.querySelectorAll('[data-scan]').forEach(b => b.onclick = () => { scanIdx = +b.dataset.scan; loadResult(id, j); });
   // result: the arch body and the base as two pieces, so the arch can be moved on the base
@@ -382,7 +443,7 @@ $('#rerun').onclick = async () => {
   const fd = new FormData(); fd.append('edits', JSON.stringify({ scan: scanIdx, add:[...edits.add], remove:[...edits.remove] })); fd.append('params', JSON.stringify(params()));
   await fetch(`/api/jobs/${currentJob}/rerun`, { method:'POST', body: fd }); selectJob(currentJob);
 };
-refreshJobs(); showTab('result');
+refreshJobs(); showTab('result'); setInterval(refreshJobs, 10000);
 window.__appReady = true;
 </script>
 </body>

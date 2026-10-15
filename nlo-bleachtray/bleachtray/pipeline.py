@@ -59,6 +59,17 @@ def titan_basename(first, last, stage, arch):
     return f"{clean(first)}_{clean(last)}_-_{int(stage)}_-_{archname}"
 
 
+def scan_edge_zone(mesh, A, mm=1.0):
+    """Vertices within `mm` (geodesic) of the open edge of the scan."""
+    import trimesh
+    edges = mesh.edges_sorted
+    single = trimesh.grouping.group_rows(edges, require_count=1)
+    on_edge = np.zeros(len(mesh.vertices), bool)
+    if len(single):
+        on_edge[np.unique(edges[single])] = True
+    return geodesic_dilate(mesh, A, on_edge, mm)
+
+
 def separate_teeth(mesh, mask, p_ip, A, aux, arch, log=print):
     """Per-tooth labels: arch-profile boundaries (contacts from the interproximal classifier, incisal
     height dips, footprint pinches, facial grooves) + downhill flood. Falls back to the older
@@ -131,8 +142,13 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     line_mask = mask
     if P["trimline_offset"] > 0:
         line_mask = geodesic_dilate(mesh, A, mask, P["trimline_offset"])
+    # where the scan stops right at the teeth (common on the lingual of lowers) the gum line would
+    # run off the edge of the mesh and the contour could not close: keep it ~1 mm inside the scan edge
+    line_mask = line_mask & ~scan_edge_zone(mesh, A, 1.0)
     field = smooth_field(A, line_mask.astype(float), 3)
     loops = margin_contour(mesh, field, 0.5)
+    if len(loops) > 1 and len(loops[1]) > 0.5 * len(loops[0]):
+        log(f"[{name}] note: gum line came out in {len(loops)} pieces; using the longest")
     margin = resample_polyline(loops[0], 0.25)
     if P["bridge_radius"] > 0:
         margin = bridge_embrasures(margin, mesh, radius=P["bridge_radius"])
