@@ -16,6 +16,7 @@ FLOOR_BELOW_LOWEST_MARGIN = 3.0    # model floor is 3 mm below the lowest point 
 
 DEFAULTS = dict(
     reservoir_height=0.5, reservoir_setback=0.5, reservoir_feather=0.6, reservoir_max_position=5,
+    engrave=True, engrave_text="", engrave_type="",
     facial_offset=4.5, lingual_offset=4.0, trimline_spacing=0.5, add_base=True,
     trimline_offset=0.0,   # mm onto the gingiva: 0 = scalloped at the gum line (bleaching); 2-3 = "high" aligner line
     bridge_radius=3.0,     # straight bridges across papillae narrower than ~2x this
@@ -237,8 +238,18 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     if P["add_base"]:
         model, how = add_base(body)
         rep["base"] = how
+        if P.get("engrave", True):
+            from .engrave import engrave_model
+            model, placed = engrave_model(model, P, outline=outline, log=lambda m: log(f"[{name}] {m}"))
+            rep["engraved"] = placed
     else:
         model, how = body, "none"
+    # tiny slivers left by the booleans would print as floating specks
+    parts = model.split(only_watertight=False)
+    if len(parts) > 1:
+        keep = [q for q in parts if len(q.faces) >= 20]
+        if keep and len(keep) < len(parts):
+            model = trimesh.util.concatenate(keep) if len(keep) > 1 else keep[0]
     rep["model_faces"] = int(len(model.faces))
     rep["model_bounds"] = np.round(model.bounds, 2).tolist()
 

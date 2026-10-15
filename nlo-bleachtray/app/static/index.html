@@ -112,6 +112,11 @@
         <label class="f">Trimlign base</label>
         <select id="base"><option value="1">Add the base (Titan placement)</option><option value="0">No base</option></select>
       </div></div>
+      <div class="opt"><svg class="ico"><use href="#ico-eng"/></svg><div>
+        <label class="f">Engraving on the base (inside the arch)</label>
+        <select id="engrave"><option value="1">Patient name + WHITENING / RETAINER</option><option value="0">None</option></select>
+        <input type="text" id="engrave_text" placeholder="custom text, e.g. K. POST | UPPER" style="margin-top:6px">
+      </div></div>
       <label class="f">Patient ID in Edge (optional)</label><input type="text" id="pid" placeholder="80010">
       <label class="f">OrthoFactory input folder (approved orders are written there)</label>
       <input type="text" id="export" placeholder="S:\clinical\3D printing\Titan" value="">
@@ -146,6 +151,11 @@
         <path d="M27 10 Q34 6 42 10 L44 30 Q43 42 36 43 Q29 42 26 30 Z" fill="#fff" stroke="#1b1b1f" stroke-width="1.5" stroke-linejoin="round"/>
         <path d="M18 44 L24 30 L30 44 Z" fill="#f3c9c9" stroke="#e08f8f" stroke-width="1.2"/>
         <path d="M3 36 Q10 33 16 36 L32 36 Q38 33 45 36" fill="none" stroke="#e11d48" stroke-width="2" stroke-dasharray="3 2"/>
+      </symbol>
+      <symbol id="ico-eng" viewBox="0 0 48 48">
+        <rect x="4" y="12" width="40" height="24" rx="3" fill="#dfe3ea" stroke="#4b5563" stroke-width="1.2"/>
+        <text x="24" y="23" text-anchor="middle" font-family="Arial, sans-serif" font-weight="700" font-size="7" fill="#1b1b1f">K. POST</text>
+        <text x="24" y="31" text-anchor="middle" font-family="Arial, sans-serif" font-weight="700" font-size="5.5" fill="#1b1b1f">WHITENING</text>
       </symbol>
       <symbol id="ico-base" viewBox="0 0 48 48">
         <path d="M8 22 Q24 6 40 22 L40 30 Q24 16 8 30 Z" fill="#fff" stroke="#1b1b1f" stroke-width="1.5" stroke-linejoin="round"/>
@@ -264,7 +274,7 @@ function setFiles(fs, auto){
 }
 
 $('#preset').onchange = () => { const p = $('#preset').value; const map = { bleaching:[0.5,5,'0','3'], bleaching_3_3:[0.5,3,'0','3'], aligner_high:[0,0,'1.25','4'], plain_model:[0,0,'0','3'] }[p]; $('#res_h').value = map[0]; $('#res_n').value = map[1]; $('#tl_off').value = map[2]; $('#bridge').value = map[3]; };
-function params(){ return { reservoir_height: +$('#res_h').value, reservoir_max_position: +$('#res_n').value, trimline_offset: +$('#tl_off').value, bridge_radius: +$('#bridge').value, add_base: $('#base').value === '1', patient_first: $('#pfirst').value.trim(), patient_last: $('#plast').value.trim(), stage: +$('#stage').value, arch: $('#arch').value || null, order_root: $('#export').value.trim(), patient_id: $('#pid').value.trim(), kind: $('#kind').value, doctor: $('#doctor').value.trim(), adjust: { ...adjust } }; }
+function params(){ return { reservoir_height: +$('#res_h').value, reservoir_max_position: +$('#res_n').value, trimline_offset: +$('#tl_off').value, bridge_radius: +$('#bridge').value, add_base: $('#base').value === '1', patient_first: $('#pfirst').value.trim(), patient_last: $('#plast').value.trim(), stage: +$('#stage').value, arch: $('#arch').value || null, order_root: $('#export').value.trim(), patient_id: $('#pid').value.trim(), kind: $('#kind').value, doctor: $('#doctor').value.trim(), engrave: $('#engrave').value === '1', engrave_text: $('#engrave_text').value.trim(), adjust: { ...adjust } }; }
 try { $('#export').value = localStorage.getItem('exportFolder') || ''; } catch(e) {}
 $('#export').onchange = () => { try { localStorage.setItem('exportFolder', $('#export').value.trim()); } catch(e) {} };
 // The folder install.bat found on the lab PC is the default, so nobody has to type it.
