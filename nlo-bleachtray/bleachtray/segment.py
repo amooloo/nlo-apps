@@ -444,3 +444,322 @@ def smooth_polyline(P, iters=2, closed=True):
             Q[0], Q[-1] = P[0], P[-1]
         P = Q
     return P
+
+
+# ---------------------------------------------------------------------------------------------
+# Footprint watershed: tooth separation that does not depend on the papilla height or on
+# curvature thresholds. Seen from above, every crown is a convex-ish blob, so the outline of the
+# tooth mask pinches at every contact. The 2D distance transform of that footprint therefore has
+# one mountain per tooth with a saddle at each contact; a watershed from the mountain tops
+# separates the teeth, and the mesh watershed makes the boundary follow the pinch in 3D.
+# ---------------------------------------------------------------------------------------------
+def split_teeth_footprint(mesh, tooth_mask, A, px=0.1, min_peak=1.2, peak_sep_mm=2.5, merge_ratio=0.7,
+                          neighbour_mm=9.0, min_verts=120):
+    """Tooth ids (1..N, 0 = gingiva) from a watershed of the crown footprint. Returns (labels, n_peaks)."""
+    from scipy import ndimage as ndi
+    import heapq
+    V = mesh.vertices
+    idx = np.where(tooth_mask)[0]
+    if len(idx) < min_verts:
+        return tooth_mask.astype(int), 0
+    xy = V[idx, :2]
+    lo = xy.min(0) - 1.0
+    ij = np.floor((xy - lo) / px).astype(int)
+    H, W = ij[:, 1].max() + 12, ij[:, 0].max() + 12
+    img = np.zeros((H, W), bool)
+    img[ij[:, 1], ij[:, 0]] = True
+    # close the point raster into a solid footprint (vertex spacing ~0.25 mm -> 2-3 px)
+    r = max(2, int(round(0.3 / px)))
+    yy, xx = np.ogrid[-r:r + 1, -r:r + 1]
+    disk = (xx * xx + yy * yy) <= r * r
+    img = ndi.binary_closing(ndi.binary_dilation(img, disk), disk)
+    img = ndi.binary_fill_holes(img)
+    dt = ndi.distance_transform_edt(img) * px
+    # peaks = tooth centres
+    sep = max(3, int(round(peak_sep_mm / px)))
+    mx = ndi.maximum_filter(dt, size=2 * sep + 1)
+    pk = np.argwhere((dt == mx) & (dt >= min_peak))
+    if len(pk) == 0:
+        return tooth_mask.astype(int), 0
+    # drop duplicate plateau peaks, then merge peaks that lie on one ridge (no pinch between them)
+    pk = pk[np.lexsort((pk[:, 1], pk[:, 0]))]
+    keep = []
+    for p in pk:
+        if all(np.hypot(*(p - q)) > sep for q in keep):
+            keep.append(p)
+    pk = np.array(keep)
+    n = len(pk)
+    parent = list(range(n))
+
+    def find(a):
+        while parent[a] != a:
+            parent[a] = parent[parent[a]]; a = parent[a]
+        return a
+
+    for a in range(n):
+        for b in range(a + 1, n):
+            d = np.hypot(*(pk[a] - pk[b])) * px
+            if d > neighbour_mm:
+                continue
+            m = int(np.ceil(d / px)) + 1
+            line = np.linspace(pk[a], pk[b], m)
+            prof = dt[np.round(line[:, 0]).astype(int), np.round(line[:, 1]).astype(int)]
+            if prof.min() > merge_ratio * min(dt[tuple(pk[a])], dt[tuple(pk[b])]):
+                parent[find(a)] = find(b)
+    groups = {}
+    for a in range(n):
+        groups.setdefault(find(a), []).append(a)
+    seeds2d = [np.array([pk[a] for a in g]) for g in groups.values()]
+    # per-vertex height = footprint distance at the vertex's pixel; seeds = vertices nearest each peak
+    h = dt[ij[:, 1], ij[:, 0]]
+    labels_t = np.zeros(len(idx), int)
+    for k, s in enumerate(seeds2d):
+        for p in s:
+            d2 = (ij[:, 1] - p[0]) ** 2 + (ij[:, 0] - p[1]) ** 2
+            near = d2 <= sep * sep
+            labels_t[near] = k + 1
+    # priority-flood watershed on the tooth sub-graph, descending height
+    sub = A[idx][:, idx].tocsr()
+    indptr, indices = sub.indptr, sub.indices
+    heap = [(-h[i], i) for i in np.where(labels_t > 0)[0]]
+    heapq.heapify(heap)
+    while heap:
+        _, i = heapq.heappop(heap)
+        li = labels_t[i]
+        for j in indices[indptr[i]:indptr[i + 1]]:
+            if labels_t[j] == 0:
+                labels_t[j] = li
+                heapq.heappush(heap, (-h[j], j))
+    labels = np.zeros(len(tooth_mask), int)
+    labels[idx] = labels_t
+    return labels, len(seeds2d)
+
+
+# ---------------------------------------------------------------------------------------------
+# Arch-profile tooth separation. Three 1-D profiles along the arch (incisal/occlusal height,
+# crown-footprint half-width, facial concavity) are combined into a "boundary score"; its peaks
+# are the contacts. Segment widths are sanity-checked against the expected tooth width at that
+# arch position (so a flat row of crowded lower incisors still gets split, and a molar is not).
+# Teeth are then flooded from each segment's centre band downhill along z, so the boundaries
+# settle into the embrasures. Robust to flat papillae and broad contacts, unlike erosion.
+# ---------------------------------------------------------------------------------------------
+EXPECTED_WIDTH = {   # (|s| upper bound along the arch from the midline, mesiodistal width) in mm
+    "upper": [(8.5, 8.5), (15.0, 6.5), (22.5, 7.5), (36.5, 7.0), (99.0, 10.0)],
+    "lower": [(5.5, 5.5), (11.5, 6.0), (18.5, 7.0), (32.5, 7.0), (99.0, 11.0)],
+}
+
+
+def expected_width(s, arch):
+    for hi, w in EXPECTED_WIDTH["lower" if arch == "lower" else "upper"]:
+        if abs(s) < hi:
+            return w
+    return 10.0
+
+
+def arch_coordinate(xy, weight=None):
+    """Arc-length position along a parabola fitted to the arch (0 at the parabola axis = midline).
+    `weight` (e.g. footprint half-width) concentrates the fit on the crown centre-line, so that
+    positions are not compressed near the front of the arch."""
+    from .orient import symmetry_frame
+    import trimesh
+    from scipy.spatial import cKDTree
+    T, _, _ = symmetry_frame(xy)
+    Q = trimesh.transform_points(np.c_[xy, np.zeros(len(xy))], T)[:, :2]
+    if weight is not None:
+        sel = weight >= 0.6 * np.percentile(weight, 95)
+        if sel.sum() > 200:
+            Q = Q[sel]
+    # even quartic: follows tapered (V-shaped) arches that a parabola rounds off at the front
+    X = np.c_[Q[:, 0] ** 4, Q[:, 0] ** 2, np.ones(len(Q))]
+    cf = np.linalg.lstsq(X, Q[:, 1], rcond=None)[0]
+    coef = np.array([cf[0], 0.0, cf[1], 0.0, cf[2]])
+    Q = trimesh.transform_points(np.c_[xy, np.zeros(len(xy))], T)[:, :2]
+    xs = np.linspace(Q[:, 0].min() - 2, Q[:, 0].max() + 2, 3000)
+    ys = np.polyval(coef, xs)
+    arc = np.r_[0, np.cumsum(np.hypot(np.diff(xs), np.diff(ys)))]
+    s0 = np.interp(0, xs, arc)
+    s = arc[cKDTree(np.c_[xs, ys]).query(Q)[1]] - s0
+    return s
+
+
+def footprint_halfwidth(xy, px=0.1):
+    """Per-vertex distance from the edge of the crown footprint seen from above (mm)."""
+    from scipy import ndimage as ndi
+    lo = xy.min(0) - 1.0
+    ij = np.floor((xy - lo) / px).astype(int)
+    H, W = ij[:, 1].max() + 12, ij[:, 0].max() + 12
+    img = np.zeros((H, W), bool)
+    img[ij[:, 1], ij[:, 0]] = True
+    r = max(2, int(round(0.3 / px)))
+    yy, xx = np.ogrid[-r:r + 1, -r:r + 1]
+    disk = (xx * xx + yy * yy) <= r * r
+    img = ndi.binary_fill_holes(ndi.binary_closing(ndi.binary_dilation(img, disk), disk))
+    dt = ndi.distance_transform_edt(img) * px
+    return dt[ij[:, 1], ij[:, 0]]
+
+
+def arch_boundaries(s, z, hw, conc_facial, arch, p_ip=None, b=0.25, prominence=0.6, min_score=1.4, min_gap=3.0, edge=2.5, log=None):
+    """Contact positions along the arch from the combined boundary score. Returns (bounds, sgrid, score)."""
+    from scipy import ndimage as ndi
+    from scipy.signal import find_peaks
+    sb = np.round(s / b).astype(int); k0 = sb.min(); sb = sb - k0; n = sb.max() + 1
+    sgrid = (np.arange(n) + k0) * b
+    zmax = np.full(n, np.nan); wmax = np.full(n, np.nan); conc = np.full(n, np.nan); ipp = np.full(n, np.nan)
+    order = np.argsort(sb); sb_sorted = sb[order]
+    starts = np.searchsorted(sb_sorted, np.arange(n)); ends = np.searchsorted(sb_sorted, np.arange(n), side="right")
+    for k in range(n):
+        ii = order[starts[k]:ends[k]]
+        if len(ii) >= 3:
+            zmax[k] = np.percentile(z[ii], 97); wmax[k] = hw[ii].max()
+            c = conc_facial[ii]; c = c[np.isfinite(c)]
+            if len(c) >= 3:
+                conc[k] = np.percentile(c, 85)   # mean curvature: positive = concave in this code
+            if p_ip is not None:
+                ipp[k] = np.percentile(p_ip[ii], 85)
+
+    def fill(v):
+        ok = np.isfinite(v)
+        return np.interp(sgrid, sgrid[ok], v[ok]) if ok.sum() >= 2 else np.zeros(n)
+    sig = 0.4 / b
+    zs = ndi.gaussian_filter1d(fill(zmax), sig); ws = ndi.gaussian_filter1d(fill(wmax), sig); cs = ndi.gaussian_filter1d(fill(conc), sig)
+    def dip(v, mm=7.0):
+        """Two-sided dip depth: how far v sits below the lower of the maxima to its left and right."""
+        k = int(mm / b)
+        left = ndi.maximum_filter1d(v, k, origin=k // 2 - (0 if k % 2 else 1))   # max over [s-mm, s]
+        right = ndi.maximum_filter1d(v, k, origin=-(k // 2))                      # max over [s, s+mm]
+        return np.clip(np.minimum(left, right) - v, 0, None)
+    ips = ndi.gaussian_filter1d(fill(ipp), sig) if p_ip is not None else np.zeros(n)
+    # the interproximal classifier is the sharpest cue; height dips next; width / concavity help
+    # where the classifier is unsure (crowded incisors, unusual scans)
+    score = 3.0 * ips + dip(zs) / 1.0 + 0.5 * dip(ws) + np.clip(cs, 0, None) / 1.0
+    # min height 1.4: a concave groove alone (molar fissure / buccal groove) is not a contact
+    pk, _ = find_peaks(score, prominence=prominence, height=min_score, distance=int(min_gap / b))
+    lo, hi = sgrid[0], sgrid[-1]
+    bounds = [sgrid[p] for p in pk if lo + edge < sgrid[p] < hi - edge]
+    # width sanity: split segments far too wide for their position, merge ones far too narrow
+    for _ in range(20):
+        edges = [lo] + bounds + [hi]
+        changed = False
+        for i in range(len(edges) - 1):
+            a, c = edges[i], edges[i + 1]
+            mid = 0.5 * (a + c); w = c - a; ew = expected_width(mid, arch)
+            inner = (sgrid > a + edge) & (sgrid < c - edge)
+            if w > 1.45 * ew and inner.any():
+                j = np.argmax(np.where(inner, score, -np.inf))
+                bounds = sorted(bounds + [sgrid[j]]); changed = True
+                if log: log(f"  split {w:.1f} mm segment at s={mid:+.1f} (expected {ew} mm) -> boundary at {sgrid[j]:+.1f}")
+                break
+        if changed:
+            continue
+        for i in range(1, len(edges) - 1):   # interior boundaries only
+            a, c = edges[i - 1], edges[i + 1]
+            wl, wr = edges[i] - a, c - edges[i]
+            for w, mid in ((wl, 0.5 * (a + edges[i])), (wr, 0.5 * (edges[i] + c))):
+                if w < 0.5 * expected_width(mid, arch) and i - 1 < len(bounds):
+                    # drop the weaker of this segment's two boundaries (never the arch ends)
+                    cand = [j for j in (i - 1, i) if 0 <= j < len(bounds)]
+                    j = min(cand, key=lambda j: score[np.argmin(np.abs(sgrid - bounds[j]))])
+                    if log: log(f"  merge {w:.1f} mm segment at s={mid:+.1f} (expected {expected_width(mid, arch)} mm)")
+                    bounds.pop(j); changed = True
+                    break
+            if changed:
+                break
+        if not changed:
+            break
+    return np.array(bounds), sgrid, score
+
+
+def split_teeth_arch(mesh, tooth_mask, A, aux, arch="upper", log=None):
+    """Tooth ids (1..N, 0 = gingiva) from arch-profile boundaries + downhill flood along z."""
+    import heapq
+    idx = np.where(tooth_mask)[0]
+    if len(idx) < 200:
+        return tooth_mask.astype(int), np.array([])
+    V = mesh.vertices
+    xy = V[idx, :2]; z = V[idx, 2]
+    hw = footprint_halfwidth(xy)
+    s = arch_coordinate(xy, weight=hw)
+    nrm = mesh.vertex_normals[idx]
+    n_out = (nrm[:, :2] * aux["out_dir"][idx]).sum(1)
+    H_s = smooth_field(A, aux["Hs"], 3)[idx]
+    conc = np.where(n_out > 0.3, H_s, np.nan)
+    p_ip = aux.get("p_ip")
+    bounds, sgrid, score = arch_boundaries(s, z, hw, conc, arch, p_ip=(p_ip[idx] if p_ip is not None else None), log=log)
+    edges = np.r_[s.min() - 1, bounds, s.max() + 1]
+    seg = np.searchsorted(bounds, s)            # segment index per vertex
+    centers = 0.5 * (edges[:-1] + edges[1:])
+    # seeds: the centre band of each segment
+    labels_t = np.zeros(len(idx), int)
+    for k, c in enumerate(centers):
+        band = (seg == k) & (np.abs(s - c) <= 1.0)
+        if band.sum() < 5:
+            band = (seg == k) & (np.abs(s - c) <= 2.0)
+        labels_t[band] = k + 1
+    # priority flood downhill along z within the tooth sub-graph
+    h = z
+    sub = A[idx][:, idx].tocsr()
+    indptr, indices = sub.indptr, sub.indices
+    heap = [(-h[i], i) for i in np.where(labels_t > 0)[0]]
+    heapq.heapify(heap)
+    while heap:
+        _, i = heapq.heappop(heap)
+        li = labels_t[i]
+        for j in indices[indptr[i]:indptr[i + 1]]:
+            if labels_t[j] == 0:
+                labels_t[j] = li
+                heapq.heappush(heap, (-h[j], j))
+    labels = np.zeros(len(tooth_mask), int)
+    labels[idx] = labels_t
+    return labels, bounds
+
+
+def refine_mask_crease(mesh, mask, A, aux, tau=0.6, band_mm=5.0, col_mm=0.5, facial_min=0.2, keep_mm=0.3):
+    """Pull the tooth mask back to the gingival crease on the facial side.
+
+    On smooth, convex attached gingiva the classifier sometimes labels a band below the cervical
+    line as tooth. The cervical line is a strong concave crease (mean curvature > tau; positive =
+    concave in this code). Column by column along the arch, the strongest crease near the mask
+    edge is taken as the gum line and facial mask vertices below it are dropped."""
+    H = smooth_field(A, aux["Hs"], 2)
+    nrm = mesh.vertex_normals
+    n_out = (nrm[:, :2] * aux["out_dir"]).sum(1)
+    dist = geodesic_from_boundary(mesh, A, mask)
+    idx = np.where(mask)[0]
+    if len(idx) < 500:
+        return mask
+    s = arch_coordinate(mesh.vertices[idx, :2])
+    z = mesh.vertices[idx, 2]
+    facial = n_out[idx] > facial_min
+    near = dist[idx] < band_mm
+    cre = facial & near & (H[idx] > tau)
+    col = np.round(s / col_mm).astype(int)
+    z_cut = {}
+    for c in np.unique(col[cre]):
+        m = cre & (col == c)
+        zz = z[m]; hh = H[idx][m]
+        order = np.argsort(zz); zz = zz[order]; hh = hh[order]
+        # cluster crease vertices by z (gap > 0.8 mm), keep the strongest cluster
+        cuts = np.where(np.diff(zz) > 0.8)[0] + 1
+        best, best_h = None, -1
+        for grp in np.split(np.arange(len(zz)), cuts):
+            if len(grp) < 3:
+                continue
+            hm = hh[grp].mean()
+            if hm > best_h:
+                best_h, best = hm, np.median(zz[grp])
+        if best is not None:
+            z_cut[c] = best
+    if len(z_cut) < 5:
+        return mask
+    cols = np.array(sorted(z_cut)); zc = np.array([z_cut[c] for c in cols])
+    # light smoothing along the arch (the gum line is scalloped, so only 1 column each side)
+    zs = zc.copy()
+    for i in range(len(zc)):
+        lo, hi = max(0, i - 1), min(len(zc), i + 2)
+        zs[i] = np.median(zc[lo:hi])
+    zcol = np.interp(col, cols, zs)
+    has = np.isin(col, cols) | ((col > cols.min()) & (col < cols.max()))
+    drop = facial & near & has & (z < zcol - keep_mm)
+    out = mask.copy()
+    out[idx[drop]] = False
+    return clean_mask(out, A)

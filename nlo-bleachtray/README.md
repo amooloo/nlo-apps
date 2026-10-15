@@ -65,8 +65,9 @@ re-run. **Position on the base** (Result tab): rotate / shift the arch on the ba
 
 **How it works.** Auto-orientation from geometry (occlusal up, anterior +y, midline from mirror-image tooth
 pairs, cross-checked against a parabola fit of the gum-line loop; the shape midline is used when they disagree by > 8°). A gradient-boosted classifier trained on Titan's own tooth segmentation labels every vertex tooth/gingiva
-from multi-scale curvature, height-below-cusp and radial-position features; teeth are separated by geodesic erosion
-from the gum line with an adaptive re-split for broad molar contacts, then numbered from the midline. The gum line
+from multi-scale curvature, height-below-cusp and radial-position features; teeth are separated along the arch from four cues (an interproximal classifier, incisal/occlusal
+height dips, pinches of the crown outline seen from above, facial grooves) checked against expected tooth widths,
+then flooded downhill from each tooth's centre; numbered from the midline. The gum line
 is the 0.5 iso-contour of the tooth mask; papillae are bridged with a 2D closing and snapped onto the surface.
 Reservoirs are a feathered normal displacement on the facial surfaces, kept 0.5 mm from the gum line and 0.4 mm from the incisal edges, the neighbouring teeth and the facial-lingual transition (full height ~0.6 mm further in). The solid: clipped surface closed below the floor, unioned with a
 gingiva shelf (so there is always material beyond the scan edge, e.g. behind the last molars), intersected with the

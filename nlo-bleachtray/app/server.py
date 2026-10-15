@@ -97,7 +97,8 @@ def _apply_mask_edit(job, k=0):
     """Turn brush edits (vertex index lists) into corrected per-tooth labels."""
     from bleachtray.mesh_utils import load_scan
     from bleachtray.orient import rough_orient
-    from bleachtray.segment import predict_tooth_prob, clean_mask, split_teeth, merge_small_teeth, resplit_elongated
+    from bleachtray.segment import predict_tooth_prob, clean_mask
+    from bleachtray.pipeline import separate_teeth, detect_arch
     scan = job["scans"][k]
     st = np.load(os.path.join(job["dir"], f"{scan['name']}_state.npz"))
     labels = st["labels"]
@@ -113,11 +114,8 @@ def _apply_mask_edit(job, k=0):
     p_tooth, p_ip, aux = predict_tooth_prob(mesh, MODELS)
     A = aux["A"]
     mask = clean_mask(mask, A)
-    labels, _ = split_teeth(mesh, mask, p_ip, A, aux, erode_mm=2.0, concave_cut=-9)
-    labels = merge_small_teeth(mesh, labels, A)
-    labels = resplit_elongated(mesh, labels, A, aux)
-    labels = merge_small_teeth(mesh, labels, A)
-    return labels
+    arch = scan.get("arch") or job["params"].get("arch") or detect_arch(mesh, os.path.basename(scan["path"]))
+    return separate_teeth(mesh, mask, p_ip, A, aux, arch, log=lambda m: None)
 
 
 @app.get("/", response_class=HTMLResponse)
