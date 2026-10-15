@@ -43,9 +43,12 @@ def stable(path, seconds=3):
 
 
 class Watcher:
-    def __init__(self, cfg, log=print):
+    def __init__(self, cfg, log=print, on_result=None):
+        """on_result(ent, work_dir, [(report, scan_path), ...]) -> called instead of writing the order
+        (the app registers the case for review); without it (or with cfg auto_approve) the order is written."""
         self.cfg = dict(DEFAULT_CONFIG); self.cfg.update(cfg)
         self.log = log
+        self.on_result = on_result
         self.inbox = self.cfg["inbox"]
         self.pending = {}   # (first,last) -> dict(files=[(path, arch)], first_seen=t)
         self.seen = set()
@@ -90,7 +93,7 @@ class Watcher:
         os.makedirs(work, exist_ok=True)
         params = dict(PRESETS.get(self.cfg["preset"], PRESETS["bleaching"]))
         params.update(self.cfg.get("params") or {})
-        pieces = []
+        pieces = []; results = []
         try:
             for path, arch in ent["files"][:2]:
                 p = dict(params); p["arch"] = arch
@@ -98,8 +101,14 @@ class Watcher:
                 rep = process(path, work, name=name, params=p, models=self.models, log=self.log)
                 pieces.append(dict(arch=rep["arch"], stl=rep["outputs"]["model"], pts=rep["outputs"]["trimline"],
                                    stage=int(self.cfg["stage"]), kind=self.cfg["kind"]))
-                shutil.move(path, os.path.join(work, os.path.basename(path)))
-            if self.cfg["titan"]:
+                moved = os.path.join(work, os.path.basename(path))
+                shutil.move(path, moved)
+                results.append((rep, moved))
+            if self.on_result is not None and not self.cfg.get("auto_approve"):
+                ent2 = dict(ent); ent2.update(stage=int(self.cfg["stage"]), kind=self.cfg["kind"], doctor=self.cfg["doctor"], preset=self.cfg["preset"])
+                self.on_result(ent2, work, results)
+                self.log(f"READY FOR REVIEW: {ent['first']} {ent['last']} - open the app, check it, click Send to OrthoFactory")
+            elif self.cfg["titan"]:
                 folder = write_order_folder(self.cfg["titan"], ent["first"], ent["last"], pieces,
                                             doctor=self.cfg["doctor"])
                 self.log(f"ORDER READY: {folder}")

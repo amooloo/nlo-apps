@@ -60,7 +60,11 @@ def _start_watcher():
 
     sys.path.insert(0, here)
     from bleachtray.watch import Watcher
-    threading.Thread(target=Watcher(cfg, log=log).run_forever, daemon=True).start()
+    import app.server as srv   # same module uvicorn serves (single process), so cases land in its job list
+
+    def on_result(ent, work, results):
+        srv.register_watcher_result(ent, work, results, log=log)
+    threading.Thread(target=Watcher(cfg, log=log, on_result=on_result).run_forever, daemon=True).start()
 
 
 if __name__ == "__main__":

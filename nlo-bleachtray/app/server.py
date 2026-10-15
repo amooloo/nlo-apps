@@ -59,38 +59,69 @@ def _run(job):
         job["report"] = reports[0]
         job["reports"] = reports
         job["mask_edit"] = None
-        site = site_config()
-        root = (job["params"].get("order_root") or "").strip() or site["order_root"]
-        # a re-run replaces the previous order of this case (if OrthoFactory has not taken it yet)
-        prev = job.get("order_folder")
-        if prev and os.path.isdir(prev):
-            try:
-                import shutil
-                shutil.rmtree(prev)
-                log(f"previous order folder removed: {prev}")
-            except Exception as ex:  # noqa
-                log(f"could not remove the previous order folder ({ex}); delete the older order in OrthoFactory")
-        job["order_folder"] = None; job["order_error"] = None
-        if root and job["params"].get("patient_first") and job["params"].get("patient_last"):
-            pieces = [dict(arch=sc["arch"], stl=sc["report"]["outputs"]["model"], pts=sc["report"]["outputs"]["trimline"],
-                           stage=int(job["params"].get("stage", 0)), kind=job["params"].get("kind", "T")) for sc in job["scans"]]
-            try:
-                folder = write_order_folder(root, job["params"]["patient_first"], job["params"]["patient_last"], pieces,
-                                            patient_id=job["params"].get("patient_id") or None,
-                                            doctor=job["params"].get("doctor") or site["doctor"])
-                job["order_folder"] = folder
-                log(f"OrthoFactory order written: {folder}")
-            except Exception as ex:  # noqa
-                job["order_error"] = str(ex)
-                log(f"order folder failed: {ex}")
-        elif not root:
-            job["order_error"] = "no OrthoFactory folder set (run install.bat, or type it in the box on the left)"
+        # nothing goes to OrthoFactory until someone looks at the result and clicks Send
+        # (jobs created with auto_order=True, e.g. an unattended watcher, skip the review)
+        if job.get("auto_order"):
+            _write_order(job, log)
         else:
-            job["order_error"] = "patient first + last name needed for an OrthoFactory order"
+            job["review"] = "review"
+            job["order_folder"] = None; job["order_error"] = None
         job["status"] = "done"
     except Exception as ex:  # noqa
         job["status"] = "error"
         job["error"] = f"{ex}\n{traceback.format_exc()}"
+
+
+def _write_order(job, log=print):
+    """Write (or replace) this job's OrthoFactory order folder from its finished pieces."""
+    site = site_config()
+    root = (job["params"].get("order_root") or "").strip() or site["order_root"]
+    prev = job.get("order_folder")
+    if prev and os.path.isdir(prev):
+        try:
+            import shutil
+            shutil.rmtree(prev)
+            log(f"previous order folder removed: {prev}")
+        except Exception as ex:  # noqa
+            log(f"could not remove the previous order folder ({ex}); delete the older order in OrthoFactory")
+    job["order_folder"] = None; job["order_error"] = None
+    if not root:
+        job["order_error"] = "no OrthoFactory folder set (run install.bat, or type it under Advanced settings)"
+        return False
+    if not (job["params"].get("patient_first") and job["params"].get("patient_last")):
+        job["order_error"] = "patient first + last name needed for an OrthoFactory order"
+        return False
+    pieces = [dict(arch=sc["arch"], stl=sc["report"]["outputs"]["model"], pts=sc["report"]["outputs"]["trimline"],
+                   stage=int(job["params"].get("stage", 0)), kind=job["params"].get("kind", "T")) for sc in job["scans"]]
+    try:
+        folder = write_order_folder(root, job["params"]["patient_first"], job["params"]["patient_last"], pieces,
+                                    patient_id=job["params"].get("patient_id") or None,
+                                    doctor=job["params"].get("doctor") or site["doctor"])
+        job["order_folder"] = folder
+        job["review"] = "sent"
+        log(f"OrthoFactory order written: {folder}")
+        return True
+    except Exception as ex:  # noqa
+        job["order_error"] = str(ex)
+        log(f"order folder failed: {ex}")
+        return False
+
+
+def register_watcher_result(ent, work, results, log=print):
+    """A case processed by the drop-folder watcher shows up in the app for review like any other."""
+    jid = uuid.uuid4().hex[:10]
+    scans = []
+    for rep, scan_path in results:
+        scans.append(dict(path=scan_path, name=rep["name"], filename=os.path.basename(scan_path), arch=rep["arch"], report=rep))
+    job = dict(id=jid, dir=work, scans=scans, name=f"{ent['first']} {ent['last']}".replace(" ", "_"),
+               params=dict(patient_first=ent["first"], patient_last=ent["last"], stage=ent.get("stage", 0), kind=ent.get("kind", "T"),
+                           doctor=ent.get("doctor") or "", adjust=dict(yaw_deg=0, dx=0, dy=0, dz=0)),
+               status="done", created=time.time(), filename=", ".join(sc["filename"] for sc in scans), preset=ent.get("preset", "bleaching"),
+               report=scans[0]["report"], reports=[sc["report"] for sc in scans], review="review", log=[f"processed from the drop folder: {work}"],
+               order_folder=None, order_error=None, source="folder")
+    JOBS[jid] = job
+    log(f"ready for review in the app: {job['name']} (http://localhost:{8765})")
+    return jid
 
 
 def _apply_mask_edit(job, k=0):
@@ -185,14 +216,38 @@ async def rerun(jid: str, edits: str = Form("{}"), params: str = Form("{}")):
     except Exception:
         pass
     job["status"] = "queued"
+    job["auto_order"] = False
     threading.Thread(target=_run, args=(job,), daemon=True).start()
     return {"id": jid}
 
 
 @app.get("/api/jobs")
 def list_jobs():
-    return [{k: v for k, v in j.items() if k in ("id", "name", "status", "created", "filename", "preset")}
+    return [{k: v for k, v in j.items() if k in ("id", "name", "status", "created", "filename", "preset", "review", "source")}
             for j in sorted(JOBS.values(), key=lambda j: -j["created"])]
+
+
+def _review_view(job):
+    return {k: job.get(k) for k in ("id", "name", "status", "review", "order_folder", "order_error")} | {"scans": [dict(arch=sc.get("arch")) for sc in job["scans"]]}
+
+
+@app.post("/api/jobs/{jid}/approve")
+def approve(jid: str):
+    job = JOBS.get(jid)
+    if not job or job.get("status") != "done":
+        raise HTTPException(404)
+    job.setdefault("log", [])
+    _write_order(job, log=lambda m: job["log"].append(m))
+    return _review_view(job)
+
+
+@app.post("/api/jobs/{jid}/discard")
+def discard(jid: str):
+    job = JOBS.get(jid)
+    if not job:
+        raise HTTPException(404)
+    job["review"] = "discarded"
+    return _review_view(job)
 
 
 @app.get("/api/jobs/{jid}")
@@ -200,7 +255,7 @@ def job_status(jid: str):
     job = JOBS.get(jid)
     if not job:
         raise HTTPException(404)
-    out = {k: v for k, v in job.items() if k in ("id", "name", "status", "log", "error", "preset", "params", "order_folder", "order_error")}
+    out = {k: v for k, v in job.items() if k in ("id", "name", "status", "log", "error", "preset", "params", "order_folder", "order_error", "review", "source")}
     out["scans"] = [dict(name=sc["name"], filename=sc["filename"], arch=sc.get("arch")) for sc in job["scans"]]
     if job.get("reports"):
         out["reports"] = [{k: r[k] for k in r if k not in ("transform_raw_to_output",)} for r in job["reports"]]

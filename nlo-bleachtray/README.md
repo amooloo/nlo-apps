@@ -3,32 +3,21 @@
 Makes the bleaching-tray model from a scan — with the gel reservoirs, the Trimlign base and the trim line — and
 puts it into OrthoFactory as an order, like a Titan export. Nothing to pay per case. Runs on the lab PC.
 
-## Everyday use (1 minute)
+## Everyday use (2 minutes)
 
 1. Export the patient's scan as an STL from the scanner, with the patient's name in the file name
    (the scanner does this on its own, e.g. `Armaan_Shetty_20261015_09-20-31_upper.stl`).
-2. In File Explorer, drag the file into the folder **`S:\clinical\3D printing\BleachTray`**. Upper and lower? Drag both.
-3. Wait about a minute. OrthoFactory → **Production** now lists the patient like any Titan case.
-   Print the model on the Form 4B, thermoform, trim on the Trimlign.
+2. Either drop the file(s) on the **Bleach Tray** app page (any office computer; home page → Bleach Tray), or drag
+   them into the folder **`S:\clinical\3D printing\BleachTray`** in File Explorer. Upper and lower? Both.
+3. About a minute later the case shows **"check & send"** in the app. Look at the 3D result (trim line, reservoirs,
+   position on the base). Fix a tooth with the brush or nudge the base if needed.
+4. Click **Send to OrthoFactory**. Only then does it appear in OrthoFactory → **Production**, like any Titan case.
+   Print on the Form 4B, thermoform, trim on the Trimlign. **Discard** throws it away.
 
-The file you dragged moves to `BleachTray\done` when it worked, or to `BleachTray\failed` with an `error.txt` when
-it didn't. The small black window "NLO Bleach Tray" must be open on the lab PC (it starts by itself at sign-in;
-if it's gone, double-click `start_app.bat` in the app folder). That one window watches the drop folder *and*
-serves the browser app to the whole office.
-
-## One-time setup on the lab PC (about 10 minutes, once)
-
-1. Put the `nlo-bleachtray` folder somewhere permanent, e.g. `C:\NLO\nlo-bleachtray`
-   (from the zip: right-click → *Extract All*).
-2. Double-click **`install.bat`**. It walks you through everything:
-   * If the PC has no **Python 3.13** yet (the free program the app runs on), it downloads the right installer
-     for you. Run it, and on the first screen tick **"Add python.exe to PATH"** before *Install Now*.
-     Then double-click `install.bat` again. (The newest Python from python.org is too new for the
-     geometry components; 3.13 next to it is fine.)
-   * It installs the app's components, finds the Titan folder, learns the Trimlign base from one of your existing
-     Titan exports, and creates the `BleachTray` drop folder next to the Titan folder.
-   * Answer **y** when it asks to start the watcher automatically at sign-in.
-3. Double-click **`start_app.bat`** once to start it now.
+Nothing reaches OrthoFactory without that click. Files dragged into the folder move to `BleachTray\done` when
+processed, or to `BleachTray\failed` with an `error.txt`. The small black window "NLO Bleach Tray" must be open on
+the PC that runs the app (it starts by itself at sign-in; if it's gone, double-click `start_app.bat` in the app
+folder). That one window watches the drop folder *and* serves the app page to the whole office.
 
 ## Updating the app
 

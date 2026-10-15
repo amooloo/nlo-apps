@@ -52,11 +52,12 @@ code { font-family:ui-monospace,Menlo,Consolas,monospace; font-size:.88em; backg
 <main>
 
   <div class="card">
-    <h2>Everyday use <span class="pill">takes 1 minute</span></h2>
+    <h2>Everyday use <span class="pill">takes 2 minutes</span></h2>
     <div class="step"><div class="num">1</div><p class="big">Export the patient's scan as an STL from the scanner, with the patient's name in the file name (the scanner does this on its own: <code>Armaan_Shetty_20261015_09-20-31_upper.stl</code>).</p></div>
-    <div class="step"><div class="num">2</div><p class="big">In File Explorer, drag that file into the folder <span class="path">S:\clinical\3D printing\BleachTray</span>. If you have an upper and a lower, drag both.</p></div>
-    <div class="step"><div class="num">3</div><p class="big">Wait about a minute. Open OrthoFactory → <b>Production</b>. The patient is listed like any Titan case. Print the model on the Form 4B, thermoform, trim on the Trimlign.</p></div>
-    <p class="muted" style="margin-top:12px">That's it. The file you dragged moves into <code>BleachTray\done</code> when it worked, or into <code>BleachTray\failed</code> with a note explaining what happened when it didn't. The small black window called "NLO Bleach Tray" must be open on the PC that runs the app (Dr. A's PC for now; it starts by itself at sign-in; if it's gone, double-click <code>start_app.bat</code> in the app folder).</p>
+    <div class="step"><div class="num">2</div><p class="big">Drop the file(s) on the <b>Bleach Tray</b> app page (home page → Bleach Tray), or drag them into the folder <span class="path">S:\clinical\3D printing\BleachTray</span>. Upper and lower? Both.</p></div>
+    <div class="step"><div class="num">3</div><p class="big">About a minute later the case shows <b>"check &amp; send"</b> in the app. Look at the 3D result — trim line, reservoirs, position on the base. Fix a tooth with the brush or nudge the base if something is off.</p></div>
+    <div class="step"><div class="num">4</div><p class="big">Click <b>Send to OrthoFactory</b>. Only then does the patient appear in OrthoFactory → <b>Production</b>, like any Titan case. Print on the Form 4B, thermoform, trim on the Trimlign. <b>Discard</b> throws it away.</p></div>
+    <p class="muted" style="margin-top:12px">Nothing reaches OrthoFactory without that click. Files dragged into the folder move into <code>BleachTray\done</code> when processed, or into <code>BleachTray\failed</code> with a note explaining what happened. The small black window called "NLO Bleach Tray" must be open on the PC that runs the app (Dr. A's PC for now; it starts by itself at sign-in; if it's gone, double-click <code>start_app.bat</code> in the app folder).</p>
   </div>
 
   <div class="card">
