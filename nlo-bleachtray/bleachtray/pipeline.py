@@ -16,7 +16,7 @@ FLOOR_BELOW_LOWEST_MARGIN = 3.0    # model floor is 3 mm below the lowest point 
 
 DEFAULTS = dict(
     reservoir_height=0.5, reservoir_setback=0.5, reservoir_feather=0.6, reservoir_max_position=5,
-    engrave=True, engrave_text="", engrave_type="",
+    engrave=True, engrave_text="", engrave_type="", tooth_mark=True,   # initials + W/R raised on a molar: shows on the tray
     facial_offset=4.5, lingual_offset=4.0, trimline_spacing=0.5, add_base=True,
     trimline_offset=0.0,   # mm onto the gingiva: 0 = scalloped at the gum line (bleaching); 2-3 = "high" aligner line
     bridge_radius=3.0,     # straight bridges across papillae narrower than ~2x this
@@ -272,7 +272,16 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     # y so the facial gum line at the midline is FACIAL_MARGIN_Y_AT_MIDLINE; z so floor = 0
     near_mid = np.abs(margin_f[:, 0]) < 2.0
     facial_y = margin_f[near_mid][:, 1].max() if near_mid.any() else margin_f[:, 1].max()
-    z_floor = margin_f[:, 2].min() - FLOOR_BELOW_LOWEST_MARGIN
+    # floor 3 mm below the trim line's lowest point - unless that point is a stray dip (a flap, a
+    # recession pocket, a bit of pad): then the floor follows the 10th percentile and the dip is
+    # lifted to 0.8 mm above the floor instead of dragging the whole model 10 mm taller
+    z_low, z_p10 = float(margin_f[:, 2].min()), float(np.percentile(margin_f[:, 2], 10))
+    z_floor = max(z_low - FLOOR_BELOW_LOWEST_MARGIN, z_p10 - FLOOR_BELOW_LOWEST_MARGIN - 1.5)
+    low_pts = margin_f[:, 2] < z_floor + 0.8
+    if low_pts.any():
+        margin_f[low_pts, 2] = z_floor + 0.8
+        log(f"[{name}] trim line: {int(low_pts.sum())} points sat {z_floor + 0.8 - z_low:.1f} mm below the rest - lifted to the floor (model height kept)")
+    rep["floor"] = dict(lowest_trimline=round(z_low - z_floor, 2), p10_trimline=round(z_p10 - z_floor, 2), lifted_points=int(low_pts.sum()))
     arch = arch_hint
     rep["arch"] = arch
     T_place = np.eye(4)
@@ -311,7 +320,7 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     # real scan kept only within scan_band of the gum line (cleans off ragged cheek/lip tissue);
     # the rest of the body is a smooth synthetic skirt
     scan_region = horseshoe_outline(margin_f[:, :2], P["scan_band"], P["scan_band"]) if P.get("scan_band") else None
-    body, body_method = build_body(mesh_f, outline, 0.0, log=log, scan_region=scan_region, shelf=scan_region is not None or bool(P.get("shelf", False)))
+    body, body_method = build_body(mesh_f, outline, 0.0, log=log, scan_region=scan_region, shelf=bool(P.get("shelf", True)))
     rep["body_method"] = body_method
     rep["body_watertight"] = bool(body.is_watertight)
     rep["body_volume_ml"] = round(float(body.volume) / 1000.0, 2)
@@ -328,6 +337,10 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
             rep["engraved"] = placed
     else:
         model, how = body, "none"
+    if P.get("engrave", True) and P.get("tooth_mark", True):
+        from .engrave import emboss_on_tooth
+        model, mark = emboss_on_tooth(model, mesh_f, labels, info, P, log=lambda m: log(f"[{name}] {m}"))
+        rep["tooth_mark"] = mark
     # tiny slivers left by the booleans would print as floating specks
     parts = model.split(only_watertight=False)
     if len(parts) > 1:

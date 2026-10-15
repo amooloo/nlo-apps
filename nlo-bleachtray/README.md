@@ -7,10 +7,11 @@ puts it into OrthoFactory as an order, like a Titan export. Nothing to pay per c
 
 1. Export the patient's scan as an STL from the scanner, with the patient's name in the file name
    (the scanner does this on its own, e.g. `Armaan_Shetty_20261015_09-20-31_upper.stl`).
-2. Either drop the file(s) on the **Bleach Tray** app page (any office computer; home page → Bleach Tray), or drag
-   them into the folder **`S:\clinical\3D printing\BleachTray`** in File Explorer. Upper and lower together or one
-   after the other (they are paired by the patient name), one patient or a whole day's scans at once (one case per
-   patient). Several people can drop at the same time: cases run one after another and the list shows who is waiting.
+2. Drop the file on the **Bleach Tray** app page (any office computer; home page → Bleach Tray). The app asks what
+   to make of it - **whitening tray** and/or **retainer (TT)** - and whether the opposing arch is coming: drop that
+   one too, answer the same for it, then **Start**. Nothing runs before Start. A whole day's scans dropped at once,
+   or files dragged into **`S:\clinical\3D printing\BleachTray`**, run with the default (both) without questions.
+   Several people can drop at the same time: cases run one after another and the list shows who is waiting.
 3. A few minutes later the case shows **"check & send"** in the app, with **four models**: whitening tray (WT) and
    thermoformed retainer (TT) for each arch. Look at the 3D result (trim line, reservoirs, position on the base).
    Fix a tooth with the brush or nudge the base if needed - a fix is kept for every later re-run of that case.
@@ -94,9 +95,18 @@ above it is the retromolar pad (or ascending tissue) and is relabelled gum, so t
 of running up the pad. The model is then lowered behind the last tooth on each side to 2 mm below the trim line
 (`distal_relief`), so the Trimlign bur reaches the distal surface instead of hitting a wall of gum.
 
-**Engraving.** Patient name (first name or initial + last name) and WHITENING / RETAINER / MODEL, 2.4 / 2.0 mm
-capitals, 0.4 mm deep, on the flat strip of the base plate inside the arch (y -13.5..-8.4, z 1.0). Switch off or
-override under Advanced settings.
+**Marks.** Two: (1) the patient's initials + W (whitening) / R (retainer), raised 0.35 mm on the buccal surface of a
+first molar (right side if present, else second premolar / second molar), each letter on its own tangent plane and
+the text shrunk to the flat middle of the crown - it forms into the tray itself, like an aligner maker's mark, with a
+recess on the inside that touches nothing; (2) the name and WHITENING / RETAINER engraved 0.4 mm deep on the flat strip
+of the base plate inside the arch, when the arch leaves at least 8 mm of room there (skipped otherwise). Switch off
+under Advanced settings.
+
+**Floor and skirt.** The model floor is 3 mm below the trim line's lowest point, unless that point is a stray dip
+(flap, pocket): then the floor follows the 10th percentile and the dip is lifted to 0.8 mm above the floor, so one bad
+point cannot make the whole model 10 mm taller. Wherever the scan stops short of the outline (distal to the last
+molars, a palate the scanner cut, facial of proclined incisors) a smooth gingiva shelf fills the body out to the
+outline instead of leaving a cliff.
 
 **Scanner exports.** Open-shell or closed-shell (iTero "with base", 3Shape solid) STLs both work: a large flat floor is
 detected and removed before orientation, the skirt reads as gum. Scans over 200k faces are decimated first.

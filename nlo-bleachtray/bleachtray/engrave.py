@@ -137,3 +137,113 @@ def engrave_model(model, params, outline=None, depth=0.4, log=print):
     except Exception as ex:  # noqa
         log(f"engraving skipped: {ex}")
         return model, None
+
+
+def emboss_on_tooth(model, mesh_f, labels, info, params, height=0.35, cap=2.4, depth_in=1.5, log=print):
+    """Raised initials + tray letter on the buccal surface of a first molar (right side if present),
+    so the mark forms into the tray itself: a recess on the inside that touches nothing, legible
+    letters on the outside (the way aligner makers mark their trays). Letters are placed one by one
+    on the local tangent plane of the tooth, so the curve of the crown does not change their height.
+    Returns (model, text or None). Never fails the case."""
+    from .solid import to_manifold, from_manifold
+    try:
+        first, last = (params.get("patient_first") or "").strip(), (params.get("patient_last") or "").strip()
+        initials = ((first[:1] + last[:1]) or "NL").upper()
+        ttype = tray_type(params)
+        letter = {"WHITENING": "W", "RETAINER": "R"}.get(ttype, "M")
+        text = initials + " " + letter
+        V = mesh_f.vertices
+        N = mesh_f.vertex_normals
+        centre = V[labels > 0][:, :2].mean(0)
+        # the tooth: first molar (position 6), else second premolar / second molar; right side first
+        choice = None
+        for pos in (6, 5, 7):
+            for side in (1, -1):
+                cand = [t for t, (sd, ps) in info.items() if sd == side and ps == pos]
+                if cand:
+                    choice = (cand[0], side); break
+            if choice:
+                break
+        if choice is None:
+            log("tooth mark skipped: no molar found")
+            return model, None
+        tid, side = choice
+        m = labels == tid
+        out = V[m][:, :2] - centre
+        out /= np.maximum(np.linalg.norm(out, axis=1, keepdims=True), 1e-6)
+        n_out = (N[m][:, :2] * out).sum(1)
+        zt = V[m][:, 2]
+        z_lo, z_hi = np.percentile(zt, 8), np.percentile(zt, 92)
+        buccal = (n_out > 0.75) & (zt > z_lo + 0.35 * (z_hi - z_lo)) & (zt < z_lo + 0.7 * (z_hi - z_lo))
+        if buccal.sum() < 40:
+            buccal = (n_out > 0.6) & (zt > z_lo + 0.3 * (z_hi - z_lo)) & (zt < z_lo + 0.75 * (z_hi - z_lo))
+        if buccal.sum() < 40:
+            log("tooth mark skipped: buccal surface not found")
+            return model, None
+        P = V[m][buccal]; PN = N[m][buccal]
+        p0 = P.mean(0)
+        # reading direction for someone looking at that cheek from outside: along the arch, anterior
+        # first on the right side (viewer's left is anterior there) - i.e. towards -y on the right
+        along = np.array([0.0, -1.0, 0.0]) if side > 0 else np.array([0.0, 1.0, 0.0])
+        # local arch tangent at the tooth (perpendicular to the mean outward normal, horizontal)
+        n0 = PN.mean(0); n0[2] = 0; n0 /= max(np.linalg.norm(n0), 1e-6)
+        tang = np.cross([0, 0, 1.0], n0); tang /= max(np.linalg.norm(tang), 1e-6)
+        if np.dot(tang, along) < 0:
+            tang = -tang
+        # glyphs laid along the tangent, each on its own tangent plane; the text is shrunk to fit
+        # the flat middle of the buccal surface (the mark must not run onto the embrasures)
+        extent = float(((P - p0) @ tang).max() - ((P - p0) @ tang).min())
+        def layout(cap):
+            ws = []
+            for ch in text:
+                if ch == " ":
+                    ws.append((ch, None, 0.4 * cap)); continue
+                g = text_geometry(ch, cap)
+                minx, miny, maxx, maxy = g.bounds
+                ws.append((ch, g, (maxx - minx) + 0.22 * cap))
+            return ws, sum(w for _, _, w in ws)
+        widths, total = layout(cap)
+        if total > 0.72 * extent:
+            cap = max(1.6, cap * 0.72 * extent / total)
+            widths, total = layout(cap)
+        x_cursor = -total / 2.0
+        from scipy.spatial import cKDTree
+        tree = cKDTree(P)
+        solids = []
+        for ch, g, w in widths:
+            if g is None:
+                x_cursor += w; continue
+            minx, miny, maxx, maxy = g.bounds
+            cx = x_cursor + (maxx - minx) / 2.0
+            x_cursor += w
+            target = p0 + tang * cx
+            _, j = tree.query(target)
+            p = P[j]; n = PN[j].copy(); n /= max(np.linalg.norm(n), 1e-6)
+            up = np.array([0, 0, 1.0]) - n * n[2]; up /= max(np.linalg.norm(up), 1e-6)
+            right = np.cross(up, n); right /= max(np.linalg.norm(right), 1e-6)
+            if np.dot(right, tang) < 0:
+                right = -right
+            g2 = affinity.translate(g, xoff=-(minx + maxx) / 2.0, yoff=-(miny + maxy) / 2.0)
+            polys = list(g2.geoms) if hasattr(g2, "geoms") else [g2]
+            for poly in polys:
+                if poly.is_empty or poly.area < 1e-3:
+                    continue
+                prism = trimesh.creation.extrude_polygon(poly, height=depth_in + height)   # local z: 0..depth
+                T = np.eye(4)
+                T[:3, 0] = right; T[:3, 1] = up; T[:3, 2] = n
+                T[:3, 3] = p - n * depth_in
+                prism.apply_transform(T)
+                solids.append(prism)
+        if not solids:
+            return model, None
+        letters = trimesh.util.concatenate(solids)
+        mm, ml = to_manifold(model), to_manifold(letters)
+        if mm is None or ml is None:
+            log("tooth mark skipped: mesh not manifold")
+            return model, None
+        out_m = from_manifold(mm + ml, drop_zero_volume=False)
+        log(f"tooth mark: '{text}' raised {height} mm on the buccal of tooth {tid} (side {side:+d}, position {info[tid][1]})")
+        return out_m, text
+    except Exception as ex:  # noqa
+        log(f"tooth mark skipped: {ex}")
+        return model, None
