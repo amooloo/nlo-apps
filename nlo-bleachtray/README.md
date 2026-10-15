@@ -47,7 +47,7 @@ From any office computer open `http://<lab PC name>:8765` — or click **Bleach 
 which opens it for you (the black window on the lab PC prints the exact address). Drop a scan anywhere on the page:
 it processes on its own and writes the OrthoFactory order (the green line under the result confirms it). See the
 result in 3D, paint over a tooth the computer missed (hold **Shift** and drag on the *Segmentation / fix* tab),
-re-run. Presets: *Bleaching tray* (reservoirs 5-5, line at the gum), *Bleaching 3-3*, *Aligner / retainer*
+re-run. **Position on the base** (Result tab): rotate / shift the arch on the base with the arrow buttons (live preview), *Apply* rebuilds the order, *Reset to automatic* goes back. Presets: *Bleaching tray* (reservoirs 5-5, line at the gum), *Bleaching 3-3*, *Aligner / retainer*
 (line 1.25 mm onto the gums, semi-scallop), *Plain model*.
 
 ---
