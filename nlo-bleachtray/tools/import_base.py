@@ -22,14 +22,34 @@ def find_base(mesh):
     return None
 
 
+def candidates(path):
+    """A file, or a folder searched (newest first) for Titan exports that contain the base."""
+    if os.path.isfile(path):
+        return [path]
+    named, others = [], []
+    for root, _, files in os.walk(path):
+        for f in files:
+            if f.lower().endswith(".stl"):
+                (named if ("maxilla" in f.lower() or "mandible" in f.lower()) else others).append(os.path.join(root, f))
+    named.sort(key=os.path.getmtime, reverse=True)
+    others.sort(key=os.path.getmtime, reverse=True)
+    return (named + others)[:60]
+
+
 def main():
     if len(sys.argv) < 2:
         print(__doc__); sys.exit(1)
-    src = sys.argv[1]
-    m = trimesh.load(src, force="mesh")
-    base = find_base(m)
+    base, src = None, None
+    for src in candidates(sys.argv[1]):
+        try:
+            m = trimesh.load(src, force="mesh")
+        except Exception:
+            continue
+        base = find_base(m)
+        if base is not None:
+            break
     if base is None:
-        print("No Trimlign base found in", src, "- use a Titan export that includes the base (Trimlign/angled export).")
+        print("No Trimlign base found in", sys.argv[1], "- use a Titan export that includes the base (Trimlign/angled export).")
         sys.exit(2)
     os.makedirs(ASSETS, exist_ok=True)
     titan_path = os.path.join(ASSETS, "trimlign_base_titan.stl")

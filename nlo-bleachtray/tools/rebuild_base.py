@@ -73,6 +73,7 @@ print("slabs:", len(slabs))
 
 solid = m3.Manifold.batch_boolean(slabs, m3.OpType.Add)
 print("status", solid.status(), "volume", round(solid.volume(), 2), "genus", solid.genus())
+# note: the fiducial squares are separate islands in Titan's own mesh (joined only by zero-area faces); kept as-is
 if hasattr(solid, "simplify"):
     solid = solid.simplify(0.01)
     print("after simplify: volume", round(solid.volume(), 2), "genus", solid.genus(), "tris", solid.num_tri())
