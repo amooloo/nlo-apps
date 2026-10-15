@@ -54,9 +54,9 @@ code { font-family:ui-monospace,Menlo,Consolas,monospace; font-size:.88em; backg
   <div class="card">
     <h2>Everyday use <span class="pill">takes 2 minutes</span></h2>
     <div class="step"><div class="num">1</div><p class="big">Export the patient's scan as an STL from the scanner, with the patient's name in the file name (the scanner does this on its own: <code>Armaan_Shetty_20261015_09-20-31_upper.stl</code>).</p></div>
-    <div class="step"><div class="num">2</div><p class="big">Drop the file(s) on the <b>Bleach Tray</b> app page (home page → Bleach Tray), or drag them into the folder <span class="path">S:\clinical\3D printing\BleachTray</span>. Upper and lower? Both.</p></div>
-    <div class="step"><div class="num">3</div><p class="big">About a minute later the case shows <b>"check &amp; send"</b> in the app. Look at the 3D result — trim line, reservoirs, position on the base. Fix a tooth with the brush or nudge the base if something is off.</p></div>
-    <div class="step"><div class="num">4</div><p class="big">Click <b>Send to OrthoFactory</b>. Only then does the patient appear in OrthoFactory → <b>Production</b>, like any Titan case. Print on the Form 4B, thermoform, trim on the Trimlign. <b>Discard</b> throws it away.</p></div>
+    <div class="step"><div class="num">2</div><p class="big">Drop the file(s) on the <b>Bleach Tray</b> app page (home page → Bleach Tray), or drag them into the folder <span class="path">S:\clinical\3D printing\BleachTray</span>. Upper and lower together or one after the other (they are paired by name), one patient or a whole day's scans at once. Several people dropping at the same time is fine — cases run one after another.</p></div>
+    <div class="step"><div class="num">3</div><p class="big">A few minutes later the case shows <b>"check &amp; send"</b> in the app with <b>four models</b>: whitening tray (WT) and thermoformed retainer (TT), upper and lower. Look at the 3D result — trim line, reservoirs, position on the base. Fix a tooth with the brush or nudge the base if something is off.</p></div>
+    <div class="step"><div class="num">4</div><p class="big">Click <b>Send to OrthoFactory</b>. Only then does the patient appear in OrthoFactory → <b>Production</b>, like any Titan case (whitening trays as Template pieces, retainers as Aligner pieces). Print on the Form 4B, thermoform, trim on the Trimlign. <b>Discard</b> throws it away.</p></div>
     <p class="muted" style="margin-top:12px">Nothing reaches OrthoFactory without that click. Files dragged into the folder move into <code>BleachTray\done</code> when processed, or into <code>BleachTray\failed</code> with a note explaining what happened. The small black window called "NLO Bleach Tray" must be open on the PC that runs the app (Dr. A's PC for now; it starts by itself at sign-in; if it's gone, double-click <code>start_app.bat</code> in the app folder).</p>
   </div>
 
@@ -82,8 +82,11 @@ code { font-family:ui-monospace,Menlo,Consolas,monospace; font-size:.88em; backg
   <div class="card">
     <h2>Good to know</h2>
     <ul>
-      <li>Default is the <b>bleaching tray</b> recipe: 0.5 mm reservoirs on the front teeth to the second premolars, trim line following the gum line. Other recipes (3-3, aligner "high line") are available in the browser app.</li>
-      <li>Orders show up in OrthoFactory as <b>Template</b> pieces (<code>TU0A</code> upper / <code>TL0A</code> lower), exactly like a stage-0 Titan export.</li>
+      <li>Default is <b>whitening tray + retainer</b> for each arch: the whitening tray has 0.5 mm reservoirs on the front teeth to the second premolars and a trim line at the gum line; the retainer's line runs 1.25 mm onto the gum. "Make" in the app switches to one of them only.</li>
+      <li>Orders show up in OrthoFactory with the whitening trays as <b>Template</b> pieces (<code>TU0A</code> / <code>TL0A</code>) and the retainers as <b>Aligner</b> pieces (<code>AU1A</code> / <code>AL1A</code>), in one order per patient.</li>
+      <li>The model is lowered behind the last molar on each side (the retromolar pad is not in the way of the Trimlign bur), and a brush fix is kept for every later re-run of that case.</li>
+      <li><b>It learns:</b> a case you corrected with the brush and then sent is saved under <code>training\</code> in the app folder. Zip that folder and send it to Dr. Akhavan now and then; the model is retrained on it.</li>
+      <li>The app runs on Dr. A's PC and is reachable on the office network only. From home, open it through Jump Desktop (or any remote desktop into an office PC); it has no address on the internet.</li>
       <li>Every model is engraved on the base inside the arch: patient name and <b>WHITENING</b> or <b>RETAINER</b> (Advanced settings to change or switch off).</li>
       <li>Processing takes about 30–40 seconds per arch.</li>
       <li>Something looks wrong on a case? Send Dr. Akhavan the patient name and the files from <code>BleachTray\done\…</code> (or <code>failed\…</code>).</li>

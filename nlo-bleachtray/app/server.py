@@ -25,7 +25,7 @@ app.mount("/static", StaticFiles(directory=os.path.join(ROOT, "app", "static")),
 JOBS = {}
 MODELS = load_models()
 
-from bleachtray.server_presets import PRESETS  # noqa: E402
+from bleachtray.server_presets import PRESETS, variants_for  # noqa: E402
 
 
 CFG_PATH = os.path.join(ROOT, "watch_config.json")
@@ -132,7 +132,8 @@ async def scanner_make(paths: str = Form(...), preset: str = Form("bleaching"), 
         shutil.copyfile(p, dst)
         first, last, arch = parse_name(fn)
         stem = "".join(c for c in os.path.splitext(fn)[0] if c.isalnum() or c in "-_ ").strip().replace(" ", "_") or f"scan{k}"
-        scans.append(dict(path=dst, name=stem, filename=fn, arch=arch))
+        for vpreset, tag, kind, stage in variants_for(preset):
+            scans.append(dict(path=dst, name=f"{stem}_{tag}", filename=fn, arch=arch, preset=vpreset, tag=tag, kind=kind, stage=stage))
     first, last, _ = parse_name(os.path.basename(plist[0]))
     pr.setdefault("patient_first", first); pr.setdefault("patient_last", last)
     if not pr.get("patient_first"): pr["patient_first"] = first
@@ -140,38 +141,88 @@ async def scanner_make(paths: str = Form(...), preset: str = Form("bleaching"), 
     job = dict(id=jid, dir=jdir, scans=scans, name=f"{first}_{last}", params=pr, status="queued",
                created=time.time(), filename=", ".join(sc["filename"] for sc in scans), preset=preset, source="scanner")
     JOBS[jid] = job
-    for old in sorted(JOBS.values(), key=lambda j: -j["created"])[4:]:
-        old.pop("feat_cache", None)
-    threading.Thread(target=_run, args=(job,), daemon=True).start()
+    _trim_caches()
+    _enqueue(job)
     return {"id": jid}
+
+
+# One case at a time: several people can drop scans at once (each drop is its own case, in line behind
+# the others), and a re-run never collides with a run already going. NLO_WORKERS=2 runs two in parallel.
+import queue
+WORK_Q = queue.Queue()
+QLOCK = threading.Lock()
+
+
+def _enqueue(job):
+    with QLOCK:
+        if job.get("in_queue"):
+            return
+        job["in_queue"] = True; job["queued_at"] = time.time()
+        if job.get("status") != "running":      # a running case finishes first, then runs again for what was added
+            job["status"] = "queued"
+    WORK_Q.put(job["id"])
+
+
+def _worker():
+    while True:
+        jid = WORK_Q.get()
+        job = JOBS.get(jid)
+        if job is not None:
+            with QLOCK:
+                job["in_queue"] = False
+            try:
+                _run(job)
+            except Exception:  # noqa
+                traceback.print_exc()
+        WORK_Q.task_done()
+
+
+for _ in range(max(1, int(os.environ.get("NLO_WORKERS", "1") or 1))):
+    threading.Thread(target=_worker, daemon=True).start()
+
+
+def _ahead(job):
+    """How many cases are being processed or waiting in front of this one."""
+    if job.get("status") not in ("queued",):
+        return 0
+    t = job.get("queued_at", 0)
+    return sum(1 for j in JOBS.values() if j is not job and (j.get("status") == "running" or (j.get("status") == "queued" and j.get("queued_at", 0) < t)))
 
 
 def _run(job):
     job["status"] = "running"
-    job["log"] = []
+    job["log"] = job.get("log") or []
     job["started"] = time.time()
+    full = job.pop("rerun_all", False)
+    me = job.pop("mask_edit", None)
+    todo = [k for k, sc in enumerate(job["scans"]) if full or me is not None or not sc.get("report")]
     job["progress"] = dict(frac=0.0, label="starting", scan=0, of=len(job["scans"]))
     try:
         def log(msg):
             job["log"].append(msg)
-        reports = []
-        n = len(job["scans"])
+        n = max(1, len(todo))
         job.setdefault("feat_cache", {})
-        for k, scan in enumerate(job["scans"]):
-            def progress(frac, label, k=k):
-                job["progress"] = dict(frac=round((k + frac) / n, 3), label=label, scan=k, of=n)
-            override = None
-            if job.get("mask_edit") is not None and job["mask_edit"].get("scan", 0) == k:
+        fixed = job.setdefault("fixed_labels", {})   # brush fixes, kept for every later re-run of this case
+        overrides = {}                                # ... and applied to every model made from the same scan file
+        for i, k in enumerate(todo):
+            scan = job["scans"][k]
+            def progress(frac, label, i=i, k=k):
+                job["progress"] = dict(frac=round((i + frac) / n, 3), label=label, scan=k, of=len(job["scans"]), step=i, steps=n)
+            if me is not None and job["scans"][me.get("scan", 0)]["path"] == scan["path"] and scan["path"] not in overrides:
                 progress(0.02, "applying your brush fixes")
-                override = _apply_mask_edit(job, k)
+                overrides[scan["path"]] = _apply_mask_edit(job, me.get("scan", 0))
+                fixed[scan["path"]] = overrides[scan["path"]]
+            override = overrides.get(scan["path"], fixed.get(scan["path"]))
             params = dict(job["params"]); params["arch"] = scan.get("arch") or None
+            if scan.get("preset"):
+                params.update(PRESETS.get(scan["preset"], {}))
+            params["stage"] = scan.get("stage", params.get("stage", 0)); params["kind"] = scan.get("kind", params.get("kind", "T"))
             rep = process(scan["path"], job["dir"], name=scan["name"], params=params, models=MODELS,
                           label_override=override, log=log, progress=progress, feat_cache=job["feat_cache"])
             scan["arch"] = rep["arch"]; scan["report"] = rep
-            reports.append(rep)
+        reports = [sc["report"] for sc in job["scans"] if sc.get("report")]
         job["report"] = reports[0]
         job["reports"] = reports
-        job["mask_edit"] = None
         # nothing goes to OrthoFactory until someone looks at the result and clicks Send
         # (jobs created with auto_order=True, e.g. an unattended watcher, skip the review)
         if job.get("auto_order"):
@@ -179,7 +230,7 @@ def _run(job):
         else:
             job["review"] = "review"
             job["order_folder"] = None; job["order_error"] = None
-        job["status"] = "done"
+        job["status"] = "queued" if job.get("in_queue") else "done"
     except Exception as ex:  # noqa
         job["status"] = "error"
         job["error"] = f"{ex}\n{traceback.format_exc()}"
@@ -205,7 +256,8 @@ def _write_order(job, log=print):
         job["order_error"] = "patient first + last name needed for an OrthoFactory order"
         return False
     pieces = [dict(arch=sc["arch"], stl=sc["report"]["outputs"]["model"], pts=sc["report"]["outputs"]["trimline"],
-                   stage=int(job["params"].get("stage", 0)), kind=job["params"].get("kind", "T")) for sc in job["scans"]]
+                   stage=int(sc.get("stage", job["params"].get("stage", 0))), kind=sc.get("kind", job["params"].get("kind", "T")))
+              for sc in job["scans"]]
     try:
         folder = write_order_folder(root, job["params"]["patient_first"], job["params"]["patient_last"], pieces,
                                     patient_id=job["params"].get("patient_id") or None,
@@ -224,8 +276,10 @@ def register_watcher_result(ent, work, results, log=print):
     """A case processed by the drop-folder watcher shows up in the app for review like any other."""
     jid = uuid.uuid4().hex[:10]
     scans = []
-    for rep, scan_path in results:
-        scans.append(dict(path=scan_path, name=rep["name"], filename=os.path.basename(scan_path), arch=rep["arch"], report=rep))
+    for r in results:
+        rep, scan_path = r[0], r[1]
+        extra = r[2] if len(r) > 2 else {}
+        scans.append(dict(path=scan_path, name=rep["name"], filename=os.path.basename(scan_path), arch=rep["arch"], report=rep, **extra))
     job = dict(id=jid, dir=work, scans=scans, name=f"{ent['first']} {ent['last']}".replace(" ", "_"),
                params=dict(patient_first=ent["first"], patient_last=ent["last"], stage=ent.get("stage", 0), kind=ent.get("kind", "T"),
                            doctor=ent.get("doctor") or "", adjust=dict(yaw_deg=0, dx=0, dy=0, dz=0)),
@@ -291,37 +345,125 @@ def base_stl():
 from typing import List
 
 
+def _trim_caches():
+    """Feature caches are big: keep them only for the few most recent cases."""
+    for old in sorted(JOBS.values(), key=lambda j: -j["created"])[4:]:
+        old.pop("feat_cache", None)
+
+
+def _open_case_for(first, last, arch, max_age=45 * 60):
+    """An unsent case of this patient from the last 45 minutes that has no model of this arch yet:
+    an upper dropped now joins the lower dropped a minute ago instead of becoming a second order."""
+    if not (first and last and arch):
+        return None
+    key = (first.strip().lower(), last.strip().lower())
+    for j in sorted(JOBS.values(), key=lambda j: -j["created"]):
+        if time.time() - j["created"] > max_age or j.get("review") in ("sent", "discarded") or j.get("status") == "error":
+            continue
+        pf, pl = (j["params"].get("patient_first") or "").strip().lower(), (j["params"].get("patient_last") or "").strip().lower()
+        if (pf, pl) != key:
+            continue
+        paths = {sc["path"] for sc in j["scans"]}
+        arches = {sc.get("arch") for sc in j["scans"]}
+        if len(paths) >= 2 or arch in arches:
+            continue
+        return j
+    return None
+
+
+def _add_scans(job, path, filename, arch, preset):
+    stem = "".join(c for c in os.path.splitext(filename)[0] if c.isalnum() or c in "-_ ").strip().replace(" ", "_") or "scan"
+    k = len({sc["path"] for sc in job["scans"]})
+    if any(sc["name"].startswith(stem) for sc in job["scans"]):
+        stem = f"{stem}_{k + 1}"
+    for vpreset, tag, kind, stage in variants_for(preset):
+        job["scans"].append(dict(path=path, name=f"{stem}_{tag}", filename=filename, arch=arch, preset=vpreset, tag=tag, kind=kind, stage=stage))
+    job["filename"] = ", ".join(dict.fromkeys(sc["filename"] for sc in job["scans"]))
+
+
+def _group_uploads(items):
+    """items: [(index, filename, arch or None)] -> list of cases, each [(index, filename, arch, first, last)].
+    Files are grouped by the patient name in the file name; within a patient one upper + one lower make
+    a case; a file whose name holds no patient name is a case of its own."""
+    from bleachtray.watch import parse_name
+    cases, by_patient = [], {}
+    for idx, fn, arch in items:
+        first, last, a = parse_name(fn)
+        arch = arch or a
+        known = first != "Scan"
+        key = (first.lower(), last.lower()) if known else ("", f"#{idx}")
+        subs = by_patient.setdefault(key, [])
+        home = None
+        for sj in subs:
+            if len(sj) < 2 and (arch is None or all(e[2] != arch for e in sj)):
+                home = sj; break
+        if home is None:
+            home = []; subs.append(home); cases.append(home)
+        home.append((idx, fn, arch, first if known else "", last if known else ""))
+    return cases
+
+
 @app.post("/api/jobs")
 async def create_job(files: List[UploadFile] = File(...), preset: str = Form("bleaching"), params: str = Form("{}"),
                      name: str = Form(""), arches: str = Form("[]")):
-    jid = uuid.uuid4().hex[:10]
-    jdir = os.path.join(JOBS_DIR, jid)
-    os.makedirs(jdir, exist_ok=True)
-    p = dict(PRESETS.get(preset, PRESETS["bleaching"]))
+    """Any number of scans at once: one case per patient (upper + lower paired by the file names)."""
+    p0 = dict(PRESETS.get(preset, PRESETS["bleaching"]))
     try:
-        p.update(json.loads(params or "{}"))
+        p0.update(json.loads(params or "{}"))
     except Exception:
         pass
     try:
         arch_list = json.loads(arches or "[]")
     except Exception:
         arch_list = []
-    scans = []
-    for k, f in enumerate(files[:2]):
-        path = os.path.join(jdir, f"scan{k}_{''.join(c for c in f.filename if c.isalnum() or c in '-_.')}")
-        with open(path, "wb") as fh:
-            fh.write(await f.read())
-        stem = "".join(c for c in os.path.splitext(f.filename)[0] if c.isalnum() or c in "-_ ").strip().replace(" ", "_") or f"scan{k}"
-        scans.append(dict(path=path, name=stem, filename=f.filename, arch=(arch_list[k] if k < len(arch_list) else None) or None))
-    clean_name = "".join(c for c in (name or f"{p.get('patient_first','')} {p.get('patient_last','')}".strip() or scans[0]["name"]) if c.isalnum() or c in "-_ ").strip() or "case"
-    job = dict(id=jid, dir=jdir, scans=scans, name=clean_name.replace(" ", "_"), params=p, status="queued",
-               created=time.time(), filename=", ".join(sc["filename"] for sc in scans), preset=preset)
-    JOBS[jid] = job
-    # feature caches are big: keep them only for the few most recent cases
-    for old in sorted(JOBS.values(), key=lambda j: -j["created"])[4:]:
-        old.pop("feat_cache", None)
-    threading.Thread(target=_run, args=(job,), daemon=True).start()
-    return {"id": jid}
+    blobs = []
+    for k, f in enumerate(files):
+        if not f.filename or not f.filename.lower().endswith((".stl", ".ply")):
+            continue
+        blobs.append((k, f.filename, await f.read()))
+    if not blobs:
+        raise HTTPException(400, "no STL files")
+    cases = _group_uploads([(k, fn, (arch_list[i] if i < len(arch_list) else None) or None) for i, (k, fn, _) in enumerate(blobs)])
+    data = {k: (fn, b) for k, fn, b in blobs}
+    single = len(cases) == 1
+    ids, joined = [], []
+    for case in cases:
+        first, last = case[0][3], case[0][4]
+        p = dict(p0)
+        if single and (p0.get("patient_first") or p0.get("patient_last")):
+            first, last = p0.get("patient_first", ""), p0.get("patient_last", "")
+        p["patient_first"], p["patient_last"] = first, last
+        # a lone arch of a patient who already has an unsent case: join it
+        if len(case) == 1 and case[0][2]:
+            other = _open_case_for(first, last, case[0][2])
+            if other is not None:
+                k, fn, arch, _, _ = case[0]
+                path = os.path.join(other["dir"], f"scan{len({sc['path'] for sc in other['scans']})}_{''.join(c for c in fn if c.isalnum() or c in '-_.')}")
+                with open(path, "wb") as fh:
+                    fh.write(data[k][1])
+                _add_scans(other, path, fn, arch, other.get("preset") or preset)
+                other.setdefault("log", []).append(f"{arch} scan added to this case: {fn}")
+                ids.append(other["id"]); joined.append(other["id"])
+                _enqueue(other)
+                continue
+        jid = uuid.uuid4().hex[:10]
+        jdir = os.path.join(JOBS_DIR, jid)
+        os.makedirs(jdir, exist_ok=True)
+        job = dict(id=jid, dir=jdir, scans=[], params=p, status="queued", created=time.time(), preset=preset, source="app")
+        for k, fn, arch, _, _ in case:
+            path = os.path.join(jdir, f"scan{len({sc['path'] for sc in job['scans']})}_{''.join(c for c in fn if c.isalnum() or c in '-_.')}")
+            with open(path, "wb") as fh:
+                fh.write(data[k][1])
+            _add_scans(job, path, fn, arch, preset)
+        nm = f"{first} {last}".strip() or (name if single else "") or job["scans"][0]["name"]
+        job["name"] = ("".join(c for c in nm if c.isalnum() or c in "-_ ").strip() or "case").replace(" ", "_")
+        JOBS[jid] = job
+        ids.append(jid)
+    _trim_caches()
+    for jid in ids:
+        if jid not in joined:
+            _enqueue(JOBS[jid])
+    return {"id": ids[0], "ids": ids, "joined": joined, "cases": len(ids)}
 
 
 @app.post("/api/jobs/{jid}/rerun")
@@ -337,20 +479,51 @@ async def rerun(jid: str, edits: str = Form("{}"), params: str = Form("{}")):
         job["params"].update(json.loads(params or "{}"))
     except Exception:
         pass
-    job["status"] = "queued"
     job["auto_order"] = False
-    threading.Thread(target=_run, args=(job,), daemon=True).start()
+    job["rerun_all"] = True
+    _enqueue(job)
     return {"id": jid}
 
 
 @app.get("/api/jobs")
 def list_jobs():
     return [{k: v for k, v in j.items() if k in ("id", "name", "status", "created", "filename", "preset", "review", "source")}
+            | dict(ahead=_ahead(j), arches=sorted({sc.get("arch") for sc in j["scans"] if sc.get("arch")}), models=len(j["scans"]))
             for j in sorted(JOBS.values(), key=lambda j: -j["created"])]
 
 
 def _review_view(job):
-    return {k: job.get(k) for k in ("id", "name", "status", "review", "order_folder", "order_error")} | {"scans": [dict(arch=sc.get("arch")) for sc in job["scans"]]}
+    return {k: job.get(k) for k in ("id", "name", "status", "review", "order_folder", "order_error")} | {"scans": [dict(arch=sc.get("arch"), tag=sc.get("tag")) for sc in job["scans"]]}
+
+
+TRAIN_DIR = os.path.join(ROOT, "training")
+
+
+def _save_training(job, log=print):
+    """A case someone corrected with the brush and then approved is a labelled example: the scan plus
+    the corrected tooth labels go to <app>/training, where they can be picked up to retrain the model
+    (tools/train_eval.py). Automatic results are not saved - they would only teach the model itself."""
+    import shutil
+    fixed = job.get("fixed_labels") or {}
+    if not fixed:
+        return []
+    os.makedirs(TRAIN_DIR, exist_ok=True)
+    saved = []
+    for path, labels in fixed.items():
+        sc = next((sc for sc in job["scans"] if sc["path"] == path), None)
+        if sc is None:
+            continue
+        stem = f"{job['name']}_{sc.get('arch') or 'scan'}_{job['id']}"
+        try:
+            shutil.copyfile(path, os.path.join(TRAIN_DIR, stem + ".stl"))
+            np.savez(os.path.join(TRAIN_DIR, stem + ".npz"), labels=np.asarray(labels, dtype=np.int16), arch=sc.get("arch") or "",
+                     source=os.path.basename(path), approved=time.time())
+            saved.append(stem)
+        except Exception as ex:  # noqa
+            log(f"could not save the training example ({ex})")
+    if saved:
+        log(f"brush-corrected case saved for training: {', '.join(saved)}")
+    return saved
 
 
 @app.post("/api/jobs/{jid}/approve")
@@ -360,6 +533,7 @@ def approve(jid: str):
         raise HTTPException(404)
     job.setdefault("log", [])
     _write_order(job, log=lambda m: job["log"].append(m))
+    _save_training(job, log=lambda m: job["log"].append(m))
     return _review_view(job)
 
 
@@ -379,7 +553,8 @@ def job_status(jid: str):
         raise HTTPException(404)
     out = {k: v for k, v in job.items() if k in ("id", "name", "status", "log", "error", "preset", "params", "order_folder", "order_error", "review", "source", "progress")}
     out["started"] = job.get("started")
-    out["scans"] = [dict(name=sc["name"], filename=sc["filename"], arch=sc.get("arch")) for sc in job["scans"]]
+    out["ahead"] = _ahead(job)
+    out["scans"] = [dict(name=sc["name"], filename=sc["filename"], arch=sc.get("arch"), tag=sc.get("tag"), preset=sc.get("preset")) for sc in job["scans"]]
     if job.get("reports"):
         out["reports"] = [{k: r[k] for k in r if k not in ("transform_raw_to_output",)} for r in job["reports"]]
         out["report"] = out["reports"][0]

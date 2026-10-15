@@ -4,7 +4,7 @@ import numpy as np
 import trimesh
 from .mesh_utils import load_scan, smooth_field
 from .orient import rough_orient, refine_frame, symmetry_frame, yaw_of
-from .segment import (predict_tooth_prob, clean_mask, split_teeth, split_teeth_arch, merge_small_teeth, resplit_elongated,
+from .segment import (predict_tooth_prob, clean_mask, split_teeth, split_teeth_arch, merge_small_teeth, resplit_elongated, drop_retromolar_pads,
                       order_teeth, margin_contour, resample_polyline, smooth_polyline, load_models,
                       bridge_embrasures, geodesic_dilate, cap_distal)
 from .reservoir import reservoir_displacement, apply_displacement, smooth_periphery
@@ -24,6 +24,7 @@ DEFAULTS = dict(
     scan_band=0.0,         # >0: keep real scan only this far beyond the gum line and fill the rest with a synthetic skirt (off: validated look)
     periphery_smooth=True, # smooth the scan surface beyond 2 mm from the gum line (ragged cheek/lip tissue)
     distal_cap_mm=0.0,     # >0: trimline stops this far in front of its most posterior point per side (Titan ~2.5); 0 = wrap the last molar (validated)
+    distal_relief=2.0,     # mm: the model behind the last molar (retromolar pad / tuberosity) is lowered to this far below the trim line so the trimmer reaches the distal surface; 0 = off
     patient_first="", patient_last="", stage=0, arch=None, export_folder="",
 )
 
@@ -78,6 +79,7 @@ def separate_teeth(mesh, mask, p_ip, A, aux, arch, log=print):
     aux = dict(aux); aux["p_ip"] = p_ip
     labels, bounds = split_teeth_arch(mesh, mask, A, aux, arch=arch, log=log)
     labels = merge_small_teeth(mesh, labels, A)
+    labels = drop_retromolar_pads(mesh, labels, arch, log=log)
     n = len(np.unique(labels[labels > 0]))
     if n < 6:
         log(f"  arch-profile split found only {n} teeth - falling back to erosion split")
@@ -86,6 +88,53 @@ def separate_teeth(mesh, mask, p_ip, A, aux, arch, log=print):
         labels = resplit_elongated(mesh, labels, A, aux)
         labels = merge_small_teeth(mesh, labels, A)
     return labels
+
+
+def distal_relief(mesh_f, labels, info, margin_f, drop=2.0, clearance=0.3, ramp=2.0, z_min=0.6, log=print):
+    """Lower everything behind the terminal tooth on each side to `drop` mm below the trim line there.
+    The cut is a plane across the arch `clearance` mm behind the tooth's (and the trim line's) distal
+    extent, so the line itself and the distal surface stay exactly as scanned; beyond it the surface
+    ramps down over `ramp` mm to a flat ledge. Vertex order is kept (labels stay aligned)."""
+    V = mesh_f.vertices.copy()
+    out = []
+    for side in (-1, 1):
+        teeth = {t: pos for t, (sd, pos) in info.items() if sd == side}
+        if len(teeth) < 2:
+            continue
+        term = max(teeth, key=lambda t: teeth[t])
+        prev = max((t for t in teeth if t != term), key=lambda t: teeth[t])
+        mt, mp = labels == term, labels == prev
+        if mt.sum() < 50 or mp.sum() < 50:
+            continue
+        c = V[mt][:, :2].mean(0)
+        d = c - V[mp][:, :2].mean(0)
+        if np.linalg.norm(d) < 1e-6:
+            continue
+        d /= np.linalg.norm(d)
+        n = np.array([-d[1], d[0]])
+        t_tooth = ((V[mt][:, :2] - c) @ d).max()
+        tl = margin_f[:, :2] - c
+        near = (np.abs(tl @ n) < 9.0) & ((tl @ d) > -2.0)
+        if near.sum() < 3:
+            continue
+        t_line = (tl[near] @ d).max()
+        t_cut = max(t_tooth, t_line) + clearance
+        z_ledge = max(z_min, float(margin_f[near][:, 2].min()) - drop)
+        rel = V[:, :2] - c
+        t = rel @ d; w = np.abs(rel @ n)
+        zone = (t > t_cut) & (w < 16.0)
+        if zone.sum() == 0:
+            continue
+        # never higher than where the trim line crosses the distal surface, then down to the ledge
+        z_cap = float(margin_f[near][:, 2].max()) + 0.3
+        blend = np.clip((t[zone] - t_cut) / ramp, 0.0, 1.0)        # 0 at the cut, 1 from `ramp` mm on
+        cap = z_ledge + (1.0 - blend) * max(z_cap - z_ledge, 0.0)
+        V[zone, 2] = np.minimum(V[zone, 2], cap)
+        out.append(dict(side=int(side), cut_mm_behind_tooth=round(float(t_cut - t_tooth), 2), ledge_z=round(z_ledge, 2), vertices=int(zone.sum())))
+        log(f"distal relief {'right' if side > 0 else 'left'}: {int(zone.sum())} vertices behind the last tooth lowered to z={z_ledge:.1f} ({drop:.1f} mm below the trim line)")
+    m = mesh_f.copy()
+    m.vertices = V
+    return m, out
 
 
 def detect_arch(mesh, filename=""):
@@ -143,12 +192,22 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     p_tooth, p_ip, aux = predict_tooth_prob(mesh, models, feats=feats)
     prog(0.30, "separating the teeth")
     A = aux["A"]
+    # the tooth split is the same for the same scan + arch, so the retainer made right after the
+    # whitening tray (and a base nudge later) reuses it
+    lkey = (scan_path, "labels", arch_hint)
     if label_override is not None:
         labels = np.asarray(label_override)
         mask = labels > 0
+    elif feat_cache is not None and lkey in feat_cache:
+        labels = feat_cache[lkey]
+        mask = labels > 0
+        log("tooth separation reused from the previous run")
     else:
         mask = clean_mask(smooth_field(A, p_tooth, 4) > 0.5, A)
         labels = separate_teeth(mesh, mask, p_ip, A, aux, arch_hint, log=log)
+        mask = labels > 0          # separation may have dropped soft tissue mistaken for a tooth
+        if feat_cache is not None:
+            feat_cache[lkey] = labels
     info, cents, center, contact = order_teeth(mesh, labels, aux)
     n_teeth = len(info)
     rep["teeth"] = {int(k): dict(side=int(v[0]), position=int(v[1])) for k, v in info.items()}
@@ -178,7 +237,7 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
                                feather=P["reservoir_feather"], max_position=P["reservoir_max_position"])
     mesh_r = apply_displacement(mesh, d)
     if P.get("periphery_smooth", True):
-        mesh_r = smooth_periphery(mesh_r, labels, A, start=2.0, full=P["facial_offset"])
+        mesh_r = smooth_periphery(mesh_r, labels, A, start=2.0, full=P["facial_offset"], iters=int(P.get("periphery_iters", 30)), mu=float(P.get("periphery_mu", -0.52)))
     rep["reservoir_vertices"] = int((d > 0.05).sum())
     rep["steps"].append(("reservoirs", round(time.time() - t0, 2)))
     prog(0.55, "building the solid model")
@@ -235,6 +294,11 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
         mesh_f.apply_transform(T_adj)
         margin_f = trimesh.transform_points(margin_f, T_adj)
         log(f"[{name}] manual placement: yaw {adj['yaw_deg']:+.1f} deg, shift x {adj['dx']:+.2f} y {adj['dy']:+.2f} z {adj['dz']:+.2f} mm")
+    # the tissue behind the last molar (retromolar pad, tuberosity) is lowered below the trim line so
+    # the trimmer can get round the distal surface instead of hitting a wall of gum
+    if P.get("distal_relief", 0.0) > 0:
+        mesh_f, relief = distal_relief(mesh_f, labels, info, margin_f, drop=P["distal_relief"], log=lambda m: log(f"[{name}] {m}"))
+        rep["distal_relief"] = relief
     # Trimlign reach: cross over the last molars instead of wrapping behind them
     if P.get("distal_cap_mm", 0.0) > 0:
         margin_f = cap_distal(margin_f, mesh_f, keep_mm=P.get("distal_cap_mm", 0.0))
@@ -247,7 +311,7 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     # real scan kept only within scan_band of the gum line (cleans off ragged cheek/lip tissue);
     # the rest of the body is a smooth synthetic skirt
     scan_region = horseshoe_outline(margin_f[:, :2], P["scan_band"], P["scan_band"]) if P.get("scan_band") else None
-    body, body_method = build_body(mesh_f, outline, 0.0, log=log, scan_region=scan_region)
+    body, body_method = build_body(mesh_f, outline, 0.0, log=log, scan_region=scan_region, shelf=scan_region is not None or bool(P.get("shelf", False)))
     rep["body_method"] = body_method
     rep["body_watertight"] = bool(body.is_watertight)
     rep["body_volume_ml"] = round(float(body.volume) / 1000.0, 2)

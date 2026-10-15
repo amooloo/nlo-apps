@@ -782,3 +782,39 @@ def refine_mask_crease(mesh, mask, A, aux, tau=0.6, band_mm=5.0, col_mm=0.5, fac
     out = mask.copy()
     out[idx[drop]] = False
     return clean_mask(out, A)
+
+
+def drop_retromolar_pads(mesh, labels, arch="lower", min_s=42.0, narrow=0.5, rise=1.5, log=None):
+    """The last 'tooth' on a side, behind the molars, that is far too narrow for a molar and rises well
+    above its neighbour is the retromolar pad / ascending tissue the classifier mistook for enamel:
+    a real third molar is molar-sized and sits at or below the second molar's level. Those labels
+    become gingiva (a half-scanned molar is molar-height, so it stays)."""
+    idx = np.where(labels > 0)[0]
+    if len(idx) < 200:
+        return labels
+    s = arch_coordinate(mesh.vertices[idx, :2])
+    z = mesh.vertices[idx, 2]
+    lab = labels[idx]
+    info = {}
+    for L in np.unique(lab):
+        m = lab == L
+        med = float(np.median(s[m]))
+        info[L] = dict(n=int(m.sum()), lo=np.percentile(s[m], 5), hi=np.percentile(s[m], 95), z95=float(np.percentile(z[m], 95)), med=med)
+    out = labels.copy()
+    for side in (-1, 1):
+        on_side = {L: a for L, a in info.items() if np.sign(a["med"]) == side}
+        if len(on_side) < 3:
+            continue
+        last = max(on_side, key=lambda L: abs(on_side[L]["med"]))
+        a = on_side[last]
+        if abs(a["med"]) < min_s:
+            continue
+        rest = {L: b for L, b in on_side.items() if L != last}
+        prev = max(rest, key=lambda L: abs(rest[L]["med"]))
+        b = rest[prev]
+        width = a["hi"] - a["lo"]
+        if width < narrow * expected_width(a["med"], arch) and a["z95"] > b["z95"] + rise:
+            out[labels == last] = 0
+            if log:
+                log(f"  dropped tooth {last} behind the last molar: only {width:.1f} mm along the arch and {a['z95'] - b['z95']:.1f} mm above tooth {prev} - soft tissue, not a tooth")
+    return out

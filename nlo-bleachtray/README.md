@@ -8,16 +8,27 @@ puts it into OrthoFactory as an order, like a Titan export. Nothing to pay per c
 1. Export the patient's scan as an STL from the scanner, with the patient's name in the file name
    (the scanner does this on its own, e.g. `Armaan_Shetty_20261015_09-20-31_upper.stl`).
 2. Either drop the file(s) on the **Bleach Tray** app page (any office computer; home page → Bleach Tray), or drag
-   them into the folder **`S:\clinical\3D printing\BleachTray`** in File Explorer. Upper and lower? Both.
-3. About a minute later the case shows **"check & send"** in the app. Look at the 3D result (trim line, reservoirs,
-   position on the base). Fix a tooth with the brush or nudge the base if needed.
-4. Click **Send to OrthoFactory**. Only then does it appear in OrthoFactory → **Production**, like any Titan case.
+   them into the folder **`S:\clinical\3D printing\BleachTray`** in File Explorer. Upper and lower together or one
+   after the other (they are paired by the patient name), one patient or a whole day's scans at once (one case per
+   patient). Several people can drop at the same time: cases run one after another and the list shows who is waiting.
+3. A few minutes later the case shows **"check & send"** in the app, with **four models**: whitening tray (WT) and
+   thermoformed retainer (TT) for each arch. Look at the 3D result (trim line, reservoirs, position on the base).
+   Fix a tooth with the brush or nudge the base if needed - a fix is kept for every later re-run of that case.
+4. Click **Send to OrthoFactory**. Only then does it appear in OrthoFactory → **Production**, like any Titan case:
+   the whitening trays as Template pieces (`TU0A` / `TL0A`), the retainers as Aligner pieces (`AU1A` / `AL1A`).
    Print on the Form 4B, thermoform, trim on the Trimlign. **Discard** throws it away.
 
 Nothing reaches OrthoFactory without that click. Files dragged into the folder move to `BleachTray\done` when
 processed, or to `BleachTray\failed` with an `error.txt`. The small black window "NLO Bleach Tray" must be open on
 the PC that runs the app (it starts by itself at sign-in; if it's gone, double-click `start_app.bat` in the app
 folder). That one window watches the drop folder *and* serves the app page to the whole office.
+
+## It learns from your corrections
+
+Every case you fixed with the brush and then sent is saved in the app folder under `training\` (the scan and the
+corrected tooth labels). Zip that folder and send it to Dr. Akhavan now and then: the model is retrained on it and
+the next update needs fewer corrections. Cases that needed no brush are not saved (they would only teach the
+model what it already does).
 
 ## Scanner integration (AlliedStar or any scanner that exports STLs)
 
@@ -48,7 +59,7 @@ From any office computer open `http://<lab PC name>:8765` — or click **Bleach 
 which opens it for you (the black window on the lab PC prints the exact address). Drop a scan anywhere on the page:
 it processes on its own and writes the OrthoFactory order (the green line under the result confirms it). See the
 result in 3D, paint over a tooth the computer missed (hold **Shift** and drag on the *Segmentation / fix* tab),
-re-run. **Position on the base** (Result tab): rotate / shift the arch on the base with the arrow buttons (live preview), *Apply* rebuilds the order, *Reset to automatic* goes back. Presets: *Bleaching tray* (reservoirs 5-5, line at the gum), *Bleaching 3-3*, *Aligner / retainer*
+re-run. **Position on the base** (Result tab): rotate / shift the arch on the base with the arrow buttons (live preview), *Apply* rebuilds the order, *Reset to automatic* goes back. *Make*: *Whitening tray + retainer* (default, both per arch), *Whitening tray 5-5 only* (reservoirs 5-5, line at the gum), *Whitening 3-3 only*, *Retainer only*
 (line 1.25 mm onto the gums, semi-scallop), *Plain model*.
 
 ---
@@ -76,6 +87,11 @@ extruded horseshoe outline (manifold3d booleans), unioned with a manifold rebuil
 placement (facial gum line of the centrals 6.0 / 4.5 mm in front of the locating hole for upper / lower; floor
 3 mm below the lowest trim-line point).
 
+**Behind the last molar.** A "tooth" found behind the terminal molar that is far too narrow for a molar and rises
+above it is the retromolar pad (or ascending tissue) and is relabelled gum, so the trim line wraps the molar instead
+of running up the pad. The model is then lowered behind the last tooth on each side to 2 mm below the trim line
+(`distal_relief`), so the Trimlign bur reaches the distal surface instead of hitting a wall of gum.
+
 **Engraving.** Patient name (first name or initial + last name) and WHITENING / RETAINER / MODEL, 2.4 / 2.0 mm
 capitals, 0.4 mm deep, on the flat strip of the base plate inside the arch (y -13.5..-8.4, z 1.0). Switch off or
 override under Advanced settings.
@@ -88,7 +104,8 @@ detected and removed before orientation, the skirt reads as gum. Scans over 200k
 on 10/15/2026 (Arman Shetty, 10 59 21).
 
 **Command line.** `python run_watch.py --inbox <folder> --titan <OrthoFactory input folder>` (settings remembered in
-`watch_config.json`); `python run_app.py [--lan]`; `python tools/import_base.py <Titan folder or export .stl>`.
+`watch_config.json`); `python run_app.py [--lan]` (`NLO_WORKERS=2` processes two cases at once on a strong PC);
+`python tools/import_base.py <Titan folder or export .stl>`.
 
 **Retraining.** `python tools/make_ground_truth.py <raw scan> <Titan '- 0 -' export> <out.npz>` per arch (stage-1 exports
 work too: moved/missing teeth are marked 'ignore'), then `python tools/train_eval.py cases.json` (leave-one-case-out
