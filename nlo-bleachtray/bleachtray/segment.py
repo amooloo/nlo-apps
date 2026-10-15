@@ -598,7 +598,7 @@ def footprint_halfwidth(xy, px=0.1):
     return dt[ij[:, 1], ij[:, 0]]
 
 
-def arch_boundaries(s, z, hw, conc_facial, arch, p_ip=None, b=0.25, prominence=0.6, min_score=1.4, min_gap=3.0, edge=2.5, log=None):
+def arch_boundaries(s, z, hw, conc_facial, arch, p_ip=None, b=0.25, prominence=0.6, min_score=2.2, min_gap=3.0, edge=2.5, log=None):
     """Contact positions along the arch from the combined boundary score. Returns (bounds, sgrid, score)."""
     from scipy import ndimage as ndi
     from scipy.signal import find_peaks
@@ -637,17 +637,36 @@ def arch_boundaries(s, z, hw, conc_facial, arch, p_ip=None, b=0.25, prominence=0
     lo, hi = sgrid[0], sgrid[-1]
     bounds = [sgrid[p] for p in pk if lo + edge < sgrid[p] < hi - edge]
     # width sanity: split segments far too wide for their position, merge ones far too narrow
+    tried = set()
     for _ in range(20):
         edges = [lo] + bounds + [hi]
         changed = False
         for i in range(len(edges) - 1):
             a, c = edges[i], edges[i + 1]
             mid = 0.5 * (a + c); w = c - a; ew = expected_width(mid, arch)
-            inner = (sgrid > a + edge) & (sgrid < c - edge)
-            if w > 1.45 * ew and inner.any():
+            # a split must leave two plausible teeth, never a sliver (that just gets merged back)
+            lo_w = 0.55 * min(ew, expected_width(a + 0.3 * w, arch), expected_width(c - 0.3 * w, arch))
+            inner = (sgrid > a + max(edge, lo_w)) & (sgrid < c - max(edge, lo_w))
+            key = (round(a, 1), round(c, 1))
+            if w > 1.45 * ew and inner.any() and key not in tried:
+                tried.add(key)
                 j = np.argmax(np.where(inner, score, -np.inf))
                 bounds = sorted(bounds + [sgrid[j]]); changed = True
                 if log: log(f"  split {w:.1f} mm segment at s={mid:+.1f} (expected {ew} mm) -> boundary at {sgrid[j]:+.1f}")
+                break
+        if changed:
+            continue
+        # a weak boundary inside what could be one tooth (molar fissure, buccal groove): drop it
+        for i in range(1, len(edges) - 1):
+            a, c = edges[i - 1], edges[i + 1]
+            sc = score[np.argmin(np.abs(sgrid - edges[i]))]
+            mid = 0.5 * (a + c)
+            limit = 1.25 * expected_width(mid, arch)
+            if abs(mid) >= 20:       # back teeth: any single tooth is at most ~12 mm, whatever the count
+                limit = max(limit, 12.0)
+            if sc < 3.2 and (c - a) <= limit:
+                if log: log(f"  drop weak boundary at s={edges[i]:+.1f} (score {sc:.1f}) inside a {c - a:.1f} mm span")
+                bounds.pop(i - 1); changed = True
                 break
         if changed:
             continue

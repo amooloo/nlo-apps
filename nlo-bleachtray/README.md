@@ -77,7 +77,10 @@ on 10/15/2026 (Arman Shetty, 10 59 21).
 **Command line.** `python run_watch.py --inbox <folder> --titan <OrthoFactory input folder>` (settings remembered in
 `watch_config.json`); `python run_app.py [--lan]`; `python tools/import_base.py <Titan folder or export .stl>`.
 
-**Retraining.** Corrected cases are training data: see `samples/README.md`, then `python tools/train_eval.py`.
+**Retraining.** `python tools/make_ground_truth.py <raw scan> <Titan '- 0 -' export> <out.npz>` per arch (stage-1 exports
+work too: moved/missing teeth are marked 'ignore'), then `python tools/train_eval.py cases.json` (leave-one-case-out
+scores, then the final model to `assets/models.joblib`). Current model: 8 arches from 5 patients; held-out tooth/gum F1
+0.96–0.99 per patient.
 
 **Layout.**
 ```
