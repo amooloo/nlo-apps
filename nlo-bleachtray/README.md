@@ -30,6 +30,12 @@ serves the browser app to the whole office.
    * Answer **y** when it asks to start the watcher automatically at sign-in.
 3. Double-click **`start_app.bat`** once to start it now.
 
+## Moving the app to another PC
+
+On the old PC double-click `uninstall_autostart.bat` and close the app's window. On the new PC extract the zip,
+run `install.bat`. Only one PC should run the app at a time (two watchers would create duplicate orders).
+Any PC that can see the S: drive can host it; it just has to be on and signed in.
+
 ## If a case needs a look
 
 From any office computer open `http://<lab PC name>:8765` — or click **Bleach Tray** on the NLO apps home page, which opens it for you (the black window on the lab PC prints the exact address). Drag a scan in, see the result in 3D, paint over a tooth the
