@@ -6,9 +6,11 @@ if not "%~1"=="run" (
 )
 cd /d "%~dp0"
 title NLO Bleach Tray app
-set "PY="
-for %%V in (3.13 3.12 3.14 3.11) do if not defined PY py -%%V --version >nul 2>&1 && set "PY=py -%%V"
-if not defined PY set "PY=python"
-%PY% run_app.py
+call "%~dp0_findpy.bat"
+if not defined PY (
+  echo  Python 3.13 was not found on this PC. Close this window and double-click install.bat.
+  goto :eof
+)
+"%PY%" run_app.py
 echo.
 echo  The app stopped. Close this window and double-click start_app.bat to start it again.
