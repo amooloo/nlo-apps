@@ -1,0 +1,12 @@
+# private / local-only: patient scans, labels, vendor fixture geometry, job outputs
+samples/*.stl
+samples/*.ply
+samples/*.npz
+samples/*.png
+samples/mandible/
+assets/trimlign_base_*
+jobs/
+out/
+out_test/
+__pycache__/
+*.pyc

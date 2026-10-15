@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>NLO Bleach Tray</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root { --navy:#1B2F4C; --blue:#1D3EA9; --coral:#FA624D; --mint:#64F4C9; --page:#F2F3F4; }
+* { box-sizing:border-box; margin:0; padding:0; }
+body { font-family:'Montserrat',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background:var(--page); color:var(--navy); min-height:100vh; }
+header { background:var(--navy); color:#fff; padding:36px 24px 30px; text-align:center; }
+header h1 { font-size:1.4rem; font-weight:800; letter-spacing:.3px; }
+header p { opacity:.7; font-size:.85rem; margin-top:8px; }
+main { max-width:760px; margin:36px auto 60px; padding:0 20px; }
+.card { background:#fff; border-radius:14px; padding:22px 24px; box-shadow:0 1px 2px rgba(27,47,76,.06), 0 6px 20px rgba(27,47,76,.06); margin-bottom:18px; }
+.card h2 { font-size:.8rem; text-transform:uppercase; letter-spacing:2px; color:var(--blue); margin-bottom:12px; font-weight:700; }
+p, li { font-size:.95rem; line-height:1.55; }
+ol, ul { padding-left:22px; margin-top:6px; }
+li { margin:6px 0; }
+code { font-family:ui-monospace,Menlo,Consolas,monospace; font-size:.85em; background:#eef1f6; padding:2px 6px; border-radius:5px; }
+pre { background:#1B2F4C; color:#e8eefc; padding:14px 16px; border-radius:10px; overflow:auto; font-size:.82rem; line-height:1.5; margin-top:8px; }
+.btn { display:inline-block; background:var(--blue); color:#fff; text-decoration:none; font-weight:700; padding:12px 18px; border-radius:10px; margin:8px 8px 0 0; font-size:.9rem; }
+.btn.alt { background:#fff; color:var(--blue); border:2px solid var(--blue); }
+.pill { display:inline-block; background:#E6F9F2; color:#0B7C61; font-weight:700; font-size:.75rem; padding:4px 10px; border-radius:999px; margin-left:8px; vertical-align:middle; }
+.steps li strong { color:var(--navy); }
+</style>
+</head>
+<body>
+<header>
+  <h1>NLO Bleach Tray</h1>
+  <p>Scan in → bleaching-tray model with reservoirs, Trimlign base and trimline → straight into OrthoFactory. $0 per case.</p>
+</header>
+<main>
+  <div class="card">
+    <h2>Open it <span class="pill">runs on the lab PC</span></h2>
+    <p>This one is not a web page — it does real 3D work, so it runs on the lab computer (or any office computer with Python).
+       Start it with <code>python run_app.py</code> in its folder, or use the shortcut on the lab PC desktop once installed.</p>
+    <a class="btn" href="http://127.0.0.1:8765/">Open on this computer</a>
+    <a class="btn alt" href="https://github.com/amooloo/nlo-apps/tree/main/nlo-bleachtray">Code &amp; setup guide</a>
+  </div>
+
+  <div class="card">
+    <h2>How to use</h2>
+    <ol class="steps">
+      <li><strong>Drop</strong> the upper and/or lower scan STL from the scanner.</li>
+      <li><strong>Name</strong> the patient (first, last) and pick the preset — <em>Bleaching tray</em> is the default: 0.5 mm reservoirs on 5-5, trimline scalloped at the gum line.</li>
+      <li><strong>Process.</strong> About 30–45 seconds per arch. Check the 3D preview; if a tooth was missed, fix it with the brush on the <em>Segmentation</em> tab and re-run.</li>
+      <li><strong>Done.</strong> The order appears in OrthoFactory's Production list like any Titan export (the app writes the order folder into <code>S:\clinical\3D printing\Titan</code>). Print the STL on the Form 4B, thermoform, trim on the Trimlign.</li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <h2>Install once</h2>
+    <pre>cd nlo-bleachtray
+python -m pip install -r requirements.txt
+python tools/import_base.py "S:\clinical\3D printing\Titan\&lt;any order folder&gt;\&lt;Patient&gt; - 1 - Maxilla.stl"
+python run_app.py</pre>
+    <p>The third line pulls the Trimlign base out of any existing Titan export; it is not stored in this repository.</p>
+  </div>
+</main>
+<script src="nlo-home.js" defer></script>
+</body>
+</html>
