@@ -1496,7 +1496,7 @@ async function loadHistory(id) {
   try { const h = await B.caseLog(id); if (S.openId === id && seq > (S.histShown || 0)) { S.histShown = seq; S.history = h; S.histRev = rev0; const el = $('#histBox'); if (el) { const keep = stkHold(); el.innerHTML = historyHTML(findCase(id)); stkPop(el); stkReanchor(keep); } wtyRefresh(id); stageMarksPaint(findCase(id));
     const c = findCase(id); if (c && String(c.notes || '').trim() && !notesAuthor(c)) { noteAuthKeep(c, h); noteByPaint(); } } } catch (e) { }
 }
-const FIELD_LABELS = { labOrd: 'lab progress', labNot: 'lab order', prints: 'prints', prIds: 'prints', quick: 'Quick add tag', rx: 'Herbst Rx', rxRet: 'Retainer Rx', rxMet: 'Metal Rx', rxFun: 'Functional Rx', invDate: 'invoice date', noGuarantee: 'No Guarantee', photo: 'photo', labRef: 'lab case #', labHold: 'lab hold', planUrl: 'plan link', shipToPatient: 'ship to patient', records: 'records on file', zoomDate: 'Zoom call', zoomTime: 'Zoom call', tracking: 'tracking #', carrier: 'carrier', teeth: 'tooth chart', teethNote: 'tooth chart', chart: 'chart #', titanUrl: 'Titan link', initial: 'initial/refinement', appliances: 'appliance', lab: 'lab', arches: 'arch', retKinds: 'retainer type', goals: 'Dr. A’s instructions', instrPicks: 'Dr. A’s instructions', instrOther: 'Dr. A’s instructions', extras: 'extras', variant: 'case type', type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery appt', deliveryTime: 'appt time', txStart: 'treatment start', txEnd: 'expected removal', acrylic: 'acrylic color', glitter: 'acrylic color', alU: 'aligners', alL: 'aligners', aligners: 'aligners', atTemplates: 'attachment templates', treatArch: 'arches to treat', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes', iprSnap: 'IPR chart (from the IPR Tracker)', refN: 'refinement #', remake: 'remake', scanOnFile: 'scan on file' };
+const FIELD_LABELS = { btModels: 'Bleach Tray models', labOrd: 'lab progress', labNot: 'lab order', prints: 'prints', prIds: 'prints', quick: 'Quick add tag', rx: 'Herbst Rx', rxRet: 'Retainer Rx', rxMet: 'Metal Rx', rxFun: 'Functional Rx', invDate: 'invoice date', noGuarantee: 'No Guarantee', photo: 'photo', labRef: 'lab case #', labHold: 'lab hold', planUrl: 'plan link', shipToPatient: 'ship to patient', records: 'records on file', zoomDate: 'Zoom call', zoomTime: 'Zoom call', tracking: 'tracking #', carrier: 'carrier', teeth: 'tooth chart', teethNote: 'tooth chart', chart: 'chart #', titanUrl: 'Titan link', initial: 'initial/refinement', appliances: 'appliance', lab: 'lab', arches: 'arch', retKinds: 'retainer type', goals: 'Dr. A’s instructions', instrPicks: 'Dr. A’s instructions', instrOther: 'Dr. A’s instructions', extras: 'extras', variant: 'case type', type: 'type', patient: 'patient name', detail: 'detail', stage: 'stage', assignee: 'assignee', assistant: 'assistant', scanner: 'scanner', scanDate: 'scan date', dueDate: 'due date', labDate: 'lab completion date', deliveryDate: 'delivery appt', deliveryTime: 'appt time', txStart: 'treatment start', txEnd: 'expected removal', acrylic: 'acrylic color', glitter: 'acrylic color', alU: 'aligners', alL: 'aligners', aligners: 'aligners', atTemplates: 'attachment templates', treatArch: 'arches to treat', instructions: 'Dr. A’s instructions', cc: 'patient’s CC', ipr: 'IPR & spacing', notes: 'notes', iprSnap: 'IPR chart (from the IPR Tracker)', refN: 'refinement #', remake: 'remake', scanOnFile: 'scan on file' };
 function historyHTML(c) {
   const h = S.history; if (!h) return '<div class="small muted">Loading…</div>'; if (!h.length) return '<div class="small muted">No history yet.</div>';
   const stageName = k => { const s = c && (caseStages(c).find(x => x[0] === k) || flowOf(c).stages.find(x => x[0] === k)); return s ? s[1] : (c && retiredStageLabel(c, k)) || k; };
@@ -1574,7 +1574,12 @@ function renderDrawer() {
   const lblBtn = c.type === 'nla' ? '<div class="dLbl" id="dLbl"><button type="button" class="btn btn-pri btn-sm" data-act="labels"' + (nAl ? '' : ' disabled') + '>' + ic('print', 15) + 'Print labels</button>' +
       (nAl ? '' : '<span class="small muted">once the aligner counts are in (Edit)</span>') + '</div>'
     : c.type === 'retainer' ? '<div class="dLbl" id="dLbl"><button type="button" class="btn btn-pri btn-sm" data-act="retLabels" title="The label for the bag: patient, upper/lower, retainers or whitening trays">' + ic('print', 15) + 'Print labels</button>' +
-      (done ? '' : '<span class="small muted">for the bag — then it offers to move the case to Front desk pickup</span>') + '</div>' : '';
+      // the models for the printer come from the Bleach Tray app (Amir, 15 Oct 2026: "integrate this with the case tracker app so staff
+      // can upload stl directly from there"): the button opens it with the patient, arches and TT/WT already filled in; the scan is
+      // dropped there, and when the models are sent to OrthoFactory the app tells this page, which notes it on the case (btModels)
+      '<button type="button" class="btn btn-sec btn-sm" data-act="btModels" title="Open the Bleach Tray app for this patient: drop the scan there, check the 3D result, send the models to OrthoFactory">' + ic('lab', 15) + 'Make models</button>' +
+      (c.btModels && c.btModels.at ? '<span class="small muted">models in OrthoFactory ' + esc(new Date(c.btModels.at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })) + (c.btModels.models && c.btModels.models.length ? ' (' + esc(c.btModels.models.join(', ')) + ')' : '') + '</span>'
+        : done ? '' : '<span class="small muted">labels for the bag · models for the printer</span>') + '</div>' : '';
   d.dataset.for = c.id; d.dataset.mode = 'view';
   d.innerHTML = '<div class="dHd"><button type="button" class="dPh" data-act="phEdit" title="' + (c.photo ? 'Change or remove the photo' : 'Add a photo of the patient') + '" aria-label="' + (c.photo ? 'Patient photo: change or remove' : 'Add a patient photo') + '">' + ptAv(c, 64) + '<span class="dPhCam">' + ic('camera', 13) + '</span></button>' +
     // what the case is (arch, appliances, lab, kind of submission, extras) sits under the name — it was its own "Case" section
@@ -2202,6 +2207,7 @@ function onClick(e) {
     case 'setStage': moveStage(S.openId, t.dataset.k); break;
     case 'labels': { const c = findCase(S.openId); if (c && alN(c)) labelsModal(c); break; }
     case 'retLabels': { const c = findCase(S.openId); if (c && c.type === 'retainer') retLabelsModal(c); break; }
+    case 'btModels': { const c = findCase(S.openId); if (c && c.type === 'retainer') openBleachTray(c); break; }
     case 'rec': toggleRecord(t); break;
     case 'copyNote': { const c = findCase(S.openId); if (!c) break; const v = noteVisitOf(c);
       copyText(chartNote(c, v)).then(ok => toast(ok ? 'Chart note copied (' + noteVisitName(c, v).toLowerCase() + ') — paste it into the patient’s chart' : 'Couldn’t copy — select the note and copy it', ok ? {} : { bad: true })); break; }
@@ -2359,3 +2365,29 @@ function printCode() {
   w.document.write('<title>NLO Cases recovery code</title><body style="font-family:sans-serif;padding:40px"><h2>NLO Cases — recovery code</h2><p>Keep this somewhere safe. It unlocks the office’s case data if the owner password is forgotten.</p><pre style="font-size:26px;letter-spacing:2px">' + esc(code) + '</pre><p>Printed ' + esc(new Date().toLocaleString()) + '</p></body>');
   w.document.close(); w.focus(); w.print();
 }
+
+
+/* ---------- Bleach Tray app (the models for the printer), 15 Oct 2026: opened from a retainer / whitening case with the patient,
+   arches and TT/WT filled in. It runs on the lab PC (the same name the NLO apps home page keeps, http://<PC>:8765). When the models
+   are sent to OrthoFactory the app posts a message back to this tab and the case notes it (btModels, in the history). ---------- */
+const BT = { key: 'nlo.bleachtray.labpc', dflt: 'DrA' };
+function bleachTrayBase() { let pc = ''; try { pc = localStorage.getItem(BT.key) || ''; } catch (e) { } return 'http://' + (pc || BT.dflt) + ':8765/'; }
+function openBleachTray(c) {
+  const parts = String(c.patient || '').trim().split(/\s+/), first = parts[0] || '', last = parts.slice(1).join(' ') || '';
+  const r = (c.retKinds || []).join(' '), makes = []; if (/\bWT/i.test(r)) makes.push('WT'); if (/\bTT/i.test(r) || !makes.length) makes.push('TT');
+  const arches = (c.arches || []).map(a => String(a).toLowerCase()).filter(a => a === 'upper' || a === 'lower');
+  const q = new URLSearchParams({ first, last, make: makes.join(','), arches: arches.join(','), case: c.id, from: 'cases', origin: location.origin });
+  const w = window.open(bleachTrayBase() + '?' + q.toString(), 'nlo-bleachtray');
+  if (!w) toast('The browser blocked the new tab — allow pop-ups for this page, then try again', { bad: true });
+}
+window.addEventListener('message', async ev => {
+  const m = ev.data; if (!m || m.nlo !== 'bleachtray' || !/^http:\/\/[^/]+:8765$/i.test(ev.origin)) return;
+  const c = findCase(m.case); if (!c) return;
+  if (m.event === 'sent') {
+    const at = Date.now(), models = Array.isArray(m.models) ? m.models.map(x => String(x).slice(0, 20)).slice(0, 8) : [];
+    c.btModels = { at, models }; queueRender(); if (S.openId === c.id) renderDrawer();
+    try { await B.mutateCase(c.id, d => { d.btModels = { at, models }; }, { a: 'edit', fields: ['btModels'] }); toast('Models for ' + ptNameText(c.patient) + ' are in OrthoFactory — noted on the case'); }
+    catch (e) { toast(errText(e), { bad: true }); }
+    if (S.openId === c.id && !S.editing) loadHistory(c.id);
+  }
+});
