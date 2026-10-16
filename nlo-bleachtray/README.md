@@ -20,7 +20,7 @@ puts it into OrthoFactory as an order, like a Titan export. Nothing to pay per c
    last molar - and the model is built from the clean scan. **Also make …** in the Check & send box adds the other
    tray type from a scan already in the case (chose the retainer, now the whitening tray is wanted too): no re-drop,
    the tooth split is reused, and Send writes the order with every model.
-4. Click **Send to OrthoFactory**. Only then does it appear in OrthoFactory → **Production**, like any Titan case:
+4. Click **Send to Trimlign**. Only then does it appear in OrthoFactory (the Trimlign software) → **Production**, like any Titan case:
    the whitening trays as Template pieces (`TU0A` / `TL0A`), the retainers as Aligner pieces (`AU1A` / `AL1A`).
    Print on the Form 4B, thermoform, trim on the Trimlign. **Discard** throws it away. **Looks good - save for
    learning** files the case for the retraining without ordering anything (Send does that too, on the side).
