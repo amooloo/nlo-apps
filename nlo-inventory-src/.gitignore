@@ -1,0 +1,5 @@
+dist/
+deploy/
+test/www/
+__pycache__/
+src/vendors.private.js

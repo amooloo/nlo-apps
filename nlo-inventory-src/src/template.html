@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' __SCRIPT_HASH__ https://www.gstatic.com/firebasejs/10.12.2/ https://apis.google.com https://*.firebaseio.com https://unpkg.com/html5-qrcode@2.3.8/ https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/ https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://www.google.com https://*.gstatic.com https://*.googleusercontent.com; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://api.openai.com https://*.workers.dev https://*.run.app https://cdnjs.cloudflare.com; worker-src 'self' blob: https://cdnjs.cloudflare.com; frame-src https://nlo-inventory.firebaseapp.com https://apis.google.com; media-src 'self' blob: mediastream:; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta name="theme-color" content="#1B2F4C">
+<title>NLO Inventory</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%231B2F4C'/%3E%3Cpath d='M18 24l14-7 14 7v17l-14 7-14-7z' fill='none' stroke='%2364F4C9' stroke-width='4' stroke-linejoin='round'/%3E%3Cpath d='M18 24l14 7 14-7M32 31v17' fill='none' stroke='%2364F4C9' stroke-width='4' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Oswald:wght@500;600&display=swap" rel="stylesheet">
+<style>
+/*STYLE*/
+</style>
+</head>
+<body>
+<div id="lockWrap">
+  <div class="lockCol">
+    <div class="lockBrand"><img src="logo-white.png" alt="Next Level Orthodontics"><div class="appTag">Inventory</div></div>
+    <div class="lockCard" id="lockCard"><div class="lsub" style="text-align:center">Loading…</div></div>
+    <div class="lockMeta"><svg class="i" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 2.8v5.5c0 4.4-3 7.5-7 9.2-4-1.7-7-4.8-7-9.2V5.8z"/><path d="M9.2 12l2 2 3.6-3.8"/></svg>Office accounts only</div>
+  </div>
+</div>
+<div id="app" class="hidden">
+  <aside id="side"></aside>
+  <div id="main">
+    <div class="mobBar" id="mobTop"></div>
+    <nav class="mobNav" id="mobNav" aria-label="Main"></nav>
+    <div id="topSlot"></div>
+    <div id="bannerSlot"></div>
+    <main id="view"></main>
+  </div>
+</div>
+<div id="toasts" aria-live="polite"></div>
+<div id="demoBar" class="hidden">Demo — made-up supplies and orders, nothing is saved</div>
+<!-- the Firebase SDK, pinned: the browser refuses a file that isn’t exactly this version (integrity). Deferred: they run before the app starts (on DOMContentLoaded), and the page is never held up on them -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js" integrity="sha384-AQ3POAMqIhwS81FrUH95ekxqBZHeP5tG2JfEL3+7GuTtfRLWnrRh32UxwzM+//A9" crossorigin="anonymous" defer></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js" integrity="sha384-TnlRYaR4JYz/lpaGuaiU61PjNberSA4vjLjtF+oRC/IkohkJqnWxw5EmDSOt1vA1" crossorigin="anonymous" defer></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js" integrity="sha384-1/m+A1jVWbD3yiK3/vtFvm1+LjK1WLpSoDY+Kaxppwn/yP9BVSgdHTNQVOjrzUO5" crossorigin="anonymous" defer></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js" integrity="sha384-6I0gWsz4FIAr30c0TxIxJnPQuJiZ1FfILdZrgJdjxTH3R8dgPGTvexbyqTvReV6Z" crossorigin="anonymous" defer></script>
+<script>
+/*SCRIPT*/
+</script>
+</body>
+</html>
