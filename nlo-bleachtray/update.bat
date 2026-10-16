@@ -39,9 +39,9 @@ if errorlevel 8 goto :copyfail
 call "%NLO_APPDIR%_findpy.bat"
 if defined PY "%PY%" -m pip install --quiet --disable-pip-version-check --no-warn-script-location -r requirements.txt
 echo  [4/4] Restarting the app...
-rem only the app's own console window - not a browser whose title is "NLO Bleach Tray - Google Chrome"
-taskkill /F /T /FI "WINDOWTITLE eq NLO Bleach Tray" /FI "IMAGENAME eq cmd.exe" >nul 2>&1
-taskkill /F /T /FI "WINDOWTITLE eq NLO Bleach Tray - *" /FI "IMAGENAME eq cmd.exe" >nul 2>&1
+rem Stop only the app itself: the python process on port 8765 and the cmd window it runs in - never
+rem anything picked by window title (that once killed explorer.exe and left a black desktop).
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$o=@(); try{$o=Get-NetTCPConnection -LocalPort 8765 -State Listen -EA SilentlyContinue|Select -Expand OwningProcess -Unique}catch{}; foreach($p in $o){ if(-not $p -or $p -le 4){continue}; $pr=Get-Process -Id $p -EA SilentlyContinue; if(-not $pr -or $pr.ProcessName -notmatch '^python'){continue}; $par=$null; try{$par=(Get-CimInstance Win32_Process -Filter ('ProcessId=' + $p) -EA SilentlyContinue).ParentProcessId}catch{}; Stop-Process -Id $p -Force -EA SilentlyContinue; if($par -and $par -gt 4){ $pp=Get-Process -Id $par -EA SilentlyContinue; if($pp -and $pp.ProcessName -eq 'cmd'){Stop-Process -Id $par -Force -EA SilentlyContinue} } }" >nul 2>&1
 timeout /t 2 /nobreak >nul
 start "" "%NLO_APPDIR%start_app.bat" autostart
 rmdir /s /q "%TMPD%" >nul 2>&1

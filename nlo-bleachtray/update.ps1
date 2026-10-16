@@ -52,15 +52,24 @@ $py = @("$env:LOCALAPPDATA\Programs\Python\Python313\python.exe", "$env:LOCALAPP
 if ($py) { & $py -m pip install --quiet --disable-pip-version-check --no-warn-script-location -r (Join-Path $dst 'requirements.txt') }
 else { Write-Host '       (Python 3.13 not found in the usual place - skipped)' }
 Write-Host ' [4/4] Restarting the app...'
-# only the app's own console window (cmd.exe): a browser showing the app page has the window title
-# "NLO Bleach Tray - Google Chrome" and must not be closed by the update
-taskkill /F /T /FI 'WINDOWTITLE eq NLO Bleach Tray' /FI 'IMAGENAME eq cmd.exe' 2>&1 | Out-Null
-taskkill /F /T /FI 'WINDOWTITLE eq NLO Bleach Tray - *' /FI 'IMAGENAME eq cmd.exe' 2>&1 | Out-Null
-# whatever still holds the app's port (a copy started by hand, a window with another title) goes too
-try {
-  $owners = Get-NetTCPConnection -LocalPort 8765 -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique
-  foreach ($pid_ in $owners) { if ($pid_ -and $pid_ -ne $PID) { taskkill /F /T /PID $pid_ 2>&1 | Out-Null } }
-} catch {}
+# Stop the running app precisely: only the python process that holds the app's port, then the console
+# window (cmd.exe) it runs in. Nothing is ever selected by window title any more - that once took the
+# Windows shell (explorer.exe) down with it, which leaves a black desktop with just a mouse pointer
+# until explorer.exe is started again from Task Manager.
+$owners = @()
+try { $owners = Get-NetTCPConnection -LocalPort 8765 -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique } catch {}
+foreach ($p in $owners) {
+  if (-not $p -or $p -le 4 -or $p -eq $PID) { continue }
+  $proc = Get-Process -Id $p -ErrorAction SilentlyContinue
+  if (-not $proc -or $proc.ProcessName -notmatch '^python') { Write-Host "       Port 8765 is held by '$($proc.ProcessName)' (PID $p), not the app - left alone."; continue }
+  $parent = $null
+  try { $parent = (Get-CimInstance Win32_Process -Filter "ProcessId=$p" -ErrorAction SilentlyContinue).ParentProcessId } catch {}
+  Stop-Process -Id $p -Force -ErrorAction SilentlyContinue
+  if ($parent -and $parent -gt 4) {
+    $pp = Get-Process -Id $parent -ErrorAction SilentlyContinue
+    if ($pp -and $pp.ProcessName -eq 'cmd') { Stop-Process -Id $parent -Force -ErrorAction SilentlyContinue }
+  }
+}
 $tries = 0
 while ($tries -lt 20 -and (Get-NetTCPConnection -LocalPort 8765 -State Listen -ErrorAction SilentlyContinue)) { Start-Sleep 1; $tries++ }
 Start-Process -FilePath (Join-Path $dst 'start_app.bat') -ArgumentList 'autostart' -WorkingDirectory $dst
