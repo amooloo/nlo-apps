@@ -142,7 +142,7 @@ function moveCardHTML() {
     const r = MV.res;
     h += '<p class="small"><b>Moved.</b> Everything matches the old Inventory: ' + plural(r.items, 'supply', 'supplies') + ', ' + plural(r.orders, 'order') + ', ' + plural(r.vendors, 'saved vendor') + ', ' + plural(r.expenses, 'expense') + ', ' + plural(r.log, 'log entry', 'log entries') + ', ' + money(r.money) + ' in the log.</p>' +
       (r.notes && r.notes.length ? '<div class="hint"><ul class="mvNotes">' + r.notes.map(n => '<li>' + esc(n) + '</li>').join('') + '</ul></div>' : '') +
-      '<p class="small">From now on everyone signs in here with their NLO Cases login. The old address will send people here once it’s switched over.' + (r.alertsWere ? ' Email alerts start again when you get the new alert script (Settings → Email alerts).' : '') + '</p>' +
+      '<p class="small">From now on everyone signs in here with their NLO Cases login (the old Inventory’s address opens this page).' + (r.alertsWere ? ' Email alerts start again when you get the new alert script (Settings → Email alerts).' : '') + '</p>' +
       '<div class="btnRow"><button class="btn btn-pri" data-act="mvOpen">Open Inventory</button></div>';
   } else if (st === 'error') {
     h += '<div class="lockErr" role="alert">' + esc(MV.err || 'The move stopped.') + '</div><p class="small">Nothing is marked moved, and the old Inventory wasn’t changed. Running the move again saves the same records over the ones already saved and only adds what’s missing, so it’s safe to try again.</p>' +

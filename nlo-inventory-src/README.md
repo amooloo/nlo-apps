@@ -100,9 +100,10 @@ script checked in last (the copy running now); any others stop.
 - Tests (inside the emulators; `node_modules` → `../nlo-cases-src/node_modules`; `test/vendor/firebasejs-10.12.2/` = the three
   compat files from `npm pack firebase@10.12.2`; `NO_PROXY=127.0.0.1,localhost`):
   `npx firebase emulators:exec --only firestore,auth,database --project demo-nlo-cases "python3 test/e2e.py && node test/robot.test.js && node test/rules.test.mjs"`
-  — 269 end-to-end checks (the real page; the move from v3-shaped data; sign-in, lock, idle lock; every flow of 4.0's suite;
-  two computers at once; rules gate; the copied alert script run), 39 alert-script checks, 210 rules checks. The other apps'
-  suites must pass on the same rules file (Cases 258, Leads 77, A/R 97, Time Off 159, Time Clock 433 on 16 Oct).
+  — 311 end-to-end checks (the real page; the move from v3-shaped data, its read-only check, second reading, saved copy,
+  re-run, large photos; sign-in, lock, idle lock; the names on the steps; every flow of 4.0's suite; two computers at once;
+  a slow receive; rules gate; the copied alert script run), 53 alert-script checks, 261 rules checks (16 Oct). The other
+  apps' suites must pass on the same rules file (Cases 258, Leads 77, A/R 97, Time Off 159, Time Clock 433 on 16 Oct).
 - Publish: copy `dist/nlo-inventory.html` and `dist/nlo-inventory-alerts.gs` to the repo root; when the rules change, rebuild
   and copy NLO Cases, A/R, Time Off and the Time Clock too (they carry the file for their own rules cards).
 - The old address: `python3 deploy.py` (refuses unless the live page is the expected one) → `deploy/` → `npx firebase deploy

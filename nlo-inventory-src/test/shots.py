@@ -19,6 +19,12 @@ def main():
             ctx, pg, errs = new_page(b, w=w, h=h, quiet=True)
             pg.goto(PAGE); pg.wait_for_selector('#lgUser'); pg.fill('#lgUser', 'amir'); pg.wait_for_timeout(300)
             pg.screenshot(path=out + '/1-signin-%s.png' % tag)
+            if tag == 'phone':   # (moved already on the desk run: the phone shows the app)
+                sign_in(pg, 'gwen'); pg.wait_for_timeout(600)
+                pg.screenshot(path=out + '/6-home-%s.png' % tag)
+                J(pg, "ACT.who()"); pg.wait_for_timeout(300)
+                pg.screenshot(path=out + '/8-who-%s.png' % tag)
+                print(tag, 'errors:', errs); ctx.close(); continue
             old = subprocess.run(['git', 'show', 'origin/main:nlo-cases-src/firestore.rules'], cwd=SRC.parent, capture_output=True, text=True).stdout.replace('__OWNER_EMAIL__', 'dr.test@example.com')
             set_rules(old)
             sign_in(pg, 'amir', wait_app=False); pg.wait_for_function("() => S.gate === 'rules'", timeout=15000); pg.wait_for_timeout(300)
