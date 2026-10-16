@@ -409,6 +409,29 @@ async function fileTitan(titanFiles){
 // (whitening tray and/or retainer) and whether the opposing arch is coming. Whole-day drops
 // (several patients) skip the questions and use the defaults.
 let pending = [];   // [{file, arch, wt, tt}]
+// Opened from the case tracker (NLO Cases → Make models): the patient, the arches and what to make come in the URL,
+// and the tracker tab is told when the models are sent so it can note it on the case.
+const TRACKER = (() => {
+  const q = new URLSearchParams(location.search);
+  if (!q.get('case') && !q.get('first')) return null;
+  const makes = (q.get('make') || 'WT,TT').toUpperCase().split(',').map(x => x.trim()).filter(Boolean);
+  // where the tracker lives (only the NLO apps site, or a local copy while testing) - the only place the message goes
+  const o = q.get('origin') || '', origin = /^https:\/\/amooloo\.github\.io$|^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/i.test(o) ? o : 'https://amooloo.github.io';
+  return { first: q.get('first') || '', last: q.get('last') || '', case: q.get('case') || '', arches: (q.get('arches') || '').split(',').filter(Boolean),
+           wt: makes.includes('WT'), tt: makes.includes('TT'), origin };
+})();
+if (TRACKER) {
+  $('#pfirst').value = TRACKER.first; $('#plast').value = TRACKER.last;
+  const what = [TRACKER.wt ? 'whitening' : '', TRACKER.tt ? 'retainer' : ''].filter(Boolean).join(' + ') || 'plain model';
+  $('#filehint').innerHTML = `<b>From the case tracker:</b> ${TRACKER.first} ${TRACKER.last} · ${TRACKER.arches.length ? TRACKER.arches.join(' + ') : 'arch as scanned'} · ${what}. Drop the scan — the case is told when the models are sent.`;
+}
+function notifyTracker(j, event){
+  try {
+    const cid = (j.params && j.params.tracker_case) || (TRACKER && TRACKER.case);
+    if (!cid || !window.opener) return;
+    window.opener.postMessage({ nlo: 'bleachtray', event, case: cid, models: (j.scans || []).map(s => [s.arch, s.tag].filter(Boolean).join(' ')) }, TRACKER ? TRACKER.origin : 'https://amooloo.github.io');
+  } catch (e) { console.warn('tracker not told', e); }
+}
 function setFiles(fs, auto){
   fs = fs.filter(f => /\.(stl|ply)$/i.test(f.name) || (/\.pts$/i.test(f.name) && isTitan(f.name)));
   if(!fs.length) { $('#filehint').textContent = 'That was not an STL file.'; return; }
@@ -426,7 +449,7 @@ function setFiles(fs, auto){
     return;
   }
   const preset = $('#preset').value;
-  const dflt = { wt: preset !== 'aligner_high' && preset !== 'plain_model', tt: preset === 'both' || preset === 'aligner_high' };
+  const dflt = TRACKER ? { wt: TRACKER.wt, tt: TRACKER.tt } : { wt: preset !== 'aligner_high' && preset !== 'plain_model', tt: preset === 'both' || preset === 'aligner_high' };
   for (const f of fs) {
     if (pending.length >= 2) break;
     pending.push({ file: f, arch: archOf(f.name) || (pending.length === 1 && pending[0].arch ? (pending[0].arch === 'upper' ? 'lower' : 'upper') : ''), wt: dflt.wt, tt: dflt.tt });
@@ -434,7 +457,7 @@ function setFiles(fs, auto){
   const first = pending[0].file;
   $('#name').value = first.name.replace(/\.(stl|ply)$/i,'');
   const m = nameOf(first.name);
-  if (m && !$('#pfirst').value.trim() && !$('#plast').value.trim() || (m && pending.length === 1)) { $('#pfirst').value = m[0]; $('#plast').value = m[1]; }
+  if (!TRACKER && (m && !$('#pfirst').value.trim() && !$('#plast').value.trim() || (m && pending.length === 1))) { $('#pfirst').value = m[0]; $('#plast').value = m[1]; }
   $('#filehint').textContent = '';
   $('#rerunbox').style.display = 'none';
   renderSetup();
@@ -477,7 +500,7 @@ $('#startcase').onclick = () => {
 };
 
 $('#preset').onchange = () => { const p = $('#preset').value; const map = { both:[0.5,5,'0','3'], bleaching:[0.5,5,'0','3'], bleaching_3_3:[0.5,3,'0','3'], aligner_high:[0,0,'1.25','4'], plain_model:[0,0,'0','3'] }[p]; $('#res_h').value = map[0]; $('#res_n').value = map[1]; $('#tl_off').value = map[2]; $('#bridge').value = map[3]; };
-function params(){ return { reservoir_height: +$('#res_h').value, reservoir_max_position: +$('#res_n').value, trimline_offset: +$('#tl_off').value, bridge_radius: +$('#bridge').value, add_base: $('#base').value === '1', patient_first: $('#pfirst').value.trim(), patient_last: $('#plast').value.trim(), stage: +$('#stage').value, arch: $('#arch').value || null, order_root: $('#export').value.trim(), patient_id: $('#pid').value.trim(), kind: $('#kind').value, doctor: $('#doctor').value.trim(), engrave: $('#engrave').value === '1', engrave_text: $('#engrave_text').value.trim(), adjust: { ...adjust } }; }
+function params(){ return { tracker_case: (TRACKER && TRACKER.case) || '', reservoir_height: +$('#res_h').value, reservoir_max_position: +$('#res_n').value, trimline_offset: +$('#tl_off').value, bridge_radius: +$('#bridge').value, add_base: $('#base').value === '1', patient_first: $('#pfirst').value.trim(), patient_last: $('#plast').value.trim(), stage: +$('#stage').value, arch: $('#arch').value || null, order_root: $('#export').value.trim(), patient_id: $('#pid').value.trim(), kind: $('#kind').value, doctor: $('#doctor').value.trim(), engrave: $('#engrave').value === '1', engrave_text: $('#engrave_text').value.trim(), adjust: { ...adjust } }; }
 try { $('#export').value = localStorage.getItem('exportFolder') || ''; } catch(e) {}
 $('#export').onchange = () => { try { localStorage.setItem('exportFolder', $('#export').value.trim()); } catch(e) {} };
 // The folder install.bat found on the lab PC is the default, so nobody has to type it.
@@ -601,7 +624,7 @@ function renderReview(id, j){
     box.innerHTML = `<b>Check the 3D result${what}.</b> Fix teeth with the brush or nudge the base if needed, then:` +
       `<div class="btns"><button class="primary small" id="sendbtn">Send to OrthoFactory</button><button class="small" id="discardbtn">Discard</button></div>` +
       (j.order_error ? `<div class="hint" style="color:var(--err)">${j.order_error}</div>` : '');
-    $('#sendbtn').onclick = async () => { $('#sendbtn').disabled = true; $('#sendbtn').textContent = 'Sending…'; const r = await (await fetch(`/api/jobs/${id}/approve`, { method:'POST', body: new FormData() })).json(); refreshJobs(); renderReview(id, r); if (r.order_error) showErr(r.order_error); };
+    $('#sendbtn').onclick = async () => { $('#sendbtn').disabled = true; $('#sendbtn').textContent = 'Sending…'; const r = await (await fetch(`/api/jobs/${id}/approve`, { method:'POST', body: new FormData() })).json(); refreshJobs(); renderReview(id, r); if (r.order_error) showErr(r.order_error); else notifyTracker(Object.assign({}, j, r), 'sent'); };
     $('#discardbtn').onclick = async () => { const r = await (await fetch(`/api/jobs/${id}/discard`, { method:'POST', body: new FormData() })).json(); refreshJobs(); renderReview(id, r); };
   }
 }
