@@ -155,10 +155,10 @@
   @keyframes draw{to{stroke-dashoffset:0}}
   .aTrash{position:relative;width:120px;height:112px}
   .aTrash .bin{left:20px;bottom:0;width:80px}
-  .aTrash .lid{left:17px;top:30px;width:86px;transform-origin:0 100%;animation:lid 1.5s ease-in-out forwards}
+  .aTrash .lid{left:17px;top:26px;width:86px;transform-origin:0 100%;animation:lid 1.5s ease-in-out forwards}  /* drawn last: it sits on the rim, in front of the bin */
   .aTrash .case{left:50px;top:0;width:20px;opacity:0;animation:drop 1.5s cubic-bezier(.5,0,.8,.4) forwards}
   @keyframes lid{0%{transform:none}22%{transform:translate(-6px,-18px) rotate(-24deg)}70%{transform:translate(-6px,-18px) rotate(-24deg)}100%{transform:none}}
-  @keyframes drop{0%{transform:translateY(0);opacity:0}15%{opacity:1}60%{transform:translateY(46px);opacity:1}80%{transform:translateY(52px);opacity:0}100%{opacity:0}}
+  @keyframes drop{0%{transform:translateY(0);opacity:0}15%{opacity:1}60%{transform:translateY(52px);opacity:1}100%{transform:translateY(52px);opacity:1}}
   .aLearn{position:relative;width:110px;height:76px}
   .anim.small .aLearn{zoom:.5}
   .aLearn .tooth{left:30px;bottom:0;width:50px}
@@ -879,7 +879,7 @@ const ANIM = {
   cut: `<div class="aCut"><img class="machine" src="/static/img/anim/machine.png" alt=""><div class="headWrap"><img class="head" src="/static/img/anim/head.png" alt=""></div>
         <svg class="chk" viewBox="0 0 24 24"><path d="M4 12 l5 5 l11 -11" fill="none" stroke="#1F9E7E" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>`,
   // the lid lifts, the case drops in, the lid closes
-  trash: `<div class="aTrash"><img class="lid" src="/static/img/anim/lid.png" alt=""><img class="case" src="/static/img/anim/tooth.png" alt=""><img class="bin" src="/static/img/anim/bin.png" alt=""></div>`,
+  trash: `<div class="aTrash"><img class="case" src="/static/img/anim/tooth.png" alt=""><img class="bin" src="/static/img/anim/bin.png" alt=""><img class="lid" src="/static/img/anim/lid.png" alt=""></div>`,
   // the tooth gets its sparkles: the lesson is in
   learn: `<div class="aLearn"><img class="tooth" src="/static/img/anim/tooth.png" alt=""><img class="sp s1" src="/static/img/anim/spark1.png" alt=""><img class="sp s2" src="/static/img/anim/spark3.png" alt=""><img class="sp s3" src="/static/img/anim/spark2.png" alt=""></div>`
 };
