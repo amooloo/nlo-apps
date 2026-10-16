@@ -410,7 +410,20 @@ def build_body(mesh_final, outline, z_floor=0.0, overhang=1.2, log=print, shelf=
     if cut.status() != m3.Error.NoError or cut.volume() < 100:
         log("body: prism intersection failed; using uncut solid")
         return from_manifold(man), "uncut"
-    return from_manifold(cut), "boolean"
+    return largest_piece(from_manifold(cut), log=log), "boolean"
+
+
+def largest_piece(mesh, log=None, what="body"):
+    """One solid, not a solid plus crumbs: cheek or lip tissue that the floor and the outline cut
+    loose from the arch would otherwise print as little slabs lying around the model."""
+    parts = mesh.split(only_watertight=False)
+    if len(parts) <= 1:
+        return mesh
+    parts = sorted(parts, key=lambda q: abs(q.volume), reverse=True)
+    dropped = parts[1:]
+    if log and dropped:
+        log(f"{what}: {len(dropped)} loose piece{'s' if len(dropped) > 1 else ''} dropped ({', '.join(f'{abs(q.volume) / 1000:.2f} mL' for q in dropped[:4])}{'…' if len(dropped) > 4 else ''})")
+    return parts[0]
 
 
 def add_base(body, base_manifold=None):

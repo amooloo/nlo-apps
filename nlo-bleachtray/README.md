@@ -6,7 +6,7 @@ puts it into OrthoFactory as an order, like a Titan export. Nothing to pay per c
 ## Everyday use (2 minutes)
 
 1. Export the patient's scan as an STL from the scanner, with the patient's name in the file name
-   (the scanner does this on its own, e.g. `Armaan_Shetty_20261015_09-20-31_upper.stl`).
+   (the scanner does this on its own, e.g. `Jane_Doe_20261015_09-20-31_upper.stl`).
 2. Drop the file on the **Bleach Tray** app page (any office computer; home page → Bleach Tray). The app asks what
    to make of it - **whitening tray** and/or **retainer (TT)** - and whether the opposing arch is coming: drop that
    one too, answer the same for it, then **Start**. Nothing runs before Start. A whole day's scans dropped at once,
@@ -16,6 +16,10 @@ puts it into OrthoFactory as an order, like a Titan export. Nothing to pay per c
    thermoformed retainer (TT) for each arch. Look at the 3D result (trim line, reservoirs, position on the base).
    Fix a tooth with the brush (the ball on the model is the brush, its size is the slider; hold **Shift** and drag,
    then **Apply fixes & re-run**) or nudge the base if needed - a fix is kept for every later re-run of that case.
+   **Cut away** (third brush mode) deletes that part of the scan for good - tongue, cheek, a flap, the pad behind the
+   last molar - and the model is built from the clean scan. **Also make …** in the Check & send box adds the other
+   tray type from a scan already in the case (chose the retainer, now the whitening tray is wanted too): no re-drop,
+   the tooth split is reused, and Send writes the order with every model.
 4. Click **Send to OrthoFactory**. Only then does it appear in OrthoFactory → **Production**, like any Titan case:
    the whitening trays as Template pieces (`TU0A` / `TL0A`), the retainers as Aligner pieces (`AU1A` / `AL1A`).
    Print on the Form 4B, thermoform, trim on the Trimlign. **Discard** throws it away. **Looks good - save for
@@ -40,7 +44,7 @@ tooth model on everything in `training\` (the base set under `training\_base` pl
 model is checked out-of-fold first: it must do better on the corrected cases than the current model and must not
 drop below F1 0.95 on the base set, otherwise it is thrown away. An accepted model replaces `assets\models.joblib`
 (the previous three are kept as `models_prev_*`) and is used from the next case on. The sidebar shows the model's
-state; *Retrain now* under Advanced settings runs it on the spot (10-30 minutes, the app keeps working).
+state; *Retrain now* under Settings → Learning runs it on the spot (10-30 minutes, the app keeps working).
 
 The starting set ships with the app as `assets\base_training.npz` - per arch the per-vertex features and targets
 the model learns from (numbers only: no scans, no names), so nothing has to be downloaded for retraining to work.
@@ -48,7 +52,7 @@ Full base cases under `training\_base\` (scan + labels) take precedence when pre
 
 ## Scanner integration (AlliedStar or any scanner that exports STLs)
 
-Advanced settings → *Scanner export folder* → Save (once, for the whole office). The app lists the scans exported in
+Settings → *Scanner export folder* → Save (once, for the whole office). The app lists the scans exported in
 the last 14 days, grouped by patient and arch; **Make tray** copies them into a case and processes them. The
 originals in the scanner folder are never touched.
 
@@ -85,10 +89,10 @@ re-run. **Position on the base** (Result tab): rotate / shift the arch on the ba
 **What it writes.** A Titan-style OrthoFactory order folder in Factory #1's input folder:
 
 ```
-<Titan folder>\2026-10-15 10 59 21 - A - Dr. Amir Akhavan - Arman Shetty - 4ee1\
+<Titan folder>\2026-10-15 10 59 21 - A - Dr. Amir Akhavan - Jane Doe - 4ee1\
     2610151059_1_Order.xml                 <OrderData Type="Titan_Angled"> … <Aligner Name="TU0A"> …
-    Arman Shetty - 0 - Maxilla.stl         solid horseshoe + Trimlign base (locating hole at the origin)
-    Arman Shetty - 0 - Maxilla.pts         trim line, same frame, CRLF
+    Jane Doe - 0 - Maxilla.stl         solid horseshoe + Trimlign base (locating hole at the origin)
+    Jane Doe - 0 - Maxilla.pts         trim line, same frame, CRLF
 ```
 
 **How it works.** Auto-orientation from geometry (occlusal up, anterior +y, midline from mirror-image tooth
@@ -101,19 +105,34 @@ Reservoirs are a feathered normal displacement on the facial surfaces, kept 0.5 
 gingiva shelf (so there is always material beyond the scan edge, e.g. behind the last molars), intersected with the
 extruded horseshoe outline (manifold3d booleans), unioned with a manifold rebuild of the Trimlign base at Titan's
 placement (facial gum line of the centrals 6.0 / 4.5 mm in front of the locating hole for upper / lower; floor
-3 mm below the lowest trim-line point).
+3 mm below the lowest trim-line point). The model is one solid: anything the floor or the outline cuts loose from the
+arch (cheek or lip tissue, scan islands) is dropped instead of printing as a slab lying next to the model.
+
+**Levelled like Titan.** Before basing, the model is pitched/rolled so the plane through the *facial* gum line is
+horizontal (plus Titan's small forward lean: 0.75° upper, 2.75° lower - measured on 8 raw/Titan pairs, which put our
+frame within ~1° of Titan's). With the gum line level the floor sits a few mm under the line all the way round, so
+the walls are low and even instead of 3 mm at the back and 10 mm at the front, and the tissue behind the molars drops
+under the floor on its own. The rim beyond the trim line is 3 mm (Titan's bodies hug the teeth), the model ends 3 mm
+behind the last tooth on each side, and all of it is a setting (Settings → Model base).
 
 **Behind the last molar.** A "tooth" found behind the terminal molar that is far too narrow for a molar and rises
 above it is the retromolar pad (or ascending tissue) and is relabelled gum, so the trim line wraps the molar instead
 of running up the pad. The model is then lowered behind the last tooth on each side to 2 mm below the trim line
-(`distal_relief`), so the Trimlign bur reaches the distal surface instead of hitting a wall of gum.
+(`distal_relief`), so the Trimlign bur reaches the distal surface instead of hitting a wall of gum, and ends 3 mm
+behind the tooth (`distal_keep`).
 
 **Marks.** Two: (1) the patient's initials + W (whitening) / R (retainer), raised 0.35 mm on the buccal surface of a
 first molar (right side if present, else second premolar / second molar), each letter on its own tangent plane and
 the text shrunk to the flat middle of the crown - it forms into the tray itself, like an aligner maker's mark, with a
 recess on the inside that touches nothing; (2) the name and WHITENING / RETAINER engraved 0.4 mm deep on the flat strip
 of the base plate inside the arch, when the arch leaves at least 8 mm of room there (skipped otherwise). Switch off
-under Advanced settings.
+under Settings.
+
+**Settings.** The gear in the New case card opens a panel where every number has a picture of what it means
+(reservoir region / depth / distance to the gum, the two trim lines, how the line crosses between teeth, rim, floor
+depth, the cut behind the last molar, levelling, marks, bulk defaults, learning, the office folders). Settings are
+remembered in the browser; *Back to defaults* resets them. The whitening tray and the retainer have their own trim
+line and reservoir settings, applied on top of the model type.
 
 **Floor and skirt.** The model floor is 3 mm below the trim line's lowest point, unless that point is a stray dip
 (flap, pocket): then the floor follows the 10th percentile and the dip is lifted to 0.8 mm above the floor, so one bad
@@ -126,7 +145,7 @@ detected and removed before orientation, the skirt reads as gum. Scans over 200k
 
 **Validation.** One upper vs Titan: gum line within 0.17 mm median / 0.25 mm p90 of Titan's tooth boundaries,
 95 % per-tooth agreement, base placement within 0.35 mm / 2°. First order accepted by OrthoFactory's simulator
-on 10/15/2026 (Arman Shetty, 10 59 21).
+on 10/15/2026 (order 10 59 21).
 
 **Command line.** `python run_watch.py --inbox <folder> --titan <OrthoFactory input folder>` (settings remembered in
 `watch_config.json`); `python run_app.py [--lan]` (`NLO_WORKERS=2` processes two cases at once on a strong PC);

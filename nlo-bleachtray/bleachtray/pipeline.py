@@ -13,11 +13,12 @@ from .solid import horseshoe_outline, build_body, add_base
 # Titan/Trimlign placement convention measured from a Titan export (see notes):
 FACIAL_MARGIN_Y_AT_MIDLINE = {"upper": 6.0, "lower": 4.5}   # facial gum line of the centrals, mm in front of the base's locating hole (measured from Titan exports)
 FLOOR_BELOW_LOWEST_MARGIN = 3.0    # model floor is 3 mm below the lowest point of the trimline (validated in OrthoFactory 10/15/2026)
+TRIMLINE_TILT_DEG = {"upper": 0.75, "lower": 2.75}   # Titan's up leans this much further forward than the facial gum-line plane's normal (8 raw/Titan pairs, 10/16/2026)
 
 DEFAULTS = dict(
     reservoir_height=0.5, reservoir_setback=0.5, reservoir_feather=0.6, reservoir_max_position=5,
     engrave=True, engrave_text="", engrave_type="", tooth_mark=True,   # initials + W/R raised on a molar: shows on the tray
-    facial_offset=4.5, lingual_offset=4.0, trimline_spacing=0.5, add_base=True,
+    facial_offset=3.0, lingual_offset=3.0, trimline_spacing=0.5, add_base=True,   # rim beyond the trim line (was 4.5/4.0; Titan's bodies hug the teeth - the real tissue reaches the floor by itself)
     trimline_offset=0.0,   # mm onto the gingiva: 0 = scalloped at the gum line (bleaching); 2-3 = "high" aligner line
     bridge_radius=3.0,     # straight bridges across papillae narrower than ~2x this
     trimline_smooth=4,
@@ -25,6 +26,10 @@ DEFAULTS = dict(
     periphery_smooth=True, # smooth the scan surface beyond 2 mm from the gum line (ragged cheek/lip tissue)
     distal_cap_mm=0.0,     # >0: trimline stops this far in front of its most posterior point per side (Titan ~2.5); 0 = wrap the last molar (validated)
     distal_relief=2.0,     # mm: the model behind the last molar (retromolar pad / tuberosity) is lowered to this far below the trim line so the trimmer reaches the distal surface; 0 = off
+    distal_keep=3.0,       # mm: the model ends this far behind the last tooth on each side (Titan ~3); 0 = carry the scan to the outline
+    floor_below=3.0,       # mm: the model floor sits this far below the lowest point of the trim line (Titan: 3)
+    level=True,            # pitch/roll the model so the facial gum line is level (Titan's basing): low, even walls
+    tilt_deg=0.0,          # manual extra pitch (deg, + = front up) on top of the automatic levelling (Position on the base)
     patient_first="", patient_last="", stage=0, arch=None, export_folder="",
 )
 
@@ -90,11 +95,14 @@ def separate_teeth(mesh, mask, p_ip, A, aux, arch, log=print):
     return labels
 
 
-def distal_relief(mesh_f, labels, info, margin_f, drop=2.0, clearance=0.3, ramp=2.0, z_min=0.6, log=print):
+def distal_relief(mesh_f, labels, info, margin_f, drop=2.0, clearance=0.3, ramp=2.0, z_min=0.6, keep=0.0, log=print):
     """Lower everything behind the terminal tooth on each side to `drop` mm below the trim line there.
     The cut is a plane across the arch `clearance` mm behind the tooth's (and the trim line's) distal
     extent, so the line itself and the distal surface stay exactly as scanned; beyond it the surface
-    ramps down over `ramp` mm to a flat ledge. Vertex order is kept (labels stay aligned)."""
+    ramps down over `ramp` mm to a flat ledge. With `keep` > 0 the model ends `keep` mm behind the
+    tooth (everything further back is pushed under the floor and cut away) - Titan ends its models
+    ~3 mm behind the last molar instead of carrying the tuberosity / retromolar pad along.
+    Vertex order is kept (labels stay aligned)."""
     V = mesh_f.vertices.copy()
     out = []
     for side in (-1, 1):
@@ -123,18 +131,88 @@ def distal_relief(mesh_f, labels, info, margin_f, drop=2.0, clearance=0.3, ramp=
         rel = V[:, :2] - c
         t = rel @ d; w = np.abs(rel @ n)
         zone = (t > t_cut) & (w < 16.0)
+        # the model ends `keep` mm behind the tooth - and never closer than 2 mm to the trim line
+        plane = dict(c=[float(c[0]), float(c[1])], d=[float(d[0]), float(d[1])], t_end=float(max(t_tooth + keep, t_line + 2.0))) if keep > 0 else None
         if zone.sum() == 0:
+            if plane:
+                out.append(dict(side=int(side), vertices=0, plane=plane))
             continue
         # never higher than where the trim line crosses the distal surface, then down to the ledge
         z_cap = float(margin_f[near][:, 2].max()) + 0.3
         blend = np.clip((t[zone] - t_cut) / ramp, 0.0, 1.0)        # 0 at the cut, 1 from `ramp` mm on
         cap = z_ledge + (1.0 - blend) * max(z_cap - z_ledge, 0.0)
         V[zone, 2] = np.minimum(V[zone, 2], cap)
-        out.append(dict(side=int(side), cut_mm_behind_tooth=round(float(t_cut - t_tooth), 2), ledge_z=round(z_ledge, 2), vertices=int(zone.sum())))
+        ended = 0
+        if keep > 0:
+            end = zone & (t > plane["t_end"])
+            V[end, 2] = np.minimum(V[end, 2], -3.0)       # under the floor: the body cut removes it
+            ended = int(end.sum())
+        out.append(dict(side=int(side), cut_mm_behind_tooth=round(float(t_cut - t_tooth), 2), ledge_z=round(z_ledge, 2), vertices=int(zone.sum()), ended_vertices=ended, plane=plane))
         log(f"distal relief {'right' if side > 0 else 'left'}: {int(zone.sum())} vertices behind the last tooth lowered to z={z_ledge:.1f} ({drop:.1f} mm below the trim line)")
     m = mesh_f.copy()
     m.vertices = V
     return m, out
+
+
+def cut_outline_distal(outline, planes, reach=200.0):
+    """Clip the body outline so it ends at each side's distal plane (t <= t_end along d from c)."""
+    from shapely.geometry import Polygon, MultiPolygon
+    for pl in planes or []:
+        if not pl:
+            continue
+        c, d = np.array(pl["c"]), np.array(pl["d"]); n = np.array([-d[1], d[0]])
+        p0 = c + d * pl["t_end"]
+        keep = Polygon([p0 + n * reach, p0 - n * reach, p0 - n * reach - d * reach, p0 + n * reach - d * reach])
+        cut = outline.intersection(keep)
+        if isinstance(cut, MultiPolygon):
+            cut = max(cut.geoms, key=lambda g: g.area)
+        if isinstance(cut, Polygon) and cut.area > 0.5 * outline.area:
+            outline = cut
+    return outline
+
+
+def level_to_trimline(mesh_f, margin_f, cents_xy, arch, extra_pitch_deg=0.0, max_deg=12.0, log=print):
+    """Pitch/roll the model so the plane through the FACIAL gum line is horizontal (plus Titan's small
+    forward lean, TRIMLINE_TILT_DEG). Titan does this: with the gum line level, the floor - 3 mm under
+    its lowest point - sits a few mm below the line everywhere, so the walls are low and even instead
+    of 3 mm at the back and 10 mm at the front (and the cheek tissue behind the molars drops under the
+    floor on its own). Measured on 8 raw/Titan pairs: this rule puts our frame within ~1 deg of Titan's.
+    Rotation about the gum line's centroid; vertex order kept. Returns (mesh, margin, T, info)."""
+    T = np.eye(4)
+    info = dict(applied=False)
+    if len(margin_f) < 10:
+        return mesh_f, margin_f, T, info
+    pts = margin_f
+    if cents_xy is not None and len(cents_xy) >= 3:
+        from scipy.spatial import cKDTree
+        ac = cents_xy.mean(0)
+        j = cKDTree(cents_xy).query(margin_f[:, :2])[1]
+        facial = np.linalg.norm(margin_f[:, :2] - ac, axis=1) > np.linalg.norm(cents_xy[j] - ac, axis=1)
+        if facial.sum() >= 30:
+            pts = margin_f[facial]
+    c = pts.mean(0)
+    _, _, vt = np.linalg.svd(pts - c, full_matrices=False)
+    n = vt[2] * np.sign(vt[2][2] or 1.0)
+    # Titan's up leans a touch further forward than this plane's normal: rotate n about x by -extra
+    e = np.deg2rad(extra_pitch_deg)
+    n = np.array([n[0], n[1] * np.cos(e) + n[2] * np.sin(e), -n[1] * np.sin(e) + n[2] * np.cos(e)])
+    n /= np.linalg.norm(n)
+    pitch = float(np.degrees(np.arctan2(n[1], n[2]))); roll = float(np.degrees(np.arctan2(-n[0], n[2])))
+    info.update(pitch_deg=round(pitch, 2), roll_deg=round(roll, 2), facial_points=int(len(pts)))
+    ang = float(np.degrees(np.arccos(np.clip(n[2], -1, 1))))
+    if ang < 0.05:
+        return mesh_f, margin_f, T, info
+    if ang > max_deg:
+        log(f"levelling skipped: gum-line plane is {ang:.1f} deg off (limit {max_deg}) - partial scan?")
+        info["skipped"] = f"{ang:.1f} deg"
+        return mesh_f, margin_f, T, info
+    axis = np.cross(n, [0.0, 0.0, 1.0]); axis /= np.linalg.norm(axis)
+    piv = margin_f.mean(0)
+    T = trimesh.transformations.rotation_matrix(np.deg2rad(ang), axis, piv)
+    m = mesh_f.copy(); m.apply_transform(T)
+    info["applied"] = True
+    log(f"levelled to the facial gum line: pitch {pitch:+.1f} deg, roll {roll:+.1f} deg")
+    return m, trimesh.transform_points(margin_f, T), T, info
 
 
 def detect_arch(mesh, filename=""):
@@ -269,6 +347,15 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     else:
         rep["midline_check"]["used"] = "tooth_pairs"
     margin_f = trimesh.transform_points(margin, T_ref)
+    arch = arch_hint
+    # level: the facial gum line's plane becomes horizontal (plus Titan's small lean), so the floor is a
+    # few mm below the line all the way round instead of deep under the front teeth
+    T_tilt = np.eye(4)
+    if P.get("level", True):
+        cents_f = trimesh.transform_points(np.array([cents[t] for t in info]), T_ref)[:, :2] if len(info) else None
+        mesh_f, margin_f, T_tilt, lev = level_to_trimline(mesh_f, margin_f, cents_f, arch, extra_pitch_deg=TRIMLINE_TILT_DEG.get(arch, 0.0) + float(P.get("tilt_deg") or 0.0),
+                                                           log=lambda m: log(f"[{name}] {m}"))
+        rep["level"] = lev
     # y so the facial gum line at the midline is FACIAL_MARGIN_Y_AT_MIDLINE; z so floor = 0
     near_mid = np.abs(margin_f[:, 0]) < 2.0
     facial_y = margin_f[near_mid][:, 1].max() if near_mid.any() else margin_f[:, 1].max()
@@ -276,13 +363,13 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     # recession pocket, a bit of pad): then the floor follows the 10th percentile and the dip is
     # lifted to 0.8 mm above the floor instead of dragging the whole model 10 mm taller
     z_low, z_p10 = float(margin_f[:, 2].min()), float(np.percentile(margin_f[:, 2], 10))
-    z_floor = max(z_low - FLOOR_BELOW_LOWEST_MARGIN, z_p10 - FLOOR_BELOW_LOWEST_MARGIN - 1.5)
+    floor_below = float(P.get("floor_below") or FLOOR_BELOW_LOWEST_MARGIN)
+    z_floor = max(z_low - floor_below, z_p10 - floor_below - 1.5)
     low_pts = margin_f[:, 2] < z_floor + 0.8
     if low_pts.any():
         margin_f[low_pts, 2] = z_floor + 0.8
         log(f"[{name}] trim line: {int(low_pts.sum())} points sat {z_floor + 0.8 - z_low:.1f} mm below the rest - lifted to the floor (model height kept)")
     rep["floor"] = dict(lowest_trimline=round(z_low - z_floor, 2), p10_trimline=round(z_p10 - z_floor, 2), lifted_points=int(low_pts.sum()))
-    arch = arch_hint
     rep["arch"] = arch
     T_place = np.eye(4)
     T_place[1, 3] = FACIAL_MARGIN_Y_AT_MIDLINE[arch] - facial_y
@@ -306,17 +393,19 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
     # the tissue behind the last molar (retromolar pad, tuberosity) is lowered below the trim line so
     # the trimmer can get round the distal surface instead of hitting a wall of gum
     if P.get("distal_relief", 0.0) > 0:
-        mesh_f, relief = distal_relief(mesh_f, labels, info, margin_f, drop=P["distal_relief"], log=lambda m: log(f"[{name}] {m}"))
+        mesh_f, relief = distal_relief(mesh_f, labels, info, margin_f, drop=P["distal_relief"], keep=float(P.get("distal_keep") or 0.0), log=lambda m: log(f"[{name}] {m}"))
         rep["distal_relief"] = relief
     # Trimlign reach: cross over the last molars instead of wrapping behind them
     if P.get("distal_cap_mm", 0.0) > 0:
         margin_f = cap_distal(margin_f, mesh_f, keep_mm=P.get("distal_cap_mm", 0.0))
         margin_f = smooth_polyline(resample_polyline(margin_f, P["trimline_spacing"]), iters=2)
-    T_total = T_adj @ T_place @ T_ref @ T_rough
+    T_total = T_adj @ T_place @ T_tilt @ T_ref @ T_rough
     rep["transform_raw_to_output"] = T_total.tolist()
 
-    # solid horseshoe
+    # solid horseshoe; it ends `distal_keep` mm behind the last tooth on each side, like Titan's
     outline = horseshoe_outline(margin_f[:, :2], P["facial_offset"], P["lingual_offset"])
+    if P.get("distal_keep") and rep.get("distal_relief"):
+        outline = cut_outline_distal(outline, [r.get("plane") for r in rep["distal_relief"]])
     # real scan kept only within scan_band of the gum line (cleans off ragged cheek/lip tissue);
     # the rest of the body is a smooth synthetic skirt
     scan_region = horseshoe_outline(margin_f[:, :2], P["scan_band"], P["scan_band"]) if P.get("scan_band") else None
@@ -341,12 +430,17 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
         from .engrave import emboss_on_tooth
         model, mark = emboss_on_tooth(model, mesh_f, labels, info, P, log=lambda m: log(f"[{name}] {m}"))
         rep["tooth_mark"] = mark
-    # tiny slivers left by the booleans would print as floating specks
+    # one piece: the model is body + base in one solid (two when the base could only be concatenated);
+    # anything else - slivers from the booleans, tissue cut loose by the floor - would print as crumbs
     parts = model.split(only_watertight=False)
     if len(parts) > 1:
-        keep = [q for q in parts if len(q.faces) >= 20]
-        if keep and len(keep) < len(parts):
-            model = trimesh.util.concatenate(keep) if len(keep) > 1 else keep[0]
+        parts = sorted(parts, key=lambda q: abs(q.volume), reverse=True)
+        n_keep = 2 if (P["add_base"] and rep.get("base") == "concat") else 1
+        keep, dropped = parts[:n_keep], parts[n_keep:]
+        model = trimesh.util.concatenate(keep) if len(keep) > 1 else keep[0]
+        rep["loose_pieces_dropped"] = len(dropped)
+        if dropped:
+            log(f"[{name}] {len(dropped)} loose piece{'s' if len(dropped) > 1 else ''} removed from the model ({', '.join(f'{abs(q.volume) / 1000:.2f} mL' for q in dropped[:4])}{'…' if len(dropped) > 4 else ''})")
     rep["model_faces"] = int(len(model.faces))
     rep["model_bounds"] = np.round(model.bounds, 2).tolist()
 
@@ -382,7 +476,7 @@ def process(scan_path, out_dir, name=None, params=None, models=None, label_overr
         json.dump(rep, f, indent=2)
     # debug state for the UI / verification
     np.savez(os.path.join(out_dir, f"{name}_state.npz"), labels=labels, d=d, margin=margin_f,
-             T_rough=T_rough, T_ref=T_ref, T_place=T_place, p_tooth=p_tooth)
+             T_rough=T_rough, T_ref=T_ref, T_tilt=T_tilt, T_place=T_place, p_tooth=p_tooth)
     prog(1.0, "done")
     log(f"[{name}] done in {rep['elapsed_s']} s -> {stl_path}")
     return rep

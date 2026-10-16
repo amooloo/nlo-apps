@@ -13,7 +13,7 @@ def read_pts(p):
     return np.array([l.split() for l in open(p) if len(l.split()) == 3], float)
 
 
-name = sys.argv[1] if len(sys.argv) > 1 else "ArmanShetty_upper"
+name = sys.argv[1] if len(sys.argv) > 1 else "sample_upper"
 model = trimesh.load(f"out/{name}_model.stl", force="mesh")
 body = trimesh.load(f"out/{name}_body_only.stl", force="mesh")
 ours = read_pts(f"out/{name}_trimline.pts")
