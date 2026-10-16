@@ -298,7 +298,7 @@
         </div>
         <div class="brush" id="brush">
           <h4>Brush — fix tooth / gum labels</h4>
-          <div class="seg"><button class="on" data-mode="tooth">Tooth</button><button data-mode="gum">Gum</button><button data-mode="cut" title="Remove this part of the scan altogether (tongue, cheek, a flap, the pad behind the last molar)">Cut away</button><button data-mode="off">Off</button></div>
+          <div class="seg"><button class="on" data-mode="tooth">Tooth</button><button data-mode="gum">Gum</button><button data-mode="cut" title="Remove this part of the scan altogether (tongue, cheek, a flap, the pad behind the last molar)">Cut away</button></div>
           <label class="f">Brush size: <span id="rv">1.5</span> mm radius</label>
           <input type="range" id="radius" min="0.5" max="5" step="0.25" value="1.5">
           <div class="hint">The ball on the model is the brush. Hold <b>Shift</b> and drag to paint; rotate with the mouse otherwise. <b>Cut away</b> deletes that part of the scan (tongue, cheek, flaps, the pad behind the last molar) before the model is built.</div>
@@ -495,7 +495,7 @@
 
     <h4 class="setSec">Learning</h4>
     <div class="setGrid">
-      <div class="scard wide"><div class="sLab">The model learns from your corrections <span class="info" title="Cases fixed with the brush and marked Looks good or Sent are lessons. Retraining runs at night, or now with the button; a new model is only used if it scores at least as well.">i</span></div>
+      <div class="scard wide"><div class="sLab">The model learns from your corrections <span class="info" title="Cases fixed with the brush and then Sent or Saved as lesson are lessons. Retraining runs at night, or now with the button; a new model is only used if it scores at least as well.">i</span></div>
         <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap"><div class="sPic" data-img="learning" style="flex:none;width:150px"></div><div style="flex:1;min-width:220px">
         <div class="hint" id="learnhint" style="margin-top:0">…</div>
         <div style="margin-top:8px;display:flex;gap:8px;align-items:center"><button class="small" id="learnnow">Retrain now</button><span class="hint" id="learnmsg" style="margin:0"></span></div>
@@ -886,9 +886,9 @@ window.addEventListener('unhandledrejection', ev => showErr('Page error: ' + (ev
 function renderReview(id, j){
   const box = $('#review'); box.className = 'review ' + (j.review || '');
   const n = (j.scans || []).length;
-  // what the night-time retraining gets from this case: only a case someone marked as right (Send or Looks good)
+  // what the night-time retraining gets from this case: only a case someone marked as right (Send or Save as lesson)
   // is a lesson, and only when the brush was used - an untouched automatic result teaches nothing new
-  const learnedLine = j.learned ? `<div class="hint learned"><span class="anim small" id="animLearn"></span>Saved for learning${j.learned.corrected && j.learned.corrected.length ? ` (brush-corrected ${j.learned.corrected.join(' + ')})` : ' (no brush fixes — kept on file, not a lesson)'}</div>` : '';
+  const learnedLine = j.learned ? `<div class="hint learned"><span class="anim small" id="animLearn"></span>Saved as a lesson${j.learned.corrected && j.learned.corrected.length ? ` (${j.learned.corrected.join(' + ')} corrected)` : ' (no brush fixes — kept on file only)'}</div>` : '';
   // one more model from a scan already in the case (chose the retainer, now the whitening tray is wanted too)
   const have = new Set((j.scans || []).map(s => `${s.arch}|${s.tag}`));
   const archesIn = [...new Set((j.scans || []).map(s => s.arch).filter(Boolean))];
@@ -913,13 +913,13 @@ function renderReview(id, j){
   } else {
     const what = n > 1 ? ` (${n} models: ${(j.scans || []).map(s => [s.arch, s.tag].filter(Boolean).join(' ')).join(', ')})` : '';
     box.innerHTML = `<b>Check the 3D result${what}.</b> Fix teeth with the brush or nudge the base if needed, then:` +
-      `<div class="btns"><button class="primary small" id="sendbtn">Send to Trimlign</button><button class="small" id="learnbtn" title="File this case for the night-time retraining without ordering anything (Send does this too)">Looks good — save for learning</button><button class="small" id="discardbtn">Discard</button></div>` +
+      `<div class="btns"><button class="primary small" id="sendbtn">Send to Trimlign</button><button class="small" id="learnbtn" ${(j.fixed || []).length && !j.learned ? '' : 'disabled'} title="${(j.fixed || []).length ? (j.learned ? 'Already saved - change something and apply to save again' : 'Keep this corrected case as a lesson for the retraining (no order). Send does this too.') : 'Greyed out until a brush fix has been applied on this case - an untouched result teaches nothing'}">Save as lesson</button><button class="small" id="discardbtn">Discard</button></div>` +
       (j.order_error ? `<div class="hint" style="color:var(--err)">${j.order_error}</div>` : '') + learnedLine + addLine;
     wireAdd();
     // brush strokes that were never applied are in the viewer only - neither the models nor the lesson would have them
-    const unapplied = () => { if (edits.add.size || edits.remove.size || edits.cut.size) { showErr('You have brush edits that are not applied yet — click "Apply fixes & re-run" first (Segmentation / fix tab), then Send or Looks good.'); showTab('seg'); return true; } return false; };
+    const unapplied = () => { if (edits.add.size || edits.remove.size || edits.cut.size) { showErr('You have brush edits that are not applied yet — click "Apply fixes & re-run" first (Segmentation / fix tab), then Send or Save as lesson.'); showTab('seg'); return true; } return false; };
     $('#sendbtn').onclick = async () => { if (unapplied()) return; $('#sendbtn').disabled = true; $('#sendbtn').textContent = 'Sending…'; const r = await (await fetch(`/api/jobs/${id}/approve`, { method:'POST', body: new FormData() })).json(); refreshJobs(); renderReview(id, r); if (r.order_error) showErr(r.order_error); else notifyTracker(Object.assign({}, j, r), 'sent'); };
-    $('#learnbtn').onclick = async () => { if (unapplied()) return; $('#learnbtn').disabled = true; $('#learnbtn').textContent = 'Saving…'; const rs = await fetch(`/api/jobs/${id}/learn`, { method:'POST', body: new FormData() }); const r = await rs.json(); if (!rs.ok) { showErr(r.detail || 'Could not save for learning.'); renderReview(id, j); return; } renderReview(id, Object.assign({}, j, r)); refreshLearn(); };
+    $('#learnbtn').onclick = async () => { if ($('#learnbtn').disabled) return; if (unapplied()) return; $('#learnbtn').disabled = true; $('#learnbtn').textContent = 'Saving…'; const rs = await fetch(`/api/jobs/${id}/learn`, { method:'POST', body: new FormData() }); const r = await rs.json(); if (!rs.ok) { showErr(r.detail || 'Could not save for learning.'); renderReview(id, j); return; } renderReview(id, Object.assign({}, j, r)); refreshLearn(); };
     $('#discardbtn').onclick = async () => { const r = await (await fetch(`/api/jobs/${id}/discard`, { method:'POST', body: new FormData() })).json(); refreshJobs(); renderReview(id, r); };
   }
 }
@@ -1048,7 +1048,7 @@ function paintColors(){
 document.querySelectorAll('.seg button').forEach(b => b.onclick = () => { document.querySelectorAll('.seg button').forEach(x => x.classList.remove('on')); b.classList.add('on'); brushMode = b.dataset.mode; syncBrush(); });
 $('#radius').oninput = () => { $('#rv').textContent = $('#radius').value; brushCursor.scale.setScalar(+$('#radius').value); if (brushCursor.visible) requestRender(); };
 const ray = new THREE.Raycaster(); const mouse = new THREE.Vector2(); let painting = false;
-const brushOn = () => !!segMesh && tab === 'seg' && brushMode !== 'off';
+const brushOn = () => !!segMesh && tab === 'seg';
 function syncBrush(){
   brushCursor.material.color.setHex(brushMode === 'gum' ? 0xd97706 : brushMode === 'cut' ? 0x991b1b : 0x1d4ed8);
   canvas.style.cursor = brushOn() ? 'crosshair' : '';
@@ -1101,7 +1101,7 @@ async function refreshLearn(){
   const when = st.finished ? new Date(st.finished * 1000).toLocaleDateString() : null;
   const pending = (st.new_since_last || []).length;
   $('#learnline').innerHTML = `<span class="sdot" style="background:${st.running ? 'var(--amber)' : pending ? 'var(--blue-500)' : 'var(--mint)'}"></span>Model: ${m.trained_on || '?'} arches${st.running ? ' · retraining…' : pending ? ` · ${pending} lesson${pending > 1 ? 's' : ''} waiting` : (when ? ' · ' + when : '')}`;
-  $('#learnline').title = st.running ? 'Retraining now' : pending ? `${pending} corrected case${pending > 1 ? 's' : ''} saved since the last training - it retrains tonight, or now with Retrain now (Settings → Learning)` : 'The model retrains at night from the cases you corrected with the brush and sent or marked Looks good';
+  $('#learnline').title = st.running ? 'Retraining now' : pending ? `${pending} corrected case${pending > 1 ? 's' : ''} saved since the last training - it retrains tonight, or now with Retrain now (Settings → Learning)` : 'The model retrains at night from the cases you corrected with the brush and sent or saved as a lesson';
   $('#learnhint').textContent = `${c.base || 0} base arches, ${(c.corrected || 0) + (c.titan || 0)} corrected by brush or Titan export. ` +
     (st.running ? 'Retraining now (10–30 minutes)…' : pending ? `${pending} new correction${pending > 1 ? 's' : ''} waiting — the model retrains tonight between 1 and 5 am, when nothing is being processed.` : 'No new corrections since the last training.') +
     (st.outcome ? ` Last run: ${st.outcome}${st.new_on_lessons != null ? ` (corrected cases ${st.cur_on_lessons} → ${st.new_on_lessons}, base ${st.new_on_base})` : ''}.` : '');

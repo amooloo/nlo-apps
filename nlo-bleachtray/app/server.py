@@ -702,8 +702,14 @@ def list_jobs():
             for j in sorted(JOBS.values(), key=lambda j: -j["created"])]
 
 
+def _fixed_arches(job):
+    """Arches of this case that carry an applied brush fix (the only ones that can be a lesson)."""
+    fixed = job.get("fixed_labels") or {}
+    return sorted({sc.get("arch") or "scan" for sc in job["scans"] if sc["path"] in fixed})
+
+
 def _review_view(job):
-    return {k: job.get(k) for k in ("id", "name", "status", "review", "order_folder", "order_error", "learned")} | {"scans": [dict(arch=sc.get("arch"), tag=sc.get("tag")) for sc in job["scans"]]}
+    return {k: job.get(k) for k in ("id", "name", "status", "review", "order_folder", "order_error", "learned")} | {"scans": [dict(arch=sc.get("arch"), tag=sc.get("tag")) for sc in job["scans"]], "fixed": _fixed_arches(job)}
 
 
 def _save_training(job, log=print):
@@ -799,6 +805,7 @@ def job_status(jid: str):
     out = {k: v for k, v in job.items() if k in ("id", "name", "status", "log", "error", "preset", "params", "order_folder", "order_error", "review", "source", "progress", "learned")}
     out["started"] = job.get("started")
     out["ahead"] = _ahead(job)
+    out["fixed"] = _fixed_arches(job)
     out["scans"] = [dict(name=sc["name"], filename=sc["filename"], arch=sc.get("arch"), tag=sc.get("tag"), preset=sc.get("preset")) for sc in job["scans"]]
     if job.get("reports"):
         out["reports"] = [{k: r[k] for k in r if k not in ("transform_raw_to_output",)} for r in job["reports"]]
