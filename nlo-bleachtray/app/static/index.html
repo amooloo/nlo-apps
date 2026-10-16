@@ -301,9 +301,9 @@
         <div class="brush" id="brush">
           <h4>Brush — fix tooth / gum labels</h4>
           <div class="seg"><button class="on" data-mode="tooth">Paint tooth</button><button data-mode="gum">Paint gum</button><button data-mode="off">Off</button></div>
-          <label class="f">Radius: <span id="rv">1.5</span> mm</label>
+          <label class="f">Brush size: <span id="rv">1.5</span> mm radius</label>
           <input type="range" id="radius" min="0.5" max="5" step="0.25" value="1.5">
-          <div class="hint">Hold <b>Shift</b> and drag on the model to paint. Rotate with the mouse otherwise.</div>
+          <div class="hint">The ball on the model is the brush. Hold <b>Shift</b> and drag to paint; rotate with the mouse otherwise.</div>
           <div style="margin-top:10px;display:flex;gap:6px"><button class="primary small" id="rerun">Apply fixes &amp; re-run</button><button class="small" id="clearfix">Clear</button></div>
           <div class="hint" id="fixcount">No edits.</div>
         </div>
@@ -383,8 +383,16 @@ Object.values(groups).forEach(g => scene.add(g));
 let segMesh = null, segLabels = null, segDisp = null, segColors = null, segPos = null, segBase = null;
 const edits = { add: new Set(), remove: new Set() };
 let brushMode = 'tooth';
+// The brush is a sphere of the chosen radius around the point under the mouse - the cursor shows exactly
+// that: a translucent ball (blue = paint tooth, amber = paint gum) with an outline that stays visible
+// where the ball sinks into the model, so the size reads on any colour.
+const brushCursor = new THREE.Mesh(new THREE.SphereGeometry(1, 28, 18), new THREE.MeshBasicMaterial({ color: 0x1d4ed8, transparent: true, opacity: 0.3, depthWrite: false }));
+const brushRingOut = new THREE.Mesh(new THREE.RingGeometry(0.94, 1.0, 64), new THREE.MeshBasicMaterial({ color: 0x1B2F4C, side: THREE.DoubleSide, depthTest: false, depthWrite: false }));
+const brushRingIn = new THREE.Mesh(new THREE.RingGeometry(0.88, 0.94, 64), new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, depthTest: false, depthWrite: false }));
+brushRingOut.renderOrder = brushRingIn.renderOrder = 12; brushCursor.renderOrder = 11;
+brushCursor.add(brushRingOut, brushRingIn); brushCursor.visible = false; scene.add(brushCursor);
 
-function showTab(t){ tab = t; for (const k in groups) groups[k].visible = (k === t); document.querySelectorAll('.tab').forEach(e => e.classList.toggle('on', e.dataset.tab === t)); $('#brush').classList.toggle('on', t === 'seg'); $('#place').classList.toggle('on', t === 'result' && !!archGroup); requestRender(); }
+function showTab(t){ tab = t; for (const k in groups) groups[k].visible = (k === t); document.querySelectorAll('.tab').forEach(e => e.classList.toggle('on', e.dataset.tab === t)); $('#brush').classList.toggle('on', t === 'seg'); $('#place').classList.toggle('on', t === 'result' && !!archGroup); syncBrush(); requestRender(); }
 document.querySelectorAll('.tab').forEach(e => e.onclick = () => showTab(e.dataset.tab));
 $('#showtl').onchange = () => { for (const k in groups) groups[k].traverse(c => { if (c.userData.trimline) c.visible = $('#showtl').checked; }); requestRender(); };
 
@@ -609,22 +617,29 @@ function renderProgress(j){
 }
 
 // ---------- review: nothing goes to OrthoFactory until someone looks at it and clicks Send ----------
-function showErr(msg){ const e = $('#errline'); e.textContent = msg; e.style.display = 'block'; console.error(msg); }
+let errTimer = null;
+function showErr(msg, ms = 12000){ const e = $('#errline'); e.textContent = msg; e.style.display = 'block'; console.error(msg); clearTimeout(errTimer); errTimer = setTimeout(() => { e.style.display = 'none'; }, ms); }
 window.addEventListener('error', ev => showErr('Page error: ' + (ev.message || ev)));
 window.addEventListener('unhandledrejection', ev => showErr('Page error: ' + (ev.reason && ev.reason.message || ev.reason)));
 function renderReview(id, j){
   const box = $('#review'); box.className = 'review ' + (j.review || '');
   const n = (j.scans || []).length;
+  // what the night-time retraining gets from this case: only a case someone marked as right (Send or Looks good)
+  // is a lesson, and only when the brush was used - an untouched automatic result teaches nothing new
+  const learnedLine = j.learned ? `<div class="hint">✓ Saved for learning${j.learned.corrected && j.learned.corrected.length ? ` (brush-corrected ${j.learned.corrected.join(' + ')})` : ' (no brush fixes — kept on file, not a lesson)'}</div>` : '';
   if (j.review === 'sent') {
-    box.innerHTML = `<b>Sent to OrthoFactory.</b> Whitening trays are Template pieces (TU0A/TL0A), retainers Aligner pieces (AU1A/AL1A).<div class="hint">${j.order_folder || ''}</div>`;
+    box.innerHTML = `<b>Sent to OrthoFactory.</b> Whitening trays are Template pieces (TU0A/TL0A), retainers Aligner pieces (AU1A/AL1A).<div class="hint">${j.order_folder || ''}</div>${learnedLine}`;
   } else if (j.review === 'discarded') {
     box.innerHTML = `<b>Discarded</b> — nothing was sent to OrthoFactory.`;
   } else {
     const what = n > 1 ? ` (${n} models: ${(j.scans || []).map(s => [s.arch, s.tag].filter(Boolean).join(' ')).join(', ')})` : '';
     box.innerHTML = `<b>Check the 3D result${what}.</b> Fix teeth with the brush or nudge the base if needed, then:` +
-      `<div class="btns"><button class="primary small" id="sendbtn">Send to OrthoFactory</button><button class="small" id="discardbtn">Discard</button></div>` +
-      (j.order_error ? `<div class="hint" style="color:var(--err)">${j.order_error}</div>` : '');
-    $('#sendbtn').onclick = async () => { $('#sendbtn').disabled = true; $('#sendbtn').textContent = 'Sending…'; const r = await (await fetch(`/api/jobs/${id}/approve`, { method:'POST', body: new FormData() })).json(); refreshJobs(); renderReview(id, r); if (r.order_error) showErr(r.order_error); else notifyTracker(Object.assign({}, j, r), 'sent'); };
+      `<div class="btns"><button class="primary small" id="sendbtn">Send to OrthoFactory</button><button class="small" id="learnbtn" title="File this case for the night-time retraining without ordering anything (Send does this too)">Looks good — save for learning</button><button class="small" id="discardbtn">Discard</button></div>` +
+      (j.order_error ? `<div class="hint" style="color:var(--err)">${j.order_error}</div>` : '') + learnedLine;
+    // brush strokes that were never applied are in the viewer only - neither the models nor the lesson would have them
+    const unapplied = () => { if (edits.add.size || edits.remove.size) { showErr('You have brush edits that are not applied yet — click "Apply fixes & re-run" first (Segmentation / fix tab), then Send or Looks good.'); showTab('seg'); return true; } return false; };
+    $('#sendbtn').onclick = async () => { if (unapplied()) return; $('#sendbtn').disabled = true; $('#sendbtn').textContent = 'Sending…'; const r = await (await fetch(`/api/jobs/${id}/approve`, { method:'POST', body: new FormData() })).json(); refreshJobs(); renderReview(id, r); if (r.order_error) showErr(r.order_error); else notifyTracker(Object.assign({}, j, r), 'sent'); };
+    $('#learnbtn').onclick = async () => { if (unapplied()) return; $('#learnbtn').disabled = true; $('#learnbtn').textContent = 'Saving…'; const rs = await fetch(`/api/jobs/${id}/learn`, { method:'POST', body: new FormData() }); const r = await rs.json(); if (!rs.ok) { showErr(r.detail || 'Could not save for learning.'); renderReview(id, j); return; } renderReview(id, Object.assign({}, j, r)); refreshLearn(); };
     $('#discardbtn').onclick = async () => { const r = await (await fetch(`/api/jobs/${id}/discard`, { method:'POST', body: new FormData() })).json(); refreshJobs(); renderReview(id, r); };
   }
 }
@@ -750,19 +765,45 @@ function paintColors(){
   requestRender();
 }
 // ---------- brush ----------
-document.querySelectorAll('.seg button').forEach(b => b.onclick = () => { document.querySelectorAll('.seg button').forEach(x => x.classList.remove('on')); b.classList.add('on'); brushMode = b.dataset.mode; });
-$('#radius').oninput = () => $('#rv').textContent = $('#radius').value;
+document.querySelectorAll('.seg button').forEach(b => b.onclick = () => { document.querySelectorAll('.seg button').forEach(x => x.classList.remove('on')); b.classList.add('on'); brushMode = b.dataset.mode; syncBrush(); });
+$('#radius').oninput = () => { $('#rv').textContent = $('#radius').value; brushCursor.scale.setScalar(+$('#radius').value); if (brushCursor.visible) requestRender(); };
 const ray = new THREE.Raycaster(); const mouse = new THREE.Vector2(); let painting = false;
-function paintAt(ev){
-  if (!segMesh || tab !== 'seg' || brushMode === 'off') return;
+const brushOn = () => !!segMesh && tab === 'seg' && brushMode !== 'off';
+function syncBrush(){
+  brushCursor.material.color.setHex(brushMode === 'gum' ? 0xd97706 : 0x1d4ed8);
+  canvas.style.cursor = brushOn() ? 'crosshair' : '';
+  if (!brushOn() && brushCursor.visible) { brushCursor.visible = false; requestRender(); }
+}
+function hitAt(ev){
   const r = canvas.getBoundingClientRect(); mouse.x = ((ev.clientX - r.left)/r.width)*2-1; mouse.y = -((ev.clientY - r.top)/r.height)*2+1;
-  ray.setFromCamera(mouse, camera); const hit = ray.intersectObject(segMesh, false)[0]; if (!hit) return;
+  ray.setFromCamera(mouse, camera); return ray.intersectObject(segMesh, false)[0];
+}
+const tmpN = new THREE.Vector3();
+function placeCursor(hit){
+  if (!hit) { if (brushCursor.visible) { brushCursor.visible = false; requestRender(); } return; }
+  brushCursor.position.copy(hit.point);
+  tmpN.copy(hit.face ? hit.face.normal : new THREE.Vector3(0, 0, 1)).transformDirection(segMesh.matrixWorld);
+  brushCursor.lookAt(tmpN.add(hit.point));           // the outline ring lies flat on the surface
+  brushCursor.scale.setScalar(+$('#radius').value);
+  brushCursor.visible = true; requestRender();
+}
+function paintAt(ev){
+  if (!brushOn()) return;
+  const hit = hitAt(ev); placeCursor(hit); if (!hit) return;
   const rad = +$('#radius').value, r2 = rad*rad, p = hit.point;
   for (let i=0;i<segLabels.length;i++){ const dx = segPos[i*3]-p.x, dy = segPos[i*3+1]-p.y, dz = segPos[i*3+2]-p.z; if (dx*dx+dy*dy+dz*dz < r2){ if (brushMode === 'tooth'){ edits.remove.delete(i); if (segLabels[i]===0) edits.add.add(i); } else { edits.add.delete(i); if (segLabels[i]!==0) edits.remove.add(i); } } }
   paintColors(); updateFixCount();
 }
 canvas.addEventListener('pointerdown', ev => { if (ev.shiftKey && tab === 'seg'){ painting = true; controls.enabled = false; paintAt(ev); } });
-canvas.addEventListener('pointermove', ev => { if (painting) paintAt(ev); });
+// hovering: one pick per frame at most (a pick walks every triangle of the scan)
+let hoverEv = null, hoverQueued = false;
+canvas.addEventListener('pointermove', ev => {
+  if (painting) { paintAt(ev); return; }
+  if (!brushOn()) return;
+  hoverEv = ev;
+  if (!hoverQueued) { hoverQueued = true; requestAnimationFrame(() => { hoverQueued = false; if (brushOn() && hoverEv) placeCursor(hitAt(hoverEv)); }); }
+});
+canvas.addEventListener('pointerleave', () => placeCursor(null));
 window.addEventListener('pointerup', () => { painting = false; controls.enabled = true; });
 function updateFixCount(){ $('#fixcount').textContent = (edits.add.size || edits.remove.size) ? `${edits.add.size} vertices → tooth, ${edits.remove.size} → gum` : 'No edits.'; }
 $('#clearfix').onclick = () => { edits.add.clear(); edits.remove.clear(); paintColors(); updateFixCount(); };

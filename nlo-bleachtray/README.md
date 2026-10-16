@@ -14,10 +14,12 @@ puts it into OrthoFactory as an order, like a Titan export. Nothing to pay per c
    Several people can drop at the same time: cases run one after another and the list shows who is waiting.
 3. A few minutes later the case shows **"check & send"** in the app, with **four models**: whitening tray (WT) and
    thermoformed retainer (TT) for each arch. Look at the 3D result (trim line, reservoirs, position on the base).
-   Fix a tooth with the brush or nudge the base if needed - a fix is kept for every later re-run of that case.
+   Fix a tooth with the brush (the ball on the model is the brush, its size is the slider; hold **Shift** and drag,
+   then **Apply fixes & re-run**) or nudge the base if needed - a fix is kept for every later re-run of that case.
 4. Click **Send to OrthoFactory**. Only then does it appear in OrthoFactory → **Production**, like any Titan case:
    the whitening trays as Template pieces (`TU0A` / `TL0A`), the retainers as Aligner pieces (`AU1A` / `AL1A`).
-   Print on the Form 4B, thermoform, trim on the Trimlign. **Discard** throws it away.
+   Print on the Form 4B, thermoform, trim on the Trimlign. **Discard** throws it away. **Looks good - save for
+   learning** files the case for the retraining without ordering anything (Send does that too, on the side).
 
 Nothing reaches OrthoFactory without that click. Files dragged into the folder move to `BleachTray\done` when
 processed, or to `BleachTray\failed` with an `error.txt`. The small black window "NLO Bleach Tray" must be open on
@@ -26,8 +28,9 @@ folder). That one window watches the drop folder *and* serves the app page to th
 
 ## It learns from your corrections - by itself
 
-Every case that is sent is saved in the app folder under `training\<Last, First> - <date>\`: the scan of each
-arch, the tooth labels that were sent (marked *corrected* when someone used the brush) and a `case.json`. Titan
+Every case that is sent (or marked *Looks good*) is saved in the app folder under `training\<Last, First> - <date>\`:
+the scan of each arch, the tooth labels as approved (marked *corrected* when someone used the brush - only those
+are lessons; an untouched automatic result teaches nothing new) and a `case.json`. Titan
 exports (`First Last - 0 - Maxilla.stl` / `.pts`) dropped on the app page or into the drop folder are not processed;
 they are filed into the same patient folder, and one that carries a shell per tooth (Titan's own segmentation) is
 turned into a lesson too.
