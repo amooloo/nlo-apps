@@ -122,7 +122,7 @@ function demoStore() {
   const cart = [line(glove, 2, 's_gwen', 0, 9), line(pick(5), 3, 's_kaylee', 1, 14), line(pick(11), 1, 's_angelika', 2, 10), line(pick(17), 2, 's_gwen', 0, 11)];
   cart[1].trail = [{ t: 'more', by: 'Mara Q.', byId: 's_sarah', at: iso(at(0, 8, 40)), qty: 1 }]; cart[1].qty = 4;
   /* Dr. A's OKs: two lines OK'd, one raised after his OK (he OK'd 3), one still waiting */
-  const okd = (c, n, d, h) => ({ by: 'Dr. A', byId: 'amir', at: iso(at(d, h, 30)), n: n * linePer(c), it: c.itemId });
+  const okd = (c, n, d, h) => ({ by: 'Dr. A', byId: 'amir', at: iso(at(d, h, 30)), n: n * linePer(c), it: c.itemId, v: c.vendor || '', p: round2(Number(c.price) || 0) });
   const cartOk = { [cart[0].lineId]: okd(cart[0], 2, 0, 9), [cart[1].lineId]: okd(cart[1], 3, 1, 15), [cart[3].lineId]: okd(cart[3], 2, 0, 11) };
   [0, 1, 3].forEach(k => { cart[k].trail = (cart[k].trail || []).concat([{ t: 'ok', by: 'Dr. A', byId: 'amir', at: cartOk[cart[k].lineId].at }]).sort((a, z) => String(a.at).localeCompare(String(z.at))); });
   /* orders */

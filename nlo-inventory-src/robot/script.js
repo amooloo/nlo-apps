@@ -54,6 +54,8 @@ var OVERLAP_MS = 5 * 60000;      // each copy looks this far back again (a save'
                                  // before another can land after it)
 var BUDGET_KEYS = ['monthly', 'categories', 'history', 'changedBy', 'changedAt'];
 var NTFY_REST = 3 * 3600000;     // the direct way to ntfy rests this long after Google's servers couldn't reach it
+var NTFY_MAIL_EVERY = 10 * 60000; // meanwhile, pushes go through ntfy's email address at most this often (all waiting in one)
+var MAIL_RESERVE = 10;           // and only while this many of the day's emails are left for the alerts themselves
 
 var TYPE_INFO = {
   cart:     { label: 'Added to cart',       color: '#7c3aed', tag: 'shopping_cart' },
@@ -69,7 +71,7 @@ function setup() {
   }
   var props = PropertiesService.getScriptProperties();
   props.setProperty('INV_CFG', JSON.stringify(CONFIG));
-  ['FAILS', 'FAIL_NOTICE_DAY', 'INV_REV', 'INV_UP', 'INV_FULL_DAY', 'INV_BEAT', 'INV_LAST', 'INV_BUD', 'INV_AI', 'INV_NTFY_REST', 'NTFY_TOPIC'].forEach(function (k) { props.deleteProperty(k); });
+  ['FAILS', 'FAIL_NOTICE_DAY', 'INV_REV', 'INV_UP', 'INV_FULL_DAY', 'INV_BEAT', 'INV_LAST', 'INV_BUD', 'INV_AI', 'INV_NTFY_REST', 'INV_NTFY_MAIL_AT', 'NTFY_TOPIC'].forEach(function (k) { props.deleteProperty(k); });
   try { CacheService.getScriptCache().remove('inv_login'); } catch (e) { }
   var cfg = cfg_(props), s = session_(cfg, true);
   getDoc_(cfg, s, 'meta/rules_inv_1', 'the rules');      // proves the login works (and the rules know Inventory)
@@ -162,14 +164,14 @@ function alerts_(cfg, s, props, now) {
   var sent = readJson_(props, 'SENT_KEYS', []), already = {};
   sent.forEach(function (k) { already[k] = true; });
   var fresh = docs.filter(function (d) { return !already[idOf_(d)]; }).map(function (d) { return { id: idOf_(d), e: plain_(d.fields) }; });
-  var toPush = [], toMail = [], gone = [];
+  var toPush = [], toMail = [], drop = [];
   fresh.forEach(function (x) {
-    if (x.e.t === 'cart' && pushOn) (push.owner && x.e.upBy === push.owner ? gone : toPush).push(x);
-    else (mailOn ? toMail : gone).push(x);
+    if (x.e.t === 'cart' && pushOn) (push.owner && x.e.upBy === push.owner ? drop : toPush).push(x);
+    else (mailOn ? toMail : drop).push(x);
   });
   var keep = function (list) { sent = sent.concat(list.map(function (g) { return g.id; })).slice(-400); props.setProperty('SENT_KEYS', JSON.stringify(sent)); };
   var n = 0, left = 0;
-  if (gone.length) keep(gone);
+  if (drop.length) keep(drop);
   if (toPush.length) {
     var r = pushes_(cfg, props, push.topic, toPush.map(function (x) { return pushOf_(x.e); }), now);
     var went = toPush.filter(function (x, i) { return r.got[i]; });
@@ -195,12 +197,16 @@ function alerts_(cfg, s, props, now) {
   // a full page of alerts: there may be more behind it — the next check goes on with them (the change counter isn't moved on)
   return { sent: n, waiting: left + testWaits + (docs.length >= MAX_PER_RUN ? 1 : 0), note: note };
 }
-/* a cart add as a phone push: who, what, and that it needs Dr. A's OK */
+/* a cart add (or a line changed after Dr. A's OK) as a phone push: who, what, and that it needs his OK; short: one line of it,
+   for a push of several */
 function pushOf_(e) {
   var lines = (Array.isArray(e.lines) ? e.lines : []).filter(function (l) { return l && typeof l === 'object'; });
-  var what = lines.slice(0, 6).map(function (l) { return '• ' + cut_(l.n, 80) + ' — ' + num_(l.q) + (l.u ? ' ' + cut_(l.u, 20) : '') + (l.v ? ' (' + cut_(l.v, 40) + ')' : ''); });
+  var line = function (l) { return cut_(l.n, 80) + ' — ' + num_(l.q) + (l.u ? ' ' + cut_(l.u, 20) : '') + (l.v ? ' (' + cut_(l.v, 40) + ')' : ''); };
+  var what = lines.slice(0, 6).map(function (l) { return '• ' + line(l); });
   if (lines.length > 6) what.push('and ' + (lines.length - 6) + ' more');
-  return { title: cut_(e.by || 'Someone', 60) + ' added to the cart', text: what.join('\n') + (what.length ? '\n' : '') + 'Needs your OK: Inventory → Cart.' };
+  var by = cut_(e.by || 'Someone', 60), changed = e.note === 'changed';
+  return { title: by + (changed ? ' changed a line in the cart' : ' added to the cart'), text: what.join('\n') + (what.length ? '\n' : '') + (changed ? 'Needs your OK again: Inventory → Cart.' : 'Needs your OK: Inventory → Cart.'),
+    short: by + ': ' + (lines.length ? line(lines[0]) + (lines.length > 1 ? ' +' + (lines.length - 1) + ' more' : '') : 'the cart') + (changed ? ' (changed)' : '') };
 }
 /* alerts → emails: in order, a new email at PER_EMAIL alerts or about EMAIL_BYTES */
 function emailGroups_(list) {
@@ -334,7 +340,7 @@ function pushes_(cfg, props, topic, list, now) {
       var g = groups[k], one = g.length === 1 ? list[g[0]] : null;
       try {
         if (one) push_(cfg, topic, one.title, one.text);
-        else push_(cfg, topic, g.length + ' cart adds need your OK', g.map(function (i) { return list[i].title; }).join('\n'));
+        else push_(cfg, topic, g.length + ' cart adds need your OK', g.map(function (i) { return list[i].short || list[i].title; }).join('\n'));
         g.forEach(function (i) { got[i] = true; });
         via = 'ntfy';
       } catch (e) {
@@ -345,8 +351,14 @@ function pushes_(cfg, props, topic, list, now) {
   }
   var left = list.filter(function (a, i) { return !got[i]; });
   if (rest && left.length) {
-    try { pushMail_(cfg, topic, left); list.forEach(function (a, i) { got[i] = true; }); err = ''; via = 'mail'; }
-    catch (e) { err = msg_(e); }
+    // the email way: at most every 10 minutes (the ones waiting go together), and never using up the emails the alerts need
+    var lastMail = Number(props.getProperty('INV_NTFY_MAIL_AT') || 0);
+    if (now - lastMail < NTFY_MAIL_EVERY) err = '';
+    else if (quota_() < recipients_() + MAIL_RESERVE) err = 'Gmail’s daily email limit is nearly used up: the push waits';
+    else {
+      try { pushMail_(cfg, topic, left); props.setProperty('INV_NTFY_MAIL_AT', String(now)); list.forEach(function (a, i) { got[i] = true; }); err = ''; via = 'mail'; }
+      catch (e) { err = msg_(e); }
+    }
   }
   return { got: got, err: err, via: via };
 }
@@ -371,7 +383,7 @@ function pushMail_(cfg, topic, list) {
   MailApp.sendEmail({
     to: cfg.ntfyMail.replace('{topic}', topic),
     subject: cut_(one ? one.title : list.length + ' cart adds need your OK', 200),
-    body: utf8Cap_(one ? one.text : list.map(function (a) { return a.title; }).join('\n'), 3500),   // (ntfy keeps 4,096 bytes)
+    body: utf8Cap_(one ? one.text : list.map(function (a) { return a.short || a.title; }).join('\n'), 3500),   // (ntfy keeps 4,096 bytes)
     name: 'NLO Inventory'
   });
 }
@@ -419,8 +431,8 @@ function describe_(e) {
 
   if (e.t === 'cart') {
     var what = lines.length === 1 ? clean_(lines[0].n) + ' ×' + num_(lines[0].q) : nItems;
-    headline = (by || 'Someone') + ' added ' + what + ' to the cart';
-    subject = 'Added to cart: ' + what;
+    headline = e.note === 'changed' ? (by || 'Someone') + ' changed ' + what + ' in the cart (it needs your OK again)' : (by || 'Someone') + ' added ' + what + ' to the cart';
+    subject = (e.note === 'changed' ? 'Changed in the cart: ' : 'Added to cart: ') + what;
     var vendors = uniq_(lines.map(function (l) { return clean_(l.v); }).filter(Boolean));
     if (vendors.length) extra.push('From ' + vendors.join(', '));
     if (e.inCart) extra.push(e.inCart + ' item' + (e.inCart === 1 ? '' : 's') + ' now in the cart');

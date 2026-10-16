@@ -1222,7 +1222,8 @@ service cloud.firestore {
     //   reopening orders, the alert switches and the AI keys). Amir, 16 Oct 2026: "for assistants, the budget vendor and
     //   setting are not needed … they will just need to look up inventory, add items to the cart and if I approve them, they
     //   can place order" — and only he approves.
-    // - His OKs on cart lines (invState/cart.ok) are his alone: anyone else may only take one off (with its line).
+    // - His OKs on cart lines (invState/cart.ok) are his alone: anyone else may only take one off (with its line). That an order
+    //   someone else saves came only from OK'd lines is the page's to check: the cart is one shared record.
     // - The alert script (Dr. A's Apps Script) has its own login (invBots): it reads Inventory (and the AI keys, which Staff
     //   Meeting and Month-End read from the old database), sends and clears the alerts, and copies the supply numbers to the
     //   old database, where Staff Meeting and AISA read them.
@@ -1358,8 +1359,9 @@ service cloud.firestore {
       allow create, update: if invOk(request.resource.data) && okSet(request.resource.data) && isOwner();
       allow delete: if false;
     }
-    // Dr. A's phone push (the free ntfy app) when someone adds to the cart: the topic stays between him and the alert script,
-    // which sends the pushes (settings.pushOn tells the pages to leave the cart adds for it); test: when he asked for a test
+    // Dr. A's phone push (the free ntfy app) when someone adds to the cart: Inventory keeps the topic between him and the alert
+    // script, which sends the pushes (settings.pushOn tells the pages to leave the cart adds for it) — if he uses the Time
+    // Clock's topic, the Time Clock's managers know it too; test: when he asked for a test push
     match /invState/push {
       function okPush(d) { return d.keys().hasOnly(['topic', 'test', 'up', 'upBy']) && d.topic is string && d.topic.matches('^[A-Za-z0-9_-]{0,64}$')
         && (!('test' in d) || d.test is int); }

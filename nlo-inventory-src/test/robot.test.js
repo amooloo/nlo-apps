@@ -222,6 +222,7 @@ async function bump() { rev++; await put('invState/rev', { n: rev, up: new Date(
   sv.mail.length = 0;
   const cartAlert = (id, upBy, by, extra) => put('invAlerts/' + id, Object.assign({ t: 'cart', at: Date.now(), by, lines: [{ n: 'Gloves SM', q: 2, u: 'case', p: 91.3, v: 'SunSurgical' }], inCart: 2, up: new Date(), upBy }, extra || {}));
   const toNtfyMail = m => m.to === 'ntfy-nlo-inv-test1@ntfy.test', sNow = () => Date.now() + clock.off;   // (the script's clock)
+  const beatErr = async () => (await list('invBeat'))[0].fields.err.stringValue;
   await put('invState/push', { topic: 'nlo-inv-test1', up: new Date(), upBy: 'amir' });
   await put('invState/settings', { alertsOn: true, pushOn: true, locations: [], up: new Date(), upBy: 'amir' });
   await cartAlert('n1', 'gwen', 'Gwen R.');
@@ -233,12 +234,18 @@ async function bump() { rev++; await put('invState/rev', { n: rev, up: new Date(
   ok('push: Gwen’s cart add goes to Dr. A’s phone (who, what, that it needs his OK; tapping it opens the cart)', ps.length === 1 && ps[0].topic === 'nlo-inv-test1' && ps[0].title === 'Gwen R. added to the cart' && /Gloves SM — 2 case \(SunSurgical\)/.test(ps[0].message) && /Needs your OK/.test(ps[0].message) && /nlo-inventory\.html#cart$/.test(ps[0].click) && ps[0].tags[0] === 'shopping_cart', ps);
   ok('push: …not emailed as well; the order is (the email alerts are on)', sv.mail.length === 1 && /^Open order: SunSurgical/.test(sv.mail[0].subject) && !/Gloves/.test(sv.mail[0].body), sv.mail.map(m => m.subject));
   ok('push: Dr. A’s own cart add isn’t sent at all, and every one of them is cleared', !ps.some(x => /Dr\. A/.test(x.title)) && (await list('invAlerts')).length === 0 && r.sent === 2, r);
-  // more than 4 at once: one push for all of them
+  // more than 4 at once: one push for all of them, each with its item
   for (let i = 0; i < 5; i++) await cartAlert('n5' + i, 'gwen', 'Gwen R.', { lines: [{ n: 'Item ' + i, q: 1 }] });
   await bump();
   r = sv.run('checkInventoryAlerts()');
   ps = pushes();
-  ok('push: five cart adds at once come as one push', ps.length === 2 && ps[1].title === '5 cart adds need your OK' && r.sent === 5, ps[1]);
+  ok('push: five cart adds at once come as one push, each line with its item', ps.length === 2 && ps[1].title === '5 cart adds need your OK' && /Gwen R\.: Item 0 — 1/.test(ps[1].message) && /Gwen R\.: Item 4 — 1/.test(ps[1].message) && r.sent === 5, ps[1]);
+  // a line changed after Dr. A's OK (another vendor, a higher price, more of it)
+  await cartAlert('nc', 'kim', 'Kim T.', { note: 'changed' });
+  await bump();
+  r = sv.run('checkInventoryAlerts()');
+  ps = pushes();
+  ok('push: a line changed after his OK says so', ps.length === 3 && ps[2].title === 'Kim T. changed a line in the cart' && /Needs your OK again/.test(ps[2].message), ps[2]);
   // the email alerts off, the push on: cart adds still pushed; the rest cleared unsent
   sv.mail.length = 0;
   await put('invState/settings', { alertsOn: false, pushOn: true, locations: [], up: new Date(), upBy: 'amir' });
@@ -246,21 +253,38 @@ async function bump() { rev++; await put('invState/rev', { n: rev, up: new Date(
   await put('invAlerts/n7', { t: 'received', at: Date.now(), by: 'Kim T.', vendor: 'SunSurgical', lines: [], up: new Date(), upBy: 'kim' });
   await bump();
   r = sv.run('checkInventoryAlerts()');
-  ok('push on, emails off: the cart add is pushed, the delivery cleared without an email', pushes().length === 3 && sv.mail.length === 0 && (await list('invAlerts')).length === 0, { r, mail: sv.mail.length });
-  // the push off, the emails on: cart adds are emailed again
+  ok('push on, emails off: the cart add is pushed, the delivery cleared without an email', pushes().length === 4 && sv.mail.length === 0 && (await list('invAlerts')).length === 0, { r, mail: sv.mail.length });
+  // both off: cleared, nothing sent
+  await put('invState/settings', { alertsOn: false, pushOn: false, locations: [], up: new Date(), upBy: 'amir' });
+  await cartAlert('n6b', 'kim', 'Kim T.'); await bump();
+  r = sv.run('checkInventoryAlerts()');
+  ok('push and emails both off: cleared, nothing sent', pushes().length === 4 && sv.mail.length === 0 && (await list('invAlerts')).length === 0, r);
+  // the push off, the emails on: cart adds are emailed again (a changed line too, saying so)
   await put('invState/settings', { alertsOn: true, pushOn: false, locations: [], up: new Date(), upBy: 'amir' });
   await cartAlert('n8', 'gwen', 'Gwen R.');
+  await cartAlert('n8c', 'gwen', 'Gwen R.', { note: 'changed', lines: [{ n: 'Cups', q: 3 }] });
   await bump();
   r = sv.run('checkInventoryAlerts()');
-  ok('push off: cart adds are emailed again', pushes().length === 3 && sv.mail.length === 1 && /^Added to cart: Gloves SM ×2/.test(sv.mail[0].subject), sv.mail.map(m => m.subject));
+  ok('push off: cart adds are emailed again', pushes().length === 4 && sv.mail.length === 1 && /Gwen R\. added Gloves SM ×2 to the cart/.test(sv.mail[0].body) && /Gwen R\. changed Cups ×3 in the cart \(it needs your OK again\)/.test(sv.mail[0].body), sv.mail.map(m => m.body));
+  // the push on, but no topic: emailed (nothing to push to)
+  sv.mail.length = 0;
+  await put('invState/push', { topic: '', up: new Date(), upBy: 'amir' });
   await put('invState/settings', { alertsOn: true, pushOn: true, locations: [], up: new Date(), upBy: 'amir' });
-  // the test push Dr. A asks for: once
+  await cartAlert('n8e', 'gwen', 'Gwen R.'); await bump();
+  r = sv.run('checkInventoryAlerts()');
+  ok('push on with no topic: the cart add is emailed', pushes().length === 4 && sv.mail.length === 1 && /^Added to cart/.test(sv.mail[0].subject), sv.mail.map(m => m.subject));
+  await put('invState/push', { topic: 'nlo-inv-test1', up: new Date(), upBy: 'amir' });
+  // the test push Dr. A asks for: once; one that didn't go is tried again
+  fs.writeFileSync(NTFY_FAIL, '500');
   const asked = Date.now();
   await put('invState/push', { topic: 'nlo-inv-test1', test: asked, up: new Date(), upBy: 'amir' }); await bump();
   r = sv.run('checkInventoryAlerts()');
-  ok('test push: sent', pushes().length === 4 && pushes()[3].title === 'NLO Inventory: test push', pushes()[3]);
+  ok('test push: ntfy answers 500 — not sent, the check-in says why', pushes().length === 4 && r.waiting === 1 && /test push didn’t go/.test(await beatErr()), { r, err: await beatErr() });
+  fs.unlinkSync(NTFY_FAIL);
+  r = sv.run('checkInventoryAlerts()');
+  ok('test push: tried again next minute — sent', pushes().length === 5 && pushes()[4].title === 'NLO Inventory: test push', pushes()[4]);
   await bump(); r = sv.run('checkInventoryAlerts()');
-  ok('test push: once', pushes().length === 4);
+  ok('test push: once', pushes().length === 5);
   // ntfy can't be reached from Google's servers: through ntfy's email address, and the direct way rests 3 hours
   sv.mail.length = 0;
   const cfgNow = JSON.parse(sv.props.INV_CFG);
@@ -270,27 +294,43 @@ async function bump() { rev++; await put('invState/rev', { n: rev, up: new Date(
   r = sv.run('checkInventoryAlerts()');
   const restA = Number(sv.props.INV_NTFY_REST || 0);
   ok('ntfy unreachable: the push goes by email to ntfy’s address for the topic (its subject the title)', r.sent === 1 && sv.mail.length === 1 && toNtfyMail(sv.mail[0]) && sv.mail[0].subject === 'Gwen R. added to the cart' && /Needs your OK/.test(sv.mail[0].body) && (await list('invAlerts')).length === 0, { r, mail: sv.mail.map(m => [m.to, m.subject]) });
-  ok('ntfy unreachable: the direct way rests about 3 hours, with no problem reported', restA > sNow() + 2.5 * 3600000 && !sv.props.FAILS && !(await list('invBeat'))[0].fields.err.stringValue, { restA, err: (await list('invBeat'))[0].fields.err });
+  ok('ntfy unreachable: the direct way rests about 3 hours, with no problem reported', restA > sNow() + 2.5 * 3600000 && !sv.props.FAILS && !(await beatErr()), { restA, err: await beatErr() });
   sv.props.INV_CFG = JSON.stringify(cfgNow);
+  // while it rests: no direct try; the email way at most every 10 minutes (the waiting ones together)
   const urls0 = urls.length;
   await cartAlert('n10', 'gwen', 'Gwen R.'); await bump();
   r = sv.run('checkInventoryAlerts()');
-  ok('while it rests: no direct try, the email way at once', sv.mail.length === 2 && toNtfyMail(sv.mail[1]) && !urls.slice(urls0).some(u => u.includes(':' + NTFY_PORT)), urls.slice(urls0));
+  ok('while it rests, within 10 minutes of the last such email: the push waits (no problem), no direct try', r.sent === 0 && r.waiting === 1 && sv.mail.length === 1 && !(await beatErr()) && !urls.slice(urls0).some(u => u.includes(':' + NTFY_PORT)), { r, err: await beatErr() });
+  await cartAlert('n10b', 'kim', 'Kim T.'); await bump();
+  clock.off += 11 * 60000;
+  r = sv.run('checkInventoryAlerts()');
+  ok('…11 minutes on: both go in one email to ntfy’s address', r.sent === 2 && sv.mail.length === 2 && toNtfyMail(sv.mail[1]) && sv.mail[1].subject === '2 cart adds need your OK' && /Gwen R\.: Gloves SM/.test(sv.mail[1].body) && /Kim T\.: Gloves SM/.test(sv.mail[1].body) && !urls.slice(urls0).some(u => u.includes(':' + NTFY_PORT)), { r, mail: sv.mail.map(m => [m.to, m.subject, m.body]) });
+  // Gmail's emails nearly used up: the push waits, keeping them for the alerts themselves
+  clock.off += 11 * 60000; sv.mailCtl.quota = 5;
+  await cartAlert('n10c', 'gwen', 'Gwen R.'); await bump();
+  r = sv.run('checkInventoryAlerts()');
+  ok('fewer than 11 emails left today: the push waits, and says why', r.sent === 0 && r.waiting === 1 && sv.mail.length === 2 && /nearly used up/.test(await beatErr()), { r, err: await beatErr() });
+  sv.mailCtl.quota = 100;
+  r = sv.run('checkInventoryAlerts()');
+  ok('…with room again it goes', r.sent === 1 && sv.mail.length === 3 && toNtfyMail(sv.mail[2]), r);
   // back to the direct way once the rest is over; "too many" (429) works like no answer
+  clock.off += 11 * 60000;
   sv.props.INV_NTFY_REST = String(sNow() - 1000);
   fs.writeFileSync(NTFY_FAIL, '429');
   await cartAlert('n11', 'gwen', 'Gwen R.'); await bump();
   r = sv.run('checkInventoryAlerts()');
-  ok('ntfy answers 429 (too many): through ntfy’s email address too, and the direct way rests', r.sent === 1 && sv.mail.length === 3 && toNtfyMail(sv.mail[2]) && Number(sv.props.INV_NTFY_REST) > sNow() + 2 * 3600000, { r, rest: sv.props.INV_NTFY_REST });
+  ok('ntfy answers 429 (too many): through ntfy’s email address too, and the direct way rests', r.sent === 1 && sv.mail.length === 4 && toNtfyMail(sv.mail[3]) && Number(sv.props.INV_NTFY_REST) > sNow() + 2 * 3600000, { r, rest: sv.props.INV_NTFY_REST });
   // ntfy itself answers 500: that's no Google problem — no email to its address; the alert waits and the problem shows
+  clock.off += 11 * 60000;
   sv.props.INV_NTFY_REST = String(sNow() - 1000);
   fs.writeFileSync(NTFY_FAIL, '500');
   await cartAlert('n12', 'gwen', 'Gwen R.'); await bump();
   r = sv.run('checkInventoryAlerts()');
-  ok('ntfy answers 500: no email to its address, the alert waits, the problem shows in Settings', r.sent === 0 && r.waiting === 1 && sv.mail.length === 3 && (await list('invAlerts')).length === 1 && /Phone push: ntfy answered 500/.test((await list('invBeat'))[0].fields.err.stringValue) && !(Number(sv.props.INV_NTFY_REST) > sNow()), { r, err: (await list('invBeat'))[0].fields.err });
+  ok('ntfy answers 500: no email to its address, the alert waits, the problem shows in Settings', r.sent === 0 && r.waiting === 1 && sv.mail.length === 4 && (await list('invAlerts')).length === 1 && /Phone push: ntfy answered 500/.test(await beatErr()) && !(Number(sv.props.INV_NTFY_REST) > sNow()), { r, err: await beatErr() });
   fs.unlinkSync(NTFY_FAIL);
   r = sv.run('checkInventoryAlerts()');
   ok('…the next check pushes it, once', r.sent === 1 && pushes().filter(x => x.title === 'Gwen R. added to the cart').length === 2 && (await list('invAlerts')).length === 0, r);
+  clock.off = tenAm;
   // ntfy's email address: ntfy.sh's own, none for another ntfy server
   const cf = c => { const x = load(Object.assign({}, CFG, { ntfyBase: undefined, ntfyMail: undefined }, c), 'dr.test@example.com', clock); return JSON.parse(x.run('JSON.stringify(cfg_(PropertiesService.getScriptProperties()))')); };
   ok('ntfy’s email address: ntfy.sh’s (ntfy-<topic>@ntfy.sh), none for another server', cf({}).ntfyMail === 'ntfy-{topic}@ntfy.sh' && cf({ ntfyBase: 'https://ntfy.sh/' }).ntfyMail === 'ntfy-{topic}@ntfy.sh' && cf({ ntfyBase: 'https://push.example.com' }).ntfyMail === '', [cf({}).ntfyMail, cf({ ntfyBase: 'https://push.example.com' }).ntfyMail]);

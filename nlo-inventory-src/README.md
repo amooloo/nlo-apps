@@ -24,9 +24,15 @@ Page: `https://amooloo.github.io/nlo-apps/nlo-inventory.html` (GitHub Pages, fro
   Cart in the menu say how many wait). The others place only the OK'd lines (the rest stay in the cart); he places any. More
   of a line than he OK'd waits again (back down to it is OK'd again); his own adds are OK'd from the start. His OKs are kept
   in the cart record (`ok`), which only he can add to or change — anyone else's save may only take one off with its line —
-  and each placed line carries the OK. The cart and its order are saved in one step.
+  and each placed line carries the OK. An OK covers the supply, how many, the vendor and the price: more of it, another
+  vendor or a higher price waits for him again (and he hears of it as he does of an add); he OKs what his screen showed, so a
+  line raised just before his tap still waits. What's ordered is what the place-order dialog showed when it opened (more
+  added meanwhile stays in the cart, waiting). The cart and its order are saved in one step. That an order someone else
+  places came only from OK'd lines is checked by the page, not the database (the cart is one shared record); his OKs
+  themselves can't be faked.
 - **A push on his phone** (the free ntfy app) when someone adds to the cart: Settings → Phone push (the Time Clock's topic —
-  nothing new on the phone — or one of its own; a test; off). The alert script sends them.
+  nothing new on the phone, though the Time Clock's managers can see it — or one of its own; a test; off). The alert script
+  sends them.
 - **The names on the steps are checked by the database**: each person adds only to their own activity-log record, an
   order's trail only grows by the saver's own step (and who received it is whoever saved the receipt), and an expense is in
   the name of whoever added it (only they, or Dr. A, take it off). The screens show the person behind the id, as NLO Cases
@@ -100,7 +106,8 @@ Every minute (every 10 at night) it reads `invState/rev`; when it moved:
   Settings says so). With the phone push on, cart adds by anyone but Dr. A go to his phone instead (one push each, one for all
   of them past four; his own aren't sent): straight to ntfy, or — when Google's servers can't reach it or it says "too many"
   (ntfy.sh shuts out shared addresses for hours) — in one email to ntfy's address for the topic (`ntfy-<topic>@ntfy.sh`), and
-  the direct way rests 3 hours (`INV_NTFY_REST`), as the Time Clock's script does. Alerts left while the email alerts are off
+  the direct way rests 3 hours (`INV_NTFY_REST`), as the Time Clock's script does; meanwhile such an email goes at most every
+  10 minutes (the pushes waiting go together) and only while 10 of the day's emails are left for the alerts themselves. Alerts left while the email alerts are off
   are cleared unsent. A test push Dr. A asks for (`invState/push.test`) goes first;
 - **copies** what changed (`up` after the last copy, looking 5 minutes further back each time, since a save's time is when it
   was sent) from `invItems`, `invOrders` and `invLog` into the old database (`nlo/items`, `nlo/orders`, `nlo/log`; an entry's
@@ -124,8 +131,8 @@ script checked in last (the copy running now); any others stop.
   — the end-to-end checks (the real page; the move from v3-shaped data, its read-only check, second reading, saved copy,
   re-run, large photos; sign-in, lock, idle lock; the names on the steps; the simple view; Dr. A's OK on the cart; the phone
   push settings; every flow of 4.0's suite; two computers at once; a slow receive, a retried one; rules gate; the copied alert
-  script run), the alert-script checks (with a stand-in ntfy), the rules checks, and 25 for the read-only helper — counts in
-  `claude/inventory-on-cases.md`. The other apps' suites must pass on the same rules file (Cases 258, Leads 77, A/R 97,
+  script run), the alert-script checks (with a stand-in ntfy), the rules checks, and 25 for the read-only helper (16 Oct
+  evening: 378, 79, 302, 25). The other apps' suites must pass on the same rules file (Cases 258, Leads 77, A/R 97,
   Time Off 159, Time Clock 433 on 16 Oct).
 - Publish: copy `dist/nlo-inventory.html` and `dist/nlo-inventory-alerts.gs` to the repo root; when the rules change, rebuild
   and copy NLO Cases, A/R, Time Off and the Time Clock too (they carry the file for their own rules cards).

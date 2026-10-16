@@ -14,11 +14,10 @@ const HOW = [
   ['online', 'Their website', 'web'], ['call', 'Phone call', 'call'], ['email', 'Email', 'email'], ['text', 'Text', 'text'], ['rep', 'Through the rep', 'user'], ['other', 'Some other way', 'doc']
 ];
 function cartLinesFor(vendor) { return S.D.cart.filter(c => (c.vendor || '') === (vendor || '')); }
-/* where a line stands with Dr. A: his OK, or waiting for it (with what he OK'd before it was raised) */
+/* where a line stands with Dr. A: his OK, or waiting for it (and what he OK'd, when it changed after) */
 function okRowHTML(c) {
-  const o = okOf(c), was = !o && c.lineId && (S.D.cartOk || {})[c.lineId], before = was && was.it === (c.itemId || '') && Number(was.n) > 0 ? Number(was.n) : 0;
-  const unit = linePer(c) > 1 ? (c.countUnit || '') : (c.unit || ''), had = before ? ' (he OK’d ' + qtyUnit(before, unit) + ')' : '';
-  if (o) return '<div class="okRow"><span class="stat ok">' + ic('check', 12) + (isAdmin() ? 'OK’d' : 'OK’d by Dr. A') + '</span><span class="muted small">' + esc(fmtWhen(o.at)) + '</span></div>';
+  const o = okOf(c), why = okWhy(c), had = why ? ' (' + why + ')' : '';
+  if (o) return '<div class="okRow"><span class="stat ok" title="' + esc(fmtWhen(o.at)) + '">' + ic('check', 12) + (isAdmin() ? 'OK’d' : 'OK’d by Dr. A') + '</span></div>';
   if (isAdmin()) return '<div class="okRow"><span class="stat wait">Needs your OK' + esc(had) + '</span><button class="btn btn-act btn-sm" data-act="cartOk" data-line="' + esc(c.lineId) + '">' + ic('check', 14) + 'OK</button></div>';
   return '<div class="okRow"><span class="stat wait">Waiting for Dr. A’s OK' + esc(had) + '</span></div>';
 }
@@ -44,7 +43,7 @@ VIEWS.cart = {
     const boss = isAdmin(), wait = cart.filter(c => !okOf(c));
     let h = '<div class="hello">' + cart.length + ' line' + (cart.length === 1 ? '' : 's') + ' from ' + vendorsIn(cart).length + ' vendor' + (vendorsIn(cart).length === 1 ? '' : 's') + ' · about <b>' + money(cartValue()) + '</b>. Order one vendor at a time.</div>';
     if (wait.length) h += boss ? '<div class="okBar">' + ic('check', 16) + '<span class="grow"><b>' + plural(wait.length, 'line') + '</b> ' + (wait.length === 1 ? 'needs' : 'need') + ' your OK before anyone else can order ' + (wait.length === 1 ? 'it' : 'them') + '.</span><button class="btn btn-act btn-sm" data-act="cartOkAll">OK ' + (wait.length === 1 ? 'it' : 'all ' + wait.length) + '</button></div>'
-      : '<div class="okBar wait">' + ic('clock', 16) + '<span class="grow"><b>' + plural(wait.length, 'line') + '</b> ' + (wait.length === 1 ? 'waits' : 'wait') + ' for Dr. A’s OK. The OK’d lines can be ordered now.</span></div>';
+      : '<div class="okBar wait">' + ic('clock', 16) + '<span class="grow"><b>' + plural(wait.length, 'line') + '</b> ' + (wait.length === 1 ? 'waits' : 'wait') + ' for Dr. A’s OK.' + (wait.length < cart.length ? ' The OK’d ones can be ordered now.' : '') + '</span></div>';
     vendorsIn(cart).forEach(vn => {
       const ls = cartLinesFor(vn), v = vendorByName(vn), lsOk = ls.filter(c => okOf(c)), lsWait = ls.length - lsOk.length;
       h += '<div class="card vcard"><div class="cardHd">' + (vn ? vlogoHTML(v || { name: vn }, 'lg') : '<span class="vlogo lg none">' + ic('warn', 16) + '</span>') + '<div class="grow"><h3>' + esc(vn || 'No vendor yet') + '</h3>' +
@@ -86,13 +85,18 @@ ACT.cartToCases = async t => {
   if (v === false) return; const q = num(v); if (!(q > 0)) return toast('How many?', { bad: true });
   withWho(() => act(() => cartToBuyUnit(it.id, q), 'Now ' + qtyUnit(q, buyUnit(it)) + '.'), 'Who’s changing the cart?');
 };
-/* Dr. A's OK: one line, a vendor's lines, or all of them */
-ACT.cartOk = t => withAdmin(() => act(() => cartApprove([t.dataset.line]), 'OK’d.'), '', 'OK the cart');
-ACT.cartOkAll = t => withAdmin(() => {
-  const vn = t.dataset.v, ids = S.D.cart.filter(c => !okOf(c) && (vn == null || (c.vendor || '') === vn)).map(c => c.lineId);
-  if (!ids.length) return;
-  return act(async () => { const n = await cartApprove(ids); return n; }, ids.length === 1 ? 'OK’d.' : 'OK’d ' + ids.length + ' lines.');
-}, '', 'OK the cart');
+/* Dr. A's OK: one line, a vendor's lines, or all of them — as he sees them on the screen (a line changed since isn't OK'd) */
+ACT.cartOk = t => okLines(S.D.cart.filter(c => c.lineId === t.dataset.line && !okOf(c)));
+ACT.cartOkAll = t => { const vn = t.dataset.v; okLines(S.D.cart.filter(c => !okOf(c) && (vn == null || (c.vendor || '') === vn))); };
+function okLines(lines) {
+  withAdmin(async () => {
+    if (!lines.length) return;
+    let r = null;
+    if (!await act(async () => { r = await cartApprove(lines.map(okSeen)); })) return;
+    const msg = ((r.n ? (r.n === 1 ? 'OK’d.' : 'OK’d ' + r.n + ' lines.') : '') + (r.changed ? ' ' + plural(r.changed, 'line') + ' changed while you looked — look again.' : '')).trim();
+    if (msg) toast(msg, r.changed ? { bad: true } : {});
+  }, '', 'OK the cart');
+}
 ACT.cartRemove = async t => { const c = inCartLine(t.dataset.id); if (!c) return; if (!await confirmOut(c)) return; withWho(async () => { if (await act(() => cartRemove(c.itemId), 'Taken out of the cart.')) closeModal(true); }, 'Who’s taking it out?'); };
 
 /* ---------- placing an order ---------- */
@@ -105,11 +109,12 @@ function orderText(vn, lines, who) {
 ACT.placeOrder = t => withWho(w => {
   const vn = t.dataset.v, ls = cartLinesFor(vn).filter(c => isAdmin() || okOf(c)), v = vendorByName(vn) || {};
   if (!ls.length) return toast('These wait for Dr. A’s OK.', { bad: true });
-  S.ui.place = { vendor: vn, ids: ls.map(c => c.itemId), how: webUrl(v.portal) ? 'online' : (v.email || v.repEmail) ? 'email' : (v.phone || v.tollFree) ? 'call' : 'other' };
+  /* what's ordered is what the dialog shows: the lines as they are now, whatever changes in the cart while it's open */
+  S.ui.place = { vendor: vn, snap: placeSnap(ls), how: webUrl(v.portal) ? 'online' : (v.email || v.repEmail) ? 'email' : (v.phone || v.tollFree) ? 'call' : 'other' };
   renderPlace();
 }, 'Who’s placing this order?');
 function renderPlace() {
-  const P = S.ui.place, v = vendorByName(P.vendor) || { name: P.vendor }, w = whoNow(), ls = S.D.cart.filter(c => P.ids.includes(c.itemId) && (isAdmin() || okOf(c)));
+  const P = S.ui.place, v = vendorByName(P.vendor) || { name: P.vendor }, w = whoNow(), ls = P.snap;
   const text = orderText(P.vendor, ls, w), email = v.repEmail || v.email || '', phone = v.tollFree || v.phone || '', cell = v.repPhone || '';
   let detail = '';
   if (P.how === 'online') detail = webUrl(v.portal) ? '<a class="btn btn-act" href="' + esc(webUrl(v.portal)) + '" target="_blank" rel="noopener">' + ic('web', 16) + 'Open ' + esc(v.name) + '’s website</a><div class="hint">Add the lines below on their site and check out, then come back here.' + (v.acct ? ' Account: <b>' + esc(v.acct) + '</b>.' : '') + '</div>' : '<div class="notice">There’s no website saved for ' + esc(v.name) + '. ' + (isAdmin() ? 'Add it under Vendors.' : 'Dr. A can add it under Vendors.') + '</div>';
@@ -129,9 +134,9 @@ ACT.copyOrder = () => copyText($('#orderTxt').textContent);
 ACT.placeGo = t => withWho(async () => {
   const P = S.ui.place; busyBtn(t, true, 'Saving…');
   /* (the vendor's lines that wait for Dr. A's OK stay in the cart: the toast says how many) */
-  const left = isAdmin() ? 0 : cartLinesFor(P.vendor).filter(c => !okOf(c) && !P.ids.includes(c.itemId)).length;
+  const mine = new Set(P.snap.map(c => c.lineId)), left = isAdmin() ? 0 : cartLinesFor(P.vendor).filter(c => !okOf(c) && !mine.has(c.lineId)).length;
   try {
-    const o = await placeOrder(P.vendor, P.ids, { method: P.how, orderNumber: val('poNum'), expected: val('poDate'), note: val('poNote') }), n = left + (o.waiting || 0);
+    const o = await placeOrder(P.vendor, P.snap, { method: P.how, orderNumber: val('poNum'), expected: val('poDate'), note: val('poNote') }), n = left;
     closeModal(true); toast('Ordered from ' + P.vendor + ' — it’s under Orders → On the way.' + (n ? ' ' + plural(n, 'line') + ' still wait' + (n === 1 ? 's' : '') + ' for Dr. A’s OK.' : ''), { action: 'Show', onAction: () => { go('orders'); openDrawer('order', o.id); } });
   } catch (e) { busyBtn(t, false); toast(errText(e), { bad: true }); }
 }, 'Who placed this order?');

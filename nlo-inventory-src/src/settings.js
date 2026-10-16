@@ -52,7 +52,7 @@ function pushCardHTML(owner) {
   const same = P.topic && P.topic === P.tc;
   if (on && P.topic) {
     h += '<div class="kvRow"><span>Topic' + (same ? ' <span class="muted">(the Time Clock’s: nothing new on your phone)</span>' : '') + '</span><b><code>' + esc(P.topic) + '</code></b></div>' +
-      (same ? '' : '<div class="hint">On your phone: the ntfy app → <b>+</b> → subscribe to this topic (once). Keep it to yourself: anyone with it could read these.</div>') +
+      (same ? '<div class="hint">The Time Clock’s managers can see this topic too. A topic of its own would be yours alone.</div>' : '<div class="hint">On your phone: the ntfy app → <b>+</b> → subscribe to this topic (once). Keep it to yourself: anyone with it could read these.</div>') +
       '<div class="hint">Cart adds come as a push instead of an email; your own adds don’t. The alert script sends them within a minute' + (S.ui.beat && S.ui.beat.none ? ' — <b>once it runs</b> (Get the alert script, below)' : '') + '.</div>' +
       (P.asked ? '<div class="hint">' + ic('check', 13) + ' Asked for a test push: it comes within a minute.</div>' : '') +
       '<div class="btnRow"><button class="btn btn-sec btn-sm" data-act="pushTest">' + ic('bell', 15) + 'Send a test push</button>' + (same ? '' : '<button class="btn btn-ghost btn-sm" data-act="pushCopy">' + ic('copy', 15) + 'Copy the topic</button>') + '<button class="btn btn-ghost btn-sm" data-act="pushOff">Turn off</button></div>';
@@ -60,7 +60,7 @@ function pushCardHTML(owner) {
     h += '<div class="btnRow">' + (P.tc ? '<button class="btn btn-pri btn-sm" data-act="pushUse" data-t="' + esc(P.tc) + '">' + ic('bell', 15) + 'Use the Time Clock’s topic</button>' : '') +
       (P.topic && P.topic !== P.tc ? '<button class="btn btn-sec btn-sm" data-act="pushUse" data-t="' + esc(P.topic) + '">Turn it back on (' + esc(P.topic) + ')</button>' : '') +
       '<button class="btn ' + (P.tc ? 'btn-ghost' : 'btn-pri') + ' btn-sm" data-act="pushNew">' + (P.tc ? 'A topic of its own' : ic('bell', 15) + 'Turn it on') + '</button></div>' +
-      '<div class="hint">' + (P.tc ? 'The Time Clock already pushes to your phone: using its topic, Inventory’s pushes come to the same place, with nothing to set up there.' : 'You’ll subscribe to its topic in the ntfy app on your phone once (iPhone or Android, free).') + '</div>';
+      '<div class="hint">' + (P.tc ? 'The Time Clock already pushes to your phone: using its topic, Inventory’s pushes come to the same place, with nothing to set up there (its managers can see that topic too). A topic of its own is yours alone: you subscribe to it in the ntfy app once.' : 'You’ll subscribe to its topic in the ntfy app on your phone once (iPhone or Android, free).') + '</div>';
   }
   return h + '</div></div>';
 }
