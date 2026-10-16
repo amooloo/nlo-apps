@@ -52,8 +52,10 @@ $py = @("$env:LOCALAPPDATA\Programs\Python\Python313\python.exe", "$env:LOCALAPP
 if ($py) { & $py -m pip install --quiet --disable-pip-version-check --no-warn-script-location -r (Join-Path $dst 'requirements.txt') }
 else { Write-Host '       (Python 3.13 not found in the usual place - skipped)' }
 Write-Host ' [4/4] Restarting the app...'
-taskkill /F /T /FI 'WINDOWTITLE eq NLO Bleach Tray' 2>&1 | Out-Null
-taskkill /F /T /FI 'WINDOWTITLE eq NLO Bleach Tray - *' 2>&1 | Out-Null
+# only the app's own console window (cmd.exe): a browser showing the app page has the window title
+# "NLO Bleach Tray - Google Chrome" and must not be closed by the update
+taskkill /F /T /FI 'WINDOWTITLE eq NLO Bleach Tray' /FI 'IMAGENAME eq cmd.exe' 2>&1 | Out-Null
+taskkill /F /T /FI 'WINDOWTITLE eq NLO Bleach Tray - *' /FI 'IMAGENAME eq cmd.exe' 2>&1 | Out-Null
 # whatever still holds the app's port (a copy started by hand, a window with another title) goes too
 try {
   $owners = Get-NetTCPConnection -LocalPort 8765 -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique

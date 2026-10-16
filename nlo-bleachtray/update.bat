@@ -39,8 +39,9 @@ if errorlevel 8 goto :copyfail
 call "%NLO_APPDIR%_findpy.bat"
 if defined PY "%PY%" -m pip install --quiet --disable-pip-version-check --no-warn-script-location -r requirements.txt
 echo  [4/4] Restarting the app...
-taskkill /F /T /FI "WINDOWTITLE eq NLO Bleach Tray" >nul 2>&1
-taskkill /F /T /FI "WINDOWTITLE eq NLO Bleach Tray - *" >nul 2>&1
+rem only the app's own console window - not a browser whose title is "NLO Bleach Tray - Google Chrome"
+taskkill /F /T /FI "WINDOWTITLE eq NLO Bleach Tray" /FI "IMAGENAME eq cmd.exe" >nul 2>&1
+taskkill /F /T /FI "WINDOWTITLE eq NLO Bleach Tray - *" /FI "IMAGENAME eq cmd.exe" >nul 2>&1
 timeout /t 2 /nobreak >nul
 start "" "%NLO_APPDIR%start_app.bat" autostart
 rmdir /s /q "%TMPD%" >nul 2>&1
