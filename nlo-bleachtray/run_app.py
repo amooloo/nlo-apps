@@ -3,7 +3,23 @@
     python run_app.py            # http://127.0.0.1:8765
     python run_app.py --lan      # also reachable from other office computers on port 8765
 """
-import sys, threading, webbrowser, time
+import sys, os, threading, webbrowser, time
+
+# Be a light load on the lab PC: processing uses half the cores (numpy / scikit-learn / manifold
+# thread pools read these before they start), and the whole process runs at low priority so the
+# PC stays responsive - the Trimlign, Jump Desktop and the browser come first.
+_half = max(1, (os.cpu_count() or 2) // 2)
+for _v in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "NUMEXPR_NUM_THREADS"):
+    os.environ.setdefault(_v, str(_half))
+if os.name == "nt":
+    try:
+        import ctypes
+        _k = ctypes.windll.kernel32
+        _k.SetPriorityClass(_k.GetCurrentProcess(), 0x4000)          # BELOW_NORMAL_PRIORITY_CLASS
+    except Exception:
+        pass
+
+
 def _guard():
     """Friendly message when double-clicked before setup (missing components)."""
     import importlib.util, os, sys
