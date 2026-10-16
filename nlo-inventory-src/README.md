@@ -40,14 +40,7 @@ To roll back: Firebase console → Hosting → Release history → roll back, or
 `index.html`.
 
 ## Database rules
-The rules published 27 Sep 2026 cover `items, log, vendors, orders, cart, bracketOrder, budget, settings` but not
-`elastoPrices`, so the quick-order price list (o-ties, chain, Wildlife elastics, bracket kits) can't be read or
-saved. The app treats that list as empty and says so on Quick order. To fix it, add this block next to
-`settings` (same rule) in Firebase console → Realtime Database → Rules:
-
-```json
-"elastoPrices": {
-  ".read": "auth != null && auth.token.email_verified == true && (auth.token.email === 'akhavan.ak@gmail.com' || auth.token.email === 'records@thenextlevelorthodontics.com')",
-  ".write": "auth != null && auth.token.email_verified == true && (auth.token.email === 'akhavan.ak@gmail.com' || auth.token.email === 'records@thenextlevelorthodontics.com')"
-},
-```
+The live Realtime Database rules (checked 16 Oct 2026) give the office accounts read and write on everything Inventory
+uses: `items, log, vendors, orders, cart, bracketOrder, budget, settings` and `elastoPrices` (the quick-order price list,
+in its own block at the bottom of the rules), plus read on `cadence` for the staff roster. If `elastoPrices` were ever
+refused, the app treats the price list as empty and says so on Quick order instead of failing.
