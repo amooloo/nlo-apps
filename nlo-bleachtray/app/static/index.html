@@ -152,6 +152,7 @@
   .info{margin-left:auto;flex:none;width:16px;height:16px;border-radius:50%;border:1.5px solid var(--grey-300);color:var(--grey-500);font-size:10px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;cursor:help;font-family:Georgia,serif;font-style:italic}
   .sPic{height:84px;display:flex;align-items:center;justify-content:center;background:var(--grey-50);border-radius:10px}
   .sPic svg{width:140px;height:84px}
+  .sPic img{height:76px;width:auto;max-width:100%}
   .stepper{display:grid;grid-template-columns:36px 1fr 36px;border:1.5px solid var(--grey-200);border-radius:10px;overflow:hidden}
   .stepper button{min-height:38px;font-size:18px;color:var(--navy);background:var(--grey-50)}
   .stepper button:hover{background:var(--grey-100)}
@@ -313,7 +314,7 @@
         <select id="res_n"><option value="3">3-3 · canine to canine</option><option value="4">4-4 · to the 1st premolars</option><option value="5" selected>5-5 · to the 2nd premolars</option><option value="6">6-6 · to the 1st molars</option><option value="0">No reservoirs</option></select>
       </div>
       <div class="scard"><div class="sLab">Reservoir depth (mm) <span class="info" title="How much gel space is built into the facial of each tooth in the region. 0.5 mm is the usual.">i</span></div>
-        <div class="sPic"><svg viewBox="0 0 120 72">
+        <div class="sPic" data-img="reservoir_depth"><svg viewBox="0 0 120 72">
           <path d="M70 10 C78 8 86 12 88 20 L92 46 C94 60 82 68 70 66 C58 64 54 54 52 44 L50 22 C50 14 60 11 70 10 Z" fill="#fff" stroke="#1B2F4C" stroke-width="1.6" stroke-linejoin="round"/>
           <path d="M40 46 Q60 40 96 48 L100 72 L36 72 Z" fill="#FFE7E1" stroke="#FFC8BF" stroke-width="1.2"/>
           <path d="M52 22 C52 14 60 11 70 10 C78 8 86 12 88 20 L91 42" fill="none" stroke="#FA624D" stroke-width="5" stroke-linecap="round" opacity=".55"/>
@@ -323,7 +324,7 @@
         <div class="stepper"><button data-step="-0.1" data-for="res_h">−</button><input type="number" id="res_h" step="0.1" min="0" max="1.5" value="0.5"><button data-step="0.1" data-for="res_h">+</button></div>
       </div>
       <div class="scard"><div class="sLab">Distance to the gum edge (mm) <span class="info" title="The reservoir stops this far short of the gum line, so the tray seals on the tooth and gel does not sit on the gum.">i</span></div>
-        <div class="sPic"><svg viewBox="0 0 120 72">
+        <div class="sPic" data-img="reservoir_gum_distance"><svg viewBox="0 0 120 72">
           <path d="M60 8 C72 6 82 12 84 22 L88 46 C90 60 76 68 60 66 C44 64 38 54 36 44 L34 22 C34 12 48 10 60 8 Z" fill="#fff" stroke="#1B2F4C" stroke-width="1.6" stroke-linejoin="round"/>
           <path d="M40 12 C50 14 70 14 80 12 L82 34 C80 38 40 38 38 34 Z" fill="#FFC8BF" opacity=".75"/>
           <path d="M26 48 Q60 40 98 48 L102 72 L22 72 Z" fill="#FFE7E1" stroke="#FFC8BF" stroke-width="1.2"/>
@@ -337,7 +338,7 @@
     <h4 class="setSec">Trim line</h4>
     <div class="setGrid">
       <div class="scard"><div class="sLab">Whitening tray line <span class="info" title="Where the tray edge is cut. At the gum line (scalloped) is the usual for whitening trays.">i</span></div>
-        <div class="sPic"><svg viewBox="0 0 120 72">
+        <div class="sPic" data-img="trimline_whitening"><svg viewBox="0 0 120 72">
           <path d="M26 46 Q60 36 98 46 L102 72 L22 72 Z" fill="#FFE7E1" stroke="#FFC8BF" stroke-width="1.2"/>
           <path d="M40 10 C48 6 56 10 58 18 L60 40 C58 46 42 46 40 40 Z M62 10 C70 6 78 10 80 18 L82 40 C80 46 64 46 62 40 Z" fill="#fff" stroke="#1B2F4C" stroke-width="1.5" stroke-linejoin="round"/>
           <path d="M28 44 Q44 36 50 42 Q60 50 70 42 Q76 36 96 44" fill="none" stroke="#FA624D" stroke-width="2" stroke-dasharray="3 2"/>
@@ -345,7 +346,7 @@
         <select id="tl_off"><option value="0">At the gum line (scalloped)</option><option value="0.5">0.5 mm onto the gum</option><option value="1">1 mm onto the gum</option><option value="1.5">1.5 mm onto the gum</option></select>
       </div>
       <div class="scard"><div class="sLab">Retainer line (mm onto the gum) <span class="info" title="Thermoformed retainers are cut a little onto the gum for strength and retention. 1.25 mm matches the aligner line.">i</span></div>
-        <div class="sPic"><svg viewBox="0 0 120 72">
+        <div class="sPic" data-img="trimline_retainer"><svg viewBox="0 0 120 72">
           <path d="M26 46 Q60 36 98 46 L102 72 L22 72 Z" fill="#FFE7E1" stroke="#FFC8BF" stroke-width="1.2"/>
           <path d="M40 10 C48 6 56 10 58 18 L60 40 C58 46 42 46 40 40 Z M62 10 C70 6 78 10 80 18 L82 40 C80 46 64 46 62 40 Z" fill="#fff" stroke="#1B2F4C" stroke-width="1.5" stroke-linejoin="round"/>
           <path d="M28 44 Q60 36 96 44" fill="none" stroke="#C3C9D0" stroke-width="1" stroke-dasharray="2 2"/>
@@ -355,7 +356,7 @@
         <div class="stepper"><button data-step="-0.25" data-for="tt_off">−</button><input type="number" id="tt_off" step="0.25" min="0" max="3" value="1.25"><button data-step="0.25" data-for="tt_off">+</button></div>
       </div>
       <div class="scard"><div class="sLab">Between the teeth <span class="info" title="How the line crosses the gum between two teeth: straight across the papilla (easier to trim, seals well) or following the gum down into every gap.">i</span></div>
-        <div class="sPic"><svg viewBox="0 0 120 72">
+        <div class="sPic" data-img="between_teeth"><svg viewBox="0 0 120 72">
           <path d="M26 46 Q60 36 98 46 L102 72 L22 72 Z" fill="#FFE7E1" stroke="#FFC8BF" stroke-width="1.2"/>
           <path d="M30 10 C40 6 50 10 52 18 L54 40 C52 46 32 46 30 40 Z M66 10 C76 6 86 10 88 18 L90 40 C88 46 68 46 66 40 Z" fill="#fff" stroke="#1B2F4C" stroke-width="1.5" stroke-linejoin="round"/>
           <path d="M54 40 L60 30 L66 40 Z" fill="#FFC8BF"/>
@@ -369,7 +370,7 @@
     <h4 class="setSec">Model base</h4>
     <div class="setGrid">
       <div class="scard"><div class="sLab">Rim beyond the trim line (mm) <span class="info" title="How much model is kept outside the trim line, facial and lingual. Titan keeps very little; 3 mm gives the bur something to ride on.">i</span></div>
-        <div class="sPic"><svg viewBox="0 0 120 72">
+        <div class="sPic" data-img="rim"><svg viewBox="0 0 120 72">
           <path d="M18 66 C14 30 40 8 60 8 C80 8 106 30 102 66 L90 66 C92 36 74 20 60 20 C46 20 28 36 30 66 Z" fill="#E8ECF2" stroke="#5471A0" stroke-width="1.2"/>
           <path d="M26 66 C24 38 42 15 60 15 C78 15 96 38 94 66" fill="none" stroke="#FA624D" stroke-width="1.6" stroke-dasharray="3 2"/>
           <g fill="#fff" stroke="#1B2F4C" stroke-width="1.2"><ellipse cx="60" cy="17" rx="5" ry="4"/><ellipse cx="49" cy="20" rx="5" ry="4"/><ellipse cx="71" cy="20" rx="5" ry="4"/><ellipse cx="40" cy="27" rx="5" ry="4"/><ellipse cx="80" cy="27" rx="5" ry="4"/><ellipse cx="34" cy="38" rx="5" ry="4.5"/><ellipse cx="86" cy="38" rx="5" ry="4.5"/><ellipse cx="31" cy="51" rx="5.5" ry="5"/><ellipse cx="89" cy="51" rx="5.5" ry="5"/></g>
@@ -378,7 +379,7 @@
         <div class="stepper"><button data-step="-0.5" data-for="rim">−</button><input type="number" id="rim" step="0.5" min="1" max="6" value="3"><button data-step="0.5" data-for="rim">+</button></div>
       </div>
       <div class="scard"><div class="sLab">Floor below the trim line (mm) <span class="info" title="The model floor sits this far below the lowest point of the trim line. 3 mm is what Titan uses; deeper = taller model.">i</span></div>
-        <div class="sPic"><svg viewBox="0 0 120 72">
+        <div class="sPic" data-img="floor_depth"><svg viewBox="0 0 120 72">
           <path d="M44 8 C56 5 66 10 68 18 L72 36 C70 42 46 42 44 36 Z" fill="#fff" stroke="#1B2F4C" stroke-width="1.5" stroke-linejoin="round"/>
           <path d="M14 44 Q58 32 106 44 L106 58 L14 58 Z" fill="#FFE7E1" stroke="#FFC8BF" stroke-width="1.2"/>
           <path d="M16 42 Q58 31 104 42" fill="none" stroke="#FA624D" stroke-width="2" stroke-dasharray="3 2"/>
@@ -388,7 +389,7 @@
         <div class="stepper"><button data-step="-0.5" data-for="floor_below">−</button><input type="number" id="floor_below" step="0.5" min="1.5" max="8" value="3"><button data-step="0.5" data-for="floor_below">+</button></div>
       </div>
       <div class="scard"><div class="sLab">Behind the last molar (mm) <span class="info" title="The model ends this far behind the last tooth on each side, and the tissue there is lowered 2 mm under the trim line so the bur can get round the distal surface.">i</span></div>
-        <div class="sPic"><svg viewBox="0 0 120 72">
+        <div class="sPic" data-img="behind_last_molar"><svg viewBox="0 0 120 72">
           <path d="M10 44 Q40 34 70 40 L96 40 L96 58 L10 58 Z" fill="#FFE7E1" stroke="#FFC8BF" stroke-width="1.2"/>
           <g fill="#fff" stroke="#1B2F4C" stroke-width="1.4" stroke-linejoin="round"><path d="M16 42 C16 24 26 20 30 22 L32 40 Z"/><path d="M34 40 C36 20 50 18 54 24 L56 40 Z"/><path d="M58 40 C58 22 76 18 80 26 L82 40 Z"/></g>
           <path d="M96 30 L96 62" stroke="#FA624D" stroke-width="2" stroke-dasharray="3 2"/>
@@ -398,7 +399,7 @@
         <div class="stepper"><button data-step="-0.5" data-for="distal_keep">−</button><input type="number" id="distal_keep" step="0.5" min="0" max="8" value="3"><button data-step="0.5" data-for="distal_keep">+</button></div>
       </div>
       <div class="scard"><div class="sLab">Level to the gum line <span class="info" title="Tilt the model so the facial gum line is level, the way Titan bases it: low, even walls all the way round instead of tall walls under the front teeth.">i</span></div>
-        <div class="sPic"><svg viewBox="0 0 120 72">
+        <div class="sPic" data-img="level"><svg viewBox="0 0 120 72">
           <path d="M12 54 L28 50 Q58 40 100 44 L104 62 L12 62 Z" fill="#FFE7E1" stroke="#FFC8BF" stroke-width="1.2"/>
           <g fill="#fff" stroke="#1B2F4C" stroke-width="1.3" stroke-linejoin="round"><path d="M30 48 C30 34 40 30 44 32 L46 46 Z"/><path d="M50 45 C52 28 66 26 70 32 L72 44 Z"/><path d="M76 44 C78 24 94 22 96 32 L98 44 Z"/></g>
           <path d="M14 50 L104 42" stroke="#FA624D" stroke-width="2" stroke-dasharray="3 2"/>
@@ -409,7 +410,7 @@
         <select id="level"><option value="1">On · Titan style</option><option value="0">Off · occlusal plane flat</option></select>
       </div>
       <div class="scard"><div class="sLab">Trimlign base <span class="info" title="The locating base the Trimlign needs, placed the way Titan places it.">i</span></div>
-        <div class="sPic"><svg viewBox="0 0 120 72">
+        <div class="sPic" data-img="base_plate"><svg viewBox="0 0 120 72">
           <path d="M28 42 Q60 14 92 42 L92 50 Q60 28 28 50 Z" fill="#fff" stroke="#1B2F4C" stroke-width="1.4" stroke-linejoin="round"/>
           <rect x="14" y="50" width="92" height="14" rx="3" fill="#C3C9D0" stroke="#5471A0" stroke-width="1.2"/>
           <circle cx="60" cy="57" r="3" fill="#1B2F4C"/><rect x="24" y="54" width="10" height="6" rx="1" fill="#969FAB"/><rect x="86" y="54" width="10" height="6" rx="1" fill="#969FAB"/>
@@ -417,7 +418,7 @@
         <select id="base"><option value="1">Add the base</option><option value="0">No base</option></select>
       </div>
       <div class="scard"><div class="sLab">Scan clean-up <span class="info" title="Done on its own: loose bits of scan, tissue the floor cuts free, and the pad behind the last molar are removed. Anything else (tongue, cheek, a flap): the Cut away brush.">i</span></div>
-        <div class="sPic"><svg viewBox="0 0 120 72">
+        <div class="sPic" data-img="scan_cleanup"><svg viewBox="0 0 120 72">
           <path d="M18 66 C14 30 40 8 60 8 C80 8 106 30 102 66 Z" fill="#E8ECF2" stroke="#5471A0" stroke-width="1.2"/>
           <g fill="#fff" stroke="#1B2F4C" stroke-width="1.2"><ellipse cx="60" cy="17" rx="5" ry="4"/><ellipse cx="49" cy="20" rx="5" ry="4"/><ellipse cx="71" cy="20" rx="5" ry="4"/><ellipse cx="40" cy="27" rx="5" ry="4"/><ellipse cx="80" cy="27" rx="5" ry="4"/><ellipse cx="34" cy="38" rx="5" ry="4.5"/><ellipse cx="86" cy="38" rx="5" ry="4.5"/><ellipse cx="31" cy="51" rx="5.5" ry="5"/><ellipse cx="89" cy="51" rx="5.5" ry="5"/></g>
           <path d="M10 60 Q6 50 14 48 Q20 52 16 60 Z" fill="none" stroke="#FA624D" stroke-width="1.4" stroke-dasharray="2 2"/>
@@ -431,7 +432,7 @@
     <h4 class="setSec">Marks on the model</h4>
     <div class="setGrid">
       <div class="scard"><div class="sLab">Initials on a molar <span class="info" title="Patient initials + W (whitening) or R (retainer) raised 0.35 mm on the cheek side of a first molar, so they show on the tray itself.">i</span></div>
-        <div class="sPic"><svg viewBox="0 0 120 72">
+        <div class="sPic" data-img="initials_on_tooth"><svg viewBox="0 0 120 72">
           <path d="M34 14 C48 6 72 6 86 14 L90 44 C88 60 72 66 60 66 C48 66 32 60 30 44 Z" fill="#fff" stroke="#1B2F4C" stroke-width="1.6" stroke-linejoin="round"/>
           <path d="M44 24 Q60 18 76 24" fill="none" stroke="#C3C9D0" stroke-width="1"/>
           <text x="60" y="48" text-anchor="middle" font-family="Oswald, Arial, sans-serif" font-weight="700" font-size="16" fill="#1D3EA9">KP W</text>
@@ -439,7 +440,7 @@
         <select id="tooth_mark"><option value="1">On · initials + W / R</option><option value="0">Off</option></select>
       </div>
       <div class="scard"><div class="sLab">Engraving on the base <span class="info" title="Patient name and tray type cut into the base, inside the arch. Type your own text to replace it.">i</span></div>
-        <div class="sPic"><svg viewBox="0 0 120 72">
+        <div class="sPic" data-img="engraving_base"><svg viewBox="0 0 120 72">
           <rect x="12" y="16" width="96" height="40" rx="4" fill="#E8ECF2" stroke="#5471A0" stroke-width="1.2"/>
           <text x="60" y="34" text-anchor="middle" font-family="Arial, sans-serif" font-weight="700" font-size="11" fill="#1B2F4C">K. POST</text>
           <text x="60" y="48" text-anchor="middle" font-family="Arial, sans-serif" font-weight="700" font-size="8.5" fill="#1B2F4C">WHITENING</text>
@@ -452,7 +453,7 @@
     <h4 class="setSec">Bulk drops &amp; the drop folder</h4>
     <div class="setGrid">
       <div class="scard"><div class="sLab">What to make <span class="info" title="Used when several patients are dropped at once or a scan lands in the drop folder (a single scan on the page asks instead).">i</span></div>
-        <div class="sPic"><svg viewBox="0 0 120 72">
+        <div class="sPic" data-img="what_to_make"><svg viewBox="0 0 120 72">
           <path d="M14 50 Q60 30 106 50 L106 62 Q60 42 14 62 Z" fill="#E5EAF8" stroke="#1D3EA9" stroke-width="1.3"/>
           <path d="M14 34 Q60 14 106 34 L106 44 Q60 24 14 44 Z" fill="#FFE7E1" stroke="#FA624D" stroke-width="1.3"/>
           <text x="60" y="22" text-anchor="middle" font-family="Montserrat, Arial, sans-serif" font-weight="600" font-size="8" fill="#FA624D">WT</text>
@@ -461,7 +462,7 @@
         <select id="preset"><option value="both">Whitening tray + retainer (both)</option><option value="bleaching">Whitening tray only</option><option value="bleaching_3_3">Whitening tray 3-3 only</option><option value="aligner_high">Retainer only</option><option value="plain_model">Plain model</option></select>
       </div>
       <div class="scard"><div class="sLab">Arch <span class="info" title="Auto-detect reads the file name (upper / lower) and falls back to the shape of the scan. Force one only if a file is misnamed.">i</span></div>
-        <div class="sPic"><svg viewBox="0 0 120 72">
+        <div class="sPic" data-img="arch"><svg viewBox="0 0 120 72">
           <path d="M22 30 C22 12 40 8 60 8 C80 8 98 12 98 30" fill="none" stroke="#1B2F4C" stroke-width="1.6"/>
           <g fill="#fff" stroke="#1B2F4C" stroke-width="1.1"><ellipse cx="60" cy="10" rx="5" ry="3.5"/><ellipse cx="48" cy="12" rx="5" ry="3.5"/><ellipse cx="72" cy="12" rx="5" ry="3.5"/><ellipse cx="37" cy="17" rx="5" ry="3.5"/><ellipse cx="83" cy="17" rx="5" ry="3.5"/><ellipse cx="28" cy="26" rx="5" ry="4"/><ellipse cx="92" cy="26" rx="5" ry="4"/></g>
           <path d="M22 44 C22 62 40 66 60 66 C80 66 98 62 98 44" fill="none" stroke="#1B2F4C" stroke-width="1.6"/>
@@ -713,8 +714,11 @@ function archSvg(n){
   return `<svg viewBox="0 0 120 72"><path d="M18 70 C14 30 40 8 60 8 C80 8 106 30 102 70" fill="#E8ECF2" stroke="#5471A0" stroke-width="1.2"/>` +
     teeth.map((t, i) => `<ellipse cx="${t[0]}" cy="${t[1]}" rx="${t[2]}" ry="${t[3]}" fill="${pos[i] <= n ? '#FA624D' : '#fff'}" stroke="${pos[i] <= n ? '#D8412E' : '#1B2F4C'}" stroke-width="1.2"/>`).join('') + `</svg>`;
 }
-function drawRegion(){ $('#pic_region').innerHTML = archSvg(+$('#res_n').value); }
-$('#openSettings').onclick = () => { $('#settings').classList.add('on'); drawRegion(); };
+function drawRegion(){ const n = +$('#res_n').value; $('#pic_region').innerHTML = `<img src="/static/img/region_${[0,3,4,5,6].includes(n) ? n : 5}.png" alt="reservoirs on ${n ? n + '-' + n : 'no'} teeth">`; }
+// hand-drawn pictures (static/img/<name>.png) replace the inline sketches wherever a file exists
+let picsLoaded = false;
+function loadPics(){ if (picsLoaded) return; picsLoaded = true; document.querySelectorAll('.sPic[data-img]').forEach(el => { const im = new Image(); im.onload = () => { el.innerHTML = ''; el.appendChild(im); }; im.alt = ''; im.src = `/static/img/${el.dataset.img}.png`; }); }
+$('#openSettings').onclick = () => { $('#settings').classList.add('on'); drawRegion(); loadPics(); };
 $('#setClose').onclick = () => { $('#settings').classList.remove('on'); saveSettings(); requestRender(); };
 $('#setDefaults').onclick = () => { SETTING_IDS.forEach(id => $('#' + id).value = SETTING_DEFAULTS[id]); drawRegion(); saveSettings(); };
 document.querySelectorAll('.stepper button').forEach(b => b.onclick = () => { const inp = $('#' + b.dataset.for); const step = +b.dataset.step; const dec = (String(step).split('.')[1] || '').length;
