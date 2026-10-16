@@ -22,7 +22,8 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TRAIN_DIR = os.path.join(ROOT, "training")
 STATE_DIR = os.path.join(TRAIN_DIR, "_learn")
 ASSETS = os.path.join(ROOT, "assets")
-MIN_BASE_F1 = 0.95
+MIN_BASE_F1 = 0.95          # smoothed tooth-mask F1 on full base cases (training/_base)
+MIN_BASE_F1_PACKED = 0.93   # plain per-vertex F1 on the packed base set that ships with the app
 MAX_ROWS_PER_CASE = 120_000
 
 
@@ -46,6 +47,27 @@ def titan_has_shells(path, min_shells=6):
         return sum(1 for p in parts if 1500 <= len(p.faces) <= 60000) >= min_shells
     except Exception:
         return False
+
+
+BASE_PACK = os.path.join(ASSETS, "base_training.npz")
+
+
+def base_pack_cases():
+    """The starting set that ships with the app: per arch the per-vertex features and targets (numbers only,
+    no scans, no names), so retraining works without anything to download. Cases under training/_base
+    (full scans + labels) are used instead when present."""
+    if not os.path.isfile(BASE_PACK):
+        return []
+    try:
+        z = np.load(BASE_PACK)
+    except Exception:
+        return []
+    names = list(z["feature_names"])
+    out = []
+    for k in sorted(x[:-2] for x in z.files if x.endswith("_X")):
+        out.append(dict(kind="base", name=k.replace("_", " "), arch=k.split("_")[-1], packed=True, names=names,
+                        X=z[k + "_X"].astype(np.float32), y_tooth=z[k + "_tooth"].astype(int), y_ip=z[k + "_ip"].astype(int), when=0.0))
+    return out
 
 
 def collect(root=TRAIN_DIR, log=print):
@@ -104,6 +126,8 @@ def status(root=TRAIN_DIR):
         except Exception:
             st = {}
     cases = collect(root, log=lambda m: None) if os.path.isdir(root) else []
+    if not any(c["kind"] == "base" for c in cases):
+        cases += [dict(kind="base", when=0.0, name=c["name"]) for c in base_pack_cases()]
     counts = {k: sum(1 for c in cases if c["kind"] == k) for k in ("base", "corrected", "titan")}
     last = st.get("finished", 0)
     new = [c["name"] for c in cases if c["kind"] != "base" and c["when"] > last]
@@ -137,9 +161,11 @@ def _write_status(d):
 
 
 def _score(models, c, from_proba=None):
-    from bleachtray.mesh_utils import smooth_field
     from sklearn.metrics import f1_score
     p = from_proba if from_proba is not None else models["models"]["tooth"].predict_proba(c["X"])[:, 1]
+    if c.get("packed"):              # sampled rows, no mesh: plain per-vertex F1
+        return float(f1_score(c["y_tooth"], (p > 0.5).astype(int)))
+    from bleachtray.mesh_utils import smooth_field
     pred = (smooth_field(c["A"], p, 4) > 0.5).astype(int)
     v = c["valid"]
     return float(f1_score(c["y_tooth"][v], pred[v]))
@@ -158,6 +184,9 @@ def retrain(root=TRAIN_DIR, force=False, log=None):
         cases_meta = collect(root, log=log)
         lessons = [c for c in cases_meta if c["kind"] != "base"]
         base = [c for c in cases_meta if c["kind"] == "base"]
+        packed = base_pack_cases() if not base else []
+        if packed:
+            log(f"base set: the {len(packed)} arches that ship with the app (training/_base would take precedence)")
         st = status(root)
         if not lessons:
             log("nothing to learn from yet (no brush-corrected cases, no Titan exports with tooth shells)")
@@ -165,10 +194,10 @@ def retrain(root=TRAIN_DIR, force=False, log=None):
         if not force and not st.get("new_since_last"):
             log("no new corrections since the last training")
             res = dict(outcome="nothing_new", finished=time.time(), running=False); _write_status(res); return res
-        if not base:
-            log("WARNING: no base set under training/_base - training on the corrections alone")
-        log(f"{len(base)} base + {len(lessons)} corrected/Titan arches")
-        cases = []
+        if not base and not packed:
+            log("WARNING: no base set (training/_base or assets/base_training.npz) - training on the corrections alone")
+        log(f"{len(base) + len(packed)} base + {len(lessons)} corrected/Titan arches")
+        cases = list(packed)
         for c in cases_meta:
             try:
                 d = case_data(c["raw"], c["gt"], log=log)
@@ -182,6 +211,8 @@ def retrain(root=TRAIN_DIR, force=False, log=None):
         cases = [c for c in cases if c["names"] == names]
         rng = np.random.default_rng(0)
         for c in cases:   # training rows per case capped, evaluation stays on every vertex
+            if c.get("packed"):
+                c["rows"] = np.arange(len(c["y_tooth"])); continue
             idx = np.where(c["valid"])[0]
             c["rows"] = idx if len(idx) <= MAX_ROWS_PER_CASE else rng.choice(idx, MAX_ROWS_PER_CASE, replace=False)
         current = load_models()
@@ -216,7 +247,7 @@ def retrain(root=TRAIN_DIR, force=False, log=None):
             log(f"  {c['kind']:9s} {n:40s} current {cur_scores[n]:.3f}  new out-of-fold {oof.get(n, float('nan')):.3f}" + (f"  new after learning {learned[n]:.3f}" if n in learned else ""))
         log(f"corrected/Titan cases: current model F1 {cur_on_lessons:.3f} -> new {new_on_lessons:.3f} (out of fold {oof_lessons:.3f}); base set out of fold {new_on_base:.3f}")
         ok_learned = not lesson_names or (new_on_lessons >= cur_on_lessons - 0.002 and new_on_lessons >= 0.95)
-        ok_base = not base_names or new_on_base >= MIN_BASE_F1
+        ok_base = not base_names or new_on_base >= (MIN_BASE_F1_PACKED if packed else MIN_BASE_F1)
         ok_general = len(lesson_names) < 3 or oof_lessons >= cur_on_lessons - 0.01
         ok = ok_learned and ok_base and ok_general
         res = dict(finished=time.time(), running=False, cases=len(cases), corrected=len(lesson_names),
